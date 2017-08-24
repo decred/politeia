@@ -1,0 +1,31 @@
+package: github.com/decred/politeia
+import:
+- package: github.com/btcsuite/btclog
+- package: github.com/btcsuite/go-flags
+- package: github.com/btcsuite/seelog
+  version: ^2.1.0
+- package: github.com/decred/dcrd
+  subpackages:
+  - chaincfg
+  - wire
+- package: github.com/decred/dcrutil
+- package: github.com/decred/dcrwallet
+  subpackages:
+  - netparams
+- package: github.com/gorilla/mux
+  version: ^1.4.0
+- package: github.com/jrick/logrotate
+  subpackages:
+  - rotator
+- package: github.com/marcopeereboom/lockfile
+- package: github.com/kennygrant/sanitize
+  version: ^1.2.0
+- package: github.com/decred/dcrtime
+  subpackages:
+  - api/v1
+- package: github.com/davecgh/go-spew
+  version: ^1.1.0
+  subpackages:
+  - spew
+- package: github.com/robfig/cron
+  version: ~1.0.0
