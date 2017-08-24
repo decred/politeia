@@ -44,12 +44,12 @@ The politeia stack is as follows:
 
 Compile and launch the daemon:
 ```
-go install -v $(glide nv) && LOGFLAGS=shortfile politeiad --testnet --dcrtimehost https://127.0.0.1 --dcrtimecert ../Dcrtimed/https.cert
+go install -v $(glide nv) && LOGFLAGS=shortfile politeiad --testnet
 ```
 
 Download server identity to client:
 ```
-politeia -v -testnet -h 127.0.0.1 identity
+politeia -v -testnet identity
 ```
 Accept default path by pressing `enter`.
 
@@ -67,7 +67,7 @@ Identity saved to: /Users/marco/Library/Application Support/Politeia/identity.js
 
 Send proposal:
 ```
-politeia -v -testnet -h 127.0.0.1 new "My awesome proposal" proposal.txt spec.txt
+politeia -v -testnet new "My awesome proposal" proposal.txt spec.txt
 ```
 
 Result will look something like:
