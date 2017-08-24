@@ -44,7 +44,7 @@ The politeia stack is as follows:
 
 Compile and launch the daemon:
 ```
-go install -v $(glide nv) && LOGFLAGS=shortfile politeiad --testnet
+glide i && go install -v $(glide nv) && LOGFLAGS=shortfile politeiad --testnet
 ```
 
 Download server identity to client:
