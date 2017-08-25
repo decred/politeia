@@ -6,6 +6,7 @@ package main
 
 import (
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -370,6 +372,50 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
+func checkAuth(w http.ResponseWriter, r *http.Request) bool {
+	s := strings.SplitN(r.Header.Get("Authorization"), " ", 2)
+	if len(s) != 2 {
+		return false
+	}
+
+	b, err := base64.StdEncoding.DecodeString(s[1])
+	if err != nil {
+		return false
+	}
+
+	pair := strings.SplitN(string(b), ":", 2)
+	if len(pair) != 2 {
+		return false
+	}
+
+	return pair[0] == "user" && pair[1] == "pass"
+}
+
+func (p *politeia) check(user, pass string) bool {
+	if user != p.cfg.RPCUser || pass != p.cfg.RPCPass {
+		return false
+	}
+	return true
+}
+
+func (p *politeia) auth(fn http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok := r.BasicAuth()
+		if !ok || !p.check(user, pass) {
+			log.Errorf("%v Unauthorized access for: %v",
+				r.RemoteAddr, user)
+			w.Header().Set("WWW-Authenticate",
+				`Basic realm="Politeiad"`)
+			w.WriteHeader(401)
+			w.Write([]byte("401 Unauthorized\n"))
+			return
+		}
+		log.Infof("%v Authorized access for: %v",
+			r.RemoteAddr, user)
+		fn(w, r)
+	}
+}
+
 func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 	var t v1.SetUnvettedStatus
 	decoder := json.NewDecoder(r.Body)
@@ -548,12 +594,15 @@ func _main() error {
 	// Setup mux
 	p.router = mux.NewRouter()
 
+	// Unprivileged routes
 	p.router.HandleFunc(v1.IdentityRoute, p.getIdentity).Methods("POST")
 	p.router.HandleFunc(v1.NewRoute, p.newProposal).Methods("POST")
 	p.router.HandleFunc(v1.GetUnvettedRoute, p.getUnvetted).Methods("POST")
 	p.router.HandleFunc(v1.GetVettedRoute, p.getVetted).Methods("POST")
+
+	// Routes that require auth
 	p.router.HandleFunc(v1.SetUnvettedStatusRoute,
-		p.setUnvettedStatus).Methods("POST")
+		p.auth(p.setUnvettedStatus)).Methods("POST")
 
 	// Bind to a port and pass our router in
 	listenC := make(chan error)

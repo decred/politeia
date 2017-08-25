@@ -6,6 +6,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net"
 	"os"
@@ -66,6 +67,8 @@ type config struct {
 	Version     string
 	HTTPSCert   string `long:"httpscert" description:"File containing the https certificate file"`
 	HTTPSKey    string `long:"httpskey" description:"File containing the https certificate key"`
+	RPCUser     string `long:"rpcuser" description:"RPC user name for privileged commands"`
+	RPCPass     string `long:"rpcpass" description:"RPC password for privileged commands"`
 	DcrtimeHost string `long:"dcrtimehost" description:"Dcrtime ip:port"`
 	DcrtimeCert string `long:"dcrtimecert" description:"File containing the https certificate file for dcrtimehost"`
 	Identity    string `long:"identity" description:"File containing the politeiad identity file"`
@@ -284,6 +287,8 @@ func loadConfig() (*config, []string, error) {
 	// Update the home directory for stakepoold if specified. Since the
 	// home directory is updated, other variables need to be updated to
 	// reflect the new changes.
+	randomUser := false
+	randomPass := false
 	if preCfg.HomeDir != "" {
 		cfg.HomeDir, _ = filepath.Abs(preCfg.HomeDir)
 
@@ -311,6 +316,30 @@ func loadConfig() (*config, []string, error) {
 			cfg.LogDir = filepath.Join(cfg.HomeDir, defaultLogDirname)
 		} else {
 			cfg.LogDir = preCfg.LogDir
+		}
+
+		// Set random username and password when not specified
+		if preCfg.RPCUser == "" {
+			randomUser = true
+			name, err := util.Random(32)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(0)
+			}
+			cfg.RPCUser = base64.StdEncoding.EncodeToString([]byte(name))
+		} else {
+			cfg.RPCUser = preCfg.RPCUser
+		}
+		if preCfg.RPCPass == "" {
+			randomPass = true
+			pass, err := util.Random(32)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(0)
+			}
+			cfg.RPCPass = base64.StdEncoding.EncodeToString([]byte(pass))
+		} else {
+			cfg.RPCPass = preCfg.RPCPass
 		}
 	}
 
@@ -487,6 +516,13 @@ func loadConfig() (*config, []string, error) {
 	// options.  Note this should go directly before the return.
 	if configFileError != nil {
 		log.Warnf("%v", configFileError)
+	}
+
+	if randomUser {
+		log.Warnf("RPC user name not set, using random value")
+	}
+	if randomPass {
+		log.Warnf("RPC password not set, using random value")
 	}
 
 	return &cfg, remainingArgs, nil

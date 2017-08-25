@@ -38,6 +38,8 @@ var (
 	printJson = flag.Bool("json", false, "Print JSON")
 	host      = flag.String("h", "", "Timestamping host")
 	verbose   = flag.Bool("v", false, "Verbose")
+	rpcuser   = flag.String("rpcuser", "", "RPC user name for privileged calls")
+	rpcpass   = flag.String("rpcpass", "", "RPC password for privileged calls")
 
 	verify = false // Validate server TLS certificate
 )
@@ -684,8 +686,13 @@ func setUnvettedStatus() error {
 	}
 
 	c := newClient(verify)
-	r, err := c.Post(*host+v1.SetUnvettedStatusRoute, "application/json",
+	req, err := http.NewRequest("POST", *host+v1.SetUnvettedStatusRoute,
 		bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+	req.SetBasicAuth(*rpcuser, *rpcpass)
+	r, err := c.Do(req)
 	if err != nil {
 		return err
 	}
