@@ -446,7 +446,7 @@ func (g *gitBackEnd) appendAuditTrail(path string, ts int64, merkle [sha256.Size
 
 	fmt.Fprintf(f, "%v: --- Audit Trail Record %x ---\n", ts, merkle)
 	for _, line := range lines {
-		fmt.Fprintf(f, "%v: %v\n", ts, line)
+		fmt.Fprintf(f, "%v: %v\n", ts, strings.Trim(line, " \t\n"))
 	}
 
 	return nil
