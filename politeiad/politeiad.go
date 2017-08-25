@@ -400,8 +400,8 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 	status, err := p.backend.SetUnvettedStatus(token,
 		convertFrontendStatus(t.Status))
 	if err != nil {
-		oldStatus := v1.Status[t.Status]
-		newStatus := v1.Status[convertBackendStatus(status)]
+		oldStatus := v1.Status[convertBackendStatus(status)]
+		newStatus := v1.Status[t.Status]
 		// Check for specific errors
 		if err == backend.ErrInvalidTransition {
 			log.Errorf("%v Invalid status code transition: "+
