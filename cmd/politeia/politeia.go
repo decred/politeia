@@ -477,19 +477,19 @@ func getUnvetted() error {
 			err)
 	}
 
-  if reply.Status != v1.StatusNotFound {
-    // Verify challenge.
-    err = verifyChallenge(id, challenge, reply.Response)
-    if err != nil {
-      return err
-    }
+	if reply.Status != v1.StatusNotFound {
+		// Verify challenge.
+		err = verifyChallenge(id, challenge, reply.Response)
+		if err != nil {
+			return err
+		}
 
-    // Verify content
-    err = v1.Verify(*id, reply.CensorshipRecord, reply.Files)
-    if err != nil {
-      return err
-    }
-  }
+		// Verify content.
+		err = v1.Verify(*id, reply.CensorshipRecord, reply.Files)
+		if err != nil {
+			return err
+		}
+	}
 
 	if !*printJson {
 		// Pretty print proposal
@@ -591,19 +591,19 @@ func getVetted() error {
 			err)
 	}
   
-  if reply.Status != v1.StatusNotFound {
-    // Verify challenge.
-    err = verifyChallenge(id, challenge, reply.Response)
-    if err != nil {
-      return err
-    }
+	if reply.Status != v1.StatusNotFound {
+		// Verify challenge.
+		err = verifyChallenge(id, challenge, reply.Response)
+		if err != nil {
+			return err
+		}
 
-    // Verify content
-    err = v1.Verify(*id, reply.CensorshipRecord, reply.Files)
-    if err != nil {
-      return err
-    }
-  }
+		// Verify content.
+		err = v1.Verify(*id, reply.CensorshipRecord, reply.Files)
+		if err != nil {
+			return err
+		}
+	}
 
 	if !*printJson {
 		// Pretty print proposal
