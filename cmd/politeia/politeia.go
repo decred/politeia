@@ -590,7 +590,7 @@ func getVetted() error {
 		return fmt.Errorf("Could not unmarshal GetVettedReply: %v",
 			err)
 	}
-  
+
 	// Verify challenge.
 	err = verifyChallenge(id, challenge, reply.Response)
 	if err != nil {
