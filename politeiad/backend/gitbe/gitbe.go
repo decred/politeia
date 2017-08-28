@@ -512,6 +512,12 @@ func (g *gitBackEnd) anchorRepo(path string) (*[sha256.Size]byte, error) {
 		return nil, fmt.Errorf("newAnchorRecord: %v", err)
 	}
 
+	// Append MerkleRoot to digests.  We have to do this since this is
+	// politeia's lookup key but dcrtime will likely return a different
+	// merkle.  Dcrtime returns a different merkle when there are
+	// additional digests in the set.
+	digests = append(digests, anchorKey)
+
 	// Anchor commits
 	log.Infof("Anchoring %v repository", repo)
 	err = g.anchor(digests)
