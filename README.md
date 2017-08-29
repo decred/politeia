@@ -44,7 +44,7 @@ The politeia stack is as follows:
 
 Compile and launch the daemon:
 ```
-glide i && go install -v $(glide nv) && LOGFLAGS=shortfile politeiad --testnet
+glide i && go install -v $(glide nv) && LOGFLAGS=shortfile politeiad --testnet --rpcuser=user --rpcpass=pass
 ```
 
 Download server identity to client:
@@ -80,3 +80,20 @@ Censorship record:
   Token    : 6284c5f8fba5665373b8e6651ebc8747b289fed242d2f880f64a284496bb4ca8
   Signature: 82d69b4ec83d2a732fe92028dbf78853d0814aeb4fcf0ff597c110c8843720951f7b9fae4305b0f1d9346c39bc960a364590236f9e0871f6f79860fc57d4c70a
 ```
+
+Publishing a proposal (requires credentials):
+```
+politeia --rpcuser user --rpcpass pass --testnet setunvettedstatus publish 6284c5f8fba5665373b8e6651ebc8747b289fed242d2f880f64a284496bb4ca8
+Set proposal status:
+  Status   : public
+```
+
+Censoring a proposal (requires credentials):
+```
+politeia --rpcuser user --rpcpass pass --testnet setunvettedstatus censor 527cb21b78a56d597f5ab4c199195343ecfcd56cf0d76910b2a63c97635a6532
+Set proposal status:
+  Status   : censored
+```
+
+**Note:** All politeia commands can dump the JSON output of every RPC command
+by adding the -json command line flag.
