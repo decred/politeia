@@ -485,6 +485,19 @@ func getUnvetted() error {
 		return err
 	}
 
+	// Verify status
+	if reply.Status == v1.StatusInvalid ||
+		reply.Status == v1.StatusNotFound {
+		// Pretty print proposal
+		status, ok := v1.Status[reply.Status]
+		if !ok {
+			status = v1.Status[v1.StatusInvalid]
+		}
+		fmt.Printf("Proposal     : %v\n", flags[0])
+		fmt.Printf("  Status     : %v\n", status)
+		return nil
+	}
+
 	// Verify content
 	err = v1.Verify(*id, reply.CensorshipRecord, reply.Files)
 	if err != nil {
@@ -595,6 +608,19 @@ func getVetted() error {
 	err = verifyChallenge(id, challenge, reply.Response)
 	if err != nil {
 		return err
+	}
+
+	// Verify status
+	if reply.Status == v1.StatusInvalid ||
+		reply.Status == v1.StatusNotFound {
+		// Pretty print proposal
+		status, ok := v1.Status[reply.Status]
+		if !ok {
+			status = v1.Status[v1.StatusInvalid]
+		}
+		fmt.Printf("Proposal     : %v\n", flags[0])
+		fmt.Printf("  Status     : %v\n", status)
+		return nil
 	}
 
 	// Verify content
