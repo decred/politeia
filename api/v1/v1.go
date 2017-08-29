@@ -41,7 +41,7 @@ const (
 	// Default network bits
 	DefaultMainnetHost = "politeia.decred.org"
 	DefaultMainnetPort = "49374"
-	DefaultTestnetHost = "politeia.testnet.decred.org"
+	DefaultTestnetHost = "politeia-testnet.decred.org"
 	DefaultTestnetPort = "59374"
 )
 
