@@ -14,6 +14,7 @@ import (
 	"github.com/decred/politeia/politeiad/backend/gitbe"
 	"github.com/marcopeereboom/lockfile"
 	"github.com/syndtr/goleveldb/leveldb"
+	"github.com/syndtr/goleveldb/leveldb/opt"
 )
 
 var (
@@ -48,7 +49,13 @@ func _main() error {
 	fmt.Printf("Database: %v\n", *dbDirectory)
 	fmt.Printf("Lockfile: %v\n", lockFilename)
 
-	db, err := leveldb.OpenFile(*dbDirectory, nil)
+	if _, err = os.Stat(*dbDirectory); os.IsNotExist(err) {
+		return fmt.Errorf("Database directory does not exist: %v",
+			*dbDirectory)
+	}
+	db, err := leveldb.OpenFile(*dbDirectory, &opt.Options{
+		ErrorIfMissing: true,
+	})
 	if err != nil {
 		return err
 	}
