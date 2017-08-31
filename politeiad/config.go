@@ -287,8 +287,6 @@ func loadConfig() (*config, []string, error) {
 	// Update the home directory for stakepoold if specified. Since the
 	// home directory is updated, other variables need to be updated to
 	// reflect the new changes.
-	randomUser := false
-	randomPass := false
 	if preCfg.HomeDir != "" {
 		cfg.HomeDir, _ = filepath.Abs(preCfg.HomeDir)
 
@@ -316,30 +314,6 @@ func loadConfig() (*config, []string, error) {
 			cfg.LogDir = filepath.Join(cfg.HomeDir, defaultLogDirname)
 		} else {
 			cfg.LogDir = preCfg.LogDir
-		}
-
-		// Set random username and password when not specified
-		if preCfg.RPCUser == "" {
-			randomUser = true
-			name, err := util.Random(32)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(0)
-			}
-			cfg.RPCUser = base64.StdEncoding.EncodeToString([]byte(name))
-		} else {
-			cfg.RPCUser = preCfg.RPCUser
-		}
-		if preCfg.RPCPass == "" {
-			randomPass = true
-			pass, err := util.Random(32)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(0)
-			}
-			cfg.RPCPass = base64.StdEncoding.EncodeToString([]byte(pass))
-		} else {
-			cfg.RPCPass = preCfg.RPCPass
 		}
 	}
 
@@ -511,18 +485,29 @@ func loadConfig() (*config, []string, error) {
 	}
 	cfg.Identity = cleanAndExpandPath(cfg.Identity)
 
+	// Set random username and password when not specified
+	if cfg.RPCUser == "" {
+		name, err := util.Random(32)
+		if err != nil {
+			return nil, nil, err
+		}
+		cfg.RPCUser = base64.StdEncoding.EncodeToString([]byte(name))
+		log.Warnf("RPC user name not set, using random value")
+	}
+	if cfg.RPCPass == "" {
+		pass, err := util.Random(32)
+		if err != nil {
+			return nil, nil, err
+		}
+		cfg.RPCPass = base64.StdEncoding.EncodeToString([]byte(pass))
+		log.Warnf("RPC password not set, using random value")
+	}
+
 	// Warn about missing config file only after all other configuration is
 	// done.  This prevents the warning on help messages and invalid
 	// options.  Note this should go directly before the return.
 	if configFileError != nil {
 		log.Warnf("%v", configFileError)
-	}
-
-	if randomUser {
-		log.Warnf("RPC user name not set, using random value")
-	}
-	if randomPass {
-		log.Warnf("RPC password not set, using random value")
 	}
 
 	return &cfg, remainingArgs, nil
