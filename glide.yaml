@@ -29,3 +29,5 @@ import:
   - spew
 - package: github.com/robfig/cron
   version: ~1.0.0
+- package: github.com/gorilla/csrf
+  version: ^1.5.0
