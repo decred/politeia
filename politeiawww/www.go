@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -8,31 +9,16 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/decred/dcrtime/util"
+	"github.com/decred/politeia/politeiawww/api/v1"
+	"github.com/decred/politeia/util"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
 )
 
-const (
-	politeiaAPIVersion = 1 // API version this backend understands
-
-	csrfToken = "X-CSRF-Token" // CSRF token for replies
-)
-
 var (
-	// politeiaAPIRoute is the prefix to the API route
-	politeiaAPIRoute = fmt.Sprintf("api/v%v", politeiaAPIVersion)
-
 	// versionReply is the cached version reply.
 	versionReply []byte
 )
-
-// Version command is used to determine the version of the API this backend
-// understands and additionally it provides the route to said API.
-type Version struct {
-	Version uint   // politeia WWW API version
-	Route   string // prefix to API calls
-}
 
 // User is a database record that persists user information.
 type User struct {
@@ -51,9 +37,9 @@ type politeiawww struct {
 // init sets default values at startup.
 func init() {
 	var err error
-	versionReply, err = json.Marshal(Version{
-		Version: politeiaAPIVersion,
-		Route:   politeiaAPIRoute,
+	versionReply, err = json.Marshal(v1.Version{
+		Version: v1.PoliteiaAPIVersion,
+		Route:   v1.PoliteiaAPIRoute,
 	})
 	if err != nil {
 		panic(fmt.Sprintf("versionReply: %v", err))
@@ -64,12 +50,14 @@ func init() {
 // is using.  Additionally it is used to obtain a CSRF token.
 func handleVersion(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set(csrfToken, csrf.Token(r))
+	w.Header().Add("Strict-Transport-Security",
+		"max-age=63072000; includeSubDomains")
+	w.Header().Set(v1.CsrfToken, csrf.Token(r))
 	w.WriteHeader(http.StatusOK)
 	w.Write(versionReply)
 }
 
-func GetUser(w http.ResponseWriter, r *http.Request) {
+func handleLogin(w http.ResponseWriter, r *http.Request) {
 	// Authenticate the request, get the id from the route params,
 	// and fetch the user from the DB, etc.
 
@@ -77,7 +65,7 @@ func GetUser(w http.ResponseWriter, r *http.Request) {
 	// or JavaScript framework can now read the header and return the token in
 	// in its own "X-CSRF-Token" request header on the subsequent POST.
 	fmt.Printf("token: %v\n", csrf.Token(r))
-	w.Header().Set(csrfToken, csrf.Token(r))
+	w.Header().Set(v1.CsrfToken, csrf.Token(r))
 	user := User{Id: 10}
 	b, err := json.Marshal(user)
 	if err != nil {
@@ -132,21 +120,45 @@ func _main() error {
 		cfg: loadedCfg,
 	}
 
+	// We don't persist connections to generate a new key every time we
+	// restart.
+	csrfKey, err := util.Random(32)
+	if err != nil {
+		return err
+	}
+	csrfHandle := csrf.Protect(csrfKey)
 	p.router = mux.NewRouter()
 	p.router.HandleFunc("/", handleVersion).Methods("GET")
-	//fmt.Printf("listening:\n")
-	//http.ListenAndServe(":8000", csrf.Protect([]byte("32-byte-long-auth-key"),
-	//	csrf.HttpOnly(false), csrf.Secure(false))(r))
+	p.router.HandleFunc(v1.PoliteiaAPIRoute+v1.RouteLogin,
+		handleLogin).Methods("POST")
 
 	// Bind to a port and pass our router in
 	listenC := make(chan error)
 	for _, listener := range loadedCfg.Listeners {
 		listen := listener
 		go func() {
+			cfg := &tls.Config{
+				MinVersion: tls.VersionTLS12,
+				CurvePreferences: []tls.CurveID{tls.CurveP521,
+					tls.X25519},
+				PreferServerCipherSuites: true,
+				CipherSuites: []uint16{
+					tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,
+					tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+					tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+					tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
+				},
+			}
+			srv := &http.Server{
+				Addr:      listen,
+				Handler:   csrfHandle(p.router),
+				TLSConfig: cfg,
+				TLSNextProto: make(map[string]func(*http.Server,
+					*tls.Conn, http.Handler), 0),
+			}
 			log.Infof("Listen: %v", listen)
-			listenC <- http.ListenAndServeTLS(listen,
-				loadedCfg.HTTPSCert, loadedCfg.HTTPSKey,
-				p.router)
+			listenC <- srv.ListenAndServeTLS(loadedCfg.HTTPSCert,
+				loadedCfg.HTTPSKey)
 		}()
 	}
 
