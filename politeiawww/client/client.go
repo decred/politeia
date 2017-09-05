@@ -197,7 +197,7 @@ func _main() error {
 
 	// Login
 	fmt.Printf("=== POST /api/v1/login ===\n")
-	_, err = c.login("moo", "blah")
+	_, err = c.login("moo@moo.com", "sikrit!")
 	if err != nil {
 		return err
 	}

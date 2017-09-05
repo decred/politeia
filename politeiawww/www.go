@@ -10,6 +10,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	"golang.org/x/crypto/bcrypt"
+
 	"github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/politeiawww/database"
 	"github.com/decred/politeia/politeiawww/database/localdb"
@@ -23,14 +25,6 @@ var (
 	// versionReply is the cached version reply.
 	versionReply []byte
 )
-
-// User is a database record that persists user information.
-type User struct {
-	Id     uint
-	Email  string
-	Secret string
-	Admin  bool
-}
 
 // politeiawww application context.
 type politeiawww struct {
@@ -69,8 +63,35 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 	log.Infof("login")
 	session, _ := p.store.Get(r, v1.CookieSession)
 
-	// Authenticate the request, get the id from the route params,
-	// and fetch the user from the DB, etc.
+	// Get login command.
+	var l v1.Login
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&l); err != nil {
+		log.Errorf("handleLogin: Unmarshal %v", err)
+		http.Error(w, http.StatusText(http.StatusForbidden),
+			http.StatusForbidden)
+		return
+	}
+	defer r.Body.Close()
+
+	// Get user from db.
+	u, err := p.db.UserGet(l.Email)
+	if err != nil {
+		log.Errorf("handleLogin: UserGet %v", err)
+		http.Error(w, http.StatusText(http.StatusForbidden),
+			http.StatusForbidden)
+		return
+	}
+
+	// Authenticate the user.
+	err = bcrypt.CompareHashAndPassword(u.HashedPassword,
+		[]byte(l.Password))
+	if err != nil {
+		log.Errorf("handleLogin: CompareHashAndPassword %v", err)
+		http.Error(w, http.StatusText(http.StatusForbidden),
+			http.StatusForbidden)
+		return
+	}
 
 	session.Values["authenticated"] = true
 	session.Save(r, w)
@@ -79,15 +100,15 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 	// or JavaScript framework can now read the header and return the token in
 	// in its own "X-CSRF-Token" request header on the subsequent POST.
 	w.Header().Set(v1.CsrfToken, csrf.Token(r))
-	user := User{Id: 10}
-	b, err := json.Marshal(user)
-	if err != nil {
-		http.Error(w, err.Error(), 500) // XXX
-		return
-	}
+	//user := User{Id: 10}
+	//b, err := json.Marshal(user)
+	//if err != nil {
+	//	http.Error(w, err.Error(), 500) // XXX
+	//	return
+	//}
 
-	w.WriteHeader(http.StatusOK)
-	w.Write(b)
+	//w.WriteHeader(http.StatusOK)
+	//w.Write(b)
 }
 
 func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
@@ -126,9 +147,12 @@ func (p *politeiawww) isLoggedIn(f http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// logging logs all incoming commands.
+//
+// NOTE: LOGGING WILL LOG PASSWORDS IF TRACING IS ENABLED.
 func logging(f http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Trace incomming request
+		// Trace incoming request
 		log.Tracef("%v", newLogClosure(func() string {
 			trace, err := httputil.DumpRequest(r, true)
 			if err != nil {
@@ -190,10 +214,24 @@ func _main() error {
 
 	// Setup backend.
 	localdb.UseLogger(localdbLog)
-	p.db, err = localdb.New()
+	p.db, err = localdb.New(loadedCfg.DataDir)
 	if err != nil {
 		return err
 	}
+	// XXX
+	//hashedPassword, err := bcrypt.GenerateFromPassword([]byte("sikrit!"),
+	//	bcrypt.DefaultCost)
+	//if err != nil {
+	//}
+	//u := database.User{
+	//	Email:          "moo@moo.com",
+	//	HashedPassword: hashedPassword,
+	//	Admin:          true,
+	//}
+	//err = p.db.UserNew(u)
+	//if err != nil {
+	//	return err
+	//}
 
 	// We don't persist connections to generate a new key every time we
 	// restart.
