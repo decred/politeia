@@ -108,6 +108,13 @@ func (p *politeiawww) handleSecret(w http.ResponseWriter, r *http.Request) {
 	// Reply
 }
 
+func logging(f http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		log.Infof("%v %v %v", r.Proto, r.RemoteAddr, r.URL.Path)
+		f(w, r)
+	}
+}
+
 func _main() error {
 	// Load configuration and parse command line.  This function also
 	// initializes logging and configures it accordingly.
@@ -160,13 +167,13 @@ func _main() error {
 	}
 	csrfHandle := csrf.Protect(csrfKey)
 	p.router = mux.NewRouter()
-	p.router.HandleFunc("/", p.handleVersion).Methods("GET")
+	p.router.HandleFunc("/", logging(p.handleVersion)).Methods("GET")
 	p.router.HandleFunc(v1.PoliteiaAPIRoute+v1.RouteLogin,
-		p.handleLogin).Methods("POST")
+		logging(p.handleLogin)).Methods("POST")
 	p.router.HandleFunc(v1.PoliteiaAPIRoute+v1.RouteLogout,
-		p.handleLogout).Methods("POST")
+		logging(p.handleLogout)).Methods("POST")
 	p.router.HandleFunc(v1.PoliteiaAPIRoute+v1.RouteSecret,
-		p.handleSecret).Methods("POST")
+		logging(p.handleSecret)).Methods("POST")
 
 	// Since we don't persist connections also generate a new cookie key on
 	// startup.
