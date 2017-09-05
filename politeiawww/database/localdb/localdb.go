@@ -23,6 +23,15 @@ type localdb struct {
 //
 // UserGet satisfies the backend interface.
 func (l *localdb) UserGet(email string) (*database.User, error) {
+	l.Lock()
+	defer l.Unlock()
+
+	if l.shutdown == true {
+		return nil, database.ErrShutdown
+	}
+
+	log.Debugf("UserGet: %v", email)
+
 	return nil, database.ErrUserNotFound
 }
 
@@ -40,6 +49,7 @@ func (l *localdb) Close() {
 
 // New creates a new localdb instance.
 func New() (*localdb, error) {
+	log.Tracef("New")
 	l := &localdb{}
 	return l, nil
 }

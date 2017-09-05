@@ -11,6 +11,8 @@ import (
 	"syscall"
 
 	"github.com/decred/politeia/politeiawww/api/v1"
+	"github.com/decred/politeia/politeiawww/database"
+	"github.com/decred/politeia/politeiawww/database/localdb"
 	"github.com/decred/politeia/util"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
@@ -36,6 +38,8 @@ type politeiawww struct {
 	router *mux.Router
 
 	store *sessions.CookieStore
+
+	db database.Database
 }
 
 // init sets default values at startup.
@@ -182,6 +186,13 @@ func _main() error {
 	// Setup application context.
 	p := &politeiawww{
 		cfg: loadedCfg,
+	}
+
+	// Setup backend.
+	localdb.UseLogger(localdbLog)
+	p.db, err = localdb.New()
+	if err != nil {
+		return err
 	}
 
 	// We don't persist connections to generate a new key every time we

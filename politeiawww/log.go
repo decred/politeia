@@ -41,12 +41,14 @@ var (
 	// application shutdown.
 	logRotator *rotator.Rotator
 
-	log = backendLog.Logger("PWWW")
+	log        = backendLog.Logger("PWWW")
+	localdbLog = backendLog.Logger("LODB")
 )
 
 // subsystemLoggers maps each subsystem identifier to its associated logger.
 var subsystemLoggers = map[string]btclog.Logger{
 	"PWWW": log,
+	"LODB": localdbLog,
 }
 
 // initLogRotator initializes the logging rotater to write logs to logFile and
