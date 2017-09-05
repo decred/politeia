@@ -86,6 +86,7 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
+	log.Infof("logout")
 	session, _ := p.store.Get(r, v1.CookieSession)
 
 	// Revoke users authentication
@@ -163,7 +164,7 @@ func _main() error {
 	p.router.HandleFunc(v1.PoliteiaAPIRoute+v1.RouteLogin,
 		p.handleLogin).Methods("POST")
 	p.router.HandleFunc(v1.PoliteiaAPIRoute+v1.RouteLogout,
-		p.handleLogin).Methods("POST")
+		p.handleLogout).Methods("POST")
 	p.router.HandleFunc(v1.PoliteiaAPIRoute+v1.RouteSecret,
 		p.handleSecret).Methods("POST")
 

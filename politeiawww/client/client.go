@@ -146,6 +146,38 @@ func (c *ctx) secret() (*v1.Version, error) {
 	return nil, nil
 }
 
+func (c *ctx) logout() error {
+	l := v1.Login{}
+	b, err := json.Marshal(l)
+	if err != nil {
+		return err
+	}
+
+	if *printJson {
+		fmt.Println(string(b))
+	}
+	route := *host + v1.PoliteiaAPIRoute + v1.RouteLogout
+	fmt.Printf("secret Route : %v\n", route)
+	req, err := http.NewRequest("POST", route, bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+	req.Header.Add("X-CSRF-Token", c.csrf)
+	r, err := c.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		r.Body.Close()
+	}()
+
+	if r.StatusCode != http.StatusOK {
+		return fmt.Errorf("HTTP Status: %v", r.StatusCode)
+	}
+
+	return nil
+}
+
 func _main() error {
 	flag.Parse()
 
@@ -172,6 +204,30 @@ func _main() error {
 	fmt.Printf("CSRF   : %v\n", c.csrf)
 
 	// Secret
+	fmt.Printf("=== POST /api/v1/secret ===\n")
+	_, err = c.secret()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("CSRF   : %v\n", c.csrf)
+
+	// Secret again
+	fmt.Printf("=== POST /api/v1/secret ===\n")
+	_, err = c.secret()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("CSRF   : %v\n", c.csrf)
+
+	// Logout
+	fmt.Printf("=== POST /api/v1/logout ===\n")
+	err = c.logout()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("CSRF   : %v\n", c.csrf)
+
+	// Secret once more that should fail
 	fmt.Printf("=== POST /api/v1/secret ===\n")
 	_, err = c.secret()
 	if err != nil {
