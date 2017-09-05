@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httputil"
 	"os"
 	"os/signal"
 	"syscall"
@@ -96,21 +97,45 @@ func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 func (p *politeiawww) handleSecret(w http.ResponseWriter, r *http.Request) {
 	log.Infof("secret")
-	session, _ := p.store.Get(r, v1.CookieSession)
+}
 
-	// Check if user is authenticated
-	if auth, ok := session.Values["authenticated"].(bool); !ok || !auth {
-		http.Error(w, http.StatusText(http.StatusForbidden),
-			http.StatusForbidden)
-		return
+func (p *politeiawww) isLoggedIn(f http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		log.Debugf("isLoggedIn: %v %v%v %v", r.Method, r.RemoteAddr,
+			r.URL, r.Proto)
+		session, err := p.store.Get(r, v1.CookieSession)
+		if err != nil {
+			log.Errorf("isLoggedIn: %v", err)
+			http.Error(w, http.StatusText(http.StatusForbidden),
+				http.StatusForbidden)
+			return
+		}
+
+		// Check if user is authenticated
+		if auth, ok := session.Values["authenticated"].(bool); !ok || !auth {
+			http.Error(w, http.StatusText(http.StatusForbidden),
+				http.StatusForbidden)
+			return
+		}
+
+		f(w, r)
 	}
-
-	// Reply
 }
 
 func logging(f http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		log.Infof("%v %v %v", r.Proto, r.RemoteAddr, r.URL.Path)
+		// Trace incomming request
+		log.Tracef("%v", newLogClosure(func() string {
+			trace, err := httputil.DumpRequest(r, true)
+			if err != nil {
+				trace = []byte(fmt.Sprintf("logging: "+
+					"DumpRequest %v", err))
+			}
+			return string(trace)
+		}))
+
+		// Log incoming connection
+		log.Infof("%v %v%v %v", r.Method, r.RemoteAddr, r.URL, r.Proto)
 		f(w, r)
 	}
 }
@@ -173,7 +198,7 @@ func _main() error {
 	p.router.HandleFunc(v1.PoliteiaAPIRoute+v1.RouteLogout,
 		logging(p.handleLogout)).Methods("POST")
 	p.router.HandleFunc(v1.PoliteiaAPIRoute+v1.RouteSecret,
-		logging(p.handleSecret)).Methods("POST")
+		logging(p.isLoggedIn(p.handleSecret))).Methods("POST")
 
 	// Since we don't persist connections also generate a new cookie key on
 	// startup.
