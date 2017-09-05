@@ -1,5 +1,5 @@
-hash: 1997170e1d271c79febf5f067008b85fcefc148e504e8b09265a751e6efec437
-updated: 2017-08-31T15:52:07.474536976-05:00
+hash: e86e50d659d931400632662cfb4c9731dc9e231fc361bcf37b669cc7df3c3fec
+updated: 2017-09-02T07:19:54.928299232-05:00
 imports:
 - name: github.com/agl/ed25519
   version: 278e1ec8e8a6e017cd07577924d6766039146ced
@@ -81,6 +81,7 @@ imports:
 - name: golang.org/x/crypto
   version: 84f24dfdf3c414ed893ca1b318d0045ef5a1f607
   subpackages:
+  - bcrypt
   - curve25519
   - ripemd160
 - name: golang.org/x/net

@@ -13,6 +13,7 @@ import (
 	"github.com/decred/politeia/util"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
+	"github.com/gorilla/sessions"
 )
 
 var (
@@ -32,6 +33,8 @@ type User struct {
 type politeiawww struct {
 	cfg    *config
 	router *mux.Router
+
+	store *sessions.CookieStore
 }
 
 // init sets default values at startup.
@@ -48,7 +51,7 @@ func init() {
 
 // version is an HTTP GET to determine what version and API route this backend
 // is using.  Additionally it is used to obtain a CSRF token.
-func handleVersion(w http.ResponseWriter, r *http.Request) {
+func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Add("Strict-Transport-Security",
 		"max-age=63072000; includeSubDomains")
@@ -57,23 +60,51 @@ func handleVersion(w http.ResponseWriter, r *http.Request) {
 	w.Write(versionReply)
 }
 
-func handleLogin(w http.ResponseWriter, r *http.Request) {
+func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
+	log.Infof("login")
+	session, _ := p.store.Get(r, v1.CookieSession)
+
 	// Authenticate the request, get the id from the route params,
 	// and fetch the user from the DB, etc.
+
+	session.Values["authenticated"] = true
+	session.Save(r, w)
 
 	// Get the token and pass it in the CSRF header. Our JSON-speaking client
 	// or JavaScript framework can now read the header and return the token in
 	// in its own "X-CSRF-Token" request header on the subsequent POST.
-	fmt.Printf("token: %v\n", csrf.Token(r))
 	w.Header().Set(v1.CsrfToken, csrf.Token(r))
 	user := User{Id: 10}
 	b, err := json.Marshal(user)
 	if err != nil {
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), 500) // XXX
 		return
 	}
 
+	w.WriteHeader(http.StatusOK)
 	w.Write(b)
+}
+
+func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
+	session, _ := p.store.Get(r, v1.CookieSession)
+
+	// Revoke users authentication
+	session.Values["authenticated"] = false
+	session.Save(r, w)
+}
+
+func (p *politeiawww) handleSecret(w http.ResponseWriter, r *http.Request) {
+	log.Infof("secret")
+	session, _ := p.store.Get(r, v1.CookieSession)
+
+	// Check if user is authenticated
+	if auth, ok := session.Values["authenticated"].(bool); !ok || !auth {
+		http.Error(w, http.StatusText(http.StatusForbidden),
+			http.StatusForbidden)
+		return
+	}
+
+	// Reply
 }
 
 func _main() error {
@@ -128,9 +159,27 @@ func _main() error {
 	}
 	csrfHandle := csrf.Protect(csrfKey)
 	p.router = mux.NewRouter()
-	p.router.HandleFunc("/", handleVersion).Methods("GET")
+	p.router.HandleFunc("/", p.handleVersion).Methods("GET")
 	p.router.HandleFunc(v1.PoliteiaAPIRoute+v1.RouteLogin,
-		handleLogin).Methods("POST")
+		p.handleLogin).Methods("POST")
+	p.router.HandleFunc(v1.PoliteiaAPIRoute+v1.RouteLogout,
+		p.handleLogin).Methods("POST")
+	p.router.HandleFunc(v1.PoliteiaAPIRoute+v1.RouteSecret,
+		p.handleSecret).Methods("POST")
+
+	// Since we don't persist connections also generate a new cookie key on
+	// startup.
+	cookieKey, err := util.Random(32)
+	if err != nil {
+		return err
+	}
+	p.store = sessions.NewCookieStore(cookieKey)
+	p.store.Options = &sessions.Options{
+		Path:     "/",
+		MaxAge:   86400, // One day
+		Secure:   true,
+		HttpOnly: true,
+	}
 
 	// Bind to a port and pass our router in
 	listenC := make(chan error)

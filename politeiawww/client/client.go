@@ -8,7 +8,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/cookiejar"
 	"os"
+
+	"golang.org/x/net/publicsuffix"
 
 	"github.com/decred/politeia/politeiawww/api/v1"
 )
@@ -18,25 +21,39 @@ var (
 	printJson = flag.Bool("json", false, "Print JSON")
 )
 
-func newClient(skipVerify bool) *http.Client {
+type ctx struct {
+	client *http.Client
+	csrf   string
+}
+
+func newClient(skipVerify bool) (*ctx, error) {
 	tlsConfig := &tls.Config{
 		InsecureSkipVerify: skipVerify,
 	}
 	tr := &http.Transport{
 		TLSClientConfig: tlsConfig,
 	}
-	return &http.Client{Transport: tr}
+	jar, err := cookiejar.New(&cookiejar.Options{
+		PublicSuffixList: publicsuffix.List,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &ctx{client: &http.Client{
+		Transport: tr,
+		Jar:       jar,
+	}}, nil
 }
 
-func getCSRF(c *http.Client) (*v1.Version, []*http.Cookie, string, error) {
-	r, err := c.Get(*host)
+func (c *ctx) getCSRF() (*v1.Version, error) {
+	r, err := c.client.Get(*host)
 	if err != nil {
-		return nil, nil, "", err
+		return nil, err
 	}
 	defer r.Body.Close()
 
 	if r.StatusCode != http.StatusOK {
-		return nil, nil, "", fmt.Errorf("HTTP Status: %v", r.StatusCode)
+		return nil, fmt.Errorf("HTTP Status: %v", r.StatusCode)
 	}
 
 	var mw io.Writer
@@ -54,16 +71,15 @@ func getCSRF(c *http.Client) (*v1.Version, []*http.Cookie, string, error) {
 	var v v1.Version
 	err = json.Unmarshal(body.Bytes(), &v)
 	if err != nil {
-		return nil, nil, "",
-			fmt.Errorf("Could node unmarshal version: %v", err)
+		return nil, fmt.Errorf("Could node unmarshal version: %v", err)
 	}
 
-	csrfToken := r.Header.Get("X-Csrf-Token")
+	c.csrf = r.Header.Get("X-Csrf-Token")
 
-	return &v, r.Cookies(), csrfToken, nil
+	return &v, nil
 }
 
-func login(c *http.Client, cookies []*http.Cookie, csrfToken, email, password string) (*v1.Version, error) {
+func (c *ctx) login(email, password string) (*v1.Version, error) {
 	l := v1.Login{
 		Email:    email,
 		Password: password, // XXX SCRYPT THIS
@@ -82,16 +98,46 @@ func login(c *http.Client, cookies []*http.Cookie, csrfToken, email, password st
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Add("X-CSRF-Token", csrfToken)
-	for _, cookie := range cookies {
-		fmt.Printf("Cookie: %v %v\n", cookie.Name, cookie.Value)
-		req.AddCookie(cookie)
-	}
-	r, err := c.Do(req)
+	req.Header.Add("X-CSRF-Token", c.csrf)
+	r, err := c.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
-	defer r.Body.Close()
+	defer func() {
+		r.Body.Close()
+	}()
+
+	if r.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("HTTP Status: %v", r.StatusCode)
+	}
+
+	return nil, nil
+}
+
+func (c *ctx) secret() (*v1.Version, error) {
+	l := v1.Login{}
+	b, err := json.Marshal(l)
+	if err != nil {
+		return nil, err
+	}
+
+	if *printJson {
+		fmt.Println(string(b))
+	}
+	route := *host + v1.PoliteiaAPIRoute + v1.RouteSecret
+	fmt.Printf("secret Route : %v\n", route)
+	req, err := http.NewRequest("POST", route, bytes.NewReader(b))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Add("X-CSRF-Token", c.csrf)
+	r, err := c.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		r.Body.Close()
+	}()
 
 	if r.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("HTTP Status: %v", r.StatusCode)
@@ -105,25 +151,33 @@ func _main() error {
 
 	// Always hit / first for csrf token and obtain api version
 	fmt.Printf("=== GET / ===\n")
-	c := newClient(true)
-	version, cookies, csrfToken, err := getCSRF(c)
+	c, err := newClient(true)
+	if err != nil {
+		return err
+	}
+	version, err := c.getCSRF()
 	if err != nil {
 		return err
 	}
 	fmt.Printf("Version: %v\n", version.Version)
 	fmt.Printf("Route  : %v\n", version.Route)
-	fmt.Printf("CSRF   : %v\n", csrfToken)
-	for _, cookie := range cookies {
-		fmt.Printf("Cookie : %v %v\n", cookie.Name, cookie.Value)
-
-	}
+	fmt.Printf("CSRF   : %v\n", c.csrf)
 
 	// Login
 	fmt.Printf("=== POST /api/v1/login ===\n")
-	_, err = login(c, cookies, csrfToken, "moo", "blah")
+	_, err = c.login("moo", "blah")
 	if err != nil {
 		return err
 	}
+	fmt.Printf("CSRF   : %v\n", c.csrf)
+
+	// Secret
+	fmt.Printf("=== POST /api/v1/secret ===\n")
+	_, err = c.secret()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("CSRF   : %v\n", c.csrf)
 
 	return nil
 }

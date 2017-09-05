@@ -31,3 +31,6 @@ import:
   version: ~1.0.0
 - package: github.com/gorilla/csrf
   version: ^1.5.0
+- package: golang.org/x/crypto
+  subpackages:
+  - bcrypt

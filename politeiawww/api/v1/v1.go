@@ -7,12 +7,16 @@ const (
 
 	CsrfToken = "X-CSRF-Token" // CSRF token for replies
 
-	RouteLogin = "/login/"
+	RouteLogin  = "/login/"
+	RouteLogout = "/logout/"
+	RouteSecret = "/secret/"
 )
 
 var (
 	// politeiaAPIRoute is the prefix to the API route
 	PoliteiaAPIRoute = fmt.Sprintf("/api/v%v", PoliteiaAPIVersion)
+
+	CookieSession = "session"
 )
 
 // Version command is used to determine the version of the API this backend
