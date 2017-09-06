@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/http/httputil"
 	"os"
 	"os/signal"
 	"syscall"
@@ -96,21 +95,12 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 	session.Values["authenticated"] = true
 	session.Save(r, w)
 
-	// Get the token and pass it in the CSRF header. Our JSON-speaking client
-	// or JavaScript framework can now read the header and return the token in
-	// in its own "X-CSRF-Token" request header on the subsequent POST.
+	// Get and set the CSRF token and pass it in the CSRF header.
 	w.Header().Set(v1.CsrfToken, csrf.Token(r))
-	//user := User{Id: 10}
-	//b, err := json.Marshal(user)
-	//if err != nil {
-	//	http.Error(w, err.Error(), 500) // XXX
-	//	return
-	//}
-
-	//w.WriteHeader(http.StatusOK)
-	//w.Write(b)
 }
 
+// handleLogout logs the user out.  A login will be required to resume sending
+// commands,
 func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
 	log.Infof("logout")
 	session, _ := p.store.Get(r, v1.CookieSession)
@@ -120,52 +110,9 @@ func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
 	session.Save(r, w)
 }
 
+// handleSecret is a mock handler to test routes.
 func (p *politeiawww) handleSecret(w http.ResponseWriter, r *http.Request) {
 	log.Infof("secret")
-}
-
-func (p *politeiawww) isLoggedIn(f http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		log.Debugf("isLoggedIn: %v %v%v %v", r.Method, r.RemoteAddr,
-			r.URL, r.Proto)
-		session, err := p.store.Get(r, v1.CookieSession)
-		if err != nil {
-			log.Errorf("isLoggedIn: %v", err)
-			http.Error(w, http.StatusText(http.StatusForbidden),
-				http.StatusForbidden)
-			return
-		}
-
-		// Check if user is authenticated
-		if auth, ok := session.Values["authenticated"].(bool); !ok || !auth {
-			http.Error(w, http.StatusText(http.StatusForbidden),
-				http.StatusForbidden)
-			return
-		}
-
-		f(w, r)
-	}
-}
-
-// logging logs all incoming commands.
-//
-// NOTE: LOGGING WILL LOG PASSWORDS IF TRACING IS ENABLED.
-func logging(f http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// Trace incoming request
-		log.Tracef("%v", newLogClosure(func() string {
-			trace, err := httputil.DumpRequest(r, true)
-			if err != nil {
-				trace = []byte(fmt.Sprintf("logging: "+
-					"DumpRequest %v", err))
-			}
-			return string(trace)
-		}))
-
-		// Log incoming connection
-		log.Infof("%v %v%v %v", r.Method, r.RemoteAddr, r.URL, r.Proto)
-		f(w, r)
-	}
 }
 
 func _main() error {
