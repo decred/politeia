@@ -58,8 +58,10 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	w.Write(versionReply)
 }
 
+// handleLogin handles the incoming login command.  It verifies that the user
+// exists and the accompanying password.  On success a cookie is added to the
+// gorilla sessions that must be returned on subsequent calls.
 func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
-	log.Infof("login")
 	session, _ := p.store.Get(r, v1.CookieSession)
 
 	// Get login command.
@@ -92,6 +94,7 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Mark user as logged in.
 	session.Values["authenticated"] = true
 	session.Save(r, w)
 
@@ -102,7 +105,6 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 // handleLogout logs the user out.  A login will be required to resume sending
 // commands,
 func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
-	log.Infof("logout")
 	session, _ := p.store.Get(r, v1.CookieSession)
 
 	// Revoke users authentication
@@ -112,7 +114,7 @@ func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 // handleSecret is a mock handler to test routes.
 func (p *politeiawww) handleSecret(w http.ResponseWriter, r *http.Request) {
-	log.Infof("secret")
+	fmt.Fprintf(w, "secret sauce")
 }
 
 func _main() error {
