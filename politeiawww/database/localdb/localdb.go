@@ -1,7 +1,6 @@
 package localdb
 
 import (
-	"encoding/json"
 	"path/filepath"
 	"sync"
 
@@ -24,28 +23,6 @@ type localdb struct {
 	shutdown bool        // Backend is shutdown
 	root     string      // Database root
 	userdb   *leveldb.DB // Database context
-}
-
-// encodeUser encodes User into a JSON byte slice.
-func encodeUser(u database.User) ([]byte, error) {
-	b, err := json.Marshal(u)
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
-}
-
-// decodeUser decodes a JSON byte slice into a User.
-func decodeUser(payload []byte) (*database.User, error) {
-	var u database.User
-
-	err := json.Unmarshal(payload, &u)
-	if err != nil {
-		return nil, err
-	}
-
-	return &u, nil
 }
 
 // Store new user.
@@ -123,9 +100,7 @@ func New(root string) (*localdb, error) {
 	l := &localdb{
 		root: root,
 	}
-
-	var err error
-	l.userdb, err = leveldb.OpenFile(filepath.Join(l.root, userdbPath), nil)
+	err := l.openUserDB(filepath.Join(l.root, userdbPath))
 	if err != nil {
 		return nil, err
 	}

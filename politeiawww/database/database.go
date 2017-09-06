@@ -27,10 +27,11 @@ type User struct {
 	Admin          bool   // Is user an admin
 }
 
+// Database interface that is required by the web server.
 type Database interface {
 	// User functions
 	UserGet(string) (*User, error) // Return user record, key is email
-	UserNew(User) error
+	UserNew(User) error            // Add new user
 
 	// Close performs cleanup of the backend.
 	Close()
