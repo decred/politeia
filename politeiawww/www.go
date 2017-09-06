@@ -190,11 +190,18 @@ func _main() error {
 	}
 	csrfHandle := csrf.Protect(csrfKey)
 	p.router = mux.NewRouter()
+	// Static content.
+	p.router.PathPrefix("/static/").Handler(http.StripPrefix("/static/",
+		http.FileServer(http.Dir("."))))
+
+	// Unauthenticated commands
 	p.router.HandleFunc("/", logging(p.handleVersion)).Methods("GET")
 	p.router.HandleFunc(v1.PoliteiaAPIRoute+v1.RouteLogin,
 		logging(p.handleLogin)).Methods("POST")
 	p.router.HandleFunc(v1.PoliteiaAPIRoute+v1.RouteLogout,
 		logging(p.handleLogout)).Methods("POST")
+
+	// Routes that require being logged in.
 	p.router.HandleFunc(v1.PoliteiaAPIRoute+v1.RouteSecret,
 		logging(p.isLoggedIn(p.handleSecret))).Methods("POST")
 

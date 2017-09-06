@@ -178,6 +178,31 @@ func (c *ctx) logout() error {
 	return nil
 }
 
+func (c *ctx) assets() error {
+	route := *host + "/static/" //v1.PoliteiaAPIRoute + v1.RouteSecret
+	fmt.Printf("asset Route : %v\n", route)
+	req, err := http.NewRequest("GET", route, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Add("X-CSRF-Token", c.csrf)
+	r, err := c.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		r.Body.Close()
+	}()
+
+	if r.StatusCode != http.StatusOK {
+		return fmt.Errorf("HTTP Status: %v", r.StatusCode)
+	}
+
+	io.Copy(os.Stdout, r.Body)
+
+	return nil
+}
+
 func _main() error {
 	flag.Parse()
 
@@ -226,6 +251,12 @@ func _main() error {
 		return err
 	}
 	fmt.Printf("CSRF   : %v\n", c.csrf)
+
+	fmt.Printf("=== GET assets ===\n")
+	err = c.assets()
+	if err != nil {
+		return err
+	}
 
 	// Secret once more that should fail
 	fmt.Printf("=== POST /api/v1/secret ===\n")
