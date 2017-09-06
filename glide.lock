@@ -1,5 +1,5 @@
-hash: e86e50d659d931400632662cfb4c9731dc9e231fc361bcf37b669cc7df3c3fec
-updated: 2017-09-02T07:19:54.928299232-05:00
+hash: c8f20bf37d4bcdc056991771d782db40003f798144d8cf1b0a9a163d64eb6898
+updated: 2017-09-06T17:36:25.282109698-05:00
 imports:
 - name: github.com/agl/ed25519
   version: 278e1ec8e8a6e017cd07577924d6766039146ced
@@ -51,6 +51,8 @@ imports:
   version: bcd8bc72b08df0f70df986b97f95590779502d31
 - name: github.com/gorilla/securecookie
   version: e59506cc896acb7f7bf732d4fdf5e25f7ccd8983
+- name: github.com/gorilla/sessions
+  version: ca9ada44574153444b00d3fd9c8559e4cc95f896
 - name: github.com/jrick/logrotate
   version: a93b200c26cbae3bb09dd0dc2c7c7fe1468a034a
   subpackages:
@@ -82,6 +84,7 @@ imports:
   version: 84f24dfdf3c414ed893ca1b318d0045ef5a1f607
   subpackages:
   - bcrypt
+  - blowfish
   - curve25519
   - ripemd160
 - name: golang.org/x/net
@@ -89,6 +92,7 @@ imports:
   subpackages:
   - html
   - html/atom
+  - publicsuffix
 testImports:
 - name: github.com/pmezard/go-difflib
   version: 792786c7400a136282c1664665ae0a8db921c6c2

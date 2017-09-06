@@ -34,3 +34,5 @@ import:
 - package: golang.org/x/crypto
   subpackages:
   - bcrypt
+- package: github.com/gorilla/sessions
+  version: ^1.1.0
