@@ -1,22 +1,15 @@
 package main
 
 import (
-	"bytes"
 	"crypto/tls"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
-
-	"golang.org/x/crypto/bcrypt"
 
 	"github.com/decred/politeia/politeiawww/api/v1"
-	"github.com/decred/politeia/politeiawww/database"
-	"github.com/decred/politeia/politeiawww/database/localdb"
 	"github.com/decred/politeia/util"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
@@ -30,12 +23,12 @@ var (
 
 // politeiawww application context.
 type politeiawww struct {
-	cfg    *config
-	router *mux.Router
+	cfg     *config
+	router  *mux.Router
 
-	store *sessions.CookieStore
+	store   *sessions.CookieStore
 
-	db database.Database
+	backend *backend
 }
 
 // init sets default values at startup.
@@ -66,9 +59,9 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 // code used for verification. The code is intended to be sent to the specified email.
 func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 	// Get new user command.
-	var l v1.NewUser
+	var u v1.NewUser
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&l); err != nil {
+	if err := decoder.Decode(&u); err != nil {
 		log.Errorf("handleNewUser: Unmarshal %v", err)
 		http.Error(w, http.StatusText(http.StatusForbidden),
 			http.StatusForbidden)
@@ -76,45 +69,9 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	// Check if the user already exists.
-	if _, err := p.db.UserGet(l.Email); err == nil {
-		log.Errorf("handleNewUser: UserGet user already exists")
-		http.Error(w, http.StatusText(http.StatusForbidden),
-			http.StatusForbidden)
-		return
-	}
-
-	// Hash the user's password.
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(l.Password),
-		bcrypt.DefaultCost)
+	reply, err := p.backend.ProcessNewUser(u)
 	if err != nil {
-		log.Errorf("handleNewUser: HashPassword %v", err)
-		http.Error(w, http.StatusText(http.StatusForbidden),
-			http.StatusForbidden)
-		return
-	}
-
-	// Generate the verification token and expiry.
-	token, err := util.Random(v1.VerificationTokenSize)
-	if err != nil {
-		log.Errorf("handleNewUser: GenerateVerificationToken %v", err)
-		http.Error(w, http.StatusText(http.StatusForbidden),
-			http.StatusForbidden)
-		return
-	}
-	expiry := time.Now().Add(time.Duration(v1.VerificationExpiryHours) * time.Hour).Unix()
-
-	// Add the user and hashed password to the db.
-	user := database.User{
-		Email:              l.Email,
-		HashedPassword:     hashedPassword,
-		Admin:              false,
-		VerificationToken:  token,
-		VerificationExpiry: expiry,
-	}
-	err = p.db.UserNew(user)
-	if err != nil {
-		log.Errorf("handleNewUser: UserNew %v", err)
+		log.Errorf("handleNewUser: %v", err)
 		http.Error(w, http.StatusText(http.StatusForbidden),
 			http.StatusForbidden)
 		return
@@ -124,9 +81,6 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set(v1.CsrfToken, csrf.Token(r))
 
 	// Reply with the verification token.
-	reply := v1.NewUserReply{
-		VerificationToken: hex.EncodeToString(token[:]),
-	}
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
@@ -135,9 +89,9 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 // the provided token and that the verification token has not yet expired.
 func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request) {
 	// Get new user verify command.
-	var l v1.VerifyNewUser
+	var u v1.VerifyNewUser
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&l); err != nil {
+	if err := decoder.Decode(&u); err != nil {
 		log.Errorf("handleVerifyNewUser: Unmarshal %v", err)
 		http.Error(w, http.StatusText(http.StatusForbidden),
 			http.StatusForbidden)
@@ -145,46 +99,9 @@ func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request
 	}
 	defer r.Body.Close()
 
-	// Check that the user already exists.
-	u, err := p.db.UserGet(l.Email)
+	err := p.backend.ProcessVerifyNewUser(u)
 	if err != nil {
-		log.Errorf("handleVerifyNewUser: UserGet %v", err)
-		http.Error(w, http.StatusText(http.StatusForbidden),
-			http.StatusForbidden)
-		return
-	}
-
-	// Decode the verification token.
-	token, err := hex.DecodeString(l.VerificationToken)
-	if err != nil {
-		log.Errorf("handleVerifyNewUser: VerificationTokenDecode %v", err)
-		http.Error(w, http.StatusText(http.StatusForbidden),
-			http.StatusForbidden)
-		return
-	}
-
-	// Check that the verification token matches.
-	if !bytes.Equal(token, u.VerificationToken) {
-		log.Errorf("handleVerifyNewUser: VerificationTokenCheck verification token doesn't match")
-		http.Error(w, http.StatusText(http.StatusForbidden),
-			http.StatusForbidden)
-		return
-	}
-
-	// Check that the token hasn't expired.
-	if currentTime := time.Now().Unix(); currentTime > u.VerificationExpiry {
-		log.Errorf("handleVerifyNewUser: VerificationExpiryCheck verification token expired")
-		http.Error(w, http.StatusText(http.StatusForbidden),
-			http.StatusForbidden)
-		return
-	}
-
-	// Clear out the verification token fields in the db.
-	u.VerificationToken = nil
-	u.VerificationExpiry = 0
-	err = p.db.UserUpdate(*u)
-	if err != nil {
-		log.Errorf("handleVerifyNewUser: UserUpdate %v", err)
+		log.Errorf("handleVerifyNewUser: %v", err)
 		http.Error(w, http.StatusText(http.StatusForbidden),
 			http.StatusForbidden)
 		return
@@ -211,20 +128,9 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	// Get user from db.
-	u, err := p.db.UserGet(l.Email)
+	err := p.backend.ProcessLogin(l)
 	if err != nil {
-		log.Errorf("handleLogin: UserGet %v", err)
-		http.Error(w, http.StatusText(http.StatusForbidden),
-			http.StatusForbidden)
-		return
-	}
-
-	// Authenticate the user.
-	err = bcrypt.CompareHashAndPassword(u.HashedPassword,
-		[]byte(l.Password))
-	if err != nil {
-		log.Errorf("handleLogin: CompareHashAndPassword %v", err)
+		log.Errorf("handleLogin: %v", err)
 		http.Error(w, http.StatusText(http.StatusForbidden),
 			http.StatusForbidden)
 		return
@@ -297,9 +203,7 @@ func _main() error {
 		cfg: loadedCfg,
 	}
 
-	// Setup backend.
-	localdb.UseLogger(localdbLog)
-	p.db, err = localdb.New(loadedCfg.DataDir)
+	p.backend, err = NewBackend(loadedCfg.DataDir)
 	if err != nil {
 		return err
 	}
