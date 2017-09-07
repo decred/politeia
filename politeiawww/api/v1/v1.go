@@ -7,9 +7,11 @@ const (
 
 	CsrfToken = "X-CSRF-Token" // CSRF token for replies
 
-	RouteLogin  = "/login/"
-	RouteLogout = "/logout/"
-	RouteSecret = "/secret/"
+	RouteNewUser = "/user/new"
+	RouteVerifyNewUser = "/user/verify/"
+	RouteLogin   = "/login/"
+	RouteLogout  = "/logout/"
+	RouteSecret  = "/secret/"
 )
 
 var (
@@ -24,6 +26,11 @@ var (
 type Version struct {
 	Version uint   // politeia WWW API version
 	Route   string // prefix to API calls
+}
+
+type NewUser struct {
+	Email    string
+	Password string
 }
 
 type Login struct {

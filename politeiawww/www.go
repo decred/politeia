@@ -58,6 +58,49 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	w.Write(versionReply)
 }
 
+// handleNewUser handles the incoming new user command. It verifies that the new user
+// doesn't already exist, and then creates a new user in the db and generates a random
+// code used for verification. The code is sent to the specified email.
+func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
+	// Get new user command.
+	var l v1.NewUser
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&l); err != nil {
+		log.Errorf("handleLogin: Unmarshal %v", err)
+		http.Error(w, http.StatusText(http.StatusForbidden),
+			http.StatusForbidden)
+		return
+	}
+	defer r.Body.Close()
+
+	// Hash the user's password.
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(l.Password),
+		bcrypt.DefaultCost)
+	if err != nil {
+		log.Errorf("handleLogin: HashPassword %v", err)
+		http.Error(w, http.StatusText(http.StatusForbidden),
+			http.StatusForbidden)
+		return
+	}
+
+	// Add the user and hashed password to the db.
+	user := database.User{
+		Email:          l.Email,
+		HashedPassword: hashedPassword,
+		Admin:          true,
+	}
+	err = p.db.UserNew(user)
+	if err != nil {
+		log.Errorf("handleLogin: UserNew %v", err)
+		http.Error(w, http.StatusText(http.StatusForbidden),
+			http.StatusForbidden)
+		return
+	}
+
+	// Get and set the CSRF token and pass it in the CSRF header.
+	w.Header().Set(v1.CsrfToken, csrf.Token(r))
+}
+
 // handleLogin handles the incoming login command.  It verifies that the user
 // exists and the accompanying password.  On success a cookie is added to the
 // gorilla sessions that must be returned on subsequent calls.
@@ -167,20 +210,6 @@ func _main() error {
 	if err != nil {
 		return err
 	}
-	// XXX
-	//hashedPassword, err := bcrypt.GenerateFromPassword([]byte("sikrit!"),
-	//	bcrypt.DefaultCost)
-	//if err != nil {
-	//}
-	//u := database.User{
-	//	Email:          "moo@moo.com",
-	//	HashedPassword: hashedPassword,
-	//	Admin:          true,
-	//}
-	//err = p.db.UserNew(u)
-	//if err != nil {
-	//	return err
-	//}
 
 	// We don't persist connections to generate a new key every time we
 	// restart.
@@ -196,6 +225,8 @@ func _main() error {
 
 	// Unauthenticated commands
 	p.router.HandleFunc("/", logging(p.handleVersion)).Methods("GET")
+	p.router.HandleFunc(v1.PoliteiaAPIRoute+v1.RouteNewUser,
+		logging(p.handleNewUser)).Methods("POST")
 	p.router.HandleFunc(v1.PoliteiaAPIRoute+v1.RouteLogin,
 		logging(p.handleLogin)).Methods("POST")
 	p.router.HandleFunc(v1.PoliteiaAPIRoute+v1.RouteLogout,
