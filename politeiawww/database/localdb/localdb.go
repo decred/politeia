@@ -81,6 +81,62 @@ func (l *localdb) UserGet(email string) (*database.User, error) {
 	return u, nil
 }
 
+// Update existing user.
+//
+// UserUpdate satisfies the backend interface.
+func (l *localdb) UserUpdate(u database.User) error {
+	l.Lock()
+	defer l.Unlock()
+
+	if l.shutdown == true {
+		return database.ErrShutdown
+	}
+
+	log.Debugf("UserUpdate: %v", u)
+
+	// Make sure user already exists
+	exists, err := l.userdb.Has([]byte(u.Email), nil)
+	if err != nil {
+		return err
+	} else if !exists {
+		return database.ErrUserNotFound
+	}
+
+	payload, err := encodeUser(u)
+	if err != nil {
+		return err
+	}
+
+	return l.userdb.Put([]byte(u.Email), payload, nil)
+}
+
+func (l *localdb) Clear() error {
+	l.Lock()
+	defer l.Unlock()
+
+	if l.shutdown == true {
+		return database.ErrShutdown
+	}
+
+	log.Debugf("Clear")
+
+	batch := new(leveldb.Batch)
+	iter := l.userdb.NewIterator(nil, nil)
+	for iter.Next() {
+		batch.Delete(iter.Key())
+	}
+	iter.Release()
+	if err := iter.Error(); err != nil {
+		return err
+	}
+
+	if err := l.userdb.Write(batch, nil); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // Close shuts down the database.  All interface functions MUST return with
 // errShutdown if the backend is shutting down.
 //

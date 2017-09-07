@@ -22,9 +22,13 @@ var (
 
 // User record.
 type User struct {
-	Email          string // User email address, also the lookup key.
-	HashedPassword []byte // Blowfish hash
-	Admin          bool   // Is user an admin
+	Email              string // User email address, also the lookup key.
+	HashedPassword     []byte // Blowfish hash
+	Admin              bool   // Is user an admin
+	VerificationToken  []byte // Token used to verify user's email address.
+	                          // If not populated, the user is verified.
+	VerificationExpiry int64  // Unix time representing the moment that the
+	                          // VerificationToken expires.
 }
 
 // Database interface that is required by the web server.
@@ -32,6 +36,10 @@ type Database interface {
 	// User functions
 	UserGet(string) (*User, error) // Return user record, key is email
 	UserNew(User) error            // Add new user
+	UserUpdate(User) error         // Update existing user
+	
+	// Clears the entire database.
+	Clear() error
 
 	// Close performs cleanup of the backend.
 	Close()
