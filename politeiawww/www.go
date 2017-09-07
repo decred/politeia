@@ -1,13 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"crypto/tls"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -60,38 +63,128 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 
 // handleNewUser handles the incoming new user command. It verifies that the new user
 // doesn't already exist, and then creates a new user in the db and generates a random
-// code used for verification. The code is sent to the specified email.
+// code used for verification. The code is intended to be sent to the specified email.
 func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 	// Get new user command.
 	var l v1.NewUser
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&l); err != nil {
-		log.Errorf("handleLogin: Unmarshal %v", err)
+		log.Errorf("handleNewUser: Unmarshal %v", err)
 		http.Error(w, http.StatusText(http.StatusForbidden),
 			http.StatusForbidden)
 		return
 	}
 	defer r.Body.Close()
 
-	// Hash the user's password.
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(l.Password),
-		bcrypt.DefaultCost)
-	if err != nil {
-		log.Errorf("handleLogin: HashPassword %v", err)
+	// Check if the user already exists.
+	if _, err := p.db.UserGet(l.Email); err == nil {
+		log.Errorf("handleNewUser: UserGet user already exists")
 		http.Error(w, http.StatusText(http.StatusForbidden),
 			http.StatusForbidden)
 		return
 	}
 
+	// Hash the user's password.
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(l.Password),
+		bcrypt.DefaultCost)
+	if err != nil {
+		log.Errorf("handleNewUser: HashPassword %v", err)
+		http.Error(w, http.StatusText(http.StatusForbidden),
+			http.StatusForbidden)
+		return
+	}
+
+	// Generate the verification token and expiry.
+	token, err := util.Random(v1.VerificationTokenSize)
+	if err != nil {
+		log.Errorf("handleNewUser: GenerateVerificationToken %v", err)
+		http.Error(w, http.StatusText(http.StatusForbidden),
+			http.StatusForbidden)
+		return
+	}
+	expiry := time.Now().Add(time.Duration(v1.VerificationExpiryHours) * time.Hour).Unix()
+
 	// Add the user and hashed password to the db.
 	user := database.User{
-		Email:          l.Email,
-		HashedPassword: hashedPassword,
-		Admin:          true,
+		Email:              l.Email,
+		HashedPassword:     hashedPassword,
+		Admin:              false,
+		VerificationToken:  token,
+		VerificationExpiry: expiry,
 	}
 	err = p.db.UserNew(user)
 	if err != nil {
-		log.Errorf("handleLogin: UserNew %v", err)
+		log.Errorf("handleNewUser: UserNew %v", err)
+		http.Error(w, http.StatusText(http.StatusForbidden),
+			http.StatusForbidden)
+		return
+	}
+
+	// Get and set the CSRF token and pass it in the CSRF header.
+	w.Header().Set(v1.CsrfToken, csrf.Token(r))
+
+	// Reply with the verification token.
+	reply := v1.NewUserReply{
+		VerificationToken: hex.EncodeToString(token[:]),
+	}
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+// handleVerifyNewUser handles the incoming new user verify command. It verifies
+// that the user with the provided email has a verificaton token that matches
+// the provided token and that the verification token has not yet expired.
+func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request) {
+	// Get new user verify command.
+	var l v1.VerifyNewUser
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&l); err != nil {
+		log.Errorf("handleVerifyNewUser: Unmarshal %v", err)
+		http.Error(w, http.StatusText(http.StatusForbidden),
+			http.StatusForbidden)
+		return
+	}
+	defer r.Body.Close()
+
+	// Check that the user already exists.
+	u, err := p.db.UserGet(l.Email)
+	if err != nil {
+		log.Errorf("handleVerifyNewUser: UserGet %v", err)
+		http.Error(w, http.StatusText(http.StatusForbidden),
+			http.StatusForbidden)
+		return
+	}
+
+	// Decode the verification token.
+	token, err := hex.DecodeString(l.VerificationToken)
+	if err != nil {
+		log.Errorf("handleVerifyNewUser: VerificationTokenDecode %v", err)
+		http.Error(w, http.StatusText(http.StatusForbidden),
+			http.StatusForbidden)
+		return
+	}
+
+	// Check that the verification token matches.
+	if !bytes.Equal(token, u.VerificationToken) {
+		log.Errorf("handleVerifyNewUser: VerificationTokenCheck verification token doesn't match")
+		http.Error(w, http.StatusText(http.StatusForbidden),
+			http.StatusForbidden)
+		return
+	}
+
+	// Check that the token hasn't expired.
+	if currentTime := time.Now().Unix(); currentTime > u.VerificationExpiry {
+		log.Errorf("handleVerifyNewUser: VerificationExpiryCheck verification token expired")
+		http.Error(w, http.StatusText(http.StatusForbidden),
+			http.StatusForbidden)
+		return
+	}
+
+	// Clear out the verification token fields in the db.
+	u.VerificationToken = nil
+	u.VerificationExpiry = 0
+	err = p.db.UserUpdate(*u)
+	if err != nil {
+		log.Errorf("handleVerifyNewUser: UserUpdate %v", err)
 		http.Error(w, http.StatusText(http.StatusForbidden),
 			http.StatusForbidden)
 		return
@@ -227,6 +320,8 @@ func _main() error {
 	p.router.HandleFunc("/", logging(p.handleVersion)).Methods("GET")
 	p.router.HandleFunc(v1.PoliteiaAPIRoute+v1.RouteNewUser,
 		logging(p.handleNewUser)).Methods("POST")
+	p.router.HandleFunc(v1.PoliteiaAPIRoute+v1.RouteVerifyNewUser,
+			logging(p.handleVerifyNewUser)).Methods("POST")
 	p.router.HandleFunc(v1.PoliteiaAPIRoute+v1.RouteLogin,
 		logging(p.handleLogin)).Methods("POST")
 	p.router.HandleFunc(v1.PoliteiaAPIRoute+v1.RouteLogout,

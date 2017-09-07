@@ -79,10 +79,65 @@ func (c *ctx) getCSRF() (*v1.Version, error) {
 	return &v, nil
 }
 
-func (c *ctx) newUser(email, password string) error {
+func (c *ctx) newUser(email, password string) (string, error) {
 	u := v1.NewUser{
 		Email:    email,
-		Password: password, // XXX SCRYPT THIS
+		Password: password,
+	}
+	b, err := json.Marshal(u)
+	if err != nil {
+		return "", err
+	}
+
+	if *printJson {
+		fmt.Println(string(b))
+	}
+	route := *host + v1.PoliteiaAPIRoute + v1.RouteNewUser
+	fmt.Printf("Route : %v\n", route)
+	req, err := http.NewRequest("POST", route, bytes.NewReader(b))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Add("X-CSRF-Token", c.csrf)
+	r, err := c.client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		r.Body.Close()
+	}()
+
+	if r.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("HTTP Status: %v", r.StatusCode)
+	}
+
+	var mw io.Writer
+	var body bytes.Buffer
+	if *printJson {
+		mw = io.MultiWriter(&body, os.Stdout)
+	} else {
+		mw = io.MultiWriter(&body)
+	}
+	io.Copy(mw, r.Body)
+	if *printJson {
+		fmt.Printf("\n")
+	}
+
+	var nur v1.NewUserReply
+	err = json.Unmarshal(body.Bytes(), &nur)
+	if err != nil {
+		return "", fmt.Errorf("Could node unmarshal NewUserReply: %v",
+			err)
+	}
+
+	fmt.Printf("Verification Token: %v\n", nur.VerificationToken)
+	return nur.VerificationToken, nil
+}
+
+func (c *ctx) verifyNewUser(email, token string) error {
+	u := v1.VerifyNewUser{
+		Email:             email,
+		VerificationToken: token,
 	}
 	b, err := json.Marshal(u)
 	if err != nil {
@@ -92,7 +147,7 @@ func (c *ctx) newUser(email, password string) error {
 	if *printJson {
 		fmt.Println(string(b))
 	}
-	route := *host + v1.PoliteiaAPIRoute + v1.RouteNewUser
+	route := *host + v1.PoliteiaAPIRoute + v1.RouteVerifyNewUser
 	fmt.Printf("Route : %v\n", route)
 	req, err := http.NewRequest("POST", route, bytes.NewReader(b))
 	if err != nil {
@@ -257,7 +312,15 @@ func _main() error {
 
 	// New User
 	fmt.Printf("=== POST /api/v1/user/new ===\n")
-	err = c.newUser("moo@moo.com", "sikrit!")
+	token, err := c.newUser("moo@moo.com", "sikrit!")
+	if err != nil {
+		return err
+	}
+	fmt.Printf("CSRF   : %v\n", c.csrf)
+
+	// Verify New User
+	fmt.Printf("=== POST /api/v1/user/verify ===\n")
+	err = c.verifyNewUser("moo@moo.com", token)
 	if err != nil {
 		return err
 	}

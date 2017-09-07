@@ -8,10 +8,13 @@ const (
 	CsrfToken = "X-CSRF-Token" // CSRF token for replies
 
 	RouteNewUser = "/user/new"
-	RouteVerifyNewUser = "/user/verify/"
+	RouteVerifyNewUser = "/user/verify"
 	RouteLogin   = "/login/"
 	RouteLogout  = "/logout/"
 	RouteSecret  = "/secret/"
+
+	VerificationTokenSize   = 32 // Size of verification token in bytes
+	VerificationExpiryHours = 48 // Number of hours before the verification token expires
 )
 
 var (
@@ -31,6 +34,15 @@ type Version struct {
 type NewUser struct {
 	Email    string
 	Password string
+}
+
+type NewUserReply struct {
+	VerificationToken string // Token used to verify the user's email address
+}
+
+type VerifyNewUser struct {
+	Email             string
+	VerificationToken string // Same token returned in NewUserReply
 }
 
 type Login struct {
