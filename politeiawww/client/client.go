@@ -79,14 +79,104 @@ func (c *ctx) getCSRF() (*v1.Version, error) {
 	return &v, nil
 }
 
-func (c *ctx) login(email, password string) (*v1.Version, error) {
+func (c *ctx) newUser(email, password string) (string, error) {
+	u := v1.NewUser{
+		Email:    email,
+		Password: password,
+	}
+	b, err := json.Marshal(u)
+	if err != nil {
+		return "", err
+	}
+
+	if *printJson {
+		fmt.Println(string(b))
+	}
+	route := *host + v1.PoliteiaAPIRoute + v1.RouteNewUser
+	fmt.Printf("Route : %v\n", route)
+	req, err := http.NewRequest("POST", route, bytes.NewReader(b))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Add("X-CSRF-Token", c.csrf)
+	r, err := c.client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		r.Body.Close()
+	}()
+
+	if r.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("HTTP Status: %v", r.StatusCode)
+	}
+
+	var mw io.Writer
+	var body bytes.Buffer
+	if *printJson {
+		mw = io.MultiWriter(&body, os.Stdout)
+	} else {
+		mw = io.MultiWriter(&body)
+	}
+	io.Copy(mw, r.Body)
+	if *printJson {
+		fmt.Printf("\n")
+	}
+
+	var nur v1.NewUserReply
+	err = json.Unmarshal(body.Bytes(), &nur)
+	if err != nil {
+		return "", fmt.Errorf("Could node unmarshal NewUserReply: %v",
+			err)
+	}
+
+	fmt.Printf("Verification Token: %v\n", nur.VerificationToken)
+	return nur.VerificationToken, nil
+}
+
+func (c *ctx) verifyNewUser(email, token string) error {
+	u := v1.VerifyNewUser{
+		Email:             email,
+		VerificationToken: token,
+	}
+	b, err := json.Marshal(u)
+	if err != nil {
+		return err
+	}
+
+	if *printJson {
+		fmt.Println(string(b))
+	}
+	route := *host + v1.PoliteiaAPIRoute + v1.RouteVerifyNewUser
+	fmt.Printf("Route : %v\n", route)
+	req, err := http.NewRequest("POST", route, bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+	req.Header.Add("X-CSRF-Token", c.csrf)
+	r, err := c.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		r.Body.Close()
+	}()
+
+	if r.StatusCode != http.StatusOK {
+		return fmt.Errorf("HTTP Status: %v", r.StatusCode)
+	}
+
+	return nil
+}
+
+func (c *ctx) login(email, password string) error {
 	l := v1.Login{
 		Email:    email,
 		Password: password, // XXX SCRYPT THIS
 	}
 	b, err := json.Marshal(l)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if *printJson {
@@ -96,29 +186,29 @@ func (c *ctx) login(email, password string) (*v1.Version, error) {
 	fmt.Printf("Route : %v\n", route)
 	req, err := http.NewRequest("POST", route, bytes.NewReader(b))
 	if err != nil {
-		return nil, err
+		return err
 	}
 	req.Header.Add("X-CSRF-Token", c.csrf)
 	r, err := c.client.Do(req)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer func() {
 		r.Body.Close()
 	}()
 
 	if r.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("HTTP Status: %v", r.StatusCode)
+		return fmt.Errorf("HTTP Status: %v", r.StatusCode)
 	}
 
-	return nil, nil
+	return nil
 }
 
-func (c *ctx) secret() (*v1.Version, error) {
+func (c *ctx) secret() error {
 	l := v1.Login{}
 	b, err := json.Marshal(l)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if *printJson {
@@ -128,22 +218,22 @@ func (c *ctx) secret() (*v1.Version, error) {
 	fmt.Printf("secret Route : %v\n", route)
 	req, err := http.NewRequest("POST", route, bytes.NewReader(b))
 	if err != nil {
-		return nil, err
+		return err
 	}
 	req.Header.Add("X-CSRF-Token", c.csrf)
 	r, err := c.client.Do(req)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer func() {
 		r.Body.Close()
 	}()
 
 	if r.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("HTTP Status: %v", r.StatusCode)
+		return fmt.Errorf("HTTP Status: %v", r.StatusCode)
 	}
 
-	return nil, nil
+	return nil
 }
 
 func (c *ctx) logout() error {
@@ -157,7 +247,7 @@ func (c *ctx) logout() error {
 		fmt.Println(string(b))
 	}
 	route := *host + v1.PoliteiaAPIRoute + v1.RouteLogout
-	fmt.Printf("secret Route : %v\n", route)
+	fmt.Printf("Route : %v\n", route)
 	req, err := http.NewRequest("POST", route, bytes.NewReader(b))
 	if err != nil {
 		return err
@@ -220,9 +310,25 @@ func _main() error {
 	fmt.Printf("Route  : %v\n", version.Route)
 	fmt.Printf("CSRF   : %v\n", c.csrf)
 
+	// New User
+	fmt.Printf("=== POST /api/v1/user/new ===\n")
+	token, err := c.newUser("moo@moo.com", "sikrit!")
+	if err != nil {
+		return err
+	}
+	fmt.Printf("CSRF   : %v\n", c.csrf)
+
+	// Verify New User
+	fmt.Printf("=== POST /api/v1/user/verify ===\n")
+	err = c.verifyNewUser("moo@moo.com", token)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("CSRF   : %v\n", c.csrf)
+
 	// Login
 	fmt.Printf("=== POST /api/v1/login ===\n")
-	_, err = c.login("moo@moo.com", "sikrit!")
+	err = c.login("moo@moo.com", "sikrit!")
 	if err != nil {
 		return err
 	}
@@ -230,7 +336,7 @@ func _main() error {
 
 	// Secret
 	fmt.Printf("=== POST /api/v1/secret ===\n")
-	_, err = c.secret()
+	err = c.secret()
 	if err != nil {
 		return err
 	}
@@ -238,7 +344,7 @@ func _main() error {
 
 	// Secret again
 	fmt.Printf("=== POST /api/v1/secret ===\n")
-	_, err = c.secret()
+	err = c.secret()
 	if err != nil {
 		return err
 	}
@@ -260,7 +366,7 @@ func _main() error {
 
 	// Secret once more that should fail
 	fmt.Printf("=== POST /api/v1/secret ===\n")
-	_, err = c.secret()
+	err = c.secret()
 	if err != nil {
 		return err
 	}
