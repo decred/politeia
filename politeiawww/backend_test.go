@@ -8,15 +8,10 @@ import (
 	"path/filepath"
 	"testing"
 	
-	"github.com/decred/dcrutil"
 	"github.com/decred/politeia/politeiawww/api/v1"
 )
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
-var (
-	dataDir = filepath.Join(dcrutil.AppDataDir("politeiawww", false), "tests", "data")
-)
 
 func generateRandomString(n int) string {
 	b := make([]byte, 8)
