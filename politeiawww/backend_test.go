@@ -2,7 +2,9 @@ package main
 
 import (
 	"encoding/hex"
+	"io/ioutil"
 	"math/rand"
+	"os"
 	"path/filepath"
 	"testing"
 	
@@ -23,23 +25,36 @@ func generateRandomString(n int) string {
     }
     return string(b) + "@example.com"
 }
+
 func generateRandomEmail() string {
 	return generateRandomString(8) + "@example.com"
 }
+
 func generateRandomPassword() string {
 	return generateRandomString(16)
 }
 
+func createBackend(t *testing.T) *backend {
+	dir, err := ioutil.TempDir("", "politeiawww.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+	
+	b, err := NewBackend(filepath.Join(dir, "data"))
+	if err != nil {
+		t.Error(err)
+	}
+
+	return b
+}
 
 func TestProcessNewUser(t *testing.T) {
+	b := createBackend(t)
+
 	u := v1.NewUser{
 		Email: generateRandomEmail(),
 		Password: generateRandomPassword(),
-	}
-
-	b, err := NewBackend(dataDir)
-	if err != nil {
-		t.Error(err)
 	}
 
 	reply, err := b.ProcessNewUser(u)
@@ -63,14 +78,11 @@ func TestProcessNewUser(t *testing.T) {
 }
 
 func TestProcessNewUserWithVerify(t *testing.T) {
+	b := createBackend(t)
+
 	u := v1.NewUser{
 		Email:    generateRandomEmail(),
 		Password: generateRandomPassword(),
-	}
-
-	b, err := NewBackend(dataDir)
-	if err != nil {
-		t.Error(err)
 	}
 
 	reply, err := b.ProcessNewUser(u)
@@ -93,14 +105,11 @@ func TestProcessNewUserWithVerify(t *testing.T) {
 }
 
 func TestProcessNewUserWithVerifyAndLogin(t *testing.T) {
+	b := createBackend(t)
+
 	u := v1.NewUser{
 		Email:    generateRandomEmail(),
 		Password: generateRandomPassword(),
-	}
-
-	b, err := NewBackend(dataDir)
-	if err != nil {
-		t.Error(err)
 	}
 
 	reply, err := b.ProcessNewUser(u)
