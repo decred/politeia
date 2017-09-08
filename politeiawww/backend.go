@@ -19,8 +19,11 @@ type backend struct {
 	db database.Database
 }
 
+// ProcessNewUser ...
 func (b *backend) ProcessNewUser(u v1.NewUser) (v1.NewUserReply, error) {
 	var reply v1.NewUserReply
+
+	// XXX fix errors
 
 	// Check if the user already exists.
 	if _, err := b.db.UserGet(u.Email); err == nil {
@@ -76,11 +79,13 @@ func (b *backend) ProcessVerifyNewUser(u v1.VerifyNewUser) error {
 
 	// Check that the verification token matches.
 	if !bytes.Equal(token, user.VerificationToken) {
+		panic("tsk tsk")
 		return err
 	}
 
 	// Check that the token hasn't expired.
 	if currentTime := time.Now().Unix(); currentTime > user.VerificationExpiry {
+		panic("tsk tsk")
 		return err
 	}
 
