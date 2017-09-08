@@ -9,11 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"golang.org/x/crypto/bcrypt"
-
 	"github.com/decred/politeia/politeiawww/api/v1"
-	"github.com/decred/politeia/politeiawww/database"
-	"github.com/decred/politeia/politeiawww/database/localdb"
 	"github.com/decred/politeia/util"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
@@ -32,7 +28,7 @@ type politeiawww struct {
 
 	store *sessions.CookieStore
 
-	db database.Database
+	backend *backend
 }
 
 // init sets default values at startup.
@@ -58,6 +54,57 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	w.Write(versionReply)
 }
 
+// handleNewUser handles the incoming new user command. It verifies that the new user
+// doesn't already exist, and then creates a new user in the db and generates a random
+// code used for verification. The code is intended to be sent to the specified email.
+func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
+	// Get new user command.
+	var u v1.NewUser
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&u); err != nil {
+		log.Errorf("handleNewUser: Unmarshal %v", err)
+		http.Error(w, http.StatusText(http.StatusForbidden),
+			http.StatusForbidden)
+		return
+	}
+	defer r.Body.Close()
+
+	reply, err := p.backend.ProcessNewUser(u)
+	if err != nil {
+		log.Errorf("handleNewUser: %v", err)
+		http.Error(w, http.StatusText(http.StatusForbidden),
+			http.StatusForbidden)
+		return
+	}
+
+	// Reply with the verification token.
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+// handleVerifyNewUser handles the incoming new user verify command. It verifies
+// that the user with the provided email has a verificaton token that matches
+// the provided token and that the verification token has not yet expired.
+func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request) {
+	// Get new user verify command.
+	var u v1.VerifyNewUser
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&u); err != nil {
+		log.Errorf("handleVerifyNewUser: Unmarshal %v", err)
+		http.Error(w, http.StatusText(http.StatusForbidden),
+			http.StatusForbidden)
+		return
+	}
+	defer r.Body.Close()
+
+	err := p.backend.ProcessVerifyNewUser(u)
+	if err != nil {
+		log.Errorf("handleVerifyNewUser: %v", err)
+		http.Error(w, http.StatusText(http.StatusForbidden),
+			http.StatusForbidden)
+		return
+	}
+}
+
 // handleLogin handles the incoming login command.  It verifies that the user
 // exists and the accompanying password.  On success a cookie is added to the
 // gorilla sessions that must be returned on subsequent calls.
@@ -75,20 +122,9 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	// Get user from db.
-	u, err := p.db.UserGet(l.Email)
+	err := p.backend.ProcessLogin(l)
 	if err != nil {
-		log.Errorf("handleLogin: UserGet %v", err)
-		http.Error(w, http.StatusText(http.StatusForbidden),
-			http.StatusForbidden)
-		return
-	}
-
-	// Authenticate the user.
-	err = bcrypt.CompareHashAndPassword(u.HashedPassword,
-		[]byte(l.Password))
-	if err != nil {
-		log.Errorf("handleLogin: CompareHashAndPassword %v", err)
+		log.Errorf("handleLogin: %v", err)
 		http.Error(w, http.StatusText(http.StatusForbidden),
 			http.StatusForbidden)
 		return
@@ -97,9 +133,6 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 	// Mark user as logged in.
 	session.Values["authenticated"] = true
 	session.Save(r, w)
-
-	// Get and set the CSRF token and pass it in the CSRF header.
-	w.Header().Set(v1.CsrfToken, csrf.Token(r))
 }
 
 // handleLogout logs the user out.  A login will be required to resume sending
@@ -161,26 +194,10 @@ func _main() error {
 		cfg: loadedCfg,
 	}
 
-	// Setup backend.
-	localdb.UseLogger(localdbLog)
-	p.db, err = localdb.New(loadedCfg.DataDir)
+	p.backend, err = NewBackend(loadedCfg.DataDir)
 	if err != nil {
 		return err
 	}
-	// XXX
-	//hashedPassword, err := bcrypt.GenerateFromPassword([]byte("sikrit!"),
-	//	bcrypt.DefaultCost)
-	//if err != nil {
-	//}
-	//u := database.User{
-	//	Email:          "moo@moo.com",
-	//	HashedPassword: hashedPassword,
-	//	Admin:          true,
-	//}
-	//err = p.db.UserNew(u)
-	//if err != nil {
-	//	return err
-	//}
 
 	// We don't persist connections to generate a new key every time we
 	// restart.
@@ -196,6 +213,10 @@ func _main() error {
 
 	// Unauthenticated commands
 	p.router.HandleFunc("/", logging(p.handleVersion)).Methods("GET")
+	p.router.HandleFunc(v1.PoliteiaAPIRoute+v1.RouteNewUser,
+		logging(p.handleNewUser)).Methods("POST")
+	p.router.HandleFunc(v1.PoliteiaAPIRoute+v1.RouteVerifyNewUser,
+		logging(p.handleVerifyNewUser)).Methods("POST")
 	p.router.HandleFunc(v1.PoliteiaAPIRoute+v1.RouteLogin,
 		logging(p.handleLogin)).Methods("POST")
 	p.router.HandleFunc(v1.PoliteiaAPIRoute+v1.RouteLogout,
