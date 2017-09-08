@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	
+
 	"github.com/decred/politeia/politeiawww/api/v1"
 )
 
@@ -15,10 +15,10 @@ const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 func generateRandomString(n int) string {
 	b := make([]byte, 8)
-    for i := range b {
-        b[i] = letterBytes[rand.Intn(len(letterBytes))]
-    }
-    return string(b) + "@example.com"
+	for i := range b {
+		b[i] = letterBytes[rand.Intn(len(letterBytes))]
+	}
+	return string(b) + "@example.com"
 }
 
 func generateRandomEmail() string {
@@ -35,7 +35,7 @@ func createBackend(t *testing.T) *backend {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(dir)
-	
+
 	b, err := NewBackend(filepath.Join(dir, "data"))
 	if err != nil {
 		t.Error(err)
@@ -48,7 +48,7 @@ func TestProcessNewUser(t *testing.T) {
 	b := createBackend(t)
 
 	u := v1.NewUser{
-		Email: generateRandomEmail(),
+		Email:    generateRandomEmail(),
 		Password: generateRandomPassword(),
 	}
 

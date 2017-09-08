@@ -23,10 +23,10 @@ var (
 
 // politeiawww application context.
 type politeiawww struct {
-	cfg     *config
-	router  *mux.Router
+	cfg    *config
+	router *mux.Router
 
-	store   *sessions.CookieStore
+	store *sessions.CookieStore
 
 	backend *backend
 }
@@ -77,9 +77,6 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get and set the CSRF token and pass it in the CSRF header.
-	w.Header().Set(v1.CsrfToken, csrf.Token(r))
-
 	// Reply with the verification token.
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
@@ -106,9 +103,6 @@ func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request
 			http.StatusForbidden)
 		return
 	}
-
-	// Get and set the CSRF token and pass it in the CSRF header.
-	w.Header().Set(v1.CsrfToken, csrf.Token(r))
 }
 
 // handleLogin handles the incoming login command.  It verifies that the user
@@ -139,9 +133,6 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 	// Mark user as logged in.
 	session.Values["authenticated"] = true
 	session.Save(r, w)
-
-	// Get and set the CSRF token and pass it in the CSRF header.
-	w.Header().Set(v1.CsrfToken, csrf.Token(r))
 }
 
 // handleLogout logs the user out.  A login will be required to resume sending
@@ -225,7 +216,7 @@ func _main() error {
 	p.router.HandleFunc(v1.PoliteiaAPIRoute+v1.RouteNewUser,
 		logging(p.handleNewUser)).Methods("POST")
 	p.router.HandleFunc(v1.PoliteiaAPIRoute+v1.RouteVerifyNewUser,
-			logging(p.handleVerifyNewUser)).Methods("POST")
+		logging(p.handleVerifyNewUser)).Methods("POST")
 	p.router.HandleFunc(v1.PoliteiaAPIRoute+v1.RouteLogin,
 		logging(p.handleLogin)).Methods("POST")
 	p.router.HandleFunc(v1.PoliteiaAPIRoute+v1.RouteLogout,

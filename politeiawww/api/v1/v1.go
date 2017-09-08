@@ -3,7 +3,7 @@ package v1
 import "fmt"
 
 const (
-	PoliteiaAPIVersion = 1 // API version this backend understands
+	PoliteiaWWWAPIVersion = 1 // API version this backend understands
 
 	CsrfToken = "X-CSRF-Token" // CSRF token for replies
 
@@ -13,14 +13,19 @@ const (
 	RouteLogout        = "/logout/"
 	RouteSecret        = "/secret/"
 
-	VerificationTokenSize   = 32 // Size of verification token in bytes
-	VerificationExpiryHours = 48 // Number of hours before the verification token expires
+	// Size of verification token in bytes
+	VerificationTokenSize = 32
+
+	// Number of hours before the verification token expires
+	VerificationExpiryHours = 48
 )
 
 var (
-	// PoliteiaAPIRoute is the prefix to the API route
-	PoliteiaAPIRoute = fmt.Sprintf("/api/v%v", PoliteiaAPIVersion)
+	// PoliteiaWWWAPIRoute is the prefix to the API route
+	PoliteiaAPIRoute = fmt.Sprintf("/api/v%v", PoliteiaWWWAPIVersion)
 
+	// CookieSession is the cookie name that indicates that a user is
+	// logged in.
 	CookieSession = "session"
 )
 
@@ -31,20 +36,25 @@ type Version struct {
 	Route   string `json:"route"`   // prefix to API calls
 }
 
+// NewUser ...
 type NewUser struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
+// NewUserReply ...
 type NewUserReply struct {
-	VerificationToken string `json:"verificationToken"` // Token used to verify the user's email address
+	VerificationToken string `json:"verificationtoken"`
 }
 
+// VerifyNewUser ...
 type VerifyNewUser struct {
 	Email             string `json:"email"`
-	VerificationToken string `json:"verificationToken"` // Same token returned in NewUserReply
+	VerificationToken string `json:"verificationtoken"`
 }
 
+// Login attempts to login the user.  Note that by necessity the password
+// travels in the clear.
 type Login struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
