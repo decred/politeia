@@ -14,7 +14,7 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-// politeiawww application context.
+// politeiawww backend construct
 type backend struct {
 	db database.Database
 }

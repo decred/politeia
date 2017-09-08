@@ -37,6 +37,9 @@ type Database interface {
 	UserGet(string) (*User, error) // Return user record, key is email
 	UserNew(User) error            // Add new user
 	UserUpdate(User) error         // Update existing user
+	
+	// Clears the entire database.
+	Clear() error
 
 	// Close performs cleanup of the backend.
 	Close()
