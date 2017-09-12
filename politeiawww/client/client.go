@@ -92,7 +92,7 @@ func (c *ctx) newUser(email, password string) (string, error) {
 	if *printJson {
 		fmt.Println(string(b))
 	}
-	route := *host + v1.PoliteiaAPIRoute + v1.RouteNewUser
+	route := *host + v1.PoliteiaWWWAPIRoute + v1.RouteNewUser
 	fmt.Printf("Route : %v\n", route)
 	req, err := http.NewRequest("POST", route, bytes.NewReader(b))
 	if err != nil {
@@ -147,7 +147,7 @@ func (c *ctx) verifyNewUser(email, token string) error {
 	if *printJson {
 		fmt.Println(string(b))
 	}
-	route := *host + v1.PoliteiaAPIRoute + v1.RouteVerifyNewUser
+	route := *host + v1.PoliteiaWWWAPIRoute + v1.RouteVerifyNewUser
 	fmt.Printf("Route : %v\n", route)
 	req, err := http.NewRequest("POST", route, bytes.NewReader(b))
 	if err != nil {
@@ -182,7 +182,7 @@ func (c *ctx) login(email, password string) error {
 	if *printJson {
 		fmt.Println(string(b))
 	}
-	route := *host + v1.PoliteiaAPIRoute + v1.RouteLogin
+	route := *host + v1.PoliteiaWWWAPIRoute + v1.RouteLogin
 	fmt.Printf("Route : %v\n", route)
 	req, err := http.NewRequest("POST", route, bytes.NewReader(b))
 	if err != nil {
@@ -214,7 +214,7 @@ func (c *ctx) secret() error {
 	if *printJson {
 		fmt.Println(string(b))
 	}
-	route := *host + v1.PoliteiaAPIRoute + v1.RouteSecret
+	route := *host + v1.PoliteiaWWWAPIRoute + v1.RouteSecret
 	fmt.Printf("secret Route : %v\n", route)
 	req, err := http.NewRequest("POST", route, bytes.NewReader(b))
 	if err != nil {
@@ -246,7 +246,7 @@ func (c *ctx) logout() error {
 	if *printJson {
 		fmt.Println(string(b))
 	}
-	route := *host + v1.PoliteiaAPIRoute + v1.RouteLogout
+	route := *host + v1.PoliteiaWWWAPIRoute + v1.RouteLogout
 	fmt.Printf("Route : %v\n", route)
 	req, err := http.NewRequest("POST", route, bytes.NewReader(b))
 	if err != nil {
@@ -269,7 +269,7 @@ func (c *ctx) logout() error {
 }
 
 func (c *ctx) assets() error {
-	route := *host + "/static/" //v1.PoliteiaAPIRoute + v1.RouteSecret
+	route := *host + "/static/" //v1.PoliteiaWWWAPIRoute + v1.RouteSecret
 	fmt.Printf("asset Route : %v\n", route)
 	req, err := http.NewRequest("GET", route, nil)
 	if err != nil {
