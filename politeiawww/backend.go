@@ -18,44 +18,90 @@ import (
 // politeiawww backend construct
 type backend struct {
 	db database.Database
+
+	// This is only used for testing.
+	verificationExpiryTime time.Duration
+}
+
+func (b *backend) getVerificationExpiryTime() time.Duration {
+	if b.verificationExpiryTime != time.Duration(0) {
+		return b.verificationExpiryTime
+	}
+	return time.Duration(v1.VerificationExpiryHours) * time.Hour
+}
+
+func (b *backend) generateVerificationTokenAndExpiry() ([]byte, int64, error) {
+	token, err := util.Random(v1.VerificationTokenSize)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	expiry := time.Now().Add(b.getVerificationExpiryTime()).Unix()
+
+	return token, expiry, nil
 }
 
 // ProcessNewUser creates a new user in the db if it doesn't already
 // exist and sets a verification token and expiry; the token must be
-// verified before it expires.
+// verified before it expires. If the user already exists in the db
+// and its token is expired, it generates a new one.
 func (b *backend) ProcessNewUser(u v1.NewUser) (v1.NewUserReply, error) {
 	var reply v1.NewUserReply
+	var token []byte
+	var expiry int64
 
 	// Check if the user already exists.
-	if _, err := b.db.UserGet(u.Email); err == nil {
-		return reply, errors.New("user already exists")
-	}
+	if user, err := b.db.UserGet(u.Email); err == nil {
+		// Check if the user is already verified.
+		if user.VerificationToken == nil {
+			return reply, errors.New("user already exists")
+		}
 
-	// Hash the user's password.
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(u.Password),
-		bcrypt.DefaultCost)
-	if err != nil {
-		return reply, err
-	}
+		// Check if the verification token hasn't expired yet.
+		if currentTime := time.Now().Unix(); currentTime < user.VerificationExpiry {
+			return reply, fmt.Errorf("user already exists and needs verification")
+		}
 
-	// Generate the verification token and expiry.
-	token, err := util.Random(v1.VerificationTokenSize)
-	if err != nil {
-		return reply, err
-	}
-	expiry := time.Now().Add(time.Duration(v1.VerificationExpiryHours) * time.Hour).Unix()
+		// Generate a new verification token and expiry.
+		token, expiry, err = b.generateVerificationTokenAndExpiry()
+		if err != nil {
+			return reply, err
+		}
 
-	// Add the user and hashed password to the db.
-	user := database.User{
-		Email:              u.Email,
-		HashedPassword:     hashedPassword,
-		Admin:              false,
-		VerificationToken:  token,
-		VerificationExpiry: expiry,
-	}
-	err = b.db.UserNew(user)
-	if err != nil {
-		return reply, err
+		// Add the updated user information to the db.
+		user.VerificationToken = token
+		user.VerificationExpiry = expiry
+		err = b.db.UserUpdate(*user)
+		if err != nil {
+			return reply, err
+		}
+	} else {
+		// Hash the user's password.
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(u.Password),
+			bcrypt.DefaultCost)
+		if err != nil {
+			return reply, err
+		}
+
+		// Generate the verification token and expiry.
+		token, expiry, err = b.generateVerificationTokenAndExpiry()
+		if err != nil {
+			return reply, err
+		}
+
+		// Add the user and hashed password to the db.
+		newUser := database.User{
+			Email:              u.Email,
+			HashedPassword:     hashedPassword,
+			Admin:              false,
+			VerificationToken:  token,
+			VerificationExpiry: expiry,
+		}
+
+		err = b.db.UserNew(newUser)
+		if err != nil {
+			return reply, err
+		}
 	}
 
 	// Reply with the verification token.
@@ -82,7 +128,7 @@ func (b *backend) ProcessVerifyNewUser(u v1.VerifyNewUser) error {
 
 	// Check that the verification token matches.
 	if !bytes.Equal(token, user.VerificationToken) {
-		return fmt.Errorf("verification token doesn't match")
+		return fmt.Errorf("verification token invalid")
 	}
 
 	// Check that the token hasn't expired.
@@ -101,11 +147,18 @@ func (b *backend) ProcessVerifyNewUser(u v1.VerifyNewUser) error {
 	return nil
 }
 
+// ProcessLogin checks that a user exists, is verified, and has
+// the correct password.
 func (b *backend) ProcessLogin(l v1.Login) error {
 	// Get user from db.
 	user, err := b.db.UserGet(l.Email)
 	if err != nil {
 		return err
+	}
+
+	// Check that the user is verified.
+	if user.VerificationToken != nil {
+		return errors.New("user not verified")
 	}
 
 	// Check the user's password.
@@ -118,6 +171,7 @@ func (b *backend) ProcessLogin(l v1.Login) error {
 	return nil
 }
 
+// NewBackend creates a new backend context for use in www and tests.
 func NewBackend(dataDir string) (*backend, error) {
 	// Setup database.
 	localdb.UseLogger(localdbLog)
