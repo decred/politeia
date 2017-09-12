@@ -79,14 +79,14 @@ func (c *ctx) getCSRF() (*v1.Version, error) {
 	return &v, nil
 }
 
-func (c *ctx) newUser(email, password string) (string, error) {
+func (c *ctx) newUser(email, password string) (uint64, string, error) {
 	u := v1.NewUser{
 		Email:    email,
 		Password: password,
 	}
 	b, err := json.Marshal(u)
 	if err != nil {
-		return "", err
+		return 0, "", err
 	}
 
 	if *printJson {
@@ -96,19 +96,19 @@ func (c *ctx) newUser(email, password string) (string, error) {
 	fmt.Printf("Route : %v\n", route)
 	req, err := http.NewRequest("POST", route, bytes.NewReader(b))
 	if err != nil {
-		return "", err
+		return 0, "", err
 	}
 	req.Header.Add("X-CSRF-Token", c.csrf)
 	r, err := c.client.Do(req)
 	if err != nil {
-		return "", err
+		return 0, "", err
 	}
 	defer func() {
 		r.Body.Close()
 	}()
 
 	if r.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("HTTP Status: %v", r.StatusCode)
+		return 0, "", fmt.Errorf("HTTP Status: %v", r.StatusCode)
 	}
 
 	var mw io.Writer
@@ -126,12 +126,12 @@ func (c *ctx) newUser(email, password string) (string, error) {
 	var nur v1.NewUserReply
 	err = json.Unmarshal(body.Bytes(), &nur)
 	if err != nil {
-		return "", fmt.Errorf("Could node unmarshal NewUserReply: %v",
+		return 0, "", fmt.Errorf("Could node unmarshal NewUserReply: %v",
 			err)
 	}
 
 	fmt.Printf("Verification Token: %v\n", nur.VerificationToken)
-	return nur.VerificationToken, nil
+	return nur.ID, nur.VerificationToken, nil
 }
 
 func (c *ctx) verifyNewUser(email, token string) error {
@@ -312,10 +312,11 @@ func _main() error {
 
 	// New User
 	fmt.Printf("=== POST /api/v1/user/new ===\n")
-	token, err := c.newUser("moo@moo.com", "sikrit!")
+	userID, token, err := c.newUser("moo@moo.com", "sikrit!")
 	if err != nil {
 		return err
 	}
+	fmt.Printf("ID     : %v\n", userID)
 	fmt.Printf("CSRF   : %v\n", c.csrf)
 
 	// Verify New User

@@ -1,6 +1,7 @@
 package localdb
 
 import (
+	"encoding/binary"
 	"path/filepath"
 	"sync"
 
@@ -10,7 +11,8 @@ import (
 )
 
 const (
-	userdbPath = "users"
+	userdbPath      = "users"
+	lastUserIDField = "lastuserid"
 )
 
 var (
@@ -28,12 +30,12 @@ type localdb struct {
 // Store new user.
 //
 // UserNew satisfies the backend interface.
-func (l *localdb) UserNew(u database.User) error {
+func (l *localdb) UserNew(u database.User) (uint64, error) {
 	l.Lock()
 	defer l.Unlock()
 
 	if l.shutdown == true {
-		return database.ErrShutdown
+		return 0, database.ErrShutdown
 	}
 
 	log.Debugf("UserNew: %v", u)
@@ -41,17 +43,40 @@ func (l *localdb) UserNew(u database.User) error {
 	// Make sure user does not exist
 	ok, err := l.userdb.Has([]byte(u.Email), nil)
 	if err != nil {
-		return err
+		return 0, err
 	} else if ok {
-		return database.ErrUserExists
+		return 0, database.ErrUserExists
 	}
+
+	// Fetch the next unique ID for the user.
+	var lastUserID uint64
+	ok, err = l.userdb.Has([]byte(lastUserIDField), nil)
+	if err != nil {
+		return 0, err
+	} else if ok {
+		b, err := l.userdb.Get([]byte(lastUserIDField), nil)
+		if err != nil {
+			return 0, err
+		}
+
+		lastUserID = binary.LittleEndian.Uint64(b) + 1
+	}
+
+	// Set the new id on the user.
+	u.ID = lastUserID
+
+	// Write the new id back to the db.
+	b := make([]byte, 8)
+	binary.LittleEndian.PutUint64(b, uint64(lastUserID))
+	l.userdb.Put([]byte(lastUserIDField), b, nil)
 
 	payload, err := encodeUser(u)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	return l.userdb.Put([]byte(u.Email), payload, nil)
+	err = l.userdb.Put([]byte(u.Email), payload, nil)
+	return u.ID, err
 }
 
 // UserGet returns a user record if found in the database.
@@ -110,6 +135,7 @@ func (l *localdb) UserUpdate(u database.User) error {
 	return l.userdb.Put([]byte(u.Email), payload, nil)
 }
 
+// Clear drops all data from the database.
 func (l *localdb) Clear() error {
 	l.Lock()
 	defer l.Unlock()

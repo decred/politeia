@@ -22,22 +22,21 @@ var (
 
 // User record.
 type User struct {
+	ID                 uint64 // Unique id
 	Email              string // User email address, also the lookup key.
 	HashedPassword     []byte // Blowfish hash
 	Admin              bool   // Is user an admin
-	VerificationToken  []byte // Token used to verify user's email address.
-	                          // If not populated, the user is verified.
-	VerificationExpiry int64  // Unix time representing the moment that the
-	                          // VerificationToken expires.
+	VerificationToken  []byte // Token used to verify user's email address (if populated).
+	VerificationExpiry int64  // Unix time representing the moment that the token expires.
 }
 
 // Database interface that is required by the web server.
 type Database interface {
 	// User functions
 	UserGet(string) (*User, error) // Return user record, key is email
-	UserNew(User) error            // Add new user
+	UserNew(User) (uint64, error)  // Add new user
 	UserUpdate(User) error         // Update existing user
-	
+
 	// Clears the entire database.
 	Clear() error
 
