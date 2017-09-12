@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -19,11 +20,11 @@ type backend struct {
 	db database.Database
 }
 
-// ProcessNewUser ...
+// ProcessNewUser creates a new user in the db if it doesn't already
+// exist and sets a verification token and expiry; the token must be
+// verified before it expires.
 func (b *backend) ProcessNewUser(u v1.NewUser) (v1.NewUserReply, error) {
 	var reply v1.NewUserReply
-
-	// XXX fix errors
 
 	// Check if the user already exists.
 	if _, err := b.db.UserGet(u.Email); err == nil {
@@ -64,6 +65,8 @@ func (b *backend) ProcessNewUser(u v1.NewUser) (v1.NewUserReply, error) {
 	return reply, nil
 }
 
+// ProcessVerifyNewUser verifies the token generated for a recently created user.
+// It ensures that the token matches with the input and that the token hasn't expired.
 func (b *backend) ProcessVerifyNewUser(u v1.VerifyNewUser) error {
 	// Check that the user already exists.
 	user, err := b.db.UserGet(u.Email)
@@ -79,14 +82,12 @@ func (b *backend) ProcessVerifyNewUser(u v1.VerifyNewUser) error {
 
 	// Check that the verification token matches.
 	if !bytes.Equal(token, user.VerificationToken) {
-		panic("tsk tsk")
-		return err
+		return fmt.Errorf("verification token doesn't match")
 	}
 
 	// Check that the token hasn't expired.
 	if currentTime := time.Now().Unix(); currentTime > user.VerificationExpiry {
-		panic("tsk tsk")
-		return err
+		return fmt.Errorf("verification token has expired")
 	}
 
 	// Clear out the verification token fields in the db.

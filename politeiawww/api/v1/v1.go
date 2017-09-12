@@ -22,7 +22,7 @@ const (
 
 var (
 	// PoliteiaWWWAPIRoute is the prefix to the API route
-	PoliteiaAPIRoute = fmt.Sprintf("/api/v%v", PoliteiaWWWAPIVersion)
+	PoliteiaWWWAPIRoute = fmt.Sprintf("/api/v%v", PoliteiaWWWAPIVersion)
 
 	// CookieSession is the cookie name that indicates that a user is
 	// logged in.
@@ -36,18 +36,21 @@ type Version struct {
 	Route   string `json:"route"`   // prefix to API calls
 }
 
-// NewUser ...
+// NewUser is used to request that a new user be created within the db.
+// If successful, the user will require verification before being able to login.
 type NewUser struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
-// NewUserReply ...
+// NewUserReply is used to reply to the NewUser command with
+// the verification token.
 type NewUserReply struct {
 	VerificationToken string `json:"verificationtoken"`
 }
 
-// VerifyNewUser ...
+// VerifyNewUser is used to perform verification for the user created through
+// the NewUser command using the token provided in NewUserReply.
 type VerifyNewUser struct {
 	Email             string `json:"email"`
 	VerificationToken string `json:"verificationtoken"`
