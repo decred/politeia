@@ -14,6 +14,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/http/httputil"
 	"os"
 	"os/signal"
 	"strings"
@@ -68,6 +69,40 @@ func convertFrontendStatus(status v1.StatusT) backend.PSRStatusT {
 		s = backend.PSRStatusCensored
 	}
 	return s
+}
+
+func (p *politeia) convertBackendProposal(bpr backend.ProposalRecord) v1.ProposalRecord {
+	psr := bpr.ProposalStorageRecord
+
+	// Calculate signature
+	merkleToken := make([]byte, len(psr.Merkle)+len(psr.Token))
+	copy(merkleToken, psr.Merkle[:])
+	copy(merkleToken[len(psr.Merkle[:]):], psr.Token)
+	signature := p.identity.SignMessage(merkleToken)
+
+	// Convert record
+	pr := v1.ProposalRecord{
+		Status:    convertBackendStatus(psr.Status),
+		Name:      psr.Name,
+		Timestamp: psr.Timestamp,
+		CensorshipRecord: v1.CensorshipRecord{
+			Merkle:    hex.EncodeToString(psr.Merkle[:]),
+			Token:     hex.EncodeToString(psr.Token),
+			Signature: hex.EncodeToString(signature[:]),
+		},
+	}
+	pr.Files = make([]v1.File, 0, len(bpr.Files))
+	for _, v := range bpr.Files {
+		pr.Files = append(pr.Files,
+			v1.File{
+				Name:    v.Name,
+				MIME:    v.MIME,
+				Digest:  v.Digest,
+				Payload: v.Payload,
+			})
+	}
+
+	return pr
 }
 
 func (p *politeia) getIdentity(w http.ResponseWriter, r *http.Request) {
@@ -214,9 +249,9 @@ func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Ask backend about the censorship token.
-	f, psr, err := p.backend.GetUnvetted(token)
+	bpr, err := p.backend.GetUnvetted(token)
 	if err == backend.ErrProposalNotFound {
-		reply.Status = v1.StatusNotFound
+		reply.Proposal.Status = v1.StatusNotFound
 		log.Errorf("Get unvetted proposal %v: token %v not found",
 			r.RemoteAddr, t.Token)
 	} else if err != nil {
@@ -231,31 +266,11 @@ func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
 				"following error code: %v", errorCode))
 		return
 	} else {
-		merkleToken := make([]byte, len(psr.Merkle)+len(psr.Token))
-		copy(merkleToken, psr.Merkle[:])
-		copy(merkleToken[len(psr.Merkle[:]):], psr.Token)
-		signature := p.identity.SignMessage(merkleToken)
-
-		reply.Status = convertBackendStatus(psr.Status)
-		reply.Name = psr.Name
-		reply.CensorshipRecord = v1.CensorshipRecord{
-			Merkle:    hex.EncodeToString(psr.Merkle[:]),
-			Token:     hex.EncodeToString(psr.Token),
-			Signature: hex.EncodeToString(signature[:]),
-		}
-		reply.Files = make([]v1.File, 0, len(f))
-		for _, v := range f {
-			reply.Files = append(reply.Files, v1.File{
-				Name:    v.Name,
-				MIME:    v.MIME,
-				Digest:  v.Digest,
-				Payload: v.Payload,
-			})
-		}
+		reply.Proposal = p.convertBackendProposal(*bpr)
 
 		// Double check proposal bits before sending them off
-		err := v1.Verify(p.identity.Public, reply.CensorshipRecord,
-			reply.Files)
+		err := v1.Verify(p.identity.Public,
+			reply.Proposal.CensorshipRecord, reply.Proposal.Files)
 		if err != nil {
 			// Generic internal error.
 			errorCode := time.Now().Unix()
@@ -273,7 +288,7 @@ func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
 
 		log.Infof("Get unvetted proposal %v: token %v name \"%v\"",
 			r.RemoteAddr,
-			t.Token, psr.Name)
+			t.Token, reply.Proposal.Name)
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
@@ -310,9 +325,9 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Ask backend about the censorship token.
-	f, psr, err := p.backend.GetVetted(token)
+	bpr, err := p.backend.GetVetted(token)
 	if err == backend.ErrProposalNotFound {
-		reply.Status = v1.StatusNotFound
+		reply.Proposal.Status = v1.StatusNotFound
 		log.Errorf("Get vetted proposal %v: token %v not found",
 			r.RemoteAddr, t.Token)
 	} else if err != nil {
@@ -327,31 +342,11 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 				"following error code: %v", errorCode))
 		return
 	} else {
-		merkleToken := make([]byte, len(psr.Merkle)+len(psr.Token))
-		copy(merkleToken, psr.Merkle[:])
-		copy(merkleToken[len(psr.Merkle[:]):], psr.Token)
-		signature := p.identity.SignMessage(merkleToken)
-
-		reply.Status = convertBackendStatus(psr.Status)
-		reply.Name = psr.Name
-		reply.CensorshipRecord = v1.CensorshipRecord{
-			Merkle:    hex.EncodeToString(psr.Merkle[:]),
-			Token:     hex.EncodeToString(psr.Token),
-			Signature: hex.EncodeToString(signature[:]),
-		}
-		reply.Files = make([]v1.File, 0, len(f))
-		for _, v := range f {
-			reply.Files = append(reply.Files, v1.File{
-				Name:    v.Name,
-				MIME:    v.MIME,
-				Digest:  v.Digest,
-				Payload: v.Payload,
-			})
-		}
+		reply.Proposal = p.convertBackendProposal(*bpr)
 
 		// Double check proposal bits before sending them off
-		err := v1.Verify(p.identity.Public, reply.CensorshipRecord,
-			reply.Files)
+		err := v1.Verify(p.identity.Public,
+			reply.Proposal.CensorshipRecord, reply.Proposal.Files)
 		if err != nil {
 			// Generic internal error.
 			errorCode := time.Now().Unix()
@@ -367,8 +362,59 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		log.Infof("Get vetted proposal %v: token %v name \"%v\"",
-			r.RemoteAddr, t.Token, psr.Name)
+			r.RemoteAddr, t.Token, reply.Proposal.Name)
 	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+func (p *politeia) inventory(w http.ResponseWriter, r *http.Request) {
+	var i v1.Inventory
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&i); err != nil {
+		util.RespondWithError(w, http.StatusBadRequest,
+			"Invalid request payload")
+		return
+	}
+	defer r.Body.Close()
+
+	challenge, err := hex.DecodeString(i.Challenge)
+	if err != nil || len(challenge) != v1.ChallengeSize {
+		util.RespondWithError(w, http.StatusBadRequest,
+			"Invalid challenge")
+		return
+	}
+	response := p.identity.SignMessage(challenge)
+
+	reply := v1.InventoryReply{
+		Response: hex.EncodeToString(response[:]),
+	}
+
+	// Ask backend for inventory
+	prs, brs, err := p.backend.Inventory(i.VettedCount, i.BranchesCount,
+		i.IncludeFiles)
+	if err != nil {
+		// Generic internal error.
+		errorCode := time.Now().Unix()
+		log.Errorf("%v Inventory error code %v: %v", r.RemoteAddr,
+			errorCode, err)
+
+		util.RespondWithError(w, http.StatusInternalServerError,
+			fmt.Sprintf("Could not inventory, contact "+
+				"administrator and provide the following "+
+				"error code: %v", errorCode))
+		return
+	}
+
+	// Convert backend proposals
+	vetted := make([]v1.ProposalRecord, 0, len(prs))
+	for _, v := range prs {
+		vetted = append(vetted, p.convertBackendProposal(v))
+	}
+	reply.Vetted = vetted
+
+	// Convert branches
+	_ = brs
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
@@ -499,6 +545,24 @@ func getError(r io.Reader) (string, error) {
 	return fmt.Sprintf("%v", rError), nil
 }
 
+func logging(f http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Trace incoming request
+		log.Tracef("%v", newLogClosure(func() string {
+			trace, err := httputil.DumpRequest(r, true)
+			if err != nil {
+				trace = []byte(fmt.Sprintf("logging: "+
+					"DumpRequest %v", err))
+			}
+			return string(trace)
+		}))
+
+		// Log incoming connection
+		log.Infof("%v %v%v %v", r.Method, r.RemoteAddr, r.URL, r.Proto)
+		f(w, r)
+	}
+}
+
 func _main() error {
 	// Load configuration and parse command line.  This function also
 	// initializes logging and configures it accordingly.
@@ -596,14 +660,20 @@ func _main() error {
 	p.router = mux.NewRouter()
 
 	// Unprivileged routes
-	p.router.HandleFunc(v1.IdentityRoute, p.getIdentity).Methods("POST")
-	p.router.HandleFunc(v1.NewRoute, p.newProposal).Methods("POST")
-	p.router.HandleFunc(v1.GetUnvettedRoute, p.getUnvetted).Methods("POST")
-	p.router.HandleFunc(v1.GetVettedRoute, p.getVetted).Methods("POST")
+	p.router.HandleFunc(v1.IdentityRoute,
+		logging(p.getIdentity)).Methods("POST")
+	p.router.HandleFunc(v1.NewRoute,
+		logging(p.newProposal)).Methods("POST")
+	p.router.HandleFunc(v1.GetUnvettedRoute,
+		logging(p.getUnvetted)).Methods("POST")
+	p.router.HandleFunc(v1.GetVettedRoute,
+		logging(p.getVetted)).Methods("POST")
 
 	// Routes that require auth
+	p.router.HandleFunc(v1.InventoryRoute,
+		logging(p.auth(p.inventory))).Methods("POST")
 	p.router.HandleFunc(v1.SetUnvettedStatusRoute,
-		p.auth(p.setUnvettedStatus)).Methods("POST")
+		logging(p.auth(p.setUnvettedStatus))).Methods("POST")
 
 	// Bind to a port and pass our router in
 	listenC := make(chan error)

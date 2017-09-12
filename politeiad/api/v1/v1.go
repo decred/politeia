@@ -21,13 +21,14 @@ type StatusT int
 
 const (
 	// Routes
-	IdentityRoute    = "/v1/identity/"    // retrieve identity
+	IdentityRoute    = "/v1/identity/"    // Retrieve identity
 	NewRoute         = "/v1/new/"         // New proposal
 	GetUnvettedRoute = "/v1/getunvetted/" // Retrieve unvetted proposal
 	GetVettedRoute   = "/v1/getvetted/"   // Retrieve vetted proposal
 
-	// Update unvetted status
-	SetUnvettedStatusRoute = "/v1/setunvettedstatus/"
+	// Auth required
+	InventoryRoute         = "/v1/inventory/"         // Inventory proposals
+	SetUnvettedStatusRoute = "/v1/setunvettedstatus/" // Set unvetted status
 
 	ChallengeSize = 32 // Size of challenge token in bytes
 
@@ -36,7 +37,7 @@ const (
 	StatusNotFound    StatusT = 1 // Proposal not found
 	StatusNotReviewed StatusT = 2 // Proposal has not been reviewed
 	StatusCensored    StatusT = 3 // Proposal has been censored
-	StatusPublic      StatusT = 4 // Proposal is publically visible
+	StatusPublic      StatusT = 4 // Proposal is publicly visible
 
 	// Default network bits
 	DefaultMainnetHost = "politeia.decred.org"
@@ -157,6 +158,15 @@ type File struct {
 	Payload string `json:"payload"` // File content
 }
 
+type ProposalRecord struct {
+	Name      string  `json:"name"`      // Suggested short proposal name
+	Status    StatusT `json:"status"`    // Current status of proposal
+	Timestamp int64   `json:"timestamp"` // Last update of proposal
+	Files     []File  `json:"files"`     // Files that make up the proposal
+
+	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
+}
+
 // New initiates a new proposal.  It must include all files that are part of
 // the proposal.  The only acceptable file types are text, markdown and PNG.
 type New struct {
@@ -181,12 +191,8 @@ type GetUnvetted struct {
 // GetUnvettedReply returns an unvetted proposal.  It retrieves the censorship
 // record and the actual files.
 type GetUnvettedReply struct {
-	Response string  `json:"response"` // Challenge response
-	Name     string  `json:"name"`     // Suggested short proposal name
-	Status   StatusT `json:"status"`   // Current status of proposal
-	Files    []File  `json:"files"`    // Files that make up the proposal
-
-	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
+	Response string         `json:"response"` // Challenge response
+	Proposal ProposalRecord `json:"proposalrecord"`
 }
 
 // GetVetted requests a vetted proposal from the server.
@@ -198,12 +204,8 @@ type GetVetted struct {
 // GetVettedReply returns a vetted proposal.  It retrieves the censorship
 // record and the latest files in the proposal.
 type GetVettedReply struct {
-	Response string  `json:"response"` // Challenge response
-	Name     string  `json:"name"`     // Suggested short proposal name
-	Status   StatusT `json:"status"`   // Current status of proposal
-	Files    []File  `json:"files"`    // Files that make up the proposal
-
-	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
+	Response string         `json:"response"` // Challenge response
+	Proposal ProposalRecord `json:"proposalrecord"`
 }
 
 // SetUnvettedStatus updates the status of an unvetted proposal.  This is used
@@ -233,3 +235,28 @@ type SetUnvettedStatusReply struct {
 //	Challenge string `json:"challenge"` // Random challenge
 //	Token     string `json:"token"`     // Censorship token
 //}
+
+// Inventory sends an (expensive and therefore authenticated) inventory request
+// for vetted proposals (master branch) and branches (censored, unpublished etc)
+// proposals.  This is a very expensive call and should be only issued at start
+// of day.  The client should cache the reply.
+// The IncludeFiles flag indicates if the records contain the proposal payload
+// as well.  This can quickly become very large and should only be used when
+// recovering the client side.
+type Inventory struct {
+	Challenge     string `json:"challenge"`     // Random challenge
+	IncludeFiles  bool   `json:"includefiles"`  // Include files in records
+	VettedCount   uint   `json:"vettedcount"`   // Last N vetted proposals
+	BranchesCount uint   `json:"branchescount"` // Last N branches (censored, new etc)
+}
+
+// InventoryReply returns vetted and branch proposal censorship records.  If
+// the Inventory command had IncludeFiles set to true the returned
+// ProposalRecords will also include the proposal files.  This obviously
+// enlarges the payload size and should therefore be used only in disaster
+// recovery scenarios.
+type InventoryReply struct {
+	Response string           `json:"response"` // Challenge response
+	Vetted   []ProposalRecord `json:"vetted"`   // Last N vetted proposals
+	Branches []ProposalRecord `json:"branches"` // Last N branches (censored, new etc)
+}
