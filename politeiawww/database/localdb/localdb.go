@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	userdbPath      = "users"
-	lastUserIDField = "lastuserid"
+	userdbPath    = "users"
+	lastUserIdKey = "lastuserid"
 )
 
 var (
@@ -54,23 +54,23 @@ func (l *localdb) UserNew(u database.User) error {
 	}
 
 	// Fetch the next unique ID for the user.
-	var lastUserID uint64
-	b, err := l.userdb.Get([]byte(lastUserIDField), nil)
+	var lastUserId uint64
+	b, err := l.userdb.Get([]byte(lastUserIdKey), nil)
 	if err != nil {
 		if err != leveldb.ErrNotFound {
 			return err
 		}
 	} else {
-		lastUserID = binary.LittleEndian.Uint64(b) + 1
+		lastUserId = binary.LittleEndian.Uint64(b) + 1
 	}
 
 	// Set the new id on the user.
-	u.ID = lastUserID
+	u.ID = lastUserId
 
 	// Write the new id back to the db.
 	b = make([]byte, 8)
-	binary.LittleEndian.PutUint64(b, uint64(lastUserID))
-	l.userdb.Put([]byte(lastUserIDField), b, nil)
+	binary.LittleEndian.PutUint64(b, uint64(lastUserId))
+	l.userdb.Put([]byte(lastUserIdKey), b, nil)
 
 	payload, err := encodeUser(u)
 	if err != nil {
@@ -134,34 +134,6 @@ func (l *localdb) UserUpdate(u database.User) error {
 	}
 
 	return l.userdb.Put([]byte(u.Email), payload, nil)
-}
-
-// Clear drops all data from the database.
-func (l *localdb) Clear() error {
-	l.Lock()
-	defer l.Unlock()
-
-	if l.shutdown == true {
-		return database.ErrShutdown
-	}
-
-	log.Debugf("Clear")
-
-	batch := new(leveldb.Batch)
-	iter := l.userdb.NewIterator(nil, nil)
-	for iter.Next() {
-		batch.Delete(iter.Key())
-	}
-	iter.Release()
-	if err := iter.Error(); err != nil {
-		return err
-	}
-
-	if err := l.userdb.Write(batch, nil); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // Close shuts down the database.  All interface functions MUST return with

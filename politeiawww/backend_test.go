@@ -65,9 +65,6 @@ func TestProcessNewUserWithUnverifiedToken(t *testing.T) {
 		t.Errorf("ProcessNewUser called without error, expected 'user already exists' error")
 	}
 
-	if err := b.db.Clear(); err != nil {
-		t.Error(err)
-	}
 	b.db.Close()
 }
 
@@ -96,9 +93,6 @@ func TestProcessNewUserWithExpiredToken(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := b.db.Clear(); err != nil {
-		t.Error(err)
-	}
 	b.db.Close()
 }
 
@@ -116,9 +110,6 @@ func TestProcessNewUserWithInvalidEmail(t *testing.T) {
 		t.Errorf("ProcessNewUser called without error, expected 'email not valid' error")
 	}
 
-	if err := b.db.Clear(); err != nil {
-		t.Error(err)
-	}
 	b.db.Close()
 }
 
@@ -254,8 +245,5 @@ func TestLoginWithVerifiedUser(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := b.db.Clear(); err != nil {
-		t.Error(err)
-	}
 	b.db.Close()
 }
