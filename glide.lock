@@ -1,11 +1,13 @@
-hash: c8f20bf37d4bcdc056991771d782db40003f798144d8cf1b0a9a163d64eb6898
-updated: 2017-09-06T17:36:25.282109698-05:00
+hash: 62072084e490ff73ecca57cfc466b3596788b90c4af5cac75d84af8063e46434
+updated: 2017-09-12T15:56:53.1800663-04:00
 imports:
 - name: github.com/agl/ed25519
   version: 278e1ec8e8a6e017cd07577924d6766039146ced
   subpackages:
   - edwards25519
   - extra25519
+- name: github.com/badoux/checkmail
+  version: d0a759655d62bcdc95c50a0676f3e9702ed59453
 - name: github.com/btcsuite/btclog
   version: 84c8d2346e9fc8c7b947e243b9c24e6df9fd206a
 - name: github.com/btcsuite/go-flags
@@ -48,7 +50,7 @@ imports:
 - name: github.com/gorilla/csrf
   version: 69581736821c33d85bbf378f42f6ad864dbd85de
 - name: github.com/gorilla/mux
-  version: bcd8bc72b08df0f70df986b97f95590779502d31
+  version: 24fca303ac6da784b9e8269f724ddeb0b2eea5e7
 - name: github.com/gorilla/securecookie
   version: e59506cc896acb7f7bf732d4fdf5e25f7ccd8983
 - name: github.com/gorilla/sessions

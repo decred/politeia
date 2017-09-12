@@ -7,6 +7,7 @@ import (
 
 	"github.com/decred/politeia/politeiawww/database"
 
+	"github.com/badoux/checkmail"
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
@@ -40,7 +41,7 @@ func (l *localdb) UserNew(u database.User) error {
 
 	log.Debugf("UserNew: %v", u)
 
-	if u.Email == lastUserIDField {
+	if err := checkmail.ValidateFormat(u.Email); err != nil {
 		return database.ErrInvalidEmail
 	}
 

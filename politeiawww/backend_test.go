@@ -16,11 +16,11 @@ import (
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 func generateRandomString(n int) string {
-	b := make([]byte, 8)
+	b := make([]byte, n)
 	for i := range b {
 		b[i] = letterBytes[rand.Intn(len(letterBytes))]
 	}
-	return string(b) + "@example.com"
+	return string(b)
 }
 
 func generateRandomEmail() string {
@@ -94,6 +94,26 @@ func TestProcessNewUserWithExpiredToken(t *testing.T) {
 	_, err = b.ProcessNewUser(u)
 	if err != nil {
 		t.Error(err)
+	}
+
+	if err := b.db.Clear(); err != nil {
+		t.Error(err)
+	}
+	b.db.Close()
+}
+
+// Tests creating a new user with an invalid email.
+func TestProcessNewUserWithInvalidEmail(t *testing.T) {
+	b := createBackend(t)
+
+	u := v1.NewUser{
+		Email:    "foobar",
+		Password: generateRandomPassword(),
+	}
+
+	_, err := b.ProcessNewUser(u)
+	if err == nil {
+		t.Errorf("ProcessNewUser called without error, expected 'email not valid' error")
 	}
 
 	if err := b.db.Clear(); err != nil {
