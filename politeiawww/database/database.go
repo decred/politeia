@@ -16,19 +16,21 @@ var (
 	// ErrUserExists indicates that a user already exists in the database.
 	ErrUserExists = errors.New("user already exists")
 
+	// ErrInvalidEmail indicates that a user's email is not properly formatted.
+	ErrInvalidEmail = errors.New("invalid user email")
+
 	// ErrShutdown is emitted when the database is shutting down.
 	ErrShutdown = errors.New("database is shutting down")
 )
 
 // User record.
 type User struct {
+	ID                 uint64 // Unique id
 	Email              string // User email address, also the lookup key.
 	HashedPassword     []byte // Blowfish hash
 	Admin              bool   // Is user an admin
-	VerificationToken  []byte // Token used to verify user's email address.
-	                          // If not populated, the user is verified.
-	VerificationExpiry int64  // Unix time representing the moment that the
-	                          // VerificationToken expires.
+	VerificationToken  []byte // Token used to verify user's email address (if populated).
+	VerificationExpiry int64  // Unix time representing the moment that the token expires.
 }
 
 // Database interface that is required by the web server.
@@ -37,9 +39,6 @@ type Database interface {
 	UserGet(string) (*User, error) // Return user record, key is email
 	UserNew(User) error            // Add new user
 	UserUpdate(User) error         // Update existing user
-	
-	// Clears the entire database.
-	Clear() error
 
 	// Close performs cleanup of the backend.
 	Close()

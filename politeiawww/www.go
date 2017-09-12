@@ -35,8 +35,8 @@ type politeiawww struct {
 func init() {
 	var err error
 	versionReply, err = json.Marshal(v1.Version{
-		Version: v1.PoliteiaAPIVersion,
-		Route:   v1.PoliteiaAPIRoute,
+		Version: v1.PoliteiaWWWAPIVersion,
+		Route:   v1.PoliteiaWWWAPIRoute,
 	})
 	if err != nil {
 		panic(fmt.Sprintf("versionReply: %v", err))
@@ -213,17 +213,17 @@ func _main() error {
 
 	// Unauthenticated commands
 	p.router.HandleFunc("/", logging(p.handleVersion)).Methods("GET")
-	p.router.HandleFunc(v1.PoliteiaAPIRoute+v1.RouteNewUser,
+	p.router.HandleFunc(v1.PoliteiaWWWAPIRoute+v1.RouteNewUser,
 		logging(p.handleNewUser)).Methods("POST")
-	p.router.HandleFunc(v1.PoliteiaAPIRoute+v1.RouteVerifyNewUser,
+	p.router.HandleFunc(v1.PoliteiaWWWAPIRoute+v1.RouteVerifyNewUser,
 		logging(p.handleVerifyNewUser)).Methods("POST")
-	p.router.HandleFunc(v1.PoliteiaAPIRoute+v1.RouteLogin,
+	p.router.HandleFunc(v1.PoliteiaWWWAPIRoute+v1.RouteLogin,
 		logging(p.handleLogin)).Methods("POST")
-	p.router.HandleFunc(v1.PoliteiaAPIRoute+v1.RouteLogout,
+	p.router.HandleFunc(v1.PoliteiaWWWAPIRoute+v1.RouteLogout,
 		logging(p.handleLogout)).Methods("POST")
 
 	// Routes that require being logged in.
-	p.router.HandleFunc(v1.PoliteiaAPIRoute+v1.RouteSecret,
+	p.router.HandleFunc(v1.PoliteiaWWWAPIRoute+v1.RouteSecret,
 		logging(p.isLoggedIn(p.handleSecret))).Methods("POST")
 
 	// Since we don't persist connections also generate a new cookie key on

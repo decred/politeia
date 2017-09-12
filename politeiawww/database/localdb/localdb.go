@@ -1,16 +1,19 @@
 package localdb
 
 import (
+	"encoding/binary"
 	"path/filepath"
 	"sync"
 
 	"github.com/decred/politeia/politeiawww/database"
 
+	"github.com/badoux/checkmail"
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
 const (
-	userdbPath = "users"
+	userdbPath    = "users"
+	lastUserIdKey = "lastuserid"
 )
 
 var (
@@ -38,6 +41,10 @@ func (l *localdb) UserNew(u database.User) error {
 
 	log.Debugf("UserNew: %v", u)
 
+	if err := checkmail.ValidateFormat(u.Email); err != nil {
+		return database.ErrInvalidEmail
+	}
+
 	// Make sure user does not exist
 	ok, err := l.userdb.Has([]byte(u.Email), nil)
 	if err != nil {
@@ -45,6 +52,25 @@ func (l *localdb) UserNew(u database.User) error {
 	} else if ok {
 		return database.ErrUserExists
 	}
+
+	// Fetch the next unique ID for the user.
+	var lastUserId uint64
+	b, err := l.userdb.Get([]byte(lastUserIdKey), nil)
+	if err != nil {
+		if err != leveldb.ErrNotFound {
+			return err
+		}
+	} else {
+		lastUserId = binary.LittleEndian.Uint64(b) + 1
+	}
+
+	// Set the new id on the user.
+	u.ID = lastUserId
+
+	// Write the new id back to the db.
+	b = make([]byte, 8)
+	binary.LittleEndian.PutUint64(b, uint64(lastUserId))
+	l.userdb.Put([]byte(lastUserIdKey), b, nil)
 
 	payload, err := encodeUser(u)
 	if err != nil {
@@ -108,33 +134,6 @@ func (l *localdb) UserUpdate(u database.User) error {
 	}
 
 	return l.userdb.Put([]byte(u.Email), payload, nil)
-}
-
-func (l *localdb) Clear() error {
-	l.Lock()
-	defer l.Unlock()
-
-	if l.shutdown == true {
-		return database.ErrShutdown
-	}
-
-	log.Debugf("Clear")
-
-	batch := new(leveldb.Batch)
-	iter := l.userdb.NewIterator(nil, nil)
-	for iter.Next() {
-		batch.Delete(iter.Key())
-	}
-	iter.Release()
-	if err := iter.Error(); err != nil {
-		return err
-	}
-
-	if err := l.userdb.Write(batch, nil); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // Close shuts down the database.  All interface functions MUST return with
