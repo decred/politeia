@@ -46,7 +46,6 @@ type NewUser struct {
 // NewUserReply is used to reply to the NewUser command with
 // the verification token.
 type NewUserReply struct {
-	ID                uint64 `json:"id"`
 	VerificationToken string `json:"verificationtoken"`
 }
 

@@ -47,7 +47,6 @@ func (b *backend) generateVerificationTokenAndExpiry() ([]byte, int64, error) {
 // and its token is expired, it generates a new one.
 func (b *backend) ProcessNewUser(u v1.NewUser) (v1.NewUserReply, error) {
 	var reply v1.NewUserReply
-	var userID uint64
 	var token []byte
 	var expiry int64
 
@@ -76,9 +75,6 @@ func (b *backend) ProcessNewUser(u v1.NewUser) (v1.NewUserReply, error) {
 		if err != nil {
 			return reply, err
 		}
-
-		// Populate the user id (for the reply) for consistency.
-		userID = user.ID
 	} else {
 		// Hash the user's password.
 		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(u.Password),
@@ -102,7 +98,7 @@ func (b *backend) ProcessNewUser(u v1.NewUser) (v1.NewUserReply, error) {
 			VerificationExpiry: expiry,
 		}
 
-		userID, err = b.db.UserNew(newUser)
+		err = b.db.UserNew(newUser)
 		if err != nil {
 			return reply, err
 		}
@@ -110,7 +106,6 @@ func (b *backend) ProcessNewUser(u v1.NewUser) (v1.NewUserReply, error) {
 
 	// Reply with the verification token.
 	reply = v1.NewUserReply{
-		ID:                userID,
 		VerificationToken: hex.EncodeToString(token[:]),
 	}
 	return reply, nil

@@ -16,6 +16,9 @@ var (
 	// ErrUserExists indicates that a user already exists in the database.
 	ErrUserExists = errors.New("user already exists")
 
+	// ErrInvalidEmail indicates that a user's email is not properly formatted.
+	ErrInvalidEmail = errors.New("invalid user email")
+
 	// ErrShutdown is emitted when the database is shutting down.
 	ErrShutdown = errors.New("database is shutting down")
 )
@@ -34,7 +37,7 @@ type User struct {
 type Database interface {
 	// User functions
 	UserGet(string) (*User, error) // Return user record, key is email
-	UserNew(User) (uint64, error)  // Add new user
+	UserNew(User) error            // Add new user
 	UserUpdate(User) error         // Update existing user
 
 	// Clears the entire database.
