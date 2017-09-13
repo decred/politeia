@@ -153,7 +153,7 @@ func (b *backend) ProcessLogin(l v1.Login) error {
 	// Get user from db.
 	user, err := b.db.UserGet(l.Email)
 	if err != nil {
-		return err
+		return v1.ErrInvalidEmailOrPassword
 	}
 
 	// Check that the user is verified.
@@ -165,7 +165,7 @@ func (b *backend) ProcessLogin(l v1.Login) error {
 	err = bcrypt.CompareHashAndPassword(user.HashedPassword,
 		[]byte(l.Password))
 	if err != nil {
-		return err
+		return v1.ErrInvalidEmailOrPassword
 	}
 
 	return nil

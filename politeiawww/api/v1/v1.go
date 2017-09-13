@@ -1,6 +1,9 @@
 package v1
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 const (
 	PoliteiaWWWAPIVersion = 1 // API version this backend understands
@@ -27,6 +30,9 @@ var (
 	// CookieSession is the cookie name that indicates that a user is
 	// logged in.
 	CookieSession = "session"
+
+	// ErrInvalidEmailOrPassword is emitted when trying to log in.
+	ErrInvalidEmailOrPassword = errors.New("invalid email or password")
 )
 
 // Version command is used to determine the version of the API this backend
