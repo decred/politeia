@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/elliptic"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -186,8 +187,8 @@ func _main() error {
 		!fileExists(loadedCfg.HTTPSCert) {
 		log.Infof("Generating HTTPS keypair...")
 
-		err := util.GenCertPair("politeiadwww", loadedCfg.HTTPSCert,
-			loadedCfg.HTTPSKey)
+		err := util.GenCertPair(elliptic.P256(), "politeiadwww",
+			loadedCfg.HTTPSCert, loadedCfg.HTTPSKey)
 		if err != nil {
 			return fmt.Errorf("unable to create https keypair: %v",
 				err)
@@ -254,7 +255,9 @@ func _main() error {
 		go func() {
 			cfg := &tls.Config{
 				MinVersion: tls.VersionTLS12,
-				CurvePreferences: []tls.CurveID{tls.CurveP521,
+				CurvePreferences: []tls.CurveID{
+					tls.CurveP256, // BLAME CHROME, NOT ME!
+					tls.CurveP521,
 					tls.X25519},
 				PreferServerCipherSuites: true,
 				CipherSuites: []uint16{

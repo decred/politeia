@@ -14,10 +14,9 @@ import (
 )
 
 // GenCertPair generates a key/cert pair to the paths provided.
-func GenCertPair(org, certFile, keyFile string) error {
+func GenCertPair(curve elliptic.Curve, org, certFile, keyFile string) error {
 	validUntil := time.Now().Add(10 * 365 * 24 * time.Hour)
-	cert, key, err := dcrutil.NewTLSCertPair(elliptic.P521(), org,
-		validUntil, nil)
+	cert, key, err := dcrutil.NewTLSCertPair(curve, org, validUntil, nil)
 	if err != nil {
 		return err
 	}
