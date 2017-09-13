@@ -25,7 +25,7 @@ const (
 
 var (
 	// PoliteiaWWWAPIRoute is the prefix to the API route
-	PoliteiaWWWAPIRoute = fmt.Sprintf("/api/v%v", PoliteiaWWWAPIVersion)
+	PoliteiaWWWAPIRoute = fmt.Sprintf("/v%v", PoliteiaWWWAPIVersion)
 
 	// CookieSession is the cookie name that indicates that a user is
 	// logged in.
