@@ -5,6 +5,7 @@
 package main
 
 import (
+	"crypto/elliptic"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
@@ -527,8 +528,8 @@ func _main() error {
 		!fileExists(loadedCfg.HTTPSCert) {
 		log.Infof("Generating HTTPS keypair...")
 
-		err := util.GenCertPair("politeiad", loadedCfg.HTTPSCert,
-			loadedCfg.HTTPSKey)
+		err := util.GenCertPair(elliptic.P521(), "politeiad",
+			loadedCfg.HTTPSCert, loadedCfg.HTTPSKey)
 		if err != nil {
 			return fmt.Errorf("unable to create https keypair: %v",
 				err)
