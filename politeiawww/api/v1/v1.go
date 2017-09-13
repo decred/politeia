@@ -7,9 +7,9 @@ const (
 
 	CsrfToken = "X-CSRF-Token" // CSRF token for replies
 
-	RouteLogin  = "/login/"
-	RouteLogout = "/logout/"
-	RouteSecret = "/secret/"
+	RouteLogin  = "/login"
+	RouteLogout = "/logout"
+	RouteSecret = "/secret"
 )
 
 var (
