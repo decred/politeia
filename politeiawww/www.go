@@ -125,8 +125,15 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 	err := p.backend.ProcessLogin(l)
 	if err != nil {
 		log.Errorf("handleLogin: %v", err)
-		http.Error(w, http.StatusText(http.StatusForbidden),
-			http.StatusForbidden)
+
+		var statusCode int
+		if err == v1.ErrInvalidEmailOrPassword {
+			statusCode = http.StatusUnauthorized
+		} else {
+			statusCode = http.StatusForbidden
+		}
+
+		http.Error(w, http.StatusText(statusCode), statusCode)
 		return
 	}
 
