@@ -74,7 +74,7 @@ func (c *ctx) getCSRF() (*v1.Version, error) {
 		return nil, fmt.Errorf("Could node unmarshal version: %v", err)
 	}
 
-	c.csrf = r.Header.Get("X-Csrf-Token")
+	c.csrf = r.Header.Get(v1.CsrfToken)
 
 	return &v, nil
 }
@@ -98,7 +98,7 @@ func (c *ctx) newUser(email, password string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	req.Header.Add("X-CSRF-Token", c.csrf)
+	req.Header.Add(v1.CsrfToken, c.csrf)
 	r, err := c.client.Do(req)
 	if err != nil {
 		return "", err
@@ -153,7 +153,7 @@ func (c *ctx) verifyNewUser(email, token string) error {
 	if err != nil {
 		return err
 	}
-	req.Header.Add("X-CSRF-Token", c.csrf)
+	req.Header.Add(v1.CsrfToken, c.csrf)
 	r, err := c.client.Do(req)
 	if err != nil {
 		return err
@@ -188,7 +188,7 @@ func (c *ctx) login(email, password string) error {
 	if err != nil {
 		return err
 	}
-	req.Header.Add("X-CSRF-Token", c.csrf)
+	req.Header.Add(v1.CsrfToken, c.csrf)
 	r, err := c.client.Do(req)
 	if err != nil {
 		return err
@@ -220,7 +220,7 @@ func (c *ctx) secret() error {
 	if err != nil {
 		return err
 	}
-	req.Header.Add("X-CSRF-Token", c.csrf)
+	req.Header.Add(v1.CsrfToken, c.csrf)
 	r, err := c.client.Do(req)
 	if err != nil {
 		return err
@@ -252,7 +252,7 @@ func (c *ctx) logout() error {
 	if err != nil {
 		return err
 	}
-	req.Header.Add("X-CSRF-Token", c.csrf)
+	req.Header.Add(v1.CsrfToken, c.csrf)
 	r, err := c.client.Do(req)
 	if err != nil {
 		return err
@@ -275,7 +275,7 @@ func (c *ctx) assets() error {
 	if err != nil {
 		return err
 	}
-	req.Header.Add("X-CSRF-Token", c.csrf)
+	req.Header.Add(v1.CsrfToken, c.csrf)
 	r, err := c.client.Do(req)
 	if err != nil {
 		return err
