@@ -26,8 +26,10 @@ The politeia stack is as follows:
 ```
 
 ## Components
-* politeia - Reference client application
-* politeiad - Reference server daemon
+* politeia - Reference client application.
+* politeiad - Reference server daemon.
+* politeiawww - Web backend server.
+* client - Web reference client application.
 * politeiaddumpdb - Backend database dumper for debugging purposes.
 
 ## Dependencies
@@ -38,11 +40,13 @@ The politeia stack is as follows:
 ## Library and interfaces
 * api/v1 - JSON REST API for politeia clients.
 * cmd/politeia - Client reference implementation
+* politeiawww/api/v1 - JSON API for WWW.
+* politeiawww/client/client - Reference implementation for WWW API.
 * util - common used miscellaneous utility functions.
 
 ## Example
 
-Compile and launch the daemon:
+Compile and launch the politeia daemon:
 ```
 glide i && go install -v $(glide nv) && LOGFLAGS=shortfile politeiad --testnet --rpcuser=user --rpcpass=pass
 ```
@@ -97,3 +101,12 @@ Set proposal status:
 
 **Note:** All politeia commands can dump the JSON output of every RPC command
 by adding the -json command line flag.
+
+Compile and launch the web server:
+```
+glide i && go install -v $(glide nv) && LOGFLAGS=shortfile politeiawww --testnet --rpcuser=user --rpcpass=pass
+```
+To check if the webserver is running correctly:
+```
+client
+```
