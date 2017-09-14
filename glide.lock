@@ -1,5 +1,5 @@
-hash: 62072084e490ff73ecca57cfc466b3596788b90c4af5cac75d84af8063e46434
-updated: 2017-09-12T15:56:53.1800663-04:00
+hash: 0ce8ddcd6a55b6a18c7a7ce64b40a0819f6d8ab0919008c728c9e86a612b44d6
+updated: 2017-09-13T09:39:25.2063185-04:00
 imports:
 - name: github.com/agl/ed25519
   version: 278e1ec8e8a6e017cd07577924d6766039146ced
@@ -14,6 +14,8 @@ imports:
   version: 6c288d648c1cc1befcb90cb5511dcacf64ae8e61
 - name: github.com/btcsuite/seelog
   version: ae8891d029dd3c269dcfd6f261ad23e761acd99f
+- name: github.com/dajohi/goemail
+  version: 40fa6c958abc97b72d3ff95998228b05dc21a1db
 - name: github.com/davecgh/go-spew
   version: 346938d642f2ec3594ed81d874461961cd0faa76
   subpackages:

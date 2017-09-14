@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/dajohi/goemail"
 	"github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/util"
 	"github.com/gorilla/csrf"
@@ -76,6 +77,22 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(http.StatusForbidden),
 			http.StatusForbidden)
 		return
+	}
+
+	// Email the verification token if the email server is set up.
+	if p.cfg.SMTP != nil {
+		from := "noreply@decred.org"
+		subject := "Politeia Registration - Verify Your Email"
+		body := "<p>You must verify your email to complete your registration.</p>" +
+			"<p>Enter this code to verify your email: <span style=\"font-weight: bold\">" + reply.VerificationToken + "</span></p>" +
+			"<p>You are receiving this email because this email address was used to register for Politeia.</p>"
+
+		msg := goemail.NewHTMLMessage(from, subject, body)
+		msg.AddTo(u.Email)
+
+		if err := p.cfg.SMTP.Send(msg); err != nil {
+			log.Errorf("handleNewUser: SMTP.Send %v", err)
+		}
 	}
 
 	// Reply with the verification token.

@@ -80,7 +80,7 @@ func TestProcessNewUserWithExpiredToken(t *testing.T) {
 		Password: generateRandomPassword(),
 	}
 
-	_, err := b.ProcessNewUser(u)
+	reply1, err := b.ProcessNewUser(u)
 	if err != nil {
 		t.Error(err)
 	}
@@ -88,9 +88,16 @@ func TestProcessNewUserWithExpiredToken(t *testing.T) {
 	// Sleep for a longer amount of time than it takes for the verification token to expire.
 	time.Sleep(sleepTime)
 
-	_, err = b.ProcessNewUser(u)
+	reply2, err := b.ProcessNewUser(u)
 	if err != nil {
 		t.Error(err)
+	}
+
+	if reply2.VerificationToken == "" {
+		t.Errorf("ProcessNewUser did not return a verification token.")
+	}
+	if reply1.VerificationToken == reply2.VerificationToken {
+		t.Errorf("ProcessNewUser did not return a new verification token.")
 	}
 
 	b.db.Close()
