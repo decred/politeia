@@ -19,7 +19,7 @@ import (
 
 	"github.com/decred/dcrtime/api/v1"
 	"github.com/decred/dcrtime/merkle"
-	"github.com/decred/politeia/api/v1/mime"
+	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/util"
 	"github.com/marcopeereboom/lockfile"

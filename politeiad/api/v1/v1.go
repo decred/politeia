@@ -13,8 +13,8 @@ import (
 	"regexp"
 
 	"github.com/decred/dcrtime/merkle"
-	"github.com/decred/politeia/api/v1/identity"
-	"github.com/decred/politeia/api/v1/mime"
+	"github.com/decred/politeia/politeiad/api/v1/identity"
+	"github.com/decred/politeia/politeiad/api/v1/mime"
 )
 
 type StatusT int

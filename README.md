@@ -28,9 +28,9 @@ The politeia stack is as follows:
 ## Components
 * politeia - Reference client application.
 * politeiad - Reference server daemon.
+* politeiaddumpdb - Politeiad database dumper for debugging purposes.
 * politeiawww - Web backend server.
-* client - Web reference client application.
-* politeiaddumpdb - Backend database dumper for debugging purposes.
+* politeiawww_refclient - Web reference client application.
 
 ## Dependencies
 * git - the git command line tool must be installed on the machine that runs
@@ -38,10 +38,10 @@ The politeia stack is as follows:
   daemon is 2.11.0.
 
 ## Library and interfaces
-* api/v1 - JSON REST API for politeia clients.
-* cmd/politeia - Client reference implementation
+* politeiad/api/v1 - JSON REST API for politeia clients.
+* politeiad/cmd/politeia - Client reference implementation
 * politeiawww/api/v1 - JSON API for WWW.
-* politeiawww/client/client - Reference implementation for WWW API.
+* politeiawww/cmd/politeiawww_refclient - Reference implementation for WWW API.
 * util - common used miscellaneous utility functions.
 
 ## Example

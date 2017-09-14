@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/decred/politeia/api/v1"
+	"github.com/decred/dcrtime/api/v1"
 )
 
 // ConvertStringToken verifies and converts a string token to a proper sized
