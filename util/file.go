@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/decred/politeia/api/v1/mime"
+	"github.com/decred/politeia/politeiad/api/v1/mime"
 )
 
 // MimeFile returns the MIME type of a file.

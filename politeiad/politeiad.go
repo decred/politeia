@@ -20,8 +20,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/decred/politeia/api/v1"
-	"github.com/decred/politeia/api/v1/identity"
+	"github.com/decred/politeia/politeiad/api/v1"
+	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/gitbe"
 	"github.com/decred/politeia/util"
