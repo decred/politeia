@@ -19,6 +19,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/dcrutil"
@@ -51,6 +52,8 @@ func usage() {
 	fmt.Fprintf(os.Stderr, "\n actions:\n")
 	fmt.Fprintf(os.Stderr, "  identity          - Retrieve server "+
 		"identity\n")
+	fmt.Fprintf(os.Stderr, "  inventory         - Inventory proposals "+
+		"<vetted count> <branches count>\n")
 	fmt.Fprintf(os.Stderr, "  new               - Create new proposal "+
 		"<name> <filename>...\n")
 	fmt.Fprintf(os.Stderr, "  getunvetted       - Retrieve proposal "+
@@ -259,6 +262,124 @@ func getIdentity() error {
 	return nil
 }
 
+func remoteInventory() (*v1.InventoryReply, error) {
+	challenge, err := util.Random(v1.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+	b, err := json.Marshal(v1.Inventory{
+		Challenge: hex.EncodeToString(challenge),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if *printJson {
+		fmt.Println(string(b))
+	}
+
+	c := newClient(verify)
+	req, err := http.NewRequest("POST", *host+v1.InventoryRoute,
+		bytes.NewReader(b))
+	if err != nil {
+		return nil, err
+	}
+	req.SetBasicAuth(*rpcuser, *rpcpass)
+	r, err := c.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Body.Close()
+	if r.StatusCode != http.StatusOK {
+		e, err := getError(r.Body)
+		if err != nil {
+			return nil, fmt.Errorf("%v", r.Status)
+		}
+		return nil, fmt.Errorf("%v: %v", r.Status, e)
+	}
+
+	var mw io.Writer
+	var body bytes.Buffer
+	if *printJson {
+		mw = io.MultiWriter(&body, os.Stdout)
+	} else {
+		mw = io.MultiWriter(&body)
+	}
+	io.Copy(mw, r.Body)
+	if *printJson {
+		fmt.Printf("\n")
+	}
+
+	var ir v1.InventoryReply
+	err = json.Unmarshal(body.Bytes(), &ir)
+	if err != nil {
+		return nil, fmt.Errorf("Could node unmarshal "+
+			"InventoryReply: %v", err)
+	}
+
+	// Fetch remote identity
+	id, err := identity.LoadPublicIdentity(*identityFilename)
+	if err != nil {
+		return nil, err
+	}
+
+	err = verifyChallenge(id, challenge, ir.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ir, nil
+}
+
+func printCensorshipRecord(c v1.CensorshipRecord) {
+	fmt.Printf("  Censorship record:\n")
+	fmt.Printf("    Merkle   : %v\n", c.Merkle)
+	fmt.Printf("    Token    : %v\n", c.Token)
+	fmt.Printf("    Signature: %v\n", c.Signature)
+}
+
+func printProposalRecord(header string, pr v1.ProposalRecord) {
+	// Pretty print proposal
+	status, ok := v1.Status[pr.Status]
+	if !ok {
+		status = v1.Status[v1.StatusInvalid]
+	}
+	fmt.Printf("%v:\n", header)
+	fmt.Printf("  Name       : %v\n", pr.Name)
+	fmt.Printf("  Status     : %v\n", status)
+	fmt.Printf("  Timestamp  : %v\n", time.Unix(pr.Timestamp, 0).UTC())
+	printCensorshipRecord(pr.CensorshipRecord)
+	for k, v := range pr.Files {
+		fmt.Printf("  File (%02v)  :\n", k)
+		fmt.Printf("    Name     : %v\n", v.Name)
+		fmt.Printf("    MIME     : %v\n", v.MIME)
+		fmt.Printf("    Digest   : %v\n", v.Digest)
+	}
+}
+
+func inventory() error {
+	flags := flag.Args()[1:] // Chop off action.
+	if len(flags) < 2 {
+		return fmt.Errorf("vetted and branches counts expected")
+	}
+
+	i, err := remoteInventory()
+	if err != nil {
+		return err
+	}
+
+	if !*printJson {
+		for _, v := range i.Vetted {
+			printProposalRecord("Vetted proposal", v)
+		}
+		for _, v := range i.Branches {
+			printProposalRecord("Unvetted proposal", v)
+		}
+	}
+
+	return nil
+}
+
 func newProposal() error {
 	flags := flag.Args()[1:] // Chop off action.
 
@@ -392,12 +513,7 @@ func newProposal() error {
 	}
 
 	if !*printJson {
-		// Pretty print proposal
-		c := &reply.CensorshipRecord
-		fmt.Printf("Censorship record:\n")
-		fmt.Printf("  Merkle   : %v\n", c.Merkle)
-		fmt.Printf("  Token    : %v\n", c.Token)
-		fmt.Printf("  Signature: %v\n", c.Signature)
+		printCensorshipRecord(reply.CensorshipRecord)
 	}
 
 	return nil
@@ -486,10 +602,10 @@ func getUnvetted() error {
 	}
 
 	// Verify status
-	if reply.Status == v1.StatusInvalid ||
-		reply.Status == v1.StatusNotFound {
+	if reply.Proposal.Status == v1.StatusInvalid ||
+		reply.Proposal.Status == v1.StatusNotFound {
 		// Pretty print proposal
-		status, ok := v1.Status[reply.Status]
+		status, ok := v1.Status[reply.Proposal.Status]
 		if !ok {
 			status = v1.Status[v1.StatusInvalid]
 		}
@@ -499,31 +615,14 @@ func getUnvetted() error {
 	}
 
 	// Verify content
-	err = v1.Verify(*id, reply.CensorshipRecord, reply.Files)
+	err = v1.Verify(*id, reply.Proposal.CensorshipRecord,
+		reply.Proposal.Files)
 	if err != nil {
 		return err
 	}
 
 	if !*printJson {
-		// Pretty print proposal
-		status, ok := v1.Status[reply.Status]
-		if !ok {
-			status = v1.Status[v1.StatusInvalid]
-		}
-		fmt.Printf("Unvetted proposal:\n")
-		fmt.Printf("  Name       : %v\n", reply.Name)
-		fmt.Printf("  Status     : %v\n", status)
-		c := &reply.CensorshipRecord
-		fmt.Printf("  Censorship record:\n")
-		fmt.Printf("    Merkle   : %v\n", c.Merkle)
-		fmt.Printf("    Token    : %v\n", c.Token)
-		fmt.Printf("    Signature: %v\n", c.Signature)
-		for k, v := range reply.Files {
-			fmt.Printf("  File (%02v)  :\n", k)
-			fmt.Printf("    Name     : %v\n", v.Name)
-			fmt.Printf("    MIME     : %v\n", v.MIME)
-			fmt.Printf("    Digest   : %v\n", v.Digest)
-		}
+		printProposalRecord("Unvetted proposal", reply.Proposal)
 	}
 	return nil
 }
@@ -611,10 +710,10 @@ func getVetted() error {
 	}
 
 	// Verify status
-	if reply.Status == v1.StatusInvalid ||
-		reply.Status == v1.StatusNotFound {
+	if reply.Proposal.Status == v1.StatusInvalid ||
+		reply.Proposal.Status == v1.StatusNotFound {
 		// Pretty print proposal
-		status, ok := v1.Status[reply.Status]
+		status, ok := v1.Status[reply.Proposal.Status]
 		if !ok {
 			status = v1.Status[v1.StatusInvalid]
 		}
@@ -624,31 +723,14 @@ func getVetted() error {
 	}
 
 	// Verify content
-	err = v1.Verify(*id, reply.CensorshipRecord, reply.Files)
+	err = v1.Verify(*id, reply.Proposal.CensorshipRecord,
+		reply.Proposal.Files)
 	if err != nil {
 		return err
 	}
 
 	if !*printJson {
-		// Pretty print proposal
-		status, ok := v1.Status[reply.Status]
-		if !ok {
-			status = v1.Status[v1.StatusInvalid]
-		}
-		fmt.Printf("Vetted proposal:\n")
-		fmt.Printf("  Name       : %v\n", reply.Name)
-		fmt.Printf("  Status     : %v\n", status)
-		c := &reply.CensorshipRecord
-		fmt.Printf("  Censorship record:\n")
-		fmt.Printf("    Merkle   : %v\n", c.Merkle)
-		fmt.Printf("    Token    : %v\n", c.Token)
-		fmt.Printf("    Signature: %v\n", c.Signature)
-		for k, v := range reply.Files {
-			fmt.Printf("  File (%02v)  :\n", k)
-			fmt.Printf("    Name     : %v\n", v.Name)
-			fmt.Printf("    MIME     : %v\n", v.MIME)
-			fmt.Printf("    Digest   : %v\n", v.Digest)
-		}
+		printProposalRecord("Vetted proposal", reply.Proposal)
 	}
 	return nil
 }
@@ -811,6 +893,8 @@ func _main() error {
 				return newProposal()
 			case "identity":
 				return getIdentity()
+			case "inventory":
+				return inventory()
 			case "getunvetted":
 				return getUnvetted()
 			case "getvetted":

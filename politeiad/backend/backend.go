@@ -59,12 +59,20 @@ var (
 	}
 )
 
+// ProposalStorageRecord is the metadata of a proposal.
 type ProposalStorageRecord struct {
-	Version uint              // Iteration count of proposal
-	Status  PSRStatusT        // Current status of the proposal
-	Merkle  [sha256.Size]byte // Merkle root of all files in proposal
-	Name    string            // Short name of proposal
-	Token   []byte            // Proposal authentication token
+	Version   uint              // Iteration count of proposal
+	Status    PSRStatusT        // Current status of the proposal
+	Merkle    [sha256.Size]byte // Merkle root of all files in proposal
+	Name      string            // Short name of proposal
+	Timestamp int64             // Last updated
+	Token     []byte            // Proposal authentication token
+}
+
+// ProposalRecord is a ProposalStorageRecord that includes the files.
+type ProposalRecord struct {
+	ProposalStorageRecord ProposalStorageRecord
+	Files                 []File
 }
 
 type Backend interface {
@@ -72,13 +80,16 @@ type Backend interface {
 	New(string, []File) (*ProposalStorageRecord, error)
 
 	// Get unvetted proposal
-	GetUnvetted([]byte) ([]File, *ProposalStorageRecord, error)
+	GetUnvetted([]byte) (*ProposalRecord, error)
 
 	// Get vetted proposal
-	GetVetted([]byte) ([]File, *ProposalStorageRecord, error)
+	GetVetted([]byte) (*ProposalRecord, error)
 
 	// Set unvetted proposal status
 	SetUnvettedStatus([]byte, PSRStatusT) (PSRStatusT, error)
+
+	// Inventory retrieves various proposal records.
+	Inventory(uint, uint, bool) ([]ProposalRecord, []ProposalRecord, error)
 
 	// Close performs cleanup of the backend.
 	Close()
