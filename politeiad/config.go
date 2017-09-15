@@ -402,6 +402,9 @@ func loadConfig() (*config, []string, error) {
 	cfg.LogDir = cleanAndExpandPath(cfg.LogDir)
 	cfg.LogDir = filepath.Join(cfg.LogDir, netName(activeNetParams))
 
+	cfg.HTTPSKey = cleanAndExpandPath(cfg.HTTPSKey)
+	cfg.HTTPSCert = cleanAndExpandPath(cfg.HTTPSCert)
+
 	// Special show command to list supported subsystems and exit.
 	if cfg.DebugLevel == "show" {
 		fmt.Println("Supported subsystems", supportedSubsystems())
