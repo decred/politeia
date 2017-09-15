@@ -340,6 +340,7 @@ func printCensorshipRecord(c v1.CensorshipRecord) {
 
 func printProposalRecord(header string, pr v1.ProposalRecord) {
 	// Pretty print proposal
+	fmt.Printf("STATUS %v\n", pr.Status)
 	status, ok := v1.Status[pr.Status]
 	if !ok {
 		status = v1.Status[v1.StatusInvalid]

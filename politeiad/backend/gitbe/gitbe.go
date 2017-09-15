@@ -437,6 +437,7 @@ func (g *gitBackEnd) anchor(digests []*[sha256.Size]byte) error {
 	return util.Timestamp(g.dcrtimeHost, digests)
 }
 
+// appendAuditTrail adds a record to the audit trail.
 func (g *gitBackEnd) appendAuditTrail(path string, ts int64, merkle [sha256.Size]byte, lines []string) error {
 	f, err := os.OpenFile(filepath.Join(path, defaultAuditTrailFile),
 		os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
@@ -1006,11 +1007,11 @@ func (g *gitBackEnd) New(name string, files []backend.File) (*backend.ProposalSt
 	return psr, nil
 }
 
-// getProposal is the generic implementation of GetUnvetted/GetVetted.  It
+// getProposalLock is the generic implementation of GetUnvetted/GetVetted.  It
 // returns a proposal record from the provided repo.
 //
 // This function must be called WITHOUT the lock held.
-func (g *gitBackEnd) getProposal(token []byte, repo string) (*backend.ProposalRecord, error) {
+func (g *gitBackEnd) getProposalLock(token []byte, repo string, includeFiles bool) (*backend.ProposalRecord, error) {
 	// Lock filesystem
 	err := g.lock.Lock(LockDuration)
 	if err != nil {
@@ -1026,17 +1027,25 @@ func (g *gitBackEnd) getProposal(token []byte, repo string) (*backend.ProposalRe
 		return nil, backend.ErrShutdown
 	}
 
+	return g.getProposal(token, repo, includeFiles)
+}
+
+// getProposal is the generic implementation of GetUnvetted/GetVetted.  It
+// returns a proposal record from the provided repo.
+//
+// This function must be called WITH the lock held.
+func (g *gitBackEnd) getProposal(token []byte, repo string, includeFiles bool) (*backend.ProposalRecord, error) {
 	id := hex.EncodeToString(token)
 	if repo == g.unvetted {
 		// git checkout id
-		err = g.gitCheckout(repo, id)
+		err := g.gitCheckout(repo, id)
 		if err != nil {
 			return nil, backend.ErrProposalNotFound
 		}
 	}
 	defer func() {
 		// git checkout master
-		err = g.gitCheckout(repo, "master")
+		err := g.gitCheckout(repo, "master")
 		if err != nil {
 			log.Errorf("could not switch to master: %v", err)
 		}
@@ -1048,10 +1057,13 @@ func (g *gitBackEnd) getProposal(token []byte, repo string) (*backend.ProposalRe
 		return nil, err
 	}
 
-	// load files
-	files, err := loadProposal(repo, id)
-	if err != nil {
-		return nil, err
+	var files []backend.File
+	if includeFiles {
+		// load files
+		files, err = loadProposal(repo, id)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &backend.ProposalRecord{
@@ -1065,14 +1077,14 @@ func (g *gitBackEnd) getProposal(token []byte, repo string) (*backend.ProposalRe
 //
 // GetUnvetted satisfies the backend interface.
 func (g *gitBackEnd) GetUnvetted(token []byte) (*backend.ProposalRecord, error) {
-	return g.getProposal(token, g.unvetted)
+	return g.getProposalLock(token, g.unvetted, true)
 }
 
 // GetVetted returns the content of vetted/token directory.
 //
 // GetVetted satisfies the backend interface.
 func (g *gitBackEnd) GetVetted(token []byte) (*backend.ProposalRecord, error) {
-	return g.getProposal(token, g.vetted)
+	return g.getProposalLock(token, g.vetted, true)
 }
 
 // SetUnvettedStatus tries to update the status for an unvetted proposal.  If
@@ -1245,6 +1257,8 @@ func (g *gitBackEnd) SetUnvettedStatus(token []byte, status backend.PSRStatusT) 
 	return psr.Status, nil
 }
 
+// Inventory returns an inventory of vetted and unvetted proposals.  If
+// includeFiles is set the content is also returned.
 func (g *gitBackEnd) Inventory(vettedCount, branchCount uint, includeFiles bool) ([]backend.ProposalRecord, []backend.ProposalRecord, error) {
 	// Lock filesystem
 	err := g.lock.Lock(LockDuration)
@@ -1276,30 +1290,40 @@ func (g *gitBackEnd) Inventory(vettedCount, branchCount uint, includeFiles bool)
 			continue
 		}
 
-		// load PSR
-		psr, err := loadPSR(g.vetted, id)
+		ids, err := hex.DecodeString(id)
 		if err != nil {
 			return nil, nil, err
 		}
-
-		var propFiles []backend.File
-		if includeFiles {
-			// load files
-			propFiles, err = loadProposal(g.vetted, id)
-			if err != nil {
-				return nil, nil, err
-			}
+		prv, err := g.getProposal(ids, g.vetted, includeFiles)
+		if err != nil {
+			return nil, nil, err
 		}
-
-		pr = append(pr, backend.ProposalRecord{
-			ProposalStorageRecord: *psr,
-			Files: propFiles,
-		})
+		pr = append(pr, *prv)
 	}
 
 	// Walk Branches on unvetted
+	branches, err := g.gitBranches(g.unvetted)
+	if err != nil {
+		return nil, nil, err
+	}
+	br := make([]backend.ProposalRecord, 0, len(branches))
+	for _, id := range branches {
+		if !util.IsDigest(id) {
+			continue
+		}
 
-	return pr, nil, nil
+		ids, err := hex.DecodeString(id)
+		if err != nil {
+			return nil, nil, err
+		}
+		pru, err := g.getProposal(ids, g.unvetted, includeFiles)
+		if err != nil {
+			return nil, nil, err
+		}
+		br = append(br, *pru)
+	}
+
+	return pr, br, nil
 }
 
 // Close shuts down the backend.  It obtains the lock and sets the shutdown
