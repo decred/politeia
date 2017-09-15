@@ -414,7 +414,11 @@ func (p *politeia) inventory(w http.ResponseWriter, r *http.Request) {
 	reply.Vetted = vetted
 
 	// Convert branches
-	_ = brs
+	unvetted := make([]v1.ProposalRecord, 0, len(brs))
+	for _, v := range brs {
+		unvetted = append(unvetted, p.convertBackendProposal(v))
+	}
+	reply.Branches = unvetted
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }

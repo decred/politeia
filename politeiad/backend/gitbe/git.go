@@ -194,6 +194,20 @@ func (g *gitBackEnd) gitBranchDelete(path, branch string) error {
 	return nil
 }
 
+func (g *gitBackEnd) gitBranches(path string) ([]string, error) {
+	branches, err := g.git(path, "branch")
+	if err != nil {
+		return nil, err
+	}
+
+	b := make([]string, 0, len(branches))
+	for _, v := range branches {
+		b = append(b, strings.Trim(v, " *\t\n"))
+	}
+
+	return b, nil
+}
+
 func (g *gitBackEnd) gitPull(path string, fastForward bool) error {
 	var err error
 	if fastForward {
