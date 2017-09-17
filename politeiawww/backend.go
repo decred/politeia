@@ -433,6 +433,21 @@ func (b *Backend) ProcessLogin(l v1www.Login) error {
 	return nil
 }
 
+// ProcessAllUnvetted returns an array of all unvetted proposals.
+func (b *Backend) ProcessAllUnvetted() *v1www.GetAllUnvettedReply {
+	var proposals []v1d.ProposalRecord
+	for _, v := range b.inventory {
+		if v.Status == v1d.StatusNotReviewed {
+			proposals = append(proposals, v)
+		}
+	}
+
+	ur := v1www.GetAllUnvettedReply{
+		Proposals: proposals,
+	}
+	return &ur
+}
+
 // NewBackend creates a new backend context for use in www and tests.
 func NewBackend(cfg *config) (*Backend, error) {
 	// Setup database.

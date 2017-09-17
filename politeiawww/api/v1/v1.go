@@ -3,6 +3,8 @@ package v1
 import (
 	"errors"
 	"fmt"
+
+	v1d "github.com/decred/politeia/politeiad/api/v1"
 )
 
 const (
@@ -15,6 +17,7 @@ const (
 	RouteLogin         = "/login/"
 	RouteLogout        = "/logout/"
 	RouteSecret        = "/secret/"
+	RouteAllUnvetted   = "/unvetted/"
 
 	// Size of verification token in bytes
 	VerificationTokenSize = 32
@@ -67,4 +70,9 @@ type VerifyNewUser struct {
 type Login struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+}
+
+// GetAllUnvettedReply is used to reply with a list of all unvetted proposals.
+type GetAllUnvettedReply struct {
+	Proposals []v1d.ProposalRecord `json:"proposals"`
 }

@@ -175,6 +175,12 @@ func (p *politeiawww) handleSecret(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "secret sauce")
 }
 
+func (p *politeiawww) handleAllUnvetted(w http.ResponseWriter, r *http.Request) {
+	// Reply with the list of unvetted proposals.
+	ur := p.backend.ProcessAllUnvetted()
+	util.RespondWithJSON(w, http.StatusOK, ur)
+}
+
 func _main() error {
 	// Load configuration and parse command line.  This function also
 	// initializes logging and configures it accordingly.
@@ -260,6 +266,8 @@ func _main() error {
 	// Routes that require being logged in.
 	p.router.HandleFunc(v1.PoliteiaWWWAPIRoute+v1.RouteSecret,
 		logging(p.isLoggedIn(p.handleSecret))).Methods("POST")
+	p.router.HandleFunc(v1.PoliteiaWWWAPIRoute+v1.RouteAllUnvetted,
+		logging(p.isLoggedIn(p.handleAllUnvetted))).Methods("GET")
 
 	// Since we don't persist connections also generate a new cookie key on
 	// startup.
