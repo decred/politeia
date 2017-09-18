@@ -422,7 +422,7 @@ func (g *gitBackEnd) anchor(digests []*[sha256.Size]byte) error {
 	if g.test {
 		// We always append the anchorKey as the last element
 		x := len(digests) - 1
-		g.testAnchors[hex.EncodeToString(d[x][:])] = false
+		g.testAnchors[hex.EncodeToString(digests[x][:])] = false
 		return nil
 	}
 
