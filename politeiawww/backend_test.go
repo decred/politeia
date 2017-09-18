@@ -31,7 +31,7 @@ func generateRandomPassword() string {
 	return generateRandomString(16)
 }
 
-func createBackend(t *testing.T) *Backend {
+func createBackend(t *testing.T) *backend {
 	dir, err := ioutil.TempDir("", "politeiawww.test")
 	if err != nil {
 		t.Fatal(err)
