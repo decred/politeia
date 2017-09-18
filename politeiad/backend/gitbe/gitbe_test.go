@@ -130,17 +130,18 @@ func TestAnchorWithCommits(t *testing.T) {
 	// Read all PSRs from the branches and call getunvetted to verify
 	// integrity
 	for k, v := range psr {
-		filesG, psrUnvetted, err := g.GetUnvetted(v.Token)
+		pru, err := g.GetUnvetted(v.Token)
 		if err != nil {
 			t.Fatalf("%v", err)
 		}
-		if !reflect.DeepEqual(psrUnvetted, psr[k]) {
+		if !reflect.DeepEqual(&pru.ProposalStorageRecord, psr[k]) {
 			t.Fatalf("unexpected psr got %v, wanted %v",
-				spew.Sdump(psrUnvetted), spew.Sdump(psr[k]))
+				spew.Sdump(pru.ProposalStorageRecord),
+				spew.Sdump(psr[k]))
 		}
-		if !reflect.DeepEqual(filesG, allFiles[k]) {
+		if !reflect.DeepEqual(pru.Files, allFiles[k]) {
 			t.Fatalf("unexpected payload got %v, wanted %v",
-				spew.Sdump(filesG), spew.Sdump(allFiles[k]))
+				spew.Sdump(pru.Files), spew.Sdump(allFiles[k]))
 		}
 	}
 
@@ -165,10 +166,11 @@ func TestAnchorWithCommits(t *testing.T) {
 			backend.PSRStatusVetted)
 	}
 	//Get it as well to validate the GetVetted call
-	filesG, psrG, err := g.GetUnvetted(psr[1].Token)
+	pru, err := g.GetUnvetted(psr[1].Token)
 	if err != nil {
 		t.Fatal(err)
 	}
+	psrG := &pru.ProposalStorageRecord
 	if psrG.Status != backend.PSRStatusVetted {
 		t.Fatalf("unexpected status: got %v wanted %v", psrG.Status,
 			backend.PSRStatusVetted)
@@ -178,9 +180,9 @@ func TestAnchorWithCommits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(filesG, allFiles[1]) {
+	if !reflect.DeepEqual(pru.Files, allFiles[1]) {
 		t.Fatalf("unexpected payload got %v, wanted %v",
-			spew.Sdump(filesG), spew.Sdump(allFiles[1]))
+			spew.Sdump(pru.Files), spew.Sdump(allFiles[1]))
 	}
 
 	// Anchor all repos

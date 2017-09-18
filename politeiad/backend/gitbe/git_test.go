@@ -69,3 +69,6 @@ func TestLog(t *testing.T) {
 		t.Fatal("empty repo should fail log")
 	}
 }
+
+func TestFsck(t *testing.T) {
+}
