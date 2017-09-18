@@ -18,7 +18,7 @@ import (
 
 	v1d "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
-	v1www "github.com/decred/politeia/politeiawww/api/v1"
+	v1w "github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/politeiawww/database"
 	"github.com/decred/politeia/politeiawww/database/localdb"
 	"github.com/decred/politeia/util"
@@ -49,11 +49,11 @@ func (b *Backend) getVerificationExpiryTime() time.Duration {
 	if b.verificationExpiryTime != time.Duration(0) {
 		return b.verificationExpiryTime
 	}
-	return time.Duration(v1www.VerificationExpiryHours) * time.Hour
+	return time.Duration(v1w.VerificationExpiryHours) * time.Hour
 }
 
 func (b *Backend) generateVerificationTokenAndExpiry() ([]byte, int64, error) {
-	token, err := util.Random(v1www.VerificationTokenSize)
+	token, err := util.Random(v1w.VerificationTokenSize)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -307,8 +307,8 @@ func (b *Backend) LoadInventory() error {
 // exist and sets a verification token and expiry; the token must be
 // verified before it expires. If the user already exists in the db
 // and its token is expired, it generates a new one.
-func (b *Backend) ProcessNewUser(u v1www.NewUser) (v1www.NewUserReply, error) {
-	var reply v1www.NewUserReply
+func (b *Backend) ProcessNewUser(u v1w.NewUser) (v1w.NewUserReply, error) {
+	var reply v1w.NewUserReply
 	var token []byte
 	var expiry int64
 
@@ -367,7 +367,7 @@ func (b *Backend) ProcessNewUser(u v1www.NewUser) (v1www.NewUserReply, error) {
 	}
 
 	// Reply with the verification token.
-	reply = v1www.NewUserReply{
+	reply = v1w.NewUserReply{
 		VerificationToken: hex.EncodeToString(token[:]),
 	}
 	return reply, nil
@@ -375,7 +375,7 @@ func (b *Backend) ProcessNewUser(u v1www.NewUser) (v1www.NewUserReply, error) {
 
 // ProcessVerifyNewUser verifies the token generated for a recently created user.
 // It ensures that the token matches with the input and that the token hasn't expired.
-func (b *Backend) ProcessVerifyNewUser(u v1www.VerifyNewUser) error {
+func (b *Backend) ProcessVerifyNewUser(u v1w.VerifyNewUser) error {
 	// Check that the user already exists.
 	user, err := b.db.UserGet(u.Email)
 	if err != nil {
@@ -411,11 +411,11 @@ func (b *Backend) ProcessVerifyNewUser(u v1www.VerifyNewUser) error {
 
 // ProcessLogin checks that a user exists, is verified, and has
 // the correct password.
-func (b *Backend) ProcessLogin(l v1www.Login) error {
+func (b *Backend) ProcessLogin(l v1w.Login) error {
 	// Get user from db.
 	user, err := b.db.UserGet(l.Email)
 	if err != nil {
-		return v1www.ErrInvalidEmailOrPassword
+		return v1w.ErrInvalidEmailOrPassword
 	}
 
 	// Check that the user is verified.
@@ -427,14 +427,14 @@ func (b *Backend) ProcessLogin(l v1www.Login) error {
 	err = bcrypt.CompareHashAndPassword(user.HashedPassword,
 		[]byte(l.Password))
 	if err != nil {
-		return v1www.ErrInvalidEmailOrPassword
+		return v1w.ErrInvalidEmailOrPassword
 	}
 
 	return nil
 }
 
 // ProcessAllUnvetted returns an array of all unvetted proposals.
-func (b *Backend) ProcessAllUnvetted() *v1www.GetAllUnvettedReply {
+func (b *Backend) ProcessAllUnvetted() *v1w.GetAllUnvettedReply {
 	var proposals []v1d.ProposalRecord
 	for _, v := range b.inventory {
 		if v.Status == v1d.StatusNotReviewed {
@@ -442,7 +442,7 @@ func (b *Backend) ProcessAllUnvetted() *v1www.GetAllUnvettedReply {
 		}
 	}
 
-	ur := v1www.GetAllUnvettedReply{
+	ur := v1w.GetAllUnvettedReply{
 		Proposals: proposals,
 	}
 	return &ur
