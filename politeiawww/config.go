@@ -80,6 +80,7 @@ type config struct {
 	MailServerPass     string `long:"mailserverpass" description:"Email server password"`
 	SMTP               *goemail.SMTP
 	SkipTLSVerify      bool `long:"skiptlsverify" description:"Whether or not politeiawww verifies politeiad's certificate."`
+	FetchIdentity      bool `long:"fetchidentity" description:"Whether or not politeiawww fetches the identity from politeiad."`
 }
 
 // serviceOptions defines the configuration options for the daemon as a service
@@ -258,43 +259,24 @@ func loadIdentity(cfg *config) error {
 		cfg.DaemonIdentityFile = cleanAndExpandPath(cfg.DaemonIdentityFile)
 	}
 
-	// Check if an identity already exists.
-	if _, err := os.Stat(cfg.DaemonIdentityFile); !os.IsNotExist(err) {
-		cfg.Identity, err = identity.LoadPublicIdentity(cfg.DaemonIdentityFile)
-		if err != nil {
-			return err
-		}
-
-		log.Infof("Identity loaded from %v", cfg.DaemonIdentityFile)
+	if cfg.FetchIdentity {
+		// Don't try to load the identity from the existing file if the caller
+		// is trying to fetch a new one.
 		return nil
 	}
 
-	// Fetch remote identity.
+	// Check if the identity already exists.
+	if _, err := os.Stat(cfg.DaemonIdentityFile); os.IsNotExist(err) {
+		return fmt.Errorf("you must load the identity from politeiad first using the --fetchidentity flag")
+	}
+
 	var err error
-	cfg.Identity, err = util.RemoteIdentity(cfg.SkipTLSVerify, cfg.DaemonAddress)
+	cfg.Identity, err = identity.LoadPublicIdentity(cfg.DaemonIdentityFile)
 	if err != nil {
 		return err
 	}
 
-	// Pretty print identity.
-	log.Infof("Identity fetched from politeiad")
-	log.Infof("FQDN       : %v", cfg.Identity.Name)
-	log.Infof("Nick       : %v", cfg.Identity.Nick)
-	log.Infof("Key        : %x", cfg.Identity.Key)
-	log.Infof("Identity   : %x", cfg.Identity.Identity)
-	log.Infof("Fingerprint: %v", cfg.Identity.Fingerprint())
-
-	// Save identity
-	err = os.MkdirAll(filepath.Dir(cfg.DaemonIdentityFile), 0700)
-	if err != nil {
-		return err
-	}
-	err = cfg.Identity.SavePublicIdentity(cfg.DaemonIdentityFile)
-	if err != nil {
-		return err
-	}
-	log.Infof("Identity saved to %v", cfg.DaemonIdentityFile)
-
+	log.Infof("Identity loaded from: %v", cfg.DaemonIdentityFile)
 	return nil
 }
 

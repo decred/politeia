@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"crypto/elliptic"
 	"crypto/tls"
 	"encoding/json"
@@ -8,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/dajohi/goemail"
@@ -43,6 +45,43 @@ func init() {
 	if err != nil {
 		panic(fmt.Sprintf("versionReply: %v", err))
 	}
+}
+
+// Fetch remote identity
+func (p *politeiawww) getIdentity() error {
+	id, err := util.RemoteIdentity(p.cfg.SkipTLSVerify, p.cfg.DaemonAddress)
+	if err != nil {
+		return err
+	}
+
+	// Pretty print identity.
+	log.Infof("Identity fetched from politeiad")
+	log.Infof("FQDN       : %v", id.Name)
+	log.Infof("Nick       : %v", id.Nick)
+	log.Infof("Key        : %x", id.Key)
+	log.Infof("Identity   : %x", id.Identity)
+	log.Infof("Fingerprint: %v", id.Fingerprint())
+
+	// Ask user if we like this identity
+	log.Infof("Save to %v or ctrl-c to abort", p.cfg.DaemonIdentityFile)
+	scanner := bufio.NewScanner(os.Stdin)
+	scanner.Scan()
+	if err = scanner.Err(); err != nil {
+		return err
+	}
+
+	// Save identity
+	err = os.MkdirAll(filepath.Dir(p.cfg.DaemonIdentityFile), 0700)
+	if err != nil {
+		return err
+	}
+	err = id.SavePublicIdentity(p.cfg.DaemonIdentityFile)
+	if err != nil {
+		return err
+	}
+	log.Infof("Identity saved to: %v", p.cfg.DaemonIdentityFile)
+
+	return nil
 }
 
 // version is an HTTP GET to determine what version and API route this backend
@@ -224,6 +263,14 @@ func _main() error {
 	// Setup application context.
 	p := &politeiawww{
 		cfg: loadedCfg,
+	}
+
+	// Check if this command is being run to fetch the identity.
+	if p.cfg.FetchIdentity {
+		if err := p.getIdentity(); err != nil {
+			return err
+		}
+		return nil
 	}
 
 	p.backend, err = NewBackend(p.cfg)
