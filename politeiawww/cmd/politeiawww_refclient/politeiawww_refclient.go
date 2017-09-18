@@ -14,6 +14,7 @@ import (
 	"golang.org/x/net/publicsuffix"
 
 	"github.com/decred/politeia/politeiawww/api/v1"
+	"github.com/decred/politeia/util"
 )
 
 var (
@@ -56,20 +57,10 @@ func (c *ctx) getCSRF() (*v1.Version, error) {
 		return nil, fmt.Errorf("HTTP Status: %v", r.StatusCode)
 	}
 
-	var mw io.Writer
-	var body bytes.Buffer
-	if *printJson {
-		mw = io.MultiWriter(&body, os.Stdout)
-	} else {
-		mw = io.MultiWriter(&body)
-	}
-	io.Copy(mw, r.Body)
-	if *printJson {
-		fmt.Printf("\n")
-	}
+	bodyBytes := util.ConvertBodyToByteArray(r.Body, *printJson)
 
 	var v v1.Version
-	err = json.Unmarshal(body.Bytes(), &v)
+	err = json.Unmarshal(bodyBytes, &v)
 	if err != nil {
 		return nil, fmt.Errorf("Could node unmarshal version: %v", err)
 	}
@@ -111,20 +102,10 @@ func (c *ctx) newUser(email, password string) (string, error) {
 		return "", fmt.Errorf("HTTP Status: %v", r.StatusCode)
 	}
 
-	var mw io.Writer
-	var body bytes.Buffer
-	if *printJson {
-		mw = io.MultiWriter(&body, os.Stdout)
-	} else {
-		mw = io.MultiWriter(&body)
-	}
-	io.Copy(mw, r.Body)
-	if *printJson {
-		fmt.Printf("\n")
-	}
+	bodyBytes := util.ConvertBodyToByteArray(r.Body, *printJson)
 
 	var nur v1.NewUserReply
-	err = json.Unmarshal(body.Bytes(), &nur)
+	err = json.Unmarshal(bodyBytes, &nur)
 	if err != nil {
 		return "", fmt.Errorf("Could node unmarshal NewUserReply: %v",
 			err)
@@ -256,20 +237,10 @@ func (c *ctx) allUnvetted() error {
 		return fmt.Errorf("HTTP Status: %v", r.StatusCode)
 	}
 
-	var mw io.Writer
-	var body bytes.Buffer
-	if *printJson {
-		mw = io.MultiWriter(&body, os.Stdout)
-	} else {
-		mw = io.MultiWriter(&body)
-	}
-	io.Copy(mw, r.Body)
-	if *printJson {
-		fmt.Printf("\n")
-	}
+	bodyBytes := util.ConvertBodyToByteArray(r.Body, *printJson)
 
 	var ur v1.GetAllUnvettedReply
-	err = json.Unmarshal(body.Bytes(), &ur)
+	err = json.Unmarshal(bodyBytes, &ur)
 	if err != nil {
 		return fmt.Errorf("Could node unmarshal GetAllUnvettedReply: %v",
 			err)

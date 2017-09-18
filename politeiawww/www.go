@@ -30,7 +30,7 @@ type politeiawww struct {
 
 	store *sessions.CookieStore
 
-	backend *Backend
+	backend *backend
 }
 
 // init sets default values at startup.
@@ -228,11 +228,6 @@ func _main() error {
 
 	p.backend, err = NewBackend(p.cfg)
 	if err != nil {
-		return err
-	}
-
-	// Fetch the identity from politeiad if it doesn't exist.
-	if err := p.backend.LoadIdentity(); err != nil {
 		return err
 	}
 

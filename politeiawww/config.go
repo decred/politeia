@@ -8,6 +8,7 @@ package main
 import (
 	"encoding/base64"
 	"fmt"
+	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"net"
 	"net/url"
 	"os"
@@ -71,12 +72,14 @@ type config struct {
 	DaemonHost         string `long:"daemonhost" description:"Host for politeiad in this format"`
 	DaemonAddress      string
 	DaemonIdentityFile string `long:"daemonidentityfile" description:"Path to file containing the politeiad identity"`
+	Identity           *identity.PublicIdentity
 	RPCUser            string `long:"rpcuser" description:"RPC user name for privileged commands"`
 	RPCPass            string `long:"rpcpass" description:"RPC password for privileged commands"`
 	MailServerAddress  string `long:"mailserveraddress" description:"Email server address in this format: <host>:<port>"`
 	MailServerUser     string `long:"mailserveruser" description:"Email server username"`
 	MailServerPass     string `long:"mailserverpass" description:"Email server password"`
 	SMTP               *goemail.SMTP
+	SkipTLSVerify      bool `long:"skiptlsverify" description:"Whether or not politeiawww verifies politeiad's certificate."`
 }
 
 // serviceOptions defines the configuration options for the daemon as a service
@@ -224,6 +227,75 @@ func newConfigParser(cfg *config, so *serviceOptions, options flags.Options) *fl
 		parser.AddGroup("Service Options", "Service Options", so)
 	}
 	return parser
+}
+
+func initSMTP(cfg *config) error {
+	// Check that either all MailServer options are populated or none are,
+	// and then initialize the SMTP object if they're all populated.
+	cfg.SMTP = nil
+	if cfg.MailServerAddress != "" || cfg.MailServerUser != "" || cfg.MailServerPass != "" {
+		if cfg.MailServerAddress == "" || cfg.MailServerUser == "" || cfg.MailServerPass == "" {
+			err := fmt.Errorf("either all or none of the following config options should be supplied: mailserveraddress, mailserveruser, mailserverpass")
+			return err
+		}
+
+		var err error
+		cfg.SMTP, err = goemail.NewSMTP("smtps://" + cfg.MailServerUser + ":" + cfg.MailServerPass + "@" + cfg.MailServerAddress)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// loadIdentity fetches an identity from politeiad if necessary.
+func loadIdentity(cfg *config) error {
+	// Set up the path to the politeiad identity file.
+	if cfg.DaemonIdentityFile == "" {
+		cfg.DaemonIdentityFile = filepath.Join(cfg.HomeDir, defaultIdentityFilename)
+	} else {
+		cfg.DaemonIdentityFile = cleanAndExpandPath(cfg.DaemonIdentityFile)
+	}
+
+	// Check if an identity already exists.
+	if _, err := os.Stat(cfg.DaemonIdentityFile); !os.IsNotExist(err) {
+		cfg.Identity, err = identity.LoadPublicIdentity(cfg.DaemonIdentityFile)
+		if err != nil {
+			return err
+		}
+
+		log.Infof("Identity loaded from %v", cfg.DaemonIdentityFile)
+		return nil
+	}
+
+	// Fetch remote identity.
+	var err error
+	cfg.Identity, err = util.RemoteIdentity(cfg.SkipTLSVerify, cfg.DaemonAddress)
+	if err != nil {
+		return err
+	}
+
+	// Pretty print identity.
+	log.Infof("Identity fetched from politeiad")
+	log.Infof("FQDN       : %v", cfg.Identity.Name)
+	log.Infof("Nick       : %v", cfg.Identity.Nick)
+	log.Infof("Key        : %x", cfg.Identity.Key)
+	log.Infof("Identity   : %x", cfg.Identity.Identity)
+	log.Infof("Fingerprint: %v", cfg.Identity.Fingerprint())
+
+	// Save identity
+	err = os.MkdirAll(filepath.Dir(cfg.DaemonIdentityFile), 0700)
+	if err != nil {
+		return err
+	}
+	err = cfg.Identity.SavePublicIdentity(cfg.DaemonIdentityFile)
+	if err != nil {
+		return err
+	}
+	log.Infof("Identity saved to %v", cfg.DaemonIdentityFile)
+
+	return nil
 }
 
 // loadConfig initializes and parses the config using a config file and command
@@ -507,13 +579,6 @@ func loadConfig() (*config, []string, error) {
 	}
 	cfg.DaemonAddress = u.String()
 
-	// Set up the path to the politeiad identity file.
-	if cfg.DaemonIdentityFile == "" {
-		cfg.DaemonIdentityFile = filepath.Join(cfg.HomeDir, defaultIdentityFilename)
-	} else {
-		cfg.DaemonIdentityFile = cleanAndExpandPath(cfg.DaemonIdentityFile)
-	}
-
 	// Set random username and password when not specified
 	if cfg.RPCUser == "" {
 		name, err := util.Random(32)
@@ -532,19 +597,12 @@ func loadConfig() (*config, []string, error) {
 		log.Warnf("RPC password not set, using random value")
 	}
 
-	// Check that either all MailServer options are populated or none are,
-	// and then initialize the SMTP object if they're all populated.
-	cfg.SMTP = nil
-	if cfg.MailServerAddress != "" || cfg.MailServerUser != "" || cfg.MailServerPass != "" {
-		if cfg.MailServerAddress == "" || cfg.MailServerUser == "" || cfg.MailServerPass == "" {
-			err := fmt.Errorf("either all or none of the following config options should be supplied: mailserveraddress, mailserveruser, mailserverpass")
-			return nil, nil, err
-		}
+	if err := initSMTP(&cfg); err != nil {
+		return nil, nil, err
+	}
 
-		cfg.SMTP, err = goemail.NewSMTP("smtps://" + cfg.MailServerUser + ":" + cfg.MailServerPass + "@" + cfg.MailServerAddress)
-		if err != nil {
-			return nil, nil, err
-		}
+	if err := loadIdentity(&cfg); err != nil {
+		return nil, nil, err
 	}
 
 	// Warn about missing config file only after all other configuration is

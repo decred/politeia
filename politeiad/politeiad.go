@@ -7,7 +7,6 @@ package main
 import (
 	"crypto/elliptic"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -17,7 +16,6 @@ import (
 	"net/http/httputil"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
