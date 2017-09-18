@@ -420,17 +420,9 @@ func (g *gitBackEnd) deltaCommits(path string, lastAnchor []byte) ([]*[sha256.Si
 func (g *gitBackEnd) anchor(digests []*[sha256.Size]byte) error {
 	// Anchor all digests
 	if g.test {
-		// Copy digests before calling merkle in order to not disturb
-		// digests order
-		d := make([]*[sha256.Size]byte, len(digests))
-		for k := range digests {
-			d[k] = digests[k]
-		}
-		merkle := merkle.Root(d)
-		if merkle == nil {
-			return fmt.Errorf("no merkle")
-		}
-		g.testAnchors[hex.EncodeToString(merkle[:])] = false
+		// We always append the anchorKey as the last element
+		x := len(digests) - 1
+		g.testAnchors[hex.EncodeToString(d[x][:])] = false
 		return nil
 	}
 
