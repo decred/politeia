@@ -411,26 +411,26 @@ func (b *Backend) ProcessVerifyNewUser(u v1w.VerifyNewUser) error {
 
 // ProcessLogin checks that a user exists, is verified, and has
 // the correct password.
-func (b *Backend) ProcessLogin(l v1w.Login) error {
+func (b *Backend) ProcessLogin(l v1w.Login) (*database.User, error) {
 	// Get user from db.
 	user, err := b.db.UserGet(l.Email)
 	if err != nil {
-		return v1w.ErrInvalidEmailOrPassword
+		return nil, v1w.ErrInvalidEmailOrPassword
 	}
 
 	// Check that the user is verified.
 	if user.VerificationToken != nil {
-		return errors.New("user not verified")
+		return nil, errors.New("user not verified")
 	}
 
 	// Check the user's password.
 	err = bcrypt.CompareHashAndPassword(user.HashedPassword,
 		[]byte(l.Password))
 	if err != nil {
-		return v1w.ErrInvalidEmailOrPassword
+		return nil, v1w.ErrInvalidEmailOrPassword
 	}
 
-	return nil
+	return user, nil
 }
 
 // ProcessAllUnvetted returns an array of all unvetted proposals.

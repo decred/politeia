@@ -140,7 +140,7 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	err := p.backend.ProcessLogin(l)
+	user, err := p.backend.ProcessLogin(l)
 	if err != nil {
 		log.Errorf("handleLogin: %v", err)
 
@@ -157,6 +157,7 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	// Mark user as logged in.
 	session.Values["authenticated"] = true
+	session.Values["admin"] = user.Admin
 	session.Save(r, w)
 }
 
@@ -266,8 +267,10 @@ func _main() error {
 	// Routes that require being logged in.
 	p.router.HandleFunc(v1.PoliteiaWWWAPIRoute+v1.RouteSecret,
 		logging(p.isLoggedIn(p.handleSecret))).Methods("POST")
+
+	// Routes that require being logged in as an admin user.
 	p.router.HandleFunc(v1.PoliteiaWWWAPIRoute+v1.RouteAllUnvetted,
-		logging(p.isLoggedIn(p.handleAllUnvetted))).Methods("GET")
+		logging(p.isLoggedInAsAdmin(p.handleAllUnvetted))).Methods("GET")
 
 	// Since we don't persist connections also generate a new cookie key on
 	// startup.

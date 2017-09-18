@@ -33,6 +33,38 @@ func (p *politeiawww) isLoggedIn(f http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// isLoggedInAsAdmin ensures that a user is logged in as an admin user
+// before calling the next function.
+func (p *politeiawww) isLoggedInAsAdmin(f http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		log.Debugf("isLoggedInAsAdmin: %v %v%v %v", r.Method, r.RemoteAddr,
+			r.URL, r.Proto)
+		session, err := p.store.Get(r, v1.CookieSession)
+		if err != nil {
+			log.Errorf("isLoggedInAsAdmin: %v", err)
+			http.Error(w, http.StatusText(http.StatusForbidden),
+				http.StatusForbidden)
+			return
+		}
+
+		// Check if user is authenticated
+		if auth, ok := session.Values["authenticated"].(bool); !ok || !auth {
+			http.Error(w, http.StatusText(http.StatusForbidden),
+				http.StatusForbidden)
+			return
+		}
+
+		// Check if user is an admin
+		if admin, ok := session.Values["admin"].(bool); !ok || !admin {
+			http.Error(w, http.StatusText(http.StatusForbidden),
+				http.StatusForbidden)
+			return
+		}
+
+		f(w, r)
+	}
+}
+
 // logging logs all incoming commands before calling the next funxtion.
 //
 // NOTE: LOGGING WILL LOG PASSWORDS IF TRACING IS ENABLED.

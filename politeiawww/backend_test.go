@@ -31,14 +31,18 @@ func generateRandomPassword() string {
 	return generateRandomString(16)
 }
 
-func createBackend(t *testing.T) *backend {
+func createBackend(t *testing.T) *Backend {
 	dir, err := ioutil.TempDir("", "politeiawww.test")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(dir)
 
-	b, err := NewBackend(filepath.Join(dir, "data"))
+	cfg := &config{
+		DataDir: filepath.Join(dir, "data"),
+	}
+
+	b, err := NewBackend(cfg)
 	if err != nil {
 		t.Error(err)
 	}
@@ -178,7 +182,7 @@ func TestProcessLoginWithNonExistingUser(t *testing.T) {
 		Password: generateRandomPassword(),
 	}
 
-	err := b.ProcessLogin(l)
+	_, err := b.ProcessLogin(l)
 	if err == nil {
 		t.Errorf("ProcessLogin called without error, expected 'user not found' error")
 	}
@@ -205,7 +209,7 @@ func TestProcessLoginWithUnverifiedUser(t *testing.T) {
 		Password: u.Password,
 	}
 
-	err = b.ProcessLogin(l)
+	_, err = b.ProcessLogin(l)
 	if err == nil {
 		t.Errorf("ProcessLogin called without error, expected 'user not verified' error")
 	}
@@ -248,7 +252,7 @@ func TestLoginWithVerifiedUser(t *testing.T) {
 		Email:    u.Email,
 		Password: u.Password,
 	}
-	if err := b.ProcessLogin(l); err != nil {
+	if _, err := b.ProcessLogin(l); err != nil {
 		t.Error(err)
 	}
 

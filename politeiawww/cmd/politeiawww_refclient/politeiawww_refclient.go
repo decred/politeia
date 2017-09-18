@@ -390,8 +390,8 @@ func _main() error {
 	// Unvetted proposals
 	fmt.Printf("=== POST /api/v1/unvetted ===\n")
 	err = c.allUnvetted()
-	if err != nil {
-		return err
+	if err == nil {
+		return fmt.Errorf("/unvetted should only be accessible by admin users")
 	}
 
 	// Logout
