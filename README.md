@@ -104,9 +104,11 @@ by adding the -json command line flag.
 
 Compile and launch the web server:
 ```
-glide i && go install -v $(glide nv) && LOGFLAGS=shortfile politeiawww --testnet --rpcuser=user --rpcpass=pass
+glide i && go install -v $(glide nv) && LOGFLAGS=shortfile
+politeiawww --testnet --fetchidentity
+politeiawww --testnet --rpcuser=user --rpcpass=pass
 ```
-To check if the webserver is running correctly:
+To check if the web server is running correctly:
 ```
-client
+politeiawww_refclient
 ```

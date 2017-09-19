@@ -29,7 +29,7 @@ func NewClient(skipVerify bool) *http.Client {
 	return &http.Client{Transport: tr}
 }
 
-// ConvertBodyToByteArray converts a request body into a byte array
+// ConvertBodyToByteArray converts a response body into a byte array
 // and optionally prints it to stdout.
 func ConvertBodyToByteArray(r io.Reader, print bool) []byte {
 	var mw io.Writer

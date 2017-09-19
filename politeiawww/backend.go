@@ -2,12 +2,14 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
+	"sort"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -17,15 +19,17 @@ import (
 	"github.com/decred/politeia/politeiawww/database"
 	"github.com/decred/politeia/politeiawww/database/localdb"
 	"github.com/decred/politeia/util"
+	"github.com/kennygrant/sanitize"
 )
 
 // politeiawww backend construct
 type backend struct {
 	db        database.Database
 	cfg       *config
-	inventory map[string]v1d.ProposalRecord
+	inventory []v1d.ProposalRecord
 
-	// This is only used for testing.
+	// These properties are only used for testing.
+	test                   bool
 	verificationExpiryTime time.Duration
 }
 
@@ -47,24 +51,20 @@ func (b *backend) generateVerificationTokenAndExpiry() ([]byte, int64, error) {
 	return token, expiry, nil
 }
 
-func (b *backend) remoteInventory() (*v1d.InventoryReply, error) {
-	challenge, err := util.Random(v1d.ChallengeSize)
-	if err != nil {
-		return nil, err
-	}
-	inv, err := json.Marshal(v1d.Inventory{
-		Challenge:     hex.EncodeToString(challenge),
-		IncludeFiles:  false,
-		VettedCount:   0,
-		BranchesCount: 0,
-	})
-	if err != nil {
-		return nil, err
+func (b *backend) makeRequest(method string, route string, v interface{}) ([]byte, error) {
+	var requestBody []byte
+	if v != nil {
+		var err error
+		requestBody, err = json.Marshal(v)
+		if err != nil {
+			return nil, err
+		}
 	}
 
+	fullRoute := b.cfg.DaemonAddress + route
+
 	c := util.NewClient(b.cfg.SkipTLSVerify)
-	req, err := http.NewRequest("POST", b.cfg.DaemonAddress+v1d.InventoryRoute,
-		bytes.NewReader(inv))
+	req, err := http.NewRequest(method, fullRoute, bytes.NewReader(requestBody))
 	if err != nil {
 		return nil, err
 	}
@@ -83,15 +83,31 @@ func (b *backend) remoteInventory() (*v1d.InventoryReply, error) {
 		return nil, fmt.Errorf("%v: %v", r.Status, e)
 	}
 
-	body, err := ioutil.ReadAll(r.Body)
+	responseBody := util.ConvertBodyToByteArray(r.Body, false)
+	return responseBody, nil
+}
+
+func (b *backend) remoteInventory() (*v1d.InventoryReply, error) {
+	challenge, err := util.Random(v1d.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+	inv := v1d.Inventory{
+		Challenge:     hex.EncodeToString(challenge),
+		IncludeFiles:  false,
+		VettedCount:   0,
+		BranchesCount: 0,
+	}
+
+	responseBody, err := b.makeRequest("POST", v1d.InventoryRoute, inv)
 	if err != nil {
 		return nil, err
 	}
 
 	var ir v1d.InventoryReply
-	err = json.Unmarshal(body, &ir)
+	err = json.Unmarshal(responseBody, &ir)
 	if err != nil {
-		return nil, fmt.Errorf("Could node unmarshal InventoryReply: %v",
+		return nil, fmt.Errorf("Could not unmarshal InventoryReply: %v",
 			err)
 	}
 
@@ -104,23 +120,49 @@ func (b *backend) remoteInventory() (*v1d.InventoryReply, error) {
 }
 
 // LoadInventory fetches the entire inventory of proposals from politeiad
-// and caches it.
+// and caches it, sorted by most recent timestamp.
 func (b *backend) LoadInventory() error {
-	// Fetch remote inventory.
-	inv, err := b.remoteInventory()
-	if err != nil {
-		return fmt.Errorf("LoadInventory: %v", err)
+	var inv *v1d.InventoryReply
+	if b.test {
+		// Split the existing inventory into vetted and unvetted.
+		vetted := make([]v1d.ProposalRecord, 0, 0)
+		unvetted := make([]v1d.ProposalRecord, 0, 0)
+
+		for _, v := range b.inventory {
+			if v.Status == v1d.StatusPublic {
+				vetted = append(vetted, v)
+			} else {
+				unvetted = append(unvetted, v)
+			}
+		}
+
+		inv = &v1d.InventoryReply{
+			Vetted:   vetted,
+			Branches: unvetted,
+		}
+	} else {
+		// Fetch remote inventory.
+		var err error
+		inv, err = b.remoteInventory()
+		if err != nil {
+			return fmt.Errorf("LoadInventory: %v", err)
+		}
+
+		log.Infof("Adding %v vetted, %v unvetted proposals to the cache", len(inv.Vetted), len(inv.Branches))
 	}
 
-	b.inventory = make(map[string]v1d.ProposalRecord)
-	log.Infof("Adding %v vetted proposals to the cache", len(inv.Vetted))
-	for _, v := range inv.Vetted {
-		b.inventory[v.CensorshipRecord.Token] = v
-	}
+	b.inventory = make([]v1d.ProposalRecord, 0, len(inv.Vetted)+len(inv.Branches))
+	for _, v := range append(inv.Vetted, inv.Branches...) {
+		len := len(b.inventory)
+		if len == 0 {
+			b.inventory = append(b.inventory, v)
+		} else {
+			idx := sort.Search(len, func(i int) bool {
+				return v.Timestamp < b.inventory[i].Timestamp
+			})
 
-	log.Infof("Adding %v unvetted proposals to the cache", len(inv.Branches))
-	for _, v := range inv.Branches {
-		b.inventory[v.CensorshipRecord.Token] = v
+			b.inventory = append(b.inventory[:idx], append([]v1d.ProposalRecord{v}, b.inventory[idx:]...)...)
+		}
 	}
 
 	return nil
@@ -256,12 +298,29 @@ func (b *backend) ProcessLogin(l v1w.Login) (*database.User, error) {
 	return user, nil
 }
 
-// ProcessAllUnvetted returns an array of all unvetted proposals.
+// ProcessAllVetted returns an array of all vetted proposals in reverse order,
+// because they're sorted by oldest timestamp first.
+func (b *backend) ProcessAllVetted() *v1w.GetAllVettedReply {
+	proposals := make([]v1d.ProposalRecord, 0, 0)
+	for i := len(b.inventory) - 1; i >= 0; i-- {
+		if b.inventory[i].Status == v1d.StatusPublic {
+			proposals = append(proposals, b.inventory[i])
+		}
+	}
+
+	vr := v1w.GetAllVettedReply{
+		Proposals: proposals,
+	}
+	return &vr
+}
+
+// ProcessAllUnvetted returns an array of all unvetted proposals in reverse order,
+// because they're sorted by oldest timestamp first.
 func (b *backend) ProcessAllUnvetted() *v1w.GetAllUnvettedReply {
-	var proposals []v1d.ProposalRecord
-	for _, v := range b.inventory {
-		if v.Status == v1d.StatusNotReviewed {
-			proposals = append(proposals, v)
+	proposals := make([]v1d.ProposalRecord, 0, 0)
+	for i := len(b.inventory) - 1; i >= 0; i-- {
+		if b.inventory[i].Status == v1d.StatusNotReviewed {
+			proposals = append(proposals, b.inventory[i])
 		}
 	}
 
@@ -269,6 +328,236 @@ func (b *backend) ProcessAllUnvetted() *v1w.GetAllUnvettedReply {
 		Proposals: proposals,
 	}
 	return &ur
+}
+
+// ProcessNewProposal tries to submit a new proposal to politeiad.
+func (b *backend) ProcessNewProposal(np v1w.NewProposal) (*v1w.NewProposalReply, error) {
+	//  Ensure we have a non-empty name and description.
+	if np.Name == "" {
+		return nil, v1w.ErrMissingProposalName
+	}
+	if len(np.Files) == 0 || np.Files[0].Payload == "" {
+		return nil, v1w.ErrMissingProposalDesc
+	}
+
+	challenge, err := util.Random(v1d.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	n := v1d.New{
+		Name:      sanitize.Name(np.Name),
+		Challenge: hex.EncodeToString(challenge),
+		Files:     np.Files,
+	}
+
+	for k, f := range n.Files {
+		decodedPayload, err := base64.StdEncoding.DecodeString(f.Payload)
+		if err != nil {
+			return nil, err
+		}
+
+		// Calculate the digest for each file.
+		h := sha256.New()
+		h.Write(decodedPayload)
+		n.Files[k].Digest = hex.EncodeToString(h.Sum(nil))
+	}
+
+	var reply v1d.NewReply
+	if b.test {
+		tokenBytes, err := util.Random(16)
+		if err != nil {
+			return nil, err
+		}
+
+		reply = v1d.NewReply{
+			Timestamp: time.Now().Unix(),
+			CensorshipRecord: v1d.CensorshipRecord{
+				Token: hex.EncodeToString(tokenBytes),
+			},
+		}
+
+		// Add the new proposal to the cache.
+		b.inventory = append(b.inventory, v1d.ProposalRecord{
+			Name:             np.Name,
+			Status:           v1d.StatusNotReviewed,
+			Timestamp:        reply.Timestamp,
+			Files:            np.Files,
+			CensorshipRecord: reply.CensorshipRecord,
+		})
+	} else {
+		responseBody, err := b.makeRequest("POST", v1d.NewRoute, n)
+		if err != nil {
+			return nil, err
+		}
+
+		fmt.Printf("Submitted proposal name: %v\n", n.Name)
+		for k, f := range n.Files {
+			fmt.Printf("%02v: %v %v\n", k, f.Name, f.Digest)
+		}
+
+		err = json.Unmarshal(responseBody, &reply)
+		if err != nil {
+			return nil, fmt.Errorf("Could not unmarshal NewProposalReply: %v", err)
+		}
+
+		// Verify the challenge.
+		err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
+		if err != nil {
+			return nil, err
+		}
+
+		// Add the new proposal to the cache.
+		b.inventory = append(b.inventory, v1d.ProposalRecord{
+			Name:             np.Name,
+			Status:           v1d.StatusNotReviewed,
+			Timestamp:        reply.Timestamp,
+			Files:            make([]v1d.File, 0, 0),
+			CensorshipRecord: reply.CensorshipRecord,
+		})
+	}
+
+	npr := v1w.NewProposalReply{
+		CensorshipRecord: reply.CensorshipRecord,
+	}
+	return &npr, nil
+}
+
+func (b *backend) ProcessSetProposalStatus(sps v1w.SetProposalStatus) (*v1w.SetProposalStatusReply, error) {
+	var reply v1d.SetUnvettedStatusReply
+	if b.test {
+		reply = v1d.SetUnvettedStatusReply{
+			Status: sps.Status,
+		}
+	} else {
+		challenge, err := util.Random(v1d.ChallengeSize)
+		if err != nil {
+			return nil, err
+		}
+
+		sus := v1d.SetUnvettedStatus{
+			Token:     sps.Token,
+			Status:    sps.Status,
+			Challenge: hex.EncodeToString(challenge),
+		}
+
+		responseBody, err := b.makeRequest("POST", v1d.SetUnvettedStatusRoute, sus)
+		if err != nil {
+			return nil, err
+		}
+
+		err = json.Unmarshal(responseBody, &reply)
+		if err != nil {
+			return nil, fmt.Errorf("Could not unmarshal SetUnvettedStatusReply: %v", err)
+		}
+
+		// Verify the challenge.
+		err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Update the cached proposal with the new status and return the reply.
+	for k, v := range b.inventory {
+		if v.CensorshipRecord.Token == sps.Token {
+			b.inventory[k].Status = reply.Status
+			spsr := v1w.SetProposalStatusReply{
+				Status: reply.Status,
+			}
+			return &spsr, nil
+		}
+	}
+
+	return nil, v1w.ErrProposalNotFound
+}
+
+// ProcessProposalDetails tries to fetch the full details of a proposal from politeiad.
+func (b *backend) ProcessProposalDetails(pd v1w.ProposalDetails) (*v1w.ProposalDetailsReply, error) {
+	challenge, err := util.Random(v1d.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	var cachedProposal *v1d.ProposalRecord
+	for _, v := range b.inventory {
+		if v.CensorshipRecord.Token == pd.Token {
+			cachedProposal = &v
+			break
+		}
+	}
+	if cachedProposal == nil {
+		return nil, v1w.ErrProposalNotFound
+	}
+
+	var isVettedProposal bool
+	var requestObject interface{}
+	if cachedProposal.Status == v1d.StatusPublic {
+		isVettedProposal = true
+		requestObject = v1d.GetVetted{
+			Token:     pd.Token,
+			Challenge: hex.EncodeToString(challenge),
+		}
+	} else {
+		isVettedProposal = false
+		requestObject = v1d.GetUnvetted{
+			Token:     pd.Token,
+			Challenge: hex.EncodeToString(challenge),
+		}
+	}
+
+	var pdr v1w.ProposalDetailsReply
+	if b.test {
+		pdr = v1w.ProposalDetailsReply{
+			Proposal: *cachedProposal,
+		}
+	} else {
+		var route string
+		if isVettedProposal {
+			route = v1d.GetVettedRoute
+		} else {
+			route = v1d.GetUnvettedRoute
+		}
+
+		responseBody, err := b.makeRequest("POST", route, requestObject)
+		if err != nil {
+			return nil, err
+		}
+
+		var response string
+		var proposal v1d.ProposalRecord
+		if isVettedProposal {
+			var reply v1d.GetVettedReply
+			err = json.Unmarshal(responseBody, &reply)
+			if err != nil {
+				return nil, fmt.Errorf("Could not unmarshal GetVettedReply: %v", err)
+			}
+
+			response = reply.Response
+			proposal = reply.Proposal
+		} else {
+			var reply v1d.GetUnvettedReply
+			err = json.Unmarshal(responseBody, &reply)
+			if err != nil {
+				return nil, fmt.Errorf("Could not unmarshal GetUnvettedReply: %v", err)
+			}
+
+			response = reply.Response
+			proposal = reply.Proposal
+		}
+
+		// Verify the challenge.
+		err = util.VerifyChallenge(b.cfg.Identity, challenge, response)
+		if err != nil {
+			return nil, err
+		}
+
+		pdr = v1w.ProposalDetailsReply{
+			Proposal: proposal,
+		}
+	}
+
+	return &pdr, nil
 }
 
 // NewBackend creates a new backend context for use in www and tests.
