@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/btcsuite/btclog"
@@ -136,4 +137,83 @@ func TestFsck(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	// Use git cat-file to fish out the types and values from objects.
+
+	// First find the last commit
+	out, err := g.git(g.root, "log", "--pretty=oneline")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := strings.SplitN(out[0], " ", 2)
+	comitHash := s[0]
+
+	// Get type
+	out, err = g.git(g.root, "cat-file", "-t", comitHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out[0] != "commit" {
+		t.Fatalf("invalid type: %v", string(out[0]))
+	}
+
+	// Now get the tree object
+	out, err = g.git(g.root, "cat-file", "-p", comitHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s = strings.SplitN(out[0], " ", 2)
+	treeHash := s[1]
+
+	out, err = g.git(g.root, "cat-file", "-t", treeHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out[0] != "tree" {
+		t.Fatalf("invalid type: %v", string(out[0]))
+	}
+
+	// Now go get the blob
+	out, err = g.git(g.root, "cat-file", "-p", treeHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// out = 100644 blob 90bfcb510602aa11ae53a42dcec18ea39fbd8cec\ttestfile
+	s = strings.Split(out[0], "\t")
+	s = strings.Split(s[0], " ")
+	blobHash := s[2]
+
+	out, err = g.git(g.root, "cat-file", "-t", blobHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out[0] != "blob" {
+		t.Fatalf("invalid type: %v", string(out[0]))
+	}
+
+	// Now we corrupt the blob object
+	blobObjectFilename := filepath.Join(g.root, ".git", "objects",
+		blobHash[:2], blobHash[2:])
+	blobObject, err := ioutil.ReadFile(blobObjectFilename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Make file writable
+	err = os.Chmod(blobObjectFilename, 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	location := len(blobObject) - 2 // zlib error
+	blobObject[location] = ^blobObject[location]
+	err = ioutil.WriteFile(blobObjectFilename, blobObject, 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Expect fsck to fail
+	_, err = g.gitFsck(g.root)
+	if err == nil {
+		t.Fatalf("expected fsck error")
+	}
+
 }
