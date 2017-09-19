@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/btcsuite/btclog"
@@ -41,13 +42,12 @@ func TestVersion(t *testing.T) {
 }
 
 func TestInit(t *testing.T) {
-	t.Fatalf("FIXME")
 	log := btclog.NewBackend(&testWriter{t}).Logger("TEST")
 	UseLogger(log)
 	g := newGitBackEnd()
 	defer os.RemoveAll(g.root)
 
-	_, err := g.gitInit("init")
+	_, err := g.gitInit(g.root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,16 +59,76 @@ func TestLog(t *testing.T) {
 	g := newGitBackEnd()
 	defer os.RemoveAll(g.root)
 
-	_, err := g.gitInit("log.test")
+	_, err := g.gitInit(g.root)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = g.gitLog("log.test")
+	_, err = g.gitLog(g.root)
 	if err == nil {
 		t.Fatal("empty repo should fail log")
 	}
 }
 
 func TestFsck(t *testing.T) {
+	// Test git fsck, we build on top of that with a dcrtime fsck
+	log := btclog.NewBackend(&testWriter{t}).Logger("TEST")
+	UseLogger(log)
+	g := newGitBackEnd()
+	//defer os.RemoveAll(g.root)
+
+	// Init git repo
+	_, err := g.gitInit(g.root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a file in repo
+	tf := filepath.Join(g.root, "testfile")
+	t.Logf("fsck location: %v", tf)
+	err = ioutil.WriteFile(tf, []byte("this is a test\n"), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Git add file
+	err = g.gitAdd(g.root, tf)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Git commit
+	err = g.gitCommit(g.root, "Add testfile")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// First mess up refs by reading file in memry and then corrupting it
+	masterFilename := filepath.Join(g.root, ".git/refs/heads/master")
+	master, err := ioutil.ReadFile(masterFilename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.RemoveAll(masterFilename)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Expect fsck to fail
+	_, err = g.gitFsck(g.root)
+	if err == nil {
+		t.Fatalf("expected fsck error")
+	}
+
+	// Restore master
+	err = ioutil.WriteFile(masterFilename, master, 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Expect fsck to work again
+	_, err = g.gitFsck(g.root)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
