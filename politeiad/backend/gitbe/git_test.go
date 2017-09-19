@@ -202,8 +202,12 @@ func TestFsck(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Make a copy to uncorrupt later
+	xxx := make([]byte, len(blobObject))
+	copy(xxx, blobObject)
+
 	// Uncompress
-	b := bytes.NewBuffer(blobObject)
+	b := bytes.NewBuffer(xxx)
 	r, err := zlib.NewReader(b)
 	buf := new(bytes.Buffer)
 	w := bufio.NewWriter(buf)
@@ -232,6 +236,7 @@ func TestFsck(t *testing.T) {
 	}
 
 	// Now write buf back with capitalized letter at the end
+	copy(blobObject, xxx) // restore blob object
 	corruptBuf := buf.Bytes()
 	location = len(corruptBuf) - 2 // account for \n
 	corruptBuf[location] = corruptBuf[location] & 0xdf
@@ -255,5 +260,17 @@ func TestFsck(t *testing.T) {
 	_, err = g.gitFsck(g.root)
 	if err == nil {
 		t.Fatalf("expected fsck error")
+	}
+
+	// Restore object
+	err = ioutil.WriteFile(blobObjectFilename, xxx, 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Expect fsck to fail
+	_, err = g.gitFsck(g.root)
+	if err != nil {
+		t.Fatal(err)
 	}
 }
