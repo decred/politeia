@@ -1,7 +1,11 @@
 package gitbe
 
 import (
+	"bufio"
+	"bytes"
+	"compress/zlib"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -198,6 +202,17 @@ func TestFsck(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Uncompress
+	b := bytes.NewBuffer(blobObject)
+	r, err := zlib.NewReader(b)
+	buf := new(bytes.Buffer)
+	w := bufio.NewWriter(buf)
+	io.Copy(w, r)
+	r.Close()
+	// buf now contains a header + the text we shoved in it.  We are going
+	// to use this later to corrupt the file by uppercasing the last
+	// letter.
+
 	// Make file writable
 	err = os.Chmod(blobObjectFilename, 0644)
 	if err != nil {
@@ -216,4 +231,29 @@ func TestFsck(t *testing.T) {
 		t.Fatalf("expected fsck error")
 	}
 
+	// Now write buf back with capitalized letter at the end
+	corruptBuf := buf.Bytes()
+	location = len(corruptBuf) - 2 // account for \n
+	corruptBuf[location] = corruptBuf[location] & 0xdf
+	t.Logf("corruptBuf %v", string(corruptBuf))
+
+	var bc bytes.Buffer
+	w2, err := zlib.NewWriterLevel(&bc, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w2.Write(corruptBuf)
+	w2.Close()
+
+	// Write corrupt zlib data
+	err = ioutil.WriteFile(blobObjectFilename, bc.Bytes(), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Expect fsck to fail
+	_, err = g.gitFsck(g.root)
+	if err == nil {
+		t.Fatalf("expected fsck error")
+	}
 }
