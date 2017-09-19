@@ -80,7 +80,7 @@ func TestFsck(t *testing.T) {
 	log := btclog.NewBackend(&testWriter{t}).Logger("TEST")
 	UseLogger(log)
 	g := newGitBackEnd()
-	//defer os.RemoveAll(g.root)
+	defer os.RemoveAll(g.root)
 
 	// Init git repo
 	_, err := g.gitInit(g.root)
@@ -240,10 +240,9 @@ func TestFsck(t *testing.T) {
 	corruptBuf := buf.Bytes()
 	location = len(corruptBuf) - 2 // account for \n
 	corruptBuf[location] = corruptBuf[location] & 0xdf
-	t.Logf("corruptBuf %v", string(corruptBuf))
 
 	var bc bytes.Buffer
-	w2, err := zlib.NewWriterLevel(&bc, 1)
+	w2, err := zlib.NewWriterLevel(&bc, 1) // git uses zlib level 1
 	if err != nil {
 		t.Fatal(err)
 	}
