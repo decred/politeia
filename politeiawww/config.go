@@ -8,7 +8,9 @@ package main
 import (
 	"encoding/base64"
 	"fmt"
+	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -19,15 +21,17 @@ import (
 	flags "github.com/btcsuite/go-flags"
 	"github.com/dajohi/goemail"
 	"github.com/decred/dcrutil"
+	"github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/util"
 )
 
 const (
-	defaultConfigFilename = "politeiawww.conf"
-	defaultDataDirname    = "data"
-	defaultLogLevel       = "info"
-	defaultLogDirname     = "logs"
-	defaultLogFilename    = "politeiawww.log"
+	defaultConfigFilename   = "politeiawww.conf"
+	defaultDataDirname      = "data"
+	defaultLogLevel         = "info"
+	defaultLogDirname       = "logs"
+	defaultLogFilename      = "politeiawww.log"
+	defaultIdentityFilename = "identity.json"
 
 	defaultMainnetPort = "4443"
 	defaultTestnetPort = "4443"
@@ -50,27 +54,33 @@ var runServiceCommand func(string) error
 //
 // See loadConfig for details on the configuration load process.
 type config struct {
-	HomeDir           string   `short:"A" long:"appdata" description:"Path to application home directory"`
-	ShowVersion       bool     `short:"V" long:"version" description:"Display version information and exit"`
-	ConfigFile        string   `short:"C" long:"configfile" description:"Path to configuration file"`
-	DataDir           string   `short:"b" long:"datadir" description:"Directory to store data"`
-	LogDir            string   `long:"logdir" description:"Directory to log output."`
-	TestNet           bool     `long:"testnet" description:"Use the test network"`
-	SimNet            bool     `long:"simnet" description:"Use the simulation test network"`
-	Profile           string   `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
-	CPUProfile        string   `long:"cpuprofile" description:"Write CPU profile to the specified file"`
-	MemProfile        string   `long:"memprofile" description:"Write mem profile to the specified file"`
-	DebugLevel        string   `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
-	Listeners         []string `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 49152, testnet: 59152)"`
-	Version           string
-	HTTPSCert         string `long:"httpscert" description:"File containing the https certificate file"`
-	HTTPSKey          string `long:"httpskey" description:"File containing the https certificate key"`
-	RPCUser           string `long:"rpcuser" description:"RPC user name for privileged commands"`
-	RPCPass           string `long:"rpcpass" description:"RPC password for privileged commands"`
-	MailServerAddress string `long:"mailserveraddress" description:"Email server address in this format: <host>:<port>"`
-	MailServerUser    string `long:"mailserveruser" description:"Email server username"`
-	MailServerPass    string `long:"mailserverpass" description:"Email server password"`
-	SMTP              *goemail.SMTP
+	HomeDir            string   `short:"A" long:"appdata" description:"Path to application home directory"`
+	ShowVersion        bool     `short:"V" long:"version" description:"Display version information and exit"`
+	ConfigFile         string   `short:"C" long:"configfile" description:"Path to configuration file"`
+	DataDir            string   `short:"b" long:"datadir" description:"Directory to store data"`
+	LogDir             string   `long:"logdir" description:"Directory to log output."`
+	TestNet            bool     `long:"testnet" description:"Use the test network"`
+	SimNet             bool     `long:"simnet" description:"Use the simulation test network"`
+	Profile            string   `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
+	CPUProfile         string   `long:"cpuprofile" description:"Write CPU profile to the specified file"`
+	MemProfile         string   `long:"memprofile" description:"Write mem profile to the specified file"`
+	DebugLevel         string   `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
+	Listeners          []string `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 49152, testnet: 59152)"`
+	Version            string
+	HTTPSCert          string `long:"httpscert" description:"File containing the https certificate file"`
+	HTTPSKey           string `long:"httpskey" description:"File containing the https certificate key"`
+	DaemonHost         string `long:"daemonhost" description:"Host for politeiad in this format"`
+	DaemonAddress      string
+	DaemonIdentityFile string `long:"daemonidentityfile" description:"Path to file containing the politeiad identity"`
+	Identity           *identity.PublicIdentity
+	RPCUser            string `long:"rpcuser" description:"RPC user name for privileged commands"`
+	RPCPass            string `long:"rpcpass" description:"RPC password for privileged commands"`
+	MailServerAddress  string `long:"mailserveraddress" description:"Email server address in this format: <host>:<port>"`
+	MailServerUser     string `long:"mailserveruser" description:"Email server username"`
+	MailServerPass     string `long:"mailserverpass" description:"Email server password"`
+	SMTP               *goemail.SMTP
+	SkipTLSVerify      bool `long:"skiptlsverify" description:"Whether or not politeiawww verifies politeiad's certificate."`
+	FetchIdentity      bool `long:"fetchidentity" description:"Whether or not politeiawww fetches the identity from politeiad."`
 }
 
 // serviceOptions defines the configuration options for the daemon as a service
@@ -218,6 +228,56 @@ func newConfigParser(cfg *config, so *serviceOptions, options flags.Options) *fl
 		parser.AddGroup("Service Options", "Service Options", so)
 	}
 	return parser
+}
+
+func initSMTP(cfg *config) error {
+	// Check that either all MailServer options are populated or none are,
+	// and then initialize the SMTP object if they're all populated.
+	cfg.SMTP = nil
+	if cfg.MailServerAddress != "" || cfg.MailServerUser != "" || cfg.MailServerPass != "" {
+		if cfg.MailServerAddress == "" || cfg.MailServerUser == "" || cfg.MailServerPass == "" {
+			err := fmt.Errorf("either all or none of the following config options should be supplied: mailserveraddress, mailserveruser, mailserverpass")
+			return err
+		}
+
+		var err error
+		cfg.SMTP, err = goemail.NewSMTP("smtps://" + cfg.MailServerUser + ":" + cfg.MailServerPass + "@" + cfg.MailServerAddress)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// loadIdentity fetches an identity from politeiad if necessary.
+func loadIdentity(cfg *config) error {
+	// Set up the path to the politeiad identity file.
+	if cfg.DaemonIdentityFile == "" {
+		cfg.DaemonIdentityFile = filepath.Join(cfg.HomeDir, defaultIdentityFilename)
+	} else {
+		cfg.DaemonIdentityFile = cleanAndExpandPath(cfg.DaemonIdentityFile)
+	}
+
+	if cfg.FetchIdentity {
+		// Don't try to load the identity from the existing file if the caller
+		// is trying to fetch a new one.
+		return nil
+	}
+
+	// Check if the identity already exists.
+	if _, err := os.Stat(cfg.DaemonIdentityFile); os.IsNotExist(err) {
+		return fmt.Errorf("you must load the identity from politeiad first using the --fetchidentity flag")
+	}
+
+	var err error
+	cfg.Identity, err = identity.LoadPublicIdentity(cfg.DaemonIdentityFile)
+	if err != nil {
+		return err
+	}
+
+	log.Infof("Identity loaded from: %v", cfg.DaemonIdentityFile)
+	return nil
 }
 
 // loadConfig initializes and parses the config using a config file and command
@@ -481,6 +541,26 @@ func loadConfig() (*config, []string, error) {
 	//	cfg.DcrtimeCert = path
 	//}
 
+	// Set up the daemon address.
+	if cfg.TestNet {
+		port = v1.DefaultTestnetPort
+		if cfg.DaemonHost == "" {
+			cfg.DaemonHost = v1.DefaultTestnetHost
+		}
+	} else {
+		port = v1.DefaultMainnetPort
+		if cfg.DaemonHost == "" {
+			cfg.DaemonHost = v1.DefaultMainnetHost
+		}
+	}
+
+	cfg.DaemonAddress = util.NormalizeAddress(cfg.DaemonHost, port)
+	u, err := url.Parse("https://" + cfg.DaemonAddress)
+	if err != nil {
+		return nil, nil, err
+	}
+	cfg.DaemonAddress = u.String()
+
 	// Set random username and password when not specified
 	if cfg.RPCUser == "" {
 		name, err := util.Random(32)
@@ -499,19 +579,12 @@ func loadConfig() (*config, []string, error) {
 		log.Warnf("RPC password not set, using random value")
 	}
 
-	// Check that either all MailServer options are populated or none are,
-	// and then initialize the SMTP object if they're all populated.
-	cfg.SMTP = nil
-	if cfg.MailServerAddress != "" || cfg.MailServerUser != "" || cfg.MailServerPass != "" {
-		if cfg.MailServerAddress == "" || cfg.MailServerUser == "" || cfg.MailServerPass == "" {
-			err := fmt.Errorf("either all or none of the following config options should be supplied: mailserveraddress, mailserveruser, mailserverpass")
-			return nil, nil, err
-		}
+	if err := initSMTP(&cfg); err != nil {
+		return nil, nil, err
+	}
 
-		cfg.SMTP, err = goemail.NewSMTP("smtps://" + cfg.MailServerUser + ":" + cfg.MailServerPass + "@" + cfg.MailServerAddress)
-		if err != nil {
-			return nil, nil, err
-		}
+	if err := loadIdentity(&cfg); err != nil {
+		return nil, nil, err
 	}
 
 	// Warn about missing config file only after all other configuration is

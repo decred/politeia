@@ -14,6 +14,7 @@ import (
 	"golang.org/x/net/publicsuffix"
 
 	"github.com/decred/politeia/politeiawww/api/v1"
+	"github.com/decred/politeia/util"
 )
 
 var (
@@ -56,20 +57,10 @@ func (c *ctx) getCSRF() (*v1.Version, error) {
 		return nil, fmt.Errorf("HTTP Status: %v", r.StatusCode)
 	}
 
-	var mw io.Writer
-	var body bytes.Buffer
-	if *printJson {
-		mw = io.MultiWriter(&body, os.Stdout)
-	} else {
-		mw = io.MultiWriter(&body)
-	}
-	io.Copy(mw, r.Body)
-	if *printJson {
-		fmt.Printf("\n")
-	}
+	bodyBytes := util.ConvertBodyToByteArray(r.Body, *printJson)
 
 	var v v1.Version
-	err = json.Unmarshal(body.Bytes(), &v)
+	err = json.Unmarshal(bodyBytes, &v)
 	if err != nil {
 		return nil, fmt.Errorf("Could node unmarshal version: %v", err)
 	}
@@ -111,20 +102,10 @@ func (c *ctx) newUser(email, password string) (string, error) {
 		return "", fmt.Errorf("HTTP Status: %v", r.StatusCode)
 	}
 
-	var mw io.Writer
-	var body bytes.Buffer
-	if *printJson {
-		mw = io.MultiWriter(&body, os.Stdout)
-	} else {
-		mw = io.MultiWriter(&body)
-	}
-	io.Copy(mw, r.Body)
-	if *printJson {
-		fmt.Printf("\n")
-	}
+	bodyBytes := util.ConvertBodyToByteArray(r.Body, *printJson)
 
 	var nur v1.NewUserReply
-	err = json.Unmarshal(body.Bytes(), &nur)
+	err = json.Unmarshal(bodyBytes, &nur)
 	if err != nil {
 		return "", fmt.Errorf("Could node unmarshal NewUserReply: %v",
 			err)
@@ -236,6 +217,38 @@ func (c *ctx) secret() error {
 	return nil
 }
 
+func (c *ctx) allUnvetted() error {
+	route := *host + v1.PoliteiaWWWAPIRoute + v1.RouteAllUnvetted
+	fmt.Printf("Route : %v\n", route)
+	req, err := http.NewRequest("GET", route, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Add(v1.CsrfToken, c.csrf)
+	r, err := c.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		r.Body.Close()
+	}()
+
+	if r.StatusCode != http.StatusOK {
+		return fmt.Errorf("HTTP Status: %v", r.StatusCode)
+	}
+
+	bodyBytes := util.ConvertBodyToByteArray(r.Body, *printJson)
+
+	var ur v1.GetAllUnvettedReply
+	err = json.Unmarshal(bodyBytes, &ur)
+	if err != nil {
+		return fmt.Errorf("Could node unmarshal GetAllUnvettedReply: %v",
+			err)
+	}
+
+	return nil
+}
+
 func (c *ctx) logout() error {
 	l := v1.Login{}
 	b, err := json.Marshal(l)
@@ -312,27 +325,24 @@ func _main() error {
 
 	// New User
 	fmt.Printf("=== POST /api/v1/user/new ===\n")
-	token, err := c.newUser("moo@moo.com", "sikrit!")
+	token, err := c.newUser("moo@example.com", "sikrit!")
 	if err != nil {
 		return err
 	}
-	fmt.Printf("CSRF   : %v\n", c.csrf)
 
 	// Verify New User
 	fmt.Printf("=== POST /api/v1/user/verify ===\n")
-	err = c.verifyNewUser("moo@moo.com", token)
+	err = c.verifyNewUser("moo@example.com", token)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("CSRF   : %v\n", c.csrf)
 
 	// Login
 	fmt.Printf("=== POST /api/v1/login ===\n")
-	err = c.login("moo@moo.com", "sikrit!")
+	err = c.login("moo@example.com", "sikrit!")
 	if err != nil {
 		return err
 	}
-	fmt.Printf("CSRF   : %v\n", c.csrf)
 
 	// Secret
 	fmt.Printf("=== POST /api/v1/secret ===\n")
@@ -340,7 +350,6 @@ func _main() error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("CSRF   : %v\n", c.csrf)
 
 	// Secret again
 	fmt.Printf("=== POST /api/v1/secret ===\n")
@@ -348,7 +357,13 @@ func _main() error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("CSRF   : %v\n", c.csrf)
+
+	// Unvetted proposals
+	fmt.Printf("=== POST /api/v1/unvetted ===\n")
+	err = c.allUnvetted()
+	if err == nil {
+		return fmt.Errorf("/unvetted should only be accessible by admin users")
+	}
 
 	// Logout
 	fmt.Printf("=== POST /api/v1/logout ===\n")

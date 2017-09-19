@@ -8,12 +8,10 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/sha256"
-	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -79,150 +77,9 @@ func cleanAndExpandPath(path string) string {
 	return filepath.Clean(os.ExpandEnv(path))
 }
 
-func newClient(skipVerify bool) *http.Client {
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: skipVerify,
-	}
-	tr := &http.Transport{
-		TLSClientConfig: tlsConfig,
-	}
-	return &http.Client{Transport: tr}
-}
-
-// getError returns the error that is embedded in a JSON reply.
-func getError(r io.Reader) (string, error) {
-	var e interface{}
-	decoder := json.NewDecoder(r)
-	if err := decoder.Decode(&e); err != nil {
-		return "", err
-	}
-	m, ok := e.(map[string]interface{})
-	if !ok {
-		return "", fmt.Errorf("Could not decode response")
-	}
-	rError, ok := m["error"]
-	if !ok {
-		return "", fmt.Errorf("No error response")
-	}
-	return fmt.Sprintf("%v", rError), nil
-}
-
-func convertRemoteIdentity(rid v1.IdentityReply) (*identity.PublicIdentity, error) {
-	id, err := hex.DecodeString(rid.Identity)
-	if err != nil {
-		return nil, err
-	}
-	if len(id) != identity.IdentitySize {
-		return nil, fmt.Errorf("invalid identity size")
-	}
-	key, err := hex.DecodeString(rid.Key)
-	if err != nil {
-		return nil, err
-	}
-	res, err := hex.DecodeString(rid.Response)
-	if err != nil {
-		return nil, err
-	}
-	if len(res) != identity.SignatureSize {
-		return nil, fmt.Errorf("invalid response size")
-	}
-	var response [identity.SignatureSize]byte
-	copy(response[:], res)
-
-	// Fill out structure
-	serverID := identity.PublicIdentity{
-		Name: rid.Name,
-		Nick: rid.Nick,
-	}
-	copy(serverID.Key[:], key)
-	copy(serverID.Identity[:], id)
-
-	return &serverID, nil
-}
-
-func verifyChallenge(id *identity.PublicIdentity, challenge []byte, signature string) error {
-	// Verify challenge.
-	s, err := hex.DecodeString(signature)
-	if err != nil {
-		return err
-	}
-	var sig [identity.SignatureSize]byte
-	copy(sig[:], s)
-	if !id.VerifyMessage(challenge, sig) {
-		return fmt.Errorf("challenge verification failed")
-	}
-
-	return nil
-}
-
-func remoteIdentity() (*identity.PublicIdentity, error) {
-	challenge, err := util.Random(v1.ChallengeSize)
-	if err != nil {
-		return nil, err
-	}
-	b, err := json.Marshal(v1.Identity{
-		Challenge: hex.EncodeToString(challenge),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	if *printJson {
-		fmt.Println(string(b))
-	}
-
-	c := newClient(verify)
-	r, err := c.Post(*host+v1.IdentityRoute, "application/json",
-		bytes.NewReader(b))
-	if err != nil {
-		return nil, err
-	}
-	defer r.Body.Close()
-
-	if r.StatusCode != http.StatusOK {
-		e, err := getError(r.Body)
-		if err != nil {
-			return nil, fmt.Errorf("%v", r.Status)
-		}
-		return nil, fmt.Errorf("%v: %v", r.Status, e)
-	}
-
-	var mw io.Writer
-	var body bytes.Buffer
-	if *printJson {
-		mw = io.MultiWriter(&body, os.Stdout)
-	} else {
-		mw = io.MultiWriter(&body)
-	}
-	io.Copy(mw, r.Body)
-	if *printJson {
-		fmt.Printf("\n")
-	}
-
-	var ir v1.IdentityReply
-	err = json.Unmarshal(body.Bytes(), &ir)
-	if err != nil {
-		return nil, fmt.Errorf("Could node unmarshal IdentityReply: %v",
-			err)
-	}
-
-	// Convert and verify server identity
-	id, err := convertRemoteIdentity(ir)
-	if err != nil {
-		return nil, err
-	}
-
-	err = verifyChallenge(id, challenge, ir.Response)
-	if err != nil {
-		return nil, err
-	}
-
-	return id, nil
-}
-
 func getIdentity() error {
 	// Fetch remote identity
-	id, err := remoteIdentity()
+	id, err := util.RemoteIdentity(verify, *host)
 	if err != nil {
 		return err
 	}
@@ -262,75 +119,6 @@ func getIdentity() error {
 	return nil
 }
 
-func remoteInventory() (*v1.InventoryReply, error) {
-	challenge, err := util.Random(v1.ChallengeSize)
-	if err != nil {
-		return nil, err
-	}
-	b, err := json.Marshal(v1.Inventory{
-		Challenge: hex.EncodeToString(challenge),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	if *printJson {
-		fmt.Println(string(b))
-	}
-
-	c := newClient(verify)
-	req, err := http.NewRequest("POST", *host+v1.InventoryRoute,
-		bytes.NewReader(b))
-	if err != nil {
-		return nil, err
-	}
-	req.SetBasicAuth(*rpcuser, *rpcpass)
-	r, err := c.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer r.Body.Close()
-	if r.StatusCode != http.StatusOK {
-		e, err := getError(r.Body)
-		if err != nil {
-			return nil, fmt.Errorf("%v", r.Status)
-		}
-		return nil, fmt.Errorf("%v: %v", r.Status, e)
-	}
-
-	var mw io.Writer
-	var body bytes.Buffer
-	if *printJson {
-		mw = io.MultiWriter(&body, os.Stdout)
-	} else {
-		mw = io.MultiWriter(&body)
-	}
-	io.Copy(mw, r.Body)
-	if *printJson {
-		fmt.Printf("\n")
-	}
-
-	var ir v1.InventoryReply
-	err = json.Unmarshal(body.Bytes(), &ir)
-	if err != nil {
-		return nil, fmt.Errorf("Could node unmarshal "+
-			"InventoryReply: %v", err)
-	}
-
-	// Fetch remote identity
-	id, err := identity.LoadPublicIdentity(*identityFilename)
-	if err != nil {
-		return nil, err
-	}
-
-	err = verifyChallenge(id, challenge, ir.Response)
-	if err != nil {
-		return nil, err
-	}
-
-	return &ir, nil
-}
-
 func printCensorshipRecord(c v1.CensorshipRecord) {
 	fmt.Printf("  Censorship record:\n")
 	fmt.Printf("    Merkle   : %v\n", c.Merkle)
@@ -356,6 +144,65 @@ func printProposalRecord(header string, pr v1.ProposalRecord) {
 		fmt.Printf("    MIME     : %v\n", v.MIME)
 		fmt.Printf("    Digest   : %v\n", v.Digest)
 	}
+}
+
+func remoteInventory() (*v1.InventoryReply, error) {
+	challenge, err := util.Random(v1.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+	b, err := json.Marshal(v1.Inventory{
+		Challenge: hex.EncodeToString(challenge),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if *printJson {
+		fmt.Println(string(b))
+	}
+
+	c := util.NewClient(verify)
+	req, err := http.NewRequest("POST", *host+v1.InventoryRoute,
+		bytes.NewReader(b))
+	if err != nil {
+		return nil, err
+	}
+	req.SetBasicAuth(*rpcuser, *rpcpass)
+	r, err := c.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Body.Close()
+	if r.StatusCode != http.StatusOK {
+		e, err := util.GetErrorFromJSON(r.Body)
+		if err != nil {
+			return nil, fmt.Errorf("%v", r.Status)
+		}
+		return nil, fmt.Errorf("%v: %v", r.Status, e)
+	}
+
+	bodyBytes := util.ConvertBodyToByteArray(r.Body, *printJson)
+
+	var ir v1.InventoryReply
+	err = json.Unmarshal(bodyBytes, &ir)
+	if err != nil {
+		return nil, fmt.Errorf("Could node unmarshal "+
+			"InventoryReply: %v", err)
+	}
+
+	// Fetch remote identity
+	id, err := identity.LoadPublicIdentity(*identityFilename)
+	if err != nil {
+		return nil, err
+	}
+
+	err = util.VerifyChallenge(id, challenge, ir.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ir, nil
 }
 
 func inventory() error {
@@ -444,7 +291,7 @@ func newProposal() error {
 		fmt.Println(string(b))
 	}
 
-	c := newClient(verify)
+	c := util.NewClient(verify)
 	r, err := c.Post(*host+v1.NewRoute, "application/json",
 		bytes.NewReader(b))
 	if err != nil {
@@ -453,33 +300,23 @@ func newProposal() error {
 	defer r.Body.Close()
 
 	if r.StatusCode != http.StatusOK {
-		e, err := getError(r.Body)
+		e, err := util.GetErrorFromJSON(r.Body)
 		if err != nil {
 			return fmt.Errorf("%v", r.Status)
 		}
 		return fmt.Errorf("%v: %v", r.Status, e)
 	}
 
-	var mw io.Writer
-	var body bytes.Buffer
-	if *printJson {
-		mw = io.MultiWriter(&body, os.Stdout)
-	} else {
-		mw = io.MultiWriter(&body)
-	}
-	io.Copy(mw, r.Body)
-	if *printJson {
-		fmt.Printf("\n")
-	}
+	bodyBytes := util.ConvertBodyToByteArray(r.Body, *printJson)
 
 	var reply v1.NewReply
-	err = json.Unmarshal(body.Bytes(), &reply)
+	err = json.Unmarshal(bodyBytes, &reply)
 	if err != nil {
 		return fmt.Errorf("Could node unmarshal NewReply: %v", err)
 	}
 
 	// Verify challenge.
-	err = verifyChallenge(id, challenge, reply.Response)
+	err = util.VerifyChallenge(id, challenge, reply.Response)
 	if err != nil {
 		return err
 	}
@@ -561,7 +398,7 @@ func getUnvetted() error {
 		fmt.Println(string(b))
 	}
 
-	c := newClient(verify)
+	c := util.NewClient(verify)
 	r, err := c.Post(*host+v1.GetUnvettedRoute, "application/json",
 		bytes.NewReader(b))
 	if err != nil {
@@ -570,34 +407,24 @@ func getUnvetted() error {
 	defer r.Body.Close()
 
 	if r.StatusCode != http.StatusOK {
-		e, err := getError(r.Body)
+		e, err := util.GetErrorFromJSON(r.Body)
 		if err != nil {
 			return fmt.Errorf("%v", r.Status)
 		}
 		return fmt.Errorf("%v: %v", r.Status, e)
 	}
 
-	var mw io.Writer
-	var body bytes.Buffer
-	if *printJson {
-		mw = io.MultiWriter(&body, os.Stdout)
-	} else {
-		mw = io.MultiWriter(&body)
-	}
-	io.Copy(mw, r.Body)
-	if *printJson {
-		fmt.Printf("\n")
-	}
+	bodyBytes := util.ConvertBodyToByteArray(r.Body, *printJson)
 
 	var reply v1.GetUnvettedReply
-	err = json.Unmarshal(body.Bytes(), &reply)
+	err = json.Unmarshal(bodyBytes, &reply)
 	if err != nil {
 		return fmt.Errorf("Could not unmarshal GetUnvettedReply: %v",
 			err)
 	}
 
 	// Verify challenge.
-	err = verifyChallenge(id, challenge, reply.Response)
+	err = util.VerifyChallenge(id, challenge, reply.Response)
 	if err != nil {
 		return err
 	}
@@ -669,7 +496,7 @@ func getVetted() error {
 		fmt.Println(string(b))
 	}
 
-	c := newClient(verify)
+	c := util.NewClient(verify)
 	r, err := c.Post(*host+v1.GetVettedRoute, "application/json",
 		bytes.NewReader(b))
 	if err != nil {
@@ -678,34 +505,24 @@ func getVetted() error {
 	defer r.Body.Close()
 
 	if r.StatusCode != http.StatusOK {
-		e, err := getError(r.Body)
+		e, err := util.GetErrorFromJSON(r.Body)
 		if err != nil {
 			return fmt.Errorf("%v", r.Status)
 		}
 		return fmt.Errorf("%v: %v", r.Status, e)
 	}
 
-	var mw io.Writer
-	var body bytes.Buffer
-	if *printJson {
-		mw = io.MultiWriter(&body, os.Stdout)
-	} else {
-		mw = io.MultiWriter(&body)
-	}
-	io.Copy(mw, r.Body)
-	if *printJson {
-		fmt.Printf("\n")
-	}
+	bodyBytes := util.ConvertBodyToByteArray(r.Body, *printJson)
 
 	var reply v1.GetVettedReply
-	err = json.Unmarshal(body.Bytes(), &reply)
+	err = json.Unmarshal(bodyBytes, &reply)
 	if err != nil {
 		return fmt.Errorf("Could not unmarshal GetVettedReply: %v",
 			err)
 	}
 
 	// Verify challenge.
-	err = verifyChallenge(id, challenge, reply.Response)
+	err = util.VerifyChallenge(id, challenge, reply.Response)
 	if err != nil {
 		return err
 	}
@@ -794,7 +611,7 @@ func setUnvettedStatus() error {
 		fmt.Println(string(b))
 	}
 
-	c := newClient(verify)
+	c := util.NewClient(verify)
 	req, err := http.NewRequest("POST", *host+v1.SetUnvettedStatusRoute,
 		bytes.NewReader(b))
 	if err != nil {
@@ -808,34 +625,24 @@ func setUnvettedStatus() error {
 	defer r.Body.Close()
 
 	if r.StatusCode != http.StatusOK {
-		e, err := getError(r.Body)
+		e, err := util.GetErrorFromJSON(r.Body)
 		if err != nil {
 			return fmt.Errorf("%v", r.Status)
 		}
 		return fmt.Errorf("%v: %v", r.Status, e)
 	}
 
-	var mw io.Writer
-	var body bytes.Buffer
-	if *printJson {
-		mw = io.MultiWriter(&body, os.Stdout)
-	} else {
-		mw = io.MultiWriter(&body)
-	}
-	io.Copy(mw, r.Body)
-	if *printJson {
-		fmt.Printf("\n")
-	}
+	bodyBytes := util.ConvertBodyToByteArray(r.Body, *printJson)
 
 	var reply v1.SetUnvettedStatusReply
-	err = json.Unmarshal(body.Bytes(), &reply)
+	err = json.Unmarshal(bodyBytes, &reply)
 	if err != nil {
 		return fmt.Errorf("Could not unmarshal "+
 			"SetUnvettedStatusReply: %v", err)
 	}
 
 	// Verify challenge.
-	err = verifyChallenge(id, challenge, reply.Response)
+	err = util.VerifyChallenge(id, challenge, reply.Response)
 	if err != nil {
 		return err
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"crypto/elliptic"
 	"crypto/tls"
 	"encoding/json"
@@ -8,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/dajohi/goemail"
@@ -43,6 +45,43 @@ func init() {
 	if err != nil {
 		panic(fmt.Sprintf("versionReply: %v", err))
 	}
+}
+
+// Fetch remote identity
+func (p *politeiawww) getIdentity() error {
+	id, err := util.RemoteIdentity(p.cfg.SkipTLSVerify, p.cfg.DaemonAddress)
+	if err != nil {
+		return err
+	}
+
+	// Pretty print identity.
+	log.Infof("Identity fetched from politeiad")
+	log.Infof("FQDN       : %v", id.Name)
+	log.Infof("Nick       : %v", id.Nick)
+	log.Infof("Key        : %x", id.Key)
+	log.Infof("Identity   : %x", id.Identity)
+	log.Infof("Fingerprint: %v", id.Fingerprint())
+
+	// Ask user if we like this identity
+	log.Infof("Save to %v or ctrl-c to abort", p.cfg.DaemonIdentityFile)
+	scanner := bufio.NewScanner(os.Stdin)
+	scanner.Scan()
+	if err = scanner.Err(); err != nil {
+		return err
+	}
+
+	// Save identity
+	err = os.MkdirAll(filepath.Dir(p.cfg.DaemonIdentityFile), 0700)
+	if err != nil {
+		return err
+	}
+	err = id.SavePublicIdentity(p.cfg.DaemonIdentityFile)
+	if err != nil {
+		return err
+	}
+	log.Infof("Identity saved to: %v", p.cfg.DaemonIdentityFile)
+
+	return nil
 }
 
 // version is an HTTP GET to determine what version and API route this backend
@@ -140,7 +179,7 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	err := p.backend.ProcessLogin(l)
+	user, err := p.backend.ProcessLogin(l)
 	if err != nil {
 		log.Errorf("handleLogin: %v", err)
 
@@ -157,6 +196,7 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	// Mark user as logged in.
 	session.Values["authenticated"] = true
+	session.Values["admin"] = user.Admin
 	session.Save(r, w)
 }
 
@@ -173,6 +213,12 @@ func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
 // handleSecret is a mock handler to test routes.
 func (p *politeiawww) handleSecret(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "secret sauce")
+}
+
+func (p *politeiawww) handleAllUnvetted(w http.ResponseWriter, r *http.Request) {
+	// Reply with the list of unvetted proposals.
+	ur := p.backend.ProcessAllUnvetted()
+	util.RespondWithJSON(w, http.StatusOK, ur)
 }
 
 func _main() error {
@@ -219,8 +265,21 @@ func _main() error {
 		cfg: loadedCfg,
 	}
 
-	p.backend, err = NewBackend(loadedCfg.DataDir)
+	// Check if this command is being run to fetch the identity.
+	if p.cfg.FetchIdentity {
+		if err := p.getIdentity(); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	p.backend, err = NewBackend(p.cfg)
 	if err != nil {
+		return err
+	}
+
+	// Fetch the inventory from politeiad and cache it.
+	if err := p.backend.LoadInventory(); err != nil {
 		return err
 	}
 
@@ -250,6 +309,10 @@ func _main() error {
 	// Routes that require being logged in.
 	p.router.HandleFunc(v1.PoliteiaWWWAPIRoute+v1.RouteSecret,
 		logging(p.isLoggedIn(p.handleSecret))).Methods("POST")
+
+	// Routes that require being logged in as an admin user.
+	p.router.HandleFunc(v1.PoliteiaWWWAPIRoute+v1.RouteAllUnvetted,
+		logging(p.isLoggedInAsAdmin(p.handleAllUnvetted))).Methods("GET")
 
 	// Since we don't persist connections also generate a new cookie key on
 	// startup.

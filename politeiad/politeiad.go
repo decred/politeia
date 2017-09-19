@@ -7,7 +7,6 @@ package main
 import (
 	"crypto/elliptic"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -17,7 +16,6 @@ import (
 	"net/http/httputil"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -421,25 +419,6 @@ func (p *politeia) inventory(w http.ResponseWriter, r *http.Request) {
 	reply.Branches = unvetted
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-func checkAuth(w http.ResponseWriter, r *http.Request) bool {
-	s := strings.SplitN(r.Header.Get("Authorization"), " ", 2)
-	if len(s) != 2 {
-		return false
-	}
-
-	b, err := base64.StdEncoding.DecodeString(s[1])
-	if err != nil {
-		return false
-	}
-
-	pair := strings.SplitN(string(b), ":", 2)
-	if len(pair) != 2 {
-		return false
-	}
-
-	return pair[0] == "user" && pair[1] == "pass"
 }
 
 func (p *politeia) check(user, pass string) bool {
