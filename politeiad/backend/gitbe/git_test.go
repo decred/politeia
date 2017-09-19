@@ -109,7 +109,12 @@ func TestFsck(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = os.RemoveAll(masterFilename)
+	// Corrupt master
+	masterCorrupt := make([]byte, len(master))
+	for k := range masterCorrupt {
+		masterCorrupt[k] = '0'
+	}
+	err = ioutil.WriteFile(masterFilename, masterCorrupt, 0644)
 	if err != nil {
 		t.Fatal(err)
 	}
