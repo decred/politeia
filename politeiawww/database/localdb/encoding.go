@@ -47,7 +47,7 @@ func decodeVersion(payload []byte) (*Version, error) {
 func (l *localdb) openUserDB(path string) error {
 	// open database
 	var err error
-	l.userdb, err = leveldb.OpenFile(filepath.Join(l.root, userdbPath), nil)
+	l.userdb, err = leveldb.OpenFile(filepath.Join(l.root, UserdbPath), nil)
 	if err != nil {
 		return err
 	}
@@ -69,8 +69,8 @@ func (l *localdb) openUserDB(path string) error {
 	return l.userdb.Put([]byte(UserVersionKey), v, nil)
 }
 
-// encodeUser encodes User into a JSON byte slice.
-func encodeUser(u database.User) ([]byte, error) {
+// EncodeUser encodes User into a JSON byte slice.
+func EncodeUser(u database.User) ([]byte, error) {
 	b, err := json.Marshal(u)
 	if err != nil {
 		return nil, err
@@ -79,8 +79,8 @@ func encodeUser(u database.User) ([]byte, error) {
 	return b, nil
 }
 
-// decodeUser decodes a JSON byte slice into a User.
-func decodeUser(payload []byte) (*database.User, error) {
+// DecodeUser decodes a JSON byte slice into a User.
+func DecodeUser(payload []byte) (*database.User, error) {
 	var u database.User
 
 	err := json.Unmarshal(payload, &u)

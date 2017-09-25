@@ -20,14 +20,12 @@ import (
 
 	flags "github.com/btcsuite/go-flags"
 	"github.com/dajohi/goemail"
-	"github.com/decred/dcrutil"
 	"github.com/decred/politeia/politeiad/api/v1"
+	"github.com/decred/politeia/politeiawww/sharedconfig"
 	"github.com/decred/politeia/util"
 )
 
 const (
-	defaultConfigFilename   = "politeiawww.conf"
-	defaultDataDirname      = "data"
 	defaultLogLevel         = "info"
 	defaultLogDirname       = "logs"
 	defaultLogFilename      = "politeiawww.log"
@@ -38,12 +36,9 @@ const (
 )
 
 var (
-	defaultHomeDir       = dcrutil.AppDataDir("politeiawww", false)
-	defaultConfigFile    = filepath.Join(defaultHomeDir, defaultConfigFilename)
-	defaultDataDir       = filepath.Join(defaultHomeDir, defaultDataDirname)
-	defaultHTTPSKeyFile  = filepath.Join(defaultHomeDir, "https.key")
-	defaultHTTPSCertFile = filepath.Join(defaultHomeDir, "https.cert")
-	defaultLogDir        = filepath.Join(defaultHomeDir, defaultLogDirname)
+	defaultHTTPSKeyFile  = filepath.Join(sharedconfig.DefaultHomeDir, "https.key")
+	defaultHTTPSCertFile = filepath.Join(sharedconfig.DefaultHomeDir, "https.cert")
+	defaultLogDir        = filepath.Join(sharedconfig.DefaultHomeDir, defaultLogDirname)
 )
 
 // runServiceCommand is only set to a real function on Windows.  It is used
@@ -94,7 +89,7 @@ type serviceOptions struct {
 func cleanAndExpandPath(path string) string {
 	// Expand initial ~ to OS specific home directory.
 	if strings.HasPrefix(path, "~") {
-		homeDir := filepath.Dir(defaultHomeDir)
+		homeDir := filepath.Dir(sharedconfig.DefaultHomeDir)
 		path = strings.Replace(path, "~", homeDir, 1)
 	}
 
@@ -295,10 +290,10 @@ func loadIdentity(cfg *config) error {
 func loadConfig() (*config, []string, error) {
 	// Default config.
 	cfg := config{
-		HomeDir:    defaultHomeDir,
-		ConfigFile: defaultConfigFile,
+		HomeDir:    sharedconfig.DefaultHomeDir,
+		ConfigFile: sharedconfig.DefaultConfigFile,
 		DebugLevel: defaultLogLevel,
-		DataDir:    defaultDataDir,
+		DataDir:    sharedconfig.DefaultDataDir,
 		LogDir:     defaultLogDir,
 		HTTPSKey:   defaultHTTPSKeyFile,
 		HTTPSCert:  defaultHTTPSCertFile,
@@ -348,13 +343,13 @@ func loadConfig() (*config, []string, error) {
 	if preCfg.HomeDir != "" {
 		cfg.HomeDir, _ = filepath.Abs(preCfg.HomeDir)
 
-		if preCfg.ConfigFile == defaultConfigFile {
-			cfg.ConfigFile = filepath.Join(cfg.HomeDir, defaultConfigFilename)
+		if preCfg.ConfigFile == sharedconfig.DefaultConfigFile {
+			cfg.ConfigFile = filepath.Join(cfg.HomeDir, sharedconfig.DefaultConfigFilename)
 		} else {
 			cfg.ConfigFile = preCfg.ConfigFile
 		}
-		if preCfg.DataDir == defaultDataDir {
-			cfg.DataDir = filepath.Join(cfg.HomeDir, defaultDataDirname)
+		if preCfg.DataDir == sharedconfig.DefaultDataDir {
+			cfg.DataDir = filepath.Join(cfg.HomeDir, sharedconfig.DefaultDataDirname)
 		} else {
 			cfg.DataDir = preCfg.DataDir
 		}
@@ -378,7 +373,7 @@ func loadConfig() (*config, []string, error) {
 	// Load additional config from file.
 	var configFileError error
 	parser := newConfigParser(&cfg, &serviceOpts, flags.Default)
-	if !(preCfg.SimNet) || cfg.ConfigFile != defaultConfigFile {
+	if !(preCfg.SimNet) || cfg.ConfigFile != sharedconfig.DefaultConfigFile {
 		err := flags.NewIniParser(parser).ParseFile(cfg.ConfigFile)
 		if err != nil {
 			if _, ok := err.(*os.PathError); !ok {
@@ -402,7 +397,7 @@ func loadConfig() (*config, []string, error) {
 
 	// Create the home directory if it doesn't already exist.
 	funcName := "loadConfig"
-	err = os.MkdirAll(defaultHomeDir, 0700)
+	err = os.MkdirAll(sharedconfig.DefaultHomeDir, 0700)
 	if err != nil {
 		// Show a nicer error message if it's because a symlink is
 		// linked to a directory that does not exist (probably because

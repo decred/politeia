@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	userdbPath    = "users"
+	UserdbPath    = "users"
 	lastUserIdKey = "lastuserid"
 )
 
@@ -72,7 +72,7 @@ func (l *localdb) UserNew(u database.User) error {
 	binary.LittleEndian.PutUint64(b, uint64(lastUserId))
 	l.userdb.Put([]byte(lastUserIdKey), b, nil)
 
-	payload, err := encodeUser(u)
+	payload, err := EncodeUser(u)
 	if err != nil {
 		return err
 	}
@@ -99,7 +99,7 @@ func (l *localdb) UserGet(email string) (*database.User, error) {
 		return nil, err
 	}
 
-	u, err := decodeUser(payload)
+	u, err := DecodeUser(payload)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +128,7 @@ func (l *localdb) UserUpdate(u database.User) error {
 		return database.ErrUserNotFound
 	}
 
-	payload, err := encodeUser(u)
+	payload, err := EncodeUser(u)
 	if err != nil {
 		return err
 	}
@@ -155,7 +155,7 @@ func New(root string) (*localdb, error) {
 	l := &localdb{
 		root: root,
 	}
-	err := l.openUserDB(filepath.Join(l.root, userdbPath))
+	err := l.openUserDB(filepath.Join(l.root, UserdbPath))
 	if err != nil {
 		return nil, err
 	}
