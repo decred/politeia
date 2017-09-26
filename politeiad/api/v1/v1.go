@@ -179,6 +179,7 @@ type New struct {
 // proposal.  A valid proposal is not always going to be published.
 type NewReply struct {
 	Response         string           `json:"response"` // Challenge response
+	Timestamp        int64            `json:"timestamp"`
 	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
 }
 

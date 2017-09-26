@@ -202,7 +202,8 @@ func (p *politeia) newProposal(w http.ResponseWriter, r *http.Request) {
 
 	response := p.identity.SignMessage(challenge)
 	reply := v1.NewReply{
-		Response: hex.EncodeToString(response[:]),
+		Response:  hex.EncodeToString(response[:]),
+		Timestamp: psr.Timestamp,
 		CensorshipRecord: v1.CensorshipRecord{
 			Merkle:    hex.EncodeToString(psr.Merkle[:]),
 			Token:     hex.EncodeToString(psr.Token),
