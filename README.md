@@ -48,7 +48,7 @@ The politeia stack is as follows:
 
 Compile and launch the politeia daemon:
 ```
-glide i && go install -v $(glide nv) && LOGFLAGS=shortfile politeiad --testnet --rpcuser=user --rpcpass=pass
+dep ensure && go install -v ./politeiad/... && LOGFLAGS=shortfile politeiad --testnet --rpcuser=user --rpcpass=pass
 ```
 
 Download server identity to client:
@@ -104,7 +104,7 @@ by adding the -json command line flag.
 
 Compile and launch the web server:
 ```
-glide i && go install -v $(glide nv) && LOGFLAGS=shortfile
+dep ensure && go install -v ./politeiawww/... && LOGFLAGS=shortfile
 politeiawww --testnet --fetchidentity
 politeiawww --testnet --rpcuser=user --rpcpass=pass
 ```
