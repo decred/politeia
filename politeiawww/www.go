@@ -207,6 +207,7 @@ func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 	// Revoke users authentication
 	session.Values["authenticated"] = false
+	session.Values["admin"] = false
 	session.Save(r, w)
 }
 
@@ -215,8 +216,86 @@ func (p *politeiawww) handleSecret(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "secret sauce")
 }
 
+func (p *politeiawww) handleNewProposal(w http.ResponseWriter, r *http.Request) {
+	// Get new proposal command.
+	var np v1.NewProposal
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&np); err != nil {
+		log.Errorf("handleNewProposal: Unmarshal %v", err)
+		http.Error(w, http.StatusText(http.StatusForbidden),
+			http.StatusForbidden)
+		return
+	}
+	defer r.Body.Close()
+
+	reply, err := p.backend.ProcessNewProposal(np)
+	if err != nil {
+		log.Errorf("handleNewProposal: %v", err)
+		http.Error(w, http.StatusText(http.StatusForbidden),
+			http.StatusForbidden)
+		return
+	}
+
+	// Reply with the challenge response and censorship token.
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+func (p *politeiawww) handleSetProposalStatus(w http.ResponseWriter, r *http.Request) {
+	// Get the proposal status command.
+	var sps v1.SetProposalStatus
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&sps); err != nil {
+		log.Errorf("handleSetProposalStatus: Unmarshal %v", err)
+		http.Error(w, http.StatusText(http.StatusForbidden),
+			http.StatusForbidden)
+		return
+	}
+	defer r.Body.Close()
+
+	reply, err := p.backend.ProcessSetProposalStatus(sps)
+	if err != nil {
+		log.Errorf("handleSetProposalStatus: %v", err)
+		http.Error(w, http.StatusText(http.StatusForbidden),
+			http.StatusForbidden)
+		return
+	}
+
+	// Reply with the new proposal status.
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Request) {
+	// Get the proposal details command.
+	var pd v1.ProposalDetails
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&pd); err != nil {
+		log.Errorf("handleProposalDetails: Unmarshal %v", err)
+		http.Error(w, http.StatusText(http.StatusForbidden),
+			http.StatusForbidden)
+		return
+	}
+	defer r.Body.Close()
+
+	reply, err := p.backend.ProcessProposalDetails(pd)
+	if err != nil {
+		log.Errorf("handleProposalDetails: %v", err)
+		http.Error(w, http.StatusText(http.StatusForbidden),
+			http.StatusForbidden)
+		return
+	}
+
+	// Reply with the proposal details.
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+// handleAllVetted replies with the list of vetted proposals.
+func (p *politeiawww) handleAllVetted(w http.ResponseWriter, r *http.Request) {
+	ur := p.backend.ProcessAllVetted()
+	util.RespondWithJSON(w, http.StatusOK, ur)
+}
+
+// handleAllUnvetted replies with the list of unvetted proposals.
 func (p *politeiawww) handleAllUnvetted(w http.ResponseWriter, r *http.Request) {
-	// Reply with the list of unvetted proposals.
 	ur := p.backend.ProcessAllUnvetted()
 	util.RespondWithJSON(w, http.StatusOK, ur)
 }
@@ -305,14 +384,22 @@ func _main() error {
 		logging(p.handleLogin)).Methods("POST")
 	p.router.HandleFunc(v1.PoliteiaWWWAPIRoute+v1.RouteLogout,
 		logging(p.handleLogout)).Methods("POST")
+	p.router.HandleFunc(v1.PoliteiaWWWAPIRoute+v1.RouteAllVetted,
+		logging(p.handleAllVetted)).Methods("GET")
+	p.router.HandleFunc(v1.PoliteiaWWWAPIRoute+v1.RouteProposalDetails,
+		logging(p.handleProposalDetails)).Methods("GET")
 
 	// Routes that require being logged in.
 	p.router.HandleFunc(v1.PoliteiaWWWAPIRoute+v1.RouteSecret,
 		logging(p.isLoggedIn(p.handleSecret))).Methods("POST")
+	p.router.HandleFunc(v1.PoliteiaWWWAPIRoute+v1.RouteNewProposal,
+		logging(p.isLoggedIn(p.handleNewProposal))).Methods("POST")
 
 	// Routes that require being logged in as an admin user.
 	p.router.HandleFunc(v1.PoliteiaWWWAPIRoute+v1.RouteAllUnvetted,
 		logging(p.isLoggedInAsAdmin(p.handleAllUnvetted))).Methods("GET")
+	p.router.HandleFunc(v1.PoliteiaWWWAPIRoute+v1.RouteSetProposalStatus,
+		logging(p.isLoggedInAsAdmin(p.handleSetProposalStatus))).Methods("POST")
 
 	// Since we don't persist connections also generate a new cookie key on
 	// startup.

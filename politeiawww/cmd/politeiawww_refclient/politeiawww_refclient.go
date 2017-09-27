@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"crypto/tls"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -13,7 +15,8 @@ import (
 
 	"golang.org/x/net/publicsuffix"
 
-	"github.com/decred/politeia/politeiawww/api/v1"
+	v1d "github.com/decred/politeia/politeiad/api/v1"
+	v1w "github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/util"
 )
 
@@ -46,7 +49,45 @@ func newClient(skipVerify bool) (*ctx, error) {
 	}}, nil
 }
 
-func (c *ctx) getCSRF() (*v1.Version, error) {
+func (c *ctx) makeRequest(method string, route string, b interface{}) ([]byte, error) {
+	var requestBody []byte
+	if b != nil {
+		var err error
+		requestBody, err = json.Marshal(b)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	fullRoute := *host + v1w.PoliteiaWWWAPIRoute + route
+	fmt.Printf("Request: %v %v\n", method, v1w.PoliteiaWWWAPIRoute+route)
+
+	if *printJson {
+		fmt.Println(string(requestBody))
+	}
+
+	req, err := http.NewRequest(method, fullRoute, bytes.NewReader(requestBody))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Add(v1w.CsrfToken, c.csrf)
+	r, err := c.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		r.Body.Close()
+	}()
+
+	if r.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("HTTP Status: %v", r.StatusCode)
+	}
+
+	responseBody := util.ConvertBodyToByteArray(r.Body, *printJson)
+	return responseBody, nil
+}
+
+func (c *ctx) getCSRF() (*v1w.Version, error) {
 	r, err := c.client.Get(*host)
 	if err != nil {
 		return nil, err
@@ -57,57 +98,34 @@ func (c *ctx) getCSRF() (*v1.Version, error) {
 		return nil, fmt.Errorf("HTTP Status: %v", r.StatusCode)
 	}
 
-	bodyBytes := util.ConvertBodyToByteArray(r.Body, *printJson)
+	responseBody := util.ConvertBodyToByteArray(r.Body, *printJson)
 
-	var v v1.Version
-	err = json.Unmarshal(bodyBytes, &v)
+	var v v1w.Version
+	err = json.Unmarshal(responseBody, &v)
 	if err != nil {
-		return nil, fmt.Errorf("Could node unmarshal version: %v", err)
+		return nil, fmt.Errorf("Could not unmarshal version: %v", err)
 	}
 
-	c.csrf = r.Header.Get(v1.CsrfToken)
+	c.csrf = r.Header.Get(v1w.CsrfToken)
 
 	return &v, nil
 }
 
 func (c *ctx) newUser(email, password string) (string, error) {
-	u := v1.NewUser{
+	u := v1w.NewUser{
 		Email:    email,
 		Password: password,
 	}
-	b, err := json.Marshal(u)
+
+	responseBody, err := c.makeRequest("POST", v1w.RouteNewUser, u)
 	if err != nil {
 		return "", err
 	}
 
-	if *printJson {
-		fmt.Println(string(b))
-	}
-	route := *host + v1.PoliteiaWWWAPIRoute + v1.RouteNewUser
-	fmt.Printf("Route : %v\n", route)
-	req, err := http.NewRequest("POST", route, bytes.NewReader(b))
+	var nur v1w.NewUserReply
+	err = json.Unmarshal(responseBody, &nur)
 	if err != nil {
-		return "", err
-	}
-	req.Header.Add(v1.CsrfToken, c.csrf)
-	r, err := c.client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer func() {
-		r.Body.Close()
-	}()
-
-	if r.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("HTTP Status: %v", r.StatusCode)
-	}
-
-	bodyBytes := util.ConvertBodyToByteArray(r.Body, *printJson)
-
-	var nur v1.NewUserReply
-	err = json.Unmarshal(bodyBytes, &nur)
-	if err != nil {
-		return "", fmt.Errorf("Could node unmarshal NewUserReply: %v",
+		return "", fmt.Errorf("Could not unmarshal NewUserReply: %v",
 			err)
 	}
 
@@ -116,133 +134,96 @@ func (c *ctx) newUser(email, password string) (string, error) {
 }
 
 func (c *ctx) verifyNewUser(email, token string) error {
-	u := v1.VerifyNewUser{
+	u := v1w.VerifyNewUser{
 		Email:             email,
 		VerificationToken: token,
 	}
-	b, err := json.Marshal(u)
-	if err != nil {
-		return err
-	}
 
-	if *printJson {
-		fmt.Println(string(b))
-	}
-	route := *host + v1.PoliteiaWWWAPIRoute + v1.RouteVerifyNewUser
-	fmt.Printf("Route : %v\n", route)
-	req, err := http.NewRequest("POST", route, bytes.NewReader(b))
+	_, err := c.makeRequest("POST", v1w.RouteVerifyNewUser, u)
 	if err != nil {
 		return err
-	}
-	req.Header.Add(v1.CsrfToken, c.csrf)
-	r, err := c.client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		r.Body.Close()
-	}()
-
-	if r.StatusCode != http.StatusOK {
-		return fmt.Errorf("HTTP Status: %v", r.StatusCode)
 	}
 
 	return nil
 }
 
 func (c *ctx) login(email, password string) error {
-	l := v1.Login{
+	l := v1w.Login{
 		Email:    email,
 		Password: password, // XXX SCRYPT THIS
 	}
-	b, err := json.Marshal(l)
-	if err != nil {
-		return err
-	}
 
-	if *printJson {
-		fmt.Println(string(b))
-	}
-	route := *host + v1.PoliteiaWWWAPIRoute + v1.RouteLogin
-	fmt.Printf("Route : %v\n", route)
-	req, err := http.NewRequest("POST", route, bytes.NewReader(b))
+	_, err := c.makeRequest("POST", v1w.RouteLogin, l)
 	if err != nil {
 		return err
-	}
-	req.Header.Add(v1.CsrfToken, c.csrf)
-	r, err := c.client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		r.Body.Close()
-	}()
-
-	if r.StatusCode != http.StatusOK {
-		return fmt.Errorf("HTTP Status: %v", r.StatusCode)
 	}
 
 	return nil
 }
 
 func (c *ctx) secret() error {
-	l := v1.Login{}
-	b, err := json.Marshal(l)
+	l := v1w.Login{}
+	_, err := c.makeRequest("POST", v1w.RouteSecret, l)
 	if err != nil {
 		return err
 	}
 
-	if *printJson {
-		fmt.Println(string(b))
-	}
-	route := *host + v1.PoliteiaWWWAPIRoute + v1.RouteSecret
-	fmt.Printf("secret Route : %v\n", route)
-	req, err := http.NewRequest("POST", route, bytes.NewReader(b))
-	if err != nil {
-		return err
-	}
-	req.Header.Add(v1.CsrfToken, c.csrf)
-	r, err := c.client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		r.Body.Close()
-	}()
+	return nil
+}
 
-	if r.StatusCode != http.StatusOK {
-		return fmt.Errorf("HTTP Status: %v", r.StatusCode)
+func (c *ctx) newProposal() error {
+	np := v1w.NewProposal{
+		Name:  "test",
+		Files: make([]v1d.File, 0, 0),
+	}
+
+	np.Files = append(np.Files, v1d.File{
+		Name:    "index.md",
+		MIME:    "text/plain; charset=utf-8",
+		Payload: base64.StdEncoding.EncodeToString([]byte("This is a description")),
+	})
+
+	responseBody, err := c.makeRequest("POST", v1w.RouteNewProposal, np)
+	if err != nil {
+		return err
+	}
+
+	var vr v1w.NewProposalReply
+	err = json.Unmarshal(responseBody, &vr)
+	if err != nil {
+		return fmt.Errorf("Could not unmarshal NewProposalReply: %v",
+			err)
+	}
+
+	return nil
+}
+
+func (c *ctx) allVetted() error {
+	responseBody, err := c.makeRequest("GET", v1w.RouteAllVetted, nil)
+	if err != nil {
+		return err
+	}
+
+	var vr v1w.GetAllVettedReply
+	err = json.Unmarshal(responseBody, &vr)
+	if err != nil {
+		return fmt.Errorf("Could not unmarshal GetAllVettedReply: %v",
+			err)
 	}
 
 	return nil
 }
 
 func (c *ctx) allUnvetted() error {
-	route := *host + v1.PoliteiaWWWAPIRoute + v1.RouteAllUnvetted
-	fmt.Printf("Route : %v\n", route)
-	req, err := http.NewRequest("GET", route, nil)
+	responseBody, err := c.makeRequest("GET", v1w.RouteAllUnvetted, nil)
 	if err != nil {
 		return err
 	}
-	req.Header.Add(v1.CsrfToken, c.csrf)
-	r, err := c.client.Do(req)
+
+	var ur v1w.GetAllUnvettedReply
+	err = json.Unmarshal(responseBody, &ur)
 	if err != nil {
-		return err
-	}
-	defer func() {
-		r.Body.Close()
-	}()
-
-	if r.StatusCode != http.StatusOK {
-		return fmt.Errorf("HTTP Status: %v", r.StatusCode)
-	}
-
-	bodyBytes := util.ConvertBodyToByteArray(r.Body, *printJson)
-
-	var ur v1.GetAllUnvettedReply
-	err = json.Unmarshal(bodyBytes, &ur)
-	if err != nil {
-		return fmt.Errorf("Could node unmarshal GetAllUnvettedReply: %v",
+		return fmt.Errorf("Could not unmarshal GetAllUnvettedReply: %v",
 			err)
 	}
 
@@ -250,45 +231,23 @@ func (c *ctx) allUnvetted() error {
 }
 
 func (c *ctx) logout() error {
-	l := v1.Login{}
-	b, err := json.Marshal(l)
+	l := v1w.Login{}
+	_, err := c.makeRequest("POST", v1w.RouteLogout, l)
 	if err != nil {
 		return err
-	}
-
-	if *printJson {
-		fmt.Println(string(b))
-	}
-	route := *host + v1.PoliteiaWWWAPIRoute + v1.RouteLogout
-	fmt.Printf("Route : %v\n", route)
-	req, err := http.NewRequest("POST", route, bytes.NewReader(b))
-	if err != nil {
-		return err
-	}
-	req.Header.Add(v1.CsrfToken, c.csrf)
-	r, err := c.client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		r.Body.Close()
-	}()
-
-	if r.StatusCode != http.StatusOK {
-		return fmt.Errorf("HTTP Status: %v", r.StatusCode)
 	}
 
 	return nil
 }
 
 func (c *ctx) assets() error {
-	route := *host + "/static/" //v1.PoliteiaWWWAPIRoute + v1.RouteSecret
+	route := *host + "/static/" //v1w.PoliteiaWWWAPIRoute + v1w.RouteSecret
 	fmt.Printf("asset Route : %v\n", route)
 	req, err := http.NewRequest("GET", route, nil)
 	if err != nil {
 		return err
 	}
-	req.Header.Add(v1.CsrfToken, c.csrf)
+	req.Header.Add(v1w.CsrfToken, c.csrf)
 	r, err := c.client.Do(req)
 	if err != nil {
 		return err
@@ -323,64 +282,75 @@ func _main() error {
 	fmt.Printf("Route  : %v\n", version.Route)
 	fmt.Printf("CSRF   : %v\n", c.csrf)
 
+	b, err := util.Random(8)
+	if err != nil {
+		return err
+	}
+	email := hex.EncodeToString(b) + "@example.com"
+	password := hex.EncodeToString(b)
+
 	// New User
-	fmt.Printf("=== POST /api/v1/user/new ===\n")
-	token, err := c.newUser("moo@example.com", "sikrit!")
+	token, err := c.newUser(email, password)
 	if err != nil {
 		return err
 	}
 
 	// Verify New User
-	fmt.Printf("=== POST /api/v1/user/verify ===\n")
-	err = c.verifyNewUser("moo@example.com", token)
+	err = c.verifyNewUser(email, token)
 	if err != nil {
 		return err
 	}
 
+	// New proposal
+	err = c.newProposal()
+	if err == nil {
+		return fmt.Errorf("/new should only be accessible by logged in users")
+	}
+
 	// Login
-	fmt.Printf("=== POST /api/v1/login ===\n")
-	err = c.login("moo@example.com", "sikrit!")
+	err = c.login(email, password)
 	if err != nil {
 		return err
 	}
 
 	// Secret
-	fmt.Printf("=== POST /api/v1/secret ===\n")
 	err = c.secret()
 	if err != nil {
 		return err
 	}
 
-	// Secret again
-	fmt.Printf("=== POST /api/v1/secret ===\n")
-	err = c.secret()
+	// New proposal
+	err = c.newProposal()
 	if err != nil {
 		return err
 	}
 
 	// Unvetted proposals
-	fmt.Printf("=== POST /api/v1/unvetted ===\n")
 	err = c.allUnvetted()
 	if err == nil {
 		return fmt.Errorf("/unvetted should only be accessible by admin users")
 	}
 
+	// Vetted proposals
+	err = c.allVetted()
+	if err != nil {
+		return err
+	}
+
 	// Logout
-	fmt.Printf("=== POST /api/v1/logout ===\n")
 	err = c.logout()
 	if err != nil {
 		return err
 	}
 	fmt.Printf("CSRF   : %v\n", c.csrf)
 
-	fmt.Printf("=== GET assets ===\n")
+	// Assets
 	err = c.assets()
 	if err != nil {
 		return err
 	}
 
 	// Secret once more that should fail
-	fmt.Printf("=== POST /api/v1/secret ===\n")
 	err = c.secret()
 	if err != nil {
 		return err

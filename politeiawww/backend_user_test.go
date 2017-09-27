@@ -9,7 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/decred/politeia/politeiawww/api/v1"
+	v1d "github.com/decred/politeia/politeiad/api/v1"
+	v1w "github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/util"
 )
 
@@ -47,6 +48,8 @@ func createBackend(t *testing.T) *backend {
 		t.Error(err)
 	}
 
+	b.test = true
+	b.inventory = make([]v1d.ProposalRecord, 0, 0)
 	return b
 }
 
@@ -54,7 +57,7 @@ func createBackend(t *testing.T) *backend {
 func TestProcessNewUserWithUnverifiedToken(t *testing.T) {
 	b := createBackend(t)
 
-	u := v1.NewUser{
+	u := v1w.NewUser{
 		Email:    generateRandomEmail(),
 		Password: generateRandomPassword(),
 	}
@@ -79,7 +82,7 @@ func TestProcessNewUserWithExpiredToken(t *testing.T) {
 	b.verificationExpiryTime = time.Duration(100) * time.Nanosecond
 	const sleepTime = time.Duration(100) * time.Millisecond
 
-	u := v1.NewUser{
+	u := v1w.NewUser{
 		Email:    generateRandomEmail(),
 		Password: generateRandomPassword(),
 	}
@@ -111,7 +114,7 @@ func TestProcessNewUserWithExpiredToken(t *testing.T) {
 func TestProcessNewUserWithInvalidEmail(t *testing.T) {
 	b := createBackend(t)
 
-	u := v1.NewUser{
+	u := v1w.NewUser{
 		Email:    "foobar",
 		Password: generateRandomPassword(),
 	}
@@ -128,9 +131,9 @@ func TestProcessNewUserWithInvalidEmail(t *testing.T) {
 func TestProcessVerifyNewUserWithNonExistingUser(t *testing.T) {
 	b := createBackend(t)
 
-	u := v1.VerifyNewUser{
+	u := v1w.VerifyNewUser{
 		Email:             generateRandomEmail(),
-		VerificationToken: generateRandomString(v1.VerificationTokenSize),
+		VerificationToken: generateRandomString(v1w.VerificationTokenSize),
 	}
 
 	err := b.ProcessVerifyNewUser(u)
@@ -145,7 +148,7 @@ func TestProcessVerifyNewUserWithNonExistingUser(t *testing.T) {
 func TestProcessVerifyNewUserWithInvalidToken(t *testing.T) {
 	b := createBackend(t)
 
-	u := v1.NewUser{
+	u := v1w.NewUser{
 		Email:    generateRandomEmail(),
 		Password: generateRandomPassword(),
 	}
@@ -155,12 +158,12 @@ func TestProcessVerifyNewUserWithInvalidToken(t *testing.T) {
 		t.Error(err)
 	}
 
-	token, err := util.Random(v1.VerificationTokenSize)
+	token, err := util.Random(v1w.VerificationTokenSize)
 	if err != nil {
 		t.Error(err)
 	}
 
-	vu := v1.VerifyNewUser{
+	vu := v1w.VerifyNewUser{
 		Email:             u.Email,
 		VerificationToken: hex.EncodeToString(token[:]),
 	}
@@ -177,7 +180,7 @@ func TestProcessVerifyNewUserWithInvalidToken(t *testing.T) {
 func TestProcessLoginWithNonExistingUser(t *testing.T) {
 	b := createBackend(t)
 
-	l := v1.Login{
+	l := v1w.Login{
 		Email:    generateRandomEmail(),
 		Password: generateRandomPassword(),
 	}
@@ -194,7 +197,7 @@ func TestProcessLoginWithNonExistingUser(t *testing.T) {
 func TestProcessLoginWithUnverifiedUser(t *testing.T) {
 	b := createBackend(t)
 
-	u := v1.NewUser{
+	u := v1w.NewUser{
 		Email:    generateRandomEmail(),
 		Password: generateRandomPassword(),
 	}
@@ -204,7 +207,7 @@ func TestProcessLoginWithUnverifiedUser(t *testing.T) {
 		t.Error(err)
 	}
 
-	l := v1.Login{
+	l := v1w.Login{
 		Email:    u.Email,
 		Password: u.Password,
 	}
@@ -221,7 +224,7 @@ func TestProcessLoginWithUnverifiedUser(t *testing.T) {
 func TestLoginWithVerifiedUser(t *testing.T) {
 	b := createBackend(t)
 
-	u := v1.NewUser{
+	u := v1w.NewUser{
 		Email:    generateRandomEmail(),
 		Password: generateRandomPassword(),
 	}
@@ -236,11 +239,11 @@ func TestLoginWithVerifiedUser(t *testing.T) {
 		t.Error(err)
 	}
 
-	if len(bytes[:]) != v1.VerificationTokenSize {
-		t.Errorf("token length was %v, expected %v", len(bytes[:]), v1.VerificationTokenSize)
+	if len(bytes[:]) != v1w.VerificationTokenSize {
+		t.Errorf("token length was %v, expected %v", len(bytes[:]), v1w.VerificationTokenSize)
 	}
 
-	v := v1.VerifyNewUser{
+	v := v1w.VerifyNewUser{
 		Email:             u.Email,
 		VerificationToken: reply.VerificationToken,
 	}
@@ -248,7 +251,7 @@ func TestLoginWithVerifiedUser(t *testing.T) {
 		t.Error(err)
 	}
 
-	l := v1.Login{
+	l := v1w.Login{
 		Email:    u.Email,
 		Password: u.Password,
 	}
