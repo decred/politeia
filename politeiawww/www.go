@@ -216,6 +216,7 @@ func (p *politeiawww) handleSecret(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "secret sauce")
 }
 
+// handleNewProposal handles the incoming new proposal command.
 func (p *politeiawww) handleNewProposal(w http.ResponseWriter, r *http.Request) {
 	// Get new proposal command.
 	var np v1.NewProposal
@@ -240,6 +241,8 @@ func (p *politeiawww) handleNewProposal(w http.ResponseWriter, r *http.Request) 
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
+// handleSetProposalStatus handles the incoming set proposal status command.
+// It's used for either publishing or censoring a proposal.
 func (p *politeiawww) handleSetProposalStatus(w http.ResponseWriter, r *http.Request) {
 	// Get the proposal status command.
 	var sps v1.SetProposalStatus
@@ -264,6 +267,8 @@ func (p *politeiawww) handleSetProposalStatus(w http.ResponseWriter, r *http.Req
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
+// handleProposalDetails handles the incoming proposal details command. It fetches
+// the complete details for an existing proposal.
 func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Request) {
 	// Get the proposal details command.
 	var pd v1.ProposalDetails
