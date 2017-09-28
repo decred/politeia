@@ -12,16 +12,16 @@ const (
 
 	CsrfToken = "X-CSRF-Token" // CSRF token for replies
 
-	RouteNewUser           = "/user/new/"
-	RouteVerifyNewUser     = "/user/verify/"
-	RouteLogin             = "/login/"
-	RouteLogout            = "/logout/"
-	RouteSecret            = "/secret/"
-	RouteAllVetted         = "/proposals/vetted/"
-	RouteAllUnvetted       = "/proposals/unvetted/"
-	RouteNewProposal       = "/proposals/new/"
-	RouteProposalDetails   = "/proposals/{token}/"
-	RouteSetProposalStatus = "/proposals/{token}/setstatus"
+	RouteNewUser           = "/user/new"
+	RouteVerifyNewUser     = "/user/verify"
+	RouteLogin             = "/login"
+	RouteLogout            = "/logout"
+	RouteSecret            = "/secret"
+	RouteAllVetted         = "/proposals/vetted"
+	RouteAllUnvetted       = "/proposals/unvetted"
+	RouteNewProposal       = "/proposals/new"
+	RouteProposalDetails   = "/proposals/{token:[A-z0-9]{64}}"
+	RouteSetProposalStatus = "/proposals/{token:[A-z0-9]{64}}/setstatus"
 
 	// Size of verification token in bytes
 	VerificationTokenSize = 32
@@ -99,12 +99,7 @@ type NewProposalReply struct {
 	CensorshipRecord v1d.CensorshipRecord `json:"censorshiprecord"`
 }
 
-// ProposalDetails is used to request the full details of a proposal.
-type ProposalDetails struct {
-	Token string `json:"token"` // Censorship token
-}
-
-// ProposalDetailsReply is used to reply to a ProposalDetails command.
+// ProposalDetailsReply is used to reply to a proposal details command.
 type ProposalDetailsReply struct {
 	Proposal v1d.ProposalRecord `json:"proposal"`
 }

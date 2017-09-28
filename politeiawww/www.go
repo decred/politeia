@@ -265,18 +265,8 @@ func (p *politeiawww) handleSetProposalStatus(w http.ResponseWriter, r *http.Req
 }
 
 func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Request) {
-	// Get the proposal details command.
-	var pd v1.ProposalDetails
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&pd); err != nil {
-		log.Errorf("handleProposalDetails: Unmarshal %v", err)
-		http.Error(w, http.StatusText(http.StatusForbidden),
-			http.StatusForbidden)
-		return
-	}
-	defer r.Body.Close()
-
-	reply, err := p.backend.ProcessProposalDetails(pd)
+	pathParams := mux.Vars(r)
+	reply, err := p.backend.ProcessProposalDetails(pathParams["token"])
 	if err != nil {
 		log.Errorf("handleProposalDetails: %v", err)
 		http.Error(w, http.StatusText(http.StatusForbidden),
@@ -298,6 +288,18 @@ func (p *politeiawww) handleAllVetted(w http.ResponseWriter, r *http.Request) {
 func (p *politeiawww) handleAllUnvetted(w http.ResponseWriter, r *http.Request) {
 	ur := p.backend.ProcessAllUnvetted()
 	util.RespondWithJSON(w, http.StatusOK, ur)
+}
+
+func (p *politeiawww) addRoute(method string, route string, handler http.HandlerFunc, requiresLogin, requiresAdmin bool) {
+	fullRoute := v1.PoliteiaWWWAPIRoute + route
+	if requiresLogin && requiresAdmin {
+		handler = logging(p.isLoggedInAsAdmin(handler))
+	} else if requiresLogin {
+		handler = logging(p.isLoggedIn(handler))
+	} else {
+		handler = logging(handler)
+	}
+	p.router.StrictSlash(true).HandleFunc(fullRoute, handler).Methods(method)
 }
 
 func _main() error {
@@ -374,32 +376,22 @@ func _main() error {
 	p.router.PathPrefix("/static/").Handler(http.StripPrefix("/static/",
 		http.FileServer(http.Dir("."))))
 
-	// Unauthenticated commands
-	p.router.HandleFunc("/", logging(p.handleVersion)).Methods("GET")
-	p.router.HandleFunc(v1.PoliteiaWWWAPIRoute+v1.RouteNewUser,
-		logging(p.handleNewUser)).Methods("POST")
-	p.router.HandleFunc(v1.PoliteiaWWWAPIRoute+v1.RouteVerifyNewUser,
-		logging(p.handleVerifyNewUser)).Methods("POST")
-	p.router.HandleFunc(v1.PoliteiaWWWAPIRoute+v1.RouteLogin,
-		logging(p.handleLogin)).Methods("POST")
-	p.router.HandleFunc(v1.PoliteiaWWWAPIRoute+v1.RouteLogout,
-		logging(p.handleLogout)).Methods("POST")
-	p.router.HandleFunc(v1.PoliteiaWWWAPIRoute+v1.RouteAllVetted,
-		logging(p.handleAllVetted)).Methods("GET")
-	p.router.HandleFunc(v1.PoliteiaWWWAPIRoute+v1.RouteProposalDetails,
-		logging(p.handleProposalDetails)).Methods("GET")
+	// Public routes.
+	p.router.HandleFunc("/", logging(p.handleVersion)).Methods(http.MethodGet)
+	p.addRoute(http.MethodPost, v1.RouteNewUser, p.handleNewUser, false, false)
+	p.addRoute(http.MethodPost, v1.RouteVerifyNewUser, p.handleVerifyNewUser, false, false)
+	p.addRoute(http.MethodPost, v1.RouteLogin, p.handleLogin, false, false)
+	p.addRoute(http.MethodPost, v1.RouteLogout, p.handleLogout, true, false)
+	p.addRoute(http.MethodGet, v1.RouteAllVetted, p.handleAllVetted, false, false)
 
 	// Routes that require being logged in.
-	p.router.HandleFunc(v1.PoliteiaWWWAPIRoute+v1.RouteSecret,
-		logging(p.isLoggedIn(p.handleSecret))).Methods("POST")
-	p.router.HandleFunc(v1.PoliteiaWWWAPIRoute+v1.RouteNewProposal,
-		logging(p.isLoggedIn(p.handleNewProposal))).Methods("POST")
+	p.addRoute(http.MethodPost, v1.RouteSecret, p.handleSecret, true, false)
+	p.addRoute(http.MethodPost, v1.RouteNewProposal, p.handleNewProposal, true, false)
 
 	// Routes that require being logged in as an admin user.
-	p.router.HandleFunc(v1.PoliteiaWWWAPIRoute+v1.RouteAllUnvetted,
-		logging(p.isLoggedInAsAdmin(p.handleAllUnvetted))).Methods("GET")
-	p.router.HandleFunc(v1.PoliteiaWWWAPIRoute+v1.RouteSetProposalStatus,
-		logging(p.isLoggedInAsAdmin(p.handleSetProposalStatus))).Methods("POST")
+	p.addRoute(http.MethodGet, v1.RouteAllUnvetted, p.handleAllUnvetted, true, true)
+	p.addRoute(http.MethodPost, v1.RouteSetProposalStatus, p.handleSetProposalStatus, true, true)
+	p.addRoute(http.MethodGet, v1.RouteProposalDetails, p.handleProposalDetails, false, false)
 
 	// Since we don't persist connections also generate a new cookie key on
 	// startup.
