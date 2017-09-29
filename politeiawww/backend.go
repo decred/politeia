@@ -473,7 +473,7 @@ func (b *backend) ProcessSetProposalStatus(sps v1w.SetProposalStatus) (*v1w.SetP
 }
 
 // ProcessProposalDetails tries to fetch the full details of a proposal from politeiad.
-func (b *backend) ProcessProposalDetails(pd v1w.ProposalDetails) (*v1w.ProposalDetailsReply, error) {
+func (b *backend) ProcessProposalDetails(token string) (*v1w.ProposalDetailsReply, error) {
 	challenge, err := util.Random(v1d.ChallengeSize)
 	if err != nil {
 		return nil, err
@@ -481,7 +481,7 @@ func (b *backend) ProcessProposalDetails(pd v1w.ProposalDetails) (*v1w.ProposalD
 
 	var cachedProposal *v1d.ProposalRecord
 	for _, v := range b.inventory {
-		if v.CensorshipRecord.Token == pd.Token {
+		if v.CensorshipRecord.Token == token {
 			cachedProposal = &v
 			break
 		}
@@ -495,13 +495,13 @@ func (b *backend) ProcessProposalDetails(pd v1w.ProposalDetails) (*v1w.ProposalD
 	if cachedProposal.Status == v1d.StatusPublic {
 		isVettedProposal = true
 		requestObject = v1d.GetVetted{
-			Token:     pd.Token,
+			Token:     token,
 			Challenge: hex.EncodeToString(challenge),
 		}
 	} else {
 		isVettedProposal = false
 		requestObject = v1d.GetUnvetted{
-			Token:     pd.Token,
+			Token:     token,
 			Challenge: hex.EncodeToString(challenge),
 		}
 	}
