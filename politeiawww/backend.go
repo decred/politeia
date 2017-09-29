@@ -51,6 +51,8 @@ func (b *backend) generateVerificationTokenAndExpiry() ([]byte, int64, error) {
 	return token, expiry, nil
 }
 
+// makeRequest makes an http request to the method and route provided, serializing
+// the provided object as the request body.
 func (b *backend) makeRequest(method string, route string, v interface{}) ([]byte, error) {
 	var requestBody []byte
 	if v != nil {
@@ -87,6 +89,7 @@ func (b *backend) makeRequest(method string, route string, v interface{}) ([]byt
 	return responseBody, nil
 }
 
+// remoteInventory fetches the entire inventory of proposals from politeiad.
 func (b *backend) remoteInventory() (*v1d.InventoryReply, error) {
 	challenge, err := util.Random(v1d.ChallengeSize)
 	if err != nil {
@@ -423,6 +426,8 @@ func (b *backend) ProcessNewProposal(np v1w.NewProposal) (*v1w.NewProposalReply,
 	return &npr, nil
 }
 
+// ProcessSetProposalStatus changes the status of an existing proposal
+// from unreviewed to either published or censored.
 func (b *backend) ProcessSetProposalStatus(sps v1w.SetProposalStatus) (*v1w.SetProposalStatusReply, error) {
 	var reply v1d.SetUnvettedStatusReply
 	if b.test {
