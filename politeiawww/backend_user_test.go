@@ -45,12 +45,30 @@ func createBackend(t *testing.T) *backend {
 
 	b, err := NewBackend(cfg)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	b.test = true
 	b.inventory = make([]v1d.ProposalRecord, 0, 0)
 	return b
+}
+
+func assertSuccess(t *testing.T, err error, status v1w.StatusT) {
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status != v1w.StatusSuccess {
+		t.Fatalf("unexpected error code %v", status)
+	}
+}
+
+func assertError(t *testing.T, err error, status, expectedStatus v1w.StatusT) {
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status != expectedStatus {
+		t.Fatalf("expected error code %v", expectedStatus)
+	}
 }
 
 // Tests creating a new user with an existing token which still needs to be verified.
@@ -62,15 +80,11 @@ func TestProcessNewUserWithUnverifiedToken(t *testing.T) {
 		Password: generateRandomPassword(),
 	}
 
-	_, err := b.ProcessNewUser(u)
-	if err != nil {
-		t.Error(err)
-	}
+	reply, _, err := b.ProcessNewUser(u)
+	assertSuccess(t, err, reply.ErrorCode)
 
-	_, err = b.ProcessNewUser(u)
-	if err == nil {
-		t.Errorf("ProcessNewUser called without error, expected 'user already exists' error")
-	}
+	reply, _, err = b.ProcessNewUser(u)
+	assertSuccess(t, err, reply.ErrorCode)
 
 	b.db.Close()
 }
@@ -87,31 +101,27 @@ func TestProcessNewUserWithExpiredToken(t *testing.T) {
 		Password: generateRandomPassword(),
 	}
 
-	reply1, err := b.ProcessNewUser(u)
-	if err != nil {
-		t.Error(err)
-	}
+	reply1, token1, err := b.ProcessNewUser(u)
+	assertSuccess(t, err, reply1.ErrorCode)
 
 	// Sleep for a longer amount of time than it takes for the verification token to expire.
 	time.Sleep(sleepTime)
 
-	reply2, err := b.ProcessNewUser(u)
-	if err != nil {
-		t.Error(err)
-	}
+	reply2, token2, err := b.ProcessNewUser(u)
+	assertSuccess(t, err, reply2.ErrorCode)
 
-	if reply2.VerificationToken == "" {
-		t.Errorf("ProcessNewUser did not return a verification token.")
+	if token2 == "" {
+		t.Fatalf("ProcessNewUser did not return a verification token.")
 	}
-	if reply1.VerificationToken == reply2.VerificationToken {
-		t.Errorf("ProcessNewUser did not return a new verification token.")
+	if token1 == token2 {
+		t.Fatalf("ProcessNewUser did not return a new verification token.")
 	}
 
 	b.db.Close()
 }
 
-// Tests creating a new user with an invalid email.
-func TestProcessNewUserWithInvalidEmail(t *testing.T) {
+// Tests creating a new user with a malformed email.
+func TestProcessNewUserWithMalformedEmail(t *testing.T) {
 	b := createBackend(t)
 
 	u := v1w.NewUser{
@@ -119,10 +129,8 @@ func TestProcessNewUserWithInvalidEmail(t *testing.T) {
 		Password: generateRandomPassword(),
 	}
 
-	_, err := b.ProcessNewUser(u)
-	if err == nil {
-		t.Errorf("ProcessNewUser called without error, expected 'email not valid' error")
-	}
+	reply, _, err := b.ProcessNewUser(u)
+	assertError(t, err, reply.ErrorCode, v1w.StatusMalformedEmail)
 
 	b.db.Close()
 }
@@ -136,10 +144,8 @@ func TestProcessVerifyNewUserWithNonExistingUser(t *testing.T) {
 		VerificationToken: generateRandomString(v1w.VerificationTokenSize),
 	}
 
-	err := b.ProcessVerifyNewUser(u)
-	if err == nil {
-		t.Errorf("ProcessVerifyNewUser called without error, expected 'user not found' error")
-	}
+	status, err := b.ProcessVerifyNewUser(u)
+	assertError(t, err, status, v1w.StatusVerificationTokenInvalid)
 
 	b.db.Close()
 }
@@ -153,14 +159,12 @@ func TestProcessVerifyNewUserWithInvalidToken(t *testing.T) {
 		Password: generateRandomPassword(),
 	}
 
-	_, err := b.ProcessNewUser(u)
-	if err != nil {
-		t.Error(err)
-	}
+	reply, _, err := b.ProcessNewUser(u)
+	assertSuccess(t, err, reply.ErrorCode)
 
 	token, err := util.Random(v1w.VerificationTokenSize)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	vu := v1w.VerifyNewUser{
@@ -168,10 +172,8 @@ func TestProcessVerifyNewUserWithInvalidToken(t *testing.T) {
 		VerificationToken: hex.EncodeToString(token[:]),
 	}
 
-	err = b.ProcessVerifyNewUser(vu)
-	if err == nil {
-		t.Errorf("ProcessVerifyNewUser called without error, expected 'verification token invalid' error")
-	}
+	status, err := b.ProcessVerifyNewUser(vu)
+	assertError(t, err, status, v1w.StatusVerificationTokenInvalid)
 
 	b.db.Close()
 }
@@ -185,10 +187,8 @@ func TestProcessLoginWithNonExistingUser(t *testing.T) {
 		Password: generateRandomPassword(),
 	}
 
-	_, err := b.ProcessLogin(l)
-	if err == nil {
-		t.Errorf("ProcessLogin called without error, expected 'user not found' error")
-	}
+	reply, err := b.ProcessLogin(l)
+	assertError(t, err, reply.ErrorCode, v1w.StatusInvalidEmailOrPassword)
 
 	b.db.Close()
 }
@@ -202,20 +202,16 @@ func TestProcessLoginWithUnverifiedUser(t *testing.T) {
 		Password: generateRandomPassword(),
 	}
 
-	_, err := b.ProcessNewUser(u)
-	if err != nil {
-		t.Error(err)
-	}
+	nur, _, err := b.ProcessNewUser(u)
+	assertSuccess(t, err, nur.ErrorCode)
 
 	l := v1w.Login{
 		Email:    u.Email,
 		Password: u.Password,
 	}
 
-	_, err = b.ProcessLogin(l)
-	if err == nil {
-		t.Errorf("ProcessLogin called without error, expected 'user not verified' error")
-	}
+	lr, err := b.ProcessLogin(l)
+	assertError(t, err, lr.ErrorCode, v1w.StatusInvalidEmailOrPassword)
 
 	b.db.Close()
 }
@@ -229,35 +225,31 @@ func TestLoginWithVerifiedUser(t *testing.T) {
 		Password: generateRandomPassword(),
 	}
 
-	reply, err := b.ProcessNewUser(u)
-	if err != nil {
-		t.Error(err)
-	}
+	nur, token, err := b.ProcessNewUser(u)
+	assertSuccess(t, err, nur.ErrorCode)
 
-	bytes, err := hex.DecodeString(reply.VerificationToken)
+	bytes, err := hex.DecodeString(token)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	if len(bytes[:]) != v1w.VerificationTokenSize {
-		t.Errorf("token length was %v, expected %v", len(bytes[:]), v1w.VerificationTokenSize)
+		t.Fatalf("token length was %v, expected %v", len(bytes[:]), v1w.VerificationTokenSize)
 	}
 
 	v := v1w.VerifyNewUser{
 		Email:             u.Email,
-		VerificationToken: reply.VerificationToken,
+		VerificationToken: token,
 	}
-	if err := b.ProcessVerifyNewUser(v); err != nil {
-		t.Error(err)
-	}
+	status, err := b.ProcessVerifyNewUser(v)
+	assertSuccess(t, err, status)
 
 	l := v1w.Login{
 		Email:    u.Email,
 		Password: u.Password,
 	}
-	if _, err := b.ProcessLogin(l); err != nil {
-		t.Error(err)
-	}
+	reply, err := b.ProcessLogin(l)
+	assertSuccess(t, err, reply.ErrorCode)
 
 	b.db.Close()
 }
