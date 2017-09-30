@@ -20,6 +20,14 @@ import (
 	"github.com/gorilla/sessions"
 )
 
+type permission uint
+
+const (
+	permissionPublic permission = iota
+	permissionLogin  permission = iota
+	permissionAdmin  permission = iota
+)
+
 var (
 	// versionReply is the cached version reply.
 	versionReply []byte
@@ -295,13 +303,15 @@ func (p *politeiawww) handleAllUnvetted(w http.ResponseWriter, r *http.Request) 
 	util.RespondWithJSON(w, http.StatusOK, ur)
 }
 
-func (p *politeiawww) addRoute(method string, route string, handler http.HandlerFunc, requiresLogin, requiresAdmin bool) {
+// addRoute sets up a handler for a specific method+route.
+func (p *politeiawww) addRoute(method string, route string, handler http.HandlerFunc, perm permission) {
 	fullRoute := v1.PoliteiaWWWAPIRoute + route
-	if requiresLogin && requiresAdmin {
+	switch perm {
+	case permissionAdmin:
 		handler = logging(p.isLoggedInAsAdmin(handler))
-	} else if requiresLogin {
+	case permissionLogin:
 		handler = logging(p.isLoggedIn(handler))
-	} else {
+	default:
 		handler = logging(handler)
 	}
 	p.router.StrictSlash(true).HandleFunc(fullRoute, handler).Methods(method)
@@ -383,20 +393,20 @@ func _main() error {
 
 	// Public routes.
 	p.router.HandleFunc("/", logging(p.handleVersion)).Methods(http.MethodGet)
-	p.addRoute(http.MethodPost, v1.RouteNewUser, p.handleNewUser, false, false)
-	p.addRoute(http.MethodPost, v1.RouteVerifyNewUser, p.handleVerifyNewUser, false, false)
-	p.addRoute(http.MethodPost, v1.RouteLogin, p.handleLogin, false, false)
-	p.addRoute(http.MethodPost, v1.RouteLogout, p.handleLogout, true, false)
-	p.addRoute(http.MethodGet, v1.RouteAllVetted, p.handleAllVetted, false, false)
+	p.addRoute(http.MethodPost, v1.RouteNewUser, p.handleNewUser, permissionPublic)
+	p.addRoute(http.MethodPost, v1.RouteVerifyNewUser, p.handleVerifyNewUser, permissionPublic)
+	p.addRoute(http.MethodPost, v1.RouteLogin, p.handleLogin, permissionPublic)
+	p.addRoute(http.MethodPost, v1.RouteLogout, p.handleLogout, permissionPublic)
+	p.addRoute(http.MethodGet, v1.RouteAllVetted, p.handleAllVetted, permissionPublic)
+	p.addRoute(http.MethodGet, v1.RouteProposalDetails, p.handleProposalDetails, permissionPublic)
 
 	// Routes that require being logged in.
-	p.addRoute(http.MethodPost, v1.RouteSecret, p.handleSecret, true, false)
-	p.addRoute(http.MethodPost, v1.RouteNewProposal, p.handleNewProposal, true, false)
+	p.addRoute(http.MethodPost, v1.RouteSecret, p.handleSecret, permissionLogin)
+	p.addRoute(http.MethodPost, v1.RouteNewProposal, p.handleNewProposal, permissionLogin)
 
 	// Routes that require being logged in as an admin user.
-	p.addRoute(http.MethodGet, v1.RouteAllUnvetted, p.handleAllUnvetted, true, true)
-	p.addRoute(http.MethodPost, v1.RouteSetProposalStatus, p.handleSetProposalStatus, true, true)
-	p.addRoute(http.MethodGet, v1.RouteProposalDetails, p.handleProposalDetails, false, false)
+	p.addRoute(http.MethodGet, v1.RouteAllUnvetted, p.handleAllUnvetted, permissionAdmin)
+	p.addRoute(http.MethodPost, v1.RouteSetProposalStatus, p.handleSetProposalStatus, permissionAdmin)
 
 	// Since we don't persist connections also generate a new cookie key on
 	// startup.
