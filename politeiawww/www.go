@@ -291,6 +291,13 @@ func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Reque
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
+func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
+	reply := p.backend.ProcessPolicy()
+
+	// Reply with the new proposal status.
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
 // handleAllVetted replies with the list of vetted proposals.
 func (p *politeiawww) handleAllVetted(w http.ResponseWriter, r *http.Request) {
 	ur := p.backend.ProcessAllVetted()
@@ -399,6 +406,7 @@ func _main() error {
 	p.addRoute(http.MethodPost, v1.RouteLogout, p.handleLogout, permissionPublic)
 	p.addRoute(http.MethodGet, v1.RouteAllVetted, p.handleAllVetted, permissionPublic)
 	p.addRoute(http.MethodGet, v1.RouteProposalDetails, p.handleProposalDetails, permissionPublic)
+	p.addRoute(http.MethodGet, v1.RoutePolicy, p.handlePolicy, permissionPublic)
 
 	// Routes that require being logged in.
 	p.addRoute(http.MethodPost, v1.RouteSecret, p.handleSecret, permissionLogin)

@@ -111,6 +111,11 @@ func (c *ctx) getCSRF() (*v1w.Version, error) {
 	return &v, nil
 }
 
+func (c *ctx) policy() error {
+	_, err := c.makeRequest("GET", v1w.RoutePolicy, nil)
+	return err
+}
+
 func (c *ctx) newUser(email, password string) (string, error) {
 	u := v1w.NewUser{
 		Email:    email,
@@ -288,6 +293,12 @@ func _main() error {
 	}
 	email := hex.EncodeToString(b) + "@example.com"
 	password := hex.EncodeToString(b)
+
+	// Policy
+	err = c.policy()
+	if err != nil {
+		return err
+	}
 
 	// New User
 	token, err := c.newUser(email, password)
