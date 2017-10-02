@@ -620,22 +620,12 @@ func (b *backend) ProcessProposalDetails(token string) (*v1w.ProposalDetailsRepl
 
 // ProcessPolicy returns the details of Politeia's restrictions on file uploads.
 func (b *backend) ProcessPolicy() *v1w.PolicyReply {
-	if len(mime.ValidMimeTypesList) == 0 {
-		mime.ValidMimeTypesList = make([]string, len(mime.ValidMimeTypesMap))
-
-		i := 0
-		for k := range mime.ValidMimeTypesMap {
-			mime.ValidMimeTypesList[i] = k
-			i++
-		}
-	}
-
 	return &v1w.PolicyReply{
 		MaxImages:      v1w.PolicyMaxImages,
 		MaxImageSize:   v1w.PolicyMaxImageSize,
 		MaxMDs:         v1w.PolicyMaxMDs,
 		MaxMDSize:      v1w.PolicyMaxMDSize,
-		ValidMIMETypes: mime.ValidMimeTypesList,
+		ValidMIMETypes: mime.ValidMimeTypes(),
 	}
 }
 

@@ -9,13 +9,21 @@ import (
 	v1w "github.com/decred/politeia/politeiawww/api/v1"
 )
 
-func createNewProposal(b *backend, t *testing.T, numMDFiles, numImageFiles uint) (*v1w.NewProposal, *v1w.NewProposalReply, error) {
+func createNewProposal(b *backend, t *testing.T) (*v1w.NewProposal, *v1w.NewProposalReply, error) {
+	return createNewProposalWithFiles(b, t, 1, 0)
+}
+
+func createNewProposalWithFiles(b *backend, t *testing.T, numMDFiles, numImageFiles uint) (*v1w.NewProposal, *v1w.NewProposalReply, error) {
+	return createNewProposalWithFileSizes(b, t, numMDFiles, numImageFiles, 64, 64)
+}
+
+func createNewProposalWithFileSizes(b *backend, t *testing.T, numMDFiles, numImageFiles, mdSize, imageSize uint) (*v1w.NewProposal, *v1w.NewProposalReply, error) {
 	files := make([]v1d.File, 0, numMDFiles+numImageFiles)
 	for i := uint(0); i < numMDFiles; i++ {
 		files = append(files, v1d.File{
 			Name:    generateRandomString(5) + ".md",
 			MIME:    "text/plain; charset=utf-8",
-			Payload: base64.StdEncoding.EncodeToString([]byte(generateRandomString(64))),
+			Payload: base64.StdEncoding.EncodeToString([]byte(generateRandomString(int(mdSize)))),
 		})
 	}
 
@@ -23,7 +31,7 @@ func createNewProposal(b *backend, t *testing.T, numMDFiles, numImageFiles uint)
 		files = append(files, v1d.File{
 			Name:    generateRandomString(5) + ".png",
 			MIME:    "image/png",
-			Payload: base64.StdEncoding.EncodeToString([]byte(generateRandomString(64))),
+			Payload: base64.StdEncoding.EncodeToString([]byte(generateRandomString(int(imageSize)))),
 		})
 	}
 
@@ -110,27 +118,35 @@ func TestNewProposalPolicyRestrictions(t *testing.T) {
 
 	p := b.ProcessPolicy()
 
-	if _, _, err := createNewProposal(b, t, p.MaxMDs, p.MaxImages); err != nil {
+	if _, _, err := createNewProposalWithFileSizes(b, t, p.MaxMDs, p.MaxImages, p.MaxMDSize, p.MaxImageSize); err != nil {
 		t.Fatal(err)
 	}
 
-	if _, _, err := createNewProposal(b, t, p.MaxMDs+1, 0); err == nil {
+	if _, _, err := createNewProposalWithFiles(b, t, p.MaxMDs+1, 0); err == nil {
 		t.Fatalf("expected error, policy violation not caught: max number of MD files")
 	}
 
-	if _, _, err := createNewProposal(b, t, 1, p.MaxImages+1); err == nil {
+	if _, _, err := createNewProposalWithFiles(b, t, 1, p.MaxImages+1); err == nil {
 		t.Fatalf("expected error, policy violation not caught: max number of image files")
 	}
 
-	if _, _, err := createNewProposal(b, t, 0, 0); err == nil {
+	if _, _, err := createNewProposalWithFiles(b, t, 0, 0); err == nil {
 		t.Fatalf("expected error, policy violation not caught: at least 1 md file required")
+	}
+
+	if _, _, err := createNewProposalWithFileSizes(b, t, 1, 0, p.MaxMDSize+1, 0); err == nil {
+		t.Fatalf("expected error, policy violation not caught: max md file size")
+	}
+
+	if _, _, err := createNewProposalWithFileSizes(b, t, 1, 1, 64, p.MaxImageSize+1); err == nil {
+		t.Fatalf("expected error, policy violation not caught: max image file size")
 	}
 }
 
 // Tests fetching an unreviewed proposal's details.
 func TestUnreviewedProposal(t *testing.T) {
 	b := createBackend(t)
-	np, npr, err := createNewProposal(b, t, 1, 0)
+	np, npr, err := createNewProposal(b, t)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +159,7 @@ func TestUnreviewedProposal(t *testing.T) {
 // Tests censoring a proposal and then fetching its details.
 func TestCensoredProposal(t *testing.T) {
 	b := createBackend(t)
-	np, npr, err := createNewProposal(b, t, 1, 0)
+	np, npr, err := createNewProposal(b, t)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +173,7 @@ func TestCensoredProposal(t *testing.T) {
 // Tests publishing a proposal and then fetching its details.
 func TestPublishedProposal(t *testing.T) {
 	b := createBackend(t)
-	np, npr, err := createNewProposal(b, t, 1, 0)
+	np, npr, err := createNewProposal(b, t)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,7 +193,7 @@ func TestInventorySorted(t *testing.T) {
 	vettedProposals := make([]v1d.ProposalRecord, 0, 0)
 	unvettedProposals := make([]v1d.ProposalRecord, 0, 0)
 	for i := 0; i < cap(allProposals); i++ {
-		_, npr, err := createNewProposal(b, t, 1, 0)
+		_, npr, err := createNewProposal(b, t)
 		if err != nil {
 			t.Fatal(err)
 		}

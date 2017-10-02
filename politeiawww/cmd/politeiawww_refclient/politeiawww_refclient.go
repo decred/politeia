@@ -287,18 +287,18 @@ func _main() error {
 	fmt.Printf("Route  : %v\n", version.Route)
 	fmt.Printf("CSRF   : %v\n", c.csrf)
 
+	// Policy
+	err = c.policy()
+	if err != nil {
+		return err
+	}
+
 	b, err := util.Random(8)
 	if err != nil {
 		return err
 	}
 	email := hex.EncodeToString(b) + "@example.com"
 	password := hex.EncodeToString(b)
-
-	// Policy
-	err = c.policy()
-	if err != nil {
-		return err
-	}
 
 	// New User
 	token, err := c.newUser(email, password)

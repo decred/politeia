@@ -24,16 +24,28 @@ const (
 	RouteSetProposalStatus = "/proposals/{token:[A-z0-9]{64}}/setstatus"
 	RoutePolicy            = "/policy"
 
-	// Size of verification token in bytes
+	// VerificationTokenSize is the size of verification token in bytes
 	VerificationTokenSize = 32
 
-	// Number of hours before the verification token expires
+	// VerificationExpiryHours is the number of hours before the
+	// verification token expires
 	VerificationExpiryHours = 48
 
-	PolicyMaxImages    = 5
-	PolicyMaxImageSize = 2048
-	PolicyMaxMDs       = 1
-	PolicyMaxMDSize    = 1024
+	// PolicyMaxImages is the maximum number of images accepted
+	// when creating a new proposal
+	PolicyMaxImages = 5
+
+	// PolicyMaxImageSize is the maximum image file size (in bytes)
+	// accepted when creating a new proposal
+	PolicyMaxImageSize = 512 * 1024
+
+	// PolicyMaxMDs is the maximum number of markdown files accepted
+	// when creating a new proposal
+	PolicyMaxMDs = 1
+
+	// PolicyMaxMDSize is the maximum markdown file size (in bytes)
+	// accepted when creating a new proposal
+	PolicyMaxMDSize = 512 * 1024
 )
 
 var (

@@ -24,8 +24,8 @@ type permission uint
 
 const (
 	permissionPublic permission = iota
-	permissionLogin  permission = iota
-	permissionAdmin  permission = iota
+	permissionLogin
+	permissionAdmin
 )
 
 var (
