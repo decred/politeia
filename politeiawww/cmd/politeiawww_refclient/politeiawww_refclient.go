@@ -111,6 +111,11 @@ func (c *ctx) getCSRF() (*v1w.Version, error) {
 	return &v, nil
 }
 
+func (c *ctx) policy() error {
+	_, err := c.makeRequest("GET", v1w.RoutePolicy, nil)
+	return err
+}
+
 func (c *ctx) newUser(email, password string) (string, error) {
 	u := v1w.NewUser{
 		Email:    email,
@@ -281,6 +286,12 @@ func _main() error {
 	fmt.Printf("Version: %v\n", version.Version)
 	fmt.Printf("Route  : %v\n", version.Route)
 	fmt.Printf("CSRF   : %v\n", c.csrf)
+
+	// Policy
+	err = c.policy()
+	if err != nil {
+		return err
+	}
 
 	b, err := util.Random(8)
 	if err != nil {

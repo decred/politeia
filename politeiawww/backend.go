@@ -10,11 +10,13 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
 
 	v1d "github.com/decred/politeia/politeiad/api/v1"
+	"github.com/decred/politeia/politeiad/api/v1/mime"
 	v1w "github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/politeiawww/database"
 	"github.com/decred/politeia/politeiawww/database/localdb"
@@ -120,6 +122,61 @@ func (b *backend) remoteInventory() (*v1d.InventoryReply, error) {
 	}
 
 	return &ir, nil
+}
+
+func (b *backend) validateProposal(np v1w.NewProposal) error {
+	// Check for a non-empty name.
+	if np.Name == "" {
+		return v1w.ErrMissingProposalName
+	}
+
+	// Check for at least 1 markdown file with a non-emtpy payload.
+	if len(np.Files) == 0 || np.Files[0].Payload == "" {
+		return v1w.ErrMissingProposalDesc
+	}
+
+	// Check that the file number policy is followed.
+	var numMDs, numImages uint = 0, 0
+	var mdExceedsMaxSize, imageExceedsMaxSize bool = false, false
+	for _, v := range np.Files {
+		if strings.HasPrefix(v.MIME, "image/") {
+			numImages++
+			data, err := base64.StdEncoding.DecodeString(v.Payload)
+			if err != nil {
+				return err
+			}
+			if len(data) > v1w.PolicyMaxImageSize {
+				imageExceedsMaxSize = true
+			}
+		} else {
+			numMDs++
+			data, err := base64.StdEncoding.DecodeString(v.Payload)
+			if err != nil {
+				return err
+			}
+			if len(data) > v1w.PolicyMaxMDSize {
+				mdExceedsMaxSize = true
+			}
+		}
+	}
+
+	if numMDs > v1w.PolicyMaxMDs {
+		return v1w.ErrMaxMDsExceededPolicy
+	}
+
+	if numImages > v1w.PolicyMaxImages {
+		return v1w.ErrMaxImagesExceededPolicy
+	}
+
+	if mdExceedsMaxSize {
+		return v1w.ErrMaxMDSizeExceededPolicy
+	}
+
+	if imageExceedsMaxSize {
+		return v1w.ErrMaxImageSizeExceededPolicy
+	}
+
+	return nil
 }
 
 // LoadInventory fetches the entire inventory of proposals from politeiad
@@ -335,12 +392,8 @@ func (b *backend) ProcessAllUnvetted() *v1w.GetAllUnvettedReply {
 
 // ProcessNewProposal tries to submit a new proposal to politeiad.
 func (b *backend) ProcessNewProposal(np v1w.NewProposal) (*v1w.NewProposalReply, error) {
-	//  Ensure we have a non-empty name and description.
-	if np.Name == "" {
-		return nil, v1w.ErrMissingProposalName
-	}
-	if len(np.Files) == 0 || np.Files[0].Payload == "" {
-		return nil, v1w.ErrMissingProposalDesc
+	if err := b.validateProposal(np); err != nil {
+		return nil, err
 	}
 
 	challenge, err := util.Random(v1d.ChallengeSize)
@@ -563,6 +616,17 @@ func (b *backend) ProcessProposalDetails(token string) (*v1w.ProposalDetailsRepl
 	}
 
 	return &pdr, nil
+}
+
+// ProcessPolicy returns the details of Politeia's restrictions on file uploads.
+func (b *backend) ProcessPolicy() *v1w.PolicyReply {
+	return &v1w.PolicyReply{
+		MaxImages:      v1w.PolicyMaxImages,
+		MaxImageSize:   v1w.PolicyMaxImageSize,
+		MaxMDs:         v1w.PolicyMaxMDs,
+		MaxMDSize:      v1w.PolicyMaxMDSize,
+		ValidMIMETypes: mime.ValidMimeTypes(),
+	}
 }
 
 // NewBackend creates a new backend context for use in www and tests.

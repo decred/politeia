@@ -22,12 +22,30 @@ const (
 	RouteNewProposal       = "/proposals/new"
 	RouteProposalDetails   = "/proposals/{token:[A-z0-9]{64}}"
 	RouteSetProposalStatus = "/proposals/{token:[A-z0-9]{64}}/setstatus"
+	RoutePolicy            = "/policy"
 
-	// Size of verification token in bytes
+	// VerificationTokenSize is the size of verification token in bytes
 	VerificationTokenSize = 32
 
-	// Number of hours before the verification token expires
+	// VerificationExpiryHours is the number of hours before the
+	// verification token expires
 	VerificationExpiryHours = 48
+
+	// PolicyMaxImages is the maximum number of images accepted
+	// when creating a new proposal
+	PolicyMaxImages = 5
+
+	// PolicyMaxImageSize is the maximum image file size (in bytes)
+	// accepted when creating a new proposal
+	PolicyMaxImageSize = 512 * 1024
+
+	// PolicyMaxMDs is the maximum number of markdown files accepted
+	// when creating a new proposal
+	PolicyMaxMDs = 1
+
+	// PolicyMaxMDSize is the maximum markdown file size (in bytes)
+	// accepted when creating a new proposal
+	PolicyMaxMDSize = 512 * 1024
 )
 
 var (
@@ -52,6 +70,22 @@ var (
 	// ErrProposalNotFound is emitted when trying to fetch a proposal
 	// that cannot be found with the given token.
 	ErrProposalNotFound = errors.New("proposal not found")
+
+	// ErrMaxMDsExceededPolicy is emitted when trying to submit a proposal
+	// with a number of md files greater than the limit
+	ErrMaxMDsExceededPolicy = errors.New("number of max md files exceeded")
+
+	// ErrMaxImagesExceededPolicy is emitted when trying to submit a proposal
+	// with a number of image files greater than the limit
+	ErrMaxImagesExceededPolicy = errors.New("number of max image files exceeded")
+
+	// ErrMaxMDSizeExceededPolicy is emitted when trying to submit a proposal
+	// with an md file greater than the size limit
+	ErrMaxMDSizeExceededPolicy = errors.New("max md file size exceeded")
+
+	// ErrMaxImageSizeExceededPolicy is emitted when trying to submit a proposal
+	// with an image file greater than the size limit
+	ErrMaxImageSizeExceededPolicy = errors.New("max image file size exceeded")
 )
 
 // Version command is used to determine the version of the API this backend
@@ -123,4 +157,14 @@ type GetAllUnvettedReply struct {
 // GetAllVettedReply is used to reply with a list of all vetted proposals.
 type GetAllVettedReply struct {
 	Proposals []v1d.ProposalRecord `json:"proposals"`
+}
+
+// PolicyReply is used to reply to the policy command. It returns
+// the file upload restrictions set for Politeia.
+type PolicyReply struct {
+	MaxImages      uint     `json:"maximages"`
+	MaxImageSize   uint     `json:"maximagesize"`
+	MaxMDs         uint     `json:"maxmds"`
+	MaxMDSize      uint     `json:"maxmdsize"`
+	ValidMIMETypes []string `json:"validmimetypes"`
 }
