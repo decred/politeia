@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrtime/api/v1"
 	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
@@ -121,6 +122,18 @@ func unextendSHA256(d []byte) []byte {
 	digest := make([]byte, sha1.Size)
 	copy(digest, d)
 	return digest
+}
+
+// extendSHA1FromString takes a string and ensures it is a digest and then
+// extends it using extendSHA1.  It returns a string representation of the
+// digest.
+func extendSHA1FromString(s string) (string, error) {
+	ds, err := hex.DecodeString(s)
+	if err != nil {
+		return "", fmt.Errorf("not hex: %v", s)
+	}
+	d := extendSHA1(ds)
+	return hex.EncodeToString(d), nil
 }
 
 // newUniqueID returns a new unique proposal ID.  The function will hold the
@@ -710,6 +723,16 @@ func (g *gitBackEnd) afterAnchorVerify(vrs []v1.VerifyDigest, precious [][]byte)
 	// Handle verified vrs
 	var commitMsg string
 	for _, vr := range vrs {
+		if vr.ChainInformation.ChainTimestamp == 0 {
+			// This is a diagnostic message that should not happen.
+			// This has been observed in the wild so leave it here
+			// for now.
+			log.Errorf("invalid chain timestamp: %v",
+				spew.Sdump(vr))
+			return fmt.Errorf("invalid chain timestamp: %v",
+				vr.Digest)
+		}
+
 		// Use the audit trail as the file to be committed
 		mr, ok := util.ConvertDigest(vr.Digest)
 		if !ok {
@@ -738,6 +761,8 @@ func (g *gitBackEnd) afterAnchorVerify(vrs []v1.VerifyDigest, precious [][]byte)
 		anchor.Type = AnchorVerified
 		anchor.ChainTimestamp = vr.ChainInformation.ChainTimestamp
 		anchor.Transaction = vr.ChainInformation.Transaction
+		log.Infof("--------------------- %v", spew.Sdump(vr))
+		log.Infof("===================== %v", spew.Sdump(anchor))
 		err = g.writeAnchorRecord(d, *anchor)
 		if err != nil {
 			return err
@@ -859,6 +884,7 @@ func (g *gitBackEnd) verifyAnchor(digest string) (*v1.VerifyDigest, error) {
 		if err != nil {
 			return nil, err
 		}
+		log.Infof("=== VERIFY %v %v", digest, spew.Sdump(vr))
 	}
 
 	// Do some sanity checks
@@ -1062,6 +1088,177 @@ func (g *gitBackEnd) getProposal(token []byte, repo string, includeFiles bool) (
 		ProposalStorageRecord: *psr,
 		Files: files,
 	}, nil
+}
+
+// fsck performs a git fsck and additionally it validates the git tree against
+// dcrtime.  This is an expensive operation and should not be run during
+// runtime.
+//
+// This function must be called WITH holding the lock.
+func (g *gitBackEnd) fsck(path string) error {
+	// obtain all commit digests and verify them.  We don't store anchor
+	// confirmations so we have to skip those.
+	out, err := g.git(path, "log", "--pretty=oneline")
+	if err != nil {
+		return err
+	}
+	if len(out) == 0 {
+		return fmt.Errorf("invalid git output")
+	}
+
+	// Create an index of all git digests
+	gitDigests := make(map[string]struct{})
+	for _, v := range out {
+		// Skip anchor commits, this simplifies reconcile process.
+		if strings.Contains(v, "Anchor") {
+			continue
+		}
+		// git output is digest followed by one liner commit message
+		s := strings.SplitN(v, " ", 2)
+		if len(s) != 2 {
+			log.Infof("%v", spew.Sdump(s))
+			return fmt.Errorf("unexpected split: %v", v)
+		}
+		ds, err := extendSHA1FromString(s[0])
+		if err != nil {
+			return fmt.Errorf("not a digest: %v", v)
+		}
+		if _, ok := gitDigests[ds]; ok {
+			return fmt.Errorf("duplicate git digest: %v", ds)
+		}
+		gitDigests[ds] = struct{}{}
+	}
+
+	if len(gitDigests) == 0 {
+		log.Infof("fsck: nothing to do")
+		return nil
+	}
+
+	log.Infof("fsck: dcrtime verification started")
+	defer log.Infof("fsck: dcrtime verification completed")
+
+	// Iterate over all db records and pick out the anchors.  Take note of
+	// unanchored commits and exclude those from the precious list.
+	type AnchorT struct {
+		key    string
+		anchor *Anchor
+	}
+	var (
+		version      *Version
+		lastAnchor   *LastAnchor
+		unconfAnchor *UnconfirmedAnchor
+		anchors      []AnchorT
+	)
+
+	i := g.db.NewIterator(nil, nil)
+	for i.Next() {
+		// Guess what record type based on key
+		key := i.Key()
+		value := i.Value()
+		if string(key) == VersionKey {
+			version, err = DecodeVersion(value)
+			if err != nil {
+				return err
+			}
+			if version.Version != DbVersion {
+				return fmt.Errorf("fsck: version error got %v "+
+					"expected %v", version.Version,
+					DbVersion)
+			}
+		} else if string(key) == LastAnchorKey {
+			lastAnchor, err = DecodeLastAnchor(value)
+			if err != nil {
+				return err
+			}
+		} else if string(key) == UnconfirmedKey {
+			unconfAnchor, err = DecodeUnconfirmedAnchor(value)
+			if err != nil {
+				return err
+			}
+		} else {
+			anchor, err := DecodeAnchor(value)
+			if err != nil {
+				return err
+			}
+			anchors = append(anchors, AnchorT{
+				key:    hex.EncodeToString(key),
+				anchor: anchor,
+			})
+		}
+	}
+	i.Release()
+	if err := i.Error(); err != nil {
+		return err
+	}
+
+	if lastAnchor == nil || unconfAnchor == nil {
+		// This happens on first launch.
+		return nil
+	}
+
+	// Peel out anchored commits and create a precious list to verify with
+	// dcrtime.
+	digests := make([]string, 0, len(out))
+	for _, v := range anchors {
+		if v.anchor.Type != AnchorVerified {
+			log.Infof("skipping anchor %v", v.key)
+
+			// Remove digests from reconcile map.
+			for _, d := range v.anchor.Digests {
+				k := hex.EncodeToString(d)
+				if _, ok := gitDigests[k]; !ok {
+					return fmt.Errorf("unknown unanchored"+
+						" git digest: %v", k)
+				}
+				log.Debugf("delete unanchored %v", k)
+				delete(gitDigests, k)
+			}
+			continue
+		}
+		log.Infof("verify anchor %v", v.key)
+		for _, d := range v.anchor.Digests {
+			k := hex.EncodeToString(d)
+
+			// Remove digests from reconcile map as well.
+			if _, ok := gitDigests[k]; !ok {
+				return fmt.Errorf("unknown git digest: %v", k)
+			}
+			log.Debugf("delete %v", k)
+			delete(gitDigests, k)
+
+			digests = append(digests, k)
+		}
+	}
+
+	// Verify anchored commits
+	vr, err := util.Verify(g.dcrtimeHost, digests)
+	if err != nil {
+		return err
+	}
+
+	// Verify all results
+	var fail bool
+	for _, v := range vr.Digests {
+		if v.Result != v1.ResultOK {
+			fail = true
+			log.Errorf("dcrtime error: %v %v %v", v.Digest,
+				v.Result, v1.Result[v.Result])
+		}
+	}
+	if fail {
+		return fmt.Errorf("dcrtime fsck failed")
+	}
+
+	// At this point we know the database is sane.  Now we need to
+	// reconcile git with the database.
+	if len(gitDigests) != 0 {
+		for k := range gitDigests {
+			log.Errorf("unexpected digest: %v", k)
+		}
+		return fmt.Errorf("expected reconcile map to be empty")
+	}
+
+	return nil
 }
 
 // GetUnvetted checks out branch token and returns the content of
@@ -1395,6 +1592,11 @@ func (g *gitBackEnd) newLocked() error {
 	}
 	log.Infof("Running git fsck on unvetted repository")
 	_, err = g.gitFsck(g.unvetted)
+	if err != nil {
+		return err
+	}
+	log.Infof("Running dcrtime fsck on vetted repository")
+	err = g.fsck(g.vetted)
 	if err != nil {
 		return err
 	}

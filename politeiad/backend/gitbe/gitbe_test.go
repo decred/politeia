@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -60,7 +61,7 @@ func TestAnchorWithCommits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	//defer os.RemoveAll(dir)
+	defer os.RemoveAll(dir)
 
 	// Initialize stuff we need
 	g, err := New(dir, "", "", testing.Verbose())
@@ -366,5 +367,7 @@ func TestAnchorWithCommits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+}
 
+func TestDcrtimeFsck(t *testing.T) {
 }
