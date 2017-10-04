@@ -32,6 +32,10 @@ The politeia stack is as follows:
 * politeiawww - Web backend server.
 * politeiawww_refclient - Web reference client application.
 
+Note that politeiawww does not provide HTML output.  It strictly handles the
+JSON REST RPC commands only.  The GUI for politeiawww can be found at:
+https://github.com/decred/politeiagui
+
 ## Dependencies
 * git - the git command line tool must be installed on the machine that runs
   politeiad and be in the PATH.  The version that was used to validate the
