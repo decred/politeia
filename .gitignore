@@ -1,5 +1,6 @@
 cmd/dcrtime/dcrtime
 dcrtimed/dcrtimed
+vendor
 *~
 *.pyc
 *.sw?
