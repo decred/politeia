@@ -35,10 +35,11 @@ var (
 		defaultIdentityFilename), "remote server identity file")
 	testnet   = flag.Bool("testnet", false, "Use testnet port")
 	printJson = flag.Bool("json", false, "Print JSON")
-	host      = flag.String("h", "", "Timestamping host")
 	verbose   = flag.Bool("v", false, "Verbose")
 	rpcuser   = flag.String("rpcuser", "", "RPC user name for privileged calls")
 	rpcpass   = flag.String("rpcpass", "", "RPC password for privileged calls")
+	rpchost   = flag.String("rpchost", "", "RPC host")
+	rpccert   = flag.String("rpccert", "", "RPC certificate")
 
 	verify = false // Validate server TLS certificate
 )
@@ -73,13 +74,13 @@ func cleanAndExpandPath(path string) string {
 	}
 
 	// NOTE: The os.ExpandEnv doesn't work with Windows-style %VARIABLE%,
-	// but they variables can still be expanded via POSIX-style $VARIABLE.
+	// but the variables can still be expanded via POSIX-style $VARIABLE.
 	return filepath.Clean(os.ExpandEnv(path))
 }
 
 func getIdentity() error {
 	// Fetch remote identity
-	id, err := util.RemoteIdentity(verify, *host)
+	id, err := util.RemoteIdentity(verify, *rpchost, *rpccert)
 	if err != nil {
 		return err
 	}
@@ -162,8 +163,11 @@ func remoteInventory() (*v1.InventoryReply, error) {
 		fmt.Println(string(b))
 	}
 
-	c := util.NewClient(verify)
-	req, err := http.NewRequest("POST", *host+v1.InventoryRoute,
+	c, err := util.NewClient(verify, *rpccert)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequest("POST", *rpchost+v1.InventoryRoute,
 		bytes.NewReader(b))
 	if err != nil {
 		return nil, err
@@ -291,8 +295,11 @@ func newProposal() error {
 		fmt.Println(string(b))
 	}
 
-	c := util.NewClient(verify)
-	r, err := c.Post(*host+v1.NewRoute, "application/json",
+	c, err := util.NewClient(verify, *rpccert)
+	if err != nil {
+		return err
+	}
+	r, err := c.Post(*rpchost+v1.NewRoute, "application/json",
 		bytes.NewReader(b))
 	if err != nil {
 		return err
@@ -398,8 +405,11 @@ func getUnvetted() error {
 		fmt.Println(string(b))
 	}
 
-	c := util.NewClient(verify)
-	r, err := c.Post(*host+v1.GetUnvettedRoute, "application/json",
+	c, err := util.NewClient(verify, *rpccert)
+	if err != nil {
+		return err
+	}
+	r, err := c.Post(*rpchost+v1.GetUnvettedRoute, "application/json",
 		bytes.NewReader(b))
 	if err != nil {
 		return err
@@ -496,8 +506,11 @@ func getVetted() error {
 		fmt.Println(string(b))
 	}
 
-	c := util.NewClient(verify)
-	r, err := c.Post(*host+v1.GetVettedRoute, "application/json",
+	c, err := util.NewClient(verify, *rpccert)
+	if err != nil {
+		return err
+	}
+	r, err := c.Post(*rpchost+v1.GetVettedRoute, "application/json",
 		bytes.NewReader(b))
 	if err != nil {
 		return err
@@ -611,8 +624,11 @@ func setUnvettedStatus() error {
 		fmt.Println(string(b))
 	}
 
-	c := util.NewClient(verify)
-	req, err := http.NewRequest("POST", *host+v1.SetUnvettedStatusRoute,
+	c, err := util.NewClient(verify, *rpccert)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest("POST", *rpchost+v1.SetUnvettedStatusRoute,
 		bytes.NewReader(b))
 	if err != nil {
 		return err
@@ -667,11 +683,11 @@ func _main() error {
 		return fmt.Errorf("must provide action")
 	}
 
-	if *host == "" {
+	if *rpchost == "" {
 		if *testnet {
-			*host = v1.DefaultTestnetHost
+			*rpchost = v1.DefaultTestnetHost
 		} else {
-			*host = v1.DefaultMainnetHost
+			*rpchost = v1.DefaultMainnetHost
 		}
 	} else {
 		// For now assume we can't verify server TLS certificate
@@ -683,14 +699,14 @@ func _main() error {
 		port = v1.DefaultTestnetPort
 	}
 
-	*host = util.NormalizeAddress(*host, port)
+	*rpchost = util.NormalizeAddress(*rpchost, port)
 
 	// Set port if not specified.
-	u, err := url.Parse("https://" + *host)
+	u, err := url.Parse("https://" + *rpchost)
 	if err != nil {
 		return err
 	}
-	*host = u.String()
+	*rpchost = u.String()
 
 	// Scan through command line arguments.
 	for i, a := range flag.Args() {

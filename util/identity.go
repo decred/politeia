@@ -5,10 +5,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/decred/politeia/politeiad/api/v1"
-	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"io/ioutil"
 	"net/http"
+
+	"github.com/decred/politeia/politeiad/api/v1"
+	"github.com/decred/politeia/politeiad/api/v1/identity"
 )
 
 // ConvertRemoteIdentity converts the identity returned from politeiad into
@@ -47,7 +48,7 @@ func ConvertRemoteIdentity(rid v1.IdentityReply) (*identity.PublicIdentity, erro
 }
 
 // RemoteIdentity fetches the identity from politeiad.
-func RemoteIdentity(skipTLSVerify bool, address string) (*identity.PublicIdentity, error) {
+func RemoteIdentity(skipTLSVerify bool, host, cert string) (*identity.PublicIdentity, error) {
 	challenge, err := Random(v1.ChallengeSize)
 	if err != nil {
 		return nil, err
@@ -59,8 +60,11 @@ func RemoteIdentity(skipTLSVerify bool, address string) (*identity.PublicIdentit
 		return nil, err
 	}
 
-	c := NewClient(skipTLSVerify)
-	r, err := c.Post(address+v1.IdentityRoute, "application/json",
+	c, err := NewClient(skipTLSVerify, cert)
+	if err != nil {
+		return nil, err
+	}
+	r, err := c.Post(host+v1.IdentityRoute, "application/json",
 		bytes.NewReader(id))
 	if err != nil {
 		return nil, err

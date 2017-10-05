@@ -57,7 +57,7 @@ func init() {
 
 // Fetch remote identity
 func (p *politeiawww) getIdentity() error {
-	id, err := util.RemoteIdentity(p.cfg.SkipTLSVerify, p.cfg.DaemonAddress)
+	id, err := util.RemoteIdentity(false, p.cfg.RPCHost, p.cfg.RPCCert)
 	if err != nil {
 		return err
 	}
@@ -71,7 +71,7 @@ func (p *politeiawww) getIdentity() error {
 	log.Infof("Fingerprint: %v", id.Fingerprint())
 
 	// Ask user if we like this identity
-	log.Infof("Save to %v or ctrl-c to abort", p.cfg.DaemonIdentityFile)
+	log.Infof("Save to %v or ctrl-c to abort", p.cfg.RPCIdentityFile)
 	scanner := bufio.NewScanner(os.Stdin)
 	scanner.Scan()
 	if err = scanner.Err(); err != nil {
@@ -79,15 +79,15 @@ func (p *politeiawww) getIdentity() error {
 	}
 
 	// Save identity
-	err = os.MkdirAll(filepath.Dir(p.cfg.DaemonIdentityFile), 0700)
+	err = os.MkdirAll(filepath.Dir(p.cfg.RPCIdentityFile), 0700)
 	if err != nil {
 		return err
 	}
-	err = id.SavePublicIdentity(p.cfg.DaemonIdentityFile)
+	err = id.SavePublicIdentity(p.cfg.RPCIdentityFile)
 	if err != nil {
 		return err
 	}
-	log.Infof("Identity saved to: %v", p.cfg.DaemonIdentityFile)
+	log.Infof("Identity saved to: %v", p.cfg.RPCIdentityFile)
 
 	return nil
 }

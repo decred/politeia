@@ -1,12 +1,16 @@
 package util
 
-import "net"
-import "net/http"
-import "crypto/tls"
-import "io"
-import "bytes"
-import "os"
-import "fmt"
+import (
+	"bytes"
+	"crypto/tls"
+	"crypto/x509"
+	"fmt"
+	"io"
+	"io/ioutil"
+	"net"
+	"net/http"
+	"os"
+)
 
 // NormalizeAddress returns addr with the passed default port appended if
 // there is not already a port specified.
@@ -19,14 +23,25 @@ func NormalizeAddress(addr, defaultPort string) string {
 }
 
 // NewClient returns a new http.Client instance
-func NewClient(skipVerify bool) *http.Client {
+func NewClient(skipVerify bool, certFilename string) (*http.Client, error) {
 	tlsConfig := &tls.Config{
 		InsecureSkipVerify: skipVerify,
 	}
-	tr := &http.Transport{
-		TLSClientConfig: tlsConfig,
+
+	if !skipVerify {
+		cert, err := ioutil.ReadFile(certFilename)
+		if err != nil {
+			return nil, err
+		}
+		certPool := x509.NewCertPool()
+		certPool.AppendCertsFromPEM(cert)
+
+		tlsConfig.RootCAs = certPool
 	}
-	return &http.Client{Transport: tr}
+
+	return &http.Client{Transport: &http.Transport{
+		TLSClientConfig: tlsConfig,
+	}}, nil
 }
 
 // ConvertBodyToByteArray converts a response body into a byte array
