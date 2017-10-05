@@ -116,7 +116,7 @@ func (c *ctx) policy() error {
 	return err
 }
 
-func (c *ctx) newUser(email, password string) (string, error) {
+func (c *ctx) newUser(email, password string) error {
 	u := v1w.NewUser{
 		Email:    email,
 		Password: password,
@@ -124,18 +124,18 @@ func (c *ctx) newUser(email, password string) (string, error) {
 
 	responseBody, err := c.makeRequest("POST", v1w.RouteNewUser, u)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	var nur v1w.NewUserReply
 	err = json.Unmarshal(responseBody, &nur)
 	if err != nil {
-		return "", fmt.Errorf("Could not unmarshal NewUserReply: %v",
+		return fmt.Errorf("Could not unmarshal NewUserReply: %v",
 			err)
 	}
 
-	fmt.Printf("Verification Token: %v\n", nur.VerificationToken)
-	return nur.VerificationToken, nil
+	//fmt.Printf("Verification Token: %v\n", nur.VerificationToken)
+	return nil
 }
 
 func (c *ctx) verifyNewUser(email, token string) error {
@@ -144,7 +144,7 @@ func (c *ctx) verifyNewUser(email, token string) error {
 		VerificationToken: token,
 	}
 
-	_, err := c.makeRequest("POST", v1w.RouteVerifyNewUser, u)
+	_, err := c.makeRequest("GET", v1w.RouteVerifyNewUser, u)
 	if err != nil {
 		return err
 	}
@@ -300,13 +300,13 @@ func _main() error {
 	password := hex.EncodeToString(b)
 
 	// New User
-	token, err := c.newUser(email, password)
+	err = c.newUser(email, password)
 	if err != nil {
 		return err
 	}
 
 	// Verify New User
-	err = c.verifyNewUser(email, token)
+	err = c.verifyNewUser(email, "")
 	if err != nil {
 		return err
 	}

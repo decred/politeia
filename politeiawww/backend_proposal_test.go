@@ -118,29 +118,23 @@ func TestNewProposalPolicyRestrictions(t *testing.T) {
 
 	p := b.ProcessPolicy()
 
-	if _, _, err := createNewProposalWithFileSizes(b, t, p.MaxMDs, p.MaxImages, p.MaxMDSize, p.MaxImageSize); err != nil {
-		t.Fatal(err)
-	}
+	_, npr, err := createNewProposalWithFileSizes(b, t, p.MaxMDs, p.MaxImages, p.MaxMDSize, p.MaxImageSize)
+	assertSuccess(t, err, npr.ErrorCode)
 
-	if _, _, err := createNewProposalWithFiles(b, t, p.MaxMDs+1, 0); err == nil {
-		t.Fatalf("expected error, policy violation not caught: max number of MD files")
-	}
+	_, npr, err = createNewProposalWithFiles(b, t, p.MaxMDs+1, 0)
+	assertError(t, err, npr.ErrorCode, v1w.StatusMaxMDsExceededPolicy)
 
-	if _, _, err := createNewProposalWithFiles(b, t, 1, p.MaxImages+1); err == nil {
-		t.Fatalf("expected error, policy violation not caught: max number of image files")
-	}
+	_, npr, err = createNewProposalWithFiles(b, t, 1, p.MaxImages+1)
+	assertError(t, err, npr.ErrorCode, v1w.StatusMaxImagesExceededPolicy)
 
-	if _, _, err := createNewProposalWithFiles(b, t, 0, 0); err == nil {
-		t.Fatalf("expected error, policy violation not caught: at least 1 md file required")
-	}
+	_, npr, err = createNewProposalWithFiles(b, t, 0, 0)
+	assertError(t, err, npr.ErrorCode, v1w.StatusProposalMissingDescription)
 
-	if _, _, err := createNewProposalWithFileSizes(b, t, 1, 0, p.MaxMDSize+1, 0); err == nil {
-		t.Fatalf("expected error, policy violation not caught: max md file size")
-	}
+	_, npr, err = createNewProposalWithFileSizes(b, t, 1, 0, p.MaxMDSize+1, 0)
+	assertError(t, err, npr.ErrorCode, v1w.StatusMaxMDSizeExceededPolicy)
 
-	if _, _, err := createNewProposalWithFileSizes(b, t, 1, 1, 64, p.MaxImageSize+1); err == nil {
-		t.Fatalf("expected error, policy violation not caught: max image file size")
-	}
+	_, npr, err = createNewProposalWithFileSizes(b, t, 1, 1, 64, p.MaxImageSize+1)
+	assertError(t, err, npr.ErrorCode, v1w.StatusMaxImageSizeExceededPolicy)
 }
 
 // Tests fetching an unreviewed proposal's details.

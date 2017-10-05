@@ -7,12 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
 
-	"github.com/dajohi/goemail"
 	"github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/util"
 	"github.com/gorilla/csrf"
@@ -41,6 +41,11 @@ type politeiawww struct {
 	store *sessions.CookieStore
 
 	backend *backend
+}
+
+type emailTemplateData struct {
+	Link  string
+	Email string
 }
 
 // init sets default values at startup.
@@ -118,28 +123,11 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	reply, err := p.backend.ProcessNewUser(u)
+	reply, _, err := p.backend.ProcessNewUser(u)
 	if err != nil {
 		log.Errorf("handleNewUser: %v", err)
-		http.Error(w, http.StatusText(http.StatusForbidden),
-			http.StatusForbidden)
+		util.RespondWithJSON(w, http.StatusForbidden, reply)
 		return
-	}
-
-	// Email the verification token if the email server is set up.
-	if p.cfg.SMTP != nil {
-		from := "noreply@decred.org"
-		subject := "Politeia Registration - Verify Your Email"
-		body := "<p>You must verify your email to complete your registration.</p>" +
-			"<p>Enter this code to verify your email: <span style=\"font-weight: bold\">" + reply.VerificationToken + "</span></p>" +
-			"<p>You are receiving this email because this email address was used to register for Politeia.</p>"
-
-		msg := goemail.NewHTMLMessage(from, subject, body)
-		msg.AddTo(u.Email)
-
-		if err := p.cfg.SMTP.Send(msg); err != nil {
-			log.Errorf("handleNewUser: SMTP.Send %v", err)
-		}
 	}
 
 	// Reply with the verification token.
@@ -150,24 +138,40 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 // that the user with the provided email has a verificaton token that matches
 // the provided token and that the verification token has not yet expired.
 func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request) {
+	routePrefix := p.cfg.WebServerAddress
+
 	// Get new user verify command.
-	var u v1.VerifyNewUser
+	var vnu v1.VerifyNewUser
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&u); err != nil {
+	if err := decoder.Decode(&vnu); err != nil {
 		log.Errorf("handleVerifyNewUser: Unmarshal %v", err)
-		http.Error(w, http.StatusText(http.StatusForbidden),
-			http.StatusForbidden)
+		http.Redirect(w, r, routePrefix+v1.RouteVerifyNewUserFailure, http.StatusMovedPermanently)
 		return
 	}
 	defer r.Body.Close()
 
-	err := p.backend.ProcessVerifyNewUser(u)
+	status, err := p.backend.ProcessVerifyNewUser(vnu)
 	if err != nil {
 		log.Errorf("handleVerifyNewUser: %v", err)
-		http.Error(w, http.StatusText(http.StatusForbidden),
-			http.StatusForbidden)
+		http.Redirect(w, r, routePrefix+v1.RouteVerifyNewUserFailure, http.StatusMovedPermanently)
 		return
 	}
+	if status != v1.StatusSuccess {
+		url, err := url.Parse(routePrefix + v1.RouteVerifyNewUserFailure)
+		if err != nil {
+			log.Errorf("handleVerifyNewUser: url.Parse %v", err)
+			http.Redirect(w, r, routePrefix+v1.RouteVerifyNewUserFailure, http.StatusMovedPermanently)
+			return
+		}
+
+		q := url.Query()
+		q.Set("errorcode", string(status))
+		url.RawQuery = q.Encode()
+		http.Redirect(w, r, url.String(), http.StatusMovedPermanently)
+		return
+	}
+
+	http.Redirect(w, r, routePrefix+v1.RouteVerifyNewUserSuccess, http.StatusMovedPermanently)
 }
 
 // handleLogin handles the incoming login command.  It verifies that the user
@@ -193,31 +197,28 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	user, err := p.backend.ProcessLogin(l)
+	reply, err := p.backend.ProcessLogin(l)
 	if err != nil {
-		log.Errorf("handleLogin: failed to process login: %v", err)
+		log.Errorf("handleLogin: %v", err)
+		util.RespondWithJSON(w, http.StatusForbidden, reply)
+		return
+	}
 
-		var statusCode int
-		if err == v1.ErrInvalidEmailOrPassword {
-			statusCode = http.StatusUnauthorized
-		} else {
-			statusCode = http.StatusForbidden
+	// Mark user as logged in if there's no error.
+	if reply.ErrorCode == v1.StatusSuccess {
+		session.Values["authenticated"] = true
+		session.Values["admin"] = reply.User.Admin
+		err = session.Save(r, w)
+		if err != nil {
+			log.Errorf("handleLogin: failed to save session: %v", err)
+			http.Error(w, http.StatusText(http.StatusInternalServerError),
+				+http.StatusInternalServerError)
+			return
 		}
-
-		http.Error(w, http.StatusText(statusCode), statusCode)
-		return
 	}
 
-	// Mark user as logged in.
-	session.Values["authenticated"] = true
-	session.Values["admin"] = user.Admin
-	err = session.Save(r, w)
-	if err != nil {
-		log.Errorf("handleLogin: failed to save session: %v", err)
-		http.Error(w, http.StatusText(http.StatusInternalServerError),
-			+http.StatusInternalServerError)
-		return
-	}
+	// Reply with the user information.
+	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
 // handleLogout logs the user out.  A login will be required to resume sending
@@ -425,7 +426,7 @@ func _main() error {
 	// Public routes.
 	p.router.HandleFunc("/", logging(p.handleVersion)).Methods(http.MethodGet)
 	p.addRoute(http.MethodPost, v1.RouteNewUser, p.handleNewUser, permissionPublic)
-	p.addRoute(http.MethodPost, v1.RouteVerifyNewUser, p.handleVerifyNewUser, permissionPublic)
+	p.addRoute(http.MethodGet, v1.RouteVerifyNewUser, p.handleVerifyNewUser, permissionPublic)
 	p.addRoute(http.MethodPost, v1.RouteLogin, p.handleLogin, permissionPublic)
 	p.addRoute(http.MethodPost, v1.RouteLogout, p.handleLogout, permissionPublic)
 	p.addRoute(http.MethodGet, v1.RouteAllVetted, p.handleAllVetted, permissionPublic)

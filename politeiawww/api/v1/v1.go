@@ -1,28 +1,31 @@
 package v1
 
 import (
-	"errors"
 	"fmt"
 
 	v1d "github.com/decred/politeia/politeiad/api/v1"
 )
+
+type StatusT int
 
 const (
 	PoliteiaWWWAPIVersion = 1 // API version this backend understands
 
 	CsrfToken = "X-CSRF-Token" // CSRF token for replies
 
-	RouteNewUser           = "/user/new"
-	RouteVerifyNewUser     = "/user/verify"
-	RouteLogin             = "/login"
-	RouteLogout            = "/logout"
-	RouteSecret            = "/secret"
-	RouteAllVetted         = "/proposals/vetted"
-	RouteAllUnvetted       = "/proposals/unvetted"
-	RouteNewProposal       = "/proposals/new"
-	RouteProposalDetails   = "/proposals/{token:[A-z0-9]{64}}"
-	RouteSetProposalStatus = "/proposals/{token:[A-z0-9]{64}}/setstatus"
-	RoutePolicy            = "/policy"
+	RouteNewUser              = "/user/new"
+	RouteVerifyNewUser        = "/user/verify"
+	RouteVerifyNewUserSuccess = "/user/verify/success"
+	RouteVerifyNewUserFailure = "/user/verify/failure"
+	RouteLogin                = "/login"
+	RouteLogout               = "/logout"
+	RouteSecret               = "/secret"
+	RouteAllVetted            = "/proposals/vetted"
+	RouteAllUnvetted          = "/proposals/unvetted"
+	RouteNewProposal          = "/proposals/new"
+	RouteProposalDetails      = "/proposals/{token:[A-z0-9]{64}}"
+	RouteSetProposalStatus    = "/proposals/{token:[A-z0-9]{64}}/setstatus"
+	RoutePolicy               = "/policy"
 
 	// VerificationTokenSize is the size of verification token in bytes
 	VerificationTokenSize = 32
@@ -46,6 +49,21 @@ const (
 	// PolicyMaxMDSize is the maximum markdown file size (in bytes)
 	// accepted when creating a new proposal
 	PolicyMaxMDSize = 512 * 1024
+
+	// Error status codes
+	StatusInvalid                    StatusT = 0
+	StatusSuccess                    StatusT = 1
+	StatusInvalidEmailOrPassword     StatusT = 2
+	StatusMalformedEmail             StatusT = 3
+	StatusVerificationTokenInvalid   StatusT = 4
+	StatusVerificationTokenExpired   StatusT = 5
+	StatusProposalMissingName        StatusT = 6
+	StatusProposalMissingDescription StatusT = 7
+	StatusProposalNotFound           StatusT = 8
+	StatusMaxMDsExceededPolicy       StatusT = 9
+	StatusMaxImagesExceededPolicy    StatusT = 10
+	StatusMaxMDSizeExceededPolicy    StatusT = 11
+	StatusMaxImageSizeExceededPolicy StatusT = 12
 )
 
 var (
@@ -55,37 +73,6 @@ var (
 	// CookieSession is the cookie name that indicates that a user is
 	// logged in.
 	CookieSession = "session"
-
-	// ErrInvalidEmailOrPassword is emitted when trying to log in.
-	ErrInvalidEmailOrPassword = errors.New("invalid email or password")
-
-	// ErrMissingProposalName is emitted when trying to submit a proposal
-	// without a name.
-	ErrMissingProposalName = errors.New("proposal missing name")
-
-	// ErrMissingProposalDesc is emitted when trying to submit a proposal
-	// without a description.
-	ErrMissingProposalDesc = errors.New("proposal missing description")
-
-	// ErrProposalNotFound is emitted when trying to fetch a proposal
-	// that cannot be found with the given token.
-	ErrProposalNotFound = errors.New("proposal not found")
-
-	// ErrMaxMDsExceededPolicy is emitted when trying to submit a proposal
-	// with a number of md files greater than the limit
-	ErrMaxMDsExceededPolicy = errors.New("number of max md files exceeded")
-
-	// ErrMaxImagesExceededPolicy is emitted when trying to submit a proposal
-	// with a number of image files greater than the limit
-	ErrMaxImagesExceededPolicy = errors.New("number of max image files exceeded")
-
-	// ErrMaxMDSizeExceededPolicy is emitted when trying to submit a proposal
-	// with an md file greater than the size limit
-	ErrMaxMDSizeExceededPolicy = errors.New("max md file size exceeded")
-
-	// ErrMaxImageSizeExceededPolicy is emitted when trying to submit a proposal
-	// with an image file greater than the size limit
-	ErrMaxImageSizeExceededPolicy = errors.New("max image file size exceeded")
 )
 
 // Version command is used to determine the version of the API this backend
@@ -102,10 +89,10 @@ type NewUser struct {
 	Password string `json:"password"`
 }
 
-// NewUserReply is used to reply to the NewUser command with
-// the verification token.
+// NewUserReply is used to reply to the NewUser command with an error
+// if the command is unsuccessful.
 type NewUserReply struct {
-	VerificationToken string `json:"verificationtoken"`
+	ErrorCode StatusT `json:"errorcode,omitempty"`
 }
 
 // VerifyNewUser is used to perform verification for the user created through
@@ -122,6 +109,21 @@ type Login struct {
 	Password string `json:"password"`
 }
 
+// User holds basic information for the user upon login.
+type User struct {
+	ID    uint64 `json:"id"`
+	Email string `json:"email"`
+	Admin bool   `json:"admin,omitempty"`
+}
+
+// LoginReply is used to reply to the Login command. It holds
+// either basic information about the just-logged-in user or
+// a login error.
+type LoginReply struct {
+	User      User    `json:"user"`
+	ErrorCode StatusT `json:"errorcode,omitempty"`
+}
+
 // NewProposal attempts to submit a new proposal.
 type NewProposal struct {
 	Name  string     `json:"name"` // Proposal name
@@ -131,11 +133,13 @@ type NewProposal struct {
 // NewProposalReply is used to reply to the NewProposal command.
 type NewProposalReply struct {
 	CensorshipRecord v1d.CensorshipRecord `json:"censorshiprecord"`
+	ErrorCode        StatusT              `json:"errorcode,omitempty"`
 }
 
 // ProposalDetailsReply is used to reply to a proposal details command.
 type ProposalDetailsReply struct {
-	Proposal v1d.ProposalRecord `json:"proposal"`
+	Proposal  v1d.ProposalRecord `json:"proposal"`
+	ErrorCode StatusT            `json:"errorcode,omitempty"`
 }
 
 // SetProposalStatus is used to publish or censor an unreviewed proposal.
@@ -146,7 +150,8 @@ type SetProposalStatus struct {
 
 // SetProposalStatusReply is used to reply to a SetProposalStatus command.
 type SetProposalStatusReply struct {
-	Status v1d.StatusT `json:"status"`
+	Status    v1d.StatusT `json:"status"`
+	ErrorCode StatusT     `json:"errorcode,omitempty"`
 }
 
 // GetAllUnvettedReply is used to reply with a list of all unvetted proposals.

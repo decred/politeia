@@ -6,15 +6,18 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
+	"text/template"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/dajohi/goemail"
 	v1d "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	v1w "github.com/decred/politeia/politeiawww/api/v1"
@@ -51,6 +54,52 @@ func (b *backend) generateVerificationTokenAndExpiry() ([]byte, int64, error) {
 	expiry := time.Now().Add(b.getVerificationExpiryTime()).Unix()
 
 	return token, expiry, nil
+}
+
+// emailVerificationLink emails the link with the verification token
+// if the email server is set up.
+func (b *backend) emailVerificationLink(email, token string) error {
+	if b.cfg.SMTP == nil {
+		return nil
+	}
+
+	html, err := ioutil.ReadFile("email_template.html")
+	if err != nil {
+		return err
+	}
+	tpl, err := template.New("email_template").Parse(string(html))
+	if err != nil {
+		return err
+	}
+
+	l, err := url.Parse(b.cfg.WebServerAddress + v1w.RouteVerifyNewUser)
+	if err != nil {
+		return err
+	}
+	q := l.Query()
+	q.Set("email", email)
+	q.Set("token", token)
+	l.RawQuery = q.Encode()
+
+	var buf bytes.Buffer
+	tplData := emailTemplateData{
+		Email: email,
+		Link:  l.String(),
+	}
+	tpl.Execute(&buf, &tplData)
+
+	from := "noreply@decred.org"
+	subject := "Politeia Registration - Verify Your Email"
+	body := string(buf.String())
+
+	msg := goemail.NewHTMLMessage(from, subject, body)
+	msg.AddTo(email)
+
+	if err := b.cfg.SMTP.Send(msg); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // makeRequest makes an http request to the method and route provided, serializing
@@ -107,7 +156,7 @@ func (b *backend) remoteInventory() (*v1d.InventoryReply, error) {
 		BranchesCount: 0,
 	}
 
-	responseBody, err := b.makeRequest("POST", v1d.InventoryRoute, inv)
+	responseBody, err := b.makeRequest(http.MethodPost, v1d.InventoryRoute, inv)
 	if err != nil {
 		return nil, err
 	}
@@ -127,15 +176,15 @@ func (b *backend) remoteInventory() (*v1d.InventoryReply, error) {
 	return &ir, nil
 }
 
-func (b *backend) validateProposal(np v1w.NewProposal) error {
+func (b *backend) validateProposal(np v1w.NewProposal) (v1w.StatusT, error) {
 	// Check for a non-empty name.
 	if np.Name == "" {
-		return v1w.ErrMissingProposalName
+		return v1w.StatusProposalMissingName, nil
 	}
 
 	// Check for at least 1 markdown file with a non-emtpy payload.
 	if len(np.Files) == 0 || np.Files[0].Payload == "" {
-		return v1w.ErrMissingProposalDesc
+		return v1w.StatusProposalMissingDescription, nil
 	}
 
 	// Check that the file number policy is followed.
@@ -146,7 +195,7 @@ func (b *backend) validateProposal(np v1w.NewProposal) error {
 			numImages++
 			data, err := base64.StdEncoding.DecodeString(v.Payload)
 			if err != nil {
-				return err
+				return v1w.StatusInvalid, err
 			}
 			if len(data) > v1w.PolicyMaxImageSize {
 				imageExceedsMaxSize = true
@@ -155,7 +204,7 @@ func (b *backend) validateProposal(np v1w.NewProposal) error {
 			numMDs++
 			data, err := base64.StdEncoding.DecodeString(v.Payload)
 			if err != nil {
-				return err
+				return v1w.StatusInvalid, err
 			}
 			if len(data) > v1w.PolicyMaxMDSize {
 				mdExceedsMaxSize = true
@@ -164,22 +213,22 @@ func (b *backend) validateProposal(np v1w.NewProposal) error {
 	}
 
 	if numMDs > v1w.PolicyMaxMDs {
-		return v1w.ErrMaxMDsExceededPolicy
+		return v1w.StatusMaxMDsExceededPolicy, nil
 	}
 
 	if numImages > v1w.PolicyMaxImages {
-		return v1w.ErrMaxImagesExceededPolicy
+		return v1w.StatusMaxImagesExceededPolicy, nil
 	}
 
 	if mdExceedsMaxSize {
-		return v1w.ErrMaxMDSizeExceededPolicy
+		return v1w.StatusMaxMDSizeExceededPolicy, nil
 	}
 
 	if imageExceedsMaxSize {
-		return v1w.ErrMaxImageSizeExceededPolicy
+		return v1w.StatusMaxImageSizeExceededPolicy, nil
 	}
 
-	return nil
+	return v1w.StatusSuccess, nil
 }
 
 // LoadInventory fetches the entire inventory of proposals from politeiad
@@ -235,8 +284,7 @@ func (b *backend) LoadInventory() error {
 // exist and sets a verification token and expiry; the token must be
 // verified before it expires. If the user already exists in the db
 // and its token is expired, it generates a new one.
-func (b *backend) ProcessNewUser(u v1w.NewUser) (v1w.NewUserReply, error) {
-	var reply v1w.NewUserReply
+func (b *backend) ProcessNewUser(u v1w.NewUser) (*v1w.NewUserReply, string, error) {
 	var token []byte
 	var expiry int64
 
@@ -244,18 +292,27 @@ func (b *backend) ProcessNewUser(u v1w.NewUser) (v1w.NewUserReply, error) {
 	if user, err := b.db.UserGet(u.Email); err == nil {
 		// Check if the user is already verified.
 		if user.VerificationToken == nil {
-			return reply, errors.New("user already exists")
+			reply := v1w.NewUserReply{
+				ErrorCode: v1w.StatusSuccess,
+			}
+			return &reply, "", nil
 		}
 
 		// Check if the verification token hasn't expired yet.
 		if currentTime := time.Now().Unix(); currentTime < user.VerificationExpiry {
-			return reply, fmt.Errorf("user already exists and needs verification")
+			reply := v1w.NewUserReply{
+				ErrorCode: v1w.StatusSuccess,
+			}
+			return &reply, "", nil
 		}
 
 		// Generate a new verification token and expiry.
 		token, expiry, err = b.generateVerificationTokenAndExpiry()
 		if err != nil {
-			return reply, err
+			reply := v1w.NewUserReply{
+				ErrorCode: v1w.StatusInvalid,
+			}
+			return &reply, "", err
 		}
 
 		// Add the updated user information to the db.
@@ -263,20 +320,29 @@ func (b *backend) ProcessNewUser(u v1w.NewUser) (v1w.NewUserReply, error) {
 		user.VerificationExpiry = expiry
 		err = b.db.UserUpdate(*user)
 		if err != nil {
-			return reply, err
+			reply := v1w.NewUserReply{
+				ErrorCode: v1w.StatusInvalid,
+			}
+			return &reply, "", err
 		}
 	} else {
 		// Hash the user's password.
 		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(u.Password),
 			bcrypt.DefaultCost)
 		if err != nil {
-			return reply, err
+			reply := v1w.NewUserReply{
+				ErrorCode: v1w.StatusInvalid,
+			}
+			return &reply, "", err
 		}
 
 		// Generate the verification token and expiry.
 		token, expiry, err = b.generateVerificationTokenAndExpiry()
 		if err != nil {
-			return reply, err
+			reply := v1w.NewUserReply{
+				ErrorCode: v1w.StatusInvalid,
+			}
+			return &reply, "", err
 		}
 
 		// Add the user and hashed password to the db.
@@ -290,40 +356,63 @@ func (b *backend) ProcessNewUser(u v1w.NewUser) (v1w.NewUserReply, error) {
 
 		err = b.db.UserNew(newUser)
 		if err != nil {
-			return reply, err
+			if err == database.ErrInvalidEmail {
+				reply := v1w.NewUserReply{
+					ErrorCode: v1w.StatusMalformedEmail,
+				}
+				return &reply, "", nil
+			}
+
+			reply := v1w.NewUserReply{
+				ErrorCode: v1w.StatusInvalid,
+			}
+			return &reply, "", err
 		}
 	}
 
-	// Reply with the verification token.
-	reply = v1w.NewUserReply{
-		VerificationToken: hex.EncodeToString(token[:]),
+	if !b.test {
+		err := b.emailVerificationLink(u.Email, hex.EncodeToString(token))
+		if err != nil {
+			reply := v1w.NewUserReply{
+				ErrorCode: v1w.StatusInvalid,
+			}
+			return &reply, "", err
+		}
 	}
-	return reply, nil
+
+	// Reply with an empty response, which indicates success.
+	reply := v1w.NewUserReply{
+		ErrorCode: v1w.StatusSuccess,
+	}
+	return &reply, hex.EncodeToString(token), nil
 }
 
 // ProcessVerifyNewUser verifies the token generated for a recently created user.
 // It ensures that the token matches with the input and that the token hasn't expired.
-func (b *backend) ProcessVerifyNewUser(u v1w.VerifyNewUser) error {
+func (b *backend) ProcessVerifyNewUser(u v1w.VerifyNewUser) (v1w.StatusT, error) {
 	// Check that the user already exists.
 	user, err := b.db.UserGet(u.Email)
 	if err != nil {
-		return err
+		if err == database.ErrUserNotFound {
+			return v1w.StatusVerificationTokenInvalid, nil
+		}
+		return v1w.StatusSuccess, err
 	}
 
 	// Decode the verification token.
 	token, err := hex.DecodeString(u.VerificationToken)
 	if err != nil {
-		return err
+		return v1w.StatusVerificationTokenInvalid, err
 	}
 
 	// Check that the verification token matches.
 	if !bytes.Equal(token, user.VerificationToken) {
-		return fmt.Errorf("verification token invalid")
+		return v1w.StatusVerificationTokenInvalid, nil
 	}
 
 	// Check that the token hasn't expired.
 	if currentTime := time.Now().Unix(); currentTime > user.VerificationExpiry {
-		return fmt.Errorf("verification token has expired")
+		return v1w.StatusVerificationTokenExpired, nil
 	}
 
 	// Clear out the verification token fields in the db.
@@ -331,34 +420,54 @@ func (b *backend) ProcessVerifyNewUser(u v1w.VerifyNewUser) error {
 	user.VerificationExpiry = 0
 	err = b.db.UserUpdate(*user)
 	if err != nil {
-		return err
+		return v1w.StatusInvalid, err
 	}
 
-	return nil
+	return v1w.StatusSuccess, nil
 }
 
 // ProcessLogin checks that a user exists, is verified, and has
 // the correct password.
-func (b *backend) ProcessLogin(l v1w.Login) (*database.User, error) {
+func (b *backend) ProcessLogin(l v1w.Login) (*v1w.LoginReply, error) {
 	// Get user from db.
 	user, err := b.db.UserGet(l.Email)
 	if err != nil {
-		return nil, v1w.ErrInvalidEmailOrPassword
+		if err == database.ErrUserNotFound {
+			reply := v1w.LoginReply{
+				ErrorCode: v1w.StatusInvalidEmailOrPassword,
+			}
+			return &reply, nil
+		}
+		return nil, err
 	}
 
 	// Check that the user is verified.
 	if user.VerificationToken != nil {
-		return nil, errors.New("user not verified")
+		reply := v1w.LoginReply{
+			ErrorCode: v1w.StatusInvalidEmailOrPassword,
+		}
+		return &reply, nil
 	}
 
 	// Check the user's password.
 	err = bcrypt.CompareHashAndPassword(user.HashedPassword,
 		[]byte(l.Password))
 	if err != nil {
-		return nil, v1w.ErrInvalidEmailOrPassword
+		reply := v1w.LoginReply{
+			ErrorCode: v1w.StatusInvalidEmailOrPassword,
+		}
+		return &reply, nil
 	}
 
-	return user, nil
+	reply := v1w.LoginReply{
+		User: v1w.User{
+			ID:    user.ID,
+			Email: user.Email,
+			Admin: user.Admin,
+		},
+		ErrorCode: v1w.StatusSuccess,
+	}
+	return &reply, nil
 }
 
 // ProcessAllVetted returns an array of all vetted proposals in reverse order,
@@ -395,8 +504,15 @@ func (b *backend) ProcessAllUnvetted() *v1w.GetAllUnvettedReply {
 
 // ProcessNewProposal tries to submit a new proposal to politeiad.
 func (b *backend) ProcessNewProposal(np v1w.NewProposal) (*v1w.NewProposalReply, error) {
-	if err := b.validateProposal(np); err != nil {
+	status, err := b.validateProposal(np)
+	if err != nil {
 		return nil, err
+	}
+	if status != v1w.StatusSuccess {
+		reply := v1w.NewProposalReply{
+			ErrorCode: status,
+		}
+		return &reply, nil
 	}
 
 	challenge, err := util.Random(v1d.ChallengeSize)
@@ -445,7 +561,7 @@ func (b *backend) ProcessNewProposal(np v1w.NewProposal) (*v1w.NewProposalReply,
 			CensorshipRecord: reply.CensorshipRecord,
 		})
 	} else {
-		responseBody, err := b.makeRequest("POST", v1d.NewRoute, n)
+		responseBody, err := b.makeRequest(http.MethodPost, v1d.NewRoute, n)
 		if err != nil {
 			return nil, err
 		}
@@ -478,6 +594,7 @@ func (b *backend) ProcessNewProposal(np v1w.NewProposal) (*v1w.NewProposalReply,
 
 	npr := v1w.NewProposalReply{
 		CensorshipRecord: reply.CensorshipRecord,
+		ErrorCode:        v1w.StatusSuccess,
 	}
 	return &npr, nil
 }
@@ -502,7 +619,7 @@ func (b *backend) ProcessSetProposalStatus(sps v1w.SetProposalStatus) (*v1w.SetP
 			Challenge: hex.EncodeToString(challenge),
 		}
 
-		responseBody, err := b.makeRequest("POST", v1d.SetUnvettedStatusRoute, sus)
+		responseBody, err := b.makeRequest(http.MethodPost, v1d.SetUnvettedStatusRoute, sus)
 		if err != nil {
 			return nil, err
 		}
@@ -530,7 +647,10 @@ func (b *backend) ProcessSetProposalStatus(sps v1w.SetProposalStatus) (*v1w.SetP
 		}
 	}
 
-	return nil, v1w.ErrProposalNotFound
+	spsr := v1w.SetProposalStatusReply{
+		ErrorCode: v1w.StatusProposalNotFound,
+	}
+	return &spsr, nil
 }
 
 // ProcessProposalDetails tries to fetch the full details of a proposal from politeiad.
@@ -548,7 +668,10 @@ func (b *backend) ProcessProposalDetails(token string) (*v1w.ProposalDetailsRepl
 		}
 	}
 	if cachedProposal == nil {
-		return nil, v1w.ErrProposalNotFound
+		pdr := v1w.ProposalDetailsReply{
+			ErrorCode: v1w.StatusProposalNotFound,
+		}
+		return &pdr, nil
 	}
 
 	var isVettedProposal bool
@@ -580,7 +703,7 @@ func (b *backend) ProcessProposalDetails(token string) (*v1w.ProposalDetailsRepl
 			route = v1d.GetUnvettedRoute
 		}
 
-		responseBody, err := b.makeRequest("POST", route, requestObject)
+		responseBody, err := b.makeRequest(http.MethodPost, route, requestObject)
 		if err != nil {
 			return nil, err
 		}
