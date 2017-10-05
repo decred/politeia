@@ -1629,10 +1629,12 @@ func New(root, dcrtimeHost, gitPath string, gitTrace bool) (*gitBackEnd, error) 
 		return nil, err
 	}
 
-	// See if we have work to do
-	g.anchorAllReposCronJob() //XXX should we do this here?
+	// Launch anchor checker and don't do any work just yet.  The
+	// unanchored bits will be picked up during the next go-round.  We
+	// don't try to be clever in order to prevent dual commits for the same
+	// anchor which can happen if the daemon is launched right around the
+	// scheduled anchor drop.
 	go g.periodicAnchorChecker()
-	g.checkAnchor <- struct{}{}
 
 	// Launch cron.
 	err = g.cron.AddFunc(anchorSchedule, func() {
