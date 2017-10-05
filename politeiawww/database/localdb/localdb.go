@@ -70,7 +70,10 @@ func (l *localdb) UserNew(u database.User) error {
 	// Write the new id back to the db.
 	b = make([]byte, 8)
 	binary.LittleEndian.PutUint64(b, uint64(lastUserId))
-	l.userdb.Put([]byte(lastUserIdKey), b, nil)
+	err = l.userdb.Put([]byte(lastUserIdKey), b, nil)
+	if err != nil {
+		return err
+	}
 
 	payload, err := EncodeUser(u)
 	if err != nil {
@@ -140,12 +143,12 @@ func (l *localdb) UserUpdate(u database.User) error {
 // errShutdown if the backend is shutting down.
 //
 // Close satisfies the backend interface.
-func (l *localdb) Close() {
+func (l *localdb) Close() error {
 	l.Lock()
 	defer l.Unlock()
 
 	l.shutdown = true
-	l.userdb.Close()
+	return l.userdb.Close()
 }
 
 // New creates a new localdb instance.

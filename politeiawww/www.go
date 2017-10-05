@@ -174,13 +174,19 @@ func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request
 // exists and the accompanying password.  On success a cookie is added to the
 // gorilla sessions that must be returned on subsequent calls.
 func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
-	session, _ := p.store.Get(r, v1.CookieSession)
+	session, err := p.store.Get(r, v1.CookieSession)
+	if err != nil {
+		log.Errorf("handleLogin: failed to get session: %v", err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError),
+			http.StatusInternalServerError)
+		return
+	}
 
 	// Get login command.
 	var l v1.Login
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&l); err != nil {
-		log.Errorf("handleLogin: Unmarshal %v", err)
+		log.Errorf("handleLogin: failed to decode: %v", err)
 		http.Error(w, http.StatusText(http.StatusForbidden),
 			http.StatusForbidden)
 		return
@@ -189,7 +195,7 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	user, err := p.backend.ProcessLogin(l)
 	if err != nil {
-		log.Errorf("handleLogin: %v", err)
+		log.Errorf("handleLogin: failed to process login: %v", err)
 
 		var statusCode int
 		if err == v1.ErrInvalidEmailOrPassword {
@@ -205,18 +211,36 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 	// Mark user as logged in.
 	session.Values["authenticated"] = true
 	session.Values["admin"] = user.Admin
-	session.Save(r, w)
+	err = session.Save(r, w)
+	if err != nil {
+		log.Errorf("handleLogin: failed to save session: %v", err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError),
+			+http.StatusInternalServerError)
+		return
+	}
 }
 
 // handleLogout logs the user out.  A login will be required to resume sending
 // commands,
 func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
-	session, _ := p.store.Get(r, v1.CookieSession)
+	session, err := p.store.Get(r, v1.CookieSession)
+	if err != nil {
+		log.Errorf("handleLogout: failed to get session: %v", err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError),
+			http.StatusInternalServerError)
+		return
+	}
 
 	// Revoke users authentication
 	session.Values["authenticated"] = false
 	session.Values["admin"] = false
-	session.Save(r, w)
+	err = session.Save(r, w)
+	if err != nil {
+		log.Errorf("handleLogout: failed to save session: %v", err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError),
+			http.StatusInternalServerError)
+		return
+	}
 }
 
 // handleSecret is a mock handler to test routes.
