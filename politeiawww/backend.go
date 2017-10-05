@@ -65,9 +65,12 @@ func (b *backend) makeRequest(method string, route string, v interface{}) ([]byt
 		}
 	}
 
-	fullRoute := b.cfg.DaemonAddress + route
+	fullRoute := b.cfg.RPCHost + route
 
-	c := util.NewClient(b.cfg.SkipTLSVerify)
+	c, err := util.NewClient(false, b.cfg.RPCCert)
+	if err != nil {
+		return nil, err
+	}
 	req, err := http.NewRequest(method, fullRoute, bytes.NewReader(requestBody))
 	if err != nil {
 		return nil, err
