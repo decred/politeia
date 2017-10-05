@@ -41,5 +41,5 @@ type Database interface {
 	UserUpdate(User) error         // Update existing user
 
 	// Close performs cleanup of the backend.
-	Close()
+	Close() error
 }

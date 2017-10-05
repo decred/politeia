@@ -265,9 +265,8 @@ func (c *ctx) assets() error {
 		return fmt.Errorf("HTTP Status: %v", r.StatusCode)
 	}
 
-	io.Copy(os.Stdout, r.Body)
-
-	return nil
+	_, err = io.Copy(os.Stdout, r.Body)
+	return err
 }
 
 func _main() error {
