@@ -18,9 +18,9 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/dajohi/goemail"
-	v1d "github.com/decred/politeia/politeiad/api/v1"
+	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
-	v1w "github.com/decred/politeia/politeiawww/api/v1"
+	www "github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/politeiawww/database"
 	"github.com/decred/politeia/politeiawww/database/localdb"
 	"github.com/decred/politeia/util"
@@ -31,7 +31,7 @@ import (
 type backend struct {
 	db        database.Database
 	cfg       *config
-	inventory []v1d.ProposalRecord
+	inventory []www.ProposalRecord
 
 	// These properties are only used for testing.
 	test                   bool
@@ -42,11 +42,11 @@ func (b *backend) getVerificationExpiryTime() time.Duration {
 	if b.verificationExpiryTime != time.Duration(0) {
 		return b.verificationExpiryTime
 	}
-	return time.Duration(v1w.VerificationExpiryHours) * time.Hour
+	return time.Duration(www.VerificationExpiryHours) * time.Hour
 }
 
 func (b *backend) generateVerificationTokenAndExpiry() ([]byte, int64, error) {
-	token, err := util.Random(v1w.VerificationTokenSize)
+	token, err := util.Random(www.VerificationTokenSize)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -72,7 +72,7 @@ func (b *backend) emailVerificationLink(email, token string) error {
 		return err
 	}
 
-	l, err := url.Parse(b.cfg.WebServerAddress + v1w.RouteVerifyNewUser)
+	l, err := url.Parse(b.cfg.WebServerAddress + www.RouteVerifyNewUser)
 	if err != nil {
 		return err
 	}
@@ -144,24 +144,24 @@ func (b *backend) makeRequest(method string, route string, v interface{}) ([]byt
 }
 
 // remoteInventory fetches the entire inventory of proposals from politeiad.
-func (b *backend) remoteInventory() (*v1d.InventoryReply, error) {
-	challenge, err := util.Random(v1d.ChallengeSize)
+func (b *backend) remoteInventory() (*pd.InventoryReply, error) {
+	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
 		return nil, err
 	}
-	inv := v1d.Inventory{
+	inv := pd.Inventory{
 		Challenge:     hex.EncodeToString(challenge),
 		IncludeFiles:  false,
 		VettedCount:   0,
 		BranchesCount: 0,
 	}
 
-	responseBody, err := b.makeRequest(http.MethodPost, v1d.InventoryRoute, inv)
+	responseBody, err := b.makeRequest(http.MethodPost, pd.InventoryRoute, inv)
 	if err != nil {
 		return nil, err
 	}
 
-	var ir v1d.InventoryReply
+	var ir pd.InventoryReply
 	err = json.Unmarshal(responseBody, &ir)
 	if err != nil {
 		return nil, fmt.Errorf("Could not unmarshal InventoryReply: %v",
@@ -176,15 +176,15 @@ func (b *backend) remoteInventory() (*v1d.InventoryReply, error) {
 	return &ir, nil
 }
 
-func (b *backend) validateProposal(np v1w.NewProposal) (v1w.StatusT, error) {
+func (b *backend) validateProposal(np www.NewProposal) (www.StatusT, error) {
 	// Check for a non-empty name.
 	if np.Name == "" {
-		return v1w.StatusProposalMissingName, nil
+		return www.StatusProposalMissingName, nil
 	}
 
 	// Check for at least 1 markdown file with a non-emtpy payload.
 	if len(np.Files) == 0 || np.Files[0].Payload == "" {
-		return v1w.StatusProposalMissingDescription, nil
+		return www.StatusProposalMissingDescription, nil
 	}
 
 	// Check that the file number policy is followed.
@@ -195,62 +195,62 @@ func (b *backend) validateProposal(np v1w.NewProposal) (v1w.StatusT, error) {
 			numImages++
 			data, err := base64.StdEncoding.DecodeString(v.Payload)
 			if err != nil {
-				return v1w.StatusInvalid, err
+				return www.StatusInvalid, err
 			}
-			if len(data) > v1w.PolicyMaxImageSize {
+			if len(data) > www.PolicyMaxImageSize {
 				imageExceedsMaxSize = true
 			}
 		} else {
 			numMDs++
 			data, err := base64.StdEncoding.DecodeString(v.Payload)
 			if err != nil {
-				return v1w.StatusInvalid, err
+				return www.StatusInvalid, err
 			}
-			if len(data) > v1w.PolicyMaxMDSize {
+			if len(data) > www.PolicyMaxMDSize {
 				mdExceedsMaxSize = true
 			}
 		}
 	}
 
-	if numMDs > v1w.PolicyMaxMDs {
-		return v1w.StatusMaxMDsExceededPolicy, nil
+	if numMDs > www.PolicyMaxMDs {
+		return www.StatusMaxMDsExceededPolicy, nil
 	}
 
-	if numImages > v1w.PolicyMaxImages {
-		return v1w.StatusMaxImagesExceededPolicy, nil
+	if numImages > www.PolicyMaxImages {
+		return www.StatusMaxImagesExceededPolicy, nil
 	}
 
 	if mdExceedsMaxSize {
-		return v1w.StatusMaxMDSizeExceededPolicy, nil
+		return www.StatusMaxMDSizeExceededPolicy, nil
 	}
 
 	if imageExceedsMaxSize {
-		return v1w.StatusMaxImageSizeExceededPolicy, nil
+		return www.StatusMaxImageSizeExceededPolicy, nil
 	}
 
-	return v1w.StatusSuccess, nil
+	return www.StatusSuccess, nil
 }
 
 // LoadInventory fetches the entire inventory of proposals from politeiad
 // and caches it, sorted by most recent timestamp.
 func (b *backend) LoadInventory() error {
-	var inv *v1d.InventoryReply
+	var inv *pd.InventoryReply
 	if b.test {
 		// Split the existing inventory into vetted and unvetted.
-		vetted := make([]v1d.ProposalRecord, 0, 0)
-		unvetted := make([]v1d.ProposalRecord, 0, 0)
+		vetted := make([]www.ProposalRecord, 0, 0)
+		unvetted := make([]www.ProposalRecord, 0, 0)
 
 		for _, v := range b.inventory {
-			if v.Status == v1d.StatusPublic {
+			if v.Status == www.PropStatusPublic {
 				vetted = append(vetted, v)
 			} else {
 				unvetted = append(unvetted, v)
 			}
 		}
 
-		inv = &v1d.InventoryReply{
-			Vetted:   vetted,
-			Branches: unvetted,
+		inv = &pd.InventoryReply{
+			Vetted:   convertPropsFromWWW(vetted),
+			Branches: convertPropsFromWWW(unvetted),
 		}
 	} else {
 		// Fetch remote inventory.
@@ -260,11 +260,13 @@ func (b *backend) LoadInventory() error {
 			return fmt.Errorf("LoadInventory: %v", err)
 		}
 
-		log.Infof("Adding %v vetted, %v unvetted proposals to the cache", len(inv.Vetted), len(inv.Branches))
+		log.Infof("Adding %v vetted, %v unvetted proposals to the cache",
+			len(inv.Vetted), len(inv.Branches))
 	}
 
-	b.inventory = make([]v1d.ProposalRecord, 0, len(inv.Vetted)+len(inv.Branches))
-	for _, v := range append(inv.Vetted, inv.Branches...) {
+	b.inventory = make([]www.ProposalRecord, 0, len(inv.Vetted)+len(inv.Branches))
+	for _, vv := range append(inv.Vetted, inv.Branches...) {
+		v := convertPropFromPD(vv)
 		len := len(b.inventory)
 		if len == 0 {
 			b.inventory = append(b.inventory, v)
@@ -273,7 +275,9 @@ func (b *backend) LoadInventory() error {
 				return v.Timestamp < b.inventory[i].Timestamp
 			})
 
-			b.inventory = append(b.inventory[:idx], append([]v1d.ProposalRecord{v}, b.inventory[idx:]...)...)
+			b.inventory = append(b.inventory[:idx],
+				append([]www.ProposalRecord{v},
+					b.inventory[idx:]...)...)
 		}
 	}
 
@@ -284,35 +288,42 @@ func (b *backend) LoadInventory() error {
 // exist and sets a verification token and expiry; the token must be
 // verified before it expires. If the user already exists in the db
 // and its token is expired, it generates a new one.
-func (b *backend) ProcessNewUser(u v1w.NewUser) (*v1w.NewUserReply, string, error) {
+//
+// Note that this function always returns a NewUserReply.  The caller shally
+// verify error and determine how to return this information upstream.
+func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 	var token []byte
 	var expiry int64
+
+	// XXX this function really needs to be cleaned up.
+	// XXX We should create a sinlge reply struct that get's returned
+	// instead of many.
 
 	// Check if the user already exists.
 	if user, err := b.db.UserGet(u.Email); err == nil {
 		// Check if the user is already verified.
 		if user.VerificationToken == nil {
-			reply := v1w.NewUserReply{
-				ErrorCode: v1w.StatusSuccess,
+			reply := www.NewUserReply{
+				ErrorCode: www.StatusSuccess,
 			}
-			return &reply, "", nil
+			return &reply, nil
 		}
 
 		// Check if the verification token hasn't expired yet.
 		if currentTime := time.Now().Unix(); currentTime < user.VerificationExpiry {
-			reply := v1w.NewUserReply{
-				ErrorCode: v1w.StatusSuccess,
+			reply := www.NewUserReply{
+				ErrorCode: www.StatusSuccess,
 			}
-			return &reply, "", nil
+			return &reply, nil
 		}
 
 		// Generate a new verification token and expiry.
 		token, expiry, err = b.generateVerificationTokenAndExpiry()
 		if err != nil {
-			reply := v1w.NewUserReply{
-				ErrorCode: v1w.StatusInvalid,
+			reply := www.NewUserReply{
+				ErrorCode: www.StatusInvalid,
 			}
-			return &reply, "", err
+			return &reply, err
 		}
 
 		// Add the updated user information to the db.
@@ -320,29 +331,29 @@ func (b *backend) ProcessNewUser(u v1w.NewUser) (*v1w.NewUserReply, string, erro
 		user.VerificationExpiry = expiry
 		err = b.db.UserUpdate(*user)
 		if err != nil {
-			reply := v1w.NewUserReply{
-				ErrorCode: v1w.StatusInvalid,
+			reply := www.NewUserReply{
+				ErrorCode: www.StatusInvalid,
 			}
-			return &reply, "", err
+			return &reply, err
 		}
 	} else {
 		// Hash the user's password.
 		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(u.Password),
 			bcrypt.DefaultCost)
 		if err != nil {
-			reply := v1w.NewUserReply{
-				ErrorCode: v1w.StatusInvalid,
+			reply := www.NewUserReply{
+				ErrorCode: www.StatusInvalid,
 			}
-			return &reply, "", err
+			return &reply, err
 		}
 
 		// Generate the verification token and expiry.
 		token, expiry, err = b.generateVerificationTokenAndExpiry()
 		if err != nil {
-			reply := v1w.NewUserReply{
-				ErrorCode: v1w.StatusInvalid,
+			reply := www.NewUserReply{
+				ErrorCode: www.StatusInvalid,
 			}
-			return &reply, "", err
+			return &reply, err
 		}
 
 		// Add the user and hashed password to the db.
@@ -357,62 +368,68 @@ func (b *backend) ProcessNewUser(u v1w.NewUser) (*v1w.NewUserReply, string, erro
 		err = b.db.UserNew(newUser)
 		if err != nil {
 			if err == database.ErrInvalidEmail {
-				reply := v1w.NewUserReply{
-					ErrorCode: v1w.StatusMalformedEmail,
+				reply := www.NewUserReply{
+					ErrorCode: www.StatusMalformedEmail,
 				}
-				return &reply, "", nil
+				return &reply, nil
 			}
 
-			reply := v1w.NewUserReply{
-				ErrorCode: v1w.StatusInvalid,
+			reply := www.NewUserReply{
+				ErrorCode: www.StatusInvalid,
 			}
-			return &reply, "", err
+			return &reply, err
 		}
 	}
 
 	if !b.test {
+		// This is confitional on email server being setup.
 		err := b.emailVerificationLink(u.Email, hex.EncodeToString(token))
 		if err != nil {
-			reply := v1w.NewUserReply{
-				ErrorCode: v1w.StatusInvalid,
+			reply := www.NewUserReply{
+				ErrorCode: www.StatusInvalid,
 			}
-			return &reply, "", err
+			return &reply, err
 		}
 	}
 
 	// Reply with an empty response, which indicates success.
-	reply := v1w.NewUserReply{
-		ErrorCode: v1w.StatusSuccess,
+	reply := www.NewUserReply{
+		ErrorCode: www.StatusSuccess,
 	}
-	return &reply, hex.EncodeToString(token), nil
+
+	// We only set the token if email verification is disabled.
+	if b.cfg.SMTP == nil {
+		reply.VerificationToken = hex.EncodeToString(token)
+	}
+	return &reply, nil
 }
 
 // ProcessVerifyNewUser verifies the token generated for a recently created user.
 // It ensures that the token matches with the input and that the token hasn't expired.
-func (b *backend) ProcessVerifyNewUser(u v1w.VerifyNewUser) (v1w.StatusT, error) {
+func (b *backend) ProcessVerifyNewUser(u www.VerifyNewUser) (www.StatusT, error) {
 	// Check that the user already exists.
 	user, err := b.db.UserGet(u.Email)
 	if err != nil {
 		if err == database.ErrUserNotFound {
-			return v1w.StatusVerificationTokenInvalid, nil
+			return www.StatusVerificationTokenInvalid, nil
 		}
-		return v1w.StatusSuccess, err
+		return www.StatusSuccess, err
 	}
 
 	// Decode the verification token.
 	token, err := hex.DecodeString(u.VerificationToken)
 	if err != nil {
-		return v1w.StatusVerificationTokenInvalid, err
+		return www.StatusVerificationTokenInvalid, err
 	}
 
 	// Check that the verification token matches.
 	if !bytes.Equal(token, user.VerificationToken) {
-		return v1w.StatusVerificationTokenInvalid, nil
+		return www.StatusVerificationTokenInvalid, nil
 	}
 
 	// Check that the token hasn't expired.
 	if currentTime := time.Now().Unix(); currentTime > user.VerificationExpiry {
-		return v1w.StatusVerificationTokenExpired, nil
+		return www.StatusVerificationTokenExpired, nil
 	}
 
 	// Clear out the verification token fields in the db.
@@ -420,21 +437,21 @@ func (b *backend) ProcessVerifyNewUser(u v1w.VerifyNewUser) (v1w.StatusT, error)
 	user.VerificationExpiry = 0
 	err = b.db.UserUpdate(*user)
 	if err != nil {
-		return v1w.StatusInvalid, err
+		return www.StatusInvalid, err
 	}
 
-	return v1w.StatusSuccess, nil
+	return www.StatusSuccess, nil
 }
 
 // ProcessLogin checks that a user exists, is verified, and has
 // the correct password.
-func (b *backend) ProcessLogin(l v1w.Login) (*v1w.LoginReply, error) {
+func (b *backend) ProcessLogin(l www.Login) (*www.LoginReply, error) {
 	// Get user from db.
 	user, err := b.db.UserGet(l.Email)
 	if err != nil {
 		if err == database.ErrUserNotFound {
-			reply := v1w.LoginReply{
-				ErrorCode: v1w.StatusInvalidEmailOrPassword,
+			reply := www.LoginReply{
+				ErrorCode: www.StatusInvalidEmailOrPassword,
 			}
 			return &reply, nil
 		}
@@ -443,8 +460,8 @@ func (b *backend) ProcessLogin(l v1w.Login) (*v1w.LoginReply, error) {
 
 	// Check that the user is verified.
 	if user.VerificationToken != nil {
-		reply := v1w.LoginReply{
-			ErrorCode: v1w.StatusInvalidEmailOrPassword,
+		reply := www.LoginReply{
+			ErrorCode: www.StatusInvalidEmailOrPassword,
 		}
 		return &reply, nil
 	}
@@ -453,77 +470,75 @@ func (b *backend) ProcessLogin(l v1w.Login) (*v1w.LoginReply, error) {
 	err = bcrypt.CompareHashAndPassword(user.HashedPassword,
 		[]byte(l.Password))
 	if err != nil {
-		reply := v1w.LoginReply{
-			ErrorCode: v1w.StatusInvalidEmailOrPassword,
+		reply := www.LoginReply{
+			ErrorCode: www.StatusInvalidEmailOrPassword,
 		}
 		return &reply, nil
 	}
 
-	reply := v1w.LoginReply{
-		User: v1w.User{
-			ID:    user.ID,
-			Email: user.Email,
-			Admin: user.Admin,
-		},
-		ErrorCode: v1w.StatusSuccess,
+	reply := www.LoginReply{
+		IsAdmin:   user.Admin,
+		ErrorCode: www.StatusSuccess,
 	}
 	return &reply, nil
 }
 
 // ProcessAllVetted returns an array of all vetted proposals in reverse order,
 // because they're sorted by oldest timestamp first.
-func (b *backend) ProcessAllVetted() *v1w.GetAllVettedReply {
-	proposals := make([]v1d.ProposalRecord, 0, 0)
+func (b *backend) ProcessAllVetted() *www.GetAllVettedReply {
+	proposals := make([]www.ProposalRecord, 0, 0)
 	for i := len(b.inventory) - 1; i >= 0; i-- {
-		if b.inventory[i].Status == v1d.StatusPublic {
+		if b.inventory[i].Status == www.PropStatusPublic {
 			proposals = append(proposals, b.inventory[i])
 		}
 	}
 
-	vr := v1w.GetAllVettedReply{
+	vr := www.GetAllVettedReply{
 		Proposals: proposals,
+		ErrorCode: www.StatusSuccess,
 	}
 	return &vr
 }
 
 // ProcessAllUnvetted returns an array of all unvetted proposals in reverse order,
 // because they're sorted by oldest timestamp first.
-func (b *backend) ProcessAllUnvetted() *v1w.GetAllUnvettedReply {
-	proposals := make([]v1d.ProposalRecord, 0, 0)
+func (b *backend) ProcessAllUnvetted() *www.GetAllUnvettedReply {
+	proposals := make([]www.ProposalRecord, 0, 0)
 	for i := len(b.inventory) - 1; i >= 0; i-- {
-		if b.inventory[i].Status == v1d.StatusNotReviewed {
+		if b.inventory[i].Status == www.PropStatusNotReviewed {
 			proposals = append(proposals, b.inventory[i])
 		}
 	}
 
-	ur := v1w.GetAllUnvettedReply{
+	ur := www.GetAllUnvettedReply{
 		Proposals: proposals,
+		ErrorCode: www.StatusSuccess,
 	}
 	return &ur
 }
 
 // ProcessNewProposal tries to submit a new proposal to politeiad.
-func (b *backend) ProcessNewProposal(np v1w.NewProposal) (*v1w.NewProposalReply, error) {
+func (b *backend) ProcessNewProposal(np www.NewProposal) (*www.NewProposalReply, error) {
 	status, err := b.validateProposal(np)
 	if err != nil {
 		return nil, err
 	}
-	if status != v1w.StatusSuccess {
-		reply := v1w.NewProposalReply{
+	if status != www.StatusSuccess {
+		reply := www.NewProposalReply{
 			ErrorCode: status,
 		}
 		return &reply, nil
 	}
 
-	challenge, err := util.Random(v1d.ChallengeSize)
+	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
 		return nil, err
 	}
 
-	n := v1d.New{
+	n := pd.New{
 		Name:      sanitize.Name(np.Name),
 		Challenge: hex.EncodeToString(challenge),
-		Files:     np.Files,
+		Files:     convertPropFilesFromWWW(np.Files),
 	}
 
 	for k, f := range n.Files {
@@ -538,30 +553,30 @@ func (b *backend) ProcessNewProposal(np v1w.NewProposal) (*v1w.NewProposalReply,
 		n.Files[k].Digest = hex.EncodeToString(h.Sum(nil))
 	}
 
-	var reply v1d.NewReply
+	var reply pd.NewReply
 	if b.test {
 		tokenBytes, err := util.Random(16)
 		if err != nil {
 			return nil, err
 		}
 
-		reply = v1d.NewReply{
+		reply = pd.NewReply{
 			Timestamp: time.Now().Unix(),
-			CensorshipRecord: v1d.CensorshipRecord{
+			CensorshipRecord: pd.CensorshipRecord{
 				Token: hex.EncodeToString(tokenBytes),
 			},
 		}
 
 		// Add the new proposal to the cache.
-		b.inventory = append(b.inventory, v1d.ProposalRecord{
+		b.inventory = append(b.inventory, www.ProposalRecord{
 			Name:             np.Name,
-			Status:           v1d.StatusNotReviewed,
+			Status:           www.PropStatusNotReviewed,
 			Timestamp:        reply.Timestamp,
 			Files:            np.Files,
-			CensorshipRecord: reply.CensorshipRecord,
+			CensorshipRecord: convertPropCensorFromPD(reply.CensorshipRecord),
 		})
 	} else {
-		responseBody, err := b.makeRequest(http.MethodPost, v1d.NewRoute, n)
+		responseBody, err := b.makeRequest(http.MethodPost, pd.NewRoute, n)
 		if err != nil {
 			return nil, err
 		}
@@ -583,43 +598,43 @@ func (b *backend) ProcessNewProposal(np v1w.NewProposal) (*v1w.NewProposalReply,
 		}
 
 		// Add the new proposal to the cache.
-		b.inventory = append(b.inventory, v1d.ProposalRecord{
+		b.inventory = append(b.inventory, www.ProposalRecord{
 			Name:             np.Name,
-			Status:           v1d.StatusNotReviewed,
+			Status:           www.PropStatusNotReviewed,
 			Timestamp:        reply.Timestamp,
-			Files:            make([]v1d.File, 0, 0),
-			CensorshipRecord: reply.CensorshipRecord,
+			Files:            make([]www.File, 0, 0),
+			CensorshipRecord: convertPropCensorFromPD(reply.CensorshipRecord),
 		})
 	}
 
-	npr := v1w.NewProposalReply{
-		CensorshipRecord: reply.CensorshipRecord,
-		ErrorCode:        v1w.StatusSuccess,
+	npr := www.NewProposalReply{
+		CensorshipRecord: convertPropCensorFromPD(reply.CensorshipRecord),
+		ErrorCode:        www.StatusSuccess,
 	}
 	return &npr, nil
 }
 
 // ProcessSetProposalStatus changes the status of an existing proposal
 // from unreviewed to either published or censored.
-func (b *backend) ProcessSetProposalStatus(sps v1w.SetProposalStatus) (*v1w.SetProposalStatusReply, error) {
-	var reply v1d.SetUnvettedStatusReply
+func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus) (*www.SetProposalStatusReply, error) {
+	var reply pd.SetUnvettedStatusReply
 	if b.test {
-		reply = v1d.SetUnvettedStatusReply{
-			Status: sps.Status,
+		reply = pd.SetUnvettedStatusReply{
+			Status: convertPropStatusFromWWW(sps.ProposalStatus),
 		}
 	} else {
-		challenge, err := util.Random(v1d.ChallengeSize)
+		challenge, err := util.Random(pd.ChallengeSize)
 		if err != nil {
 			return nil, err
 		}
 
-		sus := v1d.SetUnvettedStatus{
+		sus := pd.SetUnvettedStatus{
 			Token:     sps.Token,
-			Status:    sps.Status,
+			Status:    convertPropStatusFromWWW(sps.ProposalStatus),
 			Challenge: hex.EncodeToString(challenge),
 		}
 
-		responseBody, err := b.makeRequest(http.MethodPost, v1d.SetUnvettedStatusRoute, sus)
+		responseBody, err := b.makeRequest(http.MethodPost, pd.SetUnvettedStatusRoute, sus)
 		if err != nil {
 			return nil, err
 		}
@@ -639,28 +654,29 @@ func (b *backend) ProcessSetProposalStatus(sps v1w.SetProposalStatus) (*v1w.SetP
 	// Update the cached proposal with the new status and return the reply.
 	for k, v := range b.inventory {
 		if v.CensorshipRecord.Token == sps.Token {
-			b.inventory[k].Status = reply.Status
-			spsr := v1w.SetProposalStatusReply{
-				Status: reply.Status,
+			s := convertPropStatusFromPD(reply.Status)
+			b.inventory[k].Status = s
+			spsr := www.SetProposalStatusReply{
+				ProposalStatus: s,
 			}
 			return &spsr, nil
 		}
 	}
 
-	spsr := v1w.SetProposalStatusReply{
-		ErrorCode: v1w.StatusProposalNotFound,
+	spsr := www.SetProposalStatusReply{
+		ErrorCode: www.StatusProposalNotFound,
 	}
 	return &spsr, nil
 }
 
 // ProcessProposalDetails tries to fetch the full details of a proposal from politeiad.
-func (b *backend) ProcessProposalDetails(token string) (*v1w.ProposalDetailsReply, error) {
-	challenge, err := util.Random(v1d.ChallengeSize)
+func (b *backend) ProcessProposalDetails(token string) (*www.ProposalDetailsReply, error) {
+	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
 		return nil, err
 	}
 
-	var cachedProposal *v1d.ProposalRecord
+	var cachedProposal *www.ProposalRecord
 	for _, v := range b.inventory {
 		if v.CensorshipRecord.Token == token {
 			cachedProposal = &v
@@ -668,39 +684,40 @@ func (b *backend) ProcessProposalDetails(token string) (*v1w.ProposalDetailsRepl
 		}
 	}
 	if cachedProposal == nil {
-		pdr := v1w.ProposalDetailsReply{
-			ErrorCode: v1w.StatusProposalNotFound,
+		pdr := www.ProposalDetailsReply{
+			ErrorCode: www.StatusProposalNotFound,
 		}
 		return &pdr, nil
 	}
 
 	var isVettedProposal bool
 	var requestObject interface{}
-	if cachedProposal.Status == v1d.StatusPublic {
+	if cachedProposal.Status == www.PropStatusPublic {
 		isVettedProposal = true
-		requestObject = v1d.GetVetted{
+		requestObject = pd.GetVetted{
 			Token:     token,
 			Challenge: hex.EncodeToString(challenge),
 		}
 	} else {
 		isVettedProposal = false
-		requestObject = v1d.GetUnvetted{
+		requestObject = pd.GetUnvetted{
 			Token:     token,
 			Challenge: hex.EncodeToString(challenge),
 		}
 	}
 
-	var pdr v1w.ProposalDetailsReply
+	var pdr www.ProposalDetailsReply
 	if b.test {
-		pdr = v1w.ProposalDetailsReply{
-			Proposal: *cachedProposal,
+		pdr = www.ProposalDetailsReply{
+			ErrorCode: www.StatusSuccess,
+			Proposal:  *cachedProposal,
 		}
 	} else {
 		var route string
 		if isVettedProposal {
-			route = v1d.GetVettedRoute
+			route = pd.GetVettedRoute
 		} else {
-			route = v1d.GetUnvettedRoute
+			route = pd.GetUnvettedRoute
 		}
 
 		responseBody, err := b.makeRequest(http.MethodPost, route, requestObject)
@@ -709,21 +726,23 @@ func (b *backend) ProcessProposalDetails(token string) (*v1w.ProposalDetailsRepl
 		}
 
 		var response string
-		var proposal v1d.ProposalRecord
+		var proposal pd.ProposalRecord
 		if isVettedProposal {
-			var reply v1d.GetVettedReply
+			var reply pd.GetVettedReply
 			err = json.Unmarshal(responseBody, &reply)
 			if err != nil {
-				return nil, fmt.Errorf("Could not unmarshal GetVettedReply: %v", err)
+				return nil, fmt.Errorf("Could not unmarshal "+
+					"GetVettedReply: %v", err)
 			}
 
 			response = reply.Response
 			proposal = reply.Proposal
 		} else {
-			var reply v1d.GetUnvettedReply
+			var reply pd.GetUnvettedReply
 			err = json.Unmarshal(responseBody, &reply)
 			if err != nil {
-				return nil, fmt.Errorf("Could not unmarshal GetUnvettedReply: %v", err)
+				return nil, fmt.Errorf("Could not unmarshal "+
+					"GetUnvettedReply: %v", err)
 			}
 
 			response = reply.Response
@@ -736,8 +755,9 @@ func (b *backend) ProcessProposalDetails(token string) (*v1w.ProposalDetailsRepl
 			return nil, err
 		}
 
-		pdr = v1w.ProposalDetailsReply{
-			Proposal: proposal,
+		pdr = www.ProposalDetailsReply{
+			ErrorCode: www.StatusSuccess,
+			Proposal:  convertPropFromPD(proposal),
 		}
 	}
 
@@ -745,13 +765,14 @@ func (b *backend) ProcessProposalDetails(token string) (*v1w.ProposalDetailsRepl
 }
 
 // ProcessPolicy returns the details of Politeia's restrictions on file uploads.
-func (b *backend) ProcessPolicy() *v1w.PolicyReply {
-	return &v1w.PolicyReply{
-		MaxImages:      v1w.PolicyMaxImages,
-		MaxImageSize:   v1w.PolicyMaxImageSize,
-		MaxMDs:         v1w.PolicyMaxMDs,
-		MaxMDSize:      v1w.PolicyMaxMDSize,
+func (b *backend) ProcessPolicy() *www.PolicyReply {
+	return &www.PolicyReply{
+		MaxImages:      www.PolicyMaxImages,
+		MaxImageSize:   www.PolicyMaxImageSize,
+		MaxMDs:         www.PolicyMaxMDs,
+		MaxMDSize:      www.PolicyMaxMDSize,
 		ValidMIMETypes: mime.ValidMimeTypes(),
+		ErrorCode:      www.StatusSuccess,
 	}
 }
 

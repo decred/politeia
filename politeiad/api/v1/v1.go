@@ -158,6 +158,7 @@ type File struct {
 	Payload string `json:"payload"` // File content
 }
 
+// ProposalRecord is an entire proposal and it's content.
 type ProposalRecord struct {
 	Name      string  `json:"name"`      // Suggested short proposal name
 	Status    StatusT `json:"status"`    // Current status of proposal
