@@ -171,7 +171,7 @@ Verify email address of a previously created user.
 
 Email address of previously created user.
 
-`VerificationToken=[string]`
+`verificationtoken=[string]`
 
 The token that was provided by email to the user.
 
@@ -195,11 +195,10 @@ Additionally the browser will be redirected to `/v1/user/verify/failure`.
 
 Request:
 
-```json
-{
-    "email":"15a1eb6de3681fec@example.com",
-    "verificationtoken":"f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde",
-}
+The request params should be provided within the URL:
+
+```
+/v1/user/verify?email=abc@example.com&verificationtoken=f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde
 ```
 
 Reply:
@@ -382,7 +381,7 @@ proposal.  This is the key to later retrieve the submitted proposal from the
 system.
 
 	merkle=[string]
-	
+
 Merkle root of the proposal.  This is defined as the *sorted* digests of all
 files proposal files.  The client should cross verify this value.
 
@@ -598,7 +597,7 @@ Token is the unique censorship token that identifies a specific proposal.
 `Status=[statusT]`
 
 Status indicates the new status for the proposal.  Valid status are:
- - StatusCensored = `3` 
+ - StatusCensored = `3`
  - StatusPublic = `4`
 
 Status can only be changed if the current proposal status is `2` or

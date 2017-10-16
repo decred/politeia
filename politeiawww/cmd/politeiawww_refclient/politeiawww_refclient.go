@@ -143,12 +143,8 @@ func (c *ctx) newUser(email, password string) (string, error) {
 }
 
 func (c *ctx) verifyNewUser(email, token string) error {
-	u := v1.VerifyNewUser{
-		Email:             email,
-		VerificationToken: token,
-	}
-
-	_, err := c.makeRequest("GET", v1.RouteVerifyNewUser, u)
+	_, err := c.makeRequest("GET", "/user/verify/?email="+email+
+		"&verificationtoken="+token, nil)
 	if err != nil {
 		return err
 	}
@@ -348,18 +344,9 @@ func _main() error {
 	if err != nil {
 		return err
 	}
-	var email string
-	if *emailFlag == "" {
-		email = hex.EncodeToString(b) + "@example.com"
-	} else {
-		email = *emailFlag
-	}
-	var password string
-	if *passwordFlag == "" {
-		password = hex.EncodeToString(b)
-	} else {
-		password = *passwordFlag
-	}
+
+	email := hex.EncodeToString(b) + "@example.com"
+	password := hex.EncodeToString(b)
 
 	// New User
 	token, err := c.newUser(email, password)
@@ -393,16 +380,9 @@ func _main() error {
 	if err != nil {
 		return err
 	}
-	if *emailFlag == "" {
-		// expect admin == false
-		if lr.IsAdmin {
-			return fmt.Errorf("expected non admin")
-		}
-	} else {
-		// expect admin == true
-		if !lr.IsAdmin {
-			return fmt.Errorf("expected admin")
-		}
+	// expect admin == false
+	if lr.IsAdmin {
+		fmt.Errorf("expected non admin")
 	}
 
 	// Secret
@@ -452,16 +432,49 @@ func _main() error {
 			pr2.Proposal.Status, v1.PropStatusNotReviewed)
 	}
 
-	// Unvetted proposals
-	unvetted, err := c.allUnvetted()
-	if *emailFlag == "" {
-		// Expect empty error
-		if err == nil {
-			return fmt.Errorf("/unvetted should only be " +
-				"accessible by admin users")
+	_, err = c.allUnvetted()
+	if err == nil {
+		return fmt.Errorf("/unvetted should only be " +
+			"accessible by admin users")
+	}
+
+	// Vetted proposals
+	err = c.allVetted()
+	if err != nil {
+		return err
+	}
+
+	// Logout
+	err = c.logout()
+	if err != nil {
+		return err
+	}
+
+	if *emailFlag != "" {
+		adminEmail := *emailFlag
+		adminPassword := *passwordFlag
+
+		c, err = newClient(true)
+		if err != nil {
+			return err
 		}
-	} else {
-		// Expect error
+		_, err = c.getCSRF()
+		if err != nil {
+			return err
+		}
+
+		lr, err = c.login(adminEmail, adminPassword)
+		if err != nil {
+			return err
+		}
+
+		// expect admin == true
+		if !lr.IsAdmin {
+			return fmt.Errorf("expected admin")
+		}
+
+		unvetted, err := c.allUnvetted()
+		// Expect no error
 		if err != nil {
 			return err
 		}
@@ -523,18 +536,12 @@ func _main() error {
 			return fmt.Errorf("_pr2 invalid status got %v wanted %v",
 				_pr2.Proposal.Status, v1.PropStatusCensored)
 		}
-	}
 
-	// Vetted proposals
-	err = c.allVetted()
-	if err != nil {
-		return err
-	}
-
-	// Logout
-	err = c.logout()
-	if err != nil {
-		return err
+		// Logout
+		err = c.logout()
+		if err != nil {
+			return err
+		}
 	}
 
 	// Assets
