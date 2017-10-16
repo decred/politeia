@@ -7,12 +7,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"sort"
 	"strings"
-	"text/template"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -63,15 +61,6 @@ func (b *backend) emailVerificationLink(email, token string) error {
 		return nil
 	}
 
-	html, err := ioutil.ReadFile("email_template.html")
-	if err != nil {
-		return err
-	}
-	tpl, err := template.New("email_template").Parse(string(html))
-	if err != nil {
-		return err
-	}
-
 	l, err := url.Parse(b.cfg.WebServerAddress + www.RouteVerifyNewUser)
 	if err != nil {
 		return err
@@ -86,11 +75,13 @@ func (b *backend) emailVerificationLink(email, token string) error {
 		Email: email,
 		Link:  l.String(),
 	}
-	tpl.Execute(&buf, &tplData)
-
+	err = templateEmail.Execute(&buf, &tplData)
+	if err != nil {
+		return err
+	}
 	from := "noreply@decred.org"
 	subject := "Politeia Registration - Verify Your Email"
-	body := string(buf.String())
+	body := buf.String()
 
 	msg := goemail.NewHTMLMessage(from, subject, body)
 	msg.AddTo(email)

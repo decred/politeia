@@ -8,6 +8,7 @@ package main
 import (
 	"encoding/base64"
 	"fmt"
+	"html/template"
 	"net"
 	"net/url"
 	"os"
@@ -41,6 +42,8 @@ var (
 	defaultHTTPSCertFile = filepath.Join(sharedconfig.DefaultHomeDir, "https.cert")
 	defaultRPCCertFile   = filepath.Join(sharedconfig.DefaultHomeDir, "rpc.cert")
 	defaultLogDir        = filepath.Join(sharedconfig.DefaultHomeDir, defaultLogDirname)
+
+	templateEmail = template.Must(template.New("email_template").ParseFiles("templates/email.html"))
 )
 
 // runServiceCommand is only set to a real function on Windows.  It is used
@@ -578,7 +581,7 @@ func loadConfig() (*config, []string, error) {
 		if err != nil {
 			return nil, nil, err
 		}
-		cfg.RPCUser = base64.StdEncoding.EncodeToString([]byte(name))
+		cfg.RPCUser = base64.StdEncoding.EncodeToString(name)
 		log.Warnf("RPC user name not set, using random value")
 	}
 	if cfg.RPCPass == "" {
@@ -586,7 +589,7 @@ func loadConfig() (*config, []string, error) {
 		if err != nil {
 			return nil, nil, err
 		}
-		cfg.RPCPass = base64.StdEncoding.EncodeToString([]byte(pass))
+		cfg.RPCPass = base64.StdEncoding.EncodeToString(pass)
 		log.Warnf("RPC password not set, using random value")
 	}
 
