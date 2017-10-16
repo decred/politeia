@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"crypto/elliptic"
 	"crypto/tls"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/util"
@@ -28,11 +30,6 @@ const (
 	permissionAdmin
 )
 
-var (
-	// versionReply is the cached version reply.
-	versionReply []byte
-)
-
 // politeiawww application context.
 type politeiawww struct {
 	cfg    *config
@@ -46,18 +43,6 @@ type politeiawww struct {
 type emailTemplateData struct {
 	Link  string
 	Email string
-}
-
-// init sets default values at startup.
-func init() {
-	var err error
-	versionReply, err = json.Marshal(v1.Version{
-		Version: v1.PoliteiaWWWAPIVersion,
-		Route:   v1.PoliteiaWWWAPIRoute,
-	})
-	if err != nil {
-		panic(fmt.Sprintf("versionReply: %v", err))
-	}
 }
 
 // Fetch remote identity
@@ -97,9 +82,35 @@ func (p *politeiawww) getIdentity() error {
 	return nil
 }
 
+// RespondInternalError returns an HTTP '500 Internal Server Error' to the
+// client that is accompanied with a JSON InternalServerError struct that
+// contains a correlatable error.  In addition it logs a caller specified
+// error.
+func RespondInternalError(w http.ResponseWriter, r *http.Request, format string, args ...interface{}) {
+	errorCode := time.Now().Unix()
+	ec := fmt.Sprintf("%v %v%v %v Internal error %v: ", r.Method,
+		r.RemoteAddr, r.URL, r.Proto, errorCode)
+	log.Errorf(ec+format, args...)
+	util.RespondWithJSON(w, http.StatusInternalServerError,
+		v1.InternalServerError{
+			Error: fmt.Sprintf("Internal server error code: %v",
+				errorCode),
+		})
+}
+
 // version is an HTTP GET to determine what version and API route this backend
 // is using.  Additionally it is used to obtain a CSRF token.
 func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
+	versionReply, err := json.Marshal(v1.VersionReply{
+		Version:  v1.PoliteiaWWWAPIVersion,
+		Route:    v1.PoliteiaWWWAPIRoute,
+		Identity: hex.EncodeToString(p.cfg.Identity.Identity[:]),
+	})
+	if err != nil {
+		RespondInternalError(w, r,
+			"handleVersion: marshal %v", err)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Add("Strict-Transport-Security",
 		"max-age=63072000; includeSubDomains")
@@ -116,17 +127,16 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 	var u v1.NewUser
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&u); err != nil {
-		log.Errorf("handleNewUser: Unmarshal %v", err)
-		http.Error(w, http.StatusText(http.StatusForbidden),
-			http.StatusForbidden)
+		RespondInternalError(w, r,
+			"handleNewUser: Unmarshal %v", err)
 		return
 	}
 	defer r.Body.Close()
 
-	reply, _, err := p.backend.ProcessNewUser(u)
+	reply, err := p.backend.ProcessNewUser(u)
 	if err != nil {
-		log.Errorf("handleNewUser: %v", err)
-		util.RespondWithJSON(w, http.StatusForbidden, reply)
+		RespondInternalError(w, r,
+			"handleNewUser: ProcessNewUser %v", err)
 		return
 	}
 
@@ -145,7 +155,8 @@ func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&vnu); err != nil {
 		log.Errorf("handleVerifyNewUser: Unmarshal %v", err)
-		http.Redirect(w, r, routePrefix+v1.RouteVerifyNewUserFailure, http.StatusMovedPermanently)
+		http.Redirect(w, r, routePrefix+v1.RouteVerifyNewUserFailure,
+			http.StatusMovedPermanently)
 		return
 	}
 	defer r.Body.Close()
@@ -153,14 +164,17 @@ func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request
 	status, err := p.backend.ProcessVerifyNewUser(vnu)
 	if err != nil {
 		log.Errorf("handleVerifyNewUser: %v", err)
-		http.Redirect(w, r, routePrefix+v1.RouteVerifyNewUserFailure, http.StatusMovedPermanently)
+		http.Redirect(w, r, routePrefix+v1.RouteVerifyNewUserFailure,
+			http.StatusMovedPermanently)
 		return
 	}
 	if status != v1.StatusSuccess {
 		url, err := url.Parse(routePrefix + v1.RouteVerifyNewUserFailure)
 		if err != nil {
 			log.Errorf("handleVerifyNewUser: url.Parse %v", err)
-			http.Redirect(w, r, routePrefix+v1.RouteVerifyNewUserFailure, http.StatusMovedPermanently)
+			http.Redirect(w, r,
+				routePrefix+v1.RouteVerifyNewUserFailure,
+				http.StatusMovedPermanently)
 			return
 		}
 
@@ -171,7 +185,8 @@ func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	http.Redirect(w, r, routePrefix+v1.RouteVerifyNewUserSuccess, http.StatusMovedPermanently)
+	http.Redirect(w, r, routePrefix+v1.RouteVerifyNewUserSuccess,
+		http.StatusMovedPermanently)
 }
 
 // handleLogin handles the incoming login command.  It verifies that the user
@@ -180,9 +195,8 @@ func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request
 func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 	session, err := p.store.Get(r, v1.CookieSession)
 	if err != nil {
-		log.Errorf("handleLogin: failed to get session: %v", err)
-		http.Error(w, http.StatusText(http.StatusInternalServerError),
-			http.StatusInternalServerError)
+		RespondInternalError(w, r,
+			"handleLogin: failed to get session: %v", err)
 		return
 	}
 
@@ -190,9 +204,8 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 	var l v1.Login
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&l); err != nil {
-		log.Errorf("handleLogin: failed to decode: %v", err)
-		http.Error(w, http.StatusText(http.StatusForbidden),
-			http.StatusForbidden)
+		RespondInternalError(w, r,
+			"handleLogin: failed to decode: %v", err)
 		return
 	}
 	defer r.Body.Close()
@@ -207,12 +220,11 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 	// Mark user as logged in if there's no error.
 	if reply.ErrorCode == v1.StatusSuccess {
 		session.Values["authenticated"] = true
-		session.Values["admin"] = reply.User.Admin
+		session.Values["admin"] = reply.IsAdmin
 		err = session.Save(r, w)
 		if err != nil {
-			log.Errorf("handleLogin: failed to save session: %v", err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError),
-				+http.StatusInternalServerError)
+			RespondInternalError(w, r,
+				"handleLogin: failed to save session: %v", err)
 			return
 		}
 	}
@@ -226,9 +238,8 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
 	session, err := p.store.Get(r, v1.CookieSession)
 	if err != nil {
-		log.Errorf("handleLogout: failed to get session: %v", err)
-		http.Error(w, http.StatusText(http.StatusInternalServerError),
-			http.StatusInternalServerError)
+		RespondInternalError(w, r,
+			"handleLogout: failed to get session: %v", err)
 		return
 	}
 
@@ -237,14 +248,19 @@ func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
 	session.Values["admin"] = false
 	err = session.Save(r, w)
 	if err != nil {
-		log.Errorf("handleLogout: failed to save session: %v", err)
-		http.Error(w, http.StatusText(http.StatusInternalServerError),
-			http.StatusInternalServerError)
+		RespondInternalError(w, r,
+			"handleLogout: failed to save session: %v", err)
 		return
 	}
+
+	// Reply with the user information.
+	reply := v1.LogoutReply{
+		ErrorCode: v1.StatusSuccess,
+	}
+	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-// handleSecret is a mock handler to test routes.
+// handleSecret is a mock handler to test privileged routes.
 func (p *politeiawww) handleSecret(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "secret sauce")
 }
@@ -255,18 +271,16 @@ func (p *politeiawww) handleNewProposal(w http.ResponseWriter, r *http.Request) 
 	var np v1.NewProposal
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&np); err != nil {
-		log.Errorf("handleNewProposal: Unmarshal %v", err)
-		http.Error(w, http.StatusText(http.StatusForbidden),
-			http.StatusForbidden)
+		RespondInternalError(w, r,
+			"handleNewProposal: Unmarshal %v", err)
 		return
 	}
 	defer r.Body.Close()
 
 	reply, err := p.backend.ProcessNewProposal(np)
 	if err != nil {
-		log.Errorf("handleNewProposal: %v", err)
-		http.Error(w, http.StatusText(http.StatusForbidden),
-			http.StatusForbidden)
+		RespondInternalError(w, r,
+			"handleNewProposal: %v", err)
 		return
 	}
 
@@ -281,18 +295,16 @@ func (p *politeiawww) handleSetProposalStatus(w http.ResponseWriter, r *http.Req
 	var sps v1.SetProposalStatus
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&sps); err != nil {
-		log.Errorf("handleSetProposalStatus: Unmarshal %v", err)
-		http.Error(w, http.StatusText(http.StatusForbidden),
-			http.StatusForbidden)
+		RespondInternalError(w, r,
+			"handleSetProposalStatus: Unmarshal %v", err)
 		return
 	}
 	defer r.Body.Close()
 
 	reply, err := p.backend.ProcessSetProposalStatus(sps)
 	if err != nil {
-		log.Errorf("handleSetProposalStatus: %v", err)
-		http.Error(w, http.StatusText(http.StatusForbidden),
-			http.StatusForbidden)
+		RespondInternalError(w, r,
+			"handleSetProposalStatus: %v", err)
 		return
 	}
 
@@ -306,9 +318,13 @@ func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Reque
 	pathParams := mux.Vars(r)
 	reply, err := p.backend.ProcessProposalDetails(pathParams["token"])
 	if err != nil {
-		log.Errorf("handleProposalDetails: %v", err)
-		http.Error(w, http.StatusText(http.StatusForbidden),
-			http.StatusForbidden)
+		RespondInternalError(w, r,
+			"handleProposalDetails: %v", err)
+		return
+	}
+	// XXX don't love checking err and ErrorCode
+	if reply.ErrorCode != v1.StatusSuccess {
+		util.RespondWithJSON(w, http.StatusBadRequest, reply)
 		return
 	}
 
@@ -420,26 +436,30 @@ func _main() error {
 	csrfHandle := csrf.Protect(csrfKey)
 	p.router = mux.NewRouter()
 	// Static content.
-	p.router.PathPrefix("/static/").Handler(http.StripPrefix("/static/",
-		http.FileServer(http.Dir("."))))
+
+	// XXX disable static for now.  This code is broken and it needs to
+	// point to a sane directory.  If a directory is not set it SHALL be
+	// disabled.
+	//p.router.PathPrefix("/static/").Handler(http.StripPrefix("/static/",
+	//	http.FileServer(http.Dir("."))))
 
 	// Public routes.
 	p.router.HandleFunc("/", logging(p.handleVersion)).Methods(http.MethodGet)
 	p.addRoute(http.MethodPost, v1.RouteNewUser, p.handleNewUser, permissionPublic)
 	p.addRoute(http.MethodGet, v1.RouteVerifyNewUser, p.handleVerifyNewUser, permissionPublic)
 	p.addRoute(http.MethodPost, v1.RouteLogin, p.handleLogin, permissionPublic)
-	p.addRoute(http.MethodPost, v1.RouteLogout, p.handleLogout, permissionPublic)
+	p.addRoute(http.MethodGet, v1.RouteLogout, p.handleLogout, permissionPublic)
 	p.addRoute(http.MethodGet, v1.RouteAllVetted, p.handleAllVetted, permissionPublic)
 	p.addRoute(http.MethodGet, v1.RouteProposalDetails, p.handleProposalDetails, permissionPublic)
 	p.addRoute(http.MethodGet, v1.RoutePolicy, p.handlePolicy, permissionPublic)
 
 	// Routes that require being logged in.
-	p.addRoute(http.MethodPost, v1.RouteSecret, p.handleSecret, permissionLogin)
 	p.addRoute(http.MethodPost, v1.RouteNewProposal, p.handleNewProposal, permissionLogin)
 
 	// Routes that require being logged in as an admin user.
 	p.addRoute(http.MethodGet, v1.RouteAllUnvetted, p.handleAllUnvetted, permissionAdmin)
 	p.addRoute(http.MethodPost, v1.RouteSetProposalStatus, p.handleSetProposalStatus, permissionAdmin)
+	p.addRoute(http.MethodPost, v1.RouteSecret, p.handleSecret, permissionLogin)
 
 	// Since we don't persist connections also generate a new cookie key on
 	// startup.

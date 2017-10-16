@@ -5,22 +5,22 @@ import (
 	"testing"
 	"time"
 
-	v1d "github.com/decred/politeia/politeiad/api/v1"
-	v1w "github.com/decred/politeia/politeiawww/api/v1"
+	pd "github.com/decred/politeia/politeiad/api/v1"
+	www "github.com/decred/politeia/politeiawww/api/v1"
 )
 
-func createNewProposal(b *backend, t *testing.T) (*v1w.NewProposal, *v1w.NewProposalReply, error) {
+func createNewProposal(b *backend, t *testing.T) (*www.NewProposal, *www.NewProposalReply, error) {
 	return createNewProposalWithFiles(b, t, 1, 0)
 }
 
-func createNewProposalWithFiles(b *backend, t *testing.T, numMDFiles, numImageFiles uint) (*v1w.NewProposal, *v1w.NewProposalReply, error) {
+func createNewProposalWithFiles(b *backend, t *testing.T, numMDFiles, numImageFiles uint) (*www.NewProposal, *www.NewProposalReply, error) {
 	return createNewProposalWithFileSizes(b, t, numMDFiles, numImageFiles, 64, 64)
 }
 
-func createNewProposalWithFileSizes(b *backend, t *testing.T, numMDFiles, numImageFiles, mdSize, imageSize uint) (*v1w.NewProposal, *v1w.NewProposalReply, error) {
-	files := make([]v1d.File, 0, numMDFiles+numImageFiles)
+func createNewProposalWithFileSizes(b *backend, t *testing.T, numMDFiles, numImageFiles, mdSize, imageSize uint) (*www.NewProposal, *www.NewProposalReply, error) {
+	files := make([]pd.File, 0, numMDFiles+numImageFiles)
 	for i := uint(0); i < numMDFiles; i++ {
-		files = append(files, v1d.File{
+		files = append(files, pd.File{
 			Name:    generateRandomString(5) + ".md",
 			MIME:    "text/plain; charset=utf-8",
 			Payload: base64.StdEncoding.EncodeToString([]byte(generateRandomString(int(mdSize)))),
@@ -28,16 +28,16 @@ func createNewProposalWithFileSizes(b *backend, t *testing.T, numMDFiles, numIma
 	}
 
 	for i := uint(0); i < numImageFiles; i++ {
-		files = append(files, v1d.File{
+		files = append(files, pd.File{
 			Name:    generateRandomString(5) + ".png",
 			MIME:    "image/png",
 			Payload: base64.StdEncoding.EncodeToString([]byte(generateRandomString(int(imageSize)))),
 		})
 	}
 
-	np := v1w.NewProposal{
+	np := www.NewProposal{
 		Name:  generateRandomString(16),
-		Files: files,
+		Files: convertPropFilesFromPD(files),
 	}
 
 	npr, err := b.ProcessNewProposal(np)
@@ -45,9 +45,9 @@ func createNewProposalWithFileSizes(b *backend, t *testing.T, numMDFiles, numIma
 }
 
 func publishProposal(b *backend, token string, t *testing.T) {
-	sps := v1w.SetProposalStatus{
-		Token:  token,
-		Status: v1d.StatusPublic,
+	sps := www.SetProposalStatus{
+		Token:          token,
+		ProposalStatus: www.PropStatusPublic,
 	}
 	_, err := b.ProcessSetProposalStatus(sps)
 	if err != nil {
@@ -56,9 +56,9 @@ func publishProposal(b *backend, token string, t *testing.T) {
 }
 
 func censorProposal(b *backend, token string, t *testing.T) {
-	sps := v1w.SetProposalStatus{
-		Token:  token,
-		Status: v1d.StatusCensored,
+	sps := www.SetProposalStatus{
+		Token:          token,
+		ProposalStatus: www.PropStatusCensored,
 	}
 	_, err := b.ProcessSetProposalStatus(sps)
 	if err != nil {
@@ -66,7 +66,7 @@ func censorProposal(b *backend, token string, t *testing.T) {
 	}
 }
 
-func getProposalDetails(b *backend, token string, t *testing.T) *v1w.ProposalDetailsReply {
+func getProposalDetails(b *backend, token string, t *testing.T) *www.ProposalDetailsReply {
 	pdr, err := b.ProcessProposalDetails(token)
 	if err != nil {
 		t.Error(err)
@@ -75,7 +75,7 @@ func getProposalDetails(b *backend, token string, t *testing.T) *v1w.ProposalDet
 	return pdr
 }
 
-func verifyProposalDetails(np *v1w.NewProposal, p v1d.ProposalRecord, t *testing.T) {
+func verifyProposalDetails(np *www.NewProposal, p www.ProposalRecord, t *testing.T) {
 	if p.Name != np.Name {
 		t.Fatalf("proposal names do not match")
 	}
@@ -84,7 +84,7 @@ func verifyProposalDetails(np *v1w.NewProposal, p v1d.ProposalRecord, t *testing
 	}
 }
 
-func verifyProposals(p1 v1d.ProposalRecord, p2 v1d.ProposalRecord, t *testing.T) {
+func verifyProposals(p1 www.ProposalRecord, p2 www.ProposalRecord, t *testing.T) {
 	if p1.Name != p2.Name {
 		t.Fatalf("proposal names do not match: %v, %v", p1.Name, p2.Name)
 	}
@@ -93,14 +93,15 @@ func verifyProposals(p1 v1d.ProposalRecord, p2 v1d.ProposalRecord, t *testing.T)
 	}
 }
 
-func verifyProposalsSorted(b *backend, vettedProposals, unvettedProposals []v1d.ProposalRecord, t *testing.T) {
+func verifyProposalsSorted(b *backend, vettedProposals, unvettedProposals []www.ProposalRecord, t *testing.T) {
 	// Verify that the proposals are returned sorted correctly.
 	allVettedReply := b.ProcessAllVetted()
 	if len(allVettedReply.Proposals) != len(vettedProposals) {
 		t.Fatalf("incorrect number of vetted proposals")
 	}
 	for i := 0; i < len(allVettedReply.Proposals); i++ {
-		verifyProposals(allVettedReply.Proposals[i], vettedProposals[len(allVettedReply.Proposals)-i-1], t)
+		verifyProposals(allVettedReply.Proposals[i],
+			vettedProposals[len(allVettedReply.Proposals)-i-1], t)
 	}
 
 	allUnvettedReply := b.ProcessAllUnvetted()
@@ -108,7 +109,8 @@ func verifyProposalsSorted(b *backend, vettedProposals, unvettedProposals []v1d.
 		t.Fatalf("incorrect number of unvetted proposals")
 	}
 	for i := 0; i < len(allUnvettedReply.Proposals); i++ {
-		verifyProposals(allUnvettedReply.Proposals[i], unvettedProposals[len(allUnvettedReply.Proposals)-i-1], t)
+		verifyProposals(allUnvettedReply.Proposals[i],
+			unvettedProposals[len(allUnvettedReply.Proposals)-i-1], t)
 	}
 }
 
@@ -122,19 +124,19 @@ func TestNewProposalPolicyRestrictions(t *testing.T) {
 	assertSuccess(t, err, npr.ErrorCode)
 
 	_, npr, err = createNewProposalWithFiles(b, t, p.MaxMDs+1, 0)
-	assertError(t, err, npr.ErrorCode, v1w.StatusMaxMDsExceededPolicy)
+	assertError(t, err, npr.ErrorCode, www.StatusMaxMDsExceededPolicy)
 
 	_, npr, err = createNewProposalWithFiles(b, t, 1, p.MaxImages+1)
-	assertError(t, err, npr.ErrorCode, v1w.StatusMaxImagesExceededPolicy)
+	assertError(t, err, npr.ErrorCode, www.StatusMaxImagesExceededPolicy)
 
 	_, npr, err = createNewProposalWithFiles(b, t, 0, 0)
-	assertError(t, err, npr.ErrorCode, v1w.StatusProposalMissingDescription)
+	assertError(t, err, npr.ErrorCode, www.StatusProposalMissingDescription)
 
 	_, npr, err = createNewProposalWithFileSizes(b, t, 1, 0, p.MaxMDSize+1, 0)
-	assertError(t, err, npr.ErrorCode, v1w.StatusMaxMDSizeExceededPolicy)
+	assertError(t, err, npr.ErrorCode, www.StatusMaxMDSizeExceededPolicy)
 
 	_, npr, err = createNewProposalWithFileSizes(b, t, 1, 1, 64, p.MaxImageSize+1)
-	assertError(t, err, npr.ErrorCode, v1w.StatusMaxImageSizeExceededPolicy)
+	assertError(t, err, npr.ErrorCode, www.StatusMaxImageSizeExceededPolicy)
 }
 
 // Tests fetching an unreviewed proposal's details.
@@ -183,9 +185,9 @@ func TestInventorySorted(t *testing.T) {
 	b := createBackend(t)
 
 	// Create an array of proposals, some vetted and some unvetted.
-	allProposals := make([]v1d.ProposalRecord, 0, 5)
-	vettedProposals := make([]v1d.ProposalRecord, 0, 0)
-	unvettedProposals := make([]v1d.ProposalRecord, 0, 0)
+	allProposals := make([]www.ProposalRecord, 0, 5)
+	vettedProposals := make([]www.ProposalRecord, 0, 0)
+	unvettedProposals := make([]www.ProposalRecord, 0, 0)
 	for i := 0; i < cap(allProposals); i++ {
 		_, npr, err := createNewProposal(b, t)
 		if err != nil {

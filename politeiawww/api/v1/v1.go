@@ -2,11 +2,10 @@ package v1
 
 import (
 	"fmt"
-
-	v1d "github.com/decred/politeia/politeiad/api/v1"
 )
 
 type StatusT int
+type PropStatusT int
 
 const (
 	PoliteiaWWWAPIVersion = 1 // API version this backend understands
@@ -64,6 +63,13 @@ const (
 	StatusMaxImagesExceededPolicy    StatusT = 10
 	StatusMaxMDSizeExceededPolicy    StatusT = 11
 	StatusMaxImageSizeExceededPolicy StatusT = 12
+
+	// Proposal status codes (set and get)
+	PropStatusInvalid     PropStatusT = 0 // Invalid status
+	PropStatusNotFound    PropStatusT = 1 // Proposal not found
+	PropStatusNotReviewed PropStatusT = 2 // Proposal has not been reviewed
+	PropStatusCensored    PropStatusT = 3 // Proposal has been censored
+	PropStatusPublic      PropStatusT = 4 // Proposal is publicly visible
 )
 
 var (
@@ -75,11 +81,59 @@ var (
 	CookieSession = "session"
 )
 
+// File describes an individual file that is part of the proposal.  The
+// directory structure must be flattened.  The server side SHALL verify MIME
+// and Digest.
+type File struct {
+	Name    string `json:"name"`    // Suggested filename
+	MIME    string `json:"mime"`    // Mime type
+	Digest  string `json:"digest"`  // Payload digest
+	Payload string `json:"payload"` // File content
+}
+
+// CensorshipRecord contains the proof that a proposal was accepted for review.
+// The proof is verifiable on the client side.
+//
+// The Merkle field contains the ordered merkle root of all files in the proposal.
+// The Token field contains a random censorship token that is signed by the
+// server private key.  The token can be used on the client to verify the
+// authenticity of the CensorshipRecord.
+type CensorshipRecord struct {
+	Token     string `json:"token"`     // Censorship token
+	Merkle    string `json:"merkle"`    // Merkle root of proposal
+	Signature string `json:"signature"` // Signature of merkle+token
+}
+
+// ProposalRecord is an entire proposal and it's content.
+type ProposalRecord struct {
+	Name      string      `json:"name"`      // Suggested short proposal name
+	Status    PropStatusT `json:"status"`    // Current status of proposal
+	Timestamp int64       `json:"timestamp"` // Last update of proposal
+	Files     []File      `json:"files"`     // Files that make up the proposal
+
+	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
+}
+
+// InternalServerError are replies that the server returns a when it hits a
+// non-client.  The HTTP Error Code shall be '500 Internal Server Error'.  By
+// necesity this error is human readable.
+type InternalServerError struct {
+	Error string `json:"error,omitempty"`
+}
+
 // Version command is used to determine the version of the API this backend
-// understands and additionally it provides the route to said API.
-type Version struct {
-	Version uint   `json:"version"` // politeia WWW API version
-	Route   string `json:"route"`   // prefix to API calls
+// understands and additionally it provides the route to said API.  This call
+// is required in order to establish CSRF for the session.  The client should
+// verify compatibility with the server version.
+type Version struct{}
+
+// VersionReply returns information that indicates what version of the server
+// is running and additionally the route to the API and the signing identity of
+// the server.
+type VersionReply struct {
+	Version  uint   `json:"version"`  // politeia WWW API version
+	Route    string `json:"route"`    // prefix to API calls
+	Identity string `json:"identity"` // Server identity to verify signatures
 }
 
 // NewUser is used to request that a new user be created within the db.
@@ -92,7 +146,8 @@ type NewUser struct {
 // NewUserReply is used to reply to the NewUser command with an error
 // if the command is unsuccessful.
 type NewUserReply struct {
-	ErrorCode StatusT `json:"errorcode,omitempty"`
+	VerificationToken string  `json:"verificationtoken"`
+	ErrorCode         StatusT `json:"errorcode,omitempty"`
 }
 
 // VerifyNewUser is used to perform verification for the user created through
@@ -102,6 +157,8 @@ type VerifyNewUser struct {
 	VerificationToken string `json:"verificationtoken"`
 }
 
+//XXX missing VerifyNewUserReply
+
 // Login attempts to login the user.  Note that by necessity the password
 // travels in the clear.
 type Login struct {
@@ -109,60 +166,74 @@ type Login struct {
 	Password string `json:"password"`
 }
 
-// User holds basic information for the user upon login.
-type User struct {
-	ID    uint64 `json:"id"`
-	Email string `json:"email"`
-	Admin bool   `json:"admin,omitempty"`
+// LoginReply is used to reply to the Login command. .  IsAdmin indicates if
+// the user has publish/censor privileges.
+type LoginReply struct {
+	IsAdmin   bool    `json:"isadmin"`
+	ErrorCode StatusT `json:"errorcode,omitempty"`
 }
 
-// LoginReply is used to reply to the Login command. It holds
-// either basic information about the just-logged-in user or
-// a login error.
-type LoginReply struct {
-	User      User    `json:"user"`
+//Logout attempts to log the user out.
+type Logout struct{}
+
+// LogoutReply indicates whether the Logout command was success or not.
+type LogoutReply struct {
 	ErrorCode StatusT `json:"errorcode,omitempty"`
 }
 
 // NewProposal attempts to submit a new proposal.
 type NewProposal struct {
-	Name  string     `json:"name"` // Proposal name
-	Files []v1d.File `json:"files"`
+	Name  string `json:"name"`  // Proposal name
+	Files []File `json:"files"` // XXX layer violation.
 }
 
 // NewProposalReply is used to reply to the NewProposal command.
 type NewProposalReply struct {
-	CensorshipRecord v1d.CensorshipRecord `json:"censorshiprecord"`
-	ErrorCode        StatusT              `json:"errorcode,omitempty"`
+	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
+	ErrorCode        StatusT          `json:"errorcode,omitempty"`
 }
+
+// ProposalsDetails is used to retrieve a proposal.
+// XXX clarify URL vs Direct
+type ProposalsDetails struct{}
 
 // ProposalDetailsReply is used to reply to a proposal details command.
 type ProposalDetailsReply struct {
-	Proposal  v1d.ProposalRecord `json:"proposal"`
-	ErrorCode StatusT            `json:"errorcode,omitempty"`
+	Proposal  ProposalRecord `json:"proposal"`
+	ErrorCode StatusT        `json:"errorcode,omitempty"`
 }
 
 // SetProposalStatus is used to publish or censor an unreviewed proposal.
 type SetProposalStatus struct {
-	Token  string      `json:"token"`
-	Status v1d.StatusT `json:"status"`
+	Token          string      `json:"token"`
+	ProposalStatus PropStatusT `json:"proposalstatus"`
 }
 
 // SetProposalStatusReply is used to reply to a SetProposalStatus command.
 type SetProposalStatusReply struct {
-	Status    v1d.StatusT `json:"status"`
-	ErrorCode StatusT     `json:"errorcode,omitempty"`
+	ProposalStatus PropStatusT `json:"proposalstatus"`
+	ErrorCode      StatusT     `json:"errorcode,omitempty"`
 }
+
+// GetAllUnvetted retrieves all unvetted proposals.  This call requires admin
+// privileges.
+type GetAllUnvetted struct{}
 
 // GetAllUnvettedReply is used to reply with a list of all unvetted proposals.
 type GetAllUnvettedReply struct {
-	Proposals []v1d.ProposalRecord `json:"proposals"`
+	Proposals []ProposalRecord `json:"proposals"`
+	ErrorCode StatusT          `json:"errorcode,omitempty"`
 }
 
 // GetAllVettedReply is used to reply with a list of all vetted proposals.
 type GetAllVettedReply struct {
-	Proposals []v1d.ProposalRecord `json:"proposals"`
+	Proposals []ProposalRecord `json:"proposals"`
+	ErrorCode StatusT          `json:"errorcode,omitempty"`
 }
+
+// Policy returns a struct with various maxima.  The client shall observe the
+// maxima.
+type Policy struct{}
 
 // PolicyReply is used to reply to the policy command. It returns
 // the file upload restrictions set for Politeia.
@@ -172,4 +243,5 @@ type PolicyReply struct {
 	MaxMDs         uint     `json:"maxmds"`
 	MaxMDSize      uint     `json:"maxmdsize"`
 	ValidMIMETypes []string `json:"validmimetypes"`
+	ErrorCode      StatusT  `json:"errorcode,omitempty"`
 }
