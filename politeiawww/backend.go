@@ -86,11 +86,7 @@ func (b *backend) emailVerificationLink(email, token string) error {
 	msg := goemail.NewHTMLMessage(from, subject, body)
 	msg.AddTo(email)
 
-	if err := b.cfg.SMTP.Send(msg); err != nil {
-		return err
-	}
-
-	return nil
+	return b.cfg.SMTP.Send(msg)
 }
 
 // makeRequest makes an http request to the method and route provided, serializing
@@ -228,8 +224,8 @@ func (b *backend) LoadInventory() error {
 	var inv *pd.InventoryReply
 	if b.test {
 		// Split the existing inventory into vetted and unvetted.
-		vetted := make([]www.ProposalRecord, 0, 0)
-		unvetted := make([]www.ProposalRecord, 0, 0)
+		vetted := make([]www.ProposalRecord, 0)
+		unvetted := make([]www.ProposalRecord, 0)
 
 		for _, v := range b.inventory {
 			if v.Status == www.PropStatusPublic {
@@ -477,7 +473,7 @@ func (b *backend) ProcessLogin(l www.Login) (*www.LoginReply, error) {
 // ProcessAllVetted returns an array of all vetted proposals in reverse order,
 // because they're sorted by oldest timestamp first.
 func (b *backend) ProcessAllVetted() *www.GetAllVettedReply {
-	proposals := make([]www.ProposalRecord, 0, 0)
+	proposals := make([]www.ProposalRecord, 0)
 	for i := len(b.inventory) - 1; i >= 0; i-- {
 		if b.inventory[i].Status == www.PropStatusPublic {
 			proposals = append(proposals, b.inventory[i])
@@ -494,7 +490,7 @@ func (b *backend) ProcessAllVetted() *www.GetAllVettedReply {
 // ProcessAllUnvetted returns an array of all unvetted proposals in reverse order,
 // because they're sorted by oldest timestamp first.
 func (b *backend) ProcessAllUnvetted() *www.GetAllUnvettedReply {
-	proposals := make([]www.ProposalRecord, 0, 0)
+	proposals := make([]www.ProposalRecord, 0)
 	for i := len(b.inventory) - 1; i >= 0; i-- {
 		if b.inventory[i].Status == www.PropStatusNotReviewed {
 			proposals = append(proposals, b.inventory[i])
@@ -593,7 +589,7 @@ func (b *backend) ProcessNewProposal(np www.NewProposal) (*www.NewProposalReply,
 			Name:             np.Name,
 			Status:           www.PropStatusNotReviewed,
 			Timestamp:        reply.Timestamp,
-			Files:            make([]www.File, 0, 0),
+			Files:            make([]www.File, 0),
 			CensorshipRecord: convertPropCensorFromPD(reply.CensorshipRecord),
 		})
 	}

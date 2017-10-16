@@ -186,8 +186,8 @@ func TestInventorySorted(t *testing.T) {
 
 	// Create an array of proposals, some vetted and some unvetted.
 	allProposals := make([]www.ProposalRecord, 0, 5)
-	vettedProposals := make([]www.ProposalRecord, 0, 0)
-	unvettedProposals := make([]www.ProposalRecord, 0, 0)
+	vettedProposals := make([]www.ProposalRecord, 0)
+	unvettedProposals := make([]www.ProposalRecord, 0)
 	for i := 0; i < cap(allProposals); i++ {
 		_, npr, err := createNewProposal(b, t)
 		if err != nil {

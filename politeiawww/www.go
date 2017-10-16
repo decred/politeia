@@ -420,10 +420,7 @@ func _main() error {
 
 	// Check if this command is being run to fetch the identity.
 	if p.cfg.FetchIdentity {
-		if err := p.getIdentity(); err != nil {
-			return err
-		}
-		return nil
+		return p.getIdentity()
 	}
 
 	p.backend, err = NewBackend(p.cfg)
@@ -508,7 +505,7 @@ func _main() error {
 				Handler:   csrfHandle(p.router),
 				TLSConfig: cfg,
 				TLSNextProto: make(map[string]func(*http.Server,
-					*tls.Conn, http.Handler), 0),
+					*tls.Conn, http.Handler)),
 			}
 			log.Infof("Listen: %v", listen)
 			listenC <- srv.ListenAndServeTLS(loadedCfg.HTTPSCert,

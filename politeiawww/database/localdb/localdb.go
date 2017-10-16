@@ -35,7 +35,7 @@ func (l *localdb) UserNew(u database.User) error {
 	l.Lock()
 	defer l.Unlock()
 
-	if l.shutdown == true {
+	if l.shutdown {
 		return database.ErrShutdown
 	}
 
@@ -69,7 +69,7 @@ func (l *localdb) UserNew(u database.User) error {
 
 	// Write the new id back to the db.
 	b = make([]byte, 8)
-	binary.LittleEndian.PutUint64(b, uint64(lastUserId))
+	binary.LittleEndian.PutUint64(b, lastUserId)
 	err = l.userdb.Put([]byte(lastUserIdKey), b, nil)
 	if err != nil {
 		return err
@@ -90,7 +90,7 @@ func (l *localdb) UserGet(email string) (*database.User, error) {
 	l.Lock()
 	defer l.Unlock()
 
-	if l.shutdown == true {
+	if l.shutdown {
 		return nil, database.ErrShutdown
 	}
 
@@ -117,7 +117,7 @@ func (l *localdb) UserUpdate(u database.User) error {
 	l.Lock()
 	defer l.Unlock()
 
-	if l.shutdown == true {
+	if l.shutdown {
 		return database.ErrShutdown
 	}
 
