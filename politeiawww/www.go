@@ -154,10 +154,19 @@ func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request
 	var vnu v1.VerifyNewUser
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&vnu); err != nil {
-		log.Errorf("handleVerifyNewUser: Unmarshal %v", err)
-		http.Redirect(w, r, routePrefix+v1.RouteVerifyNewUserFailure,
-			http.StatusMovedPermanently)
-		return
+		// The parameters may be part of the query, so check
+		query := r.URL.Query()
+		email, emailOk := query["email"]
+		token, tokenOk := query["verificationtoken"]
+		if !emailOk || !tokenOk {
+			log.Errorf("handleVerifyNewUser: Unmarshal %v", err)
+			http.Redirect(w, r, routePrefix+v1.RouteVerifyNewUserFailure,
+				http.StatusMovedPermanently)
+			return
+		}
+
+		vnu.Email = email[0]
+		vnu.VerificationToken = token[0]
 	}
 	defer r.Body.Close()
 
