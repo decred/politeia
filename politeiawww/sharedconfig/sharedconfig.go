@@ -3,7 +3,7 @@ package sharedconfig
 import (
 	"path/filepath"
 
-	"github.com/decred/dcrutil"
+	"github.com/decred/dcrd/dcrutil"
 )
 
 const (

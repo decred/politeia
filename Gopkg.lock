@@ -45,21 +45,21 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/decred/base58"
+  packages = ["."]
+  revision = "b3520e187fa8ebe65eb74245408cf4b83e6a65d3"
+
+[[projects]]
+  branch = "master"
   name = "github.com/decred/dcrd"
-  packages = ["chaincfg","chaincfg/chainec","chaincfg/chainhash","dcrec/edwards","dcrec/secp256k1","dcrec/secp256k1/schnorr","wire"]
-  revision = "f11fac8134626768ef7b1f278fd4331f004bfb49"
+  packages = ["certgen","chaincfg","chaincfg/chainec","chaincfg/chainhash","dcrec/edwards","dcrec/secp256k1","dcrec/secp256k1/schnorr","dcrutil","wire"]
+  revision = "d27429061b49d400d06505911a1379b8a8246671"
 
 [[projects]]
   branch = "master"
   name = "github.com/decred/dcrtime"
   packages = ["api/v1","merkle"]
   revision = "015fe33022372ed67a33cbf66868978cb7067d91"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/decred/dcrutil"
-  packages = [".","base58"]
-  revision = "ddbde93f65ab0692e54ed8a5ad325fa2e8af4daa"
 
 [[projects]]
   branch = "master"
@@ -166,6 +166,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "ad419193ec72b3918ab89dac598923194e9dda63f929dd2d21a3b41e97052414"
+  inputs-digest = "f7fb71a9b6a1287415654c63b76f1092b8b39e5c53298feef4ac3073c9742561"
   solver-name = "gps-cdcl"
   solver-version = 1
