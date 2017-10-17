@@ -67,7 +67,10 @@ func censorProposal(b *backend, token string, t *testing.T) {
 }
 
 func getProposalDetails(b *backend, token string, t *testing.T) *www.ProposalDetailsReply {
-	pdr, err := b.ProcessProposalDetails(token)
+	pd := www.ProposalsDetails{
+		Token: token,
+	}
+	pdr, err := b.ProcessProposalDetails(pd)
 	if err != nil {
 		t.Error(err)
 	}
@@ -95,7 +98,7 @@ func verifyProposals(p1 www.ProposalRecord, p2 www.ProposalRecord, t *testing.T)
 
 func verifyProposalsSorted(b *backend, vettedProposals, unvettedProposals []www.ProposalRecord, t *testing.T) {
 	// Verify that the proposals are returned sorted correctly.
-	allVettedReply := b.ProcessAllVetted()
+	allVettedReply := b.ProcessAllVetted(www.GetAllVetted{})
 	if len(allVettedReply.Proposals) != len(vettedProposals) {
 		t.Fatalf("incorrect number of vetted proposals")
 	}
@@ -104,7 +107,7 @@ func verifyProposalsSorted(b *backend, vettedProposals, unvettedProposals []www.
 			vettedProposals[len(allVettedReply.Proposals)-i-1], t)
 	}
 
-	allUnvettedReply := b.ProcessAllUnvetted()
+	allUnvettedReply := b.ProcessAllUnvetted(www.GetAllUnvetted{})
 	if len(allUnvettedReply.Proposals) != len(unvettedProposals) {
 		t.Fatalf("incorrect number of unvetted proposals")
 	}
@@ -118,7 +121,7 @@ func verifyProposalsSorted(b *backend, vettedProposals, unvettedProposals []www.
 func TestNewProposalPolicyRestrictions(t *testing.T) {
 	b := createBackend(t)
 
-	p := b.ProcessPolicy()
+	p := b.ProcessPolicy(www.Policy{})
 
 	_, npr, err := createNewProposalWithFileSizes(b, t, p.MaxMDs, p.MaxImages, p.MaxMDSize, p.MaxImageSize)
 	assertSuccess(t, err, npr.ErrorCode)

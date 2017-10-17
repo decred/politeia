@@ -64,7 +64,7 @@ func (c *ctx) makeRequest(method string, route string, b interface{}) ([]byte, e
 	fmt.Printf("Request: %v %v\n", method, v1.PoliteiaWWWAPIRoute+route)
 
 	if *printJson {
-		fmt.Println(string(requestBody))
+		fmt.Println("  " + string(requestBody))
 	}
 
 	req, err := http.NewRequest(method, fullRoute, bytes.NewReader(requestBody))
@@ -80,11 +80,11 @@ func (c *ctx) makeRequest(method string, route string, b interface{}) ([]byte, e
 		r.Body.Close()
 	}()
 
-	responseBody := util.ConvertBodyToByteArray(r.Body, *printJson)
+	responseBody := util.ConvertBodyToByteArray(r.Body, false)
+	if *printJson {
+		fmt.Println("Response: " + string(responseBody) + "\n")
+	}
 	if r.StatusCode != http.StatusOK {
-		if *printJson {
-			fmt.Println(string(responseBody))
-		}
 		return nil, fmt.Errorf("%v", r.StatusCode)
 	}
 
@@ -92,17 +92,36 @@ func (c *ctx) makeRequest(method string, route string, b interface{}) ([]byte, e
 }
 
 func (c *ctx) getCSRF() (*v1.VersionReply, error) {
-	r, err := c.client.Get(*host)
+	requestBody, err := json.Marshal(v1.Version{})
 	if err != nil {
 		return nil, err
 	}
-	defer r.Body.Close()
 
-	if r.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("HTTP Status: %v", r.StatusCode)
+	fmt.Printf("Request: GET /\n")
+
+	if *printJson {
+		fmt.Println("  " + string(requestBody))
 	}
 
-	responseBody := util.ConvertBodyToByteArray(r.Body, *printJson)
+	req, err := http.NewRequest(http.MethodGet, *host, bytes.NewReader(requestBody))
+	if err != nil {
+		return nil, err
+	}
+	r, err := c.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		r.Body.Close()
+	}()
+
+	responseBody := util.ConvertBodyToByteArray(r.Body, false)
+	if *printJson {
+		fmt.Println("Response: " + string(responseBody) + "\n")
+	}
+	if r.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("%v", r.StatusCode)
+	}
 
 	var v v1.VersionReply
 	err = json.Unmarshal(responseBody, &v)
@@ -116,7 +135,7 @@ func (c *ctx) getCSRF() (*v1.VersionReply, error) {
 }
 
 func (c *ctx) policy() error {
-	_, err := c.makeRequest("GET", v1.RoutePolicy, nil)
+	_, err := c.makeRequest("GET", v1.RoutePolicy, v1.Policy{})
 	return err
 }
 
@@ -204,7 +223,8 @@ func (c *ctx) newProposal() (*v1.NewProposalReply, error) {
 }
 
 func (c *ctx) allVetted() error {
-	responseBody, err := c.makeRequest("GET", v1.RouteAllVetted, nil)
+	responseBody, err := c.makeRequest("GET", v1.RouteAllVetted,
+		v1.GetAllVetted{})
 	if err != nil {
 		return err
 	}
@@ -220,7 +240,8 @@ func (c *ctx) allVetted() error {
 }
 
 func (c *ctx) allUnvetted() (*v1.GetAllUnvettedReply, error) {
-	responseBody, err := c.makeRequest("GET", v1.RouteAllUnvetted, nil)
+	responseBody, err := c.makeRequest("GET", v1.RouteAllUnvetted,
+		v1.GetAllUnvetted{})
 	if err != nil {
 		return nil, err
 	}
@@ -237,7 +258,8 @@ func (c *ctx) allUnvetted() (*v1.GetAllUnvettedReply, error) {
 }
 
 func (c *ctx) getProp(token string) (*v1.ProposalDetailsReply, error) {
-	responseBody, err := c.makeRequest("GET", "/proposals/"+token, nil)
+	responseBody, err := c.makeRequest("GET", "/proposals/"+token,
+		v1.ProposalsDetails{})
 	if err != nil {
 		return nil, err
 	}
@@ -320,7 +342,7 @@ func _main() error {
 	}
 	fmt.Printf("Version: %v\n", version.Version)
 	fmt.Printf("Route  : %v\n", version.Route)
-	fmt.Printf("CSRF   : %v\n", c.csrf)
+	fmt.Printf("CSRF   : %v\n\n", c.csrf)
 
 	// Policy
 	err = c.policy()
@@ -370,7 +392,7 @@ func _main() error {
 	}
 	// expect admin == false
 	if lr.IsAdmin {
-		fmt.Errorf("expected non admin")
+		return fmt.Errorf("expected non admin")
 	}
 
 	// Secret
