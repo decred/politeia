@@ -492,7 +492,8 @@ func (b *backend) ProcessAllVetted(v www.GetAllVetted) *www.GetAllVettedReply {
 func (b *backend) ProcessAllUnvetted(u www.GetAllUnvetted) *www.GetAllUnvettedReply {
 	proposals := make([]www.ProposalRecord, 0)
 	for i := len(b.inventory) - 1; i >= 0; i-- {
-		if b.inventory[i].Status == www.PropStatusNotReviewed || b.inventory[i].Status == www.PropStatusCensored {
+		if b.inventory[i].Status == www.PropStatusNotReviewed ||
+			b.inventory[i].Status == www.PropStatusCensored {
 			proposals = append(proposals, b.inventory[i])
 		}
 	}
@@ -575,7 +576,8 @@ func (b *backend) ProcessNewProposal(np www.NewProposal) (*www.NewProposalReply,
 
 		err = json.Unmarshal(responseBody, &reply)
 		if err != nil {
-			return nil, fmt.Errorf("Could not unmarshal NewProposalReply: %v", err)
+			return nil, fmt.Errorf("Could not unmarshal NewProposalReply: %v",
+				err)
 		}
 
 		// Verify the challenge.
@@ -621,14 +623,16 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus) (*www.SetP
 			Challenge: hex.EncodeToString(challenge),
 		}
 
-		responseBody, err := b.makeRequest(http.MethodPost, pd.SetUnvettedStatusRoute, sus)
+		responseBody, err := b.makeRequest(http.MethodPost,
+			pd.SetUnvettedStatusRoute, sus)
 		if err != nil {
 			return nil, err
 		}
 
 		err = json.Unmarshal(responseBody, &reply)
 		if err != nil {
-			return nil, fmt.Errorf("Could not unmarshal SetUnvettedStatusReply: %v", err)
+			return nil, fmt.Errorf("Could not unmarshal SetUnvettedStatusReply: %v",
+				err)
 		}
 
 		// Verify the challenge.
