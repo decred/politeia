@@ -18,7 +18,7 @@ import (
 
 	flags "github.com/btcsuite/go-flags"
 	"github.com/decred/dcrtime/api/v1"
-	"github.com/decred/dcrutil"
+	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/politeia/util"
 )
 

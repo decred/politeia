@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/decred/dcrutil"
+	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/politeia/politeiad/backend/gitbe"
 	"github.com/marcopeereboom/lockfile"
 	"github.com/syndtr/goleveldb/leveldb"
