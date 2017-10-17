@@ -48,7 +48,7 @@ func createBackend(t *testing.T) *backend {
 	}
 
 	b.test = true
-	b.inventory = make([]www.ProposalRecord, 0, 0)
+	b.inventory = make([]www.ProposalRecord, 0)
 	return b
 }
 
@@ -204,11 +204,7 @@ func TestProcessLoginWithUnverifiedUser(t *testing.T) {
 	nur, err := b.ProcessNewUser(u)
 	assertSuccess(t, err, nur.ErrorCode)
 
-	l := www.Login{
-		Email:    u.Email,
-		Password: u.Password,
-	}
-
+	l := www.Login(u)
 	lr, err := b.ProcessLogin(l)
 	assertError(t, err, lr.ErrorCode, www.StatusInvalidEmailOrPassword)
 
@@ -245,10 +241,7 @@ func TestLoginWithVerifiedUser(t *testing.T) {
 	status, err := b.ProcessVerifyNewUser(v)
 	assertSuccess(t, err, status)
 
-	l := www.Login{
-		Email:    u.Email,
-		Password: u.Password,
-	}
+	l := www.Login(u)
 	reply, err := b.ProcessLogin(l)
 	assertSuccess(t, err, reply.ErrorCode)
 

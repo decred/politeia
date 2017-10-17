@@ -145,11 +145,7 @@ func (c *ctx) newUser(email, password string) (string, error) {
 func (c *ctx) verifyNewUser(email, token string) error {
 	_, err := c.makeRequest("GET", "/user/verify/?email="+email+
 		"&verificationtoken="+token, nil)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func (c *ctx) login(email, password string) (*v1.LoginReply, error) {
@@ -176,17 +172,13 @@ func (c *ctx) login(email, password string) (*v1.LoginReply, error) {
 func (c *ctx) secret() error {
 	l := v1.Login{}
 	_, err := c.makeRequest("POST", v1.RouteSecret, l)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func (c *ctx) newProposal() (*v1.NewProposalReply, error) {
 	np := v1.NewProposal{
 		Name:  "test",
-		Files: make([]v1.File, 0, 0),
+		Files: make([]v1.File, 0),
 	}
 
 	np.Files = append(np.Files, v1.File{
@@ -286,11 +278,7 @@ func (c *ctx) setPropStatus(token string, status v1.PropStatusT) (*v1.SetProposa
 func (c *ctx) logout() error {
 	l := v1.Logout{}
 	_, err := c.makeRequest("GET", v1.RouteLogout, l)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func (c *ctx) assets() error {
