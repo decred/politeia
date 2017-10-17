@@ -195,7 +195,9 @@ type NewProposalReply struct {
 
 // ProposalsDetails is used to retrieve a proposal.
 // XXX clarify URL vs Direct
-type ProposalsDetails struct{}
+type ProposalsDetails struct {
+	Token string `json:"token"`
+}
 
 // ProposalDetailsReply is used to reply to a proposal details command.
 type ProposalDetailsReply struct {
@@ -224,6 +226,9 @@ type GetAllUnvettedReply struct {
 	Proposals []ProposalRecord `json:"proposals"`
 	ErrorCode StatusT          `json:"errorcode,omitempty"`
 }
+
+// GetAllVetted retrieves all vetted proposals.
+type GetAllVetted struct{}
 
 // GetAllVettedReply is used to reply with a list of all vetted proposals.
 type GetAllVettedReply struct {

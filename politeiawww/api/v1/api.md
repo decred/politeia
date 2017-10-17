@@ -594,7 +594,7 @@ Set status of proposal to `published` or `censored`.  This call is privileged.
 
 Token is the unique censorship token that identifies a specific proposal.
 
-`Status=[statusT]`
+`status=[statusT]`
 
 Status indicates the new status for the proposal.  Valid status are:
  - StatusCensored = `3`

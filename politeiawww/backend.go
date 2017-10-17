@@ -472,7 +472,7 @@ func (b *backend) ProcessLogin(l www.Login) (*www.LoginReply, error) {
 
 // ProcessAllVetted returns an array of all vetted proposals in reverse order,
 // because they're sorted by oldest timestamp first.
-func (b *backend) ProcessAllVetted() *www.GetAllVettedReply {
+func (b *backend) ProcessAllVetted(v www.GetAllVetted) *www.GetAllVettedReply {
 	proposals := make([]www.ProposalRecord, 0)
 	for i := len(b.inventory) - 1; i >= 0; i-- {
 		if b.inventory[i].Status == www.PropStatusPublic {
@@ -489,10 +489,10 @@ func (b *backend) ProcessAllVetted() *www.GetAllVettedReply {
 
 // ProcessAllUnvetted returns an array of all unvetted proposals in reverse order,
 // because they're sorted by oldest timestamp first.
-func (b *backend) ProcessAllUnvetted() *www.GetAllUnvettedReply {
+func (b *backend) ProcessAllUnvetted(u www.GetAllUnvetted) *www.GetAllUnvettedReply {
 	proposals := make([]www.ProposalRecord, 0)
 	for i := len(b.inventory) - 1; i >= 0; i-- {
-		if b.inventory[i].Status == www.PropStatusNotReviewed {
+		if b.inventory[i].Status == www.PropStatusNotReviewed || b.inventory[i].Status == www.PropStatusCensored {
 			proposals = append(proposals, b.inventory[i])
 		}
 	}
@@ -657,7 +657,7 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus) (*www.SetP
 }
 
 // ProcessProposalDetails tries to fetch the full details of a proposal from politeiad.
-func (b *backend) ProcessProposalDetails(token string) (*www.ProposalDetailsReply, error) {
+func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails) (*www.ProposalDetailsReply, error) {
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
 		return nil, err
@@ -665,7 +665,7 @@ func (b *backend) ProcessProposalDetails(token string) (*www.ProposalDetailsRepl
 
 	var cachedProposal *www.ProposalRecord
 	for _, v := range b.inventory {
-		if v.CensorshipRecord.Token == token {
+		if v.CensorshipRecord.Token == propDetails.Token {
 			cachedProposal = &v
 			break
 		}
@@ -682,13 +682,13 @@ func (b *backend) ProcessProposalDetails(token string) (*www.ProposalDetailsRepl
 	if cachedProposal.Status == www.PropStatusPublic {
 		isVettedProposal = true
 		requestObject = pd.GetVetted{
-			Token:     token,
+			Token:     propDetails.Token,
 			Challenge: hex.EncodeToString(challenge),
 		}
 	} else {
 		isVettedProposal = false
 		requestObject = pd.GetUnvetted{
-			Token:     token,
+			Token:     propDetails.Token,
 			Challenge: hex.EncodeToString(challenge),
 		}
 	}
@@ -752,7 +752,7 @@ func (b *backend) ProcessProposalDetails(token string) (*www.ProposalDetailsRepl
 }
 
 // ProcessPolicy returns the details of Politeia's restrictions on file uploads.
-func (b *backend) ProcessPolicy() *www.PolicyReply {
+func (b *backend) ProcessPolicy(p www.Policy) *www.PolicyReply {
 	return &www.PolicyReply{
 		MaxImages:      www.PolicyMaxImages,
 		MaxImageSize:   www.PolicyMaxImageSize,
