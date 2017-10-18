@@ -125,7 +125,7 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Add("Strict-Transport-Security",
 		"max-age=63072000; includeSubDomains")
-	w.Header().Set(v1.CsrfToken, csrf.Token(r))
+	w.Header().Set(v1.CsrfToken, "itsafake")
 	w.WriteHeader(http.StatusOK)
 	w.Write(versionReply)
 }
