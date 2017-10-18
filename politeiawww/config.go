@@ -43,7 +43,7 @@ var (
 	defaultRPCCertFile   = filepath.Join(sharedconfig.DefaultHomeDir, "rpc.cert")
 	defaultLogDir        = filepath.Join(sharedconfig.DefaultHomeDir, defaultLogDirname)
 
-	templateEmail = template.Must(template.New("email_template").ParseFiles("templates/email.html"))
+	templateEmail = template.Must(template.ParseFiles("templates/email.tmpl"))
 )
 
 // runServiceCommand is only set to a real function on Windows.  It is used
@@ -606,6 +606,15 @@ func loadConfig() (*config, []string, error) {
 	// options.  Note this should go directly before the return.
 	if configFileError != nil {
 		log.Warnf("%v", configFileError)
+	}
+
+	tplData := emailTemplateData{
+		Email: "test@example.com",
+		Link:  "http://www.example.com",
+	}
+
+	if err := templateEmail.Execute(os.Stdout, &tplData); err != nil {
+		return nil, nil, err
 	}
 
 	return &cfg, remainingArgs, nil
