@@ -67,7 +67,7 @@ func (b *backend) emailVerificationLink(email, token string) error {
 	}
 	q := l.Query()
 	q.Set("email", email)
-	q.Set("token", token)
+	q.Set("verificationtoken", token)
 	l.RawQuery = q.Encode()
 
 	var buf bytes.Buffer
