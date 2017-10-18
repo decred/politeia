@@ -125,7 +125,9 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Add("Strict-Transport-Security",
 		"max-age=63072000; includeSubDomains")
-	w.Header().Set(v1.CsrfToken, csrf.Token(r))
+	if !p.cfg.Proxy {
+		w.Header().Set(v1.CsrfToken, csrf.Token(r))
+	}
 	w.WriteHeader(http.StatusOK)
 	w.Write(versionReply)
 }
@@ -503,13 +505,17 @@ func _main() error {
 		return err
 	}
 
-	// We don't persist connections to generate a new key every time we
-	// restart.
-	csrfKey, err := util.Random(32)
-	if err != nil {
-		return err
+	var csrfHandle func(http.Handler) http.Handler
+	if !p.cfg.Proxy {
+		// We don't persist connections to generate a new key every
+		// time we restart.
+		csrfKey, err := util.Random(32)
+		if err != nil {
+			return err
+		}
+		csrfHandle = csrf.Protect(csrfKey)
 	}
-	csrfHandle := csrf.Protect(csrfKey)
+
 	p.router = mux.NewRouter()
 	// Static content.
 
@@ -572,12 +578,19 @@ func _main() error {
 			}
 			srv := &http.Server{
 				Addr:      listen,
-				Handler:   csrfHandle(p.router),
 				TLSConfig: cfg,
 				TLSNextProto: make(map[string]func(*http.Server,
 					*tls.Conn, http.Handler)),
 			}
-			log.Infof("Listen: %v", listen)
+			var mode string
+			if p.cfg.Proxy {
+				srv.Handler = p.router
+				mode = "proxy"
+			} else {
+				srv.Handler = csrfHandle(p.router)
+				mode = "non-proxy"
+			}
+			log.Infof("Listen %v: %v", mode, listen)
 			listenC <- srv.ListenAndServeTLS(loadedCfg.HTTPSCert,
 				loadedCfg.HTTPSKey)
 		}()
