@@ -37,6 +37,15 @@ type politeia struct {
 	identity   *identity.FullIdentity
 }
 
+func remoteAddr(r *http.Request) string {
+	via := r.RemoteAddr
+	xff := r.Header.Get(v1.Forward)
+	if xff != "" {
+		return fmt.Sprintf("%v via %v", xff, r.RemoteAddr)
+	}
+	return via
+}
+
 // convertBackendStatus converts a backend PSRStatus to an API status.
 func convertBackendStatus(status backend.PSRStatusT) v1.StatusT {
 	s := v1.StatusInvalid
@@ -145,20 +154,20 @@ func (p *politeia) newProposal(w http.ResponseWriter, r *http.Request) {
 	// Sanitize name
 	t.Name = sanitize.Name(t.Name)
 	if len(t.Name) > 80 {
-		log.Errorf("%v New proposal: invalid name", r.RemoteAddr)
+		log.Errorf("%v New proposal: invalid name", remoteAddr(r))
 		util.RespondWithError(w, http.StatusBadRequest,
 			"Could not create proposal: invalid name")
 		return
 	}
 	challenge, err := hex.DecodeString(t.Challenge)
 	if err != nil || len(challenge) != v1.ChallengeSize {
-		log.Errorf("%v New proposal: invalid challenge", r.RemoteAddr)
+		log.Errorf("%v New proposal: invalid challenge", remoteAddr(r))
 		util.RespondWithError(w, http.StatusBadRequest,
 			"Could not create proposal: invalid challenge")
 		return
 	}
 
-	log.Infof("New proposal submitted %v: %v", r.RemoteAddr, t.Name)
+	log.Infof("New proposal submitted %v: %v", remoteAddr(r), t.Name)
 
 	// Convert to backend call
 	files := make([]backend.File, 0, len(t.Files))
@@ -175,7 +184,7 @@ func (p *politeia) newProposal(w http.ResponseWriter, r *http.Request) {
 		// Check for content error.
 		if _, ok := err.(*backend.ContentVerificationError); ok {
 			log.Errorf("%v New proposal content error: %v %v",
-				r.RemoteAddr, t.Name, err)
+				remoteAddr(r), t.Name, err)
 			util.RespondWithError(w, http.StatusBadRequest,
 				fmt.Sprintf("Could not create proposal, "+
 					"invalid content: %v", err))
@@ -184,7 +193,7 @@ func (p *politeia) newProposal(w http.ResponseWriter, r *http.Request) {
 
 		// Generic internal error.
 		errorCode := time.Now().Unix()
-		log.Errorf("%v New proposal error code %v: %v", r.RemoteAddr,
+		log.Errorf("%v New proposal error code %v: %v", remoteAddr(r),
 			errorCode, err)
 
 		util.RespondWithError(w, http.StatusInternalServerError,
@@ -211,7 +220,7 @@ func (p *politeia) newProposal(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	log.Infof("New proposal accepted %v: token %v name \"%v\"", r.RemoteAddr,
+	log.Infof("New proposal accepted %v: token %v name \"%v\"", remoteAddr(r),
 		reply.CensorshipRecord.Token, t.Name)
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
@@ -252,12 +261,12 @@ func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
 	if err == backend.ErrProposalNotFound {
 		reply.Proposal.Status = v1.StatusNotFound
 		log.Errorf("Get unvetted proposal %v: token %v not found",
-			r.RemoteAddr, t.Token)
+			remoteAddr(r), t.Token)
 	} else if err != nil {
 		// Generic internal error.
 		errorCode := time.Now().Unix()
 		log.Errorf("%v Get unvetted proposal error code %v: %v",
-			r.RemoteAddr, errorCode, err)
+			remoteAddr(r), errorCode, err)
 
 		util.RespondWithError(w, http.StatusInternalServerError,
 			fmt.Sprintf("Could not retrieve unvetted proposal, "+
@@ -274,7 +283,7 @@ func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
 			// Generic internal error.
 			errorCode := time.Now().Unix()
 			log.Errorf("%v Get unvetted proposal CORRUPTION "+
-				"error code %v: %v", r.RemoteAddr, errorCode,
+				"error code %v: %v", remoteAddr(r), errorCode,
 				err)
 
 			util.RespondWithError(w, http.StatusInternalServerError,
@@ -286,7 +295,7 @@ func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
 		}
 
 		log.Infof("Get unvetted proposal %v: token %v name \"%v\"",
-			r.RemoteAddr,
+			remoteAddr(r),
 			t.Token, reply.Proposal.Name)
 	}
 
@@ -328,12 +337,12 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 	if err == backend.ErrProposalNotFound {
 		reply.Proposal.Status = v1.StatusNotFound
 		log.Errorf("Get vetted proposal %v: token %v not found",
-			r.RemoteAddr, t.Token)
+			remoteAddr(r), t.Token)
 	} else if err != nil {
 		// Generic internal error.
 		errorCode := time.Now().Unix()
 		log.Errorf("%v Get vetted proposal error code %v: %v",
-			r.RemoteAddr, errorCode, err)
+			remoteAddr(r), errorCode, err)
 
 		util.RespondWithError(w, http.StatusInternalServerError,
 			fmt.Sprintf("Could not retrieve vetted proposal, "+
@@ -350,7 +359,7 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 			// Generic internal error.
 			errorCode := time.Now().Unix()
 			log.Errorf("%v Get vetted proposal CORRUPTION "+
-				"error code %v: %v", r.RemoteAddr, errorCode,
+				"error code %v: %v", remoteAddr(r), errorCode,
 				err)
 
 			util.RespondWithError(w, http.StatusInternalServerError,
@@ -361,7 +370,7 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		log.Infof("Get vetted proposal %v: token %v name \"%v\"",
-			r.RemoteAddr, t.Token, reply.Proposal.Name)
+			remoteAddr(r), t.Token, reply.Proposal.Name)
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
@@ -395,7 +404,7 @@ func (p *politeia) inventory(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Generic internal error.
 		errorCode := time.Now().Unix()
-		log.Errorf("%v Inventory error code %v: %v", r.RemoteAddr,
+		log.Errorf("%v Inventory error code %v: %v", remoteAddr(r),
 			errorCode, err)
 
 		util.RespondWithError(w, http.StatusInternalServerError,
@@ -434,7 +443,7 @@ func (p *politeia) auth(fn http.HandlerFunc) http.HandlerFunc {
 		user, pass, ok := r.BasicAuth()
 		if !ok || !p.check(user, pass) {
 			log.Errorf("%v Unauthorized access for: %v",
-				r.RemoteAddr, user)
+				remoteAddr(r), user)
 			w.Header().Set("WWW-Authenticate",
 				`Basic realm="Politeiad"`)
 			w.WriteHeader(401)
@@ -442,7 +451,7 @@ func (p *politeia) auth(fn http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		log.Infof("%v Authorized access for: %v",
-			r.RemoteAddr, user)
+			remoteAddr(r), user)
 		fn(w, r)
 	}
 }
@@ -482,7 +491,7 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 		// Check for specific errors
 		if err == backend.ErrInvalidTransition {
 			log.Errorf("%v Invalid status code transition: "+
-				"%v %v->%v", r.RemoteAddr, t.Token, oldStatus,
+				"%v %v->%v", remoteAddr(r), t.Token, oldStatus,
 				newStatus)
 			util.RespondWithError(w, http.StatusBadRequest,
 				fmt.Sprintf("Invalid status code transition: "+
@@ -492,7 +501,7 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 		// Generic internal error.
 		errorCode := time.Now().Unix()
 		log.Errorf("%v Set unvetted status error code %v: %v",
-			r.RemoteAddr, errorCode, err)
+			remoteAddr(r), errorCode, err)
 
 		util.RespondWithError(w, http.StatusInternalServerError,
 			fmt.Sprintf("Could not set unvetted status "+
@@ -506,7 +515,7 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Infof("Set unvetted proposal status %v: token %v status %v",
-		r.RemoteAddr, t.Token, v1.Status[reply.Status])
+		remoteAddr(r), t.Token, v1.Status[reply.Status])
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
@@ -542,7 +551,7 @@ func logging(f http.HandlerFunc) http.HandlerFunc {
 		}))
 
 		// Log incoming connection
-		log.Infof("%v %v%v %v", r.Method, r.RemoteAddr, r.URL, r.Proto)
+		log.Infof("%v %v %v %v", remoteAddr(r), r.Method, r.URL, r.Proto)
 		f(w, r)
 	}
 }

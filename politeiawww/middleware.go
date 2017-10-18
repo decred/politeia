@@ -12,7 +12,7 @@ import (
 // function.
 func (p *politeiawww) isLoggedIn(f http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		log.Debugf("isLoggedIn: %v %v%v %v", r.Method, r.RemoteAddr,
+		log.Debugf("isLoggedIn: %v %v %v %v", remoteAddr(r), r.Method,
 			r.URL, r.Proto)
 		session, err := p.store.Get(r, v1.CookieSession)
 		if err != nil {
@@ -37,8 +37,8 @@ func (p *politeiawww) isLoggedIn(f http.HandlerFunc) http.HandlerFunc {
 // before calling the next function.
 func (p *politeiawww) isLoggedInAsAdmin(f http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		log.Debugf("isLoggedInAsAdmin: %v %v%v %v", r.Method, r.RemoteAddr,
-			r.URL, r.Proto)
+		log.Debugf("isLoggedInAsAdmin: %v %v %v %v", remoteAddr(r),
+			r.Method, r.URL, r.Proto)
 		session, err := p.store.Get(r, v1.CookieSession)
 		if err != nil {
 			log.Errorf("isLoggedInAsAdmin: %v", err)
@@ -81,7 +81,16 @@ func logging(f http.HandlerFunc) http.HandlerFunc {
 		}))
 
 		// Log incoming connection
-		log.Infof("%v %v%v %v", r.Method, r.RemoteAddr, r.URL, r.Proto)
+		log.Infof("%v %v %v %v", remoteAddr(r), r.Method, r.URL, r.Proto)
 		f(w, r)
 	}
+}
+
+func remoteAddr(r *http.Request) string {
+	via := r.RemoteAddr
+	xff := r.Header.Get(v1.Forward)
+	if xff != "" {
+		return fmt.Sprintf("%v via %v", xff, r.RemoteAddr)
+	}
+	return via
 }

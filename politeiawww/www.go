@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"os"
 	"os/signal"
@@ -88,8 +89,8 @@ func (p *politeiawww) getIdentity() error {
 // error.
 func RespondInternalError(w http.ResponseWriter, r *http.Request, format string, args ...interface{}) {
 	errorCode := time.Now().Unix()
-	ec := fmt.Sprintf("%v %v%v %v Internal error %v: ", r.Method,
-		r.RemoteAddr, r.URL, r.Proto, errorCode)
+	ec := fmt.Sprintf("%v %v %v %v Internal error %v: ", remoteAddr(r),
+		r.Method, r.URL, r.Proto, errorCode)
 	log.Errorf(ec+format, args...)
 	util.RespondWithJSON(w, http.StatusInternalServerError,
 		v1.InternalServerError{
@@ -432,6 +433,24 @@ func (p *politeiawww) handleAllUnvetted(w http.ResponseWriter, r *http.Request) 
 	util.RespondWithJSON(w, http.StatusOK, ur)
 }
 
+func (p *politeiawww) handleNotFound(w http.ResponseWriter, r *http.Request) {
+	// Log incoming connection
+	log.Debugf("Invalid route: %v %v %v %v", remoteAddr(r), r.Method, r.URL,
+		r.Proto)
+
+	// Trace incoming request
+	log.Tracef("%v", newLogClosure(func() string {
+		trace, err := httputil.DumpRequest(r, true)
+		if err != nil {
+			trace = []byte(fmt.Sprintf("logging: "+
+				"DumpRequest %v", err))
+		}
+		return string(trace)
+	}))
+
+	util.RespondWithJSON(w, http.StatusNotFound, nil)
+}
+
 // addRoute sets up a handler for a specific method+route.
 func (p *politeiawww) addRoute(method string, route string, handler http.HandlerFunc, perm permission) {
 	fullRoute := v1.PoliteiaWWWAPIRoute + route
@@ -527,6 +546,7 @@ func _main() error {
 
 	// Public routes.
 	p.router.HandleFunc("/", logging(p.handleVersion)).Methods(http.MethodGet)
+	p.router.NotFoundHandler = http.HandlerFunc(p.handleNotFound)
 	p.addRoute(http.MethodPost, v1.RouteNewUser, p.handleNewUser, permissionPublic)
 	p.addRoute(http.MethodGet, v1.RouteVerifyNewUser, p.handleVerifyNewUser, permissionPublic)
 	p.addRoute(http.MethodPost, v1.RouteLogin, p.handleLogin, permissionPublic)

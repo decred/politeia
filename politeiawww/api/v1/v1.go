@@ -10,7 +10,8 @@ type PropStatusT int
 const (
 	PoliteiaWWWAPIVersion = 1 // API version this backend understands
 
-	CsrfToken = "X-CSRF-Token" // CSRF token for replies
+	CsrfToken = "X-CSRF-Token"    // CSRF token for replies
+	Forward   = "X-Forwarded-For" // Proxy header
 
 	RouteNewUser              = "/user/new"
 	RouteVerifyNewUser        = "/user/verify"

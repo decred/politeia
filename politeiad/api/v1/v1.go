@@ -44,6 +44,8 @@ const (
 	DefaultMainnetPort = "49374"
 	DefaultTestnetHost = "politeia-testnet.decred.org"
 	DefaultTestnetPort = "59374"
+
+	Forward = "X-Forwarded-For"
 )
 
 var (
