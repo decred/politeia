@@ -116,3 +116,38 @@ To check if the web server is running correctly:
 ```
 politeiawww_refclient
 ```
+
+
+
+## Example nginx config
+
+```
+location /api/ {
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_cache_bypass $http_upgrade;
+    proxy_http_version 1.1;
+    proxy_ssl_trusted_certificate /etc/ssl/test-politeia.crt;
+    proxy_ssl_verify on;
+    proxy_pass https://test-politeia.localdomain:4443/;
+}
+
+location /user/verify {
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_cache_bypass $http_upgrade;
+    proxy_http_version 1.1;
+    proxy_ssl_trusted_certificate /etc/ssl/test-politeia.crt;
+    proxy_ssl_verify on;
+    proxy_pass https://test-politeia.localdomain:4443/v1/user/verify;
+}
+
+location / {
+  # This is where the static UI build lives, host static files
+  try_files $uri /index.html;
+}
+```
