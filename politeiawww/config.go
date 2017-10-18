@@ -235,12 +235,12 @@ func initSMTP(cfg *config) error {
 	// and then initialize the SMTP object if they're all populated.
 	cfg.SMTP = nil
 	if cfg.MailHost != "" || cfg.MailUser != "" ||
-		cfg.MailPass != "" {
+		cfg.MailPass != "" || cfg.WebServerAddress != "" {
 		if cfg.MailHost == "" || cfg.MailUser == "" ||
-			cfg.MailPass == "" {
+			cfg.MailPass == "" || cfg.WebServerAddress == "" {
 			err := fmt.Errorf("either all or none of the " +
 				"following config options should be supplied:" +
-				" mailhost, mailuser, mailpass")
+				" mailhost, mailuser, mailpass, webserveraddress")
 			return err
 		}
 
