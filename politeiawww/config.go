@@ -43,7 +43,7 @@ var (
 	defaultRPCCertFile   = filepath.Join(sharedconfig.DefaultHomeDir, "rpc.cert")
 	defaultLogDir        = filepath.Join(sharedconfig.DefaultHomeDir, defaultLogDirname)
 
-	templateEmail = template.Must(template.ParseFiles("templates/email.tmpl"))
+	templateEmail = template.Must(template.New("email_template").Parse(templateEmailRaw))
 )
 
 // runServiceCommand is only set to a real function on Windows.  It is used
