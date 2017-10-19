@@ -328,7 +328,7 @@ Logout as a user or admin.
 
 * **HTTP Method:**
 
-  `GET`
+  `GET` or `POST`
 
 *  *Params*
 
