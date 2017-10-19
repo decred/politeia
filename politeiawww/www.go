@@ -578,6 +578,7 @@ func _main() error {
 	p.addRoute(http.MethodGet, v1.RouteVerifyNewUser, p.handleVerifyNewUser, permissionPublic)
 	p.addRoute(http.MethodPost, v1.RouteLogin, p.handleLogin, permissionPublic)
 	p.addRoute(http.MethodGet, v1.RouteLogout, p.handleLogout, permissionPublic)
+	p.addRoute(http.MethodPost, v1.RouteLogout, p.handleLogout, permissionPublic)
 	p.addRoute(http.MethodGet, v1.RouteAllVetted, p.handleAllVetted, permissionPublic)
 	p.addRoute(http.MethodGet, v1.RouteProposalDetails, p.handleProposalDetails, permissionPublic)
 	p.addRoute(http.MethodGet, v1.RoutePolicy, p.handlePolicy, permissionPublic)
