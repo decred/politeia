@@ -116,3 +116,63 @@ To check if the web server is running correctly:
 ```
 politeiawww_refclient
 ```
+
+## nginx reverse proxy sample
+
+### testnet
+```
+location /api/ {
+	# disable caching
+	expires off;
+
+	proxy_set_header Host $host;
+	proxy_set_header X-Forwarded-For $remote_addr;
+	proxy_set_header Upgrade $http_upgrade;
+	proxy_set_header Connection "upgrade";
+	proxy_bypass_cache $http_upgrade;
+
+	proxy_http_version 1.1;
+	proxy_ssl_trusted_certificated /path/to/politeiawww.crt;
+	proxy_ssl_verify on;
+	proxy_pass https://test-politeia.domain.com:4443/;
+}
+
+# aesthetics.
+location /user/verify {
+	# redirect not found
+	error_page 404 =200 /;
+	proxy_intercept_errors on;
+
+	# disable caching
+	expires off;
+
+	proxy_set_header Host $host;
+	proxy_set_header X-Forwarded-For $remote_addr;
+	proxy_set_header Upgrade $http_upgrade;
+	proxy_set_header Connection "upgrade";
+	proxy_bypass_cache $http_upgrade;
+
+	proxy_http_version 1.1;
+        proxy_ssl_trusted_certificated /path/to/politeiawww.crt;
+        proxy_ssl_verify on;
+        proxy_pass https://test-politeia.domain.com:4443/v1/user/verify;
+}
+
+location / {
+	# redirect not found
+	error_page 404 =200 /;
+	proxy_intercept_errors on;
+
+	# disable caching
+	expires off;
+
+	proxy_set_header Host $host;
+	proxy_set_header X-Forwarded-For $remote_addr;
+	proxy_set_header Upgrade $http_upgrade;
+	proxy_set_header Connection "upgrade";
+	proxy_http_version 1.1;
+
+	# backend
+	proxy_pass http://127.0.0.1:8000;
+}
+```
