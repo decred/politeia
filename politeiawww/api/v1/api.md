@@ -38,8 +38,8 @@ API.  It does not render HTML.
 
 ### Methods
 
-#### `Version
-`
+#### `Version`
+
 Obtain version, route information and signing identity from server.  This call
 shall **ALWAYS** be the first contact with the server.  This is done in order
 to get the CSRF token for the session and to ensure API compatability.
@@ -86,6 +86,54 @@ Reply:
 	"version":1,
 	"route":"/v1",
 	"identity":"99e748e13d7ecf70ef6b5afa376d692cd7cb4dbb3d26fa83f417d29e44c6bb6c",
+}
+```
+
+#### `Me`
+
+Return pertinent user information of the current logged in user.
+
+* **URL**
+
+  `/user/me`
+
+* **HTTP Method:**
+
+  `GET`
+
+*  *Params*
+
+* **Results**
+
+`Email`
+
+User ID.
+
+`IsAdmin`
+
+Administrator indicator.
+
+On success the call returns `HTTP Status: 200 OK`.
+If there currently is no session the call returns `HTTP Status: 403 Forbidden`.
+
+The me call may return `500 Internal Server Error` which is accompanied by
+an error code that allows the server operator to correlate issues with user
+reports.
+
+* **Example**
+
+Request:
+```json
+{}
+```
+
+Reply:
+
+```json
+{
+    "email":"d3a948d856daea3d@example.com",
+    "isadmin":true,
+    "errorcode":1,
 }
 ```
 
