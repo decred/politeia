@@ -213,12 +213,13 @@ func verifyContent(files []backend.File) ([]file, error) {
 		f.digest = dp
 
 		// Verify MIME
-		if http.DetectContentType(f.payload) != files[i].MIME {
-			return nil, fmt.Errorf("%v: invalid MIME type",
-				files[i].Name)
+		detectedMIMEType := http.DetectContentType(f.payload)
+		if detectedMIMEType != files[i].MIME {
+			return nil, fmt.Errorf("%v invalid MIME type detected: %v",
+				files[i].Name, detectedMIMEType)
 		}
 		if !mime.MimeValid(files[i].MIME) {
-			return nil, fmt.Errorf("%v unsuported MIME type: %v",
+			return nil, fmt.Errorf("%v unsupported MIME type: %v",
 				files[i].Name, files[i].MIME)
 		}
 
