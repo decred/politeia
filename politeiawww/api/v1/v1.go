@@ -13,6 +13,7 @@ const (
 	CsrfToken = "X-CSRF-Token"    // CSRF token for replies
 	Forward   = "X-Forwarded-For" // Proxy header
 
+	RouteUserMe               = "/user/me"
 	RouteNewUser              = "/user/new"
 	RouteVerifyNewUser        = "/user/verify"
 	RouteVerifyNewUserSuccess = "/user/verify/success"
@@ -179,6 +180,17 @@ type Logout struct{}
 
 // LogoutReply indicates whether the Logout command was success or not.
 type LogoutReply struct {
+	ErrorCode StatusT `json:"errorcode,omitempty"`
+}
+
+// Me asks the server to return pertinent user information.
+type Me struct{}
+
+// MeReply contains user information the UI may need to render a user specific
+// page.
+type MeReply struct {
+	Email     string  `json:"email"`
+	IsAdmin   bool    `json:"isadmin"`
 	ErrorCode StatusT `json:"errorcode,omitempty"`
 }
 

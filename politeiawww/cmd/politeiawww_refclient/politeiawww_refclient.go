@@ -194,6 +194,24 @@ func (c *ctx) secret() error {
 	return err
 }
 
+func (c *ctx) me() (*v1.MeReply, error) {
+	l := v1.Me{}
+
+	responseBody, err := c.makeRequest("GET", v1.RouteUserMe, l)
+	if err != nil {
+		return nil, err
+	}
+
+	var mr v1.MeReply
+	err = json.Unmarshal(responseBody, &mr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal MeReply: %v",
+			err)
+	}
+
+	return &mr, nil
+}
+
 func (c *ctx) newProposal() (*v1.NewProposalReply, error) {
 	np := v1.NewProposal{
 		Name:  "test",
@@ -401,6 +419,18 @@ func _main() error {
 		return err
 	}
 
+	// Me
+	me, err := c.me()
+	if err != nil {
+		return err
+	}
+	if me.Email != email {
+		return fmt.Errorf("email got %v wanted %v", me.Email, email)
+	}
+	if me.IsAdmin {
+		return fmt.Errorf("IsAdmin got %v wanted %v", me.IsAdmin, false)
+	}
+
 	// New proposal 1
 	myprop1, err := c.newProposal()
 	if err != nil {
@@ -481,6 +511,20 @@ func _main() error {
 		// expect admin == true
 		if !lr.IsAdmin {
 			return fmt.Errorf("expected admin")
+		}
+
+		// Me admin
+		me, err := c.me()
+		if err != nil {
+			return err
+		}
+		if me.Email != adminEmail {
+			return fmt.Errorf("admin email got %v wanted %v",
+				me.Email, adminEmail)
+		}
+		if !me.IsAdmin {
+			return fmt.Errorf("IsAdmin got %v wanted %v",
+				me.IsAdmin, true)
 		}
 
 		unvetted, err := c.allUnvetted()
@@ -570,6 +614,16 @@ func _main() error {
 		return fmt.Errorf("secret expected 403")
 	}
 	fmt.Printf("secret expected error: %v\n", err)
+
+	// Me
+	_, err = c.me()
+	if err == nil {
+		return fmt.Errorf("me should have failed")
+	}
+	if err.Error() != "403" {
+		return fmt.Errorf("me expected 403")
+	}
+	fmt.Printf("me expected error: %v\n", err)
 
 	fmt.Printf("refclient run successful\n")
 	fmt.Printf("=== End ===\n")

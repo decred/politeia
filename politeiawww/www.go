@@ -243,6 +243,7 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	// Mark user as logged in if there's no error.
 	if reply.ErrorCode == v1.StatusSuccess {
+		session.Values["email"] = l.Email
 		session.Values["authenticated"] = true
 		session.Values["admin"] = reply.IsAdmin
 		err = session.Save(r, w)
@@ -298,6 +299,32 @@ func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
 // handleSecret is a mock handler to test privileged routes.
 func (p *politeiawww) handleSecret(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "secret sauce")
+}
+
+// handleMe returns logged in user information.
+func (p *politeiawww) handleMe(w http.ResponseWriter, r *http.Request) {
+	session, err := p.store.Get(r, v1.CookieSession)
+	if err != nil {
+		RespondInternalError(w, r,
+			"handleLogout: failed to get session: %v", err)
+		return
+	}
+
+	email, oke := session.Values["email"].(string)
+	isAdmin, oki := session.Values["admin"].(bool)
+	if !oke || !oki {
+		RespondInternalError(w, r,
+			"handleLogout: type assert oke %v oki %v", oke, oki)
+		return
+	}
+
+	// Reply with the user information.
+	reply := v1.MeReply{
+		Email:     email,
+		IsAdmin:   isAdmin,
+		ErrorCode: v1.StatusSuccess,
+	}
+	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
 // handleNewProposal handles the incoming new proposal command.
@@ -557,6 +584,7 @@ func _main() error {
 
 	// Routes that require being logged in.
 	p.addRoute(http.MethodPost, v1.RouteNewProposal, p.handleNewProposal, permissionLogin)
+	p.addRoute(http.MethodGet, v1.RouteUserMe, p.handleMe, permissionLogin)
 
 	// Routes that require being logged in as an admin user.
 	p.addRoute(http.MethodGet, v1.RouteAllUnvetted, p.handleAllUnvetted, permissionAdmin)
