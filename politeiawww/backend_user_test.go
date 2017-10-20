@@ -28,7 +28,7 @@ func generateRandomEmail() string {
 }
 
 func generateRandomPassword() string {
-	return generateRandomString(16)
+	return generateRandomString(www.PolicyPasswordMinChars)
 }
 
 func createBackend(t *testing.T) *backend {
@@ -130,6 +130,21 @@ func TestProcessNewUserWithMalformedEmail(t *testing.T) {
 
 	reply, err := b.ProcessNewUser(u)
 	assertError(t, err, reply.ErrorCode, www.StatusMalformedEmail)
+
+	b.db.Close()
+}
+
+// Tests creating a new user with a malformed password.
+func TestProcessNewUserWithMalformedPassword(t *testing.T) {
+	b := createBackend(t)
+
+	u := www.NewUser{
+		Email:    generateRandomEmail(),
+		Password: generateRandomString(www.PolicyPasswordMinChars - 1),
+	}
+
+	reply, err := b.ProcessNewUser(u)
+	assertError(t, err, reply.ErrorCode, www.StatusMalformedPassword)
 
 	b.db.Close()
 }
@@ -244,6 +259,86 @@ func TestLoginWithVerifiedUser(t *testing.T) {
 	l := www.Login(u)
 	reply, err := b.ProcessLogin(l)
 	assertSuccess(t, err, reply.ErrorCode)
+
+	b.db.Close()
+}
+
+// Tests changing a user's password with an incorrect current password
+// and a malformed new password.
+func TestProcessChangePasswordWithBadPasswords(t *testing.T) {
+	b := createBackend(t)
+
+	nu := www.NewUser{
+		Email:    generateRandomEmail(),
+		Password: generateRandomString(www.PolicyPasswordMinChars),
+	}
+
+	nur, _ := b.ProcessNewUser(nu)
+
+	vnu := www.VerifyNewUser{
+		Email:             nu.Email,
+		VerificationToken: nur.VerificationToken,
+	}
+	b.ProcessVerifyNewUser(vnu)
+
+	l := www.Login(nu)
+	b.ProcessLogin(l)
+
+	// Change password with incorrect current password
+	cp := www.ChangePassword{
+		CurrentPassword: generateRandomString(www.PolicyPasswordMinChars),
+		NewPassword:     generateRandomString(www.PolicyPasswordMinChars),
+	}
+	cpr, err := b.ProcessChangePassword(nu.Email, cp)
+	assertError(t, err, cpr.ErrorCode, www.StatusInvalidEmailOrPassword)
+
+	// Change password with malformed new password
+	cp = www.ChangePassword{
+		CurrentPassword: nu.Password,
+		NewPassword:     generateRandomString(www.PolicyPasswordMinChars - 1),
+	}
+	cpr, err = b.ProcessChangePassword(nu.Email, cp)
+	assertError(t, err, cpr.ErrorCode, www.StatusMalformedPassword)
+
+	b.db.Close()
+}
+
+// Tests changing a user's password without errors.
+
+func TestProcessChangePassword(t *testing.T) {
+	b := createBackend(t)
+
+	nu := www.NewUser{
+		Email:    generateRandomEmail(),
+		Password: generateRandomString(www.PolicyPasswordMinChars),
+	}
+
+	nur, _ := b.ProcessNewUser(nu)
+
+	vnu := www.VerifyNewUser{
+		Email:             nu.Email,
+		VerificationToken: nur.VerificationToken,
+	}
+	b.ProcessVerifyNewUser(vnu)
+
+	l := www.Login(nu)
+	b.ProcessLogin(l)
+
+	// Change password
+	cp := www.ChangePassword{
+		CurrentPassword: nu.Password,
+		NewPassword:     generateRandomString(www.PolicyPasswordMinChars),
+	}
+	cpr, err := b.ProcessChangePassword(nu.Email, cp)
+	assertSuccess(t, err, cpr.ErrorCode)
+
+	// Change password back
+	cp = www.ChangePassword{
+		CurrentPassword: cp.NewPassword,
+		NewPassword:     cp.CurrentPassword,
+	}
+	cpr, err = b.ProcessChangePassword(nu.Email, cp)
+	assertSuccess(t, err, cpr.ErrorCode)
 
 	b.db.Close()
 }

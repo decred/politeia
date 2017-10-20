@@ -13,6 +13,7 @@ API.  It does not render HTML.
 - [`Verify user`](#verify-user)
 - [`Login`](#login)
 - [`Logout`](#logout)
+- [`Change password`](#change-password)
 - [`Vetted`](#vetted)
 - [`Unvetted`](#unvetted)
 - [`New proposal`](#new-proposal)
@@ -35,6 +36,7 @@ API.  It does not render HTML.
 - [`StatusMaxImagesExceededPolicy`](#StatusMaxImagesExceededPolicy)
 - [`StatusMaxMDSizeExceededPolicy`](#StatusMaxMDSizeExceededPolicy)
 - [`StatusMaxImageSizeExceededPolicy`](#StatusMaxImageSizeExceededPolicy)
+- [`StatusMalformedPassword`](#StatusMalformedPassword)
 
 ### Methods
 
@@ -361,6 +363,63 @@ Reply:
 
 ```json
     "errorcode":1
+```
+
+#### `Change password`
+
+Changes the password for the currently logged in user.
+
+* **URL**
+
+  `/v1/user/password/change`
+
+* **HTTP Method:**
+
+  `POST`
+
+*  *Params*
+
+**Required**
+
+`currentpassword=[string]`
+
+The current password of the logged in user.
+
+`newpassword=[string]`
+
+The new password for the logged in user.
+
+* **Results**
+
+`errorcode`
+
+On Success the call shall return `200 OK` and the error code shall be set to
+[`StatusSuccess`](#StatusSuccess).
+
+On failure the call shall return `400 Bad Request` and one of the following
+error codes:
+- [`StatusInvalidEmailOrPassword`](#StatusInvalidEmailOrPassword)
+- [`StatusMalformedPassword`](#StatusMalformedPassword)
+
+The logout call may return `500 Internal Server Error` which is accompanied by
+an error code that allows the server operator to correlate issues with user
+reports.
+
+* **Example**
+
+Request:
+
+```json
+{
+  "currentpassword": "15a1eb6de3681fec",
+  "newpassword": "cef1863ed6be1a51"
+}
+```
+
+Reply:
+
+```json
+    "errorcode": 1
 ```
 
 #### `New proposal`
@@ -839,3 +898,9 @@ issuing the [`Policy`](#Policy) command.
 
 The submitted proposal's has one or more images that are too large.  Limits can
 be obtained by issuing the [`Policy`](#Policy) command.
+
+* `StatusMalformedPassword`
+
+	`13`
+
+The provided password was malformed.

@@ -315,6 +315,26 @@ func (c *ctx) setPropStatus(token string, status v1.PropStatusT) (*v1.SetProposa
 	return &psr, nil
 }
 
+func (c *ctx) changePassword(currentPassword, newPassword string) (*v1.ChangePasswordReply, error) {
+	cp := v1.ChangePassword{
+		CurrentPassword: currentPassword,
+		NewPassword:     newPassword,
+	}
+	responseBody, err := c.makeRequest("POST", v1.RouteChangePassword, cp)
+	if err != nil {
+		return nil, err
+	}
+
+	var cpr v1.ChangePasswordReply
+	err = json.Unmarshal(responseBody, &cpr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal "+
+			"ChangePasswordReply: %v", err)
+	}
+
+	return &cpr, nil
+}
+
 func (c *ctx) logout() error {
 	l := v1.Logout{}
 	_, err := c.makeRequest("GET", v1.RouteLogout, l)
@@ -429,6 +449,20 @@ func _main() error {
 	}
 	if me.IsAdmin {
 		return fmt.Errorf("IsAdmin got %v wanted %v", me.IsAdmin, false)
+	}
+
+	// Change password
+	b, err = util.Random(8)
+	if err != nil {
+		return err
+	}
+	newPassword := hex.EncodeToString(b)
+	cpr, err := c.changePassword(password, newPassword)
+	if err != nil {
+		return err
+	}
+	if cpr.ErrorCode != v1.StatusSuccess {
+		return fmt.Errorf("changePassword failed with errorcode %v", cpr.ErrorCode)
 	}
 
 	// New proposal 1
