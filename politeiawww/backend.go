@@ -163,6 +163,14 @@ func (b *backend) remoteInventory() (*pd.InventoryReply, error) {
 	return &ir, nil
 }
 
+func (b *backend) validatePassword(password string) www.StatusT {
+	if len(password) < www.PolicyPasswordMinChars {
+		return www.StatusMalformedPassword
+	}
+
+	return www.StatusSuccess
+}
+
 func (b *backend) validateProposal(np www.NewProposal) (www.StatusT, error) {
 	// Check for a non-empty name.
 	if np.Name == "" {
@@ -324,6 +332,15 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 			return &reply, err
 		}
 	} else {
+		// Validate the password.
+		status := b.validatePassword(u.Password)
+		if status != www.StatusSuccess {
+			reply := www.NewUserReply{
+				ErrorCode: status,
+			}
+			return &reply, nil
+		}
+
 		// Hash the user's password.
 		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(u.Password),
 			bcrypt.DefaultCost)
@@ -369,7 +386,7 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 	}
 
 	if !b.test {
-		// This is confitional on email server being setup.
+		// This is conditional on the email server being setup.
 		err := b.emailVerificationLink(u.Email, hex.EncodeToString(token))
 		if err != nil {
 			reply := www.NewUserReply{
@@ -467,6 +484,51 @@ func (b *backend) ProcessLogin(l www.Login) (*www.LoginReply, error) {
 		IsAdmin:   user.Admin,
 		ErrorCode: www.StatusSuccess,
 	}
+	return &reply, nil
+}
+
+// ProcessChangePassword checks that the current password matches the one
+// in the database, then changes it to the new password.
+func (b *backend) ProcessChangePassword(email string, cp www.ChangePassword) (*www.ChangePasswordReply, error) {
+	// Get user from db.
+	user, err := b.db.UserGet(email)
+	if err != nil {
+		return nil, err
+	}
+
+	reply := www.ChangePasswordReply{
+		ErrorCode: www.StatusSuccess,
+	}
+
+	// Check the user's password.
+	err = bcrypt.CompareHashAndPassword(user.HashedPassword,
+		[]byte(cp.CurrentPassword))
+	if err != nil {
+		reply.ErrorCode = www.StatusInvalidEmailOrPassword
+		return &reply, nil
+	}
+
+	// Validate the new password.
+	status := b.validatePassword(cp.NewPassword)
+	if status != www.StatusSuccess {
+		reply.ErrorCode = status
+		return &reply, nil
+	}
+
+	// Hash the user's password.
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(cp.NewPassword),
+		bcrypt.DefaultCost)
+	if err != nil {
+		return nil, err
+	}
+
+	// Add the updated user information to the db.
+	user.HashedPassword = hashedPassword
+	err = b.db.UserUpdate(*user)
+	if err != nil {
+		return nil, err
+	}
+
 	return &reply, nil
 }
 
@@ -758,12 +820,13 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails) (*www
 // ProcessPolicy returns the details of Politeia's restrictions on file uploads.
 func (b *backend) ProcessPolicy(p www.Policy) *www.PolicyReply {
 	return &www.PolicyReply{
-		MaxImages:      www.PolicyMaxImages,
-		MaxImageSize:   www.PolicyMaxImageSize,
-		MaxMDs:         www.PolicyMaxMDs,
-		MaxMDSize:      www.PolicyMaxMDSize,
-		ValidMIMETypes: mime.ValidMimeTypes(),
-		ErrorCode:      www.StatusSuccess,
+		PasswordMinChars: www.PolicyPasswordMinChars,
+		MaxImages:        www.PolicyMaxImages,
+		MaxImageSize:     www.PolicyMaxImageSize,
+		MaxMDs:           www.PolicyMaxMDs,
+		MaxMDSize:        www.PolicyMaxMDSize,
+		ValidMIMETypes:   mime.ValidMimeTypes(),
+		ErrorCode:        www.StatusSuccess,
 	}
 }
 

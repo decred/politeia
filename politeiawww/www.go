@@ -306,7 +306,7 @@ func (p *politeiawww) handleMe(w http.ResponseWriter, r *http.Request) {
 	session, err := p.store.Get(r, v1.CookieSession)
 	if err != nil {
 		RespondInternalError(w, r,
-			"handleLogout: failed to get session: %v", err)
+			"handleMe: failed to get session: %v", err)
 		return
 	}
 
@@ -314,7 +314,7 @@ func (p *politeiawww) handleMe(w http.ResponseWriter, r *http.Request) {
 	isAdmin, oki := session.Values["admin"].(bool)
 	if !oke || !oki {
 		RespondInternalError(w, r,
-			"handleLogout: type assert oke %v oki %v", oke, oki)
+			"handleMe: type assert oke %v oki %v", oke, oki)
 		return
 	}
 
@@ -324,6 +324,43 @@ func (p *politeiawww) handleMe(w http.ResponseWriter, r *http.Request) {
 		IsAdmin:   isAdmin,
 		ErrorCode: v1.StatusSuccess,
 	}
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Request) {
+	// Get the email for the current session.
+	session, err := p.store.Get(r, v1.CookieSession)
+	if err != nil {
+		RespondInternalError(w, r,
+			"handleChangePassword: failed to get session: %v", err)
+		return
+	}
+
+	email, ok := session.Values["email"].(string)
+	if !ok {
+		RespondInternalError(w, r,
+			"handleChangePassword: type assert ok %v", ok)
+		return
+	}
+
+	// Get the change password command.
+	var cp v1.ChangePassword
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&cp); err != nil {
+		RespondInternalError(w, r,
+			"handleChangePassword: Unmarshal %v", err)
+		return
+	}
+	defer r.Body.Close()
+
+	reply, err := p.backend.ProcessChangePassword(email, cp)
+	if err != nil {
+		RespondInternalError(w, r,
+			"handleChangePassword: %v", err)
+		return
+	}
+
+	// Reply with the error code.
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
@@ -586,6 +623,7 @@ func _main() error {
 	// Routes that require being logged in.
 	p.addRoute(http.MethodPost, v1.RouteNewProposal, p.handleNewProposal, permissionLogin)
 	p.addRoute(http.MethodGet, v1.RouteUserMe, p.handleMe, permissionLogin)
+	p.addRoute(http.MethodPost, v1.RouteChangePassword, p.handleChangePassword, permissionLogin)
 
 	// Routes that require being logged in as an admin user.
 	p.addRoute(http.MethodGet, v1.RouteAllUnvetted, p.handleAllUnvetted, permissionAdmin)

@@ -18,6 +18,7 @@ const (
 	RouteVerifyNewUser        = "/user/verify"
 	RouteVerifyNewUserSuccess = "/user/verify/success"
 	RouteVerifyNewUserFailure = "/user/verify/failure"
+	RouteChangePassword       = "/user/password/change"
 	RouteLogin                = "/login"
 	RouteLogout               = "/logout"
 	RouteSecret               = "/secret"
@@ -51,6 +52,10 @@ const (
 	// accepted when creating a new proposal
 	PolicyMaxMDSize = 512 * 1024
 
+	// PolicyPasswordMinChars is the minimum number of characters
+	// accepted for user passwords
+	PolicyPasswordMinChars = 8
+
 	// Error status codes
 	StatusInvalid                    StatusT = 0
 	StatusSuccess                    StatusT = 1
@@ -65,6 +70,7 @@ const (
 	StatusMaxImagesExceededPolicy    StatusT = 10
 	StatusMaxMDSizeExceededPolicy    StatusT = 11
 	StatusMaxImageSizeExceededPolicy StatusT = 12
+	StatusMalformedPassword          StatusT = 13
 
 	// Proposal status codes (set and get)
 	PropStatusInvalid     PropStatusT = 0 // Invalid status
@@ -161,6 +167,19 @@ type VerifyNewUser struct {
 
 //XXX missing VerifyNewUserReply
 
+// ChangePassword is used to perform a password change while the user
+// is logged in.
+type ChangePassword struct {
+	CurrentPassword string `json:"currentpassword"`
+	NewPassword     string `json:"newpassword"`
+}
+
+// ChangePasswordReply is used to perform a password change while the user
+// is logged in.
+type ChangePasswordReply struct {
+	ErrorCode StatusT `json:"errorcode,omitempty"`
+}
+
 // Login attempts to login the user.  Note that by necessity the password
 // travels in the clear.
 type Login struct {
@@ -256,10 +275,11 @@ type Policy struct{}
 // PolicyReply is used to reply to the policy command. It returns
 // the file upload restrictions set for Politeia.
 type PolicyReply struct {
-	MaxImages      uint     `json:"maximages"`
-	MaxImageSize   uint     `json:"maximagesize"`
-	MaxMDs         uint     `json:"maxmds"`
-	MaxMDSize      uint     `json:"maxmdsize"`
-	ValidMIMETypes []string `json:"validmimetypes"`
-	ErrorCode      StatusT  `json:"errorcode,omitempty"`
+	PasswordMinChars uint     `json:"passwordminchars"`
+	MaxImages        uint     `json:"maximages"`
+	MaxImageSize     uint     `json:"maximagesize"`
+	MaxMDs           uint     `json:"maxmds"`
+	MaxMDSize        uint     `json:"maxmdsize"`
+	ValidMIMETypes   []string `json:"validmimetypes"`
+	ErrorCode        StatusT  `json:"errorcode,omitempty"`
 }
