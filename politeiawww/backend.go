@@ -54,9 +54,9 @@ func (b *backend) generateVerificationTokenAndExpiry() ([]byte, int64, error) {
 	return token, expiry, nil
 }
 
-// emailVerificationLink emails the link with the verification token
+// emailNewUserVerificationLink emails the link with the new user verification token
 // if the email server is set up.
-func (b *backend) emailVerificationLink(email, token string) error {
+func (b *backend) emailNewUserVerificationLink(email, token string) error {
 	if b.cfg.SMTP == nil {
 		return nil
 	}
@@ -71,16 +71,51 @@ func (b *backend) emailVerificationLink(email, token string) error {
 	l.RawQuery = q.Encode()
 
 	var buf bytes.Buffer
-	tplData := emailTemplateData{
+	tplData := newUserEmailTemplateData{
 		Email: email,
 		Link:  l.String(),
 	}
-	err = templateEmail.Execute(&buf, &tplData)
+	err = templateNewUserEmail.Execute(&buf, &tplData)
 	if err != nil {
 		return err
 	}
 	from := "noreply@decred.org"
 	subject := "Politeia Registration - Verify Your Email"
+	body := buf.String()
+
+	msg := goemail.NewHTMLMessage(from, subject, body)
+	msg.AddTo(email)
+
+	return b.cfg.SMTP.Send(msg)
+}
+
+// emailResetPasswordVerificationLink emails the link with the reset password
+// verification token if the email server is set up.
+func (b *backend) emailResetPasswordVerificationLink(email, token string) error {
+	if b.cfg.SMTP == nil {
+		return nil
+	}
+
+	l, err := url.Parse(b.cfg.WebServerAddress + www.RouteChangePassword)
+	if err != nil {
+		return err
+	}
+	q := l.Query()
+	q.Set("email", email)
+	q.Set("verificationtoken", token)
+	l.RawQuery = q.Encode()
+
+	var buf bytes.Buffer
+	tplData := resetPasswordEmailTemplateData{
+		Email: email,
+		Link:  l.String(),
+	}
+	err = templateResetPasswordEmail.Execute(&buf, &tplData)
+	if err != nil {
+		return err
+	}
+	from := "noreply@decred.org"
+	subject := "Politeia - Reset Your Password"
 	body := buf.String()
 
 	msg := goemail.NewHTMLMessage(from, subject, body)
@@ -226,6 +261,87 @@ func (b *backend) validateProposal(np www.NewProposal) (www.StatusT, error) {
 	return www.StatusSuccess, nil
 }
 
+func (b *backend) emailResetPassword(user *database.User, rp www.ResetPassword, rpr *www.ResetPasswordReply) error {
+	if user.ResetPasswordVerificationToken != nil {
+		currentTime := time.Now().Unix()
+		if currentTime < user.ResetPasswordVerificationExpiry {
+			// The verification token is present and hasn't expired, so do nothing.
+			return nil
+		}
+	}
+
+	// The verification token isn't present or is present but expired.
+
+	// Generate a new verification token and expiry.
+	token, expiry, err := b.generateVerificationTokenAndExpiry()
+	if err != nil {
+		return err
+	}
+
+	// Add the updated user information to the db.
+	user.ResetPasswordVerificationToken = token
+	user.ResetPasswordVerificationExpiry = expiry
+	err = b.db.UserUpdate(*user)
+	if err != nil {
+		return err
+	}
+
+	if !b.test {
+		// This is conditional on the email server being setup.
+		err := b.emailResetPasswordVerificationLink(rp.Email, hex.EncodeToString(token))
+		if err != nil {
+			return err
+		}
+	}
+
+	// Only set the token if email verification is disabled.
+	if b.cfg.SMTP == nil {
+		rpr.VerificationToken = hex.EncodeToString(token)
+	}
+
+	return nil
+}
+
+func (b *backend) verifyResetPassword(user *database.User, rp www.ResetPassword, rpr *www.ResetPasswordReply) error {
+	// Decode the verification token.
+	token, err := hex.DecodeString(rp.VerificationToken)
+	if err != nil {
+		rpr.ErrorCode = www.StatusVerificationTokenInvalid
+		return nil
+	}
+
+	// Check that the verification token matches.
+	if !bytes.Equal(token, user.ResetPasswordVerificationToken) {
+		rpr.ErrorCode = www.StatusVerificationTokenInvalid
+		return nil
+	}
+
+	// Check that the token hasn't expired.
+	currentTime := time.Now().Unix()
+	if currentTime > user.ResetPasswordVerificationExpiry {
+		rpr.ErrorCode = www.StatusVerificationTokenExpired
+		return nil
+	}
+
+	// Hash the new password.
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(rp.NewPassword),
+		bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	// Clear out the verification token fields and set the new password in the db.
+	user.NewUserVerificationToken = nil
+	user.NewUserVerificationExpiry = 0
+	user.HashedPassword = hashedPassword
+	err = b.db.UserUpdate(*user)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // LoadInventory fetches the entire inventory of proposals from politeiad
 // and caches it, sorted by most recent timestamp.
 func (b *backend) LoadInventory() error {
@@ -297,7 +413,7 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 	// Check if the user already exists.
 	if user, err := b.db.UserGet(u.Email); err == nil {
 		// Check if the user is already verified.
-		if user.VerificationToken == nil {
+		if user.NewUserVerificationToken == nil {
 			reply := www.NewUserReply{
 				ErrorCode: www.StatusSuccess,
 			}
@@ -305,7 +421,7 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 		}
 
 		// Check if the verification token hasn't expired yet.
-		if currentTime := time.Now().Unix(); currentTime < user.VerificationExpiry {
+		if currentTime := time.Now().Unix(); currentTime < user.NewUserVerificationExpiry {
 			reply := www.NewUserReply{
 				ErrorCode: www.StatusSuccess,
 			}
@@ -322,8 +438,8 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 		}
 
 		// Add the updated user information to the db.
-		user.VerificationToken = token
-		user.VerificationExpiry = expiry
+		user.NewUserVerificationToken = token
+		user.NewUserVerificationExpiry = expiry
 		err = b.db.UserUpdate(*user)
 		if err != nil {
 			reply := www.NewUserReply{
@@ -362,11 +478,11 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 
 		// Add the user and hashed password to the db.
 		newUser := database.User{
-			Email:              u.Email,
-			HashedPassword:     hashedPassword,
-			Admin:              false,
-			VerificationToken:  token,
-			VerificationExpiry: expiry,
+			Email:          u.Email,
+			HashedPassword: hashedPassword,
+			Admin:          false,
+			NewUserVerificationToken:  token,
+			NewUserVerificationExpiry: expiry,
 		}
 
 		err = b.db.UserNew(newUser)
@@ -387,7 +503,7 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 
 	if !b.test {
 		// This is conditional on the email server being setup.
-		err := b.emailVerificationLink(u.Email, hex.EncodeToString(token))
+		err := b.emailNewUserVerificationLink(u.Email, hex.EncodeToString(token))
 		if err != nil {
 			reply := www.NewUserReply{
 				ErrorCode: www.StatusInvalid,
@@ -401,7 +517,7 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 		ErrorCode: www.StatusSuccess,
 	}
 
-	// We only set the token if email verification is disabled.
+	// Only set the token if email verification is disabled.
 	if b.cfg.SMTP == nil {
 		reply.VerificationToken = hex.EncodeToString(token)
 	}
@@ -427,18 +543,18 @@ func (b *backend) ProcessVerifyNewUser(u www.VerifyNewUser) (www.StatusT, error)
 	}
 
 	// Check that the verification token matches.
-	if !bytes.Equal(token, user.VerificationToken) {
+	if !bytes.Equal(token, user.NewUserVerificationToken) {
 		return www.StatusVerificationTokenInvalid, nil
 	}
 
 	// Check that the token hasn't expired.
-	if currentTime := time.Now().Unix(); currentTime > user.VerificationExpiry {
+	if currentTime := time.Now().Unix(); currentTime > user.NewUserVerificationExpiry {
 		return www.StatusVerificationTokenExpired, nil
 	}
 
 	// Clear out the verification token fields in the db.
-	user.VerificationToken = nil
-	user.VerificationExpiry = 0
+	user.NewUserVerificationToken = nil
+	user.NewUserVerificationExpiry = 0
 	err = b.db.UserUpdate(*user)
 	if err != nil {
 		return www.StatusInvalid, err
@@ -463,7 +579,7 @@ func (b *backend) ProcessLogin(l www.Login) (*www.LoginReply, error) {
 	}
 
 	// Check that the user is verified.
-	if user.VerificationToken != nil {
+	if user.NewUserVerificationToken != nil {
 		reply := www.LoginReply{
 			ErrorCode: www.StatusInvalidEmailOrPassword,
 		}
@@ -530,6 +646,41 @@ func (b *backend) ProcessChangePassword(email string, cp www.ChangePassword) (*w
 	}
 
 	return &reply, nil
+}
+
+// ProcessResetPassword is intended to be called twice; in the first call, an
+// email is provided and the function checks if the user exists. If the user exists, it
+// generates a verification token and stores it in the database. In the second
+// call, the email, verification token and a new password are provided. If everything
+// matches, then the user's password is updated in the database.
+func (b *backend) ProcessResetPassword(rp www.ResetPassword) (*www.ResetPasswordReply, error) {
+	rpr := www.ResetPasswordReply{
+		ErrorCode: www.StatusSuccess,
+	}
+
+	// Get user from db.
+	user, err := b.db.UserGet(rp.Email)
+	if err != nil {
+		if err == database.ErrInvalidEmail {
+			rpr.ErrorCode = www.StatusMalformedEmail
+			return &rpr, nil
+		} else if err == database.ErrUserNotFound {
+			return &rpr, nil
+		}
+
+		return nil, err
+	}
+
+	if rp.VerificationToken == "" {
+		err = b.emailResetPassword(user, rp, &rpr)
+	} else {
+		err = b.verifyResetPassword(user, rp, &rpr)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+	return &rpr, nil
 }
 
 // ProcessAllVetted returns an array of all vetted proposals in reverse order,
