@@ -172,11 +172,17 @@ the clear.
 
 `errorcode`
 
-On Success the call shall return `200 OK` and the error code shall be set to
-one of the following statusses:
+On Success the call shall return `200 OK` and send an email to the address provided
+and the error code shall be set to one of the following statuses:
 - [`StatusSuccess`](#StatusSuccess).
 - [`StatusInvalidEmailOrPassword`](#StatusInvalidEmailOrPassword)
 - [`StatusMalformedEmail`](#StatusMalformedEmail)
+
+The email shall include a link in the following format:
+
+```
+/user/verify?email=abc@example.com&verificationtoken=f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde
+```
 
 The login call may return `500 Internal Server Error` which is accompanied by
 an error code that allows the server operator to correlate issues with user
@@ -461,6 +467,12 @@ parameters.
 For the 1st call, it should be called with only an `email` parameter. On success
 it shall send an email to the address provided by `email` and return `200 OK`
 and the `errorcode` shall be set to [`StatusSuccess`](#StatusSuccess).
+
+The email shall include a link in the following format:
+
+```
+/user/password/reset?email=abc@example.com&verificationtoken=f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde
+```
 
 On failure, the call shall return `400 Bad Request` and one of the following
 error codes:
