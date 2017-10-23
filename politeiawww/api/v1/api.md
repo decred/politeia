@@ -14,6 +14,7 @@ API.  It does not render HTML.
 - [`Login`](#login)
 - [`Logout`](#logout)
 - [`Change password`](#change-password)
+- [`Reset password`](#reset-password)
 - [`Vetted`](#vetted)
 - [`Unvetted`](#unvetted)
 - [`New proposal`](#new-proposal)
@@ -422,6 +423,101 @@ Reply:
     "errorcode": 1
 ```
 
+#### `Reset password`
+
+Allows a user to reset his password without being logged in.
+
+* **URL**
+
+  `/v1/user/password/reset`
+
+* **HTTP Method:**
+
+  `POST`
+
+*  *Params*
+
+**Required**
+
+`email=[string]`
+
+The email of the user whose password should be reset.
+
+`verificationtoken=[string]`
+
+The verification token which is sent to the user's email address.
+
+`newpassword=[string]`
+
+The new password for the user.
+
+* **Results**
+
+`errorcode`
+
+The reset password command is special.  It must be called **twice** with different
+parameters.
+
+For the 1st call, it should be called with only an `email` parameter. On success
+it shall send an email to the address provided by `email` and return `200 OK`
+and the `errorcode` shall be set to [`StatusSuccess`](#StatusSuccess).
+
+On failure, the call shall return `400 Bad Request` and one of the following
+error codes:
+- [`StatusMalformedEmail`](#StatusMalformedEmail)
+
+For the 2nd call, it should be called with `email`, `token`, and `newpassword`
+parameters. On success it shall return `200 OK` and the `errorcode` shall be set
+to [`StatusSuccess`](#StatusSuccess).
+
+On failure, the call shall return `400 Bad Request` and one of the following
+error codes:
+- [`StatusVerificationTokenInvalid`](#StatusVerificationTokenInvalid)
+- [`StatusVerificationTokenExpired`](#StatusVerificationTokenExpired)
+- [`StatusMalformedPassword`](#StatusMalformedPassword)
+
+The reset password call may return `500 Internal Server Error` which is accompanied by
+an error code that allows the server operator to correlate issues with user
+reports.
+
+* **Example for the 1st call**
+
+Request:
+
+```json
+{
+  "email":"6b87b6ebb0c80cb7@example.com"
+}
+```
+
+Reply:
+
+```json
+{
+  "errorcode": 1
+}
+```
+
+* **Example for the 2nd call**
+
+Request:
+
+```json
+{
+  "email":"6b87b6ebb0c80cb7@example.com",
+  "verificationtoken":"f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde",
+  "newpassword":"6b87b6ebb0c80cb7"
+}
+```
+
+Reply:
+
+```json
+{
+  "errorcode": 1
+}
+```
+
 #### `New proposal`
 
 Submit a new proposal to the politeiawww server.
@@ -668,6 +764,7 @@ Request:
 Reply:
 
 ```json
+    "passwordminchars":8,
     "maximages":5,
     "maximagesize":524288,
     "maxmds":1,
@@ -675,8 +772,8 @@ Reply:
     "validmimetypes":[
         "image/png",
         "image/svg+xml",
-	"text/plain",
-	"text/plain; charset=utf-8"
+        "text/plain",
+        "text/plain; charset=utf-8"
     ],
     "errorcode":1
 ```
