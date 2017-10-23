@@ -96,7 +96,7 @@ func (b *backend) emailResetPasswordVerificationLink(email, token string) error 
 		return nil
 	}
 
-	l, err := url.Parse(b.cfg.WebServerAddress + www.RouteChangePassword)
+	l, err := url.Parse(b.cfg.WebServerAddress + www.RouteResetPassword)
 	if err != nil {
 		return err
 	}
