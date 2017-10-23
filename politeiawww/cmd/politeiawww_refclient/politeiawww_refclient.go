@@ -134,9 +134,20 @@ func (c *ctx) getCSRF() (*v1.VersionReply, error) {
 	return &v, nil
 }
 
-func (c *ctx) policy() error {
-	_, err := c.makeRequest("GET", v1.RoutePolicy, v1.Policy{})
-	return err
+func (c *ctx) policy() (*v1.PolicyReply, error) {
+	responseBody, err := c.makeRequest("GET", v1.RoutePolicy, v1.Policy{})
+	if err != nil {
+		return nil, err
+	}
+
+	var pr v1.PolicyReply
+	err = json.Unmarshal(responseBody, &pr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal PolicyReply: %v",
+			err)
+	}
+
+	return &pr, nil
 }
 
 func (c *ctx) newUser(email, password string) (string, error) {
@@ -335,6 +346,37 @@ func (c *ctx) changePassword(currentPassword, newPassword string) (*v1.ChangePas
 	return &cpr, nil
 }
 
+func (c *ctx) resetPassword(email, password, newPassword string) error {
+	rp := v1.ResetPassword{
+		Email: email,
+	}
+	responseBody, err := c.makeRequest("POST", v1.RouteResetPassword, rp)
+	if err != nil {
+		return err
+	}
+
+	var rpr v1.ResetPasswordReply
+	err = json.Unmarshal(responseBody, &rpr)
+	if err != nil {
+		return fmt.Errorf("Could not unmarshal ResetPasswordReply: %v", err)
+	}
+
+	rp.NewPassword = newPassword
+	rp.VerificationToken = rpr.VerificationToken
+
+	responseBody, err = c.makeRequest("POST", v1.RouteResetPassword, rp)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(responseBody, &rpr)
+	if err != nil {
+		return fmt.Errorf("Could not unmarshal ResetPasswordReply: %v", err)
+	}
+
+	return nil
+}
+
 func (c *ctx) logout() error {
 	l := v1.Logout{}
 	_, err := c.makeRequest("GET", v1.RouteLogout, l)
@@ -383,12 +425,12 @@ func _main() error {
 	fmt.Printf("CSRF   : %v\n\n", c.csrf)
 
 	// Policy
-	err = c.policy()
+	pr, err := c.policy()
 	if err != nil {
 		return err
 	}
 
-	b, err := util.Random(8)
+	b, err := util.Random(int(pr.PasswordMinChars))
 	if err != nil {
 		return err
 	}
@@ -419,9 +461,21 @@ func _main() error {
 		return fmt.Errorf("/new should only be accessible by logged in users")
 	}
 	if err.Error() != "403" {
-		return fmt.Errorf("newProposal expected 403")
+		return fmt.Errorf("newProposal expected 403, got %v", err.Error())
 	}
-	fmt.Printf("newProposal expected error: %v\n", err)
+
+	b, err = util.Random(int(pr.PasswordMinChars))
+	if err != nil {
+		return err
+	}
+	newPassword := hex.EncodeToString(b)
+
+	// Reset password
+	err = c.resetPassword(email, password, newPassword)
+	if err != nil {
+		return err
+	}
+	password = newPassword
 
 	// Login
 	lr, err := c.login(email, password)
@@ -456,7 +510,7 @@ func _main() error {
 	if err != nil {
 		return err
 	}
-	newPassword := hex.EncodeToString(b)
+	newPassword = hex.EncodeToString(b)
 	cpr, err := c.changePassword(password, newPassword)
 	if err != nil {
 		return err

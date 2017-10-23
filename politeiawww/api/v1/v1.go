@@ -19,6 +19,7 @@ const (
 	RouteVerifyNewUserSuccess = "/user/verify/success"
 	RouteVerifyNewUserFailure = "/user/verify/failure"
 	RouteChangePassword       = "/user/password/change"
+	RouteResetPassword        = "/user/password/reset"
 	RouteLogin                = "/login"
 	RouteLogout               = "/logout"
 	RouteSecret               = "/secret"
@@ -178,6 +179,21 @@ type ChangePassword struct {
 // is logged in.
 type ChangePasswordReply struct {
 	ErrorCode StatusT `json:"errorcode,omitempty"`
+}
+
+// ResetPassword is used to perform a password change when the
+// user is not logged in.
+type ResetPassword struct {
+	Email             string `json:"email"`
+	VerificationToken string `json:"verificationtoken"`
+	NewPassword       string `json:"newpassword"`
+}
+
+// ResetPasswordReply is used to reply to the ResetPassword command
+// with an error if the command is unsuccessful.
+type ResetPasswordReply struct {
+	VerificationToken string  `json:"verificationtoken"`
+	ErrorCode         StatusT `json:"errorcode,omitempty"`
 }
 
 // Login attempts to login the user.  Note that by necessity the password

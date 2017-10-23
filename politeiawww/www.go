@@ -41,7 +41,11 @@ type politeiawww struct {
 	backend *backend
 }
 
-type emailTemplateData struct {
+type newUserEmailTemplateData struct {
+	Link  string
+	Email string
+}
+type resetPasswordEmailTemplateData struct {
 	Link  string
 	Email string
 }
@@ -364,6 +368,28 @@ func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Reques
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
+func (p *politeiawww) handleResetPassword(w http.ResponseWriter, r *http.Request) {
+	// Get the reset password command.
+	var rp v1.ResetPassword
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&rp); err != nil {
+		RespondInternalError(w, r,
+			"handleResetPassword: Unmarshal %v", err)
+		return
+	}
+	defer r.Body.Close()
+
+	rpr, err := p.backend.ProcessResetPassword(rp)
+	if err != nil {
+		RespondInternalError(w, r,
+			"handleResetPassword: %v", err)
+		return
+	}
+
+	// Reply with the error code.
+	util.RespondWithJSON(w, http.StatusOK, rpr)
+}
+
 // handleNewProposal handles the incoming new proposal command.
 func (p *politeiawww) handleNewProposal(w http.ResponseWriter, r *http.Request) {
 	// Get the new proposal command.
@@ -616,11 +642,13 @@ func _main() error {
 	p.addRoute(http.MethodPost, v1.RouteLogin, p.handleLogin, permissionPublic)
 	p.addRoute(http.MethodGet, v1.RouteLogout, p.handleLogout, permissionPublic)
 	p.addRoute(http.MethodPost, v1.RouteLogout, p.handleLogout, permissionPublic)
+	p.addRoute(http.MethodPost, v1.RouteResetPassword, p.handleResetPassword, permissionPublic)
 	p.addRoute(http.MethodGet, v1.RouteAllVetted, p.handleAllVetted, permissionPublic)
 	p.addRoute(http.MethodGet, v1.RouteProposalDetails, p.handleProposalDetails, permissionPublic)
 	p.addRoute(http.MethodGet, v1.RoutePolicy, p.handlePolicy, permissionPublic)
 
 	// Routes that require being logged in.
+	p.addRoute(http.MethodPost, v1.RouteSecret, p.handleSecret, permissionLogin)
 	p.addRoute(http.MethodPost, v1.RouteNewProposal, p.handleNewProposal, permissionLogin)
 	p.addRoute(http.MethodGet, v1.RouteUserMe, p.handleMe, permissionLogin)
 	p.addRoute(http.MethodPost, v1.RouteChangePassword, p.handleChangePassword, permissionLogin)
@@ -628,7 +656,6 @@ func _main() error {
 	// Routes that require being logged in as an admin user.
 	p.addRoute(http.MethodGet, v1.RouteAllUnvetted, p.handleAllUnvetted, permissionAdmin)
 	p.addRoute(http.MethodPost, v1.RouteSetProposalStatus, p.handleSetProposalStatus, permissionAdmin)
-	p.addRoute(http.MethodPost, v1.RouteSecret, p.handleSecret, permissionLogin)
 
 	// Since we don't persist connections also generate a new cookie key on
 	// startup.
