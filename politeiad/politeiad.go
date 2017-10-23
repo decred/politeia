@@ -30,11 +30,10 @@ import (
 
 // politeia application context.
 type politeia struct {
-	backend    backend.Backend
-	cfg        *config
-	router     *mux.Router
-	httpClient *http.Client
-	identity   *identity.FullIdentity
+	backend  backend.Backend
+	cfg      *config
+	router   *mux.Router
+	identity *identity.FullIdentity
 }
 
 func remoteAddr(r *http.Request) string {
