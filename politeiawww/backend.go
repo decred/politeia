@@ -323,6 +323,13 @@ func (b *backend) verifyResetPassword(user *database.User, rp www.ResetPassword,
 		return nil
 	}
 
+	// Validate the new password.
+	status := b.validatePassword(rp.NewPassword)
+	if status != www.StatusSuccess {
+		rpr.ErrorCode = status
+		return nil
+	}
+
 	// Hash the new password.
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(rp.NewPassword),
 		bcrypt.DefaultCost)
