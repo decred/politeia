@@ -41,6 +41,7 @@ var (
 	defaultHTTPSKeyFile  = filepath.Join(sharedconfig.DefaultHomeDir, "https.key")
 	defaultHTTPSCertFile = filepath.Join(sharedconfig.DefaultHomeDir, "https.cert")
 	defaultRPCCertFile   = filepath.Join(sharedconfig.DefaultHomeDir, "rpc.cert")
+	defaultCookieKeyFile = filepath.Join(sharedconfig.DefaultHomeDir, "cookie.key")
 	defaultLogDir        = filepath.Join(sharedconfig.DefaultHomeDir, defaultLogDirname)
 
 	templateNewUserEmail = template.Must(
@@ -65,6 +66,7 @@ type config struct {
 	TestNet          bool     `long:"testnet" description:"Use the test network"`
 	SimNet           bool     `long:"simnet" description:"Use the simulation test network"`
 	Profile          string   `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
+	CookieKeyFile    string   `long:"cookiekey" description:"File containing the secret cookies key"`
 	CPUProfile       string   `long:"cpuprofile" description:"Write CPU profile to the specified file"`
 	MemProfile       string   `long:"memprofile" description:"Write mem profile to the specified file"`
 	DebugLevel       string   `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
@@ -306,15 +308,16 @@ func loadIdentity(cfg *config) error {
 func loadConfig() (*config, []string, error) {
 	// Default config.
 	cfg := config{
-		HomeDir:    sharedconfig.DefaultHomeDir,
-		ConfigFile: sharedconfig.DefaultConfigFile,
-		DebugLevel: defaultLogLevel,
-		DataDir:    sharedconfig.DefaultDataDir,
-		LogDir:     defaultLogDir,
-		HTTPSKey:   defaultHTTPSKeyFile,
-		HTTPSCert:  defaultHTTPSCertFile,
-		RPCCert:    defaultRPCCertFile,
-		Version:    version(),
+		HomeDir:       sharedconfig.DefaultHomeDir,
+		ConfigFile:    sharedconfig.DefaultConfigFile,
+		DebugLevel:    defaultLogLevel,
+		DataDir:       sharedconfig.DefaultDataDir,
+		LogDir:        defaultLogDir,
+		HTTPSKey:      defaultHTTPSKeyFile,
+		HTTPSCert:     defaultHTTPSCertFile,
+		RPCCert:       defaultRPCCertFile,
+		CookieKeyFile: defaultCookieKeyFile,
+		Version:       version(),
 	}
 
 	// Service options which are only added on Windows.
@@ -389,6 +392,11 @@ func loadConfig() (*config, []string, error) {
 			cfg.LogDir = filepath.Join(cfg.HomeDir, defaultLogDirname)
 		} else {
 			cfg.LogDir = preCfg.LogDir
+		}
+		if preCfg.CookieKeyFile == defaultCookieKeyFile {
+			cfg.CookieKeyFile = filepath.Join(cfg.HomeDir, "cookie.key")
+		} else {
+			cfg.CookieKeyFile = preCfg.CookieKeyFile
 		}
 	}
 
