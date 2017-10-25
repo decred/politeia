@@ -341,12 +341,8 @@ func (b *backend) verifyResetPassword(user *database.User, rp www.ResetPassword,
 	user.NewUserVerificationToken = nil
 	user.NewUserVerificationExpiry = 0
 	user.HashedPassword = hashedPassword
-	err = b.db.UserUpdate(*user)
-	if err != nil {
-		return err
-	}
 
-	return nil
+	return b.db.UserUpdate(*user)
 }
 
 // LoadInventory fetches the entire inventory of proposals from politeiad

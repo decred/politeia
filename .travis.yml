@@ -1,0 +1,14 @@
+language: go
+go:
+  - 1.8.x
+  - 1.9.x
+sudo: false
+install:
+  - go get -v github.com/golang/dep/cmd/dep
+  - dep ensure
+  - go install ./politeiad/... ./politeiawww/...
+  - go get -v github.com/alecthomas/gometalinter
+  - gometalinter --install
+script:
+  - export PATH=$PATH:$HOME/gopath/bin
+  - ./goclean.sh

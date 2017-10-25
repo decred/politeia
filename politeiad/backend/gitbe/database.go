@@ -159,12 +159,8 @@ func (g *gitBackEnd) writeAnchorRecord(key [sha256.Size]byte, anchor Anchor) err
 	// Use a batch for now
 	batch := new(leveldb.Batch)
 	batch.Put(k, la)
-	err = g.db.Write(batch, nil)
-	if err != nil {
-		return err
-	}
 
-	return nil
+	return g.db.Write(batch, nil)
 }
 
 // readAnchorRecord retrieves the anchor record based on the provided merkle
@@ -233,12 +229,8 @@ func (g *gitBackEnd) writeLastAnchorRecord(lastAnchor LastAnchor) error {
 	// Use a batch for now
 	batch := new(leveldb.Batch)
 	batch.Put([]byte(LastAnchorKey), la)
-	err = g.db.Write(batch, nil)
-	if err != nil {
-		return err
-	}
 
-	return nil
+	return g.db.Write(batch, nil)
 }
 
 // readLastAnchorRecord retrieves the last anchor record.
@@ -330,12 +322,8 @@ func (g *gitBackEnd) writeUnconfirmedAnchorRecord(unconfirmed UnconfirmedAnchor)
 	// Use a batch for now
 	batch := new(leveldb.Batch)
 	batch.Put([]byte(UnconfirmedKey), ua)
-	err = g.db.Write(batch, nil)
-	if err != nil {
-		return err
-	}
 
-	return nil
+	return g.db.Write(batch, nil)
 }
 
 // readUnconfirmedAnchorRecord retrieves the unconfirmed anchor record.

@@ -322,13 +322,8 @@ func updatePSR(path, id string, psr *backend.ProposalStorageRecord) error {
 		return err
 	}
 	defer f.Close()
-	encoder := json.NewEncoder(f)
-	err = encoder.Encode(*psr)
-	if err != nil {
-		return err
-	}
 
-	return nil
+	return json.NewEncoder(f).Encode(*psr)
 }
 
 // commitPSR commits the PSR into a git repo.
@@ -344,12 +339,7 @@ func (g *gitBackEnd) commitPSR(path, id, msg string) error {
 	}
 
 	// git commit -m "message"
-	err = g.gitCommit(path, "Update proposal status "+id+" "+msg)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return g.gitCommit(path, "Update proposal status "+id+" "+msg)
 }
 
 // deltaCommits returns sha1 extended digests and one line commit messages to
@@ -612,7 +602,7 @@ func (g *gitBackEnd) anchorAllRepos() error {
 			log.Errorf("anchorAllRepos unlock error: %v", err)
 		}
 	}()
-	if g.shutdown == true {
+	if g.shutdown {
 		return fmt.Errorf("anchorAllRepos: %v", backend.ErrShutdown)
 	}
 
@@ -841,12 +831,7 @@ func (g *gitBackEnd) afterAnchorVerify(vrs []v1.VerifyDigest, precious [][]byte)
 
 	// Update database record
 	ua := UnconfirmedAnchor{Merkles: precious}
-	err = g.writeUnconfirmedAnchorRecord(ua)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return g.writeUnconfirmedAnchorRecord(ua)
 }
 
 // safeReadUnconfirmedAnchorRecord is a wrapper around
@@ -970,7 +955,7 @@ func (g *gitBackEnd) New(name string, files []backend.File) (*backend.ProposalSt
 			log.Errorf("Unlock error: %v", err)
 		}
 	}()
-	if g.shutdown == true {
+	if g.shutdown {
 		return nil, backend.ErrShutdown
 	}
 
@@ -1065,7 +1050,7 @@ func (g *gitBackEnd) getProposalLock(token []byte, repo string, includeFiles boo
 			log.Errorf("Unlock error: %v", err)
 		}
 	}()
-	if g.shutdown == true {
+	if g.shutdown {
 		return nil, backend.ErrShutdown
 	}
 
@@ -1317,7 +1302,7 @@ func (g *gitBackEnd) SetUnvettedStatus(token []byte, status backend.PSRStatusT) 
 			log.Errorf("Unlock error: %v", err)
 		}
 	}()
-	if g.shutdown == true {
+	if g.shutdown {
 		return backend.PSRStatusInvalid, backend.ErrShutdown
 	}
 
@@ -1484,7 +1469,7 @@ func (g *gitBackEnd) Inventory(vettedCount, branchCount uint, includeFiles bool)
 			log.Errorf("Unlock error: %v", err)
 		}
 	}()
-	if g.shutdown == true {
+	if g.shutdown {
 		return nil, nil, backend.ErrShutdown
 	}
 
@@ -1619,13 +1604,9 @@ func (g *gitBackEnd) newLocked() error {
 	if err != nil {
 		return err
 	}
-	log.Infof("Running dcrtime fsck on vetted repository")
-	err = g.fsck(g.vetted)
-	if err != nil {
-		return err
-	}
 
-	return nil
+	log.Infof("Running dcrtime fsck on vetted repository")
+	return g.fsck(g.vetted)
 }
 
 // New returns a gitBackEnd context.  It verifies that git is installed.

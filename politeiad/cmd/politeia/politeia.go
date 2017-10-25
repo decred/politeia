@@ -19,8 +19,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/util"
@@ -728,7 +728,6 @@ func _main() error {
 			default:
 				return fmt.Errorf("invalid action: %v", a)
 			}
-			continue
 		}
 	}
 

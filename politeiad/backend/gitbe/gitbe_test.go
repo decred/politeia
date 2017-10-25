@@ -65,6 +65,9 @@ func TestAnchorWithCommits(t *testing.T) {
 
 	// Initialize stuff we need
 	g, err := New(dir, "", "", testing.Verbose())
+	if err != nil {
+		t.Fatal(err)
+	}
 	g.test = true
 
 	// Create 5 unvetted proposals
@@ -335,7 +338,7 @@ func TestAnchorWithCommits(t *testing.T) {
 
 	// Vet + anchor
 	t.Logf("===== INTERLEAVE ANCHORS =====")
-	status, err = g.SetUnvettedStatus(psr[2].Token, backend.PSRStatusVetted)
+	_, err = g.SetUnvettedStatus(psr[2].Token, backend.PSRStatusVetted)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -345,7 +348,7 @@ func TestAnchorWithCommits(t *testing.T) {
 	}
 
 	// Vet + anchor
-	status, err = g.SetUnvettedStatus(psr[0].Token, backend.PSRStatusVetted)
+	_, err = g.SetUnvettedStatus(psr[0].Token, backend.PSRStatusVetted)
 	if err != nil {
 		t.Fatal(err)
 	}

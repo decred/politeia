@@ -209,6 +209,9 @@ func TestFsck(t *testing.T) {
 	// Uncompress
 	b := bytes.NewBuffer(xxx)
 	r, err := zlib.NewReader(b)
+	if err != nil {
+		t.Fatal(err)
+	}
 	buf := new(bytes.Buffer)
 	w := bufio.NewWriter(buf)
 	io.Copy(w, r)
