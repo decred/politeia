@@ -105,12 +105,7 @@ func (fi *FullIdentity) Save(filename string) error {
 	if err != nil {
 		return fmt.Errorf("could not marshal identity")
 	}
-	err = ioutil.WriteFile(filename, id, 0600)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return ioutil.WriteFile(filename, id, 0600)
 }
 
 func (fi *FullIdentity) SignMessage(message []byte) [SignatureSize]byte {
@@ -167,12 +162,7 @@ func (pi *PublicIdentity) SavePublicIdentity(filename string) error {
 	if err != nil {
 		return fmt.Errorf("could not marshal public identity")
 	}
-	err = ioutil.WriteFile(filename, id, 0600)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return ioutil.WriteFile(filename, id, 0600)
 }
 
 // Zero out a byte slice.

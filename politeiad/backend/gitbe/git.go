@@ -62,10 +62,7 @@ func (g *gitBackEnd) git(path string, args ...string) ([]string, error) {
 	}
 
 	ge.cmd = append(ge.cmd, g.gitPath)
-	for _, v := range args {
-		ge.cmd = append(ge.cmd, v)
-	}
-
+	ge.cmd = append(ge.cmd, args...)
 	if g.gitTrace {
 		defer func() { ge.log() }()
 	}
@@ -134,6 +131,15 @@ func (g *gitBackEnd) git(path string, args ...string) ([]string, error) {
 	// have completed.
 	wg.Wait()
 
+	if stdoutError != nil {
+		ge.err = fmt.Errorf("scanner error on stdout: %v", err)
+		return nil, ge
+	}
+	if stderrError != nil {
+		ge.err = fmt.Errorf("scanner error on stderr: %v", err)
+		return nil, ge
+	}
+
 	// Finish up cmd.
 	err = cmd.Wait()
 	if err != nil {
@@ -160,38 +166,22 @@ func (g *gitBackEnd) gitVersion() (string, error) {
 
 func (g *gitBackEnd) gitAdd(path, filename string) error {
 	_, err := g.git(path, "add", filename)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func (g *gitBackEnd) gitCommit(path, message string) error {
 	_, err := g.git(path, "commit", "-m", message)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func (g *gitBackEnd) gitCheckout(path, branch string) error {
 	_, err := g.git(path, "checkout", branch)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func (g *gitBackEnd) gitBranchDelete(path, branch string) error {
 	_, err := g.git(path, "branch", "-D", branch)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func (g *gitBackEnd) gitBranches(path string) ([]string, error) {
@@ -224,11 +214,7 @@ func (g *gitBackEnd) gitPull(path string, fastForward bool) error {
 
 func (g *gitBackEnd) gitRebase(path, branch string) error {
 	_, err := g.git(path, "rebase", branch)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func (g *gitBackEnd) gitPush(path, remote, branch string, upstream bool) error {
@@ -247,11 +233,7 @@ func (g *gitBackEnd) gitPush(path, remote, branch string, upstream bool) error {
 
 func (g *gitBackEnd) gitNewBranch(path, branch string) error {
 	_, err := g.git(path, "checkout", "-b", branch)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func (g *gitBackEnd) gitLastDigest(path string) ([]byte, error) {
@@ -313,11 +295,7 @@ func (g *gitBackEnd) gitClone(from, to string) error {
 
 	log.Infof("Cloning git repo %v to %v", from, to)
 	_, err = g.git("", "clone", from, to)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 // gitInit initializes a new repository.  If the repository exists
@@ -371,10 +349,6 @@ func (g *gitBackEnd) gitInitRepo(path string) error {
 	if err != nil {
 		return err
 	}
-	err = g.gitCommit(path, "Add .gitignore")
-	if err != nil {
-		return err
-	}
 
-	return nil
+	return g.gitCommit(path, "Add .gitignore")
 }

@@ -17,8 +17,8 @@ import (
 	"strings"
 
 	flags "github.com/btcsuite/go-flags"
-	"github.com/decred/dcrtime/api/v1"
 	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrtime/api/v1"
 	"github.com/decred/politeia/util"
 )
 
@@ -494,7 +494,7 @@ func loadConfig() (*config, []string, error) {
 		if err != nil {
 			return nil, nil, err
 		}
-		cfg.RPCUser = base64.StdEncoding.EncodeToString([]byte(name))
+		cfg.RPCUser = base64.StdEncoding.EncodeToString(name)
 		log.Warnf("RPC user name not set, using random value")
 	}
 	if cfg.RPCPass == "" {
@@ -502,7 +502,7 @@ func loadConfig() (*config, []string, error) {
 		if err != nil {
 			return nil, nil, err
 		}
-		cfg.RPCPass = base64.StdEncoding.EncodeToString([]byte(pass))
+		cfg.RPCPass = base64.StdEncoding.EncodeToString(pass)
 		log.Warnf("RPC password not set, using random value")
 	}
 
