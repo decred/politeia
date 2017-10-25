@@ -9,9 +9,22 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/decred/dcrtime/api/v1"
 	"github.com/decred/dcrtime/merkle"
+)
+
+var (
+	skipVerify = false
+	httpClient = &http.Client{
+		Transport: &http.Transport{
+			IdleConnTimeout: 60 * time.Second,
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: skipVerify,
+			},
+		},
+	}
 )
 
 // isTimestamp determines if a string is a valid SHA256 digest.
@@ -27,17 +40,6 @@ func defaultTestnetHost() string {
 func defaultMainnetHost() string {
 	return "https://" + NormalizeAddress(v1.DefaultMainnetTimeHost,
 		v1.DefaultMainnetTimePort)
-}
-
-// XXX duplicate function
-func newClient(skipVerify bool) *http.Client {
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: skipVerify,
-	}
-	tr := &http.Transport{
-		TLSClientConfig: tlsConfig,
-	}
-	return &http.Client{Transport: tr}
 }
 
 // XXX duplicate function
@@ -75,9 +77,7 @@ func Timestamp(host string, digests []*[sha256.Size]byte) error {
 		return err
 	}
 
-	//c := newClient(false)
-	c := newClient(true)
-	r, err := c.Post(host+v1.TimestampRoute, "application/json",
+	r, err := httpClient.Post(host+v1.TimestampRoute, "application/json",
 		bytes.NewReader(b))
 	if err != nil {
 		return err
@@ -141,8 +141,7 @@ func Verify(host string, digests []string) (*v1.VerifyReply, error) {
 		return nil, err
 	}
 
-	c := newClient(false)
-	r, err := c.Post(host+v1.VerifyRoute, "application/json",
+	r, err := httpClient.Post(host+v1.VerifyRoute, "application/json",
 		bytes.NewReader(b))
 	if err != nil {
 		return nil, err

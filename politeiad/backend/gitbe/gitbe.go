@@ -53,6 +53,10 @@ const (
 	// trail is kept.
 	defaultAuditTrailFile = "anchor_audit_trail.txt"
 
+	// defaultAnchorsDirectory is the directory where anchors are stored.
+	// They are indexed by TX.
+	defaultAnchorsDirectory = "anchors"
+
 	// defaultPayloadDir is the default path to store a proposal payload.
 	defaultPayloadDir = "payload"
 
@@ -172,7 +176,7 @@ func (g *gitBackEnd) newUniqueID() (uint64, error) {
 
 	// Create directory
 	err = os.MkdirAll(filepath.Join(g.unvetted, strconv.FormatUint(id, 10)),
-		0700)
+		0764)
 	if err != nil {
 		return 0, err
 	}
@@ -725,12 +729,9 @@ func (g *gitBackEnd) afterAnchorVerify(vrs []v1.VerifyDigest, precious [][]byte)
 	var commitMsg string
 	for _, vr := range vrs {
 		if vr.ChainInformation.ChainTimestamp == 0 {
-			// This is a diagnostic message that should not happen.
-			// This has been observed in the wild so leave it here
-			// for now.
-			log.Errorf("invalid chain timestamp: %v",
-				spew.Sdump(vr))
-			return fmt.Errorf("invalid chain timestamp: %v",
+			// dcrtime returns 0 when there are not enough
+			// confirmations yet.
+			return fmt.Errorf("not enough confirmations: %v",
 				vr.Digest)
 		}
 
@@ -744,6 +745,31 @@ func (g *gitBackEnd) afterAnchorVerify(vrs []v1.VerifyDigest, precious [][]byte)
 		commitMsg += line + "\n"
 		err = g.appendAuditTrail(g.vetted,
 			vr.ChainInformation.ChainTimestamp, mr, []string{line})
+		if err != nil {
+			return err
+		}
+
+		// Store dcrtime information.
+		// In vetted store the ChainInformation as a json object in
+		// directory anchor.
+		// In Vetted in the proposal directory add a file called anchor
+		// that points to the TX id.
+		anchorDir := filepath.Join(g.vetted, defaultAnchorsDirectory)
+		err = os.MkdirAll(anchorDir, 0764)
+		if err != nil {
+			return err
+		}
+		ar, err := json.Marshal(vr.ChainInformation)
+		if err != nil {
+			return err
+		}
+		err = ioutil.WriteFile(filepath.Join(anchorDir, vr.Digest),
+			ar, 0444)
+		if err != nil {
+			return err
+		}
+		err = g.gitAdd(g.vetted,
+			filepath.Join(defaultAnchorsDirectory, vr.Digest))
 		if err != nil {
 			return err
 		}
@@ -762,8 +788,6 @@ func (g *gitBackEnd) afterAnchorVerify(vrs []v1.VerifyDigest, precious [][]byte)
 		anchor.Type = AnchorVerified
 		anchor.ChainTimestamp = vr.ChainInformation.ChainTimestamp
 		anchor.Transaction = vr.ChainInformation.Transaction
-		log.Infof("--------------------- %v", spew.Sdump(vr))
-		log.Infof("===================== %v", spew.Sdump(anchor))
 		err = g.writeAnchorRecord(d, *anchor)
 		if err != nil {
 			return err
@@ -885,7 +909,6 @@ func (g *gitBackEnd) verifyAnchor(digest string) (*v1.VerifyDigest, error) {
 		if err != nil {
 			return nil, err
 		}
-		log.Infof("=== VERIFY %v %v", digest, spew.Sdump(vr))
 	}
 
 	// Do some sanity checks
@@ -971,7 +994,7 @@ func (g *gitBackEnd) New(name string, files []backend.File) (*backend.ProposalSt
 
 	// Process files.
 	path := filepath.Join(g.unvetted, id, defaultPayloadDir)
-	err = os.MkdirAll(path, 0700)
+	err = os.MkdirAll(path, 0764)
 	if err != nil {
 		return nil, err
 	}
@@ -980,7 +1003,7 @@ func (g *gitBackEnd) New(name string, files []backend.File) (*backend.ProposalSt
 	for i := range fa {
 		// Copy files into directory id/payload/filename.
 		filename := filepath.Join(path, fa[i].name)
-		err = ioutil.WriteFile(filename, fa[i].payload, 0664)
+		err = ioutil.WriteFile(filename, fa[i].payload, 0444)
 		if err != nil {
 			return nil, err
 		}

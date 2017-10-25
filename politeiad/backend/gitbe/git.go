@@ -341,16 +341,17 @@ func (g *gitBackEnd) gitInit(path string) (string, error) {
 // ignore the lock file.
 func (g *gitBackEnd) gitInitRepo(path string) error {
 	_, err := os.Stat(filepath.Join(path, ".git"))
+	// This test is unreadable but correct.
 	if !os.IsNotExist(err) {
 		return err
 	}
 
 	// Containing directory
-	err = os.MkdirAll(path, 0700)
+	log.Infof("Initializing git repo: %v", path)
+	err = os.MkdirAll(path, 0755)
 	if err != nil {
 		return err
 	}
-	log.Infof("Initializing git repo: %v", path)
 
 	// Initialize git repo
 	_, err = g.gitInit(path)
