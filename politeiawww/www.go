@@ -4,9 +4,11 @@ import (
 	"bufio"
 	"crypto/elliptic"
 	"crypto/tls"
+	_ "encoding/gob"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -36,7 +38,7 @@ type politeiawww struct {
 	cfg    *config
 	router *mux.Router
 
-	store *sessions.CookieStore
+	store *sessions.FilesystemStore
 
 	backend *backend
 }
@@ -657,13 +659,26 @@ func _main() error {
 	p.addRoute(http.MethodGet, v1.RouteAllUnvetted, p.handleAllUnvetted, permissionAdmin)
 	p.addRoute(http.MethodPost, v1.RouteSetProposalStatus, p.handleSetProposalStatus, permissionAdmin)
 
-	// Since we don't persist connections also generate a new cookie key on
-	// startup.
-	cookieKey, err := util.Random(32)
+	// Persist session cookies.
+	var cookieKey []byte
+	if cookieKey, err = ioutil.ReadFile(p.cfg.CookieKeyFile); err != nil {
+		log.Infof("Cookie key not found, generating one...")
+		cookieKey, err = util.Random(32)
+		if err != nil {
+			return err
+		}
+		err = ioutil.WriteFile(p.cfg.CookieKeyFile, cookieKey, 0400)
+		if err != nil {
+			return err
+		}
+		log.Infof("Cookie key generated.")
+	}
+	sessionsDir := filepath.Join(p.cfg.DataDir, "sessions")
+	err = os.MkdirAll(sessionsDir, 0700)
 	if err != nil {
 		return err
 	}
-	p.store = sessions.NewCookieStore(cookieKey)
+	p.store = sessions.NewFilesystemStore(sessionsDir, cookieKey)
 	p.store.Options = &sessions.Options{
 		Path:     "/",
 		MaxAge:   86400, // One day
