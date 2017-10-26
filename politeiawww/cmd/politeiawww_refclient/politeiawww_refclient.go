@@ -312,9 +312,11 @@ func (c *ctx) allVetted() error {
 	return nil
 }
 
-func (c *ctx) allUnvetted() (*v1.GetAllUnvettedReply, error) {
-	responseBody, err := c.makeRequest("GET", v1.RouteAllUnvetted,
-		v1.GetAllUnvetted{})
+func (c *ctx) allUnvetted(after string) (*v1.GetAllUnvettedReply, error) {
+	u := v1.GetAllUnvetted{
+		After: after,
+	}
+	responseBody, err := c.makeRequest("GET", v1.RouteAllUnvetted, u)
 	if err != nil {
 		return nil, err
 	}
@@ -603,7 +605,7 @@ func _main() error {
 			pr2.Proposal.Status, v1.PropStatusNotReviewed)
 	}
 
-	_, err = c.allUnvetted()
+	_, err = c.allUnvetted("")
 	if err == nil {
 		return fmt.Errorf("/unvetted should only be accessible by admin users")
 	}
@@ -658,14 +660,29 @@ func _main() error {
 				me.IsAdmin, true)
 		}
 
-		unvetted, err := c.allUnvetted()
+		// Create enough proposals to have 2 pages
+		for i := 0; i < int(pr.ProposalListPageSize); i++ {
+			_, err = c.newProposal()
+			if err != nil {
+				return err
+			}
+		}
+
+		unvettedPage1, err := c.allUnvetted("")
 		// Expect no error
 		if err != nil {
 			return err
 		}
 
-		// XXX verify response
-		_ = unvetted
+		lastProposal := unvettedPage1.Proposals[len(unvettedPage1.Proposals)-1]
+		unvettedPage2, err := c.allUnvetted(lastProposal.CensorshipRecord.Token)
+		if err != nil {
+			return err
+		}
+
+		if len(unvettedPage2.Proposals) == 0 {
+			return fmt.Errorf("empty 2nd page of unvetted proposals")
+		}
 
 		pr1, err := c.getProp(myprop1.CensorshipRecord.Token)
 		if err != nil {

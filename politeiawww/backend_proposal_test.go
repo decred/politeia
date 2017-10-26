@@ -322,3 +322,82 @@ func TestInventorySorted(t *testing.T) {
 
 	b.db.Close()
 }
+
+func TestProposalListPaging(t *testing.T) {
+	b := createBackend(t)
+
+	tokens := make([]string, www.ProposalListPageSize+1)
+	for i := 0; i < www.ProposalListPageSize+1; i++ {
+		_, npr, err := createNewProposal(b, t)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		tokens[i] = npr.CensorshipRecord.Token
+	}
+
+	var u www.GetAllUnvetted
+	ur := b.ProcessAllUnvetted(u)
+	if len(ur.Proposals) != www.ProposalListPageSize {
+		t.Fatalf("expected %v proposals, got %v", www.ProposalListPageSize,
+			len(ur.Proposals))
+	}
+
+	// Test fetching the next page using the After field.
+	u.After = ur.Proposals[len(ur.Proposals)-1].CensorshipRecord.Token
+	ur = b.ProcessAllUnvetted(u)
+	if len(ur.Proposals) != 1 {
+		t.Fatalf("expected 1 proposal, got %v", len(ur.Proposals))
+	}
+	for _, v := range ur.Proposals {
+		if v.CensorshipRecord.Token == u.After {
+			t.Fatalf("Proposal with token provided for 'After' field should " +
+				"not exist in the next page")
+		}
+	}
+
+	// Test fetching the previous page using the Before field.
+	u.After = ""
+	u.Before = ur.Proposals[0].CensorshipRecord.Token
+	ur = b.ProcessAllUnvetted(u)
+	if len(ur.Proposals) != www.ProposalListPageSize {
+		t.Fatalf("expected %v proposals, got %v", www.ProposalListPageSize,
+			len(ur.Proposals))
+	}
+	for _, v := range ur.Proposals {
+		if v.CensorshipRecord.Token == u.Before {
+			t.Fatalf("Proposal with token provided for 'Before' field should " +
+				"not exist in the previous page")
+		}
+	}
+
+	// Publish all the proposals.
+	for _, token := range tokens {
+		publishProposal(b, token, t)
+	}
+
+	var v www.GetAllVetted
+	vr := b.ProcessAllVetted(v)
+	if len(vr.Proposals) != www.ProposalListPageSize {
+		t.Fatalf("expected %v proposals, got %v", www.ProposalListPageSize,
+			len(vr.Proposals))
+	}
+
+	// Test fetching the next page using the After field.
+	v.After = vr.Proposals[len(vr.Proposals)-1].CensorshipRecord.Token
+	vr = b.ProcessAllVetted(v)
+	if len(vr.Proposals) != 1 {
+		t.Fatalf("expected 1 proposal, got %v", len(vr.Proposals))
+	}
+
+	// Test fetching the previous page using the Before field.
+	v.After = ""
+	v.Before = vr.Proposals[0].CensorshipRecord.Token
+	vr = b.ProcessAllVetted(v)
+	if len(vr.Proposals) != www.ProposalListPageSize {
+		t.Fatalf("expected %v proposals, got %v", www.ProposalListPageSize,
+			len(vr.Proposals))
+	}
+
+	b.db.Close()
+}

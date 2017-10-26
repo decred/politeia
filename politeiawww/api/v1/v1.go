@@ -63,6 +63,10 @@ const (
 	// proposal name
 	ValidProposalNameRegExp = `^[[:alnum:]\.\:\;\,\- \@\+\#]{8,}$`
 
+	// ProposalListPageSize is the maximum number of proposals returned
+	// for the routes that return lists of proposals
+	ProposalListPageSize = 20
+
 	// Error status codes
 	ErrorStatusInvalid                     ErrorStatusT = 0
 	ErrorStatusInvalidEmailOrPassword      ErrorStatusT = 1
@@ -327,19 +331,36 @@ type SetProposalStatusReply struct {
 	ProposalStatus PropStatusT `json:"proposalstatus"`
 }
 
-// GetAllUnvetted retrieves all unvetted proposals.  This call requires admin
-// privileges.
-type GetAllUnvetted struct{}
+// GetAllUnvetted retrieves all unvetted proposals; the maximum number returned
+// is dictated by ProposalListPageSize. This command optionally takes either
+// a Before or After parameter, which specify a proposal's censorship token.
+// If After is specified, the "page" returned starts after the proposal whose
+// censorship token is provided. If Before is specified, the "page" returned
+// starts before the proposal whose censorship token is provided.
+//
+// Note: This call requires admin privileges.
+type GetAllUnvetted struct {
+	Before string `json:"before"`
+	After  string `json:"after"`
+}
 
 // GetAllUnvettedReply is used to reply with a list of all unvetted proposals.
 type GetAllUnvettedReply struct {
 	Proposals []ProposalRecord `json:"proposals"`
 }
 
-// GetAllVetted retrieves all vetted proposals.
-type GetAllVetted struct{}
+// GetAllVetted retrieves vetted proposals; the maximum number returned is dictated
+// by ProposalListPageSize. This command optionally takes either a Before or After
+// parameter, which specify a proposal's censorship token. If After is specified,
+// the "page" returned starts after the proposal whose censorship token is provided.
+// If Before is specified, the "page" returned starts before the proposal whose
+// censorship token is provided.
+type GetAllVetted struct {
+	Before string `json:"before"`
+	After  string `json:"after"`
+}
 
-// GetAllVettedReply is used to reply with a list of all vetted proposals.
+// GetAllVettedReply is used to reply with a list of vetted proposals.
 type GetAllVettedReply struct {
 	Proposals []ProposalRecord `json:"proposals"`
 }
@@ -351,12 +372,13 @@ type Policy struct{}
 // PolicyReply is used to reply to the policy command. It returns
 // the file upload restrictions set for Politeia.
 type PolicyReply struct {
-	PasswordMinChars uint     `json:"passwordminchars"`
-	MaxImages        uint     `json:"maximages"`
-	MaxImageSize     uint     `json:"maximagesize"`
-	MaxMDs           uint     `json:"maxmds"`
-	MaxMDSize        uint     `json:"maxmdsize"`
-	ValidMIMETypes   []string `json:"validmimetypes"`
+	PasswordMinChars     uint     `json:"passwordminchars"`
+	ProposalListPageSize uint     `json:"proposallistpagesize"`
+	MaxImages            uint     `json:"maximages"`
+	MaxImageSize         uint     `json:"maximagesize"`
+	MaxMDs               uint     `json:"maxmds"`
+	MaxMDSize            uint     `json:"maxmdsize"`
+	ValidMIMETypes       []string `json:"validmimetypes"`
 }
 
 // NewComment sends a comment from a user to a specific proposal.  Note that

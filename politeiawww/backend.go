@@ -450,6 +450,60 @@ func (b *backend) loadInventory() (*pd.InventoryReply, error) {
 	}, nil
 }
 
+func (b *backend) getProposals(after, before string, statusMap map[www.PropStatusT]bool) []www.ProposalRecord {
+	b.RLock()
+	defer b.RUnlock()
+
+	// pageStarted stores whether or not it's okay to start adding proposals
+	// to the array. If the after or before parameter is supplied, we must find
+	// the beginning (or end) of the page first.
+	pageStarted := (after == "" && before == "")
+	beforeIdx := -1
+	proposals := make([]www.ProposalRecord, 0)
+
+	// Iterate in reverse order because they're sorted by oldest timestamp first.
+	for i := len(b.inventory) - 1; i >= 0; i-- {
+		proposal := b.inventory[i]
+		if _, ok := statusMap[proposal.Status]; ok {
+			if pageStarted {
+				proposals = append(proposals, proposal)
+				if len(proposals) >= www.ProposalListPageSize {
+					break
+				}
+			} else if after != "" {
+				// The beginning of the page has been found, so the next public
+				// proposal is added.
+				pageStarted = proposal.CensorshipRecord.Token == after
+			} else if before != "" {
+				// The end of the page has been found, so we'll have to iterate
+				// in the other direction to add the proposals; save the current
+				// index.
+				if proposal.CensorshipRecord.Token == before {
+					beforeIdx = i
+					break
+				}
+			}
+		}
+	}
+
+	// If beforeIdx is set, the caller is asking for vetted proposals whose
+	// last result is before the provided proposal.
+	if beforeIdx >= 0 {
+		for _, proposal := range b.inventory[beforeIdx+1:] {
+			if _, ok := statusMap[proposal.Status]; ok {
+				// The iteration direction is oldest -> newest, so proposals are
+				// prepended to the array so the result will be newest -> oldest.
+				proposals = append([]www.ProposalRecord{proposal}, proposals...)
+				if len(proposals) >= www.ProposalListPageSize {
+					break
+				}
+			}
+		}
+	}
+
+	return proposals
+}
+
 // LoadInventory fetches the entire inventory of proposals from politeiad
 // and caches it, sorted by most recent timestamp.
 func (b *backend) LoadInventory() error {
@@ -768,40 +822,24 @@ func (b *backend) ProcessResetPassword(rp www.ResetPassword) (*www.ResetPassword
 	return &reply, nil
 }
 
-// ProcessAllVetted returns an array of all vetted proposals in reverse order,
-// because they're sorted by oldest timestamp first.
+// ProcessAllVetted returns an array of vetted proposals. The maximum number
+// of proposals returned is dictated by www.ProposalListPageSize.
 func (b *backend) ProcessAllVetted(v www.GetAllVetted) *www.GetAllVettedReply {
-	b.RLock()
-	defer b.RUnlock()
-
-	proposals := make([]www.ProposalRecord, 0)
-	for i := len(b.inventory) - 1; i >= 0; i-- {
-		if b.inventory[i].Status == www.PropStatusPublic {
-			proposals = append(proposals, b.inventory[i])
-		}
-	}
-
 	return &www.GetAllVettedReply{
-		Proposals: proposals,
+		Proposals: b.getProposals(v.After, v.Before, map[www.PropStatusT]bool{
+			www.PropStatusPublic: true,
+		}),
 	}
 }
 
 // ProcessAllUnvetted returns an array of all unvetted proposals in reverse order,
 // because they're sorted by oldest timestamp first.
 func (b *backend) ProcessAllUnvetted(u www.GetAllUnvetted) *www.GetAllUnvettedReply {
-	b.RLock()
-	defer b.RUnlock()
-
-	proposals := make([]www.ProposalRecord, 0)
-	for i := len(b.inventory) - 1; i >= 0; i-- {
-		if b.inventory[i].Status == www.PropStatusNotReviewed ||
-			b.inventory[i].Status == www.PropStatusCensored {
-			proposals = append(proposals, b.inventory[i])
-		}
-	}
-
 	return &www.GetAllUnvettedReply{
-		Proposals: proposals,
+		Proposals: b.getProposals(u.After, u.Before, map[www.PropStatusT]bool{
+			www.PropStatusNotReviewed: true,
+			www.PropStatusCensored:    true,
+		}),
 	}
 }
 
@@ -1094,12 +1132,13 @@ func (b *backend) ProcessCommentGet(token string) (*www.GetCommentsReply, error)
 // ProcessPolicy returns the details of Politeia's restrictions on file uploads.
 func (b *backend) ProcessPolicy(p www.Policy) *www.PolicyReply {
 	return &www.PolicyReply{
-		PasswordMinChars: www.PolicyPasswordMinChars,
-		MaxImages:        www.PolicyMaxImages,
-		MaxImageSize:     www.PolicyMaxImageSize,
-		MaxMDs:           www.PolicyMaxMDs,
-		MaxMDSize:        www.PolicyMaxMDSize,
-		ValidMIMETypes:   mime.ValidMimeTypes(),
+		PasswordMinChars:     www.PolicyPasswordMinChars,
+		ProposalListPageSize: www.ProposalListPageSize,
+		MaxImages:            www.PolicyMaxImages,
+		MaxImageSize:         www.PolicyMaxImageSize,
+		MaxMDs:               www.PolicyMaxMDs,
+		MaxMDSize:            www.PolicyMaxMDSize,
+		ValidMIMETypes:       mime.ValidMimeTypes(),
 	}
 }
 

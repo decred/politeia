@@ -64,15 +64,15 @@ when an unexpected server error has occurred. The format of errors is as follows
 
 **`4xx` errors**
 
-|  | Type | Description |
-|--------------|------------------|-------------------------------------------------------------------------------------------------------------------------------------|
+| | Type | Description |
+|-|-|-|
 | errorcode | Number | One of the [error codes](#error-codes) |
 | errorcontext | Array of Strings | This array of strings is used to provide additional information for certain errors; see the documentation for specific error codes. |
 
 **`5xx` errors**
 
-|           | Type   | Description                                                                                                                             |
-|-----------|--------|-----------------------------------------------------------------------------------------------------------------------------------------|
+| | Type | Description |
+|-|-|-|
 | errorcode | Number | An error code that can be used to track down the internal server error that occurred; it should be reported to Politeia administrators. |
 
 ## Methods
@@ -89,10 +89,10 @@ to get the CSRF token for the session and to ensure API compatability.
 
 **Results**:
 
-|          | Type   | Description                                                                                     |
-|----------|--------|-------------------------------------------------------------------------------------------------|
-| version  | Number | API version that is running on this server.                                                     |
-| route    | String | Route that should be prepended to all calls. For example, "/v1".                                |
+| | Type | Description |
+|-|-|-|
+| version | Number | API version that is running on this server. |
+| route | String | Route that should be prepended to all calls. For example, "/v1". |
 | identity | String | Identity that signs various tokens to ensure server authenticity and to prevent replay attacks. |
 
 **Example**
@@ -123,10 +123,10 @@ Return pertinent user information of the current logged in user.
 
 **Results**:
 
-|         | Type   | Description                                               |
-|---------|--------|-----------------------------------------------------------|
-| userid  | Number | Unique user identifier.                                   |
-| email   | String | User ID.                                                  |
+| | Type | Description |
+|-|-|-|
+| userid | Number | Unique user identifier. |
+| email | String | User ID. |
 | isadmin | String | This indicates if the user has publish/censor privileges. |
 
 If there currently is no session the call returns `403 Forbidden`.
@@ -157,14 +157,14 @@ Create a new user on the politeiawww server.
 **Params:**
 
 | Parameter | Type | Description | Required |
-|-----------|--------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|
+|-|-|-|-|
 | email | String | Email is used as the web site user identity for a user. When a user changes email addresses the server shall maintain a mapping between the old and new address. | Yes |
 | password | String | The password that the user wishes to use. This password travels in the clear in order to enable JS-less systems. The server shall never store passwords in the clear. | Yes |
 
 **Results:**
 
 | Parameter | Type | Description |
-|-------------------|--------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|-|-|-|
 | verificationtoken | String | The verification token which is required when calling [Verify user](#verify-user). If an email server is set up, this property will be empty or nonexistent; the token will be sent to the email address sent in the request. |
 
 This call can return one of the following error codes:
@@ -209,10 +209,10 @@ Verify email address of a previously created user.
 
 **Params:**
 
-| Parameter         | Type   | Description                                       | Required |
-|-------------------|--------|---------------------------------------------------|----------|
-| email             | String | Email address of previously created user.         | Yes      |
-| verificationtoken | String | The token that was provided by email to the user. | Yes      |
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| email | String | Email address of previously created user. | Yes |
+| verificationtoken | String | The token that was provided by email to the user. | Yes |
 
 **Results:** none
 
@@ -252,17 +252,17 @@ the user database.
 
 **Params:**
 
-| Parameter | Type   | Description                                        | Required |
-|-----------|--------|----------------------------------------------------|----------|
-| email     | String | Email address of user that is attempting to login. | Yes      |
-| password  | String | Accompanying password for provided email.          | Yes      |
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| email | String | Email address of user that is attempting to login. | Yes |
+| password | String | Accompanying password for provided email. | Yes |
 
 **Results:**
 
-| Parameter | Type    | Description                                               |
-|-----------|---------|-----------------------------------------------------------|
-| userid    | Number  | Unique user identifier.                                   |
-| isadmin   | Boolean | This indicates if the user has publish/censor privileges. |
+| Parameter | Type | Description |
+|-|-|-|
+| userid | Number | Unique user identifier. |
+| isadmin | Boolean | This indicates if the user has publish/censor privileges. |
 
 On failure the call shall return `403 Forbidden` and one of the following
 error codes:
@@ -319,10 +319,10 @@ Changes the password for the currently logged in user.
 
 **Params:**
 
-| Parameter       | Type   | Description                                 | Required |
-|-----------------|--------|---------------------------------------------|----------|
-| currentpassword | String | The current password of the logged in user. | Yes      |
-| newpassword     | String | The new password for the logged in user.    | Yes      |
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| currentpassword | String | The current password of the logged in user. | Yes |
+| newpassword | String | The new password for the logged in user. | Yes |
 
 **Results:** none
 
@@ -356,11 +356,11 @@ Allows a user to reset his password without being logged in.
 
 **Params:**
 
-| Parameter         | Type   | Description                                                       | Required |
-|-------------------|--------|-------------------------------------------------------------------|----------|
-| email             | String | The email of the user whose password should be reset.             | Yes      |
-| verificationtoken | String | The verification token which is sent to the user's email address. | Yes      |
-| newpassword       | String | The new password for the user.                                    | Yes      |
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| email | String | The email of the user whose password should be reset. | Yes |
+| verificationtoken | String | The verification token which is sent to the user's email address. | Yes |
+| newpassword | String | The new password for the user. | Yes |
 
 **Results:** none
 
@@ -425,7 +425,7 @@ Reply:
 
 ### `New proposal`
 
-Submit a new proposal to the politeiawww server. 
+Submit a new proposal to the politeiawww server.
 The proposal name is derived from the first line of the markdown file - index.md.
 
 **Route:** `POST /v1/proposal/new`
@@ -433,22 +433,13 @@ The proposal name is derived from the first line of the markdown file - index.md
 **Params:**
 
 | Parameter | Type | Description | Required |
-|-----------|------------------|--------------------------------------------------------------------------------------------------------------------------|----------|
-| files | Array of Objects | Files are the body of the proposal. It should consist of one markdown file - named "index.md" - and up to five pictures. | Yes |
-
-The structure of a file is as follows:
-
-| Parameter | Type | Description | Required |
-|-----------|--------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|
-| name | String | Name is the suggested filename. There should be no filenames that are overlapping and the name shall be validated before being used. | Yes |
-| mime | String | MIME type of the payload. Currently the system only supports md and png/svg files. The server shall reject invalid MIME types. | Yes |
-| digest | String | Digest is a SHA256 digest of the payload. The digest shall be verified by politeiad. | Yes |
-| payload | String | Payload is the actual file content. It shall be base64 encoded. Files have size limits that can be obtained via the [Policy](#policy) call. The server shall strictly enforce policy limits. | Yes |
+|-|-|-|-|
+| files | Array of [`File`](#file)s | Files are the body of the proposal. It should consist of one markdown file - named "index.md" - and up to five pictures. **Note:** all parameters within each [`File`](#file) are required. | Yes |
 
 **Results:**
 
 | Parameter | Type | Description |
-|:----------------:|:----------------:|:-------------------------------------------------------------------------------------------------------------------------:|
+|-|-|-|
 | censorshiprecord | [CensorshipRecord](#censorship-record) | A censorship record that provides the submitter with a method to extract the proposal and prove that he/she submitted it. |
 
 On failure the call shall return `400 Bad Request` and one of the following
@@ -491,26 +482,22 @@ Reply:
 
 ### `Unvetted`
 
-Retrieve all unvetted proposals.  This call requires admin privileges.
+Retrieve a page of unvetted proposals; the number of proposals returned in the page is limited by the `proposallistpagesize` property, which is provided via [`Policy`](#policy).  This call requires admin privileges.
 
 **Route:** `GET /v1/unvetted`
 
-**Params:** none
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| before | String | A proposal censorship token; if provided, the page of proposals returned will end right before the proposal whose token is provided. This parameter should not be specified if `after` is set. | |
+| after | String | A proposal censorship token; if provided, the page of proposals returned will begin right after the proposal whose token is provided. This parameter should not be specified if `before` is set. | |
 
 **Results:**
 
-|           |       Type       |           Description           |
-|:---------:|:----------------:|:-------------------------------:|
-| proposals | Array of Objects | An Array of unvetted proposals. |
-
-The structure of a proposal is as follows: 
-
-|  | Type | Description |
-|------------------|------------------|-------------------------------------------------------------------------|
-| name | String | The name of the proposal. |
-| status | Number | Current status of the proposal. |
-| timestamp | Number | The unix time of the last update of the proposal. |
-| censorshiprecord | [CensorshipRecord](#censorship-record) | The censorship record that was created when the proposal was submitted. |
+| | Type | Description |
+|-|-|-|
+| proposals | Array of [`Proposal`](#proposal)s | An Array of unvetted proposals. |
 
 If the caller is not privileged the unvetted call returns `403 Forbidden`.
 
@@ -540,13 +527,22 @@ Reply:
 
 ### `Vetted`
 
-Retrieve all vetted proposals.
+Retrieve a page of vetted proposals; the number of proposals returned in the page is limited by the `proposallistpagesize` property, which is provided via [`Policy`](#policy).
 
 **Route:** `GET /v1/vetted`
 
-**Params:** none
+**Params:**
 
-**Results:** none
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| before | String | A proposal censorship token; if provided, the page of proposals returned will end right before the proposal whose token is provided. This parameter should not be specified if `after` is set. | |
+| after | String | A proposal censorship token; if provided, the page of proposals returned will begin right after the proposal whose token is provided. This parameter should not be specified if `before` is set. | |
+
+**Results:**
+
+| | Type | Description |
+|-|-|-|
+| proposals | Array of [`Proposal`](#proposal)s | An Array of unvetted proposals. |
 
 **Example**
 
@@ -596,6 +592,7 @@ Reply:
 ```json
 {
   "passwordminchars": 8,
+  "proposallistpagesize": 20,
   "maximages": 5,
   "maximagesize": 524288,
   "maxmds": 1,
@@ -619,7 +616,7 @@ privileges.
 **Params:**
 
 | Parameter | Type | Description | Required |
-|-----------|--------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|
+|-|-|-|-|
 | token | String | Token is the unique censorship token that identifies a specific proposal. | Yes |
 | status | Number | Status indicates the new status for the proposal. Valid statuses are: [PropStatusCensored](#PropStatusCensored), [PropStatusPublic](#PropStatusPublic). Status can only be changed if the current proposal status is [PropStatusNotReviewed](#PropStatusNotReviewed) | Yes |
 
@@ -656,7 +653,11 @@ Retrieve proposal and its details.
 
 **Params:** none
 
-**Results:** none
+**Results:**
+
+| | Type | Description |
+|-|-|-|
+| proposal | [`Proposal`](#proposal) | The proposal with the provided token. |
 
 On failure the call shall return `400 Bad Request` and one of the following
 error codes:
@@ -800,7 +801,7 @@ Reply:
 ### Error codes
 
 | Status | Value | Description |
-|----------------------------------------|-------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|-|-|-|
 | <a name="ErrorStatusInvalid">ErrorStatusInvalid</a> | 0 | The operation returned an invalid status. This shall be considered a bug. |
 | <a name="ErrorStatusInvalidEmailOrPassword">ErrorStatusInvalidEmailOrPassword</a> | 1 | Either the user name or password was invalid. |
 | <a name="ErrorStatusMalformedEmail">ErrorStatusMalformedEmail</a> | 2 | The provided email address was malformed. |
@@ -826,17 +827,36 @@ Reply:
 ### Proposal status codes
 
 | Status | Value | Description |
-|-----------------------|-------|----------------------------------------------------|
+|-|-|-|
 | <a name="PropStatusInvalid">PropStatusInvalid</a>| 0 | An invalid status. This shall be considered a bug. |
 | <a name="PropStatusNotFound">PropStatusNotFound</a> | 1 | The proposal was not found. |
 | <a name="PropStatusNotReviewed">PropStatusNotReviewed</a> | 2 | The proposal has not been reviewed by an admin. |
 | <a name="PropStatusCensored">PropStatusCensored</a> | 3 | The proposal has been censored by an admin. |
 | <a name="PropStatusPublic">PropStatusPublic</a> | 4 | The proposal has been published by an admin. |
 
-### Censorship record
+### `Proposal`
 
-|  | Type | Description |
-|-----------|--------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| | Type | Description |
+|-|-|-|
+| name | String | The name of the proposal. |
+| status | Number | Current status of the proposal. |
+| timestamp | Number | The unix time of the last update of the proposal. |
+| censorshiprecord | [`CensorshipRecord`](#censorship-record) | The censorship record that was created when the proposal was submitted. |
+| files | Array of [`File`](#file)s | This property will only be populated for the [`Proposal details`](#proposal-details) call. |
+
+### `File`
+
+| | Type | Description |
+|-|-|-|
+| name | String | Name is the suggested filename. There should be no filenames that are overlapping and the name shall be validated before being used. |
+| mime | String | MIME type of the payload. Currently the system only supports md and png/svg files. The server shall reject invalid MIME types. |
+| digest | String | Digest is a SHA256 digest of the payload. The digest shall be verified by politeiad. |
+| payload | String | Payload is the actual file content. It shall be base64 encoded. Files have size limits that can be obtained via the [`Policy`](#policy) call. The server shall strictly enforce policy limits. |
+
+### `Censorship record`
+
+| | Type | Description |
+|-|-|-|
 | token | String | The token is a 32 byte random number that was assigned to identify the submitted proposal. This is the key to later retrieve the submitted proposal from the system. |
 | merkle | String | Merkle root of the proposal. This is defined as the sorted digests of all files proposal files. The client should cross verify this value. |
 | signature | String | Signature of merkle+token. The token is appended to the merkle root and then signed. The client should verify the signature. |
