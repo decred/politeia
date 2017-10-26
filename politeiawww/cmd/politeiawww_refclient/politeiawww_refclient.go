@@ -545,6 +545,9 @@ func _main() error {
 		return fmt.Errorf("pr1 invalid status got %v wanted %v",
 			pr1.Proposal.Status, v1.PropStatusNotReviewed)
 	}
+	if len(pr1.Proposal.Files) > 0 {
+		return fmt.Errorf("pr1 unexpected proposal data received")
+	}
 
 	pr2, err := c.getProp(myprop2.CensorshipRecord.Token)
 	if err != nil {
@@ -562,8 +565,7 @@ func _main() error {
 
 	_, err = c.allUnvetted()
 	if err == nil {
-		return fmt.Errorf("/unvetted should only be " +
-			"accessible by admin users")
+		return fmt.Errorf("/unvetted should only be accessible by admin users")
 	}
 
 	// Vetted proposals
@@ -578,6 +580,7 @@ func _main() error {
 		return err
 	}
 
+	// Execute routes with admin permissions if the flags are set
 	if *emailFlag != "" {
 		adminEmail := *emailFlag
 		adminPassword := *passwordFlag
@@ -623,6 +626,14 @@ func _main() error {
 
 		// XXX verify response
 		_ = unvetted
+
+		pr1, err := c.getProp(myprop1.CensorshipRecord.Token)
+		if err != nil {
+			return err
+		}
+		if len(pr1.Proposal.Files) == 0 {
+			return fmt.Errorf("pr1 expected proposal data")
+		}
 
 		// Move first proposal to published
 		psr1, err := c.setPropStatus(myprop1.CensorshipRecord.Token,

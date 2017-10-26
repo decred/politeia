@@ -877,7 +877,7 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus) (*www.SetP
 }
 
 // ProcessProposalDetails tries to fetch the full details of a proposal from politeiad.
-func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails) (*www.ProposalDetailsReply, error) {
+func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, isUserAdmin bool) (*www.ProposalDetailsReply, error) {
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
 		return nil, err
@@ -915,59 +915,64 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails) (*www
 
 	var pdr www.ProposalDetailsReply
 	if b.test {
-		pdr = www.ProposalDetailsReply{
-			ErrorCode: www.StatusSuccess,
-			Proposal:  *cachedProposal,
-		}
-	} else {
-		var route string
-		if isVettedProposal {
-			route = pd.GetVettedRoute
-		} else {
-			route = pd.GetUnvettedRoute
-		}
-
-		responseBody, err := b.makeRequest(http.MethodPost, route, requestObject)
-		if err != nil {
-			return nil, err
-		}
-
-		var response string
-		var proposal pd.ProposalRecord
-		if isVettedProposal {
-			var reply pd.GetVettedReply
-			err = json.Unmarshal(responseBody, &reply)
-			if err != nil {
-				return nil, fmt.Errorf("Could not unmarshal "+
-					"GetVettedReply: %v", err)
-			}
-
-			response = reply.Response
-			proposal = reply.Proposal
-		} else {
-			var reply pd.GetUnvettedReply
-			err = json.Unmarshal(responseBody, &reply)
-			if err != nil {
-				return nil, fmt.Errorf("Could not unmarshal "+
-					"GetUnvettedReply: %v", err)
-			}
-
-			response = reply.Response
-			proposal = reply.Proposal
-		}
-
-		// Verify the challenge.
-		err = util.VerifyChallenge(b.cfg.Identity, challenge, response)
-		if err != nil {
-			return nil, err
-		}
-
-		pdr = www.ProposalDetailsReply{
-			ErrorCode: www.StatusSuccess,
-			Proposal:  convertPropFromPD(proposal),
-		}
+		pdr.ErrorCode = www.StatusSuccess
+		pdr.Proposal = *cachedProposal
+		return &pdr, nil
 	}
 
+	// The files for unvetted proposals should not be viewable by non-admins;
+	// only the proposal meta data (status, censorship data, etc) should be
+	// publicly viewable.
+	if !isVettedProposal && !isUserAdmin {
+		pdr.ErrorCode = www.StatusSuccess
+		pdr.Proposal = *cachedProposal
+		return &pdr, nil
+	}
+
+	var route string
+	if isVettedProposal {
+		route = pd.GetVettedRoute
+	} else {
+		route = pd.GetUnvettedRoute
+	}
+
+	responseBody, err := b.makeRequest(http.MethodPost, route, requestObject)
+	if err != nil {
+		return nil, err
+	}
+
+	var response string
+	var proposal pd.ProposalRecord
+	if isVettedProposal {
+		var reply pd.GetVettedReply
+		err = json.Unmarshal(responseBody, &reply)
+		if err != nil {
+			return nil, fmt.Errorf("Could not unmarshal "+
+				"GetVettedReply: %v", err)
+		}
+
+		response = reply.Response
+		proposal = reply.Proposal
+	} else {
+		var reply pd.GetUnvettedReply
+		err = json.Unmarshal(responseBody, &reply)
+		if err != nil {
+			return nil, fmt.Errorf("Could not unmarshal "+
+				"GetUnvettedReply: %v", err)
+		}
+
+		response = reply.Response
+		proposal = reply.Proposal
+	}
+
+	// Verify the challenge.
+	err = util.VerifyChallenge(b.cfg.Identity, challenge, response)
+	if err != nil {
+		return nil, err
+	}
+
+	pdr.ErrorCode = www.StatusSuccess
+	pdr.Proposal = convertPropFromPD(proposal)
 	return &pdr, nil
 }
 
