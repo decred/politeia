@@ -457,7 +457,21 @@ func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Reque
 	pathParams := mux.Vars(r)
 	pd.Token = pathParams["token"]
 
-	reply, err := p.backend.ProcessProposalDetails(pd)
+	session, err := p.store.Get(r, v1.CookieSession)
+	if err != nil {
+		RespondInternalError(w, r,
+			"handleProposalDetails: failed to get session: %v", err)
+		return
+	}
+
+	isAdmin, ok := session.Values["admin"].(bool)
+	if !ok {
+		RespondInternalError(w, r,
+			"handleProposalDetails: type assert ok %v", ok)
+		return
+	}
+
+	reply, err := p.backend.ProcessProposalDetails(pd, isAdmin)
 	if err != nil {
 		RespondInternalError(w, r,
 			"handleProposalDetails: %v", err)
