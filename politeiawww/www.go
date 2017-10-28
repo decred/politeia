@@ -466,9 +466,7 @@ func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Reque
 
 	isAdmin, ok := session.Values["admin"].(bool)
 	if !ok {
-		RespondInternalError(w, r,
-			"handleProposalDetails: type assert ok %v", ok)
-		return
+		isAdmin = false
 	}
 
 	reply, err := p.backend.ProcessProposalDetails(pd, isAdmin)
