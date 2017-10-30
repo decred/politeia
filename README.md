@@ -30,8 +30,10 @@ The politeia stack is as follows:
 * politeia - Reference client application.
 * politeiad - Reference server daemon.
 * politeiaddumpdb - Politeiad database dumper for debugging purposes.
+* politeia_verify - Reference verification tool.
 * politeiawww - Web backend server.
 * politeiawww_refclient - Web reference client application.
+* politeiawww_dbutil - Politeiawww database tool for debugging and creating admin users.
 
 Note that politeiawww does not provide HTML output.  It strictly handles the
 JSON REST RPC commands only.  The GUI for politeiawww can be found at:
@@ -102,6 +104,24 @@ Censoring a proposal (requires credentials):
 politeia --rpcuser user --rpcpass pass --testnet setunvettedstatus censor 527cb21b78a56d597f5ab4c199195343ecfcd56cf0d76910b2a63c97635a6532
 Set proposal status:
   Status   : censored
+```
+
+To independently verify that Politeia has received your proposal, you can use
+the `politeia_verify` tool and provide politeiad's public key, the proposal's
+censorship token and signature, and the proposal files:
+
+```
+politeia_verify -v -k dfd6caacf0bbe5725efc67e703e912c37931b4edbf17122947a1e0fcd9755f6d -t 6284c5f8fba5665373b8e6651ebc8747b289fed242d2f880f64a284496bb4ca8 -s 82d69b4ec83d2a732fe92028dbf78853d0814aeb4fcf0ff597c110c8843720951f7b9fae4305b0f1d9346c39bc960a364590236f9e0871f6f79860fc57d4c70 proposal.md
+Proposal successfully verified.
+```
+
+If the proposal fails to verify, it will return an error:
+
+```
+politeia_verify -v -k xfd6caacf0bbe5725efc67e703e912c37931b4edbf17122947a1e0fcd9755f6d -t 6284c5f8fba5665373b8e6651ebc8747b289fed242d2f880f64a284496bb4ca8 -s 82d69b4ec83d2a732fe92028dbf78853d0814aeb4fcf0ff597c110c8843720951f7b9fae4305b0f1d9346c39bc960a364590236f9e0871f6f79860fc57d4c70 proposal.md
+Proposal failed verification. Please ensure the public key and merkle are correct.
+  Merkle: 0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8
+
 ```
 
 **Note:** All politeia commands can dump the JSON output of every RPC command
