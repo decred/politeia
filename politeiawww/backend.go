@@ -920,12 +920,16 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, isUse
 		return &pdr, nil
 	}
 
-	// The files for unvetted proposals should not be viewable by non-admins;
-	// only the proposal meta data (status, censorship data, etc) should be
-	// publicly viewable.
+	// The title and files for unvetted proposals should not be viewable by
+	// non-admins; only the proposal meta data (status, censorship data, etc)
+	// should be publicly viewable.
 	if !isVettedProposal && !isUserAdmin {
 		pdr.ErrorCode = www.StatusSuccess
-		pdr.Proposal = *cachedProposal
+		pdr.Proposal = www.ProposalRecord{
+			Status:           cachedProposal.Status,
+			Timestamp:        cachedProposal.Timestamp,
+			CensorshipRecord: cachedProposal.CensorshipRecord,
+		}
 		return &pdr, nil
 	}
 
