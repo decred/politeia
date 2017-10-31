@@ -120,9 +120,9 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 	*/
 	versionReply, err := json.Marshal(v1.VersionReply{
-		Version:  v1.PoliteiaWWWAPIVersion,
-		Route:    v1.PoliteiaWWWAPIRoute,
-		Identity: hex.EncodeToString(p.cfg.Identity.Identity[:]),
+		Version: v1.PoliteiaWWWAPIVersion,
+		Route:   v1.PoliteiaWWWAPIRoute,
+		PubKey:  hex.EncodeToString(p.cfg.Identity.Key[:]),
 	})
 	if err != nil {
 		RespondInternalError(w, r,
