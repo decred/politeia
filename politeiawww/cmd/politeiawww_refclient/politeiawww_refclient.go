@@ -82,7 +82,7 @@ func (c *ctx) makeRequest(method string, route string, b interface{}) ([]byte, e
 
 	responseBody := util.ConvertBodyToByteArray(r.Body, false)
 	if *printJson {
-		fmt.Println("Response: " + string(responseBody) + "\n")
+		fmt.Printf("Response: %v %v\n\n", r.StatusCode, string(responseBody))
 	}
 	if r.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("%v", r.StatusCode)
@@ -712,7 +712,6 @@ func _main() error {
 	if err.Error() != "403" {
 		return fmt.Errorf("secret expected 403")
 	}
-	fmt.Printf("secret expected error: %v\n", err)
 
 	// Me
 	_, err = c.me()
@@ -722,7 +721,6 @@ func _main() error {
 	if err.Error() != "403" {
 		return fmt.Errorf("me expected 403")
 	}
-	fmt.Printf("me expected error: %v\n", err)
 
 	fmt.Printf("refclient run successful\n")
 	fmt.Printf("=== End ===\n")

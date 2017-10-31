@@ -89,19 +89,32 @@ func (p *politeiawww) getIdentity() error {
 	return nil
 }
 
-// RespondInternalError returns an HTTP '500 Internal Server Error' to the
-// client that is accompanied with a JSON InternalServerError struct that
-// contains a correlatable error.  In addition it logs a caller specified
-// error.
-func RespondInternalError(w http.ResponseWriter, r *http.Request, format string, args ...interface{}) {
+// RespondWithError returns an HTTP error status to the client. If it's a user
+// error, it returns a 4xx HTTP status and the specific user error code. If it's
+// an internal server error, it returns 500 and an error code which is also
+// outputted to the logs so that it can be correlated later if the user
+// files a complaint.
+func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, format string, args ...interface{}) {
+	userErr, ok := args[0].(userError)
+	if ok {
+		if userHttpCode == 0 {
+			userHttpCode = http.StatusBadRequest
+		}
+
+		util.RespondWithJSON(w, userHttpCode,
+			v1.ErrorReply{
+				ErrorCode: int64(userErr.errorCode),
+			})
+		return
+	}
+
 	errorCode := time.Now().Unix()
 	ec := fmt.Sprintf("%v %v %v %v Internal error %v: ", remoteAddr(r),
 		r.Method, r.URL, r.Proto, errorCode)
 	log.Errorf(ec+format, args...)
 	util.RespondWithJSON(w, http.StatusInternalServerError,
-		v1.InternalServerError{
-			Error: fmt.Sprintf("Internal server error code: %v",
-				errorCode),
+		v1.ErrorReply{
+			ErrorCode: errorCode,
 		})
 }
 
@@ -120,13 +133,14 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 	*/
 	versionReply, err := json.Marshal(v1.VersionReply{
-		Version: v1.PoliteiaWWWAPIVersion,
-		Route:   v1.PoliteiaWWWAPIRoute,
-		PubKey:  hex.EncodeToString(p.cfg.Identity.Key[:]),
+		Version:   v1.PoliteiaWWWAPIVersion,
+		Route:     v1.PoliteiaWWWAPIRoute,
+		PubKey:    hex.EncodeToString(p.cfg.Identity.Key[:]),
+		ErrorCode: v1.StatusSuccess,
 	})
 	if err != nil {
-		RespondInternalError(w, r,
-			"handleVersion: marshal %v", err)
+		RespondWithError(w, r, 0, "handleVersion: Marshal %v", err)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -147,16 +161,14 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 	var u v1.NewUser
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&u); err != nil {
-		RespondInternalError(w, r,
-			"handleNewUser: Unmarshal %v", err)
+		RespondWithError(w, r, 0, "handleNewUser: Unmarshal %v", err)
 		return
 	}
 	defer r.Body.Close()
 
 	reply, err := p.backend.ProcessNewUser(u)
 	if err != nil {
-		RespondInternalError(w, r,
-			"handleNewUser: ProcessNewUser %v", err)
+		RespondWithError(w, r, 0, "handleNewUser: ProcessNewUser %v", err)
 		return
 	}
 
@@ -191,27 +203,23 @@ func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request
 	}
 	defer r.Body.Close()
 
-	status, err := p.backend.ProcessVerifyNewUser(vnu)
+	err := p.backend.ProcessVerifyNewUser(vnu)
 	if err != nil {
+		userErr, ok := err.(userError)
+		if ok {
+			url, err := url.Parse(routePrefix + v1.RouteVerifyNewUserFailure)
+			if err == nil {
+				q := url.Query()
+				q.Set("errorcode", string(userErr.errorCode))
+				url.RawQuery = q.Encode()
+				http.Redirect(w, r, url.String(), http.StatusMovedPermanently)
+				return
+			}
+		}
+
 		log.Errorf("handleVerifyNewUser: %v", err)
 		http.Redirect(w, r, routePrefix+v1.RouteVerifyNewUserFailure,
 			http.StatusMovedPermanently)
-		return
-	}
-	if status != v1.StatusSuccess {
-		url, err := url.Parse(routePrefix + v1.RouteVerifyNewUserFailure)
-		if err != nil {
-			log.Errorf("handleVerifyNewUser: url.Parse %v", err)
-			http.Redirect(w, r,
-				routePrefix+v1.RouteVerifyNewUserFailure,
-				http.StatusMovedPermanently)
-			return
-		}
-
-		q := url.Query()
-		q.Set("errorcode", string(status))
-		url.RawQuery = q.Encode()
-		http.Redirect(w, r, url.String(), http.StatusMovedPermanently)
 		return
 	}
 
@@ -225,8 +233,8 @@ func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request
 func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 	session, err := p.store.Get(r, v1.CookieSession)
 	if err != nil {
-		RespondInternalError(w, r,
-			"handleLogin: failed to get session: %v", err)
+		RespondWithError(w, r, 0, "handleLogin: failed to get session: %v",
+			err)
 		return
 	}
 
@@ -234,16 +242,15 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 	var l v1.Login
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&l); err != nil {
-		RespondInternalError(w, r,
-			"handleLogin: failed to decode: %v", err)
+		RespondWithError(w, r, 0, "handleLogin: failed to decode: %v", err)
 		return
 	}
 	defer r.Body.Close()
 
 	reply, err := p.backend.ProcessLogin(l)
 	if err != nil {
-		log.Errorf("handleLogin: %v", err)
-		util.RespondWithJSON(w, http.StatusForbidden, reply)
+		RespondWithError(w, r, http.StatusForbidden,
+			"handleLogin: ProcessLogin %v", err)
 		return
 	}
 
@@ -254,7 +261,7 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 		session.Values["admin"] = reply.IsAdmin
 		err = session.Save(r, w)
 		if err != nil {
-			RespondInternalError(w, r,
+			RespondWithError(w, r, 0,
 				"handleLogin: failed to save session: %v", err)
 			return
 		}
@@ -280,7 +287,7 @@ func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
 	*/
 	session, err := p.store.Get(r, v1.CookieSession)
 	if err != nil {
-		RespondInternalError(w, r,
+		RespondWithError(w, r, 0,
 			"handleLogout: failed to get session: %v", err)
 		return
 	}
@@ -290,7 +297,7 @@ func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
 	session.Values["admin"] = false
 	err = session.Save(r, w)
 	if err != nil {
-		RespondInternalError(w, r,
+		RespondWithError(w, r, 0,
 			"handleLogout: failed to save session: %v", err)
 		return
 	}
@@ -311,7 +318,7 @@ func (p *politeiawww) handleSecret(w http.ResponseWriter, r *http.Request) {
 func (p *politeiawww) handleMe(w http.ResponseWriter, r *http.Request) {
 	session, err := p.store.Get(r, v1.CookieSession)
 	if err != nil {
-		RespondInternalError(w, r,
+		RespondWithError(w, r, 0,
 			"handleMe: failed to get session: %v", err)
 		return
 	}
@@ -319,7 +326,7 @@ func (p *politeiawww) handleMe(w http.ResponseWriter, r *http.Request) {
 	email, oke := session.Values["email"].(string)
 	isAdmin, oki := session.Values["admin"].(bool)
 	if !oke || !oki {
-		RespondInternalError(w, r,
+		RespondWithError(w, r, 0,
 			"handleMe: type assert oke %v oki %v", oke, oki)
 		return
 	}
@@ -337,14 +344,14 @@ func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Reques
 	// Get the email for the current session.
 	session, err := p.store.Get(r, v1.CookieSession)
 	if err != nil {
-		RespondInternalError(w, r,
+		RespondWithError(w, r, 0,
 			"handleChangePassword: failed to get session: %v", err)
 		return
 	}
 
 	email, ok := session.Values["email"].(string)
 	if !ok {
-		RespondInternalError(w, r,
+		RespondWithError(w, r, 0,
 			"handleChangePassword: type assert ok %v", ok)
 		return
 	}
@@ -353,7 +360,7 @@ func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Reques
 	var cp v1.ChangePassword
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&cp); err != nil {
-		RespondInternalError(w, r,
+		RespondWithError(w, r, 0,
 			"handleChangePassword: Unmarshal %v", err)
 		return
 	}
@@ -361,8 +368,8 @@ func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Reques
 
 	reply, err := p.backend.ProcessChangePassword(email, cp)
 	if err != nil {
-		RespondInternalError(w, r,
-			"handleChangePassword: %v", err)
+		RespondWithError(w, r, 0,
+			"handleChangePassword: ProcessChangePassword %v", err)
 		return
 	}
 
@@ -375,7 +382,7 @@ func (p *politeiawww) handleResetPassword(w http.ResponseWriter, r *http.Request
 	var rp v1.ResetPassword
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&rp); err != nil {
-		RespondInternalError(w, r,
+		RespondWithError(w, r, 0,
 			"handleResetPassword: Unmarshal %v", err)
 		return
 	}
@@ -383,8 +390,8 @@ func (p *politeiawww) handleResetPassword(w http.ResponseWriter, r *http.Request
 
 	rpr, err := p.backend.ProcessResetPassword(rp)
 	if err != nil {
-		RespondInternalError(w, r,
-			"handleResetPassword: %v", err)
+		RespondWithError(w, r, 0,
+			"handleResetPassword: ProcessResetPassword %v", err)
 		return
 	}
 
@@ -398,7 +405,7 @@ func (p *politeiawww) handleNewProposal(w http.ResponseWriter, r *http.Request) 
 	var np v1.NewProposal
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&np); err != nil {
-		RespondInternalError(w, r,
+		RespondWithError(w, r, 0,
 			"handleNewProposal: Unmarshal %v", err)
 		return
 	}
@@ -406,8 +413,8 @@ func (p *politeiawww) handleNewProposal(w http.ResponseWriter, r *http.Request) 
 
 	reply, err := p.backend.ProcessNewProposal(np)
 	if err != nil {
-		RespondInternalError(w, r,
-			"handleNewProposal: %v", err)
+		RespondWithError(w, r, 0,
+			"handleNewProposal: ProcessNewProposal %v", err)
 		return
 	}
 
@@ -422,7 +429,7 @@ func (p *politeiawww) handleSetProposalStatus(w http.ResponseWriter, r *http.Req
 	var sps v1.SetProposalStatus
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&sps); err != nil {
-		RespondInternalError(w, r,
+		RespondWithError(w, r, 0,
 			"handleSetProposalStatus: Unmarshal %v", err)
 		return
 	}
@@ -430,8 +437,8 @@ func (p *politeiawww) handleSetProposalStatus(w http.ResponseWriter, r *http.Req
 
 	reply, err := p.backend.ProcessSetProposalStatus(sps)
 	if err != nil {
-		RespondInternalError(w, r,
-			"handleSetProposalStatus: %v", err)
+		RespondWithError(w, r, 0,
+			"handleSetProposalStatus: ProcessSetProposalStatus %v", err)
 		return
 	}
 
@@ -459,25 +466,16 @@ func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Reque
 
 	session, err := p.store.Get(r, v1.CookieSession)
 	if err != nil {
-		RespondInternalError(w, r,
-			"handleProposalDetails: failed to get session: %v", err)
+		RespondWithError(w, r, 0,
+			"handleProposalDetails: failed to get session %v", err)
 		return
 	}
 
-	isAdmin, ok := session.Values["admin"].(bool)
-	if !ok {
-		isAdmin = false
-	}
-
+	isAdmin, _ := session.Values["admin"].(bool)
 	reply, err := p.backend.ProcessProposalDetails(pd, isAdmin)
 	if err != nil {
-		RespondInternalError(w, r,
-			"handleProposalDetails: %v", err)
-		return
-	}
-	// XXX don't love checking err and ErrorCode
-	if reply.ErrorCode != v1.StatusSuccess {
-		util.RespondWithJSON(w, http.StatusBadRequest, reply)
+		RespondWithError(w, r, 0,
+			"handleProposalDetails: ProcessProposalDetails %v", err)
 		return
 	}
 
@@ -552,7 +550,7 @@ func (p *politeiawww) handleNotFound(w http.ResponseWriter, r *http.Request) {
 		return string(trace)
 	}))
 
-	util.RespondWithJSON(w, http.StatusNotFound, nil)
+	util.RespondWithJSON(w, http.StatusNotFound, v1.ErrorReply{})
 }
 
 // addRoute sets up a handler for a specific method+route.

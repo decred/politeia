@@ -36,6 +36,17 @@ type backend struct {
 	verificationExpiryTime time.Duration
 }
 
+// userError represents an error that is caused by something that the user
+// did (malformed input, bad timing, etc).
+type userError struct {
+	errorCode www.StatusT
+}
+
+// Error satisfies the error interface.
+func (e userError) Error() string {
+	return fmt.Sprintf("user error code: %v", e.errorCode)
+}
+
 func (b *backend) getVerificationExpiryTime() time.Duration {
 	if b.verificationExpiryTime != time.Duration(0) {
 		return b.verificationExpiryTime
@@ -186,7 +197,7 @@ func (b *backend) remoteInventory() (*pd.InventoryReply, error) {
 	var ir pd.InventoryReply
 	err = json.Unmarshal(responseBody, &ir)
 	if err != nil {
-		return nil, fmt.Errorf("Could not unmarshal InventoryReply: %v",
+		return nil, fmt.Errorf("Unmarshal InventoryReply: %v",
 			err)
 	}
 
@@ -198,23 +209,29 @@ func (b *backend) remoteInventory() (*pd.InventoryReply, error) {
 	return &ir, nil
 }
 
-func (b *backend) validatePassword(password string) www.StatusT {
+func (b *backend) validatePassword(password string) error {
 	if len(password) < www.PolicyPasswordMinChars {
-		return www.StatusMalformedPassword
+		return userError{
+			errorCode: www.StatusMalformedPassword,
+		}
 	}
 
-	return www.StatusSuccess
+	return nil
 }
 
-func (b *backend) validateProposal(np www.NewProposal) (www.StatusT, error) {
+func (b *backend) validateProposal(np www.NewProposal) error {
 	// Check for a non-empty name.
 	if np.Name == "" {
-		return www.StatusProposalMissingName, nil
+		return userError{
+			errorCode: www.StatusProposalMissingName,
+		}
 	}
 
 	// Check for at least 1 markdown file with a non-emtpy payload.
 	if len(np.Files) == 0 || np.Files[0].Payload == "" {
-		return www.StatusProposalMissingDescription, nil
+		return userError{
+			errorCode: www.StatusProposalMissingDescription,
+		}
 	}
 
 	// Check that the file number policy is followed.
@@ -225,7 +242,7 @@ func (b *backend) validateProposal(np www.NewProposal) (www.StatusT, error) {
 			numImages++
 			data, err := base64.StdEncoding.DecodeString(v.Payload)
 			if err != nil {
-				return www.StatusInvalid, err
+				return err
 			}
 			if len(data) > www.PolicyMaxImageSize {
 				imageExceedsMaxSize = true
@@ -234,7 +251,7 @@ func (b *backend) validateProposal(np www.NewProposal) (www.StatusT, error) {
 			numMDs++
 			data, err := base64.StdEncoding.DecodeString(v.Payload)
 			if err != nil {
-				return www.StatusInvalid, err
+				return err
 			}
 			if len(data) > www.PolicyMaxMDSize {
 				mdExceedsMaxSize = true
@@ -243,22 +260,30 @@ func (b *backend) validateProposal(np www.NewProposal) (www.StatusT, error) {
 	}
 
 	if numMDs > www.PolicyMaxMDs {
-		return www.StatusMaxMDsExceededPolicy, nil
+		return userError{
+			errorCode: www.StatusMaxMDsExceededPolicy,
+		}
 	}
 
 	if numImages > www.PolicyMaxImages {
-		return www.StatusMaxImagesExceededPolicy, nil
+		return userError{
+			errorCode: www.StatusMaxImagesExceededPolicy,
+		}
 	}
 
 	if mdExceedsMaxSize {
-		return www.StatusMaxMDSizeExceededPolicy, nil
+		return userError{
+			errorCode: www.StatusMaxMDSizeExceededPolicy,
+		}
 	}
 
 	if imageExceedsMaxSize {
-		return www.StatusMaxImageSizeExceededPolicy, nil
+		return userError{
+			errorCode: www.StatusMaxImageSizeExceededPolicy,
+		}
 	}
 
-	return www.StatusSuccess, nil
+	return nil
 }
 
 func (b *backend) emailResetPassword(user *database.User, rp www.ResetPassword, rpr *www.ResetPasswordReply) error {
@@ -306,28 +331,30 @@ func (b *backend) verifyResetPassword(user *database.User, rp www.ResetPassword,
 	// Decode the verification token.
 	token, err := hex.DecodeString(rp.VerificationToken)
 	if err != nil {
-		rpr.ErrorCode = www.StatusVerificationTokenInvalid
-		return nil
+		return userError{
+			errorCode: www.StatusVerificationTokenInvalid,
+		}
 	}
 
 	// Check that the verification token matches.
 	if !bytes.Equal(token, user.ResetPasswordVerificationToken) {
-		rpr.ErrorCode = www.StatusVerificationTokenInvalid
-		return nil
+		return userError{
+			errorCode: www.StatusVerificationTokenInvalid,
+		}
 	}
 
 	// Check that the token hasn't expired.
 	currentTime := time.Now().Unix()
 	if currentTime > user.ResetPasswordVerificationExpiry {
-		rpr.ErrorCode = www.StatusVerificationTokenExpired
-		return nil
+		return userError{
+			errorCode: www.StatusVerificationTokenExpired,
+		}
 	}
 
 	// Validate the new password.
-	status := b.validatePassword(rp.NewPassword)
-	if status != www.StatusSuccess {
-		rpr.ErrorCode = status
-		return nil
+	err = b.validatePassword(rp.NewPassword)
+	if err != nil {
+		return err
 	}
 
 	// Hash the new password.
@@ -389,6 +416,7 @@ func (b *backend) LoadInventory() error {
 				return v.Timestamp < b.inventory[i].Timestamp
 			})
 
+			// Insert the proposal at idx.
 			b.inventory = append(b.inventory[:idx],
 				append([]www.ProposalRecord{v},
 					b.inventory[idx:]...)...)
@@ -406,6 +434,7 @@ func (b *backend) LoadInventory() error {
 // Note that this function always returns a NewUserReply.  The caller shally
 // verify error and determine how to return this information upstream.
 func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
+	var reply www.NewUserReply
 	var token []byte
 	var expiry int64
 
@@ -417,27 +446,20 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 	if user, err := b.db.UserGet(u.Email); err == nil {
 		// Check if the user is already verified.
 		if user.NewUserVerificationToken == nil {
-			reply := www.NewUserReply{
-				ErrorCode: www.StatusSuccess,
-			}
+			reply.ErrorCode = www.StatusSuccess
 			return &reply, nil
 		}
 
 		// Check if the verification token hasn't expired yet.
 		if currentTime := time.Now().Unix(); currentTime < user.NewUserVerificationExpiry {
-			reply := www.NewUserReply{
-				ErrorCode: www.StatusSuccess,
-			}
+			reply.ErrorCode = www.StatusSuccess
 			return &reply, nil
 		}
 
 		// Generate a new verification token and expiry.
 		token, expiry, err = b.generateVerificationTokenAndExpiry()
 		if err != nil {
-			reply := www.NewUserReply{
-				ErrorCode: www.StatusInvalid,
-			}
-			return &reply, err
+			return nil, err
 		}
 
 		// Add the updated user information to the db.
@@ -445,38 +467,26 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 		user.NewUserVerificationExpiry = expiry
 		err = b.db.UserUpdate(*user)
 		if err != nil {
-			reply := www.NewUserReply{
-				ErrorCode: www.StatusInvalid,
-			}
-			return &reply, err
+			return nil, err
 		}
 	} else {
 		// Validate the password.
-		status := b.validatePassword(u.Password)
-		if status != www.StatusSuccess {
-			reply := www.NewUserReply{
-				ErrorCode: status,
-			}
-			return &reply, nil
+		err = b.validatePassword(u.Password)
+		if err != nil {
+			return nil, err
 		}
 
 		// Hash the user's password.
 		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(u.Password),
 			bcrypt.DefaultCost)
 		if err != nil {
-			reply := www.NewUserReply{
-				ErrorCode: www.StatusInvalid,
-			}
-			return &reply, err
+			return nil, err
 		}
 
 		// Generate the verification token and expiry.
 		token, expiry, err = b.generateVerificationTokenAndExpiry()
 		if err != nil {
-			reply := www.NewUserReply{
-				ErrorCode: www.StatusInvalid,
-			}
-			return &reply, err
+			return nil, err
 		}
 
 		// Add the user and hashed password to the db.
@@ -491,16 +501,12 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 		err = b.db.UserNew(newUser)
 		if err != nil {
 			if err == database.ErrInvalidEmail {
-				reply := www.NewUserReply{
-					ErrorCode: www.StatusMalformedEmail,
+				return nil, userError{
+					errorCode: www.StatusMalformedEmail,
 				}
-				return &reply, nil
 			}
 
-			reply := www.NewUserReply{
-				ErrorCode: www.StatusInvalid,
-			}
-			return &reply, err
+			return nil, err
 		}
 	}
 
@@ -508,17 +514,11 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 		// This is conditional on the email server being setup.
 		err := b.emailNewUserVerificationLink(u.Email, hex.EncodeToString(token))
 		if err != nil {
-			reply := www.NewUserReply{
-				ErrorCode: www.StatusInvalid,
-			}
-			return &reply, err
+			return nil, err
 		}
 	}
 
-	// Reply with an empty response, which indicates success.
-	reply := www.NewUserReply{
-		ErrorCode: www.StatusSuccess,
-	}
+	reply.ErrorCode = www.StatusSuccess
 
 	// Only set the token if email verification is disabled.
 	if b.cfg.SMTP == nil {
@@ -529,109 +529,107 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 
 // ProcessVerifyNewUser verifies the token generated for a recently created user.
 // It ensures that the token matches with the input and that the token hasn't expired.
-func (b *backend) ProcessVerifyNewUser(u www.VerifyNewUser) (www.StatusT, error) {
+func (b *backend) ProcessVerifyNewUser(u www.VerifyNewUser) error {
 	// Check that the user already exists.
 	user, err := b.db.UserGet(u.Email)
 	if err != nil {
 		if err == database.ErrUserNotFound {
-			return www.StatusVerificationTokenInvalid, nil
+			return userError{
+				errorCode: www.StatusVerificationTokenInvalid,
+			}
 		}
-		return www.StatusSuccess, err
+		return err
 	}
 
 	// Decode the verification token.
 	token, err := hex.DecodeString(u.VerificationToken)
 	if err != nil {
-		return www.StatusVerificationTokenInvalid, err
+		return userError{
+			errorCode: www.StatusVerificationTokenInvalid,
+		}
 	}
 
 	// Check that the verification token matches.
 	if !bytes.Equal(token, user.NewUserVerificationToken) {
-		return www.StatusVerificationTokenInvalid, nil
+		return userError{
+			errorCode: www.StatusVerificationTokenInvalid,
+		}
 	}
 
 	// Check that the token hasn't expired.
 	if currentTime := time.Now().Unix(); currentTime > user.NewUserVerificationExpiry {
-		return www.StatusVerificationTokenExpired, nil
+		return userError{
+			errorCode: www.StatusVerificationTokenExpired,
+		}
 	}
 
 	// Clear out the verification token fields in the db.
 	user.NewUserVerificationToken = nil
 	user.NewUserVerificationExpiry = 0
-	err = b.db.UserUpdate(*user)
-	if err != nil {
-		return www.StatusInvalid, err
-	}
-
-	return www.StatusSuccess, nil
+	return b.db.UserUpdate(*user)
 }
 
 // ProcessLogin checks that a user exists, is verified, and has
 // the correct password.
 func (b *backend) ProcessLogin(l www.Login) (*www.LoginReply, error) {
+	var reply www.LoginReply
+
 	// Get user from db.
 	user, err := b.db.UserGet(l.Email)
 	if err != nil {
 		if err == database.ErrUserNotFound {
-			reply := www.LoginReply{
-				ErrorCode: www.StatusInvalidEmailOrPassword,
+			return nil, userError{
+				errorCode: www.StatusInvalidEmailOrPassword,
 			}
-			return &reply, nil
 		}
 		return nil, err
 	}
 
 	// Check that the user is verified.
 	if user.NewUserVerificationToken != nil {
-		reply := www.LoginReply{
-			ErrorCode: www.StatusInvalidEmailOrPassword,
+		return nil, userError{
+			errorCode: www.StatusInvalidEmailOrPassword,
 		}
-		return &reply, nil
 	}
 
 	// Check the user's password.
 	err = bcrypt.CompareHashAndPassword(user.HashedPassword,
 		[]byte(l.Password))
 	if err != nil {
-		reply := www.LoginReply{
-			ErrorCode: www.StatusInvalidEmailOrPassword,
+		return nil, userError{
+			errorCode: www.StatusInvalidEmailOrPassword,
 		}
-		return &reply, nil
 	}
 
-	reply := www.LoginReply{
-		IsAdmin:   user.Admin,
-		ErrorCode: www.StatusSuccess,
-	}
+	reply.IsAdmin = user.Admin
+	reply.ErrorCode = www.StatusSuccess
 	return &reply, nil
 }
 
 // ProcessChangePassword checks that the current password matches the one
 // in the database, then changes it to the new password.
 func (b *backend) ProcessChangePassword(email string, cp www.ChangePassword) (*www.ChangePasswordReply, error) {
+	var reply www.ChangePasswordReply
+
 	// Get user from db.
 	user, err := b.db.UserGet(email)
 	if err != nil {
 		return nil, err
 	}
 
-	reply := www.ChangePasswordReply{
-		ErrorCode: www.StatusSuccess,
-	}
-
 	// Check the user's password.
 	err = bcrypt.CompareHashAndPassword(user.HashedPassword,
 		[]byte(cp.CurrentPassword))
 	if err != nil {
-		reply.ErrorCode = www.StatusInvalidEmailOrPassword
-		return &reply, nil
+		return nil, userError{
+			errorCode: www.StatusInvalidEmailOrPassword,
+		}
 	}
 
 	// Validate the new password.
-	status := b.validatePassword(cp.NewPassword)
-	if status != www.StatusSuccess {
-		reply.ErrorCode = status
-		return &reply, nil
+	err = b.validatePassword(cp.NewPassword)
+	if err != nil {
+		return nil, err
 	}
 
 	// Hash the user's password.
@@ -648,6 +646,7 @@ func (b *backend) ProcessChangePassword(email string, cp www.ChangePassword) (*w
 		return nil, err
 	}
 
+	reply.ErrorCode = www.StatusSuccess
 	return &reply, nil
 }
 
@@ -657,33 +656,35 @@ func (b *backend) ProcessChangePassword(email string, cp www.ChangePassword) (*w
 // call, the email, verification token and a new password are provided. If everything
 // matches, then the user's password is updated in the database.
 func (b *backend) ProcessResetPassword(rp www.ResetPassword) (*www.ResetPasswordReply, error) {
-	rpr := www.ResetPasswordReply{
-		ErrorCode: www.StatusSuccess,
-	}
+	var reply www.ResetPasswordReply
 
 	// Get user from db.
 	user, err := b.db.UserGet(rp.Email)
 	if err != nil {
 		if err == database.ErrInvalidEmail {
-			rpr.ErrorCode = www.StatusMalformedEmail
-			return &rpr, nil
+			return nil, userError{
+				errorCode: www.StatusMalformedEmail,
+			}
 		} else if err == database.ErrUserNotFound {
-			return &rpr, nil
+			reply.ErrorCode = www.StatusSuccess
+			return &reply, nil
 		}
 
 		return nil, err
 	}
 
 	if rp.VerificationToken == "" {
-		err = b.emailResetPassword(user, rp, &rpr)
+		err = b.emailResetPassword(user, rp, &reply)
 	} else {
-		err = b.verifyResetPassword(user, rp, &rpr)
+		err = b.verifyResetPassword(user, rp, &reply)
 	}
 
 	if err != nil {
 		return nil, err
 	}
-	return &rpr, nil
+
+	reply.ErrorCode = www.StatusSuccess
+	return &reply, nil
 }
 
 // ProcessAllVetted returns an array of all vetted proposals in reverse order,
@@ -696,11 +697,10 @@ func (b *backend) ProcessAllVetted(v www.GetAllVetted) *www.GetAllVettedReply {
 		}
 	}
 
-	vr := www.GetAllVettedReply{
+	return &www.GetAllVettedReply{
 		Proposals: proposals,
 		ErrorCode: www.StatusSuccess,
 	}
-	return &vr
 }
 
 // ProcessAllUnvetted returns an array of all unvetted proposals in reverse order,
@@ -714,24 +714,19 @@ func (b *backend) ProcessAllUnvetted(u www.GetAllUnvetted) *www.GetAllUnvettedRe
 		}
 	}
 
-	ur := www.GetAllUnvettedReply{
+	return &www.GetAllUnvettedReply{
 		Proposals: proposals,
 		ErrorCode: www.StatusSuccess,
 	}
-	return &ur
 }
 
 // ProcessNewProposal tries to submit a new proposal to politeiad.
 func (b *backend) ProcessNewProposal(np www.NewProposal) (*www.NewProposalReply, error) {
-	status, err := b.validateProposal(np)
+	var reply www.NewProposalReply
+
+	err := b.validateProposal(np)
 	if err != nil {
 		return nil, err
-	}
-	if status != www.StatusSuccess {
-		reply := www.NewProposalReply{
-			ErrorCode: status,
-		}
-		return &reply, nil
 	}
 
 	challenge, err := util.Random(pd.ChallengeSize)
@@ -757,27 +752,25 @@ func (b *backend) ProcessNewProposal(np www.NewProposal) (*www.NewProposalReply,
 		n.Files[k].Digest = hex.EncodeToString(h.Sum(nil))
 	}
 
-	var reply pd.NewReply
+	var pdReply pd.NewReply
 	if b.test {
 		tokenBytes, err := util.Random(16)
 		if err != nil {
 			return nil, err
 		}
 
-		reply = pd.NewReply{
-			Timestamp: time.Now().Unix(),
-			CensorshipRecord: pd.CensorshipRecord{
-				Token: hex.EncodeToString(tokenBytes),
-			},
+		pdReply.Timestamp = time.Now().Unix()
+		pdReply.CensorshipRecord = pd.CensorshipRecord{
+			Token: hex.EncodeToString(tokenBytes),
 		}
 
 		// Add the new proposal to the cache.
 		b.inventory = append(b.inventory, www.ProposalRecord{
 			Name:             np.Name,
 			Status:           www.PropStatusNotReviewed,
-			Timestamp:        reply.Timestamp,
+			Timestamp:        pdReply.Timestamp,
 			Files:            np.Files,
-			CensorshipRecord: convertPropCensorFromPD(reply.CensorshipRecord),
+			CensorshipRecord: convertPropCensorFromPD(pdReply.CensorshipRecord),
 		})
 	} else {
 		responseBody, err := b.makeRequest(http.MethodPost, pd.NewRoute, n)
@@ -790,14 +783,14 @@ func (b *backend) ProcessNewProposal(np www.NewProposal) (*www.NewProposalReply,
 			fmt.Printf("%02v: %v %v\n", k, f.Name, f.Digest)
 		}
 
-		err = json.Unmarshal(responseBody, &reply)
+		err = json.Unmarshal(responseBody, &pdReply)
 		if err != nil {
-			return nil, fmt.Errorf("Could not unmarshal NewProposalReply: %v",
+			return nil, fmt.Errorf("Unmarshal NewProposalReply: %v",
 				err)
 		}
 
 		// Verify the challenge.
-		err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
+		err = util.VerifyChallenge(b.cfg.Identity, challenge, pdReply.Response)
 		if err != nil {
 			return nil, err
 		}
@@ -806,27 +799,24 @@ func (b *backend) ProcessNewProposal(np www.NewProposal) (*www.NewProposalReply,
 		b.inventory = append(b.inventory, www.ProposalRecord{
 			Name:             np.Name,
 			Status:           www.PropStatusNotReviewed,
-			Timestamp:        reply.Timestamp,
+			Timestamp:        pdReply.Timestamp,
 			Files:            make([]www.File, 0),
-			CensorshipRecord: convertPropCensorFromPD(reply.CensorshipRecord),
+			CensorshipRecord: convertPropCensorFromPD(pdReply.CensorshipRecord),
 		})
 	}
 
-	npr := www.NewProposalReply{
-		CensorshipRecord: convertPropCensorFromPD(reply.CensorshipRecord),
-		ErrorCode:        www.StatusSuccess,
-	}
-	return &npr, nil
+	reply.CensorshipRecord = convertPropCensorFromPD(pdReply.CensorshipRecord)
+	reply.ErrorCode = www.StatusSuccess
+	return &reply, nil
 }
 
 // ProcessSetProposalStatus changes the status of an existing proposal
 // from unreviewed to either published or censored.
 func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus) (*www.SetProposalStatusReply, error) {
-	var reply pd.SetUnvettedStatusReply
+	var reply www.SetProposalStatusReply
+	var pdReply pd.SetUnvettedStatusReply
 	if b.test {
-		reply = pd.SetUnvettedStatusReply{
-			Status: convertPropStatusFromWWW(sps.ProposalStatus),
-		}
+		pdReply.Status = convertPropStatusFromWWW(sps.ProposalStatus)
 	} else {
 		challenge, err := util.Random(pd.ChallengeSize)
 		if err != nil {
@@ -845,14 +835,14 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus) (*www.SetP
 			return nil, err
 		}
 
-		err = json.Unmarshal(responseBody, &reply)
+		err = json.Unmarshal(responseBody, &pdReply)
 		if err != nil {
 			return nil, fmt.Errorf("Could not unmarshal SetUnvettedStatusReply: %v",
 				err)
 		}
 
 		// Verify the challenge.
-		err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
+		err = util.VerifyChallenge(b.cfg.Identity, challenge, pdReply.Response)
 		if err != nil {
 			return nil, err
 		}
@@ -861,23 +851,22 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus) (*www.SetP
 	// Update the cached proposal with the new status and return the reply.
 	for k, v := range b.inventory {
 		if v.CensorshipRecord.Token == sps.Token {
-			s := convertPropStatusFromPD(reply.Status)
+			s := convertPropStatusFromPD(pdReply.Status)
 			b.inventory[k].Status = s
-			spsr := www.SetProposalStatusReply{
-				ProposalStatus: s,
-			}
-			return &spsr, nil
+			reply.ProposalStatus = s
+			reply.ErrorCode = www.StatusSuccess
+			return &reply, nil
 		}
 	}
 
-	spsr := www.SetProposalStatusReply{
-		ErrorCode: www.StatusProposalNotFound,
+	return nil, userError{
+		errorCode: www.StatusProposalNotFound,
 	}
-	return &spsr, nil
 }
 
 // ProcessProposalDetails tries to fetch the full details of a proposal from politeiad.
 func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, isUserAdmin bool) (*www.ProposalDetailsReply, error) {
+	var reply www.ProposalDetailsReply
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
 		return nil, err
@@ -891,10 +880,9 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, isUse
 		}
 	}
 	if cachedProposal == nil {
-		pdr := www.ProposalDetailsReply{
-			ErrorCode: www.StatusProposalNotFound,
+		return nil, userError{
+			errorCode: www.StatusProposalNotFound,
 		}
-		return &pdr, nil
 	}
 
 	var isVettedProposal bool
@@ -913,24 +901,23 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, isUse
 		}
 	}
 
-	var pdr www.ProposalDetailsReply
 	if b.test {
-		pdr.ErrorCode = www.StatusSuccess
-		pdr.Proposal = *cachedProposal
-		return &pdr, nil
+		reply.ErrorCode = www.StatusSuccess
+		reply.Proposal = *cachedProposal
+		return &reply, nil
 	}
 
 	// The title and files for unvetted proposals should not be viewable by
 	// non-admins; only the proposal meta data (status, censorship data, etc)
 	// should be publicly viewable.
 	if !isVettedProposal && !isUserAdmin {
-		pdr.ErrorCode = www.StatusSuccess
-		pdr.Proposal = www.ProposalRecord{
+		reply.ErrorCode = www.StatusSuccess
+		reply.Proposal = www.ProposalRecord{
 			Status:           cachedProposal.Status,
 			Timestamp:        cachedProposal.Timestamp,
 			CensorshipRecord: cachedProposal.CensorshipRecord,
 		}
-		return &pdr, nil
+		return &reply, nil
 	}
 
 	var route string
@@ -948,25 +935,25 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, isUse
 	var response string
 	var proposal pd.ProposalRecord
 	if isVettedProposal {
-		var reply pd.GetVettedReply
-		err = json.Unmarshal(responseBody, &reply)
+		var pdReply pd.GetVettedReply
+		err = json.Unmarshal(responseBody, &pdReply)
 		if err != nil {
 			return nil, fmt.Errorf("Could not unmarshal "+
 				"GetVettedReply: %v", err)
 		}
 
-		response = reply.Response
-		proposal = reply.Proposal
+		response = pdReply.Response
+		proposal = pdReply.Proposal
 	} else {
-		var reply pd.GetUnvettedReply
-		err = json.Unmarshal(responseBody, &reply)
+		var pdReply pd.GetUnvettedReply
+		err = json.Unmarshal(responseBody, &pdReply)
 		if err != nil {
 			return nil, fmt.Errorf("Could not unmarshal "+
 				"GetUnvettedReply: %v", err)
 		}
 
-		response = reply.Response
-		proposal = reply.Proposal
+		response = pdReply.Response
+		proposal = pdReply.Proposal
 	}
 
 	// Verify the challenge.
@@ -975,9 +962,9 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, isUse
 		return nil, err
 	}
 
-	pdr.ErrorCode = www.StatusSuccess
-	pdr.Proposal = convertPropFromPD(proposal)
-	return &pdr, nil
+	reply.ErrorCode = www.StatusSuccess
+	reply.Proposal = convertPropFromPD(proposal)
+	return &reply, nil
 }
 
 // ProcessPolicy returns the details of Politeia's restrictions on file uploads.

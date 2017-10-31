@@ -6,6 +6,7 @@ import (
 	"net/http/httputil"
 
 	"github.com/decred/politeia/politeiawww/api/v1"
+	"github.com/decred/politeia/util"
 )
 
 // isLoggedIn ensures that a user is logged in before calling the next
@@ -17,15 +18,13 @@ func (p *politeiawww) isLoggedIn(f http.HandlerFunc) http.HandlerFunc {
 		session, err := p.store.Get(r, v1.CookieSession)
 		if err != nil {
 			log.Errorf("isLoggedIn: %v", err)
-			http.Error(w, http.StatusText(http.StatusForbidden),
-				http.StatusForbidden)
+			util.RespondWithJSON(w, http.StatusForbidden, v1.ErrorReply{})
 			return
 		}
 
 		// Check if user is authenticated
 		if auth, ok := session.Values["authenticated"].(bool); !ok || !auth {
-			http.Error(w, http.StatusText(http.StatusForbidden),
-				http.StatusForbidden)
+			util.RespondWithJSON(w, http.StatusForbidden, v1.ErrorReply{})
 			return
 		}
 
@@ -42,22 +41,19 @@ func (p *politeiawww) isLoggedInAsAdmin(f http.HandlerFunc) http.HandlerFunc {
 		session, err := p.store.Get(r, v1.CookieSession)
 		if err != nil {
 			log.Errorf("isLoggedInAsAdmin: %v", err)
-			http.Error(w, http.StatusText(http.StatusForbidden),
-				http.StatusForbidden)
+			util.RespondWithJSON(w, http.StatusForbidden, v1.ErrorReply{})
 			return
 		}
 
 		// Check if user is authenticated
 		if auth, ok := session.Values["authenticated"].(bool); !ok || !auth {
-			http.Error(w, http.StatusText(http.StatusForbidden),
-				http.StatusForbidden)
+			util.RespondWithJSON(w, http.StatusForbidden, v1.ErrorReply{})
 			return
 		}
 
 		// Check if user is an admin
 		if admin, ok := session.Values["admin"].(bool); !ok || !admin {
-			http.Error(w, http.StatusText(http.StatusForbidden),
-				http.StatusForbidden)
+			util.RespondWithJSON(w, http.StatusForbidden, v1.ErrorReply{})
 			return
 		}
 

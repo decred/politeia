@@ -123,11 +123,11 @@ type ProposalRecord struct {
 	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
 }
 
-// InternalServerError are replies that the server returns a when it hits a
-// non-client.  The HTTP Error Code shall be '500 Internal Server Error'.  By
-// necesity this error is human readable.
-type InternalServerError struct {
-	Error string `json:"error,omitempty"`
+// ErrorReply are replies that the server returns a when it encounters an
+// unrecoverable problem while executing a command.  The HTTP Error Code
+// shall be 500 if it's an internal server error or 4xx if it's a user error.
+type ErrorReply struct {
+	ErrorCode int64 `json:"errorcode,omitempty"`
 }
 
 // Version command is used to determine the version of the API this backend
@@ -140,9 +140,10 @@ type Version struct{}
 // is running and additionally the route to the API and the public signing key of
 // the server.
 type VersionReply struct {
-	Version uint   `json:"version"` // politeia WWW API version
-	Route   string `json:"route"`   // prefix to API calls
-	PubKey  string `json:"pubkey"`  // Server public key
+	Version   uint    `json:"version"` // politeia WWW API version
+	Route     string  `json:"route"`   // prefix to API calls
+	PubKey    string  `json:"pubkey"`  // Server public key
+	ErrorCode StatusT `json:"errorcode,omitempty"`
 }
 
 // NewUser is used to request that a new user be created within the db.
