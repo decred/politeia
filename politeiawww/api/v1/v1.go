@@ -29,6 +29,8 @@ const (
 	RouteProposalDetails      = "/proposals/{token:[A-z0-9]{64}}"
 	RouteSetProposalStatus    = "/proposals/{token:[A-z0-9]{64}}/setstatus"
 	RoutePolicy               = "/policy"
+	RouteNewComment           = "/comments/new"
+	RouteCommentsGet          = "/proposals/{token:[A-z0-9]{64}}/comments"
 
 	// VerificationTokenSize is the size of verification token in bytes
 	VerificationTokenSize = 32
@@ -72,6 +74,7 @@ const (
 	StatusMaxMDSizeExceededPolicy    StatusT = 11
 	StatusMaxImageSizeExceededPolicy StatusT = 12
 	StatusMalformedPassword          StatusT = 13
+	StatusCommentNotFound            StatusT = 14
 
 	// Proposal status codes (set and get)
 	PropStatusInvalid     PropStatusT = 0 // Invalid status
@@ -207,7 +210,8 @@ type Login struct {
 // LoginReply is used to reply to the Login command. .  IsAdmin indicates if
 // the user has publish/censor privileges.
 type LoginReply struct {
-	IsAdmin   bool    `json:"isadmin"`
+	UserID    uint64  `json:"userid"`  // User id
+	IsAdmin   bool    `json:"isadmin"` // Set to true when user is admin
 	ErrorCode StatusT `json:"errorcode,omitempty"`
 }
 
@@ -299,4 +303,39 @@ type PolicyReply struct {
 	MaxMDSize        uint     `json:"maxmdsize"`
 	ValidMIMETypes   []string `json:"validmimetypes"`
 	ErrorCode        StatusT  `json:"errorcode,omitempty"`
+}
+
+// NewComment sends a comment from a user to a specific proposal.  Note that
+// the user is implied by the session.
+type NewComment struct {
+	Token    string `json:"token"`    // Censorship token
+	ParentID uint64 `json:"parentid"` // Parent comment ID
+	Comment  string `json:"comment"`  // Comment
+}
+
+// NewCommentReply return the site generated Comment ID or an error if
+// something went wrong.
+type NewCommentReply struct {
+	CommentID uint64  `json:"commentid"` // Comment ID
+	ErrorCode StatusT `json:"errorcode,omitempty"`
+}
+
+// GetComments retrieve all comments for a given proposal.
+type GetComments struct{}
+
+// Comment is the structure that describes the full server side content.  It
+// includes server side meta-data as well.
+type Comment struct {
+	CommentID uint64 `json:"commentid"` // Comment ID
+	UserID    uint64 `json:"userid"`    // Originating user
+	ParentID  uint64 `json:"parentid"`  // Parent comment ID
+	Timestamp int64  `json:"timestamp"` // Received UNIX timestamp
+	Token     string `json:"token"`     // Censorship token
+	Comment   string `json:"comment"`   // Comment
+}
+
+// GetCommentsReply returns the provided number of comments.
+type GetCommentsReply struct {
+	Comments  []Comment `json:"comments"` // Comments
+	ErrorCode StatusT   `json:"errorcode,omitempty"`
 }

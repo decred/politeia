@@ -71,7 +71,7 @@ func setAdminAction() error {
 
 	b, err := userdb.Get([]byte(email), nil)
 	if err != nil {
-		fmt.Printf("User with email %v not found in the database", email)
+		fmt.Printf("User with email %v not found in the database\n", email)
 	}
 
 	u, err := localdb.DecodeUser(b)
@@ -91,9 +91,9 @@ func setAdminAction() error {
 	}
 
 	if admin {
-		fmt.Printf("User with email %v elevated to admin", email)
+		fmt.Printf("User with email %v elevated to admin\n", email)
 	} else {
-		fmt.Printf("User with email %v removed from admin", email)
+		fmt.Printf("User with email %v removed from admin\n", email)
 	}
 
 	return nil
