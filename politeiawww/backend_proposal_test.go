@@ -123,23 +123,23 @@ func TestNewProposalPolicyRestrictions(t *testing.T) {
 
 	p := b.ProcessPolicy(www.Policy{})
 
-	_, npr, err := createNewProposalWithFileSizes(b, t, p.MaxMDs, p.MaxImages, p.MaxMDSize, p.MaxImageSize)
-	assertSuccess(t, err, npr.ErrorCode)
+	_, _, err := createNewProposalWithFileSizes(b, t, p.MaxMDs, p.MaxImages, p.MaxMDSize, p.MaxImageSize)
+	assertSuccess(t, err)
 
-	_, npr, err = createNewProposalWithFiles(b, t, p.MaxMDs+1, 0)
-	assertError(t, err, npr.ErrorCode, www.StatusMaxMDsExceededPolicy)
+	_, _, err = createNewProposalWithFiles(b, t, p.MaxMDs+1, 0)
+	assertError(t, err, www.StatusMaxMDsExceededPolicy)
 
-	_, npr, err = createNewProposalWithFiles(b, t, 1, p.MaxImages+1)
-	assertError(t, err, npr.ErrorCode, www.StatusMaxImagesExceededPolicy)
+	_, _, err = createNewProposalWithFiles(b, t, 1, p.MaxImages+1)
+	assertError(t, err, www.StatusMaxImagesExceededPolicy)
 
-	_, npr, err = createNewProposalWithFiles(b, t, 0, 0)
-	assertError(t, err, npr.ErrorCode, www.StatusProposalMissingDescription)
+	_, _, err = createNewProposalWithFiles(b, t, 0, 0)
+	assertError(t, err, www.StatusProposalMissingDescription)
 
-	_, npr, err = createNewProposalWithFileSizes(b, t, 1, 0, p.MaxMDSize+1, 0)
-	assertError(t, err, npr.ErrorCode, www.StatusMaxMDSizeExceededPolicy)
+	_, _, err = createNewProposalWithFileSizes(b, t, 1, 0, p.MaxMDSize+1, 0)
+	assertError(t, err, www.StatusMaxMDSizeExceededPolicy)
 
-	_, npr, err = createNewProposalWithFileSizes(b, t, 1, 1, 64, p.MaxImageSize+1)
-	assertError(t, err, npr.ErrorCode, www.StatusMaxImageSizeExceededPolicy)
+	_, _, err = createNewProposalWithFileSizes(b, t, 1, 1, 64, p.MaxImageSize+1)
+	assertError(t, err, www.StatusMaxImageSizeExceededPolicy)
 }
 
 // Tests fetching an unreviewed proposal's details.
