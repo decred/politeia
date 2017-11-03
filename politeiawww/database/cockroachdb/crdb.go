@@ -3,23 +3,22 @@ package cockroachdb
 import (
 	"github.com/badoux/checkmail"
 	"github.com/decred/politeia/politeiawww/database"
-
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 )
 
 // cockroachdb implements the database interface.
-type cockroachdb struct {
-	db *gorm.DB
+type DB struct {
+	*gorm.DB
 }
 
 // New creates a new cockroachdb instance
-func New(addr string) (*cockroachdb, error) {
+func New(addr string) (*DB, error) {
 	db, err := gorm.Open("postgres", addr)
 	if err != nil {
 		return nil, err
 	}
-	crdb := &cockroachdb{db}
+	crdb := &DB{db}
 
 	db.AutoMigrate(&database.User{})
 
@@ -27,10 +26,10 @@ func New(addr string) (*cockroachdb, error) {
 }
 
 // UserGet returns a user record if found in the database.
-func (c *cockroachdb) UserGet(email string) (*database.User, error) {
+func (crdb *DB) UserGet(email string) (*database.User, error) {
 	var user database.User
 	var query *gorm.DB
-	if query = c.db.Find(&user, user.Email); query.Error != nil {
+	if query = crdb.Find(&user, user.Email); query.Error != nil {
 		return nil, query.Error
 	}
 
@@ -45,9 +44,9 @@ func (c *cockroachdb) UserGet(email string) (*database.User, error) {
 }
 
 // UserUpdate updates a user record
-func (c *cockroachdb) UserUpdate(user *database.User) error {
+func (crdb *DB) UserUpdate(user *database.User) error {
 	var query *gorm.DB
-	if query = c.db.Model(user).Where("email = ?", user.Email); query.Error != nil {
+	if query = crdb.Model(user).Where("email = ?", user.Email); query.Error != nil {
 		return query.Error
 	}
 
@@ -62,13 +61,13 @@ func (c *cockroachdb) UserUpdate(user *database.User) error {
 }
 
 // UserNew stores a new user record
-func (c *cockroachdb) UserNew(user *database.User) error {
+func (crdb *DB) UserNew(user *database.User) error {
 	if err := checkmail.ValidateFormat(user.Email); err != nil {
 		return database.ErrInvalidEmail
 	}
 
 	var query *gorm.DB
-	if query = c.db.Find(&user, user.Email); query.Error != nil {
+	if query = crdb.Find(&user, user.Email); query.Error != nil {
 		return query.Error
 	}
 
@@ -79,10 +78,10 @@ func (c *cockroachdb) UserNew(user *database.User) error {
 		return database.ErrUserExists
 	}
 
-	return c.db.Create(user).Error
+	return crdb.Create(user).Error
 }
 
 // Close shuts down the database
-func (c *cockroachdb) Close() error {
-	return c.db.Close()
+func (crdb *DB) Close() error {
+	return crdb.DB.Close()
 }
