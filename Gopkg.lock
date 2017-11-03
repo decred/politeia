@@ -104,6 +104,18 @@
   version = "v1.1"
 
 [[projects]]
+  name = "github.com/jinzhu/gorm"
+  packages = [".","dialects/postgres"]
+  revision = "5174cc5c242a728b435ea2be8a2f7f998e15429b"
+  version = "v1.0"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/jinzhu/inflection"
+  packages = ["."]
+  revision = "1c35d901db3da928c72a72d8458480cc9ade058f"
+
+[[projects]]
   branch = "master"
   name = "github.com/jrick/logrotate"
   packages = ["rotator"]
@@ -114,6 +126,12 @@
   packages = ["."]
   revision = "6a0bfdde8629a3a3a7418a7eae45c54154692514"
   version = "v1.2"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/lib/pq"
+  packages = [".","hstore","oid"]
+  revision = "b609790bd85edf8e9ab7e0f8912750a786177bcf"
 
 [[projects]]
   branch = "master"
@@ -138,6 +156,12 @@
   packages = ["."]
   revision = "b024fc5ea0e34bc3f83d9941c8d60b0622bfaca4"
   version = "v1"
+
+[[projects]]
+  name = "github.com/stretchr/testify"
+  packages = ["assert","require","suite"]
+  revision = "69483b4bd14f5845b5a1e55bca19e954e827f1d0"
+  version = "v1.1.4"
 
 [[projects]]
   branch = "master"
@@ -166,6 +190,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "f7fb71a9b6a1287415654c63b76f1092b8b39e5c53298feef4ac3073c9742561"
+  inputs-digest = "d2684d334726a41d7d3165fd95f4059cb86682042a7070346abeb5d4ce87829c"
   solver-name = "gps-cdcl"
   solver-version = 1
