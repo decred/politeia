@@ -5,18 +5,18 @@ import (
 	www "github.com/decred/politeia/politeiawww/api/v1"
 )
 
-func convertPropStatusFromWWW(s www.PropStatusT) pd.StatusT {
+func convertPropStatusFromWWW(s www.PropStatusT) pd.PropStatusT {
 	switch s {
 	case www.PropStatusNotFound:
-		return pd.StatusNotFound
+		return pd.PropStatusNotFound
 	case www.PropStatusNotReviewed:
-		return pd.StatusNotReviewed
+		return pd.PropStatusNotReviewed
 	case www.PropStatusCensored:
-		return pd.StatusCensored
+		return pd.PropStatusCensored
 	case www.PropStatusPublic:
-		return pd.StatusPublic
+		return pd.PropStatusPublic
 	}
-	return pd.StatusInvalid
+	return pd.PropStatusInvalid
 }
 
 func convertPropFileFromWWW(f www.File) pd.File {
@@ -63,15 +63,15 @@ func convertPropsFromWWW(p []www.ProposalRecord) []pd.ProposalRecord {
 }
 
 ///////////////////////////////
-func convertPropStatusFromPD(s pd.StatusT) www.PropStatusT {
+func convertPropStatusFromPD(s pd.PropStatusT) www.PropStatusT {
 	switch s {
-	case pd.StatusNotFound:
+	case pd.PropStatusNotFound:
 		return www.PropStatusNotFound
-	case pd.StatusNotReviewed:
+	case pd.PropStatusNotReviewed:
 		return www.PropStatusNotReviewed
-	case pd.StatusCensored:
+	case pd.PropStatusCensored:
 		return www.PropStatusCensored
-	case pd.StatusPublic:
+	case pd.PropStatusPublic:
 		return www.PropStatusPublic
 	}
 	return www.PropStatusInvalid
@@ -118,4 +118,29 @@ func convertPropsFromPD(p []pd.ProposalRecord) []www.ProposalRecord {
 		pr = append(pr, convertPropFromPD(v))
 	}
 	return pr
+}
+
+func convertErrorStatusFromPD(s int) www.ErrorStatusT {
+	switch pd.ErrorStatusT(s) {
+	case pd.ErrorStatusInvalidProposalName:
+		return www.ErrorStatusInvalidProposalName
+	case pd.ErrorStatusInvalidFileDigest:
+		return www.ErrorStatusInvalidFileDigest
+	case pd.ErrorStatusInvalidBase64:
+		return www.ErrorStatusInvalidBase64
+	case pd.ErrorStatusInvalidMIMEType:
+		return www.ErrorStatusInvalidMIMEType
+	case pd.ErrorStatusUnsupportedMIMEType:
+		return www.ErrorStatusUnsupportedMIMEType
+	case pd.ErrorStatusInvalidPropStatusTransition:
+		return www.ErrorStatusInvalidPropStatusTransition
+
+		// These cases are intentionally omitted because
+		// they are indicative of some internal server error,
+		// so ErrorStatusInvalid is returned.
+		//
+		//case pd.ErrorStatusInvalidRequestPayload
+		//case pd.ErrorStatusInvalidChallenge
+	}
+	return www.ErrorStatusInvalid
 }

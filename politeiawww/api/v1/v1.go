@@ -4,7 +4,7 @@ import (
 	"fmt"
 )
 
-type StatusT int
+type ErrorStatusT int
 type PropStatusT int
 
 const (
@@ -60,21 +60,26 @@ const (
 	PolicyPasswordMinChars = 8
 
 	// Error status codes
-	StatusInvalid                    StatusT = 0
-	StatusSuccess                    StatusT = 1
-	StatusInvalidEmailOrPassword     StatusT = 2
-	StatusMalformedEmail             StatusT = 3
-	StatusVerificationTokenInvalid   StatusT = 4
-	StatusVerificationTokenExpired   StatusT = 5
-	StatusProposalMissingName        StatusT = 6
-	StatusProposalMissingDescription StatusT = 7
-	StatusProposalNotFound           StatusT = 8
-	StatusMaxMDsExceededPolicy       StatusT = 9
-	StatusMaxImagesExceededPolicy    StatusT = 10
-	StatusMaxMDSizeExceededPolicy    StatusT = 11
-	StatusMaxImageSizeExceededPolicy StatusT = 12
-	StatusMalformedPassword          StatusT = 13
-	StatusCommentNotFound            StatusT = 14
+	ErrorStatusInvalid                     ErrorStatusT = 0
+	ErrorStatusInvalidEmailOrPassword      ErrorStatusT = 1
+	ErrorStatusMalformedEmail              ErrorStatusT = 2
+	ErrorStatusVerificationTokenInvalid    ErrorStatusT = 3
+	ErrorStatusVerificationTokenExpired    ErrorStatusT = 4
+	ErrorStatusProposalMissingName         ErrorStatusT = 5
+	ErrorStatusProposalMissingDescription  ErrorStatusT = 6
+	ErrorStatusProposalNotFound            ErrorStatusT = 7
+	ErrorStatusMaxMDsExceededPolicy        ErrorStatusT = 8
+	ErrorStatusMaxImagesExceededPolicy     ErrorStatusT = 9
+	ErrorStatusMaxMDSizeExceededPolicy     ErrorStatusT = 10
+	ErrorStatusMaxImageSizeExceededPolicy  ErrorStatusT = 11
+	ErrorStatusMalformedPassword           ErrorStatusT = 12
+	ErrorStatusCommentNotFound             ErrorStatusT = 13
+	ErrorStatusInvalidProposalName         ErrorStatusT = 14
+	ErrorStatusInvalidFileDigest           ErrorStatusT = 15
+	ErrorStatusInvalidBase64               ErrorStatusT = 16
+	ErrorStatusInvalidMIMEType             ErrorStatusT = 17
+	ErrorStatusUnsupportedMIMEType         ErrorStatusT = 18
+	ErrorStatusInvalidPropStatusTransition ErrorStatusT = 19
 
 	// Proposal status codes (set and get)
 	PropStatusInvalid     PropStatusT = 0 // Invalid status
@@ -126,11 +131,42 @@ type ProposalRecord struct {
 	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
 }
 
+// UserError represents an error that is caused by something that the user
+// did (malformed input, bad timing, etc).
+type UserError struct {
+	ErrorCode ErrorStatusT
+}
+
+// Error satisfies the error interface.
+func (e UserError) Error() string {
+	return fmt.Sprintf("user error code: %v", e.ErrorCode)
+}
+
+// PDError is emitted when an HTTP error response is returned from Politeiad
+// for a request. It contains the HTTP status code and the JSON response body.
+type PDError struct {
+	HTTPCode   int
+	ErrorReply PDErrorReply
+}
+
+// Error satisfies the error interface.
+func (e PDError) Error() string {
+	return fmt.Sprintf("error from politeiad: %v %v", e.HTTPCode, e.ErrorReply.ErrorCode)
+}
+
+// PDErrorReply is an error reply returned from Politeiad whenever an
+// error occurs.
+type PDErrorReply struct {
+	ErrorCode    int
+	ErrorContext []string
+}
+
 // ErrorReply are replies that the server returns a when it encounters an
 // unrecoverable problem while executing a command.  The HTTP Error Code
 // shall be 500 if it's an internal server error or 4xx if it's a user error.
 type ErrorReply struct {
-	ErrorCode int64 `json:"errorcode,omitempty"`
+	ErrorCode    int64    `json:"errorcode,omitempty"`
+	ErrorContext []string `json:"errorcontext,omitempty"`
 }
 
 // Version command is used to determine the version of the API this backend
@@ -143,10 +179,9 @@ type Version struct{}
 // is running and additionally the route to the API and the public signing key of
 // the server.
 type VersionReply struct {
-	Version   uint    `json:"version"` // politeia WWW API version
-	Route     string  `json:"route"`   // prefix to API calls
-	PubKey    string  `json:"pubkey"`  // Server public key
-	ErrorCode StatusT `json:"errorcode,omitempty"`
+	Version uint   `json:"version"` // politeia WWW API version
+	Route   string `json:"route"`   // prefix to API calls
+	PubKey  string `json:"pubkey"`  // Server public key
 }
 
 // NewUser is used to request that a new user be created within the db.
@@ -159,8 +194,7 @@ type NewUser struct {
 // NewUserReply is used to reply to the NewUser command with an error
 // if the command is unsuccessful.
 type NewUserReply struct {
-	VerificationToken string  `json:"verificationtoken"`
-	ErrorCode         StatusT `json:"errorcode,omitempty"`
+	VerificationToken string `json:"verificationtoken"`
 }
 
 // VerifyNewUser is used to perform verification for the user created through
@@ -181,9 +215,7 @@ type ChangePassword struct {
 
 // ChangePasswordReply is used to perform a password change while the user
 // is logged in.
-type ChangePasswordReply struct {
-	ErrorCode StatusT `json:"errorcode,omitempty"`
-}
+type ChangePasswordReply struct{}
 
 // ResetPassword is used to perform a password change when the
 // user is not logged in.
@@ -196,8 +228,7 @@ type ResetPassword struct {
 // ResetPasswordReply is used to reply to the ResetPassword command
 // with an error if the command is unsuccessful.
 type ResetPasswordReply struct {
-	VerificationToken string  `json:"verificationtoken"`
-	ErrorCode         StatusT `json:"errorcode,omitempty"`
+	VerificationToken string `json:"verificationtoken"`
 }
 
 // Login attempts to login the user.  Note that by necessity the password
@@ -210,18 +241,15 @@ type Login struct {
 // LoginReply is used to reply to the Login command. .  IsAdmin indicates if
 // the user has publish/censor privileges.
 type LoginReply struct {
-	UserID    uint64  `json:"userid"`  // User id
-	IsAdmin   bool    `json:"isadmin"` // Set to true when user is admin
-	ErrorCode StatusT `json:"errorcode,omitempty"`
+	UserID  uint64 `json:"userid"`  // User id
+	IsAdmin bool   `json:"isadmin"` // Set to true when user is admin
 }
 
 //Logout attempts to log the user out.
 type Logout struct{}
 
 // LogoutReply indicates whether the Logout command was success or not.
-type LogoutReply struct {
-	ErrorCode StatusT `json:"errorcode,omitempty"`
-}
+type LogoutReply struct{}
 
 // Me asks the server to return pertinent user information.
 type Me struct{}
@@ -229,9 +257,8 @@ type Me struct{}
 // MeReply contains user information the UI may need to render a user specific
 // page.
 type MeReply struct {
-	Email     string  `json:"email"`
-	IsAdmin   bool    `json:"isadmin"`
-	ErrorCode StatusT `json:"errorcode,omitempty"`
+	Email   string `json:"email"`
+	IsAdmin bool   `json:"isadmin"`
 }
 
 // NewProposal attempts to submit a new proposal.
@@ -243,7 +270,6 @@ type NewProposal struct {
 // NewProposalReply is used to reply to the NewProposal command.
 type NewProposalReply struct {
 	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
-	ErrorCode        StatusT          `json:"errorcode,omitempty"`
 }
 
 // ProposalsDetails is used to retrieve a proposal.
@@ -254,8 +280,7 @@ type ProposalsDetails struct {
 
 // ProposalDetailsReply is used to reply to a proposal details command.
 type ProposalDetailsReply struct {
-	Proposal  ProposalRecord `json:"proposal"`
-	ErrorCode StatusT        `json:"errorcode,omitempty"`
+	Proposal ProposalRecord `json:"proposal"`
 }
 
 // SetProposalStatus is used to publish or censor an unreviewed proposal.
@@ -267,7 +292,6 @@ type SetProposalStatus struct {
 // SetProposalStatusReply is used to reply to a SetProposalStatus command.
 type SetProposalStatusReply struct {
 	ProposalStatus PropStatusT `json:"proposalstatus"`
-	ErrorCode      StatusT     `json:"errorcode,omitempty"`
 }
 
 // GetAllUnvetted retrieves all unvetted proposals.  This call requires admin
@@ -277,7 +301,6 @@ type GetAllUnvetted struct{}
 // GetAllUnvettedReply is used to reply with a list of all unvetted proposals.
 type GetAllUnvettedReply struct {
 	Proposals []ProposalRecord `json:"proposals"`
-	ErrorCode StatusT          `json:"errorcode,omitempty"`
 }
 
 // GetAllVetted retrieves all vetted proposals.
@@ -286,7 +309,6 @@ type GetAllVetted struct{}
 // GetAllVettedReply is used to reply with a list of all vetted proposals.
 type GetAllVettedReply struct {
 	Proposals []ProposalRecord `json:"proposals"`
-	ErrorCode StatusT          `json:"errorcode,omitempty"`
 }
 
 // Policy returns a struct with various maxima.  The client shall observe the
@@ -302,7 +324,6 @@ type PolicyReply struct {
 	MaxMDs           uint     `json:"maxmds"`
 	MaxMDSize        uint     `json:"maxmdsize"`
 	ValidMIMETypes   []string `json:"validmimetypes"`
-	ErrorCode        StatusT  `json:"errorcode,omitempty"`
 }
 
 // NewComment sends a comment from a user to a specific proposal.  Note that
@@ -316,8 +337,7 @@ type NewComment struct {
 // NewCommentReply return the site generated Comment ID or an error if
 // something went wrong.
 type NewCommentReply struct {
-	CommentID uint64  `json:"commentid"` // Comment ID
-	ErrorCode StatusT `json:"errorcode,omitempty"`
+	CommentID uint64 `json:"commentid"` // Comment ID
 }
 
 // GetComments retrieve all comments for a given proposal.
@@ -336,6 +356,5 @@ type Comment struct {
 
 // GetCommentsReply returns the provided number of comments.
 type GetCommentsReply struct {
-	Comments  []Comment `json:"comments"` // Comments
-	ErrorCode StatusT   `json:"errorcode,omitempty"`
+	Comments []Comment `json:"comments"` // Comments
 }

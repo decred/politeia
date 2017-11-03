@@ -7,6 +7,9 @@ package backend
 import (
 	"crypto/sha256"
 	"errors"
+	"fmt"
+
+	"github.com/decred/politeia/politeiad/api/v1"
 )
 
 var (
@@ -25,11 +28,12 @@ var (
 // ContentVerificationError is returned when a submitted proposal contains
 // unacceptable file formats or corrupt data.
 type ContentVerificationError struct {
-	Err error
+	ErrorCode    v1.ErrorStatusT
+	ErrorContext []string
 }
 
 func (c ContentVerificationError) Error() string {
-	return c.Err.Error()
+	return fmt.Sprintf("%v: %v", v1.ErrorStatus[c.ErrorCode], c.ErrorContext)
 }
 
 type File struct {

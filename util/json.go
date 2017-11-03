@@ -6,7 +6,6 @@ package util
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 )
@@ -31,19 +30,11 @@ func RespondWithCopy(w http.ResponseWriter, code int, contentType string, body [
 }
 
 // GetErrorFromJSON returns the error that is embedded in a JSON reply.
-func GetErrorFromJSON(r io.Reader) (string, error) {
+func GetErrorFromJSON(r io.Reader) (interface{}, error) {
 	var e interface{}
 	decoder := json.NewDecoder(r)
 	if err := decoder.Decode(&e); err != nil {
-		return "", err
+		return nil, err
 	}
-	m, ok := e.(map[string]interface{})
-	if !ok {
-		return "", fmt.Errorf("Could not decode response")
-	}
-	rError, ok := m["error"]
-	if !ok {
-		return "", fmt.Errorf("No error response")
-	}
-	return fmt.Sprintf("%v", rError), nil
+	return e, nil
 }

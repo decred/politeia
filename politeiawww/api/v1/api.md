@@ -24,22 +24,28 @@ API.  It does not render HTML.
 - [`New comment`](#new-comment)
 - [`Get comments`](#get-comments)
 
-**Status codes**
+**Error status codes**
 
-- [`StatusInvalid`](#StatusInvalid)
-- [`StatusSuccess`](#StatusSuccess)
-- [`StatusInvalidEmailOrPassword`](#StatusInvalidEmailOrPassword)
-- [`StatusMalformedEmail`](#StatusMalformedEmail)
-- [`StatusVerificationTokenInvalid`](#StatusVerificationTokenInvalid)
-- [`StatusVerificationTokenExpired`](#StatusVerificationTokenExpired)
-- [`StatusProposalMissingName`](#StatusProposalMissingName)
-- [`StatusProposalMissingDescription`](#StatusProposalMissingDescription)
-- [`StatusProposalNotFound`](#StatusProposalNotFound)
-- [`StatusMaxMDsExceededPolicy`](#StatusMaxMDsExceededPolicy)
-- [`StatusMaxImagesExceededPolicy`](#StatusMaxImagesExceededPolicy)
-- [`StatusMaxMDSizeExceededPolicy`](#StatusMaxMDSizeExceededPolicy)
-- [`StatusMaxImageSizeExceededPolicy`](#StatusMaxImageSizeExceededPolicy)
-- [`StatusMalformedPassword`](#StatusMalformedPassword)
+- [`ErrorStatusInvalid`](#ErrorStatusInvalid)
+- [`ErrorStatusInvalidEmailOrPassword`](#ErrorStatusInvalidEmailOrPassword)
+- [`ErrorStatusMalformedEmail`](#ErrorStatusMalformedEmail)
+- [`ErrorStatusVerificationTokenInvalid`](#ErrorStatusVerificationTokenInvalid)
+- [`ErrorStatusVerificationTokenExpired`](#ErrorStatusVerificationTokenExpired)
+- [`ErrorStatusProposalMissingName`](#ErrorStatusProposalMissingName)
+- [`ErrorStatusProposalMissingDescription`](#ErrorStatusProposalMissingDescription)
+- [`ErrorStatusProposalNotFound`](#ErrorStatusProposalNotFound)
+- [`ErrorStatusMaxMDsExceededPolicy`](#ErrorStatusMaxMDsExceededPolicy)
+- [`ErrorStatusMaxImagesExceededPolicy`](#ErrorStatusMaxImagesExceededPolicy)
+- [`ErrorStatusMaxMDSizeExceededPolicy`](#ErrorStatusMaxMDSizeExceededPolicy)
+- [`ErrorStatusMaxImageSizeExceededPolicy`](#ErrorStatusMaxImageSizeExceededPolicy)
+- [`ErrorStatusMalformedPassword`](#ErrorStatusMalformedPassword)
+- [`ErrorStatusCommentNotFound`](#ErrorStatusCommentNotFound)
+- [`ErrorStatusInvalidProposalName`](#ErrorStatusInvalidProposalName)
+- [`ErrorStatusInvalidFileDigest`](#ErrorStatusInvalidFileDigest)
+- [`ErrorStatusInvalidBase64`](#ErrorStatusInvalidBase64)
+- [`ErrorStatusInvalidMIMEType`](#ErrorStatusInvalidMIMEType)
+- [`ErrorStatusUnsupportedMIMEType`](#ErrorStatusUnsupportedMIMEType)
+- [`ErrorStatusInvalidPropStatusTransition`](#ErrorStatusInvalidPropStatusTransition)
 
 **Proposal status codes**
 
@@ -48,6 +54,57 @@ API.  It does not render HTML.
 - [`PropStatusNotReviewed`](#PropStatusNotReviewed)
 - [`PropStatusCensored`](#PropStatusCensored)
 - [`PropStatusPublic`](#PropStatusPublic)
+
+## HTTP status codes and errors
+
+All methods, unless otherwise specified, shall return `200 OK` when successful,
+`400 Bad Request` when an error has occurred due to user input, or `500 Internal Server Error`
+when an unexpected server error has occurred. The format of errors is as follows:
+
+**`4xx` errors**
+
+<table>
+  <tbody>
+    <tr>
+      <th></th>
+      <th>Type</th>
+      <th>Description</th>
+    </tr>
+    <tr>
+      <td><code>errorcode</code></td>
+      <td>Number</td>
+      <td>One of the <a href="#error-codes">error codes</a>.</td>
+    </tr>
+    <tr>
+      <td><code>errorcontext</code></td>
+      <td>Object</td>
+      <td>
+        This object is used to provide additional information for certain
+        errors; see the documentation for specific error codes.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+**`5xx` errors**
+
+<table>
+  <tbody>
+    <tr>
+      <th></th>
+      <th>Type</th>
+      <th>Description</th>
+    </tr>
+    <tr>
+      <td><code>errorcode</code></td>
+      <td>Number</td>
+      <td>
+        An error code that can be used to track down the internal server error
+        that occurred; it should be reported to Politeia administrators.
+      </td>
+    </tr>
+  </tbody>
+</table>
 
 ## Methods
 
@@ -92,13 +149,6 @@ to get the CSRF token for the session and to ensure API compatability.
     </tr>
   </tbody>
 </table>
-
-On success the call shall return `200 OK` and the error code shall be set to
-[`StatusSuccess`](#StatusSuccess).
-
-The call may return `500 Internal Server Error` which is accompanied by
-an error code that allows the server operator to correlate issues with user
-reports.
 
 **Example**
 
@@ -148,13 +198,7 @@ Return pertinent user information of the current logged in user.
   </tbody>
 </table>
 
-On success the call shall return `200 OK` and the error code shall be set to
-[`StatusSuccess`](#StatusSuccess). If there currently is no session the call
-returns `403 Forbidden`.
-
-The call may return `500 Internal Server Error` which is accompanied by
-an error code that allows the server operator to correlate issues with user
-reports.
+If there currently is no session the call returns `403 Forbidden`.
 
 **Example**
 
@@ -169,8 +213,7 @@ Reply:
 ```json
 {
   "email": "d3a948d856daea3d@example.com",
-  "isadmin": true,
-  "errorcode": 1
+  "isadmin": true
 }
 ```
 
@@ -223,11 +266,6 @@ Create a new user on the politeiawww server.
       <th>Description</th>
     </tr>
     <tr>
-      <td><code>errorcode</code></td>
-      <td>Number</td>
-      <td>One of the <a href="#status-codes">status codes</a>.</td>
-    </tr>
-    <tr>
       <td><code>verificationtoken</code></td>
       <td>String</td>
       <td>
@@ -240,12 +278,10 @@ Create a new user on the politeiawww server.
   </tbody>
 </table>
 
-On success the call shall return `200 OK` and the error code shall be set to
-one of the following statuses:
+This call can return one of the following error codes:
 
-- [`StatusSuccess`](#StatusSuccess)
-- [`StatusInvalidEmailOrPassword`](#StatusInvalidEmailOrPassword)
-- [`StatusMalformedEmail`](#StatusMalformedEmail)
+- [`ErrorStatusInvalidEmailOrPassword`](#ErrorStatusInvalidEmailOrPassword)
+- [`ErrorStatusMalformedEmail`](#ErrorStatusMalformedEmail)
 
 The email shall include a link in the following format:
 
@@ -272,8 +308,7 @@ Reply:
 
 ```json
 {
-  "verificationtoken": "f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde",
-  "errorcode": 1
+  "verificationtoken": "f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde"
 }
 ```
 
@@ -308,34 +343,15 @@ Verify email address of a previously created user.
   </tbody>
 </table>
 
-**Results:**
-
-<table>
-  <tbody>
-    <tr>
-      <th></th>
-      <th>Type</th>
-      <th>Description</th>
-    </tr>
-    <tr>
-      <td><code>errorcode</code></td>
-      <td>Number</td>
-      <td>One of the <a href="#status-codes">status codes</a>.</td>
-    </tr>
-  </tbody>
-</table>
+**Results:** none
 
 On success the call shall redirect to `/v1/user/verify/success` which will return
-`200 OK`, and the error code shall be set to [`StatusSuccess`](#StatusSuccess).
+`200 OK`.
 
 On failure the call shall redirect to `/v1/user/verify/failure` which will return
 `400 Bad Request` and one of the following error codes:
-- [`StatusVerificationTokenInvalid`](#StatusVerificationTokenInvalid)
-- [`StatusVerificationTokenExpired`](#StatusVerificationTokenExpired)
-
-The call may return `500 Internal Server Error` which is accompanied by
-an error code that allows the server operator to correlate issues with user
-reports.
+- [`ErrorStatusVerificationTokenInvalid`](#ErrorStatusVerificationTokenInvalid)
+- [`ErrorStatusVerificationTokenExpired`](#ErrorStatusVerificationTokenExpired)
 
 **Example:**
 
@@ -353,9 +369,7 @@ The user verification command is special.  It redirects to `/v1/user/verify/succ
 on success or to `/v1/user/verify/failure` on failure, which return the JSON:
 
 ```json
-{
-  "errorcode": 1
-}
+{}
 ```
 
 ### `Login`
@@ -405,24 +419,12 @@ the user database.
       <td>Boolean</td>
       <td>This indicates if the user has publish/censor privileges.</td>
     </tr>
-    <tr>
-      <td><code>errorcode</code></td>
-      <td>Number</td>
-      <td>One of the <a href="#status-codes">status codes</a>.</td>
-    </tr>
   </tbody>
 </table>
 
-On success the call shall return `200 OK` and the error code shall be set to
-[`StatusSuccess`](#StatusSuccess).
-
 On failure the call shall return `403 Forbidden` and one of the following
 error codes:
-- [`StatusInvalidEmailOrPassword`](#StatusInvalidEmailOrPassword)
-
-The call may return `500 Internal Server Error` which is accompanied by
-an error code that allows the server operator to correlate issues with user
-reports.
+- [`ErrorStatusInvalidEmailOrPassword`](#ErrorStatusInvalidEmailOrPassword)
 
 **Example**
 
@@ -439,8 +441,7 @@ Reply:
 
 ```json
 {
-  "isadmin": false,
-  "errorcode": 1
+  "isadmin": false
 }
 ```
 
@@ -452,29 +453,7 @@ Logout as a user or admin.
 
 **Params:** none
 
-**Results:**
-
-<table>
-  <tbody>
-    <tr>
-      <th></th>
-      <th>Type</th>
-      <th>Description</th>
-    </tr>
-    <tr>
-      <td><code>errorcode</code></td>
-      <td>Number</td>
-      <td>One of the <a href="#status-codes">status codes</a>.</td>
-    </tr>
-  </tbody>
-</table>
-
-On success the call shall return `200 OK` and the error code shall be set to
-[`StatusSuccess`](#StatusSuccess).
-
-The call may return `500 Internal Server Error` which is accompanied by
-an error code that allows the server operator to correlate issues with user
-reports.
+**Results:** none
 
 **Example**
 
@@ -487,9 +466,7 @@ Request:
 Reply:
 
 ```json
-{
-  "errorcode": 1
-}
+{}
 ```
 
 ### `Change password`
@@ -523,34 +500,12 @@ Changes the password for the currently logged in user.
   </tbody>
 </table>
 
-**Results**
-
-<table>
-  <tbody>
-    <tr>
-      <th></th>
-      <th>Type</th>
-      <th>Description</th>
-    </tr>
-    <tr>
-      <td><code>errorcode</code></td>
-      <td>Number</td>
-      <td>One of the <a href="#status-codes">status codes</a>.</td>
-    </tr>
-  </tbody>
-</table>
-
-On success the call shall return `200 OK` and the error code shall be set to
-[`StatusSuccess`](#StatusSuccess).
+**Results:** none
 
 On failure the call shall return `400 Bad Request` and one of the following
 error codes:
-- [`StatusInvalidEmailOrPassword`](#StatusInvalidEmailOrPassword)
-- [`StatusMalformedPassword`](#StatusMalformedPassword)
-
-The call may return `500 Internal Server Error` which is accompanied by
-an error code that allows the server operator to correlate issues with user
-reports.
+- [`ErrorStatusInvalidEmailOrPassword`](#ErrorStatusInvalidEmailOrPassword)
+- [`ErrorStatusMalformedPassword`](#ErrorStatusMalformedPassword)
 
 **Example**
 
@@ -566,9 +521,7 @@ Request:
 Reply:
 
 ```json
-{
-  "errorcode": 1
-}
+{}
 ```
 
 ### `Reset password`
@@ -608,29 +561,13 @@ Allows a user to reset his password without being logged in.
   </tbody>
 </table>
 
-**Results:**
-
-<table>
-  <tbody>
-    <tr>
-      <th></th>
-      <th>Type</th>
-      <th>Description</th>
-    </tr>
-    <tr>
-      <td><code>errorcode</code></td>
-      <td>Number</td>
-      <td>One of the <a href="#status-codes">status codes</a>.</td>
-    </tr>
-  </tbody>
-</table>
+**Results:** none
 
 The reset password command is special.  It must be called **twice** with different
 parameters.
 
 For the 1st call, it should be called with only an `email` parameter. On success
-it shall send an email to the address provided by `email` and return `200 OK`
-and the `errorcode` shall be set to [`StatusSuccess`](#StatusSuccess).
+it shall send an email to the address provided by `email` and return `200 OK`.
 
 The email shall include a link in the following format:
 
@@ -640,21 +577,16 @@ The email shall include a link in the following format:
 
 On failure, the call shall return `400 Bad Request` and one of the following
 error codes:
-- [`StatusMalformedEmail`](#StatusMalformedEmail)
+- [`ErrorStatusMalformedEmail`](#ErrorStatusMalformedEmail)
 
 For the 2nd call, it should be called with `email`, `token`, and `newpassword`
-parameters. On success it shall return `200 OK` and the `errorcode` shall be set
-to [`StatusSuccess`](#StatusSuccess).
+parameters.
 
 On failure, the call shall return `400 Bad Request` and one of the following
 error codes:
-- [`StatusVerificationTokenInvalid`](#StatusVerificationTokenInvalid)
-- [`StatusVerificationTokenExpired`](#StatusVerificationTokenExpired)
-- [`StatusMalformedPassword`](#StatusMalformedPassword)
-
-The call may return `500 Internal Server Error` which is accompanied by
-an error code that allows the server operator to correlate issues with user
-reports.
+- [`ErrorStatusVerificationTokenInvalid`](#ErrorStatusVerificationTokenInvalid)
+- [`ErrorStatusVerificationTokenExpired`](#ErrorStatusVerificationTokenExpired)
+- [`ErrorStatusMalformedPassword`](#ErrorStatusMalformedPassword)
 
 **Example for the 1st call**
 
@@ -669,9 +601,7 @@ Request:
 Reply:
 
 ```json
-{
-  "errorcode": 1
-}
+{}
 ```
 
 **Example for the 2nd call**
@@ -689,9 +619,7 @@ Request:
 Reply:
 
 ```json
-{
-  "errorcode": 1
-}
+{}
 ```
 
 ### `New proposal`
@@ -756,7 +684,7 @@ Submit a new proposal to the politeiawww server.
               <td>String</td>
               <td>
                 Digest is a SHA256 digest of the payload.  The digest shall be
-                verified by politeiawww.
+                verified by politeiad.
               </td>
               <td>Yes</td>
             </tr>
@@ -796,29 +724,17 @@ Submit a new proposal to the politeiawww server.
         the proposal and prove that he/she submitted it.</p>
       </td>
     </tr>
-    <tr>
-      <td><code>errorcode</code></td>
-      <td>Number</td>
-      <td>One of the <a href="#status-codes">status codes</a>.</td>
-    </tr>
   </tbody>
 </table>
 
-On success the call shall return `200 OK` and the error code shall be set to
-[`StatusSuccess`](#StatusSuccess).
-
 On failure the call shall return `400 Bad Request` and one of the following
 error codes:
-- [`StatusProposalMissingName`](#StatusProposalMissingName)
-- [`StatusProposalMissingDescription`](#StatusProposalMissingDescription)
-- [`StatusMaxMDsExceededPolicy`](#StatusMaxMDsExceededPolicy)
-- [`StatusMaxImagesExceededPolicy`](#StatusMaxImagesExceededPolicy)
-- [`StatusMaxMDSizeExceededPolicy`](#StatusMaxMDSizeExceededPolicy)
-- [`StatusMaxImageSizeExceededPolicy`](#StatusMaxImageSizeExceededPolicy)
-
-The call may return `500 Internal Server Error` which is accompanied by
-an error code that allows the server operator to correlate issues with user
-reports.
+- [`ErrorStatusProposalMissingName`](#ErrorStatusProposalMissingName)
+- [`ErrorStatusProposalMissingDescription`](#ErrorStatusProposalMissingDescription)
+- [`ErrorStatusMaxMDsExceededPolicy`](#ErrorStatusMaxMDsExceededPolicy)
+- [`ErrorStatusMaxImagesExceededPolicy`](#ErrorStatusMaxImagesExceededPolicy)
+- [`ErrorStatusMaxMDSizeExceededPolicy`](#ErrorStatusMaxMDSizeExceededPolicy)
+- [`ErrorStatusMaxImageSizeExceededPolicy`](#ErrorStatusMaxImageSizeExceededPolicy)
 
 **Example**
 
@@ -844,8 +760,7 @@ Reply:
     "token": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
     "merkle": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
     "signature": "fcc92e26b8f38b90c2887259d88ce614654f32ecd76ade1438a0def40d360e461d995c796f16a17108fad226793fd4f52ff013428eda3b39cd504ed5f1811d0d"
-  },
-  "errorcode": 1
+  }
 }
 ```
 
@@ -905,23 +820,10 @@ Retrieve all unvetted proposals.  This call requires admin privileges.
         </table>
       </td>
     </tr>
-    <tr>
-      <td><code>errorcode</code></td>
-      <td>Number</td>
-      <td>One of the <a href="#status-codes">status codes</a>.</td>
-    </tr>
   </tbody>
 </table>
 
-On success the call shall return `200 OK` and the error code shall be set to
-[`StatusSuccess`](#StatusSuccess).  Note: This is provided that the caller has
-the required privileges.
-
 If the caller is not privileged the unvetted call returns `403 Forbidden`.
-
-The call may return `500 Internal Server Error` which is accompanied by
-an error code that allows the server operator to correlate issues with user
-reports.
 
 **Example**
 
@@ -944,8 +846,7 @@ Reply:
       "merkle": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
       "signature": "fcc92e26b8f38b90c2887259d88ce614654f32ecd76ade1438a0def40d360e461d995c796f16a17108fad226793fd4f52ff013428eda3b39cd504ed5f1811d0d"
     }
-  }],
-  "errorcode": 1
+  }]
 ```
 
 ### `Vetted`
@@ -956,29 +857,7 @@ Retrieve all vetted proposals.
 
 **Params:** none
 
-**Results:**
-
-<table>
-  <tbody>
-    <tr>
-      <th></th>
-      <th>Type</th>
-      <th>Description</th>
-    </tr>
-    <tr>
-      <td><code>errorcode</code></td>
-      <td>Number</td>
-      <td>One of the <a href="#status-codes">status codes</a>.</td>
-    </tr>
-  </tbody>
-</table>
-
-On success the call shall return `200 OK` and the error code shall be set to
-[`StatusSuccess`](#StatusSuccess). This call does not fail.
-
-The call may return `500 Internal Server Error` which is accompanied by
-an error code that allows the server operator to correlate issues with user
-reports.
+**Results:** none
 
 **Example**
 
@@ -1001,8 +880,7 @@ Reply:
       "merkle": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
       "signature": "fcc92e26b8f38b90c2887259d88ce614654f32ecd76ade1438a0def40d360e461d995c796f16a17108fad226793fd4f52ff013428eda3b39cd504ed5f1811d0d"
     }
-  }],
-  "errorcode": 1
+  }]
 ```
 
 ### `Policy`
@@ -1014,29 +892,7 @@ SHALL observe.
 
 **Params:** none
 
-**Results:**
-
-<table>
-  <tbody>
-    <tr>
-      <th></th>
-      <th>Type</th>
-      <th>Description</th>
-    </tr>
-    <tr>
-      <td><code>errorcode</code></td>
-      <td>Number</td>
-      <td>One of the <a href="#status-codes">status codes</a>.</td>
-    </tr>
-  </tbody>
-</table>
-
-On success the call shall return `200 OK` and the error code shall be set to
-[`StatusSuccess`](#StatusSuccess). This call does not fail.
-
-The call may return `500 Internal Server Error` which is accompanied by
-an error code that allows the server operator to correlate issues with user
-reports.
+**Results:** none
 
 **Example**
 
@@ -1060,8 +916,7 @@ Reply:
     "image/svg+xml",
     "text/plain",
     "text/plain; charset=utf-8"
-  ],
-  "errorcode": 1
+  ]
 }
 ```
 
@@ -1109,33 +964,11 @@ privileges.
   </tbody>
 </table>
 
-**Results**
-
-<table>
-  <tbody>
-    <tr>
-      <th></th>
-      <th>Type</th>
-      <th>Description</th>
-    </tr>
-    <tr>
-      <td><code>errorcode</code></td>
-      <td>Number</td>
-      <td>One of the <a href="#status-codes">status codes</a>.</td>
-    </tr>
-  </tbody>
-</table>
-
-On success the call shall return `200 OK` and the error code shall be set to
-[`StatusSuccess`](#StatusSuccess).
+**Results:** none
 
 On failure the call shall return `400 Bad Request` and one of the following
 error codes:
-- [`StatusProposalNotFound`](#StatusProposalNotFound)
-
-The call may return `500 Internal Server Error` which is accompanied by
-an error code that allows the server operator to correlate issues with user
-reports.
+- [`ErrorStatusProposalNotFound`](#ErrorStatusProposalNotFound)
 
 **Example**
 
@@ -1152,8 +985,7 @@ Reply:
 
 ```json
 {
-  "status": 4,
-  "errorcode": 1
+  "status": 4
 }
 ```
 
@@ -1165,33 +997,11 @@ Retrieve proposal and its details.
 
 **Params:** none
 
-**Results:**
-
-<table>
-  <tbody>
-    <tr>
-      <th></th>
-      <th>Type</th>
-      <th>Description</th>
-    </tr>
-    <tr>
-      <td><code>errorcode</code></td>
-      <td>Number</td>
-      <td>One of the <a href="#status-codes">status codes</a>.</td>
-    </tr>
-  </tbody>
-</table>
-
-On success the call shall return `200 OK` and the error code shall be set to
-[`StatusSuccess`](#StatusSuccess).
+**Results:** none
 
 On failure the call shall return `400 Bad Request` and one of the following
 error codes:
-- [`StatusProposalNotFound`](#StatusProposalNotFound)
-
-The call may return `500 Internal Server Error` which is accompanied by
-an error code that allows the server operator to correlate issues with user
-reports.
+- [`ErrorStatusProposalNotFound`](#ErrorStatusProposalNotFound)
 
 **Example**
 
@@ -1220,8 +1030,7 @@ Reply:
       "merkle": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
       "signature": "f5ea17d547d8347a2f2d77edcb7e89fcc96613d7aaff1f2a26761779763d77688b57b423f1e7d2da8cd433ef2cfe6f58c7cf1c43065fa6716a03a3726d902d0a"
     }
-  },
-  "errorcode": 1
+  }
 }
 ```
 
@@ -1245,7 +1054,6 @@ proposal"; non-zero values mean "reply to comment".
 | | Type | Description |
 | - | - | - |
 | CommentID | uint64 | Server generated comment ID |
-| ErrorCode | StatusT | Error code |
 
 **Example**
 
@@ -1253,9 +1061,9 @@ Request:
 
 ```json
 {
-  "token":"86221ddae6594b43a19e4c76250c0a8833ecd3b7a9880fb5d2a901970de9ff0e",
-  "parentid":53,
-  "comment":"you are right!"}
+  "token": "86221ddae6594b43a19e4c76250c0a8833ecd3b7a9880fb5d2a901970de9ff0e",
+  "parentid": 53,
+  "comment": "you are right!"
 }
 ```
 
@@ -1263,8 +1071,7 @@ Reply:
 
 ```json
 {
-  "commentid":103,
-  "errorcode":1
+  "commentid": 103
 }
 ```
 
@@ -1282,7 +1089,6 @@ sorted.
 | | Type | Description |
 | - | - | - |
 | Comments | Comment | Unsorted array of all comments |
-| ErrorCode | StatusT | Error code |
 
 **Comment:**
 
@@ -1332,7 +1138,7 @@ Reply:
 }
 ```
 
-### Status codes
+### Error codes
 
 <table>
   <tbody>
@@ -1342,89 +1148,80 @@ Reply:
       <th>Description</th>
     </tr>
     <tr>
-      <td><a name="StatusInvalid"><code>StatusInvalid</code></a></td>
+      <td><a name="ErrorStatusInvalid"><code>ErrorStatusInvalid</code></a></td>
       <td>0</td>
       <td>The operation returned an invalid status.  This shall be considered a bug.</td>
     </tr>
     <tr>
       <td>
-        <a name="StatusSuccess">
-          <code>StatusSuccess</code>
+        <a name="ErrorStatusInvalidEmailOrPassword">
+          <code>ErrorStatusInvalidEmailOrPassword</code>
         </a>
       </td>
       <td>1</td>
-      <td>The operation was successful.</td>
-    </tr>
-    <tr>
-      <td>
-        <a name="StatusInvalidEmailOrPassword">
-          <code>StatusInvalidEmailOrPassword</code>
-        </a>
-      </td>
-      <td>2</td>
       <td>Either the user name or password was invalid.</td>
     </tr>
     <tr>
       <td>
-        <a name="StatusMalformedEmail">
-          <code>StatusMalformedEmail</code>
+        <a name="ErrorStatusMalformedEmail">
+          <code>ErrorStatusMalformedEmail</code>
         </a>
       </td>
-      <td>3</td>
+      <td>2</td>
       <td>The provided email address was malformed.</td>
     </tr>
     <tr>
       <td>
-        <a name="StatusVerificationTokenInvalid">
-          <code>StatusVerificationTokenInvalid</code>
+        <a name="ErrorStatusVerificationTokenInvalid">
+          <code>ErrorStatusVerificationTokenInvalid</code>
         </a>
       </td>
-      <td>4</td>
+      <td>3</td>
       <td>The provided user activation token is invalid.</td>
     </tr>
     <tr>
       <td>
-        <a name="StatusVerificationTokenExpired">
-          <code>StatusVerificationTokenExpired</code>
+        <a name="ErrorStatusVerificationTokenExpired">
+          <code>ErrorStatusVerificationTokenExpired</code>
         </a>
       </td>
-      <td>5</td>
+      <td>4</td>
       <td>The provided user activation token is expired.</td>
     </tr>
     <tr>
       <td>
-        <a name="StatusProposalMissingName">
-          <code>StatusProposalMissingName</code>
+        <a name="ErrorStatusProposalMissingName">
+          <code>ErrorStatusProposalMissingName</code>
         </a>
       </td>
-      <td>6</td>
+      <td>5</td>
       <td>The provided proposal does not have a short name.</td>
     </tr>
     <tr>
       <td>
-        <a name="StatusProposalMissingDescription">
-          <code>StatusProposalMissingDescription</code>
+        <a name="ErrorStatusProposalMissingDescription">
+          <code>ErrorStatusProposalMissingDescription</code>
         </a>
       </td>
-      <td>7</td>
+      <td>6</td>
       <td>The provided proposal does not have a description.</td>
     </tr>
     <tr>
       <td>
-        <a name="StatusProposalNotFound">
-          <code>StatusProposalNotFound</code>
+        <a name="ErrorStatusProposalNotFound">
+          <code>ErrorStatusProposalNotFound</code>
         </a>
       </td>
-      <td>8</td>
+      <td>7</td>
       <td>The requested proposal does not exist.</td>
     </tr>
     <tr>
       <td>
-        <a name="StatusMaxMDsExceededPolicy">
-          <code>StatusMaxMDsExceededPolicy</code>
+        <a name="ErrorStatusMaxMDsExceededPolicy">
+          <code>ErrorStatusMaxMDsExceededPolicy</code>
         </a>
       </td>
-      <td>9</td>
+      <td>8</td>
       <td>
         The submitted proposal has too many markdown files.  Limits can be obtained
         by issuing the <a href="#Policy">Policy</a> command.
@@ -1432,11 +1229,11 @@ Reply:
     </tr>
     <tr>
       <td>
-        <a name="StatusMaxImagesExceededPolicy">
-          <code>StatusMaxImagesExceededPolicy</code>
+        <a name="ErrorStatusMaxImagesExceededPolicy">
+          <code>ErrorStatusMaxImagesExceededPolicy</code>
         </a>
       </td>
-      <td>10</td>
+      <td>9</td>
       <td>
         The submitted proposal has too many images.  Limits can be obtained by
         issuing the <a href="#Policy">Policy</a> command.
@@ -1444,11 +1241,11 @@ Reply:
     </tr>
     <tr>
       <td>
-        <a name="StatusMaxMDSizeExceededPolicy">
-          <code>StatusMaxMDSizeExceededPolicy</code>
+        <a name="ErrorStatusMaxMDSizeExceededPolicy">
+          <code>ErrorStatusMaxMDSizeExceededPolicy</code>
         </a>
       </td>
-      <td>11</td>
+      <td>10</td>
       <td>
         The submitted proposal markdown is too large.  Limits can be obtained by
         issuing the <a href="#Policy">Policy</a> command.
@@ -1456,11 +1253,11 @@ Reply:
     </tr>
     <tr>
       <td>
-        <a name="StatusMaxImageSizeExceededPolicy">
-          <code>StatusMaxImageSizeExceededPolicy</code>
+        <a name="ErrorStatusMaxImageSizeExceededPolicy">
+          <code>ErrorStatusMaxImageSizeExceededPolicy</code>
         </a>
       </td>
-      <td>12</td>
+      <td>11</td>
       <td>
         The submitted proposal has one or more images that are too large.  Limits can
         be obtained by issuing the <a href="#Policy">Policy</a> command.
@@ -1468,18 +1265,161 @@ Reply:
     </tr>
     <tr>
       <td>
-        <a name="StatusMalformedPassword">
-          <code>StatusMalformedPassword</code>
+        <a name="ErrorStatusMalformedPassword">
+          <code>ErrorStatusMalformedPassword</code>
+        </a>
+      </td>
+      <td>12</td>
+      <td>The provided password was malformed.</td>
+    </tr>
+    <tr>
+      <td>
+        <a name="ErrorStatusCommentNotFound">
+          <code>ErrorStatusCommentNotFound</code>
         </a>
       </td>
       <td>13</td>
-      <td>The provided password was malformed.</td>
+      <td>The requested comment does not exist.</td>
     </tr>
-    14 is comment not found // unhtml this please
+    <tr>
+      <td>
+        <a name="ErrorStatusInvalidProposalName">
+          <code>ErrorStatusInvalidProposalName</code>
+        </a>
+      </td>
+      <td>14</td>
+      <td>The proposal's name was invalid.</td>
+    </tr>
+    <tr>
+      <td>
+        <a name="ErrorStatusInvalidFileDigest">
+          <code>ErrorStatusInvalidFileDigest</code>
+        </a>
+      </td>
+      <td>15</td>
+      <td>
+        The digest (SHA-256 checksum) provided for one of the proposal files
+        was incorrect. This error is provided with additional information inside
+        the <code>errorcontext</code> object:
+
+        <table>
+          <tr>
+            <th></th>
+            <th>Type</th>
+            <th>Description</th>
+          </tr>
+          <tr>
+            <td><code>filename</code></td>
+            <td>String</td>
+            <td>The name of the file with the invalid digest.</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <a name="ErrorStatusInvalidBase64">
+          <code>ErrorStatusInvalidBase64</code>
+        </a>
+      </td>
+      <td>16</td>
+      <td>
+        The Base64 encoding provided for one of the proposal files
+        was incorrect. This error is provided with additional information inside
+        the <code>errorcontext</code> object:
+
+        <table>
+          <tr>
+            <th></th>
+            <th>Type</th>
+            <th>Description</th>
+          </tr>
+          <tr>
+            <td><code>filename</code></td>
+            <td>String</td>
+            <td>The name of the file with the invalid encoding.</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <a name="ErrorStatusInvalidMIMEType">
+          <code>ErrorStatusInvalidMIMEType</code>
+        </a>
+      </td>
+      <td>17</td>
+      <td>
+        The MIME type provided for one of the proposal files was not
+        the same as the one derived from the file's content. This error
+        is provided with additional information inside the
+        <code>errorcontext</code> object:
+
+        <table>
+          <tr>
+            <th></th>
+            <th>Type</th>
+            <th>Description</th>
+          </tr>
+          <tr>
+            <td><code>filename</code></td>
+            <td>String</td>
+            <td>The name of the file with the invalid MIME type.</td>
+          </tr>
+          <tr>
+            <td><code>mime</code></td>
+            <td>String</td>
+            <td>The MIME type detected for the file's content.</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <a name="ErrorStatusUnsupportedMIMEType">
+          <code>ErrorStatusUnsupportedMIMEType</code>
+        </a>
+      </td>
+      <td>18</td>
+      <td>
+        The MIME type provided for one of the proposal files is
+        not supported. This error is provided with additional information
+        inside the <code>errorcontext</code> object:
+
+        <table>
+          <tr>
+            <th></th>
+            <th>Type</th>
+            <th>Description</th>
+          </tr>
+          <tr>
+            <td><code>filename</code></td>
+            <td>String</td>
+            <td>The name of the file with the unsupported MIME type.</td>
+          </tr>
+          <tr>
+            <td><code>mime</code></td>
+            <td>String</td>
+            <td>The MIME type that is unsupported.</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <a name="ErrorStatusInvalidPropStatusTransition">
+          <code>ErrorStatusInvalidPropStatusTransition</code>
+        </a>
+      </td>
+      <td>19</td>
+      <td>
+        The provided proposal cannot be changed to the given status.
+      </td>
+    </tr>
   </tbody>
 </table>
 
-### Status codes
+### Proposal status codes
 
 <table>
   <tbody>
