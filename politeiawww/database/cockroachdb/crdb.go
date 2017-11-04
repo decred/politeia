@@ -34,14 +34,13 @@ func New(host string) (*DB, error) {
 // UserGet returns a user record if found in the database.
 func (crdb *DB) UserGet(email string) (*database.User, error) {
 	crdb.RLock()
-	defer crdb.Unlock()
-
+	defer crdb.RUnlock()
 	if crdb.Shutdown {
 		return nil, database.ErrShutdown
 	}
 
 	var user database.User
-	if err := crdb.Where("name = ?", "jinzhu").First(&user).Error; err != nil {
+	if err := crdb.Where("email = ?", email).First(&user).Error; err != nil {
 		return nil, errToDatabaseError(err)
 	}
 	return &user, nil
@@ -50,13 +49,12 @@ func (crdb *DB) UserGet(email string) (*database.User, error) {
 // UserUpdate updates a user record
 func (crdb *DB) UserUpdate(user *database.User) error {
 	crdb.RLock()
-	defer crdb.Unlock()
-
+	defer crdb.RUnlock()
 	if crdb.Shutdown {
 		return database.ErrShutdown
 	}
 
-	if err := crdb.Model(user).Where("ID = ?", user.ID).Update(*user).Error; err != nil {
+	if err := crdb.Model(user).Where("id = ?", user.ID).First(user).Update(*user).Error; err != nil {
 		return errToDatabaseError(err)
 	}
 	return nil
@@ -65,14 +63,22 @@ func (crdb *DB) UserUpdate(user *database.User) error {
 // UserNew stores a new user record
 func (crdb *DB) UserNew(user *database.User) error {
 	crdb.RLock()
-	defer crdb.Unlock()
-
+	defer crdb.RUnlock()
 	if crdb.Shutdown {
 		return database.ErrShutdown
 	}
 
 	if err := checkmail.ValidateFormat(user.Email); err != nil {
 		return database.ErrInvalidEmail
+	}
+
+	var count int
+	if err := crdb.Model(user).Where("email = ?", user.Email).Count(&count).Error; err != nil {
+		return err
+	}
+
+	if count > 0 {
+		return database.ErrUserExists
 	}
 
 	if err := crdb.Create(user).Error; err != nil {

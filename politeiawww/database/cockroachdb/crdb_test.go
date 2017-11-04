@@ -11,8 +11,9 @@ import (
 )
 
 var (
-	invalidEmail = "invalidEmailFormat"
-	knownUser    = &database.User{
+	invalidEmail     = "invalidEmailFormat"
+	unknownUserEmail = "unknown@decred.org"
+	knownUser        = &database.User{
 		ID:             9999,
 		Email:          "someone@decred.org",
 		HashedPassword: []byte("password"),
@@ -30,7 +31,7 @@ func TestCockroachDBTestSuite(t *testing.T) {
 
 type CockroachDBTestSuite struct {
 	suite.Suite
-	DB *cockroachdb.DB
+	*cockroachdb.DB
 }
 
 // SetupSuite creates and opens the cockroach db & guarantees that the
@@ -39,10 +40,11 @@ func (s *CockroachDBTestSuite) SetupSuite() {
 	require := s.Require()
 	dbhost := os.Getenv("CR_DBHOST")
 	require.NotEmpty(dbhost)
-	DB, err := cockroachdb.New(dbhost)
+	db, err := cockroachdb.New(dbhost)
+	s.DB = db
 	require.NoError(err)
-	require.True(DB.HasTable(&database.User{}))
-	require.False(DB.Shutdown)
+	require.True(db.HasTable(&database.User{}))
+	require.False(db.Shutdown)
 }
 
 // TearDownSuite closes the cockroach db
@@ -52,7 +54,7 @@ func (s *CockroachDBTestSuite) TearDownSuite() {
 }
 
 // BeforeTest covers the steps executed before each test
-func (s *CockroachDBTestSuite) BeforeTest() {
+func (s *CockroachDBTestSuite) SetupTest() {
 	require := s.Require()
 
 	// delete all the records for the user model
@@ -66,61 +68,62 @@ func (s *CockroachDBTestSuite) TestUserNew() {
 	require := s.Require()
 
 	testCases := []struct {
-		context       string
 		user          *database.User
 		expectedError error
 	}{
 		{
-			"invalid email format",
 			&database.User{
 				Email: invalidEmail,
 			},
 			database.ErrInvalidEmail,
 		},
 		{
-			"user created",
-			&database.User{},
+			&database.User{
+				Email: "test@decred.org",
+			},
 			nil,
 		},
 		{
-			"user exists",
-			&database.User{},
+			&database.User{
+				Email: "test@decred.org",
+			},
 			database.ErrUserExists,
 		},
 	}
 
 	for _, testCase := range testCases {
 		err := s.DB.UserNew(testCase.user)
-		require.EqualValues(err, testCase.expectedError)
+		require.EqualValues(testCase.expectedError, err)
 	}
 }
 
 func (s *CockroachDBTestSuite) TestUserUpdate() {
 	require := s.Require()
 
+	// copy known user and modify a field to be used lates
+	modifiedUser := *knownUser
+	modifiedUser.Admin = true
+
 	testCases := []struct {
-		context       string
 		user          *database.User
 		expectedError error
 	}{
 		{
-			"user not found",
 			&database.User{
-				Email: "invalidEmail",
+				ID:    1000,
+				Email: unknownUserEmail,
 			},
 			database.ErrUserNotFound,
 		},
 		{
-			"user updated",
-			&database.User{},
+			&modifiedUser,
 			nil,
 		},
 	}
 
 	for _, testCase := range testCases {
-		err := s.DB.UserNew(testCase.user)
-		require.EqualValues(err, testCase.expectedError)
-
+		err := s.DB.UserUpdate(testCase.user)
+		require.EqualValues(testCase.expectedError, err)
 	}
 }
 
@@ -128,17 +131,14 @@ func (s *CockroachDBTestSuite) TestUserGet() {
 	require := s.Require()
 
 	testCases := []struct {
-		context       string
 		email         string
 		expectedError error
 	}{
 		{
-			"user not found",
-			"unknown@decred.org",
+			unknownUserEmail,
 			database.ErrUserNotFound,
 		},
 		{
-			"return user",
 			knownUser.Email,
 			nil,
 		},
@@ -146,7 +146,7 @@ func (s *CockroachDBTestSuite) TestUserGet() {
 
 	for _, testCase := range testCases {
 		user, err := s.DB.UserGet(testCase.email)
-		require.EqualValues(err, testCase.expectedError)
+		require.EqualValues(testCase.expectedError, err)
 		if err == nil {
 			require.NotNil(user)
 		}
