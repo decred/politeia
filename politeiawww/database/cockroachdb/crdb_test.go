@@ -67,6 +67,10 @@ func (s *CockroachDBTestSuite) SetupTest() {
 func (s *CockroachDBTestSuite) TestUserNew() {
 	require := s.Require()
 
+	user := &database.User{
+		Email: "test@decred.org",
+	}
+
 	testCases := []struct {
 		user          *database.User
 		expectedError error
@@ -78,15 +82,11 @@ func (s *CockroachDBTestSuite) TestUserNew() {
 			database.ErrInvalidEmail,
 		},
 		{
-			&database.User{
-				Email: "test@decred.org",
-			},
+			user,
 			nil,
 		},
 		{
-			&database.User{
-				Email: "test@decred.org",
-			},
+			user,
 			database.ErrUserExists,
 		},
 	}
@@ -94,6 +94,10 @@ func (s *CockroachDBTestSuite) TestUserNew() {
 	for _, testCase := range testCases {
 		err := s.DB.UserNew(testCase.user)
 		require.EqualValues(testCase.expectedError, err)
+		if err == nil {
+			var dbUser database.User
+			require.NoError(s.DB.Select("email = ?", testCase.user.Email).First(&dbUser).Error)
+		}
 	}
 }
 
@@ -110,7 +114,6 @@ func (s *CockroachDBTestSuite) TestUserUpdate() {
 	}{
 		{
 			&database.User{
-				ID:    1000,
 				Email: unknownUserEmail,
 			},
 			database.ErrUserNotFound,
@@ -123,7 +126,12 @@ func (s *CockroachDBTestSuite) TestUserUpdate() {
 
 	for _, testCase := range testCases {
 		err := s.DB.UserUpdate(testCase.user)
-		require.EqualValues(testCase.expectedError, err)
+		require.Equal(testCase.expectedError, err)
+		if err == nil {
+			var dbUser database.User
+			require.NoError(s.DB.First(&dbUser, modifiedUser.ID).Error)
+			require.EqualValues(modifiedUser, dbUser)
+		}
 	}
 }
 
@@ -149,6 +157,7 @@ func (s *CockroachDBTestSuite) TestUserGet() {
 		require.EqualValues(testCase.expectedError, err)
 		if err == nil {
 			require.NotNil(user)
+			require.EqualValues(knownUser, user)
 		}
 	}
 }
