@@ -23,24 +23,12 @@ var (
 	ErrShutdown = errors.New("database is shutting down")
 )
 
-// User record.
-type User struct {
-	ID                              uint64 // Unique id
-	Email                           string // User email address, also the lookup key.
-	HashedPassword                  []byte // Blowfish hash
-	Admin                           bool   // Is user an admin
-	NewUserVerificationToken        []byte // Token used to verify user's email address (if populated).
-	NewUserVerificationExpiry       int64  // Unix time representing the moment that the token expires.
-	ResetPasswordVerificationToken  []byte
-	ResetPasswordVerificationExpiry int64
-}
-
 // Database interface that is required by the web server.
 type Database interface {
 	// User functions
 	UserGet(string) (*User, error) // Return user record, key is email
-	UserNew(User) error            // Add new user
-	UserUpdate(User) error         // Update existing user
+	UserNew(*User) error           // Add new user
+	UserUpdate(*User) error        // Update existing user
 
 	// Close performs cleanup of the backend.
 	Close() error

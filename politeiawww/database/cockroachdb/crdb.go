@@ -1,24 +1,30 @@
 package cockroachdb
 
 import (
+	"sync"
+
 	"github.com/badoux/checkmail"
 	"github.com/decred/politeia/politeiawww/database"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 )
 
-// cockroachdb implements the database interface.
+// DB implements the database interface
 type DB struct {
+	sync.RWMutex
 	*gorm.DB
+	Shutdown bool // backend is shutdown
 }
 
 // New creates a new cockroachdb instance
-func New(addr string) (*DB, error) {
-	db, err := gorm.Open("postgres", addr)
+func New(host string) (*DB, error) {
+	log.Tracef("cockroachdb New: %v", host)
+
+	db, err := gorm.Open("postgres", host)
 	if err != nil {
 		return nil, err
 	}
-	crdb := &DB{db}
+	crdb := &DB{DB: db}
 
 	db.AutoMigrate(&database.User{})
 
@@ -27,61 +33,69 @@ func New(addr string) (*DB, error) {
 
 // UserGet returns a user record if found in the database.
 func (crdb *DB) UserGet(email string) (*database.User, error) {
+	crdb.RLock()
+	defer crdb.Unlock()
+
+	if crdb.Shutdown {
+		return nil, database.ErrShutdown
+	}
+
 	var user database.User
-	var query *gorm.DB
-	if query = crdb.Find(&user, user.Email); query.Error != nil {
-		return nil, query.Error
+	if err := crdb.Where("name = ?", "jinzhu").First(&user).Error; err != nil {
+		return nil, errToDatabaseError(err)
 	}
-
-	var count int
-	if err := query.Count(&count).Error; err != nil {
-		return nil, err
-	} else if count == 0 {
-		return nil, database.ErrUserNotFound
-	}
-
 	return &user, nil
 }
 
 // UserUpdate updates a user record
 func (crdb *DB) UserUpdate(user *database.User) error {
-	var query *gorm.DB
-	if query = crdb.Model(user).Where("email = ?", user.Email); query.Error != nil {
-		return query.Error
+	crdb.RLock()
+	defer crdb.Unlock()
+
+	if crdb.Shutdown {
+		return database.ErrShutdown
 	}
 
-	var count int
-	if err := query.Count(&count).Error; err != nil {
-		return err
-	} else if count == 0 {
-		return database.ErrUserNotFound
+	if err := crdb.Model(user).Where("ID = ?", user.ID).Update(*user).Error; err != nil {
+		return errToDatabaseError(err)
 	}
-
-	return query.Update(*user).Error
+	return nil
 }
 
 // UserNew stores a new user record
 func (crdb *DB) UserNew(user *database.User) error {
+	crdb.RLock()
+	defer crdb.Unlock()
+
+	if crdb.Shutdown {
+		return database.ErrShutdown
+	}
+
 	if err := checkmail.ValidateFormat(user.Email); err != nil {
 		return database.ErrInvalidEmail
 	}
 
-	var query *gorm.DB
-	if query = crdb.Find(&user, user.Email); query.Error != nil {
-		return query.Error
+	if err := crdb.Create(user).Error; err != nil {
+		return errToDatabaseError(err)
 	}
-
-	var count int
-	if err := query.Count(&count).Error; err != nil {
-		return err
-	} else if count > 0 {
-		return database.ErrUserExists
-	}
-
-	return crdb.Create(user).Error
+	return nil
 }
 
 // Close shuts down the database
 func (crdb *DB) Close() error {
+	crdb.Lock()
+	defer crdb.Unlock()
+	crdb.Shutdown = true
+
 	return crdb.DB.Close()
+}
+
+// errToDecredError (helper function) converts a gorm error to a decred error
+func errToDatabaseError(err error) error {
+	switch err {
+	case gorm.ErrRecordNotFound:
+		return database.ErrUserNotFound
+	default:
+		return err
+	}
 }

@@ -43,12 +43,14 @@ var (
 
 	log        = backendLog.Logger("PWWW")
 	localdbLog = backendLog.Logger("LODB")
+	crdblog    = backendLog.Logger("CRDB")
 )
 
 // subsystemLoggers maps each subsystem identifier to its associated logger.
 var subsystemLoggers = map[string]btclog.Logger{
 	"PWWW": log,
 	"LODB": localdbLog,
+	"CRDB": crdblog,
 }
 
 // initLogRotator initializes the logging rotater to write logs to logFile and

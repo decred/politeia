@@ -81,7 +81,7 @@ func setAdminAction() error {
 
 	u.Admin = admin
 
-	b, err = localdb.EncodeUser(*u)
+	b, err = localdb.EncodeUser(u)
 	if err != nil {
 		return err
 	}

@@ -70,7 +70,7 @@ func (l *localdb) openUserDB(path string) error {
 }
 
 // EncodeUser encodes User into a JSON byte slice.
-func EncodeUser(u database.User) ([]byte, error) {
+func EncodeUser(u *database.User) ([]byte, error) {
 	b, err := json.Marshal(u)
 	if err != nil {
 		return nil, err

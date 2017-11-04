@@ -16,10 +16,6 @@ const (
 	lastUserIdKey = "lastuserid"
 )
 
-var (
-	_ database.Database = (*localdb)(nil)
-)
-
 // localdb implements the database interface.
 type localdb struct {
 	sync.RWMutex
@@ -31,7 +27,7 @@ type localdb struct {
 // Store new user.
 //
 // UserNew satisfies the backend interface.
-func (l *localdb) UserNew(u database.User) error {
+func (l *localdb) UserNew(u *database.User) error {
 	l.Lock()
 	defer l.Unlock()
 
@@ -39,7 +35,7 @@ func (l *localdb) UserNew(u database.User) error {
 		return database.ErrShutdown
 	}
 
-	log.Debugf("UserNew: %v", u)
+	log.Debugf("UserNew: %v", *u)
 
 	if err := checkmail.ValidateFormat(u.Email); err != nil {
 		return database.ErrInvalidEmail
@@ -113,7 +109,7 @@ func (l *localdb) UserGet(email string) (*database.User, error) {
 // Update existing user.
 //
 // UserUpdate satisfies the backend interface.
-func (l *localdb) UserUpdate(u database.User) error {
+func (l *localdb) UserUpdate(u *database.User) error {
 	l.Lock()
 	defer l.Unlock()
 
@@ -121,7 +117,7 @@ func (l *localdb) UserUpdate(u database.User) error {
 		return database.ErrShutdown
 	}
 
-	log.Debugf("UserUpdate: %v", u)
+	log.Debugf("UserUpdate: %v", *u)
 
 	// Make sure user already exists
 	exists, err := l.userdb.Has([]byte(u.Email), nil)

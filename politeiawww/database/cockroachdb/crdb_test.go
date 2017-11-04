@@ -42,6 +42,7 @@ func (s *CockroachDBTestSuite) SetupSuite() {
 	DB, err := cockroachdb.New(dbhost)
 	require.NoError(err)
 	require.True(DB.HasTable(&database.User{}))
+	require.False(DB.Shutdown)
 }
 
 // TearDownSuite closes the cockroach db

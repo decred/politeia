@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/decred/politeia/politeiawww/database/cockroachdb"
+
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/dajohi/goemail"
@@ -20,7 +22,6 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	www "github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/politeiawww/database"
-	"github.com/decred/politeia/politeiawww/database/localdb"
 	"github.com/decred/politeia/util"
 	"github.com/kennygrant/sanitize"
 )
@@ -281,7 +282,7 @@ func (b *backend) emailResetPassword(user *database.User, rp www.ResetPassword, 
 	// Add the updated user information to the db.
 	user.ResetPasswordVerificationToken = token
 	user.ResetPasswordVerificationExpiry = expiry
-	err = b.db.UserUpdate(*user)
+	err = b.db.UserUpdate(user)
 	if err != nil {
 		return err
 	}
@@ -342,7 +343,7 @@ func (b *backend) verifyResetPassword(user *database.User, rp www.ResetPassword,
 	user.NewUserVerificationExpiry = 0
 	user.HashedPassword = hashedPassword
 
-	return b.db.UserUpdate(*user)
+	return b.db.UserUpdate(user)
 }
 
 // LoadInventory fetches the entire inventory of proposals from politeiad
@@ -443,7 +444,7 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 		// Add the updated user information to the db.
 		user.NewUserVerificationToken = token
 		user.NewUserVerificationExpiry = expiry
-		err = b.db.UserUpdate(*user)
+		err = b.db.UserUpdate(user)
 		if err != nil {
 			reply := www.NewUserReply{
 				ErrorCode: www.StatusInvalid,
@@ -480,7 +481,7 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 		}
 
 		// Add the user and hashed password to the db.
-		newUser := database.User{
+		newUser := &database.User{
 			Email:          u.Email,
 			HashedPassword: hashedPassword,
 			Admin:          false,
@@ -558,7 +559,7 @@ func (b *backend) ProcessVerifyNewUser(u www.VerifyNewUser) (www.StatusT, error)
 	// Clear out the verification token fields in the db.
 	user.NewUserVerificationToken = nil
 	user.NewUserVerificationExpiry = 0
-	err = b.db.UserUpdate(*user)
+	err = b.db.UserUpdate(user)
 	if err != nil {
 		return www.StatusInvalid, err
 	}
@@ -643,7 +644,7 @@ func (b *backend) ProcessChangePassword(email string, cp www.ChangePassword) (*w
 
 	// Add the updated user information to the db.
 	user.HashedPassword = hashedPassword
-	err = b.db.UserUpdate(*user)
+	err = b.db.UserUpdate(user)
 	if err != nil {
 		return nil, err
 	}
@@ -996,8 +997,8 @@ func (b *backend) ProcessPolicy(p www.Policy) *www.PolicyReply {
 // NewBackend creates a new backend context for use in www and tests.
 func NewBackend(cfg *config) (*backend, error) {
 	// Setup database.
-	localdb.UseLogger(localdbLog)
-	db, err := localdb.New(cfg.DataDir)
+	cockroachdb.UseLogger(crdblog)
+	db, err := cockroachdb.New(cfg.DBHost)
 	if err != nil {
 		return nil, err
 	}

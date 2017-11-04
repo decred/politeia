@@ -62,6 +62,7 @@ type config struct {
 	ShowVersion      bool     `short:"V" long:"version" description:"Display version information and exit"`
 	ConfigFile       string   `short:"C" long:"configfile" description:"Path to configuration file"`
 	DataDir          string   `short:"b" long:"datadir" description:"Directory to store data"`
+	DBHost           string   `long:"dbhost" description:"Database host"`
 	LogDir           string   `long:"logdir" description:"Directory to log output."`
 	TestNet          bool     `long:"testnet" description:"Use the test network"`
 	SimNet           bool     `long:"simnet" description:"Use the simulation test network"`
