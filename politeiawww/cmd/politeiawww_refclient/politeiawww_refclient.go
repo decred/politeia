@@ -475,10 +475,9 @@ func _main() error {
 	if err != nil {
 		return err
 	}
-	password = newPassword
 
 	// Login
-	lr, err := c.login(email, password)
+	lr, err := c.login(email, newPassword)
 	if err != nil {
 		return err
 	}
@@ -506,12 +505,7 @@ func _main() error {
 	}
 
 	// Change password
-	b, err = util.Random(8)
-	if err != nil {
-		return err
-	}
-	newPassword = hex.EncodeToString(b)
-	cpr, err := c.changePassword(password, newPassword)
+	cpr, err := c.changePassword(newPassword, password)
 	if err != nil {
 		return err
 	}
