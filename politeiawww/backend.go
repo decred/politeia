@@ -365,8 +365,8 @@ func (b *backend) verifyResetPassword(user *database.User, rp www.ResetPassword,
 	}
 
 	// Clear out the verification token fields and set the new password in the db.
-	user.NewUserVerificationToken = nil
-	user.NewUserVerificationExpiry = 0
+	user.ResetPasswordVerificationToken = nil
+	user.ResetPasswordVerificationExpiry = 0
 	user.HashedPassword = hashedPassword
 
 	return b.db.UserUpdate(*user)
