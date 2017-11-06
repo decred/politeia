@@ -21,6 +21,8 @@ API.  It does not render HTML.
 - [`Proposal details`](#proposal-details)
 - [`Set proposal status`](#set-proposal-status)
 - [`Policy`](#policy)
+- [`New comment`](#new-comment)
+- [`Get comments`](#get-comments)
 
 **Status codes**
 
@@ -398,6 +400,7 @@ the user database.
       <th>Description</th>
     </tr>
     <tr>
+      UserID uint64 User identifier
       <td><code>isadmin</code></td>
       <td>Boolean</td>
       <td>This indicates if the user has publish/censor privileges.</td>
@@ -1222,6 +1225,113 @@ Reply:
 }
 ```
 
+### `New comment`
+
+Submit comment on given proposal.  ParentID value 0 means "comment on
+proposal"; non-zero values mean "reply to comment".
+
+**Route:** `POST /v1/comments/new`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+| - | - | - | - |
+| Token | string | Censorship token | Yes |
+| ParentID | uint64 | Parent comment | Yes |
+| Comment | string | Comment | Yes |
+
+**Results:**
+
+| | Type | Description |
+| - | - | - |
+| CommentID | uint64 | Server generated comment ID |
+| ErrorCode | StatusT | Error code |
+
+**Example**
+
+Request:
+
+```json
+{
+  "token":"86221ddae6594b43a19e4c76250c0a8833ecd3b7a9880fb5d2a901970de9ff0e",
+  "parentid":53,
+  "comment":"you are right!"}
+}
+```
+
+Reply:
+
+```json
+{
+  "commentid":103,
+  "errorcode":1
+}
+```
+
+### `Get comments`
+
+Retrieve all comments for given proposal.  Not that the comments are not
+sorted.
+
+**Route:** `GET /v1/proposals/{token}/comments`
+
+**Params:**
+
+**Results:**
+
+| | Type | Description |
+| - | - | - |
+| Comments | Comment | Unsorted array of all comments |
+| ErrorCode | StatusT | Error code |
+
+**Comment:**
+
+| | Type | Description |
+| - | - | - |
+| CommentID | uint64 | Unique comment identifier |
+| UserID | uint64 | Unique user identifier |
+| ParentID | uint64 | Parent comment |
+| Timestamp | int64 | UNIX time when comment was accepted |
+| Token | string | Censorship token |
+| Comment | string | Comment text |
+
+**Example**
+
+Request:
+
+```json
+{}
+```
+
+Reply:
+
+```json
+{
+  "comments":[{
+    "commentid":56,
+    "userid":4,
+    "parentid":0,
+    "timestamp":1509990301,
+    "token":"86221ddae6594b43a19e4c76250c0a8833ecd3b7a9880fb5d2a901970de9ff0e",
+    "comment":"I dont like this prop"
+  },{
+    "commentid":57,
+    "userid":4,
+    "parentid":56,
+    "timestamp":1509990301,
+    "token":"86221ddae6594b43a19e4c76250c0a8833ecd3b7a9880fb5d2a901970de9ff0e",
+    "comment":"you are right!"
+  },{
+    "commentid":58,
+    "userid":4,
+    "parentid":56,
+    "timestamp":1509990301,
+    "token":"86221ddae6594b43a19e4c76250c0a8833ecd3b7a9880fb5d2a901970de9ff0e",
+    "comment":"you are crazy!"
+  }]
+}
+```
+
 ### Status codes
 
 <table>
@@ -1365,6 +1475,7 @@ Reply:
       <td>13</td>
       <td>The provided password was malformed.</td>
     </tr>
+    14 is comment not found // unhtml this please
   </tbody>
 </table>
 

@@ -205,6 +205,45 @@ func (c *ctx) secret() error {
 	return err
 }
 
+func (c *ctx) comment(token, comment string, parentID uint64) (*v1.NewCommentReply, error) {
+	cm := v1.NewComment{
+		Token:    token,
+		ParentID: parentID,
+		Comment:  comment,
+	}
+
+	responseBody, err := c.makeRequest("POST", v1.RouteNewComment, cm)
+	if err != nil {
+		return nil, err
+	}
+
+	var cr v1.NewCommentReply
+	err = json.Unmarshal(responseBody, &cr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal CommentReply: %v",
+			err)
+	}
+
+	return &cr, nil
+}
+
+func (c *ctx) commentGet(token string) (*v1.GetCommentsReply, error) {
+	responseBody, err := c.makeRequest("GET", "/proposals/"+token+
+		"/comments", v1.GetComments{})
+	if err != nil {
+		return nil, err
+	}
+
+	var gcr v1.GetCommentsReply
+	err = json.Unmarshal(responseBody, &gcr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal GetCommentReply: %v",
+			err)
+	}
+
+	return &gcr, nil
+}
+
 func (c *ctx) me() (*v1.MeReply, error) {
 	l := v1.Me{}
 
@@ -682,6 +721,65 @@ func _main() error {
 		if _pr2.Proposal.Status != v1.PropStatusCensored {
 			return fmt.Errorf("_pr2 invalid status got %v wanted %v",
 				_pr2.Proposal.Status, v1.PropStatusCensored)
+		}
+
+		// Comment on proposals without a parent
+		cr, err := c.comment(myprop1.CensorshipRecord.Token,
+			"I like this prop", 0)
+		if err != nil {
+			return err
+		}
+		// Comment on original comment
+		cr, err = c.comment(myprop1.CensorshipRecord.Token,
+			"you are right!", cr.CommentID)
+		if err != nil {
+			return err
+		}
+		// Comment on comment
+		cr, err = c.comment(myprop1.CensorshipRecord.Token,
+			"you are wrong!", cr.CommentID)
+		if err != nil {
+			return err
+		}
+
+		// Comment on proposals without a parent
+		cr2, err := c.comment(myprop1.CensorshipRecord.Token,
+			"I dont like this prop", 0)
+		if err != nil {
+			return err
+		}
+		// Comment on original comment
+		cr, err = c.comment(myprop1.CensorshipRecord.Token,
+			"you are right!", cr2.CommentID)
+		if err != nil {
+			return err
+		}
+		// Comment on original comment
+		cr, err = c.comment(myprop1.CensorshipRecord.Token,
+			"you are crazy!", cr2.CommentID)
+		if err != nil {
+			return err
+		}
+
+		// Get comments
+		gcr, err := c.commentGet(myprop1.CensorshipRecord.Token)
+		if err != nil {
+			return err
+		}
+		// Expect 6 comments
+		if len(gcr.Comments) != 6 {
+			return fmt.Errorf("expected 6 comments, got %v",
+				len(gcr.Comments))
+		}
+
+		gcr2, err := c.commentGet(myprop2.CensorshipRecord.Token)
+		if err != nil {
+			return err
+		}
+		// Expect nothing
+		if len(gcr2.Comments) != 0 {
+			return fmt.Errorf("expected 0 comments, got %v",
+				len(gcr2.Comments))
 		}
 
 		// Logout

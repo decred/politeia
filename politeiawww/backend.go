@@ -9,8 +9,11 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -27,9 +30,16 @@ import (
 
 // politeiawww backend construct
 type backend struct {
-	db        database.Database
-	cfg       *config
-	inventory []www.ProposalRecord
+	db                 database.Database
+	cfg                *config
+	commentJournalDir  string
+	commentJournalFile string
+
+	// Following entries require locks
+	inventory    []www.ProposalRecord
+	comments     map[string]map[uint64]BackendComment // [token][parent]comment
+	commentID    uint64                               // current comment id
+	sync.RWMutex                                      // lock for inventory and comments
 
 	// These properties are only used for testing.
 	test                   bool
@@ -375,6 +385,9 @@ func (b *backend) verifyResetPassword(user *database.User, rp www.ResetPassword,
 // LoadInventory fetches the entire inventory of proposals from politeiad
 // and caches it, sorted by most recent timestamp.
 func (b *backend) LoadInventory() error {
+	b.Lock()
+	defer b.Unlock()
+
 	var inv *pd.InventoryReply
 	if b.test {
 		// Split the existing inventory into vetted and unvetted.
@@ -601,6 +614,7 @@ func (b *backend) ProcessLogin(l www.Login) (*www.LoginReply, error) {
 		}
 	}
 
+	reply.UserID = user.ID
 	reply.IsAdmin = user.Admin
 	reply.ErrorCode = www.StatusSuccess
 	return &reply, nil
@@ -690,6 +704,9 @@ func (b *backend) ProcessResetPassword(rp www.ResetPassword) (*www.ResetPassword
 // ProcessAllVetted returns an array of all vetted proposals in reverse order,
 // because they're sorted by oldest timestamp first.
 func (b *backend) ProcessAllVetted(v www.GetAllVetted) *www.GetAllVettedReply {
+	b.RLock()
+	defer b.RUnlock()
+
 	proposals := make([]www.ProposalRecord, 0)
 	for i := len(b.inventory) - 1; i >= 0; i-- {
 		if b.inventory[i].Status == www.PropStatusPublic {
@@ -706,6 +723,9 @@ func (b *backend) ProcessAllVetted(v www.GetAllVetted) *www.GetAllVettedReply {
 // ProcessAllUnvetted returns an array of all unvetted proposals in reverse order,
 // because they're sorted by oldest timestamp first.
 func (b *backend) ProcessAllUnvetted(u www.GetAllUnvetted) *www.GetAllUnvettedReply {
+	b.RLock()
+	defer b.RUnlock()
+
 	proposals := make([]www.ProposalRecord, 0)
 	for i := len(b.inventory) - 1; i >= 0; i-- {
 		if b.inventory[i].Status == www.PropStatusNotReviewed ||
@@ -765,6 +785,7 @@ func (b *backend) ProcessNewProposal(np www.NewProposal) (*www.NewProposalReply,
 		}
 
 		// Add the new proposal to the cache.
+		b.Lock()
 		b.inventory = append(b.inventory, www.ProposalRecord{
 			Name:             np.Name,
 			Status:           www.PropStatusNotReviewed,
@@ -772,6 +793,8 @@ func (b *backend) ProcessNewProposal(np www.NewProposal) (*www.NewProposalReply,
 			Files:            np.Files,
 			CensorshipRecord: convertPropCensorFromPD(pdReply.CensorshipRecord),
 		})
+		b.initComment(pdReply.CensorshipRecord.Token)
+		b.Unlock()
 	} else {
 		responseBody, err := b.makeRequest(http.MethodPost, pd.NewRoute, n)
 		if err != nil {
@@ -796,13 +819,17 @@ func (b *backend) ProcessNewProposal(np www.NewProposal) (*www.NewProposalReply,
 		}
 
 		// Add the new proposal to the cache.
-		b.inventory = append(b.inventory, www.ProposalRecord{
+		r := www.ProposalRecord{
 			Name:             np.Name,
 			Status:           www.PropStatusNotReviewed,
 			Timestamp:        pdReply.Timestamp,
 			Files:            make([]www.File, 0),
 			CensorshipRecord: convertPropCensorFromPD(pdReply.CensorshipRecord),
-		})
+		}
+		b.Lock()
+		b.inventory = append(b.inventory, r)
+		b.initComment(pdReply.CensorshipRecord.Token)
+		b.Unlock()
 	}
 
 	reply.CensorshipRecord = convertPropCensorFromPD(pdReply.CensorshipRecord)
@@ -849,6 +876,8 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus) (*www.SetP
 	}
 
 	// Update the cached proposal with the new status and return the reply.
+	b.Lock()
+	defer b.Unlock()
 	for k, v := range b.inventory {
 		if v.CensorshipRecord.Token == sps.Token {
 			s := convertPropStatusFromPD(pdReply.Status)
@@ -873,12 +902,14 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, isUse
 	}
 
 	var cachedProposal *www.ProposalRecord
+	b.RLock()
 	for _, v := range b.inventory {
 		if v.CensorshipRecord.Token == propDetails.Token {
 			cachedProposal = &v
 			break
 		}
 	}
+	b.RUnlock()
 	if cachedProposal == nil {
 		return nil, userError{
 			errorCode: www.StatusProposalNotFound,
@@ -967,6 +998,41 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, isUse
 	return &reply, nil
 }
 
+// ProcessComment processes a submitted comment.  It ensures the proposal and
+// the parent exists.  A parent ID of 0 indicates that it is a comment on the
+// proposal whereas non-zero indicates that it is a reply to a comment.
+func (b *backend) ProcessComment(c www.NewComment, userID uint64) (*www.NewCommentReply, error) {
+	b.Lock()
+	defer b.Unlock()
+	m, ok := b.comments[c.Token]
+	if !ok {
+		return nil, userError{
+			errorCode: www.StatusProposalNotFound,
+		}
+	}
+
+	// See if we are commenting on a comment, yo dawg.
+	if c.ParentID != 0 {
+		_, ok = m[c.ParentID]
+		if !ok {
+			return nil, userError{
+				errorCode: www.StatusCommentNotFound,
+			}
+		}
+	}
+
+	return b.addComment(c, userID)
+}
+
+// ProcessCommentGet returns all comments for a given proposal.
+func (b *backend) ProcessCommentGet(token string) (*www.GetCommentsReply, error) {
+	c, err := b.getComments(token)
+	if err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
 // ProcessPolicy returns the details of Politeia's restrictions on file uploads.
 func (b *backend) ProcessPolicy(p www.Policy) *www.PolicyReply {
 	return &www.PolicyReply{
@@ -989,9 +1055,24 @@ func NewBackend(cfg *config) (*backend, error) {
 		return nil, err
 	}
 
+	// Context
 	b := &backend{
-		db:  db,
-		cfg: cfg,
+		db:       db,
+		cfg:      cfg,
+		comments: make(map[string]map[uint64]BackendComment),
+		commentJournalDir: filepath.Join(cfg.DataDir,
+			defaultCommentJournalDir),
+		commentID: 1, // Replay will set this value
 	}
+	b.commentJournalFile = filepath.Join(b.commentJournalDir,
+		defaultCommentJournalFile)
+
+	// Setup comments
+	os.MkdirAll(b.commentJournalDir, 0744)
+	err = b.replayCommentJournal()
+	if err != nil {
+		return nil, err
+	}
+
 	return b, nil
 }

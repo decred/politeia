@@ -100,7 +100,7 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 		if userHttpCode == 0 {
 			userHttpCode = http.StatusBadRequest
 		}
-
+		log.Debugf("RespondWithError: %v", int64(userErr.errorCode))
 		util.RespondWithJSON(w, userHttpCode,
 			v1.ErrorReply{
 				ErrorCode: int64(userErr.errorCode),
@@ -257,6 +257,7 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 	// Mark user as logged in if there's no error.
 	if reply.ErrorCode == v1.StatusSuccess {
 		session.Values["email"] = l.Email
+		session.Values["id"] = reply.UserID
 		session.Values["authenticated"] = true
 		session.Values["admin"] = reply.IsAdmin
 		err = session.Save(r, w)
@@ -293,6 +294,8 @@ func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Revoke users authentication
+	session.Values["email"] = ""
+	session.Values["id"] = 0
 	session.Values["authenticated"] = false
 	session.Values["admin"] = false
 	err = session.Save(r, w)
@@ -535,6 +538,56 @@ func (p *politeiawww) handleAllUnvetted(w http.ResponseWriter, r *http.Request) 
 	util.RespondWithJSON(w, http.StatusOK, ur)
 }
 
+// handleNewComment handles incomming comments.
+func (p *politeiawww) handleNewComment(w http.ResponseWriter, r *http.Request) {
+	var sc v1.NewComment
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&sc); err != nil {
+		RespondWithError(w, r, 0,
+			"handleNewComment: Unmarshal %v", err)
+		return
+	}
+	defer r.Body.Close()
+
+	// Get session to retrieve user id
+	session, err := p.store.Get(r, v1.CookieSession)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleNewComment: failed to get session: %v", err)
+		return
+	}
+	userID, ok := session.Values["id"].(uint64)
+	if !ok {
+		RespondWithError(w, r, 0,
+			"handleNewComment: invalid user ID: %v", err)
+		return
+	}
+
+	cr, err := p.backend.ProcessComment(sc, userID)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleNewComment: ProcessComment %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, cr)
+}
+
+// handleCommentsGet handles batched comments get.
+func (p *politeiawww) handleCommentsGet(w http.ResponseWriter, r *http.Request) {
+	pathParams := mux.Vars(r)
+	defer r.Body.Close()
+	gcr, err := p.backend.ProcessCommentGet(pathParams["token"])
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleCommentsGet: ProcessCommentGet %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, gcr)
+}
+
+// handleNotFound is a generic handler for an invalid route.
 func (p *politeiawww) handleNotFound(w http.ResponseWriter, r *http.Request) {
 	// Log incoming connection
 	log.Debugf("Invalid route: %v %v %v %v", remoteAddr(r), r.Method, r.URL,
@@ -649,25 +702,42 @@ func _main() error {
 	// Public routes.
 	p.router.HandleFunc("/", logging(p.handleVersion)).Methods(http.MethodGet)
 	p.router.NotFoundHandler = http.HandlerFunc(p.handleNotFound)
-	p.addRoute(http.MethodPost, v1.RouteNewUser, p.handleNewUser, permissionPublic)
-	p.addRoute(http.MethodGet, v1.RouteVerifyNewUser, p.handleVerifyNewUser, permissionPublic)
-	p.addRoute(http.MethodPost, v1.RouteLogin, p.handleLogin, permissionPublic)
-	p.addRoute(http.MethodGet, v1.RouteLogout, p.handleLogout, permissionPublic)
-	p.addRoute(http.MethodPost, v1.RouteLogout, p.handleLogout, permissionPublic)
-	p.addRoute(http.MethodPost, v1.RouteResetPassword, p.handleResetPassword, permissionPublic)
-	p.addRoute(http.MethodGet, v1.RouteAllVetted, p.handleAllVetted, permissionPublic)
-	p.addRoute(http.MethodGet, v1.RouteProposalDetails, p.handleProposalDetails, permissionPublic)
-	p.addRoute(http.MethodGet, v1.RoutePolicy, p.handlePolicy, permissionPublic)
+	p.addRoute(http.MethodPost, v1.RouteNewUser, p.handleNewUser,
+		permissionPublic)
+	p.addRoute(http.MethodGet, v1.RouteVerifyNewUser,
+		p.handleVerifyNewUser, permissionPublic)
+	p.addRoute(http.MethodPost, v1.RouteLogin, p.handleLogin,
+		permissionPublic)
+	p.addRoute(http.MethodGet, v1.RouteLogout, p.handleLogout,
+		permissionPublic)
+	p.addRoute(http.MethodPost, v1.RouteLogout, p.handleLogout,
+		permissionPublic)
+	p.addRoute(http.MethodPost, v1.RouteResetPassword,
+		p.handleResetPassword, permissionPublic)
+	p.addRoute(http.MethodGet, v1.RouteAllVetted, p.handleAllVetted,
+		permissionPublic)
+	p.addRoute(http.MethodGet, v1.RouteProposalDetails, p.
+		handleProposalDetails, permissionPublic)
+	p.addRoute(http.MethodGet, v1.RoutePolicy, p.handlePolicy,
+		permissionPublic)
+	p.addRoute(http.MethodGet, v1.RouteCommentsGet, p.handleCommentsGet,
+		permissionPublic)
 
 	// Routes that require being logged in.
 	p.addRoute(http.MethodPost, v1.RouteSecret, p.handleSecret, permissionLogin)
-	p.addRoute(http.MethodPost, v1.RouteNewProposal, p.handleNewProposal, permissionLogin)
+	p.addRoute(http.MethodPost, v1.RouteNewProposal, p.handleNewProposal,
+		permissionLogin)
 	p.addRoute(http.MethodGet, v1.RouteUserMe, p.handleMe, permissionLogin)
-	p.addRoute(http.MethodPost, v1.RouteChangePassword, p.handleChangePassword, permissionLogin)
+	p.addRoute(http.MethodPost, v1.RouteChangePassword,
+		p.handleChangePassword, permissionLogin)
+	p.addRoute(http.MethodPost, v1.RouteNewComment,
+		p.handleNewComment, permissionLogin)
 
 	// Routes that require being logged in as an admin user.
-	p.addRoute(http.MethodGet, v1.RouteAllUnvetted, p.handleAllUnvetted, permissionAdmin)
-	p.addRoute(http.MethodPost, v1.RouteSetProposalStatus, p.handleSetProposalStatus, permissionAdmin)
+	p.addRoute(http.MethodGet, v1.RouteAllUnvetted, p.handleAllUnvetted,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, v1.RouteSetProposalStatus,
+		p.handleSetProposalStatus, permissionAdmin)
 
 	// Persist session cookies.
 	var cookieKey []byte
