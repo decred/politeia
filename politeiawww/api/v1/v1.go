@@ -27,7 +27,7 @@ const (
 	RouteAllUnvetted          = "/proposals/unvetted"
 	RouteNewProposal          = "/proposals/new"
 	RouteProposalDetails      = "/proposals/{token:[A-z0-9]{64}}"
-	RouteSetProposalStatus    = "/proposals/{token:[A-z0-9]{64}}/setstatus"
+	RouteSetProposalStatus    = "/proposals/{token:[A-z0-9]{64}}/status"
 	RoutePolicy               = "/policy"
 	RouteNewComment           = "/comments/new"
 	RouteCommentsGet          = "/proposals/{token:[A-z0-9]{64}}/comments"

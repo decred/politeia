@@ -1070,7 +1070,7 @@ Reply:
 Set status of proposal to `PropStatusPublic` or `PropStatusCensored`.  This call requires admin
 privileges.
 
-**Route:** `POST /v1/proposals/{token}/setstatus`
+**Route:** `POST /v1/proposals/{token}/status`
 
 **Params:**
 
