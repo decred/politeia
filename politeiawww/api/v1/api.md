@@ -756,7 +756,7 @@ Submit a new proposal to the politeiawww server.
               <td>String</td>
               <td>
                 Digest is a SHA256 digest of the payload.  The digest shall be
-                verified by politeiawww.
+                verified by politeiad.
               </td>
               <td>Yes</td>
             </tr>
