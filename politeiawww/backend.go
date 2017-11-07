@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -758,18 +757,6 @@ func (b *backend) ProcessNewProposal(np www.NewProposal) (*www.NewProposalReply,
 		Name:      sanitize.Name(np.Name),
 		Challenge: hex.EncodeToString(challenge),
 		Files:     convertPropFilesFromWWW(np.Files),
-	}
-
-	for k, f := range n.Files {
-		decodedPayload, err := base64.StdEncoding.DecodeString(f.Payload)
-		if err != nil {
-			return nil, err
-		}
-
-		// Calculate the digest for each file.
-		h := sha256.New()
-		h.Write(decodedPayload)
-		n.Files[k].Digest = hex.EncodeToString(h.Sum(nil))
 	}
 
 	var pdReply pd.NewReply
