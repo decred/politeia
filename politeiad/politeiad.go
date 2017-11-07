@@ -25,7 +25,6 @@ import (
 	"github.com/decred/politeia/politeiad/backend/gitbe"
 	"github.com/decred/politeia/util"
 	"github.com/gorilla/mux"
-	"github.com/kennygrant/sanitize"
 )
 
 // politeia application context.
@@ -161,8 +160,6 @@ func (p *politeia) newProposal(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	// Sanitize name
-	t.Name = sanitize.Name(t.Name)
 	if len(t.Name) > 80 {
 		log.Errorf("%v New proposal: invalid name", remoteAddr(r))
 		p.respondWithUserError(w, v1.ErrorStatusInvalidProposalName, nil)

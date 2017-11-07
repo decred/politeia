@@ -59,27 +59,32 @@ const (
 	// accepted for user passwords
 	PolicyPasswordMinChars = 8
 
+	// ValidProposalNameRegExp is the regular expression of a valid
+	// proposal name
+	ValidProposalNameRegExp = `^[[:alnum:]\.\:\;\,\- \@\+\#]{8,}$`
+
 	// Error status codes
 	ErrorStatusInvalid                     ErrorStatusT = 0
 	ErrorStatusInvalidEmailOrPassword      ErrorStatusT = 1
 	ErrorStatusMalformedEmail              ErrorStatusT = 2
 	ErrorStatusVerificationTokenInvalid    ErrorStatusT = 3
 	ErrorStatusVerificationTokenExpired    ErrorStatusT = 4
-	ErrorStatusProposalMissingName         ErrorStatusT = 5
-	ErrorStatusProposalMissingDescription  ErrorStatusT = 6
-	ErrorStatusProposalNotFound            ErrorStatusT = 7
-	ErrorStatusMaxMDsExceededPolicy        ErrorStatusT = 8
-	ErrorStatusMaxImagesExceededPolicy     ErrorStatusT = 9
-	ErrorStatusMaxMDSizeExceededPolicy     ErrorStatusT = 10
-	ErrorStatusMaxImageSizeExceededPolicy  ErrorStatusT = 11
-	ErrorStatusMalformedPassword           ErrorStatusT = 12
-	ErrorStatusCommentNotFound             ErrorStatusT = 13
-	ErrorStatusInvalidProposalName         ErrorStatusT = 14
-	ErrorStatusInvalidFileDigest           ErrorStatusT = 15
-	ErrorStatusInvalidBase64               ErrorStatusT = 16
-	ErrorStatusInvalidMIMEType             ErrorStatusT = 17
-	ErrorStatusUnsupportedMIMEType         ErrorStatusT = 18
-	ErrorStatusInvalidPropStatusTransition ErrorStatusT = 19
+	ErrorStatusProposalMissingFiles        ErrorStatusT = 5
+	ErrorStatusProposalNotFound            ErrorStatusT = 6
+	ErrorStatusProposalDuplicateFilenames  ErrorStatusT = 7
+	ErrorStatusProposalInvalidTitle        ErrorStatusT = 8
+	ErrorStatusMaxMDsExceededPolicy        ErrorStatusT = 9
+	ErrorStatusMaxImagesExceededPolicy     ErrorStatusT = 10
+	ErrorStatusMaxMDSizeExceededPolicy     ErrorStatusT = 11
+	ErrorStatusMaxImageSizeExceededPolicy  ErrorStatusT = 12
+	ErrorStatusMalformedPassword           ErrorStatusT = 13
+	ErrorStatusCommentNotFound             ErrorStatusT = 14
+	ErrorStatusInvalidProposalName         ErrorStatusT = 15
+	ErrorStatusInvalidFileDigest           ErrorStatusT = 16
+	ErrorStatusInvalidBase64               ErrorStatusT = 17
+	ErrorStatusInvalidMIMEType             ErrorStatusT = 18
+	ErrorStatusUnsupportedMIMEType         ErrorStatusT = 19
+	ErrorStatusInvalidPropStatusTransition ErrorStatusT = 20
 
 	// Proposal status codes (set and get)
 	PropStatusInvalid     PropStatusT = 0 // Invalid status
@@ -87,6 +92,9 @@ const (
 	PropStatusNotReviewed PropStatusT = 2 // Proposal has not been reviewed
 	PropStatusCensored    PropStatusT = 3 // Proposal has been censored
 	PropStatusPublic      PropStatusT = 4 // Proposal is publicly visible
+
+	// Error contexts
+	ErrorContextProposalInvalidTitle = ValidProposalNameRegExp
 )
 
 var (
@@ -134,7 +142,8 @@ type ProposalRecord struct {
 // UserError represents an error that is caused by something that the user
 // did (malformed input, bad timing, etc).
 type UserError struct {
-	ErrorCode ErrorStatusT
+	ErrorCode    ErrorStatusT
+	ErrorContext []string
 }
 
 // Error satisfies the error interface.
@@ -263,7 +272,6 @@ type MeReply struct {
 
 // NewProposal attempts to submit a new proposal.
 type NewProposal struct {
-	Name  string `json:"name"`  // Proposal name
 	Files []File `json:"files"` // XXX layer violation.
 }
 

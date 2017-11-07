@@ -31,9 +31,10 @@ API.  It does not render HTML.
 - [`ErrorStatusMalformedEmail`](#ErrorStatusMalformedEmail)
 - [`ErrorStatusVerificationTokenInvalid`](#ErrorStatusVerificationTokenInvalid)
 - [`ErrorStatusVerificationTokenExpired`](#ErrorStatusVerificationTokenExpired)
-- [`ErrorStatusProposalMissingName`](#ErrorStatusProposalMissingName)
-- [`ErrorStatusProposalMissingDescription`](#ErrorStatusProposalMissingDescription)
+- [`ErrorStatusProposalMissingFiles`](#ErrorStatusProposalMissingFiles)
 - [`ErrorStatusProposalNotFound`](#ErrorStatusProposalNotFound)
+- [`ErrorStatusProposalDuplicateFilenames`](#ErrorStatusProposalDuplicateFilenames)
+- [`ErrorStatusProposalInvalidTitle`](#ErrorStatusProposalInvalidTitle)
 - [`ErrorStatusMaxMDsExceededPolicy`](#ErrorStatusMaxMDsExceededPolicy)
 - [`ErrorStatusMaxImagesExceededPolicy`](#ErrorStatusMaxImagesExceededPolicy)
 - [`ErrorStatusMaxMDSizeExceededPolicy`](#ErrorStatusMaxMDSizeExceededPolicy)
@@ -624,7 +625,8 @@ Reply:
 
 ### `New proposal`
 
-Submit a new proposal to the politeiawww server.
+Submit a new proposal to the politeiawww server. 
+The proposal name is derived from the first line of the markdown file - index.md.
 
 **Route:** `POST /v1/proposal/new`
 
@@ -639,20 +641,11 @@ Submit a new proposal to the politeiawww server.
       <th>Required</th>
     </tr>
     <tr>
-      <td><code>name</code></td>
-      <td>String</td>
-      <td>
-        Name of the proposal.  This should be a reasonably small title that
-        describes the proposal.
-      </td>
-      <td>Yes</td>
-    </tr>
-    <tr>
       <td><code>files</code></td>
       <td>Array of Objects</td>
       <td>
         <p>Files are the body of the proposal.  It should consist of one markdown
-        file and up to five pictures.  The structure of the file is as follows:</p>
+        file - named "index.md" - and up to five pictures.   The structure of the file is as follows:</p>
         <table>
           <tbody>
             <tr>
@@ -729,8 +722,9 @@ Submit a new proposal to the politeiawww server.
 
 On failure the call shall return `400 Bad Request` and one of the following
 error codes:
-- [`ErrorStatusProposalMissingName`](#ErrorStatusProposalMissingName)
-- [`ErrorStatusProposalMissingDescription`](#ErrorStatusProposalMissingDescription)
+- [`ErrorStatusProposalMissingFiles`](#ErrorStatusProposalMissingFiles)
+- [`ErrorStatusProposalDuplicateFilenames`](#ErrorStatusProposalDuplicateFilenames)
+- [`ErrorStatusProposalInvalidTitle`](#ErrorStatusProposalInvalidTitle)
 - [`ErrorStatusMaxMDsExceededPolicy`](#ErrorStatusMaxMDsExceededPolicy)
 - [`ErrorStatusMaxImagesExceededPolicy`](#ErrorStatusMaxImagesExceededPolicy)
 - [`ErrorStatusMaxMDSizeExceededPolicy`](#ErrorStatusMaxMDSizeExceededPolicy)
@@ -1188,23 +1182,15 @@ Reply:
       <td>4</td>
       <td>The provided user activation token is expired.</td>
     </tr>
-    <tr>
-      <td>
-        <a name="ErrorStatusProposalMissingName">
-          <code>ErrorStatusProposalMissingName</code>
-        </a>
-      </td>
-      <td>5</td>
-      <td>The provided proposal does not have a short name.</td>
     </tr>
     <tr>
       <td>
-        <a name="ErrorStatusProposalMissingDescription">
-          <code>ErrorStatusProposalMissingDescription</code>
+        <a name="ErrorStatusProposalMissingFiles">
+          <code>ErrorStatusProposalMissingFiles</code>
         </a>
       </td>
-      <td>6</td>
-      <td>The provided proposal does not have a description.</td>
+      <td>5</td>
+      <td>The provided proposal does not have files.</td>
     </tr>
     <tr>
       <td>
@@ -1212,8 +1198,26 @@ Reply:
           <code>ErrorStatusProposalNotFound</code>
         </a>
       </td>
-      <td>7</td>
+      <td>6</td>
       <td>The requested proposal does not exist.</td>
+    </tr>
+    <tr>
+      <td>
+        <a name="ErrorStatusProposalDuplicateFilenames">
+          <code>ErrorStatusProposalDuplicateFilenames</code>
+        </a>
+      </td>
+      <td>7</td>
+      <td>The provided proposal has duplicate files. </td>
+    </tr>
+    <tr>
+      <td>
+        <a name="ErrorStatusProposalInvalidTitle">
+          <code>ErrorStatusProposalInvalidTitle</code>
+        </a>
+      </td>
+      <td>8</td>
+      <td>The provided proposal title is invalid. </td>
     </tr>
     <tr>
       <td>
@@ -1221,7 +1225,7 @@ Reply:
           <code>ErrorStatusMaxMDsExceededPolicy</code>
         </a>
       </td>
-      <td>8</td>
+      <td>9</td>
       <td>
         The submitted proposal has too many markdown files.  Limits can be obtained
         by issuing the <a href="#Policy">Policy</a> command.
@@ -1233,7 +1237,7 @@ Reply:
           <code>ErrorStatusMaxImagesExceededPolicy</code>
         </a>
       </td>
-      <td>9</td>
+      <td>10</td>
       <td>
         The submitted proposal has too many images.  Limits can be obtained by
         issuing the <a href="#Policy">Policy</a> command.
@@ -1245,7 +1249,7 @@ Reply:
           <code>ErrorStatusMaxMDSizeExceededPolicy</code>
         </a>
       </td>
-      <td>10</td>
+      <td>11</td>
       <td>
         The submitted proposal markdown is too large.  Limits can be obtained by
         issuing the <a href="#Policy">Policy</a> command.
@@ -1257,7 +1261,7 @@ Reply:
           <code>ErrorStatusMaxImageSizeExceededPolicy</code>
         </a>
       </td>
-      <td>11</td>
+      <td>12</td>
       <td>
         The submitted proposal has one or more images that are too large.  Limits can
         be obtained by issuing the <a href="#Policy">Policy</a> command.
@@ -1269,7 +1273,7 @@ Reply:
           <code>ErrorStatusMalformedPassword</code>
         </a>
       </td>
-      <td>12</td>
+      <td>13</td>
       <td>The provided password was malformed.</td>
     </tr>
     <tr>
@@ -1278,7 +1282,7 @@ Reply:
           <code>ErrorStatusCommentNotFound</code>
         </a>
       </td>
-      <td>13</td>
+      <td>14</td>
       <td>The requested comment does not exist.</td>
     </tr>
     <tr>
@@ -1287,7 +1291,7 @@ Reply:
           <code>ErrorStatusInvalidProposalName</code>
         </a>
       </td>
-      <td>14</td>
+      <td>15</td>
       <td>The proposal's name was invalid.</td>
     </tr>
     <tr>
@@ -1296,7 +1300,7 @@ Reply:
           <code>ErrorStatusInvalidFileDigest</code>
         </a>
       </td>
-      <td>15</td>
+      <td>16</td>
       <td>
         The digest (SHA-256 checksum) provided for one of the proposal files
         was incorrect. This error is provided with additional information inside
@@ -1322,7 +1326,7 @@ Reply:
           <code>ErrorStatusInvalidBase64</code>
         </a>
       </td>
-      <td>16</td>
+      <td>17</td>
       <td>
         The Base64 encoding provided for one of the proposal files
         was incorrect. This error is provided with additional information inside
@@ -1348,7 +1352,7 @@ Reply:
           <code>ErrorStatusInvalidMIMEType</code>
         </a>
       </td>
-      <td>17</td>
+      <td>18</td>
       <td>
         The MIME type provided for one of the proposal files was not
         the same as the one derived from the file's content. This error
@@ -1380,7 +1384,7 @@ Reply:
           <code>ErrorStatusUnsupportedMIMEType</code>
         </a>
       </td>
-      <td>18</td>
+      <td>19</td>
       <td>
         The MIME type provided for one of the proposal files is
         not supported. This error is provided with additional information
@@ -1411,7 +1415,7 @@ Reply:
           <code>ErrorStatusInvalidPropStatusTransition</code>
         </a>
       </td>
-      <td>19</td>
+      <td>20</td>
       <td>
         The provided proposal cannot be changed to the given status.
       </td>
