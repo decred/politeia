@@ -349,7 +349,7 @@ func (c *ctx) setPropStatus(token string, status v1.PropStatusT) (*v1.SetProposa
 		ProposalStatus: status,
 	}
 	responseBody, err := c.makeRequest("POST",
-		"/proposals/"+token+"/setstatus", /*v1.RouteSetProposalStatus*/
+		"/proposals/"+token+"/status", /*v1.RouteSetProposalStatus*/
 		ps)
 	if err != nil {
 		return nil, err
