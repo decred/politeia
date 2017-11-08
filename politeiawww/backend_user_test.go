@@ -55,21 +55,21 @@ func createBackend(t *testing.T) *backend {
 
 func assertSuccess(t *testing.T, err error) {
 	if err != nil {
-		userErr, ok := err.(userError)
+		userErr, ok := err.(www.UserError)
 		if ok {
-			t.Fatalf("unexpected error code %v\n\n%s", userErr.errorCode, debug.Stack())
+			t.Fatalf("unexpected error code %v\n\n%s", userErr.ErrorCode, debug.Stack())
 		} else {
 			t.Fatalf("unexpected error: %v\n\n%s", err, debug.Stack())
 		}
 	}
 }
 
-func assertError(t *testing.T, err error, expectedStatus www.StatusT) {
+func assertError(t *testing.T, err error, expectedStatus www.ErrorStatusT) {
 	if err != nil {
-		userErr, ok := err.(userError)
+		userErr, ok := err.(www.UserError)
 		if ok {
-			if userErr.errorCode != expectedStatus {
-				t.Fatalf("expected error code %v, was %v\n\n%s", expectedStatus, userErr.errorCode, debug.Stack())
+			if userErr.ErrorCode != expectedStatus {
+				t.Fatalf("expected error code %v, was %v\n\n%s", expectedStatus, userErr.ErrorCode, debug.Stack())
 			}
 		} else {
 			t.Fatalf("unexpected error: %v\n\n%s", err, debug.Stack())
@@ -167,7 +167,7 @@ func TestProcessNewUserWithMalformedEmail(t *testing.T) {
 	}
 
 	_, err := b.ProcessNewUser(u)
-	assertError(t, err, www.StatusMalformedEmail)
+	assertError(t, err, www.ErrorStatusMalformedEmail)
 
 	b.db.Close()
 }
@@ -182,7 +182,7 @@ func TestProcessNewUserWithMalformedPassword(t *testing.T) {
 	}
 
 	_, err := b.ProcessNewUser(u)
-	assertError(t, err, www.StatusMalformedPassword)
+	assertError(t, err, www.ErrorStatusMalformedPassword)
 
 	b.db.Close()
 }
@@ -197,7 +197,7 @@ func TestProcessVerifyNewUserWithNonExistingUser(t *testing.T) {
 	}
 
 	err := b.ProcessVerifyNewUser(u)
-	assertError(t, err, www.StatusVerificationTokenInvalid)
+	assertError(t, err, www.ErrorStatusVerificationTokenInvalid)
 
 	b.db.Close()
 }
@@ -225,7 +225,7 @@ func TestProcessVerifyNewUserWithInvalidToken(t *testing.T) {
 	}
 
 	err = b.ProcessVerifyNewUser(vu)
-	assertError(t, err, www.StatusVerificationTokenInvalid)
+	assertError(t, err, www.ErrorStatusVerificationTokenInvalid)
 
 	b.db.Close()
 }
@@ -240,7 +240,7 @@ func TestProcessLoginWithNonExistingUser(t *testing.T) {
 	}
 
 	_, err := b.ProcessLogin(l)
-	assertError(t, err, www.StatusInvalidEmailOrPassword)
+	assertError(t, err, www.ErrorStatusInvalidEmailOrPassword)
 
 	b.db.Close()
 }
@@ -259,7 +259,7 @@ func TestProcessLoginWithUnverifiedUser(t *testing.T) {
 
 	l := www.Login(u)
 	_, err = b.ProcessLogin(l)
-	assertError(t, err, www.StatusInvalidEmailOrPassword)
+	assertError(t, err, www.ErrorStatusInvalidEmailOrPassword)
 
 	b.db.Close()
 }
@@ -293,7 +293,7 @@ func TestProcessChangePasswordWithBadPasswords(t *testing.T) {
 		NewPassword:     generateRandomPassword(),
 	}
 	_, err = b.ProcessChangePassword(u.Email, cp)
-	assertError(t, err, www.StatusInvalidEmailOrPassword)
+	assertError(t, err, www.ErrorStatusInvalidEmailOrPassword)
 
 	// Change password with malformed new password
 	cp = www.ChangePassword{
@@ -301,7 +301,7 @@ func TestProcessChangePasswordWithBadPasswords(t *testing.T) {
 		NewPassword:     generateRandomString(www.PolicyPasswordMinChars - 1),
 	}
 	_, err = b.ProcessChangePassword(u.Email, cp)
-	assertError(t, err, www.StatusMalformedPassword)
+	assertError(t, err, www.ErrorStatusMalformedPassword)
 
 	b.db.Close()
 }
@@ -351,7 +351,7 @@ func TestProcessResetPasswordWithInvalidToken(t *testing.T) {
 		NewPassword:       generateRandomPassword(),
 	}
 	_, err = b.ProcessResetPassword(rp)
-	assertError(t, err, www.StatusVerificationTokenInvalid)
+	assertError(t, err, www.ErrorStatusVerificationTokenInvalid)
 
 	b.db.Close()
 }
@@ -381,7 +381,7 @@ func TestProcessResetPasswordWithExpiredToken(t *testing.T) {
 		NewPassword:       generateRandomPassword(),
 	}
 	rpr, err = b.ProcessResetPassword(rp)
-	assertError(t, err, www.StatusVerificationTokenExpired)
+	assertError(t, err, www.ErrorStatusVerificationTokenExpired)
 
 	b.db.Close()
 }

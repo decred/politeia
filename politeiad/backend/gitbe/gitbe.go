@@ -20,6 +20,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrtime/api/v1"
 	"github.com/decred/dcrtime/merkle"
+	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/util"
@@ -192,8 +193,12 @@ func verifyContent(files []backend.File) ([]file, error) {
 		// Validate digest
 		d, ok := util.ConvertDigest(files[i].Digest)
 		if !ok {
-			return nil, fmt.Errorf("%v: invalid digest format",
-				files[i].Name)
+			return nil, backend.ContentVerificationError{
+				ErrorCode: pd.ErrorStatusInvalidFileDigest,
+				ErrorContext: []string{
+					files[i].Name,
+				},
+			}
 		}
 
 		// Setup cooked file.
@@ -205,26 +210,45 @@ func verifyContent(files []backend.File) ([]file, error) {
 		var err error
 		f.payload, err = base64.StdEncoding.DecodeString(files[i].Payload)
 		if err != nil {
-			return nil, fmt.Errorf("%v: %v", files[i].Name, err)
+			return nil, backend.ContentVerificationError{
+				ErrorCode: pd.ErrorStatusInvalidBase64,
+				ErrorContext: []string{
+					files[i].Name,
+				},
+			}
 		}
 
 		// Calculate payload digest
 		dp := util.Digest(f.payload)
 		if !bytes.Equal(d[:], dp) {
-			return nil, fmt.Errorf("%v: invalid digest",
-				files[i].Name)
+			return nil, backend.ContentVerificationError{
+				ErrorCode: pd.ErrorStatusInvalidFileDigest,
+				ErrorContext: []string{
+					files[i].Name,
+				},
+			}
 		}
 		f.digest = dp
 
 		// Verify MIME
 		detectedMIMEType := http.DetectContentType(f.payload)
 		if detectedMIMEType != files[i].MIME {
-			return nil, fmt.Errorf("%v invalid MIME type detected: %v",
-				files[i].Name, detectedMIMEType)
+			return nil, backend.ContentVerificationError{
+				ErrorCode: pd.ErrorStatusInvalidMIMEType,
+				ErrorContext: []string{
+					files[i].Name,
+					detectedMIMEType,
+				},
+			}
 		}
 		if !mime.MimeValid(files[i].MIME) {
-			return nil, fmt.Errorf("%v unsupported MIME type: %v",
-				files[i].Name, files[i].MIME)
+			return nil, backend.ContentVerificationError{
+				ErrorCode: pd.ErrorStatusUnsupportedMIMEType,
+				ErrorContext: []string{
+					files[i].Name,
+					files[i].MIME,
+				},
+			}
 		}
 
 		fa = append(fa, f)
@@ -916,7 +940,7 @@ func (g *gitBackEnd) verifyAnchor(digest string) (*v1.VerifyDigest, error) {
 func (g *gitBackEnd) New(name string, files []backend.File) (*backend.ProposalStorageRecord, error) {
 	fa, err := verifyContent(files)
 	if err != nil {
-		return nil, &backend.ContentVerificationError{Err: err}
+		return nil, err
 	}
 
 	if len(fa) == 0 {

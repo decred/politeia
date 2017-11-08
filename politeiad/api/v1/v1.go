@@ -17,7 +17,8 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 )
 
-type StatusT int
+type ErrorStatusT int
+type PropStatusT int
 
 const (
 	// Routes
@@ -32,12 +33,23 @@ const (
 
 	ChallengeSize = 32 // Size of challenge token in bytes
 
-	// Status codes (set and get)
-	StatusInvalid     StatusT = 0 // Invalid status
-	StatusNotFound    StatusT = 1 // Proposal not found
-	StatusNotReviewed StatusT = 2 // Proposal has not been reviewed
-	StatusCensored    StatusT = 3 // Proposal has been censored
-	StatusPublic      StatusT = 4 // Proposal is publicly visible
+	// Error status codes
+	ErrorStatusInvalid                     ErrorStatusT = 0
+	ErrorStatusInvalidRequestPayload       ErrorStatusT = 1
+	ErrorStatusInvalidChallenge            ErrorStatusT = 2
+	ErrorStatusInvalidProposalName         ErrorStatusT = 3
+	ErrorStatusInvalidFileDigest           ErrorStatusT = 4
+	ErrorStatusInvalidBase64               ErrorStatusT = 5
+	ErrorStatusInvalidMIMEType             ErrorStatusT = 6
+	ErrorStatusUnsupportedMIMEType         ErrorStatusT = 7
+	ErrorStatusInvalidPropStatusTransition ErrorStatusT = 8
+
+	// Proposal status codes (set and get)
+	PropStatusInvalid     PropStatusT = 0 // Invalid status
+	PropStatusNotFound    PropStatusT = 1 // Proposal not found
+	PropStatusNotReviewed PropStatusT = 2 // Proposal has not been reviewed
+	PropStatusCensored    PropStatusT = 3 // Proposal has been censored
+	PropStatusPublic      PropStatusT = 4 // Proposal is publicly visible
 
 	// Default network bits
 	DefaultMainnetHost = "politeia.decred.org"
@@ -49,13 +61,26 @@ const (
 )
 
 var (
-	// Status converts status codes to human readable text.
-	Status = map[StatusT]string{
-		StatusInvalid:     "invalid status",
-		StatusNotFound:    "not found",
-		StatusNotReviewed: "not reviewed",
-		StatusCensored:    "censored",
-		StatusPublic:      "public",
+	// ErrorStatus converts error status codes to human readable text.
+	ErrorStatus = map[ErrorStatusT]string{
+		ErrorStatusInvalid:                     "invalid status",
+		ErrorStatusInvalidRequestPayload:       "invalid request payload",
+		ErrorStatusInvalidChallenge:            "invalid challenge",
+		ErrorStatusInvalidProposalName:         "invalid proposal name",
+		ErrorStatusInvalidFileDigest:           "invalid file digest",
+		ErrorStatusInvalidBase64:               "corrupt base64 string",
+		ErrorStatusInvalidMIMEType:             "invalid MIME type detected",
+		ErrorStatusUnsupportedMIMEType:         "unsupported MIME type",
+		ErrorStatusInvalidPropStatusTransition: "invalid proposal status transition",
+	}
+
+	// PropStatus converts proposal status codes to human readable text.
+	PropStatus = map[PropStatusT]string{
+		PropStatusInvalid:     "invalid status",
+		PropStatusNotFound:    "not found",
+		PropStatusNotReviewed: "not reviewed",
+		PropStatusCensored:    "censored",
+		PropStatusPublic:      "public",
 	}
 
 	// Input validation
@@ -162,10 +187,10 @@ type File struct {
 
 // ProposalRecord is an entire proposal and it's content.
 type ProposalRecord struct {
-	Name      string  `json:"name"`      // Suggested short proposal name
-	Status    StatusT `json:"status"`    // Current status of proposal
-	Timestamp int64   `json:"timestamp"` // Last update of proposal
-	Files     []File  `json:"files"`     // Files that make up the proposal
+	Name      string      `json:"name"`      // Suggested short proposal name
+	Status    PropStatusT `json:"status"`    // Current status of proposal
+	Timestamp int64       `json:"timestamp"` // Last update of proposal
+	Files     []File      `json:"files"`     // Files that make up the proposal
 
 	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
 }
@@ -216,17 +241,17 @@ type GetVettedReply struct {
 // to either promote a proposal to the public viewable repository or to censor
 // it.
 type SetUnvettedStatus struct {
-	Challenge string  `json:"challenge"` // Random challenge
-	Token     string  `json:"token"`     // Censorship token
-	Status    StatusT `json:"status"`    // Update unvetted status of proposal
+	Challenge string      `json:"challenge"` // Random challenge
+	Token     string      `json:"token"`     // Censorship token
+	Status    PropStatusT `json:"status"`    // Update unvetted status of proposal
 }
 
 // SetUnvettedStatus is a response to a SetUnvettedStatus.  The status field
 // may be different than the status that was requested.  This should only
 // happen when the command fails.
 type SetUnvettedStatusReply struct {
-	Response string  `json:"response"` // Challenge response
-	Status   StatusT `json:"status"`   // Actual status, may differ from request
+	Response string      `json:"response"` // Challenge response
+	Status   PropStatusT `json:"status"`   // Actual status, may differ from request
 }
 
 //type UpdateUnvetted struct {
@@ -263,4 +288,17 @@ type InventoryReply struct {
 	Response string           `json:"response"` // Challenge response
 	Vetted   []ProposalRecord `json:"vetted"`   // Last N vetted proposals
 	Branches []ProposalRecord `json:"branches"` // Last N branches (censored, new etc)
+}
+
+// UserErrorReply returns details about an error that occurred while trying to
+// execute a command due to bad input from the client.
+type UserErrorReply struct {
+	ErrorCode    ErrorStatusT `json:"errorcode"`              // Numeric error code
+	ErrorContext []string     `json:"errorcontext,omitempty"` // Additional error information
+}
+
+// ServerErrorReply returns an error code that can be correlated with
+// server logs.
+type ServerErrorReply struct {
+	ErrorCode int64 `json:"code"` // Server error code
 }

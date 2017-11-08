@@ -46,32 +46,32 @@ func remoteAddr(r *http.Request) string {
 }
 
 // convertBackendStatus converts a backend PSRStatus to an API status.
-func convertBackendStatus(status backend.PSRStatusT) v1.StatusT {
-	s := v1.StatusInvalid
+func convertBackendStatus(status backend.PSRStatusT) v1.PropStatusT {
+	s := v1.PropStatusInvalid
 	switch status {
 	case backend.PSRStatusInvalid:
-		s = v1.StatusInvalid
+		s = v1.PropStatusInvalid
 	case backend.PSRStatusUnvetted:
-		s = v1.StatusNotReviewed
+		s = v1.PropStatusNotReviewed
 	case backend.PSRStatusVetted:
-		s = v1.StatusPublic
+		s = v1.PropStatusPublic
 	case backend.PSRStatusCensored:
-		s = v1.StatusCensored
+		s = v1.PropStatusCensored
 	}
 	return s
 }
 
 // convertFrontendStatus convert an API status to a backend PSRStatus.
-func convertFrontendStatus(status v1.StatusT) backend.PSRStatusT {
+func convertFrontendStatus(status v1.PropStatusT) backend.PSRStatusT {
 	s := backend.PSRStatusInvalid
 	switch status {
-	case v1.StatusInvalid:
+	case v1.PropStatusInvalid:
 		s = backend.PSRStatusInvalid
-	case v1.StatusNotReviewed:
+	case v1.PropStatusNotReviewed:
 		s = backend.PSRStatusUnvetted
-	case v1.StatusPublic:
+	case v1.PropStatusPublic:
 		s = backend.PSRStatusVetted
-	case v1.StatusCensored:
+	case v1.PropStatusCensored:
 		s = backend.PSRStatusCensored
 	}
 	return s
@@ -111,20 +111,32 @@ func (p *politeia) convertBackendProposal(bpr backend.ProposalRecord) v1.Proposa
 	return pr
 }
 
+func (p *politeia) respondWithUserError(w http.ResponseWriter,
+	errorCode v1.ErrorStatusT, errorContext []string) {
+	util.RespondWithJSON(w, http.StatusBadRequest, v1.UserErrorReply{
+		ErrorCode:    errorCode,
+		ErrorContext: errorContext,
+	})
+}
+
+func (p *politeia) respondWithServerError(w http.ResponseWriter, errorCode int64) {
+	util.RespondWithJSON(w, http.StatusInternalServerError, v1.ServerErrorReply{
+		ErrorCode: errorCode,
+	})
+}
+
 func (p *politeia) getIdentity(w http.ResponseWriter, r *http.Request) {
 	var t v1.Identity
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&t); err != nil {
-		util.RespondWithError(w, http.StatusBadRequest,
-			"Invalid request payload")
+		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
 		return
 	}
 	defer r.Body.Close()
 
 	challenge, err := hex.DecodeString(t.Challenge)
 	if err != nil || len(challenge) != v1.ChallengeSize {
-		util.RespondWithError(w, http.StatusBadRequest,
-			"Invalid challenge")
+		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
 		return
 	}
 	response := p.identity.SignMessage(challenge)
@@ -144,8 +156,7 @@ func (p *politeia) newProposal(w http.ResponseWriter, r *http.Request) {
 	var t v1.New
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&t); err != nil {
-		util.RespondWithError(w, http.StatusBadRequest,
-			"Invalid request payload")
+		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
 		return
 	}
 	defer r.Body.Close()
@@ -154,15 +165,13 @@ func (p *politeia) newProposal(w http.ResponseWriter, r *http.Request) {
 	t.Name = sanitize.Name(t.Name)
 	if len(t.Name) > 80 {
 		log.Errorf("%v New proposal: invalid name", remoteAddr(r))
-		util.RespondWithError(w, http.StatusBadRequest,
-			"Could not create proposal: invalid name")
+		p.respondWithUserError(w, v1.ErrorStatusInvalidProposalName, nil)
 		return
 	}
 	challenge, err := hex.DecodeString(t.Challenge)
 	if err != nil || len(challenge) != v1.ChallengeSize {
 		log.Errorf("%v New proposal: invalid challenge", remoteAddr(r))
-		util.RespondWithError(w, http.StatusBadRequest,
-			"Could not create proposal: invalid challenge")
+		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
 		return
 	}
 
@@ -181,12 +190,10 @@ func (p *politeia) newProposal(w http.ResponseWriter, r *http.Request) {
 	psr, err := p.backend.New(t.Name, files)
 	if err != nil {
 		// Check for content error.
-		if _, ok := err.(*backend.ContentVerificationError); ok {
+		if contentErr, ok := err.(backend.ContentVerificationError); ok {
 			log.Errorf("%v New proposal content error: %v %v",
-				remoteAddr(r), t.Name, err)
-			util.RespondWithError(w, http.StatusBadRequest,
-				fmt.Sprintf("Could not create proposal, "+
-					"invalid content: %v", err))
+				remoteAddr(r), t.Name, contentErr)
+			p.respondWithUserError(w, contentErr.ErrorCode, contentErr.ErrorContext)
 			return
 		}
 
@@ -194,11 +201,7 @@ func (p *politeia) newProposal(w http.ResponseWriter, r *http.Request) {
 		errorCode := time.Now().Unix()
 		log.Errorf("%v New proposal error code %v: %v", remoteAddr(r),
 			errorCode, err)
-
-		util.RespondWithError(w, http.StatusInternalServerError,
-			fmt.Sprintf("Could not create a new proposal, contact "+
-				"administrator and provide the following "+
-				"error code: %v", errorCode))
+		p.respondWithServerError(w, errorCode)
 		return
 	}
 
@@ -229,16 +232,14 @@ func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
 	var t v1.GetUnvetted
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&t); err != nil {
-		util.RespondWithError(w, http.StatusBadRequest,
-			"Invalid request payload")
+		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
 		return
 	}
 	defer r.Body.Close()
 
 	challenge, err := hex.DecodeString(t.Challenge)
 	if err != nil || len(challenge) != v1.ChallengeSize {
-		util.RespondWithError(w, http.StatusBadRequest,
-			"Invalid challenge")
+		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
 		return
 	}
 	response := p.identity.SignMessage(challenge)
@@ -250,15 +251,14 @@ func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
 	// Validate token
 	token, err := util.ConvertStringToken(t.Token)
 	if err != nil {
-		util.RespondWithError(w, http.StatusBadRequest,
-			"Invalid request payload")
+		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
 		return
 	}
 
 	// Ask backend about the censorship token.
 	bpr, err := p.backend.GetUnvetted(token)
 	if err == backend.ErrProposalNotFound {
-		reply.Proposal.Status = v1.StatusNotFound
+		reply.Proposal.Status = v1.PropStatusNotFound
 		log.Errorf("Get unvetted proposal %v: token %v not found",
 			remoteAddr(r), t.Token)
 	} else if err != nil {
@@ -267,10 +267,7 @@ func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
 		log.Errorf("%v Get unvetted proposal error code %v: %v",
 			remoteAddr(r), errorCode, err)
 
-		util.RespondWithError(w, http.StatusInternalServerError,
-			fmt.Sprintf("Could not retrieve unvetted proposal, "+
-				"contact administrator and provide the "+
-				"following error code: %v", errorCode))
+		p.respondWithServerError(w, errorCode)
 		return
 	} else {
 		reply.Proposal = p.convertBackendProposal(*bpr)
@@ -285,11 +282,7 @@ func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
 				"error code %v: %v", remoteAddr(r), errorCode,
 				err)
 
-			util.RespondWithError(w, http.StatusInternalServerError,
-				fmt.Sprintf("Could not retrieve unvetted "+
-					"proposal, contact administrator and "+
-					"provide the following error code: %v",
-					errorCode))
+			p.respondWithServerError(w, errorCode)
 			return
 		}
 
@@ -305,16 +298,14 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 	var t v1.GetVetted
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&t); err != nil {
-		util.RespondWithError(w, http.StatusBadRequest,
-			"Invalid request payload")
+		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
 		return
 	}
 	defer r.Body.Close()
 
 	challenge, err := hex.DecodeString(t.Challenge)
 	if err != nil || len(challenge) != v1.ChallengeSize {
-		util.RespondWithError(w, http.StatusBadRequest,
-			"Invalid challenge")
+		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
 		return
 	}
 	response := p.identity.SignMessage(challenge)
@@ -326,15 +317,14 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 	// Validate token
 	token, err := util.ConvertStringToken(t.Token)
 	if err != nil {
-		util.RespondWithError(w, http.StatusBadRequest,
-			"Invalid request payload")
+		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
 		return
 	}
 
 	// Ask backend about the censorship token.
 	bpr, err := p.backend.GetVetted(token)
 	if err == backend.ErrProposalNotFound {
-		reply.Proposal.Status = v1.StatusNotFound
+		reply.Proposal.Status = v1.PropStatusNotFound
 		log.Errorf("Get vetted proposal %v: token %v not found",
 			remoteAddr(r), t.Token)
 	} else if err != nil {
@@ -343,10 +333,7 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 		log.Errorf("%v Get vetted proposal error code %v: %v",
 			remoteAddr(r), errorCode, err)
 
-		util.RespondWithError(w, http.StatusInternalServerError,
-			fmt.Sprintf("Could not retrieve vetted proposal, "+
-				"contact administrator and provide the "+
-				"following error code: %v", errorCode))
+		p.respondWithServerError(w, errorCode)
 		return
 	} else {
 		reply.Proposal = p.convertBackendProposal(*bpr)
@@ -361,11 +348,7 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 				"error code %v: %v", remoteAddr(r), errorCode,
 				err)
 
-			util.RespondWithError(w, http.StatusInternalServerError,
-				fmt.Sprintf("Could not retrieve vetted "+
-					"proposal, contact administrator and "+
-					"provide the following error code: %v",
-					errorCode))
+			p.respondWithServerError(w, errorCode)
 			return
 		}
 		log.Infof("Get vetted proposal %v: token %v name \"%v\"",
@@ -379,16 +362,14 @@ func (p *politeia) inventory(w http.ResponseWriter, r *http.Request) {
 	var i v1.Inventory
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&i); err != nil {
-		util.RespondWithError(w, http.StatusBadRequest,
-			"Invalid request payload")
+		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
 		return
 	}
 	defer r.Body.Close()
 
 	challenge, err := hex.DecodeString(i.Challenge)
 	if err != nil || len(challenge) != v1.ChallengeSize {
-		util.RespondWithError(w, http.StatusBadRequest,
-			"Invalid challenge")
+		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
 		return
 	}
 	response := p.identity.SignMessage(challenge)
@@ -406,10 +387,7 @@ func (p *politeia) inventory(w http.ResponseWriter, r *http.Request) {
 		log.Errorf("%v Inventory error code %v: %v", remoteAddr(r),
 			errorCode, err)
 
-		util.RespondWithError(w, http.StatusInternalServerError,
-			fmt.Sprintf("Could not inventory, contact "+
-				"administrator and provide the following "+
-				"error code: %v", errorCode))
+		p.respondWithServerError(w, errorCode)
 		return
 	}
 
@@ -459,16 +437,14 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 	var t v1.SetUnvettedStatus
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&t); err != nil {
-		util.RespondWithError(w, http.StatusBadRequest,
-			"Invalid request payload")
+		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
 		return
 	}
 	defer r.Body.Close()
 
 	challenge, err := hex.DecodeString(t.Challenge)
 	if err != nil || len(challenge) != v1.ChallengeSize {
-		util.RespondWithError(w, http.StatusBadRequest,
-			"Invalid challenge")
+		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
 		return
 	}
 	response := p.identity.SignMessage(challenge)
@@ -476,8 +452,7 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 	// Validate token
 	token, err := util.ConvertStringToken(t.Token)
 	if err != nil {
-		util.RespondWithError(w, http.StatusBadRequest,
-			"Invalid request payload")
+		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
 		return
 	}
 
@@ -485,16 +460,14 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 	status, err := p.backend.SetUnvettedStatus(token,
 		convertFrontendStatus(t.Status))
 	if err != nil {
-		oldStatus := v1.Status[convertBackendStatus(status)]
-		newStatus := v1.Status[t.Status]
+		oldStatus := v1.PropStatus[convertBackendStatus(status)]
+		newStatus := v1.PropStatus[t.Status]
 		// Check for specific errors
 		if err == backend.ErrInvalidTransition {
 			log.Errorf("%v Invalid status code transition: "+
 				"%v %v->%v", remoteAddr(r), t.Token, oldStatus,
 				newStatus)
-			util.RespondWithError(w, http.StatusBadRequest,
-				fmt.Sprintf("Invalid status code transition: "+
-					"%v->%v", oldStatus, newStatus))
+			p.respondWithUserError(w, v1.ErrorStatusInvalidPropStatusTransition, nil)
 			return
 		}
 		// Generic internal error.
@@ -502,10 +475,7 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 		log.Errorf("%v Set unvetted status error code %v: %v",
 			remoteAddr(r), errorCode, err)
 
-		util.RespondWithError(w, http.StatusInternalServerError,
-			fmt.Sprintf("Could not set unvetted status "+
-				"contact administrator and provide the "+
-				"following error code: %v", errorCode))
+		p.respondWithServerError(w, errorCode)
 		return
 	}
 	reply := v1.SetUnvettedStatusReply{
@@ -514,7 +484,7 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Infof("Set unvetted proposal status %v: token %v status %v",
-		remoteAddr(r), t.Token, v1.Status[reply.Status])
+		remoteAddr(r), t.Token, v1.PropStatus[reply.Status])
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }

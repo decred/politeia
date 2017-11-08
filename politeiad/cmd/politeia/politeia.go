@@ -130,9 +130,9 @@ func printCensorshipRecord(c v1.CensorshipRecord) {
 func printProposalRecord(header string, pr v1.ProposalRecord) {
 	// Pretty print proposal
 	fmt.Printf("STATUS %v\n", pr.Status)
-	status, ok := v1.Status[pr.Status]
+	status, ok := v1.PropStatus[pr.Status]
 	if !ok {
-		status = v1.Status[v1.StatusInvalid]
+		status = v1.PropStatus[v1.PropStatusInvalid]
 	}
 	fmt.Printf("%v:\n", header)
 	fmt.Printf("  Name       : %v\n", pr.Name)
@@ -440,12 +440,12 @@ func getUnvetted() error {
 	}
 
 	// Verify status
-	if reply.Proposal.Status == v1.StatusInvalid ||
-		reply.Proposal.Status == v1.StatusNotFound {
+	if reply.Proposal.Status == v1.PropStatusInvalid ||
+		reply.Proposal.Status == v1.PropStatusNotFound {
 		// Pretty print proposal
-		status, ok := v1.Status[reply.Proposal.Status]
+		status, ok := v1.PropStatus[reply.Proposal.Status]
 		if !ok {
-			status = v1.Status[v1.StatusInvalid]
+			status = v1.PropStatus[v1.PropStatusInvalid]
 		}
 		fmt.Printf("Proposal     : %v\n", flags[0])
 		fmt.Printf("  Status     : %v\n", status)
@@ -541,12 +541,12 @@ func getVetted() error {
 	}
 
 	// Verify status
-	if reply.Proposal.Status == v1.StatusInvalid ||
-		reply.Proposal.Status == v1.StatusNotFound {
+	if reply.Proposal.Status == v1.PropStatusInvalid ||
+		reply.Proposal.Status == v1.PropStatusNotFound {
 		// Pretty print proposal
-		status, ok := v1.Status[reply.Proposal.Status]
+		status, ok := v1.PropStatus[reply.Proposal.Status]
 		if !ok {
-			status = v1.Status[v1.StatusInvalid]
+			status = v1.PropStatus[v1.PropStatusInvalid]
 		}
 		fmt.Printf("Proposal     : %v\n", flags[0])
 		fmt.Printf("  Status     : %v\n", status)
@@ -566,15 +566,15 @@ func getVetted() error {
 	return nil
 }
 
-func convertStatus(s string) (v1.StatusT, error) {
+func convertStatus(s string) (v1.PropStatusT, error) {
 	switch s {
 	case "censor":
-		return v1.StatusCensored, nil
+		return v1.PropStatusCensored, nil
 	case "publish":
-		return v1.StatusPublic, nil
+		return v1.PropStatusPublic, nil
 	}
 
-	return v1.StatusInvalid, fmt.Errorf("invalid status")
+	return v1.PropStatusInvalid, fmt.Errorf("invalid status")
 }
 
 func setUnvettedStatus() error {
@@ -665,9 +665,9 @@ func setUnvettedStatus() error {
 
 	if !*printJson {
 		// Pretty print proposal
-		status, ok := v1.Status[reply.Status]
+		status, ok := v1.PropStatus[reply.Status]
 		if !ok {
-			status = v1.Status[v1.StatusInvalid]
+			status = v1.PropStatus[v1.PropStatusInvalid]
 		}
 		fmt.Printf("Set proposal status:\n")
 		fmt.Printf("  Status   : %v\n", status)

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/hex"
@@ -268,10 +269,15 @@ func (c *ctx) newProposal() (*v1.NewProposalReply, error) {
 		Files: make([]v1.File, 0),
 	}
 
+	payload := []byte("This is a description")
+	h := sha256.New()
+	h.Write(payload)
+
 	np.Files = append(np.Files, v1.File{
 		Name:    "index.md",
 		MIME:    "text/plain; charset=utf-8",
-		Payload: base64.StdEncoding.EncodeToString([]byte("This is a description")),
+		Digest:  hex.EncodeToString(h.Sum(nil)),
+		Payload: base64.StdEncoding.EncodeToString(payload),
 	})
 
 	responseBody, err := c.makeRequest("POST", v1.RouteNewProposal, np)
@@ -544,12 +550,9 @@ func _main() error {
 	}
 
 	// Change password
-	cpr, err := c.changePassword(newPassword, password)
+	_, err = c.changePassword(newPassword, password)
 	if err != nil {
 		return err
-	}
-	if cpr.ErrorCode != v1.StatusSuccess {
-		return fmt.Errorf("changePassword failed with errorcode %v", cpr.ErrorCode)
 	}
 
 	// New proposal 1

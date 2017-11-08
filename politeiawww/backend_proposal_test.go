@@ -127,19 +127,19 @@ func TestNewProposalPolicyRestrictions(t *testing.T) {
 	assertSuccess(t, err)
 
 	_, _, err = createNewProposalWithFiles(b, t, p.MaxMDs+1, 0)
-	assertError(t, err, www.StatusMaxMDsExceededPolicy)
+	assertError(t, err, www.ErrorStatusMaxMDsExceededPolicy)
 
 	_, _, err = createNewProposalWithFiles(b, t, 1, p.MaxImages+1)
-	assertError(t, err, www.StatusMaxImagesExceededPolicy)
+	assertError(t, err, www.ErrorStatusMaxImagesExceededPolicy)
 
 	_, _, err = createNewProposalWithFiles(b, t, 0, 0)
-	assertError(t, err, www.StatusProposalMissingDescription)
+	assertError(t, err, www.ErrorStatusProposalMissingDescription)
 
 	_, _, err = createNewProposalWithFileSizes(b, t, 1, 0, p.MaxMDSize+1, 0)
-	assertError(t, err, www.StatusMaxMDSizeExceededPolicy)
+	assertError(t, err, www.ErrorStatusMaxMDSizeExceededPolicy)
 
 	_, _, err = createNewProposalWithFileSizes(b, t, 1, 1, 64, p.MaxImageSize+1)
-	assertError(t, err, www.StatusMaxImageSizeExceededPolicy)
+	assertError(t, err, www.ErrorStatusMaxImageSizeExceededPolicy)
 }
 
 // Tests fetching an unreviewed proposal's details.

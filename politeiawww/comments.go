@@ -55,8 +55,8 @@ func (b *backend) getComments(token string) (*www.GetCommentsReply, error) {
 
 	c, ok := b.comments[token]
 	if !ok {
-		return nil, userError{
-			errorCode: www.StatusProposalNotFound,
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusProposalNotFound,
 		}
 	}
 
@@ -99,7 +99,6 @@ func (b *backend) addComment(c www.NewComment, userID uint64) (*www.NewCommentRe
 	b.comments[c.Token][b.commentID] = comment
 	cr := www.NewCommentReply{
 		CommentID: b.commentID,
-		ErrorCode: www.StatusSuccess,
 	}
 	b.commentID++
 

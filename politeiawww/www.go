@@ -95,15 +95,35 @@ func (p *politeiawww) getIdentity() error {
 // outputted to the logs so that it can be correlated later if the user
 // files a complaint.
 func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, format string, args ...interface{}) {
-	userErr, ok := args[0].(userError)
-	if ok {
+	if userErr, ok := args[0].(v1.UserError); ok {
 		if userHttpCode == 0 {
 			userHttpCode = http.StatusBadRequest
 		}
-		log.Debugf("RespondWithError: %v", int64(userErr.errorCode))
+		log.Debugf("RespondWithError: %v", int64(userErr.ErrorCode))
 		util.RespondWithJSON(w, userHttpCode,
 			v1.ErrorReply{
-				ErrorCode: int64(userErr.errorCode),
+				ErrorCode: int64(userErr.ErrorCode),
+			})
+		return
+	}
+
+	if pdError, ok := args[0].(v1.PDError); ok {
+		pdErrorCode := convertErrorStatusFromPD(pdError.ErrorReply.ErrorCode)
+		if pdErrorCode == v1.ErrorStatusInvalid {
+			errorCode := time.Now().Unix()
+			log.Errorf("%v %v %v %v Internal error %v: error code from politeiad: %v",
+				remoteAddr(r), r.Method, r.URL, r.Proto, errorCode, pdError.ErrorReply.ErrorCode)
+			util.RespondWithJSON(w, http.StatusInternalServerError,
+				v1.ErrorReply{
+					ErrorCode: errorCode,
+				})
+			return
+		}
+
+		util.RespondWithJSON(w, pdError.HTTPCode,
+			v1.ErrorReply{
+				ErrorCode:    int64(pdErrorCode),
+				ErrorContext: pdError.ErrorReply.ErrorContext,
 			})
 		return
 	}
@@ -133,10 +153,9 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 	*/
 	versionReply, err := json.Marshal(v1.VersionReply{
-		Version:   v1.PoliteiaWWWAPIVersion,
-		Route:     v1.PoliteiaWWWAPIRoute,
-		PubKey:    hex.EncodeToString(p.cfg.Identity.Key[:]),
-		ErrorCode: v1.StatusSuccess,
+		Version: v1.PoliteiaWWWAPIVersion,
+		Route:   v1.PoliteiaWWWAPIRoute,
+		PubKey:  hex.EncodeToString(p.cfg.Identity.Key[:]),
 	})
 	if err != nil {
 		RespondWithError(w, r, 0, "handleVersion: Marshal %v", err)
@@ -205,12 +224,12 @@ func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request
 
 	err := p.backend.ProcessVerifyNewUser(vnu)
 	if err != nil {
-		userErr, ok := err.(userError)
+		userErr, ok := err.(v1.UserError)
 		if ok {
 			url, err := url.Parse(routePrefix + v1.RouteVerifyNewUserFailure)
 			if err == nil {
 				q := url.Query()
-				q.Set("errorcode", string(userErr.errorCode))
+				q.Set("errorcode", string(userErr.ErrorCode))
 				url.RawQuery = q.Encode()
 				http.Redirect(w, r, url.String(), http.StatusMovedPermanently)
 				return
@@ -255,17 +274,15 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Mark user as logged in if there's no error.
-	if reply.ErrorCode == v1.StatusSuccess {
-		session.Values["email"] = l.Email
-		session.Values["id"] = reply.UserID
-		session.Values["authenticated"] = true
-		session.Values["admin"] = reply.IsAdmin
-		err = session.Save(r, w)
-		if err != nil {
-			RespondWithError(w, r, 0,
-				"handleLogin: failed to save session: %v", err)
-			return
-		}
+	session.Values["email"] = l.Email
+	session.Values["id"] = reply.UserID
+	session.Values["authenticated"] = true
+	session.Values["admin"] = reply.IsAdmin
+	err = session.Save(r, w)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleLogin: failed to save session: %v", err)
+		return
 	}
 
 	// Reply with the user information.
@@ -306,9 +323,7 @@ func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Reply with the user information.
-	reply := v1.LogoutReply{
-		ErrorCode: v1.StatusSuccess,
-	}
+	var reply v1.LogoutReply
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
@@ -336,9 +351,8 @@ func (p *politeiawww) handleMe(w http.ResponseWriter, r *http.Request) {
 
 	// Reply with the user information.
 	reply := v1.MeReply{
-		Email:     email,
-		IsAdmin:   isAdmin,
-		ErrorCode: v1.StatusSuccess,
+		Email:   email,
+		IsAdmin: isAdmin,
 	}
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
