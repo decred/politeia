@@ -11,6 +11,7 @@ API.  It does not render HTML.
 - [`Version`](#version)
 - [`New user`](#new-user)
 - [`Verify user`](#verify-user)
+- [`Me`](#me)
 - [`Login`](#login)
 - [`Logout`](#logout)
 - [`Change password`](#change-password)
@@ -47,6 +48,9 @@ API.  It does not render HTML.
 - [`ErrorStatusInvalidMIMEType`](#ErrorStatusInvalidMIMEType)
 - [`ErrorStatusUnsupportedMIMEType`](#ErrorStatusUnsupportedMIMEType)
 - [`ErrorStatusInvalidPropStatusTransition`](#ErrorStatusInvalidPropStatusTransition)
+- [`ErrorStatusInvalidPublicKey`](#ErrorStatusInvalidPublicKey)
+- [`ErrorStatusNoPublicKey`](#ErrorStatusNoPublicKey)
+- [`ErrorStatusInvalidSignature`](#ErrorStatusInvalidSignature)
 
 **Proposal status codes**
 
@@ -66,14 +70,14 @@ when an unexpected server error has occurred. The format of errors is as follows
 
 | | Type | Description |
 |-|-|-|
-| errorcode | Number | One of the [error codes](#error-codes) |
+| errorcode | number | One of the [error codes](#error-codes) |
 | errorcontext | Array of Strings | This array of strings is used to provide additional information for certain errors; see the documentation for specific error codes. |
 
 **`5xx` errors**
 
 | | Type | Description |
 |-|-|-|
-| errorcode | Number | An error code that can be used to track down the internal server error that occurred; it should be reported to Politeia administrators. |
+| errorcode | number | An error code that can be used to track down the internal server error that occurred; it should be reported to Politeia administrators. |
 
 ## Methods
 
@@ -91,9 +95,9 @@ to get the CSRF token for the session and to ensure API compatability.
 
 | | Type | Description |
 |-|-|-|
-| version | Number | API version that is running on this server. |
-| route | String | Route that should be prepended to all calls. For example, "/v1". |
-| identity | String | Identity that signs various tokens to ensure server authenticity and to prevent replay attacks. |
+| version | number | API version that is running on this server. |
+| route | string | Route that should be prepended to all calls. For example, "/v1". |
+| identity | string | Identity that signs various tokens to ensure server authenticity and to prevent replay attacks. |
 
 **Example**
 
@@ -125,9 +129,10 @@ Return pertinent user information of the current logged in user.
 
 | | Type | Description |
 |-|-|-|
-| userid | Number | Unique user identifier. |
-| email | String | User ID. |
-| isadmin | String | This indicates if the user has publish/censor privileges. |
+| userid | string | Unique user identifier. |
+| email | string | User ID. |
+| isadmin | string | This indicates if the user has publish/censor privileges. |
+| publickey | string | Current active public key. |
 
 If there currently is no session the call returns `403 Forbidden`.
 
@@ -143,8 +148,10 @@ Reply:
 
 ```json
 {
-  "email": "d3a948d856daea3d@example.com",
-  "isadmin": true
+  "isadmin":false,
+  "userid":"12",
+  "email":"69af376cca42cd9c@example.com",
+  "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b"
 }
 ```
 
@@ -158,14 +165,15 @@ Create a new user on the politeiawww server.
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
-| email | String | Email is used as the web site user identity for a user. When a user changes email addresses the server shall maintain a mapping between the old and new address. | Yes |
-| password | String | The password that the user wishes to use. This password travels in the clear in order to enable JS-less systems. The server shall never store passwords in the clear. | Yes |
+| email | string | Email is used as the web site user identity for a user. When a user changes email addresses the server shall maintain a mapping between the old and new address. | Yes |
+| password | string | The password that the user wishes to use. This password travels in the clear in order to enable JS-less systems. The server shall never store passwords in the clear. | Yes |
+| publickey | string | User ed25519 public key. | Yes |
 
 **Results:**
 
 | Parameter | Type | Description |
 |-|-|-|
-| verificationtoken | String | The verification token which is required when calling [Verify user](#verify-user). If an email server is set up, this property will be empty or nonexistent; the token will be sent to the email address sent in the request. |
+| verificationtoken | string | The verification token which is required when calling [Verify user](#verify-user). If an email server is set up, this property will be empty or nonexistent; the token will be sent to the email address sent in the request. |
 
 This call can return one of the following error codes:
 
@@ -175,7 +183,7 @@ This call can return one of the following error codes:
 The email shall include a link in the following format:
 
 ```
-/user/verify?email=abc@example.com&verificationtoken=f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde
+/user/verify?email=69af376cca42cd9c@example.com&verificationtoken=fc8f660e7f4d590e27e6b11639ceeaaec2ce9bc6b0303344555ac023ab8ee55f&signature=9e4b1018913610c12496ec3e482f2fb42129197001c5d35d4f5848b77d2b5e5071f79b18bcab4f371c5b378280bb478c153b696003ac3a627c3d8a088cd5f00d
 ```
 
 The call may return `500 Internal Server Error` which is accompanied by
@@ -188,8 +196,9 @@ Request:
 
 ```json
 {
-  "email": "15a1eb6de3681fec@example.com",
-  "password": "15a1eb6de3681fec"
+  "email": "69af376cca42cd9c@example.com",
+  "password": "69af376cca42cd9c"
+  "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
 }
 ```
 
@@ -197,7 +206,7 @@ Reply:
 
 ```json
 {
-  "verificationtoken": "f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde"
+  "verificationtoken": "fc8f660e7f4d590e27e6b11639ceeaaec2ce9bc6b0303344555ac023ab8ee55f"
 }
 ```
 
@@ -211,18 +220,20 @@ Verify email address of a previously created user.
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
-| email | String | Email address of previously created user. | Yes |
-| verificationtoken | String | The token that was provided by email to the user. | Yes |
+| email | string | Email address of previously created user. | Yes |
+| verificationtoken | string | The token that was provided by email to the user. | Yes |
+| signature | string | The ed25519 signature of the string representation of the verification token. | Yes |
 
 **Results:** none
 
-On success the call shall redirect to `/v1/user/verify/success` which will return
-`200 OK`.
+On success the call shall return `200 OK`.
 
-On failure the call shall redirect to `/v1/user/verify/failure` which will return
-`400 Bad Request` and one of the following error codes:
+On failure the call shall return `400 Bad Request` and one of the following error codes:
 - [`ErrorStatusVerificationTokenInvalid`](#ErrorStatusVerificationTokenInvalid)
 - [`ErrorStatusVerificationTokenExpired`](#ErrorStatusVerificationTokenExpired)
+- [`ErrorStatusNoPublicKey`](#ErrorStatusNoPublicKey)
+- [`ErrorStatusInvalidPublicKey`](#ErrorStatusInvalidPublicKey)
+- [`ErrorStatusInvalidSignature`](#ErrorStatusInvalidSignature)
 
 **Example:**
 
@@ -236,33 +247,28 @@ The request params should be provided within the URL:
 
 Reply:
 
-The user verification command is special.  It redirects to `/v1/user/verify/success`
-on success or to `/v1/user/verify/failure` on failure, which return the JSON:
-
 ```json
 {}
 ```
 
-### `Login`
+### `Me`
 
-Login as a user or admin.  Admin status is determined by the server based on
-the user database.
+Return information of the current logged in user.
 
-**Route:** `POST /v1/login`
+**Route:** `GET /v1/me`
 
 **Params:**
 
-| Parameter | Type | Description | Required |
-|-|-|-|-|
-| email | String | Email address of user that is attempting to login. | Yes |
-| password | String | Accompanying password for provided email. | Yes |
+N/A
 
 **Results:**
 
 | Parameter | Type | Description |
 |-|-|-|
-| userid | Number | Unique user identifier. |
-| isadmin | Boolean | This indicates if the user has publish/censor privileges. |
+| isadmin | boolean | This indicates if the user has publish/censor privileges. |
+| userid | string | Unique user identifier. |
+| email | string | Current user email address. |
+| publickey | string | Current public key. |
 
 On failure the call shall return `403 Forbidden` and one of the following
 error codes:
@@ -273,9 +279,9 @@ error codes:
 Request:
 
 ```json
-{
-  "email": "6b87b6ebb0c80cb7@example.com",
-  "password": "6b87b6ebb0c80cb7"
+  {
+    "email":"26c5687daca2f5d8@example.com",
+    "password":"26c5687daca2f5d8"
 }
 ```
 
@@ -283,7 +289,58 @@ Reply:
 
 ```json
 {
-  "isadmin": false
+  "isadmin":true,
+  "userid":"0",
+  "email":"26c5687daca2f5d8@example.com",
+  "publickey":"ec88b934fd9f334a9ed6d2e719da2bdb2061de5370ff20a38b0e1e3c9538199a"
+}
+```
+### `Login`
+
+Login as a user or admin.  Admin status is determined by the server based on
+the user database.  Note that Login reply is identical to Me reply.
+
+**Route:** `POST /v1/login`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| email | string | Email address of user that is attempting to login. | Yes |
+| password | string | Accompanying password for provided email. | Yes |
+
+**Results:**
+
+| Parameter | Type | Description |
+|-|-|-|
+| isadmin | boolean | This indicates if the user has publish/censor privileges. |
+| userid | string | Unique user identifier. |
+| email | string | Current user email address. |
+| publickey | string | Current public key. |
+
+On failure the call shall return `403 Forbidden` and one of the following
+error codes:
+- [`ErrorStatusInvalidEmailOrPassword`](#ErrorStatusInvalidEmailOrPassword)
+
+**Example**
+
+Request:
+
+```json
+  {
+    "email":"26c5687daca2f5d8@example.com",
+    "password":"26c5687daca2f5d8"
+}
+```
+
+Reply:
+
+```json
+{
+  "isadmin":true,
+  "userid":"0",
+  "email":"26c5687daca2f5d8@example.com",
+  "publickey":"ec88b934fd9f334a9ed6d2e719da2bdb2061de5370ff20a38b0e1e3c9538199a"
 }
 ```
 
@@ -321,8 +378,8 @@ Changes the password for the currently logged in user.
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
-| currentpassword | String | The current password of the logged in user. | Yes |
-| newpassword | String | The new password for the logged in user. | Yes |
+| currentpassword | string | The current password of the logged in user. | Yes |
+| newpassword | string | The new password for the logged in user. | Yes |
 
 **Results:** none
 
@@ -358,8 +415,8 @@ Allows a user to reset his password without being logged in.
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
-| email | String | The email of the user whose password should be reset. | Yes |
-| verificationtoken | String | The verification token which is sent to the user's email address. | Yes |
+| email | string | The email of the user whose password should be reset. | Yes |
+| verificationtoken | string | The verification token which is sent to the user's email address. | Yes |
 | newpassword | String | The new password for the user. | Yes |
 
 **Results:** none
@@ -433,8 +490,18 @@ The proposal name is derived from the first line of the markdown file - index.md
 **Params:**
 
 | Parameter | Type | Description | Required |
-|-|-|-|-|
-| files | Array of [`File`](#file)s | Files are the body of the proposal. It should consist of one markdown file - named "index.md" - and up to five pictures. **Note:** all parameters within each [`File`](#file) are required. | Yes |
+|-----------|------|-------------|----------|
+| files | array of [`File`](#file)s | Files are the body of the proposal. It should consist of one markdown file - named "index.md" - and up to five pictures. **Note:** all parameters within each [`File`](#file) are required. | Yes |
+| signature | string | Signature of the string representation of the Merkle root of the files payload. Note that the merkle digests are calculated on the decoded payload.. | Yes |
+
+The structure of a file is as follows:
+
+| Parameter | Type | Description | Required |
+|-----------|--------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|
+| name | string | Name is the suggested filename. There should be no filenames that are overlapping and the name shall be validated before being used. | Yes |
+| mime | string | MIME type of the payload. Currently the system only supports md and png/svg files. The server shall reject invalid MIME types. | Yes |
+| digest | string | Digest is a SHA256 digest of the decoded payload. The digest shall be verified by the server. | Yes |
+| payload | string | Payload is the actual file content. It shall be base64 encoded. Files have size limits that can be obtained via the [Policy](#policy) call. The server shall strictly enforce policy limits. | Yes |
 
 **Results:**
 
@@ -497,7 +564,7 @@ Retrieve a page of unvetted proposals; the number of proposals returned in the p
 
 | | Type | Description |
 |-|-|-|
-| proposals | Array of [`Proposal`](#proposal)s | An Array of unvetted proposals. |
+| proposals | array of [`Proposal`](#proposal)s | An Array of unvetted proposals. |
 
 If the caller is not privileged the unvetted call returns `403 Forbidden`.
 
@@ -613,8 +680,8 @@ Reply:
 
 ### `Set proposal status`
 
-Set status of proposal to `PropStatusPublic` or `PropStatusCensored`.  This call requires admin
-privileges.
+Set status of proposal to `PropStatusPublic` or `PropStatusCensored`.  This
+call requires admin privileges.
 
 **Route:** `POST /v1/proposals/{token}/status`
 
@@ -622,8 +689,9 @@ privileges.
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
-| token | String | Token is the unique censorship token that identifies a specific proposal. | Yes |
-| status | Number | Status indicates the new status for the proposal. Valid statuses are: [PropStatusCensored](#PropStatusCensored), [PropStatusPublic](#PropStatusPublic). Status can only be changed if the current proposal status is [PropStatusNotReviewed](#PropStatusNotReviewed) | Yes |
+| token | string | Token is the unique censorship token that identifies a specific proposal. | Yes |
+| status | number | Status indicates the new status for the proposal. Valid statuses are: [PropStatusCensored](#PropStatusCensored), [PropStatusPublic](#PropStatusPublic). Status can only be changed if the current proposal status is [PropStatusNotReviewed](#PropStatusNotReviewed) | Yes |
+| signature | string | Signature of token+string(status). | Yes |
 
 **Results:** none
 
@@ -701,8 +769,8 @@ Reply:
 
 ### `New comment`
 
-Submit comment on given proposal.  ParentID value 0 means "comment on
-proposal"; non-zero values mean "reply to comment".
+Submit comment on given proposal.  ParentID value "" means "comment on
+proposal"; if the value is not empty it means "reply to comment".
 
 **Route:** `POST /v1/comments/new`
 
@@ -711,14 +779,15 @@ proposal"; non-zero values mean "reply to comment".
 | Parameter | Type | Description | Required |
 | - | - | - | - |
 | Token | string | Censorship token | Yes |
-| ParentID | uint64 | Parent comment | Yes |
+| ParentID | string | Parent comment identifier | Yes |
 | Comment | string | Comment | Yes |
+| Signature | string | Signature of Token, ParentID and Comment | Yes |
 
 **Results:**
 
 | | Type | Description |
 | - | - | - |
-| CommentID | uint64 | Server generated comment ID |
+| CommentID | string | Server generated unique comment identifier |
 
 **Example**
 
@@ -726,9 +795,10 @@ Request:
 
 ```json
 {
-  "token": "86221ddae6594b43a19e4c76250c0a8833ecd3b7a9880fb5d2a901970de9ff0e",
-  "parentid": 53,
-  "comment": "you are right!"
+  "token":"837f068c02b48f7f0ebe590e07d0a33bd6ce1046ba44b5f1ad0f8b4a4d0cb7f3",
+  "parentid":"",
+  "comment":"I dont like this prop",
+  "signature":"b5ec08402e4c4c34da97bd469fc59be408a3e3978d3696ac6b31aed028d9d4acfe757bbd279f48a8ad81853f9d79416e9da0b563caa2f5a1dfb91f54f9edbf06"
 }
 ```
 
@@ -736,7 +806,7 @@ Reply:
 
 ```json
 {
-  "commentid": 103
+  "commentid": "103"
 }
 ```
 
@@ -759,10 +829,10 @@ sorted.
 
 | | Type | Description |
 | - | - | - |
-| CommentID | uint64 | Unique comment identifier |
-| UserID | uint64 | Unique user identifier |
-| ParentID | uint64 | Parent comment |
+| UserID | string | Unique user identifier |
 | Timestamp | int64 | UNIX time when comment was accepted |
+| CommentID | string | Unique comment identifier |
+| ParentID | string | Parent comment identifier |
 | Token | string | Censorship token |
 | Comment | string | Comment text |
 
@@ -779,23 +849,23 @@ Reply:
 ```json
 {
   "comments":[{
-    "commentid":56,
-    "userid":4,
-    "parentid":0,
+    "commentid":"56",
+    "userid":"4",
+    "parentid":"0",
     "timestamp":1509990301,
     "token":"86221ddae6594b43a19e4c76250c0a8833ecd3b7a9880fb5d2a901970de9ff0e",
     "comment":"I dont like this prop"
   },{
-    "commentid":57,
-    "userid":4,
-    "parentid":56,
+    "commentid":"57",
+    "userid":"4",
+    "parentid":"56",
     "timestamp":1509990301,
     "token":"86221ddae6594b43a19e4c76250c0a8833ecd3b7a9880fb5d2a901970de9ff0e",
     "comment":"you are right!"
   },{
-    "commentid":58,
-    "userid":4,
-    "parentid":56,
+    "commentid":"58",
+    "userid":"4",
+    "parentid":"56",
     "timestamp":1509990301,
     "token":"86221ddae6594b43a19e4c76250c0a8833ecd3b7a9880fb5d2a901970de9ff0e",
     "comment":"you are crazy!"
@@ -828,6 +898,9 @@ Reply:
 | <a name="ErrorStatusInvalidMIMEType">ErrorStatusInvalidMIMEType</a> | 18 | The MIME type provided for one of the proposal files was not the same as the one derived from the file's content. This error is provided with additional context: The name of the file with the invalid MIME type and the MIME type detected for the file's content. |
 | <a name="ErrorStatusUnsupportedMIMEType">ErrorStatusUnsupportedMIMEType</a> | 19 | The MIME type provided for one of the proposal files is not supported. This error is provided with additional context: The name of the file with the unsupported MIME type and the MIME type that is unsupported. |
 | <a name="ErrorStatusInvalidPropStatusTransition">ErrorStatusInvalidPropStatusTransition</a> | 20 | The provided proposal cannot be changed to the given status. |
+| <a name="ErrorStatusInvalidPublicKey">ErrorStatusInvalidPublicKey</a> | 21 | Invalid public key. |
+| <a name="ErrorStatusNoPublicKey">ErrorStatusNoPublicKey</a> | 22 | User does not have an active public key. |
+| <a name="ErrorStatusInvalidSignature">ErrorStatusInvalidSignature</a> | 23 | Invalid signature. |
 
 ### Proposal status codes
 
@@ -843,25 +916,25 @@ Reply:
 
 | | Type | Description |
 |-|-|-|
-| name | String | The name of the proposal. |
-| status | Number | Current status of the proposal. |
-| timestamp | Number | The unix time of the last update of the proposal. |
-| censorshiprecord | [`CensorshipRecord`](#censorship-record) | The censorship record that was created when the proposal was submitted. |
-| files | Array of [`File`](#file)s | This property will only be populated for the [`Proposal details`](#proposal-details) call. |
+| name | string | The name of the proposal. |
+| status | number | Current status of the proposal. |
+| timestamp | number | The unix time of the last update of the proposal. |
+| censorshiprecord | [`censorshiprecord`](#censorship-record) | The censorship record that was created when the proposal was submitted. |
+| files | array of [`File`](#file)s | This property will only be populated for the [`Proposal details`](#proposal-details) call. |
 
 ### `File`
 
 | | Type | Description |
 |-|-|-|
-| name | String | Name is the suggested filename. There should be no filenames that are overlapping and the name shall be validated before being used. |
-| mime | String | MIME type of the payload. Currently the system only supports md and png/svg files. The server shall reject invalid MIME types. |
-| digest | String | Digest is a SHA256 digest of the payload. The digest shall be verified by politeiad. |
-| payload | String | Payload is the actual file content. It shall be base64 encoded. Files have size limits that can be obtained via the [`Policy`](#policy) call. The server shall strictly enforce policy limits. |
+| name | string | Name is the suggested filename. There should be no filenames that are overlapping and the name shall be validated before being used. |
+| mime | string | MIME type of the payload. Currently the system only supports md and png/svg files. The server shall reject invalid MIME types. |
+| digest | string | Digest is a SHA256 digest of the payload. The digest shall be verified by politeiad. |
+| payload | string | Payload is the actual file content. It shall be base64 encoded. Files have size limits that can be obtained via the [`Policy`](#policy) call. The server shall strictly enforce policy limits. |
 
 ### `Censorship record`
 
 | | Type | Description |
 |-|-|-|
-| token | String | The token is a 32 byte random number that was assigned to identify the submitted proposal. This is the key to later retrieve the submitted proposal from the system. |
-| merkle | String | Merkle root of the proposal. This is defined as the sorted digests of all files proposal files. The client should cross verify this value. |
-| signature | String | Signature of merkle+token. The token is appended to the merkle root and then signed. The client should verify the signature. |
+| token | string | The token is a 32 byte random number that was assigned to identify the submitted proposal. This is the key to later retrieve the submitted proposal from the system. |
+| merkle | string | Merkle root of the proposal. This is defined as the sorted digests of all files proposal files. The client should cross verify this value. |
+| signature | string | Signature of byte array representations of merkle+token. The token byte array is appended to the merkle root byte array and then signed. The client should verify the signature. |

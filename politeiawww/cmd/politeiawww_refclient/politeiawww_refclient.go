@@ -13,9 +13,12 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"os"
+	"strconv"
 
 	"golang.org/x/net/publicsuffix"
 
+	"github.com/agl/ed25519"
+	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/util"
 )
@@ -45,10 +48,11 @@ func newClient(skipVerify bool) (*ctx, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ctx{client: &http.Client{
-		Transport: tr,
-		Jar:       jar,
-	}}, nil
+	return &ctx{
+		client: &http.Client{
+			Transport: tr,
+			Jar:       jar,
+		}}, nil
 }
 
 func (c *ctx) makeRequest(method string, route string, b interface{}) ([]byte, error) {
@@ -151,31 +155,52 @@ func (c *ctx) policy() (*v1.PolicyReply, error) {
 	return &pr, nil
 }
 
-func (c *ctx) newUser(email, password string) (string, error) {
+func idFromEmail(email string) (*identity.FullIdentity, error) {
+	// super hack alert, we are going to use the email address as the
+	// privkey.  We do this in order to sign things as an admin later.
+	buf := [32]byte{}
+	copy(buf[:], []byte(email))
+	r := bytes.NewReader(buf[:])
+	pub, priv, err := ed25519.GenerateKey(r)
+	if err != nil {
+		return nil, err
+	}
+	id := &identity.FullIdentity{}
+	copy(id.Public.Key[:], pub[:])
+	copy(id.PrivateKey[:], priv[:])
+	return id, nil
+}
+
+func (c *ctx) newUser(email, password string) (string, *identity.FullIdentity, error) {
+	id, err := idFromEmail(email)
+	if err != nil {
+		return "", nil, err
+	}
 	u := v1.NewUser{
-		Email:    email,
-		Password: password,
+		Email:     email,
+		Password:  password,
+		PublicKey: hex.EncodeToString(id.Public.Key[:]),
 	}
 
 	responseBody, err := c.makeRequest("POST", v1.RouteNewUser, u)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	var nur v1.NewUserReply
 	err = json.Unmarshal(responseBody, &nur)
 	if err != nil {
-		return "", fmt.Errorf("Could not unmarshal NewUserReply: %v",
-			err)
+		return "", nil,
+			fmt.Errorf("Could not unmarshal NewUserReply: %v", err)
 	}
 
 	//fmt.Printf("Verification Token: %v\n", nur.VerificationToken)
-	return nur.VerificationToken, nil
+	return nur.VerificationToken, id, nil
 }
 
-func (c *ctx) verifyNewUser(email, token string) error {
+func (c *ctx) verifyNewUser(email, token, sig string) error {
 	_, err := c.makeRequest("GET", "/user/verify/?email="+email+
-		"&verificationtoken="+token, nil)
+		"&verificationtoken="+token+"&signature="+sig, nil)
 	return err
 }
 
@@ -206,12 +231,16 @@ func (c *ctx) secret() error {
 	return err
 }
 
-func (c *ctx) comment(token, comment string, parentID uint64) (*v1.NewCommentReply, error) {
+func (c *ctx) comment(id *identity.FullIdentity, token, comment, parentID string) (*v1.NewCommentReply, error) {
 	cm := v1.NewComment{
 		Token:    token,
 		ParentID: parentID,
 		Comment:  comment,
 	}
+	// Sign token+parentid+comment
+	msg := []byte(cm.Token + cm.ParentID + cm.Comment)
+	sig := id.SignMessage(msg)
+	cm.Signature = hex.EncodeToString(sig[:])
 
 	responseBody, err := c.makeRequest("POST", v1.RouteNewComment, cm)
 	if err != nil {
@@ -263,14 +292,18 @@ func (c *ctx) me() (*v1.MeReply, error) {
 	return &mr, nil
 }
 
-func (c *ctx) newProposal() (*v1.NewProposalReply, error) {
-	np := v1.NewProposal{
-		Files: make([]v1.File, 0),
-	}
-
+func (c *ctx) newProposal(id *identity.FullIdentity) (*v1.NewProposalReply, error) {
 	payload := []byte("This is a description")
 	h := sha256.New()
 	h.Write(payload)
+
+	sig := id.SignMessage([]byte(hex.EncodeToString(h.Sum(nil))))
+	np := v1.NewProposal{
+		Files: make([]v1.File, 0),
+		// We can get away with just signing the digest because there
+		// is only one file.
+		Signature: hex.EncodeToString(sig[:]),
+	}
 
 	np.Files = append(np.Files, v1.File{
 		Name:    "index.md",
@@ -350,11 +383,18 @@ func (c *ctx) getProp(token string) (*v1.ProposalDetailsReply, error) {
 	return &pr, nil
 }
 
-func (c *ctx) setPropStatus(token string, status v1.PropStatusT) (*v1.SetProposalStatusReply, error) {
+func (c *ctx) setPropStatus(id *identity.FullIdentity, token string, status v1.PropStatusT) (*v1.SetProposalStatusReply, error) {
 	ps := v1.SetProposalStatus{
 		Token:          token,
 		ProposalStatus: status,
 	}
+	// Sign token+string(status)
+	msg := []byte(ps.Token +
+		strconv.FormatUint(uint64(ps.ProposalStatus), 10))
+	var err error
+	sig := id.SignMessage(msg)
+	ps.Signature = hex.EncodeToString(sig[:])
+
 	responseBody, err := c.makeRequest("POST",
 		"/proposals/"+token+"/status", /*v1.RouteSetProposalStatus*/
 		ps)
@@ -485,24 +525,20 @@ func _main() error {
 	password := hex.EncodeToString(b)
 
 	// New User
-	token, err := c.newUser(email, password)
+	token, id, err := c.newUser(email, password)
 	if err != nil {
 		return err
 	}
 
 	// Verify New User
-	err = c.verifyNewUser(email, token)
+	sig := id.SignMessage([]byte(token))
+	err = c.verifyNewUser(email, token, hex.EncodeToString(sig[:]))
 	if err != nil {
-		// ugly hack that ignores special redirect handling in verify
-		// user.  We assume we were redirected to the correct page and
-		// end up 404 because we don't route the success/failure page.
-		if err.Error() != "404" {
-			return err
-		}
+		return err
 	}
 
 	// New proposal
-	_, err = c.newProposal()
+	_, err = c.newProposal(id)
 	if err == nil {
 		return fmt.Errorf("/new should only be accessible by logged in users")
 	}
@@ -562,13 +598,13 @@ func _main() error {
 	}
 
 	// New proposal 1
-	myprop1, err := c.newProposal()
+	myprop1, err := c.newProposal(id)
 	if err != nil {
 		return err
 	}
 
 	// New proposal 2
-	myprop2, err := c.newProposal()
+	myprop2, err := c.newProposal(id)
 	if err != nil {
 		return err
 	}
@@ -605,6 +641,14 @@ func _main() error {
 			pr2.Proposal.Status, v1.PropStatusNotReviewed)
 	}
 
+	// Create enough pr oposals to have 2 pages
+	for i := 0; i < int(pr.ProposalListPageSize); i++ {
+		_, err = c.newProposal(id)
+		if err != nil {
+			return err
+		}
+	}
+
 	_, err = c.allUnvetted("")
 	if err == nil {
 		return fmt.Errorf("/unvetted should only be accessible by admin users")
@@ -626,6 +670,7 @@ func _main() error {
 	if *emailFlag != "" {
 		adminEmail := *emailFlag
 		adminPassword := *passwordFlag
+		adminID, err := idFromEmail(adminEmail)
 
 		c, err = newClient(true)
 		if err != nil {
@@ -660,30 +705,21 @@ func _main() error {
 				me.IsAdmin, true)
 		}
 
-		// Create enough proposals to have 2 pages
-		for i := 0; i < int(pr.ProposalListPageSize); i++ {
-			_, err = c.newProposal()
-			if err != nil {
-				return err
-			}
-		}
-
+		// Test unvetted paging
 		unvettedPage1, err := c.allUnvetted("")
-		// Expect no error
 		if err != nil {
 			return err
 		}
-
 		lastProposal := unvettedPage1.Proposals[len(unvettedPage1.Proposals)-1]
 		unvettedPage2, err := c.allUnvetted(lastProposal.CensorshipRecord.Token)
 		if err != nil {
 			return err
 		}
-
 		if len(unvettedPage2.Proposals) == 0 {
 			return fmt.Errorf("empty 2nd page of unvetted proposals")
 		}
 
+		// Create test proposal 1
 		pr1, err := c.getProp(myprop1.CensorshipRecord.Token)
 		if err != nil {
 			return err
@@ -693,8 +729,8 @@ func _main() error {
 		}
 
 		// Move first proposal to published
-		psr1, err := c.setPropStatus(myprop1.CensorshipRecord.Token,
-			v1.PropStatusPublic)
+		psr1, err := c.setPropStatus(adminID,
+			myprop1.CensorshipRecord.Token, v1.PropStatusPublic)
 		if err != nil {
 			return err
 		}
@@ -705,8 +741,8 @@ func _main() error {
 		}
 
 		// Move second proposal to censored
-		psr2, err := c.setPropStatus(myprop2.CensorshipRecord.Token,
-			v1.PropStatusCensored)
+		psr2, err := c.setPropStatus(adminID,
+			myprop2.CensorshipRecord.Token, v1.PropStatusCensored)
 		if err != nil {
 			return err
 		}
@@ -748,38 +784,38 @@ func _main() error {
 		}
 
 		// Comment on proposals without a parent
-		cr, err := c.comment(myprop1.CensorshipRecord.Token,
-			"I like this prop", 0)
+		cr, err := c.comment(adminID, myprop1.CensorshipRecord.Token,
+			"I like this prop", "")
 		if err != nil {
 			return err
 		}
 		// Comment on original comment
-		cr, err = c.comment(myprop1.CensorshipRecord.Token,
+		cr, err = c.comment(adminID, myprop1.CensorshipRecord.Token,
 			"you are right!", cr.CommentID)
 		if err != nil {
 			return err
 		}
 		// Comment on comment
-		cr, err = c.comment(myprop1.CensorshipRecord.Token,
+		cr, err = c.comment(adminID, myprop1.CensorshipRecord.Token,
 			"you are wrong!", cr.CommentID)
 		if err != nil {
 			return err
 		}
 
 		// Comment on proposals without a parent
-		cr2, err := c.comment(myprop1.CensorshipRecord.Token,
-			"I dont like this prop", 0)
+		cr2, err := c.comment(adminID, myprop1.CensorshipRecord.Token,
+			"I dont like this prop", "")
 		if err != nil {
 			return err
 		}
 		// Comment on original comment
-		cr, err = c.comment(myprop1.CensorshipRecord.Token,
+		cr, err = c.comment(adminID, myprop1.CensorshipRecord.Token,
 			"you are right!", cr2.CommentID)
 		if err != nil {
 			return err
 		}
 		// Comment on original comment
-		cr, err = c.comment(myprop1.CensorshipRecord.Token,
+		cr, err = c.comment(adminID, myprop1.CensorshipRecord.Token,
 			"you are crazy!", cr2.CommentID)
 		if err != nil {
 			return err
