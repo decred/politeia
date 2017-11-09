@@ -238,8 +238,7 @@ type Login struct {
 	Password string `json:"password"`
 }
 
-// LoginReply is used to reply to the Login command. .  IsAdmin indicates if
-// the user has publish/censor privileges.
+// LoginReply is used to reply to the Login command.
 type LoginReply struct {
 	UserID  uint64 `json:"userid"`  // User id
 	IsAdmin bool   `json:"isadmin"` // Set to true when user is admin
@@ -257,6 +256,7 @@ type Me struct{}
 // MeReply contains user information the UI may need to render a user specific
 // page.
 type MeReply struct {
+	UserID  uint64 `json:"userid"` // User id
 	Email   string `json:"email"`
 	IsAdmin bool   `json:"isadmin"`
 }

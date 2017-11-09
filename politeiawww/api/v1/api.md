@@ -186,6 +186,11 @@ Return pertinent user information of the current logged in user.
       <th>Description</th>
     </tr>
     <tr>
+      <td><code>userid</code></td>
+      <td>Number</td>
+      <td>Unique user identifier.</td>
+    </tr>
+    <tr>
       <td><code>email</code></td>
       <td>String</td>
       <td>User ID.</td>
@@ -414,7 +419,11 @@ the user database.
       <th>Description</th>
     </tr>
     <tr>
-      UserID uint64 User identifier
+      <td><code>userid</code></td>
+      <td>Number</td>
+      <td>Unique user identifier.</td>
+    </tr>
+    <tr>
       <td><code>isadmin</code></td>
       <td>Boolean</td>
       <td>This indicates if the user has publish/censor privileges.</td>
@@ -1301,7 +1310,6 @@ Reply:
         The digest (SHA-256 checksum) provided for one of the proposal files
         was incorrect. This error is provided with additional information inside
         the <code>errorcontext</code> object:
-
         <table>
           <tr>
             <th></th>
@@ -1327,7 +1335,6 @@ Reply:
         The Base64 encoding provided for one of the proposal files
         was incorrect. This error is provided with additional information inside
         the <code>errorcontext</code> object:
-
         <table>
           <tr>
             <th></th>
@@ -1354,7 +1361,6 @@ Reply:
         the same as the one derived from the file's content. This error
         is provided with additional information inside the
         <code>errorcontext</code> object:
-
         <table>
           <tr>
             <th></th>
@@ -1385,7 +1391,6 @@ Reply:
         The MIME type provided for one of the proposal files is
         not supported. This error is provided with additional information
         inside the <code>errorcontext</code> object:
-
         <table>
           <tr>
             <th></th>
