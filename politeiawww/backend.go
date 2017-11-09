@@ -19,6 +19,7 @@ import (
 
 	"github.com/dajohi/goemail"
 	pd "github.com/decred/politeia/politeiad/api/v1"
+	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	www "github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/politeiawww/database"
@@ -530,6 +531,21 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 	// XXX We should create a sinlge reply struct that get's returned
 	// instead of many.
 
+	// Ensure we got a proper pubkey.
+	var emptyPK [identity.PublicKeySize]byte
+	pk, err := hex.DecodeString(u.PublicKey)
+	if err != nil {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidPublicKey,
+		}
+	}
+	if len(pk) != len(emptyPK) ||
+		bytes.Equal(pk, emptyPK[:]) {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidPublicKey,
+		}
+	}
+
 	// Check if the user already exists.
 	if user, err := b.db.UserGet(u.Email); err == nil {
 		// Check if the user is already verified.
@@ -582,7 +598,11 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 			Admin:          false,
 			NewUserVerificationToken:  token,
 			NewUserVerificationExpiry: expiry,
+			Identities: []database.Identity{{
+				Activated: time.Now().Unix(),
+			}},
 		}
+		copy(newUser.Identities[0].Key[:], pk)
 
 		err = b.db.UserNew(newUser)
 		if err != nil {
@@ -644,6 +664,43 @@ func (b *backend) ProcessVerifyNewUser(u www.VerifyNewUser) error {
 	if currentTime := time.Now().Unix(); currentTime > user.NewUserVerificationExpiry {
 		return www.UserError{
 			ErrorCode: www.ErrorStatusVerificationTokenExpired,
+		}
+	}
+
+	// Check signarure
+	signature, err := hex.DecodeString(u.Signature)
+	if err != nil {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusInvalidPublicKey,
+		}
+	}
+	if len(signature) != identity.SignatureSize {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusInvalidPublicKey,
+		}
+	}
+	var (
+		sig [identity.SignatureSize]byte
+		pi  *identity.PublicIdentity
+	)
+	copy(sig[:], signature)
+	for _, v := range user.Identities {
+		if v.Deactivated != 0 {
+			continue
+		}
+		pi, err = identity.PublicIdentityFromBytes(v.Key[:])
+		if err != nil {
+			return err
+		}
+	}
+	if pi == nil {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusNoPublicKey,
+		}
+	}
+	if !pi.VerifyMessage(token, sig) {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSignature,
 		}
 	}
 

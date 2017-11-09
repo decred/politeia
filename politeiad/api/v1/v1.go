@@ -168,11 +168,8 @@ type Identity struct {
 
 // IdentityReply contains the server public identity.
 type IdentityReply struct {
-	Response string `json:"response"` // Signature of Challenge
-	Name     string `json:"name"`     // FQDN
-	Nick     string `json:"nick"`     // Server nick name
-	Identity string `json:"identity"` // Public identity
-	Key      string `json:"key"`      // Public key
+	Response  string `json:"response"`  // Signature of Challenge
+	PublicKey string `json:"publickey"` // Public key
 }
 
 // File describes an individual file that is part of the proposal.  The

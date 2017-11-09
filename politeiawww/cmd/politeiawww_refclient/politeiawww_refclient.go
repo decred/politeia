@@ -16,6 +16,7 @@ import (
 
 	"golang.org/x/net/publicsuffix"
 
+	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/util"
 )
@@ -28,8 +29,9 @@ var (
 )
 
 type ctx struct {
-	client *http.Client
-	csrf   string
+	client   *http.Client
+	identity *identity.FullIdentity
+	csrf     string
 }
 
 func newClient(skipVerify bool) (*ctx, error) {
@@ -45,10 +47,16 @@ func newClient(skipVerify bool) (*ctx, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ctx{client: &http.Client{
-		Transport: tr,
-		Jar:       jar,
-	}}, nil
+	id, err := identity.New()
+	if err != nil {
+		return nil, err
+	}
+	return &ctx{
+		identity: id,
+		client: &http.Client{
+			Transport: tr,
+			Jar:       jar,
+		}}, nil
 }
 
 func (c *ctx) makeRequest(method string, route string, b interface{}) ([]byte, error) {
@@ -153,8 +161,9 @@ func (c *ctx) policy() (*v1.PolicyReply, error) {
 
 func (c *ctx) newUser(email, password string) (string, error) {
 	u := v1.NewUser{
-		Email:    email,
-		Password: password,
+		Email:     email,
+		Password:  password,
+		PublicKey: hex.EncodeToString(c.identity.Public.Key[:]),
 	}
 
 	responseBody, err := c.makeRequest("POST", v1.RouteNewUser, u)
@@ -173,9 +182,9 @@ func (c *ctx) newUser(email, password string) (string, error) {
 	return nur.VerificationToken, nil
 }
 
-func (c *ctx) verifyNewUser(email, token string) error {
+func (c *ctx) verifyNewUser(email, token, sig string) error {
 	_, err := c.makeRequest("GET", "/user/verify/?email="+email+
-		"&verificationtoken="+token, nil)
+		"&verificationtoken="+token+"&signature="+sig, nil)
 	return err
 }
 
@@ -489,7 +498,12 @@ func _main() error {
 	}
 
 	// Verify New User
-	err = c.verifyNewUser(email, token)
+	tokenBytes, err := hex.DecodeString(token)
+	if err != nil {
+		return err
+	}
+	sig := c.identity.SignMessage(tokenBytes)
+	err = c.verifyNewUser(email, token, hex.EncodeToString(sig[:]))
 	if err != nil {
 		// ugly hack that ignores special redirect handling in verify
 		// user.  We assume we were redirected to the correct page and

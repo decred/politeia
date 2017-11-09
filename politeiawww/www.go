@@ -62,10 +62,7 @@ func (p *politeiawww) getIdentity() error {
 
 	// Pretty print identity.
 	log.Infof("Identity fetched from politeiad")
-	log.Infof("FQDN       : %v", id.Name)
-	log.Infof("Nick       : %v", id.Nick)
 	log.Infof("Key        : %x", id.Key)
-	log.Infof("Identity   : %x", id.Identity)
 	log.Infof("Fingerprint: %v", id.Fingerprint())
 
 	// Ask user if we like this identity
@@ -220,7 +217,8 @@ func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request
 		query := r.URL.Query()
 		email, emailOk := query["email"]
 		token, tokenOk := query["verificationtoken"]
-		if !emailOk || !tokenOk {
+		sig, sigOk := query["signature"]
+		if !emailOk || !tokenOk || !sigOk {
 			log.Errorf("handleVerifyNewUser: Unmarshal %v", err)
 			http.Redirect(w, r, routePrefix+v1.RouteVerifyNewUserFailure,
 				http.StatusMovedPermanently)
@@ -229,6 +227,7 @@ func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request
 
 		vnu.Email = email[0]
 		vnu.VerificationToken = token[0]
+		vnu.Signature = sig[0]
 	}
 	defer r.Body.Close()
 
@@ -236,12 +235,14 @@ func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		userErr, ok := err.(v1.UserError)
 		if ok {
-			url, err := url.Parse(routePrefix + v1.RouteVerifyNewUserFailure)
+			url, err := url.Parse(routePrefix +
+				v1.RouteVerifyNewUserFailure)
 			if err == nil {
 				q := url.Query()
 				q.Set("errorcode", string(userErr.ErrorCode))
 				url.RawQuery = q.Encode()
-				http.Redirect(w, r, url.String(), http.StatusMovedPermanently)
+				http.Redirect(w, r, url.String(),
+					http.StatusMovedPermanently)
 				return
 			}
 		}
