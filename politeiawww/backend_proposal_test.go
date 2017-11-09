@@ -2,9 +2,10 @@ package main
 
 import (
 	"encoding/base64"
-	"github.com/decred/politeia/util"
 	"testing"
 	"time"
+
+	"github.com/decred/politeia/util"
 
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	www "github.com/decred/politeia/politeiawww/api/v1"
@@ -25,7 +26,6 @@ func createNewProposalWithFileSizes(b *backend, t *testing.T, numMDFiles, numIma
 	)
 
 	for i := uint(0); i < numMDFiles; i++ {
-
 		// @rgeraldes - add at least one index file
 		if i == 0 {
 			name = indexFile

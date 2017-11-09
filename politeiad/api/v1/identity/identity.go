@@ -15,8 +15,6 @@ import (
 	"io/ioutil"
 
 	"github.com/agl/ed25519"
-	"github.com/agl/ed25519/extra25519"
-	"golang.org/x/crypto/curve25519"
 )
 
 var (
@@ -26,16 +24,14 @@ var (
 )
 
 const (
-	privKeySize   = ed25519.PrivateKeySize
-	SignatureSize = ed25519.SignatureSize
-	pubKeySize    = ed25519.PublicKeySize
-	IdentitySize  = 32
+	PrivateKeySize = ed25519.PrivateKeySize
+	SignatureSize  = ed25519.SignatureSize
+	PublicKeySize  = ed25519.PublicKeySize
 )
 
 type FullIdentity struct {
-	Public          PublicIdentity     // public key and identity
-	PrivateKey      [privKeySize]byte  // private key, exported for marshaling
-	PrivateIdentity [IdentitySize]byte // private key, exported for marshaling
+	Public     PublicIdentity       // public key
+	PrivateKey [PrivateKeySize]byte // private key, exported for marshaling
 }
 
 func (fi *FullIdentity) Marshal() ([]byte, error) {
@@ -58,13 +54,10 @@ func UnmarshalFullIdentity(data []byte) (*FullIdentity, error) {
 }
 
 type PublicIdentity struct {
-	Name     string             // long name, e.g. John Doe
-	Nick     string             // short name, e.g. jd
-	Key      [pubKeySize]byte   // public key
-	Identity [IdentitySize]byte // public identity
+	Key [PublicKeySize]byte // public key
 }
 
-func New(name, nick string) (*FullIdentity, error) {
+func New() (*FullIdentity, error) {
 	fi := FullIdentity{}
 	pub, priv, err := ed25519.GenerateKey(prng)
 	if err != nil {
@@ -76,13 +69,6 @@ func New(name, nick string) (*FullIdentity, error) {
 	copy(fi.PrivateKey[:], priv[:])
 	zero(pub[:])
 	zero(priv[:])
-
-	// obtain identities
-	extra25519.PrivateKeyToCurve25519(&fi.PrivateIdentity, &fi.PrivateKey)
-	curve25519.ScalarBaseMult(&fi.Public.Identity, &fi.PrivateIdentity)
-
-	fi.Public.Name = name
-	fi.Public.Nick = nick
 
 	return &fi, nil
 }
@@ -123,6 +109,15 @@ func UnmarshalPublicIdentity(data []byte) (*PublicIdentity, error) {
 	return &pi, nil
 }
 
+func PublicIdentityFromBytes(data []byte) (*PublicIdentity, error) {
+	pi := PublicIdentity{}
+	if len(data) != PublicKeySize {
+		return nil, fmt.Errorf("invalid public key length")
+	}
+	copy(pi.Key[:], data)
+	return &pi, nil
+}
+
 func LoadPublicIdentity(filename string) (*PublicIdentity, error) {
 	idx, err := ioutil.ReadFile(filename)
 	if err != nil {
@@ -141,11 +136,11 @@ func (p PublicIdentity) VerifyMessage(msg []byte, sig [SignatureSize]byte) bool 
 }
 
 func (p PublicIdentity) String() string {
-	return hex.EncodeToString(p.Identity[:])
+	return hex.EncodeToString(p.Key[:])
 }
 
 func (p PublicIdentity) Fingerprint() string {
-	return base64.StdEncoding.EncodeToString(p.Identity[:])
+	return base64.StdEncoding.EncodeToString(p.Key[:])
 }
 
 func (p *PublicIdentity) Marshal() ([]byte, error) {

@@ -57,9 +57,11 @@ func assertSuccess(t *testing.T, err error) {
 	if err != nil {
 		userErr, ok := err.(www.UserError)
 		if ok {
-			t.Fatalf("unexpected error code %v\n\n%s", userErr.ErrorCode, debug.Stack())
+			t.Fatalf("unexpected error code %v\n\n%s",
+				userErr.ErrorCode, debug.Stack())
 		} else {
-			t.Fatalf("unexpected error: %v\n\n%s", err, debug.Stack())
+			t.Fatalf("unexpected error: %v\n\n%s", err,
+				debug.Stack())
 		}
 	}
 }
@@ -115,7 +117,7 @@ func createAndVerifyUser(t *testing.T, b *backend) www.NewUser {
 		Email:             nu.Email,
 		VerificationToken: nur.VerificationToken,
 	}
-	err = b.ProcessVerifyNewUser(v)
+	_, err = b.ProcessVerifyNewUser(v)
 	assertSuccess(t, err)
 
 	return nu
@@ -209,7 +211,7 @@ func TestProcessVerifyNewUserWithNonExistingUser(t *testing.T) {
 		VerificationToken: generateRandomString(www.VerificationTokenSize),
 	}
 
-	err := b.ProcessVerifyNewUser(u)
+	_, err := b.ProcessVerifyNewUser(u)
 	assertError(t, err, www.ErrorStatusVerificationTokenInvalid)
 
 	b.db.Close()
@@ -237,7 +239,7 @@ func TestProcessVerifyNewUserWithInvalidToken(t *testing.T) {
 		VerificationToken: hex.EncodeToString(token),
 	}
 
-	err = b.ProcessVerifyNewUser(vu)
+	_, err = b.ProcessVerifyNewUser(vu)
 	assertError(t, err, www.ErrorStatusVerificationTokenInvalid)
 
 	b.db.Close()
@@ -270,7 +272,10 @@ func TestProcessLoginWithUnverifiedUser(t *testing.T) {
 	_, err := b.ProcessNewUser(u)
 	assertSuccess(t, err)
 
-	l := www.Login(u)
+	l := www.Login{
+		Email:    u.Email,
+		Password: u.Password,
+	}
 	_, err = b.ProcessLogin(l)
 	assertError(t, err, www.ErrorStatusInvalidEmailOrPassword)
 
@@ -283,7 +288,10 @@ func TestLoginWithVerifiedUser(t *testing.T) {
 	b := createBackend(t)
 	u := createAndVerifyUser(t, b)
 
-	l := www.Login(u)
+	l := www.Login{
+		Email:    u.Email,
+		Password: u.Password,
+	}
 	_, err := b.ProcessLogin(l)
 	assertSuccess(t, err)
 
@@ -296,7 +304,10 @@ func TestProcessChangePasswordWithBadPasswords(t *testing.T) {
 	b := createBackend(t)
 	u := createAndVerifyUser(t, b)
 
-	l := www.Login(u)
+	l := www.Login{
+		Email:    u.Email,
+		Password: u.Password,
+	}
 	_, err := b.ProcessLogin(l)
 	assertSuccess(t, err)
 
@@ -324,7 +335,10 @@ func TestProcessChangePassword(t *testing.T) {
 	b := createBackend(t)
 	u := createAndVerifyUser(t, b)
 
-	l := www.Login(u)
+	l := www.Login{
+		Email:    u.Email,
+		Password: u.Password,
+	}
 	_, err := b.ProcessLogin(l)
 	assertSuccess(t, err)
 
