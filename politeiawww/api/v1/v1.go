@@ -187,24 +187,28 @@ type VersionReply struct {
 // NewUser is used to request that a new user be created within the db.
 // If successful, the user will require verification before being able to login.
 type NewUser struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email     string `json:"email"`
+	Password  string `json:"password"`
+	PublicKey string `json:"publickey"`
 }
 
 // NewUserReply is used to reply to the NewUser command with an error
 // if the command is unsuccessful.
 type NewUserReply struct {
-	VerificationToken string `json:"verificationtoken"`
+	VerificationToken string `json:"verificationtoken"` // Server verification token
+	Challenge         string `json:"challenge"`         // Challenge client must sign
 }
 
 // VerifyNewUser is used to perform verification for the user created through
 // the NewUser command using the token provided in NewUserReply.
 type VerifyNewUser struct {
-	Email             string `json:"email"`
-	VerificationToken string `json:"verificationtoken"`
+	Email              string `json:"email"`              // User email address
+	VerificationToken  string `json:"verificationtoken"`  // Server provided verification token
+	ChallengeSignature string `json:"challengesignature"` // Signature of NewUserReply.Challenge
 }
 
-//XXX missing VerifyNewUserReply
+//VerifyNewUserReply
+type VerifyNewUserReply struct{}
 
 // ChangePassword is used to perform a password change while the user
 // is logged in.
