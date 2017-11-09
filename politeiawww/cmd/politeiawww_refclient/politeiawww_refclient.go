@@ -265,7 +265,6 @@ func (c *ctx) me() (*v1.MeReply, error) {
 
 func (c *ctx) newProposal() (*v1.NewProposalReply, error) {
 	np := v1.NewProposal{
-		Name:  "test",
 		Files: make([]v1.File, 0),
 	}
 

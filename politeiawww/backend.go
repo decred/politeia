@@ -24,7 +24,11 @@ import (
 	"github.com/decred/politeia/politeiawww/database"
 	"github.com/decred/politeia/politeiawww/database/localdb"
 	"github.com/decred/politeia/util"
-	"github.com/kennygrant/sanitize"
+)
+
+const (
+	// indexFile contains the file name of the index file
+	indexFile = "index.md"
 )
 
 // politeiawww backend construct
@@ -223,24 +227,20 @@ func (b *backend) validatePassword(password string) error {
 }
 
 func (b *backend) validateProposal(np www.NewProposal) error {
-	// Check for a non-empty name.
-	if np.Name == "" {
-		return www.UserError{
-			ErrorCode: www.ErrorStatusProposalMissingName,
-		}
-	}
-
 	// Check for at least 1 markdown file with a non-emtpy payload.
 	if len(np.Files) == 0 || np.Files[0].Payload == "" {
 		return www.UserError{
-			ErrorCode: www.ErrorStatusProposalMissingDescription,
+			ErrorCode: www.ErrorStatusProposalMissingFiles,
 		}
 	}
 
+	// verify if there are duplicate names
+	filenames := make(map[string]int, len(np.Files))
 	// Check that the file number policy is followed.
-	var numMDs, numImages uint = 0, 0
+	var numMDs, numImages, numIndexFiles uint = 0, 0, 0
 	var mdExceedsMaxSize, imageExceedsMaxSize bool = false, false
 	for _, v := range np.Files {
+		filenames[v.Name]++
 		if strings.HasPrefix(v.MIME, "image/") {
 			numImages++
 			data, err := base64.StdEncoding.DecodeString(v.Payload)
@@ -252,6 +252,11 @@ func (b *backend) validateProposal(np www.NewProposal) error {
 			}
 		} else {
 			numMDs++
+
+			if v.Name == indexFile {
+				numIndexFiles++
+			}
+
 			data, err := base64.StdEncoding.DecodeString(v.Payload)
 			if err != nil {
 				return err
@@ -259,6 +264,30 @@ func (b *backend) validateProposal(np www.NewProposal) error {
 			if len(data) > www.PolicyMaxMDSize {
 				mdExceedsMaxSize = true
 			}
+		}
+	}
+
+	// verify duplicate file names
+	if len(np.Files) > 1 {
+		var repeated []string
+		for name, count := range filenames {
+			if count > 1 {
+				repeated = append(repeated, name)
+			}
+		}
+		if len(repeated) > 0 {
+			return www.UserError{
+				ErrorCode:    www.ErrorStatusProposalDuplicateFilenames,
+				ErrorContext: repeated,
+			}
+		}
+	}
+
+	// we expect one index file
+	if numIndexFiles == 0 {
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusProposalMissingFiles,
+			ErrorContext: []string{indexFile},
 		}
 	}
 
@@ -283,6 +312,18 @@ func (b *backend) validateProposal(np www.NewProposal) error {
 	if imageExceedsMaxSize {
 		return www.UserError{
 			ErrorCode: www.ErrorStatusMaxImageSizeExceededPolicy,
+		}
+	}
+
+	// proposal title validation
+	name, err := getProposalName(np.Files)
+	if err != nil {
+		return err
+	}
+	if !util.IsValidProposalName(name) {
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusProposalInvalidTitle,
+			ErrorContext: []string{www.ErrorContextProposalInvalidTitle},
 		}
 	}
 
@@ -737,8 +778,13 @@ func (b *backend) ProcessNewProposal(np www.NewProposal) (*www.NewProposalReply,
 		return nil, err
 	}
 
+	name, err := getProposalName(np.Files)
+	if err != nil {
+		return nil, err
+	}
+
 	n := pd.New{
-		Name:      sanitize.Name(np.Name),
+		Name:      name,
 		Challenge: hex.EncodeToString(challenge),
 		Files:     convertPropFilesFromWWW(np.Files),
 	}
@@ -758,7 +804,7 @@ func (b *backend) ProcessNewProposal(np www.NewProposal) (*www.NewProposalReply,
 		// Add the new proposal to the cache.
 		b.Lock()
 		b.inventory = append(b.inventory, www.ProposalRecord{
-			Name:             np.Name,
+			Name:             name,
 			Status:           www.PropStatusNotReviewed,
 			Timestamp:        pdReply.Timestamp,
 			Files:            np.Files,
@@ -791,7 +837,7 @@ func (b *backend) ProcessNewProposal(np www.NewProposal) (*www.NewProposalReply,
 
 		// Add the new proposal to the cache.
 		r := www.ProposalRecord{
-			Name:             np.Name,
+			Name:             name,
 			Status:           www.PropStatusNotReviewed,
 			Timestamp:        pdReply.Timestamp,
 			Files:            make([]www.File, 0),
@@ -1040,4 +1086,14 @@ func NewBackend(cfg *config) (*backend, error) {
 	}
 
 	return b, nil
+}
+
+// getProposalName returns the proposal name based on the index markdown file.
+func getProposalName(files []www.File) (string, error) {
+	for _, file := range files {
+		if file.Name == indexFile {
+			return util.GetProposalName(file.Payload)
+		}
+	}
+	return "", nil
 }

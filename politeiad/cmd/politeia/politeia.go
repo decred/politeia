@@ -24,7 +24,6 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/util"
-	"github.com/kennygrant/sanitize"
 )
 
 var (
@@ -252,7 +251,7 @@ func newProposal() error {
 		return err
 	}
 	n := v1.New{
-		Name:      sanitize.Name(flags[0]),
+		Name:      flags[0],
 		Challenge: hex.EncodeToString(challenge),
 		Files:     make([]v1.File, 0, len(flags[1:])),
 	}

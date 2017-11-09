@@ -65,11 +65,24 @@ func assertSuccess(t *testing.T, err error) {
 }
 
 func assertError(t *testing.T, err error, expectedStatus www.ErrorStatusT) {
+	assertErrorWithContext(t, err, expectedStatus, []string{})
+}
+
+func assertErrorWithContext(t *testing.T, err error, expectedStatus www.ErrorStatusT, expectedContext []string) {
 	if err != nil {
 		userErr, ok := err.(www.UserError)
 		if ok {
 			if userErr.ErrorCode != expectedStatus {
 				t.Fatalf("expected error code %v, was %v\n\n%s", expectedStatus, userErr.ErrorCode, debug.Stack())
+			}
+			if len(userErr.ErrorContext) == len(expectedContext) {
+				for i, context := range userErr.ErrorContext {
+					if context != expectedContext[i] {
+						t.Fatalf("expected context %s, was %s\n\n%s", expectedContext, userErr.ErrorContext, debug.Stack())
+					}
+				}
+			} else {
+				t.Fatalf("expected context %v, was %v\n\n%s", expectedContext, userErr.ErrorContext, debug.Stack())
 			}
 		} else {
 			t.Fatalf("unexpected error: %v\n\n%s", err, debug.Stack())

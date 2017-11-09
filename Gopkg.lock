@@ -110,12 +110,6 @@
   revision = "a93b200c26cbae3bb09dd0dc2c7c7fe1468a034a"
 
 [[projects]]
-  name = "github.com/kennygrant/sanitize"
-  packages = ["."]
-  revision = "6a0bfdde8629a3a3a7418a7eae45c54154692514"
-  version = "v1.2"
-
-[[projects]]
   branch = "master"
   name = "github.com/marcopeereboom/lockfile"
   packages = ["."]
@@ -154,7 +148,7 @@
 [[projects]]
   branch = "master"
   name = "golang.org/x/net"
-  packages = ["html","html/atom","idna","publicsuffix"]
+  packages = ["idna","publicsuffix"]
   revision = "0a9397675ba34b2845f758fe3cd68828369c6517"
 
 [[projects]]
@@ -166,6 +160,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "f7fb71a9b6a1287415654c63b76f1092b8b39e5c53298feef4ac3073c9742561"
+  inputs-digest = "238cd7a8a72b3ba6c65ac46fecc635d3a7b0575bdb5c51d6e7977bf26b6e83b7"
   solver-name = "gps-cdcl"
   solver-version = 1

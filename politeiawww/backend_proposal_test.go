@@ -19,9 +19,21 @@ func createNewProposalWithFiles(b *backend, t *testing.T, numMDFiles, numImageFi
 
 func createNewProposalWithFileSizes(b *backend, t *testing.T, numMDFiles, numImageFiles, mdSize, imageSize uint) (*www.NewProposal, *www.NewProposalReply, error) {
 	files := make([]pd.File, 0, numMDFiles+numImageFiles)
+
 	for i := uint(0); i < numMDFiles; i++ {
+		var (
+			name string
+		)
+
+		// @rgeraldes - add at least one index file
+		if i == 0 {
+			name = indexFile
+		} else {
+			name = generateRandomString(5) + ".md"
+		}
+
 		files = append(files, pd.File{
-			Name:    generateRandomString(5) + ".md",
+			Name:    name,
 			MIME:    "text/plain; charset=utf-8",
 			Payload: base64.StdEncoding.EncodeToString([]byte(generateRandomString(int(mdSize)))),
 		})
@@ -36,7 +48,71 @@ func createNewProposalWithFileSizes(b *backend, t *testing.T, numMDFiles, numIma
 	}
 
 	np := www.NewProposal{
-		Name:  generateRandomString(16),
+		Files: convertPropFilesFromPD(files),
+	}
+
+	npr, err := b.ProcessNewProposal(np)
+	return &np, npr, err
+}
+
+func createNewProposalWithInvalidTitle(b *backend, t *testing.T) (*www.NewProposal, *www.NewProposalReply, error) {
+	const (
+		invalidTitle = "$%&/)Title<<>>"
+	)
+	files := make([]pd.File, 0, 2)
+	filename := indexFile
+
+	payload := base64.StdEncoding.EncodeToString([]byte(invalidTitle))
+
+	files = append(files, pd.File{
+		Name:    filename,
+		MIME:    "text/plain; charset=utf-8",
+		Payload: payload,
+	})
+
+	np := www.NewProposal{
+		Files: convertPropFilesFromPD(files),
+	}
+
+	npr, err := b.ProcessNewProposal(np)
+	return &np, npr, err
+}
+
+func createNewProposalWithDuplicateFiles(b *backend, t *testing.T) (*www.NewProposal, *www.NewProposalReply, error) {
+	files := make([]pd.File, 0, 2)
+	filename := indexFile
+	payload := base64.StdEncoding.EncodeToString([]byte(generateRandomString(int(64))))
+
+	files = append(files, pd.File{
+		Name:    filename,
+		MIME:    "text/plain; charset=utf-8",
+		Payload: payload,
+	})
+
+	files = append(files, pd.File{
+		Name:    filename,
+		MIME:    "text/plain; charset=utf-8",
+		Payload: payload,
+	})
+
+	np := www.NewProposal{
+		Files: convertPropFilesFromPD(files),
+	}
+
+	npr, err := b.ProcessNewProposal(np)
+	return &np, npr, err
+}
+
+func createNewProposalWithoutIndexFile(b *backend, t *testing.T) (*www.NewProposal, *www.NewProposalReply, error) {
+	files := make([]pd.File, 0, 2)
+
+	files = append(files, pd.File{
+		Name:    "not_index.md",
+		MIME:    "text/plain; charset=utf-8",
+		Payload: base64.StdEncoding.EncodeToString([]byte(generateRandomString(int(64)))),
+	})
+
+	np := www.NewProposal{
 		Files: convertPropFilesFromPD(files),
 	}
 
@@ -79,9 +155,6 @@ func getProposalDetails(b *backend, token string, t *testing.T) *www.ProposalDet
 }
 
 func verifyProposalDetails(np *www.NewProposal, p www.ProposalRecord, t *testing.T) {
-	if p.Name != np.Name {
-		t.Fatalf("proposal names do not match")
-	}
 	if p.Files[0].Payload != np.Files[0].Payload {
 		t.Fatalf("proposal descriptions do not match")
 	}
@@ -133,13 +206,22 @@ func TestNewProposalPolicyRestrictions(t *testing.T) {
 	assertError(t, err, www.ErrorStatusMaxImagesExceededPolicy)
 
 	_, _, err = createNewProposalWithFiles(b, t, 0, 0)
-	assertError(t, err, www.ErrorStatusProposalMissingDescription)
+	assertError(t, err, www.ErrorStatusProposalMissingFiles)
 
 	_, _, err = createNewProposalWithFileSizes(b, t, 1, 0, p.MaxMDSize+1, 0)
 	assertError(t, err, www.ErrorStatusMaxMDSizeExceededPolicy)
 
 	_, _, err = createNewProposalWithFileSizes(b, t, 1, 1, 64, p.MaxImageSize+1)
 	assertError(t, err, www.ErrorStatusMaxImageSizeExceededPolicy)
+
+	_, _, err = createNewProposalWithInvalidTitle(b, t)
+	assertErrorWithContext(t, err, www.ErrorStatusProposalInvalidTitle, []string{www.ErrorContextProposalInvalidTitle})
+
+	_, _, err = createNewProposalWithDuplicateFiles(b, t)
+	assertErrorWithContext(t, err, www.ErrorStatusProposalDuplicateFilenames, []string{indexFile})
+
+	_, _, err = createNewProposalWithoutIndexFile(b, t)
+	assertErrorWithContext(t, err, www.ErrorStatusProposalMissingFiles, []string{indexFile})
 }
 
 // Tests fetching an unreviewed proposal's details.
