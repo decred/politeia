@@ -63,6 +63,7 @@ type config struct {
 	ConfigFile       string   `short:"C" long:"configfile" description:"Path to configuration file"`
 	DataDir          string   `short:"b" long:"datadir" description:"Directory to store data"`
 	LogDir           string   `long:"logdir" description:"Directory to log output."`
+	TemplateDir      string   `long:"templatedir" description:"Directory to the template data"`
 	TestNet          bool     `long:"testnet" description:"Use the test network"`
 	SimNet           bool     `long:"simnet" description:"Use the simulation test network"`
 	Profile          string   `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
