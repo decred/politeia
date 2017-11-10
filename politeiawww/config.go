@@ -28,26 +28,26 @@ import (
 )
 
 const (
-	defaultLogLevel         = "info"
-	defaultLogDirname       = "logs"
-	defaultLogFilename      = "politeiawww.log"
-	defaultIdentityFilename = "identity.json"
+	defaultLogLevel             = "info"
+	defaultLogDirname           = "logs"
+	defaultTemplateRelativePath = "/templates/email"
+	defaultLogFilename          = "politeiawww.log"
+	defaultIdentityFilename     = "identity.json"
 
 	defaultMainnetPort = "4443"
 	defaultTestnetPort = "4443"
 )
 
 var (
+	currentDir           = filepath.Dir(util.Must(os.Executable()))
 	defaultHTTPSKeyFile  = filepath.Join(sharedconfig.DefaultHomeDir, "https.key")
 	defaultHTTPSCertFile = filepath.Join(sharedconfig.DefaultHomeDir, "https.cert")
 	defaultRPCCertFile   = filepath.Join(sharedconfig.DefaultHomeDir, "rpc.cert")
 	defaultCookieKeyFile = filepath.Join(sharedconfig.DefaultHomeDir, "cookie.key")
 	defaultLogDir        = filepath.Join(sharedconfig.DefaultHomeDir, defaultLogDirname)
+	defaultTemplateDir   = filepath.Join(currentDir, defaultTemplateRelativePath)
 
-	templateNewUserEmail = template.Must(
-		template.New("new_user_email_template").Parse(templateNewUserEmailRaw))
-	templateResetPasswordEmail = template.Must(
-		template.New("reset_password_email_template").Parse(templateResetPasswordEmailRaw))
+	templateNewUserEmail, templateResetPasswordEmail *template.Template
 )
 
 // runServiceCommand is only set to a real function on Windows.  It is used
@@ -314,6 +314,7 @@ func loadConfig() (*config, []string, error) {
 		DebugLevel:    defaultLogLevel,
 		DataDir:       sharedconfig.DefaultDataDir,
 		LogDir:        defaultLogDir,
+		TemplateDir:   defaultTemplateDir,
 		HTTPSKey:      defaultHTTPSKeyFile,
 		HTTPSCert:     defaultHTTPSCertFile,
 		RPCCert:       defaultRPCCertFile,
@@ -486,6 +487,8 @@ func loadConfig() (*config, []string, error) {
 	cfg.LogDir = cleanAndExpandPath(cfg.LogDir)
 	cfg.LogDir = filepath.Join(cfg.LogDir, netName(activeNetParams))
 
+	cfg.LogDir = cleanAndExpandPath(cfg.TemplateDir)
+
 	cfg.HTTPSKey = cleanAndExpandPath(cfg.HTTPSKey)
 	cfg.HTTPSCert = cleanAndExpandPath(cfg.HTTPSCert)
 	cfg.RPCCert = cleanAndExpandPath(cfg.RPCCert)
@@ -621,21 +624,21 @@ func loadConfig() (*config, []string, error) {
 		log.Warnf("%v", configFileError)
 	}
 
-	newUserTplData := newUserEmailTemplateData{
-		Email: "test@example.com",
-		Link:  "http://www.example.com",
-	}
-	if err := templateNewUserEmail.Execute(os.Stdout, &newUserTplData); err != nil {
-		return nil, nil, err
-	}
-
-	resetPasswordTplData := resetPasswordEmailTemplateData{
-		Email: "test@example.com",
-		Link:  "http://www.example.com",
-	}
-	if err := templateResetPasswordEmail.Execute(os.Stdout, &resetPasswordTplData); err != nil {
+	if err := loadEmailTemplates(cfg.TemplateDir); err != nil {
 		return nil, nil, err
 	}
 
 	return &cfg, remainingArgs, nil
+}
+
+// loadEmailTemplates parses the email templates
+func loadEmailTemplates(dir string) error {
+	var err error
+	if templateNewUserEmail, err = template.ParseFiles(filepath.Join(dir, "newuser.html")); err != nil {
+		return err
+	}
+	if templateResetPasswordEmail, err = template.ParseFiles(filepath.Join(dir, "resetpassword.html")); err != nil {
+		return err
+	}
+	return nil
 }
