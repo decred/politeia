@@ -64,48 +64,16 @@ when an unexpected server error has occurred. The format of errors is as follows
 
 **`4xx` errors**
 
-<table>
-  <tbody>
-    <tr>
-      <th></th>
-      <th>Type</th>
-      <th>Description</th>
-    </tr>
-    <tr>
-      <td><code>errorcode</code></td>
-      <td>Number</td>
-      <td>One of the <a href="#error-codes">error codes</a>.</td>
-    </tr>
-    <tr>
-      <td><code>errorcontext</code></td>
-      <td>Object</td>
-      <td>
-        This object is used to provide additional information for certain
-        errors; see the documentation for specific error codes.
-      </td>
-    </tr>
-  </tbody>
-</table>
+|  | Type | Description |
+|--------------|------------------|-------------------------------------------------------------------------------------------------------------------------------------|
+| errorcode | Number | One of the [error codes](#error-codes) |
+| errorcontext | Array of Strings | This array of strings is used to provide additional information for certain errors; see the documentation for specific error codes. |
 
 **`5xx` errors**
 
-<table>
-  <tbody>
-    <tr>
-      <th></th>
-      <th>Type</th>
-      <th>Description</th>
-    </tr>
-    <tr>
-      <td><code>errorcode</code></td>
-      <td>Number</td>
-      <td>
-        An error code that can be used to track down the internal server error
-        that occurred; it should be reported to Politeia administrators.
-      </td>
-    </tr>
-  </tbody>
-</table>
+|           | Type   | Description                                                                                                                             |
+|-----------|--------|-----------------------------------------------------------------------------------------------------------------------------------------|
+| errorcode | Number | An error code that can be used to track down the internal server error that occurred; it should be reported to Politeia administrators. |
 
 ## Methods
 
@@ -121,35 +89,11 @@ to get the CSRF token for the session and to ensure API compatability.
 
 **Results**:
 
-<table>
-  <tbody>
-    <tr>
-      <th></th>
-      <th>Type</th>
-      <th>Description</th>
-    </tr>
-    <tr>
-      <td><code>version</code></td>
-      <td>Number</td>
-      <td>API version that is running on this server.</td>
-    </tr>
-    <tr>
-      <td><code>route</code></td>
-      <td>String</td>
-      <td>
-        Route that should be prepended to all calls.  For example, <code>"/v1"</code>.
-      </td>
-    </tr>
-    <tr>
-      <td><code>identity</code></td>
-      <td>String</td>
-      <td>
-        Identity that signs various tokens to ensure server authenticity and
-        to prevent replay attacks.
-      </td>
-    </tr>
-  </tbody>
-</table>
+|          | Type   | Description                                                                                     |
+|----------|--------|-------------------------------------------------------------------------------------------------|
+| version  | Number | API version that is running on this server.                                                     |
+| route    | String | Route that should be prepended to all calls. For example, "/v1".                                |
+| identity | String | Identity that signs various tokens to ensure server authenticity and to prevent replay attacks. |
 
 **Example**
 
@@ -179,30 +123,11 @@ Return pertinent user information of the current logged in user.
 
 **Results**:
 
-<table>
-  <tbody>
-    <tr>
-      <th></th>
-      <th>Type</th>
-      <th>Description</th>
-    </tr>
-    <tr>
-      <td><code>userid</code></td>
-      <td>Number</td>
-      <td>Unique user identifier.</td>
-    </tr>
-    <tr>
-      <td><code>email</code></td>
-      <td>String</td>
-      <td>User ID.</td>
-    </tr>
-    <tr>
-      <td><code>isadmin</code></td>
-      <td>String</td>
-      <td>This indicates if the user has publish/censor privileges.</td>
-    </tr>
-  </tbody>
-</table>
+|         | Type   | Description                                               |
+|---------|--------|-----------------------------------------------------------|
+| userid  | Number | Unique user identifier.                                   |
+| email   | String | User ID.                                                  |
+| isadmin | String | This indicates if the user has publish/censor privileges. |
 
 If there currently is no session the call returns `403 Forbidden`.
 
@@ -231,58 +156,16 @@ Create a new user on the politeiawww server.
 
 **Params:**
 
-<table>
-  <tbody>
-    <tr>
-      <th>Parameter</th>
-      <th>Type</th>
-      <th>Description</th>
-      <th>Required</th>
-    </tr>
-    <tr>
-      <td><code>email</code></td>
-      <td>String</td>
-      <td>
-        Email is used as the web site user identity for a user.  When a user
-        changes email addresses the server shall maintain a mapping between
-        the old and new address.
-      </td>
-      <td>Yes</td>
-    </tr>
-    <tr>
-      <td><code>password</code></td>
-      <td>String</td>
-      <td>
-        The password that the user wishes to use.  This password travels in the
-        clear in order to enable JS-less systems.  The server shall never store
-        passwords in the clear.
-      </td>
-      <td>Yes</td>
-    </tr>
-  </tbody>
-</table>
+| Parameter | Type | Description | Required |
+|-----------|--------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|
+| email | String | Email is used as the web site user identity for a user. When a user changes email addresses the server shall maintain a mapping between the old and new address. | Yes |
+| password | String | The password that the user wishes to use. This password travels in the clear in order to enable JS-less systems. The server shall never store passwords in the clear. | Yes |
 
 **Results:**
 
-<table>
-  <tbody>
-    <tr>
-      <th></th>
-      <th>Type</th>
-      <th>Description</th>
-    </tr>
-    <tr>
-      <td><code>verificationtoken</code></td>
-      <td>String</td>
-      <td>
-        The verification token which is required when calling
-        <a href="#verify-user"><code>Verify user</code></a>.  If an email server
-        is set up, this property will be empty or nonexistent; the token will
-        be sent to the email address sent in the request.
-      </td>
-    </tr>
-  </tbody>
-</table>
+| Parameter | Type | Description |
+|-------------------|--------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| verificationtoken | String | The verification token which is required when calling [Verify user](#verify-user). If an email server is set up, this property will be empty or nonexistent; the token will be sent to the email address sent in the request. |
 
 This call can return one of the following error codes:
 
@@ -326,28 +209,10 @@ Verify email address of a previously created user.
 
 **Params:**
 
-<table>
-  <tbody>
-    <tr>
-      <th>Parameter</th>
-      <th>Type</th>
-      <th>Description</th>
-      <th>Required</th>
-    </tr>
-    <tr>
-      <td><code>email</code></td>
-      <td>String</td>
-      <td>Email address of previously created user.</td>
-      <td>Yes</td>
-    </tr>
-    <tr>
-      <td><code>verificationtoken</code></td>
-      <td>String</td>
-      <td>The token that was provided by email to the user.</td>
-      <td>Yes</td>
-    </tr>
-  </tbody>
-</table>
+| Parameter         | Type   | Description                                       | Required |
+|-------------------|--------|---------------------------------------------------|----------|
+| email             | String | Email address of previously created user.         | Yes      |
+| verificationtoken | String | The token that was provided by email to the user. | Yes      |
 
 **Results:** none
 
@@ -387,50 +252,17 @@ the user database.
 
 **Params:**
 
-<table>
-  <tbody>
-    <tr>
-      <th>Parameter</th>
-      <th>Type</th>
-      <th>Description</th>
-      <th>Required</th>
-    </tr>
-    <tr>
-      <td><code>email</code></td>
-      <td>String</td>
-      <td>Email address of user that is attempting to login.</td>
-      <td>Yes</td>
-    </tr>
-    <tr>
-      <td><code>password</code></td>
-      <td>String</td>
-      <td>Accompanying password for provided email.</td>
-      <td>Yes</td>
-    </tr>
-  </tbody>
-</table>
+| Parameter | Type   | Description                                        | Required |
+|-----------|--------|----------------------------------------------------|----------|
+| email     | String | Email address of user that is attempting to login. | Yes      |
+| password  | String | Accompanying password for provided email.          | Yes      |
 
 **Results:**
 
-<table>
-  <tbody>
-    <tr>
-      <th></th>
-      <th>Type</th>
-      <th>Description</th>
-    </tr>
-    <tr>
-      <td><code>userid</code></td>
-      <td>Number</td>
-      <td>Unique user identifier.</td>
-    </tr>
-    <tr>
-      <td><code>isadmin</code></td>
-      <td>Boolean</td>
-      <td>This indicates if the user has publish/censor privileges.</td>
-    </tr>
-  </tbody>
-</table>
+| Parameter | Type    | Description                                               |
+|-----------|---------|-----------------------------------------------------------|
+| userid    | Number  | Unique user identifier.                                   |
+| isadmin   | Boolean | This indicates if the user has publish/censor privileges. |
 
 On failure the call shall return `403 Forbidden` and one of the following
 error codes:
@@ -487,28 +319,10 @@ Changes the password for the currently logged in user.
 
 **Params:**
 
-<table>
-  <tbody>
-    <tr>
-      <th>Parameter</th>
-      <th>Type</th>
-      <th>Description</th>
-      <th>Required</th>
-    </tr>
-    <tr>
-      <td><code>currentpassword</code></td>
-      <td>String</td>
-      <td>The current password of the logged in user.</td>
-      <td>Yes</td>
-    </tr>
-    <tr>
-      <td><code>newpassword</code></td>
-      <td>String</td>
-      <td>The new password for the logged in user.</td>
-      <td>Yes</td>
-    </tr>
-  </tbody>
-</table>
+| Parameter       | Type   | Description                                 | Required |
+|-----------------|--------|---------------------------------------------|----------|
+| currentpassword | String | The current password of the logged in user. | Yes      |
+| newpassword     | String | The new password for the logged in user.    | Yes      |
 
 **Results:** none
 
@@ -542,34 +356,11 @@ Allows a user to reset his password without being logged in.
 
 **Params:**
 
-<table>
-  <tbody>
-    <tr>
-      <th>Parameter</th>
-      <th>Type</th>
-      <th>Description</th>
-      <th>Required</th>
-    </tr>
-    <tr>
-      <td><code>email</code></td>
-      <td>String</td>
-      <td>The email of the user whose password should be reset.</td>
-      <td>Yes</td>
-    </tr>
-    <tr>
-      <td><code>verificationtoken</code></td>
-      <td>String</td>
-      <td>The verification token which is sent to the user's email address.</td>
-      <td>Yes</td>
-    </tr>
-    <tr>
-      <td><code>newpassword</code></td>
-      <td>String</td>
-      <td>The new password for the user.</td>
-      <td>Yes</td>
-    </tr>
-  </tbody>
-</table>
+| Parameter         | Type   | Description                                                       | Required |
+|-------------------|--------|-------------------------------------------------------------------|----------|
+| email             | String | The email of the user whose password should be reset.             | Yes      |
+| verificationtoken | String | The verification token which is sent to the user's email address. | Yes      |
+| newpassword       | String | The new password for the user.                                    | Yes      |
 
 **Results:** none
 
@@ -641,93 +432,24 @@ The proposal name is derived from the first line of the markdown file - index.md
 
 **Params:**
 
-<table>
-  <tbody>
-    <tr>
-      <th>Parameter</th>
-      <th>Type</th>
-      <th>Description</th>
-      <th>Required</th>
-    </tr>
-    <tr>
-      <td><code>files</code></td>
-      <td>Array of Objects</td>
-      <td>
-        <p>Files are the body of the proposal.  It should consist of one markdown
-        file - named "index.md" - and up to five pictures.   The structure of the file is as follows:</p>
-        <table>
-          <tbody>
-            <tr>
-              <th>Parameter</th>
-              <th>Type</th>
-              <th>Description</th>
-              <th>Required</th>
-            </tr>
-            <tr>
-              <td><code>name</code></td>
-              <td>String</td>
-              <td>
-                Name is the suggested filename.  There should be no filenames
-                that are overlapping and the name shall be validated before being used.
-              </td>
-              <td>Yes</td>
-            </tr>
-            <tr>
-              <td><code>mime</code></td>
-              <td>String</td>
-              <td>
-                MIME type of the payload.  Currently the system only supports
-                md and png/svg files.  The server shall reject invalid MIME types.
-              </td>
-              <td>Yes</td>
-            </tr>
-            <tr>
-              <td><code>digest</code></td>
-              <td>String</td>
-              <td>
-                Digest is a SHA256 digest of the payload.  The digest shall be
-                verified by politeiad.
-              </td>
-              <td>Yes</td>
-            </tr>
-            <tr>
-              <td><code>payload</code></td>
-              <td>String</td>
-              <td>
-                Payload is the actual file content.  It shall be base64 encoded.
-                Files have size limits that can be obtained via the
-                <a href="#Policy"><code>Policy</code></a> call.  The server shall
-                strictly enforce policy limits.
-              </td>
-              <td>Yes</td>
-            </tr>
-          </tbody>
-        </table>
-      </td>
-      <td>Yes</td>
-    </tr>
-  </tbody>
-</table>
+| Parameter | Type | Description | Required |
+|-----------|------------------|--------------------------------------------------------------------------------------------------------------------------|----------|
+| files | Array of Objects | Files are the body of the proposal. It should consist of one markdown file - named "index.md" - and up to five pictures. | Yes |
+
+The structure of a file is as follows:
+
+| Parameter | Type | Description | Required |
+|-----------|--------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|
+| name | String | Name is the suggested filename. There should be no filenames that are overlapping and the name shall be validated before being used. | Yes |
+| mime | String | MIME type of the payload. Currently the system only supports md and png/svg files. The server shall reject invalid MIME types. | Yes |
+| digest | String | Digest is a SHA256 digest of the payload. The digest shall be verified by politeiad. | Yes |
+| payload | String | Payload is the actual file content. It shall be base64 encoded. Files have size limits that can be obtained via the [Policy](#policy) call. The server shall strictly enforce policy limits. | Yes |
 
 **Results:**
 
-<table>
-  <tbody>
-    <tr>
-      <th></th>
-      <th>Type</th>
-      <th>Description</th>
-    </tr>
-    <tr>
-      <td><code>censorshiprecord</code></td>
-      <td><a href="#censorship-record"><code>CensorshipRecord</code></a></td>
-      <td>
-        <p>A censorship record that provides the submitter with a method to extract
-        the proposal and prove that he/she submitted it.</p>
-      </td>
-    </tr>
-  </tbody>
-</table>
+| Parameter | Type | Description |
+|:----------------:|:----------------:|:-------------------------------------------------------------------------------------------------------------------------:|
+| censorshiprecord | [CensorshipRecord](#censorship-record) | A censorship record that provides the submitter with a method to extract the proposal and prove that he/she submitted it. |
 
 On failure the call shall return `400 Bad Request` and one of the following
 error codes:
@@ -777,54 +499,18 @@ Retrieve all unvetted proposals.  This call requires admin privileges.
 
 **Results:**
 
-<table>
-  <tbody>
-    <tr>
-      <th></th>
-      <th>Type</th>
-      <th>Description</th>
-    </tr>
-    <tr>
-      <td><code>proposals</code></td>
-      <td>Array of Objects</td>
-      <td>
-        <p>An Array of unvetted proposals, each of which has the following structure:</p>
-        <table>
-          <tbody>
-            <tr>
-              <th></th>
-              <th>Type</th>
-              <th>Description</th>
-            </tr>
-            <tr>
-              <td><code>name</code></td>
-              <td>String</td>
-              <td>The name of the proposal.</td>
-            </tr>
-            <tr>
-              <td><code>status</code></td>
-              <td>Number</td>
-              <td>Current status of the proposal.</td>
-            </tr>
-            <tr>
-              <td><code>timestamp</code></td>
-              <td>Number</td>
-              <td>The unix time of the last update of the proposal.</td>
-            </tr>
-            <tr>
-              <td><code>censorshiprecord</code></td>
-              <td><a href="#censorship-record"><code>CensorshipRecord</code></a></td>
-              <td>
-                <p>The censorship record that was created when the proposal was
-                submitted.</p>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </td>
-    </tr>
-  </tbody>
-</table>
+|           |       Type       |           Description           |
+|:---------:|:----------------:|:-------------------------------:|
+| proposals | Array of Objects | An Array of unvetted proposals. |
+
+The structure of a proposal is as follows: 
+
+|  | Type | Description |
+|------------------|------------------|-------------------------------------------------------------------------|
+| name | String | The name of the proposal. |
+| status | Number | Current status of the proposal. |
+| timestamp | Number | The unix time of the last update of the proposal. |
+| censorshiprecord | [CensorshipRecord](#censorship-record) | The censorship record that was created when the proposal was submitted. |
 
 If the caller is not privileged the unvetted call returns `403 Forbidden`.
 
@@ -932,40 +618,10 @@ privileges.
 
 **Params:**
 
-<table>
-  <tbody>
-    <tr>
-      <th>Parameter</th>
-      <th>Type</th>
-      <th>Description</th>
-      <th>Required</th>
-    </tr>
-    <tr>
-      <td><code>token</code></td>
-      <td>String</td>
-      <td>
-        Token is the unique censorship token that identifies a specific proposal.
-      </td>
-      <td>Yes</td>
-    </tr>
-    <tr>
-      <td><code>status</code></td>
-      <td>Number</td>
-      <td>
-        <p>Status indicates the new status for the proposal.  Valid statuses are:</p>
-        <ul>
-          <li><a href="#PropStatusCensored"><code>PropStatusCensored</code></a></li>
-          <li><a href="#PropStatusPublic"><code>PropStatusPublic</code></a></li>
-        </ul>
-        <p>
-          Status can only be changed if the current proposal status is
-          <a href="#PropStatusNotReviewed"><code>PropStatusNotReviewed</code></a>
-        </p>
-      </td>
-      <td>Yes</td>
-    </tr>
-  </tbody>
-</table>
+| Parameter | Type | Description | Required |
+|-----------|--------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|
+| token | String | Token is the unique censorship token that identifies a specific proposal. | Yes |
+| status | Number | Status indicates the new status for the proposal. Valid statuses are: [PropStatusCensored](#PropStatusCensored), [PropStatusPublic](#PropStatusPublic). Status can only be changed if the current proposal status is [PropStatusNotReviewed](#PropStatusNotReviewed) | Yes |
 
 **Results:** none
 
@@ -1143,378 +799,44 @@ Reply:
 
 ### Error codes
 
-<table>
-  <tbody>
-    <tr>
-      <th>Status</th>
-      <th>Value</th>
-      <th>Description</th>
-    </tr>
-    <tr>
-      <td><a name="ErrorStatusInvalid"><code>ErrorStatusInvalid</code></a></td>
-      <td>0</td>
-      <td>The operation returned an invalid status.  This shall be considered a bug.</td>
-    </tr>
-    <tr>
-      <td>
-        <a name="ErrorStatusInvalidEmailOrPassword">
-          <code>ErrorStatusInvalidEmailOrPassword</code>
-        </a>
-      </td>
-      <td>1</td>
-      <td>Either the user name or password was invalid.</td>
-    </tr>
-    <tr>
-      <td>
-        <a name="ErrorStatusMalformedEmail">
-          <code>ErrorStatusMalformedEmail</code>
-        </a>
-      </td>
-      <td>2</td>
-      <td>The provided email address was malformed.</td>
-    </tr>
-    <tr>
-      <td>
-        <a name="ErrorStatusVerificationTokenInvalid">
-          <code>ErrorStatusVerificationTokenInvalid</code>
-        </a>
-      </td>
-      <td>3</td>
-      <td>The provided user activation token is invalid.</td>
-    </tr>
-    <tr>
-      <td>
-        <a name="ErrorStatusVerificationTokenExpired">
-          <code>ErrorStatusVerificationTokenExpired</code>
-        </a>
-      </td>
-      <td>4</td>
-      <td>The provided user activation token is expired.</td>
-    </tr>
-    </tr>
-    <tr>
-      <td>
-        <a name="ErrorStatusProposalMissingFiles">
-          <code>ErrorStatusProposalMissingFiles</code>
-        </a>
-      </td>
-      <td>5</td>
-      <td>The provided proposal does not have files.</td>
-    </tr>
-    <tr>
-      <td>
-        <a name="ErrorStatusProposalNotFound">
-          <code>ErrorStatusProposalNotFound</code>
-        </a>
-      </td>
-      <td>6</td>
-      <td>The requested proposal does not exist.</td>
-    </tr>
-    <tr>
-      <td>
-        <a name="ErrorStatusProposalDuplicateFilenames">
-          <code>ErrorStatusProposalDuplicateFilenames</code>
-        </a>
-      </td>
-      <td>7</td>
-      <td>The provided proposal has duplicate files. </td>
-    </tr>
-    <tr>
-      <td>
-        <a name="ErrorStatusProposalInvalidTitle">
-          <code>ErrorStatusProposalInvalidTitle</code>
-        </a>
-      </td>
-      <td>8</td>
-      <td>The provided proposal title is invalid. </td>
-    </tr>
-    <tr>
-      <td>
-        <a name="ErrorStatusMaxMDsExceededPolicy">
-          <code>ErrorStatusMaxMDsExceededPolicy</code>
-        </a>
-      </td>
-      <td>9</td>
-      <td>
-        The submitted proposal has too many markdown files.  Limits can be obtained
-        by issuing the <a href="#Policy">Policy</a> command.
-      </td>
-    </tr>
-    <tr>
-      <td>
-        <a name="ErrorStatusMaxImagesExceededPolicy">
-          <code>ErrorStatusMaxImagesExceededPolicy</code>
-        </a>
-      </td>
-      <td>10</td>
-      <td>
-        The submitted proposal has too many images.  Limits can be obtained by
-        issuing the <a href="#Policy">Policy</a> command.
-      </td>
-    </tr>
-    <tr>
-      <td>
-        <a name="ErrorStatusMaxMDSizeExceededPolicy">
-          <code>ErrorStatusMaxMDSizeExceededPolicy</code>
-        </a>
-      </td>
-      <td>11</td>
-      <td>
-        The submitted proposal markdown is too large.  Limits can be obtained by
-        issuing the <a href="#Policy">Policy</a> command.
-      </td>
-    </tr>
-    <tr>
-      <td>
-        <a name="ErrorStatusMaxImageSizeExceededPolicy">
-          <code>ErrorStatusMaxImageSizeExceededPolicy</code>
-        </a>
-      </td>
-      <td>12</td>
-      <td>
-        The submitted proposal has one or more images that are too large.  Limits can
-        be obtained by issuing the <a href="#Policy">Policy</a> command.
-      </td>
-    </tr>
-    <tr>
-      <td>
-        <a name="ErrorStatusMalformedPassword">
-          <code>ErrorStatusMalformedPassword</code>
-        </a>
-      </td>
-      <td>13</td>
-      <td>The provided password was malformed.</td>
-    </tr>
-    <tr>
-      <td>
-        <a name="ErrorStatusCommentNotFound">
-          <code>ErrorStatusCommentNotFound</code>
-        </a>
-      </td>
-      <td>14</td>
-      <td>The requested comment does not exist.</td>
-    </tr>
-    <tr>
-      <td>
-        <a name="ErrorStatusInvalidProposalName">
-          <code>ErrorStatusInvalidProposalName</code>
-        </a>
-      </td>
-      <td>15</td>
-      <td>The proposal's name was invalid.</td>
-    </tr>
-    <tr>
-      <td>
-        <a name="ErrorStatusInvalidFileDigest">
-          <code>ErrorStatusInvalidFileDigest</code>
-        </a>
-      </td>
-      <td>16</td>
-      <td>
-        The digest (SHA-256 checksum) provided for one of the proposal files
-        was incorrect. This error is provided with additional information inside
-        the <code>errorcontext</code> object:
-        <table>
-          <tr>
-            <th></th>
-            <th>Type</th>
-            <th>Description</th>
-          </tr>
-          <tr>
-            <td><code>filename</code></td>
-            <td>String</td>
-            <td>The name of the file with the invalid digest.</td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-    <tr>
-      <td>
-        <a name="ErrorStatusInvalidBase64">
-          <code>ErrorStatusInvalidBase64</code>
-        </a>
-      </td>
-      <td>17</td>
-      <td>
-        The Base64 encoding provided for one of the proposal files
-        was incorrect. This error is provided with additional information inside
-        the <code>errorcontext</code> object:
-        <table>
-          <tr>
-            <th></th>
-            <th>Type</th>
-            <th>Description</th>
-          </tr>
-          <tr>
-            <td><code>filename</code></td>
-            <td>String</td>
-            <td>The name of the file with the invalid encoding.</td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-    <tr>
-      <td>
-        <a name="ErrorStatusInvalidMIMEType">
-          <code>ErrorStatusInvalidMIMEType</code>
-        </a>
-      </td>
-      <td>18</td>
-      <td>
-        The MIME type provided for one of the proposal files was not
-        the same as the one derived from the file's content. This error
-        is provided with additional information inside the
-        <code>errorcontext</code> object:
-        <table>
-          <tr>
-            <th></th>
-            <th>Type</th>
-            <th>Description</th>
-          </tr>
-          <tr>
-            <td><code>filename</code></td>
-            <td>String</td>
-            <td>The name of the file with the invalid MIME type.</td>
-          </tr>
-          <tr>
-            <td><code>mime</code></td>
-            <td>String</td>
-            <td>The MIME type detected for the file's content.</td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-    <tr>
-      <td>
-        <a name="ErrorStatusUnsupportedMIMEType">
-          <code>ErrorStatusUnsupportedMIMEType</code>
-        </a>
-      </td>
-      <td>19</td>
-      <td>
-        The MIME type provided for one of the proposal files is
-        not supported. This error is provided with additional information
-        inside the <code>errorcontext</code> object:
-        <table>
-          <tr>
-            <th></th>
-            <th>Type</th>
-            <th>Description</th>
-          </tr>
-          <tr>
-            <td><code>filename</code></td>
-            <td>String</td>
-            <td>The name of the file with the unsupported MIME type.</td>
-          </tr>
-          <tr>
-            <td><code>mime</code></td>
-            <td>String</td>
-            <td>The MIME type that is unsupported.</td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-    <tr>
-      <td>
-        <a name="ErrorStatusInvalidPropStatusTransition">
-          <code>ErrorStatusInvalidPropStatusTransition</code>
-        </a>
-      </td>
-      <td>20</td>
-      <td>
-        The provided proposal cannot be changed to the given status.
-      </td>
-    </tr>
-  </tbody>
-</table>
+| Status | Value | Description |
+|----------------------------------------|-------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| <a name="ErrorStatusInvalid">ErrorStatusInvalid</a> | 0 | The operation returned an invalid status. This shall be considered a bug. |
+| <a name="ErrorStatusInvalidEmailOrPassword">ErrorStatusInvalidEmailOrPassword</a> | 1 | Either the user name or password was invalid. |
+| <a name="ErrorStatusMalformedEmail">ErrorStatusMalformedEmail</a> | 2 | The provided email address was malformed. |
+| <a name="ErrorStatusVerificationTokenInvalid">ErrorStatusVerificationTokenInvalid</a> | 3 | The provided user activation token is invalid. |
+| <a name="ErrorStatusVerificationTokenExpired">ErrorStatusVerificationTokenExpired</a> | 4 | The provided user activation token is expired. |
+| <a name="ErrorStatusProposalMissingFiles">ErrorStatusProposalMissingFiles</a> | 5 | The provided proposal does not have files. This error may include additional context: index file is missing - "index.md". |
+| <a name="ErrorStatusProposalNotFound">ErrorStatusProposalNotFound</a> | 6 | The requested proposal does not exist. |
+| <a name="ErrorStatusProposalDuplicateFilenames">ErrorStatusProposalDuplicateFilenames</a> | 7 | The provided proposal has duplicate files. This error is provided with additional context: the duplicate name(s). |
+| <a name="ErrorStatusProposalInvalidTitle">ErrorStatusProposalInvalidTitle</a> | 8 | The provided proposal title is invalid. This error is provided with additional context: the regular expression accepted. |
+| <a name="ErrorStatusMaxMDsExceededPolicy">ErrorStatusMaxMDsExceededPolicy</a> | 9 | The submitted proposal has too many markdown files. Limits can be obtained by issuing the [Policy](#policy) command. |
+| <a name="ErrorStatusMaxImagesExceededPolicy">ErrorStatusMaxImagesExceededPolicy</a> | 10 | The submitted proposal has too many images. Limits can be obtained by issuing the [Policy](#policy) command. |
+| <a name="ErrorStatusMaxMDSizeExceededPolicy">ErrorStatusMaxMDSizeExceededPolicy</a> | 11 | The submitted proposal markdown is too large. Limits can be obtained by issuing the [Policy](#policy) command. |
+| <a name="ErrorStatusMaxImageSizeExceededPolicy">ErrorStatusMaxImageSizeExceededPolicy</a> | 12 | The submitted proposal has one or more images that are too large. Limits can be obtained by issuing the [Policy](#policy) command. |
+| <a name="ErrorStatusMalformedPassword">ErrorStatusMalformedPassword</a> | 13 | The provided password was malformed. |
+| <a name="ErrorStatusCommentNotFound">ErrorStatusCommentNotFound</a> | 14 | The requested comment does not exist. |
+| <a name="ErrorStatusInvalidProposalName">ErrorStatusInvalidProposalName</a> | 15 | The proposal's name was invalid. |
+| <a name="ErrorStatusInvalidFileDigest">ErrorStatusInvalidFileDigest</a> | 16 | The digest (SHA-256 checksum) provided for one of the proposal files was incorrect. This error is provided with additional context: The name of the file with the invalid digest. |
+| <a name="ErrorStatusInvalidBase64">ErrorStatusInvalidBase64</a> | 17 | The name of the file with the invalid encoding.The Base64 encoding provided for one of the proposal files was incorrect. This error is provided with additional context: the name of the file with the invalid encoding. |
+| <a name="ErrorStatusInvalidMIMEType">ErrorStatusInvalidMIMEType</a> | 18 | The MIME type provided for one of the proposal files was not the same as the one derived from the file's content. This error is provided with additional context: The name of the file with the invalid MIME type and the MIME type detected for the file's content. |
+| <a name="ErrorStatusUnsupportedMIMEType">ErrorStatusUnsupportedMIMEType</a> | 19 | The MIME type provided for one of the proposal files is not supported. This error is provided with additional context: The name of the file with the unsupported MIME type and the MIME type that is unsupported. |
+| <a name="ErrorStatusInvalidPropStatusTransition">ErrorStatusInvalidPropStatusTransition</a> | 20 | The provided proposal cannot be changed to the given status. |
 
 ### Proposal status codes
 
-<table>
-  <tbody>
-    <tr>
-      <th>Status</th>
-      <th>Value</th>
-      <th>Description</th>
-    </tr>
-    <tr>
-      <td><a name="PropStatusInvalid"><code>PropStatusInvalid</code></a></td>
-      <td>0</td>
-      <td>An invalid status.  This shall be considered a bug.</td>
-    </tr>
-    <tr>
-      <td>
-        <a name="PropStatusNotFound">
-          <code>PropStatusNotFound</code>
-        </a>
-      </td>
-      <td>1</td>
-      <td>The proposal was not found.</td>
-    </tr>
-    <tr>
-      <td>
-        <a name="PropStatusNotReviewed">
-          <code>PropStatusNotReviewed</code>
-        </a>
-      </td>
-      <td>2</td>
-      <td>The proposal has not been reviewed by an admin.</td>
-    </tr>
-    <tr>
-      <td>
-        <a name="PropStatusCensored">
-          <code>PropStatusCensored</code>
-        </a>
-      </td>
-      <td>3</td>
-      <td>The proposal has been censored by an admin.</td>
-    </tr>
-    <tr>
-      <td>
-        <a name="PropStatusPublic">
-          <code>PropStatusPublic</code>
-        </a>
-      </td>
-      <td>4</td>
-      <td>The proposal has been published by an admin.</td>
-    </tr>
-  </tbody>
-</table>
+| Status | Value | Description |
+|-----------------------|-------|----------------------------------------------------|
+| <a name="PropStatusInvalid">PropStatusInvalid</a>| 0 | An invalid status. This shall be considered a bug. |
+| <a name="PropStatusNotFound">PropStatusNotFound</a> | 1 | The proposal was not found. |
+| <a name="PropStatusNotReviewed">PropStatusNotReviewed</a> | 2 | The proposal has not been reviewed by an admin. |
+| <a name="PropStatusCensored">PropStatusCensored</a> | 3 | The proposal has been censored by an admin. |
+| <a name="PropStatusPublic">PropStatusPublic</a> | 4 | The proposal has been published by an admin. |
 
 ### Censorship record
 
-<table>
-  <tbody>
-    <tr>
-      <th></th>
-      <th>Type</th>
-      <th>Description</th>
-    </tr>
-    <tr>
-      <td><code>token</code></td>
-      <td>String</td>
-      <td>
-        The token is a 32 byte random number that was assigned to identify
-        the submitted proposal.  This is the key to later retrieve
-        the submitted proposal from the system.
-      </td>
-    </tr>
-    <tr>
-      <td><code>merkle</code></td>
-      <td>String</td>
-      <td>
-        Merkle root of the proposal.  This is defined as the <b>sorted</b>
-        digests of all files proposal files.  The client should cross
-        verify this value.
-      </td>
-    </tr>
-    <tr>
-      <td><code>signature</code></td>
-      <td>String</td>
-      <td>
-        Signature of merkle+token.  The token is appended to the merkle
-        root and then signed.  The client should verify the signature.
-      </td>
-    </tr>
-  </tbody>
-</table>
+|  | Type | Description |
+|-----------|--------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| token | String | The token is a 32 byte random number that was assigned to identify the submitted proposal. This is the key to later retrieve the submitted proposal from the system. |
+| merkle | String | Merkle root of the proposal. This is defined as the sorted digests of all files proposal files. The client should cross verify this value. |
+| signature | String | Signature of merkle+token. The token is appended to the merkle root and then signed. The client should verify the signature. |
