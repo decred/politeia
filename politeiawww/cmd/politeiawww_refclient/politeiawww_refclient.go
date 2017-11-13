@@ -520,7 +520,12 @@ func _main() error {
 		return err
 	}
 
-	// Login
+	// Login failure
+	_, err = c.login(email, password)
+	if err == nil {
+		return fmt.Errorf("expected login failure")
+	}
+	// Login success
 	lr, err := c.login(email, newPassword)
 	if err != nil {
 		return err
