@@ -60,13 +60,13 @@ dep ensure && go install -v ./politeiad/... && LOGFLAGS=shortfile politeiad --te
 
 Download server identity to client:
 ```
-politeia -v -testnet identity
+politeia -v -testnet -rpchost 127.0.0.1 identity
 ```
 Accept default path by pressing `enter`.
 
 Result should look something like this:
 ```
-FQDN       : politeia.testnet.decred.org
+FQDN       : localhost
 Nick       : politeiad
 Key        : dfd6caacf0bbe5725efc67e703e912c37931b4edbf17122947a1e0fcd9755f6d
 Identity   : 99e748e13d7ecf70ef6b5afa376d692cd7cb4dbb3d26fa83f417d29e44c6bb6c
@@ -78,7 +78,7 @@ Identity saved to: /Users/marco/Library/Application Support/Politeia/identity.js
 
 Send proposal:
 ```
-politeia -v -testnet new "My awesome proposal" proposal.txt spec.txt
+politeia -v -testnet -rpchost 127.0.0.1 new "My awesome proposal" proposal.txt spec.txt
 ```
 
 Result will look something like:
@@ -94,14 +94,14 @@ Censorship record:
 
 Publishing a proposal (requires credentials):
 ```
-politeia --rpcuser user --rpcpass pass --testnet setunvettedstatus publish 6284c5f8fba5665373b8e6651ebc8747b289fed242d2f880f64a284496bb4ca8
+politeia -testnet -rpchost 127.0.0.1 -rpcuser user -rpcpass pass setunvettedstatus publish 6284c5f8fba5665373b8e6651ebc8747b289fed242d2f880f64a284496bb4ca8
 Set proposal status:
   Status   : public
 ```
 
 Censoring a proposal (requires credentials):
 ```
-politeia --rpcuser user --rpcpass pass --testnet setunvettedstatus censor 527cb21b78a56d597f5ab4c199195343ecfcd56cf0d76910b2a63c97635a6532
+politeia -testnet -rpchost 127.0.0.1 -rpcuser user -rpcpass pass setunvettedstatus censor 527cb21b78a56d597f5ab4c199195343ecfcd56cf0d76910b2a63c97635a6532
 Set proposal status:
   Status   : censored
 ```
