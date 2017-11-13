@@ -98,5 +98,6 @@ func (p *politeiawww) loadInventory(f http.HandlerFunc) http.HandlerFunc {
 				"failed to get Load Inventory", err)
 			return
 		}
+		f(w, r)
 	}
 }

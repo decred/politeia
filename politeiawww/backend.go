@@ -33,20 +33,25 @@ const (
 
 // politeiawww backend construct
 type backend struct {
+	sync.RWMutex // lock for inventory and comments
+
 	db                 database.Database
 	cfg                *config
 	commentJournalDir  string
 	commentJournalFile string
 
-	// Following entries require locks
-	inventory    []www.ProposalRecord
-	comments     map[string]map[uint64]BackendComment // [token][parent]comment
-	commentID    uint64                               // current comment id
-	sync.RWMutex                                      // lock for inventory and comments
-
 	// These properties are only used for testing.
 	test                   bool
 	verificationExpiryTime time.Duration
+
+	// Following entries require locks
+	comments  map[string]map[uint64]BackendComment // [token][parent]comment
+	commentID uint64                               // current comment id
+
+	// When inventory is set or modified inventoryVersion MUST be
+	// incremented.
+	inventory        []www.ProposalRecord // current inventory
+	inventoryVersion uint                 // inventory version
 }
 
 func (b *backend) getVerificationExpiryTime() time.Duration {
@@ -416,52 +421,75 @@ func (b *backend) verifyResetPassword(user *database.User, rp www.ResetPassword,
 	return b.db.UserUpdate(*user)
 }
 
+// loadInventory calls the politeaid RPC call to load the current inventory.
+// Note that this function fakes out the inventory during test and therefore
+// must be called WITHOUT the lock held.
+func (b *backend) loadInventory() (*pd.InventoryReply, error) {
+	if !b.test {
+		return b.remoteInventory()
+	}
+
+	// Split the existing inventory into vetted and unvetted.
+	vetted := make([]www.ProposalRecord, 0)
+	unvetted := make([]www.ProposalRecord, 0)
+
+	b.Lock()
+	defer b.Unlock()
+	for _, v := range b.inventory {
+		if v.Status == www.PropStatusPublic {
+			vetted = append(vetted, v)
+		} else {
+			unvetted = append(unvetted, v)
+		}
+	}
+
+	return &pd.InventoryReply{
+		Vetted:   convertPropsFromWWW(vetted),
+		Branches: convertPropsFromWWW(unvetted),
+	}, nil
+}
+
 // LoadInventory fetches the entire inventory of proposals from politeiad
 // and caches it, sorted by most recent timestamp.
 func (b *backend) LoadInventory() error {
+	// This function is a little hard to read but we must make sure that
+	// the inventory has not changed since we tried to load it.  We can't
+	// lock it for the duration because the RPC call is potentially very
+	// slow.
 	b.Lock()
 	if b.inventory != nil {
+		b.Unlock()
 		return nil
 	}
-	defer b.Unlock()
+	currentInventory := b.inventoryVersion
+	b.Unlock()
 
-	var inv *pd.InventoryReply
-	if b.test {
-		// Split the existing inventory into vetted and unvetted.
-		vetted := make([]www.ProposalRecord, 0)
-		unvetted := make([]www.ProposalRecord, 0)
-
-		for _, v := range b.inventory {
-			if v.Status == www.PropStatusPublic {
-				vetted = append(vetted, v)
-			} else {
-				unvetted = append(unvetted, v)
-			}
-		}
-
-		inv = &pd.InventoryReply{
-			Vetted:   convertPropsFromWWW(vetted),
-			Branches: convertPropsFromWWW(unvetted),
-		}
-	} else {
+	// get remote inventory
+	for {
 		// Fetch remote inventory.
-		var err error
-		inv, err = b.remoteInventory()
+		inv, err := b.loadInventory()
 		if err != nil {
 			return fmt.Errorf("LoadInventory: %v", err)
 		}
 
-		log.Infof("Adding %v vetted, %v unvetted proposals to the cache",
-			len(inv.Vetted), len(inv.Branches))
-	}
+		b.Lock()
+		// Restart operation if inventory changed from underneath us.
+		if currentInventory != b.inventoryVersion {
+			currentInventory = b.inventoryVersion
+			b.Unlock()
+			log.Debugf("LoadInventory: restarting reload")
+			continue
+		}
 
-	b.inventory = make([]www.ProposalRecord, 0, len(inv.Vetted)+len(inv.Branches))
-	for _, vv := range append(inv.Vetted, inv.Branches...) {
-		v := convertPropFromPD(vv)
-		len := len(b.inventory)
-		if len == 0 {
-			b.inventory = append(b.inventory, v)
-		} else {
+		b.inventory = make([]www.ProposalRecord, 0,
+			len(inv.Vetted)+len(inv.Branches))
+		for _, vv := range append(inv.Vetted, inv.Branches...) {
+			v := convertPropFromPD(vv)
+			len := len(b.inventory)
+			if len == 0 {
+				b.inventory = append(b.inventory, v)
+				continue
+			}
 			idx := sort.Search(len, func(i int) bool {
 				return v.Timestamp < b.inventory[i].Timestamp
 			})
@@ -471,6 +499,13 @@ func (b *backend) LoadInventory() error {
 				append([]www.ProposalRecord{v},
 					b.inventory[idx:]...)...)
 		}
+		b.inventoryVersion++
+		b.Unlock()
+
+		log.Infof("Adding %v vetted, %v unvetted proposals to the cache",
+			len(inv.Vetted), len(inv.Branches))
+
+		break
 	}
 
 	return nil
@@ -770,7 +805,6 @@ func (b *backend) ProcessAllUnvetted(u www.GetAllUnvetted) *www.GetAllUnvettedRe
 // ProcessNewProposal tries to submit a new proposal to politeiad.
 func (b *backend) ProcessNewProposal(np www.NewProposal) (*www.NewProposalReply, error) {
 	var reply www.NewProposalReply
-
 	err := b.validateProposal(np)
 	if err != nil {
 		return nil, err
@@ -813,6 +847,7 @@ func (b *backend) ProcessNewProposal(np www.NewProposal) (*www.NewProposalReply,
 			Files:            np.Files,
 			CensorshipRecord: convertPropCensorFromPD(pdReply.CensorshipRecord),
 		})
+		b.inventoryVersion++
 		b.initComment(pdReply.CensorshipRecord.Token)
 		b.Unlock()
 	} else {
@@ -821,7 +856,7 @@ func (b *backend) ProcessNewProposal(np www.NewProposal) (*www.NewProposalReply,
 			return nil, err
 		}
 
-		fmt.Printf("Submitted proposal name: %v\n", n.Name)
+		log.Infof("Submitted proposal name: %v\n", n.Name)
 		for k, f := range n.Files {
 			fmt.Printf("%02v: %v %v\n", k, f.Name, f.Digest)
 		}
@@ -848,6 +883,7 @@ func (b *backend) ProcessNewProposal(np www.NewProposal) (*www.NewProposalReply,
 		}
 		b.Lock()
 		b.inventory = append(b.inventory, r)
+		b.inventoryVersion++
 		b.initComment(pdReply.CensorshipRecord.Token)
 		b.Unlock()
 	}
