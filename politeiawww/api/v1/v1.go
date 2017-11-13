@@ -104,6 +104,31 @@ var (
 	// CookieSession is the cookie name that indicates that a user is
 	// logged in.
 	CookieSession = "session"
+
+	// ErrorStatus converts error status codes to human readable text.
+	ErrorStatus = map[ErrorStatusT]string{
+		ErrorStatusInvalid:                     "invalid status",
+		ErrorStatusInvalidEmailOrPassword:      "invalid email or password",
+		ErrorStatusMalformedEmail:              "malformed email",
+		ErrorStatusVerificationTokenInvalid:    "invalid verification token",
+		ErrorStatusVerificationTokenExpired:    "expired verification token",
+		ErrorStatusProposalMissingFiles:        "missing proposal files",
+		ErrorStatusProposalNotFound:            "proposal not found",
+		ErrorStatusProposalDuplicateFilenames:  "duplicate proposal files",
+		ErrorStatusProposalInvalidTitle:        "invalid proposal title",
+		ErrorStatusMaxMDsExceededPolicy:        "maximum markdown files exceeded",
+		ErrorStatusMaxImagesExceededPolicy:     "maximum image files exceeded",
+		ErrorStatusMaxMDSizeExceededPolicy:     "maximum markdown file size exceeded",
+		ErrorStatusMaxImageSizeExceededPolicy:  "maximum image file size exceeded",
+		ErrorStatusMalformedPassword:           "malformed password",
+		ErrorStatusCommentNotFound:             "comment not found",
+		ErrorStatusInvalidProposalName:         "invalid proposal name",
+		ErrorStatusInvalidFileDigest:           "invalid file digest",
+		ErrorStatusInvalidBase64:               "invalid base64 file content",
+		ErrorStatusInvalidMIMEType:             "invalid MIME type detected for file",
+		ErrorStatusUnsupportedMIMEType:         "unsupported MIME type for file",
+		ErrorStatusInvalidPropStatusTransition: "invalid proposal status",
+	}
 )
 
 // File describes an individual file that is part of the proposal.  The
