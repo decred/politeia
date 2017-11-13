@@ -420,6 +420,7 @@ func (p *politeiawww) handleResetPassword(w http.ResponseWriter, r *http.Request
 func (p *politeiawww) handleNewProposal(w http.ResponseWriter, r *http.Request) {
 	// Get the new proposal command.
 	var np v1.NewProposal
+
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&np); err != nil {
 		RespondWithError(w, r, 0,
@@ -444,6 +445,7 @@ func (p *politeiawww) handleNewProposal(w http.ResponseWriter, r *http.Request) 
 func (p *politeiawww) handleSetProposalStatus(w http.ResponseWriter, r *http.Request) {
 	// Get the proposal status command.
 	var sps v1.SetProposalStatus
+
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&sps); err != nil {
 		RespondWithError(w, r, 0,
@@ -468,6 +470,7 @@ func (p *politeiawww) handleSetProposalStatus(w http.ResponseWriter, r *http.Req
 func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Request) {
 	// Get the proposal details command.
 	var pd v1.ProposalsDetails
+
 	/*
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&pd); err != nil {
@@ -522,6 +525,7 @@ func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 func (p *politeiawww) handleAllVetted(w http.ResponseWriter, r *http.Request) {
 	// Get the all vetted command.
 	var v v1.GetAllVetted
+
 	/*
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&v); err != nil {
@@ -539,6 +543,7 @@ func (p *politeiawww) handleAllVetted(w http.ResponseWriter, r *http.Request) {
 func (p *politeiawww) handleAllUnvetted(w http.ResponseWriter, r *http.Request) {
 	// Get the all unvetted command.
 	var u v1.GetAllUnvetted
+
 	/*
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&u); err != nil {
@@ -555,6 +560,7 @@ func (p *politeiawww) handleAllUnvetted(w http.ResponseWriter, r *http.Request) 
 // handleNewComment handles incomming comments.
 func (p *politeiawww) handleNewComment(w http.ResponseWriter, r *http.Request) {
 	var sc v1.NewComment
+
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&sc); err != nil {
 		RespondWithError(w, r, 0,
@@ -589,6 +595,7 @@ func (p *politeiawww) handleNewComment(w http.ResponseWriter, r *http.Request) {
 
 // handleCommentsGet handles batched comments get.
 func (p *politeiawww) handleCommentsGet(w http.ResponseWriter, r *http.Request) {
+
 	pathParams := mux.Vars(r)
 	defer r.Body.Close()
 	gcr, err := p.backend.ProcessCommentGet(pathParams["token"])
@@ -621,8 +628,11 @@ func (p *politeiawww) handleNotFound(w http.ResponseWriter, r *http.Request) {
 }
 
 // addRoute sets up a handler for a specific method+route.
-func (p *politeiawww) addRoute(method string, route string, handler http.HandlerFunc, perm permission) {
+func (p *politeiawww) addRoute(method string, route string, handler http.HandlerFunc, perm permission, shouldLoadInventory bool) {
 	fullRoute := v1.PoliteiaWWWAPIRoute + route
+	if shouldLoadInventory {
+		handler = p.loadInventory(handler)
+	}
 	switch perm {
 	case permissionAdmin:
 		handler = logging(p.isLoggedInAsAdmin(handler))
@@ -688,11 +698,6 @@ func _main() error {
 		return err
 	}
 
-	// Fetch the inventory from politeiad and cache it.
-	if err := p.backend.LoadInventory(); err != nil {
-		return err
-	}
-
 	var csrfHandle func(http.Handler) http.Handler
 	if !p.cfg.Proxy {
 		// We don't persist connections to generate a new key every
@@ -717,41 +722,41 @@ func _main() error {
 	p.router.HandleFunc("/", logging(p.handleVersion)).Methods(http.MethodGet)
 	p.router.NotFoundHandler = http.HandlerFunc(p.handleNotFound)
 	p.addRoute(http.MethodPost, v1.RouteNewUser, p.handleNewUser,
-		permissionPublic)
+		permissionPublic, false)
 	p.addRoute(http.MethodGet, v1.RouteVerifyNewUser,
-		p.handleVerifyNewUser, permissionPublic)
+		p.handleVerifyNewUser, permissionPublic, false)
 	p.addRoute(http.MethodPost, v1.RouteLogin, p.handleLogin,
-		permissionPublic)
+		permissionPublic, false)
 	p.addRoute(http.MethodGet, v1.RouteLogout, p.handleLogout,
-		permissionPublic)
+		permissionPublic, false)
 	p.addRoute(http.MethodPost, v1.RouteLogout, p.handleLogout,
-		permissionPublic)
+		permissionPublic, false)
 	p.addRoute(http.MethodPost, v1.RouteResetPassword,
-		p.handleResetPassword, permissionPublic)
+		p.handleResetPassword, permissionPublic, false)
 	p.addRoute(http.MethodGet, v1.RouteAllVetted, p.handleAllVetted,
-		permissionPublic)
+		permissionPublic, true)
 	p.addRoute(http.MethodGet, v1.RouteProposalDetails, p.
-		handleProposalDetails, permissionPublic)
+		handleProposalDetails, permissionPublic, true)
 	p.addRoute(http.MethodGet, v1.RoutePolicy, p.handlePolicy,
-		permissionPublic)
+		permissionPublic, false)
 	p.addRoute(http.MethodGet, v1.RouteCommentsGet, p.handleCommentsGet,
-		permissionPublic)
+		permissionPublic, true)
 
 	// Routes that require being logged in.
-	p.addRoute(http.MethodPost, v1.RouteSecret, p.handleSecret, permissionLogin)
+	p.addRoute(http.MethodPost, v1.RouteSecret, p.handleSecret, permissionLogin, false)
 	p.addRoute(http.MethodPost, v1.RouteNewProposal, p.handleNewProposal,
-		permissionLogin)
-	p.addRoute(http.MethodGet, v1.RouteUserMe, p.handleMe, permissionLogin)
+		permissionLogin, true)
+	p.addRoute(http.MethodGet, v1.RouteUserMe, p.handleMe, permissionLogin, false)
 	p.addRoute(http.MethodPost, v1.RouteChangePassword,
-		p.handleChangePassword, permissionLogin)
+		p.handleChangePassword, permissionLogin, false)
 	p.addRoute(http.MethodPost, v1.RouteNewComment,
-		p.handleNewComment, permissionLogin)
+		p.handleNewComment, permissionLogin, true)
 
 	// Routes that require being logged in as an admin user.
 	p.addRoute(http.MethodGet, v1.RouteAllUnvetted, p.handleAllUnvetted,
-		permissionAdmin)
+		permissionAdmin, true)
 	p.addRoute(http.MethodPost, v1.RouteSetProposalStatus,
-		p.handleSetProposalStatus, permissionAdmin)
+		p.handleSetProposalStatus, permissionAdmin, true)
 
 	// Persist session cookies.
 	var cookieKey []byte

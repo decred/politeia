@@ -420,6 +420,9 @@ func (b *backend) verifyResetPassword(user *database.User, rp www.ResetPassword,
 // and caches it, sorted by most recent timestamp.
 func (b *backend) LoadInventory() error {
 	b.Lock()
+	if b.inventory != nil {
+		return nil
+	}
 	defer b.Unlock()
 
 	var inv *pd.InventoryReply
