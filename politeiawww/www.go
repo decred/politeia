@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -99,7 +100,16 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 		if userHttpCode == 0 {
 			userHttpCode = http.StatusBadRequest
 		}
-		log.Debugf("RespondWithError: %v", int64(userErr.ErrorCode))
+
+		if len(userErr.ErrorContext) == 0 {
+			log.Debugf("RespondWithError: %v %v", int64(userErr.ErrorCode),
+				v1.ErrorStatus[userErr.ErrorCode])
+		} else {
+			log.Debugf("RespondWithError: %v %v: %v", int64(userErr.ErrorCode),
+				v1.ErrorStatus[userErr.ErrorCode],
+				strings.Join(userErr.ErrorContext, ", "))
+		}
+
 		util.RespondWithJSON(w, userHttpCode,
 			v1.ErrorReply{
 				ErrorCode: int64(userErr.ErrorCode),
