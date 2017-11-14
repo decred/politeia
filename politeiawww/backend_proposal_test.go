@@ -192,9 +192,6 @@ func verifyProposalDetails(np *www.NewProposal, p www.ProposalRecord, t *testing
 }
 
 func verifyProposals(p1 www.ProposalRecord, p2 www.ProposalRecord, t *testing.T) {
-	if p1.Name != p2.Name {
-		t.Fatalf("proposal names do not match: %v, %v", p1.Name, p2.Name)
-	}
 	if p1.Files[0].Payload != p2.Files[0].Payload {
 		t.Fatalf("proposal descriptions do not match")
 	}

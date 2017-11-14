@@ -30,7 +30,6 @@ func validatePSR(got, want *backend.ProposalStorageRecord) error {
 		got.Status != backend.PSRStatusVetted ||
 		want.Status != backend.PSRStatusUnvetted ||
 		got.Merkle != want.Merkle ||
-		got.Name != want.Name ||
 		!bytes.Equal(got.Token, want.Token) {
 		return fmt.Errorf("unexpected psr got %v, wanted %v",
 			spew.Sdump(*got), spew.Sdump(*want))
@@ -100,7 +99,7 @@ func TestAnchorWithCommits(t *testing.T) {
 		}
 		allFiles[i] = files
 
-		psr[i], err = g.New(name, files)
+		psr[i], err = g.New(files)
 		if err != nil {
 			t.Fatal(err)
 		}

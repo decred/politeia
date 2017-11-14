@@ -88,7 +88,6 @@ func (p *politeia) convertBackendProposal(bpr backend.ProposalRecord) v1.Proposa
 	// Convert record
 	pr := v1.ProposalRecord{
 		Status:    convertBackendStatus(psr.Status),
-		Name:      psr.Name,
 		Timestamp: psr.Timestamp,
 		CensorshipRecord: v1.CensorshipRecord{
 			Merkle:    hex.EncodeToString(psr.Merkle[:]),
@@ -160,11 +159,6 @@ func (p *politeia) newProposal(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	if len(t.Name) > 80 {
-		log.Errorf("%v New proposal: invalid name", remoteAddr(r))
-		p.respondWithUserError(w, v1.ErrorStatusInvalidProposalName, nil)
-		return
-	}
 	challenge, err := hex.DecodeString(t.Challenge)
 	if err != nil || len(challenge) != v1.ChallengeSize {
 		log.Errorf("%v New proposal: invalid challenge", remoteAddr(r))
@@ -172,7 +166,7 @@ func (p *politeia) newProposal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Infof("New proposal submitted %v: %v", remoteAddr(r), t.Name)
+	log.Infof("New proposal submitted %v", remoteAddr(r))
 
 	// Convert to backend call
 	files := make([]backend.File, 0, len(t.Files))
@@ -184,12 +178,12 @@ func (p *politeia) newProposal(w http.ResponseWriter, r *http.Request) {
 			Payload: v.Payload,
 		})
 	}
-	psr, err := p.backend.New(t.Name, files)
+	psr, err := p.backend.New(files)
 	if err != nil {
 		// Check for content error.
 		if contentErr, ok := err.(backend.ContentVerificationError); ok {
-			log.Errorf("%v New proposal content error: %v %v",
-				remoteAddr(r), t.Name, contentErr)
+			log.Errorf("%v New proposal content error: %v",
+				remoteAddr(r), contentErr)
 			p.respondWithUserError(w, contentErr.ErrorCode, contentErr.ErrorContext)
 			return
 		}
@@ -219,8 +213,8 @@ func (p *politeia) newProposal(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	log.Infof("New proposal accepted %v: token %v name \"%v\"", remoteAddr(r),
-		reply.CensorshipRecord.Token, t.Name)
+	log.Infof("New proposal accepted %v: token %v", remoteAddr(r),
+		reply.CensorshipRecord.Token)
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
@@ -283,9 +277,9 @@ func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		log.Infof("Get unvetted proposal %v: token %v name \"%v\"",
+		log.Infof("Get unvetted proposal %v: token %v",
 			remoteAddr(r),
-			t.Token, reply.Proposal.Name)
+			t.Token)
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
@@ -348,8 +342,8 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 			p.respondWithServerError(w, errorCode)
 			return
 		}
-		log.Infof("Get vetted proposal %v: token %v name \"%v\"",
-			remoteAddr(r), t.Token, reply.Proposal.Name)
+		log.Infof("Get vetted proposal %v: token %v",
+			remoteAddr(r), t.Token)
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)

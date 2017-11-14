@@ -46,7 +46,6 @@ func convertPropCensorFromWWW(f www.CensorshipRecord) pd.CensorshipRecord {
 
 func convertPropFromWWW(p www.ProposalRecord) pd.ProposalRecord {
 	return pd.ProposalRecord{
-		Name:             p.Name,
 		Status:           convertPropStatusFromWWW(p.Status),
 		Timestamp:        p.Timestamp,
 		Files:            convertPropFilesFromWWW(p.Files),
@@ -104,7 +103,6 @@ func convertPropCensorFromPD(f pd.CensorshipRecord) www.CensorshipRecord {
 
 func convertPropFromPD(p pd.ProposalRecord) www.ProposalRecord {
 	return www.ProposalRecord{
-		Name:             p.Name,
 		Status:           convertPropStatusFromPD(p.Status),
 		Timestamp:        p.Timestamp,
 		Files:            convertPropFilesFromPD(p.Files),

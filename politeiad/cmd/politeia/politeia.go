@@ -134,7 +134,6 @@ func printProposalRecord(header string, pr v1.ProposalRecord) {
 		status = v1.PropStatus[v1.PropStatusInvalid]
 	}
 	fmt.Printf("%v:\n", header)
-	fmt.Printf("  Name       : %v\n", pr.Name)
 	fmt.Printf("  Status     : %v\n", status)
 	fmt.Printf("  Timestamp  : %v\n", time.Unix(pr.Timestamp, 0).UTC())
 	printCensorshipRecord(pr.CensorshipRecord)
@@ -251,7 +250,6 @@ func newProposal() error {
 		return err
 	}
 	n := v1.New{
-		Name:      flags[0],
 		Challenge: hex.EncodeToString(challenge),
 		Files:     make([]v1.File, 0, len(flags[1:])),
 	}
@@ -282,7 +280,7 @@ func newProposal() error {
 		fmt.Printf("%02v: %v %v %v\n",
 			i, file.Digest, file.Name, file.MIME)
 	}
-	fmt.Printf("Submitted proposal name: %v\n", n.Name)
+	fmt.Printf("Submitted proposal name: %v\n", flags[0])
 
 	// Convert Verify to JSON
 	b, err := json.Marshal(n)

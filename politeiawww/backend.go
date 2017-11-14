@@ -862,7 +862,6 @@ func (b *backend) ProcessNewProposal(np www.NewProposal) (*www.NewProposalReply,
 	}
 
 	n := pd.New{
-		Name:      name,
 		Challenge: hex.EncodeToString(challenge),
 		Files:     convertPropFilesFromWWW(np.Files),
 	}
@@ -897,7 +896,7 @@ func (b *backend) ProcessNewProposal(np www.NewProposal) (*www.NewProposalReply,
 			return nil, err
 		}
 
-		log.Infof("Submitted proposal name: %v\n", n.Name)
+		log.Infof("Submitted proposal name: %v\n", name)
 		for k, f := range n.Files {
 			fmt.Printf("%02v: %v %v\n", k, f.Name, f.Digest)
 		}
