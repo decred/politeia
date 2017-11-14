@@ -49,7 +49,8 @@ type backend struct {
 	commentID uint64                               // current comment id
 
 	// When inventory is set or modified inventoryVersion MUST be
-	// incremented.
+	// incremented.  When inventory changes the caller MUST initialize the
+	// comments map for the associated censorship token.
 	inventory        []www.ProposalRecord // current inventory
 	inventoryVersion uint                 // inventory version
 }
@@ -485,6 +486,8 @@ func (b *backend) LoadInventory() error {
 			len(inv.Vetted)+len(inv.Branches))
 		for _, vv := range append(inv.Vetted, inv.Branches...) {
 			v := convertPropFromPD(vv)
+			// Initialize comment map for this proposal.
+			b.initComment(v.CensorshipRecord.Token)
 			len := len(b.inventory)
 			if len == 0 {
 				b.inventory = append(b.inventory, v)
@@ -1053,6 +1056,8 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, isUse
 // the parent exists.  A parent ID of 0 indicates that it is a comment on the
 // proposal whereas non-zero indicates that it is a reply to a comment.
 func (b *backend) ProcessComment(c www.NewComment, userID uint64) (*www.NewCommentReply, error) {
+	log.Debugf("ProcessComment: %v %v", c.Token, userID)
+
 	b.Lock()
 	defer b.Unlock()
 	m, ok := b.comments[c.Token]
@@ -1077,6 +1082,8 @@ func (b *backend) ProcessComment(c www.NewComment, userID uint64) (*www.NewComme
 
 // ProcessCommentGet returns all comments for a given proposal.
 func (b *backend) ProcessCommentGet(token string) (*www.GetCommentsReply, error) {
+	log.Debugf("ProcessCommentGet: %v", token)
+
 	c, err := b.getComments(token)
 	if err != nil {
 		return nil, err
