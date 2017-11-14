@@ -72,6 +72,12 @@ const (
 var (
 	_ backend.Backend = (*gitBackEnd)(nil)
 
+	defaultRepoConfig = map[string]string{
+		// This prevents git from converting CRLF when committing and checking
+		// out files, which helps when running on Windows.
+		"core.autocrlf": "false",
+	}
+
 	errNothingToDo = errors.New("nothing to do")
 )
 
@@ -1600,13 +1606,13 @@ func (g *gitBackEnd) newLocked() error {
 	log.Infof("Git version: %v", version)
 
 	// Init vetted git repo
-	err = g.gitInitRepo(g.vetted)
+	err = g.gitInitRepo(g.vetted, defaultRepoConfig)
 	if err != nil {
 		return err
 	}
 
 	// Clone vetted repo into unvetted
-	err = g.gitClone(g.vetted, g.unvetted)
+	err = g.gitClone(g.vetted, g.unvetted, defaultRepoConfig)
 	if err != nil {
 		return err
 	}
