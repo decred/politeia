@@ -296,14 +296,15 @@ type Me struct{}
 // MeReply contains user information the UI may need to render a user specific
 // page.
 type MeReply struct {
-	UserID  uint64 `json:"userid"` // User id
-	Email   string `json:"email"`
-	IsAdmin bool   `json:"isadmin"`
+	IsAdmin   bool   `json:"isadmin"`   // Set if user is an admin
+	UserID    uint64 `json:"userid"`    // User id
+	Email     string `json:"email"`     // User email
+	PublicKey string `json:"publickey"` // Active public key
 }
 
 // NewProposal attempts to submit a new proposal.
 type NewProposal struct {
-	Files []File `json:"files"` // XXX layer violation.
+	Files []File `json:"files"`
 }
 
 // NewProposalReply is used to reply to the NewProposal command.

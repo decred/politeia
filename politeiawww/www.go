@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/decred/politeia/politeiawww/api/v1"
+	"github.com/decred/politeia/politeiawww/database"
 	"github.com/decred/politeia/util"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
@@ -51,6 +52,31 @@ type newUserEmailTemplateData struct {
 type resetPasswordEmailTemplateData struct {
 	Link  string
 	Email string
+}
+
+// getSessionUser retrieves the current session user from the database.
+func (p *politeiawww) getSessionUser(r *http.Request) (*database.User, error) {
+	session, err := p.store.Get(r, v1.CookieSession)
+	if err != nil {
+		return nil, err
+	}
+
+	email, ok := session.Values["email"].(string)
+	if !ok || email == "" {
+		return nil, fmt.Errorf("could not cast email")
+	}
+
+	return p.backend.db.UserGet(email)
+}
+
+// isAdmin returns true if the current session has admin privileges.
+func (p *politeiawww) isAdmin(r *http.Request) (bool, error) {
+	user, err := p.getSessionUser(r)
+	if err != nil {
+		return false, err
+	}
+
+	return user.Admin, nil
 }
 
 // Fetch remote identity
@@ -286,9 +312,6 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	// Mark user as logged in if there's no error.
 	session.Values["email"] = l.Email
-	session.Values["id"] = reply.UserID
-	session.Values["authenticated"] = true
-	session.Values["admin"] = reply.IsAdmin
 	err = session.Save(r, w)
 	if err != nil {
 		RespondWithError(w, r, 0,
@@ -323,9 +346,6 @@ func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 	// Revoke users authentication
 	session.Values["email"] = ""
-	session.Values["id"] = 0
-	session.Values["authenticated"] = false
-	session.Values["admin"] = false
 	err = session.Save(r, w)
 	if err != nil {
 		RespondWithError(w, r, 0,
@@ -352,18 +372,27 @@ func (p *politeiawww) handleMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	email, oke := session.Values["email"].(string)
-	isAdmin, oki := session.Values["admin"].(bool)
-	if !oke || !oki {
+	// Find session
+	email, ok := session.Values["email"].(string)
+	if !ok {
 		RespondWithError(w, r, 0,
-			"handleMe: type assert oke %v oki %v", oke, oki)
+			"handleMe: type assert ok %v", ok)
 		return
+	}
+
+	// Get values out of database
+	user, err := p.backend.db.UserGet(email)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleMe: failed to get user: %v", err)
 	}
 
 	// Reply with the user information.
 	reply := v1.MeReply{
-		Email:   email,
-		IsAdmin: isAdmin,
+		IsAdmin:   user.Admin,
+		UserID:    user.ID,
+		Email:     user.Email,
+		PublicKey: database.ActiveIdentityString(user.Identities),
 	}
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
@@ -495,14 +524,12 @@ func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Reque
 	pathParams := mux.Vars(r)
 	pd.Token = pathParams["token"]
 
-	session, err := p.store.Get(r, v1.CookieSession)
+	isAdmin, err := p.isAdmin(r)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleProposalDetails: failed to get session %v", err)
+			"handleProposalDetails: isAdmin %v", err)
 		return
 	}
-
-	isAdmin, _ := session.Values["admin"].(bool)
 	reply, err := p.backend.ProcessProposalDetails(pd, isAdmin)
 	if err != nil {
 		RespondWithError(w, r, 0,
@@ -580,21 +607,14 @@ func (p *politeiawww) handleNewComment(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	// Get session to retrieve user id
-	session, err := p.store.Get(r, v1.CookieSession)
+	user, err := p.getSessionUser(r)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleNewComment: failed to get session: %v", err)
-		return
-	}
-	userID, ok := session.Values["id"].(uint64)
-	if !ok {
-		RespondWithError(w, r, 0,
-			"handleNewComment: invalid user ID: %v", err)
+			"handleNewComment: getSessionUser %v", err)
 		return
 	}
 
-	cr, err := p.backend.ProcessComment(sc, userID)
+	cr, err := p.backend.ProcessComment(sc, user.ID)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleNewComment: ProcessComment %v", err)

@@ -5,6 +5,7 @@
 package database
 
 import (
+	"encoding/hex"
 	"errors"
 
 	"github.com/decred/politeia/politeiad/api/v1/identity"
@@ -31,6 +32,26 @@ type Identity struct {
 	Key         [identity.PublicKeySize]byte // ed25519 public key
 	Activated   int64                        // Time key as acivated for use
 	Deactivated int64                        // Time key was deactivated
+}
+
+// ActiveIdentity returns a the current active key.  If there is no active
+// valid key the call returns all 0s.
+func ActiveIdentity(i []Identity) [identity.PublicKeySize]byte {
+	for _, v := range i {
+		if v.Activated == 0 || v.Deactivated != 0 {
+			continue
+		}
+		return v.Key
+	}
+
+	return [identity.PublicKeySize]byte{}
+}
+
+// ActiveIdentityString returns a string representation of the current active
+// key.  If there is no active valid key the call returns all 0s.
+func ActiveIdentityString(i []Identity) string {
+	key := ActiveIdentity(i)
+	return hex.EncodeToString(key[:])
 }
 
 // User record.

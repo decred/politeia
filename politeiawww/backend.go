@@ -667,7 +667,7 @@ func (b *backend) ProcessVerifyNewUser(u www.VerifyNewUser) error {
 		}
 	}
 
-	// Check signarure
+	// Check signature
 	signature, err := hex.DecodeString(u.Signature)
 	if err != nil {
 		return www.UserError{
