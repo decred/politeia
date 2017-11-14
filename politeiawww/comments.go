@@ -43,6 +43,9 @@ func backendCommentToComment(bec BackendComment) www.Comment {
 // initComment initializes the comment map for the given token.  This call must
 // be called with the lock held.
 func (b *backend) initComment(token string) {
+	if _, ok := b.comments[token]; ok {
+		return
+	}
 	b.comments[token] = make(map[uint64]BackendComment)
 }
 
