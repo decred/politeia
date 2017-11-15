@@ -221,7 +221,7 @@ Verify email address of a previously created user.
 |-------------------|--------|---------------------------------------------------|----------|
 | email             | String | Email address of previously created user.         | Yes      |
 | verificationtoken | String | The token that was provided by email to the user. | Yes      |
-| signature | String | The es25519 signature of the verification token.          | Yes      |
+| signature | String | The ed25519 signature of the verification token.          | Yes      |
 
 **Results:** none
 
