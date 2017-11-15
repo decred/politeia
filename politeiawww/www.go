@@ -365,11 +365,15 @@ func (p *politeiawww) handleMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	activeIdentity, ok := database.ActiveIdentityString(user.Identities)
+	if !ok {
+		activeIdentity = ""
+	}
 	reply := v1.MeReply{
 		IsAdmin:   user.Admin,
 		UserID:    user.ID,
 		Email:     user.Email,
-		PublicKey: database.ActiveIdentityString(user.Identities),
+		PublicKey: activeIdentity,
 	}
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }

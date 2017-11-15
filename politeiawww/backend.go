@@ -237,14 +237,12 @@ func (b *backend) validatePassword(password string) error {
 
 func (b *backend) validateProposal(np www.NewProposal, user *database.User) error {
 	// Obtain signature
-	sb, err := hex.DecodeString(np.Signature)
+	sig, err := util.ConvertSignature(np.Signature)
 	if err != nil {
 		return www.UserError{
 			ErrorCode: www.ErrorStatusInvalidSignature,
 		}
 	}
-	var sig [identity.SignatureSize]byte
-	copy(sig[:], sb)
 
 	// Check for at least 1 markdown file with a non-emtpy payload.
 	if len(np.Files) == 0 || np.Files[0].Payload == "" {
@@ -360,7 +358,12 @@ func (b *backend) validateProposal(np www.NewProposal, user *database.User) erro
 	}
 
 	// Verify signature
-	id := database.ActiveIdentity(user.Identities)
+	id, ok := database.ActiveIdentity(user.Identities)
+	if !ok {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusNoPublicKey,
+		}
+	}
 	pk, err := identity.PublicIdentityFromBytes(id[:])
 	if err != nil {
 		return err
@@ -708,22 +711,13 @@ func (b *backend) ProcessVerifyNewUser(u www.VerifyNewUser) error {
 	}
 
 	// Check signature
-	signature, err := hex.DecodeString(u.Signature)
+	sig, err := util.ConvertSignature(u.Signature)
 	if err != nil {
 		return www.UserError{
 			ErrorCode: www.ErrorStatusInvalidPublicKey,
 		}
 	}
-	if len(signature) != identity.SignatureSize {
-		return www.UserError{
-			ErrorCode: www.ErrorStatusInvalidPublicKey,
-		}
-	}
-	var (
-		sig [identity.SignatureSize]byte
-		pi  *identity.PublicIdentity
-	)
-	copy(sig[:], signature)
+	var pi *identity.PublicIdentity
 	for _, v := range user.Identities {
 		if v.Deactivated != 0 {
 			continue

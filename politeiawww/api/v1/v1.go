@@ -131,6 +131,9 @@ var (
 		ErrorStatusInvalidMIMEType:             "invalid MIME type detected for file",
 		ErrorStatusUnsupportedMIMEType:         "unsupported MIME type for file",
 		ErrorStatusInvalidPropStatusTransition: "invalid proposal status",
+		ErrorStatusInvalidPublicKey:            "invalid public key",
+		ErrorStatusNoPublicKey:                 "no active public key",
+		ErrorStatusInvalidSignature:            "invalid signature",
 	}
 )
 

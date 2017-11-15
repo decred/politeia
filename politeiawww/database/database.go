@@ -35,23 +35,23 @@ type Identity struct {
 }
 
 // ActiveIdentity returns a the current active key.  If there is no active
-// valid key the call returns all 0s.
-func ActiveIdentity(i []Identity) [identity.PublicKeySize]byte {
+// valid key the call returns all 0s and false.
+func ActiveIdentity(i []Identity) ([identity.PublicKeySize]byte, bool) {
 	for _, v := range i {
 		if v.Activated == 0 || v.Deactivated != 0 {
 			continue
 		}
-		return v.Key
+		return v.Key, true
 	}
 
-	return [identity.PublicKeySize]byte{}
+	return [identity.PublicKeySize]byte{}, false
 }
 
 // ActiveIdentityString returns a string representation of the current active
-// key.  If there is no active valid key the call returns all 0s.
-func ActiveIdentityString(i []Identity) string {
-	key := ActiveIdentity(i)
-	return hex.EncodeToString(key[:])
+// key.  If there is no active valid key the call returns all 0s and false.
+func ActiveIdentityString(i []Identity) (string, bool) {
+	key, ok := ActiveIdentity(i)
+	return hex.EncodeToString(key[:]), ok
 }
 
 // User record.
