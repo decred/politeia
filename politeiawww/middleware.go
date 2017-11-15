@@ -15,15 +15,16 @@ func (p *politeiawww) isLoggedIn(f http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log.Debugf("isLoggedIn: %v %v %v %v", remoteAddr(r), r.Method,
 			r.URL, r.Proto)
-		session, err := p.store.Get(r, v1.CookieSession)
+
+		email, err := p.getSessionEmail(r)
 		if err != nil {
-			log.Errorf("isLoggedIn: %v", err)
-			util.RespondWithJSON(w, http.StatusForbidden, v1.ErrorReply{})
+			RespondWithError(w, r, 0,
+				"isLoggedIn: getSessionEmail %v", err)
 			return
 		}
 
 		// Check if user is authenticated
-		if email, ok := session.Values["email"].(string); !ok || email == "" {
+		if email == "" {
 			util.RespondWithJSON(w, http.StatusForbidden, v1.ErrorReply{})
 			return
 		}

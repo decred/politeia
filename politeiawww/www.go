@@ -54,19 +54,47 @@ type resetPasswordEmailTemplateData struct {
 	Email string
 }
 
+// getSessionEmail returns the email address of the currently logged in user
+// from the session store.
+func (p *politeiawww) getSessionEmail(r *http.Request) (string, error) {
+	session, err := p.store.Get(r, v1.CookieSession)
+	if err != nil {
+		return "", err
+	}
+
+	email, ok := session.Values["email"].(string)
+	if !ok {
+		// No email in session so return "" to indicate that.
+		return "", nil
+	}
+
+	return email, nil
+}
+
 // getSessionUser retrieves the current session user from the database.
 func (p *politeiawww) getSessionUser(r *http.Request) (*database.User, error) {
-	session, err := p.store.Get(r, v1.CookieSession)
+	email, err := p.getSessionEmail(r)
 	if err != nil {
 		return nil, err
 	}
 
-	email, ok := session.Values["email"].(string)
-	if !ok || email == "" {
-		return nil, fmt.Errorf("could not cast email")
+	return p.backend.db.UserGet(email)
+}
+
+// setSessionUser sets the "email" session key to the provided value.
+func (p *politeiawww) setSessionUser(w http.ResponseWriter, r *http.Request, email string) error {
+	session, err := p.store.Get(r, v1.CookieSession)
+	if err != nil {
+		return err
 	}
 
-	return p.backend.db.UserGet(email)
+	session.Values["email"] = email
+	err = session.Save(r, w)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // isAdmin returns true if the current session has admin privileges.
@@ -287,13 +315,6 @@ func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request
 // exists and the accompanying password.  On success a cookie is added to the
 // gorilla sessions that must be returned on subsequent calls.
 func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
-	session, err := p.store.Get(r, v1.CookieSession)
-	if err != nil {
-		RespondWithError(w, r, 0, "handleLogin: failed to get session: %v",
-			err)
-		return
-	}
-
 	// Get the login command.
 	var l v1.Login
 	decoder := json.NewDecoder(r.Body)
@@ -311,11 +332,10 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Mark user as logged in if there's no error.
-	session.Values["email"] = l.Email
-	err = session.Save(r, w)
+	err = p.setSessionUser(w, r, l.Email)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleLogin: failed to save session: %v", err)
+			"handleLogin: setSessionUser %v", err)
 		return
 	}
 
@@ -337,19 +357,10 @@ func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
 		}
 		defer r.Body.Close()
 	*/
-	session, err := p.store.Get(r, v1.CookieSession)
+	err := p.setSessionUser(w, r, "")
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleLogout: failed to get session: %v", err)
-		return
-	}
-
-	// Revoke users authentication
-	session.Values["email"] = ""
-	err = session.Save(r, w)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleLogout: failed to save session: %v", err)
+			"handleLogout: setSessionUser %v", err)
 		return
 	}
 
@@ -365,29 +376,13 @@ func (p *politeiawww) handleSecret(w http.ResponseWriter, r *http.Request) {
 
 // handleMe returns logged in user information.
 func (p *politeiawww) handleMe(w http.ResponseWriter, r *http.Request) {
-	session, err := p.store.Get(r, v1.CookieSession)
+	user, err := p.getSessionUser(r)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleMe: failed to get session: %v", err)
+			"handleMe: getSessionUser %v", err)
 		return
 	}
 
-	// Find session
-	email, ok := session.Values["email"].(string)
-	if !ok {
-		RespondWithError(w, r, 0,
-			"handleMe: type assert ok %v", ok)
-		return
-	}
-
-	// Get values out of database
-	user, err := p.backend.db.UserGet(email)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleMe: failed to get user: %v", err)
-	}
-
-	// Reply with the user information.
 	reply := v1.MeReply{
 		IsAdmin:   user.Admin,
 		UserID:    user.ID,
@@ -398,21 +393,6 @@ func (p *politeiawww) handleMe(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Request) {
-	// Get the email for the current session.
-	session, err := p.store.Get(r, v1.CookieSession)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleChangePassword: failed to get session: %v", err)
-		return
-	}
-
-	email, ok := session.Values["email"].(string)
-	if !ok {
-		RespondWithError(w, r, 0,
-			"handleChangePassword: type assert ok %v", ok)
-		return
-	}
-
 	// Get the change password command.
 	var cp v1.ChangePassword
 	decoder := json.NewDecoder(r.Body)
@@ -423,7 +403,14 @@ func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Reques
 	}
 	defer r.Body.Close()
 
-	reply, err := p.backend.ProcessChangePassword(email, cp)
+	user, err := p.getSessionUser(r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleMe: getSessionUser %v", err)
+		return
+	}
+
+	reply, err := p.backend.ProcessChangePassword(user.Email, cp)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleChangePassword: ProcessChangePassword %v", err)
