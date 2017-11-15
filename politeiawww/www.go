@@ -153,10 +153,12 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 		}
 
 		if len(userErr.ErrorContext) == 0 {
-			log.Debugf("RespondWithError: %v %v", int64(userErr.ErrorCode),
+			log.Debugf("RespondWithError: %v %v",
+				int64(userErr.ErrorCode),
 				v1.ErrorStatus[userErr.ErrorCode])
 		} else {
-			log.Debugf("RespondWithError: %v %v: %v", int64(userErr.ErrorCode),
+			log.Debugf("RespondWithError: %v %v: %v",
+				int64(userErr.ErrorCode),
 				v1.ErrorStatus[userErr.ErrorCode],
 				strings.Join(userErr.ErrorContext, ", "))
 		}
@@ -172,8 +174,10 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 		pdErrorCode := convertErrorStatusFromPD(pdError.ErrorReply.ErrorCode)
 		if pdErrorCode == v1.ErrorStatusInvalid {
 			errorCode := time.Now().Unix()
-			log.Errorf("%v %v %v %v Internal error %v: error code from politeiad: %v",
-				remoteAddr(r), r.Method, r.URL, r.Proto, errorCode, pdError.ErrorReply.ErrorCode)
+			log.Errorf("%v %v %v %v Internal error %v: error "+
+				"code from politeiad: %v", remoteAddr(r),
+				r.Method, r.URL, r.Proto, errorCode,
+				pdError.ErrorReply.ErrorCode)
 			util.RespondWithJSON(w, http.StatusInternalServerError,
 				v1.ErrorReply{
 					ErrorCode: errorCode,
@@ -202,17 +206,6 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 // version is an HTTP GET to determine what version and API route this backend
 // is using.  Additionally it is used to obtain a CSRF token.
 func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
-	/*
-		// Get the version command.
-		var v v1.Version
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&v); err != nil {
-			RespondInternalError(w, r,
-				"handleVersion: Unmarshal %v", err)
-			return
-		}
-		defer r.Body.Close()
-	*/
 	versionReply, err := json.Marshal(v1.VersionReply{
 		Version: v1.PoliteiaWWWAPIVersion,
 		Route:   v1.PoliteiaWWWAPIRoute,
@@ -346,17 +339,6 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 // handleLogout logs the user out.  A login will be required to resume sending
 // commands,
 func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
-	/*
-		// Get the logout command.
-		var l v1.Logout
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&l); err != nil {
-			RespondInternalError(w, r,
-				"handleLogout: Unmarshal %v", err)
-			return
-		}
-		defer r.Body.Close()
-	*/
 	err := p.setSessionUser(w, r, "")
 	if err != nil {
 		RespondWithError(w, r, 0,
@@ -495,20 +477,9 @@ func (p *politeiawww) handleSetProposalStatus(w http.ResponseWriter, r *http.Req
 // handleProposalDetails handles the incoming proposal details command. It fetches
 // the complete details for an existing proposal.
 func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Request) {
-	// Get the proposal details command.
-	var pd v1.ProposalsDetails
-
-	/*
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&pd); err != nil {
-			RespondInternalError(w, r,
-				"handleProposalDetails: Unmarshal %v", err)
-			return
-		}
-		defer r.Body.Close()
-	*/
 	// Add the path param to the struct.
 	pathParams := mux.Vars(r)
+	var pd v1.ProposalsDetails
 	pd.Token = pathParams["token"]
 
 	isAdmin, err := p.isAdmin(r)
@@ -531,17 +502,7 @@ func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Reque
 func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 	// Get the policy command.
 	var policy v1.Policy
-	/*
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&policy); err != nil {
-			RespondInternalError(w, r,
-				"handlePolicy: Unmarshal %v", err)
-			return
-		}
-		defer r.Body.Close()
-	*/
 	reply := p.backend.ProcessPolicy(policy)
-
 	// Reply with the new proposal status.
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
@@ -550,16 +511,6 @@ func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 func (p *politeiawww) handleAllVetted(w http.ResponseWriter, r *http.Request) {
 	// Get the all vetted command.
 	var v v1.GetAllVetted
-
-	/*
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&v); err != nil {
-			RespondInternalError(w, r,
-				"handleAllVetted: Unmarshal %v", err)
-			return
-		}
-		defer r.Body.Close()
-	*/
 	vr := p.backend.ProcessAllVetted(v)
 	util.RespondWithJSON(w, http.StatusOK, vr)
 }
@@ -568,16 +519,6 @@ func (p *politeiawww) handleAllVetted(w http.ResponseWriter, r *http.Request) {
 func (p *politeiawww) handleAllUnvetted(w http.ResponseWriter, r *http.Request) {
 	// Get the all unvetted command.
 	var u v1.GetAllUnvetted
-
-	/*
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&u); err != nil {
-			RespondInternalError(w, r,
-				"handleAllUnvetted: Unmarshal %v", err)
-			return
-		}
-		defer r.Body.Close()
-	*/
 	ur := p.backend.ProcessAllUnvetted(u)
 	util.RespondWithJSON(w, http.StatusOK, ur)
 }
