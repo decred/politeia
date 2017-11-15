@@ -47,6 +47,9 @@ API.  It does not render HTML.
 - [`ErrorStatusInvalidMIMEType`](#ErrorStatusInvalidMIMEType)
 - [`ErrorStatusUnsupportedMIMEType`](#ErrorStatusUnsupportedMIMEType)
 - [`ErrorStatusInvalidPropStatusTransition`](#ErrorStatusInvalidPropStatusTransition)
+- [`ErrorStatusInvalidPublicKey            ErrorStatusT = 21
+- [`ErrorStatusNoPublicKey                 ErrorStatusT = 22
+- [`ErrorStatusInvalidSignature            ErrorStatusT = 23
 
 **Proposal status codes**
 
@@ -128,6 +131,7 @@ Return pertinent user information of the current logged in user.
 | userid  | Number | Unique user identifier.                                   |
 | email   | String | User ID.                                                  |
 | isadmin | String | This indicates if the user has publish/censor privileges. |
+| publickey | String | Current active public key. |
 
 If there currently is no session the call returns `403 Forbidden`.
 
@@ -143,8 +147,10 @@ Reply:
 
 ```json
 {
-  "email": "d3a948d856daea3d@example.com",
-  "isadmin": true
+  "isadmin":false,
+  "userid":12,
+  "email":"69af376cca42cd9c@example.com",
+  "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b"
 }
 ```
 
@@ -160,6 +166,7 @@ Create a new user on the politeiawww server.
 |-----------|--------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|
 | email | String | Email is used as the web site user identity for a user. When a user changes email addresses the server shall maintain a mapping between the old and new address. | Yes |
 | password | String | The password that the user wishes to use. This password travels in the clear in order to enable JS-less systems. The server shall never store passwords in the clear. | Yes |
+| publickey | String | User ed25519 public key. | Yes |
 
 **Results:**
 
@@ -175,7 +182,7 @@ This call can return one of the following error codes:
 The email shall include a link in the following format:
 
 ```
-/user/verify?email=abc@example.com&verificationtoken=f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde
+/user/verify?email=69af376cca42cd9c@example.com&verificationtoken=fc8f660e7f4d590e27e6b11639ceeaaec2ce9bc6b0303344555ac023ab8ee55f&signature=9e4b1018913610c12496ec3e482f2fb42129197001c5d35d4f5848b77d2b5e5071f79b18bcab4f371c5b378280bb478c153b696003ac3a627c3d8a088cd5f00d
 ```
 
 The call may return `500 Internal Server Error` which is accompanied by
@@ -188,8 +195,9 @@ Request:
 
 ```json
 {
-  "email": "15a1eb6de3681fec@example.com",
-  "password": "15a1eb6de3681fec"
+  "email": "69af376cca42cd9c@example.com",
+  "password": "69af376cca42cd9c"
+  "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
 }
 ```
 
@@ -197,7 +205,7 @@ Reply:
 
 ```json
 {
-  "verificationtoken": "f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde"
+  "verificationtoken": "fc8f660e7f4d590e27e6b11639ceeaaec2ce9bc6b0303344555ac023ab8ee55f"
 }
 ```
 
@@ -213,6 +221,7 @@ Verify email address of a previously created user.
 |-------------------|--------|---------------------------------------------------|----------|
 | email             | String | Email address of previously created user.         | Yes      |
 | verificationtoken | String | The token that was provided by email to the user. | Yes      |
+| signature | String | The es25519 signature of the verification token.          | Yes      |
 
 **Results:** none
 
@@ -223,6 +232,9 @@ On failure the call shall redirect to `/v1/user/verify/failure` which will retur
 `400 Bad Request` and one of the following error codes:
 - [`ErrorStatusVerificationTokenInvalid`](#ErrorStatusVerificationTokenInvalid)
 - [`ErrorStatusVerificationTokenExpired`](#ErrorStatusVerificationTokenExpired)
+- [`ErrorStatusNoPublicKey`](#ErrorStatusNoPublicKey)
+- [`ErrorStatusInvalidPublicKey`](#ErrorStatusInvalidPublicKey)
+- [`ErrorStatusInvalidSignature`](#ErrorStatusInvalidSignature)
 
 **Example:**
 
@@ -435,6 +447,7 @@ The proposal name is derived from the first line of the markdown file - index.md
 | Parameter | Type | Description | Required |
 |-----------|------------------|--------------------------------------------------------------------------------------------------------------------------|----------|
 | files | Array of Objects | Files are the body of the proposal. It should consist of one markdown file - named "index.md" - and up to five pictures. | Yes |
+| signature | String | Signature of the Merkle root of the files payload. | Yes |
 
 The structure of a file is as follows:
 
@@ -822,6 +835,9 @@ Reply:
 | <a name="ErrorStatusInvalidMIMEType">ErrorStatusInvalidMIMEType</a> | 18 | The MIME type provided for one of the proposal files was not the same as the one derived from the file's content. This error is provided with additional context: The name of the file with the invalid MIME type and the MIME type detected for the file's content. |
 | <a name="ErrorStatusUnsupportedMIMEType">ErrorStatusUnsupportedMIMEType</a> | 19 | The MIME type provided for one of the proposal files is not supported. This error is provided with additional context: The name of the file with the unsupported MIME type and the MIME type that is unsupported. |
 | <a name="ErrorStatusInvalidPropStatusTransition">ErrorStatusInvalidPropStatusTransition</a> | 20 | The provided proposal cannot be changed to the given status. |
+| <a name="ErrorStatusInvalidPublicKey">ErrorStatusInvalidPublicKey</a> | 21 | Invalid public key. |
+| <a name="ErrorStatusNoPublicKey">ErrorStatusNoPublicKey</a> | 22 | User does not have an active public key. |
+| <a name="ErrorStatusInvalidSignature">ErrorStatusInvalidSignature</a> | 23 | Invalid signature. |
 
 ### Proposal status codes
 
