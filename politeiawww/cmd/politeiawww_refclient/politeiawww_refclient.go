@@ -10,6 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/http/cookiejar"
 	"os"
@@ -828,9 +829,7 @@ func _main() error {
 }
 
 func main() {
-	err := _main()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
+	if err := _main(); err != nil {
+		log.Fatal(err)
 	}
 }

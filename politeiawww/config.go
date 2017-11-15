@@ -6,6 +6,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"encoding/base64"
 	"fmt"
 	"html/template"
@@ -19,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/decred/politeia/politeiad/api/v1/identity"
+	"github.com/gorilla/sessions"
 
 	flags "github.com/btcsuite/go-flags"
 	"github.com/dajohi/goemail"
@@ -53,6 +55,30 @@ var (
 // runServiceCommand is only set to a real function on Windows.  It is used
 // to parse and execute service commands specified via the -s flag.
 var runServiceCommand func(string) error
+
+// defaultTSLConfig contains the default TLS configuration for an http server
+var defaultTSLConfig = &tls.Config{
+	MinVersion: tls.VersionTLS12,
+	CurvePreferences: []tls.CurveID{
+		tls.CurveP256, // BLAME CHROME, NOT ME!
+		tls.CurveP521,
+		tls.X25519},
+	PreferServerCipherSuites: true,
+	CipherSuites: []uint16{
+		tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+		tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
+	},
+}
+
+// defaultStoreOptions contains the default store options
+var defaultStoreOptions = &sessions.Options{
+	Path:     "/",
+	MaxAge:   86400, // One day
+	Secure:   true,
+	HttpOnly: true,
+}
 
 // config defines the configuration options for politeiawww.
 //

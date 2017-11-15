@@ -9,9 +9,26 @@ import (
 	"github.com/decred/politeia/util"
 )
 
+// middleware chains the necessary handlers to the given handler
+func (p *PoliteiaWWW) middleware(handler http.HandlerFunc, perm permission, shouldLoadInventory bool) http.HandlerFunc {
+	if shouldLoadInventory {
+		handler = p.loadInventory(handler)
+	}
+	switch perm {
+	case permissionAdmin:
+		handler = logging(p.isLoggedInAsAdmin(handler))
+	case permissionLogin:
+		handler = logging(p.isLoggedIn(handler))
+	default:
+		handler = logging(handler)
+	}
+
+	return handler
+}
+
 // isLoggedIn ensures that a user is logged in before calling the next
 // function.
-func (p *politeiawww) isLoggedIn(f http.HandlerFunc) http.HandlerFunc {
+func (p *PoliteiaWWW) isLoggedIn(f http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log.Debugf("isLoggedIn: %v %v %v %v", remoteAddr(r), r.Method,
 			r.URL, r.Proto)
@@ -34,7 +51,7 @@ func (p *politeiawww) isLoggedIn(f http.HandlerFunc) http.HandlerFunc {
 
 // isLoggedInAsAdmin ensures that a user is logged in as an admin user
 // before calling the next function.
-func (p *politeiawww) isLoggedInAsAdmin(f http.HandlerFunc) http.HandlerFunc {
+func (p *PoliteiaWWW) isLoggedInAsAdmin(f http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log.Debugf("isLoggedInAsAdmin: %v %v %v %v", remoteAddr(r),
 			r.Method, r.URL, r.Proto)
@@ -91,7 +108,7 @@ func remoteAddr(r *http.Request) string {
 	return via
 }
 
-func (p *politeiawww) loadInventory(f http.HandlerFunc) http.HandlerFunc {
+func (p *PoliteiaWWW) loadInventory(f http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if err := p.backend.LoadInventory(); err != nil {
 			RespondWithError(w, r, 0,
