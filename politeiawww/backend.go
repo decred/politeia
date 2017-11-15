@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -18,6 +19,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/dajohi/goemail"
+	"github.com/decred/dcrtime/merkle"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
@@ -233,7 +235,17 @@ func (b *backend) validatePassword(password string) error {
 	return nil
 }
 
-func (b *backend) validateProposal(np www.NewProposal) error {
+func (b *backend) validateProposal(np www.NewProposal, user *database.User) error {
+	// Obtain signature
+	sb, err := hex.DecodeString(np.Signature)
+	if err != nil {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSignature,
+		}
+	}
+	var sig [identity.SignatureSize]byte
+	copy(sig[:], sb)
+
 	// Check for at least 1 markdown file with a non-emtpy payload.
 	if len(np.Files) == 0 || np.Files[0].Payload == "" {
 		return www.UserError{
@@ -244,13 +256,20 @@ func (b *backend) validateProposal(np www.NewProposal) error {
 	// verify if there are duplicate names
 	filenames := make(map[string]int, len(np.Files))
 	// Check that the file number policy is followed.
-	var numMDs, numImages, numIndexFiles uint = 0, 0, 0
-	var mdExceedsMaxSize, imageExceedsMaxSize bool = false, false
+	var (
+		numMDs, numImages, numIndexFiles      int
+		mdExceedsMaxSize, imageExceedsMaxSize bool
+		hashes                                []*[sha256.Size]byte
+	)
 	for _, v := range np.Files {
 		filenames[v.Name]++
+		var (
+			data []byte
+			err  error
+		)
 		if strings.HasPrefix(v.MIME, "image/") {
 			numImages++
-			data, err := base64.StdEncoding.DecodeString(v.Payload)
+			data, err = base64.StdEncoding.DecodeString(v.Payload)
 			if err != nil {
 				return err
 			}
@@ -264,7 +283,7 @@ func (b *backend) validateProposal(np www.NewProposal) error {
 				numIndexFiles++
 			}
 
-			data, err := base64.StdEncoding.DecodeString(v.Payload)
+			data, err = base64.StdEncoding.DecodeString(v.Payload)
 			if err != nil {
 				return err
 			}
@@ -272,6 +291,12 @@ func (b *backend) validateProposal(np www.NewProposal) error {
 				mdExceedsMaxSize = true
 			}
 		}
+
+		// Append digest to array for merkle root calculation
+		digest := util.Digest(data)
+		var d [sha256.Size]byte
+		copy(d[:], digest)
+		hashes = append(hashes, &d)
 	}
 
 	// verify duplicate file names
@@ -331,6 +356,21 @@ func (b *backend) validateProposal(np www.NewProposal) error {
 		return www.UserError{
 			ErrorCode:    www.ErrorStatusProposalInvalidTitle,
 			ErrorContext: []string{www.ErrorContextProposalInvalidTitle},
+		}
+	}
+
+	// Verify signature
+	id := database.ActiveIdentity(user.Identities)
+	pk, err := identity.PublicIdentityFromBytes(id[:])
+	if err != nil {
+		return err
+	}
+	mr := merkle.Root(hashes)
+	mrd := make([]byte, sha256.Size)
+	copy(mrd, mr[:])
+	if !pk.VerifyMessage(mrd, sig) {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSignature,
 		}
 	}
 
@@ -863,9 +903,9 @@ func (b *backend) ProcessAllUnvetted(u www.GetAllUnvetted) *www.GetAllUnvettedRe
 }
 
 // ProcessNewProposal tries to submit a new proposal to politeiad.
-func (b *backend) ProcessNewProposal(np www.NewProposal) (*www.NewProposalReply, error) {
+func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*www.NewProposalReply, error) {
 	var reply www.NewProposalReply
-	err := b.validateProposal(np)
+	err := b.validateProposal(np, user)
 	if err != nil {
 		return nil, err
 	}

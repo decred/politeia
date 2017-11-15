@@ -438,7 +438,14 @@ func (p *politeiawww) handleNewProposal(w http.ResponseWriter, r *http.Request) 
 	}
 	defer r.Body.Close()
 
-	reply, err := p.backend.ProcessNewProposal(np)
+	user, err := p.getSessionUser(r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleNewProposal: getSessionUser %v", err)
+		return
+	}
+
+	reply, err := p.backend.ProcessNewProposal(np, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleNewProposal: ProcessNewProposal %v", err)

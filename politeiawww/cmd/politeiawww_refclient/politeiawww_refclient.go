@@ -273,13 +273,17 @@ func (c *ctx) me() (*v1.MeReply, error) {
 }
 
 func (c *ctx) newProposal() (*v1.NewProposalReply, error) {
-	np := v1.NewProposal{
-		Files: make([]v1.File, 0),
-	}
-
 	payload := []byte("This is a description")
 	h := sha256.New()
 	h.Write(payload)
+
+	sig := c.identity.SignMessage(h.Sum(nil))
+	np := v1.NewProposal{
+		Files: make([]v1.File, 0),
+		// We can get away with just signing the digest because there
+		// is only one file.
+		Signature: hex.EncodeToString(sig[:]),
+	}
 
 	np.Files = append(np.Files, v1.File{
 		Name:    "index.md",

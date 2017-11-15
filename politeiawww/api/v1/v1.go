@@ -304,7 +304,8 @@ type MeReply struct {
 
 // NewProposal attempts to submit a new proposal.
 type NewProposal struct {
-	Files []File `json:"files"`
+	Files     []File `json:"files"`     // Proposal files
+	Signature string `json:"signature"` // Signature of merkle root
 }
 
 // NewProposalReply is used to reply to the NewProposal command.
