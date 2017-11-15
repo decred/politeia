@@ -47,9 +47,9 @@ API.  It does not render HTML.
 - [`ErrorStatusInvalidMIMEType`](#ErrorStatusInvalidMIMEType)
 - [`ErrorStatusUnsupportedMIMEType`](#ErrorStatusUnsupportedMIMEType)
 - [`ErrorStatusInvalidPropStatusTransition`](#ErrorStatusInvalidPropStatusTransition)
-- [`ErrorStatusInvalidPublicKey            ErrorStatusT = 21
-- [`ErrorStatusNoPublicKey                 ErrorStatusT = 22
-- [`ErrorStatusInvalidSignature            ErrorStatusT = 23
+- [`ErrorStatusInvalidPublicKey`](#ErrorStatusInvalidPublicKey)
+- [`ErrorStatusNoPublicKey`](#ErrorStatusNoPublicKey)
+- [`ErrorStatusInvalidSignature`](#ErrorStatusInvalidSignature)
 
 **Proposal status codes**
 
