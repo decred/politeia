@@ -30,15 +30,6 @@ const (
 	permissionAdmin
 )
 
-type newUserEmailTemplateData struct {
-	Link  string
-	Email string
-}
-type resetPasswordEmailTemplateData struct {
-	Link  string
-	Email string
-}
-
 // PoliteiaWWW application context
 type PoliteiaWWW struct {
 	cfg     *config
@@ -46,7 +37,7 @@ type PoliteiaWWW struct {
 	backend *backend
 }
 
-// NewPolitieaWWW returns a new PoliteiaWWW instance
+// NewPoliteiaWWW returns a new PoliteiaWWW instance
 func NewPoliteiaWWW(cfg *config) (*PoliteiaWWW, error) {
 	var err error
 	// Create the data directory in case it does not exist.
@@ -150,14 +141,14 @@ func (p *PoliteiaWWW) getIdentity() error {
 	}
 
 	// Save identity
-	err = os.MkdirAll(filepath.Dir(p.cfg.RPCIdentityFile), 0700)
-	if err != nil {
+	if err = os.MkdirAll(filepath.Dir(p.cfg.RPCIdentityFile), 0700); err != nil {
 		return err
 	}
-	err = id.SavePublicIdentity(p.cfg.RPCIdentityFile)
-	if err != nil {
+
+	if err = id.SavePublicIdentity(p.cfg.RPCIdentityFile); err != nil {
 		return err
 	}
+
 	log.Infof("Identity saved to: %v", p.cfg.RPCIdentityFile)
 
 	return nil
@@ -261,8 +252,7 @@ func (p *PoliteiaWWW) handleVersion(w http.ResponseWriter, r *http.Request) {
 func (p *PoliteiaWWW) handleNewUser(w http.ResponseWriter, r *http.Request) {
 	// Get the new user command.
 	var u v1.NewUser
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&u); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&u); err != nil {
 		RespondWithError(w, r, 0, "handleNewUser: Unmarshal %v", err)
 		return
 	}
@@ -286,8 +276,7 @@ func (p *PoliteiaWWW) handleVerifyNewUser(w http.ResponseWriter, r *http.Request
 
 	// Get the new user verify command.
 	var vnu v1.VerifyNewUser
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&vnu); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&vnu); err != nil {
 		// The parameters may be part of the query, so check those before
 		// throwing an error.
 		query := r.URL.Query()
@@ -528,9 +517,7 @@ func (p *PoliteiaWWW) handleNewProposal(w http.ResponseWriter, r *http.Request) 
 func (p *PoliteiaWWW) handleSetProposalStatus(w http.ResponseWriter, r *http.Request) {
 	// Get the proposal status command.
 	var sps v1.SetProposalStatus
-
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&sps); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&sps); err != nil {
 		RespondWithError(w, r, 0,
 			"handleSetProposalStatus: Unmarshal %v", err)
 		return
@@ -643,9 +630,7 @@ func (p *PoliteiaWWW) handleAllUnvetted(w http.ResponseWriter, r *http.Request) 
 // handleNewComment handles incomming comments.
 func (p *PoliteiaWWW) handleNewComment(w http.ResponseWriter, r *http.Request) {
 	var sc v1.NewComment
-
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&sc); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&sc); err != nil {
 		RespondWithError(w, r, 0,
 			"handleNewComment: Unmarshal %v", err)
 		return
@@ -678,7 +663,6 @@ func (p *PoliteiaWWW) handleNewComment(w http.ResponseWriter, r *http.Request) {
 
 // handleCommentsGet handles batched comments get.
 func (p *PoliteiaWWW) handleCommentsGet(w http.ResponseWriter, r *http.Request) {
-
 	pathParams := mux.Vars(r)
 	defer r.Body.Close()
 	gcr, err := p.backend.ProcessCommentGet(pathParams["token"])
