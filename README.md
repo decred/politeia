@@ -131,7 +131,7 @@ Compile and launch the web server:
 ```
 dep ensure && go install -v ./politeiawww/... && LOGFLAGS=shortfile
 politeiawww --testnet --fetchidentity
-politeiawww --testnet --rpcuser=user --rpcpass=pass
+politeiawww --testnet --rpcuser=user --rpcpass=pass --templatedir=/templates/dir/path
 ```
 To check if the web server is running correctly:
 ```
