@@ -69,14 +69,14 @@ when an unexpected server error has occurred. The format of errors is as follows
 
 |  | Type | Description |
 |--------------|------------------|-------------------------------------------------------------------------------------------------------------------------------------|
-| errorcode | Number | One of the [error codes](#error-codes) |
+| errorcode | number | One of the [error codes](#error-codes) |
 | errorcontext | Array of Strings | This array of strings is used to provide additional information for certain errors; see the documentation for specific error codes. |
 
 **`5xx` errors**
 
 |           | Type   | Description                                                                                                                             |
 |-----------|--------|-----------------------------------------------------------------------------------------------------------------------------------------|
-| errorcode | Number | An error code that can be used to track down the internal server error that occurred; it should be reported to Politeia administrators. |
+| errorcode | number | An error code that can be used to track down the internal server error that occurred; it should be reported to Politeia administrators. |
 
 ## Methods
 
@@ -94,9 +94,9 @@ to get the CSRF token for the session and to ensure API compatability.
 
 |          | Type   | Description                                                                                     |
 |----------|--------|-------------------------------------------------------------------------------------------------|
-| version  | Number | API version that is running on this server.                                                     |
-| route    | String | Route that should be prepended to all calls. For example, "/v1".                                |
-| identity | String | Identity that signs various tokens to ensure server authenticity and to prevent replay attacks. |
+| version  | number | API version that is running on this server.                                                     |
+| route    | string | Route that should be prepended to all calls. For example, "/v1".                                |
+| identity | string | Identity that signs various tokens to ensure server authenticity and to prevent replay attacks. |
 
 **Example**
 
@@ -128,10 +128,10 @@ Return pertinent user information of the current logged in user.
 
 |         | Type   | Description                                               |
 |---------|--------|-----------------------------------------------------------|
-| userid  | Number | Unique user identifier.                                   |
-| email   | String | User ID.                                                  |
-| isadmin | String | This indicates if the user has publish/censor privileges. |
-| publickey | String | Current active public key. |
+| userid  | number | Unique user identifier.                                   |
+| email   | string | User ID.                                                  |
+| isadmin | string | This indicates if the user has publish/censor privileges. |
+| publickey | string | Current active public key. |
 
 If there currently is no session the call returns `403 Forbidden`.
 
@@ -164,15 +164,15 @@ Create a new user on the politeiawww server.
 
 | Parameter | Type | Description | Required |
 |-----------|--------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|
-| email | String | Email is used as the web site user identity for a user. When a user changes email addresses the server shall maintain a mapping between the old and new address. | Yes |
-| password | String | The password that the user wishes to use. This password travels in the clear in order to enable JS-less systems. The server shall never store passwords in the clear. | Yes |
-| publickey | String | User ed25519 public key. | Yes |
+| email | string | Email is used as the web site user identity for a user. When a user changes email addresses the server shall maintain a mapping between the old and new address. | Yes |
+| password | string | The password that the user wishes to use. This password travels in the clear in order to enable JS-less systems. The server shall never store passwords in the clear. | Yes |
+| publickey | string | User ed25519 public key. | Yes |
 
 **Results:**
 
 | Parameter | Type | Description |
 |-------------------|--------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| verificationtoken | String | The verification token which is required when calling [Verify user](#verify-user). If an email server is set up, this property will be empty or nonexistent; the token will be sent to the email address sent in the request. |
+| verificationtoken | string | The verification token which is required when calling [Verify user](#verify-user). If an email server is set up, this property will be empty or nonexistent; the token will be sent to the email address sent in the request. |
 
 This call can return one of the following error codes:
 
@@ -219,9 +219,9 @@ Verify email address of a previously created user.
 
 | Parameter         | Type   | Description                                       | Required |
 |-------------------|--------|---------------------------------------------------|----------|
-| email             | String | Email address of previously created user.         | Yes      |
-| verificationtoken | String | The token that was provided by email to the user. | Yes      |
-| signature | String | The ed25519 signature of the verification token.          | Yes      |
+| email             | string | Email address of previously created user.         | Yes      |
+| verificationtoken | string | The token that was provided by email to the user. | Yes      |
+| signature | string | The ed25519 signature of the verification token.          | Yes      |
 
 **Results:** none
 
@@ -266,14 +266,14 @@ the user database.
 
 | Parameter | Type   | Description                                        | Required |
 |-----------|--------|----------------------------------------------------|----------|
-| email     | String | Email address of user that is attempting to login. | Yes      |
-| password  | String | Accompanying password for provided email.          | Yes      |
+| email     | string | Email address of user that is attempting to login. | Yes      |
+| password  | string | Accompanying password for provided email.          | Yes      |
 
 **Results:**
 
 | Parameter | Type    | Description                                               |
 |-----------|---------|-----------------------------------------------------------|
-| userid    | Number  | Unique user identifier.                                   |
+| userid    | number  | Unique user identifier.                                   |
 | isadmin   | Boolean | This indicates if the user has publish/censor privileges. |
 
 On failure the call shall return `403 Forbidden` and one of the following
@@ -333,8 +333,8 @@ Changes the password for the currently logged in user.
 
 | Parameter       | Type   | Description                                 | Required |
 |-----------------|--------|---------------------------------------------|----------|
-| currentpassword | String | The current password of the logged in user. | Yes      |
-| newpassword     | String | The new password for the logged in user.    | Yes      |
+| currentpassword | string | The current password of the logged in user. | Yes      |
+| newpassword     | string | The new password for the logged in user.    | Yes      |
 
 **Results:** none
 
@@ -370,9 +370,9 @@ Allows a user to reset his password without being logged in.
 
 | Parameter         | Type   | Description                                                       | Required |
 |-------------------|--------|-------------------------------------------------------------------|----------|
-| email             | String | The email of the user whose password should be reset.             | Yes      |
-| verificationtoken | String | The verification token which is sent to the user's email address. | Yes      |
-| newpassword       | String | The new password for the user.                                    | Yes      |
+| email             | string | The email of the user whose password should be reset.             | Yes      |
+| verificationtoken | string | The verification token which is sent to the user's email address. | Yes      |
+| newpassword       | string | The new password for the user.                                    | Yes      |
 
 **Results:** none
 
@@ -447,16 +447,16 @@ The proposal name is derived from the first line of the markdown file - index.md
 | Parameter | Type | Description | Required |
 |-----------|------------------|--------------------------------------------------------------------------------------------------------------------------|----------|
 | files | Array of Objects | Files are the body of the proposal. It should consist of one markdown file - named "index.md" - and up to five pictures. | Yes |
-| signature | String | Signature of the Merkle root of the files payload. | Yes |
+| signature | string | Signature of the Merkle root of the files payload. | Yes |
 
 The structure of a file is as follows:
 
 | Parameter | Type | Description | Required |
 |-----------|--------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|
-| name | String | Name is the suggested filename. There should be no filenames that are overlapping and the name shall be validated before being used. | Yes |
-| mime | String | MIME type of the payload. Currently the system only supports md and png/svg files. The server shall reject invalid MIME types. | Yes |
-| digest | String | Digest is a SHA256 digest of the payload. The digest shall be verified by politeiad. | Yes |
-| payload | String | Payload is the actual file content. It shall be base64 encoded. Files have size limits that can be obtained via the [Policy](#policy) call. The server shall strictly enforce policy limits. | Yes |
+| name | string | Name is the suggested filename. There should be no filenames that are overlapping and the name shall be validated before being used. | Yes |
+| mime | string | MIME type of the payload. Currently the system only supports md and png/svg files. The server shall reject invalid MIME types. | Yes |
+| digest | string | Digest is a SHA256 digest of the payload. The digest shall be verified by politeiad. | Yes |
+| payload | string | Payload is the actual file content. It shall be base64 encoded. Files have size limits that can be obtained via the [Policy](#policy) call. The server shall strictly enforce policy limits. | Yes |
 
 **Results:**
 
@@ -520,9 +520,9 @@ The structure of a proposal is as follows:
 
 |  | Type | Description |
 |------------------|------------------|-------------------------------------------------------------------------|
-| name | String | The name of the proposal. |
-| status | Number | Current status of the proposal. |
-| timestamp | Number | The unix time of the last update of the proposal. |
+| name | string | The name of the proposal. |
+| status | number | Current status of the proposal. |
+| timestamp | number | The unix time of the last update of the proposal. |
 | censorshiprecord | [CensorshipRecord](#censorship-record) | The censorship record that was created when the proposal was submitted. |
 
 If the caller is not privileged the unvetted call returns `403 Forbidden`.
@@ -633,8 +633,8 @@ privileges.
 
 | Parameter | Type | Description | Required |
 |-----------|--------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|
-| token | String | Token is the unique censorship token that identifies a specific proposal. | Yes |
-| status | Number | Status indicates the new status for the proposal. Valid statuses are: [PropStatusCensored](#PropStatusCensored), [PropStatusPublic](#PropStatusPublic). Status can only be changed if the current proposal status is [PropStatusNotReviewed](#PropStatusNotReviewed) | Yes |
+| token | string | Token is the unique censorship token that identifies a specific proposal. | Yes |
+| status | number | Status indicates the new status for the proposal. Valid statuses are: [PropStatusCensored](#PropStatusCensored), [PropStatusPublic](#PropStatusPublic). Status can only be changed if the current proposal status is [PropStatusNotReviewed](#PropStatusNotReviewed) | Yes |
 
 **Results:** none
 
@@ -708,9 +708,8 @@ Reply:
 
 ### `New comment`
 
-Submit comment on given proposal.  ParentID value "0" means "comment on
-proposal"; non-zero values mean "reply to comment".  Note that ParentID is a
-string type but it *MUST* be a valid uint64.
+Submit comment on given proposal.  ParentID value "" means "comment on
+proposal"; if the value is not empty it means "reply to comment".
 
 **Route:** `POST /v1/comments/new`
 
@@ -726,7 +725,7 @@ string type but it *MUST* be a valid uint64.
 
 | | Type | Description |
 | - | - | - |
-| CommentID | uint64 | Server generated comment ID |
+| CommentID | string | Server generated unique comment identifier |
 
 **Example**
 
@@ -767,10 +766,10 @@ sorted.
 
 | | Type | Description |
 | - | - | - |
-| CommentID | uint64 | Unique comment identifier |
 | UserID | uint64 | Unique user identifier |
-| ParentID | String | Parent comment identifier, string but *IS* required to be a uint64 |
 | Timestamp | int64 | UNIX time when comment was accepted |
+| CommentID | string | Unique comment identifier |
+| ParentID | string | Parent comment identifier |
 | Token | string | Censorship token |
 | Comment | string | Comment text |
 
@@ -854,6 +853,6 @@ Reply:
 
 |  | Type | Description |
 |-----------|--------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| token | String | The token is a 32 byte random number that was assigned to identify the submitted proposal. This is the key to later retrieve the submitted proposal from the system. |
-| merkle | String | Merkle root of the proposal. This is defined as the sorted digests of all files proposal files. The client should cross verify this value. |
-| signature | String | Signature of merkle+token. The token is appended to the merkle root and then signed. The client should verify the signature. |
+| token | string | The token is a 32 byte random number that was assigned to identify the submitted proposal. This is the key to later retrieve the submitted proposal from the system. |
+| merkle | string | Merkle root of the proposal. This is defined as the sorted digests of all files proposal files. The client should cross verify this value. |
+| signature | string | Signature of merkle+token. The token is appended to the merkle root and then signed. The client should verify the signature. |

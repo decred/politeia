@@ -1160,6 +1160,11 @@ func (b *backend) ProcessComment(c www.NewComment, user *database.User) (*www.Ne
 	}
 
 	// See if we are commenting on a comment, yo dawg.
+	if c.ParentID == "" {
+		// "" means top level comment; we need it to be "0" for the
+		// underlying code to understand that.
+		c.ParentID = "0"
+	}
 	pid, err := strconv.ParseUint(c.ParentID, 10, 64)
 	if err != nil {
 		return nil, www.UserError{

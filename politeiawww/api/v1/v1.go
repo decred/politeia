@@ -382,7 +382,7 @@ type NewComment struct {
 // NewCommentReply return the site generated Comment ID or an error if
 // something went wrong.
 type NewCommentReply struct {
-	CommentID uint64 `json:"commentid"` // Comment ID
+	CommentID string `json:"commentid"` // Comment ID
 }
 
 // GetComments retrieve all comments for a given proposal.
@@ -393,7 +393,7 @@ type GetComments struct{}
 type Comment struct {
 	UserID    uint64 `json:"userid"`    // Originating user
 	Timestamp int64  `json:"timestamp"` // Received UNIX timestamp
-	CommentID uint64 `json:"commentid"` // Comment ID
+	CommentID string `json:"commentid"` // Comment ID
 	Token     string `json:"token"`     // Censorship token
 	ParentID  string `json:"parentid"`  // Parent comment ID
 	Comment   string `json:"comment"`   // Comment

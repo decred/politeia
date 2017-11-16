@@ -32,7 +32,7 @@ type BackendComment struct {
 // backendCommentToComment converts BackendComment to www.Comment.
 func backendCommentToComment(bec BackendComment) www.Comment {
 	return www.Comment{
-		CommentID: bec.CommentID,
+		CommentID: strconv.FormatUint(bec.CommentID, 10),
 		UserID:    bec.UserID,
 		ParentID:  strconv.FormatUint(bec.ParentID, 10),
 		Timestamp: bec.Timestamp,
@@ -107,7 +107,7 @@ func (b *backend) addComment(c www.NewComment, userID uint64) (*www.NewCommentRe
 	// Store comment in memory for quick lookup
 	b.comments[c.Token][b.commentID] = comment
 	cr := www.NewCommentReply{
-		CommentID: b.commentID,
+		CommentID: strconv.FormatUint(b.commentID, 10),
 	}
 	b.commentID++
 

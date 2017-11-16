@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"os"
-	"strconv"
 
 	"golang.org/x/net/publicsuffix"
 
@@ -751,40 +750,38 @@ func _main() error {
 
 		// Comment on proposals without a parent
 		cr, err := c.comment(myprop1.CensorshipRecord.Token,
-			"I like this prop", "0")
+			"I like this prop", "")
 		if err != nil {
 			return err
 		}
 		// Comment on original comment
-		crID := strconv.FormatUint(cr.CommentID, 10)
 		cr, err = c.comment(myprop1.CensorshipRecord.Token,
-			"you are right!", crID)
+			"you are right!", cr.CommentID)
 		if err != nil {
 			return err
 		}
 		// Comment on comment
 		cr, err = c.comment(myprop1.CensorshipRecord.Token,
-			"you are wrong!", crID)
+			"you are wrong!", cr.CommentID)
 		if err != nil {
 			return err
 		}
 
 		// Comment on proposals without a parent
 		cr2, err := c.comment(myprop1.CensorshipRecord.Token,
-			"I dont like this prop", "0")
-		if err != nil {
-			return err
-		}
-		// Comment on original comment
-		crID2 := strconv.FormatUint(cr2.CommentID, 10)
-		cr, err = c.comment(myprop1.CensorshipRecord.Token,
-			"you are right!", crID2)
+			"I dont like this prop", "")
 		if err != nil {
 			return err
 		}
 		// Comment on original comment
 		cr, err = c.comment(myprop1.CensorshipRecord.Token,
-			"you are crazy!", crID2)
+			"you are right!", cr2.CommentID)
+		if err != nil {
+			return err
+		}
+		// Comment on original comment
+		cr, err = c.comment(myprop1.CensorshipRecord.Token,
+			"you are crazy!", cr2.CommentID)
 		if err != nil {
 			return err
 		}
