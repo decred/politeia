@@ -11,7 +11,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
-	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -254,8 +253,6 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 // that the user with the provided email has a verificaton token that matches
 // the provided token and that the verification token has not yet expired.
 func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request) {
-	routePrefix := p.cfg.WebServerAddress
-
 	// Get the new user verify command.
 	var vnu v1.VerifyNewUser
 	decoder := json.NewDecoder(r.Body)
@@ -267,9 +264,8 @@ func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request
 		token, tokenOk := query["verificationtoken"]
 		sig, sigOk := query["signature"]
 		if !emailOk || !tokenOk || !sigOk {
-			log.Errorf("handleVerifyNewUser: Unmarshal %v", err)
-			http.Redirect(w, r, routePrefix+v1.RouteVerifyNewUserFailure,
-				http.StatusMovedPermanently)
+			RespondWithError(w, r, 0,
+				"handleVerifyNewUser: invalid parameters")
 			return
 		}
 
@@ -279,30 +275,17 @@ func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request
 	}
 	defer r.Body.Close()
 
-	err := p.backend.ProcessVerifyNewUser(vnu)
+	user, err := p.backend.ProcessVerifyNewUser(vnu)
 	if err != nil {
-		userErr, ok := err.(v1.UserError)
-		if ok {
-			url, err := url.Parse(routePrefix +
-				v1.RouteVerifyNewUserFailure)
-			if err == nil {
-				q := url.Query()
-				q.Set("errorcode", string(userErr.ErrorCode))
-				url.RawQuery = q.Encode()
-				http.Redirect(w, r, url.String(),
-					http.StatusMovedPermanently)
-				return
-			}
-		}
-
-		log.Errorf("handleVerifyNewUser: %v", err)
-		http.Redirect(w, r, routePrefix+v1.RouteVerifyNewUserFailure,
-			http.StatusMovedPermanently)
+		RespondWithError(w, r, 0, "handleLogin: ProcessVerifyNewUser %v",
+			err)
 		return
 	}
 
-	http.Redirect(w, r, routePrefix+v1.RouteVerifyNewUserSuccess,
-		http.StatusMovedPermanently)
+	util.RespondWithJSON(w, http.StatusOK,
+		v1.LoginReply{
+			UserID: strconv.FormatUint(user.ID, 10),
+		})
 }
 
 // handleLogin handles the incoming login command.  It verifies that the user

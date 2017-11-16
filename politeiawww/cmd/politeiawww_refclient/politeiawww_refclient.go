@@ -509,12 +509,7 @@ func _main() error {
 	sig := c.identity.SignMessage(tokenBytes)
 	err = c.verifyNewUser(email, token, hex.EncodeToString(sig[:]))
 	if err != nil {
-		// ugly hack that ignores special redirect handling in verify
-		// user.  We assume we were redirected to the correct page and
-		// end up 404 because we don't route the success/failure page.
-		if err.Error() != "404" {
-			return err
-		}
+		return err
 	}
 
 	// New proposal

@@ -675,38 +675,39 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 	return &reply, nil
 }
 
-// ProcessVerifyNewUser verifies the token generated for a recently created user.
-// It ensures that the token matches with the input and that the token hasn't expired.
-func (b *backend) ProcessVerifyNewUser(u www.VerifyNewUser) error {
+// ProcessVerifyNewUser verifies the token generated for a recently created
+// user.  It ensures that the token matches with the input and that the token
+// hasn't expired.  On success it returns database user record.
+func (b *backend) ProcessVerifyNewUser(u www.VerifyNewUser) (*database.User, error) {
 	// Check that the user already exists.
 	user, err := b.db.UserGet(u.Email)
 	if err != nil {
 		if err == database.ErrUserNotFound {
-			return www.UserError{
+			return nil, www.UserError{
 				ErrorCode: www.ErrorStatusVerificationTokenInvalid,
 			}
 		}
-		return err
+		return nil, err
 	}
 
 	// Decode the verification token.
 	token, err := hex.DecodeString(u.VerificationToken)
 	if err != nil {
-		return www.UserError{
+		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusVerificationTokenInvalid,
 		}
 	}
 
 	// Check that the verification token matches.
 	if !bytes.Equal(token, user.NewUserVerificationToken) {
-		return www.UserError{
+		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusVerificationTokenInvalid,
 		}
 	}
 
 	// Check that the token hasn't expired.
 	if currentTime := time.Now().Unix(); currentTime > user.NewUserVerificationExpiry {
-		return www.UserError{
+		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusVerificationTokenExpired,
 		}
 	}
@@ -714,7 +715,7 @@ func (b *backend) ProcessVerifyNewUser(u www.VerifyNewUser) error {
 	// Check signature
 	sig, err := util.ConvertSignature(u.Signature)
 	if err != nil {
-		return www.UserError{
+		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusInvalidPublicKey,
 		}
 	}
@@ -725,16 +726,16 @@ func (b *backend) ProcessVerifyNewUser(u www.VerifyNewUser) error {
 		}
 		pi, err = identity.PublicIdentityFromBytes(v.Key[:])
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 	if pi == nil {
-		return www.UserError{
+		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusNoPublicKey,
 		}
 	}
 	if !pi.VerifyMessage(token, sig) {
-		return www.UserError{
+		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusInvalidSignature,
 		}
 	}
@@ -742,7 +743,7 @@ func (b *backend) ProcessVerifyNewUser(u www.VerifyNewUser) error {
 	// Clear out the verification token fields in the db.
 	user.NewUserVerificationToken = nil
 	user.NewUserVerificationExpiry = 0
-	return b.db.UserUpdate(*user)
+	return user, b.db.UserUpdate(*user)
 }
 
 // ProcessLogin checks that a user exists, is verified, and has

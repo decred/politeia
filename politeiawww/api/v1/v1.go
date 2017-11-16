@@ -13,24 +13,22 @@ const (
 	CsrfToken = "X-CSRF-Token"    // CSRF token for replies
 	Forward   = "X-Forwarded-For" // Proxy header
 
-	RouteUserMe               = "/user/me"
-	RouteNewUser              = "/user/new"
-	RouteVerifyNewUser        = "/user/verify"
-	RouteVerifyNewUserSuccess = "/user/verify/success"
-	RouteVerifyNewUserFailure = "/user/verify/failure"
-	RouteChangePassword       = "/user/password/change"
-	RouteResetPassword        = "/user/password/reset"
-	RouteLogin                = "/login"
-	RouteLogout               = "/logout"
-	RouteSecret               = "/secret"
-	RouteAllVetted            = "/proposals/vetted"
-	RouteAllUnvetted          = "/proposals/unvetted"
-	RouteNewProposal          = "/proposals/new"
-	RouteProposalDetails      = "/proposals/{token:[A-z0-9]{64}}"
-	RouteSetProposalStatus    = "/proposals/{token:[A-z0-9]{64}}/status"
-	RoutePolicy               = "/policy"
-	RouteNewComment           = "/comments/new"
-	RouteCommentsGet          = "/proposals/{token:[A-z0-9]{64}}/comments"
+	RouteUserMe            = "/user/me"
+	RouteNewUser           = "/user/new"
+	RouteVerifyNewUser     = "/user/verify"
+	RouteChangePassword    = "/user/password/change"
+	RouteResetPassword     = "/user/password/reset"
+	RouteLogin             = "/login"
+	RouteLogout            = "/logout"
+	RouteSecret            = "/secret"
+	RouteAllVetted         = "/proposals/vetted"
+	RouteAllUnvetted       = "/proposals/unvetted"
+	RouteNewProposal       = "/proposals/new"
+	RouteProposalDetails   = "/proposals/{token:[A-z0-9]{64}}"
+	RouteSetProposalStatus = "/proposals/{token:[A-z0-9]{64}}/status"
+	RoutePolicy            = "/policy"
+	RouteNewComment        = "/comments/new"
+	RouteCommentsGet       = "/proposals/{token:[A-z0-9]{64}}/comments"
 
 	// VerificationTokenSize is the size of verification token in bytes
 	VerificationTokenSize = 32
@@ -247,7 +245,9 @@ type VerifyNewUser struct {
 }
 
 //VerifyNewUserReply
-type VerifyNewUserReply struct{}
+type VerifyNewUserReply struct {
+	UserID string `json:"userid"` // User id
+}
 
 // ChangePassword is used to perform a password change while the user
 // is logged in.

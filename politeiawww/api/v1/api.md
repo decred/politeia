@@ -225,11 +225,9 @@ Verify email address of a previously created user.
 
 **Results:** none
 
-On success the call shall redirect to `/v1/user/verify/success` which will return
-`200 OK`.
+On success the call shall return `200 OK`.
 
-On failure the call shall redirect to `/v1/user/verify/failure` which will return
-`400 Bad Request` and one of the following error codes:
+On failure the call shall return `400 Bad Request` and one of the following error codes:
 - [`ErrorStatusVerificationTokenInvalid`](#ErrorStatusVerificationTokenInvalid)
 - [`ErrorStatusVerificationTokenExpired`](#ErrorStatusVerificationTokenExpired)
 - [`ErrorStatusNoPublicKey`](#ErrorStatusNoPublicKey)
@@ -248,11 +246,10 @@ The request params should be provided within the URL:
 
 Reply:
 
-The user verification command is special.  It redirects to `/v1/user/verify/success`
-on success or to `/v1/user/verify/failure` on failure, which return the JSON:
-
 ```json
-{}
+{
+  "userid":"4"
+}
 ```
 
 ### `Login`
