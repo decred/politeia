@@ -9,7 +9,7 @@ type PropStatusT int
 
 const (
 	// PoliteiaWWWAPIVersion API version this backend understands
-	PoliteiaWWWAPIVersion = 1
+	PoliteiaWWWAPIVersion uint = 1
 
 	// CsrfToken CSRF token for replies
 	CsrfToken = "X-CSRF-Token"
@@ -217,10 +217,10 @@ type User struct {
 // is running and additionally the route to the API and the public signing key of
 // the server or just user information if there's an active session.
 type SessionReply struct {
-	Version uint   `json:"version"` // politeia WWW API version
-	Route   string `json:"route"`   // prefix to API calls
-	PubKey  string `json:"pubkey"`  // Server public key
-	User    User   `json:"user"`    // information the UI may need to render a user page
+	Version *uint   `json:"version,omitempty"` // politeia WWW API version
+	Route   *string `json:"route,omitempty"`   // prefix to API calls
+	PubKey  *string `json:"pubkey,omitempty"`  // Server public key
+	User    *User   `json:"user,omitempty"`    // information the UI may need to render a user page
 }
 
 // NewUser is used to request that a new user be created within the db.

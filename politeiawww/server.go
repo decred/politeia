@@ -86,7 +86,7 @@ func (p *PoliteiaWWW) RegisterHandlers(router *mux.Router) {
 
 // addV1Routes registers routes in the given router (v1)
 func (p *PoliteiaWWW) addV1Routes(router *mux.Router) {
-	subrouter := router.PathPrefix("/v1").Subrouter()
+	subrouter := router.PathPrefix(v1.PoliteiaWWWAPIRoute).Subrouter()
 
 	// not found
 	subrouter.NotFoundHandler = http.HandlerFunc(p.handleNotFound)
@@ -244,16 +244,22 @@ func (p *PoliteiaWWW) handleSession(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		reply.User = v1.User{
+		reply.User = &v1.User{
 			Email:   email,
 			IsAdmin: isAdmin,
 		}
 
 	} else {
 		// new session data
-		reply.Version = v1.PoliteiaWWWAPIVersion
-		reply.Route = v1.PoliteiaWWWAPIRoute
-		reply.PubKey = hex.EncodeToString(p.cfg.Identity.Key[:])
+		// @rgeraldes - the following is necessary because you
+		// can't take an address of a const. we use pointer
+		// to avoid marshalling fields that are not necessary
+		version := v1.PoliteiaWWWAPIVersion
+		reply.Version = &version
+		router := v1.PoliteiaWWWAPIRoute
+		reply.Route = &router
+		str := hex.EncodeToString(p.cfg.Identity.Key[:])
+		reply.PubKey = &str
 	}
 
 	rawReply, err := json.Marshal(reply)

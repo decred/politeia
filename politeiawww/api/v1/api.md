@@ -8,7 +8,7 @@ API.  It does not render HTML.
 
 **Methods**
 
-- [`Version`](#version)
+- [`Session`](#session)
 - [`New user`](#new-user)
 - [`Verify user`](#verify-user)
 - [`Login`](#login)
@@ -77,10 +77,9 @@ when an unexpected server error has occurred. The format of errors is as follows
 
 ## Methods
 
-### `Version`
+### `Session`
 
-Obtain version, route information and signing identity from server.  This call
-shall **ALWAYS** be the first contact with the server.  This is done in order
+Obtain version, route information and signing identity from server OR pertinent user information if the user has an active session.  This call shall **ALWAYS** be the first contact with the server.  This is done in order
 to get the CSRF token for the session and to ensure API compatability.
 
 **Route**: `GET /`
@@ -94,8 +93,17 @@ to get the CSRF token for the session and to ensure API compatability.
 | version  | Number | API version that is running on this server.                                                     |
 | route    | String | Route that should be prepended to all calls. For example, "/v1".                                |
 | identity | String | Identity that signs various tokens to ensure server authenticity and to prevent replay attacks. |
+| user     | User   | User information the UI may need to render a user specific                                      |
 
-**Example**
+The structure of the user information is as follows:
+
+|         | Type   | Description                                               |
+|---------|--------|-----------------------------------------------------------|
+| userid  | Number | Unique user identifier.                                   |
+| email   | String | User ID.                                                  |
+| isadmin | String | This indicates if the user has publish/censor privileges. |
+
+**Example 1 - no session**
 
 Request:
 
@@ -110,28 +118,11 @@ Reply:
   "version": 1,
   "route": "/v1",
   "identity": "99e748e13d7ecf70ef6b5afa376d692cd7cb4dbb3d26fa83f417d29e44c6bb6c"
+
 }
 ```
 
-### `Me`
-
-Return pertinent user information of the current logged in user.
-
-**Route**: `GET /user/me`
-
-**Params**: none
-
-**Results**:
-
-|         | Type   | Description                                               |
-|---------|--------|-----------------------------------------------------------|
-| userid  | Number | Unique user identifier.                                   |
-| email   | String | User ID.                                                  |
-| isadmin | String | This indicates if the user has publish/censor privileges. |
-
-If there currently is no session the call returns `403 Forbidden`.
-
-**Example**
+**Example 2 - active session**
 
 Request:
 
@@ -143,8 +134,10 @@ Reply:
 
 ```json
 {
-  "email": "d3a948d856daea3d@example.com",
-  "isadmin": true
+  "user": {
+            "email": "d3a948d856daea3d@example.com",
+            "isadmin": true
+          }  
 }
 ```
 
