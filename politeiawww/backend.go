@@ -777,7 +777,7 @@ func (b *backend) ProcessLogin(l www.Login) (*www.LoginReply, error) {
 		}
 	}
 
-	reply.UserID = user.ID
+	reply.UserID = strconv.FormatUint(user.ID, 10)
 	reply.IsAdmin = user.Admin
 	return &reply, nil
 }

@@ -128,7 +128,7 @@ Return pertinent user information of the current logged in user.
 
 |         | Type   | Description                                               |
 |---------|--------|-----------------------------------------------------------|
-| userid  | number | Unique user identifier.                                   |
+| userid  | string | Unique user identifier.                                   |
 | email   | string | User ID.                                                  |
 | isadmin | string | This indicates if the user has publish/censor privileges. |
 | publickey | string | Current active public key. |
@@ -148,7 +148,7 @@ Reply:
 ```json
 {
   "isadmin":false,
-  "userid":12,
+  "userid":"12",
   "email":"69af376cca42cd9c@example.com",
   "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b"
 }
@@ -273,8 +273,8 @@ the user database.
 
 | Parameter | Type    | Description                                               |
 |-----------|---------|-----------------------------------------------------------|
-| userid    | number  | Unique user identifier.                                   |
 | isadmin   | Boolean | This indicates if the user has publish/censor privileges. |
+| userid    | string  | Unique user identifier.                                   |
 
 On failure the call shall return `403 Forbidden` and one of the following
 error codes:
@@ -766,7 +766,7 @@ sorted.
 
 | | Type | Description |
 | - | - | - |
-| UserID | uint64 | Unique user identifier |
+| UserID | string | Unique user identifier |
 | Timestamp | int64 | UNIX time when comment was accepted |
 | CommentID | string | Unique comment identifier |
 | ParentID | string | Parent comment identifier |
@@ -787,21 +787,21 @@ Reply:
 {
   "comments":[{
     "commentid":"56",
-    "userid":4,
+    "userid":"4",
     "parentid":"0",
     "timestamp":1509990301,
     "token":"86221ddae6594b43a19e4c76250c0a8833ecd3b7a9880fb5d2a901970de9ff0e",
     "comment":"I dont like this prop"
   },{
     "commentid":"57",
-    "userid":4,
+    "userid":"4",
     "parentid":"56",
     "timestamp":1509990301,
     "token":"86221ddae6594b43a19e4c76250c0a8833ecd3b7a9880fb5d2a901970de9ff0e",
     "comment":"you are right!"
   },{
     "commentid":"58",
-    "userid":4,
+    "userid":"4",
     "parentid":"56",
     "timestamp":1509990301,
     "token":"86221ddae6594b43a19e4c76250c0a8833ecd3b7a9880fb5d2a901970de9ff0e",

@@ -283,8 +283,8 @@ type Login struct {
 
 // LoginReply is used to reply to the Login command.
 type LoginReply struct {
-	UserID  uint64 `json:"userid"`  // User id
 	IsAdmin bool   `json:"isadmin"` // Set to true when user is admin
+	UserID  string `json:"userid"`  // User id
 }
 
 //Logout attempts to log the user out.
@@ -300,7 +300,7 @@ type Me struct{}
 // page.
 type MeReply struct {
 	IsAdmin   bool   `json:"isadmin"`   // Set if user is an admin
-	UserID    uint64 `json:"userid"`    // User id
+	UserID    string `json:"userid"`    // User id
 	Email     string `json:"email"`     // User email
 	PublicKey string `json:"publickey"` // Active public key
 }
@@ -391,8 +391,8 @@ type GetComments struct{}
 // Comment is the structure that describes the full server side content.  It
 // includes server side meta-data as well.
 type Comment struct {
-	UserID    uint64 `json:"userid"`    // Originating user
 	Timestamp int64  `json:"timestamp"` // Received UNIX timestamp
+	UserID    string `json:"userid"`    // Originating user
 	CommentID string `json:"commentid"` // Comment ID
 	Token     string `json:"token"`     // Censorship token
 	ParentID  string `json:"parentid"`  // Parent comment ID

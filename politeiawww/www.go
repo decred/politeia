@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -371,7 +372,7 @@ func (p *politeiawww) handleMe(w http.ResponseWriter, r *http.Request) {
 	}
 	reply := v1.MeReply{
 		IsAdmin:   user.Admin,
-		UserID:    user.ID,
+		UserID:    strconv.FormatUint(user.ID, 10),
 		Email:     user.Email,
 		PublicKey: activeIdentity,
 	}

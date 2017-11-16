@@ -33,7 +33,7 @@ type BackendComment struct {
 func backendCommentToComment(bec BackendComment) www.Comment {
 	return www.Comment{
 		CommentID: strconv.FormatUint(bec.CommentID, 10),
-		UserID:    bec.UserID,
+		UserID:    strconv.FormatUint(bec.UserID, 10),
 		ParentID:  strconv.FormatUint(bec.ParentID, 10),
 		Timestamp: bec.Timestamp,
 		Token:     bec.Token,
