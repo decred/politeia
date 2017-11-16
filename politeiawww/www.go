@@ -264,8 +264,10 @@ func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request
 		token, tokenOk := query["verificationtoken"]
 		sig, sigOk := query["signature"]
 		if !emailOk || !tokenOk || !sigOk {
-			RespondWithError(w, r, 0,
-				"handleVerifyNewUser: invalid parameters")
+			RespondWithError(w, r, 0, "could not decode URL",
+				v1.UserError{
+					ErrorCode: v1.ErrorStatusInvalidInput,
+				})
 			return
 		}
 

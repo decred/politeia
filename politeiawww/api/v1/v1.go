@@ -86,6 +86,7 @@ const (
 	ErrorStatusInvalidPublicKey            ErrorStatusT = 21
 	ErrorStatusNoPublicKey                 ErrorStatusT = 22
 	ErrorStatusInvalidSignature            ErrorStatusT = 23
+	ErrorStatusInvalidInput                ErrorStatusT = 24
 
 	// Proposal status codes (set and get)
 	PropStatusInvalid     PropStatusT = 0 // Invalid status
