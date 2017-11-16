@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -1146,8 +1147,8 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, isUse
 // ProcessComment processes a submitted comment.  It ensures the proposal and
 // the parent exists.  A parent ID of 0 indicates that it is a comment on the
 // proposal whereas non-zero indicates that it is a reply to a comment.
-func (b *backend) ProcessComment(c www.NewComment, userID uint64) (*www.NewCommentReply, error) {
-	log.Debugf("ProcessComment: %v %v", c.Token, userID)
+func (b *backend) ProcessComment(c www.NewComment, user *database.User) (*www.NewCommentReply, error) {
+	log.Debugf("ProcessComment: %v %v", c.Token, user.ID)
 
 	b.Lock()
 	defer b.Unlock()
@@ -1159,8 +1160,14 @@ func (b *backend) ProcessComment(c www.NewComment, userID uint64) (*www.NewComme
 	}
 
 	// See if we are commenting on a comment, yo dawg.
-	if c.ParentID != 0 {
-		_, ok = m[c.ParentID]
+	pid, err := strconv.ParseUint(c.ParentID, 10, 64)
+	if err != nil {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusCommentNotFound,
+		}
+	}
+	if pid != 0 {
+		_, ok = m[pid]
 		if !ok {
 			return nil, www.UserError{
 				ErrorCode: www.ErrorStatusCommentNotFound,
@@ -1168,7 +1175,7 @@ func (b *backend) ProcessComment(c www.NewComment, userID uint64) (*www.NewComme
 		}
 	}
 
-	return b.addComment(c, userID)
+	return b.addComment(c, user.ID)
 }
 
 // ProcessCommentGet returns all comments for a given proposal.

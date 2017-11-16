@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"os"
+	"strconv"
 
 	"golang.org/x/net/publicsuffix"
 
@@ -215,7 +216,7 @@ func (c *ctx) secret() error {
 	return err
 }
 
-func (c *ctx) comment(token, comment string, parentID uint64) (*v1.NewCommentReply, error) {
+func (c *ctx) comment(token, comment, parentID string) (*v1.NewCommentReply, error) {
 	cm := v1.NewComment{
 		Token:    token,
 		ParentID: parentID,
@@ -750,38 +751,40 @@ func _main() error {
 
 		// Comment on proposals without a parent
 		cr, err := c.comment(myprop1.CensorshipRecord.Token,
-			"I like this prop", 0)
+			"I like this prop", "0")
 		if err != nil {
 			return err
 		}
 		// Comment on original comment
+		crID := strconv.FormatUint(cr.CommentID, 10)
 		cr, err = c.comment(myprop1.CensorshipRecord.Token,
-			"you are right!", cr.CommentID)
+			"you are right!", crID)
 		if err != nil {
 			return err
 		}
 		// Comment on comment
 		cr, err = c.comment(myprop1.CensorshipRecord.Token,
-			"you are wrong!", cr.CommentID)
+			"you are wrong!", crID)
 		if err != nil {
 			return err
 		}
 
 		// Comment on proposals without a parent
 		cr2, err := c.comment(myprop1.CensorshipRecord.Token,
-			"I dont like this prop", 0)
+			"I dont like this prop", "0")
+		if err != nil {
+			return err
+		}
+		// Comment on original comment
+		crID2 := strconv.FormatUint(cr2.CommentID, 10)
+		cr, err = c.comment(myprop1.CensorshipRecord.Token,
+			"you are right!", crID2)
 		if err != nil {
 			return err
 		}
 		// Comment on original comment
 		cr, err = c.comment(myprop1.CensorshipRecord.Token,
-			"you are right!", cr2.CommentID)
-		if err != nil {
-			return err
-		}
-		// Comment on original comment
-		cr, err = c.comment(myprop1.CensorshipRecord.Token,
-			"you are crazy!", cr2.CommentID)
+			"you are crazy!", crID2)
 		if err != nil {
 			return err
 		}

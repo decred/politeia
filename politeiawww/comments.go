@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"time"
 
 	www "github.com/decred/politeia/politeiawww/api/v1"
@@ -33,7 +34,7 @@ func backendCommentToComment(bec BackendComment) www.Comment {
 	return www.Comment{
 		CommentID: bec.CommentID,
 		UserID:    bec.UserID,
-		ParentID:  bec.ParentID,
+		ParentID:  strconv.FormatUint(bec.ParentID, 10),
 		Timestamp: bec.Timestamp,
 		Token:     bec.Token,
 		Comment:   bec.Comment,
@@ -77,18 +78,23 @@ func (b *backend) getComments(token string) (*www.GetCommentsReply, error) {
 // addComment journals and adds comment to memory map.
 // This call must be called with the lock held.
 func (b *backend) addComment(c www.NewComment, userID uint64) (*www.NewCommentReply, error) {
+	pid, err := strconv.ParseUint(c.ParentID, 10, 64)
+	if err != nil {
+		return nil, err
+	}
+
 	// Journal comment
 	comment := BackendComment{
 		CommentID: b.commentID,
 		UserID:    userID,
 		Timestamp: time.Now().Unix(),
 		Token:     c.Token,
-		ParentID:  c.ParentID,
+		ParentID:  pid,
 		Comment:   c.Comment,
 	}
 	cb, err := json.Marshal(comment)
 	if err != nil {
-		return nil, fmt.Errorf("Marshal comment: %v", err)
+		return nil, err
 	}
 	f, err := os.OpenFile(b.commentJournalFile,
 		os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)

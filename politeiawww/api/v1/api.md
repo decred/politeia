@@ -708,8 +708,9 @@ Reply:
 
 ### `New comment`
 
-Submit comment on given proposal.  ParentID value 0 means "comment on
-proposal"; non-zero values mean "reply to comment".
+Submit comment on given proposal.  ParentID value "0" means "comment on
+proposal"; non-zero values mean "reply to comment".  Note that ParentID is a
+string type but it *MUST* be a valid uint64.
 
 **Route:** `POST /v1/comments/new`
 
@@ -718,7 +719,7 @@ proposal"; non-zero values mean "reply to comment".
 | Parameter | Type | Description | Required |
 | - | - | - | - |
 | Token | string | Censorship token | Yes |
-| ParentID | uint64 | Parent comment | Yes |
+| ParentID | string | Parent comment identifier | Yes |
 | Comment | string | Comment | Yes |
 
 **Results:**
@@ -734,7 +735,7 @@ Request:
 ```json
 {
   "token": "86221ddae6594b43a19e4c76250c0a8833ecd3b7a9880fb5d2a901970de9ff0e",
-  "parentid": 53,
+  "parentid": "53",
   "comment": "you are right!"
 }
 ```
@@ -768,7 +769,7 @@ sorted.
 | - | - | - |
 | CommentID | uint64 | Unique comment identifier |
 | UserID | uint64 | Unique user identifier |
-| ParentID | uint64 | Parent comment |
+| ParentID | String | Parent comment identifier, string but *IS* required to be a uint64 |
 | Timestamp | int64 | UNIX time when comment was accepted |
 | Token | string | Censorship token |
 | Comment | string | Comment text |
@@ -788,21 +789,21 @@ Reply:
   "comments":[{
     "commentid":56,
     "userid":4,
-    "parentid":0,
+    "parentid":"0",
     "timestamp":1509990301,
     "token":"86221ddae6594b43a19e4c76250c0a8833ecd3b7a9880fb5d2a901970de9ff0e",
     "comment":"I dont like this prop"
   },{
     "commentid":57,
     "userid":4,
-    "parentid":56,
+    "parentid":"56",
     "timestamp":1509990301,
     "token":"86221ddae6594b43a19e4c76250c0a8833ecd3b7a9880fb5d2a901970de9ff0e",
     "comment":"you are right!"
   },{
     "commentid":58,
     "userid":4,
-    "parentid":56,
+    "parentid":"56",
     "timestamp":1509990301,
     "token":"86221ddae6594b43a19e4c76250c0a8833ecd3b7a9880fb5d2a901970de9ff0e",
     "comment":"you are crazy!"

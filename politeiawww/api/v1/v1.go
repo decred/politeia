@@ -373,9 +373,10 @@ type PolicyReply struct {
 // NewComment sends a comment from a user to a specific proposal.  Note that
 // the user is implied by the session.
 type NewComment struct {
-	Token    string `json:"token"`    // Censorship token
-	ParentID uint64 `json:"parentid"` // Parent comment ID
-	Comment  string `json:"comment"`  // Comment
+	Token     string `json:"token"`     // Censorship token
+	ParentID  string `json:"parentid"`  // Parent comment ID
+	Comment   string `json:"comment"`   // Comment
+	Signature string `json:"signature"` // Signature of Token+ParentID+Comment
 }
 
 // NewCommentReply return the site generated Comment ID or an error if
@@ -390,12 +391,13 @@ type GetComments struct{}
 // Comment is the structure that describes the full server side content.  It
 // includes server side meta-data as well.
 type Comment struct {
-	CommentID uint64 `json:"commentid"` // Comment ID
 	UserID    uint64 `json:"userid"`    // Originating user
-	ParentID  uint64 `json:"parentid"`  // Parent comment ID
 	Timestamp int64  `json:"timestamp"` // Received UNIX timestamp
+	CommentID uint64 `json:"commentid"` // Comment ID
 	Token     string `json:"token"`     // Censorship token
+	ParentID  string `json:"parentid"`  // Parent comment ID
 	Comment   string `json:"comment"`   // Comment
+	Signature string `json:"signature"` // Signature of Token+ParentID+Comment
 }
 
 // GetCommentsReply returns the provided number of comments.
