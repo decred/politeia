@@ -8,12 +8,14 @@ type ErrorStatusT int
 type PropStatusT int
 
 const (
-	PoliteiaWWWAPIVersion = 1 // API version this backend understands
+	// PoliteiaWWWAPIVersion API version this backend understands
+	PoliteiaWWWAPIVersion uint = 1
 
-	CsrfToken = "X-CSRF-Token"    // CSRF token for replies
-	Forward   = "X-Forwarded-For" // Proxy header
+	// CsrfToken CSRF token for replies
+	CsrfToken = "X-CSRF-Token"
+	// Forward Proxy header
+	Forward = "X-Forwarded-For"
 
-	RouteUserMe               = "/user/me"
 	RouteNewUser              = "/user/new"
 	RouteVerifyNewUser        = "/user/verify"
 	RouteVerifyNewUserSuccess = "/user/verify/success"
@@ -203,19 +205,22 @@ type ErrorReply struct {
 	ErrorContext []string `json:"errorcontext,omitempty"`
 }
 
-// Version command is used to determine the version of the API this backend
-// understands and additionally it provides the route to said API.  This call
-// is required in order to establish CSRF for the session.  The client should
-// verify compatibility with the server version.
-type Version struct{}
+// User contains user information the UI may need to render a user specific
+// page.
+type User struct {
+	UserID  uint64 `json:"userid"` // User id
+	Email   string `json:"email"`
+	IsAdmin bool   `json:"isadmin"`
+}
 
-// VersionReply returns information that indicates what version of the server
+// SessionReply returns information that indicates what version of the server
 // is running and additionally the route to the API and the public signing key of
-// the server.
-type VersionReply struct {
-	Version uint   `json:"version"` // politeia WWW API version
-	Route   string `json:"route"`   // prefix to API calls
-	PubKey  string `json:"pubkey"`  // Server public key
+// the server or just user information if there's an active session.
+type SessionReply struct {
+	Version *uint   `json:"version,omitempty"` // politeia WWW API version
+	Route   *string `json:"route,omitempty"`   // prefix to API calls
+	PubKey  *string `json:"pubkey,omitempty"`  // Server public key
+	User    *User   `json:"user,omitempty"`    // information the UI may need to render a user page
 }
 
 // NewUser is used to request that a new user be created within the db.
@@ -283,17 +288,6 @@ type Logout struct{}
 
 // LogoutReply indicates whether the Logout command was success or not.
 type LogoutReply struct{}
-
-// Me asks the server to return pertinent user information.
-type Me struct{}
-
-// MeReply contains user information the UI may need to render a user specific
-// page.
-type MeReply struct {
-	UserID  uint64 `json:"userid"` // User id
-	Email   string `json:"email"`
-	IsAdmin bool   `json:"isadmin"`
-}
 
 // NewProposal attempts to submit a new proposal.
 type NewProposal struct {

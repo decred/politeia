@@ -31,6 +31,15 @@ const (
 	indexFile = "index.md"
 )
 
+type newUserEmailTemplateData struct {
+	Link  string
+	Email string
+}
+type resetPasswordEmailTemplateData struct {
+	Link  string
+	Email string
+}
+
 // politeiawww backend construct
 type backend struct {
 	sync.RWMutex // lock for inventory and comments

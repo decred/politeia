@@ -2,8 +2,6 @@ package main
 
 import (
 	"bufio"
-	"crypto/elliptic"
-	"crypto/tls"
 	_ "encoding/gob"
 	"encoding/hex"
 	"encoding/json"
@@ -13,10 +11,8 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/decred/politeia/politeiawww/api/v1"
@@ -34,27 +30,93 @@ const (
 	permissionAdmin
 )
 
-// politeiawww application context.
-type politeiawww struct {
-	cfg    *config
-	router *mux.Router
-
-	store *sessions.FilesystemStore
-
+// PoliteiaWWW application context
+type PoliteiaWWW struct {
+	cfg     *config
+	store   sessions.Store
 	backend *backend
 }
 
-type newUserEmailTemplateData struct {
-	Link  string
-	Email string
-}
-type resetPasswordEmailTemplateData struct {
-	Link  string
-	Email string
+// NewPoliteiaWWW returns a new PoliteiaWWW instance
+func NewPoliteiaWWW(cfg *config) (*PoliteiaWWW, error) {
+	var err error
+	// Create the data directory in case it does not exist.
+	if err = os.MkdirAll(cfg.DataDir, 0700); err != nil {
+		return nil, err
+	}
+
+	// Persist session cookies.
+	var cookieKey []byte
+	if cookieKey, err = ioutil.ReadFile(cfg.CookieKeyFile); err != nil {
+		log.Infof("Cookie key not found, generating one...")
+		cookieKey, err = util.Random(32)
+		if err != nil {
+			return nil, err
+		}
+		if err := ioutil.WriteFile(cfg.CookieKeyFile, cookieKey, 0400); err != nil {
+			return nil, err
+		}
+		log.Infof("Cookie key generated.")
+	}
+
+	sessionsDir := filepath.Join(cfg.DataDir, "sessions")
+	if err := os.MkdirAll(sessionsDir, 0700); err != nil {
+		return nil, err
+	}
+
+	store := sessions.NewFilesystemStore(sessionsDir, cookieKey)
+	store.Options = defaultStoreOptions
+
+	backend, err := NewBackend(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	return &PoliteiaWWW{
+		cfg:     cfg,
+		backend: backend,
+		store:   store,
+	}, nil
 }
 
-// Fetch remote identity
-func (p *politeiawww) getIdentity() error {
+// RegisterHandlers registers PoliteiaWWW routes in the given router
+func (p *PoliteiaWWW) RegisterHandlers(router *mux.Router) {
+	p.addV1Routes(router)
+}
+
+// addV1Routes registers routes in the given router (v1)
+func (p *PoliteiaWWW) addV1Routes(router *mux.Router) {
+	subrouter := router.PathPrefix(v1.PoliteiaWWWAPIRoute).Subrouter()
+
+	// not found
+	subrouter.NotFoundHandler = http.HandlerFunc(p.handleNotFound)
+
+	// public routes
+	subrouter.HandleFunc("/", logging(p.handleSession)).Methods(http.MethodGet)
+	subrouter.HandleFunc(v1.RouteNewUser, p.middleware(p.handleNewUser, permissionPublic, false)).Methods(http.MethodPost)
+	subrouter.HandleFunc(v1.RouteVerifyNewUser, p.middleware(p.handleVerifyNewUser, permissionPublic, false)).Methods(http.MethodGet)
+	subrouter.HandleFunc(v1.RouteLogin, p.middleware(p.handleLogin, permissionPublic, false)).Methods(http.MethodPost)
+	subrouter.HandleFunc(v1.RouteLogout, p.middleware(p.handleLogout, permissionPublic, false)).Methods(http.MethodGet)
+	subrouter.HandleFunc(v1.RouteLogout, p.middleware(p.handleLogout, permissionPublic, false)).Methods(http.MethodPost)
+	subrouter.HandleFunc(v1.RouteResetPassword, p.middleware(p.handleResetPassword, permissionPublic, false)).Methods(http.MethodPost)
+	subrouter.HandleFunc(v1.RouteAllVetted, p.middleware(p.handleAllVetted, permissionPublic, true)).Methods(http.MethodGet)
+	subrouter.HandleFunc(v1.RouteProposalDetails, p.middleware(p.handleProposalDetails, permissionPublic, true)).Methods(http.MethodGet)
+	subrouter.HandleFunc(v1.RoutePolicy, p.middleware(p.handlePolicy, permissionPublic, false)).Methods(http.MethodGet)
+	subrouter.HandleFunc(v1.RouteCommentsGet, p.middleware(p.handleCommentsGet, permissionPublic, true)).Methods(http.MethodGet)
+
+	// routes that require being logged in.
+	subrouter.HandleFunc(v1.RouteSecret, p.middleware(p.handleSecret, permissionLogin, false)).Methods(http.MethodPost)
+	subrouter.HandleFunc(v1.RouteNewProposal, p.middleware(p.handleNewProposal, permissionLogin, true)).Methods(http.MethodPost)
+	subrouter.HandleFunc(v1.RouteChangePassword, p.middleware(p.handleChangePassword, permissionLogin, false)).Methods(http.MethodPost)
+	subrouter.HandleFunc(v1.RouteNewComment, p.middleware(p.handleNewComment, permissionLogin, true)).Methods(http.MethodPost)
+
+	// routes that require being logged in as an admin user.
+	subrouter.HandleFunc(v1.RouteAllUnvetted, p.middleware(p.handleAllUnvetted, permissionAdmin, true)).Methods(http.MethodGet)
+	subrouter.HandleFunc(v1.RouteSetProposalStatus, p.middleware(p.handleSetProposalStatus, permissionAdmin, true)).Methods(http.MethodPost)
+}
+
+// getIdentity fetches remote identity
+func (p *PoliteiaWWW) getIdentity() error {
 	id, err := util.RemoteIdentity(false, p.cfg.RPCHost, p.cfg.RPCCert)
 	if err != nil {
 		return err
@@ -77,14 +139,14 @@ func (p *politeiawww) getIdentity() error {
 	}
 
 	// Save identity
-	err = os.MkdirAll(filepath.Dir(p.cfg.RPCIdentityFile), 0700)
-	if err != nil {
+	if err = os.MkdirAll(filepath.Dir(p.cfg.RPCIdentityFile), 0700); err != nil {
 		return err
 	}
-	err = id.SavePublicIdentity(p.cfg.RPCIdentityFile)
-	if err != nil {
+
+	if err = id.SavePublicIdentity(p.cfg.RPCIdentityFile); err != nil {
 		return err
 	}
+
 	log.Infof("Identity saved to: %v", p.cfg.RPCIdentityFile)
 
 	return nil
@@ -95,10 +157,10 @@ func (p *politeiawww) getIdentity() error {
 // an internal server error, it returns 500 and an error code which is also
 // outputted to the logs so that it can be correlated later if the user
 // files a complaint.
-func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, format string, args ...interface{}) {
+func RespondWithError(w http.ResponseWriter, r *http.Request, userHTTPCode int, format string, args ...interface{}) {
 	if userErr, ok := args[0].(v1.UserError); ok {
-		if userHttpCode == 0 {
-			userHttpCode = http.StatusBadRequest
+		if userHTTPCode == 0 {
+			userHTTPCode = http.StatusBadRequest
 		}
 
 		if len(userErr.ErrorContext) == 0 {
@@ -110,7 +172,7 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 				strings.Join(userErr.ErrorContext, ", "))
 		}
 
-		util.RespondWithJSON(w, userHttpCode,
+		util.RespondWithJSON(w, userHTTPCode,
 			v1.ErrorReply{
 				ErrorCode: int64(userErr.ErrorCode),
 			})
@@ -150,23 +212,57 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 
 // version is an HTTP GET to determine what version and API route this backend
 // is using.  Additionally it is used to obtain a CSRF token.
-func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
-	/*
-		// Get the version command.
-		var v v1.Version
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&v); err != nil {
-			RespondInternalError(w, r,
-				"handleVersion: Unmarshal %v", err)
+func (p *PoliteiaWWW) handleSession(w http.ResponseWriter, r *http.Request) {
+	var reply v1.SessionReply
+
+	session, err := p.store.Get(r, v1.CookieSession)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleSession: failed to get session: %v", err)
+		return
+	}
+	active, ok := session.Values["authorized"].(bool)
+	if !ok {
+		RespondWithError(w, r, 0,
+			"handleSession: type assert ok %v", ok)
+		return
+	}
+
+	if active {
+		// there's an active session
+
+		email, ok := session.Values["email"].(string)
+		if !ok {
+			RespondWithError(w, r, 0,
+				"handleSession: type assert ok %v", ok)
 			return
 		}
-		defer r.Body.Close()
-	*/
-	versionReply, err := json.Marshal(v1.VersionReply{
-		Version: v1.PoliteiaWWWAPIVersion,
-		Route:   v1.PoliteiaWWWAPIRoute,
-		PubKey:  hex.EncodeToString(p.cfg.Identity.Key[:]),
-	})
+		isAdmin, ok := session.Values["admin"].(bool)
+		if !ok {
+			RespondWithError(w, r, 0,
+				"handleSession: type assert ok %v", ok)
+			return
+		}
+
+		reply.User = &v1.User{
+			Email:   email,
+			IsAdmin: isAdmin,
+		}
+
+	} else {
+		// new session data
+		// @rgeraldes - the following is necessary because you
+		// can't take an address of a const. we use pointer
+		// to avoid marshalling fields that are not necessary
+		version := v1.PoliteiaWWWAPIVersion
+		reply.Version = &version
+		router := v1.PoliteiaWWWAPIRoute
+		reply.Route = &router
+		str := hex.EncodeToString(p.cfg.Identity.Key[:])
+		reply.PubKey = &str
+	}
+
+	rawReply, err := json.Marshal(reply)
 	if err != nil {
 		RespondWithError(w, r, 0, "handleVersion: Marshal %v", err)
 		return
@@ -175,21 +271,23 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Add("Strict-Transport-Security",
 		"max-age=63072000; includeSubDomains")
-	if !p.cfg.Proxy {
+
+	// set new token if there
+	if !active && !p.cfg.Proxy {
 		w.Header().Set(v1.CsrfToken, csrf.Token(r))
 	}
+
 	w.WriteHeader(http.StatusOK)
-	w.Write(versionReply)
+	w.Write(rawReply)
 }
 
 // handleNewUser handles the incoming new user command. It verifies that the new user
 // doesn't already exist, and then creates a new user in the db and generates a random
 // code used for verification. The code is intended to be sent to the specified email.
-func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
+func (p *PoliteiaWWW) handleNewUser(w http.ResponseWriter, r *http.Request) {
 	// Get the new user command.
 	var u v1.NewUser
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&u); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&u); err != nil {
 		RespondWithError(w, r, 0, "handleNewUser: Unmarshal %v", err)
 		return
 	}
@@ -208,13 +306,12 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 // handleVerifyNewUser handles the incoming new user verify command. It verifies
 // that the user with the provided email has a verificaton token that matches
 // the provided token and that the verification token has not yet expired.
-func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request) {
+func (p *PoliteiaWWW) handleVerifyNewUser(w http.ResponseWriter, r *http.Request) {
 	routePrefix := p.cfg.WebServerAddress
 
 	// Get the new user verify command.
 	var vnu v1.VerifyNewUser
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&vnu); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&vnu); err != nil {
 		// The parameters may be part of the query, so check those before
 		// throwing an error.
 		query := r.URL.Query()
@@ -232,8 +329,7 @@ func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request
 	}
 	defer r.Body.Close()
 
-	err := p.backend.ProcessVerifyNewUser(vnu)
-	if err != nil {
+	if err := p.backend.ProcessVerifyNewUser(vnu); err != nil {
 		userErr, ok := err.(v1.UserError)
 		if ok {
 			url, err := url.Parse(routePrefix + v1.RouteVerifyNewUserFailure)
@@ -259,7 +355,7 @@ func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request
 // handleLogin handles the incoming login command.  It verifies that the user
 // exists and the accompanying password.  On success a cookie is added to the
 // gorilla sessions that must be returned on subsequent calls.
-func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
+func (p *PoliteiaWWW) handleLogin(w http.ResponseWriter, r *http.Request) {
 	session, err := p.store.Get(r, v1.CookieSession)
 	if err != nil {
 		RespondWithError(w, r, 0, "handleLogin: failed to get session: %v",
@@ -288,8 +384,7 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 	session.Values["id"] = reply.UserID
 	session.Values["authenticated"] = true
 	session.Values["admin"] = reply.IsAdmin
-	err = session.Save(r, w)
-	if err != nil {
+	if err := session.Save(r, w); err != nil {
 		RespondWithError(w, r, 0,
 			"handleLogin: failed to save session: %v", err)
 		return
@@ -301,18 +396,7 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 // handleLogout logs the user out.  A login will be required to resume sending
 // commands,
-func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
-	/*
-		// Get the logout command.
-		var l v1.Logout
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&l); err != nil {
-			RespondInternalError(w, r,
-				"handleLogout: Unmarshal %v", err)
-			return
-		}
-		defer r.Body.Close()
-	*/
+func (p *PoliteiaWWW) handleLogout(w http.ResponseWriter, r *http.Request) {
 	session, err := p.store.Get(r, v1.CookieSession)
 	if err != nil {
 		RespondWithError(w, r, 0,
@@ -325,8 +409,7 @@ func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
 	session.Values["id"] = 0
 	session.Values["authenticated"] = false
 	session.Values["admin"] = false
-	err = session.Save(r, w)
-	if err != nil {
+	if err := session.Save(r, w); err != nil {
 		RespondWithError(w, r, 0,
 			"handleLogout: failed to save session: %v", err)
 		return
@@ -338,36 +421,11 @@ func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleSecret is a mock handler to test privileged routes.
-func (p *politeiawww) handleSecret(w http.ResponseWriter, r *http.Request) {
+func (p *PoliteiaWWW) handleSecret(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "secret sauce")
 }
 
-// handleMe returns logged in user information.
-func (p *politeiawww) handleMe(w http.ResponseWriter, r *http.Request) {
-	session, err := p.store.Get(r, v1.CookieSession)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleMe: failed to get session: %v", err)
-		return
-	}
-
-	email, oke := session.Values["email"].(string)
-	isAdmin, oki := session.Values["admin"].(bool)
-	if !oke || !oki {
-		RespondWithError(w, r, 0,
-			"handleMe: type assert oke %v oki %v", oke, oki)
-		return
-	}
-
-	// Reply with the user information.
-	reply := v1.MeReply{
-		Email:   email,
-		IsAdmin: isAdmin,
-	}
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Request) {
+func (p *PoliteiaWWW) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	// Get the email for the current session.
 	session, err := p.store.Get(r, v1.CookieSession)
 	if err != nil {
@@ -385,8 +443,7 @@ func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Reques
 
 	// Get the change password command.
 	var cp v1.ChangePassword
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&cp); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&cp); err != nil {
 		RespondWithError(w, r, 0,
 			"handleChangePassword: Unmarshal %v", err)
 		return
@@ -404,11 +461,10 @@ func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Reques
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-func (p *politeiawww) handleResetPassword(w http.ResponseWriter, r *http.Request) {
+func (p *PoliteiaWWW) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 	// Get the reset password command.
 	var rp v1.ResetPassword
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&rp); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&rp); err != nil {
 		RespondWithError(w, r, 0,
 			"handleResetPassword: Unmarshal %v", err)
 		return
@@ -427,12 +483,10 @@ func (p *politeiawww) handleResetPassword(w http.ResponseWriter, r *http.Request
 }
 
 // handleNewProposal handles the incoming new proposal command.
-func (p *politeiawww) handleNewProposal(w http.ResponseWriter, r *http.Request) {
+func (p *PoliteiaWWW) handleNewProposal(w http.ResponseWriter, r *http.Request) {
 	// Get the new proposal command.
 	var np v1.NewProposal
-
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&np); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&np); err != nil {
 		RespondWithError(w, r, 0,
 			"handleNewProposal: Unmarshal %v", err)
 		return
@@ -452,12 +506,10 @@ func (p *politeiawww) handleNewProposal(w http.ResponseWriter, r *http.Request) 
 
 // handleSetProposalStatus handles the incoming set proposal status command.
 // It's used for either publishing or censoring a proposal.
-func (p *politeiawww) handleSetProposalStatus(w http.ResponseWriter, r *http.Request) {
+func (p *PoliteiaWWW) handleSetProposalStatus(w http.ResponseWriter, r *http.Request) {
 	// Get the proposal status command.
 	var sps v1.SetProposalStatus
-
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&sps); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&sps); err != nil {
 		RespondWithError(w, r, 0,
 			"handleSetProposalStatus: Unmarshal %v", err)
 		return
@@ -477,19 +529,10 @@ func (p *politeiawww) handleSetProposalStatus(w http.ResponseWriter, r *http.Req
 
 // handleProposalDetails handles the incoming proposal details command. It fetches
 // the complete details for an existing proposal.
-func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Request) {
+func (p *PoliteiaWWW) handleProposalDetails(w http.ResponseWriter, r *http.Request) {
 	// Get the proposal details command.
 	var pd v1.ProposalsDetails
 
-	/*
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&pd); err != nil {
-			RespondInternalError(w, r,
-				"handleProposalDetails: Unmarshal %v", err)
-			return
-		}
-		defer r.Body.Close()
-	*/
 	// Add the path param to the struct.
 	pathParams := mux.Vars(r)
 	pd.Token = pathParams["token"]
@@ -513,18 +556,10 @@ func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Reque
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
+func (p *PoliteiaWWW) handlePolicy(w http.ResponseWriter, r *http.Request) {
 	// Get the policy command.
 	var policy v1.Policy
-	/*
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&policy); err != nil {
-			RespondInternalError(w, r,
-				"handlePolicy: Unmarshal %v", err)
-			return
-		}
-		defer r.Body.Close()
-	*/
+
 	reply := p.backend.ProcessPolicy(policy)
 
 	// Reply with the new proposal status.
@@ -532,47 +567,27 @@ func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleAllVetted replies with the list of vetted proposals.
-func (p *politeiawww) handleAllVetted(w http.ResponseWriter, r *http.Request) {
+func (p *PoliteiaWWW) handleAllVetted(w http.ResponseWriter, r *http.Request) {
 	// Get the all vetted command.
 	var v v1.GetAllVetted
 
-	/*
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&v); err != nil {
-			RespondInternalError(w, r,
-				"handleAllVetted: Unmarshal %v", err)
-			return
-		}
-		defer r.Body.Close()
-	*/
 	vr := p.backend.ProcessAllVetted(v)
 	util.RespondWithJSON(w, http.StatusOK, vr)
 }
 
 // handleAllUnvetted replies with the list of unvetted proposals.
-func (p *politeiawww) handleAllUnvetted(w http.ResponseWriter, r *http.Request) {
+func (p *PoliteiaWWW) handleAllUnvetted(w http.ResponseWriter, r *http.Request) {
 	// Get the all unvetted command.
 	var u v1.GetAllUnvetted
 
-	/*
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&u); err != nil {
-			RespondInternalError(w, r,
-				"handleAllUnvetted: Unmarshal %v", err)
-			return
-		}
-		defer r.Body.Close()
-	*/
 	ur := p.backend.ProcessAllUnvetted(u)
 	util.RespondWithJSON(w, http.StatusOK, ur)
 }
 
 // handleNewComment handles incomming comments.
-func (p *politeiawww) handleNewComment(w http.ResponseWriter, r *http.Request) {
+func (p *PoliteiaWWW) handleNewComment(w http.ResponseWriter, r *http.Request) {
 	var sc v1.NewComment
-
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&sc); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&sc); err != nil {
 		RespondWithError(w, r, 0,
 			"handleNewComment: Unmarshal %v", err)
 		return
@@ -604,8 +619,7 @@ func (p *politeiawww) handleNewComment(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleCommentsGet handles batched comments get.
-func (p *politeiawww) handleCommentsGet(w http.ResponseWriter, r *http.Request) {
-
+func (p *PoliteiaWWW) handleCommentsGet(w http.ResponseWriter, r *http.Request) {
 	pathParams := mux.Vars(r)
 	defer r.Body.Close()
 	gcr, err := p.backend.ProcessCommentGet(pathParams["token"])
@@ -619,7 +633,7 @@ func (p *politeiawww) handleCommentsGet(w http.ResponseWriter, r *http.Request) 
 }
 
 // handleNotFound is a generic handler for an invalid route.
-func (p *politeiawww) handleNotFound(w http.ResponseWriter, r *http.Request) {
+func (p *PoliteiaWWW) handleNotFound(w http.ResponseWriter, r *http.Request) {
 	// Log incoming connection
 	log.Debugf("Invalid route: %v %v %v %v", remoteAddr(r), r.Method, r.URL,
 		r.Proto)
@@ -635,233 +649,4 @@ func (p *politeiawww) handleNotFound(w http.ResponseWriter, r *http.Request) {
 	}))
 
 	util.RespondWithJSON(w, http.StatusNotFound, v1.ErrorReply{})
-}
-
-// addRoute sets up a handler for a specific method+route.
-func (p *politeiawww) addRoute(method string, route string, handler http.HandlerFunc, perm permission, shouldLoadInventory bool) {
-	fullRoute := v1.PoliteiaWWWAPIRoute + route
-	if shouldLoadInventory {
-		handler = p.loadInventory(handler)
-	}
-	switch perm {
-	case permissionAdmin:
-		handler = logging(p.isLoggedInAsAdmin(handler))
-	case permissionLogin:
-		handler = logging(p.isLoggedIn(handler))
-	default:
-		handler = logging(handler)
-	}
-	p.router.StrictSlash(true).HandleFunc(fullRoute, handler).Methods(method)
-}
-
-func _main() error {
-	// Load configuration and parse command line.  This function also
-	// initializes logging and configures it accordingly.
-	loadedCfg, _, err := loadConfig()
-	if err != nil {
-		return fmt.Errorf("Could not load configuration file: %v", err)
-	}
-	defer func() {
-		if logRotator != nil {
-			logRotator.Close()
-		}
-	}()
-
-	log.Infof("Version : %v", version())
-	log.Infof("Network : %v", activeNetParams.Params.Name)
-	log.Infof("Home dir: %v", loadedCfg.HomeDir)
-
-	// Create the data directory in case it does not exist.
-	err = os.MkdirAll(loadedCfg.DataDir, 0700)
-	if err != nil {
-		return err
-	}
-
-	// Generate the TLS cert and key file if both don't already
-	// exist.
-	if !fileExists(loadedCfg.HTTPSKey) &&
-		!fileExists(loadedCfg.HTTPSCert) {
-		log.Infof("Generating HTTPS keypair...")
-
-		err := util.GenCertPair(elliptic.P256(), "politeiadwww",
-			loadedCfg.HTTPSCert, loadedCfg.HTTPSKey)
-		if err != nil {
-			return fmt.Errorf("unable to create https keypair: %v",
-				err)
-		}
-
-		log.Infof("HTTPS keypair created...")
-	}
-
-	// Setup application context.
-	p := &politeiawww{
-		cfg: loadedCfg,
-	}
-
-	// Check if this command is being run to fetch the identity.
-	if p.cfg.FetchIdentity {
-		return p.getIdentity()
-	}
-
-	p.backend, err = NewBackend(p.cfg)
-	if err != nil {
-		return err
-	}
-
-	var csrfHandle func(http.Handler) http.Handler
-	if !p.cfg.Proxy {
-		// We don't persist connections to generate a new key every
-		// time we restart.
-		csrfKey, err := util.Random(32)
-		if err != nil {
-			return err
-		}
-		csrfHandle = csrf.Protect(csrfKey)
-	}
-
-	p.router = mux.NewRouter()
-	// Static content.
-
-	// XXX disable static for now.  This code is broken and it needs to
-	// point to a sane directory.  If a directory is not set it SHALL be
-	// disabled.
-	//p.router.PathPrefix("/static/").Handler(http.StripPrefix("/static/",
-	//	http.FileServer(http.Dir("."))))
-
-	// Public routes.
-	p.router.HandleFunc("/", logging(p.handleVersion)).Methods(http.MethodGet)
-	p.router.NotFoundHandler = http.HandlerFunc(p.handleNotFound)
-	p.addRoute(http.MethodPost, v1.RouteNewUser, p.handleNewUser,
-		permissionPublic, false)
-	p.addRoute(http.MethodGet, v1.RouteVerifyNewUser,
-		p.handleVerifyNewUser, permissionPublic, false)
-	p.addRoute(http.MethodPost, v1.RouteLogin, p.handleLogin,
-		permissionPublic, false)
-	p.addRoute(http.MethodGet, v1.RouteLogout, p.handleLogout,
-		permissionPublic, false)
-	p.addRoute(http.MethodPost, v1.RouteLogout, p.handleLogout,
-		permissionPublic, false)
-	p.addRoute(http.MethodPost, v1.RouteResetPassword,
-		p.handleResetPassword, permissionPublic, false)
-	p.addRoute(http.MethodGet, v1.RouteAllVetted, p.handleAllVetted,
-		permissionPublic, true)
-	p.addRoute(http.MethodGet, v1.RouteProposalDetails, p.
-		handleProposalDetails, permissionPublic, true)
-	p.addRoute(http.MethodGet, v1.RoutePolicy, p.handlePolicy,
-		permissionPublic, false)
-	p.addRoute(http.MethodGet, v1.RouteCommentsGet, p.handleCommentsGet,
-		permissionPublic, true)
-
-	// Routes that require being logged in.
-	p.addRoute(http.MethodPost, v1.RouteSecret, p.handleSecret, permissionLogin, false)
-	p.addRoute(http.MethodPost, v1.RouteNewProposal, p.handleNewProposal,
-		permissionLogin, true)
-	p.addRoute(http.MethodGet, v1.RouteUserMe, p.handleMe, permissionLogin, false)
-	p.addRoute(http.MethodPost, v1.RouteChangePassword,
-		p.handleChangePassword, permissionLogin, false)
-	p.addRoute(http.MethodPost, v1.RouteNewComment,
-		p.handleNewComment, permissionLogin, true)
-
-	// Routes that require being logged in as an admin user.
-	p.addRoute(http.MethodGet, v1.RouteAllUnvetted, p.handleAllUnvetted,
-		permissionAdmin, true)
-	p.addRoute(http.MethodPost, v1.RouteSetProposalStatus,
-		p.handleSetProposalStatus, permissionAdmin, true)
-
-	// Persist session cookies.
-	var cookieKey []byte
-	if cookieKey, err = ioutil.ReadFile(p.cfg.CookieKeyFile); err != nil {
-		log.Infof("Cookie key not found, generating one...")
-		cookieKey, err = util.Random(32)
-		if err != nil {
-			return err
-		}
-		err = ioutil.WriteFile(p.cfg.CookieKeyFile, cookieKey, 0400)
-		if err != nil {
-			return err
-		}
-		log.Infof("Cookie key generated.")
-	}
-	sessionsDir := filepath.Join(p.cfg.DataDir, "sessions")
-	err = os.MkdirAll(sessionsDir, 0700)
-	if err != nil {
-		return err
-	}
-	p.store = sessions.NewFilesystemStore(sessionsDir, cookieKey)
-	p.store.Options = &sessions.Options{
-		Path:     "/",
-		MaxAge:   86400, // One day
-		Secure:   true,
-		HttpOnly: true,
-	}
-
-	// Bind to a port and pass our router in
-	listenC := make(chan error)
-	for _, listener := range loadedCfg.Listeners {
-		listen := listener
-		go func() {
-			cfg := &tls.Config{
-				MinVersion: tls.VersionTLS12,
-				CurvePreferences: []tls.CurveID{
-					tls.CurveP256, // BLAME CHROME, NOT ME!
-					tls.CurveP521,
-					tls.X25519},
-				PreferServerCipherSuites: true,
-				CipherSuites: []uint16{
-					tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,
-					tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-					tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-					tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
-				},
-			}
-			srv := &http.Server{
-				Addr:      listen,
-				TLSConfig: cfg,
-				TLSNextProto: make(map[string]func(*http.Server,
-					*tls.Conn, http.Handler)),
-			}
-			var mode string
-			if p.cfg.Proxy {
-				srv.Handler = p.router
-				mode = "proxy"
-			} else {
-				srv.Handler = csrfHandle(p.router)
-				mode = "non-proxy"
-			}
-			log.Infof("Listen %v: %v", mode, listen)
-			listenC <- srv.ListenAndServeTLS(loadedCfg.HTTPSCert,
-				loadedCfg.HTTPSKey)
-		}()
-	}
-
-	// Tell user we are ready to go.
-	log.Infof("Start of day")
-
-	// Setup OS signals
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGINT)
-	for {
-		select {
-		case sig := <-sigs:
-			log.Infof("Terminating with %v", sig)
-			goto done
-		case err := <-listenC:
-			log.Errorf("%v", err)
-			goto done
-		}
-	}
-done:
-
-	log.Infof("Exiting")
-
-	return nil
-}
-
-func main() {
-	err := _main()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
-	}
 }

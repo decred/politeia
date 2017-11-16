@@ -6,7 +6,9 @@
 package main
 
 import (
+	"crypto/tls"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"html/template"
 	"net"
@@ -19,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/decred/politeia/politeiad/api/v1/identity"
+	"github.com/gorilla/sessions"
 
 	flags "github.com/btcsuite/go-flags"
 	"github.com/dajohi/goemail"
@@ -44,15 +47,41 @@ var (
 	defaultCookieKeyFile = filepath.Join(sharedconfig.DefaultHomeDir, "cookie.key")
 	defaultLogDir        = filepath.Join(sharedconfig.DefaultHomeDir, defaultLogDirname)
 
-	templateNewUserEmail = template.Must(
-		template.New("new_user_email_template").Parse(templateNewUserEmailRaw))
-	templateResetPasswordEmail = template.Must(
-		template.New("reset_password_email_template").Parse(templateResetPasswordEmailRaw))
+	templateNewUserEmail, templateResetPasswordEmail *template.Template
+)
+
+var (
+	// ErrRequiredTemplateDir indicates that the template dir flag was not provided.
+	ErrRequiredTemplateDir = errors.New("required: 'templatedir' flag")
 )
 
 // runServiceCommand is only set to a real function on Windows.  It is used
 // to parse and execute service commands specified via the -s flag.
 var runServiceCommand func(string) error
+
+// defaultTSLConfig contains the default TLS configuration for an http server
+var defaultTSLConfig = &tls.Config{
+	MinVersion: tls.VersionTLS12,
+	CurvePreferences: []tls.CurveID{
+		tls.CurveP256, // BLAME CHROME, NOT ME!
+		tls.CurveP521,
+		tls.X25519},
+	PreferServerCipherSuites: true,
+	CipherSuites: []uint16{
+		tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+		tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
+	},
+}
+
+// defaultStoreOptions contains the default store options
+var defaultStoreOptions = &sessions.Options{
+	Path:     "/",
+	MaxAge:   86400, // One day
+	Secure:   true,
+	HttpOnly: true,
+}
 
 // config defines the configuration options for politeiawww.
 //
@@ -63,6 +92,7 @@ type config struct {
 	ConfigFile       string   `short:"C" long:"configfile" description:"Path to configuration file"`
 	DataDir          string   `short:"b" long:"datadir" description:"Directory to store data"`
 	LogDir           string   `long:"logdir" description:"Directory to log output."`
+	TemplateDir      string   `long:"templatedir" description:"Directory to template data."`
 	TestNet          bool     `long:"testnet" description:"Use the test network"`
 	SimNet           bool     `long:"simnet" description:"Use the simulation test network"`
 	Profile          string   `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
@@ -357,6 +387,11 @@ func loadConfig() (*config, []string, error) {
 		os.Exit(0)
 	}
 
+	// Exit if the template dir flag was not specified
+	if preCfg.TemplateDir == "" {
+		return nil, nil, ErrRequiredTemplateDir
+	}
+
 	// Update the home directory for stakepoold if specified. Since the
 	// home directory is updated, other variables need to be updated to
 	// reflect the new changes.
@@ -620,21 +655,21 @@ func loadConfig() (*config, []string, error) {
 		log.Warnf("%v", configFileError)
 	}
 
-	newUserTplData := newUserEmailTemplateData{
-		Email: "test@example.com",
-		Link:  "http://www.example.com",
-	}
-	if err := templateNewUserEmail.Execute(os.Stdout, &newUserTplData); err != nil {
-		return nil, nil, err
-	}
-
-	resetPasswordTplData := resetPasswordEmailTemplateData{
-		Email: "test@example.com",
-		Link:  "http://www.example.com",
-	}
-	if err := templateResetPasswordEmail.Execute(os.Stdout, &resetPasswordTplData); err != nil {
+	if err := loadEmailTemplates(cfg.TemplateDir); err != nil {
 		return nil, nil, err
 	}
 
 	return &cfg, remainingArgs, nil
+}
+
+// loadEmailTemplates parses specific email templates from a given dir
+func loadEmailTemplates(dir string) error {
+	var err error
+	if templateNewUserEmail, err = template.ParseFiles(); err != nil {
+		return err
+	}
+	if templateResetPasswordEmail, err = template.ParseFiles(); err != nil {
+		return err
+	}
+	return nil
 }

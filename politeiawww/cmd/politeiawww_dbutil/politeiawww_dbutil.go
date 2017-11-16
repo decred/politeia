@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -133,9 +134,7 @@ func _main() error {
 }
 
 func main() {
-	err := _main()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
+	if err := _main(); err != nil {
+		log.Fatal(err)
 	}
 }

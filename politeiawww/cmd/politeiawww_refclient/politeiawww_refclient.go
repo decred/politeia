@@ -10,6 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/http/cookiejar"
 	"os"
@@ -92,19 +93,10 @@ func (c *ctx) makeRequest(method string, route string, b interface{}) ([]byte, e
 	return responseBody, nil
 }
 
-func (c *ctx) getCSRF() (*v1.VersionReply, error) {
-	requestBody, err := json.Marshal(v1.Version{})
-	if err != nil {
-		return nil, err
-	}
-
+func (c *ctx) getCSRF() (*v1.SessionReply, error) {
 	fmt.Printf("Request: GET /\n")
 
-	if *printJson {
-		fmt.Println("  " + string(requestBody))
-	}
-
-	req, err := http.NewRequest(http.MethodGet, *host, bytes.NewReader(requestBody))
+	req, err := http.NewRequest(http.MethodGet, *host, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -124,15 +116,15 @@ func (c *ctx) getCSRF() (*v1.VersionReply, error) {
 		return nil, fmt.Errorf("%v", r.StatusCode)
 	}
 
-	var v v1.VersionReply
-	err = json.Unmarshal(responseBody, &v)
+	var sr v1.SessionReply
+	err = json.Unmarshal(responseBody, &sr)
 	if err != nil {
 		return nil, fmt.Errorf("Could not unmarshal version: %v", err)
 	}
 
 	c.csrf = r.Header.Get(v1.CsrfToken)
 
-	return &v, nil
+	return &sr, nil
 }
 
 func (c *ctx) policy() (*v1.PolicyReply, error) {
@@ -245,22 +237,20 @@ func (c *ctx) commentGet(token string) (*v1.GetCommentsReply, error) {
 	return &gcr, nil
 }
 
-func (c *ctx) me() (*v1.MeReply, error) {
-	l := v1.Me{}
-
-	responseBody, err := c.makeRequest("GET", v1.RouteUserMe, l)
+func (c *ctx) me() (*v1.SessionReply, error) {
+	responseBody, err := c.makeRequest("GET", *host, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var mr v1.MeReply
-	err = json.Unmarshal(responseBody, &mr)
+	var sr v1.SessionReply
+	err = json.Unmarshal(responseBody, &sr)
 	if err != nil {
 		return nil, fmt.Errorf("Could not unmarshal MeReply: %v",
 			err)
 	}
 
-	return &mr, nil
+	return &sr, nil
 }
 
 func (c *ctx) newProposal() (*v1.NewProposalReply, error) {
@@ -546,11 +536,11 @@ func _main() error {
 	if err != nil {
 		return err
 	}
-	if me.Email != email {
-		return fmt.Errorf("email got %v wanted %v", me.Email, email)
+	if me.User.Email != email {
+		return fmt.Errorf("email got %v wanted %v", me.User.Email, email)
 	}
-	if me.IsAdmin {
-		return fmt.Errorf("IsAdmin got %v wanted %v", me.IsAdmin, false)
+	if me.User.IsAdmin {
+		return fmt.Errorf("IsAdmin got %v wanted %v", me.User.IsAdmin, false)
 	}
 
 	// Change password
@@ -649,13 +639,13 @@ func _main() error {
 		if err != nil {
 			return err
 		}
-		if me.Email != adminEmail {
+		if me.User.Email != adminEmail {
 			return fmt.Errorf("admin email got %v wanted %v",
-				me.Email, adminEmail)
+				me.User.Email, adminEmail)
 		}
-		if !me.IsAdmin {
+		if !me.User.IsAdmin {
 			return fmt.Errorf("IsAdmin got %v wanted %v",
-				me.IsAdmin, true)
+				me.User.IsAdmin, true)
 		}
 
 		unvetted, err := c.allUnvetted()
@@ -828,9 +818,7 @@ func _main() error {
 }
 
 func main() {
-	err := _main()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
+	if err := _main(); err != nil {
+		log.Fatal(err)
 	}
 }
