@@ -743,7 +743,7 @@ Reply:
 
 ```json
 {
-  "commentid": 103
+  "commentid": "103"
 }
 ```
 
@@ -786,21 +786,21 @@ Reply:
 ```json
 {
   "comments":[{
-    "commentid":56,
+    "commentid":"56",
     "userid":4,
     "parentid":"0",
     "timestamp":1509990301,
     "token":"86221ddae6594b43a19e4c76250c0a8833ecd3b7a9880fb5d2a901970de9ff0e",
     "comment":"I dont like this prop"
   },{
-    "commentid":57,
+    "commentid":"57",
     "userid":4,
     "parentid":"56",
     "timestamp":1509990301,
     "token":"86221ddae6594b43a19e4c76250c0a8833ecd3b7a9880fb5d2a901970de9ff0e",
     "comment":"you are right!"
   },{
-    "commentid":58,
+    "commentid":"58",
     "userid":4,
     "parentid":"56",
     "timestamp":1509990301,
