@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -18,7 +20,9 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/dajohi/goemail"
+	"github.com/decred/dcrtime/merkle"
 	pd "github.com/decred/politeia/politeiad/api/v1"
+	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	www "github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/politeiawww/database"
@@ -232,7 +236,15 @@ func (b *backend) validatePassword(password string) error {
 	return nil
 }
 
-func (b *backend) validateProposal(np www.NewProposal) error {
+func (b *backend) validateProposal(np www.NewProposal, user *database.User) error {
+	// Obtain signature
+	sig, err := util.ConvertSignature(np.Signature)
+	if err != nil {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSignature,
+		}
+	}
+
 	// Check for at least 1 markdown file with a non-emtpy payload.
 	if len(np.Files) == 0 || np.Files[0].Payload == "" {
 		return www.UserError{
@@ -243,13 +255,20 @@ func (b *backend) validateProposal(np www.NewProposal) error {
 	// verify if there are duplicate names
 	filenames := make(map[string]int, len(np.Files))
 	// Check that the file number policy is followed.
-	var numMDs, numImages, numIndexFiles uint = 0, 0, 0
-	var mdExceedsMaxSize, imageExceedsMaxSize bool = false, false
+	var (
+		numMDs, numImages, numIndexFiles      int
+		mdExceedsMaxSize, imageExceedsMaxSize bool
+		hashes                                []*[sha256.Size]byte
+	)
 	for _, v := range np.Files {
 		filenames[v.Name]++
+		var (
+			data []byte
+			err  error
+		)
 		if strings.HasPrefix(v.MIME, "image/") {
 			numImages++
-			data, err := base64.StdEncoding.DecodeString(v.Payload)
+			data, err = base64.StdEncoding.DecodeString(v.Payload)
 			if err != nil {
 				return err
 			}
@@ -263,7 +282,7 @@ func (b *backend) validateProposal(np www.NewProposal) error {
 				numIndexFiles++
 			}
 
-			data, err := base64.StdEncoding.DecodeString(v.Payload)
+			data, err = base64.StdEncoding.DecodeString(v.Payload)
 			if err != nil {
 				return err
 			}
@@ -271,6 +290,12 @@ func (b *backend) validateProposal(np www.NewProposal) error {
 				mdExceedsMaxSize = true
 			}
 		}
+
+		// Append digest to array for merkle root calculation
+		digest := util.Digest(data)
+		var d [sha256.Size]byte
+		copy(d[:], digest)
+		hashes = append(hashes, &d)
 	}
 
 	// verify duplicate file names
@@ -330,6 +355,26 @@ func (b *backend) validateProposal(np www.NewProposal) error {
 		return www.UserError{
 			ErrorCode:    www.ErrorStatusProposalInvalidTitle,
 			ErrorContext: []string{www.ErrorContextProposalInvalidTitle},
+		}
+	}
+
+	// Verify signature
+	id, ok := database.ActiveIdentity(user.Identities)
+	if !ok {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusNoPublicKey,
+		}
+	}
+	pk, err := identity.PublicIdentityFromBytes(id[:])
+	if err != nil {
+		return err
+	}
+	mr := merkle.Root(hashes)
+	mrd := make([]byte, sha256.Size)
+	copy(mrd, mr[:])
+	if !pk.VerifyMessage(mrd, sig) {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSignature,
 		}
 	}
 
@@ -530,6 +575,21 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 	// XXX We should create a sinlge reply struct that get's returned
 	// instead of many.
 
+	// Ensure we got a proper pubkey.
+	var emptyPK [identity.PublicKeySize]byte
+	pk, err := hex.DecodeString(u.PublicKey)
+	if err != nil {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidPublicKey,
+		}
+	}
+	if len(pk) != len(emptyPK) ||
+		bytes.Equal(pk, emptyPK[:]) {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidPublicKey,
+		}
+	}
+
 	// Check if the user already exists.
 	if user, err := b.db.UserGet(u.Email); err == nil {
 		// Check if the user is already verified.
@@ -582,7 +642,11 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 			Admin:          false,
 			NewUserVerificationToken:  token,
 			NewUserVerificationExpiry: expiry,
+			Identities: []database.Identity{{
+				Activated: time.Now().Unix(),
+			}},
 		}
+		copy(newUser.Identities[0].Key[:], pk)
 
 		err = b.db.UserNew(newUser)
 		if err != nil {
@@ -611,46 +675,75 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 	return &reply, nil
 }
 
-// ProcessVerifyNewUser verifies the token generated for a recently created user.
-// It ensures that the token matches with the input and that the token hasn't expired.
-func (b *backend) ProcessVerifyNewUser(u www.VerifyNewUser) error {
+// ProcessVerifyNewUser verifies the token generated for a recently created
+// user.  It ensures that the token matches with the input and that the token
+// hasn't expired.  On success it returns database user record.
+func (b *backend) ProcessVerifyNewUser(u www.VerifyNewUser) (*database.User, error) {
 	// Check that the user already exists.
 	user, err := b.db.UserGet(u.Email)
 	if err != nil {
 		if err == database.ErrUserNotFound {
-			return www.UserError{
+			return nil, www.UserError{
 				ErrorCode: www.ErrorStatusVerificationTokenInvalid,
 			}
 		}
-		return err
+		return nil, err
 	}
 
 	// Decode the verification token.
 	token, err := hex.DecodeString(u.VerificationToken)
 	if err != nil {
-		return www.UserError{
+		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusVerificationTokenInvalid,
 		}
 	}
 
 	// Check that the verification token matches.
 	if !bytes.Equal(token, user.NewUserVerificationToken) {
-		return www.UserError{
+		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusVerificationTokenInvalid,
 		}
 	}
 
 	// Check that the token hasn't expired.
 	if currentTime := time.Now().Unix(); currentTime > user.NewUserVerificationExpiry {
-		return www.UserError{
+		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusVerificationTokenExpired,
+		}
+	}
+
+	// Check signature
+	sig, err := util.ConvertSignature(u.Signature)
+	if err != nil {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidPublicKey,
+		}
+	}
+	var pi *identity.PublicIdentity
+	for _, v := range user.Identities {
+		if v.Deactivated != 0 {
+			continue
+		}
+		pi, err = identity.PublicIdentityFromBytes(v.Key[:])
+		if err != nil {
+			return nil, err
+		}
+	}
+	if pi == nil {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusNoPublicKey,
+		}
+	}
+	if !pi.VerifyMessage(token, sig) {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSignature,
 		}
 	}
 
 	// Clear out the verification token fields in the db.
 	user.NewUserVerificationToken = nil
 	user.NewUserVerificationExpiry = 0
-	return b.db.UserUpdate(*user)
+	return user, b.db.UserUpdate(*user)
 }
 
 // ProcessLogin checks that a user exists, is verified, and has
@@ -685,7 +778,7 @@ func (b *backend) ProcessLogin(l www.Login) (*www.LoginReply, error) {
 		}
 	}
 
-	reply.UserID = user.ID
+	reply.UserID = strconv.FormatUint(user.ID, 10)
 	reply.IsAdmin = user.Admin
 	return &reply, nil
 }
@@ -806,9 +899,9 @@ func (b *backend) ProcessAllUnvetted(u www.GetAllUnvetted) *www.GetAllUnvettedRe
 }
 
 // ProcessNewProposal tries to submit a new proposal to politeiad.
-func (b *backend) ProcessNewProposal(np www.NewProposal) (*www.NewProposalReply, error) {
+func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*www.NewProposalReply, error) {
 	var reply www.NewProposalReply
-	err := b.validateProposal(np)
+	err := b.validateProposal(np, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1055,8 +1148,8 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, isUse
 // ProcessComment processes a submitted comment.  It ensures the proposal and
 // the parent exists.  A parent ID of 0 indicates that it is a comment on the
 // proposal whereas non-zero indicates that it is a reply to a comment.
-func (b *backend) ProcessComment(c www.NewComment, userID uint64) (*www.NewCommentReply, error) {
-	log.Debugf("ProcessComment: %v %v", c.Token, userID)
+func (b *backend) ProcessComment(c www.NewComment, user *database.User) (*www.NewCommentReply, error) {
+	log.Debugf("ProcessComment: %v %v", c.Token, user.ID)
 
 	b.Lock()
 	defer b.Unlock()
@@ -1068,8 +1161,19 @@ func (b *backend) ProcessComment(c www.NewComment, userID uint64) (*www.NewComme
 	}
 
 	// See if we are commenting on a comment, yo dawg.
-	if c.ParentID != 0 {
-		_, ok = m[c.ParentID]
+	if c.ParentID == "" {
+		// "" means top level comment; we need it to be "0" for the
+		// underlying code to understand that.
+		c.ParentID = "0"
+	}
+	pid, err := strconv.ParseUint(c.ParentID, 10, 64)
+	if err != nil {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusCommentNotFound,
+		}
+	}
+	if pid != 0 {
+		_, ok = m[pid]
 		if !ok {
 			return nil, www.UserError{
 				ErrorCode: www.ErrorStatusCommentNotFound,
@@ -1077,7 +1181,7 @@ func (b *backend) ProcessComment(c www.NewComment, userID uint64) (*www.NewComme
 		}
 	}
 
-	return b.addComment(c, userID)
+	return b.addComment(c, user.ID)
 }
 
 // ProcessCommentGet returns all comments for a given proposal.

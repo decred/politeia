@@ -87,10 +87,7 @@ func getIdentity() error {
 	rf := filepath.Join(defaultHomeDir, defaultIdentityFilename)
 
 	// Pretty print identity.
-	fmt.Printf("FQDN       : %v\n", id.Name)
-	fmt.Printf("Nick       : %v\n", id.Nick)
 	fmt.Printf("Key        : %x\n", id.Key)
-	fmt.Printf("Identity   : %x\n", id.Identity)
 	fmt.Printf("Fingerprint: %v\n", id.Fingerprint())
 
 	// Ask user if we like this identity

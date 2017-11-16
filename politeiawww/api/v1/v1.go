@@ -13,24 +13,22 @@ const (
 	CsrfToken = "X-CSRF-Token"    // CSRF token for replies
 	Forward   = "X-Forwarded-For" // Proxy header
 
-	RouteUserMe               = "/user/me"
-	RouteNewUser              = "/user/new"
-	RouteVerifyNewUser        = "/user/verify"
-	RouteVerifyNewUserSuccess = "/user/verify/success"
-	RouteVerifyNewUserFailure = "/user/verify/failure"
-	RouteChangePassword       = "/user/password/change"
-	RouteResetPassword        = "/user/password/reset"
-	RouteLogin                = "/login"
-	RouteLogout               = "/logout"
-	RouteSecret               = "/secret"
-	RouteAllVetted            = "/proposals/vetted"
-	RouteAllUnvetted          = "/proposals/unvetted"
-	RouteNewProposal          = "/proposals/new"
-	RouteProposalDetails      = "/proposals/{token:[A-z0-9]{64}}"
-	RouteSetProposalStatus    = "/proposals/{token:[A-z0-9]{64}}/status"
-	RoutePolicy               = "/policy"
-	RouteNewComment           = "/comments/new"
-	RouteCommentsGet          = "/proposals/{token:[A-z0-9]{64}}/comments"
+	RouteUserMe            = "/user/me"
+	RouteNewUser           = "/user/new"
+	RouteVerifyNewUser     = "/user/verify"
+	RouteChangePassword    = "/user/password/change"
+	RouteResetPassword     = "/user/password/reset"
+	RouteLogin             = "/login"
+	RouteLogout            = "/logout"
+	RouteSecret            = "/secret"
+	RouteAllVetted         = "/proposals/vetted"
+	RouteAllUnvetted       = "/proposals/unvetted"
+	RouteNewProposal       = "/proposals/new"
+	RouteProposalDetails   = "/proposals/{token:[A-z0-9]{64}}"
+	RouteSetProposalStatus = "/proposals/{token:[A-z0-9]{64}}/status"
+	RoutePolicy            = "/policy"
+	RouteNewComment        = "/comments/new"
+	RouteCommentsGet       = "/proposals/{token:[A-z0-9]{64}}/comments"
 
 	// VerificationTokenSize is the size of verification token in bytes
 	VerificationTokenSize = 32
@@ -85,6 +83,10 @@ const (
 	ErrorStatusInvalidMIMEType             ErrorStatusT = 18
 	ErrorStatusUnsupportedMIMEType         ErrorStatusT = 19
 	ErrorStatusInvalidPropStatusTransition ErrorStatusT = 20
+	ErrorStatusInvalidPublicKey            ErrorStatusT = 21
+	ErrorStatusNoPublicKey                 ErrorStatusT = 22
+	ErrorStatusInvalidSignature            ErrorStatusT = 23
+	ErrorStatusInvalidInput                ErrorStatusT = 24
 
 	// Proposal status codes (set and get)
 	PropStatusInvalid     PropStatusT = 0 // Invalid status
@@ -128,6 +130,9 @@ var (
 		ErrorStatusInvalidMIMEType:             "invalid MIME type detected for file",
 		ErrorStatusUnsupportedMIMEType:         "unsupported MIME type for file",
 		ErrorStatusInvalidPropStatusTransition: "invalid proposal status",
+		ErrorStatusInvalidPublicKey:            "invalid public key",
+		ErrorStatusNoPublicKey:                 "no active public key",
+		ErrorStatusInvalidSignature:            "invalid signature",
 	}
 )
 
@@ -221,24 +226,29 @@ type VersionReply struct {
 // NewUser is used to request that a new user be created within the db.
 // If successful, the user will require verification before being able to login.
 type NewUser struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email     string `json:"email"`
+	Password  string `json:"password"`
+	PublicKey string `json:"publickey"`
 }
 
 // NewUserReply is used to reply to the NewUser command with an error
 // if the command is unsuccessful.
 type NewUserReply struct {
-	VerificationToken string `json:"verificationtoken"`
+	VerificationToken string `json:"verificationtoken"` // Server verification token
 }
 
 // VerifyNewUser is used to perform verification for the user created through
 // the NewUser command using the token provided in NewUserReply.
 type VerifyNewUser struct {
-	Email             string `json:"email"`
-	VerificationToken string `json:"verificationtoken"`
+	Email             string `json:"email"`             // User email address
+	VerificationToken string `json:"verificationtoken"` // Server provided verification token
+	Signature         string `json:"signature"`         // VerificationToken signature
 }
 
-//XXX missing VerifyNewUserReply
+//VerifyNewUserReply
+type VerifyNewUserReply struct {
+	UserID string `json:"userid"` // User id
+}
 
 // ChangePassword is used to perform a password change while the user
 // is logged in.
@@ -274,8 +284,8 @@ type Login struct {
 
 // LoginReply is used to reply to the Login command.
 type LoginReply struct {
-	UserID  uint64 `json:"userid"`  // User id
 	IsAdmin bool   `json:"isadmin"` // Set to true when user is admin
+	UserID  string `json:"userid"`  // User id
 }
 
 //Logout attempts to log the user out.
@@ -290,14 +300,16 @@ type Me struct{}
 // MeReply contains user information the UI may need to render a user specific
 // page.
 type MeReply struct {
-	UserID  uint64 `json:"userid"` // User id
-	Email   string `json:"email"`
-	IsAdmin bool   `json:"isadmin"`
+	IsAdmin   bool   `json:"isadmin"`   // Set if user is an admin
+	UserID    string `json:"userid"`    // User id
+	Email     string `json:"email"`     // User email
+	PublicKey string `json:"publickey"` // Active public key
 }
 
 // NewProposal attempts to submit a new proposal.
 type NewProposal struct {
-	Files []File `json:"files"` // XXX layer violation.
+	Files     []File `json:"files"`     // Proposal files
+	Signature string `json:"signature"` // Signature of merkle root
 }
 
 // NewProposalReply is used to reply to the NewProposal command.
@@ -362,15 +374,16 @@ type PolicyReply struct {
 // NewComment sends a comment from a user to a specific proposal.  Note that
 // the user is implied by the session.
 type NewComment struct {
-	Token    string `json:"token"`    // Censorship token
-	ParentID uint64 `json:"parentid"` // Parent comment ID
-	Comment  string `json:"comment"`  // Comment
+	Token     string `json:"token"`     // Censorship token
+	ParentID  string `json:"parentid"`  // Parent comment ID
+	Comment   string `json:"comment"`   // Comment
+	Signature string `json:"signature"` // Signature of Token+ParentID+Comment
 }
 
 // NewCommentReply return the site generated Comment ID or an error if
 // something went wrong.
 type NewCommentReply struct {
-	CommentID uint64 `json:"commentid"` // Comment ID
+	CommentID string `json:"commentid"` // Comment ID
 }
 
 // GetComments retrieve all comments for a given proposal.
@@ -379,12 +392,13 @@ type GetComments struct{}
 // Comment is the structure that describes the full server side content.  It
 // includes server side meta-data as well.
 type Comment struct {
-	CommentID uint64 `json:"commentid"` // Comment ID
-	UserID    uint64 `json:"userid"`    // Originating user
-	ParentID  uint64 `json:"parentid"`  // Parent comment ID
 	Timestamp int64  `json:"timestamp"` // Received UNIX timestamp
+	UserID    string `json:"userid"`    // Originating user
+	CommentID string `json:"commentid"` // Comment ID
 	Token     string `json:"token"`     // Censorship token
+	ParentID  string `json:"parentid"`  // Parent comment ID
 	Comment   string `json:"comment"`   // Comment
+	Signature string `json:"signature"` // Signature of Token+ParentID+Comment
 }
 
 // GetCommentsReply returns the provided number of comments.

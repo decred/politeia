@@ -11,15 +11,16 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
-	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/decred/politeia/politeiawww/api/v1"
+	"github.com/decred/politeia/politeiawww/database"
 	"github.com/decred/politeia/util"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
@@ -53,6 +54,59 @@ type resetPasswordEmailTemplateData struct {
 	Email string
 }
 
+// getSessionEmail returns the email address of the currently logged in user
+// from the session store.
+func (p *politeiawww) getSessionEmail(r *http.Request) (string, error) {
+	session, err := p.store.Get(r, v1.CookieSession)
+	if err != nil {
+		return "", err
+	}
+
+	email, ok := session.Values["email"].(string)
+	if !ok {
+		// No email in session so return "" to indicate that.
+		return "", nil
+	}
+
+	return email, nil
+}
+
+// getSessionUser retrieves the current session user from the database.
+func (p *politeiawww) getSessionUser(r *http.Request) (*database.User, error) {
+	email, err := p.getSessionEmail(r)
+	if err != nil {
+		return nil, err
+	}
+
+	return p.backend.db.UserGet(email)
+}
+
+// setSessionUser sets the "email" session key to the provided value.
+func (p *politeiawww) setSessionUser(w http.ResponseWriter, r *http.Request, email string) error {
+	session, err := p.store.Get(r, v1.CookieSession)
+	if err != nil {
+		return err
+	}
+
+	session.Values["email"] = email
+	err = session.Save(r, w)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// isAdmin returns true if the current session has admin privileges.
+func (p *politeiawww) isAdmin(r *http.Request) (bool, error) {
+	user, err := p.getSessionUser(r)
+	if err != nil {
+		return false, err
+	}
+
+	return user.Admin, nil
+}
+
 // Fetch remote identity
 func (p *politeiawww) getIdentity() error {
 	id, err := util.RemoteIdentity(false, p.cfg.RPCHost, p.cfg.RPCCert)
@@ -62,10 +116,7 @@ func (p *politeiawww) getIdentity() error {
 
 	// Pretty print identity.
 	log.Infof("Identity fetched from politeiad")
-	log.Infof("FQDN       : %v", id.Name)
-	log.Infof("Nick       : %v", id.Nick)
 	log.Infof("Key        : %x", id.Key)
-	log.Infof("Identity   : %x", id.Identity)
 	log.Infof("Fingerprint: %v", id.Fingerprint())
 
 	// Ask user if we like this identity
@@ -102,10 +153,12 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 		}
 
 		if len(userErr.ErrorContext) == 0 {
-			log.Debugf("RespondWithError: %v %v", int64(userErr.ErrorCode),
+			log.Debugf("RespondWithError: %v %v",
+				int64(userErr.ErrorCode),
 				v1.ErrorStatus[userErr.ErrorCode])
 		} else {
-			log.Debugf("RespondWithError: %v %v: %v", int64(userErr.ErrorCode),
+			log.Debugf("RespondWithError: %v %v: %v",
+				int64(userErr.ErrorCode),
 				v1.ErrorStatus[userErr.ErrorCode],
 				strings.Join(userErr.ErrorContext, ", "))
 		}
@@ -121,8 +174,10 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 		pdErrorCode := convertErrorStatusFromPD(pdError.ErrorReply.ErrorCode)
 		if pdErrorCode == v1.ErrorStatusInvalid {
 			errorCode := time.Now().Unix()
-			log.Errorf("%v %v %v %v Internal error %v: error code from politeiad: %v",
-				remoteAddr(r), r.Method, r.URL, r.Proto, errorCode, pdError.ErrorReply.ErrorCode)
+			log.Errorf("%v %v %v %v Internal error %v: error "+
+				"code from politeiad: %v", remoteAddr(r),
+				r.Method, r.URL, r.Proto, errorCode,
+				pdError.ErrorReply.ErrorCode)
 			util.RespondWithJSON(w, http.StatusInternalServerError,
 				v1.ErrorReply{
 					ErrorCode: errorCode,
@@ -151,17 +206,6 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 // version is an HTTP GET to determine what version and API route this backend
 // is using.  Additionally it is used to obtain a CSRF token.
 func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
-	/*
-		// Get the version command.
-		var v v1.Version
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&v); err != nil {
-			RespondInternalError(w, r,
-				"handleVersion: Unmarshal %v", err)
-			return
-		}
-		defer r.Body.Close()
-	*/
 	versionReply, err := json.Marshal(v1.VersionReply{
 		Version: v1.PoliteiaWWWAPIVersion,
 		Route:   v1.PoliteiaWWWAPIRoute,
@@ -209,8 +253,6 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 // that the user with the provided email has a verificaton token that matches
 // the provided token and that the verification token has not yet expired.
 func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request) {
-	routePrefix := p.cfg.WebServerAddress
-
 	// Get the new user verify command.
 	var vnu v1.VerifyNewUser
 	decoder := json.NewDecoder(r.Body)
@@ -220,53 +262,38 @@ func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request
 		query := r.URL.Query()
 		email, emailOk := query["email"]
 		token, tokenOk := query["verificationtoken"]
-		if !emailOk || !tokenOk {
-			log.Errorf("handleVerifyNewUser: Unmarshal %v", err)
-			http.Redirect(w, r, routePrefix+v1.RouteVerifyNewUserFailure,
-				http.StatusMovedPermanently)
+		sig, sigOk := query["signature"]
+		if !emailOk || !tokenOk || !sigOk {
+			RespondWithError(w, r, 0, "could not decode URL",
+				v1.UserError{
+					ErrorCode: v1.ErrorStatusInvalidInput,
+				})
 			return
 		}
 
 		vnu.Email = email[0]
 		vnu.VerificationToken = token[0]
+		vnu.Signature = sig[0]
 	}
 	defer r.Body.Close()
 
-	err := p.backend.ProcessVerifyNewUser(vnu)
+	user, err := p.backend.ProcessVerifyNewUser(vnu)
 	if err != nil {
-		userErr, ok := err.(v1.UserError)
-		if ok {
-			url, err := url.Parse(routePrefix + v1.RouteVerifyNewUserFailure)
-			if err == nil {
-				q := url.Query()
-				q.Set("errorcode", string(userErr.ErrorCode))
-				url.RawQuery = q.Encode()
-				http.Redirect(w, r, url.String(), http.StatusMovedPermanently)
-				return
-			}
-		}
-
-		log.Errorf("handleVerifyNewUser: %v", err)
-		http.Redirect(w, r, routePrefix+v1.RouteVerifyNewUserFailure,
-			http.StatusMovedPermanently)
+		RespondWithError(w, r, 0, "handleLogin: ProcessVerifyNewUser %v",
+			err)
 		return
 	}
 
-	http.Redirect(w, r, routePrefix+v1.RouteVerifyNewUserSuccess,
-		http.StatusMovedPermanently)
+	util.RespondWithJSON(w, http.StatusOK,
+		v1.LoginReply{
+			UserID: strconv.FormatUint(user.ID, 10),
+		})
 }
 
 // handleLogin handles the incoming login command.  It verifies that the user
 // exists and the accompanying password.  On success a cookie is added to the
 // gorilla sessions that must be returned on subsequent calls.
 func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
-	session, err := p.store.Get(r, v1.CookieSession)
-	if err != nil {
-		RespondWithError(w, r, 0, "handleLogin: failed to get session: %v",
-			err)
-		return
-	}
-
 	// Get the login command.
 	var l v1.Login
 	decoder := json.NewDecoder(r.Body)
@@ -284,14 +311,10 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Mark user as logged in if there's no error.
-	session.Values["email"] = l.Email
-	session.Values["id"] = reply.UserID
-	session.Values["authenticated"] = true
-	session.Values["admin"] = reply.IsAdmin
-	err = session.Save(r, w)
+	err = p.setSessionUser(w, r, l.Email)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleLogin: failed to save session: %v", err)
+			"handleLogin: setSessionUser %v", err)
 		return
 	}
 
@@ -302,33 +325,10 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 // handleLogout logs the user out.  A login will be required to resume sending
 // commands,
 func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
-	/*
-		// Get the logout command.
-		var l v1.Logout
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&l); err != nil {
-			RespondInternalError(w, r,
-				"handleLogout: Unmarshal %v", err)
-			return
-		}
-		defer r.Body.Close()
-	*/
-	session, err := p.store.Get(r, v1.CookieSession)
+	err := p.setSessionUser(w, r, "")
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleLogout: failed to get session: %v", err)
-		return
-	}
-
-	// Revoke users authentication
-	session.Values["email"] = ""
-	session.Values["id"] = 0
-	session.Values["authenticated"] = false
-	session.Values["admin"] = false
-	err = session.Save(r, w)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleLogout: failed to save session: %v", err)
+			"handleLogout: setSessionUser %v", err)
 		return
 	}
 
@@ -344,45 +344,27 @@ func (p *politeiawww) handleSecret(w http.ResponseWriter, r *http.Request) {
 
 // handleMe returns logged in user information.
 func (p *politeiawww) handleMe(w http.ResponseWriter, r *http.Request) {
-	session, err := p.store.Get(r, v1.CookieSession)
+	user, err := p.getSessionUser(r)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleMe: failed to get session: %v", err)
+			"handleMe: getSessionUser %v", err)
 		return
 	}
 
-	email, oke := session.Values["email"].(string)
-	isAdmin, oki := session.Values["admin"].(bool)
-	if !oke || !oki {
-		RespondWithError(w, r, 0,
-			"handleMe: type assert oke %v oki %v", oke, oki)
-		return
+	activeIdentity, ok := database.ActiveIdentityString(user.Identities)
+	if !ok {
+		activeIdentity = ""
 	}
-
-	// Reply with the user information.
 	reply := v1.MeReply{
-		Email:   email,
-		IsAdmin: isAdmin,
+		IsAdmin:   user.Admin,
+		UserID:    strconv.FormatUint(user.ID, 10),
+		Email:     user.Email,
+		PublicKey: activeIdentity,
 	}
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
 func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Request) {
-	// Get the email for the current session.
-	session, err := p.store.Get(r, v1.CookieSession)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleChangePassword: failed to get session: %v", err)
-		return
-	}
-
-	email, ok := session.Values["email"].(string)
-	if !ok {
-		RespondWithError(w, r, 0,
-			"handleChangePassword: type assert ok %v", ok)
-		return
-	}
-
 	// Get the change password command.
 	var cp v1.ChangePassword
 	decoder := json.NewDecoder(r.Body)
@@ -393,7 +375,14 @@ func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Reques
 	}
 	defer r.Body.Close()
 
-	reply, err := p.backend.ProcessChangePassword(email, cp)
+	user, err := p.getSessionUser(r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleMe: getSessionUser %v", err)
+		return
+	}
+
+	reply, err := p.backend.ProcessChangePassword(user.Email, cp)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleChangePassword: ProcessChangePassword %v", err)
@@ -439,7 +428,14 @@ func (p *politeiawww) handleNewProposal(w http.ResponseWriter, r *http.Request) 
 	}
 	defer r.Body.Close()
 
-	reply, err := p.backend.ProcessNewProposal(np)
+	user, err := p.getSessionUser(r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleNewProposal: getSessionUser %v", err)
+		return
+	}
+
+	reply, err := p.backend.ProcessNewProposal(np, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleNewProposal: ProcessNewProposal %v", err)
@@ -478,30 +474,17 @@ func (p *politeiawww) handleSetProposalStatus(w http.ResponseWriter, r *http.Req
 // handleProposalDetails handles the incoming proposal details command. It fetches
 // the complete details for an existing proposal.
 func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Request) {
-	// Get the proposal details command.
-	var pd v1.ProposalsDetails
-
-	/*
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&pd); err != nil {
-			RespondInternalError(w, r,
-				"handleProposalDetails: Unmarshal %v", err)
-			return
-		}
-		defer r.Body.Close()
-	*/
 	// Add the path param to the struct.
 	pathParams := mux.Vars(r)
+	var pd v1.ProposalsDetails
 	pd.Token = pathParams["token"]
 
-	session, err := p.store.Get(r, v1.CookieSession)
+	isAdmin, err := p.isAdmin(r)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleProposalDetails: failed to get session %v", err)
+			"handleProposalDetails: isAdmin %v", err)
 		return
 	}
-
-	isAdmin, _ := session.Values["admin"].(bool)
 	reply, err := p.backend.ProcessProposalDetails(pd, isAdmin)
 	if err != nil {
 		RespondWithError(w, r, 0,
@@ -516,17 +499,7 @@ func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Reque
 func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 	// Get the policy command.
 	var policy v1.Policy
-	/*
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&policy); err != nil {
-			RespondInternalError(w, r,
-				"handlePolicy: Unmarshal %v", err)
-			return
-		}
-		defer r.Body.Close()
-	*/
 	reply := p.backend.ProcessPolicy(policy)
-
 	// Reply with the new proposal status.
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
@@ -535,16 +508,6 @@ func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 func (p *politeiawww) handleAllVetted(w http.ResponseWriter, r *http.Request) {
 	// Get the all vetted command.
 	var v v1.GetAllVetted
-
-	/*
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&v); err != nil {
-			RespondInternalError(w, r,
-				"handleAllVetted: Unmarshal %v", err)
-			return
-		}
-		defer r.Body.Close()
-	*/
 	vr := p.backend.ProcessAllVetted(v)
 	util.RespondWithJSON(w, http.StatusOK, vr)
 }
@@ -553,16 +516,6 @@ func (p *politeiawww) handleAllVetted(w http.ResponseWriter, r *http.Request) {
 func (p *politeiawww) handleAllUnvetted(w http.ResponseWriter, r *http.Request) {
 	// Get the all unvetted command.
 	var u v1.GetAllUnvetted
-
-	/*
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&u); err != nil {
-			RespondInternalError(w, r,
-				"handleAllUnvetted: Unmarshal %v", err)
-			return
-		}
-		defer r.Body.Close()
-	*/
 	ur := p.backend.ProcessAllUnvetted(u)
 	util.RespondWithJSON(w, http.StatusOK, ur)
 }
@@ -579,21 +532,14 @@ func (p *politeiawww) handleNewComment(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	// Get session to retrieve user id
-	session, err := p.store.Get(r, v1.CookieSession)
+	user, err := p.getSessionUser(r)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleNewComment: failed to get session: %v", err)
-		return
-	}
-	userID, ok := session.Values["id"].(uint64)
-	if !ok {
-		RespondWithError(w, r, 0,
-			"handleNewComment: invalid user ID: %v", err)
+			"handleNewComment: getSessionUser %v", err)
 		return
 	}
 
-	cr, err := p.backend.ProcessComment(sc, userID)
+	cr, err := p.backend.ProcessComment(sc, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleNewComment: ProcessComment %v", err)

@@ -22,12 +22,12 @@ var (
 func TestNew(t *testing.T) {
 	var err error
 
-	alice, err = New("alice mcmoo", "alice")
+	alice, err = New()
 	if err != nil {
 		t.Fatalf("New alice: %v", err)
 	}
 
-	bob, err = New("bob laroo", "bob")
+	bob, err = New()
 	if err != nil {
 		t.Fatalf("New bob: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestMarshalUnmarshalPublic(t *testing.T) {
 
 func TestString(t *testing.T) {
 	s := fmt.Sprintf("%v", alice.Public)
-	ss := hex.EncodeToString(alice.Public.Identity[:])
+	ss := hex.EncodeToString(alice.Public.Key[:])
 	if s != ss {
 		t.Fatalf("stringer not working")
 	}

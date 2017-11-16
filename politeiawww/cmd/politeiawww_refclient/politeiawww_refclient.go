@@ -16,6 +16,7 @@ import (
 
 	"golang.org/x/net/publicsuffix"
 
+	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/util"
 )
@@ -28,8 +29,9 @@ var (
 )
 
 type ctx struct {
-	client *http.Client
-	csrf   string
+	client   *http.Client
+	identity *identity.FullIdentity
+	csrf     string
 }
 
 func newClient(skipVerify bool) (*ctx, error) {
@@ -45,10 +47,16 @@ func newClient(skipVerify bool) (*ctx, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ctx{client: &http.Client{
-		Transport: tr,
-		Jar:       jar,
-	}}, nil
+	id, err := identity.New()
+	if err != nil {
+		return nil, err
+	}
+	return &ctx{
+		identity: id,
+		client: &http.Client{
+			Transport: tr,
+			Jar:       jar,
+		}}, nil
 }
 
 func (c *ctx) makeRequest(method string, route string, b interface{}) ([]byte, error) {
@@ -153,8 +161,9 @@ func (c *ctx) policy() (*v1.PolicyReply, error) {
 
 func (c *ctx) newUser(email, password string) (string, error) {
 	u := v1.NewUser{
-		Email:    email,
-		Password: password,
+		Email:     email,
+		Password:  password,
+		PublicKey: hex.EncodeToString(c.identity.Public.Key[:]),
 	}
 
 	responseBody, err := c.makeRequest("POST", v1.RouteNewUser, u)
@@ -173,9 +182,9 @@ func (c *ctx) newUser(email, password string) (string, error) {
 	return nur.VerificationToken, nil
 }
 
-func (c *ctx) verifyNewUser(email, token string) error {
+func (c *ctx) verifyNewUser(email, token, sig string) error {
 	_, err := c.makeRequest("GET", "/user/verify/?email="+email+
-		"&verificationtoken="+token, nil)
+		"&verificationtoken="+token+"&signature="+sig, nil)
 	return err
 }
 
@@ -206,7 +215,7 @@ func (c *ctx) secret() error {
 	return err
 }
 
-func (c *ctx) comment(token, comment string, parentID uint64) (*v1.NewCommentReply, error) {
+func (c *ctx) comment(token, comment, parentID string) (*v1.NewCommentReply, error) {
 	cm := v1.NewComment{
 		Token:    token,
 		ParentID: parentID,
@@ -264,13 +273,17 @@ func (c *ctx) me() (*v1.MeReply, error) {
 }
 
 func (c *ctx) newProposal() (*v1.NewProposalReply, error) {
-	np := v1.NewProposal{
-		Files: make([]v1.File, 0),
-	}
-
 	payload := []byte("This is a description")
 	h := sha256.New()
 	h.Write(payload)
+
+	sig := c.identity.SignMessage(h.Sum(nil))
+	np := v1.NewProposal{
+		Files: make([]v1.File, 0),
+		// We can get away with just signing the digest because there
+		// is only one file.
+		Signature: hex.EncodeToString(sig[:]),
+	}
 
 	np.Files = append(np.Files, v1.File{
 		Name:    "index.md",
@@ -489,14 +502,14 @@ func _main() error {
 	}
 
 	// Verify New User
-	err = c.verifyNewUser(email, token)
+	tokenBytes, err := hex.DecodeString(token)
 	if err != nil {
-		// ugly hack that ignores special redirect handling in verify
-		// user.  We assume we were redirected to the correct page and
-		// end up 404 because we don't route the success/failure page.
-		if err.Error() != "404" {
-			return err
-		}
+		return err
+	}
+	sig := c.identity.SignMessage(tokenBytes)
+	err = c.verifyNewUser(email, token, hex.EncodeToString(sig[:]))
+	if err != nil {
+		return err
 	}
 
 	// New proposal
@@ -732,7 +745,7 @@ func _main() error {
 
 		// Comment on proposals without a parent
 		cr, err := c.comment(myprop1.CensorshipRecord.Token,
-			"I like this prop", 0)
+			"I like this prop", "")
 		if err != nil {
 			return err
 		}
@@ -751,7 +764,7 @@ func _main() error {
 
 		// Comment on proposals without a parent
 		cr2, err := c.comment(myprop1.CensorshipRecord.Token,
-			"I dont like this prop", 0)
+			"I dont like this prop", "")
 		if err != nil {
 			return err
 		}

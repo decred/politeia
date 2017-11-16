@@ -6,7 +6,24 @@ import (
 	"fmt"
 
 	"github.com/decred/dcrtime/api/v1"
+	"github.com/decred/politeia/politeiad/api/v1/identity"
 )
+
+// ConvertSignature converts a hex encoded signature to a proper sized byte
+// slice.
+func ConvertSignature(s string) ([identity.SignatureSize]byte, error) {
+	sb, err := hex.DecodeString(s)
+	if err != nil {
+		return [identity.SignatureSize]byte{}, err
+	}
+	if len(sb) != identity.SignatureSize {
+		return [identity.SignatureSize]byte{},
+			fmt.Errorf("invalid signature length")
+	}
+	var sig [identity.SignatureSize]byte
+	copy(sig[:], sb)
+	return sig, nil
+}
 
 // ConvertStringToken verifies and converts a string token to a proper sized
 // []byte.
