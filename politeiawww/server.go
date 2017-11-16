@@ -53,8 +53,7 @@ func NewPoliteiaWWW(cfg *config) (*PoliteiaWWW, error) {
 		if err != nil {
 			return nil, err
 		}
-		err = ioutil.WriteFile(cfg.CookieKeyFile, cookieKey, 0400)
-		if err != nil {
+		if err := ioutil.WriteFile(cfg.CookieKeyFile, cookieKey, 0400); err != nil {
 			return nil, err
 		}
 		log.Infof("Cookie key generated.")
@@ -93,7 +92,7 @@ func (p *PoliteiaWWW) addV1Routes(router *mux.Router) {
 	subrouter.NotFoundHandler = http.HandlerFunc(p.handleNotFound)
 
 	// public routes
-	subrouter.HandleFunc("/", logging(p.handleVersion)).Methods(http.MethodGet)
+	subrouter.HandleFunc("/", logging(p.handleSession)).Methods(http.MethodGet)
 	subrouter.HandleFunc(v1.RouteNewUser, p.middleware(p.handleNewUser, permissionPublic, false)).Methods(http.MethodPost)
 	subrouter.HandleFunc(v1.RouteVerifyNewUser, p.middleware(p.handleVerifyNewUser, permissionPublic, false)).Methods(http.MethodGet)
 	subrouter.HandleFunc(v1.RouteLogin, p.middleware(p.handleLogin, permissionPublic, false)).Methods(http.MethodPost)
@@ -108,7 +107,6 @@ func (p *PoliteiaWWW) addV1Routes(router *mux.Router) {
 	// routes that require being logged in.
 	subrouter.HandleFunc(v1.RouteSecret, p.middleware(p.handleSecret, permissionLogin, false)).Methods(http.MethodPost)
 	subrouter.HandleFunc(v1.RouteNewProposal, p.middleware(p.handleNewProposal, permissionLogin, true)).Methods(http.MethodPost)
-	subrouter.HandleFunc(v1.RouteUserMe, p.middleware(p.handleMe, permissionLogin, false)).Methods(http.MethodGet)
 	subrouter.HandleFunc(v1.RouteChangePassword, p.middleware(p.handleChangePassword, permissionLogin, false)).Methods(http.MethodPost)
 	subrouter.HandleFunc(v1.RouteNewComment, p.middleware(p.handleNewComment, permissionLogin, true)).Methods(http.MethodPost)
 
@@ -214,12 +212,51 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHTTPCode int, 
 
 // version is an HTTP GET to determine what version and API route this backend
 // is using.  Additionally it is used to obtain a CSRF token.
-func (p *PoliteiaWWW) handleVersion(w http.ResponseWriter, r *http.Request) {
-	versionReply, err := json.Marshal(v1.VersionReply{
-		Version: v1.PoliteiaWWWAPIVersion,
-		Route:   v1.PoliteiaWWWAPIRoute,
-		PubKey:  hex.EncodeToString(p.cfg.Identity.Key[:]),
-	})
+func (p *PoliteiaWWW) handleSession(w http.ResponseWriter, r *http.Request) {
+	var reply v1.SessionReply
+
+	session, err := p.store.Get(r, v1.CookieSession)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleSession: failed to get session: %v", err)
+		return
+	}
+	active, ok := session.Values["authorized"].(bool)
+	if !ok {
+		RespondWithError(w, r, 0,
+			"handleSession: type assert ok %v", ok)
+		return
+	}
+
+	if active {
+		// there's an active session
+
+		email, ok := session.Values["email"].(string)
+		if !ok {
+			RespondWithError(w, r, 0,
+				"handleSession: type assert ok %v", ok)
+			return
+		}
+		isAdmin, ok := session.Values["admin"].(bool)
+		if !ok {
+			RespondWithError(w, r, 0,
+				"handleSession: type assert ok %v", ok)
+			return
+		}
+
+		reply.User = v1.User{
+			Email:   email,
+			IsAdmin: isAdmin,
+		}
+
+	} else {
+		// new session data
+		reply.Version = v1.PoliteiaWWWAPIVersion
+		reply.Route = v1.PoliteiaWWWAPIRoute
+		reply.PubKey = hex.EncodeToString(p.cfg.Identity.Key[:])
+	}
+
+	rawReply, err := json.Marshal(reply)
 	if err != nil {
 		RespondWithError(w, r, 0, "handleVersion: Marshal %v", err)
 		return
@@ -228,11 +265,14 @@ func (p *PoliteiaWWW) handleVersion(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Add("Strict-Transport-Security",
 		"max-age=63072000; includeSubDomains")
-	if !p.cfg.Proxy {
+
+	// set new token if there
+	if !active && !p.cfg.Proxy {
 		w.Header().Set(v1.CsrfToken, csrf.Token(r))
 	}
+
 	w.WriteHeader(http.StatusOK)
-	w.Write(versionReply)
+	w.Write(rawReply)
 }
 
 // handleNewUser handles the incoming new user command. It verifies that the new user
@@ -363,8 +403,7 @@ func (p *PoliteiaWWW) handleLogout(w http.ResponseWriter, r *http.Request) {
 	session.Values["id"] = 0
 	session.Values["authenticated"] = false
 	session.Values["admin"] = false
-	err = session.Save(r, w)
-	if err != nil {
+	if err := session.Save(r, w); err != nil {
 		RespondWithError(w, r, 0,
 			"handleLogout: failed to save session: %v", err)
 		return
@@ -378,31 +417,6 @@ func (p *PoliteiaWWW) handleLogout(w http.ResponseWriter, r *http.Request) {
 // handleSecret is a mock handler to test privileged routes.
 func (p *PoliteiaWWW) handleSecret(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "secret sauce")
-}
-
-// handleMe returns logged in user information.
-func (p *PoliteiaWWW) handleMe(w http.ResponseWriter, r *http.Request) {
-	session, err := p.store.Get(r, v1.CookieSession)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleMe: failed to get session: %v", err)
-		return
-	}
-
-	email, oke := session.Values["email"].(string)
-	isAdmin, oki := session.Values["admin"].(bool)
-	if !oke || !oki {
-		RespondWithError(w, r, 0,
-			"handleMe: type assert oke %v oki %v", oke, oki)
-		return
-	}
-
-	// Reply with the user information.
-	reply := v1.MeReply{
-		Email:   email,
-		IsAdmin: isAdmin,
-	}
-	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
 func (p *PoliteiaWWW) handleChangePassword(w http.ResponseWriter, r *http.Request) {
