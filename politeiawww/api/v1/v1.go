@@ -37,6 +37,10 @@ const (
 	// verification token expires
 	VerificationExpiryHours = 48
 
+	// ProposalListPageSize is the maximum number of proposals returned
+	// for the routes that return lists of proposals
+	ProposalListPageSize = 20
+
 	// PolicyMaxImages is the maximum number of images accepted
 	// when creating a new proposal
 	PolicyMaxImages = 5
@@ -68,10 +72,6 @@ const (
 	// PolicyMaxCommentLength is the maximum number of characters
 	// accepted for comments
 	PolicyMaxCommentLength = 8000
-
-	// ProposalListPageSize is the maximum number of proposals returned
-	// for the routes that return lists of proposals
-	ProposalListPageSize = 20
 
 	// Error status codes
 	ErrorStatusInvalid                     ErrorStatusT = 0
@@ -184,12 +184,13 @@ type CensorshipRecord struct {
 
 // ProposalRecord is an entire proposal and it's content.
 type ProposalRecord struct {
-	Name      string      `json:"name"`      // Suggested short proposal name
-	Status    PropStatusT `json:"status"`    // Current status of proposal
-	Timestamp int64       `json:"timestamp"` // Last update of proposal
-	PublicKey string      `json:"publickey"` // Key used for signature.
-	Signature string      `json:"signature"` // Signature of merkle root
-	Files     []File      `json:"files"`     // Files that make up the proposal
+	Name        string      `json:"name"`                  // Suggested short proposal name
+	Status      PropStatusT `json:"status"`                // Current status of proposal
+	Timestamp   int64       `json:"timestamp"`             // Last update of proposal
+	PublicKey   string      `json:"publickey"`             // Key used for signature.
+	Signature   string      `json:"signature"`             // Signature of merkle root
+	Files       []File      `json:"files"`                 // Files that make up the proposal
+	NumComments *uint       `json:"numcomments,omitempty"` // Proposal's comment count
 
 	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
 }

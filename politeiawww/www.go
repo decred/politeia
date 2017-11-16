@@ -149,10 +149,10 @@ func (p *politeiawww) getIdentity() error {
 // an internal server error, it returns 500 and an error code which is also
 // outputted to the logs so that it can be correlated later if the user
 // files a complaint.
-func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, format string, args ...interface{}) {
+func RespondWithError(w http.ResponseWriter, r *http.Request, userHTTPCode int, format string, args ...interface{}) {
 	if userErr, ok := args[0].(v1.UserError); ok {
-		if userHttpCode == 0 {
-			userHttpCode = http.StatusBadRequest
+		if userHTTPCode == 0 {
+			userHTTPCode = http.StatusBadRequest
 		}
 
 		if len(userErr.ErrorContext) == 0 {
@@ -166,7 +166,7 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 				strings.Join(userErr.ErrorContext, ", "))
 		}
 
-		util.RespondWithJSON(w, userHttpCode,
+		util.RespondWithJSON(w, userHTTPCode,
 			v1.ErrorReply{
 				ErrorCode: int64(userErr.ErrorCode),
 			})

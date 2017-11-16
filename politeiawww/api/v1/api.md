@@ -624,6 +624,7 @@ Reply:
     "name": "My Proposal",
     "status": 4,
     "timestamp": 1508296860781,
+    "numcomments": 0,
     "censorshiprecord": {
       "token": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
       "merkle": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
@@ -926,6 +927,7 @@ Reply:
 | timestamp | number | The unix time of the last update of the proposal. |
 | censorshiprecord | [`censorshiprecord`](#censorship-record) | The censorship record that was created when the proposal was submitted. |
 | files | array of [`File`](#file)s | This property will only be populated for the [`Proposal details`](#proposal-details) call. |
+| numcomments | Number | Number of comments. This will only be polulated for the [`Vetted`](#vetted) call. |
 
 ### `File`
 

@@ -15,6 +15,7 @@ import (
 
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	www "github.com/decred/politeia/politeiawww/api/v1"
+	"github.com/decred/politeia/politeiawww/database"
 	"github.com/decred/politeia/util"
 )
 
@@ -324,4 +325,60 @@ func validateComment(c www.NewComment) error {
 	// validate token
 	_, err := util.ConvertStringToken(c.Token)
 	return err
+}
+
+// ProcessComment processes a submitted comment.  It ensures the proposal and
+// the parent exists.  A parent ID of 0 indicates that it is a comment on the
+// proposal whereas non-zero indicates that it is a reply to a comment.
+func (b *backend) ProcessComment(c www.NewComment, user *database.User) (*www.NewCommentReply, error) {
+	log.Debugf("ProcessComment: %v %v", c.Token, user.ID)
+
+	// Verify signature
+	err := checkSig(user, c.Signature, c.Token, c.ParentID, c.Comment)
+	if err != nil {
+		return nil, err
+	}
+
+	b.Lock()
+	defer b.Unlock()
+	m, ok := b.comments[c.Token]
+	if !ok {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusProposalNotFound,
+		}
+	}
+
+	// See if we are commenting on a comment, yo dawg.
+	if c.ParentID == "" {
+		// "" means top level comment; we need it to be "0" for the
+		// underlying code to understand that.
+		c.ParentID = "0"
+	}
+	pid, err := strconv.ParseUint(c.ParentID, 10, 64)
+	if err != nil {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusCommentNotFound,
+		}
+	}
+	if pid != 0 {
+		_, ok = m[pid]
+		if !ok {
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusCommentNotFound,
+			}
+		}
+	}
+
+	return b.addComment(c, user.ID)
+}
+
+// ProcessCommentGet returns all comments for a given proposal.
+func (b *backend) ProcessCommentGet(token string) (*www.GetCommentsReply, error) {
+	log.Debugf("ProcessCommentGet: %v", token)
+
+	c, err := b.getComments(token)
+	if err != nil {
+		return nil, err
+	}
+	return c, nil
 }
