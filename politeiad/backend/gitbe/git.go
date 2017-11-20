@@ -281,9 +281,15 @@ func (g *gitBackEnd) gitFsck(path string) ([]string, error) {
 	return out, nil
 }
 
+// gitConfig sets a config value for the provided repo.
+func (g *gitBackEnd) gitConfig(path, name, value string) error {
+	_, err := g.git(path, "config", name, value)
+	return err
+}
+
 // gitClone clones a git repository.  This functions exits without an error
 // if the directory is already a git repo.
-func (g *gitBackEnd) gitClone(from, to string) error {
+func (g *gitBackEnd) gitClone(from, to string, repoConfig map[string]string) error {
 	_, err := os.Stat(filepath.Join(from, ".git"))
 	if os.IsNotExist(err) {
 		return fmt.Errorf("source repo does not exist")
@@ -294,7 +300,16 @@ func (g *gitBackEnd) gitClone(from, to string) error {
 	}
 
 	log.Infof("Cloning git repo %v to %v", from, to)
-	_, err = g.git("", "clone", from, to)
+
+	// Clone the repo (with config, if applicable).
+	args := []string{"clone", from, to}
+	if repoConfig != nil {
+		args = append(args, "-c")
+		for k, v := range repoConfig {
+			args = append(args, k+"="+v)
+		}
+	}
+	_, err = g.git("", args...)
 	return err
 }
 
@@ -317,7 +332,7 @@ func (g *gitBackEnd) gitInit(path string) (string, error) {
 // without an error if the directory is already a git repo.  The git repo is
 // initialized with a .gitignore file so that a) have a master and b) always
 // ignore the lock file.
-func (g *gitBackEnd) gitInitRepo(path string) error {
+func (g *gitBackEnd) gitInitRepo(path string, repoConfig map[string]string) error {
 	_, err := os.Stat(filepath.Join(path, ".git"))
 	// This test is unreadable but correct.
 	if !os.IsNotExist(err) {
@@ -335,6 +350,14 @@ func (g *gitBackEnd) gitInitRepo(path string) error {
 	_, err = g.gitInit(path)
 	if err != nil {
 		return err
+	}
+
+	// Apply repo config
+	for k, v := range repoConfig {
+		err = g.gitConfig(path, k, v)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Add .gitignore with the lock file name.
