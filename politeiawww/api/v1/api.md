@@ -602,6 +602,11 @@ Reply:
     "image/svg+xml",
     "text/plain",
     "text/plain; charset=utf-8"
+  ],
+  "maxnamelength": 80,
+  "minnamelength": 8,
+  "supportedcharacters": [
+     "A-z", "0-9", "&",".",":",";",",","-"," ","@","+","#"
   ]
 }
 ```

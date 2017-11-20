@@ -329,7 +329,7 @@ func (b *backend) validateProposal(np www.NewProposal) error {
 	if !util.IsValidProposalName(name) {
 		return www.UserError{
 			ErrorCode:    www.ErrorStatusProposalInvalidTitle,
-			ErrorContext: []string{www.ErrorContextProposalInvalidTitle},
+			ErrorContext: []string{util.CreateProposalTitleRegex()},
 		}
 	}
 
@@ -1139,6 +1139,9 @@ func (b *backend) ProcessPolicy(p www.Policy) *www.PolicyReply {
 		MaxMDs:               www.PolicyMaxMDs,
 		MaxMDSize:            www.PolicyMaxMDSize,
 		ValidMIMETypes:       mime.ValidMimeTypes(),
+		MaxNameLength:        www.PolicyMaxProposalNameLength,
+		MinNameLength:        www.PolicyMinProposalNameLength,
+		SupportedCharacters:  www.PolicyProposalNameSupportedCharacters,
 	}
 }
 

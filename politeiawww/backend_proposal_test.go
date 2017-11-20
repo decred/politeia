@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/base64"
+	"github.com/decred/politeia/util"
 	"testing"
 	"time"
 
@@ -19,11 +20,11 @@ func createNewProposalWithFiles(b *backend, t *testing.T, numMDFiles, numImageFi
 
 func createNewProposalWithFileSizes(b *backend, t *testing.T, numMDFiles, numImageFiles, mdSize, imageSize uint) (*www.NewProposal, *www.NewProposalReply, error) {
 	files := make([]pd.File, 0, numMDFiles+numImageFiles)
+	var (
+		name string
+	)
 
 	for i := uint(0); i < numMDFiles; i++ {
-		var (
-			name string
-		)
 
 		// @rgeraldes - add at least one index file
 		if i == 0 {
@@ -32,18 +33,26 @@ func createNewProposalWithFileSizes(b *backend, t *testing.T, numMDFiles, numIma
 			name = generateRandomString(5) + ".md"
 		}
 
+		mdSizeWithName := int(mdSize) - len(name) - len("\n")
+		payload := []byte(name + "\n" + generateRandomString(mdSizeWithName))
+
 		files = append(files, pd.File{
 			Name:    name,
 			MIME:    "text/plain; charset=utf-8",
-			Payload: base64.StdEncoding.EncodeToString([]byte(generateRandomString(int(mdSize)))),
+			Payload: base64.StdEncoding.EncodeToString(payload),
 		})
 	}
 
 	for i := uint(0); i < numImageFiles; i++ {
+
+		name = generateRandomString(5) + ".png"
+		imgSizeWithName := int(imageSize) - len(name) - len("\n")
+		payload := []byte(name + "\n" + generateRandomString(imgSizeWithName))
+
 		files = append(files, pd.File{
-			Name:    generateRandomString(5) + ".png",
+			Name:    name,
 			MIME:    "image/png",
-			Payload: base64.StdEncoding.EncodeToString([]byte(generateRandomString(int(imageSize)))),
+			Payload: base64.StdEncoding.EncodeToString(payload),
 		})
 	}
 
@@ -59,6 +68,28 @@ func createNewProposalWithInvalidTitle(b *backend, t *testing.T) (*www.NewPropos
 	const (
 		invalidTitle = "$%&/)Title<<>>"
 	)
+	files := make([]pd.File, 0, 2)
+	filename := indexFile
+
+	payload := base64.StdEncoding.EncodeToString([]byte(invalidTitle))
+
+	files = append(files, pd.File{
+		Name:    filename,
+		MIME:    "text/plain; charset=utf-8",
+		Payload: payload,
+	})
+
+	np := www.NewProposal{
+		Files: convertPropFilesFromPD(files),
+	}
+
+	npr, err := b.ProcessNewProposal(np)
+	return &np, npr, err
+}
+
+func createNewProposalTitleSize(b *backend, t *testing.T, nameLength int) (*www.NewProposal, *www.NewProposalReply, error) {
+
+	invalidTitle := generateRandomString(nameLength)
 	files := make([]pd.File, 0, 2)
 	filename := indexFile
 
@@ -215,7 +246,13 @@ func TestNewProposalPolicyRestrictions(t *testing.T) {
 	assertError(t, err, www.ErrorStatusMaxImageSizeExceededPolicy)
 
 	_, _, err = createNewProposalWithInvalidTitle(b, t)
-	assertErrorWithContext(t, err, www.ErrorStatusProposalInvalidTitle, []string{www.ErrorContextProposalInvalidTitle})
+	assertErrorWithContext(t, err, www.ErrorStatusProposalInvalidTitle, []string{util.CreateProposalTitleRegex()})
+
+	_, _, err = createNewProposalTitleSize(b, t, www.PolicyMaxProposalNameLength+1)
+	assertErrorWithContext(t, err, www.ErrorStatusProposalInvalidTitle, []string{util.CreateProposalTitleRegex()})
+
+	_, _, err = createNewProposalTitleSize(b, t, www.PolicyMinProposalNameLength-1)
+	assertErrorWithContext(t, err, www.ErrorStatusProposalInvalidTitle, []string{util.CreateProposalTitleRegex()})
 
 	_, _, err = createNewProposalWithDuplicateFiles(b, t)
 	assertErrorWithContext(t, err, www.ErrorStatusProposalDuplicateFilenames, []string{indexFile})
