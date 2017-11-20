@@ -59,9 +59,13 @@ const (
 	// accepted for user passwords
 	PolicyPasswordMinChars = 8
 
-	// ValidProposalNameRegExp is the regular expression of a valid
+	// PolicyMaxProposalNameLength is the max length of a proposal name
 	// proposal name
-	ValidProposalNameRegExp = `^[[:alnum:]\.\:\;\,\- \@\+\#]{8,}$`
+	PolicyMaxProposalNameLength = 80
+
+	// PolicyMinProposalNameLength is the min length of a proposal name
+	// proposal name
+	PolicyMinProposalNameLength = 8
 
 	// ProposalListPageSize is the maximum number of proposals returned
 	// for the routes that return lists of proposals
@@ -96,12 +100,16 @@ const (
 	PropStatusNotReviewed PropStatusT = 2 // Proposal has not been reviewed
 	PropStatusCensored    PropStatusT = 3 // Proposal has been censored
 	PropStatusPublic      PropStatusT = 4 // Proposal is publicly visible
-
-	// Error contexts
-	ErrorContextProposalInvalidTitle = ValidProposalNameRegExp
 )
 
 var (
+
+	// PolicyProposalNameSupportedCharacters is the regular expression of a valid
+	// proposal name
+	PolicyProposalNameSupportedCharacters = []string{
+		"A-z", "0-9", "&", ".", ",", ":", ";", "-", " ", "@", "+", "#", "/",
+		"(", ")", "!"}
+
 	// PoliteiaWWWAPIRoute is the prefix to the API route
 	PoliteiaWWWAPIRoute = fmt.Sprintf("/v%v", PoliteiaWWWAPIVersion)
 
@@ -379,6 +387,9 @@ type PolicyReply struct {
 	MaxMDs               uint     `json:"maxmds"`
 	MaxMDSize            uint     `json:"maxmdsize"`
 	ValidMIMETypes       []string `json:"validmimetypes"`
+	MaxNameLength        uint     `json:"maxnamelength"`
+	MinNameLength        uint     `json:"minnamelength"`
+	SupportedCharacters  []string `json:"supportedcharacters"`
 }
 
 // NewComment sends a comment from a user to a specific proposal.  Note that

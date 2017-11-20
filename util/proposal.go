@@ -5,12 +5,13 @@ import (
 	"bytes"
 	"encoding/base64"
 	"regexp"
+	"strconv"
 
 	www "github.com/decred/politeia/politeiawww/api/v1"
 )
 
 var (
-	validProposalName = regexp.MustCompile(www.ValidProposalNameRegExp)
+	validProposalName = regexp.MustCompile(CreateProposalTitleRegex())
 )
 
 // ProposalName returns a proposal name
@@ -35,4 +36,23 @@ func GetProposalName(payload string) (string, error) {
 // IsValidProposalName reports whether str is a valid proposal name
 func IsValidProposalName(str string) bool {
 	return validProposalName.MatchString(str)
+}
+
+// CreateProposalTitleRegex returns a regex string for matching the proposal name
+func CreateProposalTitleRegex() string {
+	var validProposalNameBuffer bytes.Buffer
+	validProposalNameBuffer.WriteString("^[")
+
+	for _, supportedChar := range www.PolicyProposalNameSupportedCharacters {
+		if len(supportedChar) > 1 {
+			validProposalNameBuffer.WriteString(supportedChar)
+		} else {
+			validProposalNameBuffer.WriteString(`\` + supportedChar)
+		}
+	}
+	validProposalNameBuffer.WriteString("]{")
+	validProposalNameBuffer.WriteString(strconv.Itoa(www.PolicyMinProposalNameLength) + ",")
+	validProposalNameBuffer.WriteString(strconv.Itoa(www.PolicyMaxProposalNameLength) + "}$")
+
+	return validProposalNameBuffer.String()
 }

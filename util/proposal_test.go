@@ -2,10 +2,20 @@ package util_test
 
 import (
 	"encoding/base64"
-	"testing"
-
 	"github.com/decred/politeia/util"
+	"math/rand"
+	"testing"
 )
+
+const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+func generateRandomString(n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letterBytes[rand.Intn(len(letterBytes))]
+	}
+	return string(b)
+}
 
 func TestGetProposalName(t *testing.T) {
 	testCases := []struct {
@@ -52,15 +62,20 @@ func TestIsValidProposalName(t *testing.T) {
 	}{
 		// empty test
 		{
-			"",
+			generateRandomString(0),
 			false,
 		},
 		// 7 characters
 		{
-			"1234567",
+			generateRandomString(7),
 			false,
 		},
 
+		// 81 characters
+		{
+			generateRandomString(81),
+			false,
+		},
 		// 8 characters
 		{
 			"12345678",
@@ -68,6 +83,10 @@ func TestIsValidProposalName(t *testing.T) {
 		},
 		{
 			"valid title",
+			true,
+		},
+		{
+			" - title: is valid; title. !.,  ",
 			true,
 		},
 		{
