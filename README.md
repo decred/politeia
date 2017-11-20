@@ -55,7 +55,8 @@ https://github.com/decred/politeiagui
 
 Compile and launch the politeia daemon:
 ```
-dep ensure && go install -v ./politeiad/... && LOGFLAGS=shortfile politeiad --testnet --rpcuser=user --rpcpass=pass
+cd $GOPATH/src/github.com/decred/politeia
+dep ensure && go install -v ./... && LOGFLAGS=shortfile politeiad --testnet --rpcuser=user --rpcpass=pass
 ```
 
 Download server identity to client:
@@ -129,8 +130,8 @@ by adding the -json command line flag.
 
 Compile and launch the web server:
 ```
-dep ensure && go install -v ./politeiawww/... && LOGFLAGS=shortfile
-politeiawww --testnet --fetchidentity
+cd $GOPATH/src/github.com/decred/politeia
+dep ensure && go install -v ./... && LOGFLAGS=shortfile politeiawww --testnet --fetchidentity
 politeiawww --testnet --rpcuser=user --rpcpass=pass
 ```
 To check if the web server is running correctly:
