@@ -234,8 +234,8 @@ func newProposal() error {
 	flags := flag.Args()[1:] // Chop off action.
 
 	// Make sure we have name and at least one file.
-	if len(flags) < 2 {
-		return fmt.Errorf("must provide name and at least one file")
+	if len(flags) < 1 {
+		return fmt.Errorf("must provide at least one file")
 	}
 
 	// Fetch remote identity
@@ -251,12 +251,12 @@ func newProposal() error {
 	}
 	n := v1.New{
 		Challenge: hex.EncodeToString(challenge),
-		Files:     make([]v1.File, 0, len(flags[1:])),
+		Files:     make([]v1.File, 0, len(flags)),
 	}
 
 	// Open all files, validate MIME type and digest them.
-	hashes := make([]*[sha256.Size]byte, 0, len(flags[1:]))
-	for i, a := range flags[1:] {
+	hashes := make([]*[sha256.Size]byte, 0, len(flags))
+	for i, a := range flags {
 		file := v1.File{
 			Name: filepath.Base(a),
 		}
@@ -280,7 +280,6 @@ func newProposal() error {
 		fmt.Printf("%02v: %v %v %v\n",
 			i, file.Digest, file.Name, file.MIME)
 	}
-	fmt.Printf("Submitted proposal name: %v\n", flags[0])
 
 	// Convert Verify to JSON
 	b, err := json.Marshal(n)
