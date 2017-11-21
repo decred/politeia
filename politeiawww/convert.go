@@ -3,6 +3,7 @@ package main
 import (
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	www "github.com/decred/politeia/politeiawww/api/v1"
+	"github.com/decred/politeia/util"
 )
 
 func convertPropStatusFromWWW(s www.PropStatusT) pd.PropStatusT {
@@ -102,12 +103,18 @@ func convertPropCensorFromPD(f pd.CensorshipRecord) www.CensorshipRecord {
 }
 
 func convertPropFromPD(p pd.ProposalRecord) www.ProposalRecord {
-	return www.ProposalRecord{
+	pr := www.ProposalRecord{
 		Status:           convertPropStatusFromPD(p.Status),
 		Timestamp:        p.Timestamp,
 		Files:            convertPropFilesFromPD(p.Files),
 		CensorshipRecord: convertPropCensorFromPD(p.CensorshipRecord),
 	}
+	name, err := util.RecoverProposalName(pr.Files)
+	if err != nil {
+		name = ""
+	}
+	pr.Name = name
+	return pr
 }
 
 func convertPropsFromPD(p []pd.ProposalRecord) []www.ProposalRecord {

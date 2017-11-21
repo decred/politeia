@@ -33,6 +33,17 @@ func GetProposalName(payload string) (string, error) {
 	return string(proposalName), nil
 }
 
+// RecoverProposalName iterates over the files in a proposal
+// and extracts the proposal name from the index file
+func RecoverProposalName(files []www.File) (string, error) {
+	for _, file := range files {
+		if file.Name == www.IndexFileName {
+			return GetProposalName(file.Payload)
+		}
+	}
+	return "", nil
+}
+
 // IsValidProposalName reports whether str is a valid proposal name
 func IsValidProposalName(str string) bool {
 	return validProposalName.MatchString(str)

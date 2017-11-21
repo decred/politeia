@@ -2,9 +2,10 @@ package main
 
 import (
 	"encoding/base64"
-	"github.com/decred/politeia/util"
 	"testing"
 	"time"
+
+	"github.com/decred/politeia/util"
 
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	www "github.com/decred/politeia/politeiawww/api/v1"
@@ -28,7 +29,7 @@ func createNewProposalWithFileSizes(b *backend, t *testing.T, numMDFiles, numIma
 
 		// @rgeraldes - add at least one index file
 		if i == 0 {
-			name = indexFile
+			name = www.IndexFileName
 		} else {
 			name = generateRandomString(5) + ".md"
 		}
@@ -69,7 +70,7 @@ func createNewProposalWithInvalidTitle(b *backend, t *testing.T) (*www.NewPropos
 		invalidTitle = "$%&/)Title<<>>"
 	)
 	files := make([]pd.File, 0, 2)
-	filename := indexFile
+	filename := www.IndexFileName
 
 	payload := base64.StdEncoding.EncodeToString([]byte(invalidTitle))
 
@@ -91,7 +92,7 @@ func createNewProposalTitleSize(b *backend, t *testing.T, nameLength int) (*www.
 
 	invalidTitle := generateRandomString(nameLength)
 	files := make([]pd.File, 0, 2)
-	filename := indexFile
+	filename := www.IndexFileName
 
 	payload := base64.StdEncoding.EncodeToString([]byte(invalidTitle))
 
@@ -111,7 +112,7 @@ func createNewProposalTitleSize(b *backend, t *testing.T, nameLength int) (*www.
 
 func createNewProposalWithDuplicateFiles(b *backend, t *testing.T) (*www.NewProposal, *www.NewProposalReply, error) {
 	files := make([]pd.File, 0, 2)
-	filename := indexFile
+	filename := www.IndexFileName
 	payload := base64.StdEncoding.EncodeToString([]byte(generateRandomString(int(64))))
 
 	files = append(files, pd.File{
@@ -252,10 +253,10 @@ func TestNewProposalPolicyRestrictions(t *testing.T) {
 	assertErrorWithContext(t, err, www.ErrorStatusProposalInvalidTitle, []string{util.CreateProposalTitleRegex()})
 
 	_, _, err = createNewProposalWithDuplicateFiles(b, t)
-	assertErrorWithContext(t, err, www.ErrorStatusProposalDuplicateFilenames, []string{indexFile})
+	assertErrorWithContext(t, err, www.ErrorStatusProposalDuplicateFilenames, []string{www.IndexFileName})
 
 	_, _, err = createNewProposalWithoutIndexFile(b, t)
-	assertErrorWithContext(t, err, www.ErrorStatusProposalMissingFiles, []string{indexFile})
+	assertErrorWithContext(t, err, www.ErrorStatusProposalMissingFiles, []string{www.IndexFileName})
 }
 
 // Tests fetching an unreviewed proposal's details.
