@@ -322,10 +322,9 @@ func loadPSR(path, id string) (*backend.ProposalStorageRecord, error) {
 // unvetted/id or vetted/id.
 //
 // This function should be called with the lock held.
-func createPSR(path, id, name string, status backend.PSRStatusT, version uint, hashes []*[sha256.Size]byte, token []byte) (*backend.ProposalStorageRecord, error) {
+func createPSR(path, id string, status backend.PSRStatusT, version uint, hashes []*[sha256.Size]byte, token []byte) (*backend.ProposalStorageRecord, error) {
 	// Create proposal storage record
 	psr := backend.ProposalStorageRecord{
-		Name:      name,
 		Version:   version,
 		Status:    status,
 		Merkle:    *merkle.Root(hashes),
@@ -943,7 +942,7 @@ func (g *gitBackEnd) verifyAnchor(digest string) (*v1.VerifyDigest, error) {
 // function returns a ProposaltorageRecord.
 //
 // New satisfies the backend interface.
-func (g *gitBackEnd) New(name string, files []backend.File) (*backend.ProposalStorageRecord, error) {
+func (g *gitBackEnd) New(files []backend.File) (*backend.ProposalStorageRecord, error) {
 	fa, err := verifyContent(files)
 	if err != nil {
 		return nil, err
@@ -1035,7 +1034,7 @@ func (g *gitBackEnd) New(name string, files []backend.File) (*backend.ProposalSt
 	}
 
 	// Save Proposal Storage Record
-	psr, err := createPSR(g.unvetted, id, name, backend.PSRStatusUnvetted, 1,
+	psr, err := createPSR(g.unvetted, id, backend.PSRStatusUnvetted, 1,
 		hashes, token)
 	if err != nil {
 		return nil, err

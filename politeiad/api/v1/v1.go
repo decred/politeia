@@ -187,7 +187,6 @@ type File struct {
 
 // ProposalRecord is an entire proposal and it's content.
 type ProposalRecord struct {
-	Name      string      `json:"name"`      // Suggested short proposal name
 	Status    PropStatusT `json:"status"`    // Current status of proposal
 	Timestamp int64       `json:"timestamp"` // Last update of proposal
 	Files     []File      `json:"files"`     // Files that make up the proposal
@@ -199,7 +198,6 @@ type ProposalRecord struct {
 // the proposal.  The only acceptable file types are text, markdown and PNG.
 type New struct {
 	Challenge string `json:"challenge"` // Random challenge
-	Name      string `json:"name"`      // Suggested short proposal name
 	Files     []File `json:"files"`     // Files that make up the proposal
 }
 

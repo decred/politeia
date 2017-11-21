@@ -26,11 +26,6 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-const (
-	// indexFile contains the file name of the index file
-	indexFile = "index.md"
-)
-
 // politeiawww backend construct
 type backend struct {
 	sync.RWMutex // lock for inventory and comments
@@ -259,7 +254,7 @@ func (b *backend) validateProposal(np www.NewProposal) error {
 		} else {
 			numMDs++
 
-			if v.Name == indexFile {
+			if v.Name == www.IndexFileName {
 				numIndexFiles++
 			}
 
@@ -293,7 +288,7 @@ func (b *backend) validateProposal(np www.NewProposal) error {
 	if numIndexFiles == 0 {
 		return www.UserError{
 			ErrorCode:    www.ErrorStatusProposalMissingFiles,
-			ErrorContext: []string{indexFile},
+			ErrorContext: []string{www.IndexFileName},
 		}
 	}
 
@@ -322,7 +317,7 @@ func (b *backend) validateProposal(np www.NewProposal) error {
 	}
 
 	// proposal title validation
-	name, err := getProposalName(np.Files)
+	name, err := util.RecoverProposalName(np.Files)
 	if err != nil {
 		return err
 	}
@@ -856,13 +851,12 @@ func (b *backend) ProcessNewProposal(np www.NewProposal) (*www.NewProposalReply,
 		return nil, err
 	}
 
-	name, err := getProposalName(np.Files)
+	name, err := util.RecoverProposalName(np.Files)
 	if err != nil {
 		return nil, err
 	}
 
 	n := pd.New{
-		Name:      name,
 		Challenge: hex.EncodeToString(challenge),
 		Files:     convertPropFilesFromWWW(np.Files),
 	}
@@ -897,7 +891,7 @@ func (b *backend) ProcessNewProposal(np www.NewProposal) (*www.NewProposalReply,
 			return nil, err
 		}
 
-		log.Infof("Submitted proposal name: %v\n", n.Name)
+		log.Infof("Submitted proposal name: %v\n", name)
 		for k, f := range n.Files {
 			fmt.Printf("%02v: %v %v\n", k, f.Name, f.Digest)
 		}
@@ -1174,14 +1168,4 @@ func NewBackend(cfg *config) (*backend, error) {
 	}
 
 	return b, nil
-}
-
-// getProposalName returns the proposal name based on the index markdown file.
-func getProposalName(files []www.File) (string, error) {
-	for _, file := range files {
-		if file.Name == indexFile {
-			return util.GetProposalName(file.Payload)
-		}
-	}
-	return "", nil
 }

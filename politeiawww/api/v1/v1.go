@@ -100,6 +100,9 @@ const (
 	PropStatusNotReviewed PropStatusT = 2 // Proposal has not been reviewed
 	PropStatusCensored    PropStatusT = 3 // Proposal has been censored
 	PropStatusPublic      PropStatusT = 4 // Proposal is publicly visible
+
+	// IndexFileName contains the file name of the index file
+	IndexFileName = "index.md"
 )
 
 var (

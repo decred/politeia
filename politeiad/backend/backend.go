@@ -68,7 +68,6 @@ type ProposalStorageRecord struct {
 	Version   uint              // Iteration count of proposal
 	Status    PSRStatusT        // Current status of the proposal
 	Merkle    [sha256.Size]byte // Merkle root of all files in proposal
-	Name      string            // Short name of proposal
 	Timestamp int64             // Last updated
 	Token     []byte            // Proposal authentication token
 }
@@ -81,7 +80,7 @@ type ProposalRecord struct {
 
 type Backend interface {
 	// Create new proposal
-	New(string, []File) (*ProposalStorageRecord, error)
+	New([]File) (*ProposalStorageRecord, error)
 
 	// Get unvetted proposal
 	GetUnvetted([]byte) (*ProposalRecord, error)

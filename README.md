@@ -78,14 +78,13 @@ Identity saved to: /Users/marco/Library/Application Support/Politeia/identity.js
 
 Send proposal:
 ```
-politeia -v -testnet -rpchost 127.0.0.1 new "My awesome proposal" proposal.txt spec.txt
+politeia -v -testnet -rpchost 127.0.0.1 new proposal.txt spec.txt
 ```
 
 Result will look something like:
 ```
 00: 331ea9090db0c9f6f597bd9840fd5b171830f6e0b3ba1cb24dfa91f0c95aedc1 proposal.txt text/plain; charset=utf-8
 01: be0997732fa648fd083baa85e782d9e4768602dbe8a0a431ba17a01000ba93db spec.txt text/plain; charset=utf-8
-Submitted proposal name: My awesome proposal
 Censorship record:
   Merkle   : 8e125a9c791634f6f68672c7bc3b71dc50f986a0525e3e7361ad180cadbf6347
   Token    : 6284c5f8fba5665373b8e6651ebc8747b289fed242d2f880f64a284496bb4ca8
