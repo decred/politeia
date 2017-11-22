@@ -57,7 +57,8 @@ const (
 
 	// PolicyPasswordMinChars is the minimum number of characters
 	// accepted for user passwords
-	PolicyPasswordMinChars = 8
+	PolicyPasswordMinChars    = 8
+	PolicyPasswordErrorString = "password must be at least 8 characters long"
 
 	// PolicyMaxProposalNameLength is the max length of a proposal name
 	// proposal name
