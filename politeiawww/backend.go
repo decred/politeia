@@ -73,6 +73,17 @@ func (b *backend) generateVerificationTokenAndExpiry() ([]byte, int64, error) {
 	return token, expiry, nil
 }
 
+// hashPassword hashes the given password string with the default bcrypt cost
+// or the minimum cost if the test flag is set to speed up running tests.
+func (b *backend) hashPassword(password string) ([]byte, error) {
+	if b.test {
+		return bcrypt.GenerateFromPassword([]byte(password),
+			bcrypt.MinCost)
+	}
+	return bcrypt.GenerateFromPassword([]byte(password),
+		bcrypt.DefaultCost)
+}
+
 // emailNewUserVerificationLink emails the link with the new user verification token
 // if the email server is set up.
 func (b *backend) emailNewUserVerificationLink(email, token string) error {
@@ -408,8 +419,7 @@ func (b *backend) verifyResetPassword(user *database.User, rp www.ResetPassword,
 	}
 
 	// Hash the new password.
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(rp.NewPassword),
-		bcrypt.DefaultCost)
+	hashedPassword, err := b.hashPassword(rp.NewPassword)
 	if err != nil {
 		return err
 	}
@@ -617,8 +627,7 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 		}
 
 		// Hash the user's password.
-		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(u.Password),
-			bcrypt.DefaultCost)
+		hashedPassword, err := b.hashPassword(u.Password)
 		if err != nil {
 			return nil, err
 		}
@@ -771,8 +780,7 @@ func (b *backend) ProcessChangePassword(email string, cp www.ChangePassword) (*w
 	}
 
 	// Hash the user's password.
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(cp.NewPassword),
-		bcrypt.DefaultCost)
+	hashedPassword, err := b.hashPassword(cp.NewPassword)
 	if err != nil {
 		return nil, err
 	}
