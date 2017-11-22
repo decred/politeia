@@ -195,7 +195,8 @@ func TestProcessNewUserWithMalformedPassword(t *testing.T) {
 	}
 
 	_, err := b.ProcessNewUser(u)
-	assertError(t, err, www.ErrorStatusMalformedPassword)
+	assertErrorWithContext(t, err, www.ErrorStatusMalformedPassword,
+		[]string{www.PolicyPasswordErrorString})
 
 	b.db.Close()
 }
@@ -314,7 +315,8 @@ func TestProcessChangePasswordWithBadPasswords(t *testing.T) {
 		NewPassword:     generateRandomString(www.PolicyPasswordMinChars - 1),
 	}
 	_, err = b.ProcessChangePassword(u.Email, cp)
-	assertError(t, err, www.ErrorStatusMalformedPassword)
+	assertErrorWithContext(t, err, www.ErrorStatusMalformedPassword,
+		[]string{www.PolicyPasswordErrorString})
 
 	b.db.Close()
 }

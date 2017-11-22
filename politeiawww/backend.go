@@ -225,7 +225,8 @@ func (b *backend) remoteInventory() (*pd.InventoryReply, error) {
 func (b *backend) validatePassword(password string) error {
 	if len(password) < www.PolicyPasswordMinChars {
 		return www.UserError{
-			ErrorCode: www.ErrorStatusMalformedPassword,
+			ErrorCode:    www.ErrorStatusMalformedPassword,
+			ErrorContext: []string{www.PolicyPasswordErrorString},
 		}
 	}
 
