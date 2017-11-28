@@ -78,6 +78,12 @@ func (b *backend) getComments(token string) (*www.GetCommentsReply, error) {
 // addComment journals and adds comment to memory map.
 // This call must be called with the lock held.
 func (b *backend) addComment(c www.NewComment, userID uint64) (*www.NewCommentReply, error) {
+
+	// validations
+	if err := validateComment(c); err != nil {
+		return nil, err
+	}
+
 	pid, err := strconv.ParseUint(c.ParentID, 10, 64)
 	if err != nil {
 		return nil, err
@@ -145,6 +151,17 @@ func (b *backend) replayCommentJournal() error {
 		// See if this is the last comment
 		if c.CommentID > b.commentID {
 			b.commentID = c.CommentID
+		}
+	}
+
+	return nil
+}
+
+func validateComment(c www.NewComment) error {
+	// max length
+	if len(c.Comment) > www.PolicyMaxCommentLength {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusCommentLengthExceededPolicy,
 		}
 	}
 

@@ -53,6 +53,7 @@ API.  It does not render HTML.
 - [`ErrorStatusInvalidSignature`](#ErrorStatusInvalidSignature)
 - [`ErrorStatusInvalidInput`](#ErrorStatusInvalidInput)
 - [`ErrorStatusInvalidSigningKey`](#ErrorStatusInvalidSigningKey)
+- [`ErrorStatusCommentLengthExceededPolicy`](#ErrorStatusCommentLengthExceededPolicy)
 
 **Proposal status codes**
 
@@ -785,6 +786,11 @@ proposal"; if the value is not empty it means "reply to comment".
 | - | - | - |
 | CommentID | string | Server generated unique comment identifier |
 
+On failure the call shall return `400 Bad Request` and one of the following
+error codes:
+
+- [`ErrorStatusCommentLengthExceededPolicy`](#ErrorStatusCommentLengthExceededPolicy)
+
 **Example**
 
 Request:
@@ -897,6 +903,9 @@ Reply:
 | <a name="ErrorStatusInvalidPublicKey">ErrorStatusInvalidPublicKey</a> | 21 | Invalid public key. |
 | <a name="ErrorStatusNoPublicKey">ErrorStatusNoPublicKey</a> | 22 | User does not have an active public key. |
 | <a name="ErrorStatusInvalidSignature">ErrorStatusInvalidSignature</a> | 23 | Invalid signature. |
+| <a name="ErrorStatusInvalidInput">ErrorStatusInvalidInput</a> | 24 | Invalid input. |
+| <a name="ErrorStatusInvalidSigningKey">ErrorStatusInvalidSigningKey</a> | 25 | Invalid signing key. |
+| <a name="ErrorStatusCommentLengthExceededPolicy">ErrorStatusCommentLengthExceededPolicy</a> | 26 | The submitted comment length is too large. |
 
 ### Proposal status codes
 

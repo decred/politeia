@@ -65,6 +65,10 @@ const (
 	// proposal name
 	PolicyMinProposalNameLength = 8
 
+	// PolicyMaxCommentLength is the maximum number of characters
+	// accepted for comments
+	PolicyMaxCommentLength = 8000
+
 	// ProposalListPageSize is the maximum number of proposals returned
 	// for the routes that return lists of proposals
 	ProposalListPageSize = 20
@@ -96,6 +100,7 @@ const (
 	ErrorStatusInvalidSignature            ErrorStatusT = 23
 	ErrorStatusInvalidInput                ErrorStatusT = 24
 	ErrorStatusInvalidSigningKey           ErrorStatusT = 25
+	ErrorStatusCommentLengthExceededPolicy ErrorStatusT = 26
 
 	// Proposal status codes (set and get)
 	PropStatusInvalid     PropStatusT = 0 // Invalid status
@@ -147,6 +152,7 @@ var (
 		ErrorStatusInvalidSignature:            "invalid signature",
 		ErrorStatusInvalidInput:                "invalid input",
 		ErrorStatusInvalidSigningKey:           "invalid signing key",
+		ErrorStatusCommentLengthExceededPolicy: "maximum comment length exceeded",
 	}
 )
 
@@ -411,6 +417,7 @@ type PolicyReply struct {
 	MaxNameLength        uint     `json:"maxnamelength"`
 	MinNameLength        uint     `json:"minnamelength"`
 	SupportedCharacters  []string `json:"supportedcharacters"`
+	MaxCommentLength     uint     `json:"maxcommentlength"`
 }
 
 // NewComment sends a comment from a user to a specific proposal.  Note that
