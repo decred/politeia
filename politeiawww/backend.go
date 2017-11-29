@@ -278,6 +278,23 @@ func (b *backend) validateProposal(np www.NewProposal, user *database.User) erro
 		}
 	}
 
+	// Verify user used correct key
+	id, ok := database.ActiveIdentity(user.Identities)
+	if !ok {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusNoPublicKey,
+		}
+	}
+	if hex.EncodeToString(id[:]) != np.PublicKey {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSigningKey,
+		}
+	}
+	pk, err := identity.PublicIdentityFromBytes(id[:])
+	if err != nil {
+		return err
+	}
+
 	// Check for at least 1 markdown file with a non-emtpy payload.
 	if len(np.Files) == 0 || np.Files[0].Payload == "" {
 		return www.UserError{
@@ -389,18 +406,6 @@ func (b *backend) validateProposal(np www.NewProposal, user *database.User) erro
 			ErrorCode:    www.ErrorStatusProposalInvalidTitle,
 			ErrorContext: []string{util.CreateProposalTitleRegex()},
 		}
-	}
-
-	// Verify signature
-	id, ok := database.ActiveIdentity(user.Identities)
-	if !ok {
-		return www.UserError{
-			ErrorCode: www.ErrorStatusNoPublicKey,
-		}
-	}
-	pk, err := identity.PublicIdentityFromBytes(id[:])
-	if err != nil {
-		return err
 	}
 
 	// Note that we need validate the string representation of the merkle

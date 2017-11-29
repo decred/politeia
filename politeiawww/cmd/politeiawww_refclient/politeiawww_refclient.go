@@ -302,6 +302,7 @@ func (c *ctx) newProposal(id *identity.FullIdentity) (*v1.NewProposalReply, erro
 		Files: make([]v1.File, 0),
 		// We can get away with just signing the digest because there
 		// is only one file.
+		PublicKey: hex.EncodeToString(id.Public.Key[:]),
 		Signature: hex.EncodeToString(sig[:]),
 	}
 

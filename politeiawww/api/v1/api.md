@@ -51,6 +51,8 @@ API.  It does not render HTML.
 - [`ErrorStatusInvalidPublicKey`](#ErrorStatusInvalidPublicKey)
 - [`ErrorStatusNoPublicKey`](#ErrorStatusNoPublicKey)
 - [`ErrorStatusInvalidSignature`](#ErrorStatusInvalidSignature)
+- [`ErrorStatusInvalidInput`](#ErrorStatusInvalidInput)
+- [`ErrorStatusInvalidSigningKey`](#ErrorStatusInvalidSigningKey)
 
 **Proposal status codes**
 
@@ -234,6 +236,7 @@ On failure the call shall return `400 Bad Request` and one of the following erro
 - [`ErrorStatusNoPublicKey`](#ErrorStatusNoPublicKey)
 - [`ErrorStatusInvalidPublicKey`](#ErrorStatusInvalidPublicKey)
 - [`ErrorStatusInvalidSignature`](#ErrorStatusInvalidSignature)
+- [`ErrorStatusInvalidInput`](#ErrorStatusInvalidInput)
 
 **Example:**
 
@@ -518,6 +521,8 @@ error codes:
 - [`ErrorStatusMaxImagesExceededPolicy`](#ErrorStatusMaxImagesExceededPolicy)
 - [`ErrorStatusMaxMDSizeExceededPolicy`](#ErrorStatusMaxMDSizeExceededPolicy)
 - [`ErrorStatusMaxImageSizeExceededPolicy`](#ErrorStatusMaxImageSizeExceededPolicy)
+- [`ErrorStatusInvalidSignature`](#ErrorStatusInvalidSignature)
+- [`ErrorStatusInvalidSigningKey`](#ErrorStatusInvalidSigningKey)
 
 **Example**
 

@@ -95,6 +95,7 @@ const (
 	ErrorStatusNoPublicKey                 ErrorStatusT = 22
 	ErrorStatusInvalidSignature            ErrorStatusT = 23
 	ErrorStatusInvalidInput                ErrorStatusT = 24
+	ErrorStatusInvalidSigningKey           ErrorStatusT = 25
 
 	// Proposal status codes (set and get)
 	PropStatusInvalid     PropStatusT = 0 // Invalid status
@@ -145,6 +146,7 @@ var (
 		ErrorStatusNoPublicKey:                 "no active public key",
 		ErrorStatusInvalidSignature:            "invalid signature",
 		ErrorStatusInvalidInput:                "invalid input",
+		ErrorStatusInvalidSigningKey:           "invalid signing key",
 	}
 )
 
@@ -324,6 +326,7 @@ type MeReply struct {
 // NewProposal attempts to submit a new proposal.
 type NewProposal struct {
 	Files     []File `json:"files"`     // Proposal files
+	PublicKey string `json:"publickey"` // Key used for signature.
 	Signature string `json:"signature"` // Signature of merkle root
 }
 
