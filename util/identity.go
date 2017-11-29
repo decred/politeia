@@ -15,14 +15,14 @@ import (
 // ConvertRemoteIdentity converts the identity returned from politeiad into
 // a reusable construct.
 func ConvertRemoteIdentity(rid v1.IdentityReply) (*identity.PublicIdentity, error) {
-	id, err := hex.DecodeString(rid.Identity)
+	pk, err := hex.DecodeString(rid.PublicKey)
 	if err != nil {
 		return nil, err
 	}
-	if len(id) != identity.IdentitySize {
-		return nil, fmt.Errorf("invalid identity size")
+	if len(pk) != identity.PublicKeySize {
+		return nil, fmt.Errorf("invalid public key size")
 	}
-	key, err := hex.DecodeString(rid.Key)
+	key, err := hex.DecodeString(rid.PublicKey)
 	if err != nil {
 		return nil, err
 	}
@@ -37,12 +37,8 @@ func ConvertRemoteIdentity(rid v1.IdentityReply) (*identity.PublicIdentity, erro
 	copy(response[:], res)
 
 	// Fill out structure
-	serverID := identity.PublicIdentity{
-		Name: rid.Name,
-		Nick: rid.Nick,
-	}
+	serverID := identity.PublicIdentity{}
 	copy(serverID.Key[:], key)
-	copy(serverID.Identity[:], id)
 
 	return &serverID, nil
 }
