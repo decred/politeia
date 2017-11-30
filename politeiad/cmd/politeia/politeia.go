@@ -77,6 +77,33 @@ func cleanAndExpandPath(path string) string {
 	return filepath.Clean(os.ExpandEnv(path))
 }
 
+// getErrorFromResponse extracts a user-readable string from the response from
+// politeiad, which will contain a JSON error.
+func getErrorFromResponse(r *http.Response) (string, error) {
+	var errMsg string
+	decoder := json.NewDecoder(r.Body)
+	if r.StatusCode == http.StatusInternalServerError {
+		var e v1.ServerErrorReply
+		if err := decoder.Decode(&e); err != nil {
+			return "", err
+		}
+
+		errMsg = string(e.ErrorCode)
+	} else {
+		var e v1.UserErrorReply
+		if err := decoder.Decode(&e); err != nil {
+			return "", err
+		}
+
+		errMsg = v1.ErrorStatus[e.ErrorCode]
+		if e.ErrorContext != nil && len(e.ErrorContext) > 0 {
+			errMsg += strings.Join(e.ErrorContext, ", ")
+		}
+	}
+
+	return errMsg, nil
+}
+
 func getIdentity() error {
 	// Fetch remote identity
 	id, err := util.RemoteIdentity(verify, *rpchost, *rpccert)
@@ -87,10 +114,7 @@ func getIdentity() error {
 	rf := filepath.Join(defaultHomeDir, defaultIdentityFilename)
 
 	// Pretty print identity.
-	fmt.Printf("FQDN       : %v\n", id.Name)
-	fmt.Printf("Nick       : %v\n", id.Nick)
 	fmt.Printf("Key        : %x\n", id.Key)
-	fmt.Printf("Identity   : %x\n", id.Identity)
 	fmt.Printf("Fingerprint: %v\n", id.Fingerprint())
 
 	// Ask user if we like this identity
@@ -178,7 +202,7 @@ func remoteInventory() (*v1.InventoryReply, error) {
 	}
 	defer r.Body.Close()
 	if r.StatusCode != http.StatusOK {
-		e, err := util.GetErrorFromJSON(r.Body)
+		e, err := getErrorFromResponse(r)
 		if err != nil {
 			return nil, fmt.Errorf("%v", r.Status)
 		}
@@ -306,7 +330,7 @@ func newProposal() error {
 	defer r.Body.Close()
 
 	if r.StatusCode != http.StatusOK {
-		e, err := util.GetErrorFromJSON(r.Body)
+		e, err := getErrorFromResponse(r)
 		if err != nil {
 			return fmt.Errorf("%v", r.Status)
 		}
@@ -416,7 +440,7 @@ func getUnvetted() error {
 	defer r.Body.Close()
 
 	if r.StatusCode != http.StatusOK {
-		e, err := util.GetErrorFromJSON(r.Body)
+		e, err := getErrorFromResponse(r)
 		if err != nil {
 			return fmt.Errorf("%v", r.Status)
 		}
@@ -517,7 +541,7 @@ func getVetted() error {
 	defer r.Body.Close()
 
 	if r.StatusCode != http.StatusOK {
-		e, err := util.GetErrorFromJSON(r.Body)
+		e, err := getErrorFromResponse(r)
 		if err != nil {
 			return fmt.Errorf("%v", r.Status)
 		}
@@ -640,7 +664,7 @@ func setUnvettedStatus() error {
 	defer r.Body.Close()
 
 	if r.StatusCode != http.StatusOK {
-		e, err := util.GetErrorFromJSON(r.Body)
+		e, err := getErrorFromResponse(r)
 		if err != nil {
 			return fmt.Errorf("%v", r.Status)
 		}

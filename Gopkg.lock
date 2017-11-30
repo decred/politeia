@@ -4,7 +4,7 @@
 [[projects]]
   branch = "master"
   name = "github.com/agl/ed25519"
-  packages = [".","edwards25519","extra25519"]
+  packages = [".","edwards25519"]
   revision = "5312a61534124124185d41f09206b9fef1d88403"
 
 [[projects]]
@@ -142,7 +142,7 @@
 [[projects]]
   branch = "master"
   name = "golang.org/x/crypto"
-  packages = ["bcrypt","blowfish","curve25519","ripemd160"]
+  packages = ["bcrypt","blowfish","ripemd160"]
   revision = "847319b7fc94cab682988f93da778204da164588"
 
 [[projects]]
@@ -160,6 +160,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "238cd7a8a72b3ba6c65ac46fecc635d3a7b0575bdb5c51d6e7977bf26b6e83b7"
+  inputs-digest = "f90bce585608f901d5dc6f8b2e5f80a50a18cee4de5b13c4def167b7b59637ef"
   solver-name = "gps-cdcl"
   solver-version = 1

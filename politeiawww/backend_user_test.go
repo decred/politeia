@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/hex"
 	"io/ioutil"
 	"math/rand"
@@ -10,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/agl/ed25519"
+	"github.com/decred/politeia/politeiad/api/v1/identity"
 	www "github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/util"
 )
@@ -30,6 +33,31 @@ func generateRandomEmail() string {
 
 func generateRandomPassword() string {
 	return generateRandomString(www.PolicyPasswordMinChars)
+}
+
+func generateIdentity() (*identity.FullIdentity, error) {
+	buf := [32]byte{}
+	copy(buf[:], []byte(generateRandomString(8)))
+	r := bytes.NewReader(buf[:])
+	pub, priv, err := ed25519.GenerateKey(r)
+	if err != nil {
+		return nil, err
+	}
+	id := &identity.FullIdentity{}
+	copy(id.Public.Key[:], pub[:])
+	copy(id.PrivateKey[:], priv[:])
+	return id, nil
+}
+
+func createNewUserCommandWithIdentity(t *testing.T) (www.NewUser, *identity.FullIdentity) {
+	id, err := generateIdentity()
+	assertSuccess(t, err)
+
+	return www.NewUser{
+		Email:     generateRandomEmail(),
+		Password:  generateRandomPassword(),
+		PublicKey: hex.EncodeToString(id.Public.Key[:]),
+	}, id
 }
 
 func createBackend(t *testing.T) *backend {
@@ -57,9 +85,11 @@ func assertSuccess(t *testing.T, err error) {
 	if err != nil {
 		userErr, ok := err.(www.UserError)
 		if ok {
-			t.Fatalf("unexpected error code %v\n\n%s", userErr.ErrorCode, debug.Stack())
+			t.Fatalf("unexpected error code %v\n\n%s",
+				userErr.ErrorCode, debug.Stack())
 		} else {
-			t.Fatalf("unexpected error: %v\n\n%s", err, debug.Stack())
+			t.Fatalf("unexpected error: %v\n\n%s", err,
+				debug.Stack())
 		}
 	}
 }
@@ -92,12 +122,8 @@ func assertErrorWithContext(t *testing.T, err error, expectedStatus www.ErrorSta
 	}
 }
 
-func createAndVerifyUser(t *testing.T, b *backend) www.NewUser {
-	nu := www.NewUser{
-		Email:    generateRandomEmail(),
-		Password: generateRandomPassword(),
-	}
-
+func createAndVerifyUser(t *testing.T, b *backend) (www.NewUser, *identity.FullIdentity) {
+	nu, id := createNewUserCommandWithIdentity(t)
 	nur, err := b.ProcessNewUser(nu)
 	assertSuccess(t, err)
 
@@ -111,29 +137,43 @@ func createAndVerifyUser(t *testing.T, b *backend) www.NewUser {
 			www.VerificationTokenSize)
 	}
 
+	signature := id.SignMessage([]byte(nur.VerificationToken))
 	v := www.VerifyNewUser{
 		Email:             nu.Email,
 		VerificationToken: nur.VerificationToken,
+		Signature:         hex.EncodeToString(signature[:]),
 	}
-	err = b.ProcessVerifyNewUser(v)
+	_, err = b.ProcessVerifyNewUser(v)
 	assertSuccess(t, err)
 
-	return nu
+	return nu, id
+}
+
+// Tests creating a new user with an invalid public key.
+func TestProcessNewUserWithInvalidPublicKey(t *testing.T) {
+	b := createBackend(t)
+
+	nu := www.NewUser{
+		Email:     generateRandomEmail(),
+		Password:  generateRandomPassword(),
+		PublicKey: generateRandomString(6),
+	}
+
+	_, err := b.ProcessNewUser(nu)
+	assertError(t, err, www.ErrorStatusInvalidPublicKey)
+
+	b.db.Close()
 }
 
 // Tests creating a new user with an existing token which still needs to be verified.
 func TestProcessNewUserWithUnverifiedToken(t *testing.T) {
 	b := createBackend(t)
 
-	u := www.NewUser{
-		Email:    generateRandomEmail(),
-		Password: generateRandomPassword(),
-	}
-
-	_, err := b.ProcessNewUser(u)
+	nu, _ := createNewUserCommandWithIdentity(t)
+	_, err := b.ProcessNewUser(nu)
 	assertSuccess(t, err)
 
-	_, err = b.ProcessNewUser(u)
+	_, err = b.ProcessNewUser(nu)
 	assertSuccess(t, err)
 
 	b.db.Close()
@@ -146,18 +186,14 @@ func TestProcessNewUserWithExpiredToken(t *testing.T) {
 	b.verificationExpiryTime = time.Duration(100) * time.Nanosecond
 	const sleepTime = time.Duration(2) * time.Second
 
-	u := www.NewUser{
-		Email:    generateRandomEmail(),
-		Password: generateRandomPassword(),
-	}
-
-	reply1, err := b.ProcessNewUser(u)
+	nu, _ := createNewUserCommandWithIdentity(t)
+	reply1, err := b.ProcessNewUser(nu)
 	assertSuccess(t, err)
 
 	// Sleep for a longer amount of time than it takes for the verification token to expire.
 	time.Sleep(sleepTime)
 
-	reply2, err := b.ProcessNewUser(u)
+	reply2, err := b.ProcessNewUser(nu)
 	assertSuccess(t, err)
 
 	if reply2.VerificationToken == "" {
@@ -174,12 +210,10 @@ func TestProcessNewUserWithExpiredToken(t *testing.T) {
 func TestProcessNewUserWithMalformedEmail(t *testing.T) {
 	b := createBackend(t)
 
-	u := www.NewUser{
-		Email:    "foobar",
-		Password: generateRandomPassword(),
-	}
+	nu, _ := createNewUserCommandWithIdentity(t)
+	nu.Email = "foobar"
 
-	_, err := b.ProcessNewUser(u)
+	_, err := b.ProcessNewUser(nu)
 	assertError(t, err, www.ErrorStatusMalformedEmail)
 
 	b.db.Close()
@@ -189,13 +223,30 @@ func TestProcessNewUserWithMalformedEmail(t *testing.T) {
 func TestProcessNewUserWithMalformedPassword(t *testing.T) {
 	b := createBackend(t)
 
-	u := www.NewUser{
-		Email:    generateRandomEmail(),
-		Password: generateRandomString(www.PolicyPasswordMinChars - 1),
-	}
+	nu, _ := createNewUserCommandWithIdentity(t)
+	nu.Password = generateRandomString(www.PolicyPasswordMinChars - 1)
 
-	_, err := b.ProcessNewUser(u)
+	_, err := b.ProcessNewUser(nu)
 	assertError(t, err, www.ErrorStatusMalformedPassword)
+
+	b.db.Close()
+}
+
+// Tests creating a new user with an invalid signed token.
+func TestProcessVerifyNewUserWithInvalidSignature(t *testing.T) {
+	b := createBackend(t)
+
+	nu, _ := createNewUserCommandWithIdentity(t)
+	nur, err := b.ProcessNewUser(nu)
+	assertSuccess(t, err)
+
+	v := www.VerifyNewUser{
+		Email:             nu.Email,
+		VerificationToken: nur.VerificationToken,
+		Signature:         generateRandomString(identity.SignatureSize),
+	}
+	_, err = b.ProcessVerifyNewUser(v)
+	assertError(t, err, www.ErrorStatusInvalidSignature)
 
 	b.db.Close()
 }
@@ -204,12 +255,20 @@ func TestProcessNewUserWithMalformedPassword(t *testing.T) {
 func TestProcessVerifyNewUserWithNonExistingUser(t *testing.T) {
 	b := createBackend(t)
 
-	u := www.VerifyNewUser{
+	id, err := generateIdentity()
+	assertSuccess(t, err)
+
+	token, err := util.Random(www.VerificationTokenSize)
+	assertSuccess(t, err)
+
+	signature := id.SignMessage(token)
+	vu := www.VerifyNewUser{
 		Email:             generateRandomEmail(),
-		VerificationToken: generateRandomString(www.VerificationTokenSize),
+		VerificationToken: hex.EncodeToString(token),
+		Signature:         hex.EncodeToString(signature[:]),
 	}
 
-	err := b.ProcessVerifyNewUser(u)
+	_, err = b.ProcessVerifyNewUser(vu)
 	assertError(t, err, www.ErrorStatusVerificationTokenInvalid)
 
 	b.db.Close()
@@ -219,12 +278,8 @@ func TestProcessVerifyNewUserWithNonExistingUser(t *testing.T) {
 func TestProcessVerifyNewUserWithInvalidToken(t *testing.T) {
 	b := createBackend(t)
 
-	u := www.NewUser{
-		Email:    generateRandomEmail(),
-		Password: generateRandomPassword(),
-	}
-
-	_, err := b.ProcessNewUser(u)
+	nu, id := createNewUserCommandWithIdentity(t)
+	_, err := b.ProcessNewUser(nu)
 	assertSuccess(t, err)
 
 	token, err := util.Random(www.VerificationTokenSize)
@@ -232,12 +287,14 @@ func TestProcessVerifyNewUserWithInvalidToken(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	signature := id.SignMessage(token)
 	vu := www.VerifyNewUser{
-		Email:             u.Email,
+		Email:             nu.Email,
 		VerificationToken: hex.EncodeToString(token),
+		Signature:         hex.EncodeToString(signature[:]),
 	}
 
-	err = b.ProcessVerifyNewUser(vu)
+	_, err = b.ProcessVerifyNewUser(vu)
 	assertError(t, err, www.ErrorStatusVerificationTokenInvalid)
 
 	b.db.Close()
@@ -262,15 +319,14 @@ func TestProcessLoginWithNonExistingUser(t *testing.T) {
 func TestProcessLoginWithUnverifiedUser(t *testing.T) {
 	b := createBackend(t)
 
-	u := www.NewUser{
-		Email:    generateRandomEmail(),
-		Password: generateRandomPassword(),
-	}
-
-	_, err := b.ProcessNewUser(u)
+	nu, _ := createNewUserCommandWithIdentity(t)
+	_, err := b.ProcessNewUser(nu)
 	assertSuccess(t, err)
 
-	l := www.Login(u)
+	l := www.Login{
+		Email:    nu.Email,
+		Password: nu.Password,
+	}
 	_, err = b.ProcessLogin(l)
 	assertError(t, err, www.ErrorStatusInvalidEmailOrPassword)
 
@@ -281,11 +337,20 @@ func TestProcessLoginWithUnverifiedUser(t *testing.T) {
 // ProcessVerifyNewUser, ProcessLogin.
 func TestLoginWithVerifiedUser(t *testing.T) {
 	b := createBackend(t)
-	u := createAndVerifyUser(t, b)
+	u, id := createAndVerifyUser(t, b)
 
-	l := www.Login(u)
-	_, err := b.ProcessLogin(l)
+	l := www.Login{
+		Email:    u.Email,
+		Password: u.Password,
+	}
+	lr, err := b.ProcessLogin(l)
 	assertSuccess(t, err)
+
+	// Ensure the active public key is the one we provided when signing up.
+	expectedPublicKey := hex.EncodeToString(id.Public.Key[:])
+	if lr.PublicKey != expectedPublicKey {
+		t.Fatalf("expected public key %v, got %v", expectedPublicKey, lr.PublicKey)
+	}
 
 	b.db.Close()
 }
@@ -294,9 +359,12 @@ func TestLoginWithVerifiedUser(t *testing.T) {
 // and a malformed new password.
 func TestProcessChangePasswordWithBadPasswords(t *testing.T) {
 	b := createBackend(t)
-	u := createAndVerifyUser(t, b)
+	u, _ := createAndVerifyUser(t, b)
 
-	l := www.Login(u)
+	l := www.Login{
+		Email:    u.Email,
+		Password: u.Password,
+	}
 	_, err := b.ProcessLogin(l)
 	assertSuccess(t, err)
 
@@ -322,9 +390,12 @@ func TestProcessChangePasswordWithBadPasswords(t *testing.T) {
 // Tests changing a user's password without errors.
 func TestProcessChangePassword(t *testing.T) {
 	b := createBackend(t)
-	u := createAndVerifyUser(t, b)
+	u, _ := createAndVerifyUser(t, b)
 
-	l := www.Login(u)
+	l := www.Login{
+		Email:    u.Email,
+		Password: u.Password,
+	}
 	_, err := b.ProcessLogin(l)
 	assertSuccess(t, err)
 
@@ -350,7 +421,7 @@ func TestProcessChangePassword(t *testing.T) {
 // Tests resetting a user's password with an invalid token.
 func TestProcessResetPasswordWithInvalidToken(t *testing.T) {
 	b := createBackend(t)
-	u := createAndVerifyUser(t, b)
+	u, _ := createAndVerifyUser(t, b)
 
 	// Reset password with invalid token
 	token, err := util.Random(www.VerificationTokenSize)
@@ -372,7 +443,7 @@ func TestProcessResetPasswordWithInvalidToken(t *testing.T) {
 // Tests resetting a user's password with an expired token.
 func TestProcessResetPasswordWithExpiredToken(t *testing.T) {
 	b := createBackend(t)
-	u := createAndVerifyUser(t, b)
+	u, _ := createAndVerifyUser(t, b)
 
 	b.verificationExpiryTime = time.Duration(100) * time.Nanosecond
 	const sleepTime = time.Duration(2) * time.Second
@@ -402,7 +473,7 @@ func TestProcessResetPasswordWithExpiredToken(t *testing.T) {
 // Tests resetting a user's password without errors.
 func TestProcessResetPassword(t *testing.T) {
 	b := createBackend(t)
-	u := createAndVerifyUser(t, b)
+	u, _ := createAndVerifyUser(t, b)
 
 	// Reset password
 	rp := www.ResetPassword{

@@ -141,11 +141,8 @@ func (p *politeia) getIdentity(w http.ResponseWriter, r *http.Request) {
 	response := p.identity.SignMessage(challenge)
 
 	reply := v1.IdentityReply{
-		Name:     p.identity.Public.Name,
-		Nick:     p.identity.Public.Nick,
-		Identity: hex.EncodeToString(p.identity.Public.Identity[:]),
-		Key:      hex.EncodeToString(p.identity.Public.Key[:]),
-		Response: hex.EncodeToString(response[:]),
+		PublicKey: hex.EncodeToString(p.identity.Public.Key[:]),
+		Response:  hex.EncodeToString(response[:]),
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
@@ -564,7 +561,7 @@ func _main() error {
 	// Generate ed25519 identity to save messages, tokens etc.
 	if !fileExists(loadedCfg.Identity) {
 		log.Infof("Generating signing identity...")
-		id, err := identity.New(util.FQDN(), "politeiad")
+		id, err := identity.New()
 		if err != nil {
 			return err
 		}
@@ -585,7 +582,7 @@ func _main() error {
 	if err != nil {
 		return err
 	}
-	log.Infof("Public identity: %x", p.identity.Public.Identity)
+	log.Infof("Public key: %x", p.identity.Public.Key)
 
 	// Load certs, if there.  If they aren't there assume OS is used to
 	// resolve cert validity.
