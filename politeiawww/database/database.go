@@ -30,7 +30,7 @@ var (
 // active.  If deactivated != 0 then the key is no longer valid.
 type Identity struct {
 	Key         [identity.PublicKeySize]byte // ed25519 public key
-	Activated   int64                        // Time key as acivated for use
+	Activated   int64                        // Time key as activated for use
 	Deactivated int64                        // Time key was deactivated
 }
 
