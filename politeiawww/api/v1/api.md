@@ -54,6 +54,7 @@ API.  It does not render HTML.
 - [`ErrorStatusInvalidInput`](#ErrorStatusInvalidInput)
 - [`ErrorStatusInvalidSigningKey`](#ErrorStatusInvalidSigningKey)
 - [`ErrorStatusCommentLengthExceededPolicy`](#ErrorStatusCommentLengthExceededPolicy)
+- [`ErrorStatusUnableToDerivePaywallAddress`](#ErrorStatusUnableToDerivePaywallAddress)
 
 **Proposal status codes**
 
@@ -176,12 +177,15 @@ Create a new user on the politeiawww server.
 
 | Parameter | Type | Description |
 |-|-|-|
-| verificationtoken | string | The verification token which is required when calling [Verify user](#verify-user). If an email server is set up, this property will be empty or nonexistent; the token will be sent to the email address sent in the request. |
+| paywalladdress | String | The address in which to send paywall funds.|
+| paywallamount | Float64 | The amount of DCR to send to the paywall address.|
+| verificationtoken | String | The verification token which is required when calling [Verify user](#verify-user). If an email server is set up, this property will be empty or nonexistent; the token will be sent to the email address sent in the request.|
 
 This call can return one of the following error codes:
 
 - [`ErrorStatusInvalidEmailOrPassword`](#ErrorStatusInvalidEmailOrPassword)
 - [`ErrorStatusMalformedEmail`](#ErrorStatusMalformedEmail)
+- [`ErrorStatusUnableToDerivePaywallAddress`](#ErrorStatusUnableToDerivePaywallAddress)
 
 The email shall include a link in the following format:
 
@@ -906,6 +910,7 @@ Reply:
 | <a name="ErrorStatusInvalidInput">ErrorStatusInvalidInput</a> | 24 | Invalid input. |
 | <a name="ErrorStatusInvalidSigningKey">ErrorStatusInvalidSigningKey</a> | 25 | Invalid signing key. |
 | <a name="ErrorStatusCommentLengthExceededPolicy">ErrorStatusCommentLengthExceededPolicy</a> | 26 | The submitted comment length is too large. |
+| <a name="ErrorStatusUnableToDerivePaywallAddress">ErrorStatusUnableToDerivePaywallAddress</a> | 27 | Unable to derive paywall address from key. |
 
 ### Proposal status codes
 

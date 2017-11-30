@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -18,6 +19,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrtime/api/v1"
 	"github.com/decred/dcrtime/merkle"
 	pd "github.com/decred/politeia/politeiad/api/v1"
@@ -100,19 +102,22 @@ type file struct {
 // gitBackEnd is a git based backend context that satisfies the backend
 // interface.
 type gitBackEnd struct {
-	lock        *lockfile.LockFile // Global lock
-	db          *leveldb.DB        // Database
-	cron        *cron.Cron         // Scheduler for periodic tasks
-	shutdown    bool               // Backend is shutdown
-	root        string             // Root directory
-	unvetted    string             // Unvettend content
-	vetted      string             // Vetted, public, visible content
-	dcrtimeHost string             // Dcrtimed directory
-	gitPath     string             // Path to git
-	gitTrace    bool               // Enable git tracing
-	test        bool               // Set during UT
-	exit        chan struct{}      // Close channel
-	checkAnchor chan struct{}      // Work notification
+	lock          *lockfile.LockFile // Global lock
+	db            *leveldb.DB        // Database
+	cron          *cron.Cron         // Scheduler for periodic tasks
+	params        *chaincfg.Params   // Network parameters
+	shutdown      bool               // Backend is shutdown
+	root          string             // Root directory
+	unvetted      string             // Unvettend content
+	vetted        string             // Vetted, public, visible content
+	dcrtimeHost   string             // Dcrtimed directory
+	gitPath       string             // Path to git
+	gitTrace      bool               // Enable git tracing
+	paywallAmount float64            // Paywall Amount (DCR)
+	paywallXpub   string             // Xpub to derive paywall addrs from
+	test          bool               // Set during UT
+	exit          chan struct{}      // Close channel
+	checkAnchor   chan struct{}      // Work notification
 
 	// The following items are used for testing only
 	testAnchors map[string]bool // [digest]anchored
@@ -346,14 +351,17 @@ func loadMD(path, id string) (*backend.RecordMetadata, error) {
 // unvetted/id or vetted/id.
 //
 // This function should be called with the lock held.
-func createMD(path, id string, status backend.MDStatusT, version uint, hashes []*[sha256.Size]byte, token []byte) (*backend.RecordMetadata, error) {
+func createMD(path, id string, status backend.MDStatusT, version uint, hashes []*[sha256.Size]byte, token []byte, paywallAddress string, paywallAmount float64) (*backend.RecordMetadata, error) {
 	// Create record metadata
 	brm := backend.RecordMetadata{
-		Version:   version,
-		Status:    status,
-		Merkle:    *merkle.Root(hashes),
-		Timestamp: time.Now().Unix(),
-		Token:     token,
+		Version:            version,
+		Status:             status,
+		Merkle:             *merkle.Root(hashes),
+		Timestamp:          time.Now().Unix(),
+		Token:              token,
+		PaywallAddress:     paywallAddress,
+		PaywallAmount:      paywallAmount,
+		PaywallTxNotBefore: time.Now().Unix(),
 	}
 
 	err := updateMD(path, id, &brm)
@@ -987,11 +995,23 @@ func (g *gitBackEnd) New(metadata string, files []backend.File) (*backend.Record
 	}
 
 	// Create a censorship token.
-	token, err := util.Random(32)
+	token, err := util.Random(pd.IDSize)
 	if err != nil {
 		return nil, err
 	}
 	id := hex.EncodeToString(token)
+
+	// Since gitbe does not have a monotonic integer as an Id like politeiawww
+	// we need to generate a random address.  To keep wallet scans short, we
+	// limit the range.  Duplicate addresses are fine since the paywall gateway
+	// ensures transactions happen after the "order" is created.
+	index := uint32(rand.Intn(10000))
+
+	// Derive the random address paywall address.
+	paywallAddress, err := util.DerivePaywallAddress(g.params, g.paywallXpub, index)
+	if err != nil {
+		return nil, err
+	}
 
 	// Lock filesystem
 	err = g.lock.Lock(LockDuration)
@@ -1068,7 +1088,7 @@ func (g *gitBackEnd) New(metadata string, files []backend.File) (*backend.Record
 
 	// Save record metadata
 	brm, err := createMD(g.unvetted, id, backend.MDStatusUnvetted, 1,
-		hashes, token)
+		hashes, token, paywallAddress, g.paywallAmount)
 	if err != nil {
 		return nil, err
 	}
@@ -1694,23 +1714,25 @@ func (g *gitBackEnd) newLocked() error {
 }
 
 // New returns a gitBackEnd context.  It verifies that git is installed.
-func New(root, dcrtimeHost, gitPath string, gitTrace bool) (*gitBackEnd, error) {
+func New(root string, params *chaincfg.Params, dcrtimeHost string, gitPath string, gitTrace bool, paywallAmount float64, paywallXpub string) (*gitBackEnd, error) {
 	// Default to system git
 	if gitPath == "" {
 		gitPath = "git"
 	}
 
-	g := &gitBackEnd{
-		root:        root,
-		cron:        cron.New(),
-		unvetted:    filepath.Join(root, defaultUnvettedPath),
-		vetted:      filepath.Join(root, defaultVettedPath),
-		gitPath:     gitPath,
-		dcrtimeHost: dcrtimeHost,
-		gitTrace:    gitTrace,
-		exit:        make(chan struct{}),
-		checkAnchor: make(chan struct{}),
-		testAnchors: make(map[string]bool),
+	g := &gitBackEnd{root: root,
+		cron:          cron.New(),
+		unvetted:      filepath.Join(root, defaultUnvettedPath),
+		vetted:        filepath.Join(root, defaultVettedPath),
+		gitPath:       gitPath,
+		dcrtimeHost:   dcrtimeHost,
+		gitTrace:      gitTrace,
+		exit:          make(chan struct{}),
+		checkAnchor:   make(chan struct{}),
+		testAnchors:   make(map[string]bool),
+		params:        params,
+		paywallAmount: paywallAmount,
+		paywallXpub:   paywallXpub,
 	}
 
 	err := g.newLocked()

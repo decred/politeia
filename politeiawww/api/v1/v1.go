@@ -74,33 +74,34 @@ const (
 	ProposalListPageSize = 20
 
 	// Error status codes
-	ErrorStatusInvalid                     ErrorStatusT = 0
-	ErrorStatusInvalidEmailOrPassword      ErrorStatusT = 1
-	ErrorStatusMalformedEmail              ErrorStatusT = 2
-	ErrorStatusVerificationTokenInvalid    ErrorStatusT = 3
-	ErrorStatusVerificationTokenExpired    ErrorStatusT = 4
-	ErrorStatusProposalMissingFiles        ErrorStatusT = 5
-	ErrorStatusProposalNotFound            ErrorStatusT = 6
-	ErrorStatusProposalDuplicateFilenames  ErrorStatusT = 7
-	ErrorStatusProposalInvalidTitle        ErrorStatusT = 8
-	ErrorStatusMaxMDsExceededPolicy        ErrorStatusT = 9
-	ErrorStatusMaxImagesExceededPolicy     ErrorStatusT = 10
-	ErrorStatusMaxMDSizeExceededPolicy     ErrorStatusT = 11
-	ErrorStatusMaxImageSizeExceededPolicy  ErrorStatusT = 12
-	ErrorStatusMalformedPassword           ErrorStatusT = 13
-	ErrorStatusCommentNotFound             ErrorStatusT = 14
-	ErrorStatusInvalidProposalName         ErrorStatusT = 15
-	ErrorStatusInvalidFileDigest           ErrorStatusT = 16
-	ErrorStatusInvalidBase64               ErrorStatusT = 17
-	ErrorStatusInvalidMIMEType             ErrorStatusT = 18
-	ErrorStatusUnsupportedMIMEType         ErrorStatusT = 19
-	ErrorStatusInvalidPropStatusTransition ErrorStatusT = 20
-	ErrorStatusInvalidPublicKey            ErrorStatusT = 21
-	ErrorStatusNoPublicKey                 ErrorStatusT = 22
-	ErrorStatusInvalidSignature            ErrorStatusT = 23
-	ErrorStatusInvalidInput                ErrorStatusT = 24
-	ErrorStatusInvalidSigningKey           ErrorStatusT = 25
-	ErrorStatusCommentLengthExceededPolicy ErrorStatusT = 26
+	ErrorStatusInvalid                      ErrorStatusT = 0
+	ErrorStatusInvalidEmailOrPassword       ErrorStatusT = 1
+	ErrorStatusMalformedEmail               ErrorStatusT = 2
+	ErrorStatusVerificationTokenInvalid     ErrorStatusT = 3
+	ErrorStatusVerificationTokenExpired     ErrorStatusT = 4
+	ErrorStatusProposalMissingFiles         ErrorStatusT = 5
+	ErrorStatusProposalNotFound             ErrorStatusT = 6
+	ErrorStatusProposalDuplicateFilenames   ErrorStatusT = 7
+	ErrorStatusProposalInvalidTitle         ErrorStatusT = 8
+	ErrorStatusMaxMDsExceededPolicy         ErrorStatusT = 9
+	ErrorStatusMaxImagesExceededPolicy      ErrorStatusT = 10
+	ErrorStatusMaxMDSizeExceededPolicy      ErrorStatusT = 11
+	ErrorStatusMaxImageSizeExceededPolicy   ErrorStatusT = 12
+	ErrorStatusMalformedPassword            ErrorStatusT = 13
+	ErrorStatusCommentNotFound              ErrorStatusT = 14
+	ErrorStatusInvalidProposalName          ErrorStatusT = 15
+	ErrorStatusInvalidFileDigest            ErrorStatusT = 16
+	ErrorStatusInvalidBase64                ErrorStatusT = 17
+	ErrorStatusInvalidMIMEType              ErrorStatusT = 18
+	ErrorStatusUnsupportedMIMEType          ErrorStatusT = 19
+	ErrorStatusInvalidPropStatusTransition  ErrorStatusT = 20
+	ErrorStatusInvalidPublicKey             ErrorStatusT = 21
+	ErrorStatusNoPublicKey                  ErrorStatusT = 22
+	ErrorStatusInvalidSignature             ErrorStatusT = 23
+	ErrorStatusInvalidInput                 ErrorStatusT = 24
+	ErrorStatusInvalidSigningKey            ErrorStatusT = 25
+	ErrorStatusCommentLengthExceededPolicy  ErrorStatusT = 26
+	ErrorStatusUnableToDerivePaywallAddress ErrorStatusT = 27
 
 	// Proposal status codes (set and get)
 	PropStatusInvalid     PropStatusT = 0 // Invalid status
@@ -259,7 +260,9 @@ type NewUser struct {
 // NewUserReply is used to reply to the NewUser command with an error
 // if the command is unsuccessful.
 type NewUserReply struct {
-	VerificationToken string `json:"verificationtoken"` // Server verification token
+	PaywallAddress    string  `json:"paywalladdress"`
+	PaywallAmount     float64 `json:"paywallamount"`
+	VerificationToken string  `json:"verificationtoken"` // Server verification token
 }
 
 // VerifyNewUser is used to perform verification for the user created through
