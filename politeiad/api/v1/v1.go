@@ -18,38 +18,39 @@ import (
 )
 
 type ErrorStatusT int
-type PropStatusT int
+type RecordStatusT int
 
 const (
 	// Routes
-	IdentityRoute    = "/v1/identity/"    // Retrieve identity
-	NewRoute         = "/v1/new/"         // New proposal
-	GetUnvettedRoute = "/v1/getunvetted/" // Retrieve unvetted proposal
-	GetVettedRoute   = "/v1/getvetted/"   // Retrieve vetted proposal
+	IdentityRoute  = "/v1/identity/"  // Retrieve identity
+	NewRoute       = "/v1/new/"       // New record
+	GetVettedRoute = "/v1/getvetted/" // Retrieve vetted record
 
 	// Auth required
-	InventoryRoute         = "/v1/inventory/"         // Inventory proposals
+	GetUnvettedRoute       = "/v1/getunvetted/"       // Retrieve unvetted record
+	InventoryRoute         = "/v1/inventory/"         // Inventory records
 	SetUnvettedStatusRoute = "/v1/setunvettedstatus/" // Set unvetted status
 
 	ChallengeSize = 32 // Size of challenge token in bytes
 
 	// Error status codes
-	ErrorStatusInvalid                     ErrorStatusT = 0
-	ErrorStatusInvalidRequestPayload       ErrorStatusT = 1
-	ErrorStatusInvalidChallenge            ErrorStatusT = 2
-	ErrorStatusInvalidProposalName         ErrorStatusT = 3
-	ErrorStatusInvalidFileDigest           ErrorStatusT = 4
-	ErrorStatusInvalidBase64               ErrorStatusT = 5
-	ErrorStatusInvalidMIMEType             ErrorStatusT = 6
-	ErrorStatusUnsupportedMIMEType         ErrorStatusT = 7
-	ErrorStatusInvalidPropStatusTransition ErrorStatusT = 8
+	ErrorStatusInvalid                       ErrorStatusT = 0
+	ErrorStatusInvalidRequestPayload         ErrorStatusT = 1
+	ErrorStatusInvalidChallenge              ErrorStatusT = 2
+	ErrorStatusInvalidFilename               ErrorStatusT = 3
+	ErrorStatusInvalidFileDigest             ErrorStatusT = 4
+	ErrorStatusInvalidBase64                 ErrorStatusT = 5
+	ErrorStatusInvalidMIMEType               ErrorStatusT = 6
+	ErrorStatusUnsupportedMIMEType           ErrorStatusT = 7
+	ErrorStatusInvalidRecordStatusTransition ErrorStatusT = 8
+	ErrorStatusEmpty                         ErrorStatusT = 9
 
-	// Proposal status codes (set and get)
-	PropStatusInvalid     PropStatusT = 0 // Invalid status
-	PropStatusNotFound    PropStatusT = 1 // Proposal not found
-	PropStatusNotReviewed PropStatusT = 2 // Proposal has not been reviewed
-	PropStatusCensored    PropStatusT = 3 // Proposal has been censored
-	PropStatusPublic      PropStatusT = 4 // Proposal is publicly visible
+	// Record status codes (set and get)
+	RecordStatusInvalid     RecordStatusT = 0 // Invalid status
+	RecordStatusNotFound    RecordStatusT = 1 // Record not found
+	RecordStatusNotReviewed RecordStatusT = 2 // Record has not been reviewed
+	RecordStatusCensored    RecordStatusT = 3 // Record has been censored
+	RecordStatusPublic      RecordStatusT = 4 // Record is publicly visible
 
 	// Default network bits
 	DefaultMainnetHost = "politeia.decred.org"
@@ -63,24 +64,25 @@ const (
 var (
 	// ErrorStatus converts error status codes to human readable text.
 	ErrorStatus = map[ErrorStatusT]string{
-		ErrorStatusInvalid:                     "invalid status",
-		ErrorStatusInvalidRequestPayload:       "invalid request payload",
-		ErrorStatusInvalidChallenge:            "invalid challenge",
-		ErrorStatusInvalidProposalName:         "invalid proposal name",
-		ErrorStatusInvalidFileDigest:           "invalid file digest",
-		ErrorStatusInvalidBase64:               "corrupt base64 string",
-		ErrorStatusInvalidMIMEType:             "invalid MIME type detected",
-		ErrorStatusUnsupportedMIMEType:         "unsupported MIME type",
-		ErrorStatusInvalidPropStatusTransition: "invalid proposal status transition",
+		ErrorStatusInvalid:                       "invalid status",
+		ErrorStatusInvalidRequestPayload:         "invalid request payload",
+		ErrorStatusInvalidChallenge:              "invalid challenge",
+		ErrorStatusInvalidFilename:               "invalid filename",
+		ErrorStatusInvalidFileDigest:             "invalid file digest",
+		ErrorStatusInvalidBase64:                 "corrupt base64 string",
+		ErrorStatusInvalidMIMEType:               "invalid MIME type detected",
+		ErrorStatusUnsupportedMIMEType:           "unsupported MIME type",
+		ErrorStatusInvalidRecordStatusTransition: "invalid record status transition",
+		ErrorStatusEmpty:                         "no files provided",
 	}
 
-	// PropStatus converts proposal status codes to human readable text.
-	PropStatus = map[PropStatusT]string{
-		PropStatusInvalid:     "invalid status",
-		PropStatusNotFound:    "not found",
-		PropStatusNotReviewed: "not reviewed",
-		PropStatusCensored:    "censored",
-		PropStatusPublic:      "public",
+	// RecordStatus converts record status codes to human readable text.
+	RecordStatus = map[RecordStatusT]string{
+		RecordStatusInvalid:     "invalid status",
+		RecordStatusNotFound:    "not found",
+		RecordStatusNotReviewed: "not reviewed",
+		RecordStatusCensored:    "censored",
+		RecordStatusPublic:      "public",
 	}
 
 	// Input validation
@@ -148,20 +150,20 @@ func Verify(pid identity.PublicIdentity, csr CensorshipRecord, files []File) err
 	return nil
 }
 
-// CensorshipRecord contains the proof that a proposal was accepted for review.
+// CensorshipRecord contains the proof that a record was accepted for review.
 // The proof is verifiable on the client side.
 //
-// The Merkle field contains the ordered merkle root of all files in the proposal.
+// The Merkle field contains the ordered merkle root of all files in the record.
 // The Token field contains a random censorship token that is signed by the
 // server private key.  The token can be used on the client to verify the
 // authenticity of the CensorshipRecord.
 type CensorshipRecord struct {
 	Token     string `json:"token"`     // Censorship token
-	Merkle    string `json:"merkle"`    // Merkle root of proposal
+	Merkle    string `json:"merkle"`    // Merkle root of record
 	Signature string `json:"signature"` // Signature of merkle+token
 }
 
-// Identity requests the proposal server identity.
+// Identity requests the record server identity.
 type Identity struct {
 	Challenge string `json:"challenge"` // Random challenge
 }
@@ -172,7 +174,7 @@ type IdentityReply struct {
 	PublicKey string `json:"publickey"` // Public key
 }
 
-// File describes an individual file that is part of the proposal.  The
+// File describes an individual file that is part of the record.  The
 // directory structure must be flattened.  The server side SHALL verify MIME
 // and Digest.
 type File struct {
@@ -182,79 +184,81 @@ type File struct {
 	Payload string `json:"payload"` // File content
 }
 
-// ProposalRecord is an entire proposal and it's content.
-type ProposalRecord struct {
-	Name      string      `json:"name"`      // Suggested short proposal name
-	Status    PropStatusT `json:"status"`    // Current status of proposal
-	Timestamp int64       `json:"timestamp"` // Last update of proposal
-	Files     []File      `json:"files"`     // Files that make up the proposal
+// Record is an entire record and it's content.
+type Record struct {
+	Status    RecordStatusT `json:"status"`    // Current status
+	Timestamp int64         `json:"timestamp"` // Last update
 
 	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
+
+	// User data
+	Metadata string `json:"metadata"` // string encoded metadata
+	Files    []File `json:"files"`    // Files that make up the record
 }
 
-// New initiates a new proposal.  It must include all files that are part of
-// the proposal.  The only acceptable file types are text, markdown and PNG.
-type New struct {
+// NewRecord creates a new record.  It must include all files that are part of
+// the record and it may contain an optional metatda record.  Thet optional
+// metadatarecord must be string encoded.
+type NewRecord struct {
 	Challenge string `json:"challenge"` // Random challenge
-	Name      string `json:"name"`      // Suggested short proposal name
-	Files     []File `json:"files"`     // Files that make up the proposal
+	Metadata  string `json:"metadata"`  // string encoded metadata
+	Files     []File `json:"files"`     // Files that make up record
 }
 
-// NewReply returns the CensorshipRecord that is associated with a valid
-// proposal.  A valid proposal is not always going to be published.
-type NewReply struct {
+// NewRecordReply returns the CensorshipRecord that is associated with a valid
+// record.  A valid record is not always going to be published.
+type NewRecordReply struct {
 	Response         string           `json:"response"` // Challenge response
-	Timestamp        int64            `json:"timestamp"`
 	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
 }
 
-// GetUnvetted requests an unvetted proposal from the server.
+// GetUnvetted requests an unvetted record from the server.
 type GetUnvetted struct {
 	Challenge string `json:"challenge"` // Random challenge
 	Token     string `json:"token"`     // Censorship token
 }
 
-// GetUnvettedReply returns an unvetted proposal.  It retrieves the censorship
+// GetUnvettedReply returns an unvetted record.  It retrieves the censorship
 // record and the actual files.
 type GetUnvettedReply struct {
-	Response string         `json:"response"` // Challenge response
-	Proposal ProposalRecord `json:"proposalrecord"`
+	Response string `json:"response"` // Challenge response
+	Record   Record `json:"record"`
 }
 
-// GetVetted requests a vetted proposal from the server.
+// GetVetted requests a vetted record from the server.
 type GetVetted struct {
 	Challenge string `json:"challenge"` // Random challenge
 	Token     string `json:"token"`     // Censorship token
 }
 
-// GetVettedReply returns a vetted proposal.  It retrieves the censorship
-// record and the latest files in the proposal.
+// GetVettedReply returns a vetted record.  It retrieves the censorship
+// record and the latest files in the record.
 type GetVettedReply struct {
-	Response string         `json:"response"` // Challenge response
-	Proposal ProposalRecord `json:"proposalrecord"`
+	Response string `json:"response"` // Challenge response
+	Record   Record `json:"record"`
 }
 
-// SetUnvettedStatus updates the status of an unvetted proposal.  This is used
-// to either promote a proposal to the public viewable repository or to censor
+// SetUnvettedStatus updates the status of an unvetted record.  This is used
+// to either promote a record to the public viewable repository or to censor
 // it.
 type SetUnvettedStatus struct {
-	Challenge string      `json:"challenge"` // Random challenge
-	Token     string      `json:"token"`     // Censorship token
-	Status    PropStatusT `json:"status"`    // Update unvetted status of proposal
+	Challenge string        `json:"challenge"` // Random challenge
+	Token     string        `json:"token"`     // Censorship token
+	Status    RecordStatusT `json:"status"`    // Update unvetted status of record
 }
 
 // SetUnvettedStatus is a response to a SetUnvettedStatus.  The status field
 // may be different than the status that was requested.  This should only
 // happen when the command fails.
 type SetUnvettedStatusReply struct {
-	Response string      `json:"response"` // Challenge response
-	Status   PropStatusT `json:"status"`   // Actual status, may differ from request
+	Response string        `json:"response"` // Challenge response
+	Status   RecordStatusT `json:"status"`   // Actual status, may differ from request
 }
 
 //type UpdateUnvetted struct {
 //	Challenge string `json:"challenge"` // Random challenge
 //	Token     string `json:"token"`     // Censorship token
-//	Files     []File `json:"files"`     // Files that make up the proposal
+//	Files     []File `json:"files"`     // Files that make up the record
 //}
 //
 //type UpdateUnvetted struct {
@@ -263,28 +267,27 @@ type SetUnvettedStatusReply struct {
 //}
 
 // Inventory sends an (expensive and therefore authenticated) inventory request
-// for vetted proposals (master branch) and branches (censored, unpublished etc)
-// proposals.  This is a very expensive call and should be only issued at start
+// for vetted records (master branch) and branches (censored, unpublished etc)
+// records.  This is a very expensive call and should be only issued at start
 // of day.  The client should cache the reply.
-// The IncludeFiles flag indicates if the records contain the proposal payload
+// The IncludeFiles flag indicates if the records contain the record payload
 // as well.  This can quickly become very large and should only be used when
 // recovering the client side.
 type Inventory struct {
 	Challenge     string `json:"challenge"`     // Random challenge
 	IncludeFiles  bool   `json:"includefiles"`  // Include files in records
-	VettedCount   uint   `json:"vettedcount"`   // Last N vetted proposals
+	VettedCount   uint   `json:"vettedcount"`   // Last N vetted records
 	BranchesCount uint   `json:"branchescount"` // Last N branches (censored, new etc)
 }
 
-// InventoryReply returns vetted and branch proposal censorship records.  If
-// the Inventory command had IncludeFiles set to true the returned
-// ProposalRecords will also include the proposal files.  This obviously
-// enlarges the payload size and should therefore be used only in disaster
-// recovery scenarios.
+// InventoryReply returns vetted and unvetted records.  If the Inventory
+// command had IncludeFiles set to true the returned Records will also include
+// the record files.  This obviously enlarges the payload size and should
+// therefore be used only in disaster recovery scenarios.
 type InventoryReply struct {
-	Response string           `json:"response"` // Challenge response
-	Vetted   []ProposalRecord `json:"vetted"`   // Last N vetted proposals
-	Branches []ProposalRecord `json:"branches"` // Last N branches (censored, new etc)
+	Response string   `json:"response"` // Challenge response
+	Vetted   []Record `json:"vetted"`   // Last N vetted records
+	Branches []Record `json:"branches"` // Last N branches (censored, new etc)
 }
 
 // UserErrorReply returns details about an error that occurred while trying to

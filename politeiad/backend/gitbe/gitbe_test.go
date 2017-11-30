@@ -25,14 +25,13 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-func validatePSR(got, want *backend.ProposalStorageRecord) error {
+func validateMD(got, want *backend.RecordMetadata) error {
 	if got.Version != want.Version+1 ||
-		got.Status != backend.PSRStatusVetted ||
-		want.Status != backend.PSRStatusUnvetted ||
+		got.Status != backend.MDStatusVetted ||
+		want.Status != backend.MDStatusUnvetted ||
 		got.Merkle != want.Merkle ||
-		got.Name != want.Name ||
 		!bytes.Equal(got.Token, want.Token) {
-		return fmt.Errorf("unexpected psr got %v, wanted %v",
+		return fmt.Errorf("unexpected rm got %v, wanted %v",
 			spew.Sdump(*got), spew.Sdump(*want))
 	}
 
@@ -70,15 +69,15 @@ func TestAnchorWithCommits(t *testing.T) {
 	}
 	g.test = true
 
-	// Create 5 unvetted proposals
+	// Create 5 unvetted records
 	propCount := 5
 	fileCount := 3
-	t.Logf("===== CREATE %v PROPS WITH %v FILES =====", propCount,
+	t.Logf("===== CREATE %v RECORDS WITH %v FILES =====", propCount,
 		fileCount)
-	psr := make([]*backend.ProposalStorageRecord, propCount)
+	rm := make([]*backend.RecordMetadata, propCount)
 	allFiles := make([][]backend.File, propCount)
 	for i := 0; i < propCount; i++ {
-		name := fmt.Sprintf("Prop %v", i)
+		name := fmt.Sprintf("record%v", i)
 		files := make([]backend.File, 0, fileCount)
 		for j := 0; j < fileCount; j++ {
 			r, err := util.Random(64)
@@ -100,7 +99,7 @@ func TestAnchorWithCommits(t *testing.T) {
 		}
 		allFiles[i] = files
 
-		psr[i], err = g.New(name, files)
+		rm[i], err = g.New(name, files)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -114,7 +113,7 @@ func TestAnchorWithCommits(t *testing.T) {
 	found := 0
 	master := 0
 	for _, branch := range branches {
-		for _, v := range psr {
+		for _, v := range rm {
 			s := strings.Trim(branch, " \n")
 			if s == hex.EncodeToString(v.Token) {
 				found++
@@ -131,17 +130,17 @@ func TestAnchorWithCommits(t *testing.T) {
 			found, propCount, master)
 	}
 
-	// Read all PSRs from the branches and call getunvetted to verify
+	// Read all MDs from the branches and call getunvetted to verify
 	// integrity
-	for k, v := range psr {
+	for k, v := range rm {
 		pru, err := g.GetUnvetted(v.Token)
 		if err != nil {
 			t.Fatalf("%v", err)
 		}
-		if !reflect.DeepEqual(&pru.ProposalStorageRecord, psr[k]) {
-			t.Fatalf("unexpected psr got %v, wanted %v",
-				spew.Sdump(pru.ProposalStorageRecord),
-				spew.Sdump(psr[k]))
+		if !reflect.DeepEqual(&pru.RecordMetadata, rm[k]) {
+			t.Fatalf("unexpected rm got %v, wanted %v",
+				spew.Sdump(pru.RecordMetadata),
+				spew.Sdump(rm[k]))
 		}
 		if !reflect.DeepEqual(pru.Files, allFiles[k]) {
 			t.Fatalf("unexpected payload got %v, wanted %v",
@@ -159,28 +158,28 @@ func TestAnchorWithCommits(t *testing.T) {
 			len(branches))
 	}
 
-	// Vet 1 of the proposals
-	t.Logf("===== VET PROP 1 =====")
-	status, err := g.SetUnvettedStatus(psr[1].Token, backend.PSRStatusVetted)
+	// Vet 1 of the records
+	t.Logf("===== VET RECORD 1 =====")
+	status, err := g.SetUnvettedStatus(rm[1].Token, backend.MDStatusVetted)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if status != backend.PSRStatusVetted {
+	if status != backend.MDStatusVetted {
 		t.Fatalf("unexpected status: got %v wanted %v", status,
-			backend.PSRStatusVetted)
+			backend.MDStatusVetted)
 	}
 	//Get it as well to validate the GetVetted call
-	pru, err := g.GetUnvetted(psr[1].Token)
+	pru, err := g.GetUnvetted(rm[1].Token)
 	if err != nil {
 		t.Fatal(err)
 	}
-	psrG := &pru.ProposalStorageRecord
-	if psrG.Status != backend.PSRStatusVetted {
+	psrG := &pru.RecordMetadata
+	if psrG.Status != backend.MDStatusVetted {
 		t.Fatalf("unexpected status: got %v wanted %v", psrG.Status,
-			backend.PSRStatusVetted)
+			backend.MDStatusVetted)
 	}
 
-	err = validatePSR(psrG, psr[1])
+	err = validateMD(psrG, rm[1])
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -338,7 +337,7 @@ func TestAnchorWithCommits(t *testing.T) {
 
 	// Vet + anchor
 	t.Logf("===== INTERLEAVE ANCHORS =====")
-	_, err = g.SetUnvettedStatus(psr[2].Token, backend.PSRStatusVetted)
+	_, err = g.SetUnvettedStatus(rm[2].Token, backend.MDStatusVetted)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -348,7 +347,7 @@ func TestAnchorWithCommits(t *testing.T) {
 	}
 
 	// Vet + anchor
-	_, err = g.SetUnvettedStatus(psr[0].Token, backend.PSRStatusVetted)
+	_, err = g.SetUnvettedStatus(rm[0].Token, backend.MDStatusVetted)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -44,60 +44,60 @@ func remoteAddr(r *http.Request) string {
 	return via
 }
 
-// convertBackendStatus converts a backend PSRStatus to an API status.
-func convertBackendStatus(status backend.PSRStatusT) v1.PropStatusT {
-	s := v1.PropStatusInvalid
+// convertBackendStatus converts a backend MDStatus to an API status.
+func convertBackendStatus(status backend.MDStatusT) v1.RecordStatusT {
+	s := v1.RecordStatusInvalid
 	switch status {
-	case backend.PSRStatusInvalid:
-		s = v1.PropStatusInvalid
-	case backend.PSRStatusUnvetted:
-		s = v1.PropStatusNotReviewed
-	case backend.PSRStatusVetted:
-		s = v1.PropStatusPublic
-	case backend.PSRStatusCensored:
-		s = v1.PropStatusCensored
+	case backend.MDStatusInvalid:
+		s = v1.RecordStatusInvalid
+	case backend.MDStatusUnvetted:
+		s = v1.RecordStatusNotReviewed
+	case backend.MDStatusVetted:
+		s = v1.RecordStatusPublic
+	case backend.MDStatusCensored:
+		s = v1.RecordStatusCensored
 	}
 	return s
 }
 
-// convertFrontendStatus convert an API status to a backend PSRStatus.
-func convertFrontendStatus(status v1.PropStatusT) backend.PSRStatusT {
-	s := backend.PSRStatusInvalid
+// convertFrontendStatus convert an API status to a backend MDStatus.
+func convertFrontendStatus(status v1.RecordStatusT) backend.MDStatusT {
+	s := backend.MDStatusInvalid
 	switch status {
-	case v1.PropStatusInvalid:
-		s = backend.PSRStatusInvalid
-	case v1.PropStatusNotReviewed:
-		s = backend.PSRStatusUnvetted
-	case v1.PropStatusPublic:
-		s = backend.PSRStatusVetted
-	case v1.PropStatusCensored:
-		s = backend.PSRStatusCensored
+	case v1.RecordStatusInvalid:
+		s = backend.MDStatusInvalid
+	case v1.RecordStatusNotReviewed:
+		s = backend.MDStatusUnvetted
+	case v1.RecordStatusPublic:
+		s = backend.MDStatusVetted
+	case v1.RecordStatusCensored:
+		s = backend.MDStatusCensored
 	}
 	return s
 }
 
-func (p *politeia) convertBackendProposal(bpr backend.ProposalRecord) v1.ProposalRecord {
-	psr := bpr.ProposalStorageRecord
+func (p *politeia) convertBackendRecord(br backend.Record) v1.Record {
+	rm := br.RecordMetadata
 
 	// Calculate signature
-	merkleToken := make([]byte, len(psr.Merkle)+len(psr.Token))
-	copy(merkleToken, psr.Merkle[:])
-	copy(merkleToken[len(psr.Merkle[:]):], psr.Token)
+	merkleToken := make([]byte, len(rm.Merkle)+len(rm.Token))
+	copy(merkleToken, rm.Merkle[:])
+	copy(merkleToken[len(rm.Merkle[:]):], rm.Token)
 	signature := p.identity.SignMessage(merkleToken)
 
 	// Convert record
-	pr := v1.ProposalRecord{
-		Status:    convertBackendStatus(psr.Status),
-		Name:      psr.Name,
-		Timestamp: psr.Timestamp,
+	pr := v1.Record{
+		Status:    convertBackendStatus(rm.Status),
+		Timestamp: rm.Timestamp,
 		CensorshipRecord: v1.CensorshipRecord{
-			Merkle:    hex.EncodeToString(psr.Merkle[:]),
-			Token:     hex.EncodeToString(psr.Token),
+			Merkle:    hex.EncodeToString(rm.Merkle[:]),
+			Token:     hex.EncodeToString(rm.Token),
 			Signature: hex.EncodeToString(signature[:]),
 		},
+		Metadata: br.Metadata,
 	}
-	pr.Files = make([]v1.File, 0, len(bpr.Files))
-	for _, v := range bpr.Files {
+	pr.Files = make([]v1.File, 0, len(br.Files))
+	for _, v := range br.Files {
 		pr.Files = append(pr.Files,
 			v1.File{
 				Name:    v.Name,
@@ -148,8 +148,8 @@ func (p *politeia) getIdentity(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-func (p *politeia) newProposal(w http.ResponseWriter, r *http.Request) {
-	var t v1.New
+func (p *politeia) newRecord(w http.ResponseWriter, r *http.Request) {
+	var t v1.NewRecord
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&t); err != nil {
 		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
@@ -157,19 +157,14 @@ func (p *politeia) newProposal(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	if len(t.Name) > 80 {
-		log.Errorf("%v New proposal: invalid name", remoteAddr(r))
-		p.respondWithUserError(w, v1.ErrorStatusInvalidProposalName, nil)
-		return
-	}
 	challenge, err := hex.DecodeString(t.Challenge)
 	if err != nil || len(challenge) != v1.ChallengeSize {
-		log.Errorf("%v New proposal: invalid challenge", remoteAddr(r))
+		log.Errorf("%v NewRecord: invalid challenge", remoteAddr(r))
 		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
 		return
 	}
 
-	log.Infof("New proposal submitted %v: %v", remoteAddr(r), t.Name)
+	log.Infof("New record submitted %v", remoteAddr(r))
 
 	// Convert to backend call
 	files := make([]backend.File, 0, len(t.Files))
@@ -181,43 +176,43 @@ func (p *politeia) newProposal(w http.ResponseWriter, r *http.Request) {
 			Payload: v.Payload,
 		})
 	}
-	psr, err := p.backend.New(t.Name, files)
+	rm, err := p.backend.New(t.Metadata, files)
 	if err != nil {
 		// Check for content error.
 		if contentErr, ok := err.(backend.ContentVerificationError); ok {
-			log.Errorf("%v New proposal content error: %v %v",
-				remoteAddr(r), t.Name, contentErr)
-			p.respondWithUserError(w, contentErr.ErrorCode, contentErr.ErrorContext)
+			log.Errorf("%v New record content error: %v",
+				remoteAddr(r), contentErr)
+			p.respondWithUserError(w, contentErr.ErrorCode,
+				contentErr.ErrorContext)
 			return
 		}
 
 		// Generic internal error.
 		errorCode := time.Now().Unix()
-		log.Errorf("%v New proposal error code %v: %v", remoteAddr(r),
+		log.Errorf("%v New record error code %v: %v", remoteAddr(r),
 			errorCode, err)
 		p.respondWithServerError(w, errorCode)
 		return
 	}
 
 	// Prepare reply.
-	merkleToken := make([]byte, len(psr.Merkle)+len(psr.Token))
-	copy(merkleToken, psr.Merkle[:])
-	copy(merkleToken[len(psr.Merkle[:]):], psr.Token)
+	merkleToken := make([]byte, len(rm.Merkle)+len(rm.Token))
+	copy(merkleToken, rm.Merkle[:])
+	copy(merkleToken[len(rm.Merkle[:]):], rm.Token)
 	signature := p.identity.SignMessage(merkleToken)
 
 	response := p.identity.SignMessage(challenge)
-	reply := v1.NewReply{
-		Response:  hex.EncodeToString(response[:]),
-		Timestamp: psr.Timestamp,
+	reply := v1.NewRecordReply{
+		Response: hex.EncodeToString(response[:]),
 		CensorshipRecord: v1.CensorshipRecord{
-			Merkle:    hex.EncodeToString(psr.Merkle[:]),
-			Token:     hex.EncodeToString(psr.Token),
+			Merkle:    hex.EncodeToString(rm.Merkle[:]),
+			Token:     hex.EncodeToString(rm.Token),
 			Signature: hex.EncodeToString(signature[:]),
 		},
 	}
 
-	log.Infof("New proposal accepted %v: token %v name \"%v\"", remoteAddr(r),
-		reply.CensorshipRecord.Token, t.Name)
+	log.Infof("New record accepted %v: token %v", remoteAddr(r),
+		reply.CensorshipRecord.Token)
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
@@ -251,28 +246,28 @@ func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
 
 	// Ask backend about the censorship token.
 	bpr, err := p.backend.GetUnvetted(token)
-	if err == backend.ErrProposalNotFound {
-		reply.Proposal.Status = v1.PropStatusNotFound
-		log.Errorf("Get unvetted proposal %v: token %v not found",
+	if err == backend.ErrRecordNotFound {
+		reply.Record.Status = v1.RecordStatusNotFound
+		log.Errorf("Get unvetted record %v: token %v not found",
 			remoteAddr(r), t.Token)
 	} else if err != nil {
 		// Generic internal error.
 		errorCode := time.Now().Unix()
-		log.Errorf("%v Get unvetted proposal error code %v: %v",
+		log.Errorf("%v Get unvetted record error code %v: %v",
 			remoteAddr(r), errorCode, err)
 
 		p.respondWithServerError(w, errorCode)
 		return
 	} else {
-		reply.Proposal = p.convertBackendProposal(*bpr)
+		reply.Record = p.convertBackendRecord(*bpr)
 
-		// Double check proposal bits before sending them off
+		// Double check record bits before sending them off
 		err := v1.Verify(p.identity.Public,
-			reply.Proposal.CensorshipRecord, reply.Proposal.Files)
+			reply.Record.CensorshipRecord, reply.Record.Files)
 		if err != nil {
 			// Generic internal error.
 			errorCode := time.Now().Unix()
-			log.Errorf("%v Get unvetted proposal CORRUPTION "+
+			log.Errorf("%v Get unvetted record CORRUPTION "+
 				"error code %v: %v", remoteAddr(r), errorCode,
 				err)
 
@@ -280,9 +275,8 @@ func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		log.Infof("Get unvetted proposal %v: token %v name \"%v\"",
-			remoteAddr(r),
-			t.Token, reply.Proposal.Name)
+		log.Infof("Get unvetted record %v: token %v", remoteAddr(r),
+			t.Token)
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
@@ -317,36 +311,36 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 
 	// Ask backend about the censorship token.
 	bpr, err := p.backend.GetVetted(token)
-	if err == backend.ErrProposalNotFound {
-		reply.Proposal.Status = v1.PropStatusNotFound
-		log.Errorf("Get vetted proposal %v: token %v not found",
+	if err == backend.ErrRecordNotFound {
+		reply.Record.Status = v1.RecordStatusNotFound
+		log.Errorf("Get vetted record %v: token %v not found",
 			remoteAddr(r), t.Token)
 	} else if err != nil {
 		// Generic internal error.
 		errorCode := time.Now().Unix()
-		log.Errorf("%v Get vetted proposal error code %v: %v",
+		log.Errorf("%v Get vetted record error code %v: %v",
 			remoteAddr(r), errorCode, err)
 
 		p.respondWithServerError(w, errorCode)
 		return
 	} else {
-		reply.Proposal = p.convertBackendProposal(*bpr)
+		reply.Record = p.convertBackendRecord(*bpr)
 
-		// Double check proposal bits before sending them off
+		// Double check record bits before sending them off
 		err := v1.Verify(p.identity.Public,
-			reply.Proposal.CensorshipRecord, reply.Proposal.Files)
+			reply.Record.CensorshipRecord, reply.Record.Files)
 		if err != nil {
 			// Generic internal error.
 			errorCode := time.Now().Unix()
-			log.Errorf("%v Get vetted proposal CORRUPTION "+
+			log.Errorf("%v Get vetted record CORRUPTION "+
 				"error code %v: %v", remoteAddr(r), errorCode,
 				err)
 
 			p.respondWithServerError(w, errorCode)
 			return
 		}
-		log.Infof("Get vetted proposal %v: token %v name \"%v\"",
-			remoteAddr(r), t.Token, reply.Proposal.Name)
+		log.Infof("Get vetted record %v: token %v", remoteAddr(r),
+			t.Token)
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
@@ -385,17 +379,17 @@ func (p *politeia) inventory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Convert backend proposals
-	vetted := make([]v1.ProposalRecord, 0, len(prs))
+	// Convert backend records
+	vetted := make([]v1.Record, 0, len(prs))
 	for _, v := range prs {
-		vetted = append(vetted, p.convertBackendProposal(v))
+		vetted = append(vetted, p.convertBackendRecord(v))
 	}
 	reply.Vetted = vetted
 
 	// Convert branches
-	unvetted := make([]v1.ProposalRecord, 0, len(brs))
+	unvetted := make([]v1.Record, 0, len(brs))
 	for _, v := range brs {
-		unvetted = append(unvetted, p.convertBackendProposal(v))
+		unvetted = append(unvetted, p.convertBackendRecord(v))
 	}
 	reply.Branches = unvetted
 
@@ -454,14 +448,14 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 	status, err := p.backend.SetUnvettedStatus(token,
 		convertFrontendStatus(t.Status))
 	if err != nil {
-		oldStatus := v1.PropStatus[convertBackendStatus(status)]
-		newStatus := v1.PropStatus[t.Status]
+		oldStatus := v1.RecordStatus[convertBackendStatus(status)]
+		newStatus := v1.RecordStatus[t.Status]
 		// Check for specific errors
 		if err == backend.ErrInvalidTransition {
 			log.Errorf("%v Invalid status code transition: "+
 				"%v %v->%v", remoteAddr(r), t.Token, oldStatus,
 				newStatus)
-			p.respondWithUserError(w, v1.ErrorStatusInvalidPropStatusTransition, nil)
+			p.respondWithUserError(w, v1.ErrorStatusInvalidRecordStatusTransition, nil)
 			return
 		}
 		// Generic internal error.
@@ -477,8 +471,8 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 		Status:   convertBackendStatus(status),
 	}
 
-	log.Infof("Set unvetted proposal status %v: token %v status %v",
-		remoteAddr(r), t.Token, v1.PropStatus[reply.Status])
+	log.Infof("Set unvetted record status %v: token %v status %v",
+		remoteAddr(r), t.Token, v1.RecordStatus[reply.Status])
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
@@ -619,7 +613,7 @@ func _main() error {
 	p.router.HandleFunc(v1.IdentityRoute,
 		logging(p.getIdentity)).Methods("POST")
 	p.router.HandleFunc(v1.NewRoute,
-		logging(p.newProposal)).Methods("POST")
+		logging(p.newRecord)).Methods("POST")
 	p.router.HandleFunc(v1.GetUnvettedRoute,
 		logging(p.getUnvetted)).Methods("POST")
 	p.router.HandleFunc(v1.GetVettedRoute,

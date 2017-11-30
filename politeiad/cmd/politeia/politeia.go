@@ -50,15 +50,15 @@ func usage() {
 	fmt.Fprintf(os.Stderr, "\n actions:\n")
 	fmt.Fprintf(os.Stderr, "  identity          - Retrieve server "+
 		"identity\n")
-	fmt.Fprintf(os.Stderr, "  inventory         - Inventory proposals "+
+	fmt.Fprintf(os.Stderr, "  inventory         - Inventory records "+
 		"<vetted count> <branches count>\n")
-	fmt.Fprintf(os.Stderr, "  new               - Create new proposal "+
+	fmt.Fprintf(os.Stderr, "  new               - Create new record "+
 		"<name> <filename>...\n")
-	fmt.Fprintf(os.Stderr, "  getunvetted       - Retrieve proposal "+
+	fmt.Fprintf(os.Stderr, "  getunvetted       - Retrieve record "+
 		"<id>\n")
-	fmt.Fprintf(os.Stderr, "  setunvettedstatus - Set unvetted proposal "+
+	fmt.Fprintf(os.Stderr, "  setunvettedstatus - Set unvetted record "+
 		"status <publish|censor> <id>\n")
-	//fmt.Fprintf(os.Stderr, "  update      - Update proposal\n")
+	//fmt.Fprintf(os.Stderr, "  update      - Update record\n")
 
 	fmt.Fprintf(os.Stderr, "\n")
 }
@@ -150,18 +150,18 @@ func printCensorshipRecord(c v1.CensorshipRecord) {
 	fmt.Printf("    Signature: %v\n", c.Signature)
 }
 
-func printProposalRecord(header string, pr v1.ProposalRecord) {
-	// Pretty print proposal
+func printRecordRecord(header string, pr v1.Record) {
+	// Pretty print record
 	fmt.Printf("STATUS %v\n", pr.Status)
-	status, ok := v1.PropStatus[pr.Status]
+	status, ok := v1.RecordStatus[pr.Status]
 	if !ok {
-		status = v1.PropStatus[v1.PropStatusInvalid]
+		status = v1.RecordStatus[v1.RecordStatusInvalid]
 	}
 	fmt.Printf("%v:\n", header)
-	fmt.Printf("  Name       : %v\n", pr.Name)
 	fmt.Printf("  Status     : %v\n", status)
 	fmt.Printf("  Timestamp  : %v\n", time.Unix(pr.Timestamp, 0).UTC())
 	printCensorshipRecord(pr.CensorshipRecord)
+	fmt.Printf("  Metadata   : %v\n", pr.Metadata)
 	for k, v := range pr.Files {
 		fmt.Printf("  File (%02v)  :\n", k)
 		fmt.Printf("    Name     : %v\n", v.Name)
@@ -245,22 +245,23 @@ func inventory() error {
 
 	if !*printJson {
 		for _, v := range i.Vetted {
-			printProposalRecord("Vetted proposal", v)
+			printRecordRecord("Vetted record", v)
 		}
 		for _, v := range i.Branches {
-			printProposalRecord("Unvetted proposal", v)
+			printRecordRecord("Unvetted record", v)
 		}
 	}
 
 	return nil
 }
 
-func newProposal() error {
+func newRecord() error {
 	flags := flag.Args()[1:] // Chop off action.
 
 	// Make sure we have name and at least one file.
 	if len(flags) < 2 {
-		return fmt.Errorf("must provide name and at least one file")
+		return fmt.Errorf("must provide metadata record at least " +
+			"one file")
 	}
 
 	// Fetch remote identity
@@ -274,9 +275,9 @@ func newProposal() error {
 	if err != nil {
 		return err
 	}
-	n := v1.New{
-		Name:      flags[0],
+	n := v1.NewRecord{
 		Challenge: hex.EncodeToString(challenge),
+		Metadata:  flags[0],
 		Files:     make([]v1.File, 0, len(flags[1:])),
 	}
 
@@ -306,7 +307,7 @@ func newProposal() error {
 		fmt.Printf("%02v: %v %v %v\n",
 			i, file.Digest, file.Name, file.MIME)
 	}
-	fmt.Printf("Submitted proposal name: %v\n", n.Name)
+	fmt.Printf("Record submitted\n")
 
 	// Convert Verify to JSON
 	b, err := json.Marshal(n)
@@ -339,7 +340,7 @@ func newProposal() error {
 
 	bodyBytes := util.ConvertBodyToByteArray(r.Body, *printJson)
 
-	var reply v1.NewReply
+	var reply v1.NewRecordReply
 	err = json.Unmarshal(bodyBytes, &reply)
 	if err != nil {
 		return fmt.Errorf("Could node unmarshal NewReply: %v", err)
@@ -372,7 +373,7 @@ func newProposal() error {
 		return fmt.Errorf("invalid merkle root")
 	}
 
-	// Verify proposal token signature.
+	// Verify record token signature.
 	merkleToken := make([]byte, len(root)+len(token))
 	copy(merkleToken, root[:])
 	copy(merkleToken[len(root[:]):], token)
@@ -463,27 +464,27 @@ func getUnvetted() error {
 	}
 
 	// Verify status
-	if reply.Proposal.Status == v1.PropStatusInvalid ||
-		reply.Proposal.Status == v1.PropStatusNotFound {
-		// Pretty print proposal
-		status, ok := v1.PropStatus[reply.Proposal.Status]
+	if reply.Record.Status == v1.RecordStatusInvalid ||
+		reply.Record.Status == v1.RecordStatusNotFound {
+		// Pretty print record
+		status, ok := v1.RecordStatus[reply.Record.Status]
 		if !ok {
-			status = v1.PropStatus[v1.PropStatusInvalid]
+			status = v1.RecordStatus[v1.RecordStatusInvalid]
 		}
-		fmt.Printf("Proposal     : %v\n", flags[0])
+		fmt.Printf("Record       : %v\n", flags[0])
 		fmt.Printf("  Status     : %v\n", status)
 		return nil
 	}
 
 	// Verify content
-	err = v1.Verify(*id, reply.Proposal.CensorshipRecord,
-		reply.Proposal.Files)
+	err = v1.Verify(*id, reply.Record.CensorshipRecord,
+		reply.Record.Files)
 	if err != nil {
 		return err
 	}
 
 	if !*printJson {
-		printProposalRecord("Unvetted proposal", reply.Proposal)
+		printRecordRecord("Unvetted record", reply.Record)
 	}
 	return nil
 }
@@ -564,40 +565,40 @@ func getVetted() error {
 	}
 
 	// Verify status
-	if reply.Proposal.Status == v1.PropStatusInvalid ||
-		reply.Proposal.Status == v1.PropStatusNotFound {
-		// Pretty print proposal
-		status, ok := v1.PropStatus[reply.Proposal.Status]
+	if reply.Record.Status == v1.RecordStatusInvalid ||
+		reply.Record.Status == v1.RecordStatusNotFound {
+		// Pretty print record
+		status, ok := v1.RecordStatus[reply.Record.Status]
 		if !ok {
-			status = v1.PropStatus[v1.PropStatusInvalid]
+			status = v1.RecordStatus[v1.RecordStatusInvalid]
 		}
-		fmt.Printf("Proposal     : %v\n", flags[0])
+		fmt.Printf("Record     : %v\n", flags[0])
 		fmt.Printf("  Status     : %v\n", status)
 		return nil
 	}
 
 	// Verify content
-	err = v1.Verify(*id, reply.Proposal.CensorshipRecord,
-		reply.Proposal.Files)
+	err = v1.Verify(*id, reply.Record.CensorshipRecord,
+		reply.Record.Files)
 	if err != nil {
 		return err
 	}
 
 	if !*printJson {
-		printProposalRecord("Vetted proposal", reply.Proposal)
+		printRecordRecord("Vetted record", reply.Record)
 	}
 	return nil
 }
 
-func convertStatus(s string) (v1.PropStatusT, error) {
+func convertStatus(s string) (v1.RecordStatusT, error) {
 	switch s {
 	case "censor":
-		return v1.PropStatusCensored, nil
+		return v1.RecordStatusCensored, nil
 	case "publish":
-		return v1.PropStatusPublic, nil
+		return v1.RecordStatusPublic, nil
 	}
 
-	return v1.PropStatusInvalid, fmt.Errorf("invalid status")
+	return v1.RecordStatusInvalid, fmt.Errorf("invalid status")
 }
 
 func setUnvettedStatus() error {
@@ -687,12 +688,12 @@ func setUnvettedStatus() error {
 	}
 
 	if !*printJson {
-		// Pretty print proposal
-		status, ok := v1.PropStatus[reply.Status]
+		// Pretty print record
+		status, ok := v1.RecordStatus[reply.Status]
 		if !ok {
-			status = v1.PropStatus[v1.PropStatusInvalid]
+			status = v1.RecordStatus[v1.RecordStatusInvalid]
 		}
-		fmt.Printf("Set proposal status:\n")
+		fmt.Printf("Set record status:\n")
 		fmt.Printf("  Status   : %v\n", status)
 	}
 
@@ -737,7 +738,7 @@ func _main() error {
 		if i == 0 {
 			switch a {
 			case "new":
-				return newProposal()
+				return newRecord()
 			case "identity":
 				return getIdentity()
 			case "inventory":
