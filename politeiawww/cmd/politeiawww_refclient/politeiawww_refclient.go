@@ -24,10 +24,12 @@ import (
 )
 
 var (
-	host         = flag.String("h", "https://127.0.0.1:4443", "host")
-	emailFlag    = flag.String("email", "", "admin email")
-	passwordFlag = flag.String("password", "", "admin password")
-	printJson    = flag.Bool("json", false, "Print JSON")
+	host              = flag.String("h", "https://127.0.0.1:4443", "host")
+	emailFlag         = flag.String("email", "", "admin email")
+	faucetURL         = "https://faucet.decred.org/requestfaucet"
+	overridetokenFlag = flag.String("overridetoken", "", "overridetoken for the faucet")
+	passwordFlag      = flag.String("password", "", "admin password")
+	printJson         = flag.Bool("json", false, "Print JSON")
 )
 
 type ctx struct {
@@ -171,10 +173,10 @@ func idFromEmail(email string) (*identity.FullIdentity, error) {
 	return id, nil
 }
 
-func (c *ctx) newUser(email, password string) (string, *identity.FullIdentity, error) {
+func (c *ctx) newUser(email string, password string) (string, *identity.FullIdentity, string, float64, error) {
 	id, err := idFromEmail(email)
 	if err != nil {
-		return "", nil, err
+		return "", nil, "", 0, err
 	}
 	u := v1.NewUser{
 		Email:     email,
@@ -184,18 +186,18 @@ func (c *ctx) newUser(email, password string) (string, *identity.FullIdentity, e
 
 	responseBody, err := c.makeRequest("POST", v1.RouteNewUser, u)
 	if err != nil {
-		return "", nil, err
+		return "", nil, "", 0, err
 	}
 
 	var nur v1.NewUserReply
 	err = json.Unmarshal(responseBody, &nur)
 	if err != nil {
-		return "", nil,
+		return "", nil, "", 0,
 			fmt.Errorf("Could not unmarshal NewUserReply: %v", err)
 	}
 
 	//fmt.Printf("Verification Token: %v\n", nur.VerificationToken)
-	return nur.VerificationToken, id, nil
+	return nur.VerificationToken, id, nur.PaywallAddress, nur.PaywallAmount, nil
 }
 
 func (c *ctx) verifyNewUser(email, token, sig string) error {
@@ -526,7 +528,7 @@ func _main() error {
 	password := hex.EncodeToString(b)
 
 	// New User
-	token, id, err := c.newUser(email, password)
+	token, id, paywallAddress, paywallAmount, err := c.newUser(email, password)
 	if err != nil {
 		return err
 	}
@@ -537,6 +539,19 @@ func _main() error {
 	if err != nil {
 		return err
 	}
+
+	// Use the testnet faucet to satisfy the user paywall fee.
+	faucetTx, err := util.PayWithTestnetFaucet(faucetURL, paywallAddress, paywallAmount,
+		*overridetokenFlag)
+	if err != nil {
+		return fmt.Errorf("unable to pay with %v with %v faucet: %v",
+			paywallAddress, paywallAmount, err)
+	}
+
+	fmt.Printf("paid %v DCR to %v with faucet tx %v\n",
+		paywallAmount, paywallAddress, faucetTx)
+
+	// TODO need to poll for payment confirmation once enforcement is enabled
 
 	// New proposal
 	_, err = c.newProposal(id)
@@ -642,7 +657,7 @@ func _main() error {
 			pr2.Proposal.Status, v1.PropStatusNotReviewed)
 	}
 
-	// Create enough pr oposals to have 2 pages
+	// Create enough proposals to have 2 pages
 	for i := 0; i < int(pr.ProposalListPageSize); i++ {
 		_, err = c.newProposal(id)
 		if err != nil {

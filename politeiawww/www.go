@@ -255,7 +255,7 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleVerifyNewUser handles the incoming new user verify command. It verifies
-// that the user with the provided email has a verificaton token that matches
+// that the user with the provided email has a verification token that matches
 // the provided token and that the verification token has not yet expired.
 func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request) {
 	// Get the new user verify command.
@@ -676,6 +676,7 @@ func _main() error {
 	if err != nil {
 		return err
 	}
+	p.backend.params = activeNetParams.Params
 
 	var csrfHandle func(http.Handler) http.Handler
 	if !p.cfg.Proxy {
