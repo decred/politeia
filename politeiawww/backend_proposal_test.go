@@ -1,15 +1,71 @@
 package main
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
+	"strconv"
 	"testing"
 	"time"
 
-	"github.com/decred/politeia/util"
-
+	"github.com/decred/dcrtime/merkle"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	www "github.com/decred/politeia/politeiawww/api/v1"
+	"github.com/decred/politeia/politeiawww/database"
+	"github.com/decred/politeia/util"
 )
+
+// getSignatureAndSigningUser generates a full identity and signs the
+// provided msg with it, and then creates a user whose active public key
+// is set to the generated identity's public key. This allows the tests to
+// pass the signature validation in www.
+func getSignatureAndSigningUser(msg []byte) (string, *database.User, error) {
+	id, err := generateIdentity()
+	if err != nil {
+		return "", nil, err
+	}
+
+	sig := id.SignMessage(msg)
+
+	identities := make([]database.Identity, 0, 1)
+	identities = append(identities, database.Identity{
+		Key:         id.Public.Key,
+		Activated:   1,
+		Deactivated: 0,
+	})
+	user := &database.User{
+		Identities: identities,
+	}
+
+	return hex.EncodeToString(sig[:]), user, nil
+}
+
+// getProposalSignatureAndSigningUser takes as input a list of files and
+// generates the merkle root with the file digests, then delegates to
+// getSignatureAndSigningUser.
+func getProposalSignatureAndSigningUser(files []pd.File) (string, *database.User, error) {
+	// Calculate the merkle root with the file digests.
+	hashes := make([]*[sha256.Size]byte, 0, len(files))
+	for _, v := range files {
+		payload, err := base64.StdEncoding.DecodeString(v.Payload)
+		if err != nil {
+			return "", nil, err
+		}
+
+		digest := util.Digest(payload)
+		var d [sha256.Size]byte
+		copy(d[:], digest)
+		hashes = append(hashes, &d)
+	}
+
+	var encodedMerkleRoot string
+	if len(hashes) > 0 {
+		encodedMerkleRoot = hex.EncodeToString(merkle.Root(hashes)[:])
+	} else {
+		encodedMerkleRoot = ""
+	}
+	return getSignatureAndSigningUser([]byte(encodedMerkleRoot))
+}
 
 func createNewProposal(b *backend, t *testing.T) (*www.NewProposal, *www.NewProposalReply, error) {
 	return createNewProposalWithFiles(b, t, 1, 0)
@@ -44,7 +100,6 @@ func createNewProposalWithFileSizes(b *backend, t *testing.T, numMDFiles, numIma
 	}
 
 	for i := uint(0); i < numImageFiles; i++ {
-
 		name = generateRandomString(5) + ".png"
 		imgSizeWithName := int(imageSize) - len(name) - len("\n")
 		payload := []byte(name + "\n" + generateRandomString(imgSizeWithName))
@@ -56,11 +111,17 @@ func createNewProposalWithFileSizes(b *backend, t *testing.T, numMDFiles, numIma
 		})
 	}
 
-	np := www.NewProposal{
-		Files: convertPropFilesFromPD(files),
+	signature, user, err := getProposalSignatureAndSigningUser(files)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	npr, err := b.ProcessNewProposal(np)
+	np := www.NewProposal{
+		Files:     convertPropFilesFromPD(files),
+		Signature: signature,
+	}
+
+	npr, err := b.ProcessNewProposal(np, user)
 	return &np, npr, err
 }
 
@@ -79,11 +140,17 @@ func createNewProposalWithInvalidTitle(b *backend, t *testing.T) (*www.NewPropos
 		Payload: payload,
 	})
 
-	np := www.NewProposal{
-		Files: convertPropFilesFromPD(files),
+	signature, user, err := getProposalSignatureAndSigningUser(files)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	npr, err := b.ProcessNewProposal(np)
+	np := www.NewProposal{
+		Files:     convertPropFilesFromPD(files),
+		Signature: signature,
+	}
+
+	npr, err := b.ProcessNewProposal(np, user)
 	return &np, npr, err
 }
 
@@ -101,11 +168,17 @@ func createNewProposalTitleSize(b *backend, t *testing.T, nameLength int) (*www.
 		Payload: payload,
 	})
 
-	np := www.NewProposal{
-		Files: convertPropFilesFromPD(files),
+	signature, user, err := getProposalSignatureAndSigningUser(files)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	npr, err := b.ProcessNewProposal(np)
+	np := www.NewProposal{
+		Files:     convertPropFilesFromPD(files),
+		Signature: signature,
+	}
+
+	npr, err := b.ProcessNewProposal(np, user)
 	return &np, npr, err
 }
 
@@ -126,11 +199,17 @@ func createNewProposalWithDuplicateFiles(b *backend, t *testing.T) (*www.NewProp
 		Payload: payload,
 	})
 
-	np := www.NewProposal{
-		Files: convertPropFilesFromPD(files),
+	signature, user, err := getProposalSignatureAndSigningUser(files)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	npr, err := b.ProcessNewProposal(np)
+	np := www.NewProposal{
+		Files:     convertPropFilesFromPD(files),
+		Signature: signature,
+	}
+
+	npr, err := b.ProcessNewProposal(np, user)
 	return &np, npr, err
 }
 
@@ -143,11 +222,17 @@ func createNewProposalWithoutIndexFile(b *backend, t *testing.T) (*www.NewPropos
 		Payload: base64.StdEncoding.EncodeToString([]byte(generateRandomString(int(64)))),
 	})
 
-	np := www.NewProposal{
-		Files: convertPropFilesFromPD(files),
+	signature, user, err := getProposalSignatureAndSigningUser(files)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	npr, err := b.ProcessNewProposal(np)
+	np := www.NewProposal{
+		Files:     convertPropFilesFromPD(files),
+		Signature: signature,
+	}
+
+	npr, err := b.ProcessNewProposal(np, user)
 	return &np, npr, err
 }
 
@@ -156,7 +241,15 @@ func publishProposal(b *backend, token string, t *testing.T) {
 		Token:          token,
 		ProposalStatus: www.PropStatusPublic,
 	}
-	_, err := b.ProcessSetProposalStatus(sps)
+
+	msg := sps.Token + strconv.FormatUint(uint64(sps.ProposalStatus), 10)
+	signature, user, err := getSignatureAndSigningUser([]byte(msg))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sps.Signature = signature
+
+	_, err = b.ProcessSetProposalStatus(sps, user)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +260,15 @@ func censorProposal(b *backend, token string, t *testing.T) {
 		Token:          token,
 		ProposalStatus: www.PropStatusCensored,
 	}
-	_, err := b.ProcessSetProposalStatus(sps)
+
+	msg := sps.Token + strconv.FormatUint(uint64(sps.ProposalStatus), 10)
+	signature, user, err := getSignatureAndSigningUser([]byte(msg))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sps.Signature = signature
+
+	_, err = b.ProcessSetProposalStatus(sps, user)
 	if err != nil {
 		t.Fatal(err)
 	}
