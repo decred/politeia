@@ -59,6 +59,40 @@ type backend struct {
 	inventoryVersion uint                 // inventory version
 }
 
+const BackendProposalMetadataVersion = 1
+
+type BackendProposalMetadata struct {
+	Version   uint64 `json:"version"`   // BackendProposalMetadata version
+	Timestamp int64  `json:"timestamp"` // Last update of proposal
+	Name      string `json:"name"`      // Generated proposal name
+	PublicKey string `json:"publickey"` // Key used for signature.
+	Signature string `json:"signature"` // Signature of merkle root
+}
+
+// encodeBackendProposalMetadata encodes BackendProposalMetadata into a JSON
+// byte slice.
+func encodeBackendProposalMetadata(md BackendProposalMetadata) ([]byte, error) {
+	b, err := json.Marshal(md)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+// decodeBackendProposalMetadata decodes a JSON byte slice into a
+// BackendProposalMetadata.
+func decodeBackendProposalMetadata(payload []byte) (*BackendProposalMetadata, error) {
+	var md BackendProposalMetadata
+
+	err := json.Unmarshal(payload, &md)
+	if err != nil {
+		return nil, err
+	}
+
+	return &md, nil
+}
+
 // Check an incomming signature against the specified user's pubkey.
 func checkSig(user *database.User, signature string, elements ...string) error {
 	// Check incoming signature verify(token+string(ProposalStatus))
@@ -547,14 +581,15 @@ func (b *backend) getProposals(after, before string, statusMap map[www.PropStatu
 	b.RLock()
 	defer b.RUnlock()
 
-	// pageStarted stores whether or not it's okay to start adding proposals
-	// to the array. If the after or before parameter is supplied, we must find
-	// the beginning (or end) of the page first.
+	// pageStarted stores whether or not it's okay to start adding
+	// proposals to the array. If the after or before parameter is
+	// supplied, we must find the beginning (or end) of the page first.
 	pageStarted := (after == "" && before == "")
 	beforeIdx := -1
 	proposals := make([]www.ProposalRecord, 0)
 
-	// Iterate in reverse order because they're sorted by oldest timestamp first.
+	// Iterate in reverse order because they're sorted by oldest timestamp
+	// first.
 	for i := len(b.inventory) - 1; i >= 0; i-- {
 		proposal := b.inventory[i]
 		if _, ok := statusMap[proposal.Status]; ok {
@@ -564,13 +599,13 @@ func (b *backend) getProposals(after, before string, statusMap map[www.PropStatu
 					break
 				}
 			} else if after != "" {
-				// The beginning of the page has been found, so the next public
-				// proposal is added.
+				// The beginning of the page has been found, so
+				// the next public proposal is added.
 				pageStarted = proposal.CensorshipRecord.Token == after
 			} else if before != "" {
-				// The end of the page has been found, so we'll have to iterate
-				// in the other direction to add the proposals; save the current
-				// index.
+				// The end of the page has been found, so we'll
+				// have to iterate in the other direction to
+				// add the proposals; save the current index.
 				if proposal.CensorshipRecord.Token == before {
 					beforeIdx = i
 					break
@@ -584,9 +619,11 @@ func (b *backend) getProposals(after, before string, statusMap map[www.PropStatu
 	if beforeIdx >= 0 {
 		for _, proposal := range b.inventory[beforeIdx+1:] {
 			if _, ok := statusMap[proposal.Status]; ok {
-				// The iteration direction is oldest -> newest, so proposals are
-				// prepended to the array so the result will be newest -> oldest.
-				proposals = append([]www.ProposalRecord{proposal}, proposals...)
+				// The iteration direction is oldest -> newest,
+				// so proposals are prepended to the array so
+				// the result will be newest -> oldest.
+				proposals = append([]www.ProposalRecord{proposal},
+					proposals...)
 				if len(proposals) >= www.ProposalListPageSize {
 					break
 				}
@@ -597,8 +634,8 @@ func (b *backend) getProposals(after, before string, statusMap map[www.PropStatu
 	return proposals
 }
 
-// LoadInventory fetches the entire inventory of proposals from politeiad
-// and caches it, sorted by most recent timestamp.
+// LoadInventory fetches the entire inventory of proposals from politeiad and
+// caches it, sorted by most recent timestamp.
 func (b *backend) LoadInventory() error {
 	// This function is a little hard to read but we must make sure that
 	// the inventory has not changed since we tried to load it.  We can't
@@ -1007,20 +1044,32 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 		return nil, err
 	}
 
-	n := pd.New{
+	// Assemble metdata record
+	ts := time.Now().Unix()
+	md, err := encodeBackendProposalMetadata(BackendProposalMetadata{
+		Version:   BackendProposalMetadataVersion,
+		Timestamp: ts,
 		Name:      name,
+		PublicKey: np.PublicKey,
+		Signature: np.Signature,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	n := pd.NewRecord{
 		Challenge: hex.EncodeToString(challenge),
+		Metadata:  string(md),
 		Files:     convertPropFilesFromWWW(np.Files),
 	}
 
-	var pdReply pd.NewReply
+	var pdReply pd.NewRecordReply
 	if b.test {
 		tokenBytes, err := util.Random(16)
 		if err != nil {
 			return nil, err
 		}
 
-		pdReply.Timestamp = time.Now().Unix()
 		pdReply.CensorshipRecord = pd.CensorshipRecord{
 			Token: hex.EncodeToString(tokenBytes),
 		}
@@ -1030,7 +1079,9 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 		b.inventory = append(b.inventory, www.ProposalRecord{
 			Name:             name,
 			Status:           www.PropStatusNotReviewed,
-			Timestamp:        pdReply.Timestamp,
+			Timestamp:        ts,
+			PublicKey:        np.PublicKey,
+			Signature:        np.Signature,
 			Files:            np.Files,
 			CensorshipRecord: convertPropCensorFromPD(pdReply.CensorshipRecord),
 		})
@@ -1043,7 +1094,7 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 			return nil, err
 		}
 
-		log.Infof("Submitted proposal name: %v\n", n.Name)
+		log.Infof("Submitted proposal name: %v\n", name)
 		for k, f := range n.Files {
 			fmt.Printf("%02v: %v %v\n", k, f.Name, f.Digest)
 		}
@@ -1064,7 +1115,9 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 		r := www.ProposalRecord{
 			Name:             name,
 			Status:           www.PropStatusNotReviewed,
-			Timestamp:        pdReply.Timestamp,
+			Timestamp:        ts,
+			PublicKey:        np.PublicKey,
+			Signature:        np.Signature,
 			Files:            make([]www.File, 0),
 			CensorshipRecord: convertPropCensorFromPD(pdReply.CensorshipRecord),
 		}
@@ -1192,6 +1245,8 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, isUse
 		reply.Proposal = www.ProposalRecord{
 			Status:           cachedProposal.Status,
 			Timestamp:        cachedProposal.Timestamp,
+			PublicKey:        cachedProposal.PublicKey,
+			Signature:        cachedProposal.Signature,
 			CensorshipRecord: cachedProposal.CensorshipRecord,
 		}
 		return &reply, nil
@@ -1210,7 +1265,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, isUse
 	}
 
 	var response string
-	var proposal pd.ProposalRecord
+	var proposal pd.Record
 	if isVettedProposal {
 		var pdReply pd.GetVettedReply
 		err = json.Unmarshal(responseBody, &pdReply)
@@ -1220,7 +1275,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, isUse
 		}
 
 		response = pdReply.Response
-		proposal = pdReply.Proposal
+		proposal = pdReply.Record
 	} else {
 		var pdReply pd.GetUnvettedReply
 		err = json.Unmarshal(responseBody, &pdReply)
@@ -1230,7 +1285,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, isUse
 		}
 
 		response = pdReply.Response
-		proposal = pdReply.Proposal
+		proposal = pdReply.Record
 	}
 
 	// Verify the challenge.

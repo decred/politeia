@@ -26,6 +26,7 @@ import (
 	"github.com/decred/politeia/util"
 	"github.com/marcopeereboom/lockfile"
 	"github.com/robfig/cron"
+	"github.com/subosito/norma"
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
@@ -43,12 +44,15 @@ const (
 	// defaultUnvettedPath is the landing zone for unvetted content.
 	defaultUnvettedPath = "unvetted"
 
-	// defaultVettedPath is the publicly visible git vetted proposal repo.
+	// defaultVettedPath is the publicly visible git vetted record repo.
 	defaultVettedPath = "vetted"
 
-	// defaultProposalStorageRecordFilename is the filename of the proposal
-	// metadata record.
-	defaultProposalStorageRecordFilename = "psr.json"
+	// defaultRecordMetadataFilename is the filename of record record.
+	defaultRecordMetadataFilename = "recordmetadata.json"
+
+	// defaultMetadataFilename is the filename for the user provided
+	// metadata record.  The metadata record shall be string encoded.
+	defaultMetadataFilename = "metadata.txt"
 
 	// defaultAuditTrailFile is the filename where a human readable audit
 	// trail is kept.
@@ -58,7 +62,7 @@ const (
 	// They are indexed by TX.
 	defaultAnchorsDirectory = "anchors"
 
-	// defaultPayloadDir is the default path to store a proposal payload.
+	// defaultPayloadDir is the default path to store a record payload.
 	defaultPayloadDir = "payload"
 
 	// anchorSchedule determines how often we anchor the vetted repo.
@@ -147,7 +151,7 @@ func extendSHA1FromString(s string) (string, error) {
 	return hex.EncodeToString(d), nil
 }
 
-// newUniqueID returns a new unique proposal ID.  The function will hold the
+// newUniqueID returns a new unique record ID.  The function will hold the
 // unvettedLock if successful.  The callee is responsible for releasing the
 // lock.
 //
@@ -164,7 +168,7 @@ func (g *gitBackEnd) newUniqueID() (uint64, error) {
 		return 0, err
 	}
 
-	// Find biggest proposal ID
+	// Find biggest record ID
 	var last uint64
 	for _, file := range files {
 		// This check ignores lockFilename as well
@@ -183,7 +187,7 @@ func (g *gitBackEnd) newUniqueID() (uint64, error) {
 
 	// Create directory
 	err = os.MkdirAll(filepath.Join(g.unvetted, strconv.FormatUint(id, 10)),
-		0764)
+		0774)
 	if err != nil {
 		return 0, err
 	}
@@ -194,8 +198,23 @@ func (g *gitBackEnd) newUniqueID() (uint64, error) {
 // verifyContent verifies that all provided backend.File are sane and returns a
 // cooked array of the files.
 func verifyContent(files []backend.File) ([]file, error) {
+	if len(files) == 0 {
+		return nil, backend.ContentVerificationError{
+			ErrorCode: pd.ErrorStatusEmpty,
+		}
+	}
+
 	fa := make([]file, 0, len(files))
 	for i := range files {
+		if norma.Sanitize(files[i].Name) != files[i].Name {
+			return nil, backend.ContentVerificationError{
+				ErrorCode: pd.ErrorStatusInvalidFilename,
+				ErrorContext: []string{
+					files[i].Name,
+				},
+			}
+		}
+
 		// Validate digest
 		d, ok := util.ConvertDigest(files[i].Digest)
 		if !ok {
@@ -263,14 +282,14 @@ func verifyContent(files []backend.File) ([]file, error) {
 	return fa, nil
 }
 
-// loadProposal loads an entire proposal of disk.  It returns an array of
+// loadRecord loads an entire record of disk.  It returns an array of
 // backend.File that is completely filled out.
 //
 // This function must be called with the lock held.
-func loadProposal(path, id string) ([]backend.File, error) {
+func loadRecord(path, id string) ([]backend.File, error) {
 	// Get dir.
-	propDir := filepath.Join(path, id, defaultPayloadDir)
-	files, err := ioutil.ReadDir(propDir)
+	recordDir := filepath.Join(path, id, defaultPayloadDir)
+	files, err := ioutil.ReadDir(recordDir)
 	if err != nil {
 		return nil, err
 	}
@@ -278,9 +297,9 @@ func loadProposal(path, id string) ([]backend.File, error) {
 	bf := make([]backend.File, 0, len(files))
 	// Load all files
 	for _, file := range files {
-		fn := filepath.Join(propDir, file.Name())
+		fn := filepath.Join(recordDir, file.Name())
 		if file.IsDir() {
-			return nil, fmt.Errorf("proposal corrupt: %v", path)
+			return nil, fmt.Errorf("record corrupt: %v", path)
 		}
 
 		f := backend.File{Name: file.Name()}
@@ -294,38 +313,37 @@ func loadProposal(path, id string) ([]backend.File, error) {
 	return bf, nil
 }
 
-// loadPSR loads a ProposalStorageRecord from the provided path/id.  This may
+// loadMD loads a RecordMetadata from the provided path/id.  This may
 // be unvetted/id or vetted/id.
 //
 // This function should be called with the lock held.
-func loadPSR(path, id string) (*backend.ProposalStorageRecord, error) {
+func loadMD(path, id string) (*backend.RecordMetadata, error) {
 	filename := filepath.Join(path, id,
-		defaultProposalStorageRecordFilename)
+		defaultRecordMetadataFilename)
 	f, err := os.Open(filename)
 	if err != nil {
 		if os.IsNotExist(err) {
-			err = backend.ErrProposalNotFound
+			err = backend.ErrRecordNotFound
 		}
 		return nil, err
 	}
 	defer f.Close()
 
-	var psr backend.ProposalStorageRecord
+	var brm backend.RecordMetadata
 	decoder := json.NewDecoder(f)
-	if err = decoder.Decode(&psr); err != nil {
+	if err = decoder.Decode(&brm); err != nil {
 		return nil, err
 	}
-	return &psr, nil
+	return &brm, nil
 }
 
-// createPSR stores a ProposalStorageRecord to the provided path/id.  This may be
+// createMD stores a RecordMetadata to the provided path/id.  This may be
 // unvetted/id or vetted/id.
 //
 // This function should be called with the lock held.
-func createPSR(path, id, name string, status backend.PSRStatusT, version uint, hashes []*[sha256.Size]byte, token []byte) (*backend.ProposalStorageRecord, error) {
-	// Create proposal storage record
-	psr := backend.ProposalStorageRecord{
-		Name:      name,
+func createMD(path, id string, status backend.MDStatusT, version uint, hashes []*[sha256.Size]byte, token []byte) (*backend.RecordMetadata, error) {
+	// Create record metadata
+	brm := backend.RecordMetadata{
 		Version:   version,
 		Status:    status,
 		Merkle:    *merkle.Root(hashes),
@@ -333,43 +351,43 @@ func createPSR(path, id, name string, status backend.PSRStatusT, version uint, h
 		Token:     token,
 	}
 
-	err := updatePSR(path, id, &psr)
+	err := updateMD(path, id, &brm)
 	if err != nil {
 		return nil, err
 	}
 
-	return &psr, nil
+	return &brm, nil
 }
 
-// updatePSR updates the ProposalStorageRecord status to the provided path/id.
+// updateMD updates the RecordMetadata status to the provided path/id.
 //
 // This function should be called with the lock held.
-func updatePSR(path, id string, psr *backend.ProposalStorageRecord) error {
-	// Store proposal record.
-	filename := filepath.Join(path, id, defaultProposalStorageRecordFilename)
+func updateMD(path, id string, brm *backend.RecordMetadata) error {
+	// Store metadata record.
+	filename := filepath.Join(path, id, defaultRecordMetadataFilename)
 	f, err := os.Create(filename)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 
-	return json.NewEncoder(f).Encode(*psr)
+	return json.NewEncoder(f).Encode(*brm)
 }
 
-// commitPSR commits the PSR into a git repo.
+// commitMD commits the MD into a git repo.
 //
 // This function should be called with the lock held.
-func (g *gitBackEnd) commitPSR(path, id, msg string) error {
-	// git add id/psr.json
+func (g *gitBackEnd) commitMD(path, id, msg string) error {
+	// git add id/brm.json
 	filename := filepath.Join(path, id,
-		defaultProposalStorageRecordFilename)
+		defaultRecordMetadataFilename)
 	err := g.gitAdd(path, filename)
 	if err != nil {
 		return err
 	}
 
 	// git commit -m "message"
-	return g.gitCommit(path, "Update proposal status "+id+" "+msg)
+	return g.gitCommit(path, "Update record status "+id+" "+msg)
 }
 
 // deltaCommits returns sha1 extended digests and one line commit messages to
@@ -772,10 +790,10 @@ func (g *gitBackEnd) afterAnchorVerify(vrs []v1.VerifyDigest, precious [][]byte)
 		// Store dcrtime information.
 		// In vetted store the ChainInformation as a json object in
 		// directory anchor.
-		// In Vetted in the proposal directory add a file called anchor
+		// In Vetted in the record directory add a file called anchor
 		// that points to the TX id.
 		anchorDir := filepath.Join(g.vetted, defaultAnchorsDirectory)
-		err = os.MkdirAll(anchorDir, 0764)
+		err = os.MkdirAll(anchorDir, 0774)
 		if err != nil {
 			return err
 		}
@@ -784,7 +802,7 @@ func (g *gitBackEnd) afterAnchorVerify(vrs []v1.VerifyDigest, precious [][]byte)
 			return err
 		}
 		err = ioutil.WriteFile(filepath.Join(anchorDir, vr.Digest),
-			ar, 0444)
+			ar, 0664)
 		if err != nil {
 			return err
 		}
@@ -938,22 +956,18 @@ func (g *gitBackEnd) verifyAnchor(digest string) (*v1.VerifyDigest, error) {
 	return &vr.Digests[0], nil
 }
 
-// New takes a proposal verifies it and drops it on disk in the unvetted
-// directory.  Proposals and metadata are stored in unvetted/token/.  the
-// function returns a ProposaltorageRecord.
+// New takes a record verifies it and drops it on disk in the unvetted
+// directory.  Records and metadata are stored in unvetted/token/.  the
+// function returns a RecordMetadata.
 //
 // New satisfies the backend interface.
-func (g *gitBackEnd) New(name string, files []backend.File) (*backend.ProposalStorageRecord, error) {
+func (g *gitBackEnd) New(metadata string, files []backend.File) (*backend.RecordMetadata, error) {
 	fa, err := verifyContent(files)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(fa) == 0 {
-		return nil, fmt.Errorf("empty proposal")
-	}
-
-	// Prevent duplicate filenames
+	// Prevent bad filenames and duplicate filenames
 	for i := range files {
 		for j := range files {
 			if i == j {
@@ -1009,7 +1023,7 @@ func (g *gitBackEnd) New(name string, files []backend.File) (*backend.ProposalSt
 
 	// Process files.
 	path := filepath.Join(g.unvetted, id, defaultPayloadDir)
-	err = os.MkdirAll(path, 0764)
+	err = os.MkdirAll(path, 0774)
 	if err != nil {
 		return nil, err
 	}
@@ -1018,7 +1032,7 @@ func (g *gitBackEnd) New(name string, files []backend.File) (*backend.ProposalSt
 	for i := range fa {
 		// Copy files into directory id/payload/filename.
 		filename := filepath.Join(path, fa[i].name)
-		err = ioutil.WriteFile(filename, fa[i].payload, 0444)
+		err = ioutil.WriteFile(filename, fa[i].payload, 0664)
 		if err != nil {
 			return nil, err
 		}
@@ -1034,23 +1048,34 @@ func (g *gitBackEnd) New(name string, files []backend.File) (*backend.ProposalSt
 
 	}
 
-	// Save Proposal Storage Record
-	psr, err := createPSR(g.unvetted, id, name, backend.PSRStatusUnvetted, 1,
+	// Save user provided metadata record
+	filename := filepath.Join(g.unvetted, id, defaultMetadataFilename)
+	err = ioutil.WriteFile(filename, []byte(metadata), 0664)
+	if err != nil {
+		return nil, err
+	}
+	// git add id/metadata.txt
+	err = g.gitAdd(g.unvetted, filename)
+	if err != nil {
+		return nil, err
+	}
+
+	// Save record metadata
+	brm, err := createMD(g.unvetted, id, backend.MDStatusUnvetted, 1,
 		hashes, token)
 	if err != nil {
 		return nil, err
 	}
 
-	// git add id/psr.json
-	filename := filepath.Join(g.unvetted, id,
-		defaultProposalStorageRecordFilename)
+	// git add id/brm.json
+	filename = filepath.Join(g.unvetted, id, defaultRecordMetadataFilename)
 	err = g.gitAdd(g.unvetted, filename)
 	if err != nil {
 		return nil, err
 	}
 
 	// git commit -m "message"
-	err = g.gitCommit(path, "Add proposal "+id)
+	err = g.gitCommit(path, "Add record "+id)
 	if err != nil {
 		return nil, err
 	}
@@ -1061,14 +1086,14 @@ func (g *gitBackEnd) New(name string, files []backend.File) (*backend.ProposalSt
 		return nil, err
 	}
 
-	return psr, nil
+	return brm, nil
 }
 
-// getProposalLock is the generic implementation of GetUnvetted/GetVetted.  It
-// returns a proposal record from the provided repo.
+// getRecordLock is the generic implementation of GetUnvetted/GetVetted.  It
+// returns a record record from the provided repo.
 //
 // This function must be called WITHOUT the lock held.
-func (g *gitBackEnd) getProposalLock(token []byte, repo string, includeFiles bool) (*backend.ProposalRecord, error) {
+func (g *gitBackEnd) getRecordLock(token []byte, repo string, includeFiles bool) (*backend.Record, error) {
 	// Lock filesystem
 	err := g.lock.Lock(LockDuration)
 	if err != nil {
@@ -1084,20 +1109,20 @@ func (g *gitBackEnd) getProposalLock(token []byte, repo string, includeFiles boo
 		return nil, backend.ErrShutdown
 	}
 
-	return g.getProposal(token, repo, includeFiles)
+	return g.getRecord(token, repo, includeFiles)
 }
 
-// getProposal is the generic implementation of GetUnvetted/GetVetted.  It
-// returns a proposal record from the provided repo.
+// getRecord is the generic implementation of GetUnvetted/GetVetted.  It
+// returns a record record from the provided repo.
 //
 // This function must be called WITH the lock held.
-func (g *gitBackEnd) getProposal(token []byte, repo string, includeFiles bool) (*backend.ProposalRecord, error) {
+func (g *gitBackEnd) getRecord(token []byte, repo string, includeFiles bool) (*backend.Record, error) {
 	id := hex.EncodeToString(token)
 	if repo == g.unvetted {
 		// git checkout id
 		err := g.gitCheckout(repo, id)
 		if err != nil {
-			return nil, backend.ErrProposalNotFound
+			return nil, backend.ErrRecordNotFound
 		}
 	}
 	defer func() {
@@ -1108,8 +1133,15 @@ func (g *gitBackEnd) getProposal(token []byte, repo string, includeFiles bool) (
 		}
 	}()
 
-	// load PSR
-	psr, err := loadPSR(repo, id)
+	// load MD
+	brm, err := loadMD(repo, id)
+	if err != nil {
+		return nil, err
+	}
+
+	// load metadata
+	filename := filepath.Join(repo, id, defaultMetadataFilename)
+	md, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}
@@ -1117,15 +1149,16 @@ func (g *gitBackEnd) getProposal(token []byte, repo string, includeFiles bool) (
 	var files []backend.File
 	if includeFiles {
 		// load files
-		files, err = loadProposal(repo, id)
+		files, err = loadRecord(repo, id)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return &backend.ProposalRecord{
-		ProposalStorageRecord: *psr,
-		Files: files,
+	return &backend.Record{
+		RecordMetadata: *brm,
+		Metadata:       string(md),
+		Files:          files,
 	}, nil
 }
 
@@ -1304,27 +1337,27 @@ func (g *gitBackEnd) fsck(path string) error {
 // unvetted/token directory.
 //
 // GetUnvetted satisfies the backend interface.
-func (g *gitBackEnd) GetUnvetted(token []byte) (*backend.ProposalRecord, error) {
-	return g.getProposalLock(token, g.unvetted, true)
+func (g *gitBackEnd) GetUnvetted(token []byte) (*backend.Record, error) {
+	return g.getRecordLock(token, g.unvetted, true)
 }
 
 // GetVetted returns the content of vetted/token directory.
 //
 // GetVetted satisfies the backend interface.
-func (g *gitBackEnd) GetVetted(token []byte) (*backend.ProposalRecord, error) {
-	return g.getProposalLock(token, g.vetted, true)
+func (g *gitBackEnd) GetVetted(token []byte) (*backend.Record, error) {
+	return g.getRecordLock(token, g.vetted, true)
 }
 
-// SetUnvettedStatus tries to update the status for an unvetted proposal.  If
-// the proposal is found the prior status is returned if the function errors
+// SetUnvettedStatus tries to update the status for an unvetted record.  If
+// the record is found the prior status is returned if the function errors
 // out.  This is a bit unusual so keep it in mind.
 //
 // SetUnvettedStatus satisfies the backend interface.
-func (g *gitBackEnd) SetUnvettedStatus(token []byte, status backend.PSRStatusT) (backend.PSRStatusT, error) {
+func (g *gitBackEnd) SetUnvettedStatus(token []byte, status backend.MDStatusT) (backend.MDStatusT, error) {
 	// Lock filesystem
 	err := g.lock.Lock(LockDuration)
 	if err != nil {
-		return backend.PSRStatusInvalid, err
+		return backend.MDStatusInvalid, err
 	}
 	defer func() {
 		err := g.lock.Unlock()
@@ -1333,14 +1366,14 @@ func (g *gitBackEnd) SetUnvettedStatus(token []byte, status backend.PSRStatusT) 
 		}
 	}()
 	if g.shutdown {
-		return backend.PSRStatusInvalid, backend.ErrShutdown
+		return backend.MDStatusInvalid, backend.ErrShutdown
 	}
 
 	// git checkout id
 	id := hex.EncodeToString(token)
 	err = g.gitCheckout(g.unvetted, id)
 	if err != nil {
-		return backend.PSRStatusInvalid, backend.ErrProposalNotFound
+		return backend.MDStatusInvalid, backend.ErrRecordNotFound
 	}
 	defer func() {
 		// git checkout master
@@ -1350,30 +1383,30 @@ func (g *gitBackEnd) SetUnvettedStatus(token []byte, status backend.PSRStatusT) 
 		}
 	}()
 
-	// Load PSR
-	psr, err := loadPSR(g.unvetted, id)
+	// Load MD
+	brm, err := loadMD(g.unvetted, id)
 	if err != nil {
-		return backend.PSRStatusInvalid, err
+		return backend.MDStatusInvalid, err
 	}
-	oldStatus := psr.Status
+	oldStatus := brm.Status
 
 	// We only allow a transition from unvetted to vetted or censored
 	switch {
-	case psr.Status == backend.PSRStatusUnvetted &&
-		status == backend.PSRStatusVetted:
+	case brm.Status == backend.MDStatusUnvetted &&
+		status == backend.MDStatusVetted:
 
 		// unvetted -> vetted
 
-		// Update PSR first
-		psr.Status = backend.PSRStatusVetted
-		psr.Version += 1
-		err = updatePSR(g.unvetted, id, psr)
+		// Update MD first
+		brm.Status = backend.MDStatusVetted
+		brm.Version += 1
+		err = updateMD(g.unvetted, id, brm)
 		if err != nil {
 			return oldStatus, err
 		}
 
-		// Commit psr
-		err = g.commitPSR(g.unvetted, id, "published")
+		// Commit brm
+		err = g.commitMD(g.unvetted, id, "published")
 		if err != nil {
 			return oldStatus, err
 		}
@@ -1410,7 +1443,7 @@ func (g *gitBackEnd) SetUnvettedStatus(token []byte, status backend.PSRStatusT) 
 		// git checkout id
 		err = g.gitCheckout(g.unvetted, id)
 		if err != nil {
-			return oldStatus, backend.ErrProposalNotFound
+			return oldStatus, backend.ErrRecordNotFound
 		}
 
 		// git rebase master
@@ -1463,18 +1496,18 @@ func (g *gitBackEnd) SetUnvettedStatus(token []byte, status backend.PSRStatusT) 
 			return oldStatus, err
 		}
 
-	case psr.Status == backend.PSRStatusUnvetted &&
-		status == backend.PSRStatusCensored:
+	case brm.Status == backend.MDStatusUnvetted &&
+		status == backend.MDStatusCensored:
 		// unvetted -> censored
-		psr.Status = backend.PSRStatusCensored
-		psr.Version += 1
-		err = updatePSR(g.unvetted, id, psr)
+		brm.Status = backend.MDStatusCensored
+		brm.Version += 1
+		err = updateMD(g.unvetted, id, brm)
 		if err != nil {
 			return oldStatus, err
 		}
 
-		// Commit psr
-		err = g.commitPSR(g.unvetted, id, "censored")
+		// Commit brm
+		err = g.commitMD(g.unvetted, id, "censored")
 		if err != nil {
 			return oldStatus, err
 		}
@@ -1482,12 +1515,12 @@ func (g *gitBackEnd) SetUnvettedStatus(token []byte, status backend.PSRStatusT) 
 		return oldStatus, backend.ErrInvalidTransition
 	}
 
-	return psr.Status, nil
+	return brm.Status, nil
 }
 
-// Inventory returns an inventory of vetted and unvetted proposals.  If
+// Inventory returns an inventory of vetted and unvetted records.  If
 // includeFiles is set the content is also returned.
-func (g *gitBackEnd) Inventory(vettedCount, branchCount uint, includeFiles bool) ([]backend.ProposalRecord, []backend.ProposalRecord, error) {
+func (g *gitBackEnd) Inventory(vettedCount, branchCount uint, includeFiles bool) ([]backend.Record, []backend.Record, error) {
 	// Lock filesystem
 	err := g.lock.Lock(LockDuration)
 	if err != nil {
@@ -1510,8 +1543,8 @@ func (g *gitBackEnd) Inventory(vettedCount, branchCount uint, includeFiles bool)
 		return nil, nil, err
 	}
 
-	// Strip non proposal directories
-	pr := make([]backend.ProposalRecord, 0, len(files))
+	// Strip non record directories
+	pr := make([]backend.Record, 0, len(files))
 	for _, v := range files {
 		id := v.Name()
 		if !util.IsDigest(id) {
@@ -1522,7 +1555,7 @@ func (g *gitBackEnd) Inventory(vettedCount, branchCount uint, includeFiles bool)
 		if err != nil {
 			return nil, nil, err
 		}
-		prv, err := g.getProposal(ids, g.vetted, includeFiles)
+		prv, err := g.getRecord(ids, g.vetted, includeFiles)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1534,7 +1567,7 @@ func (g *gitBackEnd) Inventory(vettedCount, branchCount uint, includeFiles bool)
 	if err != nil {
 		return nil, nil, err
 	}
-	br := make([]backend.ProposalRecord, 0, len(branches))
+	br := make([]backend.Record, 0, len(branches))
 	for _, id := range branches {
 		if !util.IsDigest(id) {
 			continue
@@ -1544,7 +1577,7 @@ func (g *gitBackEnd) Inventory(vettedCount, branchCount uint, includeFiles bool)
 		if err != nil {
 			return nil, nil, err
 		}
-		pru, err := g.getProposal(ids, g.unvetted, includeFiles)
+		pru, err := g.getRecord(ids, g.unvetted, includeFiles)
 		if err != nil {
 			return nil, nil, err
 		}

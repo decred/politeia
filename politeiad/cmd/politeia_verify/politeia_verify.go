@@ -18,8 +18,8 @@ import (
 
 var (
 	publicKeyFlag = flag.String("k", "", "server public key")
-	tokenFlag     = flag.String("t", "", "proposal censorship token")
-	signatureFlag = flag.String("s", "", "proposal censorship signature")
+	tokenFlag     = flag.String("t", "", "record censorship token")
+	signatureFlag = flag.String("s", "", "record censorship signature")
 	verboseFlag   = flag.Bool("v", false, "verbose output")
 )
 
@@ -27,20 +27,20 @@ func usage() {
 	fmt.Fprintf(os.Stderr, "usage: politeia_verify [-v] -k <pubkey> -t <token> -s <signature> <filename>...\n")
 	fmt.Fprintf(os.Stderr, " parameters:\n")
 	fmt.Fprintf(os.Stderr, "  pubkey        - Politiea's public server key\n")
-	fmt.Fprintf(os.Stderr, "  token         - Proposal censorship token\n")
-	fmt.Fprintf(os.Stderr, "  signature     - Proposal censorship "+
+	fmt.Fprintf(os.Stderr, "  token         - Record censorship token\n")
+	fmt.Fprintf(os.Stderr, "  signature     - Record censorship "+
 		"signature\n")
 	fmt.Fprintf(os.Stderr, "  v             - Verbose output\n")
 	fmt.Fprintf(os.Stderr, "  filename      - One or more paths to the markdown "+
-		"and image files that make up the proposal\n")
+		"and image files that make up the record\n")
 	fmt.Fprintf(os.Stderr, "\n")
 }
 
-func verifyProposal(key [ed25519.PublicKeySize]byte, token []byte, signature [ed25519.SignatureSize]byte) error {
+func verifyRecord(key [ed25519.PublicKeySize]byte, token []byte, signature [ed25519.SignatureSize]byte) error {
 	flags := flag.Args()
 	if len(flags) < 1 {
 		usage()
-		return fmt.Errorf("must provide at least one filename for the proposal")
+		return fmt.Errorf("must provide at least one filename for the record")
 	}
 
 	// Open all files and digest them.
@@ -67,15 +67,15 @@ func verifyProposal(key [ed25519.PublicKeySize]byte, token []byte, signature [ed
 	copy(merkleToken, merkle[:])
 	copy(merkleToken[len(merkle[:]):], token)
 	if ed25519.Verify(&key, merkleToken, &signature) {
-		fmt.Println("Proposal successfully verified")
+		fmt.Println("Record successfully verified")
 	} else {
 		if *verboseFlag {
-			return fmt.Errorf("Proposal failed verification. Please ensure the "+
+			return fmt.Errorf("Record failed verification. Please ensure the "+
 				"public key and merkle are correct.\n"+
 				"  Merkle: %v", hex.EncodeToString(merkle[:]))
 		}
 
-		return fmt.Errorf("Proposal failed verification")
+		return fmt.Errorf("Record failed verification")
 	}
 
 	return nil
@@ -108,7 +108,7 @@ func _main() error {
 	var signature [ed25519.SignatureSize]byte
 	copy(signature[:], s)
 
-	return verifyProposal(publicKey, token, signature)
+	return verifyRecord(publicKey, token, signature)
 }
 
 func main() {

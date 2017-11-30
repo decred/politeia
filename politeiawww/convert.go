@@ -5,18 +5,18 @@ import (
 	www "github.com/decred/politeia/politeiawww/api/v1"
 )
 
-func convertPropStatusFromWWW(s www.PropStatusT) pd.PropStatusT {
+func convertPropStatusFromWWW(s www.PropStatusT) pd.RecordStatusT {
 	switch s {
 	case www.PropStatusNotFound:
-		return pd.PropStatusNotFound
+		return pd.RecordStatusNotFound
 	case www.PropStatusNotReviewed:
-		return pd.PropStatusNotReviewed
+		return pd.RecordStatusNotReviewed
 	case www.PropStatusCensored:
-		return pd.PropStatusCensored
+		return pd.RecordStatusCensored
 	case www.PropStatusPublic:
-		return pd.PropStatusPublic
+		return pd.RecordStatusPublic
 	}
-	return pd.PropStatusInvalid
+	return pd.RecordStatusInvalid
 }
 
 func convertPropFileFromWWW(f www.File) pd.File {
@@ -44,18 +44,20 @@ func convertPropCensorFromWWW(f www.CensorshipRecord) pd.CensorshipRecord {
 	}
 }
 
-func convertPropFromWWW(p www.ProposalRecord) pd.ProposalRecord {
-	return pd.ProposalRecord{
-		Name:             p.Name,
-		Status:           convertPropStatusFromWWW(p.Status),
-		Timestamp:        p.Timestamp,
+func convertPropFromWWW(p www.ProposalRecord) pd.Record {
+	return pd.Record{
+		Status:    convertPropStatusFromWWW(p.Status),
+		Timestamp: p.Timestamp,
+		// XXX METADATA
+		// PublicKey:        p.PublicKey,
+		// Signature:        p.Signature,
 		Files:            convertPropFilesFromWWW(p.Files),
 		CensorshipRecord: convertPropCensorFromWWW(p.CensorshipRecord),
 	}
 }
 
-func convertPropsFromWWW(p []www.ProposalRecord) []pd.ProposalRecord {
-	pr := make([]pd.ProposalRecord, 0, len(p))
+func convertPropsFromWWW(p []www.ProposalRecord) []pd.Record {
+	pr := make([]pd.Record, 0, len(p))
 	for _, v := range p {
 		pr = append(pr, convertPropFromWWW(v))
 	}
@@ -63,15 +65,15 @@ func convertPropsFromWWW(p []www.ProposalRecord) []pd.ProposalRecord {
 }
 
 ///////////////////////////////
-func convertPropStatusFromPD(s pd.PropStatusT) www.PropStatusT {
+func convertPropStatusFromPD(s pd.RecordStatusT) www.PropStatusT {
 	switch s {
-	case pd.PropStatusNotFound:
+	case pd.RecordStatusNotFound:
 		return www.PropStatusNotFound
-	case pd.PropStatusNotReviewed:
+	case pd.RecordStatusNotReviewed:
 		return www.PropStatusNotReviewed
-	case pd.PropStatusCensored:
+	case pd.RecordStatusCensored:
 		return www.PropStatusCensored
-	case pd.PropStatusPublic:
+	case pd.RecordStatusPublic:
 		return www.PropStatusPublic
 	}
 	return www.PropStatusInvalid
@@ -102,9 +104,8 @@ func convertPropCensorFromPD(f pd.CensorshipRecord) www.CensorshipRecord {
 	}
 }
 
-func convertPropFromPD(p pd.ProposalRecord) www.ProposalRecord {
+func convertPropFromPD(p pd.Record) www.ProposalRecord {
 	return www.ProposalRecord{
-		Name:             p.Name,
 		Status:           convertPropStatusFromPD(p.Status),
 		Timestamp:        p.Timestamp,
 		Files:            convertPropFilesFromPD(p.Files),
@@ -112,7 +113,7 @@ func convertPropFromPD(p pd.ProposalRecord) www.ProposalRecord {
 	}
 }
 
-func convertPropsFromPD(p []pd.ProposalRecord) []www.ProposalRecord {
+func convertPropsFromPD(p []pd.Record) []www.ProposalRecord {
 	pr := make([]www.ProposalRecord, 0, len(p))
 	for _, v := range p {
 		pr = append(pr, convertPropFromPD(v))
@@ -122,8 +123,6 @@ func convertPropsFromPD(p []pd.ProposalRecord) []www.ProposalRecord {
 
 func convertErrorStatusFromPD(s int) www.ErrorStatusT {
 	switch pd.ErrorStatusT(s) {
-	case pd.ErrorStatusInvalidProposalName:
-		return www.ErrorStatusInvalidProposalName
 	case pd.ErrorStatusInvalidFileDigest:
 		return www.ErrorStatusInvalidFileDigest
 	case pd.ErrorStatusInvalidBase64:
@@ -132,7 +131,7 @@ func convertErrorStatusFromPD(s int) www.ErrorStatusT {
 		return www.ErrorStatusInvalidMIMEType
 	case pd.ErrorStatusUnsupportedMIMEType:
 		return www.ErrorStatusUnsupportedMIMEType
-	case pd.ErrorStatusInvalidPropStatusTransition:
+	case pd.ErrorStatusInvalidRecordStatusTransition:
 		return www.ErrorStatusInvalidPropStatusTransition
 
 		// These cases are intentionally omitted because

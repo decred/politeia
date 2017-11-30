@@ -53,19 +53,19 @@
   branch = "master"
   name = "github.com/decred/dcrd"
   packages = ["certgen","chaincfg","chaincfg/chainec","chaincfg/chainhash","dcrec/edwards","dcrec/secp256k1","dcrec/secp256k1/schnorr","dcrutil","wire"]
-  revision = "d27429061b49d400d06505911a1379b8a8246671"
+  revision = "664ccfcc63fc25d63906a9869484b688f8cc56bb"
 
 [[projects]]
   branch = "master"
   name = "github.com/decred/dcrtime"
   packages = ["api/v1","merkle"]
-  revision = "015fe33022372ed67a33cbf66868978cb7067d91"
+  revision = "0e63e345e0bfbca74d87290e30d50ab4c6615e1f"
 
 [[projects]]
   branch = "master"
   name = "github.com/decred/dcrwallet"
   packages = ["netparams"]
-  revision = "77d33feac2925f0c6e200d24d5f67e94d25287ed"
+  revision = "f44ea012f2dcd4f7cb63ca054506ed57fc48a49f"
 
 [[projects]]
   branch = "master"
@@ -88,8 +88,8 @@
 [[projects]]
   name = "github.com/gorilla/mux"
   packages = ["."]
-  revision = "24fca303ac6da784b9e8269f724ddeb0b2eea5e7"
-  version = "v1.5.0"
+  revision = "7f08801859139f86dfafd1c296e2cba9a80d292e"
+  version = "v1.6.0"
 
 [[projects]]
   name = "github.com/gorilla/securecookie"
@@ -135,31 +135,37 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/subosito/norma"
+  packages = ["."]
+  revision = "523a8b2df22122d52ab9f6c7c0ae8aa17bb620eb"
+
+[[projects]]
+  branch = "master"
   name = "github.com/syndtr/goleveldb"
   packages = ["leveldb","leveldb/cache","leveldb/comparer","leveldb/errors","leveldb/filter","leveldb/iterator","leveldb/journal","leveldb/memdb","leveldb/opt","leveldb/storage","leveldb/table","leveldb/util"]
-  revision = "b89cc31ef7977104127d34c1bd31ebd1a9db2199"
+  revision = "adf24ef3f94bd13ec4163060b21a5678f22b429b"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/crypto"
   packages = ["bcrypt","blowfish","ripemd160"]
-  revision = "847319b7fc94cab682988f93da778204da164588"
+  revision = "94eea52f7b742c7cbe0b03b22f0c4c8631ece122"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/net"
   packages = ["idna","publicsuffix"]
-  revision = "0a9397675ba34b2845f758fe3cd68828369c6517"
+  revision = "a8b9294777976932365dabb6640cf1468d95c70f"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/text"
   packages = ["collate","collate/build","internal/colltab","internal/gen","internal/tag","internal/triegen","internal/ucd","language","secure/bidirule","transform","unicode/bidi","unicode/cldr","unicode/norm","unicode/rangetable"]
-  revision = "1cbadb444a806fd9430d14ad08967ed91da4fa0a"
+  revision = "75cc3cad82b5f47d3fb229ddda8c5167da14f294"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "f90bce585608f901d5dc6f8b2e5f80a50a18cee4de5b13c4def167b7b59637ef"
+  inputs-digest = "c787b6cd640e2c7e161095e3844e23a8bff679eb635d5e51d6a4d461cd43d44b"
   solver-name = "gps-cdcl"
   solver-version = 1

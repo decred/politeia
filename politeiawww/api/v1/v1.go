@@ -181,6 +181,8 @@ type ProposalRecord struct {
 	Name      string      `json:"name"`      // Suggested short proposal name
 	Status    PropStatusT `json:"status"`    // Current status of proposal
 	Timestamp int64       `json:"timestamp"` // Last update of proposal
+	PublicKey string      `json:"publickey"` // Key used for signature.
+	Signature string      `json:"signature"` // Signature of merkle root
 	Files     []File      `json:"files"`     // Files that make up the proposal
 
 	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`

@@ -13,8 +13,8 @@ import (
 )
 
 var (
-	// ErrProposalNotFound is emitted when a proposal could not be found
-	ErrProposalNotFound = errors.New("proposal not found")
+	// ErrRecordNotFound is emitted when a record could not be found
+	ErrRecordNotFound = errors.New("record not found")
 
 	// ErrShutdown is emitted when the backend is shutting down.
 	ErrShutdown = errors.New("backend is shutting down")
@@ -22,10 +22,10 @@ var (
 	// ErrInvalidTransition is emitted when an invalid status transition
 	// occurs.  The only valid transitions are from unvetted -> vetted and
 	// unvetted to censored.
-	ErrInvalidTransition = errors.New("invalid proposal status transition")
+	ErrInvalidTransition = errors.New("invalid record status transition")
 )
 
-// ContentVerificationError is returned when a submitted proposal contains
+// ContentVerificationError is returned when a submitted record contains
 // unacceptable file formats or corrupt data.
 type ContentVerificationError struct {
 	ErrorCode    v1.ErrorStatusT
@@ -43,57 +43,58 @@ type File struct {
 	Payload string // base64 encoded file
 }
 
-type PSRStatusT int
+type MDStatusT int
 
 const (
-	// All possible PSR status codes
-	PSRStatusInvalid  PSRStatusT = 0
-	PSRStatusUnvetted PSRStatusT = 1
-	PSRStatusVetted   PSRStatusT = 2
-	PSRStatusCensored PSRStatusT = 3
+	// All possible MD status codes
+	MDStatusInvalid  MDStatusT = 0
+	MDStatusUnvetted MDStatusT = 1
+	MDStatusVetted   MDStatusT = 2
+	MDStatusCensored MDStatusT = 3
 )
 
 var (
-	// PSRStatus converts a status code to a human readable error.
-	PSRStatus = map[PSRStatusT]string{
-		PSRStatusInvalid:  "invalid",
-		PSRStatusUnvetted: "unvetted",
-		PSRStatusVetted:   "vetted",
-		PSRStatusCensored: "censored",
+	// MDStatus converts a status code to a human readable error.
+	MDStatus = map[MDStatusT]string{
+		MDStatusInvalid:  "invalid",
+		MDStatusUnvetted: "unvetted",
+		MDStatusVetted:   "vetted",
+		MDStatusCensored: "censored",
 	}
 )
 
-// ProposalStorageRecord is the metadata of a proposal.
-type ProposalStorageRecord struct {
-	Version   uint              // Iteration count of proposal
-	Status    PSRStatusT        // Current status of the proposal
-	Merkle    [sha256.Size]byte // Merkle root of all files in proposal
-	Name      string            // Short name of proposal
+// RecordMetadata is the metadata of a record.
+type RecordMetadata struct {
+	Version   uint              // Iteration count of record
+	Status    MDStatusT         // Current status of the record
+	Merkle    [sha256.Size]byte // Merkle root of all files in record
 	Timestamp int64             // Last updated
-	Token     []byte            // Proposal authentication token
+	Token     []byte            // Record authentication token
 }
 
-// ProposalRecord is a ProposalStorageRecord that includes the files.
-type ProposalRecord struct {
-	ProposalStorageRecord ProposalStorageRecord
-	Files                 []File
+// Record is a permanent that includes the submitted files, metadata and
+// internal metadata.
+type Record struct {
+	RecordMetadata RecordMetadata // Internal metadata
+	Metadata       string         // User provided metadata
+	Files          []File         // User provided files
 }
 
 type Backend interface {
-	// Create new proposal
-	New(string, []File) (*ProposalStorageRecord, error)
+	// Create new record
+	New(string, []File) (*RecordMetadata, error)
 
-	// Get unvetted proposal
-	GetUnvetted([]byte) (*ProposalRecord, error)
+	// Get unvetted record
+	GetUnvetted([]byte) (*Record, error)
 
-	// Get vetted proposal
-	GetVetted([]byte) (*ProposalRecord, error)
+	// Get vetted record
+	GetVetted([]byte) (*Record, error)
 
-	// Set unvetted proposal status
-	SetUnvettedStatus([]byte, PSRStatusT) (PSRStatusT, error)
+	// Set unvetted record status
+	SetUnvettedStatus([]byte, MDStatusT) (MDStatusT, error)
 
-	// Inventory retrieves various proposal records.
-	Inventory(uint, uint, bool) ([]ProposalRecord, []ProposalRecord, error)
+	// Inventory retrieves various record records.
+	Inventory(uint, uint, bool) ([]Record, []Record, error)
 
 	// Close performs cleanup of the backend.
 	Close()
