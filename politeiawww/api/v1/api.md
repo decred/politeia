@@ -497,15 +497,6 @@ The proposal name is derived from the first line of the markdown file - index.md
 | files | array of [`File`](#file)s | Files are the body of the proposal. It should consist of one markdown file - named "index.md" - and up to five pictures. **Note:** all parameters within each [`File`](#file) are required. | Yes |
 | signature | string | Signature of the string representation of the Merkle root of the files payload. Note that the merkle digests are calculated on the decoded payload.. | Yes |
 
-The structure of a file is as follows:
-
-| Parameter | Type | Description | Required |
-|-----------|--------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|
-| name | string | Name is the suggested filename. There should be no filenames that are overlapping and the name shall be validated before being used. | Yes |
-| mime | string | MIME type of the payload. Currently the system only supports md and png/svg files. The server shall reject invalid MIME types. | Yes |
-| digest | string | Digest is a SHA256 digest of the decoded payload. The digest shall be verified by the server. | Yes |
-| payload | string | Payload is the actual file content. It shall be base64 encoded. Files have size limits that can be obtained via the [Policy](#policy) call. The server shall strictly enforce policy limits. | Yes |
-
 **Results:**
 
 | Parameter | Type | Description |

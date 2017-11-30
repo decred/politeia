@@ -672,6 +672,9 @@ func _main() error {
 		adminEmail := *emailFlag
 		adminPassword := *passwordFlag
 		adminID, err := idFromEmail(adminEmail)
+		if err != nil {
+			return err
+		}
 
 		c, err = newClient(true)
 		if err != nil {

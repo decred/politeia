@@ -90,12 +90,7 @@ func (p *politeiawww) setSessionUser(w http.ResponseWriter, r *http.Request, ema
 	}
 
 	session.Values["email"] = email
-	err = session.Save(r, w)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return session.Save(r, w)
 }
 
 // isAdmin returns true if the current session has admin privileges.

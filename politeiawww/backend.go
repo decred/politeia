@@ -656,7 +656,7 @@ func (b *backend) LoadInventory() error {
 // verified before it expires. If the user already exists in the db
 // and its token is expired, it generates a new one.
 //
-// Note that this function always returns a NewUserReply.  The caller shally
+// Note that this function always returns a NewUserReply.  The caller shall
 // verify error and determine how to return this information upstream.
 func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 	var reply www.NewUserReply
@@ -664,8 +664,6 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 	var expiry int64
 
 	// XXX this function really needs to be cleaned up.
-	// XXX We should create a sinlge reply struct that get's returned
-	// instead of many.
 
 	// Ensure we got a proper pubkey.
 	var emptyPK [identity.PublicKeySize]byte
@@ -808,7 +806,7 @@ func (b *backend) ProcessVerifyNewUser(u www.VerifyNewUser) (*database.User, err
 	sig, err := util.ConvertSignature(u.Signature)
 	if err != nil {
 		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusInvalidPublicKey,
+			ErrorCode: www.ErrorStatusInvalidSignature,
 		}
 	}
 	var pi *identity.PublicIdentity
