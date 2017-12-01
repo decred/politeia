@@ -107,8 +107,8 @@ func convertPropCensorFromPD(f pd.CensorshipRecord) www.CensorshipRecord {
 func convertPropFromPD(p pd.Record) www.ProposalRecord {
 	md, err := decodeBackendProposalMetadata([]byte(p.Metadata))
 	if err != nil {
-		log.Debugf("could not decode metadata for proposal %v: %v\n\n",
-			p.CensorshipRecord.Token, p.Metadata, err)
+		log.Errorf("could not decode metadata '%v' token '%v': %v",
+			p.Metadata, p.CensorshipRecord.Token, err)
 		md = &BackendProposalMetadata{}
 	}
 
