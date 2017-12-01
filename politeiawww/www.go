@@ -118,12 +118,16 @@ func (p *politeiawww) getIdentity() error {
 	log.Infof("Key        : %x", id.Key)
 	log.Infof("Fingerprint: %v", id.Fingerprint())
 
-	// Ask user if we like this identity
-	log.Infof("Save to %v or ctrl-c to abort", p.cfg.RPCIdentityFile)
-	scanner := bufio.NewScanner(os.Stdin)
-	scanner.Scan()
-	if err = scanner.Err(); err != nil {
-		return err
+	if p.cfg.Interactive != allowInteractive {
+		// Ask user if we like this identity
+		log.Infof("Save to %v or ctrl-c to abort", p.cfg.RPCIdentityFile)
+		scanner := bufio.NewScanner(os.Stdin)
+		scanner.Scan()
+		if err = scanner.Err(); err != nil {
+			return err
+		}
+	} else {
+		log.Infof("Saving identity to %v", p.cfg.RPCIdentityFile)
 	}
 
 	// Save identity
