@@ -1367,13 +1367,14 @@ func (b *backend) ProcessPolicy(p www.Policy) *www.PolicyReply {
 		MaxNameLength:        www.PolicyMaxProposalNameLength,
 		MinNameLength:        www.PolicyMinProposalNameLength,
 		SupportedCharacters:  www.PolicyProposalNameSupportedCharacters,
+		MaxCommentLength:     www.PolicyMaxCommentLength,
 	}
 }
 
 // NewBackend creates a new backend context for use in www and tests.
 func NewBackend(cfg *config) (*backend, error) {
 	// Setup database.
-	localdb.UseLogger(localdbLog)
+	//localdb.UseLogger(localdbLog)
 	db, err := localdb.New(cfg.DataDir)
 	if err != nil {
 		return nil, err
