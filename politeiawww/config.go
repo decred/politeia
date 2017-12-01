@@ -35,6 +35,8 @@ const (
 
 	defaultMainnetPort = "4443"
 	defaultTestnetPort = "4443"
+
+	allowInteractive = "i-know-this-is-a-bad-idea"
 )
 
 var (
@@ -87,6 +89,7 @@ type config struct {
 	FetchIdentity    bool   `long:"fetchidentity" description:"Whether or not politeiawww fetches the identity from politeiad."`
 	WebServerAddress string `long:"webserveraddress" description:"Address for the Politeia web server; it should have this format: <scheme>://<host>[:<port>]"`
 	Proxy            bool   `long:"proxy" description:"Run in proxy mode (no CSRF)."`
+	Interactive      string `long:"interactive" description:"Set to i-know-this-is-a-bad-idea to turn off interactive mode during --fetchidentity."`
 }
 
 // serviceOptions defines the configuration options for the rpc as a service

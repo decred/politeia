@@ -26,19 +26,24 @@ import (
 	"github.com/decred/politeia/util"
 )
 
+const allowInteractive = "i-know-this-is-a-bad-idea"
+
 var (
 	defaultHomeDir          = dcrutil.AppDataDir("politeia", false)
 	defaultIdentityFilename = "identity.json"
 
 	identityFilename = flag.String("-id", filepath.Join(defaultHomeDir,
 		defaultIdentityFilename), "remote server identity file")
-	testnet   = flag.Bool("testnet", false, "Use testnet port")
-	printJson = flag.Bool("json", false, "Print JSON")
-	verbose   = flag.Bool("v", false, "Verbose")
-	rpcuser   = flag.String("rpcuser", "", "RPC user name for privileged calls")
-	rpcpass   = flag.String("rpcpass", "", "RPC password for privileged calls")
-	rpchost   = flag.String("rpchost", "", "RPC host")
-	rpccert   = flag.String("rpccert", "", "RPC certificate")
+	testnet     = flag.Bool("testnet", false, "Use testnet port")
+	printJson   = flag.Bool("json", false, "Print JSON")
+	verbose     = flag.Bool("v", false, "Verbose")
+	rpcuser     = flag.String("rpcuser", "", "RPC user name for privileged calls")
+	rpcpass     = flag.String("rpcpass", "", "RPC password for privileged calls")
+	rpchost     = flag.String("rpchost", "", "RPC host")
+	rpccert     = flag.String("rpccert", "", "RPC certificate")
+	interactive = flag.String("interactive", "", "Set to "+
+		allowInteractive+" to to turn off interactive mode during "+
+		"identity fetch")
 
 	verify = false // Validate server TLS certificate
 )
@@ -118,14 +123,18 @@ func getIdentity() error {
 	fmt.Printf("Fingerprint: %v\n", id.Fingerprint())
 
 	// Ask user if we like this identity
-	fmt.Printf("\nSave to %v or ctrl-c to abort ", rf)
-	scanner := bufio.NewScanner(os.Stdin)
-	scanner.Scan()
-	if err = scanner.Err(); err != nil {
-		return err
-	}
-	if len(scanner.Text()) != 0 {
-		rf = scanner.Text()
+	if *interactive != allowInteractive {
+		fmt.Printf("\nSave to %v or ctrl-c to abort ", rf)
+		scanner := bufio.NewScanner(os.Stdin)
+		scanner.Scan()
+		if err = scanner.Err(); err != nil {
+			return err
+		}
+		if len(scanner.Text()) != 0 {
+			rf = scanner.Text()
+		}
+	} else {
+		fmt.Printf("Saving identity to %v\n", rf)
 	}
 	rf = cleanAndExpandPath(rf)
 
