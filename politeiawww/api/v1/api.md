@@ -765,7 +765,7 @@ Reply:
 
 ### `New comment`
 
-Submit comment on given proposal.  ParentID value "" means "comment on
+Submit comment on given proposal.  ParentID value "0" means "comment on
 proposal"; if the value is not empty it means "reply to comment".
 
 **Route:** `POST /v1/comments/new`
