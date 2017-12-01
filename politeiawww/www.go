@@ -97,6 +97,9 @@ func (p *politeiawww) setSessionUser(w http.ResponseWriter, r *http.Request, ema
 func (p *politeiawww) isAdmin(r *http.Request) (bool, error) {
 	user, err := p.getSessionUser(r)
 	if err != nil {
+		if err == database.ErrUserNotFound {
+			return false, nil
+		}
 		return false, err
 	}
 
