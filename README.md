@@ -77,6 +77,11 @@ Save to /Users/marco/Library/Application Support/Politeia/identity.json or ctrl-
 Identity saved to: /Users/marco/Library/Application Support/Politeia/identity.json
 ```
 
+Compile politeia command line tool:
+```
+go install -v github.com/decred/politeia/politeiad/cmd/politeia
+```
+
 Send proposal:
 ```
 politeia -v -testnet -rpchost 127.0.0.1 new "My awesome proposal" proposal.txt spec.txt
