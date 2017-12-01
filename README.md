@@ -148,6 +148,7 @@ politeiawww_refclient
 
 ### testnet
 ```
+# politeiawww
 location /api/ {
 	# disable caching
 	expires off;
@@ -164,6 +165,7 @@ location /api/ {
 	proxy_pass https://test-politeia.domain.com:4443/;
 }
 
+# politeiagui
 location / {
 	# redirect not found
 	error_page 404 =200 /;
