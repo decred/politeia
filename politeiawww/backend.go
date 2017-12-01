@@ -1094,9 +1094,9 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 			return nil, err
 		}
 
-		log.Infof("Submitted proposal name: %v\n", name)
+		log.Infof("Submitted proposal name: %v", name)
 		for k, f := range n.Files {
-			fmt.Printf("%02v: %v %v\n", k, f.Name, f.Digest)
+			log.Infof("%02v: %v %v", k, f.Name, f.Digest)
 		}
 
 		err = json.Unmarshal(responseBody, &pdReply)
