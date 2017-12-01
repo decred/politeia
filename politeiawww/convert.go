@@ -105,9 +105,19 @@ func convertPropCensorFromPD(f pd.CensorshipRecord) www.CensorshipRecord {
 }
 
 func convertPropFromPD(p pd.Record) www.ProposalRecord {
+	md, err := decodeBackendProposalMetadata([]byte(p.Metadata))
+	if err != nil {
+		log.Debugf("could not decode metadata for proposal %v: %v\n\n",
+			p.CensorshipRecord.Token, p.Metadata, err)
+		md = &BackendProposalMetadata{}
+	}
+
 	return www.ProposalRecord{
+		Name:             md.Name,
 		Status:           convertPropStatusFromPD(p.Status),
-		Timestamp:        p.Timestamp,
+		Timestamp:        md.Timestamp,
+		PublicKey:        md.PublicKey,
+		Signature:        md.Signature,
 		Files:            convertPropFilesFromPD(p.Files),
 		CensorshipRecord: convertPropCensorFromPD(p.CensorshipRecord),
 	}
