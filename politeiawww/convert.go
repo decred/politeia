@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/davecgh/go-spew/spew"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	www "github.com/decred/politeia/politeiawww/api/v1"
 )
@@ -44,13 +45,17 @@ func convertPropCensorFromWWW(f www.CensorshipRecord) pd.CensorshipRecord {
 	}
 }
 
+// convertPropFromWWW converts a www proposal to a politeiad record.  This
+// function should only be used in tests. Note that convertPropFromWWW can not
+// emulate MD properly.
 func convertPropFromWWW(p www.ProposalRecord) pd.Record {
 	return pd.Record{
 		Status:    convertPropStatusFromWWW(p.Status),
 		Timestamp: p.Timestamp,
-		// XXX METADATA
-		// PublicKey:        p.PublicKey,
-		// Signature:        p.Signature,
+		Metadata: []pd.MetadataStream{{
+			ID:      pd.MetadataStreamsMax + 1, // fail deliberately
+			Payload: "invalid payload",
+		}},
 		Files:            convertPropFilesFromWWW(p.Files),
 		CensorshipRecord: convertPropCensorFromWWW(p.CensorshipRecord),
 	}
@@ -105,11 +110,19 @@ func convertPropCensorFromPD(f pd.CensorshipRecord) www.CensorshipRecord {
 }
 
 func convertPropFromPD(p pd.Record) www.ProposalRecord {
-	md, err := decodeBackendProposalMetadata([]byte(p.Metadata))
-	if err != nil {
-		log.Errorf("could not decode metadata '%v' token '%v': %v",
-			p.Metadata, p.CensorshipRecord.Token, err)
-		md = &BackendProposalMetadata{}
+	log.Infof("%v", spew.Sdump(p))
+	md := &BackendProposalMetadata{}
+	for _, v := range p.Metadata {
+		if v.ID != mdStreamGeneral {
+			continue
+		}
+		m, err := decodeBackendProposalMetadata([]byte(v.Payload))
+		if err != nil {
+			log.Errorf("could not decode metadata '%v' token '%v': %v",
+				p.Metadata, p.CensorshipRecord.Token, err)
+			break
+		}
+		md = m
 	}
 
 	return www.ProposalRecord{

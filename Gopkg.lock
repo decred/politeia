@@ -134,6 +134,12 @@
   version = "v1"
 
 [[projects]]
+  name = "github.com/stretchr/testify"
+  packages = ["assert","require","suite"]
+  revision = "69483b4bd14f5845b5a1e55bca19e954e827f1d0"
+  version = "v1.1.4"
+
+[[projects]]
   branch = "master"
   name = "github.com/subosito/norma"
   packages = ["."]
@@ -166,6 +172,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "c787b6cd640e2c7e161095e3844e23a8bff679eb635d5e51d6a4d461cd43d44b"
+  inputs-digest = "6650db74ea716a5c76ed2becd966dd54e5e124c167dca181fbad9b8ecf5115fa"
   solver-name = "gps-cdcl"
   solver-version = 1

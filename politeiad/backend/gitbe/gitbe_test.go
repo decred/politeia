@@ -99,7 +99,10 @@ func TestAnchorWithCommits(t *testing.T) {
 		}
 		allFiles[i] = files
 
-		rm[i], err = g.New(name, files)
+		rm[i], err = g.New([]backend.MetadataStream{{
+			ID:      0, // XXX
+			Payload: "this is metadata",
+		}}, files)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -160,7 +163,9 @@ func TestAnchorWithCommits(t *testing.T) {
 
 	// Vet 1 of the records
 	t.Logf("===== VET RECORD 1 =====")
-	status, err := g.SetUnvettedStatus(rm[1].Token, backend.MDStatusVetted)
+	emptyMD := []backend.MetadataStream{}
+	status, err := g.SetUnvettedStatus(rm[1].Token, backend.MDStatusVetted,
+		emptyMD, emptyMD)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -337,7 +342,8 @@ func TestAnchorWithCommits(t *testing.T) {
 
 	// Vet + anchor
 	t.Logf("===== INTERLEAVE ANCHORS =====")
-	_, err = g.SetUnvettedStatus(rm[2].Token, backend.MDStatusVetted)
+	_, err = g.SetUnvettedStatus(rm[2].Token, backend.MDStatusVetted,
+		emptyMD, emptyMD)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -347,7 +353,8 @@ func TestAnchorWithCommits(t *testing.T) {
 	}
 
 	// Vet + anchor
-	_, err = g.SetUnvettedStatus(rm[0].Token, backend.MDStatusVetted)
+	_, err = g.SetUnvettedStatus(rm[0].Token, backend.MDStatusVetted,
+		emptyMD, emptyMD)
 	if err != nil {
 		t.Fatal(err)
 	}

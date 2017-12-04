@@ -1,43 +1,75 @@
 package main
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"net/http"
 	"os"
+	"path"
+	"path/filepath"
 	"strconv"
 	"time"
 
+	pd "github.com/decred/politeia/politeiad/api/v1"
 	www "github.com/decred/politeia/politeiawww/api/v1"
+	"github.com/decred/politeia/util"
 )
 
+type CommentActionT int
+
 const (
-	defaultCommentJournalDir  = "comments"
-	defaultCommentJournalFile = "journal.json"
+	defaultCommentJournalDir = "comments"
+	defaultCommentVersion    = uint64(1)
+
+	CommentActionInvalid CommentActionT = 0 // Invalid action
+	CommentActionAdd     CommentActionT = 1 // Add comment
+	CommentActionDelete  CommentActionT = 2 // Delete comment
 )
 
 // BackendComment wraps www.Comment into an internal usable structure.
 type BackendComment struct {
-	CommentID uint64
-	UserID    uint64
-	ParentID  uint64
-	Timestamp int64
-	Token     string
-	Comment   string
-
 	// www additional fields
-	Flushed bool // Set to true when it has been sent to politeaid
+	Version uint64
+	Action  CommentActionT
+
+	// Meta-data
+	Timestamp int64  // Received UNIX timestamp
+	UserID    string // Originating user
+	CommentID string // Comment ID
+
+	// Data
+	Token     string // Censorship token
+	ParentID  string // Parent comment ID
+	Comment   string // Comment
+	Signature string // Signature of Token+ParentID+Comment
 }
 
 // backendCommentToComment converts BackendComment to www.Comment.
 func backendCommentToComment(bec BackendComment) www.Comment {
 	return www.Comment{
-		CommentID: strconv.FormatUint(bec.CommentID, 10),
-		UserID:    strconv.FormatUint(bec.UserID, 10),
-		ParentID:  strconv.FormatUint(bec.ParentID, 10),
 		Timestamp: bec.Timestamp,
+		UserID:    bec.UserID,
+		CommentID: bec.CommentID,
 		Token:     bec.Token,
+		ParentID:  bec.ParentID,
 		Comment:   bec.Comment,
+		Signature: bec.Signature,
+	}
+}
+
+// backendCommentToComment converts BackendComment to www.Comment.
+func wwwCommentToBackendComment(www BackendComment) BackendComment {
+	return BackendComment{
+		Timestamp: www.Timestamp,
+		UserID:    www.UserID,
+		CommentID: www.CommentID,
+		Token:     www.Token,
+		ParentID:  www.ParentID,
+		Comment:   www.Comment,
+		Signature: www.Signature,
 	}
 }
 
@@ -80,29 +112,28 @@ func (b *backend) getComments(token string) (*www.GetCommentsReply, error) {
 func (b *backend) addComment(c www.NewComment, userID uint64) (*www.NewCommentReply, error) {
 
 	// validations
+	// XXX this needs to be more rigorous
 	if err := validateComment(c); err != nil {
-		return nil, err
-	}
-
-	pid, err := strconv.ParseUint(c.ParentID, 10, 64)
-	if err != nil {
 		return nil, err
 	}
 
 	// Journal comment
 	comment := BackendComment{
-		CommentID: b.commentID,
-		UserID:    userID,
+		Version:   defaultCommentVersion,
+		Action:    CommentActionAdd,
 		Timestamp: time.Now().Unix(),
+		UserID:    strconv.FormatUint(userID, 10),
+		CommentID: strconv.FormatUint(b.commentID, 10),
 		Token:     c.Token,
-		ParentID:  pid,
+		ParentID:  c.ParentID,
 		Comment:   c.Comment,
+		Signature: c.Signature,
 	}
 	cb, err := json.Marshal(comment)
 	if err != nil {
 		return nil, err
 	}
-	f, err := os.OpenFile(b.commentJournalFile,
+	f, err := os.OpenFile(path.Join(b.commentJournalDir, c.Token),
 		os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
 		return nil, err
@@ -113,7 +144,7 @@ func (b *backend) addComment(c www.NewComment, userID uint64) (*www.NewCommentRe
 	// Store comment in memory for quick lookup
 	b.comments[c.Token][b.commentID] = comment
 	cr := www.NewCommentReply{
-		CommentID: strconv.FormatUint(b.commentID, 10),
+		CommentID: comment.CommentID,
 	}
 	b.commentID++
 
@@ -121,11 +152,12 @@ func (b *backend) addComment(c www.NewComment, userID uint64) (*www.NewCommentRe
 }
 
 // replayCommentJournal reads the comments journal and recreates the internal
-// memory map.
+// memory map.  Not all failures are considered fatal.  It is better to load
+// some comments instead of none.
 // This call must be called with the lock held.
-func (b *backend) replayCommentJournal() error {
+func (b *backend) replayCommentJournal(token string) error {
 	// Replay journal
-	f, err := os.Open(b.commentJournalFile)
+	f, err := os.Open(token)
 	if err != nil {
 		// See if there is something to do with the journal.
 		if os.IsNotExist(err) {
@@ -142,15 +174,140 @@ func (b *backend) replayCommentJournal() error {
 		} else if err != nil {
 			return err
 		}
+
+		// Verify comment version
+		if c.Version != defaultCommentVersion {
+			log.Errorf("unsupported comment version: got %v "+
+				"wanted %v", c.Version, defaultCommentVersion)
+			continue
+		}
+
+		cid, err := strconv.ParseUint(c.CommentID, 10, 64)
+		if err != nil {
+			log.Errorf("invalid CommentID %v", err)
+			continue
+		}
+
 		// Add to memory cache
 		if _, ok := b.comments[c.Token]; !ok {
 			b.comments[c.Token] = make(map[uint64]BackendComment)
 		}
-		b.comments[c.Token][c.CommentID] = c
+
+		switch c.Action {
+		case CommentActionAdd:
+			b.comments[c.Token][cid] = c
+		case CommentActionDelete:
+			delete(b.comments[c.Token], cid)
+		default:
+			log.Errorf("invalid comment action: %v token %v "+
+				"comment id %v", c.Action, c.Token, c.CommentID)
+			// fallthrough
+		}
 
 		// See if this is the last comment
-		if c.CommentID > b.commentID {
-			b.commentID = c.CommentID
+		if cid > b.commentID {
+			b.commentID = cid
+		}
+	}
+
+	return nil
+}
+
+// replayCommentJournals replays all comment journals into the memory cache.
+func (b *backend) replayCommentJournals() error {
+	fi, err := ioutil.ReadDir(b.commentJournalDir)
+	if err != nil {
+		return err
+	}
+
+	for _, v := range fi {
+		filename := v.Name()
+		_, err = util.ConvertStringToken(filename)
+		if err != nil {
+			log.Tracef("replayCommentJournals: skipping %v",
+				filename)
+			continue
+		}
+		log.Tracef("replayCommentJournals: %v", filename)
+		err = b.replayCommentJournal(filepath.Join(b.commentJournalDir,
+			filename))
+		if err != nil {
+			// log but ignore errors
+			log.Errorf("replayCommentJournals: %v", err)
+		}
+	}
+
+	return nil
+}
+
+// flushCommentJournal flushes all comments to politeiad. For now this uses the
+// large hammer approach of always flushing all comments.
+func (b *backend) flushCommentJournals() error {
+	fi, err := ioutil.ReadDir(b.commentJournalDir)
+	if err != nil {
+		return err
+	}
+
+	for _, v := range fi {
+		filename := v.Name()
+		_, err = util.ConvertStringToken(filename)
+		if err != nil {
+			log.Tracef("flushCommentJournals: skipping %v",
+				filename)
+			continue
+		}
+
+		log.Tracef("flushCommentJournals: %v", filename)
+
+		md, err := ioutil.ReadFile(filepath.Join(b.commentJournalDir,
+			filename))
+		if err != nil {
+			// log but ignore errors
+			log.Errorf("flushCommentJournals: %v", err)
+			continue
+
+		}
+
+		// Create update command
+		challenge, err := util.Random(pd.ChallengeSize)
+		if err != nil {
+			// Should not happen so bail
+			return err
+		}
+		upd := pd.UpdateVettedMetadata{
+			Challenge: hex.EncodeToString(challenge),
+			Token:     filename,
+			MDOverwrite: []pd.MetadataStream{{
+				ID:      mdStreamComments,
+				Payload: string(md),
+			}},
+		}
+
+		responseBody, err := b.makeRequest(http.MethodPost,
+			pd.UpdateVettedMetadataRoute, upd)
+		if err != nil {
+			e, ok := err.(www.PDError)
+			if !ok {
+				log.Errorf("flushCommentJournals: update %v", err)
+				continue
+			}
+			log.Errorf("flushCommentJournals: update %v",
+				pd.ErrorStatus[pd.ErrorStatusT(e.ErrorReply.ErrorCode)])
+			continue
+		}
+
+		var uur pd.UpdateUnvettedReply
+		err = json.Unmarshal(responseBody, &uur)
+		if err != nil {
+			log.Errorf("flushCommentJournals: unmarshal %v", err)
+			continue
+		}
+
+		err = util.VerifyChallenge(b.cfg.Identity, challenge,
+			uur.Response)
+		if err != nil {
+			log.Errorf("flushCommentJournals: verify %v", err)
+			continue
 		}
 	}
 
@@ -164,6 +321,7 @@ func validateComment(c www.NewComment) error {
 			ErrorCode: www.ErrorStatusCommentLengthExceededPolicy,
 		}
 	}
-
-	return nil
+	// validate token
+	_, err := util.ConvertStringToken(c.Token)
+	return err
 }

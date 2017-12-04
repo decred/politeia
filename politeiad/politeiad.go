@@ -44,6 +44,15 @@ func remoteAddr(r *http.Request) string {
 	return via
 }
 
+// convertBackendMetadataStream converts a backend metadata stream to an API
+// metadata stream.
+func convertBackendMetadataStream(mds backend.MetadataStream) v1.MetadataStream {
+	return v1.MetadataStream{
+		ID:      mds.ID,
+		Payload: mds.Payload,
+	}
+}
+
 // convertBackendStatus converts a backend MDStatus to an API status.
 func convertBackendStatus(status backend.MDStatusT) v1.RecordStatusT {
 	s := v1.RecordStatusInvalid
@@ -56,6 +65,8 @@ func convertBackendStatus(status backend.MDStatusT) v1.RecordStatusT {
 		s = v1.RecordStatusPublic
 	case backend.MDStatusCensored:
 		s = v1.RecordStatusCensored
+	case backend.MDStatusIterationUnvetted:
+		s = v1.RecordStatusUnreviewedChanges
 	}
 	return s
 }
@@ -76,6 +87,30 @@ func convertFrontendStatus(status v1.RecordStatusT) backend.MDStatusT {
 	return s
 }
 
+func convertFrontendFiles(f []v1.File) []backend.File {
+	files := make([]backend.File, 0, len(f))
+	for _, v := range f {
+		files = append(files, backend.File{
+			Name:    v.Name,
+			MIME:    v.MIME,
+			Digest:  v.Digest,
+			Payload: v.Payload,
+		})
+	}
+	return files
+}
+
+func convertFrontendMetadataStream(mds []v1.MetadataStream) []backend.MetadataStream {
+	m := make([]backend.MetadataStream, 0, len(mds))
+	for _, v := range mds {
+		m = append(m, backend.MetadataStream{
+			ID:      v.ID,
+			Payload: v.Payload,
+		})
+	}
+	return m
+}
+
 func (p *politeia) convertBackendRecord(br backend.Record) v1.Record {
 	rm := br.RecordMetadata
 
@@ -84,6 +119,12 @@ func (p *politeia) convertBackendRecord(br backend.Record) v1.Record {
 	copy(merkleToken, rm.Merkle[:])
 	copy(merkleToken[len(rm.Merkle[:]):], rm.Token)
 	signature := p.identity.SignMessage(merkleToken)
+
+	// Convert MetadataStream
+	md := make([]v1.MetadataStream, 0, len(br.Metadata))
+	for k := range br.Metadata {
+		md = append(md, convertBackendMetadataStream(br.Metadata[k]))
+	}
 
 	// Convert record
 	pr := v1.Record{
@@ -94,7 +135,7 @@ func (p *politeia) convertBackendRecord(br backend.Record) v1.Record {
 			Token:     hex.EncodeToString(rm.Token),
 			Signature: hex.EncodeToString(signature[:]),
 		},
-		Metadata: br.Metadata,
+		Metadata: md,
 	}
 	pr.Files = make([]v1.File, 0, len(br.Files))
 	for _, v := range br.Files {
@@ -159,24 +200,15 @@ func (p *politeia) newRecord(w http.ResponseWriter, r *http.Request) {
 
 	challenge, err := hex.DecodeString(t.Challenge)
 	if err != nil || len(challenge) != v1.ChallengeSize {
-		log.Errorf("%v NewRecord: invalid challenge", remoteAddr(r))
+		log.Errorf("%v newRecord: invalid challenge", remoteAddr(r))
 		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
 		return
 	}
 
 	log.Infof("New record submitted %v", remoteAddr(r))
 
-	// Convert to backend call
-	files := make([]backend.File, 0, len(t.Files))
-	for _, v := range t.Files {
-		files = append(files, backend.File{
-			Name:    v.Name,
-			MIME:    v.MIME,
-			Digest:  v.Digest,
-			Payload: v.Payload,
-		})
-	}
-	rm, err := p.backend.New(t.Metadata, files)
+	rm, err := p.backend.New(convertFrontendMetadataStream(t.Metadata),
+		convertFrontendFiles(t.Files))
 	if err != nil {
 		// Check for content error.
 		if contentErr, ok := err.(backend.ContentVerificationError); ok {
@@ -212,6 +244,82 @@ func (p *politeia) newRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Infof("New record accepted %v: token %v", remoteAddr(r),
+		reply.CensorshipRecord.Token)
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+func (p *politeia) updateUnvetted(w http.ResponseWriter, r *http.Request) {
+	var t v1.UpdateUnvetted
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&t); err != nil {
+		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload,
+			nil)
+		return
+	}
+	defer r.Body.Close()
+
+	challenge, err := hex.DecodeString(t.Challenge)
+	if err != nil || len(challenge) != v1.ChallengeSize {
+		log.Errorf("%v updateRecord: invalid challenge", remoteAddr(r))
+		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
+		return
+	}
+
+	// Validate token
+	token, err := util.ConvertStringToken(t.Token)
+	if err != nil {
+		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
+		return
+	}
+
+	log.Infof("Update record submitted %v: %x", remoteAddr(r), token)
+
+	rm, err := p.backend.UpdateUnvettedRecord(token,
+		convertFrontendMetadataStream(t.MDAppend),
+		convertFrontendMetadataStream(t.MDOverwrite),
+		convertFrontendFiles(t.FilesAdd), t.FilesDel)
+	if err != nil {
+		if err == backend.ErrNoChanges {
+			log.Errorf("%v update record no changes: %x",
+				remoteAddr(r), token)
+			p.respondWithUserError(w, v1.ErrorStatusNoChanges, nil)
+			return
+		}
+		// Check for content error.
+		if contentErr, ok := err.(backend.ContentVerificationError); ok {
+			log.Errorf("%v update record content error: %v",
+				remoteAddr(r), contentErr)
+			p.respondWithUserError(w, contentErr.ErrorCode,
+				contentErr.ErrorContext)
+			return
+		}
+
+		// Generic internal error.
+		errorCode := time.Now().Unix()
+		log.Errorf("%v Update record error code %v: %v", remoteAddr(r),
+			errorCode, err)
+		p.respondWithServerError(w, errorCode)
+		return
+	}
+
+	// Prepare reply.
+	merkleToken := make([]byte, len(rm.Merkle)+len(rm.Token))
+	copy(merkleToken, rm.Merkle[:])
+	copy(merkleToken[len(rm.Merkle[:]):], rm.Token)
+	signature := p.identity.SignMessage(merkleToken)
+
+	response := p.identity.SignMessage(challenge)
+	reply := v1.UpdateUnvettedReply{
+		Response: hex.EncodeToString(response[:]),
+		CensorshipRecord: v1.CensorshipRecord{
+			Merkle:    hex.EncodeToString(rm.Merkle[:]),
+			Token:     hex.EncodeToString(rm.Token),
+			Signature: hex.EncodeToString(signature[:]),
+		},
+	}
+
+	log.Infof("Update record %v: token %v", remoteAddr(r),
 		reply.CensorshipRecord.Token)
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
@@ -446,7 +554,9 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 
 	// Ask backend to update unvetted status
 	status, err := p.backend.SetUnvettedStatus(token,
-		convertFrontendStatus(t.Status))
+		convertFrontendStatus(t.Status),
+		convertFrontendMetadataStream(t.MDAppend),
+		convertFrontendMetadataStream(t.MDOverwrite))
 	if err != nil {
 		oldStatus := v1.RecordStatus[convertBackendStatus(status)]
 		newStatus := v1.RecordStatus[t.Status]
@@ -473,6 +583,69 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 
 	log.Infof("Set unvetted record status %v: token %v status %v",
 		remoteAddr(r), t.Token, v1.RecordStatus[reply.Status])
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+func (p *politeia) updateVettedMetadata(w http.ResponseWriter, r *http.Request) {
+	var t v1.UpdateVettedMetadata
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&t); err != nil {
+		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
+		return
+	}
+	defer r.Body.Close()
+
+	challenge, err := hex.DecodeString(t.Challenge)
+	if err != nil || len(challenge) != v1.ChallengeSize {
+		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
+		return
+	}
+	response := p.identity.SignMessage(challenge)
+
+	// Validate token
+	token, err := util.ConvertStringToken(t.Token)
+	if err != nil {
+		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
+		return
+	}
+
+	log.Infof("Update vetted metadata submitted %v: %x", remoteAddr(r),
+		token)
+
+	err = p.backend.UpdateVettedMetadata(token,
+		convertFrontendMetadataStream(t.MDAppend),
+		convertFrontendMetadataStream(t.MDOverwrite))
+	if err != nil {
+		if err == backend.ErrNoChanges {
+			log.Errorf("%v update vetted metadata no changes: %x",
+				remoteAddr(r), token)
+			p.respondWithUserError(w, v1.ErrorStatusNoChanges, nil)
+			return
+		}
+		// Check for content error.
+		if contentErr, ok := err.(backend.ContentVerificationError); ok {
+			log.Errorf("%v update vetted metadata content error: %v",
+				remoteAddr(r), contentErr)
+			p.respondWithUserError(w, contentErr.ErrorCode,
+				contentErr.ErrorContext)
+			return
+		}
+
+		// Generic internal error.
+		errorCode := time.Now().Unix()
+		log.Errorf("%v Update vetted metadata error code %v: %v",
+			remoteAddr(r), errorCode, err)
+		p.respondWithServerError(w, errorCode)
+		return
+	}
+
+	// Reply
+	reply := v1.UpdateVettedMetadataReply{
+		Response: hex.EncodeToString(response[:]),
+	}
+
+	log.Infof("Update vetted metadata %v: token %x", remoteAddr(r), token)
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
@@ -612,8 +785,10 @@ func _main() error {
 	// Unprivileged routes
 	p.router.HandleFunc(v1.IdentityRoute,
 		logging(p.getIdentity)).Methods("POST")
-	p.router.HandleFunc(v1.NewRoute,
+	p.router.HandleFunc(v1.NewRecordRoute,
 		logging(p.newRecord)).Methods("POST")
+	p.router.HandleFunc(v1.UpdateUnvettedRoute,
+		logging(p.updateUnvetted)).Methods("POST")
 	p.router.HandleFunc(v1.GetUnvettedRoute,
 		logging(p.getUnvetted)).Methods("POST")
 	p.router.HandleFunc(v1.GetVettedRoute,
@@ -624,6 +799,8 @@ func _main() error {
 		logging(p.auth(p.inventory))).Methods("POST")
 	p.router.HandleFunc(v1.SetUnvettedStatusRoute,
 		logging(p.auth(p.setUnvettedStatus))).Methods("POST")
+	p.router.HandleFunc(v1.UpdateVettedMetadataRoute,
+		logging(p.auth(p.updateVettedMetadata))).Methods("POST")
 
 	// Bind to a port and pass our router in
 	listenC := make(chan error)

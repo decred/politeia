@@ -22,16 +22,20 @@ type RecordStatusT int
 
 const (
 	// Routes
-	IdentityRoute  = "/v1/identity/"  // Retrieve identity
-	NewRoute       = "/v1/new/"       // New record
-	GetVettedRoute = "/v1/getvetted/" // Retrieve vetted record
+	IdentityRoute             = "/v1/identity/"       // Retrieve identity
+	NewRecordRoute            = "/v1/newrecord/"      // New record
+	UpdateUnvettedRoute       = "/v1/updateunvetted/" // Update unvetted record
+	UpdateVettedMetadataRoute = "/v1/updatevettedmd/" // Update vetted metadata
+	GetUnvettedRoute          = "/v1/getunvetted/"    // Retrieve unvetted record
+	GetVettedRoute            = "/v1/getvetted/"      // Retrieve vetted record
 
 	// Auth required
-	GetUnvettedRoute       = "/v1/getunvetted/"       // Retrieve unvetted record
 	InventoryRoute         = "/v1/inventory/"         // Inventory records
 	SetUnvettedStatusRoute = "/v1/setunvettedstatus/" // Set unvetted status
 
-	ChallengeSize = 32 // Size of challenge token in bytes
+	ChallengeSize      = 32         // Size of challenge token in bytes
+	TokenSize          = 32         // Size of token
+	MetadataStreamsMax = uint64(16) // Maximum number of metadata streams
 
 	// Error status codes
 	ErrorStatusInvalid                       ErrorStatusT = 0
@@ -44,6 +48,11 @@ const (
 	ErrorStatusUnsupportedMIMEType           ErrorStatusT = 7
 	ErrorStatusInvalidRecordStatusTransition ErrorStatusT = 8
 	ErrorStatusEmpty                         ErrorStatusT = 9
+	ErrorStatusInvalidMDID                   ErrorStatusT = 10
+	ErrorStatusDuplicateMDID                 ErrorStatusT = 11
+	ErrorStatusDuplicateFilename             ErrorStatusT = 12
+	ErrorStatusFileNotFound                  ErrorStatusT = 13
+	ErrorStatusNoChanges                     ErrorStatusT = 14
 
 	// Record status codes (set and get)
 	RecordStatusInvalid     RecordStatusT = 0 // Invalid status
@@ -51,6 +60,9 @@ const (
 	RecordStatusNotReviewed RecordStatusT = 2 // Record has not been reviewed
 	RecordStatusCensored    RecordStatusT = 3 // Record has been censored
 	RecordStatusPublic      RecordStatusT = 4 // Record is publicly visible
+
+	// Public visible record that has changes that are not public
+	RecordStatusUnreviewedChanges RecordStatusT = 5
 
 	// Default network bits
 	DefaultMainnetHost = "politeia.decred.org"
@@ -73,16 +85,22 @@ var (
 		ErrorStatusInvalidMIMEType:               "invalid MIME type detected",
 		ErrorStatusUnsupportedMIMEType:           "unsupported MIME type",
 		ErrorStatusInvalidRecordStatusTransition: "invalid record status transition",
-		ErrorStatusEmpty:                         "no files provided",
+		ErrorStatusEmpty:                         "empty record",
+		ErrorStatusInvalidMDID:                   "invalid metadata id",
+		ErrorStatusDuplicateMDID:                 "duplicate metadata id",
+		ErrorStatusDuplicateFilename:             "duplicate filename",
+		ErrorStatusFileNotFound:                  "file not found",
+		ErrorStatusNoChanges:                     "no changes in record",
 	}
 
 	// RecordStatus converts record status codes to human readable text.
 	RecordStatus = map[RecordStatusT]string{
-		RecordStatusInvalid:     "invalid status",
-		RecordStatusNotFound:    "not found",
-		RecordStatusNotReviewed: "not reviewed",
-		RecordStatusCensored:    "censored",
-		RecordStatusPublic:      "public",
+		RecordStatusInvalid:           "invalid status",
+		RecordStatusNotFound:          "not found",
+		RecordStatusNotReviewed:       "not reviewed",
+		RecordStatusCensored:          "censored",
+		RecordStatusPublic:            "public",
+		RecordStatusUnreviewedChanges: "unreviewed changes",
 	}
 
 	// Input validation
@@ -184,6 +202,12 @@ type File struct {
 	Payload string `json:"payload"` // File content
 }
 
+// MetadataStream identifies a metadata stream by its identity.
+type MetadataStream struct {
+	ID      uint64 `json:"id"`      // Stream identity
+	Payload string `json:"payload"` // String encoded metadata
+}
+
 // Record is an entire record and it's content.
 type Record struct {
 	Status    RecordStatusT `json:"status"`    // Current status
@@ -192,17 +216,17 @@ type Record struct {
 	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
 
 	// User data
-	Metadata string `json:"metadata"` // string encoded metadata
-	Files    []File `json:"files"`    // Files that make up the record
+	Metadata []MetadataStream `json:"metadata"` // Metadata streams
+	Files    []File           `json:"files"`    // Files that make up the record
 }
 
 // NewRecord creates a new record.  It must include all files that are part of
 // the record and it may contain an optional metatda record.  Thet optional
 // metadatarecord must be string encoded.
 type NewRecord struct {
-	Challenge string `json:"challenge"` // Random challenge
-	Metadata  string `json:"metadata"`  // string encoded metadata
-	Files     []File `json:"files"`     // Files that make up record
+	Challenge string           `json:"challenge"` // Random challenge
+	Metadata  []MetadataStream `json:"metadata"`  // Metadata streams
+	Files     []File           `json:"files"`     // Files that make up record
 }
 
 // NewRecordReply returns the CensorshipRecord that is associated with a valid
@@ -240,11 +264,13 @@ type GetVettedReply struct {
 
 // SetUnvettedStatus updates the status of an unvetted record.  This is used
 // to either promote a record to the public viewable repository or to censor
-// it.
+// it. Additionally, metadata updates may travel along.
 type SetUnvettedStatus struct {
-	Challenge string        `json:"challenge"` // Random challenge
-	Token     string        `json:"token"`     // Censorship token
-	Status    RecordStatusT `json:"status"`    // Update unvetted status of record
+	Challenge   string           `json:"challenge"`   // Random challenge
+	Token       string           `json:"token"`       // Censorship token
+	Status      RecordStatusT    `json:"status"`      // New status of record
+	MDAppend    []MetadataStream `json:"mdappend"`    // Metadata streams to append
+	MDOverwrite []MetadataStream `json:"mdoverwrite"` // Metadata streams to overwrite
 }
 
 // SetUnvettedStatus is a response to a SetUnvettedStatus.  The status field
@@ -255,16 +281,38 @@ type SetUnvettedStatusReply struct {
 	Status   RecordStatusT `json:"status"`   // Actual status, may differ from request
 }
 
-//type UpdateUnvetted struct {
-//	Challenge string `json:"challenge"` // Random challenge
-//	Token     string `json:"token"`     // Censorship token
-//	Files     []File `json:"files"`     // Files that make up the record
-//}
-//
-//type UpdateUnvetted struct {
-//	Challenge string `json:"challenge"` // Random challenge
-//	Token     string `json:"token"`     // Censorship token
-//}
+// UpdateUnvetted update an unvetted record.
+type UpdateUnvetted struct {
+	Challenge   string           `json:"challenge"`   // Random challenge
+	Token       string           `json:"token"`       // Censorship token
+	MDAppend    []MetadataStream `json:"mdappend"`    // Metadata streams to append
+	MDOverwrite []MetadataStream `json:"mdoverwrite"` // Metadata streams to overwrite
+	FilesDel    []string         `json:"filesdel"`    // Files that will be deleted
+	FilesAdd    []File           `json:"filesadd"`    // Files that are modified or added
+}
+
+// UpdateUnvetted returns a CensorshipRecord which may or may not have changed.
+// Metadata updates do not create a new CensorshipRecord.
+type UpdateUnvettedReply struct {
+	Response string `json:"response"` // Challenge response
+
+	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
+}
+
+// UpdateVettedMetadata update a vetted metadata.  This is allowed for
+// priviledged users.  The record itself may not change.
+type UpdateVettedMetadata struct {
+	Challenge   string           `json:"challenge"`   // Random challenge
+	Token       string           `json:"token"`       // Censorship token
+	MDAppend    []MetadataStream `json:"mdappend"`    // Metadata streams to append
+	MDOverwrite []MetadataStream `json:"mdoverwrite"` // Metadata streams to overwrite
+}
+
+// UpdateVettedMetadataReply returns a response challenge to an
+// UpdateVettedMetadata command.
+type UpdateVettedMetadataReply struct {
+	Response string `json:"response"` // Challenge response
+}
 
 // Inventory sends an (expensive and therefore authenticated) inventory request
 // for vetted records (master branch) and branches (censored, unpublished etc)
@@ -274,10 +322,12 @@ type SetUnvettedStatusReply struct {
 // as well.  This can quickly become very large and should only be used when
 // recovering the client side.
 type Inventory struct {
-	Challenge     string `json:"challenge"`     // Random challenge
-	IncludeFiles  bool   `json:"includefiles"`  // Include files in records
-	VettedCount   uint   `json:"vettedcount"`   // Last N vetted records
-	BranchesCount uint   `json:"branchescount"` // Last N branches (censored, new etc)
+	Challenge string `json:"challenge"` // Random challenge
+	// XXX add IncludeMD
+	IncludeFiles bool `json:"includefiles"` // Include files in records
+	// XXX add VettedStart and BranchesStart
+	VettedCount   uint `json:"vettedcount"`   // Last N vetted records
+	BranchesCount uint `json:"branchescount"` // Last N branches (censored, new etc)
 }
 
 // InventoryReply returns vetted and unvetted records.  If the Inventory
