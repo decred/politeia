@@ -198,6 +198,21 @@ func (g *gitBackEnd) gitBranches(path string) ([]string, error) {
 	return b, nil
 }
 
+func (g *gitBackEnd) gitBranchNow(path string) (string, error) {
+	branches, err := g.git(path, "branch")
+	if err != nil {
+		return "", err
+	}
+
+	for _, v := range branches {
+		if strings.Contains(v, "*") {
+			return strings.Trim(v, " *\t\n"), nil
+		}
+	}
+
+	return "", fmt.Errorf("unexpected git output")
+}
+
 func (g *gitBackEnd) gitPull(path string, fastForward bool) error {
 	var err error
 	if fastForward {

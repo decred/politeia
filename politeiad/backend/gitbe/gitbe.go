@@ -1124,6 +1124,10 @@ func (g *gitBackEnd) getRecord(token []byte, repo string, includeFiles bool) (*b
 		if err != nil {
 			return nil, backend.ErrRecordNotFound
 		}
+		branchNow, err := g.gitBranchNow(repo)
+		if err != nil || branchNow != id {
+			return nil, backend.ErrRecordNotFound
+		}
 	}
 	defer func() {
 		// git checkout master
