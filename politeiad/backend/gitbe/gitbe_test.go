@@ -169,7 +169,7 @@ func TestAnchorWithCommits(t *testing.T) {
 			backend.MDStatusVetted)
 	}
 	//Get it as well to validate the GetVetted call
-	pru, err := g.GetUnvetted(rm[1].Token)
+	pru, err := g.GetVetted(rm[1].Token)
 	if err != nil {
 		t.Fatal(err)
 	}
