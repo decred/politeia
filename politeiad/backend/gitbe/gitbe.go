@@ -71,6 +71,11 @@ const (
 
 	// expectedTestTX is a fake TX used by unit tests.
 	expectedTestTX = "TESTTX"
+
+	// markerAnchorConfirmation is used in commit messages to determine
+	// where an anchor confirmation has been committed.  This value is
+	// parsed and therefore must be a const.
+	markerAnchorConfirmation = "Anchor confirmation"
 )
 
 var (
@@ -842,7 +847,8 @@ func (g *gitBackEnd) afterAnchorVerify(vrs []v1.VerifyDigest, precious [][]byte)
 			return err
 		}
 		// git commit anchor confirmation
-		err = g.gitCommit(g.vetted, "Anchor confirmation\n\n"+commitMsg)
+		err = g.gitCommit(g.vetted, markerAnchorConfirmation+"\n\n"+
+			commitMsg)
 		if err != nil {
 			return err
 		}
@@ -1183,10 +1189,21 @@ func (g *gitBackEnd) fsck(path string) error {
 	}
 
 	// Create an index of all git digests
+	var seenAnchor bool
 	gitDigests := make(map[string]struct{})
 	for _, v := range out {
 		// Skip anchor commits, this simplifies reconcile process.
 		if strings.Contains(v, "Anchor") {
+			if !strings.Contains(v, markerAnchorConfirmation) {
+				// We now have seen an Anchor commit. The
+				// following digests are now precious.
+				seenAnchor = true
+			}
+			continue
+		}
+		if !seenAnchor {
+			// We have not seen an Anchor yet so this digest is not
+			// precious.
 			continue
 		}
 		// git output is digest followed by one liner commit message
