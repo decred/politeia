@@ -43,9 +43,6 @@ https://github.com/decred/politeiagui
 * https://faucet.decred.org - instance of [testnetfaucet](https://github.com/decred/testnetfaucet)
   which is used by **politeiawww_refclient** to satisfy paywall requests in an
   automated fashion.
-* https://test-politeiapayments.decred.org - testing/development instance of
-  [php-paywallgateway](https://github.com/decred/dcrpayments/php-paywallgateway)
-  microservice which handles generating price quotes and updating payment status.
 * https://test-proposals.decred.org/ - testing/development instance of
   [politeiagui](https://github.com/decred/politeiagui).
 
@@ -68,14 +65,14 @@ account to derive payment addresses.  You may either use one of the
 pre-generated test keys (grep the source for tpub) or you may acquire one by
 creating accounts and retrieving the public keys for those accounts:
 
-Put the result of the following command as paywall=tpub... in politeiawww.conf.
+Put the result of the following command as paywallxpub=tpub... in politeiawww.conf.
 
 ```
 dcrctl --wallet --testnet createnewaccount politeiauserpayments
 dcrctl --wallet --testnet getmasterpubkey politeiauserpayments
 ```
 
-Put the result of the following command as paywall=tpub... in politeiad.conf.
+Put the result of the following command as paywallxpub=tpub... in politeiad.conf.
 
 ```
 dcrctl --wallet --testnet createnewaccount politeiaproposalpayments

@@ -802,19 +802,16 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 		// public key.
 		user, err := b.db.UserGet(u.Email)
 		if err != nil {
-			log.Debugf("UserGet failed: %v", err)
-			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusUnableToDerivePaywallAddress,
-			}
+			return nil, fmt.Errorf("Unable to retrieve account info for %v: %v",
+				u.Email, err)
 		}
 
 		// Derive a paywall address for this user.
-		paywallAddress, err := util.DerivePaywallAddress(b.params, b.cfg.PaywallXpub, uint32(user.ID))
+		paywallAddress, err := util.DerivePaywallAddress(b.params,
+			b.cfg.PaywallXpub, uint32(user.ID))
 		if err != nil {
-			log.Debugf("DerivePaywallAddress failed: %v", err)
-			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusUnableToDerivePaywallAddress,
-			}
+			return nil, fmt.Errorf("Unable to derive paywall address #%v "+
+				"for %v: %v", uint32(user.ID), u.Email, err)
 		}
 
 		reply.PaywallAddress = paywallAddress

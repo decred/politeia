@@ -1001,16 +1001,20 @@ func (g *gitBackEnd) New(metadata string, files []backend.File) (*backend.Record
 	}
 	id := hex.EncodeToString(token)
 
-	// Since gitbe does not have a monotonic integer as an Id like politeiawww
-	// we need to generate a random address.  To keep wallet scans short, we
-	// limit the range.  Duplicate addresses are fine since the paywall gateway
-	// ensures transactions happen after the "order" is created.
-	index := uint32(rand.Intn(10000))
+	paywallAddress := ""
+	// Try to generate a paywall address if set.
+	if g.paywallXpub != "" {
+		// Since gitbe does not have a monotonic integer as an Id like politeiawww
+		// we need to generate a random address.  To keep wallet scans short, we
+		// limit the range.  Duplicate addresses are fine since the paywall gateway
+		// ensures transactions happen after the "order" is created.
+		index := uint32(rand.Intn(10000))
 
-	// Derive the random address paywall address.
-	paywallAddress, err := util.DerivePaywallAddress(g.params, g.paywallXpub, index)
-	if err != nil {
-		return nil, err
+		// Derive the random address paywall address.
+		paywallAddress, err = util.DerivePaywallAddress(g.params, g.paywallXpub, index)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Lock filesystem
