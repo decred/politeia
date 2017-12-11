@@ -54,7 +54,6 @@ API.  It does not render HTML.
 - [`ErrorStatusInvalidInput`](#ErrorStatusInvalidInput)
 - [`ErrorStatusInvalidSigningKey`](#ErrorStatusInvalidSigningKey)
 - [`ErrorStatusCommentLengthExceededPolicy`](#ErrorStatusCommentLengthExceededPolicy)
-- [`ErrorStatusUnableToDerivePaywallAddress`](#ErrorStatusUnableToDerivePaywallAddress)
 
 **Proposal status codes**
 
@@ -185,7 +184,6 @@ This call can return one of the following error codes:
 
 - [`ErrorStatusInvalidEmailOrPassword`](#ErrorStatusInvalidEmailOrPassword)
 - [`ErrorStatusMalformedEmail`](#ErrorStatusMalformedEmail)
-- [`ErrorStatusUnableToDerivePaywallAddress`](#ErrorStatusUnableToDerivePaywallAddress)
 
 The email shall include a link in the following format:
 
@@ -910,7 +908,6 @@ Reply:
 | <a name="ErrorStatusInvalidInput">ErrorStatusInvalidInput</a> | 24 | Invalid input. |
 | <a name="ErrorStatusInvalidSigningKey">ErrorStatusInvalidSigningKey</a> | 25 | Invalid signing key. |
 | <a name="ErrorStatusCommentLengthExceededPolicy">ErrorStatusCommentLengthExceededPolicy</a> | 26 | The submitted comment length is too large. |
-| <a name="ErrorStatusUnableToDerivePaywallAddress">ErrorStatusUnableToDerivePaywallAddress</a> | 27 | Unable to derive paywall address from key. |
 
 ### Proposal status codes
 

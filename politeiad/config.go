@@ -511,17 +511,15 @@ func loadConfig() (*config, []string, error) {
 		log.Warnf("RPC password not set, using random value")
 	}
 
-	if cfg.PaywallXpub == "" {
-		return nil, nil, fmt.Errorf("PaywallXpub must be set and is not")
-	}
-
-	paywallKey, err := hdkeychain.NewKeyFromString(cfg.PaywallXpub)
-	if err != nil {
-		return nil, nil, fmt.Errorf("PaywallXpub is invalid: %v",
-			err)
-	}
-	if !paywallKey.IsForNet(activeNetParams.Params) {
-		return nil, nil, fmt.Errorf("PayWallXpub is for the wrong network")
+	if cfg.PaywallXpub != "" {
+		paywallKey, err := hdkeychain.NewKeyFromString(cfg.PaywallXpub)
+		if err != nil {
+			return nil, nil, fmt.Errorf("PaywallXpub is invalid: %v",
+				err)
+		}
+		if !paywallKey.IsForNet(activeNetParams.Params) {
+			return nil, nil, fmt.Errorf("PayWallXpub is for the wrong network")
+		}
 	}
 
 	// Warn about missing config file only after all other configuration is
