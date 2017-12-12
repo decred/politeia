@@ -3,6 +3,7 @@ package localdb
 import (
 	"encoding/binary"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/decred/politeia/politeiawww/database"
@@ -95,7 +96,7 @@ func (l *localdb) UserGet(email string) (*database.User, error) {
 	}
 
 	log.Debugf("UserGet: %v", email)
-	payload, err := l.userdb.Get([]byte(email), nil)
+	payload, err := l.userdb.Get([]byte(strings.ToLower(email)), nil)
 	if err == leveldb.ErrNotFound {
 		return nil, database.ErrUserNotFound
 	} else if err != nil {
