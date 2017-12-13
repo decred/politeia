@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/debug"
+	"strings"
 	"testing"
 	"time"
 
@@ -139,7 +140,7 @@ func createAndVerifyUser(t *testing.T, b *backend) (www.NewUser, *identity.FullI
 
 	signature := id.SignMessage([]byte(nur.VerificationToken))
 	v := www.VerifyNewUser{
-		Email:             nu.Email,
+		Email:             strings.ToUpper(nu.Email),
 		VerificationToken: nur.VerificationToken,
 		Signature:         hex.EncodeToString(signature[:]),
 	}
@@ -484,7 +485,7 @@ func TestProcessResetPassword(t *testing.T) {
 
 	// Reset password verify
 	rp = www.ResetPassword{
-		Email:             u.Email,
+		Email:             strings.ToUpper(u.Email),
 		VerificationToken: rpr.VerificationToken,
 		NewPassword:       generateRandomPassword(),
 	}

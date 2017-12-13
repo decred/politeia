@@ -773,7 +773,7 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 
 		// Add the user and hashed password to the db.
 		newUser := database.User{
-			Email:          u.Email,
+			Email:          strings.ToLower(u.Email),
 			HashedPassword: hashedPassword,
 			Admin:          false,
 			NewUserVerificationToken:  token,
