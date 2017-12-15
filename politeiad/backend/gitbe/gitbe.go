@@ -1348,7 +1348,8 @@ func (g *gitBackEnd) fsck(path string) error {
 		for k := range gitDigests {
 			log.Errorf("unexpected digest: %v", k)
 		}
-		return fmt.Errorf("expected reconcile map to be empty")
+		//return fmt.Errorf("expected reconcile map to be empty")
+		log.Errorf("expected reconcile map to be empty")
 	}
 
 	return nil
