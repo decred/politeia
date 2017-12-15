@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/agl/ed25519"
+	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	www "github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/util"
@@ -69,7 +70,10 @@ func createBackend(t *testing.T) *backend {
 	defer os.RemoveAll(dir)
 
 	cfg := &config{
-		DataDir: filepath.Join(dir, "data"),
+		DataDir:       filepath.Join(dir, "data"),
+		PaywallAmount: .1,
+		PaywallXpub:   "tpubVobLtToNtTq6TZNw4raWQok35PRPZou53vegZqNubtBTJMMFmuMpWybFCfweJ52N8uZJPZZdHE5SRnBBuuRPfC5jdNstfKjiAs8JtbYG9jx",
+		TestNet:       true,
 	}
 
 	b, err := NewBackend(cfg)
@@ -77,6 +81,7 @@ func createBackend(t *testing.T) *backend {
 		t.Fatal(err)
 	}
 
+	b.params = &chaincfg.TestNet2Params
 	b.test = true
 	b.inventory = make([]www.ProposalRecord, 0)
 	return b
