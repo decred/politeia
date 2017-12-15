@@ -39,13 +39,6 @@ Note that politeiawww does not provide HTML output.  It strictly handles the
 JSON REST RPC commands only.  The GUI for politeiawww can be found at:
 https://github.com/decred/politeiagui
 
-## Integrated Projects / External APIs / Official Development URLs
-* https://faucet.decred.org - instance of [testnetfaucet](https://github.com/decred/testnetfaucet)
-  which is used by **politeiawww_refclient** to satisfy paywall requests in an
-  automated fashion.
-* https://test-proposals.decred.org/ - testing/development instance of
-  [politeiagui](https://github.com/decred/politeiagui).
-
 ## Dependencies
 * git - the git command line tool must be installed on the machine that runs
   politeiad and be in the PATH.  The version that was used to validate the
@@ -59,28 +52,6 @@ https://github.com/decred/politeiagui
 * util - common used miscellaneous utility functions.
 
 ## Example
-
-The paywall functionality of politeia requires a master public key for an
-account to derive payment addresses.  You may either use one of the
-pre-generated test keys (grep the source for tpub) or you may acquire one by
-creating accounts and retrieving the public keys for those accounts:
-
-Put the result of the following command as paywallxpub=tpub... in politeiawww.conf.
-
-```
-dcrctl --wallet --testnet createnewaccount politeiauserpayments
-dcrctl --wallet --testnet getmasterpubkey politeiauserpayments
-```
-
-Put the result of the following command as paywallxpub=tpub... in politeiad.conf.
-
-```
-dcrctl --wallet --testnet createnewaccount politeiaproposalpayments
-dcrctl --wallet --testnet getmasterpubkey politeiaproposalpayments
-```
-
-The other paywall config flags should be not need to be set unless you wish to
-test against a local instance.
 
 Compile and launch the politeia daemon:
 ```

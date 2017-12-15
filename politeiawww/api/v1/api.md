@@ -176,9 +176,7 @@ Create a new user on the politeiawww server.
 
 | Parameter | Type | Description |
 |-|-|-|
-| paywalladdress | String | The address in which to send paywall funds.|
-| paywallamount | Float64 | The amount of DCR to send to the paywall address.|
-| verificationtoken | String | The verification token which is required when calling [Verify user](#verify-user). If an email server is set up, this property will be empty or nonexistent; the token will be sent to the email address sent in the request.|
+| verificationtoken | string | The verification token which is required when calling [Verify user](#verify-user). If an email server is set up, this property will be empty or nonexistent; the token will be sent to the email address sent in the request. |
 
 This call can return one of the following error codes:
 

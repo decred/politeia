@@ -20,7 +20,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/dajohi/goemail"
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrtime/merkle"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
@@ -42,7 +41,6 @@ type backend struct {
 
 	db                 database.Database
 	cfg                *config
-	params             *chaincfg.Params
 	commentJournalDir  string
 	commentJournalFile string
 
@@ -794,34 +792,6 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 				}
 			}
 
-			return nil, err
-		}
-
-		// Get user that we just inserted so we can use their numerical user
-		// ID (N) to derive the Nth paywall address from the paywall extended
-		// public key.
-		user, err := b.db.UserGet(u.Email)
-		if err != nil {
-			return nil, fmt.Errorf("Unable to retrieve account info for %v: %v",
-				u.Email, err)
-		}
-
-		// Derive a paywall address for this user.
-		paywallAddress, err := util.DerivePaywallAddress(b.params,
-			b.cfg.PaywallXpub, uint32(user.ID))
-		if err != nil {
-			return nil, fmt.Errorf("Unable to derive paywall address #%v "+
-				"for %v: %v", uint32(user.ID), u.Email, err)
-		}
-
-		reply.PaywallAddress = paywallAddress
-		reply.PaywallAmount = b.cfg.PaywallAmount
-		user.NewUserPaywallAddress = paywallAddress
-		user.NewUserPaywallAmount = b.cfg.PaywallAmount
-		user.NewUserPaywallTxNotBefore = time.Now().Unix()
-
-		err = b.db.UserUpdate(*user)
-		if err != nil {
 			return nil, err
 		}
 	}

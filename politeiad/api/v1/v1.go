@@ -32,7 +32,6 @@ const (
 	SetUnvettedStatusRoute = "/v1/setunvettedstatus/" // Set unvetted status
 
 	ChallengeSize = 32 // Size of challenge token in bytes
-	IDSize        = 32 // Size of randomly generated ID in bytes
 
 	// Error status codes
 	ErrorStatusInvalid                       ErrorStatusT = 0
