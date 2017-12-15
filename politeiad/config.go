@@ -18,7 +18,6 @@ import (
 
 	flags "github.com/btcsuite/go-flags"
 	"github.com/decred/dcrd/dcrutil"
-	"github.com/decred/dcrd/hdkeychain"
 	"github.com/decred/dcrtime/api/v1"
 	"github.com/decred/politeia/util"
 )
@@ -43,7 +42,6 @@ var (
 	defaultHTTPSCertFile = filepath.Join(defaultHomeDir, "https.cert")
 	defaultLogDir        = filepath.Join(defaultHomeDir, defaultLogDirname)
 	defaultIdentityFile  = filepath.Join(defaultHomeDir, defaultIdentityFilename)
-	defaultPaywallAmount = .1
 )
 
 // runServiceCommand is only set to a real function on Windows.  It is used
@@ -54,29 +52,27 @@ var runServiceCommand func(string) error
 //
 // See loadConfig for details on the configuration load process.
 type config struct {
-	HomeDir       string   `short:"A" long:"appdata" description:"Path to application home directory"`
-	ShowVersion   bool     `short:"V" long:"version" description:"Display version information and exit"`
-	ConfigFile    string   `short:"C" long:"configfile" description:"Path to configuration file"`
-	DataDir       string   `short:"b" long:"datadir" description:"Directory to store data"`
-	LogDir        string   `long:"logdir" description:"Directory to log output."`
-	TestNet       bool     `long:"testnet" description:"Use the test network"`
-	SimNet        bool     `long:"simnet" description:"Use the simulation test network"`
-	Profile       string   `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
-	CPUProfile    string   `long:"cpuprofile" description:"Write CPU profile to the specified file"`
-	MemProfile    string   `long:"memprofile" description:"Write mem profile to the specified file"`
-	DebugLevel    string   `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
-	Listeners     []string `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 49152, testnet: 59152)"`
-	Version       string
-	HTTPSCert     string  `long:"httpscert" description:"File containing the https certificate file"`
-	HTTPSKey      string  `long:"httpskey" description:"File containing the https certificate key"`
-	RPCUser       string  `long:"rpcuser" description:"RPC user name for privileged commands"`
-	RPCPass       string  `long:"rpcpass" description:"RPC password for privileged commands"`
-	DcrtimeHost   string  `long:"dcrtimehost" description:"Dcrtime ip:port"`
-	DcrtimeCert   string  `long:"dcrtimecert" description:"File containing the https certificate file for dcrtimehost"`
-	Identity      string  `long:"identity" description:"File containing the politeiad identity file"`
-	GitTrace      bool    `long:"gittrace" description:"Enable git tracing in logs"`
-	PaywallAmount float64 `long:"paywallamount" description:"Amount of DCR required for a proposal to be visible."`
-	PaywallXpub   string  `long:"paywallxpub" description:"Extended public key for deriving paywall addresses."`
+	HomeDir     string   `short:"A" long:"appdata" description:"Path to application home directory"`
+	ShowVersion bool     `short:"V" long:"version" description:"Display version information and exit"`
+	ConfigFile  string   `short:"C" long:"configfile" description:"Path to configuration file"`
+	DataDir     string   `short:"b" long:"datadir" description:"Directory to store data"`
+	LogDir      string   `long:"logdir" description:"Directory to log output."`
+	TestNet     bool     `long:"testnet" description:"Use the test network"`
+	SimNet      bool     `long:"simnet" description:"Use the simulation test network"`
+	Profile     string   `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
+	CPUProfile  string   `long:"cpuprofile" description:"Write CPU profile to the specified file"`
+	MemProfile  string   `long:"memprofile" description:"Write mem profile to the specified file"`
+	DebugLevel  string   `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
+	Listeners   []string `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 49152, testnet: 59152)"`
+	Version     string
+	HTTPSCert   string `long:"httpscert" description:"File containing the https certificate file"`
+	HTTPSKey    string `long:"httpskey" description:"File containing the https certificate key"`
+	RPCUser     string `long:"rpcuser" description:"RPC user name for privileged commands"`
+	RPCPass     string `long:"rpcpass" description:"RPC password for privileged commands"`
+	DcrtimeHost string `long:"dcrtimehost" description:"Dcrtime ip:port"`
+	DcrtimeCert string `long:"dcrtimecert" description:"File containing the https certificate file for dcrtimehost"`
+	Identity    string `long:"identity" description:"File containing the politeiad identity file"`
+	GitTrace    bool   `long:"gittrace" description:"Enable git tracing in logs"`
 }
 
 // serviceOptions defines the configuration options for the daemon as a service
@@ -241,15 +237,14 @@ func newConfigParser(cfg *config, so *serviceOptions, options flags.Options) *fl
 func loadConfig() (*config, []string, error) {
 	// Default config.
 	cfg := config{
-		HomeDir:       defaultHomeDir,
-		ConfigFile:    defaultConfigFile,
-		DebugLevel:    defaultLogLevel,
-		DataDir:       defaultDataDir,
-		LogDir:        defaultLogDir,
-		HTTPSKey:      defaultHTTPSKeyFile,
-		HTTPSCert:     defaultHTTPSCertFile,
-		PaywallAmount: defaultPaywallAmount,
-		Version:       version(),
+		HomeDir:    defaultHomeDir,
+		ConfigFile: defaultConfigFile,
+		DebugLevel: defaultLogLevel,
+		DataDir:    defaultDataDir,
+		LogDir:     defaultLogDir,
+		HTTPSKey:   defaultHTTPSKeyFile,
+		HTTPSCert:  defaultHTTPSCertFile,
+		Version:    version(),
 	}
 
 	// Service options which are only added on Windows.
@@ -509,17 +504,6 @@ func loadConfig() (*config, []string, error) {
 		}
 		cfg.RPCPass = base64.StdEncoding.EncodeToString(pass)
 		log.Warnf("RPC password not set, using random value")
-	}
-
-	if cfg.PaywallXpub != "" {
-		paywallKey, err := hdkeychain.NewKeyFromString(cfg.PaywallXpub)
-		if err != nil {
-			return nil, nil, fmt.Errorf("PaywallXpub is invalid: %v",
-				err)
-		}
-		if !paywallKey.IsForNet(activeNetParams.Params) {
-			return nil, nil, fmt.Errorf("PayWallXpub is for the wrong network")
-		}
 	}
 
 	// Warn about missing config file only after all other configuration is

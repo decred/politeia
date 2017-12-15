@@ -65,15 +65,11 @@ var (
 
 // RecordMetadata is the metadata of a record.
 type RecordMetadata struct {
-	Version            uint              // Iteration count of record
-	Status             MDStatusT         // Current status of the record
-	Merkle             [sha256.Size]byte // Merkle root of all files in record
-	Timestamp          int64             // Last updated
-	Token              []byte            // Record authentication token
-	PaywallAddress     string            // Address the user needs to send to
-	PaywallAmount      float64           // Amount the user needs to send
-	PaywallTx          string            // Paywall transaction id
-	PaywallTxNotBefore int64             // Transactions occurring before this time will not be valid.
+	Version   uint              // Iteration count of record
+	Status    MDStatusT         // Current status of the record
+	Merkle    [sha256.Size]byte // Merkle root of all files in record
+	Timestamp int64             // Last updated
+	Token     []byte            // Record authentication token
 }
 
 // Record is a permanent that includes the submitted files, metadata and
