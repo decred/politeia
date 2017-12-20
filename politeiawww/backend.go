@@ -33,7 +33,18 @@ import (
 const (
 	// indexFile contains the file name of the index file
 	indexFile = "index.md"
+
+	// mdStream* indicate the metadata stream used for various types
+	mdStreamGeneral  = 0 // General information for this proposal
+	mdStreamComments = 1 // Comments
+	mdStreamChanges  = 2 // Changes to record
 )
+
+type MDStreamChanges struct {
+	AdminPubKey string           // Identity of the administrator
+	NewStatus   pd.RecordStatusT // NewStatus
+	Timestamp   int64            // Timestamp of the change
+}
 
 // politeiawww backend construct
 type backend struct {
@@ -1059,8 +1070,11 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 
 	n := pd.NewRecord{
 		Challenge: hex.EncodeToString(challenge),
-		Metadata:  string(md),
-		Files:     convertPropFilesFromWWW(np.Files),
+		Metadata: []pd.MetadataStream{{
+			ID:      mdStreamGeneral,
+			Payload: string(md),
+		}},
+		Files: convertPropFilesFromWWW(np.Files),
 	}
 
 	var pdReply pd.NewRecordReply
@@ -1089,7 +1103,8 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 		b.initComment(pdReply.CensorshipRecord.Token)
 		b.Unlock()
 	} else {
-		responseBody, err := b.makeRequest(http.MethodPost, pd.NewRoute, n)
+		responseBody, err := b.makeRequest(http.MethodPost,
+			pd.NewRecordRoute, n)
 		if err != nil {
 			return nil, err
 		}
@@ -1152,10 +1167,33 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 			return nil, err
 		}
 
+		// Create chnage record
+		newStatus := convertPropStatusFromWWW(sps.ProposalStatus)
+		r := MDStreamChanges{
+			Timestamp: time.Now().Unix(),
+			NewStatus: newStatus,
+		}
+		if ai, ok := database.ActiveIdentityString(user.Identities); !ok {
+			return nil, fmt.Errorf("invalid admin identity: %v",
+				user.ID)
+		} else {
+			r.AdminPubKey = ai
+		}
+		blob, err := json.Marshal(r)
+		if err != nil {
+			return nil, err
+		}
+
 		sus := pd.SetUnvettedStatus{
 			Token:     sps.Token,
-			Status:    convertPropStatusFromWWW(sps.ProposalStatus),
+			Status:    newStatus,
 			Challenge: hex.EncodeToString(challenge),
+			MDOverwrite: []pd.MetadataStream{
+				{
+					ID:      mdStreamChanges,
+					Payload: string(blob),
+				},
+			},
 		}
 
 		responseBody, err := b.makeRequest(http.MethodPost,
@@ -1389,12 +1427,16 @@ func NewBackend(cfg *config) (*backend, error) {
 			defaultCommentJournalDir),
 		commentID: 1, // Replay will set this value
 	}
-	b.commentJournalFile = filepath.Join(b.commentJournalDir,
-		defaultCommentJournalFile)
 
 	// Setup comments
 	os.MkdirAll(b.commentJournalDir, 0744)
-	err = b.replayCommentJournal()
+	err = b.replayCommentJournals()
+	if err != nil {
+		return nil, err
+	}
+
+	// Flush comments
+	err = b.flushCommentJournals()
 	if err != nil {
 		return nil, err
 	}

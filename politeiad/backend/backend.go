@@ -16,8 +16,15 @@ var (
 	// ErrRecordNotFound is emitted when a record could not be found
 	ErrRecordNotFound = errors.New("record not found")
 
+	// ErrFileNotFound is emitted when a file inside a record could not be
+	// found
+	ErrFileNotFound = errors.New("file not found")
+
 	// ErrShutdown is emitted when the backend is shutting down.
 	ErrShutdown = errors.New("backend is shutting down")
+
+	// ErrShutdown is emitted when the backend is shutting down.
+	ErrNoChanges = errors.New("no changes to record")
 
 	// ErrInvalidTransition is emitted when an invalid status transition
 	// occurs.  The only valid transitions are from unvetted -> vetted and
@@ -47,19 +54,21 @@ type MDStatusT int
 
 const (
 	// All possible MD status codes
-	MDStatusInvalid  MDStatusT = 0
-	MDStatusUnvetted MDStatusT = 1
-	MDStatusVetted   MDStatusT = 2
-	MDStatusCensored MDStatusT = 3
+	MDStatusInvalid           MDStatusT = 0 // Invalid status, this is a bug
+	MDStatusUnvetted          MDStatusT = 1 // Unvetted record
+	MDStatusVetted            MDStatusT = 2 // Vetted record
+	MDStatusCensored          MDStatusT = 3 // Censored record
+	MDStatusIterationUnvetted MDStatusT = 4 // Changes are unvetted
 )
 
 var (
 	// MDStatus converts a status code to a human readable error.
 	MDStatus = map[MDStatusT]string{
-		MDStatusInvalid:  "invalid",
-		MDStatusUnvetted: "unvetted",
-		MDStatusVetted:   "vetted",
-		MDStatusCensored: "censored",
+		MDStatusInvalid:           "invalid",
+		MDStatusUnvetted:          "unvetted",
+		MDStatusVetted:            "vetted",
+		MDStatusCensored:          "censored",
+		MDStatusIterationUnvetted: "iteration unvetted",
 	}
 )
 
@@ -72,17 +81,32 @@ type RecordMetadata struct {
 	Token     []byte            // Record authentication token
 }
 
+// MetadataStream describes a single metada stream.  The ID determines how and
+// where it is stored.
+type MetadataStream struct {
+	ID      uint64 // Stream identity
+	Payload string // String encoded metadata
+}
+
 // Record is a permanent that includes the submitted files, metadata and
 // internal metadata.
 type Record struct {
-	RecordMetadata RecordMetadata // Internal metadata
-	Metadata       string         // User provided metadata
-	Files          []File         // User provided files
+	RecordMetadata RecordMetadata   // Internal metadata
+	Metadata       []MetadataStream // User provided metadata
+	Files          []File           // User provided files
 }
 
 type Backend interface {
 	// Create new record
-	New(string, []File) (*RecordMetadata, error)
+	New([]MetadataStream, []File) (*RecordMetadata, error)
+
+	// Update unvetted record (token, mdAppend, mdOverwrite, fAdd, fDelete)
+	UpdateUnvettedRecord([]byte, []MetadataStream, []MetadataStream, []File,
+		[]string) (*RecordMetadata, error)
+
+	// Update vetted metadata (token, mdAppend, mdOverwrite)
+	UpdateVettedMetadata([]byte, []MetadataStream,
+		[]MetadataStream) error
 
 	// Get unvetted record
 	GetUnvetted([]byte) (*Record, error)
@@ -91,7 +115,8 @@ type Backend interface {
 	GetVetted([]byte) (*Record, error)
 
 	// Set unvetted record status
-	SetUnvettedStatus([]byte, MDStatusT) (MDStatusT, error)
+	SetUnvettedStatus([]byte, MDStatusT, []MetadataStream,
+		[]MetadataStream) (MDStatusT, error)
 
 	// Inventory retrieves various record records.
 	Inventory(uint, uint, bool) ([]Record, []Record, error)

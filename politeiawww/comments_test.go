@@ -21,7 +21,7 @@ type CommentsTestSuite struct {
 }
 
 func (s *CommentsTestSuite) SetupSuite() {
-	s.token = "test"
+	s.token = "5cd139b1dbda13e089e4d175d8baa2658083fcf8533c2b5ccf2105027848caba"
 }
 
 func (s *CommentsTestSuite) SetupTest() {

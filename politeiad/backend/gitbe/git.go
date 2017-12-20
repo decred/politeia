@@ -164,6 +164,29 @@ func (g *gitBackEnd) gitVersion() (string, error) {
 	return out[0], nil
 }
 
+func (g *gitBackEnd) gitHasChanges(path string) (rv bool) {
+	if _, err := g.git(path, "diff", "--exit-code"); err != nil {
+		rv = true
+	} else if _, err := g.git(path, "diff", "--cached", "--exit-code"); err != nil {
+		rv = true
+	}
+	return rv
+}
+
+func (g *gitBackEnd) gitDiff(path string) ([]string, error) {
+	return g.git(path, "diff")
+}
+
+func (g *gitBackEnd) gitStash(path string) error {
+	_, err := g.git(path, "stash")
+	return err
+}
+
+func (g *gitBackEnd) gitRm(path, filename string) error {
+	_, err := g.git(path, "rm", filename)
+	return err
+}
+
 func (g *gitBackEnd) gitAdd(path, filename string) error {
 	_, err := g.git(path, "add", filename)
 	return err

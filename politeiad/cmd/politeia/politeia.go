@@ -16,6 +16,8 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -29,6 +31,14 @@ import (
 const allowInteractive = "i-know-this-is-a-bad-idea"
 
 var (
+	regexMD          = regexp.MustCompile(`^metadata[\d]{1,2}:`)
+	regexMDID        = regexp.MustCompile(`[\d]{1,2}`)
+	regexAppendMD    = regexp.MustCompile(`^appendmetadata[\d]{1,2}:`)
+	regexOverwriteMD = regexp.MustCompile(`^overwritemetadata[\d]{1,2}:`)
+	regexFileAdd     = regexp.MustCompile(`^add:`)
+	regexFileDel     = regexp.MustCompile(`^del:`)
+	regexToken       = regexp.MustCompile(`^token:`)
+
 	defaultHomeDir          = dcrutil.AppDataDir("politeia", false)
 	defaultIdentityFilename = "identity.json"
 
@@ -58,12 +68,22 @@ func usage() {
 	fmt.Fprintf(os.Stderr, "  inventory         - Inventory records "+
 		"<vetted count> <branches count>\n")
 	fmt.Fprintf(os.Stderr, "  new               - Create new record "+
-		"<name> <filename>...\n")
+		"[metadata<id>]... <filename>...\n")
 	fmt.Fprintf(os.Stderr, "  getunvetted       - Retrieve record "+
 		"<id>\n")
 	fmt.Fprintf(os.Stderr, "  setunvettedstatus - Set unvetted record "+
-		"status <publish|censor> <id>\n")
-	//fmt.Fprintf(os.Stderr, "  update      - Update record\n")
+		"status <publish|censor> <id> [actionmdid:metadata]...\n")
+	fmt.Fprintf(os.Stderr, "  update            - Update unvetted record "+
+		"[actionmdid:metadata]... <actionfile:filename>... "+
+		"token:<token>\n")
+	fmt.Fprintf(os.Stderr, "\n")
+	fmt.Fprintf(os.Stderr, " metadata<id> is the word metadata followed "+
+		"by digits. Example with 2 metadata records "+
+		"metadata0:{\"moo\":\"12\",\"blah\":\"baz\"} "+
+		"metadata1:{\"lala\":42}\n")
+	fmt.Fprintf(os.Stderr, " actionmdid is an action + metadatastream id "+
+		"E.g. appendmetadata0:{\"foo\":\"bar\"} or "+
+		"overwritemetadata12:{\"bleh\":\"truff\"}\n")
 
 	fmt.Fprintf(os.Stderr, "\n")
 }
@@ -92,15 +112,13 @@ func getErrorFromResponse(r *http.Response) (string, error) {
 		if err := decoder.Decode(&e); err != nil {
 			return "", err
 		}
-
-		errMsg = string(e.ErrorCode)
+		errMsg = fmt.Sprintf("%v", e.ErrorCode)
 	} else {
 		var e v1.UserErrorReply
 		if err := decoder.Decode(&e); err != nil {
 			return "", err
 		}
-
-		errMsg = v1.ErrorStatus[e.ErrorCode]
+		errMsg = v1.ErrorStatus[e.ErrorCode] + " "
 		if e.ErrorContext != nil && len(e.ErrorContext) > 0 {
 			errMsg += strings.Join(e.ErrorContext, ", ")
 		}
@@ -161,7 +179,6 @@ func printCensorshipRecord(c v1.CensorshipRecord) {
 
 func printRecordRecord(header string, pr v1.Record) {
 	// Pretty print record
-	fmt.Printf("STATUS %v\n", pr.Status)
 	status, ok := v1.RecordStatus[pr.Status]
 	if !ok {
 		status = v1.RecordStatus[v1.RecordStatusInvalid]
@@ -264,13 +281,57 @@ func inventory() error {
 	return nil
 }
 
+func getFile(filename string) (*v1.File, *[sha256.Size]byte, error) {
+	var err error
+
+	file := &v1.File{
+		Name: filepath.Base(filename),
+	}
+	file.MIME, file.Digest, file.Payload, err = util.LoadFile(filename)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Get digest
+	digest, err := hex.DecodeString(file.Digest)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Store for merkle root verification later
+	var digest32 [sha256.Size]byte
+	copy(digest32[:], digest)
+
+	return file, &digest32, nil
+}
+
 func newRecord() error {
 	flags := flag.Args()[1:] // Chop off action.
 
-	// Make sure we have name and at least one file.
-	if len(flags) < 2 {
-		return fmt.Errorf("must provide metadata record at least " +
-			"one file")
+	// Fish out metadata records and filenames
+	md := make([]v1.MetadataStream, 0, len(flags))
+	filenames := make([]string, 0, len(flags))
+	for _, v := range flags {
+		mdRecord := regexMD.FindString(v)
+		if mdRecord == "" {
+			// Filename
+			filenames = append(filenames, v)
+			continue
+		}
+
+		id, err := strconv.ParseUint(regexMDID.FindString(mdRecord),
+			10, 64)
+		if err != nil {
+			return err
+		}
+		md = append(md, v1.MetadataStream{
+			ID:      id,
+			Payload: v[len(mdRecord):],
+		})
+	}
+
+	if len(filenames) == 0 {
+		return fmt.Errorf("no filenames provided")
 	}
 
 	// Fetch remote identity
@@ -286,32 +347,19 @@ func newRecord() error {
 	}
 	n := v1.NewRecord{
 		Challenge: hex.EncodeToString(challenge),
-		Metadata:  flags[0],
+		Metadata:  md,
 		Files:     make([]v1.File, 0, len(flags[1:])),
 	}
 
 	// Open all files, validate MIME type and digest them.
 	hashes := make([]*[sha256.Size]byte, 0, len(flags[1:]))
-	for i, a := range flags[1:] {
-		file := v1.File{
-			Name: filepath.Base(a),
-		}
-		file.MIME, file.Digest, file.Payload, err = util.LoadFile(a)
+	for i, a := range filenames {
+		file, digest, err := getFile(a)
 		if err != nil {
 			return err
 		}
-		n.Files = append(n.Files, file)
-
-		// Get digest
-		digest, err := hex.DecodeString(file.Digest)
-		if err != nil {
-			return err
-		}
-
-		// Store for merkle root verification later
-		var digest32 [sha256.Size]byte
-		copy(digest32[:], digest)
-		hashes = append(hashes, &digest32)
+		n.Files = append(n.Files, *file)
+		hashes = append(hashes, digest)
 
 		fmt.Printf("%02v: %v %v %v\n",
 			i, file.Digest, file.Name, file.MIME)
@@ -332,7 +380,7 @@ func newRecord() error {
 	if err != nil {
 		return err
 	}
-	r, err := c.Post(*rpchost+v1.NewRoute, "application/json",
+	r, err := c.Post(*rpchost+v1.NewRecordRoute, "application/json",
 		bytes.NewReader(b))
 	if err != nil {
 		return err
@@ -381,6 +429,199 @@ func newRecord() error {
 	if !bytes.Equal(merkle.Root(hashes)[:], root) {
 		return fmt.Errorf("invalid merkle root")
 	}
+
+	// Verify record token signature.
+	merkleToken := make([]byte, len(root)+len(token))
+	copy(merkleToken, root[:])
+	copy(merkleToken[len(root[:]):], token)
+	if !id.VerifyMessage(merkleToken, signature) {
+		return fmt.Errorf("verification failed")
+	}
+
+	if !*printJson {
+		printCensorshipRecord(reply.CensorshipRecord)
+	}
+
+	return nil
+}
+
+func updateRecord() error {
+	flags := flag.Args()[1:] // Chop off action.
+
+	// Create New command
+	challenge, err := util.Random(v1.ChallengeSize)
+	if err != nil {
+		return err
+	}
+	n := v1.UpdateUnvetted{
+		Challenge: hex.EncodeToString(challenge),
+	}
+
+	// Fish out metadata records and filenames
+	var tokenCount uint
+	for _, v := range flags {
+		switch {
+		case regexAppendMD.MatchString(v):
+			s := regexAppendMD.FindString(v)
+			i, err := strconv.ParseUint(regexMDID.FindString(s),
+				10, 64)
+			if err != nil {
+				return err
+			}
+			n.MDAppend = append(n.MDAppend, v1.MetadataStream{
+				ID:      i,
+				Payload: v[len(s):],
+			})
+
+		case regexOverwriteMD.MatchString(v):
+			s := regexOverwriteMD.FindString(v)
+			i, err := strconv.ParseUint(regexMDID.FindString(s),
+				10, 64)
+			if err != nil {
+				return err
+			}
+			n.MDOverwrite = append(n.MDOverwrite, v1.MetadataStream{
+				ID:      i,
+				Payload: v[len(s):],
+			})
+
+		case regexFileAdd.MatchString(v):
+			s := regexFileAdd.FindString(v)
+			f, _, err := getFile(v[len(s):])
+			if err != nil {
+				return err
+			}
+			n.FilesAdd = append(n.FilesAdd, *f)
+
+		case regexFileDel.MatchString(v):
+			s := regexFileDel.FindString(v)
+			n.FilesDel = append(n.FilesDel, v[len(s):])
+
+		case regexToken.MatchString(v):
+			if tokenCount != 0 {
+				return fmt.Errorf("only 1 token allowed")
+			}
+			s := regexToken.FindString(v)
+			n.Token = v[len(s):]
+			tokenCount++
+
+		default:
+			return fmt.Errorf("invalid action %v", v)
+		}
+	}
+
+	if tokenCount != 1 {
+		return fmt.Errorf("must provide token")
+	}
+
+	// Fetch remote identity
+	id, err := identity.LoadPublicIdentity(*identityFilename)
+	if err != nil {
+		return err
+	}
+
+	// Prety print
+	if *verbose {
+		fmt.Printf("Update record: %v\n", n.Token)
+		if len(n.FilesAdd) > 0 {
+			s := "  Files add         : "
+			ss := strings.Repeat(" ", len(s))
+			for i, v := range n.FilesAdd {
+				fmt.Printf("%s%02v: %v %v %v\n",
+					s, i, v.Digest, v.Name, v.MIME)
+				s = ss
+			}
+		}
+		if len(n.FilesDel) > 0 {
+			s := "  Files delete      : "
+			ss := strings.Repeat(" ", len(s))
+			for _, v := range n.FilesDel {
+				fmt.Printf("%s%v\n", s, v)
+				s = ss
+			}
+		}
+		if len(n.MDOverwrite) > 0 {
+			s := "  Metadata overwrite: "
+			for _, v := range n.MDOverwrite {
+				fmt.Printf("%s%v", s, v.ID)
+				s = ", "
+			}
+			fmt.Printf("\n")
+		}
+		if len(n.MDAppend) > 0 {
+			s := "  Metadata append   : "
+			for _, v := range n.MDAppend {
+				fmt.Printf("%s%v", s, v.ID)
+				s = ", "
+			}
+			fmt.Printf("\n")
+		}
+	}
+
+	// Convert Verify to JSON
+	b, err := json.Marshal(n)
+	if err != nil {
+		return err
+	}
+
+	if *printJson {
+		fmt.Println(string(b))
+	}
+
+	c, err := util.NewClient(verify, *rpccert)
+	if err != nil {
+		return err
+	}
+	r, err := c.Post(*rpchost+v1.UpdateUnvettedRoute, "application/json",
+		bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+	defer r.Body.Close()
+
+	if r.StatusCode != http.StatusOK {
+		e, err := getErrorFromResponse(r)
+		if err != nil {
+			return fmt.Errorf("%v", r.Status)
+		}
+		return fmt.Errorf("%v: %v", r.Status, e)
+	}
+
+	bodyBytes := util.ConvertBodyToByteArray(r.Body, *printJson)
+
+	var reply v1.UpdateUnvettedReply
+	err = json.Unmarshal(bodyBytes, &reply)
+	if err != nil {
+		return fmt.Errorf("Could node unmarshal UpdateReply: %v", err)
+	}
+
+	// Verify challenge.
+	err = util.VerifyChallenge(id, challenge, reply.Response)
+	if err != nil {
+		return err
+	}
+
+	// Convert merkle, token and signature to verify reply.
+	root, err := hex.DecodeString(reply.CensorshipRecord.Merkle)
+	if err != nil {
+		return err
+	}
+	token, err := hex.DecodeString(reply.CensorshipRecord.Token)
+	if err != nil {
+		return err
+	}
+	sig, err := hex.DecodeString(reply.CensorshipRecord.Signature)
+	if err != nil {
+		return err
+	}
+	var signature [identity.SignatureSize]byte
+	copy(signature[:], sig)
+
+	// XXX Verify merkle root.
+	//hashes := make([]*[sha256.Size]byte, 0, len(flags[1:]))
+	//if !bytes.Equal(merkle.Root(hashes)[:], root) {
+	//	return fmt.Errorf("invalid merkle root")
+	//}
 
 	// Verify record token signature.
 	merkleToken := make([]byte, len(root)+len(token))
@@ -614,8 +855,9 @@ func setUnvettedStatus() error {
 	flags := flag.Args()[1:] // Chop off action.
 
 	// Make sure we have the status and the censorship token
-	if len(flags) != 2 {
-		return fmt.Errorf("must provide status and censorship token")
+	if len(flags) < 2 {
+		return fmt.Errorf("must at least provide status and " +
+			"censorship token")
 	}
 
 	// Verify we got a valid status
@@ -645,6 +887,37 @@ func setUnvettedStatus() error {
 		Challenge: hex.EncodeToString(challenge),
 		Status:    status,
 		Token:     flags[1],
+	}
+
+	// Optional metadata updates
+	for _, v := range flags[2:] {
+		switch {
+		case regexAppendMD.MatchString(v):
+			s := regexAppendMD.FindString(v)
+			i, err := strconv.ParseUint(regexMDID.FindString(s),
+				10, 64)
+			if err != nil {
+				return err
+			}
+			n.MDAppend = append(n.MDAppend, v1.MetadataStream{
+				ID:      i,
+				Payload: v[len(s):],
+			})
+
+		case regexOverwriteMD.MatchString(v):
+			s := regexOverwriteMD.FindString(v)
+			i, err := strconv.ParseUint(regexMDID.FindString(s),
+				10, 64)
+			if err != nil {
+				return err
+			}
+			n.MDOverwrite = append(n.MDOverwrite, v1.MetadataStream{
+				ID:      i,
+				Payload: v[len(s):],
+			})
+		default:
+			return fmt.Errorf("invalid metadata action %v", v)
+		}
 	}
 
 	// Convert to JSON
@@ -758,6 +1031,8 @@ func _main() error {
 				return getVetted()
 			case "setunvettedstatus":
 				return setUnvettedStatus()
+			case "update":
+				return updateRecord()
 			default:
 				return fmt.Errorf("invalid action: %v", a)
 			}

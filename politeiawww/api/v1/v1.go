@@ -215,7 +215,8 @@ type PDError struct {
 
 // Error satisfies the error interface.
 func (e PDError) Error() string {
-	return fmt.Sprintf("error from politeiad: %v %v", e.HTTPCode, e.ErrorReply.ErrorCode)
+	return fmt.Sprintf("error from politeiad: %v %v", e.HTTPCode,
+		e.ErrorReply.ErrorCode)
 }
 
 // PDErrorReply is an error reply returned from Politeiad whenever an
