@@ -64,8 +64,7 @@ func TestAnchorWithCommits(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	// Initialize stuff we need
-	g, err := New(dir, &chaincfg.TestNet2Params, "", "", testing.Verbose(), .1,
-		"tpubVobLtToNtTq6TZNw4raWQok35PRPZou53vegZqNubtBTJMMFmuMpWybFCfweJ52N8uZJPZZdHE5SRnBBuuRPfC5jdNstfKjiAs8JtbYG9jx")
+	g, err := New(dir, &chaincfg.TestNet2Params, "", "", testing.Verbose())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -68,19 +68,9 @@ creating accounts and retrieving the public keys for those accounts:
 Put the result of the following command as paywallxpub=tpub... in politeiawww.conf.
 
 ```
-dcrctl --wallet --testnet createnewaccount politeiauserpayments
-dcrctl --wallet --testnet getmasterpubkey politeiauserpayments
+dcrctl --wallet --testnet createnewaccount politeiapayments
+dcrctl --wallet --testnet getmasterpubkey politeiapayments
 ```
-
-Put the result of the following command as paywallxpub=tpub... in politeiad.conf.
-
-```
-dcrctl --wallet --testnet createnewaccount politeiaproposalpayments
-dcrctl --wallet --testnet getmasterpubkey politeiaproposalpayments
-```
-
-The other paywall config flags should be not need to be set unless you wish to
-test against a local instance.
 
 Compile and launch the politeia daemon:
 ```

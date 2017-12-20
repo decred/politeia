@@ -15,7 +15,6 @@ import (
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/hdkeychain"
 	"github.com/decred/dcrwallet/wallet/udb"
-	pd "github.com/decred/politeia/politeiad/api/v1"
 )
 
 // FaucetResponse represents the expected JSON response from the testnet faucet.
@@ -128,63 +127,4 @@ func PayWithTestnetFaucet(faucetURL string, address string, amount float64, over
 	}
 
 	return fr.Txid, nil
-}
-
-// PaywallGatewayOrderNew makes a orderNew request to the paywall gateway
-func PaywallGatewayOrderNew(id string, address string, amountHuman string, apiToken string, apiURL string, cmd string, params *chaincfg.Params) (string, float64, error) {
-	// figure out the client app name and pass it to help distinguish the user
-	// paywall from the proposal paywall
-	appName := "politeiawww"
-
-	// politeiad uses a randomly generated ID instead of an numeric one.
-	if len(id) == pd.IDSize {
-		appName = "politeiad"
-	}
-
-	// build request
-	form := url.Values{}
-	form.Set("Command", cmd)
-	form.Add("AmountHuman", amountHuman)
-	form.Add("AppName", appName)
-	form.Add("AppReferenceID", id)
-	form.Add("APIToken", apiToken)
-	form.Add("Network", getNetworkName(params))
-	form.Add("PaymentAddress", address)
-
-	req, err := http.NewRequest("POST", apiURL, strings.NewReader(form.Encode()))
-	if err != nil {
-		return "", 0, err
-	}
-	req.PostForm = form
-	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-
-	// limit the time we take
-	ctx, cancel := context.WithTimeout(context.Background(), 2500*time.Millisecond)
-	// it is good practice to use the cancellation function even with a timeout
-	defer cancel()
-	req.WithContext(ctx)
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", 0, err
-	}
-
-	if resp == nil {
-		return "", 0, errors.New("unknown error")
-	}
-
-	pgrno := &PaywallGatewayNewOrderResponse{}
-
-	decoder := json.NewDecoder(resp.Body)
-	err = decoder.Decode(pgrno)
-	if err != nil {
-		return "", 0, fmt.Errorf("unable to decode resp: %v", err)
-	}
-
-	if pgrno.Error != "" {
-		return "", 0, fmt.Errorf("PaywallGateway error: %v", pgrno.Error)
-	}
-
-	return pgrno.OrderID, pgrno.PaywallAmount, nil
 }

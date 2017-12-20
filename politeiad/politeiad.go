@@ -773,7 +773,7 @@ func _main() error {
 	// Setup backend.
 	gitbe.UseLogger(gitbeLog)
 	b, err := gitbe.New(loadedCfg.DataDir, activeNetParams.Params, loadedCfg.DcrtimeHost, "",
-		loadedCfg.GitTrace, loadedCfg.PaywallAmount, loadedCfg.PaywallXpub)
+		loadedCfg.GitTrace)
 	if err != nil {
 		return err
 	}

@@ -34,7 +34,6 @@ const (
 	SetUnvettedStatusRoute = "/v1/setunvettedstatus/" // Set unvetted status
 
 	ChallengeSize      = 32         // Size of challenge token in bytes
-	IDSize             = 32         // Size of randomly generated ID in bytes
 	TokenSize          = 32         // Size of token
 	MetadataStreamsMax = uint64(16) // Maximum number of metadata streams
 
