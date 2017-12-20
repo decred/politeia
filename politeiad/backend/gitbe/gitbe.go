@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrtime/api/v1"
 	"github.com/decred/dcrtime/merkle"
 	pd "github.com/decred/politeia/politeiad/api/v1"
@@ -105,7 +104,6 @@ type gitBackEnd struct {
 	lock        *lockfile.LockFile // Global lock
 	db          *leveldb.DB        // Database
 	cron        *cron.Cron         // Scheduler for periodic tasks
-	params      *chaincfg.Params   // Network parameters
 	shutdown    bool               // Backend is shutdown
 	root        string             // Root directory
 	unvetted    string             // Unvettend content
