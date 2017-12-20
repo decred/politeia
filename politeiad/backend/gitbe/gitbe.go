@@ -2297,13 +2297,14 @@ func (g *gitBackEnd) rebasePR(id string) error {
 }
 
 // New returns a gitBackEnd context.  It verifies that git is installed.
-func New(root string, params *chaincfg.Params, dcrtimeHost string, gitPath string, gitTrace bool) (*gitBackEnd, error) {
+func New(root string, dcrtimeHost string, gitPath string, gitTrace bool) (*gitBackEnd, error) {
 	// Default to system git
 	if gitPath == "" {
 		gitPath = "git"
 	}
 
-	g := &gitBackEnd{root: root,
+	g := &gitBackEnd{
+		root:        root,
 		cron:        cron.New(),
 		unvetted:    filepath.Join(root, defaultUnvettedPath),
 		vetted:      filepath.Join(root, defaultVettedPath),
@@ -2313,7 +2314,6 @@ func New(root string, params *chaincfg.Params, dcrtimeHost string, gitPath strin
 		exit:        make(chan struct{}),
 		checkAnchor: make(chan struct{}),
 		testAnchors: make(map[string]bool),
-		params:      params,
 	}
 
 	err := g.newLocked()
