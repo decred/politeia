@@ -39,12 +39,24 @@ const (
 	mdStreamGeneral  = 0 // General information for this proposal
 	mdStreamComments = 1 // Comments
 	mdStreamChanges  = 2 // Changes to record
+	mdStreamVoting   = 3 // Voting records
+
+	// Voting time constants
+	voteHoldOff  = 24 * time.Hour     // Hold off for 1 day before starting vote
+	voteDuration = 24 * 7 * time.Hour // Vote is active for 1 week
 )
 
 type MDStreamChanges struct {
 	AdminPubKey string           // Identity of the administrator
 	NewStatus   pd.RecordStatusT // NewStatus
 	Timestamp   int64            // Timestamp of the change
+}
+
+type MDStreamVoting struct {
+	AdminPubKey       string // Identity of the administrator
+	Timestamp         int64  // Timestamp of the change
+	TimestampActivate int64  // Timestamp when vote activates
+	TimestampComplete int64  // Timestamp when vote completes
 }
 
 // politeiawww backend construct
@@ -63,12 +75,16 @@ type backend struct {
 	verificationExpiryTime time.Duration
 
 	// Following entries require locks
-	comments  map[string]map[uint64]BackendComment // [token][parent]comment
-	commentID uint64                               // current comment id
+	//comments  map[string]map[uint64]BackendComment // [token][parent]comment
+	commentID uint64 // current comment id
+
+	// _inventory will eventually replace inventory
+	_inventory map[string]*inventoryRecord // Current inventory
 
 	// When inventory is set or modified inventoryVersion MUST be
 	// incremented.  When inventory changes the caller MUST initialize the
 	// comments map for the associated censorship token.
+	// XXX remove this when _inventory is done
 	inventory        []www.ProposalRecord // current inventory
 	inventoryVersion uint                 // inventory version
 }
@@ -633,6 +649,8 @@ func (b *backend) loadInventory() (*pd.InventoryReply, error) {
 		return b.remoteInventory()
 	}
 
+	// Following is test code only.
+
 	// Split the existing inventory into vetted and unvetted.
 	vetted := make([]www.ProposalRecord, 0)
 	unvetted := make([]www.ProposalRecord, 0)
@@ -681,7 +699,7 @@ func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
 
 		// Set the number of comments.
 		token := proposal.CensorshipRecord.Token
-		proposal.NumComments = uint(len(b.comments[token]))
+		proposal.NumComments = uint(len(b._inventory[token].comments))
 
 		if pageStarted {
 			proposals = append(proposals, proposal)
@@ -719,7 +737,7 @@ func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
 
 			// Set the number of comments.
 			token := proposal.CensorshipRecord.Token
-			proposal.NumComments = uint(len(b.comments[token]))
+			proposal.NumComments = uint(len(b._inventory[token].comments))
 
 			// The iteration direction is oldest -> newest,
 			// so proposals are prepended to the array so
@@ -789,6 +807,13 @@ func (b *backend) LoadInventory() error {
 			continue
 		}
 
+		err = b.initializeInventory(inv)
+		if err != nil {
+			b.Unlock()
+			return fmt.Errorf("initializeInventory: %v", err)
+		}
+
+		// XXX old inventory behavior, kill this
 		b.inventory = make([]www.ProposalRecord, 0,
 			len(inv.Vetted)+len(inv.Branches))
 		for _, vv := range append(inv.Vetted, inv.Branches...) {
@@ -803,7 +828,6 @@ func (b *backend) LoadInventory() error {
 			}
 
 			// Initialize comment map for this proposal.
-			b.initComment(v.CensorshipRecord.Token)
 			len := len(b.inventory)
 			if len == 0 {
 				b.inventory = append(b.inventory, v)
@@ -819,6 +843,12 @@ func (b *backend) LoadInventory() error {
 					b.inventory[idx:]...)...)
 		}
 		b.inventoryVersion++
+
+		// XXX diagnostic, remove later
+		if len(b.inventory) != len(b._inventory) {
+			return fmt.Errorf("invalid inventory length %v %v",
+				len(b.inventory), len(b._inventory))
+		}
 		b.Unlock()
 
 		log.Infof("Adding %v vetted, %v unvetted proposals to the cache",
@@ -1384,7 +1414,6 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 			CensorshipRecord: convertPropCensorFromPD(pdReply.CensorshipRecord),
 		})
 		b.inventoryVersion++
-		b.initComment(pdReply.CensorshipRecord.Token)
 		b.Unlock()
 	} else {
 		responseBody, err := b.makeRequest(http.MethodPost,
@@ -1424,7 +1453,6 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 		b.Lock()
 		b.inventory = append(b.inventory, r)
 		b.inventoryVersion++
-		b.initComment(pdReply.CensorshipRecord.Token)
 		b.Unlock()
 	}
 
@@ -1457,7 +1485,7 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 			return nil, err
 		}
 
-		// Create chnage record
+		// Create change record
 		newStatus := convertPropStatusFromWWW(sps.ProposalStatus)
 		r := MDStreamChanges{
 			Timestamp: time.Now().Unix(),
@@ -1480,7 +1508,7 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 			Token:     sps.Token,
 			Status:    newStatus,
 			Challenge: hex.EncodeToString(challenge),
-			MDOverwrite: []pd.MetadataStream{
+			MDAppend: []pd.MetadataStream{
 				{
 					ID:      mdStreamChanges,
 					Payload: string(blob),
@@ -1532,22 +1560,17 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 		return nil, err
 	}
 
-	var cachedProposal *www.ProposalRecord
 	b.RLock()
-	for _, v := range b.inventory {
-		if v.CensorshipRecord.Token == propDetails.Token {
-			cachedProposal = &v
-			break
-		}
-	}
-	b.RUnlock()
-	if cachedProposal == nil {
+	p, ok := b._inventory[propDetails.Token]
+	if !ok {
+		b.RUnlock()
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusProposalNotFound,
 		}
 	}
-
-	numComments := uint(len(b.comments[propDetails.Token]))
+	numComments := uint(len(p.comments))
+	b.RUnlock()
+	cachedProposal := convertPropFromPD(p.record)
 
 	var isVettedProposal bool
 	var requestObject interface{}
@@ -1566,7 +1589,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 	}
 
 	if b.test {
-		reply.Proposal = *cachedProposal
+		reply.Proposal = cachedProposal
 		reply.Proposal.NumComments = numComments
 		return &reply, nil
 	}
@@ -1666,7 +1689,7 @@ func (b *backend) ProcessComment(c www.NewComment, user *database.User) (*www.Ne
 
 	b.Lock()
 	defer b.Unlock()
-	m, ok := b.comments[c.Token]
+	m, ok := b._inventory[c.Token]
 	if !ok {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusProposalNotFound,
@@ -1686,7 +1709,7 @@ func (b *backend) ProcessComment(c www.NewComment, user *database.User) (*www.Ne
 		}
 	}
 	if pid != 0 {
-		_, ok = m[pid]
+		_, ok = m.comments[pid]
 		if !ok {
 			return nil, www.UserError{
 				ErrorCode: www.ErrorStatusCommentNotFound,
@@ -1724,6 +1747,111 @@ func (b *backend) ProcessUserProposals(up *www.UserProposals, isCurrentUser, isA
 	}, nil
 }
 
+func getVotingRecord(pr www.ProposalRecord) (*MDStreamVoting, error) {
+	return nil, fmt.Errorf("not yet getVotingRecord")
+}
+
+func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.StartVoteReply, error) {
+	log.Tracef("ProcessStartVote %v", sv.Token)
+	// For now we lock the record but this needs to be peeled apart.  The
+	// start voting call is expensive and that needs to be handled without
+	// the mutex held.
+	var pr www.ProposalRecord
+	found := false
+	b.Lock()
+	defer b.Unlock()
+	for _, v := range b.inventory {
+		if v.CensorshipRecord.Token == sv.Token {
+			if v.Status == www.PropStatusPublic {
+				found = true
+				pr = v
+				break
+			}
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusWrongStatus,
+			}
+		}
+	}
+	if !found {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusProposalNotFound,
+		}
+	}
+
+	// Make sure we are not already voting
+	vr, err := getVotingRecord(pr)
+	if err != nil {
+		// XXX
+	}
+	_ = vr
+
+	// Validate signature
+	err = checkSig(user, sv.Signature, sv.Token)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create command
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create change record
+	t := time.Now()
+	r := MDStreamVoting{
+		Timestamp:         t.Unix(),
+		TimestampActivate: t.Add(voteHoldOff).Unix(),
+		TimestampComplete: t.Add(voteHoldOff + voteDuration).Unix(),
+	}
+	var ok bool
+	r.AdminPubKey, ok = database.ActiveIdentityString(user.Identities)
+	if !ok {
+		return nil, fmt.Errorf("invalid admin identity: %v", user.ID)
+	}
+	blob, err := json.Marshal(r)
+	if err != nil {
+		return nil, err
+	}
+	md := []pd.MetadataStream{
+		{
+			ID:      mdStreamVoting,
+			Payload: string(blob),
+		},
+	}
+
+	sus := pd.UpdateVettedMetadata{
+		Challenge: hex.EncodeToString(challenge),
+		Token:     sv.Token,
+		MDAppend:  md,
+	}
+
+	responseBody, err := b.makeRequest(http.MethodPost,
+		pd.UpdateVettedMetadataRoute, sus)
+	if err != nil {
+		return nil, err
+	}
+
+	var reply pd.UpdateVettedMetadataReply
+	err = json.Unmarshal(responseBody, &reply)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal "+
+			"UpdateVettedMetadataReply: %v", err)
+	}
+
+	// Verify the challenge.
+	err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	return &www.StartVoteReply{
+		Timestamp:         r.Timestamp,
+		TimestampActivate: r.TimestampActivate,
+		TimestampComplete: r.TimestampComplete,
+	}, nil
+}
+
 // ProcessPolicy returns the details of Politeia's restrictions on file uploads.
 func (b *backend) ProcessPolicy(p www.Policy) *www.PolicyReply {
 	return &www.PolicyReply{
@@ -1755,7 +1883,6 @@ func NewBackend(cfg *config) (*backend, error) {
 		db:          db,
 		cfg:         cfg,
 		userPubkeys: make(map[string]string),
-		comments:    make(map[string]map[uint64]BackendComment),
 		commentJournalDir: filepath.Join(cfg.DataDir,
 			defaultCommentJournalDir),
 		commentID: 1, // Replay will set this value
@@ -1763,19 +1890,15 @@ func NewBackend(cfg *config) (*backend, error) {
 
 	// Setup comments
 	os.MkdirAll(b.commentJournalDir, 0744)
-	err = b.replayCommentJournals()
+
+	// Setup pubkey-userid map
+	err = b.initUserPubkeys()
 	if err != nil {
 		return nil, err
 	}
 
 	// Flush comments
 	err = b.flushCommentJournals()
-	if err != nil {
-		return nil, err
-	}
-
-	// Setup pubkey-userid map
-	err = b.initUserPubkeys()
 	if err != nil {
 		return nil, err
 	}
