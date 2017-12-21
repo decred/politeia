@@ -39,12 +39,24 @@ const (
 	mdStreamGeneral  = 0 // General information for this proposal
 	mdStreamComments = 1 // Comments
 	mdStreamChanges  = 2 // Changes to record
+	mdStreamVoting   = 3 // Voting records
+
+	// Voting time constants
+	voteHoldOff  = 24 * time.Hour     // Hold off for 1 day before starting vote
+	voteDuration = 24 * 7 * time.Hour // Vote is active for 1 week
 )
 
 type MDStreamChanges struct {
 	AdminPubKey string           // Identity of the administrator
 	NewStatus   pd.RecordStatusT // NewStatus
 	Timestamp   int64            // Timestamp of the change
+}
+
+type MDStreamVoting struct {
+	AdminPubKey       string // Identity of the administrator
+	Timestamp         int64  // Timestamp of the change
+	TimestampActivate int64  // Timestamp when vote activates
+	TimestampComplete int64  // Timestamp when vote completes
 }
 
 // politeiawww backend construct
@@ -71,6 +83,8 @@ type backend struct {
 	// comments map for the associated censorship token.
 	inventory        []www.ProposalRecord // current inventory
 	inventoryVersion uint                 // inventory version
+
+	metadata map[string]string
 }
 
 const BackendProposalMetadataVersion = 1
@@ -118,7 +132,6 @@ func decodeBackendProposalMetadata(payload []byte) (*BackendProposalMetadata, er
 
 // Check an incomming signature against the specified user's pubkey.
 func checkSig(user *database.User, signature string, elements ...string) error {
-	// Check incoming signature verify(token+string(ProposalStatus))
 	sig, err := util.ConvertSignature(signature)
 	if err != nil {
 		return www.UserError{
@@ -1441,7 +1454,7 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 			return nil, err
 		}
 
-		// Create chnage record
+		// Create change record
 		newStatus := convertPropStatusFromWWW(sps.ProposalStatus)
 		r := MDStreamChanges{
 			Timestamp: time.Now().Unix(),
@@ -1464,7 +1477,7 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 			Token:     sps.Token,
 			Status:    newStatus,
 			Challenge: hex.EncodeToString(challenge),
-			MDOverwrite: []pd.MetadataStream{
+			MDAppend: []pd.MetadataStream{
 				{
 					ID:      mdStreamChanges,
 					Payload: string(blob),
@@ -1702,6 +1715,111 @@ func (b *backend) ProcessUserProposals(up *www.UserProposals, isCurrentUser, isA
 	}, nil
 }
 
+func getVotingRecord(pr www.ProposalRecord) (*MDStreamVoting, error) {
+	return nil, fmt.Errorf("not yet getVotingRecord")
+}
+
+func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.StartVoteReply, error) {
+	log.Tracef("ProcessStartVote %v", sv.Token)
+	// For now we lock the record but this needs to be peeled apart.  The
+	// start voting call is expensive and that needs to be handled without
+	// the mutex held.
+	var pr www.ProposalRecord
+	found := false
+	b.Lock()
+	defer b.Unlock()
+	for _, v := range b.inventory {
+		if v.CensorshipRecord.Token == sv.Token {
+			if v.Status == www.PropStatusPublic {
+				found = true
+				pr = v
+				break
+			}
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusWrongStatus,
+			}
+		}
+	}
+	if !found {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusProposalNotFound,
+		}
+	}
+
+	// Make sure we are not already voting
+	vr, err := getVotingRecord(pr)
+	if err != nil {
+		// XXX
+	}
+	_ = vr
+
+	// Validate signature
+	err = checkSig(user, sv.Signature, sv.Token)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create command
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create change record
+	t := time.Now()
+	r := MDStreamVoting{
+		Timestamp:         t.Unix(),
+		TimestampActivate: t.Add(voteHoldOff).Unix(),
+		TimestampComplete: t.Add(voteHoldOff + voteDuration).Unix(),
+	}
+	var ok bool
+	r.AdminPubKey, ok = database.ActiveIdentityString(user.Identities)
+	if !ok {
+		return nil, fmt.Errorf("invalid admin identity: %v", user.ID)
+	}
+	blob, err := json.Marshal(r)
+	if err != nil {
+		return nil, err
+	}
+	md := []pd.MetadataStream{
+		{
+			ID:      mdStreamVoting,
+			Payload: string(blob),
+		},
+	}
+
+	sus := pd.UpdateVettedMetadata{
+		Challenge: hex.EncodeToString(challenge),
+		Token:     sv.Token,
+		MDAppend:  md,
+	}
+
+	responseBody, err := b.makeRequest(http.MethodPost,
+		pd.UpdateVettedMetadataRoute, sus)
+	if err != nil {
+		return nil, err
+	}
+
+	var reply pd.UpdateVettedMetadataReply
+	err = json.Unmarshal(responseBody, &reply)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal "+
+			"UpdateVettedMetadataReply: %v", err)
+	}
+
+	// Verify the challenge.
+	err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	return &www.StartVoteReply{
+		Timestamp:         r.Timestamp,
+		TimestampActivate: r.TimestampActivate,
+		TimestampComplete: r.TimestampComplete,
+	}, nil
+}
+
 // ProcessPolicy returns the details of Politeia's restrictions on file uploads.
 func (b *backend) ProcessPolicy(p www.Policy) *www.PolicyReply {
 	return &www.PolicyReply{
@@ -1746,14 +1864,14 @@ func NewBackend(cfg *config) (*backend, error) {
 		return nil, err
 	}
 
-	// Flush comments
-	err = b.flushCommentJournals()
+	// Setup pubkey-userid map
+	err = b.initUserPubkeys()
 	if err != nil {
 		return nil, err
 	}
 
-	// Setup pubkey-userid map
-	err = b.initUserPubkeys()
+	// Flush comments
+	err = b.flushCommentJournals()
 	if err != nil {
 		return nil, err
 	}

@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/gorilla/schema"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
@@ -16,6 +15,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/gorilla/schema"
 
 	"golang.org/x/net/publicsuffix"
 
@@ -288,6 +289,28 @@ func (c *ctx) commentGet(token string) (*v1.GetCommentsReply, error) {
 	}
 
 	return &gcr, nil
+}
+
+func (c *ctx) startVote(id *identity.FullIdentity, token string) (*v1.StartVoteReply, error) {
+	sv := v1.StartVote{
+		Token: token,
+	}
+	sig := id.SignMessage([]byte(token))
+	sv.Signature = hex.EncodeToString(sig[:])
+
+	responseBody, err := c.makeRequest("POST", v1.RouteStartVote, sv)
+	if err != nil {
+		return nil, err
+	}
+
+	var svr v1.StartVoteReply
+	err = json.Unmarshal(responseBody, &svr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal StartVoteReply: %v",
+			err)
+	}
+
+	return &svr, nil
 }
 
 func (c *ctx) me() (*v1.LoginReply, error) {

@@ -32,6 +32,7 @@ const (
 	RoutePolicy              = "/policy"
 	RouteNewComment          = "/comments/new"
 	RouteCommentsGet         = "/proposals/{token:[A-z0-9]{64}}/comments"
+	RouteStartVote           = "/proposals/startvote"
 
 	// VerificationTokenSize is the size of verification token in bytes
 	VerificationTokenSize = 32
@@ -105,6 +106,7 @@ const (
 	ErrorStatusInvalidSigningKey           ErrorStatusT = 25
 	ErrorStatusCommentLengthExceededPolicy ErrorStatusT = 26
 	ErrorStatusUserNotFound                ErrorStatusT = 27
+	ErrorStatusWrongStatus                 ErrorStatusT = 28
 
 	// Proposal status codes (set and get)
 	PropStatusInvalid     PropStatusT = 0 // Invalid status
@@ -112,6 +114,7 @@ const (
 	PropStatusNotReviewed PropStatusT = 2 // Proposal has not been reviewed
 	PropStatusCensored    PropStatusT = 3 // Proposal has been censored
 	PropStatusPublic      PropStatusT = 4 // Proposal is publicly visible
+	PropStatusLocked      PropStatusT = 6 // Proposal is locked
 )
 
 var (
@@ -158,6 +161,7 @@ var (
 		ErrorStatusInvalidSigningKey:           "invalid signing key",
 		ErrorStatusCommentLengthExceededPolicy: "maximum comment length exceeded",
 		ErrorStatusUserNotFound:                "user not found",
+		ErrorStatusWrongStatus:                 "wrong status",
 	}
 )
 
@@ -499,4 +503,17 @@ type Comment struct {
 // GetCommentsReply returns the provided number of comments.
 type GetCommentsReply struct {
 	Comments []Comment `json:"comments"` // Comments
+}
+
+// StartVote
+type StartVote struct {
+	Token string `json:"token"` // Proposal that will start voting soon
+	// XXX we probably need something to sign here besides the the token
+	Signature string `json:"signature"` // Signature of Token
+}
+
+type StartVoteReply struct {
+	Timestamp         int64 `json:"timestamp"`         // Time vote was recorded
+	TimestampActivate int64 `json:"timestampactivate"` // Timestamp vote starts
+	TimestampComplete int64 `json:"timestampcomplete"` // Timestamp vote ends
 }
