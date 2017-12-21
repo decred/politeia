@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/decred/dcrd/hdkeychain"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 
 	flags "github.com/btcsuite/go-flags"
@@ -45,6 +46,7 @@ var (
 	defaultRPCCertFile   = filepath.Join(sharedconfig.DefaultHomeDir, "rpc.cert")
 	defaultCookieKeyFile = filepath.Join(sharedconfig.DefaultHomeDir, "cookie.key")
 	defaultLogDir        = filepath.Join(sharedconfig.DefaultHomeDir, defaultLogDirname)
+	defaultPaywallAmount = 0.0
 
 	templateNewUserEmail = template.Must(
 		template.New("new_user_email_template").Parse(templateNewUserEmailRaw))
@@ -86,10 +88,12 @@ type config struct {
 	MailUser         string `long:"mailuser" description:"Email server username"`
 	MailPass         string `long:"mailpass" description:"Email server password"`
 	SMTP             *goemail.SMTP
-	FetchIdentity    bool   `long:"fetchidentity" description:"Whether or not politeiawww fetches the identity from politeiad."`
-	WebServerAddress string `long:"webserveraddress" description:"Address for the Politeia web server; it should have this format: <scheme>://<host>[:<port>]"`
-	Proxy            bool   `long:"proxy" description:"Run in proxy mode (no CSRF)."`
-	Interactive      string `long:"interactive" description:"Set to i-know-this-is-a-bad-idea to turn off interactive mode during --fetchidentity."`
+	FetchIdentity    bool    `long:"fetchidentity" description:"Whether or not politeiawww fetches the identity from politeiad."`
+	WebServerAddress string  `long:"webserveraddress" description:"Address for the Politeia web server; it should have this format: <scheme>://<host>[:<port>]"`
+	Proxy            bool    `long:"proxy" description:"Run in proxy mode (no CSRF)."`
+	Interactive      string  `long:"interactive" description:"Set to i-know-this-is-a-bad-idea to turn off interactive mode during --fetchidentity."`
+	PaywallAmount    float64 `long:"paywallamount" description:"Amount of DCR required for a user to register."`
+	PaywallXpub      string  `long:"paywallxpub" description:"Extended public key for deriving paywall addresses."`
 }
 
 // serviceOptions defines the configuration options for the rpc as a service
@@ -320,6 +324,7 @@ func loadConfig() (*config, []string, error) {
 		HTTPSCert:     defaultHTTPSCertFile,
 		RPCCert:       defaultRPCCertFile,
 		CookieKeyFile: defaultCookieKeyFile,
+		PaywallAmount: defaultPaywallAmount,
 		Version:       version(),
 	}
 
@@ -637,6 +642,19 @@ func loadConfig() (*config, []string, error) {
 	}
 	if err := templateResetPasswordEmail.Execute(os.Stdout, &resetPasswordTplData); err != nil {
 		return nil, nil, err
+	}
+
+	// Parse the extended public key if the paywall is enabled.
+	if cfg.PaywallAmount > 0 && cfg.PaywallXpub != "" {
+		paywallKey, err := hdkeychain.NewKeyFromString(cfg.PaywallXpub)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error processing extended public key: %v",
+				err)
+		}
+		if !paywallKey.IsForNet(activeNetParams.Params) {
+			return nil, nil, fmt.Errorf("paywall extended public key is for the " +
+				"wrong network")
+		}
 	}
 
 	return &cfg, remainingArgs, nil

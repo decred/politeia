@@ -2295,7 +2295,7 @@ func (g *gitBackEnd) rebasePR(id string) error {
 }
 
 // New returns a gitBackEnd context.  It verifies that git is installed.
-func New(root, dcrtimeHost, gitPath string, gitTrace bool) (*gitBackEnd, error) {
+func New(root string, dcrtimeHost string, gitPath string, gitTrace bool) (*gitBackEnd, error) {
 	// Default to system git
 	if gitPath == "" {
 		gitPath = "git"
