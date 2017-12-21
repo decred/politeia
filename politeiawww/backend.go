@@ -819,6 +819,7 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 
 		// Derive a paywall address for this user if the paywall is enabled.
 		paywallAddress := ""
+		paywallAmount := float64(0)
 		if b.cfg.PaywallXpub != "" {
 			paywallAddress, err = util.DerivePaywallAddress(b.params,
 				b.cfg.PaywallXpub, uint32(user.ID))
@@ -826,12 +827,13 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 				return nil, fmt.Errorf("Unable to derive paywall address #%v "+
 					"for %v: %v", uint32(user.ID), u.Email, err)
 			}
+			paywallAmount = b.cfg.PaywallAmount
 		}
 
 		reply.PaywallAddress = paywallAddress
-		reply.PaywallAmount = b.cfg.PaywallAmount
+		reply.PaywallAmount = paywallAmount
 		user.NewUserPaywallAddress = paywallAddress
-		user.NewUserPaywallAmount = b.cfg.PaywallAmount
+		user.NewUserPaywallAmount = paywallAmount
 		user.NewUserPaywallTxNotBefore = time.Now().Unix()
 
 		err = b.db.UserUpdate(*user)

@@ -540,7 +540,7 @@ func _main() error {
 		return err
 	}
 
-	if paywallAddress != "" {
+	if paywallAddress != "" && paywallAmount != 0 {
 		// Use the testnet faucet to satisfy the user paywall fee.
 		faucetTx, err := util.PayWithTestnetFaucet(faucetURL, paywallAddress, paywallAmount,
 			*overridetokenFlag)
