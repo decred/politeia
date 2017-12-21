@@ -251,8 +251,10 @@ func initSMTP(cfg *config) error {
 		cfg.MailPass != "" || cfg.WebServerAddress != "" {
 		if cfg.MailHost == "" || cfg.MailUser == "" ||
 			cfg.MailPass == "" || cfg.WebServerAddress == "" {
-			log.Warnf("invalid mail configuration detected!")
-			return nil
+			err := fmt.Errorf("either all or none of the " +
+				"following config options should be supplied:" +
+				" mailhost, mailuser, mailpass, webserveraddress")
+			return err
 		}
 
 		var err error
