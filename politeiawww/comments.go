@@ -11,6 +11,7 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	pd "github.com/decred/politeia/politeiad/api/v1"
@@ -73,15 +74,6 @@ func wwwCommentToBackendComment(www BackendComment) BackendComment {
 	}
 }
 
-// initComment initializes the comment map for the given token.  This call must
-// be called with the lock held.
-func (b *backend) initComment(token string) {
-	if _, ok := b.comments[token]; ok {
-		return
-	}
-	b.comments[token] = make(map[uint64]BackendComment)
-}
-
 // getComments returns all comments for given proposal token.  Note that the
 // comments are not sorted.
 // This call must be called WITHOUT the lock held.
@@ -89,7 +81,7 @@ func (b *backend) getComments(token string) (*www.GetCommentsReply, error) {
 	b.RLock()
 	defer b.RUnlock()
 
-	c, ok := b.comments[token]
+	c, ok := b._inventory[token]
 	if !ok {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusProposalNotFound,
@@ -97,9 +89,9 @@ func (b *backend) getComments(token string) (*www.GetCommentsReply, error) {
 	}
 
 	gcr := &www.GetCommentsReply{
-		Comments: make([]www.Comment, 0, len(c)),
+		Comments: make([]www.Comment, 0, len(c.comments)),
 	}
-	for _, v := range c {
+	for _, v := range c.comments {
 		gcr.Comments = append(gcr.Comments,
 			backendCommentToComment(v))
 	}
@@ -142,7 +134,7 @@ func (b *backend) addComment(c www.NewComment, userID uint64) (*www.NewCommentRe
 	fmt.Fprintf(f, "%s\n", cb)
 
 	// Store comment in memory for quick lookup
-	b.comments[c.Token][b.commentID] = comment
+	b._inventory[c.Token].comments[b.commentID] = comment
 	cr := www.NewCommentReply{
 		CommentID: comment.CommentID,
 	}
@@ -151,21 +143,10 @@ func (b *backend) addComment(c www.NewComment, userID uint64) (*www.NewCommentRe
 	return &cr, nil
 }
 
-// replayCommentJournal reads the comments journal and recreates the internal
-// memory map.  Not all failures are considered fatal.  It is better to load
-// some comments instead of none.
-// This call must be called with the lock held.
-func (b *backend) replayCommentJournal(token string) error {
+func (b *backend) loadComments(token, comments string) error {
 	// Replay journal
-	f, err := os.Open(token)
-	if err != nil {
-		// See if there is something to do with the journal.
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return err
-	}
-	defer f.Close()
+	f := strings.NewReader(comments)
+
 	d := json.NewDecoder(f)
 	for {
 		var c BackendComment
@@ -189,15 +170,11 @@ func (b *backend) replayCommentJournal(token string) error {
 		}
 
 		// Add to memory cache
-		if _, ok := b.comments[c.Token]; !ok {
-			b.comments[c.Token] = make(map[uint64]BackendComment)
-		}
-
 		switch c.Action {
 		case CommentActionAdd:
-			b.comments[c.Token][cid] = c
+			b._inventory[c.Token].comments[cid] = c
 		case CommentActionDelete:
-			delete(b.comments[c.Token], cid)
+			delete(b._inventory[c.Token].comments, cid)
 		default:
 			log.Errorf("invalid comment action: %v token %v "+
 				"comment id %v", c.Action, c.Token, c.CommentID)
@@ -213,32 +190,91 @@ func (b *backend) replayCommentJournal(token string) error {
 	return nil
 }
 
+// replayCommentJournal reads the comments journal and recreates the internal
+// memory map.  Not all failures are considered fatal.  It is better to load
+// some comments instead of none.
+// This call must be called with the lock held.
+//func (b *backend) replayCommentJournal(token string) error {
+//	// Replay journal
+//	f, err := os.Open(token)
+//	if err != nil {
+//		// See if there is something to do with the journal.
+//		if os.IsNotExist(err) {
+//			return nil
+//		}
+//		return err
+//	}
+//	defer f.Close()
+//	d := json.NewDecoder(f)
+//	for {
+//		var c BackendComment
+//		if err := d.Decode(&c); err == io.EOF {
+//			break // done decoding file
+//		} else if err != nil {
+//			return err
+//		}
+//
+//		// Verify comment version
+//		if c.Version != defaultCommentVersion {
+//			log.Errorf("unsupported comment version: got %v "+
+//				"wanted %v", c.Version, defaultCommentVersion)
+//			continue
+//		}
+//
+//		cid, err := strconv.ParseUint(c.CommentID, 10, 64)
+//		if err != nil {
+//			log.Errorf("invalid CommentID %v", err)
+//			continue
+//		}
+//
+//		// Add to memory cache
+//		switch c.Action {
+//		case CommentActionAdd:
+//			log.Infof("adding comment %v", c.Token)
+//			b._inventory[c.Token].comments[cid] = c
+//		case CommentActionDelete:
+//			delete(b._inventory[c.Token].comments, cid)
+//		default:
+//			log.Errorf("invalid comment action: %v token %v "+
+//				"comment id %v", c.Action, c.Token, c.CommentID)
+//			// fallthrough
+//		}
+//
+//		// See if this is the last comment
+//		if cid > b.commentID {
+//			b.commentID = cid
+//		}
+//	}
+//
+//	return nil
+//}
+
 // replayCommentJournals replays all comment journals into the memory cache.
-func (b *backend) replayCommentJournals() error {
-	fi, err := ioutil.ReadDir(b.commentJournalDir)
-	if err != nil {
-		return err
-	}
-
-	for _, v := range fi {
-		filename := v.Name()
-		_, err = util.ConvertStringToken(filename)
-		if err != nil {
-			log.Tracef("replayCommentJournals: skipping %v",
-				filename)
-			continue
-		}
-		log.Tracef("replayCommentJournals: %v", filename)
-		err = b.replayCommentJournal(filepath.Join(b.commentJournalDir,
-			filename))
-		if err != nil {
-			// log but ignore errors
-			log.Errorf("replayCommentJournals: %v", err)
-		}
-	}
-
-	return nil
-}
+//func (b *backend) replayCommentJournals() error {
+//	fi, err := ioutil.ReadDir(b.commentJournalDir)
+//	if err != nil {
+//		return err
+//	}
+//
+//	for _, v := range fi {
+//		filename := v.Name()
+//		_, err = util.ConvertStringToken(filename)
+//		if err != nil {
+//			log.Tracef("replayCommentJournals: skipping %v",
+//				filename)
+//			continue
+//		}
+//		log.Tracef("replayCommentJournals: %v", filename)
+//		err = b.replayCommentJournal(filepath.Join(b.commentJournalDir,
+//			filename))
+//		if err != nil {
+//			// log but ignore errors
+//			log.Errorf("replayCommentJournals: %v", err)
+//		}
+//	}
+//
+//	return nil
+//}
 
 // flushCommentJournal flushes all comments to politeiad. For now this uses the
 // large hammer approach of always flushing all comments.

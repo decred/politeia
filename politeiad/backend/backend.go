@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"regexp"
 
 	"github.com/decred/politeia/politeiad/api/v1"
 )
@@ -30,6 +31,9 @@ var (
 	// occurs.  The only valid transitions are from unvetted -> vetted and
 	// unvetted to censored.
 	ErrInvalidTransition = errors.New("invalid record status transition")
+
+	// Plugin names must be all lowercase letters and have a length of <20
+	PluginRE = regexp.MustCompile(`^[a-z]{1,20}$`)
 )
 
 // ContentVerificationError is returned when a submitted record contains
@@ -96,6 +100,19 @@ type Record struct {
 	Files          []File           // User provided files
 }
 
+// PluginSettings
+type PluginSetting struct {
+	Key   string // Name of setting
+	Value string // Value of setting
+}
+
+// Plugin describes a plugin and its settings.
+type Plugin struct {
+	ID       string          // Identifier
+	Version  string          // Version
+	Settings []PluginSetting // Settings
+}
+
 type Backend interface {
 	// Create new record
 	New([]MetadataStream, []File) (*RecordMetadata, error)
@@ -120,6 +137,12 @@ type Backend interface {
 
 	// Inventory retrieves various record records.
 	Inventory(uint, uint, bool) ([]Record, []Record, error)
+
+	// Obtain plugin settings
+	GetPlugins() ([]Plugin, error)
+
+	// Pligin pass-through command
+	Plugin(string, string) (string, string, error)
 
 	// Close performs cleanup of the backend.
 	Close()

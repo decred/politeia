@@ -30,8 +30,10 @@ const (
 	GetVettedRoute            = "/v1/getvetted/"      // Retrieve vetted record
 
 	// Auth required
-	InventoryRoute         = "/v1/inventory/"         // Inventory records
-	SetUnvettedStatusRoute = "/v1/setunvettedstatus/" // Set unvetted status
+	InventoryRoute         = "/v1/inventory/"                  // Inventory records
+	SetUnvettedStatusRoute = "/v1/setunvettedstatus/"          // Set unvetted status
+	PluginCommandRoute     = "/v1/plugin/"                     // Send a command to a plugin
+	PluginInventoryRoute   = PluginCommandRoute + "inventory/" // Inventory all plugins
 
 	ChallengeSize      = 32         // Size of challenge token in bytes
 	TokenSize          = 32         // Size of token
@@ -55,14 +57,13 @@ const (
 	ErrorStatusNoChanges                     ErrorStatusT = 14
 
 	// Record status codes (set and get)
-	RecordStatusInvalid     RecordStatusT = 0 // Invalid status
-	RecordStatusNotFound    RecordStatusT = 1 // Record not found
-	RecordStatusNotReviewed RecordStatusT = 2 // Record has not been reviewed
-	RecordStatusCensored    RecordStatusT = 3 // Record has been censored
-	RecordStatusPublic      RecordStatusT = 4 // Record is publicly visible
-
-	// Public visible record that has changes that are not public
-	RecordStatusUnreviewedChanges RecordStatusT = 5
+	RecordStatusInvalid           RecordStatusT = 0 // Invalid status
+	RecordStatusNotFound          RecordStatusT = 1 // Record not found
+	RecordStatusNotReviewed       RecordStatusT = 2 // Record has not been reviewed
+	RecordStatusCensored          RecordStatusT = 3 // Record has been censored
+	RecordStatusPublic            RecordStatusT = 4 // Record is publicly visible
+	RecordStatusUnreviewedChanges RecordStatusT = 5 // Public visible record that has changes that are not public
+	RecordStatusLockedPublic      RecordStatusT = 6 // Record is locked and publicly visible
 
 	// Default network bits
 	DefaultMainnetHost = "politeia.decred.org"
@@ -101,6 +102,7 @@ var (
 		RecordStatusCensored:          "censored",
 		RecordStatusPublic:            "public",
 		RecordStatusUnreviewedChanges: "unreviewed changes",
+		RecordStatusLockedPublic:      "public locked",
 	}
 
 	// Input validation
@@ -351,4 +353,46 @@ type UserErrorReply struct {
 // server logs.
 type ServerErrorReply struct {
 	ErrorCode int64 `json:"code"` // Server error code
+}
+
+// PluginSetting is a structure that holds key/value pairs of a plugin setting.
+type PluginSetting struct {
+	Key   string `json:"key"`   // Name of setting
+	Value string `json:"value"` // Value of setting
+}
+
+// Plugin describes a plugin and its settings.
+type Plugin struct {
+	ID       string          `json:"id"`      // Identifier
+	Version  string          `json:"version"` // Version
+	Settings []PluginSetting `json:"setting"` // Settings
+}
+
+// PluginInventory retrieves all active plugins and their settings.
+type PluginInventory struct {
+	Challenge string `json:"challenge"` // Random challenge
+}
+
+// PluginInventoryReply returns all plugins and their settings.
+type PluginInventoryReply struct {
+	Response string   `json:"response"` // Challenge response
+	Plugins  []Plugin `json:"plugins"`  // Plugins and their settings
+}
+
+// PluginCommand sends a command to a plugin.
+type PluginCommand struct {
+	Challenge string `json:"challenge"` // Random challenge
+	ID        string `json:"id"`        // Plugin identifier
+	Command   string `json:"command"`   // Command identifier
+	CommandID string `json:"commandid"` // User setable command identifier
+	Payload   string `json:"payload"`   // Actual command
+}
+
+// PluginCommandReply is the reply to a PluginCommand.
+type PluginCommandReply struct {
+	Response  string `json:"response"`  // Challenge response
+	ID        string `json:"id"`        // Plugin identifier
+	Command   string `json:"command"`   // Command identifier
+	CommandID string `json:"commandid"` // User setable command identifier
+	Payload   string `json:"payload"`   // Actual command reply
 }
