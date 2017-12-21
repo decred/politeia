@@ -46,7 +46,7 @@ var (
 	defaultRPCCertFile   = filepath.Join(sharedconfig.DefaultHomeDir, "rpc.cert")
 	defaultCookieKeyFile = filepath.Join(sharedconfig.DefaultHomeDir, "cookie.key")
 	defaultLogDir        = filepath.Join(sharedconfig.DefaultHomeDir, defaultLogDirname)
-	defaultPaywallAmount = .1
+	defaultPaywallAmount = 0.0
 
 	templateNewUserEmail = template.Must(
 		template.New("new_user_email_template").Parse(templateNewUserEmailRaw))
@@ -642,8 +642,8 @@ func loadConfig() (*config, []string, error) {
 		return nil, nil, err
 	}
 
-	// Parse the extended public key.
-	if cfg.PaywallXpub == "" {
+	// Parse the extended public key if the paywall is enabled.
+	if cfg.PaywallAmount > 0 && cfg.PaywallXpub != "" {
 		paywallKey, err := hdkeychain.NewKeyFromString(cfg.PaywallXpub)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error processing extended public key: %v",
