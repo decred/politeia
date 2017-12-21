@@ -540,16 +540,18 @@ func _main() error {
 		return err
 	}
 
-	// Use the testnet faucet to satisfy the user paywall fee.
-	faucetTx, err := util.PayWithTestnetFaucet(faucetURL, paywallAddress, paywallAmount,
-		*overridetokenFlag)
-	if err != nil {
-		return fmt.Errorf("unable to pay with %v with %v faucet: %v",
-			paywallAddress, paywallAmount, err)
-	}
+	if paywallAddress != "" {
+		// Use the testnet faucet to satisfy the user paywall fee.
+		faucetTx, err := util.PayWithTestnetFaucet(faucetURL, paywallAddress, paywallAmount,
+			*overridetokenFlag)
+		if err != nil {
+			return fmt.Errorf("unable to pay with %v with %v faucet: %v",
+				paywallAddress, paywallAmount, err)
+		}
 
-	fmt.Printf("paid %v DCR to %v with faucet tx %v\n",
-		paywallAmount, paywallAddress, faucetTx)
+		fmt.Printf("paid %v DCR to %v with faucet tx %v\n",
+			paywallAmount, paywallAddress, faucetTx)
+	}
 
 	// TODO need to poll for payment confirmation once enforcement is enabled
 

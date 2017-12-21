@@ -644,17 +644,15 @@ func loadConfig() (*config, []string, error) {
 
 	// Parse the extended public key.
 	if cfg.PaywallXpub == "" {
-		return nil, nil, fmt.Errorf("PaywallXpub must be set and is not")
-	}
-
-	paywallKey, err := hdkeychain.NewKeyFromString(cfg.PaywallXpub)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error processing extended public key: %v",
-			err)
-	}
-	if !paywallKey.IsForNet(activeNetParams.Params) {
-		return nil, nil, fmt.Errorf("paywall extended public key is for the " +
-			"wrong network")
+		paywallKey, err := hdkeychain.NewKeyFromString(cfg.PaywallXpub)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error processing extended public key: %v",
+				err)
+		}
+		if !paywallKey.IsForNet(activeNetParams.Params) {
+			return nil, nil, fmt.Errorf("paywall extended public key is for the " +
+				"wrong network")
+		}
 	}
 
 	return &cfg, remainingArgs, nil

@@ -817,12 +817,15 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 				u.Email, err)
 		}
 
-		// Derive a paywall address for this user.
-		paywallAddress, err := util.DerivePaywallAddress(b.params,
-			b.cfg.PaywallXpub, uint32(user.ID))
-		if err != nil {
-			return nil, fmt.Errorf("Unable to derive paywall address #%v "+
-				"for %v: %v", uint32(user.ID), u.Email, err)
+		// Derive a paywall address for this user if the paywall is enabled.
+		paywallAddress := ""
+		if b.cfg.PaywallXpub != "" {
+			paywallAddress, err = util.DerivePaywallAddress(b.params,
+				b.cfg.PaywallXpub, uint32(user.ID))
+			if err != nil {
+				return nil, fmt.Errorf("Unable to derive paywall address #%v "+
+					"for %v: %v", uint32(user.ID), u.Email, err)
+			}
 		}
 
 		reply.PaywallAddress = paywallAddress
