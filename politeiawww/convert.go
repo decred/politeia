@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/davecgh/go-spew/spew"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	www "github.com/decred/politeia/politeiawww/api/v1"
 )
@@ -16,6 +15,8 @@ func convertPropStatusFromWWW(s www.PropStatusT) pd.RecordStatusT {
 		return pd.RecordStatusCensored
 	case www.PropStatusPublic:
 		return pd.RecordStatusPublic
+	case www.PropStatusLocked:
+		return pd.RecordStatusLockedPublic
 	}
 	return pd.RecordStatusInvalid
 }
@@ -80,6 +81,8 @@ func convertPropStatusFromPD(s pd.RecordStatusT) www.PropStatusT {
 		return www.PropStatusCensored
 	case pd.RecordStatusPublic:
 		return www.PropStatusPublic
+	case pd.RecordStatusLockedPublic:
+		return www.PropStatusLocked
 	}
 	return www.PropStatusInvalid
 }
@@ -110,7 +113,6 @@ func convertPropCensorFromPD(f pd.CensorshipRecord) www.CensorshipRecord {
 }
 
 func convertPropFromPD(p pd.Record) www.ProposalRecord {
-	log.Infof("%v", spew.Sdump(p))
 	md := &BackendProposalMetadata{}
 	for _, v := range p.Metadata {
 		if v.ID != mdStreamGeneral {

@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/util"
 )
@@ -18,24 +19,106 @@ var (
 	overridetokenFlag = flag.String("overridetoken", "", "overridetoken for the faucet")
 	passwordFlag      = flag.String("password", "", "admin password")
 	printJson         = flag.Bool("json", false, "Print JSON")
+	test              = flag.String("test", "all", "only run a subset of tests [all,vote]")
 )
 
-func _main() error {
-	flag.Parse()
-
+func firstContact() (*ctx, error) {
 	// Always hit / first for csrf token and obtain api version
 	fmt.Printf("=== Start ===\n")
 	c, err := newClient(true)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	version, err := c.getCSRF()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	fmt.Printf("Version: %v\n", version.Version)
 	fmt.Printf("Route  : %v\n", version.Route)
 	fmt.Printf("CSRF   : %v\n\n", c.csrf)
+
+	return c, nil
+}
+
+func vote() error {
+	if *emailFlag == "" {
+		return fmt.Errorf("vote tests require admin privileges")
+	}
+	adminEmail := *emailFlag
+	adminPassword := *passwordFlag
+	adminID, err := idFromString(adminEmail)
+	if err != nil {
+		return err
+	}
+
+	c, err := firstContact()
+	if err != nil {
+		return err
+	}
+
+	lr, err := c.login(adminEmail, adminPassword)
+	if err != nil {
+		return err
+	}
+
+	// expect admin == true
+	if !lr.IsAdmin {
+		return fmt.Errorf("expected admin")
+	}
+
+	// create new prop
+	myprop1, err := c.newProposal(adminID)
+	if err != nil {
+		return err
+	}
+
+	// start voting on prop, wrong state should fail
+	//svr, err := c.startVote(adminID, myprop1.CensorshipRecord.Token)
+	//if err == nil {
+	//	return fmt.Errorf("expected 400, wrong status")
+	//}
+	//if !strings.HasPrefix(err.Error(), "400") {
+	//	return fmt.Errorf("expected 400, wrong status got: %v", err)
+	//}
+
+	// move prop to vetted
+	psr1, err := c.setPropStatus(adminID,
+		myprop1.CensorshipRecord.Token, v1.PropStatusPublic)
+	if err != nil {
+		return err
+	}
+	if psr1.ProposalStatus != v1.PropStatusPublic {
+		return fmt.Errorf("invalid status got %v wanted %v",
+			psr1.ProposalStatus,
+			v1.PropStatusPublic)
+	}
+
+	// start vote, should succeed
+	svr, err := c.startVote(adminID, myprop1.CensorshipRecord.Token)
+	if err != nil {
+		return err
+	}
+	spew.Dump(svr)
+
+	return nil
+}
+
+func _main() error {
+	flag.Parse()
+
+	switch *test {
+	case "vote":
+		return vote()
+	case "all":
+		// Fallthrough
+	default:
+		return fmt.Errorf("invalid test suite: %v", *test)
+	}
+
+	c, err := firstContact()
+	if err != nil {
+		return err
+	}
 
 	// Policy
 	pr, err := c.policy()

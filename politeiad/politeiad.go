@@ -40,6 +40,7 @@ type politeia struct {
 	cfg      *config
 	router   *mux.Router
 	identity *identity.FullIdentity
+	plugins  map[string]v1.Plugin
 }
 
 func remoteAddr(r *http.Request) string {
@@ -49,6 +50,24 @@ func remoteAddr(r *http.Request) string {
 		return fmt.Sprintf("%v via %v", xff, r.RemoteAddr)
 	}
 	return via
+}
+
+func convertBackendPluginSetting(bpi backend.PluginSetting) v1.PluginSetting {
+	return v1.PluginSetting{
+		Key:   bpi.Key,
+		Value: bpi.Value,
+	}
+}
+
+func convertBackendPlugin(bpi backend.Plugin) v1.Plugin {
+	p := v1.Plugin{
+		ID: bpi.ID,
+	}
+	for _, v := range bpi.Settings {
+		p.Settings = append(p.Settings, convertBackendPluginSetting(v))
+	}
+
+	return p
 }
 
 // convertBackendMetadataStream converts a backend metadata stream to an API
@@ -657,6 +676,67 @@ func (p *politeia) updateVettedMetadata(w http.ResponseWriter, r *http.Request) 
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
+func (p *politeia) pluginInventory(w http.ResponseWriter, r *http.Request) {
+	var pi v1.PluginInventory
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&pi); err != nil {
+		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload,
+			nil)
+		return
+	}
+	defer r.Body.Close()
+
+	challenge, err := hex.DecodeString(pi.Challenge)
+	if err != nil || len(challenge) != v1.ChallengeSize {
+		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
+		return
+	}
+	response := p.identity.SignMessage(challenge)
+
+	reply := v1.PluginInventoryReply{
+		Response: hex.EncodeToString(response[:]),
+	}
+
+	for _, v := range p.plugins {
+		reply.Plugins = append(reply.Plugins, v)
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+func (p *politeia) pluginCommand(w http.ResponseWriter, r *http.Request) {
+	var pc v1.PluginCommand
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&pc); err != nil {
+		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload,
+			nil)
+		return
+	}
+	defer r.Body.Close()
+
+	challenge, err := hex.DecodeString(pc.Challenge)
+	if err != nil || len(challenge) != v1.ChallengeSize {
+		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
+		return
+	}
+
+	cid, payload, err := p.backend.Plugin(pc.Command, pc.Payload)
+	if err != nil {
+		return
+	}
+
+	response := p.identity.SignMessage(challenge)
+	reply := v1.PluginCommandReply{
+		Response:  hex.EncodeToString(response[:]),
+		ID:        pc.ID,
+		Command:   cid,
+		CommandID: pc.CommandID,
+		Payload:   payload,
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
 // getError returns the error that is embedded in a JSON reply.
 func getError(r io.Reader) (string, error) {
 	var e interface{}
@@ -760,7 +840,8 @@ func _main() error {
 
 	// Setup application context.
 	p := &politeia{
-		cfg: loadedCfg,
+		cfg:     loadedCfg,
+		plugins: make(map[string]v1.Plugin),
 	}
 
 	// Load identity.
@@ -820,6 +901,32 @@ func _main() error {
 		permissionAuth)
 	p.addRoute(http.MethodPost, v1.UpdateVettedMetadataRoute, p.updateVettedMetadata,
 		permissionAuth)
+
+	// Setup plugins
+	plugins, err := p.backend.GetPlugins()
+	if err != nil {
+		return err
+	}
+	if len(plugins) > 0 {
+		// Set plugin routes. Requires auth.
+		p.router.HandleFunc(v1.PluginCommandRoute,
+			logging(p.auth(p.pluginCommand))).Methods("POST")
+		p.router.HandleFunc(v1.PluginInventoryRoute,
+			logging(p.auth(p.pluginInventory))).Methods("POST")
+
+		for _, v := range plugins {
+			// make sure we only have lowercase names
+			if backend.PluginRE.FindString(v.ID) != v.ID {
+				return fmt.Errorf("invalid plugin id: %v", v.ID)
+			}
+			if _, found := p.plugins[v.ID]; found {
+				return fmt.Errorf("duplicate plugin: %v", v.ID)
+			}
+
+			p.plugins[v.ID] = convertBackendPlugin(v)
+			log.Infof("Registered plugin: %v", v.ID)
+		}
+	}
 
 	// Bind to a port and pass our router in
 	listenC := make(chan error)

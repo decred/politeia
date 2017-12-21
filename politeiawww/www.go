@@ -202,9 +202,8 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 	}
 
 	errorCode := time.Now().Unix()
-	ec := fmt.Sprintf("%v %v %v %v Internal error %v: ", remoteAddr(r),
+	log.Errorf("%v %v %v %v Internal error: %v", remoteAddr(r),
 		r.Method, r.URL, r.Proto, errorCode)
-	log.Errorf(ec+format, args...)
 	util.RespondWithJSON(w, http.StatusInternalServerError,
 		v1.ErrorReply{
 			ErrorCode: errorCode,
@@ -709,6 +708,44 @@ func (p *politeiawww) handleUserProposals(w http.ResponseWriter, r *http.Request
 	util.RespondWithJSON(w, http.StatusOK, upr)
 }
 
+// handleStartVote handles starting a vote.
+func (p *politeiawww) handleStartVote(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleStartVote")
+	var sv v1.StartVote
+
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&sv); err != nil {
+		RespondWithError(w, r, 0, "handleStartVote: unmarshal", v1.UserError{
+			ErrorCode: v1.ErrorStatusInvalidInput,
+		})
+		return
+	}
+	defer r.Body.Close()
+
+	user, err := p.getSessionUser(r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleStartVote: getSessionUser %v", err)
+		return
+	}
+
+	// Sanity
+	if !user.Admin {
+		RespondWithError(w, r, 0,
+			"handleStartVote: admin %v", user.Admin)
+		return
+	}
+
+	svr, err := p.backend.ProcessStartVote(sv, user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleStartVote: ProcessComment %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, svr)
+}
+
 // handleNotFound is a generic handler for an invalid route.
 func (p *politeiawww) handleNotFound(w http.ResponseWriter, r *http.Request) {
 	// Log incoming connection
@@ -800,6 +837,13 @@ func _main() error {
 	}
 	p.backend.params = activeNetParams.Params
 
+	// Try to load inventory but do not fail.
+	log.Infof("Attempting to load proposal inventory")
+	err = p.backend.LoadInventory()
+	if err != nil {
+		log.Errorf("LoadInventory: %v", err)
+	}
+
 	var csrfHandle func(http.Handler) http.Handler
 	if !p.cfg.Proxy {
 		// We don't persist connections to generate a new key every
@@ -867,6 +911,8 @@ func _main() error {
 		permissionAdmin, true)
 	p.addRoute(http.MethodPost, v1.RouteSetProposalStatus,
 		p.handleSetProposalStatus, permissionAdmin, true)
+	p.addRoute(http.MethodPost, v1.RouteStartVote,
+		p.handleStartVote, permissionAdmin, true)
 
 	// Persist session cookies.
 	var cookieKey []byte
