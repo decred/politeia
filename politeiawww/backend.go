@@ -11,7 +11,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -22,6 +21,7 @@ import (
 	"github.com/dajohi/goemail"
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrtime/merkle"
+	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
@@ -39,6 +39,9 @@ const (
 	mdStreamGeneral  = 0 // General information for this proposal
 	mdStreamComments = 1 // Comments
 	mdStreamChanges  = 2 // Changes to record
+	// Note that 13 is in use by the decred plugin
+	// Note that 14 is in use by the decred plugin
+	// Note that 15 is in use by the decred plugin
 )
 
 type MDStreamChanges struct {
@@ -66,11 +69,8 @@ type backend struct {
 	comments  map[string]map[uint64]BackendComment // [token][parent]comment
 	commentID uint64                               // current comment id
 
-	// When inventory is set or modified inventoryVersion MUST be
-	// incremented.  When inventory changes the caller MUST initialize the
-	// comments map for the associated censorship token.
-	inventory        []www.ProposalRecord // current inventory
-	inventoryVersion uint                 // inventory version
+	// inventory will eventually replace inventory
+	inventory map[string]*inventoryRecord // Current inventory
 }
 
 const BackendProposalMetadataVersion = 1
@@ -81,15 +81,6 @@ type BackendProposalMetadata struct {
 	Name      string `json:"name"`      // Generated proposal name
 	PublicKey string `json:"publickey"` // Key used for signature.
 	Signature string `json:"signature"` // Signature of merkle root
-}
-
-// proposalsRequest is used for passing parameters into the
-// getProposals() function.
-type proposalsRequest struct {
-	After     string
-	Before    string
-	UserId    string
-	StatusMap map[www.PropStatusT]bool
 }
 
 // encodeBackendProposalMetadata encodes BackendProposalMetadata into a JSON
@@ -116,8 +107,18 @@ func decodeBackendProposalMetadata(payload []byte) (*BackendProposalMetadata, er
 	return &md, nil
 }
 
-// Compare supplied public key against the one stored in the user database
-// It will return the curent active public key if there are no errors
+// checkPublicKeyAndSignature validates the public key and signature.
+func checkPublicKeyAndSignature(user *database.User, publicKey string, signature string, elements ...string) error {
+	id, err := checkPublicKey(user, publicKey)
+	if err != nil {
+		return err
+	}
+
+	return checkSignature(id, signature, elements...)
+}
+
+// checkPublicKey compares the supplied public key against the one stored in
+// the user database. It will return the active identity if there are no errors.
 func checkPublicKey(user *database.User, pk string) ([]byte, error) {
 	id, ok := database.ActiveIdentity(user.Identities)
 	if !ok {
@@ -134,8 +135,8 @@ func checkPublicKey(user *database.User, pk string) ([]byte, error) {
 	return id[:], nil
 }
 
-// Check an incomming signature against the specified user's pubkey.
-func checkSig(id []byte, signature string, elements ...string) error {
+// checkSignature validates an incoming signature against the specified user's pubkey.
+func checkSignature(id []byte, signature string, elements ...string) error {
 	// Check incoming signature verify(token+string(ProposalStatus))
 	sig, err := util.ConvertSignature(signature)
 	if err != nil {
@@ -190,7 +191,12 @@ func (b *backend) hashPassword(password string) ([]byte, error) {
 
 // initUserPubkeys initializes the userPubkeys map with all the pubkey-userid
 // associations that are found in the database.
+//
+// This function must be called WITHOUT the lock held.
 func (b *backend) initUserPubkeys() error {
+	b.Lock()
+	defer b.Unlock()
+
 	return b.db.AllUsers(func(u *database.User) {
 		userId := strconv.FormatUint(u.ID, 10)
 		for _, v := range u.Identities {
@@ -198,6 +204,18 @@ func (b *backend) initUserPubkeys() error {
 			b.userPubkeys[key] = userId
 		}
 	})
+}
+
+// setUserPubkeyAssociaton associates a public key with a user id in
+// the userPubkeys cache.
+//
+// This function must be called WITHOUT the lock held.
+func (b *backend) setUserPubkeyAssociaton(user *database.User, publicKey string) {
+	b.Lock()
+	defer b.Unlock()
+
+	userId := strconv.FormatUint(user.ID, 10)
+	b.userPubkeys[publicKey] = userId
 }
 
 // emailNewUserVerificationLink emails the link with the new user verification token
@@ -627,112 +645,31 @@ func (b *backend) verifyResetPassword(user *database.User, rp www.ResetPassword,
 
 // loadInventory calls the politeaid RPC call to load the current inventory.
 // Note that this function fakes out the inventory during test and therefore
-// must be called WITHOUT the lock held.
+// must be called WITH the lock held.
 func (b *backend) loadInventory() (*pd.InventoryReply, error) {
 	if !b.test {
 		return b.remoteInventory()
 	}
 
+	// Following is test code only.
+
 	// Split the existing inventory into vetted and unvetted.
-	vetted := make([]www.ProposalRecord, 0)
-	unvetted := make([]www.ProposalRecord, 0)
+	//vetted := make([]www.ProposalRecord, 0)
+	//unvetted := make([]www.ProposalRecord, 0)
 
-	b.Lock()
-	defer b.Unlock()
-	for _, v := range b.inventory {
-		if v.Status == www.PropStatusPublic {
-			vetted = append(vetted, v)
-		} else {
-			unvetted = append(unvetted, v)
-		}
-	}
+	//for _, v := range b.inventory {
+	//	if v.Status == www.PropStatusPublic {
+	//		vetted = append(vetted, v)
+	//	} else {
+	//		unvetted = append(unvetted, v)
+	//	}
+	//}
 
-	return &pd.InventoryReply{
-		Vetted:   convertPropsFromWWW(vetted),
-		Branches: convertPropsFromWWW(unvetted),
-	}, nil
-}
-
-func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
-	b.RLock()
-	defer b.RUnlock()
-
-	// pageStarted stores whether or not it's okay to start adding
-	// proposals to the array. If the after or before parameter is
-	// supplied, we must find the beginning (or end) of the page first.
-	pageStarted := (pr.After == "" && pr.Before == "")
-	beforeIdx := -1
-	proposals := make([]www.ProposalRecord, 0)
-
-	// Iterate in reverse order because they're sorted by oldest timestamp
-	// first.
-	for i := len(b.inventory) - 1; i >= 0; i-- {
-		proposal := b.inventory[i]
-
-		// Filter by user if it's provided.
-		if pr.UserId != "" && pr.UserId != proposal.UserId {
-			continue
-		}
-
-		// Filter by the status.
-		if val, ok := pr.StatusMap[proposal.Status]; !ok || !val {
-			continue
-		}
-
-		// Set the number of comments.
-		token := proposal.CensorshipRecord.Token
-		proposal.NumComments = uint(len(b.comments[token]))
-
-		if pageStarted {
-			proposals = append(proposals, proposal)
-			if len(proposals) >= www.ProposalListPageSize {
-				break
-			}
-		} else if pr.After != "" {
-			// The beginning of the page has been found, so
-			// the next public proposal is added.
-			pageStarted = proposal.CensorshipRecord.Token == pr.After
-		} else if pr.Before != "" {
-			// The end of the page has been found, so we'll
-			// have to iterate in the other direction to
-			// add the proposals; save the current index.
-			if proposal.CensorshipRecord.Token == pr.Before {
-				beforeIdx = i
-				break
-			}
-		}
-	}
-
-	// If beforeIdx is set, the caller is asking for vetted proposals whose
-	// last result is before the provided proposal.
-	if beforeIdx >= 0 {
-		for _, proposal := range b.inventory[beforeIdx+1:] {
-			// Filter by user if it's provided.
-			if pr.UserId != "" && pr.UserId != proposal.UserId {
-				continue
-			}
-
-			// Filter by the status.
-			if val, ok := pr.StatusMap[proposal.Status]; !ok || !val {
-				continue
-			}
-
-			// Set the number of comments.
-			token := proposal.CensorshipRecord.Token
-			proposal.NumComments = uint(len(b.comments[token]))
-
-			// The iteration direction is oldest -> newest,
-			// so proposals are prepended to the array so
-			// the result will be newest -> oldest.
-			proposals = append([]www.ProposalRecord{proposal},
-				proposals...)
-			if len(proposals) >= www.ProposalListPageSize {
-				break
-			}
-		}
-	}
-
-	return proposals
+	//return &pd.InventoryReply{
+	//	Vetted:   convertPropsFromWWW(vetted),
+	//	Branches: convertPropsFromWWW(unvetted),
+	//}, nil
+	return nil, fmt.Errorf("use inventory")
 }
 
 func (b *backend) CreateLoginReply(user *database.User) *www.LoginReply {
@@ -760,72 +697,27 @@ func (b *backend) CreateLoginReply(user *database.User) *www.LoginReply {
 // LoadInventory fetches the entire inventory of proposals from politeiad and
 // caches it, sorted by most recent timestamp.
 func (b *backend) LoadInventory() error {
-	// This function is a little hard to read but we must make sure that
-	// the inventory has not changed since we tried to load it.  We can't
-	// lock it for the duration because the RPC call is potentially very
-	// slow.
 	b.Lock()
+	defer b.Unlock()
+
 	if b.inventory != nil {
-		b.Unlock()
 		return nil
 	}
-	currentInventory := b.inventoryVersion
-	b.Unlock()
 
-	// get remote inventory
-	for {
-		// Fetch remote inventory.
-		inv, err := b.loadInventory()
-		if err != nil {
-			return fmt.Errorf("LoadInventory: %v", err)
-		}
-
-		b.Lock()
-		// Restart operation if inventory changed from underneath us.
-		if currentInventory != b.inventoryVersion {
-			currentInventory = b.inventoryVersion
-			b.Unlock()
-			log.Debugf("LoadInventory: restarting reload")
-			continue
-		}
-
-		b.inventory = make([]www.ProposalRecord, 0,
-			len(inv.Vetted)+len(inv.Branches))
-		for _, vv := range append(inv.Vetted, inv.Branches...) {
-			v := convertPropFromPD(vv)
-
-			// Set the user id.
-			var ok bool
-			v.UserId, ok = b.userPubkeys[v.PublicKey]
-			if !ok {
-				log.Errorf("User not found for public key %v, for proposal %v",
-					v.PublicKey, v.CensorshipRecord.Token)
-			}
-
-			// Initialize comment map for this proposal.
-			b.initComment(v.CensorshipRecord.Token)
-			len := len(b.inventory)
-			if len == 0 {
-				b.inventory = append(b.inventory, v)
-				continue
-			}
-			idx := sort.Search(len, func(i int) bool {
-				return v.Timestamp < b.inventory[i].Timestamp
-			})
-
-			// Insert the proposal at idx.
-			b.inventory = append(b.inventory[:idx],
-				append([]www.ProposalRecord{v},
-					b.inventory[idx:]...)...)
-		}
-		b.inventoryVersion++
-		b.Unlock()
-
-		log.Infof("Adding %v vetted, %v unvetted proposals to the cache",
-			len(inv.Vetted), len(inv.Branches))
-
-		break
+	// Fetch remote inventory.
+	inv, err := b.loadInventory()
+	if err != nil {
+		return fmt.Errorf("LoadInventory: %v", err)
 	}
+
+	err = b.initializeInventory(inv)
+	if err != nil {
+		b.Unlock()
+		return fmt.Errorf("initializeInventory: %v", err)
+	}
+
+	log.Infof("Adding %v vetted, %v unvetted proposals to the cache",
+		len(inv.Vetted), len(inv.Branches))
 
 	return nil
 }
@@ -935,6 +827,9 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 			return nil, fmt.Errorf("Unable to retrieve account info for %v: %v",
 				u.Email, err)
 		}
+
+		// Associate the user id with the new public key.
+		b.setUserPubkeyAssociaton(user, u.PublicKey)
 
 		// Derive a paywall address for this user if the paywall is enabled.
 		paywallAddress := ""
@@ -1162,6 +1057,9 @@ func (b *backend) ProcessVerifyUpdateUserKey(user *database.User, vu www.VerifyU
 		}
 	}
 
+	// Associate the user id with the new public key.
+	b.setUserPubkeyAssociaton(user, pi.String())
+
 	// Clear out the verification token fields in the db and activate
 	// the key and deactivate the one it's replacing.
 	user.UpdateKeyVerificationToken = nil
@@ -1362,7 +1260,7 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 
 	var pdReply pd.NewRecordReply
 	if b.test {
-		tokenBytes, err := util.Random(16)
+		tokenBytes, err := util.Random(pd.TokenSize)
 		if err != nil {
 			return nil, err
 		}
@@ -1373,18 +1271,16 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 
 		// Add the new proposal to the cache.
 		b.Lock()
-		b.inventory = append(b.inventory, www.ProposalRecord{
-			Name:             name,
-			Status:           www.PropStatusNotReviewed,
+		err = b.newInventoryRecord(pd.Record{
+			Status:           pd.RecordStatusNotReviewed,
 			Timestamp:        ts,
-			UserId:           strconv.FormatUint(user.ID, 10),
-			PublicKey:        np.PublicKey,
-			Signature:        np.Signature,
-			Files:            np.Files,
-			CensorshipRecord: convertPropCensorFromPD(pdReply.CensorshipRecord),
+			CensorshipRecord: pdReply.CensorshipRecord,
+			Metadata:         n.Metadata,
+			Files:            n.Files,
 		})
-		b.inventoryVersion++
-		b.initComment(pdReply.CensorshipRecord.Token)
+		if err != nil {
+			return nil, err
+		}
 		b.Unlock()
 	} else {
 		responseBody, err := b.makeRequest(http.MethodPost,
@@ -1410,21 +1306,15 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 			return nil, err
 		}
 
-		// Add the new proposal to the cache.
-		r := www.ProposalRecord{
-			Name:             name,
-			Status:           www.PropStatusNotReviewed,
-			Timestamp:        ts,
-			UserId:           strconv.FormatUint(user.ID, 10),
-			PublicKey:        np.PublicKey,
-			Signature:        np.Signature,
-			Files:            make([]www.File, 0),
-			CensorshipRecord: convertPropCensorFromPD(pdReply.CensorshipRecord),
-		}
+		// Add the new proposal to the inventory cache.
 		b.Lock()
-		b.inventory = append(b.inventory, r)
-		b.inventoryVersion++
-		b.initComment(pdReply.CensorshipRecord.Token)
+		b.newInventoryRecord(pd.Record{
+			Status:           pd.RecordStatusNotReviewed,
+			Timestamp:        ts,
+			CensorshipRecord: pdReply.CensorshipRecord,
+			Metadata:         n.Metadata,
+			Files:            n.Files,
+		})
 		b.Unlock()
 	}
 
@@ -1435,14 +1325,20 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 // ProcessSetProposalStatus changes the status of an existing proposal
 // from unreviewed to either published or censored.
 func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *database.User) (*www.SetProposalStatusReply, error) {
-	// Verify public key
-	id, err := checkPublicKey(user, sps.PublicKey)
+	err := checkPublicKeyAndSignature(user, sps.PublicKey, sps.Signature,
+		sps.Token, strconv.FormatUint(uint64(sps.ProposalStatus), 10))
 	if err != nil {
 		return nil, err
 	}
-	// Validate signature
-	err = checkSig(id, sps.Signature, sps.Token,
-		strconv.FormatUint(uint64(sps.ProposalStatus), 10))
+
+	// Create change record
+	newStatus := convertPropStatusFromWWW(sps.ProposalStatus)
+	r := MDStreamChanges{
+		Timestamp: time.Now().Unix(),
+		NewStatus: newStatus,
+	}
+
+	blob, err := json.Marshal(r)
 	if err != nil {
 		return nil, err
 	}
@@ -1450,18 +1346,25 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 	var reply www.SetProposalStatusReply
 	var pdReply pd.SetUnvettedStatusReply
 	if b.test {
-		pdReply.Status = convertPropStatusFromWWW(sps.ProposalStatus)
+		pdReply.Record.Status = convertPropStatusFromWWW(sps.ProposalStatus)
 	} else {
-		challenge, err := util.Random(pd.ChallengeSize)
-		if err != nil {
+		// XXX Expensive to lock but do it for now.
+		// Lock is needed to prevent a race into this record and it
+		// needs to be updated in the cache.
+		b.Lock()
+		defer b.Unlock()
+
+		// Flush comments while here, we really should make the
+		// comments flow with the SetUnvettedStatus command but for now
+		// do it separately.
+		err := b.flushCommentJournal(sps.Token)
+		if err != nil && !os.IsNotExist(err) {
 			return nil, err
 		}
 
-		// Create chnage record
-		newStatus := convertPropStatusFromWWW(sps.ProposalStatus)
-		r := MDStreamChanges{
-			Timestamp: time.Now().Unix(),
-			NewStatus: newStatus,
+		challenge, err := util.Random(pd.ChallengeSize)
+		if err != nil {
+			return nil, err
 		}
 
 		var ok bool
@@ -1471,16 +1374,11 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 				user.ID)
 		}
 
-		blob, err := json.Marshal(r)
-		if err != nil {
-			return nil, err
-		}
-
 		sus := pd.SetUnvettedStatus{
 			Token:     sps.Token,
 			Status:    newStatus,
 			Challenge: hex.EncodeToString(challenge),
-			MDOverwrite: []pd.MetadataStream{
+			MDAppend: []pd.MetadataStream{
 				{
 					ID:      mdStreamChanges,
 					Payload: string(blob),
@@ -1505,23 +1403,15 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 		if err != nil {
 			return nil, err
 		}
+
+		// Update the inventory with the metadata changes.
+		b.updateInventoryRecord(pdReply.Record)
 	}
 
-	// Update the cached proposal with the new status and return the reply.
-	b.Lock()
-	defer b.Unlock()
-	for k, v := range b.inventory {
-		if v.CensorshipRecord.Token == sps.Token {
-			s := convertPropStatusFromPD(pdReply.Status)
-			b.inventory[k].Status = s
-			reply.ProposalStatus = s
-			return &reply, nil
-		}
-	}
+	// Return the reply.
+	reply.Proposal = convertPropFromPD(pdReply.Record)
 
-	return nil, www.UserError{
-		ErrorCode: www.ErrorStatusProposalNotFound,
-	}
+	return &reply, nil
 }
 
 // ProcessProposalDetails tries to fetch the full details of a proposal from politeiad.
@@ -1532,22 +1422,16 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 		return nil, err
 	}
 
-	var cachedProposal *www.ProposalRecord
 	b.RLock()
-	for _, v := range b.inventory {
-		if v.CensorshipRecord.Token == propDetails.Token {
-			cachedProposal = &v
-			break
-		}
-	}
-	b.RUnlock()
-	if cachedProposal == nil {
+	p, ok := b.inventory[propDetails.Token]
+	if !ok {
+		b.RUnlock()
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusProposalNotFound,
 		}
 	}
-
-	numComments := uint(len(b.comments[propDetails.Token]))
+	b.RUnlock()
+	cachedProposal := convertPropFromInventoryRecord(p, b.userPubkeys)
 
 	var isVettedProposal bool
 	var requestObject interface{}
@@ -1566,8 +1450,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 	}
 
 	if b.test {
-		reply.Proposal = *cachedProposal
-		reply.Proposal.NumComments = numComments
+		reply.Proposal = cachedProposal
 		return &reply, nil
 	}
 
@@ -1582,7 +1465,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 			PublicKey:        cachedProposal.PublicKey,
 			Signature:        cachedProposal.Signature,
 			CensorshipRecord: cachedProposal.CensorshipRecord,
-			NumComments:      numComments,
+			NumComments:      cachedProposal.NumComments,
 		}
 
 		if user != nil {
@@ -1612,7 +1495,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 	}
 
 	var response string
-	var proposal pd.Record
+	var fullRecord pd.Record
 	if isVettedProposal {
 		var pdReply pd.GetVettedReply
 		err = json.Unmarshal(responseBody, &pdReply)
@@ -1622,7 +1505,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 		}
 
 		response = pdReply.Response
-		proposal = pdReply.Record
+		fullRecord = pdReply.Record
 	} else {
 		var pdReply pd.GetUnvettedReply
 		err = json.Unmarshal(responseBody, &pdReply)
@@ -1632,7 +1515,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 		}
 
 		response = pdReply.Response
-		proposal = pdReply.Record
+		fullRecord = pdReply.Record
 	}
 
 	// Verify the challenge.
@@ -1641,8 +1524,11 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 		return nil, err
 	}
 
-	reply.Proposal = convertPropFromPD(proposal)
-	reply.Proposal.NumComments = numComments
+	reply.Proposal = convertPropFromInventoryRecord(&inventoryRecord{
+		record:   fullRecord,
+		changes:  p.changes,
+		comments: p.comments,
+	}, b.userPubkeys)
 	return &reply, nil
 }
 
@@ -1652,21 +1538,15 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 func (b *backend) ProcessComment(c www.NewComment, user *database.User) (*www.NewCommentReply, error) {
 	log.Debugf("ProcessComment: %v %v", c.Token, user.ID)
 
-	// Verify public key
-	id, err := checkPublicKey(user, c.PublicKey)
-	if err != nil {
-		return nil, err
-	}
-
-	// Verify signature
-	err = checkSig(id, c.Signature, c.Token, c.ParentID, c.Comment)
+	err := checkPublicKeyAndSignature(user, c.PublicKey, c.Signature,
+		c.Token, c.ParentID, c.Comment)
 	if err != nil {
 		return nil, err
 	}
 
 	b.Lock()
 	defer b.Unlock()
-	m, ok := b.comments[c.Token]
+	m, ok := b.inventory[c.Token]
 	if !ok {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusProposalNotFound,
@@ -1686,7 +1566,7 @@ func (b *backend) ProcessComment(c www.NewComment, user *database.User) (*www.Ne
 		}
 	}
 	if pid != 0 {
-		_, ok = m[pid]
+		_, ok = m.comments[pid]
 		if !ok {
 			return nil, www.UserError{
 				ErrorCode: www.ErrorStatusCommentNotFound,
@@ -1724,6 +1604,212 @@ func (b *backend) ProcessUserProposals(up *www.UserProposals, isCurrentUser, isA
 	}, nil
 }
 
+func (b *backend) ProcessActiveVote() (*www.ActiveVoteReply, error) {
+	log.Tracef("ProcessActiveVote")
+
+	//  We need to determine best block height here and only return active
+	//  votes.
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	pc := pd.PluginCommand{
+		Challenge: hex.EncodeToString(challenge),
+		ID:        decredplugin.ID,
+		Command:   decredplugin.CmdBestBlock,
+		CommandID: decredplugin.CmdBestBlock,
+		Payload:   "",
+	}
+
+	responseBody, err := b.makeRequest(http.MethodPost,
+		pd.PluginCommandRoute, pc)
+	if err != nil {
+		return nil, err
+	}
+
+	var reply pd.PluginCommandReply
+	err = json.Unmarshal(responseBody, &reply)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal "+
+			"PluginCommandReply: %v", err)
+	}
+
+	// Verify the challenge.
+	err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	bestBlock, err := strconv.ParseUint(reply.Payload, 10, 64)
+	if err != nil {
+		return nil, err
+	}
+
+	b.RLock()
+	defer b.RUnlock()
+
+	// iterate over all props and see what is active
+	var avr www.ActiveVoteReply
+	for _, i := range b.inventory {
+		// Use StartBlockHeight as a canary
+		if len(i.voting.StartBlockHeight) == 0 {
+			continue
+		}
+		ee, err := strconv.ParseUint(i.voting.EndHeight, 10, 64)
+		if err != nil {
+			log.Errorf("invalid ee, should not happen: %v", err)
+			continue
+		}
+		if bestBlock > ee {
+			// expired vote
+			continue
+		}
+
+		avr.Votes = append(avr.Votes, www.ProposalVoteTuple{
+			Proposal:    convertPropFromPD(i.record),
+			Vote:        i.votebits,
+			VoteDetails: i.voting,
+		})
+	}
+
+	return &avr, nil
+}
+
+func (b *backend) ProcessCastVotes(cv *www.Ballot) (*www.BallotReply, error) {
+	log.Tracef("ProcessCastVotes")
+
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	// encode cast votes for plugin
+	payload, err := decredplugin.EncodeCastVotes(cv.Votes)
+	if err != nil {
+		return nil, err
+	}
+	pc := pd.PluginCommand{
+		Challenge: hex.EncodeToString(challenge),
+		ID:        decredplugin.ID,
+		Command:   decredplugin.CmdCastVotes,
+		CommandID: decredplugin.CmdCastVotes,
+		Payload:   string(payload),
+	}
+
+	responseBody, err := b.makeRequest(http.MethodPost,
+		pd.PluginCommandRoute, pc)
+	if err != nil {
+		return nil, err
+	}
+
+	var reply pd.PluginCommandReply
+	err = json.Unmarshal(responseBody, &reply)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal "+
+			"PluginCommandReply: %v", err)
+	}
+
+	// Verify the challenge.
+	err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	// Decode plugin reply
+	receipts, err := decredplugin.DecodeCastVoteReplies([]byte(reply.Payload))
+	if err != nil {
+		return nil, err
+	}
+
+	return &www.BallotReply{Receipts: receipts}, nil
+}
+
+func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.StartVoteReply, error) {
+	log.Tracef("ProcessStartVote %v", sv.Vote.Token)
+
+	// XXX Verify user
+	//err := checkPublicKeyAndSignature(user, sv.PublicKey, sv.Signature, sv.Token)
+	//if err != nil {
+	//	return nil, err
+	//}
+
+	// XXX validate vote bits
+
+	// Create vote bits as plugin payload
+	payload, err := decredplugin.EncodeVote(sv.Vote)
+	if err != nil {
+		return nil, err
+	}
+
+	// For now we lock the struct but this needs to be peeled apart.  The
+	// start voting call is expensive and that needs to be handled without
+	// the mutex held.
+	b.Lock()
+	defer b.Unlock()
+
+	// Look up token and ensure record is public and does not need to be
+	// updated
+	ir, err := b._getInventoryRecord(sv.Vote.Token)
+	if err != nil {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusProposalNotFound,
+		}
+	}
+	if ir.record.Status != pd.RecordStatusPublic {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusWrongStatus,
+		}
+	}
+
+	// Tell decred plugin to start voting
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	pc := pd.PluginCommand{
+		Challenge: hex.EncodeToString(challenge),
+		ID:        decredplugin.ID,
+		Command:   decredplugin.CmdStartVote,
+		CommandID: decredplugin.CmdStartVote + " " + sv.Vote.Token,
+		Payload:   string(payload),
+	}
+
+	responseBody, err := b.makeRequest(http.MethodPost,
+		pd.PluginCommandRoute, pc)
+	if err != nil {
+		return nil, err
+	}
+
+	var reply pd.PluginCommandReply
+	err = json.Unmarshal(responseBody, &reply)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal "+
+			"PluginCommandReply: %v", err)
+	}
+
+	// Verify the challenge.
+	err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	// We can get away with only updating the voting metadata in cache
+	// XXX this is cheating a bit and we should add an api for this or toss the cache altogether
+	vr, err := decredplugin.DecodeStartVoteReply([]byte(reply.Payload))
+	if err != nil {
+		return nil, err
+	}
+	ir.voting = *vr
+	ir.votebits = sv.Vote
+	b.inventory[sv.Vote.Token] = &ir
+
+	return &www.StartVoteReply{
+		VoteDetails: *vr,
+	}, nil
+}
+
 // ProcessPolicy returns the details of Politeia's restrictions on file uploads.
 func (b *backend) ProcessPolicy(p www.Policy) *www.PolicyReply {
 	return &www.PolicyReply{
@@ -1755,7 +1841,6 @@ func NewBackend(cfg *config) (*backend, error) {
 		db:          db,
 		cfg:         cfg,
 		userPubkeys: make(map[string]string),
-		comments:    make(map[string]map[uint64]BackendComment),
 		commentJournalDir: filepath.Join(cfg.DataDir,
 			defaultCommentJournalDir),
 		commentID: 1, // Replay will set this value
@@ -1763,19 +1848,15 @@ func NewBackend(cfg *config) (*backend, error) {
 
 	// Setup comments
 	os.MkdirAll(b.commentJournalDir, 0744)
-	err = b.replayCommentJournals()
+
+	// Setup pubkey-userid map
+	err = b.initUserPubkeys()
 	if err != nil {
 		return nil, err
 	}
 
 	// Flush comments
 	err = b.flushCommentJournals()
-	if err != nil {
-		return nil, err
-	}
-
-	// Setup pubkey-userid map
-	err = b.initUserPubkeys()
 	if err != nil {
 		return nil, err
 	}

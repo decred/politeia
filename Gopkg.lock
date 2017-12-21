@@ -3,6 +3,12 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/aead/siphash"
+  packages = ["."]
+  revision = "e404fcfc888570cadd1610538e2dbc89f66af814"
+
+[[projects]]
+  branch = "master"
   name = "github.com/agl/ed25519"
   packages = [
     ".",
@@ -30,6 +36,43 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/btcsuite/go-socks"
+  packages = ["socks"]
+  revision = "4720035b7bfd2a9bb130b1c184f8bbe41b6f0d0f"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/btcsuite/goleveldb"
+  packages = [
+    "leveldb",
+    "leveldb/cache",
+    "leveldb/comparer",
+    "leveldb/errors",
+    "leveldb/filter",
+    "leveldb/iterator",
+    "leveldb/journal",
+    "leveldb/memdb",
+    "leveldb/opt",
+    "leveldb/storage",
+    "leveldb/table",
+    "leveldb/util"
+  ]
+  revision = "7834afc9e8cd15233b6c3d97e12674a31ca24602"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/btcsuite/snappy-go"
+  packages = ["."]
+  revision = "0bdef8d067237991ddaa1bb6072a740bc40601ba"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/btcsuite/websocket"
+  packages = ["."]
+  revision = "31079b6807923eb23992c421b114992b95131b55"
+
+[[projects]]
+  branch = "master"
   name = "github.com/dajohi/goemail"
   packages = ["."]
   revision = "95d302d1822d2958173811656be22ec714c4ec94"
@@ -53,7 +96,6 @@
   revision = "56c501706f00d9e1cfacee19a27117e12da24734"
 
 [[projects]]
-  branch = "master"
   name = "github.com/decred/dcrd"
   packages = [
     "blockchain",
@@ -68,16 +110,31 @@
     "chaincfg/chainec",
     "chaincfg/chainhash",
     "database",
+    "database/ffldb",
+    "database/internal/treap",
     "dcrec/edwards",
     "dcrec/secp256k1",
     "dcrec/secp256k1/schnorr",
     "dcrjson",
     "dcrutil",
+    "gcs",
+    "gcs/blockcf",
     "hdkeychain",
+    "rpcclient",
     "txscript",
     "wire"
   ]
-  revision = "b092705295e6fcaf8bb1acf263a2d6400f863bf0"
+  revision = "fd99f572cfd52ca722ad501ccb34acdcb22b4a67"
+  version = "v1.2.0-rc1"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/decred/dcrdata"
+  packages = [
+    "api/types",
+    "txhelpers"
+  ]
+  revision = "6383c50f61e7742c096dc9bb13842132451e72b9"
 
 [[projects]]
   branch = "master"
@@ -86,7 +143,7 @@
     "api/v1",
     "merkle"
   ]
-  revision = "478e150302706098e6f68a41a0e32a01085b9277"
+  revision = "653da7ab6f03e510c4285143c13626cf68bfd1a5"
 
 [[projects]]
   branch = "master"
@@ -95,11 +152,24 @@
     "apperrors",
     "internal/zero",
     "netparams",
+    "rpc/walletrpc",
     "snacl",
     "wallet/udb",
     "walletdb"
   ]
-  revision = "53457bef94772891934219da6510ac6bbef09cee"
+  revision = "0eced173e139932cf270586cd34b73e35a03a798"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/golang/protobuf"
+  packages = [
+    "proto",
+    "ptypes",
+    "ptypes/any",
+    "ptypes/duration",
+    "ptypes/timestamp"
+  ]
+  revision = "e09c5db296004fbe3f74490e84dcd62c3c5ddb1b"
 
 [[projects]]
   branch = "master"
@@ -206,7 +276,7 @@
     "leveldb/table",
     "leveldb/util"
   ]
-  revision = "169b1b37be738edb2813dab48c97a549bcf99bb5"
+  revision = "714f901b98fdb3aa954b4193d8cbd64a28d80cad"
 
 [[projects]]
   branch = "master"
@@ -219,18 +289,34 @@
     "poly1305",
     "ripemd160",
     "salsa20/salsa",
-    "scrypt"
+    "scrypt",
+    "ssh/terminal"
   ]
-  revision = "88942b9c40a4c9d203b82b3731787b672d6e809b"
+  revision = "b2aa35443fbc700ab74c586ae79b81c171851023"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/net"
   packages = [
+    "context",
+    "http2",
+    "http2/hpack",
     "idna",
-    "publicsuffix"
+    "internal/timeseries",
+    "lex/httplex",
+    "publicsuffix",
+    "trace"
   ]
-  revision = "6078986fec03a1dcc236c34816c71b0e05018fda"
+  revision = "b3c676e531a6dc479fa1b35ac961c13f5e2b4d2e"
+
+[[projects]]
+  branch = "master"
+  name = "golang.org/x/sys"
+  packages = [
+    "unix",
+    "windows"
+  ]
+  revision = "3b87a42e500a6dc65dae1a55d0b641295971163e"
 
 [[projects]]
   name = "golang.org/x/text"
@@ -253,9 +339,45 @@
   revision = "f21a4dfb5e38f5895301dc265a8def02365cc3d0"
   version = "v0.3.0"
 
+[[projects]]
+  branch = "master"
+  name = "google.golang.org/genproto"
+  packages = ["googleapis/rpc/status"]
+  revision = "35de2414665fc36f56b72d982c5af480d86de5ab"
+
+[[projects]]
+  name = "google.golang.org/grpc"
+  packages = [
+    ".",
+    "balancer",
+    "balancer/base",
+    "balancer/roundrobin",
+    "codes",
+    "connectivity",
+    "credentials",
+    "encoding",
+    "encoding/proto",
+    "grpclb/grpc_lb_v1/messages",
+    "grpclog",
+    "internal",
+    "keepalive",
+    "metadata",
+    "naming",
+    "peer",
+    "resolver",
+    "resolver/dns",
+    "resolver/passthrough",
+    "stats",
+    "status",
+    "tap",
+    "transport"
+  ]
+  revision = "1e2570b1b19ade82d8dbb31bba4e65e9f9ef5b34"
+  version = "v1.11.1"
+
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "267b3f16297b584952f6a73f9357fd41a11176b58831967d0293549b3c4755ac"
+  inputs-digest = "c97803efaa1562d90ffe440c18757d42b6c1451b63742c096618fde9838f1a99"
   solver-name = "gps-cdcl"
   solver-version = 1

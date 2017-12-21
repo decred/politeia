@@ -28,7 +28,7 @@ func NewClient(skipVerify bool, certFilename string) (*http.Client, error) {
 		InsecureSkipVerify: skipVerify,
 	}
 
-	if !skipVerify {
+	if !skipVerify && certFilename != "" {
 		cert, err := ioutil.ReadFile(certFilename)
 		if err != nil {
 			return nil, err

@@ -12,35 +12,14 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 )
 
-// ConvertRemoteIdentity converts the identity returned from politeiad into
-// a reusable construct.
-func ConvertRemoteIdentity(rid v1.IdentityReply) (*identity.PublicIdentity, error) {
-	pk, err := hex.DecodeString(rid.PublicKey)
+// IdentityFromString converts a string public key into a public identity
+// structure.
+func IdentityFromString(id string) (*identity.PublicIdentity, error) {
+	pk, err := hex.DecodeString(id)
 	if err != nil {
 		return nil, err
 	}
-	if len(pk) != identity.PublicKeySize {
-		return nil, fmt.Errorf("invalid public key size")
-	}
-	key, err := hex.DecodeString(rid.PublicKey)
-	if err != nil {
-		return nil, err
-	}
-	res, err := hex.DecodeString(rid.Response)
-	if err != nil {
-		return nil, err
-	}
-	if len(res) != identity.SignatureSize {
-		return nil, fmt.Errorf("invalid response size")
-	}
-	var response [identity.SignatureSize]byte
-	copy(response[:], res)
-
-	// Fill out structure
-	serverID := identity.PublicIdentity{}
-	copy(serverID.Key[:], key)
-
-	return &serverID, nil
+	return identity.PublicIdentityFromBytes(pk)
 }
 
 // RemoteIdentity fetches the identity from politeiad.
@@ -88,7 +67,7 @@ func RemoteIdentity(skipTLSVerify bool, host, cert string) (*identity.PublicIden
 	}
 
 	// Convert and verify server identity
-	identity, err := ConvertRemoteIdentity(ir)
+	identity, err := IdentityFromString(ir.PublicKey)
 	if err != nil {
 		return nil, err
 	}
