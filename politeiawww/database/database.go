@@ -66,6 +66,8 @@ type User struct {
 	NewUserPaywallTxNotBefore       int64   // Transactions occurring before this time will not be valid.
 	NewUserVerificationToken        []byte  // Verification token during signup
 	NewUserVerificationExpiry       int64   // Verification expiration
+	UpdateKeyVerificationToken      []byte  // Verification token for updating keypair
+	UpdateKeyVerificationExpiry     int64   // Verification expiration
 	ResetPasswordVerificationToken  []byte  // Reset password token
 	ResetPasswordVerificationExpiry int64   // Reset password token expiration
 

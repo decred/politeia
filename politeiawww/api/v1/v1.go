@@ -13,22 +13,24 @@ const (
 	CsrfToken = "X-CSRF-Token"    // CSRF token for replies
 	Forward   = "X-Forwarded-For" // Proxy header
 
-	RouteUserMe            = "/user/me"
-	RouteNewUser           = "/user/new"
-	RouteVerifyNewUser     = "/user/verify"
-	RouteChangePassword    = "/user/password/change"
-	RouteResetPassword     = "/user/password/reset"
-	RouteLogin             = "/login"
-	RouteLogout            = "/logout"
-	RouteSecret            = "/secret"
-	RouteAllVetted         = "/proposals/vetted"
-	RouteAllUnvetted       = "/proposals/unvetted"
-	RouteNewProposal       = "/proposals/new"
-	RouteProposalDetails   = "/proposals/{token:[A-z0-9]{64}}"
-	RouteSetProposalStatus = "/proposals/{token:[A-z0-9]{64}}/status"
-	RoutePolicy            = "/policy"
-	RouteNewComment        = "/comments/new"
-	RouteCommentsGet       = "/proposals/{token:[A-z0-9]{64}}/comments"
+	RouteUserMe              = "/user/me"
+	RouteNewUser             = "/user/new"
+	RouteVerifyNewUser       = "/user/verify"
+	RouteUpdateUserKey       = "/user/key"
+	RouteVerifyUpdateUserKey = "/user/key/verify"
+	RouteChangePassword      = "/user/password/change"
+	RouteResetPassword       = "/user/password/reset"
+	RouteLogin               = "/login"
+	RouteLogout              = "/logout"
+	RouteSecret              = "/secret"
+	RouteAllVetted           = "/proposals/vetted"
+	RouteAllUnvetted         = "/proposals/unvetted"
+	RouteNewProposal         = "/proposals/new"
+	RouteProposalDetails     = "/proposals/{token:[A-z0-9]{64}}"
+	RouteSetProposalStatus   = "/proposals/{token:[A-z0-9]{64}}/status"
+	RoutePolicy              = "/policy"
+	RouteNewComment          = "/comments/new"
+	RouteCommentsGet         = "/proposals/{token:[A-z0-9]{64}}/comments"
 
 	// VerificationTokenSize is the size of verification token in bytes
 	VerificationTokenSize = 32
@@ -270,11 +272,30 @@ type NewUserReply struct {
 type VerifyNewUser struct {
 	Email             string `json:"email"`             // User email address
 	VerificationToken string `json:"verificationtoken"` // Server provided verification token
-	Signature         string `json:"signature"`         // VerificationToken signature
+	Signature         string `json:"signature"`         // Verification token signature
 }
 
 //VerifyNewUserReply
 type VerifyNewUserReply struct{}
+
+// UpdateUserKey is used to request a new active key.
+type UpdateUserKey struct {
+	PublicKey string `json:"publickey"`
+}
+
+// UpdateUserKeyReply replies to the UpdateUserKey command.
+type UpdateUserKeyReply struct {
+	VerificationToken string `json:"verificationtoken"` // Server verification token
+}
+
+// VerifyUpdateUserKey is used to request a new active key.
+type VerifyUpdateUserKey struct {
+	VerificationToken string `json:"verificationtoken"` // Server provided verification token
+	Signature         string `json:"signature"`         // Verification token signature
+}
+
+// VerifyUpdateUserKeyReply replies to the VerifyUpdateUserKey command.
+type VerifyUpdateUserKeyReply struct{}
 
 // ChangePassword is used to perform a password change while the user
 // is logged in.

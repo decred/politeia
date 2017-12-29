@@ -49,6 +49,11 @@ type newUserEmailTemplateData struct {
 	Link  string
 	Email string
 }
+type updateUserKeyEmailTemplateData struct {
+	Link      string
+	PublicKey string
+	Email     string
+}
 type resetPasswordEmailTemplateData struct {
 	Link  string
 	Email string
@@ -291,6 +296,68 @@ func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, v1.VerifyNewUserReply{})
+}
+
+// handleUpdateUserKey handles the incoming update user key command. It generates
+// a random code used for verification. The code is intended to be sent to the
+// email of the logged in user.
+func (p *politeiawww) handleUpdateUserKey(w http.ResponseWriter, r *http.Request) {
+	// Get the update user key command.
+	log.Tracef("handleUpdateUserKey")
+	var u v1.UpdateUserKey
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&u); err != nil {
+		RespondWithError(w, r, 0, "handleUpdateUserKey: Unmarshal %v", err)
+		return
+	}
+	defer r.Body.Close()
+
+	user, err := p.getSessionUser(r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUpdateUserKey: getSessionUser %v", err)
+		return
+	}
+
+	reply, err := p.backend.ProcessUpdateUserKey(user, u)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleUpdateUserKey: ProcessUpdateUserKey %v", err)
+		return
+	}
+
+	// Reply with the verification token.
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+// handleVerifyUpdateUserKey handles the incoming update user key verify command. It verifies
+// that the user with the provided email has a verification token that matches
+// the provided token and that the verification token has not yet expired.
+func (p *politeiawww) handleVerifyUpdateUserKey(w http.ResponseWriter, r *http.Request) {
+	// Get the new user verify command.
+	log.Tracef("handleVerifyUpdateUserKey")
+	var vuu v1.VerifyUpdateUserKey
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&vuu); err != nil {
+		RespondWithError(w, r, 0, "handleVerifyUpdateUserKey: Unmarshal %v", err)
+		return
+	}
+	defer r.Body.Close()
+
+	user, err := p.getSessionUser(r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleVerifyUpdateUserKey: getSessionUser %v", err)
+		return
+	}
+
+	_, err = p.backend.ProcessVerifyUpdateUserKey(user, vuu)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleVerifyUpdateUserKey: "+
+			"ProcessVerifyUpdateUserKey %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, v1.VerifyUpdateUserKeyReply{})
 }
 
 // handleLogin handles the incoming login command.  It verifies that the user
@@ -729,6 +796,10 @@ func _main() error {
 		permissionLogin, true)
 	p.addRoute(http.MethodGet, v1.RouteUserMe, p.handleMe, permissionLogin,
 		false)
+	p.addRoute(http.MethodPost, v1.RouteUpdateUserKey,
+		p.handleUpdateUserKey, permissionLogin, false)
+	p.addRoute(http.MethodPost, v1.RouteVerifyUpdateUserKey,
+		p.handleVerifyUpdateUserKey, permissionLogin, false)
 	p.addRoute(http.MethodPost, v1.RouteChangePassword,
 		p.handleChangePassword, permissionLogin, false)
 	p.addRoute(http.MethodPost, v1.RouteNewComment,
