@@ -236,6 +236,41 @@ func (b *backend) emailResetPasswordVerificationLink(email, token string) error 
 	return b.cfg.SMTP.Send(msg)
 }
 
+// emailUpdateUserKeyVerificationLink emails the link with the verification token
+// used for setting a new key pair if the email server is set up.
+func (b *backend) emailUpdateUserKeyVerificationLink(email, publicKey, token string) error {
+	if b.cfg.SMTP == nil {
+		return nil
+	}
+
+	l, err := url.Parse(b.cfg.WebServerAddress + www.RouteVerifyUpdateUserKey)
+	if err != nil {
+		return err
+	}
+	q := l.Query()
+	q.Set("verificationtoken", token)
+	l.RawQuery = q.Encode()
+
+	var buf bytes.Buffer
+	tplData := updateUserKeyEmailTemplateData{
+		Email:     email,
+		PublicKey: publicKey,
+		Link:      l.String(),
+	}
+	err = templateUpdateUserKeyEmail.Execute(&buf, &tplData)
+	if err != nil {
+		return err
+	}
+	from := "noreply@decred.org"
+	subject := "Politeia - Set New Key Pair"
+	body := buf.String()
+
+	msg := goemail.NewHTMLMessage(from, subject, body)
+	msg.AddTo(email)
+
+	return b.cfg.SMTP.Send(msg)
+}
+
 // makeRequest makes an http request to the method and route provided, serializing
 // the provided object as the request body.
 func (b *backend) makeRequest(method string, route string, v interface{}) ([]byte, error) {
@@ -928,6 +963,134 @@ func (b *backend) ProcessVerifyNewUser(u www.VerifyNewUser) (*database.User, err
 	return user, b.db.UserUpdate(*user)
 }
 
+// ProcessUpdateUserKey sets a verification token and expiry to allow the user to
+// update his key pair; the token must be verified before it expires. If the
+// token is already set and is expired, it generates a new one.
+func (b *backend) ProcessUpdateUserKey(user *database.User, u www.UpdateUserKey) (*www.UpdateUserKeyReply, error) {
+	var reply www.UpdateUserKeyReply
+	var token []byte
+	var expiry int64
+
+	// Ensure we have a proper pubkey.
+	var emptyPK [identity.PublicKeySize]byte
+	pk, err := hex.DecodeString(u.PublicKey)
+	if err != nil {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidPublicKey,
+		}
+	}
+	if len(pk) != len(emptyPK) ||
+		bytes.Equal(pk, emptyPK[:]) {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidPublicKey,
+		}
+	}
+
+	// Check if the verification token hasn't expired yet.
+	if user.UpdateKeyVerificationToken != nil {
+		if currentTime := time.Now().Unix(); currentTime < user.UpdateKeyVerificationExpiry {
+			return &reply, nil
+		}
+	}
+
+	// Generate a new verification token and expiry.
+	token, expiry, err = b.generateVerificationTokenAndExpiry()
+	if err != nil {
+		return nil, err
+	}
+
+	// Add the updated user information to the db.
+	user.UpdateKeyVerificationToken = token
+	user.UpdateKeyVerificationExpiry = expiry
+
+	identity := database.Identity{}
+	copy(identity.Key[:], pk)
+	user.Identities = append(user.Identities, identity)
+
+	err = b.db.UserUpdate(*user)
+	if err != nil {
+		return nil, err
+	}
+
+	if !b.test {
+		// This is conditional on the email server being setup.
+		err := b.emailUpdateUserKeyVerificationLink(user.Email, u.PublicKey,
+			hex.EncodeToString(token))
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Only set the token if email verification is disabled.
+	if b.cfg.SMTP == nil {
+		reply.VerificationToken = hex.EncodeToString(token)
+	}
+	return &reply, nil
+}
+
+// ProcessVerifyUpdateUserKey verifies the token generated for the recently
+// generated key pair. It ensures that the token matches with the input and
+// that the token hasn't expired.
+func (b *backend) ProcessVerifyUpdateUserKey(user *database.User, vu www.VerifyUpdateUserKey) (*database.User, error) {
+	// Decode the verification token.
+	token, err := hex.DecodeString(vu.VerificationToken)
+	if err != nil {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusVerificationTokenInvalid,
+		}
+	}
+
+	// Check that the verification token matches.
+	if !bytes.Equal(token, user.UpdateKeyVerificationToken) {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusVerificationTokenInvalid,
+		}
+	}
+
+	// Check that the token hasn't expired.
+	if currentTime := time.Now().Unix(); currentTime > user.UpdateKeyVerificationExpiry {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusVerificationTokenExpired,
+		}
+	}
+
+	// Check signature
+	sig, err := util.ConvertSignature(vu.Signature)
+	if err != nil {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSignature,
+		}
+	}
+
+	id := user.Identities[len(user.Identities)-1]
+	pi, err := identity.PublicIdentityFromBytes(id.Key[:])
+	if err != nil {
+		return nil, err
+	}
+
+	if !pi.VerifyMessage([]byte(vu.VerificationToken), sig) {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSignature,
+		}
+	}
+
+	// Clear out the verification token fields in the db and activate
+	// the key and deactivate the one it's replacing.
+	user.UpdateKeyVerificationToken = nil
+	user.UpdateKeyVerificationExpiry = 0
+
+	t := time.Now().Unix()
+	for k, v := range user.Identities {
+		if v.Deactivated == 0 {
+			user.Identities[k].Deactivated = t
+			break
+		}
+	}
+	user.Identities[len(user.Identities)-1].Activated = t
+
+	return user, b.db.UserUpdate(*user)
+}
+
 // ProcessLogin checks that a user exists, is verified, and has
 // the correct password.
 func (b *backend) ProcessLogin(l www.Login) (*www.LoginReply, error) {
@@ -1208,12 +1371,14 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 			Timestamp: time.Now().Unix(),
 			NewStatus: newStatus,
 		}
-		if ai, ok := database.ActiveIdentityString(user.Identities); !ok {
+
+		var ok bool
+		r.AdminPubKey, ok = database.ActiveIdentityString(user.Identities)
+		if !ok {
 			return nil, fmt.Errorf("invalid admin identity: %v",
 				user.ID)
-		} else {
-			r.AdminPubKey = ai
 		}
+
 		blob, err := json.Marshal(r)
 		if err != nil {
 			return nil, err

@@ -12,8 +12,16 @@ const templateNewUserEmailRaw = `
 `
 
 const templateResetPasswordEmailRaw = `
-<div>Click the link below to continue to reset your password:</div>
+<div>Click the link below to continue resetting your password:</div>
 <div style="margin: 20px 0 0 10px"><a href="{{.Link}}">{{.Link}}</a></div>
 <div style="margin-top: 20px">You are receiving this email because a password reset
 was initiated for <span style="font-weight: bold">{{.Email}}</span> on Politeia.</div>
+`
+
+const templateUpdateUserKeyEmailRaw = `
+<div>Click the link below to continue setting a new key pair:</div>
+<div style="margin: 20px 0 0 10px"><a href="{{.Link}}">{{.Link}}</a></div>
+<div style="margin-top: 20px">You are receiving this email because a new key pair
+(public key: {{.PublicKey}}) was generated for
+<span style="font-weight: bold">{{.Email}}</span> on Politeia.</div>
 `
