@@ -100,7 +100,7 @@ to get the CSRF token for the session and to ensure API compatability.
 |-|-|-|
 | version | number | API version that is running on this server. |
 | route | string | Route that should be prepended to all calls. For example, "/v1". |
-| identity | string | Identity that signs various tokens to ensure server authenticity and to prevent replay attacks. |
+| pubkey | string | The public key for the corresponding private key that signs various tokens to ensure server authenticity and to prevent replay attacks. |
 
 **Example**
 
@@ -926,6 +926,8 @@ Reply:
 | name | string | The name of the proposal. |
 | status | number | Current status of the proposal. |
 | timestamp | number | The unix time of the last update of the proposal. |
+| publickey | string | The public key of the user who created the proposal. |
+| signature | string | The signature of the merkle root, signed by the user who created the proposal. |
 | censorshiprecord | [`censorshiprecord`](#censorship-record) | The censorship record that was created when the proposal was submitted. |
 | files | array of [`File`](#file)s | This property will only be populated for the [`Proposal details`](#proposal-details) call. |
 
