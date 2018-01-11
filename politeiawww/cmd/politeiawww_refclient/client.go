@@ -367,6 +367,26 @@ func (c *ctx) allUnvetted(after string) (*v1.GetAllUnvettedReply, error) {
 	return &ur, nil
 }
 
+func (c *ctx) proposalsForUser(userId string) (*v1.UserProposalsReply, error) {
+	up := v1.UserProposals{
+		UserId: userId,
+	}
+	responseBody, err := c.makeRequest("GET", v1.RouteUserProposals, up)
+	if err != nil {
+		return nil, err
+	}
+
+	var upr v1.UserProposalsReply
+	err = json.Unmarshal(responseBody, &upr)
+	if err != nil {
+		return nil,
+			fmt.Errorf("Could not unmarshal UserProposalsReply: %v",
+				err)
+	}
+
+	return &upr, nil
+}
+
 func (c *ctx) getProp(token string) (*v1.ProposalDetailsReply, error) {
 	responseBody, err := c.makeRequest("GET", "/proposals/"+token,
 		v1.ProposalsDetails{})

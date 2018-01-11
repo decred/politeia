@@ -129,6 +129,7 @@ func convertPropFromPD(p pd.Record) www.ProposalRecord {
 		Name:             md.Name,
 		Status:           convertPropStatusFromPD(p.Status),
 		Timestamp:        md.Timestamp,
+		UserId:           md.UserId,
 		PublicKey:        md.PublicKey,
 		Signature:        md.Signature,
 		Files:            convertPropFilesFromPD(p.Files),

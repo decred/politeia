@@ -20,6 +20,7 @@ const (
 	RouteVerifyUpdateUserKey = "/user/key/verify"
 	RouteChangePassword      = "/user/password/change"
 	RouteResetPassword       = "/user/password/reset"
+	RouteUserProposals       = "/user/proposals"
 	RouteLogin               = "/login"
 	RouteLogout              = "/logout"
 	RouteSecret              = "/secret"
@@ -103,6 +104,7 @@ const (
 	ErrorStatusInvalidInput                ErrorStatusT = 24
 	ErrorStatusInvalidSigningKey           ErrorStatusT = 25
 	ErrorStatusCommentLengthExceededPolicy ErrorStatusT = 26
+	ErrorStatusUserNotFound                ErrorStatusT = 27
 
 	// Proposal status codes (set and get)
 	PropStatusInvalid     PropStatusT = 0 // Invalid status
@@ -155,6 +157,7 @@ var (
 		ErrorStatusInvalidInput:                "invalid input",
 		ErrorStatusInvalidSigningKey:           "invalid signing key",
 		ErrorStatusCommentLengthExceededPolicy: "maximum comment length exceeded",
+		ErrorStatusUserNotFound:                "user not found",
 	}
 )
 
@@ -189,6 +192,7 @@ type ProposalRecord struct {
 	Name      string      `json:"name"`      // Suggested short proposal name
 	Status    PropStatusT `json:"status"`    // Current status of proposal
 	Timestamp int64       `json:"timestamp"` // Last update of proposal
+	UserId    string      `json:"userid"`    // ID of user who submitted proposal
 	PublicKey string      `json:"publickey"` // Key used for signature.
 	Signature string      `json:"signature"` // Signature of merkle root
 	Files     []File      `json:"files"`     // Files that make up the proposal
@@ -275,7 +279,7 @@ type VerifyNewUser struct {
 	Signature         string `json:"signature"`         // Verification token signature
 }
 
-//VerifyNewUserReply
+// VerifyNewUserReply
 type VerifyNewUserReply struct{}
 
 // UpdateUserKey is used to request a new active key.
@@ -320,6 +324,24 @@ type ResetPassword struct {
 // with an error if the command is unsuccessful.
 type ResetPasswordReply struct {
 	VerificationToken string `json:"verificationtoken"`
+}
+
+// UserProposals is used to request a list of proposals that the
+// user has submitted. This command optionally takes either a Before
+// or After parameter, which specify a proposal's censorship token.
+// If After is specified, the "page" returned starts after the proposal
+// whose censorship token is provided. If Before is specified, the "page"
+// returned starts before the proposal whose censorship token is provided.
+type UserProposals struct {
+	UserId string `json:"userid"`
+	Before string `json:"before"`
+	After  string `json:"after"`
+}
+
+// UserProposalsReply replies to the UserProposals command with
+// a list of proposals that the user has submitted.
+type UserProposalsReply struct {
+	Proposals []ProposalRecord `json:"proposals"`
 }
 
 // Login attempts to login the user.  Note that by necessity the password

@@ -78,8 +78,18 @@ type BackendProposalMetadata struct {
 	Version   uint64 `json:"version"`   // BackendProposalMetadata version
 	Timestamp int64  `json:"timestamp"` // Last update of proposal
 	Name      string `json:"name"`      // Generated proposal name
+	UserId    string `json:"userid"`    // ID of user who submitted proposal
 	PublicKey string `json:"publickey"` // Key used for signature.
 	Signature string `json:"signature"` // Signature of merkle root
+}
+
+// proposalsRequest is used for passing parameters into the
+// getProposals() function.
+type proposalsRequest struct {
+	After     string
+	Before    string
+	UserId    string
+	StatusMap map[www.PropStatusT]bool
 }
 
 // encodeBackendProposalMetadata encodes BackendProposalMetadata into a JSON
@@ -625,14 +635,14 @@ func (b *backend) loadInventory() (*pd.InventoryReply, error) {
 	}, nil
 }
 
-func (b *backend) getProposals(after, before string, statusMap map[www.PropStatusT]bool) []www.ProposalRecord {
+func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
 	b.RLock()
 	defer b.RUnlock()
 
 	// pageStarted stores whether or not it's okay to start adding
 	// proposals to the array. If the after or before parameter is
 	// supplied, we must find the beginning (or end) of the page first.
-	pageStarted := (after == "" && before == "")
+	pageStarted := (pr.After == "" && pr.Before == "")
 	beforeIdx := -1
 	proposals := make([]www.ProposalRecord, 0)
 
@@ -640,24 +650,33 @@ func (b *backend) getProposals(after, before string, statusMap map[www.PropStatu
 	// first.
 	for i := len(b.inventory) - 1; i >= 0; i-- {
 		proposal := b.inventory[i]
-		if _, ok := statusMap[proposal.Status]; ok {
-			if pageStarted {
-				proposals = append(proposals, proposal)
-				if len(proposals) >= www.ProposalListPageSize {
-					break
-				}
-			} else if after != "" {
-				// The beginning of the page has been found, so
-				// the next public proposal is added.
-				pageStarted = proposal.CensorshipRecord.Token == after
-			} else if before != "" {
-				// The end of the page has been found, so we'll
-				// have to iterate in the other direction to
-				// add the proposals; save the current index.
-				if proposal.CensorshipRecord.Token == before {
-					beforeIdx = i
-					break
-				}
+
+		// Filter by user if it's provided.
+		if pr.UserId != "" && pr.UserId != proposal.UserId {
+			continue
+		}
+
+		// Filter by the status.
+		if val, ok := pr.StatusMap[proposal.Status]; !ok || !val {
+			continue
+		}
+
+		if pageStarted {
+			proposals = append(proposals, proposal)
+			if len(proposals) >= www.ProposalListPageSize {
+				break
+			}
+		} else if pr.After != "" {
+			// The beginning of the page has been found, so
+			// the next public proposal is added.
+			pageStarted = proposal.CensorshipRecord.Token == pr.After
+		} else if pr.Before != "" {
+			// The end of the page has been found, so we'll
+			// have to iterate in the other direction to
+			// add the proposals; save the current index.
+			if proposal.CensorshipRecord.Token == pr.Before {
+				beforeIdx = i
+				break
 			}
 		}
 	}
@@ -666,15 +685,23 @@ func (b *backend) getProposals(after, before string, statusMap map[www.PropStatu
 	// last result is before the provided proposal.
 	if beforeIdx >= 0 {
 		for _, proposal := range b.inventory[beforeIdx+1:] {
-			if _, ok := statusMap[proposal.Status]; ok {
-				// The iteration direction is oldest -> newest,
-				// so proposals are prepended to the array so
-				// the result will be newest -> oldest.
-				proposals = append([]www.ProposalRecord{proposal},
-					proposals...)
-				if len(proposals) >= www.ProposalListPageSize {
-					break
-				}
+			// Filter by user if it's provided.
+			if pr.UserId != "" && pr.UserId != proposal.UserId {
+				continue
+			}
+
+			// Filter by the status.
+			if val, ok := pr.StatusMap[proposal.Status]; !ok || !val {
+				continue
+			}
+
+			// The iteration direction is oldest -> newest,
+			// so proposals are prepended to the array so
+			// the result will be newest -> oldest.
+			proposals = append([]www.ProposalRecord{proposal},
+				proposals...)
+			if len(proposals) >= www.ProposalListPageSize {
+				break
 			}
 		}
 	}
@@ -1214,10 +1241,13 @@ func (b *backend) ProcessResetPassword(rp www.ResetPassword) (*www.ResetPassword
 // of proposals returned is dictated by www.ProposalListPageSize.
 func (b *backend) ProcessAllVetted(v www.GetAllVetted) *www.GetAllVettedReply {
 	return &www.GetAllVettedReply{
-		Proposals: b.getProposals(v.After, v.Before,
-			map[www.PropStatusT]bool{
+		Proposals: b.getProposals(proposalsRequest{
+			After:  v.After,
+			Before: v.Before,
+			StatusMap: map[www.PropStatusT]bool{
 				www.PropStatusPublic: true,
-			}),
+			},
+		}),
 	}
 }
 
@@ -1225,11 +1255,14 @@ func (b *backend) ProcessAllVetted(v www.GetAllVetted) *www.GetAllVettedReply {
 // because they're sorted by oldest timestamp first.
 func (b *backend) ProcessAllUnvetted(u www.GetAllUnvetted) *www.GetAllUnvettedReply {
 	return &www.GetAllUnvettedReply{
-		Proposals: b.getProposals(u.After, u.Before,
-			map[www.PropStatusT]bool{
+		Proposals: b.getProposals(proposalsRequest{
+			After:  u.After,
+			Before: u.Before,
+			StatusMap: map[www.PropStatusT]bool{
 				www.PropStatusNotReviewed: true,
 				www.PropStatusCensored:    true,
-			}),
+			},
+		}),
 	}
 }
 
@@ -1259,6 +1292,7 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 		Version:   BackendProposalMetadataVersion,
 		Timestamp: ts,
 		Name:      name,
+		UserId:    strconv.FormatUint(user.ID, 10),
 		PublicKey: np.PublicKey,
 		Signature: np.Signature,
 	})
@@ -1292,6 +1326,7 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 			Name:             name,
 			Status:           www.PropStatusNotReviewed,
 			Timestamp:        ts,
+			UserId:           strconv.FormatUint(user.ID, 10),
 			PublicKey:        np.PublicKey,
 			Signature:        np.Signature,
 			Files:            np.Files,
@@ -1329,6 +1364,7 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 			Name:             name,
 			Status:           www.PropStatusNotReviewed,
 			Timestamp:        ts,
+			UserId:           strconv.FormatUint(user.ID, 10),
 			PublicKey:        np.PublicKey,
 			Signature:        np.Signature,
 			Files:            make([]www.File, 0),
@@ -1590,6 +1626,22 @@ func (b *backend) ProcessCommentGet(token string) (*www.GetCommentsReply, error)
 		return nil, err
 	}
 	return c, nil
+}
+
+// ProcessUserProposals returns the proposals for the given user.
+func (b *backend) ProcessUserProposals(up *www.UserProposals, isCurrentUser, isAdminUser bool) (*www.UserProposalsReply, error) {
+	return &www.UserProposalsReply{
+		Proposals: b.getProposals(proposalsRequest{
+			After:  up.After,
+			Before: up.Before,
+			UserId: up.UserId,
+			StatusMap: map[www.PropStatusT]bool{
+				www.PropStatusNotReviewed: isCurrentUser || isAdminUser,
+				www.PropStatusCensored:    isCurrentUser || isAdminUser,
+				www.PropStatusPublic:      true,
+			},
+		}),
+	}, nil
 }
 
 // ProcessPolicy returns the details of Politeia's restrictions on file uploads.
