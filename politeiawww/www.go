@@ -244,7 +244,9 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 	var u v1.NewUser
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&u); err != nil {
-		RespondWithError(w, r, 0, "handleNewUser: Unmarshal %v", err)
+		RespondWithError(w, r, 0, "handleNewUser: unmarshal", v1.UserError{
+			ErrorCode: v1.ErrorStatusInvalidInput,
+		})
 		return
 	}
 	defer r.Body.Close()
@@ -275,7 +277,7 @@ func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request
 		token, tokenOk := query["verificationtoken"]
 		sig, sigOk := query["signature"]
 		if !emailOk || !tokenOk || !sigOk {
-			RespondWithError(w, r, 0, "could not decode URL",
+			RespondWithError(w, r, 0, "handleVerifyNewUser: could not decode URL",
 				v1.UserError{
 					ErrorCode: v1.ErrorStatusInvalidInput,
 				})
@@ -307,7 +309,9 @@ func (p *politeiawww) handleUpdateUserKey(w http.ResponseWriter, r *http.Request
 	var u v1.UpdateUserKey
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&u); err != nil {
-		RespondWithError(w, r, 0, "handleUpdateUserKey: Unmarshal %v", err)
+		RespondWithError(w, r, 0, "handleUpdateUserKey: unmarshal", v1.UserError{
+			ErrorCode: v1.ErrorStatusInvalidInput,
+		})
 		return
 	}
 	defer r.Body.Close()
@@ -338,7 +342,9 @@ func (p *politeiawww) handleVerifyUpdateUserKey(w http.ResponseWriter, r *http.R
 	var vuu v1.VerifyUpdateUserKey
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&vuu); err != nil {
-		RespondWithError(w, r, 0, "handleVerifyUpdateUserKey: Unmarshal %v", err)
+		RespondWithError(w, r, 0, "handleVerifyUpdateUserKey: unmarshal", v1.UserError{
+			ErrorCode: v1.ErrorStatusInvalidInput,
+		})
 		return
 	}
 	defer r.Body.Close()
@@ -443,8 +449,9 @@ func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Reques
 	var cp v1.ChangePassword
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&cp); err != nil {
-		RespondWithError(w, r, 0,
-			"handleChangePassword: Unmarshal %v", err)
+		RespondWithError(w, r, 0, "handleChangePassword: unmarshal", v1.UserError{
+			ErrorCode: v1.ErrorStatusInvalidInput,
+		})
 		return
 	}
 	defer r.Body.Close()
@@ -473,8 +480,9 @@ func (p *politeiawww) handleResetPassword(w http.ResponseWriter, r *http.Request
 	var rp v1.ResetPassword
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&rp); err != nil {
-		RespondWithError(w, r, 0,
-			"handleResetPassword: Unmarshal %v", err)
+		RespondWithError(w, r, 0, "handleResetPassword: unmarshal", v1.UserError{
+			ErrorCode: v1.ErrorStatusInvalidInput,
+		})
 		return
 	}
 	defer r.Body.Close()
@@ -497,8 +505,9 @@ func (p *politeiawww) handleNewProposal(w http.ResponseWriter, r *http.Request) 
 	var np v1.NewProposal
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&np); err != nil {
-		RespondWithError(w, r, 0,
-			"handleNewProposal: Unmarshal %v", err)
+		RespondWithError(w, r, 0, "handleNewProposal: unmarshal", v1.UserError{
+			ErrorCode: v1.ErrorStatusInvalidInput,
+		})
 		return
 	}
 	defer r.Body.Close()
@@ -530,8 +539,9 @@ func (p *politeiawww) handleSetProposalStatus(w http.ResponseWriter, r *http.Req
 
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&sps); err != nil {
-		RespondWithError(w, r, 0,
-			"handleSetProposalStatus: Unmarshal %v", err)
+		RespondWithError(w, r, 0, "handleSetProposalStatus: unmarshal", v1.UserError{
+			ErrorCode: v1.ErrorStatusInvalidInput,
+		})
 		return
 	}
 	defer r.Body.Close()
@@ -615,8 +625,9 @@ func (p *politeiawww) handleNewComment(w http.ResponseWriter, r *http.Request) {
 
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&sc); err != nil {
-		RespondWithError(w, r, 0,
-			"handleNewComment: Unmarshal %v", err)
+		RespondWithError(w, r, 0, "handleNewComment: unmarshal", v1.UserError{
+			ErrorCode: v1.ErrorStatusInvalidInput,
+		})
 		return
 	}
 	defer r.Body.Close()
