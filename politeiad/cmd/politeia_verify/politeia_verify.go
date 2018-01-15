@@ -7,6 +7,7 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -20,27 +21,48 @@ var (
 	publicKeyFlag = flag.String("k", "", "server public key")
 	tokenFlag     = flag.String("t", "", "record censorship token")
 	signatureFlag = flag.String("s", "", "record censorship signature")
+	jsonInFlag    = flag.String("jsonin", "", "JSON record file")
+	jsonOutFlag   = flag.Bool("jsonout", false, "return output as JSON")
 	verboseFlag   = flag.Bool("v", false, "verbose output")
 )
 
+type record struct {
+	CensorshipRecord censorshipRecord `json:"censorshiprecord"`
+	ServerPublicKey  string           `json:"serverPubkey"`
+}
+
+type censorshipRecord struct {
+	Token     string `json:"token"`
+	Merkle    string `json:"merkle"`
+	Signature string `json:"signature"`
+}
+
+type output struct {
+	Success bool `json:"success"`
+}
+
 func usage() {
-	fmt.Fprintf(os.Stderr, "usage: politeia_verify [-v] -k <pubkey> -t <token> -s <signature> <filename>...\n")
-	fmt.Fprintf(os.Stderr, " parameters:\n")
-	fmt.Fprintf(os.Stderr, "  pubkey        - Politiea's public server key\n")
-	fmt.Fprintf(os.Stderr, "  token         - Record censorship token\n")
-	fmt.Fprintf(os.Stderr, "  signature     - Record censorship "+
+	fmt.Fprintf(os.Stderr, "usage: politeia_verify [options]\n")
+	fmt.Fprintf(os.Stderr, " options:\n")
+	fmt.Fprintf(os.Stderr, "  -v                 - Verbose output\n")
+	fmt.Fprintf(os.Stderr, "  -k <pubkey>        - Politiea's public server key\n")
+	fmt.Fprintf(os.Stderr, "  -t <token>         - Record censorship token\n")
+	fmt.Fprintf(os.Stderr, "  -s <signature>     - Record censorship "+
 		"signature\n")
-	fmt.Fprintf(os.Stderr, "  v             - Verbose output\n")
-	fmt.Fprintf(os.Stderr, "  filename      - One or more paths to the markdown "+
+	fmt.Fprintf(os.Stderr, "  <filename...>      - One or more paths to the markdown "+
 		"and image files that make up the record\n")
+	fmt.Fprintf(os.Stderr, "  -jsonin <filename> - A path to a JSON file which "+
+		"represents the record. If this option is set, the other input "+
+		"options (-k, -t, -s) should not be provided.\n")
+	fmt.Fprintf(os.Stderr, "  -jsonout           - JSON output\n")
 	fmt.Fprintf(os.Stderr, "\n")
 }
 
-func verifyRecord(key [ed25519.PublicKeySize]byte, token []byte, signature [ed25519.SignatureSize]byte) error {
+func findMerkle() (*[sha256.Size]byte, error) {
 	flags := flag.Args()
 	if len(flags) < 1 {
 		usage()
-		return fmt.Errorf("must provide at least one filename for the record")
+		return nil, fmt.Errorf("must provide at least one filename for the record")
 	}
 
 	// Open all files and digest them.
@@ -49,7 +71,7 @@ func verifyRecord(key [ed25519.PublicKeySize]byte, token []byte, signature [ed25
 		var payload []byte
 		payload, err := ioutil.ReadFile(filename)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		// Digest
@@ -62,53 +84,120 @@ func verifyRecord(key [ed25519.PublicKeySize]byte, token []byte, signature [ed25
 		hashes = append(hashes, &digest32)
 	}
 
-	merkle := *merkle.Root(hashes)
+	return merkle.Root(hashes), nil
+}
+
+func verifyRecord(
+	key [ed25519.PublicKeySize]byte,
+	merkle [sha256.Size]byte,
+	token []byte,
+	signature [ed25519.SignatureSize]byte) bool {
+
 	merkleToken := make([]byte, len(merkle)+len(token))
 	copy(merkleToken, merkle[:])
 	copy(merkleToken[len(merkle[:]):], token)
-	if ed25519.Verify(&key, merkleToken, &signature) {
-		fmt.Println("Record successfully verified")
-	} else {
-		if *verboseFlag {
-			return fmt.Errorf("Record failed verification. Please ensure the "+
-				"public key and merkle are correct.\n"+
-				"  Merkle: %v", hex.EncodeToString(merkle[:]))
-		}
-
-		return fmt.Errorf("Record failed verification")
-	}
-
-	return nil
+	return ed25519.Verify(&key, merkleToken, &signature)
 }
 
 func _main() error {
 	flag.Parse()
-	if publicKeyFlag == nil && tokenFlag == nil && signatureFlag == nil {
+	if (*publicKeyFlag == "" || *tokenFlag == "" || *signatureFlag == "") &&
+		*jsonInFlag == "" {
 		usage()
-		return fmt.Errorf("must provide all listed parameters")
+		return fmt.Errorf("must provide enough input parameters")
+	}
+	if *publicKeyFlag != "" && *jsonInFlag != "" {
+		usage()
+		return fmt.Errorf("must only provide either -jsonin or the other " +
+			"input parameters")
+	}
+
+	var keyStr, tokenStr, merkleStr, signatureStr string
+	if *publicKeyFlag != "" {
+		keyStr = *publicKeyFlag
+		tokenStr = *tokenFlag
+		signatureStr = *signatureFlag
+	} else {
+		var payload []byte
+		payload, err := ioutil.ReadFile(*jsonInFlag)
+		if err != nil {
+			return err
+		}
+
+		var record record
+		err = json.Unmarshal(payload, &record)
+		if err != nil {
+			return err
+		}
+
+		keyStr = record.ServerPublicKey
+		tokenStr = record.CensorshipRecord.Token
+		signatureStr = record.CensorshipRecord.Signature
+		merkleStr = record.CensorshipRecord.Merkle
 	}
 
 	// Decode the public key, token and signature.
-	k, err := hex.DecodeString(*publicKeyFlag)
+	key, err := hex.DecodeString(keyStr)
 	if err != nil {
 		return err
 	}
 	var publicKey [ed25519.PublicKeySize]byte
-	copy(publicKey[:], k)
+	copy(publicKey[:], key)
 
-	token, err := hex.DecodeString(*tokenFlag)
+	token, err := hex.DecodeString(tokenStr)
 	if err != nil {
 		return err
 	}
 
-	s, err := hex.DecodeString(*signatureFlag)
+	sig, err := hex.DecodeString(signatureStr)
 	if err != nil {
 		return err
 	}
 	var signature [ed25519.SignatureSize]byte
-	copy(signature[:], s)
+	copy(signature[:], sig)
 
-	return verifyRecord(publicKey, token, signature)
+	var merkle [sha256.Size]byte
+	if *publicKeyFlag != "" {
+		merklePtr, err := findMerkle()
+		if err != nil {
+			return err
+		}
+
+		merkle = *merklePtr
+	} else {
+		bytes, err := hex.DecodeString(merkleStr)
+		if err != nil {
+			return err
+		}
+
+		copy(merkle[:], bytes)
+	}
+
+	recordVerified := verifyRecord(publicKey, merkle, token, signature)
+	if *jsonOutFlag {
+		bytes, err := json.Marshal(output{
+			Success: recordVerified,
+		})
+		if err != nil {
+			return err
+		}
+
+		fmt.Println(string(bytes))
+	} else {
+		if recordVerified {
+			fmt.Println("Record successfully verified")
+		} else {
+			if *verboseFlag {
+				return fmt.Errorf("Record failed verification. Please ensure the "+
+					"public key and merkle are correct.\n"+
+					"  Merkle: %v", hex.EncodeToString(merkle[:]))
+			}
+
+			return fmt.Errorf("Record failed verification")
+		}
+	}
+
+	return nil
 }
 
 func main() {
