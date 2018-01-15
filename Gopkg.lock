@@ -29,7 +29,7 @@
   branch = "master"
   name = "github.com/dajohi/goemail"
   packages = ["."]
-  revision = "40fa6c958abc97b72d3ff95998228b05dc21a1db"
+  revision = "95d302d1822d2958173811656be22ec714c4ec94"
 
 [[projects]]
   name = "github.com/davecgh/go-spew"
@@ -47,13 +47,13 @@
   branch = "master"
   name = "github.com/decred/base58"
   packages = ["."]
-  revision = "b3520e187fa8ebe65eb74245408cf4b83e6a65d3"
+  revision = "a5d313ea54d82327fbdc0fefc817776aa74f44f0"
 
 [[projects]]
   branch = "master"
   name = "github.com/decred/dcrd"
   packages = ["blockchain","blockchain/internal/dbnamespace","blockchain/internal/progresslog","blockchain/stake","blockchain/stake/internal/dbnamespace","blockchain/stake/internal/ticketdb","blockchain/stake/internal/tickettreap","certgen","chaincfg","chaincfg/chainec","chaincfg/chainhash","database","dcrec/edwards","dcrec/secp256k1","dcrec/secp256k1/schnorr","dcrutil","hdkeychain","txscript","wire"]
-  revision = "664ccfcc63fc25d63906a9869484b688f8cc56bb"
+  revision = "36c6c7f46e0f06d158ebf84a0548fc51e36bbfab"
 
 [[projects]]
   branch = "master"
@@ -65,7 +65,7 @@
   branch = "master"
   name = "github.com/decred/dcrwallet"
   packages = ["apperrors","internal/zero","netparams","snacl","wallet/udb","walletdb"]
-  revision = "f44ea012f2dcd4f7cb63ca054506ed57fc48a49f"
+  revision = "d30a472733d50937564612165fff1387921d3eaf"
 
 [[projects]]
   branch = "master"
@@ -136,8 +136,8 @@
 [[projects]]
   name = "github.com/stretchr/testify"
   packages = ["assert","require","suite"]
-  revision = "69483b4bd14f5845b5a1e55bca19e954e827f1d0"
-  version = "v1.1.4"
+  revision = "b91bfb9ebec76498946beb6af7c0230c7cc7ba6c"
+  version = "v1.2.0"
 
 [[projects]]
   branch = "master"
@@ -149,25 +149,25 @@
   branch = "master"
   name = "github.com/syndtr/goleveldb"
   packages = ["leveldb","leveldb/cache","leveldb/comparer","leveldb/errors","leveldb/filter","leveldb/iterator","leveldb/journal","leveldb/memdb","leveldb/opt","leveldb/storage","leveldb/table","leveldb/util"]
-  revision = "adf24ef3f94bd13ec4163060b21a5678f22b429b"
+  revision = "34011bf325bce385408353a30b101fe5e923eb6e"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/crypto"
   packages = ["bcrypt","blowfish","nacl/secretbox","pbkdf2","poly1305","ripemd160","salsa20/salsa","scrypt"]
-  revision = "94eea52f7b742c7cbe0b03b22f0c4c8631ece122"
+  revision = "13931e22f9e72ea58bb73048bc752b48c6d4d4ac"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/net"
   packages = ["idna","publicsuffix"]
-  revision = "a8b9294777976932365dabb6640cf1468d95c70f"
+  revision = "5ccada7d0a7ba9aeb5d3aca8d3501b4c2a509fec"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/text"
   packages = ["collate","collate/build","internal/colltab","internal/gen","internal/tag","internal/triegen","internal/ucd","language","secure/bidirule","transform","unicode/bidi","unicode/cldr","unicode/norm","unicode/rangetable"]
-  revision = "75cc3cad82b5f47d3fb229ddda8c5167da14f294"
+  revision = "e19ae1496984b1c655b8044a65c0300a3c878dd3"
 
 [solve-meta]
   analyzer-name = "dep"
