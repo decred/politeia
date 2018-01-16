@@ -14,6 +14,8 @@ API.  It does not render HTML.
 - [`Me`](#me)
 - [`Login`](#login)
 - [`Logout`](#logout)
+- [`Update user key`](#update-user-key)
+- [`Verify update user key`](#verify-update-user-key)
 - [`Change password`](#change-password)
 - [`Reset password`](#reset-password)
 - [`Vetted`](#vetted)
@@ -188,7 +190,7 @@ This call can return one of the following error codes:
 The email shall include a link in the following format:
 
 ```
-/user/verify?email=69af376cca42cd9c@example.com&verificationtoken=fc8f660e7f4d590e27e6b11639ceeaaec2ce9bc6b0303344555ac023ab8ee55f&signature=9e4b1018913610c12496ec3e482f2fb42129197001c5d35d4f5848b77d2b5e5071f79b18bcab4f371c5b378280bb478c153b696003ac3a627c3d8a088cd5f00d
+/user/verify?email=69af376cca42cd9c@example.com&verificationtoken=fc8f660e7f4d590e27e6b11639ceeaaec2ce9bc6b0303344555ac023ab8ee55f
 ```
 
 The call may return `500 Internal Server Error` which is accompanied by
@@ -202,7 +204,7 @@ Request:
 ```json
 {
   "email": "69af376cca42cd9c@example.com",
-  "password": "69af376cca42cd9c"
+  "password": "69af376cca42cd9c",
   "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
 }
 ```
@@ -248,7 +250,7 @@ Request:
 The request params should be provided within the URL:
 
 ```
-/v1/user/verify?email=abc@example.com&verificationtoken=f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde
+/v1/user/verify?email=abc@example.com&verificationtoken=f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde&signature=9e4b1018913610c12496ec3e482f2fb42129197001c5d35d4f5848b77d2b5e5071f79b18bcab4f371c5b378280bb478c153b696003ac3a627c3d8a088cd5f00d
 ```
 
 Reply:
@@ -366,6 +368,100 @@ Request:
 
 ```json
 {}
+```
+
+Reply:
+
+```json
+{}
+```
+
+### `Update user key`
+
+Updates the user's active key pair.
+
+**Route:** `POST /v1/user/key`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| publickey | string | User's new active ed25519 public key. | Yes |
+
+**Results:**
+
+| Parameter | Type | Description |
+|-|-|-|
+| verificationtoken | String | The verification token which is required when calling [Verify update user key](#verify-update-user-key). If an email server is set up, this property will be empty or nonexistent; the token will be sent to the email address sent in the request. |
+
+This call can return one of the following error codes:
+
+- [`ErrorStatusInvalidPublicKey`](#ErrorStatusInvalidPublicKey)
+
+The email shall include a link in the following format:
+
+```
+/user/key/verify?verificationtoken=fc8f660e7f4d590e27e6b11639ceeaaec2ce9bc6b0303344555ac023ab8ee55
+```
+
+The call may return `500 Internal Server Error` which is accompanied by
+an error code that allows the server operator to correlate issues with user
+reports.
+
+* **Example**
+
+Request:
+
+```json
+{
+  "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+}
+```
+
+Reply:
+
+```json
+{
+  "verificationtoken": "fc8f660e7f4d590e27e6b11639ceeaaec2ce9bc6b0303344555ac023ab8ee55f"
+}
+```
+
+### `Verify update user key`
+
+Verify the new key pair for the user.
+
+**Route:** `POST /v1/user/key/verify`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| verificationtoken | string | The token that was provided by email to the user. | Yes |
+| signature | string | The ed25519 signature of the string representation of the verification token. | Yes |
+
+**Results:** none
+
+On success the call shall return `200 OK`.
+
+On failure the call shall return `400 Bad Request` and one of the following error codes:
+- [`ErrorStatusVerificationTokenInvalid`](#ErrorStatusVerificationTokenInvalid)
+- [`ErrorStatusVerificationTokenExpired`](#ErrorStatusVerificationTokenExpired)
+- [`ErrorStatusNoPublicKey`](#ErrorStatusNoPublicKey)
+- [`ErrorStatusInvalidPublicKey`](#ErrorStatusInvalidPublicKey)
+- [`ErrorStatusInvalidSignature`](#ErrorStatusInvalidSignature)
+- [`ErrorStatusInvalidInput`](#ErrorStatusInvalidInput)
+
+**Example:**
+
+Request:
+
+The request params should be provided within the URL:
+
+```json
+{
+  "verificationtoken":"f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde",
+  "signature":"9e4b1018913610c12496ec3e482f2fb42129197001c5d35d4f5848b77d2b5e5071f79b18bcab4f371c5b378280bb478c153b696003ac3a627c3d8a088cd5f00d"
+}
 ```
 
 Reply:
