@@ -80,9 +80,10 @@ type User struct {
 // Database interface that is required by the web server.
 type Database interface {
 	// User functions
-	UserGet(string) (*User, error) // Return user record, key is email
-	UserNew(User) error            // Add new user
-	UserUpdate(User) error         // Update existing user
+	UserGet(string) (*User, error)           // Return user record, key is email
+	UserNew(User) error                      // Add new user
+	UserUpdate(User) error                   // Update existing user
+	AllUsers(callbackFn func(u *User)) error // Iterate all users
 
 	// Close performs cleanup of the backend.
 	Close() error

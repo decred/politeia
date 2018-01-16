@@ -749,7 +749,7 @@ Retrieve a page of proposals submitted by the given user; the number of proposal
 
 | | Type | Description |
 |-|-|-|
-| proposals | array of [`Proposal`](#proposal)s | An Array of unvetted proposals. |
+| proposals | array of [`Proposal`](#proposal)s | An Array of proposals submitted by the user. |
 
 **Example**
 

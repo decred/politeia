@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"encoding/hex"
 	"flag"
 	"fmt"
@@ -39,13 +40,26 @@ func dumpAction() error {
 		key := iter.Key()
 		value := iter.Value()
 
-		u, err := localdb.DecodeUser(value)
-		if err != nil {
-			return err
-		}
+		if string(key) == localdb.UserVersionKey {
+			v, err := localdb.DecodeVersion(value)
+			if err != nil {
+				return err
+			}
 
-		fmt.Printf("Key    : %v\n", hex.EncodeToString(key))
-		fmt.Printf("Record : %v", spew.Sdump(u))
+			fmt.Printf("Key    : %v\n", string(key))
+			fmt.Printf("Record : %v\n", spew.Sdump(v))
+		} else if string(key) == localdb.LastUserIdKey {
+			fmt.Printf("Key    : %v\n", string(key))
+			fmt.Printf("Record : %v\n", binary.LittleEndian.Uint64(value))
+		} else {
+			u, err := localdb.DecodeUser(value)
+			if err != nil {
+				return err
+			}
+
+			fmt.Printf("Key    : %v\n", hex.EncodeToString(key))
+			fmt.Printf("Record : %v", spew.Sdump(u))
+		}
 	}
 	iter.Release()
 	return iter.Error()

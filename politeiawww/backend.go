@@ -56,6 +56,7 @@ type backend struct {
 	params             *chaincfg.Params
 	commentJournalDir  string
 	commentJournalFile string
+	userPubkeys        map[string]string // [pubkey][userid]
 
 	// These properties are only used for testing.
 	test                   bool
@@ -78,7 +79,6 @@ type BackendProposalMetadata struct {
 	Version   uint64 `json:"version"`   // BackendProposalMetadata version
 	Timestamp int64  `json:"timestamp"` // Last update of proposal
 	Name      string `json:"name"`      // Generated proposal name
-	UserId    string `json:"userid"`    // ID of user who submitted proposal
 	PublicKey string `json:"publickey"` // Key used for signature.
 	Signature string `json:"signature"` // Signature of merkle root
 }
@@ -174,6 +174,18 @@ func (b *backend) hashPassword(password string) ([]byte, error) {
 	}
 	return bcrypt.GenerateFromPassword([]byte(password),
 		bcrypt.DefaultCost)
+}
+
+// initUserPubkeys initializes the userPubkeys map with all the pubkey-userid
+// associations that are found in the database.
+func (b *backend) initUserPubkeys() error {
+	return b.db.AllUsers(func(u *database.User) {
+		userId := strconv.FormatUint(u.ID, 10)
+		for _, v := range u.Identities {
+			key := hex.EncodeToString(v.Key[:])
+			b.userPubkeys[key] = userId
+		}
+	})
 }
 
 // emailNewUserVerificationLink emails the link with the new user verification token
@@ -745,6 +757,15 @@ func (b *backend) LoadInventory() error {
 			len(inv.Vetted)+len(inv.Branches))
 		for _, vv := range append(inv.Vetted, inv.Branches...) {
 			v := convertPropFromPD(vv)
+
+			// Set the user id.
+			var ok bool
+			v.UserId, ok = b.userPubkeys[v.PublicKey]
+			if !ok {
+				log.Errorf("User not found for public key %v, for proposal %v",
+					v.PublicKey, v.CensorshipRecord.Token)
+			}
+
 			// Initialize comment map for this proposal.
 			b.initComment(v.CensorshipRecord.Token)
 			len := len(b.inventory)
@@ -1292,7 +1313,6 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 		Version:   BackendProposalMetadataVersion,
 		Timestamp: ts,
 		Name:      name,
-		UserId:    strconv.FormatUint(user.ID, 10),
 		PublicKey: np.PublicKey,
 		Signature: np.Signature,
 	})
@@ -1672,9 +1692,10 @@ func NewBackend(cfg *config) (*backend, error) {
 
 	// Context
 	b := &backend{
-		db:       db,
-		cfg:      cfg,
-		comments: make(map[string]map[uint64]BackendComment),
+		db:          db,
+		cfg:         cfg,
+		userPubkeys: make(map[string]string),
+		comments:    make(map[string]map[uint64]BackendComment),
 		commentJournalDir: filepath.Join(cfg.DataDir,
 			defaultCommentJournalDir),
 		commentID: 1, // Replay will set this value
@@ -1689,6 +1710,12 @@ func NewBackend(cfg *config) (*backend, error) {
 
 	// Flush comments
 	err = b.flushCommentJournals()
+	if err != nil {
+		return nil, err
+	}
+
+	// Setup pubkey-userid map
+	err = b.initUserPubkeys()
 	if err != nil {
 		return nil, err
 	}

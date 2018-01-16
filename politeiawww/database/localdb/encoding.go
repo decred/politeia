@@ -9,19 +9,8 @@ import (
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
-const (
-	UserVersion    uint32 = 1
-	UserVersionKey        = "userversion"
-)
-
-// Version contains the database version.
-type Version struct {
-	Version uint32 // Database version
-	Time    int64  // Time of record creation
-}
-
-// encodeVersion encodes Version into a JSON byte slice.
-func encodeVersion(version Version) ([]byte, error) {
+// EncodeVersion encodes Version into a JSON byte slice.
+func EncodeVersion(version Version) ([]byte, error) {
 	b, err := json.Marshal(version)
 	if err != nil {
 		return nil, err
@@ -30,8 +19,8 @@ func encodeVersion(version Version) ([]byte, error) {
 	return b, nil
 }
 
-// decodeVersion decodes a JSON byte slice into a Version.
-func decodeVersion(payload []byte) (*Version, error) {
+// DecodeVersion decodes a JSON byte slice into a Version.
+func DecodeVersion(payload []byte) (*Version, error) {
 	var version Version
 
 	err := json.Unmarshal(payload, &version)
@@ -59,7 +48,7 @@ func (l *localdb) openUserDB(path string) error {
 	}
 
 	// Write version record
-	v, err := encodeVersion(Version{
+	v, err := EncodeVersion(Version{
 		Version: UserVersion,
 		Time:    time.Now().Unix(),
 	})
