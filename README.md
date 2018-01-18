@@ -42,25 +42,20 @@ https://github.com/decred/politeiagui
 
 ## Development 
 
-#### 1. If you haven't install Go, check it out the [docs fot it](https://golang.org/doc/install)
-#### 2. Get this repository properly cloned and installed. 
-#### 3. If you have properly setted your enviroment you will be able to run Politeia's components by simple typing its name (e.g: `politeiawwww`) on your terminal (p.s It won't fully work untill you set its configuration).
-#### 4. Finding your configuration files path: 
-* To make things simpler during development is handy having a configuration file for your components. Specially `politeiad` and `politeiawww` so you don't have to pass the parameters every time you run it. 
-* You may find the configuration files under the path:  
+#### 1. Install [Go](https://golang.org/doc/install) and [dep](https://github.com/golang/dep), if you haven't already.
+#### 2. Clone this repository. 
+#### 3. Setup configuration files: 
+* `politeiad` and `politeiawww` both have configuration files that you should set up to make execution easier. 
+* You should create the configuration files under the following path:  
   - **Mac OS** `/Users/<username>/Library/Application Support/Politeiad/politeiad.conf`
   - **Windows** `C:\Users\<username>\AppData\Local\Politeiad/politeiad.conf`
   - **Ubuntu** `~/.politeiad/politeiad.conf`
-
-#### 5. Set the configuration files:
   
-Add the following configurations:
+* Copy and change the  [`sample-politeiawww.conf`](https://github.com/decred/politeia/blob/master/politeiawww/sample-politeiawww.conf) and [`sample-politeiad.conf`](https://github.com/decred/politeia/blob/master/politeiad/sample-politeiad.conf) files.
+* You may use the following default configurations:
 
 **politeiad.conf**: 
-
-    rpcuser=user
-    rpcpass=pass
-    testnet=true	
+`rpcuser=user rpcpass=pass testnet=true`	
 
 
 **politeiawww.conf**:
@@ -74,11 +69,11 @@ Add the following configurations:
     testnet=true
 
 **Attention:** The rpccert path is referenced on MacOs path. See step 4 for more OS paths.
-#### 6. Run Politeiad by simple running on your terminal:
+#### 4.Start the Politeiad server by running on your terminal:
 
     politeiad
 
-#### 7. Download server identity to client:
+#### 5. Download server identity to client:
 
     politeia -v -testnet -rpchost 127.0.0.1 identity
 
@@ -97,12 +92,12 @@ Save to /Users/<username>/Library/Application Support/Politeia/identity.json or 
 Identity saved to: /Users/<username>/Library/Application Support/Politeia/identity.json
 ```
 
-#### 8. Run Politeiawww by simple running on your terminal:
+#### 6. Start the Politeiawww server by running on your terminal:
 
     politeiawww
 
 **Awesome! From this point you have your politeia server up running!**
-#### 9. Creating a Reference Client:
+#### 7. Running the politeiawww reference client:
 * With politeiad and politeiawww running type on your terminal:
 ```
 politeiawww_refclient
@@ -128,10 +123,9 @@ refclient run successful
 email: 2e645574ba5dcf42@example.com
 password: 2e645574ba5dcf42
 ```
-#### 10. Elevating user permission with politeiawww_dbutil
-* This is allow you to access politeia as an admin
-* For this task, make sure **politeiawww is turned off**.
-* Type on your terminal: 
+#### 8. Elevating user permission with politeiawww_dbutil
+* This tool allows you to elevate a user in politeiawww to have admin permissions. You will have to shut down politeiawww, and then execute in your terminal:
+
 `politeiawww_dbutil -testnet -setadmin <email> <true/false>`
 
 ## Integrated Projects / External APIs / Official Development URLs
