@@ -27,6 +27,13 @@ import (
 	"github.com/gorilla/mux"
 )
 
+type permission uint
+
+const (
+	permissionPublic permission = iota
+	permissionAuth
+)
+
 // politeia application context.
 type politeia struct {
 	backend  backend.Backend
@@ -686,6 +693,18 @@ func logging(f http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+func (p *politeia) addRoute(method string, route string, handler http.HandlerFunc, perm permission) {
+	switch perm {
+	case permissionAuth:
+		handler = logging(p.auth(handler))
+	case permissionPublic:
+		handler = logging(handler)
+	default:
+		handler = logging(handler)
+	}
+	p.router.StrictSlash(true).HandleFunc(route, handler).Methods(method)
+}
+
 func _main() error {
 	// Load configuration and parse command line.  This function also
 	// initializes logging and configures it accordingly.
@@ -783,24 +802,24 @@ func _main() error {
 	p.router = mux.NewRouter()
 
 	// Unprivileged routes
-	p.router.HandleFunc(v1.IdentityRoute,
-		logging(p.getIdentity)).Methods("POST")
-	p.router.HandleFunc(v1.NewRecordRoute,
-		logging(p.newRecord)).Methods("POST")
-	p.router.HandleFunc(v1.UpdateUnvettedRoute,
-		logging(p.updateUnvetted)).Methods("POST")
-	p.router.HandleFunc(v1.GetUnvettedRoute,
-		logging(p.getUnvetted)).Methods("POST")
-	p.router.HandleFunc(v1.GetVettedRoute,
-		logging(p.getVetted)).Methods("POST")
+	p.addRoute(http.MethodPost, v1.IdentityRoute, p.getIdentity,
+		permissionPublic)
+	p.addRoute(http.MethodPost, v1.NewRecordRoute, p.newRecord,
+		permissionPublic)
+	p.addRoute(http.MethodPost, v1.UpdateUnvettedRoute, p.updateUnvetted,
+		permissionPublic)
+	p.addRoute(http.MethodPost, v1.GetUnvettedRoute, p.getUnvetted,
+		permissionPublic)
+	p.addRoute(http.MethodPost, v1.GetVettedRoute, p.getVetted,
+		permissionPublic)
 
 	// Routes that require auth
-	p.router.HandleFunc(v1.InventoryRoute,
-		logging(p.auth(p.inventory))).Methods("POST")
-	p.router.HandleFunc(v1.SetUnvettedStatusRoute,
-		logging(p.auth(p.setUnvettedStatus))).Methods("POST")
-	p.router.HandleFunc(v1.UpdateVettedMetadataRoute,
-		logging(p.auth(p.updateVettedMetadata))).Methods("POST")
+	p.addRoute(http.MethodPost, v1.InventoryRoute, p.inventory,
+		permissionAuth)
+	p.addRoute(http.MethodPost, v1.SetUnvettedStatusRoute, p.setUnvettedStatus,
+		permissionAuth)
+	p.addRoute(http.MethodPost, v1.UpdateVettedMetadataRoute, p.updateVettedMetadata,
+		permissionAuth)
 
 	// Bind to a port and pass our router in
 	listenC := make(chan error)
