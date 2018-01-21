@@ -139,6 +139,8 @@ Return pertinent user information of the current logged in user.
 | email | string | User ID. |
 | isadmin | string | This indicates if the user has publish/censor privileges. |
 | publickey | string | Current active public key. |
+| paywalladdress | String | The address in which to send paywall funds. If the user has already paid, this field will be empty or not present. |
+| paywallamount | Float64 | The amount of DCR to send to the paywall address. If the user has already paid, this field will be empty or not present. |
 
 If there currently is no session the call returns `403 Forbidden`.
 
@@ -179,8 +181,8 @@ Create a new user on the politeiawww server.
 
 | Parameter | Type | Description |
 |-|-|-|
-| paywalladdress | String | The address in which to send paywall funds.|
-| paywallamount | Float64 | The amount of DCR to send to the paywall address.|
+| paywalladdress | String | The address in which to send paywall funds. |
+| paywallamount | Float64 | The amount of DCR to send to the paywall address. |
 | verificationtoken | String | The verification token which is required when calling [Verify user](#verify-user). If an email server is set up, this property will be empty or nonexistent; the token will be sent to the email address sent in the request.|
 
 This call can return one of the following error codes:
@@ -321,6 +323,8 @@ the user database.  Note that Login reply is identical to Me reply.
 | userid | string | Unique user identifier. |
 | email | string | Current user email address. |
 | publickey | string | Current public key. |
+| paywalladdress | String | The address in which to send paywall funds. If the user has already paid, this field will be empty or not present. |
+| paywallamount | Float64 | The amount of DCR to send to the paywall address. If the user has already paid, this field will be empty or not present. |
 
 On failure the call shall return `403 Forbidden` and one of the following
 error codes:

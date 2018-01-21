@@ -422,12 +422,18 @@ func (p *politeiawww) handleMe(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		activeIdentity = ""
 	}
+
 	reply := v1.MeReply{
 		IsAdmin:   user.Admin,
 		UserID:    strconv.FormatUint(user.ID, 10),
 		Email:     user.Email,
 		PublicKey: activeIdentity,
 	}
+	if user.NewUserPaywallTx == "" {
+		reply.PaywallAddress = user.NewUserPaywallAddress
+		reply.PaywallAmount = user.NewUserPaywallAmount
+	}
+
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 

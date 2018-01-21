@@ -1173,12 +1173,20 @@ func (b *backend) ProcessLogin(l www.Login) (*www.LoginReply, error) {
 	if !ok {
 		activeIdentity = ""
 	}
-	return &www.LoginReply{
+
+	reply := www.LoginReply{
 		IsAdmin:   user.Admin,
 		UserID:    strconv.FormatUint(user.ID, 10),
 		Email:     user.Email,
 		PublicKey: activeIdentity,
-	}, nil
+	}
+
+	if user.NewUserPaywallTx == "" {
+		reply.PaywallAddress = user.NewUserPaywallAddress
+		reply.PaywallAmount = user.NewUserPaywallAmount
+	}
+
+	return &reply, nil
 }
 
 // ProcessChangePassword checks that the current password matches the one
