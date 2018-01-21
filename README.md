@@ -55,21 +55,20 @@ https://github.com/decred/politeiagui
 * You may use the following default configurations:
 
 **politeiad.conf**: 
-`rpcuser=user rpcpass=pass testnet=true`	
+
+```
+rpcuser=user rpcpass=pass testnet=true 
+```
 
 
 **politeiawww.conf**:
 
-    rpchost=127.0.0.1
-    rpcuser=user
-    rpcpass=pass
-    rpccert="/Users/<username>/Library/Application 
-    Support/Politeiad/https.cert"
-    proxy=true
-    testnet=true
+```
+rpchost=127.0.0.1 rpcuser=user rpcpass=pass rpccert="/Users/<username>/Library/Application Support/Politeiad/https.cert" proxy=true testnet=true
+```
 
-**Attention:** The rpccert path is referenced on MacOs path. See step 4 for more OS paths.
-#### 4.Start the Politeiad server by running on your terminal:
+**Attention:** The rpccert path is referenced on MacOs path. See above for more OS paths.
+#### 4. Start the Politeiad server by running on your terminal:
 
     politeiad
 
@@ -77,7 +76,7 @@ https://github.com/decred/politeiagui
 
     politeia -v -testnet -rpchost 127.0.0.1 identity
 
-Accept default path by pressing `enter`.
+Accept politeiad's identity by pressing `enter`.
 
 Result should look something like this:
 
@@ -96,7 +95,7 @@ Identity saved to: /Users/<username>/Library/Application Support/Politeia/identi
 
     politeiawww
 
-**Awesome! From this point you have your politeia server up running!**
+**Awesome!** From this point you have your politeia server up running!
 #### 7. Running the politeiawww reference client:
 * With politeiad and politeiawww running type on your terminal:
 ```
@@ -123,6 +122,8 @@ refclient run successful
 email: 2e645574ba5dcf42@example.com
 password: 2e645574ba5dcf42
 ```
+**Note:** Make sure you do not have an email server set up for politeiawww, because politeiawww_refclient will not execute correctly. So before you execute politeiawww_refclient, make sure to comment out or remove the following config options and restart politeiawww: mailhost, mailuser, mailpass, webserveraddress."
+
 #### 8. Elevating user permission with politeiawww_dbutil
 * This tool allows you to elevate a user in politeiawww to have admin permissions. You will have to shut down politeiawww, and then execute in your terminal:
 
