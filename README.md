@@ -3,7 +3,11 @@
 [![ISC License](http://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
 
 **Politeia is the Decred proposal system.**
- Politeia is a system for storing off-chain data that is both versioned and timestamped, essentially “git, a popular revision control system, plus timestamping”. Instead of attempting to store all the data related to Decred’s governance on-chain, we have opted to create an off-chain store of data that is anchored into Decred’s blockchain, minimizing its on-chain footprint.
+Politeia is a system for storing off-chain data that is both versioned and 
+timestamped, essentially “git, a popular revision control system, plus 
+timestamping”. Instead of attempting to store all the data related to Decred’s
+governance on-chain, we have opted to create an off-chain store of data that is
+anchored into Decred’s blockchain, minimizing its on-chain footprint.
 
 The politeia stack is as follows:
 
@@ -34,7 +38,8 @@ The politeia stack is as follows:
 * politeia_verify - Reference verification tool.
 * politeiawww - Web backend server.
 * politeiawww_refclient - Web reference client application.
-* politeiawww_dbutil - Politeiawww database tool for debugging and creating admin users.
+* politeiawww_dbutil - Politeiawww database tool for debugging and creating
+admin users.
 
 Note that politeiawww does not provide HTML output.  It strictly handles the
 JSON REST RPC commands only.  The GUI for politeiawww can be found at:
@@ -45,13 +50,15 @@ https://github.com/decred/politeiagui
 #### 1. Install [Go](https://golang.org/doc/install) and [dep](https://github.com/golang/dep), if you haven't already.
 #### 2. Clone this repository. 
 #### 3. Setup configuration files: 
-* `politeiad` and `politeiawww` both have configuration files that you should set up to make execution easier. 
+* `politeiad` and `politeiawww` both have configuration files that you should 
+set up to make execution easier. 
 * You should create the configuration files under the following path:  
   - **Mac OS** `/Users/<username>/Library/Application Support/Politeiad/politeiad.conf`
   - **Windows** `C:\Users\<username>\AppData\Local\Politeiad/politeiad.conf`
   - **Ubuntu** `~/.politeiad/politeiad.conf`
   
-* Copy and change the  [`sample-politeiawww.conf`](https://github.com/decred/politeia/blob/master/politeiawww/sample-politeiawww.conf) and [`sample-politeiad.conf`](https://github.com/decred/politeia/blob/master/politeiad/sample-politeiad.conf) files.
+* Copy and change the  [`sample-politeiawww.conf`](https://github.com/decred/politeia/blob/master/politeiawww/sample-politeiawww.conf) 
+and [`sample-politeiad.conf`](https://github.com/decred/politeia/blob/master/politeiad/sample-politeiad.conf) files.
 * You may use the following default configurations:
 
 **politeiad.conf**: 
@@ -70,7 +77,8 @@ https://github.com/decred/politeiagui
     proxy=true 
     testnet=true
 
-**Attention:** The rpccert path is referenced on MacOs path. See above for more OS paths.
+**Attention:** The rpccert path is referenced on MacOs path. See above for more
+OS paths.
 
 #### 4. Start the Politeiad server by running on your terminal:
 
@@ -100,6 +108,7 @@ Identity saved to: /Users/<username>/Library/Application Support/Politeia/identi
     politeiawww
 
 **Awesome!** From this point you have your politeia server up running!
+
 #### 7. Running the politeiawww reference client:
 * With politeiad and politeiawww running type on your terminal:
 ```
@@ -121,15 +130,22 @@ Request: POST /v1/proposals/new
 refclient run successful
 === End ===
 ```
-* The generated email is what gives you access to the PoliteiaGUI application where your password will be the email's username. Example: 
+* The generated email is what gives you access to the PoliteiaGUI application 
+where your password will be the email's username. Example: 
 ```
 email: 2e645574ba5dcf42@example.com
 password: 2e645574ba5dcf42
 ```
-**Note:** Make sure you do not have an email server set up for politeiawww, because politeiawww_refclient will not execute correctly. So before you execute politeiawww_refclient, make sure to comment out or remove the following config options and restart politeiawww: mailhost, mailuser, mailpass, webserveraddress."
+**Note:** Make sure you do not have an email server set up for politeiawww, 
+because politeiawww_refclient will not execute correctly. So before you execute
+politeiawww_refclient, make sure to comment out or remove the following config 
+options and restart politeiawww: mailhost, mailuser, mailpass, 
+webserveraddress."
 
 #### 8. Elevating user permission with politeiawww_dbutil
-* This tool allows you to elevate a user in politeiawww to have admin permissions. You will have to shut down politeiawww, and then execute in your terminal:
+* This tool allows you to elevate a user in politeiawww to have admin 
+permissions. You will have to shut down politeiawww, and then execute in your 
+terminal:
 
 `politeiawww_dbutil -testnet -setadmin <email> <true/false>`
 
@@ -160,7 +176,8 @@ account to derive payment addresses.  You may either use one of the
 pre-generated test keys (grep the source for tpub) or you may acquire one by
 creating accounts and retrieving the public keys for those accounts:
 
-Put the result of the following command as paywallxpub=tpub... in politeiawww.conf.
+Put the result of the following command as paywallxpub=tpub... in 
+politeiawww.conf.
 
 ```
 dcrctl --wallet --testnet createnewaccount politeiapayments
