@@ -368,18 +368,10 @@ type Logout struct{}
 type LogoutReply struct{}
 
 // Me asks the server to return pertinent user information.
+//
+// Note that MeReply is not present because LoginReply is reused
+// for this endpoint.
 type Me struct{}
-
-// MeReply contains user information the UI may need to render a user specific
-// page.
-type MeReply struct {
-	IsAdmin        bool    `json:"isadmin"`        // Set if user is an admin
-	UserID         string  `json:"userid"`         // User id
-	Email          string  `json:"email"`          // User email
-	PublicKey      string  `json:"publickey"`      // Active public key
-	PaywallAddress string  `json:"paywalladdress"` // Registration paywall address
-	PaywallAmount  float64 `json:"paywallamount"`  // Registration paywall amount in DCR
-}
 
 // NewProposal attempts to submit a new proposal.
 type NewProposal struct {

@@ -418,23 +418,8 @@ func (p *politeiawww) handleMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	activeIdentity, ok := database.ActiveIdentityString(user.Identities)
-	if !ok {
-		activeIdentity = ""
-	}
-
-	reply := v1.MeReply{
-		IsAdmin:   user.Admin,
-		UserID:    strconv.FormatUint(user.ID, 10),
-		Email:     user.Email,
-		PublicKey: activeIdentity,
-	}
-	if user.NewUserPaywallTx == "" {
-		reply.PaywallAddress = user.NewUserPaywallAddress
-		reply.PaywallAmount = user.NewUserPaywallAmount
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, reply)
+	reply := p.backend.CreateLoginReply(user)
+	util.RespondWithJSON(w, http.StatusOK, *reply)
 }
 
 func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Request) {

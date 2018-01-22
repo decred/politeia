@@ -721,6 +721,27 @@ func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
 	return proposals
 }
 
+func (b *backend) CreateLoginReply(user *database.User) *www.LoginReply {
+	activeIdentity, ok := database.ActiveIdentityString(user.Identities)
+	if !ok {
+		activeIdentity = ""
+	}
+
+	reply := www.LoginReply{
+		IsAdmin:   user.Admin,
+		UserID:    strconv.FormatUint(user.ID, 10),
+		Email:     user.Email,
+		PublicKey: activeIdentity,
+	}
+
+	if user.NewUserPaywallTx == "" {
+		reply.PaywallAddress = user.NewUserPaywallAddress
+		reply.PaywallAmount = user.NewUserPaywallAmount
+	}
+
+	return &reply
+}
+
 // LoadInventory fetches the entire inventory of proposals from politeiad and
 // caches it, sorted by most recent timestamp.
 func (b *backend) LoadInventory() error {
@@ -1169,24 +1190,7 @@ func (b *backend) ProcessLogin(l www.Login) (*www.LoginReply, error) {
 		}
 	}
 
-	activeIdentity, ok := database.ActiveIdentityString(user.Identities)
-	if !ok {
-		activeIdentity = ""
-	}
-
-	reply := www.LoginReply{
-		IsAdmin:   user.Admin,
-		UserID:    strconv.FormatUint(user.ID, 10),
-		Email:     user.Email,
-		PublicKey: activeIdentity,
-	}
-
-	if user.NewUserPaywallTx == "" {
-		reply.PaywallAddress = user.NewUserPaywallAddress
-		reply.PaywallAmount = user.NewUserPaywallAmount
-	}
-
-	return &reply, nil
+	return b.CreateLoginReply(user), nil
 }
 
 // ProcessChangePassword checks that the current password matches the one
