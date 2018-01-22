@@ -20,6 +20,7 @@ API.  It does not render HTML.
 - [`Reset password`](#reset-password)
 - [`Vetted`](#vetted)
 - [`Unvetted`](#unvetted)
+- [`User proposals`](#user-proposals)
 - [`New proposal`](#new-proposal)
 - [`Proposal details`](#proposal-details)
 - [`Set proposal status`](#set-proposal-status)
@@ -721,6 +722,52 @@ Reply:
   "proposals": [{
     "name": "My Proposal",
     "status": 4,
+    "timestamp": 1508296860781,
+    "censorshiprecord": {
+      "token": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
+      "merkle": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
+      "signature": "fcc92e26b8f38b90c2887259d88ce614654f32ecd76ade1438a0def40d360e461d995c796f16a17108fad226793fd4f52ff013428eda3b39cd504ed5f1811d0d"
+    }
+  }]
+```
+
+### `User proposals`
+
+Retrieve a page of proposals submitted by the given user; the number of proposals returned in the page is limited by the `proposallistpagesize` property, which is provided via [`Policy`](#policy).
+
+**Route:** `GET /v1/user/proposals`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| userid | String | The user id |
+| before | String | A proposal censorship token; if provided, the page of proposals returned will end right before the proposal whose token is provided. This parameter should not be specified if `after` is set. | |
+| after | String | A proposal censorship token; if provided, the page of proposals returned will begin right after the proposal whose token is provided. This parameter should not be specified if `before` is set. | |
+
+**Results:**
+
+| | Type | Description |
+|-|-|-|
+| proposals | array of [`Proposal`](#proposal)s | An Array of proposals submitted by the user. |
+
+**Example**
+
+Request:
+
+```json
+{
+  "userid": "0"
+}
+```
+
+Reply:
+
+```json
+{
+  "proposals": [{
+    "name": "My Proposal",
+    "status": 2,
     "timestamp": 1508296860781,
     "censorshiprecord": {
       "token": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",

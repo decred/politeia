@@ -665,6 +665,47 @@ func (p *politeiawww) handleCommentsGet(w http.ResponseWriter, r *http.Request) 
 	util.RespondWithJSON(w, http.StatusOK, gcr)
 }
 
+// handleUserProposals returns the proposals for the given user.
+func (p *politeiawww) handleUserProposals(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleUserProposals")
+	var up v1.UserProposals
+
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&up); err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserProposals: Unmarshal %v", err)
+		return
+	}
+	defer r.Body.Close()
+
+	userId, err := strconv.ParseUint(up.UserId, 10, 64)
+	if err != nil {
+		RespondWithError(w, r, 0, "", v1.UserError{
+			ErrorCode: v1.ErrorStatusInvalidInput,
+		})
+		return
+	}
+
+	user, err := p.getSessionUser(r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserProposals: getSessionUser %v", err)
+		return
+	}
+
+	upr, err := p.backend.ProcessUserProposals(
+		&up,
+		user != nil && user.ID == userId,
+		user != nil && user.Admin)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserProposals: ProcessUserProposals %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, upr)
+}
+
 // handleNotFound is a generic handler for an invalid route.
 func (p *politeiawww) handleNotFound(w http.ResponseWriter, r *http.Request) {
 	// Log incoming connection
@@ -798,6 +839,8 @@ func _main() error {
 	p.addRoute(http.MethodGet, v1.RoutePolicy, p.handlePolicy,
 		permissionPublic, false)
 	p.addRoute(http.MethodGet, v1.RouteCommentsGet, p.handleCommentsGet,
+		permissionPublic, true)
+	p.addRoute(http.MethodGet, v1.RouteUserProposals, p.handleUserProposals,
 		permissionPublic, true)
 
 	// Routes that require being logged in.

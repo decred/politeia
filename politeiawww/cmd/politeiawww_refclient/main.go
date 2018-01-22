@@ -145,6 +145,18 @@ func _main() error {
 		return err
 	}
 
+	// Ensure proposal exists under user
+	upr, err := c.proposalsForUser(me.UserID)
+	if err != nil {
+		return err
+	}
+	if len(upr.Proposals) != 1 {
+		return fmt.Errorf("No proposals returned for user")
+	}
+	if upr.Proposals[0].CensorshipRecord.Token != myprop1.CensorshipRecord.Token {
+		return fmt.Errorf("Proposal tokens don't match")
+	}
+
 	// Set new id
 	newId, err := idFromString("alt" + email)
 	if err != nil {

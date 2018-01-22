@@ -507,3 +507,56 @@ func TestProcessResetPassword(t *testing.T) {
 
 	b.db.Close()
 }
+
+// Tests fetching a user's own proposals.
+func TestProcessUserProposalsOwn(t *testing.T) {
+	b := createBackend(t)
+	u, _ := createAndVerifyUser(t, b)
+
+	l := www.Login{
+		Email:    u.Email,
+		Password: u.Password,
+	}
+	lr, _ := b.ProcessLogin(l)
+	_, npr, _ := createNewProposal(b, t)
+
+	up := www.UserProposals{
+		UserId: lr.UserID,
+	}
+	upr, _ := b.ProcessUserProposals(&up, true, false)
+
+	if len(upr.Proposals) != 1 {
+		t.Fatalf("no proposal returned for user")
+	}
+
+	proposal := upr.Proposals[0]
+	if proposal.CensorshipRecord.Token != npr.CensorshipRecord.Token {
+		t.Fatalf("proposal tokens don't match")
+	}
+
+	b.db.Close()
+}
+
+// Tests fetching a user's proposals from another regular user's perspective.
+func TestProcessUserProposalsOther(t *testing.T) {
+	b := createBackend(t)
+	u, _ := createAndVerifyUser(t, b)
+
+	l := www.Login{
+		Email:    u.Email,
+		Password: u.Password,
+	}
+	lr, _ := b.ProcessLogin(l)
+	_, _, _ = createNewProposal(b, t)
+
+	up := www.UserProposals{
+		UserId: lr.UserID,
+	}
+	upr, _ := b.ProcessUserProposals(&up, false, false)
+
+	if len(upr.Proposals) != 0 {
+		t.Fatalf("proposal should not have been returned for user")
+	}
+
+	b.db.Close()
+}

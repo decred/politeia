@@ -56,6 +56,7 @@ type backend struct {
 	params             *chaincfg.Params
 	commentJournalDir  string
 	commentJournalFile string
+	userPubkeys        map[string]string // [pubkey][userid]
 
 	// These properties are only used for testing.
 	test                   bool
@@ -80,6 +81,15 @@ type BackendProposalMetadata struct {
 	Name      string `json:"name"`      // Generated proposal name
 	PublicKey string `json:"publickey"` // Key used for signature.
 	Signature string `json:"signature"` // Signature of merkle root
+}
+
+// proposalsRequest is used for passing parameters into the
+// getProposals() function.
+type proposalsRequest struct {
+	After     string
+	Before    string
+	UserId    string
+	StatusMap map[www.PropStatusT]bool
 }
 
 // encodeBackendProposalMetadata encodes BackendProposalMetadata into a JSON
@@ -164,6 +174,18 @@ func (b *backend) hashPassword(password string) ([]byte, error) {
 	}
 	return bcrypt.GenerateFromPassword([]byte(password),
 		bcrypt.DefaultCost)
+}
+
+// initUserPubkeys initializes the userPubkeys map with all the pubkey-userid
+// associations that are found in the database.
+func (b *backend) initUserPubkeys() error {
+	return b.db.AllUsers(func(u *database.User) {
+		userId := strconv.FormatUint(u.ID, 10)
+		for _, v := range u.Identities {
+			key := hex.EncodeToString(v.Key[:])
+			b.userPubkeys[key] = userId
+		}
+	})
 }
 
 // emailNewUserVerificationLink emails the link with the new user verification token
@@ -625,14 +647,14 @@ func (b *backend) loadInventory() (*pd.InventoryReply, error) {
 	}, nil
 }
 
-func (b *backend) getProposals(after, before string, statusMap map[www.PropStatusT]bool) []www.ProposalRecord {
+func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
 	b.RLock()
 	defer b.RUnlock()
 
 	// pageStarted stores whether or not it's okay to start adding
 	// proposals to the array. If the after or before parameter is
 	// supplied, we must find the beginning (or end) of the page first.
-	pageStarted := (after == "" && before == "")
+	pageStarted := (pr.After == "" && pr.Before == "")
 	beforeIdx := -1
 	proposals := make([]www.ProposalRecord, 0)
 
@@ -640,24 +662,33 @@ func (b *backend) getProposals(after, before string, statusMap map[www.PropStatu
 	// first.
 	for i := len(b.inventory) - 1; i >= 0; i-- {
 		proposal := b.inventory[i]
-		if _, ok := statusMap[proposal.Status]; ok {
-			if pageStarted {
-				proposals = append(proposals, proposal)
-				if len(proposals) >= www.ProposalListPageSize {
-					break
-				}
-			} else if after != "" {
-				// The beginning of the page has been found, so
-				// the next public proposal is added.
-				pageStarted = proposal.CensorshipRecord.Token == after
-			} else if before != "" {
-				// The end of the page has been found, so we'll
-				// have to iterate in the other direction to
-				// add the proposals; save the current index.
-				if proposal.CensorshipRecord.Token == before {
-					beforeIdx = i
-					break
-				}
+
+		// Filter by user if it's provided.
+		if pr.UserId != "" && pr.UserId != proposal.UserId {
+			continue
+		}
+
+		// Filter by the status.
+		if val, ok := pr.StatusMap[proposal.Status]; !ok || !val {
+			continue
+		}
+
+		if pageStarted {
+			proposals = append(proposals, proposal)
+			if len(proposals) >= www.ProposalListPageSize {
+				break
+			}
+		} else if pr.After != "" {
+			// The beginning of the page has been found, so
+			// the next public proposal is added.
+			pageStarted = proposal.CensorshipRecord.Token == pr.After
+		} else if pr.Before != "" {
+			// The end of the page has been found, so we'll
+			// have to iterate in the other direction to
+			// add the proposals; save the current index.
+			if proposal.CensorshipRecord.Token == pr.Before {
+				beforeIdx = i
+				break
 			}
 		}
 	}
@@ -666,15 +697,23 @@ func (b *backend) getProposals(after, before string, statusMap map[www.PropStatu
 	// last result is before the provided proposal.
 	if beforeIdx >= 0 {
 		for _, proposal := range b.inventory[beforeIdx+1:] {
-			if _, ok := statusMap[proposal.Status]; ok {
-				// The iteration direction is oldest -> newest,
-				// so proposals are prepended to the array so
-				// the result will be newest -> oldest.
-				proposals = append([]www.ProposalRecord{proposal},
-					proposals...)
-				if len(proposals) >= www.ProposalListPageSize {
-					break
-				}
+			// Filter by user if it's provided.
+			if pr.UserId != "" && pr.UserId != proposal.UserId {
+				continue
+			}
+
+			// Filter by the status.
+			if val, ok := pr.StatusMap[proposal.Status]; !ok || !val {
+				continue
+			}
+
+			// The iteration direction is oldest -> newest,
+			// so proposals are prepended to the array so
+			// the result will be newest -> oldest.
+			proposals = append([]www.ProposalRecord{proposal},
+				proposals...)
+			if len(proposals) >= www.ProposalListPageSize {
+				break
 			}
 		}
 	}
@@ -718,6 +757,15 @@ func (b *backend) LoadInventory() error {
 			len(inv.Vetted)+len(inv.Branches))
 		for _, vv := range append(inv.Vetted, inv.Branches...) {
 			v := convertPropFromPD(vv)
+
+			// Set the user id.
+			var ok bool
+			v.UserId, ok = b.userPubkeys[v.PublicKey]
+			if !ok {
+				log.Errorf("User not found for public key %v, for proposal %v",
+					v.PublicKey, v.CensorshipRecord.Token)
+			}
+
 			// Initialize comment map for this proposal.
 			b.initComment(v.CensorshipRecord.Token)
 			len := len(b.inventory)
@@ -1214,10 +1262,13 @@ func (b *backend) ProcessResetPassword(rp www.ResetPassword) (*www.ResetPassword
 // of proposals returned is dictated by www.ProposalListPageSize.
 func (b *backend) ProcessAllVetted(v www.GetAllVetted) *www.GetAllVettedReply {
 	return &www.GetAllVettedReply{
-		Proposals: b.getProposals(v.After, v.Before,
-			map[www.PropStatusT]bool{
+		Proposals: b.getProposals(proposalsRequest{
+			After:  v.After,
+			Before: v.Before,
+			StatusMap: map[www.PropStatusT]bool{
 				www.PropStatusPublic: true,
-			}),
+			},
+		}),
 	}
 }
 
@@ -1225,11 +1276,14 @@ func (b *backend) ProcessAllVetted(v www.GetAllVetted) *www.GetAllVettedReply {
 // because they're sorted by oldest timestamp first.
 func (b *backend) ProcessAllUnvetted(u www.GetAllUnvetted) *www.GetAllUnvettedReply {
 	return &www.GetAllUnvettedReply{
-		Proposals: b.getProposals(u.After, u.Before,
-			map[www.PropStatusT]bool{
+		Proposals: b.getProposals(proposalsRequest{
+			After:  u.After,
+			Before: u.Before,
+			StatusMap: map[www.PropStatusT]bool{
 				www.PropStatusNotReviewed: true,
 				www.PropStatusCensored:    true,
-			}),
+			},
+		}),
 	}
 }
 
@@ -1292,6 +1346,7 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 			Name:             name,
 			Status:           www.PropStatusNotReviewed,
 			Timestamp:        ts,
+			UserId:           strconv.FormatUint(user.ID, 10),
 			PublicKey:        np.PublicKey,
 			Signature:        np.Signature,
 			Files:            np.Files,
@@ -1329,6 +1384,7 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 			Name:             name,
 			Status:           www.PropStatusNotReviewed,
 			Timestamp:        ts,
+			UserId:           strconv.FormatUint(user.ID, 10),
 			PublicKey:        np.PublicKey,
 			Signature:        np.Signature,
 			Files:            make([]www.File, 0),
@@ -1592,6 +1648,22 @@ func (b *backend) ProcessCommentGet(token string) (*www.GetCommentsReply, error)
 	return c, nil
 }
 
+// ProcessUserProposals returns the proposals for the given user.
+func (b *backend) ProcessUserProposals(up *www.UserProposals, isCurrentUser, isAdminUser bool) (*www.UserProposalsReply, error) {
+	return &www.UserProposalsReply{
+		Proposals: b.getProposals(proposalsRequest{
+			After:  up.After,
+			Before: up.Before,
+			UserId: up.UserId,
+			StatusMap: map[www.PropStatusT]bool{
+				www.PropStatusNotReviewed: isCurrentUser || isAdminUser,
+				www.PropStatusCensored:    isCurrentUser || isAdminUser,
+				www.PropStatusPublic:      true,
+			},
+		}),
+	}, nil
+}
+
 // ProcessPolicy returns the details of Politeia's restrictions on file uploads.
 func (b *backend) ProcessPolicy(p www.Policy) *www.PolicyReply {
 	return &www.PolicyReply{
@@ -1620,9 +1692,10 @@ func NewBackend(cfg *config) (*backend, error) {
 
 	// Context
 	b := &backend{
-		db:       db,
-		cfg:      cfg,
-		comments: make(map[string]map[uint64]BackendComment),
+		db:          db,
+		cfg:         cfg,
+		userPubkeys: make(map[string]string),
+		comments:    make(map[string]map[uint64]BackendComment),
 		commentJournalDir: filepath.Join(cfg.DataDir,
 			defaultCommentJournalDir),
 		commentID: 1, // Replay will set this value
@@ -1637,6 +1710,12 @@ func NewBackend(cfg *config) (*backend, error) {
 
 	// Flush comments
 	err = b.flushCommentJournals()
+	if err != nil {
+		return nil, err
+	}
+
+	// Setup pubkey-userid map
+	err = b.initUserPubkeys()
 	if err != nil {
 		return nil, err
 	}

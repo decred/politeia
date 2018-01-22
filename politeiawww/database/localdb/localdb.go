@@ -14,7 +14,10 @@ import (
 
 const (
 	UserdbPath    = "users"
-	lastUserIdKey = "lastuserid"
+	LastUserIdKey = "lastuserid"
+
+	UserVersion    uint32 = 1
+	UserVersionKey        = "userversion"
 )
 
 var (
@@ -27,6 +30,12 @@ type localdb struct {
 	shutdown bool        // Backend is shutdown
 	root     string      // Database root
 	userdb   *leveldb.DB // Database context
+}
+
+// Version contains the database version.
+type Version struct {
+	Version uint32 `json:"version"` // Database version
+	Time    int64  `json:"time"`    // Time of record creation
 }
 
 // Store new user.
@@ -56,7 +65,7 @@ func (l *localdb) UserNew(u database.User) error {
 
 	// Fetch the next unique ID for the user.
 	var lastUserId uint64
-	b, err := l.userdb.Get([]byte(lastUserIdKey), nil)
+	b, err := l.userdb.Get([]byte(LastUserIdKey), nil)
 	if err != nil {
 		if err != leveldb.ErrNotFound {
 			return err
@@ -71,7 +80,7 @@ func (l *localdb) UserNew(u database.User) error {
 	// Write the new id back to the db.
 	b = make([]byte, 8)
 	binary.LittleEndian.PutUint64(b, lastUserId)
-	err = l.userdb.Put([]byte(lastUserIdKey), b, nil)
+	err = l.userdb.Put([]byte(LastUserIdKey), b, nil)
 	if err != nil {
 		return err
 	}
@@ -138,6 +147,41 @@ func (l *localdb) UserUpdate(u database.User) error {
 	}
 
 	return l.userdb.Put([]byte(u.Email), payload, nil)
+}
+
+// Update existing user.
+//
+// UserUpdate satisfies the backend interface.
+func (l *localdb) AllUsers(callbackFn func(u *database.User)) error {
+	l.Lock()
+	defer l.Unlock()
+
+	if l.shutdown {
+		return database.ErrShutdown
+	}
+
+	log.Debugf("AllUsers\n")
+
+	iter := l.userdb.NewIterator(nil, nil)
+	for iter.Next() {
+		key := iter.Key()
+		value := iter.Value()
+
+		// Ignore the userversion and lastuserid records.
+		if string(key) == UserVersionKey || string(key) == LastUserIdKey {
+			continue
+		}
+
+		u, err := DecodeUser(value)
+		if err != nil {
+			return err
+		}
+
+		callbackFn(u)
+	}
+	iter.Release()
+
+	return iter.Error()
 }
 
 // Close shuts down the database.  All interface functions MUST return with
