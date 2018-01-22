@@ -56,18 +56,22 @@ https://github.com/decred/politeiagui
 
 **politeiad.conf**: 
 
-```
-rpcuser=user rpcpass=pass testnet=true 
-```
+    rpcuser=user 
+    rpcpass=pass 
+    testnet=true 
 
 
 **politeiawww.conf**:
 
-```
-rpchost=127.0.0.1 rpcuser=user rpcpass=pass rpccert="/Users/<username>/Library/Application Support/Politeiad/https.cert" proxy=true testnet=true
-```
+    rpchost=127.0.0.1 
+    rpcuser=user 
+    rpcpass=pass 
+    rpccert="/Users/<username>/Library/Application Support/Politeiad/https.cert" 
+    proxy=true 
+    testnet=true
 
 **Attention:** The rpccert path is referenced on MacOs path. See above for more OS paths.
+
 #### 4. Start the Politeiad server by running on your terminal:
 
     politeiad
