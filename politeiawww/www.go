@@ -265,32 +265,20 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 // that the user with the provided email has a verification token that matches
 // the provided token and that the verification token has not yet expired.
 func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request) {
-	// Get the new user verify command.
 	log.Tracef("handleVerifyNewUser")
+
+	// Get the new user verify command.
 	var vnu v1.VerifyNewUser
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&vnu); err != nil {
-		// The parameters may be part of the query, so check those before
-		// throwing an error.
-		query := r.URL.Query()
-		email, emailOk := query["email"]
-		token, tokenOk := query["verificationtoken"]
-		sig, sigOk := query["signature"]
-		if !emailOk || !tokenOk || !sigOk {
-			RespondWithError(w, r, 0, "handleVerifyNewUser: could not decode URL",
-				v1.UserError{
-					ErrorCode: v1.ErrorStatusInvalidInput,
-				})
-			return
-		}
-
-		vnu.Email = email[0]
-		vnu.VerificationToken = token[0]
-		vnu.Signature = sig[0]
+	err := util.ParseGetParams(r, &vnu)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleVerifyNewUser: ParseGetParams",
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusInvalidInput,
+			})
+		return
 	}
-	defer r.Body.Close()
 
-	_, err := p.backend.ProcessVerifyNewUser(vnu)
+	_, err = p.backend.ProcessVerifyNewUser(vnu)
 	if err != nil {
 		RespondWithError(w, r, 0, "handleVerifyNewUser: "+
 			"ProcessVerifyNewUser %v", err)
@@ -596,24 +584,43 @@ func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handlePolicy")
 	var policy v1.Policy
 	reply := p.backend.ProcessPolicy(policy)
-	// Reply with the new proposal status.
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
 // handleAllVetted replies with the list of vetted proposals.
 func (p *politeiawww) handleAllVetted(w http.ResponseWriter, r *http.Request) {
-	// Get the all vetted command.
 	log.Tracef("handleAllVetted")
+
+	// Get the all vetted command.
 	var v v1.GetAllVetted
+	err := util.ParseGetParams(r, &v)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleAllVetted: ParseGetParams",
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
 	vr := p.backend.ProcessAllVetted(v)
 	util.RespondWithJSON(w, http.StatusOK, vr)
 }
 
 // handleAllUnvetted replies with the list of unvetted proposals.
 func (p *politeiawww) handleAllUnvetted(w http.ResponseWriter, r *http.Request) {
-	// Get the all unvetted command.
 	log.Tracef("handleAllUnvetted")
+
+	// Get the all unvetted command.
 	var u v1.GetAllUnvetted
+	err := util.ParseGetParams(r, &u)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleAllUnvetted: ParseGetParams",
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
 	ur := p.backend.ProcessAllUnvetted(u)
 	util.RespondWithJSON(w, http.StatusOK, ur)
 }
@@ -668,21 +675,24 @@ func (p *politeiawww) handleCommentsGet(w http.ResponseWriter, r *http.Request) 
 // handleUserProposals returns the proposals for the given user.
 func (p *politeiawww) handleUserProposals(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleUserProposals")
-	var up v1.UserProposals
 
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&up); err != nil {
-		RespondWithError(w, r, 0,
-			"handleUserProposals: Unmarshal %v", err)
+	// Get the user proposals command.
+	var up v1.UserProposals
+	err := util.ParseGetParams(r, &up)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleUserProposals: ParseGetParams",
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusInvalidInput,
+			})
 		return
 	}
-	defer r.Body.Close()
 
 	userId, err := strconv.ParseUint(up.UserId, 10, 64)
 	if err != nil {
-		RespondWithError(w, r, 0, "", v1.UserError{
-			ErrorCode: v1.ErrorStatusInvalidInput,
-		})
+		RespondWithError(w, r, 0, "handleUserProposals: ParseUint",
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusInvalidInput,
+			})
 		return
 	}
 
