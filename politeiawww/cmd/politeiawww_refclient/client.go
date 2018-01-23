@@ -8,9 +8,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/gorilla/schema"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -50,16 +52,29 @@ func newClient(skipVerify bool) (*ctx, error) {
 
 func (c *ctx) makeRequest(method string, route string, b interface{}) ([]byte, error) {
 	var requestBody []byte
+	var queryParams string
 	if b != nil {
-		var err error
-		requestBody, err = json.Marshal(b)
-		if err != nil {
-			return nil, err
+		if method == http.MethodGet {
+			// GET requests don't have a request body; instead we will populate
+			// the query params.
+			form := url.Values{}
+			err := schema.NewEncoder().Encode(b, form)
+			if err != nil {
+				return nil, err
+			}
+
+			queryParams = "?" + form.Encode()
+		} else {
+			var err error
+			requestBody, err = json.Marshal(b)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
-	fullRoute := *host + v1.PoliteiaWWWAPIRoute + route
-	fmt.Printf("Request: %v %v\n", method, v1.PoliteiaWWWAPIRoute+route)
+	fullRoute := *host + v1.PoliteiaWWWAPIRoute + route + queryParams
+	fmt.Printf("Request: %v %v\n", method, v1.PoliteiaWWWAPIRoute+route+queryParams)
 
 	if *printJson {
 		fmt.Println("  " + string(requestBody))
@@ -141,7 +156,7 @@ func (c *ctx) getCSRF() (*v1.VersionReply, error) {
 }
 
 func (c *ctx) policy() (*v1.PolicyReply, error) {
-	responseBody, err := c.makeRequest("GET", v1.RoutePolicy, v1.Policy{})
+	responseBody, err := c.makeRequest("GET", v1.RoutePolicy, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -260,7 +275,7 @@ func (c *ctx) comment(id *identity.FullIdentity, token, comment, parentID string
 
 func (c *ctx) commentGet(token string) (*v1.GetCommentsReply, error) {
 	responseBody, err := c.makeRequest("GET", "/proposals/"+token+
-		"/comments", v1.GetComments{})
+		"/comments", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -388,8 +403,7 @@ func (c *ctx) proposalsForUser(userId string) (*v1.UserProposalsReply, error) {
 }
 
 func (c *ctx) getProp(token string) (*v1.ProposalDetailsReply, error) {
-	responseBody, err := c.makeRequest("GET", "/proposals/"+token,
-		v1.ProposalsDetails{})
+	responseBody, err := c.makeRequest("GET", "/proposals/"+token, nil)
 	if err != nil {
 		return nil, err
 	}

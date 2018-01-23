@@ -6,6 +6,7 @@ package util
 
 import (
 	"encoding/json"
+	"github.com/gorilla/schema"
 	"io"
 	"net/http"
 )
@@ -37,4 +38,16 @@ func GetErrorFromJSON(r io.Reader) (interface{}, error) {
 		return nil, err
 	}
 	return e, nil
+}
+
+// ParseGetParams parses the query params from the GET request into
+// a struct. This method requires the struct type to be defined
+// with `schema` tags.
+func ParseGetParams(r *http.Request, dst interface{}) error {
+	err := r.ParseForm()
+	if err != nil {
+		return err
+	}
+
+	return schema.NewDecoder().Decode(dst, r.Form)
 }

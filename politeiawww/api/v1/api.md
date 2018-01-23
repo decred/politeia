@@ -266,9 +266,7 @@ Return information of the current logged in user.
 
 **Route:** `GET /v1/me`
 
-**Params:**
-
-N/A
+**Params:** none
 
 **Results:**
 
@@ -287,11 +285,8 @@ error codes:
 
 Request:
 
-```json
-  {
-    "email":"26c5687daca2f5d8@example.com",
-    "password":"26c5687daca2f5d8"
-}
+```
+/v1/me
 ```
 
 Reply:
@@ -668,8 +663,10 @@ If the caller is not privileged the unvetted call returns `403 Forbidden`.
 
 Request:
 
-```json
-{}
+The request params should be provided within the URL:
+
+```
+/v1/unvetted?after=f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde
 ```
 
 Reply:
@@ -711,8 +708,10 @@ Retrieve a page of vetted proposals; the number of proposals returned in the pag
 
 Request:
 
-```json
-{}
+The request params should be provided within the URL:
+
+```
+/v1/vetted?after=f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde
 ```
 
 Reply:
@@ -755,10 +754,10 @@ Retrieve a page of proposals submitted by the given user; the number of proposal
 
 Request:
 
-```json
-{
-  "userid": "0"
-}
+The request params should be provided within the URL:
+
+```
+/v1/vetted?userid=15&after=f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde
 ```
 
 Reply:
@@ -786,14 +785,14 @@ SHALL observe.
 
 **Params:** none
 
-**Results:** none
+**Results:** see below
 
 **Example**
 
 Request:
 
-```json
-{}
+```
+/v1/policy
 ```
 
 Reply:
@@ -864,7 +863,7 @@ Reply:
 
 Retrieve proposal and its details.
 
-**Routes:** `POST /v1/proposals/{token}`
+**Routes:** `GET /v1/proposals/{token}`
 
 **Params:** none
 
@@ -882,8 +881,10 @@ error codes:
 
 Request:
 
-```json
-{}
+The request params should be provided within the URL:
+
+```
+/v1/proposals/f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde
 ```
 
 Reply:
@@ -987,8 +988,10 @@ sorted.
 
 Request:
 
-```json
-{}
+The request params should be provided within the URL:
+
+```
+/v1/proposals/f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde/comments
 ```
 
 Reply:

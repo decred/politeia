@@ -274,9 +274,9 @@ type NewUserReply struct {
 // VerifyNewUser is used to perform verification for the user created through
 // the NewUser command using the token provided in NewUserReply.
 type VerifyNewUser struct {
-	Email             string `json:"email"`             // User email address
-	VerificationToken string `json:"verificationtoken"` // Server provided verification token
-	Signature         string `json:"signature"`         // Verification token signature
+	Email             string `schema:"email"`             // User email address
+	VerificationToken string `schema:"verificationtoken"` // Server provided verification token
+	Signature         string `schema:"signature"`         // Verification token signature
 }
 
 // VerifyNewUserReply
@@ -333,9 +333,9 @@ type ResetPasswordReply struct {
 // whose censorship token is provided. If Before is specified, the "page"
 // returned starts before the proposal whose censorship token is provided.
 type UserProposals struct {
-	UserId string `json:"userid"`
-	Before string `json:"before"`
-	After  string `json:"after"`
+	UserId string `schema:"userid"`
+	Before string `schema:"before"`
+	After  string `schema:"after"`
 }
 
 // UserProposalsReply replies to the UserProposals command with
@@ -421,8 +421,8 @@ type SetProposalStatusReply struct {
 //
 // Note: This call requires admin privileges.
 type GetAllUnvetted struct {
-	Before string `json:"before"`
-	After  string `json:"after"`
+	Before string `schema:"before"`
+	After  string `schema:"after"`
 }
 
 // GetAllUnvettedReply is used to reply with a list of all unvetted proposals.
@@ -437,8 +437,8 @@ type GetAllUnvettedReply struct {
 // If Before is specified, the "page" returned starts before the proposal whose
 // censorship token is provided.
 type GetAllVetted struct {
-	Before string `json:"before"`
-	After  string `json:"after"`
+	Before string `schema:"before"`
+	After  string `schema:"after"`
 }
 
 // GetAllVettedReply is used to reply with a list of vetted proposals.
