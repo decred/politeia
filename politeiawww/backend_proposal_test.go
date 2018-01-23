@@ -284,7 +284,7 @@ func getProposalDetails(b *backend, token string, t *testing.T) *www.ProposalDet
 	pd := www.ProposalsDetails{
 		Token: token,
 	}
-	pdr, err := b.ProcessProposalDetails(pd, true)
+	pdr, err := b.ProcessProposalDetails(pd, nil)
 	if err != nil {
 		t.Error(err)
 	}

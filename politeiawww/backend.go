@@ -1501,7 +1501,7 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 }
 
 // ProcessProposalDetails tries to fetch the full details of a proposal from politeiad.
-func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, isUserAdmin bool) (*www.ProposalDetailsReply, error) {
+func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user *database.User) (*www.ProposalDetailsReply, error) {
 	var reply www.ProposalDetailsReply
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
@@ -1547,6 +1547,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, isUse
 	// The title and files for unvetted proposals should not be viewable by
 	// non-admins; only the proposal meta data (status, censorship data, etc)
 	// should be publicly viewable.
+	isUserAdmin := user != nil && user.Admin
 	if !isVettedProposal && !isUserAdmin {
 		reply.Proposal = www.ProposalRecord{
 			Status:           cachedProposal.Status,
@@ -1554,6 +1555,18 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, isUse
 			PublicKey:        cachedProposal.PublicKey,
 			Signature:        cachedProposal.Signature,
 			CensorshipRecord: cachedProposal.CensorshipRecord,
+		}
+
+		if user != nil {
+			stringUserID := cachedProposal.UserId
+			userID, err := strconv.ParseUint(stringUserID, 10, 64)
+			if err != nil {
+				return nil, err
+			}
+
+			if user.ID == userID {
+				reply.Proposal.Name = cachedProposal.Name
+			}
 		}
 		return &reply, nil
 	}

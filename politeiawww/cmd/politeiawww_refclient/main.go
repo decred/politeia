@@ -199,7 +199,7 @@ func _main() error {
 		return fmt.Errorf("pr1 invalid status got %v wanted %v",
 			pr1.Proposal.Status, v1.PropStatusNotReviewed)
 	}
-	if len(pr1.Proposal.Files) > 0 || len(pr1.Proposal.Name) > 0 {
+	if len(pr1.Proposal.Files) > 0 {
 		return fmt.Errorf("pr1 unexpected proposal data received")
 	}
 
