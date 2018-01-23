@@ -1,8 +1,13 @@
-# politeia
+# Politeia
 [![Build Status](http://img.shields.io/travis/decred/politeia.svg)](https://travis-ci.org/decred/politeia)
 [![ISC License](http://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
 
-Politeia is the Decred proposal system.
+**Politeia is the Decred proposal system.**
+Politeia is a system for storing off-chain data that is both versioned and 
+timestamped, essentially “git, a popular revision control system, plus 
+timestamping”. Instead of attempting to store all the data related to Decred’s
+governance on-chain, we have opted to create an off-chain store of data that is
+anchored into Decred’s blockchain, minimizing its on-chain footprint.
 
 The politeia stack is as follows:
 
@@ -33,11 +38,116 @@ The politeia stack is as follows:
 * politeia_verify - Reference verification tool.
 * politeiawww - Web backend server.
 * politeiawww_refclient - Web reference client application.
-* politeiawww_dbutil - Politeiawww database tool for debugging and creating admin users.
+* politeiawww_dbutil - Politeiawww database tool for debugging and creating
+admin users.
 
 Note that politeiawww does not provide HTML output.  It strictly handles the
 JSON REST RPC commands only.  The GUI for politeiawww can be found at:
 https://github.com/decred/politeiagui
+
+## Development 
+
+#### 1. Install [Go](https://golang.org/doc/install) and [dep](https://github.com/golang/dep), if you haven't already.
+#### 2. Clone this repository. 
+#### 3. Setup configuration files: 
+* `politeiad` and `politeiawww` both have configuration files that you should 
+set up to make execution easier. 
+* You should create the configuration files under the following path:  
+  - **Mac OS** `/Users/<username>/Library/Application Support/Politeiad/politeiad.conf`
+  - **Windows** `C:\Users\<username>\AppData\Local\Politeiad/politeiad.conf`
+  - **Ubuntu** `~/.politeiad/politeiad.conf`
+  
+* Copy and change the  [`sample-politeiawww.conf`](https://github.com/decred/politeia/blob/master/politeiawww/sample-politeiawww.conf) 
+and [`sample-politeiad.conf`](https://github.com/decred/politeia/blob/master/politeiad/sample-politeiad.conf) files.
+* You may use the following default configurations:
+
+**politeiad.conf**: 
+
+    rpcuser=user 
+    rpcpass=pass 
+    testnet=true 
+
+
+**politeiawww.conf**:
+
+    rpchost=127.0.0.1 
+    rpcuser=user 
+    rpcpass=pass 
+    rpccert="/Users/<username>/Library/Application Support/Politeiad/https.cert" 
+    proxy=true 
+    testnet=true
+
+**Attention:** The rpccert path is referenced on MacOs path. See above for more
+OS paths.
+
+#### 4. Start the Politeiad server by running on your terminal:
+
+    politeiad
+
+#### 5. Download server identity to client:
+
+    politeia -v -testnet -rpchost 127.0.0.1 identity
+
+Accept politeiad's identity by pressing `enter`.
+
+Result should look something like this:
+
+```
+FQDN       : localhost
+Nick       : politeiad
+Key        : dfd6caacf0bbe5725efc67e703e912c37931b4edbf17122947a1e0fcd9755f6d
+Identity   : 99e748e13d7ecf70ef6b5afa376d692cd7cb4dbb3d26fa83f417d29e44c6bb6c
+Fingerprint: medI4T1+z3Dva1r6N21pLNfLTbs9JvqD9BfSnkTGu2w=
+
+Save to /Users/<username>/Library/Application Support/Politeia/identity.json or ctrl-c to abort
+Identity saved to: /Users/<username>/Library/Application Support/Politeia/identity.json
+```
+
+#### 6. Start the Politeiawww server by running on your terminal:
+
+    politeiawww
+
+**Awesome!** From this point you have your politeia server up running!
+
+#### 7. Running the politeiawww reference client:
+* With politeiad and politeiawww running type on your terminal:
+```
+politeiawww_refclient
+```
+Result should look something like this:
+```
+=== Start ===
+Request: GET /
+Version: 1
+Route  : /v1
+CSRF   :
+
+Request: GET /v1/policy
+Request: POST /v1/user/new
+Request: GET /v1/user/verify/?email=2e645574ba5dcf42@example.com&verificationtoken=41b27466ea295a9fd9e521d2aa2e8fc7837d48441fb6af8106abc4ecd929c94d&signature=546509014b4257b47186944f3ba47ed6e7077e3862cf635b0f4b9350ab3cf6c24ff8d341f65ecabc51b8dbeb8098deaa2c26d3faf4edbd6a6aa2aec47cd92b0a
+Request: POST /v1/proposals/new
+[...]
+refclient run successful
+=== End ===
+```
+* The generated email is what gives you access to the PoliteiaGUI application 
+where your password will be the email's username. Example: 
+```
+email: 2e645574ba5dcf42@example.com
+password: 2e645574ba5dcf42
+```
+**Note:** Make sure you do not have an email server set up for politeiawww, 
+because politeiawww_refclient will not execute correctly. So before you execute
+politeiawww_refclient, make sure to comment out or remove the following config 
+options and restart politeiawww: mailhost, mailuser, mailpass, 
+webserveraddress."
+
+#### 8. Elevating user permission with politeiawww_dbutil
+* This tool allows you to elevate a user in politeiawww to have admin 
+permissions. You will have to shut down politeiawww, and then execute in your 
+terminal:
+
+`politeiawww_dbutil -testnet -setadmin <email> <true/false>`
 
 ## Integrated Projects / External APIs / Official Development URLs
 * https://faucet.decred.org - instance of [testnetfaucet](https://github.com/decred/testnetfaucet)
@@ -58,50 +168,24 @@ https://github.com/decred/politeiagui
 * politeiawww/cmd/politeiawww_refclient - Reference implementation for WWW API.
 * util - common used miscellaneous utility functions.
 
-## Example
+## Further guidance
 
+#### Paywall
 The paywall functionality of politeia requires a master public key for an
 account to derive payment addresses.  You may either use one of the
 pre-generated test keys (grep the source for tpub) or you may acquire one by
 creating accounts and retrieving the public keys for those accounts:
 
-Put the result of the following command as paywallxpub=tpub... in politeiawww.conf.
+Put the result of the following command as paywallxpub=tpub... in 
+politeiawww.conf.
 
 ```
 dcrctl --wallet --testnet createnewaccount politeiapayments
 dcrctl --wallet --testnet getmasterpubkey politeiapayments
 ```
+#### Using Politeia with command line
 
-Compile and launch the politeia daemon:
-```
-cd $GOPATH/src/github.com/decred/politeia
-dep ensure && go install -v ./... && LOGFLAGS=shortfile politeiad --testnet --rpcuser=user --rpcpass=pass
-```
-
-Download server identity to client:
-```
-politeia -v -testnet -rpchost 127.0.0.1 identity
-```
-Accept default path by pressing `enter`.
-
-Result should look something like this:
-```
-FQDN       : localhost
-Nick       : politeiad
-Key        : dfd6caacf0bbe5725efc67e703e912c37931b4edbf17122947a1e0fcd9755f6d
-Identity   : 99e748e13d7ecf70ef6b5afa376d692cd7cb4dbb3d26fa83f417d29e44c6bb6c
-Fingerprint: medI4T1+z3Dva1r6N21pLNfLTbs9JvqD9BfSnkTGu2w=
-
-Save to /Users/marco/Library/Application Support/Politeia/identity.json or ctrl-c to abort
-Identity saved to: /Users/marco/Library/Application Support/Politeia/identity.json
-```
-
-Compile politeia command line tool:
-```
-go install -v github.com/decred/politeia/politeiad/cmd/politeia
-```
-
-Send proposal:
+- **Send proposal:**
 ```
 politeia -v -testnet -rpchost 127.0.0.1 new "My awesome proposal" proposal.txt spec.txt
 ```
@@ -117,14 +201,14 @@ Censorship record:
   Signature: 82d69b4ec83d2a732fe92028dbf78853d0814aeb4fcf0ff597c110c8843720951f7b9fae4305b0f1d9346c39bc960a364590236f9e0871f6f79860fc57d4c70a
 ```
 
-Publishing a proposal (requires credentials):
+- **Publishing a proposal (requires credentials):**
 ```
 politeia -testnet -rpchost 127.0.0.1 -rpcuser user -rpcpass pass setunvettedstatus publish 6284c5f8fba5665373b8e6651ebc8747b289fed242d2f880f64a284496bb4ca8
 Set proposal status:
   Status   : public
 ```
 
-Censoring a proposal (requires credentials):
+- **Censoring a proposal (requires credentials):**
 ```
 politeia -testnet -rpchost 127.0.0.1 -rpcuser user -rpcpass pass setunvettedstatus censor 527cb21b78a56d597f5ab4c199195343ecfcd56cf0d76910b2a63c97635a6532
 Set proposal status:
@@ -151,17 +235,6 @@ Proposal failed verification. Please ensure the public key and merkle are correc
 
 **Note:** All politeia commands can dump the JSON output of every RPC command
 by adding the -json command line flag.
-
-Compile and launch the web server:
-```
-cd $GOPATH/src/github.com/decred/politeia
-dep ensure && go install -v ./... && LOGFLAGS=shortfile politeiawww --testnet --fetchidentity
-politeiawww --testnet --rpcuser=user --rpcpass=pass
-```
-To check if the web server is running correctly:
-```
-politeiawww_refclient
-```
 
 ## nginx reverse proxy sample
 
