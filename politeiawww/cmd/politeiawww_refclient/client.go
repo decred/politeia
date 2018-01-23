@@ -290,7 +290,7 @@ func (c *ctx) commentGet(token string) (*v1.GetCommentsReply, error) {
 	return &gcr, nil
 }
 
-func (c *ctx) me() (*v1.MeReply, error) {
+func (c *ctx) me() (*v1.LoginReply, error) {
 	l := v1.Me{}
 
 	responseBody, err := c.makeRequest("GET", v1.RouteUserMe, l)
@@ -298,14 +298,14 @@ func (c *ctx) me() (*v1.MeReply, error) {
 		return nil, err
 	}
 
-	var mr v1.MeReply
-	err = json.Unmarshal(responseBody, &mr)
+	var lr v1.LoginReply
+	err = json.Unmarshal(responseBody, &lr)
 	if err != nil {
-		return nil, fmt.Errorf("Could not unmarshal MeReply: %v",
+		return nil, fmt.Errorf("Could not unmarshal LoginReply: %v",
 			err)
 	}
 
-	return &mr, nil
+	return &lr, nil
 }
 
 func (c *ctx) newProposal(id *identity.FullIdentity) (*v1.NewProposalReply, error) {

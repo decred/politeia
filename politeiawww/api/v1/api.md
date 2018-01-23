@@ -131,14 +131,7 @@ Return pertinent user information of the current logged in user.
 
 **Params**: none
 
-**Results**:
-
-| | Type | Description |
-|-|-|-|
-| userid | string | Unique user identifier. |
-| email | string | User ID. |
-| isadmin | string | This indicates if the user has publish/censor privileges. |
-| publickey | string | Current active public key. |
+**Results**: See the [`Login reply`](#login-reply).
 
 If there currently is no session the call returns `403 Forbidden`.
 
@@ -179,8 +172,8 @@ Create a new user on the politeiawww server.
 
 | Parameter | Type | Description |
 |-|-|-|
-| paywalladdress | String | The address in which to send paywall funds.|
-| paywallamount | Float64 | The amount of DCR to send to the paywall address.|
+| paywalladdress | String | The address in which to send paywall funds. |
+| paywallamount | Float64 | The amount of DCR to send to the paywall address. |
 | verificationtoken | String | The verification token which is required when calling [Verify user](#verify-user). If an email server is set up, this property will be empty or nonexistent; the token will be sent to the email address sent in the request.|
 
 This call can return one of the following error codes:
@@ -313,14 +306,7 @@ the user database.  Note that Login reply is identical to Me reply.
 | email | string | Email address of user that is attempting to login. | Yes |
 | password | string | Accompanying password for provided email. | Yes |
 
-**Results:**
-
-| Parameter | Type | Description |
-|-|-|-|
-| isadmin | boolean | This indicates if the user has publish/censor privileges. |
-| userid | string | Unique user identifier. |
-| email | string | Current user email address. |
-| publickey | string | Current public key. |
+**Results:** See the [`Login reply`](#login-reply).
 
 On failure the call shall return `403 Forbidden` and one of the following
 error codes:
@@ -1072,6 +1058,7 @@ Reply:
 | name | string | The name of the proposal. |
 | status | number | Current status of the proposal. |
 | timestamp | number | The unix time of the last update of the proposal. |
+| userid | string | The ID of the user who created the proposal. |
 | publickey | string | The public key of the user who created the proposal. |
 | signature | string | The signature of the merkle root, signed by the user who created the proposal. |
 | censorshiprecord | [`censorshiprecord`](#censorship-record) | The censorship record that was created when the proposal was submitted. |
@@ -1093,3 +1080,17 @@ Reply:
 | token | string | The token is a 32 byte random number that was assigned to identify the submitted proposal. This is the key to later retrieve the submitted proposal from the system. |
 | merkle | string | Merkle root of the proposal. This is defined as the sorted digests of all files proposal files. The client should cross verify this value. |
 | signature | string | Signature of byte array representations of merkle+token. The token byte array is appended to the merkle root byte array and then signed. The client should verify the signature. |
+
+### `Login reply`
+
+This object will be sent in the result body on a successful [`Login`](#login)
+or [`Me`](#me) call.
+
+| Parameter | Type | Description |
+|-|-|-|
+| isadmin | boolean | This indicates if the user has publish/censor privileges. |
+| userid | string | Unique user identifier. |
+| email | string | Current user email address. |
+| publickey | string | Current public key. |
+| paywalladdress | String | The address in which to send paywall funds. If the user has already paid, this field will be empty or not present. |
+| paywallamount | Float64 | The amount of DCR to send to the paywall address. If the user has already paid, this field will be empty or not present. |
