@@ -1348,6 +1348,20 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 // ProcessSetProposalStatus changes the status of an existing proposal
 // from unreviewed to either published or censored.
 func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *database.User) (*www.SetProposalStatusReply, error) {
+
+	// Verify user used correct key
+	id, ok := database.ActiveIdentity(user.Identities)
+	if !ok {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusNoPublicKey,
+		}
+	}
+	if hex.EncodeToString(id[:]) != sps.PublicKey {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSigningKey,
+		}
+	}
+
 	// Validate signature
 	err := checkSig(user, sps.Signature, sps.Token,
 		strconv.FormatUint(uint64(sps.ProposalStatus), 10))
@@ -1541,6 +1555,19 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, isUse
 // proposal whereas non-zero indicates that it is a reply to a comment.
 func (b *backend) ProcessComment(c www.NewComment, user *database.User) (*www.NewCommentReply, error) {
 	log.Debugf("ProcessComment: %v %v", c.Token, user.ID)
+
+	// Verify user used correct key
+	id, ok := database.ActiveIdentity(user.Identities)
+	if !ok {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusNoPublicKey,
+		}
+	}
+	if hex.EncodeToString(id[:]) != c.PublicKey {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSigningKey,
+		}
+	}
 
 	// Verify signature
 	err := checkSig(user, c.Signature, c.Token, c.ParentID, c.Comment)

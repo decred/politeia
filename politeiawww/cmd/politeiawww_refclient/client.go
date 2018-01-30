@@ -243,6 +243,8 @@ func (c *ctx) comment(id *identity.FullIdentity, token, comment, parentID string
 	sig := id.SignMessage(msg)
 	cm.Signature = hex.EncodeToString(sig[:])
 
+	cm.PublicKey = hex.EncodeToString(id.Public.Key[:])
+
 	responseBody, err := c.makeRequest("POST", v1.RouteNewComment, cm)
 	if err != nil {
 		return nil, err
@@ -396,6 +398,8 @@ func (c *ctx) setPropStatus(id *identity.FullIdentity, token string, status v1.P
 	var err error
 	sig := id.SignMessage(msg)
 	ps.Signature = hex.EncodeToString(sig[:])
+
+	ps.PublicKey = hex.EncodeToString(id.Public.Key[:])
 
 	responseBody, err := c.makeRequest("POST",
 		"/proposals/"+token+"/status", /*v1.RouteSetProposalStatus*/
