@@ -673,6 +673,10 @@ func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
 			continue
 		}
 
+		// Set the number of comments.
+		token := proposal.CensorshipRecord.Token
+		proposal.NumComments = uint(len(b.comments[token]))
+
 		if pageStarted {
 			proposals = append(proposals, proposal)
 			if len(proposals) >= www.ProposalListPageSize {
@@ -706,6 +710,10 @@ func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
 			if val, ok := pr.StatusMap[proposal.Status]; !ok || !val {
 				continue
 			}
+
+			// Set the number of comments.
+			token := proposal.CensorshipRecord.Token
+			proposal.NumComments = uint(len(b.comments[token]))
 
 			// The iteration direction is oldest -> newest,
 			// so proposals are prepended to the array so
@@ -1523,6 +1531,8 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, isUse
 		}
 	}
 
+	numComments := uint(len(b.comments[propDetails.Token]))
+
 	var isVettedProposal bool
 	var requestObject interface{}
 	if cachedProposal.Status == www.PropStatusPublic {
@@ -1541,6 +1551,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, isUse
 
 	if b.test {
 		reply.Proposal = *cachedProposal
+		reply.Proposal.NumComments = numComments
 		return &reply, nil
 	}
 
@@ -1554,6 +1565,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, isUse
 			PublicKey:        cachedProposal.PublicKey,
 			Signature:        cachedProposal.Signature,
 			CensorshipRecord: cachedProposal.CensorshipRecord,
+			NumComments:      numComments,
 		}
 		return &reply, nil
 	}
@@ -1601,6 +1613,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, isUse
 	}
 
 	reply.Proposal = convertPropFromPD(proposal)
+	reply.Proposal.NumComments = numComments
 	return &reply, nil
 }
 

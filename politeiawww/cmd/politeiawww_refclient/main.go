@@ -410,6 +410,15 @@ func _main() error {
 			return fmt.Errorf("expected 6 comments, got %v",
 				len(gcr.Comments))
 		}
+		// Get prop out again and check comments num
+		_pr1, err = c.getProp(myprop1.CensorshipRecord.Token)
+		if err != nil {
+			return err
+		}
+		if _pr1.Proposal.NumComments != uint(len(gcr.Comments)) {
+			return fmt.Errorf("expected %v comments, got %v",
+				len(gcr.Comments), _pr1.Proposal.NumComments)
+		}
 
 		gcr2, err := c.commentGet(myprop2.CensorshipRecord.Token)
 		if err != nil {
@@ -419,6 +428,15 @@ func _main() error {
 		if len(gcr2.Comments) != 0 {
 			return fmt.Errorf("expected 0 comments, got %v",
 				len(gcr2.Comments))
+		}
+		// Get prop out again and check comments num
+		_pr2, err = c.getProp(myprop2.CensorshipRecord.Token)
+		if err != nil {
+			return err
+		}
+		if _pr2.Proposal.NumComments != uint(len(gcr2.Comments)) {
+			return fmt.Errorf("expected %v comments, got %v",
+				len(gcr2.Comments), _pr2.Proposal.NumComments)
 		}
 
 		// Logout
