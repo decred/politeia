@@ -1063,6 +1063,7 @@ Reply:
 | signature | string | The signature of the merkle root, signed by the user who created the proposal. |
 | censorshiprecord | [`censorshiprecord`](#censorship-record) | The censorship record that was created when the proposal was submitted. |
 | files | array of [`File`](#file)s | This property will only be populated for the [`Proposal details`](#proposal-details) call. |
+| numcomments | number | The number of comments on the proposal. This should be ignored for proposals which are not public. |
 
 ### `File`
 

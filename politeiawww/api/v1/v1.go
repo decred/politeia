@@ -189,13 +189,14 @@ type CensorshipRecord struct {
 
 // ProposalRecord is an entire proposal and it's content.
 type ProposalRecord struct {
-	Name      string      `json:"name"`      // Suggested short proposal name
-	Status    PropStatusT `json:"status"`    // Current status of proposal
-	Timestamp int64       `json:"timestamp"` // Last update of proposal
-	UserId    string      `json:"userid"`    // ID of user who submitted proposal
-	PublicKey string      `json:"publickey"` // Key used for signature.
-	Signature string      `json:"signature"` // Signature of merkle root
-	Files     []File      `json:"files"`     // Files that make up the proposal
+	Name        string      `json:"name"`        // Suggested short proposal name
+	Status      PropStatusT `json:"status"`      // Current status of proposal
+	Timestamp   int64       `json:"timestamp"`   // Last update of proposal
+	UserId      string      `json:"userid"`      // ID of user who submitted proposal
+	PublicKey   string      `json:"publickey"`   // Key used for signature.
+	Signature   string      `json:"signature"`   // Signature of merkle root
+	Files       []File      `json:"files"`       // Files that make up the proposal
+	NumComments uint        `json:"numcomments"` // Number of comments on the proposal
 
 	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
 }
