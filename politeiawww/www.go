@@ -553,13 +553,15 @@ func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Reque
 	var pd v1.ProposalsDetails
 	pd.Token = pathParams["token"]
 
-	isAdmin, err := p.isAdmin(r)
+	user, err := p.getSessionUser(r)
 	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleProposalDetails: isAdmin %v", err)
-		return
+		if err != database.ErrUserNotFound {
+			RespondWithError(w, r, 0,
+				"handleProposalDetails: getSessionUser %v", err)
+			return
+		}
 	}
-	reply, err := p.backend.ProcessProposalDetails(pd, isAdmin)
+	reply, err := p.backend.ProcessProposalDetails(pd, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleProposalDetails: ProcessProposalDetails %v", err)
