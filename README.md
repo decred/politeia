@@ -287,18 +287,5 @@ location / {
 }
 ```
 #### Setting up an SMTP server
-The current code works with SSL-based SMTP server using username and password
-as authentication. Here are instructions for setting up particular SMTP servers:
-
-##### Google SMTP
-1. Turn on the "Allow less secure apps" setting in your Google account:
-https://support.google.com/accounts/answer/6010255
-2. If you use 2-Factor Authentication for your account, you will have to
-generate an app password: https://support.google.com/accounts/answer/185833
-3. Use these settings in `politeiawww.conf`:
-```
-mailhost=smtp.gmail.com:465
-mailuser=<your email address>
-mailpass=<your password or app password>
-webserveraddress=https://localhost:3000
-```
+The current code should work with most SSL-based SMTP servers (but not TLS)
+using username and password as authentication.
