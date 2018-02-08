@@ -78,13 +78,15 @@ type backend struct {
 	comments  map[string]map[uint64]BackendComment // [token][parent]comment
 	commentID uint64                               // current comment id
 
+	// _inventory will eventually replace inventory
+	_inventory map[string]pd.Record // Current inventory
+
 	// When inventory is set or modified inventoryVersion MUST be
 	// incremented.  When inventory changes the caller MUST initialize the
 	// comments map for the associated censorship token.
+	// XXX remove this when _inventory is done
 	inventory        []www.ProposalRecord // current inventory
 	inventoryVersion uint                 // inventory version
-
-	metadata map[string]string
 }
 
 const BackendProposalMetadataVersion = 1
@@ -795,6 +797,17 @@ func (b *backend) LoadInventory() error {
 			continue
 		}
 
+		b._inventory = make(map[string]pd.Record)
+		for _, v := range append(inv.Vetted, inv.Branches...) {
+			if _, ok := b._inventory[v.CensorshipRecord.Token]; ok {
+				b.Unlock()
+				return fmt.Errorf("duplicate token: %v",
+					v.CensorshipRecord.Token)
+			}
+			b._inventory[v.CensorshipRecord.Token] = v
+		}
+
+		// XXX old inventory behavior, kill this
 		b.inventory = make([]www.ProposalRecord, 0,
 			len(inv.Vetted)+len(inv.Branches))
 		for _, vv := range append(inv.Vetted, inv.Branches...) {
@@ -825,6 +838,12 @@ func (b *backend) LoadInventory() error {
 					b.inventory[idx:]...)...)
 		}
 		b.inventoryVersion++
+
+		// XXX diagnostic, remove later
+		if len(b.inventory) != len(b._inventory) {
+			return fmt.Errorf("invalid inventory length %v %v",
+				len(b.inventory), len(b._inventory))
+		}
 		b.Unlock()
 
 		log.Infof("Adding %v vetted, %v unvetted proposals to the cache",
