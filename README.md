@@ -3,8 +3,8 @@
 [![ISC License](http://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
 
 **Politeia is the Decred proposal system.**
-Politeia is a system for storing off-chain data that is both versioned and 
-timestamped, essentially “git, a popular revision control system, plus 
+Politeia is a system for storing off-chain data that is both versioned and
+timestamped, essentially “git, a popular revision control system, plus
 timestamping”. Instead of attempting to store all the data related to Decred’s
 governance on-chain, we have opted to create an off-chain store of data that is
 anchored into Decred’s blockchain, minimizing its on-chain footprint.
@@ -45,46 +45,56 @@ Note that politeiawww does not provide HTML output.  It strictly handles the
 JSON REST RPC commands only.  The GUI for politeiawww can be found at:
 https://github.com/decred/politeiagui
 
-## Development 
+## Development
 
 #### 1. Install [Go](https://golang.org/doc/install) and [dep](https://github.com/golang/dep), if you haven't already.
-#### 2. Clone this repository. 
-#### 3. Setup configuration files: 
-* `politeiad` and `politeiawww` both have configuration files that you should 
-set up to make execution easier. 
+#### 2. Clone this repository.
+#### 3. Setup configuration files:
+* `politeiad` and `politeiawww` both have configuration files that you should
+set up to make execution easier.
 * You should create the configuration files under the following path:  
-  - **Mac OS** `/Users/<username>/Library/Application Support/Politeiad/politeiad.conf`
+  - **macOS** `/Users/<username>/Library/Application Support/Politeiad/politeiad.conf`
   - **Windows** `C:\Users\<username>\AppData\Local\Politeiad/politeiad.conf`
   - **Ubuntu** `~/.politeiad/politeiad.conf`
-  
-* Copy and change the  [`sample-politeiawww.conf`](https://github.com/decred/politeia/blob/master/politeiawww/sample-politeiawww.conf) 
+
+* Copy and change the  [`sample-politeiawww.conf`](https://github.com/decred/politeia/blob/master/politeiawww/sample-politeiawww.conf)
 and [`sample-politeiad.conf`](https://github.com/decred/politeia/blob/master/politeiad/sample-politeiad.conf) files.
 * You may use the following default configurations:
 
-**politeiad.conf**: 
+**politeiad.conf**:
 
-    rpcuser=user 
-    rpcpass=pass 
-    testnet=true 
+    rpcuser=user
+    rpcpass=pass
+    testnet=true
 
 
 **politeiawww.conf**:
 
-    rpchost=127.0.0.1 
-    rpcuser=user 
-    rpcpass=pass 
-    rpccert="/Users/<username>/Library/Application Support/Politeiad/https.cert" 
-    proxy=true 
+    rpchost=127.0.0.1
+    rpcuser=user
+    rpcpass=pass
+    rpccert="/Users/<username>/Library/Application Support/Politeiad/https.cert"
+    proxy=true
     testnet=true
 
-**Attention:** The rpccert path is referenced on MacOs path. See above for more
-OS paths.
+**note 1:** The rpccert path is referenced on macOS path. See above for
+more OS paths.
 
-#### 4. Start the Politeiad server by running on your terminal:
+**note 2:** politeiawww uses an email server to send verification codes for
+things like new user registration, and those settings are also configured within
+ `politeiawww.conf`. See [below](#setting-up-an-smtp-server) for more
+ information.
+
+#### 4. Build the programs:
+```
+cd $GOPATH/src/github.com/decred/politeia
+dep ensure && go install -v ./...
+```
+#### 5. Start the Politeiad server by running on your terminal:
 
     politeiad
 
-#### 5. Download server identity to client:
+#### 6. Download server identity to client:
 
     politeia -v -testnet -rpchost 127.0.0.1 identity
 
@@ -103,13 +113,13 @@ Save to /Users/<username>/Library/Application Support/Politeia/identity.json or 
 Identity saved to: /Users/<username>/Library/Application Support/Politeia/identity.json
 ```
 
-#### 6. Start the Politeiawww server by running on your terminal:
+#### 7. Start the Politeiawww server by running on your terminal:
 
     politeiawww
 
 **Awesome!** From this point you have your politeia server up running!
 
-#### 7. Running the politeiawww reference client:
+#### 8. Running the politeiawww reference client:
 * With politeiad and politeiawww running type on your terminal:
 ```
 politeiawww_refclient
@@ -130,21 +140,21 @@ Request: POST /v1/proposals/new
 refclient run successful
 === End ===
 ```
-* The generated email is what gives you access to the PoliteiaGUI application 
-where your password will be the email's username. Example: 
+* The generated email is what gives you access to the PoliteiaGUI application
+where your password will be the email's username. Example:
 ```
 email: 2e645574ba5dcf42@example.com
 password: 2e645574ba5dcf42
 ```
-**Note:** Make sure you do not have an email server set up for politeiawww, 
+**Note:** Make sure you do not have an email server set up for politeiawww,
 because politeiawww_refclient will not execute correctly. So before you execute
-politeiawww_refclient, make sure to comment out or remove the following config 
-options and restart politeiawww: mailhost, mailuser, mailpass, 
+politeiawww_refclient, make sure to comment out or remove the following config
+options and restart politeiawww: mailhost, mailuser, mailpass,
 webserveraddress."
 
-#### 8. Elevating user permission with politeiawww_dbutil
-* This tool allows you to elevate a user in politeiawww to have admin 
-permissions. You will have to shut down politeiawww, and then execute in your 
+#### 9. Elevating user permission with politeiawww_dbutil
+* This tool allows you to elevate a user in politeiawww to have admin
+permissions. You will have to shut down politeiawww, and then execute in your
 terminal:
 
 `politeiawww_dbutil -testnet -setadmin <email> <true/false>`
@@ -176,7 +186,7 @@ account to derive payment addresses.  You may either use one of the
 pre-generated test keys (grep the source for tpub) or you may acquire one by
 creating accounts and retrieving the public keys for those accounts:
 
-Put the result of the following command as paywallxpub=tpub... in 
+Put the result of the following command as paywallxpub=tpub... in
 politeiawww.conf.
 
 ```
@@ -236,9 +246,9 @@ Proposal failed verification. Please ensure the public key and merkle are correc
 **Note:** All politeia commands can dump the JSON output of every RPC command
 by adding the -json command line flag.
 
-## nginx reverse proxy sample
+#### nginx reverse proxy sample
 
-### testnet
+##### testnet
 ```
 # politeiawww
 location /api/ {
@@ -276,3 +286,6 @@ location / {
 	proxy_pass http://127.0.0.1:8000;
 }
 ```
+#### Setting up an SMTP server
+The current code should work with most SSL-based SMTP servers (but not TLS)
+using username and password as authentication.
