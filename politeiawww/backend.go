@@ -106,6 +106,23 @@ func decodeBackendProposalMetadata(payload []byte) (*BackendProposalMetadata, er
 	return &md, nil
 }
 
+// Compare supplied public key against the one stored in the user database
+// It will return the curent active public key if there are no errors
+func checkPublicKey(user *database.User, pk string) ([identity.PublicKeySize]byte, error) {
+	id, ok := database.ActiveIdentity(user.Identities)
+	if !ok {
+		return [identity.PublicKeySize]byte{}, www.UserError{
+			ErrorCode: www.ErrorStatusNoPublicKey,
+		}
+	}
+
+	if hex.EncodeToString(id[:]) != pk {
+		return [identity.PublicKeySize]byte{}, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSigningKey,
+		}
+	}
+	return id, nil
+}
 // Check an incomming signature against the specified user's pubkey.
 func checkSig(user *database.User, signature string, elements ...string) error {
 	// Check incoming signature verify(token+string(ProposalStatus))
@@ -371,18 +388,12 @@ func (b *backend) validateProposal(np www.NewProposal, user *database.User) erro
 		}
 	}
 
-	// Verify user used correct key
-	id, ok := database.ActiveIdentity(user.Identities)
-	if !ok {
-		return www.UserError{
-			ErrorCode: www.ErrorStatusNoPublicKey,
-		}
+	// Verify public key
+	id, err := checkPublicKey(user, np.PublicKey)
+	if err != nil {
+		return err
 	}
-	if hex.EncodeToString(id[:]) != np.PublicKey {
-		return www.UserError{
-			ErrorCode: www.ErrorStatusInvalidSigningKey,
-		}
-	}
+
 	pk, err := identity.PublicIdentityFromBytes(id[:])
 	if err != nil {
 		return err
@@ -1348,22 +1359,13 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 // ProcessSetProposalStatus changes the status of an existing proposal
 // from unreviewed to either published or censored.
 func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *database.User) (*www.SetProposalStatusReply, error) {
-
-	// Verify user used correct key
-	id, ok := database.ActiveIdentity(user.Identities)
-	if !ok {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusNoPublicKey,
-		}
+	// Verify public key
+	_, err := checkPublicKey(user, sps.PublicKey)
+	if err != nil {
+		return nil, err
 	}
-	if hex.EncodeToString(id[:]) != sps.PublicKey {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusInvalidSigningKey,
-		}
-	}
-
 	// Validate signature
-	err := checkSig(user, sps.Signature, sps.Token,
+	err = checkSig(user, sps.Signature, sps.Token,
 		strconv.FormatUint(uint64(sps.ProposalStatus), 10))
 	if err != nil {
 		return nil, err
@@ -1556,21 +1558,14 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, isUse
 func (b *backend) ProcessComment(c www.NewComment, user *database.User) (*www.NewCommentReply, error) {
 	log.Debugf("ProcessComment: %v %v", c.Token, user.ID)
 
-	// Verify user used correct key
-	id, ok := database.ActiveIdentity(user.Identities)
-	if !ok {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusNoPublicKey,
-		}
-	}
-	if hex.EncodeToString(id[:]) != c.PublicKey {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusInvalidSigningKey,
-		}
+	// Verify public key
+	_, err := checkPublicKey(user, c.PublicKey)
+	if err != nil {
+		return nil, err
 	}
 
 	// Verify signature
-	err := checkSig(user, c.Signature, c.Token, c.ParentID, c.Comment)
+	err = checkSig(user, c.Signature, c.Token, c.ParentID, c.Comment)
 	if err != nil {
 		return nil, err
 	}
