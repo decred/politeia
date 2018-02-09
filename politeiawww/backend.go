@@ -123,6 +123,7 @@ func checkPublicKey(user *database.User, pk string) ([identity.PublicKeySize]byt
 	}
 	return id, nil
 }
+
 // Check an incomming signature against the specified user's pubkey.
 func checkSig(user *database.User, signature string, elements ...string) error {
 	// Check incoming signature verify(token+string(ProposalStatus))
