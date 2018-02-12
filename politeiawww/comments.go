@@ -172,7 +172,6 @@ func (b *backend) loadComments(token, comments string) error {
 		// Add to memory cache
 		switch c.Action {
 		case CommentActionAdd:
-			log.Infof("adding comment %v", c.Token)
 			b._inventory[c.Token].comments[cid] = c
 		case CommentActionDelete:
 			delete(b._inventory[c.Token].comments, cid)

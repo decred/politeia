@@ -14,10 +14,11 @@ var (
 )
 
 type inventoryRecord struct {
-	record     pd.Record // actual record
-	proposalMD BackendProposalMetadata
-	voting     []MDStreamVoting          // voting metadata
+	record     pd.Record                 // actual record
+	proposalMD BackendProposalMetadata   // proposal metadata
 	comments   map[uint64]BackendComment // [token][parent]comment
+	changes    []MDStreamChanges         // changes metadata
+	voting     []MDStreamVoting          // voting metadata
 }
 
 // initializeInventory initializes the inventory map and loads it with a
@@ -53,9 +54,20 @@ func (b *backend) initializeInventory(inv *pd.InventoryReply) error {
 				}
 			case mdStreamComments:
 				err = b.loadComments(t, m.Payload)
+				if err != nil {
+					log.Errorf("initializeInventory "+
+						"could not load comments: %v",
+						err)
+					continue
+				}
 			case mdStreamChanges:
-				log.Errorf("initializeInventory: "+
-					"skipping changes, fixme: %v", t)
+				err = b.loadChanges(t, m.Payload)
+				if err != nil {
+					log.Errorf("initializeInventory "+
+						"could not load changes: %v",
+						err)
+					continue
+				}
 			case mdStreamVoting:
 				err = b.loadVoting(t, m.Payload)
 				if err != nil {
@@ -85,6 +97,23 @@ func (b *backend) loadPropMD(token, payload string) error {
 		b._inventory[token].proposalMD = md
 	} else if err != nil {
 		return err
+	}
+	return nil
+}
+
+// loadChanges decodes chnages metadata and stores it inventory object.
+func (b *backend) loadChanges(token, payload string) error {
+	f := strings.NewReader(payload)
+	d := json.NewDecoder(f)
+	for {
+		var md MDStreamChanges
+		if err := d.Decode(&md); err == io.EOF {
+			return nil
+		} else if err != nil {
+			return err
+		}
+		p := b._inventory[token]
+		p.changes = append(p.changes, md)
 	}
 	return nil
 }
