@@ -1,7 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
+	"strings"
 
 	pd "github.com/decred/politeia/politeiad/api/v1"
 )
@@ -11,9 +14,10 @@ var (
 )
 
 type inventoryRecord struct {
-	record   pd.Record                 // actual record
-	metadata map[uint64]interface{}    // [md type] cache for metadata streams
-	comments map[uint64]BackendComment // [token][parent]comment
+	record     pd.Record // actual record
+	proposalMD BackendProposalMetadata
+	voting     []MDStreamVoting          // voting metadata
+	comments   map[uint64]BackendComment // [token][parent]comment
 }
 
 // initializeInventory initializes the inventory map and loads it with a
@@ -21,56 +25,84 @@ type inventoryRecord struct {
 //
 // This function must be called WITH the mutex held.
 func (b *backend) initializeInventory(inv *pd.InventoryReply) error {
-	b._inventory = make(map[string]inventoryRecord)
+	b._inventory = make(map[string]*inventoryRecord)
 
 	for _, v := range append(inv.Vetted, inv.Branches...) {
-		if _, ok := b._inventory[v.CensorshipRecord.Token]; ok {
+		t := v.CensorshipRecord.Token
+		if _, ok := b._inventory[t]; ok {
 			return fmt.Errorf("duplicate token: %v",
 				v.CensorshipRecord.Token)
 		}
 
-		b._inventory[v.CensorshipRecord.Token] = inventoryRecord{
+		b._inventory[t] = &inventoryRecord{
 			record:   v,
-			metadata: make(map[uint64]interface{}),
 			comments: make(map[uint64]BackendComment),
 		}
 
 		// Fish metadata out as well
-		var (
-			record interface{}
-			err    error
-		)
+		var err error
 		for _, m := range v.Metadata {
-			p := []byte(m.Payload)
 			switch m.ID {
 			case mdStreamGeneral:
-				record, err = decodeBackendProposalMetadata(p)
+				err = b.loadPropMD(t, m.Payload)
+				if err != nil {
+					log.Errorf("initializeInventory "+
+						"could not load metadata: %v",
+						err)
+					continue
+				}
 			case mdStreamComments:
-				err = b.loadComments(v.CensorshipRecord.Token,
-					m.Payload)
+				err = b.loadComments(t, m.Payload)
 			case mdStreamChanges:
 				log.Errorf("initializeInventory: "+
-					"skipping changes, fixme: %v",
-					v.CensorshipRecord.Token)
+					"skipping changes, fixme: %v", t)
 			case mdStreamVoting:
-				log.Errorf("initializeInventory: "+
-					"skipping voting, fixme: %v",
-					v.CensorshipRecord.Token)
+				err = b.loadVoting(t, m.Payload)
+				if err != nil {
+					log.Errorf("initializeInventory "+
+						"could not load vote: %v",
+						err)
+					continue
+				}
 			default:
 				// log error but proceed
 				log.Errorf("initializeInventory: invalid "+
-					"metadata stream ID %v token %v", m.ID,
-					v.CensorshipRecord.Token)
+					"metadata stream ID %v token %v",
+					m.ID, t)
 			}
-			if err != nil {
-				log.Errorf("initializeInventory %v: %v",
-					v.CensorshipRecord.Token, err)
-			}
-			//ir.metadataCache[m.ID] = record
-			_ = record
 		}
 	}
 
+	return nil
+}
+
+// loadPropMD decodes backend proposal metadata and stores it inventory object.
+func (b *backend) loadPropMD(token, payload string) error {
+	f := strings.NewReader(payload)
+	d := json.NewDecoder(f)
+	var md BackendProposalMetadata
+	if err := d.Decode(&md); err == io.EOF {
+		b._inventory[token].proposalMD = md
+	} else if err != nil {
+		return err
+	}
+	return nil
+}
+
+// loadVoting decodes voting metadata and stores it inventory object.
+func (b *backend) loadVoting(token, payload string) error {
+	f := strings.NewReader(payload)
+	d := json.NewDecoder(f)
+	for {
+		var md MDStreamVoting
+		if err := d.Decode(&md); err == io.EOF {
+			return nil
+		} else if err != nil {
+			return err
+		}
+		p := b._inventory[token]
+		p.voting = append(p.voting, md)
+	}
 	return nil
 }
 
@@ -82,7 +114,7 @@ func (b *backend) _getInventoryRecord(token string) (inventoryRecord, error) {
 	if !ok {
 		return inventoryRecord{}, errRecordNotFound
 	}
-	return r, nil
+	return *r, nil
 }
 
 // getInventoryRecord returns an inventory record from the inventory cache.
