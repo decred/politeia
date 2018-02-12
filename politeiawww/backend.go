@@ -797,14 +797,10 @@ func (b *backend) LoadInventory() error {
 			continue
 		}
 
-		b._inventory = make(map[string]pd.Record)
-		for _, v := range append(inv.Vetted, inv.Branches...) {
-			if _, ok := b._inventory[v.CensorshipRecord.Token]; ok {
-				b.Unlock()
-				return fmt.Errorf("duplicate token: %v",
-					v.CensorshipRecord.Token)
-			}
-			b._inventory[v.CensorshipRecord.Token] = v
+		err = b.initializeInventory(inv)
+		if err != nil {
+			b.Unlock()
+			return fmt.Errorf("initializeInventory: %v", err)
 		}
 
 		// XXX old inventory behavior, kill this
