@@ -79,7 +79,7 @@ type backend struct {
 	commentID uint64                               // current comment id
 
 	// _inventory will eventually replace inventory
-	_inventory map[string]pd.Record // Current inventory
+	_inventory map[string]inventoryRecord // Current inventory
 
 	// When inventory is set or modified inventoryVersion MUST be
 	// incremented.  When inventory changes the caller MUST initialize the
@@ -641,6 +641,8 @@ func (b *backend) loadInventory() (*pd.InventoryReply, error) {
 	if !b.test {
 		return b.remoteInventory()
 	}
+
+	// Following is test code only.
 
 	// Split the existing inventory into vetted and unvetted.
 	vetted := make([]www.ProposalRecord, 0)
