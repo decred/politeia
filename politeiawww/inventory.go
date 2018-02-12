@@ -11,8 +11,9 @@ var (
 )
 
 type inventoryRecord struct {
-	record        pd.Record              // actual record
-	metadataCache map[uint64]interface{} // cache for metadata streams
+	record   pd.Record                 // actual record
+	metadata map[uint64]interface{}    // [md type] cache for metadata streams
+	comments map[uint64]BackendComment // [token][parent]comment
 }
 
 // initializeInventory initializes the inventory map and loads it with a
@@ -28,9 +29,10 @@ func (b *backend) initializeInventory(inv *pd.InventoryReply) error {
 				v.CensorshipRecord.Token)
 		}
 
-		ir := inventoryRecord{
-			record:        v,
-			metadataCache: make(map[uint64]interface{}),
+		b._inventory[v.CensorshipRecord.Token] = inventoryRecord{
+			record:   v,
+			metadata: make(map[uint64]interface{}),
+			comments: make(map[uint64]BackendComment),
 		}
 
 		// Fish metadata out as well
@@ -44,11 +46,16 @@ func (b *backend) initializeInventory(inv *pd.InventoryReply) error {
 			case mdStreamGeneral:
 				record, err = decodeBackendProposalMetadata(p)
 			case mdStreamComments:
-				log.Errorf("initializeInventory: "+
-					"skipping comments, fixme: %v",
-					v.CensorshipRecord.Token)
+				err = b.loadComments(v.CensorshipRecord.Token,
+					m.Payload)
 			case mdStreamChanges:
+				log.Errorf("initializeInventory: "+
+					"skipping changes, fixme: %v",
+					v.CensorshipRecord.Token)
 			case mdStreamVoting:
+				log.Errorf("initializeInventory: "+
+					"skipping voting, fixme: %v",
+					v.CensorshipRecord.Token)
 			default:
 				// log error but proceed
 				log.Errorf("initializeInventory: invalid "+
@@ -59,10 +66,9 @@ func (b *backend) initializeInventory(inv *pd.InventoryReply) error {
 				log.Errorf("initializeInventory %v: %v",
 					v.CensorshipRecord.Token, err)
 			}
-			ir.metadataCache[m.ID] = record
+			//ir.metadataCache[m.ID] = record
+			_ = record
 		}
-
-		b._inventory[v.CensorshipRecord.Token] = ir
 	}
 
 	return nil

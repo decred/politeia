@@ -75,8 +75,8 @@ type backend struct {
 	verificationExpiryTime time.Duration
 
 	// Following entries require locks
-	comments  map[string]map[uint64]BackendComment // [token][parent]comment
-	commentID uint64                               // current comment id
+	//comments  map[string]map[uint64]BackendComment // [token][parent]comment
+	commentID uint64 // current comment id
 
 	// _inventory will eventually replace inventory
 	_inventory map[string]inventoryRecord // Current inventory
@@ -692,7 +692,7 @@ func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
 
 		// Set the number of comments.
 		token := proposal.CensorshipRecord.Token
-		proposal.NumComments = uint(len(b.comments[token]))
+		proposal.NumComments = uint(len(b._inventory[token].comments))
 
 		if pageStarted {
 			proposals = append(proposals, proposal)
@@ -730,7 +730,7 @@ func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
 
 			// Set the number of comments.
 			token := proposal.CensorshipRecord.Token
-			proposal.NumComments = uint(len(b.comments[token]))
+			proposal.NumComments = uint(len(b._inventory[token].comments))
 
 			// The iteration direction is oldest -> newest,
 			// so proposals are prepended to the array so
@@ -820,7 +820,6 @@ func (b *backend) LoadInventory() error {
 			}
 
 			// Initialize comment map for this proposal.
-			b.initComment(v.CensorshipRecord.Token)
 			len := len(b.inventory)
 			if len == 0 {
 				b.inventory = append(b.inventory, v)
@@ -1403,7 +1402,6 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 			CensorshipRecord: convertPropCensorFromPD(pdReply.CensorshipRecord),
 		})
 		b.inventoryVersion++
-		b.initComment(pdReply.CensorshipRecord.Token)
 		b.Unlock()
 	} else {
 		responseBody, err := b.makeRequest(http.MethodPost,
@@ -1443,7 +1441,6 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 		b.Lock()
 		b.inventory = append(b.inventory, r)
 		b.inventoryVersion++
-		b.initComment(pdReply.CensorshipRecord.Token)
 		b.Unlock()
 	}
 
@@ -1546,22 +1543,17 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 		return nil, err
 	}
 
-	var cachedProposal *www.ProposalRecord
 	b.RLock()
-	for _, v := range b.inventory {
-		if v.CensorshipRecord.Token == propDetails.Token {
-			cachedProposal = &v
-			break
-		}
-	}
-	b.RUnlock()
-	if cachedProposal == nil {
+	p, ok := b._inventory[propDetails.Token]
+	if !ok {
+		b.RUnlock()
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusProposalNotFound,
 		}
 	}
-
-	numComments := uint(len(b.comments[propDetails.Token]))
+	numComments := uint(len(p.comments))
+	b.RUnlock()
+	cachedProposal := convertPropFromPD(p.record)
 
 	var isVettedProposal bool
 	var requestObject interface{}
@@ -1580,7 +1572,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 	}
 
 	if b.test {
-		reply.Proposal = *cachedProposal
+		reply.Proposal = cachedProposal
 		reply.Proposal.NumComments = numComments
 		return &reply, nil
 	}
@@ -1674,7 +1666,7 @@ func (b *backend) ProcessComment(c www.NewComment, user *database.User) (*www.Ne
 
 	b.Lock()
 	defer b.Unlock()
-	m, ok := b.comments[c.Token]
+	m, ok := b._inventory[c.Token]
 	if !ok {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusProposalNotFound,
@@ -1694,7 +1686,7 @@ func (b *backend) ProcessComment(c www.NewComment, user *database.User) (*www.Ne
 		}
 	}
 	if pid != 0 {
-		_, ok = m[pid]
+		_, ok = m.comments[pid]
 		if !ok {
 			return nil, www.UserError{
 				ErrorCode: www.ErrorStatusCommentNotFound,
@@ -1868,7 +1860,6 @@ func NewBackend(cfg *config) (*backend, error) {
 		db:          db,
 		cfg:         cfg,
 		userPubkeys: make(map[string]string),
-		comments:    make(map[string]map[uint64]BackendComment),
 		commentJournalDir: filepath.Join(cfg.DataDir,
 			defaultCommentJournalDir),
 		commentID: 1, // Replay will set this value
@@ -1876,10 +1867,6 @@ func NewBackend(cfg *config) (*backend, error) {
 
 	// Setup comments
 	os.MkdirAll(b.commentJournalDir, 0744)
-	err = b.replayCommentJournals()
-	if err != nil {
-		return nil, err
-	}
 
 	// Setup pubkey-userid map
 	err = b.initUserPubkeys()
