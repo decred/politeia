@@ -99,15 +99,6 @@ type BackendProposalMetadata struct {
 	Signature string `json:"signature"` // Signature of merkle root
 }
 
-// proposalsRequest is used for passing parameters into the
-// getProposals() function.
-type proposalsRequest struct {
-	After     string
-	Before    string
-	UserId    string
-	StatusMap map[www.PropStatusT]bool
-}
-
 // encodeBackendProposalMetadata encodes BackendProposalMetadata into a JSON
 // byte slice.
 func encodeBackendProposalMetadata(md BackendProposalMetadata) ([]byte, error) {
@@ -662,88 +653,6 @@ func (b *backend) loadInventory() (*pd.InventoryReply, error) {
 		Vetted:   convertPropsFromWWW(vetted),
 		Branches: convertPropsFromWWW(unvetted),
 	}, nil
-}
-
-func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
-	b.RLock()
-	defer b.RUnlock()
-
-	// pageStarted stores whether or not it's okay to start adding
-	// proposals to the array. If the after or before parameter is
-	// supplied, we must find the beginning (or end) of the page first.
-	pageStarted := (pr.After == "" && pr.Before == "")
-	beforeIdx := -1
-	proposals := make([]www.ProposalRecord, 0)
-
-	// Iterate in reverse order because they're sorted by oldest timestamp
-	// first.
-	for i := len(b.inventory) - 1; i >= 0; i-- {
-		proposal := b.inventory[i]
-
-		// Filter by user if it's provided.
-		if pr.UserId != "" && pr.UserId != proposal.UserId {
-			continue
-		}
-
-		// Filter by the status.
-		if val, ok := pr.StatusMap[proposal.Status]; !ok || !val {
-			continue
-		}
-
-		// Set the number of comments.
-		token := proposal.CensorshipRecord.Token
-		proposal.NumComments = uint(len(b._inventory[token].comments))
-
-		if pageStarted {
-			proposals = append(proposals, proposal)
-			if len(proposals) >= www.ProposalListPageSize {
-				break
-			}
-		} else if pr.After != "" {
-			// The beginning of the page has been found, so
-			// the next public proposal is added.
-			pageStarted = proposal.CensorshipRecord.Token == pr.After
-		} else if pr.Before != "" {
-			// The end of the page has been found, so we'll
-			// have to iterate in the other direction to
-			// add the proposals; save the current index.
-			if proposal.CensorshipRecord.Token == pr.Before {
-				beforeIdx = i
-				break
-			}
-		}
-	}
-
-	// If beforeIdx is set, the caller is asking for vetted proposals whose
-	// last result is before the provided proposal.
-	if beforeIdx >= 0 {
-		for _, proposal := range b.inventory[beforeIdx+1:] {
-			// Filter by user if it's provided.
-			if pr.UserId != "" && pr.UserId != proposal.UserId {
-				continue
-			}
-
-			// Filter by the status.
-			if val, ok := pr.StatusMap[proposal.Status]; !ok || !val {
-				continue
-			}
-
-			// Set the number of comments.
-			token := proposal.CensorshipRecord.Token
-			proposal.NumComments = uint(len(b._inventory[token].comments))
-
-			// The iteration direction is oldest -> newest,
-			// so proposals are prepended to the array so
-			// the result will be newest -> oldest.
-			proposals = append([]www.ProposalRecord{proposal},
-				proposals...)
-			if len(proposals) >= www.ProposalListPageSize {
-				break
-			}
-		}
-	}
-
-	return proposals
 }
 
 func (b *backend) CreateLoginReply(user *database.User) *www.LoginReply {
