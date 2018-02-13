@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 
 	pd "github.com/decred/politeia/politeiad/api/v1"
+	www "github.com/decred/politeia/politeiawww/api/v1"
 )
 
 var (
@@ -19,6 +21,15 @@ type inventoryRecord struct {
 	comments   map[uint64]BackendComment // [token][parent]comment
 	changes    []MDStreamChanges         // changes metadata
 	voting     []MDStreamVoting          // voting metadata
+}
+
+// proposalsRequest is used for passing parameters into the
+// getProposals() function.
+type proposalsRequest struct {
+	After     string
+	Before    string
+	UserId    string
+	StatusMap map[www.PropStatusT]bool
 }
 
 // initializeInventory initializes the inventory map and loads it with a
@@ -153,4 +164,112 @@ func (b *backend) getInventoryRecord(token string) (inventoryRecord, error) {
 	b.RLock()
 	defer b.RUnlock()
 	return b._getInventoryRecord(token)
+}
+
+// getProposals returns a list of proposals that adheres to the requirements
+// specified in the provided request.
+func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
+	b.RLock()
+
+	allProposals := make([]www.ProposalRecord, 0, len(b._inventory))
+	for _, vv := range b._inventory {
+		v := convertPropFromPD(vv.record)
+
+		// Set the number of comments.
+		v.NumComments = uint(len(vv.comments))
+
+		// Set the user id.
+		var ok bool
+		v.UserId, ok = b.userPubkeys[v.PublicKey]
+		if !ok {
+			log.Errorf("user not found for public key %v, for proposal %v",
+				v.PublicKey, v.CensorshipRecord.Token)
+		}
+
+		len := len(allProposals)
+		if len == 0 {
+			allProposals = append(allProposals, v)
+			continue
+		}
+
+		// Insertion sort from oldest to newest.
+		idx := sort.Search(len, func(i int) bool {
+			return v.Timestamp < allProposals[i].Timestamp
+		})
+
+		allProposals = append(allProposals[:idx],
+			append([]www.ProposalRecord{v},
+				allProposals[idx:]...)...)
+	}
+
+	b.RUnlock()
+
+	// pageStarted stores whether or not it's okay to start adding
+	// proposals to the array. If the after or before parameter is
+	// supplied, we must find the beginning (or end) of the page first.
+	pageStarted := (pr.After == "" && pr.Before == "")
+	beforeIdx := -1
+	proposals := make([]www.ProposalRecord, 0)
+
+	// Iterate in reverse order because they're sorted by oldest timestamp
+	// first.
+	for i := len(allProposals) - 1; i >= 0; i-- {
+		proposal := allProposals[i]
+
+		// Filter by user if it's provided.
+		if pr.UserId != "" && pr.UserId != proposal.UserId {
+			continue
+		}
+
+		// Filter by the status.
+		if val, ok := pr.StatusMap[proposal.Status]; !ok || !val {
+			continue
+		}
+
+		if pageStarted {
+			proposals = append(proposals, proposal)
+			if len(proposals) >= www.ProposalListPageSize {
+				break
+			}
+		} else if pr.After != "" {
+			// The beginning of the page has been found, so
+			// the next public proposal is added.
+			pageStarted = proposal.CensorshipRecord.Token == pr.After
+		} else if pr.Before != "" {
+			// The end of the page has been found, so we'll
+			// have to iterate in the other direction to
+			// add the proposals; save the current index.
+			if proposal.CensorshipRecord.Token == pr.Before {
+				beforeIdx = i
+				break
+			}
+		}
+	}
+
+	// If beforeIdx is set, the caller is asking for vetted proposals whose
+	// last result is before the provided proposal.
+	if beforeIdx >= 0 {
+		for _, proposal := range allProposals[beforeIdx+1:] {
+			// Filter by user if it's provided.
+			if pr.UserId != "" && pr.UserId != proposal.UserId {
+				continue
+			}
+
+			// Filter by the status.
+			if val, ok := pr.StatusMap[proposal.Status]; !ok || !val {
+				continue
+			}
+
+			// The iteration direction is oldest -> newest,
+			// so proposals are prepended to the array so
+			// the result will be newest -> oldest.
+			proposals = append([]www.ProposalRecord{proposal},
+				proposals...)
+			if len(proposals) >= www.ProposalListPageSize {
+				break
+			}
+		}
+	}
+
+	return proposals
 }
