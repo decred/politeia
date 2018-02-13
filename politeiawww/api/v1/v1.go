@@ -402,6 +402,7 @@ type SetProposalStatus struct {
 	Token          string      `json:"token"`
 	ProposalStatus PropStatusT `json:"proposalstatus"`
 	Signature      string      `json:"signature"` // Signature of Token+string(ProposalStatus)
+	PublicKey      string      `json:"publickey"`
 }
 
 // SetProposalStatusReply is used to reply to a SetProposalStatus command.
@@ -470,6 +471,7 @@ type NewComment struct {
 	ParentID  string `json:"parentid"`  // Parent comment ID
 	Comment   string `json:"comment"`   // Comment
 	Signature string `json:"signature"` // Signature of Token+ParentID+Comment
+	PublicKey string `json:"publickey"`
 }
 
 // NewCommentReply return the site generated Comment ID or an error if

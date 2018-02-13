@@ -577,6 +577,7 @@ The proposal name is derived from the first line of the markdown file - index.md
 |-----------|------|-------------|----------|
 | files | array of [`File`](#file)s | Files are the body of the proposal. It should consist of one markdown file - named "index.md" - and up to five pictures. **Note:** all parameters within each [`File`](#file) are required. | Yes |
 | signature | string | Signature of the string representation of the Merkle root of the files payload. Note that the merkle digests are calculated on the decoded payload.. | Yes |
+| publickey | string | Public key from the client side, sent to politeiawww for verification | Yes |
 
 **Results:**
 
@@ -817,8 +818,9 @@ call requires admin privileges.
 | Parameter | Type | Description | Required |
 |-|-|-|-|
 | token | string | Token is the unique censorship token that identifies a specific proposal. | Yes |
-| status | number | Status indicates the new status for the proposal. Valid statuses are: [PropStatusCensored](#PropStatusCensored), [PropStatusPublic](#PropStatusPublic). Status can only be changed if the current proposal status is [PropStatusNotReviewed](#PropStatusNotReviewed) | Yes |
+| proposalstatus | number | Status indicates the new status for the proposal. Valid statuses are: [PropStatusCensored](#PropStatusCensored), [PropStatusPublic](#PropStatusPublic). Status can only be changed if the current proposal status is [PropStatusNotReviewed](#PropStatusNotReviewed) | Yes |
 | signature | string | Signature of token+string(status). | Yes |
+| publickey | string | Public key from the client side, sent to politeiawww for verification | Yes |
 
 **Results:** none
 
@@ -832,8 +834,10 @@ Request:
 
 ```json
 {
-  "token": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
-  "status": 4
+  "proposalstatus": 3,
+  "publickey": "f5519b6fdee08be45d47d5dd794e81303688a8798012d8983ba3f15af70a747c",
+  "signature": "041a12e5df95ec132be27f0c716fd8f7fc23889d05f66a26ef64326bd5d4e8c2bfed660235856da219237d185fb38c6be99125d834c57030428c6b96a2576900",
+  "token": "6161819a5df120162ed7b7fa5a95021f9d489a9eaf8b1bb23447fb8a5abc643b"
 }
 ```
 
@@ -907,16 +911,17 @@ proposal"; if the value is not empty it means "reply to comment".
 
 | Parameter | Type | Description | Required |
 | - | - | - | - |
-| Token | string | Censorship token | Yes |
-| ParentID | string | Parent comment identifier | Yes |
-| Comment | string | Comment | Yes |
-| Signature | string | Signature of Token, ParentID and Comment | Yes |
+| token | string | Censorship token | Yes |
+| parentid | string | Parent comment identifier | Yes |
+| comment | string | Comment | Yes |
+| signature | string | Signature of Token, ParentID and Comment | Yes |
+| publickey | string | Public key from the client side, sent to politeiawww for verification | Yes |
 
 **Results:**
 
 | | Type | Description |
 | - | - | - |
-| CommentID | string | Server generated unique comment identifier |
+| commentid | string | Server generated unique comment identifier |
 
 On failure the call shall return `400 Bad Request` and one of the following
 error codes:
@@ -932,7 +937,8 @@ Request:
   "token":"837f068c02b48f7f0ebe590e07d0a33bd6ce1046ba44b5f1ad0f8b4a4d0cb7f3",
   "parentid":"",
   "comment":"I dont like this prop",
-  "signature":"b5ec08402e4c4c34da97bd469fc59be408a3e3978d3696ac6b31aed028d9d4acfe757bbd279f48a8ad81853f9d79416e9da0b563caa2f5a1dfb91f54f9edbf06"
+  "signature":"b5ec08402e4c4c34da97bd469fc59be408a3e3978d3696ac6b31aed028d9d4acfe757bbd279f48a8ad81853f9d79416e9da0b563caa2f5a1dfb91f54f9edbf06",
+  "publickey":"f5519b6fdee08be45d47d5dd794e81303688a8798012d8983ba3f15af70a747c"
 }
 ```
 

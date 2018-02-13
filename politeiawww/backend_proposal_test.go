@@ -255,6 +255,8 @@ func publishProposal(b *backend, token string, t *testing.T) {
 	}
 	sps.Signature = signature
 
+	sps.PublicKey = hex.EncodeToString(user.Identities[0].Key[:])
+
 	_, err = b.ProcessSetProposalStatus(sps, user)
 	if err != nil {
 		t.Fatal(err)
@@ -273,6 +275,8 @@ func censorProposal(b *backend, token string, t *testing.T) {
 		t.Fatal(err)
 	}
 	sps.Signature = signature
+
+	sps.PublicKey = hex.EncodeToString(user.Identities[0].Key[:])
 
 	_, err = b.ProcessSetProposalStatus(sps, user)
 	if err != nil {
