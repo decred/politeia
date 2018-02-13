@@ -108,35 +108,29 @@ func decodeBackendProposalMetadata(payload []byte) (*BackendProposalMetadata, er
 
 // Compare supplied public key against the one stored in the user database
 // It will return the curent active public key if there are no errors
-func checkPublicKey(user *database.User, pk string) ([identity.PublicKeySize]byte, error) {
+func checkPublicKey(user *database.User, pk string) ([]byte, error) {
 	id, ok := database.ActiveIdentity(user.Identities)
 	if !ok {
-		return [identity.PublicKeySize]byte{}, www.UserError{
+		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusNoPublicKey,
 		}
 	}
 
 	if hex.EncodeToString(id[:]) != pk {
-		return [identity.PublicKeySize]byte{}, www.UserError{
+		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusInvalidSigningKey,
 		}
 	}
-	return id, nil
+	return id[:], nil
 }
 
 // Check an incomming signature against the specified user's pubkey.
-func checkSig(user *database.User, signature string, elements ...string) error {
+func checkSig(id []byte, signature string, elements ...string) error {
 	// Check incoming signature verify(token+string(ProposalStatus))
 	sig, err := util.ConvertSignature(signature)
 	if err != nil {
 		return www.UserError{
 			ErrorCode: www.ErrorStatusInvalidSignature,
-		}
-	}
-	id, ok := database.ActiveIdentity(user.Identities)
-	if !ok {
-		return www.UserError{
-			ErrorCode: www.ErrorStatusNoPublicKey,
 		}
 	}
 	pk, err := identity.PublicIdentityFromBytes(id[:])
@@ -1361,12 +1355,12 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 // from unreviewed to either published or censored.
 func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *database.User) (*www.SetProposalStatusReply, error) {
 	// Verify public key
-	_, err := checkPublicKey(user, sps.PublicKey)
+	id, err := checkPublicKey(user, sps.PublicKey)
 	if err != nil {
 		return nil, err
 	}
 	// Validate signature
-	err = checkSig(user, sps.Signature, sps.Token,
+	err = checkSig(id, sps.Signature, sps.Token,
 		strconv.FormatUint(uint64(sps.ProposalStatus), 10))
 	if err != nil {
 		return nil, err
@@ -1560,13 +1554,13 @@ func (b *backend) ProcessComment(c www.NewComment, user *database.User) (*www.Ne
 	log.Debugf("ProcessComment: %v %v", c.Token, user.ID)
 
 	// Verify public key
-	_, err := checkPublicKey(user, c.PublicKey)
+	id, err := checkPublicKey(user, c.PublicKey)
 	if err != nil {
 		return nil, err
 	}
 
 	// Verify signature
-	err = checkSig(user, c.Signature, c.Token, c.ParentID, c.Comment)
+	err = checkSig(id, c.Signature, c.Token, c.ParentID, c.Comment)
 	if err != nil {
 		return nil, err
 	}
