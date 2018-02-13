@@ -71,7 +71,7 @@ func createBackend(t *testing.T) *backend {
 
 	cfg := &config{
 		DataDir:       filepath.Join(dir, "data"),
-		PaywallAmount: .1,
+		PaywallAmount: 1e7,
 		PaywallXpub:   "tpubVobLtToNtTq6TZNw4raWQok35PRPZou53vegZqNubtBTJMMFmuMpWybFCfweJ52N8uZJPZZdHE5SRnBBuuRPfC5jdNstfKjiAs8JtbYG9jx",
 		TestNet:       true,
 	}

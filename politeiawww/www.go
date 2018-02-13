@@ -689,6 +689,40 @@ func (p *politeiawww) handleCommentsGet(w http.ResponseWriter, r *http.Request) 
 	util.RespondWithJSON(w, http.StatusOK, gcr)
 }
 
+// handleVerifyUserPaymentTx checks whether the provided transaction
+// is on the blockchain and meets the requirements to consider the user
+// registration fee as paid.
+func (p *politeiawww) handleVerifyUserPaymentTx(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleVerifyUserPaymentTx")
+
+	// Get the verify user payment tx command.
+	var vupt v1.VerifyUserPaymentTx
+	err := util.ParseGetParams(r, &vupt)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleVerifyUserPaymentTx: ParseGetParams",
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	user, err := p.getSessionUser(r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleVerifyUserPaymentTx: getSessionUser %v", err)
+		return
+	}
+
+	vuptr, err := p.backend.ProcessVerifyUserPaymentTx(user, vupt)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleVerifyUserPaymentTx: ProcessVerifyUserPaymentTx %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, vuptr)
+}
+
 // handleUserProposals returns the proposals for the given user.
 func (p *politeiawww) handleUserProposals(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
@@ -863,8 +897,8 @@ func _main() error {
 		p.handleResetPassword, permissionPublic, false)
 	p.addRoute(http.MethodGet, v1.RouteAllVetted, p.handleAllVetted,
 		permissionPublic, true)
-	p.addRoute(http.MethodGet, v1.RouteProposalDetails, p.
-		handleProposalDetails, permissionPublic, true)
+	p.addRoute(http.MethodGet, v1.RouteProposalDetails,
+		p.handleProposalDetails, permissionPublic, true)
 	p.addRoute(http.MethodGet, v1.RoutePolicy, p.handlePolicy,
 		permissionPublic, false)
 	p.addRoute(http.MethodGet, v1.RouteCommentsGet, p.handleCommentsGet,
@@ -887,6 +921,8 @@ func _main() error {
 		p.handleChangePassword, permissionLogin, false)
 	p.addRoute(http.MethodPost, v1.RouteNewComment,
 		p.handleNewComment, permissionLogin, true)
+	p.addRoute(http.MethodGet, v1.RouteVerifyUserPaymentTx,
+		p.handleVerifyUserPaymentTx, permissionLogin, false)
 
 	// Routes that require being logged in as an admin user.
 	p.addRoute(http.MethodGet, v1.RouteAllUnvetted, p.handleAllUnvetted,
