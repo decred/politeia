@@ -83,7 +83,7 @@ func createBackend(t *testing.T) *backend {
 
 	b.params = &chaincfg.TestNet2Params
 	b.test = true
-	b.inventory = make([]www.ProposalRecord, 0)
+	b._inventory = make(map[string]*inventoryRecord)
 	return b
 }
 

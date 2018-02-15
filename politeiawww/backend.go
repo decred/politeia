@@ -123,8 +123,18 @@ func decodeBackendProposalMetadata(payload []byte) (*BackendProposalMetadata, er
 	return &md, nil
 }
 
-// Compare supplied public key against the one stored in the user database
-// It will return the curent active public key if there are no errors
+// checkPublicKeyAndSignature validates the public key and signature.
+func checkPublicKeyAndSignature(user *database.User, publicKey string, signature string, elements ...string) error {
+	id, err := checkPublicKey(user, publicKey)
+	if err != nil {
+		return err
+	}
+
+	return checkSignature(id, signature, elements...)
+}
+
+// checkPublicKey compares the supplied public key against the one stored in
+// the user database. It will return the active identity if there are no errors.
 func checkPublicKey(user *database.User, pk string) ([]byte, error) {
 	id, ok := database.ActiveIdentity(user.Identities)
 	if !ok {
@@ -141,8 +151,8 @@ func checkPublicKey(user *database.User, pk string) ([]byte, error) {
 	return id[:], nil
 }
 
-// Check an incomming signature against the specified user's pubkey.
-func checkSig(id []byte, signature string, elements ...string) error {
+// checkSignature validates an incoming signature against the specified user's pubkey.
+func checkSignature(id []byte, signature string, elements ...string) error {
 	// Check incoming signature verify(token+string(ProposalStatus))
 	sig, err := util.ConvertSignature(signature)
 	if err != nil {
@@ -1307,17 +1317,16 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 
 		// Add the new proposal to the cache.
 		b.Lock()
-		b.inventory = append(b.inventory, www.ProposalRecord{
-			Name:             name,
-			Status:           www.PropStatusNotReviewed,
+		err = b.addInventoryRecord(pd.Record{
+			Status:           pd.RecordStatusNotReviewed,
 			Timestamp:        ts,
-			UserId:           strconv.FormatUint(user.ID, 10),
-			PublicKey:        np.PublicKey,
-			Signature:        np.Signature,
-			Files:            np.Files,
-			CensorshipRecord: convertPropCensorFromPD(pdReply.CensorshipRecord),
+			CensorshipRecord: pdReply.CensorshipRecord,
+			Metadata:         n.Metadata,
+			Files:            n.Files,
 		})
-		b.inventoryVersion++
+		if err != nil {
+			return nil, err
+		}
 		b.Unlock()
 	} else {
 		responseBody, err := b.makeRequest(http.MethodPost,
@@ -1367,14 +1376,8 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 // ProcessSetProposalStatus changes the status of an existing proposal
 // from unreviewed to either published or censored.
 func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *database.User) (*www.SetProposalStatusReply, error) {
-	// Verify public key
-	id, err := checkPublicKey(user, sps.PublicKey)
-	if err != nil {
-		return nil, err
-	}
-	// Validate signature
-	err = checkSig(id, sps.Signature, sps.Token,
-		strconv.FormatUint(uint64(sps.ProposalStatus), 10))
+	err := checkPublicKeyAndSignature(user, sps.PublicKey, sps.Signature,
+		sps.Token, strconv.FormatUint(uint64(sps.ProposalStatus), 10))
 	if err != nil {
 		return nil, err
 	}
@@ -1579,17 +1582,8 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 func (b *backend) ProcessComment(c www.NewComment, user *database.User) (*www.NewCommentReply, error) {
 	log.Debugf("ProcessComment: %v %v", c.Token, user.ID)
 
-	// Verify public key
-	id, err := checkPublicKey(user, c.PublicKey)
-	if err != nil {
-		return nil, err
-	}
-
-	// Verify signature
-	err = checkSig(id, c.Signature, c.Token, c.ParentID, c.Comment)
-	if err != nil {
-		return nil, err
-	}
+	err := checkPublicKeyAndSignature(user, c.PublicKey, c.Signature,
+		c.Token, c.ParentID, c.Comment)
 
 	b.Lock()
 	defer b.Unlock()
@@ -1689,14 +1683,7 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 	}
 	_ = vr
 
-	// Verify public key
-	id, err := checkPublicKey(user, sv.PublicKey)
-	if err != nil {
-		return nil, err
-	}
-
-	// Validate signature
-	err = checkSig(id, sv.Signature, sv.Token)
+	err = checkPublicKeyAndSignature(user, sv.PublicKey, sv.Signature, sv.Token)
 	if err != nil {
 		return nil, err
 	}

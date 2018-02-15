@@ -40,19 +40,14 @@ func (b *backend) initializeInventory(inv *pd.InventoryReply) error {
 	b._inventory = make(map[string]*inventoryRecord)
 
 	for _, v := range append(inv.Vetted, inv.Branches...) {
-		t := v.CensorshipRecord.Token
-		if _, ok := b._inventory[t]; ok {
-			return fmt.Errorf("duplicate token: %v",
-				v.CensorshipRecord.Token)
+		err := b.addInventoryRecord(v)
+		if err != nil {
+			return err
 		}
 
-		b._inventory[t] = &inventoryRecord{
-			record:   v,
-			comments: make(map[uint64]BackendComment),
-		}
+		t := v.CensorshipRecord.Token
 
 		// Fish metadata out as well
-		var err error
 		for _, m := range v.Metadata {
 			switch m.ID {
 			case mdStreamGeneral:
@@ -99,7 +94,26 @@ func (b *backend) initializeInventory(inv *pd.InventoryReply) error {
 	return nil
 }
 
+// Adds a record to the inventory cache.
+//
+// This function must be called WITH the mutex held.
+func (b *backend) addInventoryRecord(record pd.Record) error {
+	t := record.CensorshipRecord.Token
+	if _, ok := b._inventory[t]; ok {
+		return fmt.Errorf("duplicate token: %v", t)
+	}
+
+	b._inventory[t] = &inventoryRecord{
+		record:   record,
+		comments: make(map[uint64]BackendComment),
+	}
+
+	return nil
+}
+
 // loadPropMD decodes backend proposal metadata and stores it inventory object.
+//
+// This function must be called WITH the mutex held.
 func (b *backend) loadPropMD(token, payload string) error {
 	f := strings.NewReader(payload)
 	d := json.NewDecoder(f)
@@ -113,6 +127,8 @@ func (b *backend) loadPropMD(token, payload string) error {
 }
 
 // loadChanges decodes chnages metadata and stores it inventory object.
+//
+// This function must be called WITH the mutex held.
 func (b *backend) loadChanges(token, payload string) error {
 	f := strings.NewReader(payload)
 	d := json.NewDecoder(f)
@@ -130,6 +146,8 @@ func (b *backend) loadChanges(token, payload string) error {
 }
 
 // loadVoting decodes voting metadata and stores it inventory object.
+//
+// This function must be called WITH the mutex held.
 func (b *backend) loadVoting(token, payload string) error {
 	f := strings.NewReader(payload)
 	d := json.NewDecoder(f)
@@ -168,6 +186,8 @@ func (b *backend) getInventoryRecord(token string) (inventoryRecord, error) {
 
 // getProposals returns a list of proposals that adheres to the requirements
 // specified in the provided request.
+//
+// This function must be called WITHOUT the mutex held.
 func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
 	b.RLock()
 

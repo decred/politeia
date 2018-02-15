@@ -42,7 +42,7 @@ func (s *CommentsTestSuite) SetupTest() {
 	s.backend = backend
 
 	// init comment map
-	s.backend.initComment(s.token)
+	//s.backend.initComment(s.token)
 }
 
 func (s *CommentsTestSuite) AfterTest(suiteName, testName string) {
