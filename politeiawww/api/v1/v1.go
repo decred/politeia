@@ -509,7 +509,8 @@ type GetCommentsReply struct {
 
 // StartVote
 type StartVote struct {
-	Token string `json:"token"` // Proposal that will start voting soon
+	Token     string `json:"token"`     // Proposal that will start voting soon
+	PublicKey string `json:"publickey"` // Key used for signature.
 	// XXX we probably need something to sign here besides the the token
 	Signature string `json:"signature"` // Signature of Token
 }

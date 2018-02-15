@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -79,6 +80,13 @@ type backend struct {
 
 	// _inventory will eventually replace inventory
 	_inventory map[string]*inventoryRecord // Current inventory
+
+	// When inventory is set or modified inventoryVersion MUST be
+	// incremented.  When inventory changes the caller MUST initialize the
+	// comments map for the associated censorship token.
+	// XXX remove this when _inventory is done
+	inventory        []www.ProposalRecord // current inventory
+	inventoryVersion uint                 // inventory version
 }
 
 const BackendProposalMetadataVersion = 1
@@ -635,24 +643,23 @@ func (b *backend) loadInventory() (*pd.InventoryReply, error) {
 	// Following is test code only.
 
 	// Split the existing inventory into vetted and unvetted.
-	//vetted := make([]www.ProposalRecord, 0)
-	//unvetted := make([]www.ProposalRecord, 0)
+	vetted := make([]www.ProposalRecord, 0)
+	unvetted := make([]www.ProposalRecord, 0)
 
-	//b.Lock()
-	//defer b.Unlock()
-	//for _, v := range b.inventory {
-	//	if v.Status == www.PropStatusPublic {
-	//		vetted = append(vetted, v)
-	//	} else {
-	//		unvetted = append(unvetted, v)
-	//	}
-	//}
+	b.Lock()
+	defer b.Unlock()
+	for _, v := range b.inventory {
+		if v.Status == www.PropStatusPublic {
+			vetted = append(vetted, v)
+		} else {
+			unvetted = append(unvetted, v)
+		}
+	}
 
-	//return &pd.InventoryReply{
-	//	Vetted:   convertPropsFromWWW(vetted),
-	//	Branches: convertPropsFromWWW(unvetted),
-	//}, nil
-	return nil, fmt.Errorf("loadInventory: fixme")
+	return &pd.InventoryReply{
+		Vetted:   convertPropsFromWWW(vetted),
+		Branches: convertPropsFromWWW(unvetted),
+	}, nil
 }
 
 func (b *backend) CreateLoginReply(user *database.User) *www.LoginReply {
@@ -677,27 +684,86 @@ func (b *backend) CreateLoginReply(user *database.User) *www.LoginReply {
 }
 
 // LoadInventory fetches the entire inventory of proposals from politeiad and
-// caches it.
+// caches it, sorted by most recent timestamp.
 func (b *backend) LoadInventory() error {
-	// This function should only be called once at startup so for now we
-	// are going to be ok with locking over the RPC. Slow but accurate does
-	// the trick.
+	// This function is a little hard to read but we must make sure that
+	// the inventory has not changed since we tried to load it.  We can't
+	// lock it for the duration because the RPC call is potentially very
+	// slow.
 	b.Lock()
-	defer b.Unlock()
-
-	// Fetch remote inventory.
-	inv, err := b.loadInventory()
-	if err != nil {
-		return fmt.Errorf("LoadInventory: %v", err)
+	if b.inventory != nil {
+		b.Unlock()
+		return nil
 	}
+	currentInventory := b.inventoryVersion
+	b.Unlock()
 
-	err = b.initializeInventory(inv)
-	if err != nil {
-		return fmt.Errorf("initializeInventory: %v", err)
+	// get remote inventory
+	for {
+		// Fetch remote inventory.
+		inv, err := b.loadInventory()
+		if err != nil {
+			return fmt.Errorf("LoadInventory: %v", err)
+		}
+
+		b.Lock()
+		// Restart operation if inventory changed from underneath us.
+		if currentInventory != b.inventoryVersion {
+			currentInventory = b.inventoryVersion
+			b.Unlock()
+			log.Debugf("LoadInventory: restarting reload")
+			continue
+		}
+
+		err = b.initializeInventory(inv)
+		if err != nil {
+			b.Unlock()
+			return fmt.Errorf("initializeInventory: %v", err)
+		}
+
+		// XXX old inventory behavior, kill this
+		b.inventory = make([]www.ProposalRecord, 0,
+			len(inv.Vetted)+len(inv.Branches))
+		for _, vv := range append(inv.Vetted, inv.Branches...) {
+			v := convertPropFromPD(vv)
+
+			// Set the user id.
+			var ok bool
+			v.UserId, ok = b.userPubkeys[v.PublicKey]
+			if !ok {
+				log.Errorf("User not found for public key %v, for proposal %v",
+					v.PublicKey, v.CensorshipRecord.Token)
+			}
+
+			// Initialize comment map for this proposal.
+			len := len(b.inventory)
+			if len == 0 {
+				b.inventory = append(b.inventory, v)
+				continue
+			}
+			idx := sort.Search(len, func(i int) bool {
+				return v.Timestamp < b.inventory[i].Timestamp
+			})
+
+			// Insert the proposal at idx.
+			b.inventory = append(b.inventory[:idx],
+				append([]www.ProposalRecord{v},
+					b.inventory[idx:]...)...)
+		}
+		b.inventoryVersion++
+
+		// XXX diagnostic, remove later
+		if len(b.inventory) != len(b._inventory) {
+			return fmt.Errorf("invalid inventory length %v %v",
+				len(b.inventory), len(b._inventory))
+		}
+		b.Unlock()
+
+		log.Infof("Adding %v vetted, %v unvetted proposals to the cache",
+			len(inv.Vetted), len(inv.Branches))
+
+		break
 	}
-
-	log.Infof("Adding %v vetted, %v unvetted proposals to the cache",
-		len(inv.Vetted), len(inv.Branches))
 
 	return nil
 }
@@ -1240,20 +1306,19 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 		}
 
 		// Add the new proposal to the cache.
-		// XXX sndurkin
-		//b.Lock()
-		//b.inventory = append(b.inventory, www.ProposalRecord{
-		//	Name:             name,
-		//	Status:           www.PropStatusNotReviewed,
-		//	Timestamp:        ts,
-		//	UserId:           strconv.FormatUint(user.ID, 10),
-		//	PublicKey:        np.PublicKey,
-		//	Signature:        np.Signature,
-		//	Files:            np.Files,
-		//	CensorshipRecord: convertPropCensorFromPD(pdReply.CensorshipRecord),
-		//})
-		//b.inventoryVersion++
-		//b.Unlock()
+		b.Lock()
+		b.inventory = append(b.inventory, www.ProposalRecord{
+			Name:             name,
+			Status:           www.PropStatusNotReviewed,
+			Timestamp:        ts,
+			UserId:           strconv.FormatUint(user.ID, 10),
+			PublicKey:        np.PublicKey,
+			Signature:        np.Signature,
+			Files:            np.Files,
+			CensorshipRecord: convertPropCensorFromPD(pdReply.CensorshipRecord),
+		})
+		b.inventoryVersion++
+		b.Unlock()
 	} else {
 		responseBody, err := b.makeRequest(http.MethodPost,
 			pd.NewRecordRoute, n)
@@ -1279,21 +1344,20 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 		}
 
 		// Add the new proposal to the cache.
-		// XXX marco
-		//r := www.ProposalRecord{
-		//	Name:             name,
-		//	Status:           www.PropStatusNotReviewed,
-		//	Timestamp:        ts,
-		//	UserId:           strconv.FormatUint(user.ID, 10),
-		//	PublicKey:        np.PublicKey,
-		//	Signature:        np.Signature,
-		//	Files:            make([]www.File, 0),
-		//	CensorshipRecord: convertPropCensorFromPD(pdReply.CensorshipRecord),
-		//}
-		//b.Lock()
-		//b.inventory = append(b.inventory, r)
-		//b.inventoryVersion++
-		//b.Unlock()
+		r := www.ProposalRecord{
+			Name:             name,
+			Status:           www.PropStatusNotReviewed,
+			Timestamp:        ts,
+			UserId:           strconv.FormatUint(user.ID, 10),
+			PublicKey:        np.PublicKey,
+			Signature:        np.Signature,
+			Files:            make([]www.File, 0),
+			CensorshipRecord: convertPropCensorFromPD(pdReply.CensorshipRecord),
+		}
+		b.Lock()
+		b.inventory = append(b.inventory, r)
+		b.inventoryVersion++
+		b.Unlock()
 	}
 
 	reply.CensorshipRecord = convertPropCensorFromPD(pdReply.CensorshipRecord)
@@ -1376,18 +1440,16 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 	}
 
 	// Update the cached proposal with the new status and return the reply.
-	// XXX marco
-	_ = reply
-	//b.Lock()
-	//defer b.Unlock()
-	//for k, v := range b.inventory {
-	//	if v.CensorshipRecord.Token == sps.Token {
-	//		s := convertPropStatusFromPD(pdReply.Status)
-	//		b.inventory[k].Status = s
-	//		reply.ProposalStatus = s
-	//		return &reply, nil
-	//	}
-	//}
+	b.Lock()
+	defer b.Unlock()
+	for k, v := range b.inventory {
+		if v.CensorshipRecord.Token == sps.Token {
+			s := convertPropStatusFromPD(pdReply.Status)
+			b.inventory[k].Status = s
+			reply.ProposalStatus = s
+			return &reply, nil
+		}
+	}
 
 	return nil, www.UserError{
 		ErrorCode: www.ErrorStatusProposalNotFound,
@@ -1600,21 +1662,20 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 	// the mutex held.
 	var pr www.ProposalRecord
 	found := false
-	// XXX marco
-	//b.Lock()
-	//defer b.Unlock()
-	//for _, v := range b.inventory {
-	//	if v.CensorshipRecord.Token == sv.Token {
-	//		if v.Status == www.PropStatusPublic {
-	//			found = true
-	//			pr = v
-	//			break
-	//		}
-	//		return nil, www.UserError{
-	//			ErrorCode: www.ErrorStatusWrongStatus,
-	//		}
-	//	}
-	//}
+	b.Lock()
+	defer b.Unlock()
+	for _, v := range b.inventory {
+		if v.CensorshipRecord.Token == sv.Token {
+			if v.Status == www.PropStatusPublic {
+				found = true
+				pr = v
+				break
+			}
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusWrongStatus,
+			}
+		}
+	}
 	if !found {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusProposalNotFound,
@@ -1628,8 +1689,14 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 	}
 	_ = vr
 
+	// Verify public key
+	id, err := checkPublicKey(user, sv.PublicKey)
+	if err != nil {
+		return nil, err
+	}
+
 	// Validate signature
-	err = checkSig(user, sv.Signature, sv.Token)
+	err = checkSig(id, sv.Signature, sv.Token)
 	if err != nil {
 		return nil, err
 	}
