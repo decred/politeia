@@ -173,13 +173,14 @@ func (p *politeia) respondWithServerError(w http.ResponseWriter, errorCode int64
 }
 
 func (p *politeia) getIdentity(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
 	var t v1.Identity
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&t); err != nil {
 		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
 		return
 	}
-	defer r.Body.Close()
 
 	challenge, err := hex.DecodeString(t.Challenge)
 	if err != nil || len(challenge) != v1.ChallengeSize {
@@ -197,13 +198,14 @@ func (p *politeia) getIdentity(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *politeia) newRecord(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
 	var t v1.NewRecord
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&t); err != nil {
 		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
 		return
 	}
-	defer r.Body.Close()
 
 	challenge, err := hex.DecodeString(t.Challenge)
 	if err != nil || len(challenge) != v1.ChallengeSize {
@@ -257,6 +259,8 @@ func (p *politeia) newRecord(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *politeia) updateUnvetted(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
 	var t v1.UpdateUnvetted
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&t); err != nil {
@@ -264,7 +268,6 @@ func (p *politeia) updateUnvetted(w http.ResponseWriter, r *http.Request) {
 			nil)
 		return
 	}
-	defer r.Body.Close()
 
 	challenge, err := hex.DecodeString(t.Challenge)
 	if err != nil || len(challenge) != v1.ChallengeSize {
@@ -333,13 +336,14 @@ func (p *politeia) updateUnvetted(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
 	var t v1.GetUnvetted
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&t); err != nil {
 		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
 		return
 	}
-	defer r.Body.Close()
 
 	challenge, err := hex.DecodeString(t.Challenge)
 	if err != nil || len(challenge) != v1.ChallengeSize {
@@ -398,13 +402,14 @@ func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
 	var t v1.GetVetted
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&t); err != nil {
 		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
 		return
 	}
-	defer r.Body.Close()
 
 	challenge, err := hex.DecodeString(t.Challenge)
 	if err != nil || len(challenge) != v1.ChallengeSize {
@@ -462,13 +467,14 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *politeia) inventory(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
 	var i v1.Inventory
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&i); err != nil {
 		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
 		return
 	}
-	defer r.Body.Close()
 
 	challenge, err := hex.DecodeString(i.Challenge)
 	if err != nil || len(challenge) != v1.ChallengeSize {
@@ -537,13 +543,14 @@ func (p *politeia) auth(fn http.HandlerFunc) http.HandlerFunc {
 }
 
 func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
 	var t v1.SetUnvettedStatus
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&t); err != nil {
 		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
 		return
 	}
-	defer r.Body.Close()
 
 	challenge, err := hex.DecodeString(t.Challenge)
 	if err != nil || len(challenge) != v1.ChallengeSize {
@@ -595,13 +602,14 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *politeia) updateVettedMetadata(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
 	var t v1.UpdateVettedMetadata
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&t); err != nil {
 		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
 		return
 	}
-	defer r.Body.Close()
 
 	challenge, err := hex.DecodeString(t.Challenge)
 	if err != nil || len(challenge) != v1.ChallengeSize {
