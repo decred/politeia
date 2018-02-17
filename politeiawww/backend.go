@@ -207,7 +207,12 @@ func (b *backend) hashPassword(password string) ([]byte, error) {
 
 // initUserPubkeys initializes the userPubkeys map with all the pubkey-userid
 // associations that are found in the database.
+//
+// This function must be called WITHOUT the lock held.
 func (b *backend) initUserPubkeys() error {
+	b.Lock()
+	defer b.Unlock()
+
 	return b.db.AllUsers(func(u *database.User) {
 		userId := strconv.FormatUint(u.ID, 10)
 		for _, v := range u.Identities {
@@ -215,6 +220,18 @@ func (b *backend) initUserPubkeys() error {
 			b.userPubkeys[key] = userId
 		}
 	})
+}
+
+// setUserPubkeyAssociaton associates a public key with a user id in
+// the userPubkeys cache.
+//
+// This function must be called WITHOUT the lock held.
+func (b *backend) setUserPubkeyAssociaton(user *database.User, publicKey string) {
+	b.Lock()
+	defer b.Unlock()
+
+	userId := strconv.FormatUint(user.ID, 10)
+	b.userPubkeys[publicKey] = userId
 }
 
 // emailNewUserVerificationLink emails the link with the new user verification token
@@ -741,7 +758,7 @@ func (b *backend) LoadInventory() error {
 			var ok bool
 			v.UserId, ok = b.userPubkeys[v.PublicKey]
 			if !ok {
-				log.Errorf("User not found for public key %v, for proposal %v",
+				log.Errorf("user not found for public key %v, for proposal %v",
 					v.PublicKey, v.CensorshipRecord.Token)
 			}
 
@@ -883,6 +900,9 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 			return nil, fmt.Errorf("Unable to retrieve account info for %v: %v",
 				u.Email, err)
 		}
+
+		// Associate the user id with the new public key.
+		b.setUserPubkeyAssociaton(user, u.PublicKey)
 
 		// Derive a paywall address for this user if the paywall is enabled.
 		paywallAddress := ""
@@ -1105,6 +1125,9 @@ func (b *backend) ProcessVerifyUpdateUserKey(user *database.User, vu www.VerifyU
 			ErrorCode: www.ErrorStatusInvalidSignature,
 		}
 	}
+
+	// Associate the user id with the new public key.
+	b.setUserPubkeyAssociaton(user, pi.String())
 
 	// Clear out the verification token fields in the db and activate
 	// the key and deactivate the one it's replacing.
@@ -1352,20 +1375,15 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 			return nil, err
 		}
 
-		// Add the new proposal to the cache.
-		r := www.ProposalRecord{
-			Name:             name,
-			Status:           www.PropStatusNotReviewed,
-			Timestamp:        ts,
-			UserId:           strconv.FormatUint(user.ID, 10),
-			PublicKey:        np.PublicKey,
-			Signature:        np.Signature,
-			Files:            make([]www.File, 0),
-			CensorshipRecord: convertPropCensorFromPD(pdReply.CensorshipRecord),
-		}
+		// Add the new proposal to the inventory cache.
 		b.Lock()
-		b.inventory = append(b.inventory, r)
-		b.inventoryVersion++
+		b.addInventoryRecord(pd.Record{
+			Status:           pd.RecordStatusNotReviewed,
+			Timestamp:        ts,
+			CensorshipRecord: pdReply.CensorshipRecord,
+			Metadata:         n.Metadata,
+			Files:            n.Files,
+		})
 		b.Unlock()
 	}
 
@@ -1442,21 +1460,9 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 		}
 	}
 
-	// Update the cached proposal with the new status and return the reply.
-	b.Lock()
-	defer b.Unlock()
-	for k, v := range b.inventory {
-		if v.CensorshipRecord.Token == sps.Token {
-			s := convertPropStatusFromPD(pdReply.Status)
-			b.inventory[k].Status = s
-			reply.ProposalStatus = s
-			return &reply, nil
-		}
-	}
-
-	return nil, www.UserError{
-		ErrorCode: www.ErrorStatusProposalNotFound,
-	}
+	// Return the reply.
+	reply.ProposalStatus = convertPropStatusFromPD(pdReply.Status)
+	return &reply, nil
 }
 
 // ProcessProposalDetails tries to fetch the full details of a proposal from politeiad.

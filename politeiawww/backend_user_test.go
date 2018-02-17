@@ -511,14 +511,15 @@ func TestProcessResetPassword(t *testing.T) {
 // Tests fetching a user's own proposals.
 func TestProcessUserProposalsOwn(t *testing.T) {
 	b := createBackend(t)
-	u, _ := createAndVerifyUser(t, b)
+	u, id := createAndVerifyUser(t, b)
+	user, _ := b.db.UserGet(u.Email)
 
 	l := www.Login{
 		Email:    u.Email,
 		Password: u.Password,
 	}
 	lr, _ := b.ProcessLogin(l)
-	_, npr, _ := createNewProposal(b, t)
+	_, npr, _ := createNewProposal(b, t, user, id)
 
 	up := www.UserProposals{
 		UserId: lr.UserID,
@@ -540,14 +541,15 @@ func TestProcessUserProposalsOwn(t *testing.T) {
 // Tests fetching a user's proposals from another regular user's perspective.
 func TestProcessUserProposalsOther(t *testing.T) {
 	b := createBackend(t)
-	u, _ := createAndVerifyUser(t, b)
+	u, id := createAndVerifyUser(t, b)
+	user, _ := b.db.UserGet(u.Email)
 
 	l := www.Login{
 		Email:    u.Email,
 		Password: u.Password,
 	}
 	lr, _ := b.ProcessLogin(l)
-	_, _, _ = createNewProposal(b, t)
+	createNewProposal(b, t, user, id)
 
 	up := www.UserProposals{
 		UserId: lr.UserID,

@@ -16,41 +16,23 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-// getSignatureAndSigningUser generates a full identity and signs the
-// provided msg with it, and then creates a user whose active public key
-// is set to the generated identity's public key. This allows the tests to
-// pass the signature validation in www.
-func getSignatureAndSigningUser(msg []byte) (string, *database.User, error) {
-	id, err := generateIdentity()
-	if err != nil {
-		return "", nil, err
-	}
-
+// getSignature signs the msg with the given identity and returns
+// the encoded signature
+func getSignature(msg []byte, id *identity.FullIdentity) (string, error) {
 	sig := id.SignMessage(msg)
-
-	identities := make([]database.Identity, 0, 1)
-	identities = append(identities, database.Identity{
-		Key:         id.Public.Key,
-		Activated:   1,
-		Deactivated: 0,
-	})
-	user := &database.User{
-		Identities: identities,
-	}
-
-	return hex.EncodeToString(sig[:]), user, nil
+	return hex.EncodeToString(sig[:]), nil
 }
 
-// getProposalSignatureAndSigningUser takes as input a list of files and
+// getProposalSignature takes as input a list of files and
 // generates the merkle root with the file digests, then delegates to
-// getSignatureAndSigningUser.
-func getProposalSignatureAndSigningUser(files []pd.File) (string, *database.User, error) {
+// getSignature().
+func getProposalSignature(files []pd.File, id *identity.FullIdentity) (string, error) {
 	// Calculate the merkle root with the file digests.
 	hashes := make([]*[sha256.Size]byte, 0, len(files))
 	for _, v := range files {
 		payload, err := base64.StdEncoding.DecodeString(v.Payload)
 		if err != nil {
-			return "", nil, err
+			return "", err
 		}
 
 		digest := util.Digest(payload)
@@ -65,18 +47,18 @@ func getProposalSignatureAndSigningUser(files []pd.File) (string, *database.User
 	} else {
 		encodedMerkleRoot = ""
 	}
-	return getSignatureAndSigningUser([]byte(encodedMerkleRoot))
+	return getSignature([]byte(encodedMerkleRoot), id)
 }
 
-func createNewProposal(b *backend, t *testing.T) (*www.NewProposal, *www.NewProposalReply, error) {
-	return createNewProposalWithFiles(b, t, 1, 0)
+func createNewProposal(b *backend, t *testing.T, user *database.User, id *identity.FullIdentity) (*www.NewProposal, *www.NewProposalReply, error) {
+	return createNewProposalWithFiles(b, t, user, id, 1, 0)
 }
 
-func createNewProposalWithFiles(b *backend, t *testing.T, numMDFiles, numImageFiles uint) (*www.NewProposal, *www.NewProposalReply, error) {
-	return createNewProposalWithFileSizes(b, t, numMDFiles, numImageFiles, 64, 64)
+func createNewProposalWithFiles(b *backend, t *testing.T, user *database.User, id *identity.FullIdentity, numMDFiles, numImageFiles uint) (*www.NewProposal, *www.NewProposalReply, error) {
+	return createNewProposalWithFileSizes(b, t, user, id, numMDFiles, numImageFiles, 64, 64)
 }
 
-func createNewProposalWithFileSizes(b *backend, t *testing.T, numMDFiles, numImageFiles, mdSize, imageSize uint) (*www.NewProposal, *www.NewProposalReply, error) {
+func createNewProposalWithFileSizes(b *backend, t *testing.T, user *database.User, id *identity.FullIdentity, numMDFiles, numImageFiles, mdSize, imageSize uint) (*www.NewProposal, *www.NewProposalReply, error) {
 	files := make([]pd.File, 0, numMDFiles+numImageFiles)
 	var (
 		name string
@@ -112,14 +94,14 @@ func createNewProposalWithFileSizes(b *backend, t *testing.T, numMDFiles, numIma
 		})
 	}
 
-	signature, user, err := getProposalSignatureAndSigningUser(files)
+	signature, err := getProposalSignature(files, id)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	np := www.NewProposal{
 		Files:     convertPropFilesFromPD(files),
-		PublicKey: hex.EncodeToString(user.Identities[0].Key[:]),
+		PublicKey: id.Public.String(),
 		Signature: signature,
 	}
 
@@ -127,7 +109,7 @@ func createNewProposalWithFileSizes(b *backend, t *testing.T, numMDFiles, numIma
 	return &np, npr, err
 }
 
-func createNewProposalWithInvalidTitle(b *backend, t *testing.T) (*www.NewProposal, *www.NewProposalReply, error) {
+func createNewProposalWithInvalidTitle(b *backend, t *testing.T, user *database.User, id *identity.FullIdentity) (*www.NewProposal, *www.NewProposalReply, error) {
 	const (
 		invalidTitle = "$%&/)Title<<>>"
 	)
@@ -142,14 +124,14 @@ func createNewProposalWithInvalidTitle(b *backend, t *testing.T) (*www.NewPropos
 		Payload: payload,
 	})
 
-	signature, user, err := getProposalSignatureAndSigningUser(files)
+	signature, err := getProposalSignature(files, id)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	np := www.NewProposal{
 		Files:     convertPropFilesFromPD(files),
-		PublicKey: hex.EncodeToString(user.Identities[0].Key[:]),
+		PublicKey: id.Public.String(),
 		Signature: signature,
 	}
 
@@ -157,7 +139,7 @@ func createNewProposalWithInvalidTitle(b *backend, t *testing.T) (*www.NewPropos
 	return &np, npr, err
 }
 
-func createNewProposalTitleSize(b *backend, t *testing.T, nameLength int) (*www.NewProposal, *www.NewProposalReply, error) {
+func createNewProposalTitleSize(b *backend, t *testing.T, user *database.User, id *identity.FullIdentity, nameLength int) (*www.NewProposal, *www.NewProposalReply, error) {
 
 	invalidTitle := generateRandomString(nameLength)
 	files := make([]pd.File, 0, 2)
@@ -171,14 +153,14 @@ func createNewProposalTitleSize(b *backend, t *testing.T, nameLength int) (*www.
 		Payload: payload,
 	})
 
-	signature, user, err := getProposalSignatureAndSigningUser(files)
+	signature, err := getProposalSignature(files, id)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	np := www.NewProposal{
 		Files:     convertPropFilesFromPD(files),
-		PublicKey: hex.EncodeToString(user.Identities[0].Key[:]),
+		PublicKey: id.Public.String(),
 		Signature: signature,
 	}
 
@@ -186,7 +168,7 @@ func createNewProposalTitleSize(b *backend, t *testing.T, nameLength int) (*www.
 	return &np, npr, err
 }
 
-func createNewProposalWithDuplicateFiles(b *backend, t *testing.T) (*www.NewProposal, *www.NewProposalReply, error) {
+func createNewProposalWithDuplicateFiles(b *backend, t *testing.T, user *database.User, id *identity.FullIdentity) (*www.NewProposal, *www.NewProposalReply, error) {
 	files := make([]pd.File, 0, 2)
 	filename := indexFile
 	payload := base64.StdEncoding.EncodeToString([]byte(generateRandomString(int(64))))
@@ -203,7 +185,7 @@ func createNewProposalWithDuplicateFiles(b *backend, t *testing.T) (*www.NewProp
 		Payload: payload,
 	})
 
-	signature, user, err := getProposalSignatureAndSigningUser(files)
+	signature, err := getProposalSignature(files, id)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -218,7 +200,7 @@ func createNewProposalWithDuplicateFiles(b *backend, t *testing.T) (*www.NewProp
 	return &np, npr, err
 }
 
-func createNewProposalWithoutIndexFile(b *backend, t *testing.T) (*www.NewProposal, *www.NewProposalReply, error) {
+func createNewProposalWithoutIndexFile(b *backend, t *testing.T, user *database.User, id *identity.FullIdentity) (*www.NewProposal, *www.NewProposalReply, error) {
 	files := make([]pd.File, 0, 2)
 
 	files = append(files, pd.File{
@@ -227,7 +209,7 @@ func createNewProposalWithoutIndexFile(b *backend, t *testing.T) (*www.NewPropos
 		Payload: base64.StdEncoding.EncodeToString([]byte(generateRandomString(int(64)))),
 	})
 
-	signature, user, err := getProposalSignatureAndSigningUser(files)
+	signature, err := getProposalSignature(files, id)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -242,20 +224,20 @@ func createNewProposalWithoutIndexFile(b *backend, t *testing.T) (*www.NewPropos
 	return &np, npr, err
 }
 
-func publishProposal(b *backend, token string, t *testing.T) {
+func publishProposal(b *backend, token string, t *testing.T, user *database.User, id *identity.FullIdentity) {
 	sps := www.SetProposalStatus{
 		Token:          token,
 		ProposalStatus: www.PropStatusPublic,
 	}
 
 	msg := sps.Token + strconv.FormatUint(uint64(sps.ProposalStatus), 10)
-	signature, user, err := getSignatureAndSigningUser([]byte(msg))
+	signature, err := getSignature([]byte(msg), id)
 	if err != nil {
 		t.Fatal(err)
 	}
 	sps.Signature = signature
 
-	sps.PublicKey = hex.EncodeToString(user.Identities[0].Key[:])
+	sps.PublicKey = id.Public.String()
 
 	_, err = b.ProcessSetProposalStatus(sps, user)
 	if err != nil {
@@ -263,20 +245,20 @@ func publishProposal(b *backend, token string, t *testing.T) {
 	}
 }
 
-func censorProposal(b *backend, token string, t *testing.T) {
+func censorProposal(b *backend, token string, t *testing.T, user *database.User, id *identity.FullIdentity) {
 	sps := www.SetProposalStatus{
 		Token:          token,
 		ProposalStatus: www.PropStatusCensored,
 	}
 
 	msg := sps.Token + strconv.FormatUint(uint64(sps.ProposalStatus), 10)
-	signature, user, err := getSignatureAndSigningUser([]byte(msg))
+	signature, err := getSignature([]byte(msg), id)
 	if err != nil {
 		t.Fatal(err)
 	}
 	sps.Signature = signature
 
-	sps.PublicKey = hex.EncodeToString(user.Identities[0].Key[:])
+	sps.PublicKey = id.Public.String()
 
 	_, err = b.ProcessSetProposalStatus(sps, user)
 	if err != nil {
@@ -335,46 +317,49 @@ func verifyProposalsSorted(b *backend, vettedProposals, unvettedProposals []www.
 // Tests the policy restrictions applied when attempting to create a new proposal.
 func TestNewProposalPolicyRestrictions(t *testing.T) {
 	b := createBackend(t)
-
+	u, id := createAndVerifyUser(t, b)
+	user, _ := b.db.UserGet(u.Email)
 	p := b.ProcessPolicy(www.Policy{})
 
-	_, _, err := createNewProposalWithFileSizes(b, t, p.MaxMDs, p.MaxImages, p.MaxMDSize, p.MaxImageSize)
+	_, _, err := createNewProposalWithFileSizes(b, t, user, id, p.MaxMDs, p.MaxImages, p.MaxMDSize, p.MaxImageSize)
 	assertSuccess(t, err)
 
-	_, _, err = createNewProposalWithFiles(b, t, p.MaxMDs+1, 0)
+	_, _, err = createNewProposalWithFiles(b, t, user, id, p.MaxMDs+1, 0)
 	assertError(t, err, www.ErrorStatusMaxMDsExceededPolicy)
 
-	_, _, err = createNewProposalWithFiles(b, t, 1, p.MaxImages+1)
+	_, _, err = createNewProposalWithFiles(b, t, user, id, 1, p.MaxImages+1)
 	assertError(t, err, www.ErrorStatusMaxImagesExceededPolicy)
 
-	_, _, err = createNewProposalWithFiles(b, t, 0, 0)
+	_, _, err = createNewProposalWithFiles(b, t, user, id, 0, 0)
 	assertError(t, err, www.ErrorStatusProposalMissingFiles)
 
-	_, _, err = createNewProposalWithFileSizes(b, t, 1, 0, p.MaxMDSize+1, 0)
+	_, _, err = createNewProposalWithFileSizes(b, t, user, id, 1, 0, p.MaxMDSize+1, 0)
 	assertError(t, err, www.ErrorStatusMaxMDSizeExceededPolicy)
 
-	_, _, err = createNewProposalWithFileSizes(b, t, 1, 1, 64, p.MaxImageSize+1)
+	_, _, err = createNewProposalWithFileSizes(b, t, user, id, 1, 1, 64, p.MaxImageSize+1)
 	assertError(t, err, www.ErrorStatusMaxImageSizeExceededPolicy)
 
-	_, _, err = createNewProposalWithInvalidTitle(b, t)
+	_, _, err = createNewProposalWithInvalidTitle(b, t, user, id)
 	assertErrorWithContext(t, err, www.ErrorStatusProposalInvalidTitle, []string{util.CreateProposalTitleRegex()})
 
-	_, _, err = createNewProposalTitleSize(b, t, www.PolicyMaxProposalNameLength+1)
+	_, _, err = createNewProposalTitleSize(b, t, user, id, www.PolicyMaxProposalNameLength+1)
 	assertErrorWithContext(t, err, www.ErrorStatusProposalInvalidTitle, []string{util.CreateProposalTitleRegex()})
 
-	_, _, err = createNewProposalTitleSize(b, t, www.PolicyMinProposalNameLength-1)
+	_, _, err = createNewProposalTitleSize(b, t, user, id, www.PolicyMinProposalNameLength-1)
 	assertErrorWithContext(t, err, www.ErrorStatusProposalInvalidTitle, []string{util.CreateProposalTitleRegex()})
 
-	_, _, err = createNewProposalWithDuplicateFiles(b, t)
+	_, _, err = createNewProposalWithDuplicateFiles(b, t, user, id)
 	assertErrorWithContext(t, err, www.ErrorStatusProposalDuplicateFilenames, []string{indexFile})
 
-	_, _, err = createNewProposalWithoutIndexFile(b, t)
+	_, _, err = createNewProposalWithoutIndexFile(b, t, user, id)
 	assertErrorWithContext(t, err, www.ErrorStatusProposalMissingFiles, []string{indexFile})
 }
 
 // Tests creates a new proposal with an invalid signature.
 func TestNewProposalWithInvalidSignature(t *testing.T) {
 	b := createBackend(t)
+	u, id := createAndVerifyUser(t, b)
+	user, _ := b.db.UserGet(u.Email)
 
 	var (
 		title     = generateRandomString(www.PolicyMinProposalNameLength)
@@ -390,14 +375,14 @@ func TestNewProposalWithInvalidSignature(t *testing.T) {
 		Payload: base64.StdEncoding.EncodeToString(contents),
 	})
 
-	_, user, err := getProposalSignatureAndSigningUser(files)
+	_, err := getProposalSignature(files, id)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	np := www.NewProposal{
 		Files:     convertPropFilesFromPD(files),
-		PublicKey: hex.EncodeToString(user.Identities[0].Key[:]),
+		PublicKey: id.Public.String(),
 		Signature: signature,
 	}
 
@@ -410,6 +395,8 @@ func TestNewProposalWithInvalidSignature(t *testing.T) {
 // Tests creates a new proposal with an invalid signature.
 func TestNewProposalWithInvalidSigningKey(t *testing.T) {
 	b := createBackend(t)
+	u, id := createAndVerifyUser(t, b)
+	user, _ := b.db.UserGet(u.Email)
 
 	var (
 		title    = generateRandomString(www.PolicyMinProposalNameLength)
@@ -424,10 +411,7 @@ func TestNewProposalWithInvalidSigningKey(t *testing.T) {
 		Payload: base64.StdEncoding.EncodeToString(contents),
 	})
 
-	// Call getProposalSignatureAndSigningUser twice, first to get
-	// the signed proposal data and second to create a user with a different
-	// public key than was used to sign the proposal data.
-	signature, user, err := getProposalSignatureAndSigningUser(files)
+	signature, err := getProposalSignature(files, id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -452,7 +436,9 @@ func TestNewProposalWithInvalidSigningKey(t *testing.T) {
 // Tests fetching an unreviewed proposal's details.
 func TestUnreviewedProposal(t *testing.T) {
 	b := createBackend(t)
-	np, npr, err := createNewProposal(b, t)
+	u, id := createAndVerifyUser(t, b)
+	user, _ := b.db.UserGet(u.Email)
+	np, npr, err := createNewProposal(b, t, user, id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -465,11 +451,13 @@ func TestUnreviewedProposal(t *testing.T) {
 // Tests censoring a proposal and then fetching its details.
 func TestCensoredProposal(t *testing.T) {
 	b := createBackend(t)
-	np, npr, err := createNewProposal(b, t)
+	u, id := createAndVerifyUser(t, b)
+	user, _ := b.db.UserGet(u.Email)
+	np, npr, err := createNewProposal(b, t, user, id)
 	if err != nil {
 		t.Fatal(err)
 	}
-	censorProposal(b, npr.CensorshipRecord.Token, t)
+	censorProposal(b, npr.CensorshipRecord.Token, t, user, id)
 	pdr := getProposalDetails(b, npr.CensorshipRecord.Token, t)
 	verifyProposalDetails(np, pdr.Proposal, t)
 
@@ -479,11 +467,13 @@ func TestCensoredProposal(t *testing.T) {
 // Tests publishing a proposal and then fetching its details.
 func TestPublishedProposal(t *testing.T) {
 	b := createBackend(t)
-	np, npr, err := createNewProposal(b, t)
+	u, id := createAndVerifyUser(t, b)
+	user, _ := b.db.UserGet(u.Email)
+	np, npr, err := createNewProposal(b, t, user, id)
 	if err != nil {
 		t.Fatal(err)
 	}
-	publishProposal(b, npr.CensorshipRecord.Token, t)
+	publishProposal(b, npr.CensorshipRecord.Token, t, user, id)
 	pdr := getProposalDetails(b, npr.CensorshipRecord.Token, t)
 	verifyProposalDetails(np, pdr.Proposal, t)
 
@@ -493,19 +483,21 @@ func TestPublishedProposal(t *testing.T) {
 // Tests that the inventory is always sorted by timestamp.
 func TestInventorySorted(t *testing.T) {
 	b := createBackend(t)
+	u, id := createAndVerifyUser(t, b)
+	user, _ := b.db.UserGet(u.Email)
 
 	// Create an array of proposals, some vetted and some unvetted.
 	allProposals := make([]www.ProposalRecord, 0, 5)
 	vettedProposals := make([]www.ProposalRecord, 0)
 	unvettedProposals := make([]www.ProposalRecord, 0)
 	for i := 0; i < cap(allProposals); i++ {
-		_, npr, err := createNewProposal(b, t)
+		_, npr, err := createNewProposal(b, t, user, id)
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		if i%2 == 0 {
-			publishProposal(b, npr.CensorshipRecord.Token, t)
+			publishProposal(b, npr.CensorshipRecord.Token, t, user, id)
 		}
 
 		pdr := getProposalDetails(b, npr.CensorshipRecord.Token, t)
@@ -516,7 +508,8 @@ func TestInventorySorted(t *testing.T) {
 			unvettedProposals = append(unvettedProposals, pdr.Proposal)
 		}
 
-		time.Sleep(time.Duration(2) * time.Second)
+		// Sleep to ensure the proposals have different timestamps.
+		time.Sleep(time.Duration(1) * time.Second)
 	}
 
 	/*
@@ -550,15 +543,20 @@ func TestInventorySorted(t *testing.T) {
 
 func TestProposalListPaging(t *testing.T) {
 	b := createBackend(t)
+	nu, id := createAndVerifyUser(t, b)
+	user, _ := b.db.UserGet(nu.Email)
 
 	tokens := make([]string, www.ProposalListPageSize+1)
 	for i := 0; i < www.ProposalListPageSize+1; i++ {
-		_, npr, err := createNewProposal(b, t)
+		_, npr, err := createNewProposal(b, t, user, id)
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		tokens[i] = npr.CensorshipRecord.Token
+
+		// Sleep to ensure the proposals have different timestamps.
+		time.Sleep(time.Duration(1) * time.Second)
 	}
 
 	var u www.GetAllUnvetted
@@ -598,7 +596,7 @@ func TestProposalListPaging(t *testing.T) {
 
 	// Publish all the proposals.
 	for _, token := range tokens {
-		publishProposal(b, token, t)
+		publishProposal(b, token, t, user, id)
 	}
 
 	var v www.GetAllVetted

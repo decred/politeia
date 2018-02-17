@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/davecgh/go-spew/spew"
 	"io"
 	"sort"
 	"strings"
@@ -198,10 +199,11 @@ func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
 		// Set the number of comments.
 		v.NumComments = uint(len(vv.comments))
 
-		// Set the user id.
+		// Look up and set the user id.
 		var ok bool
 		v.UserId, ok = b.userPubkeys[v.PublicKey]
 		if !ok {
+			log.Infof("%v\n", spew.Sdump(b.userPubkeys))
 			log.Errorf("user not found for public key %v, for proposal %v",
 				v.PublicKey, v.CensorshipRecord.Token)
 		}
