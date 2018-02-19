@@ -109,8 +109,7 @@ func convertPropCensorFromPD(f pd.CensorshipRecord) www.CensorshipRecord {
 	}
 }
 
-func convertPropFromPD(p pd.Record) www.ProposalRecord {
-	log.Infof("%v", spew.Sdump(p))
+func convertPropFromPD(p pd.Record, changes []MDStreamChanges) www.ProposalRecord {
 	md := &BackendProposalMetadata{}
 	for _, v := range p.Metadata {
 		if v.ID != mdStreamGeneral {
@@ -125,23 +124,20 @@ func convertPropFromPD(p pd.Record) www.ProposalRecord {
 		md = m
 	}
 
+	status := convertPropStatusFromPD(p.Status)
+	for _, v := range changes {
+		status = convertPropStatusFromPD(v.NewStatus)
+	}
+
 	return www.ProposalRecord{
 		Name:             md.Name,
-		Status:           convertPropStatusFromPD(p.Status),
+		Status:           status,
 		Timestamp:        md.Timestamp,
 		PublicKey:        md.PublicKey,
 		Signature:        md.Signature,
 		Files:            convertPropFilesFromPD(p.Files),
 		CensorshipRecord: convertPropCensorFromPD(p.CensorshipRecord),
 	}
-}
-
-func convertPropsFromPD(p []pd.Record) []www.ProposalRecord {
-	pr := make([]www.ProposalRecord, 0, len(p))
-	for _, v := range p {
-		pr = append(pr, convertPropFromPD(v))
-	}
-	return pr
 }
 
 func convertErrorStatusFromPD(s int) www.ErrorStatusT {

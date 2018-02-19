@@ -196,6 +196,157 @@ func printRecordRecord(header string, pr v1.Record) {
 	}
 }
 
+func pluginInventory() (*v1.PluginInventoryReply, error) {
+	challenge, err := util.Random(v1.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+	b, err := json.Marshal(v1.PluginInventory{
+		Challenge: hex.EncodeToString(challenge),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if *printJson {
+		fmt.Println(string(b))
+	}
+
+	c, err := util.NewClient(verify, *rpccert)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequest("POST", *rpchost+v1.PluginInventoryRoute,
+		bytes.NewReader(b))
+	if err != nil {
+		return nil, err
+	}
+	req.SetBasicAuth(*rpcuser, *rpcpass)
+	r, err := c.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Body.Close()
+	if r.StatusCode != http.StatusOK {
+		e, err := getErrorFromResponse(r)
+		if err != nil {
+			return nil, fmt.Errorf("%v", r.Status)
+		}
+		return nil, fmt.Errorf("%v: %v", r.Status, e)
+	}
+
+	bodyBytes := util.ConvertBodyToByteArray(r.Body, *printJson)
+
+	var ir v1.PluginInventoryReply
+	err = json.Unmarshal(bodyBytes, &ir)
+	if err != nil {
+		return nil, fmt.Errorf("Could node unmarshal "+
+			"PluginInventoryReply: %v", err)
+	}
+
+	// Fetch remote identity
+	id, err := identity.LoadPublicIdentity(*identityFilename)
+	if err != nil {
+		return nil, err
+	}
+
+	err = util.VerifyChallenge(id, challenge, ir.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ir, nil
+}
+
+func plugin() error {
+	flags := flag.Args()[1:] // Chop off action.
+
+	if len(flags) != 4 {
+		return fmt.Errorf("not enough parameters")
+	}
+
+	challenge, err := util.Random(v1.ChallengeSize)
+	if err != nil {
+		return err
+	}
+	b, err := json.Marshal(v1.PluginCommand{
+		Challenge: hex.EncodeToString(challenge),
+		ID:        flags[0],
+		Command:   flags[1],
+		CommandID: flags[2],
+		Payload:   flags[3],
+	})
+	if err != nil {
+		return err
+	}
+
+	if *printJson {
+		fmt.Println(string(b))
+	}
+
+	c, err := util.NewClient(verify, *rpccert)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest("POST", *rpchost+v1.PluginCommandRoute,
+		bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+	req.SetBasicAuth(*rpcuser, *rpcpass)
+	r, err := c.Do(req)
+	if err != nil {
+		return err
+	}
+	defer r.Body.Close()
+	if r.StatusCode != http.StatusOK {
+		e, err := getErrorFromResponse(r)
+		if err != nil {
+			return fmt.Errorf("%v", r.Status)
+		}
+		return fmt.Errorf("%v: %v", r.Status, e)
+	}
+
+	bodyBytes := util.ConvertBodyToByteArray(r.Body, *printJson)
+
+	var pcr v1.PluginCommandReply
+	err = json.Unmarshal(bodyBytes, &pcr)
+	if err != nil {
+		return fmt.Errorf("Could node unmarshal "+
+			"PluginCommandReply: %v", err)
+	}
+
+	// Fetch remote identity
+	id, err := identity.LoadPublicIdentity(*identityFilename)
+	if err != nil {
+		return err
+	}
+
+	return util.VerifyChallenge(id, challenge, pcr.Response)
+}
+
+func getPluginInventory() error {
+	pr, err := pluginInventory()
+	if err != nil {
+		return err
+	}
+
+	for _, v := range pr.Plugins {
+		fmt.Printf("Plugin ID      : %v\n", v.ID)
+		if len(v.Settings) > 0 {
+			fmt.Printf("Plugin settings: %v = %v\n",
+				v.Settings[0].Key,
+				v.Settings[0].Value)
+		}
+		for _, vv := range v.Settings[1:] {
+			fmt.Printf("                 %v = %v\n", vv.Key,
+				vv.Value)
+		}
+	}
+
+	return nil
+}
+
 func remoteInventory() (*v1.InventoryReply, error) {
 	challenge, err := util.Random(v1.ChallengeSize)
 	if err != nil {

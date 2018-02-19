@@ -133,13 +133,16 @@ func (b *backend) addComment(c www.NewComment, userID uint64) (*www.NewCommentRe
 	if err != nil {
 		return nil, err
 	}
-	f, err := os.OpenFile(path.Join(b.commentJournalDir, c.Token),
-		os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
-	if err != nil {
-		return nil, err
+
+	if !b.test {
+		f, err := os.OpenFile(path.Join(b.commentJournalDir, c.Token),
+			os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		fmt.Fprintf(f, "%s\n", cb)
 	}
-	defer f.Close()
-	fmt.Fprintf(f, "%s\n", cb)
 
 	// Store comment in memory for quick lookup
 	b.comments[c.Token][b.commentID] = comment
