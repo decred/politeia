@@ -2136,7 +2136,6 @@ func (g *gitBackEnd) Plugin(command, payload string) (string, string, error) {
 	default:
 		return "", "", fmt.Errorf("invalid payload command")
 	}
-	return "", "", fmt.Errorf("plugin not yet")
 }
 
 // Close shuts down the backend.  It obtains the lock and sets the shutdown
