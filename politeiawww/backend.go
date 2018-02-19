@@ -752,7 +752,7 @@ func (b *backend) LoadInventory() error {
 		b.inventory = make([]www.ProposalRecord, 0,
 			len(inv.Vetted)+len(inv.Branches))
 		for _, vv := range append(inv.Vetted, inv.Branches...) {
-			v := convertPropFromPD(vv)
+			v := convertPropFromPD(vv, nil)
 
 			// Set the user id.
 			var ok bool
@@ -1329,7 +1329,7 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 
 	var pdReply pd.NewRecordReply
 	if b.test {
-		tokenBytes, err := util.Random(16)
+		tokenBytes, err := util.Random(pd.TokenSize)
 		if err != nil {
 			return nil, err
 		}
@@ -1400,6 +1400,18 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 		return nil, err
 	}
 
+	// Create change record
+	newStatus := convertPropStatusFromWWW(sps.ProposalStatus)
+	r := MDStreamChanges{
+		Timestamp: time.Now().Unix(),
+		NewStatus: newStatus,
+	}
+
+	blob, err := json.Marshal(r)
+	if err != nil {
+		return nil, err
+	}
+
 	var reply www.SetProposalStatusReply
 	var pdReply pd.SetUnvettedStatusReply
 	if b.test {
@@ -1410,23 +1422,11 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 			return nil, err
 		}
 
-		// Create change record
-		newStatus := convertPropStatusFromWWW(sps.ProposalStatus)
-		r := MDStreamChanges{
-			Timestamp: time.Now().Unix(),
-			NewStatus: newStatus,
-		}
-
 		var ok bool
 		r.AdminPubKey, ok = database.ActiveIdentityString(user.Identities)
 		if !ok {
 			return nil, fmt.Errorf("invalid admin identity: %v",
 				user.ID)
-		}
-
-		blob, err := json.Marshal(r)
-		if err != nil {
-			return nil, err
 		}
 
 		sus := pd.SetUnvettedStatus{
@@ -1460,6 +1460,11 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 		}
 	}
 
+	// Update the inventory with the metadata changes.
+	b.Lock()
+	b.loadChanges(sps.Token, string(blob))
+	b.Unlock()
+
 	// Return the reply.
 	reply.ProposalStatus = convertPropStatusFromPD(pdReply.Status)
 	return &reply, nil
@@ -1483,7 +1488,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 	}
 	numComments := uint(len(p.comments))
 	b.RUnlock()
-	cachedProposal := convertPropFromPD(p.record)
+	cachedProposal := convertPropFromPD(p.record, p.changes)
 
 	var isVettedProposal bool
 	var requestObject interface{}
@@ -1577,7 +1582,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 		return nil, err
 	}
 
-	reply.Proposal = convertPropFromPD(proposal)
+	reply.Proposal = convertPropFromPD(proposal, p.changes)
 	reply.Proposal.NumComments = numComments
 	return &reply, nil
 }
@@ -1590,6 +1595,9 @@ func (b *backend) ProcessComment(c www.NewComment, user *database.User) (*www.Ne
 
 	err := checkPublicKeyAndSignature(user, c.PublicKey, c.Signature,
 		c.Token, c.ParentID, c.Comment)
+	if err != nil {
+		return nil, err
+	}
 
 	b.Lock()
 	defer b.Unlock()

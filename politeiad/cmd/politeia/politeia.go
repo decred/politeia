@@ -324,12 +324,7 @@ func plugin() error {
 		return err
 	}
 
-	err = util.VerifyChallenge(id, challenge, pcr.Response)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return util.VerifyChallenge(id, challenge, pcr.Response)
 }
 
 func getPluginInventory() error {

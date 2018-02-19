@@ -297,7 +297,8 @@ func verifyProposalsSorted(b *backend, vettedProposals, unvettedProposals []www.
 	// Verify that the proposals are returned sorted correctly.
 	allVettedReply := b.ProcessAllVetted(www.GetAllVetted{})
 	if len(allVettedReply.Proposals) != len(vettedProposals) {
-		t.Fatalf("incorrect number of vetted proposals")
+		t.Fatalf("expected %v proposals, got %v", len(vettedProposals),
+			len(allVettedReply.Proposals))
 	}
 	for i := 0; i < len(allVettedReply.Proposals); i++ {
 		verifyProposals(allVettedReply.Proposals[i],
@@ -306,7 +307,8 @@ func verifyProposalsSorted(b *backend, vettedProposals, unvettedProposals []www.
 
 	allUnvettedReply := b.ProcessAllUnvetted(www.GetAllUnvetted{})
 	if len(allUnvettedReply.Proposals) != len(unvettedProposals) {
-		t.Fatalf("incorrect number of unvetted proposals")
+		t.Fatalf("expected %v proposals, got %v", len(unvettedProposals),
+			len(allUnvettedReply.Proposals))
 	}
 	for i := 0; i < len(allUnvettedReply.Proposals); i++ {
 		verifyProposals(allUnvettedReply.Proposals[i],
@@ -511,31 +513,13 @@ func TestInventorySorted(t *testing.T) {
 		// Sleep to ensure the proposals have different timestamps.
 		time.Sleep(time.Duration(1) * time.Second)
 	}
-
 	/*
 		fmt.Printf("Proposals:\n")
-		for _, v := range proposals {
+		for _, v := range allProposals {
 			fmt.Printf("%v %v %v\n", v.Name, v.Status, v.Timestamp)
 		}
 	*/
-
 	// Verify that the proposals are returned sorted correctly.
-	verifyProposalsSorted(b, vettedProposals, unvettedProposals, t)
-
-	// Wipe the inventory and fetch it again.
-	err := b.LoadInventory()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	/*
-		fmt.Printf("\nInventory:\n")
-		for _, v := range b.inventory {
-			fmt.Printf("%v %v %v\n", v.Name, v.Status, v.Timestamp)
-		}
-	*/
-
-	// Verify that the proposals are still sorted correctly.
 	verifyProposalsSorted(b, vettedProposals, unvettedProposals, t)
 
 	b.db.Close()

@@ -143,7 +143,6 @@ func (b *backend) loadChanges(token, payload string) error {
 		p := b._inventory[token]
 		p.changes = append(p.changes, md)
 	}
-	return nil
 }
 
 // loadVoting decodes voting metadata and stores it inventory object.
@@ -162,7 +161,6 @@ func (b *backend) loadVoting(token, payload string) error {
 		p := b._inventory[token]
 		p.voting = append(p.voting, md)
 	}
-	return nil
 }
 
 // _getInventoryRecord reads an inventory record from the inventory cache.
@@ -194,7 +192,7 @@ func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
 
 	allProposals := make([]www.ProposalRecord, 0, len(b._inventory))
 	for _, vv := range b._inventory {
-		v := convertPropFromPD(vv.record)
+		v := convertPropFromPD(vv.record, vv.changes)
 
 		// Set the number of comments.
 		v.NumComments = uint(len(vv.comments))
