@@ -112,7 +112,29 @@ func convertPropCensorFromPD(f pd.CensorshipRecord) www.CensorshipRecord {
 	}
 }
 
-func convertPropFromPD(p pd.Record, changes []MDStreamChanges) www.ProposalRecord {
+func convertPropFromInventoryRecord(r *inventoryRecord, userPubkeys map[string]string) www.ProposalRecord {
+	proposal := convertPropFromPD(r.record)
+
+	// Set the most up-to-date status.
+	for _, v := range r.changes {
+		proposal.Status = convertPropStatusFromPD(v.NewStatus)
+	}
+
+	// Set the comments num.
+	proposal.NumComments = uint(len(r.comments))
+
+	// Set the user id.
+	var ok bool
+	proposal.UserId, ok = userPubkeys[proposal.PublicKey]
+	if !ok {
+		log.Errorf("user not found for public key %v, for proposal %v",
+			proposal.PublicKey, proposal.CensorshipRecord.Token)
+	}
+
+	return proposal
+}
+
+func convertPropFromPD(p pd.Record) www.ProposalRecord {
 	md := &BackendProposalMetadata{}
 	for _, v := range p.Metadata {
 		if v.ID != mdStreamGeneral {
@@ -127,14 +149,9 @@ func convertPropFromPD(p pd.Record, changes []MDStreamChanges) www.ProposalRecor
 		md = m
 	}
 
-	status := convertPropStatusFromPD(p.Status)
-	for _, v := range changes {
-		status = convertPropStatusFromPD(v.NewStatus)
-	}
-
 	return www.ProposalRecord{
 		Name:             md.Name,
-		Status:           status,
+		Status:           convertPropStatusFromPD(p.Status),
 		Timestamp:        md.Timestamp,
 		PublicKey:        md.PublicKey,
 		Signature:        md.Signature,
