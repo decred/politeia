@@ -192,7 +192,7 @@ func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
 
 	allProposals := make([]www.ProposalRecord, 0, len(b._inventory))
 	for _, vv := range b._inventory {
-		v := convertPropFromPD(vv.record, vv.changes)
+		v := convertPropFromInventoryRecord(vv, b.userPubkeys)
 
 		// Set the number of comments.
 		v.NumComments = uint(len(vv.comments))

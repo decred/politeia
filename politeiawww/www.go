@@ -202,8 +202,8 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 	}
 
 	errorCode := time.Now().Unix()
-	log.Errorf("%v %v %v %v Internal error: %v", remoteAddr(r),
-		r.Method, r.URL, r.Proto, errorCode)
+	log.Errorf("%v %v %v %v Internal error: %v %v", remoteAddr(r),
+		r.Method, r.URL, r.Proto, errorCode, args)
 	util.RespondWithJSON(w, http.StatusInternalServerError,
 		v1.ErrorReply{
 			ErrorCode: errorCode,

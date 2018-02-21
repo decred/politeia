@@ -753,7 +753,7 @@ func (b *backend) LoadInventory() error {
 		b.inventory = make([]www.ProposalRecord, 0,
 			len(inv.Vetted)+len(inv.Branches))
 		for _, vv := range append(inv.Vetted, inv.Branches...) {
-			v := convertPropFromPD(vv, nil)
+			v := convertPropFromPD(vv)
 
 			// Set the user id.
 			var ok bool
@@ -1491,9 +1491,8 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 			ErrorCode: www.ErrorStatusProposalNotFound,
 		}
 	}
-	numComments := uint(len(p.comments))
 	b.RUnlock()
-	cachedProposal := convertPropFromPD(p.record, p.changes)
+	cachedProposal := convertPropFromInventoryRecord(p, b.userPubkeys)
 
 	var isVettedProposal bool
 	var requestObject interface{}
@@ -1513,7 +1512,6 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 
 	if b.test {
 		reply.Proposal = cachedProposal
-		reply.Proposal.NumComments = numComments
 		return &reply, nil
 	}
 
@@ -1528,7 +1526,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 			PublicKey:        cachedProposal.PublicKey,
 			Signature:        cachedProposal.Signature,
 			CensorshipRecord: cachedProposal.CensorshipRecord,
-			NumComments:      numComments,
+			NumComments:      cachedProposal.NumComments,
 		}
 
 		if user != nil {
@@ -1558,7 +1556,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 	}
 
 	var response string
-	var proposal pd.Record
+	var fullRecord pd.Record
 	if isVettedProposal {
 		var pdReply pd.GetVettedReply
 		err = json.Unmarshal(responseBody, &pdReply)
@@ -1568,7 +1566,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 		}
 
 		response = pdReply.Response
-		proposal = pdReply.Record
+		fullRecord = pdReply.Record
 	} else {
 		var pdReply pd.GetUnvettedReply
 		err = json.Unmarshal(responseBody, &pdReply)
@@ -1578,7 +1576,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 		}
 
 		response = pdReply.Response
-		proposal = pdReply.Record
+		fullRecord = pdReply.Record
 	}
 
 	// Verify the challenge.
@@ -1587,8 +1585,11 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 		return nil, err
 	}
 
-	reply.Proposal = convertPropFromPD(proposal, p.changes)
-	reply.Proposal.NumComments = numComments
+	reply.Proposal = convertPropFromInventoryRecord(&inventoryRecord{
+		record:   fullRecord,
+		changes:  p.changes,
+		comments: p.comments,
+	}, b.userPubkeys)
 	return &reply, nil
 }
 
