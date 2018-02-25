@@ -34,7 +34,6 @@ The politeia stack is as follows:
 ## Components
 * politeia - Reference client application.
 * politeiad - Reference server daemon.
-* politeiaddumpdb - Politeiad database dumper for debugging purposes.
 * politeia_verify - Reference verification tool.
 * politeiawww - Web backend server.
 * politeiawww_refclient - Web reference client application.
@@ -52,7 +51,7 @@ https://github.com/decred/politeiagui
 #### 3. Setup configuration files:
 * `politeiad` and `politeiawww` both have configuration files that you should
 set up to make execution easier.
-* You should create the configuration files under the following path:  
+* You should create the configuration files under the following path:
   - **macOS** `/Users/<username>/Library/Application Support/Politeiad/politeiad.conf`
   - **Windows** `C:\Users\<username>\AppData\Local\Politeiad/politeiad.conf`
   - **Ubuntu** `~/.politeiad/politeiad.conf`

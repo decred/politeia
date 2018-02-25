@@ -207,7 +207,7 @@ func TestAnchorWithCommits(t *testing.T) {
 	if len(unconfirmed.Merkles) != 1 {
 		t.Fatalf("invalid merkles len %v", len(unconfirmed.Merkles))
 	}
-	// Read anchor pointed at by merkle from db
+	// Read anchor pointed at by merkle from git log
 	var mr [sha256.Size]byte
 	copy(mr[:], unconfirmed.Merkles[0])
 	anchor, err := g.readAnchorRecord(mr)
@@ -252,7 +252,7 @@ func TestAnchorWithCommits(t *testing.T) {
 			spew.Sdump(unconfirmed2),
 			spew.Sdump(unconfirmed))
 	}
-	// Read anchor again pointed at by merkle from db
+	// Read anchor again pointed at by merkle from git log
 	var mr2 [sha256.Size]byte
 	copy(mr2[:], unconfirmed.Merkles[0])
 	anchor2, err := g.readAnchorRecord(mr2)
@@ -307,10 +307,6 @@ func TestAnchorWithCommits(t *testing.T) {
 	if anchor3.Type != AnchorVerified {
 		t.Fatalf("invalid anchor type %v expected %v", anchor3.Type,
 			AnchorVerified)
-	}
-	if anchor3.Transaction != expectedTestTX {
-		t.Fatalf("invalid anchor transation %v expected %v",
-			anchor3.Transaction, expectedTestTX)
 	}
 	// Verify that Merkle was cleared in last anchor record
 	la, err = g.readLastAnchorRecord()
