@@ -193,91 +193,59 @@ func (b *backend) loadComments(token, comments string) error {
 	return nil
 }
 
-// replayCommentJournal reads the comments journal and recreates the internal
-// memory map.  Not all failures are considered fatal.  It is better to load
-// some comments instead of none.
-// This call must be called with the lock held.
-//func (b *backend) replayCommentJournal(token string) error {
-//	// Replay journal
-//	f, err := os.Open(token)
-//	if err != nil {
-//		// See if there is something to do with the journal.
-//		if os.IsNotExist(err) {
-//			return nil
-//		}
-//		return err
-//	}
-//	defer f.Close()
-//	d := json.NewDecoder(f)
-//	for {
-//		var c BackendComment
-//		if err := d.Decode(&c); err == io.EOF {
-//			break // done decoding file
-//		} else if err != nil {
-//			return err
-//		}
-//
-//		// Verify comment version
-//		if c.Version != defaultCommentVersion {
-//			log.Errorf("unsupported comment version: got %v "+
-//				"wanted %v", c.Version, defaultCommentVersion)
-//			continue
-//		}
-//
-//		cid, err := strconv.ParseUint(c.CommentID, 10, 64)
-//		if err != nil {
-//			log.Errorf("invalid CommentID %v", err)
-//			continue
-//		}
-//
-//		// Add to memory cache
-//		switch c.Action {
-//		case CommentActionAdd:
-//			log.Infof("adding comment %v", c.Token)
-//			b.inventory[c.Token].comments[cid] = c
-//		case CommentActionDelete:
-//			delete(b.inventory[c.Token].comments, cid)
-//		default:
-//			log.Errorf("invalid comment action: %v token %v "+
-//				"comment id %v", c.Action, c.Token, c.CommentID)
-//			// fallthrough
-//		}
-//
-//		// See if this is the last comment
-//		if cid > b.commentID {
-//			b.commentID = cid
-//		}
-//	}
-//
-//	return nil
-//}
+func (b *backend) flushCommentJournal(filename string) error {
+	_, err := util.ConvertStringToken(filename)
+	if err != nil {
+		return fmt.Errorf("skipping %v", filename)
+	}
 
-// replayCommentJournals replays all comment journals into the memory cache.
-//func (b *backend) replayCommentJournals() error {
-//	fi, err := ioutil.ReadDir(b.commentJournalDir)
-//	if err != nil {
-//		return err
-//	}
-//
-//	for _, v := range fi {
-//		filename := v.Name()
-//		_, err = util.ConvertStringToken(filename)
-//		if err != nil {
-//			log.Tracef("replayCommentJournals: skipping %v",
-//				filename)
-//			continue
-//		}
-//		log.Tracef("replayCommentJournals: %v", filename)
-//		err = b.replayCommentJournal(filepath.Join(b.commentJournalDir,
-//			filename))
-//		if err != nil {
-//			// log but ignore errors
-//			log.Errorf("replayCommentJournals: %v", err)
-//		}
-//	}
-//
-//	return nil
-//}
+	log.Tracef("flushCommentJournal: %v", filename)
+
+	md, err := ioutil.ReadFile(filepath.Join(b.commentJournalDir, filename))
+	if err != nil {
+		return err
+	}
+
+	// Create update command
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		// Should not happen so bail
+		return err
+	}
+	upd := pd.UpdateVettedMetadata{
+		Challenge: hex.EncodeToString(challenge),
+		Token:     filename,
+		MDOverwrite: []pd.MetadataStream{{
+			ID:      mdStreamComments,
+			Payload: string(md),
+		}},
+	}
+
+	responseBody, err := b.makeRequest(http.MethodPost,
+		pd.UpdateVettedMetadataRoute, upd)
+	if err != nil {
+		e, ok := err.(www.PDError)
+		if !ok {
+			return fmt.Errorf("%v type assert error", filename)
+		}
+		return fmt.Errorf("update %v",
+			pd.ErrorStatus[pd.ErrorStatusT(e.ErrorReply.ErrorCode)])
+	}
+
+	var uur pd.UpdateUnvettedReply
+	err = json.Unmarshal(responseBody, &uur)
+	if err != nil {
+		return fmt.Errorf("unmarshal %v", err)
+	}
+
+	err = util.VerifyChallenge(b.cfg.Identity, challenge,
+		uur.Response)
+	if err != nil {
+		return fmt.Errorf("verify %v", err)
+	}
+
+	return nil
+}
 
 // flushCommentJournal flushes all comments to politeiad. For now this uses the
 // large hammer approach of always flushing all comments.
@@ -288,64 +256,9 @@ func (b *backend) flushCommentJournals() error {
 	}
 
 	for _, v := range fi {
-		filename := v.Name()
-		_, err = util.ConvertStringToken(filename)
+		err := b.flushCommentJournal(v.Name())
 		if err != nil {
-			log.Tracef("flushCommentJournals: skipping %v",
-				filename)
-			continue
-		}
-
-		log.Tracef("flushCommentJournals: %v", filename)
-
-		md, err := ioutil.ReadFile(filepath.Join(b.commentJournalDir,
-			filename))
-		if err != nil {
-			// log but ignore errors
-			log.Errorf("flushCommentJournals: %v", err)
-			continue
-
-		}
-
-		// Create update command
-		challenge, err := util.Random(pd.ChallengeSize)
-		if err != nil {
-			// Should not happen so bail
-			return err
-		}
-		upd := pd.UpdateVettedMetadata{
-			Challenge: hex.EncodeToString(challenge),
-			Token:     filename,
-			MDOverwrite: []pd.MetadataStream{{
-				ID:      mdStreamComments,
-				Payload: string(md),
-			}},
-		}
-
-		responseBody, err := b.makeRequest(http.MethodPost,
-			pd.UpdateVettedMetadataRoute, upd)
-		if err != nil {
-			e, ok := err.(www.PDError)
-			if !ok {
-				log.Errorf("flushCommentJournals: update %v", err)
-				continue
-			}
-			log.Errorf("flushCommentJournals: update %v",
-				pd.ErrorStatus[pd.ErrorStatusT(e.ErrorReply.ErrorCode)])
-			continue
-		}
-
-		var uur pd.UpdateUnvettedReply
-		err = json.Unmarshal(responseBody, &uur)
-		if err != nil {
-			log.Errorf("flushCommentJournals: unmarshal %v", err)
-			continue
-		}
-
-		err = util.VerifyChallenge(b.cfg.Identity, challenge,
-			uur.Response)
-		if err != nil {
-			log.Errorf("flushCommentJournals: verify %v", err)
+			log.Errorf("flushCommentJournal: %v", err)
 			continue
 		}
 	}

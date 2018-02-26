@@ -1596,6 +1596,21 @@ func (b *backend) ProcessUserProposals(up *www.UserProposals, isCurrentUser, isA
 
 func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.StartVoteReply, error) {
 	log.Tracef("ProcessStartVote %v", sv.Token)
+
+	// Verify user
+	err := checkPublicKeyAndSignature(user, sv.PublicKey, sv.Signature, sv.Token)
+	if err != nil {
+		return nil, err
+	}
+
+	// Flush record comments
+	err = b.flushCommentJournal(sv.Token)
+	if err != nil {
+		return nil, err
+	}
+
+	// Lock record lock
+
 	// For now we lock the struct but this needs to be peeled apart.  The
 	// start voting call is expensive and that needs to be handled without
 	// the mutex held.
@@ -1609,12 +1624,11 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 		}
 	}
 
-	err := checkPublicKeyAndSignature(user, sv.PublicKey, sv.Signature, sv.Token)
-	if err != nil {
-		return nil, err
-	}
-
 	_ = ir
+
+	// Tell decred plugin to start voting
+
+	// Lock record
 
 	return nil, fmt.Errorf("ProcessStartVote commented out")
 	//// Create command
