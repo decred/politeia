@@ -507,6 +507,8 @@ type GetCommentsReply struct {
 	Comments []Comment `json:"comments"` // Comments
 }
 
+// The following commands are sent to the Decred plugin.
+
 // StartVote starts the voting process for a proposal.
 type StartVote struct {
 	Token     string `json:"token"`     // Proposal that will start voting soon
@@ -517,11 +519,12 @@ type StartVote struct {
 	Signature string `json:"signature"` // Signature of Token
 }
 
+// StartVoteReply returns the eligible ticket pool.
 type StartVoteReply struct {
-	Timestamp         int64    `json:"timestamp"`         // Time vote was recorded
-	TimestampActivate int64    `json:"timestampactivate"` // Timestamp vote starts
-	TimestampComplete int64    `json:"timestampcomplete"` // Timestamp vote ends
-	EligibleTickets   []string `json:"eligibletickets"`   // Valid voting tickets
+	StartBlock      string   `json:"startblock"`      // Block hash
+	StartHeight     string   `json:"startheight"`     // Height of vote start
+	EndHeight       string   `json:"endheight"`       // Height of vote end
+	EligibleTickets []string `json:"eligibletickets"` // Valid voting tickets
 }
 
 // Vote is the client side vote + decision.

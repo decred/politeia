@@ -11,7 +11,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -80,13 +79,6 @@ type backend struct {
 
 	// _inventory will eventually replace inventory
 	_inventory map[string]*inventoryRecord // Current inventory
-
-	// When inventory is set or modified inventoryVersion MUST be
-	// incremented.  When inventory changes the caller MUST initialize the
-	// comments map for the associated censorship token.
-	// XXX remove this when _inventory is done
-	inventory        []www.ProposalRecord // current inventory
-	inventoryVersion uint                 // inventory version
 }
 
 const BackendProposalMetadataVersion = 1
@@ -661,7 +653,7 @@ func (b *backend) verifyResetPassword(user *database.User, rp www.ResetPassword,
 
 // loadInventory calls the politeaid RPC call to load the current inventory.
 // Note that this function fakes out the inventory during test and therefore
-// must be called WITHOUT the lock held.
+// must be called WITH the lock held.
 func (b *backend) loadInventory() (*pd.InventoryReply, error) {
 	if !b.test {
 		return b.remoteInventory()
@@ -670,23 +662,22 @@ func (b *backend) loadInventory() (*pd.InventoryReply, error) {
 	// Following is test code only.
 
 	// Split the existing inventory into vetted and unvetted.
-	vetted := make([]www.ProposalRecord, 0)
-	unvetted := make([]www.ProposalRecord, 0)
+	//vetted := make([]www.ProposalRecord, 0)
+	//unvetted := make([]www.ProposalRecord, 0)
 
-	b.Lock()
-	defer b.Unlock()
-	for _, v := range b.inventory {
-		if v.Status == www.PropStatusPublic {
-			vetted = append(vetted, v)
-		} else {
-			unvetted = append(unvetted, v)
-		}
-	}
+	//for _, v := range b.inventory {
+	//	if v.Status == www.PropStatusPublic {
+	//		vetted = append(vetted, v)
+	//	} else {
+	//		unvetted = append(unvetted, v)
+	//	}
+	//}
 
-	return &pd.InventoryReply{
-		Vetted:   convertPropsFromWWW(vetted),
-		Branches: convertPropsFromWWW(unvetted),
-	}, nil
+	//return &pd.InventoryReply{
+	//	Vetted:   convertPropsFromWWW(vetted),
+	//	Branches: convertPropsFromWWW(unvetted),
+	//}, nil
+	return nil, fmt.Errorf("use _inventory")
 }
 
 func (b *backend) CreateLoginReply(user *database.User) *www.LoginReply {
@@ -713,84 +704,27 @@ func (b *backend) CreateLoginReply(user *database.User) *www.LoginReply {
 // LoadInventory fetches the entire inventory of proposals from politeiad and
 // caches it, sorted by most recent timestamp.
 func (b *backend) LoadInventory() error {
-	// This function is a little hard to read but we must make sure that
-	// the inventory has not changed since we tried to load it.  We can't
-	// lock it for the duration because the RPC call is potentially very
-	// slow.
 	b.Lock()
-	if b.inventory != nil {
-		b.Unlock()
+	defer b.Unlock()
+
+	if b._inventory != nil {
 		return nil
 	}
-	currentInventory := b.inventoryVersion
-	b.Unlock()
 
-	// get remote inventory
-	for {
-		// Fetch remote inventory.
-		inv, err := b.loadInventory()
-		if err != nil {
-			return fmt.Errorf("LoadInventory: %v", err)
-		}
-
-		b.Lock()
-		// Restart operation if inventory changed from underneath us.
-		if currentInventory != b.inventoryVersion {
-			currentInventory = b.inventoryVersion
-			b.Unlock()
-			log.Debugf("LoadInventory: restarting reload")
-			continue
-		}
-
-		err = b.initializeInventory(inv)
-		if err != nil {
-			b.Unlock()
-			return fmt.Errorf("initializeInventory: %v", err)
-		}
-
-		// XXX old inventory behavior, kill this
-		b.inventory = make([]www.ProposalRecord, 0,
-			len(inv.Vetted)+len(inv.Branches))
-		for _, vv := range append(inv.Vetted, inv.Branches...) {
-			v := convertPropFromPD(vv)
-
-			// Set the user id.
-			var ok bool
-			v.UserId, ok = b.userPubkeys[v.PublicKey]
-			if !ok {
-				log.Errorf("user not found for public key %v, for proposal %v",
-					v.PublicKey, v.CensorshipRecord.Token)
-			}
-
-			// Initialize comment map for this proposal.
-			len := len(b.inventory)
-			if len == 0 {
-				b.inventory = append(b.inventory, v)
-				continue
-			}
-			idx := sort.Search(len, func(i int) bool {
-				return v.Timestamp < b.inventory[i].Timestamp
-			})
-
-			// Insert the proposal at idx.
-			b.inventory = append(b.inventory[:idx],
-				append([]www.ProposalRecord{v},
-					b.inventory[idx:]...)...)
-		}
-		b.inventoryVersion++
-
-		// XXX diagnostic, remove later
-		if len(b.inventory) != len(b._inventory) {
-			return fmt.Errorf("invalid inventory length %v %v",
-				len(b.inventory), len(b._inventory))
-		}
-		b.Unlock()
-
-		log.Infof("Adding %v vetted, %v unvetted proposals to the cache",
-			len(inv.Vetted), len(inv.Branches))
-
-		break
+	// Fetch remote inventory.
+	inv, err := b.loadInventory()
+	if err != nil {
+		return fmt.Errorf("LoadInventory: %v", err)
 	}
+
+	err = b.initializeInventory(inv)
+	if err != nil {
+		b.Unlock()
+		return fmt.Errorf("initializeInventory: %v", err)
+	}
+
+	log.Infof("Adding %v vetted, %v unvetted proposals to the cache",
+		len(inv.Vetted), len(inv.Branches))
 
 	return nil
 }
@@ -1660,108 +1594,89 @@ func (b *backend) ProcessUserProposals(up *www.UserProposals, isCurrentUser, isA
 	}, nil
 }
 
-func getVotingRecord(pr www.ProposalRecord) (*MDStreamVoting, error) {
-	return nil, fmt.Errorf("not yet getVotingRecord")
-}
-
 func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.StartVoteReply, error) {
 	log.Tracef("ProcessStartVote %v", sv.Token)
 	// For now we lock the record but this needs to be peeled apart.  The
 	// start voting call is expensive and that needs to be handled without
 	// the mutex held.
-	var pr www.ProposalRecord
 	found := false
 	b.Lock()
 	defer b.Unlock()
-	for _, v := range b.inventory {
-		if v.CensorshipRecord.Token == sv.Token {
-			if v.Status == www.PropStatusPublic {
-				found = true
-				pr = v
-				break
-			}
-			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusWrongStatus,
-			}
-		}
-	}
+
+	ir, found := b._inventory[sv.Token]
 	if !found {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusProposalNotFound,
 		}
 	}
 
-	// Make sure we are not already voting
-	vr, err := getVotingRecord(pr)
-	if err != nil {
-		// XXX
-	}
-	_ = vr
-
-	err = checkPublicKeyAndSignature(user, sv.PublicKey, sv.Signature, sv.Token)
+	err := checkPublicKeyAndSignature(user, sv.PublicKey, sv.Signature, sv.Token)
 	if err != nil {
 		return nil, err
 	}
 
-	// Create command
-	challenge, err := util.Random(pd.ChallengeSize)
-	if err != nil {
-		return nil, err
-	}
+	_ = ir
 
-	// Create change record
-	t := time.Now()
-	r := MDStreamVoting{
-		Timestamp:         t.Unix(),
-		TimestampActivate: t.Add(voteHoldOff).Unix(),
-		TimestampComplete: t.Add(voteHoldOff + voteDuration).Unix(),
-	}
-	var ok bool
-	r.AdminPubKey, ok = database.ActiveIdentityString(user.Identities)
-	if !ok {
-		return nil, fmt.Errorf("invalid admin identity: %v", user.ID)
-	}
-	blob, err := json.Marshal(r)
-	if err != nil {
-		return nil, err
-	}
-	md := []pd.MetadataStream{
-		{
-			ID:      mdStreamVoting,
-			Payload: string(blob),
-		},
-	}
+	return nil, fmt.Errorf("ProcessStartVote commented out")
+	//// Create command
+	//challenge, err := util.Random(pd.ChallengeSize)
+	//if err != nil {
+	//	return nil, err
+	//}
 
-	sus := pd.UpdateVettedMetadata{
-		Challenge: hex.EncodeToString(challenge),
-		Token:     sv.Token,
-		MDAppend:  md,
-	}
+	//// Create change record
+	//t := time.Now()
+	//r := MDStreamVoting{
+	//	Timestamp:         t.Unix(),
+	//	TimestampActivate: t.Add(voteHoldOff).Unix(),
+	//	TimestampComplete: t.Add(voteHoldOff + voteDuration).Unix(),
+	//}
+	//var ok bool
+	//r.AdminPubKey, ok = database.ActiveIdentityString(user.Identities)
+	//if !ok {
+	//	return nil, fmt.Errorf("invalid admin identity: %v", user.ID)
+	//}
+	//blob, err := json.Marshal(r)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//md := []pd.MetadataStream{
+	//	{
+	//		ID:      mdStreamVoting,
+	//		Payload: string(blob),
+	//	},
+	//}
 
-	responseBody, err := b.makeRequest(http.MethodPost,
-		pd.UpdateVettedMetadataRoute, sus)
-	if err != nil {
-		return nil, err
-	}
+	//sus := pd.UpdateVettedMetadata{
+	//	Challenge: hex.EncodeToString(challenge),
+	//	Token:     sv.Token,
+	//	MDAppend:  md,
+	//}
 
-	var reply pd.UpdateVettedMetadataReply
-	err = json.Unmarshal(responseBody, &reply)
-	if err != nil {
-		return nil, fmt.Errorf("Could not unmarshal "+
-			"UpdateVettedMetadataReply: %v", err)
-	}
+	//responseBody, err := b.makeRequest(http.MethodPost,
+	//	pd.UpdateVettedMetadataRoute, sus)
+	//if err != nil {
+	//	return nil, err
+	//}
 
-	// Verify the challenge.
-	err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
-	if err != nil {
-		return nil, err
-	}
+	//var reply pd.UpdateVettedMetadataReply
+	//err = json.Unmarshal(responseBody, &reply)
+	//if err != nil {
+	//	return nil, fmt.Errorf("Could not unmarshal "+
+	//		"UpdateVettedMetadataReply: %v", err)
+	//}
 
-	return &www.StartVoteReply{
-		Timestamp:         r.Timestamp,
-		TimestampActivate: r.TimestampActivate,
-		TimestampComplete: r.TimestampComplete,
-	}, nil
+	//// Verify the challenge.
+	//err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
+	//if err != nil {
+	//	return nil, err
+	//}
+
+	//return &www.StartVoteReply{
+	//	Timestamp:         r.Timestamp,
+	//	TimestampActivate: r.TimestampActivate,
+	//	TimestampComplete: r.TimestampComplete,
+	//}, nil
 }
 
 // ProcessPolicy returns the details of Politeia's restrictions on file uploads.
