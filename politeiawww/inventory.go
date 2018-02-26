@@ -3,10 +3,11 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/davecgh/go-spew/spew"
 	"io"
 	"sort"
 	"strings"
+
+	"github.com/davecgh/go-spew/spew"
 
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	www "github.com/decred/politeia/politeiawww/api/v1"
@@ -38,7 +39,7 @@ type proposalsRequest struct {
 //
 // This function must be called WITH the mutex held.
 func (b *backend) initializeInventory(inv *pd.InventoryReply) error {
-	b._inventory = make(map[string]*inventoryRecord)
+	b.inventory = make(map[string]*inventoryRecord)
 
 	for _, v := range append(inv.Vetted, inv.Branches...) {
 		err := b.addInventoryRecord(v)
@@ -100,11 +101,11 @@ func (b *backend) initializeInventory(inv *pd.InventoryReply) error {
 // This function must be called WITH the mutex held.
 func (b *backend) addInventoryRecord(record pd.Record) error {
 	t := record.CensorshipRecord.Token
-	if _, ok := b._inventory[t]; ok {
+	if _, ok := b.inventory[t]; ok {
 		return fmt.Errorf("duplicate token: %v", t)
 	}
 
-	b._inventory[t] = &inventoryRecord{
+	b.inventory[t] = &inventoryRecord{
 		record:   record,
 		comments: make(map[uint64]BackendComment),
 	}
@@ -120,7 +121,7 @@ func (b *backend) loadPropMD(token, payload string) error {
 	d := json.NewDecoder(f)
 	var md BackendProposalMetadata
 	if err := d.Decode(&md); err == io.EOF {
-		b._inventory[token].proposalMD = md
+		b.inventory[token].proposalMD = md
 	} else if err != nil {
 		return err
 	}
@@ -140,7 +141,7 @@ func (b *backend) loadChanges(token, payload string) error {
 		} else if err != nil {
 			return err
 		}
-		p := b._inventory[token]
+		p := b.inventory[token]
 		p.changes = append(p.changes, md)
 	}
 }
@@ -158,7 +159,7 @@ func (b *backend) loadVoting(token, payload string) error {
 		} else if err != nil {
 			return err
 		}
-		p := b._inventory[token]
+		p := b.inventory[token]
 		p.voting = append(p.voting, md)
 	}
 }
@@ -167,7 +168,7 @@ func (b *backend) loadVoting(token, payload string) error {
 //
 // This function must be called WITH the mutex held.
 func (b *backend) _getInventoryRecord(token string) (inventoryRecord, error) {
-	r, ok := b._inventory[token]
+	r, ok := b.inventory[token]
 	if !ok {
 		return inventoryRecord{}, errRecordNotFound
 	}
@@ -190,8 +191,8 @@ func (b *backend) getInventoryRecord(token string) (inventoryRecord, error) {
 func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
 	b.RLock()
 
-	allProposals := make([]www.ProposalRecord, 0, len(b._inventory))
-	for _, vv := range b._inventory {
+	allProposals := make([]www.ProposalRecord, 0, len(b.inventory))
+	for _, vv := range b.inventory {
 		v := convertPropFromInventoryRecord(vv, b.userPubkeys)
 
 		// Set the number of comments.
