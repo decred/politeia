@@ -295,7 +295,8 @@ func (c *ctx) commentGet(token string) (*v1.GetCommentsReply, error) {
 
 func (c *ctx) startVote(id *identity.FullIdentity, token string) (*v1.StartVoteReply, error) {
 	sv := v1.StartVote{
-		Token: token,
+		Token:     token,
+		PublicKey: hex.EncodeToString(id.Public.Key[:]),
 	}
 	sig := id.SignMessage([]byte(token))
 	sv.Signature = hex.EncodeToString(sig[:])

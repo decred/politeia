@@ -1596,10 +1596,9 @@ func (b *backend) ProcessUserProposals(up *www.UserProposals, isCurrentUser, isA
 
 func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.StartVoteReply, error) {
 	log.Tracef("ProcessStartVote %v", sv.Token)
-	// For now we lock the record but this needs to be peeled apart.  The
+	// For now we lock the struct but this needs to be peeled apart.  The
 	// start voting call is expensive and that needs to be handled without
 	// the mutex held.
-	found := false
 	b.Lock()
 	defer b.Unlock()
 
