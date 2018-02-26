@@ -81,7 +81,7 @@ func (b *backend) getComments(token string) (*www.GetCommentsReply, error) {
 	b.RLock()
 	defer b.RUnlock()
 
-	c, ok := b._inventory[token]
+	c, ok := b.inventory[token]
 	if !ok {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusProposalNotFound,
@@ -137,7 +137,7 @@ func (b *backend) addComment(c www.NewComment, userID uint64) (*www.NewCommentRe
 	}
 
 	// Store comment in memory for quick lookup
-	b._inventory[c.Token].comments[b.commentID] = comment
+	b.inventory[c.Token].comments[b.commentID] = comment
 	cr := www.NewCommentReply{
 		CommentID: comment.CommentID,
 	}
@@ -175,9 +175,9 @@ func (b *backend) loadComments(token, comments string) error {
 		// Add to memory cache
 		switch c.Action {
 		case CommentActionAdd:
-			b._inventory[c.Token].comments[cid] = c
+			b.inventory[c.Token].comments[cid] = c
 		case CommentActionDelete:
-			delete(b._inventory[c.Token].comments, cid)
+			delete(b.inventory[c.Token].comments, cid)
 		default:
 			log.Errorf("invalid comment action: %v token %v "+
 				"comment id %v", c.Action, c.Token, c.CommentID)
@@ -234,9 +234,9 @@ func (b *backend) loadComments(token, comments string) error {
 //		switch c.Action {
 //		case CommentActionAdd:
 //			log.Infof("adding comment %v", c.Token)
-//			b._inventory[c.Token].comments[cid] = c
+//			b.inventory[c.Token].comments[cid] = c
 //		case CommentActionDelete:
-//			delete(b._inventory[c.Token].comments, cid)
+//			delete(b.inventory[c.Token].comments, cid)
 //		default:
 //			log.Errorf("invalid comment action: %v token %v "+
 //				"comment id %v", c.Action, c.Token, c.CommentID)

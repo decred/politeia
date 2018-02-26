@@ -77,8 +77,8 @@ type backend struct {
 	//comments  map[string]map[uint64]BackendComment // [token][parent]comment
 	commentID uint64 // current comment id
 
-	// _inventory will eventually replace inventory
-	_inventory map[string]*inventoryRecord // Current inventory
+	// inventory will eventually replace inventory
+	inventory map[string]*inventoryRecord // Current inventory
 }
 
 const BackendProposalMetadataVersion = 1
@@ -677,7 +677,7 @@ func (b *backend) loadInventory() (*pd.InventoryReply, error) {
 	//	Vetted:   convertPropsFromWWW(vetted),
 	//	Branches: convertPropsFromWWW(unvetted),
 	//}, nil
-	return nil, fmt.Errorf("use _inventory")
+	return nil, fmt.Errorf("use inventory")
 }
 
 func (b *backend) CreateLoginReply(user *database.User) *www.LoginReply {
@@ -708,7 +708,7 @@ func (b *backend) LoadInventory() error {
 	b.Lock()
 	defer b.Unlock()
 
-	if b._inventory != nil {
+	if b.inventory != nil {
 		return nil
 	}
 
@@ -1418,7 +1418,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 	}
 
 	b.RLock()
-	p, ok := b._inventory[propDetails.Token]
+	p, ok := b.inventory[propDetails.Token]
 	if !ok {
 		b.RUnlock()
 		return nil, www.UserError{
@@ -1541,7 +1541,7 @@ func (b *backend) ProcessComment(c www.NewComment, user *database.User) (*www.Ne
 
 	b.Lock()
 	defer b.Unlock()
-	m, ok := b._inventory[c.Token]
+	m, ok := b.inventory[c.Token]
 	if !ok {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusProposalNotFound,
@@ -1608,7 +1608,7 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 	b.Lock()
 	defer b.Unlock()
 
-	ir, found := b._inventory[sv.Token]
+	ir, found := b.inventory[sv.Token]
 	if !found {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusProposalNotFound,
