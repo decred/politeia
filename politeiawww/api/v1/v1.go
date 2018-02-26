@@ -521,16 +521,33 @@ type GetCommentsReply struct {
 	Comments []Comment `json:"comments"` // Comments
 }
 
-// StartVote
+// StartVote starts the voting process for a proposal.
 type StartVote struct {
 	Token     string `json:"token"`     // Proposal that will start voting soon
 	PublicKey string `json:"publickey"` // Key used for signature.
 	// XXX we probably need something to sign here besides the the token
+	// but do note that the vote can only be started by an admin and it did
+	// sign the token.
 	Signature string `json:"signature"` // Signature of Token
 }
 
 type StartVoteReply struct {
-	Timestamp         int64 `json:"timestamp"`         // Time vote was recorded
-	TimestampActivate int64 `json:"timestampactivate"` // Timestamp vote starts
-	TimestampComplete int64 `json:"timestampcomplete"` // Timestamp vote ends
+	Timestamp         int64    `json:"timestamp"`         // Time vote was recorded
+	TimestampActivate int64    `json:"timestampactivate"` // Timestamp vote starts
+	TimestampComplete int64    `json:"timestampcomplete"` // Timestamp vote ends
+	EligibleTickets   []string `json:"eligibletickets"`   // Valid voting tickets
+}
+
+// Vote is the client side vote + decision.
+type Vote struct {
+	Ticket    string `json:"ticket"`    // Ticket ID
+	Token     string `json:"token"`     // Vote ID
+	Bits      string `json:"bits"`      // Vote bits, not to exceed 64 bits
+	Signature string `json:"signature"` // Signature of Ticket+Token+Bits
+}
+
+// VoteReply returns a receipt for a vote.
+type VoteReply struct {
+	// Server side signature of the Vote command, Ticket+Token+Bits+Signature
+	Receipt string `json:"receipt"`
 }
