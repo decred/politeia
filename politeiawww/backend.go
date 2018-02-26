@@ -1356,6 +1356,14 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 	if b.test {
 		pdReply.Status = convertPropStatusFromWWW(sps.ProposalStatus)
 	} else {
+		// Flush comments while here, we really should make the
+		// comments flow with the SetUnvettedStatus command but for now
+		// do it separately.
+		err := b.flushCommentJournal(sps.Token)
+		if !os.IsNotExist(err) {
+			return nil, err
+		}
+
 		challenge, err := util.Random(pd.ChallengeSize)
 		if err != nil {
 			return nil, err
@@ -1608,32 +1616,26 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 		return nil, err
 	}
 
-	// Flush record comments
-	err = b.flushCommentJournal(sv.Token)
-	if err != nil {
-		return nil, err
-	}
-
-	// Lock record lock
-
 	// For now we lock the struct but this needs to be peeled apart.  The
 	// start voting call is expensive and that needs to be handled without
 	// the mutex held.
 	b.Lock()
 	defer b.Unlock()
 
+	// Look up token and ensure record is locked
 	ir, found := b.inventory[sv.Token]
 	if !found {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusProposalNotFound,
 		}
 	}
-
-	_ = ir
+	if ir.record.Status != pd.RecordStatusLockedPublic {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusWrongStatus,
+		}
+	}
 
 	// Tell decred plugin to start voting
-
-	// Lock record
 
 	return nil, fmt.Errorf("ProcessStartVote commented out")
 	//// Create command
