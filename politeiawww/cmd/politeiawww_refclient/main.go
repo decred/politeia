@@ -81,16 +81,16 @@ func vote() error {
 		return fmt.Errorf("expected 400, wrong status got: %v", err)
 	}
 
-	// move prop to vetted
+	// move prop to Public Locked
 	psr1, err := c.setPropStatus(adminID,
-		myprop1.CensorshipRecord.Token, v1.PropStatusPublic)
+		myprop1.CensorshipRecord.Token, v1.PropStatusLocked)
 	if err != nil {
 		return err
 	}
-	if psr1.ProposalStatus != v1.PropStatusPublic {
+	if psr1.ProposalStatus != v1.PropStatusLocked {
 		return fmt.Errorf("invalid status got %v wanted %v",
 			psr1.ProposalStatus,
-			v1.PropStatusPublic)
+			v1.PropStatusLocked)
 	}
 
 	// start vote, should succeed

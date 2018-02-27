@@ -93,6 +93,8 @@ func convertBackendStatus(status backend.MDStatusT) v1.RecordStatusT {
 		s = v1.RecordStatusCensored
 	case backend.MDStatusIterationUnvetted:
 		s = v1.RecordStatusUnreviewedChanges
+	case backend.MDStatusLocked:
+		s = v1.RecordStatusLocked
 	}
 	return s
 }
@@ -109,6 +111,8 @@ func convertFrontendStatus(status v1.RecordStatusT) backend.MDStatusT {
 		s = backend.MDStatusVetted
 	case v1.RecordStatusCensored:
 		s = backend.MDStatusCensored
+	case v1.RecordStatusLocked:
+		s = backend.MDStatusLocked
 	}
 	return s
 }
@@ -591,6 +595,7 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 		convertFrontendMetadataStream(t.MDAppend),
 		convertFrontendMetadataStream(t.MDOverwrite))
 	if err != nil {
+		log.Errorf("status %v", status)
 		oldStatus := v1.RecordStatus[convertBackendStatus(status)]
 		newStatus := v1.RecordStatus[t.Status]
 		// Check for specific errors

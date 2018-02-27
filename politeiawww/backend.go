@@ -1629,7 +1629,7 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 			ErrorCode: www.ErrorStatusProposalNotFound,
 		}
 	}
-	if ir.record.Status != pd.RecordStatusLockedPublic {
+	if ir.record.Status != pd.RecordStatusLocked {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusWrongStatus,
 		}

@@ -1341,9 +1341,11 @@ func (g *gitBackEnd) updateRecord(token []byte, mdAppend, mdOverwrite []backend.
 	}
 	if !(brm.Status == backend.MDStatusVetted ||
 		brm.Status == backend.MDStatusUnvetted ||
-		brm.Status == backend.MDStatusIterationUnvetted) {
+		brm.Status == backend.MDStatusIterationUnvetted ||
+		brm.Status == backend.MDStatusLocked) {
 		return nil, fmt.Errorf("can not update record that "+
-			"has status: %v", brm.Status)
+			"has status: %v %v", brm.Status,
+			backend.MDStatus[brm.Status])
 	}
 
 	// Verify all deletes before executing
@@ -1579,6 +1581,15 @@ func (g *gitBackEnd) UpdateVettedMetadata(token []byte, mdAppend []backend.Metad
 		}
 	}
 
+	// Make sure record is not locked.
+	md, err := loadMD(g.unvetted, id)
+	if err != nil {
+		return err
+	}
+	if md.Status == backend.MDStatusLocked {
+		return backend.ErrRecordLocked
+	}
+
 	log.Tracef("updating vetted metadata %x", token)
 
 	// Do the work, if there is an error we must unwind git.
@@ -1779,7 +1790,6 @@ func (g *gitBackEnd) fsck(path string) error {
 	}
 
 	log.Infof("fsck: dcrtime verification started")
-	defer log.Infof("fsck: dcrtime verification completed")
 
 	// Iterate over all db records and pick out the anchors.  Take note of
 	// unanchored commits and exclude those from the precious list.
@@ -1902,6 +1912,8 @@ func (g *gitBackEnd) fsck(path string) error {
 		//return fmt.Errorf("expected reconcile map to be empty")
 		log.Errorf("expected reconcile map to be empty")
 	}
+
+	log.Infof("fsck: dcrtime verification completed")
 
 	return nil
 }
@@ -2026,7 +2038,8 @@ func (g *gitBackEnd) SetUnvettedStatus(token []byte, status backend.MDStatusT, m
 		return backend.MDStatusInvalid, backend.ErrShutdown
 	}
 
-	log.Tracef("setting status %v -> %x", status, token)
+	log.Tracef("setting status %v (%v) -> %x", status,
+		backend.MDStatus[status], token)
 	var errReturn error
 	ns, err := g.setUnvettedStatus(token, status, mdAppend, mdOverwrite)
 	if err != nil {
@@ -2035,7 +2048,7 @@ func (g *gitBackEnd) SetUnvettedStatus(token []byte, status backend.MDStatusT, m
 		if err2 != nil {
 			// We are in trouble!  Consider a panic.
 			log.Errorf("gitStash: %v", err2)
-			return backend.MDStatusInvalid, err2
+			return ns, err2
 		}
 		errReturn = err
 	}
@@ -2043,11 +2056,11 @@ func (g *gitBackEnd) SetUnvettedStatus(token []byte, status backend.MDStatusT, m
 	// git checkout master
 	err = g.gitCheckout(g.unvetted, "master")
 	if err != nil {
-		return backend.MDStatusInvalid, err
+		return ns, err
 	}
 
 	if errReturn != nil {
-		return backend.MDStatusInvalid, errReturn
+		return ns, errReturn
 	}
 
 	return ns, nil
@@ -2220,7 +2233,13 @@ func (g *gitBackEnd) newLocked() error {
 	}
 
 	log.Infof("Running dcrtime fsck on vetted repository")
-	return g.fsck(g.vetted)
+	err = g.fsck(g.vetted)
+	if err != nil {
+		// Log error but continue
+		log.Errorf("fsck: dcrtime %v", err)
+	}
+
+	return nil
 }
 
 // rebasePR pushes branch id into upstream (vetted repo) and rebases it onto

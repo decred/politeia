@@ -32,6 +32,10 @@ var (
 	// unvetted to censored.
 	ErrInvalidTransition = errors.New("invalid record status transition")
 
+	// ErrRecordLocked is returned when an updated was attempted on a
+	// locked record.
+	ErrRecordLocked = errors.New("record is locked")
+
 	// Plugin names must be all lowercase letters and have a length of <20
 	PluginRE = regexp.MustCompile(`^[a-z]{1,20}$`)
 )
@@ -63,6 +67,7 @@ const (
 	MDStatusVetted            MDStatusT = 2 // Vetted record
 	MDStatusCensored          MDStatusT = 3 // Censored record
 	MDStatusIterationUnvetted MDStatusT = 4 // Changes are unvetted
+	MDStatusLocked            MDStatusT = 5 // Record is locked, only vetted->locked allowed
 )
 
 var (
@@ -73,6 +78,7 @@ var (
 		MDStatusVetted:            "vetted",
 		MDStatusCensored:          "censored",
 		MDStatusIterationUnvetted: "iteration unvetted",
+		MDStatusLocked:            "locked",
 	}
 )
 

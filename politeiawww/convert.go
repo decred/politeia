@@ -16,7 +16,7 @@ func convertPropStatusFromWWW(s www.PropStatusT) pd.RecordStatusT {
 	case www.PropStatusPublic:
 		return pd.RecordStatusPublic
 	case www.PropStatusLocked:
-		return pd.RecordStatusLockedPublic
+		return pd.RecordStatusLocked
 	}
 	return pd.RecordStatusInvalid
 }
@@ -81,7 +81,7 @@ func convertPropStatusFromPD(s pd.RecordStatusT) www.PropStatusT {
 		return www.PropStatusCensored
 	case pd.RecordStatusPublic:
 		return www.PropStatusPublic
-	case pd.RecordStatusLockedPublic:
+	case pd.RecordStatusLocked:
 		return www.PropStatusLocked
 	}
 	return www.PropStatusInvalid

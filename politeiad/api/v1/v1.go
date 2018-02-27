@@ -63,7 +63,7 @@ const (
 	RecordStatusCensored          RecordStatusT = 3 // Record has been censored
 	RecordStatusPublic            RecordStatusT = 4 // Record is publicly visible
 	RecordStatusUnreviewedChanges RecordStatusT = 5 // Public visible record that has changes that are not public
-	RecordStatusLockedPublic      RecordStatusT = 6 // Record is locked and publicly visible
+	RecordStatusLocked            RecordStatusT = 6 // Record is locked
 
 	// Default network bits
 	DefaultMainnetHost = "politeia.decred.org"
@@ -102,7 +102,7 @@ var (
 		RecordStatusCensored:          "censored",
 		RecordStatusPublic:            "public",
 		RecordStatusUnreviewedChanges: "unreviewed changes",
-		RecordStatusLockedPublic:      "public locked",
+		RecordStatusLocked:            "locked",
 	}
 
 	// Input validation
