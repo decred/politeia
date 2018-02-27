@@ -81,16 +81,41 @@ func vote() error {
 		return fmt.Errorf("expected 400, wrong status got: %v", err)
 	}
 
-	// move prop to Public Locked
+	// move prop to Locked, should fail
 	psr1, err := c.setPropStatus(adminID,
-		myprop1.CensorshipRecord.Token, v1.PropStatusLocked)
+		myprop1.CensorshipRecord.Token, v1.PropStatusNotReviewed)
+	if err == nil {
+		return fmt.Errorf("expected 400, wrong status")
+	}
+	if !strings.HasPrefix(err.Error(), "400") {
+		return fmt.Errorf("expected 400, wrong status got: %v", err)
+	}
+
+	// move prop to vetted
+	psr1, err = c.setPropStatus(adminID,
+		myprop1.CensorshipRecord.Token, v1.PropStatusPublic)
 	if err != nil {
 		return err
 	}
-	if psr1.ProposalStatus != v1.PropStatusLocked {
+	if psr1.ProposalStatus != v1.PropStatusPublic {
 		return fmt.Errorf("invalid status got %v wanted %v",
 			psr1.ProposalStatus,
-			v1.PropStatusLocked)
+			v1.PropStatusPublic)
+	}
+
+	// add comment
+	cr, err := c.comment(adminID, myprop1.CensorshipRecord.Token,
+		"I super like this prop", "")
+	if err != nil {
+		return err
+	}
+	_ = cr
+
+	// move prop to Locked
+	psr1, err = c.setPropStatus(adminID,
+		myprop1.CensorshipRecord.Token, v1.PropStatusLocked)
+	if err != nil {
+		return err
 	}
 
 	// start vote, should succeed
