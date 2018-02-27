@@ -73,13 +73,13 @@ func vote() error {
 	}
 
 	// start voting on prop, wrong state should fail
-	//svr, err := c.startVote(adminID, myprop1.CensorshipRecord.Token)
-	//if err == nil {
-	//	return fmt.Errorf("expected 400, wrong status")
-	//}
-	//if !strings.HasPrefix(err.Error(), "400") {
-	//	return fmt.Errorf("expected 400, wrong status got: %v", err)
-	//}
+	svr, err := c.startVote(adminID, myprop1.CensorshipRecord.Token)
+	if err == nil {
+		return fmt.Errorf("expected 400, wrong status")
+	}
+	if !strings.HasPrefix(err.Error(), "400") {
+		return fmt.Errorf("expected 400, wrong status got: %v", err)
+	}
 
 	// move prop to vetted
 	psr1, err := c.setPropStatus(adminID,
@@ -94,7 +94,7 @@ func vote() error {
 	}
 
 	// start vote, should succeed
-	svr, err := c.startVote(adminID, myprop1.CensorshipRecord.Token)
+	svr, err = c.startVote(adminID, myprop1.CensorshipRecord.Token)
 	if err != nil {
 		return err
 	}

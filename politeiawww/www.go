@@ -155,17 +155,23 @@ func (p *politeiawww) getIdentity() error {
 // outputted to the logs so that it can be correlated later if the user
 // files a complaint.
 func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, format string, args ...interface{}) {
+	// XXX this function needs to get an error in and a format + args
+	// instead of what it is doing now.
+	// So inError error, format string, args ...interface{}
+	// if err == nil -> internal error using format + args
+	// if err != nil -> if defined error -> return defined error + log.Errorf format+args
+	// if err != nil -> if !defined error -> return + log.Errorf format+args
 	if userErr, ok := args[0].(v1.UserError); ok {
 		if userHttpCode == 0 {
 			userHttpCode = http.StatusBadRequest
 		}
 
 		if len(userErr.ErrorContext) == 0 {
-			log.Debugf("RespondWithError: %v %v",
+			log.Errorf("RespondWithError: %v %v %v",
 				int64(userErr.ErrorCode),
 				v1.ErrorStatus[userErr.ErrorCode])
 		} else {
-			log.Debugf("RespondWithError: %v %v: %v",
+			log.Errorf("RespondWithError: %v %v: %v",
 				int64(userErr.ErrorCode),
 				v1.ErrorStatus[userErr.ErrorCode],
 				strings.Join(userErr.ErrorContext, ", "))
@@ -798,7 +804,7 @@ func (p *politeiawww) handleStartVote(w http.ResponseWriter, r *http.Request) {
 	svr, err := p.backend.ProcessStartVote(sv, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleStartVote: ProcessComment %v", err)
+			"handleStartVote: ProcessStartVote %v", err)
 		return
 	}
 
