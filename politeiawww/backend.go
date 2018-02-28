@@ -19,7 +19,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/dajohi/goemail"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrtime/merkle"
 	pd "github.com/decred/politeia/politeiad/api/v1"
@@ -1636,7 +1635,6 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 			ErrorCode: www.ErrorStatusProposalNotFound,
 		}
 	}
-	log.Errorf("===========%v", spew.Sdump(ir))
 	if ir.record.Status != pd.RecordStatusPublic {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusWrongStatus,
@@ -1644,13 +1642,23 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 	}
 
 	// Tell decred plugin to start voting
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
 
-	return nil, fmt.Errorf("ProcessStartVote commented out")
-	//// Create command
-	//challenge, err := util.Random(pd.ChallengeSize)
-	//if err != nil {
-	//	return nil, err
-	//}
+	pc := pd.PluginCommand{
+		Challenge: hex.EncodeToString(challenge),
+		ID:        "decred",
+		Command:   "startvote",
+		CommandID: "startvote", //Payload   string `json:"payload"`   // Actual command
+	}
+
+	responseBody, err := b.makeRequest(http.MethodPost,
+		pd.PluginCommandRoute, pc)
+	if err != nil {
+		return nil, err
+	}
 
 	//// Create change record
 	//t := time.Now()
@@ -1687,24 +1695,25 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 	//	return nil, err
 	//}
 
-	//var reply pd.UpdateVettedMetadataReply
-	//err = json.Unmarshal(responseBody, &reply)
-	//if err != nil {
-	//	return nil, fmt.Errorf("Could not unmarshal "+
-	//		"UpdateVettedMetadataReply: %v", err)
-	//}
+	var reply pd.PluginCommandReply
+	err = json.Unmarshal(responseBody, &reply)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal "+
+			"PluginCommandReply: %v", err)
+	}
 
-	//// Verify the challenge.
-	//err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
-	//if err != nil {
-	//	return nil, err
-	//}
+	// Verify the challenge.
+	err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
+	if err != nil {
+		return nil, err
+	}
 
 	//return &www.StartVoteReply{
 	//	Timestamp:         r.Timestamp,
 	//	TimestampActivate: r.TimestampActivate,
 	//	TimestampComplete: r.TimestampComplete,
 	//}, nil
+	return nil, fmt.Errorf("ProcessStartVote commented out")
 }
 
 // ProcessPolicy returns the details of Politeia's restrictions on file uploads.

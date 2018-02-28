@@ -521,15 +521,12 @@ type GetCommentsReply struct {
 	Comments []Comment `json:"comments"` // Comments
 }
 
-// The following commands are sent to the Decred plugin.
+// plugin commands
 
 // StartVote starts the voting process for a proposal.
 type StartVote struct {
 	Token     string `json:"token"`     // Proposal that will start voting soon
 	PublicKey string `json:"publickey"` // Key used for signature.
-	// XXX we probably need something to sign here besides the the token
-	// but do note that the vote can only be started by an admin and it did
-	// sign the token.
 	Signature string `json:"signature"` // Signature of Token
 }
 

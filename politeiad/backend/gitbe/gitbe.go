@@ -21,6 +21,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrtime/api/v1"
 	"github.com/decred/dcrtime/merkle"
+	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/backend"
@@ -114,6 +115,7 @@ type gitBackEnd struct {
 	test        bool               // Set during UT
 	exit        chan struct{}      // Close channel
 	checkAnchor chan struct{}      // Work notification
+	plugins     []backend.Plugin   // Plugins
 
 	// The following items are used for testing only
 	testAnchors map[string]bool // [digest]anchored
@@ -2147,16 +2149,32 @@ func (g *gitBackEnd) Inventory(vettedCount, branchCount uint, includeFiles bool)
 //
 // GetPlugins satisfies the backend interface.
 func (g *gitBackEnd) GetPlugins() ([]backend.Plugin, error) {
-	return []backend.Plugin{decredPlugin}, nil
+	return g.plugins, nil
 }
 
 // Plugin send a passthrough command.
 func (g *gitBackEnd) Plugin(command, payload string) (string, string, error) {
 	log.Tracef("Plugin: %v %v", command, payload)
 	switch command {
-	default:
-		return "", "", fmt.Errorf("invalid payload command")
+	case decredplugin.CmdStartVote:
+		bb, err := bestBlock("http://testnet.dcrdata.org:80/")
+		if err != nil {
+			return "", "", fmt.Errorf("bestBlock: %v", err)
+		}
+		if bb.Height < 256 { // XXX use params
+			return "", "", fmt.Errorf("invalid height")
+		}
+		snapshot, err := snapshot("http://testnet.dcrdata.org:80/", bb.Height-256) // XXX use params for this
+		if err != nil {
+			return "", "", fmt.Errorf("snapshot: %v", err)
+		}
+
+		// store snapshot in metadata
+		_ = snapshot
+
+		// return success and encoded answer
 	}
+	return "", "", fmt.Errorf("invalid payload command") // XXX this needs to become a type error
 }
 
 // Close shuts down the backend.  It obtains the lock and sets the shutdown
@@ -2355,6 +2373,7 @@ func New(root string, dcrtimeHost string, gitPath string, gitTrace bool) (*gitBa
 		exit:        make(chan struct{}),
 		checkAnchor: make(chan struct{}),
 		testAnchors: make(map[string]bool),
+		plugins:     []backend.Plugin{decredPlugin}, // XXX hard code for now
 	}
 
 	err := g.newLocked()

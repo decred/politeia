@@ -1,18 +1,73 @@
 package gitbe
 
-import "github.com/decred/politeia/politeiad/backend"
+import (
+	"encoding/json"
+	"net/http"
+	"strconv"
 
-const decredPluginVersion = "1"
+	"github.com/dcrdata/dcrdata/dcrdataapi"
+	"github.com/decred/politeia/decredplugin"
+	"github.com/decred/politeia/politeiad/backend"
+)
 
 var (
 	decredPlugin = backend.Plugin{
-		ID:      "decred",
-		Version: decredPluginVersion,
+		ID:      decredplugin.ID,
+		Version: decredplugin.Version,
 		Settings: []backend.PluginSetting{
+			//{
+			//	Key:   "dcrd",
+			//	Value: "localhost:19109",
+			//},
+			//{
+			//	Key:   "dcrduser",
+			//	Value: "u",
+			//},
+			//{
+			//	Key:   "dcrdpass",
+			//	Value: "p",
+			//},
 			{
-				Key:   "moo",
-				Value: "blah",
+				Key:   "dcrdata",
+				Value: "http://localhost:7777/",
 			},
 		},
 	}
 )
+
+func bestBlock(route string) (*dcrdataapi.BlockDataBasic, error) {
+	url := route + "api/block/best"
+	log.Errorf("connecting to %v", url)
+	r, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Body.Close()
+
+	var bdb dcrdataapi.BlockDataBasic
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&bdb); err != nil {
+		return nil, err
+	}
+
+	return &bdb, nil
+}
+
+func snapshot(route string, height uint32) ([]string, error) {
+	h := strconv.FormatUint(uint64(height), 10)
+	url := route + "api/stake/pool/b/" + h + "/full?sort=true"
+	log.Errorf("connecting to %v", url)
+	r, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Body.Close()
+
+	var tickets []string
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&tickets); err != nil {
+		return nil, err
+	}
+
+	return tickets, nil
+}
