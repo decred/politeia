@@ -19,6 +19,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/dajohi/goemail"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrtime/merkle"
 	pd "github.com/decred/politeia/politeiad/api/v1"
@@ -1279,7 +1280,7 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 
 		// Add the new proposal to the cache.
 		b.Lock()
-		err = b.addInventoryRecord(pd.Record{
+		err = b.newInventoryRecord(pd.Record{
 			Status:           pd.RecordStatusNotReviewed,
 			Timestamp:        ts,
 			CensorshipRecord: pdReply.CensorshipRecord,
@@ -1316,7 +1317,7 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 
 		// Add the new proposal to the inventory cache.
 		b.Lock()
-		b.addInventoryRecord(pd.Record{
+		b.newInventoryRecord(pd.Record{
 			Status:           pd.RecordStatusNotReviewed,
 			Timestamp:        ts,
 			CensorshipRecord: pdReply.CensorshipRecord,
@@ -1354,13 +1355,19 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 	var reply www.SetProposalStatusReply
 	var pdReply pd.SetUnvettedStatusReply
 	if b.test {
-		pdReply.Status = convertPropStatusFromWWW(sps.ProposalStatus)
+		pdReply.Record.Status = convertPropStatusFromWWW(sps.ProposalStatus)
 	} else {
+		// XXX Expensive to lock but do it for now.
+		// Lock is needed to prevent a race into this record and it
+		// needs to be updated in the cache.
+		b.Lock()
+		defer b.Unlock()
+
 		// Flush comments while here, we really should make the
 		// comments flow with the SetUnvettedStatus command but for now
 		// do it separately.
 		err := b.flushCommentJournal(sps.Token)
-		if !os.IsNotExist(err) {
+		if err != nil && !os.IsNotExist(err) {
 			return nil, err
 		}
 
@@ -1405,15 +1412,14 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 		if err != nil {
 			return nil, err
 		}
+
+		// Update the inventory with the metadata changes.
+		b.updateInventoryRecord(pdReply.Record)
 	}
 
-	// Update the inventory with the metadata changes.
-	b.Lock()
-	b.loadChanges(sps.Token, string(blob))
-	b.Unlock()
-
 	// Return the reply.
-	reply.ProposalStatus = convertPropStatusFromPD(pdReply.Status)
+	reply.Proposal = convertPropFromPD(pdReply.Record)
+
 	return &reply, nil
 }
 
@@ -1622,14 +1628,16 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 	b.Lock()
 	defer b.Unlock()
 
-	// Look up token and ensure record is locked
+	// Look up token and ensure record is public and does not need to be
+	// updated
 	ir, found := b.inventory[sv.Token]
 	if !found {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusProposalNotFound,
 		}
 	}
-	if ir.record.Status != pd.RecordStatusLocked {
+	log.Errorf("===========%v", spew.Sdump(ir))
+	if ir.record.Status != pd.RecordStatusPublic {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusWrongStatus,
 		}

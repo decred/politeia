@@ -1681,31 +1681,10 @@ func (g *gitBackEnd) getRecordLock(token []byte, repo string, includeFiles bool)
 	return g.getRecord(token, repo, includeFiles)
 }
 
-// getRecord is the generic implementation of GetUnvetted/GetVetted.  It
-// returns a record record from the provided repo.
+// _getRecord loads a record from the current branch on the provided repo.
 //
 // This function must be called WITH the lock held.
-func (g *gitBackEnd) getRecord(token []byte, repo string, includeFiles bool) (*backend.Record, error) {
-	id := hex.EncodeToString(token)
-	if repo == g.unvetted {
-		// git checkout id
-		err := g.gitCheckout(repo, id)
-		if err != nil {
-			return nil, backend.ErrRecordNotFound
-		}
-		branchNow, err := g.gitBranchNow(repo)
-		if err != nil || branchNow != id {
-			return nil, backend.ErrRecordNotFound
-		}
-	}
-	defer func() {
-		// git checkout master
-		err := g.gitCheckout(repo, "master")
-		if err != nil {
-			log.Errorf("could not switch to master: %v", err)
-		}
-	}()
-
+func (g *gitBackEnd) _getRecord(id, repo string, includeFiles bool) (*backend.Record, error) {
 	// load MD
 	brm, err := loadMD(repo, id)
 	if err != nil {
@@ -1732,6 +1711,34 @@ func (g *gitBackEnd) getRecord(token []byte, repo string, includeFiles bool) (*b
 		Metadata:       mds,
 		Files:          files,
 	}, nil
+}
+
+// getRecord is the generic implementation of GetUnvetted/GetVetted.  It
+// returns a record record from the provided repo.
+//
+// This function must be called WITH the lock held.
+func (g *gitBackEnd) getRecord(token []byte, repo string, includeFiles bool) (*backend.Record, error) {
+	id := hex.EncodeToString(token)
+	if repo == g.unvetted {
+		// git checkout id
+		err := g.gitCheckout(repo, id)
+		if err != nil {
+			return nil, backend.ErrRecordNotFound
+		}
+		branchNow, err := g.gitBranchNow(repo)
+		if err != nil || branchNow != id {
+			return nil, backend.ErrRecordNotFound
+		}
+	}
+	defer func() {
+		// git checkout master
+		err := g.gitCheckout(repo, "master")
+		if err != nil {
+			log.Errorf("could not switch to master: %v", err)
+		}
+	}()
+
+	return g._getRecord(id, repo, includeFiles)
 }
 
 // fsck performs a git fsck and additionally it validates the git tree against
@@ -1938,95 +1945,96 @@ func (g *gitBackEnd) GetVetted(token []byte) (*backend.Record, error) {
 // the call with the unvetted repo sitting in master.  The idea is that if this
 // function fails we can simply unwind it by calling a git stash.
 // Function must be called with the lock held.
-func (g *gitBackEnd) setUnvettedStatus(token []byte, status backend.MDStatusT, mdAppend, mdOverwrite []backend.MetadataStream) (backend.MDStatusT, error) {
+func (g *gitBackEnd) setUnvettedStatus(token []byte, status backend.MDStatusT, mdAppend, mdOverwrite []backend.MetadataStream) (*backend.Record, error) {
 	// git checkout id
 	id := hex.EncodeToString(token)
 	err := g.gitCheckout(g.unvetted, id)
 	if err != nil {
-		return backend.MDStatusInvalid, backend.ErrRecordNotFound
+		return nil, backend.ErrRecordNotFound
 	}
 
-	// Load MD
-	brm, err := loadMD(g.unvetted, id)
+	// Load record
+	record, err := g._getRecord(id, g.unvetted, false)
 	if err != nil {
-		return backend.MDStatusInvalid, err
+		return nil, err
 	}
-	oldStatus := brm.Status
 
 	// We only allow a transition from unvetted to vetted or censored
 	switch {
-	case (brm.Status == backend.MDStatusUnvetted ||
-		brm.Status == backend.MDStatusIterationUnvetted) &&
+	case (record.RecordMetadata.Status == backend.MDStatusUnvetted ||
+		record.RecordMetadata.Status == backend.MDStatusIterationUnvetted) &&
 		status == backend.MDStatusVetted:
 
 		// unvetted -> vetted
 
 		// Update MD first
-		brm.Status = backend.MDStatusVetted
-		brm.Version += 1
-		brm.Timestamp = time.Now().Unix()
-		err = updateMD(g.unvetted, id, brm)
+		record.RecordMetadata.Status = backend.MDStatusVetted
+		record.RecordMetadata.Version += 1
+		record.RecordMetadata.Timestamp = time.Now().Unix()
+		err = updateMD(g.unvetted, id, &record.RecordMetadata)
 		if err != nil {
-			return oldStatus, err
+			return nil, err
 		}
 
 		// Handle metadata
 		err = g.updateMetadata(id, mdAppend, mdOverwrite)
 		if err != nil {
-			return oldStatus, err
+			return nil, err
 		}
 
 		// Commit brm
 		err = g.commitMD(g.unvetted, id, "published")
 		if err != nil {
-			return oldStatus, err
+			return nil, err
 		}
 
 		// Create and rebase PR
 		err = g.rebasePR(id)
 		if err != nil {
-			return oldStatus, err
+			return nil, err
 		}
 
-	case brm.Status == backend.MDStatusUnvetted &&
+	case record.RecordMetadata.Status == backend.MDStatusUnvetted &&
 		status == backend.MDStatusCensored:
 		// unvetted -> censored
-		brm.Status = backend.MDStatusCensored
-		brm.Version += 1
-		brm.Timestamp = time.Now().Unix()
-		err = updateMD(g.unvetted, id, brm)
+		record.RecordMetadata.Status = backend.MDStatusCensored
+		record.RecordMetadata.Version += 1
+		record.RecordMetadata.Timestamp = time.Now().Unix()
+		err = updateMD(g.unvetted, id, &record.RecordMetadata)
 		if err != nil {
-			return oldStatus, err
+			return nil, err
 		}
 
 		// Handle metadata
 		err = g.updateMetadata(id, mdAppend, mdOverwrite)
 		if err != nil {
-			return oldStatus, err
+			return nil, err
 		}
 
 		// Commit brm
 		err = g.commitMD(g.unvetted, id, "censored")
 		if err != nil {
-			return oldStatus, err
+			return nil, err
 		}
 	default:
-		return oldStatus, backend.ErrInvalidTransition
+		return nil, backend.StateTransitionError{
+			From: record.RecordMetadata.Status,
+			To:   status,
+		}
 	}
 
-	return brm.Status, nil
+	return record, nil
 }
 
-// SetUnvettedStatus tries to update the status for an unvetted record.  If
-// the record is found the prior status is returned if the function errors
-// out.  This is a bit unusual so keep it in mind.
+// SetUnvettedStatus tries to update the status for an unvetted record. It
+// returns the updated record if successful but without the Files compnonet.
 //
 // SetUnvettedStatus satisfies the backend interface.
-func (g *gitBackEnd) SetUnvettedStatus(token []byte, status backend.MDStatusT, mdAppend, mdOverwrite []backend.MetadataStream) (backend.MDStatusT, error) {
+func (g *gitBackEnd) SetUnvettedStatus(token []byte, status backend.MDStatusT, mdAppend, mdOverwrite []backend.MetadataStream) (*backend.Record, error) {
 	// Lock filesystem
 	err := g.lock.Lock(LockDuration)
 	if err != nil {
-		return backend.MDStatusInvalid, err
+		return nil, err
 	}
 	defer func() {
 		err := g.lock.Unlock()
@@ -2035,20 +2043,20 @@ func (g *gitBackEnd) SetUnvettedStatus(token []byte, status backend.MDStatusT, m
 		}
 	}()
 	if g.shutdown {
-		return backend.MDStatusInvalid, backend.ErrShutdown
+		return nil, backend.ErrShutdown
 	}
 
 	log.Tracef("setting status %v (%v) -> %x", status,
 		backend.MDStatus[status], token)
 	var errReturn error
-	ns, err := g.setUnvettedStatus(token, status, mdAppend, mdOverwrite)
+	record, err := g.setUnvettedStatus(token, status, mdAppend, mdOverwrite)
 	if err != nil {
 		// git stash
 		err2 := g.gitStash(g.unvetted)
 		if err2 != nil {
 			// We are in trouble!  Consider a panic.
 			log.Errorf("gitStash: %v", err2)
-			return ns, err2
+			return nil, err2
 		}
 		errReturn = err
 	}
@@ -2056,14 +2064,14 @@ func (g *gitBackEnd) SetUnvettedStatus(token []byte, status backend.MDStatusT, m
 	// git checkout master
 	err = g.gitCheckout(g.unvetted, "master")
 	if err != nil {
-		return ns, err
+		return nil, err
 	}
 
 	if errReturn != nil {
-		return ns, errReturn
+		return nil, errReturn
 	}
 
-	return ns, nil
+	return record, nil
 }
 
 // Inventory returns an inventory of vetted and unvetted records.  If

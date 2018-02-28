@@ -590,19 +590,14 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Ask backend to update unvetted status
-	status, err := p.backend.SetUnvettedStatus(token,
+	record, err := p.backend.SetUnvettedStatus(token,
 		convertFrontendStatus(t.Status),
 		convertFrontendMetadataStream(t.MDAppend),
 		convertFrontendMetadataStream(t.MDOverwrite))
 	if err != nil {
-		log.Errorf("status %v", status)
-		oldStatus := v1.RecordStatus[convertBackendStatus(status)]
-		newStatus := v1.RecordStatus[t.Status]
 		// Check for specific errors
-		if err == backend.ErrInvalidTransition {
-			log.Errorf("%v Invalid status code transition: "+
-				"%v %v->%v", remoteAddr(r), t.Token, oldStatus,
-				newStatus)
+		if _, ok := err.(backend.StateTransitionError); ok {
+			log.Errorf("%v %v %v", remoteAddr(r), t.Token, err)
 			p.respondWithUserError(w, v1.ErrorStatusInvalidRecordStatusTransition, nil)
 			return
 		}
@@ -616,11 +611,11 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	reply := v1.SetUnvettedStatusReply{
 		Response: hex.EncodeToString(response[:]),
-		Status:   convertBackendStatus(status),
+		Record:   p.convertBackendRecord(*record),
 	}
 
 	log.Infof("Set unvetted record status %v: token %v status %v",
-		remoteAddr(r), t.Token, v1.RecordStatus[reply.Status])
+		remoteAddr(r), t.Token, v1.RecordStatus[reply.Record.Status])
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }

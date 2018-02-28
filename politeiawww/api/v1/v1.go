@@ -425,7 +425,7 @@ type SetProposalStatus struct {
 
 // SetProposalStatusReply is used to reply to a SetProposalStatus command.
 type SetProposalStatusReply struct {
-	ProposalStatus PropStatusT `json:"proposalstatus"`
+	Proposal ProposalRecord `json:"proposal"`
 }
 
 // GetAllUnvetted retrieves all unvetted proposals; the maximum number returned

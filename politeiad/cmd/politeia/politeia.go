@@ -1124,7 +1124,7 @@ func setUnvettedStatus() error {
 
 	if !*printJson {
 		// Pretty print record
-		status, ok := v1.RecordStatus[reply.Status]
+		status, ok := v1.RecordStatus[reply.Record.Status]
 		if !ok {
 			status = v1.RecordStatus[v1.RecordStatusInvalid]
 		}

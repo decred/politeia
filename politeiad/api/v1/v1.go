@@ -63,7 +63,7 @@ const (
 	RecordStatusCensored          RecordStatusT = 3 // Record has been censored
 	RecordStatusPublic            RecordStatusT = 4 // Record is publicly visible
 	RecordStatusUnreviewedChanges RecordStatusT = 5 // Public visible record that has changes that are not public
-	RecordStatusLocked            RecordStatusT = 6 // Record is locked
+	RecordStatusLocked            RecordStatusT = 6 // Record is locked, note that this has not been implemented yet.
 
 	// Default network bits
 	DefaultMainnetHost = "politeia.decred.org"
@@ -275,12 +275,11 @@ type SetUnvettedStatus struct {
 	MDOverwrite []MetadataStream `json:"mdoverwrite"` // Metadata streams to overwrite
 }
 
-// SetUnvettedStatus is a response to a SetUnvettedStatus.  The status field
-// may be different than the status that was requested.  This should only
-// happen when the command fails.
+// SetUnvettedStatus is a response to a SetUnvettedStatus.  It returns the
+// potentially modified record without the Files.
 type SetUnvettedStatusReply struct {
-	Response string        `json:"response"` // Challenge response
-	Status   RecordStatusT `json:"status"`   // Actual status, may differ from request
+	Response string `json:"response"` // Challenge response
+	Record   Record `json:"record"`
 }
 
 // UpdateUnvetted update an unvetted record.

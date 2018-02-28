@@ -27,11 +27,6 @@ var (
 	// ErrShutdown is emitted when the backend is shutting down.
 	ErrNoChanges = errors.New("no changes to record")
 
-	// ErrInvalidTransition is emitted when an invalid status transition
-	// occurs.  The only valid transitions are from unvetted -> vetted and
-	// unvetted to censored.
-	ErrInvalidTransition = errors.New("invalid record status transition")
-
 	// ErrRecordLocked is returned when an updated was attempted on a
 	// locked record.
 	ErrRecordLocked = errors.New("record is locked")
@@ -81,6 +76,17 @@ var (
 		MDStatusLocked:            "locked",
 	}
 )
+
+// StateTransitionError indicates an invalid record status transition.
+type StateTransitionError struct {
+	From MDStatusT
+	To   MDStatusT
+}
+
+func (s StateTransitionError) Error() string {
+	return fmt.Sprintf("invalid record status transition %v (%v) -> %v (%v)",
+		s.From, MDStatus[s.From], s.To, MDStatus[s.To])
+}
 
 // RecordMetadata is the metadata of a record.
 type RecordMetadata struct {
@@ -139,7 +145,7 @@ type Backend interface {
 
 	// Set unvetted record status
 	SetUnvettedStatus([]byte, MDStatusT, []MetadataStream,
-		[]MetadataStream) (MDStatusT, error)
+		[]MetadataStream) (*Record, error)
 
 	// Inventory retrieves various record records.
 	Inventory(uint, uint, bool) ([]Record, []Record, error)

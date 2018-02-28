@@ -34,81 +34,28 @@ type proposalsRequest struct {
 	StatusMap map[www.PropStatusT]bool
 }
 
-// initializeInventory initializes the inventory map and loads it with a
-// InventoryReply.
+// updateInventoryRecord updates an existing record.
 //
 // This function must be called WITH the mutex held.
-func (b *backend) initializeInventory(inv *pd.InventoryReply) error {
-	b.inventory = make(map[string]*inventoryRecord)
-
-	for _, v := range append(inv.Vetted, inv.Branches...) {
-		err := b.addInventoryRecord(v)
-		if err != nil {
-			return err
-		}
-
-		t := v.CensorshipRecord.Token
-
-		// Fish metadata out as well
-		for _, m := range v.Metadata {
-			switch m.ID {
-			case mdStreamGeneral:
-				err = b.loadPropMD(t, m.Payload)
-				if err != nil {
-					log.Errorf("initializeInventory "+
-						"could not load metadata: %v",
-						err)
-					continue
-				}
-			case mdStreamComments:
-				err = b.loadComments(t, m.Payload)
-				if err != nil {
-					log.Errorf("initializeInventory "+
-						"could not load comments: %v",
-						err)
-					continue
-				}
-			case mdStreamChanges:
-				err = b.loadChanges(t, m.Payload)
-				if err != nil {
-					log.Errorf("initializeInventory "+
-						"could not load changes: %v",
-						err)
-					continue
-				}
-			case mdStreamVoting:
-				err = b.loadVoting(t, m.Payload)
-				if err != nil {
-					log.Errorf("initializeInventory "+
-						"could not load vote: %v",
-						err)
-					continue
-				}
-			default:
-				// log error but proceed
-				log.Errorf("initializeInventory: invalid "+
-					"metadata stream ID %v token %v",
-					m.ID, t)
-			}
-		}
+func (b *backend) updateInventoryRecord(record pd.Record) {
+	b.inventory[record.CensorshipRecord.Token] = &inventoryRecord{
+		record:   record,
+		comments: make(map[uint64]BackendComment),
 	}
-
-	return nil
 }
 
-// Adds a record to the inventory cache.
+// newInventoryRecord adds a record to the inventory.
 //
 // This function must be called WITH the mutex held.
-func (b *backend) addInventoryRecord(record pd.Record) error {
+func (b *backend) newInventoryRecord(record pd.Record) error {
 	t := record.CensorshipRecord.Token
 	if _, ok := b.inventory[t]; ok {
 		return fmt.Errorf("duplicate token: %v", t)
 	}
 
-	b.inventory[t] = &inventoryRecord{
-		record:   record,
-		comments: make(map[uint64]BackendComment),
-	}
+	b.updateInventoryRecord(record)
+
+	return nil
 
 	return nil
 }
@@ -162,6 +109,75 @@ func (b *backend) loadVoting(token, payload string) error {
 		p := b.inventory[token]
 		p.voting = append(p.voting, md)
 	}
+}
+
+// loadReocrd load an entire record into inventory.
+//
+// This function must be called WITH the mutex held.
+func (b *backend) loadRecord(v pd.Record) {
+	t := v.CensorshipRecord.Token
+
+	// Fish metadata out as well
+	var err error
+	for _, m := range v.Metadata {
+		switch m.ID {
+		case mdStreamGeneral:
+			err = b.loadPropMD(t, m.Payload)
+			if err != nil {
+				log.Errorf("initializeInventory "+
+					"could not load metadata: %v",
+					err)
+				continue
+			}
+		case mdStreamComments:
+			err = b.loadComments(t, m.Payload)
+			if err != nil {
+				log.Errorf("initializeInventory "+
+					"could not load comments: %v",
+					err)
+				continue
+			}
+		case mdStreamChanges:
+			err = b.loadChanges(t, m.Payload)
+			if err != nil {
+				log.Errorf("initializeInventory "+
+					"could not load changes: %v",
+					err)
+				continue
+			}
+		case mdStreamVoting:
+			err = b.loadVoting(t, m.Payload)
+			if err != nil {
+				log.Errorf("initializeInventory "+
+					"could not load vote: %v",
+					err)
+				continue
+			}
+		default:
+			// log error but proceed
+			log.Errorf("initializeInventory: invalid "+
+				"metadata stream ID %v token %v",
+				m.ID, t)
+		}
+	}
+}
+
+// initializeInventory initializes the inventory map and loads it with a
+// InventoryReply.
+//
+// This function must be called WITH the mutex held.
+func (b *backend) initializeInventory(inv *pd.InventoryReply) error {
+	b.inventory = make(map[string]*inventoryRecord)
+
+	for _, v := range append(inv.Vetted, inv.Branches...) {
+		err := b.newInventoryRecord(v)
+		if err != nil {
+			return err
+		}
+		b.loadRecord(v)
+	}
+
+	return nil
 }
 
 // _getInventoryRecord reads an inventory record from the inventory cache.
