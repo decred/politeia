@@ -2,12 +2,14 @@ package gitbe
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/dcrdata/dcrdata/dcrdataapi"
 	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiad/backend"
+	"github.com/decred/politeia/util"
 )
 
 var (
@@ -112,4 +114,70 @@ func snapshot(hash string) ([]string, error) {
 	}
 
 	return tickets, nil
+}
+
+func (g *gitBackEnd) pluginStartVote(payload string) (string, string, error) {
+	vote, err := decredplugin.DecodeVote([]byte(payload))
+	if err != nil {
+		return "", "", fmt.Errorf("DecodeVote %v", err)
+	}
+
+	// XXX verify proposal exists
+
+	// XXX verify proposal is in the right state
+
+	token, err := util.ConvertStringToken(vote.Token)
+	if err != nil {
+		return "", "", fmt.Errorf("ConvertStringToken %v", err)
+	}
+
+	// 1. Get best block
+	bb, err := bestBlock()
+	if err != nil {
+		return "", "", fmt.Errorf("bestBlock %v", err)
+	}
+	if bb.Height < uint32(g.activeNetParams.TicketMaturity) {
+		return "", "", fmt.Errorf("invalid height")
+	}
+	// 2. Subtract TicketMaturity from block height to get into
+	// unforkable teritory
+	snapshotBlock, err := block(bb.Height -
+		uint32(g.activeNetParams.TicketMaturity))
+	if err != nil {
+		return "", "", fmt.Errorf("bestBlock %v", err)
+	}
+	// 3. Get ticket pool snapshot
+	snapshot, err := snapshot(snapshotBlock.Hash)
+	if err != nil {
+		return "", "", fmt.Errorf("snapshot %v", err)
+	}
+
+	duration := uint32(2016) // XXX 1 week on mainnet
+	svr := decredplugin.StartVoteReply{
+		StartBlockHeight: strconv.FormatUint(uint64(snapshotBlock.Height), 10),
+		StartBlockHash:   snapshotBlock.Hash,
+		EndHeight:        strconv.FormatUint(uint64(snapshotBlock.Height+duration), 10),
+		EligibleTickets:  snapshot,
+	}
+	svrb, err := json.Marshal(svr)
+	if err != nil {
+		return "", "", fmt.Errorf("marshal: %v", err)
+	}
+
+	// XXX store snapshot in metadata
+	err = g.UpdateVettedMetadata(token, nil, []backend.MetadataStream{
+		{
+			ID:      decredplugin.MDStreamVoting,
+			Payload: string(svrb),
+		}})
+	if err != nil {
+		return "", "", fmt.Errorf("UpdateVettedMetadata: %v", err)
+	}
+
+	log.Infof("Vote started for: %v snapshot %v start %v end %v",
+		vote.Token, svr.StartBlockHash, svr.StartBlockHeight,
+		svr.EndHeight)
+
+	// return success and encoded answer
+	return string(svrb), "", nil
 }

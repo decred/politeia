@@ -4,9 +4,10 @@ import "encoding/json"
 
 // Plugin settings, kinda doesn;t go here but for now it is fine
 const (
-	Version      = "1"
-	ID           = "decred"
-	CmdStartVote = "startvote"
+	Version        = "1"
+	ID             = "decred"
+	CmdStartVote   = "startvote"
+	MDStreamVoting = 15 // Voting records
 )
 
 // VoteOption describes a single vote option.

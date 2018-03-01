@@ -9,6 +9,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 
+	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	www "github.com/decred/politeia/politeiawww/api/v1"
 )
@@ -145,7 +146,7 @@ func (b *backend) loadRecord(v pd.Record) {
 					err)
 				continue
 			}
-		case mdStreamVoting:
+		case decredplugin.MDStreamVoting:
 			err = b.loadVoting(t, m.Payload)
 			if err != nil {
 				log.Errorf("initializeInventory "+

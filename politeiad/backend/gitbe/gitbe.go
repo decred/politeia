@@ -2159,52 +2159,7 @@ func (g *gitBackEnd) Plugin(command, payload string) (string, string, error) {
 	log.Tracef("Plugin: %v %v", command, payload)
 	switch command {
 	case decredplugin.CmdStartVote:
-		vote, err := decredplugin.DecodeVote([]byte(payload))
-		if err != nil {
-			return "", "", fmt.Errorf("DecodeVote %v", err)
-		}
-
-		// 1. Get best block
-		bb, err := bestBlock()
-		if err != nil {
-			return "", "", fmt.Errorf("bestBlock %v", err)
-		}
-		if bb.Height < uint32(g.activeNetParams.TicketMaturity) {
-			return "", "", fmt.Errorf("invalid height")
-		}
-		// 2. Subtract TicketMaturity from block height to get into
-		// unforkable teritory
-		snapshotBlock, err := block(bb.Height -
-			uint32(g.activeNetParams.TicketMaturity))
-		if err != nil {
-			return "", "", fmt.Errorf("bestBlock %v", err)
-		}
-		// 3. Get ticket pool snapshot
-		snapshot, err := snapshot(snapshotBlock.Hash)
-		if err != nil {
-			return "", "", fmt.Errorf("snapshot %v", err)
-		}
-
-		// XXX store snapshot in metadata
-
-		duration := uint32(2016) // XXX 1 week on mainnet
-		svr := decredplugin.StartVoteReply{
-			StartBlockHeight: strconv.FormatUint(uint64(snapshotBlock.Height), 10),
-			StartBlockHash:   snapshotBlock.Hash,
-			EndHeight:        strconv.FormatUint(uint64(snapshotBlock.Height+duration), 10),
-			EligibleTickets:  snapshot,
-		}
-		svrb, err := json.Marshal(svr)
-		if err != nil {
-			return "", "", fmt.Errorf("marshal: %v", err)
-		}
-
-		log.Infof("Vote started for: %v snapshot %v start %v end %v",
-			vote.Token, svr.StartBlockHash, svr.StartBlockHeight,
-			svr.EndHeight)
-
-		// return success and encoded answer
-		return string(svrb), "", nil
+		return g.pluginStartVote(payload)
 	}
 	return "", "", fmt.Errorf("invalid payload command") // XXX this needs to become a type error
 }

@@ -730,6 +730,11 @@ func (p *politeia) pluginCommand(w http.ResponseWriter, r *http.Request) {
 
 	cid, payload, err := p.backend.Plugin(pc.Command, pc.Payload)
 	if err != nil {
+		// Generic internal error.
+		errorCode := time.Now().Unix()
+		log.Errorf("%v New record error code %v: %v", remoteAddr(r),
+			errorCode, err)
+		p.respondWithServerError(w, errorCode)
 		return
 	}
 

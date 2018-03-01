@@ -40,11 +40,7 @@ const (
 	mdStreamGeneral  = 0 // General information for this proposal
 	mdStreamComments = 1 // Comments
 	mdStreamChanges  = 2 // Changes to record
-	mdStreamVoting   = 3 // Voting records
-
-	// Voting time constants
-	voteHoldOff  = 24 * time.Hour     // Hold off for 1 day before starting vote
-	voteDuration = 24 * 7 * time.Hour // Vote is active for 1 week
+	// Note that 15 is in use by the decred plugin
 )
 
 type MDStreamChanges struct {
