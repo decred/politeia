@@ -2157,14 +2157,21 @@ func (g *gitBackEnd) Plugin(command, payload string) (string, string, error) {
 	log.Tracef("Plugin: %v %v", command, payload)
 	switch command {
 	case decredplugin.CmdStartVote:
-		bb, err := bestBlock("http://testnet.dcrdata.org:80/")
+		// 1. Get best block
+		// 2. Subtract 256 from block height to get into unforkable teritory
+		// 3. Get ticket pool snapshot
+		bb, err := bestBlock("https://testnet.dcrdata.org:443/")
 		if err != nil {
 			return "", "", fmt.Errorf("bestBlock: %v", err)
 		}
 		if bb.Height < 256 { // XXX use params
 			return "", "", fmt.Errorf("invalid height")
 		}
-		snapshot, err := snapshot("http://testnet.dcrdata.org:80/", bb.Height-256) // XXX use params for this
+		snapshotBlock, err := block("https://testnet.dcrdata.org:443/", bb.Height-256) // XXX use params for this
+		if err != nil {
+			return "", "", fmt.Errorf("bestBlock: %v", err)
+		}
+		snapshot, err := snapshot("https://testnet.dcrdata.org:443/", snapshotBlock.Hash)
 		if err != nil {
 			return "", "", fmt.Errorf("snapshot: %v", err)
 		}
@@ -2172,7 +2179,19 @@ func (g *gitBackEnd) Plugin(command, payload string) (string, string, error) {
 		// store snapshot in metadata
 		_ = snapshot
 
+		svr := decredplugin.StartVoteReply{
+			StartBlockHeight: strconv.FormatUint(uint64(snapshotBlock.Height), 10),
+			StartBlockHash:   snapshotBlock.Hash,
+			EndHeight:        strconv.FormatUint(uint64(snapshotBlock.Height+2016), 10), // XXX 1 week
+			EligibleTickets:  snapshot,
+		}
+		svrb, err := json.Marshal(svr)
+		if err != nil {
+			return "", "", fmt.Errorf("marshal: %v", err)
+		}
+
 		// return success and encoded answer
+		return string(svrb), "", nil
 	}
 	return "", "", fmt.Errorf("invalid payload command") // XXX this needs to become a type error
 }

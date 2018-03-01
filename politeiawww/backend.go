@@ -19,6 +19,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/dajohi/goemail"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrtime/merkle"
 	pd "github.com/decred/politeia/politeiad/api/v1"
@@ -1660,41 +1661,6 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 		return nil, err
 	}
 
-	//// Create change record
-	//t := time.Now()
-	//r := MDStreamVoting{
-	//	Timestamp:         t.Unix(),
-	//	TimestampActivate: t.Add(voteHoldOff).Unix(),
-	//	TimestampComplete: t.Add(voteHoldOff + voteDuration).Unix(),
-	//}
-	//var ok bool
-	//r.AdminPubKey, ok = database.ActiveIdentityString(user.Identities)
-	//if !ok {
-	//	return nil, fmt.Errorf("invalid admin identity: %v", user.ID)
-	//}
-	//blob, err := json.Marshal(r)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//md := []pd.MetadataStream{
-	//	{
-	//		ID:      mdStreamVoting,
-	//		Payload: string(blob),
-	//	},
-	//}
-
-	//sus := pd.UpdateVettedMetadata{
-	//	Challenge: hex.EncodeToString(challenge),
-	//	Token:     sv.Token,
-	//	MDAppend:  md,
-	//}
-
-	//responseBody, err := b.makeRequest(http.MethodPost,
-	//	pd.UpdateVettedMetadataRoute, sus)
-	//if err != nil {
-	//	return nil, err
-	//}
-
 	var reply pd.PluginCommandReply
 	err = json.Unmarshal(responseBody, &reply)
 	if err != nil {
@@ -1708,11 +1674,15 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 		return nil, err
 	}
 
-	//return &www.StartVoteReply{
-	//	Timestamp:         r.Timestamp,
-	//	TimestampActivate: r.TimestampActivate,
-	//	TimestampComplete: r.TimestampComplete,
-	//}, nil
+	// Unmarshal plugin reply
+	//var svr decredplugin.StartVoteReply
+	//err = json.Unmarshal(reply.StartVoteReply, &svr)
+	//if err != nil {
+	//	return nil, fmt.Errorf("Could not unmarshal "+
+	//		"StartVoteReply: %v", err)
+	//}
+	log.Errorf("%v", spew.Sdump(reply))
+
 	return nil, fmt.Errorf("ProcessStartVote commented out")
 }
 

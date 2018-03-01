@@ -2,6 +2,8 @@ package v1
 
 import (
 	"fmt"
+
+	"github.com/decred/politeia/decredplugin"
 )
 
 type ErrorStatusT int
@@ -532,10 +534,7 @@ type StartVote struct {
 
 // StartVoteReply returns the eligible ticket pool.
 type StartVoteReply struct {
-	StartBlock      string   `json:"startblock"`      // Block hash
-	StartHeight     string   `json:"startheight"`     // Height of vote start
-	EndHeight       string   `json:"endheight"`       // Height of vote end
-	EligibleTickets []string `json:"eligibletickets"` // Valid voting tickets
+	decredplugin.StartVoteReply
 }
 
 // Vote is the client side vote + decision.

@@ -53,9 +53,27 @@ func bestBlock(route string) (*dcrdataapi.BlockDataBasic, error) {
 	return &bdb, nil
 }
 
-func snapshot(route string, height uint32) ([]string, error) {
-	h := strconv.FormatUint(uint64(height), 10)
-	url := route + "api/stake/pool/b/" + h + "/full?sort=true"
+func block(route string, block uint32) (*dcrdataapi.BlockDataBasic, error) {
+	h := strconv.FormatUint(uint64(block), 10)
+	url := route + "api/block/" + h
+	log.Errorf("connecting to %v", url)
+	r, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Body.Close()
+
+	var bdb dcrdataapi.BlockDataBasic
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&bdb); err != nil {
+		return nil, err
+	}
+
+	return &bdb, nil
+}
+
+func snapshot(route, hash string) ([]string, error) {
+	url := route + "api/stake/pool/b/" + hash + "/full?sort=true"
 	log.Errorf("connecting to %v", url)
 	r, err := http.Get(url)
 	if err != nil {
