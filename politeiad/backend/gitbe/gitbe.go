@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrtime/api/v1"
 	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/decredplugin"
@@ -102,20 +103,21 @@ type file struct {
 // gitBackEnd is a git based backend context that satisfies the backend
 // interface.
 type gitBackEnd struct {
-	lock        *lockfile.LockFile // Global lock
-	db          *leveldb.DB        // Database
-	cron        *cron.Cron         // Scheduler for periodic tasks
-	shutdown    bool               // Backend is shutdown
-	root        string             // Root directory
-	unvetted    string             // Unvettend content
-	vetted      string             // Vetted, public, visible content
-	dcrtimeHost string             // Dcrtimed directory
-	gitPath     string             // Path to git
-	gitTrace    bool               // Enable git tracing
-	test        bool               // Set during UT
-	exit        chan struct{}      // Close channel
-	checkAnchor chan struct{}      // Work notification
-	plugins     []backend.Plugin   // Plugins
+	lock            *lockfile.LockFile // Global lock
+	db              *leveldb.DB        // Database
+	cron            *cron.Cron         // Scheduler for periodic tasks
+	activeNetParams *chaincfg.Params   // indicator if we are running on testnet
+	shutdown        bool               // Backend is shutdown
+	root            string             // Root directory
+	unvetted        string             // Unvettend content
+	vetted          string             // Vetted, public, visible content
+	dcrtimeHost     string             // Dcrtimed directory
+	gitPath         string             // Path to git
+	gitTrace        bool               // Enable git tracing
+	test            bool               // Set during UT
+	exit            chan struct{}      // Close channel
+	checkAnchor     chan struct{}      // Work notification
+	plugins         []backend.Plugin   // Plugins
 
 	// The following items are used for testing only
 	testAnchors map[string]bool // [digest]anchored
@@ -2157,38 +2159,49 @@ func (g *gitBackEnd) Plugin(command, payload string) (string, string, error) {
 	log.Tracef("Plugin: %v %v", command, payload)
 	switch command {
 	case decredplugin.CmdStartVote:
-		// 1. Get best block
-		// 2. Subtract 256 from block height to get into unforkable teritory
-		// 3. Get ticket pool snapshot
-		bb, err := bestBlock("https://testnet.dcrdata.org:443/")
+		vote, err := decredplugin.DecodeVote([]byte(payload))
 		if err != nil {
-			return "", "", fmt.Errorf("bestBlock: %v", err)
+			return "", "", fmt.Errorf("DecodeVote %v", err)
 		}
-		if bb.Height < 256 { // XXX use params
+
+		// 1. Get best block
+		bb, err := bestBlock()
+		if err != nil {
+			return "", "", fmt.Errorf("bestBlock %v", err)
+		}
+		if bb.Height < uint32(g.activeNetParams.TicketMaturity) {
 			return "", "", fmt.Errorf("invalid height")
 		}
-		snapshotBlock, err := block("https://testnet.dcrdata.org:443/", bb.Height-256) // XXX use params for this
+		// 2. Subtract TicketMaturity from block height to get into
+		// unforkable teritory
+		snapshotBlock, err := block(bb.Height -
+			uint32(g.activeNetParams.TicketMaturity))
 		if err != nil {
-			return "", "", fmt.Errorf("bestBlock: %v", err)
+			return "", "", fmt.Errorf("bestBlock %v", err)
 		}
-		snapshot, err := snapshot("https://testnet.dcrdata.org:443/", snapshotBlock.Hash)
+		// 3. Get ticket pool snapshot
+		snapshot, err := snapshot(snapshotBlock.Hash)
 		if err != nil {
-			return "", "", fmt.Errorf("snapshot: %v", err)
+			return "", "", fmt.Errorf("snapshot %v", err)
 		}
 
-		// store snapshot in metadata
-		_ = snapshot
+		// XXX store snapshot in metadata
 
+		duration := uint32(2016) // XXX 1 week on mainnet
 		svr := decredplugin.StartVoteReply{
 			StartBlockHeight: strconv.FormatUint(uint64(snapshotBlock.Height), 10),
 			StartBlockHash:   snapshotBlock.Hash,
-			EndHeight:        strconv.FormatUint(uint64(snapshotBlock.Height+2016), 10), // XXX 1 week
+			EndHeight:        strconv.FormatUint(uint64(snapshotBlock.Height+duration), 10),
 			EligibleTickets:  snapshot,
 		}
 		svrb, err := json.Marshal(svr)
 		if err != nil {
 			return "", "", fmt.Errorf("marshal: %v", err)
 		}
+
+		log.Infof("Vote started for: %v snapshot %v start %v end %v",
+			vote.Token, svr.StartBlockHash, svr.StartBlockHeight,
+			svr.EndHeight)
 
 		// return success and encoded answer
 		return string(svrb), "", nil
@@ -2375,24 +2388,25 @@ func (g *gitBackEnd) rebasePR(id string) error {
 }
 
 // New returns a gitBackEnd context.  It verifies that git is installed.
-func New(root string, dcrtimeHost string, gitPath string, gitTrace bool) (*gitBackEnd, error) {
+func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, gitTrace bool) (*gitBackEnd, error) {
 	// Default to system git
 	if gitPath == "" {
 		gitPath = "git"
 	}
 
 	g := &gitBackEnd{
-		root:        root,
-		cron:        cron.New(),
-		unvetted:    filepath.Join(root, defaultUnvettedPath),
-		vetted:      filepath.Join(root, defaultVettedPath),
-		gitPath:     gitPath,
-		dcrtimeHost: dcrtimeHost,
-		gitTrace:    gitTrace,
-		exit:        make(chan struct{}),
-		checkAnchor: make(chan struct{}),
-		testAnchors: make(map[string]bool),
-		plugins:     []backend.Plugin{decredPlugin}, // XXX hard code for now
+		activeNetParams: anp,
+		root:            root,
+		cron:            cron.New(),
+		unvetted:        filepath.Join(root, defaultUnvettedPath),
+		vetted:          filepath.Join(root, defaultVettedPath),
+		gitPath:         gitPath,
+		dcrtimeHost:     dcrtimeHost,
+		gitTrace:        gitTrace,
+		exit:            make(chan struct{}),
+		checkAnchor:     make(chan struct{}),
+		testAnchors:     make(map[string]bool),
+		plugins:         []backend.Plugin{getDecredPlugin(anp.Name != "mainnet")},
 	}
 
 	err := g.newLocked()

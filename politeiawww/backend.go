@@ -22,6 +22,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrtime/merkle"
+	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
@@ -1614,10 +1615,18 @@ func (b *backend) ProcessUserProposals(up *www.UserProposals, isCurrentUser, isA
 }
 
 func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.StartVoteReply, error) {
-	log.Tracef("ProcessStartVote %v", sv.Token)
+	log.Tracef("ProcessStartVote %v", sv.Vote.Token)
 
-	// Verify user
-	err := checkPublicKeyAndSignature(user, sv.PublicKey, sv.Signature, sv.Token)
+	// XXX Verify user
+	//err := checkPublicKeyAndSignature(user, sv.PublicKey, sv.Signature, sv.Token)
+	//if err != nil {
+	//	return nil, err
+	//}
+
+	// XXX validate vote bits
+
+	// Create vote bits as plugin payload
+	payload, err := decredplugin.EncodeVote(sv.Vote)
 	if err != nil {
 		return nil, err
 	}
@@ -1630,7 +1639,7 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 
 	// Look up token and ensure record is public and does not need to be
 	// updated
-	ir, found := b.inventory[sv.Token]
+	ir, found := b.inventory[sv.Vote.Token]
 	if !found {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusProposalNotFound,
@@ -1650,9 +1659,10 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 
 	pc := pd.PluginCommand{
 		Challenge: hex.EncodeToString(challenge),
-		ID:        "decred",
-		Command:   "startvote",
-		CommandID: "startvote", //Payload   string `json:"payload"`   // Actual command
+		ID:        decredplugin.ID,
+		Command:   decredplugin.CmdStartVote,
+		CommandID: decredplugin.CmdStartVote + " " + sv.Vote.Token,
+		Payload:   string(payload),
 	}
 
 	responseBody, err := b.makeRequest(http.MethodPost,
@@ -1674,13 +1684,6 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 		return nil, err
 	}
 
-	// Unmarshal plugin reply
-	//var svr decredplugin.StartVoteReply
-	//err = json.Unmarshal(reply.StartVoteReply, &svr)
-	//if err != nil {
-	//	return nil, fmt.Errorf("Could not unmarshal "+
-	//		"StartVoteReply: %v", err)
-	//}
 	log.Errorf("%v", spew.Sdump(reply))
 
 	return nil, fmt.Errorf("ProcessStartVote commented out")

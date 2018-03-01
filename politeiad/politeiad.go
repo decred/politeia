@@ -880,8 +880,8 @@ func _main() error {
 
 	// Setup backend.
 	gitbe.UseLogger(gitbeLog)
-	b, err := gitbe.New(loadedCfg.DataDir, loadedCfg.DcrtimeHost, "",
-		loadedCfg.GitTrace)
+	b, err := gitbe.New(activeNetParams.Params, loadedCfg.DataDir,
+		loadedCfg.DcrtimeHost, "", loadedCfg.GitTrace)
 	if err != nil {
 		return err
 	}

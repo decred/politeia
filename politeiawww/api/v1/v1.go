@@ -524,12 +524,11 @@ type GetCommentsReply struct {
 }
 
 // plugin commands
-
 // StartVote starts the voting process for a proposal.
 type StartVote struct {
-	Token     string `json:"token"`     // Proposal that will start voting soon
-	PublicKey string `json:"publickey"` // Key used for signature.
-	Signature string `json:"signature"` // Signature of Token
+	PublicKey string            `json:"publickey"` // Key used for signature.
+	Vote      decredplugin.Vote `json:"vote"`      // Vote
+	Signature string            `json:"signature"` // Signature of Votehash
 }
 
 // StartVoteReply returns the eligible ticket pool.
@@ -538,7 +537,7 @@ type StartVoteReply struct {
 }
 
 // Vote is the client side vote + decision.
-type Vote struct {
+type CastVote struct {
 	Ticket    string `json:"ticket"`    // Ticket ID
 	Token     string `json:"token"`     // Vote ID
 	Bits      string `json:"bits"`      // Vote bits, not to exceed 64 bits
@@ -546,7 +545,7 @@ type Vote struct {
 }
 
 // VoteReply returns a receipt for a vote.
-type VoteReply struct {
+type CastVoteReply struct {
 	// Server side signature of the Vote command, Ticket+Token+Bits+Signature
 	Receipt string `json:"receipt"`
 }
