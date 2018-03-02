@@ -19,11 +19,11 @@ var (
 )
 
 type inventoryRecord struct {
-	record     pd.Record                 // actual record
-	proposalMD BackendProposalMetadata   // proposal metadata
-	comments   map[uint64]BackendComment // [token][parent]comment
-	changes    []MDStreamChanges         // changes metadata
-	voting     []MDStreamVoting          // voting metadata
+	record     pd.Record                     // actual record
+	proposalMD BackendProposalMetadata       // proposal metadata
+	comments   map[uint64]BackendComment     // [token][parent]comment
+	changes    []MDStreamChanges             // changes metadata
+	voting     []decredplugin.StartVoteReply // voting metadata
 }
 
 // proposalsRequest is used for passing parameters into the
@@ -101,7 +101,7 @@ func (b *backend) loadVoting(token, payload string) error {
 	f := strings.NewReader(payload)
 	d := json.NewDecoder(f)
 	for {
-		var md MDStreamVoting
+		var md decredplugin.StartVoteReply
 		if err := d.Decode(&md); err == io.EOF {
 			return nil
 		} else if err != nil {
@@ -219,7 +219,7 @@ func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
 		var ok bool
 		v.UserId, ok = b.userPubkeys[v.PublicKey]
 		if !ok {
-			log.Infof("%v\n", spew.Sdump(b.userPubkeys))
+			log.Infof("%v", spew.Sdump(b.userPubkeys))
 			log.Errorf("user not found for public key %v, for proposal %v",
 				v.PublicKey, v.CensorshipRecord.Token)
 		}

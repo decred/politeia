@@ -49,13 +49,6 @@ type MDStreamChanges struct {
 	Timestamp   int64            // Timestamp of the change
 }
 
-type MDStreamVoting struct {
-	AdminPubKey       string // Identity of the administrator
-	Timestamp         int64  // Timestamp of the change
-	TimestampActivate int64  // Timestamp when vote activates
-	TimestampComplete int64  // Timestamp when vote completes
-}
-
 // politeiawww backend construct
 type backend struct {
 	sync.RWMutex // lock for inventory and comments
