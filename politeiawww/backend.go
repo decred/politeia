@@ -19,7 +19,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/dajohi/goemail"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/decredplugin"
@@ -1628,8 +1627,8 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 
 	// Look up token and ensure record is public and does not need to be
 	// updated
-	ir, found := b.inventory[sv.Vote.Token]
-	if !found {
+	ir, err := b._getInventoryRecord(sv.Vote.Token)
+	if err != nil {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusProposalNotFound,
 		}
@@ -1673,9 +1672,18 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 		return nil, err
 	}
 
-	log.Errorf("%v", spew.Sdump(reply))
+	// We can get away with only updating the voting metadata in cache
+	// XXX this is cheating a bit and we should add an api for this or toss the cache altogether
+	vr, err := decredplugin.DecodeStartVoteReply([]byte(reply.Payload))
+	if err != nil {
+		return nil, err
+	}
+	ir.voting = *vr
+	b.inventory[sv.Vote.Token] = &ir
 
-	return nil, fmt.Errorf("ProcessStartVote commented out")
+	return &www.StartVoteReply{
+		VoteDetails: *vr,
+	}, nil
 }
 
 // ProcessPolicy returns the details of Politeia's restrictions on file uploads.

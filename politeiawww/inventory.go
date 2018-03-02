@@ -19,11 +19,11 @@ var (
 )
 
 type inventoryRecord struct {
-	record     pd.Record                     // actual record
-	proposalMD BackendProposalMetadata       // proposal metadata
-	comments   map[uint64]BackendComment     // [token][parent]comment
-	changes    []MDStreamChanges             // changes metadata
-	voting     []decredplugin.StartVoteReply // voting metadata
+	record     pd.Record                   // actual record
+	proposalMD BackendProposalMetadata     // proposal metadata
+	comments   map[uint64]BackendComment   // [token][parent]comment
+	changes    []MDStreamChanges           // changes metadata
+	voting     decredplugin.StartVoteReply // voting metadata
 }
 
 // proposalsRequest is used for passing parameters into the
@@ -100,16 +100,15 @@ func (b *backend) loadChanges(token, payload string) error {
 func (b *backend) loadVoting(token, payload string) error {
 	f := strings.NewReader(payload)
 	d := json.NewDecoder(f)
-	for {
-		var md decredplugin.StartVoteReply
-		if err := d.Decode(&md); err == io.EOF {
-			return nil
-		} else if err != nil {
-			return err
-		}
-		p := b.inventory[token]
-		p.voting = append(p.voting, md)
+	var md decredplugin.StartVoteReply
+	if err := d.Decode(&md); err == io.EOF {
+		return nil
+	} else if err != nil {
+		return err
 	}
+	p := b.inventory[token]
+	p.voting = md
+	return nil
 }
 
 // loadReocrd load an entire record into inventory.

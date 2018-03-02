@@ -24,8 +24,7 @@ type Vote struct {
 	Options []VoteOption
 }
 
-// encodeVote encodes Vote into a JSON
-// byte slice.
+// EncodeVote encodes Vote into a JSON byte slice.
 func EncodeVote(v Vote) ([]byte, error) {
 	b, err := json.Marshal(v)
 	if err != nil {
@@ -35,7 +34,7 @@ func EncodeVote(v Vote) ([]byte, error) {
 	return b, nil
 }
 
-// decodeVote decodes a JSON byte slice into a Vote.
+// DecodeVote decodes a JSON byte slice into a Vote.
 func DecodeVote(payload []byte) (*Vote, error) {
 	var v Vote
 
@@ -59,4 +58,26 @@ type StartVoteReply struct {
 	StartBlockHash   string   `json:"startblockhash"`   // Block hash
 	EndHeight        string   `json:"endheight"`        // Height of vote end
 	EligibleTickets  []string `json:"eligibletickets"`  // Valid voting tickets
+}
+
+// EncodeStartVoteReply encodes StartVoteReply into a JSON byte slice.
+func EncodeStartVoteReply(v StartVoteReply) ([]byte, error) {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+// DecodeVoteReply decodes a JSON byte slice into a StartVoteReply.
+func DecodeStartVoteReply(payload []byte) (*StartVoteReply, error) {
+	var v StartVoteReply
+
+	err := json.Unmarshal(payload, &v)
+	if err != nil {
+		return nil, err
+	}
+
+	return &v, nil
 }

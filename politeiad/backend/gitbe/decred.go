@@ -116,10 +116,10 @@ func snapshot(hash string) ([]string, error) {
 	return tickets, nil
 }
 
-func (g *gitBackEnd) pluginStartVote(payload string) (string, string, error) {
+func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 	vote, err := decredplugin.DecodeVote([]byte(payload))
 	if err != nil {
-		return "", "", fmt.Errorf("DecodeVote %v", err)
+		return "", fmt.Errorf("DecodeVote %v", err)
 	}
 
 	// XXX verify proposal exists
@@ -128,28 +128,28 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, string, error) {
 
 	token, err := util.ConvertStringToken(vote.Token)
 	if err != nil {
-		return "", "", fmt.Errorf("ConvertStringToken %v", err)
+		return "", fmt.Errorf("ConvertStringToken %v", err)
 	}
 
 	// 1. Get best block
 	bb, err := bestBlock()
 	if err != nil {
-		return "", "", fmt.Errorf("bestBlock %v", err)
+		return "", fmt.Errorf("bestBlock %v", err)
 	}
 	if bb.Height < uint32(g.activeNetParams.TicketMaturity) {
-		return "", "", fmt.Errorf("invalid height")
+		return "", fmt.Errorf("invalid height")
 	}
 	// 2. Subtract TicketMaturity from block height to get into
 	// unforkable teritory
 	snapshotBlock, err := block(bb.Height -
 		uint32(g.activeNetParams.TicketMaturity))
 	if err != nil {
-		return "", "", fmt.Errorf("bestBlock %v", err)
+		return "", fmt.Errorf("bestBlock %v", err)
 	}
 	// 3. Get ticket pool snapshot
 	snapshot, err := snapshot(snapshotBlock.Hash)
 	if err != nil {
-		return "", "", fmt.Errorf("snapshot %v", err)
+		return "", fmt.Errorf("snapshot %v", err)
 	}
 
 	duration := uint32(2016) // XXX 1 week on mainnet
@@ -159,9 +159,9 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, string, error) {
 		EndHeight:        strconv.FormatUint(uint64(snapshotBlock.Height+duration), 10),
 		EligibleTickets:  snapshot,
 	}
-	svrb, err := json.Marshal(svr)
+	svrb, err := decredplugin.EncodeStartVoteReply(svr)
 	if err != nil {
-		return "", "", fmt.Errorf("marshal: %v", err)
+		return "", fmt.Errorf("EncodeStartVoteReply: %v", err)
 	}
 
 	// XXX store snapshot in metadata
@@ -171,7 +171,7 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, string, error) {
 			Payload: string(svrb),
 		}})
 	if err != nil {
-		return "", "", fmt.Errorf("UpdateVettedMetadata: %v", err)
+		return "", fmt.Errorf("UpdateVettedMetadata: %v", err)
 	}
 
 	log.Infof("Vote started for: %v snapshot %v start %v end %v",
@@ -179,5 +179,5 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, string, error) {
 		svr.EndHeight)
 
 	// return success and encoded answer
-	return string(svrb), "", nil
+	return string(svrb), nil
 }

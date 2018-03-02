@@ -2159,7 +2159,8 @@ func (g *gitBackEnd) Plugin(command, payload string) (string, string, error) {
 	log.Tracef("Plugin: %v %v", command, payload)
 	switch command {
 	case decredplugin.CmdStartVote:
-		return g.pluginStartVote(payload)
+		payload, err := g.pluginStartVote(payload)
+		return decredplugin.CmdStartVote, payload, err
 	}
 	return "", "", fmt.Errorf("invalid payload command") // XXX this needs to become a type error
 }

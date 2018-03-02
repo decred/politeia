@@ -533,7 +533,7 @@ type StartVote struct {
 
 // StartVoteReply returns the eligible ticket pool.
 type StartVoteReply struct {
-	decredplugin.StartVoteReply
+	VoteDetails decredplugin.StartVoteReply `json:"votedetails"`
 }
 
 // Vote is the client side vote + decision.
