@@ -52,6 +52,7 @@ type config struct {
 	LogDir      string   `long:"logdir" description:"Directory to log output."`
 	TestNet     bool     `long:"testnet" description:"Use the test network"`
 	SimNet      bool     `long:"simnet" description:"Use the simulation test network"`
+	PoliteiaWWW string   `long:"politeiawww" description:"Politeia WWW host"`
 	Profile     string   `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
 	CPUProfile  string   `long:"cpuprofile" description:"Write CPU profile to the specified file"`
 	MemProfile  string   `long:"memprofile" description:"Write mem profile to the specified file"`
