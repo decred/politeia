@@ -64,11 +64,9 @@ func (c *ctx) getCSRF() (*v1.VersionReply, error) {
 		return nil, err
 	}
 
-	fmt.Printf("Request: GET /\n")
+	log.Debugf("Request: GET /")
 
-	//if *printJson {
-	//	fmt.Println("  " + string(requestBody))
-	//}
+	log.Tracef("%v  ", string(requestBody))
 
 	req, err := http.NewRequest(http.MethodGet, c.cfg.PoliteiaWWW,
 		bytes.NewReader(requestBody))
@@ -84,9 +82,7 @@ func (c *ctx) getCSRF() (*v1.VersionReply, error) {
 	}()
 
 	responseBody := util.ConvertBodyToByteArray(r.Body, false)
-	//if *printJson {
-	//	fmt.Println("Response: " + string(responseBody) + "\n")
-	//}
+	log.Tracef("Response: %v", string(responseBody))
 	if r.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("%v", r.StatusCode)
 	}
@@ -104,7 +100,6 @@ func (c *ctx) getCSRF() (*v1.VersionReply, error) {
 
 func firstContact(cfg *config) (*ctx, error) {
 	// Always hit / first for csrf token and obtain api version
-	fmt.Printf("=== Start ===\n")
 	c, err := newClient(true)
 	if err != nil {
 		return nil, err
@@ -114,9 +109,9 @@ func firstContact(cfg *config) (*ctx, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("Version: %v\n", version.Version)
-	fmt.Printf("Route  : %v\n", version.Route)
-	fmt.Printf("CSRF   : %v\n\n", c.csrf)
+	log.Debugf("Version: %v", version.Version)
+	log.Debugf("Route  : %v", version.Route)
+	log.Debugf("CSRF   : %v", c.csrf)
 
 	return c, nil
 }
@@ -146,12 +141,11 @@ func (c *ctx) makeRequest(method, route string, b interface{}) ([]byte, error) {
 
 	fullRoute := c.cfg.PoliteiaWWW + v1.PoliteiaWWWAPIRoute + route +
 		queryParams
-	fmt.Printf("Request: %v %v\n", method, v1.PoliteiaWWWAPIRoute+route+
+	log.Debugf("Request: %v %v", method, v1.PoliteiaWWWAPIRoute+route+
 		queryParams)
-
-	//if *printJson {
-	//	fmt.Println("  " + string(requestBody))
-	//}
+	if len(requestBody) != 0 {
+		log.Tracef("%v  ", string(requestBody))
+	}
 
 	req, err := http.NewRequest(method, fullRoute, bytes.NewReader(requestBody))
 	if err != nil {
@@ -167,9 +161,7 @@ func (c *ctx) makeRequest(method, route string, b interface{}) ([]byte, error) {
 	}()
 
 	responseBody := util.ConvertBodyToByteArray(r.Body, false)
-	//if *printJson {
-	//	fmt.Printf("Response: %v %v\n\n", r.StatusCode, string(responseBody))
-	//}
+	log.Tracef("Response: %v %v", r.StatusCode, string(responseBody))
 	if r.StatusCode != http.StatusOK {
 		var ue v1.UserError
 		err = json.Unmarshal(responseBody, &ue)
