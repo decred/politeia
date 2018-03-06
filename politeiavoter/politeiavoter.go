@@ -178,7 +178,7 @@ func (c *ctx) makeRequest(method, route string, b interface{}) ([]byte, error) {
 }
 
 func (c *ctx) _inventory() (*v1.PolicyReply, error) {
-	responseBody, err := c.makeRequest("GET", v1.RoutePolicy, nil)
+	responseBody, err := c.makeRequest("GET", v1.RouteActiveVote, nil)
 	if err != nil {
 		return nil, err
 	}

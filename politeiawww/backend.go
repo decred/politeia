@@ -1602,6 +1602,29 @@ func (b *backend) ProcessUserProposals(up *www.UserProposals, isCurrentUser, isA
 	}, nil
 }
 
+func (b *backend) ProcessActiveVote() (*www.ActiveVoteReply, error) {
+	log.Tracef("ProcessActiveVote")
+
+	// XXX We need to determine best block height here; for now return all
+	// records with votes
+
+	b.RLock()
+	defer b.RUnlock()
+
+	// iterate over all props and see what is active
+	var avr www.ActiveVoteReply
+	for _, i := range b.inventory {
+		// Use StartBlockHeight as a canary
+		if len(i.voting.StartBlockHeight) == 0 {
+			continue
+		}
+
+		avr.Proposals = append(avr.Proposals, convertPropFromPD(i.record))
+	}
+
+	return &avr, nil
+}
+
 func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.StartVoteReply, error) {
 	log.Tracef("ProcessStartVote %v", sv.Vote.Token)
 

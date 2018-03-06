@@ -773,6 +773,20 @@ func (p *politeiawww) handleUserProposals(w http.ResponseWriter, r *http.Request
 	util.RespondWithJSON(w, http.StatusOK, upr)
 }
 
+// handleActiveVote returns all active proposals that have an active vote.
+func (p *politeiawww) handleActiveVote(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleActiveVote")
+
+	avr, err := p.backend.ProcessActiveVote()
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleActiveVote: ProcessActivateVote %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, avr)
+}
+
 // handleStartVote handles starting a vote.
 func (p *politeiawww) handleStartVote(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleStartVote")
@@ -954,6 +968,8 @@ func _main() error {
 	p.addRoute(http.MethodGet, v1.RouteCommentsGet, p.handleCommentsGet,
 		permissionPublic, true)
 	p.addRoute(http.MethodGet, v1.RouteUserProposals, p.handleUserProposals,
+		permissionPublic, true)
+	p.addRoute(http.MethodGet, v1.RouteActiveVote, p.handleActiveVote,
 		permissionPublic, true)
 
 	// Routes that require being logged in.

@@ -36,6 +36,7 @@ const (
 	RouteNewComment          = "/comments/new"
 	RouteCommentsGet         = "/proposals/{token:[A-z0-9]{64}}/comments"
 	RouteStartVote           = "/proposals/startvote"
+	RouteActiveVote          = "/proposals/activevote"
 
 	// VerificationTokenSize is the size of verification token in bytes
 	VerificationTokenSize = 32
@@ -521,6 +522,14 @@ type Comment struct {
 // GetCommentsReply returns the provided number of comments.
 type GetCommentsReply struct {
 	Comments []Comment `json:"comments"` // Comments
+}
+
+// ActiveVote obtains all proposals that have active votes.
+type ActiveVote struct{}
+
+// ActiveVoteReply returns all proposals that have active votes.
+type ActiveVoteReply struct {
+	Proposals []ProposalRecord `json:"proposals"`
 }
 
 // plugin commands
