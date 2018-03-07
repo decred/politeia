@@ -39,6 +39,7 @@ const (
 	mdStreamGeneral  = 0 // General information for this proposal
 	mdStreamComments = 1 // Comments
 	mdStreamChanges  = 2 // Changes to record
+	// Note that 14 is in use by the decred plugin
 	// Note that 15 is in use by the decred plugin
 )
 
@@ -1621,7 +1622,7 @@ func (b *backend) ProcessActiveVote() (*www.ActiveVoteReply, error) {
 
 		avr.Votes = append(avr.Votes, www.ProposalVoteTuple{
 			Proposal:    convertPropFromPD(i.record),
-			Vote:        decredplugin.Vote{},
+			Vote:        i.votebits,
 			VoteDetails: i.voting,
 		})
 	}
@@ -1706,6 +1707,7 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 		return nil, err
 	}
 	ir.voting = *vr
+	ir.votebits = sv.Vote
 	b.inventory[sv.Vote.Token] = &ir
 
 	return &www.StartVoteReply{

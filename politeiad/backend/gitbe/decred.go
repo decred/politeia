@@ -122,6 +122,8 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 		return "", fmt.Errorf("DecodeVote %v", err)
 	}
 
+	// XXX verify vote bits are sane
+
 	// XXX verify proposal exists
 
 	// XXX verify proposal is in the right state
@@ -167,7 +169,11 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 	// XXX store snapshot in metadata
 	err = g.UpdateVettedMetadata(token, nil, []backend.MetadataStream{
 		{
-			ID:      decredplugin.MDStreamVoting,
+			ID:      decredplugin.MDStreamVoteBits,
+			Payload: payload, // Contains incoming vote request
+		},
+		{
+			ID:      decredplugin.MDStreamVoteSnapshot,
 			Payload: string(svrb),
 		}})
 	if err != nil {

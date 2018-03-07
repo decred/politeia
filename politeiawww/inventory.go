@@ -23,6 +23,7 @@ type inventoryRecord struct {
 	proposalMD BackendProposalMetadata     // proposal metadata
 	comments   map[uint64]BackendComment   // [token][parent]comment
 	changes    []MDStreamChanges           // changes metadata
+	votebits   decredplugin.Vote           // vote bits and options
 	voting     decredplugin.StartVoteReply // voting metadata
 }
 
@@ -145,12 +146,18 @@ func (b *backend) loadRecord(v pd.Record) {
 					err)
 				continue
 			}
-		case decredplugin.MDStreamVoting:
+		case decredplugin.MDStreamVoteBits:
 			err = b.loadVoting(t, m.Payload)
 			if err != nil {
 				log.Errorf("initializeInventory "+
-					"could not load vote: %v",
-					err)
+					"could not load vote bits: %v", err)
+				continue
+			}
+		case decredplugin.MDStreamVoteSnapshot:
+			err = b.loadVoting(t, m.Payload)
+			if err != nil {
+				log.Errorf("initializeInventory "+
+					"could not load vote snapshot: %v", err)
 				continue
 			}
 		default:
