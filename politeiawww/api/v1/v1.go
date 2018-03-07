@@ -527,9 +527,16 @@ type GetCommentsReply struct {
 // ActiveVote obtains all proposals that have active votes.
 type ActiveVote struct{}
 
+// ProposalVoteTuple is the proposal, vote and vote details.
+type ProposalVoteTuple struct {
+	Proposal    ProposalRecord              `json:"proposal"`    // Proposal
+	Vote        decredplugin.Vote           `json:"vote"`        // Vote bits and mask
+	VoteDetails decredplugin.StartVoteReply `json:"votedetails"` // Eligible tickets and other details
+}
+
 // ActiveVoteReply returns all proposals that have active votes.
 type ActiveVoteReply struct {
-	Proposals []ProposalRecord `json:"proposals"`
+	Votes []ProposalVoteTuple `json:"votes"` // Active votes
 }
 
 // plugin commands

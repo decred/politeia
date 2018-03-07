@@ -1619,7 +1619,11 @@ func (b *backend) ProcessActiveVote() (*www.ActiveVoteReply, error) {
 			continue
 		}
 
-		avr.Proposals = append(avr.Proposals, convertPropFromPD(i.record))
+		avr.Votes = append(avr.Votes, www.ProposalVoteTuple{
+			Proposal:    convertPropFromPD(i.record),
+			Vote:        decredplugin.Vote{},
+			VoteDetails: i.voting,
+		})
 	}
 
 	return &avr, nil
