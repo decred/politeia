@@ -46,7 +46,7 @@ var (
 
 // subsystemLoggers maps each subsystem identifier to its associated logger.
 var subsystemLoggers = map[string]btclog.Logger{
-	"POLI": log,
+	"POLV": log,
 }
 
 // initLogRotator initializes the logging rotater to write logs to logFile and

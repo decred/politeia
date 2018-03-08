@@ -177,20 +177,20 @@ func (c *ctx) makeRequest(method, route string, b interface{}) ([]byte, error) {
 	return responseBody, nil
 }
 
-func (c *ctx) _inventory() (*v1.PolicyReply, error) {
+func (c *ctx) _inventory() (*v1.ActiveVoteReply, error) {
 	responseBody, err := c.makeRequest("GET", v1.RouteActiveVote, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var pr v1.PolicyReply
-	err = json.Unmarshal(responseBody, &pr)
+	var ar v1.ActiveVoteReply
+	err = json.Unmarshal(responseBody, &ar)
 	if err != nil {
-		return nil, fmt.Errorf("Could not unmarshal PolicyReply: %v",
+		return nil, fmt.Errorf("Could not unmarshal ActiveVoteReply: %v",
 			err)
 	}
 
-	return &pr, nil
+	return &ar, nil
 }
 
 func (c *ctx) inventory() error {
@@ -199,7 +199,41 @@ func (c *ctx) inventory() error {
 		return err
 	}
 
-	_ = i
+	//spew.Dump(i)
+	for _, v := range i.Votes {
+		// Make sure we have a CensorshipRecord
+		if v.Proposal.CensorshipRecord.Token == "" {
+			// This should not happen
+			log.Debugf("skipping empty CensorshipRecord")
+			continue
+		}
+
+		// Make sure we have valid vote bits
+		if v.Vote.Token == "" || v.Vote.Mask == 0 ||
+			v.Vote.Options == nil {
+			// This should not happen
+			log.Debugf("invalid vote bits: %v",
+				v.Proposal.CensorshipRecord.Token)
+			continue
+		}
+
+		// Display vote bits
+		fmt.Printf("Vote: %v\n", v.Vote.Token)
+		fmt.Printf("  Proposal   : %v\n", v.Proposal.Name)
+		fmt.Printf("  Start block: %v\n", v.VoteDetails.StartBlockHeight)
+		fmt.Printf("  End block  : %v\n", v.VoteDetails.EndHeight)
+		fmt.Printf("  Mask       : %v\n", v.Vote.Mask)
+		for _, vo := range v.Vote.Options {
+			fmt.Printf("  Vote Option:\n")
+			fmt.Printf("    Id                   : %v\n", vo.Id)
+			fmt.Printf("    Description          : %v\n",
+				vo.Description)
+			fmt.Printf("    Bits                 : %v\n", vo.Bits)
+			fmt.Printf("    To choose this option: "+
+				"politeiavoter vote %v %v\n", v.Vote.Token,
+				vo.Id)
+		}
+	}
 
 	return nil
 }
