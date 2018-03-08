@@ -37,6 +37,7 @@ const (
 	RouteCommentsGet         = "/proposals/{token:[A-z0-9]{64}}/comments"
 	RouteStartVote           = "/proposals/startvote"
 	RouteActiveVote          = "/proposals/activevote"
+	RouteCastVote            = "/proposals/castvote"
 
 	// VerificationTokenSize is the size of verification token in bytes
 	VerificationTokenSize = 32
@@ -483,6 +484,7 @@ type PolicyReply struct {
 	MinNameLength        uint     `json:"minnamelength"`
 	SupportedCharacters  []string `json:"supportedcharacters"`
 	MaxCommentLength     uint     `json:"maxcommentlength"`
+	BackendPublicKey     string   `json:"backendpublickey"`
 }
 
 // NewComment sends a comment from a user to a specific proposal.  Note that
@@ -556,7 +558,8 @@ type StartVoteReply struct {
 type CastVote struct {
 	Ticket    string `json:"ticket"`    // Ticket ID
 	Token     string `json:"token"`     // Vote ID
-	Bits      string `json:"bits"`      // Vote bits, not to exceed 64 bits
+	Vote      string `json:"vote"`      // Vote bits, not to exceed 64 bits
+	PublicKey string `json:"publickey"` // Key used for signature.
 	Signature string `json:"signature"` // Signature of Ticket+Token+Bits
 }
 

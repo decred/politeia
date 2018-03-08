@@ -238,6 +238,42 @@ func (c *ctx) inventory() error {
 	return nil
 }
 
+func (c *ctx) _vote(token, voteId string) (*v1.CastVoteReply, error) {
+	cv := v1.CastVote{
+		Ticket:    "NOTYET",
+		Token:     token,
+		Vote:      "",
+		Signature: "nosignature",
+	}
+	responseBody, err := c.makeRequest("POST", v1.RouteCastVote, &cv)
+	if err != nil {
+		return nil, err
+	}
+
+	var vr v1.CastVoteReply
+	err = json.Unmarshal(responseBody, &vr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal CastVoteReply: %v",
+			err)
+	}
+
+	return &vr, nil
+}
+
+func (c *ctx) vote(args []string) error {
+	if len(args) != 2 {
+		return fmt.Errorf("vote: not enough arguments")
+	}
+
+	cv, err := c._vote(args[0], args[1])
+	if err != nil {
+		return err
+	}
+	_ = cv
+
+	return fmt.Errorf("not yet")
+}
+
 func _main() error {
 	cfg, args, err := loadConfig()
 	if err != nil {
@@ -261,6 +297,8 @@ func _main() error {
 			switch a {
 			case "inventory":
 				return c.inventory()
+			case "vote":
+				return c.vote(args[1:])
 			default:
 				return fmt.Errorf("invalid action: %v", a)
 			}
