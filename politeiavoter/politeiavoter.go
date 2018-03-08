@@ -238,19 +238,23 @@ func (c *ctx) inventory() error {
 	return nil
 }
 
-func (c *ctx) _vote(token, voteId string) (*v1.CastVoteReply, error) {
-	cv := v1.CastVote{
-		Ticket:    "NOTYET",
-		Token:     token,
-		Vote:      "",
-		Signature: "nosignature",
+func (c *ctx) _vote(token, voteId string) (*v1.CastVotesReply, error) {
+	cv := v1.CastVotes{
+		Votes: []v1.Vote{
+			{
+				Ticket:    "NOTYET",
+				Token:     token,
+				Vote:      "",
+				Signature: "nosignature",
+			},
+		},
 	}
-	responseBody, err := c.makeRequest("POST", v1.RouteCastVote, &cv)
+	responseBody, err := c.makeRequest("POST", v1.RouteCastVotes, &cv)
 	if err != nil {
 		return nil, err
 	}
 
-	var vr v1.CastVoteReply
+	var vr v1.CastVotesReply
 	err = json.Unmarshal(responseBody, &vr)
 	if err != nil {
 		return nil, fmt.Errorf("Could not unmarshal CastVoteReply: %v",

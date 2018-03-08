@@ -37,7 +37,7 @@ const (
 	RouteCommentsGet         = "/proposals/{token:[A-z0-9]{64}}/comments"
 	RouteStartVote           = "/proposals/startvote"
 	RouteActiveVote          = "/proposals/activevote"
-	RouteCastVote            = "/proposals/castvote"
+	RouteCastVotes           = "/proposals/castvotes"
 
 	// VerificationTokenSize is the size of verification token in bytes
 	VerificationTokenSize = 32
@@ -555,7 +555,9 @@ type StartVoteReply struct {
 }
 
 // Vote is the client side vote + decision.
-type CastVote struct {
+//
+// This is not a command.
+type Vote struct {
 	Ticket    string `json:"ticket"`    // Ticket ID
 	Token     string `json:"token"`     // Vote ID
 	Vote      string `json:"vote"`      // Vote bits, not to exceed 64 bits
@@ -563,8 +565,23 @@ type CastVote struct {
 	Signature string `json:"signature"` // Signature of Ticket+Token+Bits
 }
 
-// VoteReply returns a receipt for a vote.
-type CastVoteReply struct {
+// VoteReply is a receipt for a vote.
+//
+// This is not a command.
+type VoteReply struct {
+	Ticket string `json:"ticket"` // Ticket ID
+	Token  string `json:"token"`  // Vote ID
 	// Server side signature of the Vote command, Ticket+Token+Bits+Signature
-	Receipt string `json:"receipt"`
+	Receipt   string `json:"receipt"`
+	ErrorCode uint   `json:"error"` // Error code for this vote
+}
+
+// CastVores is a batch of votes that is sent to the server.
+type CastVotes struct {
+	Votes []Vote `json:"castvote"`
+}
+
+// CastVotesReply is a reply to a batched list of votes.
+type CastVotesReply struct {
+	Receipts []VoteReply `json:"receipts"`
 }
