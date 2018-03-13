@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/dcrdata/dcrdata/dcrdataapi"
+	"github.com/decred/dcrdata/dcrdataapi"
 	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/util"
@@ -21,18 +21,18 @@ func getDecredPlugin(testnet bool) backend.Plugin {
 		ID:       decredplugin.ID,
 		Version:  decredplugin.Version,
 		Settings: []backend.PluginSetting{
-		//{
-		//	Key:   "dcrd",
-		//	Value: "localhost:19109",
-		//},
-		//{
-		//	Key:   "dcrduser",
-		//	Value: "u",
-		//},
-		//{
-		//	Key:   "dcrdpass",
-		//	Value: "p",
-		//},
+			//{
+			//	Key:   "dcrd",
+			//	Value: "localhost:19109",
+			//},
+			//{
+			//	Key:   "dcrduser",
+			//	Value: "u",
+			//},
+			//{
+			//	Key:   "dcrdpass",
+			//	Value: "p",
+			//},
 		},
 	}
 

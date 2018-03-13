@@ -1,3 +1,29 @@
+# Gopkg.toml example
+#
+# Refer to https://github.com/golang/dep/blob/master/docs/Gopkg.toml.md
+# for detailed Gopkg.toml documentation.
+#
+# required = ["github.com/user/thing/cmd/thing"]
+# ignored = ["github.com/user/project/pkgX", "bitbucket.org/user/project/pkgA/pkgY"]
+#
+# [[constraint]]
+#   name = "github.com/user/project"
+#   version = "1.0.0"
+#
+# [[constraint]]
+#   name = "github.com/user/project2"
+#   branch = "dev"
+#   source = "github.com/myfork/project2"
+#
+# [[override]]
+#   name = "github.com/x/y"
+#   version = "2.4.0"
+#
+# [prune]
+#   non-go = false
+#   go-tests = true
+#   unused-packages = true
+
 
 [[constraint]]
   branch = "master"
@@ -29,6 +55,10 @@
 
 [[constraint]]
   branch = "master"
+  name = "github.com/decred/dcrdata"
+
+[[constraint]]
+  branch = "master"
   name = "github.com/decred/dcrtime"
 
 [[constraint]]
@@ -41,7 +71,11 @@
 
 [[constraint]]
   name = "github.com/gorilla/mux"
-  version = "1.5.0"
+  version = "1.6.1"
+
+[[constraint]]
+  name = "github.com/gorilla/schema"
+  version = "1.0.1"
 
 [[constraint]]
   name = "github.com/gorilla/sessions"
@@ -64,6 +98,14 @@
   version = "1.0.0"
 
 [[constraint]]
+  name = "github.com/stretchr/testify"
+  version = "1.2.1"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/subosito/norma"
+
+[[constraint]]
   branch = "master"
   name = "github.com/syndtr/goleveldb"
 
@@ -75,6 +117,6 @@
   branch = "master"
   name = "golang.org/x/net"
 
-[[constraint]]
-  branch = "master"
-  name = "github.com/subosito/norma"
+[prune]
+  go-tests = true
+  unused-packages = true
