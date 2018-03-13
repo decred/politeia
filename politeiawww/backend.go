@@ -751,6 +751,7 @@ func (b *backend) CreateLoginReply(user *database.User) *www.LoginReply {
 	if user.NewUserPaywallTx == "" {
 		reply.PaywallAddress = user.NewUserPaywallAddress
 		reply.PaywallAmount = user.NewUserPaywallAmount
+		reply.PaywallTxNotBefore = user.NewUserPaywallTxNotBefore
 	}
 
 	return &reply
@@ -937,7 +938,7 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 
 		// Derive a paywall address for this user if the paywall is enabled.
 		paywallAddress := ""
-		paywallAmount := float64(0)
+		paywallAmount := uint64(0)
 		if b.cfg.PaywallXpub != "" {
 			paywallAddress, err = util.DerivePaywallAddress(b.params,
 				b.cfg.PaywallXpub, uint32(user.ID))
@@ -948,11 +949,15 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 			paywallAmount = b.cfg.PaywallAmount
 		}
 
+		txNotBeforeTimestamp := time.Now().Unix()
+
 		reply.PaywallAddress = paywallAddress
 		reply.PaywallAmount = paywallAmount
+		reply.PaywallTxNotBefore = txNotBeforeTimestamp
+
 		user.NewUserPaywallAddress = paywallAddress
 		user.NewUserPaywallAmount = paywallAmount
-		user.NewUserPaywallTxNotBefore = time.Now().Unix()
+		user.NewUserPaywallTxNotBefore = txNotBeforeTimestamp
 
 		err = b.db.UserUpdate(*user)
 		if err != nil {

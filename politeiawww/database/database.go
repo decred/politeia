@@ -56,20 +56,20 @@ func ActiveIdentityString(i []Identity) (string, bool) {
 
 // User record.
 type User struct {
-	ID                              uint64  // Unique id
-	Email                           string  // Email address + lookup key.
-	HashedPassword                  []byte  // Blowfish hash
-	Admin                           bool    // Is user an admin
-	NewUserPaywallAddress           string  // Address the user needs to send to
-	NewUserPaywallAmount            float64 // Amount the user needs to send
-	NewUserPaywallTx                string  // Paywall transaction id
-	NewUserPaywallTxNotBefore       int64   // Transactions occurring before this time will not be valid.
-	NewUserVerificationToken        []byte  // Verification token during signup
-	NewUserVerificationExpiry       int64   // Verification expiration
-	UpdateKeyVerificationToken      []byte  // Verification token for updating keypair
-	UpdateKeyVerificationExpiry     int64   // Verification expiration
-	ResetPasswordVerificationToken  []byte  // Reset password token
-	ResetPasswordVerificationExpiry int64   // Reset password token expiration
+	ID                              uint64 // Unique id
+	Email                           string // Email address + lookup key.
+	HashedPassword                  []byte // Blowfish hash
+	Admin                           bool   // Is user an admin
+	NewUserPaywallAddress           string // Address the user needs to send to
+	NewUserPaywallAmount            uint64 // Amount the user needs to send
+	NewUserPaywallTx                string // Paywall transaction id
+	NewUserPaywallTxNotBefore       int64  // Transactions occurring before this time will not be valid.
+	NewUserVerificationToken        []byte // Verification token during signup
+	NewUserVerificationExpiry       int64  // Verification expiration
+	UpdateKeyVerificationToken      []byte // Verification token for updating keypair
+	UpdateKeyVerificationExpiry     int64  // Verification expiration
+	ResetPasswordVerificationToken  []byte // Reset password token
+	ResetPasswordVerificationExpiry int64  // Reset password token expiration
 
 	// All dentitiesuser has ever used.  User should only have one
 	// active key at a time.  We allow multiples in order to deal with key

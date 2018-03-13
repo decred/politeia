@@ -46,7 +46,7 @@ var (
 	defaultRPCCertFile   = filepath.Join(sharedconfig.DefaultHomeDir, "rpc.cert")
 	defaultCookieKeyFile = filepath.Join(sharedconfig.DefaultHomeDir, "cookie.key")
 	defaultLogDir        = filepath.Join(sharedconfig.DefaultHomeDir, defaultLogDirname)
-	defaultPaywallAmount = 0.0
+	defaultPaywallAmount = uint64(0)
 
 	templateNewUserEmail = template.Must(
 		template.New("new_user_email_template").Parse(templateNewUserEmailRaw))
@@ -90,12 +90,12 @@ type config struct {
 	MailUser         string `long:"mailuser" description:"Email server username"`
 	MailPass         string `long:"mailpass" description:"Email server password"`
 	SMTP             *goemail.SMTP
-	FetchIdentity    bool    `long:"fetchidentity" description:"Whether or not politeiawww fetches the identity from politeiad."`
-	WebServerAddress string  `long:"webserveraddress" description:"Address for the Politeia web server; it should have this format: <scheme>://<host>[:<port>]"`
-	Proxy            bool    `long:"proxy" description:"Run in proxy mode (no CSRF)."`
-	Interactive      string  `long:"interactive" description:"Set to i-know-this-is-a-bad-idea to turn off interactive mode during --fetchidentity."`
-	PaywallAmount    float64 `long:"paywallamount" description:"Amount of DCR required for a user to register."`
-	PaywallXpub      string  `long:"paywallxpub" description:"Extended public key for deriving paywall addresses."`
+	FetchIdentity    bool   `long:"fetchidentity" description:"Whether or not politeiawww fetches the identity from politeiad."`
+	WebServerAddress string `long:"webserveraddress" description:"Address for the Politeia web server; it should have this format: <scheme>://<host>[:<port>]"`
+	Proxy            bool   `long:"proxy" description:"Run in proxy mode (no CSRF)."`
+	Interactive      string `long:"interactive" description:"Set to i-know-this-is-a-bad-idea to turn off interactive mode during --fetchidentity."`
+	PaywallAmount    uint64 `long:"paywallamount" description:"Amount of DCR (in atoms) required for a user to register."`
+	PaywallXpub      string `long:"paywallxpub" description:"Extended public key for deriving paywall addresses."`
 }
 
 // serviceOptions defines the configuration options for the rpc as a service

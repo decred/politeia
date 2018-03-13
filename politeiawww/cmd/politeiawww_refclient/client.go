@@ -187,7 +187,7 @@ func idFromString(s string) (*identity.FullIdentity, error) {
 	return id, nil
 }
 
-func (c *ctx) newUser(email string, password string) (string, *identity.FullIdentity, string, float64, error) {
+func (c *ctx) newUser(email string, password string) (string, *identity.FullIdentity, string, uint64, error) {
 	id, err := idFromString(email)
 	if err != nil {
 		return "", nil, "", 0, err

@@ -14,6 +14,7 @@ API.  It does not render HTML.
 - [`Me`](#me)
 - [`Login`](#login)
 - [`Logout`](#logout)
+- [`Verify user payment tx`](#verify-user-payment-tx)
 - [`Update user key`](#update-user-key)
 - [`Verify update user key`](#verify-update-user-key)
 - [`Change password`](#change-password)
@@ -172,8 +173,9 @@ Create a new user on the politeiawww server.
 
 | Parameter | Type | Description |
 |-|-|-|
-| paywalladdress | String | The address in which to send paywall funds. |
-| paywallamount | Float64 | The amount of DCR to send to the paywall address. |
+| paywalladdress | String | The address in which to send the transaction containing the `paywallamount`. |
+| paywallamount | Int64 | The amount of DCR (in atoms) to send to `paywalladdress`. |
+| paywalltxnotbefore | Int64 | The minimum UNIX time (in seconds) required for the block containing the transaction sent to `paywalladdress`. |
 | verificationtoken | String | The verification token which is required when calling [Verify user](#verify-user). If an email server is set up, this property will be empty or nonexistent; the token will be sent to the email address sent in the request.|
 
 This call can return one of the following error codes:
@@ -317,9 +319,9 @@ error codes:
 Request:
 
 ```json
-  {
-    "email":"26c5687daca2f5d8@example.com",
-    "password":"26c5687daca2f5d8"
+{
+  "email":"26c5687daca2f5d8@example.com",
+  "password":"26c5687daca2f5d8"
 }
 ```
 
@@ -356,6 +358,43 @@ Reply:
 
 ```json
 {}
+```
+
+### `Verify user payment tx`
+
+Checks that a user has paid his user registration fee by verifying the given
+transaction on the blockchain.
+
+**Route:** `GET /v1/user/verifypaymenttx`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| txid | string | The id of the transaction on the blockchain that was sent to the `paywalladdress` (which is provided on [`New user`](#new-user) and the [`Login reply`](#login-reply). | Yes |
+
+**Results:**
+
+| Parameter | Type | Description |
+|-|-|-|
+| haspaid | boolean | Whether or not the transaction is verified. |
+
+**Example**
+
+Request:
+
+The request params should be provided within the URL:
+
+```
+/v1/user/verifypaymenttx?txid=11b0693e68d6e129f0f1898e57b121c3ac323c2bcb94ad9d8da2c15cf935bbc5
+```
+
+Reply:
+
+```json
+{
+  "haspaid": true
+}
 ```
 
 ### `Update user key`
@@ -1099,5 +1138,6 @@ or [`Me`](#me) call.
 | userid | string | Unique user identifier. |
 | email | string | Current user email address. |
 | publickey | string | Current public key. |
-| paywalladdress | String | The address in which to send paywall funds. If the user has already paid, this field will be empty or not present. |
-| paywallamount | Float64 | The amount of DCR to send to the paywall address. If the user has already paid, this field will be empty or not present. |
+| paywalladdress | String | The address in which to send the transaction containing the `paywallamount`.  If the user has already paid, this field will be empty or not present. |
+| paywallamount | Int64 | The amount of DCR (in atoms) to send to `paywalladdress`.  If the user has already paid, this field will be empty or not present. |
+| paywalltxnotbefore | Int64 | The minimum UNIX time (in seconds) required for the block containing the transaction sent to `paywalladdress`.  If the user has already paid, this field will be empty or not present. |
