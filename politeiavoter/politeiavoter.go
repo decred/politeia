@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"flag"
@@ -10,12 +11,17 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 
+	"github.com/decred/dcrd/chaincfg/chainhash"
+	pb "github.com/decred/dcrwallet/rpc/walletrpc"
 	"github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/util"
 	"github.com/gorilla/schema"
 	"golang.org/x/net/publicsuffix"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 var (
@@ -29,6 +35,7 @@ func usage() {
 	fmt.Fprintf(os.Stderr, "\n actions:\n")
 	fmt.Fprintf(os.Stderr, "  inventory          - Retrieve active "+
 		"votes\n")
+	fmt.Fprintf(os.Stderr, "  vote               - Vote on a proposal\n")
 	fmt.Fprintf(os.Stderr, "\n")
 }
 
@@ -116,6 +123,18 @@ func firstContact(cfg *config) (*ctx, error) {
 	return c, nil
 }
 
+func convertTicketHashes(h []string) ([][]byte, error) {
+	hashes := make([][]byte, 0, len(h))
+	for _, v := range h {
+		hh, err := chainhash.NewHashFromStr(v)
+		if err != nil {
+			return nil, err
+		}
+		hashes = append(hashes, hh[:])
+	}
+	return hashes, nil
+}
+
 func (c *ctx) makeRequest(method, route string, b interface{}) ([]byte, error) {
 	var requestBody []byte
 	var queryParams string
@@ -199,7 +218,28 @@ func (c *ctx) inventory() error {
 		return err
 	}
 
-	//spew.Dump(i)
+	// Setup GRPC
+	ctx := context.Background()
+	creds, err := credentials.NewClientTLSFromFile(c.cfg.WalletCert,
+		"localhost")
+	if err != nil {
+		return err
+	}
+	conn, err := grpc.Dial("127.0.0.1:19111", grpc.WithTransportCredentials(creds))
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	client := pb.NewWalletServiceClient(conn)
+
+	// Get latest block
+	ar, err := client.Accounts(ctx, &pb.AccountsRequest{})
+	if err != nil {
+		return err
+	}
+	latestBlock := ar.CurrentBlockHeight
+	// fmt.Printf("Current block: %v\n", latestBlock)
+
 	for _, v := range i.Votes {
 		// Make sure we have a CensorshipRecord
 		if v.Proposal.CensorshipRecord.Token == "" {
@@ -217,12 +257,48 @@ func (c *ctx) inventory() error {
 			continue
 		}
 
+		// Sanity, check if vote has expired
+		endHeight, err := strconv.ParseInt(v.VoteDetails.EndHeight, 10, 32)
+		if err != nil {
+			return err
+		}
+		if int64(latestBlock) > endHeight {
+			// Should not happen
+			fmt.Printf("Vote expired: current %v > end %v %v\n",
+				endHeight, latestBlock, v.Vote.Token)
+			continue
+		}
+
+		// Ensure eligibility
+		//tickets := &pb.CommittedTicketsRequest{[][]byte{
+		tix, err := convertTicketHashes(v.VoteDetails.EligibleTickets)
+		if err != nil {
+			fmt.Printf("Ticket pool corrupt: %v %v\n",
+				v.Vote.Token, err)
+			continue
+		}
+		ctres, err := client.CommittedTickets(ctx,
+			&pb.CommittedTicketsRequest{
+				Tickets: tix,
+			})
+		if err != nil {
+			fmt.Printf("Ticket pool verification: %v %v\n",
+				v.Vote.Token, err)
+			continue
+		}
+
+		// Bail if there are no eligible tickets
+		if len(ctres.Tickets) == 0 {
+			fmt.Printf("No eligible tickets: %v\n", v.Vote.Token)
+		}
+
 		// Display vote bits
 		fmt.Printf("Vote: %v\n", v.Vote.Token)
-		fmt.Printf("  Proposal   : %v\n", v.Proposal.Name)
-		fmt.Printf("  Start block: %v\n", v.VoteDetails.StartBlockHeight)
-		fmt.Printf("  End block  : %v\n", v.VoteDetails.EndHeight)
-		fmt.Printf("  Mask       : %v\n", v.Vote.Mask)
+		fmt.Printf("  Proposal        : %v\n", v.Proposal.Name)
+		fmt.Printf("  Start block     : %v\n", v.VoteDetails.StartBlockHeight)
+		fmt.Printf("  End block       : %v\n", v.VoteDetails.EndHeight)
+		fmt.Printf("  Mask            : %v\n", v.Vote.Mask)
+		fmt.Printf("  Eligible tickets: %v\n", len(ctres.Tickets))
 		for _, vo := range v.Vote.Options {
 			fmt.Printf("  Vote Option:\n")
 			fmt.Printf("    Id                   : %v\n", vo.Id)

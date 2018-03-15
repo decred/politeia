@@ -26,9 +26,14 @@ const (
 	defaultLogDirname       = "logs"
 	defaultLogFilename      = "politeiavoter.log"
 	defaultIdentityFilename = "identity.json"
+	defaultWalletHost       = "https://127.0.0.1" // Only allow localhost for now
+	defaultWalletCert       = "~/.dcrwallet/rpc.cert"
 
 	defaultMainnetPort = "49374"
 	defaultTestnetPort = "59374"
+
+	defaultWalletMainnetPort = "19110"
+	defaultWalletTestnetPort = "19111"
 )
 
 var (
@@ -46,20 +51,22 @@ var runServiceCommand func(string) error
 //
 // See loadConfig for details on the configuration load process.
 type config struct {
-	HomeDir     string   `short:"A" long:"appdata" description:"Path to application home directory"`
-	ShowVersion bool     `short:"V" long:"version" description:"Display version information and exit"`
-	ConfigFile  string   `short:"C" long:"configfile" description:"Path to configuration file"`
-	LogDir      string   `long:"logdir" description:"Directory to log output."`
-	TestNet     bool     `long:"testnet" description:"Use the test network"`
-	SimNet      bool     `long:"simnet" description:"Use the simulation test network"`
-	PoliteiaWWW string   `long:"politeiawww" description:"Politeia WWW host"`
-	Profile     string   `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
-	CPUProfile  string   `long:"cpuprofile" description:"Write CPU profile to the specified file"`
-	MemProfile  string   `long:"memprofile" description:"Write mem profile to the specified file"`
-	DebugLevel  string   `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
-	Listeners   []string `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 49152, testnet: 59152)"`
-	Version     string
-	Identity    string `long:"identity" description:"File containing the politeiad identity file"`
+	HomeDir          string   `short:"A" long:"appdata" description:"Path to application home directory"`
+	ShowVersion      bool     `short:"V" long:"version" description:"Display version information and exit"`
+	ConfigFile       string   `short:"C" long:"configfile" description:"Path to configuration file"`
+	LogDir           string   `long:"logdir" description:"Directory to log output."`
+	TestNet          bool     `long:"testnet" description:"Use the test network"`
+	SimNet           bool     `long:"simnet" description:"Use the simulation test network"`
+	PoliteiaWWW      string   `long:"politeiawww" description:"Politeia WWW host"`
+	Profile          string   `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
+	CPUProfile       string   `long:"cpuprofile" description:"Write CPU profile to the specified file"`
+	MemProfile       string   `long:"memprofile" description:"Write mem profile to the specified file"`
+	DebugLevel       string   `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
+	Listeners        []string `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 49152, testnet: 59152)"`
+	Version          string
+	Identity         string `long:"identity" description:"File containing the politeiad identity file"`
+	WalletCert       string `long:"walletgrpccert" description:"Wallet GRPC certificate"`
+	WalletPassphrase string `long:"walletpassphrase" description:"Wallet passphrase"`
 }
 
 // serviceOptions defines the configuration options for the daemon as a service
@@ -413,6 +420,14 @@ func loadConfig() (*config, []string, error) {
 		cfg.Identity = defaultIdentityFile
 	}
 	cfg.Identity = cleanAndExpandPath(cfg.Identity)
+
+	// Wallet cert
+	fmt.Printf("cert %v\n", cfg.WalletCert)
+	if cfg.WalletCert == "" {
+		cfg.WalletCert = defaultWalletCert
+	}
+	cfg.WalletCert = cleanAndExpandPath(cfg.WalletCert)
+	fmt.Printf("cert %v\n", cfg.WalletCert)
 
 	// Warn about missing config file only after all other configuration is
 	// done.  This prevents the warning on help messages and invalid
