@@ -149,7 +149,7 @@
     "wallet/udb",
     "walletdb"
   ]
-  revision = "8341f107c8f67581ef2548a1eb262e86f3c06587"
+  revision = "6fda4a14607f520e8c6ab7b72b2b875359b4b083"
 
 [[projects]]
   branch = "master"

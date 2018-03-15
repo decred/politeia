@@ -270,7 +270,6 @@ func (c *ctx) inventory() error {
 		}
 
 		// Ensure eligibility
-		//tickets := &pb.CommittedTicketsRequest{[][]byte{
 		tix, err := convertTicketHashes(v.VoteDetails.EligibleTickets)
 		if err != nil {
 			fmt.Printf("Ticket pool corrupt: %v %v\n",
@@ -288,7 +287,7 @@ func (c *ctx) inventory() error {
 		}
 
 		// Bail if there are no eligible tickets
-		if len(ctres.Tickets) == 0 {
+		if len(ctres.TicketAddresses) == 0 {
 			fmt.Printf("No eligible tickets: %v\n", v.Vote.Token)
 		}
 
@@ -298,7 +297,7 @@ func (c *ctx) inventory() error {
 		fmt.Printf("  Start block     : %v\n", v.VoteDetails.StartBlockHeight)
 		fmt.Printf("  End block       : %v\n", v.VoteDetails.EndHeight)
 		fmt.Printf("  Mask            : %v\n", v.Vote.Mask)
-		fmt.Printf("  Eligible tickets: %v\n", len(ctres.Tickets))
+		fmt.Printf("  Eligible tickets: %v\n", len(ctres.TicketAddresses))
 		for _, vo := range v.Vote.Options {
 			fmt.Printf("  Vote Option:\n")
 			fmt.Printf("    Id                   : %v\n", vo.Id)
