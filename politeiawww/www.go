@@ -775,6 +775,7 @@ func (p *politeiawww) handleUserProposals(w http.ResponseWriter, r *http.Request
 
 // handleActiveVote returns all active proposals that have an active vote.
 func (p *politeiawww) handleActiveVote(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
 	log.Tracef("handleActiveVote")
 
 	avr, err := p.backend.ProcessActiveVote()
