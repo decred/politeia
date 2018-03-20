@@ -28,7 +28,6 @@ import (
 	"github.com/marcopeereboom/lockfile"
 	"github.com/robfig/cron"
 	"github.com/subosito/norma"
-	"github.com/syndtr/goleveldb/leveldb"
 )
 
 const (
@@ -38,9 +37,6 @@ const (
 	// LockDuration is the maximum lock time duration allowed.  15 seconds
 	// is ~3x of anchoring without internet delay.
 	LockDuration = 15 * time.Second
-
-	// DefaultDbPath is the database path.  Export for external utilities.
-	DefaultDbPath = "db"
 
 	// defaultUnvettedPath is the landing zone for unvetted content.
 	defaultUnvettedPath = "unvetted"
@@ -73,6 +69,11 @@ const (
 	// expectedTestTX is a fake TX used by unit tests.
 	expectedTestTX = "TESTTX"
 
+	// markerAnchor is used in commit messages to determine
+	// where an anchor has been committed.  This value is
+	// parsed and therefore must be a const.
+	markerAnchor = "Anchor"
+
 	// markerAnchorConfirmation is used in commit messages to determine
 	// where an anchor confirmation has been committed.  This value is
 	// parsed and therefore must be a const.
@@ -102,7 +103,6 @@ type file struct {
 // interface.
 type gitBackEnd struct {
 	lock        *lockfile.LockFile // Global lock
-	db          *leveldb.DB        // Database
 	cron        *cron.Cron         // Scheduler for periodic tasks
 	shutdown    bool               // Backend is shutdown
 	root        string             // Root directory
@@ -563,6 +563,11 @@ func (g *gitBackEnd) deltaCommits(path string, lastAnchor []byte) ([]*[sha256.Si
 			return nil, nil, nil, fmt.Errorf("invalid log")
 		}
 
+		// Ignore anchor confirmation commits
+		if regexAnchorConfirmation.MatchString(ds[1]) {
+			continue
+		}
+
 		// Validate returned digest
 		sha1Digest, err := hex.DecodeString(ds[0])
 		if err != nil {
@@ -580,15 +585,17 @@ func (g *gitBackEnd) deltaCommits(path string, lastAnchor []byte) ([]*[sha256.Si
 		commitMessages = append(commitMessages, ds[1])
 	}
 
+	if len(digests) == 0 {
+		return nil, nil, nil, errNothingToDo
+	}
+
 	return digests, commitMessages, out, nil
 }
 
-// anchor takes a slice of commit digests and commit messages that are stored
-// in the local database once they are anchored in dcrtime.
+// anchor takes a slice of commit digests and anchors them in dcrtime.
 //
 // This function is being clever with the anchors.  It sends two values to
-// dcrtime.  The idea is that we anchor the merkle root of the provided set and
-// that is stored in the db.  The cleverness comes in that we *also* anchor all
+// dcrtime.  We anchor the merkle root, and we *also* anchor all
 // individual commit hashes.  We do the last bit in order to be able to
 // externally validate that a commit hash made it into the time stamp.  If we
 // don't do that we'd have to create a tool to verify individual hashes for the
@@ -679,7 +686,7 @@ func (g *gitBackEnd) anchorRepo(path string) (*[sha256.Size]byte, error) {
 		auditLines = append(auditLines, line)
 	}
 
-	// Create database record early for the same reason.
+	// Create anchor record early for the same reason.
 	anchorRecord, anchorKey, err := newAnchorRecord(AnchorUnverified,
 		digests, messages)
 	if err != nil {
@@ -700,7 +707,7 @@ func (g *gitBackEnd) anchorRepo(path string) (*[sha256.Size]byte, error) {
 	}
 
 	// Prefix commitMessage with merkle root
-	commitMessage = fmt.Sprintf("Anchor %x\n\n%v", *anchorKey,
+	commitMessage = fmt.Sprintf("%v %x\n\n%v", markerAnchor, *anchorKey,
 		commitMessage)
 
 	// Commit merkle root as an anchor and append included commits to audit
@@ -718,42 +725,6 @@ func (g *gitBackEnd) anchorRepo(path string) (*[sha256.Size]byte, error) {
 	err = g.gitCommit(path, commitMessage)
 	if err != nil {
 		return nil, fmt.Errorf("gitCommit: %v", err)
-	}
-
-	// git commit can't return the long digest.
-	gitLastCommitDigest, err := g.gitLastDigest(path)
-	if err != nil {
-		return nil, fmt.Errorf("gitLastDigest: %v", err)
-	}
-
-	// Commit anchor to database
-	err = g.writeAnchorRecord(*anchorKey, *anchorRecord)
-	if err != nil {
-		return nil, fmt.Errorf("writeAnchorRecord: %v", err)
-	}
-
-	// Commit LastAnchor to database
-	mr := make([]byte, sha256.Size)
-	copy(mr, anchorKey[:])
-	la := LastAnchor{
-		Last:   extendSHA1(gitLastCommitDigest),
-		Time:   anchorRecord.Time,
-		Merkle: mr,
-	}
-	err = g.writeLastAnchorRecord(la)
-	if err != nil {
-		return nil, fmt.Errorf("writeLastAnchorRecord: %v", err)
-	}
-
-	// Append merkle to unconfirmed anchor record
-	ua, err := g.readUnconfirmedAnchorRecord()
-	if err != nil {
-		return nil, err
-	}
-	ua.Merkles = append(ua.Merkles, mr)
-	err = g.writeUnconfirmedAnchorRecord(*ua)
-	if err != nil {
-		return nil, fmt.Errorf("writeUnconfirmedAnchorRecord: %v", err)
 	}
 
 	return anchorKey, nil
@@ -832,8 +803,7 @@ func (g *gitBackEnd) periodicAnchorChecker() {
 // anchorChecker does the work for periodicAnchorChecker.  It lives in its own
 // function for testing purposes.
 func (g *gitBackEnd) anchorChecker() error {
-	// Get work, requires lock
-	ua, err := g.safeReadUnconfirmedAnchorRecord()
+	ua, err := g.readUnconfirmedAnchorRecord()
 	if err != nil {
 		return fmt.Errorf("anchorChecker read: %v", err)
 	}
@@ -845,19 +815,17 @@ func (g *gitBackEnd) anchorChecker() error {
 
 	// Do one verify at a time for now
 	vrs := make([]v1.VerifyDigest, 0, len(ua.Merkles))
-	precious := make([][]byte, 0, len(ua.Merkles))
 	for _, u := range ua.Merkles {
 		digest := hex.EncodeToString(u)
 		vr, err := g.verifyAnchor(digest)
 		if err != nil {
-			precious = append(precious, u)
 			log.Errorf("anchorChecker verify: %v", err)
 			continue
 		}
 		vrs = append(vrs, *vr)
 	}
 
-	err = g.afterAnchorVerify(vrs, precious)
+	err = g.afterAnchorVerify(vrs)
 	if err != nil {
 		return fmt.Errorf("afterAnchorVerify: %v", err)
 	}
@@ -867,7 +835,7 @@ func (g *gitBackEnd) anchorChecker() error {
 
 // afterAnchorVerify completes the anchor verification process.  It is a
 // separate function in order not having to futz with locks.
-func (g *gitBackEnd) afterAnchorVerify(vrs []v1.VerifyDigest, precious [][]byte) error {
+func (g *gitBackEnd) afterAnchorVerify(vrs []v1.VerifyDigest) error {
 	// Lock filesystem
 	err := g.lock.Lock(LockDuration)
 	if err != nil {
@@ -888,7 +856,6 @@ func (g *gitBackEnd) afterAnchorVerify(vrs []v1.VerifyDigest, precious [][]byte)
 		}
 	}
 	// Handle verified vrs
-	var commitMsg string
 	for _, vr := range vrs {
 		if vr.ChainInformation.ChainTimestamp == 0 {
 			// dcrtime returns 0 when there are not enough
@@ -902,11 +869,14 @@ func (g *gitBackEnd) afterAnchorVerify(vrs []v1.VerifyDigest, precious [][]byte)
 		if !ok {
 			return fmt.Errorf("invalid digest: %v", vr.Digest)
 		}
-		line := fmt.Sprintf("%v anchored in TX %v", vr.Digest,
+		txLine := fmt.Sprintf("%v anchored in TX %v\n", vr.Digest,
 			vr.ChainInformation.Transaction)
-		commitMsg += line + "\n"
 		err = g.appendAuditTrail(g.vetted,
-			vr.ChainInformation.ChainTimestamp, mr, []string{line})
+			vr.ChainInformation.ChainTimestamp, mr, []string{txLine})
+		if err != nil {
+			return err
+		}
+		err = g.gitAdd(g.vetted, defaultAuditTrailFile)
 		if err != nil {
 			return err
 		}
@@ -936,21 +906,9 @@ func (g *gitBackEnd) afterAnchorVerify(vrs []v1.VerifyDigest, precious [][]byte)
 			return err
 		}
 
-		// Update database with dcrtime information
-		var d [sha256.Size]byte
-		dd, err := hex.DecodeString(vr.Digest)
-		if err != nil {
-			return err
-		}
-		copy(d[:], dd)
-		anchor, err := g.readAnchorRecord(d)
-		if err != nil {
-			return err
-		}
-		anchor.Type = AnchorVerified
-		anchor.ChainTimestamp = vr.ChainInformation.ChainTimestamp
-		anchor.Transaction = vr.ChainInformation.Transaction
-		err = g.writeAnchorRecord(d, *anchor)
+		// git commit anchor confirmation
+		commitMsg := markerAnchorConfirmation + " " + vr.Digest + "\n\n" + txLine
+		err = g.gitCommit(g.vetted, commitMsg)
 		if err != nil {
 			return err
 		}
@@ -961,17 +919,6 @@ func (g *gitBackEnd) afterAnchorVerify(vrs []v1.VerifyDigest, precious [][]byte)
 		}
 	}
 	if len(vrs) != 0 {
-		err = g.gitAdd(g.vetted, defaultAuditTrailFile)
-		if err != nil {
-			return err
-		}
-		// git commit anchor confirmation
-		err = g.gitCommit(g.vetted, markerAnchorConfirmation+"\n\n"+
-			commitMsg)
-		if err != nil {
-			return err
-		}
-
 		// git checkout master unvetted
 		err = g.gitCheckout(g.unvetted, "master")
 		if err != nil {
@@ -983,47 +930,9 @@ func (g *gitBackEnd) afterAnchorVerify(vrs []v1.VerifyDigest, precious [][]byte)
 		if err != nil {
 			return err
 		}
-
-		// Update last anchor record so that we skip anchoring anchor
-		// commits
-		// git commit can't return the long digest.
-		gitLastCommitDigest, err := g.gitLastDigest(g.vetted)
-		if err != nil {
-			return fmt.Errorf("gitLastDigest: %v", err)
-		}
-		// Commit LastAnchor to database
-		la := LastAnchor{
-			Last: extendSHA1(gitLastCommitDigest),
-			Time: time.Now().Unix(),
-		}
-		err = g.writeLastAnchorRecord(la)
-		if err != nil {
-			return fmt.Errorf("writeLastAnchorRecord: %v", err)
-		}
 	}
 
-	// Update database record
-	ua := UnconfirmedAnchor{Merkles: precious}
-	return g.writeUnconfirmedAnchorRecord(ua)
-}
-
-// safeReadUnconfirmedAnchorRecord is a wrapper around
-// readUnconfirmedAnchorRecord that handles locking.
-func (g *gitBackEnd) safeReadUnconfirmedAnchorRecord() (*UnconfirmedAnchor, error) {
-	// Lock filesystem
-	err := g.lock.Lock(LockDuration)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		err := g.lock.Unlock()
-		if err != nil {
-			log.Errorf("safeReadUnconfirmedAnchorRecord unlock "+
-				"error: %v", err)
-		}
-	}()
-
-	return g.readUnconfirmedAnchorRecord()
+	return nil
 }
 
 // anchorAllReposCronJob is the cron job that anchors all repos at a preset time.
@@ -1739,16 +1648,28 @@ func (g *gitBackEnd) fsck(path string) error {
 		return fmt.Errorf("invalid git output")
 	}
 
-	// Create an index of all git digests
 	var seenAnchor bool
+	// gitDigests is an index of all git digests to verify with dcrtime
 	gitDigests := make(map[string]struct{})
+	// confirmedAnchors keeps track of anchors that were timestamped with dcrtime but not verified,
+	// since periodicAnchorChecker only checks recent unconfirmed anchors and ignores older ones
+	confirmedAnchors := make(map[string]struct{})
+	var unconfirmedAnchors []string
 	for _, v := range out {
-		// Skip anchor commits, this simplifies reconcile process.
-		if strings.Contains(v, "Anchor") {
-			if !strings.Contains(v, markerAnchorConfirmation) {
-				// We now have seen an Anchor commit. The
-				// following digests are now precious.
-				seenAnchor = true
+		if regexAnchorConfirmation.MatchString(v) {
+			// Store confirmed anchor merkle roots to look up later
+			merkleRoot := regexAnchorConfirmation.FindStringSubmatch(v)[1]
+			confirmedAnchors[merkleRoot] = struct{}{}
+			continue
+		} else if regexAnchor.MatchString(v) {
+			// We now have seen an Anchor commit. The following digests are now precious.
+			seenAnchor = true
+			// We should have seen its confirmation already, since we're parsing top to bottom
+			// If we didn't, save the anchor key to verify with dcrtime later
+			merkleRoot := regexAnchor.FindStringSubmatch(v)[1]
+			_, confirmed := confirmedAnchors[merkleRoot]
+			if !confirmed {
+				unconfirmedAnchors = append(unconfirmedAnchors, merkleRoot)
 			}
 			continue
 		}
@@ -1781,100 +1702,27 @@ func (g *gitBackEnd) fsck(path string) error {
 	log.Infof("fsck: dcrtime verification started")
 	defer log.Infof("fsck: dcrtime verification completed")
 
-	// Iterate over all db records and pick out the anchors.  Take note of
-	// unanchored commits and exclude those from the precious list.
-	type AnchorT struct {
-		key    string
-		anchor *Anchor
-	}
-	var (
-		version      *Version
-		lastAnchor   *LastAnchor
-		unconfAnchor *UnconfirmedAnchor
-		anchors      []AnchorT
-	)
-
-	i := g.db.NewIterator(nil, nil)
-	for i.Next() {
-		// Guess what record type based on key
-		key := i.Key()
-		value := i.Value()
-		if string(key) == VersionKey {
-			version, err = DecodeVersion(value)
-			if err != nil {
-				return err
-			}
-			if version.Version != DbVersion {
-				return fmt.Errorf("fsck: version error got %v "+
-					"expected %v", version.Version,
-					DbVersion)
-			}
-		} else if string(key) == LastAnchorKey {
-			lastAnchor, err = DecodeLastAnchor(value)
-			if err != nil {
-				return err
-			}
-		} else if string(key) == UnconfirmedKey {
-			unconfAnchor, err = DecodeUnconfirmedAnchor(value)
-			if err != nil {
-				return err
-			}
+	// Verify the unconfirmed anchors
+	vrs := make([]v1.VerifyDigest, 0, len(unconfirmedAnchors))
+	for _, merkleRoot := range unconfirmedAnchors {
+		vr, err := g.verifyAnchor(merkleRoot)
+		if err != nil {
+			log.Errorf("Error verifying anchor during fsck: %v", err)
+			continue
 		} else {
-			anchor, err := DecodeAnchor(value)
-			if err != nil {
-				return err
-			}
-			anchors = append(anchors, AnchorT{
-				key:    hex.EncodeToString(key),
-				anchor: anchor,
-			})
+			vrs = append(vrs, *vr)
 		}
 	}
-	i.Release()
-	if err := i.Error(); err != nil {
+	err = g.afterAnchorVerify(vrs)
+	if err != nil {
 		return err
 	}
 
-	if lastAnchor == nil || unconfAnchor == nil {
-		// This happens on first launch.
-		return nil
+	// Now we should be able to verify all the precious git digests
+	digests := make([]string, 0, len(gitDigests))
+	for d := range gitDigests {
+		digests = append(digests, d)
 	}
-
-	// Peel out anchored commits and create a precious list to verify with
-	// dcrtime.
-	digests := make([]string, 0, len(out))
-	for _, v := range anchors {
-		if v.anchor.Type != AnchorVerified {
-			log.Infof("skipping anchor %v", v.key)
-
-			// Remove digests from reconcile map.
-			for _, d := range v.anchor.Digests {
-				k := hex.EncodeToString(d)
-				if _, ok := gitDigests[k]; !ok {
-					return fmt.Errorf("unknown unanchored"+
-						" git digest: %v", k)
-				}
-				log.Debugf("delete unanchored %v", k)
-				delete(gitDigests, k)
-			}
-			continue
-		}
-		log.Infof("verify anchor %v", v.key)
-		for _, d := range v.anchor.Digests {
-			k := hex.EncodeToString(d)
-
-			// Remove digests from reconcile map as well.
-			if _, ok := gitDigests[k]; !ok {
-				return fmt.Errorf("unknown git digest: %v", k)
-			}
-			log.Debugf("delete %v", k)
-			delete(gitDigests, k)
-
-			digests = append(digests, k)
-		}
-	}
-
-	// Verify anchored commits
 	vr, err := util.Verify(g.dcrtimeHost, digests)
 	if err != nil {
 		return err
@@ -1891,16 +1739,6 @@ func (g *gitBackEnd) fsck(path string) error {
 	}
 	if fail {
 		return fmt.Errorf("dcrtime fsck failed")
-	}
-
-	// At this point we know the database is sane.  Now we need to
-	// reconcile git with the database.
-	if len(gitDigests) != 0 {
-		for k := range gitDigests {
-			log.Errorf("unexpected digest: %v", k)
-		}
-		//return fmt.Errorf("expected reconcile map to be empty")
-		log.Errorf("expected reconcile map to be empty")
 	}
 
 	return nil
@@ -2142,7 +1980,6 @@ func (g *gitBackEnd) Close() {
 
 	g.shutdown = true
 	close(g.exit)
-	g.db.Close()
 }
 
 // newLocked runs the portion of new that has to be locked.
@@ -2181,12 +2018,6 @@ func (g *gitBackEnd) newLocked() error {
 
 	// Clone vetted repo into unvetted
 	err = g.gitClone(g.vetted, g.unvetted, defaultRepoConfig)
-	if err != nil {
-		return err
-	}
-
-	// Open DB
-	err = g.openDB(filepath.Join(g.root, DefaultDbPath))
 	if err != nil {
 		return err
 	}
