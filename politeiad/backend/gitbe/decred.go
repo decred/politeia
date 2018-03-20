@@ -116,6 +116,14 @@ func snapshot(hash string) ([]string, error) {
 	return tickets, nil
 }
 
+func (g *gitBackEnd) pluginBestBlock() (string, error) {
+	bb, err := bestBlock()
+	if err != nil {
+		return "", err
+	}
+	return strconv.FormatUint(uint64(bb.Height), 10), nil
+}
+
 func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 	vote, err := decredplugin.DecodeVote([]byte(payload))
 	if err != nil {

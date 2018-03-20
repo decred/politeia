@@ -2161,6 +2161,9 @@ func (g *gitBackEnd) Plugin(command, payload string) (string, string, error) {
 	case decredplugin.CmdStartVote:
 		payload, err := g.pluginStartVote(payload)
 		return decredplugin.CmdStartVote, payload, err
+	case decredplugin.CmdBestBlock:
+		payload, err := g.pluginBestBlock()
+		return decredplugin.CmdBestBlock, payload, err
 	}
 	return "", "", fmt.Errorf("invalid payload command") // XXX this needs to become a type error
 }

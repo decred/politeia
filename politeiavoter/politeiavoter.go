@@ -238,7 +238,7 @@ func (c *ctx) inventory() error {
 		return err
 	}
 	latestBlock := ar.CurrentBlockHeight
-	// fmt.Printf("Current block: %v\n", latestBlock)
+	//fmt.Printf("Current block: %v\n", latestBlock)
 
 	for _, v := range i.Votes {
 		// Make sure we have a CensorshipRecord
@@ -252,7 +252,8 @@ func (c *ctx) inventory() error {
 		if v.Vote.Token == "" || v.Vote.Mask == 0 ||
 			v.Vote.Options == nil {
 			// This should not happen
-			log.Debugf("invalid vote bits: %v",
+			log.Errorf("%v", v.Vote.Options)
+			log.Errorf("invalid vote bits: %v",
 				v.Proposal.CensorshipRecord.Token)
 			continue
 		}

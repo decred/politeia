@@ -1606,8 +1606,44 @@ func (b *backend) ProcessUserProposals(up *www.UserProposals, isCurrentUser, isA
 func (b *backend) ProcessActiveVote() (*www.ActiveVoteReply, error) {
 	log.Tracef("ProcessActiveVote")
 
-	// XXX We need to determine best block height here; for now return all
-	// records with votes
+	//  We need to determine best block height here and only return active
+	//  votes.
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	pc := pd.PluginCommand{
+		Challenge: hex.EncodeToString(challenge),
+		ID:        decredplugin.ID,
+		Command:   decredplugin.CmdBestBlock,
+		CommandID: decredplugin.CmdBestBlock,
+		Payload:   "",
+	}
+
+	responseBody, err := b.makeRequest(http.MethodPost,
+		pd.PluginCommandRoute, pc)
+	if err != nil {
+		return nil, err
+	}
+
+	var reply pd.PluginCommandReply
+	err = json.Unmarshal(responseBody, &reply)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal "+
+			"PluginCommandReply: %v", err)
+	}
+
+	// Verify the challenge.
+	err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	bestBlock, err := strconv.ParseUint(reply.Payload, 10, 64)
+	if err != nil {
+		return nil, err
+	}
 
 	b.RLock()
 	defer b.RUnlock()
@@ -1617,6 +1653,15 @@ func (b *backend) ProcessActiveVote() (*www.ActiveVoteReply, error) {
 	for _, i := range b.inventory {
 		// Use StartBlockHeight as a canary
 		if len(i.voting.StartBlockHeight) == 0 {
+			continue
+		}
+		ee, err := strconv.ParseUint(i.voting.EndHeight, 10, 64)
+		if err != nil {
+			log.Errorf("invalid ee, should not happen: %v", err)
+			continue
+		}
+		if bestBlock > ee {
+			// expired vote
 			continue
 		}
 

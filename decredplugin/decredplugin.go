@@ -7,6 +7,7 @@ const (
 	Version              = "1"
 	ID                   = "decred"
 	CmdStartVote         = "startvote"
+	CmdBestBlock         = "bestblock"
 	MDStreamVoteBits     = 14 // Vote bits and mask
 	MDStreamVoteSnapshot = 15 // Vote tickets and start/end parameters
 )
