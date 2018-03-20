@@ -112,6 +112,23 @@ func (b *backend) loadVoting(token, payload string) error {
 	return nil
 }
 
+// loadVoteBits decodes voting metadata and stores it inventory object.
+//
+// This function must be called WITH the mutex held.
+func (b *backend) loadVoteBits(token, payload string) error {
+	f := strings.NewReader(payload)
+	d := json.NewDecoder(f)
+	var md decredplugin.Vote
+	if err := d.Decode(&md); err == io.EOF {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	p := b.inventory[token]
+	p.votebits = md
+	return nil
+}
+
 // loadReocrd load an entire record into inventory.
 //
 // This function must be called WITH the mutex held.
@@ -147,7 +164,7 @@ func (b *backend) loadRecord(v pd.Record) {
 				continue
 			}
 		case decredplugin.MDStreamVoteBits:
-			err = b.loadVoting(t, m.Payload)
+			err = b.loadVoteBits(t, m.Payload)
 			if err != nil {
 				log.Errorf("initializeInventory "+
 					"could not load vote bits: %v", err)
