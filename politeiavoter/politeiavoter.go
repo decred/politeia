@@ -252,7 +252,6 @@ func (c *ctx) inventory() error {
 		if v.Vote.Token == "" || v.Vote.Mask == 0 ||
 			v.Vote.Options == nil {
 			// This should not happen
-			log.Errorf("%v", v.Vote.Options)
 			log.Errorf("invalid vote bits: %v",
 				v.Proposal.CensorshipRecord.Token)
 			continue
