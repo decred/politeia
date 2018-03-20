@@ -2,6 +2,7 @@ package gitbe
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
@@ -10,7 +11,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
 )
 
 // gitError contains all the components of a git invocation.
@@ -74,69 +74,14 @@ func (g *gitBackEnd) git(path string, args ...string) ([]string, error) {
 		cmd.Dir = path
 	}
 
-	// Make sure pipes are handled before we exit
-	var wg sync.WaitGroup
-
-	// Setup stdout
-	cmdReader, err := cmd.StdoutPipe()
-	if err != nil {
-		ge.err = fmt.Errorf("stdout pipe: %v", err)
-		return nil, ge
-	}
-	var stdoutError error
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		scanner := bufio.NewScanner(cmdReader)
-		for scanner.Scan() {
-			ge.stdout = append(ge.stdout, scanner.Text())
-		}
-		if err := scanner.Err(); err != nil {
-			stdoutError = err
-		}
-	}()
-
-	// Setup stderr
-	cmdError, err := cmd.StderrPipe()
-	if err != nil {
-		ge.err = fmt.Errorf("stderr pipe: %v", err)
-		return nil, ge
-	}
-	var stderrError error
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		scanner := bufio.NewScanner(cmdError)
-		for scanner.Scan() {
-			ge.stderr = append(ge.stderr, scanner.Text())
-		}
-		if err := scanner.Err(); err != nil {
-			stderrError = err
-		}
-	}()
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
 
 	// Actually launch git
-	err = cmd.Start()
+	err := cmd.Start()
 	if err != nil {
 		ge.err = fmt.Errorf("cmd.Start: %v", err)
-		return nil, ge
-	}
-
-	// Wait for pipes to finish reading.
-	//
-	// From the Go docs (https://golang.org/pkg/os/exec/#Cmd.StderrPipe):
-	// Wait will close the pipe after seeing the command exit, so most
-	// callers need not close the pipe themselves; however, an implication
-	// is that it is incorrect to call Wait before all reads from the pipe
-	// have completed.
-	wg.Wait()
-
-	if stdoutError != nil {
-		ge.err = fmt.Errorf("scanner error on stdout: %v", err)
-		return nil, ge
-	}
-	if stderrError != nil {
-		ge.err = fmt.Errorf("scanner error on stderr: %v", err)
 		return nil, ge
 	}
 
@@ -145,6 +90,16 @@ func (g *gitBackEnd) git(path string, args ...string) ([]string, error) {
 	if err != nil {
 		ge.err = fmt.Errorf("cmd.Wait: %v", err)
 		return nil, ge
+	}
+
+	scanner := bufio.NewScanner(bytes.NewReader(stdout.Bytes()))
+	for scanner.Scan() {
+		ge.stdout = append(ge.stdout, scanner.Text())
+	}
+
+	scanner = bufio.NewScanner(bytes.NewReader(stderr.Bytes()))
+	for scanner.Scan() {
+		ge.stderr = append(ge.stderr, scanner.Text())
 	}
 
 	return ge.stdout, nil

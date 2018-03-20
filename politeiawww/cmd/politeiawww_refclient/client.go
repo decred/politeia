@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/gorilla/schema"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
@@ -17,9 +16,12 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gorilla/schema"
+
 	"golang.org/x/net/publicsuffix"
 
 	"github.com/agl/ed25519"
+	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/util"
@@ -290,6 +292,44 @@ func (c *ctx) commentGet(token string) (*v1.GetCommentsReply, error) {
 	}
 
 	return &gcr, nil
+}
+
+func (c *ctx) startVote(id *identity.FullIdentity, token string) (*v1.StartVoteReply, error) {
+	sv := v1.StartVote{
+		PublicKey: hex.EncodeToString(id.Public.Key[:]),
+		Vote: decredplugin.Vote{
+			Token: token,
+			Mask:  0x03, // bit 0 no, bit 1 yes
+			Options: []decredplugin.VoteOption{
+				{
+					Id:          "no",
+					Description: "Don't approve proposal",
+					Bits:        0x01,
+				},
+				{
+					Id:          "yes",
+					Description: "Approve proposal",
+					Bits:        0x02,
+				},
+			},
+		},
+	}
+	sig := id.SignMessage([]byte(token))
+	sv.Signature = hex.EncodeToString(sig[:])
+
+	responseBody, err := c.makeRequest("POST", v1.RouteStartVote, sv)
+	if err != nil {
+		return nil, err
+	}
+
+	var svr v1.StartVoteReply
+	err = json.Unmarshal(responseBody, &svr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal StartVoteReply: %v",
+			err)
+	}
+
+	return &svr, nil
 }
 
 func (c *ctx) me() (*v1.LoginReply, error) {

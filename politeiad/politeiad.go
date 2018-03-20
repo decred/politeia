@@ -40,6 +40,7 @@ type politeia struct {
 	cfg      *config
 	router   *mux.Router
 	identity *identity.FullIdentity
+	plugins  map[string]v1.Plugin
 }
 
 func remoteAddr(r *http.Request) string {
@@ -49,6 +50,24 @@ func remoteAddr(r *http.Request) string {
 		return fmt.Sprintf("%v via %v", xff, r.RemoteAddr)
 	}
 	return via
+}
+
+func convertBackendPluginSetting(bpi backend.PluginSetting) v1.PluginSetting {
+	return v1.PluginSetting{
+		Key:   bpi.Key,
+		Value: bpi.Value,
+	}
+}
+
+func convertBackendPlugin(bpi backend.Plugin) v1.Plugin {
+	p := v1.Plugin{
+		ID: bpi.ID,
+	}
+	for _, v := range bpi.Settings {
+		p.Settings = append(p.Settings, convertBackendPluginSetting(v))
+	}
+
+	return p
 }
 
 // convertBackendMetadataStream converts a backend metadata stream to an API
@@ -74,6 +93,8 @@ func convertBackendStatus(status backend.MDStatusT) v1.RecordStatusT {
 		s = v1.RecordStatusCensored
 	case backend.MDStatusIterationUnvetted:
 		s = v1.RecordStatusUnreviewedChanges
+	case backend.MDStatusLocked:
+		s = v1.RecordStatusLocked
 	}
 	return s
 }
@@ -90,6 +111,8 @@ func convertFrontendStatus(status v1.RecordStatusT) backend.MDStatusT {
 		s = backend.MDStatusVetted
 	case v1.RecordStatusCensored:
 		s = backend.MDStatusCensored
+	case v1.RecordStatusLocked:
+		s = backend.MDStatusLocked
 	}
 	return s
 }
@@ -567,18 +590,14 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Ask backend to update unvetted status
-	status, err := p.backend.SetUnvettedStatus(token,
+	record, err := p.backend.SetUnvettedStatus(token,
 		convertFrontendStatus(t.Status),
 		convertFrontendMetadataStream(t.MDAppend),
 		convertFrontendMetadataStream(t.MDOverwrite))
 	if err != nil {
-		oldStatus := v1.RecordStatus[convertBackendStatus(status)]
-		newStatus := v1.RecordStatus[t.Status]
 		// Check for specific errors
-		if err == backend.ErrInvalidTransition {
-			log.Errorf("%v Invalid status code transition: "+
-				"%v %v->%v", remoteAddr(r), t.Token, oldStatus,
-				newStatus)
+		if _, ok := err.(backend.StateTransitionError); ok {
+			log.Errorf("%v %v %v", remoteAddr(r), t.Token, err)
 			p.respondWithUserError(w, v1.ErrorStatusInvalidRecordStatusTransition, nil)
 			return
 		}
@@ -592,11 +611,11 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	reply := v1.SetUnvettedStatusReply{
 		Response: hex.EncodeToString(response[:]),
-		Status:   convertBackendStatus(status),
+		Record:   p.convertBackendRecord(*record),
 	}
 
 	log.Infof("Set unvetted record status %v: token %v status %v",
-		remoteAddr(r), t.Token, v1.RecordStatus[reply.Status])
+		remoteAddr(r), t.Token, v1.RecordStatus[reply.Record.Status])
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
@@ -661,6 +680,72 @@ func (p *politeia) updateVettedMetadata(w http.ResponseWriter, r *http.Request) 
 	}
 
 	log.Infof("Update vetted metadata %v: token %x", remoteAddr(r), token)
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+func (p *politeia) pluginInventory(w http.ResponseWriter, r *http.Request) {
+	var pi v1.PluginInventory
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&pi); err != nil {
+		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload,
+			nil)
+		return
+	}
+	defer r.Body.Close()
+
+	challenge, err := hex.DecodeString(pi.Challenge)
+	if err != nil || len(challenge) != v1.ChallengeSize {
+		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
+		return
+	}
+	response := p.identity.SignMessage(challenge)
+
+	reply := v1.PluginInventoryReply{
+		Response: hex.EncodeToString(response[:]),
+	}
+
+	for _, v := range p.plugins {
+		reply.Plugins = append(reply.Plugins, v)
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+func (p *politeia) pluginCommand(w http.ResponseWriter, r *http.Request) {
+	var pc v1.PluginCommand
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&pc); err != nil {
+		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload,
+			nil)
+		return
+	}
+	defer r.Body.Close()
+
+	challenge, err := hex.DecodeString(pc.Challenge)
+	if err != nil || len(challenge) != v1.ChallengeSize {
+		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
+		return
+	}
+
+	cid, payload, err := p.backend.Plugin(pc.Command, pc.Payload)
+	if err != nil {
+		// Generic internal error.
+		errorCode := time.Now().Unix()
+		log.Errorf("%v New record error code %v: %v", remoteAddr(r),
+			errorCode, err)
+		p.respondWithServerError(w, errorCode)
+		return
+	}
+
+	response := p.identity.SignMessage(challenge)
+	reply := v1.PluginCommandReply{
+		Response:  hex.EncodeToString(response[:]),
+		ID:        pc.ID,
+		Command:   cid,
+		CommandID: pc.CommandID,
+		Payload:   payload,
+	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
@@ -768,7 +853,8 @@ func _main() error {
 
 	// Setup application context.
 	p := &politeia{
-		cfg: loadedCfg,
+		cfg:     loadedCfg,
+		plugins: make(map[string]v1.Plugin),
 	}
 
 	// Load identity.
@@ -799,8 +885,8 @@ func _main() error {
 
 	// Setup backend.
 	gitbe.UseLogger(gitbeLog)
-	b, err := gitbe.New(loadedCfg.DataDir, loadedCfg.DcrtimeHost, "",
-		loadedCfg.GitTrace)
+	b, err := gitbe.New(activeNetParams.Params, loadedCfg.DataDir,
+		loadedCfg.DcrtimeHost, "", loadedCfg.GitTrace)
 	if err != nil {
 		return err
 	}
@@ -828,6 +914,32 @@ func _main() error {
 		permissionAuth)
 	p.addRoute(http.MethodPost, v1.UpdateVettedMetadataRoute, p.updateVettedMetadata,
 		permissionAuth)
+
+	// Setup plugins
+	plugins, err := p.backend.GetPlugins()
+	if err != nil {
+		return err
+	}
+	if len(plugins) > 0 {
+		// Set plugin routes. Requires auth.
+		p.router.HandleFunc(v1.PluginCommandRoute,
+			logging(p.auth(p.pluginCommand))).Methods("POST")
+		p.router.HandleFunc(v1.PluginInventoryRoute,
+			logging(p.auth(p.pluginInventory))).Methods("POST")
+
+		for _, v := range plugins {
+			// make sure we only have lowercase names
+			if backend.PluginRE.FindString(v.ID) != v.ID {
+				return fmt.Errorf("invalid plugin id: %v", v.ID)
+			}
+			if _, found := p.plugins[v.ID]; found {
+				return fmt.Errorf("duplicate plugin: %v", v.ID)
+			}
+
+			p.plugins[v.ID] = convertBackendPlugin(v)
+			log.Infof("Registered plugin: %v", v.ID)
+		}
+	}
 
 	// Bind to a port and pass our router in
 	listenC := make(chan error)

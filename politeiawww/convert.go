@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/davecgh/go-spew/spew"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	www "github.com/decred/politeia/politeiawww/api/v1"
 )
@@ -16,6 +15,8 @@ func convertPropStatusFromWWW(s www.PropStatusT) pd.RecordStatusT {
 		return pd.RecordStatusCensored
 	case www.PropStatusPublic:
 		return pd.RecordStatusPublic
+	case www.PropStatusLocked:
+		return pd.RecordStatusLocked
 	}
 	return pd.RecordStatusInvalid
 }
@@ -80,6 +81,8 @@ func convertPropStatusFromPD(s pd.RecordStatusT) www.PropStatusT {
 		return www.PropStatusCensored
 	case pd.RecordStatusPublic:
 		return www.PropStatusPublic
+	case pd.RecordStatusLocked:
+		return www.PropStatusLocked
 	}
 	return www.PropStatusInvalid
 }
@@ -109,8 +112,29 @@ func convertPropCensorFromPD(f pd.CensorshipRecord) www.CensorshipRecord {
 	}
 }
 
+func convertPropFromInventoryRecord(r *inventoryRecord, userPubkeys map[string]string) www.ProposalRecord {
+	proposal := convertPropFromPD(r.record)
+
+	// Set the most up-to-date status.
+	for _, v := range r.changes {
+		proposal.Status = convertPropStatusFromPD(v.NewStatus)
+	}
+
+	// Set the comments num.
+	proposal.NumComments = uint(len(r.comments))
+
+	// Set the user id.
+	var ok bool
+	proposal.UserId, ok = userPubkeys[proposal.PublicKey]
+	if !ok {
+		log.Errorf("user not found for public key %v, for proposal %v",
+			proposal.PublicKey, proposal.CensorshipRecord.Token)
+	}
+
+	return proposal
+}
+
 func convertPropFromPD(p pd.Record) www.ProposalRecord {
-	log.Infof("%v", spew.Sdump(p))
 	md := &BackendProposalMetadata{}
 	for _, v := range p.Metadata {
 		if v.ID != mdStreamGeneral {
@@ -134,14 +158,6 @@ func convertPropFromPD(p pd.Record) www.ProposalRecord {
 		Files:            convertPropFilesFromPD(p.Files),
 		CensorshipRecord: convertPropCensorFromPD(p.CensorshipRecord),
 	}
-}
-
-func convertPropsFromPD(p []pd.Record) []www.ProposalRecord {
-	pr := make([]www.ProposalRecord, 0, len(p))
-	for _, v := range p {
-		pr = append(pr, convertPropFromPD(v))
-	}
-	return pr
 }
 
 func convertErrorStatusFromPD(s int) www.ErrorStatusT {

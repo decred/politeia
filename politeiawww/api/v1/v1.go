@@ -2,6 +2,8 @@ package v1
 
 import (
 	"fmt"
+
+	"github.com/decred/politeia/decredplugin"
 )
 
 type ErrorStatusT int
@@ -33,6 +35,9 @@ const (
 	RoutePolicy              = "/policy"
 	RouteNewComment          = "/comments/new"
 	RouteCommentsGet         = "/proposals/{token:[A-z0-9]{64}}/comments"
+	RouteStartVote           = "/proposals/startvote"
+	RouteActiveVote          = "/proposals/activevote"
+	RouteCastVotes           = "/proposals/castvotes"
 
 	// VerificationTokenSize is the size of verification token in bytes
 	VerificationTokenSize = 32
@@ -106,6 +111,7 @@ const (
 	ErrorStatusInvalidSigningKey           ErrorStatusT = 25
 	ErrorStatusCommentLengthExceededPolicy ErrorStatusT = 26
 	ErrorStatusUserNotFound                ErrorStatusT = 27
+	ErrorStatusWrongStatus                 ErrorStatusT = 28
 
 	// Proposal status codes (set and get)
 	PropStatusInvalid     PropStatusT = 0 // Invalid status
@@ -113,6 +119,7 @@ const (
 	PropStatusNotReviewed PropStatusT = 2 // Proposal has not been reviewed
 	PropStatusCensored    PropStatusT = 3 // Proposal has been censored
 	PropStatusPublic      PropStatusT = 4 // Proposal is publicly visible
+	PropStatusLocked      PropStatusT = 6 // Proposal is locked
 )
 
 var (
@@ -159,6 +166,7 @@ var (
 		ErrorStatusInvalidSigningKey:           "invalid signing key",
 		ErrorStatusCommentLengthExceededPolicy: "maximum comment length exceeded",
 		ErrorStatusUserNotFound:                "user not found",
+		ErrorStatusWrongStatus:                 "wrong status",
 	}
 )
 
@@ -421,7 +429,7 @@ type SetProposalStatus struct {
 
 // SetProposalStatusReply is used to reply to a SetProposalStatus command.
 type SetProposalStatusReply struct {
-	ProposalStatus PropStatusT `json:"proposalstatus"`
+	Proposal ProposalRecord `json:"proposal"`
 }
 
 // GetAllUnvetted retrieves all unvetted proposals; the maximum number returned
@@ -476,6 +484,7 @@ type PolicyReply struct {
 	MinNameLength        uint     `json:"minnamelength"`
 	SupportedCharacters  []string `json:"supportedcharacters"`
 	MaxCommentLength     uint     `json:"maxcommentlength"`
+	BackendPublicKey     string   `json:"backendpublickey"`
 }
 
 // NewComment sends a comment from a user to a specific proposal.  Note that
@@ -515,4 +524,64 @@ type Comment struct {
 // GetCommentsReply returns the provided number of comments.
 type GetCommentsReply struct {
 	Comments []Comment `json:"comments"` // Comments
+}
+
+// ActiveVote obtains all proposals that have active votes.
+type ActiveVote struct{}
+
+// ProposalVoteTuple is the proposal, vote and vote details.
+type ProposalVoteTuple struct {
+	Proposal    ProposalRecord              `json:"proposal"`    // Proposal
+	Vote        decredplugin.Vote           `json:"vote"`        // Vote bits and mask
+	VoteDetails decredplugin.StartVoteReply `json:"votedetails"` // Eligible tickets and other details
+}
+
+// ActiveVoteReply returns all proposals that have active votes.
+type ActiveVoteReply struct {
+	Votes []ProposalVoteTuple `json:"votes"` // Active votes
+}
+
+// plugin commands
+// StartVote starts the voting process for a proposal.
+type StartVote struct {
+	PublicKey string            `json:"publickey"` // Key used for signature.
+	Vote      decredplugin.Vote `json:"vote"`      // Vote
+	Signature string            `json:"signature"` // Signature of Votehash
+}
+
+// StartVoteReply returns the eligible ticket pool.
+type StartVoteReply struct {
+	VoteDetails decredplugin.StartVoteReply `json:"votedetails"`
+}
+
+// Vote is the client side vote + decision.
+//
+// This is not a command.
+type Vote struct {
+	Ticket    string `json:"ticket"`    // Ticket ID
+	Token     string `json:"token"`     // Vote ID
+	Vote      string `json:"vote"`      // Vote bits, not to exceed 64 bits
+	PublicKey string `json:"publickey"` // Key used for signature.
+	Signature string `json:"signature"` // Signature of Ticket+Token+Bits
+}
+
+// VoteReply is a receipt for a vote.
+//
+// This is not a command.
+type VoteReply struct {
+	Ticket string `json:"ticket"` // Ticket ID
+	Token  string `json:"token"`  // Vote ID
+	// Server side signature of the Vote command, Ticket+Token+Bits+Signature
+	Receipt   string `json:"receipt"`
+	ErrorCode uint   `json:"error"` // Error code for this vote
+}
+
+// CastVores is a batch of votes that is sent to the server.
+type CastVotes struct {
+	Votes []Vote `json:"castvote"`
+}
+
+// CastVotesReply is a reply to a batched list of votes.
+type CastVotesReply struct {
+	Receipts []VoteReply `json:"receipts"`
 }
