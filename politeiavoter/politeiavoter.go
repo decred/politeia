@@ -17,6 +17,7 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	pb "github.com/decred/dcrwallet/rpc/walletrpc"
+	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/util"
 	"github.com/gorilla/schema"
@@ -334,7 +335,10 @@ func (c *ctx) _vote(token, voteId string) (*v1.CastVotesReply, error) {
 	}
 
 	// Find proposal
-	var prop *v1.ProposalVoteTuple
+	var (
+		prop    *v1.ProposalVoteTuple
+		voteBit string
+	)
 	for _, v := range i.Votes {
 		if v.Proposal.CensorshipRecord.Token != token {
 			continue
@@ -345,6 +349,7 @@ func (c *ctx) _vote(token, voteId string) (*v1.CastVotesReply, error) {
 		for _, vv := range v.Vote.Options {
 			if vv.Id == voteId {
 				found = true
+				voteBit = strconv.FormatUint(vv.Bits, 16)
 				break
 			}
 
@@ -396,6 +401,7 @@ func (c *ctx) _vote(token, voteId string) (*v1.CastVotesReply, error) {
 	if err != nil {
 		return nil, err
 	}
+	fmt.Printf("sign done\n")
 
 	// Make sure all signatures worked
 	for k, v := range smr.Replies {
@@ -407,20 +413,21 @@ func (c *ctx) _vote(token, voteId string) (*v1.CastVotesReply, error) {
 	}
 
 	// Note that ctres, sm and smr use the same index.
-	cv := v1.CastVotes{
-		Votes: make([]v1.Vote, 0, len(ctres.TicketAddresses)),
+	cv := decredplugin.CastVotes{
+		Votes: make([]decredplugin.CastVote, 0, len(ctres.TicketAddresses)),
 	}
 	for k, v := range ctres.TicketAddresses {
 		ticket := hex.EncodeToString(v.Ticket)
 		signature := hex.EncodeToString(smr.Replies[k].Signature)
-		cv.Votes = append(cv.Votes, v1.Vote{
+		cv.Votes = append(cv.Votes, decredplugin.CastVote{
 			Token:     token,
 			Ticket:    ticket,
-			VoteID:    voteId,
+			VoteBit:   voteBit,
 			Signature: signature,
 		})
 	}
 
+	fmt.Printf("casting votes: %v\n", v1.RouteCastVotes)
 	// Vote on the supplied proposal
 	responseBody, err := c.makeRequest("POST", v1.RouteCastVotes, &cv)
 	if err != nil {
@@ -433,6 +440,7 @@ func (c *ctx) _vote(token, voteId string) (*v1.CastVotesReply, error) {
 		return nil, fmt.Errorf("Could not unmarshal CastVoteReply: %v",
 			err)
 	}
+	fmt.Printf("casting votes: 1\n")
 
 	return &vr, nil
 }

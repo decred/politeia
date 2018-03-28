@@ -788,11 +788,36 @@ func (p *politeiawww) handleActiveVote(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, avr)
 }
 
+// handleCastVotes records the user votes in politeiad.
+func (p *politeiawww) handleCastVotes(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	log.Tracef("handleCastVotes")
+
+	var cv v1.CastVotes
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&cv); err != nil {
+		RespondWithError(w, r, 0, "handleCastVotes: unmarshal", v1.UserError{
+			ErrorCode: v1.ErrorStatusInvalidInput,
+		})
+		return
+	}
+
+	avr, err := p.backend.ProcessCastVotes(&cv)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleCastVotes: ProcessCastVotes %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, avr)
+}
+
 // handleStartVote handles starting a vote.
 func (p *politeiawww) handleStartVote(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
 	log.Tracef("handleStartVote")
-	var sv v1.StartVote
 
+	var sv v1.StartVote
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&sv); err != nil {
 		RespondWithError(w, r, 0, "handleStartVote: unmarshal", v1.UserError{
@@ -800,7 +825,6 @@ func (p *politeiawww) handleStartVote(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	defer r.Body.Close()
 
 	user, err := p.getSessionUser(r)
 	if err != nil {
@@ -971,6 +995,8 @@ func _main() error {
 	p.addRoute(http.MethodGet, v1.RouteUserProposals, p.handleUserProposals,
 		permissionPublic, true)
 	p.addRoute(http.MethodGet, v1.RouteActiveVote, p.handleActiveVote,
+		permissionPublic, true)
+	p.addRoute(http.MethodPost, v1.RouteCastVotes, p.handleCastVotes,
 		permissionPublic, true)
 
 	// Routes that require being logged in.

@@ -7,10 +7,46 @@ const (
 	Version              = "1"
 	ID                   = "decred"
 	CmdStartVote         = "startvote"
+	CmdCastVotes         = "castvotes"
 	CmdBestBlock         = "bestblock"
 	MDStreamVoteBits     = 14 // Vote bits and mask
 	MDStreamVoteSnapshot = 15 // Vote tickets and start/end parameters
 )
+
+// CastVote is a signed vote.
+type CastVote struct {
+	Token     string `json:"token"`     // Proposal ID
+	Ticket    string `json:"ticket"`    // Ticket ID
+	VoteBit   string `json:"votebit"`   // Vote bit that was selected, this is encode in hex
+	Signature string `json:"signature"` // Signature of Token+Ticket+VoteBit
+}
+
+// CastVotes is a batched cast vote call.
+type CastVotes struct {
+	Votes []CastVote `json:"votes"`
+}
+
+// EncodeCastVotes encodes CastVotes into a JSON byte slice.
+func EncodeCastVotes(cv CastVotes) ([]byte, error) {
+	b, err := json.Marshal(cv)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+// DecodeCastVotes decodes a JSON byte slice into a CastVotes.
+func DecodeCastVotes(payload []byte) (*CastVotes, error) {
+	var cv CastVotes
+
+	err := json.Unmarshal(payload, &cv)
+	if err != nil {
+		return nil, err
+	}
+
+	return &cv, nil
+}
 
 // VoteOption describes a single vote option.
 type VoteOption struct {

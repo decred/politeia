@@ -1675,6 +1675,44 @@ func (b *backend) ProcessActiveVote() (*www.ActiveVoteReply, error) {
 	return &avr, nil
 }
 
+func (b *backend) ProcessCastVotes(cv *www.CastVotes) (*www.CastVotesReply, error) {
+	log.Tracef("ProcessCastVotes")
+
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	pc := pd.PluginCommand{
+		Challenge: hex.EncodeToString(challenge),
+		ID:        decredplugin.ID,
+		Command:   decredplugin.CmdCastVotes,
+		CommandID: decredplugin.CmdCastVotes,
+		Payload:   "bobloblaw",
+	}
+
+	responseBody, err := b.makeRequest(http.MethodPost,
+		pd.PluginCommandRoute, pc)
+	if err != nil {
+		return nil, err
+	}
+
+	var reply pd.PluginCommandReply
+	err = json.Unmarshal(responseBody, &reply)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal "+
+			"PluginCommandReply: %v", err)
+	}
+
+	// Verify the challenge.
+	err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	return nil, fmt.Errorf("boing")
+}
+
 func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.StartVoteReply, error) {
 	log.Tracef("ProcessStartVote %v", sv.Vote.Token)
 

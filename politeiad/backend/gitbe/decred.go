@@ -195,3 +195,23 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 	// return success and encoded answer
 	return string(svrb), nil
 }
+
+func (g *gitBackEnd) pluginCastVotes(payload string) (string, error) {
+	vote, err := decredplugin.DecodeCastVotes([]byte(payload))
+	if err != nil {
+		return "", fmt.Errorf("DecodeVote %v", err)
+	}
+
+	// Go over all votes and verify signature
+	for _, v := range vote.Votes {
+		// Figure out addresses
+
+		// Recreate message
+		msg := v.Token + v.Ticket + v.VoteBit
+
+		// Verify message
+		_ = msg
+	}
+
+	return "NOT YET...", fmt.Errorf("not yet...")
+}
