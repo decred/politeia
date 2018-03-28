@@ -16,6 +16,7 @@ import (
 	"net/http/httputil"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -167,6 +168,7 @@ func (p *politeia) respondWithUserError(w http.ResponseWriter,
 }
 
 func (p *politeia) respondWithServerError(w http.ResponseWriter, errorCode int64) {
+	log.Errorf("Stacktrace: %s", debug.Stack())
 	util.RespondWithJSON(w, http.StatusInternalServerError, v1.ServerErrorReply{
 		ErrorCode: errorCode,
 	})
