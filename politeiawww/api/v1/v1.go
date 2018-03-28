@@ -558,11 +558,10 @@ type StartVoteReply struct {
 //
 // This is not a command.
 type Vote struct {
+	Token     string `json:"token"`     // Proposal ID
 	Ticket    string `json:"ticket"`    // Ticket ID
-	Token     string `json:"token"`     // Vote ID
-	Vote      string `json:"vote"`      // Vote bits, not to exceed 64 bits
-	PublicKey string `json:"publickey"` // Key used for signature.
-	Signature string `json:"signature"` // Signature of Ticket+Token+Bits
+	VoteID    string `json:"voteid"`    // Vote ID
+	Signature string `json:"signature"` // Signature of Token+Ticket+VoteId
 }
 
 // VoteReply is a receipt for a vote.

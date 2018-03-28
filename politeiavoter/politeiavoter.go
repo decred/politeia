@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -43,9 +44,15 @@ type ctx struct {
 	client *http.Client
 	cfg    *config
 	csrf   string
+
+	// wallet grpc
+	ctx    context.Context
+	creds  credentials.TransportCredentials
+	conn   *grpc.ClientConn
+	wallet pb.WalletServiceClient
 }
 
-func newClient(skipVerify bool) (*ctx, error) {
+func newClient(skipVerify bool, cfg *config) (*ctx, error) {
 	tlsConfig := &tls.Config{
 		InsecureSkipVerify: skipVerify,
 	}
@@ -58,7 +65,26 @@ func newClient(skipVerify bool) (*ctx, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Wallet GRPC
+	creds, err := credentials.NewClientTLSFromFile(cfg.WalletCert,
+		"localhost")
+	if err != nil {
+		return nil, err
+	}
+	conn, err := grpc.Dial("127.0.0.1:19111", grpc.WithTransportCredentials(creds))
+	if err != nil {
+		return nil, err
+	}
+	wallet := pb.NewWalletServiceClient(conn)
+
+	// return context
 	return &ctx{
+		ctx:    context.Background(),
+		creds:  creds,
+		conn:   conn,
+		wallet: wallet,
+		cfg:    cfg,
 		client: &http.Client{
 			Transport: tr,
 			Jar:       jar,
@@ -107,11 +133,10 @@ func (c *ctx) getCSRF() (*v1.VersionReply, error) {
 
 func firstContact(cfg *config) (*ctx, error) {
 	// Always hit / first for csrf token and obtain api version
-	c, err := newClient(true)
+	c, err := newClient(true, cfg)
 	if err != nil {
 		return nil, err
 	}
-	c.cfg = cfg
 	version, err := c.getCSRF()
 	if err != nil {
 		return nil, err
@@ -218,22 +243,8 @@ func (c *ctx) inventory() error {
 		return err
 	}
 
-	// Setup GRPC
-	ctx := context.Background()
-	creds, err := credentials.NewClientTLSFromFile(c.cfg.WalletCert,
-		"localhost")
-	if err != nil {
-		return err
-	}
-	conn, err := grpc.Dial("127.0.0.1:19111", grpc.WithTransportCredentials(creds))
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-	client := pb.NewWalletServiceClient(conn)
-
 	// Get latest block
-	ar, err := client.Accounts(ctx, &pb.AccountsRequest{})
+	ar, err := c.wallet.Accounts(c.ctx, &pb.AccountsRequest{})
 	if err != nil {
 		return err
 	}
@@ -276,7 +287,7 @@ func (c *ctx) inventory() error {
 				v.Vote.Token, err)
 			continue
 		}
-		ctres, err := client.CommittedTickets(ctx,
+		ctres, err := c.wallet.CommittedTickets(c.ctx,
 			&pb.CommittedTicketsRequest{
 				Tickets: tix,
 			})
@@ -314,16 +325,103 @@ func (c *ctx) inventory() error {
 }
 
 func (c *ctx) _vote(token, voteId string) (*v1.CastVotesReply, error) {
-	cv := v1.CastVotes{
-		Votes: []v1.Vote{
-			{
-				Ticket:    "NOTYET",
-				Token:     token,
-				Vote:      "",
-				Signature: "nosignature",
-			},
-		},
+	// XXX This is expensive but we need the snapshot of the votes. Later
+	// replace this with a locally saved file in order to prevent sending
+	// the same questions mutliple times.
+	i, err := c._inventory()
+	if err != nil {
+		return nil, err
 	}
+
+	// Find proposal
+	var prop *v1.ProposalVoteTuple
+	for _, v := range i.Votes {
+		if v.Proposal.CensorshipRecord.Token != token {
+			continue
+		}
+
+		// Validate voteId
+		found := false
+		for _, vv := range v.Vote.Options {
+			if vv.Id == voteId {
+				found = true
+				break
+			}
+
+		}
+		if !found {
+			return nil, fmt.Errorf("vote id not found: %v", voteId)
+		}
+
+		// We found the propr and we have a proper vote id.
+		prop = &v
+		break
+	}
+	if prop == nil {
+		return nil, fmt.Errorf("proposal not found: %v", token)
+	}
+
+	// Find eligble tickets
+	tix, err := convertTicketHashes(prop.VoteDetails.EligibleTickets)
+	if err != nil {
+		return nil, fmt.Errorf("ticket pool corrupt: %v %v", token, err)
+	}
+	ctres, err := c.wallet.CommittedTickets(c.ctx,
+		&pb.CommittedTicketsRequest{
+			Tickets: tix,
+		})
+	if err != nil {
+		return nil, fmt.Errorf("ticket pool verification: %v %v",
+			token, err)
+	}
+	if len(ctres.TicketAddresses) == 0 {
+		return nil, fmt.Errorf("no eligible tickets found")
+	}
+
+	// Sign all tickets
+	sm := &pb.SignMessagesRequest{
+		Passphrase: []byte("password"),
+		Messages: make([]*pb.SignMessagesRequest_Message, 0,
+			len(ctres.TicketAddresses)),
+	}
+	for _, v := range ctres.TicketAddresses {
+		ticket := hex.EncodeToString(v.Ticket)
+		msg := token + ticket + voteId
+		sm.Messages = append(sm.Messages, &pb.SignMessagesRequest_Message{
+			Address: v.Address,
+			Message: msg,
+		})
+	}
+	smr, err := c.wallet.SignMessages(c.ctx, sm)
+	if err != nil {
+		return nil, err
+	}
+
+	// Make sure all signatures worked
+	for k, v := range smr.Replies {
+		if v.Error == "" {
+			continue
+		}
+		return nil, fmt.Errorf("signarture failed index %v: %v",
+			k, v.Error)
+	}
+
+	// Note that ctres, sm and smr use the same index.
+	cv := v1.CastVotes{
+		Votes: make([]v1.Vote, 0, len(ctres.TicketAddresses)),
+	}
+	for k, v := range ctres.TicketAddresses {
+		ticket := hex.EncodeToString(v.Ticket)
+		signature := hex.EncodeToString(smr.Replies[k].Signature)
+		cv.Votes = append(cv.Votes, v1.Vote{
+			Token:     token,
+			Ticket:    ticket,
+			VoteID:    voteId,
+			Signature: signature,
+		})
+	}
+
+	// Vote on the supplied proposal
 	responseBody, err := c.makeRequest("POST", v1.RouteCastVotes, &cv)
 	if err != nil {
 		return nil, err
@@ -341,7 +439,7 @@ func (c *ctx) _vote(token, voteId string) (*v1.CastVotesReply, error) {
 
 func (c *ctx) vote(args []string) error {
 	if len(args) != 2 {
-		return fmt.Errorf("vote: not enough arguments")
+		return fmt.Errorf("vote: not enough arguments %v", args)
 	}
 
 	cv, err := c._vote(args[0], args[1])
@@ -368,6 +466,8 @@ func _main() error {
 	if err != nil {
 		return err
 	}
+	// Close GRPC
+	defer c.conn.Close()
 
 	// Scan through command line arguments.
 	for i, a := range args {
