@@ -10,7 +10,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
@@ -663,24 +662,6 @@ func (p *politeia) updateVettedMetadata(w http.ResponseWriter, r *http.Request) 
 	log.Infof("Update vetted metadata %v: token %x", remoteAddr(r), token)
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-// getError returns the error that is embedded in a JSON reply.
-func getError(r io.Reader) (string, error) {
-	var e interface{}
-	decoder := json.NewDecoder(r)
-	if err := decoder.Decode(&e); err != nil {
-		return "", err
-	}
-	m, ok := e.(map[string]interface{})
-	if !ok {
-		return "", fmt.Errorf("Could not decode response")
-	}
-	rError, ok := m["error"]
-	if !ok {
-		return "", fmt.Errorf("No error response")
-	}
-	return fmt.Sprintf("%v", rError), nil
 }
 
 func logging(f http.HandlerFunc) http.HandlerFunc {

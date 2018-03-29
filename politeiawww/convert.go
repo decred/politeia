@@ -136,14 +136,6 @@ func convertPropFromPD(p pd.Record) www.ProposalRecord {
 	}
 }
 
-func convertPropsFromPD(p []pd.Record) []www.ProposalRecord {
-	pr := make([]www.ProposalRecord, 0, len(p))
-	for _, v := range p {
-		pr = append(pr, convertPropFromPD(v))
-	}
-	return pr
-}
-
 func convertErrorStatusFromPD(s int) www.ErrorStatusT {
 	switch pd.ErrorStatusT(s) {
 	case pd.ErrorStatusInvalidFileDigest:
