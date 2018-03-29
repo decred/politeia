@@ -1,11 +1,18 @@
 package gitbe
 
 import (
+	"bytes"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
 
+	"github.com/decred/dcrd/chaincfg/chainec"
+	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/wire"
 	"github.com/decred/dcrdata/dcrdataapi"
 	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiad/backend"
@@ -58,6 +65,62 @@ func getDecredPlugin(testnet bool) backend.Plugin {
 	}
 
 	return decredPlugin
+}
+
+// verifyMessage verifies a message is properly signed.
+// Copied from https://github.com/decred/dcrd/blob/0fc55252f912756c23e641839b1001c21442c38a/rpcserver.go#L5605
+func (g *gitBackEnd) verifyMessage(address, message, signature string) (bool, error) {
+	// Decode the provided address.
+	addr, err := dcrutil.DecodeAddress(address)
+	if err != nil {
+		return false, fmt.Errorf("Could not decode address: %v",
+			err)
+	}
+
+	// Only P2PKH addresses are valid for signing.
+	if _, ok := addr.(*dcrutil.AddressPubKeyHash); !ok {
+		return false, fmt.Errorf("Address is not a pay-to-pubkey-hash "+
+			"address: %v", address)
+	}
+
+	// Decode base64 signature.
+	sig, err := base64.StdEncoding.DecodeString(signature)
+	if err != nil {
+		return false, fmt.Errorf("Malformed base64 encoding: %v", err)
+	}
+
+	// Validate the signature - this just shows that it was valid at all.
+	// we will compare it with the key next.
+	var buf bytes.Buffer
+	wire.WriteVarString(&buf, 0, "Decred Signed Message:\n")
+	wire.WriteVarString(&buf, 0, message)
+	expectedMessageHash := chainhash.HashB(buf.Bytes())
+	pk, wasCompressed, err := chainec.Secp256k1.RecoverCompact(sig,
+		expectedMessageHash)
+	if err != nil {
+		// Mirror Bitcoin Core behavior, which treats error in
+		// RecoverCompact as invalid signature.
+		return false, nil
+	}
+
+	// Reconstruct the pubkey hash.
+	dcrPK := pk
+	var serializedPK []byte
+	if wasCompressed {
+		serializedPK = dcrPK.SerializeCompressed()
+	} else {
+		serializedPK = dcrPK.SerializeUncompressed()
+	}
+	a, err := dcrutil.NewAddressSecpPubKey(serializedPK, g.activeNetParams)
+	if err != nil {
+		// Again mirror Bitcoin Core behavior, which treats error in
+		// public key reconstruction as invalid signature.
+		return false, nil
+	}
+
+	// Return boolean if addresses match.
+	log.Errorf("%v == %v", a.EncodeAddress(), address)
+	return a.EncodeAddress() == address, nil
 }
 
 func bestBlock() (*dcrdataapi.BlockDataBasic, error) {
@@ -118,7 +181,6 @@ func snapshot(hash string) ([]string, error) {
 
 func largestCommitmentAddress(hash string) (string, error) {
 	url := decredPluginSettings["dcrdata"] + "api/tx/" + hash
-	log.Infof("connecting to %v", url)
 	log.Debugf("connecting to %v", url)
 	r, err := http.Get(url)
 	if err != nil {
@@ -131,10 +193,30 @@ func largestCommitmentAddress(hash string) (string, error) {
 	if err := decoder.Decode(&ttx); err != nil {
 		return "", err
 	}
-	_ = ttx
 
-	//log.Errorf("%v", spew.Sdump(ttx))
-	return "fleh", nil
+	// Find largest commitment address
+	var (
+		bestAddr   string
+		bestAmount float64
+	)
+	for _, v := range ttx.Vout {
+		if v.Value > bestAmount {
+			if len(v.ScriptPubKeyDecoded.Addresses) == 0 {
+				log.Errorf("unexpected addresses length: %v",
+					ttx.TxID)
+				continue
+			}
+			bestAddr = v.ScriptPubKeyDecoded.Addresses[0]
+			bestAmount = v.Value
+		}
+	}
+
+	if bestAddr == "" || bestAmount == 0.0 {
+		return "", fmt.Errorf("no best commitment address found: %v",
+			ttx.TxID)
+	}
+
+	return bestAddr, nil
 }
 
 func (g *gitBackEnd) pluginBestBlock() (string, error) {
@@ -219,28 +301,38 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 
 func (g *gitBackEnd) pluginCastVotes(payload string) (string, error) {
 	log.Infof("pluginCastVotes: %v", payload)
-	vote, err := decredplugin.DecodeCastVotes([]byte(payload))
+	votes, err := decredplugin.DecodeCastVotes([]byte(payload))
 	if err != nil {
 		return "", fmt.Errorf("DecodeVote %v", err)
 	}
 
 	// Go over all votes and verify signature
 	log.Infof("pluginCastVotes 1")
-	for _, v := range vote {
+	for _, v := range votes {
 		// Figure out addresses
 		log.Infof("pluginCastVotes 2")
 		addr, err := largestCommitmentAddress(v.Ticket)
 		if err != nil {
 			return "", err
 		}
-		_ = addr
+		log.Infof("pluginCastVotes 3: %v", addr)
 
 		// Recreate message
 		msg := v.Token + v.Ticket + v.VoteBit
 
 		// Verify message
-		_ = msg
+		sig, err := hex.DecodeString(v.Signature)
+		if err != nil {
+			return "", err
+		}
+		validated, err := g.verifyMessage(addr, msg,
+			base64.StdEncoding.EncodeToString(sig))
+		if err != nil {
+			return "", err
+		}
+
+		log.Infof("validated %v %v", validated, addr)
 	}
 
-	return "NOT YET...", fmt.Errorf("not yet...")
+	return "receipts go here", nil
 }
