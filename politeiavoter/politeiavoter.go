@@ -390,8 +390,11 @@ func (c *ctx) _vote(token, voteId string) (*v1.CastVotesReply, error) {
 			len(ctres.TicketAddresses)),
 	}
 	for _, v := range ctres.TicketAddresses {
-		ticket := hex.EncodeToString(v.Ticket)
-		msg := token + ticket + voteId
+		h, err := chainhash.NewHash(v.Ticket)
+		if err != nil {
+			return nil, err
+		}
+		msg := token + h.String() + voteId
 		sm.Messages = append(sm.Messages, &pb.SignMessagesRequest_Message{
 			Address: v.Address,
 			Message: msg,
@@ -417,11 +420,14 @@ func (c *ctx) _vote(token, voteId string) (*v1.CastVotesReply, error) {
 		Votes: make([]decredplugin.CastVote, 0, len(ctres.TicketAddresses)),
 	}
 	for k, v := range ctres.TicketAddresses {
-		ticket := hex.EncodeToString(v.Ticket)
+		h, err := chainhash.NewHash(v.Ticket)
+		if err != nil {
+			return nil, err
+		}
 		signature := hex.EncodeToString(smr.Replies[k].Signature)
 		cv.Votes = append(cv.Votes, decredplugin.CastVote{
 			Token:     token,
-			Ticket:    ticket,
+			Ticket:    h.String(),
 			VoteBit:   voteBit,
 			Signature: signature,
 		})
