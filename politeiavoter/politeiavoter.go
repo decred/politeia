@@ -385,7 +385,7 @@ func (c *ctx) _vote(token, voteId string) (*v1.BallotReply, error) {
 
 	// Sign all tickets
 	sm := &pb.SignMessagesRequest{
-		Passphrase: []byte("password"),
+		Passphrase: []byte("password"), // XXX
 		Messages: make([]*pb.SignMessagesRequest_Message, 0,
 			len(ctres.TicketAddresses)),
 	}
@@ -395,7 +395,6 @@ func (c *ctx) _vote(token, voteId string) (*v1.BallotReply, error) {
 			return nil, err
 		}
 		msg := token + h.String() + voteBit
-		fmt.Printf("msg: %v\n", msg)
 		sm.Messages = append(sm.Messages, &pb.SignMessagesRequest_Message{
 			Address: v.Address,
 			Message: msg,
@@ -405,14 +404,13 @@ func (c *ctx) _vote(token, voteId string) (*v1.BallotReply, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("sign done\n")
 
 	// Make sure all signatures worked
 	for k, v := range smr.Replies {
 		if v.Error == "" {
 			continue
 		}
-		return nil, fmt.Errorf("signarture failed index %v: %v",
+		return nil, fmt.Errorf("signature failed index %v: %v",
 			k, v.Error)
 	}
 
@@ -434,7 +432,6 @@ func (c *ctx) _vote(token, voteId string) (*v1.BallotReply, error) {
 		})
 	}
 
-	fmt.Printf("casting votes: %v\n", v1.RouteCastVotes)
 	// Vote on the supplied proposal
 	responseBody, err := c.makeRequest("POST", v1.RouteCastVotes, &cv)
 	if err != nil {
@@ -447,7 +444,6 @@ func (c *ctx) _vote(token, voteId string) (*v1.BallotReply, error) {
 		return nil, fmt.Errorf("Could not unmarshal CastVoteReply: %v",
 			err)
 	}
-	fmt.Printf("casting votes: 1\n")
 
 	return &vr, nil
 }
@@ -461,9 +457,27 @@ func (c *ctx) vote(args []string) error {
 	if err != nil {
 		return err
 	}
-	_ = cv
 
-	return fmt.Errorf("not yet")
+	// Verify vote replies
+	var success, failure uint
+	for _, v := range cv.Receipts {
+		if v.Error == "" {
+			// XXX Check signature
+			success++
+		} else {
+			failure++
+		}
+	}
+	fmt.Printf("Votes succeeded: %v\n", success)
+	fmt.Printf("Votes failed   : %v\n", failure)
+	for _, v := range cv.Receipts {
+		if v.Error == "" {
+			continue
+		}
+		fmt.Printf("Failed vote    : %v %v\n", v.Signature, v.Error)
+	}
+
+	return nil
 }
 
 func _main() error {

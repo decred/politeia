@@ -301,6 +301,37 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 	return string(svrb), nil
 }
 
+// validateVote validates that vote is signed correctly.
+func (g *gitBackEnd) validateVote(token, ticket, votebit, signature string) error {
+	// Figure out addresses
+	addr, err := largestCommitmentAddress(ticket)
+	if err != nil {
+		return err
+	}
+
+	// Recreate message
+	msg := token + ticket + votebit
+
+	// verifyMessage expects base64 encoded sig
+	sig, err := hex.DecodeString(signature)
+	if err != nil {
+		return err
+	}
+
+	// Verify message
+	validated, err := g.verifyMessage(addr, msg,
+		base64.StdEncoding.EncodeToString(sig))
+	if err != nil {
+		return err
+	}
+
+	if !validated {
+		return fmt.Errorf("could not verify message")
+	}
+
+	return nil
+}
+
 func (g *gitBackEnd) pluginCastVotes(payload string) (string, error) {
 	log.Tracef("pluginCastVotes: %v", payload)
 	votes, err := decredplugin.DecodeCastVotes([]byte(payload))
@@ -309,31 +340,25 @@ func (g *gitBackEnd) pluginCastVotes(payload string) (string, error) {
 	}
 
 	// Go over all votes and verify signature
-	for _, v := range votes {
-		// Figure out addresses
-		addr, err := largestCommitmentAddress(v.Ticket)
+	cbr := make([]decredplugin.CastVoteReply, len(votes))
+	for k, v := range votes {
+		// XXX ensure that the votebits are correct
+		cbr[k].ClientSignature = v.Signature
+		// Verify that vote is signed correctly
+		err = g.validateVote(v.Token, v.Ticket, v.VoteBit, v.Signature)
 		if err != nil {
-			return "", err
+			cbr[k].Error = err.Error()
+			continue
 		}
 
-		// Recreate message
-		msg := v.Token + v.Ticket + v.VoteBit
-
-		// verifyMessage expects base64 encoded sig
-		sig, err := hex.DecodeString(v.Signature)
-		if err != nil {
-			return "", err
-		}
-
-		// Verify message
-		validated, err := g.verifyMessage(addr, msg,
-			base64.StdEncoding.EncodeToString(sig))
-		if err != nil {
-			return "", err
-		}
-
-		log.Infof("validated %v %v", validated, addr)
+		// XXX sign
+		cbr[k].Signature = "signme"
 	}
 
-	return "receipts go here", nil
+	reply, err := decredplugin.EncodeCastVoteReplies(cbr)
+	if err != nil {
+		return "", fmt.Errorf("Could not encode CastVoteReply %v", err)
+	}
+
+	return string(reply), nil
 }

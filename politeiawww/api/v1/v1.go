@@ -554,27 +554,6 @@ type StartVoteReply struct {
 	VoteDetails decredplugin.StartVoteReply `json:"votedetails"`
 }
 
-//// Vote is the client side vote + decision.
-////
-//// This is not a command.
-//type Vote struct {
-//	Token     string `json:"token"`     // Proposal ID
-//	Ticket    string `json:"ticket"`    // Ticket ID
-//	VoteID    string `json:"voteid"`    // Vote ID
-//	Signature string `json:"signature"` // Signature of Token+Ticket+VoteId
-//}
-//
-//// VoteReply is a receipt for a vote.
-////
-//// This is not a command.
-//type VoteReply struct {
-//	Ticket string `json:"ticket"` // Ticket ID
-//	Token  string `json:"token"`  // Vote ID
-//	// Server side signature of the Vote command, Ticket+Token+Bits+Signature
-//	Receipt   string `json:"receipt"`
-//	ErrorCode uint   `json:"error"` // Error code for this vote
-//}
-
 // CastVores is a batch of votes that is sent to the server.
 type Ballot struct {
 	Votes []decredplugin.CastVote `json:"votes"`
@@ -582,5 +561,5 @@ type Ballot struct {
 
 // CastVotesReply is a reply to a batched list of votes.
 type BallotReply struct {
-	//Receipts []VoteReply `json:"receipts"`
+	Receipts []decredplugin.CastVoteReply `json:"receipts"`
 }

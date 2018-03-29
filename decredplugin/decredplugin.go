@@ -43,6 +43,35 @@ func DecodeCastVotes(payload []byte) ([]CastVote, error) {
 	return cv, nil
 }
 
+// CastVoteReply is the answer to the CastVote command.
+type CastVoteReply struct {
+	ClientSignature string `json:"clientsignature"` // Signature that was sent in
+	Signature       string `json:"signature"`       // Signature of the ClientSignature
+	Error           string `json:"error"`           // Error if something wen't wrong during casting a vote
+}
+
+// EncodeCastVoteReplies encodes CastVotes into a JSON byte slice.
+func EncodeCastVoteReplies(cvr []CastVoteReply) ([]byte, error) {
+	b, err := json.Marshal(cvr)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+// DecodeCastVoteReplies decodes a JSON byte slice into a CastVotes.
+func DecodeCastVoteReplies(payload []byte) ([]CastVoteReply, error) {
+	var cvr []CastVoteReply
+
+	err := json.Unmarshal(payload, &cvr)
+	if err != nil {
+		return nil, err
+	}
+
+	return cvr, nil
+}
+
 // VoteOption describes a single vote option.
 type VoteOption struct {
 	Id          string `json:"id"`          // Single unique word identifying vote (e.g. yes)

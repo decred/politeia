@@ -1715,7 +1715,13 @@ func (b *backend) ProcessCastVotes(cv *www.Ballot) (*www.BallotReply, error) {
 		return nil, err
 	}
 
-	return nil, fmt.Errorf("boing")
+	// Decode plugin reply
+	receipts, err := decredplugin.DecodeCastVoteReplies([]byte(reply.Payload))
+	if err != nil {
+		return nil, err
+	}
+
+	return &www.BallotReply{Receipts: receipts}, nil
 }
 
 func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.StartVoteReply, error) {

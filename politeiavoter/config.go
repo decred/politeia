@@ -422,12 +422,10 @@ func loadConfig() (*config, []string, error) {
 	cfg.Identity = cleanAndExpandPath(cfg.Identity)
 
 	// Wallet cert
-	fmt.Printf("cert %v\n", cfg.WalletCert)
 	if cfg.WalletCert == "" {
 		cfg.WalletCert = defaultWalletCert
 	}
 	cfg.WalletCert = cleanAndExpandPath(cfg.WalletCert)
-	fmt.Printf("cert %v\n", cfg.WalletCert)
 
 	// Warn about missing config file only after all other configuration is
 	// done.  This prevents the warning on help messages and invalid
