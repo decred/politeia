@@ -394,7 +394,8 @@ func (c *ctx) _vote(token, voteId string) (*v1.BallotReply, error) {
 		if err != nil {
 			return nil, err
 		}
-		msg := token + h.String() + voteId
+		msg := token + h.String() + voteBit
+		fmt.Printf("msg: %v\n", msg)
 		sm.Messages = append(sm.Messages, &pb.SignMessagesRequest_Message{
 			Address: v.Address,
 			Message: msg,

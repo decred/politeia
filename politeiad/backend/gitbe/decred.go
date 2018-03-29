@@ -119,7 +119,6 @@ func (g *gitBackEnd) verifyMessage(address, message, signature string) (bool, er
 	}
 
 	// Return boolean if addresses match.
-	log.Errorf("%v == %v", a.EncodeAddress(), address)
 	return a.EncodeAddress() == address, nil
 }
 
@@ -200,14 +199,17 @@ func largestCommitmentAddress(hash string) (string, error) {
 		bestAmount float64
 	)
 	for _, v := range ttx.Vout {
-		if v.Value > bestAmount {
+		if v.ScriptPubKeyDecoded.CommitAmt == nil {
+			continue
+		}
+		if *v.ScriptPubKeyDecoded.CommitAmt > bestAmount {
 			if len(v.ScriptPubKeyDecoded.Addresses) == 0 {
 				log.Errorf("unexpected addresses length: %v",
 					ttx.TxID)
 				continue
 			}
 			bestAddr = v.ScriptPubKeyDecoded.Addresses[0]
-			bestAmount = v.Value
+			bestAmount = *v.ScriptPubKeyDecoded.CommitAmt
 		}
 	}
 
@@ -300,31 +302,30 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 }
 
 func (g *gitBackEnd) pluginCastVotes(payload string) (string, error) {
-	log.Infof("pluginCastVotes: %v", payload)
+	log.Tracef("pluginCastVotes: %v", payload)
 	votes, err := decredplugin.DecodeCastVotes([]byte(payload))
 	if err != nil {
 		return "", fmt.Errorf("DecodeVote %v", err)
 	}
 
 	// Go over all votes and verify signature
-	log.Infof("pluginCastVotes 1")
 	for _, v := range votes {
 		// Figure out addresses
-		log.Infof("pluginCastVotes 2")
 		addr, err := largestCommitmentAddress(v.Ticket)
 		if err != nil {
 			return "", err
 		}
-		log.Infof("pluginCastVotes 3: %v", addr)
 
 		// Recreate message
 		msg := v.Token + v.Ticket + v.VoteBit
 
-		// Verify message
+		// verifyMessage expects base64 encoded sig
 		sig, err := hex.DecodeString(v.Signature)
 		if err != nil {
 			return "", err
 		}
+
+		// Verify message
 		validated, err := g.verifyMessage(addr, msg,
 			base64.StdEncoding.EncodeToString(sig))
 		if err != nil {
