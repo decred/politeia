@@ -576,11 +576,11 @@ type StartVoteReply struct {
 //}
 
 // CastVores is a batch of votes that is sent to the server.
-type CastVotes struct {
-	Votes []decredplugin.CastVotes `json:"castvotes"`
+type Ballot struct {
+	Votes []decredplugin.CastVote `json:"votes"`
 }
 
 // CastVotesReply is a reply to a batched list of votes.
-type CastVotesReply struct {
+type BallotReply struct {
 	//Receipts []VoteReply `json:"receipts"`
 }

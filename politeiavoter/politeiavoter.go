@@ -325,7 +325,7 @@ func (c *ctx) inventory() error {
 	return nil
 }
 
-func (c *ctx) _vote(token, voteId string) (*v1.CastVotesReply, error) {
+func (c *ctx) _vote(token, voteId string) (*v1.BallotReply, error) {
 	// XXX This is expensive but we need the snapshot of the votes. Later
 	// replace this with a locally saved file in order to prevent sending
 	// the same questions mutliple times.
@@ -416,7 +416,7 @@ func (c *ctx) _vote(token, voteId string) (*v1.CastVotesReply, error) {
 	}
 
 	// Note that ctres, sm and smr use the same index.
-	cv := decredplugin.CastVotes{
+	cv := v1.Ballot{
 		Votes: make([]decredplugin.CastVote, 0, len(ctres.TicketAddresses)),
 	}
 	for k, v := range ctres.TicketAddresses {
@@ -440,7 +440,7 @@ func (c *ctx) _vote(token, voteId string) (*v1.CastVotesReply, error) {
 		return nil, err
 	}
 
-	var vr v1.CastVotesReply
+	var vr v1.BallotReply
 	err = json.Unmarshal(responseBody, &vr)
 	if err != nil {
 		return nil, fmt.Errorf("Could not unmarshal CastVoteReply: %v",

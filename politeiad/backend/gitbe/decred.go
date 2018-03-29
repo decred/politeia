@@ -62,7 +62,7 @@ func getDecredPlugin(testnet bool) backend.Plugin {
 
 func bestBlock() (*dcrdataapi.BlockDataBasic, error) {
 	url := decredPluginSettings["dcrdata"] + "api/block/best"
-	log.Errorf("connecting to %v", url)
+	log.Debugf("connecting to %v", url)
 	r, err := http.Get(url)
 	if err != nil {
 		return nil, err
@@ -81,7 +81,7 @@ func bestBlock() (*dcrdataapi.BlockDataBasic, error) {
 func block(block uint32) (*dcrdataapi.BlockDataBasic, error) {
 	h := strconv.FormatUint(uint64(block), 10)
 	url := decredPluginSettings["dcrdata"] + "api/block/" + h
-	log.Errorf("connecting to %v", url)
+	log.Debugf("connecting to %v", url)
 	r, err := http.Get(url)
 	if err != nil {
 		return nil, err
@@ -100,7 +100,7 @@ func block(block uint32) (*dcrdataapi.BlockDataBasic, error) {
 func snapshot(hash string) ([]string, error) {
 	url := decredPluginSettings["dcrdata"] + "api/stake/pool/b/" + hash +
 		"/full?sort=true"
-	log.Errorf("connecting to %v", url)
+	log.Debugf("connecting to %v", url)
 	r, err := http.Get(url)
 	if err != nil {
 		return nil, err
@@ -114,6 +114,27 @@ func snapshot(hash string) ([]string, error) {
 	}
 
 	return tickets, nil
+}
+
+func largestCommitmentAddress(hash string) (string, error) {
+	url := decredPluginSettings["dcrdata"] + "api/tx/" + hash
+	log.Infof("connecting to %v", url)
+	log.Debugf("connecting to %v", url)
+	r, err := http.Get(url)
+	if err != nil {
+		return "", err
+	}
+	defer r.Body.Close()
+
+	var ttx dcrdataapi.TrimmedTx
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&ttx); err != nil {
+		return "", err
+	}
+	_ = ttx
+
+	//log.Errorf("%v", spew.Sdump(ttx))
+	return "fleh", nil
 }
 
 func (g *gitBackEnd) pluginBestBlock() (string, error) {
@@ -197,14 +218,22 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 }
 
 func (g *gitBackEnd) pluginCastVotes(payload string) (string, error) {
+	log.Infof("pluginCastVotes: %v", payload)
 	vote, err := decredplugin.DecodeCastVotes([]byte(payload))
 	if err != nil {
 		return "", fmt.Errorf("DecodeVote %v", err)
 	}
 
 	// Go over all votes and verify signature
-	for _, v := range vote.Votes {
+	log.Infof("pluginCastVotes 1")
+	for _, v := range vote {
 		// Figure out addresses
+		log.Infof("pluginCastVotes 2")
+		addr, err := largestCommitmentAddress(v.Ticket)
+		if err != nil {
+			return "", err
+		}
+		_ = addr
 
 		// Recreate message
 		msg := v.Token + v.Ticket + v.VoteBit

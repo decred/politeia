@@ -793,7 +793,7 @@ func (p *politeiawww) handleCastVotes(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	log.Tracef("handleCastVotes")
 
-	var cv v1.CastVotes
+	var cv v1.Ballot
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&cv); err != nil {
 		RespondWithError(w, r, 0, "handleCastVotes: unmarshal", v1.UserError{

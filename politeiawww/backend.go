@@ -1675,7 +1675,7 @@ func (b *backend) ProcessActiveVote() (*www.ActiveVoteReply, error) {
 	return &avr, nil
 }
 
-func (b *backend) ProcessCastVotes(cv *www.CastVotes) (*www.CastVotesReply, error) {
+func (b *backend) ProcessCastVotes(cv *www.Ballot) (*www.BallotReply, error) {
 	log.Tracef("ProcessCastVotes")
 
 	challenge, err := util.Random(pd.ChallengeSize)
@@ -1683,12 +1683,17 @@ func (b *backend) ProcessCastVotes(cv *www.CastVotes) (*www.CastVotesReply, erro
 		return nil, err
 	}
 
+	// encode cast votes for plugin
+	payload, err := decredplugin.EncodeCastVotes(cv.Votes)
+	if err != nil {
+		return nil, err
+	}
 	pc := pd.PluginCommand{
 		Challenge: hex.EncodeToString(challenge),
 		ID:        decredplugin.ID,
 		Command:   decredplugin.CmdCastVotes,
 		CommandID: decredplugin.CmdCastVotes,
-		Payload:   "bobloblaw",
+		Payload:   string(payload),
 	}
 
 	responseBody, err := b.makeRequest(http.MethodPost,

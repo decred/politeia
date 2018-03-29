@@ -21,13 +21,8 @@ type CastVote struct {
 	Signature string `json:"signature"` // Signature of Token+Ticket+VoteBit
 }
 
-// CastVotes is a batched cast vote call.
-type CastVotes struct {
-	Votes []CastVote `json:"votes"`
-}
-
 // EncodeCastVotes encodes CastVotes into a JSON byte slice.
-func EncodeCastVotes(cv CastVotes) ([]byte, error) {
+func EncodeCastVotes(cv []CastVote) ([]byte, error) {
 	b, err := json.Marshal(cv)
 	if err != nil {
 		return nil, err
@@ -37,15 +32,15 @@ func EncodeCastVotes(cv CastVotes) ([]byte, error) {
 }
 
 // DecodeCastVotes decodes a JSON byte slice into a CastVotes.
-func DecodeCastVotes(payload []byte) (*CastVotes, error) {
-	var cv CastVotes
+func DecodeCastVotes(payload []byte) ([]CastVote, error) {
+	var cv []CastVote
 
 	err := json.Unmarshal(payload, &cv)
 	if err != nil {
 		return nil, err
 	}
 
-	return &cv, nil
+	return cv, nil
 }
 
 // VoteOption describes a single vote option.
