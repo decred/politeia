@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"syscall"
@@ -205,6 +206,7 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 	ec := fmt.Sprintf("%v %v %v %v Internal error %v: ", remoteAddr(r),
 		r.Method, r.URL, r.Proto, errorCode)
 	log.Errorf(ec+format, args...)
+	log.Errorf("Stacktrace: %s", debug.Stack())
 	util.RespondWithJSON(w, http.StatusInternalServerError,
 		v1.ErrorReply{
 			ErrorCode: errorCode,
