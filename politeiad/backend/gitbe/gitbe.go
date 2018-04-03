@@ -24,6 +24,7 @@ import (
 	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
+	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/util"
@@ -2350,7 +2351,7 @@ func (g *gitBackEnd) rebasePR(id string) error {
 }
 
 // New returns a gitBackEnd context.  It verifies that git is installed.
-func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, gitTrace bool) (*gitBackEnd, error) {
+func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, id *identity.FullIdentity, gitTrace bool) (*gitBackEnd, error) {
 	// Default to system git
 	if gitPath == "" {
 		gitPath = "git"
@@ -2370,8 +2371,13 @@ func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, 
 		testAnchors:     make(map[string]bool),
 		plugins:         []backend.Plugin{getDecredPlugin(anp.Name != "mainnet")},
 	}
+	idJSON, err := id.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	setDecredPluginSetting(decredPluginIdentity, string(idJSON))
 
-	err := g.newLocked()
+	err = g.newLocked()
 	if err != nil {
 		return nil, err
 	}

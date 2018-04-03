@@ -20,7 +20,8 @@ import (
 var (
 	prng = rand.Reader
 
-	ErrNotEqual = errors.New("not equal")
+	ErrNotEqual         = errors.New("not equal")
+	ErrInvalidSignature = errors.New("invalid signature")
 )
 
 const (
@@ -168,4 +169,18 @@ func zero(in []byte) {
 	for i := 0; i < len(in); i++ {
 		in[i] ^= in[i]
 	}
+}
+
+func SignatureFromString(signature string) (*[SignatureSize]byte, error) {
+	s, err := hex.DecodeString(signature)
+	if err != nil {
+		return nil, err
+	}
+	if len(s) != SignatureSize {
+		return nil, ErrInvalidSignature
+	}
+
+	var sig [SignatureSize]byte
+	copy(sig[:], s)
+	return &sig, nil
 }

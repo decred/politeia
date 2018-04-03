@@ -18,6 +18,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	pb "github.com/decred/dcrwallet/rpc/walletrpc"
 	"github.com/decred/politeia/decredplugin"
+	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/util"
 	"github.com/gorilla/schema"
@@ -44,6 +45,7 @@ func usage() {
 type ctx struct {
 	client *http.Client
 	cfg    *config
+	id     *identity.PublicIdentity
 	csrf   string
 
 	// wallet grpc
@@ -144,7 +146,13 @@ func firstContact(cfg *config) (*ctx, error) {
 	}
 	log.Debugf("Version: %v", version.Version)
 	log.Debugf("Route  : %v", version.Route)
+	log.Debugf("Pubkey : %v", version.PubKey)
 	log.Debugf("CSRF   : %v", c.csrf)
+
+	c.id, err = util.IdentityFromString(version.PubKey)
+	if err != nil {
+		return nil, err
+	}
 
 	return c, nil
 }
@@ -459,21 +467,29 @@ func (c *ctx) vote(args []string) error {
 	}
 
 	// Verify vote replies
-	var success, failure uint
+	failedReceipts := make([]decredplugin.CastVoteReply, 0,
+		len(cv.Receipts))
 	for _, v := range cv.Receipts {
-		if v.Error == "" {
-			// XXX Check signature
-			success++
-		} else {
-			failure++
-		}
-	}
-	fmt.Printf("Votes succeeded: %v\n", success)
-	fmt.Printf("Votes failed   : %v\n", failure)
-	for _, v := range cv.Receipts {
-		if v.Error == "" {
+		if v.Error != "" {
+			failedReceipts = append(failedReceipts, v)
 			continue
 		}
+		sig, err := identity.SignatureFromString(v.Signature)
+		if err != nil {
+			v.Error = err.Error()
+			failedReceipts = append(failedReceipts, v)
+			continue
+		}
+		if !c.id.VerifyMessage([]byte(v.ClientSignature), *sig) {
+			v.Error = "Could not verify receipt " + v.ClientSignature
+			failedReceipts = append(failedReceipts, v)
+		}
+
+	}
+	fmt.Printf("Votes succeeded: %v\n", len(cv.Receipts)-
+		len(failedReceipts))
+	fmt.Printf("Votes failed   : %v\n", len(failedReceipts))
+	for _, v := range failedReceipts {
 		fmt.Printf("Failed vote    : %v %v\n", v.Signature, v.Error)
 	}
 

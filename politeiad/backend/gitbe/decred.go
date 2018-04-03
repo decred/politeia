@@ -15,8 +15,13 @@ import (
 	"github.com/decred/dcrd/wire"
 	"github.com/decred/dcrdata/dcrdataapi"
 	"github.com/decred/politeia/decredplugin"
+	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/util"
+)
+
+const (
+	decredPluginIdentity = "fullidentity"
 )
 
 var (
@@ -27,20 +32,7 @@ func getDecredPlugin(testnet bool) backend.Plugin {
 	decredPlugin := backend.Plugin{
 		ID:       decredplugin.ID,
 		Version:  decredplugin.Version,
-		Settings: []backend.PluginSetting{
-			//{
-			//	Key:   "dcrd",
-			//	Value: "localhost:19109",
-			//},
-			//{
-			//	Key:   "dcrduser",
-			//	Value: "u",
-			//},
-			//{
-			//	Key:   "dcrdpass",
-			//	Value: "p",
-			//},
-		},
+		Settings: []backend.PluginSetting{},
 	}
 
 	if testnet {
@@ -65,6 +57,15 @@ func getDecredPlugin(testnet bool) backend.Plugin {
 	}
 
 	return decredPlugin
+}
+
+//SetDecredPluginSetting removes a setting if the value is "" and adds a setting otherwise.
+func setDecredPluginSetting(key, value string) {
+	if value == "" {
+		delete(decredPluginSettings, key)
+		return
+	}
+	decredPluginSettings[key] = value
 }
 
 // verifyMessage verifies a message is properly signed.
@@ -339,6 +340,16 @@ func (g *gitBackEnd) pluginCastVotes(payload string) (string, error) {
 		return "", fmt.Errorf("DecodeVote %v", err)
 	}
 
+	// XXX this should become part of some sort of context
+	fiJSON, ok := decredPluginSettings[decredPluginIdentity]
+	if !ok {
+		return "", fmt.Errorf("full identity not set")
+	}
+	fi, err := identity.UnmarshalFullIdentity([]byte(fiJSON))
+	if err != nil {
+		return "", err
+	}
+
 	// Go over all votes and verify signature
 	cbr := make([]decredplugin.CastVoteReply, len(votes))
 	for k, v := range votes {
@@ -352,7 +363,8 @@ func (g *gitBackEnd) pluginCastVotes(payload string) (string, error) {
 		}
 
 		// XXX sign
-		cbr[k].Signature = "signme"
+		signature := fi.SignMessage([]byte(v.Signature))
+		cbr[k].Signature = hex.EncodeToString(signature[:])
 	}
 
 	reply, err := decredplugin.EncodeCastVoteReplies(cbr)
