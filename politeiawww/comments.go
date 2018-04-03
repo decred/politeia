@@ -60,19 +60,6 @@ func backendCommentToComment(bec BackendComment) www.Comment {
 	}
 }
 
-// backendCommentToComment converts BackendComment to www.Comment.
-func wwwCommentToBackendComment(www BackendComment) BackendComment {
-	return BackendComment{
-		Timestamp: www.Timestamp,
-		UserID:    www.UserID,
-		CommentID: www.CommentID,
-		Token:     www.Token,
-		ParentID:  www.ParentID,
-		Comment:   www.Comment,
-		Signature: www.Signature,
-	}
-}
-
 // initComment initializes the comment map for the given token.  This call must
 // be called with the lock held.
 func (b *backend) initComment(token string) {
