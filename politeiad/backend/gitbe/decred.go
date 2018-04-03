@@ -6,7 +6,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 
 	"github.com/decred/dcrd/chaincfg/chainec"
@@ -19,6 +22,8 @@ import (
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/util"
 )
+
+// XXX plugins really need to become an interface. Run with this for now.
 
 const (
 	decredPluginIdentity = "fullidentity"
@@ -351,8 +356,21 @@ func (g *gitBackEnd) pluginCastVotes(payload string) (string, error) {
 	}
 
 	// Go over all votes and verify signature
+	type dedupVote struct {
+		vote  *decredplugin.CastVote
+		index int
+	}
 	cbr := make([]decredplugin.CastVoteReply, len(votes))
+	dedupVotes := make(map[string]dedupVote)
 	for k, v := range votes {
+		// Check if this is a duplicate vote
+		key := v.Token + v.Ticket
+		if _, ok := dedupVotes[key]; ok {
+			cbr[k].Error = fmt.Sprintf("duplicate vote token %v "+
+				"ticket %v", v.Token, v.Ticket)
+			continue
+		}
+
 		// XXX ensure that the votebits are correct
 		cbr[k].ClientSignature = v.Signature
 		// Verify that vote is signed correctly
@@ -362,10 +380,152 @@ func (g *gitBackEnd) pluginCastVotes(payload string) (string, error) {
 			continue
 		}
 
-		// XXX sign
+		// Sign ClientSignature
 		signature := fi.SignMessage([]byte(v.Signature))
 		cbr[k].Signature = hex.EncodeToString(signature[:])
+		dedupVotes[key] = dedupVote{
+			vote:  &votes[k],
+			index: k,
+		}
 	}
+
+	// XXX store votes
+	err = g.lock.Lock(LockDuration)
+	if err != nil {
+		return "", fmt.Errorf("pluginCastVotes: lock error try again "+
+			"later: %v", err)
+	}
+	defer func() {
+		err := g.lock.Unlock()
+		if err != nil {
+			log.Errorf("pluginCastVotes unlock error: %v", err)
+		}
+	}()
+	if g.shutdown {
+		return "", backend.ErrShutdown
+	}
+
+	// git checkout master
+	err = g.gitCheckout(g.unvetted, "master")
+	if err != nil {
+		return "", err
+	}
+
+	// git pull --ff-only --rebase
+	err = g.gitPull(g.unvetted, true)
+	if err != nil {
+		return "", err
+	}
+
+	// Check for dups
+	type file struct {
+		fileHandle *os.File
+		content    map[string]struct{} // [token+ticket]
+	}
+	files := make(map[string]*file)
+	for _, v := range dedupVotes {
+		var f *file
+		if f, ok = files[v.vote.Token]; !ok {
+			// Lazily open files and recreate content
+			// XXX USE metadata
+			fh, err := os.OpenFile(filepath.Join(g.vetted, v.vote.Token, "votes"),
+				os.O_RDWR|os.O_CREATE, 0666)
+			if err != nil {
+				// XXX find right cbr entry to report error
+				panic("x " + err.Error())
+				continue
+			}
+			f = &file{
+				fileHandle: fh,
+				content:    make(map[string]struct{}),
+			}
+
+			// Decode file content
+			cvs := make([]decredplugin.CastVote, 0, len(dedupVotes))
+			d := json.NewDecoder(fh)
+			for {
+				var cv decredplugin.CastVote
+				err = d.Decode(&cv)
+				if err != nil {
+					if err == io.EOF {
+						break
+					}
+
+					// XXX find right cbr entry to report error
+					panic("zzz " + err.Error())
+					continue
+				}
+				cvs = append(cvs, cv)
+			}
+
+			// Recreate keys
+			for _, vv := range cvs {
+				key := vv.Token + vv.Ticket
+				// Sanity
+				if _, ok := f.content[key]; ok {
+					panic("yy")
+					continue
+				}
+				f.content[key] = struct{}{}
+			}
+
+			files[v.vote.Token] = f
+		}
+
+		// Check for dups in file content
+		key := v.vote.Token + v.vote.Ticket
+		if _, ok := f.content[key]; ok {
+			index := dedupVotes[key].index
+			cbr[index].Error = "ticket already voted on proposal"
+			log.Debugf("duplicate vote token %v ticket %v",
+				v.vote.Token, v.vote.Ticket)
+			continue
+		}
+
+		// Append vote
+		_, err = f.fileHandle.Seek(0, 2)
+		if err != nil {
+			// XXX find right cbr entry to report error
+			panic("y " + err.Error())
+			continue
+		}
+		e := json.NewEncoder(f.fileHandle)
+		err = e.Encode(*v.vote)
+		if err != nil {
+			// XXX find right cbr entry to report error
+			panic("z " + err.Error())
+			continue
+		}
+	}
+
+	// Unwind all opens
+	for _, v := range files {
+		if v.fileHandle == nil {
+			continue
+		}
+		v.fileHandle.Close()
+	}
+
+	//// Check if temporary branch exists (should never be the case)
+	//id := hex.EncodeToString(token)
+	//idTmp := id + "_tmp"
+
+	//// Make sure vetted exists
+	//_, err = os.Stat(filepath.Join(g.unvetted, id))
+	//if err != nil {
+	//	if os.IsNotExist(err) {
+	//		return "", backend.ErrRecordNotFound
+	//	}
+	//}
+
+	//// Make sure record is not locked.
+	//md, err := loadMD(g.unvetted, id)
+	//if err != nil {
+	//	return "", err
+	//}
+	//if md.Status == backend.MDStatusLocked {
+	//	return "", backend.ErrRecordLocked
+	//}
 
 	reply, err := decredplugin.EncodeCastVoteReplies(cbr)
 	if err != nil {

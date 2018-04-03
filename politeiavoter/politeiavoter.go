@@ -393,7 +393,7 @@ func (c *ctx) _vote(token, voteId string) (*v1.BallotReply, error) {
 
 	// Sign all tickets
 	sm := &pb.SignMessagesRequest{
-		Passphrase: []byte("password"), // XXX
+		Passphrase: []byte("password"), // XXX XXX XXX THIS NEEDS FIXING
 		Messages: make([]*pb.SignMessagesRequest_Message, 0,
 			len(ctres.TicketAddresses)),
 	}

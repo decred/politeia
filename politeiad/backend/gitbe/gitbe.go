@@ -1529,6 +1529,38 @@ func (g *gitBackEnd) UpdateUnvettedRecord(token []byte, mdAppend []backend.Metad
 	return brm, errReturn
 }
 
+// updateVettedMetadata updates metadata in the unvetted repo and pushes it
+// upstream followed by a rebase.  Record is not updated.
+// This function must be called with the lock held.
+func (g *gitBackEnd) updateVettedMetadata(id, idTmp string, mdAppend []backend.MetadataStream, mdOverwrite []backend.MetadataStream) error {
+	// Checkout temporary branch
+	err := g.gitNewBranch(g.unvetted, idTmp)
+	if err != nil {
+		return err
+	}
+
+	// Update metadata changes
+	err = g.updateMetadata(id, mdAppend, mdOverwrite)
+	if err != nil {
+		return err
+	}
+
+	// If there are no changes DO NOT update the record and reply with no
+	// changes.
+	if !g.gitHasChanges(g.unvetted) {
+		return backend.ErrNoChanges
+	}
+
+	// Commit change
+	err = g.gitCommit(g.unvetted, "Update record metadata "+id)
+	if err != nil {
+		return err
+	}
+
+	// create and rebase PR
+	return g.rebasePR(idTmp)
+}
+
 // UpdateVettedMetadata updates metadata in vetted record.  It goes through the
 // normal stages of updating unvetted, pushing PR, merge PR, pull remote.
 // Record itself is not changed.
@@ -1629,38 +1661,6 @@ func (g *gitBackEnd) UpdateVettedMetadata(token []byte, mdAppend []backend.Metad
 	}
 
 	return errReturn
-}
-
-// updateVettedMetadata updates metadata in the unvetted repo and pushes it
-// upstream followed by a rebase.  Record is not updated.
-// This function must be called with the lock held.
-func (g *gitBackEnd) updateVettedMetadata(id, idTmp string, mdAppend []backend.MetadataStream, mdOverwrite []backend.MetadataStream) error {
-	// Checkout temporary branch
-	err := g.gitNewBranch(g.unvetted, idTmp)
-	if err != nil {
-		return err
-	}
-
-	// Update metadata changes
-	err = g.updateMetadata(id, mdAppend, mdOverwrite)
-	if err != nil {
-		return err
-	}
-
-	// If there are no changes DO NOT update the record and reply with no
-	// changes.
-	if !g.gitHasChanges(g.unvetted) {
-		return backend.ErrNoChanges
-	}
-
-	// Commit change
-	err = g.gitCommit(g.unvetted, "Update record metadata "+id)
-	if err != nil {
-		return err
-	}
-
-	// create and rebase PR
-	return g.rebasePR(idTmp)
 }
 
 // getRecordLock is the generic implementation of GetUnvetted/GetVetted.  It
