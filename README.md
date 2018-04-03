@@ -1,6 +1,6 @@
 # Politeia
-[![Build Status](http://img.shields.io/travis/decred/politeia.svg)](https://travis-ci.org/decred/politeia)
-[![ISC License](http://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
+[![Build Status](https://img.shields.io/travis/decred/politeia.svg)](https://travis-ci.org/decred/politeia)
+[![ISC License](https://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
 
 **Politeia is the Decred proposal system.**
 Politeia is a system for storing off-chain data that is both versioned and
