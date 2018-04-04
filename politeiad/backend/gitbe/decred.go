@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -522,6 +523,8 @@ func (g *gitBackEnd) pluginCastVotes(payload string) (string, error) {
 		return "", backend.ErrShutdown
 	}
 
+	// XXX split out git commands so we can do a stash + stash drop if the operation fails
+
 	// git checkout master
 	err = g.gitCheckout(g.unvetted, "master")
 	if err != nil {
@@ -534,9 +537,23 @@ func (g *gitBackEnd) pluginCastVotes(payload string) (string, error) {
 		return "", err
 	}
 
+	// Create random temporary branch
+	random, err := util.Random(64)
+	if err != nil {
+		return "", err
+	}
+	id := hex.EncodeToString(random)
+	idTmp := id + "_tmp"
+	err = g.gitNewBranch(g.unvetted, idTmp)
+	if err != nil {
+		return "", err
+	}
+
 	// Check for dups
 	type file struct {
 		fileHandle *os.File
+		token      string
+		mdFilename string
 		content    map[string]struct{} // [token+ticket]
 	}
 	files := make(map[string]*file)
@@ -544,9 +561,10 @@ func (g *gitBackEnd) pluginCastVotes(payload string) (string, error) {
 		var f *file
 		if f, ok = files[v.vote.Token]; !ok {
 			// Lazily open files and recreate content
-			fh, err := os.OpenFile(mdFilename(g.vetted, v.vote.Token,
-				decredplugin.MDStreamVotes),
-				os.O_RDWR|os.O_CREATE, 0666)
+			filename := mdFilename(g.unvetted, v.vote.Token,
+				decredplugin.MDStreamVotes)
+			fh, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE,
+				0666)
 			if err != nil {
 				// XXX find right cbr entry to report error
 				panic("x " + err.Error())
@@ -554,7 +572,10 @@ func (g *gitBackEnd) pluginCastVotes(payload string) (string, error) {
 			}
 			f = &file{
 				fileHandle: fh,
-				content:    make(map[string]struct{}),
+				token:      v.vote.Token,
+				mdFilename: strconv.FormatUint(uint64(decredplugin.MDStreamVotes),
+					10) + defaultMDFilenameSuffix,
+				content: make(map[string]struct{}),
 			}
 
 			// Decode file content
@@ -621,28 +642,33 @@ func (g *gitBackEnd) pluginCastVotes(payload string) (string, error) {
 			continue
 		}
 		v.fileHandle.Close()
+
+		// Add file to repo
+		err = g.gitAdd(g.unvetted, filepath.Join(v.token, v.mdFilename))
+		if err != nil {
+			// XXX find right cbr entry to report error
+			panic("zzz " + err.Error())
+			continue
+		}
 	}
 
-	//// Check if temporary branch exists (should never be the case)
-	//id := hex.EncodeToString(token)
-	//idTmp := id + "_tmp"
+	// If there are no changes DO NOT update the record and reply with no
+	// changes.
+	if g.gitHasChanges(g.unvetted) {
+		// Commit change
+		err = g.gitCommit(g.unvetted, "Update record metadata via plugin")
+		if err != nil {
+			panic("111 " + err.Error())
+			//return err
+		}
 
-	//// Make sure vetted exists
-	//_, err = os.Stat(filepath.Join(g.unvetted, id))
-	//if err != nil {
-	//	if os.IsNotExist(err) {
-	//		return "", backend.ErrRecordNotFound
-	//	}
-	//}
-
-	//// Make sure record is not locked.
-	//md, err := loadMD(g.unvetted, id)
-	//if err != nil {
-	//	return "", err
-	//}
-	//if md.Status == backend.MDStatusLocked {
-	//	return "", backend.ErrRecordLocked
-	//}
+		// create and rebase PR
+		err = g.rebasePR(idTmp)
+		if err != nil {
+			panic("222 " + err.Error())
+			//return "", fmt.Errorf("Could not rebase %v", err)
+		}
+	}
 
 	reply, err := decredplugin.EncodeCastVoteReplies(cbr)
 	if err != nil {
