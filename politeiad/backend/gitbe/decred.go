@@ -454,7 +454,6 @@ func (g *gitBackEnd) pluginCastVotes(payload string) (string, error) {
 	cbr := make([]decredplugin.CastVoteReply, len(votes))
 	dedupVotes := make(map[string]dedupVote)
 	for k, v := range votes {
-		log.Errorf("==== vote %v", v.Token)
 		// Check if this is a duplicate vote
 		key := v.Token + v.Ticket
 		if _, ok := dedupVotes[key]; ok {
@@ -466,7 +465,6 @@ func (g *gitBackEnd) pluginCastVotes(payload string) (string, error) {
 		// Ensure that the votebits are correct
 		err = g.validateVoteBit(v.Token, v.VoteBit)
 		if err != nil {
-			log.Errorf("should skip: %v %v", v.Token, err)
 			if e, ok := err.(invalidVoteBitError); ok {
 				cbr[k].Error = e.err.Error()
 				continue
@@ -478,7 +476,6 @@ func (g *gitBackEnd) pluginCastVotes(payload string) (string, error) {
 			continue
 		}
 
-		log.Errorf("check sig: %v ", v.Token)
 		cbr[k].ClientSignature = v.Signature
 		// Verify that vote is signed correctly
 		err = g.validateVote(v.Token, v.Ticket, v.VoteBit, v.Signature)
@@ -490,7 +487,6 @@ func (g *gitBackEnd) pluginCastVotes(payload string) (string, error) {
 			continue
 		}
 
-		log.Errorf("add: %v ", v.Token)
 		// Sign ClientSignature
 		signature := fi.SignMessage([]byte(v.Signature))
 		cbr[k].Signature = hex.EncodeToString(signature[:])
@@ -500,7 +496,6 @@ func (g *gitBackEnd) pluginCastVotes(payload string) (string, error) {
 		}
 	}
 
-	log.Errorf("--%v", dedupVotes)
 	// See if we can short circuit the lock magic
 	if len(dedupVotes) == 0 {
 		reply, err := decredplugin.EncodeCastVoteReplies(cbr)
