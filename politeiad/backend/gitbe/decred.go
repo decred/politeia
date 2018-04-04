@@ -507,7 +507,7 @@ func (g *gitBackEnd) pluginCastVotes(payload string) (string, error) {
 		return string(reply), nil
 	}
 
-	// XXX store votes
+	// Store votes
 	err = g.lock.Lock(LockDuration)
 	if err != nil {
 		return "", fmt.Errorf("pluginCastVotes: lock error try again "+
@@ -524,6 +524,8 @@ func (g *gitBackEnd) pluginCastVotes(payload string) (string, error) {
 	}
 
 	// XXX split out git commands so we can do a stash + stash drop if the operation fails
+
+	// XXX remove panics
 
 	// git checkout master
 	err = g.gitCheckout(g.unvetted, "master")
