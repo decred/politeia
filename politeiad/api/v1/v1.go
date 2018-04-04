@@ -362,9 +362,9 @@ type PluginSetting struct {
 
 // Plugin describes a plugin and its settings.
 type Plugin struct {
-	ID       string          `json:"id"`      // Identifier
-	Version  string          `json:"version"` // Version
-	Settings []PluginSetting `json:"setting"` // Settings
+	ID       string          `json:"id"`       // Identifier
+	Version  string          `json:"version"`  // Version
+	Settings []PluginSetting `json:"settings"` // Settings
 }
 
 // PluginInventory retrieves all active plugins and their settings.

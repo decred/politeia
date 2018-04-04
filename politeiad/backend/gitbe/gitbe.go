@@ -2148,14 +2148,18 @@ func (g *gitBackEnd) Inventory(vettedCount, branchCount uint, includeFiles bool)
 	return pr, br, nil
 }
 
-// GetPlugins returns the decred plugin settings.
+// GetPlugins returns a list of currently supported plugins and their settings.
 //
 // GetPlugins satisfies the backend interface.
 func (g *gitBackEnd) GetPlugins() ([]backend.Plugin, error) {
 	return g.plugins, nil
 }
 
-// Plugin send a passthrough command.
+// Plugin send a passthrough command. The return values are: incomming command
+// identifier, encoded command result and an error if the command failed to
+// execute.
+//
+// Plugin satisfies the backend interface.
 func (g *gitBackEnd) Plugin(command, payload string) (string, string, error) {
 	log.Tracef("Plugin: %v %v", command, payload)
 	switch command {
