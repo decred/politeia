@@ -333,13 +333,13 @@ func (c *ctx) inventory() error {
 	return nil
 }
 
-func (c *ctx) _vote(token, voteId string) (*v1.BallotReply, error) {
+func (c *ctx) _vote(token, voteId string) ([]string, *v1.BallotReply, error) {
 	// XXX This is expensive but we need the snapshot of the votes. Later
 	// replace this with a locally saved file in order to prevent sending
 	// the same questions mutliple times.
 	i, err := c._inventory()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Find proposal
@@ -363,7 +363,8 @@ func (c *ctx) _vote(token, voteId string) (*v1.BallotReply, error) {
 
 		}
 		if !found {
-			return nil, fmt.Errorf("vote id not found: %v", voteId)
+			return nil, nil, fmt.Errorf("vote id not found: %v",
+				voteId)
 		}
 
 		// We found the propr and we have a proper vote id.
@@ -371,24 +372,25 @@ func (c *ctx) _vote(token, voteId string) (*v1.BallotReply, error) {
 		break
 	}
 	if prop == nil {
-		return nil, fmt.Errorf("proposal not found: %v", token)
+		return nil, nil, fmt.Errorf("proposal not found: %v", token)
 	}
 
 	// Find eligble tickets
 	tix, err := convertTicketHashes(prop.VoteDetails.EligibleTickets)
 	if err != nil {
-		return nil, fmt.Errorf("ticket pool corrupt: %v %v", token, err)
+		return nil, nil, fmt.Errorf("ticket pool corrupt: %v %v",
+			token, err)
 	}
 	ctres, err := c.wallet.CommittedTickets(c.ctx,
 		&pb.CommittedTicketsRequest{
 			Tickets: tix,
 		})
 	if err != nil {
-		return nil, fmt.Errorf("ticket pool verification: %v %v",
+		return nil, nil, fmt.Errorf("ticket pool verification: %v %v",
 			token, err)
 	}
 	if len(ctres.TicketAddresses) == 0 {
-		return nil, fmt.Errorf("no eligible tickets found")
+		return nil, nil, fmt.Errorf("no eligible tickets found")
 	}
 
 	// Sign all tickets
@@ -400,7 +402,7 @@ func (c *ctx) _vote(token, voteId string) (*v1.BallotReply, error) {
 	for _, v := range ctres.TicketAddresses {
 		h, err := chainhash.NewHash(v.Ticket)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		msg := token + h.String() + voteBit
 		sm.Messages = append(sm.Messages, &pb.SignMessagesRequest_Message{
@@ -410,7 +412,7 @@ func (c *ctx) _vote(token, voteId string) (*v1.BallotReply, error) {
 	}
 	smr, err := c.wallet.SignMessages(c.ctx, sm)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Make sure all signatures worked
@@ -418,7 +420,7 @@ func (c *ctx) _vote(token, voteId string) (*v1.BallotReply, error) {
 		if v.Error == "" {
 			continue
 		}
-		return nil, fmt.Errorf("signature failed index %v: %v",
+		return nil, nil, fmt.Errorf("signature failed index %v: %v",
 			k, v.Error)
 	}
 
@@ -426,10 +428,11 @@ func (c *ctx) _vote(token, voteId string) (*v1.BallotReply, error) {
 	cv := v1.Ballot{
 		Votes: make([]decredplugin.CastVote, 0, len(ctres.TicketAddresses)),
 	}
+	tickets := make([]string, 0, len(ctres.TicketAddresses))
 	for k, v := range ctres.TicketAddresses {
 		h, err := chainhash.NewHash(v.Ticket)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		signature := hex.EncodeToString(smr.Replies[k].Signature)
 		cv.Votes = append(cv.Votes, decredplugin.CastVote{
@@ -438,22 +441,23 @@ func (c *ctx) _vote(token, voteId string) (*v1.BallotReply, error) {
 			VoteBit:   voteBit,
 			Signature: signature,
 		})
+		tickets = append(tickets, h.String())
 	}
 
 	// Vote on the supplied proposal
 	responseBody, err := c.makeRequest("POST", v1.RouteCastVotes, &cv)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var vr v1.BallotReply
 	err = json.Unmarshal(responseBody, &vr)
 	if err != nil {
-		return nil, fmt.Errorf("Could not unmarshal CastVoteReply: %v",
+		return nil, nil, fmt.Errorf("Could not unmarshal CastVoteReply: %v",
 			err)
 	}
 
-	return &vr, nil
+	return tickets, &vr, nil
 }
 
 func (c *ctx) vote(args []string) error {
@@ -461,7 +465,7 @@ func (c *ctx) vote(args []string) error {
 		return fmt.Errorf("vote: not enough arguments %v", args)
 	}
 
-	cv, err := c._vote(args[0], args[1])
+	tickets, cv, err := c._vote(args[0], args[1])
 	if err != nil {
 		return err
 	}
@@ -489,8 +493,8 @@ func (c *ctx) vote(args []string) error {
 	fmt.Printf("Votes succeeded: %v\n", len(cv.Receipts)-
 		len(failedReceipts))
 	fmt.Printf("Votes failed   : %v\n", len(failedReceipts))
-	for _, v := range failedReceipts {
-		fmt.Printf("Failed vote    : %v %v\n", v.Signature, v.Error)
+	for k, v := range failedReceipts {
+		fmt.Printf("Failed vote    : %v %v\n", tickets[k], v.Error)
 	}
 
 	return nil

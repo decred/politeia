@@ -58,8 +58,6 @@ func (b *backend) newInventoryRecord(record pd.Record) error {
 	b.updateInventoryRecord(record)
 
 	return nil
-
-	return nil
 }
 
 // loadPropMD decodes backend proposal metadata and stores it inventory object.
@@ -163,6 +161,10 @@ func (b *backend) loadRecord(v pd.Record) {
 					err)
 				continue
 			}
+		case decredplugin.MDStreamVotes:
+			// This is all handled in the plugin bits.
+			log.Debugf("initializeInventory skipping MDStreamVotes")
+			continue
 		case decredplugin.MDStreamVoteBits:
 			err = b.loadVoteBits(t, m.Payload)
 			if err != nil {

@@ -401,6 +401,13 @@ func loadRecord(path, id string) ([]backend.File, error) {
 	return bf, nil
 }
 
+// mdFilename generates the proper filename for a specified repo + proposal and
+// metadata stream.
+func mdFilename(path, id string, mdID int) string {
+	return filepath.Join(path, id, strconv.FormatUint(uint64(mdID), 10)+
+		defaultMDFilenameSuffix)
+}
+
 // loadMDStreams loads all streams of disk.  It returns an array of
 // backend.MetadataStream that is completely filled out.
 //

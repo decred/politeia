@@ -9,8 +9,8 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/decred/dcrd/chaincfg/chainec"
 	"github.com/decred/dcrd/chaincfg/chainhash"
@@ -30,7 +30,10 @@ const (
 )
 
 var (
-	decredPluginSettings map[string]string
+	decredPluginSettings map[string]string // [key]setting
+
+	// cached values, requires lock
+	decredPluginVoteCache = make(map[string]*decredplugin.Vote) // [token]vote
 )
 
 func getDecredPlugin(testnet bool) backend.Plugin {
@@ -338,6 +341,94 @@ func (g *gitBackEnd) validateVote(token, ticket, votebit, signature string) erro
 	return nil
 }
 
+type invalidVoteBitError struct {
+	err error
+}
+
+func (i invalidVoteBitError) Error() string {
+	return i.err.Error()
+}
+
+// _validateVoteBit iterates over all vote bits and ensure the sent in vote bit
+// exists.
+func _validateVoteBit(vote decredplugin.Vote, bit uint64) error {
+	if len(vote.Options) == 0 {
+		return fmt.Errorf("_validateVoteBit vote corrupt")
+	}
+	if bit == 0 {
+		return invalidVoteBitError{
+			err: fmt.Errorf("invalid bit 0x%x", bit),
+		}
+	}
+	for _, v := range vote.Options {
+		if v.Bits == bit {
+			return nil
+		}
+	}
+	return invalidVoteBitError{
+		err: fmt.Errorf("bit not found 0x%x", bit),
+	}
+}
+
+// validateVoteBits ensures that the passed in bit is a valid vote option.
+// This function is expensive due to it's filesystem touches and therefore is
+// lazily cached. This could stand a rewrite.
+func (g *gitBackEnd) validateVoteBit(token, bit string) error {
+	b, err := strconv.ParseUint(bit, 16, 64)
+	if err != nil {
+		return err
+	}
+
+	err = g.lock.Lock(LockDuration)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		err := g.lock.Unlock()
+		if err != nil {
+			log.Errorf("validateVoteBits unlock error: %v", err)
+		}
+	}()
+	if g.shutdown {
+		return backend.ErrShutdown
+	}
+
+	vote, ok := decredPluginVoteCache[token]
+	if ok {
+		return _validateVoteBit(*vote, b)
+	}
+
+	// git checkout master
+	err = g.gitCheckout(g.unvetted, "master")
+	if err != nil {
+		return err
+	}
+
+	// git pull --ff-only --rebase
+	err = g.gitPull(g.unvetted, true)
+	if err != nil {
+		return err
+	}
+
+	// Load md stream
+	f, err := os.Open(mdFilename(g.vetted, token,
+		decredplugin.MDStreamVoteBits))
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	d := json.NewDecoder(f)
+	err = d.Decode(&vote)
+	if err != nil {
+		return err
+	}
+
+	decredPluginVoteCache[token] = vote
+
+	return _validateVoteBit(*vote, b)
+}
+
 func (g *gitBackEnd) pluginCastVotes(payload string) (string, error) {
 	log.Tracef("pluginCastVotes: %v", payload)
 	votes, err := decredplugin.DecodeCastVotes([]byte(payload))
@@ -363,6 +454,7 @@ func (g *gitBackEnd) pluginCastVotes(payload string) (string, error) {
 	cbr := make([]decredplugin.CastVoteReply, len(votes))
 	dedupVotes := make(map[string]dedupVote)
 	for k, v := range votes {
+		log.Errorf("==== vote %v", v.Token)
 		// Check if this is a duplicate vote
 		key := v.Token + v.Ticket
 		if _, ok := dedupVotes[key]; ok {
@@ -371,15 +463,34 @@ func (g *gitBackEnd) pluginCastVotes(payload string) (string, error) {
 			continue
 		}
 
-		// XXX ensure that the votebits are correct
+		// Ensure that the votebits are correct
+		err = g.validateVoteBit(v.Token, v.VoteBit)
+		if err != nil {
+			log.Errorf("should skip: %v %v", v.Token, err)
+			if e, ok := err.(invalidVoteBitError); ok {
+				cbr[k].Error = e.err.Error()
+				continue
+			}
+			t := time.Now().Unix()
+			log.Errorf("pluginCastVotes: validateVoteBit %v %v %v",
+				v.Token, t, err)
+			cbr[k].Error = fmt.Sprintf("internal error %v", t)
+			continue
+		}
+
+		log.Errorf("check sig: %v ", v.Token)
 		cbr[k].ClientSignature = v.Signature
 		// Verify that vote is signed correctly
 		err = g.validateVote(v.Token, v.Ticket, v.VoteBit, v.Signature)
 		if err != nil {
-			cbr[k].Error = err.Error()
+			t := time.Now().Unix()
+			log.Errorf("pluginCastVotes: validateVote %v %v %v",
+				v.Token, t, err)
+			cbr[k].Error = fmt.Sprintf("internal error %v", t)
 			continue
 		}
 
+		log.Errorf("add: %v ", v.Token)
 		// Sign ClientSignature
 		signature := fi.SignMessage([]byte(v.Signature))
 		cbr[k].Signature = hex.EncodeToString(signature[:])
@@ -387,6 +498,17 @@ func (g *gitBackEnd) pluginCastVotes(payload string) (string, error) {
 			vote:  &votes[k],
 			index: k,
 		}
+	}
+
+	log.Errorf("--%v", dedupVotes)
+	// See if we can short circuit the lock magic
+	if len(dedupVotes) == 0 {
+		reply, err := decredplugin.EncodeCastVoteReplies(cbr)
+		if err != nil {
+			return "", fmt.Errorf("Could not encode CastVoteReply"+
+				" %v", err)
+		}
+		return string(reply), nil
 	}
 
 	// XXX store votes
@@ -427,8 +549,8 @@ func (g *gitBackEnd) pluginCastVotes(payload string) (string, error) {
 		var f *file
 		if f, ok = files[v.vote.Token]; !ok {
 			// Lazily open files and recreate content
-			// XXX USE metadata
-			fh, err := os.OpenFile(filepath.Join(g.vetted, v.vote.Token, "votes"),
+			fh, err := os.OpenFile(mdFilename(g.vetted, v.vote.Token,
+				decredplugin.MDStreamVotes),
 				os.O_RDWR|os.O_CREATE, 0666)
 			if err != nil {
 				// XXX find right cbr entry to report error
