@@ -1,7 +1,6 @@
 package main
 
 import (
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -9,8 +8,17 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
+type commentTestCase struct {
+	comment       www.NewComment
+	userID        uint64
+	expectedError error
+}
+
 func TestCommentsTestSuite(t *testing.T) {
-	suite.Run(t, new(CommentsTestSuite))
+	cts := CommentsTestSuite{
+		t: t,
+	}
+	suite.Run(t, &cts)
 }
 
 type CommentsTestSuite struct {
@@ -18,31 +26,22 @@ type CommentsTestSuite struct {
 	dataDir string
 	backend *backend
 	token   string
-}
-
-func (s *CommentsTestSuite) SetupSuite() {
-	s.token = "5cd139b1dbda13e089e4d175d8baa2658083fcf8533c2b5ccf2105027848caba"
+	t       *testing.T
 }
 
 func (s *CommentsTestSuite) SetupTest() {
-
 	require := s.Require()
 
-	//@rgeraldes - this logic should be part of the backend
-	dir, err := ioutil.TempDir("", "politeiawww.test")
-	require.NoError(err)
-	require.NotNil(dir)
-	s.dataDir = dir
-
 	// setup backend
-	backend, err := NewBackend(&config{DataDir: dir})
-	require.NoError(err)
-	require.NotNil(backend)
-	backend.test = true
-	s.backend = backend
+	s.backend = createBackend(s.t)
+	require.NotNil(s.backend)
 
-	// init comment map
-	s.backend.initComment(s.token)
+	u, id := createAndVerifyUser(s.t, s.backend)
+	user, _ := s.backend.db.UserGet(u.Email)
+	_, npr, err := createNewProposal(s.backend, s.t, user, id)
+	require.NoError(err)
+
+	s.token = npr.CensorshipRecord.Token
 }
 
 func (s *CommentsTestSuite) AfterTest(suiteName, testName string) {
@@ -62,41 +61,35 @@ func (s *CommentsTestSuite) TestAddComment() {
 
 	require := s.Require()
 
-	testCases := []struct {
-		comment       www.NewComment
-		userID        uint64
-		expectedError error
-	}{
-		// invalid comment length
-		{
-			comment: www.NewComment{
-				Token:    s.token,
-				ParentID: "1",
-				Comment:  generateRandomString(www.PolicyMaxCommentLength + 1),
-			},
-			userID: 1,
-			expectedError: www.UserError{
-				ErrorCode: www.ErrorStatusCommentLengthExceededPolicy,
-			},
+	testCases := make(map[string]commentTestCase)
+	testCases["invalid comment length"] = commentTestCase{
+		comment: www.NewComment{
+			Token:    s.token,
+			ParentID: "1",
+			Comment:  generateRandomString(www.PolicyMaxCommentLength + 1),
 		},
-		// valid comment length
-		{
-			comment: www.NewComment{
-				Token:    s.token,
-				ParentID: "1",
-				Comment:  "valid length",
-			},
-			userID:        1,
-			expectedError: nil,
+		userID: 1,
+		expectedError: www.UserError{
+			ErrorCode: www.ErrorStatusCommentLengthExceededPolicy,
 		},
 	}
+	testCases["valid comment length"] = commentTestCase{
+		comment: www.NewComment{
+			Token:    s.token,
+			ParentID: "1",
+			Comment:  "valid length",
+		},
+		userID:        1,
+		expectedError: nil,
+	}
 
-	for _, testCase := range testCases {
+	for testName, testCase := range testCases {
 		reply, err := s.backend.addComment(testCase.comment, testCase.userID)
-		require.EqualValues(testCase.expectedError, err)
+		require.EqualValuesf(testCase.expectedError, err, "failed test: %v",
+			testName)
 		if err == nil {
-			require.NotNil(reply)
-			require.NotZero(reply.CommentID)
+			require.NotNilf(reply, "failed test: %v", testName)
+			require.NotZerof(reply.CommentID, "failed test: %v", testName)
 		}
 	}
 

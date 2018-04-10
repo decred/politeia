@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"regexp"
 
 	"github.com/decred/politeia/politeiad/api/v1"
 )
@@ -26,10 +27,12 @@ var (
 	// ErrShutdown is emitted when the backend is shutting down.
 	ErrNoChanges = errors.New("no changes to record")
 
-	// ErrInvalidTransition is emitted when an invalid status transition
-	// occurs.  The only valid transitions are from unvetted -> vetted and
-	// unvetted to censored.
-	ErrInvalidTransition = errors.New("invalid record status transition")
+	// ErrRecordLocked is returned when an updated was attempted on a
+	// locked record.
+	ErrRecordLocked = errors.New("record is locked")
+
+	// Plugin names must be all lowercase letters and have a length of <20
+	PluginRE = regexp.MustCompile(`^[a-z]{1,20}$`)
 )
 
 // ContentVerificationError is returned when a submitted record contains
@@ -59,6 +62,7 @@ const (
 	MDStatusVetted            MDStatusT = 2 // Vetted record
 	MDStatusCensored          MDStatusT = 3 // Censored record
 	MDStatusIterationUnvetted MDStatusT = 4 // Changes are unvetted
+	MDStatusLocked            MDStatusT = 5 // Record is locked, only vetted->locked allowed
 )
 
 var (
@@ -69,8 +73,20 @@ var (
 		MDStatusVetted:            "vetted",
 		MDStatusCensored:          "censored",
 		MDStatusIterationUnvetted: "iteration unvetted",
+		MDStatusLocked:            "locked",
 	}
 )
+
+// StateTransitionError indicates an invalid record status transition.
+type StateTransitionError struct {
+	From MDStatusT
+	To   MDStatusT
+}
+
+func (s StateTransitionError) Error() string {
+	return fmt.Sprintf("invalid record status transition %v (%v) -> %v (%v)",
+		s.From, MDStatus[s.From], s.To, MDStatus[s.To])
+}
 
 // RecordMetadata is the metadata of a record.
 type RecordMetadata struct {
@@ -96,6 +112,19 @@ type Record struct {
 	Files          []File           // User provided files
 }
 
+// PluginSettings
+type PluginSetting struct {
+	Key   string // Name of setting
+	Value string // Value of setting
+}
+
+// Plugin describes a plugin and its settings.
+type Plugin struct {
+	ID       string          // Identifier
+	Version  string          // Version
+	Settings []PluginSetting // Settings
+}
+
 type Backend interface {
 	// Create new record
 	New([]MetadataStream, []File) (*RecordMetadata, error)
@@ -116,10 +145,16 @@ type Backend interface {
 
 	// Set unvetted record status
 	SetUnvettedStatus([]byte, MDStatusT, []MetadataStream,
-		[]MetadataStream) (MDStatusT, error)
+		[]MetadataStream) (*Record, error)
 
 	// Inventory retrieves various record records.
 	Inventory(uint, uint, bool) ([]Record, []Record, error)
+
+	// Obtain plugin settings
+	GetPlugins() ([]Plugin, error)
+
+	// Plugin pass-through command
+	Plugin(string, string) (string, string, error) // command type, payload, errror
 
 	// Close performs cleanup of the backend.
 	Close()

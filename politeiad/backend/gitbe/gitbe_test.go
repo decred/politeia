@@ -21,6 +21,7 @@ import (
 
 	"github.com/btcsuite/btclog"
 	"github.com/davecgh/go-spew/spew"
+	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/util"
 )
@@ -63,7 +64,8 @@ func TestAnchorWithCommits(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	// Initialize stuff we need
-	g, err := New(dir, "", "", testing.Verbose())
+	g, err := New(&chaincfg.TestNet2Params, dir, "", "", nil,
+		testing.Verbose())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,14 +166,14 @@ func TestAnchorWithCommits(t *testing.T) {
 	// Vet 1 of the records
 	t.Logf("===== VET RECORD 1 =====")
 	emptyMD := []backend.MetadataStream{}
-	status, err := g.SetUnvettedStatus(rm[1].Token, backend.MDStatusVetted,
-		emptyMD, emptyMD)
+	record, err := g.SetUnvettedStatus(rm[1].Token,
+		backend.MDStatusVetted, emptyMD, emptyMD)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if status != backend.MDStatusVetted {
-		t.Fatalf("unexpected status: got %v wanted %v", status,
-			backend.MDStatusVetted)
+	if record.RecordMetadata.Status != backend.MDStatusVetted {
+		t.Fatalf("unexpected status: got %v wanted %v",
+			record.RecordMetadata.Status, backend.MDStatusVetted)
 	}
 	//Get it as well to validate the GetVetted call
 	pru, err := g.GetVetted(rm[1].Token)

@@ -19,15 +19,19 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrtime/api/v1"
 	"github.com/decred/dcrtime/merkle"
+	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
+	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/util"
 	"github.com/marcopeereboom/lockfile"
 	"github.com/robfig/cron"
 	"github.com/subosito/norma"
+	"github.com/syndtr/goleveldb/leveldb"
 )
 
 const (
@@ -102,18 +106,21 @@ type file struct {
 // gitBackEnd is a git based backend context that satisfies the backend
 // interface.
 type gitBackEnd struct {
-	lock        *lockfile.LockFile // Global lock
-	cron        *cron.Cron         // Scheduler for periodic tasks
-	shutdown    bool               // Backend is shutdown
-	root        string             // Root directory
-	unvetted    string             // Unvettend content
-	vetted      string             // Vetted, public, visible content
-	dcrtimeHost string             // Dcrtimed directory
-	gitPath     string             // Path to git
-	gitTrace    bool               // Enable git tracing
-	test        bool               // Set during UT
-	exit        chan struct{}      // Close channel
-	checkAnchor chan struct{}      // Work notification
+	lock            *lockfile.LockFile // Global lock
+	db              *leveldb.DB        // Database
+	cron            *cron.Cron         // Scheduler for periodic tasks
+	activeNetParams *chaincfg.Params   // indicator if we are running on testnet
+	shutdown        bool               // Backend is shutdown
+	root            string             // Root directory
+	unvetted        string             // Unvettend content
+	vetted          string             // Vetted, public, visible content
+	dcrtimeHost     string             // Dcrtimed directory
+	gitPath         string             // Path to git
+	gitTrace        bool               // Enable git tracing
+	test            bool               // Set during UT
+	exit            chan struct{}      // Close channel
+	checkAnchor     chan struct{}      // Work notification
+	plugins         []backend.Plugin   // Plugins
 
 	// The following items are used for testing only
 	testAnchors map[string]bool // [digest]anchored
@@ -394,6 +401,13 @@ func loadRecord(path, id string) ([]backend.File, error) {
 	}
 
 	return bf, nil
+}
+
+// mdFilename generates the proper filename for a specified repo + proposal and
+// metadata stream.
+func mdFilename(path, id string, mdID int) string {
+	return filepath.Join(path, id, strconv.FormatUint(uint64(mdID), 10)+
+		defaultMDFilenameSuffix)
 }
 
 // loadMDStreams loads all streams of disk.  It returns an array of
@@ -1250,9 +1264,11 @@ func (g *gitBackEnd) updateRecord(token []byte, mdAppend, mdOverwrite []backend.
 	}
 	if !(brm.Status == backend.MDStatusVetted ||
 		brm.Status == backend.MDStatusUnvetted ||
-		brm.Status == backend.MDStatusIterationUnvetted) {
+		brm.Status == backend.MDStatusIterationUnvetted ||
+		brm.Status == backend.MDStatusLocked) {
 		return nil, fmt.Errorf("can not update record that "+
-			"has status: %v", brm.Status)
+			"has status: %v %v", brm.Status,
+			backend.MDStatus[brm.Status])
 	}
 
 	// Verify all deletes before executing
@@ -1431,6 +1447,38 @@ func (g *gitBackEnd) UpdateUnvettedRecord(token []byte, mdAppend []backend.Metad
 	return brm, errReturn
 }
 
+// updateVettedMetadata updates metadata in the unvetted repo and pushes it
+// upstream followed by a rebase.  Record is not updated.
+// This function must be called with the lock held.
+func (g *gitBackEnd) updateVettedMetadata(id, idTmp string, mdAppend []backend.MetadataStream, mdOverwrite []backend.MetadataStream) error {
+	// Checkout temporary branch
+	err := g.gitNewBranch(g.unvetted, idTmp)
+	if err != nil {
+		return err
+	}
+
+	// Update metadata changes
+	err = g.updateMetadata(id, mdAppend, mdOverwrite)
+	if err != nil {
+		return err
+	}
+
+	// If there are no changes DO NOT update the record and reply with no
+	// changes.
+	if !g.gitHasChanges(g.unvetted) {
+		return backend.ErrNoChanges
+	}
+
+	// Commit change
+	err = g.gitCommit(g.unvetted, "Update record metadata "+id)
+	if err != nil {
+		return err
+	}
+
+	// create and rebase PR
+	return g.rebasePR(idTmp)
+}
+
 // UpdateVettedMetadata updates metadata in vetted record.  It goes through the
 // normal stages of updating unvetted, pushing PR, merge PR, pull remote.
 // Record itself is not changed.
@@ -1488,6 +1536,15 @@ func (g *gitBackEnd) UpdateVettedMetadata(token []byte, mdAppend []backend.Metad
 		}
 	}
 
+	// Make sure record is not locked.
+	md, err := loadMD(g.unvetted, id)
+	if err != nil {
+		return err
+	}
+	if md.Status == backend.MDStatusLocked {
+		return backend.ErrRecordLocked
+	}
+
 	log.Tracef("updating vetted metadata %x", token)
 
 	// Do the work, if there is an error we must unwind git.
@@ -1524,38 +1581,6 @@ func (g *gitBackEnd) UpdateVettedMetadata(token []byte, mdAppend []backend.Metad
 	return errReturn
 }
 
-// updateVettedMetadata updates metadata in the unvetted repo and pushes it
-// upstream followed by a rebase.  Record is not updated.
-// This function must be called with the lock held.
-func (g *gitBackEnd) updateVettedMetadata(id, idTmp string, mdAppend []backend.MetadataStream, mdOverwrite []backend.MetadataStream) error {
-	// Checkout temporary branch
-	err := g.gitNewBranch(g.unvetted, idTmp)
-	if err != nil {
-		return err
-	}
-
-	// Update metadata changes
-	err = g.updateMetadata(id, mdAppend, mdOverwrite)
-	if err != nil {
-		return err
-	}
-
-	// If there are no changes DO NOT update the record and reply with no
-	// changes.
-	if !g.gitHasChanges(g.unvetted) {
-		return backend.ErrNoChanges
-	}
-
-	// Commit change
-	err = g.gitCommit(g.unvetted, "Update record metadata "+id)
-	if err != nil {
-		return err
-	}
-
-	// create and rebase PR
-	return g.rebasePR(idTmp)
-}
-
 // getRecordLock is the generic implementation of GetUnvetted/GetVetted.  It
 // returns a record record from the provided repo.
 //
@@ -1577,6 +1602,38 @@ func (g *gitBackEnd) getRecordLock(token []byte, repo string, includeFiles bool)
 	}
 
 	return g.getRecord(token, repo, includeFiles)
+}
+
+// _getRecord loads a record from the current branch on the provided repo.
+//
+// This function must be called WITH the lock held.
+func (g *gitBackEnd) _getRecord(id, repo string, includeFiles bool) (*backend.Record, error) {
+	// load MD
+	brm, err := loadMD(repo, id)
+	if err != nil {
+		return nil, err
+	}
+
+	// load metadata streams
+	mds, err := loadMDStreams(repo, id)
+	if err != nil {
+		return nil, err
+	}
+
+	var files []backend.File
+	if includeFiles {
+		// load files
+		files, err = loadRecord(repo, id)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &backend.Record{
+		RecordMetadata: *brm,
+		Metadata:       mds,
+		Files:          files,
+	}, nil
 }
 
 // getRecord is the generic implementation of GetUnvetted/GetVetted.  It
@@ -1604,32 +1661,7 @@ func (g *gitBackEnd) getRecord(token []byte, repo string, includeFiles bool) (*b
 		}
 	}()
 
-	// load MD
-	brm, err := loadMD(repo, id)
-	if err != nil {
-		return nil, err
-	}
-
-	// load metadata streams
-	mds, err := loadMDStreams(repo, id)
-	if err != nil {
-		return nil, err
-	}
-
-	var files []backend.File
-	if includeFiles {
-		// load files
-		files, err = loadRecord(repo, id)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &backend.Record{
-		RecordMetadata: *brm,
-		Metadata:       mds,
-		Files:          files,
-	}, nil
+	return g._getRecord(id, repo, includeFiles)
 }
 
 // fsck performs a git fsck and additionally it validates the git tree against
@@ -1700,7 +1732,6 @@ func (g *gitBackEnd) fsck(path string) error {
 	}
 
 	log.Infof("fsck: dcrtime verification started")
-	defer log.Infof("fsck: dcrtime verification completed")
 
 	// Verify the unconfirmed anchors
 	vrs := make([]v1.VerifyDigest, 0, len(unconfirmedAnchors))
@@ -1713,6 +1744,7 @@ func (g *gitBackEnd) fsck(path string) error {
 			vrs = append(vrs, *vr)
 		}
 	}
+
 	err = g.afterAnchorVerify(vrs)
 	if err != nil {
 		return err
@@ -1764,95 +1796,96 @@ func (g *gitBackEnd) GetVetted(token []byte) (*backend.Record, error) {
 // the call with the unvetted repo sitting in master.  The idea is that if this
 // function fails we can simply unwind it by calling a git stash.
 // Function must be called with the lock held.
-func (g *gitBackEnd) setUnvettedStatus(token []byte, status backend.MDStatusT, mdAppend, mdOverwrite []backend.MetadataStream) (backend.MDStatusT, error) {
+func (g *gitBackEnd) setUnvettedStatus(token []byte, status backend.MDStatusT, mdAppend, mdOverwrite []backend.MetadataStream) (*backend.Record, error) {
 	// git checkout id
 	id := hex.EncodeToString(token)
 	err := g.gitCheckout(g.unvetted, id)
 	if err != nil {
-		return backend.MDStatusInvalid, backend.ErrRecordNotFound
+		return nil, backend.ErrRecordNotFound
 	}
 
-	// Load MD
-	brm, err := loadMD(g.unvetted, id)
+	// Load record
+	record, err := g._getRecord(id, g.unvetted, false)
 	if err != nil {
-		return backend.MDStatusInvalid, err
+		return nil, err
 	}
-	oldStatus := brm.Status
 
 	// We only allow a transition from unvetted to vetted or censored
 	switch {
-	case (brm.Status == backend.MDStatusUnvetted ||
-		brm.Status == backend.MDStatusIterationUnvetted) &&
+	case (record.RecordMetadata.Status == backend.MDStatusUnvetted ||
+		record.RecordMetadata.Status == backend.MDStatusIterationUnvetted) &&
 		status == backend.MDStatusVetted:
 
 		// unvetted -> vetted
 
 		// Update MD first
-		brm.Status = backend.MDStatusVetted
-		brm.Version += 1
-		brm.Timestamp = time.Now().Unix()
-		err = updateMD(g.unvetted, id, brm)
+		record.RecordMetadata.Status = backend.MDStatusVetted
+		record.RecordMetadata.Version += 1
+		record.RecordMetadata.Timestamp = time.Now().Unix()
+		err = updateMD(g.unvetted, id, &record.RecordMetadata)
 		if err != nil {
-			return oldStatus, err
+			return nil, err
 		}
 
 		// Handle metadata
 		err = g.updateMetadata(id, mdAppend, mdOverwrite)
 		if err != nil {
-			return oldStatus, err
+			return nil, err
 		}
 
 		// Commit brm
 		err = g.commitMD(g.unvetted, id, "published")
 		if err != nil {
-			return oldStatus, err
+			return nil, err
 		}
 
 		// Create and rebase PR
 		err = g.rebasePR(id)
 		if err != nil {
-			return oldStatus, err
+			return nil, err
 		}
 
-	case brm.Status == backend.MDStatusUnvetted &&
+	case record.RecordMetadata.Status == backend.MDStatusUnvetted &&
 		status == backend.MDStatusCensored:
 		// unvetted -> censored
-		brm.Status = backend.MDStatusCensored
-		brm.Version += 1
-		brm.Timestamp = time.Now().Unix()
-		err = updateMD(g.unvetted, id, brm)
+		record.RecordMetadata.Status = backend.MDStatusCensored
+		record.RecordMetadata.Version += 1
+		record.RecordMetadata.Timestamp = time.Now().Unix()
+		err = updateMD(g.unvetted, id, &record.RecordMetadata)
 		if err != nil {
-			return oldStatus, err
+			return nil, err
 		}
 
 		// Handle metadata
 		err = g.updateMetadata(id, mdAppend, mdOverwrite)
 		if err != nil {
-			return oldStatus, err
+			return nil, err
 		}
 
 		// Commit brm
 		err = g.commitMD(g.unvetted, id, "censored")
 		if err != nil {
-			return oldStatus, err
+			return nil, err
 		}
 	default:
-		return oldStatus, backend.ErrInvalidTransition
+		return nil, backend.StateTransitionError{
+			From: record.RecordMetadata.Status,
+			To:   status,
+		}
 	}
 
-	return brm.Status, nil
+	return record, nil
 }
 
-// SetUnvettedStatus tries to update the status for an unvetted record.  If
-// the record is found the prior status is returned if the function errors
-// out.  This is a bit unusual so keep it in mind.
+// SetUnvettedStatus tries to update the status for an unvetted record. It
+// returns the updated record if successful but without the Files compnonet.
 //
 // SetUnvettedStatus satisfies the backend interface.
-func (g *gitBackEnd) SetUnvettedStatus(token []byte, status backend.MDStatusT, mdAppend, mdOverwrite []backend.MetadataStream) (backend.MDStatusT, error) {
+func (g *gitBackEnd) SetUnvettedStatus(token []byte, status backend.MDStatusT, mdAppend, mdOverwrite []backend.MetadataStream) (*backend.Record, error) {
 	// Lock filesystem
 	err := g.lock.Lock(LockDuration)
 	if err != nil {
-		return backend.MDStatusInvalid, err
+		return nil, err
 	}
 	defer func() {
 		err := g.lock.Unlock()
@@ -1861,19 +1894,20 @@ func (g *gitBackEnd) SetUnvettedStatus(token []byte, status backend.MDStatusT, m
 		}
 	}()
 	if g.shutdown {
-		return backend.MDStatusInvalid, backend.ErrShutdown
+		return nil, backend.ErrShutdown
 	}
 
-	log.Tracef("setting status %v -> %x", status, token)
+	log.Tracef("setting status %v (%v) -> %x", status,
+		backend.MDStatus[status], token)
 	var errReturn error
-	ns, err := g.setUnvettedStatus(token, status, mdAppend, mdOverwrite)
+	record, err := g.setUnvettedStatus(token, status, mdAppend, mdOverwrite)
 	if err != nil {
 		// git stash
 		err2 := g.gitStash(g.unvetted)
 		if err2 != nil {
 			// We are in trouble!  Consider a panic.
 			log.Errorf("gitStash: %v", err2)
-			return backend.MDStatusInvalid, err2
+			return nil, err2
 		}
 		errReturn = err
 	}
@@ -1881,14 +1915,14 @@ func (g *gitBackEnd) SetUnvettedStatus(token []byte, status backend.MDStatusT, m
 	// git checkout master
 	err = g.gitCheckout(g.unvetted, "master")
 	if err != nil {
-		return backend.MDStatusInvalid, err
+		return nil, err
 	}
 
 	if errReturn != nil {
-		return backend.MDStatusInvalid, errReturn
+		return nil, errReturn
 	}
 
-	return ns, nil
+	return record, nil
 }
 
 // Inventory returns an inventory of vetted and unvetted records.  If
@@ -1958,6 +1992,34 @@ func (g *gitBackEnd) Inventory(vettedCount, branchCount uint, includeFiles bool)
 	}
 
 	return pr, br, nil
+}
+
+// GetPlugins returns a list of currently supported plugins and their settings.
+//
+// GetPlugins satisfies the backend interface.
+func (g *gitBackEnd) GetPlugins() ([]backend.Plugin, error) {
+	return g.plugins, nil
+}
+
+// Plugin send a passthrough command. The return values are: incomming command
+// identifier, encoded command result and an error if the command failed to
+// execute.
+//
+// Plugin satisfies the backend interface.
+func (g *gitBackEnd) Plugin(command, payload string) (string, string, error) {
+	log.Tracef("Plugin: %v %v", command, payload)
+	switch command {
+	case decredplugin.CmdStartVote:
+		payload, err := g.pluginStartVote(payload)
+		return decredplugin.CmdStartVote, payload, err
+	case decredplugin.CmdCastVotes:
+		payload, err := g.pluginCastVotes(payload)
+		return decredplugin.CmdCastVotes, payload, err
+	case decredplugin.CmdBestBlock:
+		payload, err := g.pluginBestBlock()
+		return decredplugin.CmdBestBlock, payload, err
+	}
+	return "", "", fmt.Errorf("invalid payload command") // XXX this needs to become a type error
 }
 
 // Close shuts down the backend.  It obtains the lock and sets the shutdown
@@ -2030,12 +2092,7 @@ func (g *gitBackEnd) newLocked() error {
 	}
 	log.Infof("Running git fsck on unvetted repository")
 	_, err = g.gitFsck(g.unvetted)
-	if err != nil {
-		return err
-	}
-
-	log.Infof("Running dcrtime fsck on vetted repository")
-	return g.fsck(g.vetted)
+	return err
 }
 
 // rebasePR pushes branch id into upstream (vetted repo) and rebases it onto
@@ -2126,26 +2183,33 @@ func (g *gitBackEnd) rebasePR(id string) error {
 }
 
 // New returns a gitBackEnd context.  It verifies that git is installed.
-func New(root string, dcrtimeHost string, gitPath string, gitTrace bool) (*gitBackEnd, error) {
+func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, id *identity.FullIdentity, gitTrace bool) (*gitBackEnd, error) {
 	// Default to system git
 	if gitPath == "" {
 		gitPath = "git"
 	}
 
 	g := &gitBackEnd{
-		root:        root,
-		cron:        cron.New(),
-		unvetted:    filepath.Join(root, defaultUnvettedPath),
-		vetted:      filepath.Join(root, defaultVettedPath),
-		gitPath:     gitPath,
-		dcrtimeHost: dcrtimeHost,
-		gitTrace:    gitTrace,
-		exit:        make(chan struct{}),
-		checkAnchor: make(chan struct{}),
-		testAnchors: make(map[string]bool),
+		activeNetParams: anp,
+		root:            root,
+		cron:            cron.New(),
+		unvetted:        filepath.Join(root, defaultUnvettedPath),
+		vetted:          filepath.Join(root, defaultVettedPath),
+		gitPath:         gitPath,
+		dcrtimeHost:     dcrtimeHost,
+		gitTrace:        gitTrace,
+		exit:            make(chan struct{}),
+		checkAnchor:     make(chan struct{}),
+		testAnchors:     make(map[string]bool),
+		plugins:         []backend.Plugin{getDecredPlugin(anp.Name != "mainnet")},
 	}
+	idJSON, err := id.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	setDecredPluginSetting(decredPluginIdentity, string(idJSON))
 
-	err := g.newLocked()
+	err = g.newLocked()
 	if err != nil {
 		return nil, err
 	}
@@ -2168,6 +2232,13 @@ func New(root string, dcrtimeHost string, gitPath string, gitTrace bool) (*gitBa
 
 	// Message user
 	log.Infof("Timestamp host: %v", g.dcrtimeHost)
+
+	log.Infof("Running dcrtime fsck on vetted repository")
+	err = g.fsck(g.vetted)
+	if err != nil {
+		// Log error but continue
+		log.Errorf("fsck: dcrtime %v", err)
+	}
 
 	return g, nil
 }

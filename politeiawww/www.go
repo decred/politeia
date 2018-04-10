@@ -156,17 +156,23 @@ func (p *politeiawww) getIdentity() error {
 // outputted to the logs so that it can be correlated later if the user
 // files a complaint.
 func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, format string, args ...interface{}) {
+	// XXX this function needs to get an error in and a format + args
+	// instead of what it is doing now.
+	// So inError error, format string, args ...interface{}
+	// if err == nil -> internal error using format + args
+	// if err != nil -> if defined error -> return defined error + log.Errorf format+args
+	// if err != nil -> if !defined error -> return + log.Errorf format+args
 	if userErr, ok := args[0].(v1.UserError); ok {
 		if userHttpCode == 0 {
 			userHttpCode = http.StatusBadRequest
 		}
 
 		if len(userErr.ErrorContext) == 0 {
-			log.Debugf("RespondWithError: %v %v",
+			log.Errorf("RespondWithError: %v %v",
 				int64(userErr.ErrorCode),
 				v1.ErrorStatus[userErr.ErrorCode])
 		} else {
-			log.Debugf("RespondWithError: %v %v: %v",
+			log.Errorf("RespondWithError: %v %v: %v",
 				int64(userErr.ErrorCode),
 				v1.ErrorStatus[userErr.ErrorCode],
 				strings.Join(userErr.ErrorContext, ", "))
@@ -770,6 +776,83 @@ func (p *politeiawww) handleUserProposals(w http.ResponseWriter, r *http.Request
 	util.RespondWithJSON(w, http.StatusOK, upr)
 }
 
+// handleActiveVote returns all active proposals that have an active vote.
+func (p *politeiawww) handleActiveVote(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	log.Tracef("handleActiveVote")
+
+	avr, err := p.backend.ProcessActiveVote()
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleActiveVote: ProcessActivateVote %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, avr)
+}
+
+// handleCastVotes records the user votes in politeiad.
+func (p *politeiawww) handleCastVotes(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	log.Tracef("handleCastVotes")
+
+	var cv v1.Ballot
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&cv); err != nil {
+		RespondWithError(w, r, 0, "handleCastVotes: unmarshal", v1.UserError{
+			ErrorCode: v1.ErrorStatusInvalidInput,
+		})
+		return
+	}
+
+	avr, err := p.backend.ProcessCastVotes(&cv)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleCastVotes: ProcessCastVotes %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, avr)
+}
+
+// handleStartVote handles starting a vote.
+func (p *politeiawww) handleStartVote(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	log.Tracef("handleStartVote")
+
+	var sv v1.StartVote
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&sv); err != nil {
+		RespondWithError(w, r, 0, "handleStartVote: unmarshal", v1.UserError{
+			ErrorCode: v1.ErrorStatusInvalidInput,
+		})
+		return
+	}
+
+	user, err := p.getSessionUser(r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleStartVote: getSessionUser %v", err)
+		return
+	}
+
+	// Sanity
+	if !user.Admin {
+		RespondWithError(w, r, 0,
+			"handleStartVote: admin %v", user.Admin)
+		return
+	}
+
+	svr, err := p.backend.ProcessStartVote(sv, user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleStartVote: ProcessStartVote %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, svr)
+}
+
 // handleNotFound is a generic handler for an invalid route.
 func (p *politeiawww) handleNotFound(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
@@ -862,6 +945,13 @@ func _main() error {
 	}
 	p.backend.params = activeNetParams.Params
 
+	// Try to load inventory but do not fail.
+	log.Infof("Attempting to load proposal inventory")
+	err = p.backend.LoadInventory()
+	if err != nil {
+		log.Errorf("LoadInventory: %v", err)
+	}
+
 	var csrfHandle func(http.Handler) http.Handler
 	if !p.cfg.Proxy {
 		// We don't persist connections to generate a new key every
@@ -907,6 +997,10 @@ func _main() error {
 		permissionPublic, true)
 	p.addRoute(http.MethodGet, v1.RouteUserProposals, p.handleUserProposals,
 		permissionPublic, true)
+	p.addRoute(http.MethodGet, v1.RouteActiveVote, p.handleActiveVote,
+		permissionPublic, true)
+	p.addRoute(http.MethodPost, v1.RouteCastVotes, p.handleCastVotes,
+		permissionPublic, true)
 
 	// Routes that require being logged in.
 	p.addRoute(http.MethodPost, v1.RouteSecret, p.handleSecret,
@@ -931,6 +1025,8 @@ func _main() error {
 		permissionAdmin, true)
 	p.addRoute(http.MethodPost, v1.RouteSetProposalStatus,
 		p.handleSetProposalStatus, permissionAdmin, true)
+	p.addRoute(http.MethodPost, v1.RouteStartVote,
+		p.handleStartVote, permissionAdmin, true)
 
 	// Persist session cookies.
 	var cookieKey []byte
