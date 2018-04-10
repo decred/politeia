@@ -75,7 +75,7 @@
   branch = "master"
   name = "github.com/dajohi/goemail"
   packages = ["."]
-  revision = "95d302d1822d2958173811656be22ec714c4ec94"
+  revision = "4104edff774627d353b7ea3ca53163f049ba6224"
 
 [[projects]]
   name = "github.com/davecgh/go-spew"
@@ -134,7 +134,7 @@
     "api/types",
     "txhelpers"
   ]
-  revision = "6383c50f61e7742c096dc9bb13842132451e72b9"
+  revision = "c933ac431324001d382b541f7a13906296cf3c4c"
 
 [[projects]]
   branch = "master"
@@ -157,7 +157,7 @@
     "wallet/udb",
     "walletdb"
   ]
-  revision = "0eced173e139932cf270586cd34b73e35a03a798"
+  revision = "b90cea3f706b3bad1b03887e5f86cb679b96a679"
 
 [[projects]]
   branch = "master"
@@ -292,7 +292,7 @@
     "scrypt",
     "ssh/terminal"
   ]
-  revision = "b2aa35443fbc700ab74c586ae79b81c171851023"
+  revision = "f70185d77e8278766928032ee1355e3da47e7181"
 
 [[projects]]
   branch = "master"
@@ -307,7 +307,7 @@
     "publicsuffix",
     "trace"
   ]
-  revision = "b3c676e531a6dc479fa1b35ac961c13f5e2b4d2e"
+  revision = "61147c48b25b599e5b561d2e9c4f3e1ef489ca41"
 
 [[projects]]
   branch = "master"
@@ -343,7 +343,7 @@
   branch = "master"
   name = "google.golang.org/genproto"
   packages = ["googleapis/rpc/status"]
-  revision = "35de2414665fc36f56b72d982c5af480d86de5ab"
+  revision = "51d0944304c3cbce4afe9e5247e21100037bff78"
 
 [[projects]]
   name = "google.golang.org/grpc"
@@ -372,8 +372,8 @@
     "tap",
     "transport"
   ]
-  revision = "1e2570b1b19ade82d8dbb31bba4e65e9f9ef5b34"
-  version = "v1.11.1"
+  revision = "d11072e7ca9811b1100b80ca0269ac831f06d024"
+  version = "v1.11.3"
 
 [solve-meta]
   analyzer-name = "dep"

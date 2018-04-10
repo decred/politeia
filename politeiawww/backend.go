@@ -73,7 +73,11 @@ type backend struct {
 	inventory map[string]*inventoryRecord // Current inventory
 }
 
-const BackendProposalMetadataVersion = 1
+const (
+	BackendProposalMetadataVersion = 1
+
+	politeiaMailName = "Politeia"
+)
 
 type BackendProposalMetadata struct {
 	Version   uint64 `json:"version"`   // BackendProposalMetadata version
@@ -244,12 +248,13 @@ func (b *backend) emailNewUserVerificationLink(email, token string) error {
 		return err
 	}
 	from := "noreply@decred.org"
-	subject := "Politeia Registration - Verify Your Email"
+	subject := "Verify Your Email"
 	body := buf.String()
 
 	msg := goemail.NewHTMLMessage(from, subject, body)
 	msg.AddTo(email)
 
+	msg.SetName(politeiaMailName)
 	return b.cfg.SMTP.Send(msg)
 }
 
@@ -279,12 +284,13 @@ func (b *backend) emailResetPasswordVerificationLink(email, token string) error 
 		return err
 	}
 	from := "noreply@decred.org"
-	subject := "Politeia - Reset Your Password"
+	subject := "Reset Your Password"
 	body := buf.String()
 
 	msg := goemail.NewHTMLMessage(from, subject, body)
 	msg.AddTo(email)
 
+	msg.SetName(politeiaMailName)
 	return b.cfg.SMTP.Send(msg)
 }
 
@@ -314,12 +320,13 @@ func (b *backend) emailUpdateUserKeyVerificationLink(email, publicKey, token str
 		return err
 	}
 	from := "noreply@decred.org"
-	subject := "Politeia - Set New Key Pair"
+	subject := "Set New Key Pair"
 	body := buf.String()
 
 	msg := goemail.NewHTMLMessage(from, subject, body)
 	msg.AddTo(email)
 
+	msg.SetName(politeiaMailName)
 	return b.cfg.SMTP.Send(msg)
 }
 
