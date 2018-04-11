@@ -31,7 +31,7 @@ type FaucetResponse struct {
 type PaywallGatewayNewOrderResponse struct {
 	Error         string
 	OrderID       string
-	PaywallAmount uint64
+	PaywallAmount int64
 }
 
 // BEPrimaryTransaction is an object representing a transaction; it's
@@ -94,7 +94,7 @@ func makeRequest(url string) ([]byte, error) {
 
 // dcrStringToAmount converts a DCR amount as a string into a uint64
 // representing atoms. Supported input variations: "1", ".1", "0.1"
-func dcrStringToAmount(dcrstr string) (uint64, error) {
+func dcrStringToAmount(dcrstr string) (dcrutil.Amount, error) {
 	match, err := regexp.MatchString("(\\d*\\.)*\\d+", dcrstr)
 	if err != nil {
 		return 0, err
@@ -124,10 +124,10 @@ func dcrStringToAmount(dcrstr string) (uint64, error) {
 		return 0, err
 	}
 
-	return ((whole * 1e8) + fraction), nil
+	return dcrutil.Amount((whole * 1e8) + fraction), nil
 }
 
-func verifyTxWithPrimaryBE(url string, address string, txid string, minimumAmount uint64, txnotbefore int64) (bool, error) {
+func verifyTxWithPrimaryBE(url string, address string, txid string, minimumAmount dcrutil.Amount, txnotbefore int64) (bool, error) {
 	responseBody, err := makeRequest(url)
 	if err != nil {
 		return false, err
@@ -168,7 +168,7 @@ func verifyTxWithPrimaryBE(url string, address string, txid string, minimumAmoun
 	return false, nil
 }
 
-func verifyTxWithBackupBE(url string, address string, txid string, minimumAmount uint64, txnotbefore int64) (bool, error) {
+func verifyTxWithBackupBE(url string, address string, txid string, minimumAmount dcrutil.Amount, txnotbefore int64) (bool, error) {
 	responseBody, err := makeRequest(url)
 	if err != nil {
 		return false, err
@@ -238,7 +238,7 @@ func DerivePaywallAddress(params *chaincfg.Params, xpub string, index uint32) (s
 }
 
 // PayWithTestnetFaucet makes a request to the testnet faucet.
-func PayWithTestnetFaucet(faucetURL string, address string, amount uint64, overridetoken string) (string, error) {
+func PayWithTestnetFaucet(faucetURL string, address string, amount dcrutil.Amount, overridetoken string) (string, error) {
 	dcraddress, err := dcrutil.DecodeAddress(address)
 	if err != nil {
 		return "", fmt.Errorf("address is invalid: %v", err)
@@ -305,7 +305,7 @@ func PayWithTestnetFaucet(faucetURL string, address string, amount uint64, overr
 
 // VerifyTxWithBlockExplorers verifies that the passed transaction id is a valid
 // transaction that can be confirmed on a public block explorer.
-func VerifyTxWithBlockExplorers(address string, amount uint64, txid string, txnotbefore int64) (confirmed bool, err error) {
+func VerifyTxWithBlockExplorers(address string, amount dcrutil.Amount, txid string, txnotbefore int64) (confirmed bool, err error) {
 	// pre-validate that the passed address, amount, and tx are at least
 	// somewhat valid before querying the explorers
 	addr, err := dcrutil.DecodeAddress(address)

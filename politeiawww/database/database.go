@@ -61,7 +61,7 @@ type User struct {
 	HashedPassword                  []byte // Blowfish hash
 	Admin                           bool   // Is user an admin
 	NewUserPaywallAddress           string // Address the user needs to send to
-	NewUserPaywallAmount            uint64 // Amount the user needs to send
+	NewUserPaywallAmount            int64  // Amount the user needs to send
 	NewUserPaywallTx                string // Paywall transaction id
 	NewUserPaywallTxNotBefore       int64  // Transactions occurring before this time will not be valid.
 	NewUserVerificationToken        []byte // Verification token during signup

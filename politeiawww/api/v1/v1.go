@@ -276,10 +276,10 @@ type NewUser struct {
 // NewUserReply is used to reply to the NewUser command with an error
 // if the command is unsuccessful.
 type NewUserReply struct {
-	PaywallAddress     string `json:"paywalladdress"`     // Registration paywall address
-	PaywallAmount      uint64 `json:"paywallamount"`      // Registration paywall amount in atoms
-	PaywallTxNotBefore int64  `json:"paywalltxnotbefore"` // Minimum timestamp for paywall tx
-	VerificationToken  string `json:"verificationtoken"`  // Server verification token
+	PaywallAddress     string  `json:"paywalladdress"`     // Registration paywall address
+	PaywallAmount      float64 `json:"paywallamount"`      // Registration paywall amount in DCR
+	PaywallTxNotBefore int64   `json:"paywalltxnotbefore"` // Minimum timestamp for paywall tx
+	VerificationToken  string  `json:"verificationtoken"`  // Server verification token
 }
 
 // VerifyNewUser is used to perform verification for the user created through
@@ -375,13 +375,13 @@ type Login struct {
 
 // LoginReply is used to reply to the Login command.
 type LoginReply struct {
-	IsAdmin            bool   `json:"isadmin"`            // Set if user is an admin
-	UserID             string `json:"userid"`             // User id
-	Email              string `json:"email"`              // User email
-	PublicKey          string `json:"publickey"`          // Active public key
-	PaywallAddress     string `json:"paywalladdress"`     // Registration paywall address
-	PaywallAmount      uint64 `json:"paywallamount"`      // Registration paywall amount in atoms
-	PaywallTxNotBefore int64  `json:"paywalltxnotbefore"` // Minimum timestamp for paywall tx
+	IsAdmin            bool    `json:"isadmin"`            // Set if user is an admin
+	UserID             string  `json:"userid"`             // User id
+	Email              string  `json:"email"`              // User email
+	PublicKey          string  `json:"publickey"`          // Active public key
+	PaywallAddress     string  `json:"paywalladdress"`     // Registration paywall address
+	PaywallAmount      float64 `json:"paywallamount"`      // Registration paywall amount in DCR
+	PaywallTxNotBefore int64   `json:"paywalltxnotbefore"` // Minimum timestamp for paywall tx
 }
 
 //Logout attempts to log the user out.
