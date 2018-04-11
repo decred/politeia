@@ -90,6 +90,7 @@ func (p *politeiawww) getSessionUser(r *http.Request) (*database.User, error) {
 
 // setSessionUser sets the "email" session key to the provided value.
 func (p *politeiawww) setSessionUser(w http.ResponseWriter, r *http.Request, email string) error {
+	log.Tracef("setSessionUser: %v %v", email, v1.CookieSession)
 	session, err := p.store.Get(r, v1.CookieSession)
 	if err != nil {
 		return err
@@ -103,9 +104,10 @@ func (p *politeiawww) setSessionUser(w http.ResponseWriter, r *http.Request, ema
 func (p *politeiawww) isAdmin(r *http.Request) (bool, error) {
 	user, err := p.getSessionUser(r)
 	if err != nil {
-		if err == database.ErrUserNotFound {
-			return false, nil
-		}
+		// XXX why are we overriding this error?
+		//if err == database.ErrUserNotFound {
+		//	return false, nil
+		//}
 		return false, err
 	}
 
@@ -975,6 +977,8 @@ func _main() error {
 	// Public routes.
 	p.router.HandleFunc("/", logging(p.handleVersion)).Methods(http.MethodGet)
 	p.router.NotFoundHandler = http.HandlerFunc(p.handleNotFound)
+	p.addRoute(http.MethodGet, v1.RouteVersion, p.handleVersion,
+		permissionPublic, false)
 	p.addRoute(http.MethodPost, v1.RouteNewUser, p.handleNewUser,
 		permissionPublic, false)
 	p.addRoute(http.MethodGet, v1.RouteVerifyNewUser,

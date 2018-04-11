@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	pb "github.com/decred/dcrwallet/rpc/walletrpc"
 	"github.com/decred/politeia/decredplugin"
@@ -40,6 +41,8 @@ func usage() {
 	fmt.Fprintf(os.Stderr, "  inventory          - Retrieve active "+
 		"votes\n")
 	fmt.Fprintf(os.Stderr, "  vote               - Vote on a proposal\n")
+	//fmt.Fprintf(os.Stderr, "  startvote          - Instruct vote to start "+
+	//	"(admin only)\n")
 	fmt.Fprintf(os.Stderr, "\n")
 }
 
@@ -91,8 +94,7 @@ func newClient(skipVerify bool, cfg *config) (*ctx, error) {
 	}
 
 	// Wallet GRPC
-	creds, err := credentials.NewClientTLSFromFile(cfg.WalletCert,
-		"localhost")
+	creds, err := credentials.NewClientTLSFromFile(cfg.WalletCert, "")
 	if err != nil {
 		return nil, err
 	}
@@ -121,11 +123,13 @@ func (c *ctx) getCSRF() (*v1.VersionReply, error) {
 		return nil, err
 	}
 
-	log.Debugf("Request: GET /")
+	fullRoute := c.cfg.PoliteiaWWW + v1.PoliteiaWWWAPIRoute + v1.RouteVersion
+	log.Debugf("Request: GET %v", fullRoute)
 
 	log.Tracef("%v  ", string(requestBody))
 
-	req, err := http.NewRequest(http.MethodGet, c.cfg.PoliteiaWWW,
+	log.Debugf("Request: %v", fullRoute)
+	req, err := http.NewRequest(http.MethodGet, fullRoute,
 		bytes.NewReader(requestBody))
 	if err != nil {
 		return nil, err
@@ -215,8 +219,7 @@ func (c *ctx) makeRequest(method, route string, b interface{}) ([]byte, error) {
 
 	fullRoute := c.cfg.PoliteiaWWW + v1.PoliteiaWWWAPIRoute + route +
 		queryParams
-	log.Debugf("Request: %v %v", method, v1.PoliteiaWWWAPIRoute+route+
-		queryParams)
+	log.Debugf("Request: %v %v", method, fullRoute)
 	if len(requestBody) != 0 {
 		log.Tracef("%v  ", string(requestBody))
 	}
@@ -526,6 +529,97 @@ func (c *ctx) vote(args []string) error {
 	return nil
 }
 
+func (c *ctx) login(email, password string) (*v1.LoginReply, error) {
+	l := v1.Login{
+		Email:    email,
+		Password: password,
+	}
+
+	responseBody, err := c.makeRequest("POST", v1.RouteLogin, l)
+	if err != nil {
+		return nil, err
+	}
+
+	var lr v1.LoginReply
+	err = json.Unmarshal(responseBody, &lr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal LoginReply: %v",
+			err)
+	}
+
+	return &lr, nil
+}
+
+func (c *ctx) _startVote(sv *v1.StartVote) (*v1.StartVoteReply, error) {
+	responseBody, err := c.makeRequest("POST", v1.RouteStartVote, sv)
+	if err != nil {
+		return nil, err
+	}
+
+	spew.Dump(responseBody)
+	var svr v1.StartVoteReply
+	err = json.Unmarshal(responseBody, &svr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal StartVoteReply: %v",
+			err)
+	}
+
+	return &svr, nil
+}
+
+func (c *ctx) startVote(args []string) error {
+	if len(args) != 4 {
+		return fmt.Errorf("startvote: not enough arguments, expected:" +
+			"identityfile email password token")
+	}
+
+	// startvote identityfile email password token
+	fi, err := identity.LoadFullIdentity(args[0])
+	if err != nil {
+		return err
+	}
+
+	// Login as admin
+	lr, err := c.login(args[1], args[2])
+	if err != nil {
+		return err
+	}
+	if !lr.IsAdmin {
+		return fmt.Errorf("user is not an admin")
+	}
+
+	sv := v1.StartVote{
+		PublicKey: hex.EncodeToString(c.id.Key[:]),
+		Vote: decredplugin.Vote{
+			Token:    args[3],
+			Mask:     0x03, // bit 0 no, bit 1 yes
+			Duration: 2016, // 1 week
+			Options: []decredplugin.VoteOption{
+				{
+					Id:          "no",
+					Description: "Don't approve proposal",
+					Bits:        0x01,
+				},
+				{
+					Id:          "yes",
+					Description: "Approve proposal",
+					Bits:        0x02,
+				},
+			},
+		},
+	}
+	sig := fi.SignMessage([]byte(args[1]))
+	sv.Signature = hex.EncodeToString(sig[:])
+
+	svr, err := c._startVote(&sv)
+	if err != nil {
+		return err
+	}
+	spew.Dump(svr)
+
+	return nil
+}
+
 func _main() error {
 	cfg, args, err := loadConfig()
 	if err != nil {
@@ -553,6 +647,10 @@ func _main() error {
 				return c.inventory()
 			case "vote":
 				return c.vote(args[1:])
+			case "startvote":
+				// This remains undocumented because it is for
+				// testing only.
+				return c.startVote(args[1:])
 			default:
 				return fmt.Errorf("invalid action: %v", a)
 			}

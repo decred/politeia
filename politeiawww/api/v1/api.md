@@ -94,7 +94,7 @@ Obtain version, route information and signing identity from server.  This call
 shall **ALWAYS** be the first contact with the server.  This is done in order
 to get the CSRF token for the session and to ensure API compatability.
 
-**Route**: `GET /`
+**Route**: `GET /` and `GET /version`
 
 **Params**: none
 

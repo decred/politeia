@@ -104,7 +104,6 @@ func (l *localdb) UserGet(email string) (*database.User, error) {
 		return nil, database.ErrShutdown
 	}
 
-	log.Debugf("UserGet: %v", email)
 	payload, err := l.userdb.Get([]byte(strings.ToLower(email)), nil)
 	if err == leveldb.ErrNotFound {
 		return nil, database.ErrUserNotFound
