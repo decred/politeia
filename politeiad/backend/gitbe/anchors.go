@@ -91,9 +91,9 @@ type GitCommit struct {
 var (
 	regexCommitHash           = regexp.MustCompile(`^commit\s+(\S+)`)
 	regexCommitDate           = regexp.MustCompile(`^Date:\s+(.+)`)
-	anchorConfirmationPattern = fmt.Sprintf(`\s*%s\s+(\S+)`, markerAnchorConfirmation)
+	anchorConfirmationPattern = fmt.Sprintf(`\s*%s\s*(\S*)`, markerAnchorConfirmation)
 	regexAnchorConfirmation   = regexp.MustCompile(anchorConfirmationPattern)
-	anchorPattern             = fmt.Sprintf(`\s*%s\s+(\S+)`, markerAnchor)
+	anchorPattern             = fmt.Sprintf(`\s*%s\s*(\S*)`, markerAnchor)
 	regexAnchor               = regexp.MustCompile(anchorPattern)
 )
 
@@ -144,7 +144,11 @@ func extractCommit(logSlice []string) (*GitCommit, int, error) {
 
 // anchorConfirmationMerkle extracts the Merkle Root from an anchor confirmation commit.
 func anchorConfirmationMerkle(commit *GitCommit) string {
-	return regexAnchorConfirmation.FindStringSubmatch(commit.Message[0])[1]
+	anchorConfirmations := regexAnchorConfirmation.FindStringSubmatch(commit.Message[0])
+	if len(anchorConfirmations) < 2 {
+		return ""
+	}
+	return anchorConfirmations[1]
 }
 
 // anchorConfirmationMerkle extracts the Merkle Root from an anchor commit.
