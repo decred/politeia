@@ -238,9 +238,7 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Add("Strict-Transport-Security",
 		"max-age=63072000; includeSubDomains")
-	if !p.cfg.Proxy {
-		w.Header().Set(v1.CsrfToken, csrf.Token(r))
-	}
+	w.Header().Set(v1.CsrfToken, csrf.Token(r))
 	w.WriteHeader(http.StatusOK)
 	w.Write(versionReply)
 }
@@ -440,6 +438,7 @@ func (p *politeiawww) handleMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set(v1.CsrfToken, csrf.Token(r))
 	reply := p.backend.CreateLoginReply(user)
 	util.RespondWithJSON(w, http.StatusOK, *reply)
 }
@@ -952,16 +951,13 @@ func _main() error {
 		log.Errorf("LoadInventory: %v", err)
 	}
 
-	var csrfHandle func(http.Handler) http.Handler
-	if !p.cfg.Proxy {
-		// We don't persist connections to generate a new key every
-		// time we restart.
-		csrfKey, err := util.Random(32)
-		if err != nil {
-			return err
-		}
-		csrfHandle = csrf.Protect(csrfKey)
+	// We don't persist connections to generate a new key every
+	// time we restart.
+	csrfKey, err := util.Random(32)
+	if err != nil {
+		return err
 	}
+	csrfHandle := csrf.Protect(csrfKey)
 
 	p.router = mux.NewRouter()
 	// Static content.
@@ -1080,15 +1076,8 @@ func _main() error {
 				TLSNextProto: make(map[string]func(*http.Server,
 					*tls.Conn, http.Handler)),
 			}
-			var mode string
-			if p.cfg.Proxy {
-				srv.Handler = p.router
-				mode = "proxy"
-			} else {
-				srv.Handler = csrfHandle(p.router)
-				mode = "non-proxy"
-			}
-			log.Infof("Listen %v: %v", mode, listen)
+			srv.Handler = csrfHandle(p.router)
+			log.Infof("Listen: %v", listen)
 			listenC <- srv.ListenAndServeTLS(loadedCfg.HTTPSCert,
 				loadedCfg.HTTPSKey)
 		}()
