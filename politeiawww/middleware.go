@@ -25,7 +25,10 @@ func (p *politeiawww) isLoggedIn(f http.HandlerFunc) http.HandlerFunc {
 
 		// Check if user is authenticated
 		if email == "" {
-			util.RespondWithJSON(w, http.StatusForbidden, v1.ErrorReply{})
+			err := v1.ErrorReply{
+				ErrorCode: int64(v1.ErrorStatusNotLoggedIn),
+			}
+			util.RespondWithJSON(w, http.StatusOK, err)
 			return
 		}
 
