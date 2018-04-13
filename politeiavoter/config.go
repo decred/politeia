@@ -364,6 +364,15 @@ func loadConfig() (*config, []string, error) {
 		return nil, nil, err
 	}
 
+	// Determine default connections
+	if cfg.PoliteiaWWW == "" {
+		if activeNetParams.Name == "mainnet" {
+			cfg.PoliteiaWWW = "https://proposals.decred.org/api"
+		} else {
+			cfg.PoliteiaWWW = "https://test-proposals.decred.org/api"
+		}
+	}
+
 	// Append the network type to the log directory so it is "namespaced"
 	// per network in the same fashion as the data directory.
 	cfg.LogDir = cleanAndExpandPath(cfg.LogDir)

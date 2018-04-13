@@ -298,8 +298,9 @@ func (c *ctx) startVote(id *identity.FullIdentity, token string) (*v1.StartVoteR
 	sv := v1.StartVote{
 		PublicKey: hex.EncodeToString(id.Public.Key[:]),
 		Vote: decredplugin.Vote{
-			Token: token,
-			Mask:  0x03, // bit 0 no, bit 1 yes
+			Token:    token,
+			Mask:     0x03, // bit 0 no, bit 1 yes
+			Duration: 2016,
 			Options: []decredplugin.VoteOption{
 				{
 					Id:          "no",

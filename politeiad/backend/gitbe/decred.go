@@ -277,19 +277,28 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 		return "", fmt.Errorf("snapshot %v", err)
 	}
 
-	duration := uint32(2016) // XXX 1 week on mainnet
+	// Make sure vote duration isn't too large. Assume < 2 weeks
+	// XXX calculate this value for testnet instead of using hard coded values.
+	if vote.Duration < 2016 || vote.Duration > 2016*2 {
+		// XXX return a user error instead of an internal error
+		return "", fmt.Errorf("invalid duration: %v (%v - %v)",
+			vote.Duration, 2016, 2016*2)
+	}
+
 	svr := decredplugin.StartVoteReply{
-		StartBlockHeight: strconv.FormatUint(uint64(snapshotBlock.Height), 10),
-		StartBlockHash:   snapshotBlock.Hash,
-		EndHeight:        strconv.FormatUint(uint64(snapshotBlock.Height+duration), 10),
-		EligibleTickets:  snapshot,
+		StartBlockHeight: strconv.FormatUint(uint64(snapshotBlock.Height),
+			10),
+		StartBlockHash: snapshotBlock.Hash,
+		EndHeight: strconv.FormatUint(uint64(snapshotBlock.Height+
+			vote.Duration), 10),
+		EligibleTickets: snapshot,
 	}
 	svrb, err := decredplugin.EncodeStartVoteReply(svr)
 	if err != nil {
 		return "", fmt.Errorf("EncodeStartVoteReply: %v", err)
 	}
 
-	// XXX store snapshot in metadata
+	// Store snapshot in metadata
 	err = g.UpdateVettedMetadata(token, nil, []backend.MetadataStream{
 		{
 			ID:      decredplugin.MDStreamVoteBits,

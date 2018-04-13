@@ -33,6 +33,7 @@ const (
 	RouteProposalDetails     = "/proposals/{token:[A-z0-9]{64}}"
 	RouteSetProposalStatus   = "/proposals/{token:[A-z0-9]{64}}/status"
 	RoutePolicy              = "/policy"
+	RouteVersion             = "/version"
 	RouteNewComment          = "/comments/new"
 	RouteCommentsGet         = "/proposals/{token:[A-z0-9]{64}}/comments"
 	RouteStartVote           = "/proposals/startvote"

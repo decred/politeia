@@ -82,9 +82,10 @@ type VoteOption struct {
 
 // Vote represents the vote options for vote that is identified by its token.
 type Vote struct {
-	Token   string `json:"token"` // Token that identifies vote
-	Mask    uint64 `json:"mask"`  // Valid votebits
-	Options []VoteOption
+	Token    string `json:"token"`    // Token that identifies vote
+	Mask     uint64 `json:"mask"`     // Valid votebits
+	Duration uint32 `json:"duration"` // Duration in blocks
+	Options  []VoteOption
 }
 
 // EncodeVote encodes Vote into a JSON byte slice.
