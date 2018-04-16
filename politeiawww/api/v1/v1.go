@@ -39,6 +39,9 @@ const (
 	RouteStartVote           = "/proposals/startvote"
 	RouteActiveVote          = "/proposals/activevote"
 	RouteCastVotes           = "/proposals/castvotes"
+	// XXX should we use a fancy route like the one underneath?
+	//RouteProposalVotes    = "/proposals/{token:[A-z0-9]{64}}/votes"
+	RouteProposalVotes = "/proposals/voteresults"
 
 	// VerificationTokenSize is the size of verification token in bytes
 	VerificationTokenSize = 32
@@ -557,7 +560,7 @@ type StartVoteReply struct {
 	VoteDetails decredplugin.StartVoteReply `json:"votedetails"`
 }
 
-// CastVores is a batch of votes that is sent to the server.
+// Ballot is a batch of votes that are sent to the server.
 type Ballot struct {
 	Votes []decredplugin.CastVote `json:"votes"`
 }
@@ -565,4 +568,15 @@ type Ballot struct {
 // CastVotesReply is a reply to a batched list of votes.
 type BallotReply struct {
 	Receipts []decredplugin.CastVoteReply `json:"receipts"`
+}
+
+// GetProposalVote retrieves a single proposal vote results from the server.
+type ProposalVotes struct {
+	Vote decredplugin.VoteResults `json:"vote"` // Vote contains the proposal ID
+}
+
+// GetProposalVoteReply returns the original proposal and the associated votes.
+type ProposalVotesReply struct {
+	Vote      decredplugin.Vote       `json:"vote"`      // Original vote
+	CastVotes []decredplugin.CastVote `json:"castvotes"` // Vote results
 }
