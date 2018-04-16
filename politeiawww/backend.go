@@ -1817,6 +1817,59 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 	}, nil
 }
 
+func (b *backend) ProcessProposalVotes(gpv *www.ProposalVotes) (*www.ProposalVotesReply, error) {
+	log.Tracef("ProcessProposalVotes")
+
+	payload, err := decredplugin.EncodeVoteResults(gpv.Vote)
+	if err != nil {
+		return nil, err
+	}
+
+	// Obtain vote results from plugin
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	pc := pd.PluginCommand{
+		Challenge: hex.EncodeToString(challenge),
+		ID:        decredplugin.ID,
+		Command:   decredplugin.CmdProposalVotes,
+		CommandID: decredplugin.CmdProposalVotes + " " +
+			gpv.Vote.Token,
+		Payload: string(payload),
+	}
+
+	responseBody, err := b.makeRequest(http.MethodPost,
+		pd.PluginCommandRoute, pc)
+	if err != nil {
+		return nil, err
+	}
+
+	var reply pd.PluginCommandReply
+	err = json.Unmarshal(responseBody, &reply)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal "+
+			"PluginCommandReply: %v", err)
+	}
+
+	// Verify the challenge.
+	err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	vrr, err := decredplugin.DecodeVoteResultsReply([]byte(reply.Payload))
+	if err != nil {
+		return nil, err
+	}
+
+	return &www.ProposalVotesReply{
+		Vote:      vrr.Vote,
+		CastVotes: vrr.CastVotes,
+	}, nil
+}
+
 // ProcessPolicy returns the details of Politeia's restrictions on file uploads.
 func (b *backend) ProcessPolicy(p www.Policy) *www.PolicyReply {
 	return &www.PolicyReply{

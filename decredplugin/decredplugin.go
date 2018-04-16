@@ -9,6 +9,7 @@ const (
 	CmdStartVote         = "startvote"
 	CmdCastVotes         = "castvotes"
 	CmdBestBlock         = "bestblock"
+	CmdProposalVotes     = "proposalvotes"
 	MDStreamVotes        = 13 // Votes
 	MDStreamVoteBits     = 14 // Vote bits and mask
 	MDStreamVoteSnapshot = 15 // Vote tickets and start/end parameters
@@ -137,6 +138,59 @@ func EncodeStartVoteReply(v StartVoteReply) ([]byte, error) {
 // DecodeVoteReply decodes a JSON byte slice into a StartVoteReply.
 func DecodeStartVoteReply(payload []byte) (*StartVoteReply, error) {
 	var v StartVoteReply
+
+	err := json.Unmarshal(payload, &v)
+	if err != nil {
+		return nil, err
+	}
+
+	return &v, nil
+}
+
+type VoteResults struct {
+	Token string `json:"token"` // Censorship token
+}
+
+type VoteResultsReply struct {
+	Vote      Vote       `json:"vote"`      // Original ballot
+	CastVotes []CastVote `json:"castvotes"` // All votes
+}
+
+// EncodeVoteResults encodes VoteResults into a JSON byte slice.
+func EncodeVoteResults(v VoteResults) ([]byte, error) {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+// DecodeVoteResults decodes a JSON byte slice into a VoteResults.
+func DecodeVoteResults(payload []byte) (*VoteResults, error) {
+	var v VoteResults
+
+	err := json.Unmarshal(payload, &v)
+	if err != nil {
+		return nil, err
+	}
+
+	return &v, nil
+}
+
+// EncodeVoteResultsReply encodes VoteResults into a JSON byte slice.
+func EncodeVoteResultsReply(v VoteResultsReply) ([]byte, error) {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+// DecodeVoteResultsReply decodes a JSON byte slice into a VoteResults.
+func DecodeVoteResultsReply(payload []byte) (*VoteResultsReply, error) {
+	var v VoteResultsReply
 
 	err := json.Unmarshal(payload, &v)
 	if err != nil {

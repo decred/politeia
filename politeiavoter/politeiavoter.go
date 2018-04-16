@@ -15,7 +15,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	pb "github.com/decred/dcrwallet/rpc/walletrpc"
 	"github.com/decred/politeia/decredplugin"
@@ -41,6 +40,7 @@ func usage() {
 	fmt.Fprintf(os.Stderr, "  inventory          - Retrieve active "+
 		"votes\n")
 	fmt.Fprintf(os.Stderr, "  vote               - Vote on a proposal\n")
+	fmt.Fprintf(os.Stderr, "  tally              - Tally votes on a proposal\n")
 	//fmt.Fprintf(os.Stderr, "  startvote          - Instruct vote to start "+
 	//	"(admin only)\n")
 	fmt.Fprintf(os.Stderr, "\n")
@@ -529,6 +529,70 @@ func (c *ctx) vote(args []string) error {
 	return nil
 }
 
+func (c *ctx) _tally(token string) (*v1.ProposalVotesReply, error) {
+	responseBody, err := c.makeRequest("POST", v1.RouteProposalVotes,
+		v1.ProposalVotes{
+			Vote: decredplugin.VoteResults{Token: token},
+		})
+	if err != nil {
+		return nil, err
+	}
+
+	var gpvr v1.ProposalVotesReply
+	err = json.Unmarshal(responseBody, &gpvr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal "+
+			"ProposalVotesReply: %v", err)
+	}
+
+	return &gpvr, nil
+}
+
+func (c *ctx) tally(args []string) error {
+	if len(args) != 1 {
+		return fmt.Errorf("tally: not enough arguments %v", args)
+	}
+
+	t, err := c._tally(args[0])
+	if err != nil {
+		return err
+	}
+
+	// tally votes
+	count := make(map[uint64]uint)
+	var total uint
+	for _, v := range t.CastVotes {
+		bits, err := strconv.ParseUint(v.VoteBit, 10, 64)
+		if err != nil {
+			return err
+		}
+		count[bits]++
+		total++
+	}
+
+	if total == 0 {
+		return fmt.Errorf("no votes recorded")
+	}
+
+	// Dump
+	for _, vo := range t.Vote.Options {
+		fmt.Printf("Vote Option:\n")
+		fmt.Printf("  Id                   : %v\n", vo.Id)
+		fmt.Printf("  Description          : %v\n",
+			vo.Description)
+		fmt.Printf("  Bits                 : %v\n", vo.Bits)
+		c := count[vo.Bits]
+		fmt.Printf("  Votes received       : %v\n", c)
+		if total == 0 {
+			continue
+		}
+		fmt.Printf("  Percentage           : %v%%\n",
+			(float64(c))/float64(total)*100)
+	}
+
+	return nil
+}
+
 func (c *ctx) login(email, password string) (*v1.LoginReply, error) {
 	l := v1.Login{
 		Email:    email,
@@ -556,7 +620,6 @@ func (c *ctx) _startVote(sv *v1.StartVote) (*v1.StartVoteReply, error) {
 		return nil, err
 	}
 
-	spew.Dump(responseBody)
 	var svr v1.StartVoteReply
 	err = json.Unmarshal(responseBody, &svr)
 	if err != nil {
@@ -615,7 +678,7 @@ func (c *ctx) startVote(args []string) error {
 	if err != nil {
 		return err
 	}
-	spew.Dump(svr)
+	_ = svr
 
 	return nil
 }
@@ -651,6 +714,8 @@ func _main() error {
 				// This remains undocumented because it is for
 				// testing only.
 				return c.startVote(args[1:])
+			case "tally":
+				return c.tally(args[1:])
 			default:
 				return fmt.Errorf("invalid action: %v", a)
 			}

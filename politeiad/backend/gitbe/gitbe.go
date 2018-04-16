@@ -2015,6 +2015,9 @@ func (g *gitBackEnd) Plugin(command, payload string) (string, string, error) {
 	case decredplugin.CmdCastVotes:
 		payload, err := g.pluginCastVotes(payload)
 		return decredplugin.CmdCastVotes, payload, err
+	case decredplugin.CmdProposalVotes:
+		payload, err := g.pluginProposalVotes(payload)
+		return decredplugin.CmdProposalVotes, payload, err
 	case decredplugin.CmdBestBlock:
 		payload, err := g.pluginBestBlock()
 		return decredplugin.CmdBestBlock, payload, err

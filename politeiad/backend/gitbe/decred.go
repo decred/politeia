@@ -701,3 +701,108 @@ func (g *gitBackEnd) pluginCastVotes(payload string) (string, error) {
 
 	return string(reply), nil
 }
+
+func (g *gitBackEnd) pluginProposalVotes(payload string) (string, error) {
+	log.Tracef("pluginProposalVotes: %v", payload)
+
+	vote, err := decredplugin.DecodeVoteResults([]byte(payload))
+	if err != nil {
+		return "", fmt.Errorf("DecodeVoteResults %v", err)
+	}
+
+	// Lock tree while we pull out the results
+	err = g.lock.Lock(LockDuration)
+	if err != nil {
+		return "", fmt.Errorf("pluginProposalVotes: lock error "+
+			"try again later: %v", err)
+	}
+	defer func() {
+		err := g.lock.Unlock()
+		if err != nil {
+			log.Errorf("pluginProposalVotes unlock error: %v",
+				err)
+		}
+	}()
+	if g.shutdown {
+		return "", backend.ErrShutdown
+	}
+
+	// git checkout master
+	err = g.gitCheckout(g.vetted, "master")
+	if err != nil {
+		return "", err
+	}
+
+	// Make sure proposal exists
+	// XXX should we return a NOT FOUND error here instead of percolating a
+	// 500 to the user?
+	filename := filepath.Join(g.vetted, vote.Token)
+	_, err = os.Stat(filename)
+	if err != nil {
+		return "", err
+	}
+
+	// Prepare reply
+	vrr := decredplugin.VoteResultsReply{
+		CastVotes: make([]decredplugin.CastVote, 0, 41000),
+	}
+
+	var (
+		d, dd *json.Decoder
+		f, ff *os.File
+	)
+	// Fill out vote
+	filename = mdFilename(g.vetted, vote.Token,
+		decredplugin.MDStreamVoteBits)
+	ff, err = os.Open(filename)
+	if err != nil {
+		if os.IsNotExist(err) {
+			goto nodata
+		}
+		return "", err
+	}
+	defer ff.Close()
+	dd = json.NewDecoder(ff)
+
+	err = dd.Decode(&vrr.Vote)
+	if err != nil {
+		if err == io.EOF {
+			goto nodata
+		}
+		return "", err
+	}
+
+	// Fill out cast votes
+	filename = mdFilename(g.vetted, vote.Token, decredplugin.MDStreamVotes)
+	f, err = os.Open(filename)
+	if err != nil {
+		if os.IsNotExist(err) {
+			goto nodata
+		}
+		return "", err
+	}
+	defer f.Close()
+	d = json.NewDecoder(f)
+
+	for {
+		var cv decredplugin.CastVote
+		err = d.Decode(&cv)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return "", err
+		}
+
+		vrr.CastVotes = append(vrr.CastVotes, cv)
+	}
+
+nodata:
+	reply, err := decredplugin.EncodeVoteResultsReply(vrr)
+	if err != nil {
+		return "", fmt.Errorf("Could not encode VoteResultsReply %v",
+			err)
+	}
+
+	return string(reply), nil
+}
