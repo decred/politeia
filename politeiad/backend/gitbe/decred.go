@@ -135,7 +135,9 @@ func (g *gitBackEnd) verifyMessage(address, message, signature string) (bool, er
 func bestBlock() (*dcrdataapi.BlockDataBasic, error) {
 	url := decredPluginSettings["dcrdata"] + "api/block/best"
 	log.Debugf("connecting to %v", url)
+	// XXX this http command needs a reasonable timeout.
 	r, err := http.Get(url)
+	log.Debugf("http connecting to %v", url)
 	if err != nil {
 		return nil, err
 	}
