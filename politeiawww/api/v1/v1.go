@@ -37,7 +37,7 @@ const (
 	RouteNewComment          = "/comments/new"
 	RouteCommentsGet         = "/proposals/{token:[A-z0-9]{64}}/comments"
 	RouteStartVote           = "/proposals/startvote"
-	RouteActiveVote          = "/proposals/activevote"
+	RouteActiveVote          = "/proposals/activevote" // XXX rename to ActiveVotes
 	RouteCastVotes           = "/proposals/castvotes"
 	// XXX should we use a fancy route like the one underneath?
 	//RouteProposalVotes    = "/proposals/{token:[A-z0-9]{64}}/votes"

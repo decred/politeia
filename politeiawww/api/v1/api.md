@@ -28,6 +28,10 @@ API.  It does not render HTML.
 - [`Policy`](#policy)
 - [`New comment`](#new-comment)
 - [`Get comments`](#get-comments)
+- [`Start vote`](#start-vote)
+- [`Active votes`](#active-votes)
+- [`Cast votes`](#cast-votes)
+- [`Proposal votes`](#proposal-votes)
 
 **Error status codes**
 
@@ -1051,6 +1055,363 @@ Reply:
     "token":"86221ddae6594b43a19e4c76250c0a8833ecd3b7a9880fb5d2a901970de9ff0e",
     "comment":"you are crazy!"
   }]
+}
+```
+
+### `Start vote`
+
+Call a vote on the given proposal.
+
+Note that the webserver does not interpret the plugin structures. These are
+forwarded as-is to the politeia daemon.
+
+**Route:** `POST /v1/proposals/startvote`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| PublicKey | string | Public key used to sign the vote | Yes |
+| Vote | decredplugin.Vote | Decred plugin vote | Yes |
+| Signature | string | Signature of the Vote | Yes |
+
+**Results:**
+
+| | Type | Description |
+| - | - | - |
+| VoteDetails | decredplugin.StartVoteReply | Plugin reply |
+
+**decred.Vote:**
+
+| | Type | Description |
+| - | - | - |
+| Token | string | Censorship token |
+| Mask | uint64 | Mask for valid vote bits |
+| Duration | uint32 | Duration of the vote in blocks |
+| Options | array of decredplugin.VoteOption | Vote details |
+
+**decred.VoteOption:**
+
+| | Type | Description |
+| - | - | - |
+| Id | string | Single unique word that identifies this option, e.g. "yes" |
+| Description | string | Human readable description of this option |
+| Bits | uint64 | Bits that make up this choice, e.g. 0x01 |
+
+**decred.StartVoteReply:**
+
+| | Type | Description |
+| - | - | - |
+| StartBlockHeight | string | String encoded start block height of the vote |
+| StartBlockHash | string | String encoded start block hash of the vote |
+| EndHeight | string | String encoded final block height of the vote |
+| EligibleTickets | array of string | String encoded tickets that are eligible to vote |
+
+**Example**
+
+Request:
+
+``` json
+{
+  "publickey": "d64d80c36441255e41fc1e7b6cd30259ff9a2b1276c32c7de1b7a832dff7f2c6",
+  "vote": {
+    "token": "127ea26cf994dabc27e115da0eb90a5657590e2ccc4e7c23c7f80c6fe4afaa59",
+    "mask": 3,
+    "duration": 2016,
+    "Options": [
+      {
+        "id": "no",
+        "description": "Don't approve proposal",
+        "bits": 1
+      },
+      {
+        "id": "yes",
+        "description": "Approve proposal",
+        "bits": 2
+      }
+    ]
+  },
+  "signature": "5a40d699cdfe5ee31472ec252982e60265a345cd58e4a07b183cf06447b3942d06981e1bfaf8430195109d51428458449446fbfa1d7059aebedc4df769ddb300"
+}
+```
+
+Reply:
+
+```json
+{
+  "votedetails":
+  {
+    "startblockheight":"282899",
+    "startblockhash":"00000000017236b62ff1ce136328e6fb4bcd171801a281ce0a662e63cbc4c4fa",
+    "endheight":"284915",
+    "eligibletickets":[
+      "000011e329fe0359ea1d2070d927c93971232c1118502dddf0b7f1014bf38d97",
+      "0004b0f8b2883a2150749b2c8ba05652b02220e98895999fd96df790384888f9",
+      "00107166c5fc5c322ecda3748a1896f4a2de6672aae25014123d2cedc83e8f42",
+      "002272cf4788c3f726c30472f9c97d2ce66b997b5762ff4df6a05c4761272413",
+      ... abbreviated for clarity
+    ]
+  }
+}
+```
+
+### `Active votes`
+
+Retrieve all active votes
+
+Note that the webserver does not interpret the plugin structures. These are
+forwarded as-is to the politeia daemon.
+
+**Route:** `POST /v1/proposals/activevote`
+
+**Params:**
+
+**Results:**
+
+| | Type | Description |
+| - | - | - |
+| Votes | array of ProposalVoteTuple | All current active votes |
+
+**ProposalVoteTuple:**
+
+| | Type | Description |
+| - | - | - |
+| Proposal | ProposalRecord | Proposal record |
+| Vote | decredplugin.Vote | Vote bits, mask etc |
+| VoteDetails |decredplugin.StartVoteReply | Vote details (eligible tickets, start block etc |
+
+**Example**
+
+Request:
+
+``` json
+{}
+```
+
+Reply:
+
+```json
+{
+  "votes":
+  [
+    {
+      "proposal":
+      {
+        "name":"This is a description",
+        "status":4,
+        "timestamp":1523902523,
+        "userid":"",
+	"publickey":"d64d80c36441255e41fc1e7b6cd30259ff9a2b1276c32c7de1b7a832dff7f2c6",
+        "signature":"3554f74c112c5da49c6ee1787770c21fe1ae16f7f1205f105e6df1b5bdeaa2439fff6c477445e248e21bcf081c31bbaa96bfe03acace1629494e795e5d296e04",
+        "files":[],
+        "numcomments":0,
+        "censorshiprecord":
+        {
+          "token":"8d14c77d9a28a1764832d0fcfb86b6af08f6b327347ab4af4803f9e6f7927225",
+          "merkle":"0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
+          "signature":"97b1bf0d63d7689a2c6e66e32358d48e98d84e5389f455cc135b3401277d3a37518827da0f2bc892b535937421418e7e8ba6a4f940dfcf19a219867fa8c3e005"
+        }
+	},
+	"vote":
+	{
+	  "token":"8d14c77d9a28a1764832d0fcfb86b6af08f6b327347ab4af4803f9e6f7927225",
+	  "mask":3,
+	  "duration":2016,
+	  "Options":
+	  [
+	    {
+	      "id":"no",
+	      "description":"Don't approve proposal",
+              "bits":1
+	    },
+	    {
+	      "id":"yes",
+	      "description":"Approve proposal",
+	      "bits":2
+	    }
+	  ]
+	},
+        "votedetails":
+        {
+	  "startblockheight":"282893",
+	  "startblockhash":"000000000227ff9b6bf3af53accb81e4fd1690ae44d521a665cb988bcd02ad94",
+	  "endheight":"284909",
+	  "eligibletickets":
+	  [
+	    "000011e329fe0359ea1d2070d927c93971232c1118502dddf0b7f1014bf38d97",
+	    "0004b0f8b2883a2150749b2c8ba05652b02220e98895999fd96df790384888f9",
+	    "00107166c5fc5c322ecda3748a1896f4a2de6672aae25014123d2cedc83e8f42",
+	    "002272cf4788c3f726c30472f9c97d2ce66b997b5762ff4df6a05c4761272413",
+            ... abbreviated for clarity
+	  ]
+	}
+    }
+  ]
+}
+
+```
+
+### `Cast votes`
+
+This is a batched call that casts multiple votes to multiple proposals.
+
+Note that the webserver does not interpret the plugin structures. These are
+forwarded as-is to the politeia daemon.
+
+**Route:** `POST /v1/proposals/castvotes`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| Votes | array of decredplugin.CastVote | All votes | Yes |
+
+**decredplugin.CastVote:**
+
+| | Type | Description |
+| - | - | - |
+| Token | string | Censorship token |
+| Ticket | string | Ticket hash |
+| VoteBit | string | String encoded vote bit |
+| Signature | string | signature of Token+Ticket+VoteBit |
+
+**Results:**
+
+| | Type | Description |
+| - | - | - |
+| Receipts | array of decredplugin.CastVoteReply  | Receipts for all cast votes. This appears in the same order and index as the votes that went in. |
+
+**decredplugin.CastVoteReply:**
+
+| | Type | Description |
+| - | - | - |
+| ClientSignature | string | Signature that was sent in via decredplugin.CastVote |
+| Signature | string | Signature of ClientSignature |
+| Error | string | Error, "" if there was no error |
+
+**Example**
+
+Request:
+
+``` json
+{
+  "votes":
+  [
+    {
+      "token":"642eb2f3798090b3234d8787aaba046f1f4409436d40994643213b63cb3f41da",
+      "ticket":"1257089bfa5223739c27dd10150de71962442f57ee176389c79932c22536b31b",
+      "votebit":"2",
+      "signature":"1f05c95fd0c59b0ee68733bbc645437124702e2af40fe37f01f15784a161b8ebae432fcfc5c9388e8f7409e6f02976182eda3bffa5df5de968f40faf2d993a9992"
+    },
+    {
+      "token":"642eb2f3798090b3234d8787aaba046f1f4409436d40994643213b63cb3f41da",
+      "ticket":"1c1e0b6968813f8321e721598f9510afae6acaa8576b64297e34fd5777d8d417",
+      "votebit":"2",
+      "signature":"1ff92d0025ea7ff283e4991b6fcdd6c87958f5ba5ba34863c075650a8b16dc23906f639ab83d034d6146de109afca7c0c92a00c60f36640846f679fb6ff2d7f966"
+    }
+  ]
+}
+```
+
+Reply:
+
+```json
+{
+  "receipts":
+  [
+    {
+      "clientsignature":"1f05c95fd0c59b0ee68733bbc645437124702e2af40fe37f01f15784a161b8ebae432fcfc5c9388e8f7409e6f02976182eda3bffa5df5de968f40faf2d993a9992",
+      "signature":"1bc19bf3ee2da7b0a9a54ae944e42e7b9e8953fce0c122b0a0a540e900535ea7ae3c5f2bba8266025d797b0dd4e37f0d21ed2f974b246528ae162a3719ed0808",
+      "error":""
+    },
+    {
+      "clientsignature":"1ff92d0025ea7ff283e4991b6fcdd6c87958f5ba5ba34863c075650a8b16dc23906f639ab83d034d6146de109afca7c0c92a00c60f36640846f679fb6ff2d7f966",
+      "signature":"dbd24b1205c3c81a1d8a5736d769e1d6fd37ea517c15934e4b2042df65567e8c4029137eec8fb03fdcf40ecfe5a5eaa2bd36f485c6597328f543d5c283de5e0a",
+      "error":""
+    }
+  ]
+}
+```
+
+### `Proposal votes`
+
+Retrieve vote results for a specified censorship token.
+
+Note that the webserver does not interpret the plugin structures. These are
+forwarded as-is to the politeia daemon.
+
+**Route:** `POST /v1/proposals/voteresults`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| Vote | array of decredplugin.VoteResults | Vote to recall | Yes |
+
+**decredplugin.VoteResults:**
+
+| | Type | Description |
+| - | - | - |
+| Token | string | Censorship token |
+
+**Results:**
+
+| | Type | Description |
+| - | - | - |
+| Vote | decredplugin.Vote  | Vote details |
+| Vote | array of decredplugin.CastVote  | Cast vote details |
+
+**Example**
+
+Request:
+
+``` json
+{
+  "vote":
+  {
+  "token":"642eb2f3798090b3234d8787aaba046f1f4409436d40994643213b63cb3f41da"
+  }
+}  
+```
+
+Reply:
+
+```json
+{
+  "vote":
+  {
+    "token":"642eb2f3798090b3234d8787aaba046f1f4409436d40994643213b63cb3f41da",
+    "mask":3,
+    "duration":2016,
+    "Options":
+    [
+      {
+        "id":"no",
+	"description":"Don't approve proposal",
+	"bits":1
+      },
+      {
+        "id":"yes",
+	"description":"Approve proposal",
+	"bits":2
+      }
+    ]
+  },
+  "castvotes":
+  [
+    {
+      "token":"642eb2f3798090b3234d8787aaba046f1f4409436d40994643213b63cb3f41da",
+      "ticket":"91832123c3f04c0783fb51d93bffd6f641ce3e951c30a29e15fb9986f23817c0",
+      "votebit":"2",
+      "signature":"208e614662fd7719df82687b72578cfb1f5e54fd05287e67683397b77e1819d4ff5c2029117d1d01bfa5c4637b7661ad95319f455c264ed4b4637382ffee5d5d9e"
+    },
+    {
+      "token":"642eb2f3798090b3234d8787aaba046f1f4409436d40994643213b63cb3f41da",
+      "ticket":"cf3943767a35136252f69118b291b47006308e4215de41673ab118736e26605e",
+      "votebit":"2",
+      "signature":"1f8b3c8207fa67d91a65d8742e5026044ccebd6b4865579a1f75d6e9a40a56f9a96e091397d2ec9f8fca773c68e961b93fe380a694aceecfd8f9b972f1e4d59db9"
+    }
+  ]
 }
 ```
 
