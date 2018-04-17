@@ -34,6 +34,8 @@ const (
 	permissionPublic permission = iota
 	permissionLogin
 	permissionAdmin
+
+	csrfKeyLength = 32
 )
 
 // politeiawww application context.
@@ -979,12 +981,45 @@ func _main() error {
 		log.Errorf("LoadInventory: %v", err)
 	}
 
-	// We don't persist connections to generate a new key every
-	// time we restart.
-	csrfKey, err := util.Random(32)
+	// Load or create new CSRF key
+	log.Infof("Load CSRF key")
+	csrfKeyFilename := filepath.Join(p.cfg.DataDir, "csrf.key")
+	fCSRF, err := os.Open(csrfKeyFilename)
+	if err != nil {
+		if os.IsNotExist(err) {
+			key, err := util.Random(csrfKeyLength)
+			if err != nil {
+				return err
+			}
+
+			// Persist key
+			fCSRF, err = os.OpenFile(csrfKeyFilename,
+				os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+			if err != nil {
+				return err
+			}
+			_, err = fCSRF.Write(key)
+			if err != nil {
+				return err
+			}
+			_, err = fCSRF.Seek(0, 0)
+			if err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+	}
+	csrfKey := make([]byte, csrfKeyLength)
+	r, err := fCSRF.Read(csrfKey)
 	if err != nil {
 		return err
 	}
+	if r != csrfKeyLength {
+		return fmt.Errorf("CSRF key corrupt")
+	}
+	fCSRF.Close()
+
 	csrfHandle := csrf.Protect(csrfKey)
 
 	p.router = mux.NewRouter()
