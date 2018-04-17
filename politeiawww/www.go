@@ -1118,6 +1118,8 @@ func _main() error {
 		HttpOnly: true,
 	}
 
+	_ = csrfHandle // XXX Remove
+
 	// Bind to a port and pass our router in
 	listenC := make(chan error)
 	for _, listener := range loadedCfg.Listeners {
@@ -1139,11 +1141,11 @@ func _main() error {
 			}
 			srv := &http.Server{
 				Addr:      listen,
+				Handler:   p.router, // XXX wrap with csrfHandle()
 				TLSConfig: cfg,
 				TLSNextProto: make(map[string]func(*http.Server,
 					*tls.Conn, http.Handler)),
 			}
-			srv.Handler = csrfHandle(p.router)
 			log.Infof("Listen: %v", listen)
 			listenC <- srv.ListenAndServeTLS(loadedCfg.HTTPSCert,
 				loadedCfg.HTTPSKey)
