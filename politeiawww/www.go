@@ -242,7 +242,9 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Add("Strict-Transport-Security",
 		"max-age=63072000; includeSubDomains")
-	w.Header().Set(v1.CsrfToken, csrf.Token(r))
+	if !p.cfg.Proxy {
+		w.Header().Set(v1.CsrfToken, csrf.Token(r))
+	}
 	w.WriteHeader(http.StatusOK)
 	w.Write(versionReply)
 }
@@ -442,7 +444,6 @@ func (p *politeiawww) handleMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set(v1.CsrfToken, csrf.Token(r))
 	reply := p.backend.CreateLoginReply(user)
 	util.RespondWithJSON(w, http.StatusOK, *reply)
 }
@@ -1020,11 +1021,14 @@ func _main() error {
 	}
 	fCSRF.Close()
 
-	csrfHandle := csrf.Protect(csrfKey)
+	var csrfHandle func(http.Handler) http.Handler
+	if !p.cfg.Proxy {
+		csrfHandle = csrf.Protect(csrfKey)
+	}
 
 	p.router = mux.NewRouter()
-	// Static content.
 
+	// Static content.
 	// XXX disable static for now.  This code is broken and it needs to
 	// point to a sane directory.  If a directory is not set it SHALL be
 	// disabled.
@@ -1143,8 +1147,15 @@ func _main() error {
 				TLSNextProto: make(map[string]func(*http.Server,
 					*tls.Conn, http.Handler)),
 			}
-			srv.Handler = csrfHandle(p.router)
-			log.Infof("Listen: %v", listen)
+			var mode string
+			if p.cfg.Proxy {
+				srv.Handler = p.router
+				mode = "proxy"
+			} else {
+				srv.Handler = csrfHandle(p.router)
+				mode = "non-proxy"
+			}
+			log.Infof("Listen %v: %v", mode, listen)
 			listenC <- srv.ListenAndServeTLS(loadedCfg.HTTPSCert,
 				loadedCfg.HTTPSKey)
 		}()
