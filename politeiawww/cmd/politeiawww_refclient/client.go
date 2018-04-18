@@ -245,8 +245,17 @@ func (c *ctx) login(email, password string) (*v1.LoginReply, error) {
 
 func (c *ctx) secret() error {
 	l := v1.Login{}
-	_, err := c.makeRequest("POST", v1.RouteSecret, l)
-	return err
+	responseBody, err := c.makeRequest("POST", v1.RouteSecret, l)
+	var ue v1.UserError
+	json.Unmarshal(responseBody, &ue)
+	if ue.ErrorCode == v1.ErrorStatusNotLoggedIn {
+		return fmt.Errorf("User not logged in: %v",
+			v1.ErrorStatusNotLoggedIn)
+	}
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (c *ctx) comment(id *identity.FullIdentity, token, comment, parentID string) (*v1.NewCommentReply, error) {
@@ -340,6 +349,10 @@ func (c *ctx) me() (*v1.LoginReply, error) {
 	if err != nil {
 		return nil, err
 	}
+	err = checkNotLoggedInErr(responseBody)
+	if err != nil {
+		return nil, err
+	}
 
 	var lr v1.LoginReply
 	err = json.Unmarshal(responseBody, &lr)
@@ -373,6 +386,10 @@ func (c *ctx) newProposal(id *identity.FullIdentity) (*v1.NewProposalReply, erro
 	})
 
 	responseBody, err := c.makeRequest("POST", v1.RouteNewProposal, np)
+	if err != nil {
+		return nil, err
+	}
+	err = checkNotLoggedInErr(responseBody)
 	if err != nil {
 		return nil, err
 	}
@@ -607,4 +624,17 @@ func (c *ctx) assets() error {
 
 	_, err = io.Copy(os.Stdout, r.Body)
 	return err
+}
+
+func checkNotLoggedInErr(response []byte) error {
+	var ue v1.UserError
+	err := json.Unmarshal(response, &ue)
+	if ue.ErrorCode == v1.ErrorStatusNotLoggedIn {
+		return fmt.Errorf("User not logged in: %v",
+			v1.ErrorStatusNotLoggedIn)
+	}
+	if err != nil {
+		return err
+	}
+	return nil
 }

@@ -208,9 +208,6 @@ func _main() error {
 	if err == nil {
 		return fmt.Errorf("/new should only be accessible by logged in users")
 	}
-	if !strings.HasPrefix(err.Error(), "403") {
-		return fmt.Errorf("newProposal expected 403, got %v", err.Error())
-	}
 
 	b, err = util.Random(int(pr.PasswordMinChars))
 	if err != nil {
@@ -582,17 +579,11 @@ func _main() error {
 	if err == nil {
 		return fmt.Errorf("secret should have failed")
 	}
-	if !strings.HasPrefix(err.Error(), "403") {
-		return fmt.Errorf("secret expected 403")
-	}
 
 	// Me
 	_, err = c.me()
 	if err == nil {
 		return fmt.Errorf("me should have failed")
-	}
-	if !strings.HasPrefix(err.Error(), "403") {
-		return fmt.Errorf("me expected 403")
 	}
 
 	fmt.Printf("refclient run successful\n")
