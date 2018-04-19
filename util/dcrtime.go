@@ -3,7 +3,6 @@ package util
 import (
 	"bytes"
 	"crypto/sha256"
-	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -16,13 +15,9 @@ import (
 )
 
 var (
-	skipVerify = false
 	httpClient = &http.Client{
 		Transport: &http.Transport{
 			IdleConnTimeout: 60 * time.Second,
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: skipVerify,
-			},
 		},
 	}
 )

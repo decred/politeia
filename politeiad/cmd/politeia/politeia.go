@@ -131,7 +131,7 @@ func getErrorFromResponse(r *http.Response) (string, error) {
 
 func getIdentity() error {
 	// Fetch remote identity
-	id, err := util.RemoteIdentity(verify, *rpchost, *rpccert)
+	id, err := util.RemoteIdentity(*rpchost, *rpccert)
 	if err != nil {
 		return err
 	}
@@ -214,7 +214,7 @@ func pluginInventory() (*v1.PluginInventoryReply, error) {
 		fmt.Println(string(b))
 	}
 
-	c, err := util.NewClient(verify, *rpccert)
+	c, err := util.NewClient(*rpccert)
 	if err != nil {
 		return nil, err
 	}
@@ -286,7 +286,7 @@ func plugin() error {
 		fmt.Println(string(b))
 	}
 
-	c, err := util.NewClient(verify, *rpccert)
+	c, err := util.NewClient(*rpccert)
 	if err != nil {
 		return err
 	}
@@ -365,7 +365,7 @@ func remoteInventory() (*v1.InventoryReply, error) {
 		fmt.Println(string(b))
 	}
 
-	c, err := util.NewClient(verify, *rpccert)
+	c, err := util.NewClient(*rpccert)
 	if err != nil {
 		return nil, err
 	}
@@ -529,7 +529,7 @@ func newRecord() error {
 		fmt.Println(string(b))
 	}
 
-	c, err := util.NewClient(verify, *rpccert)
+	c, err := util.NewClient(*rpccert)
 	if err != nil {
 		return err
 	}
@@ -721,7 +721,7 @@ func updateRecord() error {
 		fmt.Println(string(b))
 	}
 
-	c, err := util.NewClient(verify, *rpccert)
+	c, err := util.NewClient(*rpccert)
 	if err != nil {
 		return err
 	}
@@ -832,7 +832,7 @@ func getUnvetted() error {
 		fmt.Println(string(b))
 	}
 
-	c, err := util.NewClient(verify, *rpccert)
+	c, err := util.NewClient(*rpccert)
 	if err != nil {
 		return err
 	}
@@ -933,7 +933,7 @@ func getVetted() error {
 		fmt.Println(string(b))
 	}
 
-	c, err := util.NewClient(verify, *rpccert)
+	c, err := util.NewClient(*rpccert)
 	if err != nil {
 		return err
 	}
@@ -1083,7 +1083,7 @@ func setUnvettedStatus() error {
 		fmt.Println(string(b))
 	}
 
-	c, err := util.NewClient(verify, *rpccert)
+	c, err := util.NewClient(*rpccert)
 	if err != nil {
 		return err
 	}
@@ -1148,9 +1148,6 @@ func _main() error {
 		} else {
 			*rpchost = v1.DefaultMainnetHost
 		}
-	} else {
-		// For now assume we can't verify server TLS certificate
-		verify = true
 	}
 
 	port := v1.DefaultMainnetPort

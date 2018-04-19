@@ -23,7 +23,7 @@ func IdentityFromString(id string) (*identity.PublicIdentity, error) {
 }
 
 // RemoteIdentity fetches the identity from politeiad.
-func RemoteIdentity(skipTLSVerify bool, host, cert string) (*identity.PublicIdentity, error) {
+func RemoteIdentity(host, cert string) (*identity.PublicIdentity, error) {
 	challenge, err := Random(v1.ChallengeSize)
 	if err != nil {
 		return nil, err
@@ -35,7 +35,7 @@ func RemoteIdentity(skipTLSVerify bool, host, cert string) (*identity.PublicIden
 		return nil, err
 	}
 
-	c, err := NewClient(skipTLSVerify, cert)
+	c, err := NewClient(cert)
 	if err != nil {
 		return nil, err
 	}

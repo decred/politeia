@@ -344,7 +344,7 @@ func (b *backend) makeRequest(method string, route string, v interface{}) ([]byt
 
 	fullRoute := b.cfg.RPCHost + route
 
-	c, err := util.NewClient(false, b.cfg.RPCCert)
+	c, err := util.NewClient(b.cfg.RPCCert)
 	if err != nil {
 		return nil, err
 	}
