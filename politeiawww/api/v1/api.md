@@ -314,7 +314,7 @@ the user database.  Note that Login reply is identical to Me reply.
 
 **Results:** See the [`Login reply`](#login-reply).
 
-On failure the call shall return `403 Forbidden` and one of the following
+On failure the call shall return `401 Unauthorized` and one of the following
 error codes:
 - [`ErrorStatusInvalidEmailOrPassword`](#ErrorStatusInvalidEmailOrPassword)
 
