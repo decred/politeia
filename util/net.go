@@ -23,24 +23,23 @@ func NormalizeAddress(addr, defaultPort string) string {
 }
 
 // NewClient returns a new http.Client instance
-func NewClient(skipVerify bool, certFilename string) (*http.Client, error) {
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: skipVerify,
-	}
-
-	if !skipVerify && certFilename != "" {
+func NewClient(certFilename string) (*http.Client, error) {
+	var tlsConfig tls.Config
+	if certFilename != "" {
 		cert, err := ioutil.ReadFile(certFilename)
 		if err != nil {
 			return nil, err
 		}
 		certPool := x509.NewCertPool()
-		certPool.AppendCertsFromPEM(cert)
-
+		if !certPool.AppendCertsFromPEM(cert) {
+			return nil, fmt.Errorf("Failed to load certificate %v",
+				certFilename)
+		}
 		tlsConfig.RootCAs = certPool
 	}
 
 	return &http.Client{Transport: &http.Transport{
-		TLSClientConfig: tlsConfig,
+		TLSClientConfig: &tlsConfig,
 	}}, nil
 }
 

@@ -118,7 +118,7 @@ func (p *politeiawww) isAdmin(r *http.Request) (bool, error) {
 
 // Fetch remote identity
 func (p *politeiawww) getIdentity() error {
-	id, err := util.RemoteIdentity(false, p.cfg.RPCHost, p.cfg.RPCCert)
+	id, err := util.RemoteIdentity(p.cfg.RPCHost, p.cfg.RPCCert)
 	if err != nil {
 		return err
 	}
