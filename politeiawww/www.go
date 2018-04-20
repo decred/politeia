@@ -226,7 +226,6 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 // version is an HTTP GET to determine what version and API route this backend
 // is using.  Additionally it is used to obtain a CSRF token.
 func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	log.Tracef("handleVersion")
 
 	versionReply, err := json.Marshal(v1.VersionReply{
@@ -253,7 +252,6 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 // doesn't already exist, and then creates a new user in the db and generates a random
 // code used for verification. The code is intended to be sent to the specified email.
 func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	log.Tracef("handleNewUser")
 
 	// Get the new user command.
@@ -280,7 +278,6 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 // that the user with the provided email has a verification token that matches
 // the provided token and that the verification token has not yet expired.
 func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	log.Tracef("handleVerifyNewUser")
 
 	// Get the new user verify command.
@@ -308,7 +305,6 @@ func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request
 // a random code used for verification. The code is intended to be sent to the
 // email of the logged in user.
 func (p *politeiawww) handleUpdateUserKey(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	log.Tracef("handleUpdateUserKey")
 
 	// Get the update user key command.
@@ -342,7 +338,6 @@ func (p *politeiawww) handleUpdateUserKey(w http.ResponseWriter, r *http.Request
 // that the user with the provided email has a verification token that matches
 // the provided token and that the verification token has not yet expired.
 func (p *politeiawww) handleVerifyUpdateUserKey(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	log.Tracef("handleVerifyUpdateUserKey")
 
 	// Get the new user verify command.
@@ -376,7 +371,6 @@ func (p *politeiawww) handleVerifyUpdateUserKey(w http.ResponseWriter, r *http.R
 // exists and the accompanying password.  On success a cookie is added to the
 // gorilla sessions that must be returned on subsequent calls.
 func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	log.Tracef("handleLogin")
 
 	// Get the login command.
@@ -409,7 +403,6 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 // handleLogout logs the user out.  A login will be required to resume sending
 // commands,
 func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	log.Tracef("handleLogout")
 
 	err := p.setSessionUser(w, r, "")
@@ -426,7 +419,6 @@ func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 // handleSecret is a mock handler to test privileged routes.
 func (p *politeiawww) handleSecret(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	log.Tracef("handleSecret")
 
 	fmt.Fprintf(w, "secret sauce")
@@ -434,7 +426,6 @@ func (p *politeiawww) handleSecret(w http.ResponseWriter, r *http.Request) {
 
 // handleMe returns logged in user information.
 func (p *politeiawww) handleMe(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	log.Tracef("handleMe")
 
 	user, err := p.getSessionUser(r)
@@ -449,7 +440,6 @@ func (p *politeiawww) handleMe(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	log.Tracef("handleChangePassword")
 
 	// Get the change password command.
@@ -481,7 +471,6 @@ func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Reques
 }
 
 func (p *politeiawww) handleResetPassword(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	log.Trace("handleResetPassword")
 
 	// Get the reset password command.
@@ -507,8 +496,6 @@ func (p *politeiawww) handleResetPassword(w http.ResponseWriter, r *http.Request
 
 // handleNewProposal handles the incoming new proposal command.
 func (p *politeiawww) handleNewProposal(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
 	// Get the new proposal command.
 	log.Tracef("handleNewProposal")
 	var np v1.NewProposal
@@ -541,8 +528,6 @@ func (p *politeiawww) handleNewProposal(w http.ResponseWriter, r *http.Request) 
 // handleSetProposalStatus handles the incoming set proposal status command.
 // It's used for either publishing or censoring a proposal.
 func (p *politeiawww) handleSetProposalStatus(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
 	// Get the proposal status command.
 	log.Tracef("handleSetProposalStatus")
 	var sps v1.SetProposalStatus
@@ -576,8 +561,6 @@ func (p *politeiawww) handleSetProposalStatus(w http.ResponseWriter, r *http.Req
 // handleProposalDetails handles the incoming proposal details command. It fetches
 // the complete details for an existing proposal.
 func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
 	// Add the path param to the struct.
 	log.Tracef("handleProposalDetails")
 	pathParams := mux.Vars(r)
@@ -604,8 +587,6 @@ func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Reque
 }
 
 func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
 	// Get the policy command.
 	log.Tracef("handlePolicy")
 	var policy v1.Policy
@@ -615,8 +596,6 @@ func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 
 // handleAllVetted replies with the list of vetted proposals.
 func (p *politeiawww) handleAllVetted(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
 	log.Tracef("handleAllVetted")
 
 	// Get the all vetted command.
@@ -636,7 +615,6 @@ func (p *politeiawww) handleAllVetted(w http.ResponseWriter, r *http.Request) {
 
 // handleAllUnvetted replies with the list of unvetted proposals.
 func (p *politeiawww) handleAllUnvetted(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	log.Tracef("handleAllUnvetted")
 
 	// Get the all unvetted command.
@@ -656,7 +634,6 @@ func (p *politeiawww) handleAllUnvetted(w http.ResponseWriter, r *http.Request) 
 
 // handleNewComment handles incomming comments.
 func (p *politeiawww) handleNewComment(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	log.Tracef("handleNewComment")
 
 	var sc v1.NewComment
@@ -687,7 +664,6 @@ func (p *politeiawww) handleNewComment(w http.ResponseWriter, r *http.Request) {
 
 // handleCommentsGet handles batched comments get.
 func (p *politeiawww) handleCommentsGet(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	log.Tracef("handleCommentsGet")
 
 	pathParams := mux.Vars(r)
@@ -737,7 +713,6 @@ func (p *politeiawww) handleVerifyUserPaymentTx(w http.ResponseWriter, r *http.R
 
 // handleUserProposals returns the proposals for the given user.
 func (p *politeiawww) handleUserProposals(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	log.Tracef("handleUserProposals")
 
 	// Get the user proposals command.
@@ -782,7 +757,6 @@ func (p *politeiawww) handleUserProposals(w http.ResponseWriter, r *http.Request
 
 // handleActiveVote returns all active proposals that have an active vote.
 func (p *politeiawww) handleActiveVote(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	log.Tracef("handleActiveVote")
 
 	avr, err := p.backend.ProcessActiveVote()
@@ -797,7 +771,6 @@ func (p *politeiawww) handleActiveVote(w http.ResponseWriter, r *http.Request) {
 
 // handleCastVotes records the user votes in politeiad.
 func (p *politeiawww) handleCastVotes(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	log.Tracef("handleCastVotes")
 
 	var cv v1.Ballot
@@ -821,7 +794,6 @@ func (p *politeiawww) handleCastVotes(w http.ResponseWriter, r *http.Request) {
 
 // handleProposalVotes returns a proposal + all voting action.
 func (p *politeiawww) handleProposalVotes(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	log.Tracef("handleProposalVotes")
 
 	var gpv v1.ProposalVotes
@@ -847,7 +819,6 @@ func (p *politeiawww) handleProposalVotes(w http.ResponseWriter, r *http.Request
 
 // handleStartVote handles starting a vote.
 func (p *politeiawww) handleStartVote(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	log.Tracef("handleStartVote")
 
 	var sv v1.StartVote
@@ -885,7 +856,6 @@ func (p *politeiawww) handleStartVote(w http.ResponseWriter, r *http.Request) {
 
 // handleNotFound is a generic handler for an invalid route.
 func (p *politeiawww) handleNotFound(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	// Log incoming connection
 	log.Debugf("Invalid route: %v %v %v %v", remoteAddr(r), r.Method, r.URL,
 		r.Proto)
@@ -906,6 +876,7 @@ func (p *politeiawww) handleNotFound(w http.ResponseWriter, r *http.Request) {
 // addRoute sets up a handler for a specific method+route.
 func (p *politeiawww) addRoute(method string, route string, handler http.HandlerFunc, perm permission, shouldLoadInventory bool) {
 	fullRoute := v1.PoliteiaWWWAPIRoute + route
+
 	if shouldLoadInventory {
 		handler = p.loadInventory(handler)
 	}
@@ -917,6 +888,10 @@ func (p *politeiawww) addRoute(method string, route string, handler http.Handler
 	default:
 		handler = logging(handler)
 	}
+
+	// All handlers need to close the body
+	handler = closeBody(handler)
+
 	p.router.StrictSlash(true).HandleFunc(fullRoute, handler).Methods(method)
 }
 
@@ -1036,8 +1011,8 @@ func _main() error {
 	//	http.FileServer(http.Dir("."))))
 
 	// Public routes.
-	p.router.HandleFunc("/", logging(p.handleVersion)).Methods(http.MethodGet)
-	p.router.NotFoundHandler = http.HandlerFunc(p.handleNotFound)
+	p.router.HandleFunc("/", closeBody(logging(p.handleVersion))).Methods(http.MethodGet)
+	p.router.NotFoundHandler = closeBody(p.handleNotFound)
 	p.addRoute(http.MethodGet, v1.RouteVersion, p.handleVersion,
 		permissionPublic, false)
 	p.addRoute(http.MethodPost, v1.RouteNewUser, p.handleNewUser,
