@@ -79,6 +79,14 @@ func logging(f http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// closeBody closes the request body.
+func closeBody(f http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		f(w, r)
+		r.Body.Close()
+	}
+}
+
 func remoteAddr(r *http.Request) string {
 	via := r.RemoteAddr
 	xff := r.Header.Get(v1.Forward)

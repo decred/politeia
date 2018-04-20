@@ -57,6 +57,7 @@ type backend struct {
 	db                 database.Database
 	cfg                *config
 	params             *chaincfg.Params
+	client             *http.Client // politeiad client
 	commentJournalDir  string
 	commentJournalFile string
 	userPubkeys        map[string]string // [pubkey][userid]
@@ -333,9 +334,11 @@ func (b *backend) emailUpdateUserKeyVerificationLink(email, publicKey, token str
 // makeRequest makes an http request to the method and route provided, serializing
 // the provided object as the request body.
 func (b *backend) makeRequest(method string, route string, v interface{}) ([]byte, error) {
-	var requestBody []byte
+	var (
+		requestBody []byte
+		err         error
+	)
 	if v != nil {
-		var err error
 		requestBody, err = json.Marshal(v)
 		if err != nil {
 			return nil, err
@@ -344,16 +347,19 @@ func (b *backend) makeRequest(method string, route string, v interface{}) ([]byt
 
 	fullRoute := b.cfg.RPCHost + route
 
-	c, err := util.NewClient(false, b.cfg.RPCCert)
-	if err != nil {
-		return nil, err
+	if b.client == nil {
+		b.client, err = util.NewClient(false, b.cfg.RPCCert)
+		if err != nil {
+			return nil, err
+		}
 	}
+
 	req, err := http.NewRequest(method, fullRoute, bytes.NewReader(requestBody))
 	if err != nil {
 		return nil, err
 	}
 	req.SetBasicAuth(b.cfg.RPCUser, b.cfg.RPCPass)
-	r, err := c.Do(req)
+	r, err := b.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
