@@ -46,7 +46,6 @@ var (
 	defaultRPCCertFile   = filepath.Join(sharedconfig.DefaultHomeDir, "rpc.cert")
 	defaultCookieKeyFile = filepath.Join(sharedconfig.DefaultHomeDir, "cookie.key")
 	defaultLogDir        = filepath.Join(sharedconfig.DefaultHomeDir, defaultLogDirname)
-	defaultPaywallAmount = uint64(0)
 
 	templateNewUserEmail = template.Must(
 		template.New("new_user_email_template").Parse(templateNewUserEmailRaw))
@@ -94,7 +93,7 @@ type config struct {
 	WebServerAddress string `long:"webserveraddress" description:"Address for the Politeia web server; it should have this format: <scheme>://<host>[:<port>]"`
 	Proxy            bool   `long:"proxy" description:"Run in proxy mode (no CSRF)."`
 	Interactive      string `long:"interactive" description:"Set to i-know-this-is-a-bad-idea to turn off interactive mode during --fetchidentity."`
-	PaywallAmount    uint64 `long:"paywallamount" description:"Amount of DCR (in atoms) required for a user to register."`
+	PaywallAmount    int64  `long:"paywallamount" description:"Amount of DCR (in atoms) required for a user to register."`
 	PaywallXpub      string `long:"paywallxpub" description:"Extended public key for deriving paywall addresses."`
 }
 
@@ -326,7 +325,6 @@ func loadConfig() (*config, []string, error) {
 		HTTPSCert:     defaultHTTPSCertFile,
 		RPCCert:       defaultRPCCertFile,
 		CookieKeyFile: defaultCookieKeyFile,
-		PaywallAmount: defaultPaywallAmount,
 		Version:       version(),
 	}
 
@@ -647,7 +645,11 @@ func loadConfig() (*config, []string, error) {
 	}
 
 	// Parse the extended public key if the paywall is enabled.
-	if cfg.PaywallAmount > 0 && cfg.PaywallXpub != "" {
+	if cfg.PaywallXpub != "" {
+		if cfg.PaywallAmount <= 0 {
+			return nil, nil, fmt.Errorf("Paywall amount must be greater than zero")
+		}
+
 		paywallKey, err := hdkeychain.NewKeyFromString(cfg.PaywallXpub)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error processing extended public key: %v",

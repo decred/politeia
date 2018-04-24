@@ -16,15 +16,14 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gorilla/schema"
-
-	"golang.org/x/net/publicsuffix"
-
 	"github.com/agl/ed25519"
+	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/util"
+	"github.com/gorilla/schema"
+	"golang.org/x/net/publicsuffix"
 )
 
 type ctx struct {
@@ -189,7 +188,7 @@ func idFromString(s string) (*identity.FullIdentity, error) {
 	return id, nil
 }
 
-func (c *ctx) newUser(email string, password string) (string, *identity.FullIdentity, string, uint64, error) {
+func (c *ctx) newUser(email string, password string) (string, *identity.FullIdentity, string, dcrutil.Amount, error) {
 	id, err := idFromString(email)
 	if err != nil {
 		return "", nil, "", 0, err
@@ -213,7 +212,11 @@ func (c *ctx) newUser(email string, password string) (string, *identity.FullIden
 	}
 
 	//fmt.Printf("Verification Token: %v\n", nur.VerificationToken)
-	return nur.VerificationToken, id, nur.PaywallAddress, nur.PaywallAmount, nil
+	paywallAmount, err := dcrutil.NewAmount(nur.PaywallAmount)
+	if err != nil {
+		return "", nil, "", 0, err
+	}
+	return nur.VerificationToken, id, nur.PaywallAddress, paywallAmount, nil
 }
 
 func (c *ctx) verifyNewUser(email, token, sig string) error {

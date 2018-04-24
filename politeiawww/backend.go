@@ -20,6 +20,7 @@ import (
 
 	"github.com/dajohi/goemail"
 	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
@@ -700,7 +701,7 @@ func (b *backend) CreateLoginReply(user *database.User) *www.LoginReply {
 
 	if user.NewUserPaywallTx == "" {
 		reply.PaywallAddress = user.NewUserPaywallAddress
-		reply.PaywallAmount = user.NewUserPaywallAmount
+		reply.PaywallAmount = dcrutil.Amount(user.NewUserPaywallAmount).ToCoin()
 		reply.PaywallTxNotBefore = user.NewUserPaywallTxNotBefore
 	}
 
@@ -845,8 +846,8 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 		b.setUserPubkeyAssociaton(user, u.PublicKey)
 
 		// Derive a paywall address for this user if the paywall is enabled.
-		paywallAddress := ""
-		paywallAmount := uint64(0)
+		var paywallAddress string
+		var paywallAmount dcrutil.Amount
 		if b.cfg.PaywallXpub != "" {
 			paywallAddress, err = util.DerivePaywallAddress(b.params,
 				b.cfg.PaywallXpub, uint32(user.ID))
@@ -854,17 +855,17 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 				return nil, fmt.Errorf("Unable to derive paywall address #%v "+
 					"for %v: %v", uint32(user.ID), u.Email, err)
 			}
-			paywallAmount = b.cfg.PaywallAmount
+			paywallAmount = dcrutil.Amount(b.cfg.PaywallAmount)
 		}
 
 		txNotBeforeTimestamp := time.Now().Unix()
 
 		reply.PaywallAddress = paywallAddress
-		reply.PaywallAmount = paywallAmount
+		reply.PaywallAmount = paywallAmount.ToCoin()
 		reply.PaywallTxNotBefore = txNotBeforeTimestamp
 
 		user.NewUserPaywallAddress = paywallAddress
-		user.NewUserPaywallAmount = paywallAmount
+		user.NewUserPaywallAmount = int64(paywallAmount)
 		user.NewUserPaywallTxNotBefore = txNotBeforeTimestamp
 
 		err = b.db.UserUpdate(*user)
