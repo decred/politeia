@@ -1233,6 +1233,12 @@ func (b *backend) ProcessAllUnvetted(u www.GetAllUnvetted) *www.GetAllUnvettedRe
 func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*www.NewProposalReply, error) {
 	log.Tracef("ProcessNewProposal")
 
+	if !b.VerifyUserPaid(user) {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserNotPaid,
+		}
+	}
+
 	err := b.validateProposal(np, user)
 	if err != nil {
 		return nil, err
@@ -1545,11 +1551,18 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 	return &reply, nil
 }
 
-// ProcessComment processes a submitted comment.  It ensures the proposal and
-// the parent exists.  A parent ID of 0 indicates that it is a comment on the
-// proposal whereas non-zero indicates that it is a reply to a comment.
+// ProcessComment processes a submitted comment.  It ensures user has paid
+// the paywall, and the proposal and the parent exists.  A parent ID of 0
+// indicates that it is a comment on the proposal whereas non-zero
+// indicates that it is a reply to a comment.
 func (b *backend) ProcessComment(c www.NewComment, user *database.User) (*www.NewCommentReply, error) {
 	log.Debugf("ProcessComment: %v %v", c.Token, user.ID)
+
+	if !b.VerifyUserPaid(user) {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserNotPaid,
+		}
+	}
 
 	err := checkPublicKeyAndSignature(user, c.PublicKey, c.Signature,
 		c.Token, c.ParentID, c.Comment)

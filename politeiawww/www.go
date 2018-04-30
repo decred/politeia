@@ -912,6 +912,9 @@ func _main() error {
 	log.Infof("Network : %v", activeNetParams.Params.Name)
 	log.Infof("Home dir: %v", loadedCfg.HomeDir)
 
+	paywallAmountInDcr := float64(loadedCfg.PaywallAmount) / 1e8
+	log.Infof("Paywall : %v DCR", paywallAmountInDcr)
+
 	// Create the data directory in case it does not exist.
 	err = os.MkdirAll(loadedCfg.DataDir, 0700)
 	if err != nil {

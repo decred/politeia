@@ -62,6 +62,9 @@ API.  It does not render HTML.
 - [`ErrorStatusInvalidInput`](#ErrorStatusInvalidInput)
 - [`ErrorStatusInvalidSigningKey`](#ErrorStatusInvalidSigningKey)
 - [`ErrorStatusCommentLengthExceededPolicy`](#ErrorStatusCommentLengthExceededPolicy)
+- [`ErrorStatusWrongStatus`](#ErrorStatusWrongStatus)
+- [`ErrorStatusNotLoggedIn`](#ErrorStatusNotLoggedIn)
+- [`ErrorStatusUserNotPaid`](#ErrorStatusUserNotPaid)
 
 **Proposal status codes**
 
@@ -639,6 +642,7 @@ error codes:
 - [`ErrorStatusMaxImageSizeExceededPolicy`](#ErrorStatusMaxImageSizeExceededPolicy)
 - [`ErrorStatusInvalidSignature`](#ErrorStatusInvalidSignature)
 - [`ErrorStatusInvalidSigningKey`](#ErrorStatusInvalidSigningKey)
+- [`ErrorStatusUserNotPaid`](#ErrorStatusUserNotPaid)
 
 **Example**
 
@@ -975,6 +979,7 @@ On failure the call shall return `400 Bad Request` and one of the following
 error codes:
 
 - [`ErrorStatusCommentLengthExceededPolicy`](#ErrorStatusCommentLengthExceededPolicy)
+- [`ErrorStatusUserNotPaid`](#ErrorStatusUserNotPaid)
 
 **Example**
 
@@ -1420,6 +1425,9 @@ Reply:
 | <a name="ErrorStatusInvalidInput">ErrorStatusInvalidInput</a> | 24 | Invalid input. |
 | <a name="ErrorStatusInvalidSigningKey">ErrorStatusInvalidSigningKey</a> | 25 | Invalid signing key. |
 | <a name="ErrorStatusCommentLengthExceededPolicy">ErrorStatusCommentLengthExceededPolicy</a> | 26 | The submitted comment length is too large. |
+| <a name="ErrorStatusWrongStatus">ErrorStatusWrongStatus</a> | 28 | Wrong Status. |
+| <a name="ErrorStatusNotLoggedIn">ErrorStatusNotLoggedIn</a> | 29 | User not logged in. |
+| <a name="ErrorStatusUserNotPaid">ErrorStatusUserNotPaid</a> | 30 | User not paid paywall. |
 
 ### Proposal status codes
 

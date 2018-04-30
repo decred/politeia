@@ -67,27 +67,20 @@ type BEBackupTransaction struct {
 	Timestamp     int64       `json:"ts"`            // Transaction timestamp
 }
 
-const (
-	minConfirmationsRequired = 2
-)
-
-func makeRequest(url string) ([]byte, error) {
+func makeRequest(url string, timeout time.Duration) ([]byte, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create request: %v", err)
 	}
 
-	// Limit the time we take.
-	ctx, cancel := context.WithTimeout(context.Background(),
-		2500*time.Millisecond)
-	defer cancel()
-	req.WithContext(ctx)
-
-	client := &http.Client{}
+	client := &http.Client{
+		Timeout: timeout * time.Second,
+	}
 	response, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
+	defer response.Body.Close()
 
 	return ioutil.ReadAll(response.Body)
 }
@@ -127,8 +120,9 @@ func dcrStringToAmount(dcrstr string) (uint64, error) {
 	return ((whole * 1e8) + fraction), nil
 }
 
-func verifyTxWithPrimaryBE(url string, address string, txid string, minimumAmount uint64, txnotbefore int64) (bool, error) {
-	responseBody, err := makeRequest(url)
+func verifyTxWithPrimaryBE(url string, address string, txid string,
+	minimumAmount uint64, txnotbefore int64, minConfirmationsRequired uint64) (bool, error) {
+	responseBody, err := makeRequest(url, 3)
 	if err != nil {
 		return false, err
 	}
@@ -168,8 +162,9 @@ func verifyTxWithPrimaryBE(url string, address string, txid string, minimumAmoun
 	return false, nil
 }
 
-func verifyTxWithBackupBE(url string, address string, txid string, minimumAmount uint64, txnotbefore int64) (bool, error) {
-	responseBody, err := makeRequest(url)
+func verifyTxWithBackupBE(url string, address string, txid string,
+	minimumAmount uint64, txnotbefore int64, minConfirmationsRequired uint64) (bool, error) {
+	responseBody, err := makeRequest(url, 3)
 	if err != nil {
 		return false, err
 	}
@@ -305,7 +300,7 @@ func PayWithTestnetFaucet(faucetURL string, address string, amount uint64, overr
 
 // VerifyTxWithBlockExplorers verifies that the passed transaction id is a valid
 // transaction that can be confirmed on a public block explorer.
-func VerifyTxWithBlockExplorers(address string, amount uint64, txid string, txnotbefore int64) (confirmed bool, err error) {
+func VerifyTxWithBlockExplorers(address string, amount uint64, txid string, txnotbefore int64, minConfirmations uint64) (confirmed bool, err error) {
 	// pre-validate that the passed address, amount, and tx are at least
 	// somewhat valid before querying the explorers
 	addr, err := dcrutil.DecodeAddress(address)
@@ -331,7 +326,7 @@ func VerifyTxWithBlockExplorers(address string, amount uint64, txid string, txno
 	}
 
 	// Try the primary (dcrdata) first.
-	verified, err := verifyTxWithPrimaryBE(primaryURL, address, txid, amount, txnotbefore)
+	verified, err := verifyTxWithPrimaryBE(primaryURL, address, txid, amount, txnotbefore, minConfirmations)
 	if err != nil {
 		log.Printf("failed to fetch from dcrdata: %v", err)
 	} else {
@@ -339,5 +334,5 @@ func VerifyTxWithBlockExplorers(address string, amount uint64, txid string, txno
 	}
 
 	// Try the backup (insight).
-	return verifyTxWithBackupBE(backupURL, address, txid, amount, txnotbefore)
+	return verifyTxWithBackupBE(backupURL, address, txid, amount, txnotbefore, minConfirmations)
 }

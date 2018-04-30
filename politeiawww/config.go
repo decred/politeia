@@ -38,6 +38,17 @@ const (
 	defaultTestnetPort = "4443"
 
 	allowInteractive = "i-know-this-is-a-bad-idea"
+
+	defaultPaywallMinConfirmations = uint64(2)
+	defaultPaywallAmount           = uint64(0)
+
+	// dust value can be found increasing the amount value until we get false
+	// from IsDustAmount function. Amounts can not be lower than dust
+	// func IsDustAmount(amount int64, relayFeePerKb int64) bool {
+	//     totalSize := 8 + 2 + 1 + 25 + 165
+	// 	   return int64(amount)*1000/(3*int64(totalSize)) < int64(relayFeePerKb)
+	// }
+	dust = 60300
 )
 
 var (
@@ -46,7 +57,6 @@ var (
 	defaultRPCCertFile   = filepath.Join(sharedconfig.DefaultHomeDir, "rpc.cert")
 	defaultCookieKeyFile = filepath.Join(sharedconfig.DefaultHomeDir, "cookie.key")
 	defaultLogDir        = filepath.Join(sharedconfig.DefaultHomeDir, defaultLogDirname)
-	defaultPaywallAmount = uint64(0)
 
 	templateNewUserEmail = template.Must(
 		template.New("new_user_email_template").Parse(templateNewUserEmailRaw))
@@ -64,38 +74,39 @@ var runServiceCommand func(string) error
 //
 // See loadConfig for details on the configuration load process.
 type config struct {
-	HomeDir          string   `short:"A" long:"appdata" description:"Path to application home directory"`
-	ShowVersion      bool     `short:"V" long:"version" description:"Display version information and exit"`
-	ConfigFile       string   `short:"C" long:"configfile" description:"Path to configuration file"`
-	DataDir          string   `short:"b" long:"datadir" description:"Directory to store data"`
-	LogDir           string   `long:"logdir" description:"Directory to log output."`
-	TestNet          bool     `long:"testnet" description:"Use the test network"`
-	SimNet           bool     `long:"simnet" description:"Use the simulation test network"`
-	Profile          string   `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
-	CookieKeyFile    string   `long:"cookiekey" description:"File containing the secret cookies key"`
-	CPUProfile       string   `long:"cpuprofile" description:"Write CPU profile to the specified file"`
-	MemProfile       string   `long:"memprofile" description:"Write mem profile to the specified file"`
-	DebugLevel       string   `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
-	Listeners        []string `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 49152, testnet: 59152)"`
-	Version          string
-	HTTPSCert        string `long:"httpscert" description:"File containing the https certificate file"`
-	HTTPSKey         string `long:"httpskey" description:"File containing the https certificate key"`
-	RPCHost          string `long:"rpchost" description:"Host for politeiad in this format"`
-	RPCCert          string `long:"rpccert" description:"File containing the https certificate file"`
-	RPCIdentityFile  string `long:"rpcidentityfile" description:"Path to file containing the politeiad identity"`
-	Identity         *identity.PublicIdentity
-	RPCUser          string `long:"rpcuser" description:"RPC user name for privileged commands"`
-	RPCPass          string `long:"rpcpass" description:"RPC password for privileged commands"`
-	MailHost         string `long:"mailhost" description:"Email server address in this format: <host>:<port>"`
-	MailUser         string `long:"mailuser" description:"Email server username"`
-	MailPass         string `long:"mailpass" description:"Email server password"`
-	SMTP             *goemail.SMTP
-	FetchIdentity    bool   `long:"fetchidentity" description:"Whether or not politeiawww fetches the identity from politeiad."`
-	WebServerAddress string `long:"webserveraddress" description:"Address for the Politeia web server; it should have this format: <scheme>://<host>[:<port>]"`
-	Proxy            bool   `long:"proxy" description:"Run in proxy mode (no CSRF)."`
-	Interactive      string `long:"interactive" description:"Set to i-know-this-is-a-bad-idea to turn off interactive mode during --fetchidentity."`
-	PaywallAmount    uint64 `long:"paywallamount" description:"Amount of DCR (in atoms) required for a user to register."`
-	PaywallXpub      string `long:"paywallxpub" description:"Extended public key for deriving paywall addresses."`
+	HomeDir                  string   `short:"A" long:"appdata" description:"Path to application home directory"`
+	ShowVersion              bool     `short:"V" long:"version" description:"Display version information and exit"`
+	ConfigFile               string   `short:"C" long:"configfile" description:"Path to configuration file"`
+	DataDir                  string   `short:"b" long:"datadir" description:"Directory to store data"`
+	LogDir                   string   `long:"logdir" description:"Directory to log output."`
+	TestNet                  bool     `long:"testnet" description:"Use the test network"`
+	SimNet                   bool     `long:"simnet" description:"Use the simulation test network"`
+	Profile                  string   `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
+	CookieKeyFile            string   `long:"cookiekey" description:"File containing the secret cookies key"`
+	CPUProfile               string   `long:"cpuprofile" description:"Write CPU profile to the specified file"`
+	MemProfile               string   `long:"memprofile" description:"Write mem profile to the specified file"`
+	DebugLevel               string   `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
+	Listeners                []string `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 49152, testnet: 59152)"`
+	Version                  string
+	HTTPSCert                string `long:"httpscert" description:"File containing the https certificate file"`
+	HTTPSKey                 string `long:"httpskey" description:"File containing the https certificate key"`
+	RPCHost                  string `long:"rpchost" description:"Host for politeiad in this format"`
+	RPCCert                  string `long:"rpccert" description:"File containing the https certificate file"`
+	RPCIdentityFile          string `long:"rpcidentityfile" description:"Path to file containing the politeiad identity"`
+	Identity                 *identity.PublicIdentity
+	RPCUser                  string `long:"rpcuser" description:"RPC user name for privileged commands"`
+	RPCPass                  string `long:"rpcpass" description:"RPC password for privileged commands"`
+	MailHost                 string `long:"mailhost" description:"Email server address in this format: <host>:<port>"`
+	MailUser                 string `long:"mailuser" description:"Email server username"`
+	MailPass                 string `long:"mailpass" description:"Email server password"`
+	SMTP                     *goemail.SMTP
+	FetchIdentity            bool   `long:"fetchidentity" description:"Whether or not politeiawww fetches the identity from politeiad."`
+	WebServerAddress         string `long:"webserveraddress" description:"Address for the Politeia web server; it should have this format: <scheme>://<host>[:<port>]"`
+	Proxy                    bool   `long:"proxy" description:"Run in proxy mode (no CSRF)."`
+	Interactive              string `long:"interactive" description:"Set to i-know-this-is-a-bad-idea to turn off interactive mode during --fetchidentity."`
+	PaywallAmount            uint64 `long:"paywallamount" description:"Amount of DCR (in atoms) required for a user to register."`
+	PaywallXpub              string `long:"paywallxpub" description:"Extended public key for deriving paywall addresses."`
+	MinConfirmationsRequired uint64 `long:"minconfirmations" description:"Minimum blocks confirmation for accepting paywall as paid. Only works in TestNet."`
 }
 
 // serviceOptions defines the configuration options for the rpc as a service
@@ -317,17 +328,18 @@ func loadIdentity(cfg *config) error {
 func loadConfig() (*config, []string, error) {
 	// Default config.
 	cfg := config{
-		HomeDir:       sharedconfig.DefaultHomeDir,
-		ConfigFile:    sharedconfig.DefaultConfigFile,
-		DebugLevel:    defaultLogLevel,
-		DataDir:       sharedconfig.DefaultDataDir,
-		LogDir:        defaultLogDir,
-		HTTPSKey:      defaultHTTPSKeyFile,
-		HTTPSCert:     defaultHTTPSCertFile,
-		RPCCert:       defaultRPCCertFile,
-		CookieKeyFile: defaultCookieKeyFile,
-		PaywallAmount: defaultPaywallAmount,
-		Version:       version(),
+		HomeDir:                  sharedconfig.DefaultHomeDir,
+		ConfigFile:               sharedconfig.DefaultConfigFile,
+		DebugLevel:               defaultLogLevel,
+		DataDir:                  sharedconfig.DefaultDataDir,
+		LogDir:                   defaultLogDir,
+		HTTPSKey:                 defaultHTTPSKeyFile,
+		HTTPSCert:                defaultHTTPSCertFile,
+		RPCCert:                  defaultRPCCertFile,
+		CookieKeyFile:            defaultCookieKeyFile,
+		PaywallAmount:            defaultPaywallAmount,
+		MinConfirmationsRequired: defaultPaywallMinConfirmations,
+		Version:                  version(),
 	}
 
 	// Service options which are only added on Windows.
@@ -588,6 +600,10 @@ func loadConfig() (*config, []string, error) {
 		if cfg.RPCHost == "" {
 			cfg.RPCHost = v1.DefaultMainnetHost
 		}
+		if cfg.MinConfirmationsRequired != defaultPaywallMinConfirmations {
+			return nil, nil, fmt.Errorf("[ERR]: Can not change min block " +
+				"confirmations when in mainnet")
+		}
 	}
 
 	cfg.RPCHost = util.NormalizeAddress(cfg.RPCHost, port)
@@ -647,7 +663,11 @@ func loadConfig() (*config, []string, error) {
 	}
 
 	// Parse the extended public key if the paywall is enabled.
-	if cfg.PaywallAmount > 0 && cfg.PaywallXpub != "" {
+	if cfg.PaywallXpub != "" {
+		if cfg.PaywallAmount < dust {
+			return nil, nil, fmt.Errorf("[ERR]: Paywall amount needs to be "+
+				"higher than %v", dust)
+		}
 		paywallKey, err := hdkeychain.NewKeyFromString(cfg.PaywallXpub)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error processing extended public key: %v",
