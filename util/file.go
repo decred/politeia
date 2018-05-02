@@ -92,3 +92,13 @@ func LoadFile(filename string) (mimeType string, digest string, payload string, 
 
 	return
 }
+
+// FilesExists reports whether the named file or directory exists.
+func FileExists(name string) bool {
+	if _, err := os.Stat(name); err != nil {
+		if os.IsNotExist(err) {
+			return false
+		}
+	}
+	return true
+}

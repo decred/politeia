@@ -544,16 +544,19 @@ func (c *Ctx) GetUnvetted(u v1.GetAllUnvetted) (*v1.GetAllUnvettedReply,
 func (c *Ctx) Comment(id *identity.FullIdentity, token, comment,
 	parentID string) (*v1.NewCommentReply, error) {
 	cm := v1.NewComment{
-		Token:    token,
-		ParentID: parentID,
-		Comment:  comment,
+		Comment: decredplugin.NewComment{
+			Token:    token,
+			ParentID: parentID,
+			Comment:  comment,
+		},
 	}
 	// Sign token+parentid+comment
-	msg := []byte(cm.Token + cm.ParentID + cm.Comment)
+	msg := []byte(cm.Comment.Token + cm.Comment.ParentID +
+		cm.Comment.Comment)
 	sig := id.SignMessage(msg)
-	cm.Signature = hex.EncodeToString(sig[:])
+	cm.Comment.Signature = hex.EncodeToString(sig[:])
 
-	cm.PublicKey = hex.EncodeToString(id.Public.Key[:])
+	cm.Comment.PublicKey = hex.EncodeToString(id.Public.Key[:])
 
 	responseBody, err := c.makeRequest("POST", v1.RouteNewComment, cm)
 	if err != nil {
