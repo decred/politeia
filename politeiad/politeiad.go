@@ -825,8 +825,8 @@ func _main() error {
 
 	// Generate the TLS cert and key file if both don't already
 	// exist.
-	if !fileExists(loadedCfg.HTTPSKey) &&
-		!fileExists(loadedCfg.HTTPSCert) {
+	if !util.FileExists(loadedCfg.HTTPSKey) &&
+		!util.FileExists(loadedCfg.HTTPSCert) {
 		log.Infof("Generating HTTPS keypair...")
 
 		err := util.GenCertPair(elliptic.P521(), "politeiad",
@@ -840,7 +840,7 @@ func _main() error {
 	}
 
 	// Generate ed25519 identity to save messages, tokens etc.
-	if !fileExists(loadedCfg.Identity) {
+	if !util.FileExists(loadedCfg.Identity) {
 		log.Infof("Generating signing identity...")
 		id, err := identity.New()
 		if err != nil {
@@ -870,7 +870,7 @@ func _main() error {
 	// resolve cert validity.
 	if len(loadedCfg.DcrtimeCert) != 0 {
 		var certPool *x509.CertPool
-		if !fileExists(loadedCfg.DcrtimeCert) {
+		if !util.FileExists(loadedCfg.DcrtimeCert) {
 			return fmt.Errorf("unable to find dcrtime cert %v",
 				loadedCfg.DcrtimeCert)
 		}

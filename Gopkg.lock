@@ -96,6 +96,7 @@
   revision = "56c501706f00d9e1cfacee19a27117e12da24734"
 
 [[projects]]
+  branch = "master"
   name = "github.com/decred/dcrd"
   packages = [
     "blockchain",
@@ -124,8 +125,7 @@
     "txscript",
     "wire"
   ]
-  revision = "fd99f572cfd52ca722ad501ccb34acdcb22b4a67"
-  version = "v1.2.0-rc1"
+  revision = "0921280e6e232b66f19ada00ba9adad1d82c90a5"
 
 [[projects]]
   branch = "master"
@@ -157,7 +157,7 @@
     "wallet/udb",
     "walletdb"
   ]
-  revision = "b90cea3f706b3bad1b03887e5f86cb679b96a679"
+  revision = "8d4fed255314084668f9fab36efc72e5c77652a3"
 
 [[projects]]
   branch = "master"
@@ -224,12 +224,6 @@
   name = "github.com/jrick/logrotate"
   packages = ["rotator"]
   revision = "a93b200c26cbae3bb09dd0dc2c7c7fe1468a034a"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/marcopeereboom/lockfile"
-  packages = ["."]
-  revision = "fccf54cf713a65ff908069f4f28184d85089af9c"
 
 [[projects]]
   name = "github.com/pkg/errors"
@@ -384,6 +378,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "001205728b1fc14bf5f2637e6eead7671e0dce4ea891c612ae8c9b80bf441b6b"
+  inputs-digest = "cf03a32caebfeca94872dc2447857a3666b94919ff7f2815318a59830e2397e6"
   solver-name = "gps-cdcl"
   solver-version = 1

@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
@@ -28,16 +29,12 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/util"
-	"github.com/marcopeereboom/lockfile"
 	"github.com/robfig/cron"
 	"github.com/subosito/norma"
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
 const (
-	// Lockfile is the filesystem lock filename.  Export for external utilities.
-	LockFilename = ".lock"
-
 	// LockDuration is the maximum lock time duration allowed.  15 seconds
 	// is ~3x of anchoring without internet delay.
 	LockDuration = 15 * time.Second
@@ -47,6 +44,10 @@ const (
 
 	// defaultVettedPath is the publicly visible git vetted record repo.
 	defaultVettedPath = "vetted"
+
+	// defaultJournalsPath is the path where data is journaled and/or
+	// cached.
+	defaultJournalsPath = "journals" // XXX it looks like this belongs in plugins
 
 	// defaultRecordMetadataFilename is the filename of record record.
 	defaultRecordMetadataFilename = "recordmetadata.json"
@@ -106,21 +107,23 @@ type file struct {
 // gitBackEnd is a git based backend context that satisfies the backend
 // interface.
 type gitBackEnd struct {
-	lock            *lockfile.LockFile // Global lock
-	db              *leveldb.DB        // Database
-	cron            *cron.Cron         // Scheduler for periodic tasks
-	activeNetParams *chaincfg.Params   // indicator if we are running on testnet
-	shutdown        bool               // Backend is shutdown
-	root            string             // Root directory
-	unvetted        string             // Unvettend content
-	vetted          string             // Vetted, public, visible content
-	dcrtimeHost     string             // Dcrtimed directory
-	gitPath         string             // Path to git
-	gitTrace        bool               // Enable git tracing
-	test            bool               // Set during UT
-	exit            chan struct{}      // Close channel
-	checkAnchor     chan struct{}      // Work notification
-	plugins         []backend.Plugin   // Plugins
+	sync.Mutex                       // Global lock
+	db              *leveldb.DB      // Database
+	cron            *cron.Cron       // Scheduler for periodic tasks
+	activeNetParams *chaincfg.Params // indicator if we are running on testnet
+	journal         *Journal         // Journal context
+	shutdown        bool             // Backend is shutdown
+	root            string           // Root directory
+	unvetted        string           // Unvettend content
+	vetted          string           // Vetted, public, visible content
+	journals        string           // Journals/cache
+	dcrtimeHost     string           // Dcrtimed directory
+	gitPath         string           // Path to git
+	gitTrace        bool             // Enable git tracing
+	test            bool             // Set during UT
+	exit            chan struct{}    // Close channel
+	checkAnchor     chan struct{}    // Work notification
+	plugins         []backend.Plugin // Plugins
 
 	// The following items are used for testing only
 	testAnchors map[string]bool // [digest]anchored
@@ -170,10 +173,7 @@ func extendSHA1FromString(s string) (string, error) {
 //
 // This function must be called without holding the unvetted lock.
 func (g *gitBackEnd) newUniqueID() (uint64, error) {
-	err := g.lock.Lock(LockDuration)
-	if err != nil {
-		return 0, err
-	}
+	g.Lock()
 
 	// Get Dirs.
 	files, err := ioutil.ReadDir(g.unvetted)
@@ -749,16 +749,8 @@ func (g *gitBackEnd) anchorRepo(path string) (*[sha256.Size]byte, error) {
 func (g *gitBackEnd) anchorAllRepos() error {
 	log.Infof("Dropping anchor")
 	// Lock filesystem
-	err := g.lock.Lock(LockDuration)
-	if err != nil {
-		return fmt.Errorf("anchorAllRepos lock error: %v", err)
-	}
-	defer func() {
-		err := g.lock.Unlock()
-		if err != nil {
-			log.Errorf("anchorAllRepos unlock error: %v", err)
-		}
-	}()
+	g.Lock()
+	defer g.Unlock()
 	if g.shutdown {
 		return fmt.Errorf("anchorAllRepos: %v", backend.ErrShutdown)
 	}
@@ -851,16 +843,10 @@ func (g *gitBackEnd) anchorChecker() error {
 // separate function in order not having to futz with locks.
 func (g *gitBackEnd) afterAnchorVerify(vrs []v1.VerifyDigest) error {
 	// Lock filesystem
-	err := g.lock.Lock(LockDuration)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		err := g.lock.Unlock()
-		if err != nil {
-			log.Errorf("afterAnchorVerify unlock error: %v", err)
-		}
-	}()
+	g.Lock()
+	defer g.Unlock()
+
+	var err error
 
 	if len(vrs) != 0 {
 		// git checkout master
@@ -1102,16 +1088,8 @@ func (g *gitBackEnd) New(metadata []backend.MetadataStream, files []backend.File
 	}
 
 	// Lock filesystem
-	err = g.lock.Lock(LockDuration)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		err := g.lock.Unlock()
-		if err != nil {
-			log.Errorf("Unlock error: %v", err)
-		}
-	}()
+	g.Lock()
+	defer g.Unlock()
 	if g.shutdown {
 		return nil, backend.ErrShutdown
 	}
@@ -1392,16 +1370,8 @@ func (g *gitBackEnd) UpdateUnvettedRecord(token []byte, mdAppend []backend.Metad
 	}
 
 	// Lock filesystem
-	err = g.lock.Lock(LockDuration)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		err := g.lock.Unlock()
-		if err != nil {
-			log.Errorf("Unlock error: %v", err)
-		}
-	}()
+	g.Lock()
+	defer g.Unlock()
 	if g.shutdown {
 		return nil, backend.ErrShutdown
 	}
@@ -1498,16 +1468,8 @@ func (g *gitBackEnd) UpdateVettedMetadata(token []byte, mdAppend []backend.Metad
 	}
 
 	// Lock filesystem
-	err = g.lock.Lock(LockDuration)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		err := g.lock.Unlock()
-		if err != nil {
-			log.Errorf("Unlock error: %v", err)
-		}
-	}()
+	g.Lock()
+	defer g.Unlock()
 	if g.shutdown {
 		return backend.ErrShutdown
 	}
@@ -1587,16 +1549,8 @@ func (g *gitBackEnd) UpdateVettedMetadata(token []byte, mdAppend []backend.Metad
 // This function must be called WITHOUT the lock held.
 func (g *gitBackEnd) getRecordLock(token []byte, repo string, includeFiles bool) (*backend.Record, error) {
 	// Lock filesystem
-	err := g.lock.Lock(LockDuration)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		err := g.lock.Unlock()
-		if err != nil {
-			log.Errorf("Unlock error: %v", err)
-		}
-	}()
+	g.Lock()
+	defer g.Unlock()
 	if g.shutdown {
 		return nil, backend.ErrShutdown
 	}
@@ -1883,16 +1837,8 @@ func (g *gitBackEnd) setUnvettedStatus(token []byte, status backend.MDStatusT, m
 // SetUnvettedStatus satisfies the backend interface.
 func (g *gitBackEnd) SetUnvettedStatus(token []byte, status backend.MDStatusT, mdAppend, mdOverwrite []backend.MetadataStream) (*backend.Record, error) {
 	// Lock filesystem
-	err := g.lock.Lock(LockDuration)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		err := g.lock.Unlock()
-		if err != nil {
-			log.Errorf("Unlock error: %v", err)
-		}
-	}()
+	g.Lock()
+	defer g.Unlock()
 	if g.shutdown {
 		return nil, backend.ErrShutdown
 	}
@@ -1929,16 +1875,8 @@ func (g *gitBackEnd) SetUnvettedStatus(token []byte, status backend.MDStatusT, m
 // includeFiles is set the content is also returned.
 func (g *gitBackEnd) Inventory(vettedCount, branchCount uint, includeFiles bool) ([]backend.Record, []backend.Record, error) {
 	// Lock filesystem
-	err := g.lock.Lock(LockDuration)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer func() {
-		err := g.lock.Unlock()
-		if err != nil {
-			log.Errorf("Unlock error: %v", err)
-		}
-	}()
+	g.Lock()
+	defer g.Unlock()
 	if g.shutdown {
 		return nil, nil, backend.ErrShutdown
 	}
@@ -2021,6 +1959,12 @@ func (g *gitBackEnd) Plugin(command, payload string) (string, string, error) {
 	case decredplugin.CmdBestBlock:
 		payload, err := g.pluginBestBlock()
 		return decredplugin.CmdBestBlock, payload, err
+	case decredplugin.CmdNewComment:
+		payload, err := g.pluginNewComment(payload)
+		return decredplugin.CmdNewComment, payload, err
+	case decredplugin.CmdGetComments:
+		payload, err := g.pluginGetComments(payload)
+		return decredplugin.CmdGetComments, payload, err
 	}
 	return "", "", fmt.Errorf("invalid payload command") // XXX this needs to become a type error
 }
@@ -2031,17 +1975,8 @@ func (g *gitBackEnd) Plugin(command, payload string) (string, string, error) {
 //
 // Close satisfies the backend interface.
 func (g *gitBackEnd) Close() {
-	err := g.lock.Lock(LockDuration)
-	if err != nil {
-		log.Errorf("Lock error: %v", err)
-		return
-	}
-	defer func() {
-		err := g.lock.Unlock()
-		if err != nil {
-			log.Errorf("Unlock error: %v", err)
-		}
-	}()
+	g.Lock()
+	defer g.Unlock()
 
 	g.shutdown = true
 	close(g.exit)
@@ -2049,23 +1984,8 @@ func (g *gitBackEnd) Close() {
 
 // newLocked runs the portion of new that has to be locked.
 func (g *gitBackEnd) newLocked() error {
-	// Initialize global filesystem lock
-	var err error
-	g.lock, err = lockfile.New(filepath.Join(g.root,
-		LockFilename), 100*time.Millisecond)
-	if err != nil {
-		return err
-	}
-	err = g.lock.Lock(LockDuration)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		err := g.lock.Unlock()
-		if err != nil {
-			log.Errorf("New unlock error: %v", err)
-		}
-	}()
+	g.Lock()
+	defer g.Unlock()
 
 	// Ensure git works
 	version, err := g.gitVersion()
@@ -2198,6 +2118,7 @@ func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, 
 		cron:            cron.New(),
 		unvetted:        filepath.Join(root, defaultUnvettedPath),
 		vetted:          filepath.Join(root, defaultVettedPath),
+		journals:        filepath.Join(root, defaultJournalsPath),
 		gitPath:         gitPath,
 		dcrtimeHost:     dcrtimeHost,
 		gitTrace:        gitTrace,
@@ -2211,6 +2132,16 @@ func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, 
 		return nil, err
 	}
 	setDecredPluginSetting(decredPluginIdentity, string(idJSON))
+	setDecredPluginSetting(decredPluginJournals, g.journals)
+
+	// Create jounals path
+	// XXX this needs to move into plugin init
+	log.Infof("Journals directory: %v", g.journals)
+	err = os.MkdirAll(g.journals, 0760)
+	if err != nil {
+		return nil, err
+	}
+	g.journal = NewJournal()
 
 	err = g.newLocked()
 	if err != nil {
@@ -2226,6 +2157,10 @@ func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, 
 
 	// Launch cron.
 	err = g.cron.AddFunc(anchorSchedule, func() {
+		// Flush journals
+		g.decredPluginJournalFlusher()
+
+		// Anchor commitd
 		g.anchorAllReposCronJob()
 	})
 	if err != nil {

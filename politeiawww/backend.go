@@ -9,8 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -39,9 +37,8 @@ const (
 	indexFile = "index.md"
 
 	// mdStream* indicate the metadata stream used for various types
-	mdStreamGeneral  = 0 // General information for this proposal
-	mdStreamComments = 1 // Comments
-	mdStreamChanges  = 2 // Changes to record
+	mdStreamGeneral = 0 // General information for this proposal
+	mdStreamChanges = 2 // Changes to record
 	// Note that 13 is in use by the decred plugin
 	// Note that 14 is in use by the decred plugin
 	// Note that 15 is in use by the decred plugin
@@ -57,21 +54,19 @@ type MDStreamChanges struct {
 type backend struct {
 	sync.RWMutex // lock for inventory and comments
 
-	db                 database.Database
-	cfg                *config
-	params             *chaincfg.Params
-	client             *http.Client // politeiad client
-	commentJournalDir  string
-	commentJournalFile string
-	userPubkeys        map[string]string // [pubkey][userid]
+	db          database.Database
+	cfg         *config
+	params      *chaincfg.Params
+	client      *http.Client      // politeiad client
+	userPubkeys map[string]string // [pubkey][userid]
 
 	// These properties are only used for testing.
 	test                   bool
 	verificationExpiryTime time.Duration
 
 	// Following entries require locks
-	comments  map[string]map[uint64]BackendComment // [token][parent]comment
-	commentID uint64                               // current comment id
+	//comments  map[string]map[uint64]BackendComment // [token][parent]comment
+	//commentID uint64
 
 	// inventory will eventually replace inventory
 	inventory map[string]*inventoryRecord // Current inventory
@@ -925,7 +920,7 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 		// Derive a paywall address for this user if the paywall is enabled.
 		paywallAddress := ""
 		paywallAmount := uint64(0)
-		if b.cfg.PaywallXpub != "" {
+		if b.cfg.PaywallAmount != 0 && b.cfg.PaywallXpub != "" {
 			paywallAddress, err = util.DerivePaywallAddress(b.params,
 				b.cfg.PaywallXpub, uint32(user.ID))
 			if err != nil {
@@ -1509,14 +1504,6 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 			}
 		}
 
-		// Flush comments while here, we really should make the
-		// comments flow with the SetUnvettedStatus command but for now
-		// do it separately.
-		err = b.flushCommentJournal(sps.Token)
-		if err != nil && !os.IsNotExist(err) {
-			return nil, err
-		}
-
 		challenge, err := util.Random(pd.ChallengeSize)
 		if err != nil {
 			return nil, err
@@ -1571,6 +1558,8 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 
 // ProcessProposalDetails tries to fetch the full details of a proposal from politeiad.
 func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user *database.User) (*www.ProposalDetailsReply, error) {
+	log.Debugf("ProcessProposalDetails")
+
 	var reply www.ProposalDetailsReply
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
@@ -1621,21 +1610,19 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 			Signature:        cachedProposal.Signature,
 			CensorshipRecord: cachedProposal.CensorshipRecord,
 			NumComments:      cachedProposal.NumComments,
-			UserId:           cachedProposal.UserId,
-			Username:         b.getUsernameById(cachedProposal.UserId),
 		}
 
 		if user != nil {
-			authorId, err := strconv.ParseUint(cachedProposal.UserId, 10, 64)
+			stringUserID := cachedProposal.UserId
+			userID, err := strconv.ParseUint(stringUserID, 10, 64)
 			if err != nil {
 				return nil, err
 			}
 
-			if user.ID == authorId {
+			if user.ID == userID {
 				reply.Proposal.Name = cachedProposal.Name
 			}
 		}
-
 		return &reply, nil
 	}
 
@@ -1686,61 +1673,85 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 		changes:  p.changes,
 		comments: p.comments,
 	}, b.userPubkeys)
-	reply.Proposal.Username = b.getUsernameById(reply.Proposal.UserId)
-
 	return &reply, nil
 }
 
-// ProcessComment processes a submitted comment.  It ensures user has paid
-// the paywall, and the proposal and the parent exists.  A parent ID of 0
-// indicates that it is a comment on the proposal whereas non-zero
-// indicates that it is a reply to a comment.
-func (b *backend) ProcessComment(c www.NewComment, user *database.User) (*www.NewCommentReply, error) {
+// ProcessComment processes a submitted comment.  It ensures the proposal and
+// the parent exists.  A parent ID of 0 indicates that it is a comment on the
+// proposal whereas non-zero indicates that it is a reply to a comment.
+func (b *backend) ProcessComment(c decredplugin.NewComment, user *database.User) (*decredplugin.NewCommentReply, error) {
 	log.Debugf("ProcessComment: %v %v", c.Token, user.ID)
 
+	// Pay up sucker!
 	if !b.VerifyUserPaid(user) {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusUserNotPaid,
 		}
 	}
 
+	// Verify authenticity.
 	err := checkPublicKeyAndSignature(user, c.PublicKey, c.Signature,
 		c.Token, c.ParentID, c.Comment)
 	if err != nil {
 		return nil, err
 	}
 
+	// Validate comment
+	if err := validateComment(c); err != nil {
+		return nil, err
+	}
+
+	// Setup plugin command
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	payload, err := decredplugin.EncodeNewComment(c)
+	if err != nil {
+		return nil, err
+	}
+
+	pc := pd.PluginCommand{
+		Challenge: hex.EncodeToString(challenge),
+		ID:        decredplugin.ID,
+		Command:   decredplugin.CmdNewComment,
+		CommandID: decredplugin.CmdNewComment,
+		Payload:   string(payload),
+	}
+
+	responseBody, err := b.makeRequest(http.MethodPost,
+		pd.PluginCommandRoute, pc)
+	if err != nil {
+		return nil, err
+	}
+
+	var reply pd.PluginCommandReply
+	err = json.Unmarshal(responseBody, &reply)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal "+
+			"PluginCommandReply: %v", err)
+	}
+
+	// Verify the challenge.
+	err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	// Decode plugin reply
+	ncr, err := decredplugin.DecodeNewCommentReply([]byte(reply.Payload))
+	if err != nil {
+		return nil, err
+	}
+
+	// Add comment to cache
 	b.Lock()
 	defer b.Unlock()
-	m, ok := b.inventory[c.Token]
-	if !ok {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusProposalNotFound,
-		}
-	}
 
-	// See if we are commenting on a comment, yo dawg.
-	if c.ParentID == "" {
-		// "" means top level comment; we need it to be "0" for the
-		// underlying code to understand that.
-		c.ParentID = "0"
-	}
-	pid, err := strconv.ParseUint(c.ParentID, 10, 64)
-	if err != nil {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusCommentNotFound,
-		}
-	}
-	if pid != 0 {
-		_, ok = m.comments[pid]
-		if !ok {
-			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusCommentNotFound,
-			}
-		}
-	}
+	b.inventory[ncr.Comment.Token].comments[ncr.Comment.CommentID] = ncr.Comment
 
-	return b.addComment(c, user.ID)
+	return ncr, nil
 }
 
 // ProcessCommentGet returns all comments for a given proposal.
@@ -2063,22 +2074,10 @@ func NewBackend(cfg *config) (*backend, error) {
 		db:          db,
 		cfg:         cfg,
 		userPubkeys: make(map[string]string),
-		commentJournalDir: filepath.Join(cfg.DataDir,
-			defaultCommentJournalDir),
-		commentID: 1, // Replay will set this value
 	}
-
-	// Setup comments
-	os.MkdirAll(b.commentJournalDir, 0744)
 
 	// Setup pubkey-userid map
 	err = b.initUserPubkeys()
-	if err != nil {
-		return nil, err
-	}
-
-	// Flush comments
-	err = b.flushCommentJournals()
 	if err != nil {
 		return nil, err
 	}

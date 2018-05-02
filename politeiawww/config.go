@@ -663,7 +663,7 @@ func loadConfig() (*config, []string, error) {
 	}
 
 	// Parse the extended public key if the paywall is enabled.
-	if cfg.PaywallXpub != "" {
+	if cfg.PaywallAmount != 0 || cfg.PaywallXpub != "" {
 		if cfg.PaywallAmount < dust {
 			return nil, nil, fmt.Errorf("[ERR]: Paywall amount needs to be "+
 				"higher than %v", dust)

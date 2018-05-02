@@ -681,7 +681,7 @@ func (p *politeiawww) handleNewComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cr, err := p.backend.ProcessComment(sc, user)
+	cr, err := p.backend.ProcessComment(sc.Comment, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleNewComment: ProcessComment %v", err)
@@ -941,8 +941,15 @@ func _main() error {
 	log.Infof("Network : %v", activeNetParams.Params.Name)
 	log.Infof("Home dir: %v", loadedCfg.HomeDir)
 
-	paywallAmountInDcr := float64(loadedCfg.PaywallAmount) / 1e8
-	log.Infof("Paywall : %v DCR", paywallAmountInDcr)
+	if loadedCfg.PaywallAmount != 0 && loadedCfg.PaywallXpub != "" {
+		paywallAmountInDcr := float64(loadedCfg.PaywallAmount) / 1e8
+		log.Infof("Paywall : %v DCR", paywallAmountInDcr)
+	} else if loadedCfg.PaywallAmount == 0 && loadedCfg.PaywallXpub == "" {
+		log.Infof("Paywall : DISABLED")
+	} else {
+		return fmt.Errorf("Paywall settings invalid, both an amount " +
+			"and public key MUST be set")
+	}
 
 	// Create the data directory in case it does not exist.
 	err = os.MkdirAll(loadedCfg.DataDir, 0700)
