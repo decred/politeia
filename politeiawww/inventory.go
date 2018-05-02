@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"sort"
 	"strings"
 
@@ -12,6 +14,7 @@ import (
 	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	www "github.com/decred/politeia/politeiawww/api/v1"
+	"github.com/decred/politeia/util"
 )
 
 var (
@@ -19,12 +22,12 @@ var (
 )
 
 type inventoryRecord struct {
-	record     pd.Record                   // actual record
-	proposalMD BackendProposalMetadata     // proposal metadata
-	comments   map[uint64]BackendComment   // [token][parent]comment
-	changes    []MDStreamChanges           // changes metadata
-	votebits   decredplugin.Vote           // vote bits and options
-	voting     decredplugin.StartVoteReply // voting metadata
+	record     pd.Record               // actual record
+	proposalMD BackendProposalMetadata // proposal metadata
+	comments   map[string]www.Comment  // [id]comment
+	changes    []MDStreamChanges       // changes metadata
+	votebits   www.StartVote           // vote bits and options
+	voting     www.StartVoteReply      // voting metadata
 }
 
 // proposalsRequest is used for passing parameters into the
@@ -42,7 +45,7 @@ type proposalsRequest struct {
 func (b *backend) updateInventoryRecord(record pd.Record) {
 	b.inventory[record.CensorshipRecord.Token] = &inventoryRecord{
 		record:   record,
-		comments: make(map[uint64]BackendComment),
+		comments: make(map[string]www.Comment),
 	}
 }
 
@@ -106,7 +109,7 @@ func (b *backend) loadVoting(token, payload string) error {
 		return err
 	}
 	p := b.inventory[token]
-	p.voting = md
+	p.voting = convertStartVoteReplyFromDecredplugin(md)
 	return nil
 }
 
@@ -116,14 +119,79 @@ func (b *backend) loadVoting(token, payload string) error {
 func (b *backend) loadVoteBits(token, payload string) error {
 	f := strings.NewReader(payload)
 	d := json.NewDecoder(f)
-	var md decredplugin.Vote
+	var md decredplugin.StartVote
 	if err := d.Decode(&md); err == io.EOF {
 		return nil
 	} else if err != nil {
 		return err
 	}
+	log.Errorf("loadVoteBits: %v %v", token, payload)
 	p := b.inventory[token]
-	p.votebits = md
+	p.votebits = convertStartVoteFromDecredplugin(md)
+	return nil
+}
+
+// loadComments calls out to the decred plugin to obtain all comments.
+//
+// This function must be called WITH the mutex held.
+// XXX this call should be converted to run without the mutext held!
+func (b *backend) loadComments(t string) error {
+	// Load comments journal
+	log.Tracef("loadComments: %v", t)
+
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return err
+	}
+
+	payload, err := decredplugin.EncodeGetComments(decredplugin.GetComments{
+		Token: t,
+	})
+	if err != nil {
+		return err
+	}
+
+	pc := pd.PluginCommand{
+		Challenge: hex.EncodeToString(challenge),
+		ID:        decredplugin.ID,
+		Command:   decredplugin.CmdGetComments,
+		CommandID: decredplugin.CmdGetComments,
+		Payload:   string(payload),
+	}
+
+	responseBody, err := b.makeRequest(http.MethodPost,
+		pd.PluginCommandRoute, pc)
+	if err != nil {
+		return err
+	}
+
+	var reply pd.PluginCommandReply
+	err = json.Unmarshal(responseBody, &reply)
+	if err != nil {
+		return fmt.Errorf("Could not unmarshal "+
+			"PluginCommandReply: %v", err)
+	}
+
+	// Verify the challenge.
+	err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
+	if err != nil {
+		return err
+	}
+
+	// Decode plugin reply
+	gcr, err := decredplugin.DecodeGetCommentsReply([]byte(reply.Payload))
+	if err != nil {
+		return err
+	}
+
+	// Fill map
+	for _, v := range gcr.Comments {
+		c := b.convertDecredCommentToWWWComment(v)
+		b.inventory[t].comments[v.CommentID] = c
+	}
+
+	log.Tracef("loadComments: %v inserted %v", t, len(gcr.Comments))
+
 	return nil
 }
 
@@ -142,14 +210,6 @@ func (b *backend) loadRecord(v pd.Record) {
 			if err != nil {
 				log.Errorf("initializeInventory "+
 					"could not load metadata: %v",
-					err)
-				continue
-			}
-		case mdStreamComments:
-			err = b.loadComments(t, m.Payload)
-			if err != nil {
-				log.Errorf("initializeInventory "+
-					"could not load comments: %v",
 					err)
 				continue
 			}
@@ -185,6 +245,12 @@ func (b *backend) loadRecord(v pd.Record) {
 				"metadata stream ID %v token %v",
 				m.ID, t)
 		}
+	}
+
+	// This is not normal metadata since we always need the journal
+	err = b.loadComments(t)
+	if err != nil {
+		log.Errorf("could not load comments: %v", err)
 	}
 }
 

@@ -27,7 +27,6 @@ const (
 	defaultLogFilename      = "politeiavoter.log"
 	defaultIdentityFilename = "identity.json"
 	defaultWalletHost       = "https://127.0.0.1" // Only allow localhost for now
-	defaultWalletCert       = "~/.dcrwallet/rpc.cert"
 
 	defaultMainnetPort = "49374"
 	defaultTestnetPort = "59374"
@@ -37,10 +36,12 @@ const (
 )
 
 var (
-	defaultHomeDir      = dcrutil.AppDataDir("politeiavoter", false)
-	defaultConfigFile   = filepath.Join(defaultHomeDir, defaultConfigFilename)
-	defaultLogDir       = filepath.Join(defaultHomeDir, defaultLogDirname)
-	defaultIdentityFile = filepath.Join(defaultHomeDir, defaultIdentityFilename)
+	defaultHomeDir        = dcrutil.AppDataDir("politeiavoter", false)
+	defaultConfigFile     = filepath.Join(defaultHomeDir, defaultConfigFilename)
+	defaultLogDir         = filepath.Join(defaultHomeDir, defaultLogDirname)
+	defaultIdentityFile   = filepath.Join(defaultHomeDir, defaultIdentityFilename)
+	dcrwalletHomeDir      = dcrutil.AppDataDir("dcrwallet", false)
+	defaultWalletCertFile = filepath.Join(dcrwalletHomeDir, "rpc.cert")
 )
 
 // runServiceCommand is only set to a real function on Windows.  It is used
@@ -432,7 +433,7 @@ func loadConfig() (*config, []string, error) {
 
 	// Wallet cert
 	if cfg.WalletCert == "" {
-		cfg.WalletCert = defaultWalletCert
+		cfg.WalletCert = defaultWalletCertFile
 	}
 	cfg.WalletCert = cleanAndExpandPath(cfg.WalletCert)
 

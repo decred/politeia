@@ -21,7 +21,6 @@ import (
 	"golang.org/x/net/publicsuffix"
 
 	"github.com/agl/ed25519"
-	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/util"
@@ -197,6 +196,7 @@ func (c *ctx) newUser(email string, password string) (string, *identity.FullIden
 	u := v1.NewUser{
 		Email:     email,
 		Password:  password,
+		Username:  password,
 		PublicKey: hex.EncodeToString(id.Public.Key[:]),
 	}
 
@@ -278,6 +278,33 @@ func (c *ctx) secret() error {
 	return nil
 }
 
+func (c *ctx) like(id *identity.FullIdentity, token, commentID, action string) (*v1.LikeCommentReply, error) {
+	lc := v1.LikeComment{
+		Token:     token,
+		CommentID: commentID,
+		Action:    action,
+	}
+	// Sign token+commentid+action
+	msg := []byte(lc.Token + lc.CommentID + lc.Action)
+	sig := id.SignMessage(msg)
+	lc.Signature = hex.EncodeToString(sig[:])
+	lc.PublicKey = hex.EncodeToString(id.Public.Key[:])
+
+	responseBody, err := c.makeRequest("POST", v1.RouteLikeComment, lc)
+	if err != nil {
+		return nil, err
+	}
+
+	var lcr v1.LikeCommentReply
+	err = json.Unmarshal(responseBody, &lcr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal LikeCommentReply: %v",
+			err)
+	}
+
+	return &lcr, nil
+}
+
 func (c *ctx) comment(id *identity.FullIdentity, token, comment, parentID string) (*v1.NewCommentReply, error) {
 	cm := v1.NewComment{
 		Token:    token,
@@ -288,7 +315,6 @@ func (c *ctx) comment(id *identity.FullIdentity, token, comment, parentID string
 	msg := []byte(cm.Token + cm.ParentID + cm.Comment)
 	sig := id.SignMessage(msg)
 	cm.Signature = hex.EncodeToString(sig[:])
-
 	cm.PublicKey = hex.EncodeToString(id.Public.Key[:])
 
 	responseBody, err := c.makeRequest("POST", v1.RouteNewComment, cm)
@@ -326,11 +352,11 @@ func (c *ctx) commentGet(token string) (*v1.GetCommentsReply, error) {
 func (c *ctx) startVote(id *identity.FullIdentity, token string) (*v1.StartVoteReply, error) {
 	sv := v1.StartVote{
 		PublicKey: hex.EncodeToString(id.Public.Key[:]),
-		Vote: decredplugin.Vote{
+		Vote: v1.Vote{
 			Token:    token,
 			Mask:     0x03, // bit 0 no, bit 1 yes
 			Duration: 2016,
-			Options: []decredplugin.VoteOption{
+			Options: []v1.VoteOption{
 				{
 					Id:          "no",
 					Description: "Don't approve proposal",

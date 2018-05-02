@@ -685,9 +685,10 @@ func (p *politeiawww) handleNewComment(w http.ResponseWriter, r *http.Request) {
 	var sc v1.NewComment
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&sc); err != nil {
-		RespondWithError(w, r, 0, "handleNewComment: unmarshal", v1.UserError{
-			ErrorCode: v1.ErrorStatusInvalidInput,
-		})
+		RespondWithError(w, r, 0, "handleNewComment: unmarshal",
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusInvalidInput,
+			})
 		return
 	}
 
@@ -702,6 +703,37 @@ func (p *politeiawww) handleNewComment(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleNewComment: ProcessComment %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, cr)
+}
+
+// handleLikeComment handles up or down voting of commentd.
+func (p *politeiawww) handleLikeComment(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleLikeComment")
+
+	var lc v1.LikeComment
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&lc); err != nil {
+		RespondWithError(w, r, 0, "handleLikeComment: unmarshal",
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	user, err := p.getSessionUser(r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleLikeComment: getSessionUser %v", err)
+		return
+	}
+
+	cr, err := p.backend.ProcessLikeComment(lc, user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleLikeComment: ProcessLikeComment %v", err)
 		return
 	}
 
@@ -838,29 +870,29 @@ func (p *politeiawww) handleCastVotes(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, avr)
 }
 
-// handleProposalVotes returns a proposal + all voting action.
-func (p *politeiawww) handleProposalVotes(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleProposalVotes")
+// handleVoteResults returns a proposal + all voting action.
+func (p *politeiawww) handleVoteResults(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleVoteResults")
 
-	var gpv v1.ProposalVotes
+	var vr v1.VoteResults
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&gpv); err != nil {
-		RespondWithError(w, r, 0, "handleProposalVotes: unmarshal",
+	if err := decoder.Decode(&vr); err != nil {
+		RespondWithError(w, r, 0, "handleVoteResults: unmarshal",
 			v1.UserError{
 				ErrorCode: v1.ErrorStatusInvalidInput,
 			})
 		return
 	}
 
-	gpvr, err := p.backend.ProcessProposalVotes(&gpv)
+	vrr, err := p.backend.ProcessVoteResults(&vr)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleProposalVotes: ProcessProposalVotes %v",
+			"handleVoteResults: ProcessVoteResults %v",
 			err)
 		return
 	}
 
-	util.RespondWithJSON(w, http.StatusOK, gpvr)
+	util.RespondWithJSON(w, http.StatusOK, vrr)
 }
 
 // handleStartVote handles starting a vote.
@@ -958,8 +990,15 @@ func _main() error {
 	log.Infof("Network : %v", activeNetParams.Params.Name)
 	log.Infof("Home dir: %v", loadedCfg.HomeDir)
 
-	paywallAmountInDcr := float64(loadedCfg.PaywallAmount) / 1e8
-	log.Infof("Paywall : %v DCR", paywallAmountInDcr)
+	if loadedCfg.PaywallAmount != 0 && loadedCfg.PaywallXpub != "" {
+		paywallAmountInDcr := float64(loadedCfg.PaywallAmount) / 1e8
+		log.Infof("Paywall : %v DCR", paywallAmountInDcr)
+	} else if loadedCfg.PaywallAmount == 0 && loadedCfg.PaywallXpub == "" {
+		log.Infof("Paywall : DISABLED")
+	} else {
+		return fmt.Errorf("Paywall settings invalid, both an amount " +
+			"and public key MUST be set")
+	}
 
 	// Create the data directory in case it does not exist.
 	err = os.MkdirAll(loadedCfg.DataDir, 0700)
@@ -1090,8 +1129,8 @@ func _main() error {
 		permissionPublic, true)
 	p.addRoute(http.MethodPost, v1.RouteCastVotes, p.handleCastVotes,
 		permissionPublic, true)
-	p.addRoute(http.MethodPost, v1.RouteProposalVotes,
-		p.handleProposalVotes, permissionPublic, true)
+	p.addRoute(http.MethodPost, v1.RouteVoteResults,
+		p.handleVoteResults, permissionPublic, true)
 	p.addRoute(http.MethodPost, v1.RouteUsernamesById, p.handleUsernamesById,
 		permissionPublic, false)
 
@@ -1112,6 +1151,8 @@ func _main() error {
 		p.handleChangePassword, permissionLogin, false)
 	p.addRoute(http.MethodPost, v1.RouteNewComment,
 		p.handleNewComment, permissionLogin, true)
+	p.addRoute(http.MethodPost, v1.RouteLikeComment,
+		p.handleLikeComment, permissionLogin, true)
 	p.addRoute(http.MethodGet, v1.RouteVerifyUserPaymentTx,
 		p.handleVerifyUserPaymentTx, permissionLogin, false)
 
