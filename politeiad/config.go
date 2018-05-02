@@ -203,16 +203,6 @@ func normalizeAddresses(addrs []string, defaultPort string) []string {
 	return removeDuplicateAddresses(addrs)
 }
 
-// filesExists reports whether the named file or directory exists.
-func fileExists(name string) bool {
-	if _, err := os.Stat(name); err != nil {
-		if os.IsNotExist(err) {
-			return false
-		}
-	}
-	return true
-}
-
 // newConfigParser returns a new command line flags parser.
 func newConfigParser(cfg *config, so *serviceOptions, options flags.Options) *flags.Parser {
 	parser := flags.NewParser(cfg, options)
@@ -469,10 +459,10 @@ func loadConfig() (*config, []string, error) {
 	}
 	cfg.DcrtimeHost = "https://" + cfg.DcrtimeHost
 
-	if len(cfg.DcrtimeCert) != 0 && !fileExists(cfg.DcrtimeCert) {
+	if len(cfg.DcrtimeCert) != 0 && !util.FileExists(cfg.DcrtimeCert) {
 		cfg.DcrtimeCert = cleanAndExpandPath(cfg.DcrtimeCert)
 		path := filepath.Join(cfg.HomeDir, cfg.DcrtimeCert)
-		if !fileExists(path) {
+		if !util.FileExists(path) {
 			str := "%s: dcrtimecert " + cfg.DcrtimeCert + " and " +
 				path + " don't exist"
 			err := fmt.Errorf(str, funcName)

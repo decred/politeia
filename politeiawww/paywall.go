@@ -33,8 +33,15 @@ func (b *backend) ProcessVerifyUserPaymentTx(user *database.User, vupt www.Verif
 
 // VerifyUserPaid checks that a user has paid the paywall
 func (b *backend) VerifyUserPaid(user *database.User) bool {
+	// Return true when running unit tests
 	if b.test {
 		return true
 	}
+
+	// Return true if paywall is disabled
+	if b.cfg.PaywallAmount == 0 && b.cfg.PaywallXpub == "" {
+		return true
+	}
+
 	return user.NewUserPaywallTx != ""
 }

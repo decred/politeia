@@ -56,10 +56,6 @@
   name = "github.com/jrick/logrotate"
 
 [[constraint]]
-  branch = "master"
-  name = "github.com/marcopeereboom/lockfile"
-
-[[constraint]]
   name = "github.com/pmezard/go-difflib"
   version = "1.0.0"
 
