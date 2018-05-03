@@ -117,6 +117,7 @@ const (
 	ErrorStatusUserNotFound                ErrorStatusT = 27
 	ErrorStatusWrongStatus                 ErrorStatusT = 28
 	ErrorStatusNotLoggedIn                 ErrorStatusT = 29
+	ErrorStatusUserNotPaid                 ErrorStatusT = 30
 
 	// Proposal status codes (set and get)
 	PropStatusInvalid     PropStatusT = 0 // Invalid status
@@ -173,6 +174,7 @@ var (
 		ErrorStatusUserNotFound:                "user not found",
 		ErrorStatusWrongStatus:                 "wrong status",
 		ErrorStatusNotLoggedIn:                 "user not logged in",
+		ErrorStatusUserNotPaid:                 "user not paid paywall",
 	}
 )
 

@@ -158,6 +158,21 @@ terminal:
 
 `politeiawww_dbutil -testnet -setadmin <email> <true/false>`
 
+#### 10. Paywall
+* This feature prevents users from submitting new proposals and comments until the paywall amount has been paid.
+* By default, it needs a transaction with 2 confirmations to accept the payment.
+* If running on testnet, it's possible to change the minimum blocks required for accept the payment by setting `minconfirmations` flag for politeiawww:
+
+      politeiawww --minconfirmations=1
+
+##### 10.1 Paywall with politeiawww_refclient
+* When using politeiawww_refclient, the `-use-paywall` flag is true by default. When running the refclient without the paywall, set `-use-paywall=false`, but note that it will not be possible to test new proposals and comments or the `admin` flag.
+* To test the admin flow:
+ * Run the refclient once with paywall enabled and make the payment.
+ * Stop politeiawww.
+ * Set the user created in the first refclient execution as admin with politeiawww_dbutil.
+ * Run refclient again with the `email` and `password` flags set to the user created in the first refclient execution.
+
 ## Integrated Projects / External APIs / Official Development URLs
 * https://faucet.decred.org - instance of [testnetfaucet](https://github.com/decred/testnetfaucet)
   which is used by **politeiawww_refclient** to satisfy paywall requests in an
