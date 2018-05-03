@@ -106,10 +106,6 @@ func (p *politeiawww) setSessionUser(w http.ResponseWriter, r *http.Request, ema
 func (p *politeiawww) isAdmin(r *http.Request) (bool, error) {
 	user, err := p.getSessionUser(r)
 	if err != nil {
-		// XXX why are we overriding this error?
-		//if err == database.ErrUserNotFound {
-		//	return false, nil
-		//}
 		return false, err
 	}
 
@@ -383,7 +379,7 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	reply, err := p.backend.ProcessLogin(l)
 	if err != nil {
-		RespondWithError(w, r, http.StatusForbidden,
+		RespondWithError(w, r, http.StatusUnauthorized,
 			"handleLogin: ProcessLogin %v", err)
 		return
 	}
