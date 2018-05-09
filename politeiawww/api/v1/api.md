@@ -17,6 +17,7 @@ API.  It does not render HTML.
 - [`Verify user payment tx`](#verify-user-payment-tx)
 - [`Update user key`](#update-user-key)
 - [`Verify update user key`](#verify-update-user-key)
+- [`Change username`](#change-username)
 - [`Change password`](#change-password)
 - [`Reset password`](#reset-password)
 - [`Vetted`](#vetted)
@@ -62,9 +63,13 @@ API.  It does not render HTML.
 - [`ErrorStatusInvalidInput`](#ErrorStatusInvalidInput)
 - [`ErrorStatusInvalidSigningKey`](#ErrorStatusInvalidSigningKey)
 - [`ErrorStatusCommentLengthExceededPolicy`](#ErrorStatusCommentLengthExceededPolicy)
+- [`ErrorStatusUserNotFound`](#ErrorStatusUserNotFound)
 - [`ErrorStatusWrongStatus`](#ErrorStatusWrongStatus)
 - [`ErrorStatusNotLoggedIn`](#ErrorStatusNotLoggedIn)
 - [`ErrorStatusUserNotPaid`](#ErrorStatusUserNotPaid)
+- [`ErrorStatusReviewerAdminEqualsAuthor`](#ErrorStatusReviewerAdminEqualsAuthor)
+- [`ErrorStatusMalformedUsername`](#ErrorStatusMalformedUsername)
+- [`ErrorStatusDuplicateUsername`](#ErrorStatusDuplicateUsername)
 
 **Proposal status codes**
 
@@ -112,7 +117,7 @@ to get the CSRF token for the session and to ensure API compatability.
 | version | number | API version that is running on this server. |
 | route | string | Route that should be prepended to all calls. For example, "/v1". |
 | pubkey | string | The public key for the corresponding private key that signs various tokens to ensure server authenticity and to prevent replay attacks. |
-| testnet | boolean | Value to inform either its running on testnet or not | 
+| testnet | boolean | Value to inform either its running on testnet or not |
 
 **Example**
 
@@ -174,6 +179,7 @@ Create a new user on the politeiawww server.
 | Parameter | Type | Description | Required |
 |-|-|-|-|
 | email | string | Email is used as the web site user identity for a user. When a user changes email addresses the server shall maintain a mapping between the old and new address. | Yes |
+| username | string | Unique username that the user wishes to use. | Yes |
 | password | string | The password that the user wishes to use. This password travels in the clear in order to enable JS-less systems. The server shall never store passwords in the clear. | Yes |
 | publickey | string | User ed25519 public key. | Yes |
 
@@ -188,8 +194,10 @@ Create a new user on the politeiawww server.
 
 This call can return one of the following error codes:
 
-- [`ErrorStatusInvalidEmailOrPassword`](#ErrorStatusInvalidEmailOrPassword)
 - [`ErrorStatusMalformedEmail`](#ErrorStatusMalformedEmail)
+- [`ErrorStatusMalformedUsername`](#ErrorStatusMalformedUsername)
+- [`ErrorStatusDuplicateUsername`](#ErrorStatusDuplicateUsername)
+- [`ErrorStatusMalformedPassword`](#ErrorStatusMalformedPassword)
 
 The email shall include a link in the following format:
 
@@ -209,6 +217,7 @@ Request:
 {
   "email": "69af376cca42cd9c@example.com",
   "password": "69af376cca42cd9c",
+  "username": "foobar",
   "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
 }
 ```
@@ -490,6 +499,44 @@ The request params should be provided within the URL:
 {
   "verificationtoken":"f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde",
   "signature":"9e4b1018913610c12496ec3e482f2fb42129197001c5d35d4f5848b77d2b5e5071f79b18bcab4f371c5b378280bb478c153b696003ac3a627c3d8a088cd5f00d"
+}
+```
+
+Reply:
+
+```json
+{}
+```
+
+### `Change username`
+
+Changes the username for the currently logged in user.
+
+**Route:** `POST /v1/user/username/change`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| password | string | The current password of the logged in user. | Yes |
+| newusername | string | The new username for the logged in user. | Yes |
+
+**Results:** none
+
+On failure the call shall return `400 Bad Request` and one of the following
+error codes:
+- [`ErrorStatusInvalidEmailOrPassword`](#ErrorStatusInvalidEmailOrPassword)
+- [`ErrorStatusMalformedUsername`](#ErrorStatusMalformedUsername)
+- [`ErrorStatusDuplicateUsername`](#ErrorStatusDuplicateUsername)
+
+**Example**
+
+Request:
+
+```json
+{
+  "password": "15a1eb6de3681fec",
+  "newusername": "foobar"
 }
 ```
 
@@ -839,7 +886,12 @@ Reply:
 
 ```json
 {
-  "passwordminchars": 8,
+  "minpasswordlength": 8,
+  "minusernamelength": 3,
+  "maxusernamelength": 30,
+  "usernamesupportedchars": [
+    "A-z", "0-9", ".", ":", ";", ",", "-", " ", "@", "+"
+  ],
   "proposallistpagesize": 20,
   "maximages": 5,
   "maximagesize": 524288,
@@ -851,10 +903,10 @@ Reply:
     "text/plain",
     "text/plain; charset=utf-8"
   ],
-  "maxnamelength": 80,
-  "minnamelength": 8,
-  "supportedcharacters": [
-     "A-z", "0-9", "&",".",":",";",",","-"," ","@","+","#"
+  "minproposalnamelength": 8,
+  "maxproposalnamelength": 80,
+  "proposalnamesupportedchars": [
+     "A-z", "0-9", "&", ".", ":", ";", ",", "-", " ", "@", "+", "#"
   ]
 }
 ```
@@ -1360,7 +1412,7 @@ Request:
   "vote": {
     "token":"642eb2f3798090b3234d8787aaba046f1f4409436d40994643213b63cb3f41da"
   }
-}  
+}
 ```
 
 Reply:
@@ -1426,9 +1478,13 @@ Reply:
 | <a name="ErrorStatusInvalidInput">ErrorStatusInvalidInput</a> | 24 | Invalid input. |
 | <a name="ErrorStatusInvalidSigningKey">ErrorStatusInvalidSigningKey</a> | 25 | Invalid signing key. |
 | <a name="ErrorStatusCommentLengthExceededPolicy">ErrorStatusCommentLengthExceededPolicy</a> | 26 | The submitted comment length is too large. |
-| <a name="ErrorStatusWrongStatus">ErrorStatusWrongStatus</a> | 28 | Wrong Status. |
-| <a name="ErrorStatusNotLoggedIn">ErrorStatusNotLoggedIn</a> | 29 | User not logged in. |
-| <a name="ErrorStatusUserNotPaid">ErrorStatusUserNotPaid</a> | 30 | User not paid paywall. |
+| <a name="ErrorStatusUserNotFound">ErrorStatusUserNotFound</a> | 27 | The user was not found. |
+| <a name="ErrorStatusWrongStatus">ErrorStatusWrongStatus</a> | 28 | The proposal has the wrong status. |
+| <a name="ErrorStatusNotLoggedIn">ErrorStatusNotLoggedIn</a> | 29 | The user must be logged in for this action. |
+| <a name="ErrorStatusUserNotPaid">ErrorStatusUserNotPaid</a> | 30 | The user hasn't paid the registration fee. |
+| <a name="ErrorStatusReviewerAdminEqualsAuthor">ErrorStatusReviewerAdminEqualsAuthor</a> | 31 | The user cannot change the status of his own proposal. |
+| <a name="ErrorStatusMalformedUsername">ErrorStatusMalformedUsername</a> | 32 | The provided username was malformed. |
+| <a name="ErrorStatusDuplicateUsername">ErrorStatusDuplicateUsername</a> | 33 | The provided username was a duplicate of another username. |
 
 ### Proposal status codes
 

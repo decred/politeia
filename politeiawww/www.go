@@ -436,6 +436,37 @@ func (p *politeiawww) handleMe(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, *reply)
 }
 
+func (p *politeiawww) handleChangeUsername(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleChangeUsername")
+
+	// Get the change username command.
+	var cu v1.ChangeUsername
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&cu); err != nil {
+		RespondWithError(w, r, 0, "handleChangeUsername: unmarshal", v1.UserError{
+			ErrorCode: v1.ErrorStatusInvalidInput,
+		})
+		return
+	}
+
+	user, err := p.getSessionUser(r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleChangeUsername: getSessionUser %v", err)
+		return
+	}
+
+	reply, err := p.backend.ProcessChangeUsername(user.Email, cu)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleChangeUsername: ProcessChangeUsername %v", err)
+		return
+	}
+
+	// Reply with the error code.
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
 func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleChangePassword")
 
@@ -1055,6 +1086,8 @@ func _main() error {
 		p.handleUpdateUserKey, permissionLogin, false)
 	p.addRoute(http.MethodPost, v1.RouteVerifyUpdateUserKey,
 		p.handleVerifyUpdateUserKey, permissionLogin, false)
+	p.addRoute(http.MethodPost, v1.RouteChangeUsername,
+		p.handleChangeUsername, permissionLogin, false)
 	p.addRoute(http.MethodPost, v1.RouteChangePassword,
 		p.handleChangePassword, permissionLogin, false)
 	p.addRoute(http.MethodPost, v1.RouteNewComment,

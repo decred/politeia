@@ -342,13 +342,13 @@ func TestNewProposalPolicyRestrictions(t *testing.T) {
 	assertError(t, err, www.ErrorStatusMaxImageSizeExceededPolicy)
 
 	_, _, err = createNewProposalWithInvalidTitle(b, t, user, id)
-	assertErrorWithContext(t, err, www.ErrorStatusProposalInvalidTitle, []string{util.CreateProposalTitleRegex()})
+	assertErrorWithContext(t, err, www.ErrorStatusProposalInvalidTitle, []string{util.CreateProposalNameRegex()})
 
 	_, _, err = createNewProposalTitleSize(b, t, user, id, www.PolicyMaxProposalNameLength+1)
-	assertErrorWithContext(t, err, www.ErrorStatusProposalInvalidTitle, []string{util.CreateProposalTitleRegex()})
+	assertErrorWithContext(t, err, www.ErrorStatusProposalInvalidTitle, []string{util.CreateProposalNameRegex()})
 
 	_, _, err = createNewProposalTitleSize(b, t, user, id, www.PolicyMinProposalNameLength-1)
-	assertErrorWithContext(t, err, www.ErrorStatusProposalInvalidTitle, []string{util.CreateProposalTitleRegex()})
+	assertErrorWithContext(t, err, www.ErrorStatusProposalInvalidTitle, []string{util.CreateProposalNameRegex()})
 
 	_, _, err = createNewProposalWithDuplicateFiles(b, t, user, id)
 	assertErrorWithContext(t, err, www.ErrorStatusProposalDuplicateFilenames, []string{indexFile})

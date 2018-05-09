@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	validProposalName = regexp.MustCompile(CreateProposalTitleRegex())
+	validProposalName = regexp.MustCompile(CreateProposalNameRegex())
 )
 
 // ProposalName returns a proposal name
@@ -38,12 +38,12 @@ func IsValidProposalName(str string) bool {
 	return validProposalName.MatchString(str)
 }
 
-// CreateProposalTitleRegex returns a regex string for matching the proposal name
-func CreateProposalTitleRegex() string {
+// CreateProposalNameRegex returns a regex string for matching the proposal name
+func CreateProposalNameRegex() string {
 	var validProposalNameBuffer bytes.Buffer
 	validProposalNameBuffer.WriteString("^[")
 
-	for _, supportedChar := range www.PolicyProposalNameSupportedCharacters {
+	for _, supportedChar := range www.PolicyProposalNameSupportedChars {
 		if len(supportedChar) > 1 {
 			validProposalNameBuffer.WriteString(supportedChar)
 		} else {

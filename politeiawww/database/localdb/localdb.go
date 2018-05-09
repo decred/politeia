@@ -38,6 +38,13 @@ type Version struct {
 	Time    int64  `json:"time"`    // Time of record creation
 }
 
+// isUserRecord returns true if the given key is a user record,
+// and false otherwise. This is helpful when iterating the user records
+// because the DB contains some non-user records.
+func isUserRecord(key string) bool {
+	return key != UserVersionKey && key != LastUserIdKey
+}
+
 // Store new user.
 //
 // UserNew satisfies the backend interface.
@@ -119,6 +126,78 @@ func (l *localdb) UserGet(email string) (*database.User, error) {
 	return u, nil
 }
 
+// UserGetByUsername returns a user record given its username, if found in the database.
+//
+// UserGetByUsername satisfies the backend interface.
+func (l *localdb) UserGetByUsername(username string) (*database.User, error) {
+	l.Lock()
+	defer l.Unlock()
+
+	if l.shutdown {
+		return nil, database.ErrShutdown
+	}
+
+	log.Debugf("UserGetByUsername\n")
+
+	iter := l.userdb.NewIterator(nil, nil)
+	for iter.Next() {
+		key := iter.Key()
+		value := iter.Value()
+
+		if !isUserRecord(string(key)) {
+			continue
+		}
+
+		user, err := DecodeUser(value)
+		if err != nil {
+			return nil, err
+		}
+
+		if strings.ToLower(user.Username) == strings.ToLower(username) {
+			return user, err
+		}
+	}
+	iter.Release()
+
+	return nil, iter.Error()
+}
+
+// UserGetById returns a user record given its id, if found in the database.
+//
+// UserGetById satisfies the backend interface.
+func (l *localdb) UserGetById(id uint64) (*database.User, error) {
+	l.Lock()
+	defer l.Unlock()
+
+	if l.shutdown {
+		return nil, database.ErrShutdown
+	}
+
+	log.Debugf("UserGetById\n")
+
+	iter := l.userdb.NewIterator(nil, nil)
+	for iter.Next() {
+		key := iter.Key()
+		value := iter.Value()
+
+		if !isUserRecord(string(key)) {
+			continue
+		}
+
+		user, err := DecodeUser(value)
+		if err != nil {
+			return nil, err
+		}
+
+		if user.ID == id {
+			return user, err
+		}
+	}
+	iter.Release()
+
+	return nil, iter.Error()
+}
+
 // Update existing user.
 //
 // UserUpdate satisfies the backend interface.
@@ -166,8 +245,7 @@ func (l *localdb) AllUsers(callbackFn func(u *database.User)) error {
 		key := iter.Key()
 		value := iter.Value()
 
-		// Ignore the userversion and lastuserid records.
-		if string(key) == UserVersionKey || string(key) == LastUserIdKey {
+		if !isUserRecord(string(key)) {
 			continue
 		}
 

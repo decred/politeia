@@ -18,11 +18,12 @@ import (
 )
 
 var (
-	dataDir  = flag.String("datadir", sharedconfig.DefaultDataDir, "Specify the politeiawww data directory.")
-	dumpDb   = flag.Bool("dump", false, "Dump the entire politeiawww database contents.")
-	setAdmin = flag.Bool("setadmin", false, "Set the admin flag for a user. Parameters: <email> <true/false>")
-	testnet  = flag.Bool("testnet", false, "Whether to check the testnet database or not.")
-	dbDir    = ""
+	dataDir      = flag.String("datadir", sharedconfig.DefaultDataDir, "Specify the politeiawww data directory.")
+	dumpDb       = flag.Bool("dump", false, "Dump the entire politeiawww database contents.")
+	setAdmin     = flag.Bool("setadmin", false, "Set the admin flag for a user. Parameters: <email> <true/false>")
+	clearPaywall = flag.Bool("clearpaywall", false, "Clear the paywall fields for a user given his email.")
+	testnet      = flag.Bool("testnet", false, "Whether to check the testnet database or not.")
+	dbDir        = ""
 )
 
 func dumpAction() error {
@@ -113,6 +114,49 @@ func setAdminAction() error {
 	return nil
 }
 
+func clearPaywallAction() error {
+	args := flag.Args()
+	if len(args) < 1 {
+		flag.Usage()
+		return nil
+	}
+
+	email := args[0]
+
+	userdb, err := leveldb.OpenFile(dbDir, &opt.Options{
+		ErrorIfMissing: true,
+	})
+	if err != nil {
+		return err
+	}
+	defer userdb.Close()
+
+	b, err := userdb.Get([]byte(email), nil)
+	if err != nil {
+		fmt.Printf("User with email %v not found in the database\n", email)
+	}
+
+	u, err := localdb.DecodeUser(b)
+	if err != nil {
+		return err
+	}
+
+	u.NewUserPaywallAddress = ""
+	u.NewUserPaywallTx = "cleared_by_dbutil"
+
+	b, err = localdb.EncodeUser(*u)
+	if err != nil {
+		return err
+	}
+
+	if err = userdb.Put([]byte(email), b, nil); err != nil {
+		return err
+	}
+
+	fmt.Printf("Cleared paywall for user with email %v\n", email)
+	return nil
+}
+
 func _main() error {
 	flag.Parse()
 
@@ -137,6 +181,10 @@ func _main() error {
 		}
 	} else if *setAdmin {
 		if err := setAdminAction(); err != nil {
+			return err
+		}
+	} else if *clearPaywall {
+		if err := clearPaywallAction(); err != nil {
 			return err
 		}
 	} else {
