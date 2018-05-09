@@ -176,6 +176,7 @@ var (
 		ErrorStatusWrongStatus:                 "wrong status",
 		ErrorStatusNotLoggedIn:                 "user not logged in",
 		ErrorStatusUserNotPaid:                 "user not paid paywall",
+		ErrorStatusReviewerAdminEqualsAuthor:   "user cannot change the status of his own proposal",
 	}
 )
 

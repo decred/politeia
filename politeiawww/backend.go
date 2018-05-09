@@ -1378,7 +1378,7 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 		// get proposal and check if its ID matches the user Id
 		pr, err := b.getProposal(sps.Token)
 		if err != nil {
-			return nil, fmt.Errorf("Could not get proposal", err)
+			return nil, err
 		}
 		if pr.UserId == strconv.FormatUint(user.ID, 10) {
 			return nil, v1.UserError{
