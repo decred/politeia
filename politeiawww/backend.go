@@ -16,6 +16,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/decred/politeia/politeiawww/api/v1"
+
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/dajohi/goemail"
@@ -1373,10 +1375,21 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 		b.Lock()
 		defer b.Unlock()
 
+		// get proposal and check if its ID matches the user Id
+		pr, err := b.getProposal(sps.Token)
+		if err != nil {
+			return nil, err
+		}
+		if pr.UserId == strconv.FormatUint(user.ID, 10) {
+			return nil, v1.UserError{
+				ErrorCode: v1.ErrorStatusReviewerAdminEqualsAuthor,
+			}
+		}
+
 		// Flush comments while here, we really should make the
 		// comments flow with the SetUnvettedStatus command but for now
 		// do it separately.
-		err := b.flushCommentJournal(sps.Token)
+		err = b.flushCommentJournal(sps.Token)
 		if err != nil && !os.IsNotExist(err) {
 			return nil, err
 		}
