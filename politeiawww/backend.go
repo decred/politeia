@@ -1485,6 +1485,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 			Signature:        cachedProposal.Signature,
 			CensorshipRecord: cachedProposal.CensorshipRecord,
 			NumComments:      cachedProposal.NumComments,
+			UserId:           cachedProposal.UserId,
 		}
 
 		if user != nil {
