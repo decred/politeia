@@ -687,6 +687,8 @@ func (p *politeia) updateVettedMetadata(w http.ResponseWriter, r *http.Request) 
 }
 
 func (p *politeia) pluginInventory(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
 	var pi v1.PluginInventory
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&pi); err != nil {
@@ -694,7 +696,6 @@ func (p *politeia) pluginInventory(w http.ResponseWriter, r *http.Request) {
 			nil)
 		return
 	}
-	defer r.Body.Close()
 
 	challenge, err := hex.DecodeString(pi.Challenge)
 	if err != nil || len(challenge) != v1.ChallengeSize {
@@ -715,6 +716,8 @@ func (p *politeia) pluginInventory(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *politeia) pluginCommand(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
 	var pc v1.PluginCommand
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&pc); err != nil {
@@ -722,7 +725,6 @@ func (p *politeia) pluginCommand(w http.ResponseWriter, r *http.Request) {
 			nil)
 		return
 	}
-	defer r.Body.Close()
 
 	challenge, err := hex.DecodeString(pc.Challenge)
 	if err != nil || len(challenge) != v1.ChallengeSize {
@@ -734,8 +736,9 @@ func (p *politeia) pluginCommand(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Generic internal error.
 		errorCode := time.Now().Unix()
-		log.Errorf("%v New record error code %v: %v", remoteAddr(r),
-			errorCode, err)
+		log.Errorf("%v %v: backend plugin failed with "+
+			"command:%v payload:%v err:%v", remoteAddr(r),
+			errorCode, pc.Command, pc.Payload, err)
 		p.respondWithServerError(w, errorCode)
 		return
 	}
