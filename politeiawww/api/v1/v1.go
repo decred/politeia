@@ -273,6 +273,7 @@ type VersionReply struct {
 	Version uint   `json:"version"` // politeia WWW API version
 	Route   string `json:"route"`   // prefix to API calls
 	PubKey  string `json:"pubkey"`  // Server public key
+	TestNet bool   `json:"testnet"` // Network indicator
 }
 
 // NewUser is used to request that a new user be created within the db.
