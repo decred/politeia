@@ -1375,14 +1375,17 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 		b.Lock()
 		defer b.Unlock()
 
-		// get proposal and check if its ID matches the user Id
-		pr, err := b.getProposal(sps.Token)
-		if err != nil {
-			return nil, err
-		}
-		if pr.UserId == strconv.FormatUint(user.ID, 10) {
-			return nil, v1.UserError{
-				ErrorCode: v1.ErrorStatusReviewerAdminEqualsAuthor,
+		// When not in testnet, block admins
+		// from changing the status of their own proposals
+		if !b.cfg.TestNet {
+			pr, err := b.getProposal(sps.Token)
+			if err != nil {
+				return nil, err
+			}
+			if pr.UserId == strconv.FormatUint(user.ID, 10) {
+				return nil, v1.UserError{
+					ErrorCode: v1.ErrorStatusReviewerAdminEqualsAuthor,
+				}
 			}
 		}
 
