@@ -34,7 +34,7 @@ func generateRandomEmail() string {
 }
 
 func generateRandomPassword() string {
-	return generateRandomString(www.PolicyPasswordMinChars)
+	return generateRandomString(www.PolicyMinPasswordLength)
 }
 
 func generateIdentity() (*identity.FullIdentity, error) {
@@ -58,6 +58,7 @@ func createNewUserCommandWithIdentity(t *testing.T) (www.NewUser, *identity.Full
 	return www.NewUser{
 		Email:     generateRandomEmail(),
 		Password:  generateRandomPassword(),
+		Username:  generateRandomString(8),
 		PublicKey: hex.EncodeToString(id.Public.Key[:]),
 	}, id
 }
@@ -162,6 +163,7 @@ func TestProcessNewUserWithInvalidPublicKey(t *testing.T) {
 	nu := www.NewUser{
 		Email:     generateRandomEmail(),
 		Password:  generateRandomPassword(),
+		Username:  generateRandomString(8),
 		PublicKey: generateRandomString(6),
 	}
 
@@ -230,7 +232,7 @@ func TestProcessNewUserWithMalformedPassword(t *testing.T) {
 	b := createBackend(t)
 
 	nu, _ := createNewUserCommandWithIdentity(t)
-	nu.Password = generateRandomString(www.PolicyPasswordMinChars - 1)
+	nu.Password = generateRandomString(www.PolicyMinPasswordLength - 1)
 
 	_, err := b.ProcessNewUser(nu)
 	assertError(t, err, www.ErrorStatusMalformedPassword)
@@ -385,7 +387,7 @@ func TestProcessChangePasswordWithBadPasswords(t *testing.T) {
 	// Change password with malformed new password
 	cp = www.ChangePassword{
 		CurrentPassword: u.Password,
-		NewPassword:     generateRandomString(www.PolicyPasswordMinChars - 1),
+		NewPassword:     generateRandomString(www.PolicyMinPasswordLength - 1),
 	}
 	_, err = b.ProcessChangePassword(u.Email, cp)
 	assertError(t, err, www.ErrorStatusMalformedPassword)
@@ -559,6 +561,85 @@ func TestProcessUserProposalsOther(t *testing.T) {
 	if len(upr.Proposals) != 0 {
 		t.Fatalf("proposal should not have been returned for user")
 	}
+
+	b.db.Close()
+}
+
+// Tests changing a user's username without errors.
+func TestChangeUsername(t *testing.T) {
+	b := createBackend(t)
+	u, _ := createAndVerifyUser(t, b)
+
+	originalUsername := u.Username
+	l := www.Login{
+		Email:    u.Email,
+		Password: u.Password,
+	}
+	_, err := b.ProcessLogin(l)
+	assertSuccess(t, err)
+
+	// Change username
+	cu := www.ChangeUsername{
+		Password:    u.Password,
+		NewUsername: generateRandomString(8),
+	}
+	_, err = b.ProcessChangeUsername(u.Email, cu)
+	assertSuccess(t, err)
+
+	// Change username back
+	cu = www.ChangeUsername{
+		Password:    u.Password,
+		NewUsername: originalUsername,
+	}
+	_, err = b.ProcessChangeUsername(u.Email, cu)
+	assertSuccess(t, err)
+
+	b.db.Close()
+}
+
+// Tests changing a user's username with a malformed username.
+func TestChangeUsernameWithMalformedUsername(t *testing.T) {
+	b := createBackend(t)
+	u, _ := createAndVerifyUser(t, b)
+
+	l := www.Login{
+		Email:    u.Email,
+		Password: u.Password,
+	}
+	_, err := b.ProcessLogin(l)
+	assertSuccess(t, err)
+
+	// Change username
+	cu := www.ChangeUsername{
+		Password:    u.Password,
+		NewUsername: generateRandomString(www.PolicyMinUsernameLength - 1),
+	}
+	_, err = b.ProcessChangeUsername(u.Email, cu)
+	assertError(t, err, www.ErrorStatusMalformedUsername)
+
+	b.db.Close()
+}
+
+// Tests changing a user's username to an existing username.
+func TestChangeUsernameWithExistingUsername(t *testing.T) {
+	b := createBackend(t)
+	user1, _ := createAndVerifyUser(t, b)
+	user2, _ := createAndVerifyUser(t, b)
+
+	l := www.Login{
+		Email:    user1.Email,
+		Password: user1.Password,
+	}
+	_, err := b.ProcessLogin(l)
+	assertSuccess(t, err)
+
+	// Change username to user2's username
+	cu := www.ChangeUsername{
+		Password:    user1.Password,
+		NewUsername: user2.Username,
+	}
+	_, err = b.ProcessChangeUsername(user1.Email, cu)
+	assertError(t, err, www.ErrorStatusDuplicateUsername)
 
 	b.db.Close()
 }

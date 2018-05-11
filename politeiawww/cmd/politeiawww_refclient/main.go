@@ -173,7 +173,7 @@ func _main() error {
 		return err
 	}
 
-	b, err := util.Random(int(pr.PasswordMinChars))
+	b, err := util.Random(int(pr.MinPasswordLength))
 	if err != nil {
 		return err
 	}
@@ -214,7 +214,7 @@ func _main() error {
 		return fmt.Errorf("/new should only be accessible by logged in users")
 	}
 
-	b, err = util.Random(int(pr.PasswordMinChars))
+	b, err = util.Random(int(pr.MinPasswordLength))
 	if err != nil {
 		return err
 	}

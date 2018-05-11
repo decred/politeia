@@ -58,6 +58,7 @@ func ActiveIdentityString(i []Identity) (string, bool) {
 type User struct {
 	ID                              uint64 // Unique id
 	Email                           string // Email address + lookup key.
+	Username                        string // Unique username
 	HashedPassword                  []byte // Blowfish hash
 	Admin                           bool   // Is user an admin
 	NewUserPaywallAddress           string // Address the user needs to send to
@@ -81,6 +82,8 @@ type User struct {
 type Database interface {
 	// User functions
 	UserGet(string) (*User, error)           // Return user record, key is email
+	UserGetByUsername(string) (*User, error) // Return user record given the username
+	UserGetById(uint64) (*User, error)       // Return user record given its id
 	UserNew(User) error                      // Add new user
 	UserUpdate(User) error                   // Update existing user
 	AllUsers(callbackFn func(u *User)) error // Iterate all users
