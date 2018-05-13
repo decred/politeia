@@ -162,10 +162,9 @@ Reply:
   "userid":"12",
   "email":"69af376cca42cd9c@example.com",
   "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
-  "paywalladdress":"", // todo
-  "paywallamount":"", // todo
-  "paywalltxnotbefore":"" // todo
-  
+  "paywalladdress":"",
+  "paywallamount":"",
+  "paywalltxnotbefore":""
 }
 ```
 
@@ -308,9 +307,9 @@ Reply:
   "userid":"0",
   "email":"26c5687daca2f5d8@example.com",
   "publickey":"ec88b934fd9f334a9ed6d2e719da2bdb2061de5370ff20a38b0e1e3c9538199a",
-  "paywalladdress":"", // todo
-  "paywallamount":"", // todo
-  "paywalltxnotbefore":"" // todo
+  "paywalladdress":"",
+  "paywallamount":"",
+  "paywalltxnotbefore":""
 }
 ```
 
@@ -1232,7 +1231,7 @@ Reply:
         "signature":"97b1bf0d63d7689a2c6e66e32358d48e98d84e5389f455cc135b3401277d3a37518827da0f2bc892b535937421418e7e8ba6a4f940dfcf19a219867fa8c3e005"
       }
     }
-  }]
+  }],
   "vote": {
     "token":"8d14c77d9a28a1764832d0fcfb86b6af08f6b327347ab4af4803f9e6f7927225",
     "mask":3,
