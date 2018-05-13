@@ -214,6 +214,12 @@
   version = "v1.1"
 
 [[projects]]
+  name = "github.com/jessevdk/go-flags"
+  packages = ["."]
+  revision = "c6ca198ec95c841fdb89fc0de7496fed11ab854e"
+  version = "v1.4.0"
+
+[[projects]]
   branch = "master"
   name = "github.com/jrick/logrotate"
   packages = ["rotator"]
@@ -378,6 +384,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "c97803efaa1562d90ffe440c18757d42b6c1451b63742c096618fde9838f1a99"
+  inputs-digest = "001205728b1fc14bf5f2637e6eead7671e0dce4ea891c612ae8c9b80bf441b6b"
   solver-name = "gps-cdcl"
   solver-version = 1

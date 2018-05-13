@@ -20,6 +20,7 @@ const (
 	RouteVerifyNewUser       = "/user/verify"
 	RouteUpdateUserKey       = "/user/key"
 	RouteVerifyUpdateUserKey = "/user/key/verify"
+	RouteChangeUsername      = "/user/username/change"
 	RouteChangePassword      = "/user/password/change"
 	RouteResetPassword       = "/user/password/reset"
 	RouteUserProposals       = "/user/proposals"
@@ -66,16 +67,20 @@ const (
 	// accepted when creating a new proposal
 	PolicyMaxMDSize = 512 * 1024
 
-	// PolicyPasswordMinChars is the minimum number of characters
+	// PolicyMinPasswordLength is the minimum number of characters
 	// accepted for user passwords
-	PolicyPasswordMinChars = 8
+	PolicyMinPasswordLength = 8
+
+	// PolicyMaxUsernameLength is the max length of a username
+	PolicyMaxUsernameLength = 30
+
+	// PolicyMinUsernameLength is the min length of a username
+	PolicyMinUsernameLength = 3
 
 	// PolicyMaxProposalNameLength is the max length of a proposal name
-	// proposal name
 	PolicyMaxProposalNameLength = 80
 
 	// PolicyMinProposalNameLength is the min length of a proposal name
-	// proposal name
 	PolicyMinProposalNameLength = 8
 
 	// PolicyMaxCommentLength is the maximum number of characters
@@ -117,6 +122,10 @@ const (
 	ErrorStatusUserNotFound                ErrorStatusT = 27
 	ErrorStatusWrongStatus                 ErrorStatusT = 28
 	ErrorStatusNotLoggedIn                 ErrorStatusT = 29
+	ErrorStatusUserNotPaid                 ErrorStatusT = 30
+	ErrorStatusReviewerAdminEqualsAuthor   ErrorStatusT = 31
+	ErrorStatusMalformedUsername           ErrorStatusT = 32
+	ErrorStatusDuplicateUsername           ErrorStatusT = 33
 
 	// Proposal status codes (set and get)
 	PropStatusInvalid     PropStatusT = 0 // Invalid status
@@ -128,11 +137,17 @@ const (
 )
 
 var (
-	// PolicyProposalNameSupportedCharacters is the regular expression of a valid
+	// PolicyProposalNameSupportedChars is the regular expression of a valid
 	// proposal name
-	PolicyProposalNameSupportedCharacters = []string{
+	PolicyProposalNameSupportedChars = []string{
 		"A-z", "0-9", "&", ".", ",", ":", ";", "-", " ", "@", "+", "#", "/",
 		"(", ")", "!"}
+
+	// PolicyUsernameSupportedChars is the regular expression of a valid
+	// username
+	PolicyUsernameSupportedChars = []string{
+		"A-z", "0-9", ".", ",", ":", ";", "-", " ", "@", "+",
+		"(", ")"}
 
 	// PoliteiaWWWAPIRoute is the prefix to the API route
 	PoliteiaWWWAPIRoute = fmt.Sprintf("/v%v", PoliteiaWWWAPIVersion)
@@ -173,6 +188,10 @@ var (
 		ErrorStatusUserNotFound:                "user not found",
 		ErrorStatusWrongStatus:                 "wrong status",
 		ErrorStatusNotLoggedIn:                 "user not logged in",
+		ErrorStatusUserNotPaid:                 "user hasn't paid paywall",
+		ErrorStatusReviewerAdminEqualsAuthor:   "user cannot change the status of his own proposal",
+		ErrorStatusMalformedUsername:           "malformed username",
+		ErrorStatusDuplicateUsername:           "duplicate username",
 	}
 )
 
@@ -208,6 +227,7 @@ type ProposalRecord struct {
 	Status      PropStatusT `json:"status"`      // Current status of proposal
 	Timestamp   int64       `json:"timestamp"`   // Last update of proposal
 	UserId      string      `json:"userid"`      // ID of user who submitted proposal
+	Username    string      `json:"username"`    // Username of user who submitted proposal
 	PublicKey   string      `json:"publickey"`   // Key used for signature.
 	Signature   string      `json:"signature"`   // Signature of merkle root
 	Files       []File      `json:"files"`       // Files that make up the proposal
@@ -269,6 +289,7 @@ type VersionReply struct {
 	Version uint   `json:"version"` // politeia WWW API version
 	Route   string `json:"route"`   // prefix to API calls
 	PubKey  string `json:"pubkey"`  // Server public key
+	TestNet bool   `json:"testnet"` // Network indicator
 }
 
 // NewUser is used to request that a new user be created within the db.
@@ -277,6 +298,7 @@ type NewUser struct {
 	Email     string `json:"email"`
 	Password  string `json:"password"`
 	PublicKey string `json:"publickey"`
+	Username  string `json:"username"`
 }
 
 // NewUserReply is used to reply to the NewUser command with an error
@@ -317,6 +339,17 @@ type VerifyUpdateUserKey struct {
 
 // VerifyUpdateUserKeyReply replies to the VerifyUpdateUserKey command.
 type VerifyUpdateUserKeyReply struct{}
+
+// ChangeUsername is used to perform a username change while the user
+// is logged in.
+type ChangeUsername struct {
+	Password    string `json:"password"`
+	NewUsername string `json:"newusername"`
+}
+
+// ChangeUsernameReply is used to perform a username change while the user
+// is logged in.
+type ChangeUsernameReply struct{}
 
 // ChangePassword is used to perform a password change while the user
 // is logged in.
@@ -384,6 +417,7 @@ type LoginReply struct {
 	IsAdmin            bool   `json:"isadmin"`            // Set if user is an admin
 	UserID             string `json:"userid"`             // User id
 	Email              string `json:"email"`              // User email
+	Username           string `json:"username"`           // Username
 	PublicKey          string `json:"publickey"`          // Active public key
 	PaywallAddress     string `json:"paywalladdress"`     // Registration paywall address
 	PaywallAmount      uint64 `json:"paywallamount"`      // Registration paywall amount in atoms
@@ -479,18 +513,21 @@ type Policy struct{}
 // PolicyReply is used to reply to the policy command. It returns
 // the file upload restrictions set for Politeia.
 type PolicyReply struct {
-	PasswordMinChars     uint     `json:"passwordminchars"`
-	ProposalListPageSize uint     `json:"proposallistpagesize"`
-	MaxImages            uint     `json:"maximages"`
-	MaxImageSize         uint     `json:"maximagesize"`
-	MaxMDs               uint     `json:"maxmds"`
-	MaxMDSize            uint     `json:"maxmdsize"`
-	ValidMIMETypes       []string `json:"validmimetypes"`
-	MaxNameLength        uint     `json:"maxnamelength"`
-	MinNameLength        uint     `json:"minnamelength"`
-	SupportedCharacters  []string `json:"supportedcharacters"`
-	MaxCommentLength     uint     `json:"maxcommentlength"`
-	BackendPublicKey     string   `json:"backendpublickey"`
+	MinPasswordLength          uint     `json:"minpasswordlength"`
+	MinUsernameLength          uint     `json:"minusernamelength"`
+	MaxUsernameLength          uint     `json:"maxusernamelength"`
+	UsernameSupportedChars     []string `json:"usernamesupportedchars"`
+	ProposalListPageSize       uint     `json:"proposallistpagesize"`
+	MaxImages                  uint     `json:"maximages"`
+	MaxImageSize               uint     `json:"maximagesize"`
+	MaxMDs                     uint     `json:"maxmds"`
+	MaxMDSize                  uint     `json:"maxmdsize"`
+	ValidMIMETypes             []string `json:"validmimetypes"`
+	MinProposalNameLength      uint     `json:"minproposalnamelength"`
+	MaxProposalNameLength      uint     `json:"maxproposalnamelength"`
+	ProposalNameSupportedChars []string `json:"proposalnamesupportedchars"`
+	MaxCommentLength           uint     `json:"maxcommentlength"`
+	BackendPublicKey           string   `json:"backendpublickey"`
 }
 
 // NewComment sends a comment from a user to a specific proposal.  Note that

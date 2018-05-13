@@ -222,6 +222,26 @@ func (c *ctx) verifyNewUser(email, token, sig string) error {
 	return err
 }
 
+func (c *ctx) verifyUserPaymentTx(id *identity.FullIdentity, token, faucetTx string) (*v1.VerifyUserPaymentTxReply, error) {
+	vTx := v1.VerifyUserPaymentTx{
+		TxId: faucetTx,
+	}
+
+	responseBody, err := c.makeRequest("GET", v1.RouteVerifyUserPaymentTx, vTx)
+	if err != nil {
+		return nil, err
+	}
+
+	var vupr v1.VerifyUserPaymentTxReply
+	err = json.Unmarshal(responseBody, &vupr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal verifyUserPaidReply: %v",
+			err)
+	}
+
+	return &vupr, nil
+}
+
 func (c *ctx) login(email, password string) (*v1.LoginReply, error) {
 	l := v1.Login{
 		Email:    email,

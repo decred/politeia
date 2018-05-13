@@ -11,10 +11,13 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/decred/politeia/politeiawww/api/v1"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -78,6 +81,10 @@ const (
 	BackendProposalMetadataVersion = 1
 
 	politeiaMailName = "Politeia"
+)
+
+var (
+	validUsername = regexp.MustCompile(createUsernameRegex())
 )
 
 type BackendProposalMetadata struct {
@@ -165,6 +172,24 @@ func checkSignature(id []byte, signature string, elements ...string) error {
 	return nil
 }
 
+func createUsernameRegex() string {
+	var buf bytes.Buffer
+	buf.WriteString("^[")
+
+	for _, supportedChar := range www.PolicyUsernameSupportedChars {
+		if len(supportedChar) > 1 {
+			buf.WriteString(supportedChar)
+		} else {
+			buf.WriteString(`\` + supportedChar)
+		}
+	}
+	buf.WriteString("]{")
+	buf.WriteString(strconv.Itoa(www.PolicyMinUsernameLength) + ",")
+	buf.WriteString(strconv.Itoa(www.PolicyMaxUsernameLength) + "}$")
+
+	return buf.String()
+}
+
 func (b *backend) getVerificationExpiryTime() time.Duration {
 	if b.verificationExpiryTime != time.Duration(0) {
 		return b.verificationExpiryTime
@@ -192,6 +217,22 @@ func (b *backend) hashPassword(password string) ([]byte, error) {
 	}
 	return bcrypt.GenerateFromPassword([]byte(password),
 		bcrypt.DefaultCost)
+}
+
+// getUsernameById returns the username given its id. If the id is invalid,
+// it returns an empty string.
+func (b *backend) getUsernameById(userIdStr string) string {
+	userId, err := strconv.ParseUint(userIdStr, 10, 64)
+	if err != nil {
+		return ""
+	}
+
+	user, err := b.db.UserGetById(userId)
+	if err != nil {
+		return ""
+	}
+
+	return user.Username
 }
 
 // initUserPubkeys initializes the userPubkeys map with all the pubkey-userid
@@ -415,8 +456,37 @@ func (b *backend) remoteInventory() (*pd.InventoryReply, error) {
 	return &ir, nil
 }
 
+func (b *backend) validateUsername(username string) error {
+	if len(username) < www.PolicyMinUsernameLength ||
+		len(username) > www.PolicyMaxUsernameLength {
+		log.Tracef("Username not within bounds: %s", username)
+		return www.UserError{
+			ErrorCode: www.ErrorStatusMalformedUsername,
+		}
+	}
+
+	if !validUsername.MatchString(username) {
+		log.Tracef("Username not valid: %s %s", username, validUsername.String())
+		return www.UserError{
+			ErrorCode: www.ErrorStatusMalformedUsername,
+		}
+	}
+
+	user, err := b.db.UserGetByUsername(username)
+	if err != nil {
+		return err
+	}
+	if user != nil {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusDuplicateUsername,
+		}
+	}
+
+	return nil
+}
+
 func (b *backend) validatePassword(password string) error {
-	if len(password) < www.PolicyPasswordMinChars {
+	if len(password) < www.PolicyMinPasswordLength {
 		return www.UserError{
 			ErrorCode: www.ErrorStatusMalformedPassword,
 		}
@@ -556,7 +626,7 @@ func (b *backend) validateProposal(np www.NewProposal, user *database.User) erro
 	if !util.IsValidProposalName(name) {
 		return www.UserError{
 			ErrorCode:    www.ErrorStatusProposalInvalidTitle,
-			ErrorContext: []string{util.CreateProposalTitleRegex()},
+			ErrorContext: []string{util.CreateProposalNameRegex()},
 		}
 	}
 
@@ -695,6 +765,7 @@ func (b *backend) CreateLoginReply(user *database.User) *www.LoginReply {
 		IsAdmin:   user.Admin,
 		UserID:    strconv.FormatUint(user.ID, 10),
 		Email:     user.Email,
+		Username:  user.Username,
 		PublicKey: activeIdentity,
 	}
 
@@ -790,6 +861,12 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 			return nil, err
 		}
 	} else {
+		// Validate the username.
+		err = b.validateUsername(u.Username)
+		if err != nil {
+			return nil, err
+		}
+
 		// Validate the password.
 		err = b.validatePassword(u.Password)
 		if err != nil {
@@ -811,6 +888,7 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 		// Add the user and hashed password to the db.
 		newUser := database.User{
 			Email:          strings.ToLower(u.Email),
+			Username:       u.Username,
 			HashedPassword: hashedPassword,
 			Admin:          false,
 			NewUserVerificationToken:  token,
@@ -1123,6 +1201,44 @@ func (b *backend) ProcessLogin(l www.Login) (*www.LoginReply, error) {
 	return b.CreateLoginReply(user), nil
 }
 
+// ProcessChangeUsername checks that the password matches the one
+// in the database, then checks that the username is valid and not
+// already taken, then changes the user record in the database to
+// the new username.
+func (b *backend) ProcessChangeUsername(email string, cu www.ChangeUsername) (*www.ChangeUsernameReply, error) {
+	var reply www.ChangeUsernameReply
+
+	// Get user from db.
+	user, err := b.db.UserGet(email)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check the user's password.
+	err = bcrypt.CompareHashAndPassword(user.HashedPassword,
+		[]byte(cu.Password))
+	if err != nil {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidEmailOrPassword,
+		}
+	}
+
+	// Validate the new username.
+	err = b.validateUsername(cu.NewUsername)
+	if err != nil {
+		return nil, err
+	}
+
+	// Add the updated user information to the db.
+	user.Username = cu.NewUsername
+	err = b.db.UserUpdate(*user)
+	if err != nil {
+		return nil, err
+	}
+
+	return &reply, nil
+}
+
 // ProcessChangePassword checks that the current password matches the one
 // in the database, then changes it to the new password.
 func (b *backend) ProcessChangePassword(email string, cp www.ChangePassword) (*www.ChangePasswordReply, error) {
@@ -1232,6 +1348,12 @@ func (b *backend) ProcessAllUnvetted(u www.GetAllUnvetted) *www.GetAllUnvettedRe
 // ProcessNewProposal tries to submit a new proposal to politeiad.
 func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*www.NewProposalReply, error) {
 	log.Tracef("ProcessNewProposal")
+
+	if !b.VerifyUserPaid(user) {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserNotPaid,
+		}
+	}
 
 	err := b.validateProposal(np, user)
 	if err != nil {
@@ -1367,10 +1489,24 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 		b.Lock()
 		defer b.Unlock()
 
+		// When not in testnet, block admins
+		// from changing the status of their own proposals
+		if !b.cfg.TestNet {
+			pr, err := b.getProposal(sps.Token)
+			if err != nil {
+				return nil, err
+			}
+			if pr.UserId == strconv.FormatUint(user.ID, 10) {
+				return nil, v1.UserError{
+					ErrorCode: v1.ErrorStatusReviewerAdminEqualsAuthor,
+				}
+			}
+		}
+
 		// Flush comments while here, we really should make the
 		// comments flow with the SetUnvettedStatus command but for now
 		// do it separately.
-		err := b.flushCommentJournal(sps.Token)
+		err = b.flushCommentJournal(sps.Token)
 		if err != nil && !os.IsNotExist(err) {
 			return nil, err
 		}
@@ -1479,19 +1615,21 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 			Signature:        cachedProposal.Signature,
 			CensorshipRecord: cachedProposal.CensorshipRecord,
 			NumComments:      cachedProposal.NumComments,
+			UserId:           cachedProposal.UserId,
+			Username:         b.getUsernameById(cachedProposal.UserId),
 		}
 
 		if user != nil {
-			stringUserID := cachedProposal.UserId
-			userID, err := strconv.ParseUint(stringUserID, 10, 64)
+			authorId, err := strconv.ParseUint(cachedProposal.UserId, 10, 64)
 			if err != nil {
 				return nil, err
 			}
 
-			if user.ID == userID {
+			if user.ID == authorId {
 				reply.Proposal.Name = cachedProposal.Name
 			}
 		}
+
 		return &reply, nil
 	}
 
@@ -1542,14 +1680,23 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 		changes:  p.changes,
 		comments: p.comments,
 	}, b.userPubkeys)
+	reply.Proposal.Username = b.getUsernameById(reply.Proposal.UserId)
+
 	return &reply, nil
 }
 
-// ProcessComment processes a submitted comment.  It ensures the proposal and
-// the parent exists.  A parent ID of 0 indicates that it is a comment on the
-// proposal whereas non-zero indicates that it is a reply to a comment.
+// ProcessComment processes a submitted comment.  It ensures user has paid
+// the paywall, and the proposal and the parent exists.  A parent ID of 0
+// indicates that it is a comment on the proposal whereas non-zero
+// indicates that it is a reply to a comment.
 func (b *backend) ProcessComment(c www.NewComment, user *database.User) (*www.NewCommentReply, error) {
 	log.Debugf("ProcessComment: %v %v", c.Token, user.ID)
+
+	if !b.VerifyUserPaid(user) {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserNotPaid,
+		}
+	}
 
 	err := checkPublicKeyAndSignature(user, c.PublicKey, c.Signature,
 		c.Token, c.ParentID, c.Comment)
@@ -1879,17 +2026,20 @@ func (b *backend) ProcessProposalVotes(gpv *www.ProposalVotes) (*www.ProposalVot
 // ProcessPolicy returns the details of Politeia's restrictions on file uploads.
 func (b *backend) ProcessPolicy(p www.Policy) *www.PolicyReply {
 	return &www.PolicyReply{
-		PasswordMinChars:     www.PolicyPasswordMinChars,
-		ProposalListPageSize: www.ProposalListPageSize,
-		MaxImages:            www.PolicyMaxImages,
-		MaxImageSize:         www.PolicyMaxImageSize,
-		MaxMDs:               www.PolicyMaxMDs,
-		MaxMDSize:            www.PolicyMaxMDSize,
-		ValidMIMETypes:       mime.ValidMimeTypes(),
-		MaxNameLength:        www.PolicyMaxProposalNameLength,
-		MinNameLength:        www.PolicyMinProposalNameLength,
-		SupportedCharacters:  www.PolicyProposalNameSupportedCharacters,
-		MaxCommentLength:     www.PolicyMaxCommentLength,
+		MinPasswordLength:          www.PolicyMinPasswordLength,
+		MinUsernameLength:          www.PolicyMinUsernameLength,
+		MaxUsernameLength:          www.PolicyMaxUsernameLength,
+		UsernameSupportedChars:     www.PolicyUsernameSupportedChars,
+		ProposalListPageSize:       www.ProposalListPageSize,
+		MaxImages:                  www.PolicyMaxImages,
+		MaxImageSize:               www.PolicyMaxImageSize,
+		MaxMDs:                     www.PolicyMaxMDs,
+		MaxMDSize:                  www.PolicyMaxMDSize,
+		ValidMIMETypes:             mime.ValidMimeTypes(),
+		MinProposalNameLength:      www.PolicyMinProposalNameLength,
+		MaxProposalNameLength:      www.PolicyMaxProposalNameLength,
+		ProposalNameSupportedChars: www.PolicyProposalNameSupportedChars,
+		MaxCommentLength:           www.PolicyMaxCommentLength,
 	}
 }
 

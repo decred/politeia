@@ -10,8 +10,9 @@ import (
 // meets the minimum requirements to mark the user as paid, and then does
 // that in the user database.
 func (b *backend) ProcessVerifyUserPaymentTx(user *database.User, vupt www.VerifyUserPaymentTx) (*www.VerifyUserPaymentTxReply, error) {
+	minConfirmations := b.cfg.MinConfirmationsRequired
 	verified, err := util.VerifyTxWithBlockExplorers(user.NewUserPaywallAddress,
-		user.NewUserPaywallAmount, vupt.TxId, user.NewUserPaywallTxNotBefore)
+		user.NewUserPaywallAmount, vupt.TxId, user.NewUserPaywallTxNotBefore, minConfirmations)
 	if err != nil {
 		return nil, err
 	}
@@ -28,4 +29,12 @@ func (b *backend) ProcessVerifyUserPaymentTx(user *database.User, vupt www.Verif
 	}
 
 	return &reply, nil
+}
+
+// VerifyUserPaid checks that a user has paid the paywall
+func (b *backend) VerifyUserPaid(user *database.User) bool {
+	if b.test {
+		return true
+	}
+	return user.NewUserPaywallTx != ""
 }

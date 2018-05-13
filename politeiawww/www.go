@@ -106,10 +106,6 @@ func (p *politeiawww) setSessionUser(w http.ResponseWriter, r *http.Request, ema
 func (p *politeiawww) isAdmin(r *http.Request) (bool, error) {
 	user, err := p.getSessionUser(r)
 	if err != nil {
-		// XXX why are we overriding this error?
-		//if err == database.ErrUserNotFound {
-		//	return false, nil
-		//}
 		return false, err
 	}
 
@@ -232,6 +228,7 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 		Version: v1.PoliteiaWWWAPIVersion,
 		Route:   v1.PoliteiaWWWAPIRoute,
 		PubKey:  hex.EncodeToString(p.cfg.Identity.Key[:]),
+		TestNet: p.cfg.TestNet,
 	})
 	if err != nil {
 		RespondWithError(w, r, 0, "handleVersion: Marshal %v", err)
@@ -383,7 +380,7 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	reply, err := p.backend.ProcessLogin(l)
 	if err != nil {
-		RespondWithError(w, r, http.StatusForbidden,
+		RespondWithError(w, r, http.StatusUnauthorized,
 			"handleLogin: ProcessLogin %v", err)
 		return
 	}
@@ -437,6 +434,37 @@ func (p *politeiawww) handleMe(w http.ResponseWriter, r *http.Request) {
 
 	reply := p.backend.CreateLoginReply(user)
 	util.RespondWithJSON(w, http.StatusOK, *reply)
+}
+
+func (p *politeiawww) handleChangeUsername(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleChangeUsername")
+
+	// Get the change username command.
+	var cu v1.ChangeUsername
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&cu); err != nil {
+		RespondWithError(w, r, 0, "handleChangeUsername: unmarshal", v1.UserError{
+			ErrorCode: v1.ErrorStatusInvalidInput,
+		})
+		return
+	}
+
+	user, err := p.getSessionUser(r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleChangeUsername: getSessionUser %v", err)
+		return
+	}
+
+	reply, err := p.backend.ProcessChangeUsername(user.Email, cu)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleChangeUsername: ProcessChangeUsername %v", err)
+		return
+	}
+
+	// Reply with the error code.
+	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
 func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Request) {
@@ -912,6 +940,9 @@ func _main() error {
 	log.Infof("Network : %v", activeNetParams.Params.Name)
 	log.Infof("Home dir: %v", loadedCfg.HomeDir)
 
+	paywallAmountInDcr := float64(loadedCfg.PaywallAmount) / 1e8
+	log.Infof("Paywall : %v DCR", paywallAmountInDcr)
+
 	// Create the data directory in case it does not exist.
 	err = os.MkdirAll(loadedCfg.DataDir, 0700)
 	if err != nil {
@@ -1055,6 +1086,8 @@ func _main() error {
 		p.handleUpdateUserKey, permissionLogin, false)
 	p.addRoute(http.MethodPost, v1.RouteVerifyUpdateUserKey,
 		p.handleVerifyUpdateUserKey, permissionLogin, false)
+	p.addRoute(http.MethodPost, v1.RouteChangeUsername,
+		p.handleChangeUsername, permissionLogin, false)
 	p.addRoute(http.MethodPost, v1.RouteChangePassword,
 		p.handleChangePassword, permissionLogin, false)
 	p.addRoute(http.MethodPost, v1.RouteNewComment,

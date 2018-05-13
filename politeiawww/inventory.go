@@ -226,6 +226,16 @@ func (b *backend) getInventoryRecord(token string) (inventoryRecord, error) {
 	return b._getInventoryRecord(token)
 }
 
+// getProposal returns a single proposal by its token
+func (b *backend) getProposal(token string) (www.ProposalRecord, error) {
+	ir, err := b._getInventoryRecord(token)
+	if err != nil {
+		return www.ProposalRecord{}, err
+	}
+	pr := convertPropFromInventoryRecord(&ir, b.userPubkeys)
+	return pr, nil
+}
+
 // getProposals returns a list of proposals that adheres to the requirements
 // specified in the provided request.
 //
@@ -240,10 +250,12 @@ func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
 		// Set the number of comments.
 		v.NumComments = uint(len(vv.comments))
 
-		// Look up and set the user id.
+		// Look up and set the user id and username.
 		var ok bool
 		v.UserId, ok = b.userPubkeys[v.PublicKey]
-		if !ok {
+		if ok {
+			v.Username = b.getUsernameById(v.UserId)
+		} else {
 			log.Infof("%v", spew.Sdump(b.userPubkeys))
 			log.Errorf("user not found for public key %v, for proposal %v",
 				v.PublicKey, v.CensorshipRecord.Token)
