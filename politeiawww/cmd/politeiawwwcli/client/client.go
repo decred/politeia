@@ -182,7 +182,7 @@ func idFromString(s string) (*identity.FullIdentity, error) {
 	return id, nil
 }
 
-func (c *Ctx) NewUser(email, password string) (string, *identity.FullIdentity,
+func (c *Ctx) NewUser(email, username, password string) (string, *identity.FullIdentity,
 	string, uint64, error) {
 	id, err := idFromString(email)
 	if err != nil {
@@ -190,6 +190,7 @@ func (c *Ctx) NewUser(email, password string) (string, *identity.FullIdentity,
 	}
 	u := v1.NewUser{
 		Email:     email,
+		Username:  username,
 		Password:  password,
 		PublicKey: hex.EncodeToString(id.Public.Key[:]),
 	}
@@ -263,6 +264,27 @@ func (c *Ctx) Secret() error {
 	return nil
 }
 
+func (c *Ctx) ChangeUsername(password, newUsername string) (
+	*v1.ChangeUsernameReply, error) {
+	cu := v1.ChangeUsername{
+		Password:    password,
+		NewUsername: newUsername,
+	}
+	responseBody, err := c.makeRequest("POST", v1.RouteChangeUsername, cu)
+	if err != nil {
+		return nil, err
+	}
+
+	var cur v1.ChangeUsernameReply
+	err = json.Unmarshal(responseBody, &cur)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal ChangeUsernameReply: %v",
+			err)
+	}
+
+	return &cur, nil
+}
+
 func (c *Ctx) ChangePassword(currentPassword, newPassword string) (
 	*v1.ChangePasswordReply, error) {
 	cp := v1.ChangePassword{
@@ -277,7 +299,7 @@ func (c *Ctx) ChangePassword(currentPassword, newPassword string) (
 	var cpr v1.ChangePasswordReply
 	err = json.Unmarshal(responseBody, &cpr)
 	if err != nil {
-		return nil, fmt.Errorf("Could not unmarshal "+"ChangePasswordReply: %v",
+		return nil, fmt.Errorf("Could not unmarshal ChangePasswordReply: %v",
 			err)
 	}
 

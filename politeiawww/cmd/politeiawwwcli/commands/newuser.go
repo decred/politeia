@@ -11,6 +11,7 @@ import (
 type NewuserCmd struct {
 	Args struct {
 		Email    string `positional-arg-name:"email"`
+		Username string `positional-arg-name:"username"`
 		Password string `positional-arg-name:"password"`
 	} `positional-args:"true" optional:"true"`
 	Random        bool   `long:"random" optional:"true" description:"Generate a random email/password for the user"`
@@ -22,8 +23,8 @@ type NewuserCmd struct {
 
 func (cmd *NewuserCmd) Execute(args []string) error {
 	if !cmd.Random && cmd.Args.Email == "" {
-		return fmt.Errorf("You must either provide a email & password or use " +
-			"the --random flag")
+		return fmt.Errorf("You must either provide an email, username & " +
+			"password or use the --random flag")
 	}
 
 	// fetch Politeia policy for password requirements
@@ -34,6 +35,7 @@ func (cmd *NewuserCmd) Execute(args []string) error {
 
 	// assign email/password
 	var email string
+	var username string
 	var password string
 
 	if cmd.Random {
@@ -43,14 +45,17 @@ func (cmd *NewuserCmd) Execute(args []string) error {
 		}
 
 		email = hex.EncodeToString(b) + "@example.com"
+		username = hex.EncodeToString(b)
 		password = hex.EncodeToString(b)
 	} else {
 		email = cmd.Args.Email
+		username = cmd.Args.Username
 		password = cmd.Args.Password
 	}
 
 	// create new user
-	token, id, paywallAddress, paywallAmount, err := Ctx.NewUser(email, password)
+	token, id, paywallAddress, paywallAmount, err := Ctx.NewUser(email,
+		username, password)
 	if err != nil {
 		return err
 	}
@@ -72,19 +77,21 @@ func (cmd *NewuserCmd) Execute(args []string) error {
 
 	// satisfy paywall fee using testnet faucet
 	if cmd.Paywall {
+		paywallAmountInDCR := float64(paywallAmount) / 1e8
+
 		if paywallAddress == "" && paywallAmount == 0 {
-			return fmt.Errorf("unable to pay %v DCR to %v\n", paywallAmount,
+			return fmt.Errorf("unable to pay %v DCR to %v", paywallAmountInDCR,
 				paywallAddress)
 		}
 
 		faucetTx, err := util.PayWithTestnetFaucet(config.FaucetURL,
 			paywallAddress, paywallAmount, cmd.OverrideToken)
 		if err != nil {
-			return fmt.Errorf("unable to pay  %v DCR to %v with faucet: %v",
-				paywallAmount, paywallAddress, err)
+			return fmt.Errorf("unable to pay %v DCR to %v with faucet: %v",
+				paywallAmountInDCR, paywallAddress, err)
 		}
 
-		fmt.Printf("paid %v DCR to %v with faucet tx %v\n", paywallAmount,
+		fmt.Printf("Paid %v DCR to %v with faucet tx %v\n", paywallAmountInDCR,
 			paywallAddress, faucetTx)
 	}
 
