@@ -809,7 +809,7 @@ func (b *backend) LoadInventory() error {
 // ProcessNewUser creates a new user in the db if it doesn't already
 // exist and sets a verification token and expiry; the token must be
 // verified before it expires. If the user already exists in the db
-// and its token is expired, it generates a new one.
+// it returns an user error
 //
 // Note that this function always returns a NewUserReply.  The caller shall
 // verify error and determine how to return this information upstream.
@@ -836,119 +836,100 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 	}
 
 	// Check if the user already exists.
-	if user, err := b.db.UserGet(u.Email); err == nil {
-		// Check if the user is already verified.
-		if user.NewUserVerificationToken == nil {
-			return &reply, nil
+	user, err := b.db.UserGet(u.Email)
+	if err == nil {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusDuplicateEmail,
 		}
+	}
 
-		// Check if the verification token hasn't expired yet.
-		if currentTime := time.Now().Unix(); currentTime < user.NewUserVerificationExpiry {
-			return &reply, nil
-		}
+	// Validate the username.
+	err = b.validateUsername(u.Username)
+	if err != nil {
+		return nil, err
+	}
 
-		// Generate a new verification token and expiry.
-		token, expiry, err = b.generateVerificationTokenAndExpiry()
-		if err != nil {
-			return nil, err
-		}
+	// Validate the password.
+	err = b.validatePassword(u.Password)
+	if err != nil {
+		return nil, err
+	}
 
-		// Add the updated user information to the db.
-		user.NewUserVerificationToken = token
-		user.NewUserVerificationExpiry = expiry
-		err = b.db.UserUpdate(*user)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		// Validate the username.
-		err = b.validateUsername(u.Username)
-		if err != nil {
-			return nil, err
-		}
+	// Hash the user's password.
+	hashedPassword, err := b.hashPassword(u.Password)
+	if err != nil {
+		return nil, err
+	}
 
-		// Validate the password.
-		err = b.validatePassword(u.Password)
-		if err != nil {
-			return nil, err
-		}
+	// Generate the verification token and expiry.
+	token, expiry, err = b.generateVerificationTokenAndExpiry()
+	if err != nil {
+		return nil, err
+	}
 
-		// Hash the user's password.
-		hashedPassword, err := b.hashPassword(u.Password)
-		if err != nil {
-			return nil, err
-		}
+	// Add the user and hashed password to the db.
+	newUser := database.User{
+		Email:          strings.ToLower(u.Email),
+		Username:       u.Username,
+		HashedPassword: hashedPassword,
+		Admin:          false,
+		NewUserVerificationToken:  token,
+		NewUserVerificationExpiry: expiry,
+		Identities: []database.Identity{{
+			Activated: time.Now().Unix(),
+		}},
+	}
+	copy(newUser.Identities[0].Key[:], pk)
 
-		// Generate the verification token and expiry.
-		token, expiry, err = b.generateVerificationTokenAndExpiry()
-		if err != nil {
-			return nil, err
-		}
-
-		// Add the user and hashed password to the db.
-		newUser := database.User{
-			Email:          strings.ToLower(u.Email),
-			Username:       u.Username,
-			HashedPassword: hashedPassword,
-			Admin:          false,
-			NewUserVerificationToken:  token,
-			NewUserVerificationExpiry: expiry,
-			Identities: []database.Identity{{
-				Activated: time.Now().Unix(),
-			}},
-		}
-		copy(newUser.Identities[0].Key[:], pk)
-
-		err = b.db.UserNew(newUser)
-		if err != nil {
-			if err == database.ErrInvalidEmail {
-				return nil, www.UserError{
-					ErrorCode: www.ErrorStatusMalformedEmail,
-				}
+	err = b.db.UserNew(newUser)
+	if err != nil {
+		if err == database.ErrInvalidEmail {
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusMalformedEmail,
 			}
-
-			return nil, err
 		}
 
-		// Get user that we just inserted so we can use their numerical user
-		// ID (N) to derive the Nth paywall address from the paywall extended
-		// public key.
-		user, err := b.db.UserGet(u.Email)
+		return nil, err
+	}
+
+	// Get user that we just inserted so we can use their numerical user
+	// ID (N) to derive the Nth paywall address from the paywall extended
+	// public key.
+	user, err = b.db.UserGet(u.Email)
+	if err != nil {
+		return nil, fmt.Errorf("Unable to retrieve account info for %v: %v",
+			u.Email, err)
+	}
+
+	// Associate the user id with the new public key.
+	b.setUserPubkeyAssociaton(user, u.PublicKey)
+
+	// Derive a paywall address for this user if the paywall is enabled.
+	paywallAddress := ""
+	paywallAmount := uint64(0)
+	if b.cfg.PaywallXpub != "" {
+		paywallAddress, err = util.DerivePaywallAddress(b.params,
+			b.cfg.PaywallXpub, uint32(user.ID))
 		if err != nil {
-			return nil, fmt.Errorf("Unable to retrieve account info for %v: %v",
-				u.Email, err)
+			return nil, fmt.Errorf("Unable to derive paywall address #%v "+
+				"for %v: %v", uint32(user.ID), u.Email, err)
 		}
+		paywallAmount = b.cfg.PaywallAmount
+	}
 
-		// Associate the user id with the new public key.
-		b.setUserPubkeyAssociaton(user, u.PublicKey)
+	txNotBeforeTimestamp := time.Now().Unix()
 
-		// Derive a paywall address for this user if the paywall is enabled.
-		paywallAddress := ""
-		paywallAmount := uint64(0)
-		if b.cfg.PaywallXpub != "" {
-			paywallAddress, err = util.DerivePaywallAddress(b.params,
-				b.cfg.PaywallXpub, uint32(user.ID))
-			if err != nil {
-				return nil, fmt.Errorf("Unable to derive paywall address #%v "+
-					"for %v: %v", uint32(user.ID), u.Email, err)
-			}
-			paywallAmount = b.cfg.PaywallAmount
-		}
+	reply.PaywallAddress = paywallAddress
+	reply.PaywallAmount = paywallAmount
+	reply.PaywallTxNotBefore = txNotBeforeTimestamp
 
-		txNotBeforeTimestamp := time.Now().Unix()
+	user.NewUserPaywallAddress = paywallAddress
+	user.NewUserPaywallAmount = paywallAmount
+	user.NewUserPaywallTxNotBefore = txNotBeforeTimestamp
 
-		reply.PaywallAddress = paywallAddress
-		reply.PaywallAmount = paywallAmount
-		reply.PaywallTxNotBefore = txNotBeforeTimestamp
-
-		user.NewUserPaywallAddress = paywallAddress
-		user.NewUserPaywallAmount = paywallAmount
-		user.NewUserPaywallTxNotBefore = txNotBeforeTimestamp
-
-		err = b.db.UserUpdate(*user)
-		if err != nil {
-			return nil, err
-		}
+	err = b.db.UserUpdate(*user)
+	if err != nil {
+		return nil, err
 	}
 
 	if !b.test {
