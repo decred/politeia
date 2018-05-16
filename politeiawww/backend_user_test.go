@@ -173,16 +173,19 @@ func TestProcessNewUserWithInvalidPublicKey(t *testing.T) {
 	b.db.Close()
 }
 
-// Tests creating a new user with an existing token which still needs to be verified.
-func TestProcessNewUserWithUnverifiedToken(t *testing.T) {
+// Tests creating a new user with an already taken email
+func TestProcessNewUserWithEmailAlreadyTaken(t *testing.T) {
 	b := createBackend(t)
 
 	nu, _ := createNewUserCommandWithIdentity(t)
 	_, err := b.ProcessNewUser(nu)
 	assertSuccess(t, err)
 
-	_, err = b.ProcessNewUser(nu)
-	assertSuccess(t, err)
+	ou, _ := createNewUserCommandWithIdentity(t)
+	ou.Email = nu.Email
+
+	_, oerr := b.ProcessNewUser(nu)
+	assertError(t, oerr, www.ErrorStatusDuplicateEmail)
 
 	b.db.Close()
 }
