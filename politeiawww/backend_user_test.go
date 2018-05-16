@@ -190,33 +190,6 @@ func TestProcessNewUserWithEmailAlreadyTaken(t *testing.T) {
 	b.db.Close()
 }
 
-// Tests creating a new user which has an expired token.
-func TestProcessNewUserWithExpiredToken(t *testing.T) {
-	b := createBackend(t)
-
-	b.verificationExpiryTime = time.Duration(100) * time.Nanosecond
-	const sleepTime = time.Duration(2) * time.Second
-
-	nu, _ := createNewUserCommandWithIdentity(t)
-	reply1, err := b.ProcessNewUser(nu)
-	assertSuccess(t, err)
-
-	// Sleep for a longer amount of time than it takes for the verification token to expire.
-	time.Sleep(sleepTime)
-
-	reply2, err := b.ProcessNewUser(nu)
-	assertSuccess(t, err)
-
-	if reply2.VerificationToken == "" {
-		t.Fatalf("ProcessNewUser did not return a verification token.")
-	}
-	if reply1.VerificationToken == reply2.VerificationToken {
-		t.Fatalf("ProcessNewUser did not return a new verification token.")
-	}
-
-	b.db.Close()
-}
-
 // Tests creating a new user with a malformed email.
 func TestProcessNewUserWithMalformedEmail(t *testing.T) {
 	b := createBackend(t)
