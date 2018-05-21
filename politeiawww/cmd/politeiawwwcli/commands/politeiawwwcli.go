@@ -12,6 +12,7 @@ type Options struct {
 
 	// cli commands
 	ChangePassword    ChangepasswordCmd    `command:"changepassword" description:"change the password for the currently logged in user"`
+	ChangeUsername    ChangeusernameCmd    `command:"changeusername" description:"change the username for the currently logged in user"`
 	GetComments       GetcommentsCmd       `command:"getcomments" description:"fetch a proposal's comments"`
 	GetProposal       GetproposalCmd       `command:"getproposal" description:"fetch a proposal"`
 	GetUnvetted       GetunvettedCmd       `command:"getunvetted" description:"fetch unvetted proposals"`
