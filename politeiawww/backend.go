@@ -362,7 +362,7 @@ func (b *backend) emailUpdateUserKeyVerificationLink(email, publicKey, token str
 		return err
 	}
 	from := "noreply@decred.org"
-	subject := "Set New Key Pair"
+	subject := "Verify Your New Identity"
 	body := buf.String()
 
 	msg := goemail.NewHTMLMessage(from, subject, body)
@@ -1062,8 +1062,14 @@ func (b *backend) ProcessUpdateUserKey(user *database.User, u www.UpdateUserKey)
 
 	// Check if the verification token hasn't expired yet.
 	if user.UpdateKeyVerificationToken != nil {
-		if currentTime := time.Now().Unix(); currentTime < user.UpdateKeyVerificationExpiry {
-			return &reply, nil
+		currentTime := time.Now().Unix()
+		if currentTime < user.UpdateKeyVerificationExpiry {
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusVerificationTokenUnexpired,
+				ErrorContext: []string{
+					strconv.FormatInt(user.UpdateKeyVerificationExpiry, 10),
+				},
+			}
 		}
 	}
 

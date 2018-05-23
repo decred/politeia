@@ -70,6 +70,7 @@ API.  It does not render HTML.
 - [`ErrorStatusReviewerAdminEqualsAuthor`](#ErrorStatusReviewerAdminEqualsAuthor)
 - [`ErrorStatusMalformedUsername`](#ErrorStatusMalformedUsername)
 - [`ErrorStatusDuplicateUsername`](#ErrorStatusDuplicateUsername)
+- [`ErrorStatusVerificationTokenUnexpired`](#ErrorStatusVerificationTokenUnexpired)
 
 **Proposal status codes**
 
@@ -435,6 +436,7 @@ Updates the user's active key pair.
 This call can return one of the following error codes:
 
 - [`ErrorStatusInvalidPublicKey`](#ErrorStatusInvalidPublicKey)
+- [`ErrorStatusVerificationTokenUnexpired`](#ErrorStatusVerificationTokenUnexpired)
 
 The email shall include a link in the following format:
 
@@ -1485,6 +1487,7 @@ Reply:
 | <a name="ErrorStatusReviewerAdminEqualsAuthor">ErrorStatusReviewerAdminEqualsAuthor</a> | 31 | The user cannot change the status of his own proposal. |
 | <a name="ErrorStatusMalformedUsername">ErrorStatusMalformedUsername</a> | 32 | The provided username was malformed. |
 | <a name="ErrorStatusDuplicateUsername">ErrorStatusDuplicateUsername</a> | 33 | The provided username was a duplicate of another username. |
+| <a name="ErrorStatusVerificationTokenUnexpired">ErrorStatusVerificationTokenUnexpired</a> | 34 | A verification token has already been generated and hasn't expired yet. |
 
 ### Proposal status codes
 
