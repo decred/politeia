@@ -180,7 +180,8 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 
 		util.RespondWithJSON(w, userHttpCode,
 			v1.ErrorReply{
-				ErrorCode: int64(userErr.ErrorCode),
+				ErrorCode:    int64(userErr.ErrorCode),
+				ErrorContext: userErr.ErrorContext,
 			})
 		return
 	}
