@@ -193,6 +193,7 @@ var (
 		ErrorStatusReviewerAdminEqualsAuthor:   "user cannot change the status of his own proposal",
 		ErrorStatusMalformedUsername:           "malformed username",
 		ErrorStatusDuplicateUsername:           "duplicate username",
+		ErrorStatusVerificationTokenUnexpired:  "verification token not yet expired",
 	}
 )
 
