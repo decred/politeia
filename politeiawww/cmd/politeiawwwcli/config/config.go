@@ -23,7 +23,7 @@ const (
 )
 
 var (
-	defaultHost    = "https://127.0.0.1:4443"
+	defaultHost    = "https://proposals.decred.org/api"
 	defaultHomeDir = filepath.Join(sharedconfig.DefaultHomeDir, "cli")
 	FaucetURL      = "https://faucet.decred.org/requestfaucet"
 	Host           = defaultHost
@@ -51,7 +51,7 @@ func setHost(h string) error {
 		return fmt.Errorf("Host must begin with http:// or https://")
 	}
 
-	Host = cleanAndExpandPath(h)
+	Host = h
 	return nil
 }
 
