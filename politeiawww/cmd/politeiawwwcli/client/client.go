@@ -131,6 +131,71 @@ func (c *Ctx) SetCookies(rawurl string, cookies []*http.Cookie) error {
 	return nil
 }
 
+func (c *Ctx) Csrf() string {
+	return c.csrf
+}
+
+func (c *Ctx) SetCsrf(csrf string) {
+	c.csrf = csrf
+}
+
+func (c *Ctx) Version() (*v1.VersionReply, error) {
+	requestBody, err := json.Marshal(v1.Version{})
+	if err != nil {
+		return nil, err
+	}
+
+	fullRoute := config.Host + v1.PoliteiaWWWAPIRoute + v1.RouteVersion
+	fmt.Printf("Request: GET %v\n", v1.PoliteiaWWWAPIRoute+v1.RouteVersion)
+
+	if config.PrintJson {
+		fmt.Println("  " + string(requestBody))
+	}
+
+	// create new http request instead of using makeRequest() so that we can
+	// extract the CSRF token from the header
+	req, err := http.NewRequest(http.MethodGet, fullRoute,
+		bytes.NewReader(requestBody))
+	if err != nil {
+		return nil, err
+	}
+	r, err := c.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		r.Body.Close()
+	}()
+
+	responseBody := util.ConvertBodyToByteArray(r.Body, false)
+
+	if config.PrintJson {
+		fmt.Println("Response: " + string(responseBody) + "\n")
+	}
+	if r.StatusCode != http.StatusOK {
+		var ue v1.UserError
+		err = json.Unmarshal(responseBody, &ue)
+		if err == nil {
+			return nil, fmt.Errorf("%v, %v %v", r.StatusCode,
+				v1.ErrorStatus[ue.ErrorCode], strings.Join(ue.ErrorContext, ", "))
+		}
+
+		return nil, fmt.Errorf("%v", r.StatusCode)
+	}
+
+	var v v1.VersionReply
+	err = json.Unmarshal(responseBody, &v)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal version: %v", err)
+	}
+
+	// store CSRF tokens
+	c.SetCookies(config.Host, r.Cookies())
+	c.csrf = r.Header.Get(v1.CsrfToken)
+
+	return &v, nil
+}
+
 func (c *Ctx) Login(email, password string) (*v1.LoginReply, error) {
 	l := v1.Login{
 		Email:    email,

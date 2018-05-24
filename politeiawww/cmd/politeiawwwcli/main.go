@@ -25,10 +25,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	// configure client to use any previously saved cookies
+	// configure client
 	if len(config.Cookies) != 0 {
 		commands.Ctx.SetCookies(config.Host, config.Cookies)
 	}
+	commands.Ctx.SetCsrf(config.CsrfToken)
 
 	// setup and run cli parser
 	commands.RegisterCallbacks()
