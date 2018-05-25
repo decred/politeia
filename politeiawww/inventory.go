@@ -22,12 +22,12 @@ var (
 )
 
 type inventoryRecord struct {
-	record     pd.Record                       // actual record
-	proposalMD BackendProposalMetadata         // proposal metadata
-	comments   map[string]decredplugin.Comment // [id]comment
-	changes    []MDStreamChanges               // changes metadata
-	votebits   decredplugin.Vote               // vote bits and options
-	voting     decredplugin.StartVoteReply     // voting metadata
+	record     pd.Record                   // actual record
+	proposalMD BackendProposalMetadata     // proposal metadata
+	comments   map[string]www.Comment      // [id]comment
+	changes    []MDStreamChanges           // changes metadata
+	votebits   decredplugin.Vote           // vote bits and options
+	voting     decredplugin.StartVoteReply // voting metadata
 }
 
 // proposalsRequest is used for passing parameters into the
@@ -45,7 +45,7 @@ type proposalsRequest struct {
 func (b *backend) updateInventoryRecord(record pd.Record) {
 	b.inventory[record.CensorshipRecord.Token] = &inventoryRecord{
 		record:   record,
-		comments: make(map[string]decredplugin.Comment),
+		comments: make(map[string]www.Comment),
 	}
 }
 
@@ -185,7 +185,8 @@ func (b *backend) loadComments(t string) error {
 
 	// Fill map
 	for _, v := range gcr.Comments {
-		b.inventory[t].comments[v.CommentID] = v
+		c := b.convertDecredCommentToWWWComment(v)
+		b.inventory[t].comments[v.CommentID] = c
 	}
 
 	log.Tracef("loadComments: %v inserted %v", t, len(gcr.Comments))

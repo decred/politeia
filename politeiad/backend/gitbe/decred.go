@@ -646,7 +646,6 @@ func (g *gitBackEnd) pluginNewComment(payload string) (string, error) {
 		Signature: comment.Signature,
 		PublicKey: comment.PublicKey,
 		CommentID: cid,
-		UserID:    comment.UserID,
 		Receipt:   receipt,
 		Timestamp: time.Now().Unix(),
 	}

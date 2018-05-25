@@ -266,7 +266,6 @@ type NewComment struct {
 	Token     string `json:"token"`     // Censorship token
 	ParentID  string `json:"parentid"`  // Parent comment ID
 	Comment   string `json:"comment"`   // Comment
-	UserID    string `json:"userid"`    // User ID
 	Signature string `json:"signature"` // Signature of Token+ParentID+Comment
 	PublicKey string `json:"publickey"` // Pubkey used for Signature
 }
