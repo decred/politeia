@@ -31,6 +31,7 @@ type Options struct {
 	UserProposals     UserproposalsCmd     `command:"userproposals" description:"fetch all proposals submitted by a specific user"`
 	VerifyUser        VerifyuserCmd        `command:"verifyuser" description:"verify user's email address"`
 	VerifyUserPayment VerifyuserpaymentCmd `command:"verifyuserpayment" description:"check if the user has paid their user registration fee"`
+	Version           VersionCmd           `command:"version" description:"fetch server info and CSRF token"`
 }
 
 // registers callbacks for cli flags
