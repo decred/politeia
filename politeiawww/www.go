@@ -681,7 +681,7 @@ func (p *politeiawww) handleNewComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cr, err := p.backend.ProcessComment(sc.Comment, user)
+	cr, err := p.backend.ProcessComment(sc, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleNewComment: ProcessComment %v", err)

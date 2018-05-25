@@ -65,8 +65,6 @@ type backend struct {
 	verificationExpiryTime time.Duration
 
 	// Following entries require locks
-	//comments  map[string]map[uint64]BackendComment // [token][parent]comment
-	//commentID uint64
 
 	// inventory will eventually replace inventory
 	inventory map[string]*inventoryRecord // Current inventory
@@ -1679,7 +1677,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 // ProcessComment processes a submitted comment.  It ensures the proposal and
 // the parent exists.  A parent ID of 0 indicates that it is a comment on the
 // proposal whereas non-zero indicates that it is a reply to a comment.
-func (b *backend) ProcessComment(c decredplugin.NewComment, user *database.User) (*decredplugin.NewCommentReply, error) {
+func (b *backend) ProcessComment(c www.NewComment, user *database.User) (*www.NewCommentReply, error) {
 	log.Debugf("ProcessComment: %v %v", c.Token, user.ID)
 
 	// Pay up sucker!
@@ -1707,10 +1705,8 @@ func (b *backend) ProcessComment(c decredplugin.NewComment, user *database.User)
 		return nil, err
 	}
 
-	// Fill out www bits
-	c.UserID = strconv.FormatUint(user.ID, 10)
-
-	payload, err := decredplugin.EncodeNewComment(c)
+	ndc := convertWWWNewCommentToDecredNewComment(c)
+	payload, err := decredplugin.EncodeNewComment(ndc)
 	if err != nil {
 		return nil, err
 	}
@@ -1747,14 +1743,15 @@ func (b *backend) ProcessComment(c decredplugin.NewComment, user *database.User)
 	if err != nil {
 		return nil, err
 	}
+	ncrWWW := b.convertDecredNewCommentReplyToWWWNewCommentReply(*ncr)
 
 	// Add comment to cache
 	b.Lock()
 	defer b.Unlock()
 
-	b.inventory[ncr.Comment.Token].comments[ncr.Comment.CommentID] = ncr.Comment
+	b.inventory[ncrWWW.Comment.Token].comments[ncrWWW.Comment.CommentID] = ncrWWW.Comment
 
-	return ncr, nil
+	return &ncrWWW, nil
 }
 
 // ProcessCommentGet returns all comments for a given proposal.

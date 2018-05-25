@@ -516,13 +516,13 @@ func _main() error {
 		}
 		// Comment on original comment
 		cr, err = c.comment(adminID, myprop1.CensorshipRecord.Token,
-			"you are right!", cr.Reply.Comment.CommentID)
+			"you are right!", cr.Comment.CommentID)
 		if err != nil {
 			return err
 		}
 		// Comment on comment
 		cr, err = c.comment(adminID, myprop1.CensorshipRecord.Token,
-			"you are wrong!", cr.Reply.Comment.CommentID)
+			"you are wrong!", cr.Comment.CommentID)
 		if err != nil {
 			return err
 		}
@@ -535,13 +535,13 @@ func _main() error {
 		}
 		// Comment on original comment
 		cr, err = c.comment(adminID, myprop1.CensorshipRecord.Token,
-			"you are right!", cr2.Reply.Comment.CommentID)
+			"you are right!", cr2.Comment.CommentID)
 		if err != nil {
 			return err
 		}
 		// Comment on original comment
 		cr, err = c.comment(adminID, myprop1.CensorshipRecord.Token,
-			"you are crazy!", cr2.Reply.Comment.CommentID)
+			"you are crazy!", cr2.Comment.CommentID)
 		if err != nil {
 			return err
 		}
