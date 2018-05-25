@@ -1109,7 +1109,15 @@ proposal"; if the value is not empty it means "reply to comment".
 
 | | Type | Description |
 | - | - | - |
-| commentid | string | Server generated unique comment identifier |
+| UserID | string | Unique user identifier |
+| Timestamp | int64 | UNIX time when comment was accepted |
+| CommentID | string | Unique comment identifier |
+| ParentID | string | Parent comment identifier |
+| Token | string | Censorship token |
+| Comment | string | Comment text |
+| publickey | string | Public key from the client side, sent to politeiawww for verification |
+| signature | string | Signature of Token, ParentID and Comment |
+| receipt | string | Server signature of the client Signature |
 
 On failure the call shall return `400 Bad Request` and one of the following
 error codes:
@@ -1123,11 +1131,11 @@ Request:
 
 ```json
 {
-  "token":"837f068c02b48f7f0ebe590e07d0a33bd6ce1046ba44b5f1ad0f8b4a4d0cb7f3",
-  "parentid":"",
+  "token":"abf0fd1fc1b8c1c9535685373dce6c54948b7eb018e17e3a8cea26a3c9b85684",
+  "parentid":"0",
   "comment":"I dont like this prop",
-  "signature":"b5ec08402e4c4c34da97bd469fc59be408a3e3978d3696ac6b31aed028d9d4acfe757bbd279f48a8ad81853f9d79416e9da0b563caa2f5a1dfb91f54f9edbf06",
-  "publickey":"f5519b6fdee08be45d47d5dd794e81303688a8798012d8983ba3f15af70a747c"
+  "signature":"af969d7f0f711e25cb411bdbbe3268bbf3004075cde8ebaee0fc9d988f24e45013cc2df6762dca5b3eb8abb077f76e0b016380a7eba2d46839b04c507d86290d",
+  "publickey":"4206fa1f45c898f1dee487d7a7a82e0ed293858313b8b022a6a88f2bcae6cdd7"
 }
 ```
 
@@ -1135,7 +1143,15 @@ Reply:
 
 ```json
 {
-  "commentid": "103"
+  "comment": "I dont like this prop",
+  "commentid": "4",
+  "parentid": "0",
+  "publickey": "4206fa1f45c898f1dee487d7a7a82e0ed293858313b8b022a6a88f2bcae6cdd7",
+  "receipt": "96f3956ea3decb75ee129e6ee4e77c6c608f0b5c99ff41960a4e6078d8bb74e8ad9d2545c01fff2f8b7e0af38ee9de406aea8a0b897777d619e93d797bc1650a",
+  "signature":"af969d7f0f711e25cb411bdbbe3268bbf3004075cde8ebaee0fc9d988f24e45013cc2df6762dca5b3eb8abb077f76e0b016380a7eba2d46839b04c507d86290d",
+  "timestamp": 1527277504,
+  "token": "abf0fd1fc1b8c1c9535685373dce6c54948b7eb018e17e3a8cea26a3c9b85684",
+  "userid": "124"
 }
 ```
 
@@ -1164,6 +1180,9 @@ sorted.
 | ParentID | string | Parent comment identifier |
 | Token | string | Censorship token |
 | Comment | string | Comment text |
+| publickey | string | Public key from the client side, sent to politeiawww for verification |
+| signature | string | Signature of Token, ParentID and Comment |
+| receipt | string | Server signature of the client Signature |
 
 **Example**
 
@@ -1180,26 +1199,35 @@ Reply:
 ```json
 {
   "comments": [{
-    "commentid":"56",
-    "userid":"4",
-    "parentid":"0",
-    "timestamp":1509990301,
-    "token":"86221ddae6594b43a19e4c76250c0a8833ecd3b7a9880fb5d2a901970de9ff0e",
-    "comment":"I dont like this prop"
+    "comment": "I dont like this prop",
+    "commentid": "4",
+    "parentid": "0",
+    "publickey": "4206fa1f45c898f1dee487d7a7a82e0ed293858313b8b022a6a88f2bcae6cdd7",
+    "receipt": "96f3956ea3decb75ee129e6ee4e77c6c608f0b5c99ff41960a4e6078d8bb74e8ad9d2545c01fff2f8b7e0af38ee9de406aea8a0b897777d619e93d797bc1650a",
+    "signature":"af969d7f0f711e25cb411bdbbe3268bbf3004075cde8ebaee0fc9d988f24e45013cc2df6762dca5b3eb8abb077f76e0b016380a7eba2d46839b04c507d86290d",
+    "timestamp": 1527277504,
+    "token": "abf0fd1fc1b8c1c9535685373dce6c54948b7eb018e17e3a8cea26a3c9b85684",
+    "userid": "124"
   },{
-    "commentid":"57",
-    "userid":"4",
-    "parentid":"56",
-    "timestamp":1509990301,
-    "token":"86221ddae6594b43a19e4c76250c0a8833ecd3b7a9880fb5d2a901970de9ff0e",
-    "comment":"you are right!"
+    "comment":"you are right!",
+    "commentid": "4",
+    "parentid": "0",
+    "publickey": "4206fa1f45c898f1dee487d7a7a82e0ed293858313b8b022a6a88f2bcae6cdd7",
+    "receipt": "96f3956ea3decb75ee129e6ee4e77c6c608f0b5c99ff41960a4e6078d8bb74e8ad9d2545c01fff2f8b7e0af38ee9de406aea8a0b897777d619e93d797bc1650a",
+    "signature":"af969d7f0f711e25cb411bdbbe3268bbf3004075cde8ebaee0fc9d988f24e45013cc2df6762dca5b3eb8abb077f76e0b016380a7eba2d46839b04c507d86290d",
+    "timestamp": 1527277504,
+    "token": "abf0fd1fc1b8c1c9535685373dce6c54948b7eb018e17e3a8cea26a3c9b85684",
+    "userid": "124"
   },{
-    "commentid":"58",
-    "userid":"4",
-    "parentid":"56",
-    "timestamp":1509990301,
-    "token":"86221ddae6594b43a19e4c76250c0a8833ecd3b7a9880fb5d2a901970de9ff0e",
-    "comment":"you are crazy!"
+    "comment":"you are crazy!",
+    "commentid": "4",
+    "parentid": "0",
+    "publickey": "4206fa1f45c898f1dee487d7a7a82e0ed293858313b8b022a6a88f2bcae6cdd7",
+    "receipt": "96f3956ea3decb75ee129e6ee4e77c6c608f0b5c99ff41960a4e6078d8bb74e8ad9d2545c01fff2f8b7e0af38ee9de406aea8a0b897777d619e93d797bc1650a",
+    "signature":"af969d7f0f711e25cb411bdbbe3268bbf3004075cde8ebaee0fc9d988f24e45013cc2df6762dca5b3eb8abb077f76e0b016380a7eba2d46839b04c507d86290d",
+    "timestamp": 1527277504,
+    "token": "abf0fd1fc1b8c1c9535685373dce6c54948b7eb018e17e3a8cea26a3c9b85684",
+    "userid": "124"
   }]
 }
 ```
