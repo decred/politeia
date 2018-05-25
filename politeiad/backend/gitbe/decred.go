@@ -166,11 +166,11 @@ func (g *gitBackEnd) getNewCid(token string) (string, error) {
 	}
 	if fi.Size() == 0 {
 		// First comment id
-		_, err := fmt.Fprintf(fh, "0\n")
+		_, err := fmt.Fprintf(fh, "1\n")
 		if err != nil {
 			return "", err
 		}
-		return "0", nil
+		return "1", nil
 	}
 
 	// Only allow one line
