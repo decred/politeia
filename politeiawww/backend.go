@@ -1707,6 +1707,9 @@ func (b *backend) ProcessComment(c decredplugin.NewComment, user *database.User)
 		return nil, err
 	}
 
+	// Fill out www bits
+	c.UserID = strconv.FormatUint(user.ID, 10)
+
 	payload, err := decredplugin.EncodeNewComment(c)
 	if err != nil {
 		return nil, err
