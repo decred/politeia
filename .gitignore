@@ -3,6 +3,7 @@ politeiad/politeiad
 politeiawww/cmd/politeiawww_dbutil/politeiawww_dbutil
 politeiawww/cmd/politeiawww_refclient/politeiawww_refclient
 politeiawww/cmd/politeiawwwcli/politeiawwwcli
+politeiawww/cmd/politeiawwwtest/politeiawwwtest
 politeiawww/politeiawww
 vendor
 *~
