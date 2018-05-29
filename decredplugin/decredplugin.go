@@ -4,19 +4,17 @@ import "encoding/json"
 
 // Plugin settings, kinda doesn;t go here but for now it is fine
 const (
-	Version                = "1"
-	ID                     = "decred"
-	CmdStartVote           = "startvote"
-	CmdCastVotes           = "castvotes"
-	CmdBestBlock           = "bestblock"
-	CmdNewComment          = "newcomment"
-	CmdGetComments         = "getcomments"
-	CmdProposalVotes       = "proposalvotes"
-	MDStreamComments       = 10 // Comments
-	MDStreamCommentsUpDown = 11 // Comments up/down voting
-	MDStreamVotes          = 13 // Votes
-	MDStreamVoteBits       = 14 // Vote bits and mask
-	MDStreamVoteSnapshot   = 15 // Vote tickets and start/end parameters
+	Version              = "1"
+	ID                   = "decred"
+	CmdStartVote         = "startvote"
+	CmdCastVotes         = "castvotes"
+	CmdBestBlock         = "bestblock"
+	CmdNewComment        = "newcomment"
+	CmdGetComments       = "getcomments"
+	CmdProposalVotes     = "proposalvotes"
+	MDStreamVotes        = 13 // Votes
+	MDStreamVoteBits     = 14 // Vote bits and mask
+	MDStreamVoteSnapshot = 15 // Vote tickets and start/end parameters
 )
 
 // CastVote is a signed vote.
@@ -29,12 +27,7 @@ type CastVote struct {
 
 // EncodeCastVotes encodes CastVotes into a JSON byte slice.
 func EncodeCastVotes(cv []CastVote) ([]byte, error) {
-	b, err := json.Marshal(cv)
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
+	return json.Marshal(cv)
 }
 
 // DecodeCastVotes decodes a JSON byte slice into a CastVotes.
@@ -58,12 +51,7 @@ type CastVoteReply struct {
 
 // EncodeCastVoteReplies encodes CastVotes into a JSON byte slice.
 func EncodeCastVoteReplies(cvr []CastVoteReply) ([]byte, error) {
-	b, err := json.Marshal(cvr)
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
+	return json.Marshal(cvr)
 }
 
 // DecodeCastVoteReplies decodes a JSON byte slice into a CastVotes.
@@ -95,12 +83,7 @@ type Vote struct {
 
 // EncodeVote encodes Vote into a JSON byte slice.
 func EncodeVote(v Vote) ([]byte, error) {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
+	return json.Marshal(v)
 }
 
 // DecodeVote decodes a JSON byte slice into a Vote.
@@ -131,12 +114,7 @@ type StartVoteReply struct {
 
 // EncodeStartVoteReply encodes StartVoteReply into a JSON byte slice.
 func EncodeStartVoteReply(v StartVoteReply) ([]byte, error) {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
+	return json.Marshal(v)
 }
 
 // DecodeVoteReply decodes a JSON byte slice into a StartVoteReply.
@@ -162,12 +140,7 @@ type VoteResultsReply struct {
 
 // EncodeVoteResults encodes VoteResults into a JSON byte slice.
 func EncodeVoteResults(v VoteResults) ([]byte, error) {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
+	return json.Marshal(v)
 }
 
 // DecodeVoteResults decodes a JSON byte slice into a VoteResults.
@@ -184,12 +157,7 @@ func DecodeVoteResults(payload []byte) (*VoteResults, error) {
 
 // EncodeVoteResultsReply encodes VoteResults into a JSON byte slice.
 func EncodeVoteResultsReply(v VoteResultsReply) ([]byte, error) {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
+	return json.Marshal(v)
 }
 
 // DecodeVoteResultsReply decodes a JSON byte slice into a VoteResults.
@@ -237,12 +205,7 @@ type Comment struct {
 
 // EncodeComment encodes Comment into a JSON byte slice.
 func EncodeComment(c Comment) ([]byte, error) {
-	b, err := json.Marshal(c)
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
+	return json.Marshal(c)
 }
 
 // DecodeComment decodes a JSON byte slice into a Comment
@@ -269,12 +232,7 @@ type NewComment struct {
 
 // EncodeNewComment encodes NewComment into a JSON byte slice.
 func EncodeNewComment(nc NewComment) ([]byte, error) {
-	b, err := json.Marshal(nc)
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
+	return json.Marshal(nc)
 }
 
 // DecodeNewComment decodes a JSON byte slice into a NewComment
@@ -296,12 +254,7 @@ type NewCommentReply struct {
 
 // EncodeNewCommentReply encodes NewCommentReply into a JSON byte slice.
 func EncodeNewCommentReply(ncr NewCommentReply) ([]byte, error) {
-	b, err := json.Marshal(ncr)
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
+	return json.Marshal(ncr)
 }
 
 // DecodeNewCommentReply decodes a JSON byte slice into a NewCommentReply.
@@ -324,12 +277,7 @@ type GetComments struct {
 
 // EncodeGetComments encodes GetCommentsReply into a JSON byte slice.
 func EncodeGetComments(gc GetComments) ([]byte, error) {
-	b, err := json.Marshal(gc)
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
+	return json.Marshal(gc)
 }
 
 // DecodeGetComments decodes a JSON byte slice into a GetComments.
@@ -351,12 +299,7 @@ type GetCommentsReply struct {
 
 // EncodeGetCommentsReply encodes GetCommentsReply into a JSON byte slice.
 func EncodeGetCommentsReply(gcr GetCommentsReply) ([]byte, error) {
-	b, err := json.Marshal(gcr)
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
+	return json.Marshal(gcr)
 }
 
 // DecodeGetCommentsReply decodes a JSON byte slice into a GetCommentsReply.
