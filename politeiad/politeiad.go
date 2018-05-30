@@ -198,8 +198,6 @@ func (p *politeia) respondWithServerError(w http.ResponseWriter, errorCode int64
 }
 
 func (p *politeia) getIdentity(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
 	var t v1.Identity
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&t); err != nil {
@@ -223,8 +221,6 @@ func (p *politeia) getIdentity(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *politeia) newRecord(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
 	var t v1.NewRecord
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&t); err != nil {
@@ -284,8 +280,6 @@ func (p *politeia) newRecord(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *politeia) updateUnvetted(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
 	var t v1.UpdateUnvetted
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&t); err != nil {
@@ -361,8 +355,6 @@ func (p *politeia) updateUnvetted(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
 	var t v1.GetUnvetted
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&t); err != nil {
@@ -427,8 +419,6 @@ func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
 	var t v1.GetVetted
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&t); err != nil {
@@ -492,8 +482,6 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *politeia) inventory(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
 	var i v1.Inventory
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&i); err != nil {
@@ -568,8 +556,6 @@ func (p *politeia) auth(fn http.HandlerFunc) http.HandlerFunc {
 }
 
 func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
 	var t v1.SetUnvettedStatus
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&t); err != nil {
@@ -623,8 +609,6 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *politeia) updateVettedMetadata(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
 	var t v1.UpdateVettedMetadata
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&t); err != nil {
@@ -694,7 +678,6 @@ func (p *politeia) pluginInventory(w http.ResponseWriter, r *http.Request) {
 			nil)
 		return
 	}
-	defer r.Body.Close()
 
 	challenge, err := hex.DecodeString(pi.Challenge)
 	if err != nil || len(challenge) != v1.ChallengeSize {
@@ -722,7 +705,6 @@ func (p *politeia) pluginCommand(w http.ResponseWriter, r *http.Request) {
 			nil)
 		return
 	}
-	defer r.Body.Close()
 
 	challenge, err := hex.DecodeString(pc.Challenge)
 	if err != nil || len(challenge) != v1.ChallengeSize {
@@ -734,8 +716,9 @@ func (p *politeia) pluginCommand(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Generic internal error.
 		errorCode := time.Now().Unix()
-		log.Errorf("%v New record error code %v: %v", remoteAddr(r),
-			errorCode, err)
+		log.Errorf("%v %v: backend plugin failed with "+
+			"command:%v payload:%v err:%v", remoteAddr(r),
+			errorCode, pc.Command, pc.Payload, err)
 		p.respondWithServerError(w, errorCode)
 		return
 	}
@@ -788,15 +771,20 @@ func logging(f http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-func (p *politeia) addRoute(method string, route string, handler http.HandlerFunc, perm permission) {
-	switch perm {
-	case permissionAuth:
-		handler = logging(p.auth(handler))
-	case permissionPublic:
-		handler = logging(handler)
-	default:
-		handler = logging(handler)
+// closeBody closes the request body after the provided handler is called.
+func closeBody(f http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		f(w, r)
+		r.Body.Close()
 	}
+}
+
+func (p *politeia) addRoute(method string, route string, handler http.HandlerFunc, perm permission) {
+	if perm == permissionAuth {
+		handler = p.auth(handler)
+	}
+	handler = closeBody(logging(handler))
+
 	p.router.StrictSlash(true).HandleFunc(route, handler).Methods(method)
 }
 
@@ -924,10 +912,10 @@ func _main() error {
 	}
 	if len(plugins) > 0 {
 		// Set plugin routes. Requires auth.
-		p.router.HandleFunc(v1.PluginCommandRoute,
-			logging(p.auth(p.pluginCommand))).Methods("POST")
-		p.router.HandleFunc(v1.PluginInventoryRoute,
-			logging(p.auth(p.pluginInventory))).Methods("POST")
+		p.addRoute(http.MethodPost, v1.PluginCommandRoute, p.pluginCommand,
+			permissionAuth)
+		p.addRoute(http.MethodPost, v1.PluginInventoryRoute, p.pluginInventory,
+			permissionAuth)
 
 		for _, v := range plugins {
 			// make sure we only have lowercase names
