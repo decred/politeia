@@ -671,6 +671,8 @@ func (p *politeia) updateVettedMetadata(w http.ResponseWriter, r *http.Request) 
 }
 
 func (p *politeia) pluginInventory(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
 	var pi v1.PluginInventory
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&pi); err != nil {
@@ -698,6 +700,8 @@ func (p *politeia) pluginInventory(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *politeia) pluginCommand(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
 	var pc v1.PluginCommand
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&pc); err != nil {
