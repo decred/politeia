@@ -1608,16 +1608,17 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 			Signature:        cachedProposal.Signature,
 			CensorshipRecord: cachedProposal.CensorshipRecord,
 			NumComments:      cachedProposal.NumComments,
+			UserId:           cachedProposal.UserId,
+			Username:         b.getUsernameById(cachedProposal.UserId),
 		}
 
 		if user != nil {
-			stringUserID := cachedProposal.UserId
-			userID, err := strconv.ParseUint(stringUserID, 10, 64)
+			authorId, err := strconv.ParseUint(cachedProposal.UserId, 10, 64)
 			if err != nil {
 				return nil, err
 			}
 
-			if user.ID == userID {
+			if user.ID == authorId {
 				reply.Proposal.Name = cachedProposal.Name
 			}
 		}
@@ -1671,6 +1672,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 		changes:  p.changes,
 		comments: p.comments,
 	}, b.userPubkeys)
+	reply.Proposal.Username = b.getUsernameById(reply.Proposal.UserId)
 	return &reply, nil
 }
 
