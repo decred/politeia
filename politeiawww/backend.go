@@ -1671,6 +1671,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 		changes:  p.changes,
 		comments: p.comments,
 	}, b.userPubkeys)
+	reply.Proposal.Username = b.getUsernameById(reply.Proposal.UserId)
 	return &reply, nil
 }
 

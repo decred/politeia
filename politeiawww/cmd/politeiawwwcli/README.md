@@ -24,6 +24,7 @@ updateuserkey      update the user identity saved to appDataDir
 userproposals      fetch all proposals submitted by a specific user
 verifyuser         verify user's email address
 verifyuserpayment  check if the user has paid their user registration fee
+version            fetch version info and CSRF token 
 ```
 
 ## Application Options
@@ -42,9 +43,14 @@ View information about a specific command
 `$ politeiawwwcli <command> -h`
 
 ## Persisting Data Between Commands
-`politeiawwwcli` stores  user identity data (user's public/private key pair) and session cookies in the `AppData/Politeiawww/cli/` directory.  This allows you to login with a user and remain logged in between commands.  The user identity data and cookies are segmented by host, allowing you to login and interact with multiple hosts simultaneously.
+`politeiawwwcli` stores  user identity data (user's public/private key pair), session cookies, and CSRF tokens in the `AppData/Politeiawww/cli/` directory.  This allows you to login with a user and remain logged in between commands.  The user identity data and cookies are segmented by host, allowing you to login and interact with multiple hosts simultaneously.
 
 ## Usage
+
+You need to first obtain a CSRF token from the Politeiawww server in order to interact with the API.  The `version` command fetches a CSRF token and saves it for future use.
+```
+$ politeiawwwcli version
+```
 
 Create a new user and save the user's identity for future use.
 ```
