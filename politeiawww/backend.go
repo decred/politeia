@@ -1608,17 +1608,16 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 			Signature:        cachedProposal.Signature,
 			CensorshipRecord: cachedProposal.CensorshipRecord,
 			NumComments:      cachedProposal.NumComments,
-			UserId:           cachedProposal.UserId,
-			Username:         b.getUsernameById(cachedProposal.UserId),
 		}
 
 		if user != nil {
-			authorId, err := strconv.ParseUint(cachedProposal.UserId, 10, 64)
+			stringUserID := cachedProposal.UserId
+			userID, err := strconv.ParseUint(stringUserID, 10, 64)
 			if err != nil {
 				return nil, err
 			}
 
-			if user.ID == authorId {
+			if user.ID == userID {
 				reply.Proposal.Name = cachedProposal.Name
 			}
 		}
