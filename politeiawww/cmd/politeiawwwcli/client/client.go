@@ -664,7 +664,7 @@ func (c *Ctx) CreateNewKey(email string) (*identity.FullIdentity, error) {
 	return id, nil
 }
 
-func (c *Ctx) VerifyUserPayment(txid string) (*v1.VerifyUserPaymentTxReply,
+func (c *Ctx) VerifyUserPaymentTx(txid string) (*v1.VerifyUserPaymentTxReply,
 	error) {
 	v := v1.VerifyUserPaymentTx{
 		TxId: txid,
