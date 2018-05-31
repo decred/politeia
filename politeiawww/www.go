@@ -615,6 +615,23 @@ func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Reque
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
+func (p *politeiawww) handleUsernamesById(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleUsernamesById")
+
+	// Get the UsernamesById command.
+	var ubi v1.UsernamesById
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&ubi); err != nil {
+		RespondWithError(w, r, 0, "handleUsernamesById: unmarshal", v1.UserError{
+			ErrorCode: v1.ErrorStatusInvalidInput,
+		})
+		return
+	}
+
+	// Reply with the usernames.
+	util.RespondWithJSON(w, http.StatusOK, p.backend.ProcessUsernamesById(ubi))
+}
+
 func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 	// Get the policy command.
 	log.Tracef("handlePolicy")
@@ -1075,6 +1092,8 @@ func _main() error {
 		permissionPublic, true)
 	p.addRoute(http.MethodPost, v1.RouteProposalVotes,
 		p.handleProposalVotes, permissionPublic, true)
+	p.addRoute(http.MethodPost, v1.RouteUsernamesById, p.handleUsernamesById,
+		permissionPublic, false)
 
 	// Routes that require being logged in.
 	p.addRoute(http.MethodPost, v1.RouteSecret, p.handleSecret,

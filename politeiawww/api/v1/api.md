@@ -33,6 +33,7 @@ API.  It does not render HTML.
 - [`Active votes`](#active-votes)
 - [`Cast votes`](#cast-votes)
 - [`Proposal votes`](#proposal-votes)
+- [`Usernames by id`](#usernames-by-id)
 
 **Error status codes**
 
@@ -1446,6 +1447,42 @@ Reply:
     "votebit":"2",
     "signature":"1f8b3c8207fa67d91a65d8742e5026044ccebd6b4865579a1f75d6e9a40a56f9a96e091397d2ec9f8fca773c68e961b93fe380a694aceecfd8f9b972f1e4d59db9"
   }]
+}
+```
+
+### `Usernames by id`
+
+Retrieve usernames given an array of user ids.
+
+**Route:** `POST /v1/usernames`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| userids | array of strings | User ids | Yes |
+
+**Results:**
+
+| | Type | Description |
+|-|-|-|
+| usernames | array of strings  | Array of usernames, in the same order of the provided user ids |
+
+**Example**
+
+Request:
+
+``` json
+{
+  "userids": ["0"]
+}
+```
+
+Reply:
+
+```json
+{
+  "usernames": ["foobar"]
 }
 ```
 
