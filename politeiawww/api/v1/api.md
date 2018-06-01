@@ -225,7 +225,7 @@ Request:
   "email": "69af376cca42cd9c@example.com",
   "password": "69af376cca42cd9c",
   "username": "foobar",
-  "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+  "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b"
 }
 ```
 
@@ -423,7 +423,7 @@ Request:
 
 ```json
 {
-  "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+  "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b"
 }
 ```
 
@@ -903,7 +903,7 @@ Reply:
      "A-z", "0-9", "&", ".", ":", ";", ",", "-", " ", "@", "+", "#"
   ],
   "maxcommentlength": 8000,
-  "backendpublickey": ""
+  "backendpublickey": "",
   "minproposalnamelength": 8,
   "maxproposalnamelength": 80  
 }
@@ -1499,6 +1499,7 @@ Reply:
 | <a name="ErrorStatusInvalidInput">ErrorStatusInvalidInput</a> | 24 | Invalid input. |
 | <a name="ErrorStatusInvalidSigningKey">ErrorStatusInvalidSigningKey</a> | 25 | Invalid signing key. |
 | <a name="ErrorStatusCommentLengthExceededPolicy">ErrorStatusCommentLengthExceededPolicy</a> | 26 | The submitted comment length is too large. |
+<<<<<<< Updated upstream
 | <a name="ErrorStatusUserNotFound">ErrorStatusUserNotFound</a> | 27 | The user was not found. |
 | <a name="ErrorStatusWrongStatus">ErrorStatusWrongStatus</a> | 28 | The proposal has the wrong status. |
 | <a name="ErrorStatusNotLoggedIn">ErrorStatusNotLoggedIn</a> | 29 | The user must be logged in for this action. |
@@ -1506,6 +1507,11 @@ Reply:
 | <a name="ErrorStatusReviewerAdminEqualsAuthor">ErrorStatusReviewerAdminEqualsAuthor</a> | 31 | The user cannot change the status of his own proposal. |
 | <a name="ErrorStatusMalformedUsername">ErrorStatusMalformedUsername</a> | 32 | The provided username was malformed. |
 | <a name="ErrorStatusDuplicateUsername">ErrorStatusDuplicateUsername</a> | 33 | The provided username was a duplicate of another username. |
+=======
+| <a name="ErrorStatusUserNotFound">ErrorStatusUserNotFound</a> | 27 | user not found |
+| <a name="ErrorStatusWrongStatus">ErrorStatusWrongStatus</a> | 28 | wrong status |
+| <a name="ErrorStatusNotLoggedIn">ErrorStatusNotLoggedIn</a> | 29 | user not logged in |
+>>>>>>> Stashed changes
 
 ### Proposal status codes
 
