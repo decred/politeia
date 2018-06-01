@@ -131,6 +131,71 @@ func (c *Ctx) SetCookies(rawurl string, cookies []*http.Cookie) error {
 	return nil
 }
 
+func (c *Ctx) Csrf() string {
+	return c.csrf
+}
+
+func (c *Ctx) SetCsrf(csrf string) {
+	c.csrf = csrf
+}
+
+func (c *Ctx) Version() (*v1.VersionReply, error) {
+	requestBody, err := json.Marshal(v1.Version{})
+	if err != nil {
+		return nil, err
+	}
+
+	fullRoute := config.Host + v1.PoliteiaWWWAPIRoute + v1.RouteVersion
+	fmt.Printf("Request: GET %v\n", v1.PoliteiaWWWAPIRoute+v1.RouteVersion)
+
+	if config.PrintJson {
+		fmt.Println("  " + string(requestBody))
+	}
+
+	// create new http request instead of using makeRequest() so that we can
+	// extract the CSRF token from the header
+	req, err := http.NewRequest(http.MethodGet, fullRoute,
+		bytes.NewReader(requestBody))
+	if err != nil {
+		return nil, err
+	}
+	r, err := c.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		r.Body.Close()
+	}()
+
+	responseBody := util.ConvertBodyToByteArray(r.Body, false)
+
+	if config.PrintJson {
+		fmt.Println("Response: " + string(responseBody) + "\n")
+	}
+	if r.StatusCode != http.StatusOK {
+		var ue v1.UserError
+		err = json.Unmarshal(responseBody, &ue)
+		if err == nil {
+			return nil, fmt.Errorf("%v, %v %v", r.StatusCode,
+				v1.ErrorStatus[ue.ErrorCode], strings.Join(ue.ErrorContext, ", "))
+		}
+
+		return nil, fmt.Errorf("%v", r.StatusCode)
+	}
+
+	var v v1.VersionReply
+	err = json.Unmarshal(responseBody, &v)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal version: %v", err)
+	}
+
+	// store CSRF tokens
+	c.SetCookies(config.Host, r.Cookies())
+	c.csrf = r.Header.Get(v1.CsrfToken)
+
+	return &v, nil
+}
+
 func (c *Ctx) Login(email, password string) (*v1.LoginReply, error) {
 	l := v1.Login{
 		Email:    email,
@@ -182,7 +247,7 @@ func idFromString(s string) (*identity.FullIdentity, error) {
 	return id, nil
 }
 
-func (c *Ctx) NewUser(email, password string) (string, *identity.FullIdentity,
+func (c *Ctx) NewUser(email, username, password string) (string, *identity.FullIdentity,
 	string, uint64, error) {
 	id, err := idFromString(email)
 	if err != nil {
@@ -190,6 +255,7 @@ func (c *Ctx) NewUser(email, password string) (string, *identity.FullIdentity,
 	}
 	u := v1.NewUser{
 		Email:     email,
+		Username:  username,
 		Password:  password,
 		PublicKey: hex.EncodeToString(id.Public.Key[:]),
 	}
@@ -263,6 +329,27 @@ func (c *Ctx) Secret() error {
 	return nil
 }
 
+func (c *Ctx) ChangeUsername(password, newUsername string) (
+	*v1.ChangeUsernameReply, error) {
+	cu := v1.ChangeUsername{
+		Password:    password,
+		NewUsername: newUsername,
+	}
+	responseBody, err := c.makeRequest("POST", v1.RouteChangeUsername, cu)
+	if err != nil {
+		return nil, err
+	}
+
+	var cur v1.ChangeUsernameReply
+	err = json.Unmarshal(responseBody, &cur)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal ChangeUsernameReply: %v",
+			err)
+	}
+
+	return &cur, nil
+}
+
 func (c *Ctx) ChangePassword(currentPassword, newPassword string) (
 	*v1.ChangePasswordReply, error) {
 	cp := v1.ChangePassword{
@@ -277,7 +364,7 @@ func (c *Ctx) ChangePassword(currentPassword, newPassword string) (
 	var cpr v1.ChangePasswordReply
 	err = json.Unmarshal(responseBody, &cpr)
 	if err != nil {
-		return nil, fmt.Errorf("Could not unmarshal "+"ChangePasswordReply: %v",
+		return nil, fmt.Errorf("Could not unmarshal ChangePasswordReply: %v",
 			err)
 	}
 
@@ -577,7 +664,7 @@ func (c *Ctx) CreateNewKey(email string) (*identity.FullIdentity, error) {
 	return id, nil
 }
 
-func (c *Ctx) VerifyUserPayment(txid string) (*v1.VerifyUserPaymentTxReply,
+func (c *Ctx) VerifyUserPaymentTx(txid string) (*v1.VerifyUserPaymentTxReply,
 	error) {
 	v := v1.VerifyUserPaymentTx{
 		TxId: txid,

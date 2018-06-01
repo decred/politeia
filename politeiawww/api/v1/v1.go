@@ -126,6 +126,7 @@ const (
 	ErrorStatusReviewerAdminEqualsAuthor   ErrorStatusT = 31
 	ErrorStatusMalformedUsername           ErrorStatusT = 32
 	ErrorStatusDuplicateUsername           ErrorStatusT = 33
+	ErrorStatusVerificationTokenUnexpired  ErrorStatusT = 34
 
 	// Proposal status codes (set and get)
 	PropStatusInvalid     PropStatusT = 0 // Invalid status
@@ -192,6 +193,7 @@ var (
 		ErrorStatusReviewerAdminEqualsAuthor:   "user cannot change the status of his own proposal",
 		ErrorStatusMalformedUsername:           "malformed username",
 		ErrorStatusDuplicateUsername:           "duplicate username",
+		ErrorStatusVerificationTokenUnexpired:  "verification token not yet expired",
 	}
 )
 

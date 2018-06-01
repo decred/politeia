@@ -30,6 +30,8 @@ var (
 	HomeDir        = cleanAndExpandPath(defaultHomeDir)
 
 	cookieFile       string
+	csrfFile         string
+	CsrfToken        string
 	PrintJson        bool
 	UserIdentityFile string
 	UserIdentity     *identity.FullIdentity
@@ -63,6 +65,13 @@ func setUserIdentityFile(host string) {
 func setCookieFile(host string) {
 	cookieFilename := "cookie_" + stringToHash(host) + ".json"
 	cookieFile = filepath.Join(HomeDir, cookieFilename)
+}
+
+// create a csrf token filename that is unique for each host.   This makes
+// it possible to interact with multiple hosts simultaneously.
+func setCsrfFile(host string) {
+	csrfFilename := "csrf_" + stringToHash(host) + ".json"
+	csrfFile = filepath.Join(HomeDir, csrfFilename)
 }
 
 // cleanAndExpandPath expands environment variables and leading ~ in the
@@ -125,6 +134,15 @@ func Load() error {
 		}
 	}
 
+	// load CSRF token
+	setCsrfFile(Host)
+	if fileExists(csrfFile) {
+		CsrfToken, err = loadCsrf()
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -145,8 +163,11 @@ func SaveCookies(cookies []*http.Cookie) error {
 		return fmt.Errorf("could not marshal cookies")
 	}
 
-	ioutil.WriteFile(cookieFile, ck, 0600)
-	fmt.Printf("User session saved to: %v\n", cookieFile)
+	err = ioutil.WriteFile(cookieFile, ck, 0600)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Cookies saved to: %v\n", cookieFile)
 	return nil
 }
 
@@ -163,4 +184,22 @@ func LoadCookies() ([]*http.Cookie, error) {
 	}
 
 	return ck, nil
+}
+
+func SaveCsrf(csrf string) error {
+	err := ioutil.WriteFile(csrfFile, []byte(csrf), 0600)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("CSRF token saved to: %v\n", csrfFile)
+	return nil
+}
+
+func loadCsrf() (string, error) {
+	b, err := ioutil.ReadFile(csrfFile)
+	if err != nil {
+		return "", err
+	}
+
+	return string(b), nil
 }

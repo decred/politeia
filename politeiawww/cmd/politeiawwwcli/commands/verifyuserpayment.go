@@ -7,6 +7,6 @@ type VerifyuserpaymentCmd struct {
 }
 
 func (cmd *VerifyuserpaymentCmd) Execute(args []string) error {
-	_, err := Ctx.VerifyUserPayment(cmd.Args.Txid)
+	_, err := Ctx.VerifyUserPaymentTx(cmd.Args.Txid)
 	return err
 }
