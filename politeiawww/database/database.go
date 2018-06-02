@@ -72,7 +72,7 @@ type User struct {
 	ResetPasswordVerificationToken  []byte // Reset password token
 	ResetPasswordVerificationExpiry int64  // Reset password token expiration
 
-	// All dentitiesuser has ever used.  User should only have one
+	// All identities the user has ever used.  User should only have one
 	// active key at a time.  We allow multiples in order to deal with key
 	// loss.
 	Identities []Identity

@@ -286,8 +286,11 @@ func (c *Ctx) NewUser(email, username, password string) (string, *identity.FullI
 }
 
 func (c *Ctx) VerifyNewUser(email, token, sig string) error {
-	_, err := c.makeRequest("GET", "/user/verify/?email="+email+
-		"&verificationtoken="+token+"&signature="+sig, nil)
+	_, err := c.makeRequest("GET", "/user/verify", v1.VerifyNewUser{
+		Email:             email,
+		VerificationToken: token,
+		Signature:         sig,
+	})
 	return err
 }
 

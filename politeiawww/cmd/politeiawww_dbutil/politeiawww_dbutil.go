@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
+	"github.com/decred/politeia/politeiawww/database"
+	"golang.org/x/crypto/bcrypt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,6 +24,7 @@ var (
 	dumpDb       = flag.Bool("dump", false, "Dump the entire politeiawww database contents.")
 	setAdmin     = flag.Bool("setadmin", false, "Set the admin flag for a user. Parameters: <email> <true/false>")
 	clearPaywall = flag.Bool("clearpaywall", false, "Clear the paywall fields for a user given his email.")
+	newUser      = flag.Bool("newuser", false, "Create a new user. Parameters: <email> <username> <password>")
 	testnet      = flag.Bool("testnet", false, "Whether to check the testnet database or not.")
 	dbDir        = ""
 )
@@ -114,6 +117,54 @@ func setAdminAction() error {
 	return nil
 }
 
+func newUserAction() error {
+	args := flag.Args()
+	if len(args) < 3 {
+		flag.Usage()
+		return nil
+	}
+
+	email := args[0]
+	username := args[1]
+	password := args[2]
+
+	userdb, err := leveldb.OpenFile(dbDir, &opt.Options{
+		ErrorIfMissing: true,
+	})
+	if err != nil {
+		return err
+	}
+	defer userdb.Close()
+
+	_, err = userdb.Get([]byte(email), nil)
+	if err == nil {
+		return fmt.Errorf("user with email %v already exists in the database", email)
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password),
+		bcrypt.MinCost)
+	if err != nil {
+		return err
+	}
+
+	user, err := localdb.EncodeUser(database.User{
+		Email:            email,
+		Username:         username,
+		HashedPassword:   hashedPassword,
+		NewUserPaywallTx: "cleared_by_dbutil",
+	})
+	if err != nil {
+		return err
+	}
+
+	if err = userdb.Put([]byte(email), user, nil); err != nil {
+		return err
+	}
+
+	fmt.Printf("New user created with email %v\n", email)
+	return nil
+}
+
 func clearPaywallAction() error {
 	args := flag.Args()
 	if len(args) < 1 {
@@ -133,7 +184,7 @@ func clearPaywallAction() error {
 
 	b, err := userdb.Get([]byte(email), nil)
 	if err != nil {
-		fmt.Printf("User with email %v not found in the database\n", email)
+		return fmt.Errorf("user with email %v not found in the database", email)
 	}
 
 	u, err := localdb.DecodeUser(b)
@@ -171,7 +222,7 @@ func _main() error {
 	fmt.Printf("Database: %v\n", dbDir)
 
 	if _, err := os.Stat(dbDir); os.IsNotExist(err) {
-		return fmt.Errorf("Database directory does not exist: %v",
+		return fmt.Errorf("database directory does not exist: %v",
 			dbDir)
 	}
 
@@ -181,6 +232,10 @@ func _main() error {
 		}
 	} else if *setAdmin {
 		if err := setAdminAction(); err != nil {
+			return err
+		}
+	} else if *newUser {
+		if err := newUserAction(); err != nil {
 			return err
 		}
 	} else if *clearPaywall {
