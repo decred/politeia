@@ -29,7 +29,7 @@ type Options struct {
 	Admin         AdminOptions `group:"Admin Options"`
 	Host          string       `long:"host" short:"h" default:"https://127.0.0.1:4443" description:"Host"`
 	OverrideToken string       `long:"overridetoken" short:"o" description:"Override token for faucet"`
-	PrintJson     bool         `long:"json" short:"j" description:"Print JSON"`
+	Json          bool         `long:"json" short:"j" description:"Print JSON"`
 	SkipPaywall   bool         `long:"skip-paywall" short:"s" description:"Don't wait for paywall confirmations during test run"`
 	Vote          bool         `long:"vote" short:"v" description:"Run vote routes"`
 }
@@ -122,7 +122,7 @@ func main() {
 
 	// Setup CLI options
 	config.Host = opts.Host
-	config.PrintJson = opts.PrintJson
+	config.PrintJSON = opts.Json
 
 	// Exit if admin email is given without password or vise versa
 	if opts.Admin.Email != "" || opts.Admin.Password != "" {
