@@ -63,13 +63,22 @@ func (cmd *NewuserCmd) Execute(args []string) error {
 	// save user identity to HomeDir
 	if cmd.Save {
 		id.Save(config.UserIdentityFile)
-		fmt.Printf("User identity saved to: %v\n", config.UserIdentityFile)
+		if config.Verbose {
+			fmt.Printf("User identity saved to: %v\n", config.UserIdentityFile)
+		}
 	}
 
 	// verify user's email address
 	if cmd.Verify {
-		sig := id.SignMessage([]byte(token))
-		err = Ctx.VerifyNewUser(email, token, hex.EncodeToString(sig[:]))
+		config.UserIdentity = id
+		verifyCmd := VerifyuserCmd{
+			Args: VerifyuserArgs{
+				Email: email,
+				Token: token,
+			},
+		}
+
+		err = verifyCmd.Execute(nil)
 		if err != nil {
 			return err
 		}
@@ -77,22 +86,18 @@ func (cmd *NewuserCmd) Execute(args []string) error {
 
 	// satisfy paywall fee using testnet faucet
 	if cmd.Paywall {
-		paywallAmountInDCR := float64(paywallAmount) / 1e8
-
-		if paywallAddress == "" && paywallAmount == 0 {
-			return fmt.Errorf("unable to pay %v DCR to %v", paywallAmountInDCR,
-				paywallAddress)
+		faucetCmd := FaucetCmd{
+			Args: FaucetArgs{
+				Amount:  paywallAmount,
+				Address: paywallAddress,
+			},
+			OverrideToken: cmd.OverrideToken,
 		}
 
-		faucetTx, err := util.PayWithTestnetFaucet(config.FaucetURL,
-			paywallAddress, paywallAmount, cmd.OverrideToken)
+		err = faucetCmd.Execute(nil)
 		if err != nil {
-			return fmt.Errorf("unable to pay %v DCR to %v with faucet: %v",
-				paywallAmountInDCR, paywallAddress, err)
+			return err
 		}
-
-		fmt.Printf("Paid %v DCR to %v with faucet tx %v\n", paywallAmountInDCR,
-			paywallAddress, faucetTx)
 	}
 
 	return nil

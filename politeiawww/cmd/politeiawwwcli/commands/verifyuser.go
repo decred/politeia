@@ -7,11 +7,13 @@ import (
 	"github.com/decred/politeia/politeiawww/cmd/politeiawwwcli/config"
 )
 
+type VerifyuserArgs struct {
+	Email string `positional-arg-name:"email"`
+	Token string `positional-arg-name:"token"`
+}
+
 type VerifyuserCmd struct {
-	Args struct {
-		Email string `positional-arg-name:"email"`
-		Token string `positional-arg-name:"token"`
-	} `positional-args:"true" required:"true"`
+	Args VerifyuserArgs `positional-args:"true" required:"true"`
 }
 
 func (cmd *VerifyuserCmd) Execute(args []string) error {

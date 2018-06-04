@@ -382,7 +382,7 @@ func (c *Ctx) ChangePassword(currentPassword, newPassword string) (
 	return &cpr, nil
 }
 
-func (c *Ctx) ResetPassword(email, password, newPassword string) error {
+func (c *Ctx) ResetPassword(email, newPassword string) error {
 	rp := v1.ResetPassword{
 		Email: email,
 	}

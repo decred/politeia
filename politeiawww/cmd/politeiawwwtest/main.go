@@ -200,7 +200,7 @@ func main() {
 	}
 
 	// Reset password
-	err = c.ResetPassword(email1, password1, password2)
+	err = c.ResetPassword(email1, password2)
 	handleError(err)
 
 	// Login failure

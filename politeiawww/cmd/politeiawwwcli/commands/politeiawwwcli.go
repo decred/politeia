@@ -24,6 +24,8 @@ type Options struct {
 	NewProposal       NewproposalCmd       `command:"newproposal" description:"submit a new proposal to Politeia"`
 	NewComment        NewcommentCmd        `command:"newcomment" description:"comment on a proposal"`
 	NewUser           NewuserCmd           `command:"newuser" description:"create a new Politeia user"`
+	Faucet            FaucetCmd            `command:"faucet" description:"use the Decred testnet faucet to send DCR to an address"`
+	Policy            PolicyCmd            `command:"policy" description:"fetch server policy"`
 	ResetPassword     ResetpasswordCmd     `command:"resetpassword" description:"change the password for a user that is not currently logged in"`
 	Secret            SecretCmd            `command:"secret"`
 	SetProposalStatus SetproposalstatusCmd `command:"setproposalstatus" description:"(admin only) set the status of a proposal"`
