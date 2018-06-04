@@ -7,8 +7,9 @@ import (
 
 type Options struct {
 	// cli flags
-	Host func(string) error `long:"host" description:"politeiawww host"`
-	Json func()             `short:"j" long:"json" description:"Print JSON"`
+	Host    func(string) error `long:"host" description:"politeiawww host"`
+	Json    func()             `short:"j" long:"json" description:"Print JSON"`
+	Verbose func()             `short:"v" long:"verbose" description:"Print request and response details"`
 
 	// cli commands
 	ChangePassword    ChangepasswordCmd    `command:"changepassword" description:"change the password for the currently logged in user"`
@@ -47,7 +48,11 @@ func RegisterCallbacks() {
 	}
 
 	Opts.Json = func() {
-		config.PrintJson = true
+		config.PrintJSON = true
+	}
+
+	Opts.Verbose = func() {
+		config.Verbose = true
 	}
 }
 
