@@ -33,6 +33,7 @@ type Options struct {
 	VerifyUser        VerifyuserCmd        `command:"verifyuser" description:"verify user's email address"`
 	VerifyUserPayment VerifyuserpaymentCmd `command:"verifyuserpayment" description:"check if the user has paid their user registration fee"`
 	Version           VersionCmd           `command:"version" description:"fetch server info and CSRF token"`
+	UsernamesById     UsernamesbyidCmd     `command:"usernamesbyid" description:"fetch usernames by their user ids"`
 }
 
 // registers callbacks for cli flags

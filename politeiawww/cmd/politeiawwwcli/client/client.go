@@ -739,3 +739,22 @@ func (c *Ctx) VerifyUserPaymentTx(txid string) (*v1.VerifyUserPaymentTxReply,
 
 	return &vr, nil
 }
+
+func (c *Ctx) UsernamesById(userIds []string) (*v1.UsernamesByIdReply, error) {
+	ubi := v1.UsernamesById{
+		UserIds: userIds,
+	}
+	responseBody, err := c.makeRequest("POST", v1.RouteUsernamesById, ubi)
+	if err != nil {
+		return nil, err
+	}
+
+	var ubir v1.UsernamesByIdReply
+	err = json.Unmarshal(responseBody, &ubir)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal UsernamesByIdReply: %v",
+			err)
+	}
+
+	return &ubir, nil
+}

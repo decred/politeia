@@ -43,6 +43,7 @@ const (
 	// XXX should we use a fancy route like the one underneath?
 	//RouteProposalVotes    = "/proposals/{token:[A-z0-9]{64}}/votes"
 	RouteProposalVotes = "/proposals/voteresults"
+	RouteUsernamesById = "/usernames"
 
 	// VerificationTokenSize is the size of verification token in bytes
 	VerificationTokenSize = 32
@@ -618,4 +619,15 @@ type ProposalVotes struct {
 type ProposalVotesReply struct {
 	Vote      decredplugin.Vote       `json:"vote"`      // Original vote
 	CastVotes []decredplugin.CastVote `json:"castvotes"` // Vote results
+}
+
+// UsernamesById is a command to fetch all usernames by their ids.
+type UsernamesById struct {
+	UserIds []string `json:"userids"`
+}
+
+// UsernamesByIdReply is a reply with all the usernames that correspond
+// to the given ids.
+type UsernamesByIdReply struct {
+	Usernames []string `json:"usernames"`
 }

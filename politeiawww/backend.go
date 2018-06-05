@@ -2029,6 +2029,31 @@ func (b *backend) ProcessProposalVotes(gpv *www.ProposalVotes) (*www.ProposalVot
 	}, nil
 }
 
+// ProcessUsernamesById returns the corresponding usernames for all given
+// user ids.
+func (b *backend) ProcessUsernamesById(ubi www.UsernamesById) *www.UsernamesByIdReply {
+	var usernames []string
+	for _, userIdStr := range ubi.UserIds {
+		userId, err := strconv.ParseUint(userIdStr, 10, 64)
+		if err != nil {
+			usernames = append(usernames, "")
+			continue
+		}
+
+		user, err := b.db.UserGetById(userId)
+		if err != nil {
+			usernames = append(usernames, "")
+			continue
+		}
+
+		usernames = append(usernames, user.Username)
+	}
+
+	return &www.UsernamesByIdReply{
+		Usernames: usernames,
+	}
+}
+
 // ProcessPolicy returns the details of Politeia's restrictions on file uploads.
 func (b *backend) ProcessPolicy(p www.Policy) *www.PolicyReply {
 	return &www.PolicyReply{
