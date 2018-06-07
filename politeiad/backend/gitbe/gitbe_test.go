@@ -19,11 +19,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/btcsuite/btclog"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/util"
+	"github.com/decred/slog"
 )
 
 func validateMD(got, want *backend.RecordMetadata) error {
@@ -54,7 +54,7 @@ func TestExtendUnextend(t *testing.T) {
 }
 
 func TestAnchorWithCommits(t *testing.T) {
-	log := btclog.NewBackend(&testWriter{t}).Logger("TEST")
+	log := slog.NewBackend(&testWriter{t}).Logger("TEST")
 	UseLogger(log)
 
 	dir, err := ioutil.TempDir("", "politeia.test")

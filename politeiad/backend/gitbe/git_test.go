@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/btcsuite/btclog"
+	"github.com/decred/slog"
 )
 
 type testWriter struct {
@@ -47,7 +47,7 @@ func TestVersion(t *testing.T) {
 }
 
 func TestInit(t *testing.T) {
-	log := btclog.NewBackend(&testWriter{t}).Logger("TEST")
+	log := slog.NewBackend(&testWriter{t}).Logger("TEST")
 	UseLogger(log)
 	g := newGitBackEnd()
 	defer os.RemoveAll(g.root)
@@ -59,7 +59,7 @@ func TestInit(t *testing.T) {
 }
 
 func TestLog(t *testing.T) {
-	log := btclog.NewBackend(&testWriter{t}).Logger("TEST")
+	log := slog.NewBackend(&testWriter{t}).Logger("TEST")
 	UseLogger(log)
 	g := newGitBackEnd()
 	defer os.RemoveAll(g.root)
@@ -77,7 +77,7 @@ func TestLog(t *testing.T) {
 
 func TestFsck(t *testing.T) {
 	// Test git fsck, we build on top of that with a dcrtime fsck
-	log := btclog.NewBackend(&testWriter{t}).Logger("TEST")
+	log := slog.NewBackend(&testWriter{t}).Logger("TEST")
 	UseLogger(log)
 	g := newGitBackEnd()
 	defer os.RemoveAll(g.root)
