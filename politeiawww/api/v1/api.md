@@ -1311,7 +1311,7 @@ forwarded as-is to the politeia daemon.
 | Parameter | Type | Description | Required |
 |-|-|-|-|
 | publickey | string | Public key used to sign the vote | Yes |
-| vote | Vote | Decred plugin vote | Yes |
+| vote | Vote | Vote details | Yes |
 | signature | string | Signature of the Vote | Yes |
 
 **Results (StartVoteReply):**
@@ -1330,7 +1330,7 @@ forwarded as-is to the politeia daemon.
 | token | string | Censorship token |
 | mask | uint64 | Mask for valid vote bits |
 | duration | uint32 | Duration of the vote in blocks |
-| options | array of decredplugin.VoteOption | Vote details |
+| options | array of VoteOption | Vote options |
 
 **VoteOption:**
 
@@ -1502,7 +1502,7 @@ forwarded as-is to the politeia daemon.
 
 | | Type | Description |
 | - | - | - |
-| clientsignature | string | Signature that was sent in via decredplugin.CastVote |
+| clientsignature | string | Signature that was sent in via CastVote |
 | signature | string | Signature of ClientSignature |
 | error | string | Error, "" if there was no error |
 
