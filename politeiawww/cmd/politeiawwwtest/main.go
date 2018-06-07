@@ -476,11 +476,11 @@ func main() {
 		handleError(err)
 		// Comment on comment
 		cr, err = c.Comment(id, prop1.CensorshipRecord.Token, "you are right!",
-			cr.CommentID)
+			cr.Comment.CommentID)
 		handleError(err)
 		// Comment on comment
 		cr, err = c.Comment(id, prop1.CensorshipRecord.Token, "you are wrong!",
-			cr.CommentID)
+			cr.Comment.CommentID)
 		handleError(err)
 
 		// Comment on prop1 without a parent
@@ -489,11 +489,11 @@ func main() {
 		handleError(err)
 		// Comment on comment
 		cr, err = c.Comment(id, prop1.CensorshipRecord.Token, "you are right!",
-			cr2.CommentID)
+			cr2.Comment.CommentID)
 		handleError(err)
 		// Comment on comment
 		cr, err = c.Comment(id, prop1.CensorshipRecord.Token, "you are crazy!",
-			cr2.CommentID)
+			cr2.Comment.CommentID)
 		handleError(err)
 
 		// Get comments from prop1 and check the number of comments

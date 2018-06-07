@@ -17,7 +17,6 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	pb "github.com/decred/dcrwallet/rpc/walletrpc"
-	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/util"
@@ -293,8 +292,8 @@ func (c *ctx) inventory() error {
 		}
 
 		// Make sure we have valid vote bits
-		if v.Vote.Token == "" || v.Vote.Mask == 0 ||
-			v.Vote.Options == nil {
+		if v.StartVote.Vote.Token == "" || v.StartVote.Vote.Mask == 0 ||
+			v.StartVote.Vote.Options == nil {
 			// This should not happen
 			log.Errorf("invalid vote bits: %v",
 				v.Proposal.CensorshipRecord.Token)
@@ -302,22 +301,22 @@ func (c *ctx) inventory() error {
 		}
 
 		// Sanity, check if vote has expired
-		endHeight, err := strconv.ParseInt(v.VoteDetails.EndHeight, 10, 32)
+		endHeight, err := strconv.ParseInt(v.StartVoteReply.EndHeight, 10, 32)
 		if err != nil {
 			return err
 		}
 		if int64(latestBlock) > endHeight {
 			// Should not happen
 			fmt.Printf("Vote expired: current %v > end %v %v\n",
-				endHeight, latestBlock, v.Vote.Token)
+				endHeight, latestBlock, v.StartVote.Vote.Token)
 			continue
 		}
 
 		// Ensure eligibility
-		tix, err := convertTicketHashes(v.VoteDetails.EligibleTickets)
+		tix, err := convertTicketHashes(v.StartVoteReply.EligibleTickets)
 		if err != nil {
 			fmt.Printf("Ticket pool corrupt: %v %v\n",
-				v.Vote.Token, err)
+				v.StartVote.Vote.Token, err)
 			continue
 		}
 		ctres, err := c.wallet.CommittedTickets(c.ctx,
@@ -326,30 +325,30 @@ func (c *ctx) inventory() error {
 			})
 		if err != nil {
 			fmt.Printf("Ticket pool verification: %v %v\n",
-				v.Vote.Token, err)
+				v.StartVote.Vote.Token, err)
 			continue
 		}
 
 		// Bail if there are no eligible tickets
 		if len(ctres.TicketAddresses) == 0 {
-			fmt.Printf("No eligible tickets: %v\n", v.Vote.Token)
+			fmt.Printf("No eligible tickets: %v\n", v.StartVote.Vote.Token)
 		}
 
 		// Display vote bits
-		fmt.Printf("Vote: %v\n", v.Vote.Token)
+		fmt.Printf("Vote: %v\n", v.StartVote.Vote.Token)
 		fmt.Printf("  Proposal        : %v\n", v.Proposal.Name)
-		fmt.Printf("  Start block     : %v\n", v.VoteDetails.StartBlockHeight)
-		fmt.Printf("  End block       : %v\n", v.VoteDetails.EndHeight)
-		fmt.Printf("  Mask            : %v\n", v.Vote.Mask)
+		fmt.Printf("  Start block     : %v\n", v.StartVoteReply.StartBlockHeight)
+		fmt.Printf("  End block       : %v\n", v.StartVoteReply.EndHeight)
+		fmt.Printf("  Mask            : %v\n", v.StartVote.Vote.Mask)
 		fmt.Printf("  Eligible tickets: %v\n", len(ctres.TicketAddresses))
-		for _, vo := range v.Vote.Options {
+		for _, vo := range v.StartVote.Vote.Options {
 			fmt.Printf("  Vote Option:\n")
 			fmt.Printf("    Id                   : %v\n", vo.Id)
 			fmt.Printf("    Description          : %v\n",
 				vo.Description)
 			fmt.Printf("    Bits                 : %v\n", vo.Bits)
 			fmt.Printf("    To choose this option: "+
-				"politeiavoter vote %v %v\n", v.Vote.Token,
+				"politeiavoter vote %v %v\n", v.StartVote.Vote.Token,
 				vo.Id)
 		}
 	}
@@ -378,7 +377,7 @@ func (c *ctx) _vote(token, voteId string) ([]string, *v1.BallotReply, error) {
 
 		// Validate voteId
 		found := false
-		for _, vv := range v.Vote.Options {
+		for _, vv := range v.StartVote.Vote.Options {
 			if vv.Id == voteId {
 				found = true
 				voteBit = strconv.FormatUint(vv.Bits, 16)
@@ -400,7 +399,7 @@ func (c *ctx) _vote(token, voteId string) ([]string, *v1.BallotReply, error) {
 	}
 
 	// Find eligble tickets
-	tix, err := convertTicketHashes(prop.VoteDetails.EligibleTickets)
+	tix, err := convertTicketHashes(prop.StartVoteReply.EligibleTickets)
 	if err != nil {
 		return nil, nil, fmt.Errorf("ticket pool corrupt: %v %v",
 			token, err)
@@ -455,7 +454,7 @@ func (c *ctx) _vote(token, voteId string) ([]string, *v1.BallotReply, error) {
 
 	// Note that ctres, sm and smr use the same index.
 	cv := v1.Ballot{
-		Votes: make([]decredplugin.CastVote, 0, len(ctres.TicketAddresses)),
+		Votes: make([]v1.CastVote, 0, len(ctres.TicketAddresses)),
 	}
 	tickets := make([]string, 0, len(ctres.TicketAddresses))
 	for k, v := range ctres.TicketAddresses {
@@ -464,7 +463,7 @@ func (c *ctx) _vote(token, voteId string) ([]string, *v1.BallotReply, error) {
 			return nil, nil, err
 		}
 		signature := hex.EncodeToString(smr.Replies[k].Signature)
-		cv.Votes = append(cv.Votes, decredplugin.CastVote{
+		cv.Votes = append(cv.Votes, v1.CastVote{
 			Token:     token,
 			Ticket:    h.String(),
 			VoteBit:   voteBit,
@@ -500,7 +499,7 @@ func (c *ctx) vote(args []string) error {
 	}
 
 	// Verify vote replies
-	failedReceipts := make([]decredplugin.CastVoteReply, 0,
+	failedReceipts := make([]v1.CastVoteReply, 0,
 		len(cv.Receipts))
 	for _, v := range cv.Receipts {
 		if v.Error != "" {
@@ -529,23 +528,23 @@ func (c *ctx) vote(args []string) error {
 	return nil
 }
 
-func (c *ctx) _tally(token string) (*v1.ProposalVotesReply, error) {
-	responseBody, err := c.makeRequest("POST", v1.RouteProposalVotes,
-		v1.ProposalVotes{
-			Vote: decredplugin.VoteResults{Token: token},
+func (c *ctx) _tally(token string) (*v1.VoteResultsReply, error) {
+	responseBody, err := c.makeRequest("POST", v1.RouteVoteResults,
+		v1.VoteResults{
+			Token: token,
 		})
 	if err != nil {
 		return nil, err
 	}
 
-	var gpvr v1.ProposalVotesReply
-	err = json.Unmarshal(responseBody, &gpvr)
+	var vrr v1.VoteResultsReply
+	err = json.Unmarshal(responseBody, &vrr)
 	if err != nil {
 		return nil, fmt.Errorf("Could not unmarshal "+
 			"ProposalVotesReply: %v", err)
 	}
 
-	return &gpvr, nil
+	return &vrr, nil
 }
 
 func (c *ctx) tally(args []string) error {
@@ -653,11 +652,11 @@ func (c *ctx) startVote(args []string) error {
 
 	sv := v1.StartVote{
 		PublicKey: hex.EncodeToString(c.id.Key[:]),
-		Vote: decredplugin.Vote{
+		Vote: v1.Vote{
 			Token:    args[3],
 			Mask:     0x03, // bit 0 no, bit 1 yes
 			Duration: 2016, // 1 week
-			Options: []decredplugin.VoteOption{
+			Options: []v1.VoteOption{
 				{
 					Id:          "no",
 					Description: "Don't approve proposal",
