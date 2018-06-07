@@ -34,9 +34,13 @@ API.  It does not render HTML.
 - [`Start vote`](#start-vote)
 - [`Active votes`](#active-votes)
 - [`Cast votes`](#cast-votes)
+<<<<<<< HEAD
 - [`Proposal votes`](#proposal-votes)
 - [`Proposal vote status`](#proposal-vote-status)
 - [`Proposals vote status`](#proposals-vote-status)
+=======
+- [`Vote results`](#vote-results)
+>>>>>>> Update voting docs
 - [`Usernames by id`](#usernames-by-id)
 - [`User Comments votes`](#user-comments-votes)
 
@@ -1306,41 +1310,35 @@ forwarded as-is to the politeia daemon.
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
-| PublicKey | string | Public key used to sign the vote | Yes |
-| Vote | decredplugin.Vote | Decred plugin vote | Yes |
-| Signature | string | Signature of the Vote | Yes |
+| publickey | string | Public key used to sign the vote | Yes |
+| vote | Vote | Decred plugin vote | Yes |
+| signature | string | Signature of the Vote | Yes |
 
-**Results:**
-
-| | Type | Description |
-| - | - | - |
-| VoteDetails | decredplugin.StartVoteReply | Plugin reply |
-
-**decred.Vote:**
+**Results (StartVoteReply):**
 
 | | Type | Description |
 | - | - | - |
-| Token | string | Censorship token |
-| Mask | uint64 | Mask for valid vote bits |
-| Duration | uint32 | Duration of the vote in blocks |
-| Options | array of decredplugin.VoteOption | Vote details |
+| startblockheight | string | String encoded start block height of the vote |
+| startblockhash | string | String encoded start block hash of the vote |
+| endheight | string | String encoded final block height of the vote |
+| eligibletickets | array of string | String encoded tickets that are eligible to vote |
 
-**decred.VoteOption:**
+**Vote:**
+
+| | Type | Description |
+| - | - | - |
+| token | string | Censorship token |
+| mask | uint64 | Mask for valid vote bits |
+| duration | uint32 | Duration of the vote in blocks |
+| options | array of decredplugin.VoteOption | Vote details |
+
+**VoteOption:**
 
 | | Type | Description |
 | - | - | - |
 | Id | string | Single unique word that identifies this option, e.g. "yes" |
 | Description | string | Human readable description of this option |
 | Bits | uint64 | Bits that make up this choice, e.g. 0x01 |
-
-**decred.StartVoteReply:**
-
-| | Type | Description |
-| - | - | - |
-| StartBlockHeight | string | String encoded start block height of the vote |
-| StartBlockHash | string | String encoded start block hash of the vote |
-| EndHeight | string | String encoded final block height of the vote |
-| EligibleTickets | array of string | String encoded tickets that are eligible to vote |
 
 **Example**
 
@@ -1371,17 +1369,15 @@ Reply:
 
 ```json
 {
-  "votedetails": {
-    "startblockheight":"282899",
-    "startblockhash":"00000000017236b62ff1ce136328e6fb4bcd171801a281ce0a662e63cbc4c4fa",
-    "endheight":"284915",
-    "eligibletickets":[
-      "000011e329fe0359ea1d2070d927c93971232c1118502dddf0b7f1014bf38d97",
-      "0004b0f8b2883a2150749b2c8ba05652b02220e98895999fd96df790384888f9",
-      "00107166c5fc5c322ecda3748a1896f4a2de6672aae25014123d2cedc83e8f42",
-      "002272cf4788c3f726c30472f9c97d2ce66b997b5762ff4df6a05c4761272413"
-    ]
-  }
+  "startblockheight":"282899",
+  "startblockhash":"00000000017236b62ff1ce136328e6fb4bcd171801a281ce0a662e63cbc4c4fa",
+  "endheight":"284915",
+  "eligibletickets":[
+    "000011e329fe0359ea1d2070d927c93971232c1118502dddf0b7f1014bf38d97",
+    "0004b0f8b2883a2150749b2c8ba05652b02220e98895999fd96df790384888f9",
+    "00107166c5fc5c322ecda3748a1896f4a2de6672aae25014123d2cedc83e8f42",
+    "002272cf4788c3f726c30472f9c97d2ce66b997b5762ff4df6a05c4761272413"
+  ]
 }
 ```
 
@@ -1402,15 +1398,15 @@ forwarded as-is to the politeia daemon.
 
 | | Type | Description |
 | - | - | - |
-| Votes | array of ProposalVoteTuple | All current active votes |
+| votes | array of ProposalVoteTuple | All current active votes |
 
 **ProposalVoteTuple:**
 
 | | Type | Description |
 | - | - | - |
-| Proposal | ProposalRecord | Proposal record |
-| Vote | decredplugin.Vote | Vote bits, mask etc |
-| VoteDetails |decredplugin.StartVoteReply | Vote details (eligible tickets, start block etc |
+| proposal | ProposalRecord | Proposal record |
+| startvote | Vote | Vote bits, mask etc |
+| starvotereply | StartVoteReply | Vote details (eligible tickets, start block etc |
 
 **Example**
 
@@ -1485,30 +1481,30 @@ forwarded as-is to the politeia daemon.
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
-| Votes | array of decredplugin.CastVote | All votes | Yes |
+| votes | array of CastVote | All votes | Yes |
 
-**decredplugin.CastVote:**
+**CastVote:**
 
 | | Type | Description |
 | - | - | - |
-| Token | string | Censorship token |
-| Ticket | string | Ticket hash |
-| VoteBit | string | String encoded vote bit |
-| Signature | string | signature of Token+Ticket+VoteBit |
+| token | string | Censorship token |
+| ticket | string | Ticket hash |
+| votebit | string | String encoded vote bit |
+| signature | string | signature of Token+Ticket+VoteBit |
 
 **Results:**
 
 | | Type | Description |
 | - | - | - |
-| Receipts | array of decredplugin.CastVoteReply  | Receipts for all cast votes. This appears in the same order and index as the votes that went in. |
+| receipts | array of CastVoteReply  | Receipts for all cast votes. This appears in the same order and index as the votes that went in. |
 
-**decredplugin.CastVoteReply:**
+**CastVoteReply:**
 
 | | Type | Description |
 | - | - | - |
-| ClientSignature | string | Signature that was sent in via decredplugin.CastVote |
-| Signature | string | Signature of ClientSignature |
-| Error | string | Error, "" if there was no error |
+| clientsignature | string | Signature that was sent in via decredplugin.CastVote |
+| signature | string | Signature of ClientSignature |
+| error | string | Error, "" if there was no error |
 
 **Example**
 
@@ -1547,7 +1543,7 @@ Reply:
 }
 ```
 
-### `Proposal votes`
+### `Vote results`
 
 Retrieve vote results for a specified censorship token.
 
@@ -1560,20 +1556,14 @@ forwarded as-is to the politeia daemon.
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
-| Vote | array of decredplugin.VoteResults | Vote to recall | Yes |
-
-**decredplugin.VoteResults:**
-
-| | Type | Description |
-| - | - | - |
-| Token | string | Censorship token |
+| token | string | Censorhip token | Yes |
 
 **Results:**
 
 | | Type | Description |
 | - | - | - |
-| Vote | decredplugin.Vote  | Vote details |
-| CastVotes | array of decredplugin.CastVote  | Vote results |
+| vote | Vote | Vote details |
+| castvotes | array of CastVote  | Cast vote details |
 
 **Example**
 
@@ -1581,9 +1571,7 @@ Request:
 
 ``` json
 {
-  "vote": {
-    "token":"642eb2f3798090b3234d8787aaba046f1f4409436d40994643213b63cb3f41da"
-  }
+  "token":"642eb2f3798090b3234d8787aaba046f1f4409436d40994643213b63cb3f41da"
 }
 ```
 
