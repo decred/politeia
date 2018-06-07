@@ -6,9 +6,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/decred/politeia/politeiawww/database"
-
 	"github.com/badoux/checkmail"
+	"github.com/decred/politeia/politeiawww/database"
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
