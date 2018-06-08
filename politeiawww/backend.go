@@ -2130,7 +2130,22 @@ func (b *backend) ProcessVoteResults(vr *www.VoteResults) (*www.VoteResultsReply
 	if err != nil {
 		return nil, err
 	}
-	wvrr := convertVoteResultsReplyFromDecredplugin(*vrr)
+
+	// Fetch record from inventory in order to
+	// get the voting details (StartVoteReply)
+	ir, err := b._getInventoryRecord(vr.Token)
+	if err != nil {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusProposalNotFound,
+		}
+	}
+	if ir.record.Status != pd.RecordStatusPublic {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusWrongStatus,
+		}
+	}
+
+	wvrr := convertVoteResultsReplyFromDecredplugin(*vrr, ir)
 	return &wvrr, nil
 }
 
