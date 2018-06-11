@@ -20,6 +20,10 @@ import (
 	"github.com/decred/dcrwallet/wallet/udb"
 )
 
+const (
+	requestTimeout = 10 // Time request will wait until run into timeout
+)
+
 // FaucetResponse represents the expected JSON response from the testnet faucet.
 type FaucetResponse struct {
 	Txid  string
@@ -122,7 +126,7 @@ func dcrStringToAmount(dcrstr string) (uint64, error) {
 
 func verifyTxWithPrimaryBE(url string, address string, txid string,
 	minimumAmount uint64, txnotbefore int64, minConfirmationsRequired uint64) (bool, error) {
-	responseBody, err := makeRequest(url, 3)
+	responseBody, err := makeRequest(url, requestTimeout)
 	if err != nil {
 		return false, err
 	}
@@ -164,7 +168,7 @@ func verifyTxWithPrimaryBE(url string, address string, txid string,
 
 func verifyTxWithBackupBE(url string, address string, txid string,
 	minimumAmount uint64, txnotbefore int64, minConfirmationsRequired uint64) (bool, error) {
-	responseBody, err := makeRequest(url, 3)
+	responseBody, err := makeRequest(url, requestTimeout)
 	if err != nil {
 		return false, err
 	}
