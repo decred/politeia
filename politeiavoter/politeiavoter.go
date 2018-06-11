@@ -574,7 +574,7 @@ func (c *ctx) tally(args []string) error {
 	}
 
 	// Dump
-	for _, vo := range t.Vote.Options {
+	for _, vo := range t.StartVote.Vote.Options {
 		fmt.Printf("Vote Option:\n")
 		fmt.Printf("  Id                   : %v\n", vo.Id)
 		fmt.Printf("  Description          : %v\n",

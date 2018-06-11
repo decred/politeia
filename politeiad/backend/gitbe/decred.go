@@ -67,6 +67,31 @@ type JournalAction struct {
 	Action  string `json:"action"`  // Add/Del
 }
 
+type CastVoteJournal struct {
+	CastVote decredplugin.CastVote `json:"castvote"` // Client side vote
+	Receipt  string                `json:"receipt"`  // Signature of CastVote.Signature
+}
+
+func encodeCastVoteJournal(cvj CastVoteJournal) ([]byte, error) {
+	b, err := json.Marshal(cvj)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+func decodeCastVoteJournal(payload []byte) (*CastVoteJournal, error) {
+	var cvj CastVoteJournal
+
+	err := json.Unmarshal(payload, &cvj)
+	if err != nil {
+		return nil, err
+	}
+
+	return &cvj, nil
+}
+
 var (
 	decredPluginSettings map[string]string // [key]setting
 
@@ -83,7 +108,8 @@ var (
 	pluginDataDir = filepath.Join("plugins", "decred")
 
 	// Individual votes cache
-	decredPluginVotesCache = make(map[string]map[string]decredplugin.CastVote) // [token][ticket]castvote
+	//decredPluginVotesCache = make(map[string]map[string]decredplugin.CastVote) // [token][ticket]castvote
+	decredPluginVotesCache = make(map[string]map[string]struct{})
 
 	decredPluginCommentsCache     = make(map[string]map[string]decredplugin.Comment) // [token][commentid]comment
 	decredPluginCommentsUserCache = make(map[string]map[string]struct{})             // [pubkey][commentid]
@@ -394,7 +420,7 @@ func (g *gitBackEnd) pluginBestBlock() (string, error) {
 
 // createFlushFile creates a file that indicates that the a journal was flused.
 //
-// Must be called WITH the mutex set.
+// Must be called WITH the mutex held.
 func createFlushFile(filename string) error {
 	// Mark directory as flushed
 	f, err := os.Create(filename)
@@ -414,10 +440,35 @@ func createFlushFile(filename string) error {
 	return err
 }
 
+// flushJournalsUnwind unwinds all the flushing action if something goes wrong.
+//
+// Must be called WITH the mutex held.
+func (g *gitBackEnd) flushJournalsUnwind(id string) error {
+	// git stash, can fail if there are no uncommitted failures
+	err := g.gitStash(g.unvetted)
+	if err == nil {
+		// git stash drop, allowed to fail
+		_ = g.gitStashDrop(g.unvetted)
+	}
+
+	// git checkout master
+	err = g.gitCheckout(g.unvetted, "master")
+	if err != nil {
+		return err
+	}
+	//  delete branch
+	err = g.gitBranchDelete(g.unvetted, id)
+	if err != nil {
+		return err
+	}
+	// git clean -xdf
+	return g.gitClean(g.unvetted)
+}
+
 // flushCommentflushes comments journal to decred plugin directory in
 // git. It returns the filename that was coppied into git repo.
 //
-// Must be called WITH the mutex set.
+// Must be called WITH the mutex held.
 func (g *gitBackEnd) flushComments(token string) (string, error) {
 	if !g.propExists(g.unvetted, token) {
 		return "", fmt.Errorf("unknown proposal: %v", token)
@@ -452,7 +503,7 @@ func (g *gitBackEnd) flushComments(token string) (string, error) {
 // that need to be added to the git repo and subsequently rebased into the
 // vetted repo .
 //
-// Must be called WITH the mutex set.
+// Must be called WITH the mutex held.
 func (g *gitBackEnd) _flushCommentJournals() ([]string, error) {
 	dirs, err := ioutil.ReadDir(g.journals)
 	if err != nil {
@@ -492,36 +543,10 @@ func (g *gitBackEnd) _flushCommentJournals() ([]string, error) {
 	return files, nil
 }
 
-// flushCommentJournalsUnwind unwinds all the flushing action oif something
-// goes wrong.
-//
-// Must be called WITH the mutex set.
-func (g *gitBackEnd) flushCommentJournalsUnwind(id string) error {
-	// git stash, can fail if there are no uncommitted failures
-	err := g.gitStash(g.unvetted)
-	if err == nil {
-		// git stash drop, allowed to fail
-		_ = g.gitStashDrop(g.unvetted)
-	}
-
-	// git checkout master
-	err = g.gitCheckout(g.unvetted, "master")
-	if err != nil {
-		return err
-	}
-	//  delete branch
-	err = g.gitBranchDelete(g.unvetted, id)
-	if err != nil {
-		return err
-	}
-	// git clean -xdf
-	return g.gitClean(g.unvetted)
-}
-
 // flushCommentJournals wraps _flushCommentJournals in git magic to revert
 // flush in case of errors.
 //
-// Must be called WITHOUT the mutex set.
+// Must be called WITHOUT the mutex held.
 func (g *gitBackEnd) flushCommentJournals() error {
 	log.Tracef("flushCommentJournals")
 
@@ -554,9 +579,9 @@ func (g *gitBackEnd) flushCommentJournals() error {
 		if errUnwind == nil {
 			return
 		}
-		err := g.flushCommentJournalsUnwind(branch)
+		err := g.flushJournalsUnwind(branch)
 		if err != nil {
-			log.Errorf("flushCommentJournalsUnwind: %v", err)
+			log.Errorf("flushJournalsUnwind: %v", err)
 		}
 	}()
 
@@ -569,9 +594,9 @@ func (g *gitBackEnd) flushCommentJournals() error {
 
 	if len(files) == 0 {
 		log.Info("flushCommentJournals: nothing to do")
-		err = g.flushCommentJournalsUnwind(branch)
+		err = g.flushJournalsUnwind(branch)
 		if err != nil {
-			log.Errorf("flushCommentJournalsUnwind: %v", err)
+			log.Errorf("flushJournalsUnwind: %v", err)
 		}
 		return nil
 	}
@@ -610,10 +635,184 @@ func (g *gitBackEnd) flushCommentJournals() error {
 	return nil
 }
 
+// flushVotes flushes votes journal to decred plugin directory in git. It
+// returns the filename that was coppied into git repo.
+//
+// Must be called WITH the mutex held.
+func (g *gitBackEnd) flushVotes(token string) (string, error) {
+	if !g.propExists(g.unvetted, token) {
+		return "", fmt.Errorf("unknown proposal: %v", token)
+	}
+
+	// Setup source filenames and verify they actually exist
+	srcDir := filepath.Join(g.journals, token)
+	srcVotes := filepath.Join(srcDir, defaultBallotFilename)
+	if !util.FileExists(srcVotes) {
+		return "", nil
+	}
+
+	// Setup destination filenames
+	dir := filepath.Join(g.unvetted, token, pluginDataDir)
+	votes := filepath.Join(dir, defaultBallotFilename)
+
+	// Create the destination container dir
+	_ = os.MkdirAll(dir, 0764)
+
+	// Move journal into place
+	err := g.journal.Copy(srcVotes, votes)
+	if err != nil {
+		return "", err
+	}
+
+	// Return filename that is relative to git dir.
+	return filepath.Join(token, pluginDataDir, defaultBallotFilename), nil
+}
+
+// _flushVotesJournals walks all votes journal directories and copies
+// modified journals into the unvetted repo. It returns an array of filenames
+// that need to be added to the git repo and subsequently rebased into the
+// vetted repo .
+//
+// Must be called WITH the mutex held.
+func (g *gitBackEnd) _flushVotesJournals() ([]string, error) {
+	dirs, err := ioutil.ReadDir(g.journals)
+	if err != nil {
+		return nil, err
+	}
+
+	files := make([]string, 0, len(dirs))
+	for _, v := range dirs {
+		filename := filepath.Join(g.journals, v.Name(),
+			defaultBallotFlushed)
+		log.Tracef("Checking: %v", v.Name())
+		if util.FileExists(filename) {
+			continue
+		}
+
+		log.Infof("Flushing votes: %v", v.Name())
+
+		// We simply copy the journal into git
+		destination, err := g.flushVotes(v.Name())
+		if err != nil {
+			log.Errorf("Could not flush %v: %v", v.Name(), err)
+			continue
+		}
+
+		// Create flush record
+		err = createFlushFile(filename)
+		if err != nil {
+			log.Errorf("Could not mark flushed %v: %v", v.Name(),
+				err)
+			continue
+		}
+
+		// Add filename to work
+		files = append(files, destination)
+	}
+
+	return files, nil
+}
+
+// flushVoteJournals wraps _flushVoteJournals in git magic to revert
+// flush in case of errors.
+//
+// Must be called WITHOUT the mutex held.
+func (g *gitBackEnd) flushVoteJournals() error {
+	log.Tracef("flushVoteJournals")
+
+	// We may have to make this more granular
+	g.Lock()
+	defer g.Unlock()
+
+	// git checkout master
+	err := g.gitCheckout(g.unvetted, "master")
+	if err != nil {
+		return err
+	}
+
+	// git pull --ff-only --rebase
+	err = g.gitPull(g.unvetted, true)
+	if err != nil {
+		return err
+	}
+
+	// git checkout -b timestamp_flushvotes
+	branch := strconv.FormatInt(time.Now().Unix(), 10) + "_flushvotes"
+	err = g.gitNewBranch(g.unvetted, branch)
+	if err != nil {
+		return err
+	}
+
+	// closure to handle unwind if needed
+	var errUnwind error
+	defer func() {
+		if errUnwind == nil {
+			return
+		}
+		err := g.flushJournalsUnwind(branch)
+		if err != nil {
+			log.Errorf("flushJournalsUnwind: %v", err)
+		}
+	}()
+
+	// Flush journals
+	files, err := g._flushVotesJournals()
+	if err != nil {
+		errUnwind = err
+		return err
+	}
+
+	if len(files) == 0 {
+		log.Info("flushVotesJournals: nothing to do")
+		err = g.flushJournalsUnwind(branch)
+		if err != nil {
+			log.Errorf("flushJournalsUnwind: %v", err)
+		}
+		return nil
+	}
+
+	// git add journals
+	commitMessage := "Flush vote journals.\n\n"
+	for _, v := range files {
+		err = g.gitAdd(g.unvetted, v)
+		if err != nil {
+			errUnwind = err
+			return err
+		}
+
+		s := strings.Split(v, string(os.PathSeparator))
+		if len(s) == 0 {
+			commitMessage += "ERROR: " + v + "\n"
+		} else {
+			commitMessage += s[0] + "\n"
+		}
+	}
+
+	// git commit
+	err = g.gitCommit(g.unvetted, commitMessage)
+	if err != nil {
+		errUnwind = err
+		return err
+	}
+
+	// git rebase master
+	err = g.rebasePR(branch)
+	if err != nil {
+		errUnwind = err
+		return err
+	}
+
+	return nil
+}
 func (g *gitBackEnd) decredPluginJournalFlusher() {
+	// XXX make this a single PR instead of 2 to save some git time
 	err := g.flushCommentJournals()
 	if err != nil {
 		log.Errorf("decredPluginJournalFlusher: %v", err)
+	}
+	err = g.flushVoteJournals()
+	if err != nil {
+		log.Errorf("decredPluginVoteFlusher: %v", err)
 	}
 }
 
@@ -960,10 +1159,9 @@ func (g *gitBackEnd) replayComments(token string) (map[string]decredplugin.Comme
 	}
 
 	g.Lock()
-	defer g.Unlock()
-
 	decredPluginCommentsCache[token] = comments
 	decredPluginCommentsUserCache = seen
+	g.Unlock()
 
 	return comments, nil
 }
@@ -1051,6 +1249,9 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 	snapshot, err := snapshot(snapshotBlock.Hash)
 	if err != nil {
 		return "", fmt.Errorf("snapshot %v", err)
+	}
+	if len(snapshot) == 0 {
+		return "", fmt.Errorf("no eligble voters for %v", token)
 	}
 
 	// Make sure vote duration isn't too large. Assume < 2 weeks
@@ -1213,272 +1414,84 @@ func (g *gitBackEnd) validateVoteBit(token, bit string) error {
 	return _validateVoteBit(sv.Vote, b)
 }
 
-func (g *gitBackEnd) _pluginBallot(payload string) (string, error) {
-	//// XXX convert this to journal
+// replayBallot replays voting journalfor given proposal.
+//
+// Functions must be called WITH the lock held.
+func (g *gitBackEnd) replayBallot(token string) error {
+	// Verify proposal exists, we can run this lockless
+	if !g.propExists(g.vetted, token) {
+		return nil
+	}
 
-	//log.Tracef("_pluginBallot: %v", payload)
-	//ballot, err := decredplugin.DecodeBallot([]byte(payload))
-	//if err != nil {
-	//	return "", fmt.Errorf("DecodeVote %v", err)
-	//}
+	// Do some cheap things before expensive calls
+	bfilename := filepath.Join(g.journals, token,
+		defaultBallotFilename)
 
-	//// XXX this should become part of some sort of context
-	//fiJSON, ok := decredPluginSettings[decredPluginIdentity]
-	//if !ok {
-	//	return "", fmt.Errorf("full identity not set")
-	//}
-	//fi, err := identity.UnmarshalFullIdentity([]byte(fiJSON))
-	//if err != nil {
-	//	return "", err
-	//}
+	// Replay journal
+	err := g.journal.Open(bfilename)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("journal.Open: %v", err)
+		}
+		return nil
+	}
+	defer func() {
+		err = g.journal.Close(bfilename)
+		if err != nil {
+			log.Errorf("journal.Close: %v", err)
+		}
+	}()
 
-	//// Go over all votes and verify signature
-	//type dedupVote struct {
-	//	vote  *decredplugin.CastVote
-	//	index int
-	//}
-	//br := decredplugin.BallotReply{
-	//	Receipts: make([]decredplugin.CastVoteReply, len(ballot.Votes)),
-	//}
-	//dedupVotes := make(map[string]dedupVote)
-	//for k, v := range ballot.Votes {
-	//	// Check if this is a duplicate vote
-	//	key := v.Token + v.Ticket
-	//	if _, ok := dedupVotes[key]; ok {
-	//		br.Receipts[k].Error = fmt.Sprintf("duplicate vote "+
-	//			"token %v ticket %v", v.Token, v.Ticket)
-	//		continue
-	//	}
+	for {
+		err = g.journal.Replay(bfilename, func(s string) error {
+			ss := bytes.NewReader([]byte(s))
+			d := json.NewDecoder(ss)
 
-	//	// Ensure that the votebits are correct
-	//	err = g.validateVoteBit(v.Token, v.VoteBit)
-	//	if err != nil {
-	//		if e, ok := err.(invalidVoteBitError); ok {
-	//			br.Receipts[k].Error = e.err.Error()
-	//			continue
-	//		}
-	//		t := time.Now().Unix()
-	//		log.Errorf("_pluginBallot: validateVoteBit %v %v %v",
-	//			v.Token, t, err)
-	//		br.Receipts[k].Error = fmt.Sprintf("internal error %v",
-	//			t)
-	//		continue
-	//	}
+			// Decode action
+			var action JournalAction
+			err = d.Decode(&action)
+			if err != nil {
+				return fmt.Errorf("journal action: %v", err)
+			}
 
-	//	br.Receipts[k].ClientSignature = v.Signature
-	//	// Verify that vote is signed correctly
-	//	err = g.validateVote(v.Token, v.Ticket, v.VoteBit, v.Signature)
-	//	if err != nil {
-	//		t := time.Now().Unix()
-	//		log.Errorf("_pluginBallot: validateVote %v %v %v",
-	//			v.Token, t, err)
-	//		br.Receipts[k].Error = fmt.Sprintf("internal error %v",
-	//			t)
-	//		continue
-	//	}
+			switch action.Action {
+			case journalActionAdd:
+				var cvj CastVoteJournal
+				err = d.Decode(&cvj)
+				if err != nil {
+					return fmt.Errorf("journal add: %v",
+						err)
+				}
 
-	//	// Sign ClientSignature
-	//	signature := fi.SignMessage([]byte(v.Signature))
-	//	br.Receipts[k].Signature = hex.EncodeToString(signature[:])
-	//	dedupVotes[key] = dedupVote{
-	//		vote:  &ballot.Votes[k],
-	//		index: k,
-	//	}
-	//}
+				token := cvj.CastVote.Token
+				ticket := cvj.CastVote.Ticket
+				// See if the prop already exists
+				if _, ok := decredPluginVotesCache[token]; !ok {
+					// Create map to track tickets
+					decredPluginVotesCache[token] = make(map[string]struct{})
+				}
+				// See if we have a duplicate vote
+				if _, ok := decredPluginVotesCache[token][ticket]; ok {
+					log.Errorf("duplicate cast vote %v %v",
+						token, ticket)
+				}
+				// All good, record vote in cache
+				decredPluginVotesCache[token][ticket] = struct{}{}
 
-	//// See if we can short circuit the lock magic
-	//if len(dedupVotes) == 0 {
-	//	reply, err := decredplugin.EncodeBallotReply(br)
-	//	if err != nil {
-	//		return "", fmt.Errorf("Could not encode BallotReply"+
-	//			" %v", err)
-	//	}
-	//	return string(reply), nil
-	//}
+			default:
+				return fmt.Errorf("invalid action: %v",
+					action.Action)
+			}
+			return nil
+		})
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return err
+		}
+	}
 
-	//// Store votes
-	//g.Lock()
-	//defer g.Unlock()
-	//if g.shutdown {
-	//	return "", backend.ErrShutdown
-	//}
-
-	//// XXX split out git commands so we can do a stash + stash drop if the operation fails
-
-	//// git checkout master
-	//err = g.gitCheckout(g.unvetted, "master")
-	//if err != nil {
-	//	return "", err
-	//}
-
-	//// git pull --ff-only --rebase
-	//err = g.gitPull(g.unvetted, true)
-	//if err != nil {
-	//	return "", err
-	//}
-
-	//// Create random temporary branch
-	//random, err := util.Random(64)
-	//if err != nil {
-	//	return "", err
-	//}
-	//id := hex.EncodeToString(random)
-	//idTmp := id + "_tmp"
-	//err = g.gitNewBranch(g.unvetted, idTmp)
-	//if err != nil {
-	//	return "", err
-	//}
-
-	//// Check for dups
-	//type file struct {
-	//	fileHandle *os.File
-	//	token      string
-	//	mdFilename string
-	//	index      int
-	//	content    map[string]struct{} // [token+ticket]
-	//}
-	//files := make(map[string]*file)
-	//for _, v := range dedupVotes {
-	//	// This loop must be exited in order to close all open file
-	//	// handles.
-	//	var f *file
-	//	if f, ok = files[v.vote.Token]; !ok {
-	//		// Lazily open files and recreate content
-	//		filename := mdFilename(g.unvetted, v.vote.Token,
-	//			decredplugin.MDStreamVotes)
-	//		fh, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE,
-	//			0666)
-	//		if err != nil {
-	//			t := time.Now().Unix()
-	//			log.Errorf("_pluginBallot: OpenFile %v %v %v",
-	//				v.vote.Token, t, err)
-	//			br.Receipts[v.index].Error =
-	//				fmt.Sprintf("internal error %v", t)
-	//			continue
-	//		}
-	//		f = &file{
-	//			fileHandle: fh,
-	//			token:      v.vote.Token,
-	//			mdFilename: strconv.FormatUint(uint64(decredplugin.MDStreamVotes),
-	//				10) + defaultMDFilenameSuffix,
-	//			index:   v.index,
-	//			content: make(map[string]struct{}),
-	//		}
-
-	//		// Decode file content
-	//		cvs := make([]decredplugin.CastVote, 0, len(dedupVotes))
-	//		d := json.NewDecoder(fh)
-	//		for {
-	//			var cv decredplugin.CastVote
-	//			err = d.Decode(&cv)
-	//			if err != nil {
-	//				if err == io.EOF {
-	//					break
-	//				}
-
-	//				t := time.Now().Unix()
-	//				log.Errorf("_pluginBallot: Decode %v %v %v",
-	//					v.vote.Token, t, err)
-	//				br.Receipts[v.index].Error =
-	//					fmt.Sprintf("internal error %v", t)
-	//				continue
-	//			}
-	//			cvs = append(cvs, cv)
-	//		}
-
-	//		// Recreate keys
-	//		for _, vv := range cvs {
-	//			key := vv.Token + vv.Ticket
-	//			// Sanity
-	//			if _, ok := f.content[key]; ok {
-	//				t := time.Now().Unix()
-	//				log.Errorf("_pluginBallot: not found %v %v %v",
-	//					key, t, err)
-	//				br.Receipts[v.index].Error =
-	//					fmt.Sprintf("internal error %v", t)
-	//				continue
-	//			}
-	//			f.content[key] = struct{}{}
-	//		}
-
-	//		files[v.vote.Token] = f
-	//	}
-
-	//	// Check for dups in file content
-	//	key := v.vote.Token + v.vote.Ticket
-	//	if _, ok := f.content[key]; ok {
-	//		index := dedupVotes[key].index
-	//		br.Receipts[index].Error = "ticket already voted on " +
-	//			"proposal"
-	//		log.Debugf("duplicate vote token %v ticket %v",
-	//			v.vote.Token, v.vote.Ticket)
-	//		continue
-	//	}
-
-	//	// Append vote
-	//	_, err = f.fileHandle.Seek(0, 2)
-	//	if err != nil {
-	//		t := time.Now().Unix()
-	//		log.Errorf("_pluginBallot: Seek %v %v %v",
-	//			v.vote.Token, t, err)
-	//		br.Receipts[v.index].Error =
-	//			fmt.Sprintf("internal error %v", t)
-	//		continue
-	//	}
-	//	e := json.NewEncoder(f.fileHandle)
-	//	err = e.Encode(*v.vote)
-	//	if err != nil {
-	//		t := time.Now().Unix()
-	//		log.Errorf("_pluginBallot: Encode %v %v %v",
-	//			v.vote.Token, t, err)
-	//		br.Receipts[v.index].Error =
-	//			fmt.Sprintf("internal error %v", t)
-	//		continue
-	//	}
-	//}
-
-	//// Unwind all opens
-	//for _, v := range files {
-	//	if v.fileHandle == nil {
-	//		continue
-	//	}
-	//	v.fileHandle.Close()
-
-	//	// Add file to repo
-	//	err = g.gitAdd(g.unvetted, filepath.Join(v.token, v.mdFilename))
-	//	if err != nil {
-	//		t := time.Now().Unix()
-	//		log.Errorf("_pluginBallot: gitAdd %v %v %v",
-	//			v.token, t, err)
-	//		br.Receipts[v.index].Error =
-	//			fmt.Sprintf("internal error %v", t)
-	//		continue
-	//	}
-	//}
-
-	//// If there are no changes DO NOT update the record and reply with no
-	//// changes.
-	//if g.gitHasChanges(g.unvetted) {
-	//	// Commit change
-	//	err = g.gitCommit(g.unvetted, "Update record metadata via plugin")
-	//	if err != nil {
-	//		return "", fmt.Errorf("Could not commit: %v", err)
-	//	}
-
-	//	// create and rebase PR
-	//	err = g.rebasePR(idTmp)
-	//	if err != nil {
-	//		return "", fmt.Errorf("Could not rebase: %v", err)
-	//	}
-	//}
-
-	//reply, err := decredplugin.EncodeBallotReply(br)
-	//if err != nil {
-	//	return "", fmt.Errorf("Could not encode BallotReply %v", err)
-	//}
-
-	//return string(reply), nil
-	return "", fmt.Errorf("_pluginBallot: nope")
+	return nil
 }
 
 // voteExists verifies if a vote exists in the memory cache. If the cache does
@@ -1497,7 +1510,10 @@ func (g *gitBackEnd) voteExists(v decredplugin.CastVote) (bool, error) {
 	_, ok = decredPluginVotesCache[v.Token]
 	if !ok {
 		// Replay journal
-		panic("replay journal")
+		err := g.replayBallot(v.Token)
+		if err != nil {
+			return false, err
+		}
 	}
 
 	// And try to see if the ticket exists
@@ -1539,10 +1555,16 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 		// Replay individual votes journal
 		dup, err := g.voteExists(v)
 		if err != nil {
-			// XXX this is probably fatal
+			t := time.Now().Unix()
+			log.Errorf("pluginBallot: voteExists %v %v %v",
+				v.Token, t, err)
+			br.Receipts[k].Error = fmt.Sprintf("internal error %v",
+				t)
+			continue
 		}
 		if dup {
-			// XXX disallow dup votes
+			br.Receipts[k].Error = "duplicate vote: " + v.Token
+			continue
 		}
 
 		// Ensure that the votebits are correct
@@ -1580,17 +1602,15 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 		receipt := hex.EncodeToString(r[:])
 		br.Receipts[k].Signature = receipt
 
-		// XXX lock and replay journal here
-
 		// Create Journal entry
-		cvr := decredplugin.CastVoteReply{
-			ClientSignature: v.Signature,
-			Signature:       receipt,
+		cvj := CastVoteJournal{
+			CastVote: v,
+			Receipt:  receipt,
 		}
-		blob, err := decredplugin.EncodeCastVoteReply(cvr)
+		blob, err := encodeCastVoteJournal(cvj)
 		if err != nil {
 			// Should not fail, so return failure to alert people
-			return "", fmt.Errorf("EncodeCastVoteReply: %v", err)
+			return "", fmt.Errorf("EncodeCastVoteJournal: %v", err)
 		}
 
 		// Add comment to journal
@@ -1601,6 +1621,14 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 			return "", fmt.Errorf("could not journal vote %v: %v %v",
 				v.Token, v.Ticket, err)
 		}
+
+		// Add to cache
+		g.Lock()
+		if _, ok := decredPluginVotesCache[v.Token]; !ok {
+			decredPluginVotesCache[v.Token] = make(map[string]struct{})
+		}
+		decredPluginVotesCache[v.Token][v.Ticket] = struct{}{}
+		g.Unlock()
 
 		// Mark comment journal dirty
 		flushFilename := filepath.Join(g.journals, v.Token,
@@ -1618,8 +1646,68 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 	return string(brb), nil
 }
 
+func (g *gitBackEnd) tallyVotes(token string) ([]decredplugin.CastVote, error) {
+	// Do some cheap things before expensive calls
+	bfilename := filepath.Join(g.journals, token, defaultBallotFilename)
+
+	// Replay journal
+	err := g.journal.Open(bfilename)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return nil, fmt.Errorf("journal.Open: %v", err)
+		}
+		return []decredplugin.CastVote{}, nil
+	}
+	defer func() {
+		err = g.journal.Close(bfilename)
+		if err != nil {
+			log.Errorf("journal.Close: %v", err)
+		}
+	}()
+
+	cv := make([]decredplugin.CastVote, 0, 41000)
+	for {
+		err = g.journal.Replay(bfilename, func(s string) error {
+			ss := bytes.NewReader([]byte(s))
+			d := json.NewDecoder(ss)
+
+			// Decode action
+			var action JournalAction
+			err = d.Decode(&action)
+			if err != nil {
+				return fmt.Errorf("journal action: %v", err)
+			}
+
+			switch action.Action {
+			case journalActionAdd:
+				var cvj CastVoteJournal
+				err = d.Decode(&cvj)
+				if err != nil {
+					return fmt.Errorf("journal add: %v",
+						err)
+				}
+				cv = append(cv, cvj.CastVote)
+
+			default:
+				return fmt.Errorf("invalid action: %v",
+					action.Action)
+			}
+			return nil
+		})
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return nil, err
+		}
+	}
+
+	return cv, nil
+}
+
+// pluginProposalVotes tallies all votes for a proposal. We can run the tally
+// unlocked and just replay the journal. If the replay becomes an issue we
+// could cache it. The Vote that is returned does have to be locked.
 func (g *gitBackEnd) pluginProposalVotes(payload string) (string, error) {
-	// XXX convert to journal
 	log.Tracef("pluginProposalVotes: %v", payload)
 
 	vote, err := decredplugin.DecodeVoteResults([]byte(payload))
@@ -1627,35 +1715,38 @@ func (g *gitBackEnd) pluginProposalVotes(payload string) (string, error) {
 		return "", fmt.Errorf("DecodeVoteResults %v", err)
 	}
 
-	// Lock tree while we pull out the results
+	// Verify proposal exists, we can run this lockless
+	if !g.propExists(g.vetted, vote.Token) {
+		return "", fmt.Errorf("proposal not found: %v", vote.Token)
+	}
+
+	// Prepare reply
+	var vrr decredplugin.VoteResultsReply
+
+	// Fill out cast votes
+	vrr.CastVotes, err = g.tallyVotes(vote.Token)
+	if err != nil {
+		return "", fmt.Errorf("Could not tally votes: %v", err)
+	}
+
+	// This portion is must run locked
+
+	// git checkout master
 	g.Lock()
 	defer g.Unlock()
-	// XXX make sure thjis test is sprinkled thorughout the code
+
 	if g.shutdown {
 		return "", backend.ErrShutdown
 	}
-
-	// git checkout master
 	err = g.gitCheckout(g.vetted, "master")
 	if err != nil {
 		return "", err
 	}
 
-	// Verify proposal exists
-	// XXX should we return a NOT FOUND error here instead of percolating a
-	// 500 to the user?
-	if !g.propExists(g.vetted, vote.Token) {
-		return "", fmt.Errorf("unknown proposal: %v", vote.Token)
-	}
-
 	// Prepare reply
-	vrr := decredplugin.VoteResultsReply{
-		CastVotes: make([]decredplugin.CastVote, 0, 41000),
-	}
-
 	var (
-		d, dd *json.Decoder
-		f, ff *os.File
+		dd *json.Decoder
+		ff *os.File
 	)
 	// Fill out vote
 	filename := mdFilename(g.vetted, vote.Token,
@@ -1670,7 +1761,7 @@ func (g *gitBackEnd) pluginProposalVotes(payload string) (string, error) {
 	defer ff.Close()
 	dd = json.NewDecoder(ff)
 
-	err = dd.Decode(&vrr.Vote)
+	err = dd.Decode(&vrr.StartVote)
 	if err != nil {
 		if err == io.EOF {
 			goto nodata
@@ -1678,35 +1769,10 @@ func (g *gitBackEnd) pluginProposalVotes(payload string) (string, error) {
 		return "", err
 	}
 
-	// Fill out cast votes
-	filename = mdFilename(g.vetted, vote.Token, decredplugin.MDStreamVotes)
-	f, err = os.Open(filename)
-	if err != nil {
-		if os.IsNotExist(err) {
-			goto nodata
-		}
-		return "", err
-	}
-	defer f.Close()
-	d = json.NewDecoder(f)
-
-	for {
-		var cv decredplugin.CastVote
-		err = d.Decode(&cv)
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return "", err
-		}
-
-		vrr.CastVotes = append(vrr.CastVotes, cv)
-	}
-
 nodata:
 	reply, err := decredplugin.EncodeVoteResultsReply(vrr)
 	if err != nil {
-		return "", fmt.Errorf("Could not encode VoteResultsReply %v",
+		return "", fmt.Errorf("Could not encode VoteResultsReply: %v",
 			err)
 	}
 

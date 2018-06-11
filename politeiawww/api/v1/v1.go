@@ -134,7 +134,7 @@ const (
 	PropStatusNotReviewed PropStatusT = 2 // Proposal has not been reviewed
 	PropStatusCensored    PropStatusT = 3 // Proposal has been censored
 	PropStatusPublic      PropStatusT = 4 // Proposal is publicly visible
-	PropStatusLocked      PropStatusT = 6 // Proposal is locked
+	PropStatusLocked      PropStatusT = 6 // Proposal is locked, NOT IMPLEMENTED
 )
 
 var (
@@ -611,7 +611,7 @@ type VoteResults struct {
 // VoteResultsReply returns the original proposal vote and the associated cast
 // votes.
 type VoteResultsReply struct {
-	Vote           Vote           `json:"vote"`           // Original vote
+	StartVote      StartVote      `json:"startvote"`      // Original vote
 	CastVotes      []CastVote     `json:"castvotes"`      // Vote results
 	StartVoteReply StartVoteReply `json:"startvotereply"` // Eligible tickets and other details
 }

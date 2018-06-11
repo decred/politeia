@@ -144,7 +144,7 @@ func convertCastVotesFromDecredplugin(cv []decredplugin.CastVote) []www.CastVote
 
 func convertVoteResultsReplyFromDecredplugin(vrr decredplugin.VoteResultsReply, ir inventoryRecord) www.VoteResultsReply {
 	return www.VoteResultsReply{
-		Vote:           convertVoteFromDecredplugin(vrr.Vote),
+		StartVote:      convertStartVoteFromDecredplugin(vrr.StartVote),
 		CastVotes:      convertCastVotesFromDecredplugin(vrr.CastVotes),
 		StartVoteReply: ir.voting,
 	}

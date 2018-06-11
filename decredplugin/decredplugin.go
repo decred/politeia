@@ -13,7 +13,6 @@ const (
 	CmdLikeComment       = "likecomment"
 	CmdGetComments       = "getcomments"
 	CmdProposalVotes     = "proposalvotes"
-	MDStreamVotes        = 13 // Votes
 	MDStreamVoteBits     = 14 // Vote bits and mask
 	MDStreamVoteSnapshot = 15 // Vote tickets and start/end parameters
 )
@@ -181,7 +180,7 @@ type VoteResults struct {
 }
 
 type VoteResultsReply struct {
-	Vote      Vote       `json:"vote"`      // Original ballot
+	StartVote StartVote  `json:"startvote"` // Original ballot
 	CastVotes []CastVote `json:"castvotes"` // All votes
 }
 
