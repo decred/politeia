@@ -611,8 +611,9 @@ type VoteResults struct {
 // VoteResultsReply returns the original proposal vote and the associated cast
 // votes.
 type VoteResultsReply struct {
-	Vote      Vote       `json:"vote"`      // Original vote
-	CastVotes []CastVote `json:"castvotes"` // Vote results
+	Vote           Vote           `json:"vote"`           // Original vote
+	CastVotes      []CastVote     `json:"castvotes"`      // Vote results
+	StartVoteReply StartVoteReply `json:"startvotereply"` // Eligible tickets and other details
 }
 
 // Comment is the structure that describes the full server side content.  It
