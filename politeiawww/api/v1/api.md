@@ -1564,6 +1564,7 @@ forwarded as-is to the politeia daemon.
 | - | - | - |
 | vote | Vote | Vote details |
 | castvotes | array of CastVote  | Cast vote details |
+| startvotereply | StartVoteReply | Vote details (eligible tickets, start block etc) |
 
 **Example**
 
