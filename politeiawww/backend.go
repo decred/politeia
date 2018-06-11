@@ -1163,6 +1163,7 @@ func (b *backend) ProcessVerifyUpdateUserKey(user *database.User, vu www.VerifyU
 		}
 	}
 	user.Identities[len(user.Identities)-1].Activated = t
+	user.Identities[len(user.Identities)-1].Deactivated = 0
 
 	return user, b.db.UserUpdate(*user)
 }
