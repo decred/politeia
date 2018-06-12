@@ -9,8 +9,9 @@ import (
 
 type SetproposalstatusCmd struct {
 	Args struct {
-		Token  string `positional-arg-name:"token"`
-		Status int    `positional-arg-name:"status"`
+		Token    string `positional-arg-name:"token"`
+		Status   int    `positional-arg-name:"status"`
+		Messsage string `positional-arg-name:"message"`
 	} `positional-args:"true" required:"true"`
 }
 
@@ -19,6 +20,6 @@ func (cmd *SetproposalstatusCmd) Execute(args []string) error {
 		return fmt.Errorf(config.ErrorNoUserIdentity)
 	}
 	var ps v1.PropStatusT = v1.PropStatusT(cmd.Args.Status)
-	_, err := Ctx.SetPropStatus(config.UserIdentity, cmd.Args.Token, ps)
+	_, err := Ctx.SetPropStatus(config.UserIdentity, cmd.Args.Token, ps, cmd.Args.Messsage)
 	return err
 }

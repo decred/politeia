@@ -488,6 +488,7 @@ type SetProposalStatus struct {
 	ProposalStatus PropStatusT `json:"proposalstatus"`
 	Signature      string      `json:"signature"` // Signature of Token+string(ProposalStatus)
 	PublicKey      string      `json:"publickey"`
+	CensorMessage  string      `json:"censormessage"` // Admin's message
 }
 
 // SetProposalStatusReply is used to reply to a SetProposalStatus command.

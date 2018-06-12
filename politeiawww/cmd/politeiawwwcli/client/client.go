@@ -555,10 +555,11 @@ func (c *Ctx) ProposalsForUser(userId string) (*v1.UserProposalsReply, error) {
 }
 
 func (c *Ctx) SetPropStatus(id *identity.FullIdentity, token string,
-	status v1.PropStatusT) (*v1.SetProposalStatusReply, error) {
+	status v1.PropStatusT, message string) (*v1.SetProposalStatusReply, error) {
 	ps := v1.SetProposalStatus{
 		Token:          token,
 		ProposalStatus: status,
+		CensorMessage:  message,
 	}
 	// Sign token+string(status)
 	msg := []byte(ps.Token + strconv.FormatUint(uint64(ps.ProposalStatus), 10))

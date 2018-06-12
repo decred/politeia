@@ -46,10 +46,10 @@ const (
 )
 
 type MDStreamChanges struct {
-	Version     uint             `json:"version"`     // Version of the struct
-	AdminPubKey string           `json:"adminpubkey"` // Identity of the administrator
-	NewStatus   pd.RecordStatusT `json:"newstatus"`   // NewStatus
-	Timestamp   int64            `json:"timestamp"`   // Timestamp of the change
+	AdminPubKey   string           // Identity of the administrator
+	NewStatus     pd.RecordStatusT // NewStatus
+	Timestamp     int64            // Timestamp of the change
+	CensorMessage string           // Admin's reasonf of censoring
 }
 
 // politeiawww backend construct
@@ -1466,9 +1466,9 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 	// Create change record
 	newStatus := convertPropStatusFromWWW(sps.ProposalStatus)
 	r := MDStreamChanges{
-		Version:   VersionMDStreamChanges,
-		Timestamp: time.Now().Unix(),
-		NewStatus: newStatus,
+		Timestamp:     time.Now().Unix(),
+		NewStatus:     newStatus,
+		CensorMessage: sps.CensorMessage,
 	}
 
 	var reply www.SetProposalStatusReply
