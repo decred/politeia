@@ -145,7 +145,7 @@ Reply:
 
 Return pertinent user information of the current logged in user.
 
-**Route**: `GET /v1//user/me`
+**Route**: `GET /v1/user/me`
 
 **Params**: none
 
@@ -575,7 +575,7 @@ Allows a user to reset his password without being logged in.
 
 | Parameter | Type | Description |
 |-|-|-|
-| verificationtoken | String | The verification token which is required when calling [Verify update user key](#verify-update-user-key). If an email server is set up, this property will be empty or nonexistent |
+| verificationtoken | String | This command is special because it has to be called twice, the 2nd time the caller needs to supply the `verificationtoken` |
 
 
 The reset password command is special.  It must be called **twice** with different
@@ -857,16 +857,19 @@ SHALL observe.
 
 | | Type | Description |
 |-|-|-|
-| passwordminchars | integer | minimum number of characters accepted for user passwords |
+| minpasswordlength | integer | minimum number of characters accepted for user passwords |
+| minusernamelength | integer | minimum number of characters accepted for username |
+| maxusernamelength | integer | maximum number of characters accepted for username |
+| usernamesupportedchars | array of strings | the regular expression of a valid username |
 | proposallistpagesize | integer | maximum number of proposals returned for the routes that return lists of proposals |
 | maximages | integer | maximum number of images accepted when creating a new proposal |
 | maximagesize | integer | maximum image file size (in bytes) accepted when creating a new proposal |
 | maxmds | integer | maximum number of markdown files accepted when creating a new proposal |
 | maxmdsize | integer | maximum markdown file size (in bytes) accepted when creating a new proposal |
 | validmimetypes | array of strings | list of all acceptable MIME types that can be communicated between client and server. |
-| maxnamelength | integer | max length of a proposal name |
-| minnamelength | integer | min length of a proposal name |
-| supportedcharacters | array of strings | the regular expression of a valid proposal name |
+| maxproposalnamelength | integer | max length of a proposal name |
+| minproposalnamelength | integer | min length of a proposal name |
+| proposalnamesupportedchars | array of strings | the regular expression of a valid proposal name |
 | maxcommentlength | integer | maximum number of characters accepted for comments |
 | backendpublickey | string |  |
 
@@ -900,9 +903,7 @@ Reply:
     "text/plain",
     "text/plain; charset=utf-8"
   ],
-  "maxnamelength": 80,
-  "minnamelength": 8,
-  "supportedcharacters": [
+  "proposalnamesupportedchars": [
      "A-z", "0-9", "&", ".", ":", ";", ",", "-", " ", "@", "+", "#"
   ],
   "maxcommentlength": 8000,
