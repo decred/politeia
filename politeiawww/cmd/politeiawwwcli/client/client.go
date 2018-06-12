@@ -14,8 +14,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/agl/ed25519"
-	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/util"
@@ -74,11 +72,19 @@ func (c *Ctx) makeRequest(method, route string, b interface{}) ([]byte, error) {
 	}
 
 	fullRoute := config.Host + v1.PoliteiaWWWAPIRoute + route + queryParams
-	fmt.Printf("Request: %v %v\n", method,
-		v1.PoliteiaWWWAPIRoute+route+queryParams)
 
-	if config.PrintJson {
-		fmt.Println("  " + string(requestBody))
+	// if --verbose flag is used, print everything and pretty print json
+	// if --json flag is used, only print the raw json from req and resp bodies
+	// if neither flags are used, only print request method and route
+	if !config.PrintJSON {
+		fmt.Printf("Request: %v %v\n", method,
+			v1.PoliteiaWWWAPIRoute+route+queryParams)
+	}
+	if config.Verbose && method != http.MethodGet {
+		prettyPrintJSON(b)
+	}
+	if config.PrintJSON && method != http.MethodGet {
+		fmt.Printf("%v\n", string(requestBody))
 	}
 
 	req, err := http.NewRequest(method, fullRoute, bytes.NewReader(requestBody))
@@ -95,10 +101,6 @@ func (c *Ctx) makeRequest(method, route string, b interface{}) ([]byte, error) {
 	}()
 
 	responseBody := util.ConvertBodyToByteArray(r.Body, false)
-
-	if config.PrintJson {
-		fmt.Printf("Response: %v %v\n\n", r.StatusCode, string(responseBody))
-	}
 	if r.StatusCode != http.StatusOK {
 		var ue v1.UserError
 		err = json.Unmarshal(responseBody, &ue)
@@ -108,6 +110,13 @@ func (c *Ctx) makeRequest(method, route string, b interface{}) ([]byte, error) {
 		}
 
 		return nil, fmt.Errorf("%v", r.StatusCode)
+	}
+
+	if config.Verbose {
+		fmt.Printf("Response: %v\n", r.StatusCode)
+	}
+	if config.PrintJSON {
+		fmt.Printf("%v\n", string(responseBody))
 	}
 
 	return responseBody, nil
@@ -146,10 +155,10 @@ func (c *Ctx) Version() (*v1.VersionReply, error) {
 	}
 
 	fullRoute := config.Host + v1.PoliteiaWWWAPIRoute + v1.RouteVersion
-	fmt.Printf("Request: GET %v\n", v1.PoliteiaWWWAPIRoute+v1.RouteVersion)
 
-	if config.PrintJson {
-		fmt.Println("  " + string(requestBody))
+	// if --json flag is used, only print the raw json from req and resp bodies
+	if !config.PrintJSON {
+		fmt.Printf("Request: GET %v\n", v1.PoliteiaWWWAPIRoute+v1.RouteVersion)
 	}
 
 	// create new http request instead of using makeRequest() so that we can
@@ -169,9 +178,6 @@ func (c *Ctx) Version() (*v1.VersionReply, error) {
 
 	responseBody := util.ConvertBodyToByteArray(r.Body, false)
 
-	if config.PrintJson {
-		fmt.Println("Response: " + string(responseBody) + "\n")
-	}
 	if r.StatusCode != http.StatusOK {
 		var ue v1.UserError
 		err = json.Unmarshal(responseBody, &ue)
@@ -187,6 +193,14 @@ func (c *Ctx) Version() (*v1.VersionReply, error) {
 	err = json.Unmarshal(responseBody, &v)
 	if err != nil {
 		return nil, fmt.Errorf("Could not unmarshal version: %v", err)
+	}
+
+	if config.Verbose {
+		fmt.Printf("Response: %v\n", r.StatusCode)
+		prettyPrintJSON(v)
+	}
+	if config.PrintJSON {
+		fmt.Printf("%v\n", string(responseBody))
 	}
 
 	// store CSRF tokens
@@ -213,6 +227,10 @@ func (c *Ctx) Login(email, password string) (*v1.LoginReply, error) {
 		return nil, fmt.Errorf("Could not unmarshal LoginReply: %v", err)
 	}
 
+	if config.Verbose {
+		prettyPrintJSON(lr)
+	}
+
 	return &lr, nil
 }
 
@@ -228,23 +246,11 @@ func (c *Ctx) Policy() (*v1.PolicyReply, error) {
 		return nil, fmt.Errorf("Could not unmarshal PolicyReply: %v", err)
 	}
 
-	return &pr, nil
-}
-
-func idFromString(s string) (*identity.FullIdentity, error) {
-	// super hack alert, we are going to use the email address as the
-	// privkey.  We do this in order to sign things as an admin later.
-	buf := [32]byte{}
-	copy(buf[:], []byte(s))
-	r := bytes.NewReader(buf[:])
-	pub, priv, err := ed25519.GenerateKey(r)
-	if err != nil {
-		return nil, err
+	if config.Verbose {
+		prettyPrintJSON(pr)
 	}
-	id := &identity.FullIdentity{}
-	copy(id.Public.Key[:], pub[:])
-	copy(id.PrivateKey[:], priv[:])
-	return id, nil
+
+	return &pr, nil
 }
 
 func (c *Ctx) NewUser(email, username, password string) (string, *identity.FullIdentity,
@@ -272,25 +278,19 @@ func (c *Ctx) NewUser(email, username, password string) (string, *identity.FullI
 			err)
 	}
 
+	if config.Verbose {
+		prettyPrintJSON(nur)
+	}
+
 	return nur.VerificationToken, id, nur.PaywallAddress, nur.PaywallAmount, nil
 }
 
-func checkNotLoggedInErr(response []byte) error {
-	var ue v1.UserError
-	err := json.Unmarshal(response, &ue)
-	if ue.ErrorCode == v1.ErrorStatusNotLoggedIn {
-		return fmt.Errorf("User not logged in: %v",
-			v1.ErrorStatusNotLoggedIn)
-	}
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func (c *Ctx) VerifyNewUser(email, token, sig string) error {
-	_, err := c.makeRequest("GET", "/user/verify/?email="+email+
-		"&verificationtoken="+token+"&signature="+sig, nil)
+	_, err := c.makeRequest("GET", "/user/verify", v1.VerifyNewUser{
+		Email:             email,
+		VerificationToken: token,
+		Signature:         sig,
+	})
 	return err
 }
 
@@ -301,15 +301,15 @@ func (c *Ctx) Me() (*v1.LoginReply, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = checkNotLoggedInErr(responseBody)
-	if err != nil {
-		return nil, err
-	}
 
 	var lr v1.LoginReply
 	err = json.Unmarshal(responseBody, &lr)
 	if err != nil {
 		return nil, fmt.Errorf("Could not unmarshal LoginReply: %v", err)
+	}
+
+	if config.Verbose {
+		prettyPrintJSON(lr)
 	}
 
 	return &lr, nil
@@ -318,14 +318,17 @@ func (c *Ctx) Me() (*v1.LoginReply, error) {
 func (c *Ctx) Secret() error {
 	l := v1.Login{}
 	responseBody, err := c.makeRequest("POST", v1.RouteSecret, l)
+
 	var ue v1.UserError
 	json.Unmarshal(responseBody, &ue)
-	if ue.ErrorCode == v1.ErrorStatusNotLoggedIn {
-		return fmt.Errorf("User not logged in: %v", v1.ErrorStatusNotLoggedIn)
-	}
 	if err != nil {
 		return err
 	}
+
+	if config.Verbose {
+		prettyPrintJSON(ue)
+	}
+
 	return nil
 }
 
@@ -347,6 +350,10 @@ func (c *Ctx) ChangeUsername(password, newUsername string) (
 			err)
 	}
 
+	if config.Verbose {
+		prettyPrintJSON(cur)
+	}
+
 	return &cur, nil
 }
 
@@ -366,6 +373,10 @@ func (c *Ctx) ChangePassword(currentPassword, newPassword string) (
 	if err != nil {
 		return nil, fmt.Errorf("Could not unmarshal ChangePasswordReply: %v",
 			err)
+	}
+
+	if config.Verbose {
+		prettyPrintJSON(cpr)
 	}
 
 	return &cpr, nil
@@ -397,6 +408,10 @@ func (c *Ctx) ResetPassword(email, password, newPassword string) error {
 	err = json.Unmarshal(responseBody, &rpr)
 	if err != nil {
 		return fmt.Errorf("Could not unmarshal ResetPasswordReply: %v", err)
+	}
+
+	if config.Verbose {
+		prettyPrintJSON(rpr)
 	}
 
 	return nil
@@ -434,18 +449,17 @@ func (c *Ctx) NewProposal(id *identity.FullIdentity) (*v1.NewProposalReply, erro
 		return nil, err
 	}
 
-	err = checkNotLoggedInErr(responseBody)
-	if err != nil {
-		return nil, err
-	}
-
-	var vr v1.NewProposalReply
-	err = json.Unmarshal(responseBody, &vr)
+	var npr v1.NewProposalReply
+	err = json.Unmarshal(responseBody, &npr)
 	if err != nil {
 		return nil, fmt.Errorf("Could not unmarshal NewProposalReply: %v", err)
 	}
 
-	return &vr, nil
+	if config.Verbose {
+		prettyPrintJSON(npr)
+	}
+
+	return &npr, nil
 }
 
 func (c *Ctx) GetProp(token string) (*v1.ProposalDetailsReply, error) {
@@ -458,6 +472,10 @@ func (c *Ctx) GetProp(token string) (*v1.ProposalDetailsReply, error) {
 	err = json.Unmarshal(responseBody, &pr)
 	if err != nil {
 		return nil, fmt.Errorf("Could not unmarshal GetProposalReply: %v", err)
+	}
+
+	if config.Verbose {
+		prettyPrintJSON(pr)
 	}
 
 	return &pr, nil
@@ -476,6 +494,10 @@ func (c *Ctx) ProposalsForUser(userId string) (*v1.UserProposalsReply, error) {
 	err = json.Unmarshal(responseBody, &upr)
 	if err != nil {
 		return nil, fmt.Errorf("Could not unmarshal UserProposalsReply: %v", err)
+	}
+
+	if config.Verbose {
+		prettyPrintJSON(upr)
 	}
 
 	return &upr, nil
@@ -507,6 +529,10 @@ func (c *Ctx) SetPropStatus(id *identity.FullIdentity, token string,
 			"SetProposalStatusReply: %v", err)
 	}
 
+	if config.Verbose {
+		prettyPrintJSON(psr)
+	}
+
 	return &psr, nil
 }
 
@@ -520,6 +546,10 @@ func (c *Ctx) GetVetted(v v1.GetAllVetted) (*v1.GetAllVettedReply, error) {
 	err = json.Unmarshal(responseBody, &vr)
 	if err != nil {
 		return nil, fmt.Errorf("Could not unmarshal GetAllVettedReply: %v", err)
+	}
+
+	if config.Verbose {
+		prettyPrintJSON(vr)
 	}
 
 	return &vr, nil
@@ -536,6 +566,10 @@ func (c *Ctx) GetUnvetted(u v1.GetAllUnvetted) (*v1.GetAllUnvettedReply,
 	err = json.Unmarshal(responseBody, &ur)
 	if err != nil {
 		return nil, fmt.Errorf("Could not unmarshal GetAllUnvettedReply: %v", err)
+	}
+
+	if config.Verbose {
+		prettyPrintJSON(ur)
 	}
 
 	return &ur, nil
@@ -566,6 +600,10 @@ func (c *Ctx) Comment(id *identity.FullIdentity, token, comment,
 		return nil, fmt.Errorf("Could not unmarshal CommentReply: %v", err)
 	}
 
+	if config.Verbose {
+		prettyPrintJSON(cr)
+	}
+
 	return &cr, nil
 }
 
@@ -582,6 +620,10 @@ func (c *Ctx) CommentGet(token string) (*v1.GetCommentsReply, error) {
 		return nil, fmt.Errorf("Could not unmarshal GetCommentReply: %v", err)
 	}
 
+	if config.Verbose {
+		prettyPrintJSON(gcr)
+	}
+
 	return &gcr, nil
 }
 
@@ -589,11 +631,11 @@ func (c *Ctx) StartVote(id *identity.FullIdentity, token string) (
 	*v1.StartVoteReply, error) {
 	sv := v1.StartVote{
 		PublicKey: hex.EncodeToString(id.Public.Key[:]),
-		Vote: decredplugin.Vote{
+		Vote: v1.Vote{
 			Token:    token,
 			Mask:     0x03, // bit 0 no, bit 1 yes
 			Duration: 2016,
-			Options: []decredplugin.VoteOption{
+			Options: []v1.VoteOption{
 				{
 					Id:          "no",
 					Description: "Don't approve proposal",
@@ -621,6 +663,10 @@ func (c *Ctx) StartVote(id *identity.FullIdentity, token string) (
 		return nil, fmt.Errorf("Could not unmarshal StartVoteReply: %v", err)
 	}
 
+	if config.Verbose {
+		prettyPrintJSON(svr)
+	}
+
 	return &svr, nil
 }
 
@@ -643,6 +689,10 @@ func (c *Ctx) CreateNewKey(email string) (*identity.FullIdentity, error) {
 		return nil, fmt.Errorf("Could not unmarshal UpdateUserKeyReply: %v", err)
 	}
 
+	if config.Verbose {
+		prettyPrintJSON(uukr)
+	}
+
 	sig := id.SignMessage([]byte(uukr.VerificationToken))
 	vuuk := v1.VerifyUpdateUserKey{
 		VerificationToken: uukr.VerificationToken,
@@ -659,6 +709,10 @@ func (c *Ctx) CreateNewKey(email string) (*identity.FullIdentity, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Could not unmarshal VerifyUpdateUserKeyReply: %v",
 			err)
+	}
+
+	if config.Verbose {
+		prettyPrintJSON(vuukr)
 	}
 
 	return id, nil
@@ -681,5 +735,28 @@ func (c *Ctx) VerifyUserPaymentTx(txid string) (*v1.VerifyUserPaymentTxReply,
 			err)
 	}
 
+	if config.Verbose {
+		prettyPrintJSON(vr)
+	}
+
 	return &vr, nil
+}
+
+func (c *Ctx) UsernamesById(userIds []string) (*v1.UsernamesByIdReply, error) {
+	ubi := v1.UsernamesById{
+		UserIds: userIds,
+	}
+	responseBody, err := c.makeRequest("POST", v1.RouteUsernamesById, ubi)
+	if err != nil {
+		return nil, err
+	}
+
+	var ubir v1.UsernamesByIdReply
+	err = json.Unmarshal(responseBody, &ubir)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal UsernamesByIdReply: %v",
+			err)
+	}
+
+	return &ubir, nil
 }

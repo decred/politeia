@@ -137,6 +137,11 @@ func (g *gitBackEnd) gitStash(path string) error {
 	return err
 }
 
+func (g *gitBackEnd) gitStashDrop(path string) error {
+	_, err := g.git(path, "stash", "drop")
+	return err
+}
+
 func (g *gitBackEnd) gitRm(path, filename string) error {
 	_, err := g.git(path, "rm", filename)
 	return err
@@ -162,6 +167,10 @@ func (g *gitBackEnd) gitBranchDelete(path, branch string) error {
 	return err
 }
 
+func (g *gitBackEnd) gitClean(path string) error {
+	_, err := g.git(path, "clean", "-xdf")
+	return err
+}
 func (g *gitBackEnd) gitBranches(path string) ([]string, error) {
 	branches, err := g.git(path, "branch")
 	if err != nil {
@@ -353,11 +362,11 @@ func (g *gitBackEnd) gitInitRepo(path string, repoConfig map[string]string) erro
 		}
 	}
 
-	// Add .gitignore with the lock file name.
+	// Add empty .gitignore
 	// This makes the repo ready to go and we'll always use this as the
 	// initial commit.
-	err = ioutil.WriteFile(filepath.Join(path, ".gitignore"),
-		[]byte(LockFilename+"\n"), 0664)
+	err = ioutil.WriteFile(filepath.Join(path, ".gitignore"), []byte{},
+		0664)
 	if err != nil {
 		return err
 	}

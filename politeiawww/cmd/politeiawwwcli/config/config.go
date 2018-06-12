@@ -32,10 +32,12 @@ var (
 	cookieFile       string
 	csrfFile         string
 	CsrfToken        string
-	PrintJson        bool
+	PrintJSON        bool
 	UserIdentityFile string
-	UserIdentity     *identity.FullIdentity
-	Cookies          []*http.Cookie
+	Verbose          bool
+
+	Cookies      []*http.Cookie
+	UserIdentity *identity.FullIdentity
 )
 
 func stringToHash(s string) string {
@@ -167,7 +169,11 @@ func SaveCookies(cookies []*http.Cookie) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Cookies saved to: %v\n", cookieFile)
+
+	if Verbose {
+		fmt.Printf("Cookies saved to: %v\n", cookieFile)
+	}
+
 	return nil
 }
 
@@ -191,7 +197,11 @@ func SaveCsrf(csrf string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("CSRF token saved to: %v\n", csrfFile)
+
+	if Verbose {
+		fmt.Printf("CSRF token saved to: %v\n", csrfFile)
+	}
+
 	return nil
 }
 

@@ -23,7 +23,9 @@ func (cmd *UpdateuserkeyCmd) Execute(args []string) error {
 
 	// save user identity to HomeDir
 	id.Save(config.UserIdentityFile)
-	fmt.Printf("User identity saved to: %v\n", config.UserIdentityFile)
+	if config.Verbose {
+		fmt.Printf("User identity saved to: %v\n", config.UserIdentityFile)
+	}
 
 	return nil
 }
