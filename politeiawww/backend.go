@@ -1608,6 +1608,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 			CensorshipRecord: cachedProposal.CensorshipRecord,
 			NumComments:      cachedProposal.NumComments,
 			UserId:           cachedProposal.UserId,
+			CensorMessage:    cachedProposal.CensorMessage,
 			Username:         b.getUsernameById(cachedProposal.UserId),
 		}
 
