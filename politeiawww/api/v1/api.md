@@ -171,9 +171,9 @@ Reply:
   "userid":"12",
   "email":"69af376cca42cd9c@example.com",
   "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
-  "paywalladdress":"",
-  "paywallamount":"",
-  "paywalltxnotbefore":""
+  "paywalladdress":"Tsgs7qb1Gnc43D9EY3xx9ou8Lbo8rB7me6M",
+  "paywallamount":"10000000",
+  "paywalltxnotbefore":"1528821554"
 }
 ```
 
