@@ -132,7 +132,7 @@ const (
 	ErrorStatusDuplicateUsername           ErrorStatusT = 33
 	ErrorStatusVerificationTokenUnexpired  ErrorStatusT = 34
 	ErrorStatusCannotVerifyPayment         ErrorStatusT = 35
-	ErrorInvalidCensorMessage              ErrorStatusT = 36
+	ErrorMalformedCensorMessage            ErrorStatusT = 36
 
 	// Proposal status codes (set and get)
 	PropStatusInvalid     PropStatusT = 0 // Invalid status
@@ -208,7 +208,7 @@ var (
 		ErrorStatusDuplicateUsername:           "duplicate username",
 		ErrorStatusVerificationTokenUnexpired:  "verification token not yet expired",
 		ErrorStatusCannotVerifyPayment:         "cannot verify payment at this time",
-		ErrorInvalidCensorMessage:              "invalid censor message",
+		ErrorMalformedCensorMessage:            "invalid censor message",
 	}
 
 	// PropVoteStatus converts votes status codes to human readable text
@@ -564,6 +564,7 @@ type PolicyReply struct {
 	ProposalNameSupportedChars []string `json:"proposalnamesupportedchars"`
 	MaxCommentLength           uint     `json:"maxcommentlength"`
 	BackendPublicKey           string   `json:"backendpublickey"`
+	MinCensorMessageLength     uint     `json:"mincensormessagelength"`
 }
 
 // VoteOption describes a single vote option.

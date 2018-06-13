@@ -249,6 +249,7 @@ func censorProposal(b *backend, token string, t *testing.T, user *database.User,
 	sps := www.SetProposalStatus{
 		Token:          token,
 		ProposalStatus: www.PropStatusCensored,
+		Message:        "test message",
 	}
 
 	msg := sps.Token + strconv.FormatUint(uint64(sps.ProposalStatus), 10)
