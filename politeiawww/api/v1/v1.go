@@ -92,6 +92,9 @@ const (
 	// for the routes that return lists of proposals
 	ProposalListPageSize = 20
 
+	// PolicyMinCensorMessageLength is the min length of a censor message
+	PolicyMinCensorMessageLength = 8
+
 	// Error status codes
 	ErrorStatusInvalid                     ErrorStatusT = 0
 	ErrorStatusInvalidEmailOrPassword      ErrorStatusT = 1
@@ -129,6 +132,7 @@ const (
 	ErrorStatusDuplicateUsername           ErrorStatusT = 33
 	ErrorStatusVerificationTokenUnexpired  ErrorStatusT = 34
 	ErrorStatusCannotVerifyPayment         ErrorStatusT = 35
+	ErrorInvalidCensorMessage              ErrorStatusT = 36
 
 	// Proposal status codes (set and get)
 	PropStatusInvalid     PropStatusT = 0 // Invalid status
@@ -204,6 +208,7 @@ var (
 		ErrorStatusDuplicateUsername:           "duplicate username",
 		ErrorStatusVerificationTokenUnexpired:  "verification token not yet expired",
 		ErrorStatusCannotVerifyPayment:         "cannot verify payment at this time",
+		ErrorInvalidCensorMessage:              "invalid censor message",
 	}
 
 	// PropVoteStatus converts votes status codes to human readable text
