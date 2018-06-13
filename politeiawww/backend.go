@@ -190,7 +190,7 @@ func createUsernameRegex() string {
 func validateCensorMessage(msg string) error {
 	if len(msg) < v1.PolicyMinCensorMessageLength {
 		return www.UserError{
-			ErrorCode: www.ErrorInvalidCensorMessage,
+			ErrorCode: www.ErrorMalformedCensorMessage,
 		}
 	}
 	return nil
