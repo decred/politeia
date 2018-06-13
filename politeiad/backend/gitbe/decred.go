@@ -1594,8 +1594,13 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 		}
 		br.Receipts[k].ClientSignature = v.Signature
 
-		bfilename := filepath.Join(g.journals, v.Token,
-			defaultBallotFilename)
+		dir := filepath.Join(g.journals, v.Token)
+		bfilename := filepath.Join(dir, defaultBallotFilename)
+		err = os.MkdirAll(dir, 0774)
+		if err != nil {
+			// Should not fail, so return failure to alert people
+			return "", fmt.Errorf("EncodeCastVoteJournal: %v", err)
+		}
 
 		// Sign signature
 		r := fi.SignMessage([]byte(v.Signature))
