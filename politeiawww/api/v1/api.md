@@ -73,6 +73,7 @@ API.  It does not render HTML.
 - [`ErrorStatusDuplicateUsername`](#ErrorStatusDuplicateUsername)
 - [`ErrorStatusVerificationTokenUnexpired`](#ErrorStatusVerificationTokenUnexpired)
 
+
 **Proposal status codes**
 
 - [`PropStatusInvalid`](#PropStatusInvalid)
@@ -80,6 +81,7 @@ API.  It does not render HTML.
 - [`PropStatusNotReviewed`](#PropStatusNotReviewed)
 - [`PropStatusCensored`](#PropStatusCensored)
 - [`PropStatusPublic`](#PropStatusPublic)
+- [`PropStatusLocked`](#PropStatusLocked)
 
 ## HTTP status codes and errors
 
@@ -143,13 +145,15 @@ Reply:
 
 Return pertinent user information of the current logged in user.
 
-**Route**: `GET /user/me`
+**Route**: `GET /v1/user/me`
 
 **Params**: none
 
 **Results**: See the [`Login reply`](#login-reply).
 
-If there currently is no session the call returns `403 Forbidden`.
+On failure the call shall return `403 Forbidden` and one of the following
+error codes:
+- [`ErrorStatusInvalidEmailOrPassword`](#ErrorStatusInvalidEmailOrPassword)
 
 **Example**
 
@@ -166,7 +170,10 @@ Reply:
   "isadmin":false,
   "userid":"12",
   "email":"69af376cca42cd9c@example.com",
-  "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b"
+  "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+  "paywalladdress":"Tsgs7qb1Gnc43D9EY3xx9ou8Lbo8rB7me6M",
+  "paywallamount":"10000000",
+  "paywalltxnotbefore":"1528821554"
 }
 ```
 
@@ -220,7 +227,7 @@ Request:
   "email": "69af376cca42cd9c@example.com",
   "password": "69af376cca42cd9c",
   "username": "foobar",
-  "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+  "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b"
 }
 ```
 
@@ -274,45 +281,6 @@ Reply:
 {}
 ```
 
-### `Me`
-
-Return information of the current logged in user.
-
-**Route:** `GET /v1/me`
-
-**Params:** none
-
-**Results:**
-
-| Parameter | Type | Description |
-|-|-|-|
-| isadmin | boolean | This indicates if the user has publish/censor privileges. |
-| userid | string | Unique user identifier. |
-| email | string | Current user email address. |
-| publickey | string | Current public key. |
-
-On failure the call shall return `403 Forbidden` and one of the following
-error codes:
-- [`ErrorStatusInvalidEmailOrPassword`](#ErrorStatusInvalidEmailOrPassword)
-
-**Example**
-
-Request:
-
-```
-/v1/me
-```
-
-Reply:
-
-```json
-{
-  "isadmin":true,
-  "userid":"0",
-  "email":"26c5687daca2f5d8@example.com",
-  "publickey":"ec88b934fd9f334a9ed6d2e719da2bdb2061de5370ff20a38b0e1e3c9538199a"
-}
-```
 ### `Login`
 
 Login as a user or admin.  Admin status is determined by the server based on
@@ -351,7 +319,10 @@ Reply:
   "isadmin":true,
   "userid":"0",
   "email":"26c5687daca2f5d8@example.com",
-  "publickey":"ec88b934fd9f334a9ed6d2e719da2bdb2061de5370ff20a38b0e1e3c9538199a"
+  "publickey":"ec88b934fd9f334a9ed6d2e719da2bdb2061de5370ff20a38b0e1e3c9538199a",
+  "paywalladdress":"",
+  "paywallamount":"",
+  "paywalltxnotbefore":""
 }
 ```
 
@@ -442,7 +413,7 @@ This call can return one of the following error codes:
 The email shall include a link in the following format:
 
 ```
-/user/key/verify?verificationtoken=fc8f660e7f4d590e27e6b11639ceeaaec2ce9bc6b0303344555ac023ab8ee55
+/v1/user/key/verify?verificationtoken=fc8f660e7f4d590e27e6b11639ceeaaec2ce9bc6b0303344555ac023ab8ee55
 ```
 
 The call may return `500 Internal Server Error` which is accompanied by
@@ -455,7 +426,7 @@ Request:
 
 ```json
 {
-  "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+  "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b"
 }
 ```
 
@@ -600,7 +571,12 @@ Allows a user to reset his password without being logged in.
 | verificationtoken | string | The verification token which is sent to the user's email address. | Yes |
 | newpassword | String | The new password for the user. | Yes |
 
-**Results:** none
+**Results:** 
+
+| Parameter | Type | Description |
+|-|-|-|
+| verificationtoken | String | This command is special because it has to be called twice, the 2nd time the caller needs to supply the `verificationtoken` |
+
 
 The reset password command is special.  It must be called **twice** with different
 parameters.
@@ -611,7 +587,7 @@ it shall send an email to the address provided by `email` and return `200 OK`.
 The email shall include a link in the following format:
 
 ```
-/user/password/reset?email=abc@example.com&verificationtoken=f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde
+/v1/user/password/reset?email=abc@example.com&verificationtoken=f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde
 ```
 
 On failure, the call shall return `400 Bad Request` and one of the following
@@ -658,7 +634,9 @@ Request:
 Reply:
 
 ```json
-{}
+{
+  "verificationtoken": "f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde"
+}
 ```
 
 ### `New proposal`
@@ -666,7 +644,7 @@ Reply:
 Submit a new proposal to the politeiawww server.
 The proposal name is derived from the first line of the markdown file - index.md.
 
-**Route:** `POST /v1/proposal/new`
+**Route:** `POST /v1/proposals/new`
 
 **Params:**
 
@@ -728,7 +706,7 @@ Reply:
 
 Retrieve a page of unvetted proposals; the number of proposals returned in the page is limited by the `proposallistpagesize` property, which is provided via [`Policy`](#policy).  This call requires admin privileges.
 
-**Route:** `GET /v1/unvetted`
+**Route:** `GET /v1/proposals/unvetted`
 
 **Params:**
 
@@ -752,7 +730,7 @@ Request:
 The request params should be provided within the URL:
 
 ```
-/v1/unvetted?after=f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde
+/v1/proposals/unvetted?after=f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde
 ```
 
 Reply:
@@ -777,7 +755,7 @@ Reply:
 
 Retrieve a page of vetted proposals; the number of proposals returned in the page is limited by the `proposallistpagesize` property, which is provided via [`Policy`](#policy).
 
-**Route:** `GET /v1/vetted`
+**Route:** `GET /v1/proposals/vetted`
 
 **Params:**
 
@@ -790,7 +768,7 @@ Retrieve a page of vetted proposals; the number of proposals returned in the pag
 
 | | Type | Description |
 |-|-|-|
-| proposals | Array of [`Proposal`](#proposal)s | An Array of unvetted proposals. |
+| proposals | Array of [`Proposal`](#proposal)s | An Array of vetted proposals. |
 
 **Example**
 
@@ -799,7 +777,7 @@ Request:
 The request params should be provided within the URL:
 
 ```
-/v1/vetted?after=f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde
+/v1/proposals/vetted?after=f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde
 ```
 
 Reply:
@@ -846,7 +824,7 @@ Request:
 The request params should be provided within the URL:
 
 ```
-/v1/vetted?userid=15&after=f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde
+/v1/user/proposals?userid=15&after=f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde
 ```
 
 Reply:
@@ -875,7 +853,26 @@ SHALL observe.
 
 **Params:** none
 
-**Results:** see below
+**Results:** 
+
+| | Type | Description |
+|-|-|-|
+| minpasswordlength | integer | minimum number of characters accepted for user passwords |
+| minusernamelength | integer | minimum number of characters accepted for username |
+| maxusernamelength | integer | maximum number of characters accepted for username |
+| usernamesupportedchars | array of strings | the regular expression of a valid username |
+| proposallistpagesize | integer | maximum number of proposals returned for the routes that return lists of proposals |
+| maximages | integer | maximum number of images accepted when creating a new proposal |
+| maximagesize | integer | maximum image file size (in bytes) accepted when creating a new proposal |
+| maxmds | integer | maximum number of markdown files accepted when creating a new proposal |
+| maxmdsize | integer | maximum markdown file size (in bytes) accepted when creating a new proposal |
+| validmimetypes | array of strings | list of all acceptable MIME types that can be communicated between client and server. |
+| maxproposalnamelength | integer | max length of a proposal name |
+| minproposalnamelength | integer | min length of a proposal name |
+| proposalnamesupportedchars | array of strings | the regular expression of a valid proposal name |
+| maxcommentlength | integer | maximum number of characters accepted for comments |
+| backendpublickey | string |  |
+
 
 **Example**
 
@@ -906,11 +903,13 @@ Reply:
     "text/plain",
     "text/plain; charset=utf-8"
   ],
-  "minproposalnamelength": 8,
-  "maxproposalnamelength": 80,
   "proposalnamesupportedchars": [
      "A-z", "0-9", "&", ".", ":", ";", ",", "-", " ", "@", "+", "#"
-  ]
+  ],
+  "maxcommentlength": 8000,
+  "backendpublickey": "",
+  "minproposalnamelength": 8,
+  "maxproposalnamelength": 80  
 }
 ```
 
@@ -930,7 +929,11 @@ call requires admin privileges.
 | signature | string | Signature of token+string(status). | Yes |
 | publickey | string | Public key from the client side, sent to politeiawww for verification | Yes |
 
-**Results:** none
+**Results:** 
+
+| Parameter | Type | Description |
+|-|-|-|-|
+| proposal | [`Proposal`](#proposal) | an entire proposal and it's content |
 
 On failure the call shall return `400 Bad Request` and one of the following
 error codes:
@@ -953,7 +956,22 @@ Reply:
 
 ```json
 {
-  "status": 4
+  "proposal": {
+      "name": "My Proposal",
+      "status": 3,
+      "timestamp": 1508146426,
+      "files": [{
+        "name": "index.md",
+        "mime": "text/plain; charset=utf-8",
+        "digest": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
+        "payload": "VGhpcyBpcyBhIGRlc2NyaXB0aW9u"
+      }],
+      "censorshiprecord": {
+        "token": "c378e0735b5650c9e79f70113323077b107b0d778547f0d40592955668f21ebf",
+        "merkle": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
+        "signature": "f5ea17d547d8347a2f2d77edcb7e89fcc96613d7aaff1f2a26761779763d77688b57b423f1e7d2da8cd433ef2cfe6f58c7cf1c43065fa6716a03a3726d902d0a"
+      }
+  }
 }
 ```
 
@@ -963,7 +981,11 @@ Retrieve proposal and its details.
 
 **Routes:** `GET /v1/proposals/{token}`
 
-**Params:** none
+**Params:** 
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| token | string | Token is the unique censorship token that identifies a specific proposal. | Yes |
 
 **Results:**
 
@@ -1271,7 +1293,7 @@ Reply:
         "signature":"97b1bf0d63d7689a2c6e66e32358d48e98d84e5389f455cc135b3401277d3a37518827da0f2bc892b535937421418e7e8ba6a4f940dfcf19a219867fa8c3e005"
       }
     }
-  }]
+  }],
   "vote": {
     "token":"8d14c77d9a28a1764832d0fcfb86b6af08f6b327347ab4af4803f9e6f7927225",
     "mask":3,
@@ -1298,10 +1320,10 @@ Reply:
     ]
   }
 }
+```
 
 Note: eligibletickets is abbreviated for readability.
 
-```
 
 ### `Cast votes`
 
@@ -1404,7 +1426,7 @@ forwarded as-is to the politeia daemon.
 | | Type | Description |
 | - | - | - |
 | Vote | decredplugin.Vote  | Vote details |
-| Vote | array of decredplugin.CastVote  | Cast vote details |
+| CastVotes | array of decredplugin.CastVote  | Vote results |
 
 **Example**
 
@@ -1526,6 +1548,7 @@ Reply:
 | <a name="ErrorStatusDuplicateUsername">ErrorStatusDuplicateUsername</a> | 33 | The provided username was a duplicate of another username. |
 | <a name="ErrorStatusVerificationTokenUnexpired">ErrorStatusVerificationTokenUnexpired</a> | 34 | A verification token has already been generated and hasn't expired yet. |
 
+
 ### Proposal status codes
 
 | Status | Value | Description |
@@ -1535,6 +1558,7 @@ Reply:
 | <a name="PropStatusNotReviewed">PropStatusNotReviewed</a> | 2 | The proposal has not been reviewed by an admin. |
 | <a name="PropStatusCensored">PropStatusCensored</a> | 3 | The proposal has been censored by an admin. |
 | <a name="PropStatusPublic">PropStatusPublic</a> | 4 | The proposal has been published by an admin. |
+| <a name="PropStatusLocked">PropStatusLocked</a> | 6 | The proposal has been locked by an admin. |
 
 ### `Proposal`
 
