@@ -2285,6 +2285,7 @@ func (b *backend) ProcessPolicy(p www.Policy) *www.PolicyReply {
 		MaxProposalNameLength:      www.PolicyMaxProposalNameLength,
 		ProposalNameSupportedChars: www.PolicyProposalNameSupportedChars,
 		MaxCommentLength:           www.PolicyMaxCommentLength,
+		MinCensorMessageLength:     www.PolicyMinCensorMessageLength,
 	}
 }
 
