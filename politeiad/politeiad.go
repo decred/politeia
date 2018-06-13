@@ -171,9 +171,10 @@ func (p *politeia) convertBackendRecord(br backend.Record) v1.Record {
 			err := json.Unmarshal([]byte(v.Payload), &mdsc)
 			if err != nil {
 				log.Errorf("Failed to unmarshal MetadataStreamChanges")
+				break
 			}
 			scp.Message = mdsc.Message
-			receipt := p.identity.SignMessage([]byte(mdsc.Message))
+			receipt := p.identity.SignMessage([]byte(mdsc.Signature))
 			scp.Receipt = hex.EncodeToString(receipt[:])
 		}
 	}

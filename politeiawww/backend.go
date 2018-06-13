@@ -50,6 +50,7 @@ type MDStreamChanges struct {
 	NewStatus   pd.RecordStatusT // NewStatus
 	Timestamp   int64            // Timestamp of the change
 	Message     string           // Admin's message
+	Signature   string           // Admin Signature of (token + message + status)
 }
 
 // politeiawww backend construct
@@ -184,6 +185,15 @@ func createUsernameRegex() string {
 	buf.WriteString(strconv.Itoa(www.PolicyMaxUsernameLength) + "}$")
 
 	return buf.String()
+}
+
+func validateCensorMessage(msg string) error {
+	if len(msg) < v1.PolicyMinCensorMessageLength {
+		return www.UserError{
+			ErrorCode: www.ErrorInvalidCensorMessage,
+		}
+	}
+	return nil
 }
 
 func (b *backend) getVerificationExpiryTime() time.Duration {
@@ -1463,13 +1473,21 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 		return nil, err
 	}
 
+	// Validate censor message length when proposal is being censored
+	if sps.ProposalStatus == v1.PropStatusCensored {
+		err = validateCensorMessage(sps.Message)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	// Create change record
 	newStatus := convertPropStatusFromWWW(sps.ProposalStatus)
-	log.Infof("SET PROPO STATUS %+v", sps)
 	r := MDStreamChanges{
 		Timestamp: time.Now().Unix(),
 		NewStatus: newStatus,
 		Message:   sps.Message,
+		Signature: sps.Signature,
 	}
 
 	var reply www.SetProposalStatusReply

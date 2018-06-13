@@ -213,6 +213,7 @@ type MDStreamChanges struct {
 	NewStatus   RecordStatusT // NewStatus
 	Timestamp   int64         // Timestamp of the change
 	Message     string        // Admin's message
+	Signature   string        // Admin Signature of (token + message + status)
 }
 
 // Record is an entire record and it's content.
