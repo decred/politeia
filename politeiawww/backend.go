@@ -46,10 +46,10 @@ const (
 )
 
 type MDStreamChanges struct {
-	AdminPubKey   string           // Identity of the administrator
-	NewStatus     pd.RecordStatusT // NewStatus
-	Timestamp     int64            // Timestamp of the change
-	CensorMessage string           // Admin's reasonf of censoring
+	AdminPubKey string           // Identity of the administrator
+	NewStatus   pd.RecordStatusT // NewStatus
+	Timestamp   int64            // Timestamp of the change
+	Message     string           // Admin's message
 }
 
 // politeiawww backend construct
@@ -1465,10 +1465,11 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 
 	// Create change record
 	newStatus := convertPropStatusFromWWW(sps.ProposalStatus)
+	log.Infof("SET PROPO STATUS %+v", sps)
 	r := MDStreamChanges{
-		Timestamp:     time.Now().Unix(),
-		NewStatus:     newStatus,
-		CensorMessage: sps.CensorMessage,
+		Timestamp: time.Now().Unix(),
+		NewStatus: newStatus,
+		Message:   sps.Message,
 	}
 
 	var reply www.SetProposalStatusReply
@@ -1601,15 +1602,15 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 	isUserAdmin := user != nil && user.Admin
 	if !isVettedProposal && !isUserAdmin {
 		reply.Proposal = www.ProposalRecord{
-			Status:           cachedProposal.Status,
-			Timestamp:        cachedProposal.Timestamp,
-			PublicKey:        cachedProposal.PublicKey,
-			Signature:        cachedProposal.Signature,
-			CensorshipRecord: cachedProposal.CensorshipRecord,
-			NumComments:      cachedProposal.NumComments,
-			UserId:           cachedProposal.UserId,
-			CensorMessage:    cachedProposal.CensorMessage,
-			Username:         b.getUsernameById(cachedProposal.UserId),
+			Status:            cachedProposal.Status,
+			Timestamp:         cachedProposal.Timestamp,
+			PublicKey:         cachedProposal.PublicKey,
+			Signature:         cachedProposal.Signature,
+			CensorshipRecord:  cachedProposal.CensorshipRecord,
+			StatusChangeProof: cachedProposal.StatusChangeProof,
+			NumComments:       cachedProposal.NumComments,
+			UserId:            cachedProposal.UserId,
+			Username:          b.getUsernameById(cachedProposal.UserId),
 		}
 
 		if user != nil {

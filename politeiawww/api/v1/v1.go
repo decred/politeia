@@ -242,20 +242,26 @@ type CensorshipRecord struct {
 	Signature string `json:"signature"` // Server side signature of []byte(Merkle+Token)
 }
 
+// StatusChangeProof contains the proof that a proposal was censored or approved
+type StatusChangeProof struct {
+	Message string `json:"message"` // Censor message from admin (if censored)
+	Receipt string `json:"receipt"` // Server side receipt of last status change
+}
+
 // ProposalRecord is an entire proposal and it's content.
 type ProposalRecord struct {
-	Name          string      `json:"name"`          // Suggested short proposal name
-	Status        PropStatusT `json:"status"`        // Current status of proposal
-	Timestamp     int64       `json:"timestamp"`     // Last update of proposal
-	UserId        string      `json:"userid"`        // ID of user who submitted proposal
-	Username      string      `json:"username"`      // Username of user who submitted proposal
-	PublicKey     string      `json:"publickey"`     // Key used for signature.
-	Signature     string      `json:"signature"`     // Signature of merkle root
-	Files         []File      `json:"files"`         // Files that make up the proposal
-	NumComments   uint        `json:"numcomments"`   // Number of comments on the proposal
-	CensorMessage string      `json:"censormessage"` // Censor message from admin (if censored)
+	Name        string      `json:"name"`        // Suggested short proposal name
+	Status      PropStatusT `json:"status"`      // Current status of proposal
+	Timestamp   int64       `json:"timestamp"`   // Last update of proposal
+	UserId      string      `json:"userid"`      // ID of user who submitted proposal
+	Username    string      `json:"username"`    // Username of user who submitted proposal
+	PublicKey   string      `json:"publickey"`   // Key used for signature.
+	Signature   string      `json:"signature"`   // Signature of merkle root
+	Files       []File      `json:"files"`       // Files that make up the proposal
+	NumComments uint        `json:"numcomments"` // Number of comments on the proposal
 
-	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
+	StatusChangeProof StatusChangeProof `json:"statuschangeproof"`
+	CensorshipRecord  CensorshipRecord  `json:"censorshiprecord"`
 }
 
 // UserError represents an error that is caused by something that the user
@@ -489,7 +495,7 @@ type SetProposalStatus struct {
 	ProposalStatus PropStatusT `json:"proposalstatus"`
 	Signature      string      `json:"signature"` // Signature of Token+string(ProposalStatus)
 	PublicKey      string      `json:"publickey"`
-	CensorMessage  string      `json:"censormessage"` // Admin's message
+	Message        string      `json:"message"` // Admin's message
 }
 
 // SetProposalStatusReply is used to reply to a SetProposalStatus command.

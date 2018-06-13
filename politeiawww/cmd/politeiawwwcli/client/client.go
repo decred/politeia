@@ -559,7 +559,7 @@ func (c *Ctx) SetPropStatus(id *identity.FullIdentity, token string,
 	ps := v1.SetProposalStatus{
 		Token:          token,
 		ProposalStatus: status,
-		CensorMessage:  message,
+		Message:        message,
 	}
 	// Sign token+string(status)
 	msg := []byte(ps.Token + strconv.FormatUint(uint64(ps.ProposalStatus), 10))

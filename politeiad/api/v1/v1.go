@@ -174,6 +174,12 @@ type CensorshipRecord struct {
 	Signature string `json:"signature"` // Signature of merkle+token
 }
 
+// CensoredProof contains the proof that a proposal was censored
+type StatusChangeProof struct {
+	Message string `json:"message"` // Censor message from admin (if censored)
+	Receipt string `json:"receipt"` // Server side receipt of last status change
+}
+
 // Identity requests the record server identity.
 type Identity struct {
 	Challenge string `json:"challenge"` // Random challenge
@@ -201,12 +207,21 @@ type MetadataStream struct {
 	Payload string `json:"payload"` // String encoded metadata
 }
 
+// MDStreamChanges indetifies only the proposal change metadada
+type MDStreamChanges struct {
+	AdminPubKey string        // Identity of the administrator
+	NewStatus   RecordStatusT // NewStatus
+	Timestamp   int64         // Timestamp of the change
+	Message     string        // Admin's message
+}
+
 // Record is an entire record and it's content.
 type Record struct {
 	Status    RecordStatusT `json:"status"`    // Current status
 	Timestamp int64         `json:"timestamp"` // Last update
 
-	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
+	CensorshipRecord  CensorshipRecord  `json:"censorshiprecord"`
+	StatusChangeProof StatusChangeProof `json:"statuschangeproof"`
 
 	// User data
 	Metadata []MetadataStream `json:"metadata"` // Metadata streams

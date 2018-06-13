@@ -33,6 +33,12 @@ type permission uint
 const (
 	permissionPublic permission = iota
 	permissionAuth
+	// mdStream* indicate the metadata stream used for various types
+	mdStreamGeneral = 0 // General information for this proposal
+	mdStreamChanges = 2 // Changes to record
+	// Note that 13 is in use by the decred plugin
+	// Note that 14 is in use by the decred plugin
+	// Note that 15 is in use by the decred plugin
 )
 
 // politeia application context.
@@ -145,13 +151,31 @@ func convertFrontendMetadataStream(mds []v1.MetadataStream) []backend.MetadataSt
 func (p *politeia) convertBackendRecord(br backend.Record) v1.Record {
 	rm := br.RecordMetadata
 
-	// Calculate signature
-	signature := p.identity.SignMessage([]byte(rm.Merkle + rm.Token))
+	// Calculate signature for Censorship Record
+	merkleToken := make([]byte, len(rm.Merkle)+len(rm.Token))
+	copy(merkleToken, rm.Merkle[:])
+	copy(merkleToken[len(rm.Merkle[:]):], rm.Token)
+	signature := p.identity.SignMessage(merkleToken)
 
 	// Convert MetadataStream
 	md := make([]v1.MetadataStream, 0, len(br.Metadata))
 	for k := range br.Metadata {
 		md = append(md, convertBackendMetadataStream(br.Metadata[k]))
+	}
+
+	// Generate StatusChangeProof
+	scp := v1.StatusChangeProof{}
+	var mdsc v1.MDStreamChanges
+	for _, v := range md {
+		if v.ID == mdStreamChanges {
+			err := json.Unmarshal([]byte(v.Payload), &mdsc)
+			if err != nil {
+				log.Errorf("Failed to unmarshal MetadataStreamChanges")
+			}
+			scp.Message = mdsc.Message
+			receipt := p.identity.SignMessage([]byte(mdsc.Message))
+			scp.Receipt = hex.EncodeToString(receipt[:])
+		}
 	}
 
 	// Convert record
@@ -163,7 +187,8 @@ func (p *politeia) convertBackendRecord(br backend.Record) v1.Record {
 			Token:     rm.Token,
 			Signature: hex.EncodeToString(signature[:]),
 		},
-		Metadata: md,
+		StatusChangeProof: scp,
+		Metadata:          md,
 	}
 	pr.Files = make([]v1.File, 0, len(br.Files))
 	for _, v := range br.Files {
