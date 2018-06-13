@@ -667,7 +667,7 @@ type GetCommentsReply struct {
 type LikeComment struct {
 	Token     string `json:"token"`     // Censorship token
 	CommentID string `json:"commentid"` // Comment ID
-	Action    string `json:"Action"`    // Up or downvote (1, -1)
+	Action    string `json:"action"`    // Up or downvote (1, -1)
 	Signature string `json:"signature"` // Client Signature of Token+CommentID+Action
 	PublicKey string `json:"publickey"` // Pubkey used for Signature
 }
