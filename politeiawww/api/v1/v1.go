@@ -465,13 +465,15 @@ type ProposalDetailsReply struct {
 type SetProposalStatus struct {
 	Token          string      `json:"token"`
 	ProposalStatus PropStatusT `json:"proposalstatus"`
-	Signature      string      `json:"signature"` // Signature of Token+string(ProposalStatus)
+	Message        string      `json:"message,omitempty"` // Optional message
+	Signature      string      `json:"signature"`         // Signature of Token+string(ProposalStatus+Message)
 	PublicKey      string      `json:"publickey"`
 }
 
 // SetProposalStatusReply is used to reply to a SetProposalStatus command.
 type SetProposalStatusReply struct {
 	Proposal ProposalRecord `json:"proposal"`
+	Receipt  string         `json:"receipt"` // Signature of SetProposalStatus.Signature
 }
 
 // GetAllUnvetted retrieves all unvetted proposals; the maximum number returned
