@@ -8,6 +8,8 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 )
@@ -101,4 +103,17 @@ func FileExists(name string) bool {
 		}
 	}
 	return true
+}
+
+// CleanAndExpandPath expands environment variables and leading ~ in the
+// passed path, cleans the result, and returns it.
+func CleanAndExpandPath(path, homeDir string) string {
+	// Expand initial ~ to OS specific home directory.
+	if strings.HasPrefix(path, "~") {
+		path = strings.Replace(path, "~", homeDir, 1)
+	}
+
+	// NOTE: The os.ExpandEnv doesn't work with Windows-style %VARIABLE%,
+	// but they variables can still be expanded via POSIX-style $VARIABLE.
+	return filepath.Clean(os.ExpandEnv(path))
 }

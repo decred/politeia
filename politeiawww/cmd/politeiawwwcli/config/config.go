@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"os/user"
 	"path/filepath"
 	"strings"
 
@@ -36,7 +35,7 @@ var (
 	defaultWalletCertFile = filepath.Join(dcrwalletHomeDir, "rpc.cert")
 
 	Host       = defaultHost
-	HomeDir    = cleanAndExpandPath(defaultHomeDir)
+	HomeDir    = defaultHomeDir
 	WalletCert = defaultWalletCertFile
 	// only allow testnet wallet host for now
 	WalletHost = defaultWalletHost + ":" + defaultWalletTestnetPort
@@ -78,20 +77,6 @@ func setCookieFile(host string) {
 func setCsrfFile(host string) {
 	csrfFilename := "csrf_" + stringToHash(host) + ".json"
 	csrfFile = filepath.Join(HomeDir, csrfFilename)
-}
-
-// cleanAndExpandPath expands environment variables and leading ~ in the
-// passed path, cleans the result, and returns it.
-func cleanAndExpandPath(path string) string {
-	// Expand initial ~ to OS specific home directory.
-	if strings.HasPrefix(path, "~") {
-		usr, _ := user.Current()
-		path = strings.Replace(path, "~", usr.HomeDir, 1)
-	}
-
-	// NOTE: The os.ExpandEnv doesn't work with Windows-style %VARIABLE%,
-	// but the variables can still be expanded via POSIX-style $VARIABLE.
-	return filepath.Clean(os.ExpandEnv(path))
 }
 
 // filesExists reports whether the named file or directory exists.

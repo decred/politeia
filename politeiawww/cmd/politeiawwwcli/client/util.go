@@ -2,9 +2,16 @@ package client
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
+
+	"github.com/decred/dcrtime/merkle"
+	"github.com/decred/politeia/politeiawww/api/v1"
+	"github.com/decred/politeia/util"
 
 	"github.com/agl/ed25519"
 	"github.com/decred/dcrd/chaincfg/chainhash"
@@ -66,4 +73,38 @@ func providePrivPassphrase() ([]byte, error) {
 		}
 		return pass, nil
 	}
+}
+
+// getSignature signs the msg with the given identity and returns
+// the encoded signature
+func getSignature(msg []byte, id *identity.FullIdentity) (string, error) {
+	sig := id.SignMessage(msg)
+	return hex.EncodeToString(sig[:]), nil
+}
+
+// getProposalSignature takes as input a list of files and
+// generates the merkle root with the file digests, then delegates to
+// getSignature().
+func getProposalSignature(files []v1.File, id *identity.FullIdentity) (string, error) {
+	// Calculate the merkle root with the file digests.
+	hashes := make([]*[sha256.Size]byte, 0, len(files))
+	for _, v := range files {
+		payload, err := base64.StdEncoding.DecodeString(v.Payload)
+		if err != nil {
+			return "", err
+		}
+
+		digest := util.Digest(payload)
+		var d [sha256.Size]byte
+		copy(d[:], digest)
+		hashes = append(hashes, &d)
+	}
+
+	var encodedMerkleRoot string
+	if len(hashes) > 0 {
+		encodedMerkleRoot = hex.EncodeToString(merkle.Root(hashes)[:])
+	} else {
+		encodedMerkleRoot = ""
+	}
+	return getSignature([]byte(encodedMerkleRoot), id)
 }
