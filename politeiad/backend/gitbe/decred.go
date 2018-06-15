@@ -112,7 +112,7 @@ var (
 	decredPluginVotesCache = make(map[string]map[string]struct{})
 
 	decredPluginCommentsCache     = make(map[string]map[string]decredplugin.Comment) // [token][commentid]comment
-	decredPluginCommentsUserCache = make(map[string]map[string]struct{})             // [pubkey][commentid]
+	decredPluginCommentsUserCache = make(map[string]map[string]struct{})             // [token+pubkey][commentid]
 )
 
 // init is used to pregenerate the JSON journal actions.
@@ -910,8 +910,21 @@ func (g *gitBackEnd) pluginNewComment(payload string) (string, error) {
 	return string(ncrb), nil
 }
 
+func replyLikeCommentReplyError(failure error) (string, error) {
+	lcr := decredplugin.LikeCommentReply{
+		Error: failure.Error(),
+	}
+	lcrb, err := decredplugin.EncodeLikeCommentReply(lcr)
+	if err != nil {
+		return "", fmt.Errorf("EncodeLikeCommentReply: %v", err)
+	}
+
+	return string(lcrb), nil
+}
+
 // pluginLikeComment handles up and down votes of comments.
 func (g *gitBackEnd) pluginLikeComment(payload string) (string, error) {
+	log.Tracef("pluginLikeComment")
 	// XXX this should become part of some sort of context
 	fiJSON, ok := decredPluginSettings[decredPluginIdentity]
 	if !ok {
@@ -946,35 +959,9 @@ func (g *gitBackEnd) pluginLikeComment(payload string) (string, error) {
 
 	// XXX make sure comment id exists and is in the right prop
 
-	// Do some cheap things before expensive calls
-	cfilename := filepath.Join(g.journals, like.Token,
-		defaultCommentFilename)
-
 	// Sign signature
 	r := fi.SignMessage([]byte(like.Signature))
 	receipt := hex.EncodeToString(r[:])
-
-	// Create Journal entry
-	lc := decredplugin.LikeComment{
-		Token:     like.Token,
-		CommentID: like.CommentID,
-		Action:    like.Action,
-		Signature: like.Signature,
-		PublicKey: like.PublicKey,
-		Receipt:   receipt,
-		Timestamp: time.Now().Unix(),
-	}
-	blob, err := decredplugin.EncodeLikeComment(lc)
-	if err != nil {
-		return "", fmt.Errorf("EncodeLikeComment: %v", err)
-	}
-
-	// Add comment to journal
-	err = g.journal.Journal(cfilename, string(journalAddLike)+
-		string(blob))
-	if err != nil {
-		return "", fmt.Errorf("could not journal %v: %v", lc.Token, err)
-	}
 
 	// Mark comment journal dirty
 	flushFilename := filepath.Join(g.journals, like.Token,
@@ -988,31 +975,80 @@ func (g *gitBackEnd) pluginLikeComment(payload string) (string, error) {
 	c, ok := decredPluginCommentsCache[like.Token][like.CommentID]
 	if !ok {
 		g.Unlock()
-		log.Tracef("comment not found, must replay journal")
-		_, err = g.replayComments(lc.Token)
+		_, err = g.replayComments(like.Token)
 		if err != nil {
 			return "", fmt.Errorf("could not replay journal %v: %v",
-				lc.Token, err)
+				like.Token, err)
 		}
 	}
 
 	// Try again
 	c, ok = decredPluginCommentsCache[like.Token][like.CommentID]
-	if ok {
-		// See if this user has voted on this comment already
-		if _, ok := decredPluginCommentsUserCache[like.PublicKey][like.CommentID]; !ok {
-			c.TotalVotes++
-			decredPluginCommentsUserCache[like.PublicKey] = make(map[string]struct{})
-			decredPluginCommentsUserCache[like.PublicKey][like.CommentID] = struct{}{}
-		}
-		c.ResultVotes += action
-		decredPluginCommentsCache[like.Token][like.CommentID] = c
-	} else {
+	if !ok {
 		g.Unlock()
 		return "", fmt.Errorf("comment not found %v:%v",
-			lc.Token, lc.CommentID)
+			like.Token, like.CommentID)
 	}
+	// See if this user has voted on this comment already
+	key := like.Token + like.PublicKey
+	if _, ok := decredPluginCommentsUserCache[key]; !ok {
+		decredPluginCommentsUserCache[key] = make(map[string]struct{})
+	}
+	var new bool
+	if _, ok = decredPluginCommentsUserCache[key][like.CommentID]; !ok {
+		decredPluginCommentsUserCache[key][like.CommentID] = struct{}{}
+		new = true
+	}
+	result := c.ResultVotes + action
+	if result < -1 || result > 1 {
+		g.Unlock()
+		return replyLikeCommentReplyError(fmt.Errorf("can " +
+			"only once vote up or down"))
+	}
+
+	// We create an unwind function that MUST be called from all error
+	// paths. If everything works ok it is a no-op.
+	cc := c
+	unwind := func() {
+		g.Lock()
+		decredPluginCommentsCache[like.Token][like.CommentID] = cc
+		g.Unlock()
+	}
+
+	// Update cache
+	c.ResultVotes = result
+	if new {
+		c.TotalVotes++
+	}
+	decredPluginCommentsCache[like.Token][like.CommentID] = c
+
 	g.Unlock()
+
+	// Create Journal entry
+	lc := decredplugin.LikeComment{
+		Token:     like.Token,
+		CommentID: like.CommentID,
+		Action:    like.Action,
+		Signature: like.Signature,
+		PublicKey: like.PublicKey,
+		Receipt:   receipt,
+		Timestamp: time.Now().Unix(),
+	}
+	blob, err := decredplugin.EncodeLikeComment(lc)
+	if err != nil {
+		unwind()
+		return "", fmt.Errorf("EncodeLikeComment: %v", err)
+	}
+
+	// Add comment to journal
+	cfilename := filepath.Join(g.journals, like.Token,
+		defaultCommentFilename)
+	err = g.journal.Journal(cfilename, string(journalAddLike)+
+		string(blob))
+	if err != nil {
+		unwind()
+		return "", fmt.Errorf("could not journal %v: %v", lc.Token, err)
+	}
 
 	// Encode reply
 	lcr := decredplugin.LikeCommentReply{
@@ -1022,6 +1058,7 @@ func (g *gitBackEnd) pluginLikeComment(payload string) (string, error) {
 	}
 	lcrb, err := decredplugin.EncodeLikeCommentReply(lcr)
 	if err != nil {
+		unwind()
 		return "", fmt.Errorf("EncodeLikeCommentReply: %v", err)
 	}
 
@@ -1136,9 +1173,13 @@ func (g *gitBackEnd) replayComments(token string) (map[string]decredplugin.Comme
 				}
 
 				// Only update total if user has not voted yet
-				if _, ok := seen[lc.PublicKey][lc.CommentID]; !ok {
+				key := lc.Token + lc.PublicKey
+				if _, ok := seen[key]; !ok {
+					seen[key] = make(map[string]struct{})
+				}
+				if _, ok := seen[key][lc.CommentID]; !ok {
 					// Not seen before
-					seen[lc.PublicKey][lc.CommentID] = struct{}{}
+					seen[key][lc.CommentID] = struct{}{}
 					c.TotalVotes++
 				}
 				c.ResultVotes += action

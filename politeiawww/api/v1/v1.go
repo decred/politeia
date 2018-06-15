@@ -675,9 +675,10 @@ type LikeComment struct {
 // LikeCommentReply returns the current up/down vote result.
 type LikeCommentReply struct {
 	// XXX we probably need a sequence numkber or something here and some sort of rate limit
-	Total   uint64 `json:"total"`   // Total number of up and down votes
-	Result  int64  `json:"result"`  // Current tally of likes, can be negative
-	Receipt string `json:"receipt"` // Server signature of client signature
+	Total   uint64 `json:"total"`           // Total number of up and down votes
+	Result  int64  `json:"result"`          // Current tally of likes, can be negative
+	Receipt string `json:"receipt"`         // Server signature of client signature
+	Error   string `json:"error,omitempty"` // Error if something wen't wrong during liking a comment
 }
 
 // UsernamesById is a command to fetch all usernames by their ids.

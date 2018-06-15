@@ -68,6 +68,7 @@ func convertDecredLikeCommentReplyToWWWLikeCommentReply(lcr decredplugin.LikeCom
 		Total:   lcr.Total,
 		Result:  lcr.Result,
 		Receipt: lcr.Receipt,
+		Error:   lcr.Error,
 	}
 }
 

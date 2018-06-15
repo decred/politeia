@@ -125,7 +125,7 @@ func (b *backend) loadVoteBits(token, payload string) error {
 	} else if err != nil {
 		return err
 	}
-	log.Errorf("loadVoteBits: %v %v", token, payload)
+	log.Tracef("loadVoteBits: %v %v", token, payload)
 	p := b.inventory[token]
 	p.votebits = convertStartVoteFromDecredplugin(md)
 	return nil
