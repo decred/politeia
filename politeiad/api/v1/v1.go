@@ -147,23 +147,14 @@ func Verify(pid identity.PublicIdentity, csr CensorshipRecord, files []File) err
 		return ErrInvalidMerkle
 	}
 
-	// Verify merkle+token signature
-	token, err := hex.DecodeString(csr.Token)
-	if err != nil {
-		return ErrInvalidHex
-	}
-
-	merkleToken := make([]byte, len(root)+len(token))
-	copy(merkleToken, root[:])
-	copy(merkleToken[len(root[:]):], token)
-
 	s, err := hex.DecodeString(csr.Signature)
 	if err != nil {
 		return ErrInvalidHex
 	}
 	var signature [identity.SignatureSize]byte
 	copy(signature[:], s)
-	if !pid.VerifyMessage(merkleToken, signature) {
+	r := hex.EncodeToString(root[:])
+	if !pid.VerifyMessage([]byte(r+csr.Token), signature) {
 		return ErrCorrupt
 	}
 

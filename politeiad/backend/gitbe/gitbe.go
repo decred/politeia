@@ -479,14 +479,16 @@ func loadMD(path, id string) (*backend.RecordMetadata, error) {
 // unvetted/id or vetted/id.
 //
 // This function should be called with the lock held.
-func createMD(path, id string, status backend.MDStatusT, version uint, hashes []*[sha256.Size]byte, token []byte) (*backend.RecordMetadata, error) {
+func createMD(path, id string, status backend.MDStatusT, iteration uint64, hashes []*[sha256.Size]byte, token []byte) (*backend.RecordMetadata, error) {
 	// Create record metadata
+	m := *merkle.Root(hashes)
 	brm := backend.RecordMetadata{
-		Version:   version,
+		Version:   backend.VersionRecordMD,
+		Iteration: iteration,
 		Status:    status,
-		Merkle:    *merkle.Root(hashes),
+		Merkle:    hex.EncodeToString(m[:]),
 		Timestamp: time.Now().Unix(),
-		Token:     token,
+		Token:     hex.EncodeToString(token),
 	}
 
 	err := updateMD(path, id, &brm)
@@ -1333,7 +1335,7 @@ func (g *gitBackEnd) updateRecord(token []byte, mdAppend, mdOverwrite []backend.
 
 	// Update record metadata
 	brmNew, err := createMD(g.unvetted, id,
-		backend.MDStatusIterationUnvetted, brm.Version+1, hashes, token)
+		backend.MDStatusIterationUnvetted, brm.Iteration+1, hashes, token)
 	if err != nil {
 		return nil, err
 	}
@@ -1774,7 +1776,7 @@ func (g *gitBackEnd) setUnvettedStatus(token []byte, status backend.MDStatusT, m
 
 		// Update MD first
 		record.RecordMetadata.Status = backend.MDStatusVetted
-		record.RecordMetadata.Version += 1
+		record.RecordMetadata.Iteration += 1
 		record.RecordMetadata.Timestamp = time.Now().Unix()
 		err = updateMD(g.unvetted, id, &record.RecordMetadata)
 		if err != nil {
@@ -1803,7 +1805,7 @@ func (g *gitBackEnd) setUnvettedStatus(token []byte, status backend.MDStatusT, m
 		status == backend.MDStatusCensored:
 		// unvetted -> censored
 		record.RecordMetadata.Status = backend.MDStatusCensored
-		record.RecordMetadata.Version += 1
+		record.RecordMetadata.Iteration += 1
 		record.RecordMetadata.Timestamp = time.Now().Unix()
 		err = updateMD(g.unvetted, id, &record.RecordMetadata)
 		if err != nil {

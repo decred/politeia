@@ -1304,6 +1304,7 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 	}
 
 	svr := decredplugin.StartVoteReply{
+		Version: decredplugin.VersionStartVoteReply,
 		StartBlockHeight: strconv.FormatUint(uint64(snapshotBlock.Height),
 			10),
 		StartBlockHash: snapshotBlock.Hash,
@@ -1316,11 +1317,18 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 		return "", fmt.Errorf("EncodeStartVoteReply: %v", err)
 	}
 
+	// Add version to on disk structure
+	vote.Version = decredplugin.VersionStartVote
+	voteb, err := decredplugin.EncodeStartVote(*vote)
+	if err != nil {
+		return "", fmt.Errorf("EncodeStartVote: %v", err)
+	}
+
 	// Store snapshot in metadata
 	err = g.UpdateVettedMetadata(tokenB, nil, []backend.MetadataStream{
 		{
 			ID:      decredplugin.MDStreamVoteBits,
-			Payload: payload, // Contains incoming vote request
+			Payload: string(voteb),
 		},
 		{
 			ID:      decredplugin.MDStreamVoteSnapshot,

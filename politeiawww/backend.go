@@ -39,15 +39,17 @@ const (
 	// mdStream* indicate the metadata stream used for various types
 	mdStreamGeneral = 0 // General information for this proposal
 	mdStreamChanges = 2 // Changes to record
-	// Note that 13 is in use by the decred plugin
 	// Note that 14 is in use by the decred plugin
 	// Note that 15 is in use by the decred plugin
+
+	VersionMDStreamChanges = 1
 )
 
 type MDStreamChanges struct {
-	AdminPubKey string           // Identity of the administrator
-	NewStatus   pd.RecordStatusT // NewStatus
-	Timestamp   int64            // Timestamp of the change
+	Version     uint             `json:"version"`     // Version of the struct
+	AdminPubKey string           `json:"adminpubkey"` // Identity of the administrator
+	NewStatus   pd.RecordStatusT `json:"newstatus"`   // NewStatus
+	Timestamp   int64            `json:"timestamp"`   // Timestamp of the change
 }
 
 // politeiawww backend construct
@@ -1469,13 +1471,9 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 	// Create change record
 	newStatus := convertPropStatusFromWWW(sps.ProposalStatus)
 	r := MDStreamChanges{
+		Version:   VersionMDStreamChanges,
 		Timestamp: time.Now().Unix(),
 		NewStatus: newStatus,
-	}
-
-	blob, err := json.Marshal(r)
-	if err != nil {
-		return nil, err
 	}
 
 	var reply www.SetProposalStatusReply
@@ -1513,6 +1511,11 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 		if !ok {
 			return nil, fmt.Errorf("invalid admin identity: %v",
 				user.ID)
+		}
+
+		blob, err := json.Marshal(r)
+		if err != nil {
+			return nil, err
 		}
 
 		sus := pd.SetUnvettedStatus{

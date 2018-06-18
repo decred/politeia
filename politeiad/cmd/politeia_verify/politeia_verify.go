@@ -87,16 +87,8 @@ func findMerkle() (*[sha256.Size]byte, error) {
 	return merkle.Root(hashes), nil
 }
 
-func verifyRecord(
-	key [ed25519.PublicKeySize]byte,
-	merkle [sha256.Size]byte,
-	token []byte,
-	signature [ed25519.SignatureSize]byte) bool {
-
-	merkleToken := make([]byte, len(merkle)+len(token))
-	copy(merkleToken, merkle[:])
-	copy(merkleToken[len(merkle[:]):], token)
-	return ed25519.Verify(&key, merkleToken, &signature)
+func verifyRecord(key [ed25519.PublicKeySize]byte, merkle, token string, signature [ed25519.SignatureSize]byte) bool {
+	return ed25519.Verify(&key, []byte(merkle+token), &signature)
 }
 
 func _main() error {
@@ -144,11 +136,6 @@ func _main() error {
 	var publicKey [ed25519.PublicKeySize]byte
 	copy(publicKey[:], key)
 
-	token, err := hex.DecodeString(tokenStr)
-	if err != nil {
-		return err
-	}
-
 	sig, err := hex.DecodeString(signatureStr)
 	if err != nil {
 		return err
@@ -173,7 +160,8 @@ func _main() error {
 		copy(merkle[:], bytes)
 	}
 
-	recordVerified := verifyRecord(publicKey, merkle, token, signature)
+	recordVerified := verifyRecord(publicKey, hex.EncodeToString(merkle[:]),
+		tokenStr, signature)
 	if *jsonOutFlag {
 		bytes, err := json.Marshal(output{
 			Success: recordVerified,

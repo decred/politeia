@@ -127,7 +127,12 @@ func DecodeVote(payload []byte) (*Vote, error) {
 
 // StartVote instructs the plugin to commence voting on a proposal with the
 // provided vote bits.
+const VersionStartVote = 1
+
 type StartVote struct {
+	// decred plugin only data
+	Version uint `json:"version"` // Version of this structure
+
 	PublicKey string `json:"publickey"` // Key used for signature.
 	Vote      Vote   `json:"vote"`      // Vote + options
 	Signature string `json:"signature"` // Signature of Votehash
@@ -151,7 +156,13 @@ func DecodeStartVote(payload []byte) (*StartVote, error) {
 }
 
 // StartVoteReply is the reply to StartVote.
+const VersionStartVoteReply = 1
+
 type StartVoteReply struct {
+	// decred plugin only data
+	Version uint `json:"version"` // Version of this structure
+
+	// Shared data
 	StartBlockHeight string   `json:"startblockheight"` // Block height
 	StartBlockHash   string   `json:"startblockhash"`   // Block hash
 	EndHeight        string   `json:"endheight"`        // Height of vote end
