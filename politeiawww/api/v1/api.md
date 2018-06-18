@@ -33,6 +33,8 @@ API.  It does not render HTML.
 - [`Active votes`](#active-votes)
 - [`Cast votes`](#cast-votes)
 - [`Proposal votes`](#proposal-votes)
+- [`Proposal voting status`](#proposal-voting-status)
+- [`Proposals voting status`](#proposals-voting-status)
 - [`Usernames by id`](#usernames-by-id)
 - [`User Comments votes`](#user-comments-votes)
 
@@ -1472,6 +1474,129 @@ Reply:
   }]
 }
 ```
+
+### `Proposal voting status`
+
+Returns the voting status for a single public proposal
+
+**Route:** `GET /V1/proposals/{token}/votingstatus`
+
+**Params:** none
+
+**Result:**
+
+| | Type | Description |
+|-|-|-|
+| proposalvoting | VotingStatus  | Proposal voting status |
+
+**VotingStatus:**
+
+| | Type | Description |
+|-|-|-|
+| token | string  | Censorship token |
+| status | int | Status identifier |
+| votessummary | CastedVotesSummary | Summary of casted votes
+
+**CastedVotesSummary:**
+| | Type | Description |
+|-|-|-|
+| totalvotes | int  | Total votes received |
+| optionsresult | voteoptionresult | Options info and votes received by each one |
+
+**Proposal voting status map:**
+| status | value | 
+|-|-|
+| Voting Active | 0 | 
+| Voting Finished | 1 | 
+| Voting not started | 2 |
+
+**Example:**
+
+Request: 
+
+`GET /V1/proposals/b09dc5ac9d450b4d1ec6e8f80c763771f29413a5d1bf287054fc00c52ccc87c9/votingstatus`
+
+Reply:
+
+```json
+{
+   "proposalvoting":{
+      "token":"b09dc5ac9d450b4d1ec6e8f80c763771f29413a5d1bf287054fc00c52ccc87c9",
+      "status":0,
+      "votessummary":{
+         "totalvotes":0,
+         "optionsresult":[
+            {
+               "option":{
+                  "id":"no",
+                  "description":"Don't approve proposal",
+                  "bits":1
+               },
+               "votesreceived":0
+            },
+            {
+               "option":{
+                  "id":"yes",
+                  "description":"Approve proposal",
+                  "bits":2
+               },
+               "votesreceived":0
+            }
+         ]
+      }
+   }
+}
+```
+
+### `Proposals voting status`
+
+Returns the voting status for all public proposals
+
+**Route:** `GET /V1/proposals/votingstatus`
+
+**Params:** none
+
+**Result:**
+
+| | Type | Description |
+|-|-|-|
+| proposalsvoting | array of VotingStatus  | Voting status of each public proposal |
+
+**note:** the CastedVoteSummary field from VotingStatus can't be trusted when fetching all public proposals.
+In order to fetch the vote summary is necessary to fetch it from [`Proposal voting status`](#proposal-voting-status).
+
+**Example:**
+
+Request:
+
+`GET /V1/proposals/{token}/votingstatus`
+
+Reply:
+
+```json
+{
+   "proposalsvoting":[
+      {
+         "token":"e8d8124ddd7c9e2aadc0fcbcb38eb43b5dc0ca43e5e7454e6836d0ca41f9506d",
+         "status":2,
+         "votessummary":{
+            "totalvotes":0,
+            "optionsresult":null
+         }
+      },
+      {
+         "token":"b09dc5ac9d450b4d1ec6e8f80c763771f29413a5d1bf287054fc00c52ccc87c9",
+         "status":0,
+         "votessummary":{
+            "totalvotes":0,
+            "optionsresult":null
+         }
+      }
+   ]
+}
+```
+
+
 
 ### `Usernames by id`
 

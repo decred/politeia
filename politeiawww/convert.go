@@ -94,12 +94,6 @@ func convertStartVoteReplyFromDecredplugin(svr decredplugin.StartVoteReply) www.
 	}
 }
 
-func convertVoteResultsFromWWW(vr www.VoteResults) decredplugin.VoteResults {
-	return decredplugin.VoteResults{
-		Token: vr.Token,
-	}
-}
-
 func convertVoteOptionFromDecredplugin(vo decredplugin.VoteOption) www.VoteOption {
 	return www.VoteOption{
 		Id:          vo.Id,

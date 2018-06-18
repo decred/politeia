@@ -956,10 +956,8 @@ func (c *Ctx) CastVotes(propToken, voteId string) (*v1.BallotReply, error) {
 }
 
 func (c *Ctx) ProposalVotes(propToken string) (*v1.VoteResultsReply, error) {
-	vr := v1.VoteResults{
-		Token: propToken,
-	}
-	responseBody, err := c.makeRequest("POST", v1.RouteVoteResults, vr)
+
+	responseBody, err := c.makeRequest("GET", "/proposals/"+propToken+"/votes", nil)
 	if err != nil {
 		return nil, err
 	}

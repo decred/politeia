@@ -6,6 +6,7 @@ import (
 
 type ErrorStatusT int
 type PropStatusT int
+type PropVotingStatus int
 
 const (
 	PoliteiaWWWAPIVersion = 1 // API version this backend understands
@@ -13,38 +14,37 @@ const (
 	CsrfToken = "X-CSRF-Token"    // CSRF token for replies
 	Forward   = "X-Forwarded-For" // Proxy header
 
-	RouteUserMe              = "/user/me"
-	RouteNewUser             = "/user/new"
-	RouteVerifyNewUser       = "/user/verify"
-	RouteUpdateUserKey       = "/user/key"
-	RouteVerifyUpdateUserKey = "/user/key/verify"
-	RouteChangeUsername      = "/user/username/change"
-	RouteChangePassword      = "/user/password/change"
-	RouteResetPassword       = "/user/password/reset"
-	RouteUserProposals       = "/user/proposals"
-	RouteVerifyUserPaymentTx = "/user/verifypaymenttx"
-	RouteLogin               = "/login"
-	RouteLogout              = "/logout"
-	RouteSecret              = "/secret"
-	RouteAllVetted           = "/proposals/vetted"
-	RouteAllUnvetted         = "/proposals/unvetted"
-	RouteNewProposal         = "/proposals/new"
-	RouteProposalDetails     = "/proposals/{token:[A-z0-9]{64}}"
-	RouteSetProposalStatus   = "/proposals/{token:[A-z0-9]{64}}/status"
-	RoutePolicy              = "/policy"
-	RouteVersion             = "/version"
-	RouteNewComment          = "/comments/new"
-	RouteLikeComment         = "/comments/like"
-	RouteCommentsGet         = "/proposals/{token:[A-z0-9]{64}}/comments"
-	RouteStartVote           = "/proposals/startvote"
-	RouteActiveVote          = "/proposals/activevote" // XXX rename to ActiveVotes
-	RouteCastVotes           = "/proposals/castvotes"
-	RouteUserCommentsVotes   = "/user/proposals/{token:[A-z0-9]{64}}/commentsvotes"
-	// XXX should we use a fancy route like the one underneath?
-	//RouteVoteResults    = "/proposals/{token:[A-z0-9]{64}}/votes"
-	RouteVoteResults   = "/proposals/voteresults"
-	RouteUsernamesById = "/usernames"
-
+	RouteUserMe                = "/user/me"
+	RouteNewUser               = "/user/new"
+	RouteVerifyNewUser         = "/user/verify"
+	RouteUpdateUserKey         = "/user/key"
+	RouteVerifyUpdateUserKey   = "/user/key/verify"
+	RouteChangeUsername        = "/user/username/change"
+	RouteChangePassword        = "/user/password/change"
+	RouteResetPassword         = "/user/password/reset"
+	RouteUserProposals         = "/user/proposals"
+	RouteVerifyUserPaymentTx   = "/user/verifypaymenttx"
+	RouteLogin                 = "/login"
+	RouteLogout                = "/logout"
+	RouteSecret                = "/secret"
+	RouteAllVetted             = "/proposals/vetted"
+	RouteAllUnvetted           = "/proposals/unvetted"
+	RouteNewProposal           = "/proposals/new"
+	RouteProposalDetails       = "/proposals/{token:[A-z0-9]{64}}"
+	RouteSetProposalStatus     = "/proposals/{token:[A-z0-9]{64}}/status"
+	RoutePolicy                = "/policy"
+	RouteVersion               = "/version"
+	RouteNewComment            = "/comments/new"
+	RouteLikeComment           = "/comments/like"
+	RouteCommentsGet           = "/proposals/{token:[A-z0-9]{64}}/comments"
+	RouteStartVote             = "/proposals/startvote"
+	RouteActiveVote            = "/proposals/activevote" // XXX rename to ActiveVotes
+	RouteCastVotes             = "/proposals/castvotes"
+	RouteUserCommentsVotes     = "/user/proposals/{token:[A-z0-9]{64}}/commentsvotes"
+	RouteVoteResults           = "/proposals/{token:[A-z0-9]{64}}/votes"
+	RouteUsernamesById         = "/usernames"
+	RouteProposalsVotingStatus = "/proposals/votingstatus"
+	RouteProposalVotingStatus  = "/proposals/{token:[A-z0-9]{64}}/votingstatus"
 	// VerificationTokenSize is the size of verification token in bytes
 	VerificationTokenSize = 32
 
@@ -136,6 +136,11 @@ const (
 	PropStatusCensored    PropStatusT = 3 // Proposal has been censored
 	PropStatusPublic      PropStatusT = 4 // Proposal is publicly visible
 	PropStatusLocked      PropStatusT = 6 // Proposal is locked, NOT IMPLEMENTED
+
+	// Proposal voting status
+	ProposalVotingActive     PropVotingStatus = 0 // proposal on voting
+	ProposalVotingFinished   PropVotingStatus = 1 // proposal voting finished
+	ProposalVotingNotStarted PropVotingStatus = 2
 )
 
 var (
@@ -564,6 +569,7 @@ type ActiveVoteReply struct {
 }
 
 // plugin commands
+
 // StartVote starts the voting process for a proposal.
 type StartVote struct {
 	PublicKey string `json:"publickey"` // Key used for signature.
@@ -605,9 +611,7 @@ type BallotReply struct {
 }
 
 // VoteResults retrieves a single proposal vote results from the server.
-type VoteResults struct {
-	Token string `json:"token"` // Censorship token
-}
+type VoteResults struct{}
 
 // VoteResultsReply returns the original proposal vote and the associated cast
 // votes.
@@ -709,4 +713,43 @@ type UserCommentsVotes struct{}
 // for the comments of a given proposal
 type UserCommentsVotesReply struct {
 	CommentsVotes []CommentVote `json:"commentsvotes"`
+}
+
+// VoteOptionResult describes a VotingOption info
+// along with the total votes it received
+type VoteOptionResult struct {
+	Option        VoteOption `json:"option"`        // Vote Option
+	VotesReceived uint64     `json:"votesreceived"` // Votes received by the option
+}
+
+// CastedVotesSummary describes the total votes for a proposal
+// and the VoteOptionResult for each available voting option
+type CastedVotesSummary struct {
+	TotalVotes    int                `json:"totalvotes"`    // Proposal's total votes
+	OptionsResult []VoteOptionResult `json:"optionsresult"` // VoteOptionResult for each option
+}
+
+// VotingStatus describes the voting status for a given proposal
+type VotingStatus struct {
+	Token        string             `json:"token"`                  // Censorship token
+	Status       PropVotingStatus   `json:"status"`                 // Voting status (e.g finished, active, not started)
+	VotesSummary CastedVotesSummary `json:"votessummary,omitempty"` // Summary (won't be provided when fetching all voting status)
+}
+
+// ProposalsVotingStatus is a commmand to fetch the current voting status for
+// all public proposals
+type ProposalsVotingStatus struct{}
+
+// ProposalsVotingStatusReply returns the voting status for all public proposals
+type ProposalsVotingStatusReply struct {
+	ProposalsVoting []VotingStatus `json:"proposalsvoting"` // Public proposal's voting status
+}
+
+// ProposalVotingStatus is a command to fetch the the current voting status
+// for a single public proposal
+type ProposalVotingStatus struct{}
+
+// ProposalVotingStatusReply returns the voting status for a single public proposal
+type ProposalVotingStatusReply struct {
+	ProposalVoting VotingStatus `json:"proposalvoting"`
 }
