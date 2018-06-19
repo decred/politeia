@@ -433,7 +433,12 @@ func (p *politeiawww) handleMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	reply := p.backend.CreateLoginReply(user)
+	reply, err := p.backend.CreateLoginReply(user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleMe: CreateLoginReply %v", err)
+		return
+	}
 	util.RespondWithJSON(w, http.StatusOK, *reply)
 }
 
@@ -755,17 +760,17 @@ func (p *politeiawww) handleCommentsGet(w http.ResponseWriter, r *http.Request) 
 	util.RespondWithJSON(w, http.StatusOK, gcr)
 }
 
-// handleVerifyUserPaymentTx checks whether the provided transaction
+// handleVerifyUserPayment checks whether the provided transaction
 // is on the blockchain and meets the requirements to consider the user
 // registration fee as paid.
-func (p *politeiawww) handleVerifyUserPaymentTx(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleVerifyUserPaymentTx")
+func (p *politeiawww) handleVerifyUserPayment(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleVerifyUserPayment")
 
 	// Get the verify user payment tx command.
-	var vupt v1.VerifyUserPaymentTx
+	var vupt v1.VerifyUserPayment
 	err := util.ParseGetParams(r, &vupt)
 	if err != nil {
-		RespondWithError(w, r, 0, "handleVerifyUserPaymentTx: ParseGetParams",
+		RespondWithError(w, r, 0, "handleVerifyUserPayment: ParseGetParams",
 			v1.UserError{
 				ErrorCode: v1.ErrorStatusInvalidInput,
 			})
@@ -775,14 +780,14 @@ func (p *politeiawww) handleVerifyUserPaymentTx(w http.ResponseWriter, r *http.R
 	user, err := p.getSessionUser(r)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleVerifyUserPaymentTx: getSessionUser %v", err)
+			"handleVerifyUserPayment: getSessionUser %v", err)
 		return
 	}
 
-	vuptr, err := p.backend.ProcessVerifyUserPaymentTx(user, vupt)
+	vuptr, err := p.backend.ProcessVerifyUserPayment(user, vupt)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleVerifyUserPaymentTx: ProcessVerifyUserPaymentTx %v", err)
+			"handleVerifyUserPayment: ProcessVerifyUserPayment %v", err)
 		return
 	}
 
@@ -1176,8 +1181,8 @@ func _main() error {
 		p.handleNewComment, permissionLogin, true)
 	p.addRoute(http.MethodPost, v1.RouteLikeComment,
 		p.handleLikeComment, permissionLogin, true)
-	p.addRoute(http.MethodGet, v1.RouteVerifyUserPaymentTx,
-		p.handleVerifyUserPaymentTx, permissionLogin, false)
+	p.addRoute(http.MethodGet, v1.RouteVerifyUserPayment,
+		p.handleVerifyUserPayment, permissionLogin, false)
 	p.addRoute(http.MethodGet, v1.RouteUserCommentsVotes,
 		p.handleUserCommentsVotes, permissionLogin, true)
 

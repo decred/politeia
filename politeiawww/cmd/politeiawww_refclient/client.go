@@ -238,17 +238,14 @@ func (c *ctx) getUserCommentsVotes(token string) (*v1.UserCommentsVotesReply, er
 	return &ucvr, nil
 }
 
-func (c *ctx) verifyUserPaymentTx(id *identity.FullIdentity, token, faucetTx string) (*v1.VerifyUserPaymentTxReply, error) {
-	vTx := v1.VerifyUserPaymentTx{
-		TxId: faucetTx,
-	}
-
-	responseBody, err := c.makeRequest("GET", v1.RouteVerifyUserPaymentTx, vTx)
+func (c *ctx) verifyUserPayment(id *identity.FullIdentity, token string) (*v1.VerifyUserPaymentReply, error) {
+	vup := v1.VerifyUserPayment{}
+	responseBody, err := c.makeRequest("GET", v1.RouteVerifyUserPayment, vup)
 	if err != nil {
 		return nil, err
 	}
 
-	var vupr v1.VerifyUserPaymentTxReply
+	var vupr v1.VerifyUserPaymentReply
 	err = json.Unmarshal(responseBody, &vupr)
 	if err != nil {
 		return nil, fmt.Errorf("Could not unmarshal verifyUserPaidReply: %v",

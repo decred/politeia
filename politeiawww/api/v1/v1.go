@@ -22,7 +22,7 @@ const (
 	RouteChangePassword      = "/user/password/change"
 	RouteResetPassword       = "/user/password/reset"
 	RouteUserProposals       = "/user/proposals"
-	RouteVerifyUserPaymentTx = "/user/verifypaymenttx"
+	RouteVerifyUserPayment   = "/user/verifypayment"
 	RouteLogin               = "/login"
 	RouteLogout              = "/logout"
 	RouteSecret              = "/secret"
@@ -128,6 +128,7 @@ const (
 	ErrorStatusMalformedUsername           ErrorStatusT = 32
 	ErrorStatusDuplicateUsername           ErrorStatusT = 33
 	ErrorStatusVerificationTokenUnexpired  ErrorStatusT = 34
+	ErrorStatusCannotVerifyPayment         ErrorStatusT = 35
 
 	// Proposal status codes (set and get)
 	PropStatusInvalid     PropStatusT = 0 // Invalid status
@@ -195,6 +196,7 @@ var (
 		ErrorStatusMalformedUsername:           "malformed username",
 		ErrorStatusDuplicateUsername:           "duplicate username",
 		ErrorStatusVerificationTokenUnexpired:  "verification token not yet expired",
+		ErrorStatusCannotVerifyPayment:         "cannot verify payment at this time",
 	}
 )
 
@@ -397,15 +399,17 @@ type UserProposalsReply struct {
 	Proposals []ProposalRecord `json:"proposals"`
 }
 
-// VerifyUserPaymentTx is used to request the server to check for the
+// VerifyUserPayment is used to request the server to check for the
 // provided transaction on the Decred blockchain and verify that it
 // satisfies the requirements for a user to pay his registration fee.
-type VerifyUserPaymentTx struct {
-	TxId string `schema:"txid"`
+type VerifyUserPayment struct {
 }
 
-type VerifyUserPaymentTxReply struct {
-	HasPaid bool `json:"haspaid"`
+type VerifyUserPaymentReply struct {
+	HasPaid            bool   `json:"haspaid"`
+	PaywallAddress     string `json:"paywalladdress"`     // Registration paywall address
+	PaywallAmount      uint64 `json:"paywallamount"`      // Registration paywall amount in atoms
+	PaywallTxNotBefore int64  `json:"paywalltxnotbefore"` // Minimum timestamp for paywall tx
 }
 
 // Login attempts to login the user.  Note that by necessity the password
