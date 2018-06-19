@@ -5,7 +5,6 @@
 package backend
 
 import (
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"regexp"
@@ -89,12 +88,15 @@ func (s StateTransitionError) Error() string {
 }
 
 // RecordMetadata is the metadata of a record.
+const VersionRecordMD = 1
+
 type RecordMetadata struct {
-	Version   uint              // Iteration count of record
-	Status    MDStatusT         // Current status of the record
-	Merkle    [sha256.Size]byte // Merkle root of all files in record
-	Timestamp int64             // Last updated
-	Token     []byte            // Record authentication token
+	Version   uint64    `json:"version"`   // Version of the scruture
+	Iteration uint64    `json:"iteration"` // Iteration count of record
+	Status    MDStatusT `json:"status"`    // Current status of the record
+	Merkle    string    `json:"merkle"`    // Merkle root of all files in record
+	Timestamp int64     `json:"timestamp"` // Last updated
+	Token     string    `json:"token"`     // Record authentication token
 }
 
 // MetadataStream describes a single metada stream.  The ID determines how and

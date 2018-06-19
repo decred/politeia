@@ -146,10 +146,7 @@ func (p *politeia) convertBackendRecord(br backend.Record) v1.Record {
 	rm := br.RecordMetadata
 
 	// Calculate signature
-	merkleToken := make([]byte, len(rm.Merkle)+len(rm.Token))
-	copy(merkleToken, rm.Merkle[:])
-	copy(merkleToken[len(rm.Merkle[:]):], rm.Token)
-	signature := p.identity.SignMessage(merkleToken)
+	signature := p.identity.SignMessage([]byte(rm.Merkle + rm.Token))
 
 	// Convert MetadataStream
 	md := make([]v1.MetadataStream, 0, len(br.Metadata))
@@ -162,8 +159,8 @@ func (p *politeia) convertBackendRecord(br backend.Record) v1.Record {
 		Status:    convertBackendStatus(rm.Status),
 		Timestamp: rm.Timestamp,
 		CensorshipRecord: v1.CensorshipRecord{
-			Merkle:    hex.EncodeToString(rm.Merkle[:]),
-			Token:     hex.EncodeToString(rm.Token),
+			Merkle:    rm.Merkle,
+			Token:     rm.Token,
 			Signature: hex.EncodeToString(signature[:]),
 		},
 		Metadata: md,
@@ -258,17 +255,14 @@ func (p *politeia) newRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Prepare reply.
-	merkleToken := make([]byte, len(rm.Merkle)+len(rm.Token))
-	copy(merkleToken, rm.Merkle[:])
-	copy(merkleToken[len(rm.Merkle[:]):], rm.Token)
-	signature := p.identity.SignMessage(merkleToken)
+	signature := p.identity.SignMessage([]byte(rm.Merkle + rm.Token))
 
 	response := p.identity.SignMessage(challenge)
 	reply := v1.NewRecordReply{
 		Response: hex.EncodeToString(response[:]),
 		CensorshipRecord: v1.CensorshipRecord{
-			Merkle:    hex.EncodeToString(rm.Merkle[:]),
-			Token:     hex.EncodeToString(rm.Token),
+			Merkle:    rm.Merkle,
+			Token:     rm.Token,
 			Signature: hex.EncodeToString(signature[:]),
 		},
 	}
@@ -333,17 +327,14 @@ func (p *politeia) updateUnvetted(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Prepare reply.
-	merkleToken := make([]byte, len(rm.Merkle)+len(rm.Token))
-	copy(merkleToken, rm.Merkle[:])
-	copy(merkleToken[len(rm.Merkle[:]):], rm.Token)
-	signature := p.identity.SignMessage(merkleToken)
+	signature := p.identity.SignMessage([]byte(rm.Merkle + rm.Token))
 
 	response := p.identity.SignMessage(challenge)
 	reply := v1.UpdateUnvettedReply{
 		Response: hex.EncodeToString(response[:]),
 		CensorshipRecord: v1.CensorshipRecord{
-			Merkle:    hex.EncodeToString(rm.Merkle[:]),
-			Token:     hex.EncodeToString(rm.Token),
+			Merkle:    rm.Merkle,
+			Token:     rm.Token,
 			Signature: hex.EncodeToString(signature[:]),
 		},
 	}

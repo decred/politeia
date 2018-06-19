@@ -27,11 +27,11 @@ import (
 )
 
 func validateMD(got, want *backend.RecordMetadata) error {
-	if got.Version != want.Version+1 ||
+	if got.Iteration != want.Iteration+1 ||
 		got.Status != backend.MDStatusVetted ||
 		want.Status != backend.MDStatusUnvetted ||
 		got.Merkle != want.Merkle ||
-		!bytes.Equal(got.Token, want.Token) {
+		got.Token != want.Token {
 		return fmt.Errorf("unexpected rm got %v, wanted %v",
 			spew.Sdump(*got), spew.Sdump(*want))
 	}
@@ -120,7 +120,7 @@ func TestAnchorWithCommits(t *testing.T) {
 	for _, branch := range branches {
 		for _, v := range rm {
 			s := strings.Trim(branch, " \n")
-			if s == hex.EncodeToString(v.Token) {
+			if s == v.Token {
 				found++
 				break
 			}
@@ -138,7 +138,11 @@ func TestAnchorWithCommits(t *testing.T) {
 	// Read all MDs from the branches and call getunvetted to verify
 	// integrity
 	for k, v := range rm {
-		pru, err := g.GetUnvetted(v.Token)
+		token, err := hex.DecodeString(v.Token)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pru, err := g.GetUnvetted(token)
 		if err != nil {
 			t.Fatalf("%v", err)
 		}
@@ -166,7 +170,11 @@ func TestAnchorWithCommits(t *testing.T) {
 	// Vet 1 of the records
 	t.Logf("===== VET RECORD 1 =====")
 	emptyMD := []backend.MetadataStream{}
-	record, err := g.SetUnvettedStatus(rm[1].Token,
+	token, err := hex.DecodeString(rm[1].Token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, err := g.SetUnvettedStatus(token,
 		backend.MDStatusVetted, emptyMD, emptyMD)
 	if err != nil {
 		t.Fatal(err)
@@ -176,7 +184,7 @@ func TestAnchorWithCommits(t *testing.T) {
 			record.RecordMetadata.Status, backend.MDStatusVetted)
 	}
 	//Get it as well to validate the GetVetted call
-	pru, err := g.GetVetted(rm[1].Token)
+	pru, err := g.GetVetted(token)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -340,7 +348,11 @@ func TestAnchorWithCommits(t *testing.T) {
 
 	// Vet + anchor
 	t.Logf("===== INTERLEAVE ANCHORS =====")
-	_, err = g.SetUnvettedStatus(rm[2].Token, backend.MDStatusVetted,
+	token2, err := hex.DecodeString(rm[2].Token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = g.SetUnvettedStatus(token2, backend.MDStatusVetted,
 		emptyMD, emptyMD)
 	if err != nil {
 		t.Fatal(err)
@@ -351,7 +363,11 @@ func TestAnchorWithCommits(t *testing.T) {
 	}
 
 	// Vet + anchor
-	_, err = g.SetUnvettedStatus(rm[0].Token, backend.MDStatusVetted,
+	token0, err := hex.DecodeString(rm[0].Token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = g.SetUnvettedStatus(token0, backend.MDStatusVetted,
 		emptyMD, emptyMD)
 	if err != nil {
 		t.Fatal(err)
