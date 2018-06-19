@@ -110,7 +110,13 @@ func comment() error {
 	if err != nil {
 		return err
 	}
-	_ = lcr
+	if lcr.Error != "" {
+		return fmt.Errorf("unexpected failure during upvote")
+	}
+	if lcr.Total != 1 || lcr.Result != 1 {
+		return fmt.Errorf("expected 1 total %v, 1 result %v",
+			lcr.Total, lcr.Result)
+	}
 
 	// Expect total and result == 1
 	gcr, err := c.commentGet(myprop1.CensorshipRecord.Token)
@@ -122,6 +128,57 @@ func comment() error {
 	}
 	if gcr.Comments[0].TotalVotes != 1 || gcr.Comments[0].ResultVotes != 1 {
 		return fmt.Errorf("expected 1 votes/results %v %v",
+			gcr.Comments[0].TotalVotes, gcr.Comments[0].ResultVotes)
+	}
+
+	// upvote again and expect failure
+	lcr, err = c.like(adminID, myprop1.CensorshipRecord.Token,
+		cr.Comment.CommentID, "1")
+	if err != nil {
+		return err
+	}
+	if lcr.Error == "" {
+		return fmt.Errorf("expected failure during upvote")
+	}
+
+	// downvote, expect 1 total vote and a score of 0
+	lcr, err = c.like(adminID, myprop1.CensorshipRecord.Token,
+		cr.Comment.CommentID, "-1")
+	if err != nil {
+		return err
+	}
+	if lcr.Error != "" {
+		return fmt.Errorf("unexpected failure during upvote")
+	}
+	if lcr.Total != 1 || lcr.Result != 0 {
+		return fmt.Errorf("expected 1 total %v, 0 result %v",
+			lcr.Total, lcr.Result)
+	}
+
+	// downvote, expect 1 total vote and a score of -1
+	lcr, err = c.like(adminID, myprop1.CensorshipRecord.Token,
+		cr.Comment.CommentID, "-1")
+	if err != nil {
+		return err
+	}
+	if lcr.Error != "" {
+		return fmt.Errorf("unexpected failure during upvote")
+	}
+	if lcr.Total != 1 || lcr.Result != -1 {
+		return fmt.Errorf("expected 1 total %v, -1 result %v",
+			lcr.Total, lcr.Result)
+	}
+
+	// get comment one final time to verify final value
+	gcr, err = c.commentGet(myprop1.CensorshipRecord.Token)
+	if err != nil {
+		return err
+	}
+	if len(gcr.Comments) != 1 {
+		return fmt.Errorf("invalid comments len")
+	}
+	if gcr.Comments[0].TotalVotes != 1 || gcr.Comments[0].ResultVotes != -1 {
+		return fmt.Errorf("total expected 1 %v Result expected -1 %v",
 			gcr.Comments[0].TotalVotes, gcr.Comments[0].ResultVotes)
 	}
 
