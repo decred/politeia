@@ -7,8 +7,22 @@ import (
 	"os"
 
 	"github.com/agl/ed25519"
+	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
+	"golang.org/x/crypto/ssh/terminal"
 )
+
+func convertTicketHashes(h []string) ([][]byte, error) {
+	hashes := make([][]byte, 0, len(h))
+	for _, v := range h {
+		hh, err := chainhash.NewHashFromStr(v)
+		if err != nil {
+			return nil, err
+		}
+		hashes = append(hashes, hh[:])
+	}
+	return hashes, nil
+}
 
 func idFromString(s string) (*identity.FullIdentity, error) {
 	// super hack alert, we are going to use the email address as the
@@ -33,4 +47,23 @@ func prettyPrintJSON(v interface{}) error {
 	}
 	fmt.Fprintf(os.Stdout, "%s\n", b)
 	return nil
+}
+
+// providePrivPassphrase is used to prompt for the private passphrase of the
+// user's wallet
+func providePrivPassphrase() ([]byte, error) {
+	prompt := "Enter the private passphrase of your wallet: "
+	for {
+		fmt.Printf("%v", prompt)
+		pass, err := terminal.ReadPassword(int(os.Stdin.Fd()))
+		if err != nil {
+			return nil, err
+		}
+		fmt.Printf("\n")
+		pass = bytes.TrimSpace(pass)
+		if len(pass) == 0 {
+			continue
+		}
+		return pass, nil
+	}
 }

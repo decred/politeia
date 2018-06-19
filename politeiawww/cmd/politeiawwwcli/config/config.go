@@ -11,11 +11,19 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiawww/sharedconfig"
 )
 
 const (
+	defaultHost       = "https://proposals.decred.org/api"
+	defaultWalletHost = "https://127.0.0.1" // Only allow localhost for now
+	FaucetURL         = "https://faucet.decred.org/requestfaucet"
+
+	defaultWalletMainnetPort = "19110"
+	defaultWalletTestnetPort = "19111"
+
 	ErrorNoUserIdentity = "No user idenitity found. Use 'newuser --save' to " +
 		"save a user identity to appDataDir."
 	ErrorBeforeAfterFlags = "The 'before' and 'after' flags cannot be used at " +
@@ -23,36 +31,32 @@ const (
 )
 
 var (
-	defaultHost    = "https://127.0.0.1:4443"
-	defaultHomeDir = filepath.Join(sharedconfig.DefaultHomeDir, "cli")
-	FaucetURL      = "https://faucet.decred.org/requestfaucet"
-	Host           = defaultHost
-	HomeDir        = cleanAndExpandPath(defaultHomeDir)
+	dcrwalletHomeDir      = dcrutil.AppDataDir("dcrwallet", false)
+	defaultHomeDir        = filepath.Join(sharedconfig.DefaultHomeDir, "cli")
+	defaultWalletCertFile = filepath.Join(dcrwalletHomeDir, "rpc.cert")
 
-	cookieFile       string
-	csrfFile         string
+	Host       = defaultHost
+	HomeDir    = cleanAndExpandPath(defaultHomeDir)
+	WalletCert = defaultWalletCertFile
+	// only allow testnet wallet host for now
+	WalletHost = defaultWalletHost + ":" + defaultWalletTestnetPort
+
+	Cookies          []*http.Cookie
 	CsrfToken        string
-	PrintJSON        bool
+	UserIdentity     *identity.FullIdentity
 	UserIdentityFile string
-	Verbose          bool
 
-	Cookies      []*http.Cookie
-	UserIdentity *identity.FullIdentity
+	cookieFile string
+	csrfFile   string
+
+	PrintJSON bool
+	Verbose   bool
 )
 
 func stringToHash(s string) string {
 	h := fnv.New32a()
 	h.Write([]byte(s))
 	return fmt.Sprint(h.Sum32())
-}
-
-func setHost(h string) error {
-	if !strings.HasPrefix(h, "http://") && !strings.HasPrefix(h, "https://") {
-		return fmt.Errorf("Host must begin with http:// or https://")
-	}
-
-	Host = cleanAndExpandPath(h)
-	return nil
 }
 
 // create a user identity filename that is unique for each host.  This makes
@@ -148,15 +152,13 @@ func Load() error {
 	return nil
 }
 
-func UpdateHost(host string) error {
-	err := setHost(host)
-	if err != nil {
-		return err
+func SetHost(h string) error {
+	if !strings.HasPrefix(h, "http://") && !strings.HasPrefix(h, "https://") {
+		return fmt.Errorf("Host must begin with http:// or https://")
 	}
-
-	setUserIdentityFile(host)
-	setCookieFile(host)
-	return nil
+	Host = h
+	err := Load()
+	return err
 }
 
 func SaveCookies(cookies []*http.Cookie) error {
