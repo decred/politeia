@@ -209,23 +209,23 @@ func comment() error {
 		return err
 	}
 
-	// Upvote, expect 2 total vote and a score of 0
+	// Downvote, expect 2 total vote and a score of -2
 	lcr, err = c.like(auxUserId, myprop1.CensorshipRecord.Token,
-		cr.Comment.CommentID, "1")
+		cr.Comment.CommentID, "-1")
 	if err != nil {
 		return err
 	}
 	if lcr.Error != "" {
 		return fmt.Errorf("unexpected failure during upvote")
 	}
-	if lcr.Total != 2 || lcr.Result != 0 {
-		return fmt.Errorf("expected 1 total %v, 1 result %v",
+	if lcr.Total != 2 || lcr.Result != -2 {
+		return fmt.Errorf("expected 2 total %v, -2 result %v",
 			lcr.Total, lcr.Result)
 	}
 
-	// upvote again and expect failure
+	// Down again and expect failure
 	lcr, err = c.like(auxUserId, myprop1.CensorshipRecord.Token,
-		cr.Comment.CommentID, "1")
+		cr.Comment.CommentID, "-1")
 	if err != nil {
 		return err
 	}
@@ -241,8 +241,8 @@ func comment() error {
 	if len(gcr.Comments) != 1 {
 		return fmt.Errorf("invalid comments len")
 	}
-	if gcr.Comments[0].TotalVotes != 2 || gcr.Comments[0].ResultVotes != 0 {
-		return fmt.Errorf("total expected 2 %v Result expected 0 %v",
+	if gcr.Comments[0].TotalVotes != 2 || gcr.Comments[0].ResultVotes != -2 {
+		return fmt.Errorf("total expected 2 %v Result expected -2 %v",
 			gcr.Comments[0].TotalVotes, gcr.Comments[0].ResultVotes)
 	}
 

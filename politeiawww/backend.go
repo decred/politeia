@@ -1838,18 +1838,19 @@ func (b *backend) ProcessLikeComment(lc www.LikeComment, user *database.User) (*
 	lcrWWW := convertDecredLikeCommentReplyToWWWLikeCommentReply(*lcr)
 
 	// Add action to comment to cache
-	b.Lock()
-	defer b.Unlock()
-
-	//b.inventory[ncrWWW.Comment.Token].comments[ncrWWW.Comment.CommentID] = ncrWWW.Comment
-	if c, ok := b.inventory[lc.Token].comments[lc.CommentID]; ok {
-		// Update vote coutns
-		c.TotalVotes = lcr.Total
-		c.ResultVotes = lcr.Result
-		b.inventory[lc.Token].comments[lc.CommentID] = c
-	} else {
-		return nil, fmt.Errorf("Could not find comment %v:%v",
-			lc.Token, lc.CommentID)
+	if lcr.Error == "" {
+		b.Lock()
+		defer b.Unlock()
+		//b.inventory[ncrWWW.Comment.Token].comments[ncrWWW.Comment.CommentID] = ncrWWW.Comment
+		if c, ok := b.inventory[lc.Token].comments[lc.CommentID]; ok {
+			// Update vote coutns
+			c.TotalVotes = lcr.Total
+			c.ResultVotes = lcr.Result
+			b.inventory[lc.Token].comments[lc.CommentID] = c
+		} else {
+			return nil, fmt.Errorf("Could not find comment %v:%v",
+				lc.Token, lc.CommentID)
+		}
 	}
 
 	return &lcrWWW, nil
