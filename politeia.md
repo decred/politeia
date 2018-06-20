@@ -14,7 +14,7 @@ a willingness to carry risk in the proposal. An example is that stakeholders
 expect developers to write and show code before payment occurs. The existing
 contractors use this model. For example, Company 0 carries the costs (and risk)
 for 4-6 weeks before payout occurs. This is a feature and not a bug.  Asking
-for a large sum of money without incurring costs shifts the risk to the DHG and
+for a large sum of money without incurring costs shifts the risk to the DAE and
 that incentivizes malicious behavior
 
 ## How to submit a Politeia (Pi) proposal
