@@ -23,11 +23,18 @@ var (
 	printJson         = flag.Bool("json", false, "Print JSON")
 	test              = flag.String("test", "all", "only run a subset of tests [all,vote]")
 	usePaywall        = flag.Bool("use-paywall", true, "Run refClient waiting for paywall confimartion")
+	auxEmail          = flag.String("auxemail", "", "aux user email")
+	auxPassword       = flag.String("auxpassword", "", "aux user password")
 )
 
 const (
 	timeToPoll = 3 // time in seconds which will poll for block confirmations
 )
+
+type UserCredentials struct {
+	Email    string
+	Password string
+}
 
 func firstContact() (*ctx, error) {
 	// Always hit / first for csrf token and obtain api version
@@ -54,6 +61,7 @@ func comment() error {
 	adminEmail := *emailFlag
 	adminPassword := *passwordFlag
 	adminID, err := idFromString(adminEmail)
+
 	if err != nil {
 		return err
 	}
@@ -61,6 +69,27 @@ func comment() error {
 	c, err := firstContact()
 	if err != nil {
 		return err
+	}
+
+	// Comments testing requires an aux user able
+	// to execute actions (e.g user is verified and has paid the paywall fee)
+	// create an aux user in case it isn't provided
+	var auxUser *UserCredentials
+	if *auxEmail == "" || *auxPassword == "" {
+		auxUser, err = createUser(c)
+		if err != nil {
+			return err
+		}
+	} else {
+		auxUser = &UserCredentials{
+			Email:    *auxEmail,
+			Password: *auxPassword,
+		}
+	}
+
+	auxUserId, err := idFromString(auxUser.Email)
+	if err != nil {
+		return fmt.Errorf("Invalid aux user")
 	}
 
 	lr, err := c.login(adminEmail, adminPassword)
@@ -169,6 +198,41 @@ func comment() error {
 			lcr.Total, lcr.Result)
 	}
 
+	err = c.logout()
+	if err != nil {
+		return err
+	}
+
+	// Login with aux user to test multiple voting
+	lr, err = c.login(auxUser.Email, auxUser.Password)
+	if err != nil {
+		return err
+	}
+
+	// Upvote, expect 2 total vote and a score of 0
+	lcr, err = c.like(auxUserId, myprop1.CensorshipRecord.Token,
+		cr.Comment.CommentID, "1")
+	if err != nil {
+		return err
+	}
+	if lcr.Error != "" {
+		return fmt.Errorf("unexpected failure during upvote")
+	}
+	if lcr.Total != 2 || lcr.Result != 0 {
+		return fmt.Errorf("expected 1 total %v, 1 result %v",
+			lcr.Total, lcr.Result)
+	}
+
+	// upvote again and expect failure
+	lcr, err = c.like(auxUserId, myprop1.CensorshipRecord.Token,
+		cr.Comment.CommentID, "1")
+	if err != nil {
+		return err
+	}
+	if lcr.Error == "" {
+		return fmt.Errorf("expected failure during upvote")
+	}
+
 	// get comment one final time to verify final value
 	gcr, err = c.commentGet(myprop1.CensorshipRecord.Token)
 	if err != nil {
@@ -177,8 +241,8 @@ func comment() error {
 	if len(gcr.Comments) != 1 {
 		return fmt.Errorf("invalid comments len")
 	}
-	if gcr.Comments[0].TotalVotes != 1 || gcr.Comments[0].ResultVotes != -1 {
-		return fmt.Errorf("total expected 1 %v Result expected -1 %v",
+	if gcr.Comments[0].TotalVotes != 2 || gcr.Comments[0].ResultVotes != 0 {
+		return fmt.Errorf("total expected 2 %v Result expected 0 %v",
 			gcr.Comments[0].TotalVotes, gcr.Comments[0].ResultVotes)
 	}
 
@@ -287,6 +351,71 @@ func vote() error {
 	spew.Dump(svr)
 
 	return nil
+}
+
+func createUser(c *ctx) (*UserCredentials, error) {
+	// Policy
+	pr, err := c.policy()
+	if err != nil {
+		return nil, err
+	}
+
+	b, err := util.Random(int(pr.MinPasswordLength))
+	if err != nil {
+		return nil, err
+	}
+
+	email := hex.EncodeToString(b) + "@example.com"
+	password := hex.EncodeToString(b)
+
+	// New User
+	token, id, paywallAddress, paywallAmount, err := c.newUser(email, password)
+	if err != nil {
+		return nil, err
+	}
+
+	// Verify New User
+	sig := id.SignMessage([]byte(token))
+	err = c.verifyNewUser(email, token, hex.EncodeToString(sig[:]))
+	if err != nil {
+		return nil, err
+	}
+
+	// Pay paywal with faucet
+	var faucetTx string
+	if paywallAddress != "" && paywallAmount != 0 {
+		// Use the testnet faucet to satisfy the user paywall fee
+		fmt.Printf("Paying paywall with Testnet faucet")
+		faucetTx, err = util.PayWithTestnetFaucet(faucetURL, paywallAddress, paywallAmount,
+			*overridetokenFlag)
+		if err != nil {
+			return nil, fmt.Errorf("unable to pay with %v with %v faucet: %v",
+				paywallAddress, paywallAmount, err)
+		}
+
+		fmt.Printf("paid %v Atom to %v with faucet tx %v\n",
+			paywallAmount, paywallAddress, faucetTx)
+	}
+
+	// Wait for paywall confirmation
+	ticker := time.NewTicker(time.Second * timeToPoll)
+
+	for range ticker.C {
+		verifyUserPaid, err := c.verifyUserPaymentTx(id, token, faucetTx)
+		if err != nil {
+			return nil, fmt.Errorf("ERR: %v", err)
+		}
+		fmt.Printf("Waiting for confirmations\n")
+		if verifyUserPaid.HasPaid {
+			ticker.Stop()
+			break
+		}
+	}
+
+	return &UserCredentials{
+		Email:    email,
+		Password: password,
+	}, nil
 }
 
 func _main() error {
