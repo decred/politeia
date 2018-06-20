@@ -410,47 +410,82 @@ func snapshot(hash string) ([]string, error) {
 	return tickets, nil
 }
 
-func largestCommitmentAddress(hash string) (string, error) {
-	url := decredPluginSettings["dcrdata"] + "api/tx/" + hash
-	log.Debugf("connecting to %v", url)
-	r, err := http.Get(url)
+func batchTransactions(hashes []string) ([]dcrdataapi.TrimmedTx, error) {
+	// Request body is dcrdataapi.Txns marshalled to JSON
+	reqBody, err := json.Marshal(dcrdataapi.Txns{
+		Transactions: hashes,
+	})
 	if err != nil {
-		return "", err
+		return nil, err
+	}
+
+	// Make the POST request
+	url := decredPluginSettings["dcrdata"] + "api/txs/trimmed"
+	log.Debugf("connecting to %v", url)
+	r, err := http.Post(url, "application/json; charset=utf-8",
+		bytes.NewReader(reqBody))
+	if err != nil {
+		return nil, err
 	}
 	defer r.Body.Close()
 
-	var ttx dcrdataapi.TrimmedTx
+	if r.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("POST request failed: %d", r.StatusCode)
+	}
+
+	// Unmarshal the resonse
+	var ttx []dcrdataapi.TrimmedTx
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&ttx); err != nil {
-		return "", err
+		return nil, err
+	}
+	return ttx, nil
+}
+
+// largestCommitmentResult returns the largest commitment addres or an error.
+type largestCommitmentResult struct {
+	bestAddr string
+	err      error
+}
+
+func largestCommitmentAddresses(hashes []string) ([]largestCommitmentResult, error) {
+	// Batch request all of the transaction info from dcrdata.
+	ttxs, err := batchTransactions(hashes)
+	if err != nil {
+		return nil, err
 	}
 
-	// Find largest commitment address
-	var (
-		bestAddr   string
-		bestAmount float64
-	)
-	for _, v := range ttx.Vout {
-		if v.ScriptPubKeyDecoded.CommitAmt == nil {
-			continue
-		}
-		if *v.ScriptPubKeyDecoded.CommitAmt > bestAmount {
-			if len(v.ScriptPubKeyDecoded.Addresses) == 0 {
-				log.Errorf("unexpected addresses length: %v",
-					ttx.TxID)
+	// Find largest commitment address for each transaction.
+	r := make([]largestCommitmentResult, len(hashes))
+	for i := range ttxs {
+		// Best is address with largest commit amount.
+		var bestAddr string
+		var bestAmount float64
+		for _, v := range ttxs[i].Vout {
+			if v.ScriptPubKeyDecoded.CommitAmt == nil {
 				continue
 			}
-			bestAddr = v.ScriptPubKeyDecoded.Addresses[0]
-			bestAmount = *v.ScriptPubKeyDecoded.CommitAmt
+			if *v.ScriptPubKeyDecoded.CommitAmt > bestAmount {
+				if len(v.ScriptPubKeyDecoded.Addresses) == 0 {
+					// jrick, does this need to be printed?
+					log.Errorf("unexpected addresses "+
+						"length: %v", ttxs[i].TxID)
+					continue
+				}
+				bestAddr = v.ScriptPubKeyDecoded.Addresses[0]
+				bestAmount = *v.ScriptPubKeyDecoded.CommitAmt
+			}
 		}
+
+		if bestAddr == "" || bestAmount == 0.0 {
+			r[i].err = fmt.Errorf("no best commitment address found: %v",
+				ttxs[i].TxID)
+			continue
+		}
+		r[i].bestAddr = bestAddr
 	}
 
-	if bestAddr == "" || bestAmount == 0.0 {
-		return "", fmt.Errorf("no best commitment address found: %v",
-			ttx.TxID)
-	}
-
-	return bestAddr, nil
+	return r, nil
 }
 
 // pluginBestBlock returns current best block height from wallet.
@@ -1453,14 +1488,9 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 	return string(svrb), nil
 }
 
-// validateVote validates that vote is signed correctly.
-func (g *gitBackEnd) validateVote(token, ticket, votebit, signature string) error {
-	// Figure out addresses
-	addr, err := largestCommitmentAddress(ticket)
-	if err != nil {
-		return err
-	}
-
+// validateVoteByAddress validates that vote, as specified by the commitment
+// address with largest amount, is signed correctly.
+func (g *gitBackEnd) validateVoteByAddress(token, ticket, addr, votebit, signature string) error {
 	// Recreate message
 	msg := token + ticket + votebit
 
@@ -1685,6 +1715,17 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 		return "", err
 	}
 
+	// Obtain all largest commitment addresses. Assume everything was sent
+	// in correct.
+	tickets := make([]string, 0, len(ballot.Votes))
+	for _, v := range ballot.Votes {
+		tickets = append(tickets, v.Ticket)
+	}
+	ticketAddresses, err := largestCommitmentAddresses(tickets)
+	if err != nil {
+		return "", err
+	}
+
 	br := decredplugin.BallotReply{
 		Receipts: make([]decredplugin.CastVoteReply, len(ballot.Votes)),
 	}
@@ -1701,8 +1742,8 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 		dup, err := g.voteExists(v)
 		if err != nil {
 			t := time.Now().Unix()
-			log.Errorf("pluginBallot: voteExists %v %v %v",
-				v.Token, t, err)
+			log.Errorf("pluginBallot: voteExists %v %v %v %v",
+				v.Ticket, v.Token, t, err)
 			br.Receipts[k].Error = fmt.Sprintf("internal error %v",
 				t)
 			continue
@@ -1720,19 +1761,31 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 				continue
 			}
 			t := time.Now().Unix()
-			log.Errorf("pluginBallot: validateVoteBit %v %v %v",
-				v.Token, t, err)
+			log.Errorf("pluginBallot: validateVoteBit %v %v %v %v",
+				v.Ticket, v.Token, t, err)
 			br.Receipts[k].Error = fmt.Sprintf("internal error %v",
 				t)
 			continue
 		}
 
+		// See if there was an error for this address
+		if ticketAddresses[k].err != nil {
+			t := time.Now().Unix()
+			log.Errorf("pluginBallot: ticketAddresses %v %v %v %v",
+				v.Ticket, v.Token, t, err)
+			br.Receipts[k].Error = fmt.Sprintf("internal error %v",
+				t)
+			continue
+
+		}
+
 		// Verify that vote is signed correctly
-		err = g.validateVote(v.Token, v.Ticket, v.VoteBit, v.Signature)
+		err = g.validateVoteByAddress(v.Token, v.Ticket,
+			ticketAddresses[k].bestAddr, v.VoteBit, v.Signature)
 		if err != nil {
 			t := time.Now().Unix()
-			log.Errorf("pluginBallot: validateVote %v %v %v",
-				v.Token, t, err)
+			log.Errorf("pluginBallot: validateVote %v %v %v %v",
+				v.Ticket, v.Token, t, err)
 			br.Receipts[k].Error = fmt.Sprintf("internal error %v",
 				t)
 			continue

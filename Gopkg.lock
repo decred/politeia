@@ -132,9 +132,11 @@
   name = "github.com/decred/dcrdata"
   packages = [
     "api/types",
+    "db/dbtypes",
+    "db/dbtypes/internal",
     "txhelpers"
   ]
-  revision = "c933ac431324001d382b541f7a13906296cf3c4c"
+  revision = "119c1541be50cd4de5392779d54e782db4ce9f09"
 
 [[projects]]
   branch = "master"
