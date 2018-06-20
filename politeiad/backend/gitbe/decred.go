@@ -112,7 +112,7 @@ var (
 	decredPluginVotesCache = make(map[string]map[string]struct{})
 
 	decredPluginCommentsCache     = make(map[string]map[string]decredplugin.Comment) // [token][commentid]comment
-	decredPluginCommentsUserCache = make(map[string]map[string]struct{})             // [token+pubkey][commentid]
+	decredPluginCommentsUserCache = make(map[string]map[string]int64)                // [token+pubkey][commentid]
 )
 
 // init is used to pregenerate the JSON journal actions.
@@ -976,7 +976,9 @@ func (g *gitBackEnd) pluginLikeComment(payload string) (string, error) {
 	if !ok {
 		g.Unlock()
 		_, err = g.replayComments(like.Token)
+		g.Lock()
 		if err != nil {
+			g.Unlock()
 			return "", fmt.Errorf("could not replay journal %v: %v",
 				like.Token, err)
 		}
@@ -989,26 +991,35 @@ func (g *gitBackEnd) pluginLikeComment(payload string) (string, error) {
 		return "", fmt.Errorf("comment not found %v:%v",
 			like.Token, like.CommentID)
 	}
-	// See if this user has voted on this comment already
+
 	key := like.Token + like.PublicKey
 	if _, ok := decredPluginCommentsUserCache[key]; !ok {
-		decredPluginCommentsUserCache[key] = make(map[string]struct{})
+		decredPluginCommentsUserCache[key] = make(map[string]int64)
 	}
+
 	var new bool
-	if _, ok = decredPluginCommentsUserCache[key][like.CommentID]; !ok {
-		decredPluginCommentsUserCache[key][like.CommentID] = struct{}{}
+	// See if this user has voted on this comment already
+	if userResult, ok := decredPluginCommentsUserCache[key][like.CommentID]; !ok {
+		decredPluginCommentsUserCache[key][like.CommentID] = action
 		new = true
+	} else {
+		result := userResult + action
+		if result < -1 || result > 1 {
+			// votes result from a single user to a comment
+			// can't be upper than 1 or lower than -1
+			g.Unlock()
+			return replyLikeCommentReplyError(fmt.Errorf("can " +
+				"only once vote up or down"))
+		} else {
+			decredPluginCommentsUserCache[key][like.CommentID] = result
+		}
 	}
-	result := c.ResultVotes + action
-	if result < -1 || result > 1 {
-		g.Unlock()
-		return replyLikeCommentReplyError(fmt.Errorf("can " +
-			"only once vote up or down"))
-	}
+	commentResult := c.ResultVotes + action
+
+	cc := c
 
 	// We create an unwind function that MUST be called from all error
 	// paths. If everything works ok it is a no-op.
-	cc := c
 	unwind := func() {
 		g.Lock()
 		decredPluginCommentsCache[like.Token][like.CommentID] = cc
@@ -1016,7 +1027,7 @@ func (g *gitBackEnd) pluginLikeComment(payload string) (string, error) {
 	}
 
 	// Update cache
-	c.ResultVotes = result
+	c.ResultVotes = commentResult
 	if new {
 		c.TotalVotes++
 	}
@@ -1115,7 +1126,7 @@ func (g *gitBackEnd) replayComments(token string) (map[string]decredplugin.Comme
 	}()
 
 	comments := make(map[string]decredplugin.Comment)
-	seen := make(map[string]map[string]struct{})
+	seen := make(map[string]map[string]int64)
 	for {
 		err = g.journal.Replay(cfilename, func(s string) error {
 			ss := bytes.NewReader([]byte(s))
@@ -1175,14 +1186,18 @@ func (g *gitBackEnd) replayComments(token string) (map[string]decredplugin.Comme
 				// Only update total if user has not voted yet
 				key := lc.Token + lc.PublicKey
 				if _, ok := seen[key]; !ok {
-					seen[key] = make(map[string]struct{})
+					seen[key] = make(map[string]int64)
 				}
-				if _, ok := seen[key][lc.CommentID]; !ok {
+				if userResult, ok := seen[key][lc.CommentID]; !ok {
 					// Not seen before
-					seen[key][lc.CommentID] = struct{}{}
+					seen[key][lc.CommentID] = action
 					c.TotalVotes++
+					c.ResultVotes += action
+				} else {
+					result := userResult + action
+					seen[key][lc.CommentID] = result
+					c.ResultVotes += result
 				}
-				c.ResultVotes += action
 
 				// Write back updated version
 				comments[lc.CommentID] = c
