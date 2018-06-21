@@ -21,7 +21,7 @@ import (
 
 var (
 	dataDir      = flag.String("datadir", sharedconfig.DefaultDataDir, "Specify the politeiawww data directory.")
-	dumpDb       = flag.Bool("dump", false, "Dump the entire politeiawww database contents.")
+	dumpDb       = flag.Bool("dump", false, "Dump the entire politeiawww database contents or contents for a specific user. Parameters: [email]")
 	setAdmin     = flag.Bool("setadmin", false, "Set the admin flag for a user. Parameters: <email> <true/false>")
 	clearPaywall = flag.Bool("clearpaywall", false, "Clear the paywall fields for a user given his email.")
 	newUser      = flag.Bool("newuser", false, "Create a new user. Parameters: <email> <username> <password>")
@@ -37,6 +37,25 @@ func dumpAction() error {
 		return err
 	}
 	defer userdb.Close()
+
+	// If email is provided, only dump that user.
+	args := flag.Args()
+	if len(args) == 1 {
+		email := []byte(args[0])
+		value, err := userdb.Get(email, nil)
+		if err != nil {
+			return err
+		}
+
+		u, err := localdb.DecodeUser(value)
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("Key    : %v\n", hex.EncodeToString(email))
+		fmt.Printf("Record : %v", spew.Sdump(u))
+		return nil
+	}
 
 	iter := userdb.NewIterator(nil, nil)
 	for iter.Next() {
