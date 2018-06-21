@@ -30,6 +30,10 @@ var (
 	// locked record.
 	ErrRecordLocked = errors.New("record is locked")
 
+	// ErrJournalsNotReplayed is returned when the journals have not been replayed
+	// and the subsequent code expect it to be replayed
+	ErrJournalsNotReplayed = errors.New("journals have not been replayed")
+
 	// Plugin names must be all lowercase letters and have a length of <20
 	PluginRE = regexp.MustCompile(`^[a-z]{1,20}$`)
 )

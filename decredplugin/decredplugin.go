@@ -4,17 +4,18 @@ import "encoding/json"
 
 // Plugin settings, kinda doesn;t go here but for now it is fine
 const (
-	Version              = "1"
-	ID                   = "decred"
-	CmdStartVote         = "startvote"
-	CmdBallot            = "ballot"
-	CmdBestBlock         = "bestblock"
-	CmdNewComment        = "newcomment"
-	CmdLikeComment       = "likecomment"
-	CmdGetComments       = "getcomments"
-	CmdProposalVotes     = "proposalvotes"
-	MDStreamVoteBits     = 14 // Vote bits and mask
-	MDStreamVoteSnapshot = 15 // Vote tickets and start/end parameters
+	Version                  = "1"
+	ID                       = "decred"
+	CmdStartVote             = "startvote"
+	CmdBallot                = "ballot"
+	CmdBestBlock             = "bestblock"
+	CmdNewComment            = "newcomment"
+	CmdLikeComment           = "likecomment"
+	CmdGetComments           = "getcomments"
+	CmdProposalVotes         = "proposalvotes"
+	CmdProposalCommentsVotes = "proposalcommentsvotes"
+	MDStreamVoteBits         = 14 // Vote bits and mask
+	MDStreamVoteSnapshot     = 15 // Vote tickets and start/end parameters
 )
 
 // CastVote is a signed vote.
@@ -426,4 +427,59 @@ func DecodeGetCommentsReply(payload []byte) (*GetCommentsReply, error) {
 	}
 
 	return &gcr, nil
+}
+
+// UserCommentVote describes the voting action an user with a given pubkey has given
+// to a comment (e.g: up or down vote)
+type UserCommentVote struct {
+	Pubkey    string `json:"pubkey"`    // Public key
+	CommentID string `json:"commentid"` // Comment ID
+	Action    string `json:"action"`    // Up or downvote (1, -1)
+	Token     string `json:"token"`     // Censorhship token
+}
+
+// GetProposalCommentsVotes is a command to fetch all vote actions
+// on the comments of a given proposa
+type GetProposalCommentsVotes struct {
+	Token string `json:"token"` // Censorship token
+}
+
+// EncodeGetProposalCommentsVotes encodes GetCommentsVotes into a JSON byte slice.
+func EncodeGetProposalCommentsVotes(gpcv GetProposalCommentsVotes) ([]byte, error) {
+	return json.Marshal(gpcv)
+}
+
+// DecodeGetProposalCommentsVotes decodes a JSON byte slice into a GetProposalCommentsVotes.
+func DecodeGetProposalCommentsVotes(payload []byte) (*GetProposalCommentsVotes, error) {
+	var gpcv GetProposalCommentsVotes
+
+	err := json.Unmarshal(payload, &gpcv)
+	if err != nil {
+		return nil, err
+	}
+
+	return &gpcv, nil
+}
+
+// GetProposalCommentsVotesReply is a reply with all vote actions
+// for the comments of a given proposal
+type GetProposalCommentsVotesReply struct {
+	UserCommentsVotes []UserCommentVote `json:"usercommentsvotes"`
+}
+
+// EncodeGetProposalCommentsVotesReply encodes EncodeGetProposalCommentsVotesReply into a JSON byte slice.
+func EncodeGetProposalCommentsVotesReply(gpcvr GetProposalCommentsVotesReply) ([]byte, error) {
+	return json.Marshal(gpcvr)
+}
+
+// DecodeGetProposalCommentsVotesReply decodes a JSON byte slice into a GetProposalCommentsVotesReply.
+func DecodeGetProposalCommentsVotesReply(payload []byte) (*GetProposalCommentsVotesReply, error) {
+	var gpcvr GetProposalCommentsVotesReply
+
+	err := json.Unmarshal(payload, &gpcvr)
+	if err != nil {
+		return nil, err
+	}
+
+	return &gpcvr, nil
 }

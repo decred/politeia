@@ -39,6 +39,7 @@ const (
 	RouteStartVote           = "/proposals/startvote"
 	RouteActiveVote          = "/proposals/activevote" // XXX rename to ActiveVotes
 	RouteCastVotes           = "/proposals/castvotes"
+	RouteUserCommentsVotes   = "/user/proposals/{token:[A-z0-9]{64}}/commentsvotes"
 	// XXX should we use a fancy route like the one underneath?
 	//RouteVoteResults    = "/proposals/{token:[A-z0-9]{64}}/votes"
 	RouteVoteResults   = "/proposals/voteresults"
@@ -690,4 +691,22 @@ type UsernamesById struct {
 // to the given ids.
 type UsernamesByIdReply struct {
 	Usernames []string `json:"usernames"`
+}
+
+// CommentVote describes the voting action an user has given
+// to a comment (e.g: up or down vote)
+type CommentVote struct {
+	Action    string `json:"action"`    // Up or downvote (1, -1)
+	CommentID string `json:"commentid"` // Comment ID
+	Token     string `json:"token"`     // Censorship token
+}
+
+// UserCommentsVotes is a command to fetch all user vote actions
+// on the comments of a given proposal
+type UserCommentsVotes struct{}
+
+// UserCommentsVotesReply is a reply with all user vote actions
+// for the comments of a given proposal
+type UserCommentsVotesReply struct {
+	CommentsVotes []CommentVote `json:"commentsvotes"`
 }

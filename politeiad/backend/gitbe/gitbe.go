@@ -1970,6 +1970,9 @@ func (g *gitBackEnd) Plugin(command, payload string) (string, string, error) {
 	case decredplugin.CmdGetComments:
 		payload, err := g.pluginGetComments(payload)
 		return decredplugin.CmdGetComments, payload, err
+	case decredplugin.CmdProposalCommentsVotes:
+		payload, err := g.pluginGetProposalCommentVotes(payload)
+		return decredplugin.CmdProposalCommentsVotes, payload, err
 	}
 	return "", "", fmt.Errorf("invalid payload command") // XXX this needs to become a type error
 }
@@ -2146,7 +2149,14 @@ func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, 
 	if err != nil {
 		return nil, err
 	}
+
 	g.journal = NewJournal()
+
+	// this function must be called after g.journal is created
+	err = g.initDecredPluginJournals()
+	if err != nil {
+		return nil, err
+	}
 
 	err = g.newLocked()
 	if err != nil {

@@ -932,6 +932,29 @@ func (p *politeiawww) handleStartVote(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, svr)
 }
 
+func (p *politeiawww) handleUserCommentsVotes(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleUserCommentsVotes")
+
+	pathParams := mux.Vars(r)
+	token := pathParams["token"]
+
+	user, err := p.getSessionUser(r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserCommentsVotes: getSessionUser %v", err)
+		return
+	}
+
+	ucvr, err := p.backend.ProcessUserCommentsVotes(user, token)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserCommentsVotes: processUserCommentsVotes %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, ucvr)
+}
+
 // handleNotFound is a generic handler for an invalid route.
 func (p *politeiawww) handleNotFound(w http.ResponseWriter, r *http.Request) {
 	// Log incoming connection
@@ -1155,6 +1178,8 @@ func _main() error {
 		p.handleLikeComment, permissionLogin, true)
 	p.addRoute(http.MethodGet, v1.RouteVerifyUserPaymentTx,
 		p.handleVerifyUserPaymentTx, permissionLogin, false)
+	p.addRoute(http.MethodGet, v1.RouteUserCommentsVotes,
+		p.handleUserCommentsVotes, permissionLogin, true)
 
 	// Routes that require being logged in as an admin user.
 	p.addRoute(http.MethodGet, v1.RouteAllUnvetted, p.handleAllUnvetted,
