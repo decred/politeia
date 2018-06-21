@@ -30,6 +30,7 @@ const (
 var (
 	paywallUsers map[uint64]paywallInfo
 	mutex        sync.RWMutex
+	once         sync.Once
 )
 
 func paywallHasExpired(txNotBefore int64) bool {
@@ -37,7 +38,14 @@ func paywallHasExpired(txNotBefore int64) bool {
 	return time.Now().After(expiryTime)
 }
 
+func initPaywallUsersPool() {
+	if paywallUsers == nil {
+		paywallUsers = make(map[uint64]paywallInfo)
+	}
+}
+
 func addUser(user *database.User) {
+	initPaywallUsersPool()
 	paywallUsers[user.ID] = paywallInfo{
 		address:     user.NewUserPaywallAddress,
 		amount:      user.NewUserPaywallAmount,
@@ -59,6 +67,10 @@ func (b *backend) derivePaywallInfo(user *database.User) (string, uint64, int64,
 func (b *backend) checkForPayments() {
 	minConfirmations := b.cfg.MinConfirmationsRequired
 
+	mutex.Lock()
+	initPaywallUsersPool()
+	mutex.Unlock()
+
 	// Check new user payments.
 	for {
 		var userIdsToRemove []uint64
@@ -67,6 +79,12 @@ func (b *backend) checkForPayments() {
 		for userId, paywall := range paywallUsers {
 			user, err := b.db.UserGetById(userId)
 			if err != nil {
+				if err == database.ErrShutdown {
+					// The database is shutdown, so stop the thread.
+					mutex.RUnlock()
+					return
+				}
+
 				log.Errorf("cannot fetch user by id %v: %v\n", userId, err)
 				continue
 			}
@@ -94,6 +112,12 @@ func (b *backend) checkForPayments() {
 				user.NewUserPaywallTx = tx
 				err := b.db.UserUpdate(*user)
 				if err != nil {
+					if err == database.ErrShutdown {
+						// The database is shutdown, so stop the thread.
+						mutex.RUnlock()
+						return
+					}
+
 					log.Errorf("cannot update user with id %v: %v", user.ID, err)
 					continue
 				}
@@ -222,8 +246,6 @@ func (b *backend) InitPaywallCheck() error {
 		// Paywall not configured.
 		return nil
 	}
-
-	paywallUsers = make(map[uint64]paywallInfo)
 
 	// Create the in-memory pool of all users who need to pay the paywall.
 	mutex.Lock()
