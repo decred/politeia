@@ -61,29 +61,29 @@ func (b *backend) checkForPayments() {
 
 	// Check new user payments.
 	for {
+		var userIdsToRemove []uint64
+
 		mutex.RLock()
-		for k, v := range paywallUsers {
-			user, err := b.db.UserGetById(k)
+		for userId, paywall := range paywallUsers {
+			user, err := b.db.UserGetById(userId)
 			if err != nil {
-				log.Errorf("cannot fetch user by id %v: %v\n", k, err)
+				log.Errorf("cannot fetch user by id %v: %v\n", userId, err)
 				continue
 			}
 
 			if b.HasUserPaid(user) {
 				// The user could have been marked as paid by RouteVerifyUserPayment,
 				// so just remove him from the in-memory pool.
-				mutex.Lock()
-				delete(paywallUsers, k)
-				mutex.Unlock()
+				userIdsToRemove = append(userIdsToRemove, userId)
 				continue
 			}
 
 			if paywallHasExpired(user.NewUserPaywallTxNotBefore) {
-				return
+				continue
 			}
 
-			tx, err := util.FetchTxWithBlockExplorers(v.address, v.amount,
-				v.txNotBefore, minConfirmations)
+			tx, err := util.FetchTxWithBlockExplorers(paywall.address, paywall.amount,
+				paywall.txNotBefore, minConfirmations)
 			if err != nil {
 				log.Errorf("cannot fetch tx: %v\n", err)
 				continue
@@ -99,16 +99,18 @@ func (b *backend) checkForPayments() {
 				}
 
 				// Remove this user from the in-memory pool.
-				mutex.RUnlock()
-				mutex.Lock()
-				delete(paywallUsers, k)
-				mutex.Unlock()
-				mutex.RLock()
+				userIdsToRemove = append(userIdsToRemove, userId)
 			}
 
 			time.Sleep(paywallCheckGap)
 		}
 		mutex.RUnlock()
+
+		mutex.Lock()
+		for _, userId := range userIdsToRemove {
+			delete(paywallUsers, userId)
+		}
+		mutex.Unlock()
 	}
 
 	// TODO: Check proposal payments within the above loop.
