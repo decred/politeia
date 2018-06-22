@@ -12,6 +12,8 @@ type Options struct {
 	Verbose func()             `short:"v" long:"verbose" description:"Print request and response details"`
 
 	// cli commands
+	ActiveVotes       ActivevotesCmd       `command:"activevotes" description:"Retrieve all proposals being actively voted on"`
+	CastVotes         CastvotesCmd         `command:"castvotes" description:"Cast ticket votes for a specific proposal"`
 	ChangePassword    ChangepasswordCmd    `command:"changepassword" description:"change the password for the currently logged in user"`
 	ChangeUsername    ChangeusernameCmd    `command:"changeusername" description:"change the username for the currently logged in user"`
 	GetComments       GetcommentsCmd       `command:"getcomments" description:"fetch a proposal's comments"`
@@ -26,6 +28,7 @@ type Options struct {
 	NewUser           NewuserCmd           `command:"newuser" description:"create a new Politeia user"`
 	Faucet            FaucetCmd            `command:"faucet" description:"use the Decred testnet faucet to send DCR to an address"`
 	Policy            PolicyCmd            `command:"policy" description:"fetch server policy"`
+	ProposalVotes     ProposalvotesCmd     `command:"proposalvotes" description:"fetch vote results for a specific proposal"`
 	ResetPassword     ResetpasswordCmd     `command:"resetpassword" description:"change the password for a user that is not currently logged in"`
 	Secret            SecretCmd            `command:"secret"`
 	SetProposalStatus SetproposalstatusCmd `command:"setproposalstatus" description:"(admin only) set the status of a proposal"`
@@ -41,12 +44,12 @@ type Options struct {
 // registers callbacks for cli flags
 func RegisterCallbacks() {
 	Opts.Host = func(host string) error {
-		err := config.UpdateHost(host)
+		err := config.SetHost(host)
 		if err != nil {
 			return err
 		}
-
 		Ctx.SetCookies(host, config.Cookies)
+		Ctx.SetCsrf(config.CsrfToken)
 		return nil
 	}
 

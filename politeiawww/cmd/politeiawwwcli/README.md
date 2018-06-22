@@ -4,8 +4,11 @@
 
 ## Available Commands
 ```
+activevotes        Retrieve all proposals being actively voted on
+castvotes          Cast ticket votes for a specific proposal
 changepassword     change the password for the currently logged in user
 changeusername     change the username for the currently logged in user
+faucet             use the Decred testnet faucet to send DCR to an address
 getcomments        fetch a proposal's comments
 getproposal        fetch a proposal
 getunvetted        fetch unvetted proposals
@@ -16,21 +19,26 @@ me                 return the user information of the currently logged in user
 newcomment         comment on a proposal
 newproposal        submit a new proposal to Politeia
 newuser            create a new Politeia user
+policy             fetch server policy
+proposalvotes      fetch vote results for a specific proposal
 resetpassword      change the password for a user that is not currently logged in
 secret
 setproposalstatus  (admin only) set the status of a proposal
 startvote          (admin only) start the voting period on a proposal
 updateuserkey      update the user identity saved to appDataDir
+usernamesbyid      fetch usernames by their user ids
 userproposals      fetch all proposals submitted by a specific user
 verifyuser         verify user's email address
 verifyuserpayment  check if the user has paid their user registration fee
-version            fetch version info and CSRF token 
+version            fetch server info and CSRF token
 ```
 
 ## Application Options
 ```
-     --host=     politeiawww host (default: https://127.0.0.1:4443)
- -j, --json      Print JSON
+    --host=    politeiawww host (default: https://proposals.decred.org)
+-j, --json     Print JSON
+-v, --verbose  Print request and response details
+
 ```
 
 ## Help Options

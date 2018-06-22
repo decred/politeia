@@ -2,6 +2,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"crypto/tls"
 	"encoding/base64"
@@ -14,11 +15,15 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrwallet/rpc/walletrpc"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/util"
 	"github.com/gorilla/schema"
 	"golang.org/x/net/publicsuffix"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
 	"github.com/decred/politeia/politeiawww/cmd/politeiawwwcli/config"
 )
@@ -26,6 +31,12 @@ import (
 type Ctx struct {
 	client *http.Client
 	csrf   string
+
+	// wallet grpc
+	ctx    context.Context
+	creds  credentials.TransportCredentials
+	conn   *grpc.ClientConn
+	wallet walletrpc.WalletServiceClient
 }
 
 func NewClient(skipVerify bool) (*Ctx, error) {
@@ -45,7 +56,27 @@ func NewClient(skipVerify bool) (*Ctx, error) {
 		client: &http.Client{
 			Transport: tr,
 			Jar:       jar,
-		}}, nil
+		},
+	}, nil
+}
+
+func (c *Ctx) newWalletClient() error {
+	creds, err := credentials.NewClientTLSFromFile(config.WalletCert, "")
+	if err != nil {
+		return err
+	}
+	fmt.Println(config.WalletHost)
+	conn, err := grpc.Dial("127.0.0.1:19111", grpc.WithTransportCredentials(creds))
+	if err != nil {
+		return err
+	}
+	wallet := walletrpc.NewWalletServiceClient(conn)
+
+	c.ctx = context.Background()
+	c.creds = creds
+	c.conn = conn
+	c.wallet = wallet
+	return nil
 }
 
 func (c *Ctx) makeRequest(method, route string, b interface{}) ([]byte, error) {
@@ -758,5 +789,190 @@ func (c *Ctx) UsernamesById(userIds []string) (*v1.UsernamesByIdReply, error) {
 			err)
 	}
 
+	if config.Verbose {
+		prettyPrintJSON(ubir)
+	}
+
 	return &ubir, nil
+}
+
+func (c *Ctx) ActiveVotes() (*v1.ActiveVoteReply, error) {
+	av := v1.ActiveVote{}
+	responseBody, err := c.makeRequest("GET", v1.RouteActiveVote, av)
+	if err != nil {
+		return nil, err
+	}
+
+	var avr v1.ActiveVoteReply
+	err = json.Unmarshal(responseBody, &avr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal ActiveVoteReply: %v",
+			err)
+	}
+
+	if config.Verbose {
+		// don't print StartVoteReply. It makes the output illegible.
+		for _, v := range avr.Votes {
+			prettyPrintJSON(v.StartVote)
+		}
+	}
+
+	return &avr, nil
+}
+
+func (c *Ctx) CastVotes(propToken, voteId string) (*v1.BallotReply, error) {
+	// fetch proposals that are being voted on
+	avr, err := c.ActiveVotes()
+	if err != nil {
+		return nil, err
+	}
+
+	// find proposal the user wants to vote on and validate the voteId
+	var (
+		pvt     *v1.ProposalVoteTuple
+		voteBit string
+	)
+	for _, v := range avr.Votes {
+		if v.Proposal.CensorshipRecord.Token != propToken {
+			continue
+		}
+
+		// validate voteId
+		found := false
+		for _, options := range v.StartVote.Vote.Options {
+			if options.Id == voteId {
+				found = true
+				voteBit = strconv.FormatUint(options.Bits, 16)
+				break
+			}
+		}
+		if !found {
+			return nil, fmt.Errorf("Vote id not found: %v", voteId)
+		}
+
+		// the correct proposal was found and the voteId was validated
+		pvt = &v
+		break
+	}
+	if pvt == nil {
+		return nil, fmt.Errorf("Proposal not found: %v", propToken)
+	}
+
+	// connect go wallet
+	err = c.newWalletClient()
+	if err != nil {
+		return nil, err
+	}
+
+	// find eligble tickets
+	tix, err := convertTicketHashes(pvt.StartVoteReply.EligibleTickets)
+	if err != nil {
+		return nil, fmt.Errorf("Ticket pool corrupt: %v %v", propToken, err)
+	}
+	ctres, err := c.wallet.CommittedTickets(c.ctx,
+		&walletrpc.CommittedTicketsRequest{
+			Tickets: tix,
+		})
+	if err != nil {
+		return nil, fmt.Errorf("Ticket pool verification: %v %v", propToken, err)
+	}
+	if len(ctres.TicketAddresses) == 0 {
+		return nil, fmt.Errorf("No eligible tickets found")
+	}
+
+	// prompt user for wallet password
+	passphrase, err := providePrivPassphrase()
+	if err != nil {
+		return nil, err
+	}
+
+	// sign tickets
+	sm := &walletrpc.SignMessagesRequest{
+		Passphrase: passphrase,
+		Messages: make([]*walletrpc.SignMessagesRequest_Message, 0,
+			len(ctres.TicketAddresses)),
+	}
+	for _, v := range ctres.TicketAddresses {
+		h, err := chainhash.NewHash(v.Ticket)
+		if err != nil {
+			return nil, err
+		}
+		msg := propToken + h.String() + voteBit
+		sm.Messages = append(sm.Messages, &walletrpc.SignMessagesRequest_Message{
+			Address: v.Address,
+			Message: msg,
+		})
+	}
+	smr, err := c.wallet.SignMessages(c.ctx, sm)
+	if err != nil {
+		return nil, err
+	}
+
+	// validate signatures
+	for k, v := range smr.Replies {
+		if v.Error == "" {
+			continue
+		}
+		return nil, fmt.Errorf("Signature failed index %v: %v", k, v.Error)
+	}
+
+	// compile votes. Note that ctres, sm and smr use the same index.
+	cv := v1.Ballot{
+		Votes: make([]v1.CastVote, 0, len(ctres.TicketAddresses)),
+	}
+	tickets := make([]string, 0, len(ctres.TicketAddresses))
+	for k, v := range ctres.TicketAddresses {
+		h, err := chainhash.NewHash(v.Ticket)
+		if err != nil {
+			return nil, err
+		}
+		signature := hex.EncodeToString(smr.Replies[k].Signature)
+		cv.Votes = append(cv.Votes, v1.CastVote{
+			Token:     propToken,
+			Ticket:    h.String(),
+			VoteBit:   voteBit,
+			Signature: signature,
+		})
+		tickets = append(tickets, h.String())
+	}
+
+	// cast votes on supplied proposal
+	responseBody, err := c.makeRequest("POST", v1.RouteCastVotes, &cv)
+	if err != nil {
+		return nil, err
+	}
+
+	var br v1.BallotReply
+	err = json.Unmarshal(responseBody, &br)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal BallotReply: %v", err)
+	}
+
+	if config.Verbose {
+		prettyPrintJSON(br)
+	}
+
+	return &br, nil
+}
+
+func (c *Ctx) ProposalVotes(propToken string) (*v1.VoteResultsReply, error) {
+	vr := v1.VoteResults{
+		Token: propToken,
+	}
+	responseBody, err := c.makeRequest("POST", v1.RouteVoteResults, vr)
+	if err != nil {
+		return nil, err
+	}
+
+	var vrr v1.VoteResultsReply
+	err = json.Unmarshal(responseBody, &vrr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal ProposalVotesReply: %v", err)
+	}
+
+	if config.Verbose {
+		prettyPrintJSON(vrr.StartVote)
+	}
+
+	return &vrr, nil
 }
