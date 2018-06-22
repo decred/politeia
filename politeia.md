@@ -127,3 +127,41 @@ Week 2 deliverables
 
 15 hours, to be completed on August 29 2018
 ```
+
+## Marketing Example
+
+###  What
+```
+This proposal would fund a Decred presence at Real Blockchain Conference 2018, in Dublin, Ireland, November 11-13. It would cover costs for a booth, swag, and people to staff the booth.
+```
+### Why
+```
+Real Blockchain Conference is a top cryptocurrency conference and totally not made up. Last year's conference had 5,000 attendees and they seemed cool, good solid Decred stakeholder material. With epic swag and a physical embodiment of Stakey in attendance, a presence at this conference would raise awareness of Decred.
+```
+### How (much)
+```
+I will organize Decred's presence at this event, it will take about 20 hours of my time at 40$/hour. $800
+Conference registration/booth fees: $3,000
+Booth decorations: $1,000
+Decred swag to give away: $2,000
+3 staff on the booth for 3 (10 hour) days each at $30/hr: (3 x 3 x 10 x 30) $2,700
+Stakey costume: $500
+Stakey costume occupant: 3 (10 hour) days at $40/hr (that suit is warm!): $1,200
+Travel expenses for booth staff: Up to $2,000
+Accomodation for booth staff. We will stay at the conference hotel costing $200/night, it is unlikely that all booth staff need accomodation, but the maximum would be 200 x 3 nights x 4 staff = $2,400
+
+Maximum total budget: $15,600
+```
+
+### Who
+```
+This proposal is submitted by @AllYourStake (on Slack, /u/StakeGovernor2000 on reddit). You may remember me as the organizer of Decred's presence at such blockchain events as Real Blockchain Conference 2017 and Buckets of Blockchain 2018.
+I don't know exactly who the 3 booth staff and 1 Stakey suit wearer will be, I will be one of the staff and @Contributor1 is also interested.
+```
+
+### When
+```
+Registration fees are due by September 30th, I will pay these up-front and request full reimbursement immediately.
+I will front the cost of the swag and Stakey suit, and claim this along with my travel/accomodation expenses and payment for my work, after the event.
+Booth staff who are already Decred contributors will bill for their hours and expenses directly, I will serve as intermediary for any staff costs not associated with established contributors.
+```
