@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"github.com/decred/dcrd/dcrutil"
 	"io"
 	"io/ioutil"
 	"os"
@@ -13,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/politeia/politeiawww/api/v1"
 	cliconfig "github.com/decred/politeia/politeiawww/cmd/politeiawwwcli/config"
 	wwwconfig "github.com/decred/politeia/politeiawww/sharedconfig"
@@ -79,27 +79,6 @@ func waitForStartOfDay(out io.Reader) {
 			return
 		}
 	}
-}
-
-func startAndStopPoliteiawww() error {
-	fmt.Printf("Starting politeiawww\n")
-	cmd := createPoliteiawwCmd(false)
-	out, _ := cmd.StdoutPipe()
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-	defer cmd.Wait()
-
-	logFile, err := createLogFile(cfg.PoliteiawwwLogFile)
-	if err != nil {
-		return err
-	}
-
-	reader := io.TeeReader(out, logFile)
-	waitForStartOfDay(reader)
-
-	fmt.Printf("Stopping politeiawww\n")
-	return cmd.Process.Kill()
 }
 
 func startPoliteiawww(paywall bool) error {
@@ -217,14 +196,53 @@ func setAdmin(email string) error {
 	return cmd.Wait()
 }
 
+func clearPaywall(email string) error {
+	fmt.Printf("Clearing paywall for user: %v\n", email)
+	cmd := executeCommand(
+		dbutil,
+		"-testnet",
+		"-clearpaywall",
+		email)
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	return cmd.Wait()
+}
+
 func createPaidUsers() error {
-	if err := createUserWithDbutil(cfg.AdminEmail, cfg.AdminUser, cfg.AdminPass); err != nil {
+	err := startPoliteiad()
+	if err != nil {
 		return err
 	}
-	if err := setAdmin(cfg.AdminEmail); err != nil {
+
+	err = startPoliteiawww(false)
+	if err != nil {
 		return err
 	}
-	return createUserWithDbutil(cfg.PaidEmail, cfg.PaidUser, cfg.PaidPass)
+
+	err = createUserWithPoliteiawww(cfg.AdminEmail, cfg.AdminUser, cfg.AdminPass)
+	if err != nil {
+		return err
+	}
+
+	err = createUserWithPoliteiawww(cfg.PaidEmail, cfg.PaidUser, cfg.PaidPass)
+	if err != nil {
+		return err
+	}
+
+	stopServers()
+
+	err = setAdmin(cfg.AdminEmail)
+	if err != nil {
+		return err
+	}
+
+	err = clearPaywall(cfg.AdminEmail)
+	if err != nil {
+		return err
+	}
+
+	return clearPaywall(cfg.PaidEmail)
 }
 
 func createUnpaidUsers() error {
@@ -491,10 +509,6 @@ func _main() error {
 		if err = deleteExistingData(); err != nil {
 			return err
 		}
-	}
-
-	if err = startAndStopPoliteiawww(); err != nil {
-		return err
 	}
 
 	if err = createPaidUsers(); err != nil {
