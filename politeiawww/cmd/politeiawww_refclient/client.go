@@ -222,6 +222,22 @@ func (c *ctx) verifyNewUser(email, token, sig string) error {
 	return err
 }
 
+func (c *ctx) getUserCommentsVotes(token string) (*v1.UserCommentsVotesReply, error) {
+	responseBody, err := c.makeRequest("GET", "/user/proposals/"+token+"/commentsvotes", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var ucvr v1.UserCommentsVotesReply
+	err = json.Unmarshal(responseBody, &ucvr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal UserCommentsVotesReply: %v",
+			err)
+	}
+
+	return &ucvr, nil
+}
+
 func (c *ctx) verifyUserPaymentTx(id *identity.FullIdentity, token, faucetTx string) (*v1.VerifyUserPaymentTxReply, error) {
 	vTx := v1.VerifyUserPaymentTx{
 		TxId: faucetTx,

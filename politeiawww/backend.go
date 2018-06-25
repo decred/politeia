@@ -2179,6 +2179,74 @@ func (b *backend) ProcessUsernamesById(ubi www.UsernamesById) *www.UsernamesById
 	}
 }
 
+// ProcessUserCommentsVotes returns the votes an user has for the comments of a given proposal
+func (b *backend) ProcessUserCommentsVotes(user *database.User, token string) (*www.UserCommentsVotesReply, error) {
+	log.Tracef("ProcessUserCommentsVotes")
+
+	payload, err := decredplugin.EncodeGetProposalCommentsVotes(decredplugin.GetProposalCommentsVotes{
+		Token: token,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Obtain proposal comments votes from plugin
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	pc := pd.PluginCommand{
+		Challenge: hex.EncodeToString(challenge),
+		ID:        decredplugin.ID,
+		Command:   decredplugin.CmdProposalCommentsVotes,
+		CommandID: decredplugin.CmdProposalCommentsVotes,
+		Payload:   string(payload),
+	}
+
+	responseBody, err := b.makeRequest(http.MethodPost,
+		pd.PluginCommandRoute, pc)
+	if err != nil {
+		return nil, err
+	}
+
+	var reply pd.PluginCommandReply
+	err = json.Unmarshal(responseBody, &reply)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal "+
+			"PluginCommandReply: %v", err)
+	}
+
+	// Verify the challenge.
+	err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	gpcvr, err := decredplugin.DecodeGetProposalCommentsVotesReply([]byte(reply.Payload))
+	if err != nil {
+		return nil, err
+	}
+
+	var ucvr www.UserCommentsVotesReply
+	for _, ucv := range gpcvr.UserCommentsVotes {
+		// check if the pubkey refers to the current user
+		// if it does, add the comment-action to CommentsVotes
+		b.RLock()
+		id, ok := b.userPubkeys[ucv.Pubkey]
+		b.RUnlock()
+		if ok && id == strconv.Itoa(int(user.ID)) {
+			ucvr.CommentsVotes = append(ucvr.CommentsVotes, www.CommentVote{
+				Action:    ucv.Action,
+				CommentID: ucv.CommentID,
+				Token:     token,
+			})
+		}
+	}
+
+	return &ucvr, nil
+}
+
 // ProcessPolicy returns the details of Politeia's restrictions on file uploads.
 func (b *backend) ProcessPolicy(p www.Policy) *www.PolicyReply {
 	return &www.PolicyReply{

@@ -34,6 +34,7 @@ API.  It does not render HTML.
 - [`Cast votes`](#cast-votes)
 - [`Proposal votes`](#proposal-votes)
 - [`Usernames by id`](#usernames-by-id)
+- [`User Comments votes`](#user-comments-votes)
 
 **Error status codes**
 
@@ -1506,6 +1507,52 @@ Reply:
 {
   "usernames": ["foobar"]
 }
+```
+
+### `User Comments Votes`
+
+Retrieve the comment votes for the current logged in user given a proposal token
+
+**Route:** `GET v1/user/proposals/{token}/commentsvotes`
+
+**Params:** none
+
+**Results:**
+
+| | Type | Description |
+| - | - | - |
+| commentsvotes | array of CommentVote | Votes issued by the current user |
+
+**CommentVote:**
+
+| | Type | Description |
+| - | - | - |
+| action | string | Up or downvote (1, -1) |
+| commentid | string | Comment ID |
+| token | string | Proposal censorship token |
+
+**Example:**
+
+Request: 
+Path: `v1/user/proposals/8a11057fb910564a7d2506430505c3991f59e35f8a7757b8000a032505b254d8/commentsvotes`
+
+Reply:
+```json
+  {
+    "commentsvotes":
+    [
+      {
+        "action":"-1",
+        "commentid":"1",
+        "token":"8a11057fb910564a7d2506430505c3991f59e35f8a7757b8000a032505b254d8"
+      },
+      {
+        "action":"1",
+        "commentid":"2",
+        "token":"8a11057fb910564a7d2506430505c3991f59e35f8a7757b8000a032505b254d8"
+      }
+    ]
+  }
 ```
 
 ### Error codes
