@@ -252,6 +252,8 @@ func createUnpaidUsers() error {
 func executeCliCommand(beforeVerify beforeVerifyReply, verify verifyReply, args ...string) error {
 	fullArgs := make([]string, 0, len(args)+2)
 	fullArgs = append(fullArgs, cli)
+	fullArgs = append(fullArgs, "--host")
+	fullArgs = append(fullArgs, "https://127.0.0.1:4443")
 	fullArgs = append(fullArgs, "--json")
 	fullArgs = append(fullArgs, args...)
 	cmd := executeCommand(fullArgs...)
