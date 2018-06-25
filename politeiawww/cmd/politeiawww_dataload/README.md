@@ -17,6 +17,9 @@ It will run the servers with some fixed configuration, although some default
 configuration is required, so you should have `politeiad.conf` and `politeiawww.conf`
 already set up.
 
+When running `politeiawww_dataload` twice,
+the second time will fail because it can't create duplicate users.
+
 ## Usage
 
 This tool doesn't require any arguments, but you can specify the following options:

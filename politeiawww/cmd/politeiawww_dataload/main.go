@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -138,6 +139,8 @@ func getVersionFromPoliteiawww() error {
 
 func createUserWithDbutil(email, username, password string) error {
 	fmt.Printf("Creating user: %v\n", email)
+	var out bytes.Buffer
+	var stderr bytes.Buffer
 
 	cmd := executeCommand(
 		dbutil,
@@ -146,11 +149,22 @@ func createUserWithDbutil(email, username, password string) error {
 		email,
 		username,
 		password)
+
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+
 	err := cmd.Start()
+
 	if err != nil {
-		return err
+		return fmt.Errorf(fmt.Sprint(err) + ": " + stderr.String())
 	}
-	return cmd.Wait()
+
+	err = cmd.Wait()
+
+	if err != nil {
+		return fmt.Errorf(fmt.Sprint(err) + ": " + stderr.String())
+	}
+	return nil
 }
 
 func createUserWithPoliteiawww(email, username, password string) error {
