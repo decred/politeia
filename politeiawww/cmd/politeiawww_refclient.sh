@@ -246,7 +246,7 @@ run_vote_routes() {
   expect_success "$cmd updateuserkey"
 
   echo "Vote - New proposal"
-  vprop=`$cmd newproposal`
+  vprop=`$cmd newproposal --random`
   check_error "$vprop"
   vprop_censorship_token=`echo $vprop | jq -r '. | select(.censorshiprecord).censorshiprecord.token'`
 
@@ -348,7 +348,7 @@ main() {
   fi
 
   echo "New proposal failure: user hasn't paid paywall"
-  expect_failure "$cmd newproposal"
+  expect_failure "$cmd newproposal --random"
 
   echo "Reset password"
   expect_success "$cmd resetpassword $email1 $password2"
@@ -395,7 +395,7 @@ main() {
   done 
 
   echo "New proposal #1"
-  prop1=`$cmd newproposal`
+  prop1=`$cmd newproposal --random`
   check_error "$prop1"
   prop1_censorship_token=`echo $prop1 | jq -r '. | select(.censorshiprecord).censorshiprecord.token'`
 
@@ -422,7 +422,7 @@ main() {
   expect_success "$cmd updateuserkey"
 
   echo "New proposal #2"
-  prop2=`$cmd newproposal`
+  prop2=`$cmd newproposal --random`
   check_error "$prop2"
   prop2_censorship_token=`echo $prop2 | jq -r '. | select(.censorshiprecord).censorshiprecord.token'`
 
@@ -468,7 +468,7 @@ main() {
   prop_list_page_size=`echo $policy | jq ".proposallistpagesize"`
   for i in `seq 1 $prop_list_page_size`; do
     echo "  New proposal"
-    expect_success "$cmd newproposal"
+    expect_success "$cmd newproposal --random"
   done    
 
   echo "Get unvetted failure: only accessible by admin users"

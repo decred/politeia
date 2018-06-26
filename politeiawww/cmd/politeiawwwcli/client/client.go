@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -37,6 +38,11 @@ type Ctx struct {
 	creds  credentials.TransportCredentials
 	conn   *grpc.ClientConn
 	wallet walletrpc.WalletServiceClient
+}
+
+type Attachment struct {
+	Filename string
+	Payload  []byte
 }
 
 func NewClient(skipVerify bool) (*Ctx, error) {
@@ -454,26 +460,40 @@ func (c *Ctx) Logout() error {
 	return err
 }
 
-func (c *Ctx) NewProposal(id *identity.FullIdentity) (*v1.NewProposalReply, error) {
-	payload := []byte("This is a description")
-	h := sha256.New()
-	h.Write(payload)
-
-	sig := id.SignMessage([]byte(hex.EncodeToString(h.Sum(nil))))
+func (c *Ctx) NewProposal(id *identity.FullIdentity, attachments []Attachment, mdPayload []byte) (*v1.NewProposalReply, error) {
 	np := v1.NewProposal{
-		Files: make([]v1.File, 0),
-		// We can get away with just signing the digest because there
-		// is only one file.
+		Files:     make([]v1.File, 0),
 		PublicKey: hex.EncodeToString(id.Public.Key[:]),
-		Signature: hex.EncodeToString(sig[:]),
 	}
+
+	h := sha256.New()
+	h.Write(mdPayload)
 
 	np.Files = append(np.Files, v1.File{
 		Name:    "index.md",
-		MIME:    "text/plain; charset=utf-8",
+		MIME:    http.DetectContentType(mdPayload),
 		Digest:  hex.EncodeToString(h.Sum(nil)),
-		Payload: base64.StdEncoding.EncodeToString(payload),
+		Payload: base64.StdEncoding.EncodeToString(mdPayload),
 	})
+
+	for _, attach := range attachments {
+		digest := hex.EncodeToString(util.Digest(attach.Payload))
+		b64 := base64.StdEncoding.EncodeToString(attach.Payload)
+
+		np.Files = append(np.Files, v1.File{
+			Name:    filepath.Base(attach.Filename),
+			MIME:    http.DetectContentType(attach.Payload),
+			Digest:  digest,
+			Payload: b64,
+		})
+	}
+
+	sig, err := getProposalSignature(np.Files, id)
+	if err != nil {
+		return nil, fmt.Errorf("Could not sign proposal files: %v", err)
+	}
+
+	np.Signature = sig
 
 	responseBody, err := c.makeRequest("POST", v1.RouteNewProposal, np)
 	if err != nil {

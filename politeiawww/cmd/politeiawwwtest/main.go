@@ -44,6 +44,7 @@ func handleError(err error) {
 func vote(opts *Options, c *client.Ctx) {
 	adminEmail := opts.Admin.Email
 	adminPassword := opts.Admin.Password
+	mockPayload := []byte("This is a description")
 
 	// Login (admin)
 	lr, err := c.Login(adminEmail, adminPassword)
@@ -60,7 +61,7 @@ func vote(opts *Options, c *client.Ctx) {
 	handleError(err)
 
 	// New proposal
-	prop1, err := c.NewProposal(id)
+	prop1, err := c.NewProposal(id, nil, mockPayload)
 	handleError(err)
 
 	// Start vote, wrong state should fail
@@ -107,6 +108,7 @@ func vote(opts *Options, c *client.Ctx) {
 func main() {
 	// Initialize politeiawwwcli config
 	err := config.Load()
+	mockPayload := []byte("This is a description")
 	handleError(err)
 
 	// Parse command line
@@ -193,7 +195,7 @@ func main() {
 	}
 
 	// New proposal failure
-	_, err = c.NewProposal(id)
+	_, err = c.NewProposal(id, nil, mockPayload)
 	if err == nil {
 		err = fmt.Errorf("/new should only be accessible by logged in users")
 		handleError(err)
@@ -252,7 +254,7 @@ func main() {
 	}
 
 	// New proposal #1 and verify that it exists under the correct user
-	prop1, err := c.NewProposal(id)
+	prop1, err := c.NewProposal(id, nil, mockPayload)
 	handleError(err)
 
 	lr, err = c.Me()
@@ -275,14 +277,14 @@ func main() {
 	handleError(err)
 
 	// New proposal failure
-	_, err = c.NewProposal(oldId)
+	_, err = c.NewProposal(oldId, nil, mockPayload)
 	if err != nil {
 		err = fmt.Errorf("Expected error, user identity should be inactive")
 		handleError(err)
 	}
 
 	// New proposal #2
-	prop2, err := c.NewProposal(id)
+	prop2, err := c.NewProposal(id, nil, mockPayload)
 	handleError(err)
 
 	// Get prop1 and validate
@@ -327,7 +329,7 @@ func main() {
 
 	// Create enough proposals to have 2 pages
 	for i := 0; i < int(policy.ProposalListPageSize); i++ {
-		_, err = c.NewProposal(id)
+		_, err = c.NewProposal(id, nil, mockPayload)
 		handleError(err)
 	}
 
