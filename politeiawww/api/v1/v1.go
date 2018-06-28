@@ -207,10 +207,10 @@ var (
 	// PropVoteStatus converts votes status codes to human readable text
 	PropVoteStatus = map[PropVoteStatusT]string{
 		PropVoteStatusInvalid:     "invalid vote status",
-		PropVoteStatusNotStarted:  "voting has not been started",
-		PropVoteStatusStarted:     "voting has been started",
-		PropVoteStatusFinished:    "voting has been finished",
-		PropVoteStatusDoesntExist: "proposal doesn't exist",
+		PropVoteStatusNotStarted:  "voting has not started",
+		PropVoteStatusStarted:     "voting active",
+		PropVoteStatusFinished:    "voting finished",
+		PropVoteStatusDoesntExist: "proposal does not exist",
 	}
 )
 
@@ -741,8 +741,8 @@ type VoteStatus struct{}
 type VoteStatusReply struct {
 	Token         string             `json:"token"`         // Censorship token
 	Status        PropVoteStatusT    `json:"status"`        // Vote status (finished, started, etc)
+	TotalVotes    uint64             `json:"totalvotes"`    // Proposal's total number of votes
 	OptionsResult []VoteOptionResult `json:"optionsresult"` // VoteOptionResult for each option
-	TotalVotes    int                `json:"totalvotes"`    // Proposal's total number of votes
 }
 
 // GetAllVoteStatus attempts to fetch the vote status of all public propsals

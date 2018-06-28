@@ -2116,7 +2116,7 @@ func (b *backend) ProcessGetAllVoteStatus() (*www.GetAllVoteStatusReply, error) 
 		vsr := www.VoteStatusReply{
 			Token:         i.record.CensorshipRecord.Token,
 			Status:        getVoteStatus(i, bestBlock),
-			TotalVotes:    len(vrr.CastVotes),
+			TotalVotes:    uint64(len(vrr.CastVotes)),
 			OptionsResult: convertVoteResultsFromDecredplugin(vrr),
 		}
 
@@ -2154,7 +2154,7 @@ func (b *backend) ProcessVoteStatus(token string) (*www.VoteStatusReply, error) 
 
 	return &www.VoteStatusReply{
 		Token:         token,
-		TotalVotes:    len(vrr.CastVotes),
+		TotalVotes:    uint64(len(vrr.CastVotes)),
 		Status:        getVoteStatus(&ir, bestBlock),
 		OptionsResult: convertVoteResultsFromDecredplugin(vrr),
 	}, nil
