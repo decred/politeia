@@ -211,7 +211,7 @@ func clearPaywallAction() error {
 		return err
 	}
 
-	u.NewUserPaywallAddress = ""
+	u.NewUserPaywallPollExpiry = 0
 	u.NewUserPaywallTx = "cleared_by_dbutil"
 
 	b, err = localdb.EncodeUser(*u)

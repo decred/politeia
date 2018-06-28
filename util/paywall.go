@@ -91,9 +91,9 @@ func makeRequest(url string, timeout time.Duration) ([]byte, error) {
 	return ioutil.ReadAll(response.Body)
 }
 
-// dcrStringToAmount converts a DCR amount as a string into a uint64
+// DcrStringToAmount converts a DCR amount as a string into a uint64
 // representing atoms. Supported input variations: "1", ".1", "0.1"
-func dcrStringToAmount(dcrstr string) (uint64, error) {
+func DcrStringToAmount(dcrstr string) (uint64, error) {
 	match, err := regexp.MatchString("(\\d*\\.)*\\d+", dcrstr)
 	if err != nil {
 		return 0, err
@@ -118,7 +118,7 @@ func dcrStringToAmount(dcrstr string) (uint64, error) {
 	}
 
 	dcrsplit[1] = dcrsplit[1] + "00000000"
-	fraction, err := strconv.ParseUint(dcrsplit[1][0:7], 10, 64)
+	fraction, err := strconv.ParseUint(dcrsplit[1][0:8], 10, 64)
 	if err != nil {
 		return 0, err
 	}
@@ -144,7 +144,7 @@ func fetchTxWithPrimaryBE(url string, address string, minimumAmount uint64, txno
 		}
 
 		for _, vout := range v.Vout {
-			amount, err := dcrStringToAmount(vout.Amount.String())
+			amount, err := DcrStringToAmount(vout.Amount.String())
 			if err != nil {
 				return "", err
 			}
@@ -181,7 +181,7 @@ func fetchTxWithBackupBE(url string, address string, minimumAmount uint64, txnot
 			continue
 		}
 
-		amount, err := dcrStringToAmount(v.Amount.String())
+		amount, err := DcrStringToAmount(v.Amount.String())
 		if err != nil {
 			return "", err
 		}

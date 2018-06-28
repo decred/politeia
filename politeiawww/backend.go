@@ -56,12 +56,12 @@ type MDStreamChanges struct {
 type backend struct {
 	sync.RWMutex // lock for inventory and comments and caches
 
-	db           database.Database
-	cfg          *config
-	params       *chaincfg.Params
-	client       *http.Client           // politeiad client
-	userPubkeys  map[string]string      // [pubkey][userid]
-	paywallUsers map[uint64]paywallInfo // [userid][paywallInfo]
+	db              database.Database
+	cfg             *config
+	params          *chaincfg.Params
+	client          *http.Client                 // politeiad client
+	userPubkeys     map[string]string            // [pubkey][userid]
+	userPaywallPool map[uint64]paywallPoolMember // [userid][paywallPoolMember]
 
 	// These properties are only used for testing.
 	test                   bool
@@ -1022,7 +1022,7 @@ func (b *backend) ProcessVerifyNewUser(u www.VerifyNewUser) (*database.User, err
 		return nil, err
 	}
 
-	b.AddUserToPaywallPool(user)
+	b.addUserToPaywallPool(user)
 
 	return user, nil
 }
@@ -2273,9 +2273,10 @@ func NewBackend(cfg *config) (*backend, error) {
 
 	// Context
 	b := &backend{
-		db:          db,
-		cfg:         cfg,
-		userPubkeys: make(map[string]string),
+		db:              db,
+		cfg:             cfg,
+		userPubkeys:     make(map[string]string),
+		userPaywallPool: make(map[uint64]paywallPoolMember),
 	}
 
 	// Setup pubkey-userid map
@@ -2285,7 +2286,7 @@ func NewBackend(cfg *config) (*backend, error) {
 	}
 
 	// Set up the code that checks for paywall payments.
-	b.InitPaywallCheck()
+	b.initPaywallChecker()
 
 	return b, nil
 }
