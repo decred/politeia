@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg"
@@ -20,13 +21,14 @@ import (
 )
 
 var (
-	dataDir      = flag.String("datadir", sharedconfig.DefaultDataDir, "Specify the politeiawww data directory.")
-	dumpDb       = flag.Bool("dump", false, "Dump the entire politeiawww database contents or contents for a specific user. Parameters: [email]")
-	setAdmin     = flag.Bool("setadmin", false, "Set the admin flag for a user. Parameters: <email> <true/false>")
-	clearPaywall = flag.Bool("clearpaywall", false, "Clear the paywall fields for a user given his email.")
-	newUser      = flag.Bool("newuser", false, "Create a new user. Parameters: <email> <username> <password>")
-	testnet      = flag.Bool("testnet", false, "Whether to check the testnet database or not.")
-	dbDir        = ""
+	dataDir            = flag.String("datadir", sharedconfig.DefaultDataDir, "Specify the politeiawww data directory.")
+	dumpDb             = flag.Bool("dump", false, "Dump the entire politeiawww database contents or contents for a specific user. Parameters: [email]")
+	setAdmin           = flag.Bool("setadmin", false, "Set the admin flag for a user. Parameters: <email> <true/false>")
+	clearPaywall       = flag.Bool("clearpaywall", false, "Clear the paywall fields for a user given his email.")
+	newUser            = flag.Bool("newuser", false, "Create a new user. Parameters: <email> <username> <password>")
+	expireVerification = flag.Bool("expireverification", false, "Set the verification expiry fields to a date in the past. Parameters: <email>")
+	testnet            = flag.Bool("testnet", false, "Whether to check the testnet database or not.")
+	dbDir              = ""
 )
 
 func dumpAction() error {
@@ -227,6 +229,58 @@ func clearPaywallAction() error {
 	return nil
 }
 
+func expireVerificationAction() error {
+	args := flag.Args()
+	if len(args) < 1 {
+		flag.Usage()
+		return nil
+	}
+
+	email := args[0]
+
+	userdb, err := leveldb.OpenFile(dbDir, &opt.Options{
+		ErrorIfMissing: true,
+	})
+	if err != nil {
+		return err
+	}
+	defer userdb.Close()
+
+	b, err := userdb.Get([]byte(email), nil)
+	if err != nil {
+		return fmt.Errorf("user with email %v not found in the database", email)
+	}
+
+	u, err := localdb.DecodeUser(b)
+	if err != nil {
+		return err
+	}
+
+	// -168 hours = 7 days in the past
+	expiredTime := time.Now().Add(-168 * time.Hour).Unix()
+	if u.NewUserVerificationExpiry != 0 {
+		u.NewUserVerificationExpiry = expiredTime
+	}
+	if u.ResetPasswordVerificationExpiry != 0 {
+		u.ResetPasswordVerificationExpiry = expiredTime
+	}
+	if u.UpdateKeyVerificationExpiry != 0 {
+		u.UpdateKeyVerificationExpiry = expiredTime
+	}
+
+	b, err = localdb.EncodeUser(*u)
+	if err != nil {
+		return err
+	}
+
+	if err = userdb.Put([]byte(email), b, nil); err != nil {
+		return err
+	}
+
+	fmt.Printf("Marked verification fields as expired for user %v\n", email)
+	return nil
+}
+
 func _main() error {
 	flag.Parse()
 
@@ -255,6 +309,10 @@ func _main() error {
 		}
 	} else if *newUser {
 		if err := newUserAction(); err != nil {
+			return err
+		}
+	} else if *expireVerification {
+		if err := expireVerificationAction(); err != nil {
 			return err
 		}
 	} else if *clearPaywall {
