@@ -1,6 +1,8 @@
 package main
 
 import (
+	"strconv"
+
 	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	www "github.com/decred/politeia/politeiawww/api/v1"
@@ -320,4 +322,30 @@ func convertErrorStatusFromPD(s int) www.ErrorStatusT {
 		//case pd.ErrorStatusInvalidChallenge
 	}
 	return www.ErrorStatusInvalid
+}
+
+func convertVoteResultsFromDecredplugin(vrr *decredplugin.VoteResultsReply) []www.VoteOptionResult {
+	// counter of votes received
+	var vr uint64
+	var ors []www.VoteOptionResult
+	for _, o := range vrr.StartVote.Vote.Options {
+		vr = 0
+		for _, v := range vrr.CastVotes {
+			vb, err := strconv.ParseUint(v.VoteBit, 10, 64)
+			if err != nil {
+				log.Infof("it shouldn't happen")
+				continue
+			}
+			if vb == o.Bits {
+				vr++
+			}
+		}
+
+		// append to vote options result slice
+		ors = append(ors, www.VoteOptionResult{
+			VotesReceived: vr,
+			Option:        convertVoteOptionFromDecredplugin(o),
+		})
+	}
+	return ors
 }

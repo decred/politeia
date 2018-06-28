@@ -2085,8 +2085,8 @@ func (b *backend) ProcessVoteResults(token string) (*www.VoteResultsReply, error
 	return &wvrr, nil
 }
 
-// ProcessProposalsVotingStatus returns the voting status for all public proposals
-func (b *backend) ProcessProposalsVotingStatus() (*www.ProposalsVotingStatusReply, error) {
+// ProcessGetAllVoteStatus returns the vote status of all public proposals
+func (b *backend) ProcessGetAllVoteStatus() (*www.GetAllVoteStatusReply, error) {
 	log.Infof("ProcessProposalsVotingStatus")
 	// We need to determine best block height here in order to set
 	// the voting status
@@ -2099,7 +2099,7 @@ func (b *backend) ProcessProposalsVotingStatus() (*www.ProposalsVotingStatusRepl
 	defer b.RUnlock()
 
 	// iterate over all props and see what is public
-	var avsr www.ProposalsVotingStatusReply
+	var gavsr www.GetAllVoteStatusReply
 	for _, i := range b.inventory {
 
 		ps := convertPropStatusFromPD(i.record.Status)
@@ -2107,14 +2107,27 @@ func (b *backend) ProcessProposalsVotingStatus() (*www.ProposalsVotingStatusRepl
 			// proposal isn't public
 			continue
 		}
-		vs := getProposalVotingStatus(i, bestBlock, nil)
-		avsr.ProposalsVoting = append(avsr.ProposalsVoting, vs)
+
+		vrr, err := b.getVoteResultsFromPlugin(i.record.CensorshipRecord.Token)
+		if err != nil {
+			return nil, err
+		}
+
+		vsr := www.VoteStatusReply{
+			Token:         i.record.CensorshipRecord.Token,
+			Status:        getVoteStatus(i, bestBlock),
+			TotalVotes:    len(vrr.CastVotes),
+			OptionsResult: convertVoteResultsFromDecredplugin(vrr),
+		}
+
+		gavsr.VotesStatus = append(gavsr.VotesStatus, vsr)
 	}
 
-	return &avsr, nil
+	return &gavsr, nil
 }
 
-func (b *backend) ProcessProposalVotingStatus(token string) (*www.ProposalVotingStatusReply, error) {
+// ProcessVoteStatus returns the vote status for a given proposal
+func (b *backend) ProcessVoteStatus(token string) (*www.VoteStatusReply, error) {
 	log.Infof("ProcessProposalVotingStatus")
 
 	ir, err := b._getInventoryRecord(token)
@@ -2139,11 +2152,11 @@ func (b *backend) ProcessProposalVotingStatus(token string) (*www.ProposalVoting
 		return nil, err
 	}
 
-	cvs := getCastedVotesSummaryFromPluginVotes(vrr)
-
-	vs := getProposalVotingStatus(&ir, bestBlock, &cvs)
-	return &www.ProposalVotingStatusReply{
-		ProposalVoting: vs,
+	return &www.VoteStatusReply{
+		Token:         token,
+		TotalVotes:    len(vrr.CastVotes),
+		Status:        getVoteStatus(&ir, bestBlock),
+		OptionsResult: convertVoteResultsFromDecredplugin(vrr),
 	}, nil
 }
 
@@ -2301,6 +2314,7 @@ func (b *backend) getBestBlock() (uint64, error) {
 	return bestBlock, nil
 }
 
+// getVoteResultsFromPlugin fetches the vote results for a given proposal
 func (b *backend) getVoteResultsFromPlugin(token string) (*decredplugin.VoteResultsReply, error) {
 
 	payload, err := decredplugin.EncodeVoteResults(decredplugin.VoteResults{
@@ -2351,37 +2365,6 @@ func (b *backend) getVoteResultsFromPlugin(token string) (*decredplugin.VoteResu
 	return vrr, nil
 }
 
-func getCastedVotesSummaryFromPluginVotes(vrr *decredplugin.VoteResultsReply) www.CastedVotesSummary {
-	cvs := www.CastedVotesSummary{
-		TotalVotes: len(vrr.CastVotes),
-	}
-	// counter of votes received
-	var vr uint64
-	var vors []www.VoteOptionResult
-	var vor www.VoteOptionResult
-	for _, o := range vrr.StartVote.Vote.Options {
-		vr = 0
-		for _, v := range vrr.CastVotes {
-			vb, err := strconv.ParseUint(v.VoteBit, 10, 64)
-			if err != nil {
-				log.Infof("it shouldn't happen")
-				continue
-			}
-			if vb == o.Bits {
-				vr++
-			}
-		}
-		// store votes received
-		vor.VotesReceived = vr
-		// store option
-		vor.Option = convertVoteOptionFromDecredplugin(o)
-		// append to vote options result slice
-		vors = append(vors, vor)
-	}
-	cvs.OptionsResult = vors
-	return cvs
-}
-
 // NewBackend creates a new backend context for use in www and tests.
 func NewBackend(cfg *config) (*backend, error) {
 	// Setup database.
@@ -2407,29 +2390,21 @@ func NewBackend(cfg *config) (*backend, error) {
 	return b, nil
 }
 
-func getProposalVotingStatus(ir *inventoryRecord, bestBlock uint64, cs *www.CastedVotesSummary) www.VotingStatus {
-	var vs www.VotingStatus
+func getVoteStatus(ir *inventoryRecord, bestBlock uint64) www.PropVoteStatusT {
 
-	vs.Token = ir.record.CensorshipRecord.Token
 	if len(ir.voting.StartBlockHeight) == 0 {
-		vs.Status = www.ProposalVotingNotStarted
-	} else {
-		ee, err := strconv.ParseUint(ir.voting.EndHeight, 10, 64)
-		if err != nil {
-			log.Errorf("invalid ee, should not happen: %v", err)
-		}
-		if bestBlock > ee {
-			vs.Status = www.ProposalVotingFinished
-		} else {
-			vs.Status = www.ProposalVotingActive
-		}
+		return www.PropVoteStatusNotStarted
 	}
 
-	if cs != nil {
-		vs.VotesSummary = *cs
+	ee, err := strconv.ParseUint(ir.voting.EndHeight, 10, 64)
+	if err != nil {
+		log.Errorf("invalid ee, should not happen: %v", err)
 	}
 
-	return vs
+	if bestBlock > ee {
+		return www.PropVoteStatusFinished
+	}
+	return www.PropVoteStatusStarted
 }
 
 // getProposalName returns the proposal name based on the index markdown file.

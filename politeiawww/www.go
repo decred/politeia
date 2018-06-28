@@ -925,28 +925,28 @@ func (p *politeiawww) handleStartVote(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, svr)
 }
 
-// handleProposalsVotingStatus returns the voting status of all public proposals.
-func (p *politeiawww) handleProposalsVotingStatus(w http.ResponseWriter, r *http.Request) {
+// handleGetAllVoteStatus returns the voting status of all public proposals.
+func (p *politeiawww) handleGetAllVoteStatus(w http.ResponseWriter, r *http.Request) {
 
-	asvr, err := p.backend.ProcessProposalsVotingStatus()
+	gasvr, err := p.backend.ProcessGetAllVoteStatus()
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleProposalsVotingStatus: ProcessProposalsVotingStatus %v", err)
 	}
 
-	util.RespondWithJSON(w, http.StatusOK, asvr)
+	util.RespondWithJSON(w, http.StatusOK, gasvr)
 }
 
-// handleProposalVotingStatus returns the voting status for a given proposal.
-func (p *politeiawww) handleProposalVotingStatus(w http.ResponseWriter, r *http.Request) {
+// handleVoteStatus returns the vote status for a given proposal.
+func (p *politeiawww) handleVoteStatus(w http.ResponseWriter, r *http.Request) {
 	pathParams := mux.Vars(r)
-	pvsr, err := p.backend.ProcessProposalVotingStatus(pathParams["token"])
+	vsr, err := p.backend.ProcessVoteStatus(pathParams["token"])
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleCommentsGet: ProcessCommentGet %v", err)
 		return
 	}
-	util.RespondWithJSON(w, http.StatusOK, pvsr)
+	util.RespondWithJSON(w, http.StatusOK, vsr)
 }
 
 // handleUserCommentsVotes returns the user votes on comments of a given proposal.
@@ -1174,10 +1174,10 @@ func _main() error {
 		p.handleVoteResults, permissionPublic, true)
 	p.addRoute(http.MethodPost, v1.RouteUsernamesById, p.handleUsernamesById,
 		permissionPublic, false)
-	p.addRoute(http.MethodGet, v1.RouteProposalsVotingStatus,
-		p.handleProposalsVotingStatus, permissionPublic, true)
-	p.addRoute(http.MethodGet, v1.RouteProposalVotingStatus,
-		p.handleProposalVotingStatus, permissionPublic, true)
+	p.addRoute(http.MethodGet, v1.RouteAllVoteStatus,
+		p.handleGetAllVoteStatus, permissionPublic, true)
+	p.addRoute(http.MethodGet, v1.RouteVoteStatus,
+		p.handleVoteStatus, permissionPublic, true)
 
 	// Routes that require being logged in.
 	p.addRoute(http.MethodPost, v1.RouteSecret, p.handleSecret,
