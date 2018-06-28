@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"sync"
 	"time"
 
 	v1 "github.com/decred/politeia/politeiawww/api/v1"
@@ -24,13 +23,7 @@ const (
 
 	// paywallCheckGap is the amount of time the server sleeps after polling for
 	// a paywall address.
-	paywallCheckGap = time.Second * 1
-)
-
-var (
-	paywallUsers map[uint64]paywallInfo
-	mutex        sync.RWMutex
-	once         sync.Once
+	paywallCheckGap = time.Second * 10
 )
 
 func paywallHasExpired(txNotBefore int64) bool {
@@ -38,15 +31,11 @@ func paywallHasExpired(txNotBefore int64) bool {
 	return time.Now().After(expiryTime)
 }
 
-func initPaywallUsersPool() {
-	if paywallUsers == nil {
-		paywallUsers = make(map[uint64]paywallInfo)
-	}
-}
-
-func addUser(user *database.User) {
-	initPaywallUsersPool()
-	paywallUsers[user.ID] = paywallInfo{
+// addUser adds a database user to the paywall pool.
+//
+// This function must be called WITH the mutex held.
+func (b *backend) addUser(user *database.User) {
+	b.paywallUsers[user.ID] = paywallInfo{
 		address:     user.NewUserPaywallAddress,
 		amount:      user.NewUserPaywallAmount,
 		txNotBefore: user.NewUserPaywallTxNotBefore,
@@ -65,79 +54,85 @@ func (b *backend) derivePaywallInfo(user *database.User) (string, uint64, int64,
 }
 
 func (b *backend) checkForPayments() {
-	minConfirmations := b.cfg.MinConfirmationsRequired
-
-	mutex.Lock()
-	initPaywallUsersPool()
-	mutex.Unlock()
-
 	// Check new user payments.
 	for {
-		var userIdsToRemove []uint64
-
-		mutex.RLock()
-		for userId, paywall := range paywallUsers {
-			user, err := b.db.UserGetById(userId)
-			if err != nil {
-				if err == database.ErrShutdown {
-					// The database is shutdown, so stop the thread.
-					mutex.RUnlock()
-					return
-				}
-
-				log.Errorf("cannot fetch user by id %v: %v\n", userId, err)
-				continue
-			}
-
-			if b.HasUserPaid(user) {
-				// The user could have been marked as paid by RouteVerifyUserPayment,
-				// so just remove him from the in-memory pool.
-				userIdsToRemove = append(userIdsToRemove, userId)
-				continue
-			}
-
-			if paywallHasExpired(user.NewUserPaywallTxNotBefore) {
-				continue
-			}
-
-			tx, err := util.FetchTxWithBlockExplorers(paywall.address, paywall.amount,
-				paywall.txNotBefore, minConfirmations)
-			if err != nil {
-				log.Errorf("cannot fetch tx: %v\n", err)
-				continue
-			}
-
-			if tx != "" {
-				// Update the user in the database.
-				user.NewUserPaywallTx = tx
-				err := b.db.UserUpdate(*user)
-				if err != nil {
-					if err == database.ErrShutdown {
-						// The database is shutdown, so stop the thread.
-						mutex.RUnlock()
-						return
-					}
-
-					log.Errorf("cannot update user with id %v: %v", user.ID, err)
-					continue
-				}
-
-				// Remove this user from the in-memory pool.
-				userIdsToRemove = append(userIdsToRemove, userId)
-			}
-
-			time.Sleep(paywallCheckGap)
+		shouldContinue, userIDsToRemove := b.checkForPaymentsAux()
+		if !shouldContinue {
+			return
 		}
-		mutex.RUnlock()
-
-		mutex.Lock()
-		for _, userId := range userIdsToRemove {
-			delete(paywallUsers, userId)
-		}
-		mutex.Unlock()
+		b.removeUsers(userIDsToRemove)
 	}
 
 	// TODO: Check proposal payments within the above loop.
+}
+
+func (b *backend) checkForPaymentsAux() (bool, []uint64) {
+	var userIDsToRemove []uint64
+
+	b.RLock()
+	defer b.RUnlock()
+
+	for userID, paywall := range b.paywallUsers {
+		time.Sleep(paywallCheckGap)
+
+		user, err := b.db.UserGetById(userID)
+		if err != nil {
+			if err == database.ErrShutdown {
+				// The database is shutdown, so stop the thread.
+				return false, nil
+			}
+
+			log.Errorf("cannot fetch user by id %v: %v\n", userID, err)
+			continue
+		}
+
+		if b.HasUserPaid(user) {
+			// The user could have been marked as paid by RouteVerifyUserPayment,
+			// so just remove him from the in-memory pool.
+			userIDsToRemove = append(userIDsToRemove, userID)
+			continue
+		}
+
+		if paywallHasExpired(user.NewUserPaywallTxNotBefore) {
+			continue
+		}
+
+		tx, err := util.FetchTxWithBlockExplorers(paywall.address, paywall.amount,
+			paywall.txNotBefore, b.cfg.MinConfirmationsRequired)
+		if err != nil {
+			log.Errorf("cannot fetch tx: %v\n", err)
+			continue
+		}
+
+		if tx != "" {
+			// Update the user in the database.
+			user.NewUserPaywallTx = tx
+			err := b.db.UserUpdate(*user)
+			if err != nil {
+				if err == database.ErrShutdown {
+					// The database is shutdown, so stop the thread.
+					return false, nil
+				}
+
+				log.Errorf("cannot update user with id %v: %v", user.ID, err)
+				continue
+			}
+
+			// Remove this user from the in-memory pool.
+			userIDsToRemove = append(userIDsToRemove, userID)
+		}
+	}
+
+	return true, userIDsToRemove
+}
+
+func (b *backend) removeUsers(userIDsToRemove []uint64) {
+	b.Lock()
+	defer b.Unlock()
+
+	for _, userID := range userIDsToRemove {
+		delete(b.paywallUsers, userID)
+	}
 }
 
 // GenerateNewUserPaywall generates new paywall info, if necessary, and saves
@@ -191,9 +186,9 @@ func (b *backend) ProcessVerifyUserPayment(user *database.User, vupt v1.VerifyUs
 		return &reply, nil
 	}
 
-	minConfirmations := b.cfg.MinConfirmationsRequired
 	txId, err := util.FetchTxWithBlockExplorers(user.NewUserPaywallAddress,
-		user.NewUserPaywallAmount, user.NewUserPaywallTxNotBefore, minConfirmations)
+		user.NewUserPaywallAmount, user.NewUserPaywallTxNotBefore,
+		b.cfg.MinConfirmationsRequired)
 	if err != nil {
 		if err == util.ErrCannotVerifyPayment {
 			return nil, v1.UserError{
@@ -234,22 +229,29 @@ func (b *backend) HasUserPaid(user *database.User) bool {
 }
 
 // AddUserToPaywallPool adds a user and its paywall info to the in-memory pool.
+//
+// This function must be called WITHOUT the mutex held.
 func (b *backend) AddUserToPaywallPool(user *database.User) {
-	mutex.Lock()
-	addUser(user)
-	mutex.Unlock()
+	if !b.PaywallIsEnabled() {
+		return
+	}
+
+	b.Lock()
+	defer b.Unlock()
+
+	b.addUser(user)
 }
 
-// InitPaywallCheck is intended to be called
-func (b *backend) InitPaywallCheck() error {
-	if b.cfg.PaywallAmount == 0 {
-		// Paywall not configured.
-		return nil
+func (b *backend) initPaywallUsersPool() error {
+	b.Lock()
+	defer b.Unlock()
+
+	if b.paywallUsers == nil {
+		b.paywallUsers = make(map[uint64]paywallInfo)
 	}
 
 	// Create the in-memory pool of all users who need to pay the paywall.
-	mutex.Lock()
-	err := b.db.AllUsers(func(user *database.User) {
+	return b.db.AllUsers(func(user *database.User) {
 		if b.HasUserPaid(user) {
 			return
 		}
@@ -260,10 +262,18 @@ func (b *backend) InitPaywallCheck() error {
 			return
 		}
 
-		addUser(user)
+		b.addUser(user)
 	})
-	mutex.Unlock()
+}
 
+// InitPaywallCheck is intended to be called
+func (b *backend) InitPaywallCheck() error {
+	if b.cfg.PaywallAmount == 0 {
+		// Paywall not configured.
+		return nil
+	}
+
+	err := b.initPaywallUsersPool()
 	if err != nil {
 		return err
 	}

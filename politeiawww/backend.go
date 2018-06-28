@@ -54,13 +54,14 @@ type MDStreamChanges struct {
 
 // politeiawww backend construct
 type backend struct {
-	sync.RWMutex // lock for inventory and comments
+	sync.RWMutex // lock for inventory and comments and caches
 
-	db          database.Database
-	cfg         *config
-	params      *chaincfg.Params
-	client      *http.Client      // politeiad client
-	userPubkeys map[string]string // [pubkey][userid]
+	db           database.Database
+	cfg          *config
+	params       *chaincfg.Params
+	client       *http.Client           // politeiad client
+	userPubkeys  map[string]string      // [pubkey][userid]
+	paywallUsers map[uint64]paywallInfo // [userid][paywallInfo]
 
 	// These properties are only used for testing.
 	test                   bool
