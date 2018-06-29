@@ -6,6 +6,7 @@ import (
 
 type ErrorStatusT int
 type PropStatusT int
+type PropVoteStatusT int
 
 const (
 	PoliteiaWWWAPIVersion = 1 // API version this backend understands
@@ -40,11 +41,10 @@ const (
 	RouteActiveVote          = "/proposals/activevote" // XXX rename to ActiveVotes
 	RouteCastVotes           = "/proposals/castvotes"
 	RouteUserCommentsVotes   = "/user/proposals/{token:[A-z0-9]{64}}/commentsvotes"
-	// XXX should we use a fancy route like the one underneath?
-	//RouteVoteResults    = "/proposals/{token:[A-z0-9]{64}}/votes"
-	RouteVoteResults   = "/proposals/voteresults"
-	RouteUsernamesById = "/usernames"
-
+	RouteVoteResults         = "/proposals/{token:[A-z0-9]{64}}/votes"
+	RouteUsernamesById       = "/usernames"
+	RouteAllVoteStatus       = "/proposals/votestatus"
+	RouteVoteStatus          = "/proposals/{token:[A-z0-9]{64}}/votestatus"
 	// VerificationTokenSize is the size of verification token in bytes
 	VerificationTokenSize = 32
 
@@ -136,6 +136,13 @@ const (
 	PropStatusCensored    PropStatusT = 3 // Proposal has been censored
 	PropStatusPublic      PropStatusT = 4 // Proposal is publicly visible
 	PropStatusLocked      PropStatusT = 6 // Proposal is locked, NOT IMPLEMENTED
+
+	// Proposal vote status codes
+	PropVoteStatusInvalid     PropVoteStatusT = 0 // Invalid vote status
+	PropVoteStatusNotStarted  PropVoteStatusT = 1 // Proposal vote has not been started
+	PropVoteStatusStarted     PropVoteStatusT = 2 // Proposal vote has been started
+	PropVoteStatusFinished    PropVoteStatusT = 3 // Proposal vote has been finished
+	PropVoteStatusDoesntExist PropVoteStatusT = 4 // Proposal doesn't exist
 )
 
 var (
@@ -195,6 +202,15 @@ var (
 		ErrorStatusMalformedUsername:           "malformed username",
 		ErrorStatusDuplicateUsername:           "duplicate username",
 		ErrorStatusVerificationTokenUnexpired:  "verification token not yet expired",
+	}
+
+	// PropVoteStatus converts votes status codes to human readable text
+	PropVoteStatus = map[PropVoteStatusT]string{
+		PropVoteStatusInvalid:     "invalid vote status",
+		PropVoteStatusNotStarted:  "voting has not started",
+		PropVoteStatusStarted:     "voting active",
+		PropVoteStatusFinished:    "voting finished",
+		PropVoteStatusDoesntExist: "proposal does not exist",
 	}
 )
 
@@ -564,6 +580,7 @@ type ActiveVoteReply struct {
 }
 
 // plugin commands
+
 // StartVote starts the voting process for a proposal.
 type StartVote struct {
 	PublicKey string `json:"publickey"` // Key used for signature.
@@ -605,9 +622,7 @@ type BallotReply struct {
 }
 
 // VoteResults retrieves a single proposal vote results from the server.
-type VoteResults struct {
-	Token string `json:"token"` // Censorship token
-}
+type VoteResults struct{}
 
 // VoteResultsReply returns the original proposal vote and the associated cast
 // votes.
@@ -709,4 +724,31 @@ type UserCommentsVotes struct{}
 // for the comments of a given proposal
 type UserCommentsVotesReply struct {
 	CommentsVotes []CommentVote `json:"commentsvotes"`
+}
+
+// VoteOptionResult is a structure that describes a VotingOption along with the
+// number of votes it has received
+type VoteOptionResult struct {
+	Option        VoteOption `json:"option"`        // Vote Option
+	VotesReceived uint64     `json:"votesreceived"` // Number of votes received by the option
+}
+
+// VoteStatus is a command to fetch the the current vote status for a single
+// public proposal
+type VoteStatus struct{}
+
+// VoteStatusReply describes the vote status for a given proposal
+type VoteStatusReply struct {
+	Token         string             `json:"token"`         // Censorship token
+	Status        PropVoteStatusT    `json:"status"`        // Vote status (finished, started, etc)
+	TotalVotes    uint64             `json:"totalvotes"`    // Proposal's total number of votes
+	OptionsResult []VoteOptionResult `json:"optionsresult"` // VoteOptionResult for each option
+}
+
+// GetAllVoteStatus attempts to fetch the vote status of all public propsals
+type GetAllVoteStatus struct{}
+
+// GetAllVoteStatusReply returns the vote status of all public proposals
+type GetAllVoteStatusReply struct {
+	VotesStatus []VoteStatusReply `json:"votesstatus"` // Vote status of all public proposals
 }

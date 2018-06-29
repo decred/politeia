@@ -33,6 +33,8 @@ API.  It does not render HTML.
 - [`Active votes`](#active-votes)
 - [`Cast votes`](#cast-votes)
 - [`Proposal votes`](#proposal-votes)
+- [`Proposal vote status`](#proposal-vote-status)
+- [`Proposals vote status`](#proposals-vote-status)
 - [`Usernames by id`](#usernames-by-id)
 - [`User Comments votes`](#user-comments-votes)
 
@@ -1472,6 +1474,142 @@ Reply:
   }]
 }
 ```
+
+### `Proposal vote status`
+
+Returns the vote status for a single public proposal
+
+**Route:** `GET /V1/proposals/{token}/votestatus`
+
+**Params:** none
+
+**Result:**
+
+| | Type | Description |
+|-|-|-|
+| token | string  | Censorship token |
+| status | int | Status identifier |
+| optionsresult | array of VoteOptionResult | Option description along with the number of votes it has received |
+| totalvotes | int | Proposal's total number of votes |
+
+**VoteOptionResult:**
+| | Type | Description |
+|-|-|-|
+| option | VoteOption  | Option description |
+| votesreceived | uint64 | Number of votes reiceved |
+
+
+**Proposal vote status map:**
+| status | value | 
+|-|-|
+| Vote status invalid | 0 | 
+| Vote status not started | 1 | 
+| Vote status started | 2 |
+| Vote status finished | 3 |
+| Vote status doesn't exist | 4 |
+
+**Example:**
+
+Request: 
+
+`GET /V1/proposals/b09dc5ac9d450b4d1ec6e8f80c763771f29413a5d1bf287054fc00c52ccc87c9/votestatus`
+
+Reply:
+
+```json
+{
+  "token":"b09dc5ac9d450b4d1ec6e8f80c763771f29413a5d1bf287054fc00c52ccc87c9",
+  "status":0,
+  "totalvotes":0,
+  "optionsresult":[
+    {
+        "option":{
+          "id":"no",
+          "description":"Don't approve proposal",
+          "bits":1
+        },
+        "votesreceived":0
+    },
+    {
+        "option":{
+          "id":"yes",
+          "description":"Approve proposal",
+          "bits":2
+        },
+        "votesreceived":0
+    }
+  ]
+}
+```
+
+### `Proposals vote status`
+
+Returns the vote status of all public proposals
+
+**Route:** `GET /V1/proposals/votestatus`
+
+**Params:** none
+
+**Result:**
+
+| | Type | Description |
+|-|-|-|
+| votesstatus | array of VoteStatusReply  | Vote status of each public proposal |
+
+**VoteStatusReply:**
+
+| | Type | Description |
+|-|-|-|
+| token | string  | Censorship token |
+| status | int | Status identifier |
+| optionsresult | array of VoteOptionResult | Option description along with the number of votes it has received |
+| totalvotes | int | Proposal's total number of votes |
+
+**Example:**
+
+Request:
+
+`GET /V1/proposals/votestatus`
+
+Reply:
+
+```json
+{
+   "votesstatus":[
+      {
+         "token":"427af6d79f495e8dad2fb0a2a47594daa505b9fbfbd084f13678fa91882aef9f",
+         "status":2,
+         "optionsresult":[
+            {
+               "option":{
+                  "id":"no",
+                  "description":"Don't approve proposal",
+                  "bits":1
+               },
+               "votesreceived":0
+            },
+            {
+               "option":{
+                  "id":"yes",
+                  "description":"Approve proposal",
+                  "bits":2
+               },
+               "votesreceived":0
+            }
+         ],
+         "totalvotes":0
+      },
+      {
+         "token":"b6d058cd1eed03d7fc9400f55384a8da33edb73743b7501d354392a6f9885078",
+         "status":1,
+         "optionsresult":null,
+         "totalvotes":0
+      }
+   ]
+}
+```
+
+
 
 ### `Usernames by id`
 

@@ -529,10 +529,7 @@ func (c *ctx) vote(args []string) error {
 }
 
 func (c *ctx) _tally(token string) (*v1.VoteResultsReply, error) {
-	responseBody, err := c.makeRequest("POST", v1.RouteVoteResults,
-		v1.VoteResults{
-			Token: token,
-		})
+	responseBody, err := c.makeRequest("GET", "/proposals/"+token+"/votes", nil)
 	if err != nil {
 		return nil, err
 	}

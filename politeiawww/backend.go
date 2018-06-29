@@ -1888,39 +1888,8 @@ func (b *backend) ProcessActiveVote() (*www.ActiveVoteReply, error) {
 
 	//  We need to determine best block height here and only return active
 	//  votes.
-	challenge, err := util.Random(pd.ChallengeSize)
-	if err != nil {
-		return nil, err
-	}
 
-	pc := pd.PluginCommand{
-		Challenge: hex.EncodeToString(challenge),
-		ID:        decredplugin.ID,
-		Command:   decredplugin.CmdBestBlock,
-		CommandID: decredplugin.CmdBestBlock,
-		Payload:   "",
-	}
-
-	responseBody, err := b.makeRequest(http.MethodPost,
-		pd.PluginCommandRoute, pc)
-	if err != nil {
-		return nil, err
-	}
-
-	var reply pd.PluginCommandReply
-	err = json.Unmarshal(responseBody, &reply)
-	if err != nil {
-		return nil, fmt.Errorf("Could not unmarshal "+
-			"PluginCommandReply: %v", err)
-	}
-
-	// Verify the challenge.
-	err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
-	if err != nil {
-		return nil, err
-	}
-
-	bestBlock, err := strconv.ParseUint(reply.Payload, 10, 64)
+	bestBlock, err := b.getBestBlock()
 	if err != nil {
 		return nil, err
 	}
@@ -2090,55 +2059,17 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 	return &rv, nil
 }
 
-func (b *backend) ProcessVoteResults(vr *www.VoteResults) (*www.VoteResultsReply, error) {
+func (b *backend) ProcessVoteResults(token string) (*www.VoteResultsReply, error) {
 	log.Tracef("ProcessVoteResults")
 
-	payload, err := decredplugin.EncodeVoteResults(convertVoteResultsFromWWW(*vr))
-	if err != nil {
-		return nil, err
-	}
-
-	// Obtain vote results from plugin
-	challenge, err := util.Random(pd.ChallengeSize)
-	if err != nil {
-		return nil, err
-	}
-
-	pc := pd.PluginCommand{
-		Challenge: hex.EncodeToString(challenge),
-		ID:        decredplugin.ID,
-		Command:   decredplugin.CmdProposalVotes,
-		CommandID: decredplugin.CmdProposalVotes + " " + vr.Token,
-		Payload:   string(payload),
-	}
-
-	responseBody, err := b.makeRequest(http.MethodPost,
-		pd.PluginCommandRoute, pc)
-	if err != nil {
-		return nil, err
-	}
-
-	var reply pd.PluginCommandReply
-	err = json.Unmarshal(responseBody, &reply)
-	if err != nil {
-		return nil, fmt.Errorf("Could not unmarshal "+
-			"PluginCommandReply: %v", err)
-	}
-
-	// Verify the challenge.
-	err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
-	if err != nil {
-		return nil, err
-	}
-
-	vrr, err := decredplugin.DecodeVoteResultsReply([]byte(reply.Payload))
+	vrr, err := b.getVoteResultsFromPlugin(token)
 	if err != nil {
 		return nil, err
 	}
 
 	// Fetch record from inventory in order to
 	// get the voting details (StartVoteReply)
-	ir, err := b._getInventoryRecord(vr.Token)
+	ir, err := b._getInventoryRecord(token)
 	if err != nil {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusProposalNotFound,
@@ -2152,6 +2083,81 @@ func (b *backend) ProcessVoteResults(vr *www.VoteResults) (*www.VoteResultsReply
 
 	wvrr := convertVoteResultsReplyFromDecredplugin(*vrr, ir)
 	return &wvrr, nil
+}
+
+// ProcessGetAllVoteStatus returns the vote status of all public proposals
+func (b *backend) ProcessGetAllVoteStatus() (*www.GetAllVoteStatusReply, error) {
+	log.Infof("ProcessProposalsVotingStatus")
+	// We need to determine best block height here in order to set
+	// the voting status
+	bestBlock, err := b.getBestBlock()
+	if err != nil {
+		return nil, err
+	}
+
+	b.RLock()
+	defer b.RUnlock()
+
+	// iterate over all props and see what is public
+	var gavsr www.GetAllVoteStatusReply
+	for _, i := range b.inventory {
+
+		ps := convertPropStatusFromPD(i.record.Status)
+		if ps != www.PropStatusPublic {
+			// proposal isn't public
+			continue
+		}
+
+		vrr, err := b.getVoteResultsFromPlugin(i.record.CensorshipRecord.Token)
+		if err != nil {
+			return nil, err
+		}
+
+		vsr := www.VoteStatusReply{
+			Token:         i.record.CensorshipRecord.Token,
+			Status:        getVoteStatus(i, bestBlock),
+			TotalVotes:    uint64(len(vrr.CastVotes)),
+			OptionsResult: convertVoteResultsFromDecredplugin(vrr),
+		}
+
+		gavsr.VotesStatus = append(gavsr.VotesStatus, vsr)
+	}
+
+	return &gavsr, nil
+}
+
+// ProcessVoteStatus returns the vote status for a given proposal
+func (b *backend) ProcessVoteStatus(token string) (*www.VoteStatusReply, error) {
+	log.Infof("ProcessProposalVotingStatus")
+
+	ir, err := b._getInventoryRecord(token)
+	if err != nil {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusProposalNotFound,
+		}
+	}
+	if ir.record.Status != pd.RecordStatusPublic {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusWrongStatus,
+		}
+	}
+
+	bestBlock, err := b.getBestBlock()
+	if err != nil {
+		return nil, err
+	}
+
+	vrr, err := b.getVoteResultsFromPlugin(token)
+	if err != nil {
+		return nil, err
+	}
+
+	return &www.VoteStatusReply{
+		Token:         token,
+		TotalVotes:    uint64(len(vrr.CastVotes)),
+		Status:        getVoteStatus(&ir, bestBlock),
+		OptionsResult: convertVoteResultsFromDecredplugin(vrr),
+	}, nil
 }
 
 // ProcessUsernamesById returns the corresponding usernames for all given
@@ -2267,6 +2273,98 @@ func (b *backend) ProcessPolicy(p www.Policy) *www.PolicyReply {
 	}
 }
 
+func (b *backend) getBestBlock() (uint64, error) {
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return 0, err
+	}
+
+	pc := pd.PluginCommand{
+		Challenge: hex.EncodeToString(challenge),
+		ID:        decredplugin.ID,
+		Command:   decredplugin.CmdBestBlock,
+		CommandID: decredplugin.CmdBestBlock,
+		Payload:   "",
+	}
+
+	responseBody, err := b.makeRequest(http.MethodPost,
+		pd.PluginCommandRoute, pc)
+	if err != nil {
+		return 0, err
+	}
+
+	var reply pd.PluginCommandReply
+	err = json.Unmarshal(responseBody, &reply)
+	if err != nil {
+		return 0, fmt.Errorf("Could not unmarshal "+
+			"PluginCommandReply: %v", err)
+	}
+
+	// Verify the challenge.
+	err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
+	if err != nil {
+		return 0, err
+	}
+
+	bestBlock, err := strconv.ParseUint(reply.Payload, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	return bestBlock, nil
+}
+
+// getVoteResultsFromPlugin fetches the vote results for a given proposal
+func (b *backend) getVoteResultsFromPlugin(token string) (*decredplugin.VoteResultsReply, error) {
+
+	payload, err := decredplugin.EncodeVoteResults(decredplugin.VoteResults{
+		Token: token,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Obtain vote results from plugin
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	pc := pd.PluginCommand{
+		Challenge: hex.EncodeToString(challenge),
+		ID:        decredplugin.ID,
+		Command:   decredplugin.CmdProposalVotes,
+		CommandID: decredplugin.CmdProposalVotes + " " + token,
+		Payload:   string(payload),
+	}
+
+	responseBody, err := b.makeRequest(http.MethodPost,
+		pd.PluginCommandRoute, pc)
+	if err != nil {
+		return nil, err
+	}
+
+	var reply pd.PluginCommandReply
+	err = json.Unmarshal(responseBody, &reply)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal "+
+			"PluginCommandReply: %v", err)
+	}
+
+	// Verify the challenge.
+	err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	vrr, err := decredplugin.DecodeVoteResultsReply([]byte(reply.Payload))
+	if err != nil {
+		return nil, err
+	}
+
+	return vrr, nil
+}
+
 // NewBackend creates a new backend context for use in www and tests.
 func NewBackend(cfg *config) (*backend, error) {
 	// Setup database.
@@ -2290,6 +2388,23 @@ func NewBackend(cfg *config) (*backend, error) {
 	}
 
 	return b, nil
+}
+
+func getVoteStatus(ir *inventoryRecord, bestBlock uint64) www.PropVoteStatusT {
+
+	if len(ir.voting.StartBlockHeight) == 0 {
+		return www.PropVoteStatusNotStarted
+	}
+
+	ee, err := strconv.ParseUint(ir.voting.EndHeight, 10, 64)
+	if err != nil {
+		log.Errorf("invalid ee, should not happen: %v", err)
+	}
+
+	if bestBlock > ee {
+		return www.PropVoteStatusFinished
+	}
+	return www.PropVoteStatusStarted
 }
 
 // getProposalName returns the proposal name based on the index markdown file.
