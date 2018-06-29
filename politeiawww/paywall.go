@@ -84,13 +84,13 @@ func (b *backend) createUserPaywallPoolCopy() map[uint64]paywallPoolMember {
 	b.RLock()
 	defer b.RUnlock()
 
-	copy := make(map[uint64]paywallPoolMember, len(b.userPaywallPool))
+	poolCopy := make(map[uint64]paywallPoolMember, len(b.userPaywallPool))
 
 	for k, v := range b.userPaywallPool {
-		copy[k] = v
+		poolCopy[k] = v
 	}
 
-	return copy
+	return poolCopy
 }
 
 func (b *backend) checkForUserPayments(pool map[uint64]paywallPoolMember) (bool, []uint64) {
