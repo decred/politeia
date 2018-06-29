@@ -54,13 +54,14 @@ type MDStreamChanges struct {
 
 // politeiawww backend construct
 type backend struct {
-	sync.RWMutex // lock for inventory and comments
+	sync.RWMutex // lock for inventory and comments and caches
 
-	db          database.Database
-	cfg         *config
-	params      *chaincfg.Params
-	client      *http.Client      // politeiad client
-	userPubkeys map[string]string // [pubkey][userid]
+	db              database.Database
+	cfg             *config
+	params          *chaincfg.Params
+	client          *http.Client                 // politeiad client
+	userPubkeys     map[string]string            // [pubkey][userid]
+	userPaywallPool map[uint64]paywallPoolMember // [userid][paywallPoolMember]
 
 	// These properties are only used for testing.
 	test                   bool
@@ -750,7 +751,7 @@ func (b *backend) loadInventory() (*pd.InventoryReply, error) {
 	return nil, fmt.Errorf("use inventory")
 }
 
-func (b *backend) CreateLoginReply(user *database.User) *www.LoginReply {
+func (b *backend) CreateLoginReply(user *database.User) (*www.LoginReply, error) {
 	activeIdentity, ok := database.ActiveIdentityString(user.Identities)
 	if !ok {
 		activeIdentity = ""
@@ -764,13 +765,18 @@ func (b *backend) CreateLoginReply(user *database.User) *www.LoginReply {
 		PublicKey: activeIdentity,
 	}
 
-	if user.NewUserPaywallTx == "" {
+	if !b.HasUserPaid(user) {
+		err := b.GenerateNewUserPaywall(user)
+		if err != nil {
+			return nil, err
+		}
+
 		reply.PaywallAddress = user.NewUserPaywallAddress
 		reply.PaywallAmount = user.NewUserPaywallAmount
 		reply.PaywallTxNotBefore = user.NewUserPaywallTxNotBefore
 	}
 
-	return &reply
+	return &reply, nil
 }
 
 // LoadInventory fetches the entire inventory of proposals from politeiad and
@@ -917,33 +923,15 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 		// Associate the user id with the new public key.
 		b.setUserPubkeyAssociaton(user, u.PublicKey)
 
-		// Derive a paywall address for this user if the paywall is enabled.
-		paywallAddress := ""
-		paywallAmount := uint64(0)
-		if b.cfg.PaywallAmount != 0 && b.cfg.PaywallXpub != "" {
-			paywallAddress, err = util.DerivePaywallAddress(b.params,
-				b.cfg.PaywallXpub, uint32(user.ID))
-			if err != nil {
-				return nil, fmt.Errorf("Unable to derive paywall address #%v "+
-					"for %v: %v", uint32(user.ID), u.Email, err)
-			}
-			paywallAmount = b.cfg.PaywallAmount
-		}
-
-		txNotBeforeTimestamp := time.Now().Unix()
-
-		reply.PaywallAddress = paywallAddress
-		reply.PaywallAmount = paywallAmount
-		reply.PaywallTxNotBefore = txNotBeforeTimestamp
-
-		user.NewUserPaywallAddress = paywallAddress
-		user.NewUserPaywallAmount = paywallAmount
-		user.NewUserPaywallTxNotBefore = txNotBeforeTimestamp
-
-		err = b.db.UserUpdate(*user)
+		// Derive paywall information for this user if the paywall is enabled.
+		err = b.GenerateNewUserPaywall(user)
 		if err != nil {
 			return nil, err
 		}
+
+		reply.PaywallAddress = user.NewUserPaywallAddress
+		reply.PaywallAmount = user.NewUserPaywallAmount
+		reply.PaywallTxNotBefore = user.NewUserPaywallTxNotBefore
 	}
 
 	if !b.test {
@@ -1029,7 +1017,14 @@ func (b *backend) ProcessVerifyNewUser(u www.VerifyNewUser) (*database.User, err
 	// Clear out the verification token fields in the db.
 	user.NewUserVerificationToken = nil
 	user.NewUserVerificationExpiry = 0
-	return user, b.db.UserUpdate(*user)
+	err = b.db.UserUpdate(*user)
+	if err != nil {
+		return nil, err
+	}
+
+	b.addUserToPaywallPool(user)
+
+	return user, nil
 }
 
 // ProcessUpdateUserKey sets a verification token and expiry to allow the user to
@@ -1200,7 +1195,7 @@ func (b *backend) ProcessLogin(l www.Login) (*www.LoginReply, error) {
 		}
 	}
 
-	return b.CreateLoginReply(user), nil
+	return b.CreateLoginReply(user)
 }
 
 // ProcessChangeUsername checks that the password matches the one
@@ -1351,7 +1346,7 @@ func (b *backend) ProcessAllUnvetted(u www.GetAllUnvetted) *www.GetAllUnvettedRe
 func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*www.NewProposalReply, error) {
 	log.Tracef("ProcessNewProposal")
 
-	if !b.VerifyUserPaid(user) {
+	if !b.HasUserPaid(user) {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusUserNotPaid,
 		}
@@ -1687,7 +1682,7 @@ func (b *backend) ProcessComment(c www.NewComment, user *database.User) (*www.Ne
 	log.Debugf("ProcessComment: %v %v", c.Token, user.ID)
 
 	// Pay up sucker!
-	if !b.VerifyUserPaid(user) {
+	if !b.HasUserPaid(user) {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusUserNotPaid,
 		}
@@ -1765,7 +1760,7 @@ func (b *backend) ProcessLikeComment(lc www.LikeComment, user *database.User) (*
 	log.Debugf("ProcessLikeComment: %v %v", lc.Token, user.ID)
 
 	// Pay up sucker!
-	if !b.VerifyUserPaid(user) {
+	if !b.HasUserPaid(user) {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusUserNotPaid,
 		}
@@ -2376,9 +2371,10 @@ func NewBackend(cfg *config) (*backend, error) {
 
 	// Context
 	b := &backend{
-		db:          db,
-		cfg:         cfg,
-		userPubkeys: make(map[string]string),
+		db:              db,
+		cfg:             cfg,
+		userPubkeys:     make(map[string]string),
+		userPaywallPool: make(map[uint64]paywallPoolMember),
 	}
 
 	// Setup pubkey-userid map
@@ -2386,6 +2382,9 @@ func NewBackend(cfg *config) (*backend, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Set up the code that checks for paywall payments.
+	b.initPaywallChecker()
 
 	return b, nil
 }

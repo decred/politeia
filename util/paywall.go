@@ -67,6 +67,12 @@ type BEBackupTransaction struct {
 	Timestamp     int64       `json:"ts"`            // Transaction timestamp
 }
 
+var (
+	// ErrCannotVerifyPayment is emitted when a transaction cannot be verified
+	// because it cannot reach either of the block explorer servers.
+	ErrCannotVerifyPayment = errors.New("cannot verify payment at this time")
+)
+
 func makeRequest(url string, timeout time.Duration) ([]byte, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -85,9 +91,9 @@ func makeRequest(url string, timeout time.Duration) ([]byte, error) {
 	return ioutil.ReadAll(response.Body)
 }
 
-// dcrStringToAmount converts a DCR amount as a string into a uint64
+// DcrStringToAmount converts a DCR amount as a string into a uint64
 // representing atoms. Supported input variations: "1", ".1", "0.1"
-func dcrStringToAmount(dcrstr string) (uint64, error) {
+func DcrStringToAmount(dcrstr string) (uint64, error) {
 	match, err := regexp.MatchString("(\\d*\\.)*\\d+", dcrstr)
 	if err != nil {
 		return 0, err
@@ -112,7 +118,7 @@ func dcrStringToAmount(dcrstr string) (uint64, error) {
 	}
 
 	dcrsplit[1] = dcrsplit[1] + "00000000"
-	fraction, err := strconv.ParseUint(dcrsplit[1][0:7], 10, 64)
+	fraction, err := strconv.ParseUint(dcrsplit[1][0:8], 10, 64)
 	if err != nil {
 		return 0, err
 	}
@@ -120,20 +126,16 @@ func dcrStringToAmount(dcrstr string) (uint64, error) {
 	return ((whole * 1e8) + fraction), nil
 }
 
-func verifyTxWithPrimaryBE(url string, address string, txid string,
-	minimumAmount uint64, txnotbefore int64, minConfirmationsRequired uint64) (bool, error) {
+func fetchTxWithPrimaryBE(url string, address string, minimumAmount uint64, txnotbefore int64, minConfirmationsRequired uint64) (string, error) {
 	responseBody, err := makeRequest(url, 3)
 	if err != nil {
-		return false, err
+		return "", err
 	}
 
 	transactions := make([]BEPrimaryTransaction, 0)
 	json.Unmarshal(responseBody, &transactions)
 
 	for _, v := range transactions {
-		if v.TxId != txid {
-			continue
-		}
 		if v.Timestamp < txnotbefore {
 			continue
 		}
@@ -142,9 +144,9 @@ func verifyTxWithPrimaryBE(url string, address string, txid string,
 		}
 
 		for _, vout := range v.Vout {
-			amount, err := dcrStringToAmount(vout.Amount.String())
+			amount, err := DcrStringToAmount(vout.Amount.String())
 			if err != nil {
-				return false, err
+				return "", err
 			}
 
 			if amount < minimumAmount {
@@ -153,29 +155,25 @@ func verifyTxWithPrimaryBE(url string, address string, txid string,
 
 			for _, addr := range vout.ScriptPubkey.Addresses {
 				if address == addr {
-					return true, nil
+					return v.TxId, nil
 				}
 			}
 		}
 	}
 
-	return false, nil
+	return "", nil
 }
 
-func verifyTxWithBackupBE(url string, address string, txid string,
-	minimumAmount uint64, txnotbefore int64, minConfirmationsRequired uint64) (bool, error) {
+func fetchTxWithBackupBE(url string, address string, minimumAmount uint64, txnotbefore int64, minConfirmationsRequired uint64) (string, error) {
 	responseBody, err := makeRequest(url, 3)
 	if err != nil {
-		return false, err
+		return "", err
 	}
 
 	transactions := make([]BEBackupTransaction, 0)
 	json.Unmarshal(responseBody, &transactions)
 
 	for _, v := range transactions {
-		if v.TxId != txid {
-			continue
-		}
 		if v.Timestamp < txnotbefore {
 			continue
 		}
@@ -183,18 +181,18 @@ func verifyTxWithBackupBE(url string, address string, txid string,
 			continue
 		}
 
-		amount, err := dcrStringToAmount(v.Amount.String())
+		amount, err := DcrStringToAmount(v.Amount.String())
 		if err != nil {
-			return false, err
+			return "", err
 		}
 		if amount < minimumAmount {
 			continue
 		}
 
-		return true, nil
+		return v.TxId, nil
 	}
 
-	return false, nil
+	return "", nil
 }
 
 func getNetworkName(params *chaincfg.Params) string {
@@ -298,14 +296,15 @@ func PayWithTestnetFaucet(faucetURL string, address string, amount uint64, overr
 	return fr.Txid, nil
 }
 
-// VerifyTxWithBlockExplorers verifies that the passed transaction id is a valid
-// transaction that can be confirmed on a public block explorer.
-func VerifyTxWithBlockExplorers(address string, amount uint64, txid string, txnotbefore int64, minConfirmations uint64) (confirmed bool, err error) {
+// FetchTxWithBlockExplorers uses public block explorers to look for a
+// transaction for the given address that equals or exceeds the given amount,
+// occurs after the txnotbefore time and has the minimum number of confirmations.
+func FetchTxWithBlockExplorers(address string, amount uint64, txnotbefore int64, minConfirmations uint64) (string, error) {
 	// pre-validate that the passed address, amount, and tx are at least
 	// somewhat valid before querying the explorers
 	addr, err := dcrutil.DecodeAddress(address)
 	if err != nil {
-		return false, fmt.Errorf("invalid address %v: %v", addr, err)
+		return "", fmt.Errorf("invalid address %v: %v", addr, err)
 	}
 
 	var (
@@ -322,17 +321,23 @@ func VerifyTxWithBlockExplorers(address string, amount uint64, txid string, txno
 		primaryURL = "https://testnet.dcrdata.org/api/address/" + address + "/raw"
 		backupURL = "https://testnet.decred.org/api/addr/" + address + "/utxo?noCache=1"
 	} else {
-		return false, fmt.Errorf("unsupported network %v", network)
+		return "", fmt.Errorf("unsupported network %v", network)
 	}
 
 	// Try the primary (dcrdata) first.
-	verified, err := verifyTxWithPrimaryBE(primaryURL, address, txid, amount, txnotbefore, minConfirmations)
+	tx, err := fetchTxWithPrimaryBE(primaryURL, address, amount, txnotbefore, minConfirmations)
 	if err != nil {
 		log.Printf("failed to fetch from dcrdata: %v", err)
 	} else {
-		return verified, nil
+		return tx, nil
 	}
 
 	// Try the backup (insight).
-	return verifyTxWithBackupBE(backupURL, address, txid, amount, txnotbefore, minConfirmations)
+	tx, err = fetchTxWithBackupBE(backupURL, address, amount, txnotbefore, minConfirmations)
+	if err != nil {
+		log.Printf("failed to fetch from insight: %v", err)
+		return "", ErrCannotVerifyPayment
+	}
+
+	return tx, nil
 }

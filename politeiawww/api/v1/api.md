@@ -14,7 +14,7 @@ API.  It does not render HTML.
 - [`Me`](#me)
 - [`Login`](#login)
 - [`Logout`](#logout)
-- [`Verify user payment tx`](#verify-user-payment-tx)
+- [`Verify user payment`](#verify-user-payment)
 - [`Update user key`](#update-user-key)
 - [`Verify update user key`](#verify-update-user-key)
 - [`Change username`](#change-username)
@@ -75,6 +75,7 @@ API.  It does not render HTML.
 - [`ErrorStatusMalformedUsername`](#ErrorStatusMalformedUsername)
 - [`ErrorStatusDuplicateUsername`](#ErrorStatusDuplicateUsername)
 - [`ErrorStatusVerificationTokenUnexpired`](#ErrorStatusVerificationTokenUnexpired)
+- [`ErrorStatusCannotVerifyPayment`](#ErrorStatusCannotVerifyPayment)
 
 
 **Proposal status codes**
@@ -353,33 +354,30 @@ Reply:
 {}
 ```
 
-### `Verify user payment tx`
+### `Verify user payment`
 
-Checks that a user has paid his user registration fee by verifying the given
-transaction on the blockchain.
+Checks that a user has paid his user registration fee.
 
-**Route:** `GET /v1/user/verifypaymenttx`
+**Route:** `GET /v1/user/verifypayment`
 
-**Params:**
-
-| Parameter | Type | Description | Required |
-|-|-|-|-|
-| txid | string | The id of the transaction on the blockchain that was sent to the `paywalladdress` (which is provided on [`New user`](#new-user) and the [`Login reply`](#login-reply). | Yes |
+**Params:** none
 
 **Results:**
 
 | Parameter | Type | Description |
 |-|-|-|
-| haspaid | boolean | Whether or not the transaction is verified. |
+| haspaid | boolean | Whether or not a transaction on the blockchain that was sent to the `paywalladdress` (which is provided on [`New user`](#new-user) and the [`Login reply`](#login-reply) could be found and verified. |
+
+On failure the call shall return `400 Bad Request` and one of the following
+error codes:
+- [`ErrorStatusCannotVerifyPayment`](#ErrorStatusCannotVerifyPayment)
 
 **Example**
 
 Request:
 
-The request params should be provided within the URL:
-
 ```
-/v1/user/verifypaymenttx?txid=11b0693e68d6e129f0f1898e57b121c3ac323c2bcb94ad9d8da2c15cf935bbc5
+/v1/user/verifypayment
 ```
 
 Reply:
@@ -574,7 +572,7 @@ Allows a user to reset his password without being logged in.
 | verificationtoken | string | The verification token which is sent to the user's email address. | Yes |
 | newpassword | String | The new password for the user. | Yes |
 
-**Results:** 
+**Results:**
 
 | Parameter | Type | Description |
 |-|-|-|
@@ -856,7 +854,7 @@ SHALL observe.
 
 **Params:** none
 
-**Results:** 
+**Results:**
 
 | | Type | Description |
 |-|-|-|
@@ -912,7 +910,7 @@ Reply:
   "maxcommentlength": 8000,
   "backendpublickey": "",
   "minproposalnamelength": 8,
-  "maxproposalnamelength": 80  
+  "maxproposalnamelength": 80
 }
 ```
 
@@ -932,7 +930,7 @@ call requires admin privileges.
 | signature | string | Signature of token+string(status). | Yes |
 | publickey | string | Public key from the client side, sent to politeiawww for verification | Yes |
 
-**Results:** 
+**Results:**
 
 | Parameter | Type | Description |
 |-|-|-|-|
@@ -984,7 +982,7 @@ Retrieve proposal and its details.
 
 **Routes:** `GET /v1/proposals/{token}`
 
-**Params:** 
+**Params:**
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
@@ -1732,6 +1730,7 @@ Reply:
 | <a name="ErrorStatusMalformedUsername">ErrorStatusMalformedUsername</a> | 32 | The provided username was malformed. |
 | <a name="ErrorStatusDuplicateUsername">ErrorStatusDuplicateUsername</a> | 33 | The provided username was a duplicate of another username. |
 | <a name="ErrorStatusVerificationTokenUnexpired">ErrorStatusVerificationTokenUnexpired</a> | 34 | A verification token has already been generated and hasn't expired yet. |
+| <a name="ErrorStatusCannotVerifyPayment">ErrorStatusCannotVerifyPayment</a> | 35 | The server cannot verify the payment at this time, please try again later. |
 
 
 ### Proposal status codes

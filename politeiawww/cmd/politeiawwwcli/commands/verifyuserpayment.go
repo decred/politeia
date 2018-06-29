@@ -1,12 +1,8 @@
 package commands
 
-type VerifyuserpaymentCmd struct {
-	Args struct {
-		Txid string `positional-arg-name:"txid" description:"The id of the transaction on the blockchain that was sent to the paywall address"`
-	} `positional-args:"true" required:"true"`
-}
+type VerifyuserpaymentCmd struct{}
 
 func (cmd *VerifyuserpaymentCmd) Execute(args []string) error {
-	_, err := Ctx.VerifyUserPaymentTx(cmd.Args.Txid)
+	_, err := Ctx.VerifyUserPayment()
 	return err
 }

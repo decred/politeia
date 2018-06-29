@@ -769,20 +769,18 @@ func (c *Ctx) CreateNewKey(email string) (*identity.FullIdentity, error) {
 	return id, nil
 }
 
-func (c *Ctx) VerifyUserPaymentTx(txid string) (*v1.VerifyUserPaymentTxReply,
+func (c *Ctx) VerifyUserPayment() (*v1.VerifyUserPaymentReply,
 	error) {
-	v := v1.VerifyUserPaymentTx{
-		TxId: txid,
-	}
-	responseBody, err := c.makeRequest("GET", v1.RouteVerifyUserPaymentTx, v)
+	v := v1.VerifyUserPayment{}
+	responseBody, err := c.makeRequest("GET", v1.RouteVerifyUserPayment, v)
 	if err != nil {
 		return nil, err
 	}
 
-	var vr v1.VerifyUserPaymentTxReply
+	var vr v1.VerifyUserPaymentReply
 	err = json.Unmarshal(responseBody, &vr)
 	if err != nil {
-		return nil, fmt.Errorf("Could not unmarshal VerifyUserPaymentTxReply: %v",
+		return nil, fmt.Errorf("Could not unmarshal VerifyUserPaymentReply: %v",
 			err)
 	}
 

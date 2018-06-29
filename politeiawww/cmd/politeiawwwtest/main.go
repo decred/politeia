@@ -243,7 +243,7 @@ func main() {
 		ticker := time.NewTicker(time.Second * timeToPoll)
 
 		for range ticker.C {
-			verifyUserPaid, err := c.VerifyUserPaymentTx(faucetTx)
+			verifyUserPaid, err := c.VerifyUserPayment()
 			handleError(err)
 			fmt.Printf("Waiting for confirmations...\n")
 			if verifyUserPaid.HasPaid {

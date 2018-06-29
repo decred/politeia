@@ -455,7 +455,7 @@ func createUser(c *ctx) (*UserCredentials, error) {
 	ticker := time.NewTicker(time.Second * timeToPoll)
 
 	for range ticker.C {
-		verifyUserPaid, err := c.verifyUserPaymentTx(id, token, faucetTx)
+		verifyUserPaid, err := c.verifyUserPayment(id, token)
 		if err != nil {
 			return nil, fmt.Errorf("ERR: %v", err)
 		}
@@ -589,14 +589,14 @@ func _main() error {
 		return err
 	}
 
-	// From here we need to have -use-paywall setted as true
+	// From here we need to have -use-paywall set to true
 	// and wait for paywall Confirmations
 
 	if *usePaywall {
 		ticker := time.NewTicker(time.Second * timeToPoll)
 
 		for range ticker.C {
-			verifyUserPaid, err := c.verifyUserPaymentTx(id, token, faucetTx)
+			verifyUserPaid, err := c.verifyUserPayment(id, token)
 			if err != nil {
 				return fmt.Errorf("ERR: %v", err)
 			}
