@@ -129,6 +129,7 @@ const (
 	ErrorStatusDuplicateUsername           ErrorStatusT = 33
 	ErrorStatusVerificationTokenUnexpired  ErrorStatusT = 34
 	ErrorStatusCannotVerifyPayment         ErrorStatusT = 35
+	ErrorStatusDuplicatePublicKey          ErrorStatusT = 36
 
 	// Proposal status codes (set and get)
 	PropStatusInvalid     PropStatusT = 0 // Invalid status
@@ -204,6 +205,7 @@ var (
 		ErrorStatusDuplicateUsername:           "duplicate username",
 		ErrorStatusVerificationTokenUnexpired:  "verification token not yet expired",
 		ErrorStatusCannotVerifyPayment:         "cannot verify payment at this time",
+		ErrorStatusDuplicatePublicKey:          "public key already taken by another user",
 	}
 
 	// PropVoteStatus converts votes status codes to human readable text

@@ -491,6 +491,38 @@ func (b *backend) validatePassword(password string) error {
 	return nil
 }
 
+func (b *backend) validatePubkey(publicKey string) ([]byte, error) {
+	pk, err := hex.DecodeString(publicKey)
+	if err != nil {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidPublicKey,
+		}
+	}
+
+	var emptyPK [identity.PublicKeySize]byte
+	if len(pk) != len(emptyPK) ||
+		bytes.Equal(pk, emptyPK[:]) {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidPublicKey,
+		}
+	}
+
+	return pk, nil
+}
+
+func (b *backend) validatePubkeyIsUnique(publicKey string) error {
+	b.RLock()
+	_, ok := b.userPubkeys[publicKey]
+	b.RUnlock()
+	if ok {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusDuplicatePublicKey,
+		}
+	}
+
+	return nil
+}
+
 func (b *backend) validateProposal(np www.NewProposal, user *database.User) error {
 	log.Tracef("validateProposal")
 
@@ -822,18 +854,9 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 	// XXX this function really needs to be cleaned up.
 
 	// Ensure we got a proper pubkey.
-	var emptyPK [identity.PublicKeySize]byte
-	pk, err := hex.DecodeString(u.PublicKey)
+	pk, err := b.validatePubkey(u.PublicKey)
 	if err != nil {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusInvalidPublicKey,
-		}
-	}
-	if len(pk) != len(emptyPK) ||
-		bytes.Equal(pk, emptyPK[:]) {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusInvalidPublicKey,
-		}
+		return nil, err
 	}
 
 	// Check if the user already exists.
@@ -870,6 +893,12 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 
 		// Validate the password.
 		err = b.validatePassword(u.Password)
+		if err != nil {
+			return nil, err
+		}
+
+		// Validate that the pubkey isn't already taken.
+		err = b.validatePubkeyIsUnique(u.PublicKey)
 		if err != nil {
 			return nil, err
 		}
@@ -1035,19 +1064,16 @@ func (b *backend) ProcessUpdateUserKey(user *database.User, u www.UpdateUserKey)
 	var token []byte
 	var expiry int64
 
-	// Ensure we have a proper pubkey.
-	var emptyPK [identity.PublicKeySize]byte
-	pk, err := hex.DecodeString(u.PublicKey)
+	// Ensure we got a proper pubkey.
+	pk, err := b.validatePubkey(u.PublicKey)
 	if err != nil {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusInvalidPublicKey,
-		}
+		return nil, err
 	}
-	if len(pk) != len(emptyPK) ||
-		bytes.Equal(pk, emptyPK[:]) {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusInvalidPublicKey,
-		}
+
+	// Validate that the pubkey isn't already taken.
+	err = b.validatePubkeyIsUnique(u.PublicKey)
+	if err != nil {
+		return nil, err
 	}
 
 	// Check if the verification token hasn't expired yet.

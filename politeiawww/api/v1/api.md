@@ -76,6 +76,7 @@ API.  It does not render HTML.
 - [`ErrorStatusDuplicateUsername`](#ErrorStatusDuplicateUsername)
 - [`ErrorStatusVerificationTokenUnexpired`](#ErrorStatusVerificationTokenUnexpired)
 - [`ErrorStatusCannotVerifyPayment`](#ErrorStatusCannotVerifyPayment)
+- [`ErrorStatusDuplicatePublicKey`](#ErrorStatusDuplicatePublicKey)
 
 
 **Proposal status codes**
@@ -211,6 +212,8 @@ This call can return one of the following error codes:
 - [`ErrorStatusMalformedUsername`](#ErrorStatusMalformedUsername)
 - [`ErrorStatusDuplicateUsername`](#ErrorStatusDuplicateUsername)
 - [`ErrorStatusMalformedPassword`](#ErrorStatusMalformedPassword)
+- [`ErrorStatusInvalidPublicKey`](#ErrorStatusInvalidPublicKey)
+- [`ErrorStatusDuplicatePublicKey`](#ErrorStatusDuplicatePublicKey)
 
 The email shall include a link in the following format:
 
@@ -1498,17 +1501,17 @@ Returns the vote status for a single public proposal
 
 
 **Proposal vote status map:**
-| status | value | 
+| status | value |
 |-|-|
-| Vote status invalid | 0 | 
-| Vote status not started | 1 | 
+| Vote status invalid | 0 |
+| Vote status not started | 1 |
 | Vote status started | 2 |
 | Vote status finished | 3 |
 | Vote status doesn't exist | 4 |
 
 **Example:**
 
-Request: 
+Request:
 
 `GET /V1/proposals/b09dc5ac9d450b4d1ec6e8f80c763771f29413a5d1bf287054fc00c52ccc87c9/votestatus`
 
@@ -1669,7 +1672,7 @@ Retrieve the comment votes for the current logged in user given a proposal token
 
 **Example:**
 
-Request: 
+Request:
 Path: `v1/user/proposals/8a11057fb910564a7d2506430505c3991f59e35f8a7757b8000a032505b254d8/commentsvotes`
 
 Reply:
@@ -1728,9 +1731,10 @@ Reply:
 | <a name="ErrorStatusUserNotPaid">ErrorStatusUserNotPaid</a> | 30 | The user hasn't paid the registration fee. |
 | <a name="ErrorStatusReviewerAdminEqualsAuthor">ErrorStatusReviewerAdminEqualsAuthor</a> | 31 | The user cannot change the status of his own proposal. |
 | <a name="ErrorStatusMalformedUsername">ErrorStatusMalformedUsername</a> | 32 | The provided username was malformed. |
-| <a name="ErrorStatusDuplicateUsername">ErrorStatusDuplicateUsername</a> | 33 | The provided username was a duplicate of another username. |
+| <a name="ErrorStatusDuplicateUsername">ErrorStatusDuplicateUsername</a> | 33 | The provided username is already taken by another user. |
 | <a name="ErrorStatusVerificationTokenUnexpired">ErrorStatusVerificationTokenUnexpired</a> | 34 | A verification token has already been generated and hasn't expired yet. |
 | <a name="ErrorStatusCannotVerifyPayment">ErrorStatusCannotVerifyPayment</a> | 35 | The server cannot verify the payment at this time, please try again later. |
+| <a name="ErrorStatusDuplicatePublicKey">ErrorStatusDuplicatePublicKey</a> | 36 | The public key provided is already taken by another user. |
 
 
 ### Proposal status codes
