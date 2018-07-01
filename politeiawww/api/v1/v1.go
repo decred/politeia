@@ -17,6 +17,7 @@ const (
 	RouteUserMe              = "/user/me"
 	RouteNewUser             = "/user/new"
 	RouteVerifyNewUser       = "/user/verify"
+	RouteResendVerification  = "/user/new/resend"
 	RouteUpdateUserKey       = "/user/key"
 	RouteVerifyUpdateUserKey = "/user/key/verify"
 	RouteChangeUsername      = "/user/username/change"
@@ -343,6 +344,17 @@ type VerifyNewUser struct {
 
 // VerifyNewUserReply
 type VerifyNewUserReply struct{}
+
+// ResendVerification is used to resent a new user verification email.
+type ResendVerification struct {
+	Email     string `json:"email"`
+	PublicKey string `json:"publickey"`
+}
+
+// ResendVerificationReply is used to reply to the ResendVerification command.
+type ResendVerificationReply struct {
+	VerificationToken string `json:"verificationtoken"` // Server verification token
+}
 
 // UpdateUserKey is used to request a new active key.
 type UpdateUserKey struct {

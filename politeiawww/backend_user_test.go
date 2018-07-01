@@ -125,7 +125,7 @@ func assertErrorWithContext(t *testing.T, err error, expectedStatus www.ErrorSta
 			t.Fatalf("unexpected error: %v\n\n%s", err, debug.Stack())
 		}
 	} else {
-		t.Fatalf("expected error with code %v\n\n%s", expectedStatus, debug.Stack())
+		t.Fatalf("expected error with code %v, was %v\n\n%s", expectedStatus, err, debug.Stack())
 	}
 }
 
@@ -193,9 +193,15 @@ func TestProcessNewUserWithNoPublicKey(t *testing.T) {
 func TestProcessNewUserWithDuplicatePublicKey(t *testing.T) {
 	b := createBackend(t)
 
+	b.verificationExpiryTime = time.Duration(100) * time.Nanosecond
+	const sleepTime = time.Duration(2) * time.Second
+
 	nu, _ := createNewUserCommandWithIdentity(t)
 	_, err := b.ProcessNewUser(nu)
 	assertSuccess(t, err)
+
+	// Sleep for a longer amount of time than it takes for the verification token to expire.
+	time.Sleep(sleepTime)
 
 	nu2 := www.NewUser{
 		Email:     generateRandomEmail(),
@@ -341,6 +347,73 @@ func TestProcessVerifyNewUserWithInvalidToken(t *testing.T) {
 
 	_, err = b.ProcessVerifyNewUser(vu)
 	assertError(t, err, www.ErrorStatusVerificationTokenInvalid)
+
+	b.db.Close()
+}
+
+// Tests that a new, valid verification token is sent via the
+// resend verification command.
+func TestResendVerificationWithExpiredToken(t *testing.T) {
+	b := createBackend(t)
+
+	b.verificationExpiryTime = time.Duration(100) * time.Nanosecond
+	const sleepTime = time.Duration(2) * time.Second
+
+	nu, id := createNewUserCommandWithIdentity(t)
+	_, err := b.ProcessNewUser(nu)
+	assertSuccess(t, err)
+
+	// Sleep for a longer amount of time than it takes for the verification token to expire.
+	time.Sleep(sleepTime)
+
+	rv := www.ResendVerification{
+		Email:     nu.Email,
+		PublicKey: nu.PublicKey,
+	}
+	rvr, err := b.ProcessResendVerification(&rv)
+	assertSuccess(t, err)
+
+	bytes, err := hex.DecodeString(rvr.VerificationToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(bytes[:]) != www.VerificationTokenSize {
+		t.Fatalf("token length was %v, expected %v", len(bytes[:]),
+			www.VerificationTokenSize)
+	}
+
+	signature := id.SignMessage([]byte(rvr.VerificationToken))
+	v := www.VerifyNewUser{
+		Email:             strings.ToUpper(nu.Email),
+		VerificationToken: rvr.VerificationToken,
+		Signature:         hex.EncodeToString(signature[:]),
+	}
+	_, err = b.ProcessVerifyNewUser(v)
+	assertSuccess(t, err)
+
+	b.db.Close()
+}
+
+// Tests that the verification token is NOT sent when the user tries
+// to execute the resend verification command with an unexpired token.
+func TestResendVerificationWithUnexpiredToken(t *testing.T) {
+	b := createBackend(t)
+
+	nu, _ := createNewUserCommandWithIdentity(t)
+	_, err := b.ProcessNewUser(nu)
+	assertSuccess(t, err)
+
+	rv := www.ResendVerification{
+		Email:     nu.Email,
+		PublicKey: nu.PublicKey,
+	}
+	rvr, err := b.ProcessResendVerification(&rv)
+	assertSuccess(t, err)
+
+	if rvr.VerificationToken != "" {
+		t.Fatalf("verificationtoken is incorrectly populated")
+	}
 
 	b.db.Close()
 }

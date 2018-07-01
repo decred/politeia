@@ -11,6 +11,7 @@ API.  It does not render HTML.
 - [`Version`](#version)
 - [`New user`](#new-user)
 - [`Verify user`](#verify-user)
+- [`Resend verification`](#resend-verification)
 - [`Me`](#me)
 - [`Login`](#login)
 - [`Logout`](#logout)
@@ -286,6 +287,59 @@ Reply:
 
 ```json
 {}
+```
+
+### `Resend verification`
+
+Sends another verification email for a new user registration.
+
+**Route:** `POST /v1/user/new/resend`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| email | string | Email address which was used to sign up. | Yes |
+| publickey | string | User ed25519 public key. This can be the same key used to sign up or a new one. | Yes |
+
+**Results:**
+
+| Parameter | Type | Description |
+|-|-|-|
+| verificationtoken | String | The verification token which is required when calling [Verify user](#verify-user). If an email server is set up, this property will be empty or nonexistent; the token will be sent to the email address sent in the request.|
+
+This call can return one of the following error codes:
+
+- [`ErrorStatusInvalidPublicKey`](#ErrorStatusInvalidPublicKey)
+- [`ErrorStatusDuplicatePublicKey`](#ErrorStatusDuplicatePublicKey)
+
+The email shall include a link in the following format:
+
+```
+/user/verify?email=69af376cca42cd9c@example.com&verificationtoken=fc8f660e7f4d590e27e6b11639ceeaaec2ce9bc6b0303344555ac023ab8ee55f
+```
+
+The call may return `500 Internal Server Error` which is accompanied by
+an error code that allows the server operator to correlate issues with user
+reports.
+
+* **Example**
+
+Request:
+
+```json
+{
+  "email": "69af376cca42cd9c@example.com",
+  "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b"
+}
+```
+
+Reply:
+
+```json
+{
+  "verificationtoken": "fc8f660e7f4d590e27e6b11639ceeaaec2ce9bc6b0303344555ac023ab8ee55f"
+}
 ```
 
 ### `Login`

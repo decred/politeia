@@ -256,8 +256,19 @@ func (b *backend) setUserPubkeyAssociaton(user *database.User, publicKey string)
 	b.Lock()
 	defer b.Unlock()
 
-	userId := strconv.FormatUint(user.ID, 10)
-	b.userPubkeys[publicKey] = userId
+	userID := strconv.FormatUint(user.ID, 10)
+	b.userPubkeys[publicKey] = userID
+}
+
+// removeUserPubkeyAssociaton removes a public key from the
+// userPubkeys cache.
+//
+// This function must be called WITHOUT the lock held.
+func (b *backend) removeUserPubkeyAssociaton(user *database.User, publicKey string) {
+	b.Lock()
+	defer b.Unlock()
+
+	delete(b.userPubkeys, publicKey)
 }
 
 // emailNewUserVerificationLink emails the link with the new user verification token
@@ -452,7 +463,7 @@ func (b *backend) remoteInventory() (*pd.InventoryReply, error) {
 	return &ir, nil
 }
 
-func (b *backend) validateUsername(username string) error {
+func (b *backend) validateUsername(username string, userToMatch *database.User) error {
 	if len(username) < www.PolicyMinUsernameLength ||
 		len(username) > www.PolicyMaxUsernameLength {
 		log.Tracef("Username not within bounds: %s", username)
@@ -473,8 +484,10 @@ func (b *backend) validateUsername(username string) error {
 		return err
 	}
 	if user != nil {
-		return www.UserError{
-			ErrorCode: www.ErrorStatusDuplicateUsername,
+		if userToMatch == nil || user.ID != userToMatch.ID {
+			return www.UserError{
+				ErrorCode: www.ErrorStatusDuplicateUsername,
+			}
 		}
 	}
 
@@ -510,17 +523,27 @@ func (b *backend) validatePubkey(publicKey string) ([]byte, error) {
 	return pk, nil
 }
 
-func (b *backend) validatePubkeyIsUnique(publicKey string) error {
+func (b *backend) validatePubkeyIsUnique(publicKey string, user *database.User) error {
 	b.RLock()
-	_, ok := b.userPubkeys[publicKey]
+	userIDStr, ok := b.userPubkeys[publicKey]
 	b.RUnlock()
-	if ok {
-		return www.UserError{
-			ErrorCode: www.ErrorStatusDuplicatePublicKey,
-		}
+
+	if !ok {
+		return nil
 	}
 
-	return nil
+	userID, err := strconv.ParseUint(userIDStr, 10, 64)
+	if err != nil {
+		return err
+	}
+
+	if user != nil && user.ID == userID {
+		return nil
+	}
+
+	return www.UserError{
+		ErrorCode: www.ErrorStatusDuplicatePublicKey,
+	}
 }
 
 func (b *backend) validateProposal(np www.NewProposal, user *database.User) error {
@@ -669,10 +692,18 @@ func (b *backend) validateProposal(np www.NewProposal, user *database.User) erro
 	return nil
 }
 
+func (b *backend) setNewUserVerificationAndIdentity(user *database.User, token []byte, expiry int64, pk []byte) {
+	user.NewUserVerificationToken = token
+	user.NewUserVerificationExpiry = expiry
+	user.Identities = []database.Identity{{
+		Activated: time.Now().Unix(),
+	}}
+	copy(user.Identities[0].Key[:], pk)
+}
+
 func (b *backend) emailResetPassword(user *database.User, rp www.ResetPassword, rpr *www.ResetPasswordReply) error {
 	if user.ResetPasswordVerificationToken != nil {
-		currentTime := time.Now().Unix()
-		if currentTime < user.ResetPasswordVerificationExpiry {
+		if user.ResetPasswordVerificationExpiry > time.Now().Unix() {
 			// The verification token is present and hasn't expired, so do nothing.
 			return nil
 		}
@@ -727,8 +758,7 @@ func (b *backend) verifyResetPassword(user *database.User, rp www.ResetPassword,
 	}
 
 	// Check that the token hasn't expired.
-	currentTime := time.Now().Unix()
-	if currentTime > user.ResetPasswordVerificationExpiry {
+	if user.ResetPasswordVerificationExpiry < time.Now().Unix() {
 		return www.UserError{
 			ErrorCode: www.ErrorStatusVerificationTokenExpired,
 		}
@@ -847,11 +877,24 @@ func (b *backend) LoadInventory() error {
 // Note that this function always returns a NewUserReply.  The caller shall
 // verify error and determine how to return this information upstream.
 func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
-	var reply www.NewUserReply
-	var token []byte
-	var expiry int64
+	var (
+		reply  www.NewUserReply
+		token  []byte
+		expiry int64
+	)
 
-	// XXX this function really needs to be cleaned up.
+	existingUser, err := b.db.UserGet(u.Email)
+	if err == nil {
+		// Check if the user is already verified.
+		if existingUser.NewUserVerificationToken == nil {
+			return &reply, nil
+		}
+
+		// Check if the verification token hasn't expired yet.
+		if existingUser.NewUserVerificationExpiry > time.Now().Unix() {
+			return &reply, nil
+		}
+	}
 
 	// Ensure we got a proper pubkey.
 	pk, err := b.validatePubkey(u.PublicKey)
@@ -859,117 +902,103 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 		return nil, err
 	}
 
-	// Check if the user already exists.
-	if user, err := b.db.UserGet(u.Email); err == nil {
-		// Check if the user is already verified.
-		if user.NewUserVerificationToken == nil {
-			return &reply, nil
-		}
-
-		// Check if the verification token hasn't expired yet.
-		if currentTime := time.Now().Unix(); currentTime < user.NewUserVerificationExpiry {
-			return &reply, nil
-		}
-
-		// Generate a new verification token and expiry.
-		token, expiry, err = b.generateVerificationTokenAndExpiry()
-		if err != nil {
-			return nil, err
-		}
-
-		// Add the updated user information to the db.
-		user.NewUserVerificationToken = token
-		user.NewUserVerificationExpiry = expiry
-		err = b.db.UserUpdate(*user)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		// Validate the username.
-		err = b.validateUsername(u.Username)
-		if err != nil {
-			return nil, err
-		}
-
-		// Validate the password.
-		err = b.validatePassword(u.Password)
-		if err != nil {
-			return nil, err
-		}
-
-		// Validate that the pubkey isn't already taken.
-		err = b.validatePubkeyIsUnique(u.PublicKey)
-		if err != nil {
-			return nil, err
-		}
-
-		// Hash the user's password.
-		hashedPassword, err := b.hashPassword(u.Password)
-		if err != nil {
-			return nil, err
-		}
-
-		// Generate the verification token and expiry.
-		token, expiry, err = b.generateVerificationTokenAndExpiry()
-		if err != nil {
-			return nil, err
-		}
-
-		// Add the user and hashed password to the db.
-		newUser := database.User{
-			Email:          strings.ToLower(u.Email),
-			Username:       u.Username,
-			HashedPassword: hashedPassword,
-			Admin:          false,
-			NewUserVerificationToken:  token,
-			NewUserVerificationExpiry: expiry,
-			Identities: []database.Identity{{
-				Activated: time.Now().Unix(),
-			}},
-		}
-		copy(newUser.Identities[0].Key[:], pk)
-
-		err = b.db.UserNew(newUser)
-		if err != nil {
-			if err == database.ErrInvalidEmail {
-				return nil, www.UserError{
-					ErrorCode: www.ErrorStatusMalformedEmail,
-				}
-			}
-
-			return nil, err
-		}
-
-		// Get user that we just inserted so we can use their numerical user
-		// ID (N) to derive the Nth paywall address from the paywall extended
-		// public key.
-		user, err := b.db.UserGet(u.Email)
-		if err != nil {
-			return nil, fmt.Errorf("Unable to retrieve account info for %v: %v",
-				u.Email, err)
-		}
-
-		// Associate the user id with the new public key.
-		b.setUserPubkeyAssociaton(user, u.PublicKey)
-
-		// Derive paywall information for this user if the paywall is enabled.
-		err = b.GenerateNewUserPaywall(user)
-		if err != nil {
-			return nil, err
-		}
-
-		reply.PaywallAddress = user.NewUserPaywallAddress
-		reply.PaywallAmount = user.NewUserPaywallAmount
-		reply.PaywallTxNotBefore = user.NewUserPaywallTxNotBefore
+	// Validate the username.
+	err = b.validateUsername(u.Username, existingUser)
+	if err != nil {
+		return nil, err
 	}
 
+	// Validate the password.
+	err = b.validatePassword(u.Password)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate that the pubkey isn't already taken.
+	err = b.validatePubkeyIsUnique(u.PublicKey, existingUser)
+	if err != nil {
+		return nil, err
+	}
+
+	// Hash the user's password.
+	hashedPassword, err := b.hashPassword(u.Password)
+	if err != nil {
+		return nil, err
+	}
+
+	// Generate the verification token and expiry.
+	token, expiry, err = b.generateVerificationTokenAndExpiry()
+	if err != nil {
+		return nil, err
+	}
+
+	// Create a new database user with the provided information.
+	newUser := database.User{
+		Email:          strings.ToLower(u.Email),
+		Username:       u.Username,
+		HashedPassword: hashedPassword,
+		Admin:          false,
+	}
+	b.setNewUserVerificationAndIdentity(&newUser, token, expiry, pk)
+
 	if !b.test {
+		// Try to email the verification link first; if it fails, then
+		// the new user won't be created.
+		//
 		// This is conditional on the email server being setup.
 		err := b.emailNewUserVerificationLink(u.Email, hex.EncodeToString(token))
 		if err != nil {
 			return nil, err
 		}
 	}
+
+	// Check if the user already exists.
+	if existingUser != nil {
+		existingPublicKey := hex.EncodeToString(existingUser.Identities[0].Key[:])
+		b.removeUserPubkeyAssociaton(existingUser, existingPublicKey)
+
+		// Update the user in the db.
+		newUser.ID = existingUser.ID
+		err = b.db.UserUpdate(newUser)
+	} else {
+		// Save the new user in the db.
+		err = b.db.UserNew(newUser)
+	}
+
+	// Error handling for the db write.
+	if err != nil {
+		if err == database.ErrInvalidEmail {
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusMalformedEmail,
+			}
+		}
+
+		return nil, err
+	}
+
+	if existingUser == nil {
+		// Get user that we just inserted so we can use their numerical user
+		// ID (N) to derive the Nth paywall address from the paywall extended
+		// public key.
+		existingUser, err = b.db.UserGet(newUser.Email)
+		if err != nil {
+			return nil, fmt.Errorf("unable to retrieve account info for %v: %v",
+				newUser.Email, err)
+		}
+	}
+
+	// Associate the user id with the new public key.
+	b.setUserPubkeyAssociaton(existingUser, u.PublicKey)
+
+	// Derive paywall information for this user if the paywall is enabled.
+	err = b.GenerateNewUserPaywall(existingUser)
+	if err != nil {
+		return nil, err
+	}
+
+	reply.PaywallAddress = existingUser.NewUserPaywallAddress
+	reply.PaywallAmount = existingUser.NewUserPaywallAmount
+	reply.PaywallTxNotBefore = existingUser.NewUserPaywallTxNotBefore
 
 	// Only set the token if email verification is disabled.
 	if b.cfg.SMTP == nil {
@@ -1009,7 +1038,7 @@ func (b *backend) ProcessVerifyNewUser(u www.VerifyNewUser) (*database.User, err
 	}
 
 	// Check that the token hasn't expired.
-	if currentTime := time.Now().Unix(); currentTime > user.NewUserVerificationExpiry {
+	if time.Now().Unix() > user.NewUserVerificationExpiry {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusVerificationTokenExpired,
 		}
@@ -1056,6 +1085,79 @@ func (b *backend) ProcessVerifyNewUser(u www.VerifyNewUser) (*database.User, err
 	return user, nil
 }
 
+// ProcessResendVerification resends a new user verification email if the
+// user exists and his verification token is expired.
+func (b *backend) ProcessResendVerification(rv *v1.ResendVerification) (*v1.ResendVerificationReply, error) {
+	rvr := v1.ResendVerificationReply{}
+
+	// Get user from db.
+	user, err := b.db.UserGet(rv.Email)
+	if err != nil {
+		if err == database.ErrUserNotFound {
+			return &rvr, nil
+		}
+		return nil, err
+	}
+
+	// Don't do anything if the user is already verified or the token hasn't
+	// expired yet.
+	if user.NewUserVerificationToken == nil {
+		return &rvr, nil
+	}
+
+	if user.NewUserVerificationExpiry > time.Now().Unix() {
+		return &rvr, nil
+	}
+
+	// Ensure we got a proper pubkey.
+	pk, err := b.validatePubkey(rv.PublicKey)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate that the pubkey isn't already taken.
+	err = b.validatePubkeyIsUnique(rv.PublicKey, user)
+	if err != nil {
+		return nil, err
+	}
+
+	// Generate the verification token and expiry.
+	token, expiry, err := b.generateVerificationTokenAndExpiry()
+	if err != nil {
+		return nil, err
+	}
+
+	// Remove the original pubkey from the cache.
+	existingPublicKey := hex.EncodeToString(user.Identities[0].Key[:])
+	b.removeUserPubkeyAssociaton(user, existingPublicKey)
+
+	// Set a new verificaton token and identity.
+	b.setNewUserVerificationAndIdentity(user, token, expiry, pk)
+
+	// Associate the user id with the new identity.
+	b.setUserPubkeyAssociaton(user, rv.PublicKey)
+
+	// Update the user in the db.
+	err = b.db.UserUpdate(*user)
+	if err != nil {
+		return nil, err
+	}
+
+	if !b.test {
+		// This is conditional on the email server being setup.
+		err := b.emailNewUserVerificationLink(user.Email, hex.EncodeToString(token))
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Only set the token if email verification is disabled.
+	if b.cfg.SMTP == nil {
+		rvr.VerificationToken = hex.EncodeToString(token)
+	}
+	return &rvr, nil
+}
+
 // ProcessUpdateUserKey sets a verification token and expiry to allow the user to
 // update his key pair; the token must be verified before it expires. If the
 // token is already set and is expired, it generates a new one.
@@ -1071,15 +1173,14 @@ func (b *backend) ProcessUpdateUserKey(user *database.User, u www.UpdateUserKey)
 	}
 
 	// Validate that the pubkey isn't already taken.
-	err = b.validatePubkeyIsUnique(u.PublicKey)
+	err = b.validatePubkeyIsUnique(u.PublicKey, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	// Check if the verification token hasn't expired yet.
 	if user.UpdateKeyVerificationToken != nil {
-		currentTime := time.Now().Unix()
-		if currentTime < user.UpdateKeyVerificationExpiry {
+		if user.UpdateKeyVerificationExpiry > time.Now().Unix() {
 			return nil, www.UserError{
 				ErrorCode: www.ErrorStatusVerificationTokenUnexpired,
 				ErrorContext: []string{
@@ -1144,7 +1245,7 @@ func (b *backend) ProcessVerifyUpdateUserKey(user *database.User, vu www.VerifyU
 	}
 
 	// Check that the token hasn't expired.
-	if currentTime := time.Now().Unix(); currentTime > user.UpdateKeyVerificationExpiry {
+	if user.UpdateKeyVerificationExpiry < time.Now().Unix() {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusVerificationTokenExpired,
 		}
@@ -1247,7 +1348,7 @@ func (b *backend) ProcessChangeUsername(email string, cu www.ChangeUsername) (*w
 	}
 
 	// Validate the new username.
-	err = b.validateUsername(cu.NewUsername)
+	err = b.validateUsername(cu.NewUsername, nil)
 	if err != nil {
 		return nil, err
 	}
