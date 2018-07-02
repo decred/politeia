@@ -52,9 +52,14 @@ https://github.com/decred/politeiagui
 * `politeiad` and `politeiawww` both have configuration files that you should
 set up to make execution easier.
 * You should create the configuration files under the following path:
-  - **macOS** `/Users/<username>/Library/Application Support/Politeiad/politeiad.conf`
-  - **Windows** `C:\Users\<username>\AppData\Local\Politeiad/politeiad.conf`
-  - **Ubuntu** `~/.politeiad/politeiad.conf`
+  - **macOS**
+    `/Users/<username>/Library/Application Support/Politeiad/politeiad.conf`
+    `/Users/<username>/Library/Application Support/Politeiawww/politeiawww.conf`
+  - **Windows**
+    `C:\Users\<username>\AppData\Local\Politeiad/politeiad.conf`
+    `C:\Users\<username>\AppData\Local\Politeiawww/politeiawww.conf`
+  - **Ubuntu**
+    `~/.politeiawww/politeiawww.conf`
 
 * Copy and change the  [`sample-politeiawww.conf`](https://github.com/decred/politeia/blob/master/politeiawww/sample-politeiawww.conf)
 and [`sample-politeiad.conf`](https://github.com/decred/politeia/blob/master/politeiad/sample-politeiad.conf) files.
