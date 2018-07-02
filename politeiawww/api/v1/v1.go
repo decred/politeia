@@ -92,6 +92,9 @@ const (
 	// for the routes that return lists of proposals
 	ProposalListPageSize = 20
 
+	// PolicyMinCensorMessageLength is the min length of a censor message
+	PolicyMinCensorMessageLength = 8
+
 	// Error status codes
 	ErrorStatusInvalid                     ErrorStatusT = 0
 	ErrorStatusInvalidEmailOrPassword      ErrorStatusT = 1
@@ -129,6 +132,7 @@ const (
 	ErrorStatusDuplicateUsername           ErrorStatusT = 33
 	ErrorStatusVerificationTokenUnexpired  ErrorStatusT = 34
 	ErrorStatusCannotVerifyPayment         ErrorStatusT = 35
+	ErrorMalformedCensorMessage            ErrorStatusT = 36
 
 	// Proposal status codes (set and get)
 	PropStatusInvalid     PropStatusT = 0 // Invalid status
@@ -204,6 +208,7 @@ var (
 		ErrorStatusDuplicateUsername:           "duplicate username",
 		ErrorStatusVerificationTokenUnexpired:  "verification token not yet expired",
 		ErrorStatusCannotVerifyPayment:         "cannot verify payment at this time",
+		ErrorMalformedCensorMessage:            "invalid censor message",
 	}
 
 	// PropVoteStatus converts votes status codes to human readable text
@@ -242,6 +247,12 @@ type CensorshipRecord struct {
 	Signature string `json:"signature"` // Server side signature of []byte(Merkle+Token)
 }
 
+// StatusChangeProof contains the proof that a proposal was censored or approved
+type StatusChangeProof struct {
+	Message string `json:"message"` // Censor message from admin (if censored)
+	Receipt string `json:"receipt"` // Server side receipt of last status change
+}
+
 // ProposalRecord is an entire proposal and it's content.
 type ProposalRecord struct {
 	Name        string      `json:"name"`        // Suggested short proposal name
@@ -254,7 +265,8 @@ type ProposalRecord struct {
 	Files       []File      `json:"files"`       // Files that make up the proposal
 	NumComments uint        `json:"numcomments"` // Number of comments on the proposal
 
-	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
+	StatusChangeProof StatusChangeProof `json:"statuschangeproof"`
+	CensorshipRecord  CensorshipRecord  `json:"censorshiprecord"`
 }
 
 // UserError represents an error that is caused by something that the user
@@ -488,6 +500,7 @@ type SetProposalStatus struct {
 	ProposalStatus PropStatusT `json:"proposalstatus"`
 	Signature      string      `json:"signature"` // Signature of Token+string(ProposalStatus)
 	PublicKey      string      `json:"publickey"`
+	Message        string      `json:"message"` // Admin's message
 }
 
 // SetProposalStatusReply is used to reply to a SetProposalStatus command.
@@ -551,6 +564,7 @@ type PolicyReply struct {
 	ProposalNameSupportedChars []string `json:"proposalnamesupportedchars"`
 	MaxCommentLength           uint     `json:"maxcommentlength"`
 	BackendPublicKey           string   `json:"backendpublickey"`
+	MinCensorMessageLength     uint     `json:"mincensormessagelength"`
 }
 
 // VoteOption describes a single vote option.

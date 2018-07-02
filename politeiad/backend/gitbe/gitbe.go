@@ -1817,6 +1817,7 @@ func (g *gitBackEnd) setUnvettedStatus(token []byte, status backend.MDStatusT, m
 		if err != nil {
 			return nil, err
 		}
+		record.Metadata = mdAppend
 
 		// Commit brm
 		err = g.commitMD(g.unvetted, id, "censored")

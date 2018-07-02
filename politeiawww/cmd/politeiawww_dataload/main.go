@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/decred/dcrd/dcrutil"
+
 	"github.com/decred/politeia/politeiawww/api/v1"
 	cliconfig "github.com/decred/politeia/politeiawww/cmd/politeiawwwcli/config"
 	wwwconfig "github.com/decred/politeia/politeiawww/sharedconfig"
@@ -376,7 +377,7 @@ func createComment(parentID, token string) (string, error) {
 	return ncr.Comment.CommentID, nil
 }
 
-func setProposalStatus(token string, status v1.PropStatusT) error {
+func setProposalStatus(token string, status v1.PropStatusT, message string) error {
 	fmt.Printf("Setting proposal status to %v\n", status)
 
 	var spsr *v1.SetProposalStatusReply
@@ -390,7 +391,8 @@ func setProposalStatus(token string, status v1.PropStatusT) error {
 		},
 		"setproposalstatus",
 		token,
-		strconv.FormatInt(int64(status), 10))
+		strconv.FormatInt(int64(status), 10),
+		message)
 }
 
 func createProposals() error {
@@ -414,10 +416,10 @@ func createProposals() error {
 	if err := login(cfg.AdminEmail, cfg.AdminPass); err != nil {
 		return err
 	}
-	if err := setProposalStatus(publishedProposalToken, v1.PropStatusPublic); err != nil {
+	if err := setProposalStatus(publishedProposalToken, v1.PropStatusPublic, ""); err != nil {
 		return err
 	}
-	if err := setProposalStatus(censoredProposalToken, v1.PropStatusCensored); err != nil {
+	if err := setProposalStatus(censoredProposalToken, v1.PropStatusCensored, "not cool content"); err != nil {
 		return err
 	}
 	if err := logout(); err != nil {

@@ -253,6 +253,13 @@ func convertPropCensorFromPD(f pd.CensorshipRecord) www.CensorshipRecord {
 	}
 }
 
+func convertPropStatusChangeProofFromPD(f pd.StatusChangeProof) www.StatusChangeProof {
+	return www.StatusChangeProof{
+		Message: f.Message,
+		Receipt: f.Receipt,
+	}
+}
+
 func convertPropFromInventoryRecord(r *inventoryRecord, userPubkeys map[string]string) www.ProposalRecord {
 	proposal := convertPropFromPD(r.record)
 
@@ -277,6 +284,7 @@ func convertPropFromInventoryRecord(r *inventoryRecord, userPubkeys map[string]s
 
 func convertPropFromPD(p pd.Record) www.ProposalRecord {
 	md := &BackendProposalMetadata{}
+
 	for _, v := range p.Metadata {
 		if v.ID != mdStreamGeneral {
 			continue
@@ -291,13 +299,14 @@ func convertPropFromPD(p pd.Record) www.ProposalRecord {
 	}
 
 	return www.ProposalRecord{
-		Name:             md.Name,
-		Status:           convertPropStatusFromPD(p.Status),
-		Timestamp:        md.Timestamp,
-		PublicKey:        md.PublicKey,
-		Signature:        md.Signature,
-		Files:            convertPropFilesFromPD(p.Files),
-		CensorshipRecord: convertPropCensorFromPD(p.CensorshipRecord),
+		Name:              md.Name,
+		Status:            convertPropStatusFromPD(p.Status),
+		Timestamp:         md.Timestamp,
+		PublicKey:         md.PublicKey,
+		Signature:         md.Signature,
+		Files:             convertPropFilesFromPD(p.Files),
+		StatusChangeProof: convertPropStatusChangeProofFromPD(p.StatusChangeProof),
+		CensorshipRecord:  convertPropCensorFromPD(p.CensorshipRecord),
 	}
 }
 
