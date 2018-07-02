@@ -678,6 +678,45 @@ func (c *Ctx) CommentGet(token string) (*v1.GetCommentsReply, error) {
 	return &gcr, nil
 }
 
+func (c *Ctx) CommentVote(id *identity.FullIdentity, token, commentID,
+	action string) (*v1.LikeCommentReply, error) {
+	lcm := v1.LikeComment{
+		Token:     token,
+		CommentID: commentID,
+	}
+
+	switch action {
+	case "upvote":
+		lcm.Action = "1"
+	case "downvote":
+		lcm.Action = "-1"
+	}
+
+	// Sign token+commentid+action
+	act := []byte(lcm.Token + lcm.CommentID + lcm.Action)
+	sig := id.SignMessage(act)
+
+	lcm.Signature = hex.EncodeToString(sig[:])
+	lcm.PublicKey = hex.EncodeToString(id.Public.Key[:])
+
+	responseBody, err := c.makeRequest("POST", v1.RouteLikeComment, lcm)
+	if err != nil {
+		return nil, err
+	}
+
+	var lcr v1.LikeCommentReply
+	err = json.Unmarshal(responseBody, &lcr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal VoteComment: %v", err)
+	}
+
+	if config.Verbose {
+		prettyPrintJSON(lcr)
+	}
+
+	return &lcr, nil
+}
+
 func (c *Ctx) StartVote(id *identity.FullIdentity, token string) (
 	*v1.StartVoteReply, error) {
 	sv := v1.StartVote{

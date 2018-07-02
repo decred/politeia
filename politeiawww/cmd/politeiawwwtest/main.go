@@ -367,6 +367,8 @@ func main() {
 
 	// Run admin routes
 	if opts.Admin.Email != "" {
+		fmt.Printf("Starting Admin routes...\n")
+
 		adminEmail := opts.Admin.Email
 		adminPassword := opts.Admin.Password
 
@@ -530,6 +532,97 @@ func main() {
 		if _pr2.Proposal.NumComments != uint(len(gcr2.Comments)) {
 			err = fmt.Errorf("Expected %v comments, got %v", len(gcr2.Comments),
 				_pr2.Proposal.NumComments)
+			handleError(err)
+		}
+
+		//Upvote first comment of prop1
+		lcr, err := c.CommentVote(id, prop1.CensorshipRecord.Token, gcr.Comments[0].CommentID,
+			"upvote")
+		handleError(err)
+		if lcr.Total != 1 {
+			err = fmt.Errorf("Expected total: 1, got %v", lcr.Total)
+			handleError(err)
+		}
+		if lcr.Result != 1 {
+			err = fmt.Errorf("Expected result: 1, got %v", lcr.Result)
+			handleError(err)
+		}
+
+		//Unset vote on first comment of prop1 by upvoting it again
+		lcr, err = c.CommentVote(id, prop1.CensorshipRecord.Token, gcr.Comments[0].CommentID,
+			"upvote")
+		handleError(err)
+		if lcr.Total != 0 {
+			err = fmt.Errorf("Expected total: 0, got %v", lcr.Total)
+			handleError(err)
+		}
+		if lcr.Result != 0 {
+			err = fmt.Errorf("Expected result: 0, got %v", lcr.Result)
+			handleError(err)
+		}
+
+		//Downvote second comment of prop1
+		lcr, err = c.CommentVote(id, prop1.CensorshipRecord.Token, gcr.Comments[1].CommentID,
+			"upvote")
+		handleError(err)
+		if lcr.Total != 1 {
+			err = fmt.Errorf("Expected total: 1, got %v", lcr.Total)
+			handleError(err)
+		}
+		if lcr.Result != -1 {
+			err = fmt.Errorf("Expected result: -1, got %v", lcr.Result)
+			handleError(err)
+		}
+
+		//Unset vote on second comment of prop1 by downvoting it again
+		lcr, err = c.CommentVote(id, prop1.CensorshipRecord.Token, gcr.Comments[1].CommentID,
+			"upvote")
+		handleError(err)
+		if lcr.Total != 0 {
+			err = fmt.Errorf("Expected total: 0, got %v", lcr.Total)
+			handleError(err)
+		}
+		if lcr.Result != 0 {
+			err = fmt.Errorf("Expected result: 0, got %v", lcr.Result)
+			handleError(err)
+		}
+
+		//Upvote second comment of prop1
+		lcr, err = c.CommentVote(id, prop1.CensorshipRecord.Token, gcr.Comments[1].CommentID,
+			"upvote")
+		handleError(err)
+		if lcr.Total != 1 {
+			err = fmt.Errorf("Expected total: 1, got %v", lcr.Total)
+			handleError(err)
+		}
+		if lcr.Result != 1 {
+			err = fmt.Errorf("Expected result: 1, got %v", lcr.Result)
+			handleError(err)
+		}
+
+		//Downvote second comment of prop1 after upvoting it
+		lcr, err = c.CommentVote(id, prop1.CensorshipRecord.Token, gcr.Comments[1].CommentID,
+			"upvote")
+		handleError(err)
+		if lcr.Total != 1 {
+			err = fmt.Errorf("Expected total: 1, got %v", lcr.Total)
+			handleError(err)
+		}
+		if lcr.Result != -1 {
+			err = fmt.Errorf("Expected result: -1, got %v", lcr.Result)
+			handleError(err)
+		}
+
+		//Upvote second comment of prop1 after downvoting it
+		lcr, err = c.CommentVote(id, prop1.CensorshipRecord.Token, gcr.Comments[1].CommentID,
+			"upvote")
+		handleError(err)
+		if lcr.Total != 1 {
+			err = fmt.Errorf("Expected total: 1, got %v", lcr.Total)
+			handleError(err)
+		}
+		if lcr.Result != 1 {
+			err = fmt.Errorf("Expected result: 1, got %v", lcr.Result)
 			handleError(err)
 		}
 
