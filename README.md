@@ -59,6 +59,7 @@ set up to make execution easier.
     `C:\Users\<username>\AppData\Local\Politeiad/politeiad.conf`
     `C:\Users\<username>\AppData\Local\Politeiawww/politeiawww.conf`
   - **Ubuntu**
+    `~/.politeiad/politeiad.conf`
     `~/.politeiawww/politeiawww.conf`
 
 * Copy and change the  [`sample-politeiawww.conf`](https://github.com/decred/politeia/blob/master/politeiawww/sample-politeiawww.conf)
