@@ -93,6 +93,9 @@ const (
 	// for the routes that return lists of proposals
 	ProposalListPageSize = 20
 
+	// PolicyMinCensorMessageLength is the min length of a censor message
+	PolicyMinCensorMessageLength = 8
+
 	// Error status codes
 	ErrorStatusInvalid                     ErrorStatusT = 0
 	ErrorStatusInvalidEmailOrPassword      ErrorStatusT = 1
@@ -132,6 +135,7 @@ const (
 	ErrorStatusCannotVerifyPayment         ErrorStatusT = 35
 	ErrorStatusDuplicatePublicKey          ErrorStatusT = 36
 	ErrorStatusInvalidPropVoteStatus       ErrorStatusT = 37
+	ErrorMalformedCensorMessage            ErrorStatusT = 38
 
 	// Proposal status codes (set and get)
 	PropStatusInvalid     PropStatusT = 0 // Invalid status
@@ -209,6 +213,7 @@ var (
 		ErrorStatusCannotVerifyPayment:         "cannot verify payment at this time",
 		ErrorStatusDuplicatePublicKey:          "public key already taken by another user",
 		ErrorStatusInvalidPropVoteStatus:       "invalid proposal vote status",
+		ErrorMalformedCensorMessage:            "invalid censor message",
 	}
 
 	// PropVoteStatus converts votes status codes to human readable text
@@ -249,15 +254,16 @@ type CensorshipRecord struct {
 
 // ProposalRecord is an entire proposal and it's content.
 type ProposalRecord struct {
-	Name        string      `json:"name"`        // Suggested short proposal name
-	Status      PropStatusT `json:"status"`      // Current status of proposal
-	Timestamp   int64       `json:"timestamp"`   // Last update of proposal
-	UserId      string      `json:"userid"`      // ID of user who submitted proposal
-	Username    string      `json:"username"`    // Username of user who submitted proposal
-	PublicKey   string      `json:"publickey"`   // Key used for signature.
-	Signature   string      `json:"signature"`   // Signature of merkle root
-	Files       []File      `json:"files"`       // Files that make up the proposal
-	NumComments uint        `json:"numcomments"` // Number of comments on the proposal
+	Name        string      `json:"name"`              // Suggested short proposal name
+	Status      PropStatusT `json:"status"`            // Current status of proposal
+	Timestamp   int64       `json:"timestamp"`         // Last update of proposal
+	UserId      string      `json:"userid"`            // ID of user who submitted proposal
+	Username    string      `json:"username"`          // Username of user who submitted proposal
+	PublicKey   string      `json:"publickey"`         // Key used for signature.
+	Signature   string      `json:"signature"`         // Signature of merkle root
+	Files       []File      `json:"files"`             // Files that make up the proposal
+	NumComments uint        `json:"numcomments"`       // Number of comments on the proposal
+	Message     string      `json:"message,omitempty"` // Admin's message associated to the last status change
 
 	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
 }
@@ -502,8 +508,9 @@ type ProposalDetailsReply struct {
 type SetProposalStatus struct {
 	Token          string      `json:"token"`
 	ProposalStatus PropStatusT `json:"proposalstatus"`
-	Signature      string      `json:"signature"` // Signature of Token+string(ProposalStatus)
+	Signature      string      `json:"signature"` // Signature of Token+string(ProposalStatus)+message
 	PublicKey      string      `json:"publickey"`
+	Message        string      `json:"message"` // Admin's message
 }
 
 // SetProposalStatusReply is used to reply to a SetProposalStatus command.
@@ -567,6 +574,7 @@ type PolicyReply struct {
 	ProposalNameSupportedChars []string `json:"proposalnamesupportedchars"`
 	MaxCommentLength           uint     `json:"maxcommentlength"`
 	BackendPublicKey           string   `json:"backendpublickey"`
+	MinCensorMessageLength     uint     `json:"mincensormessagelength"`
 }
 
 // VoteOption describes a single vote option.

@@ -262,6 +262,7 @@ type SetUnvettedStatus struct {
 	Challenge   string           `json:"challenge"`   // Random challenge
 	Token       string           `json:"token"`       // Censorship token
 	Status      RecordStatusT    `json:"status"`      // New status of record
+	Signature   string           `json:"singature"`   // Admin's signature of token + status + message
 	MDAppend    []MetadataStream `json:"mdappend"`    // Metadata streams to append
 	MDOverwrite []MetadataStream `json:"mdoverwrite"` // Metadata streams to overwrite
 }

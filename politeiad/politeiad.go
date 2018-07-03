@@ -588,6 +588,7 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 		p.respondWithServerError(w, errorCode)
 		return
 	}
+
 	reply := v1.SetUnvettedStatusReply{
 		Response: hex.EncodeToString(response[:]),
 		Record:   p.convertBackendRecord(*record),

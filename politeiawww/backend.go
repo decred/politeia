@@ -46,10 +46,11 @@ const (
 )
 
 type MDStreamChanges struct {
-	Version     uint             `json:"version"`     // Version of the struct
-	AdminPubKey string           `json:"adminpubkey"` // Identity of the administrator
-	NewStatus   pd.RecordStatusT `json:"newstatus"`   // NewStatus
-	Timestamp   int64            `json:"timestamp"`   // Timestamp of the change
+	Version     uint             `json:"version"`           // Version of the struct
+	AdminPubKey string           `json:"adminpubkey"`       // Identity of the administrator
+	NewStatus   pd.RecordStatusT `json:"newstatus"`         // NewStatus
+	Timestamp   int64            `json:"timestamp"`         // Timestamp of the change
+	Message     string           `json:"message,omitempty"` // Admin's censor reason
 }
 
 // politeiawww backend construct
@@ -1585,9 +1586,17 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 // from unreviewed to either published or censored.
 func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *database.User) (*www.SetProposalStatusReply, error) {
 	err := checkPublicKeyAndSignature(user, sps.PublicKey, sps.Signature,
-		sps.Token, strconv.FormatUint(uint64(sps.ProposalStatus), 10))
+		sps.Token, strconv.FormatUint(uint64(sps.ProposalStatus), 10), sps.Message)
 	if err != nil {
 		return nil, err
+	}
+
+	// Validate censor message when the proposal is being censored
+	if sps.ProposalStatus == v1.PropStatusCensored &&
+		len(sps.Message) < v1.PolicyMinCensorMessageLength {
+		return nil, v1.UserError{
+			ErrorCode: v1.ErrorMalformedCensorMessage,
+		}
 	}
 
 	// Create change record
@@ -1596,6 +1605,7 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 		Version:   VersionMDStreamChanges,
 		Timestamp: time.Now().Unix(),
 		NewStatus: newStatus,
+		Message:   sps.Message,
 	}
 
 	var reply www.SetProposalStatusReply
@@ -1735,6 +1745,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 			CensorshipRecord: cachedProposal.CensorshipRecord,
 			NumComments:      cachedProposal.NumComments,
 			UserId:           cachedProposal.UserId,
+			Message:          cachedProposal.Message,
 			Username:         b.getUsernameById(cachedProposal.UserId),
 		}
 
@@ -2407,6 +2418,7 @@ func (b *backend) ProcessPolicy(p www.Policy) *www.PolicyReply {
 		MaxProposalNameLength:      www.PolicyMaxProposalNameLength,
 		ProposalNameSupportedChars: www.PolicyProposalNameSupportedChars,
 		MaxCommentLength:           www.PolicyMaxCommentLength,
+		MinCensorMessageLength:     www.PolicyMinCensorMessageLength,
 	}
 }
 
