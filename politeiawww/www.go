@@ -299,6 +299,33 @@ func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request
 	util.RespondWithJSON(w, http.StatusOK, v1.VerifyNewUserReply{})
 }
 
+// handleResendVerification sends another verification email for new user
+// signup, if there is an existing verification token and it is expired.
+func (p *politeiawww) handleResendVerification(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleResendVerification")
+
+	// Get the resend verification command.
+	var rv v1.ResendVerification
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&rv); err != nil {
+		RespondWithError(w, r, 0, "handleResendVerification: unmarshal",
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	rvr, err := p.backend.ProcessResendVerification(&rv)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleResendVerification: "+
+			"ProcessResendVerification %v", err)
+		return
+	}
+
+	// Reply with the verification token.
+	util.RespondWithJSON(w, http.StatusOK, *rvr)
+}
+
 // handleUpdateUserKey handles the incoming update user key command. It generates
 // a random code used for verification. The code is intended to be sent to the
 // email of the logged in user.
@@ -1153,6 +1180,8 @@ func _main() error {
 		permissionPublic, false)
 	p.addRoute(http.MethodGet, v1.RouteVerifyNewUser,
 		p.handleVerifyNewUser, permissionPublic, false)
+	p.addRoute(http.MethodPost, v1.RouteResendVerification,
+		p.handleResendVerification, permissionPublic, false)
 	p.addRoute(http.MethodPost, v1.RouteLogin, p.handleLogin,
 		permissionPublic, false)
 	p.addRoute(http.MethodGet, v1.RouteLogout, p.handleLogout,
