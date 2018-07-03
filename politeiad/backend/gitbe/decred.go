@@ -1331,12 +1331,9 @@ func (g *gitBackEnd) pluginGetComments(payload string) (string, error) {
 	}
 
 	g.Lock()
-	comments, ok := decredPluginCommentsCache[gc.Token]
+	comments := decredPluginCommentsCache[gc.Token]
 	g.Unlock()
-	if ok {
-		return encodeGetCommentsReply(comments)
-	}
-	return "", fmt.Errorf("Comments not found")
+	return encodeGetCommentsReply(comments)
 }
 
 func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
