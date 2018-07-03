@@ -15,6 +15,7 @@ type Options struct {
 	ActiveVotes       ActivevotesCmd       `command:"activevotes" description:"Retrieve all proposals being actively voted on"`
 	CastVotes         CastvotesCmd         `command:"castvotes" description:"Cast ticket votes for a specific proposal"`
 	ChangePassword    ChangepasswordCmd    `command:"changepassword" description:"change the password for the currently logged in user"`
+	CommentsVotes     CommentsvotesCmd     `command:"commentsvotes" description:"fetch all the comments voted by the user on a proposal"`
 	ChangeUsername    ChangeusernameCmd    `command:"changeusername" description:"change the username for the currently logged in user"`
 	GetComments       GetcommentsCmd       `command:"getcomments" description:"fetch a proposal's comments"`
 	GetProposal       GetproposalCmd       `command:"getproposal" description:"fetch a proposal"`
@@ -34,11 +35,11 @@ type Options struct {
 	SetProposalStatus SetproposalstatusCmd `command:"setproposalstatus" description:"(admin only) set the status of a proposal"`
 	StartVote         StartvoteCmd         `command:"startvote" description:"(admin only) start the voting period on a proposal"`
 	UpdateUserKey     UpdateuserkeyCmd     `command:"updateuserkey" description:"update the user identity saved to appDataDir"`
+	UsernamesById     UsernamesbyidCmd     `command:"usernamesbyid" description:"fetch usernames by their user ids"`
 	UserProposals     UserproposalsCmd     `command:"userproposals" description:"fetch all proposals submitted by a specific user"`
 	VerifyUser        VerifyuserCmd        `command:"verifyuser" description:"verify user's email address"`
 	VerifyUserPayment VerifyuserpaymentCmd `command:"verifyuserpayment" description:"check if the user has paid their user registration fee"`
 	Version           VersionCmd           `command:"version" description:"fetch server info and CSRF token"`
-	UsernamesById     UsernamesbyidCmd     `command:"usernamesbyid" description:"fetch usernames by their user ids"`
 	VoteComment       VotecommentCmd       `command:"votecomment" description:"vote on a comment"`
 }
 

@@ -678,6 +678,26 @@ func (c *Ctx) CommentGet(token string) (*v1.GetCommentsReply, error) {
 	return &gcr, nil
 }
 
+func (c *Ctx) CommentsVotesGet(token string) (*v1.UserCommentsVotesReply, error) {
+	responseBody, err := c.makeRequest("GET", "/user/proposals/"+token+"/commentsvotes",
+		nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var cvg v1.UserCommentsVotesReply
+	err = json.Unmarshal(responseBody, &cvg)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal GetCommentReply: %v", err)
+	}
+
+	if config.Verbose {
+		prettyPrintJSON(cvg)
+	}
+
+	return &cvg, nil
+}
+
 func (c *Ctx) CommentVote(id *identity.FullIdentity, token, commentID,
 	action string) (*v1.LikeCommentReply, error) {
 	lcm := v1.LikeComment{
