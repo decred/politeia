@@ -626,6 +626,21 @@ func main() {
 			handleError(err)
 		}
 
+		cvg, err := c.CommentsVotesGet(prop1.CensorshipRecord.Token)
+		handleError(err)
+		if len(cvg.CommentsVotes) != 2 {
+			err = fmt.Errorf("Expected 2 comments votes but got %v", len(cvg.CommentsVotes))
+			handleError(err)
+		}
+		if cvg.CommentsVotes[1].Action != "1" {
+			err = fmt.Errorf("Expected action: 1, got %v", cvg.CommentsVotes[1].Action)
+			handleError(err)
+		}
+		if cvg.CommentsVotes[0].Action != "0" {
+			err = fmt.Errorf("Expected action: 0, got %v", cvg.CommentsVotes[0].Action)
+			handleError(err)
+		}
+
 		fmt.Printf("Admin routes complete\n")
 	}
 
