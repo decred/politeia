@@ -175,6 +175,8 @@ func (b *backend) checkForPayments() {
 		b.removeUsersFromPool(userIDsToRemove)
 
 		// TODO: Check for proposal payments.
+
+		time.Sleep(paywallCheckGap)
 	}
 }
 
