@@ -279,9 +279,7 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Add("Strict-Transport-Security",
 		"max-age=63072000; includeSubDomains")
-	if !p.cfg.Proxy {
-		w.Header().Set(v1.CsrfToken, csrf.Token(r))
-	}
+	w.Header().Set(v1.CsrfToken, csrf.Token(r))
 	w.WriteHeader(http.StatusOK)
 	w.Write(versionReply)
 }
@@ -1343,12 +1341,7 @@ func _main() error {
 	}
 	fCSRF.Close()
 
-	var csrfHandle func(http.Handler) http.Handler
-	if !p.cfg.Proxy {
-		// make sure the cookie path is the parent of all routes
-		// it fixes multiple CSRF tokens being stored in the cookie
-		csrfHandle = csrf.Protect(csrfKey, csrf.Path("/"))
-	}
+	csrfHandle := csrf.Protect(csrfKey, csrf.Path("/"))
 
 	p.router = mux.NewRouter()
 
@@ -1490,20 +1483,14 @@ func _main() error {
 				},
 			}
 			srv := &http.Server{
+				Handler:   csrfHandle(p.router),
 				Addr:      listen,
 				TLSConfig: cfg,
 				TLSNextProto: make(map[string]func(*http.Server,
 					*tls.Conn, http.Handler)),
 			}
-			var mode string
-			if p.cfg.Proxy {
-				srv.Handler = p.router
-				mode = "proxy"
-			} else {
-				srv.Handler = csrfHandle(p.router)
-				mode = "non-proxy"
-			}
-			log.Infof("Listen %v: %v", mode, listen)
+
+			log.Infof("Listen: %v", listen)
 			listenC <- srv.ListenAndServeTLS(loadedCfg.HTTPSCert,
 				loadedCfg.HTTPSKey)
 		}()
