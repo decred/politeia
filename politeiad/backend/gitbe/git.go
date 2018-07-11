@@ -305,11 +305,8 @@ func (g *gitBackEnd) gitClone(from, to string, repoConfig map[string]string) err
 
 	// Clone the repo (with config, if applicable).
 	args := []string{"clone", from, to}
-	if repoConfig != nil {
-		args = append(args, "-c")
-		for k, v := range repoConfig {
-			args = append(args, k+"="+v)
-		}
+	for k, v := range repoConfig {
+		args = append(args, "-c", k+"="+v)
 	}
 	_, err = g.git("", args...)
 	return err
