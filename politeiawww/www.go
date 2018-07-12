@@ -555,6 +555,28 @@ func (p *politeiawww) handleResetPassword(w http.ResponseWriter, r *http.Request
 	util.RespondWithJSON(w, http.StatusOK, rpr)
 }
 
+// handleProposalPaywallDetails returns paywall details that allows the user to
+// purchase proposal credits.
+func (p *politeiawww) handleProposalPaywallDetails(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleProposalPaywallDetails")
+
+	user, err := p.getSessionUser(r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleProposalPaywallDetails: getSessionUser %v", err)
+		return
+	}
+
+	reply, err := p.backend.ProcessProposalPaywallDetails(user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleProposalPaywallDetails: ProcessProposalPaywallDetails  %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
 // handleNewProposal handles the incoming new proposal command.
 func (p *politeiawww) handleNewProposal(w http.ResponseWriter, r *http.Request) {
 	// Get the new proposal command.
@@ -819,6 +841,28 @@ func (p *politeiawww) handleVerifyUserPayment(w http.ResponseWriter, r *http.Req
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, vuptr)
+}
+
+// handleUserProposalCredits returns the spent and unspent proposal credits for
+// the logged in user.
+func (p *politeiawww) handleUserProposalCredits(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleUserProposalCredits")
+
+	user, err := p.getSessionUser(r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserProposalPayments: getSessionUser %v", err)
+		return
+	}
+
+	reply, err := p.backend.ProcessUserProposalCredits(user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserProposalCredits: ProcessUserProposalCredits  %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
 // handleUserProposals returns the proposals for the given user.
@@ -1216,6 +1260,8 @@ func _main() error {
 	// Routes that require being logged in.
 	p.addRoute(http.MethodPost, v1.RouteSecret, p.handleSecret,
 		permissionLogin, false)
+	p.addRoute(http.MethodGet, v1.RouteProposalPaywallDetails,
+		p.handleProposalPaywallDetails, permissionLogin, false)
 	p.addRoute(http.MethodPost, v1.RouteNewProposal, p.handleNewProposal,
 		permissionLogin, true)
 	p.addRoute(http.MethodGet, v1.RouteUserMe, p.handleMe, permissionLogin,
@@ -1236,6 +1282,8 @@ func _main() error {
 		p.handleVerifyUserPayment, permissionLogin, false)
 	p.addRoute(http.MethodGet, v1.RouteUserCommentsVotes,
 		p.handleUserCommentsVotes, permissionLogin, true)
+	p.addRoute(http.MethodGet, v1.RouteUserProposalCredits,
+		p.handleUserProposalCredits, permissionLogin, false)
 
 	// Routes that require being logged in as an admin user.
 	p.addRoute(http.MethodGet, v1.RouteAllUnvetted, p.handleAllUnvetted,

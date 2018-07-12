@@ -868,11 +868,12 @@ func (b *backend) CreateLoginReply(user *database.User) (*www.LoginReply, error)
 	}
 
 	reply := www.LoginReply{
-		IsAdmin:   user.Admin,
-		UserID:    strconv.FormatUint(user.ID, 10),
-		Email:     user.Email,
-		Username:  user.Username,
-		PublicKey: activeIdentity,
+		IsAdmin:         user.Admin,
+		UserID:          strconv.FormatUint(user.ID, 10),
+		Email:           user.Email,
+		Username:        user.Username,
+		PublicKey:       activeIdentity,
+		ProposalCredits: b.ProposalCreditBalance(user),
 	}
 
 	if !b.HasUserPaid(user) {
@@ -1128,7 +1129,7 @@ func (b *backend) ProcessVerifyNewUser(u www.VerifyNewUser) (*database.User, err
 		return nil, err
 	}
 
-	b.addUserToPaywallPool(user)
+	b.addUserToPaywallPool(user, paywallTypeUser)
 
 	return user, nil
 }
@@ -1561,6 +1562,12 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 		}
 	}
 
+	if !b.UserHasProposalCredits(user) {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusNoProposalCredits,
+		}
+	}
+
 	err := b.validateProposal(np, user)
 	if err != nil {
 		return nil, err
@@ -1657,6 +1664,11 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 			Files:            n.Files,
 		})
 		b.Unlock()
+	}
+
+	err = b.SpendProposalCredit(user, pdReply.CensorshipRecord.Token)
+	if err != nil {
+		return nil, err
 	}
 
 	reply.CensorshipRecord = convertPropCensorFromPD(pdReply.CensorshipRecord)
@@ -2084,6 +2096,25 @@ func (b *backend) ProcessCommentGet(token string) (*www.GetCommentsReply, error)
 		return nil, err
 	}
 	return c, nil
+}
+
+// ProcessUserProposalCredits returns a list of the user's unspent proposal
+// credits and a list of the user's spent proposal credits.
+func (b *backend) ProcessUserProposalCredits(user *database.User) (*www.UserProposalCreditsReply, error) {
+	// Convert from database proposal credits to www proposal credits.
+	upc := make([]www.ProposalCredit, len(user.UnspentProposalCredits))
+	for i, credit := range user.UnspentProposalCredits {
+		upc[i] = convertWWWPropCreditFromDatabasePropCredit(credit)
+	}
+	spc := make([]www.ProposalCredit, len(user.SpentProposalCredits))
+	for i, credit := range user.SpentProposalCredits {
+		spc[i] = convertWWWPropCreditFromDatabasePropCredit(credit)
+	}
+
+	return &www.UserProposalCreditsReply{
+		UnspentCredits: upc,
+		SpentCredits:   spc,
+	}, nil
 }
 
 // ProcessUserProposals returns the proposals for the given user.
@@ -2638,4 +2669,15 @@ func getProposalName(files []www.File) (string, error) {
 		}
 	}
 	return "", nil
+}
+
+// convertWWWPropCreditFromDatabasePropCredit coverts a database proposal
+// credit to a v1 proposal credit.
+func convertWWWPropCreditFromDatabasePropCredit(credit database.ProposalCredit) www.ProposalCredit {
+	return www.ProposalCredit{
+		PaywallID:     credit.PaywallID,
+		Price:         credit.Price,
+		DatePurchased: credit.DatePurchased,
+		TxID:          credit.TxID,
+	}
 }

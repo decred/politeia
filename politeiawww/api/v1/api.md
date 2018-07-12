@@ -24,6 +24,8 @@ API.  It does not render HTML.
 - [`Vetted`](#vetted)
 - [`Unvetted`](#unvetted)
 - [`User proposals`](#user-proposals)
+- [`Proposal paywall details`](#proposal-paywall-details)
+- [`User proposal credits`](#user-proposal-credits)
 - [`New proposal`](#new-proposal)
 - [`Proposal details`](#proposal-details)
 - [`Set proposal status`](#set-proposal-status)
@@ -80,6 +82,7 @@ API.  It does not render HTML.
 - [`ErrorStatusCannotVerifyPayment`](#ErrorStatusCannotVerifyPayment)
 - [`ErrorStatusDuplicatePublicKey`](#ErrorStatusDuplicatePublicKey)
 - [`ErrorStatusInvalidPropVoteStatus`](#ErrorStatusInvalidPropVoteStatus)
+- [`ErrorStatusNoProposalCredits`](#ErrorStatusNoProposalCredits)
 
 
 **Proposal status codes**
@@ -706,6 +709,89 @@ Reply:
 }
 ```
 
+### `Proposal paywall details`
+Retrieve paywall details that can be used to purchase proposal credits.
+Proposal paywalls are only valid for one tx.  The user can purchase as many
+proposal credits as they would like with that one tx. Proposal paywalls expire 
+after a set duration.  To verify that a payment has been made,
+politeiawww polls the paywall address until the paywall is either paid or it 
+expires. A proposal paywall cannot be generated until the user has paid their 
+user registration fee.  
+
+**Route:** `GET /v1/proposals/paywall`
+
+**Params:** none
+
+**Results:**
+
+| Parameter | Type | Description |
+|-|-|-|
+| creditprice | uint64 | Price per proposal credit in atoms. | 
+| paywalladdress | string | Proposal paywall address. | 
+| paywalltxnotbefore | string | Minimum timestamp for paywall tx. | 
+On failure the call shall return `400 Bad Request` and one of the following
+error codes:
+- [`ErrorStatusUserNotPaid`](#ErrorStatusUserNotPaid)
+
+**Example**
+
+Request:
+
+```json
+{}
+```
+
+Reply:
+
+```json
+{
+  "creditprice": 10000000,
+  "paywalladdress": "TsRBnD2mnZX1upPMFNoQ1ckYr9Y4TZyuGTV",
+  "paywalltxnotbefore": 1532445975
+}
+```
+
+### `User proposal credits`
+Request a list of the user's unspent and spent proposal credits.
+
+**Route:** `GET /v1/user/proposals/credits`
+
+**Params:** none
+
+**Results:**
+
+| Parameter | Type | Description |
+|-|-|-|
+| unspentcredits | array of [`ProposalCredit`](#proposal-credit)'s | The user's unspent proposal credits | 
+| spentcredits | array of [`ProposalCredit`](#proposal-credit)'s | The user's spent proposal credits | 
+
+**Example**
+
+Request:
+
+```json
+{}
+```
+
+Reply:
+
+```json
+{
+  "unspentcredits": [{
+    "paywallid": 2,
+    "price": 10000000,
+    "datepurchased": 1532438228,
+    "txid": "ff0207a03b761cb409c7677c5b5521562302653d2236c92d016dd47e0ae37bf7"
+  }],
+  "spentcredits": [{
+    "paywallid": 1,
+    "price": 10000000,
+    "datepurchased": 1532437363,
+    "txid": "1b6df077a0a745314dab58887c56c4261270bb7a809692fad8157a99a0c46477"
+  }]
+}
+```
+
 ### `New proposal`
 
 Submit a new proposal to the politeiawww server.
@@ -729,6 +815,7 @@ The proposal name is derived from the first line of the markdown file - index.md
 
 On failure the call shall return `400 Bad Request` and one of the following
 error codes:
+- [`ErrorStatusNoProposalCredits`](#ErrorStatusNoProposalCredits)
 - [`ErrorStatusProposalMissingFiles`](#ErrorStatusProposalMissingFiles)
 - [`ErrorStatusProposalDuplicateFilenames`](#ErrorStatusProposalDuplicateFilenames)
 - [`ErrorStatusProposalInvalidTitle`](#ErrorStatusProposalInvalidTitle)
@@ -1876,6 +1963,7 @@ Reply:
 | <a name="ErrorStatusDuplicatePublicKey">ErrorStatusDuplicatePublicKey</a> | 36 | The public key provided is already taken by another user. |
 | <a name="ErrorStatusInvalidPropVoteStatus">ErrorStatusInvalidPropVoteStatus</a> | 37 | Invalid proposal vote status. |
 | <a name="ErrorStatusUserLocked">ErrorStatusUserLocked</a> | 38 | User locked due to too many login attempts. |
+| <a name="ErrorStatusNoProposalCredits">ErrorStatusNoProposalCredits</a> | 39 | No proposal credits. |
 
 ### Proposal status codes
 
@@ -1933,3 +2021,13 @@ or [`Me`](#me) call.
 | paywalladdress | String | The address in which to send the transaction containing the `paywallamount`.  If the user has already paid, this field will be empty or not present. |
 | paywallamount | Int64 | The amount of DCR (in atoms) to send to `paywalladdress`.  If the user has already paid, this field will be empty or not present. |
 | paywalltxnotbefore | Int64 | The minimum UNIX time (in seconds) required for the block containing the transaction sent to `paywalladdress`.  If the user has already paid, this field will be empty or not present. |
+
+### `Proposal credit`
+A proposal credit allows the user to submit a new proposal.  Proposal credits are a spam prevention measure.  Credits are created when a user sends a payment to a proposal paywall. The user can request proposal paywall details using the [`Proposal paywall details`](#proposal-paywall-details) endpoint.  A credit is automatically spent every time a user submits a new proposal.
+
+| | Type | Description |
+|-|-|-|
+| paywallid | uint64 | The ID of the proposal paywall that created this credit. |
+| price | uint64 | The price that the credit was purchased at in atoms. |
+| datepurchased | int64 | A Unix timestamp of the purchase data. |
+| txid | string | The txID of the Decred transaction that paid for this credit. |
