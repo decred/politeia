@@ -27,6 +27,11 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
+const (
+	mainnetHost = "127.0.0.1:9111"
+	testnetHost = "127.0.0.1:19111"
+)
+
 var (
 	verify = false // Validate server TLS certificate
 )
@@ -91,13 +96,19 @@ func newClient(skipVerify bool, cfg *config) (*ctx, error) {
 	if err != nil {
 		return nil, err
 	}
+	var networkHost string
+	if cfg.TestNet {
+		networkHost = testnetHost
+	} else {
+		networkHost = mainnetHost
+	}
 
 	// Wallet GRPC
 	creds, err := credentials.NewClientTLSFromFile(cfg.WalletCert, "")
 	if err != nil {
 		return nil, err
 	}
-	conn, err := grpc.Dial("127.0.0.1:19111", grpc.WithTransportCredentials(creds))
+	conn, err := grpc.Dial(networkHost, grpc.WithTransportCredentials(creds))
 	if err != nil {
 		return nil, err
 	}
