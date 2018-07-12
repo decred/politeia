@@ -56,6 +56,7 @@ func createPoliteiawwCmd(paywall bool) *exec.Cmd {
 		"--mailhost", "",
 		"--mailuser", "",
 		"--mailpass", "",
+		"--proxy", "1",
 		"--webserveraddress", "",
 		"--debuglevel", cfg.DebugLevel)
 }
