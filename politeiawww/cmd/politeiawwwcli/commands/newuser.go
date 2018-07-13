@@ -15,7 +15,6 @@ type NewuserCmd struct {
 		Password string `positional-arg-name:"password"`
 	} `positional-args:"true" optional:"true"`
 	Random        bool   `long:"random" optional:"true" description:"Generate a random email/password for the user"`
-	Save          bool   `long:"save" optional:"true" description:"Save the user's identity to datadir for future use"`
 	Verify        bool   `long:"verify" optional:"true" description:"Verify the user's email address"`
 	Paywall       bool   `long:"paywall" optional:"true" description:"Satisfy paywall fee using testnet faucet"`
 	OverrideToken string `long:"overridetoken" optional:"true" description:"Override token for the testnet faucet"`
@@ -58,14 +57,6 @@ func (cmd *NewuserCmd) Execute(args []string) error {
 		username, password)
 	if err != nil {
 		return err
-	}
-
-	// save user identity to HomeDir
-	if cmd.Save {
-		id.Save(config.UserIdentityFile)
-		if config.Verbose {
-			fmt.Printf("User identity saved to: %v\n", config.UserIdentityFile)
-		}
 	}
 
 	// verify user's email address

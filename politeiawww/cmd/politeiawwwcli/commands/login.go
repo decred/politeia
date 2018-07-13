@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"fmt"
 	"github.com/decred/politeia/politeiawww/cmd/politeiawwwcli/config"
 )
 
@@ -12,9 +13,15 @@ type LoginCmd struct {
 }
 
 func (cmd *LoginCmd) Execute(args []string) error {
-	_, err := Ctx.Login(cmd.Args.Email, cmd.Args.Password)
+	_, id, err := Ctx.Login(cmd.Args.Email, cmd.Args.Password)
 	if err != nil {
 		return err
+	}
+
+	// save the user identity to HomeDir so it can be reused for subsequent commands
+	id.Save(config.UserIdentityFile)
+	if config.Verbose {
+		fmt.Printf("User identity saved to: %v\n", config.UserIdentityFile)
 	}
 
 	// persist session cookie

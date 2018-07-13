@@ -34,7 +34,6 @@ type Options struct {
 	Secret            SecretCmd            `command:"secret"`
 	SetProposalStatus SetproposalstatusCmd `command:"setproposalstatus" description:"(admin only) set the status of a proposal"`
 	StartVote         StartvoteCmd         `command:"startvote" description:"(admin only) start the voting period on a proposal"`
-	UpdateUserKey     UpdateuserkeyCmd     `command:"updateuserkey" description:"update the user identity saved to appDataDir"`
 	UsernamesById     UsernamesbyidCmd     `command:"usernamesbyid" description:"fetch usernames by their user ids"`
 	UserProposals     UserproposalsCmd     `command:"userproposals" description:"fetch all proposals submitted by a specific user"`
 	VerifyUser        VerifyuserCmd        `command:"verifyuser" description:"verify user's email address"`

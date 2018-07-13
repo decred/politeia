@@ -47,7 +47,7 @@ func vote(opts *Options, c *client.Ctx) {
 	mockPayload := []byte("This is a description")
 
 	// Login (admin)
-	lr, err := c.Login(adminEmail, adminPassword)
+	lr, id, err := c.Login(adminEmail, adminPassword)
 	handleError(err)
 
 	// Admin success
@@ -55,10 +55,6 @@ func vote(opts *Options, c *client.Ctx) {
 		err = fmt.Errorf("%v is not an admin", adminEmail)
 		handleError(err)
 	}
-
-	// Create new identity
-	id, err := c.CreateNewKey(adminEmail)
-	handleError(err)
 
 	// New proposal
 	prop1, err := c.NewProposal(id, nil, mockPayload)
@@ -206,14 +202,14 @@ func main() {
 	handleError(err)
 
 	// Login failure
-	_, err = c.Login(email1, password1)
+	_, _, err = c.Login(email1, password1)
 	if err == nil {
 		err = fmt.Errorf("Expected login failure")
 		handleError(err)
 	}
 
 	// Login success
-	lr, err := c.Login(email1, password2)
+	lr, _, err := c.Login(email1, password2)
 	handleError(err)
 
 	// Admin failure
@@ -273,12 +269,12 @@ func main() {
 
 	// Create new identity
 	oldId := id
-	id, err = c.CreateNewKey(email1)
+	id, err = c.CreateNewKey(email1 + "newkey")
 	handleError(err)
 
 	// New proposal failure
 	_, err = c.NewProposal(oldId, nil, mockPayload)
-	if err != nil {
+	if err == nil {
 		err = fmt.Errorf("Expected error, user identity should be inactive")
 		handleError(err)
 	}
@@ -373,7 +369,7 @@ func main() {
 		adminPassword := opts.Admin.Password
 
 		//  Login (admin)
-		lr, err = c.Login(adminEmail, adminPassword)
+		lr, id, err = c.Login(adminEmail, adminPassword)
 		handleError(err)
 
 		// Admin success
@@ -393,10 +389,6 @@ func main() {
 			err = fmt.Errorf("/me IsAdmin got %v wanted %v", me.IsAdmin, true)
 			handleError(err)
 		}
-
-		// Create new identity
-		id, err = c.CreateNewKey(adminEmail)
-		handleError(err)
 
 		// Unvetted paging
 		unvettedPage1, err := c.GetUnvetted(v1.GetAllUnvetted{})
