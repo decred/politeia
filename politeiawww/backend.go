@@ -1901,18 +1901,14 @@ func (b *backend) ProcessLikeComment(lc www.LikeComment, user *database.User) (*
 	}
 
 	// Validate prop vote status
-	b.RLock()
+	b.Lock()
+	defer b.Unlock()
 	ir, ok := b.inventory[lc.Token]
 	if !ok {
 		return nil, fmt.Errorf("Could not find proposal")
 	}
-	ee, err := strconv.ParseUint(ir.voting.EndHeight, 10, 64)
-	if err != nil {
-		return nil, fmt.Errorf("Could not parse voting endheight")
-	}
-	b.RUnlock()
 
-	if ee > 0 {
+	if ir.voting.EndHeight != "" {
 		// vote is either active or finished
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusInvalidPropVoteStatus,
@@ -1980,10 +1976,8 @@ func (b *backend) ProcessLikeComment(lc www.LikeComment, user *database.User) (*
 
 	// Add action to comment to cache
 	if lcr.Error == "" {
-		b.Lock()
-		defer b.Unlock()
 		//b.inventory[ncrWWW.Comment.Token].comments[ncrWWW.Comment.CommentID] = ncrWWW.Comment
-		if c, ok := b.inventory[lc.Token].comments[lc.CommentID]; ok {
+		if c, ok := ir.comments[lc.CommentID]; ok {
 			// Update vote coutns
 			c.TotalVotes = lcr.Total
 			c.ResultVotes = lcr.Result
