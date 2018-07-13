@@ -1900,6 +1900,21 @@ func (b *backend) ProcessLikeComment(lc www.LikeComment, user *database.User) (*
 		return nil, err
 	}
 
+	// Validate prop vote status
+	b.RLock()
+	ir, ok := b.inventory[lc.Token]
+	b.RUnlock()
+	if !ok {
+		return nil, fmt.Errorf("Could not find proposal")
+	}
+
+	if ir.voting.EndHeight != "" {
+		// vote is either active or finished
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidPropVoteStatus,
+		}
+	}
+
 	// Validate action
 	action := lc.Action
 	if len(lc.Action) > 10 {
