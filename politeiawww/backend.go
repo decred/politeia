@@ -1901,9 +1901,9 @@ func (b *backend) ProcessLikeComment(lc www.LikeComment, user *database.User) (*
 	}
 
 	// Validate prop vote status
-	b.Lock()
-	defer b.Unlock()
+	b.RLock()
 	ir, ok := b.inventory[lc.Token]
+	b.RUnlock()
 	if !ok {
 		return nil, fmt.Errorf("Could not find proposal")
 	}
@@ -1976,8 +1976,10 @@ func (b *backend) ProcessLikeComment(lc www.LikeComment, user *database.User) (*
 
 	// Add action to comment to cache
 	if lcr.Error == "" {
+		b.Lock()
+		defer b.Unlock()
 		//b.inventory[ncrWWW.Comment.Token].comments[ncrWWW.Comment.CommentID] = ncrWWW.Comment
-		if c, ok := ir.comments[lc.CommentID]; ok {
+		if c, ok := b.inventory[lc.Token].comments[lc.CommentID]; ok {
 			// Update vote coutns
 			c.TotalVotes = lcr.Total
 			c.ResultVotes = lcr.Result
