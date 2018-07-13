@@ -247,7 +247,12 @@ func (c *Ctx) Version() (*v1.VersionReply, error) {
 	return &v, nil
 }
 
-func (c *Ctx) Login(email, password string) (*v1.LoginReply, error) {
+func (c *Ctx) Login(email, password string) (*v1.LoginReply, *identity.FullIdentity, error) {
+	id, err := idFromString(email)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	l := v1.Login{
 		Email:    email,
 		Password: password,
@@ -255,20 +260,20 @@ func (c *Ctx) Login(email, password string) (*v1.LoginReply, error) {
 
 	responseBody, err := c.makeRequest("POST", v1.RouteLogin, l)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var lr v1.LoginReply
 	err = json.Unmarshal(responseBody, &lr)
 	if err != nil {
-		return nil, fmt.Errorf("Could not unmarshal LoginReply: %v", err)
+		return nil, nil, fmt.Errorf("Could not unmarshal LoginReply: %v", err)
 	}
 
 	if config.Verbose {
 		prettyPrintJSON(lr)
 	}
 
-	return &lr, nil
+	return &lr, id, nil
 }
 
 func (c *Ctx) Policy() (*v1.PolicyReply, error) {

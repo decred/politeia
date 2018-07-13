@@ -56,7 +56,7 @@ func createPoliteiawwCmd(paywall bool) *exec.Cmd {
 		"--mailhost", "",
 		"--mailuser", "",
 		"--mailpass", "",
-		"--proxy", "1",
+		"--proxy", "0",
 		"--webserveraddress", "",
 		"--debuglevel", cfg.DebugLevel)
 }
@@ -100,7 +100,9 @@ func startPoliteiawww(paywall bool) error {
 	reader := io.TeeReader(out, logFile)
 	waitForStartOfDay(reader)
 	go io.Copy(logFile, out)
-	return nil
+
+	// Get the version for the csrf
+	return getVersionFromPoliteiawww()
 }
 
 func startPoliteiad() error {
@@ -344,6 +346,7 @@ func createProposal() (string, error) {
 			return npr.CensorshipRecord.Token != ""
 		},
 		"newproposal",
+		"--random",
 	)
 	if err != nil {
 		return "", err
@@ -448,23 +451,18 @@ func createProposals() error {
 
 func login(email, password string) error {
 	fmt.Printf("Logging in as: %v\n", email)
-	cmd := executeCommand(
-		cli,
+	var lr *v1.LoginReply
+	return executeCliCommand(
+		func() interface{} {
+			lr = &v1.LoginReply{}
+			return lr
+		},
+		func() bool {
+			return lr.UserID != ""
+		},
 		"login",
 		email,
 		password)
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-	if err := cmd.Wait(); err != nil {
-		return err
-	}
-
-	cmd = executeCommand(cli, "updateuserkey")
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-	return cmd.Wait()
 }
 
 func logout() error {
@@ -537,10 +535,6 @@ func _main() error {
 	}
 
 	if err = startPoliteiawww(true); err != nil {
-		return err
-	}
-
-	if err = getVersionFromPoliteiawww(); err != nil {
 		return err
 	}
 
