@@ -26,12 +26,12 @@ const (
 	defaultLogDirname       = "logs"
 	defaultLogFilename      = "politeiavoter.log"
 	defaultIdentityFilename = "identity.json"
-	defaultWalletHost       = "https://127.0.0.1" // Only allow localhost for now
+	defaultWalletHost       = "127.0.0.1"
 
 	defaultMainnetPort = "49374"
 	defaultTestnetPort = "59374"
 
-	defaultWalletMainnetPort = "19110"
+	defaultWalletMainnetPort = "9111"
 	defaultWalletTestnetPort = "19111"
 )
 
@@ -59,6 +59,7 @@ type config struct {
 	TestNet          bool     `long:"testnet" description:"Use the test network"`
 	SimNet           bool     `long:"simnet" description:"Use the simulation test network"`
 	PoliteiaWWW      string   `long:"politeiawww" description:"Politeia WWW host"`
+	WalletHost       string   `long:"wallethost" description:"Wallet host"`
 	Profile          string   `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
 	CPUProfile       string   `long:"cpuprofile" description:"Write CPU profile to the specified file"`
 	MemProfile       string   `long:"memprofile" description:"Write mem profile to the specified file"`
@@ -374,6 +375,15 @@ func loadConfig() (*config, []string, error) {
 		}
 	}
 
+	if cfg.WalletHost == "" {
+		if activeNetParams.Name == "mainnet" {
+			cfg.WalletHost = defaultWalletHost + ":" +
+				defaultWalletMainnetPort
+		} else {
+			cfg.WalletHost = defaultWalletHost + ":" +
+				defaultWalletTestnetPort
+		}
+	}
 	// Append the network type to the log directory so it is "namespaced"
 	// per network in the same fashion as the data directory.
 	cfg.LogDir = cleanAndExpandPath(cfg.LogDir)
