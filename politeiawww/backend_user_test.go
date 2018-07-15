@@ -51,6 +51,18 @@ func generateIdentity() (*identity.FullIdentity, error) {
 	return id, nil
 }
 
+func validateVerificationToken(t *testing.T, token string) {
+	bytes, err := hex.DecodeString(token)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(bytes[:]) != www.VerificationTokenSize {
+		t.Fatalf("token length was %v, expected %v", len(bytes[:]),
+			www.VerificationTokenSize)
+	}
+}
+
 func createNewUserCommandWithIdentity(t *testing.T) (www.NewUser, *identity.FullIdentity) {
 	id, err := generateIdentity()
 	assertSuccess(t, err)
@@ -133,16 +145,7 @@ func createAndVerifyUser(t *testing.T, b *backend) (www.NewUser, *identity.FullI
 	nu, id := createNewUserCommandWithIdentity(t)
 	nur, err := b.ProcessNewUser(nu)
 	assertSuccess(t, err)
-
-	bytes, err := hex.DecodeString(nur.VerificationToken)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if len(bytes[:]) != www.VerificationTokenSize {
-		t.Fatalf("token length was %v, expected %v", len(bytes[:]),
-			www.VerificationTokenSize)
-	}
+	validateVerificationToken(t, nur.VerificationToken)
 
 	signature := id.SignMessage([]byte(nur.VerificationToken))
 	v := www.VerifyNewUser{
@@ -372,16 +375,7 @@ func TestResendVerificationWithExpiredToken(t *testing.T) {
 	}
 	rvr, err := b.ProcessResendVerification(&rv)
 	assertSuccess(t, err)
-
-	bytes, err := hex.DecodeString(rvr.VerificationToken)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if len(bytes[:]) != www.VerificationTokenSize {
-		t.Fatalf("token length was %v, expected %v", len(bytes[:]),
-			www.VerificationTokenSize)
-	}
+	validateVerificationToken(t, rvr.VerificationToken)
 
 	signature := id.SignMessage([]byte(rvr.VerificationToken))
 	v := www.VerifyNewUser{

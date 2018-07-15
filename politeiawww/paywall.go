@@ -45,10 +45,10 @@ func (b *backend) paywallIsEnabled() bool {
 	return b.cfg.PaywallAmount != 0 && b.cfg.PaywallXpub != ""
 }
 
-// addUserToPaywallPoolWithLock adds a database user to the paywall pool.
+// addUserToPaywallPool adds a database user to the paywall pool.
 //
 // This function must be called WITH the mutex held.
-func (b *backend) addUserToPaywallPoolWithLock(user *database.User, paywallType string) {
+func (b *backend) addUserToPaywallPool(user *database.User, paywallType string) {
 	b.userPaywallPool[user.ID] = paywallPoolMember{
 		paywallType: paywallType,
 		address:     user.NewUserPaywallAddress,
@@ -58,10 +58,10 @@ func (b *backend) addUserToPaywallPoolWithLock(user *database.User, paywallType 
 	}
 }
 
-// addUserToPaywallPool adds a user and its paywall info to the in-memory pool.
+// addUserToPaywallPoolLock adds a user and its paywall info to the in-memory pool.
 //
 // This function must be called WITHOUT the mutex held.
-func (b *backend) addUserToPaywallPool(user *database.User, paywallType string) {
+func (b *backend) addUserToPaywallPoolLock(user *database.User, paywallType string) {
 	if !b.paywallIsEnabled() {
 		return
 	}
@@ -69,7 +69,7 @@ func (b *backend) addUserToPaywallPool(user *database.User, paywallType string) 
 	b.Lock()
 	defer b.Unlock()
 
-	b.addUserToPaywallPoolWithLock(user, paywallType)
+	b.addUserToPaywallPool(user, paywallType)
 }
 
 func (b *backend) updateUserAsPaid(user *database.User, tx string) error {
@@ -286,7 +286,7 @@ func (b *backend) GenerateNewUserPaywall(user *database.User) error {
 		return err
 	}
 
-	b.addUserToPaywallPool(user, paywallTypeUser)
+	b.addUserToPaywallPoolLock(user, paywallTypeUser)
 	return nil
 }
 
@@ -358,7 +358,7 @@ func (b *backend) addUsersToPaywallPool() error {
 	err := b.db.AllUsers(func(user *database.User) {
 		// Proposal paywalls
 		if b.userHasValidProposalPaywall(user) {
-			b.addUserToPaywallPoolWithLock(user, paywallTypeProposal)
+			b.addUserToPaywallPool(user, paywallTypeProposal)
 			return
 		}
 
@@ -373,7 +373,7 @@ func (b *backend) addUsersToPaywallPool() error {
 			return
 		}
 
-		b.addUserToPaywallPoolWithLock(user, paywallTypeUser)
+		b.addUserToPaywallPool(user, paywallTypeUser)
 	})
 	if err != nil {
 		return err
@@ -531,7 +531,7 @@ func (b *backend) verifyProposalPayment(user *database.User) error {
 
 // ProposalCreditsBalance returns the number of proposal credits that the user
 // has available to spend.
-func (b *backend) ProposalCreditBalance(u *database.User) uint64 {
+func ProposalCreditBalance(u *database.User) uint64 {
 	return uint64(len(u.UnspentProposalCredits))
 }
 
@@ -542,7 +542,7 @@ func (b *backend) UserHasProposalCredits(u *database.User) bool {
 	if b.test || !b.paywallIsEnabled() {
 		return true
 	}
-	return b.ProposalCreditBalance(u) > 0
+	return ProposalCreditBalance(u) > 0
 }
 
 // SpendProposalCredit updates an unspent proposal credit with the passed in
@@ -554,7 +554,7 @@ func (b *backend) SpendProposalCredit(u *database.User, token string) error {
 		return nil
 	}
 
-	if b.ProposalCreditBalance(u) == 0 {
+	if ProposalCreditBalance(u) == 0 {
 		return v1.UserError{
 			ErrorCode: v1.ErrorStatusNoProposalCredits,
 		}

@@ -32,6 +32,7 @@ const (
 	defaultLogLevel         = "info"
 	defaultLogDirname       = "logs"
 	defaultLogFilename      = "politeiawww.log"
+	adminLogFilename        = "admin.log"
 	defaultIdentityFilename = "identity.json"
 
 	defaultMainnetPort = "4443"
@@ -109,6 +110,7 @@ type config struct {
 	PaywallAmount            uint64 `long:"paywallamount" description:"Amount of DCR (in atoms) required for a user to register or submit a proposal."`
 	PaywallXpub              string `long:"paywallxpub" description:"Extended public key for deriving paywall addresses."`
 	MinConfirmationsRequired uint64 `long:"minconfirmations" description:"Minimum blocks confirmation for accepting paywall as paid. Only works in TestNet."`
+	AdminLogFile             string
 }
 
 // serviceOptions defines the configuration options for the rpc as a service
@@ -508,6 +510,8 @@ func loadConfig() (*config, []string, error) {
 	// per network in the same fashion as the data directory.
 	cfg.LogDir = cleanAndExpandPath(cfg.LogDir)
 	cfg.LogDir = filepath.Join(cfg.LogDir, netName(activeNetParams))
+
+	cfg.AdminLogFile = filepath.Join(cfg.LogDir, adminLogFilename)
 
 	cfg.HTTPSKey = cleanAndExpandPath(cfg.HTTPSKey)
 	cfg.HTTPSCert = cleanAndExpandPath(cfg.HTTPSCert)

@@ -210,7 +210,7 @@ func (b *backend) generateVerificationTokenAndExpiry() ([]byte, int64, error) {
 }
 
 // checkUserIsLocked checks if a user is locked after many login attempts
-func (b *backend) checkUserIsLocked(failedLoginAttempts uint64) bool {
+func checkUserIsLocked(failedLoginAttempts uint64) bool {
 	return failedLoginAttempts >= LoginAttemptsToLockUser
 }
 
@@ -873,7 +873,7 @@ func (b *backend) CreateLoginReply(user *database.User) (*www.LoginReply, error)
 		Email:           user.Email,
 		Username:        user.Username,
 		PublicKey:       activeIdentity,
-		ProposalCredits: b.ProposalCreditBalance(user),
+		ProposalCredits: ProposalCreditBalance(user),
 	}
 
 	if !b.HasUserPaid(user) {
@@ -1129,7 +1129,7 @@ func (b *backend) ProcessVerifyNewUser(u www.VerifyNewUser) (*database.User, err
 		return nil, err
 	}
 
-	b.addUserToPaywallPool(user, paywallTypeUser)
+	b.addUserToPaywallPoolLock(user, paywallTypeUser)
 
 	return user, nil
 }
@@ -1366,35 +1366,30 @@ func (b *backend) ProcessLogin(l www.Login) (*www.LoginReply, error) {
 	err = bcrypt.CompareHashAndPassword(user.HashedPassword,
 		[]byte(l.Password))
 	if err != nil {
-		if b.checkUserIsLocked(user.FailedLoginAttempts) {
-			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusInvalidEmailOrPassword,
-			}
-		} else {
+		if !checkUserIsLocked(user.FailedLoginAttempts) {
 			user.FailedLoginAttempts++
 			err := b.db.UserUpdate(*user)
 			if err != nil {
 				return nil, err
 			}
-			// We need to check if the user is locked again so we can
-			// send an email.
-			if b.checkUserIsLocked(user.FailedLoginAttempts) {
-				if !b.test {
-					// This is conditional on the email server being setup.
-					err := b.emailUserLocked(user.Email)
-					if err != nil {
-						return nil, err
-					}
+
+			// Check if the user is locked again so we can send an email.
+			if checkUserIsLocked(user.FailedLoginAttempts) && !b.test {
+				// This is conditional on the email server being setup.
+				err := b.emailUserLocked(user.Email)
+				if err != nil {
+					return nil, err
 				}
 			}
 		}
+
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusInvalidEmailOrPassword,
 		}
 	}
 
 	// Check if user is locked due to too many login attempts
-	if b.checkUserIsLocked(user.FailedLoginAttempts) {
+	if checkUserIsLocked(user.FailedLoginAttempts) {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusUserLocked,
 		}
@@ -1766,6 +1761,11 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 
 		// Update the inventory with the metadata changes.
 		b.updateInventoryRecord(pdReply.Record)
+
+		// Log the action in the admin log.
+		b.logAdminProposalAction(user, sps.Token,
+			fmt.Sprintf("set proposal status to %v",
+				v1.PropStatus[sps.ProposalStatus]))
 	}
 
 	// Return the reply.
@@ -2293,6 +2293,9 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 	if err != nil {
 		return nil, err
 	}
+
+	// Log the action in the admin log.
+	b.logAdminProposalAction(user, sv.Vote.Token, "start vote")
 
 	// We can get away with only updating the voting metadata in cache
 	// XXX this is cheating a bit and we should add an api for this or toss the cache altogether

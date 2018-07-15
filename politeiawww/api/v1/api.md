@@ -16,6 +16,8 @@ API.  It does not render HTML.
 - [`Login`](#login)
 - [`Logout`](#logout)
 - [`Verify user payment`](#verify-user-payment)
+- [`User details`](#user-details)
+- [`Edit user`](#edit-user)
 - [`Update user key`](#update-user-key)
 - [`Verify update user key`](#verify-update-user-key)
 - [`Change username`](#change-username)
@@ -83,6 +85,7 @@ API.  It does not render HTML.
 - [`ErrorStatusDuplicatePublicKey`](#ErrorStatusDuplicatePublicKey)
 - [`ErrorStatusInvalidPropVoteStatus`](#ErrorStatusInvalidPropVoteStatus)
 - [`ErrorStatusNoProposalCredits`](#ErrorStatusNoProposalCredits)
+- [`ErrorStatusInvalidUserEditAction`](#ErrorStatusInvalidUserEditAction)
 
 
 **Proposal status codes**
@@ -183,8 +186,8 @@ Reply:
   "email":"69af376cca42cd9c@example.com",
   "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
   "paywalladdress":"Tsgs7qb1Gnc43D9EY3xx9ou8Lbo8rB7me6M",
-  "paywallamount":"10000000",
-  "paywalltxnotbefore":"1528821554"
+  "paywallamount": 10000000,
+  "paywalltxnotbefore": 1528821554
 }
 ```
 
@@ -210,7 +213,7 @@ Create a new user on the politeiawww server.
 | paywalladdress | String | The address in which to send the transaction containing the `paywallamount`. |
 | paywallamount | Int64 | The amount of DCR (in atoms) to send to `paywalladdress`. |
 | paywalltxnotbefore | Int64 | The minimum UNIX time (in seconds) required for the block containing the transaction sent to `paywalladdress`. |
-| verificationtoken | String | The verification token which is required when calling [Verify user](#verify-user). If an email server is set up, this property will be empty or nonexistent; the token will be sent to the email address sent in the request.|
+| verificationtoken | String | The verification token which is required when calling [`Verify user`](#verify-user). If an email server is set up, this property will be empty or nonexistent; the token will be sent to the email address sent in the request.|
 
 This call can return one of the following error codes:
 
@@ -311,7 +314,7 @@ Sends another verification email for a new user registration.
 
 | Parameter | Type | Description |
 |-|-|-|
-| verificationtoken | String | The verification token which is required when calling [Verify user](#verify-user). If an email server is set up, this property will be empty or nonexistent; the token will be sent to the email address sent in the request.|
+| verificationtoken | String | The verification token which is required when calling [`Verify user`](#verify-user). If an email server is set up, this property will be empty or nonexistent; the token will be sent to the email address sent in the request.|
 
 This call can return one of the following error codes:
 
@@ -457,6 +460,107 @@ Reply:
 }
 ```
 
+### `User details`
+
+Returns details about a user given its id. This call requires admin privileges.
+
+**Route:** `GET /v1/user/{userid}`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-----------|------|-------------|----------|
+| userid | string | The unique id of the user. | Yes |
+
+**Results:**
+
+| Parameter | Type | Description |
+|-|-|-|
+| user | [User](#user) | The user details. |
+
+On failure the call shall return `400 Bad Request` and one of the following
+error codes:
+- [`ErrorStatusUserNotFound`](#ErrorStatusUserNotFound)
+
+**Example**
+
+Request:
+
+```json
+{
+  "userid": "0"
+}
+```
+
+Reply:
+
+```json
+{
+  "user": {
+    "id": "0",
+    "email": "6b87b6ebb0c80cb7@example.com",
+    "username": "6b87b6ebb0c80cb7",
+    "isadmin": false,
+    "newuserpaywalladdress": "Tsgs7qb1Gnc43D9EY3xx9ou8Lbo8rB7me6M",
+    "newuserpaywallamount": 10000000,
+    "newuserpaywalltxnotbefore": 1528821554,
+    "newuserpaywalltx": "",
+    "newuserpaywallpollexpiry": 1528821554,
+    "newuserverificationtoken": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
+    "newuserverificationexpiry": 1528821554,
+    "updatekeyverificationtoken": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
+    "updatekeyverificationexpiry": 1528821554,
+    "resetpasswordverificationtoken": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
+    "resetpasswordverificationexpiry": 1528821554,
+    "identities": [{
+      "pubkey": "5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+      "isactive": true
+    }],
+    "proposals": [],
+    "comments": []
+  }
+}
+```
+
+### `Edit user`
+
+Edits a user's details. This call requires admin privileges.
+
+**Route:** `POST /v1/user/edit`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-----------|------|-------------|----------|
+| userid | string | The unique id of the user. | Yes |
+| action | int64 | The [user edit action](#user-edit-actions) to execute on the user. | Yes |
+| reason | string | The admin's reason for executing this action. | Yes |
+
+**Results:** none
+
+On failure the call shall return `400 Bad Request` and one of the following
+error codes:
+- [`ErrorStatusUserNotFound`](#ErrorStatusUserNotFound)
+- [`ErrorStatusInvalidInput`](#ErrorStatusInvalidInput)
+- [`ErrorStatusInvalidUserEditAction`](#ErrorStatusInvalidUserEditAction)
+
+**Example**
+
+Request:
+
+```json
+{
+  "userid": "0",
+  "action": 1
+}
+```
+
+Reply:
+
+```json
+{}
+```
+
 ### `Update user key`
 
 Updates the user's active key pair.
@@ -473,7 +577,7 @@ Updates the user's active key pair.
 
 | Parameter | Type | Description |
 |-|-|-|
-| verificationtoken | String | The verification token which is required when calling [Verify update user key](#verify-update-user-key). If an email server is set up, this property will be empty or nonexistent; the token will be sent to the email address sent in the request. |
+| verificationtoken | String | The verification token which is required when calling [`Verify update user key`](#verify-update-user-key). If an email server is set up, this property will be empty or nonexistent; the token will be sent to the email address sent in the request. |
 
 This call can return one of the following error codes:
 
@@ -712,11 +816,11 @@ Reply:
 ### `Proposal paywall details`
 Retrieve paywall details that can be used to purchase proposal credits.
 Proposal paywalls are only valid for one tx.  The user can purchase as many
-proposal credits as they would like with that one tx. Proposal paywalls expire 
+proposal credits as they would like with that one tx. Proposal paywalls expire
 after a set duration.  To verify that a payment has been made,
-politeiawww polls the paywall address until the paywall is either paid or it 
-expires. A proposal paywall cannot be generated until the user has paid their 
-user registration fee.  
+politeiawww polls the paywall address until the paywall is either paid or it
+expires. A proposal paywall cannot be generated until the user has paid their
+user registration fee.
 
 **Route:** `GET /v1/proposals/paywall`
 
@@ -726,9 +830,9 @@ user registration fee.
 
 | Parameter | Type | Description |
 |-|-|-|
-| creditprice | uint64 | Price per proposal credit in atoms. | 
-| paywalladdress | string | Proposal paywall address. | 
-| paywalltxnotbefore | string | Minimum timestamp for paywall tx. | 
+| creditprice | uint64 | Price per proposal credit in atoms. |
+| paywalladdress | string | Proposal paywall address. |
+| paywalltxnotbefore | string | Minimum timestamp for paywall tx. |
 On failure the call shall return `400 Bad Request` and one of the following
 error codes:
 - [`ErrorStatusUserNotPaid`](#ErrorStatusUserNotPaid)
@@ -762,8 +866,8 @@ Request a list of the user's unspent and spent proposal credits.
 
 | Parameter | Type | Description |
 |-|-|-|
-| unspentcredits | array of [`ProposalCredit`](#proposal-credit)'s | The user's unspent proposal credits | 
-| spentcredits | array of [`ProposalCredit`](#proposal-credit)'s | The user's spent proposal credits | 
+| unspentcredits | array of [`ProposalCredit`](#proposal-credit)'s | The user's unspent proposal credits |
+| spentcredits | array of [`ProposalCredit`](#proposal-credit)'s | The user's spent proposal credits |
 
 **Example**
 
@@ -1366,7 +1470,7 @@ Allows a user to up or down vote a comment
 | error | Error if something went wront during liking a comment
 **Example:**
 
-Request: 
+Request:
 
 ```json
 {
@@ -1380,7 +1484,7 @@ Request:
 
 Reply:
 
-```json 
+```json
 {
   "total": 4,
   "result": 3,
@@ -1964,6 +2068,7 @@ Reply:
 | <a name="ErrorStatusInvalidPropVoteStatus">ErrorStatusInvalidPropVoteStatus</a> | 37 | Invalid proposal vote status. |
 | <a name="ErrorStatusUserLocked">ErrorStatusUserLocked</a> | 38 | User locked due to too many login attempts. |
 | <a name="ErrorStatusNoProposalCredits">ErrorStatusNoProposalCredits</a> | 39 | No proposal credits. |
+| <a name="ErrorStatusInvalidUserEditAction">ErrorStatusInvalidUserEditAction</a> | 40 | Invalid action for editing a user. |
 
 ### Proposal status codes
 
@@ -1975,6 +2080,42 @@ Reply:
 | <a name="PropStatusCensored">PropStatusCensored</a> | 3 | The proposal has been censored by an admin. |
 | <a name="PropStatusPublic">PropStatusPublic</a> | 4 | The proposal has been published by an admin. |
 | <a name="PropStatusLocked">PropStatusLocked</a> | 6 | The proposal has been locked by an admin. |
+
+### User edit actions
+
+| Status | Value | Description |
+|-|-|-|
+| <a name="UserEditInvalid">UserEditInvalid</a>| 0 | An invalid action. This shall be considered a bug. |
+| <a name="UserEditExpireNewUserVerification">UserEditExpireNewUserVerification</a> | 1 | Expires the new user verification token. |
+| <a name="UserEditExpireUpdateKeyVerification">UserEditExpireUpdateKeyVerification</a> | 2 | Expires the update key verification token. |
+| <a name="UserEditExpireResetPasswordVerification">UserEditExpireResetPasswordVerification</a> | 3 | Expires the reset password verification token. |
+| <a name="UserEditClearUserPaywall">UserEditClearUserPaywall</a> | 4 | Clears the user's paywall. |
+| <a name="UserEditUnlock">UserEditUnlock</a> | 5 | Unlocks a user's account. |
+
+### `User`
+
+| | Type | Description |
+|-|-|-|
+| id | string | The unique id of the user. |
+| email | string | Email address. |
+| username | string | Unique username. |
+| isadmin | boolean | Whether the user is an admin or not. |
+| newuserpaywalladdress | string | The address in which to send the transaction containing the `newuserpaywallamount`.  If the user has already paid, this field will be empty or not present. |
+| newuserpaywallamount | int64 | The amount of DCR (in atoms) to send to `newuserpaywalladdress`.  If the user has already paid, this field will be empty or not present. |
+| newuserpaywalltxnotbefore | int64 | The minimum UNIX time (in seconds) required for the block containing the transaction sent to `newuserpaywalladdress`.  If the user has already paid, this field will be empty or not present. |
+| newuserpaywalltx | string | The transaction used to pay the `newuserpaywallamount` at `newuserpaywalladdress`. |
+| newuserpaywallpollexpiry | int64 | The UNIX time (in seconds) for when the server will stop polling the server for transactions at `newuserpaywalladdress`. |
+| newuserverificationtoken | string | The verification token which is sent to the user's email address. |
+| newuserverificationexpiry | int64 | The UNIX time (in seconds) for when the `newuserverificationtoken` expires. |
+| updatekeyverificationtoken | string | The verification token which is sent to the user's email address. |
+| updatekeyverificationexpiry | int64 | The UNIX time (in seconds) for when the `updatekeyverificationtoken` expires. |
+| resetpasswordverificationtoken | string | The verification token which is sent to the user's email address. |
+| resetpasswordverificationexpiry | int64 | The UNIX time (in seconds) for when the `resetpasswordverificationtoken` expires. |
+| failedloginattempts | uint64 | The number of consecutive failed login attempts. |
+| islocked | boolean | Whether the user account is locked due to too many failed login attempts. |
+| identities | array of [`Identity`](#identity)s | Identities, both activated and deactivated, of the user. |
+| proposals | array of [`Proposal`](#proposal)s | Proposal submitted by the user. |
+| proposalcredits | uint64 | The number of available proposal credits the user has. |
 
 ### `Proposal`
 
@@ -1989,6 +2130,13 @@ Reply:
 | censorshiprecord | [`censorshiprecord`](#censorship-record) | The censorship record that was created when the proposal was submitted. |
 | files | array of [`File`](#file)s | This property will only be populated for the [`Proposal details`](#proposal-details) call. |
 | numcomments | number | The number of comments on the proposal. This should be ignored for proposals which are not public. |
+
+### `Identity`
+
+| | Type | Description |
+|-|-|-|
+| pubkey | string | The user's public key. |
+| isactive | boolean | Whether or not the identity is active. |
 
 ### `File`
 

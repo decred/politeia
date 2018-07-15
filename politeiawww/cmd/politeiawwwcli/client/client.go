@@ -1056,3 +1056,47 @@ func (c *Ctx) ProposalVotes(propToken string) (*v1.VoteResultsReply, error) {
 
 	return &vrr, nil
 }
+
+func (c *Ctx) GetUserDetails(userId string) (*v1.UserDetailsReply, error) {
+	responseBody, err := c.makeRequest("GET", "/user/"+userId, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var pr v1.UserDetailsReply
+	err = json.Unmarshal(responseBody, &pr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal UserDetailsReply: %v", err)
+	}
+
+	if config.Verbose {
+		prettyPrintJSON(pr)
+	}
+
+	return &pr, nil
+}
+
+func (c *Ctx) EditUser(userID string, action int64, reason string) (*v1.EditUserReply, error) {
+	eu := v1.EditUser{
+		UserID: userID,
+		Action: v1.UserEditActionT(action),
+		Reason: reason,
+	}
+
+	responseBody, err := c.makeRequest("POST", v1.RouteEditUser, eu)
+	if err != nil {
+		return nil, err
+	}
+
+	var eur v1.EditUserReply
+	err = json.Unmarshal(responseBody, &eur)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal EditUserReply: %v", err)
+	}
+
+	if config.Verbose {
+		prettyPrintJSON(eur)
+	}
+
+	return &eur, nil
+}

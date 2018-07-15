@@ -498,17 +498,25 @@ func deleteExistingData() error {
 	return os.RemoveAll(cliconfig.HomeDir)
 }
 
-func stopServers() {
+func stopPoliteiad() {
 	if politeiadCmd != nil {
 		fmt.Printf("Stopping politeiad\n")
 		politeiadCmd.Process.Kill()
 		politeiadCmd = nil
 	}
+}
+
+func stopPoliteiawww() {
 	if politeiawwwCmd != nil {
 		fmt.Printf("Stopping politeiawww\n")
 		politeiawwwCmd.Process.Kill()
 		politeiawwwCmd = nil
 	}
+}
+
+func stopServers() {
+	stopPoliteiad()
+	stopPoliteiawww()
 }
 
 func _main() error {
@@ -539,6 +547,11 @@ func _main() error {
 	}
 
 	if err = createUnpaidUsers(); err != nil {
+		return err
+	}
+
+	stopPoliteiawww()
+	if err = startPoliteiawww(false); err != nil {
 		return err
 	}
 
