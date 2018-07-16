@@ -34,13 +34,10 @@ API.  It does not render HTML.
 - [`Start vote`](#start-vote)
 - [`Active votes`](#active-votes)
 - [`Cast votes`](#cast-votes)
-<<<<<<< HEAD
 - [`Proposal votes`](#proposal-votes)
 - [`Proposal vote status`](#proposal-vote-status)
 - [`Proposals vote status`](#proposals-vote-status)
-=======
 - [`Vote results`](#vote-results)
->>>>>>> Update voting docs
 - [`Usernames by id`](#usernames-by-id)
 - [`User Comments votes`](#user-comments-votes)
 
