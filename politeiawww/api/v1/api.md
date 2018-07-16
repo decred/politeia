@@ -425,7 +425,10 @@ Checks that a user has paid his user registration fee.
 
 | Parameter | Type | Description |
 |-|-|-|
-| haspaid | boolean | Whether or not a transaction on the blockchain that was sent to the `paywalladdress` (which is provided on [`New user`](#new-user) and the [`Login reply`](#login-reply) could be found and verified. |
+| haspaid | boolean | Whether or not a transaction on the blockchain that was sent to the `paywalladdress` |
+| paywalladdress | String | The address in which to send the transaction containing the `paywallamount`.  If the user has already paid, this field will be empty or not present. |
+| paywallamount | Int64 | The amount of DCR (in atoms) to send to `paywalladdress`.  If the user has already paid, this field will be empty or not present. |
+| paywalltxnotbefore | Int64 | The minimum UNIX time (in seconds) required for the block containing the transaction sent to `paywalladdress`.  If the user has already paid, this field will be empty or not present. |
 
 On failure the call shall return `400 Bad Request` and one of the following
 error codes:
@@ -443,7 +446,10 @@ Reply:
 
 ```json
 {
-  "haspaid": true
+  "haspaid": true,
+  "paywalladdress":"",
+  "paywallamount":"",
+  "paywalltxnotbefore":""
 }
 ```
 
