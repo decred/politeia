@@ -34,7 +34,6 @@ API.  It does not render HTML.
 - [`Start vote`](#start-vote)
 - [`Active votes`](#active-votes)
 - [`Cast votes`](#cast-votes)
-- [`Proposal votes`](#proposal-votes)
 - [`Proposal vote status`](#proposal-vote-status)
 - [`Proposals vote status`](#proposals-vote-status)
 - [`Vote results`](#vote-results)
@@ -1553,13 +1552,9 @@ Retrieve vote results for a specified censorship token.
 Note that the webserver does not interpret the plugin structures. These are
 forwarded as-is to the politeia daemon.
 
-**Route:** `POST /v1/proposals/voteresults`
+**Route:** `GET /v1/proposals/{token}/votes`
 
-**Params:**
-
-| Parameter | Type | Description | Required |
-|-|-|-|-|
-| token | string | Censorhip token | Yes |
+**Params:** none
 
 **Results:**
 
@@ -1572,12 +1567,8 @@ forwarded as-is to the politeia daemon.
 **Example**
 
 Request:
+`GET /V1/proposals/642eb2f3798090b3234d8787aaba046f1f4409436d40994643213b63cb3f41da/votes`
 
-``` json
-{
-  "token":"642eb2f3798090b3234d8787aaba046f1f4409436d40994643213b63cb3f41da"
-}
-```
 
 Reply:
 
@@ -1607,7 +1598,18 @@ Reply:
     "ticket":"cf3943767a35136252f69118b291b47006308e4215de41673ab118736e26605e",
     "votebit":"2",
     "signature":"1f8b3c8207fa67d91a65d8742e5026044ccebd6b4865579a1f75d6e9a40a56f9a96e091397d2ec9f8fca773c68e961b93fe380a694aceecfd8f9b972f1e4d59db9"
-  }]
+  }],
+  "startvotereply": {
+    "startblockheight":"282899",
+    "startblockhash":"00000000017236b62ff1ce136328e6fb4bcd171801a281ce0a662e63cbc4c4fa",
+    "endheight":"284915",
+    "eligibletickets":[
+      "000011e329fe0359ea1d2070d927c93971232c1118502dddf0b7f1014bf38d97",
+      "0004b0f8b2883a2150749b2c8ba05652b02220e98895999fd96df790384888f9",
+      "00107166c5fc5c322ecda3748a1896f4a2de6672aae25014123d2cedc83e8f42",
+      "002272cf4788c3f726c30472f9c97d2ce66b997b5762ff4df6a05c4761272413"
+    ]
+  }
 }
 ```
 
