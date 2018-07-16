@@ -79,6 +79,7 @@ API.  It does not render HTML.
 - [`ErrorStatusVerificationTokenUnexpired`](#ErrorStatusVerificationTokenUnexpired)
 - [`ErrorStatusCannotVerifyPayment`](#ErrorStatusCannotVerifyPayment)
 - [`ErrorStatusDuplicatePublicKey`](#ErrorStatusDuplicatePublicKey)
+- [`ErrorStatusInvalidPropVoteStatus`](#ErrorStatusInvalidPropVoteStatus)
 
 
 **Proposal status codes**
@@ -1872,7 +1873,7 @@ Reply:
 | <a name="ErrorStatusVerificationTokenUnexpired">ErrorStatusVerificationTokenUnexpired</a> | 34 | A verification token has already been generated and hasn't expired yet. |
 | <a name="ErrorStatusCannotVerifyPayment">ErrorStatusCannotVerifyPayment</a> | 35 | The server cannot verify the payment at this time, please try again later. |
 | <a name="ErrorStatusDuplicatePublicKey">ErrorStatusDuplicatePublicKey</a> | 36 | The public key provided is already taken by another user. |
-
+| <a name="ErrorStatusInvalidPropVoteStatus">ErrorStatusInvalidPropVoteStatus</a> | 37 | Invalid proposal vote status. |
 
 ### Proposal status codes
 
