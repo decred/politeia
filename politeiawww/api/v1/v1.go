@@ -714,7 +714,7 @@ type LikeCommentReply struct {
 	Total   uint64 `json:"total"`           // Total number of up and down votes
 	Result  int64  `json:"result"`          // Current tally of likes, can be negative
 	Receipt string `json:"receipt"`         // Server signature of client signature
-	Error   string `json:"error,omitempty"` // Error if something wen't wrong during liking a comment
+	Error   string `json:"error,omitempty"` // Error if something went wrong during liking a comment
 }
 
 // UsernamesById is a command to fetch all usernames by their ids.

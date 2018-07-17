@@ -30,12 +30,13 @@ API.  It does not render HTML.
 - [`Policy`](#policy)
 - [`New comment`](#new-comment)
 - [`Get comments`](#get-comments)
+- [`Like comment`](#like-comment)
 - [`Start vote`](#start-vote)
 - [`Active votes`](#active-votes)
 - [`Cast votes`](#cast-votes)
-- [`Proposal votes`](#proposal-votes)
 - [`Proposal vote status`](#proposal-vote-status)
 - [`Proposals vote status`](#proposals-vote-status)
+- [`Vote results`](#vote-results)
 - [`Usernames by id`](#usernames-by-id)
 - [`User Comments votes`](#user-comments-votes)
 
@@ -78,6 +79,7 @@ API.  It does not render HTML.
 - [`ErrorStatusVerificationTokenUnexpired`](#ErrorStatusVerificationTokenUnexpired)
 - [`ErrorStatusCannotVerifyPayment`](#ErrorStatusCannotVerifyPayment)
 - [`ErrorStatusDuplicatePublicKey`](#ErrorStatusDuplicatePublicKey)
+- [`ErrorStatusInvalidPropVoteStatus`](#ErrorStatusInvalidPropVoteStatus)
 
 
 **Proposal status codes**
@@ -423,7 +425,10 @@ Checks that a user has paid his user registration fee.
 
 | Parameter | Type | Description |
 |-|-|-|
-| haspaid | boolean | Whether or not a transaction on the blockchain that was sent to the `paywalladdress` (which is provided on [`New user`](#new-user) and the [`Login reply`](#login-reply) could be found and verified. |
+| haspaid | boolean | Whether or not a transaction on the blockchain that was sent to the `paywalladdress` |
+| paywalladdress | String | The address in which to send the transaction containing the `paywallamount`.  If the user has already paid, this field will be empty or not present. |
+| paywallamount | Int64 | The amount of DCR (in atoms) to send to `paywalladdress`.  If the user has already paid, this field will be empty or not present. |
+| paywalltxnotbefore | Int64 | The minimum UNIX time (in seconds) required for the block containing the transaction sent to `paywalladdress`.  If the user has already paid, this field will be empty or not present. |
 
 On failure the call shall return `400 Bad Request` and one of the following
 error codes:
@@ -441,7 +446,10 @@ Reply:
 
 ```json
 {
-  "haspaid": true
+  "haspaid": true,
+  "paywalladdress":"",
+  "paywallamount":"",
+  "paywalltxnotbefore":""
 }
 ```
 
@@ -1109,7 +1117,17 @@ proposal"; if the value is not empty it means "reply to comment".
 
 | | Type | Description |
 | - | - | - |
-| commentid | string | Server generated unique comment identifier |
+| userid | string | Unique user identifier |
+| timestamp | int64 | UNIX time when comment was accepted |
+| commentid | string | Unique comment identifier |
+| parentid | string | Parent comment identifier |
+| token | string | Censorship token |
+| comment | string | Comment text |
+| publickey | string | Public key from the client side, sent to politeiawww for verification |
+| signature | string | Signature of Token, ParentID and Comment |
+| receipt | string | Server signature of the client Signature |
+| totalvotes | uint64 | Total number of up/down votes |
+| resultvotes | int64 | Vote score |
 
 On failure the call shall return `400 Bad Request` and one of the following
 error codes:
@@ -1123,11 +1141,11 @@ Request:
 
 ```json
 {
-  "token":"837f068c02b48f7f0ebe590e07d0a33bd6ce1046ba44b5f1ad0f8b4a4d0cb7f3",
-  "parentid":"",
+  "token":"abf0fd1fc1b8c1c9535685373dce6c54948b7eb018e17e3a8cea26a3c9b85684",
+  "parentid":"0",
   "comment":"I dont like this prop",
-  "signature":"b5ec08402e4c4c34da97bd469fc59be408a3e3978d3696ac6b31aed028d9d4acfe757bbd279f48a8ad81853f9d79416e9da0b563caa2f5a1dfb91f54f9edbf06",
-  "publickey":"f5519b6fdee08be45d47d5dd794e81303688a8798012d8983ba3f15af70a747c"
+  "signature":"af969d7f0f711e25cb411bdbbe3268bbf3004075cde8ebaee0fc9d988f24e45013cc2df6762dca5b3eb8abb077f76e0b016380a7eba2d46839b04c507d86290d",
+  "publickey":"4206fa1f45c898f1dee487d7a7a82e0ed293858313b8b022a6a88f2bcae6cdd7"
 }
 ```
 
@@ -1135,7 +1153,17 @@ Reply:
 
 ```json
 {
-  "commentid": "103"
+  "comment": "I dont like this prop",
+  "commentid": "4",
+  "parentid": "0",
+  "publickey": "4206fa1f45c898f1dee487d7a7a82e0ed293858313b8b022a6a88f2bcae6cdd7",
+  "receipt": "96f3956ea3decb75ee129e6ee4e77c6c608f0b5c99ff41960a4e6078d8bb74e8ad9d2545c01fff2f8b7e0af38ee9de406aea8a0b897777d619e93d797bc1650a",
+  "signature":"af969d7f0f711e25cb411bdbbe3268bbf3004075cde8ebaee0fc9d988f24e45013cc2df6762dca5b3eb8abb077f76e0b016380a7eba2d46839b04c507d86290d",
+  "timestamp": 1527277504,
+  "token": "abf0fd1fc1b8c1c9535685373dce6c54948b7eb018e17e3a8cea26a3c9b85684",
+  "userid": "124",
+  "totalvotes": 0,
+  "resultvotes": 0
 }
 ```
 
@@ -1158,12 +1186,17 @@ sorted.
 
 | | Type | Description |
 | - | - | - |
-| UserID | string | Unique user identifier |
-| Timestamp | int64 | UNIX time when comment was accepted |
-| CommentID | string | Unique comment identifier |
-| ParentID | string | Parent comment identifier |
-| Token | string | Censorship token |
-| Comment | string | Comment text |
+| userid | string | Unique user identifier |
+| timestamp | int64 | UNIX time when comment was accepted |
+| commentid | string | Unique comment identifier |
+| parentid | string | Parent comment identifier |
+| token | string | Censorship token |
+| comment | string | Comment text |
+| publickey | string | Public key from the client side, sent to politeiawww for verification |
+| signature | string | Signature of Token, ParentID and Comment |
+| receipt | string | Server signature of the client Signature |
+| totalvotes | uint64 | Total number of up/down votes |
+| resultvotes | int64 | Vote score |
 
 **Example**
 
@@ -1180,27 +1213,90 @@ Reply:
 ```json
 {
   "comments": [{
-    "commentid":"56",
-    "userid":"4",
-    "parentid":"0",
-    "timestamp":1509990301,
-    "token":"86221ddae6594b43a19e4c76250c0a8833ecd3b7a9880fb5d2a901970de9ff0e",
-    "comment":"I dont like this prop"
+    "comment": "I dont like this prop",
+    "commentid": "4",
+    "parentid": "0",
+    "publickey": "4206fa1f45c898f1dee487d7a7a82e0ed293858313b8b022a6a88f2bcae6cdd7",
+    "receipt": "96f3956ea3decb75ee129e6ee4e77c6c608f0b5c99ff41960a4e6078d8bb74e8ad9d2545c01fff2f8b7e0af38ee9de406aea8a0b897777d619e93d797bc1650a",
+    "signature":"af969d7f0f711e25cb411bdbbe3268bbf3004075cde8ebaee0fc9d988f24e45013cc2df6762dca5b3eb8abb077f76e0b016380a7eba2d46839b04c507d86290d",
+    "timestamp": 1527277504,
+    "token": "abf0fd1fc1b8c1c9535685373dce6c54948b7eb018e17e3a8cea26a3c9b85684",
+    "userid": "124",
+    "totalvotes": 4,
+    "resultvotes": 3
   },{
-    "commentid":"57",
-    "userid":"4",
-    "parentid":"56",
-    "timestamp":1509990301,
-    "token":"86221ddae6594b43a19e4c76250c0a8833ecd3b7a9880fb5d2a901970de9ff0e",
-    "comment":"you are right!"
+    "comment":"you are right!",
+    "commentid": "4",
+    "parentid": "0",
+    "publickey": "4206fa1f45c898f1dee487d7a7a82e0ed293858313b8b022a6a88f2bcae6cdd7",
+    "receipt": "96f3956ea3decb75ee129e6ee4e77c6c608f0b5c99ff41960a4e6078d8bb74e8ad9d2545c01fff2f8b7e0af38ee9de406aea8a0b897777d619e93d797bc1650a",
+    "signature":"af969d7f0f711e25cb411bdbbe3268bbf3004075cde8ebaee0fc9d988f24e45013cc2df6762dca5b3eb8abb077f76e0b016380a7eba2d46839b04c507d86290d",
+    "timestamp": 1527277504,
+    "token": "abf0fd1fc1b8c1c9535685373dce6c54948b7eb018e17e3a8cea26a3c9b85684",
+    "userid": "124",
+    "totalvotes": 4,
+    "resultvotes": 3
   },{
-    "commentid":"58",
-    "userid":"4",
-    "parentid":"56",
-    "timestamp":1509990301,
-    "token":"86221ddae6594b43a19e4c76250c0a8833ecd3b7a9880fb5d2a901970de9ff0e",
-    "comment":"you are crazy!"
+    "comment":"you are crazy!",
+    "commentid": "4",
+    "parentid": "0",
+    "publickey": "4206fa1f45c898f1dee487d7a7a82e0ed293858313b8b022a6a88f2bcae6cdd7",
+    "receipt": "96f3956ea3decb75ee129e6ee4e77c6c608f0b5c99ff41960a4e6078d8bb74e8ad9d2545c01fff2f8b7e0af38ee9de406aea8a0b897777d619e93d797bc1650a",
+    "signature":"af969d7f0f711e25cb411bdbbe3268bbf3004075cde8ebaee0fc9d988f24e45013cc2df6762dca5b3eb8abb077f76e0b016380a7eba2d46839b04c507d86290d",
+    "timestamp": 1527277504,
+    "token": "abf0fd1fc1b8c1c9535685373dce6c54948b7eb018e17e3a8cea26a3c9b85684",
+    "userid": "124",
+    "totalvotes": 4,
+    "resultvotes": 3
   }]
+}
+```
+
+### `Like comment`
+
+Allows a user to up or down vote a comment
+
+**Route:** `POST v1/comments/like`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| token | string | Censorship token | yes |
+| commentid | string | Unique comment identifier | yes |
+| action | string | Up or downvote (1, -1) | yes |
+| signature | string | Signature of Token, CommentId and Action | yes |
+| publickey | string | Public key used for Signature |
+
+**Results:**
+
+| | Type | Description |
+|-|-|-|
+| total | uint64 | Total number of up and down votes |
+| result | int64 | Vote score |
+| receipt | string | Server signature of client signature |
+| error | Error if something went wront during liking a comment
+**Example:**
+
+Request: 
+
+```json
+{
+  "token": "abf0fd1fc1b8c1c9535685373dce6c54948b7eb018e17e3a8cea26a3c9b85684",
+  "commentid": "4",
+  "action": "1",
+  "signature": "af969d7f0f711e25cb411bdbbe3268bbf3004075cde8ebaee0fc9d988f24e45013cc2df6762dca5b3eb8abb077f76e0b016380a7eba2d46839b04c507d86290d",
+  "publickey": "4206fa1f45c898f1dee487d7a7a82e0ed293858313b8b022a6a88f2bcae6cdd7"
+}
+```
+
+Reply:
+
+```json 
+{
+  "total": 4,
+  "result": 3,
+  "receipt": "96f3956ea3decb75ee129e6ee4e77c6c608f0b5c99ff41960a4e6078d8bb74e8ad9d2545c01fff2f8b7e0af38ee9de406aea8a0b897777d619e93d797bc1650a"
 }
 ```
 
@@ -1217,41 +1313,35 @@ forwarded as-is to the politeia daemon.
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
-| PublicKey | string | Public key used to sign the vote | Yes |
-| Vote | decredplugin.Vote | Decred plugin vote | Yes |
-| Signature | string | Signature of the Vote | Yes |
+| publickey | string | Public key used to sign the vote | Yes |
+| vote | Vote | Vote details | Yes |
+| signature | string | Signature of the Vote | Yes |
 
-**Results:**
-
-| | Type | Description |
-| - | - | - |
-| VoteDetails | decredplugin.StartVoteReply | Plugin reply |
-
-**decred.Vote:**
+**Results (StartVoteReply):**
 
 | | Type | Description |
 | - | - | - |
-| Token | string | Censorship token |
-| Mask | uint64 | Mask for valid vote bits |
-| Duration | uint32 | Duration of the vote in blocks |
-| Options | array of decredplugin.VoteOption | Vote details |
+| startblockheight | string | String encoded start block height of the vote |
+| startblockhash | string | String encoded start block hash of the vote |
+| endheight | string | String encoded final block height of the vote |
+| eligibletickets | array of string | String encoded tickets that are eligible to vote |
 
-**decred.VoteOption:**
+**Vote:**
+
+| | Type | Description |
+| - | - | - |
+| token | string | Censorship token |
+| mask | uint64 | Mask for valid vote bits |
+| duration | uint32 | Duration of the vote in blocks |
+| options | array of VoteOption | Vote options |
+
+**VoteOption:**
 
 | | Type | Description |
 | - | - | - |
 | Id | string | Single unique word that identifies this option, e.g. "yes" |
 | Description | string | Human readable description of this option |
 | Bits | uint64 | Bits that make up this choice, e.g. 0x01 |
-
-**decred.StartVoteReply:**
-
-| | Type | Description |
-| - | - | - |
-| StartBlockHeight | string | String encoded start block height of the vote |
-| StartBlockHash | string | String encoded start block hash of the vote |
-| EndHeight | string | String encoded final block height of the vote |
-| EligibleTickets | array of string | String encoded tickets that are eligible to vote |
 
 **Example**
 
@@ -1282,17 +1372,15 @@ Reply:
 
 ```json
 {
-  "votedetails": {
-    "startblockheight":"282899",
-    "startblockhash":"00000000017236b62ff1ce136328e6fb4bcd171801a281ce0a662e63cbc4c4fa",
-    "endheight":"284915",
-    "eligibletickets":[
-      "000011e329fe0359ea1d2070d927c93971232c1118502dddf0b7f1014bf38d97",
-      "0004b0f8b2883a2150749b2c8ba05652b02220e98895999fd96df790384888f9",
-      "00107166c5fc5c322ecda3748a1896f4a2de6672aae25014123d2cedc83e8f42",
-      "002272cf4788c3f726c30472f9c97d2ce66b997b5762ff4df6a05c4761272413"
-    ]
-  }
+  "startblockheight":"282899",
+  "startblockhash":"00000000017236b62ff1ce136328e6fb4bcd171801a281ce0a662e63cbc4c4fa",
+  "endheight":"284915",
+  "eligibletickets":[
+    "000011e329fe0359ea1d2070d927c93971232c1118502dddf0b7f1014bf38d97",
+    "0004b0f8b2883a2150749b2c8ba05652b02220e98895999fd96df790384888f9",
+    "00107166c5fc5c322ecda3748a1896f4a2de6672aae25014123d2cedc83e8f42",
+    "002272cf4788c3f726c30472f9c97d2ce66b997b5762ff4df6a05c4761272413"
+  ]
 }
 ```
 
@@ -1313,15 +1401,15 @@ forwarded as-is to the politeia daemon.
 
 | | Type | Description |
 | - | - | - |
-| Votes | array of ProposalVoteTuple | All current active votes |
+| votes | array of ProposalVoteTuple | All current active votes |
 
 **ProposalVoteTuple:**
 
 | | Type | Description |
 | - | - | - |
-| Proposal | ProposalRecord | Proposal record |
-| Vote | decredplugin.Vote | Vote bits, mask etc |
-| VoteDetails |decredplugin.StartVoteReply | Vote details (eligible tickets, start block etc |
+| proposal | ProposalRecord | Proposal record |
+| startvote | Vote | Vote bits, mask etc |
+| starvotereply | StartVoteReply | Vote details (eligible tickets, start block etc |
 
 **Example**
 
@@ -1396,30 +1484,30 @@ forwarded as-is to the politeia daemon.
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
-| Votes | array of decredplugin.CastVote | All votes | Yes |
+| votes | array of CastVote | All votes | Yes |
 
-**decredplugin.CastVote:**
+**CastVote:**
 
 | | Type | Description |
 | - | - | - |
-| Token | string | Censorship token |
-| Ticket | string | Ticket hash |
-| VoteBit | string | String encoded vote bit |
-| Signature | string | signature of Token+Ticket+VoteBit |
+| token | string | Censorship token |
+| ticket | string | Ticket hash |
+| votebit | string | String encoded vote bit |
+| signature | string | signature of Token+Ticket+VoteBit |
 
 **Results:**
 
 | | Type | Description |
 | - | - | - |
-| Receipts | array of decredplugin.CastVoteReply  | Receipts for all cast votes. This appears in the same order and index as the votes that went in. |
+| receipts | array of CastVoteReply  | Receipts for all cast votes. This appears in the same order and index as the votes that went in. |
 
-**decredplugin.CastVoteReply:**
+**CastVoteReply:**
 
 | | Type | Description |
 | - | - | - |
-| ClientSignature | string | Signature that was sent in via decredplugin.CastVote |
-| Signature | string | Signature of ClientSignature |
-| Error | string | Error, "" if there was no error |
+| clientsignature | string | Signature that was sent in via CastVote |
+| signature | string | Signature of ClientSignature |
+| error | string | Error, "" if there was no error |
 
 **Example**
 
@@ -1458,45 +1546,30 @@ Reply:
 }
 ```
 
-### `Proposal votes`
+### `Vote results`
 
 Retrieve vote results for a specified censorship token.
 
 Note that the webserver does not interpret the plugin structures. These are
 forwarded as-is to the politeia daemon.
 
-**Route:** `POST /v1/proposals/voteresults`
+**Route:** `GET /v1/proposals/{token}/votes`
 
-**Params:**
-
-| Parameter | Type | Description | Required |
-|-|-|-|-|
-| Vote | array of decredplugin.VoteResults | Vote to recall | Yes |
-
-**decredplugin.VoteResults:**
-
-| | Type | Description |
-| - | - | - |
-| Token | string | Censorship token |
+**Params:** none
 
 **Results:**
 
 | | Type | Description |
 | - | - | - |
-| Vote | decredplugin.Vote  | Vote details |
-| CastVotes | array of decredplugin.CastVote  | Vote results |
+| vote | Vote | Vote details |
+| castvotes | array of CastVote  | Cast vote details |
+| startvotereply | StartVoteReply | Vote details (eligible tickets, start block etc) |
 
 **Example**
 
 Request:
+`GET /V1/proposals/642eb2f3798090b3234d8787aaba046f1f4409436d40994643213b63cb3f41da/votes`
 
-``` json
-{
-  "vote": {
-    "token":"642eb2f3798090b3234d8787aaba046f1f4409436d40994643213b63cb3f41da"
-  }
-}
-```
 
 Reply:
 
@@ -1526,7 +1599,18 @@ Reply:
     "ticket":"cf3943767a35136252f69118b291b47006308e4215de41673ab118736e26605e",
     "votebit":"2",
     "signature":"1f8b3c8207fa67d91a65d8742e5026044ccebd6b4865579a1f75d6e9a40a56f9a96e091397d2ec9f8fca773c68e961b93fe380a694aceecfd8f9b972f1e4d59db9"
-  }]
+  }],
+  "startvotereply": {
+    "startblockheight":"282899",
+    "startblockhash":"00000000017236b62ff1ce136328e6fb4bcd171801a281ce0a662e63cbc4c4fa",
+    "endheight":"284915",
+    "eligibletickets":[
+      "000011e329fe0359ea1d2070d927c93971232c1118502dddf0b7f1014bf38d97",
+      "0004b0f8b2883a2150749b2c8ba05652b02220e98895999fd96df790384888f9",
+      "00107166c5fc5c322ecda3748a1896f4a2de6672aae25014123d2cedc83e8f42",
+      "002272cf4788c3f726c30472f9c97d2ce66b997b5762ff4df6a05c4761272413"
+    ]
+  }
 }
 ```
 
@@ -1789,7 +1873,7 @@ Reply:
 | <a name="ErrorStatusVerificationTokenUnexpired">ErrorStatusVerificationTokenUnexpired</a> | 34 | A verification token has already been generated and hasn't expired yet. |
 | <a name="ErrorStatusCannotVerifyPayment">ErrorStatusCannotVerifyPayment</a> | 35 | The server cannot verify the payment at this time, please try again later. |
 | <a name="ErrorStatusDuplicatePublicKey">ErrorStatusDuplicatePublicKey</a> | 36 | The public key provided is already taken by another user. |
-
+| <a name="ErrorStatusInvalidPropVoteStatus">ErrorStatusInvalidPropVoteStatus</a> | 37 | Invalid proposal vote status. |
 
 ### Proposal status codes
 
