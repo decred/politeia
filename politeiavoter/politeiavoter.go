@@ -97,7 +97,8 @@ func newClient(skipVerify bool, cfg *config) (*ctx, error) {
 	if err != nil {
 		return nil, err
 	}
-	conn, err := grpc.Dial("127.0.0.1:19111", grpc.WithTransportCredentials(creds))
+	conn, err := grpc.Dial(cfg.WalletHost,
+		grpc.WithTransportCredentials(creds))
 	if err != nil {
 		return nil, err
 	}
@@ -696,6 +697,13 @@ func _main() error {
 	}
 	// Close GRPC
 	defer c.conn.Close()
+
+	// Get block height to validate GRPC creds
+	ar, err := c.wallet.Accounts(c.ctx, &pb.AccountsRequest{})
+	if err != nil {
+		return err
+	}
+	log.Debugf("Current wallet height: %v", ar.CurrentBlockHeight)
 
 	// Scan through command line arguments.
 	for i, a := range args {
