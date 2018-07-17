@@ -154,7 +154,7 @@ var (
 	// proposal name
 	PolicyProposalNameSupportedChars = []string{
 		"A-z", "0-9", "&", ".", ",", ":", ";", "-", " ", "@", "+", "#", "/",
-		"(", ")", "!"}
+		"(", ")", "!", "?"}
 
 	// PolicyUsernameSupportedChars is the regular expression of a valid
 	// username
