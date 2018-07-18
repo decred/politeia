@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/badoux/checkmail"
 	"github.com/decred/politeia/politeiawww/database"
@@ -17,6 +18,9 @@ const (
 
 	UserVersion    uint32 = 1
 	UserVersionKey        = "userversion"
+
+	NotificationPrefixKey    = "notifications-"
+	MaxNumberOfNotifications = 10
 )
 
 var (
@@ -41,7 +45,35 @@ type Version struct {
 // and false otherwise. This is helpful when iterating the user records
 // because the DB contains some non-user records.
 func isUserRecord(key string) bool {
-	return key != UserVersionKey && key != LastUserIdKey
+	return key != UserVersionKey && key != LastUserIdKey && !strings.HasPrefix(key, NotificationPrefixKey)
+}
+
+// getUserNotificationsKey generates the key to access the notifications for
+// a given user email.
+func getUserNotificationsKey(email string) []byte {
+	return []byte(NotificationPrefixKey + email)
+}
+
+// addNotification updates the user notifications by keeping it's length lower
+// or equal to the maximum number notifications per user.
+func addNotification(n database.Notification, ns []database.Notification, max int) []database.Notification {
+	// find the biggest Id
+	maxid := uint64(0)
+	for _, v := range ns {
+		if v.ID > maxid {
+			maxid = v.ID
+		}
+	}
+	n.ID = maxid + 1
+	// if the notifications length is under the max number, just append it
+	if len(ns) < max {
+		return append(ns, n)
+	}
+
+	// otherwise, remove the remaining elements and add the new notification
+	idx := (len(ns) - max) + 1
+	newNs := ns[idx:]
+	return append(newNs, n)
 }
 
 // Store new user.
@@ -258,6 +290,171 @@ func (l *localdb) AllUsers(callbackFn func(u *database.User)) error {
 	iter.Release()
 
 	return iter.Error()
+}
+
+// NotificationNew adds a notification into a user's mailbox
+func (l *localdb) NotificationNew(n database.Notification, email string) error {
+	l.Lock()
+	defer l.Unlock()
+
+	if l.shutdown {
+		return database.ErrShutdown
+	}
+
+	log.Debugf("NotificationNew\n")
+
+	// Make sure user exists
+	exists, err := l.userdb.Has([]byte(email), nil)
+	if err != nil {
+		return err
+	} else if !exists {
+		return database.ErrUserNotFound
+	}
+
+	key := getUserNotificationsKey(email)
+	var notifications []database.Notification
+
+	n.Viewed = false
+	n.Timestamp = time.Now().Unix()
+	// Check if the user has already a mailbox registered
+	exists, err = l.userdb.Has(key, nil)
+	if err != nil {
+		return err
+	}
+	if exists {
+		payload, err := l.userdb.Get(key, nil)
+		if err != nil {
+			return err
+		}
+
+		ns, err := DecodeNotifications(payload)
+		if err != nil {
+			return err
+		}
+		notifications = addNotification(n, *ns, MaxNumberOfNotifications)
+	} else {
+		n.ID = 0
+		notifications = []database.Notification{n}
+	}
+
+	payload, err := EncodeNotifications(notifications)
+	if err != nil {
+		return err
+	}
+
+	return l.userdb.Put(key, payload, nil)
+}
+
+// NotificationsGet returns all notifications for a given user
+func (l *localdb) NotificationsGet(email string) ([]database.Notification, error) {
+	l.Lock()
+	defer l.Unlock()
+
+	if l.shutdown {
+		return nil, database.ErrShutdown
+	}
+
+	log.Debugf("NotificationsGet\n")
+
+	// Make sure user exists
+	exists, err := l.userdb.Has([]byte(strings.ToLower(email)), nil)
+	if err != nil {
+		return nil, err
+	} else if !exists {
+		return nil, database.ErrUserNotFound
+	}
+
+	key := getUserNotificationsKey(email)
+
+	// Check if the user has a mailbox registered
+	exists, err = l.userdb.Has(key, nil)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		// if the mailbox doens't exist return it as empty
+		ns := []database.Notification{}
+		return ns, nil
+	}
+
+	payload, err := l.userdb.Get(key, nil)
+	if err != nil {
+		return nil, err
+	}
+	ns, err := DecodeNotifications(payload)
+	if err != nil {
+		return nil, err
+	}
+
+	return *ns, nil
+}
+
+// NotificationsUpdate updates one or multiple user notifications
+func (l *localdb) NotificationsUpdate(nids []database.Notification, email string) ([]database.Notification, error) {
+	l.Lock()
+	defer l.Unlock()
+
+	if l.shutdown {
+		return nil, database.ErrShutdown
+	}
+
+	log.Debugf("NotificationsUpdate\n")
+
+	// Make sure user exists
+	exists, err := l.userdb.Has([]byte(email), nil)
+	if err != nil {
+		return nil, err
+	} else if !exists {
+		return nil, database.ErrUserNotFound
+	}
+
+	key := getUserNotificationsKey(email)
+
+	// Check if the user has a mailbox registered
+	exists, err = l.userdb.Has(key, nil)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		// if the mailbox doens't exist return an error
+		return nil, database.ErrUserNotificationsNotFound
+	}
+
+	// Get current user notifications
+	payload, err := l.userdb.Get(key, nil)
+	if err != nil {
+		return nil, err
+	}
+	ns, err := DecodeNotifications(payload)
+	if err != nil {
+		return nil, err
+	}
+
+	// create a map of notifications to be updated
+	nu := make(map[uint64]database.Notification)
+	for _, n := range nids {
+		nu[n.ID] = n
+	}
+
+	// Update notifications
+	for i, n := range *ns {
+		if b, ok := nu[n.ID]; ok {
+			(*ns)[i] = b
+		}
+	}
+
+	payload, err = EncodeNotifications(*ns)
+	if err != nil {
+		return nil, err
+	}
+
+	// update db
+	err = l.userdb.Put(key, payload, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return *ns, nil
 }
 
 // Close shuts down the database.  All interface functions MUST return with

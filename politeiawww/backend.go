@@ -1765,7 +1765,20 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 	var reply www.SetProposalStatusReply
 	var pdReply pd.SetUnvettedStatusReply
 	if b.test {
+		// if test flag is on, it won't request d for proposal info
+		// it will simply hard code the most critical data
 		pdReply.Record.Status = convertPropStatusFromWWW(sps.ProposalStatus)
+
+		// public key needs to be fetched from the inventory
+		b.RLock()
+		ir, err := b._getInventoryRecord(sps.Token)
+		b.RUnlock()
+		if err != nil {
+			return nil, err
+		}
+		reply.Proposal = convertPropFromPD(pdReply.Record)
+		reply.Proposal.CensorshipRecord.Token = ir.record.CensorshipRecord.Token
+		reply.Proposal.PublicKey = ir.proposalMD.PublicKey
 	} else {
 		// XXX Expensive to lock but do it for now.
 		// Lock is needed to prevent a race into this record and it
@@ -1852,10 +1865,21 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 		b.logAdminProposalAction(user, sps.Token,
 			fmt.Sprintf("set proposal status to %v",
 				v1.PropStatus[sps.ProposalStatus]))
+
+		// Set reply
+		reply.Proposal = convertPropFromPD(pdReply.Record)
 	}
 
-	// Return the reply.
-	reply.Proposal = convertPropFromPD(pdReply.Record)
+	// Add notification into user mailbox
+	err = b.handleSetNotificationOnProposalStatusChange(
+		reply.Proposal.PublicKey,
+		reply.Proposal.CensorshipRecord.Token,
+		reply.Proposal.Status,
+	)
+	if err != nil {
+		// only log the error
+		log.Errorf("ProcessSetProposalStatus: handleSetNotification failed %v", err)
+	}
 
 	return &reply, nil
 }
@@ -2393,6 +2417,15 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 	ir.voting = convertStartVoteReplyFromDecredplugin(*vr)
 	ir.votebits = sv
 	b.inventory[sv.Vote.Token] = &ir
+
+	err = b.handleSetNotificationOnProposalStartedVoting(
+		ir.proposalMD.PublicKey,
+		sv.Vote.Token,
+	)
+	if err != nil {
+		// only log the error
+		log.Errorf("ProcessStartVote: handleSetNotification failed %v", err)
+	}
 
 	// return a copy
 	rv := ir.voting

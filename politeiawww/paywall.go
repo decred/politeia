@@ -157,6 +157,12 @@ func (b *backend) checkForUserPayments(pool map[uint64]paywallPoolMember) (bool,
 				continue
 			}
 
+			err = b.handleSetNotificationOnSignupPaywallPaid(user.Email)
+			if err != nil {
+				// only log the error
+				log.Errorf("checkForUserPayments: handleSetNotification failed %v", err)
+			}
+
 			// Remove this user from the in-memory pool.
 			userIDsToRemove = append(userIDsToRemove, userID)
 			log.Tracef("  removing from polling, user just paid")
@@ -215,6 +221,13 @@ func (b *backend) checkForProposalPayments(pool map[uint64]paywallPoolMember) (b
 		if !b.userHasValidProposalPaywall(user) {
 			userIDsToRemove = append(userIDsToRemove, userID)
 			log.Tracef("  removing from polling, user just paid")
+
+			// set notification
+			err = b.handleSetNotificationOnProposalPaywallPaid(user.Email, *paywall)
+			if err != nil {
+				// only log the error
+				log.Errorf("checkForProposalPayment: handleSetNotification failed %v", err)
+			}
 		}
 
 		time.Sleep(paywallCheckGap)
@@ -327,6 +340,12 @@ func (b *backend) ProcessVerifyUserPayment(user *database.User, vupt v1.VerifyUs
 		err = b.updateUserAsPaid(user, tx)
 		if err != nil {
 			return nil, err
+		}
+
+		err = b.handleSetNotificationOnSignupPaywallPaid(user.Email)
+		if err != nil {
+			// only log the error
+			log.Errorf("ProcessVerifyUserPayment: handleSetNotification failed %v", err)
 		}
 	} else {
 		// TODO: Add the user to the in-memory pool.

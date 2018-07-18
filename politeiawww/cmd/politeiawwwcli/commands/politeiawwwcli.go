@@ -12,38 +12,40 @@ type Options struct {
 	Verbose func()             `short:"v" long:"verbose" description:"Print request and response details"`
 
 	// cli commands
-	ActiveVotes       ActivevotesCmd       `command:"activevotes" description:"Retrieve all proposals being actively voted on"`
-	CastVotes         CastvotesCmd         `command:"castvotes" description:"Cast ticket votes for a specific proposal"`
-	ChangePassword    ChangepasswordCmd    `command:"changepassword" description:"change the password for the currently logged in user"`
-	CommentsVotes     CommentsvotesCmd     `command:"commentsvotes" description:"fetch all the comments voted by the user on a proposal"`
-	ChangeUsername    ChangeusernameCmd    `command:"changeusername" description:"change the username for the currently logged in user"`
-	EditProposal      EditProposalCmd      `command:"editproposal" description:"edit a proposal"`
-	EditUser          EdituserCmd          `command:"edituser" description:"edit the details for the given user id"`
-	GetComments       GetcommentsCmd       `command:"getcomments" description:"fetch a proposal's comments"`
-	GetProposal       GetproposalCmd       `command:"getproposal" description:"fetch a proposal"`
-	GetUnvetted       GetunvettedCmd       `command:"getunvetted" description:"fetch unvetted proposals"`
-	GetVetted         GetvettedCmd         `command:"getvetted" description:"fetch vetted proposals"`
-	Login             LoginCmd             `command:"login" description:"login to Politeia"`
-	Logout            LogoutCmd            `command:"logout" description:"logout of Politeia"`
-	Me                MeCmd                `command:"me" description:"return the user information of the currently logged in user"`
-	NewProposal       NewproposalCmd       `command:"newproposal" description:"submit a new proposal to Politeia"`
-	NewComment        NewcommentCmd        `command:"newcomment" description:"comment on a proposal"`
-	NewUser           NewuserCmd           `command:"newuser" description:"create a new Politeia user"`
-	Faucet            FaucetCmd            `command:"faucet" description:"use the Decred testnet faucet to send DCR to an address"`
-	Policy            PolicyCmd            `command:"policy" description:"fetch server policy"`
-	ProposalPaywall   ProposalpaywallCmd   `command:"proposalpaywall" description:"fetch proposal paywall details"`
-	ProposalVotes     ProposalvotesCmd     `command:"proposalvotes" description:"fetch vote results for a specific proposal"`
-	ResetPassword     ResetpasswordCmd     `command:"resetpassword" description:"change the password for a user that is not currently logged in"`
-	Secret            SecretCmd            `command:"secret"`
-	SetProposalStatus SetproposalstatusCmd `command:"setproposalstatus" description:"(admin only) set the status of a proposal"`
-	StartVote         StartvoteCmd         `command:"startvote" description:"(admin only) start the voting period on a proposal"`
-	UsernamesById     UsernamesbyidCmd     `command:"usernamesbyid" description:"fetch usernames by their user ids"`
-	UserDetails       UserdetailsCmd       `command:"userdetails" description:"fetch a user's details by his user id"`
-	UserProposals     UserproposalsCmd     `command:"userproposals" description:"fetch all proposals submitted by a specific user"`
-	VerifyUser        VerifyuserCmd        `command:"verifyuser" description:"verify user's email address"`
-	VerifyUserPayment VerifyuserpaymentCmd `command:"verifyuserpayment" description:"check if the user has paid their user registration fee"`
-	Version           VersionCmd           `command:"version" description:"fetch server info and CSRF token"`
-	VoteComment       VotecommentCmd       `command:"votecomment" description:"vote on a comment"`
+	ActiveVotes        ActivevotesCmd        `command:"activevotes" description:"Retrieve all proposals being actively voted on"`
+	CastVotes          CastvotesCmd          `command:"castvotes" description:"Cast ticket votes for a specific proposal"`
+	ChangePassword     ChangepasswordCmd     `command:"changepassword" description:"change the password for the currently logged in user"`
+	CheckNotifications CheckNotificationsCmd `command:"checknotifications" description:"mark one or more notification as viewed"`
+	CommentsVotes      CommentsvotesCmd      `command:"commentsvotes" description:"fetch all the comments voted by the user on a proposal"`
+	ChangeUsername     ChangeusernameCmd     `command:"changeusername" description:"change the username for the currently logged in user"`
+	EditProposal       EditProposalCmd       `command:"editproposal" description:"edit a proposal"`
+	EditUser           EdituserCmd           `command:"edituser" description:"edit the details for the given user id"`
+	GetComments        GetcommentsCmd        `command:"getcomments" description:"fetch a proposal's comments"`
+	GetProposal        GetproposalCmd        `command:"getproposal" description:"fetch a proposal"`
+	GetUnvetted        GetunvettedCmd        `command:"getunvetted" description:"fetch unvetted proposals"`
+	GetVetted          GetvettedCmd          `command:"getvetted" description:"fetch vetted proposals"`
+	Login              LoginCmd              `command:"login" description:"login to Politeia"`
+	Logout             LogoutCmd             `command:"logout" description:"logout of Politeia"`
+	Me                 MeCmd                 `command:"me" description:"return the user information of the currently logged in user"`
+	NewProposal        NewproposalCmd        `command:"newproposal" description:"submit a new proposal to Politeia"`
+	NewComment         NewcommentCmd         `command:"newcomment" description:"comment on a proposal"`
+	NewUser            NewuserCmd            `command:"newuser" description:"create a new Politeia user"`
+	Notifications      NotificationsCmd      `command:"notifications" description:"return the user notifications of the currently logged in user"`
+	Faucet             FaucetCmd             `command:"faucet" description:"use the Decred testnet faucet to send DCR to an address"`
+	Policy             PolicyCmd             `command:"policy" description:"fetch server policy"`
+	ProposalPaywall    ProposalpaywallCmd    `command:"proposalpaywall" description:"fetch proposal paywall details"`
+	ProposalVotes      ProposalvotesCmd      `command:"proposalvotes" description:"fetch vote results for a specific proposal"`
+	ResetPassword      ResetpasswordCmd      `command:"resetpassword" description:"change the password for a user that is not currently logged in"`
+	Secret             SecretCmd             `command:"secret"`
+	SetProposalStatus  SetproposalstatusCmd  `command:"setproposalstatus" description:"(admin only) set the status of a proposal"`
+	StartVote          StartvoteCmd          `command:"startvote" description:"(admin only) start the voting period on a proposal"`
+	UsernamesById      UsernamesbyidCmd      `command:"usernamesbyid" description:"fetch usernames by their user ids"`
+	UserDetails        UserdetailsCmd        `command:"userdetails" description:"fetch a user's details by his user id"`
+	UserProposals      UserproposalsCmd      `command:"userproposals" description:"fetch all proposals submitted by a specific user"`
+	VerifyUser         VerifyuserCmd         `command:"verifyuser" description:"verify user's email address"`
+	VerifyUserPayment  VerifyuserpaymentCmd  `command:"verifyuserpayment" description:"check if the user has paid their user registration fee"`
+	Version            VersionCmd            `command:"version" description:"fetch server info and CSRF token"`
+	VoteComment        VotecommentCmd        `command:"votecomment" description:"vote on a comment"`
 }
 
 // registers callbacks for cli flags

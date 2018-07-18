@@ -24,6 +24,9 @@ var (
 
 	// ErrShutdown is emitted when the database is shutting down.
 	ErrShutdown = errors.New("database is shutting down")
+
+	// ErrUserNotificationsNotFound is emitted when the user doesn't have any notification registered
+	ErrUserNotificationsNotFound = errors.New("user notification(s) not found")
 )
 
 // Identity wraps an ed25519 public key and timestamps to indicate if it is
@@ -131,6 +134,15 @@ type User struct {
 	SpentProposalCredits []ProposalCredit
 }
 
+// Notification descibres a user mailbox entry
+type Notification struct {
+	ID               uint64   // Notification Id
+	NotificationType int      // Type of the notification
+	Timestamp        int64    // When the notification was created
+	ContextInfo      []string // Additional context information (e.g proposal token, amount of credits etc)
+	Viewed           bool     // Flags if the notification has been viewed or not
+}
+
 // Database interface that is required by the web server.
 type Database interface {
 	// User functions
@@ -140,6 +152,11 @@ type Database interface {
 	UserNew(User) error                      // Add new user
 	UserUpdate(User) error                   // Update existing user
 	AllUsers(callbackFn func(u *User)) error // Iterate all users
+
+	// User mailbox functions
+	NotificationsGet(string) ([]Notification, error)                    // Return all notificatinos for a given user email
+	NotificationNew(Notification, string) error                         // Add a notification to a user mailbox given its email
+	NotificationsUpdate([]Notification, string) ([]Notification, error) // Update one or multiple notificatinos for a given user email
 
 	// Close performs cleanup of the backend.
 	Close() error

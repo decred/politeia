@@ -6,6 +6,7 @@
 ```
 activevotes        Retrieve all proposals being actively voted on
 castvotes          Cast ticket votes for a specific proposal
+checknotifications mark one or more notification as viewed
 changepassword     change the password for the currently logged in user
 changeusername     change the username for the currently logged in user
 commentsvotes      fetch all the comments voted by the user on a proposal
@@ -20,6 +21,7 @@ me                 return the user information of the currently logged in user
 newcomment         comment on a proposal
 newproposal        submit a new proposal to Politeia
 newuser            create a new Politeia user
+notifications      return the user notifications of the currently logged in user
 policy             fetch server policy
 proposalvotes      fetch vote results for a specific proposal
 resetpassword      change the password for a user that is not currently logged in

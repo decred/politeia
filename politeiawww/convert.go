@@ -6,6 +6,7 @@ import (
 	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	www "github.com/decred/politeia/politeiawww/api/v1"
+	"github.com/decred/politeia/politeiawww/database"
 )
 
 func convertCastVoteReplyFromDecredPlugin(cvr decredplugin.CastVoteReply) www.CastVoteReply {
@@ -346,4 +347,22 @@ func convertVoteResultsFromDecredplugin(vrr *decredplugin.VoteResultsReply) []ww
 		})
 	}
 	return ors
+}
+
+func convertNotificationFromDatabase(dbnotif database.Notification) www.Notification {
+	return www.Notification{
+		NotificationID:   dbnotif.ID,
+		NotificationType: www.NotificationT(dbnotif.NotificationType),
+		Timestamp:        dbnotif.Timestamp,
+		ContextInfo:      dbnotif.ContextInfo,
+		Viewed:           dbnotif.Viewed,
+	}
+}
+
+func convertNotificationsFromDatabase(dbnotifs []database.Notification) []www.Notification {
+	wwwnotif := []www.Notification{}
+	for _, n := range dbnotifs {
+		wwwnotif = append(wwwnotif, convertNotificationFromDatabase(n))
+	}
+	return wwwnotif
 }

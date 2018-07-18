@@ -8,6 +8,7 @@ type ErrorStatusT int
 type PropStatusT int
 type PropVoteStatusT int
 type UserEditActionT int
+type NotificationT int
 
 const (
 	PoliteiaWWWAPIVersion = 1 // API version this backend understands
@@ -52,6 +53,9 @@ const (
 	RouteUsernamesById          = "/usernames"
 	RouteAllVoteStatus          = "/proposals/votestatus"
 	RouteVoteStatus             = "/proposals/{token:[A-z0-9]{64}}/votestatus"
+	RouteUserNotifications      = "/user/notifications"
+	RouteCheckNotification      = "/user/notifications/check"
+
 	// VerificationTokenSize is the size of verification token in bytes
 	VerificationTokenSize = 32
 
@@ -167,6 +171,14 @@ const (
 	UserEditExpireResetPasswordVerification UserEditActionT = 3
 	UserEditClearUserPaywall                UserEditActionT = 4
 	UserEditUnlock                          UserEditActionT = 5
+
+	// Notification indentifiers
+	NotificationInvalid                       NotificationT = 0
+	NotificationSignupPaywallPaymentConfirmed NotificationT = 1
+	NotificationPropPaywallPaymentConfirmed   NotificationT = 2
+	NotificationProposalCensored              NotificationT = 3
+	NotificationProposalPublished             NotificationT = 4
+	NotificationProposalStartedVoting         NotificationT = 5
 )
 
 var (
@@ -263,6 +275,16 @@ var (
 		UserEditExpireResetPasswordVerification: "expire reset password verification",
 		UserEditClearUserPaywall:                "clear user paywall",
 		UserEditUnlock:                          "unlock user",
+	}
+
+	// NotificationIdentifier converts a NotificationT to human readable text
+	NotificationIdentifier = map[NotificationT]string{
+		NotificationInvalid:                       "notification type invalid",
+		NotificationSignupPaywallPaymentConfirmed: "paywall payment for Politeia access confirmed",
+		NotificationPropPaywallPaymentConfirmed:   "paywall payment for proposal submission confirmed",
+		NotificationProposalCensored:              "user proposal censored",
+		NotificationProposalPublished:             "user proposal published",
+		NotificationProposalStartedVoting:         "user proposal voting has started",
 	}
 )
 
@@ -917,4 +939,29 @@ type EditProposal struct {
 // EditProposalReply is used to reply to the EditProposal command
 type EditProposalReply struct {
 	Proposal ProposalRecord `json:"proposal"`
+}
+
+// Notification Describes a user mailbox notification
+type Notification struct {
+	NotificationID   uint64        `json:"notificationid"`        // Notification Id
+	NotificationType NotificationT `json:"notificationtype"`      // Type of the notificatoin
+	Timestamp        int64         `json:"timestamp"`             // When the notification was created
+	ContextInfo      []string      `json:"contextinfo,omitempty"` // Additional context information (e.g proposal token, amount of credits etc)
+	Viewed           bool          `json:"viewed"`                // Flags if the notification has been viewed or not
+}
+
+// Notifications attemps to fetch the user notifications
+type Notifications struct{}
+
+// NotificationsReply return all notifications associated to a given user
+type NotificationsReply struct {
+	Notifications []Notification `json:"notifications"` // Users notifications
+}
+
+// CheckNotifications marks one or more notifications as viewed
+//
+// Note that CheckNotificationsReply is not present because NotificationsReply is reused
+// for this endpoint.
+type CheckNotifications struct {
+	NotificationIDs []uint64 `json:"notificationids"` // Ids of the notificatinos to be marked as viewed
 }

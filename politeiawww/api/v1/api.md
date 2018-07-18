@@ -44,6 +44,8 @@ API.  It does not render HTML.
 - [`Vote results`](#vote-results)
 - [`Usernames by id`](#usernames-by-id)
 - [`User Comments votes`](#user-comments-votes)
+- [`User Notifications`](#user-notifications)
+- [`Check Notifications`](#check-notifications)
 
 **Error status codes**
 
@@ -2105,6 +2107,124 @@ Reply:
   }
 ```
 
+### `User Notifications`
+
+Return the user notifications for the current logged in user
+
+**Route:** `GET v1/user/notifications`
+
+**Params:** none
+
+**Results:**
+
+| | Type | Description |
+| - | - | - |
+| notifications | array of [Notification](#notification) | User's notifications |
+
+**Example:**
+
+Request: `v1/user/notifications`
+
+Response:
+
+```json
+{
+   "notifications":[
+      {
+         "notificationid":18,
+         "notificationtype":2,
+         "timestamp":1533204654,
+         "contextinfo":[
+            "20"
+         ],
+         "viewed":false
+      },
+      {
+         "notificationid":19,
+         "notificationtype":4,
+         "timestamp":1533213456,
+         "contextinfo":[
+            "0f9a30377a891e08d5ee15bd7cdd648508baadfcd923df72f1920d425cb9d6bd"
+         ],
+         "viewed":false
+      },
+      {
+         "notificationid":20,
+         "notificationtype":4,
+         "timestamp":1533213557,
+         "contextinfo":[
+            "df33cce806d0e0286ed136d686d5226a26ab8fe3ef3dd3b1ad02556ac9c75a6f"
+         ],
+         "viewed":false
+      }
+   ]
+}
+```
+
+### `Check Notifications`
+
+Mark one or more user notification as viewed 
+
+**Route:** `v1/user/notifications/check`
+
+**Params:** 
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| notificationids | array of uint64 | Notifications Ids | Yes |
+
+**Results:**
+
+| | Type | Description |
+| - | - | - |
+| notifications | array of [Notification](#notification) | User's notifications |
+
+**Example:**
+
+Request:
+```json
+{
+	"notificationids": [18, 19]
+}
+```
+
+Reply:
+
+```json
+{
+   "notifications":[
+      {
+         "notificationid":18,
+         "notificationtype":2,
+         "timestamp":1533204654,
+         "contextinfo":[
+            "20"
+         ],
+         "viewed": true
+      },
+      {
+         "notificationid":19,
+         "notificationtype":4,
+         "timestamp":1533213456,
+         "contextinfo":[
+            "0f9a30377a891e08d5ee15bd7cdd648508baadfcd923df72f1920d425cb9d6bd"
+         ],
+         "viewed": true
+      },
+      {
+         "notificationid":20,
+         "notificationtype":4,
+         "timestamp":1533213557,
+         "contextinfo":[
+            "df33cce806d0e0286ed136d686d5226a26ab8fe3ef3dd3b1ad02556ac9c75a6f"
+         ],
+         "viewed":false
+      }
+   ]
+}
+```
+
+
 ### Error codes
 
 | Status | Value | Description |
@@ -2263,3 +2383,27 @@ A proposal credit allows the user to submit a new proposal.  Proposal credits ar
 | price | uint64 | The price that the credit was purchased at in atoms. |
 | datepurchased | int64 | A Unix timestamp of the purchase data. |
 | txid | string | The txID of the Decred transaction that paid for this credit. |
+
+### `Notification`
+
+A notification notifies the user about a relevant event regarding his account and his proposals. The user can retrive his notifications using the [`User Notifications`](#user-notifications) endpoint.
+
+| | Type | Description |
+| - | - | - |
+| notificationid | uint64 | Notification ID |
+| notificationtype | NotificationT | Notification Type |
+| timestamp | int64 | When the notification was created | 
+| contextinfo | array of string | Additional context information is provided accordingly to the notification type |
+| viewed | boolean | Flags if the notification has been viewed or not | 
+
+**Notification Types:**
+
+| Status | value | description | context info |
+| - | - | - | - |
+| NotificationInvalid | 0 | Notification type invalid | none |
+| NotificationSignupPaywallPaymentConfirmed | 1 | Paywall payment for Politeia access confirmed | none |
+| NotificationPropPaywallPaymentConfirmed | 2 | Paywall payment for proposal submission confirmed | ["amount_of_credits"] |
+| NotificationProposalCensored | 3 | User proposal censored | ["censorhiptoken"]  |
+| NotificationProposalPublished | 4 | User proposal published | ["censorshiptoken"] |
+| NotificationProposalStartedVoting | 5 | User proposal voting has started | ["censorshiptoken"] |
+

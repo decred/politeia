@@ -1191,6 +1191,53 @@ func (p *politeiawww) handleEditProposal(w http.ResponseWriter, r *http.Request)
 	util.RespondWithJSON(w, http.StatusOK, epr)
 }
 
+// handleUserNotifications returns all the notifications for a given user
+func (p *politeiawww) handleUserNotifications(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleUserNotifications")
+
+	user, err := p.getSessionUser(r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserNotifications: getSessionUser %v", err)
+		return
+	}
+
+	nr, err := p.backend.ProcessUserNotifications(user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserNotificatinos: processUserNotifications %v", err)
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, nr)
+}
+
+func (p *politeiawww) handleCheckNotifications(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleCheckNotifications")
+
+	var cn v1.CheckNotifications
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&cn); err != nil {
+		RespondWithError(w, r, 0, "handleCheckNotifications: unmarshal", v1.UserError{
+			ErrorCode: v1.ErrorStatusInvalidInput,
+		})
+		return
+	}
+
+	user, err := p.getSessionUser(r)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleCheckNotification: getSessionUser %v", err)
+		return
+	}
+
+	nr, err := p.backend.ProcessCheckNotifications(user, cn)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleCheckNotifications: processCheckNotifications %v", err)
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, nr)
+}
+
 // handleNotFound is a generic handler for an invalid route.
 func (p *politeiawww) handleNotFound(w http.ResponseWriter, r *http.Request) {
 	// Log incoming connection
@@ -1430,6 +1477,10 @@ func _main() error {
 		p.handleUserProposalCredits, permissionLogin, false)
 	p.addRoute(http.MethodPost, v1.RouteEditProposal,
 		p.handleEditProposal, permissionLogin, true)
+	p.addRoute(http.MethodGet, v1.RouteUserNotifications,
+		p.handleUserNotifications, permissionLogin, false)
+	p.addRoute(http.MethodPost, v1.RouteCheckNotification,
+		p.handleCheckNotifications, permissionLogin, false)
 
 	// Routes that require being logged in as an admin user.
 	p.addRoute(http.MethodGet, v1.RouteAllUnvetted, p.handleAllUnvetted,

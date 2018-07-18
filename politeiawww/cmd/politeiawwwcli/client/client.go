@@ -1213,3 +1213,41 @@ func (c *Ctx) EditUser(userID string, action int64, reason string) (*v1.EditUser
 
 	return &eur, nil
 }
+
+func (c *Ctx) Notifications() (*v1.NotificationsReply, error) {
+	responseBody, err := c.makeRequest("GET", v1.RouteUserNotifications, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var nr v1.NotificationsReply
+	err = json.Unmarshal(responseBody, &nr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal NotificationsReply: %v", err)
+	}
+
+	if config.Verbose {
+		prettyPrintJSON(nr)
+	}
+
+	return &nr, nil
+}
+
+func (c *Ctx) CheckNotifications(ids []uint64) (*v1.NotificationsReply, error) {
+	cn := v1.CheckNotifications{
+		NotificationIDs: ids,
+	}
+
+	responseBody, err := c.makeRequest("POST", v1.RouteCheckNotification, cn)
+	if err != nil {
+		return nil, err
+	}
+
+	var nr v1.NotificationsReply
+	err = json.Unmarshal(responseBody, &nr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal NotificationsReply: %v", err)
+	}
+
+	return &nr, nil
+}

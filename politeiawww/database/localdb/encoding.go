@@ -79,3 +79,25 @@ func DecodeUser(payload []byte) (*database.User, error) {
 
 	return &u, nil
 }
+
+// EncodeNotifications encodes Notification into a JSON byte slice.
+func EncodeNotifications(n []database.Notification) ([]byte, error) {
+	d, err := json.Marshal(n)
+	if err != nil {
+		return nil, err
+	}
+
+	return d, nil
+}
+
+// DecodeNotifications decodes a JSON byte slice into a Notification.
+func DecodeNotifications(payload []byte) (*[]database.Notification, error) {
+	var n []database.Notification
+
+	err := json.Unmarshal(payload, &n)
+	if err != nil {
+		return nil, err
+	}
+
+	return &n, nil
+}

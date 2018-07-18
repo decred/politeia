@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/hex"
+	"fmt"
 	"strconv"
 
 	"github.com/decred/politeia/politeiawww/api/v1"
@@ -65,6 +66,29 @@ func (b *backend) getUserByIDStr(userIDStr string) (*database.User, error) {
 	}
 
 	return user, nil
+}
+
+// getUserByPubkey returns the database user for a given public key
+//
+// Must be called WITH the mutext held
+func (b *backend) getUserByPubkey(pubkey string) (*database.User, error) {
+	log.Tracef("getUserByPubkey")
+
+	id, ok := b.userPubkeys[pubkey]
+	if !ok {
+		return nil, fmt.Errorf("User not found for publickey %s", pubkey)
+	}
+
+	uintid, err := strconv.ParseUint(id, 10, 64)
+	if err != nil {
+		return nil, err
+	}
+	us, err := b.db.UserGetById(uintid)
+	if err != nil {
+		return nil, err
+	}
+
+	return us, nil
 }
 
 func filterUserPublicFields(user v1.User) v1.User {

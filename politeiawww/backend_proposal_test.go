@@ -316,6 +316,24 @@ func verifyProposalsSorted(b *backend, vettedProposals, unvettedProposals []www.
 	}
 }
 
+func verifyIfNotificationWasSent(ntype www.NotificationT, user *database.User, b *backend, t *testing.T) {
+	nr, err := b.ProcessUserNotifications(user)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(nr.Notifications) <= 0 {
+		t.Fatalf("Notification not found")
+	}
+
+	n := nr.Notifications[len(nr.Notifications)-1]
+
+	if n.NotificationType != ntype {
+		t.Fatalf("Invalid Notificatino type, expected %d got %d",
+			ntype, n.NotificationType)
+	}
+}
+
 // Tests the policy restrictions applied when attempting to create a new proposal.
 func TestNewProposalPolicyRestrictions(t *testing.T) {
 	b := createBackend(t)
@@ -463,6 +481,8 @@ func TestCensoredProposal(t *testing.T) {
 	pdr := getProposalDetails(b, npr.CensorshipRecord.Token, t)
 	verifyProposalDetails(np, pdr.Proposal, t)
 
+	verifyIfNotificationWasSent(www.NotificationProposalCensored, user, b, t)
+
 	b.db.Close()
 }
 
@@ -478,6 +498,8 @@ func TestPublishedProposal(t *testing.T) {
 	publishProposal(b, npr.CensorshipRecord.Token, t, user, id)
 	pdr := getProposalDetails(b, npr.CensorshipRecord.Token, t)
 	verifyProposalDetails(np, pdr.Proposal, t)
+
+	verifyIfNotificationWasSent(www.NotificationProposalPublished, user, b, t)
 
 	b.db.Close()
 }
