@@ -92,6 +92,8 @@ var (
 		// This prevents git from converting CRLF when committing and checking
 		// out files, which helps when running on Windows.
 		"core.autocrlf": "false",
+		"user.name":     "Politeia",
+		"user.email":    "noreply@decred.org",
 	}
 
 	errNothingToDo = errors.New("nothing to do")
