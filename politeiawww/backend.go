@@ -43,6 +43,11 @@ const (
 	// Note that 15 is in use by the decred plugin
 
 	VersionMDStreamChanges = 1
+
+	LoginAttemptsToLockUser = 5
+
+	// Route to reset password at GUI
+	ResetPasswordGuiRoute = "/password"
 )
 
 type MDStreamChanges struct {
@@ -202,6 +207,11 @@ func (b *backend) generateVerificationTokenAndExpiry() ([]byte, int64, error) {
 	expiry := time.Now().Add(b.getVerificationExpiryTime()).Unix()
 
 	return token, expiry, nil
+}
+
+// checkUserIsLocked checks if a user is locked after many login attempts
+func (b *backend) checkUserIsLocked(failedLoginAttempts uint64) bool {
+	return failedLoginAttempts >= LoginAttemptsToLockUser
 }
 
 // hashPassword hashes the given password string with the default bcrypt cost
@@ -370,6 +380,42 @@ func (b *backend) emailUpdateUserKeyVerificationLink(email, publicKey, token str
 	}
 	from := "noreply@decred.org"
 	subject := "Verify Your New Identity"
+	body := buf.String()
+
+	msg := goemail.NewHTMLMessage(from, subject, body)
+	msg.AddTo(email)
+
+	msg.SetName(politeiaMailName)
+	return b.cfg.SMTP.Send(msg)
+}
+
+// emailUserLocked notifies the user its account has been locked and
+// emails the link with the reset password verification token
+// if the email server is set up.
+func (b *backend) emailUserLocked(email string) error {
+	if b.cfg.SMTP == nil {
+		return nil
+	}
+
+	l, err := url.Parse(b.cfg.WebServerAddress + ResetPasswordGuiRoute)
+	if err != nil {
+		return err
+	}
+	q := l.Query()
+	q.Set("email", email)
+	l.RawQuery = q.Encode()
+
+	var buf bytes.Buffer
+	tplData := resetPasswordEmailTemplateData{
+		Email: email,
+		Link:  l.String(),
+	}
+	err = templateUserLockedResetPassword.Execute(&buf, &tplData)
+	if err != nil {
+		return err
+	}
+	from := "noreply@decred.org"
+	subject := "Locked Account - Reset Your Password"
 	body := buf.String()
 
 	msg := goemail.NewHTMLMessage(from, subject, body)
@@ -776,10 +822,12 @@ func (b *backend) verifyResetPassword(user *database.User, rp www.ResetPassword,
 		return err
 	}
 
-	// Clear out the verification token fields and set the new password in the db.
+	// Clear out the verification token fields, set the new password in the db,
+	// and unlock account
 	user.ResetPasswordVerificationToken = nil
 	user.ResetPasswordVerificationExpiry = 0
 	user.HashedPassword = hashedPassword
+	user.FailedLoginAttempts = 0
 
 	return b.db.UserUpdate(*user)
 }
@@ -1317,11 +1365,45 @@ func (b *backend) ProcessLogin(l www.Login) (*www.LoginReply, error) {
 	err = bcrypt.CompareHashAndPassword(user.HashedPassword,
 		[]byte(l.Password))
 	if err != nil {
+		if b.checkUserIsLocked(user.FailedLoginAttempts) {
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusInvalidEmailOrPassword,
+			}
+		} else {
+			user.FailedLoginAttempts++
+			err := b.db.UserUpdate(*user)
+			if err != nil {
+				return nil, err
+			}
+			// We need to check if the user is locked again so we can
+			// send an email.
+			if b.checkUserIsLocked(user.FailedLoginAttempts) {
+				if !b.test {
+					// This is conditional on the email server being setup.
+					err := b.emailUserLocked(user.Email)
+					if err != nil {
+						return nil, err
+					}
+				}
+			}
+		}
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusInvalidEmailOrPassword,
 		}
 	}
 
+	// Check if user is locked due to too many login attempts
+	if b.checkUserIsLocked(user.FailedLoginAttempts) {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserLocked,
+		}
+	}
+
+	user.FailedLoginAttempts = 0
+	err = b.db.UserUpdate(*user)
+	if err != nil {
+		return nil, err
+	}
 	return b.CreateLoginReply(user)
 }
 

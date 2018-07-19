@@ -64,6 +64,8 @@ var (
 		template.New("reset_password_email_template").Parse(templateResetPasswordEmailRaw))
 	templateUpdateUserKeyEmail = template.Must(
 		template.New("update_user_key_email_template").Parse(templateUpdateUserKeyEmailRaw))
+	templateUserLockedResetPassword = template.Must(
+		template.New("user_locked_reset_password").Parse(templateUserLockedResetPasswordRaw))
 )
 
 // runServiceCommand is only set to a real function on Windows.  It is used
