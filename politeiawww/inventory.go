@@ -71,10 +71,12 @@ func (b *backend) loadPropMD(token, payload string) error {
 	d := json.NewDecoder(f)
 	var md BackendProposalMetadata
 	if err := d.Decode(&md); err == io.EOF {
-		b.inventory[token].proposalMD = md
+		return nil
 	} else if err != nil {
 		return err
 	}
+
+	b.inventory[token].proposalMD = md
 	return nil
 }
 
