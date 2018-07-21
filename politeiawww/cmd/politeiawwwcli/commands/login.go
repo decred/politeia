@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+
 	"github.com/decred/politeia/politeiawww/cmd/politeiawwwcli/config"
 )
 
@@ -13,6 +14,13 @@ type LoginCmd struct {
 }
 
 func (cmd *LoginCmd) Execute(args []string) error {
+	// fetch csrf tokens
+	_, err := Ctx.Version()
+	if err != nil {
+		return err
+	}
+
+	// login user
 	_, id, err := Ctx.Login(cmd.Args.Email, cmd.Args.Password)
 	if err != nil {
 		return err
@@ -24,13 +32,17 @@ func (cmd *LoginCmd) Execute(args []string) error {
 		fmt.Printf("User identity saved to: %v\n", config.UserIdentityFile)
 	}
 
+	// persist CSRF header token
+	err = config.SaveCsrf(Ctx.Csrf())
+	if err != nil {
+		return err
+	}
+
 	// persist session cookie
 	ck, err := Ctx.Cookies(config.Host)
 	if err != nil {
 		return err
 	}
-
 	err = config.SaveCookies(ck)
 	return err
-
 }

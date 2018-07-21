@@ -17,9 +17,12 @@ func (cmd *VersionCmd) Execute(args []string) error {
 	// persisted between cli commands.
 
 	// persist CSRF header token
-	config.SaveCsrf(Ctx.Csrf())
+	err = config.SaveCsrf(Ctx.Csrf())
+	if err != nil {
+		return err
+	}
 
-	// persist session cookie
+	// persist CSRF cookie token
 	ck, err := Ctx.Cookies(config.Host)
 	if err != nil {
 		return err
