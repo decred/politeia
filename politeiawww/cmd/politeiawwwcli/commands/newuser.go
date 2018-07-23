@@ -26,6 +26,12 @@ func (cmd *NewuserCmd) Execute(args []string) error {
 			"password or use the --random flag")
 	}
 
+	// fetch csrf tokens
+	_, err := Ctx.Version()
+	if err != nil {
+		return err
+	}
+
 	// fetch Politeia policy for password requirements
 	pr, err := Ctx.Policy()
 	if err != nil {
@@ -91,5 +97,17 @@ func (cmd *NewuserCmd) Execute(args []string) error {
 		}
 	}
 
-	return nil
+	// persist CSRF header token
+	err = config.SaveCsrf(Ctx.Csrf())
+	if err != nil {
+		return err
+	}
+
+	// persist CSRF cookie token
+	ck, err := Ctx.Cookies(config.Host)
+	if err != nil {
+		return err
+	}
+	err = config.SaveCookies(ck)
+	return err
 }

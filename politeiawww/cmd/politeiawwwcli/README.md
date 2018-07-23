@@ -8,6 +8,7 @@ activevotes        Retrieve all proposals being actively voted on
 castvotes          Cast ticket votes for a specific proposal
 changepassword     change the password for the currently logged in user
 changeusername     change the username for the currently logged in user
+commentsvotes      fetch all the comments voted by the user on a proposal
 faucet             use the Decred testnet faucet to send DCR to an address
 getcomments        fetch a proposal's comments
 getproposal        fetch a proposal
@@ -25,12 +26,12 @@ resetpassword      change the password for a user that is not currently logged i
 secret
 setproposalstatus  (admin only) set the status of a proposal
 startvote          (admin only) start the voting period on a proposal
-updateuserkey      update the user identity saved to appDataDir
 usernamesbyid      fetch usernames by their user ids
 userproposals      fetch all proposals submitted by a specific user
 verifyuser         verify user's email address
 verifyuserpayment  check if the user has paid their user registration fee
 version            fetch server info and CSRF token
+votecomment        vote on a comment
 ```
 
 ## Application Options
@@ -40,6 +41,9 @@ version            fetch server info and CSRF token
 -v, --verbose  Print request and response details
 
 ```
+
+**If you're running Politeia locally, you need to make sure to specify the host.**  
+`$ politeiawwwcli --host https://localhost:4443 <command>`
 
 ## Help Options
 `-h, --help  Show the help message`
@@ -55,35 +59,26 @@ View information about a specific command
 
 ## Usage
 
-You need to first obtain a CSRF token from the Politeiawww server in order to interact with the API.  The `version` command fetches a CSRF token and saves it for future use.
+Create a new user.
 ```
-$ politeiawwwcli version
+$ politeiawwwcli -j --host https://localhost:4443 newuser email@example.com username password --verify --paywall
 ```
+`--verify` will satisfy the email verification requirement for the user.  
+`--paywall` will use the Decred testnet faucet to satisfy the user registration fee requirement.  
 
-Create a new user and save the user's identity for future use.
-```
-$ politeiawwwcli -j newuser email@example.com username somepassword --save --verify --paywall
+**Note: If you use the --paywall flag, you will still need to wait for block confirmations before you'll be allowed to submit proposals.**
 
---save      save the user's identity for future use
---verify    verify the user's email address
---paywall   use the testnet faucet to satisfy paywall requirement
---random    generate a random email address and password
-```
+Login with the user.  
+`$ politeiawwwcli --host https://localhost:4443 login email@example.com password`
 
-You can now login with this user.  Session cookies are saved automatically.
-`$ politeiawwwcli login email@example.com somepassword`
+Once logged in, you can submit proposals, comment on proposals, cast votes, or perform any of the other user actions that Politeia allows.  
 
-Once logged in, you can submit proposals or use any of the other commands that require you to be logged in or require a signature.
-`$ politeiawwwcli newproposal`
-
-If you decide to login with a different user, you can use the `updateuserkey` command to update the the user identity that is saved to `AppData/Politeiawww/cli`.
-Note: This command uses the email as the private key so it should only be used for testing purposes.
-```
-$ politeiawwwcli login newUser@example.com somepassword
-$ politeiawwwcli updateuserkey
-```
+## 403 Error
+If you receive a 403 from the Politeia server, it's most likely an issue with the CSRF tokens.  You can fix this by running either the `version` command or by loggin in with a user.
 
 ## Proposal Status Codes
+If your user has admin privileges, they can set the status of a proposal with the `setproposalstatus` command.  The proposal status codes are listed below.  
+
 ```
 PropStatusInvalid     PropStatusT = 0 // Invalid status
 PropStatusNotFound    PropStatusT = 1 // Proposal not found
