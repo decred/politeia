@@ -1591,14 +1591,6 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 		return nil, err
 	}
 
-	// Validate censor message when the proposal is being censored
-	if sps.ProposalStatus == v1.PropStatusCensored &&
-		len(sps.Message) < v1.PolicyMinCensorMessageLength {
-		return nil, v1.UserError{
-			ErrorCode: v1.ErrorMalformedCensorMessage,
-		}
-	}
-
 	// Create change record
 	newStatus := convertPropStatusFromWWW(sps.ProposalStatus)
 	r := MDStreamChanges{
@@ -2418,7 +2410,6 @@ func (b *backend) ProcessPolicy(p www.Policy) *www.PolicyReply {
 		MaxProposalNameLength:      www.PolicyMaxProposalNameLength,
 		ProposalNameSupportedChars: www.PolicyProposalNameSupportedChars,
 		MaxCommentLength:           www.PolicyMaxCommentLength,
-		MinCensorMessageLength:     www.PolicyMinCensorMessageLength,
 	}
 }
 

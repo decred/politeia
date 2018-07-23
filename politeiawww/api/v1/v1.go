@@ -93,9 +93,6 @@ const (
 	// for the routes that return lists of proposals
 	ProposalListPageSize = 20
 
-	// PolicyMinCensorMessageLength is the min length of a censor message
-	PolicyMinCensorMessageLength = 8
-
 	// Error status codes
 	ErrorStatusInvalid                     ErrorStatusT = 0
 	ErrorStatusInvalidEmailOrPassword      ErrorStatusT = 1
@@ -135,7 +132,6 @@ const (
 	ErrorStatusCannotVerifyPayment         ErrorStatusT = 35
 	ErrorStatusDuplicatePublicKey          ErrorStatusT = 36
 	ErrorStatusInvalidPropVoteStatus       ErrorStatusT = 37
-	ErrorMalformedCensorMessage            ErrorStatusT = 38
 
 	// Proposal status codes (set and get)
 	PropStatusInvalid     PropStatusT = 0 // Invalid status
@@ -213,7 +209,6 @@ var (
 		ErrorStatusCannotVerifyPayment:         "cannot verify payment at this time",
 		ErrorStatusDuplicatePublicKey:          "public key already taken by another user",
 		ErrorStatusInvalidPropVoteStatus:       "invalid proposal vote status",
-		ErrorMalformedCensorMessage:            "invalid censor message",
 	}
 
 	// PropVoteStatus converts votes status codes to human readable text
@@ -510,7 +505,7 @@ type SetProposalStatus struct {
 	ProposalStatus PropStatusT `json:"proposalstatus"`
 	Signature      string      `json:"signature"` // Signature of Token+string(ProposalStatus)+message
 	PublicKey      string      `json:"publickey"`
-	Message        string      `json:"message"` // Admin's message
+	Message        string      `json:"message,omitempty"` // Admin's message
 }
 
 // SetProposalStatusReply is used to reply to a SetProposalStatus command.
@@ -574,7 +569,6 @@ type PolicyReply struct {
 	ProposalNameSupportedChars []string `json:"proposalnamesupportedchars"`
 	MaxCommentLength           uint     `json:"maxcommentlength"`
 	BackendPublicKey           string   `json:"backendpublickey"`
-	MinCensorMessageLength     uint     `json:"mincensormessagelength"`
 }
 
 // VoteOption describes a single vote option.
