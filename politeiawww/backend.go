@@ -1537,10 +1537,10 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 			Metadata:         n.Metadata,
 			Files:            n.Files,
 		})
-		if err != nil {
-			return nil, err
-		}
 		b.Unlock()
+		if err != nil {
+			log.Errorf("ProcessNewProposal could not add record into inventory: %v", err)
+		}
 	} else {
 		responseBody, err := b.makeRequest(http.MethodPost,
 			pd.NewRecordRoute, n)
@@ -1567,7 +1567,7 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 
 		// Add the new proposal to the inventory cache.
 		b.Lock()
-		b.newInventoryRecord(pd.Record{
+		err = b.newInventoryRecord(pd.Record{
 			Status:           pd.RecordStatusNotReviewed,
 			Timestamp:        ts,
 			CensorshipRecord: pdReply.CensorshipRecord,
@@ -1575,6 +1575,9 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 			Files:            n.Files,
 		})
 		b.Unlock()
+		if err != nil {
+			log.Errorf("ProcessNewProposal could not add record into inventory: %v", err)
+		}
 	}
 
 	reply.CensorshipRecord = convertPropCensorFromPD(pdReply.CensorshipRecord)
