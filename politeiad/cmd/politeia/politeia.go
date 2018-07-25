@@ -567,10 +567,6 @@ func newRecord() error {
 	if err != nil {
 		return err
 	}
-	token, err := hex.DecodeString(reply.CensorshipRecord.Token)
-	if err != nil {
-		return err
-	}
 	sig, err := hex.DecodeString(reply.CensorshipRecord.Signature)
 	if err != nil {
 		return err
@@ -584,10 +580,8 @@ func newRecord() error {
 	}
 
 	// Verify record token signature.
-	merkleToken := make([]byte, len(root)+len(token))
-	copy(merkleToken, root[:])
-	copy(merkleToken[len(root[:]):], token)
-	if !id.VerifyMessage(merkleToken, signature) {
+	merkleToken := reply.CensorshipRecord.Merkle + reply.CensorshipRecord.Token
+	if !id.VerifyMessage([]byte(merkleToken), signature) {
 		return fmt.Errorf("verification failed")
 	}
 
@@ -754,15 +748,12 @@ func updateRecord() error {
 		return err
 	}
 
-	// Convert merkle, token and signature to verify reply.
-	root, err := hex.DecodeString(reply.CensorshipRecord.Merkle)
-	if err != nil {
-		return err
-	}
-	token, err := hex.DecodeString(reply.CensorshipRecord.Token)
-	if err != nil {
-		return err
-	}
+	// root, err := hex.DecodeString(reply.CensorshipRecord.Merkle)
+	// if err != nil {
+	// 	return err
+	// }
+
+	// Decode signature to verify
 	sig, err := hex.DecodeString(reply.CensorshipRecord.Signature)
 	if err != nil {
 		return err
@@ -777,10 +768,8 @@ func updateRecord() error {
 	//}
 
 	// Verify record token signature.
-	merkleToken := make([]byte, len(root)+len(token))
-	copy(merkleToken, root[:])
-	copy(merkleToken[len(root[:]):], token)
-	if !id.VerifyMessage(merkleToken, signature) {
+	merkleToken := reply.CensorshipRecord.Merkle + reply.CensorshipRecord.Token
+	if !id.VerifyMessage([]byte(merkleToken), signature) {
 		return fmt.Errorf("verification failed")
 	}
 
