@@ -363,6 +363,7 @@ the user database.  Note that Login reply is identical to Me reply.
 On failure the call shall return `401 Unauthorized` and one of the following
 error codes:
 - [`ErrorStatusInvalidEmailOrPassword`](#ErrorStatusInvalidEmailOrPassword)
+- [`ErrorStatusUserLocked`](#ErrorStatusUserLocked)
 
 **Example**
 
@@ -1874,6 +1875,7 @@ Reply:
 | <a name="ErrorStatusCannotVerifyPayment">ErrorStatusCannotVerifyPayment</a> | 35 | The server cannot verify the payment at this time, please try again later. |
 | <a name="ErrorStatusDuplicatePublicKey">ErrorStatusDuplicatePublicKey</a> | 36 | The public key provided is already taken by another user. |
 | <a name="ErrorStatusInvalidPropVoteStatus">ErrorStatusInvalidPropVoteStatus</a> | 37 | Invalid proposal vote status. |
+| <a name="ErrorStatusUserLocked">ErrorStatusUserLocked</a> | 38 | User locked due to too many login attempts. |
 
 ### Proposal status codes
 

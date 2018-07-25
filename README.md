@@ -81,6 +81,8 @@ and [`sample-politeiad.conf`](https://github.com/decred/politeia/blob/master/pol
     rpccert="/Users/<username>/Library/Application Support/Politeiad/https.cert"
     proxy=true
     testnet=true
+    paywallxpub=tpubVobLtToNtTq6TZNw4raWQok35PRPZou53vegZqNubtBTJMMFmuMpWybFCfweJ52N8uZJPZZdHE5SRnBBuuRPfC5jdNstfKjiAs8JtbYG9jx
+    paywallamount=1000000
 
 **note 1:** The rpccert path is referenced on macOS path. See above for
 more OS paths.
