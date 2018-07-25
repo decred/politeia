@@ -4,6 +4,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -30,13 +32,14 @@ type Options struct {
 	Host          string       `long:"host" short:"h" default:"https://127.0.0.1:4443" description:"Host"`
 	OverrideToken string       `long:"overridetoken" short:"o" description:"Override token for faucet"`
 	Json          bool         `long:"json" short:"j" description:"Print JSON"`
-	SkipPaywall   bool         `long:"skip-paywall" short:"s" description:"Don't wait for paywall confirmations during test run"`
 	Vote          bool         `long:"vote" short:"v" description:"Run vote routes"`
 }
 
 func handleError(err error) {
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
+		// Get filename and error line number for error message
+		_, fn, line, _ := runtime.Caller(1)
+		fmt.Printf("%s:%d %v\n", filepath.Base(fn), line, err)
 		os.Exit(1)
 	}
 }
@@ -54,6 +57,12 @@ func vote(opts *Options, c *client.Ctx) {
 	if !lr.IsAdmin {
 		err = fmt.Errorf("%v is not an admin", adminEmail)
 		handleError(err)
+	}
+
+	// Make sure admin user has a proposal credit
+	if lr.ProposalCredits == 0 {
+		fmt.Printf("warning: admin has 0 proposal credits. Use politeiawww_dbutil to add "+
+			"proposal credits to %v's account.\n", adminEmail)
 	}
 
 	// New proposal
@@ -96,7 +105,9 @@ func vote(opts *Options, c *client.Ctx) {
 	svr, err := c.StartVote(id, prop1.CensorshipRecord.Token)
 	handleError(err)
 	_ = svr
-	spew.Dump(svr)
+	if opts.Json {
+		spew.Dump(svr)
+	}
 
 	fmt.Printf("Vote routes complete\n")
 }
@@ -104,8 +115,8 @@ func vote(opts *Options, c *client.Ctx) {
 func main() {
 	// Initialize politeiawwwcli config
 	err := config.Load()
-	mockPayload := []byte("This is a description")
 	handleError(err)
+	mockPayload := []byte("This is a description")
 
 	// Parse command line
 	var opts Options
@@ -125,7 +136,7 @@ func main() {
 	// Exit if admin email is given without password or vise versa
 	if opts.Admin.Email != "" || opts.Admin.Password != "" {
 		if opts.Admin.Email == "" || opts.Admin.Password == "" {
-			err = fmt.Errorf("Missing email or password")
+			err = fmt.Errorf("Missing admin email or password")
 			handleError(err)
 		}
 	}
@@ -175,21 +186,6 @@ func main() {
 	err = c.VerifyNewUser(email1, token, hex.EncodeToString(sig[:]))
 	handleError(err)
 
-	// Use the testnet faucet to satisfy the user paywall fee.
-	var faucetTx string
-	if paywallAddress != "" && paywallAmount != 0 {
-		faucetTx, err = util.PayWithTestnetFaucet(faucetURL, paywallAddress,
-			paywallAmount, opts.OverrideToken)
-		if err != nil {
-			err = fmt.Errorf("unable to pay with %v with %v faucet: %v",
-				paywallAddress, paywallAmount, err)
-			handleError(err)
-		}
-
-		fmt.Printf("paid %v Atom to %v with faucet tx %v\n", paywallAmount,
-			paywallAddress, faucetTx)
-	}
-
 	// New proposal failure
 	_, err = c.NewProposal(id, nil, mockPayload)
 	if err == nil {
@@ -234,18 +230,101 @@ func main() {
 	_, err = c.ChangeUsername(password1, username2)
 	handleError(err)
 
-	// Wait for paywall confirmations
-	if !opts.SkipPaywall {
-		ticker := time.NewTicker(time.Second * timeToPoll)
+	// Check if the paywall has been turned off.
+	paywallIsEnabled := true
+	if paywallAddress == "" && paywallAmount == 0 {
+		paywallIsEnabled = false
+	}
 
+	if paywallIsEnabled {
+		// Proposal paywall failure
+		_, err := c.ProposalPaywall()
+		if err == nil {
+			err = fmt.Errorf("proposal paywall should require user registration fee to be paid")
+			handleError(err)
+		}
+
+		// Use the testnet faucet to satisfy the user registration fee.
+		faucetTx, err := util.PayWithTestnetFaucet(faucetURL, paywallAddress,
+			paywallAmount, opts.OverrideToken)
+		if err != nil {
+			err = fmt.Errorf("unable to pay with %v with %v faucet: %v",
+				paywallAddress, paywallAmount, err)
+			handleError(err)
+		}
+
+		fmt.Printf("paid %v Atom to %v with faucet tx %v\n", paywallAmount,
+			paywallAddress, faucetTx)
+
+		// Wait for user registration fee confirmations.
+		ticker := time.NewTicker(time.Second * timeToPoll)
 		for range ticker.C {
 			verifyUserPaid, err := c.VerifyUserPayment()
 			handleError(err)
-			fmt.Printf("Waiting for confirmations...\n")
 			if verifyUserPaid.HasPaid {
 				ticker.Stop()
 				break
 			}
+			fmt.Printf("Waiting for user registration fee confirmations...\n")
+		}
+
+		// Proposal paywall
+		ppdr, err := c.ProposalPaywall()
+		handleError(err)
+
+		// The user can only be issued one proposal paywall at a time.  The proposal
+		// paywall endpoint should return the same paywall until it has either been
+		// paid or has expired.
+		ppdr2, err := c.ProposalPaywall()
+		handleError(err)
+		if ppdr.PaywallTxNotBefore != ppdr2.PaywallTxNotBefore {
+			err = fmt.Errorf("Expected proposal paywalls to be the same")
+			handleError(err)
+		}
+
+		// New proposal failure
+		_, err = c.NewProposal(id, nil, mockPayload)
+		if err == nil {
+			err = fmt.Errorf("new proposal should require proposal credit")
+			handleError(err)
+		}
+
+		// Use faucet to purchase proposal credits.
+		var quantity uint64 = 30
+		txAmount := quantity * ppdr.CreditPrice
+		faucetTx, err = util.PayWithTestnetFaucet(faucetURL, ppdr.PaywallAddress, txAmount,
+			opts.OverrideToken)
+		if err != nil {
+			err = fmt.Errorf("unable to pay with %v with %v faucet: %v", ppdr.PaywallAddress,
+				txAmount, err)
+			handleError(err)
+		}
+		fmt.Printf("paid %v Atom to %v with faucet tx %v\n", txAmount, ppdr.PaywallAddress,
+			faucetTx)
+
+		// Wait for proposal paywall confirmations.
+		ticker = time.NewTicker(time.Second * timeToPoll)
+		for range ticker.C {
+			me, err := c.Me()
+			handleError(err)
+			if me.ProposalCredits > 0 {
+				// Check that the correct number of proposal credits were created.
+				if me.ProposalCredits < quantity {
+					err = fmt.Errorf("Expected %v credits, got %v\n", quantity, me.ProposalCredits)
+					handleError(err)
+				}
+				ticker.Stop()
+				break
+			}
+			fmt.Printf("Waiting for proposal paywall confirmations...\n")
+		}
+
+		// Proposal paywall
+		ppdr3, err := c.ProposalPaywall()
+		handleError(err)
+		if ppdr.PaywallTxNotBefore == ppdr3.PaywallTxNotBefore {
+			err = fmt.Errorf("Expected a new proposal paywalls to be created")
+			handleError(err)
 		}
 	}
 
@@ -288,14 +367,13 @@ func main() {
 	handleError(err)
 
 	if pr1.Proposal.CensorshipRecord.Token != prop1.CensorshipRecord.Token {
-		err = fmt.Errorf("pr1 invalid got %v wanted %v",
-			pr1.Proposal.CensorshipRecord.Token,
+		err = fmt.Errorf("pr1 invalid got %v wanted %v", pr1.Proposal.CensorshipRecord.Token,
 			prop1.CensorshipRecord.Token)
 		handleError(err)
 	}
 	if pr1.Proposal.Status != v1.PropStatusNotReviewed {
-		err = fmt.Errorf("pr1 invalid status got %v wanted %v",
-			pr1.Proposal.Status, v1.PropStatusNotReviewed)
+		err = fmt.Errorf("pr1 invalid status got %v wanted %v", pr1.Proposal.Status,
+			v1.PropStatusNotReviewed)
 		handleError(err)
 	}
 	if len(pr1.Proposal.Files) > 0 {
@@ -308,14 +386,13 @@ func main() {
 	handleError(err)
 
 	if pr2.Proposal.CensorshipRecord.Token != prop2.CensorshipRecord.Token {
-		err = fmt.Errorf("pr2 invalid got %v wanted %v",
-			pr2.Proposal.CensorshipRecord.Token,
+		err = fmt.Errorf("pr2 invalid got %v wanted %v", pr2.Proposal.CensorshipRecord.Token,
 			prop2.CensorshipRecord.Token)
 		handleError(err)
 	}
 	if pr2.Proposal.Status != v1.PropStatusNotReviewed {
-		err = fmt.Errorf("pr2 invalid status got %v wanted %v",
-			pr2.Proposal.Status, v1.PropStatusNotReviewed)
+		err = fmt.Errorf("pr2 invalid status got %v wanted %v", pr2.Proposal.Status,
+			v1.PropStatusNotReviewed)
 		handleError(err)
 	}
 	if len(pr2.Proposal.Files) > 0 {
@@ -416,8 +493,7 @@ func main() {
 		}
 
 		// Set proposal status - move prop1 to public
-		psr1, err := c.SetPropStatus(id, prop1.CensorshipRecord.Token,
-			v1.PropStatusPublic)
+		psr1, err := c.SetPropStatus(id, prop1.CensorshipRecord.Token, v1.PropStatusPublic)
 		handleError(err)
 
 		if psr1.Proposal.Status != v1.PropStatusPublic {
@@ -427,8 +503,7 @@ func main() {
 		}
 
 		// Set proposal status - move prop2 to censored
-		psr2, err := c.SetPropStatus(id, prop2.CensorshipRecord.Token,
-			v1.PropStatusCensored)
+		psr2, err := c.SetPropStatus(id, prop2.CensorshipRecord.Token, v1.PropStatusCensored)
 		handleError(err)
 
 		if psr2.Proposal.Status != v1.PropStatusCensored {
@@ -442,13 +517,13 @@ func main() {
 		handleError(err)
 
 		if _pr1.Proposal.CensorshipRecord.Token != prop1.CensorshipRecord.Token {
-			err = fmt.Errorf("_pr1 invalid got %v wanted %v",
-				_pr1.Proposal.CensorshipRecord.Token, prop1.CensorshipRecord.Token)
+			err = fmt.Errorf("_pr1 invalid got %v wanted %v", _pr1.Proposal.CensorshipRecord.Token,
+				prop1.CensorshipRecord.Token)
 			handleError(err)
 		}
 		if _pr1.Proposal.Status != v1.PropStatusPublic {
-			err = fmt.Errorf("_pr1 invalid status got %v wanted %v",
-				_pr1.Proposal.Status, v1.PropStatusPublic)
+			err = fmt.Errorf("_pr1 invalid status got %v wanted %v", _pr1.Proposal.Status,
+				v1.PropStatusPublic)
 			handleError(err)
 		}
 
@@ -456,19 +531,18 @@ func main() {
 		handleError(err)
 
 		if _pr2.Proposal.CensorshipRecord.Token != prop2.CensorshipRecord.Token {
-			err = fmt.Errorf("_pr2 invalid got %v wanted %v",
-				_pr2.Proposal.CensorshipRecord.Token, prop2.CensorshipRecord.Token)
+			err = fmt.Errorf("_pr2 invalid got %v wanted %v", _pr2.Proposal.CensorshipRecord.Token,
+				prop2.CensorshipRecord.Token)
 			handleError(err)
 		}
 		if _pr2.Proposal.Status != v1.PropStatusCensored {
-			err = fmt.Errorf("_pr2 invalid status got %v wanted %v",
-				_pr2.Proposal.Status, v1.PropStatusCensored)
+			err = fmt.Errorf("_pr2 invalid status got %v wanted %v", _pr2.Proposal.Status,
+				v1.PropStatusCensored)
 			handleError(err)
 		}
 
 		// Comment on prop1 without a parent
-		cr, err := c.Comment(id, prop1.CensorshipRecord.Token, "I like this prop",
-			"")
+		cr, err := c.Comment(id, prop1.CensorshipRecord.Token, "I like this prop", "")
 		handleError(err)
 		// Comment on comment
 		cr, err = c.Comment(id, prop1.CensorshipRecord.Token, "you are right!",
@@ -480,8 +554,7 @@ func main() {
 		handleError(err)
 
 		// Comment on prop1 without a parent
-		cr2, err := c.Comment(id, prop1.CensorshipRecord.Token,
-			"I dont like this prop", "")
+		cr2, err := c.Comment(id, prop1.CensorshipRecord.Token, "I dont like this prop", "")
 		handleError(err)
 		// Comment on comment
 		cr, err = c.Comment(id, prop1.CensorshipRecord.Token, "you are right!",
@@ -518,7 +591,7 @@ func main() {
 			handleError(err)
 		}
 
-		// Get prop2 anc check number of comments
+		// Get prop2 and check number of comments
 		_pr2, err = c.GetProp(prop2.CensorshipRecord.Token)
 		handleError(err)
 		if _pr2.Proposal.NumComments != uint(len(gcr2.Comments)) {
@@ -527,7 +600,7 @@ func main() {
 			handleError(err)
 		}
 
-		//Upvote first comment of prop1
+		// Upvote first comment of prop1
 		lcr, err := c.CommentVote(id, prop1.CensorshipRecord.Token, gcr.Comments[0].CommentID,
 			"upvote")
 		handleError(err)
@@ -540,7 +613,7 @@ func main() {
 			handleError(err)
 		}
 
-		//Unset vote on first comment of prop1 by upvoting it again
+		// Unset vote on first comment of prop1 by upvoting it again
 		lcr, err = c.CommentVote(id, prop1.CensorshipRecord.Token, gcr.Comments[0].CommentID,
 			"upvote")
 		handleError(err)
@@ -553,9 +626,9 @@ func main() {
 			handleError(err)
 		}
 
-		//Downvote second comment of prop1
+		// Downvote second comment of prop1
 		lcr, err = c.CommentVote(id, prop1.CensorshipRecord.Token, gcr.Comments[1].CommentID,
-			"upvote")
+			"downvote")
 		handleError(err)
 		if lcr.Total != 1 {
 			err = fmt.Errorf("Expected total: 1, got %v", lcr.Total)
@@ -566,9 +639,9 @@ func main() {
 			handleError(err)
 		}
 
-		//Unset vote on second comment of prop1 by downvoting it again
+		// Unset vote on second comment of prop1 by downvoting it again
 		lcr, err = c.CommentVote(id, prop1.CensorshipRecord.Token, gcr.Comments[1].CommentID,
-			"upvote")
+			"downvote")
 		handleError(err)
 		if lcr.Total != 0 {
 			err = fmt.Errorf("Expected total: 0, got %v", lcr.Total)
@@ -579,7 +652,7 @@ func main() {
 			handleError(err)
 		}
 
-		//Upvote second comment of prop1
+		// Upvote second comment of prop1
 		lcr, err = c.CommentVote(id, prop1.CensorshipRecord.Token, gcr.Comments[1].CommentID,
 			"upvote")
 		handleError(err)
@@ -592,9 +665,9 @@ func main() {
 			handleError(err)
 		}
 
-		//Downvote second comment of prop1 after upvoting it
+		// Downvote second comment of prop1 after upvoting it
 		lcr, err = c.CommentVote(id, prop1.CensorshipRecord.Token, gcr.Comments[1].CommentID,
-			"upvote")
+			"downvote")
 		handleError(err)
 		if lcr.Total != 1 {
 			err = fmt.Errorf("Expected total: 1, got %v", lcr.Total)
@@ -605,7 +678,7 @@ func main() {
 			handleError(err)
 		}
 
-		//Upvote second comment of prop1 after downvoting it
+		// Upvote second comment of prop1 after downvoting it
 		lcr, err = c.CommentVote(id, prop1.CensorshipRecord.Token, gcr.Comments[1].CommentID,
 			"upvote")
 		handleError(err)

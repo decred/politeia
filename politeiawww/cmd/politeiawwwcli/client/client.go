@@ -465,6 +465,26 @@ func (c *Ctx) Logout() error {
 	return err
 }
 
+func (c *Ctx) ProposalPaywall() (*v1.ProposalPaywallDetailsReply, error) {
+	ppd := v1.ProposalPaywallDetails{}
+	responseBody, err := c.makeRequest("GET", v1.RouteProposalPaywallDetails, ppd)
+	if err != nil {
+		return nil, err
+	}
+
+	var ppdr v1.ProposalPaywallDetailsReply
+	err = json.Unmarshal(responseBody, &ppdr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal ProposalPaywalDetailsReply: %v", err)
+	}
+
+	if config.Verbose {
+		prettyPrintJSON(ppdr)
+	}
+
+	return &ppdr, nil
+}
+
 func (c *Ctx) NewProposal(id *identity.FullIdentity, attachments []Attachment, mdPayload []byte) (*v1.NewProposalReply, error) {
 	np := v1.NewProposal{
 		Files:     make([]v1.File, 0),
