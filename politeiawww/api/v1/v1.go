@@ -132,6 +132,7 @@ const (
 	ErrorStatusCannotVerifyPayment         ErrorStatusT = 35
 	ErrorStatusDuplicatePublicKey          ErrorStatusT = 36
 	ErrorStatusInvalidPropVoteStatus       ErrorStatusT = 37
+	ErrorStatusUserLocked                  ErrorStatusT = 38
 
 	// Proposal status codes (set and get)
 	PropStatusInvalid     PropStatusT = 0 // Invalid status
@@ -209,6 +210,7 @@ var (
 		ErrorStatusCannotVerifyPayment:         "cannot verify payment at this time",
 		ErrorStatusDuplicatePublicKey:          "public key already taken by another user",
 		ErrorStatusInvalidPropVoteStatus:       "invalid proposal vote status",
+		ErrorStatusUserLocked:                  "user locked due to too many login attempts",
 	}
 
 	// PropVoteStatus converts votes status codes to human readable text

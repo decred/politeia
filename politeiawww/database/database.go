@@ -72,6 +72,7 @@ type User struct {
 	UpdateKeyVerificationExpiry     int64  // Verification expiration
 	ResetPasswordVerificationToken  []byte // Reset password token
 	ResetPasswordVerificationExpiry int64  // Reset password token expiration
+	FailedLoginAttempts             uint64 // Number of failed login a user has made in a row
 
 	// All identities the user has ever used.  User should only have one
 	// active key at a time.  We allow multiples in order to deal with key

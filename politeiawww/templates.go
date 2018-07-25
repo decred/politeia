@@ -28,3 +28,10 @@ const templateUpdateUserKeyEmailRaw = `
 <span style="font-weight: bold">{{.Email}}</span> on Politeia. If you did not perform
 this action, please contact Politeia administrators.</div>
 `
+
+const templateUserLockedResetPasswordRaw = `
+<div>Your account was locked due to too many login attempts. You need to reset your password in order to unlock your account:</div>
+<div style="margin: 20px 0 0 10px"><a href="{{.Link}}">{{.Link}}</a></div>
+<div style="margin-top: 20px">You are receiving this email because someone made too many login attempts for <span style="font-weight: bold">{{.Email}}</span> on Politeia.</div>
+<div>If that was not you, please notify Politeia administrators.</div>
+`
