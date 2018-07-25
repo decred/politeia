@@ -255,15 +255,16 @@ type CensorshipRecord struct {
 
 // ProposalRecord is an entire proposal and it's content.
 type ProposalRecord struct {
-	Name        string      `json:"name"`        // Suggested short proposal name
-	Status      PropStatusT `json:"status"`      // Current status of proposal
-	Timestamp   int64       `json:"timestamp"`   // Last update of proposal
-	UserId      string      `json:"userid"`      // ID of user who submitted proposal
-	Username    string      `json:"username"`    // Username of user who submitted proposal
-	PublicKey   string      `json:"publickey"`   // Key used for signature.
-	Signature   string      `json:"signature"`   // Signature of merkle root
-	Files       []File      `json:"files"`       // Files that make up the proposal
-	NumComments uint        `json:"numcomments"` // Number of comments on the proposal
+	Name        string      `json:"name"`              // Suggested short proposal name
+	Status      PropStatusT `json:"status"`            // Current status of proposal
+	Timestamp   int64       `json:"timestamp"`         // Last update of proposal
+	UserId      string      `json:"userid"`            // ID of user who submitted proposal
+	Username    string      `json:"username"`          // Username of user who submitted proposal
+	PublicKey   string      `json:"publickey"`         // Key used for signature.
+	Signature   string      `json:"signature"`         // Signature of merkle root
+	Files       []File      `json:"files"`             // Files that make up the proposal
+	NumComments uint        `json:"numcomments"`       // Number of comments on the proposal
+	Message     string      `json:"message,omitempty"` // Admin's message associated to the last status change
 
 	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
 }
@@ -543,8 +544,9 @@ type ProposalDetailsReply struct {
 type SetProposalStatus struct {
 	Token          string      `json:"token"`
 	ProposalStatus PropStatusT `json:"proposalstatus"`
-	Signature      string      `json:"signature"` // Signature of Token+string(ProposalStatus)
+	Signature      string      `json:"signature"` // Signature of Token+string(ProposalStatus)+message
 	PublicKey      string      `json:"publickey"`
+	Message        string      `json:"message,omitempty"` // Admin's message
 }
 
 // SetProposalStatusReply is used to reply to a SetProposalStatus command.

@@ -1831,6 +1831,8 @@ func (g *gitBackEnd) setUnvettedStatus(token []byte, status backend.MDStatusT, m
 			To:   status,
 		}
 	}
+	// set new metadata to record
+	record.Metadata = mdAppend
 
 	return record, nil
 }
