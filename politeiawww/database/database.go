@@ -54,6 +54,35 @@ func ActiveIdentityString(i []Identity) (string, bool) {
 	return hex.EncodeToString(key[:]), ok
 }
 
+// A proposal paywall allows the user to purchase proposal credits.  Proposal
+// paywalls are only valid for one tx.  The number of proposal credits created
+// is determined by dividing the tx amount by the credit price.  Proposal
+// paywalls expire after a set duration. politeiawww polls the paywall address
+// for a payment tx until the paywall is either paid or it expires.
+type ProposalPaywall struct {
+	ID          uint64 // Paywall ID
+	CreditPrice uint64 // Cost per proposal credit in atoms
+	Address     string // Paywall address
+	TxNotBefore int64  // Minimum timestamp for paywall tx
+	PollExpiry  int64  // After this time, the paywall address will not be continuously polled
+	TxID        string // Payment transaction ID
+	TxAmount    uint64 // Amount sent to paywall address in atoms
+	NumCredits  uint64 // Number of proposal credits created by payment tx
+}
+
+// A proposal credit allows the user to submit a new proposal.  Credits are
+// created when a user sends a payment to a proposal paywall.  A credit is
+// automatically spent when a user submits a new proposal.  When a credit is
+// spent, it is updated with the proposal's censorship token and moved to the
+// user's spent proposal credits list.
+type ProposalCredit struct {
+	PaywallID       uint64 // ID of the proposal paywall that created this credit
+	Price           uint64 // Price this credit was purchased at in atoms
+	DatePurchased   int64  // Unix timestamp of when the credit was purchased
+	TxID            string // Payment transaction ID
+	CensorshipToken string // Censorship token of proposal that used this credit
+}
+
 // User record.
 type User struct {
 	ID                              uint64 // Unique id
@@ -78,6 +107,21 @@ type User struct {
 	// active key at a time.  We allow multiples in order to deal with key
 	// loss.
 	Identities []Identity
+
+	// All proposal paywalls that have been issued to the user in chronological
+	// order.
+	ProposalPaywalls []ProposalPaywall
+
+	// All proposal credits that have been purchased by the user, but have not
+	// yet been used to submit a proposal.  Once a credit is used to submit a
+	// proposal, it is updated with the proposal's censorship token and moved to
+	// the user's spent proposal credits list.
+	UnspentProposalCredits []ProposalCredit
+
+	// All credits that have been purchased by the user and have already been
+	// used to submit proposals.  Spent credits have a proposal censorship token
+	// associated with them to signify that they have been spent.
+	SpentProposalCredits []ProposalCredit
 }
 
 // Database interface that is required by the web server.

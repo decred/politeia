@@ -14,38 +14,40 @@ const (
 	CsrfToken = "X-CSRF-Token"    // CSRF token for replies
 	Forward   = "X-Forwarded-For" // Proxy header
 
-	RouteUserMe              = "/user/me"
-	RouteNewUser             = "/user/new"
-	RouteVerifyNewUser       = "/user/verify"
-	RouteResendVerification  = "/user/new/resend"
-	RouteUpdateUserKey       = "/user/key"
-	RouteVerifyUpdateUserKey = "/user/key/verify"
-	RouteChangeUsername      = "/user/username/change"
-	RouteChangePassword      = "/user/password/change"
-	RouteResetPassword       = "/user/password/reset"
-	RouteUserProposals       = "/user/proposals"
-	RouteVerifyUserPayment   = "/user/verifypayment"
-	RouteLogin               = "/login"
-	RouteLogout              = "/logout"
-	RouteSecret              = "/secret"
-	RouteAllVetted           = "/proposals/vetted"
-	RouteAllUnvetted         = "/proposals/unvetted"
-	RouteNewProposal         = "/proposals/new"
-	RouteProposalDetails     = "/proposals/{token:[A-z0-9]{64}}"
-	RouteSetProposalStatus   = "/proposals/{token:[A-z0-9]{64}}/status"
-	RoutePolicy              = "/policy"
-	RouteVersion             = "/version"
-	RouteNewComment          = "/comments/new"
-	RouteLikeComment         = "/comments/like"
-	RouteCommentsGet         = "/proposals/{token:[A-z0-9]{64}}/comments"
-	RouteStartVote           = "/proposals/startvote"
-	RouteActiveVote          = "/proposals/activevote" // XXX rename to ActiveVotes
-	RouteCastVotes           = "/proposals/castvotes"
-	RouteUserCommentsVotes   = "/user/proposals/{token:[A-z0-9]{64}}/commentsvotes"
-	RouteVoteResults         = "/proposals/{token:[A-z0-9]{64}}/votes"
-	RouteUsernamesById       = "/usernames"
-	RouteAllVoteStatus       = "/proposals/votestatus"
-	RouteVoteStatus          = "/proposals/{token:[A-z0-9]{64}}/votestatus"
+	RouteUserMe                 = "/user/me"
+	RouteNewUser                = "/user/new"
+	RouteVerifyNewUser          = "/user/verify"
+	RouteResendVerification     = "/user/new/resend"
+	RouteUpdateUserKey          = "/user/key"
+	RouteVerifyUpdateUserKey    = "/user/key/verify"
+	RouteChangeUsername         = "/user/username/change"
+	RouteChangePassword         = "/user/password/change"
+	RouteResetPassword          = "/user/password/reset"
+	RouteUserProposals          = "/user/proposals"
+	RouteUserProposalCredits    = "/user/proposals/credits"
+	RouteVerifyUserPayment      = "/user/verifypayment"
+	RouteLogin                  = "/login"
+	RouteLogout                 = "/logout"
+	RouteSecret                 = "/secret"
+	RouteProposalPaywallDetails = "/proposals/paywall"
+	RouteAllVetted              = "/proposals/vetted"
+	RouteAllUnvetted            = "/proposals/unvetted"
+	RouteNewProposal            = "/proposals/new"
+	RouteProposalDetails        = "/proposals/{token:[A-z0-9]{64}}"
+	RouteSetProposalStatus      = "/proposals/{token:[A-z0-9]{64}}/status"
+	RoutePolicy                 = "/policy"
+	RouteVersion                = "/version"
+	RouteNewComment             = "/comments/new"
+	RouteLikeComment            = "/comments/like"
+	RouteCommentsGet            = "/proposals/{token:[A-z0-9]{64}}/comments"
+	RouteStartVote              = "/proposals/startvote"
+	RouteActiveVote             = "/proposals/activevote" // XXX rename to ActiveVotes
+	RouteCastVotes              = "/proposals/castvotes"
+	RouteUserCommentsVotes      = "/user/proposals/{token:[A-z0-9]{64}}/commentsvotes"
+	RouteVoteResults            = "/proposals/{token:[A-z0-9]{64}}/votes"
+	RouteUsernamesById          = "/usernames"
+	RouteAllVoteStatus          = "/proposals/votestatus"
+	RouteVoteStatus             = "/proposals/{token:[A-z0-9]{64}}/votestatus"
 	// VerificationTokenSize is the size of verification token in bytes
 	VerificationTokenSize = 32
 
@@ -133,6 +135,7 @@ const (
 	ErrorStatusDuplicatePublicKey          ErrorStatusT = 36
 	ErrorStatusInvalidPropVoteStatus       ErrorStatusT = 37
 	ErrorStatusUserLocked                  ErrorStatusT = 38
+	ErrorStatusNoProposalCredits           ErrorStatusT = 39
 
 	// Proposal status codes (set and get)
 	PropStatusInvalid     PropStatusT = 0 // Invalid status
@@ -211,6 +214,7 @@ var (
 		ErrorStatusDuplicatePublicKey:          "public key already taken by another user",
 		ErrorStatusInvalidPropVoteStatus:       "invalid proposal vote status",
 		ErrorStatusUserLocked:                  "user locked due to too many login attempts",
+		ErrorStatusNoProposalCredits:           "no proposal credits",
 	}
 
 	// PropVoteStatus converts votes status codes to human readable text
@@ -262,6 +266,15 @@ type ProposalRecord struct {
 	NumComments uint        `json:"numcomments"` // Number of comments on the proposal
 
 	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
+}
+
+// ProposalCredit contains the details of a proposal credit that has been
+// purchased by the user.
+type ProposalCredit struct {
+	PaywallID     uint64 `json:"paywallid"`     // paywall that created this credit
+	Price         uint64 `json:"price"`         // Price credit was purchased at in atoms
+	DatePurchased int64  `json:"datepurchased"` // Unix timestamp of the purchase date
+	TxID          string `json:"txid"`          // Decred tx that purchased this credit
 }
 
 // UserError represents an error that is caused by something that the user
@@ -415,6 +428,19 @@ type ResetPasswordReply struct {
 	VerificationToken string `json:"verificationtoken"`
 }
 
+// UserProposalCredits is used to request a list of all the user's unspent
+// proposal credits and a list of all of the user's spent proposal credits.
+// A spent credit means that the credit was used to submit a proposal.  Spent
+// credits have a proposal censorship token associated with them to signify
+// that they have been spent.
+type UserProposalCredits struct{}
+
+// UserProposalCredits is used to reply to the UserProposalCredits command.
+type UserProposalCreditsReply struct {
+	UnspentCredits []ProposalCredit `json:"unspentcredits"` // credits that the user has purchased, but have not yet been used to submit proposals
+	SpentCredits   []ProposalCredit `json:"spentcredits"`   // credits that the user has purchased and that have already been used to submit proposals
+}
+
 // UserProposals is used to request a list of proposals that the
 // user has submitted. This command optionally takes either a Before
 // or After parameter, which specify a proposal's censorship token.
@@ -463,6 +489,7 @@ type LoginReply struct {
 	PaywallAddress     string `json:"paywalladdress"`     // Registration paywall address
 	PaywallAmount      uint64 `json:"paywallamount"`      // Registration paywall amount in atoms
 	PaywallTxNotBefore int64  `json:"paywalltxnotbefore"` // Minimum timestamp for paywall tx
+	ProposalCredits    uint64 `json:"proposalcredits"`    // Number of the proposal credits the user has available to spend
 }
 
 //Logout attempts to log the user out.
@@ -476,6 +503,18 @@ type LogoutReply struct{}
 // Note that MeReply is not present because LoginReply is reused
 // for this endpoint.
 type Me struct{}
+
+// ProposalPaywallDetails is used to request proposal paywall details from the
+// server that the user needs in order to purchase paywall credits.
+type ProposalPaywallDetails struct{}
+
+// ProposalPaywallDetailsReply is used to reply to the ProposalPaywallDetails
+// command.
+type ProposalPaywallDetailsReply struct {
+	CreditPrice        uint64 `json:"creditprice"`        // Cost per proposal credit in atoms
+	PaywallAddress     string `json:"paywalladdress"`     // Proposal paywall address
+	PaywallTxNotBefore int64  `json:"paywalltxnotbefore"` // Minimum timestamp for paywall tx
+}
 
 // NewProposal attempts to submit a new proposal.
 type NewProposal struct {

@@ -126,10 +126,10 @@ func DcrStringToAmount(dcrstr string) (uint64, error) {
 	return ((whole * 1e8) + fraction), nil
 }
 
-func fetchTxWithPrimaryBE(url string, address string, minimumAmount uint64, txnotbefore int64, minConfirmationsRequired uint64) (string, error) {
+func fetchTxWithPrimaryBE(url string, address string, minimumAmount uint64, txnotbefore int64, minConfirmationsRequired uint64) (string, uint64, error) {
 	responseBody, err := makeRequest(url, 3)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 
 	transactions := make([]BEPrimaryTransaction, 0)
@@ -146,7 +146,7 @@ func fetchTxWithPrimaryBE(url string, address string, minimumAmount uint64, txno
 		for _, vout := range v.Vout {
 			amount, err := DcrStringToAmount(vout.Amount.String())
 			if err != nil {
-				return "", err
+				return "", 0, err
 			}
 
 			if amount < minimumAmount {
@@ -155,19 +155,19 @@ func fetchTxWithPrimaryBE(url string, address string, minimumAmount uint64, txno
 
 			for _, addr := range vout.ScriptPubkey.Addresses {
 				if address == addr {
-					return v.TxId, nil
+					return v.TxId, amount, nil
 				}
 			}
 		}
 	}
 
-	return "", nil
+	return "", 0, nil
 }
 
-func fetchTxWithBackupBE(url string, address string, minimumAmount uint64, txnotbefore int64, minConfirmationsRequired uint64) (string, error) {
+func fetchTxWithBackupBE(url string, address string, minimumAmount uint64, txnotbefore int64, minConfirmationsRequired uint64) (string, uint64, error) {
 	responseBody, err := makeRequest(url, 3)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 
 	transactions := make([]BEBackupTransaction, 0)
@@ -183,16 +183,16 @@ func fetchTxWithBackupBE(url string, address string, minimumAmount uint64, txnot
 
 		amount, err := DcrStringToAmount(v.Amount.String())
 		if err != nil {
-			return "", err
+			return "", 0, err
 		}
 		if amount < minimumAmount {
 			continue
 		}
 
-		return v.TxId, nil
+		return v.TxId, amount, nil
 	}
 
-	return "", nil
+	return "", 0, nil
 }
 
 func getNetworkName(params *chaincfg.Params) string {
@@ -299,12 +299,12 @@ func PayWithTestnetFaucet(faucetURL string, address string, amount uint64, overr
 // FetchTxWithBlockExplorers uses public block explorers to look for a
 // transaction for the given address that equals or exceeds the given amount,
 // occurs after the txnotbefore time and has the minimum number of confirmations.
-func FetchTxWithBlockExplorers(address string, amount uint64, txnotbefore int64, minConfirmations uint64) (string, error) {
+func FetchTxWithBlockExplorers(address string, amount uint64, txnotbefore int64, minConfirmations uint64) (string, uint64, error) {
 	// pre-validate that the passed address, amount, and tx are at least
 	// somewhat valid before querying the explorers
 	addr, err := dcrutil.DecodeAddress(address)
 	if err != nil {
-		return "", fmt.Errorf("invalid address %v: %v", addr, err)
+		return "", 0, fmt.Errorf("invalid address %v: %v", addr, err)
 	}
 
 	var (
@@ -321,23 +321,23 @@ func FetchTxWithBlockExplorers(address string, amount uint64, txnotbefore int64,
 		primaryURL = "https://testnet.dcrdata.org/api/address/" + address + "/raw"
 		backupURL = "https://testnet.decred.org/api/addr/" + address + "/utxo?noCache=1"
 	} else {
-		return "", fmt.Errorf("unsupported network %v", network)
+		return "", 0, fmt.Errorf("unsupported network %v", network)
 	}
 
 	// Try the primary (dcrdata) first.
-	tx, err := fetchTxWithPrimaryBE(primaryURL, address, amount, txnotbefore, minConfirmations)
+	txID, amount, err := fetchTxWithPrimaryBE(primaryURL, address, amount, txnotbefore, minConfirmations)
 	if err != nil {
 		log.Printf("failed to fetch from dcrdata: %v", err)
 	} else {
-		return tx, nil
+		return txID, amount, nil
 	}
 
 	// Try the backup (insight).
-	tx, err = fetchTxWithBackupBE(backupURL, address, amount, txnotbefore, minConfirmations)
+	txID, amount, err = fetchTxWithBackupBE(backupURL, address, amount, txnotbefore, minConfirmations)
 	if err != nil {
 		log.Printf("failed to fetch from insight: %v", err)
-		return "", ErrCannotVerifyPayment
+		return "", 0, ErrCannotVerifyPayment
 	}
 
-	return tx, nil
+	return txID, amount, nil
 }
