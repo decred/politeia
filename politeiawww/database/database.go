@@ -34,14 +34,18 @@ type Identity struct {
 	Deactivated int64                        // Time key was deactivated
 }
 
+// IsIdentityActive returns true if the identity is active, false otherwise
+func IsIdentityActive(id Identity) bool {
+	return id.Activated != 0 && id.Deactivated == 0
+}
+
 // ActiveIdentity returns a the current active key.  If there is no active
 // valid key the call returns all 0s and false.
 func ActiveIdentity(i []Identity) ([identity.PublicKeySize]byte, bool) {
 	for _, v := range i {
-		if v.Activated == 0 || v.Deactivated != 0 {
-			continue
+		if IsIdentityActive(v) {
+			return v.Key, true
 		}
-		return v.Key, true
 	}
 
 	return [identity.PublicKeySize]byte{}, false

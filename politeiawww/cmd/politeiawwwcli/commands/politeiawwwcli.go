@@ -17,6 +17,7 @@ type Options struct {
 	ChangePassword    ChangepasswordCmd    `command:"changepassword" description:"change the password for the currently logged in user"`
 	CommentsVotes     CommentsvotesCmd     `command:"commentsvotes" description:"fetch all the comments voted by the user on a proposal"`
 	ChangeUsername    ChangeusernameCmd    `command:"changeusername" description:"change the username for the currently logged in user"`
+	EditUser          EdituserCmd          `command:"edituser" description:"edit the details for the given user id"`
 	GetComments       GetcommentsCmd       `command:"getcomments" description:"fetch a proposal's comments"`
 	GetProposal       GetproposalCmd       `command:"getproposal" description:"fetch a proposal"`
 	GetUnvetted       GetunvettedCmd       `command:"getunvetted" description:"fetch unvetted proposals"`
@@ -35,6 +36,7 @@ type Options struct {
 	SetProposalStatus SetproposalstatusCmd `command:"setproposalstatus" description:"(admin only) set the status of a proposal"`
 	StartVote         StartvoteCmd         `command:"startvote" description:"(admin only) start the voting period on a proposal"`
 	UsernamesById     UsernamesbyidCmd     `command:"usernamesbyid" description:"fetch usernames by their user ids"`
+	UserDetails       UserdetailsCmd       `command:"userdetails" description:"fetch a user's details by his user id"`
 	UserProposals     UserproposalsCmd     `command:"userproposals" description:"fetch all proposals submitted by a specific user"`
 	VerifyUser        VerifyuserCmd        `command:"verifyuser" description:"verify user's email address"`
 	VerifyUserPayment VerifyuserpaymentCmd `command:"verifyuserpayment" description:"check if the user has paid their user registration fee"`

@@ -7,6 +7,7 @@ import (
 type ErrorStatusT int
 type PropStatusT int
 type PropVoteStatusT int
+type UserEditActionT int
 
 const (
 	PoliteiaWWWAPIVersion = 1 // API version this backend understands
@@ -26,6 +27,8 @@ const (
 	RouteUserProposals          = "/user/proposals"
 	RouteUserProposalCredits    = "/user/proposals/credits"
 	RouteVerifyUserPayment      = "/user/verifypayment"
+	RouteUserDetails            = "/user/{userid:[0-9]+}"
+	RouteEditUser               = "/user/edit"
 	RouteLogin                  = "/login"
 	RouteLogout                 = "/logout"
 	RouteSecret                 = "/secret"
@@ -136,6 +139,7 @@ const (
 	ErrorStatusInvalidPropVoteStatus       ErrorStatusT = 37
 	ErrorStatusUserLocked                  ErrorStatusT = 38
 	ErrorStatusNoProposalCredits           ErrorStatusT = 39
+	ErrorStatusInvalidUserEditAction       ErrorStatusT = 40
 
 	// Proposal status codes (set and get)
 	PropStatusInvalid     PropStatusT = 0 // Invalid status
@@ -151,6 +155,14 @@ const (
 	PropVoteStatusStarted     PropVoteStatusT = 2 // Proposal vote has been started
 	PropVoteStatusFinished    PropVoteStatusT = 3 // Proposal vote has been finished
 	PropVoteStatusDoesntExist PropVoteStatusT = 4 // Proposal doesn't exist
+
+	// User edit actions
+	UserEditInvalid                         UserEditActionT = 0 // Invalid action type
+	UserEditExpireNewUserVerification       UserEditActionT = 1
+	UserEditExpireUpdateKeyVerification     UserEditActionT = 2
+	UserEditExpireResetPasswordVerification UserEditActionT = 3
+	UserEditClearUserPaywall                UserEditActionT = 4
+	UserEditUnlock                          UserEditActionT = 5
 )
 
 var (
@@ -215,6 +227,17 @@ var (
 		ErrorStatusInvalidPropVoteStatus:       "invalid proposal vote status",
 		ErrorStatusUserLocked:                  "user locked due to too many login attempts",
 		ErrorStatusNoProposalCredits:           "no proposal credits",
+		ErrorStatusInvalidUserEditAction:       "invalid user edit action",
+	}
+
+	// PropStatus converts propsal status codes to human readable text
+	PropStatus = map[PropStatusT]string{
+		PropStatusInvalid:     "invalid proposal status",
+		PropStatusNotFound:    "not found",
+		PropStatusNotReviewed: "unreviewed",
+		PropStatusCensored:    "censored",
+		PropStatusPublic:      "public",
+		PropStatusLocked:      "locked",
 	}
 
 	// PropVoteStatus converts votes status codes to human readable text
@@ -224,6 +247,16 @@ var (
 		PropVoteStatusStarted:     "voting active",
 		PropVoteStatusFinished:    "voting finished",
 		PropVoteStatusDoesntExist: "proposal does not exist",
+	}
+
+	// UserEditAction converts user edit actions to human readable text
+	UserEditAction = map[UserEditActionT]string{
+		UserEditInvalid:                         "invalid action",
+		UserEditExpireNewUserVerification:       "expire new user verification",
+		UserEditExpireUpdateKeyVerification:     "expire update key verification",
+		UserEditExpireResetPasswordVerification: "expire reset password verification",
+		UserEditClearUserPaywall:                "clear user paywall",
+		UserEditUnlock:                          "unlock user",
 	}
 )
 
@@ -812,4 +845,54 @@ type GetAllVoteStatus struct{}
 // GetAllVoteStatusReply returns the vote status of all public proposals
 type GetAllVoteStatusReply struct {
 	VotesStatus []VoteStatusReply `json:"votesstatus"` // Vote status of all public proposals
+}
+
+// UserDetails fetches a user's details by their id.
+type UserDetails struct {
+	UserID string `json:"userid"` // User id
+}
+
+// UserDetailsReply returns a user's details.
+type UserDetailsReply struct {
+	User User `json:"user"`
+}
+
+// EditUser performs the given action on a user.
+type EditUser struct {
+	UserID string          `json:"userid"` // User id
+	Action UserEditActionT `json:"action"` // Action
+	Reason string          `json:"reason"` // Admin reason for action
+}
+
+// EditUserReply is the reply for the EditUserReply command.
+type EditUserReply struct{}
+
+// User represents an individual user.
+type User struct {
+	ID                              string           `json:"id"`
+	Email                           string           `json:"email"`
+	Username                        string           `json:"username"`
+	Admin                           bool             `json:"isadmin"`
+	NewUserPaywallAddress           string           `json:"newuserpaywalladdress"`
+	NewUserPaywallAmount            uint64           `json:"newuserpaywallamount"`
+	NewUserPaywallTx                string           `json:"newuserpaywalltx"`
+	NewUserPaywallTxNotBefore       int64            `json:"newuserpaywalltxnotbefore"`
+	NewUserPaywallPollExpiry        int64            `json:"newuserpaywallpollexpiry"`
+	NewUserVerificationToken        []byte           `json:"newuserverificationtoken"`
+	NewUserVerificationExpiry       int64            `json:"newuserverificationexpiry"`
+	UpdateKeyVerificationToken      []byte           `json:"updatekeyverificationtoken"`
+	UpdateKeyVerificationExpiry     int64            `json:"updatekeyverificationexpiry"`
+	ResetPasswordVerificationToken  []byte           `json:"resetpasswordverificationtoken"`
+	ResetPasswordVerificationExpiry int64            `json:"resetpasswordverificationexpiry"`
+	FailedLoginAttempts             uint64           `json:"failedloginattempts"`
+	Locked                          bool             `json:"islocked"`
+	Identities                      []UserIdentity   `json:"identities"`
+	Proposals                       []ProposalRecord `json:"proposals"`
+	ProposalCredits                 uint64           `json:"proposalcredits"`
+}
+
+// UserIdentity represents a user's unique identity.
+type UserIdentity struct {
+	Pubkey string `json:"pubkey"`
+	Active bool   `json:"isactive"`
 }

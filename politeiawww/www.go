@@ -1001,9 +1001,56 @@ func (p *politeiawww) handleStartVote(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, svr)
 }
 
+// handleUserDetails handles fetching user details by user id.
+func (p *politeiawww) handleUserDetails(w http.ResponseWriter, r *http.Request) {
+	// Add the path param to the struct.
+	log.Tracef("handleUserDetails")
+	pathParams := mux.Vars(r)
+	var ud v1.UserDetails
+	ud.UserID = pathParams["userid"]
+
+	udr, err := p.backend.ProcessUserDetails(&ud)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserDetails: ProcessUserDetails %v", err)
+		return
+	}
+
+	// Reply with the proposal details.
+	util.RespondWithJSON(w, http.StatusOK, udr)
+}
+
+// handleEditUser handles editing a user's details.
+func (p *politeiawww) handleEditUser(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleEditUser")
+
+	var eu v1.EditUser
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&eu); err != nil {
+		RespondWithError(w, r, 0, "handleEditUser: unmarshal", v1.UserError{
+			ErrorCode: v1.ErrorStatusInvalidInput,
+		})
+		return
+	}
+
+	adminUser, err := p.getSessionUser(r)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleEditUser: getSessionUser %v", err)
+		return
+	}
+
+	eur, err := p.backend.ProcessEditUser(&eu, adminUser)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleEditUser: ProcessEditUser %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, eur)
+}
+
 // handleGetAllVoteStatus returns the voting status of all public proposals.
 func (p *politeiawww) handleGetAllVoteStatus(w http.ResponseWriter, r *http.Request) {
-
 	gasvr, err := p.backend.ProcessGetAllVoteStatus()
 	if err != nil {
 		RespondWithError(w, r, 0,
@@ -1292,6 +1339,10 @@ func _main() error {
 		p.handleSetProposalStatus, permissionAdmin, true)
 	p.addRoute(http.MethodPost, v1.RouteStartVote,
 		p.handleStartVote, permissionAdmin, true)
+	p.addRoute(http.MethodGet, v1.RouteUserDetails,
+		p.handleUserDetails, permissionAdmin, true)
+	p.addRoute(http.MethodPost, v1.RouteEditUser,
+		p.handleEditUser, permissionAdmin, true)
 
 	// Persist session cookies.
 	var cookieKey []byte
