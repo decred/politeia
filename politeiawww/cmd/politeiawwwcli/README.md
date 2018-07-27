@@ -77,13 +77,24 @@ Once logged in, you can submit proposals, comment on proposals, cast votes, or p
 If you receive a 403 from the Politeia server, it's most likely an issue with the CSRF tokens.  You can fix this by running either the `version` command or by loggin in with a user.
 
 ## Proposal Status Codes
-If your user has admin privileges, they can set the status of a proposal with the `setproposalstatus` command.  The proposal status codes are listed below.  
+Admins can set the status of a proposal with the `setproposalstatus` command.  The proposal status codes are listed below.
 
 ```
-PropStatusInvalid     PropStatusT = 0 // Invalid status
-PropStatusNotFound    PropStatusT = 1 // Proposal not found
-PropStatusNotReviewed PropStatusT = 2 // Proposal has not been reviewed
-PropStatusCensored    PropStatusT = 3 // Proposal has been censored
-PropStatusPublic      PropStatusT = 4 // Proposal is publicly visible
-PropStatusLocked      PropStatusT = 6 // Proposal is locked
+PropStatusInvalid      0 // Invalid status
+PropStatusNotFound     1 // Proposal not found
+PropStatusNotReviewed  2 // Proposal has not been reviewed
+PropStatusCensored     3 // Proposal has been censored
+PropStatusPublic       4 // Proposal is publicly visible
+PropStatusLocked       6 // Proposal is locked
+```
+
+## User Edit Action Codes
+Admin users can edit certain properties of other users with the `useredit` command.  The edit action codes are listed below.
+
+```
+UserEditExpireNewUserVerification        1 // Expire new user verification
+UserEditExpireUpdateKeyVerification      2 // Expire update key verification
+UserEditExpireResetPasswordVerification  3 // Expire reset password verification
+UserEditClearUserPaywall                 4 // Clear user paywall
+UserEditUnlock                           5 // Unlock user
 ```

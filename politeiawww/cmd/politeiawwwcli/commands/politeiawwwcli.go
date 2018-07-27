@@ -30,6 +30,7 @@ type Options struct {
 	NewUser           NewuserCmd           `command:"newuser" description:"create a new Politeia user"`
 	Faucet            FaucetCmd            `command:"faucet" description:"use the Decred testnet faucet to send DCR to an address"`
 	Policy            PolicyCmd            `command:"policy" description:"fetch server policy"`
+	ProposalPaywall   ProposalpaywallCmd   `command:"proposalpaywall" description:"fetch proposal paywall details"`
 	ProposalVotes     ProposalvotesCmd     `command:"proposalvotes" description:"fetch vote results for a specific proposal"`
 	ResetPassword     ResetpasswordCmd     `command:"resetpassword" description:"change the password for a user that is not currently logged in"`
 	Secret            SecretCmd            `command:"secret"`

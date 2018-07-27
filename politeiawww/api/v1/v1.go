@@ -470,8 +470,8 @@ type UserProposalCredits struct{}
 
 // UserProposalCredits is used to reply to the UserProposalCredits command.
 type UserProposalCreditsReply struct {
-	UnspentCredits []ProposalCredit `json:"unspentcredits"` // credits that the user has purchased, but have not yet been used to submit proposals
-	SpentCredits   []ProposalCredit `json:"spentcredits"`   // credits that the user has purchased and that have already been used to submit proposals
+	UnspentCredits []ProposalCredit `json:"unspentcredits"` // credits that the user has purchased, but have not yet been used to submit proposals (credit price in atoms)
+	SpentCredits   []ProposalCredit `json:"spentcredits"`   // credits that the user has purchased and that have already been used to submit proposals (credit price in atoms)
 }
 
 // UserProposals is used to request a list of proposals that the
