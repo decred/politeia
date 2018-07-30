@@ -5,12 +5,13 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
-	"github.com/decred/politeia/politeiawww/database"
-	"golang.org/x/crypto/bcrypt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/decred/politeia/politeiawww/database"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg"
@@ -21,14 +22,12 @@ import (
 )
 
 var (
-	dataDir            = flag.String("datadir", sharedconfig.DefaultDataDir, "Specify the politeiawww data directory.")
-	dumpDb             = flag.Bool("dump", false, "Dump the entire politeiawww database contents or contents for a specific user. Parameters: [email]")
-	setAdmin           = flag.Bool("setadmin", false, "Set the admin flag for a user. Parameters: <email> <true/false>")
-	clearPaywall       = flag.Bool("clearpaywall", false, "Clear the paywall fields for a user given his email.")
-	newUser            = flag.Bool("newuser", false, "Create a new user. Parameters: <email> <username> <password>")
-	expireVerification = flag.Bool("expireverification", false, "Set the verification expiry fields to a date in the past. Parameters: <email>")
-	testnet            = flag.Bool("testnet", false, "Whether to check the testnet database or not.")
-	dbDir              = ""
+	addCredits = flag.Bool("addcredits", false, "Add proposal credits to a user's account. Parameters: <email> <quantity>")
+	dataDir    = flag.String("datadir", sharedconfig.DefaultDataDir, "Specify the politeiawww data directory.")
+	dumpDb     = flag.Bool("dump", false, "Dump the entire politeiawww database contents or contents for a specific user. Parameters: [email]")
+	setAdmin   = flag.Bool("setadmin", false, "Set the admin flag for a user. Parameters: <email> <true/false>")
+	testnet    = flag.Bool("testnet", false, "Whether to check the testnet database or not.")
+	dbDir      = ""
 )
 
 func dumpAction() error {
@@ -138,146 +137,62 @@ func setAdminAction() error {
 	return nil
 }
 
-func newUserAction() error {
+func addCreditsAction() error {
+	// Handle cli args.
 	args := flag.Args()
-	if len(args) < 3 {
+	if len(args) < 2 {
 		flag.Usage()
 		return nil
 	}
 
 	email := args[0]
-	username := args[1]
-	password := args[2]
+	quantity, err := strconv.Atoi(args[1])
+	if err != nil {
+		return fmt.Errorf("quantity must parse to an int")
+	}
 
-	userdb, err := leveldb.OpenFile(dbDir, &opt.Options{
+	// Open connection to user db.
+	db, err := leveldb.OpenFile(dbDir, &opt.Options{
 		ErrorIfMissing: true,
 	})
 	if err != nil {
 		return err
 	}
-	defer userdb.Close()
+	defer db.Close()
 
-	_, err = userdb.Get([]byte(email), nil)
-	if err == nil {
-		return fmt.Errorf("user with email %v already exists in the database", email)
+	// Fetch user from db.
+	u, err := db.Get([]byte(email), nil)
+	if err != nil {
+		return err
 	}
-
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password),
-		bcrypt.MinCost)
+	user, err := localdb.DecodeUser(u)
 	if err != nil {
 		return err
 	}
 
-	user, err := localdb.EncodeUser(database.User{
-		Email:            email,
-		Username:         username,
-		HashedPassword:   hashedPassword,
-		NewUserPaywallTx: "cleared_by_dbutil",
-	})
+	// Create proposal credits.
+	c := make([]database.ProposalCredit, quantity)
+	timestamp := time.Now().Unix()
+	for i := 0; i < quantity; i++ {
+		c[i] = database.ProposalCredit{
+			PaywallID:     0,
+			Price:         0,
+			DatePurchased: timestamp,
+			TxID:          "created_by_dbutil",
+		}
+	}
+	user.UnspentProposalCredits = append(user.UnspentProposalCredits, c...)
+
+	// Write user record to db.
+	u, err = localdb.EncodeUser(*user)
 	if err != nil {
 		return err
 	}
-
-	if err = userdb.Put([]byte(email), user, nil); err != nil {
+	if err = db.Put([]byte(email), u, nil); err != nil {
 		return err
 	}
 
-	fmt.Printf("New user created with email %v\n", email)
-	return nil
-}
-
-func clearPaywallAction() error {
-	args := flag.Args()
-	if len(args) < 1 {
-		flag.Usage()
-		return nil
-	}
-
-	email := args[0]
-
-	userdb, err := leveldb.OpenFile(dbDir, &opt.Options{
-		ErrorIfMissing: true,
-	})
-	if err != nil {
-		return err
-	}
-	defer userdb.Close()
-
-	b, err := userdb.Get([]byte(email), nil)
-	if err != nil {
-		return fmt.Errorf("user with email %v not found in the database", email)
-	}
-
-	u, err := localdb.DecodeUser(b)
-	if err != nil {
-		return err
-	}
-
-	u.NewUserPaywallPollExpiry = 0
-	u.NewUserPaywallTx = "cleared_by_dbutil"
-
-	b, err = localdb.EncodeUser(*u)
-	if err != nil {
-		return err
-	}
-
-	if err = userdb.Put([]byte(email), b, nil); err != nil {
-		return err
-	}
-
-	fmt.Printf("Cleared paywall for user with email %v\n", email)
-	return nil
-}
-
-func expireVerificationAction() error {
-	args := flag.Args()
-	if len(args) < 1 {
-		flag.Usage()
-		return nil
-	}
-
-	email := args[0]
-
-	userdb, err := leveldb.OpenFile(dbDir, &opt.Options{
-		ErrorIfMissing: true,
-	})
-	if err != nil {
-		return err
-	}
-	defer userdb.Close()
-
-	b, err := userdb.Get([]byte(email), nil)
-	if err != nil {
-		return fmt.Errorf("user with email %v not found in the database", email)
-	}
-
-	u, err := localdb.DecodeUser(b)
-	if err != nil {
-		return err
-	}
-
-	// -168 hours = 7 days in the past
-	expiredTime := time.Now().Add(-168 * time.Hour).Unix()
-	if u.NewUserVerificationExpiry != 0 {
-		u.NewUserVerificationExpiry = expiredTime
-	}
-	if u.ResetPasswordVerificationExpiry != 0 {
-		u.ResetPasswordVerificationExpiry = expiredTime
-	}
-	if u.UpdateKeyVerificationExpiry != 0 {
-		u.UpdateKeyVerificationExpiry = expiredTime
-	}
-
-	b, err = localdb.EncodeUser(*u)
-	if err != nil {
-		return err
-	}
-
-	if err = userdb.Put([]byte(email), b, nil); err != nil {
-		return err
-	}
-
-	fmt.Printf("Marked verification fields as expired for user %v\n", email)
+	fmt.Printf("%v proposal credits added to %v's account\n", quantity, email)
 	return nil
 }
 
@@ -299,24 +214,16 @@ func _main() error {
 			dbDir)
 	}
 
-	if *dumpDb {
+	if *addCredits {
+		if err := addCreditsAction(); err != nil {
+			return err
+		}
+	} else if *dumpDb {
 		if err := dumpAction(); err != nil {
 			return err
 		}
 	} else if *setAdmin {
 		if err := setAdminAction(); err != nil {
-			return err
-		}
-	} else if *newUser {
-		if err := newUserAction(); err != nil {
-			return err
-		}
-	} else if *expireVerification {
-		if err := expireVerificationAction(); err != nil {
-			return err
-		}
-	} else if *clearPaywall {
-		if err := clearPaywallAction(); err != nil {
 			return err
 		}
 	} else {

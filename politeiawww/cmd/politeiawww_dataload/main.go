@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -140,36 +139,6 @@ func getVersionFromPoliteiawww() error {
 	)
 }
 
-func createUserWithDbutil(email, username, password string) error {
-	fmt.Printf("Creating user: %v\n", email)
-	var out bytes.Buffer
-	var stderr bytes.Buffer
-
-	cmd := executeCommand(
-		dbutil,
-		"-testnet",
-		"-newuser",
-		email,
-		username,
-		password)
-
-	cmd.Stdout = &out
-	cmd.Stderr = &stderr
-
-	err := cmd.Start()
-
-	if err != nil {
-		return fmt.Errorf(fmt.Sprint(err) + ": " + stderr.String())
-	}
-
-	err = cmd.Wait()
-
-	if err != nil {
-		return fmt.Errorf(fmt.Sprint(err) + ": " + stderr.String())
-	}
-	return nil
-}
-
 func createUserWithPoliteiawww(email, username, password string) error {
 	fmt.Printf("Creating user: %v\n", email)
 
@@ -213,31 +182,57 @@ func setAdmin(email string) error {
 	return cmd.Wait()
 }
 
-func clearPaywall(email string) error {
-	fmt.Printf("Clearing paywall for user: %v\n", email)
+func clearPaywall(userID string) error {
+	fmt.Printf("Clearing paywall for user with ID: %v\n", userID)
+	var eur *v1.EditUserReply
+	return executeCliCommand(
+		func() interface{} {
+			eur = &v1.EditUserReply{}
+			return eur
+		},
+		func() bool {
+			return *eur == (v1.EditUserReply{})
+		},
+		"edituser",
+		userID,
+		fmt.Sprintf("%v", v1.UserEditClearUserPaywall),
+		"politeaiwww_dataload")
+}
+
+func addProposalCredits(email, quantity string) error {
+	fmt.Printf("Adding %v proposal credits to user account: %v\n", quantity, email)
 	cmd := executeCommand(
 		dbutil,
 		"-testnet",
-		"-clearpaywall",
-		email)
+		"-addcredits",
+		email,
+		quantity)
 	if err := cmd.Start(); err != nil {
 		return err
 	}
 	return cmd.Wait()
 }
 
+func me() (*v1.LoginReply, error) {
+	fmt.Printf("Fetching user details\n")
+	var lr *v1.LoginReply
+	err := executeCliCommand(
+		func() interface{} {
+			lr = &v1.LoginReply{}
+			return lr
+		},
+		func() bool {
+			return lr.UserID != ""
+		},
+		"me")
+	if err != nil {
+		return nil, err
+	}
+	return lr, nil
+}
+
 func createPaidUsers() error {
-	err := startPoliteiad()
-	if err != nil {
-		return err
-	}
-
-	err = startPoliteiawww(false)
-	if err != nil {
-		return err
-	}
-
-	err = createUserWithPoliteiawww(cfg.AdminEmail, cfg.AdminUser, cfg.AdminPass)
+	err := createUserWithPoliteiawww(cfg.AdminEmail, cfg.AdminUser, cfg.AdminPass)
 	if err != nil {
 		return err
 	}
@@ -249,17 +244,43 @@ func createPaidUsers() error {
 
 	stopServers()
 
-	err = setAdmin(cfg.AdminEmail)
-	if err != nil {
+	if err = setAdmin(cfg.AdminEmail); err != nil {
 		return err
 	}
 
-	err = clearPaywall(cfg.AdminEmail)
-	if err != nil {
+	if err = addProposalCredits(cfg.AdminEmail, "5"); err != nil {
 		return err
 	}
 
-	return clearPaywall(cfg.PaidEmail)
+	if err = startPoliteiad(); err != nil {
+		return err
+	}
+
+	if err = startPoliteiawww(true); err != nil {
+		return err
+	}
+
+	if err = login(cfg.AdminEmail, cfg.AdminPass); err != nil {
+		return err
+	}
+
+	// Fetch admin user ID and infer paid user ID.
+	lr, err := me()
+	if err != nil {
+		return err
+	}
+	adminID := lr.UserID
+	id, err := strconv.Atoi(adminID)
+	if err != nil {
+		return err
+	}
+	paidID := strconv.Itoa(id + 1)
+
+	if err = clearPaywall(adminID); err != nil {
+		return err
+	}
+
+	return clearPaywall(paidID)
 }
 
 func createUnpaidUsers() error {
@@ -281,6 +302,16 @@ func executeCliCommand(beforeVerify beforeVerifyReply, verify verifyReply, args 
 		return err
 	}
 	defer cmd.Wait()
+
+	errBytes, err := ioutil.ReadAll(stderr)
+	if err != nil {
+		return err
+	}
+
+	if len(errBytes) > 0 {
+		return fmt.Errorf("unexpected error output from %v: %v", cli,
+			string(errBytes))
+	}
 
 	var allText string
 	buf := bufio.NewScanner(stdout)
@@ -318,16 +349,6 @@ func executeCliCommand(beforeVerify beforeVerifyReply, verify verifyReply, args 
 
 	if err := buf.Err(); err != nil {
 		return err
-	}
-
-	errBytes, err := ioutil.ReadAll(stderr)
-	if err != nil {
-		return err
-	}
-
-	if len(errBytes) > 0 {
-		return fmt.Errorf("unexpected error output from %v: %v", cli,
-			string(errBytes))
 	}
 
 	return fmt.Errorf("unexpected output from %v: %v", cli, allText)
@@ -534,15 +555,15 @@ func _main() error {
 		}
 	}
 
-	if err = createPaidUsers(); err != nil {
-		return err
-	}
-
 	if err = startPoliteiad(); err != nil {
 		return err
 	}
 
 	if err = startPoliteiawww(true); err != nil {
+		return err
+	}
+
+	if err = createPaidUsers(); err != nil {
 		return err
 	}
 
