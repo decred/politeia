@@ -3,7 +3,6 @@ package client
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/hex"
@@ -19,6 +18,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrwallet/rpc/walletrpc"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
+	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/util"
 	"github.com/gorilla/schema"
@@ -485,39 +485,49 @@ func (c *Ctx) ProposalPaywall() (*v1.ProposalPaywallDetailsReply, error) {
 	return &ppdr, nil
 }
 
-func (c *Ctx) NewProposal(id *identity.FullIdentity, attachments []Attachment, mdPayload []byte) (*v1.NewProposalReply, error) {
+func (c *Ctx) NewProposal(id *identity.FullIdentity, mdPayload []byte, attachments []Attachment) (*v1.NewProposalReply, error) {
 	np := v1.NewProposal{
 		Files:     make([]v1.File, 0),
 		PublicKey: hex.EncodeToString(id.Public.Key[:]),
 	}
 
-	h := sha256.New()
-	h.Write(mdPayload)
+	// Process markdown file.
+	mimeType := http.DetectContentType(mdPayload)
+	if !mime.MimeValid(mimeType) {
+		return nil, fmt.Errorf("unsupported mime type")
+	}
+	digest := hex.EncodeToString(util.Digest(mdPayload))
+	payload := base64.StdEncoding.EncodeToString(mdPayload)
 
 	np.Files = append(np.Files, v1.File{
 		Name:    "index.md",
-		MIME:    http.DetectContentType(mdPayload),
-		Digest:  hex.EncodeToString(h.Sum(nil)),
-		Payload: base64.StdEncoding.EncodeToString(mdPayload),
+		MIME:    mimeType,
+		Digest:  digest,
+		Payload: payload,
 	})
 
-	for _, attach := range attachments {
-		digest := hex.EncodeToString(util.Digest(attach.Payload))
-		b64 := base64.StdEncoding.EncodeToString(attach.Payload)
+	// Process attachment files.
+	for _, a := range attachments {
+		mimeType := http.DetectContentType(a.Payload)
+		if !mime.MimeValid(mimeType) {
+			return nil, fmt.Errorf("unsupported mime type")
+		}
+		digest := hex.EncodeToString(util.Digest(a.Payload))
+		payload := base64.StdEncoding.EncodeToString(a.Payload)
 
 		np.Files = append(np.Files, v1.File{
-			Name:    filepath.Base(attach.Filename),
-			MIME:    http.DetectContentType(attach.Payload),
+			Name:    filepath.Base(a.Filename),
+			MIME:    mimeType,
 			Digest:  digest,
-			Payload: b64,
+			Payload: payload,
 		})
 	}
 
-	sig, err := getProposalSignature(np.Files, id)
+	// Sign proposal merkle root.
+	sig, err := proposalSignature(np.Files, id)
 	if err != nil {
 		return nil, fmt.Errorf("Could not sign proposal files: %v", err)
 	}
-
 	np.Signature = sig
 
 	responseBody, err := c.makeRequest("POST", v1.RouteNewProposal, np)
@@ -538,7 +548,7 @@ func (c *Ctx) NewProposal(id *identity.FullIdentity, attachments []Attachment, m
 	return &npr, nil
 }
 
-func (c *Ctx) GetProp(token string) (*v1.ProposalDetailsReply, error) {
+func (c *Ctx) GetProp(token, serverPubKey string) (*v1.ProposalDetailsReply, error) {
 	responseBody, err := c.makeRequest("GET", "/proposals/"+token, nil)
 	if err != nil {
 		return nil, err
@@ -550,6 +560,10 @@ func (c *Ctx) GetProp(token string) (*v1.ProposalDetailsReply, error) {
 		return nil, fmt.Errorf("Could not unmarshal GetProposalReply: %v", err)
 	}
 
+	if err = verifyProposal(pr.Proposal, serverPubKey); err != nil {
+		return nil, fmt.Errorf("verifyProposal: %v", err)
+	}
+
 	if config.Verbose {
 		prettyPrintJSON(pr)
 	}
@@ -557,7 +571,7 @@ func (c *Ctx) GetProp(token string) (*v1.ProposalDetailsReply, error) {
 	return &pr, nil
 }
 
-func (c *Ctx) ProposalsForUser(userId string) (*v1.UserProposalsReply, error) {
+func (c *Ctx) ProposalsForUser(userId, serverPubKey string) (*v1.UserProposalsReply, error) {
 	up := v1.UserProposals{
 		UserId: userId,
 	}
@@ -570,6 +584,12 @@ func (c *Ctx) ProposalsForUser(userId string) (*v1.UserProposalsReply, error) {
 	err = json.Unmarshal(responseBody, &upr)
 	if err != nil {
 		return nil, fmt.Errorf("Could not unmarshal UserProposalsReply: %v", err)
+	}
+
+	for _, p := range upr.Proposals {
+		if err = verifyProposal(p, serverPubKey); err != nil {
+			return nil, fmt.Errorf("verifyProposal: %v", err)
+		}
 	}
 
 	if config.Verbose {
@@ -612,7 +632,7 @@ func (c *Ctx) SetPropStatus(id *identity.FullIdentity, token string,
 	return &psr, nil
 }
 
-func (c *Ctx) GetVetted(v v1.GetAllVetted) (*v1.GetAllVettedReply, error) {
+func (c *Ctx) GetVetted(v v1.GetAllVetted, serverPubKey string) (*v1.GetAllVettedReply, error) {
 	responseBody, err := c.makeRequest("GET", v1.RouteAllVetted, v)
 	if err != nil {
 		return nil, err
@@ -624,6 +644,12 @@ func (c *Ctx) GetVetted(v v1.GetAllVetted) (*v1.GetAllVettedReply, error) {
 		return nil, fmt.Errorf("Could not unmarshal GetAllVettedReply: %v", err)
 	}
 
+	for _, p := range vr.Proposals {
+		if err = verifyProposal(p, serverPubKey); err != nil {
+			return nil, fmt.Errorf("verifyProposal: %v", err)
+		}
+	}
+
 	if config.Verbose {
 		prettyPrintJSON(vr)
 	}
@@ -631,8 +657,7 @@ func (c *Ctx) GetVetted(v v1.GetAllVetted) (*v1.GetAllVettedReply, error) {
 	return &vr, nil
 }
 
-func (c *Ctx) GetUnvetted(u v1.GetAllUnvetted) (*v1.GetAllUnvettedReply,
-	error) {
+func (c *Ctx) GetUnvetted(u v1.GetAllUnvetted, serverPubKey string) (*v1.GetAllUnvettedReply, error) {
 	responseBody, err := c.makeRequest("GET", v1.RouteAllUnvetted, u)
 	if err != nil {
 		return nil, err
@@ -646,6 +671,12 @@ func (c *Ctx) GetUnvetted(u v1.GetAllUnvetted) (*v1.GetAllUnvettedReply,
 
 	if config.Verbose {
 		prettyPrintJSON(ur)
+	}
+
+	for _, p := range ur.Proposals {
+		if err = verifyProposal(p, serverPubKey); err != nil {
+			return nil, fmt.Errorf("verifyProposal: %v", err)
+		}
 	}
 
 	return &ur, nil

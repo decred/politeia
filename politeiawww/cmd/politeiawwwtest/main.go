@@ -66,7 +66,7 @@ func vote(opts *Options, c *client.Ctx) {
 	}
 
 	// New proposal
-	prop1, err := c.NewProposal(id, nil, mockPayload)
+	prop1, err := c.NewProposal(id, mockPayload, nil)
 	handleError(err)
 
 	// Start vote, wrong state should fail
@@ -146,7 +146,8 @@ func main() {
 	handleError(err)
 
 	// Version - save CSRF token
-	_, err = c.Version()
+	v, err := c.Version()
+	serverPubKey := v.PubKey
 	handleError(err)
 
 	// Run vote routes
@@ -187,7 +188,7 @@ func main() {
 	handleError(err)
 
 	// New proposal failure
-	_, err = c.NewProposal(id, nil, mockPayload)
+	_, err = c.NewProposal(id, mockPayload, nil)
 	if err == nil {
 		err = fmt.Errorf("/new should only be accessible by logged in users")
 		handleError(err)
@@ -283,7 +284,7 @@ func main() {
 		}
 
 		// New proposal failure
-		_, err = c.NewProposal(id, nil, mockPayload)
+		_, err = c.NewProposal(id, mockPayload, nil)
 		if err == nil {
 			err = fmt.Errorf("new proposal should require proposal credit")
 			handleError(err)
@@ -329,12 +330,12 @@ func main() {
 	}
 
 	// New proposal #1 and verify that it exists under the correct user
-	prop1, err := c.NewProposal(id, nil, mockPayload)
+	prop1, err := c.NewProposal(id, mockPayload, nil)
 	handleError(err)
 
 	lr, err = c.Me()
 	handleError(err)
-	upr, err := c.ProposalsForUser(lr.UserID)
+	upr, err := c.ProposalsForUser(lr.UserID, serverPubKey)
 	handleError(err)
 
 	if len(upr.Proposals) != 1 {
@@ -352,18 +353,18 @@ func main() {
 	handleError(err)
 
 	// New proposal failure
-	_, err = c.NewProposal(oldId, nil, mockPayload)
+	_, err = c.NewProposal(oldId, mockPayload, nil)
 	if err == nil {
 		err = fmt.Errorf("Expected error, user identity should be inactive")
 		handleError(err)
 	}
 
 	// New proposal #2
-	prop2, err := c.NewProposal(id, nil, mockPayload)
+	prop2, err := c.NewProposal(id, mockPayload, nil)
 	handleError(err)
 
 	// Get prop1 and validate
-	pr1, err := c.GetProp(prop1.CensorshipRecord.Token)
+	pr1, err := c.GetProp(prop1.CensorshipRecord.Token, serverPubKey)
 	handleError(err)
 
 	if pr1.Proposal.CensorshipRecord.Token != prop1.CensorshipRecord.Token {
@@ -382,7 +383,7 @@ func main() {
 	}
 
 	// Get prop2 and validate
-	pr2, err := c.GetProp(prop2.CensorshipRecord.Token)
+	pr2, err := c.GetProp(prop2.CensorshipRecord.Token, serverPubKey)
 	handleError(err)
 
 	if pr2.Proposal.CensorshipRecord.Token != prop2.CensorshipRecord.Token {
@@ -402,19 +403,19 @@ func main() {
 
 	// Create enough proposals to have 2 pages
 	for i := 0; i < int(policy.ProposalListPageSize); i++ {
-		_, err = c.NewProposal(id, nil, mockPayload)
+		_, err = c.NewProposal(id, mockPayload, nil)
 		handleError(err)
 	}
 
 	// Unvetted proposals failure
-	_, err = c.GetUnvetted(v1.GetAllUnvetted{})
+	_, err = c.GetUnvetted(v1.GetAllUnvetted{}, serverPubKey)
 	if err == nil {
 		err = fmt.Errorf("/unvetted should only be accessible by admin users")
 		handleError(err)
 	}
 
 	// Vetted proposals
-	_, err = c.GetVetted(v1.GetAllVetted{})
+	_, err = c.GetVetted(v1.GetAllVetted{}, serverPubKey)
 	handleError(err)
 
 	// Assets
@@ -468,14 +469,14 @@ func main() {
 		}
 
 		// Unvetted paging
-		unvettedPage1, err := c.GetUnvetted(v1.GetAllUnvetted{})
+		unvettedPage1, err := c.GetUnvetted(v1.GetAllUnvetted{}, serverPubKey)
 		handleError(err)
 
 		lastPropPage1 := unvettedPage1.Proposals[len(unvettedPage1.Proposals)-1]
 		u := v1.GetAllUnvetted{
 			After: lastPropPage1.CensorshipRecord.Token,
 		}
-		unvettedPage2, err := c.GetUnvetted(u)
+		unvettedPage2, err := c.GetUnvetted(u, serverPubKey)
 		handleError(err)
 
 		if len(unvettedPage2.Proposals) == 0 {
@@ -484,7 +485,7 @@ func main() {
 		}
 
 		// Get proposal
-		pr1, err := c.GetProp(prop1.CensorshipRecord.Token)
+		pr1, err := c.GetProp(prop1.CensorshipRecord.Token, serverPubKey)
 		handleError(err)
 
 		if len(pr1.Proposal.Files) == 0 {
@@ -513,7 +514,7 @@ func main() {
 		}
 
 		// Get prop - check status of prop1 and prop2
-		_pr1, err := c.GetProp(prop1.CensorshipRecord.Token)
+		_pr1, err := c.GetProp(prop1.CensorshipRecord.Token, serverPubKey)
 		handleError(err)
 
 		if _pr1.Proposal.CensorshipRecord.Token != prop1.CensorshipRecord.Token {
@@ -527,7 +528,7 @@ func main() {
 			handleError(err)
 		}
 
-		_pr2, err := c.GetProp(prop2.CensorshipRecord.Token)
+		_pr2, err := c.GetProp(prop2.CensorshipRecord.Token, serverPubKey)
 		handleError(err)
 
 		if _pr2.Proposal.CensorshipRecord.Token != prop2.CensorshipRecord.Token {
@@ -575,7 +576,7 @@ func main() {
 		}
 
 		// Get prop1 and check number of comments
-		_pr1, err = c.GetProp(prop1.CensorshipRecord.Token)
+		_pr1, err = c.GetProp(prop1.CensorshipRecord.Token, serverPubKey)
 		handleError(err)
 		if _pr1.Proposal.NumComments != uint(len(gcr.Comments)) {
 			err = fmt.Errorf("Expected %v comments, got %v", len(gcr.Comments),
@@ -592,7 +593,7 @@ func main() {
 		}
 
 		// Get prop2 and check number of comments
-		_pr2, err = c.GetProp(prop2.CensorshipRecord.Token)
+		_pr2, err = c.GetProp(prop2.CensorshipRecord.Token, serverPubKey)
 		handleError(err)
 		if _pr2.Proposal.NumComments != uint(len(gcr2.Comments)) {
 			err = fmt.Errorf("Expected %v comments, got %v", len(gcr2.Comments),
