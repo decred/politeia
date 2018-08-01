@@ -42,9 +42,12 @@ const (
 	// Note that 14 is in use by the decred plugin
 	// Note that 15 is in use by the decred plugin
 
-	VersionMDStreamChanges = 1
+	VersionMDStreamChanges         = 1
+	BackendProposalMetadataVersion = 1
 
 	LoginAttemptsToLockUser = 5
+
+	politeiaMailName = "Politeia"
 
 	// Route to reset password at GUI
 	ResetPasswordGuiRoute = "/password"
@@ -55,6 +58,11 @@ type MDStreamChanges struct {
 	AdminPubKey string           `json:"adminpubkey"` // Identity of the administrator
 	NewStatus   pd.RecordStatusT `json:"newstatus"`   // NewStatus
 	Timestamp   int64            `json:"timestamp"`   // Timestamp of the change
+}
+
+type loginReplyWithError struct {
+	reply *www.LoginReply
+	err   error
 }
 
 // politeiawww backend construct
@@ -78,16 +86,6 @@ type backend struct {
 	inventory map[string]*inventoryRecord // Current inventory
 }
 
-const (
-	BackendProposalMetadataVersion = 1
-
-	politeiaMailName = "Politeia"
-)
-
-var (
-	validUsername = regexp.MustCompile(createUsernameRegex())
-)
-
 type BackendProposalMetadata struct {
 	Version   uint64 `json:"version"`   // BackendProposalMetadata version
 	Timestamp int64  `json:"timestamp"` // Last update of proposal
@@ -95,6 +93,17 @@ type BackendProposalMetadata struct {
 	PublicKey string `json:"publickey"` // Key used for signature.
 	Signature string `json:"signature"` // Signature of merkle root
 }
+
+var (
+	validUsername = regexp.MustCompile(createUsernameRegex())
+
+	// MinimumLoginWaitTime is the minimum amount of time to wait before the
+	// server sends a response to the client for the login route. This is done
+	// to prevent an attacker from executing a timing attack to determine whether
+	// the ErrorStatusInvalidEmailOrPassword response is specific to a bad email
+	// or bad password.
+	MinimumLoginWaitTime = 500 * time.Millisecond
+)
 
 // encodeBackendProposalMetadata encodes BackendProposalMetadata into a JSON
 // byte slice.
@@ -239,6 +248,94 @@ func (b *backend) getUsernameById(userIdStr string) string {
 	}
 
 	return user.Username
+}
+
+func (b *backend) login(l *www.Login) loginReplyWithError {
+	// Get user from db.
+	user, err := b.db.UserGet(l.Email)
+	if err != nil {
+		if err == database.ErrUserNotFound {
+			return loginReplyWithError{
+				reply: nil,
+				err: www.UserError{
+					ErrorCode: www.ErrorStatusInvalidEmailOrPassword,
+				},
+			}
+		}
+		return loginReplyWithError{
+			reply: nil,
+			err:   err,
+		}
+	}
+
+	// Check that the user is verified.
+	if user.NewUserVerificationToken != nil {
+		return loginReplyWithError{
+			reply: nil,
+			err: www.UserError{
+				ErrorCode: www.ErrorStatusInvalidEmailOrPassword,
+			},
+		}
+	}
+
+	// Check the user's password.
+	err = bcrypt.CompareHashAndPassword(user.HashedPassword,
+		[]byte(l.Password))
+	if err != nil {
+		if !checkUserIsLocked(user.FailedLoginAttempts) {
+			user.FailedLoginAttempts++
+			err := b.db.UserUpdate(*user)
+			if err != nil {
+				return loginReplyWithError{
+					reply: nil,
+					err:   err,
+				}
+			}
+
+			// Check if the user is locked again so we can send an email.
+			if checkUserIsLocked(user.FailedLoginAttempts) && !b.test {
+				// This is conditional on the email server being setup.
+				err := b.emailUserLocked(user.Email)
+				if err != nil {
+					return loginReplyWithError{
+						reply: nil,
+						err:   err,
+					}
+				}
+			}
+		}
+
+		return loginReplyWithError{
+			reply: nil,
+			err: www.UserError{
+				ErrorCode: www.ErrorStatusInvalidEmailOrPassword,
+			},
+		}
+	}
+
+	// Check if user is locked due to too many login attempts
+	if checkUserIsLocked(user.FailedLoginAttempts) {
+		return loginReplyWithError{
+			reply: nil,
+			err: www.UserError{
+				ErrorCode: www.ErrorStatusUserLocked,
+			},
+		}
+	}
+
+	user.FailedLoginAttempts = 0
+	err = b.db.UserUpdate(*user)
+	if err != nil {
+		return loginReplyWithError{
+			reply: nil,
+			err:   err,
+		}
+	}
+	reply, err := b.CreateLoginReply(user)
+	return loginReplyWithError{
+		reply: reply,
+		err:   err,
+	}
 }
 
 // initUserPubkeys initializes the userPubkeys map with all the pubkey-userid
@@ -1344,63 +1441,33 @@ func (b *backend) ProcessVerifyUpdateUserKey(user *database.User, vu www.VerifyU
 // ProcessLogin checks that a user exists, is verified, and has
 // the correct password.
 func (b *backend) ProcessLogin(l www.Login) (*www.LoginReply, error) {
-	// Get user from db.
-	user, err := b.db.UserGet(l.Email)
-	if err != nil {
-		if err == database.ErrUserNotFound {
-			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusInvalidEmailOrPassword,
-			}
-		}
-		return nil, err
+	var (
+		r       loginReplyWithError
+		login   = make(chan loginReplyWithError)
+		timeout = make(chan bool)
+	)
+
+	go func() {
+		login <- b.login(&l)
+	}()
+	go func() {
+		time.Sleep(MinimumLoginWaitTime)
+		timeout <- true
+	}()
+
+	// Execute both goroutines in parallel, and only return
+	// when both are finished.
+	select {
+	case r = <-login:
+	case <-timeout:
 	}
 
-	// Check that the user is verified.
-	if user.NewUserVerificationToken != nil {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusInvalidEmailOrPassword,
-		}
+	select {
+	case r = <-login:
+	case <-timeout:
 	}
 
-	// Check the user's password.
-	err = bcrypt.CompareHashAndPassword(user.HashedPassword,
-		[]byte(l.Password))
-	if err != nil {
-		if !checkUserIsLocked(user.FailedLoginAttempts) {
-			user.FailedLoginAttempts++
-			err := b.db.UserUpdate(*user)
-			if err != nil {
-				return nil, err
-			}
-
-			// Check if the user is locked again so we can send an email.
-			if checkUserIsLocked(user.FailedLoginAttempts) && !b.test {
-				// This is conditional on the email server being setup.
-				err := b.emailUserLocked(user.Email)
-				if err != nil {
-					return nil, err
-				}
-			}
-		}
-
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusInvalidEmailOrPassword,
-		}
-	}
-
-	// Check if user is locked due to too many login attempts
-	if checkUserIsLocked(user.FailedLoginAttempts) {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusUserLocked,
-		}
-	}
-
-	user.FailedLoginAttempts = 0
-	err = b.db.UserUpdate(*user)
-	if err != nil {
-		return nil, err
-	}
-	return b.CreateLoginReply(user)
+	return r.reply, r.err
 }
 
 // ProcessChangeUsername checks that the password matches the one
