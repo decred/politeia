@@ -62,10 +62,15 @@ type resetPasswordEmailTemplateData struct {
 	Email string
 }
 
+// getSession returns the active cookie session.
+func (p *politeiawww) getSession(r *http.Request) (*sessions.Session, error) {
+	return p.store.Get(r, v1.CookieSession)
+}
+
 // getSessionEmail returns the email address of the currently logged in user
 // from the session store.
 func (p *politeiawww) getSessionEmail(r *http.Request) (string, error) {
-	session, err := p.store.Get(r, v1.CookieSession)
+	session, err := p.getSession(r)
 	if err != nil {
 		return "", err
 	}
@@ -93,12 +98,24 @@ func (p *politeiawww) getSessionUser(r *http.Request) (*database.User, error) {
 // setSessionUser sets the "email" session key to the provided value.
 func (p *politeiawww) setSessionUser(w http.ResponseWriter, r *http.Request, email string) error {
 	log.Tracef("setSessionUser: %v %v", email, v1.CookieSession)
-	session, err := p.store.Get(r, v1.CookieSession)
+	session, err := p.getSession(r)
 	if err != nil {
 		return err
 	}
 
 	session.Values["email"] = email
+	return session.Save(r, w)
+}
+
+// removeSession deletes the session from the filesystem.
+func (p *politeiawww) removeSession(w http.ResponseWriter, r *http.Request) error {
+	log.Tracef("removeSession: %v", v1.CookieSession)
+	session, err := p.getSession(r)
+	if err != nil {
+		return err
+	}
+
+	session.Options.MaxAge = -1
 	return session.Save(r, w)
 }
 
@@ -234,6 +251,21 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		RespondWithError(w, r, 0, "handleVersion: Marshal %v", err)
 		return
+	}
+
+	// Check if there's an active AND invalid session.
+	session, err := p.getSession(r)
+	if err != nil && session != nil {
+		// Create and save a new session for the user.
+		session := sessions.NewSession(p.store, v1.CookieSession)
+		opts := *p.store.Options
+		session.Options = &opts
+		session.IsNew = true
+		err = session.Save(r, w)
+		if err != nil {
+			RespondWithError(w, r, 0, "handleVersion: session.Save %v", err)
+			return
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -425,15 +457,14 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-// handleLogout logs the user out.  A login will be required to resume sending
-// commands,
+// handleLogout logs the user out.
 func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleLogout")
 
-	err := p.setSessionUser(w, r, "")
+	err := p.removeSession(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleLogout: setSessionUser %v", err)
+			"handleLogout: removeSession %v", err)
 		return
 	}
 
