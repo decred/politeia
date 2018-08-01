@@ -377,6 +377,29 @@ func createProposal() (string, error) {
 	return npr.CensorshipRecord.Token, nil
 }
 
+func checkProposal(token string) error {
+	fmt.Printf("Checking proposal with token %v\n", token)
+
+	var pdr *v1.ProposalDetailsReply
+	err := executeCliCommand(
+		func() interface{} {
+			pdr = &v1.ProposalDetailsReply{}
+			return pdr
+		},
+		func() bool {
+			return pdr.Proposal.CensorshipRecord.Token == token
+		},
+		"getproposal",
+		token,
+	)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Verified proposal\n")
+	return nil
+}
+
 func createComment(parentID, token string) (string, error) {
 	fmt.Printf("Creating comment\n")
 
@@ -424,6 +447,10 @@ func createProposals() error {
 		return err
 	}
 	publishedProposalToken, err := createProposal()
+	if err != nil {
+		return err
+	}
+	err = checkProposal(publishedProposalToken)
 	if err != nil {
 		return err
 	}
