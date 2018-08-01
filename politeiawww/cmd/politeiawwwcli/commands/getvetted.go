@@ -16,16 +16,14 @@ func (cmd *GetvettedCmd) Execute(args []string) error {
 	if cmd.Before != "" && cmd.After != "" {
 		return fmt.Errorf(config.ErrorBeforeAfterFlags)
 	}
-
-	v := v1.GetAllVetted{}
-	if cmd.Before != "" {
-		v.Before = cmd.Before
+	v, err := Ctx.Version()
+	if err != nil {
+		return err
 	}
-
-	if cmd.After != "" {
-		v.After = cmd.After
+	gav := v1.GetAllVetted{
+		Before: cmd.Before,
+		After:  cmd.After,
 	}
-
-	_, err := Ctx.GetVetted(v)
+	_, err = Ctx.GetVetted(gav, v.PubKey)
 	return err
 }

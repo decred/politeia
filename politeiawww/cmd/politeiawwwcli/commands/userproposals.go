@@ -7,6 +7,10 @@ type UserproposalsCmd struct {
 }
 
 func (cmd *UserproposalsCmd) Execute(args []string) error {
-	_, err := Ctx.ProposalsForUser(cmd.Args.UserId)
+	v, err := Ctx.Version()
+	if err != nil {
+		return err
+	}
+	_, err = Ctx.ProposalsForUser(cmd.Args.UserId, v.PubKey)
 	return err
 }

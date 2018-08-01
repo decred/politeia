@@ -7,6 +7,10 @@ type GetproposalCmd struct {
 }
 
 func (cmd *GetproposalCmd) Execute(args []string) error {
-	_, err := Ctx.GetProp(cmd.Args.Token)
+	v, err := Ctx.Version()
+	if err != nil {
+		return err
+	}
+	_, err = Ctx.GetProp(cmd.Args.Token, v.PubKey)
 	return err
 }

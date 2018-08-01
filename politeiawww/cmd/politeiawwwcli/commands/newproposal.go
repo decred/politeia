@@ -86,6 +86,6 @@ func (cmd *NewproposalCmd) Execute(args []string) error {
 
 	}
 
-	_, err := Ctx.NewProposal(config.UserIdentity, attachments, mdPayload)
+	_, err := Ctx.NewProposal(config.UserIdentity, mdPayload, attachments)
 	return err
 }

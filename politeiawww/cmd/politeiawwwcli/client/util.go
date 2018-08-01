@@ -3,7 +3,6 @@ package client
 import (
 	"bytes"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -75,36 +74,80 @@ func providePrivPassphrase() ([]byte, error) {
 	}
 }
 
-// getSignature signs the msg with the given identity and returns
-// the encoded signature
-func getSignature(msg []byte, id *identity.FullIdentity) (string, error) {
-	sig := id.SignMessage(msg)
+// merkleRoot converts the passed in list of files into SHA256 digests, then
+// calculates and returns the merkle root of the digests.
+func merkleRoot(files []v1.File) (string, error) {
+	if len(files) == 0 {
+		return "", fmt.Errorf("no proposal files found")
+	}
+
+	digests := make([]*[sha256.Size]byte, len(files))
+	for i, f := range files {
+		d, ok := util.ConvertDigest(f.Digest)
+		if !ok {
+			return "", fmt.Errorf("could not convert digest")
+		}
+		digests[i] = &d
+	}
+
+	return hex.EncodeToString(merkle.Root(digests)[:]), nil
+}
+
+// proposalSignature calculates the merkle root of the passed in list of files,
+// signs the merkle root with the passed in identity and returns the signature.
+func proposalSignature(files []v1.File, id *identity.FullIdentity) (string, error) {
+	if len(files) == 0 {
+		return "", fmt.Errorf("no proposal files found")
+	}
+	mr, err := merkleRoot(files)
+	if err != nil {
+		return "", err
+	}
+	sig := id.SignMessage([]byte(mr))
 	return hex.EncodeToString(sig[:]), nil
 }
 
-// getProposalSignature takes as input a list of files and
-// generates the merkle root with the file digests, then delegates to
-// getSignature().
-func getProposalSignature(files []v1.File, id *identity.FullIdentity) (string, error) {
-	// Calculate the merkle root with the file digests.
-	hashes := make([]*[sha256.Size]byte, 0, len(files))
-	for _, v := range files {
-		payload, err := base64.StdEncoding.DecodeString(v.Payload)
+// verifyProposal verifies the integrity of a proposal by verifying the
+// proposal's merkle root (if the files are present), the proposal signature,
+// and the censorship record signature.
+func verifyProposal(p v1.ProposalRecord, serverPubKey string) error {
+	// Verify merkle root if proposal files are present.
+	if len(p.Files) > 0 {
+		mr, err := merkleRoot(p.Files)
 		if err != nil {
-			return "", err
+			return err
 		}
-
-		digest := util.Digest(payload)
-		var d [sha256.Size]byte
-		copy(d[:], digest)
-		hashes = append(hashes, &d)
+		if mr != p.CensorshipRecord.Merkle {
+			return fmt.Errorf("merkle roots do not match")
+		}
 	}
 
-	var encodedMerkleRoot string
-	if len(hashes) > 0 {
-		encodedMerkleRoot = hex.EncodeToString(merkle.Root(hashes)[:])
-	} else {
-		encodedMerkleRoot = ""
+	// Verify proposal signature.
+	pid, err := util.IdentityFromString(p.PublicKey)
+	if err != nil {
+		return err
 	}
-	return getSignature([]byte(encodedMerkleRoot), id)
+	sig, err := util.ConvertSignature(p.Signature)
+	if err != nil {
+		return err
+	}
+	if !pid.VerifyMessage([]byte(p.CensorshipRecord.Merkle), sig) {
+		return fmt.Errorf("could not verify proposal signature")
+	}
+
+	// Verify censorship record signature.
+	id, err := util.IdentityFromString(serverPubKey)
+	if err != nil {
+		return err
+	}
+	s, err := util.ConvertSignature(p.CensorshipRecord.Signature)
+	if err != nil {
+		return err
+	}
+	msg := []byte(p.CensorshipRecord.Merkle + p.CensorshipRecord.Token)
+	if !id.VerifyMessage(msg, s) {
+		return fmt.Errorf("could not verify censorship record signature")
+	}
+
+	return nil
 }
