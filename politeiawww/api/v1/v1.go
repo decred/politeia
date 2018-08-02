@@ -523,6 +523,7 @@ type LoginReply struct {
 	PaywallAmount      uint64 `json:"paywallamount"`      // Registration paywall amount in atoms
 	PaywallTxNotBefore int64  `json:"paywalltxnotbefore"` // Minimum timestamp for paywall tx
 	ProposalCredits    uint64 `json:"proposalcredits"`    // Number of the proposal credits the user has available to spend
+	LastLoginTime      int64  `json:"lastlogintime"`      // Unix timestamp of last login date
 }
 
 //Logout attempts to log the user out.
@@ -884,6 +885,7 @@ type User struct {
 	UpdateKeyVerificationExpiry     int64            `json:"updatekeyverificationexpiry"`
 	ResetPasswordVerificationToken  []byte           `json:"resetpasswordverificationtoken"`
 	ResetPasswordVerificationExpiry int64            `json:"resetpasswordverificationexpiry"`
+	LastLoginTime                   int64            `json:"lastlogintime"`
 	FailedLoginAttempts             uint64           `json:"failedloginattempts"`
 	Locked                          bool             `json:"islocked"`
 	Identities                      []UserIdentity   `json:"identities"`

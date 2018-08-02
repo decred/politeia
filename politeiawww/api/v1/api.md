@@ -2111,6 +2111,7 @@ Reply:
 | updatekeyverificationexpiry | int64 | The UNIX time (in seconds) for when the `updatekeyverificationtoken` expires. |
 | resetpasswordverificationtoken | string | The verification token which is sent to the user's email address. |
 | resetpasswordverificationexpiry | int64 | The UNIX time (in seconds) for when the `resetpasswordverificationtoken` expires. |
+| lastlogintime | int64 | The UNIX timestamp of the last login date; it will be 0 if the user has not logged in before. |
 | failedloginattempts | uint64 | The number of consecutive failed login attempts. |
 | islocked | boolean | Whether the user account is locked due to too many failed login attempts. |
 | identities | array of [`Identity`](#identity)s | Identities, both activated and deactivated, of the user. |
@@ -2169,6 +2170,7 @@ or [`Me`](#me) call.
 | paywalladdress | String | The address in which to send the transaction containing the `paywallamount`.  If the user has already paid, this field will be empty or not present. |
 | paywallamount | Int64 | The amount of DCR (in atoms) to send to `paywalladdress`.  If the user has already paid, this field will be empty or not present. |
 | paywalltxnotbefore | Int64 | The minimum UNIX time (in seconds) required for the block containing the transaction sent to `paywalladdress`.  If the user has already paid, this field will be empty or not present. |
+| lastlogintime | int64 | The UNIX timestamp of the last login date; it will be 0 if the user has not logged in before. |
 
 ### `Proposal credit`
 A proposal credit allows the user to submit a new proposal.  Proposal credits are a spam prevention measure.  Credits are created when a user sends a payment to a proposal paywall. The user can request proposal paywall details using the [`Proposal paywall details`](#proposal-paywall-details) endpoint.  A credit is automatically spent every time a user submits a new proposal.
