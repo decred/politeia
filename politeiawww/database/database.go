@@ -105,6 +105,7 @@ type User struct {
 	UpdateKeyVerificationExpiry     int64  // Verification expiration
 	ResetPasswordVerificationToken  []byte // Reset password token
 	ResetPasswordVerificationExpiry int64  // Reset password token expiration
+	LastLoginTime                   int64  // Unix timestamp of when the user last logged in
 	FailedLoginAttempts             uint64 // Number of failed login a user has made in a row
 
 	// All identities the user has ever used.  User should only have one

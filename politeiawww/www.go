@@ -460,7 +460,7 @@ func (p *politeiawww) handleMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	reply, err := p.backend.CreateLoginReply(user)
+	reply, err := p.backend.CreateLoginReply(user, user.LastLoginTime)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleMe: CreateLoginReply %v", err)

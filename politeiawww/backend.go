@@ -323,7 +323,9 @@ func (b *backend) login(l *www.Login) loginReplyWithError {
 		}
 	}
 
+	lastLoginTime := user.LastLoginTime
 	user.FailedLoginAttempts = 0
+	user.LastLoginTime = time.Now().Unix()
 	err = b.db.UserUpdate(*user)
 	if err != nil {
 		return loginReplyWithError{
@@ -331,7 +333,7 @@ func (b *backend) login(l *www.Login) loginReplyWithError {
 			err:   err,
 		}
 	}
-	reply, err := b.CreateLoginReply(user)
+	reply, err := b.CreateLoginReply(user, lastLoginTime)
 	return loginReplyWithError{
 		reply: reply,
 		err:   err,
@@ -958,7 +960,7 @@ func (b *backend) loadInventory() (*pd.InventoryReply, error) {
 	return nil, fmt.Errorf("use inventory")
 }
 
-func (b *backend) CreateLoginReply(user *database.User) (*www.LoginReply, error) {
+func (b *backend) CreateLoginReply(user *database.User, lastLoginTime int64) (*www.LoginReply, error) {
 	activeIdentity, ok := database.ActiveIdentityString(user.Identities)
 	if !ok {
 		activeIdentity = ""
@@ -971,6 +973,7 @@ func (b *backend) CreateLoginReply(user *database.User) (*www.LoginReply, error)
 		Username:        user.Username,
 		PublicKey:       activeIdentity,
 		ProposalCredits: ProposalCreditBalance(user),
+		LastLoginTime:   lastLoginTime,
 	}
 
 	if !b.HasUserPaid(user) {
