@@ -1,9 +1,8 @@
 # politeiawww_dataload
 
-`politeiawww_dataload` is a tool that loads basic data into Politeia to help
+politeiawww_dataload is a tool that loads basic data into Politeia to help
 speed up full end-to-end testing. It will automatically start and stop
-`politeiad` and `politeiawww`, and utilize the `politeiawww_dbutil` and
-`politeiawwwcli` tools to create the following:
+politeiad and politeiawww, and utilize the politeiawwwcli tool to create the following:
 
 * Admin user
 * Regular paid user
@@ -11,18 +10,20 @@ speed up full end-to-end testing. It will automatically start and stop
 * A proposal for each state (public, censored, etc)
 * A couple comments on the public proposal
 
-Because it starts and stops `politeiad` and `politeiawww` automatically, you
+Because it starts and stops politeiad and politeiawww automatically, you
 will need to ensure that those servers are shut down before running this tool.
 It will run the servers with some fixed configuration, although some default
-configuration is required, so you should have `politeiad.conf` and `politeiawww.conf`
+configuration is required, so you should have politeiad.conf and politeiawww.conf
 already set up.
 
-When running `politeiawww_dataload` twice,
-the second time will fail because it can't create duplicate users.
+When running politeiawww_dataload twice, the second time will fail because it
+can't create duplicate users.
 
 ## Usage
 
-This tool doesn't require any arguments, but you can specify the following options:
+This tool doesn't require any arguments, but you can specify the following options.
+Additionally, you can specify these options in a `politeiawww_dataload.conf` file,
+which should be located under `/Users/<username>/Library/Application Support/Politeiawww/dataload/`.
 
 ```
      --adminemail   admin email address
@@ -47,3 +48,12 @@ Example:
 ```
 politeiawww_dataload --verbose
 ```
+
+## Troubleshooting
+
+If you encounter an error while running politeiawww_dataload, it's possible that
+some program this depends on is out of date. Before opening a Github issue,
+make sure to pull the latest from master and build all programs:
+
+    cd $GOPATH/src/github.com/decred/politeia
+    dep ensure && go install -v ./...
