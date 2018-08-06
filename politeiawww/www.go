@@ -922,9 +922,8 @@ func (p *politeiawww) handleUserProposals(w http.ResponseWriter, r *http.Request
 
 	user, err := p.getSessionUser(r)
 	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleUserProposals: getSessionUser %v", err)
-		return
+		// since having a logged in user isn't required, simply log the error
+		log.Infof("handleUserDetails: could not get session user %v", err)
 	}
 
 	upr, err := p.backend.ProcessUserProposals(
@@ -1051,6 +1050,7 @@ func (p *politeiawww) handleUserDetails(w http.ResponseWriter, r *http.Request) 
 
 	user, err := p.getSessionUser(r)
 	if err != nil {
+		// since having a logged in user isn't required, simply log the error
 		log.Infof("handleUserDetails: could not get session user %v", err)
 	}
 
