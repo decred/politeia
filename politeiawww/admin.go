@@ -1,75 +1,14 @@
 package main
 
 import (
-	"encoding/hex"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/politeiawww/database"
 )
-
-func convertWWWUserFromDatabaseUser(user *database.User) v1.User {
-	return v1.User{
-		ID:       strconv.FormatUint(user.ID, 10),
-		Email:    user.Email,
-		Username: user.Username,
-		Admin:    user.Admin,
-		NewUserPaywallAddress:           user.NewUserPaywallAddress,
-		NewUserPaywallAmount:            user.NewUserPaywallAmount,
-		NewUserPaywallTx:                user.NewUserPaywallTx,
-		NewUserPaywallTxNotBefore:       user.NewUserPaywallTxNotBefore,
-		NewUserPaywallPollExpiry:        user.NewUserPaywallPollExpiry,
-		NewUserVerificationToken:        user.NewUserVerificationToken,
-		NewUserVerificationExpiry:       user.NewUserVerificationExpiry,
-		UpdateKeyVerificationToken:      user.UpdateKeyVerificationToken,
-		UpdateKeyVerificationExpiry:     user.UpdateKeyVerificationExpiry,
-		ResetPasswordVerificationToken:  user.ResetPasswordVerificationToken,
-		ResetPasswordVerificationExpiry: user.ResetPasswordVerificationExpiry,
-		LastLoginTime:                   user.LastLoginTime,
-		FailedLoginAttempts:             user.FailedLoginAttempts,
-		Locked:                          checkUserIsLocked(user.FailedLoginAttempts),
-		Identities:                      convertWWWIdentitiesFromDatabaseIdentities(user.Identities),
-		ProposalCredits:                 ProposalCreditBalance(user),
-	}
-}
-
-func convertWWWIdentitiesFromDatabaseIdentities(identities []database.Identity) []v1.UserIdentity {
-	userIdentities := make([]v1.UserIdentity, 0, len(identities))
-	for _, v := range identities {
-		userIdentities = append(userIdentities, convertWWWIdentityFromDatabaseIdentity(v))
-	}
-	return userIdentities
-}
-
-func convertWWWIdentityFromDatabaseIdentity(identity database.Identity) v1.UserIdentity {
-	return v1.UserIdentity{
-		Pubkey: hex.EncodeToString(identity.Key[:]),
-		Active: database.IsIdentityActive(identity),
-	}
-}
-
-func (b *backend) getUserByIDStr(userIDStr string) (*database.User, error) {
-	userID, err := strconv.ParseUint(userIDStr, 10, 64)
-	if err != nil {
-		return nil, err
-	}
-
-	user, err := b.db.UserGetById(userID)
-	if err != nil {
-		return nil, err
-	}
-	if user == nil {
-		return nil, v1.UserError{
-			ErrorCode: v1.ErrorStatusUserNotFound,
-		}
-	}
-
-	return user, nil
-}
 
 // logAdminAction logs a string to the admin log file.
 //
@@ -114,30 +53,6 @@ func (b *backend) logAdminUserActionLock(adminUser, user *database.User, action 
 // This function must be called WITH the mutex held.
 func (b *backend) logAdminProposalAction(adminUser *database.User, token, action string) error {
 	return b.logAdminAction(adminUser, fmt.Sprintf("%v,%v", action, token))
-}
-
-func (b *backend) ProcessUserDetails(ud *v1.UserDetails) (*v1.UserDetailsReply, error) {
-	// Fetch the database user.
-	user, err := b.getUserByIDStr(ud.UserID)
-	if err != nil {
-		return nil, err
-	}
-
-	// Convert the database user into a proper response.
-	var udr v1.UserDetailsReply
-	udr.User = convertWWWUserFromDatabaseUser(user)
-
-	// Fetch the first page of the user's proposals.
-	up := v1.UserProposals{
-		UserId: ud.UserID,
-	}
-	upr, err := b.ProcessUserProposals(&up, false, true)
-	if err != nil {
-		return nil, err
-	}
-
-	udr.User.Proposals = upr.Proposals
-	return &udr, nil
 }
 
 func (b *backend) ProcessEditUser(eu *v1.EditUser, adminUser *database.User) (*v1.EditUserReply, error) {
