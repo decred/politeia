@@ -115,6 +115,13 @@ func (p *politeiawww) removeSession(w http.ResponseWriter, r *http.Request) erro
 		return err
 	}
 
+	// Check for invalid session.
+	if session.ID == "" {
+		return nil
+	}
+
+	// Saving the session with a negative MaxAge will cause it to be deleted
+	// from the filesystem.
 	session.Options.MaxAge = -1
 	return session.Save(r, w)
 }
