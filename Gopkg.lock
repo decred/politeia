@@ -24,12 +24,6 @@
 
 [[projects]]
   branch = "master"
-  name = "github.com/btcsuite/btclog"
-  packages = ["."]
-  revision = "84c8d2346e9fc8c7b947e243b9c24e6df9fd206a"
-
-[[projects]]
-  branch = "master"
   name = "github.com/btcsuite/go-flags"
   packages = ["."]
   revision = "6c288d648c1cc1befcb90cb5511dcacf64ae8e61"
@@ -64,12 +58,6 @@
   name = "github.com/btcsuite/snappy-go"
   packages = ["."]
   revision = "0bdef8d067237991ddaa1bb6072a740bc40601ba"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/btcsuite/websocket"
-  packages = ["."]
-  revision = "31079b6807923eb23992c421b114992b95131b55"
 
 [[projects]]
   branch = "master"
@@ -113,6 +101,7 @@
     "database",
     "database/ffldb",
     "database/internal/treap",
+    "dcrec",
     "dcrec/edwards",
     "dcrec/secp256k1",
     "dcrec/secp256k1/schnorr",
@@ -125,7 +114,7 @@
     "txscript",
     "wire"
   ]
-  revision = "0921280e6e232b66f19ada00ba9adad1d82c90a5"
+  revision = "f0e65ec62f916b4b8aaafca6906c67c34c242dac"
 
 [[projects]]
   branch = "master"
@@ -145,21 +134,25 @@
     "api/v1",
     "merkle"
   ]
-  revision = "653da7ab6f03e510c4285143c13626cf68bfd1a5"
+  revision = "4c91c4cbed0916868471dd45d4780a041a740552"
 
 [[projects]]
   branch = "master"
   name = "github.com/decred/dcrwallet"
   packages = [
-    "apperrors",
+    "errors",
+    "internal/helpers",
     "internal/zero",
     "netparams",
     "rpc/walletrpc",
-    "snacl",
-    "wallet/udb",
-    "walletdb"
+    "wallet/internal/snacl",
+    "wallet/internal/txsizes",
+    "wallet/internal/walletdb",
+    "wallet/txauthor",
+    "wallet/txrules",
+    "wallet/udb"
   ]
-  revision = "8d4fed255314084668f9fab36efc72e5c77652a3"
+  revision = "640cbe14449e70dc5bd58b7d55049d1457cd5415"
 
 [[projects]]
   name = "github.com/decred/slog"
@@ -220,6 +213,12 @@
   packages = ["."]
   revision = "03b6f63cc43ef9c7240a635a5e22b13180e822b8"
   version = "v1.1.1"
+
+[[projects]]
+  name = "github.com/gorilla/websocket"
+  packages = ["."]
+  revision = "ea4d1f681babbce9545c9c5f3d5194a789c89f5b"
+  version = "v1.2.0"
 
 [[projects]]
   name = "github.com/jessevdk/go-flags"
