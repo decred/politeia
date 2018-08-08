@@ -237,7 +237,7 @@ func PayWithTestnetFaucet(faucetURL string, address string, amount uint64, overr
 		return "", fmt.Errorf("address is invalid: %v", err)
 	}
 
-	if !dcraddress.IsForNet(&chaincfg.TestNet2Params) {
+	if !dcraddress.IsForNet(&chaincfg.TestNet3Params) {
 		return "", fmt.Errorf("faucet only supports testnet")
 	}
 
@@ -317,7 +317,7 @@ func FetchTxWithBlockExplorers(address string, amount uint64, txnotbefore int64,
 	if params == &chaincfg.MainNetParams {
 		primaryURL = "https://explorer.dcrdata.org/api/address/" + address + "/raw"
 		backupURL = "https://mainnet.decred.org/api/addr/" + address + "/utxo?noCache=1"
-	} else if params == &chaincfg.TestNet2Params {
+	} else if params == &chaincfg.TestNet3Params {
 		primaryURL = "https://testnet.dcrdata.org/api/address/" + address + "/raw"
 		backupURL = "https://testnet.decred.org/api/addr/" + address + "/utxo?noCache=1"
 	} else {

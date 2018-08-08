@@ -201,7 +201,7 @@ func _main() error {
 
 	var net string
 	if *testnet {
-		net = chaincfg.TestNet2Params.Name
+		net = chaincfg.TestNet3Params.Name
 	} else {
 		net = chaincfg.MainNetParams.Name
 	}

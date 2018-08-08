@@ -94,7 +94,7 @@ func createBackend(t *testing.T) *backend {
 		t.Fatal(err)
 	}
 
-	b.params = &chaincfg.TestNet2Params
+	b.params = &chaincfg.TestNet3Params
 	b.test = true
 	b.inventory = make(map[string]*inventoryRecord)
 	return b
