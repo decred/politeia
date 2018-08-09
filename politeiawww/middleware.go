@@ -47,10 +47,13 @@ func (p *politeiawww) isLoggedInAsAdmin(f http.HandlerFunc) http.HandlerFunc {
 		isAdmin, err := p.isAdmin(r)
 		if err != nil {
 			log.Errorf("isLoggedInAsAdmin: isAdmin %v", err)
-			util.RespondWithJSON(w, http.StatusForbidden, v1.ErrorReply{})
+			util.RespondWithJSON(w, http.StatusUnauthorized, v1.ErrorReply{
+				ErrorCode: int64(v1.ErrorStatusNotLoggedIn),
+			})
 			return
 		}
 		if !isAdmin {
+			util.RespondWithJSON(w, http.StatusForbidden, v1.ErrorReply{})
 			return
 		}
 
