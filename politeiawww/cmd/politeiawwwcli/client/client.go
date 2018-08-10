@@ -255,7 +255,7 @@ func (c *Ctx) Login(email, password string) (*v1.LoginReply, *identity.FullIdent
 
 	l := v1.Login{
 		Email:    email,
-		Password: password,
+		Password: digest(password),
 	}
 
 	responseBody, err := c.makeRequest("POST", v1.RouteLogin, l)
@@ -304,7 +304,7 @@ func (c *Ctx) NewUser(email, username, password string) (string, *identity.FullI
 	u := v1.NewUser{
 		Email:     email,
 		Username:  username,
-		Password:  password,
+		Password:  digest(password),
 		PublicKey: hex.EncodeToString(id.Public.Key[:]),
 	}
 
@@ -377,7 +377,7 @@ func (c *Ctx) Secret() error {
 func (c *Ctx) ChangeUsername(password, newUsername string) (
 	*v1.ChangeUsernameReply, error) {
 	cu := v1.ChangeUsername{
-		Password:    password,
+		Password:    digest(password),
 		NewUsername: newUsername,
 	}
 	responseBody, err := c.makeRequest("POST", v1.RouteChangeUsername, cu)
@@ -402,8 +402,8 @@ func (c *Ctx) ChangeUsername(password, newUsername string) (
 func (c *Ctx) ChangePassword(currentPassword, newPassword string) (
 	*v1.ChangePasswordReply, error) {
 	cp := v1.ChangePassword{
-		CurrentPassword: currentPassword,
-		NewPassword:     newPassword,
+		CurrentPassword: digest(currentPassword),
+		NewPassword:     digest(newPassword),
 	}
 	responseBody, err := c.makeRequest("POST", v1.RouteChangePassword, cp)
 	if err != nil {
@@ -439,7 +439,7 @@ func (c *Ctx) ResetPassword(email, newPassword string) error {
 		return fmt.Errorf("Could not unmarshal ResetPasswordReply: %v", err)
 	}
 
-	rp.NewPassword = newPassword
+	rp.NewPassword = digest(newPassword)
 	rp.VerificationToken = rpr.VerificationToken
 
 	responseBody, err = c.makeRequest("POST", v1.RouteResetPassword, rp)

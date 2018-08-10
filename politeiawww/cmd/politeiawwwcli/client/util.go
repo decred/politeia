@@ -15,8 +15,16 @@ import (
 	"github.com/agl/ed25519"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
+	"golang.org/x/crypto/sha3"
 	"golang.org/x/crypto/ssh/terminal"
 )
+
+// digest returns the hex encoded SHA3-256 of a string.
+func digest(s string) string {
+	h := sha3.New256()
+	h.Write([]byte(s))
+	return hex.EncodeToString(h.Sum(nil))
+}
 
 func convertTicketHashes(h []string) ([][]byte, error) {
 	hashes := make([][]byte, 0, len(h))
