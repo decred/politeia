@@ -39,6 +39,25 @@ type proposalsRequest struct {
 	StatusMap map[www.PropStatusT]bool
 }
 
+// newInventoryRecord adds a record to the inventory
+//
+// This function must be called WITH the mutex held.
+func (b *backend) newInventoryRecord(record pd.Record) error {
+	t := record.CensorshipRecord.Token
+	if _, ok := b.inventory[t]; ok {
+		return fmt.Errorf("newInventoryRecord: duplicate token: %v", t)
+	}
+
+	b.inventory[record.CensorshipRecord.Token] = &inventoryRecord{
+		record:   record,
+		comments: make(map[string]www.Comment),
+	}
+
+	b.loadRecordMetadata(record)
+
+	return nil
+}
+
 // updateInventoryRecord updates an existing record.
 //
 // This function must be called WITH the mutex held.
@@ -47,18 +66,24 @@ func (b *backend) updateInventoryRecord(record pd.Record) {
 		record:   record,
 		comments: make(map[string]www.Comment),
 	}
+
+	b.loadRecordMetadata(record)
 }
 
-// newInventoryRecord adds a record to the inventory.
+// loadRecord load an record metadata and comments into inventory.
 //
 // This function must be called WITH the mutex held.
-func (b *backend) newInventoryRecord(record pd.Record) error {
+func (b *backend) loadRecord(record pd.Record) error {
 	t := record.CensorshipRecord.Token
-	if _, ok := b.inventory[t]; ok {
-		return fmt.Errorf("duplicate token: %v", t)
-	}
 
-	b.updateInventoryRecord(record)
+	// load record metadata
+	b.loadRecordMetadata(record)
+
+	// try to load record comments
+	err := b.loadComments(t)
+	if err != nil {
+		return fmt.Errorf("could not load comments for %s: %v", t, err)
+	}
 
 	return nil
 }
@@ -197,10 +222,10 @@ func (b *backend) loadComments(t string) error {
 	return nil
 }
 
-// loadReocrd load an entire record into inventory.
+// loadReocrd load an entire record metadata into inventory.
 //
 // This function must be called WITH the mutex held.
-func (b *backend) loadRecord(v pd.Record) {
+func (b *backend) loadRecordMetadata(v pd.Record) {
 	t := v.CensorshipRecord.Token
 
 	// Fish metadata out as well
@@ -244,12 +269,6 @@ func (b *backend) loadRecord(v pd.Record) {
 				m.ID, t)
 		}
 	}
-
-	// This is not normal metadata since we always need the journal
-	err = b.loadComments(t)
-	if err != nil {
-		log.Errorf("could not load comments: %v", err)
-	}
 }
 
 // initializeInventory initializes the inventory map and loads it with a
@@ -264,7 +283,10 @@ func (b *backend) initializeInventory(inv *pd.InventoryReply) error {
 		if err != nil {
 			return err
 		}
-		b.loadRecord(v)
+		err = b.loadRecord(v)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
