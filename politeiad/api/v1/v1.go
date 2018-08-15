@@ -277,8 +277,8 @@ type SetUnvettedStatusReply struct {
 	Record_  Record_ `json:"record"`
 }
 
-// UpdateUnvetted update an unvetted record.
-type UpdateUnvetted struct {
+// UpdateRecord update an unvetted record.
+type UpdateRecord struct {
 	Challenge   string           `json:"challenge"`   // Random challenge
 	Token       string           `json:"token"`       // Censorship token
 	MDAppend    []MetadataStream `json:"mdappend"`    // Metadata streams to append
@@ -287,9 +287,9 @@ type UpdateUnvetted struct {
 	FilesAdd    []File           `json:"filesadd"`    // Files that are modified or added
 }
 
-// UpdateUnvetted returns a CensorshipRecord which may or may not have changed.
-// Metadata updates do not create a new CensorshipRecord.
-type UpdateUnvettedReply struct {
+// UpdateRecordReply returns a CensorshipRecord which may or may not have
+// changed.  Metadata only updates do not create a new CensorshipRecord.
+type UpdateRecordReply struct {
 	Response string `json:"response"` // Challenge response
 
 	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`

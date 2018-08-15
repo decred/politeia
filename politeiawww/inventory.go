@@ -42,14 +42,14 @@ type proposalsRequest struct {
 // newInventoryRecord adds a record to the inventory
 //
 // This function must be called WITH the mutex held.
-func (b *backend) newInventoryRecord(record pd.Record) error {
+func (b *backend) newInventoryRecord(record pd.Record_) error {
 	t := record.CensorshipRecord.Token
 	if _, ok := b.inventory[t]; ok {
 		return fmt.Errorf("newInventoryRecord: duplicate token: %v", t)
 	}
 
 	b.inventory[record.CensorshipRecord.Token] = &inventoryRecord{
-		record:   record,
+		record_:  record,
 		comments: make(map[string]www.Comment),
 	}
 
@@ -61,9 +61,9 @@ func (b *backend) newInventoryRecord(record pd.Record) error {
 // updateInventoryRecord updates an existing record.
 //
 // This function must be called WITH the mutex held.
-func (b *backend) updateInventoryRecord(record pd.Record) {
+func (b *backend) updateInventoryRecord(record pd.Record_) {
 	b.inventory[record.CensorshipRecord.Token] = &inventoryRecord{
-		record:   record,
+		record_:  record,
 		comments: make(map[string]www.Comment),
 	}
 
@@ -73,7 +73,7 @@ func (b *backend) updateInventoryRecord(record pd.Record) {
 // loadRecord load an record metadata and comments into inventory.
 //
 // This function must be called WITH the mutex held.
-func (b *backend) loadRecord(record pd.Record) error {
+func (b *backend) loadRecord(record pd.Record_) error {
 	t := record.CensorshipRecord.Token
 
 	// load record metadata
@@ -222,10 +222,10 @@ func (b *backend) loadComments(t string) error {
 	return nil
 }
 
-// loadReocrd load an entire record metadata into inventory.
+// loadRecordMetadata load an entire record metadata into inventory.
 //
 // This function must be called WITH the mutex held.
-func (b *backend) loadRecordMetadata(v pd.Record) {
+func (b *backend) loadRecordMetadata(v pd.Record_) {
 	t := v.CensorshipRecord.Token
 
 	// Fish metadata out as well
@@ -278,7 +278,7 @@ func (b *backend) loadRecordMetadata(v pd.Record) {
 func (b *backend) initializeInventory(inv *pd.InventoryReply) error {
 	b.inventory = make(map[string]*inventoryRecord)
 
-	for _, v := range append(inv.Vetted, inv.Branches...) {
+	for _, v := range append(inv.Vetted_, inv.Branches_...) {
 		err := b.newInventoryRecord(v)
 		if err != nil {
 			return err

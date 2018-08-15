@@ -2,7 +2,6 @@ package gitbe
 
 import (
 	"bufio"
-	"bytes"
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
@@ -11,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 // gitError contains all the components of a git invocation.
@@ -74,16 +74,57 @@ func (g *gitBackEnd) git(path string, args ...string) ([]string, error) {
 		cmd.Dir = path
 	}
 
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	// Make sure pipes are handled before we exit
+	var wg sync.WaitGroup
+
+	// Setup stdout
+	cmdReader, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, fmt.Errorf("stdout pipe: %v", err)
+	}
+
+	// Setup stderr
+	cmdError, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, fmt.Errorf("stderr pipe: %v", err)
+	}
+
+	// From this point on se is never nil
+	var stdoutError error
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		scanner := bufio.NewScanner(cmdReader)
+		for scanner.Scan() {
+			ge.stdout = append(ge.stdout, scanner.Text())
+		}
+		if err := scanner.Err(); err != nil {
+			stdoutError = err
+		}
+	}()
+
+	var stderrError error
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		scanner := bufio.NewScanner(cmdError)
+		for scanner.Scan() {
+			ge.stderr = append(ge.stderr, scanner.Text())
+		}
+		if err := scanner.Err(); err != nil {
+			stderrError = err
+		}
+	}()
 
 	// Actually launch git
-	err := cmd.Start()
+	err = cmd.Start()
 	if err != nil {
 		ge.err = fmt.Errorf("cmd.Start: %v", err)
 		return nil, ge
 	}
+
+	// Wait for pipes to finish reading.
+	wg.Wait()
 
 	// Finish up cmd.
 	err = cmd.Wait()
@@ -92,14 +133,14 @@ func (g *gitBackEnd) git(path string, args ...string) ([]string, error) {
 		return nil, ge
 	}
 
-	scanner := bufio.NewScanner(bytes.NewReader(stdout.Bytes()))
-	for scanner.Scan() {
-		ge.stdout = append(ge.stdout, scanner.Text())
+	// Check scanners
+	if stdoutError != nil {
+		ge.err = fmt.Errorf("cmd stdoutErr: %v", stdoutError)
+		return nil, ge
 	}
-
-	scanner = bufio.NewScanner(bytes.NewReader(stderr.Bytes()))
-	for scanner.Scan() {
-		ge.stderr = append(ge.stderr, scanner.Text())
+	if stderrError != nil {
+		ge.err = fmt.Errorf("cmd stderrErr: %v", stderrError)
+		return nil, ge
 	}
 
 	return ge.stdout, nil
@@ -142,8 +183,13 @@ func (g *gitBackEnd) gitStashDrop(path string) error {
 	return err
 }
 
-func (g *gitBackEnd) gitRm(path, filename string) error {
-	_, err := g.git(path, "rm", filename)
+func (g *gitBackEnd) gitRm(path, filename string, force bool) error {
+	var err error
+	if force {
+		_, err = g.git(path, "rm", "-f", filename)
+	} else {
+		_, err = g.git(path, "rm", filename)
+	}
 	return err
 }
 

@@ -604,7 +604,7 @@ func updateRecord(vetted bool) error {
 	if err != nil {
 		return err
 	}
-	n := v1.UpdateUnvetted{
+	n := v1.UpdateRecord{
 		Challenge: hex.EncodeToString(challenge),
 	}
 
@@ -743,8 +743,7 @@ func updateRecord(vetted bool) error {
 
 	bodyBytes := util.ConvertBodyToByteArray(r.Body, *printJson)
 
-	var reply v1.UpdateUnvettedReply
-	// XXX make the reply generic
+	var reply v1.UpdateRecordReply
 	err = json.Unmarshal(bodyBytes, &reply)
 	if err != nil {
 		return fmt.Errorf("Could node unmarshal UpdateReply: %v", err)
@@ -756,11 +755,6 @@ func updateRecord(vetted bool) error {
 		return err
 	}
 
-	// root, err := hex.DecodeString(reply.CensorshipRecord.Merkle)
-	// if err != nil {
-	// 	return err
-	// }
-
 	// Decode signature to verify
 	sig, err := hex.DecodeString(reply.CensorshipRecord.Signature)
 	if err != nil {
@@ -769,17 +763,14 @@ func updateRecord(vetted bool) error {
 	var signature [identity.SignatureSize]byte
 	copy(signature[:], sig)
 
-	// XXX Verify merkle root.
-	//hashes := make([]*[sha256.Size]byte, 0, len(flags[1:]))
-	//if !bytes.Equal(merkle.Root(hashes)[:], root) {
-	//	return fmt.Errorf("invalid merkle root")
-	//}
-
 	// Verify record token signature.
 	merkleToken := reply.CensorshipRecord.Merkle + reply.CensorshipRecord.Token
 	if !id.VerifyMessage([]byte(merkleToken), signature) {
 		return fmt.Errorf("verification failed")
 	}
+
+	// Would be nice if we could verify merkle here but for that we need
+	// all original file hashes.
 
 	if !*printJson {
 		printCensorshipRecord(reply.CensorshipRecord)
@@ -973,7 +964,7 @@ func getVetted() error {
 			status = v1.RecordStatus[v1.RecordStatusInvalid]
 		}
 		fmt.Printf("Record     : %v\n", flags[0])
-		fmt.Printf("  Status     : %v\n", status)
+		fmt.Printf("  Status   : %v\n", status)
 		return nil
 	}
 

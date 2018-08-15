@@ -17,6 +17,7 @@ type Options struct {
 	ChangePassword    ChangepasswordCmd    `command:"changepassword" description:"change the password for the currently logged in user"`
 	CommentsVotes     CommentsvotesCmd     `command:"commentsvotes" description:"fetch all the comments voted by the user on a proposal"`
 	ChangeUsername    ChangeusernameCmd    `command:"changeusername" description:"change the username for the currently logged in user"`
+	EditProposal      EditProposalCmd      `command:"editproposal" description:"edit a proposal"`
 	EditUser          EdituserCmd          `command:"edituser" description:"edit the details for the given user id"`
 	GetComments       GetcommentsCmd       `command:"getcomments" description:"fetch a proposal's comments"`
 	GetProposal       GetproposalCmd       `command:"getproposal" description:"fetch a proposal"`

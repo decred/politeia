@@ -1268,17 +1268,23 @@ func (g *gitBackEnd) checkoutRecordBranch(id string) (bool, error) {
 // updateRecord_ takes various parameters to update a record.  Note that this
 // function must be wrapped by a function that delivers the call with the repo
 // sitting in the correct branch/master.  The idea is that if this function
-// fails we can simply unwind it by calling a git stash.  Function must be
-// called with the lock held.
-func (g *gitBackEnd) updateRecord_(id string, mdAppend, mdOverwrite []backend.MetadataStream, fa []file, filesDel []string) (*backend.RecordMetadata, error) {
+// fails we can simply unwind it by calling a git stash.
+// If commit is true the changes will be commited to record, if it is false
+// it'll return ErrChangesRecord if the error would change; the caller is
+// reponsible to unwinding the changes.
+//
+// Function must be  called with the lock held.
+func (g *gitBackEnd) updateRecord_(commit bool, id string, mdAppend, mdOverwrite []backend.MetadataStream, fa []file, filesDel []string) (*backend.RecordMetadata, error) {
 	// Get version for relative git rm command later.
 	version, err := getLatest(pijoin(g.unvetted, id))
 	if err != nil {
 		return nil, err
 	}
 
-	// Load MD
 	log.Tracef("updating %v", id)
+	defer func() { log.Tracef("updating complete: %v", id) }()
+
+	// Load MD
 	brm, err := loadMD(g.unvetted, id)
 	if err != nil {
 		return nil, err
@@ -1329,7 +1335,7 @@ func (g *gitBackEnd) updateRecord_(id string, mdAppend, mdOverwrite []backend.Me
 	// Delete files
 	relativeRmDir := pijoin(id, version, defaultPayloadDir)
 	for _, v := range filesDel {
-		err = g.gitRm(g.unvetted, pijoin(relativeRmDir, v))
+		err = g.gitRm(g.unvetted, pijoin(relativeRmDir, v), true)
 		if err != nil {
 			return nil, err
 		}
@@ -1366,14 +1372,20 @@ func (g *gitBackEnd) updateRecord_(id string, mdAppend, mdOverwrite []backend.Me
 
 	// If there are no changes DO NOT update the record and reply with no
 	// changes.
-	// XXX change this to git status, diff does not see add/rm
 	if !g.gitHasChanges(g.unvetted) {
 		return nil, backend.ErrNoChanges
 	}
 
+	if !commit {
+		return nil, backend.ErrChangesRecord
+	}
+
 	// Update record metadata
-	brmNew, err := createMD(g.unvetted, id,
-		backend.MDStatusIterationUnvetted, brm.Iteration+1, hashes)
+	ns := backend.MDStatusIterationUnvetted
+	if brm.Status == backend.MDStatusVetted {
+		ns = backend.MDStatusVetted
+	}
+	brmNew, err := createMD(g.unvetted, id, ns, brm.Iteration+1, hashes)
 	if err != nil {
 		return nil, err
 	}
@@ -1393,6 +1405,59 @@ func (g *gitBackEnd) updateRecord_(id string, mdAppend, mdOverwrite []backend.Me
 	}
 
 	return brmNew, nil
+}
+
+// wouldChange applies a diff into a repo and undoes that. The point of this
+// call is to determine if applying said diff would change the repo.
+//
+// This is a very expensive call. Only use this sparingly.
+//
+// Must be called WITHOUT the lock held.
+func (g *gitBackEnd) wouldChange(id string, mdAppend []backend.MetadataStream, mdOverwrite []backend.MetadataStream, fa []file, filesDel []string) (bool, error) {
+	idTmp := id + "_rm"
+	_ = g.gitBranchDelete(g.unvetted, idTmp) // Delete it just in case
+	err := g.gitNewBranch(g.unvetted, idTmp)
+	if err != nil {
+		return false, err
+	}
+
+	var rv bool
+	_, err = g.updateRecord_(false, id, mdAppend, mdOverwrite, fa,
+		filesDel)
+	if err == backend.ErrNoChanges {
+		// Do nothing
+	} else if err == backend.ErrChangesRecord {
+		rv = true
+	} else if err != nil {
+		return false, err
+	}
+
+	// git stash
+	err = g.gitStash(g.unvetted)
+	if err != nil {
+		// We are in trouble! Consider a panic.
+		log.Errorf("gitStash: %v", err)
+		return rv, err
+	}
+
+	// git checkout master
+	err = g.gitCheckout(g.unvetted, "master")
+	if err != nil {
+		// We are in trouble! Consider a panic.
+		log.Errorf("gitCheckout: master %v", err)
+		return rv, err
+	}
+
+	// git delete branch
+	err = g.gitBranchDelete(g.unvetted, idTmp)
+	if err != nil {
+		// We are in trouble! Consider a panic.
+		log.Errorf("gitBranchDelete: %v %v", idTmp, err)
+
+		// FALTHROUGH
+	}
+
+	return rv, err
 }
 
 // updateRecord puts the correct git repo in the correct state (branch or
@@ -1450,6 +1515,19 @@ func (g *gitBackEnd) updateRecord(token []byte, mdAppend []backend.MetadataStrea
 			return nil, backend.ErrRecordNotFound
 		}
 
+		// Make sure there are actually changes before we commence the
+		// revision update
+
+		// We got a new revision, do the work
+		change, err := g.wouldChange(id, mdAppend, mdOverwrite, fa,
+			filesDel)
+		if err != nil {
+			return nil, err
+		}
+		if !change {
+			return nil, backend.ErrNoChanges
+		}
+
 		// Get old and new version
 		oldV, newV, err := getNext(dir)
 		if err != nil {
@@ -1458,6 +1536,7 @@ func (g *gitBackEnd) updateRecord(token []byte, mdAppend []backend.MetadataStrea
 
 		// Checkout temporary branch
 		idTmp := id + "_tmp"
+		_ = g.gitBranchDelete(g.unvetted, idTmp) // Delete leftovers
 		err = g.gitNewBranch(g.unvetted, idTmp)
 		if err != nil {
 			return nil, err
@@ -1471,6 +1550,9 @@ func (g *gitBackEnd) updateRecord(token []byte, mdAppend []backend.MetadataStrea
 		if err != nil {
 			return nil, err
 		}
+
+		// We need to add the new path here so that git rm can delete a
+		// known file
 		err = g.gitAdd(g.unvetted, pijoin(g.unvetted, id, newV))
 		if err != nil {
 			return nil, err
@@ -1480,7 +1562,8 @@ func (g *gitBackEnd) updateRecord(token []byte, mdAppend []backend.MetadataStrea
 		log.Tracef("updating vetted %v -> %v %v", oldV, newV, id)
 
 		// Do the work, if there is an error we must unwind git.
-		brm, err = g.updateRecord_(id, mdAppend, mdOverwrite, fa, filesDel)
+		brm, err = g.updateRecord_(true, id, mdAppend, mdOverwrite, fa,
+			filesDel)
 		if err == backend.ErrNoChanges {
 			brm = nil
 			errReturn = err
@@ -1492,7 +1575,6 @@ func (g *gitBackEnd) updateRecord(token []byte, mdAppend []backend.MetadataStrea
 				log.Errorf("gitStash: %v", err2)
 				return nil, err2
 			}
-
 			brm = nil
 			errReturn = err
 		} else {
@@ -1501,6 +1583,22 @@ func (g *gitBackEnd) updateRecord(token []byte, mdAppend []backend.MetadataStrea
 			if err != nil {
 				return nil, err
 			}
+
+			return brm, nil
+		}
+
+		// git checkout master
+		err = g.gitCheckout(g.unvetted, "master")
+		if err != nil {
+			return nil, err
+		}
+
+		// git delete branch
+		err = g.gitBranchDelete(g.unvetted, idTmp)
+		if err != nil {
+			// We are in trouble! Consider a panic.
+			log.Errorf("gitBranchDelete: %v %v", idTmp, err)
+			return nil, err
 		}
 	} else {
 		// Unvetted path
@@ -1521,7 +1619,8 @@ func (g *gitBackEnd) updateRecord(token []byte, mdAppend []backend.MetadataStrea
 		log.Tracef("updating unvetted %v", id)
 
 		// Do the work, if there is an error we must unwind git.
-		brm, err = g.updateRecord_(id, mdAppend, mdOverwrite, fa, filesDel)
+		brm, err = g.updateRecord_(true, id, mdAppend, mdOverwrite, fa,
+			filesDel)
 		if err == backend.ErrNoChanges {
 			brm = nil
 			errReturn = err
@@ -1537,12 +1636,12 @@ func (g *gitBackEnd) updateRecord(token []byte, mdAppend []backend.MetadataStrea
 			brm = nil
 			errReturn = err
 		}
-	}
 
-	// git checkout master
-	err = g.gitCheckout(g.unvetted, "master")
-	if err != nil {
-		return nil, err
+		// git checkout master
+		err = g.gitCheckout(g.unvetted, "master")
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return brm, errReturn
@@ -1568,6 +1667,8 @@ func (g *gitBackEnd) UpdateUnvettedRecord(token []byte, mdAppend []backend.Metad
 // upstream followed by a rebase.  Record is not updated.
 // This function must be called with the lock held.
 func (g *gitBackEnd) updateVettedMetadata(id, idTmp string, mdAppend []backend.MetadataStream, mdOverwrite []backend.MetadataStream) error {
+	_ = g.gitBranchDelete(g.unvetted, idTmp) // Delete leftovers
+
 	// Checkout temporary branch
 	err := g.gitNewBranch(g.unvetted, idTmp)
 	if err != nil {

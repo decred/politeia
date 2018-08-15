@@ -27,8 +27,12 @@ var (
 	// ErrShutdown is emitted when the backend is shutting down.
 	ErrShutdown = errors.New("backend is shutting down")
 
-	// ErrShutdown is emitted when the backend is shutting down.
+	// ErrNoChanges there are no changes to the record.
 	ErrNoChanges = errors.New("no changes to record")
+
+	// ErrChangesRecord is returned when a record would change when not
+	// expected.
+	ErrChangesRecord = errors.New("changes record")
 
 	// ErrRecordLocked is returned when an updated was attempted on a
 	// locked record.
