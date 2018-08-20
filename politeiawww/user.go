@@ -10,10 +10,10 @@ import (
 
 func convertWWWUserFromDatabaseUser(user *database.User) v1.User {
 	return v1.User{
-		ID:       strconv.FormatUint(user.ID, 10),
-		Email:    user.Email,
-		Username: user.Username,
-		Admin:    user.Admin,
+		ID:                              strconv.FormatUint(user.ID, 10),
+		Admin:                           user.Admin,
+		Email:                           user.Email,
+		Username:                        user.Username,
 		NewUserPaywallAddress:           user.NewUserPaywallAddress,
 		NewUserPaywallAmount:            user.NewUserPaywallAmount,
 		NewUserPaywallTx:                user.NewUserPaywallTx,

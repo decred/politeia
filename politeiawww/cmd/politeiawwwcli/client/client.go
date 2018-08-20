@@ -548,6 +548,70 @@ func (c *Ctx) NewProposal(id *identity.FullIdentity, mdPayload []byte, attachmen
 	return &npr, nil
 }
 
+func (c *Ctx) EditProposal(id *identity.FullIdentity, mdPayload []byte, attachments []Attachment, token string) (*v1.EditProposalReply, error) {
+	ep := v1.EditProposal{
+		Files:     make([]v1.File, 0),
+		PublicKey: hex.EncodeToString(id.Public.Key[:]),
+	}
+
+	// Process markdown file.
+	mimeType := http.DetectContentType(mdPayload)
+	if !mime.MimeValid(mimeType) {
+		return nil, fmt.Errorf("unsupported mime type")
+	}
+	digest := hex.EncodeToString(util.Digest(mdPayload))
+	payload := base64.StdEncoding.EncodeToString(mdPayload)
+
+	ep.Files = append(ep.Files, v1.File{
+		Name:    "index.md",
+		MIME:    mimeType,
+		Digest:  digest,
+		Payload: payload,
+	})
+
+	// Process attachment files.
+	for _, a := range attachments {
+		mimeType := http.DetectContentType(a.Payload)
+		if !mime.MimeValid(mimeType) {
+			return nil, fmt.Errorf("unsupported mime type")
+		}
+		digest := hex.EncodeToString(util.Digest(a.Payload))
+		payload := base64.StdEncoding.EncodeToString(a.Payload)
+
+		ep.Files = append(ep.Files, v1.File{
+			Name:    filepath.Base(a.Filename),
+			MIME:    mimeType,
+			Digest:  digest,
+			Payload: payload,
+		})
+	}
+
+	// Sign proposal merkle root.
+	sig, err := proposalSignature(ep.Files, id)
+	if err != nil {
+		return nil, fmt.Errorf("Could not sign proposal files: %v", err)
+	}
+	ep.Signature = sig
+	ep.Token = token
+
+	responseBody, err := c.makeRequest("POST", v1.RouteEditProposal, ep)
+	if err != nil {
+		return nil, err
+	}
+
+	var epr v1.EditProposalReply
+	err = json.Unmarshal(responseBody, &epr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal EditProposalReply: %v", err)
+	}
+
+	if config.Verbose {
+		prettyPrintJSON(epr)
+	}
+
+	return &epr, nil
+}
+
 func (c *Ctx) GetProp(token, serverPubKey string) (*v1.ProposalDetailsReply, error) {
 	responseBody, err := c.makeRequest("GET", "/proposals/"+token, nil)
 	if err != nil {

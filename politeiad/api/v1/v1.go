@@ -25,6 +25,7 @@ const (
 	IdentityRoute             = "/v1/identity/"       // Retrieve identity
 	NewRecordRoute            = "/v1/newrecord/"      // New record
 	UpdateUnvettedRoute       = "/v1/updateunvetted/" // Update unvetted record
+	UpdateVettedRoute         = "/v1/updatevetted/"   // Update vetted record
 	UpdateVettedMetadataRoute = "/v1/updatevettedmd/" // Update vetted metadata
 	GetUnvettedRoute          = "/v1/getunvetted/"    // Retrieve unvetted record
 	GetVettedRoute            = "/v1/getvetted/"      // Retrieve vetted record
@@ -55,6 +56,7 @@ const (
 	ErrorStatusDuplicateFilename             ErrorStatusT = 12
 	ErrorStatusFileNotFound                  ErrorStatusT = 13
 	ErrorStatusNoChanges                     ErrorStatusT = 14
+	ErrorStatusRecordFound                   ErrorStatusT = 15
 
 	// Record status codes (set and get)
 	RecordStatusInvalid           RecordStatusT = 0 // Invalid status
@@ -92,6 +94,7 @@ var (
 		ErrorStatusDuplicateFilename:             "duplicate filename",
 		ErrorStatusFileNotFound:                  "file not found",
 		ErrorStatusNoChanges:                     "no changes in record",
+		ErrorStatusRecordFound:                   "record found",
 	}
 
 	// RecordStatus converts record status codes to human readable text.
@@ -209,6 +212,7 @@ type Record struct {
 	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
 
 	// User data
+	Version  string           `json:"version"`  // Version of this record
 	Metadata []MetadataStream `json:"metadata"` // Metadata streams
 	Files    []File           `json:"files"`    // Files that make up the record
 }
@@ -273,8 +277,8 @@ type SetUnvettedStatusReply struct {
 	Record   Record `json:"record"`
 }
 
-// UpdateUnvetted update an unvetted record.
-type UpdateUnvetted struct {
+// UpdateRecord update an unvetted record.
+type UpdateRecord struct {
 	Challenge   string           `json:"challenge"`   // Random challenge
 	Token       string           `json:"token"`       // Censorship token
 	MDAppend    []MetadataStream `json:"mdappend"`    // Metadata streams to append
@@ -283,12 +287,12 @@ type UpdateUnvetted struct {
 	FilesAdd    []File           `json:"filesadd"`    // Files that are modified or added
 }
 
-// UpdateUnvetted returns a CensorshipRecord which may or may not have changed.
-// Metadata updates do not create a new CensorshipRecord.
-type UpdateUnvettedReply struct {
+// UpdateRecordReply returns a CensorshipRecord which may or may not have
+// changed.  Metadata only updates do not create a new CensorshipRecord.
+type UpdateRecordReply struct {
 	Response string `json:"response"` // Challenge response
 
-	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
+	Record Record `json:"record"`
 }
 
 // UpdateVettedMetadata update a vetted metadata.  This is allowed for

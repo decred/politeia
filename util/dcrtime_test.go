@@ -60,8 +60,7 @@ func TestVerify(t *testing.T) {
 	}
 
 	// Use pre anchored digest
-	digest := "4458a9d635eabdc3c7d75e8e747cdbb94b2b166245eb7a197982ff2e100d960b"
-	//digest2 := "18ba0bde80cc33cdec19206646940896436399d1f15223398242e042113a7e39"
+	digest := "44425372a555e6ac6dad89d5a5b05cd33385c0c9114c5e90e7861da31ae2f289"
 
 	vr, err := Verify(defaultTestnetHost(), []string{digest})
 	if err != nil {
@@ -76,14 +75,14 @@ func TestVerify(t *testing.T) {
 	if digest != d.Digest {
 		t.Fatalf("invalid digest expected %v got %v", digest, d.Digest)
 	}
-	expectedTX := "cdec2565ac832d6ed1bcea1822cc4ddf06d8f9457a96dcddeec2b3eccbe94980"
+	expectedTX := "2aeb59d362752e73757e4b88812da784fe2f4118d2e28121f286b9fa0ef50c1d"
 	if expectedTX != d.ChainInformation.Transaction {
 		t.Fatalf("invalid tx expected %v got %v", expectedTX,
 			d.ChainInformation.Transaction)
 	}
-	expectedMerkle := "83c0c40f949cc4c02a2c51ed32246acdc7d00eb8a6ae07c67031b11d0db9752a"
+	expectedMerkle := "74bdabc1613ab132490e59fe0551bca62a29c90eca88edeba650d021ac5eaecb"
 	if expectedMerkle != d.ChainInformation.MerkleRoot {
-		t.Fatalf("invalid tx expected %v got %v", expectedMerkle,
+		t.Fatalf("invalid merkle expected %v got %v", expectedMerkle,
 			d.ChainInformation.MerkleRoot)
 	}
 

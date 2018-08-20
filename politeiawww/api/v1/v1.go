@@ -36,6 +36,7 @@ const (
 	RouteAllVetted              = "/proposals/vetted"
 	RouteAllUnvetted            = "/proposals/unvetted"
 	RouteNewProposal            = "/proposals/new"
+	RouteEditProposal           = "/proposals/edit"
 	RouteProposalDetails        = "/proposals/{token:[A-z0-9]{64}}"
 	RouteSetProposalStatus      = "/proposals/{token:[A-z0-9]{64}}/status"
 	RoutePolicy                 = "/policy"
@@ -140,14 +141,17 @@ const (
 	ErrorStatusUserLocked                  ErrorStatusT = 38
 	ErrorStatusNoProposalCredits           ErrorStatusT = 39
 	ErrorStatusInvalidUserEditAction       ErrorStatusT = 40
+	ErrorStatusUserActionNotAllowed        ErrorStatusT = 41
+	ErrorStatusCannotEditPropOnVoting      ErrorStatusT = 42
 
 	// Proposal status codes (set and get)
-	PropStatusInvalid     PropStatusT = 0 // Invalid status
-	PropStatusNotFound    PropStatusT = 1 // Proposal not found
-	PropStatusNotReviewed PropStatusT = 2 // Proposal has not been reviewed
-	PropStatusCensored    PropStatusT = 3 // Proposal has been censored
-	PropStatusPublic      PropStatusT = 4 // Proposal is publicly visible
-	PropStatusLocked      PropStatusT = 6 // Proposal is locked, NOT IMPLEMENTED
+	PropStatusInvalid           PropStatusT = 0 // Invalid status
+	PropStatusNotFound          PropStatusT = 1 // Proposal not found
+	PropStatusNotReviewed       PropStatusT = 2 // Proposal has not been reviewed
+	PropStatusCensored          PropStatusT = 3 // Proposal has been censored
+	PropStatusPublic            PropStatusT = 4 // Proposal is publicly visible
+	PropStatusUnreviewedChanges PropStatusT = 5 // Proposal that has changes that are not reviewed
+	PropStatusLocked            PropStatusT = 6 // Proposal is locked, NOT IMPLEMENTED
 
 	// Proposal vote status codes
 	PropVoteStatusInvalid     PropVoteStatusT = 0 // Invalid vote status
@@ -228,6 +232,8 @@ var (
 		ErrorStatusUserLocked:                  "user locked due to too many login attempts",
 		ErrorStatusNoProposalCredits:           "no proposal credits",
 		ErrorStatusInvalidUserEditAction:       "invalid user edit action",
+		ErrorStatusUserActionNotAllowed:        "user action is not allowed",
+		ErrorStatusCannotEditPropOnVoting:      "cannot edit proposals on voting",
 	}
 
 	// PropStatus converts propsal status codes to human readable text
@@ -297,6 +303,7 @@ type ProposalRecord struct {
 	Signature   string      `json:"signature"`   // Signature of merkle root
 	Files       []File      `json:"files"`       // Files that make up the proposal
 	NumComments uint        `json:"numcomments"` // Number of comments on the proposal
+	Version     string      `json:"version"`     // Record version
 
 	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
 }
@@ -557,7 +564,7 @@ type NewProposal struct {
 	Signature string `json:"signature"` // Signature of merkle root
 }
 
-// NewProposalReply is used to reply to the NewProposal command.
+// NewProposalReply is used to reply to the NewProposal command
 type NewProposalReply struct {
 	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
 }
@@ -897,4 +904,17 @@ type User struct {
 type UserIdentity struct {
 	Pubkey string `json:"pubkey"`
 	Active bool   `json:"isactive"`
+}
+
+// EditProposal attemps to edit a proposal
+type EditProposal struct {
+	Token     string `json:"token"`
+	Files     []File `json:"files"`
+	PublicKey string `json:"publickey"`
+	Signature string `json:"signature"`
+}
+
+// EditProposalReply is used to reply to the EditProposal command
+type EditProposalReply struct {
+	Proposal ProposalRecord `json:"proposal"`
 }

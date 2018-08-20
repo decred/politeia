@@ -16,6 +16,10 @@ var (
 	// ErrRecordNotFound is emitted when a record could not be found
 	ErrRecordNotFound = errors.New("record not found")
 
+	// ErrRecordFound is emitted when a record is found while none was
+	// expected.
+	ErrRecordFound = errors.New("record found")
+
 	// ErrFileNotFound is emitted when a file inside a record could not be
 	// found
 	ErrFileNotFound = errors.New("file not found")
@@ -23,8 +27,12 @@ var (
 	// ErrShutdown is emitted when the backend is shutting down.
 	ErrShutdown = errors.New("backend is shutting down")
 
-	// ErrShutdown is emitted when the backend is shutting down.
+	// ErrNoChanges there are no changes to the record.
 	ErrNoChanges = errors.New("no changes to record")
+
+	// ErrChangesRecord is returned when a record would change when not
+	// expected.
+	ErrChangesRecord = errors.New("changes record")
 
 	// ErrRecordLocked is returned when an updated was attempted on a
 	// locked record.
@@ -110,10 +118,11 @@ type MetadataStream struct {
 	Payload string // String encoded metadata
 }
 
-// Record is a permanent that includes the submitted files, metadata and
+// Record is a permanent Record that includes the submitted files, metadata and
 // internal metadata.
 type Record struct {
 	RecordMetadata RecordMetadata   // Internal metadata
+	Version        string           // Version of Files
 	Metadata       []MetadataStream // User provided metadata
 	Files          []File           // User provided files
 }
@@ -137,8 +146,11 @@ type Backend interface {
 
 	// Update unvetted record (token, mdAppend, mdOverwrite, fAdd, fDelete)
 	UpdateUnvettedRecord([]byte, []MetadataStream, []MetadataStream, []File,
-		[]string) (*RecordMetadata, error)
+		[]string) (*Record, error)
 
+	// Update vetted record (token, mdAppend, mdOverwrite, fAdd, fDelete)
+	UpdateVettedRecord([]byte, []MetadataStream, []MetadataStream, []File,
+		[]string) (*Record, error)
 	// Update vetted metadata (token, mdAppend, mdOverwrite)
 	UpdateVettedMetadata([]byte, []MetadataStream,
 		[]MetadataStream) error

@@ -163,6 +163,7 @@ func (p *politeia) convertBackendRecord(br backend.Record) v1.Record {
 			Token:     rm.Token,
 			Signature: hex.EncodeToString(signature[:]),
 		},
+		Version:  br.Version,
 		Metadata: md,
 	}
 	pr.Files = make([]v1.File, 0, len(br.Files))
@@ -188,7 +189,7 @@ func (p *politeia) respondWithUserError(w http.ResponseWriter,
 }
 
 func (p *politeia) respondWithServerError(w http.ResponseWriter, errorCode int64) {
-	log.Errorf("Stacktrace: %s", debug.Stack())
+	log.Errorf("Stacktrace (NOT A REAL CRASH): %s", debug.Stack())
 	util.RespondWithJSON(w, http.StatusInternalServerError, v1.ServerErrorReply{
 		ErrorCode: errorCode,
 	})
@@ -273,8 +274,13 @@ func (p *politeia) newRecord(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-func (p *politeia) updateUnvetted(w http.ResponseWriter, r *http.Request) {
-	var t v1.UpdateUnvetted
+func (p *politeia) updateRecord(w http.ResponseWriter, r *http.Request, vetted bool) {
+	cmd := "unvetted"
+	if vetted {
+		cmd = "vetted"
+	}
+
+	var t v1.UpdateRecord
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&t); err != nil {
 		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload,
@@ -284,7 +290,8 @@ func (p *politeia) updateUnvetted(w http.ResponseWriter, r *http.Request) {
 
 	challenge, err := hex.DecodeString(t.Challenge)
 	if err != nil || len(challenge) != v1.ChallengeSize {
-		log.Errorf("%v updateRecord: invalid challenge", remoteAddr(r))
+		log.Errorf("%v update %v record: invalid challenge",
+			remoteAddr(r), cmd)
 		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
 		return
 	}
@@ -292,27 +299,51 @@ func (p *politeia) updateUnvetted(w http.ResponseWriter, r *http.Request) {
 	// Validate token
 	token, err := util.ConvertStringToken(t.Token)
 	if err != nil {
-		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
+		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload,
+			nil)
 		return
 	}
 
-	log.Infof("Update record submitted %v: %x", remoteAddr(r), token)
+	log.Infof("Update %v record submitted %v: %x", cmd, remoteAddr(r),
+		token)
 
-	rm, err := p.backend.UpdateUnvettedRecord(token,
-		convertFrontendMetadataStream(t.MDAppend),
-		convertFrontendMetadataStream(t.MDOverwrite),
-		convertFrontendFiles(t.FilesAdd), t.FilesDel)
+	var record *backend.Record
+	if vetted {
+		record, err = p.backend.UpdateVettedRecord(token,
+			convertFrontendMetadataStream(t.MDAppend),
+			convertFrontendMetadataStream(t.MDOverwrite),
+			convertFrontendFiles(t.FilesAdd), t.FilesDel)
+	} else {
+		record, err = p.backend.UpdateUnvettedRecord(token,
+			convertFrontendMetadataStream(t.MDAppend),
+			convertFrontendMetadataStream(t.MDOverwrite),
+			convertFrontendFiles(t.FilesAdd), t.FilesDel)
+	}
 	if err != nil {
+		if err == backend.ErrRecordFound {
+			log.Errorf("%v update %v record found: %x",
+				remoteAddr(r), cmd, token)
+			p.respondWithUserError(w, v1.ErrorStatusRecordFound,
+				nil)
+			return
+		}
+		if err == backend.ErrRecordNotFound {
+			log.Errorf("%v update %v record not found: %x",
+				remoteAddr(r), cmd, token)
+			p.respondWithUserError(w, v1.ErrorStatusRecordFound,
+				nil)
+			return
+		}
 		if err == backend.ErrNoChanges {
-			log.Errorf("%v update record no changes: %x",
-				remoteAddr(r), token)
+			log.Errorf("%v update %v record no changes: %x",
+				remoteAddr(r), cmd, token)
 			p.respondWithUserError(w, v1.ErrorStatusNoChanges, nil)
 			return
 		}
 		// Check for content error.
 		if contentErr, ok := err.(backend.ContentVerificationError); ok {
-			log.Errorf("%v update record content error: %v",
-				remoteAddr(r), contentErr)
+			log.Errorf("%v update %v record content error: %v",
+				remoteAddr(r), cmd, contentErr)
 			p.respondWithUserError(w, contentErr.ErrorCode,
 				contentErr.ErrorContext)
 			return
@@ -320,29 +351,31 @@ func (p *politeia) updateUnvetted(w http.ResponseWriter, r *http.Request) {
 
 		// Generic internal error.
 		errorCode := time.Now().Unix()
-		log.Errorf("%v Update record error code %v: %v", remoteAddr(r),
-			errorCode, err)
+		log.Errorf("%v Update %v record error code %v: %v",
+			remoteAddr(r), cmd, errorCode, err)
 		p.respondWithServerError(w, errorCode)
 		return
 	}
 
 	// Prepare reply.
-	signature := p.identity.SignMessage([]byte(rm.Merkle + rm.Token))
-
 	response := p.identity.SignMessage(challenge)
-	reply := v1.UpdateUnvettedReply{
+	reply := v1.UpdateRecordReply{
 		Response: hex.EncodeToString(response[:]),
-		CensorshipRecord: v1.CensorshipRecord{
-			Merkle:    rm.Merkle,
-			Token:     rm.Token,
-			Signature: hex.EncodeToString(signature[:]),
-		},
+		Record:   p.convertBackendRecord(*record),
 	}
 
-	log.Infof("Update record %v: token %v", remoteAddr(r),
-		reply.CensorshipRecord.Token)
+	log.Infof("Update %v record %v: token %v", cmd, remoteAddr(r),
+		reply.Record.CensorshipRecord.Token)
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+func (p *politeia) updateUnvetted(w http.ResponseWriter, r *http.Request) {
+	p.updateRecord(w, r, false)
+}
+
+func (p *politeia) updateVetted(w http.ResponseWriter, r *http.Request) {
+	p.updateRecord(w, r, true)
 }
 
 func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
@@ -575,6 +608,13 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 		convertFrontendMetadataStream(t.MDOverwrite))
 	if err != nil {
 		// Check for specific errors
+		if err == backend.ErrRecordNotFound {
+			log.Errorf("%v updateUnvettedStatus record not "+
+				"found: %x", remoteAddr(r), token)
+			p.respondWithUserError(w, v1.ErrorStatusRecordFound,
+				nil)
+			return
+		}
 		if _, ok := err.(backend.StateTransitionError); ok {
 			log.Errorf("%v %v %v", remoteAddr(r), t.Token, err)
 			p.respondWithUserError(w, v1.ErrorStatusInvalidRecordStatusTransition, nil)
@@ -883,6 +923,8 @@ func _main() error {
 		permissionPublic)
 	p.addRoute(http.MethodPost, v1.UpdateUnvettedRoute, p.updateUnvetted,
 		permissionPublic)
+	p.addRoute(http.MethodPost, v1.UpdateVettedRoute, p.updateVetted,
+		permissionPublic)
 	p.addRoute(http.MethodPost, v1.GetUnvettedRoute, p.getUnvetted,
 		permissionPublic)
 	p.addRoute(http.MethodPost, v1.GetVettedRoute, p.getVetted,
@@ -891,10 +933,10 @@ func _main() error {
 	// Routes that require auth
 	p.addRoute(http.MethodPost, v1.InventoryRoute, p.inventory,
 		permissionAuth)
-	p.addRoute(http.MethodPost, v1.SetUnvettedStatusRoute, p.setUnvettedStatus,
-		permissionAuth)
-	p.addRoute(http.MethodPost, v1.UpdateVettedMetadataRoute, p.updateVettedMetadata,
-		permissionAuth)
+	p.addRoute(http.MethodPost, v1.SetUnvettedStatusRoute,
+		p.setUnvettedStatus, permissionAuth)
+	p.addRoute(http.MethodPost, v1.UpdateVettedMetadataRoute,
+		p.updateVettedMetadata, permissionAuth)
 
 	// Setup plugins
 	plugins, err := p.backend.GetPlugins()

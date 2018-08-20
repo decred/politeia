@@ -6,6 +6,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -15,11 +16,13 @@ import (
 
 // gitError contains all the components of a git invocation.
 type gitError struct {
-	cmd    []string
-	env    []string
-	err    error
-	stdout []string
-	stderr []string
+	cmd       []string
+	env       []string
+	err       error
+	errStdout error
+	errStderr error
+	stdout    []string
+	stderr    []string
 }
 
 // Error satisfies the error interface.
@@ -33,8 +36,10 @@ func (e gitError) log() {
 	for _, v := range e.cmd {
 		cmd += v + " "
 	}
-	log.Infof("Git command: %v", cmd)
-	log.Infof("Git result : %v", e.err)
+	log.Infof("Git command     : %v", cmd)
+	log.Infof("Git returned    : %v", e.err)
+	log.Infof("Git stdout error: %v", e.errStdout)
+	log.Infof("Git stderr error: %v", e.errStderr)
 	s := "Git stdout :"
 	for _, v := range e.stdout {
 		log.Infof("%v %v", s, v)
@@ -45,6 +50,15 @@ func (e gitError) log() {
 		log.Infof("%v %v", s, v)
 		s = ""
 	}
+}
+
+func outputReader(r io.Reader) ([]string, error) {
+	rv := make([]string, 0, 128)
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		rv = append(rv, scanner.Text())
+	}
+	return rv, scanner.Err()
 }
 
 // git excutes the git command using the provided arguments.  If the path
@@ -63,46 +77,36 @@ func (g *gitBackEnd) git(path string, args ...string) ([]string, error) {
 
 	ge.cmd = append(ge.cmd, g.gitPath)
 	ge.cmd = append(ge.cmd, args...)
+
 	if g.gitTrace {
 		defer func() { ge.log() }()
 	}
 
+	// Execute git command
+	var stdout, stderr bytes.Buffer
 	cmd := exec.Command(g.gitPath, args...)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
 
 	// Determine if we need to set GIT_DIR
 	if path != "" {
 		cmd.Dir = path
 	}
 
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	doneError := cmd.Run()
 
-	// Actually launch git
-	err := cmd.Start()
+	// Prepare output
+	var err error
+	ge.stdout, err = outputReader(bytes.NewReader(stdout.Bytes()))
 	if err != nil {
-		ge.err = fmt.Errorf("cmd.Start: %v", err)
-		return nil, ge
+		log.Errorf("git stdout scanner error: %v", err)
 	}
-
-	// Finish up cmd.
-	err = cmd.Wait()
+	ge.stderr, err = outputReader(bytes.NewReader(stderr.Bytes()))
 	if err != nil {
-		ge.err = fmt.Errorf("cmd.Wait: %v", err)
-		return nil, ge
+		log.Errorf("git stderr scanner error: %v", err)
 	}
 
-	scanner := bufio.NewScanner(bytes.NewReader(stdout.Bytes()))
-	for scanner.Scan() {
-		ge.stdout = append(ge.stdout, scanner.Text())
-	}
-
-	scanner = bufio.NewScanner(bytes.NewReader(stderr.Bytes()))
-	for scanner.Scan() {
-		ge.stderr = append(ge.stderr, scanner.Text())
-	}
-
-	return ge.stdout, nil
+	return ge.stdout, doneError
 }
 
 // gitVersion returns the version of git.
@@ -120,9 +124,10 @@ func (g *gitBackEnd) gitVersion() (string, error) {
 }
 
 func (g *gitBackEnd) gitHasChanges(path string) (rv bool) {
-	if _, err := g.git(path, "diff", "--exit-code"); err != nil {
+	if _, err := g.git(path, "diff", "--quiet"); err != nil {
 		rv = true
-	} else if _, err := g.git(path, "diff", "--cached", "--exit-code"); err != nil {
+	} else if _, err := g.git(path, "diff", "--cached",
+		"--quiet"); err != nil {
 		rv = true
 	}
 	return rv
@@ -142,8 +147,13 @@ func (g *gitBackEnd) gitStashDrop(path string) error {
 	return err
 }
 
-func (g *gitBackEnd) gitRm(path, filename string) error {
-	_, err := g.git(path, "rm", filename)
+func (g *gitBackEnd) gitRm(path, filename string, force bool) error {
+	var err error
+	if force {
+		_, err = g.git(path, "rm", "-f", filename)
+	} else {
+		_, err = g.git(path, "rm", filename)
+	}
 	return err
 }
 
@@ -171,6 +181,7 @@ func (g *gitBackEnd) gitClean(path string) error {
 	_, err := g.git(path, "clean", "-xdf")
 	return err
 }
+
 func (g *gitBackEnd) gitBranches(path string) ([]string, error) {
 	branches, err := g.git(path, "branch")
 	if err != nil {
@@ -231,6 +242,26 @@ func (g *gitBackEnd) gitPush(path, remote, branch string, upstream bool) error {
 	}
 
 	return nil
+}
+
+func (g *gitBackEnd) gitUnwind(path string) error {
+	_, err := g.git(path, "checkout", "-f")
+	if err != nil {
+		return err
+	}
+	return g.gitClean(path)
+}
+
+func (g *gitBackEnd) gitUnwindBranch(path, branch string) error {
+	err := g.gitUnwind(path)
+	if err != nil {
+		return err
+	}
+	err = g.gitCheckout(path, "master")
+	if err != nil {
+		return err
+	}
+	return g.gitBranchDelete(path, branch)
 }
 
 func (g *gitBackEnd) gitNewBranch(path, branch string) error {

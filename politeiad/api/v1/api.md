@@ -16,6 +16,7 @@ censorship mechanism.
 - [`Get vetted record`](#get-vetted-record)
 - [`Set unvetted status`](#set-unvetted-status)
 - [`Update unvetted record`](#update-unvetted-record)
+- [`Update vetted record`](#update-vetted-record)
 - [`Update vetted metadata`](#update-vetted-metadata)
 - [`Inventory`](#inventory)
 
@@ -368,14 +369,14 @@ Reply:
 
 ### `Update unvetted record`
 
-Update a record.  This call enables a user to update a record by
+Update a unvetted record. This call enables a user to update a record by
 adding/overwriting files, deleting files and append/overwrite metadata
 records.  All changes will be recorded as changesets in the backend.
 
-The returned censorship record will contain the newly calculated merkle root of
-the entire record.  It is the responsibility of the caller to keep track of
-files that have been added or removed if they wish to independently verify the
-record.
+The returned censorship record will contain the newly calculated merkle root
+of the entire record. It is the responsibility of the caller to keep track of
+files that have been added or removed if they wish to independently verify 
+the record.
 
 Note that metadata streams are NOT part of the official record.  They exist for
 the caller to be able to associate pertinent data to the record.  For example,
@@ -399,7 +400,7 @@ they can be used to store JSON encoded comments in a proposal system.
 | | Type | Description |
 |-|-|-|
 | response | string | hex encoded signature of challenge byte array. |
-| censorshiprecord | [CensorshipRecord](#censorship-record) | A censorship record that provides the submitter with a method to extract the record and prove that he/she submitted it. |
+| record | [Record](#record) | Record, including metadata. |
 
 **Example**
 
@@ -437,12 +438,138 @@ Reply:
 
 ```json
 {
-  "response":"ee90b6bc26a899916d80dacef0bef1ba8238b94d9a00edbc04c69372c21faa96abbe3f6f91ece0879ca4616e713951380cdb7762e23c477708f4aba35c366b0c",
-  "censorshiprecord":
+  "response":"f782a969a49cd5e779a748b8c3aa1be758d19f4af0631519e0a74d8cd26787a8d74ad359e738623985e16f64d2c1d5871273c85627519295afc4058703bd6508",
+  "record":
   {
-    "token":"793766f3be00e093318b8f13e6e0e200be209d56b53263ce61c5f9fbb2309321",
-    "merkle":"12a31b5e662dfa0a572e9fc523eb703f9708de5e2d53aba74f8ebcebbdb706f7",
-    "signature":"1d00f3aba3e73d635a4c1f25525681840c46a63addfa2a9dd6a8372143b4fe270e03bda3c1583a4f41f29176c4eb963f98457f35f4d392581a4c4fc635cf7802"
+    "status":5,
+    "timestamp":1513013590,
+    "version": 1,
+    "censorshiprecord":
+    {
+      "token":"793766f3be00e093318b8f13e6e0e200be209d56b53263ce61c5f9fbb2309321",
+      "merkle":"77ba3195336398cd9faa7bc8cefe2bbfbb2b4979fef92a400ce6e91e29ef22d2",
+      "signature":"c94cd71ba065381ad1832d59b5b3d525213012e3a8ed29e8f15646ecaad1ce0109f88cdb343dde516d80c6b32ae69794d897ce6964a719347d61443483b35103"
+    },
+    "metadata":
+    [
+      {
+        "id":2,
+        "payload":"{\"foo\":\"bar\"}"},
+        {"id":12,"payload":"{\"moo\":\"lala\"}"
+      }
+    ],
+    "files":
+    [
+      {
+        "name":"b",
+        "mime":"text/plain; charset=utf-8",
+        "digest":"12a31b5e662dfa0a572e9fc523eb703f9708de5e2d53aba74f8ebcebbdb706f7",
+        "payload":"aWJsZWgK"
+      }
+    ]
+  }
+}
+```
+
+### `Update vetted record`
+
+Update a vetted record. This call enables a user to update a record by
+adding/overwriting files, deleting files and append/overwrite metadata
+records. All changes will be recorded as changesets in the backend.
+
+A new version of the record will be generated and returned. The returned 
+censorship record will contain the newly calculated merkle root of the 
+entire record.
+
+Note that metadata streams are NOT part of the official record.  They exist for
+the caller to be able to associate pertinent data to the record.  For example,
+they can be used to store JSON encoded comments in a proposal system.
+
+**Route**: `POST /v1/updatevetted`
+
+**Params**:
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| challenge | string | 32 byte hex encoded array. | Yes |
+| token | string | 32 byte record identifier. |
+| mdappend | array of [`MetadataStream`](#metadatastream) | Append payload to metadata stream(s). | No |
+| mdoverwrite | array of [`MetadataStream`](#metadatastream) | Overwrite payload to metadata stream(s). | No |
+| filesdel | array of string | Filesnames to remove from record. | No |
+| filesadd | array of [`File`](#file) | Files to add/overwrite in record. | No |
+
+**Results**:
+
+| | Type | Description |
+|-|-|-|
+| response | string | hex encoded signature of challenge byte array. |
+| record | [Record](#record) | Record, including metadata. |
+
+**Example**
+
+Request:
+
+```json
+{
+  "challenge":"3d41f60ffd17176e7b456e67a2fb712d3ff7a719edb45db11c87b124b9d9afc1",
+  "token":"793766f3be00e093318b8f13e6e0e200be209d56b53263ce61c5f9fbb2309321",
+  "mdappend":
+  [
+    {
+      "id":12,
+      "payload":"{\"foo\":\"bar\"}"
+    }
+  ],
+  "mdoverwrite":null,
+  "filesdel":
+  [
+    "a"
+  ],
+  "filesadd":
+  [
+    {
+    "name":"b",
+    "mime":"text/plain; charset=utf-8",
+    "digest":"12a31b5e662dfa0a572e9fc523eb703f9708de5e2d53aba74f8ebcebbdb706f7",
+    "payload":"aWJsZWgK"
+    }
+  ]
+}
+```
+
+Reply:
+
+```json
+{
+  "response":"f782a969a49cd5e779a748b8c3aa1be758d19f4af0631519e0a74d8cd26787a8d74ad359e738623985e16f64d2c1d5871273c85627519295afc4058703bd6508",
+  "record":
+  {
+    "status":4,
+    "timestamp":1513013590,
+    "version": 2,
+    "censorshiprecord":
+    {
+      "token":"793766f3be00e093318b8f13e6e0e200be209d56b53263ce61c5f9fbb2309321",
+      "merkle":"77ba3195336398cd9faa7bc8cefe2bbfbb2b4979fef92a400ce6e91e29ef22d2",
+      "signature":"c94cd71ba065381ad1832d59b5b3d525213012e3a8ed29e8f15646ecaad1ce0109f88cdb343dde516d80c6b32ae69794d897ce6964a719347d61443483b35103"
+    },
+    "metadata":
+    [
+      {
+        "id":2,
+        "payload":"{\"foo\":\"bar\"}"},
+        {"id":12,"payload":"{\"moo\":\"lala\"}"
+      }
+    ],
+    "files":
+    [
+      {
+        "name":"b",
+        "mime":"text/plain; charset=utf-8",
+        "digest":"12a31b5e662dfa0a572e9fc523eb703f9708de5e2d53aba74f8ebcebbdb706f7",
+        "payload":"aWJsZWgK"
+      }
+    ]
   }
 }
 ```
@@ -597,5 +724,6 @@ Reply:
 | status | [`Record status`](#record-status) | Current status. |
 | timestamp | int64 | Last update. |
 | censorshiprecord | [`Censorship record`](#censorship-record) | Censorship record. |
+| version | string | Version of this record |
 | metadata | [`Metadata stream`](#metadata-stream) | Metadata streams. |
 | files | [`Files`](#files) | Files. |

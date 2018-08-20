@@ -46,6 +46,9 @@ const (
 	journalActionAddLike = "addlike" // Add comment like
 
 	flushRecordVersion = "1" // Version 1 of the flush journal
+
+	// Following are what should be well-known interface hooks
+	PluginPostHookEdit = "postedit" // Hook Post Edit
 )
 
 // FlushRecord is a structure that is stored on disk when a journal has been
@@ -93,7 +96,8 @@ func decodeCastVoteJournal(payload []byte) (*CastVoteJournal, error) {
 }
 
 var (
-	decredPluginSettings map[string]string // [key]setting
+	decredPluginSettings map[string]string             // [key]setting
+	decredPluginHooks    map[string]func(string) error // [key]func(token) error
 
 	// cached values, requires lock
 	// XXX why is this a pointer? Convert if possible after investigating
@@ -166,6 +170,9 @@ func getDecredPlugin(testnet bool) backend.Plugin {
 			})
 	}
 
+	// Initialize hooks
+	decredPluginHooks = make(map[string]func(string) error)
+
 	// Initialize settings map
 	decredPluginSettings = make(map[string]string)
 	for _, v := range decredPlugin.Settings {
@@ -181,7 +188,7 @@ func (g *gitBackEnd) initDecredPluginJournals() error {
 
 	// check if backend journal is intialized
 	if g.journal == nil {
-		return fmt.Errorf("initDecredPlugin backend journal ins't initialized")
+		return fmt.Errorf("initDecredPlugin backend journal isn't initialized")
 	}
 
 	err := g.replayAllJournals()
@@ -226,19 +233,23 @@ func setDecredPluginSetting(key, value string) {
 	decredPluginSettings[key] = value
 }
 
+func setDecredPluginHook(name string, f func(string) error) {
+	decredPluginHooks[name] = f
+}
+
 func (g *gitBackEnd) propExists(repo, token string) bool {
-	_, err := os.Stat(filepath.Join(repo, token))
+	_, err := os.Stat(pijoin(repo, token))
 	return err == nil
 }
 
 func (g *gitBackEnd) getNewCid(token string) (string, error) {
-	dir := filepath.Join(g.journals, token)
+	dir := pijoin(g.journals, token)
 	err := os.MkdirAll(dir, 0774)
 	if err != nil {
 		return "", err
 	}
 
-	filename := filepath.Join(dir, defaultCommentIDFilename)
+	filename := pijoin(dir, defaultCommentIDFilename)
 
 	g.Lock()
 	defer g.Unlock()
@@ -497,6 +508,25 @@ func (g *gitBackEnd) pluginBestBlock() (string, error) {
 	return strconv.FormatUint(uint64(bb.Height), 10), nil
 }
 
+// decredPluginPostEdit called after and edit is complete but before commit.
+func (g *gitBackEnd) decredPluginPostEdit(token string) error {
+	log.Tracef("decredPluginPostEdit: %v", token)
+
+	destination, err := g.flushComments(token)
+	if err != nil {
+		return err
+	}
+
+	// When destination is empty there was nothing to do
+	if destination == "" {
+		log.Tracef("decredPluginPostEdit: nothing to do %v", token)
+		return nil
+	}
+
+	// Add comments to git
+	return g.gitAdd(g.unvetted, destination)
+}
+
 // createFlushFile creates a file that indicates that the a journal was flused.
 //
 // Must be called WITH the mutex held.
@@ -554,27 +584,53 @@ func (g *gitBackEnd) flushComments(token string) (string, error) {
 	}
 
 	// Setup source filenames and verify they actually exist
-	srcDir := filepath.Join(g.journals, token)
-	srcComments := filepath.Join(srcDir, defaultCommentFilename)
+	srcDir := pijoin(g.journals, token)
+	srcComments := pijoin(srcDir, defaultCommentFilename)
 	if !util.FileExists(srcComments) {
 		return "", nil
 	}
 
 	// Setup destination filenames
-	dir := filepath.Join(g.unvetted, token, pluginDataDir)
-	comments := filepath.Join(dir, defaultCommentFilename)
+	version, err := getLatest(pijoin(g.unvetted, token))
+	if err != nil {
+		return "", err
+	}
+	dir := pijoin(g.unvetted, token, version, pluginDataDir)
+	comments := pijoin(dir, defaultCommentFilename)
 
 	// Create the destination container dir
 	_ = os.MkdirAll(dir, 0764)
 
 	// Move journal and comment id into place
-	err := g.journal.Copy(srcComments, comments)
+	err = g.journal.Copy(srcComments, comments)
 	if err != nil {
 		return "", err
 	}
 
 	// Return filename that is relative to git dir.
-	return filepath.Join(token, pluginDataDir, defaultCommentFilename), nil
+	return pijoin(token, version, pluginDataDir, defaultCommentFilename),
+		nil
+}
+
+// flushCommentJournal flushes an individual comment journal.
+//
+// Must be called WITH the mutex held.
+func (g *gitBackEnd) flushCommentJournal(token string) (string, error) {
+	// We simply copy the journal into git
+	destination, err := g.flushComments(token)
+	if err != nil {
+		return "", fmt.Errorf("Could not flush %v: %v", token, err)
+	}
+
+	// Create flush record
+	filename := pijoin(g.journals, token, defaultCommentsFlushed)
+	err = createFlushFile(filename)
+	if err != nil {
+		return "", fmt.Errorf("Could not mark flushed %v: %v", token,
+			err)
+	}
+
+	return destination, nil
 }
 
 // _flushCommentJournals walks all comment journal directories and copies
@@ -591,7 +647,7 @@ func (g *gitBackEnd) _flushCommentJournals() ([]string, error) {
 
 	files := make([]string, 0, len(dirs))
 	for _, v := range dirs {
-		filename := filepath.Join(g.journals, v.Name(),
+		filename := pijoin(g.journals, v.Name(),
 			defaultCommentsFlushed)
 		log.Tracef("Checking: %v", v.Name())
 		if util.FileExists(filename) {
@@ -600,22 +656,13 @@ func (g *gitBackEnd) _flushCommentJournals() ([]string, error) {
 
 		log.Infof("Flushing comments: %v", v.Name())
 
-		// We simply copy the journal into git
-		destination, err := g.flushComments(v.Name())
-		if err != nil {
-			log.Errorf("Could not flush %v: %v", v.Name(), err)
-			continue
-		}
-
-		// Create flush record
-		err = createFlushFile(filename)
-		if err != nil {
-			log.Errorf("Could not mark flushed %v: %v", v.Name(),
-				err)
-			continue
-		}
-
 		// Add filename to work
+		destination, err := g.flushCommentJournal(v.Name())
+		if err != nil {
+			log.Error(err)
+			continue
+		}
+
 		files = append(files, destination)
 	}
 
@@ -647,6 +694,7 @@ func (g *gitBackEnd) flushCommentJournals() error {
 
 	// git checkout -b timestamp_flushcomments
 	branch := strconv.FormatInt(time.Now().Unix(), 10) + "_flushcomments"
+	_ = g.gitBranchDelete(g.unvetted, branch) // Just in case
 	err = g.gitNewBranch(g.unvetted, branch)
 	if err != nil {
 		return err
@@ -724,27 +772,31 @@ func (g *gitBackEnd) flushVotes(token string) (string, error) {
 	}
 
 	// Setup source filenames and verify they actually exist
-	srcDir := filepath.Join(g.journals, token)
-	srcVotes := filepath.Join(srcDir, defaultBallotFilename)
+	srcDir := pijoin(g.journals, token)
+	srcVotes := pijoin(srcDir, defaultBallotFilename)
 	if !util.FileExists(srcVotes) {
 		return "", nil
 	}
 
 	// Setup destination filenames
-	dir := filepath.Join(g.unvetted, token, pluginDataDir)
-	votes := filepath.Join(dir, defaultBallotFilename)
+	version, err := getLatest(pijoin(g.unvetted, token))
+	if err != nil {
+		return "", err
+	}
+	dir := pijoin(g.unvetted, token, version, pluginDataDir)
+	votes := pijoin(dir, defaultBallotFilename)
 
 	// Create the destination container dir
 	_ = os.MkdirAll(dir, 0764)
 
 	// Move journal into place
-	err := g.journal.Copy(srcVotes, votes)
+	err = g.journal.Copy(srcVotes, votes)
 	if err != nil {
 		return "", err
 	}
 
 	// Return filename that is relative to git dir.
-	return filepath.Join(token, pluginDataDir, defaultBallotFilename), nil
+	return pijoin(token, version, pluginDataDir, defaultBallotFilename), nil
 }
 
 // _flushVotesJournals walks all votes journal directories and copies
@@ -761,7 +813,7 @@ func (g *gitBackEnd) _flushVotesJournals() ([]string, error) {
 
 	files := make([]string, 0, len(dirs))
 	for _, v := range dirs {
-		filename := filepath.Join(g.journals, v.Name(),
+		filename := pijoin(g.journals, v.Name(),
 			defaultBallotFlushed)
 		log.Tracef("Checking: %v", v.Name())
 		if util.FileExists(filename) {
@@ -817,6 +869,7 @@ func (g *gitBackEnd) flushVoteJournals() error {
 
 	// git checkout -b timestamp_flushvotes
 	branch := strconv.FormatInt(time.Now().Unix(), 10) + "_flushvotes"
+	_ = g.gitBranchDelete(g.unvetted, branch) // Just in case
 	err = g.gitNewBranch(g.unvetted, branch)
 	if err != nil {
 		return err
@@ -918,7 +971,7 @@ func (g *gitBackEnd) pluginNewComment(payload string) (string, error) {
 	}
 
 	// Do some cheap things before expensive calls
-	cfilename := filepath.Join(g.journals, comment.Token,
+	cfilename := pijoin(g.journals, comment.Token,
 		defaultCommentFilename)
 	if comment.ParentID == "" {
 		// Empty ParentID means comment 0
@@ -960,7 +1013,7 @@ func (g *gitBackEnd) pluginNewComment(payload string) (string, error) {
 	}
 
 	// Mark comment journal dirty
-	flushFilename := filepath.Join(g.journals, comment.Token,
+	flushFilename := pijoin(g.journals, comment.Token,
 		defaultCommentsFlushed)
 	_ = os.Remove(flushFilename)
 
@@ -1049,7 +1102,7 @@ func (g *gitBackEnd) pluginLikeComment(payload string) (string, error) {
 	receipt := hex.EncodeToString(r[:])
 
 	// Mark comment journal dirty
-	flushFilename := filepath.Join(g.journals, like.Token,
+	flushFilename := pijoin(g.journals, like.Token,
 		defaultCommentsFlushed)
 	_ = os.Remove(flushFilename)
 
@@ -1106,7 +1159,7 @@ func (g *gitBackEnd) pluginLikeComment(payload string) (string, error) {
 	}
 
 	// Add comment to journal
-	cfilename := filepath.Join(g.journals, like.Token,
+	cfilename := pijoin(g.journals, like.Token,
 		defaultCommentFilename)
 	err = g.journal.Journal(cfilename, string(journalAddLike)+
 		string(blob))
@@ -1202,7 +1255,7 @@ func (g *gitBackEnd) replayComments(token string) (map[string]decredplugin.Comme
 	}
 
 	// Do some cheap things before expensive calls
-	cfilename := filepath.Join(g.journals, token,
+	cfilename := pijoin(g.journals, token,
 		defaultCommentFilename)
 
 	// Replay journal
@@ -1397,10 +1450,12 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 	}
 
 	// Verify proposal is in the right state
-	_, err1 := os.Stat(filepath.Join(g.vetted, token, fmt.Sprintf("%02v%v",
-		decredplugin.MDStreamVoteBits, defaultMDFilenameSuffix)))
-	_, err2 := os.Stat(filepath.Join(g.vetted, token, fmt.Sprintf("%02v%v",
-		decredplugin.MDStreamVoteSnapshot, defaultMDFilenameSuffix)))
+	_, err1 := os.Stat(pijoin(joinLatest(g.vetted, token),
+		fmt.Sprintf("%02v%v", decredplugin.MDStreamVoteBits,
+			defaultMDFilenameSuffix)))
+	_, err2 := os.Stat(pijoin(joinLatest(g.vetted, token),
+		fmt.Sprintf("%02v%v", decredplugin.MDStreamVoteSnapshot,
+			defaultMDFilenameSuffix)))
 	if err1 != nil && err2 != nil {
 		// Vote has not started, continue
 	} else if err1 == nil && err2 == nil {
@@ -1610,7 +1665,7 @@ func (g *gitBackEnd) replayBallot(token string) error {
 	}
 
 	// Do some cheap things before expensive calls
-	bfilename := filepath.Join(g.journals, token,
+	bfilename := pijoin(g.journals, token,
 		defaultBallotFilename)
 
 	// Replay journal
@@ -1792,8 +1847,8 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 		}
 		br.Receipts[k].ClientSignature = v.Signature
 
-		dir := filepath.Join(g.journals, v.Token)
-		bfilename := filepath.Join(dir, defaultBallotFilename)
+		dir := pijoin(g.journals, v.Token)
+		bfilename := pijoin(dir, defaultBallotFilename)
 		err = os.MkdirAll(dir, 0774)
 		if err != nil {
 			// Should not fail, so return failure to alert people
@@ -1834,7 +1889,7 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 		g.Unlock()
 
 		// Mark comment journal dirty
-		flushFilename := filepath.Join(g.journals, v.Token,
+		flushFilename := pijoin(g.journals, v.Token,
 			defaultBallotFlushed)
 		_ = os.Remove(flushFilename)
 	}
@@ -1851,7 +1906,7 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 
 func (g *gitBackEnd) tallyVotes(token string) ([]decredplugin.CastVote, error) {
 	// Do some cheap things before expensive calls
-	bfilename := filepath.Join(g.journals, token, defaultBallotFilename)
+	bfilename := pijoin(g.journals, token, defaultBallotFilename)
 
 	// Replay journal
 	err := g.journal.Open(bfilename)

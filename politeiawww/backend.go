@@ -604,7 +604,6 @@ func (b *backend) remoteInventory() (*pd.InventoryReply, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return &ir, nil
 }
 
@@ -1610,8 +1609,9 @@ func (b *backend) ProcessAllUnvetted(u www.GetAllUnvetted) *www.GetAllUnvettedRe
 			After:  u.After,
 			Before: u.Before,
 			StatusMap: map[www.PropStatusT]bool{
-				www.PropStatusNotReviewed: true,
-				www.PropStatusCensored:    true,
+				www.PropStatusNotReviewed:       true,
+				www.PropStatusCensored:          true,
+				www.PropStatusUnreviewedChanges: true,
 			},
 		}),
 	}
@@ -1690,6 +1690,7 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 			CensorshipRecord: pdReply.CensorshipRecord,
 			Metadata:         n.Metadata,
 			Files:            n.Files,
+			Version:          "1",
 		})
 		b.Unlock()
 		if err != nil {
@@ -1721,12 +1722,13 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 
 		// Add the new proposal to the inventory cache.
 		b.Lock()
-		err = b.newInventoryRecord(pd.Record{
+		b.newInventoryRecord(pd.Record{
 			Status:           pd.RecordStatusNotReviewed,
 			Timestamp:        ts,
 			CensorshipRecord: pdReply.CensorshipRecord,
 			Metadata:         n.Metadata,
 			Files:            n.Files,
+			Version:          "1",
 		})
 		b.Unlock()
 		if err != nil {
@@ -1832,8 +1834,19 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 			return nil, err
 		}
 
+		// get record files from the inventory and update the response
+		invRecord, ok := b.inventory[sps.Token]
+		if !ok {
+			log.Infof("ProcessSetProposalStatus: Inventory record not founded %v", sps.Token)
+		} else {
+			pdReply.Record.Files = invRecord.record.Files
+		}
+
 		// Update the inventory with the metadata changes.
-		b.updateInventoryRecord(pdReply.Record)
+		err = b.updateInventoryRecord(pdReply.Record)
+		if err != nil {
+			return nil, fmt.Errorf("ProcessSetProposalStatus: updateInventoryRecord %v", err)
+		}
 
 		// Log the action in the admin log.
 		b.logAdminProposalAction(user, sps.Token,
@@ -1893,7 +1906,17 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 	// non-admins; only the proposal meta data (status, censorship data, etc)
 	// should be publicly viewable.
 	isUserAdmin := user != nil && user.Admin
-	if !isVettedProposal && !isUserAdmin {
+
+	var authorID uint64
+	if user != nil {
+		authorID, err = strconv.ParseUint(cachedProposal.UserId, 10, 64)
+		if err != nil {
+			log.Infof("should not happend")
+		}
+	}
+	isUserTheAuthor := authorID == user.ID
+
+	if !isVettedProposal && !isUserAdmin && !isUserTheAuthor {
 		reply.Proposal = www.ProposalRecord{
 			Status:           cachedProposal.Status,
 			Timestamp:        cachedProposal.Timestamp,
@@ -1903,17 +1926,6 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 			NumComments:      cachedProposal.NumComments,
 			UserId:           cachedProposal.UserId,
 			Username:         b.getUsernameById(cachedProposal.UserId),
-		}
-
-		if user != nil {
-			authorId, err := strconv.ParseUint(cachedProposal.UserId, 10, 64)
-			if err != nil {
-				return nil, err
-			}
-
-			if user.ID == authorId {
-				reply.Proposal.Name = cachedProposal.Name
-			}
 		}
 		return &reply, nil
 	}
@@ -1966,6 +1978,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 		comments: p.comments,
 	}, b.userPubkeys)
 	reply.Proposal.Username = b.getUsernameById(reply.Proposal.UserId)
+
 	return &reply, nil
 }
 
@@ -2198,9 +2211,10 @@ func (b *backend) ProcessUserProposals(up *www.UserProposals, isCurrentUser, isA
 			Before: up.Before,
 			UserId: up.UserId,
 			StatusMap: map[www.PropStatusT]bool{
-				www.PropStatusNotReviewed: isCurrentUser || isAdminUser,
-				www.PropStatusCensored:    isCurrentUser || isAdminUser,
-				www.PropStatusPublic:      true,
+				www.PropStatusNotReviewed:       isCurrentUser || isAdminUser,
+				www.PropStatusCensored:          isCurrentUser || isAdminUser,
+				www.PropStatusUnreviewedChanges: isCurrentUser || isAdminUser,
+				www.PropStatusPublic:            true,
 			},
 		}),
 	}, nil
@@ -2577,6 +2591,155 @@ func (b *backend) ProcessUserCommentsVotes(user *database.User, token string) (*
 	}
 
 	return &ucvr, nil
+}
+
+// ProcessEditProposal attempts to edit a proposal on politeiad
+func (b *backend) ProcessEditProposal(user *database.User, ep www.EditProposal) (*www.EditProposalReply, error) {
+	log.Tracef("ProcessEditProposal %v", ep.Token)
+
+	// get current proposal record from inventory
+	b.RLock()
+	invRecord, ok := b.inventory[ep.Token]
+	if !ok {
+		b.RUnlock()
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusProposalNotFound,
+		}
+	}
+	b.RUnlock()
+	cachedProposal := convertPropFromInventoryRecord(invRecord, b.userPubkeys)
+
+	// verify if the user is the proposal owner
+	b.RLock()
+	authorIDStr, ok := b.userPubkeys[cachedProposal.PublicKey]
+	b.RUnlock()
+
+	if !ok {
+		return nil, fmt.Errorf("ProcessEditProposal: public key not found %v",
+			cachedProposal.PublicKey)
+	}
+
+	authorID, err := strconv.ParseUint(authorIDStr, 10, 64)
+	if err != nil {
+		return nil, err
+	}
+	if authorID != user.ID {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserActionNotAllowed,
+		}
+	}
+
+	// verify that the proposal voting has not started
+	bb, err := b.getBestBlock()
+	if err != nil {
+		return nil, err
+	}
+	if getVoteStatus(invRecord, bb) != www.PropVoteStatusNotStarted {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusCannotEditPropOnVoting,
+		}
+	}
+
+	// validate proposal
+	//
+	// convert it to www.NewProposal so the we can reuse
+	// the function backend/validateProposal
+	np := www.NewProposal{
+		Files:     ep.Files,
+		PublicKey: ep.PublicKey,
+		Signature: ep.Signature,
+	}
+	err = b.validateProposal(np, user)
+	if err != nil {
+		return nil, err
+	}
+
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	name, err := getProposalName(ep.Files)
+	if err != nil {
+		return nil, err
+	}
+
+	// Assemble metdata record
+	ts := time.Now().Unix()
+	backendMetadata := BackendProposalMetadata{
+		Version:   BackendProposalMetadataVersion,
+		Timestamp: ts,
+		Name:      name,
+		PublicKey: ep.PublicKey,
+		Signature: ep.Signature,
+	}
+	md, err := encodeBackendProposalMetadata(backendMetadata)
+	if err != nil {
+		return nil, err
+	}
+
+	mds := []pd.MetadataStream{{
+		ID:      mdStreamGeneral,
+		Payload: string(md),
+	}}
+
+	var delFiles []string
+	for _, v := range invRecord.record.Files {
+		found := false
+		for _, c := range ep.Files {
+			if v.Name == c.Name {
+				found = true
+			}
+		}
+		if !found {
+			delFiles = append(delFiles, v.Name)
+		}
+	}
+
+	e := pd.UpdateRecord{
+		Token:       ep.Token,
+		Challenge:   hex.EncodeToString(challenge),
+		MDOverwrite: mds,
+		FilesAdd:    convertPropFilesFromWWW(ep.Files),
+		FilesDel:    delFiles,
+	}
+
+	var pdRoute string
+
+	if cachedProposal.Status == www.PropStatusNotReviewed ||
+		cachedProposal.Status == www.PropStatusUnreviewedChanges {
+		pdRoute = pd.UpdateUnvettedRoute
+	} else if cachedProposal.Status == www.PropStatusPublic {
+		pdRoute = pd.UpdateVettedRoute
+	} else {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusWrongStatus,
+		}
+	}
+
+	responseBody, err := b.makeRequest(http.MethodPost,
+		pdRoute, e)
+	if err != nil {
+		return nil, err
+	}
+
+	var pdReply pd.UpdateRecordReply
+	err = json.Unmarshal(responseBody, &pdReply)
+	if err != nil {
+		return nil, fmt.Errorf("Unmarshal UpdateUnvettedReply: %v",
+			err)
+	}
+
+	b.Lock()
+	defer b.Unlock()
+	err = b.updateInventoryRecord(pdReply.Record)
+	if err != nil {
+		return nil, fmt.Errorf("ProcessEditProposal: updateInventoryRecord %v", err)
+	}
+
+	return &www.EditProposalReply{
+		Proposal: convertPropFromPD(pdReply.Record),
+	}, nil
 }
 
 // ProcessPolicy returns the details of Politeia's restrictions on file uploads.

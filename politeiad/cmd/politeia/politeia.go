@@ -75,9 +75,14 @@ func usage() {
 		"<id>\n")
 	fmt.Fprintf(os.Stderr, "  setunvettedstatus - Set unvetted record "+
 		"status <publish|censor> <id> [actionmdid:metadata]...\n")
-	fmt.Fprintf(os.Stderr, "  update            - Update unvetted record "+
+	fmt.Fprintf(os.Stderr, "  updateunvetted    - Update unvetted record "+
 		"[actionmdid:metadata]... <actionfile:filename>... "+
 		"token:<token>\n")
+	fmt.Fprintf(os.Stderr, "  updatevetted      - Update vetted record "+
+		"[actionmdid:metadata]... <actionfile:filename>... "+
+		"token:<token>\n")
+	fmt.Fprintf(os.Stderr, "  updatevettedmd    - Update vetted record "+
+		"metadata [actionmdid:metadata]... token:<token>\n")
 	fmt.Fprintf(os.Stderr, "\n")
 	fmt.Fprintf(os.Stderr, " metadata<id> is the word metadata followed "+
 		"by digits. Example with 2 metadata records "+
@@ -179,7 +184,7 @@ func printCensorshipRecord(c v1.CensorshipRecord) {
 	fmt.Printf("    Signature: %v\n", c.Signature)
 }
 
-func printRecordRecord(header string, pr v1.Record) {
+func printRecord(header string, pr v1.Record) {
 	// Pretty print record
 	status, ok := v1.RecordStatus[pr.Status]
 	if !ok {
@@ -190,6 +195,7 @@ func printRecordRecord(header string, pr v1.Record) {
 	fmt.Printf("  Timestamp  : %v\n", time.Unix(pr.Timestamp, 0).UTC())
 	printCensorshipRecord(pr.CensorshipRecord)
 	fmt.Printf("  Metadata   : %v\n", pr.Metadata)
+	fmt.Printf("  Version    : %v\n", pr.Version)
 	for k, v := range pr.Files {
 		fmt.Printf("  File (%02v)  :\n", k)
 		fmt.Printf("    Name     : %v\n", v.Name)
@@ -424,10 +430,10 @@ func inventory() error {
 
 	if !*printJson {
 		for _, v := range i.Vetted {
-			printRecordRecord("Vetted record", v)
+			printRecord("Vetted record", v)
 		}
 		for _, v := range i.Branches {
-			printRecordRecord("Unvetted record", v)
+			printRecord("Unvetted record", v)
 		}
 	}
 
@@ -592,7 +598,7 @@ func newRecord() error {
 	return nil
 }
 
-func updateRecord() error {
+func updateVettedMetadata() error {
 	flags := flag.Args()[1:] // Chop off action.
 
 	// Create New command
@@ -600,7 +606,136 @@ func updateRecord() error {
 	if err != nil {
 		return err
 	}
-	n := v1.UpdateUnvetted{
+	n := v1.UpdateVettedMetadata{
+		Challenge: hex.EncodeToString(challenge),
+	}
+
+	// Fish out metadata records and filenames
+	var tokenCount uint
+	for _, v := range flags {
+		switch {
+		case regexAppendMD.MatchString(v):
+			s := regexAppendMD.FindString(v)
+			i, err := strconv.ParseUint(regexMDID.FindString(s),
+				10, 64)
+			if err != nil {
+				return err
+			}
+			n.MDAppend = append(n.MDAppend, v1.MetadataStream{
+				ID:      i,
+				Payload: v[len(s):],
+			})
+
+		case regexOverwriteMD.MatchString(v):
+			s := regexOverwriteMD.FindString(v)
+			i, err := strconv.ParseUint(regexMDID.FindString(s),
+				10, 64)
+			if err != nil {
+				return err
+			}
+			n.MDOverwrite = append(n.MDOverwrite, v1.MetadataStream{
+				ID:      i,
+				Payload: v[len(s):],
+			})
+
+		case regexToken.MatchString(v):
+			if tokenCount != 0 {
+				return fmt.Errorf("only 1 token allowed")
+			}
+			s := regexToken.FindString(v)
+			n.Token = v[len(s):]
+			tokenCount++
+
+		default:
+			return fmt.Errorf("invalid action %v", v)
+		}
+	}
+
+	if tokenCount != 1 {
+		return fmt.Errorf("must provide token")
+	}
+
+	// Fetch remote identity
+	id, err := identity.LoadPublicIdentity(*identityFilename)
+	if err != nil {
+		return err
+	}
+
+	// Prety print
+	if *verbose {
+		fmt.Printf("Update vetted metadata: %v\n", n.Token)
+		if len(n.MDOverwrite) > 0 {
+			s := "  Metadata overwrite: "
+			for _, v := range n.MDOverwrite {
+				fmt.Printf("%s%v", s, v.ID)
+				s = ", "
+			}
+			fmt.Printf("\n")
+		}
+		if len(n.MDAppend) > 0 {
+			s := "  Metadata append   : "
+			for _, v := range n.MDAppend {
+				fmt.Printf("%s%v", s, v.ID)
+				s = ", "
+			}
+			fmt.Printf("\n")
+		}
+	}
+
+	// Convert Verify to JSON
+	b, err := json.Marshal(n)
+	if err != nil {
+		return err
+	}
+
+	if *printJson {
+		fmt.Println(string(b))
+	}
+
+	c, err := util.NewClient(verify, *rpccert)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest("POST", *rpchost+v1.UpdateVettedMetadataRoute,
+		bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+	req.SetBasicAuth(*rpcuser, *rpcpass)
+	r, err := c.Do(req)
+	if err != nil {
+		return err
+	}
+	defer r.Body.Close()
+
+	if r.StatusCode != http.StatusOK {
+		e, err := getErrorFromResponse(r)
+		if err != nil {
+			return fmt.Errorf("%v", r.Status)
+		}
+		return fmt.Errorf("%v: %v", r.Status, e)
+	}
+
+	bodyBytes := util.ConvertBodyToByteArray(r.Body, *printJson)
+
+	var reply v1.UpdateVettedMetadataReply
+	err = json.Unmarshal(bodyBytes, &reply)
+	if err != nil {
+		return fmt.Errorf("Could node unmarshal UpdateReply: %v", err)
+	}
+
+	// Verify challenge.
+	return util.VerifyChallenge(id, challenge, reply.Response)
+}
+func updateRecord(vetted bool) error {
+	flags := flag.Args()[1:] // Chop off action.
+
+	// Create New command
+	challenge, err := util.Random(v1.ChallengeSize)
+	if err != nil {
+		return err
+	}
+	n := v1.UpdateRecord{
 		Challenge: hex.EncodeToString(challenge),
 	}
 
@@ -719,8 +854,11 @@ func updateRecord() error {
 	if err != nil {
 		return err
 	}
-	r, err := c.Post(*rpchost+v1.UpdateUnvettedRoute, "application/json",
-		bytes.NewReader(b))
+	route := *rpchost + v1.UpdateUnvettedRoute
+	if vetted {
+		route = *rpchost + v1.UpdateVettedRoute
+	}
+	r, err := c.Post(route, "application/json", bytes.NewReader(b))
 	if err != nil {
 		return err
 	}
@@ -736,7 +874,7 @@ func updateRecord() error {
 
 	bodyBytes := util.ConvertBodyToByteArray(r.Body, *printJson)
 
-	var reply v1.UpdateUnvettedReply
+	var reply v1.UpdateRecordReply
 	err = json.Unmarshal(bodyBytes, &reply)
 	if err != nil {
 		return fmt.Errorf("Could node unmarshal UpdateReply: %v", err)
@@ -748,33 +886,33 @@ func updateRecord() error {
 		return err
 	}
 
-	// root, err := hex.DecodeString(reply.CensorshipRecord.Merkle)
-	// if err != nil {
-	// 	return err
-	// }
-
 	// Decode signature to verify
-	sig, err := hex.DecodeString(reply.CensorshipRecord.Signature)
+	sig, err := hex.DecodeString(reply.Record.CensorshipRecord.Signature)
 	if err != nil {
 		return err
 	}
 	var signature [identity.SignatureSize]byte
 	copy(signature[:], sig)
 
-	// XXX Verify merkle root.
-	//hashes := make([]*[sha256.Size]byte, 0, len(flags[1:]))
-	//if !bytes.Equal(merkle.Root(hashes)[:], root) {
-	//	return fmt.Errorf("invalid merkle root")
-	//}
-
 	// Verify record token signature.
-	merkleToken := reply.CensorshipRecord.Merkle + reply.CensorshipRecord.Token
+	merkleToken := reply.Record.CensorshipRecord.Merkle +
+		reply.Record.CensorshipRecord.Token
 	if !id.VerifyMessage([]byte(merkleToken), signature) {
 		return fmt.Errorf("verification failed")
 	}
 
+	// Verify that the files that were returned match the record.
+	err = v1.Verify(*id, reply.Record.CensorshipRecord, reply.Record.Files)
+	if err != nil {
+		return err
+	}
+
 	if !*printJson {
-		printCensorshipRecord(reply.CensorshipRecord)
+		mode := "Unvetted record"
+		if vetted {
+			mode = "Vetted record"
+		}
+		printRecord(mode, reply.Record)
 	}
 
 	return nil
@@ -876,7 +1014,7 @@ func getUnvetted() error {
 	}
 
 	if !*printJson {
-		printRecordRecord("Unvetted record", reply.Record)
+		printRecord("Unvetted record", reply.Record)
 	}
 	return nil
 }
@@ -965,7 +1103,7 @@ func getVetted() error {
 			status = v1.RecordStatus[v1.RecordStatusInvalid]
 		}
 		fmt.Printf("Record     : %v\n", flags[0])
-		fmt.Printf("  Status     : %v\n", status)
+		fmt.Printf("  Status   : %v\n", status)
 		return nil
 	}
 
@@ -977,7 +1115,7 @@ func getVetted() error {
 	}
 
 	if !*printJson {
-		printRecordRecord("Vetted record", reply.Record)
+		printRecord("Vetted record", reply.Record)
 	}
 	return nil
 }
@@ -1177,8 +1315,12 @@ func _main() error {
 				return getVetted()
 			case "setunvettedstatus":
 				return setUnvettedStatus()
-			case "update":
-				return updateRecord()
+			case "updateunvetted":
+				return updateRecord(false)
+			case "updatevetted":
+				return updateRecord(true)
+			case "updatevettedmd":
+				return updateVettedMetadata()
 			default:
 				return fmt.Errorf("invalid action: %v", a)
 			}
