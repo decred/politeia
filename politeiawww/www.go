@@ -929,9 +929,8 @@ func (p *politeiawww) handleUserProposals(w http.ResponseWriter, r *http.Request
 
 	user, err := p.getSessionUser(r)
 	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleUserProposals: getSessionUser %v", err)
-		return
+		// since having a logged in user isn't required, simply log the error
+		log.Infof("handleUserDetails: could not get session user %v", err)
 	}
 
 	upr, err := p.backend.ProcessUserProposals(
@@ -1047,7 +1046,26 @@ func (p *politeiawww) handleUserDetails(w http.ResponseWriter, r *http.Request) 
 	var ud v1.UserDetails
 	ud.UserID = pathParams["userid"]
 
-	udr, err := p.backend.ProcessUserDetails(&ud)
+	userID, err := strconv.ParseUint(ud.UserID, 10, 64)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleUserProposals: ParseUint",
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	user, err := p.getSessionUser(r)
+	if err != nil {
+		// since having a logged in user isn't required, simply log the error
+		log.Infof("handleUserDetails: could not get session user %v", err)
+	}
+
+	udr, err := p.backend.ProcessUserDetails(&ud,
+		user != nil && user.ID == userID,
+		user != nil && user.Admin,
+	)
+
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleUserDetails: ProcessUserDetails %v", err)
@@ -1341,6 +1359,8 @@ func _main() error {
 		p.handleGetAllVoteStatus, permissionPublic, true)
 	p.addRoute(http.MethodGet, v1.RouteVoteStatus,
 		p.handleVoteStatus, permissionPublic, true)
+	p.addRoute(http.MethodGet, v1.RouteUserDetails,
+		p.handleUserDetails, permissionPublic, true)
 
 	// Routes that require being logged in.
 	p.addRoute(http.MethodPost, v1.RouteSecret, p.handleSecret,
@@ -1377,8 +1397,6 @@ func _main() error {
 		p.handleSetProposalStatus, permissionAdmin, true)
 	p.addRoute(http.MethodPost, v1.RouteStartVote,
 		p.handleStartVote, permissionAdmin, true)
-	p.addRoute(http.MethodGet, v1.RouteUserDetails,
-		p.handleUserDetails, permissionAdmin, true)
 	p.addRoute(http.MethodPost, v1.RouteEditUser,
 		p.handleEditUser, permissionAdmin, true)
 
