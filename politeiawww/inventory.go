@@ -22,7 +22,7 @@ var (
 )
 
 type inventoryRecord struct {
-	record     pd.Record               // actual record
+	record_    pd.Record_              // actual record
 	proposalMD BackendProposalMetadata // proposal metadata
 	comments   map[string]www.Comment  // [id]comment
 	changes    []MDStreamChanges       // changes metadata

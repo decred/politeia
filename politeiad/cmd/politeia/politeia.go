@@ -75,7 +75,10 @@ func usage() {
 		"<id>\n")
 	fmt.Fprintf(os.Stderr, "  setunvettedstatus - Set unvetted record "+
 		"status <publish|censor> <id> [actionmdid:metadata]...\n")
-	fmt.Fprintf(os.Stderr, "  update            - Update unvetted record "+
+	fmt.Fprintf(os.Stderr, "  updateunvetted    - Update unvetted record "+
+		"[actionmdid:metadata]... <actionfile:filename>... "+
+		"token:<token>\n")
+	fmt.Fprintf(os.Stderr, "  updatevetted      - Update vetted record "+
 		"[actionmdid:metadata]... <actionfile:filename>... "+
 		"token:<token>\n")
 	fmt.Fprintf(os.Stderr, "\n")
@@ -179,7 +182,7 @@ func printCensorshipRecord(c v1.CensorshipRecord) {
 	fmt.Printf("    Signature: %v\n", c.Signature)
 }
 
-func printRecordRecord(header string, pr v1.Record) {
+func printRecordRecord(header string, pr v1.Record_) {
 	// Pretty print record
 	status, ok := v1.RecordStatus[pr.Status]
 	if !ok {
@@ -190,6 +193,7 @@ func printRecordRecord(header string, pr v1.Record) {
 	fmt.Printf("  Timestamp  : %v\n", time.Unix(pr.Timestamp, 0).UTC())
 	printCensorshipRecord(pr.CensorshipRecord)
 	fmt.Printf("  Metadata   : %v\n", pr.Metadata)
+	fmt.Printf("  Version    : %v\n", pr.Version)
 	for k, v := range pr.Files {
 		fmt.Printf("  File (%02v)  :\n", k)
 		fmt.Printf("    Name     : %v\n", v.Name)
@@ -423,10 +427,10 @@ func inventory() error {
 	}
 
 	if !*printJson {
-		for _, v := range i.Vetted {
+		for _, v := range i.Vetted_ {
 			printRecordRecord("Vetted record", v)
 		}
-		for _, v := range i.Branches {
+		for _, v := range i.Branches_ {
 			printRecordRecord("Unvetted record", v)
 		}
 	}
@@ -592,7 +596,7 @@ func newRecord() error {
 	return nil
 }
 
-func updateRecord() error {
+func updateRecord(vetted bool) error {
 	flags := flag.Args()[1:] // Chop off action.
 
 	// Create New command
@@ -719,8 +723,11 @@ func updateRecord() error {
 	if err != nil {
 		return err
 	}
-	r, err := c.Post(*rpchost+v1.UpdateUnvettedRoute, "application/json",
-		bytes.NewReader(b))
+	route := *rpchost + v1.UpdateUnvettedRoute
+	if vetted {
+		route = *rpchost + v1.UpdateVettedRoute
+	}
+	r, err := c.Post(route, "application/json", bytes.NewReader(b))
 	if err != nil {
 		return err
 	}
@@ -737,6 +744,7 @@ func updateRecord() error {
 	bodyBytes := util.ConvertBodyToByteArray(r.Body, *printJson)
 
 	var reply v1.UpdateUnvettedReply
+	// XXX make the reply generic
 	err = json.Unmarshal(bodyBytes, &reply)
 	if err != nil {
 		return fmt.Errorf("Could node unmarshal UpdateReply: %v", err)
@@ -856,10 +864,10 @@ func getUnvetted() error {
 	}
 
 	// Verify status
-	if reply.Record.Status == v1.RecordStatusInvalid ||
-		reply.Record.Status == v1.RecordStatusNotFound {
+	if reply.Record_.Status == v1.RecordStatusInvalid ||
+		reply.Record_.Status == v1.RecordStatusNotFound {
 		// Pretty print record
-		status, ok := v1.RecordStatus[reply.Record.Status]
+		status, ok := v1.RecordStatus[reply.Record_.Status]
 		if !ok {
 			status = v1.RecordStatus[v1.RecordStatusInvalid]
 		}
@@ -869,14 +877,14 @@ func getUnvetted() error {
 	}
 
 	// Verify content
-	err = v1.Verify(*id, reply.Record.CensorshipRecord,
-		reply.Record.Files)
+	err = v1.Verify(*id, reply.Record_.CensorshipRecord,
+		reply.Record_.Files)
 	if err != nil {
 		return err
 	}
 
 	if !*printJson {
-		printRecordRecord("Unvetted record", reply.Record)
+		printRecordRecord("Unvetted record", reply.Record_)
 	}
 	return nil
 }
@@ -957,10 +965,10 @@ func getVetted() error {
 	}
 
 	// Verify status
-	if reply.Record.Status == v1.RecordStatusInvalid ||
-		reply.Record.Status == v1.RecordStatusNotFound {
+	if reply.Record_.Status == v1.RecordStatusInvalid ||
+		reply.Record_.Status == v1.RecordStatusNotFound {
 		// Pretty print record
-		status, ok := v1.RecordStatus[reply.Record.Status]
+		status, ok := v1.RecordStatus[reply.Record_.Status]
 		if !ok {
 			status = v1.RecordStatus[v1.RecordStatusInvalid]
 		}
@@ -970,14 +978,14 @@ func getVetted() error {
 	}
 
 	// Verify content
-	err = v1.Verify(*id, reply.Record.CensorshipRecord,
-		reply.Record.Files)
+	err = v1.Verify(*id, reply.Record_.CensorshipRecord,
+		reply.Record_.Files)
 	if err != nil {
 		return err
 	}
 
 	if !*printJson {
-		printRecordRecord("Vetted record", reply.Record)
+		printRecordRecord("Vetted record", reply.Record_)
 	}
 	return nil
 }
@@ -1113,7 +1121,7 @@ func setUnvettedStatus() error {
 
 	if !*printJson {
 		// Pretty print record
-		status, ok := v1.RecordStatus[reply.Record.Status]
+		status, ok := v1.RecordStatus[reply.Record_.Status]
 		if !ok {
 			status = v1.RecordStatus[v1.RecordStatusInvalid]
 		}
@@ -1177,8 +1185,10 @@ func _main() error {
 				return getVetted()
 			case "setunvettedstatus":
 				return setUnvettedStatus()
-			case "update":
-				return updateRecord()
+			case "updateunvetted":
+				return updateRecord(false)
+			case "updatevetted":
+				return updateRecord(true)
 			default:
 				return fmt.Errorf("invalid action: %v", a)
 			}

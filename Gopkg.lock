@@ -233,6 +233,12 @@
   revision = "a93b200c26cbae3bb09dd0dc2c7c7fe1468a034a"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/otiai10/copy"
+  packages = ["."]
+  revision = "7e9a647135a142c2669943d4a4d29be015ce9392"
+
+[[projects]]
   name = "github.com/pkg/errors"
   packages = ["."]
   revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
@@ -287,6 +293,7 @@
     "ripemd160",
     "salsa20/salsa",
     "scrypt",
+    "sha3",
     "ssh/terminal"
   ]
   revision = "f70185d77e8278766928032ee1355e3da47e7181"
@@ -375,6 +382,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "54113b96317f784242f017126094a42f5a23393b241710e77163060edc0b4881"
+  inputs-digest = "08ef3c6bce16282ea574641a648d238d9ff4b4a60c823877a0b06f91ccb4fbd3"
   solver-name = "gps-cdcl"
   solver-version = 1

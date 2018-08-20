@@ -14,6 +14,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -392,5 +393,66 @@ func TestAnchorWithCommits(t *testing.T) {
 	}
 }
 
-func TestDcrtimeFsck(t *testing.T) {
+func TestFilePathVersion(t *testing.T) {
+	dir, err := ioutil.TempDir("", "pathversion")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+
+	d, err := _joinLatest(dir)
+	if err != os.ErrNotExist {
+		t.Fatal(err)
+	}
+	if d != "" {
+		t.Fatalf("expected \"\", got %v", d)
+	}
+
+	// Create version 0 and check again
+	newDir := pijoin(dir, "0")
+	err = os.MkdirAll(newDir, 0766)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testDir := joinLatest(dir)
+	// Abuse filepath.Split by pretending 0 is a file
+	splitDir, splitFile := filepath.Split(testDir)
+	if splitDir != dir+"/" {
+		t.Fatalf("invalid dir, expected %v, got %v", dir+"/", splitDir)
+	}
+	if splitFile != "0" {
+		t.Fatalf("invalid dir, expected 0, got %v", splitFile)
+	}
+
+	// Create version 1 and check again
+	newDir = pijoin(dir, "1")
+	err = os.MkdirAll(newDir, 0766)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testDir = joinLatest(dir)
+	// Abuse filepath.Split by pretending 1 is a file
+	splitDir, splitFile = filepath.Split(testDir)
+	if splitDir != dir+"/" {
+		t.Fatalf("invalid dir, expected %v, got %v", dir+"/", splitDir)
+	}
+	if splitFile != "1" {
+		t.Fatalf("invalid dir, expected 1, got %v", splitFile)
+	}
+
+	// Create version 33 and check again
+	newDir = pijoin(dir, "33")
+	err = os.MkdirAll(newDir, 0766)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testDir = joinLatest(dir)
+	// Abuse filepath.Split by pretending 33 is a file
+	splitDir, splitFile = filepath.Split(testDir)
+	if splitDir != dir+"/" {
+		t.Fatalf("invalid dir, expected %v, got %v", dir+"/", splitDir)
+	}
+	if splitFile != "33" {
+		t.Fatalf("invalid dir, expected 33, got %v", splitFile)
+	}
 }

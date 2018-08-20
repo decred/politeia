@@ -16,6 +16,10 @@ var (
 	// ErrRecordNotFound is emitted when a record could not be found
 	ErrRecordNotFound = errors.New("record not found")
 
+	// ErrRecordFound is emitted when a record is found while none was
+	// expected.
+	ErrRecordFound = errors.New("record found")
+
 	// ErrFileNotFound is emitted when a file inside a record could not be
 	// found
 	ErrFileNotFound = errors.New("file not found")
@@ -110,10 +114,11 @@ type MetadataStream struct {
 	Payload string // String encoded metadata
 }
 
-// Record is a permanent that includes the submitted files, metadata and
+// Record is a permanent Record that includes the submitted files, metadata and
 // internal metadata.
-type Record struct {
+type Record_ struct {
 	RecordMetadata RecordMetadata   // Internal metadata
+	Version        string           // Version of Files
 	Metadata       []MetadataStream // User provided metadata
 	Files          []File           // User provided files
 }
@@ -139,22 +144,25 @@ type Backend interface {
 	UpdateUnvettedRecord([]byte, []MetadataStream, []MetadataStream, []File,
 		[]string) (*RecordMetadata, error)
 
+	// Update vetted record (token, mdAppend, mdOverwrite, fAdd, fDelete)
+	UpdateVettedRecord([]byte, []MetadataStream, []MetadataStream, []File,
+		[]string) (*RecordMetadata, error)
 	// Update vetted metadata (token, mdAppend, mdOverwrite)
 	UpdateVettedMetadata([]byte, []MetadataStream,
 		[]MetadataStream) error
 
 	// Get unvetted record
-	GetUnvetted([]byte) (*Record, error)
+	GetUnvetted([]byte) (*Record_, error)
 
 	// Get vetted record
-	GetVetted([]byte) (*Record, error)
+	GetVetted([]byte) (*Record_, error)
 
 	// Set unvetted record status
 	SetUnvettedStatus([]byte, MDStatusT, []MetadataStream,
-		[]MetadataStream) (*Record, error)
+		[]MetadataStream) (*Record_, error)
 
 	// Inventory retrieves various record records.
-	Inventory(uint, uint, bool) ([]Record, []Record, error)
+	Inventory(uint, uint, bool) ([]Record_, []Record_, error)
 
 	// Obtain plugin settings
 	GetPlugins() ([]Plugin, error)

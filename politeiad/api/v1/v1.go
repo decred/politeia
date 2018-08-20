@@ -25,6 +25,7 @@ const (
 	IdentityRoute             = "/v1/identity/"       // Retrieve identity
 	NewRecordRoute            = "/v1/newrecord/"      // New record
 	UpdateUnvettedRoute       = "/v1/updateunvetted/" // Update unvetted record
+	UpdateVettedRoute         = "/v1/updatevetted/"   // Update vetted record
 	UpdateVettedMetadataRoute = "/v1/updatevettedmd/" // Update vetted metadata
 	GetUnvettedRoute          = "/v1/getunvetted/"    // Retrieve unvetted record
 	GetVettedRoute            = "/v1/getvetted/"      // Retrieve vetted record
@@ -55,6 +56,7 @@ const (
 	ErrorStatusDuplicateFilename             ErrorStatusT = 12
 	ErrorStatusFileNotFound                  ErrorStatusT = 13
 	ErrorStatusNoChanges                     ErrorStatusT = 14
+	ErrorStatusRecordFound                   ErrorStatusT = 15
 
 	// Record status codes (set and get)
 	RecordStatusInvalid           RecordStatusT = 0 // Invalid status
@@ -92,6 +94,7 @@ var (
 		ErrorStatusDuplicateFilename:             "duplicate filename",
 		ErrorStatusFileNotFound:                  "file not found",
 		ErrorStatusNoChanges:                     "no changes in record",
+		ErrorStatusRecordFound:                   "record found",
 	}
 
 	// RecordStatus converts record status codes to human readable text.
@@ -202,13 +205,14 @@ type MetadataStream struct {
 }
 
 // Record is an entire record and it's content.
-type Record struct {
+type Record_ struct {
 	Status    RecordStatusT `json:"status"`    // Current status
 	Timestamp int64         `json:"timestamp"` // Last update
 
 	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
 
 	// User data
+	Version  string           `json:"version"`  // Version of this record
 	Metadata []MetadataStream `json:"metadata"` // Metadata streams
 	Files    []File           `json:"files"`    // Files that make up the record
 }
@@ -238,8 +242,8 @@ type GetUnvetted struct {
 // GetUnvettedReply returns an unvetted record.  It retrieves the censorship
 // record and the actual files.
 type GetUnvettedReply struct {
-	Response string `json:"response"` // Challenge response
-	Record   Record `json:"record"`
+	Response string  `json:"response"` // Challenge response
+	Record_  Record_ `json:"record"`
 }
 
 // GetVetted requests a vetted record from the server.
@@ -251,8 +255,8 @@ type GetVetted struct {
 // GetVettedReply returns a vetted record.  It retrieves the censorship
 // record and the latest files in the record.
 type GetVettedReply struct {
-	Response string `json:"response"` // Challenge response
-	Record   Record `json:"record"`
+	Response string  `json:"response"` // Challenge response
+	Record_  Record_ `json:"record"`
 }
 
 // SetUnvettedStatus updates the status of an unvetted record.  This is used
@@ -269,8 +273,8 @@ type SetUnvettedStatus struct {
 // SetUnvettedStatus is a response to a SetUnvettedStatus.  It returns the
 // potentially modified record without the Files.
 type SetUnvettedStatusReply struct {
-	Response string `json:"response"` // Challenge response
-	Record   Record `json:"record"`
+	Response string  `json:"response"` // Challenge response
+	Record_  Record_ `json:"record"`
 }
 
 // UpdateUnvetted update an unvetted record.
@@ -327,9 +331,9 @@ type Inventory struct {
 // the record files.  This obviously enlarges the payload size and should
 // therefore be used only in disaster recovery scenarios.
 type InventoryReply struct {
-	Response string   `json:"response"` // Challenge response
-	Vetted   []Record `json:"vetted"`   // Last N vetted records
-	Branches []Record `json:"branches"` // Last N branches (censored, new etc)
+	Response  string    `json:"response"` // Challenge response
+	Vetted_   []Record_ `json:"vetted"`   // Last N vetted records
+	Branches_ []Record_ `json:"branches"` // Last N branches (censored, new etc)
 }
 
 // UserErrorReply returns details about an error that occurred while trying to
