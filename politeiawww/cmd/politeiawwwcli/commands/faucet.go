@@ -3,43 +3,39 @@ package commands
 import (
 	"fmt"
 
-	"github.com/decred/politeia/politeiawww/cmd/politeiawwwcli/config"
 	"github.com/decred/politeia/util"
 )
 
-type FaucetArgs struct {
-	Address string `positional-arg-name:"address" description:"Address to send DCR to"`
-	Amount  uint64 `positional-arg-name:"amount" description:"Amount to send in Atoms"`
-}
-
 type FaucetCmd struct {
-	Args          FaucetArgs `positional-args:"true" required:"true"`
-	OverrideToken string     `long:"overridetoken" optional:"true" description:"Override token for the testnet faucet"`
+	Args struct {
+		Address       string `positional-arg-name:"address" required:"true" description:"Address to send DCR to"`
+		Amount        uint64 `positional-arg-name:"amount" required:"true" description:"Amount to send (in atoms)"`
+		OverrideToken string `positional-arg-name:"overridetoken" description:"Override token for testnet faucet"`
+	} `positional-args:"true"`
 }
 
 func (cmd *FaucetCmd) Execute(args []string) error {
 	address := cmd.Args.Address
-	amount := cmd.Args.Amount
-	amountInDCR := float64(amount) / 1e8
+	atoms := cmd.Args.Amount
+	dcr := float64(atoms) / 1e8
 
-	if address == "" && amount == 0 {
-		return fmt.Errorf("Argument error. Unable to pay %v DCR to %v",
-			amountInDCR, address)
+	if address == "" && atoms == 0 {
+		return fmt.Errorf("Invalid arguments. Unable to pay %v DCR to %v",
+			dcr, address)
 	}
 
-	faucetTx, err := util.PayWithTestnetFaucet(config.FaucetURL, address, amount,
-		cmd.OverrideToken)
+	txID, err := util.PayWithTestnetFaucet(cfg.FaucetHost, address, atoms,
+		cmd.Args.OverrideToken)
 	if err != nil {
-		return fmt.Errorf("Unable to pay %v DCR to %v with faucet: %v",
-			amountInDCR, address, err)
+		return err
 	}
 
-	if config.PrintJSON {
-		fmt.Printf("{\"faucetTx\":\"%v\"}\n", faucetTx)
-	}
-	if config.Verbose {
-		fmt.Printf("Paid %v DCR to %v with faucet tx %v\n", amountInDCR, address,
-			faucetTx)
+	if cfg.RawJSON {
+		fmt.Printf(`{"txid":"%v"}`, txID)
+		fmt.Printf("\n")
+	} else {
+		fmt.Printf("Paid %v DCR to %v with txID %v\n",
+			dcr, address, txID)
 	}
 
 	return nil

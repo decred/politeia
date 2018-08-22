@@ -1,12 +1,13 @@
 package commands
 
 import (
+	"encoding/hex"
 	"fmt"
 
-	"github.com/decred/politeia/politeiawww/cmd/politeiawwwcli/config"
+	"github.com/decred/politeia/politeiawww/api/v1"
 )
 
-type NewcommentCmd struct {
+type NewCommentCmd struct {
 	Args struct {
 		Token    string `positional-arg-name:"token" required:"true"`
 		Comment  string `positional-arg-name:"comment" required:"true"`
@@ -14,12 +15,38 @@ type NewcommentCmd struct {
 	} `positional-args:"true"`
 }
 
-func (cmd *NewcommentCmd) Execute(args []string) error {
-	if config.UserIdentity == nil {
-		return fmt.Errorf(config.ErrorNoUserIdentity)
+func (cmd *NewCommentCmd) Execute(args []string) error {
+	token := cmd.Args.Token
+	comment := cmd.Args.Comment
+	parentID := cmd.Args.ParentID
+
+	// Check for user identity
+	if cfg.Identity == nil {
+		return fmt.Errorf(ErrorNoUserIdentity)
 	}
 
-	_, err := Ctx.Comment(config.UserIdentity, cmd.Args.Token, cmd.Args.Comment,
-		cmd.Args.ParentID)
-	return err
+	// Setup new comment request
+	sig := cfg.Identity.SignMessage([]byte(token + comment + parentID))
+	nc := &v1.NewComment{
+		Token:     token,
+		ParentID:  parentID,
+		Comment:   comment,
+		Signature: hex.EncodeToString(sig[:]),
+		PublicKey: hex.EncodeToString(cfg.Identity.Public.Key[:]),
+	}
+
+	// Print request details
+	err := Print(nc, cfg.Verbose, cfg.RawJSON)
+	if err != nil {
+		return err
+	}
+
+	// Send request
+	ncr, err := c.NewComment(nc)
+	if err != nil {
+		return err
+	}
+
+	// Print response details
+	return Print(ncr, cfg.Verbose, cfg.RawJSON)
 }

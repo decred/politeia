@@ -7,6 +7,9 @@ type VoteStatusCmd struct {
 }
 
 func (cmd *VoteStatusCmd) Execute(args []string) error {
-	_, err := Ctx.VoteStatus(cmd.Args.Token)
-	return err
+	vsr, err := c.VoteStatus(cmd.Args.Token)
+	if err != nil {
+		return err
+	}
+	return Print(vsr, cfg.Verbose, cfg.RawJSON)
 }

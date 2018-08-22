@@ -4,45 +4,44 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/decred/politeia/politeiawww/cmd/politeiawwwcli/config"
+	"github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/util"
 )
 
-type NewuserCmd struct {
+type NewUserCmd struct {
 	Args struct {
 		Email    string `positional-arg-name:"email"`
 		Username string `positional-arg-name:"username"`
 		Password string `positional-arg-name:"password"`
 	} `positional-args:"true" optional:"true"`
-	Random        bool   `long:"random" optional:"true" description:"Generate a random email/password for the user"`
-	Verify        bool   `long:"verify" optional:"true" description:"Verify the user's email address"`
-	Paywall       bool   `long:"paywall" optional:"true" description:"Satisfy paywall fee using testnet faucet"`
-	OverrideToken string `long:"overridetoken" optional:"true" description:"Override token for the testnet faucet"`
+	Random  bool `long:"random" optional:"true" description:"Generate a random email/password for the user"`
+	Verify  bool `long:"verify" optional:"true" description:"Verify the user's email address"`
+	Paywall bool `long:"paywall" optional:"true" description:"Satisfy paywall fee using testnet faucet"`
 }
 
-func (cmd *NewuserCmd) Execute(args []string) error {
-	if !cmd.Random && cmd.Args.Email == "" {
-		return fmt.Errorf("You must either provide an email, username & " +
-			"password or use the --random flag")
+func (cmd *NewUserCmd) Execute(args []string) error {
+	email := cmd.Args.Email
+	username := cmd.Args.Username
+	password := cmd.Args.Password
+
+	if !cmd.Random && (email == "" || username == "" || password == "") {
+		return fmt.Errorf("invalid credentials: you must either specify user " +
+			"credentials (email, username, password) or use the --random flag")
 	}
 
-	// fetch csrf tokens
-	_, err := Ctx.Version()
+	// Fetch CSRF tokens
+	_, err := c.Version()
 	if err != nil {
-		return err
+		return fmt.Errorf("Version: %v", err)
 	}
 
-	// fetch Politeia policy for password requirements
-	pr, err := Ctx.Policy()
+	// Fetch  policy for password requirements
+	pr, err := c.Policy()
 	if err != nil {
-		return err
+		return fmt.Errorf("Policy: %v", err)
 	}
 
-	// assign email/password
-	var email string
-	var username string
-	var password string
-
+	// Create new user credentials if required
 	if cmd.Random {
 		b, err := util.Random(int(pr.MinPasswordLength))
 		if err != nil {
@@ -52,67 +51,75 @@ func (cmd *NewuserCmd) Execute(args []string) error {
 		email = hex.EncodeToString(b) + "@example.com"
 		username = hex.EncodeToString(b)
 		password = hex.EncodeToString(b)
-	} else {
-		email = cmd.Args.Email
-		username = cmd.Args.Username
-		password = cmd.Args.Password
-
-		if uint(len(password)) < pr.MinPasswordLength {
-			return fmt.Errorf("password must be %v characters long",
-				pr.MinPasswordLength)
-		}
 	}
 
-	// create new user
-	token, id, paywallAddress, paywallAmount, err := Ctx.NewUser(email,
-		username, password)
+	// Validate password
+	if uint(len(password)) < pr.MinPasswordLength {
+		return fmt.Errorf("password must be %v characters long",
+			pr.MinPasswordLength)
+	}
+
+	// Create user identity
+	// XXX: We are using the email to generate the identity
+	id, err := IdentityFromString(email)
 	if err != nil {
 		return err
 	}
 
-	// verify user's email address
+	// Setup new user request
+	nu := &v1.NewUser{
+		Email:     email,
+		Username:  username,
+		Password:  DigestSHA3(password),
+		PublicKey: hex.EncodeToString(id.Public.Key[:]),
+	}
+
+	// Print request details
+	err = Print(nu, cfg.Verbose, cfg.RawJSON)
+	if err != nil {
+		return err
+	}
+
+	// Send request
+	nur, err := c.NewUser(nu)
+	if err != nil {
+		return fmt.Errorf("NewUser: %v", err)
+	}
+
+	// Print response details
+	err = Print(nur, cfg.Verbose, cfg.RawJSON)
+	if err != nil {
+		return err
+	}
+
+	// Verify user's email address
 	if cmd.Verify {
-		config.UserIdentity = id
-		verifyCmd := VerifyuserCmd{
-			Args: VerifyuserArgs{
-				Email: email,
-				Token: token,
-			},
+		sig := id.SignMessage([]byte(nur.VerificationToken))
+		vnur, err := c.VerifyNewUser(&v1.VerifyNewUser{
+			Email:             email,
+			VerificationToken: nur.VerificationToken,
+			Signature:         hex.EncodeToString(sig[:]),
+		})
+		if err != nil {
+			return fmt.Errorf("VerifyNewUser: %v", err)
 		}
 
-		err = verifyCmd.Execute(nil)
+		err = Print(vnur, cfg.Verbose, cfg.RawJSON)
 		if err != nil {
 			return err
 		}
 	}
 
-	// satisfy paywall fee using testnet faucet
+	// Satisfy paywall fee using testnet faucet
 	if cmd.Paywall {
-		faucetCmd := FaucetCmd{
-			Args: FaucetArgs{
-				Amount:  paywallAmount,
-				Address: paywallAddress,
-			},
-			OverrideToken: cmd.OverrideToken,
-		}
-
-		err = faucetCmd.Execute(nil)
+		faucet := FaucetCmd{}
+		faucet.Args.Address = nur.PaywallAddress
+		faucet.Args.Amount = nur.PaywallAmount
+		err := faucet.Execute(nil)
 		if err != nil {
 			return err
 		}
 	}
 
-	// persist CSRF header token
-	err = config.SaveCsrf(Ctx.Csrf())
-	if err != nil {
-		return err
-	}
-
-	// persist CSRF cookie token
-	ck, err := Ctx.Cookies(config.Host)
-	if err != nil {
-		return err
-	}
-	err = config.SaveCookies(ck)
-	return err
+	return nil
 }

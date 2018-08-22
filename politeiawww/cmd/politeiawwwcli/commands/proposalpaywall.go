@@ -1,8 +1,13 @@
 package commands
 
-type ProposalpaywallCmd struct{}
+import "github.com/decred/politeia/politeiawww/api/v1"
 
-func (cmd *ProposalpaywallCmd) Execute(args []string) error {
-	_, err := Ctx.ProposalPaywall()
-	return err
+type ProposalPaywallCmd struct{}
+
+func (cmd *ProposalPaywallCmd) Execute(args []string) error {
+	ppdr, err := c.ProposalPaywallDetails(&v1.ProposalPaywallDetails{})
+	if err != nil {
+		return err
+	}
+	return Print(ppdr, cfg.Verbose, cfg.RawJSON)
 }

@@ -4,7 +4,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/decred/politeia/politeiawww/cmd/politeiawwwcli/config"
+	"github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/util"
 )
 
@@ -17,31 +17,39 @@ type AuthorizeVoteCmd struct {
 func (cmd *AuthorizeVoteCmd) Execute(args []string) error {
 	token := cmd.Args.Token
 
-	// Load identity
-	if config.UserIdentity == nil {
-		return fmt.Errorf(config.ErrorNoUserIdentity)
+	// Check for user identity
+	if cfg.Identity == nil {
+		return fmt.Errorf(ErrorNoUserIdentity)
 	}
-	id := config.UserIdentity
 
 	// Get server public key
-	vr, err := Ctx.Version()
+	vr, err := c.Version()
 	if err != nil {
 		return err
 	}
 
 	// Get proposal version
-	pdr, err := Ctx.GetProp(token, vr.PubKey)
+	pdr, err := c.ProposalDetails(token)
 	if err != nil {
 		return err
 	}
 
-	// Create authorize vote signature
-	sigB := id.SignMessage([]byte(token + pdr.Proposal.Version))
-	sig := hex.EncodeToString(sigB[:])
-	publicKey := hex.EncodeToString(id.Public.Key[:])
+	// Setup authorize vote request
+	sig := cfg.Identity.SignMessage([]byte(token + pdr.Proposal.Version))
+	av := &v1.AuthorizeVote{
+		Token:     token,
+		PublicKey: hex.EncodeToString(cfg.Identity.Public.Key[:]),
+		Signature: hex.EncodeToString(sig[:]),
+	}
 
-	// Authorize vote
-	avr, err := Ctx.AuthorizeVote(token, publicKey, sig)
+	// Print request details
+	err = Print(av, cfg.Verbose, cfg.RawJSON)
+	if err != nil {
+		return err
+	}
+
+	// Send request
+	avr, err := c.AuthorizeVote(av)
 	if err != nil {
 		return err
 	}
@@ -55,9 +63,10 @@ func (cmd *AuthorizeVoteCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	if !serverID.VerifyMessage([]byte(sig), s) {
+	if !serverID.VerifyMessage([]byte(av.Signature), s) {
 		return fmt.Errorf("could not verify authorize vote receipt")
 	}
 
-	return nil
+	// Print response details
+	return Print(avr, cfg.Verbose, cfg.RawJSON)
 }

@@ -3,6 +3,9 @@ package commands
 type PolicyCmd struct{}
 
 func (cmd *PolicyCmd) Execute(args []string) error {
-	_, err := Ctx.Policy()
-	return err
+	pr, err := c.Policy()
+	if err != nil {
+		return err
+	}
+	return Print(pr, cfg.Verbose, cfg.RawJSON)
 }

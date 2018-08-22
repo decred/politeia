@@ -1,10 +1,6 @@
 package commands
 
-import (
-	"fmt"
-
-	"github.com/decred/politeia/politeiawww/cmd/politeiawwwcli/config"
-)
+import "github.com/decred/politeia/politeiawww/api/v1"
 
 type LoginCmd struct {
 	Args struct {
@@ -14,35 +10,45 @@ type LoginCmd struct {
 }
 
 func (cmd *LoginCmd) Execute(args []string) error {
-	// fetch csrf tokens
-	_, err := Ctx.Version()
+	email := cmd.Args.Email
+	password := cmd.Args.Password
+
+	// Fetch CSRF tokens
+	_, err := c.Version()
 	if err != nil {
 		return err
 	}
 
-	// login user
-	_, id, err := Ctx.Login(cmd.Args.Email, cmd.Args.Password)
+	// Setup login request
+	l := &v1.Login{
+		Email:    email,
+		Password: DigestSHA3(password),
+	}
+
+	// Print request details
+	err = Print(l, cfg.Verbose, cfg.RawJSON)
 	if err != nil {
 		return err
 	}
 
-	// save the user identity to HomeDir so it can be reused for subsequent commands
-	id.Save(config.UserIdentityFile)
-	if config.Verbose {
-		fmt.Printf("User identity saved to: %v\n", config.UserIdentityFile)
-	}
-
-	// persist CSRF header token
-	err = config.SaveCsrf(Ctx.Csrf())
+	// Send request
+	lr, err := c.Login(l)
 	if err != nil {
 		return err
 	}
 
-	// persist session cookie
-	ck, err := Ctx.Cookies(config.Host)
+	// Print response details
+	err = Print(lr, cfg.Verbose, cfg.RawJSON)
 	if err != nil {
 		return err
 	}
-	err = config.SaveCookies(ck)
-	return err
+
+	// Save identity to disk for subsequent commands
+	// XXX: We are using the email to generate the identity
+	id, err := IdentityFromString(email)
+	if err != nil {
+		return err
+	}
+
+	return cfg.SaveIdentity(id)
 }
