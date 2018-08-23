@@ -61,13 +61,15 @@ func (b *backend) newInventoryRecord(record pd.Record_) error {
 // updateInventoryRecord updates an existing record.
 //
 // This function must be called WITH the mutex held.
-func (b *backend) updateInventoryRecord(record pd.Record_) {
-	b.inventory[record.CensorshipRecord.Token] = &inventoryRecord{
-		record_:  record,
-		comments: make(map[string]www.Comment),
+func (b *backend) updateInventoryRecord(record pd.Record_) error {
+	ir, ok := b.inventory[record.CensorshipRecord.Token]
+	if !ok {
+		return fmt.Errorf("inventory record not found: %v", record.CensorshipRecord.Token)
 	}
-
+	ir.record_ = record
+	b.inventory[record.CensorshipRecord.Token] = ir
 	b.loadRecordMetadata(record)
+	return nil
 }
 
 // loadRecord load an record metadata and comments into inventory.

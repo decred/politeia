@@ -222,6 +222,8 @@ func convertPropStatusFromPD(s pd.RecordStatusT) www.PropStatusT {
 		return www.PropStatusCensored
 	case pd.RecordStatusPublic:
 		return www.PropStatusPublic
+	case pd.RecordStatusUnreviewedChanges:
+		return www.PropStatusUnreviewedChanges
 	case pd.RecordStatusLocked:
 		return www.PropStatusLocked
 	}
@@ -255,11 +257,6 @@ func convertPropCensorFromPD(f pd.CensorshipRecord) www.CensorshipRecord {
 
 func convertPropFromInventoryRecord(r *inventoryRecord, userPubkeys map[string]string) www.ProposalRecord {
 	proposal := convertPropFromPD(r.record_)
-
-	// Set the most up-to-date status.
-	for _, v := range r.changes {
-		proposal.Status = convertPropStatusFromPD(v.NewStatus)
-	}
 
 	// Set the comments num.
 	proposal.NumComments = uint(len(r.comments))

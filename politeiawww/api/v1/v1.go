@@ -144,12 +144,13 @@ const (
 	ErrorStatusUserActionNotAllowed        ErrorStatusT = 41
 
 	// Proposal status codes (set and get)
-	PropStatusInvalid     PropStatusT = 0 // Invalid status
-	PropStatusNotFound    PropStatusT = 1 // Proposal not found
-	PropStatusNotReviewed PropStatusT = 2 // Proposal has not been reviewed
-	PropStatusCensored    PropStatusT = 3 // Proposal has been censored
-	PropStatusPublic      PropStatusT = 4 // Proposal is publicly visible
-	PropStatusLocked      PropStatusT = 6 // Proposal is locked, NOT IMPLEMENTED
+	PropStatusInvalid           PropStatusT = 0 // Invalid status
+	PropStatusNotFound          PropStatusT = 1 // Proposal not found
+	PropStatusNotReviewed       PropStatusT = 2 // Proposal has not been reviewed
+	PropStatusCensored          PropStatusT = 3 // Proposal has been censored
+	PropStatusPublic            PropStatusT = 4 // Proposal is publicly visible
+	PropStatusUnreviewedChanges PropStatusT = 5 // Proposal that has changes that are not reviewed
+	PropStatusLocked            PropStatusT = 6 // Proposal is locked, NOT IMPLEMENTED
 
 	// Proposal vote status codes
 	PropVoteStatusInvalid     PropVoteStatusT = 0 // Invalid vote status
@@ -291,17 +292,16 @@ type CensorshipRecord struct {
 
 // ProposalRecord is an entire proposal and it's content.
 type ProposalRecord struct {
-	Name          string      `json:"name"`          // Suggested short proposal name
-	Status        PropStatusT `json:"status"`        // Current status of proposal
-	Timestamp     int64       `json:"timestamp"`     // Last update of proposal
-	UserId        string      `json:"userid"`        // ID of user who submitted proposal
-	Username      string      `json:"username"`      // Username of user who submitted proposal
-	PublicKey     string      `json:"publickey"`     // Key used for signature.
-	Signature     string      `json:"signature"`     // Signature of merkle root
-	Files         []File      `json:"files"`         // Files that make up the proposal
-	NumComments   uint        `json:"numcomments"`   // Number of comments on the proposal
-	Version       string      `json:"version"`       // Record version
-	LatestVersion string      `json:"latestversion"` // Latest Version
+	Name        string      `json:"name"`        // Suggested short proposal name
+	Status      PropStatusT `json:"status"`      // Current status of proposal
+	Timestamp   int64       `json:"timestamp"`   // Last update of proposal
+	UserId      string      `json:"userid"`      // ID of user who submitted proposal
+	Username    string      `json:"username"`    // Username of user who submitted proposal
+	PublicKey   string      `json:"publickey"`   // Key used for signature.
+	Signature   string      `json:"signature"`   // Signature of merkle root
+	Files       []File      `json:"files"`       // Files that make up the proposal
+	NumComments uint        `json:"numcomments"` // Number of comments on the proposal
+	Version     string      `json:"version"`     // Record version
 
 	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
 }
@@ -914,5 +914,5 @@ type EditProposal struct {
 
 // EditProposalReply is used to reply to the EditProposal command
 type EditProposalReply struct {
-	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
+	Proposal ProposalRecord `json:"proposal"`
 }

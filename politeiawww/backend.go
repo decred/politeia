@@ -1610,8 +1610,9 @@ func (b *backend) ProcessAllUnvetted(u www.GetAllUnvetted) *www.GetAllUnvettedRe
 			After:  u.After,
 			Before: u.Before,
 			StatusMap: map[www.PropStatusT]bool{
-				www.PropStatusNotReviewed: true,
-				www.PropStatusCensored:    true,
+				www.PropStatusNotReviewed:       true,
+				www.PropStatusCensored:          true,
+				www.PropStatusUnreviewedChanges: true,
 			},
 		}),
 	}
@@ -1835,7 +1836,10 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 		}
 
 		// Update the inventory with the metadata changes.
-		b.updateInventoryRecord(pdReply.Record_)
+		err = b.updateInventoryRecord(pdReply.Record_)
+		if err != nil {
+			return nil, fmt.Errorf("ProcessSetProposalStatus: updateInventoryRecord %v", err)
+		}
 
 		// Log the action in the admin log.
 		b.logAdminProposalAction(user, sps.Token,
@@ -2200,9 +2204,10 @@ func (b *backend) ProcessUserProposals(up *www.UserProposals, isCurrentUser, isA
 			Before: up.Before,
 			UserId: up.UserId,
 			StatusMap: map[www.PropStatusT]bool{
-				www.PropStatusNotReviewed: isCurrentUser || isAdminUser,
-				www.PropStatusCensored:    isCurrentUser || isAdminUser,
-				www.PropStatusPublic:      true,
+				www.PropStatusNotReviewed:       isCurrentUser || isAdminUser,
+				www.PropStatusCensored:          isCurrentUser || isAdminUser,
+				www.PropStatusUnreviewedChanges: isCurrentUser || isAdminUser,
+				www.PropStatusPublic:            true,
 			},
 		}),
 	}, nil
@@ -2655,24 +2660,42 @@ func (b *backend) ProcessEditProposal(user *database.User, ep www.EditProposal) 
 		return nil, err
 	}
 
+	mds := []pd.MetadataStream{{
+		ID:      mdStreamGeneral,
+		Payload: string(md),
+	}}
+
+	var delFiles []string
+	for _, v := range invRecord.record_.Files {
+		found := false
+		for _, c := range ep.Files {
+			if v.Name == c.Name {
+				found = true
+			}
+		}
+		if !found {
+			delFiles = append(delFiles, v.Name)
+		} else {
+			found = false
+		}
+	}
+
 	e := pd.UpdateRecord{
-		Token:     ep.Token,
-		Challenge: hex.EncodeToString(challenge),
-		MDOverwrite: []pd.MetadataStream{{
-			ID:      mdStreamGeneral,
-			Payload: string(md),
-		}},
-		FilesAdd: convertPropFilesFromWWW(ep.Files),
+		Token:       ep.Token,
+		Challenge:   hex.EncodeToString(challenge),
+		MDOverwrite: mds,
+		FilesAdd:    convertPropFilesFromWWW(ep.Files),
+		FilesDel:    delFiles,
 	}
 
 	var pdRoute string
 
-	switch cachedProposal.Status {
-	case www.PropStatusNotReviewed:
+	if cachedProposal.Status == www.PropStatusNotReviewed ||
+		cachedProposal.Status == www.PropStatusUnreviewedChanges {
 		pdRoute = pd.UpdateUnvettedRoute
-	case www.PropStatusPublic:
+	} else if cachedProposal.Status == www.PropStatusPublic {
 		pdRoute = pd.UpdateVettedRoute
-	default:
+	} else {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusWrongStatus,
 		}
@@ -2691,24 +2714,15 @@ func (b *backend) ProcessEditProposal(user *database.User, ep www.EditProposal) 
 			err)
 	}
 
-	// TODO: Review inventory update after d commands has been reviewed
-	newRecord := invRecord.record_
-
-	versionUint, err := strconv.ParseUint(invRecord.record_.Version, 10, 64)
-	if err != nil {
-		return nil, fmt.Errorf("invalid versionUint, should not happen: %v", err)
-	}
-	newRecord.Version = strconv.FormatUint(versionUint+1, 10)
-	newRecord.CensorshipRecord = pdReply.CensorshipRecord
-	newRecord.Files = convertPropFilesFromWWW(ep.Files)
-	newRecord.Timestamp = ts
-
 	b.Lock()
-	b.updateInventoryRecord(newRecord)
-	b.Unlock()
+	defer b.Unlock()
+	err = b.updateInventoryRecord(pdReply.Record_)
+	if err != nil {
+		return nil, fmt.Errorf("ProcessEditProposal: updateInventoryRecord %v", err)
+	}
 
 	return &www.EditProposalReply{
-		CensorshipRecord: convertPropCensorFromPD(pdReply.CensorshipRecord),
+		Proposal: convertPropFromPD(pdReply.Record_),
 	}, nil
 }
 

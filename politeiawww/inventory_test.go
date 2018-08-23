@@ -11,19 +11,19 @@ import (
 func verifyInventoryRecord(ir *inventoryRecord, pr www.ProposalRecord, t *testing.T) {
 
 	// verify record: CensorshipRecord
-	err := verifyCensorshipRecord(ir.record.CensorshipRecord, pr.CensorshipRecord)
+	err := verifyCensorshipRecord(ir.record_.CensorshipRecord, pr.CensorshipRecord)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// verify record: Status
-	err = verifyStatus(ir.record.Status, pr.Status)
+	err = verifyStatus(ir.record_.Status, pr.Status)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// verify record: Files
-	err = verifyFiles(ir.record.Files, pr.Files)
+	err = verifyFiles(ir.record_.Files, pr.Files)
 	if err != nil {
 		t.Fatal(err)
 	}
