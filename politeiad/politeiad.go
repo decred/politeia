@@ -910,7 +910,7 @@ func _main() error {
 	p.addRoute(http.MethodPost, v1.UpdateUnvettedRoute, p.updateUnvetted,
 		permissionPublic)
 	p.addRoute(http.MethodPost, v1.UpdateVettedRoute, p.updateVetted,
-		permissionPublic) // XXX think about this
+		permissionPublic)
 	p.addRoute(http.MethodPost, v1.GetUnvettedRoute, p.getUnvetted,
 		permissionPublic)
 	p.addRoute(http.MethodPost, v1.GetVettedRoute, p.getVetted,

@@ -1274,11 +1274,11 @@ func (g *gitBackEnd) checkoutRecordBranch(id string) (bool, error) {
 // reponsible to unwinding the changes.
 //
 // Function must be  called with the lock held.
-func (g *gitBackEnd) updateRecord_(commit bool, id string, mdAppend, mdOverwrite []backend.MetadataStream, fa []file, filesDel []string) (*backend.Record_, error) {
+func (g *gitBackEnd) updateRecord_(commit bool, id string, mdAppend, mdOverwrite []backend.MetadataStream, fa []file, filesDel []string) error {
 	// Get version for relative git rm command later.
 	version, err := getLatest(pijoin(g.unvetted, id))
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	log.Tracef("updating %v", id)
@@ -1287,13 +1287,13 @@ func (g *gitBackEnd) updateRecord_(commit bool, id string, mdAppend, mdOverwrite
 	// Load MD
 	brm, err := loadMD(g.unvetted, id)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if !(brm.Status == backend.MDStatusVetted ||
 		brm.Status == backend.MDStatusUnvetted ||
 		brm.Status == backend.MDStatusIterationUnvetted ||
 		brm.Status == backend.MDStatusLocked) {
-		return nil, fmt.Errorf("can not update record that "+
+		return fmt.Errorf("can not update record that "+
 			"has status: %v %v", brm.Status,
 			backend.MDStatus[brm.Status])
 	}
@@ -1304,14 +1304,14 @@ func (g *gitBackEnd) updateRecord_(commit bool, id string, mdAppend, mdOverwrite
 			defaultPayloadDir, v))
 		if err != nil {
 			if os.IsNotExist(err) {
-				return nil, backend.ContentVerificationError{
+				return backend.ContentVerificationError{
 					ErrorCode:    pd.ErrorStatusFileNotFound,
 					ErrorContext: []string{v},
 				}
 			}
 		}
 		if !fi.Mode().IsRegular() {
-			return nil, fmt.Errorf("not a file: %v", fi.Name())
+			return fmt.Errorf("not a file: %v", fi.Name())
 		}
 	}
 
@@ -1322,13 +1322,13 @@ func (g *gitBackEnd) updateRecord_(commit bool, id string, mdAppend, mdOverwrite
 		filename := pijoin(path, fa[i].name)
 		err = ioutil.WriteFile(filename, fa[i].payload, 0664)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		// git add id/payload/filename
 		err = g.gitAdd(g.unvetted, filename)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
@@ -1337,14 +1337,14 @@ func (g *gitBackEnd) updateRecord_(commit bool, id string, mdAppend, mdOverwrite
 	for _, v := range filesDel {
 		err = g.gitRm(g.unvetted, pijoin(relativeRmDir, v), true)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
 	// Handle metadata
 	err = g.updateMetadata(id, mdAppend, mdOverwrite)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// Find all hashes
@@ -1353,17 +1353,17 @@ func (g *gitBackEnd) updateRecord_(commit bool, id string, mdAppend, mdOverwrite
 	newRecordFiles, err := ioutil.ReadDir(ppath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, backend.ContentVerificationError{
+			return backend.ContentVerificationError{
 				ErrorCode: pd.ErrorStatusEmpty,
 			}
 		}
-		return nil, err
+		return err
 	}
 	for _, v := range newRecordFiles {
 		digest, err := util.DigestFileBytes(pijoin(ppath,
 			v.Name()))
 		if err != nil {
-			return nil, err
+			return err
 		}
 		var d [sha256.Size]byte
 		copy(d[:], digest)
@@ -1372,18 +1372,16 @@ func (g *gitBackEnd) updateRecord_(commit bool, id string, mdAppend, mdOverwrite
 
 	// If there are no changes DO NOT update the record and reply with no
 	// changes.
+	log.Tracef("updateRecord_: verify changes %v", id)
 	if !g.gitHasChanges(g.unvetted) {
-		return nil, backend.ErrNoChanges
+		return backend.ErrNoChanges
 	}
 
 	if !commit {
-		return nil, backend.ErrChangesRecord
+		return backend.ErrChangesRecord
 	}
 
-	token, err := hex.DecodeString(id)
-	if err != nil {
-		return nil, err
-	}
+	log.Tracef("updateRecord_: committing %v", id)
 
 	// Update record metadata
 	ns := backend.MDStatusIterationUnvetted
@@ -1392,7 +1390,7 @@ func (g *gitBackEnd) updateRecord_(commit bool, id string, mdAppend, mdOverwrite
 	}
 	_, err = createMD(g.unvetted, id, ns, brm.Iteration+1, hashes)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// git add id/recordmetadata.json
@@ -1400,17 +1398,18 @@ func (g *gitBackEnd) updateRecord_(commit bool, id string, mdAppend, mdOverwrite
 		defaultRecordMetadataFilename)
 	err = g.gitAdd(g.unvetted, filename)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// git commit -m "message"
 	err = g.gitCommit(path, "Update record "+id)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
+	log.Tracef("Returning complete record: %v", id)
 	// This is a bit inefficient but let's roll with it for now.
-	return g.getRecord(token, g.unvetted, true)
+	return nil
 }
 
 // wouldChange applies a diff into a repo and undoes that. The point of this
@@ -1428,8 +1427,7 @@ func (g *gitBackEnd) wouldChange(id string, mdAppend []backend.MetadataStream, m
 	}
 
 	var rv bool
-	_, err = g.updateRecord_(false, id, mdAppend, mdOverwrite, fa,
-		filesDel)
+	err = g.updateRecord_(false, id, mdAppend, mdOverwrite, fa, filesDel)
 	if err == backend.ErrNoChanges {
 		// Do nothing
 	} else if err == backend.ErrChangesRecord {
@@ -1506,11 +1504,6 @@ func (g *gitBackEnd) updateRecord(token []byte, mdAppend []backend.MetadataStrea
 	}
 
 	id := hex.EncodeToString(token)
-	// Put repo in correct branch
-	var (
-		br        *backend.Record_
-		errReturn error
-	)
 	if master {
 		// Vetted path
 
@@ -1568,29 +1561,27 @@ func (g *gitBackEnd) updateRecord(token []byte, mdAppend []backend.MetadataStrea
 		log.Tracef("updating vetted %v -> %v %v", oldV, newV, id)
 
 		// Do the work, if there is an error we must unwind git.
-		br, err = g.updateRecord_(true, id, mdAppend, mdOverwrite, fa,
-			filesDel)
-		if err == backend.ErrNoChanges {
-			br = nil
-			errReturn = err
-		} else if err != nil {
-			// git stash
-			err2 := g.gitStash(g.unvetted)
-			if err2 != nil {
-				// We are in trouble! Consider a panic.
-				log.Errorf("gitStash: %v", err2)
-				return nil, err2
-			}
-			br = nil
-			errReturn = err
-		} else {
+		errReturn := g.updateRecord_(true, id, mdAppend, mdOverwrite,
+			fa, filesDel)
+		if errReturn == nil {
+			// Success path
+
 			// create and rebase PR
 			err = g.rebasePR(idTmp)
 			if err != nil {
 				return nil, err
 			}
 
-			return br, nil
+			// g.vetted is correct!
+			return g.getRecord(token, g.vetted, true)
+		}
+
+		// git stash
+		err = g.gitStash(g.unvetted)
+		if err != nil {
+			// We are in trouble! Consider a panic.
+			log.Errorf("gitStash: %v", err)
+			return nil, err
 		}
 
 		// git checkout master
@@ -1606,51 +1597,50 @@ func (g *gitBackEnd) updateRecord(token []byte, mdAppend []backend.MetadataStrea
 			log.Errorf("gitBranchDelete: %v %v", idTmp, err)
 			return nil, err
 		}
-	} else {
-		// Unvetted path
 
-		// Check to make sure this prop is not vetted
-		_, err = os.Stat(pijoin(g.unvetted, id))
-		if err == nil {
-			return nil, backend.ErrRecordFound
-		}
-
-		// Checkout branch
-		_, err := g.checkoutRecordBranch(id)
-		if err != nil {
-			return nil, err
-		}
-
-		// We now are sitting in branch id
-		log.Tracef("updating unvetted %v", id)
-
-		// Do the work, if there is an error we must unwind git.
-		br, err = g.updateRecord_(true, id, mdAppend, mdOverwrite, fa,
-			filesDel)
-		if err == backend.ErrNoChanges {
-			br = nil
-			errReturn = err
-		} else if err != nil {
-			// git stash
-			err2 := g.gitStash(g.unvetted)
-			if err2 != nil {
-				// We are in trouble! Consider a panic.
-				log.Errorf("gitStash: %v", err2)
-				return nil, err2
-			}
-
-			br = nil
-			errReturn = err
-		}
-
-		// git checkout master
-		err = g.gitCheckout(g.unvetted, "master")
-		if err != nil {
-			return nil, err
-		}
+		return nil, errReturn
 	}
 
-	return br, errReturn
+	// Unvetted path
+
+	// Check to make sure this prop is not vetted
+	_, err = os.Stat(pijoin(g.unvetted, id))
+	if err == nil {
+		return nil, backend.ErrRecordFound
+	}
+
+	// Checkout branch
+	_, err = g.checkoutRecordBranch(id)
+	if err != nil {
+		return nil, err
+	}
+
+	// We now are sitting in branch id
+	log.Tracef("updating unvetted %v", id)
+
+	// Do the work, if there is an error we must unwind git.
+	errReturn := g.updateRecord_(true, id, mdAppend, mdOverwrite, fa,
+		filesDel)
+	if err == nil {
+		// success
+		return g.getRecord(token, g.unvetted, true)
+	}
+
+	// git stash
+	err = g.gitStash(g.unvetted)
+	if err != nil {
+		// We are in trouble! Consider a panic.
+		log.Errorf("gitStash: %v", err)
+		return nil, err
+	}
+
+	// git checkout master
+	err = g.gitCheckout(g.unvetted, "master")
+	if err != nil {
+		return nil, err
+	}
+
+	return nil, errReturn
 }
 
 // UpdateVettedRecord updates the vetted record.
