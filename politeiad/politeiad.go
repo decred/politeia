@@ -307,14 +307,14 @@ func (p *politeia) updateRecord(w http.ResponseWriter, r *http.Request, vetted b
 	log.Infof("Update %v record submitted %v: %x", cmd, remoteAddr(r),
 		token)
 
-	var rm *backend.RecordMetadata
+	var record *backend.Record_
 	if vetted {
-		rm, err = p.backend.UpdateVettedRecord(token,
+		record, err = p.backend.UpdateVettedRecord(token,
 			convertFrontendMetadataStream(t.MDAppend),
 			convertFrontendMetadataStream(t.MDOverwrite),
 			convertFrontendFiles(t.FilesAdd), t.FilesDel)
 	} else {
-		rm, err = p.backend.UpdateUnvettedRecord(token,
+		record, err = p.backend.UpdateUnvettedRecord(token,
 			convertFrontendMetadataStream(t.MDAppend),
 			convertFrontendMetadataStream(t.MDOverwrite),
 			convertFrontendFiles(t.FilesAdd), t.FilesDel)
@@ -351,20 +351,14 @@ func (p *politeia) updateRecord(w http.ResponseWriter, r *http.Request, vetted b
 	}
 
 	// Prepare reply.
-	signature := p.identity.SignMessage([]byte(rm.Merkle + rm.Token))
-
 	response := p.identity.SignMessage(challenge)
 	reply := v1.UpdateRecordReply{
 		Response: hex.EncodeToString(response[:]),
-		CensorshipRecord: v1.CensorshipRecord{
-			Merkle:    rm.Merkle,
-			Token:     rm.Token,
-			Signature: hex.EncodeToString(signature[:]),
-		},
+		Record_:  p.convertBackendRecord(*record),
 	}
 
 	log.Infof("Update %v record %v: token %v", cmd, remoteAddr(r),
-		reply.CensorshipRecord.Token)
+		reply.Record_.CensorshipRecord.Token)
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }

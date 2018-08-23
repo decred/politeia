@@ -146,11 +146,11 @@ type Backend interface {
 
 	// Update unvetted record (token, mdAppend, mdOverwrite, fAdd, fDelete)
 	UpdateUnvettedRecord([]byte, []MetadataStream, []MetadataStream, []File,
-		[]string) (*RecordMetadata, error)
+		[]string) (*Record_, error)
 
 	// Update vetted record (token, mdAppend, mdOverwrite, fAdd, fDelete)
 	UpdateVettedRecord([]byte, []MetadataStream, []MetadataStream, []File,
-		[]string) (*RecordMetadata, error)
+		[]string) (*Record_, error)
 	// Update vetted metadata (token, mdAppend, mdOverwrite)
 	UpdateVettedMetadata([]byte, []MetadataStream,
 		[]MetadataStream) error

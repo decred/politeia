@@ -1274,7 +1274,7 @@ func (g *gitBackEnd) checkoutRecordBranch(id string) (bool, error) {
 // reponsible to unwinding the changes.
 //
 // Function must be  called with the lock held.
-func (g *gitBackEnd) updateRecord_(commit bool, id string, mdAppend, mdOverwrite []backend.MetadataStream, fa []file, filesDel []string) (*backend.RecordMetadata, error) {
+func (g *gitBackEnd) updateRecord_(commit bool, id string, mdAppend, mdOverwrite []backend.MetadataStream, fa []file, filesDel []string) (*backend.Record_, error) {
 	// Get version for relative git rm command later.
 	version, err := getLatest(pijoin(g.unvetted, id))
 	if err != nil {
@@ -1380,12 +1380,17 @@ func (g *gitBackEnd) updateRecord_(commit bool, id string, mdAppend, mdOverwrite
 		return nil, backend.ErrChangesRecord
 	}
 
+	token, err := hex.DecodeString(id)
+	if err != nil {
+		return nil, err
+	}
+
 	// Update record metadata
 	ns := backend.MDStatusIterationUnvetted
 	if brm.Status == backend.MDStatusVetted {
 		ns = backend.MDStatusVetted
 	}
-	brmNew, err := createMD(g.unvetted, id, ns, brm.Iteration+1, hashes)
+	_, err = createMD(g.unvetted, id, ns, brm.Iteration+1, hashes)
 	if err != nil {
 		return nil, err
 	}
@@ -1404,7 +1409,8 @@ func (g *gitBackEnd) updateRecord_(commit bool, id string, mdAppend, mdOverwrite
 		return nil, err
 	}
 
-	return brmNew, nil
+	// This is a bit inefficient but let's roll with it for now.
+	return g.getRecord(token, g.unvetted, true)
 }
 
 // wouldChange applies a diff into a repo and undoes that. The point of this
@@ -1465,7 +1471,7 @@ func (g *gitBackEnd) wouldChange(id string, mdAppend []backend.MetadataStream, m
 // update occured on master.
 //
 // Must be called WITHOUT the lock held.
-func (g *gitBackEnd) updateRecord(token []byte, mdAppend []backend.MetadataStream, mdOverwrite []backend.MetadataStream, filesAdd []backend.File, filesDel []string, master bool) (*backend.RecordMetadata, error) {
+func (g *gitBackEnd) updateRecord(token []byte, mdAppend []backend.MetadataStream, mdOverwrite []backend.MetadataStream, filesAdd []backend.File, filesDel []string, master bool) (*backend.Record_, error) {
 	// Send in a single metadata array to verify there are no dups.
 	allMD := append(mdAppend, mdOverwrite...)
 	fa, err := verifyContent(allMD, filesAdd, filesDel)
@@ -1502,7 +1508,7 @@ func (g *gitBackEnd) updateRecord(token []byte, mdAppend []backend.MetadataStrea
 	id := hex.EncodeToString(token)
 	// Put repo in correct branch
 	var (
-		brm       *backend.RecordMetadata
+		br        *backend.Record_
 		errReturn error
 	)
 	if master {
@@ -1562,10 +1568,10 @@ func (g *gitBackEnd) updateRecord(token []byte, mdAppend []backend.MetadataStrea
 		log.Tracef("updating vetted %v -> %v %v", oldV, newV, id)
 
 		// Do the work, if there is an error we must unwind git.
-		brm, err = g.updateRecord_(true, id, mdAppend, mdOverwrite, fa,
+		br, err = g.updateRecord_(true, id, mdAppend, mdOverwrite, fa,
 			filesDel)
 		if err == backend.ErrNoChanges {
-			brm = nil
+			br = nil
 			errReturn = err
 		} else if err != nil {
 			// git stash
@@ -1575,7 +1581,7 @@ func (g *gitBackEnd) updateRecord(token []byte, mdAppend []backend.MetadataStrea
 				log.Errorf("gitStash: %v", err2)
 				return nil, err2
 			}
-			brm = nil
+			br = nil
 			errReturn = err
 		} else {
 			// create and rebase PR
@@ -1584,7 +1590,7 @@ func (g *gitBackEnd) updateRecord(token []byte, mdAppend []backend.MetadataStrea
 				return nil, err
 			}
 
-			return brm, nil
+			return br, nil
 		}
 
 		// git checkout master
@@ -1619,10 +1625,10 @@ func (g *gitBackEnd) updateRecord(token []byte, mdAppend []backend.MetadataStrea
 		log.Tracef("updating unvetted %v", id)
 
 		// Do the work, if there is an error we must unwind git.
-		brm, err = g.updateRecord_(true, id, mdAppend, mdOverwrite, fa,
+		br, err = g.updateRecord_(true, id, mdAppend, mdOverwrite, fa,
 			filesDel)
 		if err == backend.ErrNoChanges {
-			brm = nil
+			br = nil
 			errReturn = err
 		} else if err != nil {
 			// git stash
@@ -1633,7 +1639,7 @@ func (g *gitBackEnd) updateRecord(token []byte, mdAppend []backend.MetadataStrea
 				return nil, err2
 			}
 
-			brm = nil
+			br = nil
 			errReturn = err
 		}
 
@@ -1644,13 +1650,13 @@ func (g *gitBackEnd) updateRecord(token []byte, mdAppend []backend.MetadataStrea
 		}
 	}
 
-	return brm, errReturn
+	return br, errReturn
 }
 
 // UpdateVettedRecord updates the vetted record.
 //
 // This function is part of the interface.
-func (g *gitBackEnd) UpdateVettedRecord(token []byte, mdAppend []backend.MetadataStream, mdOverwrite []backend.MetadataStream, filesAdd []backend.File, filesDel []string) (*backend.RecordMetadata, error) {
+func (g *gitBackEnd) UpdateVettedRecord(token []byte, mdAppend []backend.MetadataStream, mdOverwrite []backend.MetadataStream, filesAdd []backend.File, filesDel []string) (*backend.Record_, error) {
 	return g.updateRecord(token, mdAppend, mdOverwrite, filesAdd, filesDel,
 		true)
 }
@@ -1658,7 +1664,7 @@ func (g *gitBackEnd) UpdateVettedRecord(token []byte, mdAppend []backend.Metadat
 // UpdateUnvettedRecord updates the unvetted record.
 //
 // This function is part of the interface.
-func (g *gitBackEnd) UpdateUnvettedRecord(token []byte, mdAppend []backend.MetadataStream, mdOverwrite []backend.MetadataStream, filesAdd []backend.File, filesDel []string) (*backend.RecordMetadata, error) {
+func (g *gitBackEnd) UpdateUnvettedRecord(token []byte, mdAppend []backend.MetadataStream, mdOverwrite []backend.MetadataStream, filesAdd []backend.File, filesDel []string) (*backend.Record_, error) {
 	return g.updateRecord(token, mdAppend, mdOverwrite, filesAdd, filesDel,
 		false)
 }

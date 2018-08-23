@@ -292,7 +292,7 @@ type UpdateRecord struct {
 type UpdateRecordReply struct {
 	Response string `json:"response"` // Challenge response
 
-	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
+	Record_ Record_ `json:"record"`
 }
 
 // UpdateVettedMetadata update a vetted metadata.  This is allowed for

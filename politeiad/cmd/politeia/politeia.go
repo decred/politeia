@@ -182,7 +182,7 @@ func printCensorshipRecord(c v1.CensorshipRecord) {
 	fmt.Printf("    Signature: %v\n", c.Signature)
 }
 
-func printRecordRecord(header string, pr v1.Record_) {
+func printRecord(header string, pr v1.Record_) {
 	// Pretty print record
 	status, ok := v1.RecordStatus[pr.Status]
 	if !ok {
@@ -428,10 +428,10 @@ func inventory() error {
 
 	if !*printJson {
 		for _, v := range i.Vetted_ {
-			printRecordRecord("Vetted record", v)
+			printRecord("Vetted record", v)
 		}
 		for _, v := range i.Branches_ {
-			printRecordRecord("Unvetted record", v)
+			printRecord("Unvetted record", v)
 		}
 	}
 
@@ -756,7 +756,7 @@ func updateRecord(vetted bool) error {
 	}
 
 	// Decode signature to verify
-	sig, err := hex.DecodeString(reply.CensorshipRecord.Signature)
+	sig, err := hex.DecodeString(reply.Record_.CensorshipRecord.Signature)
 	if err != nil {
 		return err
 	}
@@ -764,16 +764,24 @@ func updateRecord(vetted bool) error {
 	copy(signature[:], sig)
 
 	// Verify record token signature.
-	merkleToken := reply.CensorshipRecord.Merkle + reply.CensorshipRecord.Token
+	merkleToken := reply.Record_.CensorshipRecord.Merkle +
+		reply.Record_.CensorshipRecord.Token
 	if !id.VerifyMessage([]byte(merkleToken), signature) {
 		return fmt.Errorf("verification failed")
 	}
 
-	// Would be nice if we could verify merkle here but for that we need
-	// all original file hashes.
+	// Verify that the files that were returned match the record.
+	err = v1.Verify(*id, reply.Record_.CensorshipRecord, reply.Record_.Files)
+	if err != nil {
+		return err
+	}
 
 	if !*printJson {
-		printCensorshipRecord(reply.CensorshipRecord)
+		mode := "Unvetted record"
+		if vetted {
+			mode = "Vetted record"
+		}
+		printRecord(mode, reply.Record_)
 	}
 
 	return nil
@@ -875,7 +883,7 @@ func getUnvetted() error {
 	}
 
 	if !*printJson {
-		printRecordRecord("Unvetted record", reply.Record_)
+		printRecord("Unvetted record", reply.Record_)
 	}
 	return nil
 }
@@ -976,7 +984,7 @@ func getVetted() error {
 	}
 
 	if !*printJson {
-		printRecordRecord("Vetted record", reply.Record_)
+		printRecord("Vetted record", reply.Record_)
 	}
 	return nil
 }
