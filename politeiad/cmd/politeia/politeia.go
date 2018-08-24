@@ -182,7 +182,7 @@ func printCensorshipRecord(c v1.CensorshipRecord) {
 	fmt.Printf("    Signature: %v\n", c.Signature)
 }
 
-func printRecord(header string, pr v1.Record_) {
+func printRecord(header string, pr v1.Record) {
 	// Pretty print record
 	status, ok := v1.RecordStatus[pr.Status]
 	if !ok {
@@ -427,10 +427,10 @@ func inventory() error {
 	}
 
 	if !*printJson {
-		for _, v := range i.Vetted_ {
+		for _, v := range i.Vetted {
 			printRecord("Vetted record", v)
 		}
-		for _, v := range i.Branches_ {
+		for _, v := range i.Branches {
 			printRecord("Unvetted record", v)
 		}
 	}
@@ -756,7 +756,7 @@ func updateRecord(vetted bool) error {
 	}
 
 	// Decode signature to verify
-	sig, err := hex.DecodeString(reply.Record_.CensorshipRecord.Signature)
+	sig, err := hex.DecodeString(reply.Record.CensorshipRecord.Signature)
 	if err != nil {
 		return err
 	}
@@ -764,14 +764,14 @@ func updateRecord(vetted bool) error {
 	copy(signature[:], sig)
 
 	// Verify record token signature.
-	merkleToken := reply.Record_.CensorshipRecord.Merkle +
-		reply.Record_.CensorshipRecord.Token
+	merkleToken := reply.Record.CensorshipRecord.Merkle +
+		reply.Record.CensorshipRecord.Token
 	if !id.VerifyMessage([]byte(merkleToken), signature) {
 		return fmt.Errorf("verification failed")
 	}
 
 	// Verify that the files that were returned match the record.
-	err = v1.Verify(*id, reply.Record_.CensorshipRecord, reply.Record_.Files)
+	err = v1.Verify(*id, reply.Record.CensorshipRecord, reply.Record.Files)
 	if err != nil {
 		return err
 	}
@@ -781,7 +781,7 @@ func updateRecord(vetted bool) error {
 		if vetted {
 			mode = "Vetted record"
 		}
-		printRecord(mode, reply.Record_)
+		printRecord(mode, reply.Record)
 	}
 
 	return nil
@@ -863,10 +863,10 @@ func getUnvetted() error {
 	}
 
 	// Verify status
-	if reply.Record_.Status == v1.RecordStatusInvalid ||
-		reply.Record_.Status == v1.RecordStatusNotFound {
+	if reply.Record.Status == v1.RecordStatusInvalid ||
+		reply.Record.Status == v1.RecordStatusNotFound {
 		// Pretty print record
-		status, ok := v1.RecordStatus[reply.Record_.Status]
+		status, ok := v1.RecordStatus[reply.Record.Status]
 		if !ok {
 			status = v1.RecordStatus[v1.RecordStatusInvalid]
 		}
@@ -876,14 +876,14 @@ func getUnvetted() error {
 	}
 
 	// Verify content
-	err = v1.Verify(*id, reply.Record_.CensorshipRecord,
-		reply.Record_.Files)
+	err = v1.Verify(*id, reply.Record.CensorshipRecord,
+		reply.Record.Files)
 	if err != nil {
 		return err
 	}
 
 	if !*printJson {
-		printRecord("Unvetted record", reply.Record_)
+		printRecord("Unvetted record", reply.Record)
 	}
 	return nil
 }
@@ -964,10 +964,10 @@ func getVetted() error {
 	}
 
 	// Verify status
-	if reply.Record_.Status == v1.RecordStatusInvalid ||
-		reply.Record_.Status == v1.RecordStatusNotFound {
+	if reply.Record.Status == v1.RecordStatusInvalid ||
+		reply.Record.Status == v1.RecordStatusNotFound {
 		// Pretty print record
-		status, ok := v1.RecordStatus[reply.Record_.Status]
+		status, ok := v1.RecordStatus[reply.Record.Status]
 		if !ok {
 			status = v1.RecordStatus[v1.RecordStatusInvalid]
 		}
@@ -977,14 +977,14 @@ func getVetted() error {
 	}
 
 	// Verify content
-	err = v1.Verify(*id, reply.Record_.CensorshipRecord,
-		reply.Record_.Files)
+	err = v1.Verify(*id, reply.Record.CensorshipRecord,
+		reply.Record.Files)
 	if err != nil {
 		return err
 	}
 
 	if !*printJson {
-		printRecord("Vetted record", reply.Record_)
+		printRecord("Vetted record", reply.Record)
 	}
 	return nil
 }
@@ -1120,7 +1120,7 @@ func setUnvettedStatus() error {
 
 	if !*printJson {
 		// Pretty print record
-		status, ok := v1.RecordStatus[reply.Record_.Status]
+		status, ok := v1.RecordStatus[reply.Record.Status]
 		if !ok {
 			status = v1.RecordStatus[v1.RecordStatusInvalid]
 		}

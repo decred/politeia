@@ -190,8 +190,8 @@ func convertPropCensorFromWWW(f www.CensorshipRecord) pd.CensorshipRecord {
 // convertPropFromWWW converts a www proposal to a politeiad record.  This
 // function should only be used in tests. Note that convertPropFromWWW can not
 // emulate MD properly.
-func convertPropFromWWW(p www.ProposalRecord) pd.Record_ {
-	return pd.Record_{
+func convertPropFromWWW(p www.ProposalRecord) pd.Record {
+	return pd.Record{
 		Status:    convertPropStatusFromWWW(p.Status),
 		Timestamp: p.Timestamp,
 		Metadata: []pd.MetadataStream{{
@@ -203,8 +203,8 @@ func convertPropFromWWW(p www.ProposalRecord) pd.Record_ {
 	}
 }
 
-func convertPropsFromWWW(p []www.ProposalRecord) []pd.Record_ {
-	pr := make([]pd.Record_, 0, len(p))
+func convertPropsFromWWW(p []www.ProposalRecord) []pd.Record {
+	pr := make([]pd.Record, 0, len(p))
 	for _, v := range p {
 		pr = append(pr, convertPropFromWWW(v))
 	}
@@ -256,7 +256,7 @@ func convertPropCensorFromPD(f pd.CensorshipRecord) www.CensorshipRecord {
 }
 
 func convertPropFromInventoryRecord(r *inventoryRecord, userPubkeys map[string]string) www.ProposalRecord {
-	proposal := convertPropFromPD(r.record_)
+	proposal := convertPropFromPD(r.record)
 
 	// Set the comments num.
 	proposal.NumComments = uint(len(r.comments))
@@ -272,7 +272,7 @@ func convertPropFromInventoryRecord(r *inventoryRecord, userPubkeys map[string]s
 	return proposal
 }
 
-func convertPropFromPD(p pd.Record_) www.ProposalRecord {
+func convertPropFromPD(p pd.Record) www.ProposalRecord {
 	md := &BackendProposalMetadata{}
 	for _, v := range p.Metadata {
 		if v.ID != mdStreamGeneral {

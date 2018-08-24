@@ -120,7 +120,7 @@ type MetadataStream struct {
 
 // Record is a permanent Record that includes the submitted files, metadata and
 // internal metadata.
-type Record_ struct {
+type Record struct {
 	RecordMetadata RecordMetadata   // Internal metadata
 	Version        string           // Version of Files
 	Metadata       []MetadataStream // User provided metadata
@@ -146,27 +146,27 @@ type Backend interface {
 
 	// Update unvetted record (token, mdAppend, mdOverwrite, fAdd, fDelete)
 	UpdateUnvettedRecord([]byte, []MetadataStream, []MetadataStream, []File,
-		[]string) (*Record_, error)
+		[]string) (*Record, error)
 
 	// Update vetted record (token, mdAppend, mdOverwrite, fAdd, fDelete)
 	UpdateVettedRecord([]byte, []MetadataStream, []MetadataStream, []File,
-		[]string) (*Record_, error)
+		[]string) (*Record, error)
 	// Update vetted metadata (token, mdAppend, mdOverwrite)
 	UpdateVettedMetadata([]byte, []MetadataStream,
 		[]MetadataStream) error
 
 	// Get unvetted record
-	GetUnvetted([]byte) (*Record_, error)
+	GetUnvetted([]byte) (*Record, error)
 
 	// Get vetted record
-	GetVetted([]byte) (*Record_, error)
+	GetVetted([]byte) (*Record, error)
 
 	// Set unvetted record status
 	SetUnvettedStatus([]byte, MDStatusT, []MetadataStream,
-		[]MetadataStream) (*Record_, error)
+		[]MetadataStream) (*Record, error)
 
 	// Inventory retrieves various record records.
-	Inventory(uint, uint, bool) ([]Record_, []Record_, error)
+	Inventory(uint, uint, bool) ([]Record, []Record, error)
 
 	// Obtain plugin settings
 	GetPlugins() ([]Plugin, error)

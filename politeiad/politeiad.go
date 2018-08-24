@@ -142,7 +142,7 @@ func convertFrontendMetadataStream(mds []v1.MetadataStream) []backend.MetadataSt
 	return m
 }
 
-func (p *politeia) convertBackendRecord(br backend.Record_) v1.Record_ {
+func (p *politeia) convertBackendRecord(br backend.Record) v1.Record {
 	rm := br.RecordMetadata
 
 	// Calculate signature
@@ -155,7 +155,7 @@ func (p *politeia) convertBackendRecord(br backend.Record_) v1.Record_ {
 	}
 
 	// Convert record
-	pr := v1.Record_{
+	pr := v1.Record{
 		Status:    convertBackendStatus(rm.Status),
 		Timestamp: rm.Timestamp,
 		CensorshipRecord: v1.CensorshipRecord{
@@ -307,7 +307,7 @@ func (p *politeia) updateRecord(w http.ResponseWriter, r *http.Request, vetted b
 	log.Infof("Update %v record submitted %v: %x", cmd, remoteAddr(r),
 		token)
 
-	var record *backend.Record_
+	var record *backend.Record
 	if vetted {
 		record, err = p.backend.UpdateVettedRecord(token,
 			convertFrontendMetadataStream(t.MDAppend),
@@ -354,11 +354,11 @@ func (p *politeia) updateRecord(w http.ResponseWriter, r *http.Request, vetted b
 	response := p.identity.SignMessage(challenge)
 	reply := v1.UpdateRecordReply{
 		Response: hex.EncodeToString(response[:]),
-		Record_:  p.convertBackendRecord(*record),
+		Record:   p.convertBackendRecord(*record),
 	}
 
 	log.Infof("Update %v record %v: token %v", cmd, remoteAddr(r),
-		reply.Record_.CensorshipRecord.Token)
+		reply.Record.CensorshipRecord.Token)
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
@@ -400,7 +400,7 @@ func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
 	// Ask backend about the censorship token.
 	bpr, err := p.backend.GetUnvetted(token)
 	if err == backend.ErrRecordNotFound {
-		reply.Record_.Status = v1.RecordStatusNotFound
+		reply.Record.Status = v1.RecordStatusNotFound
 		log.Errorf("Get unvetted record %v: token %v not found",
 			remoteAddr(r), t.Token)
 	} else if err != nil {
@@ -412,11 +412,11 @@ func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
 		p.respondWithServerError(w, errorCode)
 		return
 	} else {
-		reply.Record_ = p.convertBackendRecord(*bpr)
+		reply.Record = p.convertBackendRecord(*bpr)
 
 		// Double check record bits before sending them off
 		err := v1.Verify(p.identity.Public,
-			reply.Record_.CensorshipRecord, reply.Record_.Files)
+			reply.Record.CensorshipRecord, reply.Record.Files)
 		if err != nil {
 			// Generic internal error.
 			errorCode := time.Now().Unix()
@@ -464,7 +464,7 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 	// Ask backend about the censorship token.
 	bpr, err := p.backend.GetVetted(token)
 	if err == backend.ErrRecordNotFound {
-		reply.Record_.Status = v1.RecordStatusNotFound
+		reply.Record.Status = v1.RecordStatusNotFound
 		log.Errorf("Get vetted record %v: token %v not found",
 			remoteAddr(r), t.Token)
 	} else if err != nil {
@@ -476,11 +476,11 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 		p.respondWithServerError(w, errorCode)
 		return
 	} else {
-		reply.Record_ = p.convertBackendRecord(*bpr)
+		reply.Record = p.convertBackendRecord(*bpr)
 
 		// Double check record bits before sending them off
 		err := v1.Verify(p.identity.Public,
-			reply.Record_.CensorshipRecord, reply.Record_.Files)
+			reply.Record.CensorshipRecord, reply.Record.Files)
 		if err != nil {
 			// Generic internal error.
 			errorCode := time.Now().Unix()
@@ -531,18 +531,18 @@ func (p *politeia) inventory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Convert backend records
-	vetted := make([]v1.Record_, 0, len(prs))
+	vetted := make([]v1.Record, 0, len(prs))
 	for _, v := range prs {
 		vetted = append(vetted, p.convertBackendRecord(v))
 	}
-	reply.Vetted_ = vetted
+	reply.Vetted = vetted
 
 	// Convert branches
-	unvetted := make([]v1.Record_, 0, len(brs))
+	unvetted := make([]v1.Record, 0, len(brs))
 	for _, v := range brs {
 		unvetted = append(unvetted, p.convertBackendRecord(v))
 	}
-	reply.Branches_ = unvetted
+	reply.Branches = unvetted
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
@@ -616,11 +616,11 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	reply := v1.SetUnvettedStatusReply{
 		Response: hex.EncodeToString(response[:]),
-		Record_:  p.convertBackendRecord(*record),
+		Record:   p.convertBackendRecord(*record),
 	}
 
 	log.Infof("Set unvetted record status %v: token %v status %v",
-		remoteAddr(r), t.Token, v1.RecordStatus[reply.Record_.Status])
+		remoteAddr(r), t.Token, v1.RecordStatus[reply.Record.Status])
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }

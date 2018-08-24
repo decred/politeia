@@ -22,7 +22,7 @@ var (
 )
 
 type inventoryRecord struct {
-	record_    pd.Record_              // actual record
+	record     pd.Record               // actual record
 	proposalMD BackendProposalMetadata // proposal metadata
 	comments   map[string]www.Comment  // [id]comment
 	changes    []MDStreamChanges       // changes metadata
@@ -42,14 +42,14 @@ type proposalsRequest struct {
 // newInventoryRecord adds a record to the inventory
 //
 // This function must be called WITH the mutex held.
-func (b *backend) newInventoryRecord(record pd.Record_) error {
+func (b *backend) newInventoryRecord(record pd.Record) error {
 	t := record.CensorshipRecord.Token
 	if _, ok := b.inventory[t]; ok {
 		return fmt.Errorf("newInventoryRecord: duplicate token: %v", t)
 	}
 
 	b.inventory[record.CensorshipRecord.Token] = &inventoryRecord{
-		record_:  record,
+		record:   record,
 		comments: make(map[string]www.Comment),
 	}
 
@@ -61,12 +61,12 @@ func (b *backend) newInventoryRecord(record pd.Record_) error {
 // updateInventoryRecord updates an existing record.
 //
 // This function must be called WITH the mutex held.
-func (b *backend) updateInventoryRecord(record pd.Record_) error {
+func (b *backend) updateInventoryRecord(record pd.Record) error {
 	ir, ok := b.inventory[record.CensorshipRecord.Token]
 	if !ok {
 		return fmt.Errorf("inventory record not found: %v", record.CensorshipRecord.Token)
 	}
-	ir.record_ = record
+	ir.record = record
 	b.inventory[record.CensorshipRecord.Token] = ir
 	b.loadRecordMetadata(record)
 	return nil
@@ -75,7 +75,7 @@ func (b *backend) updateInventoryRecord(record pd.Record_) error {
 // loadRecord load an record metadata and comments into inventory.
 //
 // This function must be called WITH the mutex held.
-func (b *backend) loadRecord(record pd.Record_) error {
+func (b *backend) loadRecord(record pd.Record) error {
 	t := record.CensorshipRecord.Token
 
 	// load record metadata
@@ -227,7 +227,7 @@ func (b *backend) loadComments(t string) error {
 // loadRecordMetadata load an entire record metadata into inventory.
 //
 // This function must be called WITH the mutex held.
-func (b *backend) loadRecordMetadata(v pd.Record_) {
+func (b *backend) loadRecordMetadata(v pd.Record) {
 	t := v.CensorshipRecord.Token
 
 	// Fish metadata out as well
@@ -280,7 +280,7 @@ func (b *backend) loadRecordMetadata(v pd.Record_) {
 func (b *backend) initializeInventory(inv *pd.InventoryReply) error {
 	b.inventory = make(map[string]*inventoryRecord)
 
-	for _, v := range append(inv.Vetted_, inv.Branches_...) {
+	for _, v := range append(inv.Vetted, inv.Branches...) {
 		err := b.newInventoryRecord(v)
 		if err != nil {
 			return err

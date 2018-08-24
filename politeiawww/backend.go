@@ -1013,7 +1013,7 @@ func (b *backend) LoadInventory() error {
 	}
 
 	log.Infof("Adding %v vetted, %v unvetted proposals to the cache",
-		len(inv.Vetted_), len(inv.Branches_))
+		len(inv.Vetted), len(inv.Branches))
 
 	return nil
 }
@@ -1685,7 +1685,7 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 
 		// Add the new proposal to the cache.
 		b.Lock()
-		err = b.newInventoryRecord(pd.Record_{
+		err = b.newInventoryRecord(pd.Record{
 			Status:           pd.RecordStatusNotReviewed,
 			Timestamp:        ts,
 			CensorshipRecord: pdReply.CensorshipRecord,
@@ -1723,7 +1723,7 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 
 		// Add the new proposal to the inventory cache.
 		b.Lock()
-		b.newInventoryRecord(pd.Record_{
+		b.newInventoryRecord(pd.Record{
 			Status:           pd.RecordStatusNotReviewed,
 			Timestamp:        ts,
 			CensorshipRecord: pdReply.CensorshipRecord,
@@ -1766,7 +1766,7 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 	var reply www.SetProposalStatusReply
 	var pdReply pd.SetUnvettedStatusReply
 	if b.test {
-		pdReply.Record_.Status = convertPropStatusFromWWW(sps.ProposalStatus)
+		pdReply.Record.Status = convertPropStatusFromWWW(sps.ProposalStatus)
 	} else {
 		// XXX Expensive to lock but do it for now.
 		// Lock is needed to prevent a race into this record and it
@@ -1836,7 +1836,7 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 		}
 
 		// Update the inventory with the metadata changes.
-		err = b.updateInventoryRecord(pdReply.Record_)
+		err = b.updateInventoryRecord(pdReply.Record)
 		if err != nil {
 			return nil, fmt.Errorf("ProcessSetProposalStatus: updateInventoryRecord %v", err)
 		}
@@ -1848,7 +1848,7 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 	}
 
 	// Return the reply.
-	reply.Proposal = convertPropFromPD(pdReply.Record_)
+	reply.Proposal = convertPropFromPD(pdReply.Record)
 
 	return &reply, nil
 }
@@ -1936,7 +1936,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 	}
 
 	var response string
-	var fullRecord pd.Record_
+	var fullRecord pd.Record
 	if isVettedProposal {
 		var pdReply pd.GetVettedReply
 		err = json.Unmarshal(responseBody, &pdReply)
@@ -1946,7 +1946,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 		}
 
 		response = pdReply.Response
-		fullRecord = pdReply.Record_
+		fullRecord = pdReply.Record
 	} else {
 		var pdReply pd.GetUnvettedReply
 		err = json.Unmarshal(responseBody, &pdReply)
@@ -1956,7 +1956,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 		}
 
 		response = pdReply.Response
-		fullRecord = pdReply.Record_
+		fullRecord = pdReply.Record
 	}
 
 	// Verify the challenge.
@@ -1966,7 +1966,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 	}
 
 	reply.Proposal = convertPropFromInventoryRecord(&inventoryRecord{
-		record_:  fullRecord,
+		record:   fullRecord,
 		changes:  p.changes,
 		comments: p.comments,
 	}, b.userPubkeys)
@@ -2245,7 +2245,7 @@ func (b *backend) ProcessActiveVote() (*www.ActiveVoteReply, error) {
 		}
 
 		avr.Votes = append(avr.Votes, www.ProposalVoteTuple{
-			Proposal:       convertPropFromPD(i.record_),
+			Proposal:       convertPropFromPD(i.record),
 			StartVote:      i.votebits,
 			StartVoteReply: i.voting,
 		})
@@ -2335,7 +2335,7 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 			ErrorCode: www.ErrorStatusProposalNotFound,
 		}
 	}
-	if ir.record_.Status != pd.RecordStatusPublic {
+	if ir.record.Status != pd.RecordStatusPublic {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusWrongStatus,
 		}
@@ -2408,7 +2408,7 @@ func (b *backend) ProcessVoteResults(token string) (*www.VoteResultsReply, error
 			ErrorCode: www.ErrorStatusProposalNotFound,
 		}
 	}
-	if ir.record_.Status != pd.RecordStatusPublic {
+	if ir.record.Status != pd.RecordStatusPublic {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusWrongStatus,
 		}
@@ -2435,19 +2435,19 @@ func (b *backend) ProcessGetAllVoteStatus() (*www.GetAllVoteStatusReply, error) 
 	var gavsr www.GetAllVoteStatusReply
 	for _, i := range b.inventory {
 
-		ps := convertPropStatusFromPD(i.record_.Status)
+		ps := convertPropStatusFromPD(i.record.Status)
 		if ps != www.PropStatusPublic {
 			// proposal isn't public
 			continue
 		}
 
-		vrr, err := b.getVoteResultsFromPlugin(i.record_.CensorshipRecord.Token)
+		vrr, err := b.getVoteResultsFromPlugin(i.record.CensorshipRecord.Token)
 		if err != nil {
 			return nil, err
 		}
 
 		vsr := www.VoteStatusReply{
-			Token:         i.record_.CensorshipRecord.Token,
+			Token:         i.record.CensorshipRecord.Token,
 			Status:        getVoteStatus(i, bestBlock),
 			TotalVotes:    uint64(len(vrr.CastVotes)),
 			OptionsResult: convertVoteResultsFromDecredplugin(vrr),
@@ -2469,7 +2469,7 @@ func (b *backend) ProcessVoteStatus(token string) (*www.VoteStatusReply, error) 
 			ErrorCode: www.ErrorStatusProposalNotFound,
 		}
 	}
-	if ir.record_.Status != pd.RecordStatusPublic {
+	if ir.record.Status != pd.RecordStatusPublic {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusWrongStatus,
 		}
@@ -2622,6 +2622,17 @@ func (b *backend) ProcessEditProposal(user *database.User, ep www.EditProposal) 
 		}
 	}
 
+	// verify that the proposal voting has not started
+	bb, err := b.getBestBlock()
+	if err != nil {
+		return nil, err
+	}
+	if getVoteStatus(invRecord, bb) != www.PropVoteStatusNotStarted {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusCannotEditPropOnVoting,
+		}
+	}
+
 	// validate proposal
 	//
 	// convert it to www.NewProposal so the we can reuse
@@ -2666,7 +2677,7 @@ func (b *backend) ProcessEditProposal(user *database.User, ep www.EditProposal) 
 	}}
 
 	var delFiles []string
-	for _, v := range invRecord.record_.Files {
+	for _, v := range invRecord.record.Files {
 		found := false
 		for _, c := range ep.Files {
 			if v.Name == c.Name {
@@ -2675,8 +2686,6 @@ func (b *backend) ProcessEditProposal(user *database.User, ep www.EditProposal) 
 		}
 		if !found {
 			delFiles = append(delFiles, v.Name)
-		} else {
-			found = false
 		}
 	}
 
@@ -2716,13 +2725,13 @@ func (b *backend) ProcessEditProposal(user *database.User, ep www.EditProposal) 
 
 	b.Lock()
 	defer b.Unlock()
-	err = b.updateInventoryRecord(pdReply.Record_)
+	err = b.updateInventoryRecord(pdReply.Record)
 	if err != nil {
 		return nil, fmt.Errorf("ProcessEditProposal: updateInventoryRecord %v", err)
 	}
 
 	return &www.EditProposalReply{
-		Proposal: convertPropFromPD(pdReply.Record_),
+		Proposal: convertPropFromPD(pdReply.Record),
 	}, nil
 }
 
