@@ -57,6 +57,7 @@ const (
 	ErrorStatusFileNotFound                  ErrorStatusT = 13
 	ErrorStatusNoChanges                     ErrorStatusT = 14
 	ErrorStatusRecordFound                   ErrorStatusT = 15
+	ErrorStatusInvalidRPCCredentials         ErrorStatusT = 16
 
 	// Record status codes (set and get)
 	RecordStatusInvalid           RecordStatusT = 0 // Invalid status
@@ -95,6 +96,7 @@ var (
 		ErrorStatusFileNotFound:                  "file not found",
 		ErrorStatusNoChanges:                     "no changes in record",
 		ErrorStatusRecordFound:                   "record found",
+		ErrorStatusInvalidRPCCredentials:         "invalid RPC client credentials",
 	}
 
 	// RecordStatus converts record status codes to human readable text.

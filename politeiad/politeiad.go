@@ -569,7 +569,7 @@ func (p *politeia) auth(fn http.HandlerFunc) http.HandlerFunc {
 			w.Header().Set("WWW-Authenticate",
 				`Basic realm="Politeiad"`)
 			w.WriteHeader(401)
-			w.Write([]byte("401 Unauthorized\n"))
+			p.respondWithUserError(w, v1.ErrorStatusInvalidRPCCredentials, nil)
 			return
 		}
 		log.Infof("%v Authorized access for: %v",
