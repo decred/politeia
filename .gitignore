@@ -1,5 +1,6 @@
 politeiad/cmd/politeia/politeia
 politeiad/politeiad
+politeiavoter/politeiavoter
 politeiawww/cmd/politeiawww_dbutil/politeiawww_dbutil
 politeiawww/cmd/politeiawww_refclient/politeiawww_refclient
 politeiawww/cmd/politeiawwwcli/politeiawwwcli

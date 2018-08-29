@@ -2878,7 +2878,10 @@ func NewBackend(cfg *config) (*backend, error) {
 	}
 
 	// Set up the code that checks for paywall payments.
-	b.initPaywallChecker()
+	err = b.initPaywallChecker()
+	if err != nil {
+		return nil, err
+	}
 
 	return b, nil
 }

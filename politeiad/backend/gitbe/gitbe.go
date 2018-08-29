@@ -33,7 +33,6 @@ import (
 	filesystem "github.com/otiai10/copy"
 	"github.com/robfig/cron"
 	"github.com/subosito/norma"
-	"github.com/syndtr/goleveldb/leveldb"
 )
 
 const (
@@ -112,7 +111,6 @@ type file struct {
 // interface.
 type gitBackEnd struct {
 	sync.Mutex                       // Global lock
-	db              *leveldb.DB      // Database
 	cron            *cron.Cron       // Scheduler for periodic tasks
 	activeNetParams *chaincfg.Params // indicator if we are running on testnet
 	journal         *Journal         // Journal context

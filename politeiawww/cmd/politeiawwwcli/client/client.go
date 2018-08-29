@@ -1117,7 +1117,6 @@ func (c *Ctx) CastVotes(propToken, voteId string) (*v1.BallotReply, error) {
 	cv := v1.Ballot{
 		Votes: make([]v1.CastVote, 0, len(ctres.TicketAddresses)),
 	}
-	tickets := make([]string, 0, len(ctres.TicketAddresses))
 	for k, v := range ctres.TicketAddresses {
 		h, err := chainhash.NewHash(v.Ticket)
 		if err != nil {
@@ -1130,7 +1129,6 @@ func (c *Ctx) CastVotes(propToken, voteId string) (*v1.BallotReply, error) {
 			VoteBit:   voteBit,
 			Signature: signature,
 		})
-		tickets = append(tickets, h.String())
 	}
 
 	// cast votes on supplied proposal

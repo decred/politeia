@@ -265,7 +265,7 @@ func PayWithTestnetFaucet(faucetURL string, address string, amount uint64, overr
 		2500*time.Millisecond)
 	// it is good practice to use the cancellation function even with a timeout
 	defer cancel()
-	req.WithContext(ctx)
+	req = req.WithContext(ctx)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)

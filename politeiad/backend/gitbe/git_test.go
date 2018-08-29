@@ -158,7 +158,7 @@ func TestFsck(t *testing.T) {
 		t.Fatal(err)
 	}
 	if out[0] != "commit" {
-		t.Fatalf("invalid type: %v", string(out[0]))
+		t.Fatalf("invalid type: %v", out[0])
 	}
 
 	// Now get the tree object
@@ -174,7 +174,7 @@ func TestFsck(t *testing.T) {
 		t.Fatal(err)
 	}
 	if out[0] != "tree" {
-		t.Fatalf("invalid type: %v", string(out[0]))
+		t.Fatalf("invalid type: %v", out[0])
 	}
 
 	// Now go get the blob
@@ -192,7 +192,7 @@ func TestFsck(t *testing.T) {
 		t.Fatal(err)
 	}
 	if out[0] != "blob" {
-		t.Fatalf("invalid type: %v", string(out[0]))
+		t.Fatalf("invalid type: %v", out[0])
 	}
 
 	// Now we corrupt the blob object

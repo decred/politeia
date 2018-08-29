@@ -432,10 +432,6 @@ func loadConfig() (*config, []string, error) {
 	// duplicate addresses.
 	cfg.Listeners = normalizeAddresses(cfg.Listeners, port)
 
-	if cfg.TestNet {
-	} else {
-	}
-
 	if cfg.Identity == "" {
 		cfg.Identity = defaultIdentityFile
 	}
