@@ -468,7 +468,15 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleLogout")
 
-	err := p.removeSession(w, r)
+	_, err := p.getSessionUser(r)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleLogout: getSessionUser", v1.UserError{
+			ErrorCode: v1.ErrorStatusNotLoggedIn,
+		})
+		return
+	}
+
+	err = p.removeSession(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleLogout: removeSession %v", err)
