@@ -292,7 +292,7 @@ func (g *gitBackEnd) getNewCid(token string) (string, error) {
 		cid = strconv.FormatUint(c, 10)
 
 		// Write back new comment id
-		_, err = fh.Seek(0, os.SEEK_SET)
+		_, err = fh.Seek(0, io.SeekStart)
 		if err != nil {
 			return "", err
 		}

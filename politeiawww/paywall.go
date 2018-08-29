@@ -329,7 +329,7 @@ func (b *backend) ProcessVerifyUserPayment(user *database.User, vupt v1.VerifyUs
 			return nil, err
 		}
 	} else {
-		// Add the user to the in-memory pool.
+		// TODO: Add the user to the in-memory pool.
 	}
 
 	return &reply, nil

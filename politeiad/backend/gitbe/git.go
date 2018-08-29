@@ -16,18 +16,9 @@ import (
 
 // gitError contains all the components of a git invocation.
 type gitError struct {
-	cmd       []string
-	env       []string
-	err       error
-	errStdout error
-	errStderr error
-	stdout    []string
-	stderr    []string
-}
-
-// Error satisfies the error interface.
-func (e gitError) Error() string {
-	return e.err.Error()
+	cmd    []string
+	stdout []string
+	stderr []string
 }
 
 // log pretty prints a gitError.
@@ -37,9 +28,6 @@ func (e gitError) log() {
 		cmd += v + " "
 	}
 	log.Infof("Git command     : %v", cmd)
-	log.Infof("Git returned    : %v", e.err)
-	log.Infof("Git stdout error: %v", e.errStdout)
-	log.Infof("Git stderr error: %v", e.errStderr)
 	s := "Git stdout :"
 	for _, v := range e.stdout {
 		log.Infof("%v %v", s, v)

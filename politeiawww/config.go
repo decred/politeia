@@ -560,41 +560,6 @@ func loadConfig() (*config, []string, error) {
 	// duplicate addresses.
 	cfg.Listeners = normalizeAddresses(cfg.Listeners, port)
 
-	if cfg.TestNet {
-		//var timeHost string
-		//if len(cfg.DcrtimeHost) == 0 {
-		//	timeHost = v1.DefaultTestnetTimeHost
-		//} else {
-		//	timeHost = cfg.DcrtimeHost
-		//}
-		//cfg.DcrtimeHost = util.NormalizeAddress(timeHost,
-		//	v1.DefaultTestnetTimePort)
-	} else {
-		//var timeHost string
-		//if len(cfg.DcrtimeHost) == 0 {
-		//	timeHost = v1.DefaultMainnetTimeHost
-		//} else {
-		//	timeHost = cfg.DcrtimeHost
-		//}
-		//cfg.DcrtimeHost = util.NormalizeAddress(timeHost,
-		//	v1.DefaultMainnetTimePort)
-	}
-	//cfg.DcrtimeHost = "https://" + cfg.DcrtimeHost
-
-	//if len(cfg.DcrtimeCert) != 0 && !fileExists(cfg.DcrtimeCert) {
-	//	cfg.DcrtimeCert = cleanAndExpandPath(cfg.DcrtimeCert)
-	//	path := filepath.Join(cfg.HomeDir, cfg.DcrtimeCert)
-	//	if !fileExists(path) {
-	//		str := "%s: dcrtimecert " + cfg.DcrtimeCert + " and " +
-	//			path + " don't exist"
-	//		err := fmt.Errorf(str, funcName)
-	//		fmt.Fprintln(os.Stderr, err)
-	//		return nil, nil, err
-	//	}
-
-	//	cfg.DcrtimeCert = path
-	//}
-
 	// Set up the rpc address.
 	if cfg.TestNet {
 		port = v1.DefaultTestnetPort
