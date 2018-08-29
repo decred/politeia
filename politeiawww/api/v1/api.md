@@ -29,6 +29,7 @@ API.  It does not render HTML.
 - [`Proposal paywall details`](#proposal-paywall-details)
 - [`User proposal credits`](#user-proposal-credits)
 - [`New proposal`](#new-proposal)
+- [`Edit Proposal`](#edit-proposal)
 - [`Proposal details`](#proposal-details)
 - [`Set proposal status`](#set-proposal-status)
 - [`Policy`](#policy)
@@ -959,6 +960,86 @@ Reply:
   }
 }
 ```
+
+### `Edit proposal`
+
+Edit an existent proposal into the politeiawww server.
+The proposal name is derived from the first line of the markdown file - index.md.
+
+Note that updating public proposals will generate a new record version. While 
+updating an unvetted record will change the record but it will not generate
+a new version.
+
+The example shown below is for a public proposal where the proposal version is increased
+by one after the update.
+
+**Route:** `POST /v1/proposals/edit`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-----------|------|-------------|----------|
+| files | array of [`File`](#file)s | Files are the body of the proposal. It should consist of one markdown file - named "index.md" - and up to five pictures. **Note:** all parameters within each [`File`](#file) are required. | Yes |
+| signature | string | Signature of the string representation of the Merkle root of the files payload. Note that the merkle digests are calculated on the decoded payload.. | Yes |
+| publickey | string | Public key from the client side, sent to politeiawww for verification | Yes |
+
+**Results:**
+
+| | Type | Description |
+|-|-|-|
+| proposal | [`Proposal`](#proposal) | The updated proposal. |
+
+**Example:**
+
+Request:
+
+```json
+{
+   "files":[
+      {
+         "name":"index.md",
+         "mime":"text/plain; charset=utf-8",
+         "payload":"RWRpdGVkIHByb3Bvc2FsCmVkaXRlZCBkZXNjcmlwdGlvbg==",
+         "digest":"a3c46ac82db1c9e5d780d9ddd046d73a0fdfcb1a2c55ab730f71a4213725e605"
+      }
+   ],
+   "publickey":"1bc17b4aaa7d08030d0cb984d3b67ce7b681508b46ce307b22dfd630141788a0",
+   "signature":"e8159f104bb4caa9a7952868ead44af8f1015cac72abd81b1fc83a434e26e0ce75c6a3a8a5c8d8f68405e82eea35c60e2d46fb0ff652eaf53690d57a7d4c8000",
+   "token":"6ef01f0ffae69fd267f98756231b8349a14f254c28d2312239cb80579e850337"
+}
+```
+
+Reply:
+
+```json
+{
+   "proposal":{
+      "name":"Edited proposal",
+      "status":4,
+      "timestamp":1535468714,
+      "userid":"",
+      "username":"",
+      "publickey":"1bc17b4aaa7d08030d0cb984d3b67ce7b681508b46ce307b22dfd630141788a0",
+      "signature":"e8159f104bb4caa9a7952868ead44af8f1015cac72abd81b1fc83a434e26e0ce75c6a3a8a5c8d8f68405e82eea35c60e2d46fb0ff652eaf53690d57a7d4c8000",
+      "files":[
+         {
+            "name":"index.md",
+            "mime":"text/plain; charset=utf-8",
+            "digest":"a3c46ac82db1c9e5d780d9ddd046d73a0fdfcb1a2c55ab730f71a4213725e605",
+            "payload":"RWRpdGVkIHByb3Bvc2FsCmVkaXRlZCBkZXNjcmlwdGlvbg=="
+         }
+      ],
+      "numcomments":0,
+      "version":"2",
+      "censorshiprecord":{
+         "token":"6ef01f0ffae69fd267f98756231b8349a14f254c28d2312239cb80579e850337",
+         "merkle":"a3c46ac82db1c9e5d780d9ddd046d73a0fdfcb1a2c55ab730f71a4213725e605",
+         "signature":"aead575825a8cf3195079e263fe8eeb342f0fe51757e79de7bb8e733c672c0762cd3a0eb58de5057813028244910324d71ffd96d4a809a4c4634883b62a08007"
+      }
+   }
+}
+```
+
 
 ### `Unvetted`
 
@@ -2128,6 +2209,7 @@ Reply:
 | userid | string | The ID of the user who created the proposal. |
 | publickey | string | The public key of the user who created the proposal. |
 | signature | string | The signature of the merkle root, signed by the user who created the proposal. |
+| version | string | The proposal version. |
 | censorshiprecord | [`censorshiprecord`](#censorship-record) | The censorship record that was created when the proposal was submitted. |
 | files | array of [`File`](#file)s | This property will only be populated for the [`Proposal details`](#proposal-details) call. |
 | numcomments | number | The number of comments on the proposal. This should be ignored for proposals which are not public. |

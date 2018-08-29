@@ -1152,6 +1152,36 @@ func (p *politeiawww) handleUserCommentsVotes(w http.ResponseWriter, r *http.Req
 	util.RespondWithJSON(w, http.StatusOK, ucvr)
 }
 
+// handleEditProposal attempts to edit a proposal
+func (p *politeiawww) handleEditProposal(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleEditProposal")
+
+	var ep v1.EditProposal
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&ep); err != nil {
+		RespondWithError(w, r, 0, "handleEditProposal: unmarshal",
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	user, err := p.getSessionUser(r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleEditProposal: getSessionUser %v", err)
+		return
+	}
+
+	epr, err := p.backend.ProcessEditProposal(user, ep)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleEditProposal: processEditProposal %v", err)
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, epr)
+}
+
 // handleNotFound is a generic handler for an invalid route.
 func (p *politeiawww) handleNotFound(w http.ResponseWriter, r *http.Request) {
 	// Log incoming connection
@@ -1389,6 +1419,8 @@ func _main() error {
 		p.handleUserCommentsVotes, permissionLogin, true)
 	p.addRoute(http.MethodGet, v1.RouteUserProposalCredits,
 		p.handleUserProposalCredits, permissionLogin, false)
+	p.addRoute(http.MethodPost, v1.RouteEditProposal,
+		p.handleEditProposal, permissionLogin, true)
 
 	// Routes that require being logged in as an admin user.
 	p.addRoute(http.MethodGet, v1.RouteAllUnvetted, p.handleAllUnvetted,
