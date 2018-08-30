@@ -2,6 +2,8 @@ package commands
 
 import (
 	"bufio"
+	"bytes"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"os"
@@ -31,7 +33,20 @@ func (cmd *NewproposalCmd) Execute(args []string) error {
 	var mdPayload []byte
 	var attachments []client.Attachment
 	if cmd.Random {
-		mdPayload = []byte("This is a name\nThis is a description")
+		// Generate proposal markdown text.
+		var b bytes.Buffer
+		b.WriteString("This is the proposal title\n")
+
+		// The description is 10 lines of random base64 encoded text.
+		for i := 0; i < 10; i++ {
+			r, err := util.Random(32)
+			if err != nil {
+				return err
+			}
+			b.WriteString(base64.StdEncoding.EncodeToString(r) + "\n")
+		}
+
+		mdPayload = b.Bytes()
 	} else {
 		fpath := util.CleanAndExpandPath(cmd.Args.ProposalMarkdown, config.HomeDir)
 		f, err := os.Open(fpath)
