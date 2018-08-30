@@ -6,8 +6,9 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"sync"
 	"testing"
+
+	"golang.org/x/sync/errgroup"
 )
 
 func testExact(j *Journal, filename string, count int) error {
@@ -142,54 +143,49 @@ func TestJournalConcurrent(t *testing.T) {
 	// Test concurrent writes
 	files := 10
 	count := 1000
-	var wg sync.WaitGroup
+	var eg errgroup.Group
 	for i := 0; i < files; i++ {
-		wg.Add(1)
-		go func(k int) {
-			defer wg.Done()
+		k := i
+		eg.Go(func() error {
 			filename := filepath.Join(dir, fmt.Sprintf("file%v", k))
 			for k := 0; k < count; k++ {
 				err := j.Journal(filename, fmt.Sprintf("%v", k))
 				if err != nil {
-					t.Fatal(err)
+					return err
 				}
 			}
-		}(i)
+			return nil
+		})
 	}
-
-	wg.Wait()
+	if err := eg.Wait(); err != nil {
+		t.Fatal(err)
+	}
 
 	// Test concurrent reads
 	t.Logf("TestJournalConcurrent: reading back %v", dir)
 	for i := 0; i < files; i++ {
-		wg.Add(1)
-		go func(k int) {
-			defer wg.Done()
+		k := i
+		eg.Go(func() error {
 			filename := filepath.Join(dir, fmt.Sprintf("file%v", k))
-			err := testExact(j, filename, count)
-			if err != nil {
-				t.Fatal(err)
-			}
-		}(i)
+			return testExact(j, filename, count)
+		})
 	}
-
-	wg.Wait()
+	if err := eg.Wait(); err != nil {
+		t.Fatal(err)
+	}
 
 	// Close concurrent
 	t.Logf("TestJournalConcurrent: closing %v", dir)
 	for i := 0; i < files; i++ {
-		wg.Add(1)
-		go func(k int) {
-			defer wg.Done()
+		k := i
+		eg.Go(func() error {
 			filename := filepath.Join(dir, fmt.Sprintf("file%v", k))
-			err := j.Close(filename)
-			if err != nil {
-				t.Fatal(err)
-			}
-		}(i)
+			return j.Close(filename)
+		})
 	}
-
-	wg.Wait()
+	if err := eg.Wait(); err != nil {
+		t.Fatal(err)
+	}
 
 	os.RemoveAll(dir)
 }
@@ -203,23 +199,20 @@ func TestJournalConcurrentSame(t *testing.T) {
 
 	j := NewJournal()
 
-	var wg sync.WaitGroup
 	count := 10000
 	check := make(map[int]struct{})
+	var eg errgroup.Group
 	filename := filepath.Join(dir, "file1")
 	for i := 0; i < count; i++ {
-		wg.Add(1)
 		check[i] = struct{}{}
-		go func(k int) {
-			defer wg.Done()
-			err := j.Journal(filename, fmt.Sprintf("%v", k))
-			if err != nil {
-				t.Fatalf("%v: %v", k, err)
-			}
-		}(i)
+		k := i
+		eg.Go(func() error {
+			return j.Journal(filename, fmt.Sprintf("%v", k))
+		})
 	}
-
-	wg.Wait()
+	if err := eg.Wait(); err != nil {
+		t.Fatal(err)
+	}
 
 	// Read back and make sure all entries exist
 	err = j.Open(filename)
