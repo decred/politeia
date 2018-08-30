@@ -167,7 +167,7 @@ func TestJournalConcurrent(t *testing.T) {
 		k := i
 		eg.Go(func() error {
 			filename := filepath.Join(dir, fmt.Sprintf("file%v", k))
-			return testExact(j, filename, files)
+			return testExact(j, filename, count)
 		})
 	}
 	if err := eg.Wait(); err != nil {
