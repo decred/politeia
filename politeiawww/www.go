@@ -237,7 +237,8 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 	ec := fmt.Sprintf("%v %v %v %v Internal error %v: ", remoteAddr(r),
 		r.Method, r.URL, r.Proto, errorCode)
 	log.Errorf(ec+format, args...)
-	log.Errorf("Stacktrace: %s", debug.Stack())
+	log.Errorf("Stacktrace (NOT A REAL CRASH): %s", debug.Stack())
+
 	util.RespondWithJSON(w, http.StatusInternalServerError,
 		v1.ErrorReply{
 			ErrorCode: errorCode,
