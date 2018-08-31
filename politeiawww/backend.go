@@ -2119,13 +2119,6 @@ func (b *backend) ProcessLikeComment(lc www.LikeComment, user *database.User) (*
 		return nil, fmt.Errorf("ProcessLikeComment: inventory proposal not found: %v", lc.Token)
 	}
 
-	// make sure the proposal is public
-	if convertPropStatusFromPD(ir.record.Status) != www.PropStatusPublic {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusCannotVoteOnPropComment,
-		}
-	}
-
 	// make sure the proposal voting has not ended
 	bb, err := b.getBestBlock()
 	if err != nil {
