@@ -2133,7 +2133,6 @@ func (b *backend) ProcessLikeComment(lc www.LikeComment, user *database.User) (*
 	}
 
 	if getVoteStatus(ir, bb) == www.PropVoteStatusFinished {
-		// vote is either active or finished
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusCannotVoteOnPropComment,
 		}
