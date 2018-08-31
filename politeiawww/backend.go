@@ -1911,7 +1911,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 	if user != nil {
 		authorID, err := strconv.ParseUint(cachedProposal.UserId, 10, 64)
 		if err != nil {
-			log.Infof("should not happend")
+			log.Infof("ProcessProposalDetails: ParseUint failed on '%v': %v", cachedProposal.UserId, err)
 		}
 
 		isUserTheAuthor = authorID == user.ID
