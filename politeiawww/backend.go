@@ -2005,6 +2005,34 @@ func (b *backend) ProcessComment(c www.NewComment, user *database.User) (*www.Ne
 		return nil, err
 	}
 
+	// get proposal record from inventory
+	b.RLock()
+	ir, ok := b.inventory[c.Token]
+	b.RUnlock()
+	if !ok {
+		return nil, fmt.Errorf("ProcessComment: inventory proposal not found: %v", c.Token)
+	}
+
+	// make sure the proposal is public
+	if convertPropStatusFromPD(ir.record.Status) != www.PropStatusPublic {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusCannotCommentOnProp,
+		}
+	}
+
+	// make sure the proposal voting has not ended
+	bb, err := b.getBestBlock()
+	if err != nil {
+		return nil, fmt.Errorf("ProcessComment: getBestBlock: %v", err)
+	}
+
+	if getVoteStatus(ir, bb) == www.PropVoteStatusFinished {
+		// vote is either active or finished
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusCannotCommentOnProp,
+		}
+	}
+
 	// Validate comment
 	if err := validateComment(c); err != nil {
 		return nil, err
@@ -2083,18 +2111,23 @@ func (b *backend) ProcessLikeComment(lc www.LikeComment, user *database.User) (*
 		return nil, err
 	}
 
-	// Validate prop vote status
+	// get the proposal record from inventory
 	b.RLock()
 	ir, ok := b.inventory[lc.Token]
 	b.RUnlock()
 	if !ok {
-		return nil, fmt.Errorf("Could not find proposal")
+		return nil, fmt.Errorf("ProcessLikeComment: inventory proposal not found: %v", lc.Token)
 	}
 
-	if ir.voting.EndHeight != "" {
-		// vote is either active or finished
+	// make sure the proposal voting has not ended
+	bb, err := b.getBestBlock()
+	if err != nil {
+		return nil, fmt.Errorf("ProcessLikeComment: getBestBlock: %v", err)
+	}
+
+	if getVoteStatus(ir, bb) == www.PropVoteStatusFinished {
 		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusInvalidPropVoteStatus,
+			ErrorCode: www.ErrorStatusCannotVoteOnPropComment,
 		}
 	}
 

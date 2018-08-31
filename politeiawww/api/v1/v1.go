@@ -143,6 +143,8 @@ const (
 	ErrorStatusInvalidUserEditAction       ErrorStatusT = 40
 	ErrorStatusUserActionNotAllowed        ErrorStatusT = 41
 	ErrorStatusCannotEditPropOnVoting      ErrorStatusT = 42
+	ErrorStatusCannotCommentOnProp         ErrorStatusT = 43
+	ErrorStatusCannotVoteOnPropComment     ErrorStatusT = 44
 
 	// Proposal status codes (set and get)
 	PropStatusInvalid           PropStatusT = 0 // Invalid status
@@ -234,6 +236,8 @@ var (
 		ErrorStatusInvalidUserEditAction:       "invalid user edit action",
 		ErrorStatusUserActionNotAllowed:        "user action is not allowed",
 		ErrorStatusCannotEditPropOnVoting:      "cannot edit proposals on voting",
+		ErrorStatusCannotCommentOnProp:         "cannot comment on proposal",
+		ErrorStatusCannotVoteOnPropComment:     "cannot vote on proposal comment",
 	}
 
 	// PropStatus converts propsal status codes to human readable text
