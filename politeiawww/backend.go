@@ -1907,14 +1907,15 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 	// should be publicly viewable.
 	isUserAdmin := user != nil && user.Admin
 
-	var authorID uint64
+	var isUserTheAuthor bool
 	if user != nil {
-		authorID, err = strconv.ParseUint(cachedProposal.UserId, 10, 64)
+		authorID, err := strconv.ParseUint(cachedProposal.UserId, 10, 64)
 		if err != nil {
 			log.Infof("should not happend")
 		}
+
+		isUserTheAuthor = authorID == user.ID
 	}
-	isUserTheAuthor := authorID == user.ID
 
 	if !isVettedProposal && !isUserAdmin && !isUserTheAuthor {
 		reply.Proposal = www.ProposalRecord{
