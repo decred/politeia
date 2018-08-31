@@ -1911,6 +1911,8 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 	if user != nil {
 		authorID, err := strconv.ParseUint(cachedProposal.UserId, 10, 64)
 		if err != nil {
+			// Only complain and move on since some of the proposals details
+			// can still be sent for a non-admin or a non-author user
 			log.Infof("ProcessProposalDetails: ParseUint failed on '%v': %v", cachedProposal.UserId, err)
 		}
 
