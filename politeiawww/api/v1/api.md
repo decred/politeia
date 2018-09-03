@@ -37,6 +37,7 @@ API.  It does not render HTML.
 - [`Get comments`](#get-comments)
 - [`Like comment`](#like-comment)
 - [`Censor comment`](#censor-comment)
+- [`Authorize vote`](#authorize-vote)
 - [`Start vote`](#start-vote)
 - [`Active votes`](#active-votes)
 - [`Cast votes`](#cast-votes)
@@ -95,7 +96,9 @@ API.  It does not render HTML.
 - [`ErrorStatusChangeMessageCannotBeBlank`](#ErrorStatusChangeMessageCannotBeBlank)
 - [`ErrorStatusCensorReasonCannotBeBlank`](#ErrorStatusCensorReasonCannotBeBlank)
 - [`ErrorStatusCannotCensorComment`](#ErrorStatusCannotCensorComment)
-
+- [`ErrorStatusUserNotAuthor`](#ErrorStatusUserNotAuthor)
+- [`ErrorStatusVoteNotAuthorized`](#ErrorStatusVoteNotAuthorized)
+- [`ErrorStatusVoteAlreadyAuthorized`](#ErrorStatusVoteAlreadyAuthorized)
 
 **Proposal status codes**
 
@@ -1631,6 +1634,46 @@ Reply:
 }
 ```
 
+### `Authorize vote`
+
+Authorize a proposal vote.  The proposal author must send an authorize vote request to indicate that the proposal is in its final state and is ready to be voted on before an admin can start the voting period for the proposal.  
+
+**Route:** `POST /v1/proposals/authorizevote`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| token | string | Proposal censorship token | Yes |
+| signature | string | Signature of the token + proposal version | Yes |
+| publickey | string | Public key used to sign the vote | Yes |
+
+**Results (StartVoteReply):**
+
+| | Type | Description |
+| - | - | - |
+| Receipt | string | Politeiad signature of the client signature |
+
+**Example**
+
+Request:
+
+``` json
+{
+  "token": "657db73bca8afae3b99dd6ab1ac8564f71c7fb55713526e663afc3e9eff89233",
+  "signature": "aba600243e9e59927d3270742de25aae002c6c4952ddaf39702c328d855e9895ed9d9f8ee6154511b81c4272c2329e1e0bb2d79fe08626150a11bc78a4eefe00",
+  "publickey": "c2c2ea7f24733983bf8037c189f32b5da49e6396b7d21cb69efe09d290b3cb6d"
+}
+```
+
+Reply:
+
+```json
+{
+  "receipt": "2d7846cb3c8383b5db360ef6d1476341f07ab4d4819cdeac0601cfa5b8bca0ecf370402ba65ace249813caad50e7b0b6e92757a2bff94c385f71808bc5574203"
+}
+```
+
 
 ### `Start vote`
 
@@ -2216,6 +2259,10 @@ Reply:
 | <a name="ErrorStatusChangeMessageCannotBeBlank">ErrorStatusChangeMessageCannotBeBlank</a> | 45 | Status change message cannot be blank. |
 | <a name="ErrorStatusCensorReasonCannotBeBlank">ErrorStatusCensorReasonCannotBeBlank</a> | 46 | Censor comment reason cannot be blank. |
 | <a name="ErrorStatusCannotCensorComment">ErrorStatusCannotCensorComment</a> | 47 | Cannot censor comment. |
+| <a name="ErrorStatusUserNotAuthor">ErrorStatusUserNotAuthor</a> | 48 | User is not the proposal author. |
+| <a name="ErrorStatusVoteNotAuthorized">ErrorStatusVoteNotAuthorized</a> | 49 | Vote has not been authorized. |
+| <a name="ErrorStatusVoteAlreadyAuthorized">ErrorStatusVoteAlreadyAuthorized</a> | 50 | Vote has already been authorized. |
+
 
 ### Proposal status codes
 

@@ -1566,6 +1566,97 @@ func (g *gitBackEnd) pluginGetComments(payload string) (string, error) {
 	return encodeGetCommentsReply(comments)
 }
 
+// pluginAuthorizeVote updates the vetted repo with vote authorization
+// metadata from the proposal author.
+func (g *gitBackEnd) pluginAuthorizeVote(payload string) (string, error) {
+	log.Tracef("pluginAuthorizeVote")
+
+	// Decode authorize vote
+	authorize, err := decredplugin.DecodeAuthorizeVote([]byte(payload))
+	if err != nil {
+		return "", fmt.Errorf("DecodeAuthorizeVote %v", err)
+	}
+	token := authorize.Token
+
+	// Verify proposal exists
+	if !g.propExists(g.vetted, token) {
+		return "", fmt.Errorf("unknown proposal: %v", token)
+	}
+
+	// Get identity
+	// XXX this should become part of some sort of context
+	fiJSON, ok := decredPluginSettings[decredPluginIdentity]
+	if !ok {
+		return "", fmt.Errorf("full identity not set")
+	}
+	fi, err := identity.UnmarshalFullIdentity([]byte(fiJSON))
+	if err != nil {
+		return "", fmt.Errorf("UnmarshalFullIdentity: %v", err)
+	}
+
+	// Sign signature
+	r := fi.SignMessage([]byte(authorize.Signature))
+	receipt := hex.EncodeToString(r[:])
+
+	// Create on disk structure
+	av := decredplugin.AuthorizeVote{
+		Version:   decredplugin.VersionAuthorizeVote,
+		Receipt:   receipt,
+		Timestamp: time.Now().Unix(),
+		Token:     token,
+		Signature: authorize.Signature,
+		PublicKey: authorize.PublicKey,
+	}
+	avb, err := decredplugin.EncodeAuthorizeVote(av)
+	if err != nil {
+		return "", fmt.Errorf("EncodeAuthorizeVote: %v", err)
+	}
+	tokenb, err := util.ConvertStringToken(token)
+	if err != nil {
+		return "", fmt.Errorf("ConvertStringToken %v", err)
+	}
+
+	// Verify proposal state
+	g.Lock()
+	defer g.Unlock()
+	if g.shutdown {
+		return "", backend.ErrShutdown
+	}
+
+	_, err1 := os.Stat(pijoin(joinLatest(g.vetted, token),
+		fmt.Sprintf("%02v%v", decredplugin.MDStreamAuthorizeVote,
+			defaultMDFilenameSuffix)))
+	_, err2 := os.Stat(pijoin(joinLatest(g.vetted, token),
+		fmt.Sprintf("%02v%v", decredplugin.MDStreamVoteBits,
+			defaultMDFilenameSuffix)))
+
+	if err1 == nil {
+		// Vote has already been authorized
+		return "", fmt.Errorf("proposal vote already authorized: %v",
+			token)
+	} else if err2 == nil {
+		// Vote has started but has not been authorized.  This
+		// should not happen.
+		return "", fmt.Errorf("proposal vote already started: %v",
+			token)
+	}
+
+	// Update metadata
+	err = g._updateVettedMetadata(tokenb, nil, []backend.MetadataStream{
+		{
+			ID:      decredplugin.MDStreamAuthorizeVote,
+			Payload: string(avb),
+		},
+	})
+	if err != nil {
+		return "", fmt.Errorf("_updateVettedMetadata: %v", err)
+	}
+
+	log.Infof("Vote authorized for %v", token)
+
+	return string(avb), nil
+}
+
 func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 	vote, err := decredplugin.DecodeStartVote([]byte(payload))
 	if err != nil {
@@ -1589,25 +1680,6 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 
 	if !g.propExists(g.vetted, token) {
 		return "", fmt.Errorf("unknown proposal: %v", token)
-	}
-
-	// Verify proposal is in the right state
-	_, err1 := os.Stat(pijoin(joinLatest(g.vetted, token),
-		fmt.Sprintf("%02v%v", decredplugin.MDStreamVoteBits,
-			defaultMDFilenameSuffix)))
-	_, err2 := os.Stat(pijoin(joinLatest(g.vetted, token),
-		fmt.Sprintf("%02v%v", decredplugin.MDStreamVoteSnapshot,
-			defaultMDFilenameSuffix)))
-	if err1 != nil && err2 != nil {
-		// Vote has not started, continue
-	} else if err1 == nil && err2 == nil {
-		// Vote has started
-		return "", fmt.Errorf("proposal vote already started: %v",
-			token)
-	} else {
-		// This is bad, both files should exist or not exist
-		return "", fmt.Errorf("proposal is unknown vote state: %v",
-			token)
 	}
 
 	// 1. Get best block
@@ -1663,8 +1735,42 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 		return "", fmt.Errorf("EncodeStartVote: %v", err)
 	}
 
+	// Verify proposal state
+	g.Lock()
+	defer g.Unlock()
+	if g.shutdown {
+		// Make sure we are not shutting down
+		return "", backend.ErrShutdown
+	}
+
+	_, err1 := os.Stat(pijoin(joinLatest(g.vetted, token),
+		fmt.Sprintf("%02v%v", decredplugin.MDStreamAuthorizeVote,
+			defaultMDFilenameSuffix)))
+	_, err2 := os.Stat(pijoin(joinLatest(g.vetted, token),
+		fmt.Sprintf("%02v%v", decredplugin.MDStreamVoteBits,
+			defaultMDFilenameSuffix)))
+	_, err3 := os.Stat(pijoin(joinLatest(g.vetted, token),
+		fmt.Sprintf("%02v%v", decredplugin.MDStreamVoteSnapshot,
+			defaultMDFilenameSuffix)))
+
+	if err1 != nil {
+		// Vote has not been authorized by proposal author
+		return "", fmt.Errorf("proposal author has not authorized vote: %v",
+			token)
+	} else if err2 != nil && err3 != nil {
+		// Vote has not started, continue
+	} else if err2 == nil && err3 == nil {
+		// Vote has started
+		return "", fmt.Errorf("proposal vote already started: %v",
+			token)
+	} else {
+		// This is bad, both files should exist or not exist
+		return "", fmt.Errorf("proposal is unknown vote state: %v",
+			token)
+	}
+
 	// Store snapshot in metadata
-	err = g.UpdateVettedMetadata(tokenB, nil, []backend.MetadataStream{
+	err = g._updateVettedMetadata(tokenB, nil, []backend.MetadataStream{
 		{
 			ID:      decredplugin.MDStreamVoteBits,
 			Payload: string(voteb),
@@ -1674,7 +1780,7 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 			Payload: string(svrb),
 		}})
 	if err != nil {
-		return "", fmt.Errorf("UpdateVettedMetadata: %v", err)
+		return "", fmt.Errorf("_updateVettedMetadata: %v", err)
 	}
 
 	log.Infof("Vote started for: %v snapshot %v start %v end %v",

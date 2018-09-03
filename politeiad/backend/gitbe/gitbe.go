@@ -1398,6 +1398,17 @@ func (g *gitBackEnd) _updateRecord(commit bool, id string, mdAppend, mdOverwrite
 		return err
 	}
 
+	// Check for authorizevote metadata and delete it if found
+	avFilename := fmt.Sprintf("%02v%v", decredplugin.MDStreamAuthorizeVote,
+		defaultMDFilenameSuffix)
+	_, err = os.Stat(pijoin(joinLatest(g.unvetted, id), avFilename))
+	if err == nil {
+		err = g.gitRm(g.unvetted, pijoin(id, version, avFilename), true)
+		if err != nil {
+			return err
+		}
+	}
+
 	// Call plugin hooks
 	f, ok := decredPluginHooks[PluginPostHookEdit]
 	if ok {
@@ -1661,33 +1672,15 @@ func (g *gitBackEnd) updateVettedMetadata(id, idTmp string, mdAppend []backend.M
 	return g.rebasePR(idTmp)
 }
 
-// UpdateVettedMetadata updates metadata in vetted record.  It goes through the
-// normal stages of updating unvetted, pushing PR, merge PR, pull remote.
-// Record itself is not changed.
-func (g *gitBackEnd) UpdateVettedMetadata(token []byte, mdAppend []backend.MetadataStream, mdOverwrite []backend.MetadataStream) error {
-	// Send in a single metadata array to verify there are no dups.
-	allMD := append(mdAppend, mdOverwrite...)
-	_, err := verifyContent(allMD, []backend.File{}, []string{})
-	if err != nil {
-		e, ok := err.(backend.ContentVerificationError)
-		if !ok {
-			return err
-		}
-		// Allow ErrorStatusEmpty
-		if e.ErrorCode != pd.ErrorStatusEmpty {
-			return err
-		}
-	}
-
-	// Lock filesystem
-	g.Lock()
-	defer g.Unlock()
-	if g.shutdown {
-		return backend.ErrShutdown
-	}
-
+// _updateVettedMetadata updates metadata in vetted record.  It goes through
+// the normal stages of updating unvetted, pushing PR, merge PR, pull remote.
+// Note that the content must have been validated before this call.  Record
+// itself is not changed.
+//
+// This function must be called with the lock held.
+func (g *gitBackEnd) _updateVettedMetadata(token []byte, mdAppend []backend.MetadataStream, mdOverwrite []backend.MetadataStream) error {
 	// git checkout master
-	err = g.gitCheckout(g.unvetted, "master")
+	err := g.gitCheckout(g.unvetted, "master")
 	if err != nil {
 		return err
 	}
@@ -1733,6 +1726,36 @@ func (g *gitBackEnd) UpdateVettedMetadata(token []byte, mdAppend []backend.Metad
 	}
 
 	return nil
+}
+
+// UpdateVettedMetadata updates metadata in vetted record.  It goes through the
+// normal stages of updating unvetted, pushing PR, merge PR, pull remote.
+// Record itself is not changed.
+//
+// This function must be called without the lock held.
+func (g *gitBackEnd) UpdateVettedMetadata(token []byte, mdAppend []backend.MetadataStream, mdOverwrite []backend.MetadataStream) error {
+	// Send in a single metadata array to verify there are no dups.
+	allMD := append(mdAppend, mdOverwrite...)
+	_, err := verifyContent(allMD, []backend.File{}, []string{})
+	if err != nil {
+		e, ok := err.(backend.ContentVerificationError)
+		if !ok {
+			return err
+		}
+		// Allow ErrorStatusEmpty
+		if e.ErrorCode != pd.ErrorStatusEmpty {
+			return err
+		}
+	}
+
+	// Lock filesystem
+	g.Lock()
+	defer g.Unlock()
+	if g.shutdown {
+		return backend.ErrShutdown
+	}
+
+	return g._updateVettedMetadata(token, mdAppend, mdOverwrite)
 }
 
 // getRecordLock is the generic implementation of GetUnvetted/GetVetted.  It
@@ -2145,6 +2168,9 @@ func (g *gitBackEnd) GetPlugins() ([]backend.Plugin, error) {
 func (g *gitBackEnd) Plugin(command, payload string) (string, string, error) {
 	log.Tracef("Plugin: %v %v", command, payload)
 	switch command {
+	case decredplugin.CmdAuthorizeVote:
+		payload, err := g.pluginAuthorizeVote(payload)
+		return decredplugin.CmdAuthorizeVote, payload, err
 	case decredplugin.CmdStartVote:
 		payload, err := g.pluginStartVote(payload)
 		return decredplugin.CmdStartVote, payload, err
