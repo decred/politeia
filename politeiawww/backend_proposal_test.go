@@ -245,14 +245,14 @@ func publishProposal(b *backend, token string, t *testing.T, user *database.User
 	}
 }
 
-func censorProposal(b *backend, token string, csrMsg string, t *testing.T, user *database.User, id *identity.FullIdentity) {
+func censorProposal(b *backend, token string, message string, t *testing.T, user *database.User, id *identity.FullIdentity) {
 	sps := www.SetProposalStatus{
-		Token:          token,
-		ProposalStatus: www.PropStatusCensored,
-		CensorMessage:  csrMsg,
+		Token:               token,
+		ProposalStatus:      www.PropStatusCensored,
+		StatusChangeMessage: message,
 	}
 
-	msg := sps.Token + strconv.FormatUint(uint64(sps.ProposalStatus), 10) + csrMsg
+	msg := sps.Token + strconv.FormatUint(uint64(sps.ProposalStatus), 10) + message
 	signature, err := getSignature([]byte(msg), id)
 	if err != nil {
 		t.Fatal(err)

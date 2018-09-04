@@ -424,7 +424,7 @@ func createComment(parentID, token string) (string, error) {
 	return ncr.Comment.CommentID, nil
 }
 
-func setProposalStatus(token string, status v1.PropStatusT, csrMsg string) error {
+func setProposalStatus(token string, status v1.PropStatusT, message string) error {
 	fmt.Printf("Setting proposal status to %v\n", status)
 
 	var spsr *v1.SetProposalStatusReply
@@ -439,7 +439,7 @@ func setProposalStatus(token string, status v1.PropStatusT, csrMsg string) error
 		"setproposalstatus",
 		token,
 		strconv.FormatInt(int64(status), 10),
-		"--censormessage="+csrMsg,
+		"--message="+message,
 	)
 }
 

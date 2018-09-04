@@ -275,7 +275,7 @@ func convertPropFromInventoryRecord(r *inventoryRecord, userPubkeys map[string]s
 
 func convertPropFromPD(p pd.Record) www.ProposalRecord {
 	md := &BackendProposalMetadata{}
-	var csrmsg string
+	var statusChangeMsg string
 	for _, v := range p.Metadata {
 		if v.ID == mdStreamGeneral {
 			m, err := decodeBackendProposalMetadata([]byte(v.Payload))
@@ -293,20 +293,20 @@ func convertPropFromPD(p pd.Record) www.ProposalRecord {
 			if err != nil {
 				break
 			}
-			csrmsg = mdc.CensorMessage
+			statusChangeMsg = mdc.StatusChangeMessage
 		}
 	}
 
 	return www.ProposalRecord{
-		Name:             md.Name,
-		Status:           convertPropStatusFromPD(p.Status),
-		Timestamp:        md.Timestamp,
-		PublicKey:        md.PublicKey,
-		Signature:        md.Signature,
-		Files:            convertPropFilesFromPD(p.Files),
-		CensorshipRecord: convertPropCensorFromPD(p.CensorshipRecord),
-		Version:          p.Version,
-		CensorMessage:    csrmsg,
+		Name:                md.Name,
+		Status:              convertPropStatusFromPD(p.Status),
+		Timestamp:           md.Timestamp,
+		PublicKey:           md.PublicKey,
+		Signature:           md.Signature,
+		Files:               convertPropFilesFromPD(p.Files),
+		CensorshipRecord:    convertPropCensorFromPD(p.CensorshipRecord),
+		Version:             p.Version,
+		StatusChangeMessage: statusChangeMsg,
 	}
 }
 
