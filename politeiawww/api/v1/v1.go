@@ -145,6 +145,7 @@ const (
 	ErrorStatusCannotEditPropOnVoting      ErrorStatusT = 42
 	ErrorStatusCannotCommentOnProp         ErrorStatusT = 43
 	ErrorStatusCannotVoteOnPropComment     ErrorStatusT = 44
+	ErrorStatusCsrMessageCannotBeBlank     ErrorStatusT = 45
 
 	// Proposal status codes (set and get)
 	PropStatusInvalid           PropStatusT = 0 // Invalid status
@@ -238,6 +239,7 @@ var (
 		ErrorStatusCannotEditPropOnVoting:      "cannot edit proposals on voting",
 		ErrorStatusCannotCommentOnProp:         "cannot comment on proposal",
 		ErrorStatusCannotVoteOnPropComment:     "cannot vote on proposal comment",
+		ErrorStatusCsrMessageCannotBeBlank:     "censor message cannot be blank",
 	}
 
 	// PropStatus converts propsal status codes to human readable text

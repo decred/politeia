@@ -1755,6 +1755,13 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 		return nil, err
 	}
 
+	// make sure censor message cannot blank in case the proposal is being censored
+	if sps.ProposalStatus == www.PropStatusCensored && sps.CensorMessage == "" {
+		return nil, v1.UserError{
+			ErrorCode: v1.ErrorStatusCsrMessageCannotBeBlank,
+		}
+	}
+
 	// Create change record
 	newStatus := convertPropStatusFromWWW(sps.ProposalStatus)
 	r := MDStreamChanges{
