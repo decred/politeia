@@ -84,7 +84,7 @@ func vote(opts *Options, c *client.Ctx) {
 
 	// Move prop to vetted
 	psr1, err := c.SetPropStatus(id, prop1.CensorshipRecord.Token,
-		v1.PropStatusPublic)
+		v1.PropStatusPublic, "")
 	handleError(err)
 
 	if psr1.Proposal.Status != v1.PropStatusPublic {
@@ -494,7 +494,7 @@ func main() {
 		}
 
 		// Set proposal status - move prop1 to public
-		psr1, err := c.SetPropStatus(id, prop1.CensorshipRecord.Token, v1.PropStatusPublic)
+		psr1, err := c.SetPropStatus(id, prop1.CensorshipRecord.Token, v1.PropStatusPublic, "")
 		handleError(err)
 
 		if psr1.Proposal.Status != v1.PropStatusPublic {
@@ -504,7 +504,7 @@ func main() {
 		}
 
 		// Set proposal status - move prop2 to censored
-		psr2, err := c.SetPropStatus(id, prop2.CensorshipRecord.Token, v1.PropStatusCensored)
+		psr2, err := c.SetPropStatus(id, prop2.CensorshipRecord.Token, v1.PropStatusCensored, "censor message")
 		handleError(err)
 
 		if psr2.Proposal.Status != v1.PropStatusCensored {

@@ -245,13 +245,14 @@ func publishProposal(b *backend, token string, t *testing.T, user *database.User
 	}
 }
 
-func censorProposal(b *backend, token string, t *testing.T, user *database.User, id *identity.FullIdentity) {
+func censorProposal(b *backend, token string, csrMsg string, t *testing.T, user *database.User, id *identity.FullIdentity) {
 	sps := www.SetProposalStatus{
 		Token:          token,
 		ProposalStatus: www.PropStatusCensored,
+		CensorMessage:  csrMsg,
 	}
 
-	msg := sps.Token + strconv.FormatUint(uint64(sps.ProposalStatus), 10)
+	msg := sps.Token + strconv.FormatUint(uint64(sps.ProposalStatus), 10) + csrMsg
 	signature, err := getSignature([]byte(msg), id)
 	if err != nil {
 		t.Fatal(err)
@@ -459,7 +460,7 @@ func TestCensoredProposal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	censorProposal(b, npr.CensorshipRecord.Token, t, user, id)
+	censorProposal(b, npr.CensorshipRecord.Token, "censor message", t, user, id)
 	pdr := getProposalDetails(b, npr.CensorshipRecord.Token, t)
 	verifyProposalDetails(np, pdr.Proposal, t)
 
