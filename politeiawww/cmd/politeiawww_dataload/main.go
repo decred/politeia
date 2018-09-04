@@ -443,49 +443,86 @@ func setProposalStatus(token string, status v1.PropStatusT, message string) erro
 	)
 }
 
-func createProposals() error {
+func publishProposals(number int) ([]string, error) {
+	var proposalsTokens []string
+
+	for i := 0; i < number; i++ {
+		token, err := createProposal()
+		if err != nil {
+			return nil, err
+		}
+		proposalsTokens = append(proposalsTokens, token)
+	}
+
+	return proposalsTokens, nil
+}
+
+func createProposals(vettedProps int, unvettedProps int, commentsNumber int) error {
 	// Create the proposals.
 	if err := login(cfg.PaidEmail, cfg.PaidPass); err != nil {
 		return err
 	}
-	publishedProposalToken, err := createProposal()
+
+	vettedProposalTokens, err := publishProposals(vettedProps)
 	if err != nil {
 		return err
 	}
-	err = checkProposal(publishedProposalToken)
+
+	unvettedProposalTokens, err := publishProposals(unvettedProps)
 	if err != nil {
 		return err
 	}
-	censoredProposalToken, err := createProposal()
-	if err != nil {
-		return err
+
+	for i := 0; i < vettedProps; i++ {
+		err := checkProposal(vettedProposalTokens[i])
+		if err != nil {
+			return err
+		}
 	}
-	if _, err := createProposal(); err != nil {
-		return err
+	for i := 0; i < unvettedProps; i++ {
+		err := checkProposal(unvettedProposalTokens[i])
+		if err != nil {
+			return err
+		}
 	}
 
 	// Set the proposals' status.
 	if err := login(cfg.AdminEmail, cfg.AdminPass); err != nil {
 		return err
 	}
-	if err := setProposalStatus(publishedProposalToken, v1.PropStatusPublic, ""); err != nil {
-		return err
+
+	for i := 0; i < vettedProps; i++ {
+		if err := setProposalStatus(vettedProposalTokens[i], v1.PropStatusPublic, ""); err != nil {
+			return err
+		}
 	}
-	if err := setProposalStatus(censoredProposalToken, v1.PropStatusCensored, "censor message"); err != nil {
-		return err
+
+	// Censor the first unvetted proposal
+	if len(unvettedProposalTokens) > 0 {
+		if err := setProposalStatus(unvettedProposalTokens[0], v1.PropStatusCensored, "censor message"); err != nil {
+			return err
+		}
 	}
+
 	if err := logout(); err != nil {
 		return err
 	}
 
-	// Create comments on the published proposal.
+	// Create comments on the first public published proposal.
 	if err := login(cfg.AdminEmail, cfg.AdminPass); err != nil {
 		return err
 	}
-	commentID, err := createComment("", publishedProposalToken)
-	if err != nil {
-		return err
+
+	var commentID string
+	for i := 0; i < commentsNumber; i++ {
+		if len(vettedProposalTokens) > 0 {
+			commentID, err = createComment("", vettedProposalTokens[0])
+			if err != nil {
+				return err
+			}
+		}
 	}
+
 	if err := logout(); err != nil {
 		return err
 	}
@@ -493,8 +530,10 @@ func createProposals() error {
 	if err := login(cfg.PaidEmail, cfg.PaidPass); err != nil {
 		return err
 	}
-	if _, err := createComment(commentID, publishedProposalToken); err != nil {
-		return err
+	if len(vettedProposalTokens) > 0 {
+		if _, err := createComment(commentID, vettedProposalTokens[0]); err != nil {
+			return err
+		}
 	}
 	return logout()
 }
@@ -605,7 +644,7 @@ func _main() error {
 		return err
 	}
 
-	if err = createProposals(); err != nil {
+	if err = createProposals(cfg.VettedPropsNumber, cfg.UnvettedPropsNumber, cfg.CommentsNumber); err != nil {
 		return err
 	}
 

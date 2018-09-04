@@ -32,22 +32,25 @@ var (
 //
 // See loadConfig for details on the configuration load process.
 type config struct {
-	AdminEmail         string `long:"adminemail" description:"Admin user email address"`
-	AdminUser          string `long:"adminuser" description:"Admin username"`
-	AdminPass          string `long:"adminpass" description:"Admin password"`
-	PaidEmail          string `long:"paidemail" description:"Regular paid user email address"`
-	PaidUser           string `long:"paiduser" description:"Regular paid user username"`
-	PaidPass           string `long:"paidpass" description:"Regular paid user password"`
-	UnpaidEmail        string `long:"unpaidemail" description:"Regular unpaid user email address"`
-	UnpaidUser         string `long:"unpaiduser" description:"Regular unpaid user username"`
-	UnpaidPass         string `long:"unpaidpass" description:"Regular unpaid user password"`
-	Verbose            bool   `short:"v" long:"verbose" description:"Verbose output"`
-	DataDir            string `long:"datadir" description:"Path to config/data directory"`
-	ConfigFile         string `long:"configfile" description:"Path to configuration file"`
-	DebugLevel         string `long:"debuglevel" description:"Logging level to use for servers {trace, debug, info, warn, error, critical}"`
-	DeleteData         bool   `long:"deletedata" description:"Delete all existing data from politeiad and politeiawww before loading data"`
-	PoliteiadLogFile   string
-	PoliteiawwwLogFile string
+	AdminEmail          string `long:"adminemail" description:"Admin user email address"`
+	AdminUser           string `long:"adminuser" description:"Admin username"`
+	AdminPass           string `long:"adminpass" description:"Admin password"`
+	PaidEmail           string `long:"paidemail" description:"Regular paid user email address"`
+	PaidUser            string `long:"paiduser" description:"Regular paid user username"`
+	PaidPass            string `long:"paidpass" description:"Regular paid user password"`
+	UnpaidEmail         string `long:"unpaidemail" description:"Regular unpaid user email address"`
+	UnpaidUser          string `long:"unpaiduser" description:"Regular unpaid user username"`
+	UnpaidPass          string `long:"unpaidpass" description:"Regular unpaid user password"`
+	VettedPropsNumber   int    `long:"vettedproposalsnumber" description:"Number of vetted proposals to be created"`
+	UnvettedPropsNumber int    `long:"unvettedproposalsnumber" description:"Number of unvetted proposals to be created"`
+	CommentsNumber      int    `long:"commentsnumber" description:"Number of comments on the firs vetted proposal"`
+	Verbose             bool   `short:"v" long:"verbose" description:"Verbose output"`
+	DataDir             string `long:"datadir" description:"Path to config/data directory"`
+	ConfigFile          string `long:"configfile" description:"Path to configuration file"`
+	DebugLevel          string `long:"debuglevel" description:"Logging level to use for servers {trace, debug, info, warn, error, critical}"`
+	DeleteData          bool   `long:"deletedata" description:"Delete all existing data from politeiad and politeiawww before loading data"`
+	PoliteiadLogFile    string
+	PoliteiawwwLogFile  string
 }
 
 // cleanAndExpandPath expands environment variables and leading ~ in the
@@ -94,20 +97,23 @@ func newConfigParser(cfg *config, options flags.Options) *flags.Parser {
 func loadConfig() (*config, error) {
 	// Default config.
 	cfg := config{
-		AdminEmail:  "admin@example.com",
-		AdminUser:   "admin",
-		AdminPass:   "password",
-		PaidEmail:   "paid_user@example.com",
-		PaidUser:    "paid_user",
-		PaidPass:    "password",
-		UnpaidEmail: "unpaid_user@example.com",
-		UnpaidUser:  "unpaid_user",
-		UnpaidPass:  "password",
-		DeleteData:  false,
-		Verbose:     false,
-		DataDir:     defaultDataDir,
-		ConfigFile:  defaultConfigFile,
-		DebugLevel:  defaultLogLevel,
+		AdminEmail:          "admin@example.com",
+		AdminUser:           "admin",
+		AdminPass:           "password",
+		PaidEmail:           "paid_user@example.com",
+		PaidUser:            "paid_user",
+		PaidPass:            "password",
+		UnpaidEmail:         "unpaid_user@example.com",
+		UnpaidUser:          "unpaid_user",
+		UnpaidPass:          "password",
+		VettedPropsNumber:   1,
+		UnvettedPropsNumber: 2,
+		CommentsNumber:      2,
+		DeleteData:          false,
+		Verbose:             false,
+		DataDir:             defaultDataDir,
+		ConfigFile:          defaultConfigFile,
+		DebugLevel:          defaultLogLevel,
 	}
 
 	// Pre-parse the command line options to see if an alternative config
