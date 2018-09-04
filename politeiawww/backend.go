@@ -54,10 +54,11 @@ const (
 )
 
 type MDStreamChanges struct {
-	Version     uint             `json:"version"`     // Version of the struct
-	AdminPubKey string           `json:"adminpubkey"` // Identity of the administrator
-	NewStatus   pd.RecordStatusT `json:"newstatus"`   // NewStatus
-	Timestamp   int64            `json:"timestamp"`   // Timestamp of the change
+	Version       uint             `json:"version"`     // Version of the struct
+	AdminPubKey   string           `json:"adminpubkey"` // Identity of the administrator
+	NewStatus     pd.RecordStatusT `json:"newstatus"`   // NewStatus
+	CensorMessage string           `json:"censormessage,omitempty"`
+	Timestamp     int64            `json:"timestamp"` // Timestamp of the change
 }
 
 type loginReplyWithError struct {
@@ -1749,7 +1750,7 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 // from unreviewed to either published or censored.
 func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *database.User) (*www.SetProposalStatusReply, error) {
 	err := checkPublicKeyAndSignature(user, sps.PublicKey, sps.Signature,
-		sps.Token, strconv.FormatUint(uint64(sps.ProposalStatus), 10))
+		sps.Token, strconv.FormatUint(uint64(sps.ProposalStatus), 10), sps.CensorMessage)
 	if err != nil {
 		return nil, err
 	}
@@ -1757,9 +1758,10 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 	// Create change record
 	newStatus := convertPropStatusFromWWW(sps.ProposalStatus)
 	r := MDStreamChanges{
-		Version:   VersionMDStreamChanges,
-		Timestamp: time.Now().Unix(),
-		NewStatus: newStatus,
+		Version:       VersionMDStreamChanges,
+		Timestamp:     time.Now().Unix(),
+		NewStatus:     newStatus,
+		CensorMessage: sps.CensorMessage,
 	}
 
 	var reply www.SetProposalStatusReply
