@@ -54,10 +54,11 @@ const (
 )
 
 type MDStreamChanges struct {
-	Version     uint             `json:"version"`     // Version of the struct
-	AdminPubKey string           `json:"adminpubkey"` // Identity of the administrator
-	NewStatus   pd.RecordStatusT `json:"newstatus"`   // NewStatus
-	Timestamp   int64            `json:"timestamp"`   // Timestamp of the change
+	Version             uint             `json:"version"`                       // Version of the struct
+	AdminPubKey         string           `json:"adminpubkey"`                   // Identity of the administrator
+	NewStatus           pd.RecordStatusT `json:"newstatus"`                     // NewStatus
+	StatusChangeMessage string           `json:"statuschangemessage,omitempty"` // Status change message
+	Timestamp           int64            `json:"timestamp"`                     // Timestamp of the change
 }
 
 type loginReplyWithError struct {
@@ -1749,17 +1750,25 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 // from unreviewed to either published or censored.
 func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *database.User) (*www.SetProposalStatusReply, error) {
 	err := checkPublicKeyAndSignature(user, sps.PublicKey, sps.Signature,
-		sps.Token, strconv.FormatUint(uint64(sps.ProposalStatus), 10))
+		sps.Token, strconv.FormatUint(uint64(sps.ProposalStatus), 10), sps.StatusChangeMessage)
 	if err != nil {
 		return nil, err
+	}
+
+	// make sure censor message cannot blank in case the proposal is being censored
+	if sps.ProposalStatus == www.PropStatusCensored && sps.StatusChangeMessage == "" {
+		return nil, v1.UserError{
+			ErrorCode: v1.ErrorStatusChangeMessageCannotBeBlank,
+		}
 	}
 
 	// Create change record
 	newStatus := convertPropStatusFromWWW(sps.ProposalStatus)
 	r := MDStreamChanges{
-		Version:   VersionMDStreamChanges,
-		Timestamp: time.Now().Unix(),
-		NewStatus: newStatus,
+		Version:             VersionMDStreamChanges,
+		Timestamp:           time.Now().Unix(),
+		NewStatus:           newStatus,
+		StatusChangeMessage: sps.StatusChangeMessage,
 	}
 
 	var reply www.SetProposalStatusReply

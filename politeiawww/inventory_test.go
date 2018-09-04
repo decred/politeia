@@ -111,7 +111,7 @@ func TestInventoryOnProposalCensored(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	censorProposal(b, npr.CensorshipRecord.Token, t, user, id)
+	censorProposal(b, npr.CensorshipRecord.Token, "censor message", t, user, id)
 	pdr := getProposalDetails(b, npr.CensorshipRecord.Token, t)
 
 	// Verify that inventory records was updated

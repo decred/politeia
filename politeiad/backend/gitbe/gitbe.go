@@ -2027,7 +2027,7 @@ func (g *gitBackEnd) setUnvettedStatus(token []byte, status backend.MDStatusT, m
 		}
 	}
 
-	return record, nil
+	return g._getRecord(id, g.unvetted, false)
 }
 
 // SetUnvettedStatus tries to update the status for an unvetted record. It

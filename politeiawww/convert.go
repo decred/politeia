@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"strconv"
 
 	"github.com/decred/politeia/decredplugin"
@@ -274,28 +275,38 @@ func convertPropFromInventoryRecord(r *inventoryRecord, userPubkeys map[string]s
 
 func convertPropFromPD(p pd.Record) www.ProposalRecord {
 	md := &BackendProposalMetadata{}
+	var statusChangeMsg string
 	for _, v := range p.Metadata {
-		if v.ID != mdStreamGeneral {
-			continue
+		if v.ID == mdStreamGeneral {
+			m, err := decodeBackendProposalMetadata([]byte(v.Payload))
+			if err != nil {
+				log.Errorf("could not decode metadata '%v' token '%v': %v",
+					p.Metadata, p.CensorshipRecord.Token, err)
+				break
+			}
+			md = m
 		}
-		m, err := decodeBackendProposalMetadata([]byte(v.Payload))
-		if err != nil {
-			log.Errorf("could not decode metadata '%v' token '%v': %v",
-				p.Metadata, p.CensorshipRecord.Token, err)
-			break
+
+		if v.ID == mdStreamChanges {
+			var mdc MDStreamChanges
+			err := json.Unmarshal([]byte(v.Payload), &mdc)
+			if err != nil {
+				break
+			}
+			statusChangeMsg = mdc.StatusChangeMessage
 		}
-		md = m
 	}
 
 	return www.ProposalRecord{
-		Name:             md.Name,
-		Status:           convertPropStatusFromPD(p.Status),
-		Timestamp:        md.Timestamp,
-		PublicKey:        md.PublicKey,
-		Signature:        md.Signature,
-		Files:            convertPropFilesFromPD(p.Files),
-		CensorshipRecord: convertPropCensorFromPD(p.CensorshipRecord),
-		Version:          p.Version,
+		Name:                md.Name,
+		Status:              convertPropStatusFromPD(p.Status),
+		Timestamp:           md.Timestamp,
+		PublicKey:           md.PublicKey,
+		Signature:           md.Signature,
+		Files:               convertPropFilesFromPD(p.Files),
+		CensorshipRecord:    convertPropCensorFromPD(p.CensorshipRecord),
+		Version:             p.Version,
+		StatusChangeMessage: statusChangeMsg,
 	}
 }
 

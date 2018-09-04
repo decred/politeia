@@ -664,13 +664,14 @@ func (c *Ctx) ProposalsForUser(userId, serverPubKey string) (*v1.UserProposalsRe
 }
 
 func (c *Ctx) SetPropStatus(id *identity.FullIdentity, token string,
-	status v1.PropStatusT) (*v1.SetProposalStatusReply, error) {
+	status v1.PropStatusT, message string) (*v1.SetProposalStatusReply, error) {
 	ps := v1.SetProposalStatus{
-		Token:          token,
-		ProposalStatus: status,
+		Token:               token,
+		ProposalStatus:      status,
+		StatusChangeMessage: message,
 	}
-	// Sign token+string(status)
-	msg := []byte(ps.Token + strconv.FormatUint(uint64(ps.ProposalStatus), 10))
+	// Sign token+string(status)+statuschangemessage
+	msg := []byte(ps.Token + strconv.FormatUint(uint64(ps.ProposalStatus), 10) + message)
 	var err error
 	sig := id.SignMessage(msg)
 	ps.Signature = hex.EncodeToString(sig[:])

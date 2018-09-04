@@ -12,6 +12,7 @@ type SetproposalstatusCmd struct {
 		Token  string `positional-arg-name:"token"`
 		Status int    `positional-arg-name:"status"`
 	} `positional-args:"true" required:"true"`
+	StatusChangeMessage string `long:"message" optional:"true" description:"Status change message"`
 }
 
 func (cmd *SetproposalstatusCmd) Execute(args []string) error {
@@ -19,6 +20,6 @@ func (cmd *SetproposalstatusCmd) Execute(args []string) error {
 		return fmt.Errorf(config.ErrorNoUserIdentity)
 	}
 	var ps v1.PropStatusT = v1.PropStatusT(cmd.Args.Status)
-	_, err := Ctx.SetPropStatus(config.UserIdentity, cmd.Args.Token, ps)
+	_, err := Ctx.SetPropStatus(config.UserIdentity, cmd.Args.Token, ps, cmd.StatusChangeMessage)
 	return err
 }
