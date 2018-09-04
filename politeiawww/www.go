@@ -1347,7 +1347,7 @@ func _main() error {
 	if !p.cfg.Proxy {
 		// make sure the cookie path is the parent of all routes
 		// it fixes multiple CSRF tokens being stored in the cookie
-		csrfHandle = csrf.Protect(csrfKey, csrf.Path("/api"))
+		csrfHandle = csrf.Protect(csrfKey, csrf.Path("/"))
 	}
 
 	p.router = mux.NewRouter()
