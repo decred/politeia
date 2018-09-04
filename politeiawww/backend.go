@@ -183,6 +183,10 @@ func checkSignature(id []byte, signature string, elements ...string) error {
 	return nil
 }
 
+func formatUsername(username string) string {
+	return strings.ToLower(strings.TrimSpace(username))
+}
+
 func createUsernameRegex() string {
 	var buf bytes.Buffer
 	buf.WriteString("^[")
@@ -1051,8 +1055,9 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 		return nil, err
 	}
 
-	// Validate the username.
-	err = b.validateUsername(u.Username, existingUser)
+	// Format and validate the username.
+	username := formatUsername(u.Username)
+	err = b.validateUsername(username, existingUser)
 	if err != nil {
 		return nil, err
 	}
@@ -1084,7 +1089,7 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 	// Create a new database user with the provided information.
 	newUser := database.User{
 		Email:          strings.ToLower(u.Email),
-		Username:       u.Username,
+		Username:       username,
 		HashedPassword: hashedPassword,
 		Admin:          false,
 	}
@@ -1495,14 +1500,15 @@ func (b *backend) ProcessChangeUsername(email string, cu www.ChangeUsername) (*w
 		}
 	}
 
-	// Validate the new username.
-	err = b.validateUsername(cu.NewUsername, nil)
+	// Format and validate the new username.
+	newUsername := formatUsername(cu.NewUsername)
+	err = b.validateUsername(newUsername, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	// Add the updated user information to the db.
-	user.Username = cu.NewUsername
+	user.Username = newUsername
 	err = b.db.UserUpdate(*user)
 	if err != nil {
 		return nil, err

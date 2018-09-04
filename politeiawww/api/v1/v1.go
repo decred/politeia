@@ -182,8 +182,7 @@ var (
 	// PolicyUsernameSupportedChars is the regular expression of a valid
 	// username
 	PolicyUsernameSupportedChars = []string{
-		"A-z", "0-9", ".", ",", ":", ";", "-", " ", "@", "+",
-		"(", ")"}
+		"a-z", "0-9", ".", ",", ":", ";", "-", "@", "+", "(", ")"}
 
 	// PoliteiaWWWAPIRoute is the prefix to the API route
 	PoliteiaWWWAPIRoute = fmt.Sprintf("/v%v", PoliteiaWWWAPIVersion)
