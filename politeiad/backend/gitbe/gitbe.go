@@ -1998,7 +1998,8 @@ func (g *gitBackEnd) setUnvettedStatus(token []byte, status backend.MDStatusT, m
 			return nil, err
 		}
 
-	case record.RecordMetadata.Status == backend.MDStatusUnvetted &&
+	case (record.RecordMetadata.Status == backend.MDStatusUnvetted ||
+		record.RecordMetadata.Status == backend.MDStatusIterationUnvetted) &&
 		status == backend.MDStatusCensored:
 		// unvetted -> censored
 		record.RecordMetadata.Status = backend.MDStatusCensored
