@@ -1,5 +1,7 @@
 package commands
 
+import "fmt"
+
 type ResetpasswordCmd struct {
 	Args struct {
 		Email       string `positional-arg-name:"email"`
@@ -8,6 +10,20 @@ type ResetpasswordCmd struct {
 }
 
 func (cmd *ResetpasswordCmd) Execute(args []string) error {
-	err := Ctx.ResetPassword(cmd.Args.Email, cmd.Args.NewPassword)
-	return err
+	email := cmd.Args.Email
+	newPassword := cmd.Args.NewPassword
+
+	// Fetch Politeia password requirements.
+	pr, err := Ctx.Policy()
+	if err != nil {
+		return err
+	}
+
+	// Validate new password.
+	if uint(len(newPassword)) < pr.MinPasswordLength {
+		return fmt.Errorf("password must be %v characters long",
+			pr.MinPasswordLength)
+	}
+
+	return Ctx.ResetPassword(email, newPassword)
 }
