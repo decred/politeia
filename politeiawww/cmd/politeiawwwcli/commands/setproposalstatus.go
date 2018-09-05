@@ -9,17 +9,22 @@ import (
 
 type SetproposalstatusCmd struct {
 	Args struct {
-		Token  string `positional-arg-name:"token"`
-		Status int    `positional-arg-name:"status"`
-	} `positional-args:"true" required:"true"`
-	StatusChangeMessage string `long:"message" optional:"true" description:"Status change message"`
+		Token   string `positional-arg-name:"token" required:"true" description:"Proposal censorship record token"`
+		Status  int    `positional-arg-name:"status" required:"true" description:"Proposal status code"`
+		Message string `positional-arg-name:"message" description:"Status change message (required if censoring proposal)"`
+	} `positional-args:"true"`
 }
 
 func (cmd *SetproposalstatusCmd) Execute(args []string) error {
 	if config.UserIdentity == nil {
 		return fmt.Errorf(config.ErrorNoUserIdentity)
 	}
+
 	var ps v1.PropStatusT = v1.PropStatusT(cmd.Args.Status)
-	_, err := Ctx.SetPropStatus(config.UserIdentity, cmd.Args.Token, ps, cmd.StatusChangeMessage)
+	if ps == v1.PropStatusCensored && cmd.Args.Message == "" {
+		return fmt.Errorf("Status change message required when censoring a proposal")
+	}
+
+	_, err := Ctx.SetPropStatus(config.UserIdentity, cmd.Args.Token, ps, cmd.Args.Message)
 	return err
 }
