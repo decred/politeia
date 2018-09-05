@@ -56,6 +56,11 @@ func (cmd *NewuserCmd) Execute(args []string) error {
 		email = cmd.Args.Email
 		username = cmd.Args.Username
 		password = cmd.Args.Password
+
+		if uint(len(password)) < pr.MinPasswordLength {
+			return fmt.Errorf("password must be %v characters long",
+				pr.MinPasswordLength)
+		}
 	}
 
 	// create new user

@@ -1,5 +1,7 @@
 package commands
 
+import "fmt"
+
 type ChangepasswordCmd struct {
 	Args struct {
 		Password    string `positional-arg-name:"currentPassword"`
@@ -11,6 +13,18 @@ func (cmd *ChangepasswordCmd) Execute(args []string) error {
 	currPass := cmd.Args.Password
 	newPass := cmd.Args.Newpassword
 
-	_, err := Ctx.ChangePassword(currPass, newPass)
+	// Fetch Politeia password requirements.
+	pr, err := Ctx.Policy()
+	if err != nil {
+		return err
+	}
+
+	// Validate new password.
+	if uint(len(newPass)) < pr.MinPasswordLength {
+		return fmt.Errorf("password must be %v characters long",
+			pr.MinPasswordLength)
+	}
+
+	_, err = Ctx.ChangePassword(currPass, newPass)
 	return err
 }
