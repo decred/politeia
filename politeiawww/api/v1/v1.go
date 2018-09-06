@@ -153,7 +153,7 @@ const (
 	PropStatusNotReviewed       PropStatusT = 2 // Proposal has not been reviewed
 	PropStatusCensored          PropStatusT = 3 // Proposal has been censored
 	PropStatusPublic            PropStatusT = 4 // Proposal is publicly visible
-	PropStatusUnreviewedChanges PropStatusT = 5 // Proposal that has changes that are not reviewed
+	PropStatusUnreviewedChanges PropStatusT = 5 // Proposal is not public and has unreviewed changes
 	PropStatusLocked            PropStatusT = 6 // Proposal is locked, NOT IMPLEMENTED
 
 	// Proposal vote status codes

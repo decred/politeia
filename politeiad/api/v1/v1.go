@@ -65,7 +65,7 @@ const (
 	RecordStatusNotReviewed       RecordStatusT = 2 // Record has not been reviewed
 	RecordStatusCensored          RecordStatusT = 3 // Record has been censored
 	RecordStatusPublic            RecordStatusT = 4 // Record is publicly visible
-	RecordStatusUnreviewedChanges RecordStatusT = 5 // Public visible record that has changes that are not public
+	RecordStatusUnreviewedChanges RecordStatusT = 5 // Unvetted record that has been changed
 	RecordStatusLocked            RecordStatusT = 6 // Record is locked, note that this has not been implemented yet.
 
 	// Default network bits

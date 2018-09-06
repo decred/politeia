@@ -72,7 +72,7 @@ const (
 	MDStatusUnvetted          MDStatusT = 1 // Unvetted record
 	MDStatusVetted            MDStatusT = 2 // Vetted record
 	MDStatusCensored          MDStatusT = 3 // Censored record
-	MDStatusIterationUnvetted MDStatusT = 4 // Changes are unvetted
+	MDStatusIterationUnvetted MDStatusT = 4 // Unvetted record that has been changed
 	MDStatusLocked            MDStatusT = 5 // Record is locked, only vetted->locked allowed
 )
 
