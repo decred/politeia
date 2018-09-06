@@ -6,6 +6,7 @@ politeiawww/cmd/politeiawww_refclient/politeiawww_refclient
 politeiawww/cmd/politeiawwwcli/politeiawwwcli
 politeiawww/cmd/politeiawwwtest/politeiawwwtest
 politeiawww/politeiawww
+politeiavoter/politeiavoter
 vendor
 *~
 *.pyc
