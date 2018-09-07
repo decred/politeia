@@ -439,7 +439,7 @@ func setProposalStatus(token string, status v1.PropStatusT, message string) erro
 		"setproposalstatus",
 		token,
 		strconv.FormatInt(int64(status), 10),
-		"--message="+message,
+		message,
 	)
 }
 
@@ -555,11 +555,15 @@ func login(email, password string) error {
 }
 
 func logout() error {
-	cmd := executeCommand(cli, "logout")
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-	return cmd.Wait()
+	fmt.Printf("Logging out...\n")
+	return executeCliCommand(
+		func() interface{} {
+			return &v1.LogoutReply{}
+		},
+		func() bool {
+			return true
+		},
+		"logout")
 }
 
 func handleError(err error) {
