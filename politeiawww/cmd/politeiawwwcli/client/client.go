@@ -858,6 +858,33 @@ func (c *Ctx) CommentVote(id *identity.FullIdentity, token, commentID,
 	return &lcr, nil
 }
 
+func (c *Ctx) CensorComment(token, commentID, reason, signature, publicKey string) (*v1.CensorCommentReply, error) {
+	cc := v1.CensorComment{
+		Token:     token,
+		CommentID: commentID,
+		Reason:    reason,
+		Signature: signature,
+		PublicKey: publicKey,
+	}
+
+	responseBody, err := c.makeRequest("POST", v1.RouteCensorComment, cc)
+	if err != nil {
+		return nil, err
+	}
+
+	var ccr v1.CensorCommentReply
+	err = json.Unmarshal(responseBody, &ccr)
+	if err != nil {
+		return nil, err
+	}
+
+	if config.Verbose {
+		prettyPrintJSON(ccr)
+	}
+
+	return &ccr, nil
+}
+
 func (c *Ctx) StartVote(id *identity.FullIdentity, token string) (
 	*v1.StartVoteReply, error) {
 	sv := v1.StartVote{

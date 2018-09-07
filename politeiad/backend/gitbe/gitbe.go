@@ -2163,6 +2163,9 @@ func (g *gitBackEnd) Plugin(command, payload string) (string, string, error) {
 	case decredplugin.CmdLikeComment:
 		payload, err := g.pluginLikeComment(payload)
 		return decredplugin.CmdLikeComment, payload, err
+	case decredplugin.CmdCensorComment:
+		payload, err := g.pluginCensorComment(payload)
+		return decredplugin.CmdCensorComment, payload, err
 	case decredplugin.CmdGetComments:
 		payload, err := g.pluginGetComments(payload)
 		return decredplugin.CmdGetComments, payload, err

@@ -43,6 +43,7 @@ const (
 	RouteVersion                = "/version"
 	RouteNewComment             = "/comments/new"
 	RouteLikeComment            = "/comments/like"
+	RouteCensorComment          = "/comments/censor"
 	RouteCommentsGet            = "/proposals/{token:[A-z0-9]{64}}/comments"
 	RouteStartVote              = "/proposals/startvote"
 	RouteActiveVote             = "/proposals/activevote" // XXX rename to ActiveVotes
@@ -146,6 +147,8 @@ const (
 	ErrorStatusCannotCommentOnProp         ErrorStatusT = 43
 	ErrorStatusCannotVoteOnPropComment     ErrorStatusT = 44
 	ErrorStatusChangeMessageCannotBeBlank  ErrorStatusT = 45
+	ErrorStatusCensorReasonCannotBeBlank   ErrorStatusT = 46
+	ErrorStatusCannotCensorComment         ErrorStatusT = 47
 
 	// Proposal status codes (set and get)
 	PropStatusInvalid           PropStatusT = 0 // Invalid status
@@ -239,6 +242,8 @@ var (
 		ErrorStatusCannotCommentOnProp:         "cannot comment on proposal",
 		ErrorStatusCannotVoteOnPropComment:     "cannot vote on proposal comment",
 		ErrorStatusChangeMessageCannotBeBlank:  "status change message cannot be blank",
+		ErrorStatusCensorReasonCannotBeBlank:   "censor comment reason cannot be blank",
+		ErrorStatusCannotCensorComment:         "cannot censor comment",
 	}
 
 	// PropStatus converts propsal status codes to human readable text
@@ -804,6 +809,22 @@ type LikeCommentReply struct {
 	Result  int64  `json:"result"`          // Current tally of likes, can be negative
 	Receipt string `json:"receipt"`         // Server signature of client signature
 	Error   string `json:"error,omitempty"` // Error if something went wrong during liking a comment
+}
+
+// CensorComment allows an admin to censor a comment. The signature and
+// public key are from the admin that censored this comment.
+type CensorComment struct {
+	Token     string `json:"token"`     // Proposal censorship token
+	CommentID string `json:"commentid"` // Comment ID
+	Reason    string `json:"reason"`    // Reason the comment was censored
+	Signature string `json:"signature"` // Client signature of Token+CommentID+Reason
+	PublicKey string `json:"publickey"` // Pubkey used for signature
+}
+
+// CensorCommentReply returns a receipt if the comment was successfully
+// censored.
+type CensorCommentReply struct {
+	Receipt string `json:"receipt"` // Server signature of client signature
 }
 
 // UsernamesById is a command to fetch all usernames by their ids.

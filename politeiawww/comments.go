@@ -72,6 +72,22 @@ func convertDecredLikeCommentReplyToWWWLikeCommentReply(lcr decredplugin.LikeCom
 	}
 }
 
+func convertWWWCensorCommentToDecredCensorComment(cc www.CensorComment) decredplugin.CensorComment {
+	return decredplugin.CensorComment{
+		Token:     cc.Token,
+		CommentID: cc.CommentID,
+		Reason:    cc.Reason,
+		Signature: cc.Signature,
+		PublicKey: cc.PublicKey,
+	}
+}
+
+func convertDecredCensorCommentReplyToWWWCensorCommentReply(ccr decredplugin.CensorCommentReply) www.CensorCommentReply {
+	return www.CensorCommentReply{
+		Receipt: ccr.Receipt,
+	}
+}
+
 // getComments returns all comments for given proposal token.  Note that the
 // comments are not sorted.
 // This call must be called WITHOUT the lock held.

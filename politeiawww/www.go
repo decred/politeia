@@ -839,6 +839,37 @@ func (p *politeiawww) handleLikeComment(w http.ResponseWriter, r *http.Request) 
 	util.RespondWithJSON(w, http.StatusOK, cr)
 }
 
+// handleCensorComment handles the censoring of a comment by an admin.
+func (p *politeiawww) handleCensorComment(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleCensorComment")
+
+	var cc v1.CensorComment
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&cc); err != nil {
+		RespondWithError(w, r, 0, "handleCensorComment: unmarshal",
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	user, err := p.getSessionUser(r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleCensorComment: getSessionUser %v", err)
+		return
+	}
+
+	cr, err := p.backend.ProcessCensorComment(cc, user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleCensorComment: ProcessCensorComment %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, cr)
+}
+
 // handleCommentsGet handles batched comments get.
 func (p *politeiawww) handleCommentsGet(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleCommentsGet")
@@ -1435,6 +1466,8 @@ func _main() error {
 		p.handleStartVote, permissionAdmin, true)
 	p.addRoute(http.MethodPost, v1.RouteEditUser,
 		p.handleEditUser, permissionAdmin, true)
+	p.addRoute(http.MethodPost, v1.RouteCensorComment,
+		p.handleCensorComment, permissionAdmin, true)
 
 	// Persist session cookies.
 	var cookieKey []byte

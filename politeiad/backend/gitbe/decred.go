@@ -1184,6 +1184,111 @@ func (g *gitBackEnd) pluginLikeComment(payload string) (string, error) {
 	return string(lcrb), nil
 }
 
+func (g *gitBackEnd) pluginCensorComment(payload string) (string, error) {
+	log.Tracef("pluginCensorComment")
+
+	// Check if journals were replayed
+	if !journalsReplayed {
+		return "", backend.ErrJournalsNotReplayed
+	}
+
+	// XXX this should become part of some sort of context
+	fiJSON, ok := decredPluginSettings[decredPluginIdentity]
+	if !ok {
+		return "", fmt.Errorf("full identity not set")
+	}
+	fi, err := identity.UnmarshalFullIdentity([]byte(fiJSON))
+	if err != nil {
+		return "", fmt.Errorf("UnmarshalFullIdentity: %v", err)
+	}
+
+	// Decode censor comment
+	censor, err := decredplugin.DecodeCensorComment([]byte(payload))
+	if err != nil {
+		return "", fmt.Errorf("DecodeCensorComment: %v", err)
+	}
+
+	// Verify proposal exists, we can run this lockless
+	if !g.propExists(g.vetted, censor.Token) {
+		return "", fmt.Errorf("unknown proposal: %v", censor.Token)
+	}
+
+	// Sign signature
+	r := fi.SignMessage([]byte(censor.Signature))
+	receipt := hex.EncodeToString(r[:])
+
+	// Mark comment journal dirty
+	flushFilename := pijoin(g.journals, censor.Token,
+		defaultCommentsFlushed)
+	_ = os.Remove(flushFilename)
+
+	// Ensure proposal exists in comments cache
+	g.Lock()
+	_, ok = decredPluginCommentsCache[censor.Token]
+	if !ok {
+		g.Unlock()
+		return "", fmt.Errorf("proposal not found %v", censor.Token)
+	}
+
+	// Ensure comment exists in comments cache
+	c, ok := decredPluginCommentsCache[censor.Token][censor.CommentID]
+	if !ok {
+		g.Unlock()
+		return "", fmt.Errorf("comment not found %v:%v",
+			censor.Token, censor.CommentID)
+	}
+
+	// Update comments cache
+	delete(decredPluginCommentsCache[censor.Token], censor.CommentID)
+
+	g.Unlock()
+
+	// We create an unwind function that MUST be called from all error
+	// paths. If everything works ok it is a no-op.
+	unwind := func() {
+		g.Lock()
+		decredPluginCommentsCache[censor.Token][censor.CommentID] = c
+		g.Unlock()
+	}
+
+	// Create Journal entry
+	cc := decredplugin.CensorComment{
+		Token:     censor.Token,
+		CommentID: censor.CommentID,
+		Reason:    censor.Reason,
+		Signature: censor.Signature,
+		PublicKey: censor.PublicKey,
+		Receipt:   receipt,
+		Timestamp: time.Now().Unix(),
+	}
+	blob, err := decredplugin.EncodeCensorComment(cc)
+	if err != nil {
+		unwind()
+		return "", fmt.Errorf("EncodeCensorComment: %v", err)
+	}
+
+	// Add censor comment to journal
+	cfilename := pijoin(g.journals, censor.Token,
+		defaultCommentFilename)
+	err = g.journal.Journal(cfilename, string(journalDel)+string(blob))
+	if err != nil {
+		unwind()
+		return "", fmt.Errorf("could not journal %v: %v", cc.Token, err)
+	}
+
+	// Encode reply
+	ccr := decredplugin.CensorCommentReply{
+		Receipt: cc.Receipt,
+	}
+	ccrb, err := decredplugin.EncodeCensorCommentReply(ccr)
+	if err != nil {
+		unwind()
+		return "", fmt.Errorf("EncodeCensorCommentReply: %v", err)
+	}
+
+	return string(ccrb), nil
+}
+
 // encodeGetCommentsReply converts a comment map into a JSON string that can be
 // returned as a decredplugin reply. If the comment map is nil it returns a
 // valid empty reply structure.
@@ -1304,7 +1409,27 @@ func (g *gitBackEnd) replayComments(token string) (map[string]decredplugin.Comme
 				comments[c.CommentID] = c
 
 			case journalActionDel:
-				panic("not yet") // XXX add censor comment
+				var cc decredplugin.CensorComment
+				err = d.Decode(&cc)
+				if err != nil {
+					return fmt.Errorf("journal censor: %v",
+						err)
+				}
+
+				// Ensure comment has been added
+				_, ok := comments[cc.CommentID]
+				if !ok {
+					// Complain but we can't do anything
+					// about it. Can't return error or we'd
+					// abort journal loop.
+					log.Errorf("comment not found: %v",
+						cc.CommentID)
+					return nil
+				}
+
+				// Delete comment
+				delete(comments, cc.CommentID)
+
 			case journalActionAddLike:
 				var lc decredplugin.LikeComment
 				err = d.Decode(&lc)
