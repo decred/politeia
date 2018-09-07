@@ -26,7 +26,7 @@ Politeia's aim is to serve as the decision-making force behind the Decred Decent
 
 Initially at least, the disbursal of funds to successful proposals will be a manual process. Proposals that request funding should specify how much funding they require, denominated in a national currency like $USD. They should also specify a set of milestones or deliverables which will trigger the release of funds.
 
-When a proposal is approved by ticket-voters, this gives a green light to the proposing entity to begin work. When the first milestone is met, they can make a request for the release of the first tranche of funding. This will be reviewed and, where satosfactory, will be processed. It is expected that, initially at least, all proposals requesting funding are paid in arrears.
+When a proposal is approved by ticket-voters, this gives a green light to the proposing entity to begin work. When the first milestone is met, they can make a request for the release of the first tranche of funding. This will be reviewed and, where satisfactory, will be processed. It is expected that, initially at least, all proposals requesting funding are paid in arrears.
 
 An example is that stakeholders expect developers to write and show code before payment occurs. The existing contractors use this model. For example, Company 0 carries the costs (and risk) for 4-6 weeks before payout occurs. This is a feature and not a bug.  Asking for a large sum of money without incurring costs shifts the risk to the DAE and that incentivizes malicious behavior.
 
