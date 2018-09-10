@@ -36,6 +36,7 @@ API.  It does not render HTML.
 - [`New comment`](#new-comment)
 - [`Get comments`](#get-comments)
 - [`Like comment`](#like-comment)
+- [`Censor comment`](#censor-comment)
 - [`Start vote`](#start-vote)
 - [`Active votes`](#active-votes)
 - [`Cast votes`](#cast-votes)
@@ -87,6 +88,13 @@ API.  It does not render HTML.
 - [`ErrorStatusInvalidPropVoteStatus`](#ErrorStatusInvalidPropVoteStatus)
 - [`ErrorStatusNoProposalCredits`](#ErrorStatusNoProposalCredits)
 - [`ErrorStatusInvalidUserEditAction`](#ErrorStatusInvalidUserEditAction)
+- [`ErrorStatusUserActionNotAllowed`](#ErrorStatusUserActionNotAllowed)
+- [`ErrorStatusCannotEditPropOnVoting`](#ErrorStatusCannotEditPropOnVoting)
+- [`ErrorStatusCannotCommentOnProp`](#ErrorStatusCannotCommentOnProp)
+- [`ErrorStatusCannotVoteOnPropComment`](#ErrorStatusCannotVoteOnPropComment)
+- [`ErrorStatusChangeMessageCannotBeBlank`](#ErrorStatusChangeMessageCannotBeBlank)
+- [`ErrorStatusCensorReasonCannotBeBlank`](#ErrorStatusCensorReasonCannotBeBlank)
+- [`ErrorStatusCannotCensorComment`](#ErrorStatusCannotCensorComment)
 
 
 **Proposal status codes**
@@ -1573,6 +1581,57 @@ Reply:
 }
 ```
 
+### `Censor comment`
+
+Allows a admin to censor a proposal comment.
+
+**Route:** `POST v1/comments/censor`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| token | string | Censorship token | yes |
+| commentid | string | Unique comment identifier | yes |
+| reason | string | Reason for censoring the comment | yes |
+| signature | string | Signature of Token, CommentId and Reason | yes |
+| publickey | string | Public key used for Signature | yes |
+
+**Results:**
+
+| | Type | Description |
+|-|-|-|
+| receipt | string | Server signature of client signature |
+
+On failure the call shall return `403 Forbidden` and one of the following
+error codes:
+- [`ErrorStatusInvalidSignature`](#ErrorStatusInvalidSignature)
+- [`ErrorStatusCensorReasonCannotBeBlank`](#ErrorStatusCensorReasonCannotBeBlank)
+- [`ErrorStatusCannotCensorComment`](#ErrorStatusCannotCensorComment)
+
+**Example:**
+
+Request:
+
+```json
+{
+  "token": "abf0fd1fc1b8c1c9535685373dce6c54948b7eb018e17e3a8cea26a3c9b85684",
+  "commentid": "4",
+  "reason": "comment was an advertisment",
+  "signature": "af969d7f0f711e25cb411bdbbe3268bbf3004075cde8ebaee0fc9d988f24e45013cc2df6762dca5b3eb8abb077f76e0b016380a7eba2d46839b04c507d86290d",
+  "publickey": "4206fa1f45c898f1dee487d7a7a82e0ed293858313b8b022a6a88f2bcae6cdd7"
+}
+```
+
+Reply:
+
+```json
+{
+  "receipt": "96f3956ea3decb75ee129e6ee4e77c6c608f0b5c99ff41960a4e6078d8bb74e8ad9d2545c01fff2f8b7e0af38ee9de406aea8a0b897777d619e93d797bc1650a"
+}
+```
+
+
 ### `Start vote`
 
 Call a vote on the given proposal.
@@ -2150,6 +2209,13 @@ Reply:
 | <a name="ErrorStatusUserLocked">ErrorStatusUserLocked</a> | 38 | User locked due to too many login attempts. |
 | <a name="ErrorStatusNoProposalCredits">ErrorStatusNoProposalCredits</a> | 39 | No proposal credits. |
 | <a name="ErrorStatusInvalidUserEditAction">ErrorStatusInvalidUserEditAction</a> | 40 | Invalid action for editing a user. |
+| <a name="ErrorStatusUserActionNotAllowed">ErrorStatusUserActionNotAllowed</a> | 41 | User action is not allowed. |
+| <a name="ErrorStatusCannotEditPropOnVoting">ErrorStatusCannotEditPropOnVoting</a> | 42 | Cannot edit proposals on voting. |
+| <a name="ErrorStatusCannotCommentOnProp">ErrorStatusCannotCommentOnProp</a> | 43 | Cannot comment on proposal. |
+| <a name="ErrorStatusCannotVoteOnPropComment">ErrorStatusCannotVoteOnPropComment</a> | 44 | Cannot vote on proposal comment. |
+| <a name="ErrorStatusChangeMessageCannotBeBlank">ErrorStatusChangeMessageCannotBeBlank</a> | 45 | Status change message cannot be blank. |
+| <a name="ErrorStatusCensorReasonCannotBeBlank">ErrorStatusCensorReasonCannotBeBlank</a> | 46 | Censor comment reason cannot be blank. |
+| <a name="ErrorStatusCannotCensorComment">ErrorStatusCannotCensorComment</a> | 47 | Cannot censor comment. |
 
 ### Proposal status codes
 

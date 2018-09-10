@@ -2224,6 +2224,106 @@ func (b *backend) ProcessLikeComment(lc www.LikeComment, user *database.User) (*
 	return &lcrWWW, nil
 }
 
+func (b *backend) ProcessCensorComment(cc www.CensorComment, user *database.User) (*www.CensorCommentReply, error) {
+	log.Debugf("ProcessCensorComment: %v: %v", cc.Token, cc.CommentID)
+
+	// Verify authenticity.
+	err := checkPublicKeyAndSignature(user, cc.PublicKey, cc.Signature,
+		cc.Token, cc.CommentID, cc.Reason)
+	if err != nil {
+		return nil, err
+	}
+
+	// Ensure censor reason is present.
+	if cc.Reason == "" {
+		return nil, v1.UserError{
+			ErrorCode: v1.ErrorStatusCensorReasonCannotBeBlank,
+		}
+	}
+
+	// Get the proposal record from inventory.
+	b.RLock()
+	ir, ok := b.inventory[cc.Token]
+	b.RUnlock()
+	if !ok {
+		return nil, fmt.Errorf("inventory proposal not found: %v", cc.Token)
+	}
+
+	// Ensure comment exists.
+	if _, ok := b.inventory[cc.Token].comments[cc.CommentID]; !ok {
+		return nil, fmt.Errorf("comment not found %v: %v", cc.Token, cc.CommentID)
+	}
+
+	// Ensure proposal voting has not ended.
+	bb, err := b.getBestBlock()
+	if err != nil {
+		return nil, fmt.Errorf("getBestBlock: %v", err)
+	}
+
+	if getVoteStatus(ir, bb) == www.PropVoteStatusFinished {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusCannotCensorComment,
+		}
+	}
+
+	// Setup plugin command.
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	dcc := convertWWWCensorCommentToDecredCensorComment(cc)
+	payload, err := decredplugin.EncodeCensorComment(dcc)
+	if err != nil {
+		return nil, fmt.Errorf("EncodeCensorComment: %v", err)
+	}
+
+	pc := pd.PluginCommand{
+		Challenge: hex.EncodeToString(challenge),
+		ID:        decredplugin.ID,
+		Command:   decredplugin.CmdCensorComment,
+		CommandID: decredplugin.CmdCensorComment,
+		Payload:   string(payload),
+	}
+
+	// Send plugin request.
+	responseBody, err := b.makeRequest(http.MethodPost,
+		pd.PluginCommandRoute, pc)
+	if err != nil {
+		return nil, fmt.Errorf("makeRequest: %v", err)
+	}
+
+	var reply pd.PluginCommandReply
+	err = json.Unmarshal(responseBody, &reply)
+	if err != nil {
+		return nil, fmt.Errorf("Unmarshal PluginCommandReply: %v", err)
+	}
+
+	// Verify the challenge.
+	err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
+	if err != nil {
+		return nil, fmt.Errorf("VerifyChallenge: %v", err)
+	}
+
+	// Decode plugin reply.
+	ccr, err := decredplugin.DecodeCensorCommentReply([]byte(reply.Payload))
+	if err != nil {
+		return nil, fmt.Errorf("DecodeCensorCommentReply: %v", err)
+	}
+	ccrWWW := convertDecredCensorCommentReplyToWWWCensorCommentReply(*ccr)
+
+	// Update inventory cache.
+	b.Lock()
+	defer b.Unlock()
+	if _, ok := b.inventory[cc.Token].comments[cc.CommentID]; ok {
+		delete(b.inventory[cc.Token].comments, cc.CommentID)
+	} else {
+		return nil, fmt.Errorf("comment not found %v: %v", cc.Token, cc.CommentID)
+	}
+
+	return &ccrWWW, nil
+}
+
 // ProcessCommentGet returns all comments for a given proposal.
 func (b *backend) ProcessCommentGet(token string) (*www.GetCommentsReply, error) {
 	log.Debugf("ProcessCommentGet: %v", token)

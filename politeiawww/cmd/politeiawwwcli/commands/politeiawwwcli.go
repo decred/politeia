@@ -14,6 +14,7 @@ type Options struct {
 	// cli commands
 	ActiveVotes       ActivevotesCmd       `command:"activevotes" description:"Retrieve all proposals being actively voted on"`
 	CastVotes         CastvotesCmd         `command:"castvotes" description:"Cast ticket votes for a specific proposal"`
+	CensorComment     CensorCommentCmd     `command:"censorcomment" description:"(admin) censor a proposal comment"`
 	ChangePassword    ChangepasswordCmd    `command:"changepassword" description:"change the password for the currently logged in user"`
 	CommentsVotes     CommentsvotesCmd     `command:"commentsvotes" description:"fetch all the comments voted by the user on a proposal"`
 	ChangeUsername    ChangeusernameCmd    `command:"changeusername" description:"change the username for the currently logged in user"`
