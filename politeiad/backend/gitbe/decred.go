@@ -1012,13 +1012,17 @@ func (g *gitBackEnd) pluginNewComment(payload string) (string, error) {
 		return "", fmt.Errorf("could not journal %v: %v", c.Token, err)
 	}
 
-	// Mark comment journal dirty
+	// Comment journal filename
 	flushFilename := pijoin(g.journals, comment.Token,
 		defaultCommentsFlushed)
-	_ = os.Remove(flushFilename)
 
 	// Cache comment
 	g.Lock()
+
+	// Mark comment journal dirty
+	_ = os.Remove(flushFilename)
+
+	// Remove from cash.
 	if _, ok := decredPluginCommentsCache[c.Token]; !ok {
 		decredPluginCommentsCache[c.Token] =
 			make(map[string]decredplugin.Comment)
@@ -1101,14 +1105,18 @@ func (g *gitBackEnd) pluginLikeComment(payload string) (string, error) {
 	r := fi.SignMessage([]byte(like.Signature))
 	receipt := hex.EncodeToString(r[:])
 
-	// Mark comment journal dirty
+	// Comment journal filename
 	flushFilename := pijoin(g.journals, like.Token,
 		defaultCommentsFlushed)
+
+	// Ensure proposal exists in comments cache
+	g.Lock()
+
+	// Mark comment journal dirty
 	_ = os.Remove(flushFilename)
 
-	g.Lock()
+	// Verify cache
 	c, ok := decredPluginCommentsCache[like.Token][like.CommentID]
-
 	if !ok {
 		g.Unlock()
 		return "", fmt.Errorf("comment not found %v:%v",
@@ -1217,13 +1225,17 @@ func (g *gitBackEnd) pluginCensorComment(payload string) (string, error) {
 	r := fi.SignMessage([]byte(censor.Signature))
 	receipt := hex.EncodeToString(r[:])
 
-	// Mark comment journal dirty
+	// Comment journal filename
 	flushFilename := pijoin(g.journals, censor.Token,
 		defaultCommentsFlushed)
-	_ = os.Remove(flushFilename)
 
 	// Ensure proposal exists in comments cache
 	g.Lock()
+
+	// Mark comment journal dirty
+	_ = os.Remove(flushFilename)
+
+	// Verify cache
 	_, ok = decredPluginCommentsCache[censor.Token]
 	if !ok {
 		g.Unlock()
