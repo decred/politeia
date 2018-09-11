@@ -1251,7 +1251,10 @@ func (g *gitBackEnd) pluginCensorComment(payload string) (string, error) {
 	}
 
 	// Update comments cache
-	delete(decredPluginCommentsCache[censor.Token], censor.CommentID)
+	oc := c
+	c.Comment = ""
+	c.Censored = true
+	decredPluginCommentsCache[censor.Token][censor.CommentID] = c
 
 	g.Unlock()
 
@@ -1259,7 +1262,7 @@ func (g *gitBackEnd) pluginCensorComment(payload string) (string, error) {
 	// paths. If everything works ok it is a no-op.
 	unwind := func() {
 		g.Lock()
-		decredPluginCommentsCache[censor.Token][censor.CommentID] = c
+		decredPluginCommentsCache[censor.Token][censor.CommentID] = oc
 		g.Unlock()
 	}
 
@@ -1429,7 +1432,7 @@ func (g *gitBackEnd) replayComments(token string) (map[string]decredplugin.Comme
 				}
 
 				// Ensure comment has been added
-				_, ok := comments[cc.CommentID]
+				c, ok := comments[cc.CommentID]
 				if !ok {
 					// Complain but we can't do anything
 					// about it. Can't return error or we'd
@@ -1440,7 +1443,9 @@ func (g *gitBackEnd) replayComments(token string) (map[string]decredplugin.Comme
 				}
 
 				// Delete comment
-				delete(comments, cc.CommentID)
+				c.Comment = ""
+				c.Censored = true
+				comments[cc.CommentID] = c
 
 			case journalActionAddLike:
 				var lc decredplugin.LikeComment

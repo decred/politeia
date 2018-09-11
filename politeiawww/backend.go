@@ -2315,8 +2315,10 @@ func (b *backend) ProcessCensorComment(cc www.CensorComment, user *database.User
 	// Update inventory cache.
 	b.Lock()
 	defer b.Unlock()
-	if _, ok := b.inventory[cc.Token].comments[cc.CommentID]; ok {
-		delete(b.inventory[cc.Token].comments, cc.CommentID)
+	if c, ok := b.inventory[cc.Token].comments[cc.CommentID]; ok {
+		c.Comment = ""
+		c.Censored = true
+		b.inventory[cc.Token].comments[cc.CommentID] = c
 	} else {
 		return nil, fmt.Errorf("comment not found %v: %v", cc.Token, cc.CommentID)
 	}

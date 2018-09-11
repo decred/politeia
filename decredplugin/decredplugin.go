@@ -247,6 +247,7 @@ type Comment struct {
 	Timestamp   int64  `json:"timestamp"`   // Received UNIX timestamp
 	TotalVotes  uint64 `json:"totalvotes"`  // Total number of up/down votes
 	ResultVotes int64  `json:"resultvotes"` // Vote score
+	Censored    bool   `json:"censored"`    // Has this comment been censored
 }
 
 // EncodeComment encodes Comment into a JSON byte slice.

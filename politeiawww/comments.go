@@ -19,6 +19,7 @@ func (b *backend) convertDecredCommentToWWWComment(c decredplugin.Comment) www.C
 		TotalVotes:  c.TotalVotes,
 		ResultVotes: c.ResultVotes,
 		UserID:      b.userPubkeys[c.PublicKey],
+		Censored:    c.Censored,
 	}
 }
 
@@ -34,6 +35,7 @@ func convertWWWCommentToDecredComment(c www.Comment) decredplugin.Comment {
 		Timestamp:   c.Timestamp,
 		TotalVotes:  c.TotalVotes,
 		ResultVotes: c.ResultVotes,
+		Censored:    c.Censored,
 	}
 }
 
