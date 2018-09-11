@@ -19,6 +19,12 @@ import (
 
 var (
 	errRecordNotFound = fmt.Errorf("record not found")
+
+	NumOfCensored        = 0
+	NumOfUnvetted        = 0
+	NumOfUnvettedChanges = 0
+	NumOfPublic          = 0
+	NumOfInvalid         = 0
 )
 
 type inventoryRecord struct {
@@ -40,10 +46,30 @@ type proposalsRequest struct {
 	StatusMap map[www.PropStatusT]bool
 }
 
+// proposalsStats is used as reply of the getProposalsStats() function.
+type proposalsStats struct {
+	NumOfInvalid         int
+	NumOfCensored        int
+	NumOfUnvetted        int
+	NumOfUnvettedChanges int
+	NumOfPublic          int
+}
+
+// getProposalsStats returns the proposal stats
+func getProposalsStats() proposalsStats {
+	return proposalsStats{
+		NumOfInvalid:         NumOfInvalid,
+		NumOfCensored:        NumOfCensored,
+		NumOfUnvetted:        NumOfUnvetted,
+		NumOfUnvettedChanges: NumOfUnvettedChanges,
+		NumOfPublic:          NumOfPublic,
+	}
+}
+
 // newInventoryRecord adds a record to the inventory
 //
 // This function must be called WITH the mutex held.
-func (b *backend) newInventoryRecord(record pd.Record) error {
+func (b *backend) _newInventoryRecord(record pd.Record) error {
 	t := record.CensorshipRecord.Token
 	if _, ok := b.inventory[t]; ok {
 		return fmt.Errorf("newInventoryRecord: duplicate token: %v", t)
@@ -55,21 +81,105 @@ func (b *backend) newInventoryRecord(record pd.Record) error {
 	}
 
 	b.loadRecordMetadata(record)
+	updateInventoryCountOfPropStatus(record.Status, nil)
 
 	return nil
 }
 
-// updateInventoryRecord updates an existing record.
+// newInventoryRecord adds a record to the inventory
+//
+// This function must be called WITHOUT the mutex held.
+func (b *backend) newInventoryRecord(record pd.Record) error {
+	b.Lock()
+	defer b.Unlock()
+
+	return b._newInventoryRecord(record)
+}
+
+// _updateInventoryRecord updates an existing record.
 //
 // This function must be called WITH the mutex held.
-func (b *backend) updateInventoryRecord(record pd.Record) error {
+func (b *backend) _updateInventoryRecord(record pd.Record) error {
 	ir, ok := b.inventory[record.CensorshipRecord.Token]
 	if !ok {
 		return fmt.Errorf("inventory record not found: %v", record.CensorshipRecord.Token)
 	}
+
+	updateInventoryCountOfPropStatus(record.Status, &ir.record.Status)
+
 	ir.record = record
 	b.inventory[record.CensorshipRecord.Token] = ir
+
 	b.loadRecordMetadata(record)
+
+	return nil
+}
+
+// updateInventoryRecord updates an inventory record
+//
+// This functions must be called WITHOUT the mutex held
+func (b *backend) updateInventoryRecord(record pd.Record) error {
+	b.Lock()
+	defer b.Unlock()
+
+	return b._updateInventoryRecord(record)
+}
+
+// setRecordComment sets a comment alongside the record's comments (if any)
+// this can be used for adding or updating a comment
+//
+// This function must be called WITHOUT the mutex held
+func (b *backend) setRecordComment(comment www.Comment) error {
+	b.Lock()
+	defer b.Unlock()
+
+	// Sanity check
+	_, ok := b.inventory[comment.Token]
+	if !ok {
+		return fmt.Errorf("inventory record not found: %v", comment.Token)
+	}
+
+	b.inventory[comment.Token].comments[comment.CommentID] = comment
+
+	return nil
+}
+
+// setRecordVoting sets the voting of a proposal
+// this can be used for adding or updating a proposal voting
+//
+// This function must be called WITHOUT the mutex held
+func (b *backend) setRecordVoting(token string, sv www.StartVote, svr www.StartVoteReply) error {
+	b.Lock()
+	defer b.Unlock()
+
+	// Sanity check
+	ir, ok := b.inventory[token]
+	if !ok {
+		return fmt.Errorf("inventory record not found: %v", token)
+	}
+
+	// update record
+	ir.voting = svr
+	ir.votebits = sv
+	b.inventory[token] = ir
+
+	return nil
+}
+
+// removeRecordComment removes a comment from the inventory
+//
+// This function must be called WITHOUT the mutex held
+func (b *backend) removeRecordComment(token string, commentID string) error {
+	b.Lock()
+	defer b.Unlock()
+
+	// Sanity check
+	_, ok := b.inventory[token].comments[commentID]
+	if !ok {
+		return fmt.Errorf("comment not found %v: %v", token, commentID)
+	}
+
+	delete(b.inventory[token].comments, commentID)
 	return nil
 }
 
@@ -89,6 +199,33 @@ func (b *backend) loadRecord(record pd.Record) error {
 	}
 
 	return nil
+}
+
+// updateInventoryCount updates the count of proposals by each proposal review
+// status
+func updateInventoryCountOfPropStatus(status pd.RecordStatusT, oldStatus *pd.RecordStatusT) {
+	executeUpdate := func(v int, status www.PropStatusT) {
+		switch status {
+		case www.PropStatusUnreviewedChanges:
+			NumOfUnvettedChanges += v
+		case www.PropStatusNotReviewed:
+			NumOfUnvetted += v
+		case www.PropStatusCensored:
+			NumOfCensored += v
+		case www.PropStatusPublic:
+			NumOfPublic += v
+		default:
+			NumOfInvalid += v
+		}
+	}
+
+	// decrease count for old status
+	if oldStatus != nil {
+		executeUpdate(-1, convertPropStatusFromPD(*oldStatus))
+	}
+
+	// increase count for new status
+	executeUpdate(1, convertPropStatusFromPD(status))
 }
 
 // loadPropMD decodes backend proposal metadata and stores it inventory object.
@@ -307,7 +444,7 @@ func (b *backend) initializeInventory(inv *pd.InventoryReply) error {
 	b.inventory = make(map[string]*inventoryRecord)
 
 	for _, v := range append(inv.Vetted, inv.Branches...) {
-		err := b.newInventoryRecord(v)
+		err := b._newInventoryRecord(v)
 		if err != nil {
 			return err
 		}
@@ -360,10 +497,37 @@ func (b *backend) setRecordVoteAuthorization(token string, avr www.AuthorizeVote
 	return nil
 }
 
+// getInventoryRecordComment returns a comment from the inventory given its
+// record token and the comment id.
+//
+// This functions must be called WITH the mutex held.
+func (b *backend) _getInventoryRecordComment(token string, commentID string) (*www.Comment, error) {
+	comment, ok := b.inventory[token].comments[commentID]
+	if !ok {
+		return nil, fmt.Errorf("comment not found %v: %v", token, commentID)
+	}
+
+	return &comment, nil
+}
+
+// getInventoryRecordComment returns a comment from the inventory given its
+// record token and the comment id.
+//
+// This functions must be called WITHOUT the mutex held.
+func (b *backend) getInventoryRecordComment(token string, commentID string) (*www.Comment, error) {
+	b.RLock()
+	defer b.RUnlock()
+
+	return b._getInventoryRecordComment(token, commentID)
+}
+
 // getProposal returns a single proposal by its token
 //
-// This function must be called WITH the mutex held.
+// This function must be called WITHOUT the mutex held.
 func (b *backend) getProposal(token string) (www.ProposalRecord, error) {
+	b.RLock()
+	defer b.RUnlock()
+
 	ir, err := b._getInventoryRecord(token)
 	if err != nil {
 		return www.ProposalRecord{}, err
