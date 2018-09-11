@@ -873,6 +873,7 @@ type VoteStatusReply struct {
 	Status        PropVoteStatusT    `json:"status"`        // Vote status (finished, started, etc)
 	TotalVotes    uint64             `json:"totalvotes"`    // Proposal's total number of votes
 	OptionsResult []VoteOptionResult `json:"optionsresult"` // VoteOptionResult for each option
+	EndHeight     string             `json:"endheight"`     // Vote end height
 }
 
 // GetAllVoteStatus attempts to fetch the vote status of all public propsals

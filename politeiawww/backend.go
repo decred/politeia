@@ -2609,6 +2609,7 @@ func (b *backend) ProcessGetAllVoteStatus() (*www.GetAllVoteStatusReply, error) 
 			Status:        getVoteStatus(i, bestBlock),
 			TotalVotes:    uint64(len(vrr.CastVotes)),
 			OptionsResult: convertVoteResultsFromDecredplugin(vrr),
+			EndHeight:     i.voting.EndHeight,
 		}
 
 		gavsr.VotesStatus = append(gavsr.VotesStatus, vsr)
@@ -2648,6 +2649,7 @@ func (b *backend) ProcessVoteStatus(token string) (*www.VoteStatusReply, error) 
 		TotalVotes:    uint64(len(vrr.CastVotes)),
 		Status:        getVoteStatus(&ir, bestBlock),
 		OptionsResult: convertVoteResultsFromDecredplugin(vrr),
+		EndHeight:     ir.voting.EndHeight,
 	}, nil
 }
 
