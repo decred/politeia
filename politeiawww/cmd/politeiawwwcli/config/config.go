@@ -23,7 +23,7 @@ const (
 	defaultWalletMainnetPort = "19110"
 	defaultWalletTestnetPort = "19111"
 
-	ErrorNoUserIdentity = "No user idenitity found. Use 'newuser --save' to " +
+	ErrorNoUserIdentity = "No user identity found. Use 'newuser --save' to " +
 		"save a user identity to appDataDir."
 	ErrorBeforeAfterFlags = "The 'before' and 'after' flags cannot be used at " +
 		"the same time."
