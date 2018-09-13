@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/decred/politeia/politeiawww/cmd/politeiawwwcli/config"
-	"github.com/decred/politeia/util"
+	"github.com/decred/politeia/politeiawww/paywall"
 )
 
 type FaucetArgs struct {
@@ -27,8 +27,8 @@ func (cmd *FaucetCmd) Execute(args []string) error {
 			amountInDCR, address)
 	}
 
-	faucetTx, err := util.PayWithTestnetFaucet(config.FaucetURL, address, amount,
-		cmd.OverrideToken)
+	faucetTx, err := paywall.PayWithTestnetFaucet(config.FaucetURL, address,
+		amount, cmd.OverrideToken)
 	if err != nil {
 		return fmt.Errorf("Unable to pay %v DCR to %v with faucet: %v",
 			amountInDCR, address, err)
@@ -38,8 +38,8 @@ func (cmd *FaucetCmd) Execute(args []string) error {
 		fmt.Printf("{\"faucetTx\":\"%v\"}\n", faucetTx)
 	}
 	if config.Verbose {
-		fmt.Printf("Paid %v DCR to %v with faucet tx %v\n", amountInDCR, address,
-			faucetTx)
+		fmt.Printf("Paid %v DCR to %v with faucet tx %v\n", amountInDCR,
+			address, faucetTx)
 	}
 
 	return nil

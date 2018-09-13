@@ -1,7 +1,6 @@
-package util_test
+package paywall
 
 import (
-	"github.com/decred/politeia/util"
 	"testing"
 )
 
@@ -50,7 +49,7 @@ func TestDcrStringToAmount(t *testing.T) {
 
 	// test
 	for _, testCase := range testCases {
-		result, err := util.DcrStringToAmount(testCase.input)
+		result, err := DcrStringToAmount(testCase.input)
 		if err != testCase.expectedError {
 			t.Errorf("Expected %v for input %s, got %v.",
 				testCase.expectedError, testCase.input, err)

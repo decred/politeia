@@ -6,7 +6,7 @@ import (
 
 	v1 "github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/politeiawww/database"
-	"github.com/decred/politeia/util"
+	"github.com/decred/politeia/politeiawww/paywall"
 )
 
 type paywallPoolMember struct {
@@ -18,19 +18,19 @@ type paywallPoolMember struct {
 }
 
 const (
-	// paywallExpiryDuration is the amount of time the server will watch a paywall address
-	// for transactions. It gets reset when the user logs in or makes a call to
-	// RouteVerifyUserPayment.
+	// paywallExpiryDuration is the amount of time the server will watch a
+	// paywall address for transactions. It gets reset when the user logs
+	// in or makes a call to RouteVerifyUserPayment.
 	paywallExpiryDuration = time.Hour * 24
 
-	// paywallCheckGap is the amount of time the server sleeps after polling for
-	// a paywall address.
+	// paywallCheckGap is the amount of time the server sleeps after
+	// polling for a paywall address.
 	paywallCheckGap = time.Second * 5
 
-	// paywallTypeUser and paywallTypeProposal are used to signify whether a
-	// paywall pool member is a user registration fee paywall or a proposal
-	// credit paywall. Different actions are taken by the paywall pool depending
-	// on the paywall type.
+	// paywallTypeUser and paywallTypeProposal are used to signify whether
+	// a paywall pool member is a user registration fee paywall or a
+	// proposal credit paywall. Different actions are taken by the paywall
+	// pool depending on the paywall type.
 	paywallTypeUser     = "user"
 	paywallTypeProposal = "proposal"
 )
@@ -79,7 +79,7 @@ func (b *backend) updateUserAsPaid(user *database.User, tx string) error {
 }
 
 func (b *backend) derivePaywallInfo(user *database.User) (string, uint64, int64, error) {
-	address, err := util.DerivePaywallAddress(b.params,
+	address, err := paywall.DerivePaywallAddress(b.params,
 		b.cfg.PaywallXpub, uint32(user.ID))
 	if err != nil {
 		err = fmt.Errorf("Unable to derive paywall address #%v "+
@@ -109,11 +109,13 @@ func (b *backend) checkForUserPayments(pool map[uint64]paywallPoolMember) (bool,
 		user, err := b.db.UserGetById(userID)
 		if err != nil {
 			if err == database.ErrShutdown {
-				// The database is shutdown, so stop the thread.
+				// The database is shutdown, so stop the
+				// thread.
 				return false, nil
 			}
 
-			log.Errorf("cannot fetch user by id %v: %v\n", userID, err)
+			log.Errorf("cannot fetch user by id %v: %v\n", userID,
+				err)
 			continue
 		}
 
@@ -121,11 +123,13 @@ func (b *backend) checkForUserPayments(pool map[uint64]paywallPoolMember) (bool,
 			continue
 		}
 
-		log.Tracef("Checking the user paywall address for user %v...", user.Email)
+		log.Tracef("Checking the user paywall address for user %v...",
+			user.Email)
 
 		if b.HasUserPaid(user) {
-			// The user could have been marked as paid by RouteVerifyUserPayment,
-			// so just remove him from the in-memory pool.
+			// The user could have been marked as paid by
+			// RouteVerifyUserPayment, so just remove him from the
+			// in-memory pool.
 			userIDsToRemove = append(userIDsToRemove, userID)
 			log.Tracef("  removing from polling, user already paid")
 			continue
@@ -137,8 +141,9 @@ func (b *backend) checkForUserPayments(pool map[uint64]paywallPoolMember) (bool,
 			continue
 		}
 
-		tx, _, err := util.FetchTxWithBlockExplorers(poolMember.address, poolMember.amount,
-			poolMember.txNotBefore, b.cfg.MinConfirmationsRequired)
+		tx, _, err := paywall.FetchTxWithBlockExplorers(poolMember.address,
+			poolMember.amount, poolMember.txNotBefore,
+			b.cfg.MinConfirmationsRequired)
 		if err != nil {
 			log.Errorf("cannot fetch tx: %v\n", err)
 			continue
@@ -149,11 +154,13 @@ func (b *backend) checkForUserPayments(pool map[uint64]paywallPoolMember) (bool,
 			err = b.updateUserAsPaid(user, tx)
 			if err != nil {
 				if err == database.ErrShutdown {
-					// The database is shutdown, so stop the thread.
+					// The database is shutdown, so stop
+					// the thread.
 					return false, nil
 				}
 
-				log.Errorf("cannot update user with id %v: %v", user.ID, err)
+				log.Errorf("cannot update user with id %v: %v",
+					user.ID, err)
 				continue
 			}
 
@@ -170,8 +177,8 @@ func (b *backend) checkForUserPayments(pool map[uint64]paywallPoolMember) (bool,
 
 // checkForProposalPayments checks if any of the proposal paywalls in the
 // paywall pool have received a payment.  If so, proposal credits are created
-// for the user, the user database is updated, and the user is removed from
-// the paywall pool.
+// for the user, the user database is updated, and the user is removed from the
+// paywall pool.
 func (b *backend) checkForProposalPayments(pool map[uint64]paywallPoolMember) (bool, []uint64) {
 	var userIDsToRemove []uint64
 
@@ -179,11 +186,13 @@ func (b *backend) checkForProposalPayments(pool map[uint64]paywallPoolMember) (b
 		user, err := b.db.UserGetById(userID)
 		if err != nil {
 			if err == database.ErrShutdown {
-				// The database is shutdown, so stop the thread.
+				// The database is shutdown, so stop the
+				// thread.
 				return false, nil
 			}
 
-			log.Errorf("cannot fetch user by id %v: %v\n", userID, err)
+			log.Errorf("cannot fetch user by id %v: %v\n", userID,
+				err)
 			continue
 		}
 
@@ -191,7 +200,8 @@ func (b *backend) checkForProposalPayments(pool map[uint64]paywallPoolMember) (b
 			continue
 		}
 
-		log.Tracef("Checking proposal paywall address for user %v...", user.Email)
+		log.Tracef("Checking proposal paywall address for user %v...",
+			user.Email)
 
 		paywall := b.mostRecentProposalPaywall(user)
 		if paywallHasExpired(paywall.PollExpiry) {
@@ -203,15 +213,18 @@ func (b *backend) checkForProposalPayments(pool map[uint64]paywallPoolMember) (b
 		err = b.verifyProposalPayment(user)
 		if err != nil {
 			if err == database.ErrShutdown {
-				// The database is shutdown, so stop the thread.
+				// The database is shutdown, so stop the
+				// thread.
 				return false, nil
 			}
 
-			log.Errorf("cannot update user with id %v: %v", user.ID, err)
+			log.Errorf("cannot update user with id %v: %v", user.ID,
+				err)
 			continue
 		}
 
-		// Removed paywall from the in-memory pool if it has been marked as paid.
+		// Removed paywall from the in-memory pool if it has been
+		// marked as paid.
 		if !b.userHasValidProposalPaywall(user) {
 			userIDsToRemove = append(userIDsToRemove, userID)
 			log.Tracef("  removing from polling, user just paid")
@@ -250,6 +263,7 @@ func (b *backend) checkForPayments() {
 		}
 		b.removeUsersFromPool(userIDsToRemove)
 
+		// XXX this should be refactored
 		time.Sleep(paywallCheckGap)
 	}
 }
@@ -290,9 +304,9 @@ func (b *backend) GenerateNewUserPaywall(user *database.User) error {
 	return nil
 }
 
-// ProcessVerifyUserPayment verifies that the provided transaction
-// meets the minimum requirements to mark the user as paid, and then does
-// that in the user database.
+// ProcessVerifyUserPayment verifies that the provided transaction meets the
+// minimum requirements to mark the user as paid, and then does that in the
+// user database.
 func (b *backend) ProcessVerifyUserPayment(user *database.User, vupt v1.VerifyUserPayment) (*v1.VerifyUserPaymentReply, error) {
 	var reply v1.VerifyUserPaymentReply
 	if b.HasUserPaid(user) {
@@ -309,11 +323,11 @@ func (b *backend) ProcessVerifyUserPayment(user *database.User, vupt v1.VerifyUs
 		return &reply, nil
 	}
 
-	tx, _, err := util.FetchTxWithBlockExplorers(user.NewUserPaywallAddress,
+	tx, _, err := paywall.FetchTxWithBlockExplorers(user.NewUserPaywallAddress,
 		user.NewUserPaywallAmount, user.NewUserPaywallTxNotBefore,
 		b.cfg.MinConfirmationsRequired)
 	if err != nil {
-		if err == util.ErrCannotVerifyPayment {
+		if err == paywall.ErrCannotVerifyPayment {
 			return nil, v1.UserError{
 				ErrorCode: v1.ErrorStatusCannotVerifyPayment,
 			}
@@ -482,42 +496,44 @@ func (b *backend) ProcessProposalPaywallDetails(user *database.User) (*v1.Propos
 	}, nil
 }
 
-// verifyPropoposalPayment checks whether a payment has been sent to the
-// user's proposal paywall address and if that payment meets the minimum
-// requirements to purchase proposal credits.  If so, proposal credits are
-// created and the user database is updated.
+// verifyPropoposalPayment checks whether a payment has been sent to the user's
+// proposal paywall address and if that payment meets the minimum requirements
+// to purchase proposal credits.  If so, proposal credits are created and the
+// user database is updated.
 func (b *backend) verifyProposalPayment(user *database.User) error {
-	paywall := b.mostRecentProposalPaywall(user)
+	p := b.mostRecentProposalPaywall(user)
 
 	// If a TxID exists, the payment has already been verified.
-	if paywall.TxID != "" {
+	if p.TxID != "" {
 		return nil
 	}
 
-	// Check paywall address for tx.
-	txID, txAmount, err := util.FetchTxWithBlockExplorers(paywall.Address,
-		paywall.CreditPrice, paywall.TxNotBefore, b.cfg.MinConfirmationsRequired)
+	// Check p address for tx.
+	txID, txAmount, err := paywall.FetchTxWithBlockExplorers(p.Address,
+		p.CreditPrice, p.TxNotBefore,
+		b.cfg.MinConfirmationsRequired)
 	if err != nil {
 		return fmt.Errorf("cannot fetch tx: %v\n", err)
 	}
 
 	if txID != "" {
-		paywall.TxID = txID
-		paywall.TxAmount = txAmount
-		paywall.NumCredits = txAmount / paywall.CreditPrice
+		p.TxID = txID
+		p.TxAmount = txAmount
+		p.NumCredits = txAmount / p.CreditPrice
 
 		// Create proposal credits.
-		c := make([]database.ProposalCredit, paywall.NumCredits)
+		c := make([]database.ProposalCredit, p.NumCredits)
 		timestamp := time.Now().Unix()
-		for i := uint64(0); i < paywall.NumCredits; i++ {
+		for i := uint64(0); i < p.NumCredits; i++ {
 			c[i] = database.ProposalCredit{
-				PaywallID:     paywall.ID,
-				Price:         paywall.CreditPrice,
+				PaywallID:     p.ID,
+				Price:         p.CreditPrice,
 				DatePurchased: timestamp,
-				TxID:          paywall.TxID,
+				TxID:          p.TxID,
 			}
 		}
-		user.UnspentProposalCredits = append(user.UnspentProposalCredits, c...)
+		user.UnspentProposalCredits = append(user.UnspentProposalCredits,
+			c...)
 
 		// Update user database.
 		err = b.db.UserUpdate(*user)
