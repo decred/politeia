@@ -289,15 +289,13 @@ func PayWithTestnetFaucet(faucetURL string, address string, amount uint64, overr
 	return fr.Txid, nil
 }
 
-// FetchTxWithBlockExplorers uses public block explorers to look for a
-// transaction for the given address that equals or exceeds the given amount,
-// occurs after the txnotbefore time and has the minimum number of confirmations.
-func FetchTxWithBlockExplorers(overrideURL, address string, amount uint64, txnotbefore int64, minConfirmations uint64) (string, uint64, error) {
-	// pre-validate that the passed address, amount, and tx are at least
-	// somewhat valid before querying the explorers
+// DefaultExplorerURLSreturns the default block explorer URLs based on the
+// provided address.
+func DefaultExplorerURLS(address string) (string, string, error) {
 	addr, err := dcrutil.DecodeAddress(address)
 	if err != nil {
-		return "", 0, fmt.Errorf("invalid address %v: %v", addr, err)
+		return "", "", fmt.Errorf("invalid address %v: %v", address,
+			err)
 	}
 
 	var (
@@ -305,47 +303,57 @@ func FetchTxWithBlockExplorers(overrideURL, address string, amount uint64, txnot
 		backupURL  string
 	)
 
-	if overrideURL == "" {
-		params := addr.Net()
-		network := getNetworkName(params)
-		if params == &chaincfg.MainNetParams {
-			primaryURL = "https://explorer.dcrdata.org/api/address/" +
-				address + "/raw"
-			backupURL = "https://mainnet.decred.org/api/addr/" +
-				address + "/utxo?noCache=1"
-		} else if params == &chaincfg.TestNet3Params {
-			primaryURL = "https://testnet.dcrdata.org/api/address/" +
-				address + "/raw"
-			backupURL = "https://testnet.decred.org/api/addr/" +
-				address + "/utxo?noCache=1"
-		} else {
-			return "", 0, fmt.Errorf("unsupported network %v",
-				network)
-		}
+	params := addr.Net()
+	network := getNetworkName(params)
+	if params == &chaincfg.MainNetParams {
+		primaryURL = "https://explorer.dcrdata.org/api/address/" +
+			address + "/raw"
+		backupURL = "https://mainnet.decred.org/api/addr/" +
+			address + "/utxo?noCache=1"
+	} else if params == &chaincfg.TestNet3Params {
+		primaryURL = "https://testnet.dcrdata.org/api/address/" +
+			address + "/raw"
+		backupURL = "https://testnet.decred.org/api/addr/" +
+			address + "/utxo?noCache=1"
 	} else {
-		primaryURL = overrideURL
+		return "", "", fmt.Errorf("unsupported network %v", network)
+	}
+
+	return primaryURL, backupURL, nil
+}
+
+// FetchTxWithBlockExplorers uses public block explorers if overrideURL is not
+// set to look for a transaction for the given address that equals or exceeds
+// the given amount, occurs after the txnotbefore time and has the minimum
+// number of confirmations.
+func FetchTxWithBlockExplorers(overrideURL, address string, amount uint64, txNotBefore int64, minConfirmations uint64) (string, uint64, error) {
+	var urls []string
+	if overrideURL == "" {
+		primary, backup, err := DefaultExplorerURLS(address)
+		if err != nil {
+			return "", 0, err
+		}
+		urls = []string{primary, backup}
+	} else {
+		// verify address
+		_, err := dcrutil.DecodeAddress(address)
+		if err != nil {
+			return "", 0, fmt.Errorf("invalid address %v: %v",
+				address, err)
+		}
+		urls = []string{overrideURL}
 	}
 
 	// Try the primary (dcrdata) first.
-	txID, amount, err := fetchTxWithPrimaryBE(primaryURL, address, amount,
-		txnotbefore, minConfirmations)
-	if err != nil {
-		log.Printf("failed to fetch from %v: %v", primaryURL, err)
-	} else {
+	for _, v := range urls {
+		txID, amount, err := fetchTxWithPrimaryBE(v, address, amount,
+			txNotBefore, minConfirmations)
+		if err != nil {
+			log.Printf("failed to fetch from %v: %v", v, err)
+			continue
+		}
 		return txID, amount, nil
 	}
 
-	if backupURL == "" {
-		return "", 0, ErrCannotVerifyPayment
-	}
-
-	// Try the backup (insight).
-	txID, amount, err = fetchTxWithBackupBE(backupURL, address, amount,
-		txnotbefore, minConfirmations)
-	if err != nil {
-		log.Printf("failed to fetch from insight: %v", err)
-		return "", 0, ErrCannotVerifyPayment
-	}
-
-	return txID, amount, nil
+	return "", 0, ErrCannotVerifyPayment
 }
