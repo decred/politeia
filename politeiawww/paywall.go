@@ -141,9 +141,10 @@ func (b *backend) checkForUserPayments(pool map[uint64]paywallPoolMember) (bool,
 			continue
 		}
 
-		tx, _, err := paywall.FetchTxWithBlockExplorers(poolMember.address,
-			poolMember.amount, poolMember.txNotBefore,
-			b.cfg.MinConfirmationsRequired)
+		// XXX make "" setable in config
+		tx, _, err := paywall.FetchTxWithBlockExplorers("",
+			poolMember.address, poolMember.amount,
+			poolMember.txNotBefore, b.cfg.MinConfirmationsRequired)
 		if err != nil {
 			log.Errorf("cannot fetch tx: %v\n", err)
 			continue
@@ -323,9 +324,10 @@ func (b *backend) ProcessVerifyUserPayment(user *database.User, vupt v1.VerifyUs
 		return &reply, nil
 	}
 
-	tx, _, err := paywall.FetchTxWithBlockExplorers(user.NewUserPaywallAddress,
-		user.NewUserPaywallAmount, user.NewUserPaywallTxNotBefore,
-		b.cfg.MinConfirmationsRequired)
+	// XXX make "" setable in config
+	tx, _, err := paywall.FetchTxWithBlockExplorers("",
+		user.NewUserPaywallAddress, user.NewUserPaywallAmount,
+		user.NewUserPaywallTxNotBefore, b.cfg.MinConfirmationsRequired)
 	if err != nil {
 		if err == paywall.ErrCannotVerifyPayment {
 			return nil, v1.UserError{
@@ -509,9 +511,9 @@ func (b *backend) verifyProposalPayment(user *database.User) error {
 	}
 
 	// Check p address for tx.
-	txID, txAmount, err := paywall.FetchTxWithBlockExplorers(p.Address,
-		p.CreditPrice, p.TxNotBefore,
-		b.cfg.MinConfirmationsRequired)
+	// XXX make "" setable in config
+	txID, txAmount, err := paywall.FetchTxWithBlockExplorers("", p.Address,
+		p.CreditPrice, p.TxNotBefore, b.cfg.MinConfirmationsRequired)
 	if err != nil {
 		return fmt.Errorf("cannot fetch tx: %v\n", err)
 	}

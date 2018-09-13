@@ -21,17 +21,10 @@ import (
 )
 
 // FaucetResponse represents the expected JSON response from the testnet faucet.
+// XXX this needs to have JSON directives.
 type FaucetResponse struct {
 	Txid  string
 	Error string
-}
-
-// PaywallGatewayNewOrderResponse respresents the expected JSON response to a
-// PaywallGatewayNewOrder command.
-type PaywallGatewayNewOrderResponse struct {
-	Error         string
-	OrderID       string
-	PaywallAmount uint64
 }
 
 // BEPrimaryTransaction is an object representing a transaction; it's
@@ -299,7 +292,7 @@ func PayWithTestnetFaucet(faucetURL string, address string, amount uint64, overr
 // FetchTxWithBlockExplorers uses public block explorers to look for a
 // transaction for the given address that equals or exceeds the given amount,
 // occurs after the txnotbefore time and has the minimum number of confirmations.
-func FetchTxWithBlockExplorers(address string, amount uint64, txnotbefore int64, minConfirmations uint64) (string, uint64, error) {
+func FetchTxWithBlockExplorers(overrideURL, address string, amount uint64, txnotbefore int64, minConfirmations uint64) (string, uint64, error) {
 	// pre-validate that the passed address, amount, and tx are at least
 	// somewhat valid before querying the explorers
 	addr, err := dcrutil.DecodeAddress(address)
@@ -312,28 +305,43 @@ func FetchTxWithBlockExplorers(address string, amount uint64, txnotbefore int64,
 		backupURL  string
 	)
 
-	params := addr.Net()
-	network := getNetworkName(params)
-	if params == &chaincfg.MainNetParams {
-		primaryURL = "https://explorer.dcrdata.org/api/address/" + address + "/raw"
-		backupURL = "https://mainnet.decred.org/api/addr/" + address + "/utxo?noCache=1"
-	} else if params == &chaincfg.TestNet3Params {
-		primaryURL = "https://testnet.dcrdata.org/api/address/" + address + "/raw"
-		backupURL = "https://testnet.decred.org/api/addr/" + address + "/utxo?noCache=1"
+	if overrideURL == "" {
+		params := addr.Net()
+		network := getNetworkName(params)
+		if params == &chaincfg.MainNetParams {
+			primaryURL = "https://explorer.dcrdata.org/api/address/" +
+				address + "/raw"
+			backupURL = "https://mainnet.decred.org/api/addr/" +
+				address + "/utxo?noCache=1"
+		} else if params == &chaincfg.TestNet3Params {
+			primaryURL = "https://testnet.dcrdata.org/api/address/" +
+				address + "/raw"
+			backupURL = "https://testnet.decred.org/api/addr/" +
+				address + "/utxo?noCache=1"
+		} else {
+			return "", 0, fmt.Errorf("unsupported network %v",
+				network)
+		}
 	} else {
-		return "", 0, fmt.Errorf("unsupported network %v", network)
+		primaryURL = overrideURL
 	}
 
 	// Try the primary (dcrdata) first.
-	txID, amount, err := fetchTxWithPrimaryBE(primaryURL, address, amount, txnotbefore, minConfirmations)
+	txID, amount, err := fetchTxWithPrimaryBE(primaryURL, address, amount,
+		txnotbefore, minConfirmations)
 	if err != nil {
-		log.Printf("failed to fetch from dcrdata: %v", err)
+		log.Printf("failed to fetch from %v: %v", primaryURL, err)
 	} else {
 		return txID, amount, nil
 	}
 
+	if backupURL == "" {
+		return "", 0, ErrCannotVerifyPayment
+	}
+
 	// Try the backup (insight).
-	txID, amount, err = fetchTxWithBackupBE(backupURL, address, amount, txnotbefore, minConfirmations)
+	txID, amount, err = fetchTxWithBackupBE(backupURL, address, amount,
+		txnotbefore, minConfirmations)
 	if err != nil {
 		log.Printf("failed to fetch from insight: %v", err)
 		return "", 0, ErrCannotVerifyPayment
