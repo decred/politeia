@@ -1039,6 +1039,32 @@ func (p *politeiawww) handleVoteResults(w http.ResponseWriter, r *http.Request) 
 	util.RespondWithJSON(w, http.StatusOK, vrr)
 }
 
+// handleAuthorizeVote handles authorizing a proposal vote.
+func (p *politeiawww) handleAuthorizeVote(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleAuthorizeVote")
+	var av v1.AuthorizeVote
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&av); err != nil {
+		RespondWithError(w, r, 0, "handleAuthorizeVote: unmarshal", v1.UserError{
+			ErrorCode: v1.ErrorStatusInvalidInput,
+		})
+		return
+	}
+	user, err := p.getSessionUser(r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleStartVote: getSessionUser %v", err)
+		return
+	}
+	avr, err := p.backend.ProcessAuthorizeVote(av, user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleStartVote: ProcessAuthorizeVote %v", err)
+		return
+	}
+	util.RespondWithJSON(w, http.StatusOK, avr)
+}
+
 // handleStartVote handles starting a vote.
 func (p *politeiawww) handleStartVote(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleStartVote")
@@ -1456,6 +1482,8 @@ func _main() error {
 		p.handleUserProposalCredits, permissionLogin, false)
 	p.addRoute(http.MethodPost, v1.RouteEditProposal,
 		p.handleEditProposal, permissionLogin, true)
+	p.addRoute(http.MethodPost, v1.RouteAuthorizeVote,
+		p.handleAuthorizeVote, permissionLogin, false)
 
 	// Routes that require being logged in as an admin user.
 	p.addRoute(http.MethodGet, v1.RouteAllUnvetted, p.handleAllUnvetted,

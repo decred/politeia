@@ -22,12 +22,13 @@ var (
 )
 
 type inventoryRecord struct {
-	record     pd.Record               // actual record
-	proposalMD BackendProposalMetadata // proposal metadata
-	comments   map[string]www.Comment  // [id]comment
-	changes    []MDStreamChanges       // changes metadata
-	votebits   www.StartVote           // vote bits and options
-	voting     www.StartVoteReply      // voting metadata
+	record            pd.Record               // actual record
+	proposalMD        BackendProposalMetadata // proposal metadata
+	comments          map[string]www.Comment  // [id]comment
+	changes           []MDStreamChanges       // changes metadata
+	voteAuthorization www.AuthorizeVoteReply  // vote authorization metadata
+	votebits          www.StartVote           // vote bits and options
+	voting            www.StartVoteReply      // voting metadata
 }
 
 // proposalsRequest is used for passing parameters into the
@@ -123,6 +124,24 @@ func (b *backend) loadChanges(token, payload string) error {
 		p := b.inventory[token]
 		p.changes = append(p.changes, md)
 	}
+}
+
+// loadVoteAuthorization decodes vote authorization metadata and stores it
+// in the proposal's inventory record.
+//
+// This function must be called WITH the mutex held.
+func (b *backend) loadVoteAuthorization(token, payload string) error {
+	f := strings.NewReader(payload)
+	d := json.NewDecoder(f)
+	var avr decredplugin.AuthorizeVoteReply
+	if err := d.Decode(&avr); err == io.EOF {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	avrWWW := convertAuthorizeVoteReplyFromDecredplugin(avr)
+	b.inventory[token].voteAuthorization = avrWWW
+	return nil
 }
 
 // loadVoting decodes voting metadata and stores it inventory object.
@@ -250,6 +269,13 @@ func (b *backend) loadRecordMetadata(v pd.Record) {
 					err)
 				continue
 			}
+		case decredplugin.MDStreamAuthorizeVote:
+			err = b.loadVoteAuthorization(t, m.Payload)
+			if err != nil {
+				log.Errorf("initializeInventory "+
+					"could not load vote authorization: %v", err)
+				continue
+			}
 		case decredplugin.MDStreamVoteBits:
 			err = b.loadVoteBits(t, m.Payload)
 			if err != nil {
@@ -312,6 +338,26 @@ func (b *backend) getInventoryRecord(token string) (inventoryRecord, error) {
 	b.RLock()
 	defer b.RUnlock()
 	return b._getInventoryRecord(token)
+}
+
+// setRecordVoteAuthorization sets the vote authorization metadata for the
+// specified inventory record.
+//
+// This function must be called WITHOUT the mutex held.
+func (b *backend) setRecordVoteAuthorization(token string, avr www.AuthorizeVoteReply) error {
+	b.Lock()
+	defer b.Unlock()
+
+	// Sanity check
+	_, ok := b.inventory[token]
+	if !ok {
+		return fmt.Errorf("inventory record not found %v", token)
+	}
+
+	// Set vote authorization
+	b.inventory[token].voteAuthorization = avr
+
+	return nil
 }
 
 // getProposal returns a single proposal by its token

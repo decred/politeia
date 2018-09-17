@@ -2462,6 +2462,111 @@ func (b *backend) ProcessCastVotes(ballot *www.Ballot) (*www.BallotReply, error)
 	return &brr, nil
 }
 
+// ProcessAuthorizeVote sends the authorizevote command to decred plugin to
+// indicate that a proposal has been finalized and is ready to be voted on.
+func (b *backend) ProcessAuthorizeVote(av www.AuthorizeVote, user *database.User) (*www.AuthorizeVoteReply, error) {
+	log.Tracef("ProcessAuthorizeVote %v", av.Token)
+
+	// Get inventory record
+	ir, err := b.getInventoryRecord(av.Token)
+	if err != nil {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusProposalNotFound,
+		}
+	}
+
+	// Verify signature authenticity
+	err = checkPublicKeyAndSignature(user, av.PublicKey, av.Signature,
+		av.Token, ir.record.Version)
+	if err != nil {
+		return nil, err
+	}
+
+	// Verify record is in the right state and that the user is the author
+	switch {
+	case ir.record.Status != pd.RecordStatusPublic:
+		// Record not public
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusWrongStatus,
+		}
+	case ir.voteAuthorization.Receipt != "":
+		// Vote has already been authorized
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusVoteAlreadyAuthorized,
+		}
+	case ir.proposalMD.PublicKey != av.PublicKey:
+		// User is not the author. First make sure the author didn't
+		// submit the proposal using an old identity.
+		b.RLock()
+		userID, ok := b.userPubkeys[ir.proposalMD.PublicKey]
+		b.RUnlock()
+		if ok {
+			if strconv.FormatUint(user.ID, 10) != userID {
+				return nil, www.UserError{
+					ErrorCode: www.ErrorStatusUserNotAuthor,
+				}
+			}
+		} else {
+			// This should not happen
+			return nil, fmt.Errorf("proposal author not found")
+		}
+	}
+
+	// Setup plugin command
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, fmt.Errorf("Random: %v", err)
+	}
+
+	dav := convertAuthorizeVoteFromWWW(av)
+	payload, err := decredplugin.EncodeAuthorizeVote(dav)
+	if err != nil {
+		return nil, fmt.Errorf("EncodeAuthorizeVote: %v", err)
+	}
+
+	pc := pd.PluginCommand{
+		Challenge: hex.EncodeToString(challenge),
+		ID:        decredplugin.ID,
+		Command:   decredplugin.CmdAuthorizeVote,
+		CommandID: decredplugin.CmdAuthorizeVote + " " + av.Token,
+		Payload:   string(payload),
+	}
+
+	// Send authorizevote plugin request
+	responseBody, err := b.makeRequest(http.MethodPost,
+		pd.PluginCommandRoute, pc)
+	if err != nil {
+		return nil, err
+	}
+
+	var reply pd.PluginCommandReply
+	err = json.Unmarshal(responseBody, &reply)
+	if err != nil {
+		return nil, fmt.Errorf("Unmarshal PluginCommandReply: %v", err)
+	}
+
+	// Verify challenge
+	err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
+	if err != nil {
+		return nil, fmt.Errorf("VerifyChallenge: %v", err)
+	}
+
+	// Decode plugin reply
+	avr, err := decredplugin.DecodeAuthorizeVoteReply([]byte(reply.Payload))
+	if err != nil {
+		return nil, fmt.Errorf("DecodeAuthorizeVoteReply: %v", err)
+	}
+	avrWWW := convertAuthorizeVoteReplyFromDecredplugin(*avr)
+
+	// Update inventory cache
+	err = b.setRecordVoteAuthorization(av.Token, avrWWW)
+	if err != nil {
+		return nil, fmt.Errorf("setRecordVoteAuthorization: %v", err)
+	}
+
+	return &avrWWW, nil
+}
+
 func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.StartVoteReply, error) {
 	log.Tracef("ProcessStartVote %v", sv.Vote.Token)
 
@@ -2487,17 +2592,24 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 	b.Lock()
 	defer b.Unlock()
 
-	// Look up token and ensure record is public and does not need to be
-	// updated
+	// Look up record
 	ir, err := b._getInventoryRecord(sv.Vote.Token)
 	if err != nil {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusProposalNotFound,
 		}
 	}
+
+	// Ensure record is public and that the author has
+	// authorized a vote
 	if ir.record.Status != pd.RecordStatusPublic {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusWrongStatus,
+		}
+	}
+	if ir.voteAuthorization.Receipt == "" {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusVoteNotAuthorized,
 		}
 	}
 
@@ -2789,7 +2901,9 @@ func (b *backend) ProcessEditProposal(user *database.User, ep www.EditProposal) 
 	if err != nil {
 		return nil, err
 	}
-	if getVoteStatus(invRecord, bb) != www.PropVoteStatusNotStarted {
+	voteStatus := getVoteStatus(invRecord, bb)
+	if voteStatus == www.PropVoteStatusStarted ||
+		voteStatus == www.PropVoteStatusFinished {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusCannotEditPropOnVoting,
 		}
@@ -2883,6 +2997,14 @@ func (b *backend) ProcessEditProposal(user *database.User, ep www.EditProposal) 
 	if err != nil {
 		return nil, fmt.Errorf("Unmarshal UpdateUnvettedReply: %v",
 			err)
+	}
+
+	// Delete vote authorization if one existed before the edit
+	if invRecord.voteAuthorization.Receipt != "" {
+		err = b.setRecordVoteAuthorization(ep.Token, www.AuthorizeVoteReply{})
+		if err != nil {
+			return nil, fmt.Errorf("setRecordVoteAuthorization: %v", err)
+		}
 	}
 
 	b.Lock()
@@ -3042,9 +3164,12 @@ func NewBackend(cfg *config) (*backend, error) {
 }
 
 func getVoteStatus(ir *inventoryRecord, bestBlock uint64) www.PropVoteStatusT {
-
 	if len(ir.voting.StartBlockHeight) == 0 {
-		return www.PropVoteStatusNotStarted
+		if ir.voteAuthorization.Receipt == "" {
+			return www.PropVoteStatusNotAuthorized
+		} else {
+			return www.PropVoteStatusAuthorized
+		}
 	}
 
 	ee, err := strconv.ParseUint(ir.voting.EndHeight, 10, 64)

@@ -45,6 +45,7 @@ const (
 	RouteLikeComment            = "/comments/like"
 	RouteCensorComment          = "/comments/censor"
 	RouteCommentsGet            = "/proposals/{token:[A-z0-9]{64}}/comments"
+	RouteAuthorizeVote          = "/proposals/authorizevote"
 	RouteStartVote              = "/proposals/startvote"
 	RouteActiveVote             = "/proposals/activevote" // XXX rename to ActiveVotes
 	RouteCastVotes              = "/proposals/castvotes"
@@ -149,6 +150,9 @@ const (
 	ErrorStatusChangeMessageCannotBeBlank  ErrorStatusT = 45
 	ErrorStatusCensorReasonCannotBeBlank   ErrorStatusT = 46
 	ErrorStatusCannotCensorComment         ErrorStatusT = 47
+	ErrorStatusUserNotAuthor               ErrorStatusT = 48
+	ErrorStatusVoteNotAuthorized           ErrorStatusT = 49
+	ErrorStatusVoteAlreadyAuthorized       ErrorStatusT = 50
 
 	// Proposal status codes (set and get)
 	PropStatusInvalid           PropStatusT = 0 // Invalid status
@@ -160,11 +164,12 @@ const (
 	PropStatusLocked            PropStatusT = 6 // Proposal is locked, NOT IMPLEMENTED
 
 	// Proposal vote status codes
-	PropVoteStatusInvalid     PropVoteStatusT = 0 // Invalid vote status
-	PropVoteStatusNotStarted  PropVoteStatusT = 1 // Proposal vote has not been started
-	PropVoteStatusStarted     PropVoteStatusT = 2 // Proposal vote has been started
-	PropVoteStatusFinished    PropVoteStatusT = 3 // Proposal vote has been finished
-	PropVoteStatusDoesntExist PropVoteStatusT = 4 // Proposal doesn't exist
+	PropVoteStatusInvalid       PropVoteStatusT = 0 // Invalid vote status
+	PropVoteStatusNotAuthorized PropVoteStatusT = 1 // Vote has not been authorized by author
+	PropVoteStatusAuthorized    PropVoteStatusT = 2 // Vote has been authorized by author
+	PropVoteStatusStarted       PropVoteStatusT = 3 // Proposal vote has been started
+	PropVoteStatusFinished      PropVoteStatusT = 4 // Proposal vote has been finished
+	PropVoteStatusDoesntExist   PropVoteStatusT = 5 // Proposal doesn't exist
 
 	// User edit actions
 	UserEditInvalid                         UserEditActionT = 0 // Invalid action type
@@ -244,6 +249,9 @@ var (
 		ErrorStatusChangeMessageCannotBeBlank:  "status change message cannot be blank",
 		ErrorStatusCensorReasonCannotBeBlank:   "censor comment reason cannot be blank",
 		ErrorStatusCannotCensorComment:         "cannot censor comment",
+		ErrorStatusUserNotAuthor:               "user is not the proposal author",
+		ErrorStatusVoteNotAuthorized:           "vote has not been authorized",
+		ErrorStatusVoteAlreadyAuthorized:       "vote has already been authorized",
 	}
 
 	// PropStatus converts propsal status codes to human readable text
@@ -258,11 +266,12 @@ var (
 
 	// PropVoteStatus converts votes status codes to human readable text
 	PropVoteStatus = map[PropVoteStatusT]string{
-		PropVoteStatusInvalid:     "invalid vote status",
-		PropVoteStatusNotStarted:  "voting has not started",
-		PropVoteStatusStarted:     "voting active",
-		PropVoteStatusFinished:    "voting finished",
-		PropVoteStatusDoesntExist: "proposal does not exist",
+		PropVoteStatusInvalid:       "invalid vote status",
+		PropVoteStatusNotAuthorized: "voting has not been authorized by author",
+		PropVoteStatusAuthorized:    "voting has been authorized by author",
+		PropVoteStatusStarted:       "voting active",
+		PropVoteStatusFinished:      "voting finished",
+		PropVoteStatusDoesntExist:   "proposal does not exist",
 	}
 
 	// UserEditAction converts user edit actions to human readable text
@@ -694,6 +703,21 @@ type ActiveVoteReply struct {
 }
 
 // plugin commands
+
+// AuthorizeVote is used to indicate that a proposal has been finalized and
+// is ready to be voted on.  The signature and public key are from the
+// proposal author.
+type AuthorizeVote struct {
+	Token     string `json:"token"`     // Proposal token
+	Signature string `json:"signature"` // Signature of token+version
+	PublicKey string `json:"publickey"` // Key used for signature
+}
+
+// AuthorizeVoteReply returns a receipt if the proposal vote was successfully
+// authorized.
+type AuthorizeVoteReply struct {
+	Receipt string `json:"receipt"` // Server signature of client signature
+}
 
 // StartVote starts the voting process for a proposal.
 type StartVote struct {

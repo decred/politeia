@@ -1241,3 +1241,47 @@ func (c *Ctx) EditUser(userID string, action int64, reason string) (*v1.EditUser
 
 	return &eur, nil
 }
+
+func (c *Ctx) AuthorizeVote(token, publicKey, signature string) (*v1.AuthorizeVoteReply, error) {
+	av := v1.AuthorizeVote{
+		Token:     token,
+		PublicKey: publicKey,
+		Signature: signature,
+	}
+	responseBody, err := c.makeRequest("POST", "/proposals/authorizevote", av)
+	if err != nil {
+		return nil, err
+	}
+
+	var avr v1.AuthorizeVoteReply
+	err = json.Unmarshal(responseBody, &avr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal AuthorizeVoteReply: %v", err)
+	}
+
+	if config.Verbose {
+		prettyPrintJSON(avr)
+	}
+
+	return &avr, nil
+}
+
+func (c *Ctx) VoteStatus(token string) (*v1.VoteStatusReply, error) {
+	route := "/proposals/" + token + "/votestatus"
+	responseBody, err := c.makeRequest("GET", route, v1.VoteStatus{})
+	if err != nil {
+		return nil, err
+	}
+
+	var vsr v1.VoteStatusReply
+	err = json.Unmarshal(responseBody, &vsr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal VoteStatusReply: %v", err)
+	}
+
+	if config.Verbose {
+		prettyPrintJSON(vsr)
+	}
+
+	return &vsr, nil
+}

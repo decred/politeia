@@ -13,6 +13,7 @@ type Options struct {
 
 	// cli commands
 	ActiveVotes       ActivevotesCmd       `command:"activevotes" description:"Retrieve all proposals being actively voted on"`
+	AuthorizeVote     AuthorizeVoteCmd     `command:"authorizevote" description:"Authorize a proposal vote (must be proposal author)"`
 	CastVotes         CastvotesCmd         `command:"castvotes" description:"Cast ticket votes for a specific proposal"`
 	CensorComment     CensorCommentCmd     `command:"censorcomment" description:"(admin) censor a proposal comment"`
 	ChangePassword    ChangepasswordCmd    `command:"changepassword" description:"change the password for the currently logged in user"`
@@ -45,6 +46,7 @@ type Options struct {
 	VerifyUserPayment VerifyuserpaymentCmd `command:"verifyuserpayment" description:"check if the user has paid their user registration fee"`
 	Version           VersionCmd           `command:"version" description:"fetch server info and CSRF token"`
 	VoteComment       VotecommentCmd       `command:"votecomment" description:"vote on a comment"`
+	VoteStatus        VoteStatusCmd        `command:"votestatus" description:"fetch the vote status of a proposal"`
 }
 
 // registers callbacks for cli flags

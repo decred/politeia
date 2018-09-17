@@ -72,6 +72,20 @@ func convertVoteFromWWW(v www.Vote) decredplugin.Vote {
 	}
 }
 
+func convertAuthorizeVoteFromWWW(av www.AuthorizeVote) decredplugin.AuthorizeVote {
+	return decredplugin.AuthorizeVote{
+		Token:     av.Token,
+		PublicKey: av.PublicKey,
+		Signature: av.Signature,
+	}
+}
+
+func convertAuthorizeVoteReplyFromDecredplugin(avr decredplugin.AuthorizeVoteReply) www.AuthorizeVoteReply {
+	return www.AuthorizeVoteReply{
+		Receipt: avr.Receipt,
+	}
+}
+
 func convertStartVoteFromWWW(sv www.StartVote) decredplugin.StartVote {
 	return decredplugin.StartVote{
 		PublicKey: sv.PublicKey,
