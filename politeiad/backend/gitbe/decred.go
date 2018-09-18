@@ -1242,11 +1242,17 @@ func (g *gitBackEnd) pluginCensorComment(payload string) (string, error) {
 		return "", fmt.Errorf("proposal not found %v", censor.Token)
 	}
 
-	// Ensure comment exists in comments cache
+	// Ensure comment exists in comments cache and has not
+	// already been censored
 	c, ok := decredPluginCommentsCache[censor.Token][censor.CommentID]
 	if !ok {
 		g.Unlock()
 		return "", fmt.Errorf("comment not found %v:%v",
+			censor.Token, censor.CommentID)
+	}
+	if c.Censored {
+		g.Unlock()
+		return "", fmt.Errorf("comment already censored %v: %v",
 			censor.Token, censor.CommentID)
 	}
 
