@@ -2249,9 +2249,16 @@ func (b *backend) ProcessCensorComment(cc www.CensorComment, user *database.User
 		return nil, fmt.Errorf("inventory proposal not found: %v", cc.Token)
 	}
 
-	// Ensure comment exists.
-	if _, ok := b.inventory[cc.Token].comments[cc.CommentID]; !ok {
-		return nil, fmt.Errorf("comment not found %v: %v", cc.Token, cc.CommentID)
+	// Ensure comment exists and has not already been censored.
+	c, ok := b.inventory[cc.Token].comments[cc.CommentID]
+	if !ok {
+		return nil, fmt.Errorf("comment not found %v: %v",
+			cc.Token, cc.CommentID)
+	}
+	if c.Censored {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusCannotCensorComment,
+		}
 	}
 
 	// Ensure proposal voting has not ended.
