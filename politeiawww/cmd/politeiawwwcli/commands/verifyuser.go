@@ -4,25 +4,33 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/decred/politeia/politeiawww/cmd/politeiawwwcli/config"
+	"github.com/decred/politeia/politeiawww/api/v1"
 )
 
-type VerifyuserArgs struct {
-	Email string `positional-arg-name:"email"`
-	Token string `positional-arg-name:"token"`
+type VerifyUserCmd struct {
+	Args struct {
+		Email string `positional-arg-name:"email" description:"User email address"`
+		Token string `positional-arg-name:"token" description:"Email verification token"`
+	} `positional-args:"true" required:"true"`
 }
 
-type VerifyuserCmd struct {
-	Args VerifyuserArgs `positional-args:"true" required:"true"`
-}
-
-func (cmd *VerifyuserCmd) Execute(args []string) error {
-	if config.UserIdentity == nil {
-		return fmt.Errorf(config.ErrorNoUserIdentity)
+func (cmd *VerifyUserCmd) Execute(args []string) error {
+	// Check for user identity
+	if cfg.Identity == nil {
+		return fmt.Errorf(ErrorNoUserIdentity)
 	}
 
-	sig := config.UserIdentity.SignMessage([]byte(cmd.Args.Token))
-	err := Ctx.VerifyNewUser(cmd.Args.Email, cmd.Args.Token,
-		hex.EncodeToString(sig[:]))
-	return err
+	// Verify new user
+	sig := cfg.Identity.SignMessage([]byte(cmd.Args.Token))
+	vnur, err := c.VerifyNewUser(&v1.VerifyNewUser{
+		Email:             cmd.Args.Email,
+		VerificationToken: cmd.Args.Token,
+		Signature:         hex.EncodeToString(sig[:]),
+	})
+	if err != nil {
+		return err
+	}
+
+	// Print response details
+	return Print(vnur, cfg.Verbose, cfg.RawJSON)
 }

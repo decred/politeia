@@ -1,33 +1,11 @@
 package commands
 
-import (
-	"github.com/decred/politeia/politeiawww/cmd/politeiawwwcli/config"
-)
-
 type VersionCmd struct{}
 
 func (cmd *VersionCmd) Execute(args []string) error {
-	_, err := Ctx.Version()
+	vr, err := c.Version()
 	if err != nil {
 		return err
 	}
-
-	// CSRF protection works via double-submit method. One token is stored in the
-	// cookie. A different token is sent via the header. Both tokens must be
-	// persisted between cli commands.
-
-	// persist CSRF header token
-	err = config.SaveCsrf(Ctx.Csrf())
-	if err != nil {
-		return err
-	}
-
-	// persist CSRF cookie token
-	ck, err := Ctx.Cookies(config.Host)
-	if err != nil {
-		return err
-	}
-	err = config.SaveCookies(ck)
-
-	return err
+	return Print(vr, cfg.Verbose, cfg.RawJSON)
 }

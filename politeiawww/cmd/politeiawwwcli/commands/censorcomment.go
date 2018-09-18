@@ -4,7 +4,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/decred/politeia/politeiawww/cmd/politeiawwwcli/config"
+	"github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/util"
 )
 
@@ -21,30 +21,41 @@ func (cmd *CensorCommentCmd) Execute(args []string) error {
 	commentID := cmd.Args.CommentID
 	reason := cmd.Args.Reason
 
-	// Get user identity.
-	if config.UserIdentity == nil {
-		return fmt.Errorf(config.ErrorNoUserIdentity)
+	// Check for user identity
+	if cfg.Identity == nil {
+		return fmt.Errorf(ErrorNoUserIdentity)
 	}
-	id := config.UserIdentity
 
-	// Create signature.
-	s := id.SignMessage([]byte(token + commentID + reason))
+	// Get server public key
+	vr, err := c.Version()
+	if err != nil {
+		return err
+	}
+
+	// Setup censor comment request
+	s := cfg.Identity.SignMessage([]byte(token + commentID + reason))
 	signature := hex.EncodeToString(s[:])
-	publicKey := hex.EncodeToString(id.Public.Key[:])
+	cc := &v1.CensorComment{
+		Token:     token,
+		CommentID: commentID,
+		Reason:    reason,
+		Signature: signature,
+		PublicKey: hex.EncodeToString(cfg.Identity.Public.Key[:]),
+	}
 
-	// Send censor comment request.
-	ccr, err := Ctx.CensorComment(token, commentID, reason, signature, publicKey)
+	// Print request details
+	err = Print(cc, cfg.Verbose, cfg.RawJSON)
 	if err != nil {
 		return err
 	}
 
-	// Get server public key.
-	vr, err := Ctx.Version()
+	// Send request
+	ccr, err := c.CensorComment(cc)
 	if err != nil {
 		return err
 	}
 
-	// Validate censor comment receipt.
+	// Validate censor comment receipt
 	serverID, err := util.IdentityFromString(vr.PubKey)
 	if err != nil {
 		return err
@@ -57,5 +68,6 @@ func (cmd *CensorCommentCmd) Execute(args []string) error {
 		return fmt.Errorf("could not verify receipt signature")
 	}
 
-	return nil
+	// Print response details
+	return Print(ccr, cfg.Verbose, cfg.RawJSON)
 }

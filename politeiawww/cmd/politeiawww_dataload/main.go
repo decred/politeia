@@ -14,7 +14,6 @@ import (
 
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/politeia/politeiawww/api/v1"
-	cliconfig "github.com/decred/politeia/politeiawww/cmd/politeiawwwcli/config"
 	wwwconfig "github.com/decred/politeia/politeiawww/sharedconfig"
 )
 
@@ -588,7 +587,8 @@ func deleteExistingData() error {
 	}
 
 	// politeiawww cli dir
-	return os.RemoveAll(cliconfig.HomeDir)
+	cliHomeDir := filepath.Join(wwwconfig.DefaultHomeDir, "cli")
+	return os.RemoveAll(cliHomeDir)
 }
 
 func stopPoliteiad() {

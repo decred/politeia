@@ -3,6 +3,9 @@ package commands
 type MeCmd struct{}
 
 func (cmd *MeCmd) Execute(args []string) error {
-	_, err := Ctx.Me()
-	return err
+	lr, err := c.Me()
+	if err != nil {
+		return err
+	}
+	return Print(lr, cfg.Verbose, cfg.RawJSON)
 }

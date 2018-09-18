@@ -1,30 +1,49 @@
 package commands
 
-import "fmt"
+import (
+	"fmt"
 
-type ChangepasswordCmd struct {
+	"github.com/decred/politeia/politeiawww/api/v1"
+)
+
+type ChangePasswordCmd struct {
 	Args struct {
 		Password    string `positional-arg-name:"currentPassword"`
-		Newpassword string `positional-arg-name:"newPassword"`
+		NewPassword string `positional-arg-name:"newPassword"`
 	} `positional-args:"true" required:"true"`
 }
 
-func (cmd *ChangepasswordCmd) Execute(args []string) error {
-	currPass := cmd.Args.Password
-	newPass := cmd.Args.Newpassword
-
-	// Fetch Politeia password requirements.
-	pr, err := Ctx.Policy()
+func (cmd *ChangePasswordCmd) Execute(args []string) error {
+	// Get password requirements
+	pr, err := c.Policy()
 	if err != nil {
 		return err
 	}
 
-	// Validate new password.
-	if uint(len(newPass)) < pr.MinPasswordLength {
+	// Validate new password
+	if uint(len(cmd.Args.NewPassword)) < pr.MinPasswordLength {
 		return fmt.Errorf("password must be %v characters long",
 			pr.MinPasswordLength)
 	}
 
-	_, err = Ctx.ChangePassword(currPass, newPass)
-	return err
+	// Setup change password request
+	cp := &v1.ChangePassword{
+		CurrentPassword: DigestSHA3(cmd.Args.Password),
+		NewPassword:     DigestSHA3(cmd.Args.NewPassword),
+	}
+
+	// Print request details
+	err = Print(cp, cfg.Verbose, cfg.RawJSON)
+	if err != nil {
+		return err
+	}
+
+	// Send request
+	cpr, err := c.ChangePassword(cp)
+	if err != nil {
+		return err
+	}
+
+	// Print response details
+	return Print(cpr, cfg.Verbose, cfg.RawJSON)
 }

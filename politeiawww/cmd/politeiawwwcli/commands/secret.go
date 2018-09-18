@@ -3,6 +3,9 @@ package commands
 type SecretCmd struct{}
 
 func (cmd *SecretCmd) Execute(args []string) error {
-	err := Ctx.Secret()
-	return err
+	ue, err := c.Secret()
+	if err != nil {
+		return err
+	}
+	return Print(ue, cfg.Verbose, cfg.RawJSON)
 }

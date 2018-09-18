@@ -1,8 +1,13 @@
 package commands
 
-type VerifyuserpaymentCmd struct{}
+import "fmt"
 
-func (cmd *VerifyuserpaymentCmd) Execute(args []string) error {
-	_, err := Ctx.VerifyUserPayment()
-	return err
+type VerifyUserPaymentCmd struct{}
+
+func (cmd *VerifyUserPaymentCmd) Execute(args []string) error {
+	vupr, err := c.VerifyUserPayment()
+	if err != nil {
+		return fmt.Errorf("VerifyUserPayment: %v", err)
+	}
+	return Print(vupr, cfg.Verbose, cfg.RawJSON)
 }

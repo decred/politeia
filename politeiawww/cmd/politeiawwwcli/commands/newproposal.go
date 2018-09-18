@@ -1,43 +1,52 @@
 package commands
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
-	"io"
-	"os"
+	"io/ioutil"
+	"net/http"
 	"path/filepath"
 
-	"github.com/decred/politeia/politeiawww/cmd/politeiawwwcli/client"
-	"github.com/decred/politeia/politeiawww/cmd/politeiawwwcli/config"
+	"github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/util"
 )
 
-type NewproposalCmd struct {
+type NewProposalCmd struct {
 	Args struct {
-		ProposalMarkdown string   `positional-arg-name:"proposalFilename"`
-		Attachments      []string `positional-arg-name:"attachmentsFilenames"`
+		Markdown    string   `positional-arg-name:"markdownFile"`
+		Attachments []string `positional-arg-name:"attachmentFiles"`
 	} `positional-args:"true" optional:"true"`
 	Random bool `long:"random" optional:"true" description:"Generate a random proposal"`
 }
 
-func (cmd *NewproposalCmd) Execute(args []string) error {
-	if config.UserIdentity == nil {
-		return fmt.Errorf(config.ErrorNoUserIdentity)
+func (cmd *NewProposalCmd) Execute(args []string) error {
+	mdFile := cmd.Args.Markdown
+	attachmentFiles := cmd.Args.Attachments
+
+	if !cmd.Random && mdFile == "" {
+		return fmt.Errorf(ErrorNoProposalFile)
 	}
-	if !cmd.Random && cmd.Args.ProposalMarkdown == "" {
-		return fmt.Errorf("You must either provide a markdown file " +
-			"or use the --random flag")
+
+	// Check for user identity
+	if cfg.Identity == nil {
+		return fmt.Errorf(ErrorNoUserIdentity)
 	}
-	var mdPayload []byte
-	var attachments []client.Attachment
+
+	// Get server public key
+	vr, err := c.Version()
+	if err != nil {
+		return err
+	}
+
+	var files []v1.File
+	var md []byte
 	if cmd.Random {
-		// Generate proposal markdown text.
+		// Generate random proposal markdown text
 		var b bytes.Buffer
 		b.WriteString("This is the proposal title\n")
 
-		// The description is 10 lines of random base64 encoded text.
 		for i := 0; i < 10; i++ {
 			r, err := util.Random(32)
 			if err != nil {
@@ -46,61 +55,83 @@ func (cmd *NewproposalCmd) Execute(args []string) error {
 			b.WriteString(base64.StdEncoding.EncodeToString(r) + "\n")
 		}
 
-		mdPayload = b.Bytes()
+		md = b.Bytes()
 	} else {
-		fpath := util.CleanAndExpandPath(cmd.Args.ProposalMarkdown, config.HomeDir)
-		f, err := os.Open(fpath)
+		// Read  markdown file into memory and convert to type File
+		fpath := util.CleanAndExpandPath(mdFile, cfg.HomeDir)
+
+		var err error
+		md, err = ioutil.ReadFile(fpath)
 		if err != nil {
-			return fmt.Errorf("Error: %v", err)
+			return fmt.Errorf("ReadFile %v: %v", fpath, err)
 		}
-		defer f.Close()
-		r := bufio.NewReader(f)
-		var description string
-		var name string
-		for i := 0; ; i++ {
-			line, err := r.ReadString('\n')
-			if i == 0 {
-				name = line
-			} else {
-				description += line
-			}
-			if err == io.EOF {
-				break
-			}
-		}
-
-		mdPayload = []byte(name + "\n" + description)
-
-		if len(cmd.Args.Attachments) > 0 {
-			for _, file := range cmd.Args.Attachments {
-				fpath := util.CleanAndExpandPath(file, config.HomeDir)
-				f, err := os.Open(fpath)
-				if err != nil {
-					return err
-				}
-				defer f.Close()
-
-				fileInfo, _ := f.Stat()
-				var size = fileInfo.Size()
-				bytes := make([]byte, size)
-
-				// read file into bytes
-				buffer := bufio.NewReader(f)
-				_, err = buffer.Read(bytes)
-				if err != nil {
-					return err
-				}
-
-				attachments = append(attachments, client.Attachment{
-					Filename: filepath.Base(file),
-					Payload:  bytes,
-				})
-
-			}
-		}
-
 	}
 
-	_, err := Ctx.NewProposal(config.UserIdentity, mdPayload, attachments)
-	return err
+	f := v1.File{
+		Name:    "index.md",
+		MIME:    http.DetectContentType(md),
+		Digest:  hex.EncodeToString(util.Digest(md)),
+		Payload: base64.StdEncoding.EncodeToString(md),
+	}
+
+	files = append(files, f)
+
+	// Read attachment files into memory and convert to type File
+	for _, file := range attachmentFiles {
+		path := util.CleanAndExpandPath(file, cfg.HomeDir)
+		attachment, err := ioutil.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("ReadFile %v: %v", path, err)
+		}
+
+		f := v1.File{
+			Name:    filepath.Base(file),
+			MIME:    http.DetectContentType(attachment),
+			Digest:  hex.EncodeToString(util.Digest(attachment)),
+			Payload: base64.StdEncoding.EncodeToString(attachment),
+		}
+
+		files = append(files, f)
+	}
+
+	// Compute merkle root and sign it
+	sig, err := SignMerkleRoot(files, cfg.Identity)
+	if err != nil {
+		return fmt.Errorf("SignMerkleRoot: %v", err)
+	}
+
+	// Setup new proposal request
+	np := &v1.NewProposal{
+		Files:     files,
+		PublicKey: hex.EncodeToString(cfg.Identity.Public.Key[:]),
+		Signature: sig,
+	}
+
+	// Print request details
+	err = Print(np, cfg.Verbose, cfg.RawJSON)
+	if err != nil {
+		return err
+	}
+
+	// Send request
+	npr, err := c.NewProposal(np)
+	if err != nil {
+		return err
+	}
+
+	// Verify the censorship record
+	pr := v1.ProposalRecord{
+		Files:            np.Files,
+		PublicKey:        np.PublicKey,
+		Signature:        np.Signature,
+		CensorshipRecord: npr.CensorshipRecord,
+	}
+	err = VerifyProposal(pr, vr.PubKey)
+	if err != nil {
+		return fmt.Errorf("unable to verify proposal %v: %v",
+			pr.CensorshipRecord.Token, err)
+	}
+
+	// Print response details
+	return Print(npr, cfg.Verbose, cfg.RawJSON)
 }
