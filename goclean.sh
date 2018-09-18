@@ -23,6 +23,11 @@ if [ ! -x "$(type -p gometalinter)" ]; then
   exit 1
 fi
 
+# check linters
+# linters do not work with modules yet
+go mod vendor
+unset GO111MODULE
+
 gometalinter --vendor --disable-all --deadline=10m \
   --enable=gofmt \
   --enable=vet \

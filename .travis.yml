@@ -3,12 +3,10 @@ go:
   - 1.11.x
 sudo: false
 install:
-  - go get -v github.com/golang/dep/cmd/dep
-  - dep ensure
   - go get -v github.com/alecthomas/gometalinter
   - gometalinter --install
 script:
-  - export PATH=$PATH:$HOME/gopath/bin
+  - export GO111MODULE=on
   - (cd politeiad && go build)
   - (cd politeiad/cmd/politeia && go build)
   - (cd politeiad/cmd/politeia_verify && go build)
