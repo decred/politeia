@@ -160,10 +160,66 @@ proposal.
 $ politeiawwwcli startvote [censorhipRecordToken]
 ```
 
-### Voting on a proposal
-Voting on a proposal can be done using the `politeiavoter` tool. 
+### Voting on a proposal - politeiavoter
+Voting on a proposal can be done using the 
+[politeiavoter](https://github.com/decred/politeia/tree/master/politeiavoter/)
+tool.
 
-* [politeiavoter](https://github.com/decred/politeia/tree/master/politeiavoter/)
+### Voting on a proposal - politeiawwwcli
+You can also vote on proposals using `politeiawwwcli`, but for right now, it 
+only works on testnet and you have to be running your dcrwallet locally using
+the default port.  If you are doing these things, then you can use the 
+`inventory`, `vote`, and `tally` commands.
+
+`inventory` will fetch all of the active proposal votes and print the details
+for the proposal votes in which you have eligible tickets.
+
+```
+$ politeiawwwcli inventory
+Token: ee42e2e231c02b3d202de9f5df7b2d361a5ab078f675a8823e3db73afb799899
+  Proposal        : This is the proposal title
+  Eligible tickets: 3
+  Start block     : 30938
+  End block       : 32954
+  Mask            : 3
+  Vote Option:
+    ID                   : no
+    Description          : Don't approve proposal
+    Bits                 : 1
+  Vote Option:
+    ID                   : yes
+    Description          : Approve proposal
+    Bits                 : 2
+    To choose this option: politeiawwwcli vote ee42e2e231c02b3d202de9f5df7b2d361a5ab078f675a8823e3db73afb799899 yes
+```
+
+`vote` will cast votes using your eligible tickets.  You'll be asked to enter
+your wallet password.
+
+```
+$ politeiawwwcli vote ee42e2e231c02b3d202de9f5df7b2d361a5ab078f675a8823e3db73afb799899 yes
+Enter the private passphrase of your wallet:
+Votes succeeded: 3
+Votes failed   : 0
+```
+
+`tally` will return the current voting resuts the for passed in proposal.
+
+```
+$ politeiawwwcli tally ee42e2e231c02b3d202de9f5df7b2d361a5ab078f675a8823e3db73afb799899
+Vote Option:
+  ID                   : no
+  Description          : Don't approve proposal
+  Bits                 : 1
+  Votes received       : 0
+  Percentage           : 0%
+Vote Option:
+  ID                   : yes
+  Description          : Approve proposal
+  Bits                 : 2
+  Votes received       : 3
+  Percentage           : 100%
+```
 
 ## Proposal Status Codes
 Admins can set the status of a proposal with the `setproposalstatus` command.

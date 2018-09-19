@@ -22,7 +22,7 @@ const (
 	defaultConfigFilename    = "politeiawwwcli.conf"
 	defaultHost              = "https://proposals.decred.org/api"
 	defaultFaucetHost        = "https://faucet.decred.org/requestfaucet"
-	defaultWalletHost        = "https://127.0.0.1"
+	defaultWalletHost        = "127.0.0.1"
 	defaultWalletMainnetPort = "19110" // we don't allow mainnet for right now
 	defaultWalletTestnetPort = "19111"
 

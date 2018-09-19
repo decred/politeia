@@ -35,6 +35,7 @@ type Cmds struct {
 	GetProposal       GetProposalCmd       `command:"getproposal" description:"fetch a proposal"`
 	GetUnvetted       GetUnvettedCmd       `command:"getunvetted" description:"fetch unvetted proposals"`
 	GetVetted         GetVettedCmd         `command:"getvetted" description:"fetch vetted proposals"`
+	Inventory         InventoryCmd         `command:"inventory" description:"fetch the proposals that are being voted on"`
 	Login             LoginCmd             `command:"login" description:"login to Politeia"`
 	Logout            LogoutCmd            `command:"logout" description:"logout of Politeia"`
 	Me                MeCmd                `command:"me" description:"return the user information of the currently logged in user"`
@@ -48,12 +49,14 @@ type Cmds struct {
 	Secret            SecretCmd            `command:"secret" description:"ping politeiawww"`
 	SetProposalStatus SetProposalStatusCmd `command:"setproposalstatus" description:"(admin) set the status of a proposal"`
 	StartVote         StartVoteCmd         `command:"startvote" description:"(admin) start the voting period on a proposal"`
+	Tally             TallyCmd             `command:"tally" description:"fetch the vote tally for a proposal"`
 	UsernamesByID     UsernamesByIDCmd     `command:"usernamesbyid" description:"fetch usernames by their user ids"`
 	UserDetails       UserDetailsCmd       `command:"userdetails" description:"fetch a user's details by his user id"`
 	UserProposals     UserProposalsCmd     `command:"userproposals" description:"fetch all proposals submitted by a specific user"`
 	VerifyUser        VerifyUserCmd        `command:"verifyuser" description:"verify user's email address"`
 	VerifyUserPayment VerifyUserPaymentCmd `command:"verifyuserpayment" description:"check if the user has paid their user registration fee"`
 	Version           VersionCmd           `command:"version" description:"fetch server info and CSRF token"`
+	Vote              VoteCmd              `command:"vote" description:"cast ticket votes for a proposal"`
 	VoteComment       VoteCommentCmd       `command:"votecomment" description:"vote on a comment"`
 	VoteStatus        VoteStatusCmd        `command:"votestatus" description:"fetch the vote status of a proposal"`
 }
