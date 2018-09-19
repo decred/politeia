@@ -752,7 +752,7 @@ type Ballot struct {
 type CastVoteReply struct {
 	ClientSignature string `json:"clientsignature"` // Signature that was sent in
 	Signature       string `json:"signature"`       // Signature of the ClientSignature
-	Error           string `json:"error"`           // Error if something wen't wrong during casting a vote
+	Error           string `json:"error"`           // Error if something went wrong during casting a vote
 }
 
 // CastVotesReply is a reply to a batched list of votes.

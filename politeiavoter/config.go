@@ -14,8 +14,10 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	flags "github.com/btcsuite/go-flags"
+	"github.com/btcsuite/go-socks/socks"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/politeia/util"
 )
@@ -69,6 +71,13 @@ type config struct {
 	Identity         string `long:"identity" description:"File containing the politeiad identity file"`
 	WalletCert       string `long:"walletgrpccert" description:"Wallet GRPC certificate"`
 	WalletPassphrase string `long:"walletpassphrase" description:"Wallet passphrase"`
+	Proxy            string `long:"proxy" description:"Connect via SOCKS5 proxy (eg. 127.0.0.1:9050)"`
+	ProxyUser        string `long:"proxyuser" description:"Username for proxy server"`
+	ProxyPass        string `long:"proxypass" default-mask:"-" description:"Password for proxy server"`
+	VoteDuration     string `long:"voteduration" description:"Duration to cast all votes e.g. 1d2h10m (default 0s)"`
+
+	dial         func(string, string) (net.Conn, error)
+	voteDuration time.Duration // Parsed VoteDuration
 }
 
 // serviceOptions defines the configuration options for the daemon as a service
@@ -345,12 +354,10 @@ func loadConfig() (*config, []string, error) {
 
 	// Count number of network flags passed; assign active network params
 	// while we're at it
-	port := defaultMainnetPort
 	activeNetParams = &mainNetParams
 	if cfg.TestNet {
 		numNets++
 		activeNetParams = &testNet3Params
-		port = defaultTestnetPort
 	}
 	if cfg.SimNet {
 		numNets++
@@ -419,19 +426,6 @@ func loadConfig() (*config, []string, error) {
 		}
 	}
 
-	// Add the default listener if none were specified. The default
-	// listener is all addresses on the listen port for the network
-	// we are to connect to.
-	if len(cfg.Listeners) == 0 {
-		cfg.Listeners = []string{
-			net.JoinHostPort("", port),
-		}
-	}
-
-	// Add default port to all listener addresses if needed and remove
-	// duplicate addresses.
-	cfg.Listeners = normalizeAddresses(cfg.Listeners, port)
-
 	if cfg.Identity == "" {
 		cfg.Identity = defaultIdentityFile
 	}
@@ -448,6 +442,42 @@ func loadConfig() (*config, []string, error) {
 	// options.  Note this should go directly before the return.
 	if configFileError != nil {
 		log.Warnf("%v", configFileError)
+	}
+
+	// Socks proxy
+	cfg.dial = net.Dial
+	if cfg.Proxy != "" {
+		_, _, err := net.SplitHostPort(cfg.Proxy)
+		if err != nil {
+			str := "%s: proxy address '%s' is invalid: %v"
+			err := fmt.Errorf(str, funcName, cfg.Proxy, err)
+			fmt.Fprintln(os.Stderr, err)
+			fmt.Fprintln(os.Stderr, usageMessage)
+			return nil, nil, fmt.Errorf("invalid --proxy %v", err)
+		}
+
+		proxy := &socks.Proxy{
+			Addr:         cfg.Proxy,
+			Username:     cfg.ProxyUser,
+			Password:     cfg.ProxyPass,
+			TorIsolation: true,
+		}
+		cfg.dial = proxy.Dial
+	}
+
+	// Duration of the vote.
+	if cfg.VoteDuration != "" {
+		// Verify we can parse the duration
+		cfg.voteDuration, err = time.ParseDuration(cfg.VoteDuration)
+		if err != nil {
+			return nil, nil, fmt.Errorf("invalid --voteduration "+
+				"%v", err)
+		}
+	}
+
+	if cfg.VoteDuration != "" && cfg.Proxy == "" {
+		return nil, nil, fmt.Errorf("cannot use --voteduration " +
+			"without --proxy")
 	}
 
 	return &cfg, remainingArgs, nil
