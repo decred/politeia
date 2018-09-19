@@ -65,24 +65,6 @@ func New(cfg *config.Config) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) LoadWallet() error {
-	creds, err := credentials.NewClientTLSFromFile(c.cfg.WalletCert, "")
-	if err != nil {
-		return err
-	}
-	conn, err := grpc.Dial("127.0.0.1:19111", grpc.WithTransportCredentials(creds))
-	if err != nil {
-		return err
-	}
-	wallet := walletrpc.NewWalletServiceClient(conn)
-
-	c.ctx = context.Background()
-	c.creds = creds
-	c.conn = conn
-	c.wallet = wallet
-	return nil
-}
-
 func (c *Client) makeRequest(method, route string, body interface{}) ([]byte, error) {
 	// Setup request
 	var requestBody []byte
@@ -1014,4 +996,48 @@ func (c *Client) VoteStatus(token string) (*v1.VoteStatusReply, error) {
 	}
 
 	return &vsr, nil
+}
+
+func (c *Client) ActiveVotes() (*v1.ActiveVoteReply, error) {
+	responseBody, err := c.makeRequest("GET", v1.RouteActiveVote, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var avr v1.ActiveVoteReply
+	err = json.Unmarshal(responseBody, &avr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal ActiveVoteReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := PrettyPrintJSON(avr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &avr, nil
+}
+
+func (c *Client) CastVotes(b *v1.Ballot) (*v1.BallotReply, error) {
+	responseBody, err := c.makeRequest("POST", v1.RouteCastVotes, &b)
+	if err != nil {
+		return nil, err
+	}
+
+	var br v1.BallotReply
+	err = json.Unmarshal(responseBody, &br)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal BallotReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := PrettyPrintJSON(br)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &br, nil
 }

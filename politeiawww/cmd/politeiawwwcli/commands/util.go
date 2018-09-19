@@ -9,11 +9,13 @@ import (
 	"os"
 
 	"github.com/agl/ed25519"
+	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/util"
 	"golang.org/x/crypto/sha3"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 func Print(body interface{}, verbose, rawJSON bool) error {
@@ -37,6 +39,27 @@ func Print(body interface{}, verbose, rawJSON bool) error {
 	}
 
 	return nil
+}
+
+// PromptPassphrase is used to prompt the user for the private passphrase to
+// their wallet.
+func PromptPassphrase() ([]byte, error) {
+	prompt := "Enter the private passphrase of your wallet: "
+	for {
+		fmt.Printf("%v", prompt)
+		pass, err := terminal.ReadPassword(int(os.Stdin.Fd()))
+		if err != nil {
+			return nil, err
+		}
+		fmt.Printf("\n")
+
+		pass = bytes.TrimSpace(pass)
+		if len(pass) == 0 {
+			continue
+		}
+
+		return pass, nil
+	}
 }
 
 // Digest returns the hex encoded SHA3-256 of a string.
@@ -137,4 +160,18 @@ func VerifyProposal(p v1.ProposalRecord, serverPubKey string) error {
 	}
 
 	return nil
+}
+
+// ConvertTicketHashes converts a slice of hexadecimal ticket hashes into
+// a slice of byte slices.
+func ConvertTicketHashes(h []string) ([][]byte, error) {
+	hashes := make([][]byte, 0, len(h))
+	for _, v := range h {
+		h, err := chainhash.NewHashFromStr(v)
+		if err != nil {
+			return nil, err
+		}
+		hashes = append(hashes, h[:])
+	}
+	return hashes, nil
 }
