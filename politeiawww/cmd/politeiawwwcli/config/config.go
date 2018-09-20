@@ -252,7 +252,7 @@ func (cfg *Config) loadIdentity() error {
 func cleanAndExpandPath(path string) string {
 	// Expand initial ~ to OS specific home directory
 	if strings.HasPrefix(path, "~") {
-		homeDir := ""
+		var homeDir string
 		usr, err := user.Current()
 		if err == nil {
 			homeDir = usr.HomeDir
