@@ -1041,3 +1041,48 @@ func (c *Client) CastVotes(b *v1.Ballot) (*v1.BallotReply, error) {
 
 	return &br, nil
 }
+
+func (c *Client) UpdateUserKey(uuk *v1.UpdateUserKey) (*v1.UpdateUserKeyReply, error) {
+	responseBody, err := c.makeRequest("POST", v1.RouteUpdateUserKey, &uuk)
+	if err != nil {
+		return nil, err
+	}
+
+	var uukr v1.UpdateUserKeyReply
+	err = json.Unmarshal(responseBody, &uukr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal UpdateUserKeyReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := PrettyPrintJSON(uukr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &uukr, nil
+}
+
+func (c *Client) VerifyUpdateUserKey(vuuk *v1.VerifyUpdateUserKey) (*v1.VerifyUpdateUserKeyReply, error) {
+	responseBody, err := c.makeRequest("POST", v1.RouteVerifyUpdateUserKey,
+		&vuuk)
+	if err != nil {
+		return nil, err
+	}
+
+	var vuukr v1.VerifyUpdateUserKeyReply
+	err = json.Unmarshal(responseBody, &vuukr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal VerifyUpdateUserKeyReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := PrettyPrintJSON(vuukr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &vuukr, nil
+}

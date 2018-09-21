@@ -50,6 +50,7 @@ type Cmds struct {
 	SetProposalStatus SetProposalStatusCmd `command:"setproposalstatus" description:"(admin) set the status of a proposal"`
 	StartVote         StartVoteCmd         `command:"startvote" description:"(admin) start the voting period on a proposal"`
 	Tally             TallyCmd             `command:"tally" description:"fetch the vote tally for a proposal"`
+	UpdateUserKey     UpdateUserKeyCmd     `command:"updateuserkey" description:"generate a new identity for the user"`
 	UsernamesByID     UsernamesByIDCmd     `command:"usernamesbyid" description:"fetch usernames by their user ids"`
 	UserDetails       UserDetailsCmd       `command:"userdetails" description:"fetch a user's details by his user id"`
 	UserProposals     UserProposalsCmd     `command:"userproposals" description:"fetch all proposals submitted by a specific user"`

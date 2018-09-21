@@ -38,17 +38,5 @@ func (cmd *LoginCmd) Execute(args []string) error {
 	}
 
 	// Print response details
-	err = Print(lr, cfg.Verbose, cfg.RawJSON)
-	if err != nil {
-		return err
-	}
-
-	// Save identity to disk for subsequent commands
-	// XXX: We are using the email to generate the identity
-	id, err := IdentityFromString(email)
-	if err != nil {
-		return err
-	}
-
-	return cfg.SaveIdentity(id)
+	return Print(lr, cfg.Verbose, cfg.RawJSON)
 }

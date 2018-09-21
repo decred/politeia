@@ -17,6 +17,7 @@ type NewUserCmd struct {
 	Random  bool `long:"random" optional:"true" description:"Generate a random email/password for the user"`
 	Verify  bool `long:"verify" optional:"true" description:"Verify the user's email address"`
 	Paywall bool `long:"paywall" optional:"true" description:"Satisfy paywall fee using testnet faucet"`
+	NoSave  bool `long:"nosave" optional:"true" description:"Do not save the user identity to disk"`
 }
 
 func (cmd *NewUserCmd) Execute(args []string) error {
@@ -59,11 +60,14 @@ func (cmd *NewUserCmd) Execute(args []string) error {
 			pr.MinPasswordLength)
 	}
 
-	// Create user identity
-	// XXX: We are using the email to generate the identity
-	id, err := IdentityFromString(email)
+	// Create user identity and save it to disk
+	id, err := NewIdentity()
 	if err != nil {
 		return err
+	}
+
+	if !cmd.NoSave {
+		cfg.SaveIdentity(id)
 	}
 
 	// Setup new user request
