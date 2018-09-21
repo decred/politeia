@@ -280,8 +280,8 @@ func getProposalDetails(b *backend, token string, t *testing.T) *www.ProposalDet
 }
 
 func verifyProposalDetails(np *www.NewProposal, p www.ProposalRecord, t *testing.T) {
-	if p.Files[0].Payload != np.Files[0].Payload {
-		t.Fatalf("proposal descriptions do not match")
+	if p.Signature != np.Signature {
+		t.Fatalf("proposal signatures do not match")
 	}
 }
 
