@@ -676,7 +676,6 @@ func (b *backend) validatePubkeyIsUnique(publicKey string, user *database.User) 
 	b.RLock()
 	userIDStr, ok := b.userPubkeys[publicKey]
 	b.RUnlock()
-
 	if !ok {
 		return nil
 	}
@@ -1891,8 +1890,8 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 			ErrorCode: www.ErrorStatusProposalNotFound,
 		}
 	}
-	b.RUnlock()
 	cachedProposal := convertPropFromInventoryRecord(p, b.userPubkeys)
+	b.RUnlock()
 
 	var isVettedProposal bool
 	var requestObject interface{}
@@ -1988,11 +1987,14 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 		return nil, err
 	}
 
+	b.RLock()
 	reply.Proposal = convertPropFromInventoryRecord(&inventoryRecord{
 		record:   fullRecord,
 		changes:  p.changes,
 		comments: p.comments,
 	}, b.userPubkeys)
+	b.RUnlock()
+
 	reply.Proposal.Username = b.getUsernameById(reply.Proposal.UserId)
 
 	return &reply, nil
@@ -2878,11 +2880,9 @@ func (b *backend) ProcessEditProposal(user *database.User, ep www.EditProposal) 
 			ErrorCode: www.ErrorStatusProposalNotFound,
 		}
 	}
-	b.RUnlock()
 	cachedProposal := convertPropFromInventoryRecord(invRecord, b.userPubkeys)
 
 	// verify if the user is the proposal owner
-	b.RLock()
 	authorIDStr, ok := b.userPubkeys[cachedProposal.PublicKey]
 	b.RUnlock()
 
