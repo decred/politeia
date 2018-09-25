@@ -117,7 +117,7 @@ const (
 	ErrorStatusMaxImageSizeExceededPolicy  ErrorStatusT = 12
 	ErrorStatusMalformedPassword           ErrorStatusT = 13
 	ErrorStatusCommentNotFound             ErrorStatusT = 14
-	ErrorStatusInvalidProposalName         ErrorStatusT = 15
+	ErrorStatusInvalidFilename             ErrorStatusT = 15
 	ErrorStatusInvalidFileDigest           ErrorStatusT = 16
 	ErrorStatusInvalidBase64               ErrorStatusT = 17
 	ErrorStatusInvalidMIMEType             ErrorStatusT = 18
@@ -216,7 +216,7 @@ var (
 		ErrorStatusMaxImageSizeExceededPolicy:  "maximum image file size exceeded",
 		ErrorStatusMalformedPassword:           "malformed password",
 		ErrorStatusCommentNotFound:             "comment not found",
-		ErrorStatusInvalidProposalName:         "invalid proposal name",
+		ErrorStatusInvalidFilename:             "invalid filename",
 		ErrorStatusInvalidFileDigest:           "invalid file digest",
 		ErrorStatusInvalidBase64:               "invalid base64 file content",
 		ErrorStatusInvalidMIMEType:             "invalid MIME type detected for file",
