@@ -551,6 +551,7 @@ type LoginReply struct {
 	PaywallTxNotBefore int64  `json:"paywalltxnotbefore"` // Minimum timestamp for paywall tx
 	ProposalCredits    uint64 `json:"proposalcredits"`    // Number of the proposal credits the user has available to spend
 	LastLoginTime      int64  `json:"lastlogintime"`      // Unix timestamp of last login date
+	SessionMaxAge      int64  `json:"sessionmaxage"`      // Unix timestamp of session max age
 }
 
 //Logout attempts to log the user out.

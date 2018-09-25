@@ -36,6 +36,7 @@ const (
 	permissionAdmin
 
 	csrfKeyLength = 32
+	sessionMaxAge = 86400 //One day
 )
 
 // politeiawww application context.
@@ -459,6 +460,9 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Set session max age
+	reply.SessionMaxAge = sessionMaxAge
+
 	// Reply with the user information.
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
@@ -511,6 +515,10 @@ func (p *politeiawww) handleMe(w http.ResponseWriter, r *http.Request) {
 			"handleMe: CreateLoginReply %v", err)
 		return
 	}
+
+	// Set session max age
+	reply.SessionMaxAge = sessionMaxAge
+
 	util.RespondWithJSON(w, http.StatusOK, *reply)
 }
 
@@ -1519,7 +1527,7 @@ func _main() error {
 	p.store = sessions.NewFilesystemStore(sessionsDir, cookieKey)
 	p.store.Options = &sessions.Options{
 		Path:     "/",
-		MaxAge:   86400, // One day
+		MaxAge:   sessionMaxAge,
 		Secure:   true,
 		HttpOnly: true,
 	}
