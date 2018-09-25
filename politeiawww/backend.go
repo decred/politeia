@@ -1696,7 +1696,6 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 			Timestamp:        ts,
 			CensorshipRecord: pdReply.CensorshipRecord,
 			Metadata:         n.Metadata,
-			Files:            n.Files,
 			Version:          "1",
 		})
 		b.Unlock()
@@ -1734,7 +1733,6 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 			Timestamp:        ts,
 			CensorshipRecord: pdReply.CensorshipRecord,
 			Metadata:         n.Metadata,
-			Files:            n.Files,
 			Version:          "1",
 		})
 		b.Unlock()
