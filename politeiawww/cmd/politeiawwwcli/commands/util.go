@@ -69,14 +69,20 @@ func DigestSHA3(s string) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-func IdentityFromString(s string) (*identity.FullIdentity, error) {
-	buf := [32]byte{}
-	copy(buf[:], []byte(s))
-	r := bytes.NewReader(buf[:])
+// NewIdentity generates a new FullIdentity using randomly generated data to
+// create the public/private key pair.
+func NewIdentity() (*identity.FullIdentity, error) {
+	b, err := util.Random(32)
+	if err != nil {
+		return nil, err
+	}
+
+	r := bytes.NewReader(b[:])
 	pub, priv, err := ed25519.GenerateKey(r)
 	if err != nil {
 		return nil, err
 	}
+
 	id := &identity.FullIdentity{}
 	copy(id.Public.Key[:], pub[:])
 	copy(id.PrivateKey[:], priv[:])
