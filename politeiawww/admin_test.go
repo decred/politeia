@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/hex"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -41,7 +40,7 @@ func TestProcessEditUser(t *testing.T) {
 
 	// Expire the new user verification token
 	eu := www.EditUser{
-		UserID: strconv.FormatUint(user.ID, 10),
+		UserID: user.ID.String(),
 		Action: www.UserEditExpireNewUserVerification,
 		Reason: "unit test",
 	}

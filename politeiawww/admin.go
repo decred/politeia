@@ -8,6 +8,7 @@ import (
 
 	"github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/politeiawww/database"
+	"github.com/google/uuid"
 )
 
 // logAdminAction logs a string to the admin log file.
@@ -94,7 +95,7 @@ func (b *backend) ProcessEditUser(eu *v1.EditUser, adminUser *database.User) (*v
 	case v1.UserEditExpireResetPasswordVerification:
 		user.ResetPasswordVerificationExpiry = expiredTime
 	case v1.UserEditClearUserPaywall:
-		b.removeUsersFromPool([]uint64{user.ID})
+		b.removeUsersFromPool([]uuid.UUID{user.ID})
 
 		user.NewUserPaywallAddress = ""
 		user.NewUserPaywallAmount = 0

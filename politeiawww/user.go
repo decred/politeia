@@ -2,15 +2,15 @@ package main
 
 import (
 	"encoding/hex"
-	"strconv"
 
 	"github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/politeiawww/database"
+	"github.com/google/uuid"
 )
 
 func convertWWWUserFromDatabaseUser(user *database.User) v1.User {
 	return v1.User{
-		ID:                              strconv.FormatUint(user.ID, 10),
+		ID:                              user.ID.String(),
 		Admin:                           user.Admin,
 		Email:                           user.Email,
 		Username:                        user.Username,
@@ -49,7 +49,7 @@ func convertWWWIdentityFromDatabaseIdentity(identity database.Identity) v1.UserI
 }
 
 func (b *backend) getUserByIDStr(userIDStr string) (*database.User, error) {
-	userID, err := strconv.ParseUint(userIDStr, 10, 64)
+	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
 		return nil, err
 	}

@@ -15,7 +15,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime/debug"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -23,6 +22,7 @@ import (
 	"github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/politeiawww/database"
 	"github.com/decred/politeia/util"
+	"github.com/google/uuid"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
@@ -956,7 +956,7 @@ func (p *politeiawww) handleUserProposals(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	userId, err := strconv.ParseUint(up.UserId, 10, 64)
+	userId, err := uuid.Parse(up.UserId)
 	if err != nil {
 		RespondWithError(w, r, 0, "handleUserProposals: ParseUint",
 			v1.UserError{
@@ -1110,7 +1110,7 @@ func (p *politeiawww) handleUserDetails(w http.ResponseWriter, r *http.Request) 
 	var ud v1.UserDetails
 	ud.UserID = pathParams["userid"]
 
-	userID, err := strconv.ParseUint(ud.UserID, 10, 64)
+	userID, err := uuid.Parse(ud.UserID)
 	if err != nil {
 		RespondWithError(w, r, 0, "handleUserProposals: ParseUint",
 			v1.UserError{
