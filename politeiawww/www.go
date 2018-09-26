@@ -1249,6 +1249,7 @@ func (p *politeiawww) handleEditProposal(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleEditProposal: processEditProposal %v", err)
+		return
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, epr)
