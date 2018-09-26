@@ -51,11 +51,6 @@ func createPoliteiawwCmd(paywall bool) *exec.Cmd {
 		"--testnet",
 		"--paywallxpub", paywallXPub,
 		"--paywallamount", strconv.FormatUint(paywallAmount, 10),
-		"--mailhost", "",
-		"--mailuser", "",
-		"--mailpass", "",
-		"--proxy", "0",
-		"--webserveraddress", "",
 		"--debuglevel", cfg.DebugLevel)
 }
 
@@ -262,18 +257,30 @@ func createPaidUsers() error {
 	if err = login(cfg.AdminEmail, cfg.AdminPass); err != nil {
 		return err
 	}
+	if err := updateUserKey(); err != nil {
+		return err
+	}
 
-	// Fetch admin user ID and infer paid user ID.
+	// Fetch userIDs for admin user and paid user
 	lr, err := me()
 	if err != nil {
 		return err
 	}
 	adminID := lr.UserID
-	id, err := strconv.Atoi(adminID)
-	if err != nil {
+
+	if err = login(cfg.PaidEmail, cfg.PaidPass); err != nil {
 		return err
 	}
-	paidID := strconv.Itoa(id + 1)
+	lr, err = me()
+	if err != nil {
+		return nil
+	}
+	paidID := lr.UserID
+
+	// Log back in with admin and clear paywalls
+	if err = login(cfg.AdminEmail, cfg.AdminPass); err != nil {
+		return err
+	}
 
 	if err = clearPaywall(adminID); err != nil {
 		return err
@@ -461,6 +468,9 @@ func createProposals(vettedProps int, unvettedProps int, commentsNumber int) err
 	if err := login(cfg.PaidEmail, cfg.PaidPass); err != nil {
 		return err
 	}
+	if err := updateUserKey(); err != nil {
+		return err
+	}
 
 	vettedProposalTokens, err := publishProposals(vettedProps)
 	if err != nil {
@@ -489,6 +499,9 @@ func createProposals(vettedProps int, unvettedProps int, commentsNumber int) err
 	if err := login(cfg.AdminEmail, cfg.AdminPass); err != nil {
 		return err
 	}
+	if err := updateUserKey(); err != nil {
+		return err
+	}
 
 	for i := 0; i < vettedProps; i++ {
 		if err := setProposalStatus(vettedProposalTokens[i], v1.PropStatusPublic, ""); err != nil {
@@ -511,6 +524,9 @@ func createProposals(vettedProps int, unvettedProps int, commentsNumber int) err
 	if err := login(cfg.AdminEmail, cfg.AdminPass); err != nil {
 		return err
 	}
+	if err := updateUserKey(); err != nil {
+		return err
+	}
 
 	var commentID string
 	for i := 0; i < commentsNumber; i++ {
@@ -527,6 +543,9 @@ func createProposals(vettedProps int, unvettedProps int, commentsNumber int) err
 	}
 
 	if err := login(cfg.PaidEmail, cfg.PaidPass); err != nil {
+		return err
+	}
+	if err := updateUserKey(); err != nil {
 		return err
 	}
 	if len(vettedProposalTokens) > 0 {
@@ -563,6 +582,18 @@ func logout() error {
 			return true
 		},
 		"logout")
+}
+
+func updateUserKey() error {
+	fmt.Printf("Updating user key\n")
+	return executeCliCommand(
+		func() interface{} {
+			return &v1.UpdateUserKeyReply{}
+		},
+		func() bool {
+			return true
+		},
+		"updateuserkey")
 }
 
 func handleError(err error) {
@@ -648,7 +679,9 @@ func _main() error {
 		return err
 	}
 
-	if err = createProposals(cfg.VettedPropsNumber, cfg.UnvettedPropsNumber, cfg.CommentsNumber); err != nil {
+	err = createProposals(cfg.VettedPropsNumber, cfg.UnvettedPropsNumber,
+		cfg.CommentsNumber)
+	if err != nil {
 		return err
 	}
 

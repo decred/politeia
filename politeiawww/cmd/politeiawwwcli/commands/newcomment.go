@@ -26,7 +26,7 @@ func (cmd *NewCommentCmd) Execute(args []string) error {
 	}
 
 	// Setup new comment request
-	sig := cfg.Identity.SignMessage([]byte(token + comment + parentID))
+	sig := cfg.Identity.SignMessage([]byte(token + parentID + comment))
 	nc := &v1.NewComment{
 		Token:     token,
 		ParentID:  parentID,
