@@ -336,6 +336,8 @@ func convertErrorStatusFromPD(s int) www.ErrorStatusT {
 		return www.ErrorStatusUnsupportedMIMEType
 	case pd.ErrorStatusInvalidRecordStatusTransition:
 		return www.ErrorStatusInvalidPropStatusTransition
+	case pd.ErrorStatusInvalidFilename:
+		return www.ErrorStatusInvalidFilename
 
 		// These cases are intentionally omitted because
 		// they are indicative of some internal server error,

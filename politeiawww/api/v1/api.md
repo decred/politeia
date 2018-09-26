@@ -64,7 +64,7 @@ API.  It does not render HTML.
 - [`ErrorStatusMaxImageSizeExceededPolicy`](#ErrorStatusMaxImageSizeExceededPolicy)
 - [`ErrorStatusMalformedPassword`](#ErrorStatusMalformedPassword)
 - [`ErrorStatusCommentNotFound`](#ErrorStatusCommentNotFound)
-- [`ErrorStatusInvalidProposalName`](#ErrorStatusInvalidProposalName)
+- [`ErrorStatusInvalidFilename`](#ErrorStatusInvalidFilename)
 - [`ErrorStatusInvalidFileDigest`](#ErrorStatusInvalidFileDigest)
 - [`ErrorStatusInvalidBase64`](#ErrorStatusInvalidBase64)
 - [`ErrorStatusInvalidMIMEType`](#ErrorStatusInvalidMIMEType)
@@ -2226,7 +2226,7 @@ Reply:
 | <a name="ErrorStatusMaxImageSizeExceededPolicy">ErrorStatusMaxImageSizeExceededPolicy</a> | 12 | The submitted proposal has one or more images that are too large. Limits can be obtained by issuing the [Policy](#policy) command. |
 | <a name="ErrorStatusMalformedPassword">ErrorStatusMalformedPassword</a> | 13 | The provided password was malformed. |
 | <a name="ErrorStatusCommentNotFound">ErrorStatusCommentNotFound</a> | 14 | The requested comment does not exist. |
-| <a name="ErrorStatusInvalidProposalName">ErrorStatusInvalidProposalName</a> | 15 | The proposal's name was invalid. |
+| <a name="ErrorStatusInvalidFilename">ErrorStatusInvalidFilename</a> | 15 | The filename was invalid. |
 | <a name="ErrorStatusInvalidFileDigest">ErrorStatusInvalidFileDigest</a> | 16 | The digest (SHA-256 checksum) provided for one of the proposal files was incorrect. This error is provided with additional context: The name of the file with the invalid digest. |
 | <a name="ErrorStatusInvalidBase64">ErrorStatusInvalidBase64</a> | 17 | The name of the file with the invalid encoding.The Base64 encoding provided for one of the proposal files was incorrect. This error is provided with additional context: the name of the file with the invalid encoding. |
 | <a name="ErrorStatusInvalidMIMEType">ErrorStatusInvalidMIMEType</a> | 18 | The MIME type provided for one of the proposal files was not the same as the one derived from the file's content. This error is provided with additional context: The name of the file with the invalid MIME type and the MIME type detected for the file's content. |
