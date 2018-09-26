@@ -361,12 +361,14 @@ func (b *backend) setRecordVoteAuthorization(token string, avr www.AuthorizeVote
 }
 
 // getProposal returns a single proposal by its token
+//
+// This function must be called WITH the mutex held.
 func (b *backend) getProposal(token string) (www.ProposalRecord, error) {
 	ir, err := b._getInventoryRecord(token)
 	if err != nil {
 		return www.ProposalRecord{}, err
 	}
-	pr := convertPropFromInventoryRecord(&ir, b.userPubkeys)
+	pr := b.convertPropFromInventoryRecord(ir)
 	return pr, nil
 }
 
@@ -379,7 +381,7 @@ func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
 
 	allProposals := make([]www.ProposalRecord, 0, len(b.inventory))
 	for _, vv := range b.inventory {
-		v := convertPropFromInventoryRecord(vv, b.userPubkeys)
+		v := b.convertPropFromInventoryRecord(*vv)
 
 		// Set the number of comments.
 		v.NumComments = uint(len(vv.comments))

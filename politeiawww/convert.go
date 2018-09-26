@@ -270,23 +270,6 @@ func convertPropCensorFromPD(f pd.CensorshipRecord) www.CensorshipRecord {
 	}
 }
 
-func convertPropFromInventoryRecord(r *inventoryRecord, userPubkeys map[string]string) www.ProposalRecord {
-	proposal := convertPropFromPD(r.record)
-
-	// Set the comments num.
-	proposal.NumComments = uint(len(r.comments))
-
-	// Set the user id.
-	var ok bool
-	proposal.UserId, ok = userPubkeys[proposal.PublicKey]
-	if !ok {
-		log.Errorf("user not found for public key %v, for proposal %v",
-			proposal.PublicKey, proposal.CensorshipRecord.Token)
-	}
-
-	return proposal
-}
-
 func convertPropFromPD(p pd.Record) www.ProposalRecord {
 	md := &BackendProposalMetadata{}
 	var statusChangeMsg string
@@ -349,7 +332,7 @@ func convertErrorStatusFromPD(s int) www.ErrorStatusT {
 	return www.ErrorStatusInvalid
 }
 
-func convertVoteResultsFromDecredplugin(vrr *decredplugin.VoteResultsReply) []www.VoteOptionResult {
+func convertVoteResultsFromDecredplugin(vrr decredplugin.VoteResultsReply) []www.VoteOptionResult {
 	// counter of votes received
 	var vr uint64
 	var ors []www.VoteOptionResult

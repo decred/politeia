@@ -228,6 +228,27 @@ func checkUserIsLocked(failedLoginAttempts uint64) bool {
 	return failedLoginAttempts >= LoginAttemptsToLockUser
 }
 
+// convertPropFromInventoryRecord converts a backend inventoryRecord to a front
+// end inventoryRecord.
+//
+// This function must be called WITH the lock held.
+func (b *backend) convertPropFromInventoryRecord(r inventoryRecord) www.ProposalRecord {
+	proposal := convertPropFromPD(r.record)
+
+	// Set the comments num.
+	proposal.NumComments = uint(len(r.comments))
+
+	// Set the user id.
+	var ok bool
+	proposal.UserId, ok = b.userPubkeys[proposal.PublicKey]
+	if !ok {
+		log.Errorf("user not found for public key %v, for proposal %v",
+			proposal.PublicKey, proposal.CensorshipRecord.Token)
+	}
+
+	return proposal
+}
+
 // hashPassword hashes the given password string with the default bcrypt cost
 // or the minimum cost if the test flag is set to speed up running tests.
 func (b *backend) hashPassword(password string) ([]byte, error) {
@@ -297,9 +318,11 @@ func (b *backend) login(l *www.Login) loginReplyWithError {
 				}
 			}
 
-			// Check if the user is locked again so we can send an email.
+			// Check if the user is locked again so we can send an
+			// email.
 			if checkUserIsLocked(user.FailedLoginAttempts) && !b.test {
-				// This is conditional on the email server being setup.
+				// This is conditional on the email server
+				// being setup.
 				err := b.emailUserLocked(user.Email)
 				if err != nil {
 					return loginReplyWithError{
@@ -457,8 +480,8 @@ func (b *backend) emailResetPasswordVerificationLink(email, token string) error 
 	return b.cfg.SMTP.Send(msg)
 }
 
-// emailUpdateUserKeyVerificationLink emails the link with the verification token
-// used for setting a new key pair if the email server is set up.
+// emailUpdateUserKeyVerificationLink emails the link with the verification
+// token used for setting a new key pair if the email server is set up.
 func (b *backend) emailUpdateUserKeyVerificationLink(email, publicKey, token string) error {
 	if b.cfg.SMTP == nil {
 		return nil
@@ -493,9 +516,9 @@ func (b *backend) emailUpdateUserKeyVerificationLink(email, publicKey, token str
 	return b.cfg.SMTP.Send(msg)
 }
 
-// emailUserLocked notifies the user its account has been locked and
-// emails the link with the reset password verification token
-// if the email server is set up.
+// emailUserLocked notifies the user its account has been locked and emails the
+// link with the reset password verification token if the email server is set
+// up.
 func (b *backend) emailUserLocked(email string) error {
 	if b.cfg.SMTP == nil {
 		return nil
@@ -529,8 +552,8 @@ func (b *backend) emailUserLocked(email string) error {
 	return b.cfg.SMTP.Send(msg)
 }
 
-// makeRequest makes an http request to the method and route provided, serializing
-// the provided object as the request body.
+// makeRequest makes an http request to the method and route provided,
+// serializing the provided object as the request body.
 func (b *backend) makeRequest(method string, route string, v interface{}) ([]byte, error) {
 	var (
 		requestBody []byte
@@ -552,7 +575,8 @@ func (b *backend) makeRequest(method string, route string, v interface{}) ([]byt
 		}
 	}
 
-	req, err := http.NewRequest(method, fullRoute, bytes.NewReader(requestBody))
+	req, err := http.NewRequest(method, fullRoute,
+		bytes.NewReader(requestBody))
 	if err != nil {
 		return nil, err
 	}
@@ -676,7 +700,6 @@ func (b *backend) validatePubkeyIsUnique(publicKey string, user *database.User) 
 	b.RLock()
 	userIDStr, ok := b.userPubkeys[publicKey]
 	b.RUnlock()
-
 	if !ok {
 		return nil
 	}
@@ -1891,8 +1914,8 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 			ErrorCode: www.ErrorStatusProposalNotFound,
 		}
 	}
+	cachedProposal := b.convertPropFromInventoryRecord(*p)
 	b.RUnlock()
-	cachedProposal := convertPropFromInventoryRecord(p, b.userPubkeys)
 
 	var isVettedProposal bool
 	var requestObject interface{}
@@ -1988,11 +2011,14 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 		return nil, err
 	}
 
-	reply.Proposal = convertPropFromInventoryRecord(&inventoryRecord{
+	b.RLock()
+	reply.Proposal = b.convertPropFromInventoryRecord(inventoryRecord{
 		record:   fullRecord,
 		changes:  p.changes,
 		comments: p.comments,
-	}, b.userPubkeys)
+	})
+	b.RUnlock()
+
 	reply.Proposal.Username = b.getUsernameById(reply.Proposal.UserId)
 
 	return &reply, nil
@@ -2727,7 +2753,7 @@ func (b *backend) ProcessGetAllVoteStatus() (*www.GetAllVoteStatusReply, error) 
 			Token:         i.record.CensorshipRecord.Token,
 			Status:        getVoteStatus(i, bestBlock),
 			TotalVotes:    uint64(len(vrr.CastVotes)),
-			OptionsResult: convertVoteResultsFromDecredplugin(vrr),
+			OptionsResult: convertVoteResultsFromDecredplugin(*vrr),
 			EndHeight:     i.voting.EndHeight,
 		}
 
@@ -2767,7 +2793,7 @@ func (b *backend) ProcessVoteStatus(token string) (*www.VoteStatusReply, error) 
 		Token:         token,
 		TotalVotes:    uint64(len(vrr.CastVotes)),
 		Status:        getVoteStatus(&ir, bestBlock),
-		OptionsResult: convertVoteResultsFromDecredplugin(vrr),
+		OptionsResult: convertVoteResultsFromDecredplugin(*vrr),
 		EndHeight:     ir.voting.EndHeight,
 	}, nil
 }
@@ -2878,11 +2904,9 @@ func (b *backend) ProcessEditProposal(user *database.User, ep www.EditProposal) 
 			ErrorCode: www.ErrorStatusProposalNotFound,
 		}
 	}
-	b.RUnlock()
-	cachedProposal := convertPropFromInventoryRecord(invRecord, b.userPubkeys)
+	cachedProposal := b.convertPropFromInventoryRecord(*invRecord)
 
 	// verify if the user is the proposal owner
-	b.RLock()
 	authorIDStr, ok := b.userPubkeys[cachedProposal.PublicKey]
 	b.RUnlock()
 
