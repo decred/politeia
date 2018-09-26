@@ -155,6 +155,27 @@
   revision = "640cbe14449e70dc5bd58b7d55049d1457cd5415"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/decred/politeia"
+  packages = [
+    "decredplugin",
+    "politeiad/api/v1",
+    "politeiad/api/v1/identity",
+    "politeiad/api/v1/mime",
+    "politeiad/backend",
+    "politeiad/backend/gitbe",
+    "politeiawww/api/v1",
+    "politeiawww/cmd/politeiawwwcli/client",
+    "politeiawww/cmd/politeiawwwcli/commands",
+    "politeiawww/cmd/politeiawwwcli/config",
+    "politeiawww/database",
+    "politeiawww/database/localdb",
+    "politeiawww/sharedconfig",
+    "util"
+  ]
+  revision = "2ad0e1d5da0d5d37d4423ab011efee043df5772b"
+
+[[projects]]
   name = "github.com/decred/slog"
   packages = ["."]
   revision = "fbd821ef791ba2b8ae945f5d44f4e49396d230c5"
@@ -388,6 +409,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "b2a2f904f6f40af021fb9f79cbf117cc1756cb34ff1f98e3aefd6eec64bc1edf"
+  inputs-digest = "02ec4f99415c0322cd2fe139a3609dae431eda793ffba319bfd20bc0a46fba9c"
   solver-name = "gps-cdcl"
   solver-version = 1
