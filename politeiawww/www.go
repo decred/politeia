@@ -1255,6 +1255,12 @@ func (p *politeiawww) handleEditProposal(w http.ResponseWriter, r *http.Request)
 	util.RespondWithJSON(w, http.StatusOK, epr)
 }
 
+// handleProposalsStats returns the counting of proposals aggrouped by each proposal status
+func (p *politeiawww) handleProposalsStats(w http.ResponseWriter, r *http.Request) {
+	psr := p.backend.ProcessProposalsStats()
+	util.RespondWithJSON(w, http.StatusOK, psr)
+}
+
 // handleNotFound is a generic handler for an invalid route.
 func (p *politeiawww) handleNotFound(w http.ResponseWriter, r *http.Request) {
 	// Log incoming connection
@@ -1461,6 +1467,8 @@ func _main() error {
 		p.handleVoteStatus, permissionPublic, true)
 	p.addRoute(http.MethodGet, v1.RouteUserDetails,
 		p.handleUserDetails, permissionPublic, true)
+	p.addRoute(http.MethodGet, v1.RoutePropsStats,
+		p.handleProposalsStats, permissionPublic, true)
 
 	// Routes that require being logged in.
 	p.addRoute(http.MethodPost, v1.RouteSecret, p.handleSecret,

@@ -54,6 +54,8 @@ const (
 	RouteUsernamesById          = "/usernames"
 	RouteAllVoteStatus          = "/proposals/votestatus"
 	RouteVoteStatus             = "/proposals/{token:[A-z0-9]{64}}/votestatus"
+	RoutePropsStats             = "/proposals/stats"
+
 	// VerificationTokenSize is the size of verification token in bytes
 	VerificationTokenSize = 32
 
@@ -972,4 +974,15 @@ type EditProposal struct {
 // EditProposalReply is used to reply to the EditProposal command
 type EditProposalReply struct {
 	Proposal ProposalRecord `json:"proposal"`
+}
+
+// ProposalsStats is a command to fetch the stats for all proposals
+type ProposalsStats struct{}
+
+// ProposalsStatsReply returns the stats for all proposals
+type ProposalsStatsReply struct {
+	NumOfCensored        int `json:"numofcensored"`        // Counting number of censored proposals
+	NumOfUnvetted        int `json:"numofunvetted"`        // Counting number of unvetted proposals
+	NumOfUnvettedChanges int `json:"numofunvettedchanges"` // Counting number of proposals with unvetted changes
+	NumOfPublic          int `json:"numofpublic"`          // Counting number of public proposals
 }

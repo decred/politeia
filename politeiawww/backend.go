@@ -3096,6 +3096,17 @@ func (b *backend) ProcessPolicy(p www.Policy) *www.PolicyReply {
 	}
 }
 
+// ProcessProposalStats returns the counting of proposals aggrouped by each proposal status
+func (b *backend) ProcessProposalsStats() www.ProposalsStatsReply {
+	ps := getProposalsStats()
+	return www.ProposalsStatsReply{
+		NumOfCensored:        ps.NumOfCensored,
+		NumOfUnvetted:        ps.NumOfUnvetted,
+		NumOfUnvettedChanges: ps.NumOfUnvettedChanges,
+		NumOfPublic:          ps.NumOfPublic,
+	}
+}
+
 func (b *backend) getBestBlock() (uint64, error) {
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
