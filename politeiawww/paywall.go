@@ -7,6 +7,7 @@ import (
 	v1 "github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/politeiawww/database"
 	"github.com/decred/politeia/util"
+	"github.com/google/uuid"
 )
 
 type paywallPoolMember struct {
@@ -80,20 +81,20 @@ func (b *backend) updateUserAsPaid(user *database.User, tx string) error {
 
 func (b *backend) derivePaywallInfo(user *database.User) (string, uint64, int64, error) {
 	address, err := util.DerivePaywallAddress(b.params,
-		b.cfg.PaywallXpub, uint32(user.ID))
+		b.cfg.PaywallXpub, uint32(user.PaywallAddressIndex))
 	if err != nil {
 		err = fmt.Errorf("Unable to derive paywall address #%v "+
-			"for %v: %v", uint32(user.ID), user.Email, err)
+			"for %v: %v", user.ID.ID(), user.Email, err)
 	}
 
 	return address, b.cfg.PaywallAmount, time.Now().Unix(), err
 }
 
-func (b *backend) createUserPaywallPoolCopy() map[uint64]paywallPoolMember {
+func (b *backend) createUserPaywallPoolCopy() map[uuid.UUID]paywallPoolMember {
 	b.RLock()
 	defer b.RUnlock()
 
-	poolCopy := make(map[uint64]paywallPoolMember, len(b.userPaywallPool))
+	poolCopy := make(map[uuid.UUID]paywallPoolMember, len(b.userPaywallPool))
 
 	for k, v := range b.userPaywallPool {
 		poolCopy[k] = v
@@ -102,8 +103,8 @@ func (b *backend) createUserPaywallPoolCopy() map[uint64]paywallPoolMember {
 	return poolCopy
 }
 
-func (b *backend) checkForUserPayments(pool map[uint64]paywallPoolMember) (bool, []uint64) {
-	var userIDsToRemove []uint64
+func (b *backend) checkForUserPayments(pool map[uuid.UUID]paywallPoolMember) (bool, []uuid.UUID) {
+	var userIDsToRemove []uuid.UUID
 
 	for userID, poolMember := range pool {
 		user, err := b.db.UserGetById(userID)
@@ -172,8 +173,8 @@ func (b *backend) checkForUserPayments(pool map[uint64]paywallPoolMember) (bool,
 // paywall pool have received a payment.  If so, proposal credits are created
 // for the user, the user database is updated, and the user is removed from
 // the paywall pool.
-func (b *backend) checkForProposalPayments(pool map[uint64]paywallPoolMember) (bool, []uint64) {
-	var userIDsToRemove []uint64
+func (b *backend) checkForProposalPayments(pool map[uuid.UUID]paywallPoolMember) (bool, []uuid.UUID) {
+	var userIDsToRemove []uuid.UUID
 
 	for userID, poolMember := range pool {
 		user, err := b.db.UserGetById(userID)
@@ -223,7 +224,7 @@ func (b *backend) checkForProposalPayments(pool map[uint64]paywallPoolMember) (b
 	return true, userIDsToRemove
 }
 
-func (b *backend) removeUsersFromPool(userIDsToRemove []uint64) {
+func (b *backend) removeUsersFromPool(userIDsToRemove []uuid.UUID) {
 	b.Lock()
 	defer b.Unlock()
 

@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/decred/politeia/politeiawww/api/v1"
 
 	"golang.org/x/crypto/bcrypt"
@@ -73,9 +75,9 @@ type backend struct {
 	db              database.Database
 	cfg             *config
 	params          *chaincfg.Params
-	client          *http.Client                 // politeiad client
-	userPubkeys     map[string]string            // [pubkey][userid]
-	userPaywallPool map[uint64]paywallPoolMember // [userid][paywallPoolMember]
+	client          *http.Client                    // politeiad client
+	userPubkeys     map[string]string               // [pubkey][userid]
+	userPaywallPool map[uuid.UUID]paywallPoolMember // [userid][paywallPoolMember]
 
 	// These properties are only used for testing.
 	test                   bool
@@ -263,7 +265,7 @@ func (b *backend) hashPassword(password string) ([]byte, error) {
 // getUsernameById returns the username given its id. If the id is invalid,
 // it returns an empty string.
 func (b *backend) getUsernameById(userIdStr string) string {
-	userId, err := strconv.ParseUint(userIdStr, 10, 64)
+	userId, err := uuid.Parse(userIdStr)
 	if err != nil {
 		return ""
 	}
@@ -377,7 +379,7 @@ func (b *backend) initUserPubkeys() error {
 	defer b.Unlock()
 
 	return b.db.AllUsers(func(u *database.User) {
-		userId := strconv.FormatUint(u.ID, 10)
+		userId := u.ID.String()
 		for _, v := range u.Identities {
 			key := hex.EncodeToString(v.Key[:])
 			b.userPubkeys[key] = userId
@@ -393,7 +395,7 @@ func (b *backend) setUserPubkeyAssociaton(user *database.User, publicKey string)
 	b.Lock()
 	defer b.Unlock()
 
-	userID := strconv.FormatUint(user.ID, 10)
+	userID := user.ID.String()
 	b.userPubkeys[publicKey] = userID
 }
 
@@ -704,7 +706,7 @@ func (b *backend) validatePubkeyIsUnique(publicKey string, user *database.User) 
 		return nil
 	}
 
-	userID, err := strconv.ParseUint(userIDStr, 10, 64)
+	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
 		return err
 	}
@@ -995,7 +997,7 @@ func (b *backend) CreateLoginReply(user *database.User, lastLoginTime int64) (*w
 
 	reply := www.LoginReply{
 		IsAdmin:         user.Admin,
-		UserID:          strconv.FormatUint(user.ID, 10),
+		UserID:          user.ID.String(),
 		Email:           user.Email,
 		Username:        user.Username,
 		PublicKey:       activeIdentity,
@@ -1816,7 +1818,7 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 			if err != nil {
 				return nil, err
 			}
-			if pr.UserId == strconv.FormatUint(user.ID, 10) {
+			if pr.UserId == user.ID.String() {
 				return nil, v1.UserError{
 					ErrorCode: v1.ErrorStatusReviewerAdminEqualsAuthor,
 				}
@@ -1945,7 +1947,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 
 	var isUserTheAuthor bool
 	if user != nil {
-		authorID, err := strconv.ParseUint(cachedProposal.UserId, 10, 64)
+		authorID, err := uuid.Parse(cachedProposal.UserId)
 		if err != nil {
 			// Only complain and move on since some of the proposals details
 			// can still be sent for a non-admin or a non-author user
@@ -2532,7 +2534,7 @@ func (b *backend) ProcessAuthorizeVote(av www.AuthorizeVote, user *database.User
 		userID, ok := b.userPubkeys[ir.proposalMD.PublicKey]
 		b.RUnlock()
 		if ok {
-			if strconv.FormatUint(user.ID, 10) != userID {
+			if user.ID.String() != userID {
 				return nil, www.UserError{
 					ErrorCode: www.ErrorStatusUserNotAuthor,
 				}
@@ -2803,7 +2805,7 @@ func (b *backend) ProcessVoteStatus(token string) (*www.VoteStatusReply, error) 
 func (b *backend) ProcessUsernamesById(ubi www.UsernamesById) *www.UsernamesByIdReply {
 	var usernames []string
 	for _, userIdStr := range ubi.UserIds {
-		userId, err := strconv.ParseUint(userIdStr, 10, 64)
+		userId, err := uuid.Parse(userIdStr)
 		if err != nil {
 			usernames = append(usernames, "")
 			continue
@@ -2879,7 +2881,7 @@ func (b *backend) ProcessUserCommentsVotes(user *database.User, token string) (*
 		b.RLock()
 		id, ok := b.userPubkeys[ucv.Pubkey]
 		b.RUnlock()
-		if ok && id == strconv.Itoa(int(user.ID)) {
+		if ok && id == user.ID.String() {
 			ucvr.CommentsVotes = append(ucvr.CommentsVotes, www.CommentVote{
 				Action:    ucv.Action,
 				CommentID: ucv.CommentID,
@@ -2915,7 +2917,7 @@ func (b *backend) ProcessEditProposal(user *database.User, ep www.EditProposal) 
 			cachedProposal.PublicKey)
 	}
 
-	authorID, err := strconv.ParseUint(authorIDStr, 10, 64)
+	authorID, err := uuid.Parse(authorIDStr)
 	if err != nil {
 		return nil, err
 	}
@@ -3174,7 +3176,7 @@ func NewBackend(cfg *config) (*backend, error) {
 		db:              db,
 		cfg:             cfg,
 		userPubkeys:     make(map[string]string),
-		userPaywallPool: make(map[uint64]paywallPoolMember),
+		userPaywallPool: make(map[uuid.UUID]paywallPoolMember),
 	}
 
 	// Setup pubkey-userid map

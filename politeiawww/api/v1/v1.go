@@ -27,7 +27,7 @@ const (
 	RouteUserProposals          = "/user/proposals"
 	RouteUserProposalCredits    = "/user/proposals/credits"
 	RouteVerifyUserPayment      = "/user/verifypayment"
-	RouteUserDetails            = "/user/{userid:[0-9]+}"
+	RouteUserDetails            = "/user/{userid:[0-9a-zA-Z-]{36}}"
 	RouteEditUser               = "/user/edit"
 	RouteLogin                  = "/login"
 	RouteLogout                 = "/logout"

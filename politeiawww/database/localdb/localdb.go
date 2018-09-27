@@ -8,12 +8,13 @@ import (
 
 	"github.com/badoux/checkmail"
 	"github.com/decred/politeia/politeiawww/database"
+	"github.com/google/uuid"
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
 const (
-	UserdbPath    = "users"
-	LastUserIdKey = "lastuserid"
+	UserdbPath              = "users"
+	LastPaywallAddressIndex = "lastpaywallindex"
 
 	UserVersion    uint32 = 1
 	UserVersionKey        = "userversion"
@@ -41,7 +42,7 @@ type Version struct {
 // and false otherwise. This is helpful when iterating the user records
 // because the DB contains some non-user records.
 func isUserRecord(key string) bool {
-	return key != UserVersionKey && key != LastUserIdKey
+	return key != UserVersionKey && key != LastPaywallAddressIndex
 }
 
 // Store new user.
@@ -69,27 +70,30 @@ func (l *localdb) UserNew(u database.User) error {
 		return database.ErrUserExists
 	}
 
-	// Fetch the next unique ID for the user.
-	var lastUserId uint64
-	b, err := l.userdb.Get([]byte(LastUserIdKey), nil)
+	// Fetch the next unique paywall index for the user.
+	var lastPaywallIndex uint64
+	b, err := l.userdb.Get([]byte(LastPaywallAddressIndex), nil)
 	if err != nil {
 		if err != leveldb.ErrNotFound {
 			return err
 		}
 	} else {
-		lastUserId = binary.LittleEndian.Uint64(b) + 1
+		lastPaywallIndex = binary.LittleEndian.Uint64(b) + 1
 	}
 
-	// Set the new id on the user.
-	u.ID = lastUserId
+	// Set the new paywall index on the user.
+	u.PaywallAddressIndex = lastPaywallIndex
 
-	// Write the new id back to the db.
+	// Write the new paywall index back to the db.
 	b = make([]byte, 8)
-	binary.LittleEndian.PutUint64(b, lastUserId)
-	err = l.userdb.Put([]byte(LastUserIdKey), b, nil)
+	binary.LittleEndian.PutUint64(b, lastPaywallIndex)
+	err = l.userdb.Put([]byte(LastPaywallAddressIndex), b, nil)
 	if err != nil {
 		return err
 	}
+
+	// Set unique uuid for the user.
+	u.ID = uuid.New()
 
 	payload, err := EncodeUser(u)
 	if err != nil {
@@ -164,7 +168,7 @@ func (l *localdb) UserGetByUsername(username string) (*database.User, error) {
 // UserGetById returns a user record given its id, if found in the database.
 //
 // UserGetById satisfies the backend interface.
-func (l *localdb) UserGetById(id uint64) (*database.User, error) {
+func (l *localdb) UserGetById(id uuid.UUID) (*database.User, error) {
 	l.Lock()
 	defer l.Unlock()
 

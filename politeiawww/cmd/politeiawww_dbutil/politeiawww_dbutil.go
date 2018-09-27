@@ -72,7 +72,7 @@ func dumpAction() error {
 
 			fmt.Printf("Key    : %v\n", string(key))
 			fmt.Printf("Record : %v\n", spew.Sdump(v))
-		} else if string(key) == localdb.LastUserIdKey {
+		} else if string(key) == localdb.LastPaywallAddressIndex {
 			fmt.Printf("Key    : %v\n", string(key))
 			fmt.Printf("Record : %v\n", binary.LittleEndian.Uint64(value))
 		} else {

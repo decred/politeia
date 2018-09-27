@@ -9,6 +9,7 @@ import (
 	"errors"
 
 	"github.com/decred/politeia/politeiad/api/v1/identity"
+	"github.com/google/uuid"
 )
 
 var (
@@ -89,24 +90,25 @@ type ProposalCredit struct {
 
 // User record.
 type User struct {
-	ID                              uint64 // Unique id
-	Email                           string // Email address + lookup key.
-	Username                        string // Unique username
-	HashedPassword                  []byte // Blowfish hash
-	Admin                           bool   // Is user an admin
-	NewUserPaywallAddress           string // Address the user needs to send to
-	NewUserPaywallAmount            uint64 // Amount the user needs to send
-	NewUserPaywallTx                string // Paywall transaction id
-	NewUserPaywallTxNotBefore       int64  // Transactions occurring before this time will not be valid.
-	NewUserPaywallPollExpiry        int64  // After this time, the user's paywall address will not be continuously polled
-	NewUserVerificationToken        []byte // Verification token during signup
-	NewUserVerificationExpiry       int64  // Verification expiration
-	UpdateKeyVerificationToken      []byte // Verification token for updating keypair
-	UpdateKeyVerificationExpiry     int64  // Verification expiration
-	ResetPasswordVerificationToken  []byte // Reset password token
-	ResetPasswordVerificationExpiry int64  // Reset password token expiration
-	LastLoginTime                   int64  // Unix timestamp of when the user last logged in
-	FailedLoginAttempts             uint64 // Number of failed login a user has made in a row
+	ID                              uuid.UUID // Unique user uuid
+	Email                           string    // Email address + lookup key.
+	Username                        string    // Unique username
+	HashedPassword                  []byte    // Blowfish hash
+	Admin                           bool      // Is user an admin
+	PaywallAddressIndex             uint64    // Sequential id used to generate paywall address
+	NewUserPaywallAddress           string    // Address the user needs to send to
+	NewUserPaywallAmount            uint64    // Amount the user needs to send
+	NewUserPaywallTx                string    // Paywall transaction id
+	NewUserPaywallTxNotBefore       int64     // Transactions occurring before this time will not be valid.
+	NewUserPaywallPollExpiry        int64     // After this time, the user's paywall address will not be continuously polled
+	NewUserVerificationToken        []byte    // Verification token during signup
+	NewUserVerificationExpiry       int64     // Verification expiration
+	UpdateKeyVerificationToken      []byte    // Verification token for updating keypair
+	UpdateKeyVerificationExpiry     int64     // Verification expiration
+	ResetPasswordVerificationToken  []byte    // Reset password token
+	ResetPasswordVerificationExpiry int64     // Reset password token expiration
+	LastLoginTime                   int64     // Unix timestamp of when the user last logged in
+	FailedLoginAttempts             uint64    // Number of failed login a user has made in a row
 
 	// All identities the user has ever used.  User should only have one
 	// active key at a time.  We allow multiples in order to deal with key
@@ -136,7 +138,7 @@ type Database interface {
 	// User functions
 	UserGet(string) (*User, error)           // Return user record, key is email
 	UserGetByUsername(string) (*User, error) // Return user record given the username
-	UserGetById(uint64) (*User, error)       // Return user record given its id
+	UserGetById(uuid.UUID) (*User, error)    // Return user record given its id
 	UserNew(User) error                      // Add new user
 	UserUpdate(User) error                   // Update existing user
 	AllUsers(callbackFn func(u *User)) error // Iterate all users
