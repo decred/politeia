@@ -17,10 +17,6 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-var (
-	errRecordNotFound = fmt.Errorf("record not found")
-)
-
 type inventoryRecord struct {
 	record            pd.Record               // actual record
 	proposalMD        BackendProposalMetadata // proposal metadata
@@ -40,10 +36,33 @@ type proposalsRequest struct {
 	StatusMap map[www.PropStatusT]bool
 }
 
-// newInventoryRecord adds a record to the inventory
+// proposalsStats is used as reply of the getProposalsStats() function.
+type proposalsStats struct {
+	NumOfInvalid         int
+	NumOfCensored        int
+	NumOfUnvetted        int
+	NumOfUnvettedChanges int
+	NumOfPublic          int
+}
+
+// getProposalsStats returns the counting of proposals by each status
+// Must be called WITHOUT the mutex held.
+func (b *backend) getProposalsStats() proposalsStats {
+	b.RLock()
+	defer b.RUnlock()
+	return proposalsStats{
+		NumOfInvalid:         b.numOfInvalid,
+		NumOfCensored:        b.numOfCensored,
+		NumOfUnvetted:        b.numOfUnvetted,
+		NumOfUnvettedChanges: b.numOfUnvettedChanges,
+		NumOfPublic:          b.numOfPublic,
+	}
+}
+
+// _newInventoryRecord adds a record to the inventory.
 //
 // This function must be called WITH the mutex held.
-func (b *backend) newInventoryRecord(record pd.Record) error {
+func (b *backend) _newInventoryRecord(record pd.Record) error {
 	t := record.CensorshipRecord.Token
 	if _, ok := b.inventory[t]; ok {
 		return fmt.Errorf("newInventoryRecord: duplicate token: %v", t)
@@ -56,21 +75,65 @@ func (b *backend) newInventoryRecord(record pd.Record) error {
 
 	b.loadRecordMetadata(record)
 
+	// update inventory count
+	b._updateInventoryCountOfPropStatus(record.Status, nil)
+
 	return nil
+}
+
+// newInventoryRecord adds a record to the inventory.
+//
+// This function must be called WITHOUT the mutex held.
+func (b *backend) newInventoryRecord(record pd.Record) error {
+	b.Lock()
+	defer b.Unlock()
+	return b._newInventoryRecord(record)
 }
 
 // updateInventoryRecord updates an existing record.
 //
 // This function must be called WITH the mutex held.
-func (b *backend) updateInventoryRecord(record pd.Record) error {
+func (b *backend) _updateInventoryRecord(record pd.Record) error {
 	ir, ok := b.inventory[record.CensorshipRecord.Token]
 	if !ok {
 		return fmt.Errorf("inventory record not found: %v", record.CensorshipRecord.Token)
 	}
+
+	// update inventory count
+	b._updateInventoryCountOfPropStatus(record.Status, &ir.record.Status)
+
+	// update record
 	ir.record = record
 	b.inventory[record.CensorshipRecord.Token] = ir
 	b.loadRecordMetadata(record)
+
 	return nil
+}
+
+// updateInventoryCount updates the count of proposals by each statys
+//
+// this function must be called WITH the mutex held
+func (b *backend) _updateInventoryCountOfPropStatus(status pd.RecordStatusT, oldStatus *pd.RecordStatusT) {
+	executeUpdate := func(v int, status www.PropStatusT) {
+		switch status {
+		case www.PropStatusUnreviewedChanges:
+			b.numOfUnvettedChanges += v
+		case www.PropStatusNotReviewed:
+			b.numOfUnvetted += v
+		case www.PropStatusCensored:
+			b.numOfCensored += v
+		case www.PropStatusPublic:
+			b.numOfPublic += v
+		default:
+			b.numOfInvalid += v
+		}
+	}
+	// decrease count for old status
+	if oldStatus != nil {
+		executeUpdate(-1, convertPropStatusFromPD(*oldStatus))
+	}
+	// increase count for new status
+	executeUpdate(1, convertPropStatusFromPD(status))
 }
 
 // loadRecord load an record metadata and comments into inventory.
@@ -234,7 +297,7 @@ func (b *backend) loadComments(t string) error {
 
 	// Fill map
 	for _, v := range gcr.Comments {
-		c := b.convertDecredCommentToWWWComment(v)
+		c := b._convertDecredCommentToWWWComment(v)
 		b.inventory[t].comments[v.CommentID] = c
 	}
 
@@ -307,7 +370,7 @@ func (b *backend) initializeInventory(inv *pd.InventoryReply) error {
 	b.inventory = make(map[string]*inventoryRecord)
 
 	for _, v := range append(inv.Vetted, inv.Branches...) {
-		err := b.newInventoryRecord(v)
+		err := b._newInventoryRecord(v)
 		if err != nil {
 			return err
 		}
@@ -326,7 +389,7 @@ func (b *backend) initializeInventory(inv *pd.InventoryReply) error {
 func (b *backend) _getInventoryRecord(token string) (inventoryRecord, error) {
 	r, ok := b.inventory[token]
 	if !ok {
-		return inventoryRecord{}, errRecordNotFound
+		return inventoryRecord{}, fmt.Errorf("inventory record not found %v", token)
 	}
 	return *r, nil
 }
@@ -340,14 +403,69 @@ func (b *backend) getInventoryRecord(token string) (inventoryRecord, error) {
 	return b._getInventoryRecord(token)
 }
 
+// getInventoryRecordComment returns a comment from the inventory given its
+// record token and the comment id.
+//
+// This functions must be called WITH the mutex held.
+func (b *backend) _getInventoryRecordComment(token string, commentID string) (*www.Comment, error) {
+	comment, ok := b.inventory[token].comments[commentID]
+	if !ok {
+		return nil, fmt.Errorf("comment not found %v: %v", token, commentID)
+	}
+	return &comment, nil
+}
+
+// _setRecordComment sets a comment alongside the record's comments (if any)
+// this can be used for adding or updating a comment
+//
+// This function must be called WITH the mutex held
+func (b *backend) _setRecordComment(comment www.Comment) error {
+	// Sanity check
+	_, ok := b.inventory[comment.Token]
+	if !ok {
+		return fmt.Errorf("inventory record not found: %v", comment.Token)
+	}
+
+	// set record comment
+	b.inventory[comment.Token].comments[comment.CommentID] = comment
+
+	return nil
+}
+
+// setRecordComment sets a comment alongside the record's comments (if any)
+// this can be used for adding or updating a comment
+//
+// This function must be called WITHOUT the mutex held
+func (b *backend) setRecordComment(comment www.Comment) error {
+	b.Lock()
+	defer b.Unlock()
+	return b._setRecordComment(comment)
+}
+
+// setRecordVoting sets the voting of a proposal
+// this can be used for adding or updating a proposal voting
+//
+// This function must be called WITH the mutex held
+func (b *backend) _setRecordVoting(token string, sv www.StartVote, svr www.StartVoteReply) error {
+	// Sanity check
+	ir, ok := b.inventory[token]
+	if !ok {
+		return fmt.Errorf("inventory record not found: %v", token)
+	}
+
+	// update record
+	ir.voting = svr
+	ir.votebits = sv
+	b.inventory[token] = ir
+
+	return nil
+}
+
 // setRecordVoteAuthorization sets the vote authorization metadata for the
 // specified inventory record.
 //
-// This function must be called WITHOUT the mutex held.
-func (b *backend) setRecordVoteAuthorization(token string, avr www.AuthorizeVoteReply) error {
-	b.Lock()
-	defer b.Unlock()
-
+// This function must be called WITH the mutex held.
+func (b *backend) _setRecordVoteAuthorization(token string, avr www.AuthorizeVoteReply) error {
 	// Sanity check
 	_, ok := b.inventory[token]
 	if !ok {
@@ -360,15 +478,25 @@ func (b *backend) setRecordVoteAuthorization(token string, avr www.AuthorizeVote
 	return nil
 }
 
-// getProposal returns a single proposal by its token
+// setRecordVoteAuthorization sets the vote authorization metadata for the
+// specified inventory record.
+//
+// This function must be called WITHOUT the mutex held.
+func (b *backend) setRecordVoteAuthorization(token string, avr www.AuthorizeVoteReply) error {
+	b.Lock()
+	defer b.Unlock()
+	return b._setRecordVoteAuthorization(token, avr)
+}
+
+// _getProposal returns a single proposal by its token
 //
 // This function must be called WITH the mutex held.
-func (b *backend) getProposal(token string) (www.ProposalRecord, error) {
+func (b *backend) _getProposal(token string) (www.ProposalRecord, error) {
 	ir, err := b._getInventoryRecord(token)
 	if err != nil {
 		return www.ProposalRecord{}, err
 	}
-	pr := b.convertPropFromInventoryRecord(ir)
+	pr := b._convertPropFromInventoryRecord(ir)
 	return pr, nil
 }
 
@@ -381,7 +509,7 @@ func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
 
 	allProposals := make([]www.ProposalRecord, 0, len(b.inventory))
 	for _, vv := range b.inventory {
-		v := b.convertPropFromInventoryRecord(*vv)
+		v := b._convertPropFromInventoryRecord(*vv)
 
 		// Set the number of comments.
 		v.NumComments = uint(len(vv.comments))

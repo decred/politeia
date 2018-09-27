@@ -46,6 +46,7 @@ API.  It does not render HTML.
 - [`Vote results`](#vote-results)
 - [`Usernames by id`](#usernames-by-id)
 - [`User Comments votes`](#user-comments-votes)
+- [`Proposals Stats`](#proposals-stats)
 
 **Error status codes**
 
@@ -2205,6 +2206,38 @@ Reply:
       }
     ]
   }
+```
+
+### `Proposals Stats`
+
+Retrieve the counting of proposals aggrouped by each proposal status.
+
+**Route:** `GET v1/proposals/stats`
+
+**Params:** none
+
+**Results:**
+
+| | Type | Description |
+| - | - | - |
+| numofcensored | int | Counting number of censored proposals. |
+| numofunvetted | int | Counting number of unvetted proposals. |
+| numofunvettedchanges | int | Counting number of proposals with unvetted changes |
+| numofpublic | int | Counting number of public proposals. |
+
+**Example:**
+Request:
+Path: `v1/proposals/stats`
+
+Reply:
+
+```json
+{
+  "numofcensored":1,
+  "numofunvetted":0,
+  "numofunvettedchanges":1,
+  "numofpublic":3
+}
 ```
 
 ### Error codes
