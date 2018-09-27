@@ -18,8 +18,6 @@ import (
 )
 
 var (
-	errRecordNotFound = fmt.Errorf("record not found")
-
 	NumOfCensored        = 0
 	NumOfUnvetted        = 0
 	NumOfUnvettedChanges = 0
@@ -44,6 +42,26 @@ type proposalsRequest struct {
 	Before    string
 	UserId    string
 	StatusMap map[www.PropStatusT]bool
+}
+
+// proposalsStats is used as reply of the getProposalsStats() function.
+type proposalsStats struct {
+	NumOfInvalid         int
+	NumOfCensored        int
+	NumOfUnvetted        int
+	NumOfUnvettedChanges int
+	NumOfPublic          int
+}
+
+// getProposalsStats returns the counting of proposals by each status
+func getProposalsStats() proposalsStats {
+	return proposalsStats{
+		NumOfInvalid:         NumOfInvalid,
+		NumOfCensored:        NumOfCensored,
+		NumOfUnvetted:        NumOfUnvetted,
+		NumOfUnvettedChanges: NumOfUnvettedChanges,
+		NumOfPublic:          NumOfPublic,
+	}
 }
 
 // newInventoryRecord adds a record to the inventory
@@ -367,7 +385,7 @@ func (b *backend) initializeInventory(inv *pd.InventoryReply) error {
 func (b *backend) _getInventoryRecord(token string) (inventoryRecord, error) {
 	r, ok := b.inventory[token]
 	if !ok {
-		return inventoryRecord{}, errRecordNotFound
+		return inventoryRecord{}, fmt.Errorf("inventory record not found %v", token)
 	}
 	return *r, nil
 }
@@ -457,7 +475,7 @@ func (b *backend) getProposal(token string) (www.ProposalRecord, error) {
 	if err != nil {
 		return www.ProposalRecord{}, err
 	}
-	pr := b.convertPropFromInventoryRecord(ir)
+	pr := b._convertPropFromInventoryRecord(ir)
 	return pr, nil
 }
 
@@ -470,7 +488,7 @@ func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
 
 	allProposals := make([]www.ProposalRecord, 0, len(b.inventory))
 	for _, vv := range b.inventory {
-		v := b.convertPropFromInventoryRecord(*vv)
+		v := b._convertPropFromInventoryRecord(*vv)
 
 		// Set the number of comments.
 		v.NumComments = uint(len(vv.comments))

@@ -230,11 +230,11 @@ func checkUserIsLocked(failedLoginAttempts uint64) bool {
 	return failedLoginAttempts >= LoginAttemptsToLockUser
 }
 
-// convertPropFromInventoryRecord converts a backend inventoryRecord to a front
+// _convertPropFromInventoryRecord converts a backend inventoryRecord to a front
 // end inventoryRecord.
 //
 // This function must be called WITH the lock held.
-func (b *backend) convertPropFromInventoryRecord(r inventoryRecord) www.ProposalRecord {
+func (b *backend) _convertPropFromInventoryRecord(r inventoryRecord) www.ProposalRecord {
 	proposal := convertPropFromPD(r.record)
 
 	// Set the comments num.
@@ -1877,7 +1877,7 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 		// get record files from the inventory and update the response
 		invRecord, err := b._getInventoryRecord(sps.Token)
 		if err != nil {
-			log.Infof("Inventory record not founded %v", sps.Token)
+			log.Infof("Inventory record not found %v", sps.Token)
 		} else {
 			pdReply.Record.Files = invRecord.record.Files
 		}
@@ -1918,7 +1918,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 			ErrorCode: www.ErrorStatusProposalNotFound,
 		}
 	}
-	cachedProposal := b.convertPropFromInventoryRecord(p)
+	cachedProposal := b._convertPropFromInventoryRecord(p)
 	b.RUnlock()
 
 	var isVettedProposal bool
@@ -2016,7 +2016,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 	}
 
 	b.RLock()
-	reply.Proposal = b.convertPropFromInventoryRecord(inventoryRecord{
+	reply.Proposal = b._convertPropFromInventoryRecord(inventoryRecord{
 		record:   fullRecord,
 		changes:  p.changes,
 		comments: p.comments,
@@ -2034,12 +2034,6 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 func (b *backend) ProcessComment(c www.NewComment, user *database.User) (*www.NewCommentReply, error) {
 	log.Debugf("ProcessComment: %v %v", c.Token, user.ID)
 
-	// the lock is necessary to treat race conditions of multiple attempts
-	// to change the record. (e.g: a proposal change to a status where
-	// comments are no longer accepted)
-	b.Lock()
-	defer b.Unlock()
-
 	// Pay up sucker!
 	if !b.HasUserPaid(user) {
 		return nil, www.UserError{
@@ -2053,6 +2047,12 @@ func (b *backend) ProcessComment(c www.NewComment, user *database.User) (*www.Ne
 	if err != nil {
 		return nil, err
 	}
+
+	// the lock is necessary to treat race conditions of multiple attempts
+	// to change the record. (e.g: a proposal change to a status where
+	// comments are no longer accepted)
+	b.Lock()
+	defer b.Unlock()
 
 	ir, err := b._getInventoryRecord(c.Token)
 	if err != nil {
@@ -2267,11 +2267,6 @@ func (b *backend) ProcessLikeComment(lc www.LikeComment, user *database.User) (*
 func (b *backend) ProcessCensorComment(cc www.CensorComment, user *database.User) (*www.CensorCommentReply, error) {
 	log.Debugf("ProcessCensorComment: %v: %v", cc.Token, cc.CommentID)
 
-	// the lock is necessary to treat race conditions of multiple admins
-	// censoring the same comment
-	b.Lock()
-	defer b.Unlock()
-
 	// Verify authenticity.
 	err := checkPublicKeyAndSignature(user, cc.PublicKey, cc.Signature,
 		cc.Token, cc.CommentID, cc.Reason)
@@ -2285,6 +2280,11 @@ func (b *backend) ProcessCensorComment(cc www.CensorComment, user *database.User
 			ErrorCode: v1.ErrorStatusCensorReasonCannotBeBlank,
 		}
 	}
+
+	// the lock is necessary to treat race conditions of multiple admins
+	// censoring the same comment
+	b.Lock()
+	defer b.Unlock()
 
 	// get the proposal record from inventory
 	ir, err := b._getInventoryRecord(cc.Token)
@@ -2934,7 +2934,7 @@ func (b *backend) ProcessEditProposal(user *database.User, ep www.EditProposal) 
 		}
 	}
 
-	cachedProposal := b.convertPropFromInventoryRecord(invRecord)
+	cachedProposal := b._convertPropFromInventoryRecord(invRecord)
 
 	// verify if the user is the proposal owner
 	authorIDStr, ok := b.userPubkeys[cachedProposal.PublicKey]
