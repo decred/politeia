@@ -642,8 +642,9 @@ type GetAllUnvettedReply struct {
 // If Before is specified, the "page" returned starts before the proposal whose
 // censorship token is provided.
 type GetAllVetted struct {
-	Before string `schema:"before"`
-	After  string `schema:"after"`
+	Before     string `schema:"before"`
+	After      string `schema:"after"`
+	VoteStatus string `schema:"votestatus"`
 }
 
 // GetAllVettedReply is used to reply with a list of vetted proposals.

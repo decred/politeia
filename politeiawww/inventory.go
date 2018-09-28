@@ -38,10 +38,11 @@ type inventoryRecord struct {
 // proposalsRequest is used for passing parameters into the
 // getProposals() function.
 type proposalsRequest struct {
-	After     string
-	Before    string
-	UserId    string
-	StatusMap map[www.PropStatusT]bool
+	After         string
+	Before        string
+	UserId        string
+	StatusMap     map[www.PropStatusT]bool
+	VoteStatusMap map[www.PropVoteStatusT]bool
 }
 
 // proposalsStats is used as reply of the getProposalsStats() function.
@@ -484,6 +485,15 @@ func (b *backend) getProposal(token string) (www.ProposalRecord, error) {
 //
 // This function must be called WITHOUT the mutex held.
 func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
+
+	hasVoteStatusFilter := len(pr.VoteStatusMap) > 0
+	mapTokenToVoteStatus := map[string]www.PropVoteStatusT{}
+	var bestBlock uint64
+	bestBlock, err := b.getBestBlock()
+	if err != nil {
+		log.Infof("getProposals: failed to get best block from dcrdata")
+	}
+
 	b.RLock()
 
 	allProposals := make([]www.ProposalRecord, 0, len(b.inventory))
@@ -502,6 +512,10 @@ func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
 			log.Infof("%v", spew.Sdump(b.userPubkeys))
 			log.Errorf("user not found for public key %v, for proposal %v",
 				v.PublicKey, v.CensorshipRecord.Token)
+		}
+
+		if hasVoteStatusFilter {
+			mapTokenToVoteStatus[v.CensorshipRecord.Token] = getVoteStatus(*vv, bestBlock)
 		}
 
 		len := len(allProposals)
@@ -542,6 +556,18 @@ func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
 		// Filter by the status.
 		if val, ok := pr.StatusMap[proposal.Status]; !ok || !val {
 			continue
+		}
+
+		// Filter by vote Status
+		if hasVoteStatusFilter && proposal.Status == www.PropStatusPublic {
+			status, ok := mapTokenToVoteStatus[proposal.CensorshipRecord.Token]
+			if !ok {
+				continue
+			}
+			val, ok := pr.VoteStatusMap[status]
+			if !ok || !val {
+				continue
+			}
 		}
 
 		if pageStarted {

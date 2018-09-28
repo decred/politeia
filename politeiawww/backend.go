@@ -1629,6 +1629,7 @@ func (b *backend) ProcessAllVetted(v www.GetAllVetted) *www.GetAllVettedReply {
 			StatusMap: map[www.PropStatusT]bool{
 				www.PropStatusPublic: true,
 			},
+			VoteStatusMap: convertVoteStatusParameter(v.VoteStatus),
 		}),
 	}
 }
@@ -3270,4 +3271,28 @@ func convertWWWPropCreditFromDatabasePropCredit(credit database.ProposalCredit) 
 		DatePurchased: credit.DatePurchased,
 		TxID:          credit.TxID,
 	}
+}
+
+// convertVoteStatusParameter converts the "votestatus" string parameter
+// to a map of selected vote status
+func convertVoteStatusParameter(params string) map[www.PropVoteStatusT]bool {
+	voteStatusMap := map[www.PropVoteStatusT]bool{}
+	status := strings.Split(params, ",")
+	for _, v := range status {
+		i, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			continue
+		}
+		switch i {
+		case 1:
+			voteStatusMap[www.PropVoteStatusNotAuthorized] = true
+		case 2:
+			voteStatusMap[www.PropVoteStatusAuthorized] = true
+		case 3:
+			voteStatusMap[www.PropVoteStatusStarted] = true
+		case 4:
+			voteStatusMap[www.PropVoteStatusFinished] = true
+		}
+	}
+	return voteStatusMap
 }
