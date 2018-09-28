@@ -2,6 +2,7 @@ package util
 
 import (
 	"crypto/rand"
+	"encoding/binary"
 	"io"
 )
 
@@ -14,4 +15,13 @@ func Random(n int) ([]byte, error) {
 	}
 
 	return k, nil
+}
+
+// RandomInt returns a random unsigned integer.
+func RandomUint64() (uint64, error) {
+	k, err := Random(8)
+	if err != nil {
+		return 0xffffffffffffffff, err
+	}
+	return binary.LittleEndian.Uint64(k), nil
 }

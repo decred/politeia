@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	pb "github.com/decred/dcrwallet/rpc/walletrpc"
@@ -84,6 +86,7 @@ func newClient(skipVerify bool, cfg *config) (*ctx, error) {
 	}
 	tr := &http.Transport{
 		TLSClientConfig: tlsConfig,
+		Dial:            cfg.dial,
 	}
 	jar, err := cookiejar.New(&cookiejar.Options{
 		PublicSuffixList: publicsuffix.List,
@@ -357,6 +360,193 @@ func (c *ctx) inventory() error {
 	return nil
 }
 
+var (
+	errRetry  = errors.New("retry")
+	errIgnore = errors.New("ignore")
+)
+
+// sendVote expects a single vote inside the Ballot structure. It sends the
+// vote off and returns the CastVoteReply for the single vote that came in.
+// Function can return errRetry or errIgnore such that the caller knows if the
+// command should be retried or ignored.
+func (c *ctx) sendVote(ballot *v1.Ballot) (*v1.CastVoteReply, error) {
+	if len(ballot.Votes) != 1 {
+		return nil, fmt.Errorf("sendVote: only one vote allowed")
+	}
+
+	responseBody, err := c.makeRequest("POST", v1.RouteCastVotes, ballot)
+	if err != nil {
+		return nil, err
+	}
+
+	var vr v1.BallotReply
+	err = json.Unmarshal(responseBody, &vr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal "+
+			"CastVoteReply: %v", err)
+	}
+	if len(vr.Receipts) != 1 {
+		// Should be impossible
+		return nil, fmt.Errorf("sendVote: received multiple answers")
+	}
+
+	return &vr.Receipts[0], nil
+}
+
+// _voteTrickler trickles votes to the server. The idea here is to not issue
+// large number of votes in one go to the server at the same time giving away
+// which IP address owns what votes.
+func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsResponse, smr *pb.SignMessagesResponse) ([]string, *v1.BallotReply, error) {
+
+	// voteInterval is an internal structure that is used to precalculate
+	// all timing intervals and vote details.
+	type voteInterval struct {
+		vote  v1.CastVote   // RPC vote
+		votes int           // Always 1 for now
+		total time.Duration // Cumulative time
+		at    time.Duration // Delay to fire off vote
+	}
+	votes := uint64(len(ctres.TicketAddresses))
+	duration := c.cfg.voteDuration
+	minDelay := uint64(33)    // Don't send more votes every minDelay
+	minInterval := uint64(60) // Don't vote much more than once a minute
+	bias := 1.9               // Bias for random intervals
+	intervals := uint64(duration.Seconds() / float64(votes) * bias)
+	fmt.Printf("Votes   : %v\n", votes)
+	fmt.Printf("Duration: %v\n", duration)
+	fmt.Printf("Interval: %v\n\n", intervals)
+
+	if intervals < minInterval {
+		m := time.Duration(float64(minInterval)*float64(votes)/bias)*
+			time.Second + time.Second
+		return nil, nil, fmt.Errorf("interval must be > %v, make "+
+			"duration at least %v", minInterval, m)
+	}
+
+	// Create array of work to be done. We try really hard to stay within
+	// the time limit that was provided by the user.
+	buckets := make([]voteInterval, votes)
+	var done bool
+	for !done {
+		done = true
+		var total time.Duration
+		for i := 0; i < len(buckets); {
+			seconds, err := util.RandomUint64()
+			if err != nil {
+				return nil, nil, err
+			}
+			seconds %= intervals
+			// Make sure we don't call the RPC too often
+			if seconds < minDelay {
+				continue
+			}
+
+			if i == 0 {
+				// We always immediately vote the first time
+				// around. This should help catch setup errors.
+				seconds = 0
+			}
+
+			// Assemble missing vote bits
+			h, err := chainhash.NewHash(ctres.TicketAddresses[i].Ticket)
+			if err != nil {
+				return nil, nil, err
+			}
+			signature := hex.EncodeToString(smr.Replies[i].Signature)
+
+			t := time.Duration(seconds) * time.Second
+			total += t
+			buckets[i] = voteInterval{
+				vote: v1.CastVote{
+					Token:     token,
+					Ticket:    h.String(),
+					VoteBit:   voteBit,
+					Signature: signature,
+				},
+				votes: 1,
+				total: total,
+				at:    t,
+			}
+
+			// Make sure we are not going over our allotted time.
+			if total > duration {
+				done = false
+				break
+			}
+
+			// Next bucket
+			i++
+		}
+	}
+
+	// Sanity
+	if len(buckets) != len(ctres.TicketAddresses) {
+		return nil, nil, fmt.Errorf("unexpected time bucket count got "+
+			"%v, wanted %v", len(ctres.TicketAddresses),
+			len(buckets))
+	}
+
+	// Synthesize reply
+	vr := v1.BallotReply{
+		Receipts: make([]v1.CastVoteReply, len(ctres.TicketAddresses)),
+	}
+	tickets := make([]string, len(ctres.TicketAddresses))
+	for i := 0; ; {
+		verb := "Next vote"
+		var delay time.Duration
+
+		fmt.Printf("Voting: %v/%v %v\n", i+1, len(buckets),
+			buckets[i].vote.Ticket)
+
+		// Send off vote
+		b := v1.Ballot{Votes: []v1.CastVote{buckets[i].vote}}
+		br, err := c.sendVote(&b)
+		switch {
+		case err == errRetry:
+			// Retry vote
+			delay = time.Second * 44 // PNOOMA
+			verb = "Retry vote"
+		case err == nil || err == errIgnore:
+			if err != nil {
+				// Complain
+				fmt.Printf("Ignoring failed vote: %v\n",
+					buckets[i].vote.Ticket)
+			}
+			// Fill in synthesized Receipts
+			if br != nil {
+				vr.Receipts[i] = *br
+			} else {
+				// We may have to make the error a bit more
+				// readable here
+				vr.Receipts[i] = v1.CastVoteReply{
+					Error: "Ignored",
+				}
+			}
+			// Append ticket to return value
+			tickets[i] = buckets[i].vote.Ticket
+
+			// Next delay
+			if len(buckets) == i+1 {
+				// And we are done
+				return tickets, &vr, nil
+			}
+			delay = buckets[i+1].at
+
+			// Go to next vote
+			i++
+		default:
+			// Fatal error
+			return nil, nil, fmt.Errorf("unrecoverable error: %v",
+				err)
+		}
+
+		fmt.Printf("%s at %v (delay %v)\n", verb,
+			time.Now().Add(delay).Format(time.Stamp), delay)
+
+		time.Sleep(delay)
+	}
+}
+
 func (c *ctx) _vote(token, voteId string) ([]string, *v1.BallotReply, error) {
 	// XXX This is expensive but we need the snapshot of the votes. Later
 	// replace this with a locally saved file in order to prevent sending
@@ -453,11 +643,17 @@ func (c *ctx) _vote(token, voteId string) ([]string, *v1.BallotReply, error) {
 			k, v.Error)
 	}
 
+	if c.cfg.voteDuration != 0 {
+		return c._voteTrickler(token, voteBit, ctres, smr)
+	}
+
+	// Vote everything at once.
+
 	// Note that ctres, sm and smr use the same index.
 	cv := v1.Ballot{
 		Votes: make([]v1.CastVote, 0, len(ctres.TicketAddresses)),
 	}
-	tickets := make([]string, 0, len(ctres.TicketAddresses))
+	tickets := make([]string, len(ctres.TicketAddresses))
 	for k, v := range ctres.TicketAddresses {
 		h, err := chainhash.NewHash(v.Ticket)
 		if err != nil {
