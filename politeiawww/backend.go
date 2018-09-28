@@ -1715,7 +1715,6 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 		}
 
 		// Add the new proposal to the cache.
-		b.Lock()
 		err = b.newInventoryRecord(pd.Record{
 			Status:           pd.RecordStatusNotReviewed,
 			Timestamp:        ts,
@@ -1723,7 +1722,6 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 			Metadata:         n.Metadata,
 			Version:          "1",
 		})
-		b.Unlock()
 		if err != nil {
 			log.Errorf("ProcessNewProposal could not add record into inventory: %v", err)
 		}
@@ -1752,7 +1750,6 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 		}
 
 		// Add the new proposal to the inventory cache.
-		b.Lock()
 		b.newInventoryRecord(pd.Record{
 			Status:           pd.RecordStatusNotReviewed,
 			Timestamp:        ts,
@@ -1760,7 +1757,6 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 			Metadata:         n.Metadata,
 			Version:          "1",
 		})
-		b.Unlock()
 		if err != nil {
 			log.Errorf("ProcessNewProposal could not add record into inventory: %v", err)
 		}
@@ -1805,12 +1801,6 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 	if b.test {
 		pdReply.Record.Status = convertPropStatusFromWWW(sps.ProposalStatus)
 	} else {
-		// XXX Expensive to lock but do it for now.
-		// Lock is needed to prevent a race into this record and it
-		// needs to be updated in the cache.
-		b.Lock()
-		defer b.Unlock()
-
 		// When not in testnet, block admins
 		// from changing the status of their own proposals
 		if !b.cfg.TestNet {
@@ -1873,9 +1863,9 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 		}
 
 		// get record files from the inventory and update the response
-		invRecord, ok := b.inventory[sps.Token]
-		if !ok {
-			log.Infof("ProcessSetProposalStatus: Inventory record not founded %v", sps.Token)
+		invRecord, err := b.getInventoryRecord(sps.Token)
+		if err != nil {
+			log.Infof("ProcessSetProposalStatus: getInventoryRecord %v %v", sps.Token, err)
 		} else {
 			pdReply.Record.Files = invRecord.record.Files
 		}
@@ -1883,7 +1873,7 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 		// Update the inventory with the metadata changes.
 		err = b.updateInventoryRecord(pdReply.Record)
 		if err != nil {
-			return nil, fmt.Errorf("ProcessSetProposalStatus: updateInventoryRecord %v", err)
+			return nil, fmt.Errorf("updateInventoryRecord %v", err)
 		}
 
 		// Log the action in the admin log.
@@ -1908,15 +1898,15 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 		return nil, err
 	}
 
-	b.RLock()
-	p, ok := b.inventory[propDetails.Token]
-	if !ok {
-		b.RUnlock()
+	p, err := b.getInventoryRecord(propDetails.Token)
+	if err != nil {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusProposalNotFound,
 		}
 	}
-	cachedProposal := b.convertPropFromInventoryRecord(*p)
+
+	b.RLock()
+	cachedProposal := b.convertPropFromInventoryRecord(p)
 	b.RUnlock()
 
 	var isVettedProposal bool
@@ -2047,11 +2037,9 @@ func (b *backend) ProcessComment(c www.NewComment, user *database.User) (*www.Ne
 	}
 
 	// get proposal record from inventory
-	b.RLock()
-	ir, ok := b.inventory[c.Token]
-	b.RUnlock()
-	if !ok {
-		return nil, fmt.Errorf("ProcessComment: inventory proposal not found: %v", c.Token)
+	ir, err := b.getInventoryRecord(c.Token)
+	if err != nil {
+		return nil, fmt.Errorf("getInventoryRecord: %v %v", c.Token, err)
 	}
 
 	// make sure the proposal is public
@@ -2064,10 +2052,10 @@ func (b *backend) ProcessComment(c www.NewComment, user *database.User) (*www.Ne
 	// make sure the proposal voting has not ended
 	bb, err := b.getBestBlock()
 	if err != nil {
-		return nil, fmt.Errorf("ProcessComment: getBestBlock: %v", err)
+		return nil, fmt.Errorf("getBestBlock: %v", err)
 	}
 
-	if getVoteStatus(ir, bb) == www.PropVoteStatusFinished {
+	if getVoteStatus(&ir, bb) == www.PropVoteStatusFinished {
 		// vote is either active or finished
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusCannotCommentOnProp,
@@ -2126,10 +2114,10 @@ func (b *backend) ProcessComment(c www.NewComment, user *database.User) (*www.Ne
 	ncrWWW := b.convertDecredNewCommentReplyToWWWNewCommentReply(*ncr)
 
 	// Add comment to cache
-	b.Lock()
-	defer b.Unlock()
-
-	b.inventory[ncrWWW.Comment.Token].comments[ncrWWW.Comment.CommentID] = ncrWWW.Comment
+	err = b.setRecordComment(ncrWWW.Comment)
+	if err != nil {
+		return nil, fmt.Errorf("setRecordComment %v", err)
+	}
 
 	return &ncrWWW, nil
 }
@@ -2153,20 +2141,18 @@ func (b *backend) ProcessLikeComment(lc www.LikeComment, user *database.User) (*
 	}
 
 	// get the proposal record from inventory
-	b.RLock()
-	ir, ok := b.inventory[lc.Token]
-	b.RUnlock()
-	if !ok {
-		return nil, fmt.Errorf("ProcessLikeComment: inventory proposal not found: %v", lc.Token)
+	ir, err := b.getInventoryRecord(lc.Token)
+	if err != nil {
+		return nil, fmt.Errorf("getInventoryRecord: %v %v", lc.Token, err)
 	}
 
 	// make sure the proposal voting has not ended
 	bb, err := b.getBestBlock()
 	if err != nil {
-		return nil, fmt.Errorf("ProcessLikeComment: getBestBlock: %v", err)
+		return nil, fmt.Errorf("getBestBlock: %v", err)
 	}
 
-	if getVoteStatus(ir, bb) == www.PropVoteStatusFinished {
+	if getVoteStatus(&ir, bb) == www.PropVoteStatusFinished {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusCannotVoteOnPropComment,
 		}
@@ -2233,14 +2219,15 @@ func (b *backend) ProcessLikeComment(lc www.LikeComment, user *database.User) (*
 
 	// Add action to comment to cache
 	if lcr.Error == "" {
-		b.Lock()
-		defer b.Unlock()
-		//b.inventory[ncrWWW.Comment.Token].comments[ncrWWW.Comment.CommentID] = ncrWWW.Comment
-		if c, ok := b.inventory[lc.Token].comments[lc.CommentID]; ok {
-			// Update vote coutns
+		c, err := b.getInventoryRecordComment(lc.Token, lc.CommentID)
+		if err == nil {
+			// Update vote counts
 			c.TotalVotes = lcr.Total
 			c.ResultVotes = lcr.Result
-			b.inventory[lc.Token].comments[lc.CommentID] = c
+			err = b.setRecordComment(*c)
+			if err != nil {
+				return nil, fmt.Errorf("setRecordComment %v", err)
+			}
 		} else {
 			return nil, fmt.Errorf("Could not find comment %v:%v",
 				lc.Token, lc.CommentID)
@@ -2268,16 +2255,14 @@ func (b *backend) ProcessCensorComment(cc www.CensorComment, user *database.User
 	}
 
 	// Get the proposal record from inventory.
-	b.RLock()
-	ir, ok := b.inventory[cc.Token]
-	b.RUnlock()
-	if !ok {
-		return nil, fmt.Errorf("inventory proposal not found: %v", cc.Token)
+	ir, err := b.getInventoryRecord(cc.Token)
+	if err != nil {
+		return nil, fmt.Errorf("getInventoryRecord %v %v", cc.Token, err)
 	}
 
 	// Ensure comment exists and has not already been censored.
-	c, ok := b.inventory[cc.Token].comments[cc.CommentID]
-	if !ok {
+	c, err := b.getInventoryRecordComment(cc.Token, cc.CommentID)
+	if err != nil {
 		return nil, fmt.Errorf("comment not found %v: %v",
 			cc.Token, cc.CommentID)
 	}
@@ -2293,7 +2278,7 @@ func (b *backend) ProcessCensorComment(cc www.CensorComment, user *database.User
 		return nil, fmt.Errorf("getBestBlock: %v", err)
 	}
 
-	if getVoteStatus(ir, bb) == www.PropVoteStatusFinished {
+	if getVoteStatus(&ir, bb) == www.PropVoteStatusFinished {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusCannotCensorComment,
 		}
@@ -2346,14 +2331,17 @@ func (b *backend) ProcessCensorComment(cc www.CensorComment, user *database.User
 	ccrWWW := convertDecredCensorCommentReplyToWWWCensorCommentReply(*ccr)
 
 	// Update inventory cache.
-	b.Lock()
-	defer b.Unlock()
-	if c, ok := b.inventory[cc.Token].comments[cc.CommentID]; ok {
-		c.Comment = ""
-		c.Censored = true
-		b.inventory[cc.Token].comments[cc.CommentID] = c
-	} else {
+	c, err = b.getInventoryRecordComment(cc.Token, cc.CommentID)
+
+	if err != nil {
 		return nil, fmt.Errorf("comment not found %v: %v", cc.Token, cc.CommentID)
+	}
+
+	c.Comment = ""
+	c.Censored = true
+	err = b.setRecordComment(*c)
+	if err != nil {
+		return nil, fmt.Errorf("setRecordComment %v", err)
 	}
 
 	return &ccrWWW, nil
@@ -2619,14 +2607,9 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 		return nil, err
 	}
 
-	// For now we lock the struct but this needs to be peeled apart.  The
-	// start voting call is expensive and that needs to be handled without
-	// the mutex held.
-	b.Lock()
-	defer b.Unlock()
-
-	// Look up record
-	ir, err := b._getInventoryRecord(sv.Vote.Token)
+	// Look up token and ensure record is public and does not need to be
+	// updated
+	ir, err := b.getInventoryRecord(sv.Vote.Token)
 	if err != nil {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusProposalNotFound,
@@ -2682,18 +2665,22 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 	// Log the action in the admin log.
 	b.logAdminProposalAction(user, sv.Vote.Token, "start vote")
 
-	// We can get away with only updating the voting metadata in cache
-	// XXX this is cheating a bit and we should add an api for this or toss the cache altogether
 	vr, err := decredplugin.DecodeStartVoteReply([]byte(reply.Payload))
 	if err != nil {
 		return nil, err
 	}
-	ir.voting = convertStartVoteReplyFromDecredplugin(*vr)
+
+	// update inventory
+	voting := convertStartVoteReplyFromDecredplugin(*vr)
 	ir.votebits = sv
-	b.inventory[sv.Vote.Token] = &ir
+
+	err = b.setRecordVoting(sv.Vote.Token, sv, voting)
+	if err != nil {
+		return nil, fmt.Errorf("setRecordVoting %v", err)
+	}
 
 	// return a copy
-	rv := ir.voting
+	rv := voting
 	return &rv, nil
 }
 
@@ -2897,23 +2884,23 @@ func (b *backend) ProcessUserCommentsVotes(user *database.User, token string) (*
 func (b *backend) ProcessEditProposal(user *database.User, ep www.EditProposal) (*www.EditProposalReply, error) {
 	log.Tracef("ProcessEditProposal %v", ep.Token)
 
-	// get current proposal record from inventory
-	b.RLock()
-	invRecord, ok := b.inventory[ep.Token]
-	if !ok {
-		b.RUnlock()
+	// get current proposal record from invento`ry
+	invRecord, err := b.getInventoryRecord(ep.Token)
+	if err != nil {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusProposalNotFound,
 		}
 	}
-	cachedProposal := b.convertPropFromInventoryRecord(*invRecord)
+
+	b.RLock()
+	cachedProposal := b.convertPropFromInventoryRecord(invRecord)
 
 	// verify if the user is the proposal owner
 	authorIDStr, ok := b.userPubkeys[cachedProposal.PublicKey]
 	b.RUnlock()
 
 	if !ok {
-		return nil, fmt.Errorf("ProcessEditProposal: public key not found %v",
+		return nil, fmt.Errorf("public key not found %v",
 			cachedProposal.PublicKey)
 	}
 
@@ -2932,7 +2919,8 @@ func (b *backend) ProcessEditProposal(user *database.User, ep www.EditProposal) 
 	if err != nil {
 		return nil, err
 	}
-	voteStatus := getVoteStatus(invRecord, bb)
+
+	voteStatus := getVoteStatus(&invRecord, bb)
 	if voteStatus == www.PropVoteStatusStarted ||
 		voteStatus == www.PropVoteStatusFinished {
 		return nil, www.UserError{
@@ -3038,16 +3026,25 @@ func (b *backend) ProcessEditProposal(user *database.User, ep www.EditProposal) 
 		}
 	}
 
-	b.Lock()
-	defer b.Unlock()
 	err = b.updateInventoryRecord(pdReply.Record)
 	if err != nil {
-		return nil, fmt.Errorf("ProcessEditProposal: updateInventoryRecord %v", err)
+		return nil, fmt.Errorf("updateInventoryRecord %v", err)
 	}
 
 	return &www.EditProposalReply{
 		Proposal: convertPropFromPD(pdReply.Record),
 	}, nil
+}
+
+// ProcessProposalStats returns the counting of proposals aggrouped by each proposal status
+func (b *backend) ProcessProposalsStats() www.ProposalsStatsReply {
+	ps := getProposalsStats()
+	return www.ProposalsStatsReply{
+		NumOfCensored:        ps.NumOfCensored,
+		NumOfUnvetted:        ps.NumOfUnvetted,
+		NumOfUnvettedChanges: ps.NumOfUnvettedChanges,
+		NumOfPublic:          ps.NumOfPublic,
+	}
 }
 
 // ProcessPolicy returns the details of Politeia's restrictions on file uploads.
