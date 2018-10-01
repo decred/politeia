@@ -6,7 +6,10 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-func (b *backend) convertDecredCommentToWWWComment(c decredplugin.Comment) www.Comment {
+// _convertDecredCommentToWWWComment converts decred plugin comment to www comment.
+//
+// Must be called WITH the lock held.
+func (b *backend) _convertDecredCommentToWWWComment(c decredplugin.Comment) www.Comment {
 	return www.Comment{
 		Token:       c.Token,
 		ParentID:    c.ParentID,
@@ -49,9 +52,15 @@ func convertWWWNewCommentToDecredNewComment(nc www.NewComment) decredplugin.NewC
 	}
 }
 
+// convertDecredNewCommentReplyToWWWNewCommentReply converts decred plugin new
+// comment to www new comment.
+//
+// Must be called WITHOUT the lock held.
 func (b *backend) convertDecredNewCommentReplyToWWWNewCommentReply(cr decredplugin.NewCommentReply) www.NewCommentReply {
+	b.RLock()
+	defer b.RUnlock()
 	return www.NewCommentReply{
-		Comment: b.convertDecredCommentToWWWComment(cr.Comment),
+		Comment: b._convertDecredCommentToWWWComment(cr.Comment),
 	}
 }
 
