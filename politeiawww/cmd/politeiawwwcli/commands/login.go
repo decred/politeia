@@ -2,6 +2,30 @@ package commands
 
 import "github.com/decred/politeia/politeiawww/api/v1"
 
+// Help message displayed for the command 'politeiawwwcli help login'
+var LoginCmdHelpMsg = `login "email" "password"
+
+Login as a user or admin.
+
+Arguments:
+1. email      (string, required)   Email address of user that is attempting to login
+2. password   (string, required)   Accompanying password for provided email
+
+Result:
+{
+  "isadmin":              (bool)    Is the user an admin
+  "userid":               (string)  User ID
+  "email":                (string)  User email
+  "username":             (string)  Username
+  "publickey":            (string)  Active public key
+  "paywalladdress":       (string)  Registration paywall address
+  "paywallamount":        (uint64)  Registration paywall amount in atoms
+  "paywalltxnotbefore":   (int64)   Minimum timestamp for paywall tx
+  "proposalcredits":      (uint64)  Number of proposal credits the user has available to spend
+  "lastlogintime":        (int64)   Unix timestamp of last login date
+  "sessionmaxage":        (int64)   Unix timestamp of session max age
+}`
+
 type LoginCmd struct {
 	Args struct {
 		Email    string `positional-arg-name:"email"`
