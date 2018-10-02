@@ -59,6 +59,14 @@ func (b *backend) getProposalsStats() proposalsStats {
 	}
 }
 
+// getCountOfProposalsByUserID returns the counting of proposals given a user id
+// Must be called WITHOUT the mutex held
+func (b *backend) getCountOfProposalsByUserID(userID string) int {
+	b.RLock()
+	defer b.RUnlock()
+	return b.numOfPropsByUserID[userID]
+}
+
 // _newInventoryRecord adds a record to the inventory.
 //
 // This function must be called WITH the mutex held.
@@ -77,6 +85,12 @@ func (b *backend) _newInventoryRecord(record pd.Record) error {
 
 	// update inventory count
 	b._updateInventoryCountOfPropStatus(record.Status, nil)
+
+	// update count of user proposals
+	err := b._updateCountOfUserProposals(t)
+	if err != nil {
+		return fmt.Errorf("_newInventoryRecord: _updateCountOfUserProposals %v", err)
+	}
 
 	return nil
 }
@@ -134,6 +148,30 @@ func (b *backend) _updateInventoryCountOfPropStatus(status pd.RecordStatusT, old
 	}
 	// increase count for new status
 	executeUpdate(1, convertPropStatusFromPD(status))
+}
+
+// _updateInventoryCountOfUserProposals updates the count of proposals per user ID
+// Must be called WITH the mutex held
+func (b *backend) _updateCountOfUserProposals(token string) error {
+	// get inventory record by token
+	ir, ok := b.inventory[token]
+	if !ok {
+		return fmt.Errorf("inventory record not found: %v", token)
+	}
+
+	// get user public key
+	pk := ir.proposalMD.PublicKey
+
+	// find user id
+	uid, ok := b.userPubkeys[pk]
+	if !ok {
+		return fmt.Errorf("User not found %v", uid)
+	}
+
+	// update count of proposals by user id
+	b.numOfPropsByUserID[uid]++
+
+	return nil
 }
 
 // loadRecord load an record metadata and comments into inventory.

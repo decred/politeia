@@ -94,6 +94,9 @@ type backend struct {
 	numOfUnvettedChanges int
 	numOfPublic          int
 	numOfInvalid         int
+
+	// Count of user proposals
+	numOfPropsByUserID map[string]int
 }
 
 type BackendProposalMetadata struct {
@@ -2431,6 +2434,7 @@ func (b *backend) ProcessUserProposals(up *www.UserProposals, isCurrentUser, isA
 				www.PropStatusPublic:            true,
 			},
 		}),
+		NumOfProposals: b.getCountOfProposalsByUserID(up.UserId),
 	}, nil
 }
 
@@ -3231,10 +3235,11 @@ func NewBackend(cfg *config) (*backend, error) {
 
 	// Context
 	b := &backend{
-		db:              db,
-		cfg:             cfg,
-		userPubkeys:     make(map[string]string),
-		userPaywallPool: make(map[uuid.UUID]paywallPoolMember),
+		db:                 db,
+		cfg:                cfg,
+		userPubkeys:        make(map[string]string),
+		userPaywallPool:    make(map[uuid.UUID]paywallPoolMember),
+		numOfPropsByUserID: make(map[string]int),
 	}
 
 	// Setup pubkey-userid map
