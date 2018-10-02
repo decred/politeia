@@ -49,6 +49,10 @@ const (
 
 	// Following are what should be well-known interface hooks
 	PluginPostHookEdit = "postedit" // Hook Post Edit
+
+	// Authorize vote actions
+	AuthVoteActionAuthorize = "authorize" // Authorize a proposal vote
+	AuthVoteActionRevoke    = "revoke"    // Revoke a proposal vote authorization
 )
 
 // FlushRecord is a structure that is stored on disk when a journal has been
@@ -1609,6 +1613,7 @@ func (g *gitBackEnd) pluginAuthorizeVote(payload string) (string, error) {
 		Version:   decredplugin.VersionAuthorizeVote,
 		Receipt:   receipt,
 		Timestamp: time.Now().Unix(),
+		Action:    authorize.Action,
 		Token:     token,
 		Signature: authorize.Signature,
 		PublicKey: authorize.PublicKey,
@@ -1629,20 +1634,11 @@ func (g *gitBackEnd) pluginAuthorizeVote(payload string) (string, error) {
 		return "", backend.ErrShutdown
 	}
 
-	_, err1 := os.Stat(pijoin(joinLatest(g.vetted, token),
-		fmt.Sprintf("%02v%v", decredplugin.MDStreamAuthorizeVote,
-			defaultMDFilenameSuffix)))
-	_, err2 := os.Stat(pijoin(joinLatest(g.vetted, token),
+	_, err = os.Stat(pijoin(joinLatest(g.vetted, token),
 		fmt.Sprintf("%02v%v", decredplugin.MDStreamVoteBits,
 			defaultMDFilenameSuffix)))
-
-	if err1 == nil {
-		// Vote has already been authorized
-		return "", fmt.Errorf("proposal vote already authorized: %v",
-			token)
-	} else if err2 == nil {
-		// Vote has started but has not been authorized.  This
-		// should not happen.
+	if err == nil {
+		// Vote has already started. This should not happen.
 		return "", fmt.Errorf("proposal vote already started: %v",
 			token)
 	}
@@ -1760,8 +1756,8 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 			defaultMDFilenameSuffix)))
 
 	if err1 != nil {
-		// Vote has not been authorized by proposal author
-		return "", fmt.Errorf("proposal author has not authorized vote: %v",
+		// Authorize vote md is not present
+		return "", fmt.Errorf("no authorize vote metadata: %v",
 			token)
 	} else if err2 != nil && err3 != nil {
 		// Vote has not started, continue
@@ -1773,6 +1769,21 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 		// This is bad, both files should exist or not exist
 		return "", fmt.Errorf("proposal is unknown vote state: %v",
 			token)
+	}
+
+	// Ensure vote authorization has not been revoked
+	b, err := ioutil.ReadFile(pijoin(joinLatest(g.vetted, token),
+		fmt.Sprintf("%02v%v", decredplugin.MDStreamAuthorizeVote,
+			defaultMDFilenameSuffix)))
+	if err != nil {
+		return "", fmt.Errorf("readfile authorizevote: %v", err)
+	}
+	av, err := decredplugin.DecodeAuthorizeVote(b)
+	if err != nil {
+		return "", fmt.Errorf("DecodeAuthorizeVote: %v", err)
+	}
+	if av.Action == AuthVoteActionRevoke {
+		return "", fmt.Errorf("vote authorization revoked")
 	}
 
 	// Store snapshot in metadata

@@ -2542,22 +2542,38 @@ func (b *backend) ProcessAuthorizeVote(av www.AuthorizeVote, user *database.User
 
 	// Verify signature authenticity
 	err = checkPublicKeyAndSignature(user, av.PublicKey, av.Signature,
-		av.Token, ir.record.Version)
+		av.Token, ir.record.Version, av.Action)
 	if err != nil {
 		return nil, err
 	}
 
-	// Verify record is in the right state and that the user is the author
+	// Verify record is in the right state and that the
+	// authorize vote request is valid
 	switch {
 	case ir.record.Status != pd.RecordStatusPublic:
 		// Record not public
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusWrongStatus,
 		}
-	case ir.voteAuthorization.Receipt != "":
-		// Vote has already been authorized
+	case av.Action != www.AuthVoteActionAuthorize &&
+		av.Action != www.AuthVoteActionRevoke:
+		// Invalid authorize vote action
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidAuthVoteAction,
+		}
+	case av.Action == www.AuthVoteActionAuthorize &&
+		voteIsAuthorized(ir):
+		// Cannot authorize vote; vote has already been
+		// authorized
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusVoteAlreadyAuthorized,
+		}
+	case av.Action == www.AuthVoteActionRevoke &&
+		!voteIsAuthorized(ir):
+		// Cannot revoke authorization; vote has not been
+		// authorized
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusVoteNotAuthorized,
 		}
 	case ir.proposalMD.PublicKey != av.PublicKey:
 		// User is not the author. First make sure the author didn't
@@ -2672,7 +2688,7 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 			ErrorCode: www.ErrorStatusWrongStatus,
 		}
 	}
-	if ir.voteAuthorization.Receipt == "" {
+	if !voteIsAuthorized(ir) {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusVoteNotAuthorized,
 		}
@@ -3257,12 +3273,25 @@ func NewBackend(cfg *config) (*backend, error) {
 	return b, nil
 }
 
+// voteIsAuthorized returns whether the author of an inventory record has
+// authorized an admin to start the voting period on the record.
+func voteIsAuthorized(ir inventoryRecord) bool {
+	if ir.voteAuthorization.Receipt == "" {
+		// Vote has not been authorized yet
+		return false
+	} else if ir.voteAuthorization.Action == www.AuthVoteActionRevoke {
+		// Vote authorization was revoked
+		return false
+	}
+	return true
+}
+
 func getVoteStatus(ir inventoryRecord, bestBlock uint64) www.PropVoteStatusT {
 	if len(ir.voting.StartBlockHeight) == 0 {
-		if ir.voteAuthorization.Receipt == "" {
-			return www.PropVoteStatusNotAuthorized
-		} else {
+		if voteIsAuthorized(ir) {
 			return www.PropVoteStatusAuthorized
+		} else {
+			return www.PropVoteStatusNotAuthorized
 		}
 	}
 
