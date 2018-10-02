@@ -1150,7 +1150,7 @@ Reply:
 
 ### `User proposals`
 
-Retrieve a page of proposals submitted by the given user; the number of proposals returned in the page is limited by the `proposallistpagesize` property, which is provided via [`Policy`](#policy).
+Retrieve a page and the total amount of proposals submitted by the given user; the number of proposals returned in the page is limited by the `proposallistpagesize` property, which is provided via [`Policy`](#policy).
 
 **Route:** `GET /v1/user/proposals`
 
@@ -1167,6 +1167,7 @@ Retrieve a page of proposals submitted by the given user; the number of proposal
 | | Type | Description |
 |-|-|-|
 | proposals | array of [`Proposal`](#proposal)s | An Array of proposals submitted by the user. |
+| numOfProposals | int | Number of proposals submitted by the user. |
 
 **Example**
 
@@ -1191,7 +1192,8 @@ Reply:
       "merkle": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
       "signature": "fcc92e26b8f38b90c2887259d88ce614654f32ecd76ade1438a0def40d360e461d995c796f16a17108fad226793fd4f52ff013428eda3b39cd504ed5f1811d0d"
     }
-  }]
+  }],
+  "numofproposals": 1
 }
 ```
 

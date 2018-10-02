@@ -516,9 +516,11 @@ type UserProposals struct {
 }
 
 // UserProposalsReply replies to the UserProposals command with
-// a list of proposals that the user has submitted.
+// a list of proposals that the user has submitted and the total
+// amount of proposals
 type UserProposalsReply struct {
-	Proposals []ProposalRecord `json:"proposals"`
+	Proposals      []ProposalRecord `json:"proposals"`      // user proposals
+	NumOfProposals int              `json:"numofproposals"` // number of proposals submitted by the user
 }
 
 // VerifyUserPayment is used to request the server to check for the
