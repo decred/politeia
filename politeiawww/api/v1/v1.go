@@ -956,6 +956,7 @@ type User struct {
 	Locked                          bool             `json:"islocked"`
 	Identities                      []UserIdentity   `json:"identities"`
 	Proposals                       []ProposalRecord `json:"proposals"`
+	NumOfProposals                  int              `json:"numofproposals"` // number of proposals submitted by the user
 	ProposalCredits                 uint64           `json:"proposalcredits"`
 }
 
