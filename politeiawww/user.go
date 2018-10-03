@@ -108,5 +108,7 @@ func (b *backend) ProcessUserDetails(ud *v1.UserDetails, isCurrentUser bool, isA
 		udr.User = wwwUser
 	}
 
+	udr.User.NumOfProposals = b.getCountOfProposalsByUserID(up.UserId)
+
 	return &udr, nil
 }

@@ -523,6 +523,7 @@ Reply:
     "newuserverificationexpiry": 1528821554,
     "updatekeyverificationtoken": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
     "updatekeyverificationexpiry": 1528821554,
+    "numofproposals": 0,
     "resetpasswordverificationtoken": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
     "resetpasswordverificationexpiry": 1528821554,
     "identities": [{
@@ -978,7 +979,7 @@ Reply:
 Edit an existent proposal into the politeiawww server.
 The proposal name is derived from the first line of the markdown file - index.md.
 
-Note that updating public proposals will generate a new record version. While 
+Note that updating public proposals will generate a new record version. While
 updating an unvetted record will change the record but it will not generate
 a new version.
 
@@ -1639,7 +1640,7 @@ Reply:
 
 ### `Authorize vote`
 
-Authorize a proposal vote.  The proposal author must send an authorize vote request to indicate that the proposal is in its final state and is ready to be voted on before an admin can start the voting period for the proposal.  
+Authorize a proposal vote.  The proposal author must send an authorize vote request to indicate that the proposal is in its final state and is ready to be voted on before an admin can start the voting period for the proposal.
 
 **Route:** `POST /v1/proposals/authorizevote`
 
