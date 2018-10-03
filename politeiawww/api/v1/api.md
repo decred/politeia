@@ -100,6 +100,7 @@ API.  It does not render HTML.
 - [`ErrorStatusUserNotAuthor`](#ErrorStatusUserNotAuthor)
 - [`ErrorStatusVoteNotAuthorized`](#ErrorStatusVoteNotAuthorized)
 - [`ErrorStatusVoteAlreadyAuthorized`](#ErrorStatusVoteAlreadyAuthorized)
+- [`ErrorStatusInvalidAuthVoteAction`](#ErrorStatusInvalidAuthVoteAction)
 
 **Proposal status codes**
 
@@ -1640,7 +1641,10 @@ Reply:
 
 ### `Authorize vote`
 
-Authorize a proposal vote.  The proposal author must send an authorize vote request to indicate that the proposal is in its final state and is ready to be voted on before an admin can start the voting period for the proposal.
+Authorize a proposal vote.  The proposal author must send an authorize vote
+request to indicate that the proposal is in its final state and is ready to be
+voted on before an admin can start the voting period for the proposal.  The
+author can also revoke a previously sent vote authorization.
 
 **Route:** `POST /v1/proposals/authorizevote`
 
@@ -1648,6 +1652,7 @@ Authorize a proposal vote.  The proposal author must send an authorize vote requ
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
+| action | string | The action to be executed (authorize or revoke) | Yes | 
 | token | string | Proposal censorship token | Yes |
 | signature | string | Signature of the token + proposal version | Yes |
 | publickey | string | Public key used to sign the vote | Yes |
@@ -1656,7 +1661,19 @@ Authorize a proposal vote.  The proposal author must send an authorize vote requ
 
 | | Type | Description |
 | - | - | - |
-| Receipt | string | Politeiad signature of the client signature |
+| action | string | The action that was executed. | Yes | 
+| receipt | string | Politeiad signature of the client signature |
+
+On failure the call shall return `400 Bad Request` and one of the following
+error codes:
+- [`ErrorStatusNoPublicKey`](#ErrorStatusNoPublicKey)
+- [`ErrorStatusInvalidSigningKey`](#ErrorStatusInvalidSigningKey)
+- [`ErrorStatusInvalidSignature`](#ErrorStatusInvalidSignature)
+- [`ErrorStatusWrongStatus`](#ErrorStatusWrongStatus)
+- [`ErrorStatusInvalidAuthVoteAction`](#ErrorStatusInvalidAuthVoteAction)
+- [`ErrorStatusVoteAlreadyAuthorized`](#ErrorStatusVoteAlreadyAuthorized)
+- [`ErrorStatusVoteNotAuthorized`](#ErrorStatusVoteNotAuthorized)
+- [`ErrorStatusUserNotAuthor`](#ErrorStatusUserNotAuthor)
 
 **Example**
 
@@ -1664,6 +1681,7 @@ Request:
 
 ``` json
 {
+  "action": "authorize",
   "token": "657db73bca8afae3b99dd6ab1ac8564f71c7fb55713526e663afc3e9eff89233",
   "signature": "aba600243e9e59927d3270742de25aae002c6c4952ddaf39702c328d855e9895ed9d9f8ee6154511b81c4272c2329e1e0bb2d79fe08626150a11bc78a4eefe00",
   "publickey": "c2c2ea7f24733983bf8037c189f32b5da49e6396b7d21cb69efe09d290b3cb6d"
@@ -1674,6 +1692,7 @@ Reply:
 
 ```json
 {
+  "action": "authorize",
   "receipt": "2d7846cb3c8383b5db360ef6d1476341f07ab4d4819cdeac0601cfa5b8bca0ecf370402ba65ace249813caad50e7b0b6e92757a2bff94c385f71808bc5574203"
 }
 ```
@@ -2298,6 +2317,7 @@ Reply:
 | <a name="ErrorStatusUserNotAuthor">ErrorStatusUserNotAuthor</a> | 48 | User is not the proposal author. |
 | <a name="ErrorStatusVoteNotAuthorized">ErrorStatusVoteNotAuthorized</a> | 49 | Vote has not been authorized. |
 | <a name="ErrorStatusVoteAlreadyAuthorized">ErrorStatusVoteAlreadyAuthorized</a> | 50 | Vote has already been authorized. |
+| <a name="ErrorStatusInvalidAuthVoteAction">ErrorStatusInvalidAuthVoteAction</a> | 50 | Invalid authorize vote action. |
 
 
 ### Proposal status codes

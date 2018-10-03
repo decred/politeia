@@ -155,6 +155,7 @@ const (
 	ErrorStatusUserNotAuthor               ErrorStatusT = 48
 	ErrorStatusVoteNotAuthorized           ErrorStatusT = 49
 	ErrorStatusVoteAlreadyAuthorized       ErrorStatusT = 50
+	ErrorStatusInvalidAuthVoteAction       ErrorStatusT = 51
 
 	// Proposal status codes (set and get)
 	PropStatusInvalid           PropStatusT = 0 // Invalid status
@@ -180,6 +181,10 @@ const (
 	UserEditExpireResetPasswordVerification UserEditActionT = 3
 	UserEditClearUserPaywall                UserEditActionT = 4
 	UserEditUnlock                          UserEditActionT = 5
+
+	// Authorize vote actions
+	AuthVoteActionAuthorize = "authorize" // Authorize a proposal vote
+	AuthVoteActionRevoke    = "revoke"    // Revoke a proposal vote authorization
 )
 
 var (
@@ -254,6 +259,7 @@ var (
 		ErrorStatusUserNotAuthor:               "user is not the proposal author",
 		ErrorStatusVoteNotAuthorized:           "vote has not been authorized",
 		ErrorStatusVoteAlreadyAuthorized:       "vote has already been authorized",
+		ErrorStatusInvalidAuthVoteAction:       "invalid authorize vote action",
 	}
 
 	// PropStatus converts propsal status codes to human readable text
@@ -711,16 +717,19 @@ type ActiveVoteReply struct {
 
 // AuthorizeVote is used to indicate that a proposal has been finalized and
 // is ready to be voted on.  The signature and public key are from the
-// proposal author.
+// proposal author.  The author can revoke a previously sent vote authorization
+// by setting the Action field to revoke.
 type AuthorizeVote struct {
+	Action    string `json:"action"`    // Authorize or revoke
 	Token     string `json:"token"`     // Proposal token
-	Signature string `json:"signature"` // Signature of token+version
+	Signature string `json:"signature"` // Signature of token+version+action
 	PublicKey string `json:"publickey"` // Key used for signature
 }
 
-// AuthorizeVoteReply returns a receipt if the proposal vote was successfully
-// authorized.
+// AuthorizeVoteReply returns a receipt if the action was successfully
+// executed.
 type AuthorizeVoteReply struct {
+	Action  string `json:"action"`  // Authorize or revoke
 	Receipt string `json:"receipt"` // Server signature of client signature
 }
 
