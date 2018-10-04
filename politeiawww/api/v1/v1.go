@@ -146,7 +146,7 @@ const (
 	ErrorStatusNoProposalCredits           ErrorStatusT = 39
 	ErrorStatusInvalidUserEditAction       ErrorStatusT = 40
 	ErrorStatusUserActionNotAllowed        ErrorStatusT = 41
-	ErrorStatusCannotEditPropOnVoting      ErrorStatusT = 42
+	ErrorStatusWrongVoteStatus             ErrorStatusT = 42
 	ErrorStatusCannotCommentOnProp         ErrorStatusT = 43
 	ErrorStatusCannotVoteOnPropComment     ErrorStatusT = 44
 	ErrorStatusChangeMessageCannotBeBlank  ErrorStatusT = 45
@@ -250,7 +250,7 @@ var (
 		ErrorStatusNoProposalCredits:           "no proposal credits",
 		ErrorStatusInvalidUserEditAction:       "invalid user edit action",
 		ErrorStatusUserActionNotAllowed:        "user action is not allowed",
-		ErrorStatusCannotEditPropOnVoting:      "cannot edit proposals on voting",
+		ErrorStatusWrongVoteStatus:             "wrong proposal vote status",
 		ErrorStatusCannotCommentOnProp:         "cannot comment on proposal",
 		ErrorStatusCannotVoteOnPropComment:     "cannot vote on proposal comment",
 		ErrorStatusChangeMessageCannotBeBlank:  "status change message cannot be blank",

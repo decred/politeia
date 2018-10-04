@@ -91,7 +91,7 @@ API.  It does not render HTML.
 - [`ErrorStatusNoProposalCredits`](#ErrorStatusNoProposalCredits)
 - [`ErrorStatusInvalidUserEditAction`](#ErrorStatusInvalidUserEditAction)
 - [`ErrorStatusUserActionNotAllowed`](#ErrorStatusUserActionNotAllowed)
-- [`ErrorStatusCannotEditPropOnVoting`](#ErrorStatusCannotEditPropOnVoting)
+- [`ErrorStatusWrongVoteStatus`](#ErrorStatusWrongVoteStatus)
 - [`ErrorStatusCannotCommentOnProp`](#ErrorStatusCannotCommentOnProp)
 - [`ErrorStatusCannotVoteOnPropComment`](#ErrorStatusCannotVoteOnPropComment)
 - [`ErrorStatusChangeMessageCannotBeBlank`](#ErrorStatusChangeMessageCannotBeBlank)
@@ -2308,7 +2308,7 @@ Reply:
 | <a name="ErrorStatusNoProposalCredits">ErrorStatusNoProposalCredits</a> | 39 | No proposal credits. |
 | <a name="ErrorStatusInvalidUserEditAction">ErrorStatusInvalidUserEditAction</a> | 40 | Invalid action for editing a user. |
 | <a name="ErrorStatusUserActionNotAllowed">ErrorStatusUserActionNotAllowed</a> | 41 | User action is not allowed. |
-| <a name="ErrorStatusCannotEditPropOnVoting">ErrorStatusCannotEditPropOnVoting</a> | 42 | Cannot edit proposals on voting. |
+| <a name="ErrorStatusWrongVoteStatus">ErrorStatusWrongVoteStatus</a> | 42 | The proposal has the wrong vote status for the action to be performed. |
 | <a name="ErrorStatusCannotCommentOnProp">ErrorStatusCannotCommentOnProp</a> | 43 | Cannot comment on proposal. |
 | <a name="ErrorStatusCannotVoteOnPropComment">ErrorStatusCannotVoteOnPropComment</a> | 44 | Cannot vote on proposal comment. |
 | <a name="ErrorStatusChangeMessageCannotBeBlank">ErrorStatusChangeMessageCannotBeBlank</a> | 45 | Status change message cannot be blank. |
