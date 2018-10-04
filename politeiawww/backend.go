@@ -2992,11 +2992,11 @@ func (b *backend) ProcessEditProposal(user *database.User, ep www.EditProposal) 
 		}
 	}
 
+	// Validate proposal vote status
 	voteStatus := getVoteStatus(invRecord, bb)
-	if voteStatus == www.PropVoteStatusStarted ||
-		voteStatus == www.PropVoteStatusFinished {
+	if voteStatus != www.PropVoteStatusNotAuthorized {
 		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusCannotEditPropOnVoting,
+			ErrorCode: www.ErrorStatusWrongVoteStatus,
 		}
 	}
 
