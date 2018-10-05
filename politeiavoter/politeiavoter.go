@@ -427,11 +427,11 @@ func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsRes
 	// the time limit that was provided by the user.
 	buckets := make([]voteInterval, votes)
 	var (
-		done bool
+		done    bool
 		retries int
 	)
 	maxRetries := 1000
-	for retries = 0; !done && retries < maxRetries; retries++{
+	for retries = 0; !done && retries < maxRetries; retries++ {
 		done = true
 		var total time.Duration
 		for i := 0; i < len(buckets); {
@@ -482,8 +482,8 @@ func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsRes
 			i++
 		}
 	}
-	if retries>=maxRetries {
-		return nil,nil, fmt.Errorf("Could not randomize times "+
+	if retries >= maxRetries {
+		return nil, nil, fmt.Errorf("Could not randomize times " +
 			"accurately. Please increase --voteduration")
 	}
 
