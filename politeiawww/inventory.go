@@ -563,23 +563,21 @@ func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
 				v.PublicKey, v.CensorshipRecord.Token)
 		}
 
-		len := len(allProposals)
-		if len == 0 {
-			allProposals = append(allProposals, v)
-			continue
-		}
-
-		// Insertion sort from oldest to newest.
-		idx := sort.Search(len, func(i int) bool {
-			return v.Timestamp < allProposals[i].Timestamp
-		})
-
-		allProposals = append(allProposals[:idx],
-			append([]www.ProposalRecord{v},
-				allProposals[idx:]...)...)
+		allProposals = append(allProposals, v)
 	}
 
 	b.RUnlock()
+	sort.Slice(allProposals, func(i, j int) bool {
+		// sort by older timestamp first, if timestamps are different
+		// from each other
+		if allProposals[i].Timestamp != allProposals[j].Timestamp {
+			return allProposals[i].Timestamp < allProposals[j].Timestamp
+		}
+
+		// otherwise sort by token
+		return allProposals[i].CensorshipRecord.Token >
+			allProposals[j].CensorshipRecord.Token
+	})
 
 	// pageStarted stores whether or not it's okay to start adding
 	// proposals to the array. If the after or before parameter is

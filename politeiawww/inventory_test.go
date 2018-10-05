@@ -122,3 +122,95 @@ func TestInventoryOnProposalCensored(t *testing.T) {
 
 	verifyInventoryRecord(ir, pdr.Proposal, t)
 }
+
+func verifyPageLength(page []www.ProposalRecord, expectedLength int) error {
+	pageLen := len(page)
+	if pageLen != expectedLength {
+		return fmt.Errorf("Wrong page length: expected %v, got %v",
+			expectedLength, pageLen)
+	}
+	return nil
+}
+
+func TestInventoryPagination(t *testing.T) {
+	b := createBackend(t)
+	u, id := createAndVerifyUser(t, b)
+	user, _ := b.db.UserGet(u.Email)
+
+	pageMaxLen := www.ProposalListPageSize
+
+	// create a number of proposals which we expect to generate
+	// 3 full pages and one last page with 2 items
+	numOfProposals := (3 * pageMaxLen) + 2
+	for i := 0; i < numOfProposals; i++ {
+		_, _, err := createNewProposal(b, t, user, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// make sure all proposals were created
+	invLen := len(b.inventory)
+	if invLen != numOfProposals {
+		t.Fatal("Wrong number of proposals")
+	}
+
+	pr := proposalsRequest{
+		UserId: user.ID.String(),
+		StatusMap: map[www.PropStatusT]bool{
+			www.PropStatusNotReviewed: true,
+		},
+	}
+
+	// get first page
+	proposals := b.getProposals(pr)
+	loadedProposals := proposals
+
+	// this page should have the max number of items
+	err := verifyPageLength(proposals, pageMaxLen)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// get second page
+	lastProp := proposals[pageMaxLen-1]
+	pr.After = lastProp.CensorshipRecord.Token
+	proposals = b.getProposals(pr)
+	loadedProposals = append(loadedProposals, proposals...)
+
+	// this page should have the max number of items
+	err = verifyPageLength(proposals, pageMaxLen)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// get third page
+	lastProp = proposals[pageMaxLen-1]
+	pr.After = lastProp.CensorshipRecord.Token
+	proposals = b.getProposals(pr)
+	loadedProposals = append(loadedProposals, proposals...)
+
+	// this page should have the max number of items
+	err = verifyPageLength(proposals, pageMaxLen)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// get fourth page
+	lastProp = proposals[pageMaxLen-1]
+	pr.After = lastProp.CensorshipRecord.Token
+	proposals = b.getProposals(pr)
+	loadedProposals = append(loadedProposals, proposals...)
+
+	// this page should have the 2 remaining items
+	err = verifyPageLength(proposals, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// verify total length of all pages
+	err = verifyPageLength(loadedProposals, numOfProposals)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
