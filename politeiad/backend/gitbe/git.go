@@ -1,3 +1,7 @@
+// Copyright (c) 2017-2018 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package gitbe
 
 import (
@@ -391,5 +395,21 @@ func (g *gitBackEnd) gitInitRepo(path string, repoConfig map[string]string) erro
 		return err
 	}
 
-	return g.gitCommit(path, "Add .gitignore")
+	err = g.gitCommit(path, "Add .gitignore")
+	if err != nil {
+		return err
+	}
+
+	// Add README.md
+	err = ioutil.WriteFile(filepath.Join(path, "README.md"),
+		[]byte(defaultReadme), 0644)
+	if err != nil {
+		return err
+	}
+	err = g.gitAdd(path, "README.md")
+	if err != nil {
+		return err
+	}
+
+	return g.gitCommit(path, "Add README.md")
 }
