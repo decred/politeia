@@ -67,6 +67,16 @@ type BEBackupTransaction struct {
 	Timestamp     int64       `json:"ts"`            // Transaction timestamp
 }
 
+// TxDetails is an object representing a transaction that is used to
+// standardize the different responses from dcrdata and insight.
+type TxDetails struct {
+	Address       string
+	ID            string
+	Amount        uint64
+	Timestamp     int64
+	Confirmations uint64
+}
+
 var (
 	// ErrCannotVerifyPayment is emitted when a transaction cannot be verified
 	// because it cannot reach either of the block explorer servers.
@@ -124,6 +134,29 @@ func DcrStringToAmount(dcrstr string) (uint64, error) {
 	}
 
 	return ((whole * 1e8) + fraction), nil
+}
+
+func deriveBlockExplorerURLs(address string, netParams *chaincfg.Params) (string, string, error) {
+	var (
+		primary string
+		backup  string
+	)
+
+	switch netParams {
+	case &chaincfg.MainNetParams:
+		primary = "https://explorer.dcrdata.org/api/address/" + address + "/raw"
+		backup = "https://mainnet.decred.org/api/addr/" + address +
+			"/utxo?noCache=1"
+	case &chaincfg.TestNet3Params:
+		primary = "https://testnet.dcrdata.org/api/address/" + address + "/raw"
+		backup = "https://testnet.decred.org/api/addr/" + address +
+			"/utxo?noCache=1"
+	default:
+		return "", "", fmt.Errorf("unsupported network %v",
+			getNetworkName(netParams))
+	}
+
+	return primary, backup, nil
 }
 
 func fetchTxWithPrimaryBE(url string, address string, minimumAmount uint64, txnotbefore int64, minConfirmationsRequired uint64) (string, uint64, error) {
@@ -307,25 +340,14 @@ func FetchTxWithBlockExplorers(address string, amount uint64, txnotbefore int64,
 		return "", 0, fmt.Errorf("invalid address %v: %v", addr, err)
 	}
 
-	var (
-		primaryURL string
-		backupURL  string
-	)
-
-	params := addr.Net()
-	network := getNetworkName(params)
-	if params == &chaincfg.MainNetParams {
-		primaryURL = "https://explorer.dcrdata.org/api/address/" + address + "/raw"
-		backupURL = "https://mainnet.decred.org/api/addr/" + address + "/utxo?noCache=1"
-	} else if params == &chaincfg.TestNet3Params {
-		primaryURL = "https://testnet.dcrdata.org/api/address/" + address + "/raw"
-		backupURL = "https://testnet.decred.org/api/addr/" + address + "/utxo?noCache=1"
-	} else {
-		return "", 0, fmt.Errorf("unsupported network %v", network)
+	primaryURL, backupURL, err := deriveBlockExplorerURLs(address, addr.Net())
+	if err != nil {
+		return "", 0, err
 	}
 
 	// Try the primary (dcrdata) first.
-	txID, amount, err := fetchTxWithPrimaryBE(primaryURL, address, amount, txnotbefore, minConfirmations)
+	txID, amount, err := fetchTxWithPrimaryBE(primaryURL, address, amount,
+		txnotbefore, minConfirmations)
 	if err != nil {
 		log.Printf("failed to fetch from dcrdata: %v", err)
 	} else {
@@ -333,11 +355,133 @@ func FetchTxWithBlockExplorers(address string, amount uint64, txnotbefore int64,
 	}
 
 	// Try the backup (insight).
-	txID, amount, err = fetchTxWithBackupBE(backupURL, address, amount, txnotbefore, minConfirmations)
+	txID, amount, err = fetchTxWithBackupBE(backupURL, address, amount,
+		txnotbefore, minConfirmations)
 	if err != nil {
 		log.Printf("failed to fetch from insight: %v", err)
 		return "", 0, ErrCannotVerifyPayment
 	}
 
 	return txID, amount, nil
+}
+
+func fetchTxsWithPrimaryBE(url string, address string) ([]BEPrimaryTransaction, error) {
+	responseBody, err := makeRequest(url, 3)
+	if err != nil {
+		return nil, err
+	}
+
+	transactions := make([]BEPrimaryTransaction, 0)
+	err = json.Unmarshal(responseBody, &transactions)
+	if err != nil {
+		return nil, fmt.Errorf("Unmarshal []BEPrimaryTransaction: %v", err)
+	}
+
+	return transactions, nil
+}
+
+func fetchTxsWithBackupBE(url string, address string) ([]BEBackupTransaction, error) {
+	responseBody, err := makeRequest(url, 3)
+	if err != nil {
+		return nil, err
+	}
+
+	transactions := make([]BEBackupTransaction, 0)
+	err = json.Unmarshal(responseBody, &transactions)
+	if err != nil {
+		return nil, fmt.Errorf("Unmarshal []BEBackupTransaction: %v", err)
+	}
+
+	return transactions, nil
+}
+
+func convertBEPrimaryTransactionToTxDetails(address string, tx BEPrimaryTransaction) (*TxDetails, error) {
+	var amount uint64
+	for _, vout := range tx.Vout {
+		amt, err := DcrStringToAmount(vout.Amount.String())
+		if err != nil {
+			return nil, err
+		}
+
+		for _, addr := range vout.ScriptPubkey.Addresses {
+			if address == addr {
+				amount += amt
+			}
+		}
+	}
+
+	return &TxDetails{
+		Address:       address,
+		ID:            tx.TxId,
+		Amount:        amount,
+		Confirmations: tx.Confirmations,
+		Timestamp:     tx.Timestamp,
+	}, nil
+}
+
+func convertBEBackupTransactionToTxDetails(tx BEBackupTransaction) (*TxDetails, error) {
+	amount, err := DcrStringToAmount(tx.Amount.String())
+	if err != nil {
+		return nil, err
+	}
+
+	return &TxDetails{
+		Address:       tx.Address,
+		ID:            tx.TxId,
+		Amount:        amount,
+		Confirmations: tx.Confirmations,
+		Timestamp:     tx.Timestamp,
+	}, nil
+}
+
+// FetchTxsForAddress fetches the transactions that have been sent to the
+// provided wallet address from the dcrdata block explorer. If the dcrdata
+// request fails the insight block explorer is tried.
+func FetchTxsForAddress(address string) ([]TxDetails, error) {
+	// Get block explorer URLs
+	addr, err := dcrutil.DecodeAddress(address)
+	if err != nil {
+		return nil, fmt.Errorf("invalid address %v: %v", addr, err)
+	}
+	primaryURL, backupURL, err := deriveBlockExplorerURLs(address, addr.Net())
+	if err != nil {
+		return nil, err
+	}
+
+	// Try the primary (dcrdata)
+	primaryTxs, err := fetchTxsWithPrimaryBE(primaryURL, address)
+	if err != nil {
+		log.Printf("failed to fetch from dcrdata: %v", err)
+	} else {
+		txs := make([]TxDetails, 0, len(primaryTxs))
+		for _, tx := range primaryTxs {
+			txDetail, err := convertBEPrimaryTransactionToTxDetails(address, tx)
+			if err != nil {
+				return nil, fmt.Errorf("convertBEPrimaryTransactionToTxDetails: %v",
+					tx.TxId)
+			}
+			txs = append(txs, *txDetail)
+		}
+
+		return txs, nil
+	}
+
+	// Try the backup (insight)
+	backupTxs, err := fetchTxsWithBackupBE(backupURL, address)
+	if err != nil {
+		log.Printf("failed to fetch from insight: %v", err)
+		return nil, ErrCannotVerifyPayment
+	}
+
+	txs := make([]TxDetails, 0, len(backupTxs))
+	for _, tx := range backupTxs {
+		txDetail, err := convertBEBackupTransactionToTxDetails(tx)
+		if err != nil {
+			return nil, fmt.Errorf("convertBEBackupTransactionToTxDetails: %v",
+				tx.TxId)
+		}
+		txs = append(txs, *txDetail)
+	}
+
+	return txs, nil
 }

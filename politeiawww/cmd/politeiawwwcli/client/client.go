@@ -1086,3 +1086,26 @@ func (c *Client) VerifyUpdateUserKey(vuuk *v1.VerifyUpdateUserKey) (*v1.VerifyUp
 
 	return &vuukr, nil
 }
+
+func (c *Client) ProposalPaywallPayment() (*v1.ProposalPaywallPaymentReply, error) {
+	responseBody, err := c.makeRequest("GET",
+		v1.RouteProposalPaywallPayment, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var pppr v1.ProposalPaywallPaymentReply
+	err = json.Unmarshal(responseBody, &pppr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal ProposalPaywallPaymentReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := PrettyPrintJSON(pppr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &pppr, nil
+}

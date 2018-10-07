@@ -630,6 +630,28 @@ func (p *politeiawww) handleProposalPaywallDetails(w http.ResponseWriter, r *htt
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
+// handleProposalPaywallPayment returns the payment details for a pending
+// proposal paywall payment.
+func (p *politeiawww) handleProposalPaywallPayment(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleProposalPaywallPayment")
+
+	user, err := p.getSessionUser(r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleProposalPaywallPayment: getSessionUser %v", err)
+		return
+	}
+
+	reply, err := p.backend.ProcessProposalPaywallPayment(user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleProposalPaywallPayment: ProcessProposalPaywallPayment  %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
 // handleNewProposal handles the incoming new proposal command.
 func (p *politeiawww) handleNewProposal(w http.ResponseWriter, r *http.Request) {
 	// Get the new proposal command.
@@ -1501,6 +1523,8 @@ func _main() error {
 		p.handleEditProposal, permissionLogin, true)
 	p.addRoute(http.MethodPost, v1.RouteAuthorizeVote,
 		p.handleAuthorizeVote, permissionLogin, false)
+	p.addRoute(http.MethodGet, v1.RouteProposalPaywallPayment,
+		p.handleProposalPaywallPayment, permissionLogin, false)
 
 	// Routes that require being logged in as an admin user.
 	p.addRoute(http.MethodGet, v1.RouteAllUnvetted, p.handleAllUnvetted,
