@@ -174,7 +174,7 @@ func getDecredPlugin(testnet bool) backend.Plugin {
 		decredPlugin.Settings = append(decredPlugin.Settings,
 			backend.PluginSetting{
 				Key:   "dcrdata",
-				Value: "https://dcrdata.org:443/",
+				Value: "https://explorer.dcrdata.org:443/",
 			})
 	}
 
