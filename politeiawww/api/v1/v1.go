@@ -33,6 +33,7 @@ const (
 	RouteLogout                 = "/logout"
 	RouteSecret                 = "/secret"
 	RouteProposalPaywallDetails = "/proposals/paywall"
+	RouteProposalPaywallPayment = "/proposals/paywallpayment"
 	RouteAllVetted              = "/proposals/vetted"
 	RouteAllUnvetted            = "/proposals/unvetted"
 	RouteNewProposal            = "/proposals/new"
@@ -586,6 +587,18 @@ type ProposalPaywallDetailsReply struct {
 	CreditPrice        uint64 `json:"creditprice"`        // Cost per proposal credit in atoms
 	PaywallAddress     string `json:"paywalladdress"`     // Proposal paywall address
 	PaywallTxNotBefore int64  `json:"paywalltxnotbefore"` // Minimum timestamp for paywall tx
+}
+
+// ProposalPaywallPayment is used to request payment details for a pending
+// propsoal paywall payment.
+type ProposalPaywallPayment struct{}
+
+// ProposalPaywallPaymentReply is used to reply to the ProposalPaywallPayment
+// command.
+type ProposalPaywallPaymentReply struct {
+	TxID          string `json:"txid"`          // Transaction ID
+	TxAmount      uint64 `json:"amount"`        // Transaction amount in atoms
+	Confirmations uint64 `json:"confirmations"` // Number of block confirmations
 }
 
 // NewProposal attempts to submit a new proposal.

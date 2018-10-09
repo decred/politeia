@@ -11,11 +11,14 @@ import (
 )
 
 type paywallPoolMember struct {
-	paywallType string // Used to differentiate between user and proposal paywalls
-	address     string // Paywall address
-	amount      uint64 // Minimum tx amount required to satisfy paywall
-	txNotBefore int64  // Minimum timestamp for paywall tx
-	pollExpiry  int64  // After this time, the paywall address will not be continuously polled
+	paywallType     string // Used to differentiate between user and proposal paywalls
+	address         string // Paywall address
+	amount          uint64 // Minimum tx amount required to satisfy paywall
+	txNotBefore     int64  // Minimum timestamp for paywall tx
+	pollExpiry      int64  // After this time, the paywall address will not be continuously polled
+	txID            string // ID of the pending payment tx
+	txAmount        uint64 // Amount of the pending payment tx
+	txConfirmations uint64 // Number of confirmations of the pending payment tx
 }
 
 const (
@@ -176,6 +179,10 @@ func (b *backend) checkForUserPayments(pool map[uuid.UUID]paywallPoolMember) (bo
 func (b *backend) checkForProposalPayments(pool map[uuid.UUID]paywallPoolMember) (bool, []uuid.UUID) {
 	var userIDsToRemove []uuid.UUID
 
+	// In theory poolMember could be raced during this call. In practice
+	// a race will not occur as long as the paywall does not remove
+	// poolMembers from the pool while in the middle of polling poolMember
+	// addresses.
 	for userID, poolMember := range pool {
 		user, err := b.db.UserGetById(userID)
 		if err != nil {
@@ -201,7 +208,7 @@ func (b *backend) checkForProposalPayments(pool map[uuid.UUID]paywallPoolMember)
 			continue
 		}
 
-		err = b.verifyProposalPayment(user)
+		tx, err := b.verifyProposalPayment(user)
 		if err != nil {
 			if err == database.ErrShutdown {
 				// The database is shutdown, so stop the thread.
@@ -212,10 +219,21 @@ func (b *backend) checkForProposalPayments(pool map[uuid.UUID]paywallPoolMember)
 			continue
 		}
 
-		// Removed paywall from the in-memory pool if it has been marked as paid.
+		// Removed paywall from the in-memory pool if it has
+		// been marked as paid.
 		if !b.userHasValidProposalPaywall(user) {
 			userIDsToRemove = append(userIDsToRemove, userID)
 			log.Tracef("  removing from polling, user just paid")
+		} else if tx != nil {
+			// Update pool member if payment tx was found but
+			// does not have enough confimrations.
+			poolMember.txID = tx.ID
+			poolMember.txAmount = tx.Amount
+			poolMember.txConfirmations = tx.Confirmations
+
+			b.Lock()
+			b.userPaywallPool[userID] = poolMember
+			b.Unlock()
 		}
 
 		time.Sleep(paywallCheckGap)
@@ -235,6 +253,9 @@ func (b *backend) removeUsersFromPool(userIDsToRemove []uuid.UUID) {
 
 func (b *backend) checkForPayments() {
 	for {
+		// Removing pool members from the pool while in the middle of
+		// polling can cause a race to occur in checkForProposalPayments.
+
 		userPaywallsToCheck := b.createUserPaywallPoolCopy()
 
 		// Check new user payments.
@@ -483,51 +504,94 @@ func (b *backend) ProcessProposalPaywallDetails(user *database.User) (*v1.Propos
 	}, nil
 }
 
+// ProcessProposalPaywallPayment checks if the user has a pending paywall
+// payment and returns the payment details if one is found.
+func (b *backend) ProcessProposalPaywallPayment(user *database.User) (*v1.ProposalPaywallPaymentReply, error) {
+	log.Tracef("ProcessProposalPaywallPayment")
+
+	var (
+		txID          string
+		txAmount      uint64
+		confirmations uint64
+	)
+
+	b.RLock()
+	defer b.RUnlock()
+
+	poolMember, ok := b.userPaywallPool[user.ID]
+	if ok {
+		txID = poolMember.txID
+		txAmount = poolMember.txAmount
+		confirmations = poolMember.txConfirmations
+	}
+
+	return &v1.ProposalPaywallPaymentReply{
+		TxID:          txID,
+		TxAmount:      txAmount,
+		Confirmations: confirmations,
+	}, nil
+}
+
 // verifyPropoposalPayment checks whether a payment has been sent to the
-// user's proposal paywall address and if that payment meets the minimum
-// requirements to purchase proposal credits.  If so, proposal credits are
-// created and the user database is updated.
-func (b *backend) verifyProposalPayment(user *database.User) error {
+// user's proposal paywall address. Proposal credits are created and added to
+// the user's account if the payment meets the minimum requirements.
+func (b *backend) verifyProposalPayment(user *database.User) (*util.TxDetails, error) {
 	paywall := b.mostRecentProposalPaywall(user)
 
 	// If a TxID exists, the payment has already been verified.
 	if paywall.TxID != "" {
-		return nil
+		return nil, nil
 	}
 
-	// Check paywall address for tx.
-	txID, txAmount, err := util.FetchTxWithBlockExplorers(paywall.Address,
-		paywall.CreditPrice, paywall.TxNotBefore, b.cfg.MinConfirmationsRequired)
+	// Fetch txs sent to paywall address
+	txs, err := util.FetchTxsForAddress(paywall.Address)
 	if err != nil {
-		return fmt.Errorf("cannot fetch tx: %v\n", err)
+		return nil, fmt.Errorf("FetchTxsForAddress %v: %v",
+			paywall.Address, err)
 	}
 
-	if txID != "" {
-		paywall.TxID = txID
-		paywall.TxAmount = txAmount
-		paywall.NumCredits = txAmount / paywall.CreditPrice
+	// Check for paywall payment tx
+	for _, tx := range txs {
+		switch {
+		case tx.Timestamp < paywall.TxNotBefore && tx.Timestamp != 0:
+			continue
+		case tx.Amount < paywall.CreditPrice:
+			continue
+		case tx.Confirmations < b.cfg.MinConfirmationsRequired:
+			// Payment tx found but not enough confirmations. Return
+			// the tx so that the paywall member can be updated.
+			return &tx, nil
+		default:
+			// Payment tx found that meets all criteria. Create
+			// proposal credits and update user db record.
+			paywall.TxID = tx.ID
+			paywall.TxAmount = tx.Amount
+			paywall.NumCredits = tx.Amount / paywall.CreditPrice
 
-		// Create proposal credits.
-		c := make([]database.ProposalCredit, paywall.NumCredits)
-		timestamp := time.Now().Unix()
-		for i := uint64(0); i < paywall.NumCredits; i++ {
-			c[i] = database.ProposalCredit{
-				PaywallID:     paywall.ID,
-				Price:         paywall.CreditPrice,
-				DatePurchased: timestamp,
-				TxID:          paywall.TxID,
+			// Create proposal credits
+			c := make([]database.ProposalCredit, paywall.NumCredits)
+			timestamp := time.Now().Unix()
+			for i := uint64(0); i < paywall.NumCredits; i++ {
+				c[i] = database.ProposalCredit{
+					PaywallID:     paywall.ID,
+					Price:         paywall.CreditPrice,
+					DatePurchased: timestamp,
+					TxID:          paywall.TxID,
+				}
 			}
-		}
-		user.UnspentProposalCredits = append(user.UnspentProposalCredits, c...)
+			user.UnspentProposalCredits = append(user.UnspentProposalCredits, c...)
 
-		// Update user database.
-		err = b.db.UserUpdate(*user)
-		if err != nil {
-			return err
+			// Update user database.
+			err = b.db.UserUpdate(*user)
+			if err != nil {
+				return nil, fmt.Errorf("database UserUpdate: %v", err)
+			}
+
+			return &tx, nil
 		}
 	}
 
-	return nil
+	return nil, nil
 }
 
 // ProposalCreditsBalance returns the number of proposal credits that the user

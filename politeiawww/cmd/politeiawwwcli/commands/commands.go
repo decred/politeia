@@ -35,6 +35,7 @@ type Cmds struct {
 	GetProposal       GetProposalCmd       `command:"getproposal" description:"fetch a proposal"`
 	GetUnvetted       GetUnvettedCmd       `command:"getunvetted" description:"fetch unvetted proposals"`
 	GetVetted         GetVettedCmd         `command:"getvetted" description:"fetch vetted proposals"`
+	GetPaywallPayment GetPaywallPaymentCmd `command:"getpaywallpayment" description:"fetch payment details for a proposal paywall payment"`
 	Inventory         InventoryCmd         `command:"inventory" description:"fetch the proposals that are being voted on"`
 	Login             LoginCmd             `command:"login" description:"login to Politeia"`
 	Logout            LogoutCmd            `command:"logout" description:"logout of Politeia"`
