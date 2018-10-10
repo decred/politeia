@@ -1311,22 +1311,23 @@ Reply:
 
 ```json
 {
-  "proposal": {
-      "name": "My Proposal",
-      "status": 3,
-      "timestamp": 1508146426,
-      "files": [{
-        "name": "index.md",
-        "mime": "text/plain; charset=utf-8",
-        "digest": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
-        "payload": "VGhpcyBpcyBhIGRlc2NyaXB0aW9u"
-      }],
-      "censorshiprecord": {
-        "token": "c378e0735b5650c9e79f70113323077b107b0d778547f0d40592955668f21ebf",
-        "merkle": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
-        "signature": "f5ea17d547d8347a2f2d77edcb7e89fcc96613d7aaff1f2a26761779763d77688b57b423f1e7d2da8cd433ef2cfe6f58c7cf1c43065fa6716a03a3726d902d0a"
-      }
-  }
+	"proposal": {
+		"name": "My Proposal",
+		"status": 4,
+		"timestamp": 1539212044,
+		"userid": "",
+		"username": "",
+		"publickey": "57cf10a15828c633dc0af423669e7bbad2d30a062e4eb1e9c78919f77ebd1022",
+		"signature": "553beffb3fece5bdd540e0b83e977e4f68c1ac31e6f2e0a85c3c9aef9e65e3efe3d778edc504a9e88c101f68ad25e677dc3574c67a6e8d0ba711de4b91bec40d",
+		"files": [],
+		"numcomments": 0,
+		"version": "1",
+		"censorshiprecord": {
+			"token": "fc320c72bb55b6233a8df388109bf494081f007395489a7cdc945e05d656a467",
+			"merkle": "ffc1e4b6a1b0b1e8eb99d476aed7ace9ed6475b3bbab9470d01028c24ae51992",
+			"signature": "4f409cfb706683e529281033945808cab286917f452ec1594d6f98b8fe2e11206e2b964ac9622c05e8465923f98dd4ee553b3eb08d54f0a3c7ef92f80db16d0a"
+		}
+	}
 }
 ```
 
@@ -1652,7 +1653,7 @@ author can also revoke a previously sent vote authorization.
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
-| action | string | The action to be executed (authorize or revoke) | Yes | 
+| action | string | The action to be executed (authorize or revoke) | Yes |
 | token | string | Proposal censorship token | Yes |
 | signature | string | Signature of the token + proposal version | Yes |
 | publickey | string | Public key used to sign the vote | Yes |
@@ -1661,7 +1662,7 @@ author can also revoke a previously sent vote authorization.
 
 | | Type | Description |
 | - | - | - |
-| action | string | The action that was executed. | Yes | 
+| action | string | The action that was executed. | Yes |
 | receipt | string | Politeiad signature of the client signature |
 
 On failure the call shall return `400 Bad Request` and one of the following
