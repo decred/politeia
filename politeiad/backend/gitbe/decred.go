@@ -1725,8 +1725,10 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 		StartBlockHeight: strconv.FormatUint(uint64(snapshotBlock.Height),
 			10),
 		StartBlockHash: snapshotBlock.Hash,
+		// On EndHeight: we start in the past, add maturity to correct
 		EndHeight: strconv.FormatUint(uint64(snapshotBlock.Height+
-			vote.Vote.Duration), 10),
+			vote.Vote.Duration+
+			uint32(g.activeNetParams.TicketMaturity)), 10),
 		EligibleTickets: snapshot,
 	}
 	svrb, err := decredplugin.EncodeStartVoteReply(svr)
