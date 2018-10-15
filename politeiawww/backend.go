@@ -1137,7 +1137,8 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 		// This is conditional on the email server being setup.
 		err := b.emailNewUserVerificationLink(u.Email, hex.EncodeToString(token))
 		if err != nil {
-			return nil, err
+			log.Errorf("Email new user verification link failed %v", u.Email)
+			return &reply, nil
 		}
 	}
 
@@ -1184,10 +1185,6 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	reply.PaywallAddress = existingUser.NewUserPaywallAddress
-	reply.PaywallAmount = existingUser.NewUserPaywallAmount
-	reply.PaywallTxNotBefore = existingUser.NewUserPaywallTxNotBefore
 
 	// Only set the token if email verification is disabled.
 	if b.cfg.SMTP == nil {
