@@ -29,7 +29,7 @@ const (
 
 	// paywallCheckGap is the amount of time the server sleeps after polling for
 	// a paywall address.
-	paywallCheckGap = time.Second * 5
+	paywallCheckGap = time.Second * 1
 
 	// paywallTypeUser and paywallTypeProposal are used to signify whether a
 	// paywall pool member is a user registration fee paywall or a proposal
