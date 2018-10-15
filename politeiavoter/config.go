@@ -20,6 +20,7 @@ import (
 	"github.com/btcsuite/go-socks/socks"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/politeia/util"
+	"github.com/decred/politeia/util/version"
 )
 
 const (
@@ -246,7 +247,7 @@ func loadConfig() (*config, []string, error) {
 		ConfigFile: defaultConfigFile,
 		DebugLevel: defaultLogLevel,
 		LogDir:     defaultLogDir,
-		Version:    version(),
+		Version:    version.String(),
 	}
 
 	// Service options which are only added on Windows.
@@ -271,7 +272,9 @@ func loadConfig() (*config, []string, error) {
 	appName = strings.TrimSuffix(appName, filepath.Ext(appName))
 	usageMessage := fmt.Sprintf("Use %s -h to show usage", appName)
 	if preCfg.ShowVersion {
-		fmt.Println(appName, "version", version())
+		fmt.Printf("%s version %s (Go version %s %s/%s)\n", appName,
+			version.String(), runtime.Version(), runtime.GOOS,
+			runtime.GOARCH)
 		os.Exit(0)
 	}
 

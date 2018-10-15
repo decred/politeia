@@ -20,6 +20,7 @@ import (
 
 	"github.com/decred/dcrd/hdkeychain"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
+	"github.com/decred/politeia/util/version"
 
 	flags "github.com/btcsuite/go-flags"
 	"github.com/dajohi/goemail"
@@ -342,7 +343,7 @@ func loadConfig() (*config, []string, error) {
 		CookieKeyFile:            defaultCookieKeyFile,
 		PaywallAmount:            defaultPaywallAmount,
 		MinConfirmationsRequired: defaultPaywallMinConfirmations,
-		Version:                  version(),
+		Version:                  version.String(),
 	}
 
 	// Service options which are only added on Windows.
@@ -367,7 +368,9 @@ func loadConfig() (*config, []string, error) {
 	appName = strings.TrimSuffix(appName, filepath.Ext(appName))
 	usageMessage := fmt.Sprintf("Use %s -h to show usage", appName)
 	if preCfg.ShowVersion {
-		fmt.Println(appName, "version", version())
+		fmt.Printf("%s version %s (Go version %s %s/%s)\n", appName,
+			version.String(), runtime.Version(), runtime.GOOS,
+			runtime.GOARCH)
 		os.Exit(0)
 	}
 

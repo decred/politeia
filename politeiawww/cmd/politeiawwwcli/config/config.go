@@ -9,12 +9,14 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	flags "github.com/btcsuite/go-flags"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiawww/sharedconfig"
+	"github.com/decred/politeia/util/version"
 )
 
 const (
@@ -42,10 +44,13 @@ var (
 )
 
 type Config struct {
-	HomeDir string `long:"appdata" description:"Path to application home directory"`
-	Host    string `long:"host" description:"politeiawww host"`
-	RawJSON bool   `short:"j" long:"json" description:"Print raw JSON output"`
-	Verbose bool   `short:"v" long:"verbose" description:"Print verbose output"`
+	HomeDir     string `long:"appdata" description:"Path to application home directory"`
+	Host        string `long:"host" description:"politeiawww host"`
+	RawJSON     bool   `short:"j" long:"json" description:"Print raw JSON output"`
+	ShowVersion bool   `short:"V" long:"version" description:"Display version information and exit"`
+	Verbose     bool   `short:"v" long:"verbose" description:"Print verbose output"`
+
+	Version string // cli version
 
 	WalletHost string // Wallet host
 	WalletCert string // Wallet GRPC certificate
@@ -80,6 +85,7 @@ func Load() (*Config, error) {
 		WalletHost: defaultWalletHost + ":" + defaultWalletTestnetPort,
 		WalletCert: defaultWalletCertFile,
 		FaucetHost: defaultFaucetHost,
+		Version:    version.String(),
 	}
 
 	// Pre-parse the command line options to see if an alternative config
@@ -91,6 +97,16 @@ func Load() (*Config, error) {
 	_, err := parser.Parse()
 	if err != nil {
 		return nil, fmt.Errorf("parsing CLI options: %v", err)
+	}
+
+	// Show the version and exit if the version flag was specified.
+	appName := filepath.Base(os.Args[0])
+	appName = strings.TrimSuffix(appName, filepath.Ext(appName))
+	if cfg.ShowVersion {
+		fmt.Printf("%s version %s (Go version %s %s/%s)\n", appName,
+			version.String(), runtime.Version(), runtime.GOOS,
+			runtime.GOARCH)
+		os.Exit(0)
 	}
 
 	// Update the application home directory if specified

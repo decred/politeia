@@ -24,6 +24,7 @@ import (
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/gitbe"
 	"github.com/decred/politeia/util"
+	"github.com/decred/politeia/util/version"
 	"github.com/gorilla/mux"
 )
 
@@ -813,7 +814,7 @@ func _main() error {
 		}
 	}()
 
-	log.Infof("Version : %v", version())
+	log.Infof("Version : %v", version.String())
 	log.Infof("Network : %v", activeNetParams.Params.Name)
 	log.Infof("Home dir: %v", loadedCfg.HomeDir)
 
