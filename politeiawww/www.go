@@ -1459,8 +1459,6 @@ func _main() error {
 		p.handleResendVerification, permissionPublic, false)
 	p.addRoute(http.MethodPost, v1.RouteLogin, p.handleLogin,
 		permissionPublic, false)
-	p.addRoute(http.MethodGet, v1.RouteLogout, p.handleLogout,
-		permissionPublic, false)
 	p.addRoute(http.MethodPost, v1.RouteLogout, p.handleLogout,
 		permissionPublic, false)
 	p.addRoute(http.MethodPost, v1.RouteResetPassword,
