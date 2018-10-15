@@ -83,3 +83,23 @@ Vote Option:
   Votes received       : 9
   Percentage           : 100%
 ```
+
+## Privacy considerations
+
+By default, ```politeiavoter``` votes all eligible tickets in a single shot.
+Thus giving away to the server operator which IP address controls which
+tickets.  While this information is NOT visible externally the more privacy
+conscience user may want to spread voting out over time and using tor to mask
+IP address.
+
+```politeiavoter``` has two settings to enable that behavior. First there is
+the ```--proxy``` setting to make ```politeiavoter``` use a Tor proxy. The
+second setting is ```--voteduration``` that sets the maximum duration to
+trickle out votes. Valid modifiers are h for hours, m for minutes and s for
+seconds (e.g. 3h18m15s). This value should be picked in the 2 to 5 minute per
+vote range.
+
+E.g. running Tor software on the local machine with 10 votes:
+```
+politeiavoter --proxy=127.0.0.1:9050 --voteduration=30m vote 8bdebbc55ae74066cc57c76bc574fd1517111e56b3d1295bde5ba3b0bd7c3f67 yes
+```
