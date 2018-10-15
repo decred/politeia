@@ -14,10 +14,9 @@ type NewUserCmd struct {
 		Username string `positional-arg-name:"username"`
 		Password string `positional-arg-name:"password"`
 	} `positional-args:"true" optional:"true"`
-	Random  bool `long:"random" optional:"true" description:"Generate a random email/password for the user"`
-	Verify  bool `long:"verify" optional:"true" description:"Verify the user's email address"`
-	Paywall bool `long:"paywall" optional:"true" description:"Satisfy paywall fee using testnet faucet"`
-	NoSave  bool `long:"nosave" optional:"true" description:"Do not save the user identity to disk"`
+	Random bool `long:"random" optional:"true" description:"Generate a random email/password for the user"`
+	Verify bool `long:"verify" optional:"true" description:"Verify the user's email address"`
+	NoSave bool `long:"nosave" optional:"true" description:"Do not save the user identity to disk"`
 }
 
 func (cmd *NewUserCmd) Execute(args []string) error {
@@ -109,17 +108,6 @@ func (cmd *NewUserCmd) Execute(args []string) error {
 		}
 
 		err = Print(vnur, cfg.Verbose, cfg.RawJSON)
-		if err != nil {
-			return err
-		}
-	}
-
-	// Satisfy paywall fee using testnet faucet
-	if cmd.Paywall {
-		faucet := FaucetCmd{}
-		faucet.Args.Address = nur.PaywallAddress
-		faucet.Args.Amount = nur.PaywallAmount
-		err := faucet.Execute(nil)
 		if err != nil {
 			return err
 		}

@@ -224,9 +224,6 @@ Create a new user on the politeiawww server.
 
 | Parameter | Type | Description |
 |-|-|-|
-| paywalladdress | String | The address in which to send the transaction containing the `paywallamount`. |
-| paywallamount | Int64 | The amount of DCR (in atoms) to send to `paywalladdress`. |
-| paywalltxnotbefore | Int64 | The minimum UNIX time (in seconds) required for the block containing the transaction sent to `paywalladdress`. |
 | verificationtoken | String | The verification token which is required when calling [`Verify user`](#verify-user). If an email server is set up, this property will be empty or nonexistent; the token will be sent to the email address sent in the request.|
 
 This call can return one of the following error codes:

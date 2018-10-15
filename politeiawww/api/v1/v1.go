@@ -414,10 +414,7 @@ type NewUser struct {
 // NewUserReply is used to reply to the NewUser command with an error
 // if the command is unsuccessful.
 type NewUserReply struct {
-	PaywallAddress     string `json:"paywalladdress"`     // Registration paywall address
-	PaywallAmount      uint64 `json:"paywallamount"`      // Registration paywall amount in atoms
-	PaywallTxNotBefore int64  `json:"paywalltxnotbefore"` // Minimum timestamp for paywall tx
-	VerificationToken  string `json:"verificationtoken"`  // Server verification token
+	VerificationToken string `json:"verificationtoken"` // Server verification token
 }
 
 // VerifyNewUser is used to perform verification for the user created through
