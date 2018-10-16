@@ -293,6 +293,8 @@ func (b *backend) login(l *www.Login) loginReplyWithError {
 	user, err := b.db.UserGet(l.Email)
 	if err != nil {
 		if err == database.ErrUserNotFound {
+			log.Debugf("Login failure for %v: user not found in database",
+				l.Email)
 			return loginReplyWithError{
 				reply: nil,
 				err: www.UserError{
@@ -300,6 +302,7 @@ func (b *backend) login(l *www.Login) loginReplyWithError {
 				},
 			}
 		}
+
 		return loginReplyWithError{
 			reply: nil,
 			err:   err,
@@ -308,6 +311,8 @@ func (b *backend) login(l *www.Login) loginReplyWithError {
 
 	// Check that the user is verified.
 	if user.NewUserVerificationToken != nil {
+		log.Debugf("Login failure for %v: user not yet verified",
+			l.Email)
 		return loginReplyWithError{
 			reply: nil,
 			err: www.UserError{
@@ -345,6 +350,8 @@ func (b *backend) login(l *www.Login) loginReplyWithError {
 			}
 		}
 
+		log.Debugf("Login failure for %v: incorrect password",
+			l.Email)
 		return loginReplyWithError{
 			reply: nil,
 			err: www.UserError{
@@ -355,6 +362,8 @@ func (b *backend) login(l *www.Login) loginReplyWithError {
 
 	// Check if user is locked due to too many login attempts
 	if checkUserIsLocked(user.FailedLoginAttempts) {
+		log.Debugf("Login failure for %v: user locked",
+			l.Email)
 		return loginReplyWithError{
 			reply: nil,
 			err: www.UserError{
@@ -929,6 +938,8 @@ func (b *backend) verifyResetPassword(user *database.User, rp www.ResetPassword,
 	// Decode the verification token.
 	token, err := hex.DecodeString(rp.VerificationToken)
 	if err != nil {
+		log.Debugf("VerifyResetPassword failure for %v: verification token "+
+			"could not be decoded: %v", rp.Email, err)
 		return www.UserError{
 			ErrorCode: www.ErrorStatusVerificationTokenInvalid,
 		}
@@ -936,6 +947,9 @@ func (b *backend) verifyResetPassword(user *database.User, rp www.ResetPassword,
 
 	// Check that the verification token matches.
 	if !bytes.Equal(token, user.ResetPasswordVerificationToken) {
+		log.Debugf("VerifyResetPassword failure for %v: verification token doesn't "+
+			"match, expected %v", rp.Email,
+			user.ResetPasswordVerificationToken)
 		return www.UserError{
 			ErrorCode: www.ErrorStatusVerificationTokenInvalid,
 		}
@@ -943,6 +957,8 @@ func (b *backend) verifyResetPassword(user *database.User, rp www.ResetPassword,
 
 	// Check that the token hasn't expired.
 	if user.ResetPasswordVerificationExpiry < time.Now().Unix() {
+		log.Debugf("VerifyResetPassword failure for %v: verification token "+
+			"not expired yet", rp.Email)
 		return www.UserError{
 			ErrorCode: www.ErrorStatusVerificationTokenExpired,
 		}
@@ -1201,6 +1217,8 @@ func (b *backend) ProcessVerifyNewUser(u www.VerifyNewUser) (*database.User, err
 	user, err := b.db.UserGet(u.Email)
 	if err != nil {
 		if err == database.ErrUserNotFound {
+			log.Debugf("VerifyNewUser failure for %v: user not found",
+				u.Email)
 			return nil, www.UserError{
 				ErrorCode: www.ErrorStatusVerificationTokenInvalid,
 			}
@@ -1211,6 +1229,8 @@ func (b *backend) ProcessVerifyNewUser(u www.VerifyNewUser) (*database.User, err
 	// Decode the verification token.
 	token, err := hex.DecodeString(u.VerificationToken)
 	if err != nil {
+		log.Debugf("VerifyNewUser failure for %v: verification token could "+
+			"not be decoded: %v", u.Email, err)
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusVerificationTokenInvalid,
 		}
@@ -1218,6 +1238,8 @@ func (b *backend) ProcessVerifyNewUser(u www.VerifyNewUser) (*database.User, err
 
 	// Check that the verification token matches.
 	if !bytes.Equal(token, user.NewUserVerificationToken) {
+		log.Debugf("VerifyNewUser failure for %v: verification token doesn't "+
+			"match, expected %v", u.Email, user.NewUserVerificationToken)
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusVerificationTokenInvalid,
 		}
@@ -1225,6 +1247,8 @@ func (b *backend) ProcessVerifyNewUser(u www.VerifyNewUser) (*database.User, err
 
 	// Check that the token hasn't expired.
 	if time.Now().Unix() > user.NewUserVerificationExpiry {
+		log.Debugf("VerifyNewUser failure for %v: verification token expired",
+			u.Email)
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusVerificationTokenExpired,
 		}
@@ -1233,6 +1257,8 @@ func (b *backend) ProcessVerifyNewUser(u www.VerifyNewUser) (*database.User, err
 	// Check signature
 	sig, err := util.ConvertSignature(u.Signature)
 	if err != nil {
+		log.Debugf("VerifyNewUser failure for %v: signature could not be "+
+			"decoded: %v", u.Email, err)
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusInvalidSignature,
 		}
@@ -1248,11 +1274,15 @@ func (b *backend) ProcessVerifyNewUser(u www.VerifyNewUser) (*database.User, err
 		}
 	}
 	if pi == nil {
+		log.Debugf("VerifyNewUser failure for %v: no public key",
+			u.Email)
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusNoPublicKey,
 		}
 	}
 	if !pi.VerifyMessage([]byte(u.VerificationToken), sig) {
+		log.Debugf("VerifyNewUser failure for %v: signature doesn't match "+
+			"(pubkey: %v)", u.Email, pi.String())
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusInvalidSignature,
 		}
@@ -1280,6 +1310,8 @@ func (b *backend) ProcessResendVerification(rv *v1.ResendVerification) (*v1.Rese
 	user, err := b.db.UserGet(rv.Email)
 	if err != nil {
 		if err == database.ErrUserNotFound {
+			log.Debugf("ResendVerification failure for %v: user not found",
+				rv.Email)
 			return &rvr, nil
 		}
 		return nil, err
@@ -1288,10 +1320,14 @@ func (b *backend) ProcessResendVerification(rv *v1.ResendVerification) (*v1.Rese
 	// Don't do anything if the user is already verified or the token hasn't
 	// expired yet.
 	if user.NewUserVerificationToken == nil {
+		log.Debugf("ResendVerification failure for %v: user already verified",
+			rv.Email)
 		return &rvr, nil
 	}
 
 	if user.NewUserVerificationExpiry > time.Now().Unix() {
+		log.Debugf("ResendVerification failure for %v: verification token "+
+			"not expired yet", rv.Email)
 		return &rvr, nil
 	}
 
@@ -1418,6 +1454,8 @@ func (b *backend) ProcessVerifyUpdateUserKey(user *database.User, vu www.VerifyU
 	// Decode the verification token.
 	token, err := hex.DecodeString(vu.VerificationToken)
 	if err != nil {
+		log.Debugf("VerifyUpdateUserKey failure for %v: verification token "+
+			"could not be decoded: %v", user.Email, err)
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusVerificationTokenInvalid,
 		}
@@ -1425,6 +1463,9 @@ func (b *backend) ProcessVerifyUpdateUserKey(user *database.User, vu www.VerifyU
 
 	// Check that the verification token matches.
 	if !bytes.Equal(token, user.UpdateKeyVerificationToken) {
+		log.Debugf("VerifyUpdateUserKey failure for %v: verification token "+
+			"doesn't match, expected %v", user.Email,
+			user.UpdateKeyVerificationToken, token)
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusVerificationTokenInvalid,
 		}
@@ -1432,6 +1473,8 @@ func (b *backend) ProcessVerifyUpdateUserKey(user *database.User, vu www.VerifyU
 
 	// Check that the token hasn't expired.
 	if user.UpdateKeyVerificationExpiry < time.Now().Unix() {
+		log.Debugf("VerifyUpdateUserKey failure for %v: verification token "+
+			"not expired yet", user.Email)
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusVerificationTokenExpired,
 		}
@@ -1440,6 +1483,8 @@ func (b *backend) ProcessVerifyUpdateUserKey(user *database.User, vu www.VerifyU
 	// Check signature
 	sig, err := util.ConvertSignature(vu.Signature)
 	if err != nil {
+		log.Debugf("VerifyUpdateUserKey failure for %v: signature could not "+
+			"be decoded: %v", user.Email, err)
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusInvalidSignature,
 		}
@@ -1452,6 +1497,8 @@ func (b *backend) ProcessVerifyUpdateUserKey(user *database.User, vu www.VerifyU
 	}
 
 	if !pi.VerifyMessage([]byte(vu.VerificationToken), sig) {
+		log.Debugf("VerifyUpdateUserKey failure for %v: signature did not "+
+			"match (pubkey: %v)", user.Email, pi.String())
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusInvalidSignature,
 		}
@@ -1607,6 +1654,7 @@ func (b *backend) ProcessResetPassword(rp www.ResetPassword) (*www.ResetPassword
 				ErrorCode: www.ErrorStatusMalformedEmail,
 			}
 		} else if err == database.ErrUserNotFound {
+			log.Debugf("ResetPassword failure for %v: user not found", rp.Email)
 			return &reply, nil
 		}
 
