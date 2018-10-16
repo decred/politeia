@@ -35,3 +35,10 @@ const templateUserLockedResetPasswordRaw = `
 <div style="margin-top: 20px">You are receiving this email because someone made too many login attempts for <span style="font-weight: bold">{{.Email}}</span> on Politeia.</div>
 <div>If that was not you, please notify Politeia administrators.</div>
 `
+
+const templateNewProposalSubmittedRaw = `
+<div>A new proposal has been submitted on Politeia by <b>{{.Username}} ({{.Email}})</b>:</div>
+<div style="margin: 10px 0px;">
+<a  href="{{.Link}}" style="font-size:20px; font-weight:bold">{{.Name}}</a><br>
+</div>
+`

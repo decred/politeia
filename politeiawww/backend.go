@@ -492,6 +492,50 @@ func (b *backend) emailResetPasswordVerificationLink(email, token string) error 
 	return b.cfg.SMTP.Send(msg)
 }
 
+func (b *backend) emailAllAdminsForNewSubmittedProposal(token string, propName string, username string, userEmail string) error {
+	if b.cfg.SMTP == nil {
+		return nil
+	}
+
+	l, err := url.Parse(b.cfg.WebServerAddress + "/proposals/" + token)
+	if err != nil {
+		return err
+	}
+
+	var buf bytes.Buffer
+	tplData := newProposalSubmittedTemplateData{
+		Link:     l.String(),
+		Name:     propName,
+		Username: username,
+		Email:    userEmail,
+	}
+
+	err = templateNewProposalSubmitted.Execute(&buf, &tplData)
+	if err != nil {
+		return err
+	}
+
+	from := "noreply@decred.org"
+	subject := "New Proposal Submitted"
+	body := buf.String()
+
+	msg := goemail.NewHTMLMessage(from, subject, body)
+
+	// Add admin emails
+	err = b.db.AllUsers(func(user *database.User) {
+		if !user.Admin {
+			return
+		}
+		msg.AddTo(user.Email)
+	})
+	if err != nil {
+		return err
+	}
+
+	msg.SetName(politeiaMailName)
+	return b.cfg.SMTP.Send(msg)
+}
+
 // emailUpdateUserKeyVerificationLink emails the link with the verification
 // token used for setting a new key pair if the email server is set up.
 func (b *backend) emailUpdateUserKeyVerificationLink(email, publicKey, token string) error {
@@ -1138,7 +1182,7 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 		// This is conditional on the email server being setup.
 		err := b.emailNewUserVerificationLink(u.Email, hex.EncodeToString(token))
 		if err != nil {
-			log.Errorf("Email new user verification link failed %v", u.Email)
+			log.Errorf("Email new user verification link failed %v, %v", u.Email, err)
 			return &reply, nil
 		}
 	}
@@ -1769,6 +1813,12 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 		if err != nil {
 			log.Errorf("ProcessNewProposal could not add record "+
 				"into inventory: %v", err)
+		}
+
+		err = b.emailAllAdminsForNewSubmittedProposal(pdReply.CensorshipRecord.Token, name,
+			user.Username, user.Email)
+		if err != nil {
+			log.Errorf("email all admins for new submitted proposals: %v %v", pdReply.CensorshipRecord.Token, err)
 		}
 	}
 
