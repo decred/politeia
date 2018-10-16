@@ -557,6 +557,7 @@ type LoginReply struct {
 	PaywallAddress     string `json:"paywalladdress"`     // Registration paywall address
 	PaywallAmount      uint64 `json:"paywallamount"`      // Registration paywall amount in atoms
 	PaywallTxNotBefore int64  `json:"paywalltxnotbefore"` // Minimum timestamp for paywall tx
+	PaywallTxID        string `json:"paywalltxid"`        // Paywall payment tx ID
 	ProposalCredits    uint64 `json:"proposalcredits"`    // Number of the proposal credits the user has available to spend
 	LastLoginTime      int64  `json:"lastlogintime"`      // Unix timestamp of last login date
 	SessionMaxAge      int64  `json:"sessionmaxage"`      // Unix timestamp of session max age

@@ -1011,6 +1011,7 @@ func (b *backend) CreateLoginReply(user *database.User, lastLoginTime int64) (*w
 		Email:           user.Email,
 		Username:        user.Username,
 		PublicKey:       activeIdentity,
+		PaywallTxID:     user.NewUserPaywallTx,
 		ProposalCredits: ProposalCreditBalance(user),
 		LastLoginTime:   lastLoginTime,
 	}
