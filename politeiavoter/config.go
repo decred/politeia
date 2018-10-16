@@ -55,23 +55,20 @@ var runServiceCommand func(string) error
 //
 // See loadConfig for details on the configuration load process.
 type config struct {
-	HomeDir          string   `short:"A" long:"appdata" description:"Path to application home directory"`
-	ShowVersion      bool     `short:"V" long:"version" description:"Display version information and exit"`
-	ConfigFile       string   `short:"C" long:"configfile" description:"Path to configuration file"`
-	LogDir           string   `long:"logdir" description:"Directory to log output."`
-	TestNet          bool     `long:"testnet" description:"Use the test network"`
-	SimNet           bool     `long:"simnet" description:"Use the simulation test network"`
-	PoliteiaWWW      string   `long:"politeiawww" description:"Politeia WWW host"`
-	WalletHost       string   `long:"wallethost" description:"Wallet host"`
-	Profile          string   `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
-	CPUProfile       string   `long:"cpuprofile" description:"Write CPU profile to the specified file"`
-	MemProfile       string   `long:"memprofile" description:"Write mem profile to the specified file"`
-	DebugLevel       string   `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
-	Listeners        []string `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 49152, testnet: 59152)"`
+	HomeDir          string `short:"A" long:"appdata" description:"Path to application home directory"`
+	ShowVersion      bool   `short:"V" long:"version" description:"Display version information and exit"`
+	ConfigFile       string `short:"C" long:"configfile" description:"Path to configuration file"`
+	LogDir           string `long:"logdir" description:"Directory to log output."`
+	TestNet          bool   `long:"testnet" description:"Use the test network"`
+	PoliteiaWWW      string `long:"politeiawww" description:"Politeia WWW host"`
+	WalletHost       string `long:"wallethost" description:"Wallet host"`
+	Profile          string `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
+	CPUProfile       string `long:"cpuprofile" description:"Write CPU profile to the specified file"`
+	MemProfile       string `long:"memprofile" description:"Write mem profile to the specified file"`
+	DebugLevel       string `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
 	Version          string
-	Identity         string `long:"identity" description:"File containing the politeiad identity file"`
 	WalletCert       string `long:"walletgrpccert" description:"Wallet GRPC certificate"`
-	WalletPassphrase string `long:"walletpassphrase" description:"Wallet passphrase"`
+	WalletPassphrase string `long:"walletpassphrase" description:"Wallet decryption passphrase"`
 	Proxy            string `long:"proxy" description:"Connect via SOCKS5 proxy (eg. 127.0.0.1:9050)"`
 	ProxyUser        string `long:"proxyuser" description:"Username for proxy server"`
 	ProxyPass        string `long:"proxypass" default-mask:"-" description:"Password for proxy server"`
@@ -261,9 +258,12 @@ func loadConfig() (*config, []string, error) {
 	preParser := newConfigParser(&preCfg, &serviceOpts, flags.HelpFlag)
 	_, err := preParser.Parse()
 	if err != nil {
-		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
+		if e, ok := err.(*flags.Error); ok && e.Type != flags.ErrHelp {
 			fmt.Fprintln(os.Stderr, err)
-			return nil, nil, err
+			os.Exit(1)
+		} else if ok && e.Type == flags.ErrHelp {
+			fmt.Fprintln(os.Stdout, err)
+			os.Exit(0)
 		}
 	}
 
@@ -310,17 +310,15 @@ func loadConfig() (*config, []string, error) {
 	// Load additional config from file.
 	var configFileError error
 	parser := newConfigParser(&cfg, &serviceOpts, flags.Default)
-	if !(preCfg.SimNet) || cfg.ConfigFile != defaultConfigFile {
-		err := flags.NewIniParser(parser).ParseFile(cfg.ConfigFile)
-		if err != nil {
-			if _, ok := err.(*os.PathError); !ok {
-				fmt.Fprintf(os.Stderr, "Error parsing config "+
-					"file: %v\n", err)
-				fmt.Fprintln(os.Stderr, usageMessage)
-				return nil, nil, err
-			}
-			configFileError = err
+	err = flags.NewIniParser(parser).ParseFile(cfg.ConfigFile)
+	if err != nil {
+		if _, ok := err.(*os.PathError); !ok {
+			fmt.Fprintf(os.Stderr, "Error parsing config "+
+				"file: %v\n", err)
+			fmt.Fprintln(os.Stderr, usageMessage)
+			return nil, nil, err
 		}
+		configFileError = err
 	}
 
 	// Parse command line options again to ensure they take precedence.
@@ -352,30 +350,12 @@ func loadConfig() (*config, []string, error) {
 		return nil, nil, err
 	}
 
-	// Multiple networks can't be selected simultaneously.
-	numNets := 0
-
 	// Count number of network flags passed; assign active network params
 	// while we're at it
 	activeNetParams = &mainNetParams
 	if cfg.TestNet {
-		numNets++
 		activeNetParams = &testNet3Params
 	}
-	if cfg.SimNet {
-		numNets++
-		// Also disable dns seeding on the simulation test network.
-		activeNetParams = &simNetParams
-	}
-	if numNets > 1 {
-		str := "%s: The testnet and simnet params can't be " +
-			"used together -- choose one of the three"
-		err := fmt.Errorf(str, funcName)
-		fmt.Fprintln(os.Stderr, err)
-		fmt.Fprintln(os.Stderr, usageMessage)
-		return nil, nil, err
-	}
-
 	// Determine default connections
 	if cfg.PoliteiaWWW == "" {
 		if activeNetParams.Name == "mainnet" {
@@ -429,11 +409,6 @@ func loadConfig() (*config, []string, error) {
 		}
 	}
 
-	if cfg.Identity == "" {
-		cfg.Identity = defaultIdentityFile
-	}
-	cfg.Identity = cleanAndExpandPath(cfg.Identity)
-
 	// Wallet cert
 	if cfg.WalletCert == "" {
 		cfg.WalletCert = defaultWalletCertFile
@@ -458,7 +433,6 @@ func loadConfig() (*config, []string, error) {
 			fmt.Fprintln(os.Stderr, usageMessage)
 			return nil, nil, fmt.Errorf("invalid --proxy %v", err)
 		}
-
 		proxy := &socks.Proxy{
 			Addr:         cfg.Proxy,
 			Username:     cfg.ProxyUser,

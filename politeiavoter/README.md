@@ -3,9 +3,16 @@
 `politeiavoter` is a command line utility that can be used to issue votes on
 proposals.
 
-The tool keeps logs and configuration files, just like the other tools in the
-Decred suite, in the ~/.politeiavoter directory (this varies for Windows and
-OSX).
+Configuration and logs Linux/BSD/POSIX:
+The tool keeps logs and configuration files in the ~/.politeiavoter directory
+
+Configuration and logs Windows:
+The tool keeps logs and configuration files in the %LOCALAPPDATA%\Politeiavoter
+directory
+
+Configuration and logs macOS/OSX:
+The tool keeps logs and configuration files in the ~/Library/Application
+Support/Politeiavoter directory
 
 In the following examples the config file contained the following entry:
 ```
@@ -17,10 +24,21 @@ testnet=1
 Voting requires access to wallet GRPC. Therefore this tool needs the wallet
 certificate. By default the tool will look in `~/.dcrwallet/rpc.cert`.
 
-Note: The tool will always prompt for the wallet password and is therefore
-safe to run on the same machine as the wallet.
+In order to sign votes ```politeiavoter``` requires the wallet passphrase.
+
+In order to use the "vote trickler" functionality one must use Tor. Without Tor
+the server administrator will still know where the votes came from rendering
+the trickling worthless.
 
 ## Workflow
+
+```politeiavoter``` supports three commands:
+
+```
+  inventory          - Retrieve all proposals that are being voted on
+  vote               - Vote on a proposal
+  tally              - Tally votes on a proposal
+```
 
 First one obtains the list of active proposals that are up for voting:
 ```
@@ -55,8 +73,8 @@ that into the shell.
 ```
 politeiavoter vote 8bdebbc55ae74066cc57c76bc574fd1517111e56b3d1295bde5ba3b0bd7c3f67 yes
 ```
-The tool will prompt for the wallet GRPC password and then takes a few seconds
-to vote.
+The tool will prompt for the wallet decryption passphrase and then takes a few
+seconds to vote.
 
 ```
 Enter the private passphrase of your wallet:
