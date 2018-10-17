@@ -18,6 +18,7 @@ API.  It does not render HTML.
 - [`Verify user payment`](#verify-user-payment)
 - [`User details`](#user-details)
 - [`Edit user`](#edit-user)
+- [`Users`](#users)
 - [`Update user key`](#update-user-key)
 - [`Verify update user key`](#verify-update-user-key)
 - [`Change username`](#change-username)
@@ -571,6 +572,52 @@ Reply:
 
 ```json
 {}
+```
+
+### `Users`
+
+Returns a list of users given optional filters. This call requires admin privileges.
+
+**Route:** `GET /v1/users`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-----------|------|-------------|----------|
+| email | string | A query string to match against user email addresses. | |
+| username | string | A query string to match against usernames. | |
+
+**Results:**
+
+| Parameter | Type | Description |
+|-|-|-|
+| totalusers | uint64 | The total number of all users in the database. |
+| totalmatches | uint64 | The total number of users that matched the query. |
+| users | array of [Abridged User](#abridged-user) | The list of users that match the query. This list will be capped at the `userlistpagesize`, which is specified in the [`Policy`](#policy) call. |
+
+On failure the call shall return `400 Bad Request` and one of the following
+error codes:
+- [`ErrorStatusInvalidInput`](#ErrorStatusInvalidInput)
+
+**Example**
+
+Request:
+
+```json
+{
+  "email": "@aol.com",
+  "username": "JakeFromStateFarm"
+}
+```
+
+Reply:
+
+```json
+{
+  "totalusers": 132,
+  "totalmatches": 0,
+  "users": []
+}
 ```
 
 ### `Update user key`
@@ -1214,6 +1261,7 @@ SHALL observe.
 | maxusernamelength | integer | maximum number of characters accepted for username |
 | usernamesupportedchars | array of strings | the regular expression of a valid username |
 | proposallistpagesize | integer | maximum number of proposals returned for the routes that return lists of proposals |
+| userlistpagesize | integer | maximum number of users returned for the routes that return lists of users |
 | maximages | integer | maximum number of images accepted when creating a new proposal |
 | maximagesize | integer | maximum image file size (in bytes) accepted when creating a new proposal |
 | maxmds | integer | maximum number of markdown files accepted when creating a new proposal |
@@ -2365,6 +2413,16 @@ Reply:
 | identities | array of [`Identity`](#identity)s | Identities, both activated and deactivated, of the user. |
 | proposals | array of [`Proposal`](#proposal)s | Proposal submitted by the user. |
 | proposalcredits | uint64 | The number of available proposal credits the user has. |
+
+### `Abridged User`
+
+This is a shortened representation of a user, used for lists.
+
+| | Type | Description |
+|-|-|-|
+| id | string | The unique id of the user. |
+| email | string | Email address. |
+| username | string | Unique username. |
 
 ### `Proposal`
 

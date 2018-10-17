@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -112,4 +113,53 @@ func (b *backend) ProcessEditUser(eu *v1.EditUser, adminUser *database.User) (*v
 	// Update the user in the database.
 	err = b.db.UserUpdate(*user)
 	return &v1.EditUserReply{}, err
+}
+
+// ProcessUsers returns a list of users given a set of filters.
+func (b *backend) ProcessUsers(users *v1.Users) (*v1.UsersReply, error) {
+	var reply v1.UsersReply
+	reply.Users = make([]v1.AbridgedUser, 0)
+
+	emailQuery := strings.ToLower(users.Email)
+	usernameQuery := formatUsername(users.Username)
+
+	err := b.db.AllUsers(func(user *database.User) {
+		reply.TotalUsers++
+		userMatches := true
+
+		// If both emailQuery and usernameQuery are non-empty, the user must
+		// match both to be included in the results.
+		if emailQuery != "" {
+			if !strings.Contains(strings.ToLower(user.Email), emailQuery) {
+				userMatches = false
+			}
+		}
+
+		if usernameQuery != "" && userMatches {
+			if !strings.Contains(strings.ToLower(user.Username), usernameQuery) {
+				userMatches = false
+			}
+		}
+
+		if userMatches {
+			reply.TotalMatches++
+			if reply.TotalMatches < v1.UserListPageSize {
+				reply.Users = append(reply.Users, v1.AbridgedUser{
+					ID:       user.ID.String(),
+					Email:    user.Email,
+					Username: user.Username,
+				})
+			}
+		}
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Sort results alphabetically.
+	sort.Slice(reply.Users, func(i, j int) bool {
+		return reply.Users[i].Username < reply.Users[j].Username
+	})
+
+	return &reply, nil
 }

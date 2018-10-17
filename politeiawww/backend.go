@@ -3169,6 +3169,7 @@ func (b *backend) ProcessPolicy(p www.Policy) *www.PolicyReply {
 		MaxUsernameLength:          www.PolicyMaxUsernameLength,
 		UsernameSupportedChars:     www.PolicyUsernameSupportedChars,
 		ProposalListPageSize:       www.ProposalListPageSize,
+		UserListPageSize:           www.UserListPageSize,
 		MaxImages:                  www.PolicyMaxImages,
 		MaxImageSize:               www.PolicyMaxImageSize,
 		MaxMDs:                     www.PolicyMaxMDs,
