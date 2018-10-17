@@ -591,7 +591,8 @@ Returns a list of users given optional filters. This call requires admin privile
 
 | Parameter | Type | Description |
 |-|-|-|
-| total | uint64 | The total number of all users (not just the users that matched the query). |
+| totalusers | uint64 | The total number of all users in the database. |
+| totalmatches | uint64 | The total number of users that matched the query. |
 | users | array of [Abridged User](#abridged-user) | The list of users that match the query. This list will be capped at the `userlistpagesize`, which is specified in the [`Policy`](#policy) call. |
 
 On failure the call shall return `400 Bad Request` and one of the following
