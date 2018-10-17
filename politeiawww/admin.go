@@ -121,7 +121,7 @@ func (b *backend) ProcessUsers(users *v1.Users) (*v1.UsersReply, error) {
 	reply.Users = make([]v1.AbridgedUser, 0)
 
 	emailQuery := strings.ToLower(users.Email)
-	usernameQuery := strings.ToLower(users.Username)
+	usernameQuery := formatUsername(users.Username)
 
 	var totalMatches uint
 	err := b.db.AllUsers(func(user *database.User) {
