@@ -123,42 +123,41 @@ func (b *backend) ProcessUsers(users *v1.Users) (*v1.UsersReply, error) {
 	emailQuery := strings.ToLower(users.Email)
 	usernameQuery := formatUsername(users.Username)
 
-	var totalMatches uint
 	err := b.db.AllUsers(func(user *database.User) {
+		reply.TotalUsers++
 		userMatches := true
 
-		// Keep track of the total number of users in the database.
-		reply.Total++
-
-		// Limit the matches returned.
-		if totalMatches >= v1.UserListPageSize {
-			return
-		}
-
 		if emailQuery != "" {
-			userMatches = userMatches && strings.Contains(
-				strings.ToLower(user.Email), emailQuery)
+			if !strings.Contains(strings.ToLower(user.Email), emailQuery) {
+				userMatches = false
+			}
 		}
 
-		if usernameQuery != "" {
-			userMatches = userMatches && strings.Contains(
-				strings.ToLower(user.Username), usernameQuery)
+		if usernameQuery != "" && userMatches {
+			if !strings.Contains(strings.ToLower(user.Username), usernameQuery) {
+				userMatches = false
+			}
 		}
 
 		if userMatches {
-			totalMatches++
-			reply.Users = append(reply.Users, v1.AbridgedUser{
-				ID:       user.ID.String(),
-				Email:    user.Email,
-				Username: user.Username,
-			})
+			reply.TotalMatches++
+			if reply.TotalMatches < v1.UserListPageSize {
+				reply.Users = append(reply.Users, v1.AbridgedUser{
+					ID:       user.ID.String(),
+					Email:    user.Email,
+					Username: user.Username,
+				})
+			}
 		}
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	// Sort results alphabetically.
 	sort.Slice(reply.Users, func(i, j int) bool {
 		return reply.Users[i].Username < reply.Users[j].Username
 	})
 
-	return &reply, err
+	return &reply, nil
 }

@@ -553,8 +553,9 @@ type Users struct {
 
 // UsersReply is a reply to the Users command, replying with a list of users.
 type UsersReply struct {
-	Total uint64         `json:"total"` // Total number of all users in the database
-	Users []AbridgedUser `json:"users"` // List of users that match the filters
+	TotalUsers   uint64         `json:"totalusers"`   // Total number of all users in the database
+	TotalMatches uint64         `json:"totalmatches"` // Total number of users that match the filters
+	Users        []AbridgedUser `json:"users"`        // List of users that match the filters
 }
 
 // AbridgedUser is a shortened version of User that's used for the admin list.
