@@ -458,7 +458,7 @@ func (b *backend) emailNewUserVerificationLink(email, token string) error {
 	subject := "Verify Your Email"
 	body := buf.String()
 
-	msg := goemail.NewHTMLMessage(from, subject, body)
+	msg := goemail.NewMessage(from, subject, body)
 	msg.AddTo(email)
 
 	msg.SetName(politeiaMailName)
@@ -494,7 +494,7 @@ func (b *backend) emailResetPasswordVerificationLink(email, token string) error 
 	subject := "Reset Your Password"
 	body := buf.String()
 
-	msg := goemail.NewHTMLMessage(from, subject, body)
+	msg := goemail.NewMessage(from, subject, body)
 	msg.AddTo(email)
 
 	msg.SetName(politeiaMailName)
@@ -528,14 +528,14 @@ func (b *backend) emailAllAdminsForNewSubmittedProposal(token string, propName s
 	subject := "New Proposal Submitted"
 	body := buf.String()
 
-	msg := goemail.NewHTMLMessage(from, subject, body)
+	msg := goemail.NewMessage(from, subject, body)
 
 	// Add admin emails
 	err = b.db.AllUsers(func(user *database.User) {
 		if !user.Admin {
 			return
 		}
-		msg.AddTo(user.Email)
+		msg.AddBCC(user.Email)
 	})
 	if err != nil {
 		return err
@@ -574,7 +574,7 @@ func (b *backend) emailUpdateUserKeyVerificationLink(email, publicKey, token str
 	subject := "Verify Your New Identity"
 	body := buf.String()
 
-	msg := goemail.NewHTMLMessage(from, subject, body)
+	msg := goemail.NewMessage(from, subject, body)
 	msg.AddTo(email)
 
 	msg.SetName(politeiaMailName)
@@ -610,7 +610,7 @@ func (b *backend) emailUserLocked(email string) error {
 	subject := "Locked Account - Reset Your Password"
 	body := buf.String()
 
-	msg := goemail.NewHTMLMessage(from, subject, body)
+	msg := goemail.NewMessage(from, subject, body)
 	msg.AddTo(email)
 
 	msg.SetName(politeiaMailName)

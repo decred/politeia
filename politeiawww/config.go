@@ -8,7 +8,6 @@ package main
 import (
 	"encoding/base64"
 	"fmt"
-	"html/template"
 	"net"
 	"net/url"
 	"os"
@@ -17,6 +16,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"text/template"
 
 	"github.com/decred/dcrd/hdkeychain"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
