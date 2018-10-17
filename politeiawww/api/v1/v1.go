@@ -547,14 +547,14 @@ type VerifyUserPaymentReply struct {
 
 // Users is used to request a list of users given a filter.
 type Users struct {
-	Username string `json:"username"`
-	Email    string `json:"email"`
+	Username string `json:"username"` // String which should match or partially match a username
+	Email    string `json:"email"`    // String which should match or partially match an email
 }
 
 // UsersReply is a reply to the Users command, replying with a list of users.
 type UsersReply struct {
-	Total uint64         `json:"total"`
-	Users []AbridgedUser `json:"users"`
+	Total uint64         `json:"total"` // Total number of all users in the database
+	Users []AbridgedUser `json:"users"` // List of users that match the filters
 }
 
 // AbridgedUser is a shortened version of User that's used for the admin list.
