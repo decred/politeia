@@ -931,12 +931,8 @@ func (c *Client) UserDetails(userID string) (*v1.UserDetailsReply, error) {
 	return &udr, nil
 }
 
-func (c *Client) Users(email, username string) (*v1.UsersReply, error) {
-	u := v1.Users{
-		Email:    email,
-		Username: username,
-	}
-	responseBody, err := c.makeRequest("GET", "/users", &u)
+func (c *Client) Users(u *v1.Users) (*v1.UsersReply, error) {
+	responseBody, err := c.makeRequest("GET", v1.RouteUsers, u)
 	if err != nil {
 		return nil, err
 	}

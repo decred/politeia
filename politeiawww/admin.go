@@ -115,6 +115,7 @@ func (b *backend) ProcessEditUser(eu *v1.EditUser, adminUser *database.User) (*v
 	return &v1.EditUserReply{}, err
 }
 
+// ProcessUsers returns a list of users given a set of filters.
 func (b *backend) ProcessUsers(users *v1.Users) (*v1.UsersReply, error) {
 	var reply v1.UsersReply
 	reply.Users = make([]v1.AbridgedUser, 0)
