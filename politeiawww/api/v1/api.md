@@ -614,7 +614,8 @@ Reply:
 
 ```json
 {
-  "total": 132,
+  "totalusers": 132,
+  "totalmatches": 0,
   "users": []
 }
 ```
