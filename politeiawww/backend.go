@@ -535,7 +535,7 @@ func (b *backend) emailAllAdminsForNewSubmittedProposal(token string, propName s
 		if !user.Admin {
 			return
 		}
-		msg.AddTo(user.Email)
+		msg.AddBCC(user.Email)
 	})
 	if err != nil {
 		return err
