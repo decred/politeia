@@ -79,7 +79,7 @@ func (c *Client) makeRequest(method, route string, body interface{}) ([]byte, er
 				return nil, err
 			}
 			queryParams = "?" + form.Encode()
-		case method == http.MethodPost:
+		case method == http.MethodPost || method == http.MethodPut:
 			var err error
 			requestBody, err = json.Marshal(body)
 			if err != nil {
@@ -96,6 +96,12 @@ func (c *Client) makeRequest(method, route string, body interface{}) ([]byte, er
 		fmt.Printf("Request: GET %v\n", fullRoute)
 	case c.cfg.Verbose && method == http.MethodPost:
 		fmt.Printf("Request: POST %v\n", fullRoute)
+		err := PrettyPrintJSON(body)
+		if err != nil {
+			return nil, err
+		}
+	case c.cfg.Verbose && method == http.MethodPut:
+		fmt.Printf("Request: PUT %v\n", fullRoute)
 		err := PrettyPrintJSON(body)
 		if err != nil {
 			return nil, err
@@ -1130,4 +1136,26 @@ func (c *Client) ProposalPaywallPayment() (*v1.ProposalPaywallPaymentReply, erro
 	}
 
 	return &pppr, nil
+}
+
+func (c *Client) UserPaymentsRescan(upr *v1.UserPaymentsRescan) (*v1.UserPaymentsRescanReply, error) {
+	responseBody, err := c.makeRequest("PUT", v1.RouteUserPaymentsRescan, upr)
+	if err != nil {
+		return nil, err
+	}
+
+	var uprr v1.UserPaymentsRescanReply
+	err = json.Unmarshal(responseBody, &uprr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal UserPaymentsRescanReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := PrettyPrintJSON(uprr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &uprr, nil
 }

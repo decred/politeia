@@ -27,6 +27,7 @@ const (
 	RouteUserProposals          = "/user/proposals"
 	RouteUserProposalCredits    = "/user/proposals/credits"
 	RouteVerifyUserPayment      = "/user/verifypayment"
+	RouteUserPaymentsRescan     = "/user/payments/rescan"
 	RouteUserDetails            = "/user/{userid:[0-9a-zA-Z-]{36}}"
 	RouteEditUser               = "/user/edit"
 	RouteUsers                  = "/users"
@@ -512,6 +513,20 @@ type UserProposalCredits struct{}
 type UserProposalCreditsReply struct {
 	UnspentCredits []ProposalCredit `json:"unspentcredits"` // credits that the user has purchased, but have not yet been used to submit proposals (credit price in atoms)
 	SpentCredits   []ProposalCredit `json:"spentcredits"`   // credits that the user has purchased and that have already been used to submit proposals (credit price in atoms)
+}
+
+// UserPaymentsRescan allows an admin to rescan a user's paywall address to
+// check for any payments that may have been missed by paywall polling. Any
+// proposal credits that are created as a result of the rescan are returned in
+// the UserPaymentsRescanReply. This call isn't RESTful, but a PUT request is
+// used since it's idempotent.
+type UserPaymentsRescan struct {
+	UserID string `json:"userid"` // ID of user to rescan
+}
+
+// UserPaymentsRescanReply is used to reply to the UserPaymentsRescan command.
+type UserPaymentsRescanReply struct {
+	NewCredits []ProposalCredit `json:"newcredits"` // Credits that were created by the rescan
 }
 
 // UserProposals is used to request a list of proposals that the

@@ -966,7 +966,7 @@ func (p *politeiawww) handleUserProposalCredits(w http.ResponseWriter, r *http.R
 	user, err := p.getSessionUser(r)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleUserProposalPayments: getSessionUser %v", err)
+			"handleUserProposalCredits: getSessionUser %v", err)
 		return
 	}
 
@@ -974,6 +974,32 @@ func (p *politeiawww) handleUserProposalCredits(w http.ResponseWriter, r *http.R
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleUserProposalCredits: ProcessUserProposalCredits  %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+// handleUserPaymentsRescan allows an admin to rescan a user's paywall address
+// to check for any payments that may have been missed by paywall polling.
+func (p *politeiawww) handleUserPaymentsRescan(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleUserPaymentsRescan")
+
+	var upr v1.UserPaymentsRescan
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&upr); err != nil {
+		RespondWithError(w, r, 0, "handleUserPaymentsRescan: unmarshal",
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	reply, err := p.backend.ProcessUserPaymentsRescan(upr)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserPaymentsRescan: ProcessUserPaymentsRescan:  %v",
+			err)
 		return
 	}
 
@@ -1570,6 +1596,8 @@ func _main() error {
 		p.handleCensorComment, permissionAdmin, true)
 	p.addRoute(http.MethodGet, v1.RouteUsers,
 		p.handleUsers, permissionAdmin, false)
+	p.addRoute(http.MethodPut, v1.RouteUserPaymentsRescan,
+		p.handleUserPaymentsRescan, permissionAdmin, false)
 
 	// Persist session cookies.
 	var cookieKey []byte
