@@ -64,6 +64,13 @@ type resetPasswordEmailTemplateData struct {
 	Email string
 }
 
+type newProposalSubmittedTemplateData struct {
+	Link     string
+	Name     string
+	Username string
+	Email    string
+}
+
 // getSession returns the active cookie session.
 func (p *politeiawww) getSession(r *http.Request) (*sessions.Session, error) {
 	return p.store.Get(r, v1.CookieSession)
