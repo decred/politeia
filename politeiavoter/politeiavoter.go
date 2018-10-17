@@ -38,8 +38,8 @@ func usage() {
 	fmt.Fprintf(os.Stderr, " flags:\n")
 	flag.PrintDefaults()
 	fmt.Fprintf(os.Stderr, "\n actions:\n")
-	fmt.Fprintf(os.Stderr, "  inventory          - Retrieve active "+
-		"votes\n")
+	fmt.Fprintf(os.Stderr, "  inventory          - Retrieve all proposals"+
+		" that are being voted on\n")
 	fmt.Fprintf(os.Stderr, "  vote               - Vote on a proposal\n")
 	fmt.Fprintf(os.Stderr, "  tally              - Tally votes on a proposal\n")
 	//fmt.Fprintf(os.Stderr, "  startvote          - Instruct vote to start "+
