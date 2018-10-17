@@ -1171,6 +1171,30 @@ func (p *politeiawww) handleUserDetails(w http.ResponseWriter, r *http.Request) 
 	util.RespondWithJSON(w, http.StatusOK, udr)
 }
 
+// handleUsers handles fetching a list of users.
+func (p *politeiawww) handleUsers(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleUsers")
+
+	var u v1.Users
+	err := util.ParseGetParams(r, &u)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleUsers: ParseGetParams",
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	ur, err := p.backend.ProcessUsers(&u)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUsers: ProcessUsers %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, ur)
+}
+
 // handleEditUser handles editing a user's details.
 func (p *politeiawww) handleEditUser(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleEditUser")
@@ -1536,6 +1560,8 @@ func _main() error {
 		p.handleEditUser, permissionAdmin, true)
 	p.addRoute(http.MethodPost, v1.RouteCensorComment,
 		p.handleCensorComment, permissionAdmin, true)
+	p.addRoute(http.MethodGet, v1.RouteUsers,
+		p.handleUsers, permissionAdmin, false)
 
 	// Persist session cookies.
 	var cookieKey []byte

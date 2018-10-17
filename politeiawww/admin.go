@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -112,4 +113,51 @@ func (b *backend) ProcessEditUser(eu *v1.EditUser, adminUser *database.User) (*v
 	// Update the user in the database.
 	err = b.db.UserUpdate(*user)
 	return &v1.EditUserReply{}, err
+}
+
+func (b *backend) ProcessUsers(users *v1.Users) (*v1.UsersReply, error) {
+	var reply v1.UsersReply
+	reply.Users = make([]v1.AbridgedUser, 0)
+
+	emailQuery := strings.ToLower(users.Email)
+	usernameQuery := strings.ToLower(users.Username)
+
+	var totalMatches uint
+	err := b.db.AllUsers(func(user *database.User) {
+		userMatches := true
+
+		// Keep track of the total number of users in the database.
+		reply.Total++
+
+		// Limit the matches returned.
+		if totalMatches >= v1.UserListPageSize {
+			return
+		}
+
+		if emailQuery != "" {
+			userMatches = userMatches && strings.Contains(
+				strings.ToLower(user.Email), emailQuery)
+		}
+
+		if usernameQuery != "" {
+			userMatches = userMatches && strings.Contains(
+				strings.ToLower(user.Username), usernameQuery)
+		}
+
+		if userMatches {
+			totalMatches++
+			reply.Users = append(reply.Users, v1.AbridgedUser{
+				ID:       user.ID.String(),
+				Email:    user.Email,
+				Username: user.Username,
+			})
+		}
+	})
+
+	// Sort results alphabetically.
+	sort.Slice(reply.Users, func(i, j int) bool {
+		return reply.Users[i].Username < reply.Users[j].Username
+	})
+
+	return &reply, err
 }

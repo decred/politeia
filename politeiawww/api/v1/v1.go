@@ -29,6 +29,7 @@ const (
 	RouteVerifyUserPayment      = "/user/verifypayment"
 	RouteUserDetails            = "/user/{userid:[0-9a-zA-Z-]{36}}"
 	RouteEditUser               = "/user/edit"
+	RouteUsers                  = "/users"
 	RouteLogin                  = "/login"
 	RouteLogout                 = "/logout"
 	RouteSecret                 = "/secret"
@@ -103,6 +104,10 @@ const (
 	// ProposalListPageSize is the maximum number of proposals returned
 	// for the routes that return lists of proposals
 	ProposalListPageSize = 20
+
+	// UserListPageSize is the maximum number of users returned
+	// for the routes that return lists of users
+	UserListPageSize = 20
 
 	// Error status codes
 	ErrorStatusInvalid                     ErrorStatusT = 0
@@ -540,6 +545,25 @@ type VerifyUserPaymentReply struct {
 	PaywallTxNotBefore int64  `json:"paywalltxnotbefore"` // Minimum timestamp for paywall tx
 }
 
+// Users is used to request a list of users given a filter.
+type Users struct {
+	Username string `json:"username"`
+	Email    string `json:"email"`
+}
+
+// UsersReply is a reply to the Users command, replying with a list of users.
+type UsersReply struct {
+	Total uint64         `json:"total"`
+	Users []AbridgedUser `json:"users"`
+}
+
+// AbridgedUser is a shortened version of User that's used for the admin list.
+type AbridgedUser struct {
+	ID       string `json:"id"`
+	Email    string `json:"email"`
+	Username string `json:"username"`
+}
+
 // Login attempts to login the user.  Note that by necessity the password
 // travels in the clear.
 type Login struct {
@@ -681,6 +705,7 @@ type PolicyReply struct {
 	MaxUsernameLength          uint     `json:"maxusernamelength"`
 	UsernameSupportedChars     []string `json:"usernamesupportedchars"`
 	ProposalListPageSize       uint     `json:"proposallistpagesize"`
+	UserListPageSize           uint     `json:"userlistpagesize"`
 	MaxImages                  uint     `json:"maximages"`
 	MaxImageSize               uint     `json:"maximagesize"`
 	MaxMDs                     uint     `json:"maxmds"`

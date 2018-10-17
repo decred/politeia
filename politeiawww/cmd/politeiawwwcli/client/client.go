@@ -931,6 +931,32 @@ func (c *Client) UserDetails(userID string) (*v1.UserDetailsReply, error) {
 	return &udr, nil
 }
 
+func (c *Client) Users(email, username string) (*v1.UsersReply, error) {
+	u := v1.Users{
+		Email:    email,
+		Username: username,
+	}
+	responseBody, err := c.makeRequest("GET", "/users", &u)
+	if err != nil {
+		return nil, err
+	}
+
+	var ur v1.UsersReply
+	err = json.Unmarshal(responseBody, &ur)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal UsersReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := PrettyPrintJSON(ur)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &ur, nil
+}
+
 func (c *Client) EditUser(eu *v1.EditUser) (*v1.EditUserReply, error) {
 	responseBody, err := c.makeRequest("POST", v1.RouteEditUser, eu)
 	if err != nil {

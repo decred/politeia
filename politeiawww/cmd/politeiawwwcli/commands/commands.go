@@ -55,6 +55,7 @@ type Cmds struct {
 	UsernamesByID     UsernamesByIDCmd     `command:"usernamesbyid" description:"fetch usernames by their user ids"`
 	UserDetails       UserDetailsCmd       `command:"userdetails" description:"fetch a user's details by his user id"`
 	UserProposals     UserProposalsCmd     `command:"userproposals" description:"fetch all proposals submitted by a specific user"`
+	Users             UsersCmd             `command:"users" description:"fetch a list of users, optionally filtering them by email and/or username"`
 	VerifyUser        VerifyUserCmd        `command:"verifyuser" description:"verify user's email address"`
 	VerifyUserPayment VerifyUserPaymentCmd `command:"verifyuserpayment" description:"check if the user has paid their user registration fee"`
 	Version           VersionCmd           `command:"version" description:"fetch server info and CSRF token"`
