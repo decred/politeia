@@ -53,8 +53,8 @@ func (b *backend) logAdminUserActionLock(adminUser, user *database.User, action 
 // logAdminProposalAction logs an admin action on a proposal.
 //
 // This function must be called WITH the mutex held.
-func (b *backend) logAdminProposalAction(adminUser *database.User, token, action string) error {
-	return b.logAdminAction(adminUser, fmt.Sprintf("%v,%v", action, token))
+func (b *backend) logAdminProposalAction(adminUser *database.User, token, action, reason string) error {
+	return b.logAdminAction(adminUser, fmt.Sprintf("%v,%v,%v", action, token, reason))
 }
 
 func (b *backend) ProcessEditUser(eu *v1.EditUser, adminUser *database.User) (*v1.EditUserReply, error) {
