@@ -1897,7 +1897,7 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 		// Log the action in the admin log.
 		b.logAdminProposalAction(user, sps.Token,
 			fmt.Sprintf("set proposal status to %v",
-				v1.PropStatus[sps.ProposalStatus]))
+				v1.PropStatus[sps.ProposalStatus]), sps.StatusChangeMessage)
 	}
 
 	// Return the reply.
@@ -2725,7 +2725,7 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 	}
 
 	// Log the action in the admin log.
-	b.logAdminProposalAction(user, sv.Vote.Token, "start vote")
+	b.logAdminProposalAction(user, sv.Vote.Token, "start vote", "")
 
 	// We can get away with only updating the voting metadata in cache
 	// XXX this is cheating a bit and we should add an api for this or toss the cache altogether
