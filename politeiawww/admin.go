@@ -127,6 +127,8 @@ func (b *backend) ProcessUsers(users *v1.Users) (*v1.UsersReply, error) {
 		reply.TotalUsers++
 		userMatches := true
 
+		// If both emailQuery and usernameQuery are non-empty, the user must
+		// match both.
 		if emailQuery != "" {
 			if !strings.Contains(strings.ToLower(user.Email), emailQuery) {
 				userMatches = false
