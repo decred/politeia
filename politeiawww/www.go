@@ -159,7 +159,8 @@ func (p *politeiawww) getIdentity() error {
 
 	if p.cfg.Interactive != allowInteractive {
 		// Ask user if we like this identity
-		log.Infof("Save to %v or ctrl-c to abort", p.cfg.RPCIdentityFile)
+		log.Infof("Press enter to save to %v or ctrl-c to abort",
+			p.cfg.RPCIdentityFile)
 		scanner := bufio.NewScanner(os.Stdin)
 		scanner.Scan()
 		if err = scanner.Err(); err != nil {
