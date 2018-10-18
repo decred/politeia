@@ -49,6 +49,10 @@ func createPoliteiawwCmd(paywall bool) *exec.Cmd {
 	return executeCommand(
 		"politeiawww",
 		"--testnet",
+		"--mailhost", "",
+		"--mailuser", "",
+		"--mailpass", "",
+		"--webserveraddress", "",
 		"--paywallxpub", paywallXPub,
 		"--paywallamount", strconv.FormatUint(paywallAmount, 10),
 		"--debuglevel", cfg.DebugLevel)

@@ -187,6 +187,7 @@ const (
 	UserEditExpireResetPasswordVerification UserEditActionT = 3
 	UserEditClearUserPaywall                UserEditActionT = 4
 	UserEditUnlock                          UserEditActionT = 5
+	UserEditLock                            UserEditActionT = 6
 
 	// Authorize vote actions
 	AuthVoteActionAuthorize = "authorize" // Authorize a proposal vote
@@ -296,6 +297,7 @@ var (
 		UserEditExpireResetPasswordVerification: "expire reset password verification",
 		UserEditClearUserPaywall:                "clear user paywall",
 		UserEditUnlock:                          "unlock user",
+		UserEditLock:                            "lock user",
 	}
 )
 
