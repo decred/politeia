@@ -105,6 +105,8 @@ func (b *backend) ProcessEditUser(eu *v1.EditUser, adminUser *database.User) (*v
 		user.NewUserPaywallPollExpiry = 0
 	case v1.UserEditUnlock:
 		user.FailedLoginAttempts = 0
+	case v1.UserEditLock:
+		user.FailedLoginAttempts = LoginAttemptsToLockUser
 	default:
 		return nil, fmt.Errorf("unsupported user edit action: %v",
 			v1.UserEditAction[eu.Action])

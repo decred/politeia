@@ -2387,6 +2387,7 @@ Reply:
 | <a name="UserEditExpireResetPasswordVerification">UserEditExpireResetPasswordVerification</a> | 3 | Expires the reset password verification token. |
 | <a name="UserEditClearUserPaywall">UserEditClearUserPaywall</a> | 4 | Clears the user's paywall. |
 | <a name="UserEditUnlock">UserEditUnlock</a> | 5 | Unlocks a user's account. |
+| <a name="UserEditLock">UserEditLock</a> | 6 | Locks a user's account. |
 
 ### `User`
 

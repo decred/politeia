@@ -296,12 +296,12 @@ func (c *Client) Logout() (*v1.LogoutReply, error) {
 
 	// Print request details
 	if c.cfg.Verbose {
-		fmt.Printf("Request: GET  %v\n", fullRoute)
+		fmt.Printf("Request: POST  %v\n", fullRoute)
 	}
 
 	// Create new http request instead of using makeRequest()
 	// so that we can save the updated cookies to disk
-	req, err := http.NewRequest("GET", fullRoute, nil)
+	req, err := http.NewRequest("POST", fullRoute, nil)
 	if err != nil {
 		return nil, err
 	}
