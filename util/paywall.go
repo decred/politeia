@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -18,6 +19,15 @@ import (
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/hdkeychain"
 	"github.com/decred/dcrwallet/wallet/udb"
+)
+
+const (
+	dcrdataMainnet = "https://explorer.dcrdata.org/api"
+	dcrdataTestnet = "https://testnet.dcrdata.org/api"
+	insightMainnet = "https://mainnet.decred.org/api"
+	insightTestnet = "https://testnet.decred.org/api"
+
+	requestTimeout = 3 // Block explorer request timeout in seconds
 )
 
 // FaucetResponse represents the expected JSON response from the testnet faucet.
@@ -70,11 +80,11 @@ type BEBackupTransaction struct {
 // TxDetails is an object representing a transaction that is used to
 // standardize the different responses from dcrdata and insight.
 type TxDetails struct {
-	Address       string
-	ID            string
-	Amount        uint64
-	Timestamp     int64
-	Confirmations uint64
+	Address       string // Transaction address
+	TxID          string // Transacion ID
+	Amount        uint64 // Transaction amount (in atoms)
+	Timestamp     int64  // Transaction timestamp
+	Confirmations uint64 // Number of confirmations
 }
 
 var (
@@ -136,31 +146,29 @@ func DcrStringToAmount(dcrstr string) (uint64, error) {
 	return ((whole * 1e8) + fraction), nil
 }
 
-func deriveBlockExplorerURLs(address string, netParams *chaincfg.Params) (string, string, error) {
+func blockExplorerURLForAddress(address string, netParams *chaincfg.Params) (string, string, error) {
 	var (
-		primary string
-		backup  string
+		dcrdata string
+		insight string
 	)
 
 	switch netParams {
 	case &chaincfg.MainNetParams:
-		primary = "https://explorer.dcrdata.org/api/address/" + address + "/raw"
-		backup = "https://mainnet.decred.org/api/addr/" + address +
-			"/utxo?noCache=1"
+		dcrdata = dcrdataMainnet + "/address/" + address
+		insight = insightMainnet + "/addr/" + address
 	case &chaincfg.TestNet3Params:
-		primary = "https://testnet.dcrdata.org/api/address/" + address + "/raw"
-		backup = "https://testnet.decred.org/api/addr/" + address +
-			"/utxo?noCache=1"
+		dcrdata = dcrdataTestnet + "/address/" + address
+		insight = insightTestnet + "/api/addr/" + address
 	default:
 		return "", "", fmt.Errorf("unsupported network %v",
 			getNetworkName(netParams))
 	}
 
-	return primary, backup, nil
+	return dcrdata, insight, nil
 }
 
 func fetchTxWithPrimaryBE(url string, address string, minimumAmount uint64, txnotbefore int64, minConfirmationsRequired uint64) (string, uint64, error) {
-	responseBody, err := makeRequest(url, 3)
+	responseBody, err := makeRequest(url, requestTimeout)
 	if err != nil {
 		return "", 0, err
 	}
@@ -198,7 +206,7 @@ func fetchTxWithPrimaryBE(url string, address string, minimumAmount uint64, txno
 }
 
 func fetchTxWithBackupBE(url string, address string, minimumAmount uint64, txnotbefore int64, minConfirmationsRequired uint64) (string, uint64, error) {
-	responseBody, err := makeRequest(url, 3)
+	responseBody, err := makeRequest(url, requestTimeout)
 	if err != nil {
 		return "", 0, err
 	}
@@ -340,10 +348,13 @@ func FetchTxWithBlockExplorers(address string, amount uint64, txnotbefore int64,
 		return "", 0, fmt.Errorf("invalid address %v: %v", addr, err)
 	}
 
-	primaryURL, backupURL, err := deriveBlockExplorerURLs(address, addr.Net())
+	dcrdataURL, insightURL, err := blockExplorerURLForAddress(address,
+		addr.Net())
 	if err != nil {
 		return "", 0, err
 	}
+	primaryURL := dcrdataURL + "/raw"
+	backupURL := insightURL + "/utxo?noCache=1"
 
 	// Try the primary (dcrdata) first.
 	txID, amount, err := fetchTxWithPrimaryBE(primaryURL, address, amount,
@@ -365,7 +376,7 @@ func FetchTxWithBlockExplorers(address string, amount uint64, txnotbefore int64,
 	return txID, amount, nil
 }
 
-func fetchTxsWithPrimaryBE(url string, address string) ([]BEPrimaryTransaction, error) {
+func fetchTxsWithPrimaryBE(url string) ([]BEPrimaryTransaction, error) {
 	responseBody, err := makeRequest(url, 3)
 	if err != nil {
 		return nil, err
@@ -380,7 +391,7 @@ func fetchTxsWithPrimaryBE(url string, address string) ([]BEPrimaryTransaction, 
 	return transactions, nil
 }
 
-func fetchTxsWithBackupBE(url string, address string) ([]BEBackupTransaction, error) {
+func fetchTxsWithBackupBE(url string) ([]BEBackupTransaction, error) {
 	responseBody, err := makeRequest(url, 3)
 	if err != nil {
 		return nil, err
@@ -412,7 +423,7 @@ func convertBEPrimaryTransactionToTxDetails(address string, tx BEPrimaryTransact
 
 	return &TxDetails{
 		Address:       address,
-		ID:            tx.TxId,
+		TxID:          tx.TxId,
 		Amount:        amount,
 		Confirmations: tx.Confirmations,
 		Timestamp:     tx.Timestamp,
@@ -427,7 +438,7 @@ func convertBEBackupTransactionToTxDetails(tx BEBackupTransaction) (*TxDetails, 
 
 	return &TxDetails{
 		Address:       tx.Address,
-		ID:            tx.TxId,
+		TxID:          tx.TxId,
 		Amount:        amount,
 		Confirmations: tx.Confirmations,
 		Timestamp:     tx.Timestamp,
@@ -443,13 +454,16 @@ func FetchTxsForAddress(address string) ([]TxDetails, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid address %v: %v", addr, err)
 	}
-	primaryURL, backupURL, err := deriveBlockExplorerURLs(address, addr.Net())
+	dcrdataURL, insightURL, err := blockExplorerURLForAddress(address,
+		addr.Net())
 	if err != nil {
 		return nil, err
 	}
+	primaryURL := dcrdataURL + "/raw"
+	backupURL := insightURL + "/utxo?noCache=10"
 
 	// Try the primary (dcrdata)
-	primaryTxs, err := fetchTxsWithPrimaryBE(primaryURL, address)
+	primaryTxs, err := fetchTxsWithPrimaryBE(primaryURL)
 	if err != nil {
 		log.Printf("failed to fetch from dcrdata: %v", err)
 	} else {
@@ -467,7 +481,7 @@ func FetchTxsForAddress(address string) ([]TxDetails, error) {
 	}
 
 	// Try the backup (insight)
-	backupTxs, err := fetchTxsWithBackupBE(backupURL, address)
+	backupTxs, err := fetchTxsWithBackupBE(backupURL)
 	if err != nil {
 		log.Printf("failed to fetch from insight: %v", err)
 		return nil, ErrCannotVerifyPayment
@@ -484,4 +498,69 @@ func FetchTxsForAddress(address string) ([]TxDetails, error) {
 	}
 
 	return txs, nil
+}
+
+// FetchTxsForAddressNotBefore fetches all transactions for a wallet address
+// that occured after the passed in notBefore timestamp.
+func FetchTxsForAddressNotBefore(address string, notBefore int64) ([]TxDetails, error) {
+	// Get block explorer URL
+	addr, err := dcrutil.DecodeAddress(address)
+	if err != nil {
+		return nil, fmt.Errorf("invalid address %v: %v", addr, err)
+	}
+	dcrdataURL, _, err := blockExplorerURLForAddress(address, addr.Net())
+	if err != nil {
+		return nil, err
+	}
+
+	// Fetch all txs for the passed in wallet address
+	// that were sent after the notBefore timestamp
+	var (
+		targetTxs []TxDetails
+		count     = 10
+		skip      = 0
+		done      = false
+	)
+	for !done {
+		// Fetch a page of user payment txs
+		url := dcrdataURL + "/count/" + strconv.Itoa(count) +
+			"/skip/" + strconv.Itoa(skip) + "/raw"
+		dcrdataTxs, err := fetchTxsWithPrimaryBE(url)
+		if err != nil {
+			return nil, fmt.Errorf("fetchDcrdataAddress: %v", err)
+		}
+
+		// Convert transactions to TxDetails
+		txs := make([]TxDetails, len(dcrdataTxs))
+		for _, tx := range dcrdataTxs {
+			txDetails, err := convertBEPrimaryTransactionToTxDetails(address, tx)
+			if err != nil {
+				return nil, fmt.Errorf("convertBEPrimaryTransactionToTxDetails: %v",
+					tx.TxId)
+			}
+			txs = append(txs, *txDetails)
+		}
+
+		// Sanity check. Txs should already be sorted
+		// in reverse chronological order.
+		sort.SliceStable(txs, func(i, j int) bool {
+			return txs[i].Timestamp > txs[j].Timestamp
+		})
+
+		// Verify txs are within notBefore limit
+		for _, tx := range txs {
+			if tx.Timestamp > notBefore {
+				targetTxs = append(targetTxs, tx)
+			} else {
+				// We have reached the notBefore
+				// limit; stop requesting txs
+				done = true
+				break
+			}
+		}
+
+		skip += count
+	}
+
+	return targetTxs, nil
 }

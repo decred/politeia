@@ -227,7 +227,7 @@ func (b *backend) checkForProposalPayments(pool map[uuid.UUID]paywallPoolMember)
 		} else if tx != nil {
 			// Update pool member if payment tx was found but
 			// does not have enough confimrations.
-			poolMember.txID = tx.ID
+			poolMember.txID = tx.TxID
 			poolMember.txAmount = tx.Amount
 			poolMember.txConfirmations = tx.Confirmations
 
@@ -564,7 +564,7 @@ func (b *backend) verifyProposalPayment(user *database.User) (*util.TxDetails, e
 		default:
 			// Payment tx found that meets all criteria. Create
 			// proposal credits and update user db record.
-			paywall.TxID = tx.ID
+			paywall.TxID = tx.TxID
 			paywall.TxAmount = tx.Amount
 			paywall.NumCredits = tx.Amount / paywall.CreditPrice
 
