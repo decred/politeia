@@ -9,6 +9,7 @@ import (
 
 	"github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/politeiawww/database"
+	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
 )
 
@@ -98,10 +99,8 @@ func (b *backend) ProcessEditUser(eu *v1.EditUser, adminUser *database.User) (*v
 	case v1.UserEditClearUserPaywall:
 		b.removeUsersFromPool([]uuid.UUID{user.ID})
 
-		user.NewUserPaywallAddress = ""
 		user.NewUserPaywallAmount = 0
 		user.NewUserPaywallTx = "cleared_by_admin"
-		user.NewUserPaywallTxNotBefore = 0
 		user.NewUserPaywallPollExpiry = 0
 	case v1.UserEditUnlock:
 		user.FailedLoginAttempts = 0
@@ -164,4 +163,149 @@ func (b *backend) ProcessUsers(users *v1.Users) (*v1.UsersReply, error) {
 	})
 
 	return &reply, nil
+}
+
+// ProcessUserPaymentsRescan allows an admin to rescan a user's paywall address
+// to check for any payments that may have been missed by paywall polling.
+func (b *backend) ProcessUserPaymentsRescan(upr v1.UserPaymentsRescan) (*v1.UserPaymentsRescanReply, error) {
+	// Lookup user
+	userID, err := uuid.Parse(upr.UserID)
+	if err != nil {
+		return nil, fmt.Errorf("parse UUID: %v", err)
+	}
+	user, err := b.db.UserGetById(userID)
+	if err != nil {
+		return nil, fmt.Errorf("UserGetByID: %v", err)
+	}
+
+	// Fetch user payments
+	payments, err := util.FetchTxsForAddressNotBefore(user.NewUserPaywallAddress,
+		user.NewUserPaywallTxNotBefore)
+	if err != nil {
+		return nil, fmt.Errorf("FetchTxsForAddressNotBefore: %v", err)
+	}
+
+	// Paywalls are in chronological order so sort txs into
+	// chronological order to make them easier to work with
+	sort.SliceStable(payments, func(i, j int) bool {
+		return payments[i].Timestamp < payments[j].Timestamp
+	})
+
+	// Sanity check. Paywalls should already be in chronological
+	// order.
+	paywalls := user.ProposalPaywalls
+	sort.SliceStable(paywalls, func(i, j int) bool {
+		return paywalls[i].TxNotBefore < paywalls[j].TxNotBefore
+	})
+
+	// Check for payments that were missed by paywall polling
+	newCredits := make([]database.ProposalCredit, 0, len(payments))
+	for i, payment := range payments {
+		// Check if the first payment transaction corresponds
+		// to a user registration payment. A user registration
+		// payment may not exist if the registration paywall
+		// was cleared by an admin.
+		if i == 0 && payment.TxID == user.NewUserPaywallTx {
+			continue
+		}
+
+		// Check for credits that correspond to the payment.
+		// If a credit is found it means that this payment
+		// was not missed by paywall polling and we can
+		// continue onto the next payment.
+		var found bool
+		for _, credit := range user.SpentProposalCredits {
+			if credit.TxID == payment.TxID {
+				found = true
+				break
+			}
+		}
+		if found {
+			continue
+		}
+
+		for _, credit := range user.UnspentProposalCredits {
+			if credit.TxID == payment.TxID {
+				found = true
+				break
+			}
+		}
+		if found {
+			continue
+		}
+
+		// Credits were not found for this payment which means
+		// that it was missed by paywall polling. Create new
+		// credits using the paywall details that correspond
+		// to the payment timestamp. If a paywall had not yet
+		// been issued, use the current proposal credit price.
+		var pp database.ProposalPaywall
+		for _, paywall := range paywalls {
+			if payment.Timestamp < paywall.TxNotBefore {
+				continue
+			}
+			if payment.Timestamp > paywall.TxNotBefore {
+				// Corresponding paywall found
+				pp = paywall
+				break
+			}
+		}
+
+		if pp == (database.ProposalPaywall{}) {
+			// Paywall not found. This means the tx occurred before
+			// any paywalls were issued. Use current credit price.
+			pp.CreditPrice = b.cfg.PaywallAmount
+		}
+
+		// Don't add credits if the paywall is in the paywall pool
+		if pp.TxID == "" && !paywallHasExpired(pp.PollExpiry) {
+			continue
+		}
+
+		// Ensure payment has minimum number of confirmations
+		if payment.Confirmations < b.cfg.MinConfirmationsRequired {
+			continue
+		}
+
+		// Create proposal credits
+		numCredits := payment.Amount / pp.CreditPrice
+		c := make([]database.ProposalCredit, numCredits)
+		for i := uint64(0); i < numCredits; i++ {
+			c[i] = database.ProposalCredit{
+				PaywallID:     pp.ID,
+				Price:         pp.CreditPrice,
+				DatePurchased: time.Now().Unix(),
+				TxID:          payment.TxID,
+			}
+		}
+		newCredits = append(newCredits, c...)
+	}
+
+	// Update user record
+	// We relookup the user record here in case the user has spent
+	// proposal credits since the start of this request. Failure to
+	// relookup the user record here could result in adding proposal
+	// credits to the user's account that have already been spent.
+	user, err = b.db.UserGet(user.Email)
+	if err != nil {
+		return nil, fmt.Errorf("UserGet %v", err)
+	}
+
+	user.UnspentProposalCredits = append(user.UnspentProposalCredits,
+		newCredits...)
+
+	err = b.db.UserUpdate(*user)
+	if err != nil {
+		return nil, fmt.Errorf("UserUpdate %v", err)
+	}
+
+	// Convert database credits to www credits
+	newCreditsWWW := make([]v1.ProposalCredit, len(newCredits))
+	for i, credit := range newCredits {
+		newCreditsWWW[i] = convertWWWPropCreditFromDatabasePropCredit(credit)
+	}
+
+	return &v1.UserPaymentsRescanReply{
+		NewCredits: newCreditsWWW,
+	}, nil
 }
