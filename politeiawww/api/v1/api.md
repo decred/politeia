@@ -102,6 +102,7 @@ API.  It does not render HTML.
 - [`ErrorStatusVoteNotAuthorized`](#ErrorStatusVoteNotAuthorized)
 - [`ErrorStatusVoteAlreadyAuthorized`](#ErrorStatusVoteAlreadyAuthorized)
 - [`ErrorStatusInvalidAuthVoteAction`](#ErrorStatusInvalidAuthVoteAction)
+- [`ErrorStatusUserDeactivated`](#ErrorStatusUserDeactivated)
 
 **Proposal status codes**
 
@@ -382,6 +383,7 @@ On failure the call shall return `401 Unauthorized` and one of the following
 error codes:
 - [`ErrorStatusInvalidEmailOrPassword`](#ErrorStatusInvalidEmailOrPassword)
 - [`ErrorStatusUserLocked`](#ErrorStatusUserLocked)
+- [`ErrorStatusUserDeactivated`](#ErrorStatusUserDeactivated)
 
 **Example**
 
@@ -2363,7 +2365,8 @@ Reply:
 | <a name="ErrorStatusUserNotAuthor">ErrorStatusUserNotAuthor</a> | 48 | User is not the proposal author. |
 | <a name="ErrorStatusVoteNotAuthorized">ErrorStatusVoteNotAuthorized</a> | 49 | Vote has not been authorized. |
 | <a name="ErrorStatusVoteAlreadyAuthorized">ErrorStatusVoteAlreadyAuthorized</a> | 50 | Vote has already been authorized. |
-| <a name="ErrorStatusInvalidAuthVoteAction">ErrorStatusInvalidAuthVoteAction</a> | 50 | Invalid authorize vote action. |
+| <a name="ErrorStatusInvalidAuthVoteAction">ErrorStatusInvalidAuthVoteAction</a> | 51 | Invalid authorize vote action. |
+| <a name="ErrorStatusUserDeactivated">ErrorStatusUserDeactivated</a> | 52 | Cannot login because user account is deactivated. |
 
 
 ### Proposal status codes
@@ -2387,7 +2390,8 @@ Reply:
 | <a name="UserEditExpireResetPasswordVerification">UserEditExpireResetPasswordVerification</a> | 3 | Expires the reset password verification token. |
 | <a name="UserEditClearUserPaywall">UserEditClearUserPaywall</a> | 4 | Clears the user's paywall. |
 | <a name="UserEditUnlock">UserEditUnlock</a> | 5 | Unlocks a user's account. |
-| <a name="UserEditLock">UserEditLock</a> | 6 | Locks a user's account. |
+| <a name="UserEditDeactivate">UserEditDeactivate</a> | 6 | Deactivates a user's account so that they are unable to login. |
+| <a name="UserEditReactivate">UserEditReactivate</a> | 7 | Reactivates a user's account. |
 
 ### `User`
 
@@ -2411,6 +2415,7 @@ Reply:
 | lastlogintime | int64 | The UNIX timestamp of the last login date; it will be 0 if the user has not logged in before. |
 | failedloginattempts | uint64 | The number of consecutive failed login attempts. |
 | islocked | boolean | Whether the user account is locked due to too many failed login attempts. |
+| isdeactivated | boolean | Whether the user account is deactivated. Deactivated accounts cannot login. |
 | identities | array of [`Identity`](#identity)s | Identities, both activated and deactivated, of the user. |
 | proposals | array of [`Proposal`](#proposal)s | Proposal submitted by the user. |
 | proposalcredits | uint64 | The number of available proposal credits the user has. |
