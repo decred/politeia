@@ -163,6 +163,7 @@ const (
 	ErrorStatusVoteNotAuthorized           ErrorStatusT = 49
 	ErrorStatusVoteAlreadyAuthorized       ErrorStatusT = 50
 	ErrorStatusInvalidAuthVoteAction       ErrorStatusT = 51
+	ErrorStatusUserDeactivated             ErrorStatusT = 52
 
 	// Proposal status codes (set and get)
 	PropStatusInvalid           PropStatusT = 0 // Invalid status
@@ -188,7 +189,8 @@ const (
 	UserEditExpireResetPasswordVerification UserEditActionT = 3
 	UserEditClearUserPaywall                UserEditActionT = 4
 	UserEditUnlock                          UserEditActionT = 5
-	UserEditLock                            UserEditActionT = 6
+	UserEditDeactivate                      UserEditActionT = 6
+	UserEditReactivate                      UserEditActionT = 7
 
 	// Authorize vote actions
 	AuthVoteActionAuthorize = "authorize" // Authorize a proposal vote
@@ -298,7 +300,8 @@ var (
 		UserEditExpireResetPasswordVerification: "expire reset password verification",
 		UserEditClearUserPaywall:                "clear user paywall",
 		UserEditUnlock:                          "unlock user",
-		UserEditLock:                            "lock user",
+		UserEditDeactivate:                      "deactivate user",
+		UserEditReactivate:                      "reactivate user",
 	}
 )
 
@@ -1016,6 +1019,7 @@ type User struct {
 	ResetPasswordVerificationExpiry int64            `json:"resetpasswordverificationexpiry"`
 	LastLoginTime                   int64            `json:"lastlogintime"`
 	FailedLoginAttempts             uint64           `json:"failedloginattempts"`
+	Deactivated                     bool             `json:"isdeactivated"`
 	Locked                          bool             `json:"islocked"`
 	Identities                      []UserIdentity   `json:"identities"`
 	Proposals                       []ProposalRecord `json:"proposals"`
