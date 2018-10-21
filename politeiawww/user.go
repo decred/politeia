@@ -27,6 +27,7 @@ func convertWWWUserFromDatabaseUser(user *database.User) v1.User {
 		ResetPasswordVerificationExpiry: user.ResetPasswordVerificationExpiry,
 		LastLoginTime:                   user.LastLoginTime,
 		FailedLoginAttempts:             user.FailedLoginAttempts,
+		Deactivated:                     user.Deactivated,
 		Locked:                          checkUserIsLocked(user.FailedLoginAttempts),
 		Identities:                      convertWWWIdentitiesFromDatabaseIdentities(user.Identities),
 		ProposalCredits:                 ProposalCreditBalance(user),

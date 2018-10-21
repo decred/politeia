@@ -360,6 +360,18 @@ func (b *backend) login(l *www.Login) loginReplyWithError {
 		}
 	}
 
+	// Check if the user account is deactivated.
+	if user.Deactivated {
+		log.Debugf("Login failure for %v: user deactivated",
+			l.Email)
+		return loginReplyWithError{
+			reply: nil,
+			err: www.UserError{
+				ErrorCode: www.ErrorStatusUserDeactivated,
+			},
+		}
+	}
+
 	// Check if user is locked due to too many login attempts
 	if checkUserIsLocked(user.FailedLoginAttempts) {
 		log.Debugf("Login failure for %v: user locked",

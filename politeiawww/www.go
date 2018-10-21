@@ -94,14 +94,26 @@ func (p *politeiawww) getSessionEmail(r *http.Request) (string, error) {
 }
 
 // getSessionUser retrieves the current session user from the database.
-func (p *politeiawww) getSessionUser(r *http.Request) (*database.User, error) {
+func (p *politeiawww) getSessionUser(w http.ResponseWriter, r *http.Request) (*database.User, error) {
 	log.Tracef("getSessionUser")
 	email, err := p.getSessionEmail(r)
 	if err != nil {
 		return nil, err
 	}
 
-	return p.backend.db.UserGet(email)
+	user, err := p.backend.db.UserGet(email)
+	if err != nil {
+		return nil, err
+	}
+
+	if user.Deactivated {
+		p.removeSession(w, r)
+		return nil, v1.UserError{
+			ErrorCode: v1.ErrorStatusNotLoggedIn,
+		}
+	}
+
+	return user, nil
 }
 
 // setSessionUser sets the "email" session key to the provided value.
@@ -136,8 +148,8 @@ func (p *politeiawww) removeSession(w http.ResponseWriter, r *http.Request) erro
 }
 
 // isAdmin returns true if the current session has admin privileges.
-func (p *politeiawww) isAdmin(r *http.Request) (bool, error) {
-	user, err := p.getSessionUser(r)
+func (p *politeiawww) isAdmin(w http.ResponseWriter, r *http.Request) (bool, error) {
+	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		return false, err
 	}
@@ -390,7 +402,7 @@ func (p *politeiawww) handleUpdateUserKey(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	user, err := p.getSessionUser(r)
+	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleUpdateUserKey: getSessionUser %v", err)
@@ -423,7 +435,7 @@ func (p *politeiawww) handleVerifyUpdateUserKey(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	user, err := p.getSessionUser(r)
+	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleVerifyUpdateUserKey: getSessionUser %v", err)
@@ -480,7 +492,7 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleLogout")
 
-	_, err := p.getSessionUser(r)
+	_, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0, "handleLogout: getSessionUser", v1.UserError{
 			ErrorCode: v1.ErrorStatusNotLoggedIn,
@@ -511,7 +523,7 @@ func (p *politeiawww) handleSecret(w http.ResponseWriter, r *http.Request) {
 func (p *politeiawww) handleMe(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleMe")
 
-	user, err := p.getSessionUser(r)
+	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleMe: getSessionUser %v", err)
@@ -544,7 +556,7 @@ func (p *politeiawww) handleChangeUsername(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	user, err := p.getSessionUser(r)
+	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleChangeUsername: getSessionUser %v", err)
@@ -575,7 +587,7 @@ func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	user, err := p.getSessionUser(r)
+	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleChangePassword: getSessionUser %v", err)
@@ -659,7 +671,7 @@ func (p *politeiawww) handleNewProposalAccessTime(w http.ResponseWriter, r *http
 func (p *politeiawww) handleProposalPaywallDetails(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleProposalPaywallDetails")
 
-	user, err := p.getSessionUser(r)
+	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleProposalPaywallDetails: getSessionUser %v", err)
@@ -681,7 +693,7 @@ func (p *politeiawww) handleProposalPaywallDetails(w http.ResponseWriter, r *htt
 func (p *politeiawww) handleProposalPaywallPayment(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleProposalPaywallPayment")
 
-	user, err := p.getSessionUser(r)
+	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleProposalPaywallPayment: getSessionUser %v", err)
@@ -711,7 +723,7 @@ func (p *politeiawww) handleNewProposal(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	user, err := p.getSessionUser(r)
+	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleNewProposal: getSessionUser %v", err)
@@ -743,7 +755,7 @@ func (p *politeiawww) handleSetProposalStatus(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	user, err := p.getSessionUser(r)
+	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleSetProposalStatus: getSessionUser %v", err)
@@ -771,7 +783,7 @@ func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Reque
 	var pd v1.ProposalsDetails
 	pd.Token = pathParams["token"]
 
-	user, err := p.getSessionUser(r)
+	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		if err != database.ErrUserNotFound {
 			RespondWithError(w, r, 0,
@@ -867,7 +879,7 @@ func (p *politeiawww) handleNewComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := p.getSessionUser(r)
+	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleNewComment: getSessionUser %v", err)
@@ -898,7 +910,7 @@ func (p *politeiawww) handleLikeComment(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	user, err := p.getSessionUser(r)
+	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleLikeComment: getSessionUser %v", err)
@@ -929,7 +941,7 @@ func (p *politeiawww) handleCensorComment(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	user, err := p.getSessionUser(r)
+	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleCensorComment: getSessionUser %v", err)
@@ -978,7 +990,7 @@ func (p *politeiawww) handleVerifyUserPayment(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	user, err := p.getSessionUser(r)
+	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleVerifyUserPayment: getSessionUser %v", err)
@@ -1000,7 +1012,7 @@ func (p *politeiawww) handleVerifyUserPayment(w http.ResponseWriter, r *http.Req
 func (p *politeiawww) handleUserProposalCredits(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleUserProposalCredits")
 
-	user, err := p.getSessionUser(r)
+	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleUserProposalCredits: getSessionUser %v", err)
@@ -1067,7 +1079,7 @@ func (p *politeiawww) handleUserProposals(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	user, err := p.getSessionUser(r)
+	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		// since having a logged in user isn't required, simply log the error
 		log.Infof("handleUserDetails: could not get session user %v", err)
@@ -1152,7 +1164,7 @@ func (p *politeiawww) handleAuthorizeVote(w http.ResponseWriter, r *http.Request
 		})
 		return
 	}
-	user, err := p.getSessionUser(r)
+	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleStartVote: getSessionUser %v", err)
@@ -1180,7 +1192,7 @@ func (p *politeiawww) handleStartVote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := p.getSessionUser(r)
+	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleStartVote: getSessionUser %v", err)
@@ -1221,7 +1233,7 @@ func (p *politeiawww) handleUserDetails(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	user, err := p.getSessionUser(r)
+	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		// since having a logged in user isn't required, simply log the error
 		log.Infof("handleUserDetails: could not get session user %v", err)
@@ -1279,7 +1291,7 @@ func (p *politeiawww) handleEditUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	adminUser, err := p.getSessionUser(r)
+	adminUser, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0, "handleEditUser: getSessionUser %v", err)
 		return
@@ -1325,7 +1337,7 @@ func (p *politeiawww) handleUserCommentsVotes(w http.ResponseWriter, r *http.Req
 	pathParams := mux.Vars(r)
 	token := pathParams["token"]
 
-	user, err := p.getSessionUser(r)
+	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleUserCommentsVotes: getSessionUser %v", err)
@@ -1356,7 +1368,7 @@ func (p *politeiawww) handleEditProposal(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	user, err := p.getSessionUser(r)
+	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleEditProposal: getSessionUser %v", err)

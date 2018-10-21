@@ -22,7 +22,8 @@ func (cmd *EditUserCmd) Execute(args []string) error {
 		"expireresetpassword": 3,
 		"clearpaywall":        4,
 		"unlock":              5,
-		"lock":                6,
+		"deactivate":          6,
+		"reactivate":          7,
 	}
 
 	// Parse edit user action.  This can be either the numeric
@@ -42,7 +43,8 @@ func (cmd *EditUserCmd) Execute(args []string) error {
 			"expireresetpassword   expires reset password verification\n  " +
 			"clearpaywall          clears user registration paywall\n  " +
 			"unlock                unlocks user account from failed logins\n  " +
-			"lock                  locks user account")
+			"deactivate            deactivates user account\n  " +
+			"reactivate            reactivates user account")
 	}
 
 	// Setup request
