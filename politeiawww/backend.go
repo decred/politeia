@@ -2249,6 +2249,9 @@ func (b *backend) ProcessComment(c www.NewComment, user *database.User) (*www.Ne
 	// Note this call takes the read lock.
 	ncrWWW := b.convertDecredNewCommentReplyToWWWNewCommentReply(*ncr)
 
+	// set author username
+	ncrWWW.Comment.Username = b.getUsernameById(ncrWWW.Comment.UserID)
+
 	err = b.setRecordComment(ncrWWW.Comment)
 	if err != nil {
 		return nil, fmt.Errorf("setRecordComment %v", err)

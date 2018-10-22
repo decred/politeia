@@ -1455,6 +1455,7 @@ proposal"; if the value is not empty it means "reply to comment".
 | | Type | Description |
 | - | - | - |
 | userid | string | Unique user identifier |
+| username | string | Unique username |
 | timestamp | int64 | UNIX time when comment was accepted |
 | commentid | string | Unique comment identifier |
 | parentid | string | Parent comment identifier |
@@ -1499,6 +1500,7 @@ Reply:
   "timestamp": 1527277504,
   "token": "abf0fd1fc1b8c1c9535685373dce6c54948b7eb018e17e3a8cea26a3c9b85684",
   "userid": "124",
+  "username": "john",
   "totalvotes": 0,
   "resultvotes": 0
 }
@@ -1524,6 +1526,7 @@ sorted.
 | | Type | Description |
 | - | - | - |
 | userid | string | Unique user identifier |
+| username | string | Unique username |
 | timestamp | int64 | UNIX time when comment was accepted |
 | commentid | string | Unique comment identifier |
 | parentid | string | Parent comment identifier |
@@ -1559,6 +1562,7 @@ Reply:
     "timestamp": 1527277504,
     "token": "abf0fd1fc1b8c1c9535685373dce6c54948b7eb018e17e3a8cea26a3c9b85684",
     "userid": "124",
+    "username": "john",
     "totalvotes": 4,
     "resultvotes": 3
   },{
@@ -1571,6 +1575,7 @@ Reply:
     "timestamp": 1527277504,
     "token": "abf0fd1fc1b8c1c9535685373dce6c54948b7eb018e17e3a8cea26a3c9b85684",
     "userid": "124",
+    "username": "john",
     "totalvotes": 4,
     "resultvotes": 3
   },{
@@ -1583,6 +1588,7 @@ Reply:
     "timestamp": 1527277504,
     "token": "abf0fd1fc1b8c1c9535685373dce6c54948b7eb018e17e3a8cea26a3c9b85684",
     "userid": "124",
+    "username": "john",
     "totalvotes": 4,
     "resultvotes": 3
   }]
