@@ -54,7 +54,6 @@ const (
 	RouteCastVotes              = "/proposals/castvotes"
 	RouteUserCommentsVotes      = "/user/proposals/{token:[A-z0-9]{64}}/commentsvotes"
 	RouteVoteResults            = "/proposals/{token:[A-z0-9]{64}}/votes"
-	RouteUsernamesById          = "/usernames"
 	RouteAllVoteStatus          = "/proposals/votestatus"
 	RouteVoteStatus             = "/proposals/{token:[A-z0-9]{64}}/votestatus"
 	RoutePropsStats             = "/proposals/stats"
@@ -922,17 +921,6 @@ type CensorComment struct {
 // censored.
 type CensorCommentReply struct {
 	Receipt string `json:"receipt"` // Server signature of client signature
-}
-
-// UsernamesById is a command to fetch all usernames by their ids.
-type UsernamesById struct {
-	UserIds []string `json:"userids"`
-}
-
-// UsernamesByIdReply is a reply with all the usernames that correspond
-// to the given ids.
-type UsernamesByIdReply struct {
-	Usernames []string `json:"usernames"`
 }
 
 // CommentVote describes the voting action an user has given

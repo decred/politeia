@@ -45,7 +45,6 @@ API.  It does not render HTML.
 - [`Proposal vote status`](#proposal-vote-status)
 - [`Proposals vote status`](#proposals-vote-status)
 - [`Vote results`](#vote-results)
-- [`Usernames by id`](#usernames-by-id)
 - [`User Comments votes`](#user-comments-votes)
 - [`Proposals Stats`](#proposals-stats)
 
@@ -2197,44 +2196,6 @@ Reply:
          "totalvotes":0
       }
    ]
-}
-```
-
-
-
-### `Usernames by id`
-
-Retrieve usernames given an array of user ids.
-
-**Route:** `POST /v1/usernames`
-
-**Params:**
-
-| Parameter | Type | Description | Required |
-|-|-|-|-|
-| userids | array of strings | User ids | Yes |
-
-**Results:**
-
-| | Type | Description |
-|-|-|-|
-| usernames | array of strings  | Array of usernames, in the same order of the provided user ids |
-
-**Example**
-
-Request:
-
-``` json
-{
-  "userids": ["0"]
-}
-```
-
-Reply:
-
-```json
-{
-  "usernames": ["foobar"]
 }
 ```
 

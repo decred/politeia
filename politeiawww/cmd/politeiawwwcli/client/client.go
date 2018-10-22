@@ -871,28 +871,6 @@ func (c *Client) VerifyUserPayment() (*v1.VerifyUserPaymentReply, error) {
 	return &vupr, nil
 }
 
-func (c *Client) UsernamesByID(ubi *v1.UsernamesById) (*v1.UsernamesByIdReply, error) {
-	responseBody, err := c.makeRequest("POST", v1.RouteUsernamesById, ubi)
-	if err != nil {
-		return nil, err
-	}
-
-	var ubir v1.UsernamesByIdReply
-	err = json.Unmarshal(responseBody, &ubir)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal UsernamesByIdReply: %v", err)
-	}
-
-	if c.cfg.Verbose {
-		err := PrettyPrintJSON(ubir)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &ubir, nil
-}
-
 func (c *Client) ProposalVotes(token string) (*v1.VoteResultsReply, error) {
 	responseBody, err := c.makeRequest("GET", "/proposals/"+token+"/votes", nil)
 	if err != nil {

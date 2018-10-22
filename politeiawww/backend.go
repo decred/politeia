@@ -2963,31 +2963,6 @@ func (b *backend) ProcessVoteStatus(token string) (*www.VoteStatusReply, error) 
 	}, nil
 }
 
-// ProcessUsernamesById returns the corresponding usernames for all given user
-// ids.
-func (b *backend) ProcessUsernamesById(ubi www.UsernamesById) *www.UsernamesByIdReply {
-	var usernames []string
-	for _, userIdStr := range ubi.UserIds {
-		userId, err := uuid.Parse(userIdStr)
-		if err != nil {
-			usernames = append(usernames, "")
-			continue
-		}
-
-		user, err := b.db.UserGetById(userId)
-		if err != nil {
-			usernames = append(usernames, "")
-			continue
-		}
-
-		usernames = append(usernames, user.Username)
-	}
-
-	return &www.UsernamesByIdReply{
-		Usernames: usernames,
-	}
-}
-
 // ProcessUserCommentsVotes returns the votes an user has for the comments of a given proposal
 func (b *backend) ProcessUserCommentsVotes(user *database.User, token string) (*www.UserCommentsVotesReply, error) {
 	log.Tracef("ProcessUserCommentsVotes")
