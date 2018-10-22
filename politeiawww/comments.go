@@ -116,7 +116,20 @@ func (b *backend) getComments(token string) (*www.GetCommentsReply, error) {
 	gcr := &www.GetCommentsReply{
 		Comments: make([]www.Comment, 0, len(c.comments)),
 	}
+
+	// create a map to cache found usernames so it doesn't query
+	// the database for every comment
+	usernameByID := map[string]string{}
+
 	for _, v := range c.comments {
+
+		if username, ok := usernameByID[v.UserID]; ok && username != "" {
+			v.Username = username
+		} else {
+			v.Username = b.getUsernameById(v.UserID)
+			usernameByID[v.UserID] = username
+		}
+
 		gcr.Comments = append(gcr.Comments, v)
 	}
 
