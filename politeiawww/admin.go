@@ -202,12 +202,12 @@ func (b *backend) ProcessUserPaymentsRescan(upr v1.UserPaymentsRescan) (*v1.User
 
 	// Check for payments that were missed by paywall polling
 	newCredits := make([]database.ProposalCredit, 0, len(payments))
-	for i, payment := range payments {
-		// Check if the first payment transaction corresponds
-		// to a user registration payment. A user registration
+	for _, payment := range payments {
+		// Check if the payment transaction corresponds to
+		// a user registration payment. A user registration
 		// payment may not exist if the registration paywall
 		// was cleared by an admin.
-		if i == 0 && payment.TxID == user.NewUserPaywallTx {
+		if payment.TxID == user.NewUserPaywallTx {
 			continue
 		}
 

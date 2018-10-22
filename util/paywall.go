@@ -158,7 +158,7 @@ func blockExplorerURLForAddress(address string, netParams *chaincfg.Params) (str
 		insight = insightMainnet + "/addr/" + address
 	case &chaincfg.TestNet3Params:
 		dcrdata = dcrdataTestnet + "/address/" + address
-		insight = insightTestnet + "/api/addr/" + address
+		insight = insightTestnet + "/addr/" + address
 	default:
 		return "", "", fmt.Errorf("unsupported network %v",
 			getNetworkName(netParams))
@@ -460,7 +460,7 @@ func FetchTxsForAddress(address string) ([]TxDetails, error) {
 		return nil, err
 	}
 	primaryURL := dcrdataURL + "/raw"
-	backupURL := insightURL + "/utxo?noCache=10"
+	backupURL := insightURL + "/utxo?noCache=1"
 
 	// Try the primary (dcrdata)
 	primaryTxs, err := fetchTxsWithPrimaryBE(primaryURL)
