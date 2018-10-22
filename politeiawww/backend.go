@@ -2757,6 +2757,27 @@ func (b *backend) ProcessAuthorizeVote(av www.AuthorizeVote, user *database.User
 	return &avrWWW, nil
 }
 
+func validateVoteBit(vote www.Vote, bit uint64) error {
+	if len(vote.Options) == 0 {
+		return fmt.Errorf("vote corrupt")
+	}
+	if bit == 0 {
+		return fmt.Errorf("invalid bit 0x%x", bit)
+	}
+	if vote.Mask&bit != bit {
+		return fmt.Errorf("invalid mask 0x%x bit 0x%x",
+			vote.Mask, bit)
+	}
+
+	for _, v := range vote.Options {
+		if v.Bits == bit {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("bit not found 0x%x", bit)
+}
+
 func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.StartVoteReply, error) {
 	log.Tracef("ProcessStartVote %v", sv.Vote.Token)
 
@@ -2767,7 +2788,24 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 		return nil, err
 	}
 
-	// XXX validate vote bits
+	// Validate vote bits
+	for _, v := range sv.Vote.Options {
+		err = validateVoteBit(sv.Vote, v.Bits)
+		if err != nil {
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusInvalidPropVoteBits,
+			}
+		}
+	}
+
+	// Validate vote parameters
+	if sv.Vote.Duration < b.cfg.VoteDurationMin ||
+		sv.Vote.Duration > b.cfg.VoteDurationMax ||
+		sv.Vote.QuorumPercentage > 100 || sv.Vote.PassPercentage > 100 {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidPropVoteParams,
+		}
+	}
 
 	// Create vote bits as plugin payload
 	dsv := convertStartVoteFromWWW(sv)
@@ -2790,8 +2828,8 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 		}
 	}
 
-	// Ensure record is public and that the author has
-	// authorized a vote
+	// Ensure record is public, vote has been authorized,
+	// and vote has not already started.
 	if ir.record.Status != pd.RecordStatusPublic {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusWrongStatus,
@@ -2800,6 +2838,11 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 	if !voteIsAuthorized(ir) {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusVoteNotAuthorized,
+		}
+	}
+	if ir.voting.StartBlockHeight != "" {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusWrongVoteStatus,
 		}
 	}
 
@@ -2885,7 +2928,8 @@ func (b *backend) ProcessVoteResults(token string) (*www.VoteResultsReply, error
 
 // ProcessGetAllVoteStatus returns the vote status of all public proposals
 func (b *backend) ProcessGetAllVoteStatus() (*www.GetAllVoteStatusReply, error) {
-	log.Infof("ProcessGetAllVoteStatus")
+	log.Tracef("ProcessGetAllVoteStatus")
+
 	// We need to determine best block height here in order to set
 	// the voting status
 	bestBlock, err := b.getBestBlock()
@@ -2927,7 +2971,7 @@ func (b *backend) ProcessGetAllVoteStatus() (*www.GetAllVoteStatusReply, error) 
 
 // ProcessVoteStatus returns the vote status for a given proposal
 func (b *backend) ProcessVoteStatus(token string) (*www.VoteStatusReply, error) {
-	log.Infof("ProcessProposalVotingStatus")
+	log.Tracef("ProcessProposalVotingStatus")
 
 	ir, err := b.getInventoryRecord(token)
 	if err != nil {
@@ -3397,7 +3441,7 @@ func voteIsAuthorized(ir inventoryRecord) bool {
 }
 
 func getVoteStatus(ir inventoryRecord, bestBlock uint64) www.PropVoteStatusT {
-	if len(ir.voting.StartBlockHeight) == 0 {
+	if ir.voting.StartBlockHeight == "" {
 		if voteIsAuthorized(ir) {
 			return www.PropVoteStatusAuthorized
 		} else {
