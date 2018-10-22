@@ -2249,6 +2249,9 @@ func (b *backend) ProcessComment(c www.NewComment, user *database.User) (*www.Ne
 	// Note this call takes the read lock.
 	ncrWWW := b.convertDecredNewCommentReplyToWWWNewCommentReply(*ncr)
 
+	// set author username
+	ncrWWW.Comment.Username = b.getUsernameById(ncrWWW.Comment.UserID)
+
 	err = b.setRecordComment(ncrWWW.Comment)
 	if err != nil {
 		return nil, fmt.Errorf("setRecordComment %v", err)
@@ -2958,31 +2961,6 @@ func (b *backend) ProcessVoteStatus(token string) (*www.VoteStatusReply, error) 
 		OptionsResult: convertVoteResultsFromDecredplugin(*vrr),
 		EndHeight:     ir.voting.EndHeight,
 	}, nil
-}
-
-// ProcessUsernamesById returns the corresponding usernames for all given user
-// ids.
-func (b *backend) ProcessUsernamesById(ubi www.UsernamesById) *www.UsernamesByIdReply {
-	var usernames []string
-	for _, userIdStr := range ubi.UserIds {
-		userId, err := uuid.Parse(userIdStr)
-		if err != nil {
-			usernames = append(usernames, "")
-			continue
-		}
-
-		user, err := b.db.UserGetById(userId)
-		if err != nil {
-			usernames = append(usernames, "")
-			continue
-		}
-
-		usernames = append(usernames, user.Username)
-	}
-
-	return &www.UsernamesByIdReply{
-		Usernames: usernames,
-	}
 }
 
 // ProcessUserCommentsVotes returns the votes an user has for the comments of a given proposal

@@ -45,7 +45,6 @@ API.  It does not render HTML.
 - [`Proposal vote status`](#proposal-vote-status)
 - [`Proposals vote status`](#proposals-vote-status)
 - [`Vote results`](#vote-results)
-- [`Usernames by id`](#usernames-by-id)
 - [`User Comments votes`](#user-comments-votes)
 - [`Proposals Stats`](#proposals-stats)
 
@@ -1455,6 +1454,7 @@ proposal"; if the value is not empty it means "reply to comment".
 | | Type | Description |
 | - | - | - |
 | userid | string | Unique user identifier |
+| username | string | Unique username |
 | timestamp | int64 | UNIX time when comment was accepted |
 | commentid | string | Unique comment identifier |
 | parentid | string | Parent comment identifier |
@@ -1499,6 +1499,7 @@ Reply:
   "timestamp": 1527277504,
   "token": "abf0fd1fc1b8c1c9535685373dce6c54948b7eb018e17e3a8cea26a3c9b85684",
   "userid": "124",
+  "username": "john",
   "totalvotes": 0,
   "resultvotes": 0
 }
@@ -1524,6 +1525,7 @@ sorted.
 | | Type | Description |
 | - | - | - |
 | userid | string | Unique user identifier |
+| username | string | Unique username |
 | timestamp | int64 | UNIX time when comment was accepted |
 | commentid | string | Unique comment identifier |
 | parentid | string | Parent comment identifier |
@@ -1559,6 +1561,7 @@ Reply:
     "timestamp": 1527277504,
     "token": "abf0fd1fc1b8c1c9535685373dce6c54948b7eb018e17e3a8cea26a3c9b85684",
     "userid": "124",
+    "username": "john",
     "totalvotes": 4,
     "resultvotes": 3
   },{
@@ -1571,6 +1574,7 @@ Reply:
     "timestamp": 1527277504,
     "token": "abf0fd1fc1b8c1c9535685373dce6c54948b7eb018e17e3a8cea26a3c9b85684",
     "userid": "124",
+    "username": "john",
     "totalvotes": 4,
     "resultvotes": 3
   },{
@@ -1583,6 +1587,7 @@ Reply:
     "timestamp": 1527277504,
     "token": "abf0fd1fc1b8c1c9535685373dce6c54948b7eb018e17e3a8cea26a3c9b85684",
     "userid": "124",
+    "username": "john",
     "totalvotes": 4,
     "resultvotes": 3
   }]
@@ -2191,44 +2196,6 @@ Reply:
          "totalvotes":0
       }
    ]
-}
-```
-
-
-
-### `Usernames by id`
-
-Retrieve usernames given an array of user ids.
-
-**Route:** `POST /v1/usernames`
-
-**Params:**
-
-| Parameter | Type | Description | Required |
-|-|-|-|-|
-| userids | array of strings | User ids | Yes |
-
-**Results:**
-
-| | Type | Description |
-|-|-|-|
-| usernames | array of strings  | Array of usernames, in the same order of the provided user ids |
-
-**Example**
-
-Request:
-
-``` json
-{
-  "userids": ["0"]
-}
-```
-
-Reply:
-
-```json
-{
-  "usernames": ["foobar"]
 }
 ```
 
