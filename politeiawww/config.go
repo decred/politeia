@@ -621,22 +621,6 @@ func loadConfig() (*config, []string, error) {
 		log.Warnf("%v", configFileError)
 	}
 
-	newUserTplData := newUserEmailTemplateData{
-		Email: "test@example.com",
-		Link:  "http://www.example.com",
-	}
-	if err := templateNewUserEmail.Execute(os.Stdout, &newUserTplData); err != nil {
-		return nil, nil, err
-	}
-
-	resetPasswordTplData := resetPasswordEmailTemplateData{
-		Email: "test@example.com",
-		Link:  "http://www.example.com",
-	}
-	if err := templateResetPasswordEmail.Execute(os.Stdout, &resetPasswordTplData); err != nil {
-		return nil, nil, err
-	}
-
 	// Parse the extended public key if the paywall is enabled.
 	if cfg.PaywallAmount != 0 || cfg.PaywallXpub != "" {
 		if cfg.PaywallAmount < dust {

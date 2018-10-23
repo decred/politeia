@@ -5,6 +5,8 @@
 package main
 
 const templateNewUserEmailRaw = `
+Thanks for joining Politeia, {{.Username}}!
+
 Click the link below to verify your email and complete your registration:
 
 {{.Link}}
