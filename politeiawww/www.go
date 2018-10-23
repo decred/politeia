@@ -51,8 +51,9 @@ type politeiawww struct {
 }
 
 type newUserEmailTemplateData struct {
-	Link  string
-	Email string
+	Username string
+	Link     string
+	Email    string
 }
 type updateUserKeyEmailTemplateData struct {
 	Link      string

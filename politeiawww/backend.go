@@ -443,7 +443,7 @@ func (b *backend) removeUserPubkeyAssociaton(user *database.User, publicKey stri
 
 // emailNewUserVerificationLink emails the link with the new user verification token
 // if the email server is set up.
-func (b *backend) emailNewUserVerificationLink(email, token string) error {
+func (b *backend) emailNewUserVerificationLink(email, token, username string) error {
 	if b.cfg.SMTP == nil {
 		return nil
 	}
@@ -459,8 +459,9 @@ func (b *backend) emailNewUserVerificationLink(email, token string) error {
 
 	var buf bytes.Buffer
 	tplData := newUserEmailTemplateData{
-		Email: email,
-		Link:  l.String(),
+		Username: username,
+		Email:    email,
+		Link:     l.String(),
 	}
 	err = templateNewUserEmail.Execute(&buf, &tplData)
 	if err != nil {
@@ -1208,7 +1209,7 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 		// the new user won't be created.
 		//
 		// This is conditional on the email server being setup.
-		err := b.emailNewUserVerificationLink(u.Email, hex.EncodeToString(token))
+		err := b.emailNewUserVerificationLink(u.Email, hex.EncodeToString(token), u.Username)
 		if err != nil {
 			log.Errorf("Email new user verification link failed %v, %v", u.Email, err)
 			return &reply, nil
@@ -1425,7 +1426,7 @@ func (b *backend) ProcessResendVerification(rv *v1.ResendVerification) (*v1.Rese
 
 	if !b.test {
 		// This is conditional on the email server being setup.
-		err := b.emailNewUserVerificationLink(user.Email, hex.EncodeToString(token))
+		err := b.emailNewUserVerificationLink(user.Email, hex.EncodeToString(token), user.Username)
 		if err != nil {
 			return nil, err
 		}
