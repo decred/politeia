@@ -44,6 +44,9 @@ const (
 	defaultPaywallMinConfirmations = uint64(2)
 	defaultPaywallAmount           = uint64(0)
 
+	defaultVoteDurationMin = uint32(2016)
+	defaultVoteDurationMax = uint32(4032)
+
 	// dust value can be found increasing the amount value until we get false
 	// from IsDustAmount function. Amounts can not be lower than dust
 	// func IsDustAmount(amount int64, relayFeePerKb int64) bool {
@@ -112,6 +115,8 @@ type config struct {
 	PaywallAmount            uint64 `long:"paywallamount" description:"Amount of DCR (in atoms) required for a user to register or submit a proposal."`
 	PaywallXpub              string `long:"paywallxpub" description:"Extended public key for deriving paywall addresses."`
 	MinConfirmationsRequired uint64 `long:"minconfirmations" description:"Minimum blocks confirmation for accepting paywall as paid. Only works in TestNet."`
+	VoteDurationMin          uint32 `long:"votedurationmin" description:"Minimum duration of a proposal vote in blocks"`
+	VoteDurationMax          uint32 `long:"votedurationmax" description:"Maximum duration of a proposal vote in blocks"`
 	AdminLogFile             string
 }
 
@@ -346,6 +351,8 @@ func loadConfig() (*config, []string, error) {
 		PaywallAmount:            defaultPaywallAmount,
 		MinConfirmationsRequired: defaultPaywallMinConfirmations,
 		Version:                  version.String(),
+		VoteDurationMin:          defaultVoteDurationMin,
+		VoteDurationMax:          defaultVoteDurationMax,
 	}
 
 	// Service options which are only added on Windows.

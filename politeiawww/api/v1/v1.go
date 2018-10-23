@@ -164,6 +164,8 @@ const (
 	ErrorStatusVoteAlreadyAuthorized       ErrorStatusT = 50
 	ErrorStatusInvalidAuthVoteAction       ErrorStatusT = 51
 	ErrorStatusUserDeactivated             ErrorStatusT = 52
+	ErrorStatusInvalidPropVoteBits         ErrorStatusT = 53
+	ErrorStatusInvalidPropVoteParams       ErrorStatusT = 54
 
 	// Proposal status codes (set and get)
 	PropStatusInvalid           PropStatusT = 0 // Invalid status
@@ -270,6 +272,9 @@ var (
 		ErrorStatusVoteNotAuthorized:           "vote has not been authorized",
 		ErrorStatusVoteAlreadyAuthorized:       "vote has already been authorized",
 		ErrorStatusInvalidAuthVoteAction:       "invalid authorize vote action",
+		ErrorStatusUserDeactivated:             "user account is deactivated",
+		ErrorStatusInvalidPropVoteBits:         "invalid proposal vote option bits",
+		ErrorStatusInvalidPropVoteParams:       "invalid proposal vote parameters",
 	}
 
 	// PropStatus converts propsal status codes to human readable text
@@ -749,10 +754,12 @@ type VoteOption struct {
 
 // Vote represents the vote options for vote that is identified by its token.
 type Vote struct {
-	Token    string       `json:"token"`    // Token that identifies vote
-	Mask     uint64       `json:"mask"`     // Valid votebits
-	Duration uint32       `json:"duration"` // Duration in blocks
-	Options  []VoteOption `json:"options"`  //Vote options
+	Token            string       `json:"token"`            // Token that identifies vote
+	Mask             uint64       `json:"mask"`             // Valid votebits
+	Duration         uint32       `json:"duration"`         // Duration in blocks
+	QuorumPercentage uint32       `json:"quorumpercentage"` // Percent of eligible votes required for quorum
+	PassPercentage   uint32       `json:"passpercentage"`   // Percent of total votes required to pass
+	Options          []VoteOption `json:"options"`          // Vote options
 }
 
 // ActiveVote obtains all proposals that have active votes.

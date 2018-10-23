@@ -1712,12 +1712,14 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 		return "", fmt.Errorf("no eligble voters for %v", token)
 	}
 
-	// Make sure vote duration isn't too large. Assume < 2 weeks
+	// Make sure vote duration is within min/max range
 	// XXX calculate this value for testnet instead of using hard coded values.
-	if vote.Vote.Duration < 2016 || vote.Vote.Duration > 2016*2 {
+	if vote.Vote.Duration < decredplugin.VoteDurationMin ||
+		vote.Vote.Duration > decredplugin.VoteDurationMax {
 		// XXX return a user error instead of an internal error
 		return "", fmt.Errorf("invalid duration: %v (%v - %v)",
-			vote.Vote.Duration, 2016, 2016*2)
+			vote.Vote.Duration, decredplugin.VoteDurationMin,
+			decredplugin.VoteDurationMax)
 	}
 
 	svr := decredplugin.StartVoteReply{

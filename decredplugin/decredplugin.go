@@ -19,6 +19,9 @@ const (
 	MDStreamAuthorizeVote    = 13 // Vote authorization by proposal author
 	MDStreamVoteBits         = 14 // Vote bits and mask
 	MDStreamVoteSnapshot     = 15 // Vote tickets and start/end parameters
+
+	VoteDurationMin = 2016 // Minimum vote duration (in blocks)
+	VoteDurationMax = 4032 // Maximum vote duration (in blocks)
 )
 
 // CastVote is a signed vote.
@@ -106,10 +109,12 @@ type VoteOption struct {
 
 // Vote represents the vote options for vote that is identified by its token.
 type Vote struct {
-	Token    string       `json:"token"`    // Token that identifies vote
-	Mask     uint64       `json:"mask"`     // Valid votebits
-	Duration uint32       `json:"duration"` // Duration in blocks
-	Options  []VoteOption `json:"options"`  // Vote option
+	Token            string       `json:"token"`            // Token that identifies vote
+	Mask             uint64       `json:"mask"`             // Valid votebits
+	Duration         uint32       `json:"duration"`         // Duration in blocks
+	QuorumPercentage uint32       `json:"quorumpercentage"` // Percent of eligible votes required for quorum
+	PassPercentage   uint32       `json:"passpercentage"`   // Percent of total votes required to pass
+	Options          []VoteOption `json:"options"`          // Vote option
 }
 
 // EncodeVote encodes Vote into a JSON byte slice.
