@@ -101,8 +101,9 @@ type User struct {
 	NewUserPaywallTx                string    // Paywall transaction id
 	NewUserPaywallTxNotBefore       int64     // Transactions occurring before this time will not be valid.
 	NewUserPaywallPollExpiry        int64     // After this time, the user's paywall address will not be continuously polled
-	NewUserVerificationToken        []byte    // Verification token during signup
-	NewUserVerificationExpiry       int64     // Verification expiration
+	NewUserVerificationToken        []byte    // New user registration verification token
+	NewUserVerificationExpiry       int64     // New user registration verification expiration
+	ResendNewUserVerificationExpiry int64     // Resend request for new user registration verification expiration
 	UpdateKeyVerificationToken      []byte    // Verification token for updating keypair
 	UpdateKeyVerificationExpiry     int64     // Verification expiration
 	ResetPasswordVerificationToken  []byte    // Reset password token

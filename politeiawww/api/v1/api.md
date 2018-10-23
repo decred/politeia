@@ -104,6 +104,7 @@ API.  It does not render HTML.
 - [`ErrorStatusUserDeactivated`](#ErrorStatusUserDeactivated)
 - [`ErrorStatusInvalidPropVoteBits`](#ErrorStatusInvalidPropVoteBits)
 - [`ErrorStatusInvalidPropVoteParams`](#ErrorStatusInvalidPropVoteParams)
+- [`ErrorStatusEmailNotVerified`](#ErrorStatusEmailNotVerified)
 
 **Proposal status codes**
 
@@ -385,6 +386,7 @@ error codes:
 - [`ErrorStatusInvalidEmailOrPassword`](#ErrorStatusInvalidEmailOrPassword)
 - [`ErrorStatusUserLocked`](#ErrorStatusUserLocked)
 - [`ErrorStatusUserDeactivated`](#ErrorStatusUserDeactivated)
+- [`ErrorStatusEmailNotVerified`](#ErrorStatusEmailNotVerified)
 
 **Example**
 
@@ -2350,6 +2352,7 @@ Reply:
 | <a name="ErrorStatusUserDeactivated">ErrorStatusUserDeactivated</a> | 52 | Cannot login because user account is deactivated. |
 | <a name="ErrorStatusInvalidPropVoteBits">ErrorStatusInvalidPropVoteBits</a> | 53 | Invalid proposal vote option bits. |
 | <a name="ErrorStatusInvalidPropVoteParams">ErrorStatusInvalidPropVoteParams</a> | 54 | Invalid proposal vote parameters. |
+| <a name="ErrorStatusEmailNotVerified">ErrorStatusEmailNotVerified</a> | 55 | Cannot login because user's email is not yet verified. |
 
 
 ### Proposal status codes
