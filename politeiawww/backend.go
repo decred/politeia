@@ -309,18 +309,6 @@ func (b *backend) login(l *www.Login) loginReplyWithError {
 		}
 	}
 
-	// Check that the user is verified.
-	if user.NewUserVerificationToken != nil {
-		log.Debugf("Login failure for %v: user not yet verified",
-			l.Email)
-		return loginReplyWithError{
-			reply: nil,
-			err: www.UserError{
-				ErrorCode: www.ErrorStatusInvalidEmailOrPassword,
-			},
-		}
-	}
-
 	// Check the user's password.
 	err = bcrypt.CompareHashAndPassword(user.HashedPassword,
 		[]byte(l.Password))
@@ -360,10 +348,20 @@ func (b *backend) login(l *www.Login) loginReplyWithError {
 		}
 	}
 
+	// Check that the user is verified.
+	if user.NewUserVerificationToken != nil {
+		log.Debugf("Login failure for %v: user not yet verified", l.Email)
+		return loginReplyWithError{
+			reply: nil,
+			err: www.UserError{
+				ErrorCode: www.ErrorStatusEmailNotVerified,
+			},
+		}
+	}
+
 	// Check if the user account is deactivated.
 	if user.Deactivated {
-		log.Debugf("Login failure for %v: user deactivated",
-			l.Email)
+		log.Debugf("Login failure for %v: user deactivated", l.Email)
 		return loginReplyWithError{
 			reply: nil,
 			err: www.UserError{
@@ -942,9 +940,15 @@ func (b *backend) validateProposal(np www.NewProposal, user *database.User) erro
 	return nil
 }
 
-func (b *backend) setNewUserVerificationAndIdentity(user *database.User, token []byte, expiry int64, pk []byte) {
+func (b *backend) setNewUserVerificationAndIdentity(user *database.User, token []byte, expiry int64, includeResend bool, pk []byte) {
 	user.NewUserVerificationToken = token
 	user.NewUserVerificationExpiry = expiry
+	if includeResend {
+		// This field is used to support requesting another registration email
+		// quickly, without having to wait the full email-spam-prevention
+		// period.
+		user.ResendNewUserVerificationExpiry = expiry
+	}
 	user.Identities = []database.Identity{{
 		Activated: time.Now().Unix(),
 	}}
@@ -1202,7 +1206,7 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 		HashedPassword: hashedPassword,
 		Admin:          false,
 	}
-	b.setNewUserVerificationAndIdentity(&newUser, token, expiry, pk)
+	b.setNewUserVerificationAndIdentity(&newUser, token, expiry, false, pk)
 
 	if !b.test {
 		// Try to email the verification link first; if it fails, then
@@ -1350,6 +1354,7 @@ func (b *backend) ProcessVerifyNewUser(u www.VerifyNewUser) (*database.User, err
 	// Clear out the verification token fields in the db.
 	user.NewUserVerificationToken = nil
 	user.NewUserVerificationExpiry = 0
+	user.ResendNewUserVerificationExpiry = 0
 	err = b.db.UserUpdate(*user)
 	if err != nil {
 		return nil, err
@@ -1384,7 +1389,7 @@ func (b *backend) ProcessResendVerification(rv *v1.ResendVerification) (*v1.Rese
 		return &rvr, nil
 	}
 
-	if user.NewUserVerificationExpiry > time.Now().Unix() {
+	if user.ResendNewUserVerificationExpiry > time.Now().Unix() {
 		log.Debugf("ResendVerification failure for %v: verification token "+
 			"not expired yet", rv.Email)
 		return &rvr, nil
@@ -1413,7 +1418,7 @@ func (b *backend) ProcessResendVerification(rv *v1.ResendVerification) (*v1.Rese
 	b.removeUserPubkeyAssociaton(user, existingPublicKey)
 
 	// Set a new verificaton token and identity.
-	b.setNewUserVerificationAndIdentity(user, token, expiry, pk)
+	b.setNewUserVerificationAndIdentity(user, token, expiry, true, pk)
 
 	// Associate the user id with the new identity.
 	b.setUserPubkeyAssociaton(user, rv.PublicKey)

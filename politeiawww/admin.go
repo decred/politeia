@@ -92,6 +92,7 @@ func (b *backend) ProcessEditUser(eu *v1.EditUser, adminUser *database.User) (*v
 	switch eu.Action {
 	case v1.UserEditExpireNewUserVerification:
 		user.NewUserVerificationExpiry = expiredTime
+		user.ResendNewUserVerificationExpiry = expiredTime
 	case v1.UserEditExpireUpdateKeyVerification:
 		user.UpdateKeyVerificationExpiry = expiredTime
 	case v1.UserEditExpireResetPasswordVerification:

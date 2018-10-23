@@ -64,7 +64,7 @@ const (
 
 	// VerificationExpiryHours is the number of hours before the
 	// verification token expires
-	VerificationExpiryHours = 48
+	VerificationExpiryHours = 24
 
 	// PolicyMaxImages is the maximum number of images accepted
 	// when creating a new proposal
@@ -166,6 +166,7 @@ const (
 	ErrorStatusUserDeactivated             ErrorStatusT = 52
 	ErrorStatusInvalidPropVoteBits         ErrorStatusT = 53
 	ErrorStatusInvalidPropVoteParams       ErrorStatusT = 54
+	ErrorStatusEmailNotVerified            ErrorStatusT = 55
 
 	// Proposal status codes (set and get)
 	PropStatusInvalid           PropStatusT = 0 // Invalid status
@@ -275,6 +276,7 @@ var (
 		ErrorStatusUserDeactivated:             "user account is deactivated",
 		ErrorStatusInvalidPropVoteBits:         "invalid proposal vote option bits",
 		ErrorStatusInvalidPropVoteParams:       "invalid proposal vote parameters",
+		ErrorStatusEmailNotVerified:            "email address is not verified",
 	}
 
 	// PropStatus converts propsal status codes to human readable text

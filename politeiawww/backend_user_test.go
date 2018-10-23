@@ -389,8 +389,10 @@ func TestResendVerificationWithExpiredToken(t *testing.T) {
 	b.db.Close()
 }
 
-// Tests that the verification token is NOT sent when the user tries
-// to execute the resend verification command with an unexpired token.
+// Tests that the verification token is NOT sent when the user tries to
+// repeatedly execute the resend verification command with an unexpired token.
+// The verification email is able be resent one time and should fail on
+// subsequent attempts.
 func TestResendVerificationWithUnexpiredToken(t *testing.T) {
 	b := createBackend(t)
 
@@ -398,11 +400,23 @@ func TestResendVerificationWithUnexpiredToken(t *testing.T) {
 	_, err := b.ProcessNewUser(nu)
 	assertSuccess(t, err)
 
+	// First resend attempt
 	rv := www.ResendVerification{
 		Email:     nu.Email,
 		PublicKey: nu.PublicKey,
 	}
 	rvr, err := b.ProcessResendVerification(&rv)
+	assertSuccess(t, err)
+	if rvr.VerificationToken == "" {
+		t.Fatalf("verificationtoken should be populated")
+	}
+
+	// Second resend attempt
+	rv = www.ResendVerification{
+		Email:     nu.Email,
+		PublicKey: nu.PublicKey,
+	}
+	rvr, err = b.ProcessResendVerification(&rv)
 	assertSuccess(t, err)
 
 	if rvr.VerificationToken != "" {
@@ -440,7 +454,7 @@ func TestProcessLoginWithUnverifiedUser(t *testing.T) {
 		Password: nu.Password,
 	}
 	_, err = b.ProcessLogin(l)
-	assertError(t, err, www.ErrorStatusInvalidEmailOrPassword)
+	assertError(t, err, www.ErrorStatusEmailNotVerified)
 
 	b.db.Close()
 }
