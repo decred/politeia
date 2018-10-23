@@ -102,6 +102,8 @@ API.  It does not render HTML.
 - [`ErrorStatusVoteAlreadyAuthorized`](#ErrorStatusVoteAlreadyAuthorized)
 - [`ErrorStatusInvalidAuthVoteAction`](#ErrorStatusInvalidAuthVoteAction)
 - [`ErrorStatusUserDeactivated`](#ErrorStatusUserDeactivated)
+- [`ErrorStatusInvalidPropVoteBits`](#ErrorStatusInvalidPropVoteBits)
+- [`ErrorStatusInvalidPropVoteParams`](#ErrorStatusInvalidPropVoteParams)
 
 **Proposal status codes**
 
@@ -1794,6 +1796,18 @@ forwarded as-is to the politeia daemon.
 | Description | string | Human readable description of this option |
 | Bits | uint64 | Bits that make up this choice, e.g. 0x01 |
 
+On failure the call shall return `400 Bad Request` and one of the following
+error codes:
+- [`ErrorStatusNoPublicKey`](#ErrorStatusNoPublicKey)
+- [`ErrorStatusInvalidSigningKey`](#ErrorStatusInvalidSigningKey)
+- [`ErrorStatusInvalidSignature`](#ErrorStatusInvalidSignature)
+- [`ErrorStatusInvalidPropVoteBits`](#ErrorStatusInvalidPropVoteBits)
+- [`ErrorStatusInvalidPropVoteParams`](#ErrorStatusInvalidPropVoteParams)
+- [`ErrorStatusProposalNotFound`](#ErrorStatusProposalNotFound)
+- [`ErrorStatusWrongStatus`](#ErrorStatusWrongStatus)
+- [`ErrorStatusVoteNotAuthorized`](#ErrorStatusVoteNotAuthorized)
+- [`ErrorStatusWrongVoteStatus`](#ErrorStatusWrongVoteStatus)
+
 **Example**
 
 Request:
@@ -2334,6 +2348,8 @@ Reply:
 | <a name="ErrorStatusVoteAlreadyAuthorized">ErrorStatusVoteAlreadyAuthorized</a> | 50 | Vote has already been authorized. |
 | <a name="ErrorStatusInvalidAuthVoteAction">ErrorStatusInvalidAuthVoteAction</a> | 51 | Invalid authorize vote action. |
 | <a name="ErrorStatusUserDeactivated">ErrorStatusUserDeactivated</a> | 52 | Cannot login because user account is deactivated. |
+| <a name="ErrorStatusInvalidPropVoteBits">ErrorStatusInvalidPropVoteBits</a> | 53 | Invalid proposal vote option bits. |
+| <a name="ErrorStatusInvalidPropVoteParams">ErrorStatusInvalidPropVoteParams</a> | 54 | Invalid proposal vote parameters. |
 
 
 ### Proposal status codes

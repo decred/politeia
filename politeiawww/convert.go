@@ -65,10 +65,12 @@ func convertVoteOptionsFromWWW(vo []www.VoteOption) []decredplugin.VoteOption {
 
 func convertVoteFromWWW(v www.Vote) decredplugin.Vote {
 	return decredplugin.Vote{
-		Token:    v.Token,
-		Mask:     v.Mask,
-		Duration: v.Duration,
-		Options:  convertVoteOptionsFromWWW(v.Options),
+		Token:            v.Token,
+		Mask:             v.Mask,
+		Duration:         v.Duration,
+		QuorumPercentage: v.QuorumPercentage,
+		PassPercentage:   v.PassPercentage,
+		Options:          convertVoteOptionsFromWWW(v.Options),
 	}
 }
 
@@ -131,10 +133,12 @@ func convertVoteOptionsFromDecredplugin(vo []decredplugin.VoteOption) []www.Vote
 
 func convertVoteFromDecredplugin(v decredplugin.Vote) www.Vote {
 	return www.Vote{
-		Token:    v.Token,
-		Mask:     v.Mask,
-		Duration: v.Duration,
-		Options:  convertVoteOptionsFromDecredplugin(v.Options),
+		Token:            v.Token,
+		Mask:             v.Mask,
+		Duration:         v.Duration,
+		QuorumPercentage: v.QuorumPercentage,
+		PassPercentage:   v.PassPercentage,
+		Options:          convertVoteOptionsFromDecredplugin(v.Options),
 	}
 }
 
