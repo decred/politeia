@@ -1303,8 +1303,6 @@ func (p *politeiawww) handleUserCommentsVotes(w http.ResponseWriter, r *http.Req
 
 // handleEditProposal attempts to edit a proposal
 func (p *politeiawww) handleEditProposal(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleEditProposal")
-
 	var ep v1.EditProposal
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&ep); err != nil {
@@ -1321,6 +1319,8 @@ func (p *politeiawww) handleEditProposal(w http.ResponseWriter, r *http.Request)
 			"handleEditProposal: getSessionUser %v", err)
 		return
 	}
+
+	log.Debugf("handleEditProposal: %v", ep.Token)
 
 	epr, err := p.backend.ProcessEditProposal(user, ep)
 	if err != nil {
