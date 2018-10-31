@@ -963,11 +963,14 @@ type VoteStatus struct{}
 
 // VoteStatusReply describes the vote status for a given proposal
 type VoteStatusReply struct {
-	Token         string             `json:"token"`         // Censorship token
-	Status        PropVoteStatusT    `json:"status"`        // Vote status (finished, started, etc)
-	TotalVotes    uint64             `json:"totalvotes"`    // Proposal's total number of votes
-	OptionsResult []VoteOptionResult `json:"optionsresult"` // VoteOptionResult for each option
-	EndHeight     string             `json:"endheight"`     // Vote end height
+	Token              string             `json:"token"`              // Censorship token
+	Status             PropVoteStatusT    `json:"status"`             // Vote status (finished, started, etc)
+	TotalVotes         uint64             `json:"totalvotes"`         // Proposal's total number of votes
+	OptionsResult      []VoteOptionResult `json:"optionsresult"`      // VoteOptionResult for each option
+	EndHeight          string             `json:"endheight"`          // Vote end height
+	NumOfEligibleVotes int                `json:"numofeligiblevotes"` // Total number of eligible votes
+	QuorumPercentage   uint32             `json:"quorumpercentage"`   // Percent of eligible votes required for quorum
+	PassPercentage     uint32             `json:"passpercentage"`     // Percent of total votes required to pass
 }
 
 // GetAllVoteStatus attempts to fetch the vote status of all public propsals
