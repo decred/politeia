@@ -2097,6 +2097,10 @@ Returns the vote status for a single public proposal
 | status | int | Status identifier |
 | optionsresult | array of VoteOptionResult | Option description along with the number of votes it has received |
 | totalvotes | int | Proposal's total number of votes |
+| endheight | string | The chain height in which the vote will end | 
+| numofeligiblevotes | int | Total number of eligible votes |
+| quorumpercentage | uint32 | Percent of eligible votes required for quorum |
+| passpercentage | uint32 | Percent of total votes required to pass |
 
 **VoteOptionResult:**
 | | Type | Description |
@@ -2144,7 +2148,11 @@ Reply:
         },
         "votesreceived":0
     }
-  ]
+  ],
+  "endheight": "45567",
+  "numofeligiblevotes": 2000,
+  "quorumpercentage": 20,
+  "passpercentage": 60
 }
 ```
 
@@ -2170,6 +2178,10 @@ Returns the vote status of all public proposals
 | status | int | Status identifier |
 | optionsresult | array of VoteOptionResult | Option description along with the number of votes it has received |
 | totalvotes | int | Proposal's total number of votes |
+| endheight | string | The chain height in which the vote will end | 
+| numofeligiblevotes | int | Total number of eligible votes |
+| quorumpercentage | uint32 | Percent of eligible votes required for quorum |
+| passpercentage | uint32 | Percent of total votes required to pass |
 
 **Example:**
 
@@ -2203,13 +2215,21 @@ Reply:
                "votesreceived":0
             }
          ],
-         "totalvotes":0
+         "totalvotes":0,
+         "endheight": "45567",
+         "numofeligiblevotes": 2000,
+         "quorumpercentage": 20,
+         "passpercentage": 60
       },
       {
          "token":"b6d058cd1eed03d7fc9400f55384a8da33edb73743b7501d354392a6f9885078",
          "status":1,
          "optionsresult":null,
-         "totalvotes":0
+         "totalvotes":0,
+         "endheight": "",
+         "numofeligiblevotes": 0,
+         "quorumpercentage": 0,
+         "passpercentage": 0
       }
    ]
 }
