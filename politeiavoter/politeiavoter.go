@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -17,7 +18,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/decred/dcrd/chaincfg/chainec"
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/wire"
 	pb "github.com/decred/dcrwallet/rpc/walletrpc"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiawww/api/v1"
@@ -65,6 +69,61 @@ func ProvidePrivPassphrase() ([]byte, error) {
 
 		return pass, nil
 	}
+}
+
+// verifyMessage verifies a message is properly signed.
+// Copied from https://github.com/decred/dcrd/blob/0fc55252f912756c23e641839b1001c21442c38a/rpcserver.go#L5605
+func verifyMessage(address, message, signature string) (bool, error) {
+	// Decode the provided address.
+	addr, err := dcrutil.DecodeAddress(address)
+	if err != nil {
+		return false, fmt.Errorf("Could not decode address: %v",
+			err)
+	}
+
+	// Only P2PKH addresses are valid for signing.
+	if _, ok := addr.(*dcrutil.AddressPubKeyHash); !ok {
+		return false, fmt.Errorf("Address is not a pay-to-pubkey-hash "+
+			"address: %v", address)
+	}
+
+	// Decode base64 signature.
+	sig, err := base64.StdEncoding.DecodeString(signature)
+	if err != nil {
+		return false, fmt.Errorf("Malformed base64 encoding: %v", err)
+	}
+
+	// Validate the signature - this just shows that it was valid at all.
+	// we will compare it with the key next.
+	var buf bytes.Buffer
+	wire.WriteVarString(&buf, 0, "Decred Signed Message:\n")
+	wire.WriteVarString(&buf, 0, message)
+	expectedMessageHash := chainhash.HashB(buf.Bytes())
+	pk, wasCompressed, err := chainec.Secp256k1.RecoverCompact(sig,
+		expectedMessageHash)
+	if err != nil {
+		// Mirror Bitcoin Core behavior, which treats error in
+		// RecoverCompact as invalid signature.
+		return false, nil
+	}
+
+	// Reconstruct the pubkey hash.
+	dcrPK := pk
+	var serializedPK []byte
+	if wasCompressed {
+		serializedPK = dcrPK.SerializeCompressed()
+	} else {
+		serializedPK = dcrPK.SerializeUncompressed()
+	}
+	a, err := dcrutil.NewAddressSecpPubKey(serializedPK, activeNetParams.Params)
+	if err != nil {
+		// Again mirror Bitcoin Core behavior, which treats error in
+		// public key reconstruction as invalid signature.
+		return false, nil
+	}
+
+	// Return boolean if addresses match.
+	return a.EncodeAddress() == address, nil
 }
 
 type ctx struct {
@@ -555,50 +614,63 @@ func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsRes
 	}
 }
 
+// verifyV1Vote verifies the signature of the passed in v1 vote. If the
+// signature is invalid or if an error occurs during validation, the error will
+// be logged instead of being returned. This is to prevent interuptions to
+// politeavoter while it is in the process of casting votes.
+func verifyV1Vote(address string, vote *v1.CastVote) bool {
+	sig, err := hex.DecodeString(vote.Signature)
+	if err != nil {
+		log.Errorf("Could not decode signature %v: %v",
+			vote.Ticket, err)
+		return false
+	}
+
+	msg := vote.Token + vote.Ticket + vote.VoteBit
+	validated, err := verifyMessage(address, msg,
+		base64.StdEncoding.EncodeToString(sig))
+	if err != nil {
+		log.Errorf("Could not verify signature %v: %v",
+			vote.Ticket, err)
+		return false
+	}
+	if !validated {
+		log.Errorf("Invalid signature %v: %v",
+			vote.Ticket, vote.Signature)
+		return false
+	}
+
+	return true
+}
+
 func (c *ctx) _vote(token, voteId string) ([]string, *v1.BallotReply, error) {
-	// XXX This is expensive but we need the snapshot of the votes. Later
-	// replace this with a locally saved file in order to prevent sending
-	// the same questions multiple times.
-	i, err := c._inventory()
+	// _tally provides the eligible tickets snapshot as well as a list of
+	// the votes that have already been cast. We use these to filter out
+	// the tickets that have already voted.
+	vrr, err := c._tally(token)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// Find proposal
+	// Validate voteId
 	var (
-		prop    *v1.ProposalVoteTuple
 		voteBit string
+		found   bool
 	)
-	for _, v := range i.Votes {
-		if v.Proposal.CensorshipRecord.Token != token {
-			continue
+	for _, vv := range vrr.StartVote.Vote.Options {
+		if vv.Id == voteId {
+			found = true
+			voteBit = strconv.FormatUint(vv.Bits, 16)
+			break
 		}
-
-		// Validate voteId
-		found := false
-		for _, vv := range v.StartVote.Vote.Options {
-			if vv.Id == voteId {
-				found = true
-				voteBit = strconv.FormatUint(vv.Bits, 16)
-				break
-			}
-
-		}
-		if !found {
-			return nil, nil, fmt.Errorf("vote id not found: %v",
-				voteId)
-		}
-
-		// We found the propr and we have a proper vote id.
-		prop = &v
-		break
 	}
-	if prop == nil {
-		return nil, nil, fmt.Errorf("proposal not found: %v", token)
+	if !found {
+		return nil, nil, fmt.Errorf("vote id not found: %v",
+			voteId)
 	}
 
 	// Find eligble tickets
-	tix, err := convertTicketHashes(prop.StartVoteReply.EligibleTickets)
+	tix, err := convertTicketHashes(vrr.StartVoteReply.EligibleTickets)
 	if err != nil {
 		return nil, nil, fmt.Errorf("ticket pool corrupt: %v %v",
 			token, err)
@@ -614,6 +686,34 @@ func (c *ctx) _vote(token, voteId string) ([]string, *v1.BallotReply, error) {
 	if len(ctres.TicketAddresses) == 0 {
 		return nil, nil, fmt.Errorf("no eligible tickets found")
 	}
+
+	// Put cast votes into a map so that we can
+	// filter in linear time
+	castVotes := make(map[string]v1.CastVote)
+	for _, v := range vrr.CastVotes {
+		castVotes[v.Ticket] = v
+	}
+
+	// Filter out tickets that have already voted. If a ticket has
+	// voted but the signature is invalid, resubmit the vote. This
+	// could be caused by bad data on the server or if the server is
+	// lying to the client.
+	filtered := make([]*pb.CommittedTicketsResponse_TicketAddress, 0,
+		len(ctres.TicketAddresses))
+	for _, t := range ctres.TicketAddresses {
+		h, err := chainhash.NewHash(t.Ticket)
+		if err != nil {
+			return nil, nil, err
+		}
+		v, ok := castVotes[h.String()]
+		if !ok || !verifyV1Vote(t.Address, &v) {
+			filtered = append(filtered, t)
+		}
+	}
+	if len(filtered) == 0 {
+		return nil, nil, fmt.Errorf("no eligible tickets found")
+	}
+	ctres.TicketAddresses = filtered
 
 	passphrase, err := ProvidePrivPassphrase()
 	if err != nil {
