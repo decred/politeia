@@ -69,6 +69,7 @@ type config struct {
 	Version          string
 	WalletCert       string `long:"walletgrpccert" description:"Wallet GRPC certificate"`
 	WalletPassphrase string `long:"walletpassphrase" description:"Wallet decryption passphrase"`
+	BypassProxyCheck bool   `long:"bypassproxycheck" description:"This flag is for testing purposes only; DO NOT USE!"`
 	Proxy            string `long:"proxy" description:"Connect via SOCKS5 proxy (eg. 127.0.0.1:9050)"`
 	ProxyUser        string `long:"proxyuser" description:"Username for proxy server"`
 	ProxyPass        string `long:"proxypass" default-mask:"-" description:"Password for proxy server"`
@@ -452,9 +453,11 @@ func loadConfig() (*config, []string, error) {
 		}
 	}
 
-	if cfg.VoteDuration != "" && cfg.Proxy == "" {
-		return nil, nil, fmt.Errorf("cannot use --voteduration " +
-			"without --proxy")
+	if !cfg.BypassProxyCheck {
+		if cfg.VoteDuration != "" && cfg.Proxy == "" {
+			return nil, nil, fmt.Errorf("cannot use --voteduration " +
+				"without --proxy")
+		}
 	}
 
 	return &cfg, remainingArgs, nil
