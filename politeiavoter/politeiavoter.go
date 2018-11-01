@@ -1,8 +1,13 @@
+// Copyright (c) 2018 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package main
 
 import (
 	"bytes"
 	"context"
+	crand "crypto/rand"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/hex"
@@ -10,6 +15,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"math/big"
+	"math/rand"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -34,8 +41,17 @@ import (
 )
 
 var (
-	verify = false // Validate server TLS certificate
+	verify bool // Validate server TLS certificate
 )
+
+func generateSeed() (int64, error) {
+	var seedBytes [8]byte
+	_, err := crand.Read(seedBytes[:])
+	if err != nil {
+		return 0, err
+	}
+	return new(big.Int).SetBytes(seedBytes[:]).Int64(), nil
+}
 
 func usage() {
 	fmt.Fprintf(os.Stderr, "usage: politeiavoter [flags] <action> [arguments]\n")
@@ -643,7 +659,7 @@ func verifyV1Vote(address string, vote *v1.CastVote) bool {
 	return true
 }
 
-func (c *ctx) _vote(token, voteId string) ([]string, *v1.BallotReply, error) {
+func (c *ctx) _vote(seed int64, token, voteId string) ([]string, *v1.BallotReply, error) {
 	// _tally provides the eligible tickets snapshot as well as a list of
 	// the votes that have already been cast. We use these to filter out
 	// the tickets that have already voted.
@@ -710,8 +726,16 @@ func (c *ctx) _vote(token, voteId string) ([]string, *v1.BallotReply, error) {
 			filtered = append(filtered, t)
 		}
 	}
-	if len(filtered) == 0 {
+	filteredLen := len(filtered)
+	if filteredLen == 0 {
 		return nil, nil, fmt.Errorf("no eligible tickets found")
+	}
+	r := rand.New(rand.NewSource(seed))
+	// Fisher-Yates shuffle the ticket addresses.
+	for i := 0; i < filteredLen; i++ {
+		// Pick a number between current index and the end.
+		j := r.Intn(filteredLen-i) + i
+		filtered[i], filtered[j] = filtered[j], filtered[i]
 	}
 	ctres.TicketAddresses = filtered
 
@@ -793,12 +817,12 @@ func (c *ctx) _vote(token, voteId string) ([]string, *v1.BallotReply, error) {
 	return tickets, &vr, nil
 }
 
-func (c *ctx) vote(args []string) error {
+func (c *ctx) vote(seed int64, args []string) error {
 	if len(args) != 2 {
 		return fmt.Errorf("vote: not enough arguments %v", args)
 	}
 
-	tickets, cv, err := c._vote(args[0], args[1])
+	tickets, cv, err := c._vote(seed, args[0], args[1])
 	if err != nil {
 		return err
 	}
@@ -993,6 +1017,15 @@ func _main() error {
 		usage()
 		return fmt.Errorf("must provide action")
 	}
+	action := args[0]
+
+	var seed int64
+	if action == "vote" {
+		seed, err = generateSeed()
+		if err != nil {
+			return err
+		}
+	}
 
 	// Contact WWW
 	c, err := firstContact(cfg)
@@ -1010,27 +1043,23 @@ func _main() error {
 	log.Debugf("Current wallet height: %v", ar.CurrentBlockHeight)
 
 	// Scan through command line arguments.
-	for i, a := range args {
-		// Select action
-		if i == 0 {
-			switch a {
-			case "inventory":
-				return c.inventory()
-			case "vote":
-				return c.vote(args[1:])
-			case "startvote":
-				// This remains undocumented because it is for
-				// testing only.
-				return c.startVote(args[1:])
-			case "tally":
-				return c.tally(args[1:])
-			default:
-				return fmt.Errorf("invalid action: %v", a)
-			}
-		}
+
+	switch action {
+	case "inventory":
+		err = c.inventory()
+	case "startvote":
+		// This remains undocumented because it is for
+		// testing only.
+		err = c.startVote(args[1:])
+	case "tally":
+		err = c.tally(args[1:])
+	case "vote":
+		err = c.vote(seed, args[1:])
+	default:
+		err = fmt.Errorf("invalid action: %v", action)
 	}
 
-	return nil
+	return err
 }
 
 func main() {
