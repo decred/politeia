@@ -80,7 +80,7 @@ $ politeiawwwcli newuser email@example.com username password --verify --paywall
 ```
 
 `--verify` and `--paywall` are options that can be used when running
-politeiawww on testnet to make the user registration process a little simplier.
+politeiawww on testnet to make the user registration process a little simpler.
 
 `--verify` will satisfy the email verification requirement for the user.
 
