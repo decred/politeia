@@ -1034,7 +1034,7 @@ type UserIdentity struct {
 	Active bool   `json:"isactive"`
 }
 
-// EditProposal attemps to edit a proposal
+// EditProposal attempts to edit a proposal
 type EditProposal struct {
 	Token     string `json:"token"`
 	Files     []File `json:"files"`

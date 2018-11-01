@@ -558,7 +558,7 @@ func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsRes
 func (c *ctx) _vote(token, voteId string) ([]string, *v1.BallotReply, error) {
 	// XXX This is expensive but we need the snapshot of the votes. Later
 	// replace this with a locally saved file in order to prevent sending
-	// the same questions mutliple times.
+	// the same questions multiple times.
 	i, err := c._inventory()
 	if err != nil {
 		return nil, nil, err

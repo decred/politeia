@@ -1283,9 +1283,9 @@ func (g *gitBackEnd) checkoutRecordBranch(id string) (bool, error) {
 // function must be wrapped by a function that delivers the call with the repo
 // sitting in the correct branch/master.  The idea is that if this function
 // fails we can simply unwind it by calling a git stash.
-// If commit is true the changes will be commited to record, if it is false
+// If commit is true the changes will be committed to record, if it is false
 // it'll return ErrChangesRecord if the error would change; the caller is
-// reponsible to unwinding the changes.
+// responsible to unwinding the changes.
 //
 // Function must be  called with the lock held.
 func (g *gitBackEnd) _updateRecord(commit bool, id string, mdAppend, mdOverwrite []backend.MetadataStream, fa []file, filesDel []string) error {
@@ -1471,7 +1471,7 @@ func (g *gitBackEnd) wouldChange(id string, mdAppend []backend.MetadataStream, m
 
 // updateRecord puts the correct git repo in the correct state (branch or
 // master) and then updates the the record content. It returns a version if an
-// update occured on master.
+// update occurred on master.
 //
 // Must be called WITHOUT the lock held.
 func (g *gitBackEnd) updateRecord(token []byte, mdAppend []backend.MetadataStream, mdOverwrite []backend.MetadataStream, filesAdd []backend.File, filesDel []string, master bool) (*backend.Record, error) {
@@ -2426,7 +2426,7 @@ func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, 
 		// Flush journals
 		g.decredPluginJournalFlusher()
 
-		// Anchor commitd
+		// Anchor commit
 		g.anchorAllReposCronJob()
 	})
 	if err != nil {
