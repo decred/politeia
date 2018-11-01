@@ -189,7 +189,7 @@ func getDecredPlugin(testnet bool) backend.Plugin {
 	return decredPlugin
 }
 
-// initDecredPlugin is called externaly to run initial procedures
+// initDecredPlugin is called externally to run initial procedures
 // such as replaying journals
 func (g *gitBackEnd) initDecredPluginJournals() error {
 	log.Infof("initDecredPlugin")
@@ -461,7 +461,7 @@ func batchTransactions(hashes []string) ([]dcrdataapi.TrimmedTx, error) {
 	return ttx, nil
 }
 
-// largestCommitmentResult returns the largest commitment addres or an error.
+// largestCommitmentResult returns the largest commitment address or an error.
 type largestCommitmentResult struct {
 	bestAddr string
 	err      error

@@ -78,7 +78,7 @@ func filterUserPublicFields(user v1.User) v1.User {
 }
 
 // ProcessUserDetails return the requested user's details
-// Some fields can be ommitted or blank depending on the
+// Some fields can be omitted or blank depending on the
 // requester's access level
 func (b *backend) ProcessUserDetails(ud *v1.UserDetails, isCurrentUser bool, isAdmin bool) (*v1.UserDetailsReply, error) {
 

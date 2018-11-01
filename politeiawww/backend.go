@@ -816,7 +816,7 @@ func (b *backend) validateProposal(np www.NewProposal, user *database.User) erro
 		return err
 	}
 
-	// Check for at least 1 markdown file with a non-emtpy payload.
+	// Check for at least 1 markdown file with a non-empty payload.
 	if len(np.Files) == 0 || np.Files[0].Payload == "" {
 		return www.UserError{
 			ErrorCode: www.ErrorStatusProposalMissingFiles,

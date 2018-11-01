@@ -45,7 +45,7 @@ expect_failure() {
 
   # check exit status for errors.  Exit script if no errors found.
   if [ $? -eq 0 ]; then
-    echo "Expected failure, but did not recieve any errors."
+    echo "Expected failure, but did not receive any errors."
     exit 1
   fi
 }
@@ -442,7 +442,7 @@ main() {
   fi
 
   if [ $pr1_num_files -gt 0 ]; then
-    error "pr1 unexpected proposal data recieved"
+    error "pr1 unexpected proposal data received"
   fi
 
   echo "Get proposal #2 and validate"
@@ -461,7 +461,7 @@ main() {
   fi
 
   if [ $pr2_num_files -gt 0 ]; then
-    error "pr2 unexpected proposal data recieved"
+    error "pr2 unexpected proposal data received"
   fi
 
   echo "Create 2 pages of proposals"

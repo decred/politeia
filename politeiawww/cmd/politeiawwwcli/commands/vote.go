@@ -92,7 +92,7 @@ func (cmd *VoteCmd) Execute(args []string) error {
 			pvt.StartVote.Vote.Token)
 	}
 
-	// Create slice of hexidecimal ticket hashes to represent
+	// Create slice of hexadecimal ticket hashes to represent
 	// the user's eligible tickets
 	eligibleTickets := make([]string, 0, len(ctr.TicketAddresses))
 	for i, v := range ctr.TicketAddresses {
@@ -159,7 +159,7 @@ func (cmd *VoteCmd) Execute(args []string) error {
 	// Check for any failed votes. Vote receipts don't include
 	// the ticket hash so in order to associate a failed
 	// receipt with a specific ticket, we need  to lookup the
-	// ticket hash and store it seperately.
+	// ticket hash and store it separately.
 	failedReceipts := make([]v1.CastVoteReply, 0, len(br.Receipts))
 	failedTickets := make([]string, 0, len(eligibleTickets))
 	for i, v := range br.Receipts {
