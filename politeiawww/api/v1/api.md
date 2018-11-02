@@ -89,7 +89,7 @@ API.  It does not render HTML.
 - [`ErrorStatusDuplicatePublicKey`](#ErrorStatusDuplicatePublicKey)
 - [`ErrorStatusInvalidPropVoteStatus`](#ErrorStatusInvalidPropVoteStatus)
 - [`ErrorStatusNoProposalCredits`](#ErrorStatusNoProposalCredits)
-- [`ErrorStatusInvalidUserEditAction`](#ErrorStatusInvalidUserEditAction)
+- [`ErrorStatusInvalidUserManageAction`](#ErrorStatusInvalidUserManageAction)
 - [`ErrorStatusUserActionNotAllowed`](#ErrorStatusUserActionNotAllowed)
 - [`ErrorStatusWrongVoteStatus`](#ErrorStatusWrongVoteStatus)
 - [`ErrorStatusCannotCommentOnProp`](#ErrorStatusCannotCommentOnProp)
@@ -544,7 +544,7 @@ Reply:
 
 Edits a user's details. This call requires admin privileges.
 
-**Route:** `POST /v1/user/edit`
+**Route:** `POST /v1/user/manage`
 
 **Params:**
 
@@ -560,7 +560,7 @@ On failure the call shall return `400 Bad Request` and one of the following
 error codes:
 - [`ErrorStatusUserNotFound`](#ErrorStatusUserNotFound)
 - [`ErrorStatusInvalidInput`](#ErrorStatusInvalidInput)
-- [`ErrorStatusInvalidUserEditAction`](#ErrorStatusInvalidUserEditAction)
+- [`ErrorStatusInvalidUserManageAction`](#ErrorStatusInvalidUserManageAction)
 
 **Example**
 
@@ -2337,7 +2337,7 @@ Reply:
 | <a name="ErrorStatusInvalidPropVoteStatus">ErrorStatusInvalidPropVoteStatus</a> | 37 | Invalid proposal vote status. |
 | <a name="ErrorStatusUserLocked">ErrorStatusUserLocked</a> | 38 | User locked due to too many login attempts. |
 | <a name="ErrorStatusNoProposalCredits">ErrorStatusNoProposalCredits</a> | 39 | No proposal credits. |
-| <a name="ErrorStatusInvalidUserEditAction">ErrorStatusInvalidUserEditAction</a> | 40 | Invalid action for editing a user. |
+| <a name="ErrorStatusInvalidUserManageAction">ErrorStatusInvalidUserManageAction</a> | 40 | Invalid action for editing a user. |
 | <a name="ErrorStatusUserActionNotAllowed">ErrorStatusUserActionNotAllowed</a> | 41 | User action is not allowed. |
 | <a name="ErrorStatusWrongVoteStatus">ErrorStatusWrongVoteStatus</a> | 42 | The proposal has the wrong vote status for the action to be performed. |
 | <a name="ErrorStatusCannotCommentOnProp">ErrorStatusCannotCommentOnProp</a> | 43 | Cannot comment on proposal. |
@@ -2370,14 +2370,14 @@ Reply:
 
 | Status | Value | Description |
 |-|-|-|
-| <a name="UserEditInvalid">UserEditInvalid</a>| 0 | An invalid action. This shall be considered a bug. |
-| <a name="UserEditExpireNewUserVerification">UserEditExpireNewUserVerification</a> | 1 | Expires the new user verification token. |
-| <a name="UserEditExpireUpdateKeyVerification">UserEditExpireUpdateKeyVerification</a> | 2 | Expires the update key verification token. |
-| <a name="UserEditExpireResetPasswordVerification">UserEditExpireResetPasswordVerification</a> | 3 | Expires the reset password verification token. |
-| <a name="UserEditClearUserPaywall">UserEditClearUserPaywall</a> | 4 | Clears the user's paywall. |
-| <a name="UserEditUnlock">UserEditUnlock</a> | 5 | Unlocks a user's account. |
-| <a name="UserEditDeactivate">UserEditDeactivate</a> | 6 | Deactivates a user's account so that they are unable to login. |
-| <a name="UserEditReactivate">UserEditReactivate</a> | 7 | Reactivates a user's account. |
+| <a name="UserManageInvalid">UserManageInvalid</a>| 0 | An invalid action. This shall be considered a bug. |
+| <a name="UserManageExpireNewUserVerification">UserManageExpireNewUserVerification</a> | 1 | Expires the new user verification token. |
+| <a name="UserManageExpireUpdateKeyVerification">UserManageExpireUpdateKeyVerification</a> | 2 | Expires the update key verification token. |
+| <a name="UserManageExpireResetPasswordVerification">UserManageExpireResetPasswordVerification</a> | 3 | Expires the reset password verification token. |
+| <a name="UserManageClearUserPaywall">UserManageClearUserPaywall</a> | 4 | Clears the user's paywall. |
+| <a name="UserManageUnlock">UserManageUnlock</a> | 5 | Unlocks a user's account. |
+| <a name="UserManageDeactivate">UserManageDeactivate</a> | 6 | Deactivates a user's account so that they are unable to login. |
+| <a name="UserManageReactivate">UserManageReactivate</a> | 7 | Reactivates a user's account. |
 
 ### `User`
 

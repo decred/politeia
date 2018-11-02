@@ -182,18 +182,18 @@ func setAdmin(email string) error {
 
 func clearPaywall(userID string) error {
 	fmt.Printf("Clearing paywall for user with ID: %v\n", userID)
-	var eur *v1.EditUserReply
+	var eur *v1.ManageUserReply
 	return executeCliCommand(
 		func() interface{} {
-			eur = &v1.EditUserReply{}
+			eur = &v1.ManageUserReply{}
 			return eur
 		},
 		func() bool {
-			return *eur == (v1.EditUserReply{})
+			return *eur == (v1.ManageUserReply{})
 		},
-		"edituser",
+		"manageuser",
 		userID,
-		fmt.Sprintf("%v", v1.UserEditClearUserPaywall),
+		fmt.Sprintf("%v", v1.UserManageClearUserPaywall),
 		"politeaiwww_dataload")
 }
 

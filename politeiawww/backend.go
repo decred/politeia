@@ -8,20 +8,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
-
-	"github.com/decred/politeia/politeiawww/api/v1"
-
-	"golang.org/x/crypto/bcrypt"
-
-	"github.com/dajohi/goemail"
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/decredplugin"
@@ -32,6 +24,8 @@ import (
 	"github.com/decred/politeia/politeiawww/database"
 	"github.com/decred/politeia/politeiawww/database/localdb"
 	"github.com/decred/politeia/util"
+	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 )
 
 const (
@@ -48,8 +42,6 @@ const (
 	BackendProposalMetadataVersion = 1
 
 	LoginAttemptsToLockUser = 5
-
-	politeiaMailName = "Politeia"
 
 	// Route to reset password at GUI
 	ResetPasswordGuiRoute = "/password"
@@ -75,7 +67,8 @@ type backend struct {
 	db              database.Database
 	cfg             *config
 	params          *chaincfg.Params
-	client          *http.Client                    // politeiad client
+	client          *http.Client // politeiad client
+	eventManager    *EventManager
 	userPubkeys     map[string]string               // [pubkey][userid]
 	userPaywallPool map[uuid.UUID]paywallPoolMember // [userid][paywallPoolMember]
 
@@ -437,195 +430,6 @@ func (b *backend) removeUserPubkeyAssociaton(user *database.User, publicKey stri
 	defer b.Unlock()
 
 	delete(b.userPubkeys, publicKey)
-}
-
-// emailNewUserVerificationLink emails the link with the new user verification token
-// if the email server is set up.
-func (b *backend) emailNewUserVerificationLink(email, token, username string) error {
-	if b.cfg.SMTP == nil {
-		return nil
-	}
-
-	l, err := url.Parse(b.cfg.WebServerAddress + www.RouteVerifyNewUser)
-	if err != nil {
-		return err
-	}
-	q := l.Query()
-	q.Set("email", email)
-	q.Set("verificationtoken", token)
-	l.RawQuery = q.Encode()
-
-	var buf bytes.Buffer
-	tplData := newUserEmailTemplateData{
-		Username: username,
-		Email:    email,
-		Link:     l.String(),
-	}
-	err = templateNewUserEmail.Execute(&buf, &tplData)
-	if err != nil {
-		return err
-	}
-	from := "noreply@decred.org"
-	subject := "Verify Your Email"
-	body := buf.String()
-
-	msg := goemail.NewMessage(from, subject, body)
-	msg.AddTo(email)
-
-	msg.SetName(politeiaMailName)
-	return b.cfg.SMTP.Send(msg)
-}
-
-// emailResetPasswordVerificationLink emails the link with the reset password
-// verification token if the email server is set up.
-func (b *backend) emailResetPasswordVerificationLink(email, token string) error {
-	if b.cfg.SMTP == nil {
-		return nil
-	}
-
-	l, err := url.Parse(b.cfg.WebServerAddress + www.RouteResetPassword)
-	if err != nil {
-		return err
-	}
-	q := l.Query()
-	q.Set("email", email)
-	q.Set("verificationtoken", token)
-	l.RawQuery = q.Encode()
-
-	var buf bytes.Buffer
-	tplData := resetPasswordEmailTemplateData{
-		Email: email,
-		Link:  l.String(),
-	}
-	err = templateResetPasswordEmail.Execute(&buf, &tplData)
-	if err != nil {
-		return err
-	}
-	from := "noreply@decred.org"
-	subject := "Reset Your Password"
-	body := buf.String()
-
-	msg := goemail.NewMessage(from, subject, body)
-	msg.AddTo(email)
-
-	msg.SetName(politeiaMailName)
-	return b.cfg.SMTP.Send(msg)
-}
-
-func (b *backend) emailAllAdminsForNewSubmittedProposal(token string, propName string, username string, userEmail string) error {
-	if b.cfg.SMTP == nil {
-		return nil
-	}
-
-	l, err := url.Parse(b.cfg.WebServerAddress + "/proposals/" + token)
-	if err != nil {
-		return err
-	}
-
-	var buf bytes.Buffer
-	tplData := newProposalSubmittedTemplateData{
-		Link:     l.String(),
-		Name:     propName,
-		Username: username,
-		Email:    userEmail,
-	}
-
-	err = templateNewProposalSubmitted.Execute(&buf, &tplData)
-	if err != nil {
-		return err
-	}
-
-	from := "noreply@decred.org"
-	subject := "New Proposal Submitted"
-	body := buf.String()
-
-	msg := goemail.NewMessage(from, subject, body)
-
-	// Add admin emails
-	err = b.db.AllUsers(func(user *database.User) {
-		if !user.Admin {
-			return
-		}
-		msg.AddBCC(user.Email)
-	})
-	if err != nil {
-		return err
-	}
-
-	msg.SetName(politeiaMailName)
-	return b.cfg.SMTP.Send(msg)
-}
-
-// emailUpdateUserKeyVerificationLink emails the link with the verification
-// token used for setting a new key pair if the email server is set up.
-func (b *backend) emailUpdateUserKeyVerificationLink(email, publicKey, token string) error {
-	if b.cfg.SMTP == nil {
-		return nil
-	}
-
-	l, err := url.Parse(b.cfg.WebServerAddress + www.RouteVerifyUpdateUserKey)
-	if err != nil {
-		return err
-	}
-	q := l.Query()
-	q.Set("verificationtoken", token)
-	l.RawQuery = q.Encode()
-
-	var buf bytes.Buffer
-	tplData := updateUserKeyEmailTemplateData{
-		Email:     email,
-		PublicKey: publicKey,
-		Link:      l.String(),
-	}
-	err = templateUpdateUserKeyEmail.Execute(&buf, &tplData)
-	if err != nil {
-		return err
-	}
-	from := "noreply@decred.org"
-	subject := "Verify Your New Identity"
-	body := buf.String()
-
-	msg := goemail.NewMessage(from, subject, body)
-	msg.AddTo(email)
-
-	msg.SetName(politeiaMailName)
-	return b.cfg.SMTP.Send(msg)
-}
-
-// emailUserLocked notifies the user its account has been locked and emails the
-// link with the reset password verification token if the email server is set
-// up.
-func (b *backend) emailUserLocked(email string) error {
-	if b.cfg.SMTP == nil {
-		return nil
-	}
-
-	l, err := url.Parse(b.cfg.WebServerAddress + ResetPasswordGuiRoute)
-	if err != nil {
-		return err
-	}
-	q := l.Query()
-	q.Set("email", email)
-	l.RawQuery = q.Encode()
-
-	var buf bytes.Buffer
-	tplData := resetPasswordEmailTemplateData{
-		Email: email,
-		Link:  l.String(),
-	}
-	err = templateUserLockedResetPassword.Execute(&buf, &tplData)
-	if err != nil {
-		return err
-	}
-	from := "noreply@decred.org"
-	subject := "Locked Account - Reset Your Password"
-	body := buf.String()
-
-	msg := goemail.NewMessage(from, subject, body)
-	msg.AddTo(email)
-
-	msg.SetName(politeiaMailName)
-	return b.cfg.SMTP.Send(msg)
 }
 
 // makeRequest makes an http request to the method and route provided,
@@ -1367,8 +1171,8 @@ func (b *backend) ProcessVerifyNewUser(u www.VerifyNewUser) (*database.User, err
 
 // ProcessResendVerification resends a new user verification email if the
 // user exists and his verification token is expired.
-func (b *backend) ProcessResendVerification(rv *v1.ResendVerification) (*v1.ResendVerificationReply, error) {
-	rvr := v1.ResendVerificationReply{}
+func (b *backend) ProcessResendVerification(rv *www.ResendVerification) (*www.ResendVerificationReply, error) {
+	rvr := www.ResendVerificationReply{}
 
 	// Get user from db.
 	user, err := b.db.UserGet(rv.Email)
@@ -1881,12 +1685,6 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 			log.Errorf("ProcessNewProposal could not add record "+
 				"into inventory: %v", err)
 		}
-
-		err = b.emailAllAdminsForNewSubmittedProposal(pdReply.CensorshipRecord.Token, name,
-			user.Username, user.Email)
-		if err != nil {
-			log.Errorf("email all admins for new submitted proposals: %v %v", pdReply.CensorshipRecord.Token, err)
-		}
 	}
 
 	err = b.SpendProposalCredit(user, pdReply.CensorshipRecord.Token)
@@ -1895,6 +1693,20 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 	}
 
 	reply.CensorshipRecord = convertPropCensorFromPD(pdReply.CensorshipRecord)
+
+	if !b.test {
+		b.Lock()
+		defer b.Unlock()
+
+		b.eventManager.fireEvent(EventTypeProposalSubmitted,
+			EventDataProposalSubmitted{
+				CensorshipRecord: &reply.CensorshipRecord,
+				ProposalName:     name,
+				User:             user,
+			},
+		)
+	}
+
 	return &reply, nil
 }
 
@@ -1911,8 +1723,8 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 
 	// make sure censor message cannot blank in case the proposal is being censored
 	if sps.ProposalStatus == www.PropStatusCensored && sps.StatusChangeMessage == "" {
-		return nil, v1.UserError{
-			ErrorCode: v1.ErrorStatusChangeMessageCannotBeBlank,
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusChangeMessageCannotBeBlank,
 		}
 	}
 
@@ -1944,8 +1756,8 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 				return nil, err
 			}
 			if pr.UserId == user.ID.String() {
-				return nil, v1.UserError{
-					ErrorCode: v1.ErrorStatusReviewerAdminEqualsAuthor,
+				return nil, www.UserError{
+					ErrorCode: www.ErrorStatusReviewerAdminEqualsAuthor,
 				}
 			}
 		}
@@ -2011,15 +1823,20 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 		if err != nil {
 			return nil, fmt.Errorf("updateInventoryRecord %v", err)
 		}
-
-		// Log the action in the admin log.
-		b.logAdminProposalAction(user, sps.Token,
-			fmt.Sprintf("set proposal status to %v",
-				v1.PropStatus[sps.ProposalStatus]), sps.StatusChangeMessage)
 	}
 
 	// Return the reply.
 	reply.Proposal = convertPropFromPD(pdReply.Record)
+
+	if !b.test {
+		b.eventManager.fireEvent(EventTypeProposalStatusChange,
+			EventDataProposalStatusChange{
+				Proposal:          &reply.Proposal,
+				AdminUser:         user,
+				SetProposalStatus: &sps,
+			},
+		)
+	}
 
 	return &reply, nil
 }
@@ -2401,8 +2218,8 @@ func (b *backend) ProcessCensorComment(cc www.CensorComment, user *database.User
 
 	// Ensure censor reason is present.
 	if cc.Reason == "" {
-		return nil, v1.UserError{
-			ErrorCode: v1.ErrorStatusCensorReasonCannotBeBlank,
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusCensorReasonCannotBeBlank,
 		}
 	}
 
@@ -2763,6 +2580,18 @@ func (b *backend) ProcessAuthorizeVote(av www.AuthorizeVote, user *database.User
 		return nil, fmt.Errorf("setRecordVoteAuthorization: %v", err)
 	}
 
+	if !b.test && av.Action == www.AuthVoteActionAuthorize {
+		b.Lock()
+		defer b.Unlock()
+
+		b.eventManager.fireEvent(EventTypeProposalVoteAuthorized,
+			EventDataProposalVoteAuthorized{
+				AuthorizeVote: &av,
+				User:          user,
+			},
+		)
+	}
+
 	return &avrWWW, nil
 }
 
@@ -2888,9 +2717,6 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 		return nil, err
 	}
 
-	// Log the action in the admin log.
-	b.logAdminProposalAction(user, sv.Vote.Token, "start vote", "")
-
 	// We can get away with only updating the voting metadata in cache
 	// XXX this is cheating a bit and we should add an api for this or toss the cache altogether
 	vr, err := decredplugin.DecodeStartVoteReply([]byte(reply.Payload))
@@ -2902,6 +2728,18 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 	err = b._setRecordVoting(sv.Vote.Token, sv, voting)
 	if err != nil {
 		return nil, fmt.Errorf("setRecordVoting %v", err)
+	}
+
+	if !b.test {
+		b.Lock()
+		defer b.Unlock()
+
+		b.eventManager.fireEvent(EventTypeProposalVoteStarted,
+			EventDataProposalVoteStarted{
+				AdminUser: user,
+				StartVote: &sv,
+			},
+		)
 	}
 
 	// return a copy
@@ -3086,7 +2924,7 @@ func (b *backend) ProcessEditProposal(user *database.User, ep www.EditProposal) 
 	log.Tracef("ProcessEditProposal %v", ep.Token)
 
 	// verify that the proposal voting has not started
-	// This is expensive so do it ouseide of the lock.
+	// This is expensive so do it outside of the lock.
 	bb, err := b.getBestBlock()
 	if err != nil {
 		return nil, err
@@ -3096,8 +2934,8 @@ func (b *backend) ProcessEditProposal(user *database.User, ep www.EditProposal) 
 	// In theory the user can not issue racing edit prop commands. In
 	// practice a network hickup can submit the same edit twice but then
 	// the decred plugin should reject the second call as "no changes".
-	// The result of a mallicous user that alters the code to issue
-	// concurent updates could result in out of order cache update.
+	// A malicious user that alters the code to issue concurrent updates
+	// could result in an out-of-order cache update.
 	// Politeaid will remain coherent.
 	b.RLock()
 	// get current proposal record from inventory
@@ -3161,7 +2999,7 @@ func (b *backend) ProcessEditProposal(user *database.User, ep www.EditProposal) 
 		return nil, err
 	}
 
-	// Assemble metdata record
+	// Assemble metadata record
 	ts := time.Now().Unix()
 	backendMetadata := BackendProposalMetadata{
 		Version:   BackendProposalMetadataVersion,
@@ -3247,9 +3085,19 @@ func (b *backend) ProcessEditProposal(user *database.User, ep www.EditProposal) 
 			"updateInventoryRecord %v", err)
 	}
 
-	return &www.EditProposalReply{
+	reply := &www.EditProposalReply{
 		Proposal: convertPropFromPD(pdReply.Record),
-	}, nil
+	}
+
+	if !b.test {
+		b.eventManager.fireEvent(EventTypeProposalEdited,
+			EventDataProposalEdited{
+				Proposal: &reply.Proposal,
+			},
+		)
+	}
+
+	return reply, nil
 }
 
 // ProcessPolicy returns the details of Politeia's restrictions on file uploads.
@@ -3401,6 +3249,9 @@ func NewBackend(cfg *config) (*backend, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Setup events
+	b.initEventManager()
 
 	// Set up the code that checks for paywall payments.
 	err = b.initPaywallChecker()
