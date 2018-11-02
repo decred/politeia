@@ -472,7 +472,6 @@ func (c *ctx) sendVote(ballot *v1.Ballot) (*v1.CastVoteReply, error) {
 // large number of votes in one go to the server at the same time giving away
 // which IP address owns what votes.
 func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsResponse, smr *pb.SignMessagesResponse) ([]string, *v1.BallotReply, error) {
-
 	// voteInterval is an internal structure that is used to precalculate
 	// all timing intervals and vote details.
 	type voteInterval struct {
@@ -483,43 +482,39 @@ func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsRes
 	}
 	votes := uint64(len(ctres.TicketAddresses))
 	duration := c.cfg.voteDuration
-	minDelay := uint64(33)    // Don't send more votes every minDelay
-	minInterval := uint64(60) // Don't vote much more than once a minute
-	bias := 1.9               // Bias for random intervals
-	intervals := uint64(duration.Seconds() / float64(votes) * bias)
-	fmt.Printf("Votes   : %v\n", votes)
-	fmt.Printf("Duration: %v\n", duration)
-	fmt.Printf("Interval: %v\n\n", intervals)
+	maxDelay := uint64(duration.Seconds() / float64(votes) * 2)
+	minAvgInterval := uint64(35)
+	fmt.Printf("Votes       : %v\n", votes)
+	fmt.Printf("Duration    : %v\n", duration)
+	fmt.Printf("Avg Interval: %v\n", time.Duration(maxDelay/2)*time.Second)
 
-	if intervals < minInterval {
-		m := time.Duration(float64(minInterval)*float64(votes)/bias)*
-			time.Second + time.Second
-		return nil, nil, fmt.Errorf("interval must be > %v, make "+
-			"duration at least %v", minInterval, m)
+	// Ensure that the duration allows for sufficiently randomized delays
+	// in between votes
+	if duration.Seconds() < float64(minAvgInterval)*float64(votes) {
+		return nil, nil, fmt.Errorf("Vote duration must be at least %v",
+			time.Duration(float64(minAvgInterval)*float64(votes))*time.Second)
 	}
 
-	// Create array of work to be done. We try really hard to stay within
-	// the time limit that was provided by the user.
+	// Create array of work to be done. Vote delays are random durations
+	// between [0, maxDelay] (exclusive) which means that the vote delay
+	// average will converge to slightly less than duration/votes as the
+	// number of votes increases. Vote duration is treated as a hard cap
+	// and can not be exceeded.
 	buckets := make([]voteInterval, votes)
 	var (
 		done    bool
 		retries int
 	)
-	maxRetries := 1000
+	maxRetries := 100
 	for retries = 0; !done && retries < maxRetries; retries++ {
 		done = true
 		var total time.Duration
-		for i := 0; i < len(buckets); {
+		for i := 0; i < len(buckets); i++ {
 			seconds, err := util.RandomUint64()
 			if err != nil {
 				return nil, nil, err
 			}
-			seconds %= intervals
-			// Make sure we don't call the RPC too often
-			if seconds < minDelay {
-				continue
-			}
-
+			seconds %= maxDelay
 			if i == 0 {
 				// We always immediately vote the first time
 				// around. This should help catch setup errors.
@@ -552,14 +547,11 @@ func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsRes
 				done = false
 				break
 			}
-
-			// Next bucket
-			i++
 		}
 	}
 	if retries >= maxRetries {
-		return nil, nil, fmt.Errorf("Could not randomize times " +
-			"accurately. Please increase --voteduration")
+		// This should not happen
+		return nil, nil, fmt.Errorf("Could not randomize vote delays")
 	}
 
 	// Sanity
