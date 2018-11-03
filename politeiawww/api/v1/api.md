@@ -2405,6 +2405,9 @@ Reply:
 | identities | array of [`Identity`](#identity)s | Identities, both activated and deactivated, of the user. |
 | proposals | array of [`Proposal`](#proposal)s | Proposal submitted by the user. |
 | proposalcredits | uint64 | The number of available proposal credits the user has. |
+| myproposalnotifications | uint64 | A flag storing the user's preferences for notifications on his own proposals. Individual notification preferences are stored in each bit of the number. 1 - Proposal status change notification (approved/censored), 2 - Proposal vote started notification |
+| regularproposalnotifications | uint64 | A flag storing the user's preferences for notifications on other users' proposals. Individual notification preferences are stored in each bit of the number. 1 - Proposal published notification (approved), 2 - Proposal edited notification, 4 - Proposal vote started notification |
+| adminproposalnotifications | uint64 | A flag storing an admin user's preferences for notifications proposals which require admin attention. Individual notification preferences are stored in each bit of the number. 1 - Proposal submitted for review notification, 2 - Proposal vote authorized notification |
 
 ### `Abridged User`
 
