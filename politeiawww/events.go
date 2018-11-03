@@ -95,8 +95,7 @@ func (b *backend) setupProposalSubmittedEmailNotification() {
 
 	ch := make(chan interface{})
 	go func() {
-		for {
-			data := <-ch
+		for data := range ch {
 			ps, ok := data.(EventDataProposalSubmitted)
 			if !ok {
 				log.Errorf("invalid event data")
@@ -122,8 +121,7 @@ func (b *backend) setupProposalStatusChangeEmailNotification() {
 
 	ch := make(chan interface{})
 	go func() {
-		for {
-			data := <-ch
+		for data := range ch {
 			psc, ok := data.(EventDataProposalStatusChange)
 			if !ok {
 				log.Errorf("invalid event data")
@@ -175,8 +173,7 @@ func (b *backend) setupProposalStatusChangeEmailNotification() {
 func (b *backend) setupProposalStatusChangeLogging() {
 	ch := make(chan interface{})
 	go func() {
-		for {
-			data := <-ch
+		for data := range ch {
 			psc, ok := data.(EventDataProposalStatusChange)
 			if !ok {
 				log.Errorf("invalid event data")
@@ -205,8 +202,7 @@ func (b *backend) setupProposalEditedEmailNotification() {
 
 	ch := make(chan interface{})
 	go func() {
-		for {
-			data := <-ch
+		for data := range ch {
 			pe, ok := data.(EventDataProposalEdited)
 			if !ok {
 				log.Errorf("invalid event data")
@@ -243,8 +239,7 @@ func (b *backend) setupProposalVoteStartedEmailNotification() {
 
 	ch := make(chan interface{})
 	go func() {
-		for {
-			data := <-ch
+		for data := range ch {
 			pvs, ok := data.(EventDataProposalVoteStarted)
 			if !ok {
 				log.Errorf("invalid event data")
@@ -283,8 +278,7 @@ func (b *backend) setupProposalVoteStartedEmailNotification() {
 func (b *backend) setupProposalVoteStartedLogging() {
 	ch := make(chan interface{})
 	go func() {
-		for {
-			data := <-ch
+		for data := range ch {
 			pvs, ok := data.(EventDataProposalVoteStarted)
 			if !ok {
 				log.Errorf("invalid event data")
@@ -309,8 +303,7 @@ func (b *backend) setupProposalVoteAuthorizedEmailNotification() {
 
 	ch := make(chan interface{})
 	go func() {
-		for {
-			data := <-ch
+		for data := range ch {
 			pvs, ok := data.(EventDataProposalVoteAuthorized)
 			if !ok {
 				log.Errorf("invalid event data")
@@ -338,8 +331,7 @@ func (b *backend) setupProposalVoteAuthorizedEmailNotification() {
 func (b *backend) setupUserManageLogging() {
 	ch := make(chan interface{})
 	go func() {
-		for {
-			data := <-ch
+		for data := range ch {
 			ue, ok := data.(EventDataUserManage)
 			if !ok {
 				log.Errorf("invalid event data")
@@ -360,29 +352,32 @@ func (b *backend) setupUserManageLogging() {
 // register adds a listener channel for the given event type.
 //
 // This function must be called WITH the mutex held.
-func (e *EventManager) register(eventType EventT, listener chan interface{}) {
+func (e *EventManager) register(eventType EventT, listenerToAdd chan interface{}) {
 	if e.Listeners == nil {
 		e.Listeners = make(map[EventT][]chan interface{})
 	}
 
 	if _, ok := e.Listeners[eventType]; ok {
-		e.Listeners[eventType] = append(e.Listeners[eventType], listener)
+		e.Listeners[eventType] = append(e.Listeners[eventType], listenerToAdd)
 	} else {
-		e.Listeners[eventType] = []chan interface{}{listener}
+		e.Listeners[eventType] = []chan interface{}{listenerToAdd}
 	}
 }
 
 // unregister removes the given listener channel for the given event type.
 //
 // This function must be called WITH the mutex held.
-func (e *EventManager) unregister(eventType EventT, listener chan interface{}) {
-	if _, ok := e.Listeners[eventType]; ok {
-		for l := range e.Listeners[eventType] {
-			if e.Listeners[eventType][l] == listener {
-				e.Listeners[eventType] = append(e.Listeners[eventType][:l],
-					e.Listeners[eventType][l+1:]...)
-				break
-			}
+func (e *EventManager) unregister(eventType EventT, listenerToRemove chan interface{}) {
+	listeners, ok := e.Listeners[eventType]
+	if !ok {
+		return
+	}
+
+	for i, listener := range listeners {
+		if listener == listenerToRemove {
+			e.Listeners[eventType] = append(e.Listeners[eventType][:i],
+				e.Listeners[eventType][i+1:]...)
+			break
 		}
 	}
 }
@@ -392,11 +387,12 @@ func (e *EventManager) unregister(eventType EventT, listener chan interface{}) {
 //
 // This function must be called WITH the mutex held.
 func (e *EventManager) fireEvent(eventType EventT, data interface{}) {
-	if _, ok := e.Listeners[eventType]; !ok {
+	listeners, ok := e.Listeners[eventType]
+	if !ok {
 		return
 	}
 
-	for _, listener := range e.Listeners[eventType] {
+	for _, listener := range listeners {
 		go func(listener chan interface{}) {
 			listener <- data
 		}(listener)
