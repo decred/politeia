@@ -13,10 +13,10 @@ import (
 	"github.com/google/uuid"
 )
 
-// logAdminAction logs a string to the admin log file.
+// _logAdminAction logs a string to the admin log file.
 //
-// This function must be called WITHOUT the mutex held.
-func (b *backend) logAdminAction(adminUser *database.User, content string) error {
+// This function must be called WITH the mutex held.
+func (b *backend) _logAdminAction(adminUser *database.User, content string) error {
 	if b.test {
 		return nil
 	}
@@ -34,6 +34,16 @@ func (b *backend) logAdminAction(adminUser *database.User, content string) error
 	_, err = fmt.Fprintf(f, "%v,%v,%v,%v\n", dateTimeStr,
 		adminUser.ID, adminUser.Username, content)
 	return err
+}
+
+// logAdminAction logs a string to the admin log file.
+//
+// This function must be called WITHOUT the mutex held.
+func (b *backend) logAdminAction(adminUser *database.User, content string) error {
+	b.Lock()
+	defer b.Unlock()
+
+	return b._logAdminAction(adminUser, content)
 }
 
 // logAdminUserAction logs an admin action on a specific user.
@@ -111,7 +121,7 @@ func (b *backend) ProcessManageUser(mu *v1.ManageUser, adminUser *database.User)
 		b.Lock()
 		defer b.Unlock()
 
-		b.eventManager.fireEvent(EventTypeUserManage, EventDataUserManage{
+		b.eventManager._fireEvent(EventTypeUserManage, EventDataUserManage{
 			AdminUser:  adminUser,
 			User:       user,
 			ManageUser: mu,

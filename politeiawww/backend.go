@@ -1698,7 +1698,7 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 		b.Lock()
 		defer b.Unlock()
 
-		b.eventManager.fireEvent(EventTypeProposalSubmitted,
+		b.eventManager._fireEvent(EventTypeProposalSubmitted,
 			EventDataProposalSubmitted{
 				CensorshipRecord: &reply.CensorshipRecord,
 				ProposalName:     name,
@@ -1829,7 +1829,7 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 	reply.Proposal = convertPropFromPD(pdReply.Record)
 
 	if !b.test {
-		b.eventManager.fireEvent(EventTypeProposalStatusChange,
+		b.eventManager._fireEvent(EventTypeProposalStatusChange,
 			EventDataProposalStatusChange{
 				Proposal:          &reply.Proposal,
 				AdminUser:         user,
@@ -2584,7 +2584,7 @@ func (b *backend) ProcessAuthorizeVote(av www.AuthorizeVote, user *database.User
 		b.Lock()
 		defer b.Unlock()
 
-		b.eventManager.fireEvent(EventTypeProposalVoteAuthorized,
+		b.eventManager._fireEvent(EventTypeProposalVoteAuthorized,
 			EventDataProposalVoteAuthorized{
 				AuthorizeVote: &av,
 				User:          user,
@@ -2717,8 +2717,6 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 		return nil, err
 	}
 
-	// We can get away with only updating the voting metadata in cache
-	// XXX this is cheating a bit and we should add an api for this or toss the cache altogether
 	vr, err := decredplugin.DecodeStartVoteReply([]byte(reply.Payload))
 	if err != nil {
 		return nil, err
@@ -2731,10 +2729,7 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 	}
 
 	if !b.test {
-		b.Lock()
-		defer b.Unlock()
-
-		b.eventManager.fireEvent(EventTypeProposalVoteStarted,
+		b.eventManager._fireEvent(EventTypeProposalVoteStarted,
 			EventDataProposalVoteStarted{
 				AdminUser: user,
 				StartVote: &sv,
@@ -3090,7 +3085,7 @@ func (b *backend) ProcessEditProposal(user *database.User, ep www.EditProposal) 
 	}
 
 	if !b.test {
-		b.eventManager.fireEvent(EventTypeProposalEdited,
+		b.eventManager._fireEvent(EventTypeProposalEdited,
 			EventDataProposalEdited{
 				Proposal: &reply.Proposal,
 			},

@@ -71,24 +71,27 @@ func (b *backend) getProposalAuthor(proposal *v1.ProposalRecord) (*database.User
 }
 
 func (b *backend) initEventManager() {
+	b.Lock()
+	defer b.Unlock()
+
 	b.eventManager = &EventManager{}
 
-	b.setupProposalSubmittedEmailNotification()
+	b._setupProposalSubmittedEmailNotification()
 
-	b.setupProposalStatusChangeEmailNotification()
-	b.setupProposalStatusChangeLogging()
+	b._setupProposalStatusChangeEmailNotification()
+	b._setupProposalStatusChangeLogging()
 
-	b.setupProposalEditedEmailNotification()
+	b._setupProposalEditedEmailNotification()
 
-	b.setupProposalVoteStartedEmailNotification()
-	b.setupProposalVoteStartedLogging()
+	b._setupProposalVoteStartedEmailNotification()
+	b._setupProposalVoteStartedLogging()
 
-	b.setupProposalVoteAuthorizedEmailNotification()
+	b._setupProposalVoteAuthorizedEmailNotification()
 
-	b.setupUserManageLogging()
+	b._setupUserManageLogging()
 }
 
-func (b *backend) setupProposalSubmittedEmailNotification() {
+func (b *backend) _setupProposalSubmittedEmailNotification() {
 	if b.cfg.SMTP == nil {
 		return
 	}
@@ -111,10 +114,10 @@ func (b *backend) setupProposalSubmittedEmailNotification() {
 			}
 		}
 	}()
-	b.eventManager.register(EventTypeProposalSubmitted, ch)
+	b.eventManager._register(EventTypeProposalSubmitted, ch)
 }
 
-func (b *backend) setupProposalStatusChangeEmailNotification() {
+func (b *backend) _setupProposalStatusChangeEmailNotification() {
 	if b.cfg.SMTP == nil {
 		return
 	}
@@ -167,10 +170,10 @@ func (b *backend) setupProposalStatusChangeEmailNotification() {
 			}
 		}
 	}()
-	b.eventManager.register(EventTypeProposalStatusChange, ch)
+	b.eventManager._register(EventTypeProposalStatusChange, ch)
 }
 
-func (b *backend) setupProposalStatusChangeLogging() {
+func (b *backend) _setupProposalStatusChangeLogging() {
 	ch := make(chan interface{})
 	go func() {
 		for data := range ch {
@@ -192,10 +195,10 @@ func (b *backend) setupProposalStatusChangeLogging() {
 			}
 		}
 	}()
-	b.eventManager.register(EventTypeProposalStatusChange, ch)
+	b.eventManager._register(EventTypeProposalStatusChange, ch)
 }
 
-func (b *backend) setupProposalEditedEmailNotification() {
+func (b *backend) _setupProposalEditedEmailNotification() {
 	if b.cfg.SMTP == nil {
 		return
 	}
@@ -229,10 +232,10 @@ func (b *backend) setupProposalEditedEmailNotification() {
 			}
 		}
 	}()
-	b.eventManager.register(EventTypeProposalEdited, ch)
+	b.eventManager._register(EventTypeProposalEdited, ch)
 }
 
-func (b *backend) setupProposalVoteStartedEmailNotification() {
+func (b *backend) _setupProposalVoteStartedEmailNotification() {
 	if b.cfg.SMTP == nil {
 		return
 	}
@@ -272,10 +275,10 @@ func (b *backend) setupProposalVoteStartedEmailNotification() {
 			}
 		}
 	}()
-	b.eventManager.register(EventTypeProposalVoteStarted, ch)
+	b.eventManager._register(EventTypeProposalVoteStarted, ch)
 }
 
-func (b *backend) setupProposalVoteStartedLogging() {
+func (b *backend) _setupProposalVoteStartedLogging() {
 	ch := make(chan interface{})
 	go func() {
 		for data := range ch {
@@ -293,10 +296,10 @@ func (b *backend) setupProposalVoteStartedLogging() {
 			}
 		}
 	}()
-	b.eventManager.register(EventTypeProposalVoteStarted, ch)
+	b.eventManager._register(EventTypeProposalVoteStarted, ch)
 }
 
-func (b *backend) setupProposalVoteAuthorizedEmailNotification() {
+func (b *backend) _setupProposalVoteAuthorizedEmailNotification() {
 	if b.cfg.SMTP == nil {
 		return
 	}
@@ -325,10 +328,10 @@ func (b *backend) setupProposalVoteAuthorizedEmailNotification() {
 			}
 		}
 	}()
-	b.eventManager.register(EventTypeProposalVoteAuthorized, ch)
+	b.eventManager._register(EventTypeProposalVoteAuthorized, ch)
 }
 
-func (b *backend) setupUserManageLogging() {
+func (b *backend) _setupUserManageLogging() {
 	ch := make(chan interface{})
 	go func() {
 		for data := range ch {
@@ -346,13 +349,13 @@ func (b *backend) setupUserManageLogging() {
 			}
 		}
 	}()
-	b.eventManager.register(EventTypeUserManage, ch)
+	b.eventManager._register(EventTypeUserManage, ch)
 }
 
-// register adds a listener channel for the given event type.
+// _register adds a listener channel for the given event type.
 //
 // This function must be called WITH the mutex held.
-func (e *EventManager) register(eventType EventT, listenerToAdd chan interface{}) {
+func (e *EventManager) _register(eventType EventT, listenerToAdd chan interface{}) {
 	if e.Listeners == nil {
 		e.Listeners = make(map[EventT][]chan interface{})
 	}
@@ -364,10 +367,10 @@ func (e *EventManager) register(eventType EventT, listenerToAdd chan interface{}
 	}
 }
 
-// unregister removes the given listener channel for the given event type.
+// _unregister removes the given listener channel for the given event type.
 //
 // This function must be called WITH the mutex held.
-func (e *EventManager) unregister(eventType EventT, listenerToRemove chan interface{}) {
+func (e *EventManager) _unregister(eventType EventT, listenerToRemove chan interface{}) {
 	listeners, ok := e.Listeners[eventType]
 	if !ok {
 		return
@@ -382,11 +385,11 @@ func (e *EventManager) unregister(eventType EventT, listenerToRemove chan interf
 	}
 }
 
-// fireEvent iterates all listener channels for the given event type and
+// _fireEvent iterates all listener channels for the given event type and
 // passes the given data to it.
 //
 // This function must be called WITH the mutex held.
-func (e *EventManager) fireEvent(eventType EventT, data interface{}) {
+func (e *EventManager) _fireEvent(eventType EventT, data interface{}) {
 	listeners, ok := e.Listeners[eventType]
 	if !ok {
 		return
