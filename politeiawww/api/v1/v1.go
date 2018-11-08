@@ -1003,29 +1003,27 @@ type EditUserReply struct{}
 
 // User represents an individual user.
 type User struct {
-	ID                              string           `json:"id"`
-	Email                           string           `json:"email"`
-	Username                        string           `json:"username"`
-	Admin                           bool             `json:"isadmin"`
-	NewUserPaywallAddress           string           `json:"newuserpaywalladdress"`
-	NewUserPaywallAmount            uint64           `json:"newuserpaywallamount"`
-	NewUserPaywallTx                string           `json:"newuserpaywalltx"`
-	NewUserPaywallTxNotBefore       int64            `json:"newuserpaywalltxnotbefore"`
-	NewUserPaywallPollExpiry        int64            `json:"newuserpaywallpollexpiry"`
-	NewUserVerificationToken        []byte           `json:"newuserverificationtoken"`
-	NewUserVerificationExpiry       int64            `json:"newuserverificationexpiry"`
-	UpdateKeyVerificationToken      []byte           `json:"updatekeyverificationtoken"`
-	UpdateKeyVerificationExpiry     int64            `json:"updatekeyverificationexpiry"`
-	ResetPasswordVerificationToken  []byte           `json:"resetpasswordverificationtoken"`
-	ResetPasswordVerificationExpiry int64            `json:"resetpasswordverificationexpiry"`
-	LastLoginTime                   int64            `json:"lastlogintime"`
-	FailedLoginAttempts             uint64           `json:"failedloginattempts"`
-	Deactivated                     bool             `json:"isdeactivated"`
-	Locked                          bool             `json:"islocked"`
-	Identities                      []UserIdentity   `json:"identities"`
-	Proposals                       []ProposalRecord `json:"proposals"`
-	NumOfProposals                  int              `json:"numofproposals"` // number of proposals submitted by the user
-	ProposalCredits                 uint64           `json:"proposalcredits"`
+	ID                              string         `json:"id"`
+	Email                           string         `json:"email"`
+	Username                        string         `json:"username"`
+	Admin                           bool           `json:"isadmin"`
+	NewUserPaywallAddress           string         `json:"newuserpaywalladdress"`
+	NewUserPaywallAmount            uint64         `json:"newuserpaywallamount"`
+	NewUserPaywallTx                string         `json:"newuserpaywalltx"`
+	NewUserPaywallTxNotBefore       int64          `json:"newuserpaywalltxnotbefore"`
+	NewUserPaywallPollExpiry        int64          `json:"newuserpaywallpollexpiry"`
+	NewUserVerificationToken        []byte         `json:"newuserverificationtoken"`
+	NewUserVerificationExpiry       int64          `json:"newuserverificationexpiry"`
+	UpdateKeyVerificationToken      []byte         `json:"updatekeyverificationtoken"`
+	UpdateKeyVerificationExpiry     int64          `json:"updatekeyverificationexpiry"`
+	ResetPasswordVerificationToken  []byte         `json:"resetpasswordverificationtoken"`
+	ResetPasswordVerificationExpiry int64          `json:"resetpasswordverificationexpiry"`
+	LastLoginTime                   int64          `json:"lastlogintime"`
+	FailedLoginAttempts             uint64         `json:"failedloginattempts"`
+	Deactivated                     bool           `json:"isdeactivated"`
+	Locked                          bool           `json:"islocked"`
+	Identities                      []UserIdentity `json:"identities"`
+	ProposalCredits                 uint64         `json:"proposalcredits"`
 }
 
 // UserIdentity represents a user's unique identity.
