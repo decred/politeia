@@ -534,7 +534,6 @@ Reply:
       "pubkey": "5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
       "isactive": true
     }],
-    "proposals": [],
     "comments": []
   }
 }
@@ -2423,7 +2422,6 @@ Reply:
 | islocked | boolean | Whether the user account is locked due to too many failed login attempts. |
 | isdeactivated | boolean | Whether the user account is deactivated. Deactivated accounts cannot login. |
 | identities | array of [`Identity`](#identity)s | Identities, both activated and deactivated, of the user. |
-| proposals | array of [`Proposal`](#proposal)s | Proposal submitted by the user. |
 | proposalcredits | uint64 | The number of available proposal credits the user has. |
 
 ### `Abridged User`
