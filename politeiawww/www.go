@@ -1173,7 +1173,7 @@ func (p *politeiawww) handleUserDetails(w http.ResponseWriter, r *http.Request) 
 
 	userID, err := uuid.Parse(ud.UserID)
 	if err != nil {
-		RespondWithError(w, r, 0, "handleUserProposals: ParseUint",
+		RespondWithError(w, r, 0, "handleUserDetails: ParseUint",
 			v1.UserError{
 				ErrorCode: v1.ErrorStatusInvalidInput,
 			})
