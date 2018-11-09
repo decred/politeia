@@ -2540,6 +2540,20 @@ func (b *backend) ProcessUserProposalCredits(user *database.User) (*www.UserProp
 
 // ProcessUserProposals returns the proposals for the given user.
 func (b *backend) ProcessUserProposals(up *www.UserProposals, isCurrentUser, isAdminUser bool) (*www.UserProposalsReply, error) {
+	// Verify user exists
+	_, err := b.getUserByIDStr(up.UserId)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get user proposal data
+	ps := b.userProposalStats(up.UserId)
+	numProposals := ps.NumOfPublic
+	if isCurrentUser || isAdminUser {
+		numProposals += ps.NumOfUnvetted + ps.NumOfUnvettedChanges +
+			ps.NumOfCensored
+	}
+
 	return &www.UserProposalsReply{
 		Proposals: b.getProposals(proposalsRequest{
 			After:  up.After,
@@ -2552,7 +2566,7 @@ func (b *backend) ProcessUserProposals(up *www.UserProposals, isCurrentUser, isA
 				www.PropStatusPublic:            true,
 			},
 		}),
-		NumOfProposals: b.getCountOfProposalsByUserID(up.UserId),
+		NumOfProposals: numProposals,
 	}, nil
 }
 
@@ -3283,7 +3297,7 @@ func (b *backend) ProcessPolicy(p www.Policy) *www.PolicyReply {
 // proposal status
 // Must be called WITHOUT holding the mutex.
 func (b *backend) ProcessProposalsStats() www.ProposalsStatsReply {
-	ps := b.getProposalsStats()
+	ps := b.inventoryProposalStats()
 	return www.ProposalsStatsReply{
 		NumOfCensored:        ps.NumOfCensored,
 		NumOfUnvetted:        ps.NumOfUnvetted,
