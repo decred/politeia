@@ -1216,8 +1216,12 @@ Retrieve a page and the total amount of proposals submitted by the given user; t
 
 | | Type | Description |
 |-|-|-|
-| proposals | array of [`Proposal`](#proposal)s | An Array of proposals submitted by the user. |
-| numOfProposals | int | Number of proposals submitted by the user. |
+| proposals | array of [`Proposal`](#proposal)s | One page of user submitted proposals. |
+| numOfProposals | int | Total number of proposals submitted by the user. If an admin is sending the request or a user is requesting their own proposals then this value includes unvetted, censored, and public proposals. Otherwise, this value only includes public proposals. |
+
+On failure the call shall return `400 Bad Request` and one of the following
+error codes:
+- [`ErrorStatusUserNotFound`](#ErrorStatusUserNotFound)
 
 **Example**
 

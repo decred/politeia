@@ -36,7 +36,8 @@ type proposalsRequest struct {
 	StatusMap map[www.PropStatusT]bool
 }
 
-// proposalsStats is used as reply of the getProposalsStats() function.
+// proposalsStats is used to summarize proposal statistics
+// for the full inventory and for individual users.
 type proposalsStats struct {
 	NumOfInvalid         int
 	NumOfCensored        int
@@ -45,11 +46,11 @@ type proposalsStats struct {
 	NumOfPublic          int
 }
 
-// getProposalsStats returns the counting of proposals by each status
-// Must be called WITHOUT the mutex held.
-func (b *backend) getProposalsStats() proposalsStats {
-	b.RLock()
-	defer b.RUnlock()
+// _inventoryProposalStats returns the number of proposals that are in the
+// inventory catagorized by proposal status.
+//
+// This function must be called WITH the mutex held.
+func (b *backend) _inventoryProposalStats() proposalsStats {
 	return proposalsStats{
 		NumOfInvalid:         b.numOfInvalid,
 		NumOfCensored:        b.numOfCensored,
@@ -59,12 +60,46 @@ func (b *backend) getProposalsStats() proposalsStats {
 	}
 }
 
-// getCountOfProposalsByUserID returns the counting of proposals given a user id
-// Must be called WITHOUT the mutex held
-func (b *backend) getCountOfProposalsByUserID(userID string) int {
+// inventoryProposalStats returns the number of proposals that are in the
+// inventory catagorized by proposal status.
+//
+// This function must be called WITHOUT the mutex held.
+func (b *backend) inventoryProposalStats() proposalsStats {
 	b.RLock()
 	defer b.RUnlock()
-	return b.numOfPropsByUserID[userID]
+	return b._inventoryProposalStats()
+}
+
+// userProposalStats returns the number of proposals for the specified user
+// catagorized by proposal status.
+//
+// This function must be called WITHOUT the mutex held.
+func (b *backend) userProposalStats(userID string) proposalsStats {
+	b.RLock()
+	allProposals := b._getAllProposals()
+	b.RUnlock()
+
+	var ps proposalsStats
+	for _, v := range allProposals {
+		if v.UserId != userID {
+			continue
+		}
+
+		switch v.Status {
+		case www.PropStatusInvalid:
+			ps.NumOfInvalid += 1
+		case www.PropStatusNotReviewed:
+			ps.NumOfUnvetted += 1
+		case www.PropStatusUnreviewedChanges:
+			ps.NumOfUnvettedChanges += 1
+		case www.PropStatusCensored:
+			ps.NumOfCensored += 1
+		case www.PropStatusPublic:
+			ps.NumOfPublic += 1
+		}
+	}
+
+	return ps
 }
 
 // _newInventoryRecord adds a record to the inventory.
@@ -538,13 +573,10 @@ func (b *backend) _getProposal(token string) (www.ProposalRecord, error) {
 	return pr, nil
 }
 
-// getProposals returns a list of proposals that adheres to the requirements
-// specified in the provided request.
+// _getAllProposals returns all of the proposals in the inventory.
 //
-// This function must be called WITHOUT the mutex held.
-func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
-	b.RLock()
-
+// This function must be called WITH the mutex held.
+func (b *backend) _getAllProposals() []www.ProposalRecord {
 	allProposals := make([]www.ProposalRecord, 0, len(b.inventory))
 	for _, vv := range b.inventory {
 		v := b._convertPropFromInventoryRecord(*vv)
@@ -566,6 +598,16 @@ func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
 		allProposals = append(allProposals, v)
 	}
 
+	return allProposals
+}
+
+// getProposals returns a list of proposals that adheres to the requirements
+// specified in the provided request.
+//
+// This function must be called WITHOUT the mutex held.
+func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
+	b.RLock()
+	allProposals := b._getAllProposals()
 	b.RUnlock()
 	sort.Slice(allProposals, func(i, j int) bool {
 		// sort by older timestamp first, if timestamps are different
