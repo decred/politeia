@@ -130,7 +130,7 @@ func (c *Client) makeRequest(method, route string, body interface{}) ([]byte, er
 	if r.StatusCode != http.StatusOK {
 		var ue v1.UserError
 		err = json.Unmarshal(responseBody, &ue)
-		if err == nil {
+		if err == nil && ue.ErrorCode != 0 {
 			return nil, fmt.Errorf("%v, %v %v", r.StatusCode,
 				v1.ErrorStatus[ue.ErrorCode], strings.Join(ue.ErrorContext, ", "))
 		}

@@ -2766,11 +2766,6 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 func (b *backend) ProcessVoteResults(token string) (*www.VoteResultsReply, error) {
 	log.Tracef("ProcessVoteResults")
 
-	vrr, err := b.getVoteResultsFromPlugin(token)
-	if err != nil {
-		return nil, err
-	}
-
 	// Fetch record from inventory in order to get the voting details
 	// (StartVoteReply)
 	ir, err := b.getInventoryRecord(token)
@@ -2783,6 +2778,11 @@ func (b *backend) ProcessVoteResults(token string) (*www.VoteResultsReply, error
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusWrongStatus,
 		}
+	}
+
+	vrr, err := b.getVoteResultsFromPlugin(token)
+	if err != nil {
+		return nil, err
 	}
 
 	wvrr := convertVoteResultsReplyFromDecredplugin(*vrr, ir)

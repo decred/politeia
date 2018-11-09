@@ -11,5 +11,14 @@ func (cmd *ProposalVotesCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
+
+	// Remove eligible tickets snapshot from response
+	// so that the output is legible
+	if !cfg.RawJSON {
+		vrr.StartVoteReply.EligibleTickets = []string{
+			"removed by politeiawwwcli for readability",
+		}
+	}
+
 	return Print(vrr, cfg.Verbose, cfg.RawJSON)
 }
