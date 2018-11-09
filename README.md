@@ -208,6 +208,8 @@ When using politeiawww_refclient, the `-use-paywall` flag is true by default. Wh
 
 * https://test-proposals.decred.org/ - testing/development instance of Politeia.
 
+* https://pi-staging.decred.org/ - politeia staging environment.
+
 * https://proposals.decred.org/ - live production instance of Politeia.
 
 ## Library and interfaces
