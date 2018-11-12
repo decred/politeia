@@ -76,15 +76,12 @@ func filterUserPublicFields(user v1.User) v1.User {
 		ID:         user.ID,
 		Username:   user.Username,
 		Identities: user.Identities,
-		Proposals:  user.Proposals,
 	}
 }
 
-// ProcessUserDetails return the requested user's details
-// Some fields can be ommitted or blank depending on the
-// requester's access level
+// ProcessUserDetails return the requested user's details. Some fields can be
+// omitted or blank depending on the requester's access level.
 func (b *backend) ProcessUserDetails(ud *v1.UserDetails, isCurrentUser bool, isAdmin bool) (*v1.UserDetailsReply, error) {
-
 	// Fetch the database user.
 	user, err := b.getUserByIDStr(ud.UserID)
 	if err != nil {
@@ -95,24 +92,12 @@ func (b *backend) ProcessUserDetails(ud *v1.UserDetails, isCurrentUser bool, isA
 	var udr v1.UserDetailsReply
 	wwwUser := convertWWWUserFromDatabaseUser(user)
 
-	// Fetch the first page of the user's proposals.
-	up := v1.UserProposals{
-		UserId: ud.UserID,
-	}
-	upr, err := b.ProcessUserProposals(&up, isCurrentUser, isAdmin)
-	if err != nil {
-		return nil, err
-	}
-	wwwUser.Proposals = upr.Proposals
-
 	// Filter returned fields in case the user isn't the admin or the current user
 	if !isAdmin && !isCurrentUser {
 		udr.User = filterUserPublicFields(wwwUser)
 	} else {
 		udr.User = wwwUser
 	}
-
-	udr.User.NumOfProposals = b.getCountOfProposalsByUserID(up.UserId)
 
 	return &udr, nil
 }

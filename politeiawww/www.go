@@ -1007,7 +1007,7 @@ func (p *politeiawww) handleUserProposals(w http.ResponseWriter, r *http.Request
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		// since having a logged in user isn't required, simply log the error
-		log.Infof("handleUserDetails: could not get session user %v", err)
+		log.Infof("handleUserProposals: could not get session user %v", err)
 	}
 
 	upr, err := p.backend.ProcessUserProposals(
@@ -1151,7 +1151,7 @@ func (p *politeiawww) handleUserDetails(w http.ResponseWriter, r *http.Request) 
 
 	userID, err := uuid.Parse(ud.UserID)
 	if err != nil {
-		RespondWithError(w, r, 0, "handleUserProposals: ParseUint",
+		RespondWithError(w, r, 0, "handleUserDetails: ParseUint",
 			v1.UserError{
 				ErrorCode: v1.ErrorStatusInvalidInput,
 			})
@@ -1310,8 +1310,6 @@ func (p *politeiawww) handleUserCommentsVotes(w http.ResponseWriter, r *http.Req
 
 // handleEditProposal attempts to edit a proposal
 func (p *politeiawww) handleEditProposal(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleEditProposal")
-
 	var ep v1.EditProposal
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&ep); err != nil {
@@ -1328,6 +1326,8 @@ func (p *politeiawww) handleEditProposal(w http.ResponseWriter, r *http.Request)
 			"handleEditProposal: getSessionUser %v", err)
 		return
 	}
+
+	log.Debugf("handleEditProposal: %v", ep.Token)
 
 	epr, err := p.backend.ProcessEditProposal(user, ep)
 	if err != nil {

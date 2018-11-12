@@ -157,7 +157,7 @@ func anchorCommitMerkle(commit *GitCommit) string {
 }
 
 // parseAnchorCommit returns a list of digest bytes from an anchor GitCommit,
-// as well as a list of commit messages for what was commited.
+// as well as a list of commit messages for what was committed.
 func parseAnchorCommit(commit *GitCommit) ([][]byte, []string, error) {
 	// Make sure it is an anchor commit
 	firstLine := commit.Message[0]

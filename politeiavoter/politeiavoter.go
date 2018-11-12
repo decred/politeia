@@ -1,14 +1,22 @@
+// Copyright (c) 2018 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package main
 
 import (
 	"bytes"
 	"context"
+	crand "crypto/rand"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"math/big"
+	"math/rand"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -17,7 +25,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/decred/dcrd/chaincfg/chainec"
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/wire"
 	pb "github.com/decred/dcrwallet/rpc/walletrpc"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiawww/api/v1"
@@ -30,8 +41,17 @@ import (
 )
 
 var (
-	verify = false // Validate server TLS certificate
+	verify bool // Validate server TLS certificate
 )
+
+func generateSeed() (int64, error) {
+	var seedBytes [8]byte
+	_, err := crand.Read(seedBytes[:])
+	if err != nil {
+		return 0, err
+	}
+	return new(big.Int).SetBytes(seedBytes[:]).Int64(), nil
+}
 
 func usage() {
 	fmt.Fprintf(os.Stderr, "usage: politeiavoter [flags] <action> [arguments]\n")
@@ -65,6 +85,61 @@ func ProvidePrivPassphrase() ([]byte, error) {
 
 		return pass, nil
 	}
+}
+
+// verifyMessage verifies a message is properly signed.
+// Copied from https://github.com/decred/dcrd/blob/0fc55252f912756c23e641839b1001c21442c38a/rpcserver.go#L5605
+func verifyMessage(address, message, signature string) (bool, error) {
+	// Decode the provided address.
+	addr, err := dcrutil.DecodeAddress(address)
+	if err != nil {
+		return false, fmt.Errorf("Could not decode address: %v",
+			err)
+	}
+
+	// Only P2PKH addresses are valid for signing.
+	if _, ok := addr.(*dcrutil.AddressPubKeyHash); !ok {
+		return false, fmt.Errorf("Address is not a pay-to-pubkey-hash "+
+			"address: %v", address)
+	}
+
+	// Decode base64 signature.
+	sig, err := base64.StdEncoding.DecodeString(signature)
+	if err != nil {
+		return false, fmt.Errorf("Malformed base64 encoding: %v", err)
+	}
+
+	// Validate the signature - this just shows that it was valid at all.
+	// we will compare it with the key next.
+	var buf bytes.Buffer
+	wire.WriteVarString(&buf, 0, "Decred Signed Message:\n")
+	wire.WriteVarString(&buf, 0, message)
+	expectedMessageHash := chainhash.HashB(buf.Bytes())
+	pk, wasCompressed, err := chainec.Secp256k1.RecoverCompact(sig,
+		expectedMessageHash)
+	if err != nil {
+		// Mirror Bitcoin Core behavior, which treats error in
+		// RecoverCompact as invalid signature.
+		return false, nil
+	}
+
+	// Reconstruct the pubkey hash.
+	dcrPK := pk
+	var serializedPK []byte
+	if wasCompressed {
+		serializedPK = dcrPK.SerializeCompressed()
+	} else {
+		serializedPK = dcrPK.SerializeUncompressed()
+	}
+	a, err := dcrutil.NewAddressSecpPubKey(serializedPK, activeNetParams.Params)
+	if err != nil {
+		// Again mirror Bitcoin Core behavior, which treats error in
+		// public key reconstruction as invalid signature.
+		return false, nil
+	}
+
+	// Return boolean if addresses match.
+	return a.EncodeAddress() == address, nil
 }
 
 type ctx struct {
@@ -397,7 +472,6 @@ func (c *ctx) sendVote(ballot *v1.Ballot) (*v1.CastVoteReply, error) {
 // large number of votes in one go to the server at the same time giving away
 // which IP address owns what votes.
 func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsResponse, smr *pb.SignMessagesResponse) ([]string, *v1.BallotReply, error) {
-
 	// voteInterval is an internal structure that is used to precalculate
 	// all timing intervals and vote details.
 	type voteInterval struct {
@@ -408,43 +482,39 @@ func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsRes
 	}
 	votes := uint64(len(ctres.TicketAddresses))
 	duration := c.cfg.voteDuration
-	minDelay := uint64(33)    // Don't send more votes every minDelay
-	minInterval := uint64(60) // Don't vote much more than once a minute
-	bias := 1.9               // Bias for random intervals
-	intervals := uint64(duration.Seconds() / float64(votes) * bias)
-	fmt.Printf("Votes   : %v\n", votes)
-	fmt.Printf("Duration: %v\n", duration)
-	fmt.Printf("Interval: %v\n\n", intervals)
+	maxDelay := uint64(duration.Seconds() / float64(votes) * 2)
+	minAvgInterval := uint64(35)
+	fmt.Printf("Votes       : %v\n", votes)
+	fmt.Printf("Duration    : %v\n", duration)
+	fmt.Printf("Avg Interval: %v\n", time.Duration(maxDelay/2)*time.Second)
 
-	if intervals < minInterval {
-		m := time.Duration(float64(minInterval)*float64(votes)/bias)*
-			time.Second + time.Second
-		return nil, nil, fmt.Errorf("interval must be > %v, make "+
-			"duration at least %v", minInterval, m)
+	// Ensure that the duration allows for sufficiently randomized delays
+	// in between votes
+	if duration.Seconds() < float64(minAvgInterval)*float64(votes) {
+		return nil, nil, fmt.Errorf("Vote duration must be at least %v",
+			time.Duration(float64(minAvgInterval)*float64(votes))*time.Second)
 	}
 
-	// Create array of work to be done. We try really hard to stay within
-	// the time limit that was provided by the user.
+	// Create array of work to be done. Vote delays are random durations
+	// between [0, maxDelay] (exclusive) which means that the vote delay
+	// average will converge to slightly less than duration/votes as the
+	// number of votes increases. Vote duration is treated as a hard cap
+	// and can not be exceeded.
 	buckets := make([]voteInterval, votes)
 	var (
 		done    bool
 		retries int
 	)
-	maxRetries := 1000
+	maxRetries := 100
 	for retries = 0; !done && retries < maxRetries; retries++ {
 		done = true
 		var total time.Duration
-		for i := 0; i < len(buckets); {
+		for i := 0; i < len(buckets); i++ {
 			seconds, err := util.RandomUint64()
 			if err != nil {
 				return nil, nil, err
 			}
-			seconds %= intervals
-			// Make sure we don't call the RPC too often
-			if seconds < minDelay {
-				continue
-			}
-
+			seconds %= maxDelay
 			if i == 0 {
 				// We always immediately vote the first time
 				// around. This should help catch setup errors.
@@ -477,14 +547,11 @@ func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsRes
 				done = false
 				break
 			}
-
-			// Next bucket
-			i++
 		}
 	}
 	if retries >= maxRetries {
-		return nil, nil, fmt.Errorf("Could not randomize times " +
-			"accurately. Please increase --voteduration")
+		// This should not happen
+		return nil, nil, fmt.Errorf("Could not randomize vote delays")
 	}
 
 	// Sanity
@@ -555,50 +622,63 @@ func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsRes
 	}
 }
 
-func (c *ctx) _vote(token, voteId string) ([]string, *v1.BallotReply, error) {
-	// XXX This is expensive but we need the snapshot of the votes. Later
-	// replace this with a locally saved file in order to prevent sending
-	// the same questions mutliple times.
-	i, err := c._inventory()
+// verifyV1Vote verifies the signature of the passed in v1 vote. If the
+// signature is invalid or if an error occurs during validation, the error will
+// be logged instead of being returned. This is to prevent interuptions to
+// politeavoter while it is in the process of casting votes.
+func verifyV1Vote(address string, vote *v1.CastVote) bool {
+	sig, err := hex.DecodeString(vote.Signature)
+	if err != nil {
+		log.Errorf("Could not decode signature %v: %v",
+			vote.Ticket, err)
+		return false
+	}
+
+	msg := vote.Token + vote.Ticket + vote.VoteBit
+	validated, err := verifyMessage(address, msg,
+		base64.StdEncoding.EncodeToString(sig))
+	if err != nil {
+		log.Errorf("Could not verify signature %v: %v",
+			vote.Ticket, err)
+		return false
+	}
+	if !validated {
+		log.Errorf("Invalid signature %v: %v",
+			vote.Ticket, vote.Signature)
+		return false
+	}
+
+	return true
+}
+
+func (c *ctx) _vote(seed int64, token, voteId string) ([]string, *v1.BallotReply, error) {
+	// _tally provides the eligible tickets snapshot as well as a list of
+	// the votes that have already been cast. We use these to filter out
+	// the tickets that have already voted.
+	vrr, err := c._tally(token)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// Find proposal
+	// Validate voteId
 	var (
-		prop    *v1.ProposalVoteTuple
 		voteBit string
+		found   bool
 	)
-	for _, v := range i.Votes {
-		if v.Proposal.CensorshipRecord.Token != token {
-			continue
+	for _, vv := range vrr.StartVote.Vote.Options {
+		if vv.Id == voteId {
+			found = true
+			voteBit = strconv.FormatUint(vv.Bits, 16)
+			break
 		}
-
-		// Validate voteId
-		found := false
-		for _, vv := range v.StartVote.Vote.Options {
-			if vv.Id == voteId {
-				found = true
-				voteBit = strconv.FormatUint(vv.Bits, 16)
-				break
-			}
-
-		}
-		if !found {
-			return nil, nil, fmt.Errorf("vote id not found: %v",
-				voteId)
-		}
-
-		// We found the propr and we have a proper vote id.
-		prop = &v
-		break
 	}
-	if prop == nil {
-		return nil, nil, fmt.Errorf("proposal not found: %v", token)
+	if !found {
+		return nil, nil, fmt.Errorf("vote id not found: %v",
+			voteId)
 	}
 
 	// Find eligble tickets
-	tix, err := convertTicketHashes(prop.StartVoteReply.EligibleTickets)
+	tix, err := convertTicketHashes(vrr.StartVoteReply.EligibleTickets)
 	if err != nil {
 		return nil, nil, fmt.Errorf("ticket pool corrupt: %v %v",
 			token, err)
@@ -614,6 +694,42 @@ func (c *ctx) _vote(token, voteId string) ([]string, *v1.BallotReply, error) {
 	if len(ctres.TicketAddresses) == 0 {
 		return nil, nil, fmt.Errorf("no eligible tickets found")
 	}
+
+	// Put cast votes into a map so that we can
+	// filter in linear time
+	castVotes := make(map[string]v1.CastVote)
+	for _, v := range vrr.CastVotes {
+		castVotes[v.Ticket] = v
+	}
+
+	// Filter out tickets that have already voted. If a ticket has
+	// voted but the signature is invalid, resubmit the vote. This
+	// could be caused by bad data on the server or if the server is
+	// lying to the client.
+	filtered := make([]*pb.CommittedTicketsResponse_TicketAddress, 0,
+		len(ctres.TicketAddresses))
+	for _, t := range ctres.TicketAddresses {
+		h, err := chainhash.NewHash(t.Ticket)
+		if err != nil {
+			return nil, nil, err
+		}
+		v, ok := castVotes[h.String()]
+		if !ok || !verifyV1Vote(t.Address, &v) {
+			filtered = append(filtered, t)
+		}
+	}
+	filteredLen := len(filtered)
+	if filteredLen == 0 {
+		return nil, nil, fmt.Errorf("no eligible tickets found")
+	}
+	r := rand.New(rand.NewSource(seed))
+	// Fisher-Yates shuffle the ticket addresses.
+	for i := 0; i < filteredLen; i++ {
+		// Pick a number between current index and the end.
+		j := r.Intn(filteredLen-i) + i
+		filtered[i], filtered[j] = filtered[j], filtered[i]
+	}
+	ctres.TicketAddresses = filtered
 
 	passphrase, err := ProvidePrivPassphrase()
 	if err != nil {
@@ -693,12 +809,12 @@ func (c *ctx) _vote(token, voteId string) ([]string, *v1.BallotReply, error) {
 	return tickets, &vr, nil
 }
 
-func (c *ctx) vote(args []string) error {
+func (c *ctx) vote(seed int64, args []string) error {
 	if len(args) != 2 {
 		return fmt.Errorf("vote: not enough arguments %v", args)
 	}
 
-	tickets, cv, err := c._vote(args[0], args[1])
+	tickets, cv, err := c._vote(seed, args[0], args[1])
 	if err != nil {
 		return err
 	}
@@ -893,6 +1009,15 @@ func _main() error {
 		usage()
 		return fmt.Errorf("must provide action")
 	}
+	action := args[0]
+
+	var seed int64
+	if action == "vote" {
+		seed, err = generateSeed()
+		if err != nil {
+			return err
+		}
+	}
 
 	// Contact WWW
 	c, err := firstContact(cfg)
@@ -910,27 +1035,23 @@ func _main() error {
 	log.Debugf("Current wallet height: %v", ar.CurrentBlockHeight)
 
 	// Scan through command line arguments.
-	for i, a := range args {
-		// Select action
-		if i == 0 {
-			switch a {
-			case "inventory":
-				return c.inventory()
-			case "vote":
-				return c.vote(args[1:])
-			case "startvote":
-				// This remains undocumented because it is for
-				// testing only.
-				return c.startVote(args[1:])
-			case "tally":
-				return c.tally(args[1:])
-			default:
-				return fmt.Errorf("invalid action: %v", a)
-			}
-		}
+
+	switch action {
+	case "inventory":
+		err = c.inventory()
+	case "startvote":
+		// This remains undocumented because it is for
+		// testing only.
+		err = c.startVote(args[1:])
+	case "tally":
+		err = c.tally(args[1:])
+	case "vote":
+		err = c.vote(seed, args[1:])
+	default:
+		err = fmt.Errorf("invalid action: %v", action)
 	}
 
-	return nil
+	return err
 }
 
 func main() {

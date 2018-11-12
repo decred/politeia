@@ -1118,6 +1118,8 @@ func (g *gitBackEnd) _newRecord(id string, metadata []backend.MetadataStream, fa
 func (g *gitBackEnd) newRecord(token []byte, metadata []backend.MetadataStream, fa []file) (*backend.RecordMetadata, error) {
 	id := hex.EncodeToString(token)
 
+	log.Tracef("newRecord %v", id)
+
 	// git checkout -b id
 	err := g.gitNewBranch(g.unvetted, id)
 	if err != nil {
@@ -1150,6 +1152,7 @@ func (g *gitBackEnd) newRecord(token []byte, metadata []backend.MetadataStream, 
 //
 // New satisfies the backend interface.
 func (g *gitBackEnd) New(metadata []backend.MetadataStream, files []backend.File) (*backend.RecordMetadata, error) {
+	log.Tracef("New")
 	fa, err := verifyContent(metadata, files, []string{})
 	if err != nil {
 		return nil, err
@@ -1160,6 +1163,8 @@ func (g *gitBackEnd) New(metadata []backend.MetadataStream, files []backend.File
 	if err != nil {
 		return nil, err
 	}
+
+	log.Debugf("New %x", token)
 
 	// Lock filesystem
 	g.Lock()
@@ -1278,9 +1283,9 @@ func (g *gitBackEnd) checkoutRecordBranch(id string) (bool, error) {
 // function must be wrapped by a function that delivers the call with the repo
 // sitting in the correct branch/master.  The idea is that if this function
 // fails we can simply unwind it by calling a git stash.
-// If commit is true the changes will be commited to record, if it is false
+// If commit is true the changes will be committed to record, if it is false
 // it'll return ErrChangesRecord if the error would change; the caller is
-// reponsible to unwinding the changes.
+// responsible to unwinding the changes.
 //
 // Function must be  called with the lock held.
 func (g *gitBackEnd) _updateRecord(commit bool, id string, mdAppend, mdOverwrite []backend.MetadataStream, fa []file, filesDel []string) error {
@@ -1466,10 +1471,12 @@ func (g *gitBackEnd) wouldChange(id string, mdAppend []backend.MetadataStream, m
 
 // updateRecord puts the correct git repo in the correct state (branch or
 // master) and then updates the the record content. It returns a version if an
-// update occured on master.
+// update occurred on master.
 //
 // Must be called WITHOUT the lock held.
 func (g *gitBackEnd) updateRecord(token []byte, mdAppend []backend.MetadataStream, mdOverwrite []backend.MetadataStream, filesAdd []backend.File, filesDel []string, master bool) (*backend.Record, error) {
+	log.Tracef("updateRecord: %x", token)
+
 	// Send in a single metadata array to verify there are no dups.
 	allMD := append(mdAppend, mdOverwrite...)
 	fa, err := verifyContent(allMD, filesAdd, filesDel)
@@ -1558,7 +1565,7 @@ func (g *gitBackEnd) updateRecord(token []byte, mdAppend []backend.MetadataStrea
 		}
 
 		// defer branch delete
-		log.Tracef("updating vetted %v -> %v %v", oldV, newV, id)
+		log.Debugf("updating vetted %v -> %v %v", oldV, newV, id)
 
 		// Do the work, if there is an error we must unwind git.
 		errReturn := g._updateRecord(true, id, mdAppend, mdOverwrite,
@@ -1601,7 +1608,7 @@ func (g *gitBackEnd) updateRecord(token []byte, mdAppend []backend.MetadataStrea
 	}
 
 	// We now are sitting in branch id
-	log.Tracef("updating unvetted %v", id)
+	log.Debugf("updating unvetted %v", id)
 
 	// Do the work, if there is an error we must unwind git.
 	errReturn := g._updateRecord(true, id, mdAppend, mdOverwrite, fa,
@@ -1630,6 +1637,7 @@ func (g *gitBackEnd) updateRecord(token []byte, mdAppend []backend.MetadataStrea
 //
 // This function is part of the interface.
 func (g *gitBackEnd) UpdateVettedRecord(token []byte, mdAppend []backend.MetadataStream, mdOverwrite []backend.MetadataStream, filesAdd []backend.File, filesDel []string) (*backend.Record, error) {
+	log.Debugf("UpdateVettedRecord %x", token)
 	return g.updateRecord(token, mdAppend, mdOverwrite, filesAdd, filesDel,
 		true)
 }
@@ -1638,6 +1646,7 @@ func (g *gitBackEnd) UpdateVettedRecord(token []byte, mdAppend []backend.Metadat
 //
 // This function is part of the interface.
 func (g *gitBackEnd) UpdateUnvettedRecord(token []byte, mdAppend []backend.MetadataStream, mdOverwrite []backend.MetadataStream, filesAdd []backend.File, filesDel []string) (*backend.Record, error) {
+	log.Debugf("UpdateUnvettedRecord %x", token)
 	return g.updateRecord(token, mdAppend, mdOverwrite, filesAdd, filesDel,
 		false)
 }
@@ -1716,7 +1725,7 @@ func (g *gitBackEnd) _updateVettedMetadata(token []byte, mdAppend []backend.Meta
 		return backend.ErrRecordLocked
 	}
 
-	log.Tracef("updating vetted metadata %x", token)
+	log.Debugf("updating vetted metadata %x", token)
 
 	// Do the work, if there is an error we must unwind git.
 	err = g.updateVettedMetadata(id, idTmp, mdAppend, mdOverwrite)
@@ -1738,6 +1747,8 @@ func (g *gitBackEnd) _updateVettedMetadata(token []byte, mdAppend []backend.Meta
 //
 // This function must be called without the lock held.
 func (g *gitBackEnd) UpdateVettedMetadata(token []byte, mdAppend []backend.MetadataStream, mdOverwrite []backend.MetadataStream) error {
+	log.Debugf("UpdateVettedMetadata: %x", token)
+
 	// Send in a single metadata array to verify there are no dups.
 	allMD := append(mdAppend, mdOverwrite...)
 	_, err := verifyContent(allMD, []backend.File{}, []string{})
@@ -1821,6 +1832,8 @@ func (g *gitBackEnd) _getRecord(id, repo string, includeFiles bool) (*backend.Re
 //
 // This function must be called WITH the lock held.
 func (g *gitBackEnd) getRecord(token []byte, repo string, includeFiles bool) (*backend.Record, error) {
+	log.Tracef("getRecord: %x", token)
+
 	id := hex.EncodeToString(token)
 	if repo == g.unvetted {
 		// git checkout id
@@ -1961,6 +1974,7 @@ func (g *gitBackEnd) fsck(path string) error {
 //
 // GetUnvetted satisfies the backend interface.
 func (g *gitBackEnd) GetUnvetted(token []byte) (*backend.Record, error) {
+	log.Debugf("GetUnvetted %x", token)
 	return g.getRecordLock(token, g.unvetted, true)
 }
 
@@ -1968,6 +1982,7 @@ func (g *gitBackEnd) GetUnvetted(token []byte) (*backend.Record, error) {
 //
 // GetVetted satisfies the backend interface.
 func (g *gitBackEnd) GetVetted(token []byte) (*backend.Record, error) {
+	log.Debugf("GetVetted %x", token)
 	return g.getRecordLock(token, g.vetted, true)
 }
 
@@ -2070,10 +2085,11 @@ func (g *gitBackEnd) SetUnvettedStatus(token []byte, status backend.MDStatusT, m
 		return nil, backend.ErrShutdown
 	}
 
-	log.Tracef("setting status %v (%v) -> %x", status,
+	log.Debugf("setting status %v (%v) -> %x", status,
 		backend.MDStatus[status], token)
 	record, err := g.setUnvettedStatus(token, status, mdAppend, mdOverwrite)
 	if err != nil {
+		// XXX this needs to call the unwind function instead
 		// git stash
 		err2 := g.gitUnwind(g.unvetted)
 		if err2 != nil {
@@ -2098,6 +2114,8 @@ func (g *gitBackEnd) SetUnvettedStatus(token []byte, status backend.MDStatusT, m
 // Inventory returns an inventory of vetted and unvetted records.  If
 // includeFiles is set the content is also returned.
 func (g *gitBackEnd) Inventory(vettedCount, branchCount uint, includeFiles bool) ([]backend.Record, []backend.Record, error) {
+	log.Debugf("Inventory: %v %v %v", vettedCount, branchCount, includeFiles)
+
 	// Lock filesystem
 	g.Lock()
 	defer g.Unlock()
@@ -2161,6 +2179,7 @@ func (g *gitBackEnd) Inventory(vettedCount, branchCount uint, includeFiles bool)
 //
 // GetPlugins satisfies the backend interface.
 func (g *gitBackEnd) GetPlugins() ([]backend.Plugin, error) {
+	log.Debugf("GetPlugins")
 	return g.plugins, nil
 }
 
@@ -2170,7 +2189,7 @@ func (g *gitBackEnd) GetPlugins() ([]backend.Plugin, error) {
 //
 // Plugin satisfies the backend interface.
 func (g *gitBackEnd) Plugin(command, payload string) (string, string, error) {
-	log.Tracef("Plugin: %v %v", command, payload)
+	log.Debugf("Plugin: %v", command)
 	switch command {
 	case decredplugin.CmdAuthorizeVote:
 		payload, err := g.pluginAuthorizeVote(payload)
@@ -2212,6 +2231,8 @@ func (g *gitBackEnd) Plugin(command, payload string) (string, string, error) {
 //
 // Close satisfies the backend interface.
 func (g *gitBackEnd) Close() {
+	log.Debugf("Close")
+
 	g.Lock()
 	defer g.Unlock()
 
@@ -2405,7 +2426,7 @@ func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, 
 		// Flush journals
 		g.decredPluginJournalFlusher()
 
-		// Anchor commitd
+		// Anchor commit
 		g.anchorAllReposCronJob()
 	})
 	if err != nil {

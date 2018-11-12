@@ -501,7 +501,7 @@ func FetchTxsForAddress(address string) ([]TxDetails, error) {
 }
 
 // FetchTxsForAddressNotBefore fetches all transactions for a wallet address
-// that occured after the passed in notBefore timestamp.
+// that occurred after the passed in notBefore timestamp.
 func FetchTxsForAddressNotBefore(address string, notBefore int64) ([]TxDetails, error) {
 	// Get block explorer URL
 	addr, err := dcrutil.DecodeAddress(address)

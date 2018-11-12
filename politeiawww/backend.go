@@ -620,7 +620,7 @@ func (b *backend) validateProposal(np www.NewProposal, user *database.User) erro
 		return err
 	}
 
-	// Check for at least 1 markdown file with a non-emtpy payload.
+	// Check for at least 1 markdown file with a non-empty payload.
 	if len(np.Files) == 0 || np.Files[0].Payload == "" {
 		return www.UserError{
 			ErrorCode: www.ErrorStatusProposalMissingFiles,
@@ -2357,6 +2357,20 @@ func (b *backend) ProcessUserProposalCredits(user *database.User) (*www.UserProp
 
 // ProcessUserProposals returns the proposals for the given user.
 func (b *backend) ProcessUserProposals(up *www.UserProposals, isCurrentUser, isAdminUser bool) (*www.UserProposalsReply, error) {
+	// Verify user exists
+	_, err := b.getUserByIDStr(up.UserId)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get user proposal data
+	ps := b.userProposalStats(up.UserId)
+	numProposals := ps.NumOfPublic
+	if isCurrentUser || isAdminUser {
+		numProposals += ps.NumOfUnvetted + ps.NumOfUnvettedChanges +
+			ps.NumOfCensored
+	}
+
 	return &www.UserProposalsReply{
 		Proposals: b.getProposals(proposalsRequest{
 			After:  up.After,
@@ -2369,7 +2383,7 @@ func (b *backend) ProcessUserProposals(up *www.UserProposals, isCurrentUser, isA
 				www.PropStatusPublic:            true,
 			},
 		}),
-		NumOfProposals: b.getCountOfProposalsByUserID(up.UserId),
+		NumOfProposals: numProposals,
 	}, nil
 }
 
@@ -2798,11 +2812,14 @@ func (b *backend) ProcessGetAllVoteStatus() (*www.GetAllVoteStatusReply, error) 
 		}
 
 		vsr := www.VoteStatusReply{
-			Token:         i.record.CensorshipRecord.Token,
-			Status:        getVoteStatus(*i, bestBlock),
-			TotalVotes:    uint64(len(vrr.CastVotes)),
-			OptionsResult: convertVoteResultsFromDecredplugin(*vrr),
-			EndHeight:     i.voting.EndHeight,
+			Token:              i.record.CensorshipRecord.Token,
+			Status:             getVoteStatus(*i, bestBlock),
+			TotalVotes:         uint64(len(vrr.CastVotes)),
+			OptionsResult:      convertVoteResultsFromDecredplugin(*vrr),
+			EndHeight:          i.voting.EndHeight,
+			NumOfEligibleVotes: len(i.voting.EligibleTickets),
+			QuorumPercentage:   vrr.StartVote.Vote.QuorumPercentage,
+			PassPercentage:     vrr.StartVote.Vote.PassPercentage,
 		}
 
 		gavsr.VotesStatus = append(gavsr.VotesStatus, vsr)
@@ -2838,11 +2855,14 @@ func (b *backend) ProcessVoteStatus(token string) (*www.VoteStatusReply, error) 
 	}
 
 	return &www.VoteStatusReply{
-		Token:         token,
-		TotalVotes:    uint64(len(vrr.CastVotes)),
-		Status:        getVoteStatus(ir, bestBlock),
-		OptionsResult: convertVoteResultsFromDecredplugin(*vrr),
-		EndHeight:     ir.voting.EndHeight,
+		Token:              token,
+		TotalVotes:         uint64(len(vrr.CastVotes)),
+		Status:             getVoteStatus(ir, bestBlock),
+		OptionsResult:      convertVoteResultsFromDecredplugin(*vrr),
+		EndHeight:          ir.voting.EndHeight,
+		NumOfEligibleVotes: len(ir.voting.EligibleTickets),
+		QuorumPercentage:   vrr.StartVote.Vote.QuorumPercentage,
+		PassPercentage:     vrr.StartVote.Vote.PassPercentage,
 	}, nil
 }
 
@@ -3120,7 +3140,7 @@ func (b *backend) ProcessPolicy(p www.Policy) *www.PolicyReply {
 // proposal status
 // Must be called WITHOUT holding the mutex.
 func (b *backend) ProcessProposalsStats() www.ProposalsStatsReply {
-	ps := b.getProposalsStats()
+	ps := b.inventoryProposalStats()
 	return www.ProposalsStatsReply{
 		NumOfCensored:        ps.NumOfCensored,
 		NumOfUnvetted:        ps.NumOfUnvetted,

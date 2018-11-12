@@ -140,7 +140,7 @@ when an unexpected server error has occurred. The format of errors is as follows
 
 Obtain version, route information and signing identity from server.  This call
 shall **ALWAYS** be the first contact with the server.  This is done in order
-to get the CSRF token for the session and to ensure API compatability.
+to get the CSRF token for the session and to ensure API compatibility.
 
 **Route**: `GET /` and `GET /version`
 
@@ -534,7 +534,6 @@ Reply:
       "pubkey": "5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
       "isactive": true
     }],
-    "proposals": [],
     "comments": []
   }
 }
@@ -1217,8 +1216,12 @@ Retrieve a page and the total amount of proposals submitted by the given user; t
 
 | | Type | Description |
 |-|-|-|
-| proposals | array of [`Proposal`](#proposal)s | An Array of proposals submitted by the user. |
-| numOfProposals | int | Number of proposals submitted by the user. |
+| proposals | array of [`Proposal`](#proposal)s | One page of user submitted proposals. |
+| numOfProposals | int | Total number of proposals submitted by the user. If an admin is sending the request or a user is requesting their own proposals then this value includes unvetted, censored, and public proposals. Otherwise, this value only includes public proposals. |
+
+On failure the call shall return `400 Bad Request` and one of the following
+error codes:
+- [`ErrorStatusUserNotFound`](#ErrorStatusUserNotFound)
 
 **Example**
 
@@ -1682,7 +1685,7 @@ Request:
 {
   "token": "abf0fd1fc1b8c1c9535685373dce6c54948b7eb018e17e3a8cea26a3c9b85684",
   "commentid": "4",
-  "reason": "comment was an advertisment",
+  "reason": "comment was an advertisement",
   "signature": "af969d7f0f711e25cb411bdbbe3268bbf3004075cde8ebaee0fc9d988f24e45013cc2df6762dca5b3eb8abb077f76e0b016380a7eba2d46839b04c507d86290d",
   "publickey": "4206fa1f45c898f1dee487d7a7a82e0ed293858313b8b022a6a88f2bcae6cdd7"
 }
@@ -2097,12 +2100,16 @@ Returns the vote status for a single public proposal
 | status | int | Status identifier |
 | optionsresult | array of VoteOptionResult | Option description along with the number of votes it has received |
 | totalvotes | int | Proposal's total number of votes |
+| endheight | string | The chain height in which the vote will end | 
+| numofeligiblevotes | int | Total number of eligible votes |
+| quorumpercentage | uint32 | Percent of eligible votes required for quorum |
+| passpercentage | uint32 | Percent of total votes required to pass |
 
 **VoteOptionResult:**
 | | Type | Description |
 |-|-|-|
 | option | VoteOption  | Option description |
-| votesreceived | uint64 | Number of votes reiceved |
+| votesreceived | uint64 | Number of votes received |
 
 
 **Proposal vote status map:**
@@ -2144,7 +2151,11 @@ Reply:
         },
         "votesreceived":0
     }
-  ]
+  ],
+  "endheight": "45567",
+  "numofeligiblevotes": 2000,
+  "quorumpercentage": 20,
+  "passpercentage": 60
 }
 ```
 
@@ -2170,6 +2181,10 @@ Returns the vote status of all public proposals
 | status | int | Status identifier |
 | optionsresult | array of VoteOptionResult | Option description along with the number of votes it has received |
 | totalvotes | int | Proposal's total number of votes |
+| endheight | string | The chain height in which the vote will end | 
+| numofeligiblevotes | int | Total number of eligible votes |
+| quorumpercentage | uint32 | Percent of eligible votes required for quorum |
+| passpercentage | uint32 | Percent of total votes required to pass |
 
 **Example:**
 
@@ -2203,13 +2218,21 @@ Reply:
                "votesreceived":0
             }
          ],
-         "totalvotes":0
+         "totalvotes":0,
+         "endheight": "45567",
+         "numofeligiblevotes": 2000,
+         "quorumpercentage": 20,
+         "passpercentage": 60
       },
       {
          "token":"b6d058cd1eed03d7fc9400f55384a8da33edb73743b7501d354392a6f9885078",
          "status":1,
          "optionsresult":null,
-         "totalvotes":0
+         "totalvotes":0,
+         "endheight": "",
+         "numofeligiblevotes": 0,
+         "quorumpercentage": 0,
+         "passpercentage": 0
       }
    ]
 }
@@ -2403,7 +2426,6 @@ Reply:
 | islocked | boolean | Whether the user account is locked due to too many failed login attempts. |
 | isdeactivated | boolean | Whether the user account is deactivated. Deactivated accounts cannot login. |
 | identities | array of [`Identity`](#identity)s | Identities, both activated and deactivated, of the user. |
-| proposals | array of [`Proposal`](#proposal)s | Proposal submitted by the user. |
 | proposalcredits | uint64 | The number of available proposal credits the user has. |
 | myproposalnotifications | uint64 | A flag storing the user's preferences for notifications on his own proposals. Individual notification preferences are stored in each bit of the number. 1 - Proposal status change notification (approved/censored), 2 - Proposal vote started notification |
 | regularproposalnotifications | uint64 | A flag storing the user's preferences for notifications on other users' proposals. Individual notification preferences are stored in each bit of the number. 1 - Proposal published notification (approved), 2 - Proposal edited notification, 4 - Proposal vote started notification |
