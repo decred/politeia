@@ -179,7 +179,9 @@ const (
 	// PropStateVetted includes proposals with a status of:
 	//   * PropStatusPublic
 	//   * PropStatusAbandoned
-	//   * PropStatusLocked
+	//
+	// Proposal states correspond to the unvetted and vetted politeiad
+	// repositories.
 	PropStateInvalid  PropStateT = 0 // Invalid state
 	PropStateUnvetted PropStateT = 1 // Unvetted proposal
 	PropStateVetted   PropStateT = 2 // Vetted proposal
@@ -191,7 +193,7 @@ const (
 	PropStatusCensored          PropStatusT = 3 // Proposal has been censored
 	PropStatusPublic            PropStatusT = 4 // Proposal is publicly visible
 	PropStatusUnreviewedChanges PropStatusT = 5 // Proposal is not public and has unreviewed changes
-	PropStatusLocked            PropStatusT = 6 // Proposal is locked, NOT IMPLEMENTED
+	PropStatusAbandoned         PropStatusT = 6 // Proposal has been declared abandoned by an admin
 
 	// Proposal vote status codes
 	PropVoteStatusInvalid       PropVoteStatusT = 0 // Invalid vote status
@@ -311,7 +313,7 @@ var (
 		PropStatusNotReviewed: "unreviewed",
 		PropStatusCensored:    "censored",
 		PropStatusPublic:      "public",
-		PropStatusLocked:      "locked",
+		PropStatusAbandoned:   "abandoned",
 	}
 
 	// PropVoteStatus converts votes status codes to human readable text
@@ -1090,4 +1092,5 @@ type ProposalsStatsReply struct {
 	NumOfUnvetted        int `json:"numofunvetted"`        // Counting number of unvetted proposals
 	NumOfUnvettedChanges int `json:"numofunvettedchanges"` // Counting number of proposals with unvetted changes
 	NumOfPublic          int `json:"numofpublic"`          // Counting number of public proposals
+	NumOfAbandoned       int `json:"numofabandoned"`       // Counting number of abandoned proposals
 }

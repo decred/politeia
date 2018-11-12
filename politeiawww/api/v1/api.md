@@ -113,7 +113,7 @@ API.  It does not render HTML.
 - [`PropStatusNotReviewed`](#PropStatusNotReviewed)
 - [`PropStatusCensored`](#PropStatusCensored)
 - [`PropStatusPublic`](#PropStatusPublic)
-- [`PropStatusLocked`](#PropStatusLocked)
+- [`PropStatusAbandoned`](#PropStatusAbandoned)
 
 ## HTTP status codes and errors
 
@@ -1323,8 +1323,8 @@ Reply:
 
 ### `Set proposal status`
 
-Set status of proposal to `PropStatusPublic` or `PropStatusCensored`.  This
-call requires admin privileges.
+Set status of proposal to `PropStatusPublic`, `PropStatusCensored` or
+`PropStatusAbandoned`.  This call requires admin privileges.
 
 **Route:** `POST /v1/proposals/{token}/status`
 
@@ -1333,7 +1333,7 @@ call requires admin privileges.
 | Parameter | Type | Description | Required |
 |-|-|-|-|
 | token | string | Token is the unique censorship token that identifies a specific proposal. | Yes |
-| proposalstatus | number | Status indicates the new status for the proposal. Valid statuses are: [PropStatusCensored](#PropStatusCensored), [PropStatusPublic](#PropStatusPublic). Status can only be changed if the current proposal status is [PropStatusNotReviewed](#PropStatusNotReviewed) | Yes |
+| proposalstatus | number | Status indicates the new status for the proposal. Valid statuses are: [PropStatusCensored](#PropStatusCensored), [PropStatusPublic](#PropStatusPublic), [PropStatusAbandoned](#PropStatusAbandoned). | Yes |
 | signature | string | Signature of token+string(status). | Yes |
 | publickey | string | Public key from the client side, sent to politeiawww for verification | Yes |
 
@@ -1345,7 +1345,14 @@ call requires admin privileges.
 
 On failure the call shall return `400 Bad Request` and one of the following
 error codes:
+- [`ErrorStatusNoPublicKey`](#ErrorStatusNoPublicKey)
+- [`ErrorStatusInvalidSigningKey`](#ErrorStatusInvalidSigningKey)
+- [`ErrorStatusInvalidSignature`](#ErrorStatusInvalidSignature)
+- [`ErrorStatusChangeMessageCannotBeBlank`](#ErrorStatusChangeMessageCannotBeBlank)
 - [`ErrorStatusProposalNotFound`](#ErrorStatusProposalNotFound)
+- [`ErrorStatusReviewerAdminEqualsAuthor`](#ErrorStatusReviewerAdminEqualsAuthor)
+- [`ErrorStatusInvalidPropStatusTransition`](#ErrorStatusInvalidPropStatusTransition)
+- [`ErrorStatusWrongVoteStatus`](#ErrorStatusWrongVoteStatus)
 
 **Example**
 
@@ -1366,6 +1373,7 @@ Reply:
 {
 	"proposal": {
 		"name": "My Proposal",
+		"state": "2",
 		"status": 4,
 		"timestamp": 1539212044,
 		"userid": "",
@@ -2387,7 +2395,8 @@ Reply:
 | <a name="PropStatusNotReviewed">PropStatusNotReviewed</a> | 2 | The proposal has not been reviewed by an admin. |
 | <a name="PropStatusCensored">PropStatusCensored</a> | 3 | The proposal has been censored by an admin. |
 | <a name="PropStatusPublic">PropStatusPublic</a> | 4 | The proposal has been published by an admin. |
-| <a name="PropStatusLocked">PropStatusLocked</a> | 6 | The proposal has been locked by an admin. |
+| <a name="PropStatusUnreviewedChanges">PropStatusUnreviewedChanges</a> | 5 | The proposal has not been rewieved by an admin yet and has been edited by the author. |
+| <a name="PropStatusAbandoned">PropStatusAbandoned</a> | 6 | The proposal is public and has been deemed abandoned by an admin. |
 
 ### User edit actions
 
@@ -2461,6 +2470,7 @@ This is a shortened representation of a user, used for lists.
 | | Type | Description |
 |-|-|-|
 | name | string | The name of the proposal. |
+| state | number | Current state of the proposal. |
 | status | number | Current status of the proposal. |
 | timestamp | number | The unix time of the last update of the proposal. |
 | userid | string | The ID of the user who created the proposal. |

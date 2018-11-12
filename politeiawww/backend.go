@@ -86,6 +86,7 @@ type backend struct {
 	numOfUnvetted        int
 	numOfUnvettedChanges int
 	numOfPublic          int
+	numOfAbandoned       int
 	numOfInvalid         int
 
 	// Count of user proposals
@@ -1715,22 +1716,32 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 	return &reply, nil
 }
 
-// ProcessSetProposalStatus changes the status of an existing proposal
-// from unreviewed to either published or censored.
+// ProcessSetProposalStatus changes the status of an existing proposal.
 func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *database.User) (*www.SetProposalStatusReply, error) {
-	log.Tracef("ProcessNewProposal %v", sps.Token)
+	log.Tracef("ProcessSetProposalStatus %v", sps.Token)
 
 	err := checkPublicKeyAndSignature(user, sps.PublicKey, sps.Signature,
-		sps.Token, strconv.FormatUint(uint64(sps.ProposalStatus), 10), sps.StatusChangeMessage)
+		sps.Token, strconv.FormatUint(uint64(sps.ProposalStatus), 10),
+		sps.StatusChangeMessage)
 	if err != nil {
 		return nil, err
 	}
 
-	// make sure censor message cannot blank in case the proposal is being censored
-	if sps.ProposalStatus == www.PropStatusCensored && sps.StatusChangeMessage == "" {
+	// Make sure status change message is not blank if the
+	// proposal is being censored or abandoned
+	if sps.StatusChangeMessage == "" &&
+		(sps.ProposalStatus == www.PropStatusCensored ||
+			sps.ProposalStatus == www.PropStatusAbandoned) {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusChangeMessageCannotBeBlank,
 		}
+	}
+
+	// Handle test case
+	if b.test {
+		var reply www.SetProposalStatusReply
+		reply.Proposal.Status = sps.ProposalStatus
+		return &reply, nil
 	}
 
 	// Create change record
@@ -1742,48 +1753,71 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 		StatusChangeMessage: sps.StatusChangeMessage,
 	}
 
-	var reply www.SetProposalStatusReply
-	var pdReply pd.SetUnvettedStatusReply
-	if b.test {
-		pdReply.Record.Status = convertPropStatusFromWWW(sps.ProposalStatus)
-	} else {
-		// XXX Expensive to lock but do it for now.
-		// Lock is needed to prevent a race into this record and it
-		// needs to be updated in the cache.
-		b.Lock()
-		defer b.Unlock()
+	var ok bool
+	r.AdminPubKey, ok = database.ActiveIdentityString(user.Identities)
+	if !ok {
+		return nil, fmt.Errorf("invalid admin identity: %v",
+			user.ID)
+	}
 
-		// When not in testnet, block admins
-		// from changing the status of their own proposals
-		if !b.cfg.TestNet {
-			pr, err := b._getProposal(sps.Token)
-			if err != nil {
-				return nil, err
+	blob, err := json.Marshal(r)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create challenge
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	// XXX Expensive to lock but do it for now.
+	// Lock is needed to prevent a race into this record and it
+	// needs to be updated in the cache.
+	b.Lock()
+	defer b.Unlock()
+
+	// Get proposal from inventory
+	ir, err := b._getInventoryRecord(sps.Token)
+	if err != nil {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusProposalNotFound,
+		}
+	}
+	pr := convertPropFromPD(ir.record)
+
+	// When not in testnet, block admins from changing the
+	// status of their own proposals
+	if !b.cfg.TestNet {
+		if pr.UserId == user.ID.String() {
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusReviewerAdminEqualsAuthor,
 			}
-			if pr.UserId == user.ID.String() {
-				return nil, www.UserError{
-					ErrorCode: www.ErrorStatusReviewerAdminEqualsAuthor,
-				}
+		}
+	}
+
+	var updatedRecord pd.Record
+	var challengeResponse string
+	switch {
+	case pr.State == www.PropStateUnvetted:
+		// Unvetted status change
+
+		// Verify status transition is valid
+		if pr.Status == www.PropStatusNotReviewed &&
+			(sps.ProposalStatus == www.PropStatusCensored ||
+				sps.ProposalStatus == www.PropStatusPublic) {
+			// allowed; continue
+		} else if pr.Status == www.PropStatusUnreviewedChanges &&
+			(sps.ProposalStatus == www.PropStatusCensored ||
+				sps.ProposalStatus == www.PropStatusPublic) {
+			// allowed; continue
+		} else {
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusInvalidPropStatusTransition,
 			}
 		}
 
-		challenge, err := util.Random(pd.ChallengeSize)
-		if err != nil {
-			return nil, err
-		}
-
-		var ok bool
-		r.AdminPubKey, ok = database.ActiveIdentityString(user.Identities)
-		if !ok {
-			return nil, fmt.Errorf("invalid admin identity: %v",
-				user.ID)
-		}
-
-		blob, err := json.Marshal(r)
-		if err != nil {
-			return nil, err
-		}
-
+		// Send unvetted status change request
 		sus := pd.SetUnvettedStatus{
 			Token:     sps.Token,
 			Status:    newStatus,
@@ -1802,48 +1836,96 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 			return nil, err
 		}
 
-		err = json.Unmarshal(responseBody, &pdReply)
+		var susr pd.SetUnvettedStatusReply
+		err = json.Unmarshal(responseBody, &susr)
 		if err != nil {
 			return nil, fmt.Errorf("Could not unmarshal "+
 				"SetUnvettedStatusReply: %v", err)
 		}
+		updatedRecord = susr.Record
+		challengeResponse = susr.Response
 
-		// Verify the challenge.
-		err = util.VerifyChallenge(b.cfg.Identity, challenge,
-			pdReply.Response)
+	case pr.State == www.PropStateVetted:
+		// Vetted status change
+
+		// We only allow a transition from public to abandoned
+		if pr.Status != www.PropStatusPublic ||
+			sps.ProposalStatus != www.PropStatusAbandoned {
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusInvalidPropStatusTransition,
+			}
+		}
+
+		// Ensure voting has not been started yet
+		if ir.voting.StartBlockHeight != "" {
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusWrongVoteStatus,
+			}
+		}
+
+		// Send vetted status change request
+		svs := pd.SetVettedStatus{
+			Token:     sps.Token,
+			Status:    newStatus,
+			Challenge: hex.EncodeToString(challenge),
+			MDAppend: []pd.MetadataStream{
+				{
+					ID:      mdStreamChanges,
+					Payload: string(blob),
+				},
+			},
+		}
+
+		responseBody, err := b.makeRequest(http.MethodPost,
+			pd.SetVettedStatusRoute, svs)
 		if err != nil {
 			return nil, err
 		}
 
-		// Get record files from the inventory and update the response
-		invRecord, err := b._getInventoryRecord(sps.Token)
+		var svsr pd.SetVettedStatusReply
+		err = json.Unmarshal(responseBody, &svsr)
 		if err != nil {
-			log.Errorf("Inventory record not found %v", sps.Token)
-		} else {
-			pdReply.Record.Files = invRecord.record.Files
+			return nil, fmt.Errorf("Could not unmarshal "+
+				"SetVettedStatusReply: %v", err)
 		}
+		updatedRecord = svsr.Record
+		challengeResponse = svsr.Response
 
-		// Update the inventory with the metadata changes.
-		err = b._updateInventoryRecord(pdReply.Record)
-		if err != nil {
-			return nil, fmt.Errorf("updateInventoryRecord %v", err)
-		}
+	default:
+		return nil, fmt.Errorf("Invalid proposal state %v: %v",
+			pr.State, pr.CensorshipRecord.Token)
 	}
 
-	// Return the reply.
-	reply.Proposal = convertPropFromPD(pdReply.Record)
-
-	if !b.test {
-		b.eventManager._fireEvent(EventTypeProposalStatusChange,
-			EventDataProposalStatusChange{
-				Proposal:          &reply.Proposal,
-				AdminUser:         user,
-				SetProposalStatus: &sps,
-			},
-		)
+	// Verify the challenge.
+	err = util.VerifyChallenge(b.cfg.Identity, challenge,
+		challengeResponse)
+	if err != nil {
+		return nil, err
 	}
 
-	return &reply, nil
+	// politeiad returns the record without the files
+	// attached. Add files back onto the record.
+	updatedRecord.Files = ir.record.Files
+
+	// Update the inventory with the metadata changes.
+	err = b._updateInventoryRecord(updatedRecord)
+	if err != nil {
+		return nil, fmt.Errorf("updateInventoryRecord %v", err)
+	}
+
+	// Fire off proposal status change event
+	updatedProp := convertPropFromPD(updatedRecord)
+	b.eventManager._fireEvent(EventTypeProposalStatusChange,
+		EventDataProposalStatusChange{
+			Proposal:          &updatedProp,
+			AdminUser:         user,
+			SetProposalStatus: &sps,
+		},
+	)
+
+	return &www.SetProposalStatusReply{
+		Proposal: updatedProp,
+	}, nil
 }
 
 // ProcessProposalDetails tries to fetch the full details of a proposal from politeiad.
@@ -1869,7 +1951,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 
 	var isVettedProposal bool
 	var requestObject interface{}
-	if cachedProposal.Status == www.PropStatusPublic {
+	if cachedProposal.State == www.PropStateVetted {
 		isVettedProposal = true
 		requestObject = pd.GetVetted{
 			Token:     propDetails.Token,
@@ -2113,6 +2195,14 @@ func (b *backend) ProcessLikeComment(lc www.LikeComment, user *database.User) (*
 	if err != nil {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusProposalNotFound,
+		}
+	}
+
+	// Ensure proposal is public
+	pr := convertPropFromPD(ir.record)
+	if pr.Status != www.PropStatusPublic {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusWrongStatus,
 		}
 	}
 
@@ -2370,7 +2460,7 @@ func (b *backend) ProcessUserProposals(up *www.UserProposals, isCurrentUser, isA
 
 	// Get user proposal data
 	ps := b.userProposalStats(up.UserId)
-	numProposals := ps.NumOfPublic
+	numProposals := ps.NumOfPublic + ps.NumOfAbandoned
 	if isCurrentUser || isAdminUser {
 		numProposals += ps.NumOfUnvetted + ps.NumOfUnvettedChanges +
 			ps.NumOfCensored
@@ -3149,6 +3239,7 @@ func (b *backend) ProcessProposalsStats() www.ProposalsStatsReply {
 		NumOfUnvetted:        ps.NumOfUnvetted,
 		NumOfUnvettedChanges: ps.NumOfUnvettedChanges,
 		NumOfPublic:          ps.NumOfPublic,
+		NumOfAbandoned:       ps.NumOfAbandoned,
 	}
 }
 
