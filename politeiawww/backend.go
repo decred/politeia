@@ -3458,7 +3458,7 @@ func getVoteStatus(ir inventoryRecord, bestBlock uint64) www.PropVoteStatusT {
 		log.Errorf("invalid ee, should not happen: %v", err)
 	}
 
-	if bestBlock > ee {
+	if bestBlock >= ee {
 		return www.PropVoteStatusFinished
 	}
 	return www.PropVoteStatusStarted
