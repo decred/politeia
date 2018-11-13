@@ -1029,30 +1029,30 @@ type EditUserReply struct{}
 
 // User represents an individual user.
 type User struct {
-	ID                              string           `json:"id"`
-	Email                           string           `json:"email"`
-	Username                        string           `json:"username"`
-	Admin                           bool             `json:"isadmin"`
-	NewUserPaywallAddress           string           `json:"newuserpaywalladdress"`
-	NewUserPaywallAmount            uint64           `json:"newuserpaywallamount"`
-	NewUserPaywallTx                string           `json:"newuserpaywalltx"`
-	NewUserPaywallTxNotBefore       int64            `json:"newuserpaywalltxnotbefore"`
-	NewUserPaywallPollExpiry        int64            `json:"newuserpaywallpollexpiry"`
-	NewUserVerificationToken        []byte           `json:"newuserverificationtoken"`
-	NewUserVerificationExpiry       int64            `json:"newuserverificationexpiry"`
-	UpdateKeyVerificationToken      []byte           `json:"updatekeyverificationtoken"`
-	UpdateKeyVerificationExpiry     int64            `json:"updatekeyverificationexpiry"`
-	ResetPasswordVerificationToken  []byte           `json:"resetpasswordverificationtoken"`
-	ResetPasswordVerificationExpiry int64            `json:"resetpasswordverificationexpiry"`
-	LastLoginTime                   int64            `json:"lastlogintime"`
-	FailedLoginAttempts             uint64           `json:"failedloginattempts"`
-	Deactivated                     bool             `json:"isdeactivated"`
-	Locked                          bool             `json:"islocked"`
-	Identities                      []UserIdentity   `json:"identities"`
-	ProposalCredits                 uint64           `json:"proposalcredits"`
-	MyProposalNotifications         uint64           `json:"myproposalnotifications"`      // Notify the user via email about his own proposals
-	RegularProposalNotifications    uint64           `json:"regularproposalnotifications"` // Notify the user via email about others' proposals
-	AdminProposalNotifications      uint64           `json:"adminproposalnotifications"`   // Notify the admin user via email about proposals
+	ID                              string         `json:"id"`
+	Email                           string         `json:"email"`
+	Username                        string         `json:"username"`
+	Admin                           bool           `json:"isadmin"`
+	NewUserPaywallAddress           string         `json:"newuserpaywalladdress"`
+	NewUserPaywallAmount            uint64         `json:"newuserpaywallamount"`
+	NewUserPaywallTx                string         `json:"newuserpaywalltx"`
+	NewUserPaywallTxNotBefore       int64          `json:"newuserpaywalltxnotbefore"`
+	NewUserPaywallPollExpiry        int64          `json:"newuserpaywallpollexpiry"`
+	NewUserVerificationToken        []byte         `json:"newuserverificationtoken"`
+	NewUserVerificationExpiry       int64          `json:"newuserverificationexpiry"`
+	UpdateKeyVerificationToken      []byte         `json:"updatekeyverificationtoken"`
+	UpdateKeyVerificationExpiry     int64          `json:"updatekeyverificationexpiry"`
+	ResetPasswordVerificationToken  []byte         `json:"resetpasswordverificationtoken"`
+	ResetPasswordVerificationExpiry int64          `json:"resetpasswordverificationexpiry"`
+	LastLoginTime                   int64          `json:"lastlogintime"`
+	FailedLoginAttempts             uint64         `json:"failedloginattempts"`
+	Deactivated                     bool           `json:"isdeactivated"`
+	Locked                          bool           `json:"islocked"`
+	Identities                      []UserIdentity `json:"identities"`
+	ProposalCredits                 uint64         `json:"proposalcredits"`
+	MyProposalNotifications         uint64         `json:"myproposalnotifications"`      // Notify the user via email about his own proposals
+	RegularProposalNotifications    uint64         `json:"regularproposalnotifications"` // Notify the user via email about others' proposals
+	AdminProposalNotifications      uint64         `json:"adminproposalnotifications"`   // Notify the admin user via email about proposals
 }
 
 // UserIdentity represents a user's unique identity.
