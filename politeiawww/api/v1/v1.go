@@ -186,7 +186,7 @@ const (
 	PropVoteStatusFinished      PropVoteStatusT = 4 // Proposal vote has been finished
 	PropVoteStatusDoesntExist   PropVoteStatusT = 5 // Proposal doesn't exist
 
-	// User edit actions
+	// User manage actions
 	UserManageInvalid                         UserManageActionT = 0 // Invalid action type
 	UserManageExpireNewUserVerification       UserManageActionT = 1
 	UserManageExpireUpdateKeyVerification     UserManageActionT = 2
