@@ -31,9 +31,7 @@ func convertWWWUserFromDatabaseUser(user *database.User) v1.User {
 		Locked:                          checkUserIsLocked(user.FailedLoginAttempts),
 		Identities:                      convertWWWIdentitiesFromDatabaseIdentities(user.Identities),
 		ProposalCredits:                 ProposalCreditBalance(user),
-		MyProposalNotifications:         user.MyProposalNotifications,
-		RegularProposalNotifications:    user.RegularProposalNotifications,
-		AdminProposalNotifications:      user.AdminProposalNotifications,
+		ProposalEmailNotifications:      user.ProposalEmailNotifications,
 	}
 }
 
@@ -104,14 +102,8 @@ func (b *backend) ProcessUserDetails(ud *v1.UserDetails, isCurrentUser bool, isA
 
 // ProcessEditUser edits a user's preferences.
 func (b *backend) ProcessEditUser(eu *v1.EditUser, user *database.User) (*v1.EditUserReply, error) {
-	if eu.MyProposalNotifications != nil {
-		user.MyProposalNotifications = *eu.MyProposalNotifications
-	}
-	if eu.RegularProposalNotifications != nil {
-		user.RegularProposalNotifications = *eu.RegularProposalNotifications
-	}
-	if eu.AdminProposalNotifications != nil {
-		user.AdminProposalNotifications = *eu.AdminProposalNotifications
+	if eu.ProposalEmailNotifications != nil {
+		user.ProposalEmailNotifications = *eu.ProposalEmailNotifications
 	}
 
 	// Update the user in the database.

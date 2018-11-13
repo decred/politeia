@@ -2100,7 +2100,7 @@ Returns the vote status for a single public proposal
 | status | int | Status identifier |
 | optionsresult | array of VoteOptionResult | Option description along with the number of votes it has received |
 | totalvotes | int | Proposal's total number of votes |
-| endheight | string | The chain height in which the vote will end | 
+| endheight | string | The chain height in which the vote will end |
 | numofeligiblevotes | int | Total number of eligible votes |
 | quorumpercentage | uint32 | Percent of eligible votes required for quorum |
 | passpercentage | uint32 | Percent of total votes required to pass |
@@ -2181,7 +2181,7 @@ Returns the vote status of all public proposals
 | status | int | Status identifier |
 | optionsresult | array of VoteOptionResult | Option description along with the number of votes it has received |
 | totalvotes | int | Proposal's total number of votes |
-| endheight | string | The chain height in which the vote will end | 
+| endheight | string | The chain height in which the vote will end |
 | numofeligiblevotes | int | Total number of eligible votes |
 | quorumpercentage | uint32 | Percent of eligible votes required for quorum |
 | passpercentage | uint32 | Percent of total votes required to pass |
@@ -2427,9 +2427,24 @@ Reply:
 | isdeactivated | boolean | Whether the user account is deactivated. Deactivated accounts cannot login. |
 | identities | array of [`Identity`](#identity)s | Identities, both activated and deactivated, of the user. |
 | proposalcredits | uint64 | The number of available proposal credits the user has. |
-| myproposalnotifications | uint64 | A flag storing the user's preferences for notifications on his own proposals. Individual notification preferences are stored in each bit of the number. 1 - Proposal status change notification (approved/censored), 2 - Proposal vote started notification |
-| regularproposalnotifications | uint64 | A flag storing the user's preferences for notifications on other users' proposals. Individual notification preferences are stored in each bit of the number. 1 - Proposal published notification (approved), 2 - Proposal edited notification, 4 - Proposal vote started notification |
-| adminproposalnotifications | uint64 | A flag storing an admin user's preferences for notifications proposals which require admin attention. Individual notification preferences are stored in each bit of the number. 1 - Proposal submitted for review notification, 2 - Proposal vote authorized notification |
+| proposalemailnotifications | uint64 | A flag storing the user's preferences for email notifications on proposal changes. Individual notification preferences are stored in bits of the number, and are [documented below](#proposalemailnotifications). |
+
+### Proposal email notifications
+
+These are the available email notifications that can be sent for proposals.
+
+| Description | Value |
+|-|-|
+| **For my proposals** |
+| Proposal status change (approved/censored) | `1 << 0` |
+| Proposal vote started | `1 << 1` |
+| **For others' proposals** |
+| New proposal published | `1 << 10` |
+| Proposal edited | `1 << 11` |
+| Proposal vote started | `1 << 12` |
+| **Admins for others' proposals** |
+| Proposal submitted for review | `1 << 20` |
+| Proposal vote authorized | `1 << 21` |
 
 ### `Abridged User`
 

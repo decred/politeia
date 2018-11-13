@@ -5,17 +5,13 @@ import (
 )
 
 type EditUserCmd struct {
-	MyProposalNotifications      *uint64 `long:"myproposalnotifications" optional:"true" description:"Whether to notify via email about my proposals"`
-	RegularProposalNotifications *uint64 `long:"regularproposalnotifications" optional:"true" description:"Whether to notify via email about others' proposals"`
-	AdminProposalNotifications   *uint64 `long:"adminproposalnotifications" optional:"true" description:"Whether to notify via email about proposals that require admin attention"`
+	ProposalEmailNotifications *uint64 `long:"proposalemailnotifications" optional:"true" description:"Whether to notify via email about proposals"`
 }
 
 func (cmd *EditUserCmd) Execute(args []string) error {
 	// Setup request
 	eu := &v1.EditUser{
-		MyProposalNotifications:      cmd.MyProposalNotifications,
-		RegularProposalNotifications: cmd.RegularProposalNotifications,
-		AdminProposalNotifications:   cmd.AdminProposalNotifications,
+		ProposalEmailNotifications: cmd.ProposalEmailNotifications,
 	}
 
 	// Print request details

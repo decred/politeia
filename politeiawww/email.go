@@ -137,8 +137,8 @@ func (b *backend) emailAuthorForVettedProposal(
 		return err
 	}
 
-	if authorUser.MyProposalNotifications&
-		uint64(v1.NotificationMyProposalStatusChange) == 0 {
+	if authorUser.ProposalEmailNotifications&
+		uint64(v1.NotificationEmailMyProposalStatusChange) == 0 {
 		return nil
 	}
 
@@ -174,8 +174,8 @@ func (b *backend) emailAuthorForCensoredProposal(
 		return err
 	}
 
-	if authorUser.MyProposalNotifications&
-		uint64(v1.NotificationMyProposalStatusChange) == 0 {
+	if authorUser.ProposalEmailNotifications&
+		uint64(v1.NotificationEmailMyProposalStatusChange) == 0 {
 		return nil
 	}
 
@@ -231,8 +231,8 @@ func (b *backend) emailUsersForVettedProposal(
 			// Don't notify the user under certain conditions.
 			if user.NewUserPaywallTx == "" || user.Deactivated ||
 				user.ID == adminUser.ID || user.ID == authorUser.ID ||
-				(user.RegularProposalNotifications&
-					uint64(v1.NotificationRegularProposalVetted)) == 0 {
+				(user.ProposalEmailNotifications&
+					uint64(v1.NotificationEmailRegularProposalVetted)) == 0 {
 				return
 			}
 
@@ -278,8 +278,8 @@ func (b *backend) emailUsersForEditedProposal(
 			// Don't notify the user under certain conditions.
 			if user.NewUserPaywallTx == "" || user.Deactivated ||
 				user.ID == authorUser.ID ||
-				(user.RegularProposalNotifications&
-					uint64(v1.NotificationRegularProposalEdited)) == 0 {
+				(user.ProposalEmailNotifications&
+					uint64(v1.NotificationEmailRegularProposalEdited)) == 0 {
 				return
 			}
 
@@ -313,8 +313,8 @@ func (b *backend) emailUsersForProposalVoteStarted(
 	}
 
 	// Send email to author.
-	if authorUser.MyProposalNotifications&
-		uint64(v1.NotificationMyProposalVoteStarted) != 0 {
+	if authorUser.ProposalEmailNotifications&
+		uint64(v1.NotificationEmailMyProposalVoteStarted) != 0 {
 
 		subject := "Your Proposal Has Started Voting"
 		body, err := createBody(templateProposalVoteStartedForAuthor, &tplData)
@@ -340,8 +340,8 @@ func (b *backend) emailUsersForProposalVoteStarted(
 			if user.NewUserPaywallTx == "" || user.Deactivated ||
 				user.ID == adminUser.ID ||
 				user.ID == authorUser.ID ||
-				(user.RegularProposalNotifications&
-					uint64(v1.NotificationRegularProposalVoteStarted)) == 0 {
+				(user.ProposalEmailNotifications&
+					uint64(v1.NotificationEmailRegularProposalVoteStarted)) == 0 {
 				return
 			}
 
@@ -377,8 +377,8 @@ func (b *backend) emailAdminsForNewSubmittedProposal(token string, propName stri
 		// Add admin emails
 		return b.db.AllUsers(func(user *database.User) {
 			if !user.Admin || user.Deactivated ||
-				(user.AdminProposalNotifications&
-					uint64(v1.NotificationAdminProposalNew) == 0) {
+				(user.ProposalEmailNotifications&
+					uint64(v1.NotificationEmailAdminProposalNew) == 0) {
 				return
 			}
 			msg.AddBCC(user.Email)
@@ -416,8 +416,8 @@ func (b *backend) emailAdminsForProposalVoteAuthorized(
 		// Add admin emails
 		return b.db.AllUsers(func(user *database.User) {
 			if !user.Admin || user.Deactivated ||
-				(user.AdminProposalNotifications&
-					uint64(v1.NotificationAdminProposalVoteAuthorized) == 0) {
+				(user.ProposalEmailNotifications&
+					uint64(v1.NotificationEmailAdminProposalVoteAuthorized) == 0) {
 				return
 			}
 			msg.AddBCC(user.Email)

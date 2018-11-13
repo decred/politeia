@@ -8,7 +8,7 @@ type ErrorStatusT int
 type PropStatusT int
 type PropVoteStatusT int
 type UserManageActionT int
-type NotificationT int
+type EmailNotificationT int
 
 const (
 	PoliteiaWWWAPIVersion = 1 // API version this backend understands
@@ -200,19 +200,16 @@ const (
 	AuthVoteActionAuthorize = "authorize" // Authorize a proposal vote
 	AuthVoteActionRevoke    = "revoke"    // Revoke a proposal vote authorization
 
-	// User notification types
-	NotificationMyProposalInvalid      NotificationT = 0
-	NotificationMyProposalStatusChange NotificationT = 1 << 0
-	NotificationMyProposalVoteStarted  NotificationT = 1 << 1
+	// Email notification types
+	NotificationEmailMyProposalStatusChange EmailNotificationT = 1 << 0
+	NotificationEmailMyProposalVoteStarted  EmailNotificationT = 1 << 1
 
-	NotificationAdminProposalInvalid        NotificationT = 0
-	NotificationAdminProposalNew            NotificationT = 1 << 0
-	NotificationAdminProposalVoteAuthorized NotificationT = 1 << 1
+	NotificationEmailRegularProposalVetted      EmailNotificationT = 1 << 10
+	NotificationEmailRegularProposalEdited      EmailNotificationT = 1 << 11
+	NotificationEmailRegularProposalVoteStarted EmailNotificationT = 1 << 12
 
-	NotificationRegularProposalInvalid     NotificationT = 0
-	NotificationRegularProposalVetted      NotificationT = 1 << 0
-	NotificationRegularProposalEdited      NotificationT = 1 << 1
-	NotificationRegularProposalVoteStarted NotificationT = 1 << 2
+	NotificationEmailAdminProposalNew            EmailNotificationT = 1 << 20
+	NotificationEmailAdminProposalVoteAuthorized EmailNotificationT = 1 << 21
 )
 
 var (
@@ -1019,9 +1016,7 @@ type ManageUserReply struct{}
 
 // EditUser edits a user's preferences.
 type EditUser struct {
-	MyProposalNotifications      *uint64 `json:"myproposalnotifications"`      // Notify the user via email about his own proposals
-	RegularProposalNotifications *uint64 `json:"regularproposalnotifications"` // Notify the user via email about others' proposals
-	AdminProposalNotifications   *uint64 `json:"adminproposalnotifications"`   // Notify the admin user via email about proposals
+	ProposalEmailNotifications *uint64 `json:"proposalemailnotifications"` // Notify the user via email about proposals
 }
 
 // EditUserReply is the reply for the EditUser command.
@@ -1050,9 +1045,7 @@ type User struct {
 	Locked                          bool           `json:"islocked"`
 	Identities                      []UserIdentity `json:"identities"`
 	ProposalCredits                 uint64         `json:"proposalcredits"`
-	MyProposalNotifications         uint64         `json:"myproposalnotifications"`      // Notify the user via email about his own proposals
-	RegularProposalNotifications    uint64         `json:"regularproposalnotifications"` // Notify the user via email about others' proposals
-	AdminProposalNotifications      uint64         `json:"adminproposalnotifications"`   // Notify the admin user via email about proposals
+	ProposalEmailNotifications      uint64         `json:"proposalemailnotifications"` // Notify the user via email about proposals
 }
 
 // UserIdentity represents a user's unique identity.
