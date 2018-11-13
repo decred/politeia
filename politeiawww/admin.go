@@ -21,9 +21,6 @@ func (b *backend) _logAdminAction(adminUser *database.User, content string) erro
 		return nil
 	}
 
-	b.Lock()
-	defer b.Unlock()
-
 	f, err := os.OpenFile(b.cfg.AdminLogFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0640)
 	if err != nil {
 		return err

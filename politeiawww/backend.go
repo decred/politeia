@@ -343,7 +343,8 @@ func (b *backend) login(l *www.Login) loginReplyWithError {
 
 	// Check that the user is verified.
 	if user.NewUserVerificationToken != nil {
-		log.Debugf("Login failure for %v: user not yet verified", l.Email)
+		log.Debugf("Login failure for %v: user not yet verified",
+			l.Email)
 		return loginReplyWithError{
 			reply: nil,
 			err: www.UserError{
@@ -744,7 +745,13 @@ func (b *backend) validateProposal(np www.NewProposal, user *database.User) erro
 	return nil
 }
 
-func (b *backend) setNewUserVerificationAndIdentity(user *database.User, token []byte, expiry int64, includeResend bool, pk []byte) {
+func (b *backend) setNewUserVerificationAndIdentity(
+	user *database.User,
+	token []byte,
+	expiry int64,
+	includeResend bool,
+	pk []byte,
+) {
 	user.NewUserVerificationToken = token
 	user.NewUserVerificationExpiry = expiry
 	if includeResend {
