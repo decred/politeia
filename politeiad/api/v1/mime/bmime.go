@@ -1,6 +1,11 @@
 package mime
 
-import "errors"
+import (
+	"errors"
+	"net/http"
+
+	svg "github.com/h2non/go-is-svg"
+)
 
 var (
 	// validMimeTypesList is a list of all acceptable MIME types that
@@ -29,6 +34,16 @@ func MimeValid(s string) bool {
 // ValidMimeTypes returns the list of supported MIME types.
 func ValidMimeTypes() []string {
 	return validMimeTypesList
+}
+
+// DetectMimeType returns the file MIME type
+func DetectMimeType(data []byte) string {
+	// svg needs a specific check because the algorithm
+	// implemented by http.DetectContentType doesn't detect svg
+	if svg.IsSVG(data) {
+		return "image/svg+xml"
+	}
+	return http.DetectContentType(data)
 }
 
 func init() {

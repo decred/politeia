@@ -9,7 +9,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
-	"net/http"
 	"regexp"
 
 	"github.com/decred/dcrtime/merkle"
@@ -131,7 +130,7 @@ func Verify(pid identity.PublicIdentity, csr CensorshipRecord, files []File) err
 		}
 
 		// MIME
-		mimeType := http.DetectContentType(payload)
+		mimeType := mime.DetectMimeType(payload)
 		if !mime.MimeValid(mimeType) {
 			return mime.ErrUnsupportedMimeType
 		}
