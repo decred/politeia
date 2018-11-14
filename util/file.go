@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"io"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,7 +29,7 @@ func MimeFile(filename string) (string, error) {
 	}
 
 	// Clip buffer to prevent detecting binary files.
-	return http.DetectContentType(b[:n]), nil
+	return mime.DetectMimeType(b[:n]), nil
 }
 
 // DigestFile returns the SHA256 of a file.
@@ -78,7 +77,7 @@ func LoadFile(filename string) (mimeType string, digest string, payload string, 
 	}
 
 	// MIME
-	mimeType = http.DetectContentType(b)
+	mimeType = mime.DetectMimeType(b)
 	if !mime.MimeValid(mimeType) {
 		err = mime.ErrUnsupportedMimeType
 		return

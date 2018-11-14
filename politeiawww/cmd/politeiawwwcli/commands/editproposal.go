@@ -6,9 +6,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io/ioutil"
-	"net/http"
 	"path/filepath"
 
+	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/util"
 )
@@ -71,7 +71,7 @@ func (cmd *EditProposalCmd) Execute(args []string) error {
 
 	f := v1.File{
 		Name:    "index.md",
-		MIME:    http.DetectContentType(md),
+		MIME:    mime.DetectMimeType(md),
 		Digest:  hex.EncodeToString(util.Digest(md)),
 		Payload: base64.StdEncoding.EncodeToString(md),
 	}
@@ -88,7 +88,7 @@ func (cmd *EditProposalCmd) Execute(args []string) error {
 
 		f := v1.File{
 			Name:    filepath.Base(file),
-			MIME:    http.DetectContentType(attachment),
+			MIME:    mime.DetectMimeType(attachment),
 			Digest:  hex.EncodeToString(util.Digest(attachment)),
 			Payload: base64.StdEncoding.EncodeToString(attachment),
 		}

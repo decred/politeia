@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
@@ -389,7 +388,7 @@ func verifyContent(metadata []backend.MetadataStream, files []backend.File, file
 		f.digest = dp
 
 		// Verify MIME
-		detectedMIMEType := http.DetectContentType(f.payload)
+		detectedMIMEType := mime.DetectMimeType(f.payload)
 		if detectedMIMEType != files[i].MIME {
 			return nil, backend.ContentVerificationError{
 				ErrorCode: pd.ErrorStatusInvalidMIMEType,
@@ -399,6 +398,7 @@ func verifyContent(metadata []backend.MetadataStream, files []backend.File, file
 				},
 			}
 		}
+
 		if !mime.MimeValid(files[i].MIME) {
 			return nil, backend.ContentVerificationError{
 				ErrorCode: pd.ErrorStatusUnsupportedMIMEType,
