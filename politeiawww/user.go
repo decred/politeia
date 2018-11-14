@@ -71,6 +71,7 @@ func (b *backend) getUserByIDStr(userIDStr string) (*database.User, error) {
 func filterUserPublicFields(user v1.User) v1.User {
 	return v1.User{
 		ID:         user.ID,
+		Admin:      user.Admin,
 		Username:   user.Username,
 		Identities: user.Identities,
 	}
