@@ -88,6 +88,14 @@ type ProposalCredit struct {
 	CensorshipToken string // Censorship token of proposal that used this credit
 }
 
+// ProposalAccessTime - A user proposal access time is the record of the time
+// that users has accessed some proposal
+type ProposalAccessTime struct {
+	ID        uint64 // ID of the proposal access time log
+	Token     string // proposal token
+	Timestamp int64  // Timestamp indicates when the proposal was accessed
+}
+
 // User record.
 type User struct {
 	ID                              uuid.UUID // Unique user uuid
@@ -143,6 +151,8 @@ type Database interface {
 	UserUpdate(User) error                   // Update existing user
 	AllUsers(callbackFn func(u *User)) error // Iterate all users
 
+	ProposalAccessTimeNew(ProposalAccessTime) error                // add a new proposal access time record
+	ProposalAccessTimeGet(uuid.UUID) ([]ProposalAccessTime, error) // returns the proposal access time record for user
 	// Close performs cleanup of the backend.
 	Close() error
 }

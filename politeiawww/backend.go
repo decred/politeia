@@ -3423,3 +3423,26 @@ func convertWWWPropCreditFromDatabasePropCredit(credit database.ProposalCredit) 
 		TxID:          credit.TxID,
 	}
 }
+
+func (b *backend) ProcessProposalAccessTime(email string) (*www.ProposalAccessTimeReply, error) {
+	log.Tracef("ProcessProposalAccessTime")
+	pat, err := database.ProposalAccessTimeGet(email)
+	if err != nil {
+		return nil, err
+	}
+	return &www.ProposalAccessTimeReply{
+		ProposalAccessTimes: pat,
+	}, nil
+}
+
+// ProcessNewProposalAccessTime inserts new access for some proposal by a given user
+func (b *backend) ProcessNewProposalAccessTime(email string, token string) (*www.NewProposalAccessTimeReply, error) {
+	log.Tracef("ProcessProposalAccessTime")
+	pat, err := database.ProposalAccessTimeNew(email, token)
+	if err != nil {
+		return nil, err
+	}
+	return &www.NewProposalAccessTimeReply{
+		NewProposalAccessTime: pat,
+	}, nil
+}

@@ -79,3 +79,25 @@ func DecodeUser(payload []byte) (*database.User, error) {
 
 	return &u, nil
 }
+
+// EncodeAccessTimes encodes a ProposalAccessTime into a JSON byte slice.
+func EncodeAccessTimes(pat []database.ProposalAccessTime) ([]byte, error) {
+	d, err := json.Marshal(pat)
+	if err != nil {
+		return nil, err
+	}
+
+	return d, nil
+}
+
+// DecodeAccessTimes decodes a JSON byte slice into a ProposalAccessTime.
+func DecodeAccessTimes(payload []byte) (*[]database.ProposalAccessTime, error) {
+	var pats []database.ProposalAccessTime
+
+	err := json.Unmarshal(payload, &pats)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pats, nil
+}

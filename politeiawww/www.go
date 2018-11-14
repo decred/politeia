@@ -617,6 +617,43 @@ func (p *politeiawww) handleResetPassword(w http.ResponseWriter, r *http.Request
 	util.RespondWithJSON(w, http.StatusOK, rpr)
 }
 
+// handleProposalAccessTime returns the proposal access time for a given user
+func (p *politeiawww) handleProposalAccessTime(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleProposalAccessTime")
+	pathParams := mux.Vars(r)
+	user, err := p.getSessionUser(r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleProposalAccessTime: getSessionUser %v", err)
+		return
+	}
+	reply, err := p.backend.ProcessProposalAccessTime(user.Email)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleProposalAccessTime: proposalAccessTime %v", err)
+	}
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+// handleNewProposalAccessTime returns the proposal access time for a user
+func (p *politeiawww) handleNewProposalAccessTime(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleNewProposalAccessTime")
+	pathParams := mux.Vars(r)
+	var token = pathParams["token"]
+	user, err := p.getSessionUser(r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleProposalAccessTime: getSessionUser %v", err)
+		return
+	}
+	reply, err := p.backend.ProcessNewProposalAccessTime(user.Email, token)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleProposalAccessTime: proposalAccessTime %v", err)
+	}
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
 // handleProposalPaywallDetails returns paywall details that allows the user to
 // purchase proposal credits.
 func (p *politeiawww) handleProposalPaywallDetails(w http.ResponseWriter, r *http.Request) {

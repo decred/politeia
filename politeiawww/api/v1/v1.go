@@ -33,6 +33,7 @@ const (
 	RouteLogin                  = "/login"
 	RouteLogout                 = "/logout"
 	RouteSecret                 = "/secret"
+	RouteUserProposalAccessTime = "/user/proposals/access/{token:[A-z0-9]{64}}"
 	RouteProposalPaywallDetails = "/proposals/paywall"
 	RouteProposalPaywallPayment = "/proposals/paywallpayment"
 	RouteAllVetted              = "/proposals/vetted"
