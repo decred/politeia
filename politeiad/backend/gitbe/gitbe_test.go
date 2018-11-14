@@ -12,7 +12,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -22,6 +21,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/util"
 	"github.com/decred/slog"
@@ -95,7 +95,7 @@ func TestAnchorWithCommits(t *testing.T) {
 
 			files = append(files, backend.File{
 				Name:    name + "_" + strconv.Itoa(j),
-				MIME:    http.DetectContentType([]byte(payload)),
+				MIME:    mime.DetectMimeType([]byte(payload)),
 				Digest:  digest,
 				Payload: b64,
 			})
