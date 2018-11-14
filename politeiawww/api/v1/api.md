@@ -2439,12 +2439,12 @@ These are the available email notifications that can be sent for proposals.
 | Proposal status change (approved/censored) | `1 << 0` |
 | Proposal vote started | `1 << 1` |
 | **For others' proposals** |
-| New proposal published | `1 << 10` |
-| Proposal edited | `1 << 11` |
-| Proposal vote started | `1 << 12` |
+| New proposal published | `1 << 2` |
+| Proposal edited | `1 << 3` |
+| Proposal vote started | `1 << 4` |
 | **Admins for others' proposals** |
-| Proposal submitted for review | `1 << 20` |
-| Proposal vote authorized | `1 << 21` |
+| Proposal submitted for review | `1 << 5` |
+| Proposal vote authorized | `1 << 6` |
 
 ### `Abridged User`
 

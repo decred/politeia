@@ -201,15 +201,13 @@ const (
 	AuthVoteActionRevoke    = "revoke"    // Revoke a proposal vote authorization
 
 	// Email notification types
-	NotificationEmailMyProposalStatusChange EmailNotificationT = 1 << 0
-	NotificationEmailMyProposalVoteStarted  EmailNotificationT = 1 << 1
-
-	NotificationEmailRegularProposalVetted      EmailNotificationT = 1 << 10
-	NotificationEmailRegularProposalEdited      EmailNotificationT = 1 << 11
-	NotificationEmailRegularProposalVoteStarted EmailNotificationT = 1 << 12
-
-	NotificationEmailAdminProposalNew            EmailNotificationT = 1 << 20
-	NotificationEmailAdminProposalVoteAuthorized EmailNotificationT = 1 << 21
+	NotificationEmailMyProposalStatusChange      EmailNotificationT = 1 << 0
+	NotificationEmailMyProposalVoteStarted       EmailNotificationT = 1 << 1
+	NotificationEmailRegularProposalVetted       EmailNotificationT = 1 << 2
+	NotificationEmailRegularProposalEdited       EmailNotificationT = 1 << 3
+	NotificationEmailRegularProposalVoteStarted  EmailNotificationT = 1 << 4
+	NotificationEmailAdminProposalNew            EmailNotificationT = 1 << 5
+	NotificationEmailAdminProposalVoteAuthorized EmailNotificationT = 1 << 6
 )
 
 var (

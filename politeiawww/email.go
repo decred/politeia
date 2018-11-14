@@ -44,6 +44,9 @@ func (b *backend) createEmailLink(path, email, token string) (string, error) {
 	return l.String(), nil
 }
 
+// sendEmail sends an email with the given subject and body, and the caller
+// must supply a function which is used to add email addresses to send the
+// email to.
 func (b *backend) sendEmail(
 	subject, body string,
 	addToAddressesFn func(*goemail.Message) error,
@@ -58,6 +61,8 @@ func (b *backend) sendEmail(
 	return b.cfg.SMTP.Send(msg)
 }
 
+// sendEmailTo sends an email with the given subject and body to a
+// single address.
 func (b *backend) sendEmailTo(subject, body, toAddress string) error {
 	return b.sendEmail(subject, body, func(msg *goemail.Message) error {
 		msg.AddTo(toAddress)
@@ -226,7 +231,7 @@ func (b *backend) emailUsersForVettedProposal(
 	}
 
 	return b.sendEmail(subject, body, func(msg *goemail.Message) error {
-		// Add user emails
+		// Add user emails to the goemail.Message
 		return b.db.AllUsers(func(user *database.User) {
 			// Don't notify the user under certain conditions.
 			if user.NewUserPaywallTx == "" || user.Deactivated ||
@@ -273,7 +278,7 @@ func (b *backend) emailUsersForEditedProposal(
 	}
 
 	return b.sendEmail(subject, body, func(msg *goemail.Message) error {
-		// Add user emails
+		// Add user emails to the goemail.Message
 		return b.db.AllUsers(func(user *database.User) {
 			// Don't notify the user under certain conditions.
 			if user.NewUserPaywallTx == "" || user.Deactivated ||
@@ -335,6 +340,7 @@ func (b *backend) emailUsersForProposalVoteStarted(
 	}
 
 	return b.sendEmail(subject, body, func(msg *goemail.Message) error {
+		// Add user emails to the goemail.Message
 		return b.db.AllUsers(func(user *database.User) {
 			// Don't notify the user under certain conditions.
 			if user.NewUserPaywallTx == "" || user.Deactivated ||
@@ -374,7 +380,7 @@ func (b *backend) emailAdminsForNewSubmittedProposal(token string, propName stri
 	}
 
 	return b.sendEmail(subject, body, func(msg *goemail.Message) error {
-		// Add admin emails
+		// Add admin emails to the goemail.Message
 		return b.db.AllUsers(func(user *database.User) {
 			if !user.Admin || user.Deactivated ||
 				(user.ProposalEmailNotifications&
@@ -413,7 +419,7 @@ func (b *backend) emailAdminsForProposalVoteAuthorized(
 	}
 
 	return b.sendEmail(subject, body, func(msg *goemail.Message) error {
-		// Add admin emails
+		// Add admin emails to the goemail.Message
 		return b.db.AllUsers(func(user *database.User) {
 			if !user.Admin || user.Deactivated ||
 				(user.ProposalEmailNotifications&
