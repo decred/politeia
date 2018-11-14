@@ -279,6 +279,14 @@
   version = "v1.2.0"
 
 [[projects]]
+  branch = "master"
+  digest = "1:d183f075b01320fc3f44ebebe3b783da51ddcdea12ab1afd166d4cd6f267bbff"
+  name = "github.com/h2non/go-is-svg"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "35e8c4b0612ce1ab2a228e25a323b22482db6788"
+
+[[projects]]
   digest = "1:a2cff208d4759f6ba1b1cd228587b0a1869f95f22542ec9cd17fff64430113c7"
   name = "github.com/jessevdk/go-flags"
   packages = ["."]
@@ -502,6 +510,7 @@
     "github.com/gorilla/mux",
     "github.com/gorilla/schema",
     "github.com/gorilla/sessions",
+    "github.com/h2non/go-is-svg",
     "github.com/jessevdk/go-flags",
     "github.com/jrick/logrotate/rotator",
     "github.com/otiai10/copy",

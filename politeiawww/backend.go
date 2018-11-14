@@ -3485,25 +3485,22 @@ func convertWWWPropCreditFromDatabasePropCredit(credit database.ProposalCredit) 
 	}
 }
 
+// ProcessProposalAccessTime returns an array of the access times for
+// all proposals for an user
 func (b *backend) ProcessProposalAccessTime(email string) (*www.ProposalAccessTimeReply, error) {
 	log.Tracef("ProcessProposalAccessTime")
-	pat, err := database.ProposalAccessTimeGet(email)
+	pats, err := b.db.ProposalAccessTimeGet(email)
 	if err != nil {
 		return nil, err
 	}
 	return &www.ProposalAccessTimeReply{
-		ProposalAccessTimes: pat,
+		ProposalAccessTimes: convertAccessTimeFromDatabase(pats),
 	}, nil
 }
 
 // ProcessNewProposalAccessTime inserts new access for some proposal by a given user
-func (b *backend) ProcessNewProposalAccessTime(email string, token string) (*www.NewProposalAccessTimeReply, error) {
+func (b *backend) ProcessNewProposalAccessTime(email string, token string) error {
 	log.Tracef("ProcessProposalAccessTime")
-	pat, err := database.ProposalAccessTimeNew(email, token)
-	if err != nil {
-		return nil, err
-	}
-	return &www.NewProposalAccessTimeReply{
-		NewProposalAccessTime: pat,
-	}, nil
+
+	return b.db.ProposalAccessTimeNew(email, token)
 }

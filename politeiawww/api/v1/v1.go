@@ -1056,3 +1056,15 @@ type ProposalsStatsReply struct {
 	NumOfUnvettedChanges int `json:"numofunvettedchanges"` // Counting number of proposals with unvetted changes
 	NumOfPublic          int `json:"numofpublic"`          // Counting number of public proposals
 }
+
+// ProposalAccessTime returns a proposal access time
+type ProposalAccessTime struct {
+	ID        uint64 `json:"id"`        // ID of the proposal access time log
+	Token     string `json:"token"`     // proposal token
+	Timestamp int64  `json:"timestamp"` // Timestamp indicates when the proposal was accessed
+}
+
+// ProposalAccessTimeReply returns an array of all proposal access replies
+type ProposalAccessTimeReply struct {
+	ProposalAccessTimes []ProposalAccessTime `json:"proposalaccesstimes"`
+}

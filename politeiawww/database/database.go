@@ -153,8 +153,8 @@ type Database interface {
 	UserUpdate(User) error                   // Update existing user
 	AllUsers(callbackFn func(u *User)) error // Iterate all users
 
-	ProposalAccessTimeNew(ProposalAccessTime) error                // add a new proposal access time record
-	ProposalAccessTimeGet(uuid.UUID) ([]ProposalAccessTime, error) // returns the proposal access time record for user
+	ProposalAccessTimeNew(string, string) error                 // add a new proposal access time record
+	ProposalAccessTimeGet(string) ([]ProposalAccessTime, error) // returns the proposal access time record for user
 	// Close performs cleanup of the backend.
 	Close() error
 }
