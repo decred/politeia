@@ -902,13 +902,22 @@ func (p *politeiawww) handleCommentsGet(w http.ResponseWriter, r *http.Request) 
 	log.Tracef("handleCommentsGet")
 
 	pathParams := mux.Vars(r)
-	gcr, err := p.backend.ProcessCommentGet(pathParams["token"])
+	token := pathParams["token"]
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		if err != database.ErrUserNotFound {
+			RespondWithError(w, r, 0,
+				"handleCommentsGet: getSessionUser %v", err)
+			return
+		}
+	}
+	gcr, err := p.backend.ProcessCommentGet(token, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleCommentsGet: ProcessCommentGet %v", err)
 		return
 	}
-
 	util.RespondWithJSON(w, http.StatusOK, gcr)
 }
 

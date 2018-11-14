@@ -113,6 +113,12 @@ type User struct {
 	Deactivated                     bool      // Whether the account is deactivated or not
 	EmailNotifications              uint64    // Notify the user via emails
 
+	// Access times for proposal comments that have been accessed by the user.
+	// Each string represents a proposal token, and the int64 represents the
+	// time that the proposal has been most recently accessed in the format of
+	// a UNIX timestamp.
+	ProposalCommentsAccessTimes map[string]int64
+
 	// All identities the user has ever used.  User should only have one
 	// active key at a time.  We allow multiples in order to deal with key
 	// loss.
