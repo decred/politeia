@@ -30,10 +30,10 @@ type inventoryRecord struct {
 // proposalsRequest is used for passing parameters into the
 // getProposals() function.
 type proposalsRequest struct {
-	After     string
-	Before    string
-	UserId    string
-	StatusMap map[www.PropStatusT]bool
+	After    string
+	Before   string
+	UserId   string
+	StateMap map[www.PropStateT]bool
 }
 
 // proposalsStats is used to summarize proposal statistics
@@ -639,7 +639,7 @@ func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
 		}
 
 		// Filter by the status.
-		if val, ok := pr.StatusMap[proposal.Status]; !ok || !val {
+		if val, ok := pr.StateMap[proposal.State]; !ok || !val {
 			continue
 		}
 
@@ -673,7 +673,7 @@ func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
 			}
 
 			// Filter by the status.
-			if val, ok := pr.StatusMap[proposal.Status]; !ok || !val {
+			if val, ok := pr.StateMap[proposal.State]; !ok || !val {
 				continue
 			}
 

@@ -1556,8 +1556,8 @@ func (b *backend) ProcessAllVetted(v www.GetAllVetted) *www.GetAllVettedReply {
 		Proposals: b.getProposals(proposalsRequest{
 			After:  v.After,
 			Before: v.Before,
-			StatusMap: map[www.PropStatusT]bool{
-				www.PropStatusPublic: true,
+			StateMap: map[www.PropStateT]bool{
+				www.PropStateVetted: true,
 			},
 		}),
 	}
@@ -1570,10 +1570,8 @@ func (b *backend) ProcessAllUnvetted(u www.GetAllUnvetted) *www.GetAllUnvettedRe
 		Proposals: b.getProposals(proposalsRequest{
 			After:  u.After,
 			Before: u.Before,
-			StatusMap: map[www.PropStatusT]bool{
-				www.PropStatusNotReviewed:       true,
-				www.PropStatusCensored:          true,
-				www.PropStatusUnreviewedChanges: true,
+			StateMap: map[www.PropStateT]bool{
+				www.PropStateUnvetted: true,
 			},
 		}),
 	}
@@ -2383,11 +2381,9 @@ func (b *backend) ProcessUserProposals(up *www.UserProposals, isCurrentUser, isA
 			After:  up.After,
 			Before: up.Before,
 			UserId: up.UserId,
-			StatusMap: map[www.PropStatusT]bool{
-				www.PropStatusNotReviewed:       isCurrentUser || isAdminUser,
-				www.PropStatusCensored:          isCurrentUser || isAdminUser,
-				www.PropStatusUnreviewedChanges: isCurrentUser || isAdminUser,
-				www.PropStatusPublic:            true,
+			StateMap: map[www.PropStateT]bool{
+				www.PropStateUnvetted: isCurrentUser || isAdminUser,
+				www.PropStateVetted:   true,
 			},
 		}),
 		NumOfProposals: numProposals,

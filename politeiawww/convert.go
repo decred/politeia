@@ -300,9 +300,22 @@ func convertPropFromPD(p pd.Record) www.ProposalRecord {
 		}
 	}
 
+	var state www.PropStateT
+	status := convertPropStatusFromPD(p.Status)
+	switch status {
+	case www.PropStatusNotReviewed, www.PropStatusUnreviewedChanges,
+		www.PropStatusCensored:
+		state = www.PropStateUnvetted
+	case www.PropStatusPublic, www.PropStatusLocked:
+		state = www.PropStateVetted
+	default:
+		state = www.PropStateInvalid
+	}
+
 	return www.ProposalRecord{
 		Name:                md.Name,
-		Status:              convertPropStatusFromPD(p.Status),
+		State:               state,
+		Status:              status,
 		Timestamp:           md.Timestamp,
 		PublicKey:           md.PublicKey,
 		Signature:           md.Signature,

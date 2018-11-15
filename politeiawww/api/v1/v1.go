@@ -5,6 +5,7 @@ import (
 )
 
 type ErrorStatusT int
+type PropStateT int
 type PropStatusT int
 type PropVoteStatusT int
 type UserManageActionT int
@@ -168,6 +169,20 @@ const (
 	ErrorStatusInvalidPropVoteBits         ErrorStatusT = 53
 	ErrorStatusInvalidPropVoteParams       ErrorStatusT = 54
 	ErrorStatusEmailNotVerified            ErrorStatusT = 55
+
+	// Proposal state codes
+	//
+	// PropStateUnvetted includes proposals with a status of:
+	//   * PropStatusNotReviewed
+	//   * PropStatusUnreviewedChanges
+	//   * PropStatusCensored
+	// PropStateVetted includes proposals with a status of:
+	//   * PropStatusPublic
+	//   * PropStatusAbandoned
+	//   * PropStatusLocked
+	PropStateInvalid  PropStateT = 0 // Invalid state
+	PropStateUnvetted PropStateT = 1 // Unvetted proposal
+	PropStateVetted   PropStateT = 2 // Vetted proposal
 
 	// Proposal status codes (set and get)
 	PropStatusInvalid           PropStatusT = 0 // Invalid status
@@ -351,6 +366,7 @@ type CensorshipRecord struct {
 // ProposalRecord is an entire proposal and it's content.
 type ProposalRecord struct {
 	Name                string      `json:"name"`                          // Suggested short proposal name
+	State               PropStateT  `json:"state"`                         // Current state of proposal
 	Status              PropStatusT `json:"status"`                        // Current status of proposal
 	Timestamp           int64       `json:"timestamp"`                     // Last update of proposal
 	UserId              string      `json:"userid"`                        // ID of user who submitted proposal
