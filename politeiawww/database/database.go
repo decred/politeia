@@ -111,6 +111,7 @@ type User struct {
 	LastLoginTime                   int64     // Unix timestamp of when the user last logged in
 	FailedLoginAttempts             uint64    // Number of failed login a user has made in a row
 	Deactivated                     bool      // Whether the account is deactivated or not
+	ProposalEmailNotifications      uint64    // Notify the user via email about proposals
 
 	// All identities the user has ever used.  User should only have one
 	// active key at a time.  We allow multiples in order to deal with key

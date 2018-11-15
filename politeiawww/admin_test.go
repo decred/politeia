@@ -31,20 +31,20 @@ func verifyUser(t *testing.T, b *backend, user *database.User, identity *identit
 	assertSuccess(t, err)
 }
 
-// Tests editing a new user by expiring the verification token.
-func TestProcessEditUser(t *testing.T) {
+// Tests managing a new user by expiring the verification token.
+func TestProcessManageUser(t *testing.T) {
 	b := createBackend(t)
 	nu, _ := createAndVerifyUser(t, b)
 	adminUser, _ := b.db.UserGet(nu.Email)
 	user, identity := createUnverifiedUser(t, b)
 
 	// Expire the new user verification token
-	eu := www.EditUser{
+	eu := www.ManageUser{
 		UserID: user.ID.String(),
-		Action: www.UserEditExpireNewUserVerification,
+		Action: www.UserManageExpireNewUserVerification,
 		Reason: "unit test",
 	}
-	_, err := b.ProcessEditUser(&eu, adminUser)
+	_, err := b.ProcessManageUser(&eu, adminUser)
 	assertSuccess(t, err)
 
 	// Generate a new verification token
