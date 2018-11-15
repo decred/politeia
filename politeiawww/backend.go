@@ -2511,6 +2511,11 @@ func (b *backend) ProcessAuthorizeVote(av www.AuthorizeVote, user *database.User
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusWrongStatus,
 		}
+	case ir.voting.StartBlockHeight != "":
+		// Vote has already started
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusWrongVoteStatus,
+		}
 	case av.Action != www.AuthVoteActionAuthorize &&
 		av.Action != www.AuthVoteActionRevoke:
 		// Invalid authorize vote action
