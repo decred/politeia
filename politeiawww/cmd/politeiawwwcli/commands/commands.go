@@ -29,7 +29,8 @@ type Cmds struct {
 	CommentsVotes      CommentsVotesCmd      `command:"commentsvotes" description:"fetch all the comments voted by the user on a proposal"`
 	ChangeUsername     ChangeUsernameCmd     `command:"changeusername" description:"change the username for the currently logged in user"`
 	EditProposal       EditProposalCmd       `command:"editproposal" description:"edit a proposal"`
-	EditUser           EditUserCmd           `command:"edituser" description:"(admin) edit the details for the given user id"`
+	ManageUser         ManageUserCmd         `command:"manageuser" description:"(admin) edit the details for the given user id"`
+	EditUser           EditUserCmd           `command:"edituser" description:"edit your user preferences"`
 	Faucet             FaucetCmd             `command:"faucet" description:"use the Decred testnet faucet to send DCR to an address"`
 	GetComments        GetCommentsCmd        `command:"getcomments" description:"fetch a proposal's comments"`
 	GetProposal        GetProposalCmd        `command:"getproposal" description:"fetch a proposal"`

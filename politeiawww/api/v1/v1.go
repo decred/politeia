@@ -7,7 +7,8 @@ import (
 type ErrorStatusT int
 type PropStatusT int
 type PropVoteStatusT int
-type UserEditActionT int
+type UserManageActionT int
+type EmailNotificationT int
 
 const (
 	PoliteiaWWWAPIVersion = 1 // API version this backend understands
@@ -29,6 +30,7 @@ const (
 	RouteVerifyUserPayment      = "/user/verifypayment"
 	RouteUserPaymentsRescan     = "/user/payments/rescan"
 	RouteUserDetails            = "/user/{userid:[0-9a-zA-Z-]{36}}"
+	RouteManageUser             = "/user/manage"
 	RouteEditUser               = "/user/edit"
 	RouteUsers                  = "/users"
 	RouteLogin                  = "/login"
@@ -151,7 +153,7 @@ const (
 	ErrorStatusInvalidPropVoteStatus       ErrorStatusT = 37
 	ErrorStatusUserLocked                  ErrorStatusT = 38
 	ErrorStatusNoProposalCredits           ErrorStatusT = 39
-	ErrorStatusInvalidUserEditAction       ErrorStatusT = 40
+	ErrorStatusInvalidUserManageAction     ErrorStatusT = 40
 	ErrorStatusUserActionNotAllowed        ErrorStatusT = 41
 	ErrorStatusWrongVoteStatus             ErrorStatusT = 42
 	ErrorStatusCannotCommentOnProp         ErrorStatusT = 43
@@ -185,19 +187,28 @@ const (
 	PropVoteStatusFinished      PropVoteStatusT = 4 // Proposal vote has been finished
 	PropVoteStatusDoesntExist   PropVoteStatusT = 5 // Proposal doesn't exist
 
-	// User edit actions
-	UserEditInvalid                         UserEditActionT = 0 // Invalid action type
-	UserEditExpireNewUserVerification       UserEditActionT = 1
-	UserEditExpireUpdateKeyVerification     UserEditActionT = 2
-	UserEditExpireResetPasswordVerification UserEditActionT = 3
-	UserEditClearUserPaywall                UserEditActionT = 4
-	UserEditUnlock                          UserEditActionT = 5
-	UserEditDeactivate                      UserEditActionT = 6
-	UserEditReactivate                      UserEditActionT = 7
+	// User manage actions
+	UserManageInvalid                         UserManageActionT = 0 // Invalid action type
+	UserManageExpireNewUserVerification       UserManageActionT = 1
+	UserManageExpireUpdateKeyVerification     UserManageActionT = 2
+	UserManageExpireResetPasswordVerification UserManageActionT = 3
+	UserManageClearUserPaywall                UserManageActionT = 4
+	UserManageUnlock                          UserManageActionT = 5
+	UserManageDeactivate                      UserManageActionT = 6
+	UserManageReactivate                      UserManageActionT = 7
 
 	// Authorize vote actions
 	AuthVoteActionAuthorize = "authorize" // Authorize a proposal vote
 	AuthVoteActionRevoke    = "revoke"    // Revoke a proposal vote authorization
+
+	// Email notification types
+	NotificationEmailMyProposalStatusChange      EmailNotificationT = 1 << 0
+	NotificationEmailMyProposalVoteStarted       EmailNotificationT = 1 << 1
+	NotificationEmailRegularProposalVetted       EmailNotificationT = 1 << 2
+	NotificationEmailRegularProposalEdited       EmailNotificationT = 1 << 3
+	NotificationEmailRegularProposalVoteStarted  EmailNotificationT = 1 << 4
+	NotificationEmailAdminProposalNew            EmailNotificationT = 1 << 5
+	NotificationEmailAdminProposalVoteAuthorized EmailNotificationT = 1 << 6
 )
 
 var (
@@ -261,7 +272,7 @@ var (
 		ErrorStatusInvalidPropVoteStatus:       "invalid proposal vote status",
 		ErrorStatusUserLocked:                  "user locked due to too many login attempts",
 		ErrorStatusNoProposalCredits:           "no proposal credits",
-		ErrorStatusInvalidUserEditAction:       "invalid user edit action",
+		ErrorStatusInvalidUserManageAction:     "invalid user edit action",
 		ErrorStatusUserActionNotAllowed:        "user action is not allowed",
 		ErrorStatusWrongVoteStatus:             "wrong proposal vote status",
 		ErrorStatusCannotCommentOnProp:         "cannot comment on proposal",
@@ -299,16 +310,16 @@ var (
 		PropVoteStatusDoesntExist:   "proposal does not exist",
 	}
 
-	// UserEditAction converts user edit actions to human readable text
-	UserEditAction = map[UserEditActionT]string{
-		UserEditInvalid:                         "invalid action",
-		UserEditExpireNewUserVerification:       "expire new user verification",
-		UserEditExpireUpdateKeyVerification:     "expire update key verification",
-		UserEditExpireResetPasswordVerification: "expire reset password verification",
-		UserEditClearUserPaywall:                "clear user paywall",
-		UserEditUnlock:                          "unlock user",
-		UserEditDeactivate:                      "deactivate user",
-		UserEditReactivate:                      "reactivate user",
+	// UserManageAction converts user edit actions to human readable text
+	UserManageAction = map[UserManageActionT]string{
+		UserManageInvalid:                         "invalid action",
+		UserManageExpireNewUserVerification:       "expire new user verification",
+		UserManageExpireUpdateKeyVerification:     "expire update key verification",
+		UserManageExpireResetPasswordVerification: "expire reset password verification",
+		UserManageClearUserPaywall:                "clear user paywall",
+		UserManageUnlock:                          "unlock user",
+		UserManageDeactivate:                      "deactivate user",
+		UserManageReactivate:                      "reactivate user",
 	}
 )
 
@@ -992,14 +1003,22 @@ type UserDetailsReply struct {
 	User User `json:"user"`
 }
 
-// EditUser performs the given action on a user.
-type EditUser struct {
-	UserID string          `json:"userid"` // User id
-	Action UserEditActionT `json:"action"` // Action
-	Reason string          `json:"reason"` // Admin reason for action
+// ManageUser performs the given action on a user.
+type ManageUser struct {
+	UserID string            `json:"userid"` // User id
+	Action UserManageActionT `json:"action"` // Action
+	Reason string            `json:"reason"` // Admin reason for action
 }
 
-// EditUserReply is the reply for the EditUserReply command.
+// ManageUserReply is the reply for the ManageUserReply command.
+type ManageUserReply struct{}
+
+// EditUser edits a user's preferences.
+type EditUser struct {
+	ProposalEmailNotifications *uint64 `json:"proposalemailnotifications"` // Notify the user via email about proposals
+}
+
+// EditUserReply is the reply for the EditUser command.
 type EditUserReply struct{}
 
 // User represents an individual user.
@@ -1025,6 +1044,7 @@ type User struct {
 	Locked                          bool           `json:"islocked"`
 	Identities                      []UserIdentity `json:"identities"`
 	ProposalCredits                 uint64         `json:"proposalcredits"`
+	ProposalEmailNotifications      uint64         `json:"proposalemailnotifications"` // Notify the user via email about proposals
 }
 
 // UserIdentity represents a user's unique identity.

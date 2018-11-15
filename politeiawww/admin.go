@@ -13,10 +13,10 @@ import (
 	"github.com/google/uuid"
 )
 
-// logAdminAction logs a string to the admin log file.
+// _logAdminAction logs a string to the admin log file.
 //
 // This function must be called WITH the mutex held.
-func (b *backend) logAdminAction(adminUser *database.User, content string) error {
+func (b *backend) _logAdminAction(adminUser *database.User, content string) error {
 	if b.test {
 		return nil
 	}
@@ -33,90 +33,99 @@ func (b *backend) logAdminAction(adminUser *database.User, content string) error
 	return err
 }
 
-// logAdminUserAction logs an admin action on a specific user.
+// logAdminAction logs a string to the admin log file.
 //
-// This function must be called WITH the mutex held.
-func (b *backend) logAdminUserAction(adminUser, user *database.User, action v1.UserEditActionT, reasonForAction string) error {
-	return b.logAdminAction(adminUser, fmt.Sprintf("%v,%v,%v,%v",
-		v1.UserEditAction[action], user.ID, user.Username, reasonForAction))
+// This function must be called WITHOUT the mutex held.
+func (b *backend) logAdminAction(adminUser *database.User, content string) error {
+	b.Lock()
+	defer b.Unlock()
+
+	return b._logAdminAction(adminUser, content)
 }
 
 // logAdminUserAction logs an admin action on a specific user.
 //
 // This function must be called WITHOUT the mutex held.
-func (b *backend) logAdminUserActionLock(adminUser, user *database.User, action v1.UserEditActionT, reasonForAction string) error {
-	b.Lock()
-	defer b.Unlock()
-
-	return b.logAdminUserAction(adminUser, user, action, reasonForAction)
+func (b *backend) logAdminUserAction(adminUser, user *database.User, action v1.UserManageActionT, reasonForAction string) error {
+	return b.logAdminAction(adminUser, fmt.Sprintf("%v,%v,%v,%v",
+		v1.UserManageAction[action], user.ID, user.Username, reasonForAction))
 }
 
 // logAdminProposalAction logs an admin action on a proposal.
 //
-// This function must be called WITH the mutex held.
+// This function must be called WITHOUT the mutex held.
 func (b *backend) logAdminProposalAction(adminUser *database.User, token, action, reason string) error {
 	return b.logAdminAction(adminUser, fmt.Sprintf("%v,%v,%v", action, token, reason))
 }
 
-func (b *backend) ProcessEditUser(eu *v1.EditUser, adminUser *database.User) (*v1.EditUserReply, error) {
+func (b *backend) ProcessManageUser(mu *v1.ManageUser, adminUser *database.User) (*v1.ManageUserReply, error) {
 	// Fetch the database user.
-	user, err := b.getUserByIDStr(eu.UserID)
+	user, err := b.getUserByIDStr(mu.UserID)
 	if err != nil {
 		return nil, err
 	}
 
 	// Validate that the action is valid.
-	if eu.Action == v1.UserEditInvalid {
+	if mu.Action == v1.UserManageInvalid {
 		return nil, v1.UserError{
-			ErrorCode: v1.ErrorStatusInvalidUserEditAction,
+			ErrorCode: v1.ErrorStatusInvalidUserManageAction,
 		}
 	}
 
 	// Validate that the reason is supplied.
-	eu.Reason = strings.TrimSpace(eu.Reason)
-	if len(eu.Reason) == 0 {
+	mu.Reason = strings.TrimSpace(mu.Reason)
+	if len(mu.Reason) == 0 {
 		return nil, v1.UserError{
 			ErrorCode: v1.ErrorStatusInvalidInput,
 		}
 	}
 
-	// Append this action to the admin log file.
-	err = b.logAdminUserActionLock(adminUser, user, eu.Action, eu.Reason)
-	if err != nil {
-		return nil, err
-	}
-
 	// -168 hours is 7 days in the past
 	expiredTime := time.Now().Add(-168 * time.Hour).Unix()
 
-	switch eu.Action {
-	case v1.UserEditExpireNewUserVerification:
+	switch mu.Action {
+	case v1.UserManageExpireNewUserVerification:
 		user.NewUserVerificationExpiry = expiredTime
 		user.ResendNewUserVerificationExpiry = expiredTime
-	case v1.UserEditExpireUpdateKeyVerification:
+	case v1.UserManageExpireUpdateKeyVerification:
 		user.UpdateKeyVerificationExpiry = expiredTime
-	case v1.UserEditExpireResetPasswordVerification:
+	case v1.UserManageExpireResetPasswordVerification:
 		user.ResetPasswordVerificationExpiry = expiredTime
-	case v1.UserEditClearUserPaywall:
+	case v1.UserManageClearUserPaywall:
 		b.removeUsersFromPool([]uuid.UUID{user.ID})
 
 		user.NewUserPaywallAmount = 0
 		user.NewUserPaywallTx = "cleared_by_admin"
 		user.NewUserPaywallPollExpiry = 0
-	case v1.UserEditUnlock:
+	case v1.UserManageUnlock:
 		user.FailedLoginAttempts = 0
-	case v1.UserEditDeactivate:
+	case v1.UserManageDeactivate:
 		user.Deactivated = true
-	case v1.UserEditReactivate:
+	case v1.UserManageReactivate:
 		user.Deactivated = false
 	default:
 		return nil, fmt.Errorf("unsupported user edit action: %v",
-			v1.UserEditAction[eu.Action])
+			v1.UserManageAction[mu.Action])
 	}
 
 	// Update the user in the database.
 	err = b.db.UserUpdate(*user)
-	return &v1.EditUserReply{}, err
+	if err != nil {
+		return nil, err
+	}
+
+	if !b.test {
+		b.Lock()
+		defer b.Unlock()
+
+		b.eventManager._fireEvent(EventTypeUserManage, EventDataUserManage{
+			AdminUser:  adminUser,
+			User:       user,
+			ManageUser: mu,
+		})
+	}
+
+	return &v1.ManageUserReply{}, nil
 }
 
 // ProcessUsers returns a list of users given a set of filters.

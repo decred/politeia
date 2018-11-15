@@ -50,28 +50,6 @@ type politeiawww struct {
 	backend *backend
 }
 
-type newUserEmailTemplateData struct {
-	Username string
-	Link     string
-	Email    string
-}
-type updateUserKeyEmailTemplateData struct {
-	Link      string
-	PublicKey string
-	Email     string
-}
-type resetPasswordEmailTemplateData struct {
-	Link  string
-	Email string
-}
-
-type newProposalSubmittedTemplateData struct {
-	Link     string
-	Name     string
-	Username string
-	Email    string
-}
-
 // getSession returns the active cookie session.
 func (p *politeiawww) getSession(r *http.Request) (*sessions.Session, error) {
 	return p.store.Get(r, v1.CookieSession)
@@ -1263,7 +1241,36 @@ func (p *politeiawww) handleUsers(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, ur)
 }
 
-// handleEditUser handles editing a user's details.
+// handleManageUser handles editing a user's details.
+func (p *politeiawww) handleManageUser(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleManageUser")
+
+	var mu v1.ManageUser
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&mu); err != nil {
+		RespondWithError(w, r, 0, "handleManageUser: unmarshal", v1.UserError{
+			ErrorCode: v1.ErrorStatusInvalidInput,
+		})
+		return
+	}
+
+	adminUser, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleManageUser: getSessionUser %v", err)
+		return
+	}
+
+	mur, err := p.backend.ProcessManageUser(&mu, adminUser)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleManageUser: ProcessManageUser %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, mur)
+}
+
+// handleEditUser handles editing a user's preferences.
 func (p *politeiawww) handleEditUser(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleEditUser")
 
@@ -1618,6 +1625,8 @@ func _main() error {
 		p.handleProposalAccessTime, permissionLogin, false)
 	p.addRoute(http.MethodPost, v1.RouteUserProposalAccessTime,
 		p.handleNewProposalAccessTime, permissionLogin, false)
+	p.addRoute(http.MethodPost, v1.RouteEditUser,
+		p.handleEditUser, permissionLogin, false)
 
 	// Routes that require being logged in as an admin user.
 	p.addRoute(http.MethodGet, v1.RouteAllUnvetted, p.handleAllUnvetted,
@@ -1626,8 +1635,8 @@ func _main() error {
 		p.handleSetProposalStatus, permissionAdmin, true)
 	p.addRoute(http.MethodPost, v1.RouteStartVote,
 		p.handleStartVote, permissionAdmin, true)
-	p.addRoute(http.MethodPost, v1.RouteEditUser,
-		p.handleEditUser, permissionAdmin, true)
+	p.addRoute(http.MethodPost, v1.RouteManageUser,
+		p.handleManageUser, permissionAdmin, true)
 	p.addRoute(http.MethodPost, v1.RouteCensorComment,
 		p.handleCensorComment, permissionAdmin, true)
 	p.addRoute(http.MethodGet, v1.RouteUsers,

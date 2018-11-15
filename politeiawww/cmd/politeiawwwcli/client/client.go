@@ -937,6 +937,28 @@ func (c *Client) Users(u *v1.Users) (*v1.UsersReply, error) {
 	return &ur, nil
 }
 
+func (c *Client) ManageUser(mu *v1.ManageUser) (*v1.ManageUserReply, error) {
+	responseBody, err := c.makeRequest("POST", v1.RouteManageUser, mu)
+	if err != nil {
+		return nil, err
+	}
+
+	var mur v1.ManageUserReply
+	err = json.Unmarshal(responseBody, &mur)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal ManageUserReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := PrettyPrintJSON(mur)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &mur, nil
+}
+
 func (c *Client) EditUser(eu *v1.EditUser) (*v1.EditUserReply, error) {
 	responseBody, err := c.makeRequest("POST", v1.RouteEditUser, eu)
 	if err != nil {

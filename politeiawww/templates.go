@@ -4,6 +4,62 @@
 
 package main
 
+type newUserEmailTemplateData struct {
+	Username string
+	Link     string
+	Email    string
+}
+
+type updateUserKeyEmailTemplateData struct {
+	Link      string
+	PublicKey string
+	Email     string
+}
+
+type resetPasswordEmailTemplateData struct {
+	Link  string
+	Email string
+}
+
+type userLockedResetPasswordEmailTemplateData struct {
+	Link  string
+	Email string
+}
+
+type newProposalSubmittedTemplateData struct {
+	Link     string
+	Name     string
+	Username string
+	Email    string
+}
+
+type proposalEditedTemplateData struct {
+	Link     string
+	Name     string
+	Version  string
+	Username string
+}
+
+type proposalVoteStartedTemplateData struct {
+	Link     string
+	Name     string
+	Username string
+}
+
+type proposalStatusChangeTemplateData struct {
+	Link               string
+	Name               string
+	Username           string
+	StatusChangeReason string
+}
+
+type proposalVoteAuthorizedTemplateData struct {
+	Link     string
+	Name     string
+	Username string
+	Email    string
+}
+
 const templateNewUserEmailRaw = `
 Thanks for joining Politeia, {{.Username}}!
 
@@ -47,6 +103,56 @@ You are receiving this email because someone made too many login attempts for
 
 const templateNewProposalSubmittedRaw = `
 A new proposal has been submitted on Politeia by {{.Username}} ({{.Email}}):
+
+{{.Name}}
+{{.Link}}
+`
+
+const templateProposalVettedRaw = `
+A new proposal has just been approved on Politeia, authored by {{.Username}}:
+
+{{.Name}}
+{{.Link}}
+`
+
+const templateProposalEditedRaw = `
+A proposal by {{.Username}} has just been edited:
+
+{{.Name}} (Version: {{.Version}})
+{{.Link}}
+`
+
+const templateProposalVoteStartedRaw = `
+Voting has started for the following proposal on Politeia, authored by {{.Username}}:
+
+{{.Name}}
+{{.Link}}
+`
+
+const templateProposalVoteAuthorizedRaw = `
+Voting has been authorized for the following proposal on Politeia by {{.Username}} ({{.Email}}):
+
+{{.Name}}
+{{.Link}}
+`
+
+const templateProposalVettedForAuthorRaw = `
+Your proposal has just been approved on Politeia!
+
+{{.Name}}
+{{.Link}}
+`
+
+const templateProposalCensoredForAuthorRaw = `
+Your proposal on Politeia has been censored:
+
+{{.Name}}
+{{.Link}}
+Reason: {{.StatusChangeReason}}
+`
+
+const templateProposalVoteStartedForAuthorRaw = `
+Voting has just started for your proposal on Politeia!
 
 {{.Name}}
 {{.Link}}

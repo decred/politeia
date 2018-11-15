@@ -89,7 +89,7 @@ API.  It does not render HTML.
 - [`ErrorStatusDuplicatePublicKey`](#ErrorStatusDuplicatePublicKey)
 - [`ErrorStatusInvalidPropVoteStatus`](#ErrorStatusInvalidPropVoteStatus)
 - [`ErrorStatusNoProposalCredits`](#ErrorStatusNoProposalCredits)
-- [`ErrorStatusInvalidUserEditAction`](#ErrorStatusInvalidUserEditAction)
+- [`ErrorStatusInvalidUserManageAction`](#ErrorStatusInvalidUserManageAction)
 - [`ErrorStatusUserActionNotAllowed`](#ErrorStatusUserActionNotAllowed)
 - [`ErrorStatusWrongVoteStatus`](#ErrorStatusWrongVoteStatus)
 - [`ErrorStatusCannotCommentOnProp`](#ErrorStatusCannotCommentOnProp)
@@ -543,7 +543,7 @@ Reply:
 
 Edits a user's details. This call requires admin privileges.
 
-**Route:** `POST /v1/user/edit`
+**Route:** `POST /v1/user/manage`
 
 **Params:**
 
@@ -559,7 +559,7 @@ On failure the call shall return `400 Bad Request` and one of the following
 error codes:
 - [`ErrorStatusUserNotFound`](#ErrorStatusUserNotFound)
 - [`ErrorStatusInvalidInput`](#ErrorStatusInvalidInput)
-- [`ErrorStatusInvalidUserEditAction`](#ErrorStatusInvalidUserEditAction)
+- [`ErrorStatusInvalidUserManageAction`](#ErrorStatusInvalidUserManageAction)
 
 **Example**
 
@@ -2100,7 +2100,7 @@ Returns the vote status for a single public proposal
 | status | int | Status identifier |
 | optionsresult | array of VoteOptionResult | Option description along with the number of votes it has received |
 | totalvotes | int | Proposal's total number of votes |
-| endheight | string | The chain height in which the vote will end | 
+| endheight | string | The chain height in which the vote will end |
 | numofeligiblevotes | int | Total number of eligible votes |
 | quorumpercentage | uint32 | Percent of eligible votes required for quorum |
 | passpercentage | uint32 | Percent of total votes required to pass |
@@ -2181,7 +2181,7 @@ Returns the vote status of all public proposals
 | status | int | Status identifier |
 | optionsresult | array of VoteOptionResult | Option description along with the number of votes it has received |
 | totalvotes | int | Proposal's total number of votes |
-| endheight | string | The chain height in which the vote will end | 
+| endheight | string | The chain height in which the vote will end |
 | numofeligiblevotes | int | Total number of eligible votes |
 | quorumpercentage | uint32 | Percent of eligible votes required for quorum |
 | passpercentage | uint32 | Percent of total votes required to pass |
@@ -2360,7 +2360,7 @@ Reply:
 | <a name="ErrorStatusInvalidPropVoteStatus">ErrorStatusInvalidPropVoteStatus</a> | 37 | Invalid proposal vote status. |
 | <a name="ErrorStatusUserLocked">ErrorStatusUserLocked</a> | 38 | User locked due to too many login attempts. |
 | <a name="ErrorStatusNoProposalCredits">ErrorStatusNoProposalCredits</a> | 39 | No proposal credits. |
-| <a name="ErrorStatusInvalidUserEditAction">ErrorStatusInvalidUserEditAction</a> | 40 | Invalid action for editing a user. |
+| <a name="ErrorStatusInvalidUserManageAction">ErrorStatusInvalidUserManageAction</a> | 40 | Invalid action for editing a user. |
 | <a name="ErrorStatusUserActionNotAllowed">ErrorStatusUserActionNotAllowed</a> | 41 | User action is not allowed. |
 | <a name="ErrorStatusWrongVoteStatus">ErrorStatusWrongVoteStatus</a> | 42 | The proposal has the wrong vote status for the action to be performed. |
 | <a name="ErrorStatusCannotCommentOnProp">ErrorStatusCannotCommentOnProp</a> | 43 | Cannot comment on proposal. |
@@ -2393,14 +2393,14 @@ Reply:
 
 | Status | Value | Description |
 |-|-|-|
-| <a name="UserEditInvalid">UserEditInvalid</a>| 0 | An invalid action. This shall be considered a bug. |
-| <a name="UserEditExpireNewUserVerification">UserEditExpireNewUserVerification</a> | 1 | Expires the new user verification token. |
-| <a name="UserEditExpireUpdateKeyVerification">UserEditExpireUpdateKeyVerification</a> | 2 | Expires the update key verification token. |
-| <a name="UserEditExpireResetPasswordVerification">UserEditExpireResetPasswordVerification</a> | 3 | Expires the reset password verification token. |
-| <a name="UserEditClearUserPaywall">UserEditClearUserPaywall</a> | 4 | Clears the user's paywall. |
-| <a name="UserEditUnlock">UserEditUnlock</a> | 5 | Unlocks a user's account. |
-| <a name="UserEditDeactivate">UserEditDeactivate</a> | 6 | Deactivates a user's account so that they are unable to login. |
-| <a name="UserEditReactivate">UserEditReactivate</a> | 7 | Reactivates a user's account. |
+| <a name="UserManageInvalid">UserManageInvalid</a>| 0 | An invalid action. This shall be considered a bug. |
+| <a name="UserManageExpireNewUserVerification">UserManageExpireNewUserVerification</a> | 1 | Expires the new user verification token. |
+| <a name="UserManageExpireUpdateKeyVerification">UserManageExpireUpdateKeyVerification</a> | 2 | Expires the update key verification token. |
+| <a name="UserManageExpireResetPasswordVerification">UserManageExpireResetPasswordVerification</a> | 3 | Expires the reset password verification token. |
+| <a name="UserManageClearUserPaywall">UserManageClearUserPaywall</a> | 4 | Clears the user's paywall. |
+| <a name="UserManageUnlock">UserManageUnlock</a> | 5 | Unlocks a user's account. |
+| <a name="UserManageDeactivate">UserManageDeactivate</a> | 6 | Deactivates a user's account so that they are unable to login. |
+| <a name="UserManageReactivate">UserManageReactivate</a> | 7 | Reactivates a user's account. |
 
 ### `User`
 
@@ -2427,6 +2427,24 @@ Reply:
 | isdeactivated | boolean | Whether the user account is deactivated. Deactivated accounts cannot login. |
 | identities | array of [`Identity`](#identity)s | Identities, both activated and deactivated, of the user. |
 | proposalcredits | uint64 | The number of available proposal credits the user has. |
+| proposalemailnotifications | uint64 | A flag storing the user's preferences for email notifications on proposal changes. Individual notification preferences are stored in bits of the number, and are [documented below](#proposalemailnotifications). |
+
+### Proposal email notifications
+
+These are the available email notifications that can be sent for proposals.
+
+| Description | Value |
+|-|-|
+| **For my proposals** |
+| Proposal status change (approved/censored) | `1 << 0` |
+| Proposal vote started | `1 << 1` |
+| **For others' proposals** |
+| New proposal published | `1 << 2` |
+| Proposal edited | `1 << 3` |
+| Proposal vote started | `1 << 4` |
+| **Admins for others' proposals** |
+| Proposal submitted for review | `1 << 5` |
+| Proposal vote authorized | `1 << 6` |
 
 ### `Abridged User`
 
