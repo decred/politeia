@@ -15,6 +15,7 @@ censorship mechanism.
 - [`Get unvetted record`](#get-unvetted-record)
 - [`Get vetted record`](#get-vetted-record)
 - [`Set unvetted status`](#set-unvetted-status)
+- [`Set vetted status`](#set-vetted-status)
 - [`Update unvetted record`](#update-unvetted-record)
 - [`Update vetted record`](#update-vetted-record)
 - [`Update vetted metadata`](#update-vetted-metadata)
@@ -364,6 +365,73 @@ Reply:
 {
   "response":"a5cd683beec39c34ec7b01ad7c2c0c57757dbe7353f5b759ac6121755a5465b5edd157b0d198c8fdfa7d9960876dc4dfbd10dfb63acba93b8ba05d342668320d",
   "status":3
+}
+```
+
+### `Set vetted status`
+
+Set vetted status of a record.  The only state transition that is allowed is 
+setting a record that is public to archived.  Changes must be vetted by
+issuing a [`Set vetted status`](#set-vetted-status) call.
+
+One can, optionally, send in metadata streams for update as well.  This can,
+for example, be used to mark who made an update.
+
+Marking a proposal as abanonded is a permanent action and once a record is
+archived it can not be modified.
+
+This command requires administrator privileges.
+
+**Route**: `POST /v1/setvettedstatus`
+
+**Params**:
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| challenge | string | 32 byte hex encoded array. | Yes |
+| token | string | Record identifier. | Yes |
+| status | number | New record status. | Yes |
+| mdappend | array of [`MetadataStream`](#metadatastream) | Append payload to metadata stream(s). | No |
+| mdoverwrite | array of [`MetadataStream`](#metadatastream) | Overwrite payload to metadata stream(s). | No |
+
+**Results**:
+
+| | Type | Description |
+|-|-|-|
+| response | string | hex encoded signature of challenge byte array. |
+| status | number | New record status. |
+
+**Example**
+
+Request:
+
+```json
+{
+  "challenge":"db30532986113a7f973a589700e4296c93b3d9662a07c778bcf1ef4011dceb90",
+  "token":"1993f120323c4a4f89bf75cbd72e8eb728246e1e48292052abe8221e49588423",
+  "status":6,
+  "mdappend":
+  [
+    {
+      "id":2,
+      "payload":"{\"11foo\":\"11bar\"}"
+    }
+  ],
+  "mdoverwrite":
+  [
+    {
+      "id":12,"payload":"\"zap\""
+    }
+  ]
+}
+```
+
+Reply:
+
+```json
+{
+  "response":"a5cd683beec39c34ec7b01ad7c2c0c57757dbe7353f5b759ac6121755a5465b5edd157b0d198c8fdfa7d9960876dc4dfbd10dfb63acba93b8ba05d342668320d",
+  "status":6
 }
 ```
 

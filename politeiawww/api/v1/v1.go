@@ -5,6 +5,7 @@ import (
 )
 
 type ErrorStatusT int
+type PropStateT int
 type PropStatusT int
 type PropVoteStatusT int
 type UserManageActionT int
@@ -169,6 +170,22 @@ const (
 	ErrorStatusInvalidPropVoteParams       ErrorStatusT = 54
 	ErrorStatusEmailNotVerified            ErrorStatusT = 55
 
+	// Proposal state codes
+	//
+	// PropStateUnvetted includes proposals with a status of:
+	//   * PropStatusNotReviewed
+	//   * PropStatusUnreviewedChanges
+	//   * PropStatusCensored
+	// PropStateVetted includes proposals with a status of:
+	//   * PropStatusPublic
+	//   * PropStatusAbandoned
+	//
+	// Proposal states correspond to the unvetted and vetted politeiad
+	// repositories.
+	PropStateInvalid  PropStateT = 0 // Invalid state
+	PropStateUnvetted PropStateT = 1 // Unvetted proposal
+	PropStateVetted   PropStateT = 2 // Vetted proposal
+
 	// Proposal status codes (set and get)
 	PropStatusInvalid           PropStatusT = 0 // Invalid status
 	PropStatusNotFound          PropStatusT = 1 // Proposal not found
@@ -176,7 +193,7 @@ const (
 	PropStatusCensored          PropStatusT = 3 // Proposal has been censored
 	PropStatusPublic            PropStatusT = 4 // Proposal is publicly visible
 	PropStatusUnreviewedChanges PropStatusT = 5 // Proposal is not public and has unreviewed changes
-	PropStatusLocked            PropStatusT = 6 // Proposal is locked, NOT IMPLEMENTED
+	PropStatusAbandoned         PropStatusT = 6 // Proposal has been declared abandoned by an admin
 
 	// Proposal vote status codes
 	PropVoteStatusInvalid       PropVoteStatusT = 0 // Invalid vote status
@@ -296,7 +313,7 @@ var (
 		PropStatusNotReviewed: "unreviewed",
 		PropStatusCensored:    "censored",
 		PropStatusPublic:      "public",
-		PropStatusLocked:      "locked",
+		PropStatusAbandoned:   "abandoned",
 	}
 
 	// PropVoteStatus converts votes status codes to human readable text
@@ -351,6 +368,7 @@ type CensorshipRecord struct {
 // ProposalRecord is an entire proposal and it's content.
 type ProposalRecord struct {
 	Name                string      `json:"name"`                          // Suggested short proposal name
+	State               PropStateT  `json:"state"`                         // Current state of proposal
 	Status              PropStatusT `json:"status"`                        // Current status of proposal
 	Timestamp           int64       `json:"timestamp"`                     // Last update of proposal
 	UserId              string      `json:"userid"`                        // ID of user who submitted proposal
@@ -1074,4 +1092,5 @@ type ProposalsStatsReply struct {
 	NumOfUnvetted        int `json:"numofunvetted"`        // Counting number of unvetted proposals
 	NumOfUnvettedChanges int `json:"numofunvettedchanges"` // Counting number of proposals with unvetted changes
 	NumOfPublic          int `json:"numofpublic"`          // Counting number of public proposals
+	NumOfAbandoned       int `json:"numofabandoned"`       // Counting number of abandoned proposals
 }

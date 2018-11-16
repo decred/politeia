@@ -32,6 +32,7 @@ const (
 	// Auth required
 	InventoryRoute         = "/v1/inventory/"                  // Inventory records
 	SetUnvettedStatusRoute = "/v1/setunvettedstatus/"          // Set unvetted status
+	SetVettedStatusRoute   = "/v1/setvettedstatus/"            // Set vetted status
 	PluginCommandRoute     = "/v1/plugin/"                     // Send a command to a plugin
 	PluginInventoryRoute   = PluginCommandRoute + "inventory/" // Inventory all plugins
 
@@ -65,7 +66,7 @@ const (
 	RecordStatusCensored          RecordStatusT = 3 // Record has been censored
 	RecordStatusPublic            RecordStatusT = 4 // Record is publicly visible
 	RecordStatusUnreviewedChanges RecordStatusT = 5 // Unvetted record that has been changed
-	RecordStatusLocked            RecordStatusT = 6 // Record is locked, note that this has not been implemented yet.
+	RecordStatusArchived          RecordStatusT = 6 // Vetted record that has been archived
 
 	// Default network bits
 	DefaultMainnetHost = "politeia.decred.org"
@@ -106,7 +107,7 @@ var (
 		RecordStatusCensored:          "censored",
 		RecordStatusPublic:            "public",
 		RecordStatusUnreviewedChanges: "unreviewed changes",
-		RecordStatusLocked:            "locked",
+		RecordStatusArchived:          "archived",
 	}
 
 	// Input validation
@@ -274,6 +275,23 @@ type SetUnvettedStatus struct {
 // SetUnvettedStatus is a response to a SetUnvettedStatus.  It returns the
 // potentially modified record without the Files.
 type SetUnvettedStatusReply struct {
+	Response string `json:"response"` // Challenge response
+	Record   Record `json:"record"`
+}
+
+// SetVettedStatus updates the status of a vetted record. This is used to
+// archive a vetted proposal. Additionally, metadata updates may travel along.
+type SetVettedStatus struct {
+	Challenge   string           `json:"challenge"`   // Random challenge
+	Token       string           `json:"token"`       // Censorship token
+	Status      RecordStatusT    `json:"status"`      // New status of record
+	MDAppend    []MetadataStream `json:"mdappend"`    // Metadata streams to append
+	MDOverwrite []MetadataStream `json:"mdoverwrite"` // Metadata streams to overwrite
+}
+
+// SetVettedStatusReply is a response to SetVettedStatus. It returns the
+// potentially modified record without the Files.
+type SetVettedStatusReply struct {
 	Response string `json:"response"` // Challenge response
 	Record   Record `json:"record"`
 }

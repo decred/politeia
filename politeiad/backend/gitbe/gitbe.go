@@ -1306,7 +1306,7 @@ func (g *gitBackEnd) _updateRecord(commit bool, id string, mdAppend, mdOverwrite
 	if !(brm.Status == backend.MDStatusVetted ||
 		brm.Status == backend.MDStatusUnvetted ||
 		brm.Status == backend.MDStatusIterationUnvetted ||
-		brm.Status == backend.MDStatusLocked) {
+		brm.Status == backend.MDStatusArchived) {
 		return fmt.Errorf("can not update record that "+
 			"has status: %v %v", brm.Status,
 			backend.MDStatus[brm.Status])
@@ -1721,8 +1721,8 @@ func (g *gitBackEnd) _updateVettedMetadata(token []byte, mdAppend []backend.Meta
 	if err != nil {
 		return err
 	}
-	if md.Status == backend.MDStatusLocked {
-		return backend.ErrRecordLocked
+	if md.Status == backend.MDStatusArchived {
+		return backend.ErrRecordArchived
 	}
 
 	log.Debugf("updating vetted metadata %x", token)
@@ -2074,7 +2074,7 @@ func (g *gitBackEnd) setUnvettedStatus(token []byte, status backend.MDStatusT, m
 }
 
 // SetUnvettedStatus tries to update the status for an unvetted record. It
-// returns the updated record if successful but without the Files compnonet.
+// returns the updated record if successful but without the Files component.
 //
 // SetUnvettedStatus satisfies the backend interface.
 func (g *gitBackEnd) SetUnvettedStatus(token []byte, status backend.MDStatusT, mdAppend, mdOverwrite []backend.MetadataStream) (*backend.Record, error) {
@@ -2098,6 +2098,135 @@ func (g *gitBackEnd) SetUnvettedStatus(token []byte, status backend.MDStatusT, m
 		err2 = g.gitCheckout(g.unvetted, "master")
 		if err2 != nil {
 			log.Criticalf("SetUnvettedStatus: checkout %v", err2)
+		}
+		return nil, err
+	}
+
+	// git checkout master
+	err = g.gitCheckout(g.unvetted, "master")
+	if err != nil {
+		return nil, err
+	}
+
+	return record, nil
+}
+
+// setVettedStatus takes various parameters to update a record metadata and
+// status.  It goes through the normal stages of updating unvetted, pushing PR,
+// merge PR, pull remote. Note that this function must be wrapped by a function
+// that delivers the call with the unvetted repo sitting in master.  The idea
+// is that if this function fails we can simply unwind it.
+//
+// setVettedStatus must be called with the lock held.
+func (g *gitBackEnd) _setVettedStatus(token []byte, status backend.MDStatusT, mdAppend, mdOverwrite []backend.MetadataStream) (*backend.Record, error) {
+	// git checkout master
+	err := g.gitCheckout(g.unvetted, "master")
+	if err != nil {
+		return nil, err
+	}
+
+	// git pull --ff-only --rebase
+	err = g.gitPull(g.unvetted, true)
+	if err != nil {
+		return nil, err
+	}
+
+	// Make sure vetted exists
+	id := hex.EncodeToString(token)
+	_, err = os.Stat(pijoin(g.unvetted, id))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, backend.ErrRecordNotFound
+		}
+	}
+
+	// Make sure record is not locked.
+	md, err := loadMD(g.unvetted, id)
+	if err != nil {
+		return nil, err
+	}
+	if md.Status == backend.MDStatusArchived {
+		return nil, backend.ErrRecordArchived
+	}
+
+	// Load record
+	record, err := g._getRecord(id, g.unvetted, false)
+	if err != nil {
+		return nil, err
+	}
+
+	// We only allow a transition from vetted to archived
+	if record.RecordMetadata.Status != backend.MDStatusVetted ||
+		status != backend.MDStatusArchived {
+		return nil, backend.StateTransitionError{
+			From: record.RecordMetadata.Status,
+			To:   status,
+		}
+	}
+
+	// Delete any leftover tmp branch. There shouldn't be one.
+	idTmp := id + "_tmp"
+	_ = g.gitBranchDelete(g.unvetted, idTmp)
+
+	// Checkout temporary branch
+	err = g.gitNewBranch(g.unvetted, idTmp)
+	if err != nil {
+		return nil, err
+	}
+
+	// Update MD first
+	record.RecordMetadata.Status = backend.MDStatusArchived
+	record.RecordMetadata.Iteration += 1
+	record.RecordMetadata.Timestamp = time.Now().Unix()
+	err = updateMD(g.unvetted, id, &record.RecordMetadata)
+	if err != nil {
+		return nil, err
+	}
+
+	// Handle metadata
+	err = g.updateMetadata(id, mdAppend, mdOverwrite)
+	if err != nil {
+		return nil, err
+	}
+
+	// Commit changes
+	err = g.commitMD(g.unvetted, id, "archived")
+	if err != nil {
+		return nil, err
+	}
+
+	// Create and rebase PR
+	err = g.rebasePR(idTmp)
+	if err != nil {
+		return nil, err
+	}
+
+	return g._getRecord(id, g.unvetted, false)
+}
+
+// SetVettedStatus tries to update the status for a vetted record.  It returns
+// the updated record if successful but without the Files component.
+//
+// SetVettedStatus satisfies the backend interface.
+func (g *gitBackEnd) SetVettedStatus(token []byte, status backend.MDStatusT, mdAppend, mdOverwrite []backend.MetadataStream) (*backend.Record, error) {
+	// Lock filesystem
+	g.Lock()
+	defer g.Unlock()
+	if g.shutdown {
+		return nil, backend.ErrShutdown
+	}
+
+	log.Debugf("setting status %v (%v) -> %x", status,
+		backend.MDStatus[status], token)
+	record, err := g._setVettedStatus(token, status, mdAppend, mdOverwrite)
+	if err != nil {
+		err2 := g.gitUnwind(g.unvetted)
+		if err2 != nil {
+			log.Debugf("SetVettedStatus: unwind %v", err2)
+		}
+		err2 = g.gitCheckout(g.unvetted, "master")
+		if err2 != nil {
+			log.Criticalf("SetVettedStatus: checkout %v", err2)
 		}
 		return nil, err
 	}

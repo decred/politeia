@@ -157,8 +157,8 @@ func TestInventoryPagination(t *testing.T) {
 
 	pr := proposalsRequest{
 		UserId: user.ID.String(),
-		StatusMap: map[www.PropStatusT]bool{
-			www.PropStatusNotReviewed: true,
+		StateMap: map[www.PropStateT]bool{
+			www.PropStateUnvetted: true,
 		},
 	}
 

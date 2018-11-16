@@ -18,8 +18,9 @@ type SetProposalStatusCmd struct {
 
 func (cmd *SetProposalStatusCmd) Execute(args []string) error {
 	PropStatus := map[string]v1.PropStatusT{
-		"censored": 3,
-		"public":   4,
+		"censored":  v1.PropStatusCensored,
+		"public":    v1.PropStatusPublic,
+		"abandoned": v1.PropStatusAbandoned,
 	}
 
 	// Validate user identity
@@ -38,9 +39,10 @@ func (cmd *SetProposalStatusCmd) Execute(args []string) error {
 		// Human readable status code found
 		status = s
 	} else {
-		return fmt.Errorf("Invalid proposal status.  Valid statuses are:\n  " +
-			"censored    censor a proposal\n  " +
-			"public      make a proposal public")
+		return fmt.Errorf("Invalid proposal status.  Valid statuses are:\n" +
+			"  censored    censor a proposal\n" +
+			"  public      make a proposal public\n" +
+			"  abandoned   declare a public proposal abandoned")
 	}
 
 	// Setup request

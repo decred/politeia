@@ -226,10 +226,11 @@ A proposal record will include a numeric staus code to represent the status of
 the proposal.  These status codes are listed below.
 
 ```
-PropStatusInvalid      0 // Invalid status
-PropStatusNotFound     1 // Proposal not found
-PropStatusNotReviewed  2 // Proposal has not been reviewed
-PropStatusCensored     3 // Proposal has been censored
-PropStatusPublic       4 // Proposal is publicly visible
-PropStatusLocked       6 // Proposal is locked
+PropStatusInvalid           = 0 // Invalid status
+PropStatusNotFound          = 1 // Proposal not found
+PropStatusNotReviewed       = 2 // Proposal has not been reviewed
+PropStatusCensored          = 3 // Proposal has been censored
+PropStatusPublic            = 4 // Proposal is publicly visible
+PropStatusUnreviewedChanges = 5 // Proposal is not public and has unreviewed changes
+PropStatusAbandoned         = 6 // Proposal has been declared abandoned by an admin
 ```
