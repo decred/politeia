@@ -94,8 +94,8 @@ func convertBackendStatus(status backend.MDStatusT) v1.RecordStatusT {
 		s = v1.RecordStatusCensored
 	case backend.MDStatusIterationUnvetted:
 		s = v1.RecordStatusUnreviewedChanges
-	case backend.MDStatusLocked:
-		s = v1.RecordStatusLocked
+	case backend.MDStatusArchived:
+		s = v1.RecordStatusArchived
 	}
 	return s
 }
@@ -112,8 +112,8 @@ func convertFrontendStatus(status v1.RecordStatusT) backend.MDStatusT {
 		s = backend.MDStatusVetted
 	case v1.RecordStatusCensored:
 		s = backend.MDStatusCensored
-	case v1.RecordStatusLocked:
-		s = backend.MDStatusLocked
+	case v1.RecordStatusArchived:
+		s = backend.MDStatusArchived
 	}
 	return s
 }
@@ -579,6 +579,66 @@ func (p *politeia) auth(fn http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+func (p *politeia) setVettedStatus(w http.ResponseWriter, r *http.Request) {
+	var t v1.SetVettedStatus
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&t); err != nil {
+		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
+		return
+	}
+
+	challenge, err := hex.DecodeString(t.Challenge)
+	if err != nil || len(challenge) != v1.ChallengeSize {
+		p.respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
+		return
+	}
+	response := p.identity.SignMessage(challenge)
+
+	// Validate token
+	token, err := util.ConvertStringToken(t.Token)
+	if err != nil {
+		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
+		return
+	}
+
+	// Ask backend to update  status
+	record, err := p.backend.SetVettedStatus(token,
+		convertFrontendStatus(t.Status),
+		convertFrontendMetadataStream(t.MDAppend),
+		convertFrontendMetadataStream(t.MDOverwrite))
+	if err != nil {
+		// Check for specific errors
+		if err == backend.ErrRecordNotFound {
+			log.Errorf("%v updateStatus record not "+
+				"found: %x", remoteAddr(r), token)
+			p.respondWithUserError(w, v1.ErrorStatusRecordFound,
+				nil)
+			return
+		}
+		if _, ok := err.(backend.StateTransitionError); ok {
+			log.Errorf("%v %v %v", remoteAddr(r), t.Token, err)
+			p.respondWithUserError(w, v1.ErrorStatusInvalidRecordStatusTransition, nil)
+			return
+		}
+		// Generic internal error.
+		errorCode := time.Now().Unix()
+		log.Errorf("%v Set status error code %v: %v",
+			remoteAddr(r), errorCode, err)
+
+		p.respondWithServerError(w, errorCode)
+		return
+	}
+	reply := v1.SetVettedStatusReply{
+		Response: hex.EncodeToString(response[:]),
+		Record:   p.convertBackendRecord(*record),
+	}
+
+	log.Infof("Set vetted record status %v: token %v status %v",
+		remoteAddr(r), t.Token, v1.RecordStatus[reply.Record.Status])
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
 func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 	var t v1.SetUnvettedStatus
 	decoder := json.NewDecoder(r.Body)
@@ -917,6 +977,8 @@ func _main() error {
 		permissionAuth)
 	p.addRoute(http.MethodPost, v1.SetUnvettedStatusRoute,
 		p.setUnvettedStatus, permissionAuth)
+	p.addRoute(http.MethodPost, v1.SetVettedStatusRoute,
+		p.setVettedStatus, permissionAuth)
 	p.addRoute(http.MethodPost, v1.UpdateVettedMetadataRoute,
 		p.updateVettedMetadata, permissionAuth)
 

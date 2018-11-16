@@ -34,9 +34,9 @@ var (
 	// expected.
 	ErrChangesRecord = errors.New("changes record")
 
-	// ErrRecordLocked is returned when an updated was attempted on a
-	// locked record.
-	ErrRecordLocked = errors.New("record is locked")
+	// ErrRecordArchived is returned when an update was attempted on a
+	// archived record.
+	ErrRecordArchived = errors.New("record is archived")
 
 	// ErrJournalsNotReplayed is returned when the journals have not been replayed
 	// and the subsequent code expect it to be replayed
@@ -73,7 +73,7 @@ const (
 	MDStatusVetted            MDStatusT = 2 // Vetted record
 	MDStatusCensored          MDStatusT = 3 // Censored record
 	MDStatusIterationUnvetted MDStatusT = 4 // Unvetted record that has been changed
-	MDStatusLocked            MDStatusT = 5 // Record is locked, only vetted->locked allowed
+	MDStatusArchived          MDStatusT = 5 // Vetted record that has been archived
 )
 
 var (
@@ -84,7 +84,7 @@ var (
 		MDStatusVetted:            "vetted",
 		MDStatusCensored:          "censored",
 		MDStatusIterationUnvetted: "iteration unvetted",
-		MDStatusLocked:            "locked",
+		MDStatusArchived:          "archived",
 	}
 )
 
@@ -151,6 +151,7 @@ type Backend interface {
 	// Update vetted record (token, mdAppend, mdOverwrite, fAdd, fDelete)
 	UpdateVettedRecord([]byte, []MetadataStream, []MetadataStream, []File,
 		[]string) (*Record, error)
+
 	// Update vetted metadata (token, mdAppend, mdOverwrite)
 	UpdateVettedMetadata([]byte, []MetadataStream,
 		[]MetadataStream) error
@@ -163,6 +164,10 @@ type Backend interface {
 
 	// Set unvetted record status
 	SetUnvettedStatus([]byte, MDStatusT, []MetadataStream,
+		[]MetadataStream) (*Record, error)
+
+	// Set vetted record status
+	SetVettedStatus([]byte, MDStatusT, []MetadataStream,
 		[]MetadataStream) (*Record, error)
 
 	// Inventory retrieves various record records.

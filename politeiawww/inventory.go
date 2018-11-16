@@ -30,10 +30,10 @@ type inventoryRecord struct {
 // proposalsRequest is used for passing parameters into the
 // getProposals() function.
 type proposalsRequest struct {
-	After     string
-	Before    string
-	UserId    string
-	StatusMap map[www.PropStatusT]bool
+	After    string
+	Before   string
+	UserId   string
+	StateMap map[www.PropStateT]bool
 }
 
 // proposalsStats is used to summarize proposal statistics
@@ -44,6 +44,7 @@ type proposalsStats struct {
 	NumOfUnvetted        int
 	NumOfUnvettedChanges int
 	NumOfPublic          int
+	NumOfAbandoned       int
 }
 
 // _inventoryProposalStats returns the number of proposals that are in the
@@ -57,6 +58,7 @@ func (b *backend) _inventoryProposalStats() proposalsStats {
 		NumOfUnvetted:        b.numOfUnvetted,
 		NumOfUnvettedChanges: b.numOfUnvettedChanges,
 		NumOfPublic:          b.numOfPublic,
+		NumOfAbandoned:       b.numOfAbandoned,
 	}
 }
 
@@ -96,6 +98,8 @@ func (b *backend) userProposalStats(userID string) proposalsStats {
 			ps.NumOfCensored += 1
 		case www.PropStatusPublic:
 			ps.NumOfPublic += 1
+		case www.PropStatusAbandoned:
+			ps.NumOfAbandoned += 1
 		}
 	}
 
@@ -173,6 +177,8 @@ func (b *backend) _updateInventoryCountOfPropStatus(status pd.RecordStatusT, old
 			b.numOfCensored += v
 		case www.PropStatusPublic:
 			b.numOfPublic += v
+		case www.PropStatusAbandoned:
+			b.numOfAbandoned += v
 		default:
 			b.numOfInvalid += v
 		}
@@ -638,8 +644,8 @@ func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
 			continue
 		}
 
-		// Filter by the status.
-		if val, ok := pr.StatusMap[proposal.Status]; !ok || !val {
+		// Filter by the state.
+		if val, ok := pr.StateMap[proposal.State]; !ok || !val {
 			continue
 		}
 
@@ -672,8 +678,8 @@ func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
 				continue
 			}
 
-			// Filter by the status.
-			if val, ok := pr.StatusMap[proposal.Status]; !ok || !val {
+			// Filter by the state.
+			if val, ok := pr.StateMap[proposal.State]; !ok || !val {
 				continue
 			}
 

@@ -178,8 +178,8 @@ func convertPropStatusFromWWW(s www.PropStatusT) pd.RecordStatusT {
 		return pd.RecordStatusCensored
 	case www.PropStatusPublic:
 		return pd.RecordStatusPublic
-	case www.PropStatusLocked:
-		return pd.RecordStatusLocked
+	case www.PropStatusAbandoned:
+		return pd.RecordStatusArchived
 	}
 	return pd.RecordStatusInvalid
 }
@@ -246,8 +246,8 @@ func convertPropStatusFromPD(s pd.RecordStatusT) www.PropStatusT {
 		return www.PropStatusPublic
 	case pd.RecordStatusUnreviewedChanges:
 		return www.PropStatusUnreviewedChanges
-	case pd.RecordStatusLocked:
-		return www.PropStatusLocked
+	case pd.RecordStatusArchived:
+		return www.PropStatusAbandoned
 	}
 	return www.PropStatusInvalid
 }
@@ -301,9 +301,22 @@ func convertPropFromPD(p pd.Record) www.ProposalRecord {
 		}
 	}
 
+	var state www.PropStateT
+	status := convertPropStatusFromPD(p.Status)
+	switch status {
+	case www.PropStatusNotReviewed, www.PropStatusUnreviewedChanges,
+		www.PropStatusCensored:
+		state = www.PropStateUnvetted
+	case www.PropStatusPublic, www.PropStatusAbandoned:
+		state = www.PropStateVetted
+	default:
+		state = www.PropStateInvalid
+	}
+
 	return www.ProposalRecord{
 		Name:                md.Name,
-		Status:              convertPropStatusFromPD(p.Status),
+		State:               state,
+		Status:              status,
 		Timestamp:           md.Timestamp,
 		PublicKey:           md.PublicKey,
 		Signature:           md.Signature,
