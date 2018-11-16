@@ -87,6 +87,10 @@ var (
 		template.New("proposal_censored_for_author_template").Parse(templateProposalCensoredForAuthorRaw))
 	templateProposalVoteStartedForAuthor = template.Must(
 		template.New("proposal_vote_started_for_author_template").Parse(templateProposalVoteStartedForAuthorRaw))
+	templateCommentReplyOnProposal = template.Must(
+		template.New("comment_reply_on_proposal").Parse(templateCommentReplyOnProposalRaw))
+	templateCommentReplyOnComment = template.Must(
+		template.New("comment_reply_on_comment").Parse(templateCommentReplyOnCommentRaw))
 )
 
 // runServiceCommand is only set to a real function on Windows.  It is used

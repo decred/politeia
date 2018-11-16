@@ -9,21 +9,24 @@ import (
 	"github.com/decred/politeia/politeiawww/database"
 )
 
+// EventT is the type of event.
 type EventT int
 
+// EventManager manages listeners (channels) for different event types.
 type EventManager struct {
 	Listeners map[EventT][]chan interface{}
 }
 
 const (
-	EventTypeInvalid                EventT = 0
-	EventTypeProposalSubmitted      EventT = 1
-	EventTypeProposalStatusChange   EventT = 2
-	EventTypeProposalEdited         EventT = 3
-	EventTypeProposalVoteStarted    EventT = 4
-	EventTypeProposalVoteAuthorized EventT = 5
-	EventTypeProposalVoteFinished   EventT = 6
-	EventTypeUserManage             EventT = 7
+	EventTypeInvalid EventT = iota
+	EventTypeProposalSubmitted
+	EventTypeProposalStatusChange
+	EventTypeProposalEdited
+	EventTypeProposalVoteStarted
+	EventTypeProposalVoteAuthorized
+	EventTypeProposalVoteFinished
+	EventTypeComment
+	EventTypeUserManage
 )
 
 type EventDataProposalSubmitted struct {
@@ -52,22 +55,74 @@ type EventDataProposalVoteAuthorized struct {
 	User          *database.User
 }
 
+type EventDataComment struct {
+	Comment *v1.Comment
+}
+
 type EventDataUserManage struct {
 	AdminUser  *database.User
 	User       *database.User
 	ManageUser *v1.ManageUser
 }
 
-func (b *backend) getProposalAuthor(proposal *v1.ProposalRecord) (*database.User, error) {
+func (b *backend) _getProposalAuthor(proposal *v1.ProposalRecord) (*database.User, error) {
 	if proposal.UserId == "" {
 		proposal.UserId = b.userPubkeys[proposal.PublicKey]
 	}
 
 	userID, err := uuid.Parse(proposal.UserId)
 	if err != nil {
-		return nil, fmt.Errorf("parse UUID: %v", err)
+		return nil, fmt.Errorf("cannot parse UUID for proposal author: %v", err)
 	}
-	return b.db.UserGetById(userID)
+
+	author, err := b.db.UserGetById(userID)
+	if err != nil {
+		return nil, fmt.Errorf("cannot fetch author for proposal: %v", err)
+	}
+
+	return author, nil
+}
+
+func (b *backend) getProposalAuthor(proposal *v1.ProposalRecord) (*database.User, error) {
+	b.RLock()
+	defer b.RUnlock()
+
+	return b._getProposalAuthor(proposal)
+}
+
+func (b *backend) getProposal(token string) (v1.ProposalRecord, error) {
+	b.RLock()
+	defer b.RUnlock()
+
+	return b._getProposal(token)
+}
+
+func (b *backend) getProposalAndAuthor(token string) (*v1.ProposalRecord, *database.User, error) {
+	b.RLock()
+	defer b.RUnlock()
+
+	proposal, err := b._getProposal(token)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	author, err := b._getProposalAuthor(&proposal)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return &proposal, author, nil
+}
+
+// fireEvent is a convenience wrapper for EventManager._fireEvent which
+// holds the lock.
+//
+// This function must be called WITHOUT the mutex held.
+func (b *backend) fireEvent(eventType EventT, data interface{}) {
+	b.Lock()
+	defer b.Unlock()
+
+	b.eventManager._fireEvent(eventType, data)
 }
 
 func (b *backend) initEventManager() {
@@ -76,26 +131,23 @@ func (b *backend) initEventManager() {
 
 	b.eventManager = &EventManager{}
 
-	b._setupProposalSubmittedEmailNotification()
-
-	b._setupProposalStatusChangeEmailNotification()
 	b._setupProposalStatusChangeLogging()
-
-	b._setupProposalEditedEmailNotification()
-
-	b._setupProposalVoteStartedEmailNotification()
 	b._setupProposalVoteStartedLogging()
-
-	b._setupProposalVoteAuthorizedEmailNotification()
-
 	b._setupUserManageLogging()
-}
 
-func (b *backend) _setupProposalSubmittedEmailNotification() {
 	if b.cfg.SMTP == nil {
 		return
 	}
 
+	b._setupProposalSubmittedEmailNotification()
+	b._setupProposalStatusChangeEmailNotification()
+	b._setupProposalEditedEmailNotification()
+	b._setupProposalVoteStartedEmailNotification()
+	b._setupProposalVoteAuthorizedEmailNotification()
+	b._setupCommentReplyEmailNotifications()
+}
+
+func (b *backend) _setupProposalSubmittedEmailNotification() {
 	ch := make(chan interface{})
 	go func() {
 		for data := range ch {
@@ -118,10 +170,6 @@ func (b *backend) _setupProposalSubmittedEmailNotification() {
 }
 
 func (b *backend) _setupProposalStatusChangeEmailNotification() {
-	if b.cfg.SMTP == nil {
-		return
-	}
-
 	ch := make(chan interface{})
 	go func() {
 		for data := range ch {
@@ -136,14 +184,11 @@ func (b *backend) _setupProposalStatusChangeEmailNotification() {
 				continue
 			}
 
-			b.RLock()
 			author, err := b.getProposalAuthor(psc.Proposal)
 			if err != nil {
-				b.RUnlock()
 				log.Errorf("cannot fetch author for proposal: %v", err)
 				continue
 			}
-			b.RUnlock()
 
 			switch psc.SetProposalStatus.ProposalStatus {
 			case v1.PropStatusPublic:
@@ -199,10 +244,6 @@ func (b *backend) _setupProposalStatusChangeLogging() {
 }
 
 func (b *backend) _setupProposalEditedEmailNotification() {
-	if b.cfg.SMTP == nil {
-		return
-	}
-
 	ch := make(chan interface{})
 	go func() {
 		for data := range ch {
@@ -216,14 +257,11 @@ func (b *backend) _setupProposalEditedEmailNotification() {
 				continue
 			}
 
-			b.RLock()
 			author, err := b.getProposalAuthor(pe.Proposal)
 			if err != nil {
-				b.RUnlock()
 				log.Errorf("cannot fetch author for proposal: %v", err)
 				continue
 			}
-			b.RUnlock()
 
 			err = b.emailUsersForEditedProposal(pe.Proposal, author)
 			if err != nil {
@@ -236,10 +274,6 @@ func (b *backend) _setupProposalEditedEmailNotification() {
 }
 
 func (b *backend) _setupProposalVoteStartedEmailNotification() {
-	if b.cfg.SMTP == nil {
-		return
-	}
-
 	ch := make(chan interface{})
 	go func() {
 		for data := range ch {
@@ -249,25 +283,15 @@ func (b *backend) _setupProposalVoteStartedEmailNotification() {
 				continue
 			}
 
-			b.RLock()
 			token := pvs.StartVote.Vote.Token
-			p, err := b._getInventoryRecord(token)
+			proposal, author, err := b.getProposalAndAuthor(
+				token)
 			if err != nil {
-				b.RUnlock()
-				log.Errorf("proposal not found: %v", err)
+				log.Error(err)
 				continue
 			}
-			proposal := b._convertPropFromInventoryRecord(p)
 
-			author, err := b.getProposalAuthor(&proposal)
-			if err != nil {
-				b.RUnlock()
-				log.Errorf("cannot fetch author for proposal: %v", err)
-				continue
-			}
-			b.RUnlock()
-
-			err = b.emailUsersForProposalVoteStarted(&proposal, author,
+			err = b.emailUsersForProposalVoteStarted(proposal, author,
 				pvs.AdminUser)
 			if err != nil {
 				log.Errorf("email all admins for new submitted proposal %v: %v",
@@ -300,10 +324,6 @@ func (b *backend) _setupProposalVoteStartedLogging() {
 }
 
 func (b *backend) _setupProposalVoteAuthorizedEmailNotification() {
-	if b.cfg.SMTP == nil {
-		return
-	}
-
 	ch := make(chan interface{})
 	go func() {
 		for data := range ch {
@@ -314,12 +334,11 @@ func (b *backend) _setupProposalVoteAuthorizedEmailNotification() {
 			}
 
 			token := pvs.AuthorizeVote.Token
-			p, err := b.getInventoryRecord(token)
+			proposal, err := b.getProposal(token)
 			if err != nil {
 				log.Errorf("proposal not found: %v", err)
 				continue
 			}
-			proposal := b._convertPropFromInventoryRecord(p)
 
 			err = b.emailAdminsForProposalVoteAuthorized(&proposal, pvs.User)
 			if err != nil {
@@ -329,6 +348,71 @@ func (b *backend) _setupProposalVoteAuthorizedEmailNotification() {
 		}
 	}()
 	b.eventManager._register(EventTypeProposalVoteAuthorized, ch)
+}
+
+func (b *backend) _setupCommentReplyEmailNotifications() {
+	ch := make(chan interface{})
+	go func() {
+		for data := range ch {
+			c, ok := data.(EventDataComment)
+			if !ok {
+				log.Errorf("invalid event data")
+				continue
+			}
+
+			token := c.Comment.Token
+			proposal, author, err := b.getProposalAndAuthor(token)
+			if err != nil {
+				log.Error(err)
+				continue
+			}
+
+			if c.Comment.ParentID == "0" {
+				// Top-level comment
+				err := b.emailAuthorForCommentOnProposal(proposal, author,
+					c.Comment.Username)
+				if err != nil {
+					log.Errorf("email author of proposal %v for new comment %v: %v",
+						c.Comment.Token, c.Comment.CommentID, err)
+				}
+			} else {
+				ir, ok := b.inventory[token]
+				if !ok {
+					log.Errorf("proposal not found in inventory: %v", token)
+					continue
+				}
+
+				parentComment, ok := ir.comments[c.Comment.ParentID]
+				if !ok {
+					log.Errorf("comment %v not found in proposal %v",
+						c.Comment.ParentID, token)
+					continue
+				}
+
+				userID, err := uuid.Parse(parentComment.UserID)
+				if err != nil {
+					log.Errorf("cannot parse UUID for comment author: %v",
+						err)
+					continue
+				}
+
+				author, err := b.db.UserGetById(userID)
+				if err != nil {
+					log.Errorf("cannot fetch author for comment: %v", err)
+					continue
+				}
+
+				// Comment reply to another comment
+				err = b.emailAuthorForCommentOnComment(proposal, author,
+					c.Comment.CommentID, c.Comment.Username)
+				if err != nil {
+					log.Errorf("email author of comment %v for new comment %v: %v",
+						c.Comment.CommentID, c.Comment.ParentID, err)
+				}
+			}
+		}
+	}()
+	b.eventManager._register(EventTypeComment, ch)
 }
 
 func (b *backend) _setupUserManageLogging() {

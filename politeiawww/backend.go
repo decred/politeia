@@ -1701,10 +1701,7 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 	reply.CensorshipRecord = convertPropCensorFromPD(pdReply.CensorshipRecord)
 
 	if !b.test {
-		b.Lock()
-		defer b.Unlock()
-
-		b.eventManager._fireEvent(EventTypeProposalSubmitted,
+		b.fireEvent(EventTypeProposalSubmitted,
 			EventDataProposalSubmitted{
 				CensorshipRecord: &reply.CensorshipRecord,
 				ProposalName:     name,
@@ -2165,6 +2162,12 @@ func (b *backend) ProcessComment(c www.NewComment, user *database.User) (*www.Ne
 	err = b.setRecordComment(ncrWWW.Comment)
 	if err != nil {
 		return nil, fmt.Errorf("setRecordComment %v", err)
+	}
+
+	if !b.test {
+		b.fireEvent(EventTypeComment, EventDataComment{
+			Comment: &ncrWWW.Comment,
+		})
 	}
 
 	return &ncrWWW, nil
@@ -2688,10 +2691,7 @@ func (b *backend) ProcessAuthorizeVote(av www.AuthorizeVote, user *database.User
 	}
 
 	if !b.test && av.Action == www.AuthVoteActionAuthorize {
-		b.Lock()
-		defer b.Unlock()
-
-		b.eventManager._fireEvent(EventTypeProposalVoteAuthorized,
+		b.fireEvent(EventTypeProposalVoteAuthorized,
 			EventDataProposalVoteAuthorized{
 				AuthorizeVote: &av,
 				User:          user,

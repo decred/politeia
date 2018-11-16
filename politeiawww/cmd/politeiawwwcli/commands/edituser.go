@@ -5,13 +5,13 @@ import (
 )
 
 type EditUserCmd struct {
-	ProposalEmailNotifications *uint64 `long:"proposalemailnotifications" optional:"true" description:"Whether to notify via email about proposals"`
+	EmailNotifications *uint64 `long:"emailnotifications" optional:"true" description:"Whether to notify via emails"`
 }
 
 func (cmd *EditUserCmd) Execute(args []string) error {
 	// Setup request
 	eu := &v1.EditUser{
-		ProposalEmailNotifications: cmd.ProposalEmailNotifications,
+		EmailNotifications: cmd.EmailNotifications,
 	}
 
 	// Print request details

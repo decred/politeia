@@ -60,6 +60,18 @@ type proposalVoteAuthorizedTemplateData struct {
 	Email    string
 }
 
+type commentReplyOnProposalTemplateData struct {
+	Commenter    string
+	ProposalName string
+	CommentLink  string
+}
+
+type commentReplyOnCommentTemplateData struct {
+	Commenter    string
+	ProposalName string
+	CommentLink  string
+}
+
 const templateNewUserEmailRaw = `
 Thanks for joining Politeia, {{.Username}}!
 
@@ -142,7 +154,7 @@ Your proposal has just been approved on Politeia!
 You will need to authorize a proposal vote before an administrator will be
 allowed to start the voting period on your proposal.  You can authorize a
 proposal vote by opening the proposal page and clicking on the "Authorize
-Voting to Start" button.  
+Voting to Start" button.
 
 You must authorize a proposal vote within 14 days.  If you fail to do so, your
 proposal will be considered abandoned.
@@ -164,4 +176,18 @@ Voting has just started for your proposal on Politeia!
 
 {{.Name}}
 {{.Link}}
+`
+
+const templateCommentReplyOnProposalRaw = `
+{{.Commenter}} has commented on your proposal!
+
+Proposal: {{.ProposalName}}
+Comment: {{.CommentLink}}
+`
+
+const templateCommentReplyOnCommentRaw = `
+{{.Commenter}} has replied to your comment!
+
+Proposal: {{.ProposalName}}
+Comment: {{.CommentLink}}
 `
