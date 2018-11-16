@@ -1284,9 +1284,9 @@ func (p *politeiawww) handleVoteStatus(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, vsr)
 }
 
-// handleUserCommentsVotes returns the user votes on comments of a given proposal.
-func (p *politeiawww) handleUserCommentsVotes(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleUserCommentsVotes")
+// handleUserCommentsLikes returns the user votes on comments of a given proposal.
+func (p *politeiawww) handleUserCommentsLikes(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleUserCommentsLikes")
 
 	pathParams := mux.Vars(r)
 	token := pathParams["token"]
@@ -1294,18 +1294,18 @@ func (p *politeiawww) handleUserCommentsVotes(w http.ResponseWriter, r *http.Req
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleUserCommentsVotes: getSessionUser %v", err)
+			"handleUserCommentsLikes: getSessionUser %v", err)
 		return
 	}
 
-	ucvr, err := p.backend.ProcessUserCommentsVotes(user, token)
+	uclr, err := p.backend.ProcessUserCommentsLikes(user, token)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleUserCommentsVotes: processUserCommentsVotes %v", err)
+			"handleUserCommentsLikes: processUserCommentsLikes %v", err)
 		return
 	}
 
-	util.RespondWithJSON(w, http.StatusOK, ucvr)
+	util.RespondWithJSON(w, http.StatusOK, uclr)
 }
 
 // handleEditProposal attempts to edit a proposal
@@ -1573,8 +1573,8 @@ func _main() error {
 		p.handleLikeComment, permissionLogin, true)
 	p.addRoute(http.MethodGet, v1.RouteVerifyUserPayment,
 		p.handleVerifyUserPayment, permissionLogin, false)
-	p.addRoute(http.MethodGet, v1.RouteUserCommentsVotes,
-		p.handleUserCommentsVotes, permissionLogin, true)
+	p.addRoute(http.MethodGet, v1.RouteUserCommentsLikes,
+		p.handleUserCommentsLikes, permissionLogin, true)
 	p.addRoute(http.MethodGet, v1.RouteUserProposalCredits,
 		p.handleUserProposalCredits, permissionLogin, false)
 	p.addRoute(http.MethodPost, v1.RouteEditProposal,

@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"strconv"
+
 	"github.com/decred/politeia/decredplugin"
 	www "github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/util"
@@ -66,6 +69,16 @@ func (b *backend) convertDecredNewCommentReplyToWWWNewCommentReply(cr decredplug
 
 func convertWWWLikeCommentToDecredLikeComment(lc www.LikeComment) decredplugin.LikeComment {
 	return decredplugin.LikeComment{
+		Token:     lc.Token,
+		CommentID: lc.CommentID,
+		Action:    lc.Action,
+		Signature: lc.Signature,
+		PublicKey: lc.PublicKey,
+	}
+}
+
+func convertDecredLikeCommentToWWWLikeComment(lc decredplugin.LikeComment) www.LikeComment {
+	return www.LikeComment{
 		Token:     lc.Token,
 		CommentID: lc.CommentID,
 		Action:    lc.Action,
@@ -146,4 +159,76 @@ func validateComment(c www.NewComment) error {
 	// validate token
 	_, err := util.ConvertStringToken(c.Token)
 	return err
+}
+
+// updateResultsForCommentLike updates the comment total votes, the votes
+// results and the vote resultant action for the user
+//
+// This function must be called WITHOUT the mutex held
+func (b *backend) updateResultsForCommentLike(like www.LikeComment) (*www.Comment, error) {
+	b.Lock()
+	defer b.Unlock()
+	return b._updateResultsForCommentLike(like)
+}
+
+// _updateResultsForCommentLike updates the comment total votes, the votes
+// results and the vote resultant action for the user
+//
+// This function must be called WITH the mutex held
+func (b *backend) _updateResultsForCommentLike(like www.LikeComment) (*www.Comment, error) {
+	userID := b.userPubkeys[like.PublicKey]
+	token := like.Token
+	commentID := like.CommentID
+
+	// get comment from inventory cache
+	comment, err := b._getInventoryRecordComment(token, commentID)
+	if err != nil {
+		return nil, fmt.Errorf("Comment not found %v: %v", token, commentID)
+	}
+
+	newUserVoteAction, err := strconv.ParseInt(like.Action, 10, 64)
+	if err != nil {
+		// sanity check
+		return nil, fmt.Errorf(
+			"updateResutsForCommentLike for %s, %s: action conversion failed: %v",
+			token, commentID, err)
+	}
+
+	if _, ok := b.userLikeActionByCommentID[token]; !ok {
+		b.userLikeActionByCommentID[token] = make(map[string]map[string]int64)
+	}
+
+	if _, ok := b.userLikeActionByCommentID[token][userID]; !ok {
+		b.userLikeActionByCommentID[token][userID] = make(map[string]int64)
+	}
+	// Simply add the like to the totals if the user has not
+	// previously voted on this comment
+	lastUserVoteAction, hasVoted := b.userLikeActionByCommentID[token][userID][commentID]
+	if !hasVoted {
+		b.userLikeActionByCommentID[token][userID][commentID] = newUserVoteAction
+		comment.ResultVotes += newUserVoteAction
+		comment.TotalVotes++
+	} else if lastUserVoteAction == newUserVoteAction {
+		// new action is equals the previous one, so we
+		// revert last user action
+		b.userLikeActionByCommentID[token][userID][commentID] = 0
+		comment.ResultVotes -= newUserVoteAction
+		comment.TotalVotes--
+	} else {
+		// new action is different from the previous one
+		// so the new action is set as the current one
+		b.userLikeActionByCommentID[token][userID][commentID] = newUserVoteAction
+		comment.ResultVotes += newUserVoteAction - lastUserVoteAction
+		// only update the total if last user action was 0
+		if lastUserVoteAction == 0 {
+			comment.TotalVotes++
+		}
+	}
+
+	err = b._setRecordComment(*comment)
+	if err != nil {
+		return nil, err
+	}
+
+	return comment, nil
 }

@@ -760,27 +760,27 @@ func (c *Client) GetComments(token string) (*v1.GetCommentsReply, error) {
 	return &gcr, nil
 }
 
-func (c *Client) UserCommentsVotes(token string) (*v1.UserCommentsVotesReply, error) {
-	route := "/user/proposals/" + token + "/commentsvotes"
+func (c *Client) UserCommentsLikes(token string) (*v1.UserCommentsLikesReply, error) {
+	route := "/user/proposals/" + token + "/commentslikes"
 	responseBody, err := c.makeRequest("GET", route, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var ucvr v1.UserCommentsVotesReply
-	err = json.Unmarshal(responseBody, &ucvr)
+	var uclr v1.UserCommentsLikesReply
+	err = json.Unmarshal(responseBody, &uclr)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal UserCommentsVotesReply: %v", err)
+		return nil, fmt.Errorf("unmarshal UserCommentsLikesReply: %v", err)
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(ucvr)
+		err := PrettyPrintJSON(uclr)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return &ucvr, nil
+	return &uclr, nil
 }
 
 func (c *Client) LikeComment(lc *v1.LikeComment) (*v1.LikeCommentReply, error) {

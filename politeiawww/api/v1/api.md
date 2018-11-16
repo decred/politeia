@@ -2238,11 +2238,11 @@ Reply:
 }
 ```
 
-### `User Comments Votes`
+### `User Comments Likes`
 
 Retrieve the comment votes for the current logged in user given a proposal token
 
-**Route:** `GET v1/user/proposals/{token}/commentsvotes`
+**Route:** `GET v1/user/proposals/{token}/commentslikes`
 
 **Params:** none
 
@@ -2250,9 +2250,9 @@ Retrieve the comment votes for the current logged in user given a proposal token
 
 | | Type | Description |
 | - | - | - |
-| commentsvotes | array of CommentVote | Votes issued by the current user |
+| commentslikes | array of CommentLike | Likes issued by the current user |
 
-**CommentVote:**
+**CommentLike:**
 
 | | Type | Description |
 | - | - | - |
@@ -2263,12 +2263,12 @@ Retrieve the comment votes for the current logged in user given a proposal token
 **Example:**
 
 Request:
-Path: `v1/user/proposals/8a11057fb910564a7d2506430505c3991f59e35f8a7757b8000a032505b254d8/commentsvotes`
+Path: `v1/user/proposals/8a11057fb910564a7d2506430505c3991f59e35f8a7757b8000a032505b254d8/commentslikes`
 
 Reply:
 ```json
   {
-    "commentsvotes":
+    "commentslikes":
     [
       {
         "action":"-1",

@@ -18,13 +18,14 @@ import (
 )
 
 type inventoryRecord struct {
-	record            pd.Record               // actual record
-	proposalMD        BackendProposalMetadata // proposal metadata
-	comments          map[string]www.Comment  // [id]comment
-	changes           []MDStreamChanges       // changes metadata
-	voteAuthorization www.AuthorizeVoteReply  // vote authorization metadata
-	votebits          www.StartVote           // vote bits and options
-	voting            www.StartVoteReply      // voting metadata
+	record            pd.Record                    // actual record
+	proposalMD        BackendProposalMetadata      // proposal metadata
+	comments          map[string]www.Comment       // [id]comment
+	commentsLikes     map[string][]www.LikeComment // [id]comment likes
+	changes           []MDStreamChanges            // changes metadata
+	voteAuthorization www.AuthorizeVoteReply       // vote authorization metadata
+	votebits          www.StartVote                // vote bits and options
+	voting            www.StartVoteReply           // voting metadata
 }
 
 // proposalsRequest is used for passing parameters into the
@@ -224,6 +225,46 @@ func (b *backend) loadRecord(record pd.Record) error {
 		return fmt.Errorf("could not load comments for %s: %v", t, err)
 	}
 
+	err = b._loadCommentsLikes(t)
+	if err != nil {
+		return fmt.Errorf("could not load comment likes for %s: %v", t, err)
+	}
+
+	err = b._processCommentsLikesResults(t)
+	if err != nil {
+		return fmt.Errorf("could not process comment likes results for %s: %v",
+			t, err)
+	}
+
+	return nil
+}
+
+// processCommentsLikesResults calculates the total votes and the result
+// votes for each comment of a given proposal. It also calculates the
+// resultant action per user per comment
+//
+// This function must be called WITH the mutext held
+func (b *backend) _processCommentsLikesResults(token string) error {
+	// get inventory record by token
+	ir, ok := b.inventory[token]
+	if !ok {
+		return fmt.Errorf("inventory record not found: %v", token)
+	}
+
+	commentLikes := ir.commentsLikes
+
+	for _, likes := range commentLikes {
+		for _, l := range likes {
+			_, err := b._updateResultsForCommentLike(l)
+			if err != nil {
+				return fmt.Errorf(
+					"processCommentsLikesResults %v: "+
+						"updateResutsForCommentLike %v",
+					token, err)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -375,6 +416,73 @@ func (b *backend) loadComments(t string) error {
 	}
 
 	log.Tracef("loadComments: %v inserted %v", t, len(gcr.Comments))
+
+	return nil
+}
+
+// loadComments calls out to the decred plugin to obtain all comments likes
+// of a given proposal
+//
+// This function must be called WITH the mutex held.
+func (b *backend) _loadCommentsLikes(token string) error {
+	log.Tracef("loadCommentsLikes %v", token)
+
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return err
+	}
+
+	payload, err := decredplugin.EncodeGetProposalCommentsLikes(
+		decredplugin.GetProposalCommentsLikes{
+			Token: token,
+		})
+	if err != nil {
+		return err
+	}
+
+	pc := pd.PluginCommand{
+		Challenge: hex.EncodeToString(challenge),
+		ID:        decredplugin.ID,
+		Command:   decredplugin.CmdProposalCommentsLikes,
+		CommandID: decredplugin.CmdProposalCommentsLikes,
+		Payload:   string(payload),
+	}
+
+	responseBody, err := b.makeRequest(http.MethodPost,
+		pd.PluginCommandRoute, pc)
+	if err != nil {
+		return err
+	}
+
+	var reply pd.PluginCommandReply
+	err = json.Unmarshal(responseBody, &reply)
+	if err != nil {
+		return fmt.Errorf("Could not unmarshal "+
+			"PluginCommandReply: %v", err)
+	}
+
+	// Verify the challenge.
+	err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
+	if err != nil {
+		return err
+	}
+
+	// Decode plugin reply
+	gpclr, err := decredplugin.DecodeGetProposalCommentsLikesReply(
+		[]byte(reply.Payload))
+	if err != nil {
+		return err
+	}
+
+	b.inventory[token].commentsLikes = make(map[string][]www.LikeComment)
+	for _, v := range gpclr.CommentsLikes {
+		lc := convertDecredLikeCommentToWWWLikeComment(v)
+		cls := b.inventory[token].commentsLikes[lc.CommentID]
+		b.inventory[token].commentsLikes[lc.CommentID] = append(cls, lc)
+	}
+
+	log.Tracef("loadCommentsLikes: %v inserted %v", token,
+		len(gpclr.CommentsLikes))
 
 	return nil
 }

@@ -15,7 +15,7 @@ const (
 	CmdCensorComment         = "censorcomment"
 	CmdGetComments           = "getcomments"
 	CmdProposalVotes         = "proposalvotes"
-	CmdProposalCommentsVotes = "proposalcommentsvotes"
+	CmdProposalCommentsLikes = "proposalcommentslikes"
 	MDStreamAuthorizeVote    = 13 // Vote authorization by proposal author
 	MDStreamVoteBits         = 14 // Vote bits and mask
 	MDStreamVoteSnapshot     = 15 // Vote tickets and start/end parameters
@@ -530,57 +530,48 @@ func DecodeGetCommentsReply(payload []byte) (*GetCommentsReply, error) {
 	return &gcr, nil
 }
 
-// UserCommentVote describes the voting action an user with a given pubkey has given
-// to a comment (e.g: up or down vote)
-type UserCommentVote struct {
-	Pubkey    string `json:"pubkey"`    // Public key
-	CommentID string `json:"commentid"` // Comment ID
-	Action    string `json:"action"`    // Up or downvote (1, -1)
-	Token     string `json:"token"`     // Censorhship token
-}
-
-// GetProposalCommentsVotes is a command to fetch all vote actions
-// on the comments of a given proposa
-type GetProposalCommentsVotes struct {
+// GetProposalCommentsLikes is a command to fetch all vote actions
+// on the comments of a given proposal
+type GetProposalCommentsLikes struct {
 	Token string `json:"token"` // Censorship token
 }
 
-// EncodeGetProposalCommentsVotes encodes GetCommentsVotes into a JSON byte slice.
-func EncodeGetProposalCommentsVotes(gpcv GetProposalCommentsVotes) ([]byte, error) {
+// EncodeGetProposalCommentsLikes encodes GetProposalCommentsLikes into a JSON byte slice.
+func EncodeGetProposalCommentsLikes(gpcv GetProposalCommentsLikes) ([]byte, error) {
 	return json.Marshal(gpcv)
 }
 
-// DecodeGetProposalCommentsVotes decodes a JSON byte slice into a GetProposalCommentsVotes.
-func DecodeGetProposalCommentsVotes(payload []byte) (*GetProposalCommentsVotes, error) {
-	var gpcv GetProposalCommentsVotes
+// DecodeGetProposalCommentsLikes decodes a JSON byte slice into a GetProposalCommentsLikes.
+func DecodeGetProposalCommentsLikes(payload []byte) (*GetProposalCommentsLikes, error) {
+	var gpcl GetProposalCommentsLikes
 
-	err := json.Unmarshal(payload, &gpcv)
+	err := json.Unmarshal(payload, &gpcl)
 	if err != nil {
 		return nil, err
 	}
 
-	return &gpcv, nil
+	return &gpcl, nil
 }
 
-// GetProposalCommentsVotesReply is a reply with all vote actions
+// GetProposalCommentsLikesReply is a reply with all vote actions
 // for the comments of a given proposal
-type GetProposalCommentsVotesReply struct {
-	UserCommentsVotes []UserCommentVote `json:"usercommentsvotes"`
+type GetProposalCommentsLikesReply struct {
+	CommentsLikes []LikeComment `json:"commentslikes"`
 }
 
-// EncodeGetProposalCommentsVotesReply encodes EncodeGetProposalCommentsVotesReply into a JSON byte slice.
-func EncodeGetProposalCommentsVotesReply(gpcvr GetProposalCommentsVotesReply) ([]byte, error) {
-	return json.Marshal(gpcvr)
+// EncodeGetProposalCommentsLikesReply encodes EncodeGetProposalCommentsLikesReply into a JSON byte slice.
+func EncodeGetProposalCommentsLikesReply(gpclr GetProposalCommentsLikesReply) ([]byte, error) {
+	return json.Marshal(gpclr)
 }
 
-// DecodeGetProposalCommentsVotesReply decodes a JSON byte slice into a GetProposalCommentsVotesReply.
-func DecodeGetProposalCommentsVotesReply(payload []byte) (*GetProposalCommentsVotesReply, error) {
-	var gpcvr GetProposalCommentsVotesReply
+// DecodeGetProposalCommentsLikesReply decodes a JSON byte slice into a GetProposalCommentsLikesReply.
+func DecodeGetProposalCommentsLikesReply(payload []byte) (*GetProposalCommentsLikesReply, error) {
+	var gpclr GetProposalCommentsLikesReply
 
-	err := json.Unmarshal(payload, &gpcvr)
+	err := json.Unmarshal(payload, &gpclr)
 	if err != nil {
 		return nil, err
 	}
 
-	return &gpcvr, nil
+	return &gpclr, nil
 }

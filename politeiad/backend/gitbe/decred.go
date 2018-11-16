@@ -123,8 +123,8 @@ var (
 	//decredPluginVotesCache = make(map[string]map[string]decredplugin.CastVote) // [token][ticket]castvote
 	decredPluginVotesCache = make(map[string]map[string]struct{})
 
-	decredPluginCommentsCache     = make(map[string]map[string]decredplugin.Comment) // [token][commentid]comment
-	decredPluginCommentsUserCache = make(map[string]map[string]int64)                // [token+pubkey][commentid]result
+	decredPluginCommentsCache      = make(map[string]map[string]decredplugin.Comment) // [token][commentid]comment
+	decredPluginCommentsLikesCache = make(map[string][]decredplugin.LikeComment)      // [token]LikeComment
 
 	journalsReplayed bool = false
 )
@@ -1092,13 +1092,7 @@ func (g *gitBackEnd) pluginLikeComment(payload string) (string, error) {
 	}
 
 	// Make sure action makes sense
-	var action int64
-	switch like.Action {
-	case "-1":
-		action = -1
-	case "1":
-		action = 1
-	default:
+	if like.Action != "-1" && like.Action != "1" {
 		return "", fmt.Errorf("invalid action")
 	}
 
@@ -1131,30 +1125,17 @@ func (g *gitBackEnd) pluginLikeComment(payload string) (string, error) {
 			like.Token, like.CommentID)
 	}
 
-	key := like.Token + like.PublicKey
-	if _, ok := decredPluginCommentsUserCache[key]; !ok {
-		decredPluginCommentsUserCache[key] = make(map[string]int64)
-	}
-
-	newUserResult, commentResult,
-		commentTotal := calculateCommentVotingValues(key, like.CommentID,
-		decredPluginCommentsUserCache, c.TotalVotes, c.ResultVotes, action)
-
-	cc := c
+	cc := decredPluginCommentsLikesCache[like.Token]
 
 	// Update cache
-	decredPluginCommentsUserCache[key][like.CommentID] = newUserResult
-	c.ResultVotes = commentResult
-	c.TotalVotes = commentTotal
-	decredPluginCommentsCache[like.Token][like.CommentID] = c
-
+	decredPluginCommentsLikesCache[like.Token] = append(cc, *like)
 	g.Unlock()
 
 	// We create an unwind function that MUST be called from all error
 	// paths. If everything works ok it is a no-op.
 	unwind := func() {
 		g.Lock()
-		decredPluginCommentsCache[like.Token][like.CommentID] = cc
+		decredPluginCommentsLikesCache[like.Token] = cc
 		g.Unlock()
 	}
 
@@ -1342,42 +1323,6 @@ func encodeGetCommentsReply(cm map[string]decredplugin.Comment) (string, error) 
 	return string(gcrb), nil
 }
 
-// calculateCommentVotingValues calculates the new values to be cached for
-// decredPluginCommentsUserCache (newUserResult) and the new totalVotes and resultVotes
-// of the provided comment.
-// it must be called WITH the lock held IF the provided userComments refers to decredPluginUserCache
-// otherwise it can be called WITHOUT the lock held
-// (e.g: replayComments use a internal map before assigning it to the cache)
-func calculateCommentVotingValues(key, commentID string, userComments map[string]map[string]int64,
-	totalVotes uint64, resultVotes int64, action int64) (int64, int64, uint64) {
-	var newUserResult int64
-	commentResult := resultVotes
-	commentTotal := totalVotes
-	// See if this user has voted on this comment already
-	if userResult, ok := userComments[key][commentID]; !ok {
-		newUserResult = action
-		commentResult += action
-		commentTotal++
-	} else {
-		// In case user action is equals the user result
-		// result is set to 0 (e.g: revert last action)
-		if userResult == action {
-			newUserResult = 0
-			commentResult -= action
-			commentTotal--
-		} else {
-			// otherwise the user voting result
-			// is the new action provided
-			newUserResult = action
-			commentResult += action - userResult //reverse previous action and add the new one
-			if userResult == 0 {
-				commentTotal++
-			}
-		}
-	}
-	return newUserResult, commentResult, commentTotal
-}
-
 // replayComments replay the comments for a given proposal
 // the proposal is matched by the provided token
 // this function can be called WITHOUT the lock held
@@ -1408,11 +1353,7 @@ func (g *gitBackEnd) replayComments(token string) (map[string]decredplugin.Comme
 	}()
 
 	comments := make(map[string]decredplugin.Comment)
-
-	seen := make(map[string]map[string]int64)
-	if decredPluginCommentsUserCache != nil {
-		seen = decredPluginCommentsUserCache
-	}
+	commentsLikes := make([]decredplugin.LikeComment, 0, 1024)
 
 	for {
 		err = g.journal.Replay(cfilename, func(s string) error {
@@ -1474,38 +1415,8 @@ func (g *gitBackEnd) replayComments(token string) (map[string]decredplugin.Comme
 						err)
 				}
 
-				// Fish out comment pointer
-				c, ok := comments[lc.CommentID]
-				if !ok {
-					// Complain but we can't do anything
-					// about it. Can'treturn error or we'd
-					// abort journal loop.
-					log.Errorf("comment not found: %v",
-						lc.CommentID)
-					return nil
-				}
+				commentsLikes = append(commentsLikes, lc)
 
-				//Update score
-				action, err := strconv.ParseInt(lc.Action, 10, 64)
-				if err != nil {
-					log.Errorf("invalid action: %v %v",
-						lc.CommentID, lc.Action)
-				}
-
-				key := lc.Token + lc.PublicKey
-				if _, ok := seen[key]; !ok {
-					seen[key] = make(map[string]int64)
-				}
-
-				newUserResult, commentResult,
-					commentTotal := calculateCommentVotingValues(key, lc.CommentID,
-					seen, c.TotalVotes, c.ResultVotes, action)
-
-				c.ResultVotes = commentResult
-				c.TotalVotes = commentTotal
-				seen[key][lc.CommentID] = newUserResult
-				// Write back updated version
-				comments[lc.CommentID] = c
 			default:
 				return fmt.Errorf("invalid action: %v",
 					action.Action)
@@ -1521,48 +1432,30 @@ func (g *gitBackEnd) replayComments(token string) (map[string]decredplugin.Comme
 
 	g.Lock()
 	decredPluginCommentsCache[token] = comments
-	decredPluginCommentsUserCache = seen
+	decredPluginCommentsLikesCache[token] = commentsLikes
 	g.Unlock()
 
 	return comments, nil
 }
 
-// pluginGetProposalCommentVotes return all UserCommentVotes for a given proposal
-func (g *gitBackEnd) pluginGetProposalCommentVotes(payload string) (string, error) {
-	var gpcvr decredplugin.GetProposalCommentsVotesReply
+// pluginGetProposalCommentLikes return all UserCommentVotes for a given proposal
+func (g *gitBackEnd) pluginGetProposalCommentsLikes(payload string) (string, error) {
+	var gpclr decredplugin.GetProposalCommentsLikesReply
 
-	gpcv, err := decredplugin.DecodeGetProposalCommentsVotes([]byte(payload))
+	gpcl, err := decredplugin.DecodeGetProposalCommentsLikes([]byte(payload))
 	if err != nil {
-		return "", fmt.Errorf("DecodeGetProposalCommentsVotes: %v", err)
+		return "", fmt.Errorf("DecodeGetProposalCommentsLikes: %v", err)
 	}
 
-	// XXX Shouldn't be iterating over the cache
-	// Todo: find a better cache solution which deals with accessing
-	// multiple entries in a optimized fashion
 	g.Lock()
-	for key, value := range decredPluginCommentsUserCache {
-		// check if token matches the key prefix
-
-		if pubkey := strings.TrimPrefix(key, gpcv.Token); pubkey != key {
-			// if token is the prefix, the remaining part is the pubkey
-			// now iterate over the map [commentid][action]
-			for cid, action := range value {
-				gpcvr.UserCommentsVotes = append(gpcvr.UserCommentsVotes, decredplugin.UserCommentVote{
-					Pubkey:    pubkey,
-					CommentID: cid,
-					Action:    strconv.Itoa(int(action)),
-					Token:     gpcv.Token,
-				})
-			}
-		}
-	}
+	gpclr.CommentsLikes = decredPluginCommentsLikesCache[gpcl.Token]
 	g.Unlock()
 
-	egpcvr, err := decredplugin.EncodeGetProposalCommentsVotesReply(gpcvr)
+	egpclr, err := decredplugin.EncodeGetProposalCommentsLikesReply(gpclr)
 	if err != nil {
-		return "", fmt.Errorf("EncodeGetProposalCommentsVotesReply: %v", err)
+		return "", fmt.Errorf("EncodeGetProposalCommentsLikesReply: %v", err)
 	}
-	return string(egpcvr), nil
+	return string(egpclr), nil
 }
 
 func (g *gitBackEnd) pluginGetComments(payload string) (string, error) {

@@ -2218,9 +2218,9 @@ func (g *gitBackEnd) Plugin(command, payload string) (string, string, error) {
 	case decredplugin.CmdGetComments:
 		payload, err := g.pluginGetComments(payload)
 		return decredplugin.CmdGetComments, payload, err
-	case decredplugin.CmdProposalCommentsVotes:
-		payload, err := g.pluginGetProposalCommentVotes(payload)
-		return decredplugin.CmdProposalCommentsVotes, payload, err
+	case decredplugin.CmdProposalCommentsLikes:
+		payload, err := g.pluginGetProposalCommentsLikes(payload)
+		return decredplugin.CmdProposalCommentsLikes, payload, err
 	}
 	return "", "", fmt.Errorf("invalid payload command") // XXX this needs to become a type error
 }
