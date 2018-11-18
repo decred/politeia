@@ -650,20 +650,28 @@ func (p *politeiawww) handleProposalAccessTime(w http.ResponseWriter, r *http.Re
 // handleNewProposalAccessTime returns the proposal access time for a user
 func (p *politeiawww) handleNewProposalAccessTime(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleNewProposalAccessTime")
-	pathParams := mux.Vars(r)
-	var token = pathParams["token"]
+	var pat v1.ProposalAccessTime
+	decoder := json.NewDecoder(r.Body)
+	log.Tracef("%v", decoder)
+	if err := decoder.Decode(&pat); err != nil {
+		RespondWithError(w, r, 0, "handleProposalAccessTime: unmarshal", v1.UserError{
+			ErrorCode: v1.ErrorStatusInvalidInput,
+		})
+		return
+	}
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleProposalAccessTime: getSessionUser %v", err)
 		return
 	}
-	err = p.backend.ProcessNewProposalAccessTime(user.Email, token)
+	log.Tracef("%v", user.Email)
+	// err = p.backend.ProcessNewProposalAccessTime(user.Email, decoder)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleProposalAccessTime: proposalAccessTime %v", err)
 	}
-	util.RespondWithJSON(w, http.StatusOK, nil)
+	util.RespondWithJSON(w, http.StatusOK, true)
 }
 
 // handleProposalPaywallDetails returns paywall details that allows the user to
@@ -1612,6 +1620,10 @@ func _main() error {
 		p.handleAuthorizeVote, permissionLogin, false)
 	p.addRoute(http.MethodGet, v1.RouteProposalPaywallPayment,
 		p.handleProposalPaywallPayment, permissionLogin, false)
+	p.addRoute(http.MethodGet, v1.RouteUserProposalAccessTime,
+		p.handleProposalAccessTime, permissionLogin, false)
+	p.addRoute(http.MethodPost, v1.RouteUserProposalAccessTime,
+		p.handleNewProposalAccessTime, permissionLogin, false)
 
 	// Routes that require being logged in as an admin user.
 	p.addRoute(http.MethodGet, v1.RouteAllUnvetted, p.handleAllUnvetted,
