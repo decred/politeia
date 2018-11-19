@@ -139,6 +139,14 @@ Voting has been authorized for the following proposal on Politeia by {{.Username
 const templateProposalVettedForAuthorRaw = `
 Your proposal has just been approved on Politeia!
 
+You will need to authorize a proposal vote before an administrator will be
+allowed to start the voting period on your proposal.  You can authorize a
+proposal vote by opening the proposal page and clicking on the "Authorize
+Voting to Start" button.  
+
+You must authorize a proposal vote within 14 days.  If you fail to do so, your
+proposal will be considered abandoned.
+
 {{.Name}}
 {{.Link}}
 `
