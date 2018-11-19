@@ -3494,7 +3494,7 @@ func (b *backend) ProcessProposalAccessTime(email string) (*www.ProposalAccessTi
 		return nil, err
 	}
 	return &www.ProposalAccessTimeReply{
-		ProposalAccessTimes: convertAccessTimeFromDatabase(pats),
+		ProposalAccessTime: pats,
 	}, nil
 }
 

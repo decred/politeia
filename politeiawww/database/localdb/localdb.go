@@ -27,23 +27,6 @@ func getAccessTimeKey(email string) []byte {
 	return []byte(AccessTimePrefixKey + email)
 }
 
-// addAccessTime updates the user notifications by keeping it's length lower
-// or equal to the maximum number notifications per user.
-func addAccessTime(pat database.ProposalAccessTime, pats []database.ProposalAccessTime) []database.ProposalAccessTime {
-	// find the biggest Id
-	maxid := uint64(0)
-	for _, v := range pats {
-		if v.ID > maxid {
-			maxid = v.ID
-		}
-	}
-	pat.ID = maxid + 1
-	// otherwise, remove the remaining elements and add the new notification
-	idx := len(pats) + 1
-	newPats := pats[idx:]
-	return append(newPats, pat)
-}
-
 var (
 	_ database.Database = (*localdb)(nil)
 )
@@ -289,7 +272,7 @@ func (l *localdb) AllUsers(callbackFn func(u *database.User)) error {
 }
 
 // ProposalAccessTimeGet gets a user proposal access time log given its email
-func (l *localdb) ProposalAccessTimeGet(email string) ([]database.ProposalAccessTime, error) {
+func (l *localdb) ProposalAccessTimeGet(email string) (map[string]database.ProposalAccessTime, error) {
 	l.Lock()
 	defer l.Unlock()
 
@@ -314,7 +297,7 @@ func (l *localdb) ProposalAccessTimeGet(email string) ([]database.ProposalAccess
 	}
 	if !exists {
 		// if the mailbox doens't exist return it as empty
-		ns := []database.ProposalAccessTime{}
+		ns := map[string]database.ProposalAccessTime{}
 		return ns, nil
 	}
 
@@ -329,17 +312,16 @@ func (l *localdb) ProposalAccessTimeGet(email string) ([]database.ProposalAccess
 		return nil, err
 	}
 
-	return *pats, nil
-
+	return pats, nil
 }
 
 // ProposalAccessTimeNew adds a proposal access time register into user proposal access time log
-func (l *localdb) ProposalAccessTimeNew(email string, token string) error {
+func (l *localdb) ProposalAccessTimeNew(email string, token string) (map[string]database.ProposalAccessTime, error) {
 	l.Lock()
 	defer l.Unlock()
 
 	if l.shutdown {
-		return database.ErrShutdown
+		return nil, database.ErrShutdown
 	}
 
 	log.Debugf("ProposalAccessTimeNew\n")
@@ -347,44 +329,42 @@ func (l *localdb) ProposalAccessTimeNew(email string, token string) error {
 	// Make sure user exists
 	exists, err := l.userdb.Has([]byte(email), nil)
 	if err != nil {
-		return err
+		return nil, err
 	} else if !exists {
-		return database.ErrUserNotFound
+		return nil, database.ErrUserNotFound
 	}
 
 	key := getAccessTimeKey(email)
-	var pats []database.ProposalAccessTime
+	var pats = make(map[string]database.ProposalAccessTime)
 	var npat database.ProposalAccessTime
-	npat.Token = token
 	npat.Timestamp = time.Now().Unix()
 
 	// Check if the user has already a user access time collection registered
 	exists, err = l.userdb.Has(key, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if exists {
 		payload, err := l.userdb.Get(key, nil)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
-		as, err := DecodeAccessTimes(payload)
+		pats, err := DecodeAccessTimes(payload)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		pats = addAccessTime(npat, *as)
-	} else {
-		npat.ID = 0
-		pats = []database.ProposalAccessTime{npat}
 	}
-
+	pats[token] = npat
 	payload, err := EncodeAccessTimes(pats)
 	if err != nil {
-		return err
+		return nil, err
 	}
-
-	return l.userdb.Put(key, payload, nil)
+	err = l.userdb.Put(key, payload, nil)
+	if err != nil {
+		return nil, err
+	}
+	return pats, nil
 }
 
 // Close shuts down the database.  All interface functions MUST return with

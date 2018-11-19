@@ -34,7 +34,7 @@ const (
 	RouteLogin                  = "/login"
 	RouteLogout                 = "/logout"
 	RouteSecret                 = "/secret"
-	RouteUserProposalAccessTime = "/user/proposals/access/{token:[A-z0-9]{64}}"
+	RouteUserProposalAccessTime = "/user/proposals/{token:[A-z0-9]{64}}/accesstime"
 	RouteProposalPaywallDetails = "/proposals/paywall"
 	RouteProposalPaywallPayment = "/proposals/paywallpayment"
 	RouteAllVetted              = "/proposals/vetted"
@@ -1066,5 +1066,5 @@ type ProposalAccessTime struct {
 
 // ProposalAccessTimeReply returns an array of all proposal access replies
 type ProposalAccessTimeReply struct {
-	ProposalAccessTimes []ProposalAccessTime `json:"proposalaccesstimes"`
+	ProposalAccessTime map[string]ProposalAccessTime `json:"proposalaccesstimes"`
 }

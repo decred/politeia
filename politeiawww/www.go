@@ -634,12 +634,14 @@ func (p *politeiawww) handleResetPassword(w http.ResponseWriter, r *http.Request
 func (p *politeiawww) handleProposalAccessTime(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleProposalAccessTime")
 	user, err := p.getSessionUser(w, r)
+	pathParams := mux.Vars(r)
+	token := pathParams["token"]
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleProposalAccessTime: getSessionUser %v", err)
 		return
 	}
-	reply, err := p.backend.ProcessProposalAccessTime(user.Email)
+	reply, err := p.backend.ProcessProposalAccessTime(user.Email, token)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleProposalAccessTime: proposalAccessTime %v", err)
@@ -651,14 +653,6 @@ func (p *politeiawww) handleProposalAccessTime(w http.ResponseWriter, r *http.Re
 func (p *politeiawww) handleNewProposalAccessTime(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleNewProposalAccessTime")
 	var pat v1.ProposalAccessTime
-	decoder := json.NewDecoder(r.Body)
-	log.Tracef("%v", decoder)
-	if err := decoder.Decode(&pat); err != nil {
-		RespondWithError(w, r, 0, "handleProposalAccessTime: unmarshal", v1.UserError{
-			ErrorCode: v1.ErrorStatusInvalidInput,
-		})
-		return
-	}
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
@@ -666,12 +660,12 @@ func (p *politeiawww) handleNewProposalAccessTime(w http.ResponseWriter, r *http
 		return
 	}
 	log.Tracef("%v", user.Email)
-	// err = p.backend.ProcessNewProposalAccessTime(user.Email, decoder)
+	reply, err = p.backend.ProcessNewProposalAccessTime(user.Email)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleProposalAccessTime: proposalAccessTime %v", err)
 	}
-	util.RespondWithJSON(w, http.StatusOK, true)
+	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
 // handleProposalPaywallDetails returns paywall details that allows the user to

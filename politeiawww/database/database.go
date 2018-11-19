@@ -91,9 +91,7 @@ type ProposalCredit struct {
 // ProposalAccessTime - A user proposal access time is the record of the time
 // that users has accessed some proposal
 type ProposalAccessTime struct {
-	ID        uint64 // ID of the proposal access time log
-	Token     string // proposal token
-	Timestamp int64  // Timestamp indicates when the proposal was accessed
+	Timestamp int64 // Timestamp indicates when the proposal was accessed
 }
 
 // User record.
