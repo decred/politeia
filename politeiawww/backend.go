@@ -2198,6 +2198,14 @@ func (b *backend) ProcessLikeComment(lc www.LikeComment, user *database.User) (*
 		}
 	}
 
+	// Verify comment exists
+	_, ok := ir.comments[lc.CommentID]
+	if !ok {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusCommentNotFound,
+		}
+	}
+
 	// Ensure proposal is public
 	pr := convertPropFromPD(ir.record)
 	if pr.Status != www.PropStatusPublic {
