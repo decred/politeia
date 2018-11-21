@@ -469,7 +469,7 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Ask backend about the censorship token.
-	bpr, err := p.backend.GetVetted(token)
+	bpr, err := p.backend.GetVetted(token, t.Version)
 	if err == backend.ErrRecordNotFound {
 		reply.Record.Status = v1.RecordStatusNotFound
 		log.Errorf("Get vetted record %v: token %v not found",

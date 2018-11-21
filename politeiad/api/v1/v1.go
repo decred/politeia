@@ -252,6 +252,7 @@ type GetUnvettedReply struct {
 type GetVetted struct {
 	Challenge string `json:"challenge"` // Random challenge
 	Token     string `json:"token"`     // Censorship token
+	Version   string `json:"version"`   // Record version
 }
 
 // GetVettedReply returns a vetted record.  It retrieves the censorship

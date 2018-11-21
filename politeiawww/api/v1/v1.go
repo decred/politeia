@@ -169,6 +169,7 @@ const (
 	ErrorStatusInvalidPropVoteBits         ErrorStatusT = 53
 	ErrorStatusInvalidPropVoteParams       ErrorStatusT = 54
 	ErrorStatusEmailNotVerified            ErrorStatusT = 55
+	ErrorStatusInvalidPropVersion          ErrorStatusT = 56
 
 	// Proposal state codes
 	//
@@ -304,6 +305,7 @@ var (
 		ErrorStatusInvalidPropVoteBits:         "invalid proposal vote option bits",
 		ErrorStatusInvalidPropVoteParams:       "invalid proposal vote parameters",
 		ErrorStatusEmailNotVerified:            "email address is not verified",
+		ErrorStatusInvalidPropVersion:          "invalid proposal version",
 	}
 
 	// PropStatus converts propsal status codes to human readable text
@@ -691,10 +693,12 @@ type NewProposalReply struct {
 	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
 }
 
-// ProposalsDetails is used to retrieve a proposal.
-// XXX clarify URL vs Direct
+// ProposalsDetails is used to retrieve a proposal by it's token
+// and by the proposal version (optional). If the version isn't specified
+// the latest proposal version will be returned by default.
 type ProposalsDetails struct {
-	Token string `json:"token"`
+	Token   string `json:"token"`             // Censorship token
+	Version string `json:"version,omitempty"` // Proposal version
 }
 
 // ProposalDetailsReply is used to reply to a proposal details command.

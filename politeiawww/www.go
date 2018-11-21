@@ -721,8 +721,20 @@ func (p *politeiawww) handleSetProposalStatus(w http.ResponseWriter, r *http.Req
 func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Request) {
 	// Add the path param to the struct.
 	log.Tracef("handleProposalDetails")
-	pathParams := mux.Vars(r)
 	var pd v1.ProposalsDetails
+
+	// get version from query string parameters
+	err := util.ParseGetParams(r, &pd)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleProposalDetails: ParseGetParams",
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	// Get proposal token from path parameters
+	pathParams := mux.Vars(r)
 	pd.Token = pathParams["token"]
 
 	user, err := p.getSessionUser(w, r)

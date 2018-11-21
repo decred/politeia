@@ -239,7 +239,7 @@ Retrieve a vetted record.
 |-|-|-|-|
 | challenge | string | 32 byte hex encoded array. | Yes |
 | token | string | Record identifier. | Yes |
-
+| version | string | Record version. | No |
 **Results**:
 
 | | Type | Description |

@@ -604,8 +604,8 @@ func (c *Client) EditProposal(ep *v1.EditProposal) (*v1.EditProposalReply, error
 	return &epr, nil
 }
 
-func (c *Client) ProposalDetails(token string) (*v1.ProposalDetailsReply, error) {
-	responseBody, err := c.makeRequest("GET", "/proposals/"+token, nil)
+func (c *Client) ProposalDetails(token string, pd *v1.ProposalsDetails) (*v1.ProposalDetailsReply, error) {
+	responseBody, err := c.makeRequest("GET", "/proposals/"+token, pd)
 	if err != nil {
 		return nil, err
 	}
