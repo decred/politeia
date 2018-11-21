@@ -51,12 +51,14 @@ type Cmds struct {
 	ResetPassword      ResetPasswordCmd      `command:"resetpassword" description:"change the password for a user that is not currently logged in"`
 	Secret             SecretCmd             `command:"secret" description:"ping politeiawww"`
 	SetProposalStatus  SetProposalStatusCmd  `command:"setproposalstatus" description:"(admin) set the status of a proposal"`
+	SetUserAccesstime  SetUserAccessTimeCmd  `command:"setuseraccesstime" description:"submit a new proposal access time for a user"`
 	StartVote          StartVoteCmd          `command:"startvote" description:"(admin) start the voting period on a proposal"`
 	Tally              TallyCmd              `command:"tally" description:"fetch the vote tally for a proposal"`
 	UpdateUserKey      UpdateUserKeyCmd      `command:"updateuserkey" description:"generate a new identity for the user"`
 	UserDetails        UserDetailsCmd        `command:"userdetails" description:"fetch a user's details by his user id"`
 	UserProposals      UserProposalsCmd      `command:"userproposals" description:"fetch all proposals submitted by a specific user"`
 	Users              UsersCmd              `command:"users" description:"fetch a list of users, optionally filtering them by email and/or username"`
+	UserAccessTime     UserAccessTimeCmd     `command:"useraccesstime" description:"gets the last time that the user has visited a proposal"`
 	VerifyUser         VerifyUserCmd         `command:"verifyuser" description:"verify user's email address"`
 	VerifyUserPayment  VerifyUserPaymentCmd  `command:"verifyuserpayment" description:"check if the user has paid their user registration fee"`
 	Version            VersionCmd            `command:"version" description:"fetch server info and CSRF token"`

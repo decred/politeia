@@ -88,12 +88,6 @@ type ProposalCredit struct {
 	CensorshipToken string // Censorship token of proposal that used this credit
 }
 
-// ProposalAccessTime - A user proposal access time is the record of the time
-// that users has accessed some proposal
-type ProposalAccessTime struct {
-	Timestamp int64 // Timestamp indicates when the proposal was accessed
-}
-
 // User record.
 type User struct {
 	ID                              uuid.UUID // Unique user uuid
@@ -118,6 +112,11 @@ type User struct {
 	FailedLoginAttempts             uint64    // Number of failed login a user has made in a row
 	Deactivated                     bool      // Whether the account is deactivated or not
 	ProposalEmailNotifications      uint64    // Notify the user via email about proposals
+
+	// All access times from a proposal that have been accessed by a user. Each
+	// string represents the proposal token, and the int64 represents the time
+	// that the proposal has been accessed
+	ProposalAccessTimes map[string]int64
 
 	// All identities the user has ever used.  User should only have one
 	// active key at a time.  We allow multiples in order to deal with key
@@ -152,8 +151,6 @@ type Database interface {
 	UserUpdate(User) error                   // Update existing user
 	AllUsers(callbackFn func(u *User)) error // Iterate all users
 
-	ProposalAccessTimeNew(string, string) error                 // add a new proposal access time record
-	ProposalAccessTimeGet(string) ([]ProposalAccessTime, error) // returns the proposal access time record for user
 	// Close performs cleanup of the backend.
 	Close() error
 }

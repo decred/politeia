@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/badoux/checkmail"
 	"github.com/decred/politeia/politeiawww/database"
@@ -19,13 +18,7 @@ const (
 
 	UserVersion    uint32 = 1
 	UserVersionKey        = "userversion"
-
-	AccessTimePrefixKey = "accesstime-"
 )
-
-func getAccessTimeKey(email string) []byte {
-	return []byte(AccessTimePrefixKey + email)
-}
 
 var (
 	_ database.Database = (*localdb)(nil)
@@ -269,102 +262,6 @@ func (l *localdb) AllUsers(callbackFn func(u *database.User)) error {
 	iter.Release()
 
 	return iter.Error()
-}
-
-// ProposalAccessTimeGet gets a user proposal access time log given its email
-func (l *localdb) ProposalAccessTimeGet(email string) (map[string]database.ProposalAccessTime, error) {
-	l.Lock()
-	defer l.Unlock()
-
-	if l.shutdown {
-		return nil, database.ErrShutdown
-	}
-	log.Debugf("ProposalAccessTimeGet\n")
-	// Make sure user exists
-	exists, err := l.userdb.Has([]byte(email), nil)
-	if err != nil {
-		return nil, err
-	} else if !exists {
-		return nil, database.ErrUserNotFound
-	}
-
-	key := getAccessTimeKey(email)
-
-	// checks if user has an accesstime log registered
-	exists, err = l.userdb.Has(key, nil)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		// if the mailbox doens't exist return it as empty
-		ns := map[string]database.ProposalAccessTime{}
-		return ns, nil
-	}
-
-	// gets the user accesstime log
-	payload, err := l.userdb.Get(key, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	pats, err := DecodeAccessTimes(payload)
-	if err != nil {
-		return nil, err
-	}
-
-	return pats, nil
-}
-
-// ProposalAccessTimeNew adds a proposal access time register into user proposal access time log
-func (l *localdb) ProposalAccessTimeNew(email string, token string) (map[string]database.ProposalAccessTime, error) {
-	l.Lock()
-	defer l.Unlock()
-
-	if l.shutdown {
-		return nil, database.ErrShutdown
-	}
-
-	log.Debugf("ProposalAccessTimeNew\n")
-
-	// Make sure user exists
-	exists, err := l.userdb.Has([]byte(email), nil)
-	if err != nil {
-		return nil, err
-	} else if !exists {
-		return nil, database.ErrUserNotFound
-	}
-
-	key := getAccessTimeKey(email)
-	var pats = make(map[string]database.ProposalAccessTime)
-	var npat database.ProposalAccessTime
-	npat.Timestamp = time.Now().Unix()
-
-	// Check if the user has already a user access time collection registered
-	exists, err = l.userdb.Has(key, nil)
-	if err != nil {
-		return nil, err
-	}
-	if exists {
-		payload, err := l.userdb.Get(key, nil)
-		if err != nil {
-			return nil, err
-		}
-
-		pats, err := DecodeAccessTimes(payload)
-		if err != nil {
-			return nil, err
-		}
-	}
-	pats[token] = npat
-	payload, err := EncodeAccessTimes(pats)
-	if err != nil {
-		return nil, err
-	}
-	err = l.userdb.Put(key, payload, nil)
-	if err != nil {
-		return nil, err
-	}
-	return pats, nil
 }
 
 // Close shuts down the database.  All interface functions MUST return with

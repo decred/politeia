@@ -613,35 +613,43 @@ func (p *politeiawww) handleProposalAccessTime(w http.ResponseWriter, r *http.Re
 	log.Tracef("handleProposalAccessTime")
 	user, err := p.getSessionUser(w, r)
 	pathParams := mux.Vars(r)
-	token := pathParams["token"]
+	var pat v1.GetUserAccessTime
+	pat.Token = pathParams["token"]
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleProposalAccessTime: getSessionUser %v", err)
 		return
 	}
-	reply, err := p.backend.ProcessProposalAccessTime(user.Email, token)
+	reply, err := p.backend.ProcessProposalAccessTime(user, pat)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleProposalAccessTime: proposalAccessTime %v", err)
+			"handleProposalAccessTime: ProcessProposalAccessTime %v", err)
 	}
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-// handleNewProposalAccessTime returns the proposal access time for a user
-func (p *politeiawww) handleNewProposalAccessTime(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleNewProposalAccessTime")
-	var pat v1.ProposalAccessTime
+// handleSetUserAccessTime returns the proposal access time for a user
+func (p *politeiawww) handleSetUserAccessTime(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleSetUserAccessTime")
+
+	var uat v1.SetUserAccessTime
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&uat); err != nil {
+		RespondWithError(w, r, 0, "handleSetUserAccessTime: unmarshal", err)
+		return
+	}
+
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleProposalAccessTime: getSessionUser %v", err)
+			"handleSetUserAccessTime: getSessionUser %v", err)
 		return
 	}
 	log.Tracef("%v", user.Email)
-	reply, err = p.backend.ProcessNewProposalAccessTime(user.Email)
+	reply, err := p.backend.ProcessSetUserAccessTime(user, uat)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleProposalAccessTime: proposalAccessTime %v", err)
+			"handleSetUserAccessTime: ProcessSetUserAccessTime %v", err)
 	}
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
@@ -1623,8 +1631,8 @@ func _main() error {
 		p.handleProposalPaywallPayment, permissionLogin, false)
 	p.addRoute(http.MethodGet, v1.RouteUserProposalAccessTime,
 		p.handleProposalAccessTime, permissionLogin, false)
-	p.addRoute(http.MethodPost, v1.RouteUserProposalAccessTime,
-		p.handleNewProposalAccessTime, permissionLogin, false)
+	p.addRoute(http.MethodPut, v1.RouteUserProposalAccessTime,
+		p.handleSetUserAccessTime, permissionLogin, false)
 	p.addRoute(http.MethodPost, v1.RouteEditUser,
 		p.handleEditUser, permissionLogin, false)
 

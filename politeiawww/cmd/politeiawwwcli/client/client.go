@@ -1159,3 +1159,43 @@ func (c *Client) UserPaymentsRescan(upr *v1.UserPaymentsRescan) (*v1.UserPayment
 
 	return &uprr, nil
 }
+
+func (c *Client) GetUserAccessTime(token string) (*v1.GetUserAccessTimeReply, error) {
+	responseBody, err := c.makeRequest("GET", "/user/accesstimes/"+token, nil)
+	if err != nil {
+		return nil, err
+	}
+	var uatr v1.GetUserAccessTimeReply
+	err = json.Unmarshal(responseBody, &uatr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal GetUserAccessTimeReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := PrettyPrintJSON(uatr)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &uatr, nil
+}
+
+func (c *Client) SetUserAccesstime(uat v1.SetUserAccessTime) (*v1.SetUserAccessTimeReply, error) {
+	response, err := c.makeRequest("PUT", "/user/accesstimes/"+uat.Token, uat)
+	if err != nil {
+		return nil, err
+	}
+	var uatr v1.SetUserAccessTimeReply
+	err = json.Unmarshal(response, &uatr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal SetUserAccessTimeReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := PrettyPrintJSON(uatr)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &uatr, nil
+}

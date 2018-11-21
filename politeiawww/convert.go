@@ -7,7 +7,6 @@ import (
 	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	www "github.com/decred/politeia/politeiawww/api/v1"
-	"github.com/decred/politeia/politeiawww/database"
 )
 
 func convertCastVoteReplyFromDecredPlugin(cvr decredplugin.CastVoteReply) www.CastVoteReply {
@@ -376,17 +375,4 @@ func convertVoteResultsFromDecredplugin(vrr decredplugin.VoteResultsReply) []www
 		})
 	}
 	return ors
-}
-
-// convertAccessTimeFromDatabase converts a []database.ProposalAccessTime into []www.ProposalAccessTime
-func convertAccessTimeFromDatabase(dbpat []database.ProposalAccessTime) []www.ProposalAccessTime {
-	var pats []www.ProposalAccessTime
-	for _, pat := range dbpat {
-		pats = append(pats, www.ProposalAccessTime{
-			Timestamp: pat.Timestamp,
-			ID:        pat.ID,
-			Token:     pat.Token,
-		})
-	}
-	return pats
 }

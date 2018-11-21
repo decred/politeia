@@ -3,50 +3,39 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:dc417dbf4d023500d4fd5685910f202b2e380d5310c00a0b9d4803e3d35ed4df"
   name = "github.com/aead/siphash"
   packages = ["."]
-  pruneopts = "UT"
   revision = "e404fcfc888570cadd1610538e2dbc89f66af814"
 
 [[projects]]
   branch = "master"
-  digest = "1:47ea4fbe2ab4aeb9808502c51e657041c2e49b36b83fc1c1a349135cdf16342f"
   name = "github.com/agl/ed25519"
   packages = [
     ".",
-    "edwards25519",
+    "edwards25519"
   ]
-  pruneopts = "UT"
   revision = "5312a61534124124185d41f09206b9fef1d88403"
 
 [[projects]]
   branch = "master"
-  digest = "1:5860eb9713b31ff0638812af36d0b0e97ecc9be75f55957721c03a3d9ac09ba8"
   name = "github.com/badoux/checkmail"
   packages = ["."]
-  pruneopts = "UT"
   revision = "d0a759655d62bcdc95c50a0676f3e9702ed59453"
 
 [[projects]]
   branch = "master"
-  digest = "1:30be39b57348c3ca450d20158944a27393a3946e12dcb01ff1ac657d605c3de9"
   name = "github.com/btcsuite/go-flags"
   packages = ["."]
-  pruneopts = "UT"
   revision = "6c288d648c1cc1befcb90cb5511dcacf64ae8e61"
 
 [[projects]]
   branch = "master"
-  digest = "1:1e6b2f7aa98b082c30a1303c29a702c369b2ec6d86b74a599bc8bbe2333db299"
   name = "github.com/btcsuite/go-socks"
   packages = ["socks"]
-  pruneopts = "UT"
   revision = "4720035b7bfd2a9bb130b1c184f8bbe41b6f0d0f"
 
 [[projects]]
   branch = "master"
-  digest = "1:2d6b1dd5a1f854ffbc1e7fc3bf4609b3351f9a621930840a8db321beb03922a1"
   name = "github.com/btcsuite/goleveldb"
   packages = [
     "leveldb",
@@ -60,54 +49,42 @@
     "leveldb/opt",
     "leveldb/storage",
     "leveldb/table",
-    "leveldb/util",
+    "leveldb/util"
   ]
-  pruneopts = "UT"
   revision = "7834afc9e8cd15233b6c3d97e12674a31ca24602"
 
 [[projects]]
   branch = "master"
-  digest = "1:50da27383f97dd545cbaa0ff6c5fb0757588dd5d2b3048d5425a34de13c9f421"
   name = "github.com/btcsuite/snappy-go"
   packages = ["."]
-  pruneopts = "UT"
   revision = "0bdef8d067237991ddaa1bb6072a740bc40601ba"
 
 [[projects]]
   branch = "master"
-  digest = "1:f55b883310d96867eda9ab182f64f740a748c0ac217ae6106abad808e1e40ba8"
   name = "github.com/dajohi/goemail"
   packages = ["."]
-  pruneopts = "UT"
   revision = "4104edff774627d353b7ea3ca53163f049ba6224"
 
 [[projects]]
-  digest = "1:a2c1d0e43bd3baaa071d1b9ed72c27d78169b2b269f71c105ac4ba34b1be4a39"
   name = "github.com/davecgh/go-spew"
   packages = ["spew"]
-  pruneopts = "UT"
   revision = "346938d642f2ec3594ed81d874461961cd0faa76"
   version = "v1.1.0"
 
 [[projects]]
   branch = "master"
-  digest = "1:05cf4e9e60a620f39b540b8ae6120675740d5f41050a40587d36f599fbbc338c"
   name = "github.com/dchest/blake256"
   packages = ["."]
-  pruneopts = "UT"
   revision = "dee3fe6eb0e98dc774a94fc231f85baf7c29d360"
 
 [[projects]]
   branch = "master"
-  digest = "1:6e0bace02164b96762f35e9011c931d6f270a4e84e46a35a854910b9216153d8"
   name = "github.com/decred/base58"
   packages = ["."]
-  pruneopts = "UT"
   revision = "56c501706f00d9e1cfacee19a27117e12da24734"
 
 [[projects]]
   branch = "master"
-  digest = "1:6a87e4867afba5a9474e7ed4ef0f06edff407ea219e377ddade07973e7349adf"
   name = "github.com/decred/dcrd"
   packages = [
     "blockchain",
@@ -135,38 +112,32 @@
     "hdkeychain",
     "rpcclient",
     "txscript",
-    "wire",
+    "wire"
   ]
-  pruneopts = "UT"
   revision = "f0e65ec62f916b4b8aaafca6906c67c34c242dac"
 
 [[projects]]
   branch = "master"
-  digest = "1:1461bccbd0fc72368020233fcdd25c16fbc251bfb0e290aee8aa52dc144fc1e9"
   name = "github.com/decred/dcrdata"
   packages = [
     "api/types",
     "db/dbtypes",
     "db/dbtypes/internal",
-    "txhelpers",
+    "txhelpers"
   ]
-  pruneopts = "UT"
   revision = "119c1541be50cd4de5392779d54e782db4ce9f09"
 
 [[projects]]
   branch = "master"
-  digest = "1:042a91fc8a1409643738d468d2269edf50bf0ab16e3e9453f61546a8def751f4"
   name = "github.com/decred/dcrtime"
   packages = [
     "api/v1",
-    "merkle",
+    "merkle"
   ]
-  pruneopts = "UT"
   revision = "4c91c4cbed0916868471dd45d4780a041a740552"
 
 [[projects]]
   branch = "master"
-  digest = "1:055af2ccb50e20b0e46f3ff1e5d87c0427f42647036a0dfea8e7c968e2e4231c"
   name = "github.com/decred/dcrwallet"
   packages = [
     "errors",
@@ -179,172 +150,126 @@
     "wallet/internal/walletdb",
     "wallet/txauthor",
     "wallet/txrules",
-    "wallet/udb",
+    "wallet/udb"
   ]
-  pruneopts = "UT"
   revision = "640cbe14449e70dc5bd58b7d55049d1457cd5415"
 
 [[projects]]
-  digest = "1:72c1f6339c7ca1ecea3e3d30f9cae51bfca19b02d04cfe7e6db32cbfb9a65ddc"
   name = "github.com/decred/slog"
   packages = ["."]
-  pruneopts = "UT"
   revision = "fbd821ef791ba2b8ae945f5d44f4e49396d230c5"
   version = "v1.0.0"
 
 [[projects]]
   branch = "master"
-  digest = "1:0f56223de1ca49228034f96a18d3659415404c986426290b9761935f02894755"
   name = "github.com/golang/protobuf"
   packages = [
     "proto",
     "ptypes",
     "ptypes/any",
     "ptypes/duration",
-    "ptypes/timestamp",
+    "ptypes/timestamp"
   ]
-  pruneopts = "UT"
   revision = "e09c5db296004fbe3f74490e84dcd62c3c5ddb1b"
 
 [[projects]]
   branch = "master"
-  digest = "1:29a5ab9fa9e845fd8e8726f31b187d710afd271ef1eb32085fe3d604b7e06382"
   name = "github.com/golang/snappy"
   packages = ["."]
-  pruneopts = "UT"
   revision = "553a641470496b2327abcac10b36396bd98e45c9"
 
 [[projects]]
-  digest = "1:3a26588bc48b96825977c1b3df964f8fd842cd6860cc26370588d3563433cf11"
   name = "github.com/google/uuid"
   packages = ["."]
-  pruneopts = "UT"
   revision = "d460ce9f8df2e77fb1ba55ca87fafed96c607494"
   version = "v1.0.0"
 
 [[projects]]
-  digest = "1:160eabf7a69910fd74f29c692718bc2437c1c1c7d4c9dea9712357752a70e5df"
   name = "github.com/gorilla/context"
   packages = ["."]
-  pruneopts = "UT"
   revision = "1ea25387ff6f684839d82767c1733ff4d4d15d0a"
   version = "v1.1"
 
 [[projects]]
-  digest = "1:c6c7d7d1c2a4f9845f37c6f17f83fe1adcb41bebc891b94cd1ef95be1ce6b5e7"
   name = "github.com/gorilla/csrf"
   packages = ["."]
-  pruneopts = "UT"
   revision = "05b4a732b984ec326cac085631060968d4706b17"
   version = "v1.5.1"
 
 [[projects]]
-  digest = "1:e73f5b0152105f18bc131fba127d9949305c8693f8a762588a82a48f61756f5f"
   name = "github.com/gorilla/mux"
   packages = ["."]
-  pruneopts = "UT"
   revision = "e3702bed27f0d39777b0b37b664b6280e8ef8fbf"
   version = "v1.6.2"
 
 [[projects]]
-  digest = "1:f7463b67871bf7fe475e2c69fb0d21ead07de5188b8d7f8abf8fc961965ed841"
   name = "github.com/gorilla/schema"
   packages = ["."]
-  pruneopts = "UT"
   revision = "d0e4c24cff97ae983e9847e0ed5a02dc10013d41"
   version = "v1.0.2"
 
 [[projects]]
-  digest = "1:e72d1ebb8d395cf9f346fd9cbc652e5ae222dd85e0ac842dc57f175abed6d195"
   name = "github.com/gorilla/securecookie"
   packages = ["."]
-  pruneopts = "UT"
   revision = "e59506cc896acb7f7bf732d4fdf5e25f7ccd8983"
   version = "v1.1.1"
 
 [[projects]]
-  digest = "1:0fe783ea0c04c7d13f7c55d8f74b01b17e18a8320e7deecf578b41ef99b27205"
   name = "github.com/gorilla/sessions"
   packages = ["."]
-  pruneopts = "UT"
   revision = "03b6f63cc43ef9c7240a635a5e22b13180e822b8"
   version = "v1.1.1"
 
 [[projects]]
-  digest = "1:43dd08a10854b2056e615d1b1d22ac94559d822e1f8b6fcc92c1a1057e85188e"
   name = "github.com/gorilla/websocket"
   packages = ["."]
-  pruneopts = "UT"
   revision = "ea4d1f681babbce9545c9c5f3d5194a789c89f5b"
   version = "v1.2.0"
 
 [[projects]]
-  branch = "master"
-  digest = "1:d183f075b01320fc3f44ebebe3b783da51ddcdea12ab1afd166d4cd6f267bbff"
-  name = "github.com/h2non/go-is-svg"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "35e8c4b0612ce1ab2a228e25a323b22482db6788"
-
-[[projects]]
-  digest = "1:a2cff208d4759f6ba1b1cd228587b0a1869f95f22542ec9cd17fff64430113c7"
   name = "github.com/jessevdk/go-flags"
   packages = ["."]
-  pruneopts = "UT"
   revision = "c6ca198ec95c841fdb89fc0de7496fed11ab854e"
   version = "v1.4.0"
 
 [[projects]]
   branch = "master"
-  digest = "1:4b6a85c651ea3faa6dfb4e6de5249b602226270b9eb3dfb8f49ec91fa3ef08ff"
   name = "github.com/jrick/logrotate"
   packages = ["rotator"]
-  pruneopts = "UT"
   revision = "a93b200c26cbae3bb09dd0dc2c7c7fe1468a034a"
 
 [[projects]]
   branch = "master"
-  digest = "1:6d4d9067e639d96a804ee9a30fa89c7233c5c5edbfe736072ff00d48c97bccc4"
   name = "github.com/otiai10/copy"
   packages = ["."]
-  pruneopts = "UT"
   revision = "7e9a647135a142c2669943d4a4d29be015ce9392"
 
 [[projects]]
-  digest = "1:40e195917a951a8bf867cd05de2a46aaf1806c50cf92eebf4c16f78cd196f747"
   name = "github.com/pkg/errors"
   packages = ["."]
-  pruneopts = "UT"
   revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
   version = "v0.8.0"
 
 [[projects]]
-  digest = "1:0028cb19b2e4c3112225cd871870f2d9cf49b9b4276531f03438a88e94be86fe"
   name = "github.com/pmezard/go-difflib"
   packages = ["difflib"]
-  pruneopts = "UT"
   revision = "792786c7400a136282c1664665ae0a8db921c6c2"
   version = "v1.0.0"
 
 [[projects]]
-  digest = "1:ed615c5430ecabbb0fb7629a182da65ecee6523900ac1ac932520860878ffcad"
   name = "github.com/robfig/cron"
   packages = ["."]
-  pruneopts = "UT"
   revision = "b41be1df696709bb6395fe435af20370037c0b4c"
   version = "v1.1"
 
 [[projects]]
   branch = "master"
-  digest = "1:a21071fe279d1ce2a6f93a305c59afe8ada619918eb3b160de405117a35fcde7"
   name = "github.com/subosito/norma"
   packages = ["."]
-  pruneopts = "UT"
   revision = "523a8b2df22122d52ab9f6c7c0ae8aa17bb620eb"
 
 [[projects]]
   branch = "master"
-  digest = "1:38dd44d6db596fc0ac3c5165e1677d63b1c1068bc8753278ad099d64af69be0c"
   name = "github.com/syndtr/goleveldb"
   packages = [
     "leveldb",
@@ -358,14 +283,12 @@
     "leveldb/opt",
     "leveldb/storage",
     "leveldb/table",
-    "leveldb/util",
+    "leveldb/util"
   ]
-  pruneopts = "UT"
   revision = "714f901b98fdb3aa954b4193d8cbd64a28d80cad"
 
 [[projects]]
   branch = "master"
-  digest = "1:10252d94dc4f7b2f84fcbb3858c311f801e5c6d6c8690fe0d203a6f0c69c6036"
   name = "golang.org/x/crypto"
   packages = [
     "bcrypt",
@@ -377,14 +300,12 @@
     "salsa20/salsa",
     "scrypt",
     "sha3",
-    "ssh/terminal",
+    "ssh/terminal"
   ]
-  pruneopts = "UT"
   revision = "f70185d77e8278766928032ee1355e3da47e7181"
 
 [[projects]]
   branch = "master"
-  digest = "1:bdcbea46b5b43e27ba484b309839e5f03ed4fc4badd209adc82c57b260bc75eb"
   name = "golang.org/x/net"
   packages = [
     "context",
@@ -394,32 +315,26 @@
     "internal/timeseries",
     "lex/httplex",
     "publicsuffix",
-    "trace",
+    "trace"
   ]
-  pruneopts = "UT"
   revision = "61147c48b25b599e5b561d2e9c4f3e1ef489ca41"
 
 [[projects]]
   branch = "master"
-  digest = "1:39ebcc2b11457b703ae9ee2e8cca0f68df21969c6102cb3b705f76cca0ea0239"
   name = "golang.org/x/sync"
   packages = ["errgroup"]
-  pruneopts = "UT"
   revision = "1d60e4601c6fd243af51cc01ddf169918a5407ca"
 
 [[projects]]
   branch = "master"
-  digest = "1:4eb196f937ca6319f4095e0373b346aeeb4e3377e0200e7bb51daac0b5ec964c"
   name = "golang.org/x/sys"
   packages = [
     "unix",
-    "windows",
+    "windows"
   ]
-  pruneopts = "UT"
   revision = "3b87a42e500a6dc65dae1a55d0b641295971163e"
 
 [[projects]]
-  digest = "1:a2ab62866c75542dd18d2b069fec854577a20211d7c0ea6ae746072a1dccdd18"
   name = "golang.org/x/text"
   packages = [
     "collate",
@@ -435,22 +350,18 @@
     "unicode/bidi",
     "unicode/cldr",
     "unicode/norm",
-    "unicode/rangetable",
+    "unicode/rangetable"
   ]
-  pruneopts = "UT"
   revision = "f21a4dfb5e38f5895301dc265a8def02365cc3d0"
   version = "v0.3.0"
 
 [[projects]]
   branch = "master"
-  digest = "1:cd018653a358d4b743a9d3bee89e825521f2ab2f2ec0770164bf7632d8d73ab7"
   name = "google.golang.org/genproto"
   packages = ["googleapis/rpc/status"]
-  pruneopts = "UT"
   revision = "51d0944304c3cbce4afe9e5247e21100037bff78"
 
 [[projects]]
-  digest = "1:f47fb9bd1a9173285be23a1a1342e019abddfd787216e7f2c555ddba837e98ce"
   name = "google.golang.org/grpc"
   packages = [
     ".",
@@ -475,57 +386,14 @@
     "stats",
     "status",
     "tap",
-    "transport",
+    "transport"
   ]
-  pruneopts = "UT"
   revision = "d11072e7ca9811b1100b80ca0269ac831f06d024"
   version = "v1.11.3"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  input-imports = [
-    "github.com/agl/ed25519",
-    "github.com/badoux/checkmail",
-    "github.com/btcsuite/go-flags",
-    "github.com/btcsuite/go-socks/socks",
-    "github.com/dajohi/goemail",
-    "github.com/davecgh/go-spew/spew",
-    "github.com/decred/dcrd/certgen",
-    "github.com/decred/dcrd/chaincfg",
-    "github.com/decred/dcrd/chaincfg/chainec",
-    "github.com/decred/dcrd/chaincfg/chainhash",
-    "github.com/decred/dcrd/dcrutil",
-    "github.com/decred/dcrd/hdkeychain",
-    "github.com/decred/dcrd/wire",
-    "github.com/decred/dcrdata/api/types",
-    "github.com/decred/dcrtime/api/v1",
-    "github.com/decred/dcrtime/merkle",
-    "github.com/decred/dcrwallet/netparams",
-    "github.com/decred/dcrwallet/rpc/walletrpc",
-    "github.com/decred/dcrwallet/wallet/udb",
-    "github.com/decred/slog",
-    "github.com/google/uuid",
-    "github.com/gorilla/csrf",
-    "github.com/gorilla/mux",
-    "github.com/gorilla/schema",
-    "github.com/gorilla/sessions",
-    "github.com/h2non/go-is-svg",
-    "github.com/jessevdk/go-flags",
-    "github.com/jrick/logrotate/rotator",
-    "github.com/otiai10/copy",
-    "github.com/pmezard/go-difflib/difflib",
-    "github.com/robfig/cron",
-    "github.com/subosito/norma",
-    "github.com/syndtr/goleveldb/leveldb",
-    "github.com/syndtr/goleveldb/leveldb/opt",
-    "golang.org/x/crypto/bcrypt",
-    "golang.org/x/crypto/sha3",
-    "golang.org/x/crypto/ssh/terminal",
-    "golang.org/x/net/publicsuffix",
-    "golang.org/x/sync/errgroup",
-    "google.golang.org/grpc",
-    "google.golang.org/grpc/credentials",
-  ]
+  inputs-digest = "e7b9bf4eb5d7715e7a7f57286033c0379c96ce41e7ee68f2e3b69870369a3a77"
   solver-name = "gps-cdcl"
   solver-version = 1

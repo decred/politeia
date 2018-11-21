@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 
 	"github.com/decred/politeia/politeiawww/api/v1"
+	www "github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/politeiawww/database"
 	"github.com/google/uuid"
 )
@@ -114,4 +115,29 @@ func (b *backend) ProcessEditUser(eu *v1.EditUser, user *database.User) (*v1.Edi
 	}
 
 	return &v1.EditUserReply{}, nil
+}
+
+// ProcessProposalAccessTime returns an array of the access times for
+// all proposals for an user
+func (b *backend) ProcessProposalAccessTime(user *database.User, at v1.GetUserAccessTime) (*www.GetUserAccessTimeReply, error) {
+	log.Tracef("ProcessProposalAccessTime")
+	return &www.GetUserAccessTimeReply{
+		AccessTime: user.ProposalAccessTimes[at.Token],
+	}, nil
+}
+
+// ProcessSetUserAccessTime inserts new access for some proposal by a given user
+func (b *backend) ProcessSetUserAccessTime(user *database.User, uat v1.SetUserAccessTime) (*www.SetUserAccessTimeReply, error) {
+	log.Tracef("ProcessSetUserAccessTime")
+	pats := user.ProposalAccessTimes
+	if pats == nil {
+		pats = make(map[string]int64)
+	}
+	pats[uat.Token] = uat.AccessTime
+	user.ProposalAccessTimes = pats
+	err := b.db.UserUpdate(*user)
+	if err != nil {
+		return nil, err
+	}
+	return &www.SetUserAccessTimeReply{}, nil
 }

@@ -47,6 +47,8 @@ API.  It does not render HTML.
 - [`Vote results`](#vote-results)
 - [`User Comments votes`](#user-comments-votes)
 - [`Proposals Stats`](#proposals-stats)
+- [`User Access Time`](#user-access-time)
+- [`Set User Access Time`](#set-user-access-time)
 
 **Error status codes**
 
@@ -2322,6 +2324,63 @@ Reply:
   "numofunvettedchanges":1,
   "numofpublic":3
 }
+```
+
+
+### `User Access Time`
+A User Access Time is used to get the last time that the user has accessed some proposal
+
+**Route:** `GET v1/user/accesstimes/{token}`
+
+**Params:** none
+
+**Results:**
+
+| | Type | Description |
+| - | - | - |
+| accesstime | int | Timestamp of user access time for the proposal |
+
+**Example:**
+Request:
+Path: `v1/user/accesstimes/43f1ed17142377bf104732beee8f5f3bb736bae89d0b33df3e78b19f7b62aa91`
+
+Reply:
+
+```json
+{
+  "accesstime": 1543077225
+}
+```
+
+### `Set User Access Time`
+A Set User Access Time request is used to update the last time that the user has accessed some proposal
+
+**Route:** `PUT v1/user/accesstimes/{token}`
+
+**Params:**
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| token | string | Proposal Token | Yes |
+| accesstime | int | Proposal access time | Yes |
+
+**Results:** none
+
+**Example:**
+
+Path: `v1/user/accesstimes/43f1ed17142377bf104732beee8f5f3bb736bae89d0b33df3e78b19f7b62aa91`
+
+Request:
+```json
+{
+  "token": "43f1ed17142377bf104732beee8f5f3bb736bae89d0b33df3e78b19f7b62aa91",
+  "accesstime": 1543079999
+}
+```
+
+Reply:
+
+```json
+{}
 ```
 
 ### Error codes

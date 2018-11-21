@@ -33,11 +33,11 @@ const (
 	RouteUserDetails            = "/user/{userid:[0-9a-zA-Z-]{36}}"
 	RouteManageUser             = "/user/manage"
 	RouteEditUser               = "/user/edit"
+	RouteUserProposalAccessTime = "/user/accesstimes/{token:[A-z0-9]{64}}"
 	RouteUsers                  = "/users"
 	RouteLogin                  = "/login"
 	RouteLogout                 = "/logout"
 	RouteSecret                 = "/secret"
-	RouteUserProposalAccessTime = "/user/proposals/{token:[A-z0-9]{64}}/accesstime"
 	RouteProposalPaywallDetails = "/proposals/paywall"
 	RouteProposalPaywallPayment = "/proposals/paywallpayment"
 	RouteAllVetted              = "/proposals/vetted"
@@ -1096,14 +1096,24 @@ type ProposalsStatsReply struct {
 	NumOfAbandoned       int `json:"numofabandoned"`       // Counting number of abandoned proposals
 }
 
-// ProposalAccessTime returns a proposal access time
-type ProposalAccessTime struct {
-	ID        uint64 `json:"id"`        // ID of the proposal access time log
-	Token     string `json:"token"`     // proposal token
-	Timestamp int64  `json:"timestamp"` // Timestamp indicates when the proposal was accessed
+// GetUserAccessTime is used to retrieve the last time a user accessed a
+// proposal.
+type GetUserAccessTime struct {
+	Token string `json:"token"` // Proposal censorship token
 }
 
-// ProposalAccessTimeReply returns an array of all proposal access replies
-type ProposalAccessTimeReply struct {
-	ProposalAccessTime map[string]ProposalAccessTime `json:"proposalaccesstimes"`
+// GetUserAccessTimeReply is used to reply to the GetUserAccessTime command.
+type GetUserAccessTimeReply struct {
+	AccessTime int64 `json:"accesstime"` // UNIX timestamp of last time user accessed proposal
 }
+
+// SetUserAccessTime is used to update the last time that the user accessed
+// a proposal.
+type SetUserAccessTime struct {
+	Token      string `json:"token"`      // Proposal censorship token
+	AccessTime int64  `json:"accesstime"` // UNIX timestamp of last time user accessed proposal
+}
+
+// SetUserAccessTimeReply is used to reply to the SetUserAccessTime
+// command.
+type SetUserAccessTimeReply struct{}
