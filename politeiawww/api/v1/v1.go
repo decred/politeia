@@ -170,6 +170,7 @@ const (
 	ErrorStatusInvalidPropVoteParams       ErrorStatusT = 54
 	ErrorStatusEmailNotVerified            ErrorStatusT = 55
 	ErrorStatusInvalidPropVersion          ErrorStatusT = 56
+	ErrorStatusInvalidUUID                 ErrorStatusT = 57
 
 	// Proposal state codes
 	//
@@ -308,6 +309,7 @@ var (
 		ErrorStatusInvalidPropVoteParams:       "invalid proposal vote parameters",
 		ErrorStatusEmailNotVerified:            "email address is not verified",
 		ErrorStatusInvalidPropVersion:          "invalid proposal version",
+		ErrorStatusInvalidUUID:                 "invalid user UUID",
 	}
 
 	// PropStatus converts propsal status codes to human readable text

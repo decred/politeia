@@ -53,7 +53,9 @@ func convertWWWIdentityFromDatabaseIdentity(identity database.Identity) v1.UserI
 func (b *backend) getUserByIDStr(userIDStr string) (*database.User, error) {
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
-		return nil, err
+		return nil, v1.UserError{
+			ErrorCode: v1.ErrorStatusInvalidUUID,
+		}
 	}
 
 	user, err := b.db.UserGetById(userID)
