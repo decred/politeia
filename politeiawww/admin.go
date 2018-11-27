@@ -115,10 +115,7 @@ func (b *backend) ProcessManageUser(mu *v1.ManageUser, adminUser *database.User)
 	}
 
 	if !b.test {
-		b.Lock()
-		defer b.Unlock()
-
-		b.eventManager._fireEvent(EventTypeUserManage, EventDataUserManage{
+		b.fireEvent(EventTypeUserManage, EventDataUserManage{
 			AdminUser:  adminUser,
 			User:       user,
 			ManageUser: mu,

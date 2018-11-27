@@ -2436,11 +2436,11 @@ Reply:
 | isdeactivated | boolean | Whether the user account is deactivated. Deactivated accounts cannot login. |
 | identities | array of [`Identity`](#identity)s | Identities, both activated and deactivated, of the user. |
 | proposalcredits | uint64 | The number of available proposal credits the user has. |
-| proposalemailnotifications | uint64 | A flag storing the user's preferences for email notifications on proposal changes. Individual notification preferences are stored in bits of the number, and are [documented below](#proposalemailnotifications). |
+| emailnotifications | uint64 | A flag storing the user's preferences for email notifications. Individual notification preferences are stored in bits of the number, and are [documented below](#emailnotifications). |
 
-### Proposal email notifications
+### Email notifications
 
-These are the available email notifications that can be sent for proposals.
+These are the available email notifications that can be sent.
 
 | Description | Value |
 |-|-|

@@ -225,6 +225,8 @@ const (
 	NotificationEmailRegularProposalVoteStarted  EmailNotificationT = 1 << 4
 	NotificationEmailAdminProposalNew            EmailNotificationT = 1 << 5
 	NotificationEmailAdminProposalVoteAuthorized EmailNotificationT = 1 << 6
+	NotificationEmailCommentOnMyProposal         EmailNotificationT = 1 << 7
+	NotificationEmailCommentOnMyComment          EmailNotificationT = 1 << 8
 )
 
 var (
@@ -1032,7 +1034,7 @@ type ManageUserReply struct{}
 
 // EditUser edits a user's preferences.
 type EditUser struct {
-	ProposalEmailNotifications *uint64 `json:"proposalemailnotifications"` // Notify the user via email about proposals
+	EmailNotifications *uint64 `json:"emailnotifications"` // Notify the user via emails
 }
 
 // EditUserReply is the reply for the EditUser command.
@@ -1061,7 +1063,7 @@ type User struct {
 	Locked                          bool           `json:"islocked"`
 	Identities                      []UserIdentity `json:"identities"`
 	ProposalCredits                 uint64         `json:"proposalcredits"`
-	ProposalEmailNotifications      uint64         `json:"proposalemailnotifications"` // Notify the user via email about proposals
+	EmailNotifications              uint64         `json:"emailnotifications"` // Notify the user via emails
 }
 
 // UserIdentity represents a user's unique identity.

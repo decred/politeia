@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"net/url"
 	"text/template"
 
@@ -142,7 +143,7 @@ func (b *backend) emailAuthorForVettedProposal(
 		return err
 	}
 
-	if authorUser.ProposalEmailNotifications&
+	if authorUser.EmailNotifications&
 		uint64(v1.NotificationEmailMyProposalStatusChange) == 0 {
 		return nil
 	}
@@ -179,7 +180,7 @@ func (b *backend) emailAuthorForCensoredProposal(
 		return err
 	}
 
-	if authorUser.ProposalEmailNotifications&
+	if authorUser.EmailNotifications&
 		uint64(v1.NotificationEmailMyProposalStatusChange) == 0 {
 		return nil
 	}
@@ -236,7 +237,7 @@ func (b *backend) emailUsersForVettedProposal(
 			// Don't notify the user under certain conditions.
 			if user.NewUserPaywallTx == "" || user.Deactivated ||
 				user.ID == adminUser.ID || user.ID == authorUser.ID ||
-				(user.ProposalEmailNotifications&
+				(user.EmailNotifications&
 					uint64(v1.NotificationEmailRegularProposalVetted)) == 0 {
 				return
 			}
@@ -283,7 +284,7 @@ func (b *backend) emailUsersForEditedProposal(
 			// Don't notify the user under certain conditions.
 			if user.NewUserPaywallTx == "" || user.Deactivated ||
 				user.ID == authorUser.ID ||
-				(user.ProposalEmailNotifications&
+				(user.EmailNotifications&
 					uint64(v1.NotificationEmailRegularProposalEdited)) == 0 {
 				return
 			}
@@ -318,7 +319,7 @@ func (b *backend) emailUsersForProposalVoteStarted(
 	}
 
 	// Send email to author.
-	if authorUser.ProposalEmailNotifications&
+	if authorUser.EmailNotifications&
 		uint64(v1.NotificationEmailMyProposalVoteStarted) != 0 {
 
 		subject := "Your Proposal Has Started Voting"
@@ -346,7 +347,7 @@ func (b *backend) emailUsersForProposalVoteStarted(
 			if user.NewUserPaywallTx == "" || user.Deactivated ||
 				user.ID == adminUser.ID ||
 				user.ID == authorUser.ID ||
-				(user.ProposalEmailNotifications&
+				(user.EmailNotifications&
 					uint64(v1.NotificationEmailRegularProposalVoteStarted)) == 0 {
 				return
 			}
@@ -383,7 +384,7 @@ func (b *backend) emailAdminsForNewSubmittedProposal(token string, propName stri
 		// Add admin emails to the goemail.Message
 		return b.db.AllUsers(func(user *database.User) {
 			if !user.Admin || user.Deactivated ||
-				(user.ProposalEmailNotifications&
+				(user.EmailNotifications&
 					uint64(v1.NotificationEmailAdminProposalNew) == 0) {
 				return
 			}
@@ -422,13 +423,87 @@ func (b *backend) emailAdminsForProposalVoteAuthorized(
 		// Add admin emails to the goemail.Message
 		return b.db.AllUsers(func(user *database.User) {
 			if !user.Admin || user.Deactivated ||
-				(user.ProposalEmailNotifications&
+				(user.EmailNotifications&
 					uint64(v1.NotificationEmailAdminProposalVoteAuthorized) == 0) {
 				return
 			}
 			msg.AddBCC(user.Email)
 		})
 	})
+}
+
+// emailAuthorForCommentOnProposal sends an email notification to a proposal
+// author for a new comment.
+func (b *backend) emailAuthorForCommentOnProposal(
+	proposal *v1.ProposalRecord,
+	authorUser *database.User,
+	username string,
+) error {
+	if b.cfg.SMTP == nil {
+		return nil
+	}
+
+	l, err := url.Parse(fmt.Sprintf("%v/proposals/%v", b.cfg.WebServerAddress,
+		proposal.CensorshipRecord.Token))
+	if err != nil {
+		return err
+	}
+
+	if authorUser.EmailNotifications&
+		uint64(v1.NotificationEmailCommentOnMyProposal) == 0 {
+		return nil
+	}
+
+	tplData := commentReplyOnProposalTemplateData{
+		Commenter:    username,
+		ProposalName: proposal.Name,
+		CommentLink:  l.String(),
+	}
+
+	subject := "New Comment On Your Proposal"
+	body, err := createBody(templateCommentReplyOnProposal, &tplData)
+	if err != nil {
+		return err
+	}
+
+	return b.sendEmailTo(subject, body, authorUser.Email)
+}
+
+// emailAuthorForCommentOnComment sends an email notification to a comment
+// author for a new comment reply.
+func (b *backend) emailAuthorForCommentOnComment(
+	proposal *v1.ProposalRecord,
+	authorUser *database.User,
+	commentID, username string,
+) error {
+	if b.cfg.SMTP == nil {
+		return nil
+	}
+
+	l, err := url.Parse(fmt.Sprintf("%v/proposals/%v/comments/%v",
+		b.cfg.WebServerAddress, proposal.CensorshipRecord.Token, commentID))
+	if err != nil {
+		return err
+	}
+
+	if authorUser.EmailNotifications&
+		uint64(v1.NotificationEmailCommentOnMyComment) == 0 {
+		return nil
+	}
+
+	tplData := commentReplyOnCommentTemplateData{
+		Commenter:    username,
+		ProposalName: proposal.Name,
+		CommentLink:  l.String(),
+	}
+
+	subject := "New Comment On Your Comment"
+	body, err := createBody(templateCommentReplyOnComment, &tplData)
+	if err != nil {
+		return err
+	}
+
+	return b.sendEmailTo(subject, body, authorUser.Email)
 }
 
 // emailUpdateUserKeyVerificationLink emails the link with the verification
