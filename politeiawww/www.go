@@ -193,11 +193,13 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 		}
 
 		if len(userErr.ErrorContext) == 0 {
-			log.Errorf("RespondWithError: %v %v",
+			log.Errorf("RespondWithError: %v %v %v",
+				remoteAddr(r),
 				int64(userErr.ErrorCode),
 				v1.ErrorStatus[userErr.ErrorCode])
 		} else {
-			log.Errorf("RespondWithError: %v %v: %v",
+			log.Errorf("RespondWithError: %v %v %v: %v",
+				remoteAddr(r),
 				int64(userErr.ErrorCode),
 				v1.ErrorStatus[userErr.ErrorCode],
 				strings.Join(userErr.ErrorContext, ", "))
