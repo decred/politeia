@@ -8,6 +8,29 @@ import (
 	"github.com/decred/politeia/util"
 )
 
+// Help message displayed for the command 'politeiawwwcli help newuser'
+var NewUserCmdHelpMsg = `newuser "email" "username" "password" 
+
+Create a new Politeia user. Users can be created by supplying all the arguments
+below, or supplying the --random flag. If --random is used, Politeia will 
+generate a random email, username and password.
+
+Arguments:
+1. email      (string, required)   Email address
+2. username   (string, required)   Username 
+3. password   (string, required)   Password
+
+Result:
+{
+  "email":      (string)  User email
+  "password":   (string)  Password
+  "publickey":  (string)  Active public key
+  "username":   (string)  Username
+}
+{
+  "verificationtoken":   (string)  Server verification token
+}`
+
 type NewUserCmd struct {
 	Args struct {
 		Email    string `positional-arg-name:"email"`
