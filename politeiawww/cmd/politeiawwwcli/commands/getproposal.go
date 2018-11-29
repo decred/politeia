@@ -2,12 +2,15 @@ package commands
 
 import (
 	"fmt"
+
+	"github.com/decred/politeia/politeiawww/api/v1"
 )
 
 type GetProposalCmd struct {
 	Args struct {
-		Token string `positional-arg-name:"token"`
-	} `positional-args:"true" required:"true"`
+		Token   string `positional-arg-name:"token" required:"true"`
+		Version string `positional-arg-name:"version"`
+	} `positional-args:"true"`
 }
 
 func (cmd *GetProposalCmd) Execute(args []string) error {
@@ -18,7 +21,9 @@ func (cmd *GetProposalCmd) Execute(args []string) error {
 	}
 
 	// Get proposal
-	pdr, err := c.ProposalDetails(cmd.Args.Token)
+	pdr, err := c.ProposalDetails(cmd.Args.Token, &v1.ProposalsDetails{
+		Version: cmd.Args.Version,
+	})
 	if err != nil {
 		return err
 	}

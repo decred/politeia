@@ -185,7 +185,7 @@ func TestAnchorWithCommits(t *testing.T) {
 			record.RecordMetadata.Status, backend.MDStatusVetted)
 	}
 	//Get it as well to validate the GetVetted call
-	pru, err := g.GetVetted(token)
+	pru, err := g.GetVetted(token, "")
 	if err != nil {
 		t.Fatal(err)
 	}

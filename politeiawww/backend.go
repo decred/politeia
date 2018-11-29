@@ -1946,12 +1946,28 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 	cachedProposal := b._convertPropFromInventoryRecord(p)
 	b.RUnlock()
 
+	// validate requested version when it is specified
+	if propDetails.Version != "" {
+		latestVersion, err := strconv.ParseUint(cachedProposal.Version, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("Could not parse proposal version %v: %v",
+				propDetails.Token, err)
+		}
+		specVersion, err := strconv.ParseUint(propDetails.Version, 10, 64)
+		if err != nil || specVersion > latestVersion {
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusInvalidPropVersion,
+			}
+		}
+	}
+
 	var isVettedProposal bool
 	var requestObject interface{}
 	if cachedProposal.State == www.PropStateVetted {
 		isVettedProposal = true
 		requestObject = pd.GetVetted{
 			Token:     propDetails.Token,
+			Version:   propDetails.Version,
 			Challenge: hex.EncodeToString(challenge),
 		}
 	} else {

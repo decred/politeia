@@ -1403,6 +1403,7 @@ Retrieve proposal and its details.
 | Parameter | Type | Description | Required |
 |-|-|-|-|
 | token | string | Token is the unique censorship token that identifies a specific proposal. | Yes |
+| version | string | Proposal Version. The latest version is the default when no version is specified. | No |
 
 **Results:**
 
@@ -1421,7 +1422,7 @@ Request:
 The request params should be provided within the URL:
 
 ```
-/v1/proposals/f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde
+/v1/proposals/f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde?version=2
 ```
 
 Reply:
@@ -1432,6 +1433,7 @@ Reply:
     "name": "My Proposal",
     "status": 3,
     "timestamp": 1508146426,
+    "version": 2,
     "files": [{
       "name": "index.md",
       "mime": "text/plain; charset=utf-8",

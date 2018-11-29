@@ -201,6 +201,16 @@ func _joinLatest(elements ...string) (string, error) {
 	return pijoin(dir, v), nil
 }
 
+// getPathToVersion returns the directory path to the specified record version
+// if the version isn't provided, the latest version is returned by default
+func getPathToVersion(path, id, version string) string {
+	if version == "" {
+		return joinLatest(path, id)
+	} else {
+		return pijoin(path, id, version)
+	}
+}
+
 // joinLatest joins the provided path elements and adds the latest version of
 // the provided directory. This function panic when it errors out, this is by
 // design in order to find all incorrect invocations.
@@ -419,9 +429,10 @@ func verifyContent(metadata []backend.MetadataStream, files []backend.File, file
 // backend.File that is completely filled out.
 //
 // This function must be called with the lock held.
-func loadRecord(path, id string) ([]backend.File, error) {
+func loadRecord(path, id, version string) ([]backend.File, error) {
+	pathToVersion := getPathToVersion(path, id, version)
 	// Get dir.
-	recordDir := pijoin(joinLatest(path, id), defaultPayloadDir)
+	recordDir := pijoin(pathToVersion, defaultPayloadDir)
 	files, err := ioutil.ReadDir(recordDir)
 	if err != nil {
 		return nil, err
@@ -457,10 +468,9 @@ func mdFilename(path, id string, mdID int) string {
 // backend.MetadataStream that is completely filled out.
 //
 // This function must be called with the lock held.
-func loadMDStreams(path, id string) ([]backend.MetadataStream, error) {
-	// Get dir.
-	dir := joinLatest(path, id)
-	files, err := ioutil.ReadDir(dir)
+func loadMDStreams(path, id, version string) ([]backend.MetadataStream, error) {
+	pathToVersion := getPathToVersion(path, id, version)
+	files, err := ioutil.ReadDir(pathToVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -480,7 +490,7 @@ func loadMDStreams(path, id string) ([]backend.MetadataStream, error) {
 		}
 
 		// Load metadata stream
-		fn := pijoin(dir, v.Name())
+		fn := pijoin(pathToVersion, v.Name())
 		md, err := ioutil.ReadFile(fn)
 		if err != nil {
 			return nil, err
@@ -498,8 +508,9 @@ func loadMDStreams(path, id string) ([]backend.MetadataStream, error) {
 // be unvetted/id or vetted/id.
 //
 // This function should be called with the lock held.
-func loadMD(path, id string) (*backend.RecordMetadata, error) {
-	filename := pijoin(joinLatest(path, id),
+func loadMD(path, id, version string) (*backend.RecordMetadata, error) {
+	pathToVersion := getPathToVersion(path, id, version)
+	filename := pijoin(pathToVersion,
 		defaultRecordMetadataFilename)
 	f, err := os.Open(filename)
 	if err != nil {
@@ -1299,7 +1310,7 @@ func (g *gitBackEnd) _updateRecord(commit bool, id string, mdAppend, mdOverwrite
 	defer func() { log.Tracef("updating complete: %v", id) }()
 
 	// Load MD
-	brm, err := loadMD(g.unvetted, id)
+	brm, err := loadMD(g.unvetted, id, "")
 	if err != nil {
 		return err
 	}
@@ -1580,7 +1591,7 @@ func (g *gitBackEnd) updateRecord(token []byte, mdAppend []backend.MetadataStrea
 			}
 
 			// g.vetted is correct!
-			return g.getRecord(token, g.vetted, true)
+			return g.getRecord(token, "", g.vetted, true)
 		}
 
 		// git stash
@@ -1615,7 +1626,7 @@ func (g *gitBackEnd) updateRecord(token []byte, mdAppend []backend.MetadataStrea
 		filesDel)
 	if errReturn == nil {
 		// success
-		return g.getRecord(token, g.unvetted, true)
+		return g.getRecord(token, "", g.unvetted, true)
 	}
 
 	// git stash
@@ -1717,7 +1728,7 @@ func (g *gitBackEnd) _updateVettedMetadata(token []byte, mdAppend []backend.Meta
 	}
 
 	// Make sure record is not locked.
-	md, err := loadMD(g.unvetted, id)
+	md, err := loadMD(g.unvetted, id, "")
 	if err != nil {
 		return err
 	}
@@ -1777,7 +1788,7 @@ func (g *gitBackEnd) UpdateVettedMetadata(token []byte, mdAppend []backend.Metad
 // returns a record record from the provided repo.
 //
 // This function must be called WITHOUT the lock held.
-func (g *gitBackEnd) getRecordLock(token []byte, repo string, includeFiles bool) (*backend.Record, error) {
+func (g *gitBackEnd) getRecordLock(token []byte, version, repo string, includeFiles bool) (*backend.Record, error) {
 	// Lock filesystem
 	g.Lock()
 	defer g.Unlock()
@@ -1785,27 +1796,31 @@ func (g *gitBackEnd) getRecordLock(token []byte, repo string, includeFiles bool)
 		return nil, backend.ErrShutdown
 	}
 
-	return g.getRecord(token, repo, includeFiles)
+	return g.getRecord(token, version, repo, includeFiles)
 }
 
 // _getRecord loads a record from the current branch on the provided repo.
 //
 // This function must be called WITH the lock held.
-func (g *gitBackEnd) _getRecord(id, repo string, includeFiles bool) (*backend.Record, error) {
-	// Get latest version.
-	version, err := getLatest(pijoin(repo, id))
-	if err != nil {
-		return nil, err
+func (g *gitBackEnd) _getRecord(id, version, repo string, includeFiles bool) (*backend.Record, error) {
+
+	// Use latestVersion if version isn't specified
+	if version == "" {
+		latestVersion, err := getLatest(pijoin(repo, id))
+		if err != nil {
+			return nil, err
+		}
+		version = latestVersion
 	}
 
 	// load MD
-	brm, err := loadMD(repo, id)
+	brm, err := loadMD(repo, id, version)
 	if err != nil {
 		return nil, err
 	}
 
 	// load metadata streams
-	mds, err := loadMDStreams(repo, id)
+	mds, err := loadMDStreams(repo, id, version)
 	if err != nil {
 		return nil, err
 	}
@@ -1813,7 +1828,7 @@ func (g *gitBackEnd) _getRecord(id, repo string, includeFiles bool) (*backend.Re
 	var files []backend.File
 	if includeFiles {
 		// load files
-		files, err = loadRecord(repo, id)
+		files, err = loadRecord(repo, id, version)
 		if err != nil {
 			return nil, err
 		}
@@ -1831,7 +1846,7 @@ func (g *gitBackEnd) _getRecord(id, repo string, includeFiles bool) (*backend.Re
 // returns a record record from the provided repo.
 //
 // This function must be called WITH the lock held.
-func (g *gitBackEnd) getRecord(token []byte, repo string, includeFiles bool) (*backend.Record, error) {
+func (g *gitBackEnd) getRecord(token []byte, version, repo string, includeFiles bool) (*backend.Record, error) {
 	log.Tracef("getRecord: %x", token)
 
 	id := hex.EncodeToString(token)
@@ -1854,7 +1869,7 @@ func (g *gitBackEnd) getRecord(token []byte, repo string, includeFiles bool) (*b
 		}
 	}()
 
-	return g._getRecord(id, repo, includeFiles)
+	return g._getRecord(id, version, repo, includeFiles)
 }
 
 // fsck performs a git fsck and additionally it validates the git tree against
@@ -1975,15 +1990,15 @@ func (g *gitBackEnd) fsck(path string) error {
 // GetUnvetted satisfies the backend interface.
 func (g *gitBackEnd) GetUnvetted(token []byte) (*backend.Record, error) {
 	log.Debugf("GetUnvetted %x", token)
-	return g.getRecordLock(token, g.unvetted, true)
+	return g.getRecordLock(token, "", g.unvetted, true)
 }
 
 // GetVetted returns the content of vetted/token directory.
 //
 // GetVetted satisfies the backend interface.
-func (g *gitBackEnd) GetVetted(token []byte) (*backend.Record, error) {
+func (g *gitBackEnd) GetVetted(token []byte, version string) (*backend.Record, error) {
 	log.Debugf("GetVetted %x", token)
-	return g.getRecordLock(token, g.vetted, true)
+	return g.getRecordLock(token, version, g.vetted, true)
 }
 
 // setUnvettedStatus takes various parameters to update a record metadata and
@@ -2000,7 +2015,7 @@ func (g *gitBackEnd) setUnvettedStatus(token []byte, status backend.MDStatusT, m
 	}
 
 	// Load record
-	record, err := g._getRecord(id, g.unvetted, false)
+	record, err := g._getRecord(id, "", g.unvetted, false)
 	if err != nil {
 		return nil, err
 	}
@@ -2070,7 +2085,7 @@ func (g *gitBackEnd) setUnvettedStatus(token []byte, status backend.MDStatusT, m
 		}
 	}
 
-	return g._getRecord(id, g.unvetted, false)
+	return g._getRecord(id, "", g.unvetted, false)
 }
 
 // SetUnvettedStatus tries to update the status for an unvetted record. It
@@ -2141,7 +2156,7 @@ func (g *gitBackEnd) _setVettedStatus(token []byte, status backend.MDStatusT, md
 	}
 
 	// Make sure record is not locked.
-	md, err := loadMD(g.unvetted, id)
+	md, err := loadMD(g.unvetted, id, "")
 	if err != nil {
 		return nil, err
 	}
@@ -2150,7 +2165,7 @@ func (g *gitBackEnd) _setVettedStatus(token []byte, status backend.MDStatusT, md
 	}
 
 	// Load record
-	record, err := g._getRecord(id, g.unvetted, false)
+	record, err := g._getRecord(id, "", g.unvetted, false)
 	if err != nil {
 		return nil, err
 	}
@@ -2201,7 +2216,7 @@ func (g *gitBackEnd) _setVettedStatus(token []byte, status backend.MDStatusT, md
 		return nil, err
 	}
 
-	return g._getRecord(id, g.unvetted, false)
+	return g._getRecord(id, "", g.unvetted, false)
 }
 
 // SetVettedStatus tries to update the status for a vetted record.  It returns
@@ -2271,7 +2286,7 @@ func (g *gitBackEnd) Inventory(vettedCount, branchCount uint, includeFiles bool)
 		if err != nil {
 			return nil, nil, err
 		}
-		prv, err := g.getRecord(ids, g.vetted, includeFiles)
+		prv, err := g.getRecord(ids, "", g.vetted, includeFiles)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -2293,7 +2308,7 @@ func (g *gitBackEnd) Inventory(vettedCount, branchCount uint, includeFiles bool)
 		if err != nil {
 			return nil, nil, err
 		}
-		pru, err := g.getRecord(ids, g.unvetted, includeFiles)
+		pru, err := g.getRecord(ids, "", g.unvetted, includeFiles)
 		if err != nil {
 			// We probably should not fail the entire call
 			return nil, nil, err

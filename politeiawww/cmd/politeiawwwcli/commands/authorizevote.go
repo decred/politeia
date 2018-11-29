@@ -43,7 +43,7 @@ func (cmd *AuthorizeVoteCmd) Execute(args []string) error {
 	}
 
 	// Get proposal version
-	pdr, err := c.ProposalDetails(token)
+	pdr, err := c.ProposalDetails(token, nil)
 	if err != nil {
 		return err
 	}

@@ -160,7 +160,7 @@ type Backend interface {
 	GetUnvetted([]byte) (*Record, error)
 
 	// Get vetted record
-	GetVetted([]byte) (*Record, error)
+	GetVetted([]byte, string) (*Record, error)
 
 	// Set unvetted record status
 	SetUnvettedStatus([]byte, MDStatusT, []MetadataStream,
