@@ -12,7 +12,6 @@ var (
 	// can be communicated between client and server.
 	validMimeTypesList = []string{
 		"image/png",
-		"image/svg+xml",
 		"text/plain",
 		"text/plain; charset=utf-8",
 	}

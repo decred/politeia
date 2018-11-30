@@ -1307,7 +1307,6 @@ Reply:
   "maxmdsize": 524288,
   "validmimetypes": [
     "image/png",
-    "image/svg+xml",
     "text/plain",
     "text/plain; charset=utf-8"
   ],
@@ -2495,7 +2494,7 @@ This is a shortened representation of a user, used for lists.
 | | Type | Description |
 |-|-|-|
 | name | string | Name is the suggested filename. There should be no filenames that are overlapping and the name shall be validated before being used. |
-| mime | string | MIME type of the payload. Currently the system only supports md and png/svg files. The server shall reject invalid MIME types. |
+| mime | string | MIME type of the payload. Currently the system only supports md and png files. The server shall reject invalid MIME types. |
 | digest | string | Digest is a SHA256 digest of the payload. The digest shall be verified by politeiad. |
 | payload | string | Payload is the actual file content. It shall be base64 encoded. Files have size limits that can be obtained via the [`Policy`](#policy) call. The server shall strictly enforce policy limits. |
 
