@@ -25,6 +25,7 @@ require (
 	github.com/gorilla/mux v1.6.2
 	github.com/gorilla/schema v1.0.2
 	github.com/gorilla/sessions v1.1.3
+	github.com/gorilla/websocket v1.2.0
 	github.com/h2non/go-is-svg v0.0.0-20160927212452-35e8c4b0612c
 	github.com/jessevdk/go-flags v1.4.0
 	github.com/jrick/logrotate v1.0.0

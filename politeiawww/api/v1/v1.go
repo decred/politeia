@@ -17,49 +17,51 @@ const (
 	CsrfToken = "X-CSRF-Token"    // CSRF token for replies
 	Forward   = "X-Forwarded-For" // Proxy header
 
-	RouteUserMe                 = "/user/me"
-	RouteNewUser                = "/user/new"
-	RouteVerifyNewUser          = "/user/verify"
-	RouteResendVerification     = "/user/new/resend"
-	RouteUpdateUserKey          = "/user/key"
-	RouteVerifyUpdateUserKey    = "/user/key/verify"
-	RouteChangeUsername         = "/user/username/change"
-	RouteChangePassword         = "/user/password/change"
-	RouteResetPassword          = "/user/password/reset"
-	RouteUserProposals          = "/user/proposals"
-	RouteUserProposalCredits    = "/user/proposals/credits"
-	RouteVerifyUserPayment      = "/user/verifypayment"
-	RouteUserPaymentsRescan     = "/user/payments/rescan"
-	RouteUserDetails            = "/user/{userid:[0-9a-zA-Z-]{36}}"
-	RouteManageUser             = "/user/manage"
-	RouteEditUser               = "/user/edit"
-	RouteUsers                  = "/users"
-	RouteLogin                  = "/login"
-	RouteLogout                 = "/logout"
-	RouteSecret                 = "/secret"
-	RouteProposalPaywallDetails = "/proposals/paywall"
-	RouteProposalPaywallPayment = "/proposals/paywallpayment"
-	RouteAllVetted              = "/proposals/vetted"
-	RouteAllUnvetted            = "/proposals/unvetted"
-	RouteNewProposal            = "/proposals/new"
-	RouteEditProposal           = "/proposals/edit"
-	RouteProposalDetails        = "/proposals/{token:[A-z0-9]{64}}"
-	RouteSetProposalStatus      = "/proposals/{token:[A-z0-9]{64}}/status"
-	RoutePolicy                 = "/policy"
-	RouteVersion                = "/version"
-	RouteNewComment             = "/comments/new"
-	RouteLikeComment            = "/comments/like"
-	RouteCensorComment          = "/comments/censor"
-	RouteCommentsGet            = "/proposals/{token:[A-z0-9]{64}}/comments"
-	RouteAuthorizeVote          = "/proposals/authorizevote"
-	RouteStartVote              = "/proposals/startvote"
-	RouteActiveVote             = "/proposals/activevote" // XXX rename to ActiveVotes
-	RouteCastVotes              = "/proposals/castvotes"
-	RouteUserCommentsLikes      = "/user/proposals/{token:[A-z0-9]{64}}/commentslikes"
-	RouteVoteResults            = "/proposals/{token:[A-z0-9]{64}}/votes"
-	RouteAllVoteStatus          = "/proposals/votestatus"
-	RouteVoteStatus             = "/proposals/{token:[A-z0-9]{64}}/votestatus"
-	RoutePropsStats             = "/proposals/stats"
+	RouteUserMe                   = "/user/me"
+	RouteNewUser                  = "/user/new"
+	RouteVerifyNewUser            = "/user/verify"
+	RouteResendVerification       = "/user/new/resend"
+	RouteUpdateUserKey            = "/user/key"
+	RouteVerifyUpdateUserKey      = "/user/key/verify"
+	RouteChangeUsername           = "/user/username/change"
+	RouteChangePassword           = "/user/password/change"
+	RouteResetPassword            = "/user/password/reset"
+	RouteUserProposals            = "/user/proposals"
+	RouteUserProposalCredits      = "/user/proposals/credits"
+	RouteVerifyUserPayment        = "/user/verifypayment"
+	RouteUserPaymentsRescan       = "/user/payments/rescan"
+	RouteUserDetails              = "/user/{userid:[0-9a-zA-Z-]{36}}"
+	RouteManageUser               = "/user/manage"
+	RouteEditUser                 = "/user/edit"
+	RouteUsers                    = "/users"
+	RouteLogin                    = "/login"
+	RouteLogout                   = "/logout"
+	RouteSecret                   = "/secret"
+	RouteProposalPaywallDetails   = "/proposals/paywall"
+	RouteProposalPaywallPayment   = "/proposals/paywallpayment"
+	RouteAllVetted                = "/proposals/vetted"
+	RouteAllUnvetted              = "/proposals/unvetted"
+	RouteNewProposal              = "/proposals/new"
+	RouteEditProposal             = "/proposals/edit"
+	RouteProposalDetails          = "/proposals/{token:[A-z0-9]{64}}"
+	RouteSetProposalStatus        = "/proposals/{token:[A-z0-9]{64}}/status"
+	RoutePolicy                   = "/policy"
+	RouteVersion                  = "/version"
+	RouteNewComment               = "/comments/new"
+	RouteLikeComment              = "/comments/like"
+	RouteCensorComment            = "/comments/censor"
+	RouteCommentsGet              = "/proposals/{token:[A-z0-9]{64}}/comments"
+	RouteAuthorizeVote            = "/proposals/authorizevote"
+	RouteStartVote                = "/proposals/startvote"
+	RouteActiveVote               = "/proposals/activevote" // XXX rename to ActiveVotes
+	RouteCastVotes                = "/proposals/castvotes"
+	RouteUserCommentsLikes        = "/user/proposals/{token:[A-z0-9]{64}}/commentslikes"
+	RouteVoteResults              = "/proposals/{token:[A-z0-9]{64}}/votes"
+	RouteAllVoteStatus            = "/proposals/votestatus"
+	RouteVoteStatus               = "/proposals/{token:[A-z0-9]{64}}/votestatus"
+	RoutePropsStats               = "/proposals/stats"
+	RouteUnauthenticatedWebSocket = "/ws"
+	RouteAuthenticatedWebSocket   = "/aws"
 
 	// VerificationTokenSize is the size of verification token in bytes
 	VerificationTokenSize = 32
@@ -1105,4 +1107,38 @@ type ProposalsStatsReply struct {
 	NumOfUnvettedChanges int `json:"numofunvettedchanges"` // Counting number of proposals with unvetted changes
 	NumOfPublic          int `json:"numofpublic"`          // Counting number of public proposals
 	NumOfAbandoned       int `json:"numofabandoned"`       // Counting number of abandoned proposals
+}
+
+// Websocket commands
+const (
+	WSCError     = "error"
+	WSCPing      = "ping"
+	WSCSubscribe = "subscribe"
+)
+
+// WSHeader is required to be sent before any other command. The point is to
+// make decoding easier without too much magic. E.g. a ping command
+// WSHeader<ping>WSPing<timestamp>
+type WSHeader struct {
+	Command string `json:"command"`      // Following command
+	ID      string `json:"id,omitempty"` // Client setable client id
+}
+
+// WSError is a generic websocket error. It returns in ID the client side id
+// and all errors it encountered in Errors.
+type WSError struct {
+	Command string   `json:"command,omitempty"` // Command from client
+	ID      string   `json:"id,omitempty"`      // Client set client id
+	Errors  []string `json:"errors"`            // Errors returned by server
+}
+
+// WSSubscribe is a client side push to tell the server what RPCs it wishes to
+// subscribe to.
+type WSSubscribe struct {
+	RPCS []string `json:"rpcs"` // Commands that the client wants to subscribe to
+}
+
+// WSPing is a server side push to the client to see if it is still alive.
+type WSPing struct {
+	Timestamp int64 `json:"timestamp"` // Server side timestamp
 }

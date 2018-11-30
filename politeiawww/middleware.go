@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 
-	"github.com/decred/politeia/politeiawww/api/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/util"
 )
 
@@ -16,7 +16,7 @@ func (p *politeiawww) isLoggedIn(f http.HandlerFunc) http.HandlerFunc {
 		log.Debugf("isLoggedIn: %v %v %v %v", remoteAddr(r), r.Method,
 			r.URL, r.Proto)
 
-		email, err := p.getSessionEmail(r)
+		id, err := p.getSessionUUID(r)
 		if err != nil {
 			util.RespondWithJSON(w, http.StatusUnauthorized, v1.ErrorReply{
 				ErrorCode: int64(v1.ErrorStatusNotLoggedIn),
@@ -25,7 +25,7 @@ func (p *politeiawww) isLoggedIn(f http.HandlerFunc) http.HandlerFunc {
 		}
 
 		// Check if user is authenticated
-		if email == "" {
+		if id == "" {
 			util.RespondWithJSON(w, http.StatusUnauthorized, v1.ErrorReply{
 				ErrorCode: int64(v1.ErrorStatusNotLoggedIn),
 			})

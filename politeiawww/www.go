@@ -16,10 +16,12 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
-	"github.com/decred/politeia/politeiawww/api/v1"
+	"github.com/davecgh/go-spew/spew"
+	v1 "github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/politeiawww/database"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
@@ -27,6 +29,7 @@ import (
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
+	"github.com/gorilla/websocket"
 )
 
 type permission uint
@@ -40,12 +43,40 @@ const (
 	sessionMaxAge = 86400 //One day
 )
 
+// wsContext is the websocket context. If uuid == "" then it is an
+// unauthenticated websocket.
+type wsContext struct {
+	uuid          string
+	rid           string
+	conn          *websocket.Conn
+	wg            sync.WaitGroup
+	subscriptions map[string]struct{}
+	errorC        chan v1.WSError
+	pingC         chan struct{}
+	done          chan struct{} // SHUT...DOWN...EVERYTHING...
+}
+
+func (w *wsContext) String() string {
+	u := w.uuid
+	if u == "" {
+		u = "anon"
+	}
+	return u + " " + w.rid
+}
+
+func (w *wsContext) IsAuthenticated() bool {
+	return w.uuid != ""
+}
+
 // politeiawww application context.
 type politeiawww struct {
 	cfg    *config
 	router *mux.Router
 
 	store *sessions.FilesystemStore
+
+	ws    map[string]map[string]*wsContext // [uuid][]*context
+	wsMtx sync.RWMutex
 
 	backend *backend
 }
@@ -55,32 +86,37 @@ func (p *politeiawww) getSession(r *http.Request) (*sessions.Session, error) {
 	return p.store.Get(r, v1.CookieSession)
 }
 
-// getSessionEmail returns the email address of the currently logged in user
-// from the session store.
-func (p *politeiawww) getSessionEmail(r *http.Request) (string, error) {
+// getSessionUUID returns the uuid address of the currently logged in user from
+// the session store.
+func (p *politeiawww) getSessionUUID(r *http.Request) (string, error) {
 	session, err := p.getSession(r)
 	if err != nil {
 		return "", err
 	}
 
-	email, ok := session.Values["email"].(string)
+	id, ok := session.Values["uuid"].(string)
 	if !ok {
-		// No email in session so return "" to indicate that.
+		// No uuid in session so return "" to indicate that.
 		return "", nil
 	}
+	log.Tracef("getSessionUUID: %v", session.ID)
 
-	return email, nil
+	return id, nil
 }
 
 // getSessionUser retrieves the current session user from the database.
 func (p *politeiawww) getSessionUser(w http.ResponseWriter, r *http.Request) (*database.User, error) {
-	log.Tracef("getSessionUser")
-	email, err := p.getSessionEmail(r)
+	id, err := p.getSessionUUID(r)
+	if err != nil {
+		return nil, err
+	}
+	log.Tracef("getSessionUser: %v", id)
+	pid, err := uuid.Parse(id)
 	if err != nil {
 		return nil, err
 	}
 
-	user, err := p.backend.db.UserGet(email)
+	user, err := p.backend.db.UserGetById(pid)
 	if err != nil {
 		return nil, err
 	}
@@ -95,15 +131,15 @@ func (p *politeiawww) getSessionUser(w http.ResponseWriter, r *http.Request) (*d
 	return user, nil
 }
 
-// setSessionUser sets the "email" session key to the provided value.
-func (p *politeiawww) setSessionUser(w http.ResponseWriter, r *http.Request, email string) error {
-	log.Tracef("setSessionUser: %v %v", email, v1.CookieSession)
+// setSessionUserID sets the "uuid" session key to the provided value.
+func (p *politeiawww) setSessionUserID(w http.ResponseWriter, r *http.Request, id string) error {
+	log.Tracef("setSessionUserID: %v %v", id, v1.CookieSession)
 	session, err := p.getSession(r)
 	if err != nil {
 		return err
 	}
 
-	session.Values["email"] = email
+	session.Values["uuid"] = id
 	return session.Save(r, w)
 }
 
@@ -455,7 +491,7 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Mark user as logged in if there's no error.
-	err = p.setSessionUser(w, r, l.Email)
+	err = p.setSessionUserID(w, r, reply.UserID)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleLogin: setSessionUser %v", err)
@@ -652,6 +688,238 @@ func (p *politeiawww) handleProposalPaywallPayment(w http.ResponseWriter, r *htt
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+func (p *politeiawww) websocketPing(id string) {
+	log.Tracef("websocketPing %v", id)
+	defer log.Tracef("websocketPing exit %v", id)
+
+	p.wsMtx.RLock()
+	defer p.wsMtx.RUnlock()
+
+	for _, v := range p.ws[id] {
+		if _, ok := v.subscriptions[v1.WSCPing]; !ok {
+			continue
+		}
+
+		select {
+		case v.pingC <- struct{}{}:
+		default:
+		}
+	}
+}
+
+func (p *politeiawww) handleWebsocketRead(wc *wsContext) {
+	defer wc.wg.Done()
+
+	log.Tracef("handleWebsocketRead %v", wc)
+	defer log.Tracef("handleWebsocketRead exit %v", wc)
+
+	for {
+		cmd, id, payload, err := util.WSRead(wc.conn)
+		if err != nil {
+			log.Tracef("handleWebsocketRead read %v %v", wc, err)
+			close(wc.done) // force handlers to quit
+			return
+		}
+		switch cmd {
+		case v1.WSCSubscribe:
+			subscribe, ok := payload.(v1.WSSubscribe)
+			if !ok {
+				// We are treating this a hard error so that
+				// the client knows they sent in something
+				// wrong.
+				log.Errorf("handleWebsocketRead invalid "+
+					"subscribe type %v %v", wc,
+					spew.Sdump(payload))
+				return
+			}
+
+			//log.Tracef("subscribe: %v %v", wc.uuid,
+			//	spew.Sdump(subscribe))
+
+			subscriptions := make(map[string]struct{})
+			var errors []string
+			for _, v := range subscribe.RPCS {
+				if !util.ValidSubscription(v) {
+					log.Tracef("invalid subscription %v %v",
+						wc, v)
+					errors = append(errors,
+						fmt.Sprintf("invalid "+
+							"subscription %v", v))
+					continue
+				}
+				if util.SubsciptionReqAuth(v) &&
+					!wc.IsAuthenticated() {
+					log.Tracef("requires auth %v %v", wc, v)
+					errors = append(errors,
+						fmt.Sprintf("requires "+
+							"authentication %v", v))
+					continue
+				}
+				subscriptions[v] = struct{}{}
+			}
+
+			if len(errors) == 0 {
+				// Replace old subscriptions
+				p.wsMtx.Lock()
+				wc.subscriptions = subscriptions
+				p.wsMtx.Unlock()
+			} else {
+				wc.errorC <- v1.WSError{
+					Command: v1.WSCSubscribe,
+					ID:      id,
+					Errors:  errors,
+				}
+			}
+		}
+	}
+}
+
+func (p *politeiawww) handleWebsocketWrite(wc *wsContext) {
+	defer wc.wg.Done()
+	log.Tracef("handleWebsocketWrite %v", wc)
+	defer log.Tracef("handleWebsocketWrite exit %v", wc)
+
+	for {
+		var (
+			cmd, id string
+			payload interface{}
+		)
+		select {
+		case <-wc.done:
+			return
+		case e, ok := <-wc.errorC:
+			if !ok {
+				log.Tracef("handleWebsocketWrite error not ok"+
+					" %v", wc)
+				return
+			}
+			cmd = v1.WSCError
+			id = e.ID
+			payload = e
+		case _, ok := <-wc.pingC:
+			if !ok {
+				log.Tracef("handleWebsocketWrite ping not ok"+
+					" %v", wc)
+				return
+			}
+			cmd = v1.WSCPing
+			id = ""
+			payload = v1.WSPing{Timestamp: time.Now().Unix()}
+		}
+
+		err := util.WSWrite(wc.conn, cmd, id, payload)
+		if err != nil {
+			log.Tracef("handleWebsocketWrite write %v %v", wc, err)
+			return
+		}
+	}
+}
+
+func (p *politeiawww) handleWebsocket(w http.ResponseWriter, r *http.Request, id string) {
+	log.Tracef("handleWebsocket: %v", id)
+	defer log.Tracef("handleWebsocket exit: %v", id)
+
+	// Setup context
+	wc := wsContext{
+		uuid:          id,
+		subscriptions: make(map[string]struct{}),
+		pingC:         make(chan struct{}),
+		errorC:        make(chan v1.WSError),
+		done:          make(chan struct{}),
+	}
+
+	var upgrader = websocket.Upgrader{
+		EnableCompression: true,
+	}
+
+	var err error
+	wc.conn, err = upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		http.Error(w, "Could not open websocket connection",
+			http.StatusBadRequest)
+		return
+	}
+	defer wc.conn.Close() // causes read to exit as well
+
+	// Create and assign session to map
+	p.wsMtx.Lock()
+	if _, ok := p.ws[id]; !ok {
+		p.ws[id] = make(map[string]*wsContext)
+	}
+	for {
+		rid, err := util.Random(16)
+		if err != nil {
+			p.wsMtx.Unlock()
+			http.Error(w, "Could not create random session id",
+				http.StatusBadRequest)
+			return
+		}
+		wc.rid = hex.EncodeToString(rid)
+		if _, ok := p.ws[id][wc.rid]; !ok {
+			break
+		}
+	}
+	p.ws[id][wc.rid] = &wc
+	p.wsMtx.Unlock()
+
+	// Reads
+	wc.wg.Add(1)
+	go p.handleWebsocketRead(&wc)
+
+	// Writes
+	wc.wg.Add(1)
+	go p.handleWebsocketWrite(&wc)
+
+	// XXX Example of a server side notifcation. Remove once other commands
+	// can be used as examples.
+	// time.Sleep(2 * time.Second)
+	// p.websocketPing(id)
+
+	wc.wg.Wait()
+
+	// Remove session id
+	p.wsMtx.Lock()
+	delete(p.ws[id], wc.rid)
+	if len(p.ws[id]) == 0 {
+		// Remove uuid since it was the last one
+		delete(p.ws, id)
+	}
+	p.wsMtx.Unlock()
+}
+
+func (p *politeiawww) handleUnauthenticatedWebsocket(w http.ResponseWriter, r *http.Request) {
+	// We are retrieving the uuid here to make sure it is NOT set. This
+	// check looks backwards but is correct.
+	id, err := p.getSessionUUID(r)
+	if err != nil {
+		http.Error(w, "Could not get session uuid",
+			http.StatusBadRequest)
+		return
+	}
+	if id != "" {
+		http.Error(w, "Invalid session uuid", http.StatusBadRequest)
+		return
+	}
+	log.Tracef("handleUnauthenticatedWebsocket: %v", id)
+	defer log.Tracef("handleUnauthenticatedWebsocket exit: %v", id)
+
+	p.handleWebsocket(w, r, id)
+}
+
+func (p *politeiawww) handleAuthenticatedWebsocket(w http.ResponseWriter, r *http.Request) {
+	id, err := p.getSessionUUID(r)
+	if err != nil {
+		http.Error(w, "Could not get session uuid",
+			http.StatusBadRequest)
+		return
+	}
+
+	log.Tracef("handleAuthenticatedWebsocket: %v", id)
+	defer log.Tracef("handleAuthenticatedWebsocket exit: %v", id)
+
+	p.handleWebsocket(w, r, id)
 }
 
 // handleNewProposal handles the incoming new proposal command.
@@ -1387,7 +1655,8 @@ func (p *politeiawww) handleNotFound(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusNotFound, v1.ErrorReply{})
 }
 
-// addRoute sets up a handler for a specific method+route.
+// addRoute sets up a handler for a specific method+route. If methos is not
+// specified it adds a websocket.
 func (p *politeiawww) addRoute(method string, route string, handler http.HandlerFunc, perm permission, shouldLoadInventory bool) {
 	fullRoute := v1.PoliteiaWWWAPIRoute + route
 
@@ -1406,7 +1675,13 @@ func (p *politeiawww) addRoute(method string, route string, handler http.Handler
 	// All handlers need to close the body
 	handler = closeBody(handler)
 
-	p.router.StrictSlash(true).HandleFunc(fullRoute, handler).Methods(method)
+	if method == "" {
+		// Websocket
+		log.Tracef("Adding websocket: %v", fullRoute)
+		p.router.StrictSlash(true).HandleFunc(fullRoute, handler)
+	} else {
+		p.router.StrictSlash(true).HandleFunc(fullRoute, handler).Methods(method)
+	}
 }
 
 func _main() error {
@@ -1461,6 +1736,7 @@ func _main() error {
 	// Setup application context.
 	p := &politeiawww{
 		cfg: loadedCfg,
+		ws:  make(map[string]map[string]*wsContext),
 	}
 
 	// Check if this command is being run to fetch the identity.
@@ -1608,6 +1884,13 @@ func _main() error {
 		p.handleProposalPaywallPayment, permissionLogin, false)
 	p.addRoute(http.MethodPost, v1.RouteEditUser,
 		p.handleEditUser, permissionLogin, false)
+
+	// Unauthenticated websocket
+	p.addRoute("", v1.RouteUnauthenticatedWebSocket,
+		p.handleUnauthenticatedWebsocket, permissionPublic, false)
+	// Authenticated websocket
+	p.addRoute("", v1.RouteAuthenticatedWebSocket,
+		p.handleAuthenticatedWebsocket, permissionLogin, false)
 
 	// Routes that require being logged in as an admin user.
 	p.addRoute(http.MethodGet, v1.RouteAllUnvetted, p.handleAllUnvetted,
