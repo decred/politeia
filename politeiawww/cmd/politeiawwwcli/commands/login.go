@@ -8,7 +8,7 @@ var LoginCmdHelpMsg = `login "email" "password"
 Login as a user or admin.
 
 Arguments:
-1. email      (string, required)   Email address of user that is attempting to login
+1. email      (string, required)   Email address of user
 2. password   (string, required)   Accompanying password for provided email
 
 Result:
@@ -21,7 +21,7 @@ Result:
   "paywalladdress":       (string)  Registration paywall address
   "paywallamount":        (uint64)  Registration paywall amount in atoms
   "paywalltxnotbefore":   (int64)   Minimum timestamp for paywall tx
-  "proposalcredits":      (uint64)  Number of proposal credits the user has available to spend
+  "proposalcredits":      (uint64)  Number of available proposal credits 
   "lastlogintime":        (int64)   Unix timestamp of last login date
   "sessionmaxage":        (int64)   Unix timestamp of session max age
 }`

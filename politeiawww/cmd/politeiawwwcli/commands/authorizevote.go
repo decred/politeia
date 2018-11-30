@@ -8,6 +8,24 @@ import (
 	"github.com/decred/politeia/util"
 )
 
+// Help message displayed for the command 'politeiawwwcli help authorizevote'
+var AuthorizeVoteCmdHelpMsg = `authorizevote "token" "action"
+
+Authorize or revoke proposal vote. Only the proposal author (owner of 
+censorship token) can authorize or revoke vote. 
+
+Arguments:
+1. token      (string, required)   Proposal censorship token
+2. action     (string, optional)   Valid actions are 'authorize' or 'revoke'
+                                   (defaults to 'authorize')
+
+Result:
+{
+  "action":    (string)  Action that was executed
+  "receipt":   (string)  Server signature of client signature 
+                         (signed token+version+action)
+}`
+
 type AuthorizeVoteCmd struct {
 	Args struct {
 		Token  string `positional-arg-name:"token" required:"true" description:"Proposal censorship token"`
