@@ -251,7 +251,7 @@ var (
 
 	// ErrorStatus converts error status codes to human readable text.
 	ErrorStatus = map[ErrorStatusT]string{
-		ErrorStatusInvalid:                     "invalid status",
+		ErrorStatusInvalid:                     "invalid error status",
 		ErrorStatusInvalidEmailOrPassword:      "invalid email or password",
 		ErrorStatusMalformedEmail:              "malformed email",
 		ErrorStatusVerificationTokenInvalid:    "invalid verification token",
