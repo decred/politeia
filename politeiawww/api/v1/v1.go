@@ -930,7 +930,8 @@ type GetComments struct {
 
 // GetCommentsReply returns the provided number of comments.
 type GetCommentsReply struct {
-	Comments []Comment `json:"comments"` // Comments
+	Comments   []Comment `json:"comments"`             // Comments
+	AccessTime int64     `json:"accesstime,omitempty"` // User Access Time
 }
 
 // LikeComment allows a user to up or down vote a comment.

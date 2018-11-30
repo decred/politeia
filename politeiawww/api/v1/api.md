@@ -1535,6 +1535,7 @@ sorted.
 | | Type | Description |
 | - | - | - |
 | Comments | Comment | Unsorted array of all comments |
+| AccessTime | int64 | UNIX timestamp of last access time. Omitted if no session cookie is present. |
 
 **Comment:**
 
@@ -1606,7 +1607,8 @@ Reply:
     "username": "john",
     "totalvotes": 4,
     "resultvotes": 3
-  }]
+  }],
+  "accesstime": 1543539276
 }
 ```
 
