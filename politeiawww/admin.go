@@ -178,13 +178,9 @@ func (b *backend) ProcessUsers(users *v1.Users) (*v1.UsersReply, error) {
 // to check for any payments that may have been missed by paywall polling.
 func (b *backend) ProcessUserPaymentsRescan(upr v1.UserPaymentsRescan) (*v1.UserPaymentsRescanReply, error) {
 	// Lookup user
-	userID, err := uuid.Parse(upr.UserID)
+	user, err := b.getUserByIDStr(upr.UserID)
 	if err != nil {
-		return nil, fmt.Errorf("parse UUID: %v", err)
-	}
-	user, err := b.db.UserGetById(userID)
-	if err != nil {
-		return nil, fmt.Errorf("UserGetByID: %v", err)
+		return nil, err
 	}
 
 	// Fetch user payments
