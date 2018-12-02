@@ -91,9 +91,6 @@ type backend struct {
 
 	// Count of user proposals
 	numOfPropsByUserID map[string]int
-
-	// User vote action on each comment
-	userLikeActionByCommentID map[string]map[string]map[string]int64 // [token][userid][commentid]action
 }
 
 type BackendProposalMetadata struct {
@@ -940,6 +937,7 @@ func (b *backend) LoadInventory() error {
 
 	err = b.initializeInventory(inv)
 	if err != nil {
+		b.Unlock()
 		return fmt.Errorf("initializeInventory: %v", err)
 	}
 
@@ -1855,9 +1853,8 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 			}
 		}
 
-		// Ensure voting has not been started or authorized yet
-		if ir.voting.StartBlockHeight != "" ||
-			voteIsAuthorized(ir) {
+		// Ensure voting has not been started yet
+		if ir.voting.StartBlockHeight != "" {
 			return nil, www.UserError{
 				ErrorCode: www.ErrorStatusWrongVoteStatus,
 			}
@@ -1949,28 +1946,12 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 	cachedProposal := b._convertPropFromInventoryRecord(p)
 	b.RUnlock()
 
-	// validate requested version when it is specified
-	if propDetails.Version != "" {
-		latestVersion, err := strconv.ParseUint(cachedProposal.Version, 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("Could not parse proposal version %v: %v",
-				propDetails.Token, err)
-		}
-		specVersion, err := strconv.ParseUint(propDetails.Version, 10, 64)
-		if err != nil || specVersion > latestVersion {
-			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusInvalidPropVersion,
-			}
-		}
-	}
-
 	var isVettedProposal bool
 	var requestObject interface{}
 	if cachedProposal.State == www.PropStateVetted {
 		isVettedProposal = true
 		requestObject = pd.GetVetted{
 			Token:     propDetails.Token,
-			Version:   propDetails.Version,
 			Challenge: hex.EncodeToString(challenge),
 		}
 	} else {
@@ -2220,14 +2201,6 @@ func (b *backend) ProcessLikeComment(lc www.LikeComment, user *database.User) (*
 		}
 	}
 
-	// Verify comment exists
-	_, ok := ir.comments[lc.CommentID]
-	if !ok {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusCommentNotFound,
-		}
-	}
-
 	// Ensure proposal is public
 	pr := convertPropFromPD(ir.record)
 	if pr.Status != www.PropStatusPublic {
@@ -2305,17 +2278,27 @@ func (b *backend) ProcessLikeComment(lc www.LikeComment, user *database.User) (*
 	if err != nil {
 		return nil, err
 	}
+	lcrWWW := convertDecredLikeCommentReplyToWWWLikeCommentReply(*lcr)
 
-	comment, err := b.updateResultsForCommentLike(lc)
-	if err != nil {
-		return nil, err
-	}
+	// Add action to comment to cache
+	if lcr.Error == "" {
+		b.Lock()
+		defer b.Unlock()
 
-	lcrWWW := www.LikeCommentReply{
-		Total:   comment.TotalVotes,
-		Result:  comment.ResultVotes,
-		Receipt: lcr.Receipt,
-		Error:   lcr.Error,
+		c, err := b._getInventoryRecordComment(lc.Token, lc.CommentID)
+		if err != nil {
+			return nil, fmt.Errorf("Could not find comment %v:%v",
+				lc.Token, lc.CommentID)
+		}
+
+		// Update vote counts
+		c.TotalVotes = lcr.Total
+		c.ResultVotes = lcr.Result
+		err = b._setRecordComment(*c)
+		if err != nil {
+			return nil, fmt.Errorf("setRecordComment %v", err)
+		}
+
 	}
 
 	return &lcrWWW, nil
@@ -2440,29 +2423,13 @@ func (b *backend) ProcessCensorComment(cc www.CensorComment, user *database.User
 	return &ccrWWW, nil
 }
 
-// ProcessCommentGet returns all comments for a given proposal. If the user
-// is logged in, returns the user's last access time for the given proposal.
-// Else, returns 0 as the access time
-func (b *backend) ProcessCommentGet(token string, user *database.User) (*www.GetCommentsReply, error) {
+// ProcessCommentGet returns all comments for a given proposal.
+func (b *backend) ProcessCommentGet(token string) (*www.GetCommentsReply, error) {
 	log.Debugf("ProcessCommentGet: %v", token)
-	// get comments
+
 	c, err := b.getComments(token)
 	if err != nil {
 		return nil, err
-	}
-
-	if user != nil {
-		// gets the last accesstime for the given proposal
-		if user.ProposalCommentsAccessTimes != nil {
-			c.AccessTime = user.ProposalCommentsAccessTimes[token]
-		} else {
-			user.ProposalCommentsAccessTimes = make(map[string]int64)
-		}
-		user.ProposalCommentsAccessTimes[token] = time.Now().Unix()
-		err = b.db.UserUpdate(*user)
-		if err != nil {
-			return nil, err
-		}
 	}
 	return c, nil
 }
@@ -2632,11 +2599,6 @@ func (b *backend) ProcessAuthorizeVote(av www.AuthorizeVote, user *database.User
 		// Record not public
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusWrongStatus,
-		}
-	case ir.voting.StartBlockHeight != "":
-		// Vote has already started
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusWrongVoteStatus,
 		}
 	case av.Action != www.AuthVoteActionAuthorize &&
 		av.Action != www.AuthVoteActionRevoke:
@@ -2890,6 +2852,11 @@ func (b *backend) ProcessStartVote(sv www.StartVote, user *database.User) (*www.
 func (b *backend) ProcessVoteResults(token string) (*www.VoteResultsReply, error) {
 	log.Tracef("ProcessVoteResults")
 
+	vrr, err := b.getVoteResultsFromPlugin(token)
+	if err != nil {
+		return nil, err
+	}
+
 	// Fetch record from inventory in order to get the voting details
 	// (StartVoteReply)
 	ir, err := b.getInventoryRecord(token)
@@ -2902,11 +2869,6 @@ func (b *backend) ProcessVoteResults(token string) (*www.VoteResultsReply, error
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusWrongStatus,
 		}
-	}
-
-	vrr, err := b.getVoteResultsFromPlugin(token)
-	if err != nil {
-		return nil, err
 	}
 
 	wvrr := convertVoteResultsReplyFromDecredplugin(*vrr, ir)
@@ -2997,26 +2959,72 @@ func (b *backend) ProcessVoteStatus(token string) (*www.VoteStatusReply, error) 
 	}, nil
 }
 
-// ProcessUserCommentsLikes returns the votes an user has for the comments of a given proposal
-func (b *backend) ProcessUserCommentsLikes(user *database.User, token string) (*www.UserCommentsLikesReply, error) {
-	log.Tracef("ProcessUserCommentsLikes")
+// ProcessUserCommentsVotes returns the votes an user has for the comments of a given proposal
+func (b *backend) ProcessUserCommentsVotes(user *database.User, token string) (*www.UserCommentsVotesReply, error) {
+	log.Tracef("ProcessUserCommentsVotes")
 
-	userID := user.ID.String()
-	uclr := www.UserCommentsLikesReply{}
-	b.RLock()
-	defer b.RUnlock()
-
-	userLikeActions := b.userLikeActionByCommentID[token][userID]
-
-	for commentID, action := range userLikeActions {
-		uclr.CommentsLikes = append(uclr.CommentsLikes, www.CommentLike{
-			Action:    strconv.FormatInt(action, 10),
-			CommentID: commentID,
-			Token:     token,
-		})
+	payload, err := decredplugin.EncodeGetProposalCommentsVotes(decredplugin.GetProposalCommentsVotes{
+		Token: token,
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	return &uclr, nil
+	// Obtain proposal comments votes from plugin
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	pc := pd.PluginCommand{
+		Challenge: hex.EncodeToString(challenge),
+		ID:        decredplugin.ID,
+		Command:   decredplugin.CmdProposalCommentsVotes,
+		CommandID: decredplugin.CmdProposalCommentsVotes,
+		Payload:   string(payload),
+	}
+
+	responseBody, err := b.makeRequest(http.MethodPost,
+		pd.PluginCommandRoute, pc)
+	if err != nil {
+		return nil, err
+	}
+
+	var reply pd.PluginCommandReply
+	err = json.Unmarshal(responseBody, &reply)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal "+
+			"PluginCommandReply: %v", err)
+	}
+
+	// Verify the challenge.
+	err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	gpcvr, err := decredplugin.DecodeGetProposalCommentsVotesReply([]byte(reply.Payload))
+	if err != nil {
+		return nil, err
+	}
+
+	var ucvr www.UserCommentsVotesReply
+	for _, ucv := range gpcvr.UserCommentsVotes {
+		// check if the pubkey refers to the current user
+		// if it does, add the comment-action to CommentsVotes
+		b.RLock()
+		id, ok := b.userPubkeys[ucv.Pubkey]
+		b.RUnlock()
+		if ok && id == user.ID.String() {
+			ucvr.CommentsVotes = append(ucvr.CommentsVotes, www.CommentVote{
+				Action:    ucv.Action,
+				CommentID: ucv.CommentID,
+				Token:     token,
+			})
+		}
+	}
+
+	return &ucvr, nil
 }
 
 // ProcessEditProposal attempts to edit a proposal on politeiad
@@ -3338,12 +3346,11 @@ func NewBackend(cfg *config) (*backend, error) {
 
 	// Context
 	b := &backend{
-		db:                        db,
-		cfg:                       cfg,
-		userPubkeys:               make(map[string]string),
-		userPaywallPool:           make(map[uuid.UUID]paywallPoolMember),
-		numOfPropsByUserID:        make(map[string]int),
-		userLikeActionByCommentID: make(map[string]map[string]map[string]int64),
+		db:                 db,
+		cfg:                cfg,
+		userPubkeys:        make(map[string]string),
+		userPaywallPool:    make(map[uuid.UUID]paywallPoolMember),
+		numOfPropsByUserID: make(map[string]int),
 	}
 
 	// Setup pubkey-userid map

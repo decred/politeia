@@ -7,6 +7,42 @@ import (
 	"github.com/decred/politeia/politeiawww/api/v1"
 )
 
+// Help message displayed for the command 'politeiawwwcli help newcomment'
+var NewCommentCmdHelpMsg = `newcomment "token" "comment"
+
+Comment on proposal as logged in user. 
+
+Arguments:
+1. token       (string, required)   Proposal censorship token
+2. comment     (string, required)   Comment
+3. parentID    (string, required if replying to comment)  Id of commment
+
+Result:
+{
+  "token":       (string)  Censorship token
+  "parentid":    (string)  Id of comment (defaults to '0' (top-level comment))
+  "comment":     (string)  Comment
+  "signature":   (string)  Signature of comment (token+parentID+comment)
+  "publickey":   (string)  Public key of user commenting
+}
+{
+  "comment": {
+    "token":        (string)  Censorship token
+    "parentid":     (string)  Id of comment (defaults to '0' (top-level))
+    "comment":      (string)  Comment
+    "signature":    (string)  Signature of token+parentID+comment
+    "publickey":    (string)  Public key of user 
+    "commentid":    (string)  Id of the comment
+    "receipt":      (string)  Server signature of the comment signature
+    "timestamp":    (int64)   Received UNIX timestamp
+    "totalvotes":   (uint64)  Total number of up/down votes
+    "resultvotes":  (int64)   Vote score
+    "censored":     (bool)    If comment has been censored
+    "userid":       (string)  User id
+    "username":     (string)  Username
+  }
+}`
+
 type NewCommentCmd struct {
 	Args struct {
 		Token    string `positional-arg-name:"token" required:"true"`

@@ -13,6 +13,58 @@ import (
 	"github.com/decred/politeia/util"
 )
 
+// Help message displayed for the command 'politeiawwwcli help editproposal'
+var EditProposalCmdHelpMsg = `editproposal "token" "markdownFile" "attachmentFiles" 
+
+Edit a proposal.
+
+Arguments:
+1. token             (string, required)   Proposal censorship token
+2. markdownFile      (string, required)   Edited proposal 
+3. attachmentFiles   (string, optional)   Attachments 
+
+Result:
+{
+  "token":  (string)  Censorship token
+    "files": [
+      {
+        "name":      (string)  Filename 
+        "mime":      (string)  Mime type 
+        "digest":    (string)  File digest 
+        "payload":   (string)  File payload 
+      }
+    ],
+  "publickey": (string)  Public key used to sign proposal
+  "signature": (string)  Signature of the merkle root 
+}
+{
+  "proposal": {
+    "name":          (string)  Suggested short proposal name 
+    "state":         (PropStateT)  Current state of proposal
+    "status":        (PropStatusT)  Current status of proposal
+    "timestamp":     (int64)  Timestamp of last update of proposal
+    "userid":        (string)  ID of user who submitted proposal
+    "username":      (string)  Username of user who submitted proposal
+    "publickey":     (string)  Public key used to sign proposal
+    "signature":     (string)  Signature of merkle root
+    "files": [
+      {
+        "name":      (string)  Filename 
+        "mime":      (string)  Mime type 
+        "digest":    (string)  File digest 
+        "payload":   (string)  File payload 
+      }
+    ],
+    "numcomments":   (uint)    Number of comments on the proposal
+    "version": 		 (string)  Version of proposal
+    "censorshiprecord": {	
+      "token":       (string)  Censorship token
+      "merkle":      (string)  Merkle root of proposal
+      "signature":   (string)  Server side signature of []byte(Merkle+Token)
+    }
+  }
+}`
+
 type EditProposalCmd struct {
 	Args struct {
 		Token       string   `positional-arg-name:"token"`

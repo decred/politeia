@@ -7,6 +7,33 @@ import (
 	"github.com/decred/politeia/politeiawww/api/v1"
 )
 
+// Help message displayed for the command 'politeiawwwcli help manageuser'
+var ManageUserCmdHelpMsg = `manageuser "userid" "action" "reason"
+
+Edit the details for the given user id (admin).
+
+Arguments:
+1. userid       (string, required)   User id
+2. action       (string, required)   Edit user action
+3. reason       (string, required)   Reason for editing the use
+
+Valid actions are:
+1. expirenewuser           Expires new user verification
+2. expireupdatekey         Expires update user key verification
+3. expireresetpassword     Expires reset password verification
+4. clearpaywall            Clears user registration paywall
+5. unlocks                 Unlocks user account from failed logins
+6. deactivates             Deactivates user account
+7. reactivate              Reactivates user account
+
+Result:
+{
+  "userid":  (string)    User id
+  "action":  (string)    Edit user action
+  "reason":  (string)    Reason for action
+}
+{}`
+
 type ManageUserCmd struct {
 	Args struct {
 		UserID string `positional-arg-name:"userid" description:"User ID"`

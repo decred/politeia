@@ -6,6 +6,19 @@ import (
 	"github.com/decred/politeia/util"
 )
 
+// Help message displayed for the command 'politeiawwwcli help faucet'
+var FaucetCmdHelpMsg = `faucet "address" "amount" 
+
+Use the Decred testnet faucet to send DCR (in atoms) to an address. One atom is
+one hundred millionth of a single DCR (0.00000001 DCR).
+
+Arguments:
+1. address      (string, required)   Receiving address
+2. amount       (uint64, required)   Amount to send (atoms)
+
+Result:
+Paid [amount] DCR to [address] with txID [transaction id]`
+
 type FaucetCmd struct {
 	Args struct {
 		Address       string `positional-arg-name:"address" required:"true" description:"Address to send DCR to"`

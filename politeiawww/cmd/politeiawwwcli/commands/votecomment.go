@@ -7,6 +7,31 @@ import (
 	"github.com/decred/politeia/politeiawww/api/v1"
 )
 
+// Help message displayed for the command 'politeiawwwcli help votecomment'
+var VoteCommentCmdHelpMsg = `votecomment "token" "commentID" "action"
+
+Vote on a comment.
+
+Arguments:
+1. token       (string, required)   Proposal censorship token
+2. commentID   (string, required)   Id of the comment
+3. action      (string, required)   Vote (upvote or downvote)
+
+Result:
+{
+  "token":      (string)  Censorship token
+  "commentid":  (string)  Id of comment
+  "action":     (string)  actionCode (upvote = '1', downvote = '-1')
+  "signature":  (string)  Signature of vote (token + commentID + actionCode)
+  "publickey":  (string)  Public key used for signature
+}
+{
+  "total":    (uint64)  Total number of up and down votes
+  "result":   (int64)  Current tally of likes (can be negative)
+  "receipt":  (string)  Server signature of vote signature
+  "error":    (string)  Error if something went wrong during liking a comment
+}`
+
 type VoteCommentCmd struct {
 	Args struct {
 		Token     string `positional-arg-name:"token"`

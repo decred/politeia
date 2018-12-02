@@ -4,6 +4,20 @@ import (
 	"github.com/decred/politeia/politeiawww/api/v1"
 )
 
+// Help message displayed for the command 'politeiawwwcli help edituser'
+var EditUserCmdHelpMsg = `edituser "userid" "action" "reason"
+
+Edit the details for the given user id (admin).
+
+Arguments:
+1. emailnotifications       (uint64, optional)   Whether to notify via emails
+
+Result:
+{
+  "emailnotifications": null
+}
+{}`
+
 type EditUserCmd struct {
 	EmailNotifications *uint64 `long:"emailnotifications" optional:"true" description:"Whether to notify via emails"`
 }
