@@ -451,7 +451,8 @@ func (c *ctx) sendVote(ballot *v1.Ballot) (*v1.CastVoteReply, error) {
 
 	responseBody, err := c.makeRequest("POST", v1.RouteCastVotes, ballot)
 	if err != nil {
-		return nil, err
+		log.Errorf("%v", err)
+		return nil, errRetry
 	}
 
 	var vr v1.BallotReply
