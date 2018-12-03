@@ -1855,8 +1855,9 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 			}
 		}
 
-		// Ensure voting has not been started yet
-		if ir.voting.StartBlockHeight != "" {
+		// Ensure voting has not been started or authorized yet
+		if ir.voting.StartBlockHeight != "" ||
+			voteIsAuthorized(ir) {
 			return nil, www.UserError{
 				ErrorCode: www.ErrorStatusWrongVoteStatus,
 			}
