@@ -26,7 +26,7 @@ type Cmds struct {
 	AuthorizeVote      AuthorizeVoteCmd      `command:"authorizevote" description:"authorize a proposal vote (must be proposal author)"`
 	CensorComment      CensorCommentCmd      `command:"censorcomment" description:"(admin) censor a proposal comment"`
 	ChangePassword     ChangePasswordCmd     `command:"changepassword" description:"change the password for the currently logged in user"`
-	CommentsVotes      CommentsVotesCmd      `command:"commentsvotes" description:"fetch all the comments voted by the user on a proposal"`
+	CommentsLikes      CommentsLikesCmd      `command:"commentslikes" description:"fetch all the comments voted by the user on a proposal"`
 	ChangeUsername     ChangeUsernameCmd     `command:"changeusername" description:"change the username for the currently logged in user"`
 	EditProposal       EditProposalCmd       `command:"editproposal" description:"edit a proposal"`
 	ManageUser         ManageUserCmd         `command:"manageuser" description:"(admin) edit the details for the given user id"`

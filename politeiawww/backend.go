@@ -91,6 +91,9 @@ type backend struct {
 
 	// Count of user proposals
 	numOfPropsByUserID map[string]int
+
+	// User vote action on each comment
+	userLikeActionByCommentID map[string]map[string]map[string]int64 // [token][userid][commentid]action
 }
 
 type BackendProposalMetadata struct {
@@ -937,7 +940,6 @@ func (b *backend) LoadInventory() error {
 
 	err = b.initializeInventory(inv)
 	if err != nil {
-		b.Unlock()
 		return fmt.Errorf("initializeInventory: %v", err)
 	}
 
@@ -2302,27 +2304,17 @@ func (b *backend) ProcessLikeComment(lc www.LikeComment, user *database.User) (*
 	if err != nil {
 		return nil, err
 	}
-	lcrWWW := convertDecredLikeCommentReplyToWWWLikeCommentReply(*lcr)
 
-	// Add action to comment to cache
-	if lcr.Error == "" {
-		b.Lock()
-		defer b.Unlock()
+	comment, err := b.updateResultsForCommentLike(lc)
+	if err != nil {
+		return nil, err
+	}
 
-		c, err := b._getInventoryRecordComment(lc.Token, lc.CommentID)
-		if err != nil {
-			return nil, fmt.Errorf("Could not find comment %v:%v",
-				lc.Token, lc.CommentID)
-		}
-
-		// Update vote counts
-		c.TotalVotes = lcr.Total
-		c.ResultVotes = lcr.Result
-		err = b._setRecordComment(*c)
-		if err != nil {
-			return nil, fmt.Errorf("setRecordComment %v", err)
-		}
-
+	lcrWWW := www.LikeCommentReply{
+		Total:   comment.TotalVotes,
+		Result:  comment.ResultVotes,
+		Receipt: lcr.Receipt,
+		Error:   lcr.Error,
 	}
 
 	return &lcrWWW, nil
@@ -3004,72 +2996,26 @@ func (b *backend) ProcessVoteStatus(token string) (*www.VoteStatusReply, error) 
 	}, nil
 }
 
-// ProcessUserCommentsVotes returns the votes an user has for the comments of a given proposal
-func (b *backend) ProcessUserCommentsVotes(user *database.User, token string) (*www.UserCommentsVotesReply, error) {
-	log.Tracef("ProcessUserCommentsVotes")
+// ProcessUserCommentsLikes returns the votes an user has for the comments of a given proposal
+func (b *backend) ProcessUserCommentsLikes(user *database.User, token string) (*www.UserCommentsLikesReply, error) {
+	log.Tracef("ProcessUserCommentsLikes")
 
-	payload, err := decredplugin.EncodeGetProposalCommentsVotes(decredplugin.GetProposalCommentsVotes{
-		Token: token,
-	})
-	if err != nil {
-		return nil, err
+	userID := user.ID.String()
+	uclr := www.UserCommentsLikesReply{}
+	b.RLock()
+	defer b.RUnlock()
+
+	userLikeActions := b.userLikeActionByCommentID[token][userID]
+
+	for commentID, action := range userLikeActions {
+		uclr.CommentsLikes = append(uclr.CommentsLikes, www.CommentLike{
+			Action:    strconv.FormatInt(action, 10),
+			CommentID: commentID,
+			Token:     token,
+		})
 	}
 
-	// Obtain proposal comments votes from plugin
-	challenge, err := util.Random(pd.ChallengeSize)
-	if err != nil {
-		return nil, err
-	}
-
-	pc := pd.PluginCommand{
-		Challenge: hex.EncodeToString(challenge),
-		ID:        decredplugin.ID,
-		Command:   decredplugin.CmdProposalCommentsVotes,
-		CommandID: decredplugin.CmdProposalCommentsVotes,
-		Payload:   string(payload),
-	}
-
-	responseBody, err := b.makeRequest(http.MethodPost,
-		pd.PluginCommandRoute, pc)
-	if err != nil {
-		return nil, err
-	}
-
-	var reply pd.PluginCommandReply
-	err = json.Unmarshal(responseBody, &reply)
-	if err != nil {
-		return nil, fmt.Errorf("Could not unmarshal "+
-			"PluginCommandReply: %v", err)
-	}
-
-	// Verify the challenge.
-	err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
-	if err != nil {
-		return nil, err
-	}
-
-	gpcvr, err := decredplugin.DecodeGetProposalCommentsVotesReply([]byte(reply.Payload))
-	if err != nil {
-		return nil, err
-	}
-
-	var ucvr www.UserCommentsVotesReply
-	for _, ucv := range gpcvr.UserCommentsVotes {
-		// check if the pubkey refers to the current user
-		// if it does, add the comment-action to CommentsVotes
-		b.RLock()
-		id, ok := b.userPubkeys[ucv.Pubkey]
-		b.RUnlock()
-		if ok && id == user.ID.String() {
-			ucvr.CommentsVotes = append(ucvr.CommentsVotes, www.CommentVote{
-				Action:    ucv.Action,
-				CommentID: ucv.CommentID,
-				Token:     token,
-			})
-		}
-	}
-
-	return &ucvr, nil
+	return &uclr, nil
 }
 
 // ProcessEditProposal attempts to edit a proposal on politeiad
@@ -3391,11 +3337,12 @@ func NewBackend(cfg *config) (*backend, error) {
 
 	// Context
 	b := &backend{
-		db:                 db,
-		cfg:                cfg,
-		userPubkeys:        make(map[string]string),
-		userPaywallPool:    make(map[uuid.UUID]paywallPoolMember),
-		numOfPropsByUserID: make(map[string]int),
+		db:                        db,
+		cfg:                       cfg,
+		userPubkeys:               make(map[string]string),
+		userPaywallPool:           make(map[uuid.UUID]paywallPoolMember),
+		numOfPropsByUserID:        make(map[string]int),
+		userLikeActionByCommentID: make(map[string]map[string]map[string]int64),
 	}
 
 	// Setup pubkey-userid map

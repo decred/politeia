@@ -55,7 +55,7 @@ const (
 	RouteStartVote              = "/proposals/startvote"
 	RouteActiveVote             = "/proposals/activevote" // XXX rename to ActiveVotes
 	RouteCastVotes              = "/proposals/castvotes"
-	RouteUserCommentsVotes      = "/user/proposals/{token:[A-z0-9]{64}}/commentsvotes"
+	RouteUserCommentsLikes      = "/user/proposals/{token:[A-z0-9]{64}}/commentslikes"
 	RouteVoteResults            = "/proposals/{token:[A-z0-9]{64}}/votes"
 	RouteAllVoteStatus          = "/proposals/votestatus"
 	RouteVoteStatus             = "/proposals/{token:[A-z0-9]{64}}/votestatus"
@@ -970,22 +970,22 @@ type CensorCommentReply struct {
 	Receipt string `json:"receipt"` // Server signature of client signature
 }
 
-// CommentVote describes the voting action an user has given
+// CommentLike describes the voting action an user has given
 // to a comment (e.g: up or down vote)
-type CommentVote struct {
+type CommentLike struct {
 	Action    string `json:"action"`    // Up or downvote (1, -1)
 	CommentID string `json:"commentid"` // Comment ID
 	Token     string `json:"token"`     // Censorship token
 }
 
-// UserCommentsVotes is a command to fetch all user vote actions
+// UserCommentsLikes is a command to fetch all user vote actions
 // on the comments of a given proposal
-type UserCommentsVotes struct{}
+type UserCommentsLikes struct{}
 
-// UserCommentsVotesReply is a reply with all user vote actions
+// UserCommentsLikesReply is a reply with all user vote actions
 // for the comments of a given proposal
-type UserCommentsVotesReply struct {
-	CommentsVotes []CommentVote `json:"commentsvotes"`
+type UserCommentsLikesReply struct {
+	CommentsLikes []CommentLike `json:"commentslikes"`
 }
 
 // VoteOptionResult is a structure that describes a VotingOption along with the
