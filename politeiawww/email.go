@@ -437,20 +437,25 @@ func (b *backend) emailAdminsForProposalVoteAuthorized(
 func (b *backend) emailAuthorForCommentOnProposal(
 	proposal *v1.ProposalRecord,
 	authorUser *database.User,
-	username string,
+	commentID, username string,
 ) error {
 	if b.cfg.SMTP == nil {
 		return nil
 	}
 
-	l, err := url.Parse(fmt.Sprintf("%v/proposals/%v", b.cfg.WebServerAddress,
-		proposal.CensorshipRecord.Token))
+	l, err := url.Parse(fmt.Sprintf("%v/proposals/%v/comments/%v",
+		b.cfg.WebServerAddress, proposal.CensorshipRecord.Token, commentID))
 	if err != nil {
 		return err
 	}
 
 	if authorUser.EmailNotifications&
 		uint64(v1.NotificationEmailCommentOnMyProposal) == 0 {
+		return nil
+	}
+
+	// Don't send email when author comments on own proposal
+	if username == authorUser.Username {
 		return nil
 	}
 
@@ -488,6 +493,11 @@ func (b *backend) emailAuthorForCommentOnComment(
 
 	if authorUser.EmailNotifications&
 		uint64(v1.NotificationEmailCommentOnMyComment) == 0 {
+		return nil
+	}
+
+	// Don't send email when author replies to his own comment
+	if username == authorUser.Username {
 		return nil
 	}
 
