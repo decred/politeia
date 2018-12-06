@@ -18,8 +18,10 @@ import (
 var (
 	skipVerify = false
 	httpClient = &http.Client{
+		Timeout: 1 * time.Minute,
 		Transport: &http.Transport{
-			IdleConnTimeout: 60 * time.Second,
+			IdleConnTimeout:       1 * time.Minute,
+			ResponseHeaderTimeout: 1 * time.Minute,
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: skipVerify,
 			},
