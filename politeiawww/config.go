@@ -386,7 +386,7 @@ func loadConfig() (*config, []string, error) {
 	if err != nil {
 		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
 			fmt.Fprintln(os.Stderr, err)
-			return nil, nil, err
+			os.Exit(0)
 		}
 	}
 
