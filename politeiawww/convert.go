@@ -6,6 +6,7 @@ import (
 
 	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
+	"github.com/decred/politeia/politeiad/cache"
 	www "github.com/decred/politeia/politeiawww/api/v1"
 )
 
@@ -375,4 +376,72 @@ func convertVoteResultsFromDecredplugin(vrr decredplugin.VoteResultsReply) []www
 		})
 	}
 	return ors
+}
+
+func convertPropStateFromStatus(status www.PropStatusT) www.PropStateT {
+	switch status {
+	case www.PropStatusNotReviewed, www.PropStatusUnreviewedChanges,
+		www.PropStatusCensored:
+		return www.PropStateUnvetted
+	case www.PropStatusPublic, www.PropStatusAbandoned:
+		return www.PropStateVetted
+	}
+	return www.PropStateUnvetted
+}
+
+// convertPropFromCache converts a cache record into a www proposal record.
+// The UserId, Username, and NumComments fields are returned as zero values
+// since a cache record does not contain that data.
+func convertPropFromCache(r cache.Record) www.ProposalRecord {
+	// Decode markdown stream payloads
+	var bpm BackendProposalMetadata
+	var msc MDStreamChanges
+	for _, ms := range r.Metadata {
+		if ms.ID == mdStreamGeneral {
+			err := json.Unmarshal([]byte(ms.Payload), &bpm)
+			if err != nil {
+				log.Errorf("could not unmarshal metadata '%v' token '%v': %v",
+					ms, r.CensorshipRecord.Token, err)
+			}
+		}
+		if ms.ID == mdStreamChanges {
+			err := json.Unmarshal([]byte(ms.Payload), &msc)
+			if err != nil {
+				log.Errorf("could not unmarshal metadata '%v' token '%v': %v",
+					ms, r.CensorshipRecord.Token, err)
+			}
+		}
+	}
+
+	var files []www.File
+	for _, f := range r.Files {
+		files = append(files,
+			www.File{
+				Name:    f.Name,
+				MIME:    f.MIME,
+				Digest:  f.Digest,
+				Payload: f.Payload,
+			})
+	}
+	status := convertPropStatusFromPD(pd.RecordStatusT(r.Status))
+
+	return www.ProposalRecord{
+		Name:                bpm.Name,
+		State:               convertPropStateFromStatus(status),
+		Status:              status,
+		Timestamp:           r.Timestamp,
+		UserId:              "",
+		Username:            "",
+		PublicKey:           bpm.PublicKey,
+		Signature:           bpm.Signature,
+		Files:               files,
+		NumComments:         0,
+		Version:             r.Version,
+		StatusChangeMessage: msc.StatusChangeMessage,
+		CensorshipRecord: www.CensorshipRecord{
+			Token:     r.CensorshipRecord.Token,
+			Merkle:    r.CensorshipRecord.Merkle,
+			Signature: r.CensorshipRecord.Signature,
+		},
+	}
 }

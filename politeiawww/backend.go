@@ -20,6 +20,8 @@ import (
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
+	"github.com/decred/politeia/politeiad/cache"
+	"github.com/decred/politeia/politeiad/cache/cockroachdb"
 	www "github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/politeiawww/database"
 	"github.com/decred/politeia/politeiawww/database/localdb"
@@ -64,7 +66,8 @@ type loginReplyWithError struct {
 type backend struct {
 	sync.RWMutex // lock for inventory and comments and caches
 
-	db              database.Database
+	db              database.Database // User database
+	cache           cache.Cache       // Records cache
 	cfg             *config
 	params          *chaincfg.Params
 	client          *http.Client // politeiad client
@@ -235,6 +238,14 @@ func (b *backend) generateVerificationTokenAndExpiry() ([]byte, int64, error) {
 // checkUserIsLocked checks if a user is locked after many login attempts
 func checkUserIsLocked(failedLoginAttempts uint64) bool {
 	return failedLoginAttempts >= LoginAttemptsToLockUser
+}
+
+func (b *backend) getUserIDByPubkey(pubkey string) (string, bool) {
+	b.RLock()
+	defer b.RUnlock()
+
+	userID, ok := b.userPubkeys[pubkey]
+	return userID, ok
 }
 
 // _convertPropFromInventoryRecord converts a backend inventoryRecord to a front
@@ -1948,148 +1959,70 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 	}, nil
 }
 
-// ProcessProposalDetails tries to fetch the full details of a proposal from politeiad.
+// ProcessProposalDetails fetches a specific proposal version from the records
+// cache and returns it.
 func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user *database.User) (*www.ProposalDetailsReply, error) {
-	log.Debugf("ProcessProposalDetails")
+	log.Tracef("ProcessProposalDetails")
 
-	var reply www.ProposalDetailsReply
-	challenge, err := util.Random(pd.ChallengeSize)
-	if err != nil {
-		return nil, err
+	// Version is an optional query param. Fetch latest version when
+	// query param is not specified.
+	var record *cache.Record
+	var err error
+	if propDetails.Version == "" {
+		record, err = b.cache.RecordGetLatest(propDetails.Token)
+	} else {
+		record, err = b.cache.RecordGet(propDetails.Token, propDetails.Version)
 	}
-
-	b.RLock()
-	p, err := b._getInventoryRecord(propDetails.Token)
 	if err != nil {
-		b.RUnlock()
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusProposalNotFound,
-		}
-	}
-	cachedProposal := b._convertPropFromInventoryRecord(p)
-	b.RUnlock()
-
-	// validate requested version when it is specified
-	if propDetails.Version != "" {
-		latestVersion, err := strconv.ParseUint(cachedProposal.Version, 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("Could not parse proposal version %v: %v",
-				propDetails.Token, err)
-		}
-		specVersion, err := strconv.ParseUint(propDetails.Version, 10, 64)
-		if err != nil || specVersion > latestVersion || specVersion == 0 {
-			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusInvalidPropVersion,
+		if err == cache.ErrRecordNotFound {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusProposalNotFound,
 			}
 		}
-	}
-
-	var isVettedProposal bool
-	var requestObject interface{}
-	if cachedProposal.State == www.PropStateVetted {
-		isVettedProposal = true
-		requestObject = pd.GetVetted{
-			Token:     propDetails.Token,
-			Version:   propDetails.Version,
-			Challenge: hex.EncodeToString(challenge),
-		}
-	} else {
-		isVettedProposal = false
-		requestObject = pd.GetUnvetted{
-			Token:     propDetails.Token,
-			Challenge: hex.EncodeToString(challenge),
-		}
-	}
-
-	if b.test {
-		reply.Proposal = cachedProposal
-		return &reply, nil
-	}
-
-	// The title and files for unvetted proposals should not be viewable by
-	// non-admins; only the proposal meta data (status, censorship data,
-	// etc) should be publicly viewable.
-	isUserAdmin := user != nil && user.Admin
-
-	var isUserTheAuthor bool
-	if user != nil {
-		authorID, err := uuid.Parse(cachedProposal.UserId)
-		if err != nil {
-			// Only complain and move on since some of the
-			// proposals details can still be sent for a non-admin
-			// or a non-author user
-			log.Infof("ProcessProposalDetails: ParseUint failed "+
-				"on '%v': %v", cachedProposal.UserId, err)
-		}
-
-		isUserTheAuthor = authorID == user.ID
-	}
-
-	if !isVettedProposal && !isUserAdmin && !isUserTheAuthor {
-		reply.Proposal = www.ProposalRecord{
-			Status:           cachedProposal.Status,
-			Timestamp:        cachedProposal.Timestamp,
-			PublicKey:        cachedProposal.PublicKey,
-			Signature:        cachedProposal.Signature,
-			CensorshipRecord: cachedProposal.CensorshipRecord,
-			NumComments:      cachedProposal.NumComments,
-			UserId:           cachedProposal.UserId,
-			Username:         b.getUsernameById(cachedProposal.UserId),
-		}
-		return &reply, nil
-	}
-
-	var route string
-	if isVettedProposal {
-		route = pd.GetVettedRoute
-	} else {
-		route = pd.GetUnvettedRoute
-	}
-
-	responseBody, err := b.makeRequest(http.MethodPost, route, requestObject)
-	if err != nil {
 		return nil, err
 	}
 
-	var response string
-	var fullRecord pd.Record
-	if isVettedProposal {
-		var pdReply pd.GetVettedReply
-		err = json.Unmarshal(responseBody, &pdReply)
-		if err != nil {
-			return nil, fmt.Errorf("Could not unmarshal "+
-				"GetVettedReply: %v", err)
-		}
+	// Fill in proposal author info
+	prop := convertPropFromCache(*record)
+	userID, ok := b.getUserIDByPubkey(prop.PublicKey)
+	if !ok {
+		// Complain but don't return since proposal details can still
+		// be returned
+		log.Errorf("ProcessProposalDetails: user not found for "+
+			"public key %v, for proposal %v", prop.PublicKey,
+			prop.CensorshipRecord.Token)
+	}
+	prop.UserId = userID
+	prop.Username = b.getUsernameById(userID)
 
-		response = pdReply.Response
-		fullRecord = pdReply.Record
-	} else {
-		var pdReply pd.GetUnvettedReply
-		err = json.Unmarshal(responseBody, &pdReply)
-		if err != nil {
-			return nil, fmt.Errorf("Could not unmarshal "+
-				"GetUnvettedReply: %v", err)
-		}
-
-		response = pdReply.Response
-		fullRecord = pdReply.Record
+	// Setup reply
+	reply := www.ProposalDetailsReply{
+		Proposal: prop,
 	}
 
-	// Verify the challenge.
-	err = util.VerifyChallenge(b.cfg.Identity, challenge, response)
-	if err != nil {
-		return nil, err
+	// Vetted proposals are viewable by everyone. The contents of
+	// an unvetted proposal is only viewable by admins and the
+	// proposal author. Unvetted proposal metadata is viewable by
+	// everyone.
+	switch prop.State {
+	case www.PropStateVetted:
+		// TODO: Get NumComments
+
+	case www.PropStateUnvetted:
+		var isAuthor bool
+		var isAdmin bool
+		// This is a public route so user may not exist
+		if user != nil {
+			isAdmin = user.Admin
+			isAuthor = (prop.UserId == user.ID.String())
+		}
+
+		// Strip proposal contents if user is not author or an admin
+		if !isAuthor && !isAdmin {
+			reply.Proposal.Name = ""
+			reply.Proposal.Files = make([]www.File, 0)
+		}
 	}
-
-	b.RLock()
-	reply.Proposal = b._convertPropFromInventoryRecord(inventoryRecord{
-		record:   fullRecord,
-		changes:  p.changes,
-		comments: p.comments,
-	})
-	b.RUnlock()
-
-	reply.Proposal.Username = b.getUsernameById(reply.Proposal.UserId)
 
 	return &reply, nil
 }
@@ -3357,9 +3290,18 @@ func NewBackend(cfg *config) (*backend, error) {
 		return nil, err
 	}
 
+	// Setup cache
+	cockroachdb.UseLogger(cockroachdbLog)
+	cache, err := cockroachdb.New(cfg.CacheHost, cfg.CacheRootCert,
+		cfg.CacheCertDir)
+	if err != nil {
+		return nil, err
+	}
+
 	// Context
 	b := &backend{
 		db:                        db,
+		cache:                     cache,
 		cfg:                       cfg,
 		userPubkeys:               make(map[string]string),
 		userPaywallPool:           make(map[uuid.UUID]paywallPoolMember),

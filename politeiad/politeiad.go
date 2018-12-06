@@ -23,6 +23,8 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/gitbe"
+	"github.com/decred/politeia/politeiad/cache"
+	"github.com/decred/politeia/politeiad/cache/cockroachdb"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	"github.com/gorilla/mux"
@@ -38,6 +40,7 @@ const (
 // politeia application context.
 type politeia struct {
 	backend  backend.Backend
+	cache    cache.Cache
 	cfg      *config
 	router   *mux.Router
 	identity *identity.FullIdentity
@@ -180,6 +183,43 @@ func (p *politeia) convertBackendRecord(br backend.Record) v1.Record {
 	return pr
 }
 
+func convertFrontendRecordToCache(r v1.Record) cache.Record {
+	cr := cache.CensorshipRecord{
+		Token:     r.CensorshipRecord.Token,
+		Merkle:    r.CensorshipRecord.Merkle,
+		Signature: r.CensorshipRecord.Signature,
+	}
+
+	metadata := make([]cache.MetadataStream, 0, len(r.Metadata))
+	for _, ms := range r.Metadata {
+		metadata = append(metadata,
+			cache.MetadataStream{
+				ID:      ms.ID,
+				Payload: ms.Payload,
+			})
+	}
+
+	files := make([]cache.File, 0, len(r.Files))
+	for _, f := range r.Files {
+		files = append(files,
+			cache.File{
+				Name:    f.Name,
+				MIME:    f.MIME,
+				Digest:  f.Digest,
+				Payload: f.Payload,
+			})
+	}
+
+	return cache.Record{
+		Version:          r.Version,
+		Status:           int(r.Status),
+		Timestamp:        r.Timestamp,
+		CensorshipRecord: cr,
+		Metadata:         metadata,
+		Files:            files,
+	}
+}
+
 func (p *politeia) respondWithUserError(w http.ResponseWriter,
 	errorCode v1.ErrorStatusT, errorContext []string) {
 	util.RespondWithJSON(w, http.StatusBadRequest, v1.UserErrorReply{
@@ -257,15 +297,30 @@ func (p *politeia) newRecord(w http.ResponseWriter, r *http.Request) {
 
 	// Prepare reply.
 	signature := p.identity.SignMessage([]byte(rm.Merkle + rm.Token))
-
+	cr := v1.CensorshipRecord{
+		Merkle:    rm.Merkle,
+		Token:     rm.Token,
+		Signature: hex.EncodeToString(signature[:]),
+	}
 	response := p.identity.SignMessage(challenge)
 	reply := v1.NewRecordReply{
-		Response: hex.EncodeToString(response[:]),
-		CensorshipRecord: v1.CensorshipRecord{
-			Merkle:    rm.Merkle,
-			Token:     rm.Token,
-			Signature: hex.EncodeToString(signature[:]),
-		},
+		Response:         hex.EncodeToString(response[:]),
+		CensorshipRecord: cr,
+	}
+
+	// Update cache.
+	record := convertFrontendRecordToCache(v1.Record{
+		Version:          "1",
+		Status:           convertBackendStatus(rm.Status),
+		Timestamp:        rm.Timestamp,
+		CensorshipRecord: cr,
+		Metadata:         t.Metadata,
+		Files:            t.Files,
+	})
+	err = p.cache.RecordNew(record)
+	if err != nil {
+		log.Criticalf("New record cache new %v: %v",
+			record.CensorshipRecord.Token, err)
 	}
 
 	log.Infof("New record accepted %v: token %v", remoteAddr(r),
@@ -358,10 +413,30 @@ func (p *politeia) updateRecord(w http.ResponseWriter, r *http.Request, vetted b
 	}
 
 	// Prepare reply.
+	fr := p.convertBackendRecord(*record)
 	response := p.identity.SignMessage(challenge)
 	reply := v1.UpdateRecordReply{
 		Response: hex.EncodeToString(response[:]),
-		Record:   p.convertBackendRecord(*record),
+		Record:   fr,
+	}
+
+	// Update cache.
+	cr := convertFrontendRecordToCache(fr)
+	if vetted {
+		// Create a new cache entry for new versions.
+		err := p.cache.RecordNew(cr)
+		if err != nil {
+			log.Criticalf("Update vetted cache new %v: %v",
+				cr.CensorshipRecord.Token, err)
+		}
+	} else {
+		// Update existing cache entry for new iterations that are not
+		// new versions.
+		err = p.cache.RecordUpdate(cr)
+		if err != nil {
+			log.Criticalf("Update unvetted cache update %v: %v",
+				cr.CensorshipRecord.Token, err)
+		}
 	}
 
 	log.Infof("Update %v record %v: token %v", cmd, remoteAddr(r),
@@ -628,9 +703,21 @@ func (p *politeia) setVettedStatus(w http.ResponseWriter, r *http.Request) {
 		p.respondWithServerError(w, errorCode)
 		return
 	}
+
+	// Prepare reply.
+	fr := p.convertBackendRecord(*record)
 	reply := v1.SetVettedStatusReply{
 		Response: hex.EncodeToString(response[:]),
-		Record:   p.convertBackendRecord(*record),
+		Record:   fr,
+	}
+
+	// Update cache.
+	cr := convertFrontendRecordToCache(fr)
+	err = p.cache.RecordUpdateStatus(cr.CensorshipRecord.Token,
+		cr.Version, cr.Status, cr.Timestamp, cr.Metadata)
+	if err != nil {
+		log.Criticalf("Set vetted status cache update %v: %v",
+			cr.CensorshipRecord.Token, err)
 	}
 
 	log.Infof("Set vetted record status %v: token %v status %v",
@@ -688,9 +775,21 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 		p.respondWithServerError(w, errorCode)
 		return
 	}
+
+	// Prepare reply.
+	fr := p.convertBackendRecord(*record)
 	reply := v1.SetUnvettedStatusReply{
 		Response: hex.EncodeToString(response[:]),
-		Record:   p.convertBackendRecord(*record),
+		Record:   fr,
+	}
+
+	// Update cache.
+	cr := convertFrontendRecordToCache(fr)
+	err = p.cache.RecordUpdateStatus(cr.CensorshipRecord.Token,
+		cr.Version, cr.Status, cr.Timestamp, cr.Metadata)
+	if err != nil {
+		log.Criticalf("Set unvetted status cache update %v: %v",
+			cr.CensorshipRecord.Token, err)
 	}
 
 	log.Infof("Set unvetted record status %v: token %v status %v",
@@ -955,6 +1054,19 @@ func _main() error {
 	}
 	p.backend = b
 
+	// Setup cache.
+	cockroachdb.UseLogger(cockroachdbLog)
+	db, err := cockroachdb.New(p.cfg.CacheHost, p.cfg.CacheRootCert,
+		p.cfg.CacheCertDir)
+	if err != nil {
+		return err
+	}
+	err = db.CreateTables()
+	if err != nil {
+		return err
+	}
+	p.cache = db
+
 	// Setup mux
 	p.router = mux.NewRouter()
 
@@ -1038,6 +1150,7 @@ func _main() error {
 		}
 	}
 done:
+	p.cache.Close()
 	p.backend.Close()
 
 	log.Infof("Exiting")
