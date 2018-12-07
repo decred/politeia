@@ -52,15 +52,17 @@ func (j *Journal) Journal(filename, content string) error {
 		return ErrBusy
 	}
 
+	if !strings.HasSuffix(content, "\n") {
+		content += "\n"
+	}
+
 	f, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0640)
 	if err != nil {
 		return err
 	}
+	defer f.Sync()
 	defer f.Close()
 
-	if !strings.HasSuffix(content, "\n") {
-		content += "\n"
-	}
 	_, err = f.Write([]byte(content))
 	return err
 }
