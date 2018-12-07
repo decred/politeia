@@ -2075,6 +2075,9 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 	return string(brb), nil
 }
 
+// tallyVotes replays the ballot journal for a proposal and tallies the votes.
+//
+// Function must be called WITH the lock held.
 func (g *gitBackEnd) tallyVotes(token string) ([]decredplugin.CastVote, error) {
 	// Do some cheap things before expensive calls
 	bfilename := pijoin(g.journals, token, defaultBallotFilename)
@@ -2149,6 +2152,15 @@ func (g *gitBackEnd) pluginProposalVotes(payload string) (string, error) {
 		return "", fmt.Errorf("proposal not found: %v", vote.Token)
 	}
 
+	// This portion is must run locked
+
+	g.Lock()
+	defer g.Unlock()
+
+	if g.shutdown {
+		return "", backend.ErrShutdown
+	}
+
 	// Prepare reply
 	var vrr decredplugin.VoteResultsReply
 
@@ -2158,15 +2170,7 @@ func (g *gitBackEnd) pluginProposalVotes(payload string) (string, error) {
 		return "", fmt.Errorf("Could not tally votes: %v", err)
 	}
 
-	// This portion is must run locked
-
 	// git checkout master
-	g.Lock()
-	defer g.Unlock()
-
-	if g.shutdown {
-		return "", backend.ErrShutdown
-	}
 	err = g.gitCheckout(g.vetted, "master")
 	if err != nil {
 		return "", err
