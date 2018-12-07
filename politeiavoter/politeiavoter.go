@@ -308,6 +308,9 @@ func (c *ctx) makeRequest(method, route string, b interface{}) ([]byte, error) {
 	}
 	req.Header.Add(v1.CsrfToken, c.csrf)
 	r, err := c.client.Do(req)
+	if _, ok := err.(*url.Error); ok {
+		return nil, errRetry
+	}
 	if err != nil {
 		return nil, err
 	}
