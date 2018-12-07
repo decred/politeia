@@ -370,7 +370,7 @@ func (b *backend) _setupCommentReplyEmailNotifications() {
 			if c.Comment.ParentID == "0" {
 				// Top-level comment
 				err := b.emailAuthorForCommentOnProposal(proposal, author,
-					c.Comment.Username)
+					c.Comment.CommentID, c.Comment.Username)
 				if err != nil {
 					log.Errorf("email author of proposal %v for new comment %v: %v",
 						c.Comment.Token, c.Comment.CommentID, err)
