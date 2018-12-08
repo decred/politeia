@@ -7,6 +7,18 @@ import (
 	"github.com/decred/politeia/politeiawww/api/v1"
 )
 
+// Help message displayed for the command 'politeiawwwcli help verifyuser'
+var VerifyUserCmdHelpMsg = `verifyuser "email" "token"
+
+Verify user's email address.
+
+Arguments:
+1. email       (string, optional)   Email of user
+2. token       (string, optional)   Verification token
+
+Result:
+{}`
+
 type VerifyUserCmd struct {
 	Args struct {
 		Email string `positional-arg-name:"email" description:"User email address"`

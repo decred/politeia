@@ -8,7 +8,7 @@ import (
 )
 
 type UpdateUserKeyCmd struct {
-	NoSave bool `long:"nosave" optional:"true" description:"Do not save the user identity to disk"`
+	NoSave bool `long:"nosave" description:"Do not save the user identity to disk"`
 }
 
 func (cmd *UpdateUserKeyCmd) Execute(args []string) error {
