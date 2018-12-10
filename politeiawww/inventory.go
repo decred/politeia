@@ -164,7 +164,7 @@ func (b *backend) _updateInventoryRecord(record pd.Record) error {
 	return nil
 }
 
-// updateInventoryCount updates the count of proposals by each statys
+// updateInventoryCount updates the count of proposals by each status
 //
 // this function must be called WITH the mutex held
 func (b *backend) _updateInventoryCountOfPropStatus(status pd.RecordStatusT, oldStatus *pd.RecordStatusT) {
@@ -593,7 +593,7 @@ func (b *backend) getInventoryRecord(token string) (inventoryRecord, error) {
 // getInventoryRecordComment returns a comment from the inventory given its
 // record token and the comment id.
 //
-// This functions must be called WITH the mutex held.
+// This function must be called WITH the mutex held.
 func (b *backend) _getInventoryRecordComment(token string, commentID string) (*www.Comment, error) {
 	comment, ok := b.inventory[token].comments[commentID]
 	if !ok {

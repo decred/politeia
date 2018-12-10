@@ -1079,6 +1079,9 @@ Reply:
       "name":"Edited proposal",
       "status":4,
       "timestamp":1535468714,
+      "publishedat": 1508296860900,
+      "censoredat": 0,
+      "abandonedat": 0,
       "userid":"",
       "username":"",
       "publickey":"1bc17b4aaa7d08030d0cb984d3b67ce7b681508b46ce307b22dfd630141788a0",
@@ -1142,6 +1145,9 @@ Reply:
       "name": "My Proposal",
       "status": 2,
       "timestamp": 1508296860781,
+      "publishedat": 0,
+      "censoredat": 0,
+      "abandonedat": 0,
       "censorshiprecord": {
         "token": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
         "merkle": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
@@ -1189,6 +1195,9 @@ Reply:
     "name": "My Proposal",
     "status": 4,
     "timestamp": 1508296860781,
+    "publishedat": 1508296860900,
+    "censoredat": 0,
+    "abandonedat": 0,
     "censorshiprecord": {
       "token": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
       "merkle": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
@@ -2483,7 +2492,11 @@ This is a shortened representation of a user, used for lists.
 | censorshiprecord | [`censorshiprecord`](#censorship-record) | The censorship record that was created when the proposal was submitted. |
 | files | array of [`File`](#file)s | This property will only be populated for the [`Proposal details`](#proposal-details) call. |
 | numcomments | number | The number of comments on the proposal. This should be ignored for proposals which are not public. |
-
+| statatuschangemessage | Message associated to the status change. |
+| pubishedat | The timestamp of when the proposal has been published. If the proposals has not been pubished, this field will not be present. |
+| censoredat | The timestamp of when the proposal has been censored. If the proposals has not been censored, this field will not be present. |
+| abandonedat | The timestamp of when the proposal has been abandoned. If the proposals has not been abandoned, this field will not be present. |
+ 
 ### `Identity`
 
 | | Type | Description |

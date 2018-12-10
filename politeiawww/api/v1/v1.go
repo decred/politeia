@@ -385,6 +385,9 @@ type ProposalRecord struct {
 	NumComments         uint        `json:"numcomments"`                   // Number of comments on the proposal
 	Version             string      `json:"version"`                       // Record version
 	StatusChangeMessage string      `json:"statuschangemessage,omitempty"` // Message associated to the status change
+	PublishedAt         int64       `json:"publishedat,omitempty"`         // The timestamp of when the proposal has been published
+	CensoredAt          int64       `json:"censoredat,omitempty"`          // The timestamp of when the proposal has been censored
+	AbandonedAt         int64       `json:"abandonedat,omitempty"`         // The timestamp of when the proposal has been abandoned
 
 	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
 }

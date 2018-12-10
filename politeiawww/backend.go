@@ -247,6 +247,11 @@ func (b *backend) _convertPropFromInventoryRecord(r inventoryRecord) www.Proposa
 	// Set the comments num.
 	proposal.NumComments = uint(len(r.comments))
 
+	// Set the proposals status timestamps
+	proposal.PublishedAt,
+		proposal.CensoredAt,
+		proposal.AbandonedAt = getProposalStatusTimestamps(r)
+
 	// Set the user id.
 	var ok bool
 	proposal.UserId, ok = b.userPubkeys[proposal.PublicKey]
@@ -256,6 +261,21 @@ func (b *backend) _convertPropFromInventoryRecord(r inventoryRecord) www.Proposa
 	}
 
 	return proposal
+}
+
+func getProposalStatusTimestamps(ir inventoryRecord) (int64, int64, int64) {
+	var publishedAt, censoredAt, abandonedAt int64
+	for _, c := range ir.changes {
+		switch convertPropStatusFromPD(c.NewStatus) {
+		case www.PropStatusPublic:
+			publishedAt = c.Timestamp
+		case www.PropStatusCensored:
+			censoredAt = c.Timestamp
+		case www.PropStatusAbandoned:
+			abandonedAt = c.Timestamp
+		}
+	}
+	return publishedAt, censoredAt, abandonedAt
 }
 
 // hashPassword hashes the given password string with the default bcrypt cost
