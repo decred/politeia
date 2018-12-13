@@ -20,13 +20,15 @@ Arguments:
 2. username   (string, required)   Username 
 3. password   (string, required)   Password
 
-Result:
+Request:
 {
   "email":      (string)  User email
   "password":   (string)  Password
   "publickey":  (string)  Active public key
   "username":   (string)  Username
 }
+
+Response:
 {
   "verificationtoken":   (string)  Server verification token
 }`
@@ -36,7 +38,7 @@ type NewUserCmd struct {
 		Email    string `positional-arg-name:"email"`
 		Username string `positional-arg-name:"username"`
 		Password string `positional-arg-name:"password"`
-	} `positional-args:"true" optional:"true"`
+	} `positional-args:"true"`
 	Random bool `long:"random" optional:"true" description:"Generate a random email/password for the user"`
 	Verify bool `long:"verify" optional:"true" description:"Verify the user's email address"`
 	NoSave bool `long:"nosave" optional:"true" description:"Do not save the user identity to disk"`

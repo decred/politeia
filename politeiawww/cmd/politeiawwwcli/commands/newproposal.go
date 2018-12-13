@@ -16,8 +16,8 @@ import (
 // Help message displayed for the command 'politeiawwwcli help newproposal'
 var NewProposalCmdHelpMsg = `newproposal "markdownFile" "attachmentFiles" 
 
-Submit a new proposal to Politeia. Proposal must be a markdown file. Attachment
-files can be of any file type. 
+Submit a new proposal to Politeia. Proposal must be a markdown file. Accepted 
+attachment filetypes: png or plain text.
 
 Arguments:
 1. markdownFile      (string, required)   Proposal 

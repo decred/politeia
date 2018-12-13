@@ -6,6 +6,24 @@ import (
 	"github.com/decred/politeia/politeiawww/api/v1"
 )
 
+// Help message displayed for the command 'politeiawwwcli help changepassword'
+var ChangePasswordCmdHelpMsg = `changepassword "currentPassword" "newPassword" 
+
+Change password for the currently logged in user. 
+
+Arguments:
+1. currentPassword   (string, required)   Current password 
+2. newPassword       (string, required)   New password  
+
+Request:
+{
+  "currentpassword":   (string)  Current password 
+  "newpassword":       (string)  New password 
+}
+
+Response:
+{}`
+
 type ChangePasswordCmd struct {
 	Args struct {
 		Password    string `positional-arg-name:"currentPassword"`

@@ -2,6 +2,24 @@ package commands
 
 import "github.com/decred/politeia/politeiawww/api/v1"
 
+// Help message displayed for the command 'politeiawwwcli help changeusername'
+var ChangeUsernameCmdHelpMsg = `changeusername "password" "newusername" 
+
+Change the username for the currently logged in user.
+
+Arguments:
+1. password      (string, required)   Current password 
+2. newusername   (string, required)   New username  
+
+Request:
+{
+  "password":      (string)  Current password 
+  "newusername":   (string)  New username
+}
+
+Response:
+{}`
+
 type ChangeUsernameCmd struct {
 	Args struct {
 		Password    string `positional-arg-name:"password"`
