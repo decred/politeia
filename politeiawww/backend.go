@@ -1977,7 +1977,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 				propDetails.Token, err)
 		}
 		specVersion, err := strconv.ParseUint(propDetails.Version, 10, 64)
-		if err != nil || specVersion > latestVersion {
+		if err != nil || specVersion > latestVersion || specVersion == 0 {
 			return nil, www.UserError{
 				ErrorCode: www.ErrorStatusInvalidPropVersion,
 			}
