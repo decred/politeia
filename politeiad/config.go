@@ -8,6 +8,7 @@ package main
 import (
 	"encoding/base64"
 	"fmt"
+	"mime"
 	"net"
 	"os"
 	"path/filepath"
@@ -19,6 +20,7 @@ import (
 	flags "github.com/btcsuite/go-flags"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrtime/api/v1"
+	pdmime "github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 )
@@ -66,14 +68,15 @@ type config struct {
 	DebugLevel  string   `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
 	Listeners   []string `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 49152, testnet: 59152)"`
 	Version     string
-	HTTPSCert   string `long:"httpscert" description:"File containing the https certificate file"`
-	HTTPSKey    string `long:"httpskey" description:"File containing the https certificate key"`
-	RPCUser     string `long:"rpcuser" description:"RPC user name for privileged commands"`
-	RPCPass     string `long:"rpcpass" description:"RPC password for privileged commands"`
-	DcrtimeHost string `long:"dcrtimehost" description:"Dcrtime ip:port"`
-	DcrtimeCert string `long:"dcrtimecert" description:"File containing the https certificate file for dcrtimehost"`
-	Identity    string `long:"identity" description:"File containing the politeiad identity file"`
-	GitTrace    bool   `long:"gittrace" description:"Enable git tracing in logs"`
+	HTTPSCert   string   `long:"httpscert" description:"File containing the https certificate file"`
+	HTTPSKey    string   `long:"httpskey" description:"File containing the https certificate key"`
+	RPCUser     string   `long:"rpcuser" description:"RPC user name for privileged commands"`
+	RPCPass     string   `long:"rpcpass" description:"RPC password for privileged commands"`
+	DcrtimeHost string   `long:"dcrtimehost" description:"Dcrtime ip:port"`
+	DcrtimeCert string   `long:"dcrtimecert" description:"File containing the https certificate file for dcrtimehost"`
+	Identity    string   `long:"identity" description:"File containing the politeiad identity file"`
+	GitTrace    bool     `long:"gittrace" description:"Enable git tracing in logs"`
+	MimeTypes   []string `long:"mimetypes" description:"Valid mimetypes accepted by politeiad"`
 }
 
 // serviceOptions defines the configuration options for the daemon as a service
@@ -129,11 +132,42 @@ func supportedSubsystems() []string {
 	return subsystems
 }
 
+func parseAndValidateMimeTypes(mimeTypes string) ([]string, error) {
+	mimes := strings.Split(mimeTypes, ",")
+	parsed := make([]string, 0, len(mimes))
+
+	for _, m := range mimes {
+		mediatype, params, err := mime.ParseMediaType(m)
+		if err != nil {
+			return nil, err
+		}
+		// Check if the input media type is recognized by the mime
+		// package. This is a rough indication of whether the input
+		// media type is valid. The mime package does not include
+		// all media types so just throw a warning if the input
+		// media type is not recognized.
+		ext, err := mime.ExtensionsByType(mediatype)
+		if err != nil {
+			return nil, err
+		} else if len(ext) == 0 {
+			log.Warnf("MIME type '%v' not recognized", m)
+		}
+		// Media type params get put into a map during parsing where
+		// "charset=utf-8" becomes ["charset"]"utf-8". Concatenate
+		// them back onto the media type.
+		for k, v := range params {
+			mediatype += ("; " + k + "=" + v)
+		}
+		parsed = append(parsed, mediatype)
+	}
+	return parsed, nil
+}
+
 // parseAndSetDebugLevels attempts to parse the specified debug level and set
 // the levels accordingly.  An appropriate error is returned if anything is
 // invalid.
 func parseAndSetDebugLevels(debugLevel string) error {
-	// When the specified string doesn't have any delimters, treat it as
+	// When the specified string doesn't have any delimiters, treat it as
 	// the log level for all subsystems.
 	if !strings.Contains(debugLevel, ",") && !strings.Contains(debugLevel, "=") {
 		// Validate debug log level.
@@ -235,6 +269,7 @@ func loadConfig() (*config, []string, error) {
 		LogDir:     defaultLogDir,
 		HTTPSKey:   defaultHTTPSKeyFile,
 		HTTPSCert:  defaultHTTPSCertFile,
+		MimeTypes:  pdmime.DefaultMimeTypes,
 		Version:    version.String(),
 	}
 
@@ -440,6 +475,17 @@ func loadConfig() (*config, []string, error) {
 	// Add default port to all listener addresses if needed and remove
 	// duplicate addresses.
 	cfg.Listeners = normalizeAddresses(cfg.Listeners, port)
+
+	// Load configurable mime types to politeiad.
+	mtlen := len(cfg.MimeTypes)
+	if mtlen != len(pdmime.DefaultMimeTypes) {
+		mimes, err := parseAndValidateMimeTypes(cfg.MimeTypes[mtlen-1])
+		if err != nil {
+			return nil, nil, err
+		}
+		cfg.MimeTypes = mimes
+	}
+	pdmime.SetMimeTypesMap(cfg.MimeTypes)
 
 	if cfg.TestNet {
 		var timeHost string

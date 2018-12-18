@@ -232,6 +232,15 @@ const (
 )
 
 var (
+	// PolicyValidMimeTypes is the list of accepted mime types
+	// in politeiad. Temporary solution, must call politeiad
+	// to fetch valid mime types list.
+	PolicyValidMimeTypes = []string{
+		"image/png",
+		"text/plain",
+		"text/plain; charset=utf-8",
+	}
+
 	// PolicyProposalNameSupportedChars is the regular expression of a valid
 	// proposal name
 	PolicyProposalNameSupportedChars = []string{

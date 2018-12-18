@@ -19,7 +19,6 @@ import (
 	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
-	"github.com/decred/politeia/politeiad/api/v1/mime"
 	www "github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/politeiawww/database"
 	"github.com/decred/politeia/politeiawww/database/localdb"
@@ -3234,7 +3233,7 @@ func (b *backend) ProcessPolicy(p www.Policy) *www.PolicyReply {
 		MaxImageSize:               www.PolicyMaxImageSize,
 		MaxMDs:                     www.PolicyMaxMDs,
 		MaxMDSize:                  www.PolicyMaxMDSize,
-		ValidMIMETypes:             mime.ValidMimeTypes(),
+		ValidMIMETypes:             www.PolicyValidMimeTypes,
 		MinProposalNameLength:      www.PolicyMinProposalNameLength,
 		MaxProposalNameLength:      www.PolicyMaxProposalNameLength,
 		ProposalNameSupportedChars: www.PolicyProposalNameSupportedChars,

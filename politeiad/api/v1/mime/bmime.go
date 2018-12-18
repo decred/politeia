@@ -8,17 +8,18 @@ import (
 )
 
 var (
-	// validMimeTypesList is a list of all acceptable MIME types that
-	// can be communicated between client and server.
-	validMimeTypesList = []string{
+	// validMimeTypesMap is a list of all acceptable MIME types that
+	// can be communicated between client and server, structured
+	// as a map for fast access.
+	validMimeTypesMap = make(map[string]struct{})
+
+	// DefaultMimeTypes is a list to be used as a default if this
+	// config is not set manually.
+	DefaultMimeTypes = []string{
 		"image/png",
 		"text/plain",
 		"text/plain; charset=utf-8",
 	}
-
-	// validMimeTypesMap is the same as ValidMimeTypesList, but structured
-	// as a map for fast access.
-	validMimeTypesMap = make(map[string]struct{}, len(validMimeTypesList))
 
 	ErrUnsupportedMimeType = errors.New("unsupported MIME type")
 )
@@ -28,11 +29,6 @@ var (
 func MimeValid(s string) bool {
 	_, ok := validMimeTypesMap[s]
 	return ok
-}
-
-// ValidMimeTypes returns the list of supported MIME types.
-func ValidMimeTypes() []string {
-	return validMimeTypesList
 }
 
 // DetectMimeType returns the file MIME type
@@ -45,8 +41,9 @@ func DetectMimeType(data []byte) string {
 	return http.DetectContentType(data)
 }
 
-func init() {
-	for _, v := range validMimeTypesList {
-		validMimeTypesMap[v] = struct{}{}
+// SetMimeTypesMap sets valid mimetypes list with loaded config
+func SetMimeTypesMap(validMimeTypesCfg []string) {
+	for _, m := range validMimeTypesCfg {
+		validMimeTypesMap[m] = struct{}{}
 	}
 }

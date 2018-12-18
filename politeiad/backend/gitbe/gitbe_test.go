@@ -72,6 +72,14 @@ func TestAnchorWithCommits(t *testing.T) {
 	}
 	g.test = true
 
+	// Sets mime types map for validation
+	var mts = []string{
+		"image/png",
+		"text/plain",
+		"text/plain; charset=utf-8",
+	}
+	mime.SetMimeTypesMap(mts)
+
 	// Create 5 unvetted records
 	propCount := 5
 	fileCount := 3
