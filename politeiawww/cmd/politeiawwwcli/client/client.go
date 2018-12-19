@@ -37,7 +37,7 @@ type Client struct {
 func New(cfg *config.Config) (*Client, error) {
 	// Create http client
 	tlsConfig := &tls.Config{
-		InsecureSkipVerify: true,
+		InsecureSkipVerify: cfg.SkipVerify,
 	}
 	tr := &http.Transport{
 		TLSClientConfig: tlsConfig,

@@ -48,6 +48,7 @@ type Config struct {
 	Host        string `long:"host" description:"politeiawww host"`
 	RawJSON     bool   `short:"j" long:"json" description:"Print raw JSON output"`
 	ShowVersion bool   `short:"V" long:"version" description:"Display version information and exit"`
+	SkipVerify  bool   `long:"skipverify" description:"Skip verifying the server's certifcate chain and host name."`
 	Verbose     bool   `short:"v" long:"verbose" description:"Print verbose output"`
 
 	Version string // cli version
