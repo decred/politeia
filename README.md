@@ -120,10 +120,29 @@ things like new user registration, and those settings are also configured within
 
 #### 4. Build the programs:
 
+Go 1.11 introduced [modules](https://github.com/golang/go/wiki/Modules), a new
+dependency management approach, that obviates the need for third party tooling
+such as `dep`.
+
+Usage is simple and nothing is required except Go 1.11. If building in a folder
+under `GOPATH`, it is necessary to explicitly build with modules enabled:
+
 ```
 cd $GOPATH/src/github.com/decred/politeia
-dep ensure && go install -v ./...
+export GO111MODULE=on
+go install -v ./...
 ```
+
+If building outside of `GOPATH`, modules are automatically enabled, and `go
+install` is sufficient.
+
+```
+go install -v ./...
+```
+
+The go tool will process the source code and automatically download
+dependencies. If the dependencies are configured correctly, there will be no
+modifications to the `go.mod` and `go.sum` files.
 
 #### 5. Start the politeiad server by running on your terminal:
 
