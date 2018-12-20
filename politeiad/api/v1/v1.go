@@ -277,7 +277,6 @@ type SetUnvettedStatus struct {
 // potentially modified record without the Files.
 type SetUnvettedStatusReply struct {
 	Response string `json:"response"` // Challenge response
-	Record   Record `json:"record"`
 }
 
 // SetVettedStatus updates the status of a vetted record. This is used to
@@ -294,7 +293,6 @@ type SetVettedStatus struct {
 // potentially modified record without the Files.
 type SetVettedStatusReply struct {
 	Response string `json:"response"` // Challenge response
-	Record   Record `json:"record"`
 }
 
 // UpdateRecord update an unvetted record.
@@ -311,8 +309,6 @@ type UpdateRecord struct {
 // changed.  Metadata only updates do not create a new CensorshipRecord.
 type UpdateRecordReply struct {
 	Response string `json:"response"` // Challenge response
-
-	Record Record `json:"record"`
 }
 
 // UpdateVettedMetadata update a vetted metadata.  This is allowed for

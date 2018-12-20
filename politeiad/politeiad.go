@@ -183,6 +183,45 @@ func (p *politeia) convertBackendRecord(br backend.Record) v1.Record {
 	return pr
 }
 
+func (p *politeia) convertBackendRecordToCache(r backend.Record) cache.Record {
+	msg := []byte(r.RecordMetadata.Merkle + r.RecordMetadata.Token)
+	signature := p.identity.SignMessage(msg)
+	cr := cache.CensorshipRecord{
+		Token:     r.RecordMetadata.Token,
+		Merkle:    r.RecordMetadata.Merkle,
+		Signature: hex.EncodeToString(signature[:]),
+	}
+
+	metadata := make([]cache.MetadataStream, 0, len(r.Metadata))
+	for _, ms := range r.Metadata {
+		metadata = append(metadata,
+			cache.MetadataStream{
+				ID:      ms.ID,
+				Payload: ms.Payload,
+			})
+	}
+
+	files := make([]cache.File, 0, len(r.Files))
+	for _, f := range r.Files {
+		files = append(files,
+			cache.File{
+				Name:    f.Name,
+				MIME:    f.MIME,
+				Digest:  f.Digest,
+				Payload: f.Payload,
+			})
+	}
+
+	return cache.Record{
+		Version:          r.Version,
+		Status:           int(convertBackendStatus(r.RecordMetadata.Status)),
+		Timestamp:        r.RecordMetadata.Timestamp,
+		CensorshipRecord: cr,
+		Metadata:         metadata,
+		Files:            files,
+	}
+}
+
 func convertFrontendRecordToCache(r v1.Record) cache.Record {
 	cr := cache.CensorshipRecord{
 		Token:     r.CensorshipRecord.Token,
@@ -412,21 +451,13 @@ func (p *politeia) updateRecord(w http.ResponseWriter, r *http.Request, vetted b
 		return
 	}
 
-	// Prepare reply.
-	fr := p.convertBackendRecord(*record)
-	response := p.identity.SignMessage(challenge)
-	reply := v1.UpdateRecordReply{
-		Response: hex.EncodeToString(response[:]),
-		Record:   fr,
-	}
-
 	// Update cache.
-	cr := convertFrontendRecordToCache(fr)
+	cr := p.convertBackendRecordToCache(*record)
 	if vetted {
 		// Create a new cache entry for new versions.
 		err := p.cache.RecordNew(cr)
 		if err != nil {
-			log.Criticalf("Update vetted cache new %v: %v",
+			log.Criticalf("Update vetted record cache new %v: %v",
 				cr.CensorshipRecord.Token, err)
 		}
 	} else {
@@ -434,13 +465,19 @@ func (p *politeia) updateRecord(w http.ResponseWriter, r *http.Request, vetted b
 		// new versions.
 		err = p.cache.RecordUpdate(cr)
 		if err != nil {
-			log.Criticalf("Update unvetted cache update %v: %v",
+			log.Criticalf("Update unvetted record cache update %v: %v",
 				cr.CensorshipRecord.Token, err)
 		}
 	}
 
+	// Prepare reply.
+	response := p.identity.SignMessage(challenge)
+	reply := v1.UpdateRecordReply{
+		Response: hex.EncodeToString(response[:]),
+	}
+
 	log.Infof("Update %v record %v: token %v", cmd, remoteAddr(r),
-		reply.Record.CensorshipRecord.Token)
+		record.RecordMetadata.Token)
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
@@ -704,15 +741,8 @@ func (p *politeia) setVettedStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Prepare reply.
-	fr := p.convertBackendRecord(*record)
-	reply := v1.SetVettedStatusReply{
-		Response: hex.EncodeToString(response[:]),
-		Record:   fr,
-	}
-
 	// Update cache.
-	cr := convertFrontendRecordToCache(fr)
+	cr := p.convertBackendRecordToCache(*record)
 	err = p.cache.RecordUpdateStatus(cr.CensorshipRecord.Token,
 		cr.Version, cr.Status, cr.Timestamp, cr.Metadata)
 	if err != nil {
@@ -720,8 +750,14 @@ func (p *politeia) setVettedStatus(w http.ResponseWriter, r *http.Request) {
 			cr.CensorshipRecord.Token, err)
 	}
 
+	// Prepare reply.
+	reply := v1.SetVettedStatusReply{
+		Response: hex.EncodeToString(response[:]),
+	}
+
+	s := convertBackendStatus(record.RecordMetadata.Status)
 	log.Infof("Set vetted record status %v: token %v status %v",
-		remoteAddr(r), t.Token, v1.RecordStatus[reply.Record.Status])
+		remoteAddr(r), t.Token, v1.RecordStatus[s])
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
@@ -776,15 +812,8 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Prepare reply.
-	fr := p.convertBackendRecord(*record)
-	reply := v1.SetUnvettedStatusReply{
-		Response: hex.EncodeToString(response[:]),
-		Record:   fr,
-	}
-
 	// Update cache.
-	cr := convertFrontendRecordToCache(fr)
+	cr := p.convertBackendRecordToCache(*record)
 	err = p.cache.RecordUpdateStatus(cr.CensorshipRecord.Token,
 		cr.Version, cr.Status, cr.Timestamp, cr.Metadata)
 	if err != nil {
@@ -792,8 +821,14 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 			cr.CensorshipRecord.Token, err)
 	}
 
+	// Prepare reply.
+	reply := v1.SetUnvettedStatusReply{
+		Response: hex.EncodeToString(response[:]),
+	}
+
+	s := convertBackendStatus(record.RecordMetadata.Status)
 	log.Infof("Set unvetted record status %v: token %v status %v",
-		remoteAddr(r), t.Token, v1.RecordStatus[reply.Record.Status])
+		remoteAddr(r), t.Token, v1.RecordStatus[s])
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }

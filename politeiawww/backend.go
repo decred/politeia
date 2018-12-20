@@ -1632,22 +1632,14 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 		return nil, err
 	}
 
-	var reply www.NewProposalReply
-	challenge, err := util.Random(pd.ChallengeSize)
-	if err != nil {
-		return nil, err
-	}
-
+	// Assemble metdata record
 	name, err := getProposalName(np.Files)
 	if err != nil {
 		return nil, err
 	}
-
-	// Assemble metdata record
-	ts := time.Now().Unix()
 	md, err := encodeBackendProposalMetadata(BackendProposalMetadata{
 		Version:   BackendProposalMetadataVersion,
-		Timestamp: ts,
+		Timestamp: time.Now().Unix(),
 		Name:      name,
 		PublicKey: np.PublicKey,
 		Signature: np.Signature,
@@ -1656,6 +1648,11 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 		return nil, err
 	}
 
+	// Setup politeiad request
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
 	n := pd.NewRecord{
 		Challenge: hex.EncodeToString(challenge),
 		Metadata: []pd.MetadataStream{{
@@ -1665,85 +1662,84 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 		Files: convertPropFilesFromWWW(np.Files),
 	}
 
-	var pdReply pd.NewRecordReply
+	// Handle test case
 	if b.test {
 		tokenBytes, err := util.Random(pd.TokenSize)
 		if err != nil {
 			return nil, err
 		}
 
-		pdReply.CensorshipRecord = pd.CensorshipRecord{
-			Token: hex.EncodeToString(tokenBytes),
+		testReply := pd.NewRecordReply{
+			CensorshipRecord: pd.CensorshipRecord{
+				Token: hex.EncodeToString(tokenBytes),
+			},
 		}
 
-		// Add the new proposal to the cache.
-		err = b.newInventoryRecord(pd.Record{
-			Status:           pd.RecordStatusNotReviewed,
-			Timestamp:        ts,
-			CensorshipRecord: pdReply.CensorshipRecord,
-			Metadata:         n.Metadata,
-			Version:          "1",
-		})
-		if err != nil {
-			log.Errorf("ProcessNewProposal could not add record "+
-				"into inventory: %v", err)
-		}
-	} else {
-		responseBody, err := b.makeRequest(http.MethodPost,
-			pd.NewRecordRoute, n)
-		if err != nil {
-			return nil, err
-		}
-
-		log.Infof("Submitted proposal name: %v", name)
-		for k, f := range n.Files {
-			log.Infof("%02v: %v %v", k, f.Name, f.Digest)
-		}
-
-		err = json.Unmarshal(responseBody, &pdReply)
-		if err != nil {
-			return nil, fmt.Errorf("Unmarshal NewProposalReply: %v",
-				err)
-		}
-
-		// Verify the challenge.
-		err = util.VerifyChallenge(b.cfg.Identity, challenge, pdReply.Response)
-		if err != nil {
-			return nil, err
-		}
-
-		// Add the new proposal to the inventory cache.
-		b.newInventoryRecord(pd.Record{
-			Status:           pd.RecordStatusNotReviewed,
-			Timestamp:        ts,
-			CensorshipRecord: pdReply.CensorshipRecord,
-			Metadata:         n.Metadata,
-			Version:          "1",
-		})
-		if err != nil {
-			log.Errorf("ProcessNewProposal could not add record "+
-				"into inventory: %v", err)
-		}
+		return &www.NewProposalReply{
+			CensorshipRecord: convertPropCensorFromPD(testReply.CensorshipRecord),
+		}, nil
 	}
 
-	err = b.SpendProposalCredit(user, pdReply.CensorshipRecord.Token)
+	// Send politeiad request
+	var pdReply pd.NewRecordReply
+	responseBody, err := b.makeRequest(http.MethodPost,
+		pd.NewRecordRoute, n)
 	if err != nil {
 		return nil, err
 	}
 
-	reply.CensorshipRecord = convertPropCensorFromPD(pdReply.CensorshipRecord)
-
-	if !b.test {
-		b.fireEvent(EventTypeProposalSubmitted,
-			EventDataProposalSubmitted{
-				CensorshipRecord: &reply.CensorshipRecord,
-				ProposalName:     name,
-				User:             user,
-			},
-		)
+	log.Infof("Submitted proposal name: %v", name)
+	for k, f := range n.Files {
+		log.Infof("%02v: %v %v", k, f.Name, f.Digest)
 	}
 
-	return &reply, nil
+	// Handle response
+	err = json.Unmarshal(responseBody, &pdReply)
+	if err != nil {
+		return nil, fmt.Errorf("Unmarshal NewProposalReply: %v", err)
+	}
+
+	err = util.VerifyChallenge(b.cfg.Identity, challenge, pdReply.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	cr := convertPropCensorFromPD(pdReply.CensorshipRecord)
+
+	// Deduct proposal credit from user account
+	err = b.SpendProposalCredit(user, cr.Token)
+	if err != nil {
+		return nil, err
+	}
+
+	// Fire off new proposal event
+	b.fireEvent(EventTypeProposalSubmitted,
+		EventDataProposalSubmitted{
+			CensorshipRecord: &cr,
+			ProposalName:     name,
+			User:             user,
+		},
+	)
+
+	// XXX this is here temporarily until decredplugin data has
+	// been added to the caching layer
+	b.newInventoryRecord(pd.Record{
+		Status:    0,
+		Timestamp: 0,
+		CensorshipRecord: pd.CensorshipRecord{
+			Token: cr.Token,
+		},
+		Metadata: make([]pd.MetadataStream, 0),
+		Version:  "1",
+	})
+	if err != nil {
+		log.Errorf("ProcessNewProposal could not add record into"+
+			"inventory: %v", err)
+	}
+
+	return &www.NewProposalReply{
+		CensorshipRecord: cr,
+	}, nil
 }
 
 // ProcessSetProposalStatus changes the status of an existing proposal.
@@ -1757,14 +1753,21 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 		return nil, err
 	}
 
-	// Make sure status change message is not blank if the
-	// proposal is being censored or abandoned
+	// Ensure the status change message is not blank if the proposal
+	// is being censored or abandoned
 	if sps.StatusChangeMessage == "" &&
 		(sps.ProposalStatus == www.PropStatusCensored ||
 			sps.ProposalStatus == www.PropStatusAbandoned) {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusChangeMessageCannotBeBlank,
 		}
+	}
+
+	// Ensure user is an admin. Only admins are allowed to change
+	// a proposal status.
+	adminPubKey, ok := database.ActiveIdentityString(user.Identities)
+	if !ok {
+		return nil, fmt.Errorf("invalid admin identity: %v", user.ID)
 	}
 
 	// Handle test case
@@ -1774,23 +1777,43 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 		return &reply, nil
 	}
 
+	// Get proposal from cache
+	r, err := b.cache.RecordGetLatest(sps.Token)
+	if err != nil {
+		if err == cache.ErrRecordNotFound {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusProposalNotFound,
+			}
+		}
+		return nil, err
+	}
+	pr := convertPropFromCache(*r)
+
+	// The only time admins are allowed to change the status of
+	// their own proposals is on testnet
+	if !b.cfg.TestNet {
+		authorID, ok := b.getUserIDByPubkey(pr.PublicKey)
+		if !ok {
+			return nil, fmt.Errorf("user not found for public key %v "+
+				"for proposal %v", pr.PublicKey, pr.CensorshipRecord.Token)
+		}
+
+		if authorID == user.ID.String() {
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusReviewerAdminEqualsAuthor,
+			}
+		}
+	}
+
 	// Create change record
 	newStatus := convertPropStatusFromWWW(sps.ProposalStatus)
-	r := MDStreamChanges{
+	blob, err := json.Marshal(MDStreamChanges{
 		Version:             VersionMDStreamChanges,
 		Timestamp:           time.Now().Unix(),
 		NewStatus:           newStatus,
+		AdminPubKey:         adminPubKey,
 		StatusChangeMessage: sps.StatusChangeMessage,
-	}
-
-	var ok bool
-	r.AdminPubKey, ok = database.ActiveIdentityString(user.Identities)
-	if !ok {
-		return nil, fmt.Errorf("invalid admin identity: %v",
-			user.ID)
-	}
-
-	blob, err := json.Marshal(r)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -1801,32 +1824,6 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 		return nil, err
 	}
 
-	// XXX Expensive to lock but do it for now.
-	// Lock is needed to prevent a race into this record and it
-	// needs to be updated in the cache.
-	b.Lock()
-	defer b.Unlock()
-
-	// Get proposal from inventory
-	ir, err := b._getInventoryRecord(sps.Token)
-	if err != nil {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusProposalNotFound,
-		}
-	}
-	pr := convertPropFromPD(ir.record)
-
-	// When not in testnet, block admins from changing the
-	// status of their own proposals
-	if !b.cfg.TestNet {
-		if pr.UserId == user.ID.String() {
-			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusReviewerAdminEqualsAuthor,
-			}
-		}
-	}
-
-	var updatedRecord pd.Record
 	var challengeResponse string
 	switch {
 	case pr.State == www.PropStateUnvetted:
@@ -1869,10 +1866,9 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 		var susr pd.SetUnvettedStatusReply
 		err = json.Unmarshal(responseBody, &susr)
 		if err != nil {
-			return nil, fmt.Errorf("Could not unmarshal "+
+			return nil, fmt.Errorf("could not unmarshal "+
 				"SetUnvettedStatusReply: %v", err)
 		}
-		updatedRecord = susr.Record
 		challengeResponse = susr.Response
 
 	case pr.State == www.PropStateVetted:
@@ -1886,9 +1882,14 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 			}
 		}
 
+		// XXX we need this until vote md has been added to cache
+		ir, err := b.getInventoryRecord(pr.CensorshipRecord.Token)
+		if err != nil {
+			return nil, err
+		}
+
 		// Ensure voting has not been started or authorized yet
-		if ir.voting.StartBlockHeight != "" ||
-			voteIsAuthorized(ir) {
+		if ir.voting.StartBlockHeight != "" || voteIsAuthorized(ir) {
 			return nil, www.UserError{
 				ErrorCode: www.ErrorStatusWrongVoteStatus,
 			}
@@ -1916,14 +1917,13 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 		var svsr pd.SetVettedStatusReply
 		err = json.Unmarshal(responseBody, &svsr)
 		if err != nil {
-			return nil, fmt.Errorf("Could not unmarshal "+
+			return nil, fmt.Errorf("could not unmarshal "+
 				"SetVettedStatusReply: %v", err)
 		}
-		updatedRecord = svsr.Record
 		challengeResponse = svsr.Response
 
 	default:
-		return nil, fmt.Errorf("Invalid proposal state %v: %v",
+		return nil, fmt.Errorf("invalid proposal state %v: %v",
 			pr.State, pr.CensorshipRecord.Token)
 	}
 
@@ -1934,18 +1934,14 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 		return nil, err
 	}
 
-	// politeiad returns the record without the files
-	// attached. Add files back onto the record.
-	updatedRecord.Files = ir.record.Files
-
-	// Update the inventory with the metadata changes.
-	err = b._updateInventoryRecord(updatedRecord)
+	// Get record from cache
+	r, err = b.cache.RecordGet(pr.CensorshipRecord.Token, pr.Version)
 	if err != nil {
-		return nil, fmt.Errorf("updateInventoryRecord %v", err)
+		return nil, err
 	}
+	updatedProp := convertPropFromCache(*r)
 
 	// Fire off proposal status change event
-	updatedProp := convertPropFromPD(updatedRecord)
 	b.eventManager._fireEvent(EventTypeProposalStatusChange,
 		EventDataProposalStatusChange{
 			Proposal:          &updatedProp,
@@ -2973,7 +2969,7 @@ func (b *backend) ProcessUserCommentsLikes(user *database.User, token string) (*
 	return &uclr, nil
 }
 
-// ProcessEditProposal attempts to edit a proposal on politeiad
+// ProcessEditProposal attempts to edit a proposal on politeiad.
 func (b *backend) ProcessEditProposal(user *database.User, ep www.EditProposal) (*www.EditProposalReply, error) {
 	log.Tracef("ProcessEditProposal %v", ep.Token)
 
@@ -2984,6 +2980,33 @@ func (b *backend) ProcessEditProposal(user *database.User, ep www.EditProposal) 
 		return nil, err
 	}
 
+	// Get proposal from cache
+	r, err := b.cache.RecordGetLatest(ep.Token)
+	if err != nil {
+		if err == cache.ErrRecordNotFound {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusProposalNotFound,
+			}
+		}
+		return nil, err
+	}
+	cachedProp := convertPropFromCache(*r)
+
+	// Ensure user is the proposal author
+	authorID, ok := b.getUserIDByPubkey(cachedProp.PublicKey)
+	if !ok {
+		return nil, fmt.Errorf("user not found for public key %v "+
+			"for proposal %v", cachedProp.PublicKey,
+			cachedProp.CensorshipRecord.Token)
+	}
+	if authorID != user.ID.String() {
+		log.Debugf("user id %v does not match author id %v",
+			user.ID.String(), authorID)
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserActionNotAllowed,
+		}
+	}
+
 	// it is ok to race invRecord.
 	// In theory the user can not issue racing edit prop commands. In
 	// practice a network hickup can submit the same edit twice but then
@@ -2991,33 +3014,14 @@ func (b *backend) ProcessEditProposal(user *database.User, ep www.EditProposal) 
 	// A malicious user that alters the code to issue concurrent updates
 	// could result in an out-of-order cache update.
 	// Politeaid will remain coherent.
+
+	// XXX we need this until vote md gets added to the cache
 	b.RLock()
-	// get current proposal record from inventory
 	invRecord, err := b._getInventoryRecord(ep.Token)
+	b.RUnlock()
 	if err != nil {
-		b.RUnlock()
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusProposalNotFound,
-		}
-	}
-	cachedProposal := b._convertPropFromInventoryRecord(invRecord)
-
-	// verify if the user is the proposal owner
-	authorIDStr, ok := b.userPubkeys[cachedProposal.PublicKey]
-	if !ok {
-		b.RUnlock()
-		return nil, fmt.Errorf("public key not found %v",
-			cachedProposal.PublicKey)
-	}
-	b.RUnlock()
-
-	authorID, err := uuid.Parse(authorIDStr)
-	if err != nil {
-		return nil, err
-	}
-	if authorID != user.ID {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusUserActionNotAllowed,
 		}
 	}
 
@@ -3094,11 +3098,10 @@ func (b *backend) ProcessEditProposal(user *database.User, ep www.EditProposal) 
 	}
 
 	var pdRoute string
-
-	if cachedProposal.Status == www.PropStatusNotReviewed ||
-		cachedProposal.Status == www.PropStatusUnreviewedChanges {
+	if cachedProp.Status == www.PropStatusNotReviewed ||
+		cachedProp.Status == www.PropStatusUnreviewedChanges {
 		pdRoute = pd.UpdateUnvettedRoute
-	} else if cachedProposal.Status == www.PropStatusPublic {
+	} else if cachedProp.Status == www.PropStatusPublic {
 		pdRoute = pd.UpdateVettedRoute
 	} else {
 		return nil, www.UserError{
@@ -3119,12 +3122,9 @@ func (b *backend) ProcessEditProposal(user *database.User, ep www.EditProposal) 
 			err)
 	}
 
-	b.Lock()
-	defer b.Unlock()
-
 	// Delete vote authorization if one existed before the edit
 	if invRecord.voteAuthorization.Receipt != "" {
-		err = b._setRecordVoteAuthorization(ep.Token,
+		err = b.setRecordVoteAuthorization(ep.Token,
 			www.AuthorizeVoteReply{})
 		if err != nil {
 			// This should be impossible and we can't fail here
@@ -3132,24 +3132,21 @@ func (b *backend) ProcessEditProposal(user *database.User, ep www.EditProposal) 
 		}
 	}
 
-	// update inventory record
-	err = b._updateInventoryRecord(pdReply.Record)
+	// Get proposal from cache
+	r, err = b.cache.RecordGetLatest(ep.Token)
 	if err != nil {
-		return nil, fmt.Errorf("ProcessEditProposal: "+
-			"updateInventoryRecord %v", err)
+		return nil, err
 	}
 
 	reply := &www.EditProposalReply{
-		Proposal: convertPropFromPD(pdReply.Record),
+		Proposal: convertPropFromCache(*r),
 	}
 
-	if !b.test {
-		b.eventManager._fireEvent(EventTypeProposalEdited,
-			EventDataProposalEdited{
-				Proposal: &reply.Proposal,
-			},
-		)
-	}
+	b.eventManager._fireEvent(EventTypeProposalEdited,
+		EventDataProposalEdited{
+			Proposal: &reply.Proposal,
+		},
+	)
 
 	return reply, nil
 }

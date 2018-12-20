@@ -423,6 +423,7 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 				Payload: f.Payload,
 			})
 	}
+
 	status := convertPropStatusFromPD(pd.RecordStatusT(r.Status))
 
 	return www.ProposalRecord{
