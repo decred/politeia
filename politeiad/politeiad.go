@@ -183,6 +183,25 @@ func (p *politeia) convertBackendRecord(br backend.Record) v1.Record {
 	return pr
 }
 
+func convertBackendStatusToCache(status backend.MDStatusT) cache.RecordStatusT {
+	s := cache.RecordStatusInvalid
+	switch status {
+	case backend.MDStatusInvalid:
+		s = cache.RecordStatusInvalid
+	case backend.MDStatusUnvetted:
+		s = cache.RecordStatusNotReviewed
+	case backend.MDStatusVetted:
+		s = cache.RecordStatusPublic
+	case backend.MDStatusCensored:
+		s = cache.RecordStatusCensored
+	case backend.MDStatusIterationUnvetted:
+		s = cache.RecordStatusUnreviewedChanges
+	case backend.MDStatusArchived:
+		s = cache.RecordStatusArchived
+	}
+	return s
+}
+
 func (p *politeia) convertBackendRecordToCache(r backend.Record) cache.Record {
 	msg := []byte(r.RecordMetadata.Merkle + r.RecordMetadata.Token)
 	signature := p.identity.SignMessage(msg)
@@ -214,45 +233,8 @@ func (p *politeia) convertBackendRecordToCache(r backend.Record) cache.Record {
 
 	return cache.Record{
 		Version:          r.Version,
-		Status:           int(convertBackendStatus(r.RecordMetadata.Status)),
+		Status:           convertBackendStatusToCache(r.RecordMetadata.Status),
 		Timestamp:        r.RecordMetadata.Timestamp,
-		CensorshipRecord: cr,
-		Metadata:         metadata,
-		Files:            files,
-	}
-}
-
-func convertFrontendRecordToCache(r v1.Record) cache.Record {
-	cr := cache.CensorshipRecord{
-		Token:     r.CensorshipRecord.Token,
-		Merkle:    r.CensorshipRecord.Merkle,
-		Signature: r.CensorshipRecord.Signature,
-	}
-
-	metadata := make([]cache.MetadataStream, 0, len(r.Metadata))
-	for _, ms := range r.Metadata {
-		metadata = append(metadata,
-			cache.MetadataStream{
-				ID:      ms.ID,
-				Payload: ms.Payload,
-			})
-	}
-
-	files := make([]cache.File, 0, len(r.Files))
-	for _, f := range r.Files {
-		files = append(files,
-			cache.File{
-				Name:    f.Name,
-				MIME:    f.MIME,
-				Digest:  f.Digest,
-				Payload: f.Payload,
-			})
-	}
-
-	return cache.Record{
-		Version:          r.Version,
-		Status:           int(r.Status),
-		Timestamp:        r.Timestamp,
 		CensorshipRecord: cr,
 		Metadata:         metadata,
 		Files:            files,
@@ -314,8 +296,9 @@ func (p *politeia) newRecord(w http.ResponseWriter, r *http.Request) {
 
 	log.Infof("New record submitted %v", remoteAddr(r))
 
-	rm, err := p.backend.New(convertFrontendMetadataStream(t.Metadata),
-		convertFrontendFiles(t.Files))
+	md := convertFrontendMetadataStream(t.Metadata)
+	files := convertFrontendFiles(t.Files)
+	rm, err := p.backend.New(md, files)
 	if err != nil {
 		// Check for content error.
 		if contentErr, ok := err.(backend.ContentVerificationError); ok {
@@ -334,32 +317,29 @@ func (p *politeia) newRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Prepare reply.
-	signature := p.identity.SignMessage([]byte(rm.Merkle + rm.Token))
-	cr := v1.CensorshipRecord{
-		Merkle:    rm.Merkle,
-		Token:     rm.Token,
-		Signature: hex.EncodeToString(signature[:]),
-	}
-	response := p.identity.SignMessage(challenge)
-	reply := v1.NewRecordReply{
-		Response:         hex.EncodeToString(response[:]),
-		CensorshipRecord: cr,
-	}
-
 	// Update cache.
-	record := convertFrontendRecordToCache(v1.Record{
-		Version:          "1",
-		Status:           convertBackendStatus(rm.Status),
-		Timestamp:        rm.Timestamp,
-		CensorshipRecord: cr,
-		Metadata:         t.Metadata,
-		Files:            t.Files,
+	record := p.convertBackendRecordToCache(backend.Record{
+		RecordMetadata: *rm,
+		Version:        "1",
+		Metadata:       md,
+		Files:          files,
 	})
 	err = p.cache.RecordNew(record)
 	if err != nil {
 		log.Criticalf("New record cache new %v: %v",
 			record.CensorshipRecord.Token, err)
+	}
+
+	// Prepare reply.
+	signature := p.identity.SignMessage([]byte(rm.Merkle + rm.Token))
+	response := p.identity.SignMessage(challenge)
+	reply := v1.NewRecordReply{
+		Response: hex.EncodeToString(response[:]),
+		CensorshipRecord: v1.CensorshipRecord{
+			Merkle:    rm.Merkle,
+			Token:     rm.Token,
+			Signature: hex.EncodeToString(signature[:]),
+		},
 	}
 
 	log.Infof("New record accepted %v: token %v", remoteAddr(r),

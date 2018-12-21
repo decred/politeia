@@ -366,7 +366,7 @@ func (c *cockroachdb) recordUpdateStatus(db *gorm.DB, token, version string, sta
 	return nil
 }
 
-func (c *cockroachdb) RecordUpdateStatus(token, version string, status int, timestamp int64, metadata []cache.MetadataStream) error {
+func (c *cockroachdb) RecordUpdateStatus(token, version string, status cache.RecordStatusT, timestamp int64, metadata []cache.MetadataStream) error {
 	log.Tracef("RecordUpdateStatus: %v status %v", token, status)
 
 	c.RLock()
@@ -385,7 +385,7 @@ func (c *cockroachdb) RecordUpdateStatus(token, version string, status int, time
 
 	// Run update within a transaction
 	tx := c.recorddb.Begin()
-	err := c.recordUpdateStatus(tx, token, version, status,
+	err := c.recordUpdateStatus(tx, token, version, int(status),
 		timestamp, mdStreams)
 	if err != nil {
 		tx.Rollback()

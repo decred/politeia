@@ -34,7 +34,7 @@ func convertRecordFromCache(r cache.Record) Record {
 
 	return Record{
 		Version:          r.Version,
-		Status:           r.Status,
+		Status:           int(r.Status),
 		Timestamp:        r.Timestamp,
 		CensorshipRecord: cr,
 		Metadata:         metadata,
@@ -71,7 +71,7 @@ func convertRecordToCache(r Record) cache.Record {
 
 	return cache.Record{
 		Version:          r.Version,
-		Status:           r.Status,
+		Status:           cache.RecordStatusT(r.Status),
 		Timestamp:        r.Timestamp,
 		CensorshipRecord: cr,
 		Metadata:         metadata,

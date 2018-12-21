@@ -389,6 +389,24 @@ func convertPropStateFromStatus(status www.PropStatusT) www.PropStateT {
 	return www.PropStateUnvetted
 }
 
+func convertPropStatusFromCache(s cache.RecordStatusT) www.PropStatusT {
+	switch s {
+	case cache.RecordStatusNotFound:
+		return www.PropStatusNotFound
+	case cache.RecordStatusNotReviewed:
+		return www.PropStatusNotReviewed
+	case cache.RecordStatusCensored:
+		return www.PropStatusCensored
+	case cache.RecordStatusPublic:
+		return www.PropStatusPublic
+	case cache.RecordStatusUnreviewedChanges:
+		return www.PropStatusUnreviewedChanges
+	case cache.RecordStatusArchived:
+		return www.PropStatusAbandoned
+	}
+	return www.PropStatusInvalid
+}
+
 // convertPropFromCache converts a cache record into a www proposal record.
 // The UserId, Username, and NumComments fields are returned as zero values
 // since a cache record does not contain that data.
@@ -413,6 +431,7 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 		}
 	}
 
+	// Convert files
 	var files []www.File
 	for _, f := range r.Files {
 		files = append(files,
@@ -424,8 +443,7 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 			})
 	}
 
-	status := convertPropStatusFromPD(pd.RecordStatusT(r.Status))
-
+	status := convertPropStatusFromCache(r.Status)
 	return www.ProposalRecord{
 		Name:                bpm.Name,
 		State:               convertPropStateFromStatus(status),

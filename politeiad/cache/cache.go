@@ -2,12 +2,25 @@ package cache
 
 import "errors"
 
+type RecordStatusT int
+
 var (
 	// ErrShutdown is emitted when the cache is shutting down.
 	ErrShutdown = errors.New("cache is shutting down")
 
 	// ErrRecordNotFound is emitted when a record could not be found.
 	ErrRecordNotFound = errors.New("record not found")
+)
+
+const (
+	// Record status codes
+	RecordStatusInvalid           RecordStatusT = 0 // Invalid status
+	RecordStatusNotFound          RecordStatusT = 1 // Record not found
+	RecordStatusNotReviewed       RecordStatusT = 2 // Record has not been reviewed
+	RecordStatusCensored          RecordStatusT = 3 // Record has been censored
+	RecordStatusPublic            RecordStatusT = 4 // Record is publicly visible
+	RecordStatusUnreviewedChanges RecordStatusT = 5 // Unvetted record that has been changed
+	RecordStatusArchived          RecordStatusT = 6 // Vetted record that has been archived
 )
 
 type File struct {
@@ -30,7 +43,7 @@ type CensorshipRecord struct {
 
 type Record struct {
 	Version          string           // Version of this record
-	Status           int              // Current status
+	Status           RecordStatusT    // Current status
 	Timestamp        int64            // Last update
 	CensorshipRecord CensorshipRecord // Censorship record
 	Metadata         []MetadataStream // Metadata streams
@@ -51,7 +64,8 @@ type Cache interface {
 	RecordUpdate(Record) error
 
 	// Update the status of a record
-	RecordUpdateStatus(string, string, int, int64, []MetadataStream) error
+	RecordUpdateStatus(string, string, RecordStatusT, int64,
+		[]MetadataStream) error
 
 	// Create cache tables if they do not already exist
 	CreateTables() error
