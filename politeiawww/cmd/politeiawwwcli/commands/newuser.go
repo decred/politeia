@@ -39,9 +39,10 @@ type NewUserCmd struct {
 		Username string `positional-arg-name:"username"`
 		Password string `positional-arg-name:"password"`
 	} `positional-args:"true"`
-	Random bool `long:"random" optional:"true" description:"Generate a random email/password for the user"`
-	Verify bool `long:"verify" optional:"true" description:"Verify the user's email address"`
-	NoSave bool `long:"nosave" optional:"true" description:"Do not save the user identity to disk"`
+	Random  bool `long:"random" optional:"true" description:"Generate a random email/password for the user"`
+	Paywall bool `long:"paywall" optional:"true" description:"Satisfy paywall fee using testnet faucet"`
+	Verify  bool `long:"verify" optional:"true" description:"Verify the user's email address"`
+	NoSave  bool `long:"nosave" optional:"true" description:"Do not save the user identity to disk"`
 }
 
 func (cmd *NewUserCmd) Execute(args []string) error {
@@ -114,12 +115,6 @@ func (cmd *NewUserCmd) Execute(args []string) error {
 		return fmt.Errorf("NewUser: %v", err)
 	}
 
-	// Print response details
-	err = Print(nur, cfg.Verbose, cfg.RawJSON)
-	if err != nil {
-		return err
-	}
-
 	// Verify user's email address
 	if cmd.Verify {
 		sig := id.SignMessage([]byte(nur.VerificationToken))
@@ -133,6 +128,39 @@ func (cmd *NewUserCmd) Execute(args []string) error {
 		}
 
 		err = Print(vnur, cfg.Verbose, cfg.RawJSON)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Setup login request
+	l := &v1.Login{
+		Email:    email,
+		Password: DigestSHA3(password),
+	}
+
+	// Send login request
+	_, err = c.Login(l)
+	if err != nil {
+		return err
+	}
+
+	// Print response details
+	err = Print(nur, cfg.Verbose, cfg.RawJSON)
+	if err != nil {
+		return err
+	}
+
+	// Pays paywall fee using faucet
+	if cmd.Paywall {
+		me, err := c.Me()
+		if err != nil {
+			return err
+		}
+		faucet := FaucetCmd{}
+		faucet.Args.Address = me.PaywallAddress
+		faucet.Args.Amount = me.PaywallAmount
+		err = faucet.Execute(nil)
 		if err != nil {
 			return err
 		}
