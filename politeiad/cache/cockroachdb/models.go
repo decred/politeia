@@ -39,3 +39,19 @@ type Record struct {
 	Metadata         []MetadataStream `gorm:"foreignkey:RecordKey"`           // User provided metadata
 	Files            []File           `gorm:"foreignkey:RecordKey"`           // User provided files
 }
+
+type Comment struct {
+	Key       string `gorm:"primary_key"`       // Primary key (token+commentID)
+	Token     string `gorm:"size:64;not null"`  // Censorship token
+	ParentID  string `gorm:"not null"`          // Parent comment ID
+	Comment   string `gorm:"not null"`          // Comment
+	Signature string `gorm:"size:128;not null"` // Client Signature of Token+ParentID+Comment
+	// TODO: get PublicKey size
+	PublicKey   string `gorm:"not null"` // Pubkey used for Signature
+	CommentID   string `gorm:"not null"` // Comment ID
+	Receipt     string `gorm:"not null"` // Server signature of the client Signature
+	Timestamp   int64  `gorm:"not null"` // Received UNIX timestamp
+	TotalVotes  uint64 `gorm:"not null"` // Total number of up/down votes
+	ResultVotes int64  `gorm:"not null"` // Vote score
+	Censored    bool   `gorm:"not null"` // Has this comment been censored
+}

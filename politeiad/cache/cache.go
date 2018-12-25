@@ -54,10 +54,10 @@ type Cache interface {
 	// Create a new record
 	RecordNew(Record) error
 
-	// Fetch an existing record
+	// Lookup an existing record
 	RecordGet(string, string) (*Record, error)
 
-	// Fetch the latest version of a record
+	// Lookup the latest version of a record
 	RecordGetLatest(string) (*Record, error)
 
 	// Update an exisiting record
@@ -67,7 +67,13 @@ type Cache interface {
 	RecordUpdateStatus(string, string, RecordStatusT, int64,
 		[]MetadataStream) error
 
-	// Create cache tables if they do not already exist
+	// Plugin pass-through command
+	Plugin(string, string, string) (string, string, error)
+
+	// Lookup the data that was created by a plugin command
+	// PluginGet
+
+	// Create the cache tables if they do not already exist
 	CreateTables() error
 
 	// Close performs cleanup of the cache

@@ -1,11 +1,17 @@
 package main
 
 import (
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"strconv"
 
 	"github.com/decred/politeia/decredplugin"
+	pd "github.com/decred/politeia/politeiad/api/v1"
+	"github.com/decred/politeia/politeiad/cache"
 	www "github.com/decred/politeia/politeiawww/api/v1"
+	"github.com/decred/politeia/politeiawww/database"
 	"github.com/decred/politeia/util"
 )
 
@@ -231,4 +237,137 @@ func (b *backend) _updateResultsForCommentLike(like www.LikeComment) (*www.Comme
 	}
 
 	return comment, nil
+}
+
+// ProcessNewComment processes a submitted comment.  It ensures the proposal
+// and the parent exists.  A parent ID of 0 indicates that it is a comment on
+// the proposal whereas non-zero indicates that it is a reply to a comment.
+func (b *backend) ProcessNewComment(c www.NewComment, user *database.User) (*www.NewCommentReply, error) {
+	log.Tracef("ProcessNewComment: %v %v", c.Token, user.ID)
+
+	// Pay up sucker!
+	if !b.HasUserPaid(user) {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserNotPaid,
+		}
+	}
+
+	// Verify authenticity
+	err := checkPublicKeyAndSignature(user, c.PublicKey, c.Signature,
+		c.Token, c.ParentID, c.Comment)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get proposal from cache
+	r, err := b.cache.RecordGetLatest(ep.Token)
+	if err != nil {
+		if err == cache.ErrRecordNotFound {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusProposalNotFound,
+			}
+		}
+		return nil, err
+	}
+	pr := convertPropFromCache(*r)
+
+	// Ensure proposal is public
+	if pr.Status != www.PropStatusPublic {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusWrongStatus,
+		}
+	}
+
+	// XXX keep this until decredplugin data has been added to
+	// the cache.
+	// Note that we are not racing ir because it is a copy.
+	ir, err := b.getInventoryRecord(c.Token)
+	if err != nil {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusProposalNotFound,
+		}
+	}
+
+	// Ensure proposal vote has not ended
+	bb, err := b.getBestBlock()
+	if err != nil {
+		return nil, fmt.Errorf("getBestBlock: %v", err)
+	}
+
+	if getVoteStatus(ir, bb) == www.PropVoteStatusFinished {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusWrongVoteStatus,
+		}
+	}
+
+	// Validate comment
+	if err := validateComment(c); err != nil {
+		return nil, err
+	}
+
+	// Setup plugin command
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	ndc := convertWWWNewCommentToDecredNewComment(c)
+	payload, err := decredplugin.EncodeNewComment(ndc)
+	if err != nil {
+		return nil, err
+	}
+
+	pc := pd.PluginCommand{
+		Challenge: hex.EncodeToString(challenge),
+		ID:        decredplugin.ID,
+		Command:   decredplugin.CmdNewComment,
+		CommandID: decredplugin.CmdNewComment,
+		Payload:   string(payload),
+	}
+
+	// Send plugin request
+	responseBody, err := b.makeRequest(http.MethodPost,
+		pd.PluginCommandRoute, pc)
+	if err != nil {
+		return nil, err
+	}
+
+	// Handle response
+	var reply pd.PluginCommandReply
+	err = json.Unmarshal(responseBody, &reply)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal "+
+			"PluginCommandReply: %v", err)
+	}
+
+	err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get comment from the cache
+	// Lookup author details
+	// Fire off new comment event
+
+	ncr, err := decredplugin.DecodeNewCommentReply([]byte(reply.Payload))
+	if err != nil {
+		return nil, err
+	}
+
+	// Note this call takes the read lock.
+	ncrWWW := b.convertDecredNewCommentReplyToWWWNewCommentReply(*ncr)
+
+	// Set author username
+	ncrWWW.Comment.Username = b.getUsernameById(ncrWWW.Comment.UserID)
+
+	err = b.setRecordComment(ncrWWW.Comment)
+	if err != nil {
+		return nil, fmt.Errorf("setRecordComment %v", err)
+	}
+
+	b.fireEvent(EventTypeComment, EventDataComment{
+		Comment: &ncrWWW.Comment,
+	})
+
+	return &ncrWWW, nil
 }

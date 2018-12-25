@@ -928,6 +928,9 @@ func (p *politeia) pluginCommand(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Update cache.
+
+	// Prepare reply.
 	response := p.identity.SignMessage(challenge)
 	reply := v1.PluginCommandReply{
 		Response:  hex.EncodeToString(response[:]),
