@@ -149,7 +149,7 @@ func (c *cockroachdb) CreatePluginTables() error {
 	}
 
 	tx := c.recorddb.Begin()
-	err := c.createDecredTables(tx)
+	err := createDecredTables(tx)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -263,8 +263,6 @@ func (c *cockroachdb) recordUpdate(db *gorm.DB, updated Record) error {
 
 	// Update record
 	err = db.Model(&record).
-		Omit("version", "censorship_record", "censorship_record_key",
-			"metadata", "files").
 		Updates(map[string]interface{}{
 			"status":    updated.Status,
 			"timestamp": updated.Timestamp,
@@ -424,18 +422,31 @@ func (c *cockroachdb) RecordUpdateStatus(token, version string, status cache.Rec
 	return tx.Commit().Error
 }
 
-func (c *cockroachdb) Plugin(command, payload string) (string, string, error) {
+// Plugin is a pass through function for plugin commands.  Plugin commands that
+// write data to the cache require both the request payload and the response
+// payload.  Plugin commands that fetch data from the cache only require the
+// request payload.  All plugin commands return the response payload and any
+// errors that occured.
+func (c *cockroachdb) Plugin(command, reqPayload, resPayload string) (string, error) {
 	log.Tracef("Plugin: %v", command)
-	switch command {
-	case decredplugin.CmdNewComment:
-		payload, err := c.pluginNewComment(payload)
-		return decredplugin.CmdNewComment, payload, err
-	case decredplugin.CmdGetComment:
-		payload, err := c.pluginGetComment(payload)
-		return decredplugin.CmdGetComment, payload, err
+
+	c.RLock()
+	shutdown := c.shutdown
+	c.RUnlock()
+
+	if shutdown == true {
+		return "", cache.ErrShutdown
 	}
 
-	return "", "", cache.ErrInvalidPluginCmd
+	switch command {
+	case decredplugin.CmdNewComment:
+		return c.pluginNewComment(reqPayload, resPayload)
+	case decredplugin.CmdGetComment:
+		return c.pluginGetComment(reqPayload)
+	case decredplugin.CmdCensorComment:
+		return c.pluginCensorComment(reqPayload, resPayload)
+	}
+	return "", cache.ErrInvalidPluginCmd
 }
 
 // Close shuts down the cache.  All interface functions MUST return with

@@ -254,7 +254,8 @@ func (b *backend) getCommentFromCache(token, commentID string) (*www.Comment, er
 	}
 
 	// Send cache request
-	_, payload, err := b.cache.Plugin(decredplugin.CmdGetComment, string(cgb))
+	payload, err := b.cache.Plugin(decredplugin.CmdGetComment,
+		string(cgb), "")
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
 			err = www.UserError{

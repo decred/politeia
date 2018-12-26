@@ -70,7 +70,7 @@ type Cache interface {
 		[]MetadataStream) error
 
 	// Plugin pass-through command
-	Plugin(string, string) (string, string, error)
+	Plugin(string, string, string) (string, error)
 
 	// Create the cache tables if they do not already exist
 	CreateTables() error

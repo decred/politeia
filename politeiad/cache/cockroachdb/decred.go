@@ -12,6 +12,7 @@ const (
 	tableComments = "comments"
 )
 
+// TODO: create an index on token for quick lookups of a prop's comments
 type Comment struct {
 	Key         string `gorm:"primary_key"`       // Primary key (token+commentID)
 	Token       string `gorm:"size:64;not null"`  // Censorship token
@@ -64,7 +65,7 @@ func convertCommentToDecredPlugin(c Comment) decredplugin.Comment {
 // they do not already exist.
 //
 // This function must be called within a transaction.
-func (c *cockroachdb) createDecredTables(db *gorm.DB) error {
+func createDecredTables(db *gorm.DB) error {
 	log.Tracef("createDecredTables")
 
 	if !db.HasTable(tableComments) {
@@ -77,17 +78,17 @@ func (c *cockroachdb) createDecredTables(db *gorm.DB) error {
 	return nil
 }
 
-func (c *cockroachdb) pluginNewComment(payload string) (string, error) {
+func (c *cockroachdb) pluginNewComment(reqPayload, resPayload string) (string, error) {
 	log.Tracef("pluginNewComment")
 
-	ncr, err := decredplugin.DecodeNewCommentReply([]byte(payload))
+	ncr, err := decredplugin.DecodeNewCommentReply([]byte(resPayload))
 	if err != nil {
 		return "", fmt.Errorf("DecodeNewCommentReply: %v", err)
 	}
 
 	comment := convertCommentFromDecredPlugin(ncr.Comment)
 	err = c.recorddb.Create(&comment).Error
-	return "", err
+	return resPayload, err
 }
 
 func (c *cockroachdb) pluginGetComment(payload string) (string, error) {
@@ -117,4 +118,26 @@ func (c *cockroachdb) pluginGetComment(payload string) (string, error) {
 		return "", err
 	}
 	return string(gcrb), nil
+}
+
+func (c *cockroachdb) pluginCensorComment(reqPayload, resPayload string) (string, error) {
+	log.Tracef("pluginCensorComment")
+
+	cc, err := decredplugin.DecodeCensorComment([]byte(reqPayload))
+	if err != nil {
+		return "", fmt.Errorf("DecredCensorComment: %v", err)
+	}
+
+	comment := Comment{
+		Key: cc.Token + cc.CommentID,
+	}
+	err = c.recorddb.Model(&comment).
+		Updates(map[string]interface{}{
+			"censored": true,
+		}).Error
+	if err != nil {
+		return "", err
+	}
+
+	return resPayload, nil
 }

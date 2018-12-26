@@ -929,10 +929,11 @@ func (p *politeia) pluginCommand(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update cache.
-	_, _, err = p.cache.Plugin(cid, payload)
+	_, err = p.cache.Plugin(pc.Command, pc.Payload, payload)
 	if err != nil {
 		log.Criticalf("Plugin command cache failure, command: %v "+
-			"payload: %v err: %v", pc.Command, pc.Payload, err)
+			"reqPayload: %v resPayload: %v err: %v", pc.Command,
+			pc.Payload, payload, err)
 	}
 
 	// Prepare reply.
