@@ -15,16 +15,6 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-func convertWWWNewCommentToDecredNewComment(nc www.NewComment) decredplugin.NewComment {
-	return decredplugin.NewComment{
-		Token:     nc.Token,
-		ParentID:  nc.ParentID,
-		Comment:   nc.Comment,
-		Signature: nc.Signature,
-		PublicKey: nc.PublicKey,
-	}
-}
-
 func convertWWWLikeCommentToDecredLikeComment(lc www.LikeComment) decredplugin.LikeComment {
 	return decredplugin.LikeComment{
 		Token:     lc.Token,
@@ -51,22 +41,6 @@ func convertDecredLikeCommentReplyToWWWLikeCommentReply(lcr decredplugin.LikeCom
 		Result:  lcr.Result,
 		Receipt: lcr.Receipt,
 		Error:   lcr.Error,
-	}
-}
-
-func convertWWWCensorCommentToDecredCensorComment(cc www.CensorComment) decredplugin.CensorComment {
-	return decredplugin.CensorComment{
-		Token:     cc.Token,
-		CommentID: cc.CommentID,
-		Reason:    cc.Reason,
-		Signature: cc.Signature,
-		PublicKey: cc.PublicKey,
-	}
-}
-
-func convertDecredCensorCommentReplyToWWWCensorCommentReply(ccr decredplugin.CensorCommentReply) www.CensorCommentReply {
-	return www.CensorCommentReply{
-		Receipt: ccr.Receipt,
 	}
 }
 
@@ -219,30 +193,6 @@ func (b *backend) setRecordComment(comment www.Comment) error {
 	return b._setRecordComment(comment)
 }
 
-func convertCommentFromDecredPlugin(c decredplugin.Comment) www.Comment {
-	return www.Comment{
-		Token:       c.Token,
-		ParentID:    c.ParentID,
-		Comment:     c.Comment,
-		Signature:   c.Signature,
-		PublicKey:   c.PublicKey,
-		CommentID:   c.CommentID,
-		Receipt:     c.Receipt,
-		Timestamp:   c.Timestamp,
-		TotalVotes:  c.TotalVotes,
-		ResultVotes: c.ResultVotes,
-		Censored:    c.Censored,
-		UserID:      "",
-		Username:    "",
-	}
-}
-
-func convertNewCommentReplyFromDecredPlugin(ncr decredplugin.NewCommentReply) www.NewCommentReply {
-	return www.NewCommentReply{
-		Comment: convertCommentFromDecredPlugin(ncr.Comment),
-	}
-}
-
 func (b *backend) getCommentFromCache(token, commentID string) (*www.Comment, error) {
 	// Setup plugin command
 	cgb, err := decredplugin.EncodeGetComment(decredplugin.GetComment{
@@ -354,7 +304,7 @@ func (b *backend) ProcessNewComment(nc www.NewComment, user *database.User) (*ww
 		return nil, err
 	}
 
-	dnc := convertWWWNewCommentToDecredNewComment(nc)
+	dnc := convertNewCommentToDecredPlugin(nc)
 	payload, err := decredplugin.EncodeNewComment(dnc)
 	if err != nil {
 		return nil, err
@@ -483,7 +433,7 @@ func (b *backend) ProcessCensorComment(cc www.CensorComment, user *database.User
 		return nil, err
 	}
 
-	dcc := convertWWWCensorCommentToDecredCensorComment(cc)
+	dcc := convertCensorCommentToDecredPlugin(cc)
 	payload, err := decredplugin.EncodeCensorComment(dcc)
 	if err != nil {
 		return nil, fmt.Errorf("EncodeCensorComment: %v", err)
@@ -520,7 +470,7 @@ func (b *backend) ProcessCensorComment(cc www.CensorComment, user *database.User
 	if err != nil {
 		return nil, fmt.Errorf("DecodeCensorCommentReply: %v", err)
 	}
-	ccrWWW := convertDecredCensorCommentReplyToWWWCensorCommentReply(*ccr)
+	ccrWWW := convertCensorCommentReplyFromDecredPlugin(*ccr)
 
 	return &ccrWWW, nil
 }

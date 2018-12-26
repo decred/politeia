@@ -407,9 +407,6 @@ func convertPropStatusFromCache(s cache.RecordStatusT) www.PropStatusT {
 	return www.PropStatusInvalid
 }
 
-// convertPropFromCache converts a cache record into a www proposal record.
-// The UserId, Username, and NumComments fields are returned as zero values
-// since a cache record does not contain that data.
 func convertPropFromCache(r cache.Record) www.ProposalRecord {
 	// Decode markdown stream payloads
 	var bpm BackendProposalMetadata
@@ -462,5 +459,55 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 			Merkle:    r.CensorshipRecord.Merkle,
 			Signature: r.CensorshipRecord.Signature,
 		},
+	}
+}
+
+func convertCommentFromDecredPlugin(c decredplugin.Comment) www.Comment {
+	return www.Comment{
+		Token:       c.Token,
+		ParentID:    c.ParentID,
+		Comment:     c.Comment,
+		Signature:   c.Signature,
+		PublicKey:   c.PublicKey,
+		CommentID:   c.CommentID,
+		Receipt:     c.Receipt,
+		Timestamp:   c.Timestamp,
+		TotalVotes:  c.TotalVotes,
+		ResultVotes: c.ResultVotes,
+		Censored:    c.Censored,
+		UserID:      "",
+		Username:    "",
+	}
+}
+
+func convertNewCommentToDecredPlugin(nc www.NewComment) decredplugin.NewComment {
+	return decredplugin.NewComment{
+		Token:     nc.Token,
+		ParentID:  nc.ParentID,
+		Comment:   nc.Comment,
+		Signature: nc.Signature,
+		PublicKey: nc.PublicKey,
+	}
+}
+
+func convertNewCommentReplyFromDecredPlugin(ncr decredplugin.NewCommentReply) www.NewCommentReply {
+	return www.NewCommentReply{
+		Comment: convertCommentFromDecredPlugin(ncr.Comment),
+	}
+}
+
+func convertCensorCommentToDecredPlugin(cc www.CensorComment) decredplugin.CensorComment {
+	return decredplugin.CensorComment{
+		Token:     cc.Token,
+		CommentID: cc.CommentID,
+		Reason:    cc.Reason,
+		Signature: cc.Signature,
+		PublicKey: cc.PublicKey,
+	}
+}
+
+func convertCensorCommentReplyFromDecredPlugin(ccr decredplugin.CensorCommentReply) www.CensorCommentReply {
+	return www.CensorCommentReply{
+		Receipt: ccr.Receipt,
 	}
 }
