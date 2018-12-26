@@ -125,8 +125,7 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 		},
 	)
 
-	// XXX this is here temporarily until decredplugin data has
-	// been added to the caching layer
+	// TODO: remove this once vote data has been added to cache
 	b.newInventoryRecord(pd.Record{
 		Status:    0,
 		Timestamp: 0,
@@ -354,8 +353,7 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 			}
 		}
 
-		// XXX we need this until decredplugin data has been added to
-		// the cache
+		// TODO: remove this once vote data has been added to cache
 		ir, err := b.getInventoryRecord(pr.CensorshipRecord.Token)
 		if err != nil {
 			return nil, err
@@ -466,10 +464,8 @@ func (b *backend) ProcessEditProposal(user *database.User, ep www.EditProposal) 
 	// could result in an out-of-order cache update.
 	// Politeaid will remain coherent.
 
-	// XXX remove this once vote data has been added to cache
-	b.RLock()
-	invRecord, err := b._getInventoryRecord(ep.Token)
-	b.RUnlock()
+	// TODO: remove this once vote data has been added to cache
+	invRecord, err := b.getInventoryRecord(ep.Token)
 	if err != nil {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusProposalNotFound,

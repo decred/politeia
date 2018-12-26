@@ -273,7 +273,7 @@ func (b *backend) ProcessNewComment(nc www.NewComment, user *database.User) (*ww
 		}
 	}
 
-	// XXX remove this once vote data has been added to the cache
+	// TODO: remove this once vote data has been added to cache
 	ir, err := b.getInventoryRecord(nc.Token)
 	if err != nil {
 		return nil, www.UserError{
@@ -407,7 +407,7 @@ func (b *backend) ProcessCensorComment(cc www.CensorComment, user *database.User
 		}
 	}
 
-	// XXX keep this until vote data has been added to the cache.
+	// TODO: remove this once vote data has been added to cache
 	ir, err := b.getInventoryRecord(cc.Token)
 	if err != nil {
 		return nil, www.UserError{
