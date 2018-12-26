@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/decred/politeia/decredplugin"
+	"github.com/decred/politeia/politeiad/cache"
 	"github.com/jinzhu/gorm"
 )
 
@@ -26,20 +27,6 @@ type Comment struct {
 	Censored    bool   `gorm:"not null"`          // Has this comment been censored
 }
 
-// createDecredTables creates the cache tables needed by the decred plugin if
-// they do not already exist.
-//
-// This function must be called within a transaction.
-func (c *cockroachdb) createDecredTables(db *gorm.DB) error {
-	if !db.HasTable(tableComments) {
-		err := db.Table(tableComments).CreateTable(&Comment{}).Error
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func convertCommentFromDecredPlugin(c decredplugin.Comment) Comment {
 	return Comment{
 		Key:         c.Token + c.CommentID,
@@ -57,7 +44,42 @@ func convertCommentFromDecredPlugin(c decredplugin.Comment) Comment {
 	}
 }
 
+func convertCommentToDecredPlugin(c Comment) decredplugin.Comment {
+	return decredplugin.Comment{
+		Token:       c.Token,
+		ParentID:    c.ParentID,
+		Comment:     c.Comment,
+		Signature:   c.Signature,
+		PublicKey:   c.PublicKey,
+		CommentID:   c.CommentID,
+		Receipt:     c.Receipt,
+		Timestamp:   c.Timestamp,
+		TotalVotes:  c.TotalVotes,
+		ResultVotes: c.ResultVotes,
+		Censored:    c.Censored,
+	}
+}
+
+// createDecredTables creates the cache tables needed by the decred plugin if
+// they do not already exist.
+//
+// This function must be called within a transaction.
+func (c *cockroachdb) createDecredTables(db *gorm.DB) error {
+	log.Tracef("createDecredTables")
+
+	if !db.HasTable(tableComments) {
+		err := db.Table(tableComments).CreateTable(&Comment{}).Error
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (c *cockroachdb) pluginNewComment(payload string) (string, error) {
+	log.Tracef("pluginNewComment")
+
 	ncr, err := decredplugin.DecodeNewCommentReply([]byte(payload))
 	if err != nil {
 		return "", fmt.Errorf("DecodeNewCommentReply: %v", err)
@@ -66,4 +88,33 @@ func (c *cockroachdb) pluginNewComment(payload string) (string, error) {
 	comment := convertCommentFromDecredPlugin(ncr.Comment)
 	err = c.recorddb.Create(&comment).Error
 	return "", err
+}
+
+func (c *cockroachdb) pluginGetComment(payload string) (string, error) {
+	log.Tracef("pluginGetComment")
+
+	gc, err := decredplugin.DecodeGetComment([]byte(payload))
+	if err != nil {
+		return "", fmt.Errorf("DecodeGetComment: %v", err)
+	}
+
+	comment := Comment{
+		Key: gc.Token + gc.CommentID,
+	}
+	err = c.recorddb.Find(&comment).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			err = cache.ErrRecordNotFound
+		}
+		return "", err
+	}
+
+	gcr := decredplugin.GetCommentReply{
+		Comment: convertCommentToDecredPlugin(comment),
+	}
+	gcrb, err := decredplugin.EncodeGetCommentReply(gcr)
+	if err != nil {
+		return "", err
+	}
+	return string(gcrb), nil
 }

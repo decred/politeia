@@ -171,7 +171,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 
 	// Fill in proposal author info
 	prop := convertPropFromCache(*record)
-	userID, ok := b.getUserIDByPubkey(prop.PublicKey)
+	userID, ok := b.getUserIDByPubKey(prop.PublicKey)
 	if !ok {
 		// Complain but don't return since proposal details can still
 		// be returned
@@ -264,7 +264,7 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 	// The only time admins are allowed to change the status of
 	// their own proposals is on testnet
 	if !b.cfg.TestNet {
-		authorID, ok := b.getUserIDByPubkey(pr.PublicKey)
+		authorID, ok := b.getUserIDByPubKey(pr.PublicKey)
 		if !ok {
 			return nil, fmt.Errorf("user not found for public key %v "+
 				"for proposal %v", pr.PublicKey, pr.CensorshipRecord.Token)

@@ -160,7 +160,7 @@ const (
 	ErrorStatusCannotVoteOnPropComment     ErrorStatusT = 44
 	ErrorStatusChangeMessageCannotBeBlank  ErrorStatusT = 45
 	ErrorStatusCensorReasonCannotBeBlank   ErrorStatusT = 46
-	ErrorStatusCannotCensorComment         ErrorStatusT = 47
+	ErrorStatusCensoredComment             ErrorStatusT = 47
 	ErrorStatusUserNotAuthor               ErrorStatusT = 48
 	ErrorStatusVoteNotAuthorized           ErrorStatusT = 49
 	ErrorStatusVoteAlreadyAuthorized       ErrorStatusT = 50
@@ -298,7 +298,7 @@ var (
 		ErrorStatusCannotVoteOnPropComment:     "cannot vote on proposal comment",
 		ErrorStatusChangeMessageCannotBeBlank:  "status change message cannot be blank",
 		ErrorStatusCensorReasonCannotBeBlank:   "censor comment reason cannot be blank",
-		ErrorStatusCannotCensorComment:         "cannot censor comment",
+		ErrorStatusCensoredComment:             "comment has been censored",
 		ErrorStatusUserNotAuthor:               "user is not the proposal author",
 		ErrorStatusVoteNotAuthorized:           "vote has not been authorized",
 		ErrorStatusVoteAlreadyAuthorized:       "vote has already been authorized",

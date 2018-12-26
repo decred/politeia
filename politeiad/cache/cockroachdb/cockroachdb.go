@@ -430,6 +430,9 @@ func (c *cockroachdb) Plugin(command, payload string) (string, string, error) {
 	case decredplugin.CmdNewComment:
 		payload, err := c.pluginNewComment(payload)
 		return decredplugin.CmdNewComment, payload, err
+	case decredplugin.CmdGetComment:
+		payload, err := c.pluginGetComment(payload)
+		return decredplugin.CmdGetComment, payload, err
 	}
 
 	return "", "", cache.ErrInvalidPluginCmd

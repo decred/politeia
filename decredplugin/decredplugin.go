@@ -486,6 +486,51 @@ func DecodeCensorCommentReply(payload []byte) (*CensorCommentReply, error) {
 	return &ccr, nil
 }
 
+// GetComment retrieves a comment for a given proposal.
+type GetComment struct {
+	Token     string `json:"token"`     // Proposal ID
+	CommentID string `json:"commentid"` // Comment ID
+}
+
+// EncodeGetComment encodes a GetComment into a JSON byte slice.
+func EncodeGetComment(gc GetComment) ([]byte, error) {
+	return json.Marshal(gc)
+}
+
+// DecodeGetComment decodes a JSON byte slice into a GetComment.
+func DecodeGetComment(payload []byte) (*GetComment, error) {
+	var gc GetComment
+
+	err := json.Unmarshal(payload, &gc)
+	if err != nil {
+		return nil, err
+	}
+
+	return &gc, nil
+}
+
+// GetCommentReply returns the provided comment.
+type GetCommentReply struct {
+	Comment Comment `json:"comment"` // Comment
+}
+
+// EncodeGetCommentReply encodes a GetCommentReply into a JSON byte slice.
+func EncodeGetCommentReply(gcr GetCommentReply) ([]byte, error) {
+	return json.Marshal(gcr)
+}
+
+// DecodeGetCommentReply decodes a JSON byte slice into a GetCommentReply.
+func DecodeGetCommentReply(payload []byte) (*GetCommentReply, error) {
+	var gcr GetCommentReply
+
+	err := json.Unmarshal(payload, &gcr)
+	if err != nil {
+		return nil, err
+	}
+
+	return &gcr, nil
+}
+
 // GetComments retrieve all comments for a given proposal. This call returns
 // the cooked comments; deleted/censored comments are not returned.
 type GetComments struct {

@@ -96,7 +96,7 @@ API.  It does not render HTML.
 - [`ErrorStatusCannotVoteOnPropComment`](#ErrorStatusCannotVoteOnPropComment)
 - [`ErrorStatusChangeMessageCannotBeBlank`](#ErrorStatusChangeMessageCannotBeBlank)
 - [`ErrorStatusCensorReasonCannotBeBlank`](#ErrorStatusCensorReasonCannotBeBlank)
-- [`ErrorStatusCannotCensorComment`](#ErrorStatusCannotCensorComment)
+- [`ErrorStatusCensoredComment`](#ErrorStatusCensoredComment)
 - [`ErrorStatusUserNotAuthor`](#ErrorStatusUserNotAuthor)
 - [`ErrorStatusVoteNotAuthorized`](#ErrorStatusVoteNotAuthorized)
 - [`ErrorStatusVoteAlreadyAuthorized`](#ErrorStatusVoteAlreadyAuthorized)
@@ -1695,7 +1695,7 @@ On failure the call shall return `403 Forbidden` and one of the following
 error codes:
 - [`ErrorStatusInvalidSignature`](#ErrorStatusInvalidSignature)
 - [`ErrorStatusCensorReasonCannotBeBlank`](#ErrorStatusCensorReasonCannotBeBlank)
-- [`ErrorStatusCannotCensorComment`](#ErrorStatusCannotCensorComment)
+- [`ErrorStatusCensoredComment`](#ErrorStatusCensoredComment)
 
 **Example:**
 
@@ -2387,7 +2387,7 @@ Reply:
 | <a name="ErrorStatusCannotVoteOnPropComment">ErrorStatusCannotVoteOnPropComment</a> | 44 | Cannot vote on proposal comment. |
 | <a name="ErrorStatusChangeMessageCannotBeBlank">ErrorStatusChangeMessageCannotBeBlank</a> | 45 | Status change message cannot be blank. |
 | <a name="ErrorStatusCensorReasonCannotBeBlank">ErrorStatusCensorReasonCannotBeBlank</a> | 46 | Censor comment reason cannot be blank. |
-| <a name="ErrorStatusCannotCensorComment">ErrorStatusCannotCensorComment</a> | 47 | Cannot censor comment. |
+| <a name="ErrorStatusCensoredComment">ErrorStatusCensoredComment</a> | 47 | Comment has been censored. |
 | <a name="ErrorStatusUserNotAuthor">ErrorStatusUserNotAuthor</a> | 48 | User is not the proposal author. |
 | <a name="ErrorStatusVoteNotAuthorized">ErrorStatusVoteNotAuthorized</a> | 49 | Vote has not been authorized. |
 | <a name="ErrorStatusVoteAlreadyAuthorized">ErrorStatusVoteAlreadyAuthorized</a> | 50 | Vote has already been authorized. |

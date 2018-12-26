@@ -15,26 +15,6 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-func convertNewCommentReplyFromDecredPlugin(ncr decredplugin.NewCommentReply) www.NewCommentReply {
-	return www.NewCommentReply{
-		Comment: www.Comment{
-			Token:       ncr.Comment.Token,
-			ParentID:    ncr.Comment.ParentID,
-			Comment:     ncr.Comment.Comment,
-			Signature:   ncr.Comment.Signature,
-			PublicKey:   ncr.Comment.PublicKey,
-			CommentID:   ncr.Comment.CommentID,
-			Receipt:     ncr.Comment.Receipt,
-			Timestamp:   ncr.Comment.Timestamp,
-			TotalVotes:  ncr.Comment.TotalVotes,
-			ResultVotes: ncr.Comment.ResultVotes,
-			Censored:    ncr.Comment.Censored,
-			UserID:      "",
-			Username:    "",
-		},
-	}
-}
-
 func convertWWWNewCommentToDecredNewComment(nc www.NewComment) decredplugin.NewComment {
 	return decredplugin.NewComment{
 		Token:     nc.Token,
@@ -88,34 +68,6 @@ func convertDecredCensorCommentReplyToWWWCensorCommentReply(ccr decredplugin.Cen
 	return www.CensorCommentReply{
 		Receipt: ccr.Receipt,
 	}
-}
-
-// TODO: get rid of setRecordComment
-// _setRecordComment sets a comment alongside the record's comments (if any)
-// this can be used for adding or updating a comment
-//
-// This function must be called WITH the mutex held
-func (b *backend) _setRecordComment(comment www.Comment) error {
-	// Sanity check
-	_, ok := b.inventory[comment.Token]
-	if !ok {
-		return fmt.Errorf("inventory record not found: %v", comment.Token)
-	}
-
-	// set record comment
-	b.inventory[comment.Token].comments[comment.CommentID] = comment
-
-	return nil
-}
-
-// setRecordComment sets a comment alongside the record's comments (if any)
-// this can be used for adding or updating a comment
-//
-// This function must be called WITHOUT the mutex held
-func (b *backend) setRecordComment(comment www.Comment) error {
-	b.Lock()
-	defer b.Unlock()
-	return b._setRecordComment(comment)
 }
 
 // getComments returns all comments for given proposal token.  Note that the
@@ -239,6 +191,98 @@ func (b *backend) _updateResultsForCommentLike(like www.LikeComment) (*www.Comme
 	return comment, nil
 }
 
+// TODO: get rid of setRecordComment
+// _setRecordComment sets a comment alongside the record's comments (if any)
+// this can be used for adding or updating a comment
+//
+// This function must be called WITH the mutex held
+func (b *backend) _setRecordComment(comment www.Comment) error {
+	// Sanity check
+	_, ok := b.inventory[comment.Token]
+	if !ok {
+		return fmt.Errorf("inventory record not found: %v", comment.Token)
+	}
+
+	// set record comment
+	b.inventory[comment.Token].comments[comment.CommentID] = comment
+
+	return nil
+}
+
+// setRecordComment sets a comment alongside the record's comments (if any)
+// this can be used for adding or updating a comment
+//
+// This function must be called WITHOUT the mutex held
+func (b *backend) setRecordComment(comment www.Comment) error {
+	b.Lock()
+	defer b.Unlock()
+	return b._setRecordComment(comment)
+}
+
+func convertCommentFromDecredPlugin(c decredplugin.Comment) www.Comment {
+	return www.Comment{
+		Token:       c.Token,
+		ParentID:    c.ParentID,
+		Comment:     c.Comment,
+		Signature:   c.Signature,
+		PublicKey:   c.PublicKey,
+		CommentID:   c.CommentID,
+		Receipt:     c.Receipt,
+		Timestamp:   c.Timestamp,
+		TotalVotes:  c.TotalVotes,
+		ResultVotes: c.ResultVotes,
+		Censored:    c.Censored,
+		UserID:      "",
+		Username:    "",
+	}
+}
+
+func convertNewCommentReplyFromDecredPlugin(ncr decredplugin.NewCommentReply) www.NewCommentReply {
+	return www.NewCommentReply{
+		Comment: convertCommentFromDecredPlugin(ncr.Comment),
+	}
+}
+
+func (b *backend) getCommentFromCache(token, commentID string) (*www.Comment, error) {
+	// Setup plugin command
+	cgb, err := decredplugin.EncodeGetComment(decredplugin.GetComment{
+		Token:     token,
+		CommentID: commentID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("EncodeCommentGet: %v", err)
+	}
+
+	// Send cache request
+	_, payload, err := b.cache.Plugin(decredplugin.CmdGetComment, string(cgb))
+	if err != nil {
+		if err == cache.ErrRecordNotFound {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusCommentNotFound,
+			}
+		}
+		return nil, err
+	}
+
+	// Handle response
+	gcr, err := decredplugin.DecodeGetCommentReply([]byte(payload))
+	if err != nil {
+		return nil, fmt.Errorf("DecodeGetComment: %v", err)
+	}
+	c := convertCommentFromDecredPlugin(gcr.Comment)
+
+	// Fill in author info
+	userID, ok := b.getUserIDByPubKey(c.PublicKey)
+	if !ok {
+		return nil, fmt.Errorf("userID not found for pubkey %v",
+			c.PublicKey)
+	}
+	c.UserID = userID
+	c.Username = b.getUsernameById(userID)
+
+	return &c, nil
+}
+
 // ProcessNewComment processes a submitted comment.  It ensures the proposal
 // and the parent exists.  A parent ID of 0 indicates that it is a comment on
 // the proposal whereas non-zero indicates that it is a reply to a comment.
@@ -278,8 +322,7 @@ func (b *backend) ProcessNewComment(nc www.NewComment, user *database.User) (*ww
 		}
 	}
 
-	// XXX keep this until vote data has been added to the cache.
-	// Note that we are not racing ir because it is a copy.
+	// XXX remove this once vote data has been added to the cache
 	ir, err := b.getInventoryRecord(nc.Token)
 	if err != nil {
 		return nil, www.UserError{
@@ -304,7 +347,7 @@ func (b *backend) ProcessNewComment(nc www.NewComment, user *database.User) (*ww
 		return nil, err
 	}
 
-	// Setup plugin command
+	// Setup decred plugin command
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
 		return nil, err
@@ -324,7 +367,7 @@ func (b *backend) ProcessNewComment(nc www.NewComment, user *database.User) (*ww
 		Payload:   string(payload),
 	}
 
-	// Send plugin request
+	// Send politeiad request
 	responseBody, err := b.makeRequest(http.MethodPost,
 		pd.PluginCommandRoute, pc)
 	if err != nil {
@@ -335,23 +378,22 @@ func (b *backend) ProcessNewComment(nc www.NewComment, user *database.User) (*ww
 	var reply pd.PluginCommandReply
 	err = json.Unmarshal(responseBody, &reply)
 	if err != nil {
-		return nil, fmt.Errorf("Could not unmarshal "+
-			"PluginCommandReply: %v", err)
+		return nil, fmt.Errorf("Unmarshal PluginCommandReply: %v", err)
 	}
 
 	err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("VerifyChallenge: %v")
 	}
 
 	dncr, err := decredplugin.DecodeNewCommentReply([]byte(reply.Payload))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("DecodeNewCommentReply: %v", err)
 	}
 	ncr := convertNewCommentReplyFromDecredPlugin(*dncr)
 
 	// Fill in author info
-	userID, ok := b.getUserIDByPubkey(ncr.Comment.PublicKey)
+	userID, ok := b.getUserIDByPubKey(ncr.Comment.PublicKey)
 	if !ok {
 		log.Errorf("ProcessNewComment: userID not found for pubkey %v",
 			ncr.Comment.PublicKey)
@@ -365,4 +407,119 @@ func (b *backend) ProcessNewComment(nc www.NewComment, user *database.User) (*ww
 	})
 
 	return &ncr, nil
+}
+
+func (b *backend) ProcessCensorComment(cc www.CensorComment, user *database.User) (*www.CensorCommentReply, error) {
+	log.Tracef("ProcessCensorComment: %v: %v", cc.Token, cc.CommentID)
+
+	// Verify authenticity
+	err := checkPublicKeyAndSignature(user, cc.PublicKey, cc.Signature,
+		cc.Token, cc.CommentID, cc.Reason)
+	if err != nil {
+		return nil, err
+	}
+
+	// Ensure censor reason is present
+	if cc.Reason == "" {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusCensorReasonCannotBeBlank,
+		}
+	}
+
+	// Get proposal from cache
+	r, err := b.cache.RecordGetLatest(cc.Token)
+	if err != nil {
+		if err == cache.ErrRecordNotFound {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusProposalNotFound,
+			}
+		}
+		return nil, err
+	}
+	pr := convertPropFromCache(*r)
+
+	// Ensure proposal is public
+	if pr.Status != www.PropStatusPublic {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusWrongStatus,
+		}
+	}
+
+	// Ensure comment exists and has not been censored
+	c, err := b.getCommentFromCache(cc.Token, cc.CommentID)
+	if err != nil {
+		return nil, err
+	}
+	if c.Censored {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusCensoredComment,
+		}
+	}
+
+	// XXX keep this until vote data has been added to the cache.
+	ir, err := b.getInventoryRecord(cc.Token)
+	if err != nil {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusProposalNotFound,
+		}
+	}
+
+	// Ensure proposal voting has not ended
+	bb, err := b.getBestBlock()
+	if err != nil {
+		return nil, fmt.Errorf("getBestBlock: %v", err)
+	}
+
+	if getVoteStatus(ir, bb) == www.PropVoteStatusFinished {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusWrongVoteStatus,
+		}
+	}
+
+	// Setup plugin command
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	dcc := convertWWWCensorCommentToDecredCensorComment(cc)
+	payload, err := decredplugin.EncodeCensorComment(dcc)
+	if err != nil {
+		return nil, fmt.Errorf("EncodeCensorComment: %v", err)
+	}
+
+	pc := pd.PluginCommand{
+		Challenge: hex.EncodeToString(challenge),
+		ID:        decredplugin.ID,
+		Command:   decredplugin.CmdCensorComment,
+		CommandID: decredplugin.CmdCensorComment,
+		Payload:   string(payload),
+	}
+
+	// Send plugin request
+	responseBody, err := b.makeRequest(http.MethodPost,
+		pd.PluginCommandRoute, pc)
+	if err != nil {
+		return nil, err
+	}
+
+	// Handle response
+	var reply pd.PluginCommandReply
+	err = json.Unmarshal(responseBody, &reply)
+	if err != nil {
+		return nil, fmt.Errorf("Unmarshal PluginCommandReply: %v", err)
+	}
+
+	err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
+	if err != nil {
+		return nil, fmt.Errorf("VerifyChallenge: %v", err)
+	}
+
+	ccr, err := decredplugin.DecodeCensorCommentReply([]byte(reply.Payload))
+	if err != nil {
+		return nil, fmt.Errorf("DecodeCensorCommentReply: %v", err)
+	}
+	ccrWWW := convertDecredCensorCommentReplyToWWWCensorCommentReply(*ccr)
+
+	return &ccrWWW, nil
 }

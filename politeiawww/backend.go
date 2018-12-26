@@ -240,7 +240,7 @@ func checkUserIsLocked(failedLoginAttempts uint64) bool {
 	return failedLoginAttempts >= LoginAttemptsToLockUser
 }
 
-func (b *backend) getUserIDByPubkey(pubkey string) (string, bool) {
+func (b *backend) getUserIDByPubKey(pubkey string) (string, bool) {
 	b.RLock()
 	defer b.RUnlock()
 
@@ -1738,125 +1738,6 @@ func (b *backend) ProcessLikeComment(lc www.LikeComment, user *database.User) (*
 	}
 
 	return &lcrWWW, nil
-}
-
-func (b *backend) ProcessCensorComment(cc www.CensorComment, user *database.User) (*www.CensorCommentReply, error) {
-	log.Debugf("ProcessCensorComment: %v: %v", cc.Token, cc.CommentID)
-
-	// Verify authenticity.
-	err := checkPublicKeyAndSignature(user, cc.PublicKey, cc.Signature,
-		cc.Token, cc.CommentID, cc.Reason)
-	if err != nil {
-		return nil, err
-	}
-
-	// Ensure censor reason is present.
-	if cc.Reason == "" {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusCensorReasonCannotBeBlank,
-		}
-	}
-
-	// get the proposal record from inventory
-	b.RLock()
-	ir, err := b._getInventoryRecord(cc.Token)
-	if err != nil {
-		b.RUnlock()
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusProposalNotFound,
-		}
-	}
-
-	// Ensure comment exists and has not already been censored.
-	c, err := b._getInventoryRecordComment(cc.Token, cc.CommentID)
-	if err != nil {
-		b.RUnlock()
-		return nil, fmt.Errorf("comment not found %v: %v",
-			cc.Token, cc.CommentID)
-	}
-	b.RUnlock()
-	if c.Censored {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusCannotCensorComment,
-		}
-	}
-
-	// Ensure proposal voting has not ended.
-	bb, err := b.getBestBlock()
-	if err != nil {
-		return nil, fmt.Errorf("getBestBlock: %v", err)
-	}
-
-	if getVoteStatus(ir, bb) == www.PropVoteStatusFinished {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusCannotCensorComment,
-		}
-	}
-
-	// Setup plugin command.
-	challenge, err := util.Random(pd.ChallengeSize)
-	if err != nil {
-		return nil, err
-	}
-
-	dcc := convertWWWCensorCommentToDecredCensorComment(cc)
-	payload, err := decredplugin.EncodeCensorComment(dcc)
-	if err != nil {
-		return nil, fmt.Errorf("EncodeCensorComment: %v", err)
-	}
-
-	pc := pd.PluginCommand{
-		Challenge: hex.EncodeToString(challenge),
-		ID:        decredplugin.ID,
-		Command:   decredplugin.CmdCensorComment,
-		CommandID: decredplugin.CmdCensorComment,
-		Payload:   string(payload),
-	}
-
-	// Send plugin request.
-	responseBody, err := b.makeRequest(http.MethodPost,
-		pd.PluginCommandRoute, pc)
-	if err != nil {
-		return nil, fmt.Errorf("makeRequest: %v", err)
-	}
-
-	var reply pd.PluginCommandReply
-	err = json.Unmarshal(responseBody, &reply)
-	if err != nil {
-		return nil, fmt.Errorf("Unmarshal PluginCommandReply: %v", err)
-	}
-
-	// Verify the challenge.
-	err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
-	if err != nil {
-		return nil, fmt.Errorf("VerifyChallenge: %v", err)
-	}
-
-	// Decode plugin reply.
-	ccr, err := decredplugin.DecodeCensorCommentReply([]byte(reply.Payload))
-	if err != nil {
-		return nil, fmt.Errorf("DecodeCensorCommentReply: %v", err)
-	}
-	ccrWWW := convertDecredCensorCommentReplyToWWWCensorCommentReply(*ccr)
-
-	// Update inventory cache.
-	b.Lock()
-	defer b.Unlock()
-	c, err = b._getInventoryRecordComment(cc.Token, cc.CommentID)
-	if err != nil {
-		return nil, fmt.Errorf("comment not found %v: %v", cc.Token,
-			cc.CommentID)
-	}
-
-	// Reset comment in cache
-	c.Comment = ""
-	c.Censored = true
-	err = b._setRecordComment(*c)
-	if err != nil {
-		return nil, fmt.Errorf("setRecordComment %v", err)
-	}
-
-	return &ccrWWW, nil
 }
 
 // ProcessCommentGet returns all comments for a given proposal. If the user
