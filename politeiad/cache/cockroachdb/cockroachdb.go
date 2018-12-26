@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiad/cache"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
@@ -119,8 +120,36 @@ func (c *cockroachdb) createTables(db *gorm.DB) error {
 func (c *cockroachdb) CreateTables() error {
 	log.Tracef("CreateTables")
 
+	c.RLock()
+	shutdown := c.shutdown
+	c.RUnlock()
+
+	if shutdown == true {
+		return cache.ErrShutdown
+	}
+
 	tx := c.recorddb.Begin()
 	err := c.createTables(tx)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	return tx.Commit().Error
+}
+
+func (c *cockroachdb) CreatePluginTables() error {
+	log.Tracef("CreatePluginTables")
+
+	c.RLock()
+	shutdown := c.shutdown
+	c.RUnlock()
+
+	if shutdown == true {
+		return cache.ErrShutdown
+	}
+
+	tx := c.recorddb.Begin()
+	err := c.createDecredTables(tx)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -140,6 +169,7 @@ func (c *cockroachdb) RecordNew(cr cache.Record) error {
 	}
 
 	r := convertRecordFromCache(cr)
+	// TODO: this should be set in convertRecordFromCache
 	r.Key = r.CensorshipRecord.Token + r.Version
 	return c.recorddb.Create(&r).Error
 }
@@ -325,9 +355,9 @@ func (c *cockroachdb) RecordUpdate(r cache.Record) error {
 func (c *cockroachdb) recordUpdateStatus(db *gorm.DB, token, version string, status int, timestamp int64, metadata []MetadataStream) error {
 	log.Tracef("recordUpdateStatus: %v version %v", token, version)
 
-	// Ensure record exists. We need to do this because updates will
-	// not return an error if you try to update a record that does
-	// not exist.
+	// Ensure record exists.  We need to do this because updates
+	// will not return an error if you try to update a record that
+	// does not exist.
 	record, err := c.recordGet(token, version)
 	if err != nil {
 		return err
@@ -392,6 +422,17 @@ func (c *cockroachdb) RecordUpdateStatus(token, version string, status cache.Rec
 		return err
 	}
 	return tx.Commit().Error
+}
+
+func (c *cockroachdb) Plugin(command, payload string) (string, string, error) {
+	log.Tracef("Plugin: %v", command)
+	switch command {
+	case decredplugin.CmdNewComment:
+		payload, err := c.pluginNewComment(payload)
+		return decredplugin.CmdNewComment, payload, err
+	}
+
+	return "", "", cache.ErrInvalidPluginCmd
 }
 
 // Close shuts down the cache.  All interface functions MUST return with

@@ -349,21 +349,23 @@ func (b *backend) ProcessNewComment(c www.NewComment, user *database.User) (*www
 	// Lookup author details
 	// Fire off new comment event
 
-	ncr, err := decredplugin.DecodeNewCommentReply([]byte(reply.Payload))
-	if err != nil {
-		return nil, err
-	}
+	/*
+		ncr, err := decredplugin.DecodeNewCommentReply([]byte(reply.Payload))
+		if err != nil {
+			return nil, err
+		}
 
-	// Note this call takes the read lock.
-	ncrWWW := b.convertDecredNewCommentReplyToWWWNewCommentReply(*ncr)
+		// Note this call takes the read lock.
+		ncrWWW := b.convertDecredNewCommentReplyToWWWNewCommentReply(*ncr)
 
-	// Set author username
-	ncrWWW.Comment.Username = b.getUsernameById(ncrWWW.Comment.UserID)
+		// Set author username
+		ncrWWW.Comment.Username = b.getUsernameById(ncrWWW.Comment.UserID)
 
-	err = b.setRecordComment(ncrWWW.Comment)
-	if err != nil {
-		return nil, fmt.Errorf("setRecordComment %v", err)
-	}
+		err = b.setRecordComment(ncrWWW.Comment)
+		if err != nil {
+			return nil, fmt.Errorf("setRecordComment %v", err)
+		}
+	*/
 
 	b.fireEvent(EventTypeComment, EventDataComment{
 		Comment: &ncrWWW.Comment,

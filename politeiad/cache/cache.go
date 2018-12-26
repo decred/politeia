@@ -10,6 +10,8 @@ var (
 
 	// ErrRecordNotFound is emitted when a record could not be found.
 	ErrRecordNotFound = errors.New("record not found")
+
+	ErrInvalidPluginCmd = errors.New("invalid plugin command")
 )
 
 const (
@@ -68,13 +70,16 @@ type Cache interface {
 		[]MetadataStream) error
 
 	// Plugin pass-through command
-	Plugin(string, string, string) (string, string, error)
+	Plugin(string, string) (string, string, error)
 
 	// Lookup the data that was created by a plugin command
-	// PluginGet
+	// PluginGet(string, string) (string, string, error)
 
 	// Create the cache tables if they do not already exist
 	CreateTables() error
+
+	// Create the cache tables for any registered plugins
+	CreatePluginTables() error
 
 	// Close performs cleanup of the cache
 	Close()

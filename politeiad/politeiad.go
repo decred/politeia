@@ -326,7 +326,7 @@ func (p *politeia) newRecord(w http.ResponseWriter, r *http.Request) {
 	})
 	err = p.cache.RecordNew(record)
 	if err != nil {
-		log.Criticalf("New record cache new %v: %v",
+		log.Criticalf("New record cache failure %v: %v",
 			record.CensorshipRecord.Token, err)
 	}
 
@@ -437,7 +437,7 @@ func (p *politeia) updateRecord(w http.ResponseWriter, r *http.Request, vetted b
 		// Create a new cache entry for new versions.
 		err := p.cache.RecordNew(cr)
 		if err != nil {
-			log.Criticalf("Update vetted record cache new %v: %v",
+			log.Criticalf("Update vetted record cache failure %v: %v",
 				cr.CensorshipRecord.Token, err)
 		}
 	} else {
@@ -445,7 +445,7 @@ func (p *politeia) updateRecord(w http.ResponseWriter, r *http.Request, vetted b
 		// new versions.
 		err = p.cache.RecordUpdate(cr)
 		if err != nil {
-			log.Criticalf("Update unvetted record cache update %v: %v",
+			log.Criticalf("Update unvetted record cache failure %v: %v",
 				cr.CensorshipRecord.Token, err)
 		}
 	}
@@ -726,7 +726,7 @@ func (p *politeia) setVettedStatus(w http.ResponseWriter, r *http.Request) {
 	err = p.cache.RecordUpdateStatus(cr.CensorshipRecord.Token,
 		cr.Version, cr.Status, cr.Timestamp, cr.Metadata)
 	if err != nil {
-		log.Criticalf("Set vetted status cache update %v: %v",
+		log.Criticalf("Set vetted status cache failure %v: %v",
 			cr.CensorshipRecord.Token, err)
 	}
 
@@ -797,7 +797,7 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 	err = p.cache.RecordUpdateStatus(cr.CensorshipRecord.Token,
 		cr.Version, cr.Status, cr.Timestamp, cr.Metadata)
 	if err != nil {
-		log.Criticalf("Set unvetted status cache update %v: %v",
+		log.Criticalf("Set unvetted status cache failure %v: %v",
 			cr.CensorshipRecord.Token, err)
 	}
 
@@ -929,15 +929,21 @@ func (p *politeia) pluginCommand(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update cache.
+	_, _, err = p.cache.Plugin(cid, payload)
+	if err != nil {
+		log.Criticalf("Plugin command cache failure, command: %v "+
+			"payload: %v err: %v", pc.Command, pc.Payload, err)
+	}
 
 	// Prepare reply.
+	// TODO: remove all fields except Response
 	response := p.identity.SignMessage(challenge)
 	reply := v1.PluginCommandReply{
 		Response:  hex.EncodeToString(response[:]),
 		ID:        pc.ID,
-		Command:   cid,
-		CommandID: pc.CommandID,
-		Payload:   payload,
+		Command:   "",
+		CommandID: "",
+		Payload:   "",
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
@@ -1123,6 +1129,13 @@ func _main() error {
 			permissionAuth)
 		p.addRoute(http.MethodPost, v1.PluginInventoryRoute, p.pluginInventory,
 			permissionAuth)
+
+		// TODO: Fix this.  Pass plugins in and setup tables dynamically.
+		// Setup plugin tables in cache.
+		err := p.cache.CreatePluginTables()
+		if err != nil {
+			return err
+		}
 
 		for _, v := range plugins {
 			// make sure we only have lowercase names

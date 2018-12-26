@@ -398,6 +398,7 @@ type PluginCommand struct {
 	Payload   string `json:"payload"`   // Actual command
 }
 
+// TODO: Remove all fields except Response
 // PluginCommandReply is the reply to a PluginCommand.
 type PluginCommandReply struct {
 	Response  string `json:"response"`  // Challenge response
