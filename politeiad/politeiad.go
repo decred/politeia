@@ -936,14 +936,13 @@ func (p *politeia) pluginCommand(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Prepare reply.
-	// TODO: remove all fields except Response
 	response := p.identity.SignMessage(challenge)
 	reply := v1.PluginCommandReply{
 		Response:  hex.EncodeToString(response[:]),
 		ID:        pc.ID,
-		Command:   "",
-		CommandID: "",
-		Payload:   "",
+		Command:   cid,
+		CommandID: pc.CommandID,
+		Payload:   payload,
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)

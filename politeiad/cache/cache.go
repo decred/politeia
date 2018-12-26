@@ -72,9 +72,6 @@ type Cache interface {
 	// Plugin pass-through command
 	Plugin(string, string) (string, string, error)
 
-	// Lookup the data that was created by a plugin command
-	// PluginGet(string, string) (string, string, error)
-
 	// Create the cache tables if they do not already exist
 	CreateTables() error
 

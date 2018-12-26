@@ -13,6 +13,7 @@ const (
 	CmdNewComment            = "newcomment"
 	CmdLikeComment           = "likecomment"
 	CmdCensorComment         = "censorcomment"
+	CmdGetComment            = "getcomment"
 	CmdGetComments           = "getcomments"
 	CmdProposalVotes         = "proposalvotes"
 	CmdProposalCommentsLikes = "proposalcommentslikes"

@@ -15,39 +15,23 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-// _convertDecredCommentToWWWComment converts decred plugin comment to www comment.
-//
-// Must be called WITH the lock held.
-func (b *backend) _convertDecredCommentToWWWComment(c decredplugin.Comment) www.Comment {
-	return www.Comment{
-		Token:       c.Token,
-		ParentID:    c.ParentID,
-		Comment:     c.Comment,
-		Signature:   c.Signature,
-		PublicKey:   c.PublicKey,
-		CommentID:   c.CommentID,
-		Receipt:     c.Receipt,
-		Timestamp:   c.Timestamp,
-		TotalVotes:  c.TotalVotes,
-		ResultVotes: c.ResultVotes,
-		UserID:      b.userPubkeys[c.PublicKey],
-		Censored:    c.Censored,
-	}
-}
-
-func convertWWWCommentToDecredComment(c www.Comment) decredplugin.Comment {
-	return decredplugin.Comment{
-		Token:       c.Token,
-		ParentID:    c.ParentID,
-		Comment:     c.Comment,
-		Signature:   c.Signature,
-		PublicKey:   c.PublicKey,
-		CommentID:   c.CommentID,
-		Receipt:     c.Receipt,
-		Timestamp:   c.Timestamp,
-		TotalVotes:  c.TotalVotes,
-		ResultVotes: c.ResultVotes,
-		Censored:    c.Censored,
+func convertNewCommentReplyFromDecredPlugin(ncr decredplugin.NewCommentReply) www.NewCommentReply {
+	return www.NewCommentReply{
+		Comment: www.Comment{
+			Token:       ncr.Comment.Token,
+			ParentID:    ncr.Comment.ParentID,
+			Comment:     ncr.Comment.Comment,
+			Signature:   ncr.Comment.Signature,
+			PublicKey:   ncr.Comment.PublicKey,
+			CommentID:   ncr.Comment.CommentID,
+			Receipt:     ncr.Comment.Receipt,
+			Timestamp:   ncr.Comment.Timestamp,
+			TotalVotes:  ncr.Comment.TotalVotes,
+			ResultVotes: ncr.Comment.ResultVotes,
+			Censored:    ncr.Comment.Censored,
+			UserID:      "",
+			Username:    "",
+		},
 	}
 }
 
@@ -58,18 +42,6 @@ func convertWWWNewCommentToDecredNewComment(nc www.NewComment) decredplugin.NewC
 		Comment:   nc.Comment,
 		Signature: nc.Signature,
 		PublicKey: nc.PublicKey,
-	}
-}
-
-// convertDecredNewCommentReplyToWWWNewCommentReply converts decred plugin new
-// comment to www new comment.
-//
-// Must be called WITHOUT the lock held.
-func (b *backend) convertDecredNewCommentReplyToWWWNewCommentReply(cr decredplugin.NewCommentReply) www.NewCommentReply {
-	b.RLock()
-	defer b.RUnlock()
-	return www.NewCommentReply{
-		Comment: b._convertDecredCommentToWWWComment(cr.Comment),
 	}
 }
 
@@ -116,6 +88,34 @@ func convertDecredCensorCommentReplyToWWWCensorCommentReply(ccr decredplugin.Cen
 	return www.CensorCommentReply{
 		Receipt: ccr.Receipt,
 	}
+}
+
+// TODO: get rid of setRecordComment
+// _setRecordComment sets a comment alongside the record's comments (if any)
+// this can be used for adding or updating a comment
+//
+// This function must be called WITH the mutex held
+func (b *backend) _setRecordComment(comment www.Comment) error {
+	// Sanity check
+	_, ok := b.inventory[comment.Token]
+	if !ok {
+		return fmt.Errorf("inventory record not found: %v", comment.Token)
+	}
+
+	// set record comment
+	b.inventory[comment.Token].comments[comment.CommentID] = comment
+
+	return nil
+}
+
+// setRecordComment sets a comment alongside the record's comments (if any)
+// this can be used for adding or updating a comment
+//
+// This function must be called WITHOUT the mutex held
+func (b *backend) setRecordComment(comment www.Comment) error {
+	b.Lock()
+	defer b.Unlock()
+	return b._setRecordComment(comment)
 }
 
 // getComments returns all comments for given proposal token.  Note that the
@@ -242,8 +242,8 @@ func (b *backend) _updateResultsForCommentLike(like www.LikeComment) (*www.Comme
 // ProcessNewComment processes a submitted comment.  It ensures the proposal
 // and the parent exists.  A parent ID of 0 indicates that it is a comment on
 // the proposal whereas non-zero indicates that it is a reply to a comment.
-func (b *backend) ProcessNewComment(c www.NewComment, user *database.User) (*www.NewCommentReply, error) {
-	log.Tracef("ProcessNewComment: %v %v", c.Token, user.ID)
+func (b *backend) ProcessNewComment(nc www.NewComment, user *database.User) (*www.NewCommentReply, error) {
+	log.Tracef("ProcessNewComment: %v %v", nc.Token, user.ID)
 
 	// Pay up sucker!
 	if !b.HasUserPaid(user) {
@@ -253,14 +253,14 @@ func (b *backend) ProcessNewComment(c www.NewComment, user *database.User) (*www
 	}
 
 	// Verify authenticity
-	err := checkPublicKeyAndSignature(user, c.PublicKey, c.Signature,
-		c.Token, c.ParentID, c.Comment)
+	err := checkPublicKeyAndSignature(user, nc.PublicKey, nc.Signature,
+		nc.Token, nc.ParentID, nc.Comment)
 	if err != nil {
 		return nil, err
 	}
 
 	// Get proposal from cache
-	r, err := b.cache.RecordGetLatest(ep.Token)
+	r, err := b.cache.RecordGetLatest(nc.Token)
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
 			err = www.UserError{
@@ -278,10 +278,9 @@ func (b *backend) ProcessNewComment(c www.NewComment, user *database.User) (*www
 		}
 	}
 
-	// XXX keep this until decredplugin data has been added to
-	// the cache.
+	// XXX keep this until vote data has been added to the cache.
 	// Note that we are not racing ir because it is a copy.
-	ir, err := b.getInventoryRecord(c.Token)
+	ir, err := b.getInventoryRecord(nc.Token)
 	if err != nil {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusProposalNotFound,
@@ -301,7 +300,7 @@ func (b *backend) ProcessNewComment(c www.NewComment, user *database.User) (*www
 	}
 
 	// Validate comment
-	if err := validateComment(c); err != nil {
+	if err := validateComment(nc); err != nil {
 		return nil, err
 	}
 
@@ -311,8 +310,8 @@ func (b *backend) ProcessNewComment(c www.NewComment, user *database.User) (*www
 		return nil, err
 	}
 
-	ndc := convertWWWNewCommentToDecredNewComment(c)
-	payload, err := decredplugin.EncodeNewComment(ndc)
+	dnc := convertWWWNewCommentToDecredNewComment(nc)
+	payload, err := decredplugin.EncodeNewComment(dnc)
 	if err != nil {
 		return nil, err
 	}
@@ -345,31 +344,25 @@ func (b *backend) ProcessNewComment(c www.NewComment, user *database.User) (*www
 		return nil, err
 	}
 
-	// Get comment from the cache
-	// Lookup author details
-	// Fire off new comment event
+	dncr, err := decredplugin.DecodeNewCommentReply([]byte(reply.Payload))
+	if err != nil {
+		return nil, err
+	}
+	ncr := convertNewCommentReplyFromDecredPlugin(*dncr)
 
-	/*
-		ncr, err := decredplugin.DecodeNewCommentReply([]byte(reply.Payload))
-		if err != nil {
-			return nil, err
-		}
+	// Fill in author info
+	userID, ok := b.getUserIDByPubkey(ncr.Comment.PublicKey)
+	if !ok {
+		log.Errorf("ProcessNewComment: userID not found for pubkey %v",
+			ncr.Comment.PublicKey)
+	}
+	ncr.Comment.UserID = userID
+	ncr.Comment.Username = b.getUsernameById(userID)
 
-		// Note this call takes the read lock.
-		ncrWWW := b.convertDecredNewCommentReplyToWWWNewCommentReply(*ncr)
-
-		// Set author username
-		ncrWWW.Comment.Username = b.getUsernameById(ncrWWW.Comment.UserID)
-
-		err = b.setRecordComment(ncrWWW.Comment)
-		if err != nil {
-			return nil, fmt.Errorf("setRecordComment %v", err)
-		}
-	*/
-
+	// Fire of new comment event
 	b.fireEvent(EventTypeComment, EventDataComment{
-		Comment: &ncrWWW.Comment,
+		Comment: &ncr.Comment,
 	})
 
-	return &ncrWWW, nil
+	return &ncr, nil
 }

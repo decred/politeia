@@ -415,11 +415,14 @@ func (b *backend) loadComments(t string) error {
 		return err
 	}
 
-	// Fill map
-	for _, v := range gcr.Comments {
-		c := b._convertDecredCommentToWWWComment(v)
-		b.inventory[t].comments[v.CommentID] = c
-	}
+	// TODO: load from cache
+	/*
+		// Fill map
+		for _, v := range gcr.Comments {
+			c := b._convertDecredCommentToWWWComment(v)
+			b.inventory[t].comments[v.CommentID] = c
+		}
+	*/
 
 	log.Tracef("loadComments: %v inserted %v", t, len(gcr.Comments))
 
@@ -600,33 +603,6 @@ func (b *backend) _getInventoryRecordComment(token string, commentID string) (*w
 		return nil, fmt.Errorf("comment not found %v: %v", token, commentID)
 	}
 	return &comment, nil
-}
-
-// _setRecordComment sets a comment alongside the record's comments (if any)
-// this can be used for adding or updating a comment
-//
-// This function must be called WITH the mutex held
-func (b *backend) _setRecordComment(comment www.Comment) error {
-	// Sanity check
-	_, ok := b.inventory[comment.Token]
-	if !ok {
-		return fmt.Errorf("inventory record not found: %v", comment.Token)
-	}
-
-	// set record comment
-	b.inventory[comment.Token].comments[comment.CommentID] = comment
-
-	return nil
-}
-
-// setRecordComment sets a comment alongside the record's comments (if any)
-// this can be used for adding or updating a comment
-//
-// This function must be called WITHOUT the mutex held
-func (b *backend) setRecordComment(comment www.Comment) error {
-	b.Lock()
-	defer b.Unlock()
-	return b._setRecordComment(comment)
 }
 
 // setRecordVoting sets the voting of a proposal
