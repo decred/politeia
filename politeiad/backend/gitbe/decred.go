@@ -1140,6 +1140,7 @@ func (g *gitBackEnd) pluginLikeComment(payload string) (string, error) {
 	}
 
 	// Create Journal entry
+	ts := time.Now().Unix()
 	lc := decredplugin.LikeComment{
 		Token:     like.Token,
 		CommentID: like.CommentID,
@@ -1147,7 +1148,7 @@ func (g *gitBackEnd) pluginLikeComment(payload string) (string, error) {
 		Signature: like.Signature,
 		PublicKey: like.PublicKey,
 		Receipt:   receipt,
-		Timestamp: time.Now().Unix(),
+		Timestamp: ts,
 	}
 	blob, err := decredplugin.EncodeLikeComment(lc)
 	if err != nil {
@@ -1167,9 +1168,10 @@ func (g *gitBackEnd) pluginLikeComment(payload string) (string, error) {
 
 	// Encode reply
 	lcr := decredplugin.LikeCommentReply{
-		Total:   c.TotalVotes,
-		Result:  c.ResultVotes,
-		Receipt: receipt,
+		Total:     c.TotalVotes,
+		Result:    c.ResultVotes,
+		Receipt:   receipt,
+		Timestamp: ts,
 	}
 	lcrb, err := decredplugin.EncodeLikeCommentReply(lcr)
 	if err != nil {

@@ -411,12 +411,13 @@ func DecodeLikeComment(payload []byte) (*LikeComment, error) {
 	return &lc, nil
 }
 
-// LikeCommentReply returns the result of an up pordown vote.
+// LikeCommentReply returns the result of an up or down vote.
 type LikeCommentReply struct {
-	Total   uint64 `json:"total"`           // Total number of up and down votes
-	Result  int64  `json:"result"`          // Current tally of likes, can be negative
-	Receipt string `json:"receipt"`         // Server signature of client signature
-	Error   string `json:"error,omitempty"` // Error if something wen't wrong during liking a comment
+	Total     uint64 `json:"total"`           // Total number of up and down votes
+	Result    int64  `json:"result"`          // Current tally of likes, can be negative
+	Receipt   string `json:"receipt"`         // Server signature of client signature
+	Timestamp int64  `json:"timestamp"`       // Received UNIX timestamp
+	Error     string `json:"error,omitempty"` // Error if something wen't wrong during liking a comment
 }
 
 // EncodeLikeCommentReply encodes LikeCommentReply into a JSON byte slice.

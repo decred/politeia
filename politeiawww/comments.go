@@ -399,6 +399,11 @@ func (b *backend) ProcessCensorComment(cc www.CensorComment, user *database.User
 	// Ensure comment exists and has not been censored
 	c, err := b.getCommentFromCache(cc.Token, cc.CommentID)
 	if err != nil {
+		if err == cache.ErrRecordNotFound {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusCommentNotFound,
+			}
+		}
 		return nil, err
 	}
 	if c.Censored {
@@ -473,4 +478,152 @@ func (b *backend) ProcessCensorComment(cc www.CensorComment, user *database.User
 	ccrWWW := convertCensorCommentReplyFromDecredPlugin(*ccr)
 
 	return &ccrWWW, nil
+}
+
+// ProcessLikeComment processes an upvote or downvote of a comment.
+func (b *backend) ProcessLikeComment(lc www.LikeComment, user *database.User) (*www.LikeCommentReply, error) {
+	log.Tracef("ProcessLikeComment: %v %v", lc.Token, user.ID)
+
+	// Pay up sucker!
+	if !b.HasUserPaid(user) {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserNotPaid,
+		}
+	}
+
+	// Verify authenticity
+	err := checkPublicKeyAndSignature(user, lc.PublicKey, lc.Signature,
+		lc.Token, lc.CommentID, lc.Action)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get proposal record from cache
+	r, err := b.cache.RecordGetLatest(lc.Token)
+	if err != nil {
+		if err == cache.ErrRecordNotFound {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusProposalNotFound,
+			}
+		}
+		return nil, err
+	}
+	pr := convertPropFromCache(*r)
+
+	// Ensure proposal is public
+	if pr.Status != www.PropStatusPublic {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusWrongStatus,
+		}
+	}
+
+	// Ensure comment exists and has not been censored
+	c, err := b.getCommentFromCache(lc.Token, lc.CommentID)
+	if err != nil {
+		log.Infof("here")
+		if err == cache.ErrRecordNotFound {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusCommentNotFound,
+			}
+		}
+		return nil, err
+	}
+	if c.Censored {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusCensoredComment,
+		}
+	}
+
+	// TODO: remove this once vote data has been added to cache
+	ir, err := b.getInventoryRecord(lc.Token)
+	if err != nil {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusProposalNotFound,
+		}
+	}
+
+	// Ensure proposal vote has not ended
+	bb, err := b.getBestBlock()
+	if err != nil {
+		return nil, fmt.Errorf("getBestBlock: %v", err)
+	}
+
+	if getVoteStatus(ir, bb) == www.PropVoteStatusFinished {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusWrongVoteStatus,
+		}
+	}
+
+	// Validate action
+	action := lc.Action
+	if len(lc.Action) > 10 {
+		// Clip action to not fill up logs and prevent dos of sorts.
+		action = lc.Action[0:9] + "..."
+	}
+	switch action {
+	case "1":
+	case "-1":
+	default:
+		// TODO: this should be a user error
+		return nil, fmt.Errorf("invalid LikeComment action: %v", action)
+	}
+
+	// Setup plugin command
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	nlc := convertWWWLikeCommentToDecredLikeComment(lc)
+	payload, err := decredplugin.EncodeLikeComment(nlc)
+	if err != nil {
+		return nil, err
+	}
+
+	pc := pd.PluginCommand{
+		Challenge: hex.EncodeToString(challenge),
+		ID:        decredplugin.ID,
+		Command:   decredplugin.CmdLikeComment,
+		CommandID: decredplugin.CmdLikeComment,
+		Payload:   string(payload),
+	}
+
+	// Send politeiad request
+	responseBody, err := b.makeRequest(http.MethodPost,
+		pd.PluginCommandRoute, pc)
+	if err != nil {
+		return nil, err
+	}
+
+	// Handle response
+	var reply pd.PluginCommandReply
+	err = json.Unmarshal(responseBody, &reply)
+	if err != nil {
+		return nil, fmt.Errorf("Unmarshal PluginCommandReply: %v", err)
+	}
+
+	err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	lcr, err := decredplugin.DecodeLikeCommentReply([]byte(reply.Payload))
+	if err != nil {
+		return nil, err
+	}
+
+	// Update inventory
+	comment, err := b.updateResultsForCommentLike(lc)
+	if err != nil {
+		return nil, fmt.Errorf("updateResultsForCommentLike: %v", err)
+	}
+
+	lcrWWW := www.LikeCommentReply{
+		Total:   comment.TotalVotes,
+		Result:  comment.ResultVotes,
+		Receipt: lcr.Receipt,
+		Error:   lcr.Error,
+	}
+
+	return &lcrWWW, nil
 }
