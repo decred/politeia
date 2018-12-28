@@ -39,3 +39,29 @@ type Record struct {
 	Metadata         []MetadataStream `gorm:"foreignkey:RecordKey"`           // User provided metadata
 	Files            []File           `gorm:"foreignkey:RecordKey"`           // User provided files
 }
+
+// TODO: create an index on token for quick lookups of a prop's comments
+type Comment struct {
+	Key       string `gorm:"primary_key"`       // Primary key (token+commentID)
+	Token     string `gorm:"not null;size:64"`  // Censorship token
+	ParentID  string `gorm:"not null"`          // Parent comment ID
+	Comment   string `gorm:"not null"`          // Comment
+	Signature string `gorm:"not null;size:128"` // Client Signature of Token+ParentID+Comment
+	PublicKey string `gorm:"not null;size:64"`  // Pubkey used for Signature
+	CommentID string `gorm:"not null"`          // Comment ID
+	Receipt   string `gorm:"not null"`          // Server signature of the client Signature
+	Timestamp int64  `gorm:"not null"`          // Received UNIX timestamp
+	Censored  bool   `gorm:"not null"`          // Has this comment been censored
+}
+
+// TODO: create an index on token for quick lookups of a prop's like comments
+type LikeComment struct {
+	Key       uint   `gorm:"primary_key"`       // Primary key
+	Token     string `gorm:"not null;size:64"`  // Censorship token
+	CommentID string `gorm:"not null"`          // Comment ID
+	Action    string `gorm:"not null;size:2"`   // Up or downvote (1, -1)
+	Signature string `gorm:"not null;size:128"` // Client Signature of Token+CommentID+Action
+	PublicKey string `gorm:"not null;size:64"`  // Pubkey used for Signature
+	Receipt   string `gorm:"not null;size:128"` // Signature of Signature
+	Timestamp int64  `gorm:"not null"`          // Received UNIX timestamp
+}

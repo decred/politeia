@@ -95,6 +95,9 @@ type backend struct {
 	// Count of user proposals
 	numOfPropsByUserID map[string]int
 
+	// Comment scores
+	commentScores map[string]map[string]*commentScore // [token][comentID]
+
 	// User vote action on each comment
 	userLikeActionByCommentID map[string]map[string]map[string]int64 // [token][userid][commentid]action
 }
@@ -2343,6 +2346,7 @@ func NewBackend(cfg *config) (*backend, error) {
 		userPubkeys:               make(map[string]string),
 		userPaywallPool:           make(map[uuid.UUID]paywallPoolMember),
 		numOfPropsByUserID:        make(map[string]int),
+		commentScores:             make(map[string]map[string]*commentScore),
 		userLikeActionByCommentID: make(map[string]map[string]map[string]int64),
 	}
 

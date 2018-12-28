@@ -1,6 +1,9 @@
 package cockroachdb
 
-import "github.com/decred/politeia/politeiad/cache"
+import (
+	"github.com/decred/politeia/decredplugin"
+	"github.com/decred/politeia/politeiad/cache"
+)
 
 func convertMDStreamFromCache(ms cache.MetadataStream) MetadataStream {
 	return MetadataStream{
@@ -76,5 +79,48 @@ func convertRecordToCache(r Record) cache.Record {
 		CensorshipRecord: cr,
 		Metadata:         metadata,
 		Files:            files,
+	}
+}
+
+func convertCommentFromDecredPlugin(c decredplugin.Comment) Comment {
+	return Comment{
+		Key:       c.Token + c.CommentID,
+		Token:     c.Token,
+		ParentID:  c.ParentID,
+		Comment:   c.Comment,
+		Signature: c.Signature,
+		PublicKey: c.PublicKey,
+		CommentID: c.CommentID,
+		Receipt:   c.Receipt,
+		Timestamp: c.Timestamp,
+		Censored:  c.Censored,
+	}
+}
+
+func convertCommentToDecredPlugin(c Comment) decredplugin.Comment {
+	return decredplugin.Comment{
+		Token:       c.Token,
+		ParentID:    c.ParentID,
+		Comment:     c.Comment,
+		Signature:   c.Signature,
+		PublicKey:   c.PublicKey,
+		CommentID:   c.CommentID,
+		Receipt:     c.Receipt,
+		Timestamp:   c.Timestamp,
+		TotalVotes:  0,
+		ResultVotes: 0,
+		Censored:    c.Censored,
+	}
+}
+
+func convertLikeCommentFromDecredPlugin(lc decredplugin.LikeComment, lcr decredplugin.LikeCommentReply) LikeComment {
+	return LikeComment{
+		Token:     lc.Token,
+		CommentID: lc.CommentID,
+		Action:    lc.Action,
+		Signature: lc.Signature,
+		PublicKey: lc.PublicKey,
+		Receipt:   lcr.Receipt,
+		Timestamp: lcr.Timestamp,
 	}
 }

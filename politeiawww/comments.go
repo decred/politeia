@@ -15,6 +15,11 @@ import (
 	"github.com/decred/politeia/util"
 )
 
+type commentScore struct {
+	TotalVotes  uint64 `json:"totalvotes"`  // Total number of up/down votes
+	ResultVotes int64  `json:"resultvotes"` // Vote score
+}
+
 func convertWWWLikeCommentToDecredLikeComment(lc www.LikeComment) decredplugin.LikeComment {
 	return decredplugin.LikeComment{
 		Token:     lc.Token,
@@ -97,7 +102,7 @@ func validateComment(c www.NewComment) error {
 // results and the vote resultant action for the user
 //
 // This function must be called WITHOUT the mutex held
-func (b *backend) updateResultsForCommentLike(like www.LikeComment) (*www.Comment, error) {
+func (b *backend) updateResultsForCommentLike(like www.LikeComment) (*commentScore, error) {
 	b.Lock()
 	defer b.Unlock()
 	return b._updateResultsForCommentLike(like)
@@ -107,16 +112,10 @@ func (b *backend) updateResultsForCommentLike(like www.LikeComment) (*www.Commen
 // results and the vote resultant action for the user
 //
 // This function must be called WITH the mutex held
-func (b *backend) _updateResultsForCommentLike(like www.LikeComment) (*www.Comment, error) {
+func (b *backend) _updateResultsForCommentLike(like www.LikeComment) (*commentScore, error) {
 	userID := b.userPubkeys[like.PublicKey]
 	token := like.Token
 	commentID := like.CommentID
-
-	// get comment from inventory cache
-	comment, err := b._getInventoryRecordComment(token, commentID)
-	if err != nil {
-		return nil, fmt.Errorf("Comment not found %v: %v", token, commentID)
-	}
 
 	newUserVoteAction, err := strconv.ParseInt(like.Action, 10, 64)
 	if err != nil {
@@ -126,6 +125,18 @@ func (b *backend) _updateResultsForCommentLike(like www.LikeComment) (*www.Comme
 			token, commentID, err)
 	}
 
+	// Get the current comment score
+	_, ok := b.commentScores[token]
+	if !ok {
+		b.commentScores[token] = make(map[string]*commentScore)
+	}
+	_, ok = b.commentScores[token][commentID]
+	if !ok {
+		b.commentScores[token][commentID] = &commentScore{}
+	}
+	score := b.commentScores[token][commentID]
+
+	// Get the user's previous action for this comment
 	if _, ok := b.userLikeActionByCommentID[token]; !ok {
 		b.userLikeActionByCommentID[token] = make(map[string]map[string]int64)
 	}
@@ -138,31 +149,26 @@ func (b *backend) _updateResultsForCommentLike(like www.LikeComment) (*www.Comme
 	lastUserVoteAction, hasVoted := b.userLikeActionByCommentID[token][userID][commentID]
 	if !hasVoted {
 		b.userLikeActionByCommentID[token][userID][commentID] = newUserVoteAction
-		comment.ResultVotes += newUserVoteAction
-		comment.TotalVotes++
+		score.ResultVotes += newUserVoteAction
+		score.TotalVotes++
 	} else if lastUserVoteAction == newUserVoteAction {
 		// new action is equals the previous one, so we
 		// revert last user action
 		b.userLikeActionByCommentID[token][userID][commentID] = 0
-		comment.ResultVotes -= newUserVoteAction
-		comment.TotalVotes--
+		score.ResultVotes -= newUserVoteAction
+		score.TotalVotes--
 	} else {
 		// new action is different from the previous one
 		// so the new action is set as the current one
 		b.userLikeActionByCommentID[token][userID][commentID] = newUserVoteAction
-		comment.ResultVotes += newUserVoteAction - lastUserVoteAction
+		score.ResultVotes += newUserVoteAction - lastUserVoteAction
 		// only update the total if last user action was 0
 		if lastUserVoteAction == 0 {
-			comment.TotalVotes++
+			score.TotalVotes++
 		}
 	}
 
-	err = b._setRecordComment(*comment)
-	if err != nil {
-		return nil, err
-	}
-
-	return comment, nil
+	return score, nil
 }
 
 // TODO: get rid of setRecordComment
@@ -612,18 +618,16 @@ func (b *backend) ProcessLikeComment(lc www.LikeComment, user *database.User) (*
 		return nil, err
 	}
 
-	// Update inventory
-	comment, err := b.updateResultsForCommentLike(lc)
+	// Update in-memory comment score
+	score, err := b.updateResultsForCommentLike(lc)
 	if err != nil {
 		return nil, fmt.Errorf("updateResultsForCommentLike: %v", err)
 	}
 
-	lcrWWW := www.LikeCommentReply{
-		Total:   comment.TotalVotes,
-		Result:  comment.ResultVotes,
+	return &www.LikeCommentReply{
+		Total:   score.TotalVotes,
+		Result:  score.ResultVotes,
 		Receipt: lcr.Receipt,
 		Error:   lcr.Error,
-	}
-
-	return &lcrWWW, nil
+	}, nil
 }
