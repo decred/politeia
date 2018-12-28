@@ -912,10 +912,10 @@ func (p *politeiawww) handleCommentsGet(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 	}
-	gcr, err := p.backend.ProcessCommentGet(token, user)
+	gcr, err := p.backend.ProcessCommentsGet(token, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleCommentsGet: ProcessCommentGet %v", err)
+			"handleCommentsGet: ProcessCommentsGet %v", err)
 		return
 	}
 	util.RespondWithJSON(w, http.StatusOK, gcr)

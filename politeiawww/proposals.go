@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/cache"
 	www "github.com/decred/politeia/politeiawww/api/v1"
@@ -600,4 +601,103 @@ func (b *backend) ProcessEditProposal(user *database.User, ep www.EditProposal) 
 	return &www.EditProposalReply{
 		Proposal: pr,
 	}, nil
+}
+
+// getProposalCommentsFromCache fetches all of the comments for the given
+// proposal from the cache and then fills in the author information before
+// returning the comments.
+func (b *backend) getProposalCommentsFromCache(token string) ([]www.Comment, error) {
+	// Get proposal comments from cache
+	gcb, err := decredplugin.EncodeGetComments(decredplugin.GetComments{
+		Token: token,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("EncodeGetComments: %v", err)
+	}
+
+	payload, err := b.cache.Plugin(decredplugin.CmdGetComments, string(gcb), "")
+	if err != nil {
+		return nil, err
+	}
+
+	dgcr, err := decredplugin.DecodeGetCommentsReply([]byte(payload))
+	if err != nil {
+		return nil, fmt.Errorf("DecodeGetCommentsReply: %v", err)
+	}
+
+	b.RLock()
+	defer b.RUnlock()
+
+	// Update the comments with the author info and the comment
+	// score info. We populate the usernameByID map as we lookup
+	// usernames from the database to prevent duplicate database
+	// queries.
+	comments := make([]www.Comment, 0, len(dgcr.Comments))
+	usernameByID := make(map[string]string, len(comments))
+	for _, dc := range dgcr.Comments {
+		c := convertCommentFromDecredPlugin(dc)
+
+		// Skip censored comments
+		if c.Censored {
+			continue
+		}
+
+		// Fill in author info
+		userID, ok := b.userPubkeys[c.PublicKey]
+		if !ok {
+			log.Errorf("getProposalCommentsFromCache: userID not found "+
+				"for commentID %v and pubkey %v", c.CommentID, c.PublicKey)
+		}
+		c.UserID = userID
+
+		username, ok := usernameByID[userID]
+		if !ok {
+			username = b.getUsernameById(userID)
+			usernameByID[userID] = username
+		}
+		c.Username = username
+
+		// Fill in comment score
+		cs, ok := b.commentScores[c.Token][c.CommentID]
+		if ok {
+			c.TotalVotes = cs.TotalVotes
+			c.ResultVotes = cs.ResultVotes
+		}
+
+		comments = append(comments, c)
+	}
+
+	return comments, nil
+}
+
+// ProcessCommentsGet returns all comments for a given proposal.  If a user
+// object is present, the response will also include the last time that the
+// user accessed the given proposal comments.
+func (b *backend) ProcessCommentsGet(token string, user *database.User) (*www.GetCommentsReply, error) {
+	log.Tracef("ProcessCommentsGet: %v", token)
+
+	comments, err := b.getProposalCommentsFromCache(token)
+	if err != nil {
+		return nil, err
+	}
+	gcr := www.GetCommentsReply{
+		Comments: comments,
+	}
+
+	// Update the comments access time for the user. This is a
+	// public route so a user object may not be present.
+	if user != nil {
+		if user.ProposalCommentsAccessTimes != nil {
+			gcr.AccessTime = user.ProposalCommentsAccessTimes[token]
+		} else {
+			user.ProposalCommentsAccessTimes = make(map[string]int64)
+		}
+		user.ProposalCommentsAccessTimes[token] = time.Now().Unix()
+		err = b.db.UserUpdate(*user)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &gcr, nil
 }

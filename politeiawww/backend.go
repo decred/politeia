@@ -1614,33 +1614,6 @@ func (b *backend) ProcessAllUnvetted(u www.GetAllUnvetted) *www.GetAllUnvettedRe
 	}
 }
 
-// ProcessCommentGet returns all comments for a given proposal. If the user
-// is logged in, returns the user's last access time for the given proposal.
-// Else, returns 0 as the access time
-func (b *backend) ProcessCommentGet(token string, user *database.User) (*www.GetCommentsReply, error) {
-	log.Debugf("ProcessCommentGet: %v", token)
-	// get comments
-	c, err := b.getComments(token)
-	if err != nil {
-		return nil, err
-	}
-
-	if user != nil {
-		// gets the last accesstime for the given proposal
-		if user.ProposalCommentsAccessTimes != nil {
-			c.AccessTime = user.ProposalCommentsAccessTimes[token]
-		} else {
-			user.ProposalCommentsAccessTimes = make(map[string]int64)
-		}
-		user.ProposalCommentsAccessTimes[token] = time.Now().Unix()
-		err = b.db.UserUpdate(*user)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return c, nil
-}
-
 // ProcessUserProposalCredits returns a list of the user's unspent proposal
 // credits and a list of the user's spent proposal credits.
 func (b *backend) ProcessUserProposalCredits(user *database.User) (*www.UserProposalCreditsReply, error) {

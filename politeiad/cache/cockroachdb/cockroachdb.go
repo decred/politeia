@@ -443,6 +443,8 @@ func (c *cockroachdb) Plugin(command, reqPayload, resPayload string) (string, er
 		return c.pluginNewComment(reqPayload, resPayload)
 	case decredplugin.CmdGetComment:
 		return c.pluginGetComment(reqPayload)
+	case decredplugin.CmdGetComments:
+		return c.pluginGetComments(reqPayload)
 	case decredplugin.CmdLikeComment:
 		return c.pluginLikeComment(reqPayload, resPayload)
 	case decredplugin.CmdCensorComment:

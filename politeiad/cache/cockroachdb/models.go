@@ -54,7 +54,6 @@ type Comment struct {
 	Censored  bool   `gorm:"not null"`          // Has this comment been censored
 }
 
-// TODO: create an index on token for quick lookups of a prop's like comments
 type LikeComment struct {
 	Key       uint   `gorm:"primary_key"`       // Primary key
 	Token     string `gorm:"not null;size:64"`  // Censorship token

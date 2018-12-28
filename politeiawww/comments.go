@@ -20,43 +20,6 @@ type commentScore struct {
 	ResultVotes int64  `json:"resultvotes"` // Vote score
 }
 
-// getComments returns all comments for given proposal token.  Note that the
-// comments are not sorted.
-// This call must be called WITHOUT the lock held.
-func (b *backend) getComments(token string) (*www.GetCommentsReply, error) {
-	b.RLock()
-	defer b.RUnlock()
-
-	c, ok := b.inventory[token]
-	if !ok {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusProposalNotFound,
-		}
-	}
-
-	gcr := &www.GetCommentsReply{
-		Comments: make([]www.Comment, 0, len(c.comments)),
-	}
-
-	// create a map to cache found usernames so it doesn't query
-	// the database for every comment
-	usernameByID := map[string]string{}
-
-	for _, v := range c.comments {
-
-		if username, ok := usernameByID[v.UserID]; ok && username != "" {
-			v.Username = username
-		} else {
-			v.Username = b.getUsernameById(v.UserID)
-			usernameByID[v.UserID] = username
-		}
-
-		gcr.Comments = append(gcr.Comments, v)
-	}
-
-	return gcr, nil
-}
-
 func validateComment(c www.NewComment) error {
 	// max length
 	if len(c.Comment) > www.PolicyMaxCommentLength {
@@ -172,17 +135,16 @@ func (b *backend) setRecordComment(comment www.Comment) error {
 
 func (b *backend) getCommentFromCache(token, commentID string) (*www.Comment, error) {
 	// Setup plugin command
-	cgb, err := decredplugin.EncodeGetComment(decredplugin.GetComment{
+	gcb, err := decredplugin.EncodeGetComment(decredplugin.GetComment{
 		Token:     token,
 		CommentID: commentID,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("EncodeCommentGet: %v", err)
+		return nil, fmt.Errorf("EncodeGetComment: %v", err)
 	}
 
 	// Send cache request
-	payload, err := b.cache.Plugin(decredplugin.CmdGetComment,
-		string(cgb), "")
+	payload, err := b.cache.Plugin(decredplugin.CmdGetComment, string(gcb), "")
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
 			err = www.UserError{
@@ -274,6 +236,8 @@ func (b *backend) ProcessNewComment(nc www.NewComment, user *database.User) (*ww
 	if err := validateComment(nc); err != nil {
 		return nil, err
 	}
+
+	// TODO: Ensure parent comment exists
 
 	// Setup decred plugin command
 	challenge, err := util.Random(pd.ChallengeSize)

@@ -73,8 +73,40 @@ func (c *cockroachdb) pluginGetComment(payload string) (string, error) {
 	}
 	gcrb, err := decredplugin.EncodeGetCommentReply(gcr)
 	if err != nil {
+		return "", fmt.Errorf("EncodeGetCommentReply: %v")
+	}
+	return string(gcrb), nil
+}
+
+func (c *cockroachdb) pluginGetComments(payload string) (string, error) {
+	log.Tracef("pluginGetComments")
+
+	gc, err := decredplugin.DecodeGetComments([]byte(payload))
+	if err != nil {
+		return "", fmt.Errorf("DecodeGetComments: %v", err)
+	}
+
+	comments := make([]Comment, 0, 1024) // PNOOMA
+	err = c.recorddb.Table(tableComments).
+		Where("token = ?", gc.Token).
+		Find(&comments).
+		Error
+	if err != nil {
 		return "", err
 	}
+
+	dc := make([]decredplugin.Comment, 0, len(comments))
+	for _, c := range comments {
+		dc = append(dc, convertCommentToDecredPlugin(c))
+	}
+	gcr := decredplugin.GetCommentsReply{
+		Comments: dc,
+	}
+	gcrb, err := decredplugin.EncodeGetCommentsReply(gcr)
+	if err != nil {
+		return "", fmt.Errorf("EncodeGetCommentReply: %v")
+	}
+
 	return string(gcrb), nil
 }
 

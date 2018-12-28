@@ -1460,6 +1460,8 @@ func (g *gitBackEnd) pluginGetProposalCommentsLikes(payload string) (string, err
 	return string(egpclr), nil
 }
 
+// TODO: Remove pluginGetComments. I don't think decredPluginCommentsCache is
+// needed anymore either.
 func (g *gitBackEnd) pluginGetComments(payload string) (string, error) {
 	log.Tracef("pluginGetComments")
 
