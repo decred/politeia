@@ -20,35 +20,6 @@ type commentScore struct {
 	ResultVotes int64  `json:"resultvotes"` // Vote score
 }
 
-func convertWWWLikeCommentToDecredLikeComment(lc www.LikeComment) decredplugin.LikeComment {
-	return decredplugin.LikeComment{
-		Token:     lc.Token,
-		CommentID: lc.CommentID,
-		Action:    lc.Action,
-		Signature: lc.Signature,
-		PublicKey: lc.PublicKey,
-	}
-}
-
-func convertDecredLikeCommentToWWWLikeComment(lc decredplugin.LikeComment) www.LikeComment {
-	return www.LikeComment{
-		Token:     lc.Token,
-		CommentID: lc.CommentID,
-		Action:    lc.Action,
-		Signature: lc.Signature,
-		PublicKey: lc.PublicKey,
-	}
-}
-
-func convertDecredLikeCommentReplyToWWWLikeCommentReply(lcr decredplugin.LikeCommentReply) www.LikeCommentReply {
-	return www.LikeCommentReply{
-		Total:   lcr.Total,
-		Result:  lcr.Result,
-		Receipt: lcr.Receipt,
-		Error:   lcr.Error,
-	}
-}
-
 // getComments returns all comments for given proposal token.  Note that the
 // comments are not sorted.
 // This call must be called WITHOUT the lock held.
@@ -580,8 +551,8 @@ func (b *backend) ProcessLikeComment(lc www.LikeComment, user *database.User) (*
 		return nil, err
 	}
 
-	nlc := convertWWWLikeCommentToDecredLikeComment(lc)
-	payload, err := decredplugin.EncodeLikeComment(nlc)
+	dlc := convertLikeCommentToDecredPlugin(lc)
+	payload, err := decredplugin.EncodeLikeComment(dlc)
 	if err != nil {
 		return nil, err
 	}

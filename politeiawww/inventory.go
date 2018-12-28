@@ -485,7 +485,7 @@ func (b *backend) _loadCommentsLikes(token string) error {
 
 	b.inventory[token].commentsLikes = make(map[string][]www.LikeComment)
 	for _, v := range gpclr.CommentsLikes {
-		lc := convertDecredLikeCommentToWWWLikeComment(v)
+		lc := convertLikeCommentFromDecredPlugin(v)
 		cls := b.inventory[token].commentsLikes[lc.CommentID]
 		b.inventory[token].commentsLikes[lc.CommentID] = append(cls, lc)
 	}

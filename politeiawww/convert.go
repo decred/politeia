@@ -378,7 +378,7 @@ func convertVoteResultsFromDecredplugin(vrr decredplugin.VoteResultsReply) []www
 	return ors
 }
 
-func convertPropStateFromStatus(status www.PropStatusT) www.PropStateT {
+func convertPropStatusToState(status www.PropStatusT) www.PropStateT {
 	switch status {
 	case www.PropStatusNotReviewed, www.PropStatusUnreviewedChanges,
 		www.PropStatusCensored:
@@ -386,7 +386,7 @@ func convertPropStateFromStatus(status www.PropStatusT) www.PropStateT {
 	case www.PropStatusPublic, www.PropStatusAbandoned:
 		return www.PropStateVetted
 	}
-	return www.PropStateUnvetted
+	return www.PropStateInvalid
 }
 
 func convertPropStatusFromCache(s cache.RecordStatusT) www.PropStatusT {
@@ -443,7 +443,7 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 	status := convertPropStatusFromCache(r.Status)
 	return www.ProposalRecord{
 		Name:                bpm.Name,
-		State:               convertPropStateFromStatus(status),
+		State:               convertPropStatusToState(status),
 		Status:              status,
 		Timestamp:           r.Timestamp,
 		UserId:              "",
@@ -509,5 +509,25 @@ func convertCensorCommentToDecredPlugin(cc www.CensorComment) decredplugin.Censo
 func convertCensorCommentReplyFromDecredPlugin(ccr decredplugin.CensorCommentReply) www.CensorCommentReply {
 	return www.CensorCommentReply{
 		Receipt: ccr.Receipt,
+	}
+}
+
+func convertLikeCommentToDecredPlugin(lc www.LikeComment) decredplugin.LikeComment {
+	return decredplugin.LikeComment{
+		Token:     lc.Token,
+		CommentID: lc.CommentID,
+		Action:    lc.Action,
+		Signature: lc.Signature,
+		PublicKey: lc.PublicKey,
+	}
+}
+
+func convertLikeCommentFromDecredPlugin(lc decredplugin.LikeComment) www.LikeComment {
+	return www.LikeComment{
+		Token:     lc.Token,
+		CommentID: lc.CommentID,
+		Action:    lc.Action,
+		Signature: lc.Signature,
+		PublicKey: lc.PublicKey,
 	}
 }
