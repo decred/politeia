@@ -1,7 +1,6 @@
 module github.com/decred/politeia
 
 require (
-	bou.ke/monkey v1.0.1 // indirect
 	github.com/agl/ed25519 v0.0.0-20170116200512-5312a6153412
 	github.com/badoux/checkmail v0.0.0-20180430153108-0755fe2dc241
 	github.com/btcsuite/go-flags v0.0.0-20150116065318-6c288d648c1c
@@ -29,6 +28,7 @@ require (
 	github.com/h2non/go-is-svg v0.0.0-20160927212452-35e8c4b0612c
 	github.com/jessevdk/go-flags v1.4.0
 	github.com/jrick/logrotate v1.0.0
+	github.com/onsi/ginkgo v1.7.0 // indirect
 	github.com/otiai10/copy v0.0.0-20180813032824-7e9a647135a1
 	github.com/otiai10/mint v1.2.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0
