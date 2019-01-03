@@ -40,10 +40,6 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
-var (
-	verify bool // Validate server TLS certificate
-)
-
 func generateSeed() (int64, error) {
 	var seedBytes [8]byte
 	_, err := crand.Read(seedBytes[:])
@@ -155,9 +151,9 @@ type ctx struct {
 	wallet pb.WalletServiceClient
 }
 
-func newClient(skipVerify bool, cfg *config) (*ctx, error) {
+func newClient(cfg *config) (*ctx, error) {
 	tlsConfig := &tls.Config{
-		InsecureSkipVerify: skipVerify,
+		InsecureSkipVerify: cfg.SkipVerify,
 	}
 	tr := &http.Transport{
 		TLSClientConfig: tlsConfig,
@@ -239,7 +235,7 @@ func (c *ctx) getCSRF() (*v1.VersionReply, error) {
 
 func firstContact(cfg *config) (*ctx, error) {
 	// Always hit / first for csrf token and obtain api version
-	c, err := newClient(true, cfg)
+	c, err := newClient(cfg)
 	if err != nil {
 		return nil, err
 	}

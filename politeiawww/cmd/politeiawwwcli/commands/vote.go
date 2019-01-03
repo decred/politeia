@@ -12,6 +12,18 @@ import (
 	"github.com/decred/politeia/util"
 )
 
+// Help message displayed for the command 'politeiawwwcli help vote'
+var VoteCmdHelpMsg = `vote "token" "voteid"
+
+Cast ticket votes for a proposal.
+
+Arguments:
+1. token       (string, optional)   Proposal censorship token
+2. voteid      (string, optional)   A single word identifying vote (e.g. yes)
+
+Result:
+ActiveVotes: 500,`
+
 type VoteCmd struct {
 	Args struct {
 		Token  string `positional-arg-name:"token" description:"Proposal censorship token"`

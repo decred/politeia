@@ -1,14 +1,18 @@
 language: go
 go:
-  - 1.10.x
   - 1.11.x
 sudo: false
 install:
-  - go get -v github.com/golang/dep/cmd/dep
-  - dep ensure
-  - go install ./politeiad/... ./politeiawww/...
   - go get -v github.com/alecthomas/gometalinter
   - gometalinter --install
 script:
-  - export PATH=$PATH:$HOME/gopath/bin
+  - export GO111MODULE=on
+  - (cd politeiad && go build)
+  - (cd politeiad/cmd/politeia && go build)
+  - (cd politeiad/cmd/politeia_verify && go build)
+  - (cd politeiavoter && go build)
+  - (cd politeiawww && go build)
+  - (cd politeiawww/cmd/politeiawww_dataload && go build)
+  - (cd politeiawww/cmd/politeiawww_dbutil && go build)
+  - (cd politeiawww/cmd/politeiawwwcli && go build)
   - ./goclean.sh

@@ -2002,7 +2002,7 @@ func (b *backend) ProcessProposalDetails(propDetails www.ProposalsDetails, user 
 				propDetails.Token, err)
 		}
 		specVersion, err := strconv.ParseUint(propDetails.Version, 10, 64)
-		if err != nil || specVersion > latestVersion {
+		if err != nil || specVersion > latestVersion || specVersion == 0 {
 			return nil, www.UserError{
 				ErrorCode: www.ErrorStatusInvalidPropVersion,
 			}
@@ -2975,6 +2975,7 @@ func (b *backend) ProcessGetAllVoteStatus() (*www.GetAllVoteStatusReply, error) 
 
 	// iterate over all props and see what is public
 	var gavsr www.GetAllVoteStatusReply
+	gavsr.VotesStatus = make([]www.VoteStatusReply, 0)
 	for _, i := range b.inventory {
 
 		ps := convertPropStatusFromPD(i.record.Status)

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"reflect"
 	"strings"
 
 	"github.com/decred/dcrwallet/rpc/walletrpc"
@@ -36,7 +37,7 @@ type Client struct {
 func New(cfg *config.Config) (*Client, error) {
 	// Create http client
 	tlsConfig := &tls.Config{
-		InsecureSkipVerify: true,
+		InsecureSkipVerify: cfg.SkipVerify,
 	}
 	tr := &http.Transport{
 		TLSClientConfig: tlsConfig,
@@ -72,6 +73,14 @@ func (c *Client) makeRequest(method, route string, body interface{}) ([]byte, er
 	if body != nil {
 		switch {
 		case method == http.MethodGet:
+
+			// Use reflection in case the interface value is nil
+			// but the interface type is not. This can happen when
+			// query params exist but are not used.
+			if reflect.ValueOf(body).IsNil() {
+				break
+			}
+
 			// GET requests don't have a request body; instead we
 			// will populate the query params.
 			form := url.Values{}

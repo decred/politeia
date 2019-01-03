@@ -8,6 +8,30 @@ import (
 	"github.com/decred/politeia/util"
 )
 
+// Help message displayed for the command 'politeiawwwcli help censorcomment'
+var CensorCommentCmdHelpMsg = `censorcomment "token" "commentID" "reason"
+
+Censor a user comment. Requires admin privileges.
+
+Arguments:
+1. token       (string, required)   Proposal censorship token
+2. commentID   (string, required)   Id of the comment
+3. reason      (string, required)   Reason for censoring the comment
+
+Request:
+{
+  "token":      (string)  Censorship token
+  "commentid":  (string)  Id of comment
+  "reason":     (string)  Reason for censoring the comment
+  "signature":  (string)  Signature of censor comment (Token+CommentID+Reason)
+  "publickey":  (string)  Public key used for signature
+}
+
+Response:
+{
+  "receipt":  (string)  Server signature of comment sensor signature
+}`
+
 type CensorCommentCmd struct {
 	Args struct {
 		Token     string `positional-arg-name:"token" description:"Proposal censorship token"`

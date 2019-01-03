@@ -1654,6 +1654,7 @@ func _main() error {
 		MaxAge:   sessionMaxAge,
 		Secure:   true,
 		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
 	}
 
 	// Bind to a port and pass our router in
