@@ -781,7 +781,11 @@ func (p *politeiawww) handleAllVetted(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	vr := p.backend.ProcessAllVetted(v)
+	vr, err := p.backend.ProcessAllVetted(v)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleAllVetted: ProcessAllVetted %v", err)
+	}
+	
 	util.RespondWithJSON(w, http.StatusOK, vr)
 }
 

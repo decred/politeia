@@ -1574,16 +1574,41 @@ func (b *backend) ProcessResetPassword(rp www.ResetPassword) (*www.ResetPassword
 
 // ProcessAllVetted returns an array of vetted proposals. The maximum number
 // of proposals returned is dictated by www.ProposalListPageSize.
-func (b *backend) ProcessAllVetted(v www.GetAllVetted) *www.GetAllVettedReply {
-	return &www.GetAllVettedReply{
-		Proposals: b.getProposals(proposalsRequest{
-			After:  v.After,
-			Before: v.Before,
-			StateMap: map[www.PropStateT]bool{
-				www.PropStateVetted: true,
-			},
-		}),
+func (b *backend) ProcessAllVetted(v www.GetAllVetted) (*www.GetAllVettedReply, error) {
+	// Gets all vetted proposals
+	vps := b.getProposals(proposalsRequest{
+		After:  v.After,
+		Before: v.Before,
+		Status: v.Status,
+		StateMap: map[www.PropStateT]bool{
+			www.PropStateVetted: true,
+		},
+	})
+	bestBlock, err := b.getBestBlock()
+	if err != nil {
+		log.Errorf("ProcessAllVetted could not get "+
+			"best block: %v", err)
 	}
+
+	b.RLock()
+	defer b.RUnlock()
+
+	var gavr www.GetAllVettedReply
+	for _, vp := range vps {
+		ir, err := b.getInventoryRecord(vp.CensorshipRecord.Token)
+		if err != nil {
+			log.Errorf("ProcessAllVetted could not get record "+
+			"from inventory: %v", err)
+		}
+		vs := getVoteStatus(ir, bestBlock)
+		if v.VoteStatus == www.PropVoteStatusInvalid {
+			gavr.Proposals = append(gavr.Proposals, vp)
+		} else if v.VoteStatus == vs {
+			gavr.Proposals = append(gavr.Proposals, vp)
+		}
+	}
+
+	return &gavr, nil
 }
 
 // ProcessAllUnvetted returns an array of all unvetted proposals in reverse order,
@@ -2934,6 +2959,7 @@ func (b *backend) ProcessVoteResults(token string) (*www.VoteResultsReply, error
 }
 
 // ProcessGetAllVoteStatus returns the vote status of all public proposals
+
 func (b *backend) ProcessGetAllVoteStatus() (*www.GetAllVoteStatusReply, error) {
 	log.Tracef("ProcessGetAllVoteStatus")
 

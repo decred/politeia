@@ -31,9 +31,10 @@ type inventoryRecord struct {
 // proposalsRequest is used for passing parameters into the
 // getProposals() function.
 type proposalsRequest struct {
-	After    string
-	Before   string
-	UserId   string
+	After    		string
+	Before   		string
+	UserId   		string
+	Status    	www.PropStatusT
 	StateMap map[www.PropStateT]bool
 }
 
@@ -741,7 +742,6 @@ func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
 	pageStarted := (pr.After == "" && pr.Before == "")
 	beforeIdx := -1
 	proposals := make([]www.ProposalRecord, 0)
-
 	// Iterate in reverse order because they're sorted by oldest timestamp
 	// first.
 	for i := len(allProposals) - 1; i >= 0; i-- {
@@ -757,6 +757,10 @@ func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
 			continue
 		}
 
+		// Filter by Status
+		if pr.Status != www.PropStatusInvalid && pr.Status != proposal.Status {
+			continue
+		}
 		if pageStarted {
 			proposals = append(proposals, proposal)
 			if len(proposals) >= www.ProposalListPageSize {

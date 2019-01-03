@@ -7,8 +7,10 @@ import (
 )
 
 type GetVettedCmd struct {
-	Before string `long:"before" optional:"true" description:"A proposal censorship token; if provided, the page of proposals returned will end right before the proposal whose token is provided."`
-	After  string `long:"after" optional:"true" description:"A proposal censorship token; if provided, the page of proposals returned will end right after the proposal whose token is provided."`
+	Before     string             `long:"before" optional:"true" description:"A proposal censorship token; if provided, the page of proposals returned will end right before the proposal whose token is provided."`
+	After      string             `long:"after" optional:"true" description:"A proposal censorship token; if provided, the page of proposals returned will end right after the proposal whose token is provided."`
+	VoteStatus v1.PropVoteStatusT `long:"votestatus" optional:"true" description:"The vote status of the proposal; if provided, the page of proposals returned will be matching the given proposal vote status."`
+	Status     v1.PropStatusT     `long:"status" optional:"true" description:"The status of the proposal; if provided, the page of proposals returned will be matching the given proposal status."`
 }
 
 func (cmd *GetVettedCmd) Execute(args []string) error {
@@ -24,8 +26,10 @@ func (cmd *GetVettedCmd) Execute(args []string) error {
 
 	// Get all vetted proposals
 	gavr, err := c.GetAllVetted(&v1.GetAllVetted{
-		Before: cmd.Before,
-		After:  cmd.After,
+		Before:     cmd.Before,
+		After:      cmd.After,
+		VoteStatus: cmd.VoteStatus,
+		Status:     cmd.Status,
 	})
 	if err != nil {
 		return err
