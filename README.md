@@ -53,7 +53,7 @@ https://github.com/decred/politeiagui
 
 ## Development
 
-#### 1. Install [Go](https://golang.org/doc/install), [dep](https://github.com/golang/dep), and [Git](https://git-scm.com/downloads).
+#### 1. Install [Go](https://golang.org/doc/install) version 1.11 or higher, and [Git](https://git-scm.com/downloads).
 
 Make sure each of these are in the PATH.
 
