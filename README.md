@@ -96,6 +96,9 @@ You can also use the following default configurations:
     rpcuser=user
     rpcpass=pass
     testnet=true
+    cachehost=localhost:26257
+    cacherootcert="~/.cockroachdb/certs/ca.crt"
+    cachecertdir="~/.cockroachdb/certs"
 
 
 **politeiawww.conf**:
@@ -103,10 +106,13 @@ You can also use the following default configurations:
     rpchost=127.0.0.1
     rpcuser=user
     rpcpass=pass
-    rpccert="/Users/<username>/Library/Application Support/Politeiad/https.cert"
+    rpccert="~/.politeiad/https.cert"
     testnet=true
     paywallxpub=tpubVobLtToNtTq6TZNw4raWQok35PRPZou53vegZqNubtBTJMMFmuMpWybFCfweJ52N8uZJPZZdHE5SRnBBuuRPfC5jdNstfKjiAs8JtbYG9jx
     paywallamount=10000000
+    cachehost=localhost:26257
+    cacherootcert="~/.cockroachdb/certs/ca.crt"
+    cachecertdir="~/.cockroachdb/certs"
 
 **Things to note:**
 
@@ -118,7 +124,57 @@ things like new user registration, and those settings are also configured within
  `politeiawww.conf`. The current code should work with most SSL-based SMTP servers
 (but not TLS) using username and password as authentication.
 
-#### 4. Build the programs:
+#### 4. Setup CockroachDB or Postgres:
+
+politeiad stores proposal data in git repositories that are regularly backed up
+to github and cryptographically timestamped onto the Decred blockchain.  The
+politeiad git repositories serve as the source of truth for proposal data and a
+CockroachDB database acts as a cache for proposal data.
+
+politeiad has read and write access to the cache.  politeiawww has only read
+access to the cache.  The flow of data is as follows:
+
+1. politeiawww receives a command from a user
+2. politeiawww creates a politeiad request for the command and sends it
+3. politeiad writes the command data to the git repository and updates the
+   cache
+4. politeiad returns a response to politeiawww
+5. politeiawww reads the cache if needed
+6. politeiawww returns a response to the user
+
+We use CockroachDB for the cache in the instructions below.  CockroachDB is
+built to be compatible with Postgres so you can use Postgres for the cache if
+you so choose.  Using Postgres for the cache has not been thoroughly tested and
+bugs may exist.
+
+Install CockroachDB using the instructions found in the [CockroachDB
+Documentation](https://www.cockroachlabs.com/docs/stable/install-cockroachdb-mac.html).
+
+Run the following commands to create the CockroachDB certificates required for
+running the cache locally.  It's ok if the directory `~/.cockroachdb` does not
+exist yet.  The script will create it.  **The directory that you pass into the
+script must be the same cockroachdb directory that you use in the politeiad and
+politeiawww config files when specifying `cacherootcert` and `cachecertdir`.**
+
+    cd $GOPATH/src/github.com/decred/politeia
+    ./cockroachsetup ~/.cockroachdb
+
+You can now start CockroachDB using the command below.  Politeia requires that
+CockroachDB be running.
+
+    cockroach start \
+      --certs-dir="~/.cockroachdb/certs" \
+      --listen-addr=localhost \
+      --store="~/.cockroachdb/data"
+
+If you want to run database commands manually you can do so by opening a sql
+shell.  
+
+    cockroach sql \
+      --certs-dir="~/.cockroachdb/certs" \
+      --host localhost \
+
+#### 5. Build the programs:
 
 Go 1.11 introduced [modules](https://github.com/golang/go/wiki/Modules), a new
 dependency management approach, that obviates the need for third party tooling
@@ -144,11 +200,11 @@ The go tool will process the source code and automatically download
 dependencies. If the dependencies are configured correctly, there will be no
 modifications to the `go.mod` and `go.sum` files.
 
-#### 5. Start the politeiad server by running on your terminal:
+#### 6. Start the politeiad server by running on your terminal:
 
     politeiad
 
-#### 6. Download politeiad's identity to politeiawww:
+#### 7. Download politeiad's identity to politeiawww:
 
     politeiawww --fetchidentity
 
@@ -165,7 +221,7 @@ The result should look something like this:
 2018-08-01 22:49:53.929 [INF] PWWW: Identity saved to: /Users/<username>/Library/Application Support/Politeiawww/identity.json
 ```
 
-#### 7. Start the politeiawww server by running on your terminal:
+#### 8. Start the politeiawww server by running on your terminal:
 
     politeiawww
 
@@ -218,6 +274,15 @@ When using politeiawww_refclient, the `-use-paywall` flag is true by default. Wh
  * Stop politeiawww.
  * Set the user created in the first refclient execution as admin with politeiawww_dbutil.
  * Run refclient again with the `email` and `password` flags set to the user created in the first refclient execution.
+
+#### Rebuilding the Cache
+
+The cache will be built automatically on initial startup of politeiad and when
+the cache version has changed, but there may also be times during development
+that you want to force the cache to rebuild.  You can do this by using the
+`--buildcache` flag when starting `politeiad`.  This will drop all current
+tables from the cache, re-create the tables, then populate the cache with the
+data that is in the politeiad git repositories.
 
 ## Integrated Projects / External APIs / Official URLs
 

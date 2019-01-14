@@ -28,6 +28,7 @@ const (
 	RouteResetPassword            = "/user/password/reset"
 	RouteUserProposals            = "/user/proposals"
 	RouteUserProposalCredits      = "/user/proposals/credits"
+	RouteUserCommentsLikes        = "/user/proposals/{token:[A-z0-9]{64}}/commentslikes"
 	RouteVerifyUserPayment        = "/user/verifypayment"
 	RouteUserPaymentsRescan       = "/user/payments/rescan"
 	RouteUserDetails              = "/user/{userid:[0-9a-zA-Z-]{36}}"
@@ -55,7 +56,6 @@ const (
 	RouteStartVote                = "/proposals/startvote"
 	RouteActiveVote               = "/proposals/activevote" // XXX rename to ActiveVotes
 	RouteCastVotes                = "/proposals/castvotes"
-	RouteUserCommentsLikes        = "/user/proposals/{token:[A-z0-9]{64}}/commentslikes"
 	RouteVoteResults              = "/proposals/{token:[A-z0-9]{64}}/votes"
 	RouteAllVoteStatus            = "/proposals/votestatus"
 	RouteVoteStatus               = "/proposals/{token:[A-z0-9]{64}}/votestatus"
@@ -171,8 +171,9 @@ const (
 	ErrorStatusInvalidPropVoteBits         ErrorStatusT = 53
 	ErrorStatusInvalidPropVoteParams       ErrorStatusT = 54
 	ErrorStatusEmailNotVerified            ErrorStatusT = 55
-	ErrorStatusInvalidPropVersion          ErrorStatusT = 56
 	ErrorStatusInvalidUUID                 ErrorStatusT = 57
+	ErrorStatusInvalidLikeCommentAction    ErrorStatusT = 58
+	ErrorStatusInvalidCensorshipToken      ErrorStatusT = 59
 
 	// Proposal state codes
 	//
@@ -310,8 +311,9 @@ var (
 		ErrorStatusInvalidPropVoteBits:         "invalid proposal vote option bits",
 		ErrorStatusInvalidPropVoteParams:       "invalid proposal vote parameters",
 		ErrorStatusEmailNotVerified:            "email address is not verified",
-		ErrorStatusInvalidPropVersion:          "invalid proposal version",
 		ErrorStatusInvalidUUID:                 "invalid user UUID",
+		ErrorStatusInvalidLikeCommentAction:    "invalid like comment action",
+		ErrorStatusInvalidCensorshipToken:      "invalid proposal censorship token",
 	}
 
 	// PropStatus converts propsal status codes to human readable text
@@ -915,7 +917,9 @@ type Comment struct {
 }
 
 // NewComment sends a comment from a user to a specific proposal.  Note that
-// the user is implied by the session.
+// the user is implied by the public key.  A parent ID of 0 indicates that the
+// comment does not have a parent.  A non-zero parent ID indicates that the
+// comment is a reply to an existing comment.
 type NewComment struct {
 	Token     string `json:"token"`     // Censorship token
 	ParentID  string `json:"parentid"`  // Parent comment ID

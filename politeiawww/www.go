@@ -1049,7 +1049,13 @@ func (p *politeiawww) handleAllVetted(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	vr := p.backend.ProcessAllVetted(v)
+	vr, err := p.backend.ProcessAllVetted(v)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleAllVetted: ProcessAllVetted %v", err)
+		return
+	}
+
 	util.RespondWithJSON(w, http.StatusOK, vr)
 }
 
@@ -1068,7 +1074,13 @@ func (p *politeiawww) handleAllUnvetted(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	ur := p.backend.ProcessAllUnvetted(u)
+	ur, err := p.backend.ProcessAllUnvetted(u)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleAllUnvetted: ProcessAllUnvetted %v", err)
+		return
+	}
+
 	util.RespondWithJSON(w, http.StatusOK, ur)
 }
 
@@ -1093,10 +1105,10 @@ func (p *politeiawww) handleNewComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cr, err := p.backend.ProcessComment(sc, user)
+	cr, err := p.backend.ProcessNewComment(sc, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleNewComment: ProcessComment %v", err)
+			"handleNewComment: ProcessNewComment: %v", err)
 		return
 	}
 
@@ -1180,10 +1192,10 @@ func (p *politeiawww) handleCommentsGet(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 	}
-	gcr, err := p.backend.ProcessCommentGet(token, user)
+	gcr, err := p.backend.ProcessCommentsGet(token, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleCommentsGet: ProcessCommentGet %v", err)
+			"handleCommentsGet: ProcessCommentsGet %v", err)
 		return
 	}
 	util.RespondWithJSON(w, http.StatusOK, gcr)
@@ -1632,7 +1644,12 @@ func (p *politeiawww) handleEditProposal(w http.ResponseWriter, r *http.Request)
 
 // handleProposalsStats returns the counting of proposals aggrouped by each proposal status
 func (p *politeiawww) handleProposalsStats(w http.ResponseWriter, r *http.Request) {
-	psr := p.backend.ProcessProposalsStats()
+	psr, err := p.backend.ProcessProposalsStats()
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleProposalsStats: ProcessProposalsStats %v", err)
+		return
+	}
 	util.RespondWithJSON(w, http.StatusOK, psr)
 }
 

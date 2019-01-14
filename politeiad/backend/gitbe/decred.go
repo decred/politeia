@@ -34,8 +34,9 @@ import (
 // XXX plugins really need to become an interface. Run with this for now.
 
 const (
-	decredPluginIdentity = "fullidentity"
-	decredPluginJournals = "journals"
+	decredPluginIdentity     = "fullidentity"
+	decredPluginJournals     = "journals"
+	decredPluginInventoryCmd = "inventorycmd"
 
 	defaultCommentIDFilename = "commentid.txt"
 	defaultCommentFilename   = "comments.journal"
@@ -177,6 +178,12 @@ func getDecredPlugin(testnet bool) backend.Plugin {
 				Value: "https://explorer.dcrdata.org:443/",
 			})
 	}
+
+	decredPlugin.Settings = append(decredPlugin.Settings,
+		backend.PluginSetting{
+			Key:   decredPluginInventoryCmd,
+			Value: decredplugin.CmdInventory,
+		})
 
 	// Initialize hooks
 	decredPluginHooks = make(map[string]func(string) error)
@@ -1043,7 +1050,9 @@ func (g *gitBackEnd) pluginNewComment(payload string) (string, error) {
 
 	// Encode reply
 	ncr := decredplugin.NewCommentReply{
-		Comment: c,
+		CommentID: c.CommentID,
+		Receipt:   c.Receipt,
+		Timestamp: c.Timestamp,
 	}
 	ncrb, err := decredplugin.EncodeNewCommentReply(ncr)
 	if err != nil {
@@ -1167,9 +1176,10 @@ func (g *gitBackEnd) pluginLikeComment(payload string) (string, error) {
 
 	// Encode reply
 	lcr := decredplugin.LikeCommentReply{
-		Total:   c.TotalVotes,
-		Result:  c.ResultVotes,
-		Receipt: receipt,
+		Total:     c.TotalVotes,
+		Result:    c.ResultVotes,
+		Receipt:   receipt,
+		Timestamp: lc.Timestamp,
 	}
 	lcrb, err := decredplugin.EncodeLikeCommentReply(lcr)
 	if err != nil {
@@ -2210,4 +2220,9 @@ nodata:
 	}
 
 	return string(reply), nil
+}
+
+// TODO: implement decred plugin inventory cmd
+func (g *gitBackEnd) pluginInventory() (string, error) {
+	return "", nil
 }

@@ -2,10 +2,13 @@ package main
 
 import (
 	"encoding/json"
+	"io"
 	"strconv"
+	"strings"
 
 	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
+	"github.com/decred/politeia/politeiad/cache"
 	www "github.com/decred/politeia/politeiawww/api/v1"
 )
 
@@ -200,39 +203,6 @@ func convertPropFilesFromWWW(f []www.File) []pd.File {
 	return files
 }
 
-func convertPropCensorFromWWW(f www.CensorshipRecord) pd.CensorshipRecord {
-	return pd.CensorshipRecord{
-		Token:     f.Token,
-		Merkle:    f.Merkle,
-		Signature: f.Signature,
-	}
-}
-
-// convertPropFromWWW converts a www proposal to a politeiad record.  This
-// function should only be used in tests. Note that convertPropFromWWW can not
-// emulate MD properly.
-func convertPropFromWWW(p www.ProposalRecord) pd.Record {
-	return pd.Record{
-		Status:    convertPropStatusFromWWW(p.Status),
-		Timestamp: p.Timestamp,
-		Metadata: []pd.MetadataStream{{
-			ID:      pd.MetadataStreamsMax + 1, // fail deliberately
-			Payload: "invalid payload",
-		}},
-		Files:            convertPropFilesFromWWW(p.Files),
-		CensorshipRecord: convertPropCensorFromWWW(p.CensorshipRecord),
-	}
-}
-
-func convertPropsFromWWW(p []www.ProposalRecord) []pd.Record {
-	pr := make([]pd.Record, 0, len(p))
-	for _, v := range p {
-		pr = append(pr, convertPropFromWWW(v))
-	}
-	return pr
-}
-
-///////////////////////////////
 func convertPropStatusFromPD(s pd.RecordStatusT) www.PropStatusT {
 	switch s {
 	case pd.RecordStatusNotFound:
@@ -251,78 +221,11 @@ func convertPropStatusFromPD(s pd.RecordStatusT) www.PropStatusT {
 	return www.PropStatusInvalid
 }
 
-func convertPropFileFromPD(f pd.File) www.File {
-	return www.File{
-		Name:    f.Name,
-		MIME:    f.MIME,
-		Digest:  f.Digest,
-		Payload: f.Payload,
-	}
-}
-
-func convertPropFilesFromPD(f []pd.File) []www.File {
-	files := make([]www.File, 0, len(f))
-	for _, v := range f {
-		files = append(files, convertPropFileFromPD(v))
-	}
-	return files
-}
-
 func convertPropCensorFromPD(f pd.CensorshipRecord) www.CensorshipRecord {
 	return www.CensorshipRecord{
 		Token:     f.Token,
 		Merkle:    f.Merkle,
 		Signature: f.Signature,
-	}
-}
-
-func convertPropFromPD(p pd.Record) www.ProposalRecord {
-	md := &BackendProposalMetadata{}
-	var statusChangeMsg string
-	for _, v := range p.Metadata {
-		if v.ID == mdStreamGeneral {
-			m, err := decodeBackendProposalMetadata([]byte(v.Payload))
-			if err != nil {
-				log.Errorf("could not decode metadata '%v' token '%v': %v",
-					p.Metadata, p.CensorshipRecord.Token, err)
-				break
-			}
-			md = m
-		}
-
-		if v.ID == mdStreamChanges {
-			var mdc MDStreamChanges
-			err := json.Unmarshal([]byte(v.Payload), &mdc)
-			if err != nil {
-				break
-			}
-			statusChangeMsg = mdc.StatusChangeMessage
-		}
-	}
-
-	var state www.PropStateT
-	status := convertPropStatusFromPD(p.Status)
-	switch status {
-	case www.PropStatusNotReviewed, www.PropStatusUnreviewedChanges,
-		www.PropStatusCensored:
-		state = www.PropStateUnvetted
-	case www.PropStatusPublic, www.PropStatusAbandoned:
-		state = www.PropStateVetted
-	default:
-		state = www.PropStateInvalid
-	}
-
-	return www.ProposalRecord{
-		Name:                md.Name,
-		State:               state,
-		Status:              status,
-		Timestamp:           md.Timestamp,
-		PublicKey:           md.PublicKey,
-		Signature:           md.Signature,
-		Files:               convertPropFilesFromPD(p.Files),
-		CensorshipRecord:    convertPropCensorFromPD(p.CensorshipRecord),
-		Version:             p.Version,
-		StatusChangeMessage: statusChangeMsg,
 	}
 }
 
@@ -375,4 +278,198 @@ func convertVoteResultsFromDecredplugin(vrr decredplugin.VoteResultsReply) []www
 		})
 	}
 	return ors
+}
+
+func convertPropStatusToState(status www.PropStatusT) www.PropStateT {
+	switch status {
+	case www.PropStatusNotReviewed, www.PropStatusUnreviewedChanges,
+		www.PropStatusCensored:
+		return www.PropStateUnvetted
+	case www.PropStatusPublic, www.PropStatusAbandoned:
+		return www.PropStateVetted
+	}
+	return www.PropStateInvalid
+}
+
+func convertPropStatusFromCache(s cache.RecordStatusT) www.PropStatusT {
+	switch s {
+	case cache.RecordStatusNotFound:
+		return www.PropStatusNotFound
+	case cache.RecordStatusNotReviewed:
+		return www.PropStatusNotReviewed
+	case cache.RecordStatusCensored:
+		return www.PropStatusCensored
+	case cache.RecordStatusPublic:
+		return www.PropStatusPublic
+	case cache.RecordStatusUnreviewedChanges:
+		return www.PropStatusUnreviewedChanges
+	case cache.RecordStatusArchived:
+		return www.PropStatusAbandoned
+	}
+	return www.PropStatusInvalid
+}
+
+// convertPropFromCache converts a cache record into a www proposal record.
+// The UserId, Username, and NumComments fields are returned as zero values
+// since a cache record does not contain that data.
+func convertPropFromCache(r cache.Record) www.ProposalRecord {
+	// Decode markdown stream payloads.
+	var (
+		bpm         BackendProposalMetadata
+		changeMsg   string
+		publishedAt int64
+		censoredAt  int64
+		abandonedAt int64
+	)
+	for _, ms := range r.Metadata {
+		// General metadata
+		if ms.ID == mdStreamGeneral {
+			err := json.Unmarshal([]byte(ms.Payload), &bpm)
+			if err != nil {
+				log.Errorf("convertPropFromCache: unmarshal BackedProposalMetadata "+
+					"'%v' token '%v': %v", ms, r.CensorshipRecord.Token, err)
+			}
+		}
+
+		// Status change metatdata. The mdStreamChanges payload may
+		// contain multiple status changes. These need to be decoded
+		// individually.
+		if ms.ID == mdStreamChanges {
+			d := json.NewDecoder(strings.NewReader(ms.Payload))
+			for {
+				var msc MDStreamChanges
+				err := d.Decode(&msc)
+				if err == io.EOF {
+					break
+				} else if err != nil {
+					log.Errorf("convertPropFromCache: decode MDStreamChanges "+
+						"'%v' token '%v': %v", ms, r.CensorshipRecord.Token, err)
+					break
+				}
+
+				// We only need the most recent change msg
+				changeMsg = msc.StatusChangeMessage
+
+				// TODO: this needs to be convertPropStatusFromCache
+				switch convertPropStatusFromPD(msc.NewStatus) {
+				case www.PropStatusPublic:
+					publishedAt = msc.Timestamp
+				case www.PropStatusCensored:
+					censoredAt = msc.Timestamp
+				case www.PropStatusAbandoned:
+					abandonedAt = msc.Timestamp
+				}
+			}
+		}
+	}
+
+	// Convert files
+	var files []www.File
+	for _, f := range r.Files {
+		files = append(files,
+			www.File{
+				Name:    f.Name,
+				MIME:    f.MIME,
+				Digest:  f.Digest,
+				Payload: f.Payload,
+			})
+	}
+
+	status := convertPropStatusFromCache(r.Status)
+	return www.ProposalRecord{
+		Name:                bpm.Name,
+		State:               convertPropStatusToState(status),
+		Status:              status,
+		Timestamp:           r.Timestamp,
+		UserId:              "",
+		Username:            "",
+		PublicKey:           bpm.PublicKey,
+		Signature:           bpm.Signature,
+		Files:               files,
+		NumComments:         0,
+		Version:             r.Version,
+		StatusChangeMessage: changeMsg,
+		PublishedAt:         publishedAt,
+		CensoredAt:          censoredAt,
+		AbandonedAt:         abandonedAt,
+		CensorshipRecord: www.CensorshipRecord{
+			Token:     r.CensorshipRecord.Token,
+			Merkle:    r.CensorshipRecord.Merkle,
+			Signature: r.CensorshipRecord.Signature,
+		},
+	}
+}
+
+func convertNewCommentToDecredPlugin(nc www.NewComment) decredplugin.NewComment {
+	return decredplugin.NewComment{
+		Token:     nc.Token,
+		ParentID:  nc.ParentID,
+		Comment:   nc.Comment,
+		Signature: nc.Signature,
+		PublicKey: nc.PublicKey,
+	}
+}
+
+func convertLikeCommentToDecred(lc www.LikeComment) decredplugin.LikeComment {
+	return decredplugin.LikeComment{
+		Token:     lc.Token,
+		CommentID: lc.CommentID,
+		Action:    lc.Action,
+		Signature: lc.Signature,
+		PublicKey: lc.PublicKey,
+	}
+}
+
+func convertLikeCommentFromDecred(lc decredplugin.LikeComment) www.LikeComment {
+	return www.LikeComment{
+		Token:     lc.Token,
+		CommentID: lc.CommentID,
+		Action:    lc.Action,
+		Signature: lc.Signature,
+		PublicKey: lc.PublicKey,
+	}
+}
+
+func convertCensorCommentToDecred(cc www.CensorComment) decredplugin.CensorComment {
+	return decredplugin.CensorComment{
+		Token:     cc.Token,
+		CommentID: cc.CommentID,
+		Reason:    cc.Reason,
+		Signature: cc.Signature,
+		PublicKey: cc.PublicKey,
+	}
+}
+
+func convertCommentFromDecred(c decredplugin.Comment) www.Comment {
+	// ResultVotes, UserID, and Username are filled in as zero
+	// values since a cache comment does not contain this data.
+	return www.Comment{
+		Token:       c.Token,
+		ParentID:    c.ParentID,
+		Comment:     c.Comment,
+		Signature:   c.Signature,
+		PublicKey:   c.PublicKey,
+		CommentID:   c.CommentID,
+		Receipt:     c.Receipt,
+		Timestamp:   c.Timestamp,
+		ResultVotes: 0,
+		UserID:      "",
+		Username:    "",
+		Censored:    c.Censored,
+	}
+}
+
+func convertPluginToCache(p Plugin) cache.Plugin {
+	settings := make([]cache.PluginSetting, 0, len(p.Settings))
+	for _, s := range p.Settings {
+		settings = append(settings, cache.PluginSetting{
+			Key:   s.Key,
+			Value: s.Value,
+		})
+	}
+	return cache.Plugin{
+		ID:       p.ID,
+		Version:  p.Version,
+		Settings: settings,
+	}
 }

@@ -90,28 +90,25 @@ func (b *backend) getProposalAuthor(proposal *v1.ProposalRecord) (*database.User
 	return b._getProposalAuthor(proposal)
 }
 
-func (b *backend) getProposal(token string) (v1.ProposalRecord, error) {
-	b.RLock()
-	defer b.RUnlock()
-
-	return b._getProposal(token)
-}
-
 func (b *backend) getProposalAndAuthor(token string) (*v1.ProposalRecord, *database.User, error) {
-	b.RLock()
-	defer b.RUnlock()
-
-	proposal, err := b._getProposal(token)
+	proposal, err := b.getProp(token)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	author, err := b._getProposalAuthor(&proposal)
+	userID, err := uuid.Parse(proposal.UserId)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("cannot parse UUID %v: %v",
+			proposal.UserId, err)
 	}
 
-	return &proposal, author, nil
+	author, err := b.db.UserGetById(userID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("user lookup failed for userID %v: %v",
+			userID, err)
+	}
+
+	return proposal, author, nil
 }
 
 // fireEvent is a convenience wrapper for EventManager._fireEvent which
@@ -334,11 +331,12 @@ func (b *backend) _setupProposalVoteAuthorizedEmailNotification() {
 			}
 
 			token := pvs.AuthorizeVote.Token
-			proposal, err := b.getProposal(token)
+			record, err := b.cache.Record(token)
 			if err != nil {
 				log.Errorf("proposal not found: %v", err)
 				continue
 			}
+			proposal := convertPropFromCache(*record)
 
 			err = b.emailAdminsForProposalVoteAuthorized(&proposal, pvs.User)
 			if err != nil {
@@ -376,27 +374,28 @@ func (b *backend) _setupCommentReplyEmailNotifications() {
 						c.Comment.Token, c.Comment.CommentID, err)
 				}
 			} else {
-				ir, ok := b.inventory[token]
-				if !ok {
-					log.Errorf("proposal not found in inventory: %v", token)
+				parent, err := b.decredGetComment(token, c.Comment.ParentID)
+				if err != nil {
+					log.Errorf("EventManager: getComment failed for token %v "+
+						"commentID %v: %v", token, c.Comment.ParentID, err)
 					continue
 				}
 
-				parentComment, ok := ir.comments[c.Comment.ParentID]
+				authorID, ok := b.userPubkeys[parent.PublicKey]
 				if !ok {
-					log.Errorf("comment %v not found in proposal %v",
-						c.Comment.ParentID, token)
+					log.Errorf("EventManager: userID lookup failed for pubkey %v",
+						parent.PublicKey)
 					continue
 				}
 
-				userID, err := uuid.Parse(parentComment.UserID)
+				authorUUID, err := uuid.Parse(authorID)
 				if err != nil {
 					log.Errorf("cannot parse UUID for comment author: %v",
 						err)
 					continue
 				}
 
-				author, err := b.db.UserGetById(userID)
+				author, err := b.db.UserGetById(authorUUID)
 				if err != nil {
 					log.Errorf("cannot fetch author for comment: %v", err)
 					continue

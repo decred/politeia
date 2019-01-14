@@ -727,6 +727,7 @@ func updateVettedMetadata() error {
 	// Verify challenge.
 	return util.VerifyChallenge(id, challenge, reply.Response)
 }
+
 func updateRecord(vetted bool) error {
 	flags := flag.Args()[1:] // Chop off action.
 
@@ -884,35 +885,6 @@ func updateRecord(vetted bool) error {
 	err = util.VerifyChallenge(id, challenge, reply.Response)
 	if err != nil {
 		return err
-	}
-
-	// Decode signature to verify
-	sig, err := hex.DecodeString(reply.Record.CensorshipRecord.Signature)
-	if err != nil {
-		return err
-	}
-	var signature [identity.SignatureSize]byte
-	copy(signature[:], sig)
-
-	// Verify record token signature.
-	merkleToken := reply.Record.CensorshipRecord.Merkle +
-		reply.Record.CensorshipRecord.Token
-	if !id.VerifyMessage([]byte(merkleToken), signature) {
-		return fmt.Errorf("verification failed")
-	}
-
-	// Verify that the files that were returned match the record.
-	err = v1.Verify(*id, reply.Record.CensorshipRecord, reply.Record.Files)
-	if err != nil {
-		return err
-	}
-
-	if !*printJson {
-		mode := "Unvetted record"
-		if vetted {
-			mode = "Vetted record"
-		}
-		printRecord(mode, reply.Record)
 	}
 
 	return nil
@@ -1251,7 +1223,7 @@ func setUnvettedStatus() error {
 
 	if !*printJson {
 		// Pretty print record
-		status, ok := v1.RecordStatus[reply.Record.Status]
+		status, ok := v1.RecordStatus[n.Status]
 		if !ok {
 			status = v1.RecordStatus[v1.RecordStatusInvalid]
 		}

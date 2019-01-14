@@ -41,14 +41,16 @@ var (
 	// application shutdown.
 	logRotator *rotator.Rotator
 
-	log      = backendLog.Logger("POLI")
-	gitbeLog = backendLog.Logger("GITB")
+	log            = backendLog.Logger("POLI")
+	gitbeLog       = backendLog.Logger("GITB")
+	cockroachdbLog = backendLog.Logger("CODB")
 )
 
 // subsystemLoggers maps each subsystem identifier to its associated logger.
 var subsystemLoggers = map[string]slog.Logger{
 	"POLI": log,
 	"GITB": gitbeLog,
+	"CODB": cockroachdbLog,
 }
 
 // initLogRotator initializes the logging rotater to write logs to logFile and

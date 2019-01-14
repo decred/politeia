@@ -1,20 +1,19 @@
 package main
 
 import (
-	"encoding/hex"
 	"reflect"
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiawww/api/v1"
-	"github.com/decred/politeia/util"
 	"github.com/pmezard/go-difflib/difflib"
 )
 
 // diffString finds the diff between two structs and returns a string
 // representation of the diff.
-func diffString(a, b interface{}) (string, error) {
+func diffString(t *testing.T, a, b interface{}) string {
+	t.Helper()
+
 	diff := difflib.UnifiedDiff{
 		A:        difflib.SplitLines(spew.Sdump(a)),
 		B:        difflib.SplitLines(spew.Sdump(b)),
@@ -22,36 +21,12 @@ func diffString(a, b interface{}) (string, error) {
 		ToFile:   "Current",
 		Context:  0,
 	}
-	return difflib.GetUnifiedDiffString(diff)
-}
-
-// createNewUser creates a new user in the backend database using randomly
-// generated user credentials then returns the NewUser object and the full
-// identity for the user.
-func createNewUser(b *backend) (*v1.NewUser, *identity.FullIdentity, error) {
-	id, err := identity.New()
+	d, err := difflib.GetUnifiedDiffString(diff)
 	if err != nil {
-		return nil, nil, err
+		t.Fatalf("%v", err)
 	}
 
-	r, err := util.Random(int(v1.PolicyMinPasswordLength))
-	if err != nil {
-		return nil, nil, err
-	}
-
-	nu := v1.NewUser{
-		Email:     hex.EncodeToString(r) + "@example.com",
-		Username:  hex.EncodeToString(r),
-		Password:  hex.EncodeToString(r),
-		PublicKey: hex.EncodeToString(id.Public.Key[:]),
-	}
-
-	_, err = b.ProcessNewUser(nu)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return &nu, id, nil
+	return d
 }
 
 func TestProcessUserDetails(t *testing.T) {
@@ -60,10 +35,7 @@ func TestProcessUserDetails(t *testing.T) {
 
 	// Create a user and get the user object from the db. This
 	// is the UUID that we'll use to test the UserDetails route.
-	nu, _, err := createNewUser(b)
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
+	nu, _ := createNewUser(t, b)
 	dbUser, err := b.db.UserGet(nu.Email)
 	if err != nil {
 		t.Fatalf("%v", err)
@@ -121,13 +93,8 @@ func TestProcessUserDetails(t *testing.T) {
 
 		// Ensure the correct user object was returned.
 		if !reflect.DeepEqual(udr.User, test.want) {
-			// Find diff between got and want.
-			diff, err := diffString(udr.User, test.want)
-			if err != nil {
-				t.Fatalf("%v", err)
-			}
 			t.Errorf("ProcessUserDetails(ud, %t, %t) = unexpected user object\n%v",
-				test.isCurrentUser, test.isAdmin, diff)
+				test.isCurrentUser, test.isAdmin, diffString(t, udr.User, test.want))
 		}
 	}
 }
@@ -138,10 +105,7 @@ func TestProcessEditUser(t *testing.T) {
 
 	// Create a user and get the user object from the db. This
 	// is the user we'll be editing.
-	nu, _, err := createNewUser(b)
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
+	nu, _ := createNewUser(t, b)
 	user, err := b.db.UserGet(nu.Email)
 	if err != nil {
 		t.Fatalf("%v", err)

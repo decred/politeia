@@ -47,6 +47,7 @@ type Cmds struct {
 	NewUser            NewUserCmd            `command:"newuser" description:"create a new Politeia user"`
 	Policy             PolicyCmd             `command:"policy" description:"fetch server policy"`
 	ProposalPaywall    ProposalPaywallCmd    `command:"proposalpaywall" description:"fetch proposal paywall details"`
+	ProposalStats      ProposalStatsCmd      `command:"proposalstats" description:"get proposal statistics"`
 	ProposalVotes      ProposalVotesCmd      `command:"proposalvotes" description:"fetch vote results for a specific proposal"`
 	RescanUserPayments RescanUserPaymentsCmd `command:"rescanuserpayments" description:"rescan user payments to check for missed payments"`
 	ResetPassword      ResetPasswordCmd      `command:"resetpassword" description:"change the password for a user that is not currently logged in"`

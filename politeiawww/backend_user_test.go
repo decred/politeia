@@ -3,17 +3,13 @@ package main
 import (
 	"bytes"
 	"encoding/hex"
-	"io/ioutil"
 	"math/rand"
-	"os"
-	"path/filepath"
 	"runtime/debug"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/agl/ed25519"
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	www "github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/util"
@@ -73,31 +69,6 @@ func createNewUserCommandWithIdentity(t *testing.T) (www.NewUser, *identity.Full
 		Username:  generateRandomString(8),
 		PublicKey: hex.EncodeToString(id.Public.Key[:]),
 	}, id
-}
-
-func createBackend(t *testing.T) *backend {
-	dir, err := ioutil.TempDir("", "politeiawww.test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
-
-	cfg := &config{
-		DataDir:       filepath.Join(dir, "data"),
-		PaywallAmount: 1e7,
-		PaywallXpub:   "tpubVobLtToNtTq6TZNw4raWQok35PRPZou53vegZqNubtBTJMMFmuMpWybFCfweJ52N8uZJPZZdHE5SRnBBuuRPfC5jdNstfKjiAs8JtbYG9jx",
-		TestNet:       true,
-	}
-
-	b, err := NewBackend(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	b.params = &chaincfg.TestNet3Params
-	b.test = true
-	b.inventory = make(map[string]*inventoryRecord)
-	return b
 }
 
 func assertSuccess(t *testing.T, err error) {
@@ -624,61 +595,6 @@ func TestProcessResetPassword(t *testing.T) {
 	}
 	_, err = b.ProcessLogin(l)
 	assertSuccess(t, err)
-
-	b.db.Close()
-}
-
-// Tests fetching a user's own proposals.
-func TestProcessUserProposalsOwn(t *testing.T) {
-	b := createBackend(t)
-	u, id := createAndVerifyUser(t, b)
-	user, _ := b.db.UserGet(u.Email)
-
-	l := www.Login{
-		Email:    u.Email,
-		Password: u.Password,
-	}
-	lr, _ := b.ProcessLogin(l)
-	_, npr, _ := createNewProposal(b, t, user, id)
-
-	up := www.UserProposals{
-		UserId: lr.UserID,
-	}
-	upr, _ := b.ProcessUserProposals(&up, true, false)
-
-	if len(upr.Proposals) != 1 {
-		t.Fatalf("no proposal returned for user")
-	}
-
-	proposal := upr.Proposals[0]
-	if proposal.CensorshipRecord.Token != npr.CensorshipRecord.Token {
-		t.Fatalf("proposal tokens don't match")
-	}
-
-	b.db.Close()
-}
-
-// Tests fetching a user's proposals from another regular user's perspective.
-func TestProcessUserProposalsOther(t *testing.T) {
-	b := createBackend(t)
-	u, id := createAndVerifyUser(t, b)
-	user, _ := b.db.UserGet(u.Email)
-
-	l := www.Login{
-		Email:    u.Email,
-		Password: u.Password,
-	}
-	lr, _ := b.ProcessLogin(l)
-	createNewProposal(b, t, user, id)
-
-	up := www.UserProposals{
-		UserId: lr.UserID,
-	}
-	upr, _ := b.ProcessUserProposals(&up, false, false)
-
-	if len(upr.Proposals) != 0 {
-		t.Fatalf("proposal should not have been returned for user")
-	}
 
 	b.db.Close()
 }
