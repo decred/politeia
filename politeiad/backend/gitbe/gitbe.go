@@ -2170,50 +2170,77 @@ func (g *gitBackEnd) _setVettedStatus(token []byte, status backend.MDStatusT, md
 		return nil, err
 	}
 
-	// We only allow a transition from vetted to archived
-	if record.RecordMetadata.Status != backend.MDStatusVetted ||
-		status != backend.MDStatusArchived {
+	// We only allow a transition from vetted to archived or censored
+	switch {
+	case record.RecordMetadata.Status == backend.MDStatusVetted &&
+		status == backend.MDStatusArchived:
+
+		// vetted -> archived
+
+		// Delete any leftover tmp branch. There shouldn't be one.
+		idTmp := id + "_tmp"
+		_ = g.gitBranchDelete(g.unvetted, idTmp)
+
+		// Checkout temporary branch
+		err = g.gitNewBranch(g.unvetted, idTmp)
+		if err != nil {
+			return nil, err
+		}
+
+		// Update MD first
+		record.RecordMetadata.Status = backend.MDStatusArchived
+		record.RecordMetadata.Iteration += 1
+		record.RecordMetadata.Timestamp = time.Now().Unix()
+		err = updateMD(g.unvetted, id, &record.RecordMetadata)
+		if err != nil {
+			return nil, err
+		}
+
+		// Handle metadata
+		err = g.updateMetadata(id, mdAppend, mdOverwrite)
+		if err != nil {
+			return nil, err
+		}
+
+		// Commit brm
+		err = g.commitMD(g.unvetted, id, "archived")
+		if err != nil {
+			return nil, err
+		}
+
+		// Create and rebase PR
+		err = g.rebasePR(id)
+		if err != nil {
+			return nil, err
+		}
+
+	case record.RecordMetadata.Status == backend.MDStatusVetted &&
+		status == backend.MDStatusCensored:
+		// vetted -> censored
+		record.RecordMetadata.Status = backend.MDStatusCensored
+		record.RecordMetadata.Iteration += 1
+		record.RecordMetadata.Timestamp = time.Now().Unix()
+		err = updateMD(g.unvetted, id, &record.RecordMetadata)
+		if err != nil {
+			return nil, err
+		}
+
+		// Handle metadata
+		err = g.updateMetadata(id, mdAppend, mdOverwrite)
+		if err != nil {
+			return nil, err
+		}
+
+		// Commit brm
+		err = g.commitMD(g.unvetted, id, "censored")
+		if err != nil {
+			return nil, err
+		}
+	default:
 		return nil, backend.StateTransitionError{
 			From: record.RecordMetadata.Status,
 			To:   status,
 		}
-	}
-
-	// Delete any leftover tmp branch. There shouldn't be one.
-	idTmp := id + "_tmp"
-	_ = g.gitBranchDelete(g.unvetted, idTmp)
-
-	// Checkout temporary branch
-	err = g.gitNewBranch(g.unvetted, idTmp)
-	if err != nil {
-		return nil, err
-	}
-
-	// Update MD first
-	record.RecordMetadata.Status = backend.MDStatusArchived
-	record.RecordMetadata.Iteration += 1
-	record.RecordMetadata.Timestamp = time.Now().Unix()
-	err = updateMD(g.unvetted, id, &record.RecordMetadata)
-	if err != nil {
-		return nil, err
-	}
-
-	// Handle metadata
-	err = g.updateMetadata(id, mdAppend, mdOverwrite)
-	if err != nil {
-		return nil, err
-	}
-
-	// Commit changes
-	err = g.commitMD(g.unvetted, id, "archived")
-	if err != nil {
-		return nil, err
-	}
-
-	// Create and rebase PR
-	err = g.rebasePR(idTmp)
-	if err != nil {
-		return nil, err
 	}
 
 	return g._getRecord(id, "", g.unvetted, false)

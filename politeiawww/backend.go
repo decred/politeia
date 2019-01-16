@@ -1867,19 +1867,24 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 	case pr.State == www.PropStateVetted:
 		// Vetted status change
 
-		// We only allow a transition from public to abandoned
-		if pr.Status != www.PropStatusPublic ||
-			sps.ProposalStatus != www.PropStatusAbandoned {
+		// We only allow a transition from public to abandoned or censored
+		if pr.Status == www.PropStatusPublic &&
+			(sps.ProposalStatus == www.PropStatusCensored ||
+				sps.ProposalStatus == www.PropStatusAbandoned) {
+			// allowed; continue
+		} else {
 			return nil, www.UserError{
 				ErrorCode: www.ErrorStatusInvalidPropStatusTransition,
 			}
 		}
 
 		// Ensure voting has not been started or authorized yet
-		if ir.voting.StartBlockHeight != "" ||
-			voteIsAuthorized(ir) {
-			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusWrongVoteStatus,
+		if sps.ProposalStatus != www.PropStatusCensored {
+			if ir.voting.StartBlockHeight != "" ||
+				voteIsAuthorized(ir) {
+				return nil, www.UserError{
+					ErrorCode: www.ErrorStatusWrongVoteStatus,
+				}
 			}
 		}
 
