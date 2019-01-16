@@ -53,6 +53,7 @@ type Cmds struct {
 	Secret             SecretCmd             `command:"secret" description:"ping politeiawww"`
 	SetProposalStatus  SetProposalStatusCmd  `command:"setproposalstatus" description:"(admin) set the status of a proposal"`
 	StartVote          StartVoteCmd          `command:"startvote" description:"(admin) start the voting period on a proposal"`
+	Subscribe          Subscribe             `command:"subscribe" description:"subscribe to all websocket commands and do not exit tool."`
 	Tally              TallyCmd              `command:"tally" description:"fetch the vote tally for a proposal"`
 	UpdateUserKey      UpdateUserKeyCmd      `command:"updateuserkey" description:"generate a new identity for the user"`
 	UserDetails        UserDetailsCmd        `command:"userdetails" description:"fetch a user's details by his user id"`

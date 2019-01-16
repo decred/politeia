@@ -59,6 +59,8 @@ func (cmd *HelpCmd) Execute(args []string) error {
 		fmt.Printf("%s\n", VersionCmdHelpMsg)
 	case "edituser":
 		fmt.Printf("%s\n", EditUserCmdHelpMsg)
+	case "subscribe":
+		fmt.Printf("%s\n", SubscribeCmdHelpMsg)
 	default:
 		fmt.Printf("invalid command\n")
 	}

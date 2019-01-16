@@ -3,8 +3,9 @@
 # v1
 
 This document describes the REST API provided by a `politeiawww` server.  The
-`politeiawww` server is the web server backend and it interacts with a JSON REST
-API.  It does not render HTML.
+`politeiawww` server is the web server backend and it interacts with a JSON
+REST API.  This document also describes websockets for server side
+notifications.  It does not render HTML.
 
 **Methods**
 
@@ -115,11 +116,22 @@ API.  It does not render HTML.
 - [`PropStatusPublic`](#PropStatusPublic)
 - [`PropStatusAbandoned`](#PropStatusAbandoned)
 
+**Websockets**
+
+See [`Websocket command flow`](#Websocket-command-flow) for a generic
+description of websocket command flow.
+
+- [`WSError`](#WSError)
+- [`WSHeader`](#WSHeader)
+- [`WSPing`](#WSPing)
+- [`WSSubscribe`](#WSSubscribe)
+
 ## HTTP status codes and errors
 
 All methods, unless otherwise specified, shall return `200 OK` when successful,
-`400 Bad Request` when an error has occurred due to user input, or `500 Internal Server Error`
-when an unexpected server error has occurred. The format of errors is as follows:
+`400 Bad Request` when an error has occurred due to user input, or `500
+Internal Server Error` when an unexpected server error has occurred. The format
+of errors is as follows:
 
 **`4xx` errors**
 
@@ -133,6 +145,77 @@ when an unexpected server error has occurred. The format of errors is as follows
 | | Type | Description |
 |-|-|-|
 | errorcode | number | An error code that can be used to track down the internal server error that occurred; it should be reported to Politeia administrators. |
+
+## Websocket command flow
+
+There are two distinct websockets routes. There is an unauthenticated route and
+an authenticated route.  The authenticated route provides access to all
+unprivileged websocket commands and therefore a client that authenticates
+itself via the [`Login`](#login) call should close any open unprivileged
+websockets.  Note that sending notifications to unauthenticated users means
+**ALL** unauthenticated users; this may be expensive and should be used
+carefully.
+
+All commands consist of two JSON structures. All commands are prefixed by a
+[`WSHeader`](#WSHeader) structure that identifies the command that follows.
+This is done to prevent decoding JSON multiple times.  That structure also
+contains a convenience field called **ID** which can be set by the client in
+order to identify prior sent commands.
+
+If a client command fails the server shall return a [`WSError`](#WSError)
+structure, prefixed by a [`WSHeader`](#WSHeader) structure that contains the
+client side **ID** followed by the error(s) itself.  If there is no failure the
+server does not reply.  Note that **ID** is unused when server notifications
+flow to the client.
+
+Both routes operate exactly the same way. The only difference is denied access
+to subscriptions of privileged notifications.
+
+**Unauthenticated route**: `/v1/ws`
+**Authenticated route**: `/v1/aws`
+
+For example, a subscribe command consists of a [`WSHeader`](#WSHeader)
+structure followed by a [`WSSubscribe`](#WSSubscribe) structure:
+```
+{
+  "command": "subscribe",
+  "id": "1"
+}
+{
+  "rpcs": [
+    "ping"
+  ]
+}
+```
+
+The same example but with an invalid subscription:
+```
+{
+  "command": "subscribe",
+  "id": "1"
+}
+{
+  "rpcs": [
+    "pingo"
+  ]
+}
+```
+
+Since **pingo** is an invalid subscription the server will reply with the
+following error:
+```
+{
+  "command": "error",
+  "id": "1"
+}
+{
+  "command": "subscribe",
+  "id": "1",
+  "errors": [
+    "invalid subscription pingo"
+  ]
+}
+```
 
 ## Methods
 
@@ -2547,3 +2630,81 @@ A proposal credit allows the user to submit a new proposal.  Proposal credits ar
 | price | uint64 | The price that the credit was purchased at in atoms. |
 | datepurchased | int64 | A Unix timestamp of the purchase data. |
 | txid | string | The txID of the Decred transaction that paid for this credit. |
+
+## Websocket methods
+
+### `WSHeader`
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+|Command|string|Type of JSON structure that follows the header|yes|
+|ID|string|Client settable ID|no|
+
+**WSHeader** is required as a prefix to every other command on both the client
+and server side.
+
+### `WSError`
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+|Command|string|Type of JSON structure that follows the header|no|
+|ID|string|Client settable ID|no|
+|Errors|array of string|All errors that occurred during execution of the failed command|yes|
+
+**WSError** always flows from server to client.
+
+**example**
+```
+{
+  "command": "error",
+  "id": "1"
+}
+{
+  "command": "subscribe",
+  "id": "1",
+  "errors": [
+    "invalid subscription pingo"
+  ]
+}
+```
+
+### `WSSubscribe`
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+|RPCS|array of string|Subscriptions|yes|
+
+Current valid subscriptions are `ping`.
+
+Sending additional `subscribe` commands will result in the old subscription
+list being overwritten and thus an empty `rpcs` cancels all subscriptions.
+
+**WSSubscribe** always flows from client to server.
+
+**Example**
+```
+{
+  "command": "subscribe",
+  "id": "1"
+}
+{
+  "rpcs": [
+    "ping"
+  ]
+}
+```
+
+
+### `WSPing`
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+|Timestamp|int64|Server timestamp|yes|
+
+**WSPing** always flows from server to client.
+
+**example**
+```
+{
+  "command": "ping"
+}
+{
+  "timestamp": 1547653596
+}
+```
