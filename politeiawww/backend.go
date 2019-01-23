@@ -30,7 +30,8 @@ import (
 	"github.com/decred/politeia/politeiad/cache/cockroachdb"
 	www "github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/politeiawww/database"
-	"github.com/decred/politeia/politeiawww/database/localdb"
+	usercockroachdb "github.com/decred/politeia/politeiawww/database/cockroachdb"
+	"github.com/decred/politeia/politeiawww/database/leveldb"
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -86,6 +87,8 @@ type backend struct {
 
 	// Following entries require locks
 	userPubkeys     map[string]string               // [pubkey][userid]
+	userEmail       map[string]string               // [email][userid]
+	userUsername    map[string]string               // [username][userid]
 	userPaywallPool map[uuid.UUID]paywallPoolMember // [userid][paywallPoolMember]
 	commentScores   map[string]int64                // [token+commentID]resultVotes
 }
@@ -299,7 +302,7 @@ func (b *backend) getUsernameById(userIdStr string) string {
 		return ""
 	}
 
-	user, err := b.db.UserGetById(userId)
+	user, err := b.UserGetByID(userId)
 	if err != nil {
 		return ""
 	}
@@ -309,9 +312,9 @@ func (b *backend) getUsernameById(userIdStr string) string {
 
 func (b *backend) login(l *www.Login) loginReplyWithError {
 	// Get user from db.
-	user, err := b.db.UserGet(l.Email)
+	user, err := b.UserGetByEmail(l.Email)
 	if err != nil {
-		if err == database.ErrUserNotFound {
+		if IsUserNotFoundError(err) {
 			log.Debugf("Login failure for %v: user not found in database",
 				l.Email)
 			return loginReplyWithError{
@@ -334,7 +337,7 @@ func (b *backend) login(l *www.Login) loginReplyWithError {
 	if err != nil {
 		if !checkUserIsLocked(user.FailedLoginAttempts) {
 			user.FailedLoginAttempts++
-			err := b.db.UserUpdate(*user)
+			err := b.UserUpdate(*user)
 			if err != nil {
 				return loginReplyWithError{
 					reply: nil,
@@ -405,7 +408,7 @@ func (b *backend) login(l *www.Login) loginReplyWithError {
 	lastLoginTime := user.LastLoginTime
 	user.FailedLoginAttempts = 0
 	user.LastLoginTime = time.Now().Unix()
-	err = b.db.UserUpdate(*user)
+	err = b.UserUpdate(*user)
 	if err != nil {
 		return loginReplyWithError{
 			reply: nil,
@@ -419,28 +422,95 @@ func (b *backend) login(l *www.Login) loginReplyWithError {
 	}
 }
 
-// initUserPubkeys initializes the userPubkeys map with all the pubkey-userid
-// associations that are found in the database.
+// initUserCache initializes all the user caches in the backend
+// by iterating over all user records in the database.
 //
 // This function must be called WITHOUT the lock held.
-func (b *backend) initUserPubkeys() error {
+func (b *backend) initUserCache() error {
 	b.Lock()
 	defer b.Unlock()
 
-	return b.db.AllUsers(func(u *database.User) {
-		userId := u.ID.String()
-		for _, v := range u.Identities {
-			key := hex.EncodeToString(v.Key[:])
-			b.userPubkeys[key] = userId
-		}
+	return b.AllUsers(func(u *database.User) {
+		b._loadUserPubkeysAssociation(u)
+		b._setUserEmailAssociation(u)
+		b._setUserUsernameAssociation(u)
 	})
 }
 
-// setUserPubkeyAssociaton associates a public key with a user id in
+// setUserEmailAssoaction associates an email with a user id in the
+// userEmail cache.
+//
+// THis function must be called WITHOUT the lock held.
+func (b *backend) setUserEmailAssociation(user *database.User) {
+	b.Lock()
+	defer b.Unlock()
+	b._setUserEmailAssociation(user)
+}
+
+// _setUserEmailAssoaction associates an email with a user id in the
+// userEmail cache.
+//
+// This function must be called WITH the lock held.
+func (b *backend) _setUserEmailAssociation(user *database.User) {
+	userID := user.ID.String()
+	b.userEmail[user.Email] = userID
+}
+
+// removeUserEmailAssociation removes a email from the userEmail cache.
+//
+// This function must be called WITHOUT the lock held.
+func (b *backend) removeUserEmailAssociation(email string) {
+	b.Lock()
+	defer b.Unlock()
+
+	delete(b.userEmail, email)
+}
+
+// setUserUsernameAssoaction associates an username with a user id in the
+// userUsername cache.
+//
+// This function must be called WITHOUT the lock held.
+func (b *backend) setUserUsernameAssociation(user *database.User) {
+	b.Lock()
+	defer b.Unlock()
+	b._setUserUsernameAssociation(user)
+}
+
+// _setUserUsernameAssoaction associates an username with a user id in the
+// userUsername cache.
+//
+// This function must be called WITH the lock held.
+func (b *backend) _setUserUsernameAssociation(user *database.User) {
+	userID := user.ID.String()
+	b.userUsername[user.Username] = userID
+}
+
+// removeUserUsernameAssociation removes a username from the userUsername cache.
+//
+// This function must be called WITHOUT the lock held.
+func (b *backend) removeUserUsernameAssociation(username string) {
+	b.Lock()
+	defer b.Unlock()
+
+	delete(b.userUsername, username)
+}
+
+// _loadUserPubkeys loads all the user public keys in the userPubkeys cache
+//
+// This function must be called WITH the lock held.
+func (b *backend) _loadUserPubkeysAssociation(user *database.User) {
+	userID := user.ID.String()
+	for _, v := range user.Identities {
+		key := hex.EncodeToString(v.Key[:])
+		b.userPubkeys[key] = userID
+	}
+}
+
+// setUserPubkeyAssociation associates a public key with a user id in
 // the userPubkeys cache.
 //
 // This function must be called WITHOUT the lock held.
-func (b *backend) setUserPubkeyAssociaton(user *database.User, publicKey string) {
+func (b *backend) setUserPubkeyAssociation(user *database.User, publicKey string) {
 	b.Lock()
 	defer b.Unlock()
 
@@ -448,11 +518,11 @@ func (b *backend) setUserPubkeyAssociaton(user *database.User, publicKey string)
 	b.userPubkeys[publicKey] = userID
 }
 
-// removeUserPubkeyAssociaton removes a public key from the
+// removeUserPubkeyAssociation removes a public key from the
 // userPubkeys cache.
 //
 // This function must be called WITHOUT the lock held.
-func (b *backend) removeUserPubkeyAssociaton(user *database.User, publicKey string) {
+func (b *backend) removeUserPubkeyAssociation(user *database.User, publicKey string) {
 	b.Lock()
 	defer b.Unlock()
 
@@ -551,8 +621,8 @@ func (b *backend) validateUsername(username string, userToMatch *database.User) 
 		}
 	}
 
-	user, err := b.db.UserGetByUsername(username)
-	if err != nil {
+	user, err := b.UserGetByUsername(username)
+	if err != nil && !IsUserNotFoundError(err) {
 		return err
 	}
 	if user != nil {
@@ -803,7 +873,7 @@ func (b *backend) emailResetPassword(user *database.User, rp www.ResetPassword, 
 	// Add the updated user information to the db.
 	user.ResetPasswordVerificationToken = token
 	user.ResetPasswordVerificationExpiry = expiry
-	err = b.db.UserUpdate(*user)
+	err = b.UserUpdate(*user)
 	if err != nil {
 		return err
 	}
@@ -873,7 +943,7 @@ func (b *backend) verifyResetPassword(user *database.User, rp www.ResetPassword,
 	user.HashedPassword = hashedPassword
 	user.FailedLoginAttempts = 0
 
-	return b.db.UserUpdate(*user)
+	return b.UserUpdate(*user)
 }
 
 func (b *backend) CreateLoginReply(user *database.User, lastLoginTime int64) (*www.LoginReply, error) {
@@ -921,7 +991,7 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 		expiry int64
 	)
 
-	existingUser, err := b.db.UserGet(u.Email)
+	existingUser, err := b.UserGetByEmail(u.Email)
 	if err == nil {
 		// Check if the user is already verified.
 		if existingUser.NewUserVerificationToken == nil {
@@ -993,26 +1063,22 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 	}
 
 	// Check if the user already exists.
+	var uid *uuid.UUID
 	if existingUser != nil {
 		existingPublicKey := hex.EncodeToString(existingUser.Identities[0].Key[:])
-		b.removeUserPubkeyAssociaton(existingUser, existingPublicKey)
+		b.removeUserPubkeyAssociation(existingUser, existingPublicKey)
 
 		// Update the user in the db.
 		newUser.ID = existingUser.ID
-		err = b.db.UserUpdate(newUser)
+		uid = &existingUser.ID
+		err = b.UserUpdate(newUser)
 	} else {
 		// Save the new user in the db.
-		err = b.db.UserNew(newUser)
+		uid, err = b.UserNew(newUser)
 	}
 
 	// Error handling for the db write.
 	if err != nil {
-		if err == database.ErrInvalidEmail {
-			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusMalformedEmail,
-			}
-		}
-
 		return nil, err
 	}
 
@@ -1022,14 +1088,18 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 	//
 	// Even if existingUser is non-nil, this will bring it up-to-date
 	// with the new information inserted via newUser.
-	existingUser, err = b.db.UserGet(newUser.Email)
+	existingUser, err = b.UserGetByID(*uid)
 	if err != nil {
 		return nil, fmt.Errorf("unable to retrieve account info for %v: %v",
 			newUser.Email, err)
 	}
 
 	// Associate the user id with the new public key.
-	b.setUserPubkeyAssociaton(existingUser, u.PublicKey)
+	b.setUserPubkeyAssociation(existingUser, u.PublicKey)
+	// Associate the user id with the new email.
+	b.setUserEmailAssociation(existingUser)
+	// Associate the user id with the new username.
+	b.setUserUsernameAssociation(existingUser)
 
 	// Derive paywall information for this user if the paywall is enabled.
 	err = b.GenerateNewUserPaywall(existingUser)
@@ -1049,9 +1119,9 @@ func (b *backend) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 // hasn't expired.  On success it returns database user record.
 func (b *backend) ProcessVerifyNewUser(u www.VerifyNewUser) (*database.User, error) {
 	// Check that the user already exists.
-	user, err := b.db.UserGet(u.Email)
+	user, err := b.UserGetByEmail(u.Email)
 	if err != nil {
-		if err == database.ErrUserNotFound {
+		if IsUserNotFoundError(err) {
 			log.Debugf("VerifyNewUser failure for %v: user not found",
 				u.Email)
 			return nil, www.UserError{
@@ -1127,7 +1197,7 @@ func (b *backend) ProcessVerifyNewUser(u www.VerifyNewUser) (*database.User, err
 	user.NewUserVerificationToken = nil
 	user.NewUserVerificationExpiry = 0
 	user.ResendNewUserVerificationExpiry = 0
-	err = b.db.UserUpdate(*user)
+	err = b.UserUpdate(*user)
 	if err != nil {
 		return nil, err
 	}
@@ -1143,9 +1213,9 @@ func (b *backend) ProcessResendVerification(rv *www.ResendVerification) (*www.Re
 	rvr := www.ResendVerificationReply{}
 
 	// Get user from db.
-	user, err := b.db.UserGet(rv.Email)
+	user, err := b.UserGetByEmail(rv.Email)
 	if err != nil {
-		if err == database.ErrUserNotFound {
+		if IsUserNotFoundError(err) {
 			log.Debugf("ResendVerification failure for %v: user not found",
 				rv.Email)
 			return &rvr, nil
@@ -1187,16 +1257,16 @@ func (b *backend) ProcessResendVerification(rv *www.ResendVerification) (*www.Re
 
 	// Remove the original pubkey from the cache.
 	existingPublicKey := hex.EncodeToString(user.Identities[0].Key[:])
-	b.removeUserPubkeyAssociaton(user, existingPublicKey)
+	b.removeUserPubkeyAssociation(user, existingPublicKey)
 
 	// Set a new verificaton token and identity.
 	b.setNewUserVerificationAndIdentity(user, token, expiry, true, pk)
 
 	// Associate the user id with the new identity.
-	b.setUserPubkeyAssociaton(user, rv.PublicKey)
+	b.setUserPubkeyAssociation(user, rv.PublicKey)
 
 	// Update the user in the db.
-	err = b.db.UserUpdate(*user)
+	err = b.UserUpdate(*user)
 	if err != nil {
 		return nil, err
 	}
@@ -1262,7 +1332,7 @@ func (b *backend) ProcessUpdateUserKey(user *database.User, u www.UpdateUserKey)
 	copy(identity.Key[:], pk)
 	user.Identities = append(user.Identities, identity)
 
-	err = b.db.UserUpdate(*user)
+	err = b.UserUpdate(*user)
 	if err != nil {
 		return nil, err
 	}
@@ -1341,7 +1411,7 @@ func (b *backend) ProcessVerifyUpdateUserKey(user *database.User, vu www.VerifyU
 	}
 
 	// Associate the user id with the new public key.
-	b.setUserPubkeyAssociaton(user, pi.String())
+	b.setUserPubkeyAssociation(user, pi.String())
 
 	// Clear out the verification token fields in the db and activate
 	// the key and deactivate the one it's replacing.
@@ -1358,7 +1428,7 @@ func (b *backend) ProcessVerifyUpdateUserKey(user *database.User, vu www.VerifyU
 	user.Identities[len(user.Identities)-1].Activated = t
 	user.Identities[len(user.Identities)-1].Deactivated = 0
 
-	return user, b.db.UserUpdate(*user)
+	return user, b.UserUpdate(*user)
 }
 
 // ProcessLogin checks that a user exists, is verified, and has
@@ -1401,7 +1471,7 @@ func (b *backend) ProcessChangeUsername(email string, cu www.ChangeUsername) (*w
 	var reply www.ChangeUsernameReply
 
 	// Get user from db.
-	user, err := b.db.UserGet(email)
+	user, err := b.UserGetByEmail(email)
 	if err != nil {
 		return nil, err
 	}
@@ -1422,12 +1492,18 @@ func (b *backend) ProcessChangeUsername(email string, cu www.ChangeUsername) (*w
 		return nil, err
 	}
 
+	oldUsername := user.Username
+
 	// Add the updated user information to the db.
 	user.Username = newUsername
-	err = b.db.UserUpdate(*user)
+	err = b.UserUpdate(*user)
 	if err != nil {
 		return nil, err
 	}
+
+	// Update userUsername cache.
+	b.removeUserUsernameAssociation(oldUsername)
+	b.setUserUsernameAssociation(user)
 
 	return &reply, nil
 }
@@ -1438,7 +1514,7 @@ func (b *backend) ProcessChangePassword(email string, cp www.ChangePassword) (*w
 	var reply www.ChangePasswordReply
 
 	// Get user from db.
-	user, err := b.db.UserGet(email)
+	user, err := b.UserGetByEmail(email)
 	if err != nil {
 		return nil, err
 	}
@@ -1466,7 +1542,7 @@ func (b *backend) ProcessChangePassword(email string, cp www.ChangePassword) (*w
 
 	// Add the updated user information to the db.
 	user.HashedPassword = hashedPassword
-	err = b.db.UserUpdate(*user)
+	err = b.UserUpdate(*user)
 	if err != nil {
 		return nil, err
 	}
@@ -1488,13 +1564,9 @@ func (b *backend) ProcessResetPassword(rp www.ResetPassword) (*www.ResetPassword
 	var reply www.ResetPasswordReply
 
 	// Get user from db.
-	user, err := b.db.UserGet(rp.Email)
+	user, err := b.UserGetByEmail(rp.Email)
 	if err != nil {
-		if err == database.ErrInvalidEmail {
-			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusMalformedEmail,
-			}
-		} else if err == database.ErrUserNotFound {
+		if IsUserNotFoundError(err) {
 			log.Debugf("ResetPassword failure for %v: user not found", rp.Email)
 			return &reply, nil
 		}
@@ -1537,7 +1609,7 @@ func (b *backend) ProcessUserProposalCredits(user *database.User) (*www.UserProp
 // ProcessUserProposals returns a page of proposals for the given user.
 func (b *backend) ProcessUserProposals(up *www.UserProposals, isCurrentUser, isAdminUser bool) (*www.UserProposalsReply, error) {
 	// Verify user exists
-	_, err := b.getUserByIDStr(up.UserId)
+	_, err := b.UserGetByIDStr(up.UserId)
 	if err != nil {
 		return nil, err
 	}
@@ -2008,18 +2080,59 @@ func (b *backend) getPluginInventory() ([]Plugin, error) {
 	return plugins, nil
 }
 
+func setupDatabase(b *backend) error {
+	cfg := b.cfg
+	net := filepath.Base(cfg.DataDir)
+	// Setup cockroach db for users database
+	switch cfg.Database {
+	case levelDBOption:
+		err := leveldb.CreateLevelDB(cfg.DataDir)
+		if err != nil {
+			log.Debugf("could not create level db")
+			return err
+		}
+
+		db, err := leveldb.NewLevelDB(cfg.DataDir, cfg.DBKey, &leveldb.Config{
+			UseEncryption: cfg.EncryptDB,
+		})
+		if err != nil {
+			log.Debugf("could not instantiate level db")
+			return err
+		}
+		b.db = db
+		log.Infof("Users database is using leveldb")
+		return nil
+	case cockroachDBOption:
+		err := usercockroachdb.CreateCDB(cfg.DBHost, net,
+			cfg.DBRootCert, cfg.DBCertDir)
+		if err != nil {
+			log.Debugf("could not create cockroach db")
+			return err
+		}
+
+		db, err := usercockroachdb.NewCDB(cockroachdb.UserPoliteiawww, cfg.DBHost,
+			net, cfg.DBRootCert, cfg.DBCertDir, cfg.DBKey, &usercockroachdb.Config{
+				UseEncryption: cfg.EncryptDB,
+			})
+		if err != nil {
+			return err
+		}
+		log.Infof("Users database is using cockroachdb")
+		b.db = db
+		return nil
+	}
+
+	return fmt.Errorf("Invalid database configuration")
+}
+
 // NewBackend creates a new backend context for use in www and tests.
 func NewBackend(cfg *config) (*backend, error) {
-	// Setup database.
-	// localdb.UseLogger(localdbLog)
-	db, err := localdb.New(cfg.DataDir)
-	if err != nil {
-		return nil, err
-	}
+
+	net := filepath.Base(cfg.DataDir)
 
 	// Setup cache connection
 	cockroachdb.UseLogger(cockroachdbLog)
-	net := filepath.Base(cfg.DataDir)
+
 	cdb, err := cockroachdb.New(cockroachdb.UserPoliteiawww, cfg.CacheHost,
 		net, cfg.CacheRootCert, cfg.CacheCertDir)
 	if err != nil {
@@ -2032,12 +2145,18 @@ func NewBackend(cfg *config) (*backend, error) {
 
 	// Context
 	b := &backend{
-		db:              db,
 		cache:           cdb,
 		cfg:             cfg,
 		userPubkeys:     make(map[string]string),
+		userEmail:       make(map[string]string),
+		userUsername:    make(map[string]string),
 		userPaywallPool: make(map[uuid.UUID]paywallPoolMember),
 		commentScores:   make(map[string]int64),
+	}
+
+	err = setupDatabase(b)
+	if err != nil {
+		return nil, err
 	}
 
 	// Get plugins from politeiad
@@ -2063,9 +2182,9 @@ func NewBackend(cfg *config) (*backend, error) {
 	}
 
 	// Setup pubkey-userid map
-	err = b.initUserPubkeys()
+	err = b.initUserCache()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("initUserCache: %v", err)
 	}
 
 	// Setup comment scores map

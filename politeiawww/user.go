@@ -8,7 +8,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"sort"
+	"strings"
 
+	"github.com/badoux/checkmail"
 	www "github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/politeiawww/database"
 	"github.com/google/uuid"
@@ -56,7 +58,177 @@ func convertWWWIdentityFromDatabaseIdentity(identity database.Identity) www.User
 	}
 }
 
-func (b *backend) getUserByIDStr(userIDStr string) (*database.User, error) {
+func IsUserNotFoundError(err error) bool {
+	v, ok := err.(www.UserError)
+	return ok && v.ErrorCode == www.ErrorStatusUserNotFound
+}
+
+// UserNew creates a new user in the database
+func (b *backend) UserNew(u database.User) (*uuid.UUID, error) {
+	log.Tracef("UserNew: %v", u.Email)
+
+	if err := checkmail.ValidateFormat(u.Email); err != nil {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusMalformedEmail,
+		}
+	}
+
+	// Make sure the user does not already exist.
+	_, err := b.UserGetByEmail(u.Email)
+	if err != nil && !IsUserNotFoundError(err) {
+		return nil, err
+	}
+
+	// Each user needs a paywall address index which is used to derive a unique
+	// paywall address. Every time a new user is created, the paywall index is
+	// incremented and updated in the database.
+	// Try to fetch the last paywall index from the database.
+	var lastPaywallAddrIdx *database.LastPaywallAddressIndex
+	p, err := b.db.Get(database.LastPaywallAddressIndexKey)
+	if err != nil && err != database.ErrNotFound {
+		return nil, err
+	}
+	if err == database.ErrNotFound {
+		// There is not paywall index record yet, so we're going
+		// to create the first one.
+		lastPaywallAddrIdx = &database.LastPaywallAddressIndex{
+			Index: 1,
+		}
+	} else {
+		// Paywall index record found.
+		lp, err := database.DecodeLastPaywallAddressIndex(p)
+		if err != nil {
+			return nil, err
+		}
+		// Increment and assign it for the current index.
+		lastPaywallAddrIdx = &database.LastPaywallAddressIndex{
+			Index: lp.Index + 1,
+		}
+	}
+
+	// Set user paywall address index.
+	u.PaywallAddressIndex = lastPaywallAddrIdx.Index
+
+	elp, err := database.EncodeLastPaywallAddressIndex(*lastPaywallAddrIdx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Save the new last paywall address index in the database.
+	err = b.db.Put(database.LastPaywallAddressIndexKey, elp)
+	if err != nil {
+		return nil, err
+	}
+
+	// Set a unique ID for the new user and encode it.
+	u.ID = uuid.New()
+	p, err = database.EncodeUser(u)
+	if err != nil {
+		return nil, err
+	}
+
+	return &u.ID, b.db.Put(u.ID.String(), p)
+}
+
+// UserGet returns a user record if found in the database.
+func (b *backend) UserGetByEmail(email string) (*database.User, error) {
+	log.Tracef("UserGet: %v", email)
+
+	// var user *database.User
+
+	b.RLock()
+	userID, ok := b.userEmail[strings.ToLower(email)]
+	b.RUnlock()
+	if !ok {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserNotFound,
+		}
+	}
+
+	return b.UserGetByIDStr(userID)
+}
+
+// UserGetByUsername returns a user record given its username, if found in the
+// database.
+func (b *backend) UserGetByUsername(username string) (*database.User, error) {
+	log.Tracef("UserGetByUsername: %v", username)
+
+	b.RLock()
+	userID, ok := b.userUsername[strings.ToLower(username)]
+	b.RUnlock()
+	if !ok {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserNotFound,
+		}
+	}
+
+	return b.UserGetByIDStr(userID)
+}
+
+// UserUpdate updates an existing user in the database
+func (b *backend) UserUpdate(u database.User) error {
+	log.Tracef("UserUpdate: %v", u.ID)
+
+	// make sure the user already exists
+	exist, err := b.db.Has(u.ID.String())
+	if err != nil {
+		return err
+	}
+	if !exist {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusUserNotFound,
+		}
+	}
+
+	p, err := database.EncodeUser(u)
+	if err != nil {
+		return err
+	}
+
+	return b.db.Put(u.ID.String(), p)
+}
+
+// AllUsers executes a a given callback function for each user record in the
+// database
+func (b *backend) AllUsers(callbackFn func(u *database.User)) error {
+	log.Tracef("AllUsers")
+
+	err := b.db.GetAll(func(key string, payload []byte) error {
+		if database.IsUserRecord(key) {
+			user, err := database.DecodeUser(payload)
+			if err != nil {
+				return err
+			} else if user != nil {
+				callbackFn(user)
+			}
+
+		}
+		return nil
+	})
+	if err != nil {
+		log.Debugf("AllUsers: %v", err)
+		return err
+	}
+
+	return nil
+}
+
+// UserGetByID returns a user record given its ID, if found in the database.
+func (b *backend) UserGetByID(id uuid.UUID) (*database.User, error) {
+	log.Tracef("UserGetById: %v", id)
+
+	p, err := b.db.Get(id.String())
+	if err != nil {
+		return nil, err
+	}
+	return database.DecodeUser(p)
+}
+
+// UserGetByIDStr returns a user record given its string ID, if found in the
+// database
+func (b *backend) UserGetByIDStr(userIDStr string) (*database.User, error) {
+	log.Tracef("")
+
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
 		return nil, www.UserError{
@@ -64,14 +236,14 @@ func (b *backend) getUserByIDStr(userIDStr string) (*database.User, error) {
 		}
 	}
 
-	user, err := b.db.UserGetById(userID)
-	if err != nil {
-		return nil, err
-	}
-	if user == nil {
+	user, err := b.UserGetByID(userID)
+	if err == database.ErrNotFound {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusUserNotFound,
 		}
+	}
+	if err != nil {
+		return nil, err
 	}
 
 	return user, nil
@@ -90,7 +262,7 @@ func filterUserPublicFields(user www.User) www.User {
 // omitted or blank depending on the requester's access level.
 func (b *backend) ProcessUserDetails(ud *www.UserDetails, isCurrentUser bool, isAdmin bool) (*www.UserDetailsReply, error) {
 	// Fetch the database user.
-	user, err := b.getUserByIDStr(ud.UserID)
+	user, err := b.UserGetByIDStr(ud.UserID)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +288,7 @@ func (b *backend) ProcessEditUser(eu *www.EditUser, user *database.User) (*www.E
 	}
 
 	// Update the user in the database.
-	err := b.db.UserUpdate(*user)
+	err := b.UserUpdate(*user)
 	if err != nil {
 		return nil, err
 	}

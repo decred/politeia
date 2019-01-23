@@ -241,6 +241,45 @@ to setup Politeia and access it through the UI.
 * Use the [politeia](https://github.com/decred/politeia/tree/master/politeiad/cmd/politeia) tool to interact directly with politeiad.
 * Use any other tools or clients that are listed above.
 
+### Users database setup
+
+Politeiawww has two databases implementations which can be used for storing the user data:
+
+ - [LevelDB](https://github.com/google/leveldb): is a fast key-value storage library written at Google that provides an ordered 
+ mapping from string keys to string values.
+ - [CockroachBD](https://github.com/cockroachdb/cockroach): is a cloud-native SQL database for building global, scalable cloud services 
+ that survive disasters.
+
+Its possible to use one or another with politeiawww by specifying the `database` configuration. 
+
+#### Using LevelDB
+LevelDB requires a minimal configuration. The only required config options is `datadir` which specifies where the directory
+for storing the user data.
+
+#### Using CockroachDB
+CockroachDB requires the config options `dbhost`, `dbcertdir`, `dbrootcert` to connect to the running db instance. In order to
+setup the Database you can run the same script as specified in the cache instructions:
+
+    cd $GOPATH/src/github.com/decred/politeia
+    ./cockroachsetup.sh ~/.cockroachdb
+
+**Note:** you can also use the same cache config options for the database so both of them will connect to the same database
+instance.
+
+#### Turn on Database Encryption
+Both databases support encryption of the data. If turned on the data will be encrypted before storing and decrypted before
+retrieving it. 
+The encryption can be turned with the boolean flag `--encryptdb` or in the configuration file, add:
+    
+    encryptdb = true
+
+**Note:** that if the database is encrypted and the configuration is not setted up accordingly, politeiawww won't work
+as expected. 
+
+#### Switching databases
+Is possible to switch databases by dumping the data from current one and importing in the other. More instructions on how
+to do it can be found in the [politeiawww_dbutil](ttps://github.com/decred/politeia/tree/master/politeiawww/cmd/politeiawww_dbutil) package.
+
 
 ### Further information
 

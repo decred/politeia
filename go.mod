@@ -45,7 +45,6 @@ require (
 	github.com/otiai10/mint v1.2.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0
 	github.com/robfig/cron v0.0.0-20180505203441-b41be1df6967
-	github.com/stretchr/testify v1.2.2 // indirect
 	github.com/subosito/norma v0.0.0-20140814002436-523a8b2df221
 	github.com/syndtr/goleveldb v0.0.0-20180815032940-ae2bd5eed72d
 	golang.org/x/crypto v0.0.0-20181203042331-505ab145d0a9

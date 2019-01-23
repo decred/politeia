@@ -996,7 +996,7 @@ func (b *backend) ProcessCommentsGet(token string, user *database.User) (*www.Ge
 		}
 		accessTime = user.ProposalCommentsAccessTimes[token]
 		user.ProposalCommentsAccessTimes[token] = time.Now().Unix()
-		err = b.db.UserUpdate(*user)
+		err = b.UserUpdate(*user)
 		if err != nil {
 			return nil, err
 		}

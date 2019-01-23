@@ -11,10 +11,12 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/decred/politeia/politeiawww/database"
+
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	www "github.com/decred/politeia/politeiawww/api/v1"
-	"github.com/decred/politeia/politeiawww/database/localdb"
+	"github.com/decred/politeia/politeiawww/database/leveldb"
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
 )
@@ -53,10 +55,26 @@ func createBackend(t *testing.T) *backend {
 		TestNet:       true,
 	}
 
-	// Setup database
-	db, err := localdb.New(cfg.DataDir)
+	// Create a database key
+	keyFilename := filepath.Join(dir, defaultDBKeyFilename)
+	err = database.NewEncryptionKey(keyFilename)
 	if err != nil {
-		t.Fatalf("setup database: %v", err)
+		t.Fatalf("new encription key: %v", err)
+	}
+	key, err := database.LoadEncryptionKey(keyFilename)
+	if err != nil {
+		t.Fatalf("load encryption key: %v", err)
+	}
+
+	// Setup database
+	err = leveldb.CreateLevelDB(cfg.DataDir)
+	if err != nil {
+		t.Fatalf("lreate level db: %v", err)
+	}
+
+	db, err := leveldb.NewLevelDB(cfg.DataDir, key, nil)
+	if err != nil {
+		t.Fatalf("new leveldb %v", err)
 	}
 
 	return &backend{
@@ -65,6 +83,8 @@ func createBackend(t *testing.T) *backend {
 		params:          &chaincfg.TestNet3Params,
 		test:            true,
 		userPubkeys:     make(map[string]string),
+		userEmail:       make(map[string]string),
+		userUsername:    make(map[string]string),
 		userPaywallPool: make(map[uuid.UUID]paywallPoolMember),
 		commentScores:   make(map[string]int64),
 	}

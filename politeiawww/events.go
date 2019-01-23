@@ -79,7 +79,7 @@ func (b *backend) _getProposalAuthor(proposal *v1.ProposalRecord) (*database.Use
 		return nil, fmt.Errorf("cannot parse UUID for proposal author: %v", err)
 	}
 
-	author, err := b.db.UserGetById(userID)
+	author, err := b.UserGetByID(userID)
 	if err != nil {
 		return nil, fmt.Errorf("cannot fetch author for proposal: %v", err)
 	}
@@ -106,7 +106,7 @@ func (b *backend) getProposalAndAuthor(token string) (*v1.ProposalRecord, *datab
 			proposal.UserId, err)
 	}
 
-	author, err := b.db.UserGetById(userID)
+	author, err := b.UserGetByID(userID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("user lookup failed for userID %v: %v",
 			userID, err)
@@ -399,7 +399,7 @@ func (b *backend) _setupCommentReplyEmailNotifications() {
 					continue
 				}
 
-				author, err := b.db.UserGetById(authorUUID)
+				author, err := b.UserGetByID(authorUUID)
 				if err != nil {
 					log.Errorf("cannot fetch author for comment: %v", err)
 					continue

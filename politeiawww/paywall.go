@@ -83,7 +83,7 @@ func (b *backend) addUserToPaywallPoolLock(user *database.User, paywallType stri
 func (b *backend) updateUserAsPaid(user *database.User, tx string) error {
 	user.NewUserPaywallTx = tx
 	user.NewUserPaywallPollExpiry = 0
-	return b.db.UserUpdate(*user)
+	return b.UserUpdate(*user)
 }
 
 func (b *backend) derivePaywallInfo(user *database.User) (string, uint64, int64, error) {
@@ -114,7 +114,7 @@ func (b *backend) checkForUserPayments(pool map[uuid.UUID]paywallPoolMember) (bo
 	var userIDsToRemove []uuid.UUID
 
 	for userID, poolMember := range pool {
-		user, err := b.db.UserGetById(userID)
+		user, err := b.UserGetByID(userID)
 		if err != nil {
 			if err == database.ErrShutdown {
 				// The database is shutdown, so stop the thread.
@@ -188,7 +188,7 @@ func (b *backend) checkForProposalPayments(pool map[uuid.UUID]paywallPoolMember)
 	// poolMembers from the pool while in the middle of polling poolMember
 	// addresses.
 	for userID, poolMember := range pool {
-		user, err := b.db.UserGetById(userID)
+		user, err := b.UserGetByID(userID)
 		if err != nil {
 			if err == database.ErrShutdown {
 				// The database is shutdown, so stop the thread.
@@ -307,7 +307,7 @@ func (b *backend) GenerateNewUserPaywall(user *database.User) error {
 	}
 	user.NewUserPaywallPollExpiry = time.Now().Add(paywallExpiryDuration).Unix()
 
-	err := b.db.UserUpdate(*user)
+	err := b.UserUpdate(*user)
 	if err != nil {
 		return err
 	}
@@ -383,7 +383,7 @@ func (b *backend) addUsersToPaywallPool() error {
 	defer b.Unlock()
 
 	// Create the in-memory pool of all users who need to pay the paywall.
-	err := b.db.AllUsers(func(user *database.User) {
+	err := b.AllUsers(func(user *database.User) {
 		// Proposal paywalls
 		if b.userHasValidProposalPaywall(user) {
 			b.addUserToPaywallPool(user, paywallTypeProposal)
@@ -466,7 +466,7 @@ func (b *backend) generateProposalPaywall(user *database.User) (*database.Propos
 	}
 	user.ProposalPaywalls = append(user.ProposalPaywalls, p)
 
-	err = b.db.UserUpdate(*user)
+	err = b.UserUpdate(*user)
 	if err != nil {
 		return nil, err
 	}
@@ -588,7 +588,7 @@ func (b *backend) verifyProposalPayment(user *database.User) (*util.TxDetails, e
 			user.UnspentProposalCredits = append(user.UnspentProposalCredits, c...)
 
 			// Update user database.
-			err = b.db.UserUpdate(*user)
+			err = b.UserUpdate(*user)
 			if err != nil {
 				return nil, fmt.Errorf("database UserUpdate: %v", err)
 			}
@@ -636,6 +636,6 @@ func (b *backend) SpendProposalCredit(u *database.User, token string) error {
 	u.SpentProposalCredits = append(u.SpentProposalCredits, creditToSpend)
 	u.UnspentProposalCredits = u.UnspentProposalCredits[1:]
 
-	err := b.db.UserUpdate(*u)
+	err := b.UserUpdate(*u)
 	return err
 }

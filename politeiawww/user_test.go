@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/decred/politeia/politeiawww/api/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/pmezard/go-difflib/difflib"
 )
 
@@ -40,7 +40,7 @@ func TestProcessUserDetails(t *testing.T) {
 	// Create a user and get the user object from the db. This
 	// is the UUID that we'll use to test the UserDetails route.
 	nu, _ := createNewUser(t, b)
-	dbUser, err := b.db.UserGet(nu.Email)
+	dbUser, err := b.UserGetByEmail(nu.Email)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -60,7 +60,7 @@ func TestProcessUserDetails(t *testing.T) {
 	var ud v1.UserDetails
 	ud.UserID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 	_, err = b.ProcessUserDetails(&ud, false, false)
-	if err.(v1.UserError).ErrorCode != v1.ErrorStatusUserNotFound {
+	if !IsUserNotFoundError(err) {
 		t.Errorf("ProcessUserDetails error got %v, want %v",
 			err, v1.ErrorStatusUserNotFound)
 	}
@@ -110,7 +110,7 @@ func TestProcessEditUser(t *testing.T) {
 	// Create a user and get the user object from the db. This
 	// is the user we'll be editing.
 	nu, _ := createNewUser(t, b)
-	user, err := b.db.UserGet(nu.Email)
+	user, err := b.UserGetByEmail(nu.Email)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -150,7 +150,7 @@ func TestProcessEditUser(t *testing.T) {
 
 		// Ensure database was updated with the correct notification
 		// settings.
-		u, err := b.db.UserGet(nu.Email)
+		u, err := b.UserGetByEmail(nu.Email)
 		if err != nil {
 			t.Fatalf("%v", err)
 		}

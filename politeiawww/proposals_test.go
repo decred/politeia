@@ -120,7 +120,7 @@ func TestValidateProposal(t *testing.T) {
 	defer b.db.Close()
 
 	nu, id := createNewUser(t, b)
-	user, err := b.db.UserGet(nu.Email)
+	user, err := b.UserGetByEmail(nu.Email)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}

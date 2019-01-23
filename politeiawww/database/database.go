@@ -5,17 +5,19 @@
 package database
 
 import (
-	"encoding/hex"
 	"errors"
 
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/google/uuid"
 )
 
+// RecordTypeT indetifies the struct type of a database record.
+type RecordTypeT int
+
 var (
-	// ErrUserNotFound indicates that a user name was not found in the
-	// database.
-	ErrUserNotFound = errors.New("user not found")
+	// ErrNotFound indicates that a provided key was not found
+	// in the database.
+	ErrNotFound = errors.New("key not found")
 
 	// ErrUserExists indicates that a user already exists in the database.
 	ErrUserExists = errors.New("user already exists")
@@ -25,41 +27,87 @@ var (
 
 	// ErrShutdown is emitted when the database is shutting down.
 	ErrShutdown = errors.New("database is shutting down")
+
+	// ErrWrongVersion is emitted when the version in the database
+	// does not match version of the interface implementation.
+	ErrWrongVersion = errors.New("wrong database version")
+
+	// ErrWrongRecordVersion is emitted when the record version in the
+	// database does not match the version of the interface implementation.
+	ErrWrongRecordVersion = errors.New("wrong record version")
+
+	// ErrWrongSnapshotVersion is emmited when the provided snapshot version
+	// doesn not match the version of the interface implementation.
+	ErrWrongSnapshotVersion = errors.New("wrong snapshot version")
+
+	// ErrWrongRecordType is emitted when the record type in the database
+	// does not match the expected type.
+	ErrWrongRecordType = errors.New("wrong record type")
+
+	// ErrWrongEncryptionKey is emitted when the database record cannot
+	// be decrypted with the provided key.
+	ErrWrongEncryptionKey = errors.New("Invalid database encryption key")
 )
+
+const (
+	// DatabaseVersion is the current version of the database.
+	DatabaseVersion uint32 = 1
+
+	// DatabaseVersionKey is the key used to map the database version.
+	DatabaseVersionKey = "userversion"
+
+	// LastPaywallAddressIndexKey is the key used to map the last paywall index
+	// for a user.
+	LastPaywallAddressIndexKey = "lastpaywallindex"
+
+	RecordTypeInvalid            RecordTypeT = 0 // Invalid record type
+	RecordTypeUser               RecordTypeT = 1 // User record type
+	RecordTypeVersion            RecordTypeT = 2 // Version record Type
+	RecordTypeLastPaywallAddrIdx RecordTypeT = 3 // LastPaywallAddressIndex record type
+)
+
+// Snapshot wraps the database snapshot, the time when it was created
+// and the version of the database.
+type Snapshot struct {
+	Snapshot map[string][]byte // The database snapshot
+	Time     int64             // Time when the snapshot was created
+	Version  uint32            // Database version when the snapshot was created
+}
+
+// EncryptionKey wraps a key used for encrypting/decrypting the database
+// data and the time when it was created.
+type EncryptionKey struct {
+	Key  [32]byte // Key used for encryption
+	Time int64    // Time key was created
+}
 
 // Identity wraps an ed25519 public key and timestamps to indicate if it is
 // active.  If deactivated != 0 then the key is no longer valid.
 type Identity struct {
 	Key         [identity.PublicKeySize]byte // ed25519 public key
-	Activated   int64                        // Time key as activated for use
+	Activated   int64                        // Time key was activated for use
 	Deactivated int64                        // Time key was deactivated
 }
 
-// IsIdentityActive returns true if the identity is active, false otherwise
-func IsIdentityActive(id Identity) bool {
-	return id.Activated != 0 && id.Deactivated == 0
+// LastPaywallAddressIndex wraps the next paywall index to be used for
+// the next user record inserted.
+type LastPaywallAddressIndex struct {
+	RecordType    RecordTypeT `json:"recordtype"`    // Record type
+	RecordVersion uint32      `json:"recordversion"` // Database interface version
+
+	Index uint64 `json:"index"`
 }
 
-// ActiveIdentity returns a the current active key.  If there is no active
-// valid key the call returns all 0s and false.
-func ActiveIdentity(i []Identity) ([identity.PublicKeySize]byte, bool) {
-	for _, v := range i {
-		if IsIdentityActive(v) {
-			return v.Key, true
-		}
-	}
+// Version contains the database version.
+type Version struct {
+	RecordType    RecordTypeT `json:"recordtype"`    // Record type
+	RecordVersion uint32      `json:"recordversion"` // Database interface version
 
-	return [identity.PublicKeySize]byte{}, false
+	Version uint32 `json:"version"` // Database version
+	Time    int64  `json:"time"`    // Time of record creation
 }
 
-// ActiveIdentityString returns a string representation of the current active
-// key.  If there is no active valid key the call returns all 0s and false.
-func ActiveIdentityString(i []Identity) (string, bool) {
-	key, ok := ActiveIdentity(i)
-	return hex.EncodeToString(key[:]), ok
-}
-
-// A proposal paywall allows the user to purchase proposal credits.  Proposal
+// ProposalPaywall allows the user to purchase proposal credits.  Proposal
 // paywalls are only valid for one tx.  The number of proposal credits created
 // is determined by dividing the tx amount by the credit price.  Proposal
 // paywalls expire after a set duration. politeiawww polls the paywall address
@@ -75,7 +123,7 @@ type ProposalPaywall struct {
 	NumCredits  uint64 // Number of proposal credits created by payment tx
 }
 
-// A proposal credit allows the user to submit a new proposal.  Credits are
+// ProposalCredit allows the user to submit a new proposal.  Credits are
 // created when a user sends a payment to a proposal paywall.  A credit is
 // automatically spent when a user submits a new proposal.  When a credit is
 // spent, it is updated with the proposal's censorship token and moved to the
@@ -90,6 +138,9 @@ type ProposalCredit struct {
 
 // User record.
 type User struct {
+	RecordType    RecordTypeT // Record type
+	RecordVersion uint32      // Database interface version
+
 	ID                              uuid.UUID // Unique user uuid
 	Email                           string    // Email address + lookup key.
 	Username                        string    // Unique username
@@ -142,16 +193,16 @@ type User struct {
 	SpentProposalCredits []ProposalCredit
 }
 
-// Database interface that is required by the web server.
+// Database interface
 type Database interface {
-	// User functions
-	UserGet(string) (*User, error)           // Return user record, key is email
-	UserGetByUsername(string) (*User, error) // Return user record given the username
-	UserGetById(uuid.UUID) (*User, error)    // Return user record given its id
-	UserNew(User) error                      // Add new user
-	UserUpdate(User) error                   // Update existing user
-	AllUsers(callbackFn func(u *User)) error // Iterate all users
+	Put(string, []byte) error                           // Set a record by key
+	Get(string) ([]byte, error)                         // Get a database record by key
+	Remove(string) error                                // Remove a record by key
+	Has(string) (bool, error)                           // Returns true if the database has a key
+	GetAll(callbackFn func(string, []byte) error) error // Iterate all database values
+	GetSnapshot() (*Snapshot, error)                    // Get snapshot of the db at a particular point in time
+	BuildFromSnapshot(Snapshot) error                   // Build the database from the provided snapshot
 
-	// Close performs cleanup of the backend.
-	Close() error
+	Open() error  // Open a new database connection
+	Close() error // Close the database connection
 }
