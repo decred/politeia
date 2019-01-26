@@ -2,6 +2,19 @@ package commands
 
 import "github.com/decred/politeia/politeiawww/api/v1"
 
+// Help message displayed for the command 'politeiawwwcli help rescanuserpayments'
+var RescanUserPaymentsCmdHelpMsg = `rescanuserpayments 
+
+Rescan user payments to check for missed payments.
+
+Arguments:
+1. userid        (string, required)   User id 
+
+Result:
+{
+  "newcredits"   ([]uint64)  Credits that were created by the rescan
+}`
+
 type RescanUserPaymentsCmd struct {
 	Args struct {
 		UserID string `positional-arg-name:"userid" description:"User ID"`

@@ -8,6 +8,26 @@ import (
 	"github.com/decred/politeia/politeiawww/api/v1"
 )
 
+// Help message displayed for the command 'politeiawwwcli help startvote'
+var StartVoteCmdHelpMsg = `startvote "token" "duration" "quorumpercentage" "passpercentage"
+
+Start voting period for a proposal. Requires admin privileges.
+
+Arguments:
+1. token              (string, required)  Proposal censorship token
+1. duration           (uint32, optional)  Duration of vote in blocks
+2. quorumpercentage   (uint32, optional)  Percent of votes required for quorum
+3. passpercentage     (uint32, optional)  Percent of votes required to pass
+
+Result:
+
+{
+  "startblockheight"     (string)    Block height at start of vote
+  "startblockhash"       (string)    Hash of first block of vote interval
+  "endheight"            (string)    Height of vote end
+  "eligibletickets"      ([]string)  Valid voting tickets   
+}`
+
 type StartVoteCmd struct {
 	Args struct {
 		Token string `positional-arg-name:"token" description:"Proposal censorship token"`

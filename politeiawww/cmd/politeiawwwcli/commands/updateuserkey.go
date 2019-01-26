@@ -7,6 +7,20 @@ import (
 	"github.com/decred/politeia/politeiawww/api/v1"
 )
 
+// Help message displayed for the command 'politeiawwwcli help updateuserkey'
+var UpdateUserKeyCmdHelpMsg = `updateuserkey
+
+Generate a new public key for the currently logged in user. 
+
+Arguments:
+None
+
+Result:
+{
+  "publickey"   (string)  User's public key
+}
+{}`
+
 type UpdateUserKeyCmd struct {
 	NoSave bool `long:"nosave" description:"Do not save the user identity to disk"`
 }

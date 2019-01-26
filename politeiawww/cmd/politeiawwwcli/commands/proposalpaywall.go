@@ -2,6 +2,21 @@ package commands
 
 import "github.com/decred/politeia/politeiawww/api/v1"
 
+// Help message displayed for the command 'politeiawwwcli help proposalpaywall'
+var ProposalPaywallCmdHelpMsg = `proposalpaywall
+
+Fetch proposal paywall details.
+
+Arguments:
+None
+
+Response:
+{
+  "creditprice"          (uint64)  Price per proposal credit in atoms
+  "paywalladdress"       (string)  Proposal paywall address
+  "paywalltxnotbefore"   (string)  Minimum timestamp for paywall tx
+}`
+
 type ProposalPaywallCmd struct{}
 
 func (cmd *ProposalPaywallCmd) Execute(args []string) error {
