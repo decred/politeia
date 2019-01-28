@@ -26,6 +26,10 @@ type userLockedResetPasswordEmailTemplateData struct {
 	Email string
 }
 
+type userPasswordChangedTemplateData struct {
+	Email string
+}
+
 type newProposalSubmittedTemplateData struct {
 	Link     string
 	Name     string
@@ -89,8 +93,15 @@ Click the link below to continue resetting your password:
 {{.Link}}
 
 You are receiving this email because a password reset was initiated for {{.Email}}
- on Politeia. If you did not perform this action, please contact Politeia
-administrators.
+on Politeia. If you did not perform this action, it is possible that your account has been
+compromised. Please contact Politeia administrators through Slack on the #politeia channel.
+`
+
+const templateUserPasswordChangedRaw = `
+You are receiving this email to notify you that your password has changed for 
+{{.Email}} on Politeia. If you did not perform this action, it is possible that 
+your account has been compromised. Please contact Politeia administrators 
+through Slack on the #politeia channel for further instructions.
 `
 
 const templateUpdateUserKeyEmailRaw = `
