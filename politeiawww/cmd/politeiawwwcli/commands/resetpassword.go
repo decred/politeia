@@ -6,6 +6,20 @@ import (
 	"github.com/decred/politeia/politeiawww/api/v1"
 )
 
+// Help message displayed for the command 'politeiawwwcli help resetpassword'
+var ResetPasswordCmdHelpMsg = `resetpassword "email" "password"
+
+Reset password for currently logged in user. 
+
+Arguments:
+1. email      (string, required)   Email address of user
+2. password   (string, required)   New password
+
+Result:
+{
+  "verificationtoken"    (string)  Verification token
+}`
+
 type ResetPasswordCmd struct {
 	Args struct {
 		Email       string `positional-arg-name:"email"`

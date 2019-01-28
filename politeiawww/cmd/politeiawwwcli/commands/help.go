@@ -61,6 +61,24 @@ func (cmd *HelpCmd) Execute(args []string) error {
 		fmt.Printf("%s\n", EditUserCmdHelpMsg)
 	case "subscribe":
 		fmt.Printf("%s\n", SubscribeCmdHelpMsg)
+	case "me":
+		fmt.Printf("%s\n", MeCmdHelpMsg)
+	case "policy":
+		fmt.Printf("%s\n", PolicyCmdHelpMsg)
+	case "resetpassword":
+		fmt.Printf("%s\n", ResetPasswordCmdHelpMsg)
+	case "updateuserkey":
+		fmt.Printf("%s\n", UpdateUserKeyCmdHelpMsg)
+	case "getpaywallpayment":
+		fmt.Printf("%s\n", GetPaywallPaymentCmdHelpMsg)
+	case "proposalpaywall":
+		fmt.Printf("%s\n", ProposalPaywallCmdHelpMsg)
+	case "rescanuserpayments":
+		fmt.Printf("%s\n", RescanUserPaymentsCmdHelpMsg)
+	case "verifyuserpayment":
+		fmt.Printf("%s\n", VerifyUserPaymentCmdHelpMsg)
+	case "startvote":
+		fmt.Printf("%s\n", StartVoteCmdHelpMsg)
 	default:
 		fmt.Printf("invalid command\n")
 	}
