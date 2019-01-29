@@ -427,7 +427,7 @@ func (c *cockroachdb) RegisterPlugin(p cache.Plugin) error {
 	c.Lock()
 	defer c.Unlock()
 
-	if c.shutdown == true {
+	if c.shutdown {
 		return cache.ErrShutdown
 	}
 
@@ -438,7 +438,7 @@ func (c *cockroachdb) RegisterPlugin(p cache.Plugin) error {
 
 	switch p.ID {
 	case decredplugin.ID:
-		c.plugins[p.ID] = newDecredPlugin(c.recordsdb, p)
+		c.plugins[decredplugin.ID] = newDecredPlugin(c.recordsdb, p)
 	default:
 		return cache.ErrInvalidPlugin
 	}
@@ -447,8 +447,6 @@ func (c *cockroachdb) RegisterPlugin(p cache.Plugin) error {
 }
 
 func (c *cockroachdb) getPlugin(id string) (cache.PluginDriver, error) {
-	log.Tracef("getPlugin: %v", id)
-
 	c.Lock()
 	defer c.Unlock()
 	plugin, ok := c.plugins[id]
@@ -465,7 +463,7 @@ func (c *cockroachdb) PluginSetup(id string) error {
 	shutdown := c.shutdown
 	c.RUnlock()
 
-	if shutdown == true {
+	if shutdown {
 		return cache.ErrShutdown
 	}
 
@@ -484,7 +482,7 @@ func (c *cockroachdb) PluginBuild(id, payload string) error {
 	shutdown := c.shutdown
 	c.RUnlock()
 
-	if shutdown == true {
+	if shutdown {
 		return cache.ErrShutdown
 	}
 
@@ -504,7 +502,7 @@ func (c *cockroachdb) PluginExec(pc cache.PluginCommand) (*cache.PluginCommandRe
 	shutdown := c.shutdown
 	c.RUnlock()
 
-	if shutdown == true {
+	if shutdown {
 		return nil, cache.ErrShutdown
 	}
 

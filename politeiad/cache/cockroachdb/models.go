@@ -63,7 +63,6 @@ func (Record) TableName() string {
 	return tableRecords
 }
 
-// TODO: index Comments by Token
 type Comment struct {
 	Key       string `gorm:"primary_key"`       // Primary key (token+commentID)
 	Token     string `gorm:"not null;size:64"`  // Censorship token
@@ -81,7 +80,6 @@ func (Comment) TableName() string {
 	return tableComments
 }
 
-// TODO: index LikeComments by PublicKey and by token
 type LikeComment struct {
 	Key       uint   `gorm:"primary_key"`       // Primary key
 	Token     string `gorm:"not null;size:64"`  // Censorship token
@@ -95,4 +93,64 @@ type LikeComment struct {
 
 func (LikeComment) TableName() string {
 	return tableCommentLikes
+}
+
+type AuthorizeVote struct {
+	Key       string `gorm:"primary_key"`       // Primary key (token+version)
+	Token     string `gorm:"not null;size:64"`  // Censorship token
+	Version   string `gorm:"not null"`          // Version of files
+	Action    string `gorm:"not null"`          // Authorize or revoke
+	Signature string `gorm:"not null;size:128"` // Signature of token+version+action
+	PublicKey string `gorm:"not null;size:64"`  // Pubkey used for signature
+	Receipt   string `gorm:"not null;size:128"` // Server signature of client signature
+	Timestamp int64  `gorm:"not null"`          // Received UNIX timestamp
+}
+
+func (AuthorizeVote) TableName() string {
+	return tableAuthorizeVotes
+}
+
+type VoteOption struct {
+	Key         uint   `gorm:"primary_key"`      // Primary key
+	Token       string `gorm:"not null;size:64"` // StartVote foreign key
+	ID          string `gorm:"not null"`         // Single unique word identifying vote (e.g. yes)
+	Description string `gorm:"not null"`         // Longer description of the vote
+	Bits        uint64 `gorm:"not null"`         // Bits used for this option
+}
+
+func (VoteOption) TableName() string {
+	return tableVoteOptions
+}
+
+type StartVote struct {
+	Token            string       `gorm:"primary_key;size:64"` // Censorship token
+	Version          string       `gorm:"not null"`            // Version of files
+	Mask             uint64       `gorm:"not null"`            // Valid votebits
+	Duration         uint32       `gorm:"not null"`            // Duration in blocks
+	QuorumPercentage uint32       `gorm:"not null"`            // Percent of eligible votes required for quorum
+	PassPercentage   uint32       `gorm:"not null"`            // Percent of total votes required to pass
+	Options          []VoteOption `gorm:"foreignkey:Token"`    // Vote option
+	PublicKey        string       `gorm:"not null;size:64"`    // Key used for signature
+	Signature        string       `gorm:"not null;size:128"`   // Signature of Votehash
+	StartBlockHeight string       `gorm:"not null"`            // Block height
+	StartBlockHash   string       `gorm:"not null"`            // Block hash
+	EndHeight        string       `gorm:"not null"`            // Height of vote end
+	EligibleTickets  string       `gorm:"not null"`            // Valid voting tickets
+}
+
+func (StartVote) TableName() string {
+	return tableStartVotes
+}
+
+type CastVote struct {
+	Key       uint   `gorm:"primary_key"`       // Primary key
+	Token     string `gorm:"not null;size:64"`  // Censorship token
+	Ticket    string `gorm:"not null"`          // Ticket ID
+	VoteBit   string `gorm:"not null"`          // Vote bit that was selected, this is encode in hex
+	Signature string `gorm:"not null;size:130"` // Signature of Token+Ticket+VoteBit
+	Receipt   string `gorm:"not null;size:128"` // Server signature of client signature
+}
+
+func (CastVote) TableName() string {
+	return tableCastVotes
 }

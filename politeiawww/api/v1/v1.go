@@ -219,6 +219,7 @@ const (
 	UserManageReactivate                      UserManageActionT = 7
 
 	// Authorize vote actions
+	// XXX these should be in decredplugin
 	AuthVoteActionAuthorize = "authorize" // Authorize a proposal vote
 	AuthVoteActionRevoke    = "revoke"    // Revoke a proposal vote authorization
 

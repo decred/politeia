@@ -281,15 +281,15 @@ func TestFilterProposals(t *testing.T) {
 	// Test proposal page size. Only a single page of proposals
 	// should be returned.
 	t.Run("proposal page size", func(t *testing.T) {
-		pq := proposalsRequest{
+		pq := proposalsFilter{
 			StateMap: map[www.PropStateT]bool{
 				www.PropStateVetted: true,
 			},
 		}
 
 		// We use simplified userIDs, timestamps, and censorship
-		// record tokens. This is ok since filterProposals() does
-		// not check the validity of the data.
+		// record tokens. This is ok since filterProps() does not
+		// check the validity of the data.
 		c := www.ProposalListPageSize + 5
 		propsPageTest := make([]www.ProposalRecord, 0, c)
 		for i := 1; i <= c; i++ {
@@ -303,17 +303,15 @@ func TestFilterProposals(t *testing.T) {
 			})
 		}
 
-		out, err := filterProposals(pq, propsPageTest)
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		} else if len(out) != www.ProposalListPageSize {
+		out := filterProps(pq, propsPageTest)
+		if len(out) != www.ProposalListPageSize {
 			t.Errorf("got %v, want %v", len(out), www.ProposalListPageSize)
 		}
 	})
 
 	// Create data for test table. We use simplified userIDs,
 	// timestamps, and censorship record tokens. This is ok since
-	// filterProposals() does not check the validity of the data.
+	// filterProps() does not check the validity of the data.
 	props := make(map[int]*www.ProposalRecord, 5)
 	for i := 1; i <= 5; i++ {
 		props[i] = &www.ProposalRecord{
@@ -334,12 +332,12 @@ func TestFilterProposals(t *testing.T) {
 	// Setup tests
 	var tests = []struct {
 		name  string
-		req   proposalsRequest
+		req   proposalsFilter
 		input []www.ProposalRecord
 		want  []www.ProposalRecord
 	}{
 		{"filter by State",
-			proposalsRequest{
+			proposalsFilter{
 				StateMap: map[www.PropStateT]bool{
 					www.PropStateUnvetted: true,
 				},
@@ -353,7 +351,7 @@ func TestFilterProposals(t *testing.T) {
 		},
 
 		{"filter by UserID",
-			proposalsRequest{
+			proposalsFilter{
 				UserID: "1",
 				StateMap: map[www.PropStateT]bool{
 					www.PropStateVetted: true,
@@ -368,7 +366,7 @@ func TestFilterProposals(t *testing.T) {
 		},
 
 		{"filter by Before",
-			proposalsRequest{
+			proposalsFilter{
 				Before: props[3].CensorshipRecord.Token,
 				StateMap: map[www.PropStateT]bool{
 					www.PropStateUnvetted: true,
@@ -384,7 +382,7 @@ func TestFilterProposals(t *testing.T) {
 		},
 
 		{"filter by After",
-			proposalsRequest{
+			proposalsFilter{
 				After: props[3].CensorshipRecord.Token,
 				StateMap: map[www.PropStateT]bool{
 					www.PropStateUnvetted: true,
@@ -400,7 +398,7 @@ func TestFilterProposals(t *testing.T) {
 		},
 
 		{"unsorted proposals",
-			proposalsRequest{
+			proposalsFilter{
 				StateMap: map[www.PropStateT]bool{
 					www.PropStateUnvetted: true,
 					www.PropStateVetted:   true,
@@ -418,10 +416,7 @@ func TestFilterProposals(t *testing.T) {
 	// Run tests
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			out, err := filterProposals(test.req, test.input)
-			if err != nil {
-				t.Errorf("unexpected error: %v", err)
-			}
+			out := filterProps(test.req, test.input)
 
 			// Pull out the tokens to make it easier to view the
 			// difference between want and got

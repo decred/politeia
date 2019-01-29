@@ -1,3 +1,7 @@
+// Copyright (c) 2017-2019 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package cache
 
 // cachestub implements the cache interface.
@@ -30,7 +34,7 @@ func (c *cachestub) UpdateRecordStatus(token, version string, status RecordStatu
 
 // Inventory is a stub to satisfy the cache interface.
 func (c *cachestub) Inventory() ([]Record, error) {
-	return make([]Record, 0, 0), nil
+	return make([]Record, 0), nil
 }
 
 // InventoryStats is a stub to satisfy the cache interface.

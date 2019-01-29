@@ -5,6 +5,8 @@
 package cockroachdb
 
 import (
+	"strings"
+
 	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiad/cache"
 )
@@ -135,5 +137,85 @@ func convertLikeCommentToDecred(lc LikeComment) decredplugin.LikeComment {
 		PublicKey: lc.PublicKey,
 		Receipt:   lc.Receipt,
 		Timestamp: lc.Timestamp,
+	}
+}
+
+func convertAuthorizeVoteToDecred(av AuthorizeVote) decredplugin.AuthorizeVote {
+	return decredplugin.AuthorizeVote{
+		Action:    av.Action,
+		Token:     av.Token,
+		Signature: av.Signature,
+		PublicKey: av.PublicKey,
+		Receipt:   av.Receipt,
+		Timestamp: av.Timestamp,
+	}
+}
+
+func convertStartVoteFromDecred(sv decredplugin.StartVote, svr decredplugin.StartVoteReply) StartVote {
+	opts := make([]VoteOption, 0, len(sv.Vote.Options))
+	for _, v := range sv.Vote.Options {
+		opts = append(opts, VoteOption{
+			Token:       sv.Vote.Token,
+			ID:          v.Id,
+			Description: v.Description,
+			Bits:        v.Bits,
+		})
+	}
+	return StartVote{
+		Token:            sv.Vote.Token,
+		Mask:             sv.Vote.Mask,
+		Duration:         sv.Vote.Duration,
+		QuorumPercentage: sv.Vote.QuorumPercentage,
+		PassPercentage:   sv.Vote.PassPercentage,
+		Options:          opts,
+		PublicKey:        sv.PublicKey,
+		Signature:        sv.Signature,
+		StartBlockHeight: svr.StartBlockHeight,
+		StartBlockHash:   svr.StartBlockHash,
+		EndHeight:        svr.EndHeight,
+		EligibleTickets:  strings.Join(svr.EligibleTickets, ","),
+	}
+}
+
+func convertStartVoteToDecred(sv StartVote) (decredplugin.StartVote, decredplugin.StartVoteReply) {
+	opts := make([]decredplugin.VoteOption, 0, len(sv.Options))
+	for _, v := range sv.Options {
+		opts = append(opts, decredplugin.VoteOption{
+			Id:          v.ID,
+			Description: v.Description,
+			Bits:        v.Bits,
+		})
+	}
+
+	dsv := decredplugin.StartVote{
+		PublicKey: sv.PublicKey,
+		Signature: sv.Signature,
+		Vote: decredplugin.Vote{
+			Token:            sv.Token,
+			Mask:             sv.Mask,
+			Duration:         sv.Duration,
+			QuorumPercentage: sv.QuorumPercentage,
+			PassPercentage:   sv.PassPercentage,
+			Options:          opts,
+		},
+	}
+
+	tix := strings.Split(sv.EligibleTickets, ",")
+	dsvr := decredplugin.StartVoteReply{
+		StartBlockHeight: sv.StartBlockHeight,
+		StartBlockHash:   sv.StartBlockHash,
+		EndHeight:        sv.EndHeight,
+		EligibleTickets:  tix,
+	}
+
+	return dsv, dsvr
+}
+
+func convertCastVoteToDecred(cv CastVote) decredplugin.CastVote {
+	return decredplugin.CastVote{
+		Token:     cv.Token,
+		Ticket:    cv.Ticket,
+		VoteBit:   cv.VoteBit,
+		Signature: cv.Signature,
 	}
 }

@@ -64,7 +64,6 @@ func createBackend(t *testing.T) *backend {
 		cfg:             cfg,
 		params:          &chaincfg.TestNet3Params,
 		test:            true,
-		inventory:       make(map[string]*inventoryRecord),
 		userPubkeys:     make(map[string]string),
 		userPaywallPool: make(map[uuid.UUID]paywallPoolMember),
 		commentScores:   make(map[string]int64),

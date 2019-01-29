@@ -1,3 +1,7 @@
+// Copyright (c) 2017-2019 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package main
 
 import (
@@ -14,7 +18,7 @@ func (b *backend) decredGetComment(token, commentID string) (*decredplugin.Comme
 		CommentID: commentID,
 	}
 
-	gcb, err := decredplugin.EncodeGetComment(gc)
+	payload, err := decredplugin.EncodeGetComment(gc)
 	if err != nil {
 		return nil, err
 	}
@@ -22,10 +26,10 @@ func (b *backend) decredGetComment(token, commentID string) (*decredplugin.Comme
 	pc := cache.PluginCommand{
 		ID:             decredplugin.ID,
 		Command:        decredplugin.CmdGetComment,
-		CommandPayload: string(gcb),
+		CommandPayload: string(payload),
 	}
 
-	// Fetch comment from the cache
+	// Get comment from the cache
 	reply, err := b.cache.PluginExec(pc)
 	if err != nil {
 		return nil, err
@@ -45,7 +49,7 @@ func (b *backend) decredGetComments(token string) ([]decredplugin.Comment, error
 		Token: token,
 	}
 
-	gcb, err := decredplugin.EncodeGetComments(gc)
+	payload, err := decredplugin.EncodeGetComments(gc)
 	if err != nil {
 		return nil, err
 	}
@@ -53,10 +57,10 @@ func (b *backend) decredGetComments(token string) ([]decredplugin.Comment, error
 	pc := cache.PluginCommand{
 		ID:             decredplugin.ID,
 		Command:        decredplugin.CmdGetComments,
-		CommandPayload: string(gcb),
+		CommandPayload: string(payload),
 	}
 
-	// Fetch comments from the cache
+	// Get comments from the cache
 	reply, err := b.cache.PluginExec(pc)
 	if err != nil {
 		return nil, fmt.Errorf("PluginExec: %v", err)
@@ -88,7 +92,7 @@ func (b *backend) decredLikeComments(token, commentID string) ([]decredplugin.Li
 		CommandPayload: string(payload),
 	}
 
-	// Fetch comment likes from cache
+	// Get comment likes from cache
 	reply, err := b.cache.PluginExec(pc)
 	if err != nil {
 		return nil, err
@@ -119,7 +123,7 @@ func (b *backend) decredPropLikeComments(token string) ([]decredplugin.LikeComme
 		CommandPayload: string(payload),
 	}
 
-	// Fetch proposal comment likes from cache
+	// Get proposal comment likes from cache
 	reply, err := b.cache.PluginExec(pc)
 	if err != nil {
 		return nil, err
@@ -134,10 +138,72 @@ func (b *backend) decredPropLikeComments(token string) ([]decredplugin.LikeComme
 	return pclr.CommentsLikes, nil
 }
 
+func (b *backend) decredVoteDetails(token string) (*decredplugin.VoteDetailsReply, error) {
+	// Setup plugin command
+	vd := decredplugin.VoteDetails{
+		Token: token,
+	}
+
+	payload, err := decredplugin.EncodeVoteDetails(vd)
+	if err != nil {
+		return nil, err
+	}
+
+	pc := cache.PluginCommand{
+		ID:             decredplugin.ID,
+		Command:        decredplugin.CmdVoteDetails,
+		CommandPayload: string(payload),
+	}
+
+	// Get vote details from cache
+	reply, err := b.cache.PluginExec(pc)
+	if err != nil {
+		return nil, err
+	}
+
+	vdr, err := decredplugin.DecodeVoteDetailsReply([]byte(reply.Payload))
+	if err != nil {
+		return nil, err
+	}
+
+	return vdr, nil
+}
+
+func (b *backend) decredProposalVotes(token string) (*decredplugin.VoteResultsReply, error) {
+	// Setup plugin command
+	vr := decredplugin.VoteResults{
+		Token: token,
+	}
+
+	payload, err := decredplugin.EncodeVoteResults(vr)
+	if err != nil {
+		return nil, err
+	}
+
+	pc := cache.PluginCommand{
+		ID:             decredplugin.ID,
+		Command:        decredplugin.CmdProposalVotes,
+		CommandPayload: string(payload),
+	}
+
+	// Get proposal votes from cache
+	reply, err := b.cache.PluginExec(pc)
+	if err != nil {
+		return nil, err
+	}
+
+	vrr, err := decredplugin.DecodeVoteResultsReply([]byte(reply.Payload))
+	if err != nil {
+		return nil, err
+	}
+
+	return vrr, nil
+}
+
 func (b *backend) decredInventory() (*decredplugin.InventoryReply, error) {
 	// Setup plugin command
 	i := decredplugin.Inventory{}
-	ib, err := decredplugin.EncodeInventory(i)
+	payload, err := decredplugin.EncodeInventory(i)
 	if err != nil {
 		return nil, err
 	}
@@ -145,10 +211,10 @@ func (b *backend) decredInventory() (*decredplugin.InventoryReply, error) {
 	pc := cache.PluginCommand{
 		ID:             decredplugin.ID,
 		Command:        decredplugin.CmdInventory,
-		CommandPayload: string(ib),
+		CommandPayload: string(payload),
 	}
 
-	// Fetch cache inventory
+	// Get cache inventory
 	reply, err := b.cache.PluginExec(pc)
 	if err != nil {
 		return nil, err

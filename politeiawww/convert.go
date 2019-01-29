@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"io"
-	"strconv"
 	"strings"
 
 	"github.com/decred/politeia/decredplugin"
@@ -86,13 +85,6 @@ func convertAuthorizeVoteFromWWW(av www.AuthorizeVote) decredplugin.AuthorizeVot
 	}
 }
 
-func convertAuthorizeVoteReplyFromDecredplugin(avr decredplugin.AuthorizeVoteReply) www.AuthorizeVoteReply {
-	return www.AuthorizeVoteReply{
-		Action:  avr.Action,
-		Receipt: avr.Receipt,
-	}
-}
-
 func convertStartVoteFromWWW(sv www.StartVote) decredplugin.StartVote {
 	return decredplugin.StartVote{
 		PublicKey: sv.PublicKey,
@@ -106,15 +98,6 @@ func convertStartVoteFromDecredplugin(sv decredplugin.StartVote) www.StartVote {
 		PublicKey: sv.PublicKey,
 		Vote:      convertVoteFromDecredplugin(sv.Vote),
 		Signature: sv.Signature,
-	}
-}
-
-func convertStartVoteReplyFromDecredplugin(svr decredplugin.StartVoteReply) www.StartVoteReply {
-	return www.StartVoteReply{
-		StartBlockHeight: svr.StartBlockHeight,
-		StartBlockHash:   svr.StartBlockHash,
-		EndHeight:        svr.EndHeight,
-		EligibleTickets:  svr.EligibleTickets,
 	}
 }
 
@@ -142,31 +125,6 @@ func convertVoteFromDecredplugin(v decredplugin.Vote) www.Vote {
 		QuorumPercentage: v.QuorumPercentage,
 		PassPercentage:   v.PassPercentage,
 		Options:          convertVoteOptionsFromDecredplugin(v.Options),
-	}
-}
-
-func convertCastVoteFromDecredplugin(cv decredplugin.CastVote) www.CastVote {
-	return www.CastVote{
-		Token:     cv.Token,
-		Ticket:    cv.Ticket,
-		VoteBit:   cv.VoteBit,
-		Signature: cv.Signature,
-	}
-}
-
-func convertCastVotesFromDecredplugin(cv []decredplugin.CastVote) []www.CastVote {
-	cvr := make([]www.CastVote, 0, len(cv))
-	for _, v := range cv {
-		cvr = append(cvr, convertCastVoteFromDecredplugin(v))
-	}
-	return cvr
-}
-
-func convertVoteResultsReplyFromDecredplugin(vrr decredplugin.VoteResultsReply, ir inventoryRecord) www.VoteResultsReply {
-	return www.VoteResultsReply{
-		StartVote:      convertStartVoteFromDecredplugin(vrr.StartVote),
-		CastVotes:      convertCastVotesFromDecredplugin(vrr.CastVotes),
-		StartVoteReply: ir.voting,
 	}
 }
 
@@ -252,32 +210,6 @@ func convertErrorStatusFromPD(s int) www.ErrorStatusT {
 		//case pd.ErrorStatusInvalidChallenge
 	}
 	return www.ErrorStatusInvalid
-}
-
-func convertVoteResultsFromDecredplugin(vrr decredplugin.VoteResultsReply) []www.VoteOptionResult {
-	// counter of votes received
-	var vr uint64
-	var ors []www.VoteOptionResult
-	for _, o := range vrr.StartVote.Vote.Options {
-		vr = 0
-		for _, v := range vrr.CastVotes {
-			vb, err := strconv.ParseUint(v.VoteBit, 10, 64)
-			if err != nil {
-				log.Infof("it shouldn't happen")
-				continue
-			}
-			if vb == o.Bits {
-				vr++
-			}
-		}
-
-		// append to vote options result slice
-		ors = append(ors, www.VoteOptionResult{
-			VotesReceived: vr,
-			Option:        convertVoteOptionFromDecredplugin(o),
-		})
-	}
-	return ors
 }
 
 func convertPropStatusToState(status www.PropStatusT) www.PropStateT {
@@ -472,4 +404,85 @@ func convertPluginToCache(p Plugin) cache.Plugin {
 		Version:  p.Version,
 		Settings: settings,
 	}
+}
+
+func convertAuthorizeVoteFromDecred(dav decredplugin.AuthorizeVote) (www.AuthorizeVote, www.AuthorizeVoteReply) {
+	av := www.AuthorizeVote{
+		Action:    dav.Action,
+		Token:     dav.Token,
+		Signature: dav.Signature,
+		PublicKey: dav.PublicKey,
+	}
+
+	avr := www.AuthorizeVoteReply{
+		Action:  dav.Action,
+		Receipt: dav.Receipt,
+	}
+
+	return av, avr
+}
+
+func convertStartVoteFromDecred(sv decredplugin.StartVote) www.StartVote {
+	opts := make([]www.VoteOption, 0, len(sv.Vote.Options))
+	for _, v := range sv.Vote.Options {
+		opts = append(opts, www.VoteOption{
+			Id:          v.Id,
+			Description: v.Description,
+			Bits:        v.Bits,
+		})
+	}
+	return www.StartVote{
+		PublicKey: sv.PublicKey,
+		Vote: www.Vote{
+			Token:            sv.Vote.Token,
+			Mask:             sv.Vote.Mask,
+			Duration:         sv.Vote.Duration,
+			QuorumPercentage: sv.Vote.QuorumPercentage,
+			PassPercentage:   sv.Vote.PassPercentage,
+			Options:          opts,
+		},
+		Signature: sv.Signature,
+	}
+}
+
+func convertStartVoteReplyFromDecred(svr decredplugin.StartVoteReply) www.StartVoteReply {
+	return www.StartVoteReply{
+		StartBlockHeight: svr.StartBlockHeight,
+		StartBlockHash:   svr.StartBlockHash,
+		EndHeight:        svr.EndHeight,
+		EligibleTickets:  svr.EligibleTickets,
+	}
+}
+
+func convertVoteDetailsReplyFromDecred(vdr decredplugin.VoteDetailsReply) VoteDetails {
+	av, avr := convertAuthorizeVoteFromDecred(vdr.AuthorizeVote)
+	return VoteDetails{
+		AuthorizeVote:      av,
+		AuthorizeVoteReply: avr,
+		StartVote:          convertStartVoteFromDecred(vdr.StartVote),
+		StartVoteReply:     convertStartVoteReplyFromDecred(vdr.StartVoteReply),
+	}
+}
+
+func convertCastVoteFromDecred(cv decredplugin.CastVote) www.CastVote {
+	return www.CastVote{
+		Token:     cv.Token,
+		Ticket:    cv.Ticket,
+		VoteBit:   cv.VoteBit,
+		Signature: cv.Signature,
+	}
+}
+
+func convertCastVotesFromDecred(cv []decredplugin.CastVote) []www.CastVote {
+	cvr := make([]www.CastVote, 0, len(cv))
+	for _, v := range cv {
+		cvr = append(cvr, convertCastVoteFromDecred(v))
+	}
+	return cvr
+}
+
+func convertVoteResultsReplyFromDecred(vrr decredplugin.VoteResultsReply) (www.StartVote, []www.CastVote) {
+	sv := convertStartVoteFromDecred(vrr.StartVote)
+	cv := convertCastVotesFromDecred(vrr.CastVotes)
+	return sv, cv
 }

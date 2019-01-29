@@ -16,7 +16,6 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-// This function must be called WITHOUT the mutex held.
 func (b *backend) getComment(token, commentID string) (*www.Comment, error) {
 	// Fetch comment from the cache
 	dc, err := b.decredGetComment(token, commentID)
@@ -48,14 +47,13 @@ func (b *backend) getComment(token, commentID string) (*www.Comment, error) {
 	return &c, nil
 }
 
-// This function must be called WITHOUT the mutex held.
 func (b *backend) updateCommentScore(token, commentID string) (int64, error) {
 	log.Tracef("updateCommentScore: %v %v", token, commentID)
 
 	// Fetch all comment likes for the specified comment
 	likes, err := b.decredLikeComments(token, commentID)
 	if err != nil {
-		return 0, fmt.Errorf("decredLikeComments: %v")
+		return 0, fmt.Errorf("decredLikeComments: %v", err)
 	}
 
 	// Sanity check. Like comments should already be sorted in
@@ -164,7 +162,7 @@ func (b *backend) ProcessNewComment(nc www.NewComment, user *database.User) (*ww
 		return nil, err
 	}
 
-	// Get proposal from the cache
+	// Ensure proposal exists and is public
 	pr, err := b.getProp(nc.Token)
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
@@ -175,30 +173,28 @@ func (b *backend) ProcessNewComment(nc www.NewComment, user *database.User) (*ww
 		return nil, err
 	}
 
-	// Make sure the proposal is public
 	if pr.Status != www.PropStatusPublic {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusCannotCommentOnProp,
 		}
 	}
 
-	ir, err := b.getInventoryRecord(nc.Token)
+	// Ensure proposal voting has not ended
+	vdr, err := b.decredVoteDetails(nc.Token)
 	if err != nil {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusProposalNotFound,
-		}
+		return nil, fmt.Errorf("decredVoteDetails: %v", err)
 	}
+	_, avr := convertAuthorizeVoteFromDecred(vdr.AuthorizeVote)
+	svr := convertStartVoteReplyFromDecred(vdr.StartVoteReply)
 
-	// Make sure the proposal voting has not ended
 	bb, err := b.getBestBlock()
 	if err != nil {
 		return nil, fmt.Errorf("getBestBlock: %v", err)
 	}
 
-	if getVoteStatus(ir, bb) == www.PropVoteStatusFinished {
-		// vote is finished
+	if getVoteStatus(avr, svr, bb) == www.PropVoteStatusFinished {
 		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusCannotCommentOnProp,
+			ErrorCode: www.ErrorStatusWrongVoteStatus,
 		}
 	}
 
@@ -286,7 +282,7 @@ func (b *backend) ProcessLikeComment(lc www.LikeComment, user *database.User) (*
 		return nil, err
 	}
 
-	// Get proposal from cache
+	// Ensure proposal exists and is public
 	pr, err := b.getProp(lc.Token)
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
@@ -297,27 +293,26 @@ func (b *backend) ProcessLikeComment(lc www.LikeComment, user *database.User) (*
 		return nil, err
 	}
 
-	// Ensure proposal is public
 	if pr.Status != www.PropStatusPublic {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusWrongStatus,
 		}
 	}
 
-	// Make sure the proposal voting has not ended
-	ir, err := b.getInventoryRecord(lc.Token)
+	// Ensure proposal voting has not ended
+	vdr, err := b.decredVoteDetails(lc.Token)
 	if err != nil {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusProposalNotFound,
-		}
+		return nil, fmt.Errorf("decredVoteDetails: %v", err)
 	}
+	vd := convertVoteDetailsReplyFromDecred(*vdr)
 
 	bb, err := b.getBestBlock()
 	if err != nil {
 		return nil, fmt.Errorf("getBestBlock: %v", err)
 	}
 
-	if getVoteStatus(ir, bb) == www.PropVoteStatusFinished {
+	s := getVoteStatus(vd.AuthorizeVoteReply, vd.StartVoteReply, bb)
+	if s == www.PropVoteStatusFinished {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusWrongVoteStatus,
 		}
@@ -435,25 +430,22 @@ func (b *backend) ProcessCensorComment(cc www.CensorComment, user *database.User
 		}
 	}
 
-	// get the proposal record from inventory
-	b.RLock()
-	ir, err := b._getInventoryRecord(cc.Token)
-	b.RUnlock()
-	if err != nil {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusProposalNotFound,
-		}
-	}
-
 	// Ensure proposal voting has not ended
+	vdr, err := b.decredVoteDetails(cc.Token)
+	if err != nil {
+		return nil, fmt.Errorf("decredVoteDetails: %v", err)
+	}
+	vd := convertVoteDetailsReplyFromDecred(*vdr)
+
 	bb, err := b.getBestBlock()
 	if err != nil {
 		return nil, fmt.Errorf("getBestBlock: %v", err)
 	}
 
-	if getVoteStatus(ir, bb) == www.PropVoteStatusFinished {
+	s := getVoteStatus(vd.AuthorizeVoteReply, vd.StartVoteReply, bb)
+	if s == www.PropVoteStatusFinished {
 		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusCannotCensorComment,
+			ErrorCode: www.ErrorStatusWrongVoteStatus,
 		}
 	}
 

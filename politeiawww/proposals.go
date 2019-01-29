@@ -42,8 +42,6 @@ type proposalsFilter struct {
 
 // getProp gets the most recent verions of the given proposal from the cache
 // then fills in any missing fields before returning the proposal.
-//
-// This function must be called WITHOUT the mutex held.
 func (b *backend) getProp(token string) (*www.ProposalRecord, error) {
 	log.Tracef("getProp: %v", token)
 
@@ -78,8 +76,6 @@ func (b *backend) getProp(token string) (*www.ProposalRecord, error) {
 
 // getPropVersion gets a specific version of a proposal from the cache then
 // fills in any misssing fields before returning the proposal.
-//
-// This function must be called WITHOUT the mutex held.
 func (b *backend) getPropVersion(token, version string) (*www.ProposalRecord, error) {
 	log.Tracef("getPropVersion: %v %v", token, version)
 
@@ -114,8 +110,6 @@ func (b *backend) getPropVersion(token, version string) (*www.ProposalRecord, er
 
 // getAllProps gets the latest version of all proposals from the cache then
 // fills any missing fields before returning the proposals.
-//
-// This function must be called WITHOUT the mutex held.
 func (b *backend) getAllProps() ([]www.ProposalRecord, error) {
 	log.Tracef("getAllProps")
 
@@ -307,7 +301,6 @@ func (b *backend) getUserProps(filter proposalsFilter) ([]www.ProposalRecord, *p
 	return filtered, &ps, nil
 }
 
-// This function must be called WITHOUT the mutex held.
 func (b *backend) getPropComments(token string) ([]www.Comment, error) {
 	log.Tracef("getPropComments: %v", token)
 
@@ -465,13 +458,6 @@ func (b *backend) ProcessNewProposal(np www.NewProposal, user *database.User) (*
 			User:             user,
 		},
 	)
-
-	// Create a new inventory record
-	err = b.newInventoryRecord(cr.Token)
-	if err != nil {
-		log.Errorf("ProcessNewProposal: could not add record to "+
-			"inventory: %v", err)
-	}
 
 	return &www.NewProposalReply{
 		CensorshipRecord: cr,
@@ -671,11 +657,13 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 		}
 
 		// Ensure voting has not been started or authorized yet
-		ir, err := b.getInventoryRecord(pr.CensorshipRecord.Token)
+		vdr, err := b.decredVoteDetails(pr.CensorshipRecord.Token)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("decredVoteDetails: %v", err)
 		}
-		if ir.voting.StartBlockHeight != "" || voteIsAuthorized(ir) {
+		vd := convertVoteDetailsReplyFromDecred(*vdr)
+		if vd.StartVoteReply.StartBlockHeight != "" ||
+			voteIsAuthorized(vd.AuthorizeVoteReply) {
 			return nil, www.UserError{
 				ErrorCode: www.ErrorStatusWrongVoteStatus,
 			}
@@ -742,10 +730,10 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 }
 
 // ProcessEditProposal attempts to edit a proposal on politeiad.
-func (b *backend) ProcessEditProposal(user *database.User, ep www.EditProposal) (*www.EditProposalReply, error) {
+func (b *backend) ProcessEditProposal(ep www.EditProposal, user *database.User) (*www.EditProposalReply, error) {
 	log.Tracef("ProcessEditProposal %v", ep.Token)
 
-	// Get proposal from the cache
+	// Validate proposal status
 	cachedProp, err := b.getProp(ep.Token)
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
@@ -756,6 +744,13 @@ func (b *backend) ProcessEditProposal(user *database.User, ep www.EditProposal) 
 		return nil, err
 	}
 
+	if cachedProp.Status == www.PropStatusCensored ||
+		cachedProp.Status == www.PropStatusAbandoned {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusWrongStatus,
+		}
+	}
+
 	// Ensure user is the proposal author
 	if cachedProp.UserId != user.ID.String() {
 		return nil, www.UserError{
@@ -764,19 +759,19 @@ func (b *backend) ProcessEditProposal(user *database.User, ep www.EditProposal) 
 	}
 
 	// Validate proposal vote status
-	invRecord, err := b.getInventoryRecord(ep.Token)
+	vdr, err := b.decredVoteDetails(ep.Token)
 	if err != nil {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusProposalNotFound,
-		}
+		return nil, fmt.Errorf("decredVoteDetails: %v", err)
 	}
+	vd := convertVoteDetailsReplyFromDecred(*vdr)
 
 	bb, err := b.getBestBlock()
 	if err != nil {
 		return nil, err
 	}
 
-	if getVoteStatus(invRecord, bb) != www.PropVoteStatusNotAuthorized {
+	s := getVoteStatus(vd.AuthorizeVoteReply, vd.StartVoteReply, bb)
+	if s != www.PropVoteStatusNotAuthorized {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusWrongVoteStatus,
 		}
@@ -873,16 +868,6 @@ func (b *backend) ProcessEditProposal(user *database.User, ep www.EditProposal) 
 	err = util.VerifyChallenge(b.cfg.Identity, challenge, pdReply.Response)
 	if err != nil {
 		return nil, err
-	}
-
-	// Delete vote authorization if one existed before the edit
-	if invRecord.voteAuthorization.Receipt != "" {
-		err = b.setRecordVoteAuthorization(ep.Token, www.AuthorizeVoteReply{})
-		if err != nil {
-			// This should be impossible and we can't fail here
-			log.Criticalf("ProcessEditProposal: could not delete vote"+
-				"authorization: %v", err)
-		}
 	}
 
 	// Get proposal from the cache
@@ -1019,5 +1004,219 @@ func (b *backend) ProcessCommentsGet(token string, user *database.User) (*www.Ge
 	return &www.GetCommentsReply{
 		Comments:   c,
 		AccessTime: accessTime,
+	}, nil
+}
+
+func voteResults(sv www.StartVote, cv []www.CastVote) []www.VoteOptionResult {
+	log.Tracef("voteResults: %v", sv.Vote.Token)
+
+	// Tally votes
+	votes := make(map[string]uint64)
+	for _, v := range cv {
+		votes[v.VoteBit]++
+	}
+
+	// Prepare vote option results
+	results := make([]www.VoteOptionResult, 0, len(sv.Vote.Options))
+	for _, v := range sv.Vote.Options {
+		results = append(results, www.VoteOptionResult{
+			Option:        v,
+			VotesReceived: votes[strconv.FormatUint(v.Bits, 10)],
+		})
+	}
+
+	return results
+}
+
+func (b *backend) getVoteStatus(token string, bestBlock uint64) (*www.VoteStatusReply, error) {
+	log.Tracef("getVoteStatus: %v", token)
+
+	// Get vote details from cache
+	vdr, err := b.decredVoteDetails(token)
+	if err != nil {
+		return nil, fmt.Errorf("decredVoteDetails %v: %v",
+			token, err)
+	}
+	vd := convertVoteDetailsReplyFromDecred(*vdr)
+	voteStatus := getVoteStatus(vd.AuthorizeVoteReply,
+		vd.StartVoteReply, bestBlock)
+
+	// Get cast votes from cache
+	vrr, err := b.decredProposalVotes(token)
+	if err != nil {
+		return nil, fmt.Errorf("decredProposalVotes %v: %v",
+			token, err)
+	}
+	sv, cv := convertVoteResultsReplyFromDecred(*vrr)
+
+	return &www.VoteStatusReply{
+		Token:              token,
+		Status:             voteStatus,
+		TotalVotes:         uint64(len(vrr.CastVotes)),
+		OptionsResult:      voteResults(sv, cv),
+		EndHeight:          vd.StartVoteReply.EndHeight,
+		NumOfEligibleVotes: len(vd.StartVoteReply.EligibleTickets),
+		QuorumPercentage:   vd.StartVote.Vote.QuorumPercentage,
+		PassPercentage:     vd.StartVote.Vote.PassPercentage,
+	}, nil
+}
+
+// ProcessVoteStatus returns the vote status for a given proposal
+func (b *backend) ProcessVoteStatus(token string) (*www.VoteStatusReply, error) {
+	log.Tracef("ProcessProposalVotingStatus: %v", token)
+
+	// Ensure proposal is public
+	pr, err := b.getProp(token)
+	if err != nil {
+		if err == cache.ErrRecordNotFound {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusProposalNotFound,
+			}
+		}
+		return nil, err
+	}
+	if pr.Status != www.PropStatusPublic {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusWrongStatus,
+		}
+	}
+
+	// Get best block
+	bestBlock, err := b.getBestBlock()
+	if err != nil {
+		return nil, fmt.Errorf("bestBlock: %v", err)
+	}
+
+	// Get vote status
+	vs, err := b.getVoteStatus(token, bestBlock)
+	if err != nil {
+		return nil, fmt.Errorf("getVoteStatus: %v", err)
+	}
+
+	return vs, nil
+}
+
+// ProcessGetAllVoteStatus returns the vote status of all public proposals.
+func (b *backend) ProcessGetAllVoteStatus() (*www.GetAllVoteStatusReply, error) {
+	log.Tracef("ProcessGetAllVoteStatus")
+
+	// We need to determine best block height here in order
+	// to set the voting status
+	bestBlock, err := b.getBestBlock()
+	if err != nil {
+		return nil, fmt.Errorf("bestBlock: %v", err)
+	}
+
+	// Get all proposals from cache
+	all, err := b.getAllProps()
+	if err != nil {
+		return nil, fmt.Errorf("getAllProps: %v", err)
+	}
+
+	// Compile votes statuses
+	vrr := make([]www.VoteStatusReply, 0, len(all))
+	for _, v := range all {
+		// We only need public proposals
+		if v.Status != www.PropStatusPublic {
+			continue
+		}
+
+		// Get vote status for proposal
+		vs, err := b.getVoteStatus(v.CensorshipRecord.Token, bestBlock)
+		if err != nil {
+			return nil, fmt.Errorf("getVoteStatus: %v", err)
+		}
+
+		vrr = append(vrr, *vs)
+	}
+
+	return &www.GetAllVoteStatusReply{
+		VotesStatus: vrr,
+	}, nil
+}
+
+func (b *backend) ProcessActiveVote() (*www.ActiveVoteReply, error) {
+	log.Tracef("ProcessActiveVote")
+
+	// We need to determine best block height here and only
+	// return active votes.
+	bestBlock, err := b.getBestBlock()
+	if err != nil {
+		return nil, err
+	}
+
+	// Get all proposals from cache
+	all, err := b.getAllProps()
+	if err != nil {
+		return nil, fmt.Errorf("getAllProps: %v", err)
+	}
+
+	// Compile proposal vote tuples
+	pvt := make([]www.ProposalVoteTuple, 0, len(all))
+	for _, v := range all {
+		// Get vote details from cache
+		vdr, err := b.decredVoteDetails(v.CensorshipRecord.Token)
+		if err != nil {
+			log.Errorf("ProcessActiveVote: decredVoteDetails failed %v: %v",
+				v.CensorshipRecord.Token, err)
+			continue
+		}
+		vd := convertVoteDetailsReplyFromDecred(*vdr)
+
+		// We only want proposals that are currently being voted on
+		s := getVoteStatus(vd.AuthorizeVoteReply, vd.StartVoteReply, bestBlock)
+		if s != www.PropVoteStatusStarted {
+			continue
+		}
+
+		pvt = append(pvt, www.ProposalVoteTuple{
+			Proposal:       v,
+			StartVote:      vd.StartVote,
+			StartVoteReply: vd.StartVoteReply,
+		})
+	}
+
+	return &www.ActiveVoteReply{
+		Votes: pvt,
+	}, nil
+}
+
+// ProcessVoteResults returns the vote details for a specific proposal and all
+// of the votes that have been cast.
+func (b *backend) ProcessVoteResults(token string) (*www.VoteResultsReply, error) {
+	log.Tracef("ProcessVoteResults: %v", token)
+
+	// Ensure proposal is public
+	pr, err := b.getProp(token)
+	if err != nil {
+		if err == cache.ErrRecordNotFound {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusProposalNotFound,
+			}
+		}
+		return nil, err
+	}
+	if pr.Status != www.PropStatusPublic {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusWrongStatus,
+		}
+	}
+
+	// Get vote details from cache
+	vdr, err := b.decredVoteDetails(token)
+	if err != nil {
+		return nil, fmt.Errorf("decredVoteDetails: %v", err)
+	}
+
+	// Get cast votes from cache
+	vrr, err := b.decredProposalVotes(token)
+	if err != nil {
+		return nil, fmt.Errorf("decredVoteDetails: %v", err)
+	}
+
+	return &www.VoteResultsReply{
+		StartVote:      convertStartVoteFromDecred(vdr.StartVote),
+		StartVoteReply: convertStartVoteReplyFromDecred(vdr.StartVoteReply),
+		CastVotes:      convertCastVotesFromDecred(vrr.CastVotes),
 	}, nil
 }

@@ -1,6 +1,12 @@
+// Copyright (c) 2017-2019 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package cockroachdb
 
 import (
+	"fmt"
+
 	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiad/cache"
 	"github.com/jinzhu/gorm"
@@ -8,8 +14,12 @@ import (
 
 const (
 	// Database table names
-	tableComments     = "comments"
-	tableCommentLikes = "comment_likes"
+	tableComments       = "comments"
+	tableCommentLikes   = "comment_likes"
+	tableCastVotes      = "cast_votes"
+	tableAuthorizeVotes = "authorize_votes"
+	tableVoteOptions    = "vote_options"
+	tableStartVotes     = "start_votes"
 )
 
 // decred implements the PluginDriver interface.
@@ -201,7 +211,231 @@ func (d *decred) proposalCommentsLikes(payload string) (string, error) {
 	return string(clrb), nil
 }
 
+func (d *decred) authorizeVote(cmdPayload, replyPayload string) (string, error) {
+	log.Tracef("decred authorizeVote")
+
+	av, err := decredplugin.DecodeAuthorizeVote([]byte(cmdPayload))
+	if err != nil {
+		return "", err
+	}
+	avr, err := decredplugin.DecodeAuthorizeVoteReply([]byte(replyPayload))
+	if err != nil {
+		return "", err
+	}
+
+	// Run update in a transaction
+	tx := d.recordsdb.Begin()
+
+	// Delete authorize vote if one exists for this version
+	err = tx.Where("key = ?", av.Token+avr.RecordVersion).
+		Delete(AuthorizeVote{}).
+		Error
+	if err != nil {
+		tx.Rollback()
+		return "", fmt.Errorf("delete authorize vote: %v", err)
+	}
+
+	// Add new authorize vote
+	a := AuthorizeVote{
+		Key:       av.Token + avr.RecordVersion,
+		Token:     av.Token,
+		Version:   avr.RecordVersion,
+		Action:    av.Action,
+		Signature: av.Signature,
+		PublicKey: av.PublicKey,
+		Receipt:   avr.Receipt,
+		Timestamp: avr.Timestamp,
+	}
+	err = tx.Create(&a).Error
+	if err != nil {
+		tx.Rollback()
+		return "", err
+	}
+
+	// Commit transaction
+	if tx.Commit().Error != nil {
+		return "", fmt.Errorf("commit transaction failed: %v", err)
+	}
+
+	return replyPayload, nil
+}
+
+func (d *decred) startVote(cmdPayload, replyPayload string) (string, error) {
+	log.Tracef("decred startVote")
+
+	sv, err := decredplugin.DecodeStartVote([]byte(cmdPayload))
+	if err != nil {
+		return "", err
+	}
+	svr, err := decredplugin.DecodeStartVoteReply([]byte(replyPayload))
+	if err != nil {
+		return "", err
+	}
+
+	s := convertStartVoteFromDecred(*sv, *svr)
+	err = d.recordsdb.Create(&s).Error
+	if err != nil {
+		return "", err
+	}
+
+	return replyPayload, nil
+}
+
+func (d *decred) voteDetails(payload string) (string, error) {
+	log.Tracef("decred voteDetails")
+
+	vd, err := decredplugin.DecodeVoteDetails([]byte(payload))
+	if err != nil {
+		return "", nil
+	}
+
+	// Lookup the most recent version of the record
+	var r Record
+	err = d.recordsdb.
+		Where("records.token = ?", vd.Token).
+		Order("records.version desc").
+		Limit(1).
+		Find(&r).
+		Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			err = cache.ErrRecordNotFound
+		}
+		return "", err
+	}
+
+	// Lookup authorize vote
+	var av AuthorizeVote
+	err = d.recordsdb.
+		Where("key = ?", vd.Token+r.Version).
+		Find(&av).
+		Error
+	if err == gorm.ErrRecordNotFound {
+		// An authorize vote may note exist. This is ok.
+	} else if err != nil {
+		return "", fmt.Errorf("authorize vote lookup failed: %v", err)
+	}
+
+	// Lookup start vote
+	var sv StartVote
+	err = d.recordsdb.
+		Where("token = ?", vd.Token).
+		Preload("Options").
+		Find(&sv).
+		Error
+	if err == gorm.ErrRecordNotFound {
+		// A start vote may note exist. This is ok.
+	} else if err != nil {
+		return "", fmt.Errorf("start vote lookup failed: %v", err)
+	}
+
+	// Prepare reply
+	dav := convertAuthorizeVoteToDecred(av)
+	dsv, dsvr := convertStartVoteToDecred(sv)
+	vdr := decredplugin.VoteDetailsReply{
+		AuthorizeVote:  dav,
+		StartVote:      dsv,
+		StartVoteReply: dsvr,
+	}
+	vdrb, err := decredplugin.EncodeVoteDetailsReply(vdr)
+	if err != nil {
+		return "", err
+	}
+
+	return string(vdrb), nil
+}
+
+func (d *decred) newBallot(cmdPayload, replyPayload string) (string, error) {
+	log.Tracef("decred newBallot")
+
+	b, err := decredplugin.DecodeBallot([]byte(cmdPayload))
+	if err != nil {
+		return "", err
+	}
+	br, err := decredplugin.DecodeBallotReply([]byte(replyPayload))
+	if err != nil {
+		return "", err
+	}
+
+	// There must be an equal number of votes and receipts
+	if len(b.Votes) != len(br.Receipts) {
+		return "", fmt.Errorf("votes and receipts do not match")
+	}
+
+	// Put receipts in a map for quick lookups
+	receipts := make(map[string]string, len(b.Votes)) // [signature]receipt
+	for _, v := range br.Receipts {
+		receipts[v.ClientSignature] = v.Signature
+	}
+
+	// Add votes to database
+	for _, v := range b.Votes {
+		cv := CastVote{
+			Token:     v.Token,
+			Ticket:    v.Ticket,
+			VoteBit:   v.VoteBit,
+			Signature: v.Signature,
+			Receipt:   receipts[v.Signature],
+		}
+		err = d.recordsdb.Create(&cv).Error
+		if err != nil {
+			return "", err
+		}
+	}
+
+	return replyPayload, nil
+}
+
+func (d *decred) proposalVotes(payload string) (string, error) {
+	vr, err := decredplugin.DecodeVoteResults([]byte(payload))
+	if err != nil {
+		return "", err
+	}
+
+	// Lookup start vote
+	var sv StartVote
+	err = d.recordsdb.
+		Where("token = ?", vr.Token).
+		Preload("Options").
+		Find(&sv).
+		Error
+	if err != nil {
+		return "", fmt.Errorf("start vote lookup failed: %v", err)
+	}
+
+	// Lookup all cast votes
+	var cv []CastVote
+	err = d.recordsdb.
+		Where("token = ?", vr.Token).
+		Find(&cv).
+		Error
+	if err != nil {
+		return "", fmt.Errorf("cast votes lookup failed: %v", err)
+	}
+
+	// Prepare reply
+	dsv, _ := convertStartVoteToDecred(sv)
+	dcv := make([]decredplugin.CastVote, 0, len(cv))
+	for _, v := range cv {
+		dcv = append(dcv, convertCastVoteToDecred(v))
+	}
+
+	vrr := decredplugin.VoteResultsReply{
+		StartVote: dsv,
+		CastVotes: dcv,
+	}
+
+	vrrb, err := decredplugin.EncodeVoteResultsReply(vrr)
+	if err != nil {
+		return "", err
+	}
+
+	return string(vrrb), nil
+}
+
 func (d *decred) inventory() (string, error) {
+	log.Tracef("inventory")
+
 	// Get all comments
 	var c []Comment
 	err := d.recordsdb.Find(&c).Error
@@ -214,22 +448,9 @@ func (d *decred) inventory() (string, error) {
 		dc = append(dc, convertCommentToDecred(v))
 	}
 
-	// Get all like comments
-	var cl []LikeComment
-	err = d.recordsdb.Find(&cl).Error
-	if err != nil {
-		return "", err
-	}
-
-	dcl := make([]decredplugin.LikeComment, 0, len(cl))
-	for _, v := range cl {
-		dcl = append(dcl, convertLikeCommentToDecred(v))
-	}
-
 	// Prepare inventory reply
 	ir := decredplugin.InventoryReply{
-		Comments:     dc,
-		CommentLikes: dcl,
+		Comments: dc,
 	}
 	irb, err := decredplugin.EncodeInventoryReply(ir)
 	if err != nil {
@@ -259,6 +480,30 @@ func createDecredTables(tx *gorm.DB) error {
 			return err
 		}
 	}
+	if !tx.HasTable(tableCastVotes) {
+		err := tx.CreateTable(&CastVote{}).Error
+		if err != nil {
+			return err
+		}
+	}
+	if !tx.HasTable(tableAuthorizeVotes) {
+		err := tx.CreateTable(&AuthorizeVote{}).Error
+		if err != nil {
+			return err
+		}
+	}
+	if !tx.HasTable(tableVoteOptions) {
+		err := tx.CreateTable(&VoteOption{}).Error
+		if err != nil {
+			return err
+		}
+	}
+	if !tx.HasTable(tableStartVotes) {
+		err := tx.CreateTable(&StartVote{}).Error
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -281,7 +526,8 @@ func (d *decred) Build(payload string) error {
 
 	// Drop decred plugin tables from the cache
 	err := d.recordsdb.DropTableIfExists(tableComments,
-		tableCommentLikes).Error
+		tableCommentLikes, tableCastVotes, tableAuthorizeVotes,
+		tableVoteOptions, tableStartVotes).Error
 	if err != nil {
 		return err
 	}
@@ -305,11 +551,13 @@ func (d *decred) Exec(cmd, cmdPayload, replyPayload string) (string, error) {
 
 	switch cmd {
 	case decredplugin.CmdAuthorizeVote:
-		return "", nil
+		return d.authorizeVote(cmdPayload, replyPayload)
 	case decredplugin.CmdStartVote:
-		return "", nil
+		return d.startVote(cmdPayload, replyPayload)
+	case decredplugin.CmdVoteDetails:
+		return d.voteDetails(cmdPayload)
 	case decredplugin.CmdBallot:
-		return "", nil
+		return d.newBallot(cmdPayload, replyPayload)
 	case decredplugin.CmdBestBlock:
 		return "", nil
 	case decredplugin.CmdNewComment:
@@ -323,7 +571,7 @@ func (d *decred) Exec(cmd, cmdPayload, replyPayload string) (string, error) {
 	case decredplugin.CmdGetComments:
 		return d.getComments(cmdPayload)
 	case decredplugin.CmdProposalVotes:
-		return "", nil
+		return d.proposalVotes(cmdPayload)
 	case decredplugin.CmdCommentLikes:
 		return d.commentLikes(cmdPayload)
 	case decredplugin.CmdProposalCommentsLikes:

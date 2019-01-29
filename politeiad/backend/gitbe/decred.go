@@ -1521,10 +1521,11 @@ func (g *gitBackEnd) pluginAuthorizeVote(payload string) (string, error) {
 	receipt := hex.EncodeToString(r[:])
 
 	// Create on disk structure
+	t := time.Now().Unix()
 	av := decredplugin.AuthorizeVote{
 		Version:   decredplugin.VersionAuthorizeVote,
 		Receipt:   receipt,
-		Timestamp: time.Now().Unix(),
+		Timestamp: t,
 		Action:    authorize.Action,
 		Token:     token,
 		Signature: authorize.Signature,
@@ -1566,9 +1567,25 @@ func (g *gitBackEnd) pluginAuthorizeVote(payload string) (string, error) {
 		return "", fmt.Errorf("_updateVettedMetadata: %v", err)
 	}
 
+	// Prepare reply
+	version, err := getLatest(pijoin(g.vetted, token))
+	if err != nil {
+		return "", fmt.Errorf("getLatest: %v", err)
+	}
+	avr := decredplugin.AuthorizeVoteReply{
+		Action:        av.Action,
+		RecordVersion: version,
+		Receipt:       av.Receipt,
+		Timestamp:     av.Timestamp,
+	}
+	avrb, err := decredplugin.EncodeAuthorizeVoteReply(avr)
+	if err != nil {
+		return "", err
+	}
+
 	log.Infof("Vote authorized for %v", token)
 
-	return string(avb), nil
+	return string(avrb), nil
 }
 
 func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {

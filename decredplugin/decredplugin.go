@@ -8,6 +8,7 @@ const (
 	ID                       = "decred"
 	CmdAuthorizeVote         = "authorizevote"
 	CmdStartVote             = "startvote"
+	CmdVoteDetails           = "votedetails"
 	CmdBallot                = "ballot"
 	CmdBestBlock             = "bestblock"
 	CmdNewComment            = "newcomment"
@@ -175,8 +176,10 @@ func DecodeAuthorizeVote(payload []byte) (*AuthorizeVote, error) {
 // the receipt for the action.  The receipt is the server side signature of
 // AuthorizeVote.Signature.
 type AuthorizeVoteReply struct {
-	Action  string `json:"action"`  // Authorize or revoke
-	Receipt string `json:"receipt"` // Server signature of client signature
+	Action        string `json:"action"`        // Authorize or revoke
+	RecordVersion string `json:"recordversion"` // Version of record that was authorized
+	Receipt       string `json:"receipt"`       // Server signature of client signature
+	Timestamp     int64  `json:"timestamp"`     // Received UNIX timestamp
 }
 
 // EncodeAuthorizeVote encodes AuthorizeVoteReply into a JSON byte slice.
@@ -253,6 +256,50 @@ func DecodeStartVoteReply(payload []byte) (*StartVoteReply, error) {
 	}
 
 	return &v, nil
+}
+
+type VoteDetails struct {
+	Token string `json:"token"` // Censorship token
+}
+
+// EncodeVoteDetails encodes VoteDetails into a JSON byte slice.
+func EncodeVoteDetails(vd VoteDetails) ([]byte, error) {
+	return json.Marshal(vd)
+}
+
+// DecodeVoteReply decodes a JSON byte slice into a VoteDetails.
+func DecodeVoteDetails(payload []byte) (*VoteDetails, error) {
+	var vd VoteDetails
+
+	err := json.Unmarshal(payload, &vd)
+	if err != nil {
+		return nil, err
+	}
+
+	return &vd, nil
+}
+
+type VoteDetailsReply struct {
+	AuthorizeVote  AuthorizeVote  `json:"authorizevote"`  // Vote authorization
+	StartVote      StartVote      `json:"startvote"`      // Vote ballot
+	StartVoteReply StartVoteReply `json:"startvotereply"` // Start vote snapshot
+}
+
+// EncodeVoteDetailsReply encodes VoteDetailsReply into a JSON byte slice.
+func EncodeVoteDetailsReply(vdr VoteDetailsReply) ([]byte, error) {
+	return json.Marshal(vdr)
+}
+
+// DecodeVoteReply decodes a JSON byte slice into a VoteDetailsReply.
+func DecodeVoteDetailsReply(payload []byte) (*VoteDetailsReply, error) {
+	var vdr VoteDetailsReply
+
+	err := json.Unmarshal(payload, &vdr)
+	if err != nil {
+		return nil, err
+	}
+
+	return &vdr, nil
 }
 
 type VoteResults struct {
@@ -583,12 +630,10 @@ func DecodeGetCommentsReply(payload []byte) (*GetCommentsReply, error) {
 }
 
 // CommentLikes is a command to fetch all of the comment likes for a single
-// proposal comment.  The comment likes will be filtered by any public keys
-// that are included in the command.
+// proposal comment.
 type CommentLikes struct {
-	Token      string   `json:"token"`      // Censorship token
-	CommentID  string   `json:"commentid"`  // Comment ID
-	PublicKeys []string `json:"publickeys"` // Public keys used to filter
+	Token     string `json:"token"`     // Censorship token
+	CommentID string `json:"commentid"` // Comment ID
 }
 
 // EncodeCommentLikes encodes CommentLikes into a JSON byte slice.
@@ -696,9 +741,13 @@ func DecodeInventory(payload []byte) (*Inventory, error) {
 }
 
 type InventoryReply struct {
-	Comments       []Comment       `json:"comments"`      // Comments
-	CommentLikes   []LikeComment   `json:"commentlikes"`  // Comment likes
-	CommentCensors []CensorComment `json:"censorcomment"` // Comment censors
+	Comments         []Comment        `json:"comments"`         // Comments
+	CommentLikes     []LikeComment    `json:"commentlikes"`     // Comment likes
+	CommentCensors   []CensorComment  `json:"censorcomments"`   // Comment censors
+	AuthorizeVotes   []AuthorizeVote  `json:"authorizevotes"`   // Vote authorizations
+	StartVotes       []StartVote      `json:"startvotes"`       // Start votes
+	StartVoteReplies []StartVoteReply `json:"startvotereplies"` // Start vote replies
+	CastVotes        []CastVote       `json:"castvotes"`        // Cast votes
 }
 
 func EncodeInventoryReply(ir InventoryReply) ([]byte, error) {
