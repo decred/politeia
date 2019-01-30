@@ -74,8 +74,8 @@ func (cmd *EditUserCmd) Execute(args []string) error {
 
 		notif = a
 		// Parse list of strings and calculate associated integer
-		s := strings.Split(cmd.Args.NotifType, ",") 
-		for i :=1 ; i < len(s); i++ {
+		s := strings.Split(cmd.Args.NotifType, ",")
+		for i := 1; i < len(s); i++ {
 			a, ok := EmailNotifs[s[i]]
 			if !ok {
 				return fmt.Errorf("Invalid edituser option. Type 'help edituser' for list of valid options")
@@ -87,11 +87,10 @@ func (cmd *EditUserCmd) Execute(args []string) error {
 		return fmt.Errorf("Invalid edituser option. Type 'help edituser' for list of valid options")
 	}
 
-
 	// Setup request
 	helper := uint64(notif)
 	eu := &v1.EditUser{
-		EmailNotifications: &helper, 
+		EmailNotifications: &helper,
 	}
 
 	// Print request details
