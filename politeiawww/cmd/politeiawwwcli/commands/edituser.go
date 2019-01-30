@@ -7,6 +7,7 @@ package commands
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/decred/politeia/politeiawww/api/v1"
 )
@@ -41,8 +42,8 @@ Response:
 
 type EditUserCmd struct {
 	Args struct {
-		NotifType string `positional-arg-name:"emailnotifications" description:"Email notifications"`
-	} `positional-args:"true" optional:"true"`
+		NotifType string `long:"emailnotifications" description:"Email notifications"`
+	}
 }
 
 func (cmd *EditUserCmd) Execute(args []string) error {
@@ -59,8 +60,6 @@ func (cmd *EditUserCmd) Execute(args []string) error {
 		"commentoncomment":          256,
 	}
 
-	// Parse edit user option.  This can be either the numeric
-	// type code or the human readable equivalent.
 	var notif v1.EmailNotificationT
 	a, err := strconv.ParseUint(cmd.Args.NotifType, 10, 64)
 	if err == nil {
@@ -68,16 +67,31 @@ func (cmd *EditUserCmd) Execute(args []string) error {
 		notif = v1.EmailNotificationT(a)
 	} else if a, ok := EmailNotifs[cmd.Args.NotifType]; ok {
 		// Human readable action code found
-		// notif = v1.EmailNotificationT(a)
 		notif = a
+
+	} else if a, ok := EmailNotifs[strings.Split(cmd.Args.NotifType, ",")[0]]; ok {
+		// List of human readable action codes found
+
+		notif = a
+		// Parse list of strings and calculate associated integer
+		s := strings.Split(cmd.Args.NotifType, ",") 
+		for i :=1 ; i < len(s); i++ {
+			a, ok := EmailNotifs[s[i]]
+			if !ok {
+				return fmt.Errorf("Invalid edituser option. Type 'help edituser' for list of valid options")
+			}
+			notif += a
+		}
+
 	} else {
 		return fmt.Errorf("Invalid edituser option. Type 'help edituser' for list of valid options")
 	}
 
+
 	// Setup request
 	helper := uint64(notif)
 	eu := &v1.EditUser{
-		EmailNotifications: &helper, //cmd.EmailNotifications,
+		EmailNotifications: &helper, 
 	}
 
 	// Print request details
