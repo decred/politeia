@@ -177,7 +177,7 @@ func DecodeAuthorizeVote(payload []byte) (*AuthorizeVote, error) {
 // AuthorizeVote.Signature.
 type AuthorizeVoteReply struct {
 	Action        string `json:"action"`        // Authorize or revoke
-	RecordVersion string `json:"recordversion"` // Version of record that was authorized
+	RecordVersion string `json:"recordversion"` // Version of record files
 	Receipt       string `json:"receipt"`       // Server signature of client signature
 	Timestamp     int64  `json:"timestamp"`     // Received UNIX timestamp
 }
@@ -740,14 +740,19 @@ func DecodeInventory(payload []byte) (*Inventory, error) {
 	return &i, nil
 }
 
+type StartVoteTuple struct {
+	StartVote      StartVote      `json:"startvote"`      // Start vote
+	StartVoteReply StartVoteReply `json:"startvotereply"` // Start vote reply
+}
+
+// InventoryReply...
 type InventoryReply struct {
-	Comments         []Comment        `json:"comments"`         // Comments
-	CommentLikes     []LikeComment    `json:"commentlikes"`     // Comment likes
-	CommentCensors   []CensorComment  `json:"censorcomments"`   // Comment censors
-	AuthorizeVotes   []AuthorizeVote  `json:"authorizevotes"`   // Vote authorizations
-	StartVotes       []StartVote      `json:"startvotes"`       // Start votes
-	StartVoteReplies []StartVoteReply `json:"startvotereplies"` // Start vote replies
-	CastVotes        []CastVote       `json:"castvotes"`        // Cast votes
+	Comments             []Comment            `json:"comments"`             // Comments
+	CommentLikes         []LikeComment        `json:"commentlikes"`         // Comment likes
+	AuthorizeVotes       []AuthorizeVote      `json:"authorizevotes"`       // Authorize votes
+	AuthorizeVoteReplies []AuthorizeVoteReply `json:"authorizevotereplies"` // Authorize vote replies
+	StartVoteTuples      []StartVoteTuple     `json:"startvotetuples"`      // Start vote tuples
+	CastVotes            []CastVote           `json:"castvotes"`            // Cast votes
 }
 
 func EncodeInventoryReply(ir InventoryReply) ([]byte, error) {

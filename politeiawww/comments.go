@@ -184,7 +184,7 @@ func (b *backend) ProcessNewComment(nc www.NewComment, user *database.User) (*ww
 	if err != nil {
 		return nil, fmt.Errorf("decredVoteDetails: %v", err)
 	}
-	_, avr := convertAuthorizeVoteFromDecred(vdr.AuthorizeVote)
+	_, avr := convertAuthVoteFromDecred(vdr.AuthorizeVote)
 	svr := convertStartVoteReplyFromDecred(vdr.StartVoteReply)
 
 	bb, err := b.getBestBlock()

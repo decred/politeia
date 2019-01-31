@@ -18,14 +18,11 @@ import (
 )
 
 const (
-	recordVersion uint32 = 1
-
-	// The database is named by prefixing the dbPrefix onto the network
-	// name (ex. records_mainnet)
-	dbPrefix = "records_"
+	cacheID      = "records"
+	cacheVersion = "1"
 
 	// Database table names
-	tableVersion         = "version"
+	tableVersions        = "versions"
 	tableRecords         = "records"
 	tableMetadataStreams = "metadata_streams"
 	tableFiles           = "files"
@@ -35,7 +32,7 @@ const (
 	UserPoliteiawww = "politeiawww" // politeiawww user (read access)
 )
 
-// cockroachdb implements the cache interface
+// cockroachdb implements the cache interface.
 type cockroachdb struct {
 	sync.RWMutex
 	shutdown  bool                          // Backend is shutdown
@@ -59,8 +56,10 @@ func (c *cockroachdb) NewRecord(cr cache.Record) error {
 	return c.recordsdb.Create(&r).Error
 }
 
-// getRecordVersion gets the specified version of a record from the database.
-func getRecordVersion(db *gorm.DB, token, version string) (*Record, error) {
+// recordVersion gets the specified version of a record from the database.
+// This function has a database parameter because there times that it needs
+// to be called inside of a transaction.
+func (c *cockroachdb) recordVersion(db *gorm.DB, token, version string) (*Record, error) {
 	log.Tracef("getRecordVersion: %v %v", token, version)
 
 	r := Record{
@@ -91,7 +90,7 @@ func (c *cockroachdb) RecordVersion(token, version string) (*cache.Record, error
 		return nil, cache.ErrShutdown
 	}
 
-	r, err := getRecordVersion(c.recordsdb, token, version)
+	r, err := c.recordVersion(c.recordsdb, token, version)
 	if err != nil {
 		return nil, err
 	}
@@ -138,19 +137,19 @@ func (c *cockroachdb) Record(token string) (*cache.Record, error) {
 // the database before the given metadata streams and files are added.
 //
 // This function must be called within a transaction.
-func updateRecord(db *gorm.DB, updated Record) error {
+func (c *cockroachdb) updateRecord(tx *gorm.DB, updated Record) error {
 	log.Tracef("updateRecord: %v %v", updated.Token, updated.Version)
 
 	// Ensure record exists. We need to do this because updates
 	// will not return an error if you try to update a record that
 	// does not exist.
-	record, err := getRecordVersion(db, updated.Token, updated.Version)
+	record, err := c.recordVersion(tx, updated.Token, updated.Version)
 	if err != nil {
 		return err
 	}
 
 	// Update record
-	err = db.Model(&record).
+	err = tx.Model(&record).
 		Updates(map[string]interface{}{
 			"status":    updated.Status,
 			"timestamp": updated.Timestamp,
@@ -162,7 +161,7 @@ func updateRecord(db *gorm.DB, updated Record) error {
 	}
 
 	// Delete existing metadata streams
-	err = db.Where("record_key = ?", record.Key).
+	err = tx.Where("record_key = ?", record.Key).
 		Delete(MetadataStream{}).
 		Error
 	if err != nil {
@@ -171,7 +170,7 @@ func updateRecord(db *gorm.DB, updated Record) error {
 
 	// Add new metadata streams
 	for _, ms := range updated.Metadata {
-		err = db.Create(&MetadataStream{
+		err = tx.Create(&MetadataStream{
 			RecordKey: record.Key,
 			ID:        ms.ID,
 			Payload:   ms.Payload,
@@ -182,7 +181,7 @@ func updateRecord(db *gorm.DB, updated Record) error {
 	}
 
 	// Delete existing files
-	err = db.Where("record_key = ?", record.Key).
+	err = tx.Where("record_key = ?", record.Key).
 		Delete(File{}).
 		Error
 	if err != nil {
@@ -191,7 +190,7 @@ func updateRecord(db *gorm.DB, updated Record) error {
 
 	// Add new files
 	for _, f := range updated.Files {
-		err = db.Create(&File{
+		err = tx.Create(&File{
 			RecordKey: record.Key,
 			Name:      f.Name,
 			MIME:      f.MIME,
@@ -222,7 +221,7 @@ func (c *cockroachdb) UpdateRecord(r cache.Record) error {
 
 	// Run update within a transaction
 	tx := c.recordsdb.Begin()
-	err := updateRecord(tx, convertRecordFromCache(r))
+	err := c.updateRecord(tx, convertRecordFromCache(r))
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -236,19 +235,19 @@ func (c *cockroachdb) UpdateRecord(r cache.Record) error {
 // the database before the passed in metadata streams are added.
 //
 // This function must be called within a transaction.
-func updateRecordStatus(db *gorm.DB, token, version string, status int, timestamp int64, metadata []MetadataStream) error {
+func (c *cockroachdb) updateRecordStatus(tx *gorm.DB, token, version string, status int, timestamp int64, metadata []MetadataStream) error {
 	log.Tracef("updateRecordStatus: %v %v", token, version)
 
 	// Ensure record exists. We need to do this because updates
 	// will not return an error if you try to update a record that
 	// does not exist.
-	record, err := getRecordVersion(db, token, version)
+	record, err := c.recordVersion(tx, token, version)
 	if err != nil {
 		return err
 	}
 
 	// Update record
-	err = db.Model(&record).
+	err = tx.Model(&record).
 		Updates(map[string]interface{}{
 			"status":    status,
 			"timestamp": timestamp,
@@ -258,7 +257,7 @@ func updateRecordStatus(db *gorm.DB, token, version string, status int, timestam
 	}
 
 	// Delete existing metadata streams
-	err = db.Where("record_key = ?", record.Key).
+	err = tx.Where("record_key = ?", record.Key).
 		Delete(MetadataStream{}).
 		Error
 	if err != nil {
@@ -267,7 +266,7 @@ func updateRecordStatus(db *gorm.DB, token, version string, status int, timestam
 
 	// Add new metadata streams
 	for _, ms := range metadata {
-		err = db.Create(&MetadataStream{
+		err = tx.Create(&MetadataStream{
 			RecordKey: record.Key,
 			ID:        ms.ID,
 			Payload:   ms.Payload,
@@ -301,7 +300,7 @@ func (c *cockroachdb) UpdateRecordStatus(token, version string, status cache.Rec
 
 	// Run update within a transaction
 	tx := c.recordsdb.Begin()
-	err := updateRecordStatus(tx, token, version, int(status),
+	err := c.updateRecordStatus(tx, token, version, int(status),
 		timestamp, mdStreams)
 	if err != nil {
 		tx.Rollback()
@@ -415,35 +414,7 @@ func (c *cockroachdb) InventoryStats() (*cache.InventoryStats, error) {
 		}
 	}
 
-	is.Total = is.NotReviewed + is.Censored + is.Public +
-		is.UnreviewedChanges + is.Archived + is.Invalid
-
 	return &is, nil
-}
-
-func (c *cockroachdb) RegisterPlugin(p cache.Plugin) error {
-	log.Tracef("RegisterPlugin: %v", p.ID)
-
-	c.Lock()
-	defer c.Unlock()
-
-	if c.shutdown {
-		return cache.ErrShutdown
-	}
-
-	_, ok := c.plugins[p.ID]
-	if ok {
-		return cache.ErrDuplicatePlugin
-	}
-
-	switch p.ID {
-	case decredplugin.ID:
-		c.plugins[decredplugin.ID] = newDecredPlugin(c.recordsdb, p)
-	default:
-		return cache.ErrInvalidPlugin
-	}
-
-	return nil
 }
 
 func (c *cockroachdb) getPlugin(id string) (cache.PluginDriver, error) {
@@ -454,44 +425,6 @@ func (c *cockroachdb) getPlugin(id string) (cache.PluginDriver, error) {
 		return nil, cache.ErrInvalidPlugin
 	}
 	return plugin, nil
-}
-
-func (c *cockroachdb) PluginSetup(id string) error {
-	log.Tracef("PluginSetup: %v", id)
-
-	c.RLock()
-	shutdown := c.shutdown
-	c.RUnlock()
-
-	if shutdown {
-		return cache.ErrShutdown
-	}
-
-	plugin, err := c.getPlugin(id)
-	if err != nil {
-		return err
-	}
-
-	return plugin.Setup()
-}
-
-func (c *cockroachdb) PluginBuild(id, payload string) error {
-	log.Tracef("PluginBuild: %v", id)
-
-	c.RLock()
-	shutdown := c.shutdown
-	c.RUnlock()
-
-	if shutdown {
-		return cache.ErrShutdown
-	}
-
-	plugin, err := c.getPlugin(id)
-	if err != nil {
-		return err
-	}
-
-	return plugin.Build(payload)
 }
 
 // PluginExec is a pass through function for plugin commands.
@@ -524,42 +457,112 @@ func (c *cockroachdb) PluginExec(pc cache.PluginCommand) (*cache.PluginCommandRe
 	}, nil
 }
 
+func (c *cockroachdb) PluginSetup(id string) error {
+	log.Tracef("PluginSetup: %v", id)
+
+	c.RLock()
+	shutdown := c.shutdown
+	c.RUnlock()
+
+	if shutdown {
+		return cache.ErrShutdown
+	}
+
+	plugin, err := c.getPlugin(id)
+	if err != nil {
+		return err
+	}
+
+	return plugin.Setup()
+}
+
+func (c *cockroachdb) RegisterPlugin(p cache.Plugin) error {
+	log.Tracef("RegisterPlugin: %v", p.ID)
+
+	c.Lock()
+	defer c.Unlock()
+
+	if c.shutdown {
+		return cache.ErrShutdown
+	}
+
+	_, ok := c.plugins[p.ID]
+	if ok {
+		return cache.ErrDuplicatePlugin
+	}
+
+	// Register the plugin
+	var pd cache.PluginDriver
+	switch p.ID {
+	case decredplugin.ID:
+		pd = newDecredPlugin(c.recordsdb, p)
+		c.plugins[decredplugin.ID] = pd
+	default:
+		return cache.ErrInvalidPlugin
+	}
+
+	// Ensure we're using the correct plugin version
+	return pd.CheckVersion()
+}
+
+func (c *cockroachdb) PluginBuild(id, payload string) error {
+	log.Tracef("PluginBuild: %v", id)
+
+	c.RLock()
+	shutdown := c.shutdown
+	c.RUnlock()
+
+	if shutdown {
+		return cache.ErrShutdown
+	}
+
+	plugin, err := c.getPlugin(id)
+	if err != nil {
+		return err
+	}
+
+	log.Infof("Building plugin cache: %v", id)
+
+	return plugin.Build(payload)
+}
+
 // createTables creates the database tables if they do not already exist and
-// sets the cache version.
+// sets the record version.
 //
 // This function must be called within a transaction.
-func createTables(db *gorm.DB) error {
+func (c *cockroachdb) createTables(tx *gorm.DB) error {
 	log.Tracef("createTables")
 
-	if !db.HasTable(tableVersion) {
-		err := db.CreateTable(&Version{}).Error
+	if !tx.HasTable(tableVersions) {
+		err := tx.CreateTable(&Version{}).Error
 		if err != nil {
 			return err
 		}
-		// Set cache version
-		err = db.Create(
+		// Add record version
+		err = tx.Create(
 			&Version{
-				Version:   recordVersion,
+				ID:        cacheID,
+				Version:   cacheVersion,
 				Timestamp: time.Now().Unix(),
 			}).Error
 		if err != nil {
 			return err
 		}
 	}
-	if !db.HasTable(tableRecords) {
-		err := db.CreateTable(&Record{}).Error
+	if !tx.HasTable(tableRecords) {
+		err := tx.CreateTable(&Record{}).Error
 		if err != nil {
 			return err
 		}
 	}
-	if !db.HasTable(tableMetadataStreams) {
-		err := db.CreateTable(&MetadataStream{}).Error
+	if !tx.HasTable(tableMetadataStreams) {
+		err := tx.CreateTable(&MetadataStream{}).Error
 		if err != nil {
 			return err
 		}
 	}
-	if !db.HasTable(tableFiles) {
-		err := db.CreateTable(&File{}).Error
+	if !tx.HasTable(tableFiles) {
+		err := tx.CreateTable(&File{}).Error
 		if err != nil {
 			return err
 		}
@@ -568,20 +571,42 @@ func createTables(db *gorm.DB) error {
 	return nil
 }
 
+// Setup creates the database tables if they do not already exist. A version
+// record is inserted into the database during table creation.
+func (c *cockroachdb) Setup() error {
+	log.Tracef("Setup tables")
+
+	c.Lock()
+	defer c.Unlock()
+
+	if c.shutdown {
+		return cache.ErrShutdown
+	}
+
+	tx := c.recordsdb.Begin()
+	err := c.createTables(tx)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
+}
+
 // build creates the database tables if they don't already exist then adds the
 // given records to the database.
 //
 // This funcion must be called within a transaction.
-func build(db *gorm.DB, records []Record) error {
+func (c *cockroachdb) build(tx *gorm.DB, records []Record) error {
 	log.Tracef("build")
 
-	err := createTables(db)
+	err := c.createTables(tx)
 	if err != nil {
 		return err
 	}
 
 	for _, r := range records {
-		err := db.Create(&r).Error
+		err := tx.Create(&r).Error
 		if err != nil {
 			return err
 		}
@@ -602,7 +627,7 @@ func (c *cockroachdb) Build(records []cache.Record) error {
 		return cache.ErrShutdown
 	}
 
-	log.Infof("Building cache")
+	log.Infof("Building records cache")
 
 	var r []Record
 	for _, cr := range records {
@@ -610,7 +635,7 @@ func (c *cockroachdb) Build(records []cache.Record) error {
 	}
 
 	// Drop all current tables from the cache
-	err := c.recordsdb.DropTableIfExists(tableVersion, tableRecords,
+	err := c.recordsdb.DropTableIfExists(tableVersions, tableRecords,
 		tableMetadataStreams, tableFiles).Error
 	if err != nil {
 		return err
@@ -619,11 +644,12 @@ func (c *cockroachdb) Build(records []cache.Record) error {
 	// Use a transaction to create new tables and to add all the
 	// politeiad records to the cache
 	tx := c.recordsdb.Begin()
-	err = build(tx, r)
+	err = c.build(tx, r)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
+
 	return tx.Commit().Error
 }
 
@@ -639,33 +665,39 @@ func (c *cockroachdb) Close() {
 	c.recordsdb.Close()
 }
 
+func buildQueryString(user, rootCert, certDir string) string {
+	v := url.Values{}
+	v.Set("ssl", "true")
+	v.Set("sslmode", "require")
+	v.Set("sslrootcert", filepath.Clean(rootCert))
+	v.Set("sslkey", filepath.Join(certDir, "client."+user+".key"))
+	v.Set("sslcert", filepath.Join(certDir, "client."+user+".crt"))
+	return v.Encode()
+}
+
 // New returns a new cockroachdb context that contains a connection to the
 // specified database that was made using the passed in user and certificates.
 func New(user, host, net, rootCert, certDir string) (*cockroachdb, error) {
 	log.Tracef("New: %v %v %v %v %v", user, host, net, rootCert, certDir)
 
 	// Connect to database
-	h := "postgresql://" + user + "@" + host + "/" + dbPrefix + net
+	dbName := cacheID + "_" + net
+	h := "postgresql://" + user + "@" + host + "/" + dbName
 	u, err := url.Parse(h)
 	if err != nil {
 		log.Debugf("New: could not parse url %v", h)
 		return nil, err
 	}
 
-	v := url.Values{}
-	v.Set("ssl", "true")
-	v.Set("sslmode", "require")
-	v.Set("sslrootcert", filepath.Clean(rootCert))
-	v.Set("sslkey", filepath.Join(certDir, "client."+u.User.String()+".key"))
-	v.Set("sslcert", filepath.Join(certDir, "client."+u.User.String()+".crt"))
-
-	addr := u.String() + "?" + v.Encode()
+	qs := buildQueryString(u.User.String(), rootCert, certDir)
+	addr := u.String() + "?" + qs
 	db, err := gorm.Open("postgres", addr)
 	if err != nil {
 		log.Debugf("New: could not connect to %v", addr)
 		return nil, err
 	}
 
+	// Create context
 	c := &cockroachdb{
 		recordsdb: db,
 		plugins:   make(map[string]cache.PluginDriver),
@@ -679,12 +711,22 @@ func New(user, host, net, rootCert, certDir string) (*cockroachdb, error) {
 	// names manually.
 	c.recordsdb.SingularTable(true)
 
-	// Check version
-	var vr Version
-	err = c.recordsdb.First(&vr).Error
-	if err != nil {
-		return nil, err
-	} else if vr.Version != recordVersion {
+	// Ensure we're using the correct cache version.
+	var v Version
+	if c.recordsdb.HasTable(tableVersions) {
+		err = c.recordsdb.
+			Where("id = ?", cacheID).
+			Find(&v).
+			Error
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Return an error if the version is incorrect, but also
+	// return the database context so that the cache can be
+	// rebuilt.
+	if v.Version != cacheVersion {
 		err = cache.ErrWrongVersion
 	}
 
@@ -693,13 +735,11 @@ func New(user, host, net, rootCert, certDir string) (*cockroachdb, error) {
 	return c, err
 }
 
-// Setup uses the CockroachDB root user to create a database, politeiad user,
-// and politeiawww user if they do not already exist. User permissions are then
-// set for the database and the database tables are created if they do not
-// already exist. A Version record is inserted into the database during table
-// creation.
+// Setup uses the CockroachDB root user to create a database, a politeiad user,
+// and a politeiawww user if they don't already exist. User permissions are set
+// for the database.
 func Setup(host, net, rootCert, certDir string) error {
-	log.Tracef("Setup: %v %v %v %v", host, net, rootCert, certDir)
+	log.Tracef("Setup database: %v %v %v %v", host, net, rootCert, certDir)
 
 	// Connect to CockroachDB as root user. CockroachDB connects
 	// to defaultdb when a database is not specified.
@@ -710,14 +750,8 @@ func Setup(host, net, rootCert, certDir string) error {
 		return err
 	}
 
-	v := url.Values{}
-	v.Set("ssl", "true")
-	v.Set("sslmode", "require")
-	v.Set("sslrootcert", filepath.Clean(rootCert))
-	v.Set("sslkey", filepath.Join(certDir, "client."+u.User.String()+".key"))
-	v.Set("sslcert", filepath.Join(certDir, "client."+u.User.String()+".crt"))
-
-	addr := u.String() + "?" + v.Encode()
+	qs := buildQueryString(u.User.String(), rootCert, certDir)
+	addr := u.String() + "?" + qs
 	db, err := gorm.Open("postgres", addr)
 	defer db.Close()
 	if err != nil {
@@ -726,7 +760,7 @@ func Setup(host, net, rootCert, certDir string) error {
 	}
 
 	// Setup records database and users
-	dbName := dbPrefix + net
+	dbName := cacheID + "_" + net
 	q := "CREATE DATABASE IF NOT EXISTS " + dbName
 	err = db.Exec(q).Error
 	if err != nil {
@@ -760,7 +794,7 @@ func Setup(host, net, rootCert, certDir string) error {
 		log.Debugf("Setup: could not parse url %v", h)
 		return err
 	}
-	addr = u.String() + "?" + v.Encode()
+	addr = u.String() + "?" + qs
 	recordsDB, err := gorm.Open("postgres", addr)
 	defer recordsDB.Close()
 	if err != nil {
@@ -768,12 +802,5 @@ func Setup(host, net, rootCert, certDir string) error {
 		return err
 	}
 
-	// Setup database tables
-	tx := recordsDB.Begin()
-	err = createTables(tx)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-	return tx.Commit().Error
+	return nil
 }

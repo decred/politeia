@@ -11,14 +11,15 @@ import (
 type RecordStatusT int
 
 var (
-	// ErrWrongVersion is emitted when the version record in the cache
-	// does not match version of the interface implementation.
+	// ErrWrongVersion is emmitted when the version of the cache tables
+	// does not match the version of the cache implementation.
 	ErrWrongVersion = errors.New("wrong cache version")
 
 	// ErrShutdown is emitted when the cache is shutting down.
 	ErrShutdown = errors.New("cache is shutting down")
 
-	// ErrRecordNotFound is emitted when a record could not be found.
+	// ErrRecordNotFound is emitted when a cache record could not be
+	// found.
 	ErrRecordNotFound = errors.New("record not found")
 
 	// ErrInvalidPlugin is emitted when an invalid plugin is used.
@@ -31,6 +32,10 @@ var (
 	// ErrInvalidPluginCmd is emitted when an invalid plugin command
 	// is used.
 	ErrInvalidPluginCmd = errors.New("invalid plugin command")
+
+	// ErrWrongPluginVersion is emitted when the version of a cache
+	// plugin does not match the version of the plugin tables.
+	ErrWrongPluginVersion = errors.New("wrong plugin version")
 )
 
 const (
@@ -89,7 +94,6 @@ type InventoryStats struct {
 	Public            int // Number of public records
 	UnreviewedChanges int // Number of unreviewed records with edits
 	Archived          int // Number of archived records
-	Total             int // Total number of records
 }
 
 // PluginCommand is used to execute a plugin command.  The reply payload
@@ -125,10 +129,13 @@ type Plugin struct {
 
 // PluginDriver is the interface that all cache plugins must implement.
 type PluginDriver interface {
-	// Setup plugin tables
+	// Check that the correct plugin version is being used
+	CheckVersion() error
+
+	// Setup the plugin tables
 	Setup() error
 
-	// Build plugin tables
+	// Build the plugin tables from scratch
 	Build(string) error
 
 	// Execute a plugin command
@@ -158,13 +165,16 @@ type Cache interface {
 	// Get a summary of the number of records by status
 	InventoryStats() (*InventoryStats, error)
 
-	// Build the cache from scratch
+	// Setup the record cache tables
+	Setup() error
+
+	// Build the records cache from scratch
 	Build([]Record) error
 
 	// Register a plugin with the cache
 	RegisterPlugin(Plugin) error
 
-	// Setup tables for a plugin
+	// Setup plugin tables
 	PluginSetup(string) error
 
 	// Build cache for a plugin

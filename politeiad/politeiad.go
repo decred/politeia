@@ -26,6 +26,7 @@ import (
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/gitbe"
 	"github.com/decred/politeia/politeiad/cache"
+	"github.com/decred/politeia/politeiad/cache/cachestub"
 	"github.com/decred/politeia/politeiad/cache/cockroachdb"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
@@ -1063,7 +1064,7 @@ func _main() error {
 	p := &politeia{
 		cfg:     loadedCfg,
 		plugins: make(map[string]v1.Plugin),
-		cache:   cache.NewStub(),
+		cache:   cachestub.New(),
 	}
 
 	// Load identity.
@@ -1101,33 +1102,31 @@ func _main() error {
 	}
 	p.backend = b
 
-	// Setup the cache
+	// Setup cache
 	if p.cfg.EnableCache {
+		// Create the database and database users
 		cockroachdb.UseLogger(cockroachdbLog)
 		net := filepath.Base(p.cfg.DataDir)
 		err = cockroachdb.Setup(p.cfg.CacheHost, net, p.cfg.CacheRootCert,
 			p.cfg.CacheCertDir)
 		if err != nil {
-			return fmt.Errorf("cache setup: %v", err)
+			return fmt.Errorf("cockroachdb setup: %v", err)
 		}
+
+		// Create a new cache context
 		db, err := cockroachdb.New(cockroachdb.UserPoliteiad, p.cfg.CacheHost,
 			net, p.cfg.CacheRootCert, p.cfg.CacheCertDir)
 		if err == cache.ErrWrongVersion {
 			p.cfg.BuildCache = true
 		} else if err != nil {
-			return fmt.Errorf("cache new: %v", err)
+			return fmt.Errorf("cockroachdb new: %v", err)
 		}
 		p.cache = db
 
-		// Check the number of records in the cache. If no records are
-		// found, build the cache just to be safe. The cache and the
-		// politeiad inventory may not have been previously synced.
-		inv, err := p.cache.InventoryStats()
+		// Setup the cache tables
+		err = p.cache.Setup()
 		if err != nil {
-			return fmt.Errorf("cache inventory stats: %v", err)
-		}
-		if inv.Total == 0 {
-			p.cfg.BuildCache = true
+			return fmt.Errorf("cache setup: %v", err)
 		}
 	}
 
@@ -1180,16 +1179,20 @@ func _main() error {
 			}
 			p.plugins[v.ID] = convertBackendPlugin(v)
 
-			// Register the plugin with the cache
+			// Register plugin with the cache
 			cp := convertBackendPluginToCache(v)
 			err := p.cache.RegisterPlugin(cp)
-			if err != nil {
-				return fmt.Errorf("%v plugin register cache: %v",
+			if err == cache.ErrWrongPluginVersion {
+				p.cfg.BuildCache = true
+			} else if err != nil {
+				return fmt.Errorf("cache register plugin '%v': %v",
 					cp.ID, err)
 			}
+
+			// Setup the cache plugin tables
 			err = p.cache.PluginSetup(cp.ID)
 			if err != nil {
-				return fmt.Errorf("%v plugin setup cache: %v",
+				return fmt.Errorf("cache plugin setup '%v': %v",
 					cp.ID, err)
 			}
 
@@ -1214,16 +1217,18 @@ func _main() error {
 			inv = append(inv, p.convertBackendRecordToCache(r))
 		}
 
-		// Build records cache
+		// Build the records cache
 		err = p.cache.Build(inv)
 		if err != nil {
 			return fmt.Errorf("build cache: %v", err)
 		}
 
-		// Build cache for plugins
+		// Build the cache for plugins
+		// XXX when we create an interface for plugins we need to
+		// rethink how we're building the plugin caches. Reading the
+		// entire plugin inventory into memory is only a temporary
+		// solution.
 		for _, v := range p.plugins {
-			// Only build the plugin cache if a plugin inventory
-			// command is found
 			var cmd string
 			for _, s := range v.Settings {
 				if s.Key == "inventorycmd" {
@@ -1237,14 +1242,15 @@ func _main() error {
 			// Fetch plugin inventory
 			_, payload, err := p.backend.Plugin(cmd, "")
 			if err != nil {
-				log.Errorf("Unable to get inventory plugin:%v "+
-					"command:%v error:%v", v.ID, cmd, err)
+				log.Errorf("Failed to get plugin data to build cache "+
+					"plugin:%v command:%v error:%v", v.ID, cmd, err)
 			}
 
 			// Build plugin cache
 			err = p.cache.PluginBuild(v.ID, payload)
 			if err != nil {
-				return fmt.Errorf("%v plugin build cache: %v", v.ID, err)
+				return fmt.Errorf("plugin '%v' build cache: %v",
+					v.ID, err)
 			}
 		}
 	}

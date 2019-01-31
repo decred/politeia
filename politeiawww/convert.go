@@ -1,10 +1,6 @@
 package main
 
 import (
-	"encoding/json"
-	"io"
-	"strings"
-
 	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/cache"
@@ -241,57 +237,51 @@ func convertPropStatusFromCache(s cache.RecordStatusT) www.PropStatusT {
 	return www.PropStatusInvalid
 }
 
-// convertPropFromCache converts a cache record into a www proposal record.
-// The UserId, Username, and NumComments fields are returned as zero values
-// since a cache record does not contain that data.
 func convertPropFromCache(r cache.Record) www.ProposalRecord {
-	// Decode markdown stream payloads.
+	// Decode markdown stream payloads
+	var bpm *BackendProposalMetadata
+	var msc []MDStreamChanges
+	for _, ms := range r.Metadata {
+		// General metadata
+		if ms.ID == mdStreamGeneral {
+			md, err := decodeBackendProposalMetadata([]byte(ms.Payload))
+			if err != nil {
+				log.Errorf("convertPropFromCache: decode BackedProposalMetadata "+
+					"'%v' token '%v': %v", ms, r.CensorshipRecord.Token, err)
+			}
+			bpm = md
+		}
+
+		// Status change metatdata
+		if ms.ID == mdStreamChanges {
+			md, err := decodeMDStreamChanges([]byte(ms.Payload))
+			if err != nil {
+				log.Errorf("convertPropFromCache: decode MDStreamChanges "+
+					"'%v' token '%v': %v", ms, r.CensorshipRecord.Token, err)
+			}
+			msc = md
+		}
+	}
+
+	// Compile proposal status change metadata
 	var (
-		bpm         BackendProposalMetadata
 		changeMsg   string
 		publishedAt int64
 		censoredAt  int64
 		abandonedAt int64
 	)
-	for _, ms := range r.Metadata {
-		// General metadata
-		if ms.ID == mdStreamGeneral {
-			err := json.Unmarshal([]byte(ms.Payload), &bpm)
-			if err != nil {
-				log.Errorf("convertPropFromCache: unmarshal BackedProposalMetadata "+
-					"'%v' token '%v': %v", ms, r.CensorshipRecord.Token, err)
-			}
-		}
+	for _, v := range msc {
+		// Overwrite change message because we only need to keep
+		// the most recent one.
+		changeMsg = v.StatusChangeMessage
 
-		// Status change metatdata. The mdStreamChanges payload may
-		// contain multiple status changes. These need to be decoded
-		// individually.
-		if ms.ID == mdStreamChanges {
-			d := json.NewDecoder(strings.NewReader(ms.Payload))
-			for {
-				var msc MDStreamChanges
-				err := d.Decode(&msc)
-				if err == io.EOF {
-					break
-				} else if err != nil {
-					log.Errorf("convertPropFromCache: decode MDStreamChanges "+
-						"'%v' token '%v': %v", ms, r.CensorshipRecord.Token, err)
-					break
-				}
-
-				// We only need the most recent change msg
-				changeMsg = msc.StatusChangeMessage
-
-				// TODO: this needs to be convertPropStatusFromCache
-				switch convertPropStatusFromPD(msc.NewStatus) {
-				case www.PropStatusPublic:
-					publishedAt = msc.Timestamp
-				case www.PropStatusCensored:
-					censoredAt = msc.Timestamp
-				case www.PropStatusAbandoned:
-					abandonedAt = msc.Timestamp
-				}
-			}
+		switch convertPropStatusFromPD(v.NewStatus) {
+		case www.PropStatusPublic:
+			publishedAt = v.Timestamp
+		case www.PropStatusCensored:
+			censoredAt = v.Timestamp
+		case www.PropStatusAbandoned:
+			abandonedAt = v.Timestamp
 		}
 	}
 
@@ -308,6 +298,10 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 	}
 
 	status := convertPropStatusFromCache(r.Status)
+
+	// The UserId, Username, and NumComments fields are returned
+	// as zero values since a cache record does not contain that
+	// data.
 	return www.ProposalRecord{
 		Name:                bpm.Name,
 		State:               convertPropStatusToState(status),
@@ -406,7 +400,7 @@ func convertPluginToCache(p Plugin) cache.Plugin {
 	}
 }
 
-func convertAuthorizeVoteFromDecred(dav decredplugin.AuthorizeVote) (www.AuthorizeVote, www.AuthorizeVoteReply) {
+func convertAuthVoteFromDecred(dav decredplugin.AuthorizeVote) (www.AuthorizeVote, www.AuthorizeVoteReply) {
 	av := www.AuthorizeVote{
 		Action:    dav.Action,
 		Token:     dav.Token,
@@ -455,7 +449,7 @@ func convertStartVoteReplyFromDecred(svr decredplugin.StartVoteReply) www.StartV
 }
 
 func convertVoteDetailsReplyFromDecred(vdr decredplugin.VoteDetailsReply) VoteDetails {
-	av, avr := convertAuthorizeVoteFromDecred(vdr.AuthorizeVote)
+	av, avr := convertAuthVoteFromDecred(vdr.AuthorizeVote)
 	return VoteDetails{
 		AuthorizeVote:      av,
 		AuthorizeVoteReply: avr,
@@ -485,4 +479,23 @@ func convertVoteResultsReplyFromDecred(vrr decredplugin.VoteResultsReply) (www.S
 	sv := convertStartVoteFromDecred(vrr.StartVote)
 	cv := convertCastVotesFromDecred(vrr.CastVotes)
 	return sv, cv
+}
+
+func convertPluginSettingFromPD(ps pd.PluginSetting) PluginSetting {
+	return PluginSetting{
+		Key:   ps.Key,
+		Value: ps.Value,
+	}
+}
+
+func convertPluginFromPD(p pd.Plugin) Plugin {
+	ps := make([]PluginSetting, 0, len(p.Settings))
+	for _, v := range p.Settings {
+		ps = append(ps, convertPluginSettingFromPD(v))
+	}
+	return Plugin{
+		ID:       p.ID,
+		Version:  p.Version,
+		Settings: ps,
+	}
 }

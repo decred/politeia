@@ -4,16 +4,17 @@
 
 package cockroachdb
 
-// Version is the version of the cache the database is using.
+// Version describes the version of a record or plugin that the database is
+// currently using.
 type Version struct {
-	Key       uint   `gorm:"primary_key"` // Primary key
-	Version   uint32 `gorm:"not null"`    // Cache version
+	ID        string `gorm:"primary_key"` // Primary key
+	Version   string `gorm:"not null"`    // Version
 	Timestamp int64  `gorm:"not null"`    // UNIX timestamp of record creation
 }
 
 // TableName returns the name of the Version database table.
 func (Version) TableName() string {
-	return tableVersion
+	return tableVersions
 }
 
 // File describes an individual file that is part of the record.
@@ -87,8 +88,6 @@ type LikeComment struct {
 	Action    string `gorm:"not null;size:2"`   // Up or downvote (1, -1)
 	Signature string `gorm:"not null;size:128"` // Client Signature of Token+CommentID+Action
 	PublicKey string `gorm:"not null;size:64"`  // Public key used for Signature
-	Receipt   string `gorm:"not null;size:128"` // Signature of Signature
-	Timestamp int64  `gorm:"not null"`          // Received UNIX timestamp
 }
 
 func (LikeComment) TableName() string {
@@ -148,7 +147,6 @@ type CastVote struct {
 	Ticket    string `gorm:"not null"`          // Ticket ID
 	VoteBit   string `gorm:"not null"`          // Vote bit that was selected, this is encode in hex
 	Signature string `gorm:"not null;size:130"` // Signature of Token+Ticket+VoteBit
-	Receipt   string `gorm:"not null;size:128"` // Server signature of client signature
 }
 
 func (CastVote) TableName() string {

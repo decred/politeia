@@ -603,15 +603,16 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 		// Unvetted status change
 
 		// Verify status transition is valid
-		if pr.Status == www.PropStatusNotReviewed &&
+		switch {
+		case pr.Status == www.PropStatusNotReviewed &&
 			(sps.ProposalStatus == www.PropStatusCensored ||
-				sps.ProposalStatus == www.PropStatusPublic) {
-			// allowed; continue
-		} else if pr.Status == www.PropStatusUnreviewedChanges &&
+				sps.ProposalStatus == www.PropStatusPublic):
+		// allowed; continue
+		case pr.Status == www.PropStatusUnreviewedChanges &&
 			(sps.ProposalStatus == www.PropStatusCensored ||
-				sps.ProposalStatus == www.PropStatusPublic) {
+				sps.ProposalStatus == www.PropStatusPublic):
 			// allowed; continue
-		} else {
+		default:
 			return nil, www.UserError{
 				ErrorCode: www.ErrorStatusInvalidPropStatusTransition,
 			}
@@ -841,12 +842,12 @@ func (b *backend) ProcessEditProposal(ep www.EditProposal, user *database.User) 
 	}
 
 	var pdRoute string
-	if cachedProp.Status == www.PropStatusNotReviewed ||
-		cachedProp.Status == www.PropStatusUnreviewedChanges {
+	switch cachedProp.Status {
+	case www.PropStatusNotReviewed, www.PropStatusUnreviewedChanges:
 		pdRoute = pd.UpdateUnvettedRoute
-	} else if cachedProp.Status == www.PropStatusPublic {
+	case www.PropStatusPublic:
 		pdRoute = pd.UpdateVettedRoute
-	} else {
+	default:
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusWrongStatus,
 		}

@@ -121,7 +121,7 @@ func (b *backend) ProcessEditUser(eu *www.EditUser, user *database.User) (*www.E
 }
 
 // ProcessUserCommentsLikes returns all of the user's comment likes for the
-// specified proposal.
+// passed in proposal.
 func (b *backend) ProcessUserCommentsLikes(user *database.User, token string) (*www.UserCommentsLikesReply, error) {
 	log.Tracef("ProcessUserCommentsLikes: %v %v", user.ID, token)
 
@@ -140,8 +140,7 @@ func (b *backend) ProcessUserCommentsLikes(user *database.User, token string) (*
 	b.RLock()
 	defer b.RUnlock()
 
-	// We only want the like comments that are from the passed
-	// in user
+	// Filter out like comments that are from the user
 	lc := make([]www.LikeComment, 0, len(dlc))
 	for _, v := range dlc {
 		userID, ok := b.userPubkeys[v.PublicKey]
@@ -157,18 +156,28 @@ func (b *backend) ProcessUserCommentsLikes(user *database.User, token string) (*
 		}
 	}
 
-	// TODO explain what is going on here because it's confusing af
+	// Compute the resulting like comment action for each comment.
+	// The resulting action depends on the order of the like
+	// comment actions.
+	//
+	// Example: when a user upvotes a comment twice, the second
+	// upvote cancels out the first upvote and the resulting
+	// comment score is 0.
+	//
+	// Example: when a user upvotes a comment and then downvotes
+	// the same comment, the downvote takes precedent and the
+	// resulting comment score is -1.
 	actions := make(map[string]string) // [commentID]action
 	for _, v := range lc {
 		prevAction := actions[v.CommentID]
 		switch {
 		case v.Action == prevAction:
 			// New action is the same as the previous action so
-			// we undo the previous action
+			// we undo the previous action.
 			actions[v.CommentID] = ""
 		case v.Action != prevAction:
 			// New action is different than the previous action
-			// so the new action takes precedent
+			// so the new action takes precedent.
 			actions[v.CommentID] = v.Action
 		}
 	}

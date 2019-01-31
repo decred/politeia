@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"path/filepath"
 	"regexp"
@@ -65,7 +66,7 @@ type loginReplyWithError struct {
 
 // politeiawww backend construct
 type backend struct {
-	sync.RWMutex // lock for inventory and comments and caches
+	sync.RWMutex
 
 	db           database.Database // User database
 	cache        cache.Cache       // Records cache
@@ -73,6 +74,7 @@ type backend struct {
 	params       *chaincfg.Params
 	client       *http.Client // politeiad client
 	eventManager *EventManager
+	plugins      []Plugin
 
 	// These properties are only used for testing.
 	test                   bool
@@ -145,6 +147,27 @@ func decodeBackendProposalMetadata(payload []byte) (*BackendProposalMetadata, er
 	}
 
 	return &md, nil
+}
+
+// decodeMDStreamChanges decodes a JSON byte slice into a slice of
+// MDStreamChanges.
+func decodeMDStreamChanges(payload []byte) ([]MDStreamChanges, error) {
+	var msc []MDStreamChanges
+
+	d := json.NewDecoder(strings.NewReader(string(payload)))
+	for {
+		var m MDStreamChanges
+		err := d.Decode(&m)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return nil, err
+		}
+
+		msc = append(msc, m)
+	}
+
+	return msc, nil
 }
 
 // checkPublicKeyAndSignature validates the public key and signature.
@@ -518,6 +541,8 @@ func (b *backend) remoteInventory() (*pd.InventoryReply, error) {
 }
 
 func (b *backend) initCommentScores() error {
+	log.Tracef("initCommentScores")
+
 	// Fetch decred plugin inventory from cache
 	ir, err := b.decredInventory()
 	if err != nil {
@@ -1977,29 +2002,44 @@ func (b *backend) getBestBlock() (uint64, error) {
 	return bestBlock, nil
 }
 
-func getDecredPlugin(testnet bool) Plugin {
-	decredPlugin := Plugin{
-		ID:       decredplugin.ID,
-		Version:  decredplugin.Version,
-		Settings: []PluginSetting{},
+func (b *backend) getPluginInventory() ([]Plugin, error) {
+	log.Tracef("getPluginInventory")
+
+	// Setup politeiad request
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
 	}
 
-	if testnet {
-		decredPlugin.Settings = append(decredPlugin.Settings,
-			PluginSetting{
-				Key:   "dcrdata",
-				Value: "https://testnet.dcrdata.org:443/",
-			},
-		)
-	} else {
-		decredPlugin.Settings = append(decredPlugin.Settings,
-			PluginSetting{
-				Key:   "dcrdata",
-				Value: "https://explorer.dcrdata.org:443/",
-			})
+	pi := pd.PluginInventory{
+		Challenge: hex.EncodeToString(challenge),
 	}
 
-	return decredPlugin
+	// Send politeiad request
+	responseBody, err := b.makeRequest(http.MethodPost,
+		pd.PluginInventoryRoute, pi)
+	if err != nil {
+		return nil, fmt.Errorf("makeRequest: %v", err)
+	}
+
+	// Handle response
+	var reply pd.PluginInventoryReply
+	err = json.Unmarshal(responseBody, &reply)
+	if err != nil {
+		return nil, err
+	}
+
+	err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	plugins := make([]Plugin, 0, len(reply.Plugins))
+	for _, v := range reply.Plugins {
+		plugins = append(plugins, convertPluginFromPD(v))
+	}
+
+	return plugins, nil
 }
 
 // NewBackend creates a new backend context for use in www and tests.
@@ -2034,17 +2074,24 @@ func NewBackend(cfg *config) (*backend, error) {
 		commentScores:   make(map[string]int64),
 	}
 
-	// Register plugins with cache
-	// TODO getDecredPlugin should be deleted and plugins should
-	// be fetched from politeiad
-	dp := getDecredPlugin(cfg.TestNet)
-	cdp := convertPluginToCache(dp)
-	err = b.cache.RegisterPlugin(cdp)
+	// Get plugins from politeiad
+	p, err := b.getPluginInventory()
 	if err != nil {
-		return nil, fmt.Errorf("register decred plugin failed: %v", err)
+		return nil, fmt.Errorf("getPluginInventory: %v", err)
 	}
+	b.plugins = p
 
-	log.Infof("Registered plugin: decred")
+	// Register plugins with cache
+	for _, v := range b.plugins {
+		p := convertPluginToCache(v)
+		err = b.cache.RegisterPlugin(p)
+		if err != nil {
+			return nil, fmt.Errorf("cache register plugin '%v': %v",
+				v.ID, err)
+		}
+
+		log.Infof("Registered plugin: %v", v.ID)
+	}
 
 	// Setup pubkey-userid map
 	err = b.initUserPubkeys()

@@ -85,7 +85,7 @@ func convertRecordToCache(r Record) cache.Record {
 	}
 }
 
-func convertCommentFromDecred(nc decredplugin.NewComment, ncr decredplugin.NewCommentReply) Comment {
+func convertNewCommentFromDecred(nc decredplugin.NewComment, ncr decredplugin.NewCommentReply) Comment {
 	return Comment{
 		Key:       nc.Token + ncr.CommentID,
 		Token:     nc.Token,
@@ -96,6 +96,21 @@ func convertCommentFromDecred(nc decredplugin.NewComment, ncr decredplugin.NewCo
 		CommentID: ncr.CommentID,
 		Receipt:   ncr.Receipt,
 		Timestamp: ncr.Timestamp,
+		Censored:  false,
+	}
+}
+
+func convertCommentFromDecred(c decredplugin.Comment) Comment {
+	return Comment{
+		Key:       c.Token + c.CommentID,
+		Token:     c.Token,
+		ParentID:  c.ParentID,
+		Comment:   c.Comment,
+		Signature: c.Signature,
+		PublicKey: c.PublicKey,
+		CommentID: c.CommentID,
+		Receipt:   c.Receipt,
+		Timestamp: c.Timestamp,
 		Censored:  false,
 	}
 }
@@ -116,15 +131,13 @@ func convertCommentToDecred(c Comment) decredplugin.Comment {
 	}
 }
 
-func convertLikeCommentFromDecred(lc decredplugin.LikeComment, lcr decredplugin.LikeCommentReply) LikeComment {
+func convertLikeCommentFromDecred(lc decredplugin.LikeComment) LikeComment {
 	return LikeComment{
 		Token:     lc.Token,
 		CommentID: lc.CommentID,
 		Action:    lc.Action,
 		Signature: lc.Signature,
 		PublicKey: lc.PublicKey,
-		Receipt:   lcr.Receipt,
-		Timestamp: lcr.Timestamp,
 	}
 }
 
@@ -135,8 +148,19 @@ func convertLikeCommentToDecred(lc LikeComment) decredplugin.LikeComment {
 		Action:    lc.Action,
 		Signature: lc.Signature,
 		PublicKey: lc.PublicKey,
-		Receipt:   lc.Receipt,
-		Timestamp: lc.Timestamp,
+	}
+}
+
+func convertAuthorizeVoteFromDecred(av decredplugin.AuthorizeVote, avr decredplugin.AuthorizeVoteReply) AuthorizeVote {
+	return AuthorizeVote{
+		Key:       av.Token + avr.RecordVersion,
+		Token:     av.Token,
+		Version:   avr.RecordVersion,
+		Action:    av.Action,
+		Signature: av.Signature,
+		PublicKey: av.PublicKey,
+		Receipt:   avr.Receipt,
+		Timestamp: avr.Timestamp,
 	}
 }
 
@@ -209,6 +233,15 @@ func convertStartVoteToDecred(sv StartVote) (decredplugin.StartVote, decredplugi
 	}
 
 	return dsv, dsvr
+}
+
+func convertCastVoteFromDecred(cv decredplugin.CastVote) CastVote {
+	return CastVote{
+		Token:     cv.Token,
+		Ticket:    cv.Ticket,
+		VoteBit:   cv.VoteBit,
+		Signature: cv.Signature,
+	}
 }
 
 func convertCastVoteToDecred(cv CastVote) decredplugin.CastVote {
