@@ -1431,7 +1431,7 @@ Set status of proposal to `PropStatusPublic`, `PropStatusCensored` or
 **Results:**
 
 | Parameter | Type | Description |
-|-|-|-|-|
+|-|-|-|
 | proposal | [`Proposal`](#proposal) | an entire proposal and it's content |
 
 On failure the call shall return `400 Bad Request` and one of the following
@@ -2209,6 +2209,7 @@ Returns the vote status for a single public proposal
 | passpercentage | uint32 | Percent of total votes required to pass |
 
 **VoteOptionResult:**
+
 | | Type | Description |
 |-|-|-|
 | option | VoteOption  | Option description |
@@ -2216,6 +2217,7 @@ Returns the vote status for a single public proposal
 
 
 **Proposal vote status map:**
+
 | status | value |
 |-|-|
 | Vote status invalid | 0 |
