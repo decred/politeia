@@ -79,6 +79,16 @@ func (cmd *HelpCmd) Execute(args []string) error {
 		fmt.Printf("%s\n", VerifyUserPaymentCmdHelpMsg)
 	case "startvote":
 		fmt.Printf("%s\n", StartVoteCmdHelpMsg)
+	case "proposalvotes":
+		fmt.Printf("%s\n", ProposalVotesCmdHelpMsg)
+	case "votestatus":
+		fmt.Printf("%s\n", VoteStatusCmdHelpMsg)
+	case "inventory":
+		fmt.Printf("%s\n", InventoryCmdHelpMsg)
+	case "tally":
+		fmt.Printf("%s\n", TallyCmdHelpMsg)
+	case "commentslikes":
+		fmt.Printf("%s\n", CommentsLikesCmdHelpMsg)
 	default:
 		fmt.Printf("invalid command\n")
 	}

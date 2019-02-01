@@ -5,6 +5,29 @@ import (
 	"strconv"
 )
 
+// Help message displayed for the command 'politeiawwwcli help tally'
+var TallyCmdHelpMsg = `tally "token"
+
+Fetch the vote tally for a proposal.
+
+Arguments:
+1. token       (string, required)  Proposal censorship token
+
+Response:
+
+Vote Option:
+  ID                   : (string)  Unique word identifying vote (e.g. 'no')
+  Description          : (string)  Longer description of the vote
+  Bits                 : (uint64)  Bits used for this option (e.g. '1')
+  Votes received       : (uint)    Number of votes received
+  Percentage           : (float64) Percentage of votes for vote option 
+Vote Option:
+  ID                   : (string)  Unique word identifying vote (e.g. 'yes')
+  Description          : (string)  Longer description of the vote
+  Bits                 : (uint64)  Bits used for this option (e.g. '2')
+  Votes received       : (uint)    Number of votes received
+  Percentage           : (float64) Percentage of votes for vote option`
+
 type TallyCmd struct {
 	Args struct {
 		Token string `positional-arg-name:"token" description:"Proposal censorship token"`

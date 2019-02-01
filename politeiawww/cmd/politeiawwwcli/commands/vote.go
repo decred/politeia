@@ -22,7 +22,9 @@ Arguments:
 2. voteid      (string, optional)   A single word identifying vote (e.g. yes)
 
 Result:
-ActiveVotes: 500,`
+Enter the private passphrase of your wallet:
+Votes succeeded:  (int)  Number of successful votes
+Votes failed   :  (int)  Number of failed votes`
 
 type VoteCmd struct {
 	Args struct {
