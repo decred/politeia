@@ -168,9 +168,10 @@ func parseAnchorCommit(commit *GitCommit) ([][]byte, []string, error) {
 	// Hashes are listed starting from the 3rd line in the commit message
 	// The hash is the first word in the line. The commit message is the rest.
 	// Ignore the last blank line
-	var digests [][]byte
-	var messages []string
-	for _, line := range commit.Message[2 : len(commit.Message)-1] {
+	commits := commit.Message[2 : len(commit.Message)-1]
+	digests := make([][]byte, 0, len(commits))
+	messages := make([]string, 0, len(commits))
+	for _, line := range commits {
 		// The first word is the commit hash. The rest is the one-line commit message.
 		lineParts := strings.SplitN(line, " ", 2)
 		digest, err := hex.DecodeString(lineParts[0])
@@ -201,7 +202,7 @@ func (g *gitBackEnd) readAnchorRecord(key [sha256.Size]byte) (*Anchor, error) {
 		if err != nil {
 			return nil, err
 		}
-		currLine = currLine + linesUsed
+		currLine += linesUsed
 
 		// Check the first line to see if the commit matches the target
 		firstLine := commit.Message[0]
@@ -248,7 +249,7 @@ func (g *gitBackEnd) readLastAnchorRecord() (*LastAnchor, error) {
 		if err != nil {
 			return nil, err
 		}
-		currLine = currLine + linesUsed
+		currLine += linesUsed
 
 		// Check the first line of the commit message
 		// Make sure it is an anchor, not an anchor confirmation
@@ -298,7 +299,7 @@ func (g *gitBackEnd) readUnconfirmedAnchorRecord() (*UnconfirmedAnchor, error) {
 		if err != nil {
 			return nil, err
 		}
-		currLine = currLine + linesUsed
+		currLine += linesUsed
 
 		// Check the first line of the commit message to see if it is an
 		// anchor confirmation or an anchor.

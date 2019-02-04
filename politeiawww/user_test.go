@@ -100,7 +100,7 @@ func TestProcessUserDetails(t *testing.T) {
 		isAdmin       bool
 		want          v1.User
 	}{
-		// Publicy available user details.
+		// Publicly available user details.
 		{ud, false, false, publicUser},
 		// Admin requesting user details.
 		{ud, false, true, user},
@@ -189,7 +189,7 @@ func TestProcessEditUser(t *testing.T) {
 
 		var wantBits uint64
 		for _, notification := range test.want {
-			wantBits = wantBits | uint64(notification)
+			wantBits |= uint64(notification)
 		}
 
 		// Apply a mask so that we ignore invalid bits. The mask value

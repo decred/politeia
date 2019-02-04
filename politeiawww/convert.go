@@ -353,10 +353,9 @@ func convertErrorStatusFromPD(s int) www.ErrorStatusT {
 
 func convertVoteResultsFromDecredplugin(vrr decredplugin.VoteResultsReply) []www.VoteOptionResult {
 	// counter of votes received
-	var vr uint64
-	var ors []www.VoteOptionResult
+	ors := make([]www.VoteOptionResult, 0, len(vrr.StartVote.Vote.Options))
 	for _, o := range vrr.StartVote.Vote.Options {
-		vr = 0
+		var vr uint64
 		for _, v := range vrr.CastVotes {
 			vb, err := strconv.ParseUint(v.VoteBit, 10, 64)
 			if err != nil {

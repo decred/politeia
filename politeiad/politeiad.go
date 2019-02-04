@@ -406,11 +406,12 @@ func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
 
 	// Ask backend about the censorship token.
 	bpr, err := p.backend.GetUnvetted(token)
-	if err == backend.ErrRecordNotFound {
+	switch {
+	case err == backend.ErrRecordNotFound:
 		reply.Record.Status = v1.RecordStatusNotFound
 		log.Errorf("Get unvetted record %v: token %v not found",
 			remoteAddr(r), t.Token)
-	} else if err != nil {
+	case err != nil:
 		// Generic internal error.
 		errorCode := time.Now().Unix()
 		log.Errorf("%v Get unvetted record error code %v: %v",
@@ -418,7 +419,7 @@ func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
 
 		p.respondWithServerError(w, errorCode)
 		return
-	} else {
+	default:
 		reply.Record = p.convertBackendRecord(*bpr)
 
 		// Double check record bits before sending them off
@@ -470,11 +471,12 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 
 	// Ask backend about the censorship token.
 	bpr, err := p.backend.GetVetted(token, t.Version)
-	if err == backend.ErrRecordNotFound {
+	switch {
+	case err == backend.ErrRecordNotFound:
 		reply.Record.Status = v1.RecordStatusNotFound
 		log.Errorf("Get vetted record %v: token %v not found",
 			remoteAddr(r), t.Token)
-	} else if err != nil {
+	case err != nil:
 		// Generic internal error.
 		errorCode := time.Now().Unix()
 		log.Errorf("%v Get vetted record error code %v: %v",
@@ -482,7 +484,7 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 
 		p.respondWithServerError(w, errorCode)
 		return
-	} else {
+	default:
 		reply.Record = p.convertBackendRecord(*bpr)
 
 		// Double check record bits before sending them off

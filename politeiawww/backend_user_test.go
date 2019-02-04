@@ -52,13 +52,13 @@ func generateIdentity() (*identity.FullIdentity, error) {
 }
 
 func validateVerificationToken(t *testing.T, token string) {
-	bytes, err := hex.DecodeString(token)
+	dec, err := hex.DecodeString(token)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if len(bytes[:]) != www.VerificationTokenSize {
-		t.Fatalf("token length was %v, expected %v", len(bytes[:]),
+	if len(dec) != www.VerificationTokenSize {
+		t.Fatalf("token length was %v, expected %v", len(dec),
 			www.VerificationTokenSize)
 	}
 }

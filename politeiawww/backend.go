@@ -176,7 +176,7 @@ func checkSignature(id []byte, signature string, elements ...string) error {
 			ErrorCode: www.ErrorStatusInvalidSignature,
 		}
 	}
-	pk, err := identity.PublicIdentityFromBytes(id[:])
+	pk, err := identity.PublicIdentityFromBytes(id)
 	if err != nil {
 		return err
 	}
@@ -640,7 +640,7 @@ func (b *backend) validateProposal(np www.NewProposal, user *database.User) erro
 		return err
 	}
 
-	pk, err := identity.PublicIdentityFromBytes(id[:])
+	pk, err := identity.PublicIdentityFromBytes(id)
 	if err != nil {
 		return err
 	}
@@ -655,11 +655,9 @@ func (b *backend) validateProposal(np www.NewProposal, user *database.User) erro
 	// verify if there are duplicate names
 	filenames := make(map[string]int, len(np.Files))
 	// Check that the file number policy is followed.
-	var (
-		numMDs, numImages, numIndexFiles      int
-		mdExceedsMaxSize, imageExceedsMaxSize bool
-		hashes                                []*[sha256.Size]byte
-	)
+	var numMDs, numImages, numIndexFiles int
+	var mdExceedsMaxSize, imageExceedsMaxSize bool
+	hashes := make([]*[sha256.Size]byte, 0, len(np.Files))
 	for _, v := range np.Files {
 		filenames[v.Name]++
 		var (
@@ -1822,15 +1820,16 @@ func (b *backend) ProcessSetProposalStatus(sps www.SetProposalStatus, user *data
 		// Unvetted status change
 
 		// Verify status transition is valid
-		if pr.Status == www.PropStatusNotReviewed &&
+		switch {
+		case pr.Status == www.PropStatusNotReviewed &&
 			(sps.ProposalStatus == www.PropStatusCensored ||
-				sps.ProposalStatus == www.PropStatusPublic) {
+				sps.ProposalStatus == www.PropStatusPublic):
 			// allowed; continue
-		} else if pr.Status == www.PropStatusUnreviewedChanges &&
+		case pr.Status == www.PropStatusUnreviewedChanges &&
 			(sps.ProposalStatus == www.PropStatusCensored ||
-				sps.ProposalStatus == www.PropStatusPublic) {
+				sps.ProposalStatus == www.PropStatusPublic):
 			// allowed; continue
-		} else {
+		default:
 			return nil, www.UserError{
 				ErrorCode: www.ErrorStatusInvalidPropStatusTransition,
 			}
@@ -3162,12 +3161,12 @@ func (b *backend) ProcessEditProposal(user *database.User, ep www.EditProposal) 
 
 	var pdRoute string
 
-	if cachedProposal.Status == www.PropStatusNotReviewed ||
-		cachedProposal.Status == www.PropStatusUnreviewedChanges {
+	switch cachedProposal.Status {
+	case www.PropStatusNotReviewed, www.PropStatusUnreviewedChanges:
 		pdRoute = pd.UpdateUnvettedRoute
-	} else if cachedProposal.Status == www.PropStatusPublic {
+	case www.PropStatusPublic:
 		pdRoute = pd.UpdateVettedRoute
-	} else {
+	default:
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusWrongStatus,
 		}

@@ -49,7 +49,7 @@ type proposalsStats struct {
 }
 
 // _inventoryProposalStats returns the number of proposals that are in the
-// inventory catagorized by proposal status.
+// inventory categorized by proposal status.
 //
 // This function must be called WITH the mutex held.
 func (b *backend) _inventoryProposalStats() proposalsStats {
@@ -64,7 +64,7 @@ func (b *backend) _inventoryProposalStats() proposalsStats {
 }
 
 // inventoryProposalStats returns the number of proposals that are in the
-// inventory catagorized by proposal status.
+// inventory categorized by proposal status.
 //
 // This function must be called WITHOUT the mutex held.
 func (b *backend) inventoryProposalStats() proposalsStats {
@@ -74,7 +74,7 @@ func (b *backend) inventoryProposalStats() proposalsStats {
 }
 
 // userProposalStats returns the number of proposals for the specified user
-// catagorized by proposal status.
+// categorized by proposal status.
 //
 // This function must be called WITHOUT the mutex held.
 func (b *backend) userProposalStats(userID string) proposalsStats {
@@ -291,7 +291,7 @@ func (b *backend) loadPropMD(token, payload string) error {
 	return nil
 }
 
-// loadChanges decodes chnages metadata and stores it inventory object.
+// loadChanges decodes changes metadata and stores it inventory object.
 //
 // This function must be called WITH the mutex held.
 func (b *backend) loadChanges(token, payload string) error {
@@ -744,6 +744,7 @@ func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
 
 	// Iterate in reverse order because they're sorted by oldest timestamp
 	// first.
+out:
 	for i := len(allProposals) - 1; i >= 0; i-- {
 		proposal := allProposals[i]
 
@@ -757,22 +758,23 @@ func (b *backend) getProposals(pr proposalsRequest) []www.ProposalRecord {
 			continue
 		}
 
-		if pageStarted {
+		switch {
+		case pageStarted:
 			proposals = append(proposals, proposal)
 			if len(proposals) >= www.ProposalListPageSize {
-				break
+				break out
 			}
-		} else if pr.After != "" {
+		case pr.After != "":
 			// The beginning of the page has been found, so
 			// the next public proposal is added.
 			pageStarted = proposal.CensorshipRecord.Token == pr.After
-		} else if pr.Before != "" {
+		case pr.Before != "":
 			// The end of the page has been found, so we'll
 			// have to iterate in the other direction to
 			// add the proposals; save the current index.
 			if proposal.CensorshipRecord.Token == pr.Before {
 				beforeIdx = i
-				break
+				break out
 			}
 		}
 	}

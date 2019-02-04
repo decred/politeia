@@ -77,7 +77,7 @@ func NewIdentity() (*identity.FullIdentity, error) {
 		return nil, err
 	}
 
-	r := bytes.NewReader(b[:])
+	r := bytes.NewReader(b)
 	pub, priv, err := ed25519.GenerateKey(r)
 	if err != nil {
 		return nil, err

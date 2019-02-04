@@ -204,17 +204,18 @@ func (b *backend) _updateResultsForCommentLike(like www.LikeComment) (*www.Comme
 	// Simply add the like to the totals if the user has not
 	// previously voted on this comment
 	lastUserVoteAction, hasVoted := b.userLikeActionByCommentID[token][userID][commentID]
-	if !hasVoted {
+	switch {
+	case !hasVoted:
 		b.userLikeActionByCommentID[token][userID][commentID] = newUserVoteAction
 		comment.ResultVotes += newUserVoteAction
 		comment.TotalVotes++
-	} else if lastUserVoteAction == newUserVoteAction {
+	case lastUserVoteAction == newUserVoteAction:
 		// new action is equals the previous one, so we
 		// revert last user action
 		b.userLikeActionByCommentID[token][userID][commentID] = 0
 		comment.ResultVotes -= newUserVoteAction
 		comment.TotalVotes--
-	} else {
+	default:
 		// new action is different from the previous one
 		// so the new action is set as the current one
 		b.userLikeActionByCommentID[token][userID][commentID] = newUserVoteAction

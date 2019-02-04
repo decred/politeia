@@ -96,7 +96,6 @@ func (cmd *EditProposalCmd) Execute(args []string) error {
 		return err
 	}
 
-	var files []v1.File
 	var md []byte
 	if cmd.Random {
 		// Generate random proposal markdown text
@@ -130,6 +129,7 @@ func (cmd *EditProposalCmd) Execute(args []string) error {
 		Payload: base64.StdEncoding.EncodeToString(md),
 	}
 
+	files := make([]v1.File, 0, len(attachmentFiles)+1)
 	files = append(files, f)
 
 	// Read attachment files into memory and convert to type File

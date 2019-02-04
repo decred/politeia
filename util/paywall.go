@@ -137,7 +137,7 @@ func DcrStringToAmount(dcrstr string) (uint64, error) {
 		return 0, err
 	}
 
-	dcrsplit[1] = dcrsplit[1] + "00000000"
+	dcrsplit[1] += "00000000"
 	fraction, err := strconv.ParseUint(dcrsplit[1][0:8], 10, 64)
 	if err != nil {
 		return 0, err
