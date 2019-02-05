@@ -89,41 +89,6 @@ func convertStartVoteFromWWW(sv www.StartVote) decredplugin.StartVote {
 	}
 }
 
-func convertStartVoteFromDecredplugin(sv decredplugin.StartVote) www.StartVote {
-	return www.StartVote{
-		PublicKey: sv.PublicKey,
-		Vote:      convertVoteFromDecredplugin(sv.Vote),
-		Signature: sv.Signature,
-	}
-}
-
-func convertVoteOptionFromDecredplugin(vo decredplugin.VoteOption) www.VoteOption {
-	return www.VoteOption{
-		Id:          vo.Id,
-		Description: vo.Description,
-		Bits:        vo.Bits,
-	}
-}
-
-func convertVoteOptionsFromDecredplugin(vo []decredplugin.VoteOption) []www.VoteOption {
-	vor := make([]www.VoteOption, 0, len(vo))
-	for _, v := range vo {
-		vor = append(vor, convertVoteOptionFromDecredplugin(v))
-	}
-	return vor
-}
-
-func convertVoteFromDecredplugin(v decredplugin.Vote) www.Vote {
-	return www.Vote{
-		Token:            v.Token,
-		Mask:             v.Mask,
-		Duration:         v.Duration,
-		QuorumPercentage: v.QuorumPercentage,
-		PassPercentage:   v.PassPercentage,
-		Options:          convertVoteOptionsFromDecredplugin(v.Options),
-	}
-}
-
 func convertPropStatusFromWWW(s www.PropStatusT) pd.RecordStatusT {
 	switch s {
 	case www.PropStatusNotFound:

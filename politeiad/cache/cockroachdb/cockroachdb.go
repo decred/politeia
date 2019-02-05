@@ -328,15 +328,18 @@ func (c *cockroachdb) Inventory() ([]cache.Record, error) {
 		WHERE b.token IS NULL`
 
 	rows, err := c.recordsdb.Raw(query).Rows()
-	defer rows.Close()
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
 	records := make([]Record, 0, 1024) // PNOOMA
 	for rows.Next() {
 		var r Record
-		c.recordsdb.ScanRows(rows, &r)
+		err := c.recordsdb.ScanRows(rows, &r)
+		if err != nil {
+			return nil, err
+		}
 		records = append(records, r)
 	}
 
@@ -384,15 +387,18 @@ func (c *cockroachdb) InventoryStats() (*cache.InventoryStats, error) {
 		WHERE b.token IS NULL`
 
 	rows, err := c.recordsdb.Raw(query).Rows()
-	defer rows.Close()
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
 	records := make([]Record, 0, 1024) // PNOOMA
 	for rows.Next() {
 		var r Record
-		c.recordsdb.ScanRows(rows, &r)
+		err := c.recordsdb.ScanRows(rows, &r)
+		if err != nil {
+			return nil, err
+		}
 		records = append(records, r)
 	}
 
@@ -753,11 +759,11 @@ func Setup(host, net, rootCert, certDir string) error {
 	qs := buildQueryString(u.User.String(), rootCert, certDir)
 	addr := u.String() + "?" + qs
 	db, err := gorm.Open("postgres", addr)
-	defer db.Close()
 	if err != nil {
 		log.Debugf("Setup: could not connect to %v", addr)
 		return err
 	}
+	defer db.Close()
 
 	// Setup records database and users
 	dbName := cacheID + "_" + net
@@ -796,11 +802,11 @@ func Setup(host, net, rootCert, certDir string) error {
 	}
 	addr = u.String() + "?" + qs
 	recordsDB, err := gorm.Open("postgres", addr)
-	defer recordsDB.Close()
 	if err != nil {
 		log.Debugf("Setup: could not connect to %v", addr)
 		return err
 	}
+	defer recordsDB.Close()
 
 	return nil
 }

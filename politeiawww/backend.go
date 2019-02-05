@@ -507,39 +507,6 @@ func (b *backend) makeRequest(method string, route string, v interface{}) ([]byt
 	return responseBody, nil
 }
 
-// remoteInventory fetches the entire inventory of proposals from politeiad.
-func (b *backend) remoteInventory() (*pd.InventoryReply, error) {
-	challenge, err := util.Random(pd.ChallengeSize)
-	if err != nil {
-		return nil, err
-	}
-	inv := pd.Inventory{
-		Challenge:     hex.EncodeToString(challenge),
-		IncludeFiles:  false,
-		VettedCount:   0,
-		BranchesCount: 0,
-		AllVersions:   false,
-	}
-
-	responseBody, err := b.makeRequest(http.MethodPost, pd.InventoryRoute, inv)
-	if err != nil {
-		return nil, err
-	}
-
-	var ir pd.InventoryReply
-	err = json.Unmarshal(responseBody, &ir)
-	if err != nil {
-		return nil, fmt.Errorf("Unmarshal InventoryReply: %v",
-			err)
-	}
-
-	err = util.VerifyChallenge(b.cfg.Identity, challenge, ir.Response)
-	if err != nil {
-		return nil, err
-	}
-	return &ir, nil
-}
-
 func (b *backend) initCommentScores() error {
 	log.Tracef("initCommentScores")
 
@@ -903,16 +870,6 @@ func (b *backend) verifyResetPassword(user *database.User, rp www.ResetPassword,
 	user.FailedLoginAttempts = 0
 
 	return b.db.UserUpdate(*user)
-}
-
-// loadInventory calls the politeaid RPC call to load the current inventory.
-// Note that this function fakes out the inventory during test and therefore
-// must be called WITH the lock held.
-func (b *backend) loadInventory() (*pd.InventoryReply, error) {
-	if !b.test {
-		return b.remoteInventory()
-	}
-	return nil, fmt.Errorf("use inventory")
 }
 
 func (b *backend) CreateLoginReply(user *database.User, lastLoginTime int64) (*www.LoginReply, error) {
