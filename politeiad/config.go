@@ -73,10 +73,10 @@ type config struct {
 	DcrtimeHost   string `long:"dcrtimehost" description:"Dcrtime ip:port"`
 	DcrtimeCert   string `long:"dcrtimecert" description:"File containing the https certificate file for dcrtimehost"`
 	EnableCache   bool   `long:"enablecache" description:"Enable the external cache"`
+	BuildCache    bool   `long:"buildcache" description:"Build the cache from scratch"`
 	CacheHost     string `long:"cachehost" description:"Cache ip:port"`
 	CacheCertDir  string `long:"cachecertdir" description:"Directory containing SSL client certificates"`
 	CacheRootCert string `long:"cacherootcert" description:"File containing SSL root certificate"`
-	BuildCache    bool   `long:"buildcache" description:"Build the cache from scratch"`
 	Identity      string `long:"identity" description:"File containing the politeiad identity file"`
 	GitTrace      bool   `long:"gittrace" description:"Enable git tracing in logs"`
 }
@@ -403,14 +403,23 @@ func loadConfig() (*config, []string, error) {
 	cfg.HTTPSKey = cleanAndExpandPath(cfg.HTTPSKey)
 	cfg.HTTPSCert = cleanAndExpandPath(cfg.HTTPSCert)
 
-	cfg.CacheCertDir = cleanAndExpandPath(cfg.CacheCertDir)
-	cfg.CacheRootCert = cleanAndExpandPath(cfg.CacheRootCert)
-
 	// Special show command to list supported subsystems and exit.
 	if cfg.DebugLevel == "show" {
 		fmt.Println("Supported subsystems", supportedSubsystems())
 		os.Exit(0)
 	}
+
+	// Validate cache options.
+	if cfg.BuildCache && !cfg.EnableCache {
+		str := "%s: The buildcache param can't be used " +
+			"without the enablecache param"
+		err := fmt.Errorf(str, funcName)
+		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, usageMessage)
+		os.Exit(0)
+	}
+	cfg.CacheCertDir = cleanAndExpandPath(cfg.CacheCertDir)
+	cfg.CacheRootCert = cleanAndExpandPath(cfg.CacheRootCert)
 
 	// Initialize log rotation.  After log rotation has been initialized,
 	// the logger variables may be used.

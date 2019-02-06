@@ -35,12 +35,15 @@ type decred struct {
 	settings  []cache.PluginSetting // Plugin settings
 }
 
-// This function has a database parameter so that it can be called inside of
-// a transaction when required.
+// newComment inserts a Comment record into the database.  This function has a
+// database parameter so that it can be called inside of a transaction when
+// required.
 func (d *decred) newComment(db *gorm.DB, c Comment) error {
 	return db.Create(&c).Error
 }
 
+// cmdNewComment creates a Comment record using the passed in payloads and
+// inserts it into the database.
 func (d *decred) cmdNewComment(cmdPayload, replyPayload string) (string, error) {
 	log.Tracef("decred cmdNewComment")
 
@@ -59,12 +62,15 @@ func (d *decred) cmdNewComment(cmdPayload, replyPayload string) (string, error) 
 	return replyPayload, err
 }
 
-// This function has a database parameter so that it can be called inside of
-// a transaction when required.
+// newLikeComment inserts a LikeComment record into the database.  This
+// function has a database parameter so that it can be called inside of a
+// transaction when required.
 func (d *decred) newLikeComment(db *gorm.DB, lc LikeComment) error {
 	return db.Create(&lc).Error
 }
 
+// cmdLikeComment creates a LikeComment record using the passed in payloads
+// and inserts it into the database.
 func (d *decred) cmdLikeComment(cmdPayload, replyPayload string) (string, error) {
 	log.Tracef("decred cmdLikeComment")
 
@@ -79,6 +85,8 @@ func (d *decred) cmdLikeComment(cmdPayload, replyPayload string) (string, error)
 	return replyPayload, err
 }
 
+// cmdCensorComment censors an existing comment.  A censored comment has its
+// comment message removed and is marked as censored.
 func (d *decred) cmdCensorComment(cmdPayload, replyPayload string) (string, error) {
 	log.Tracef("decred cmdCensorComment")
 
@@ -99,6 +107,7 @@ func (d *decred) cmdCensorComment(cmdPayload, replyPayload string) (string, erro
 	return replyPayload, err
 }
 
+// cmdGetComment retreives the passed in comment from the database.
 func (d *decred) cmdGetComment(payload string) (string, error) {
 	log.Tracef("decred cmdGetComment")
 
@@ -129,6 +138,7 @@ func (d *decred) cmdGetComment(payload string) (string, error) {
 	return string(gcrb), nil
 }
 
+// cmdGetComments returns all of the comments for the passed in record token.
 func (d *decred) cmdGetComments(payload string) (string, error) {
 	log.Tracef("decred cmdGetComments")
 
@@ -162,6 +172,7 @@ func (d *decred) cmdGetComments(payload string) (string, error) {
 	return string(gcrb), nil
 }
 
+// cmdCommentLikes returns all of the comment likes for the passed in comment.
 func (d *decred) cmdCommentLikes(payload string) (string, error) {
 	log.Tracef("decred cmdCommentLikes")
 
@@ -195,6 +206,8 @@ func (d *decred) cmdCommentLikes(payload string) (string, error) {
 	return string(clrb), nil
 }
 
+// cmdProposalLikes returns all of the comment likes for all comments of the
+// passed in record token.
 func (d *decred) cmdProposalCommentsLikes(payload string) (string, error) {
 	log.Tracef("decred cmdProposalCommentsLikes")
 
@@ -228,7 +241,10 @@ func (d *decred) cmdProposalCommentsLikes(payload string) (string, error) {
 	return string(clrb), nil
 }
 
-// newAuthorizeVote...
+// newAuthorizeVote creates an AuthorizeVote record and inserts it into the
+// database.  If a previous AuthorizeVote record exists for the passed in
+// proposal and version, it will be deleted before the new AuthorizeVote record
+// is inserted.
 //
 // This function must be called within a transaction.
 func (d *decred) newAuthorizeVote(tx *gorm.DB, av AuthorizeVote) error {
@@ -249,6 +265,8 @@ func (d *decred) newAuthorizeVote(tx *gorm.DB, av AuthorizeVote) error {
 	return nil
 }
 
+// cmdAuthorizeVote creates a AuthorizeVote record using the passed in payloads
+// and inserts it into the database.
 func (d *decred) cmdAuthorizeVote(cmdPayload, replyPayload string) (string, error) {
 	log.Tracef("decred cmdAuthorizeVote")
 
@@ -279,12 +297,15 @@ func (d *decred) cmdAuthorizeVote(cmdPayload, replyPayload string) (string, erro
 	return replyPayload, nil
 }
 
-// This function has a database parameter so that it can be called inside of
-// a transaction when required.
+// newStartVote inserts a StartVote record into the database.  This function
+// has a database parameter so that it can be called inside of a transaction
+// when required.
 func (d *decred) newStartVote(db *gorm.DB, sv StartVote) error {
 	return db.Create(&sv).Error
 }
 
+// cmdStartVote creates a StartVote record using the passed in payloads and
+// inserts it into the database.
 func (d *decred) cmdStartVote(cmdPayload, replyPayload string) (string, error) {
 	log.Tracef("decred cmdStartVote")
 
@@ -306,6 +327,8 @@ func (d *decred) cmdStartVote(cmdPayload, replyPayload string) (string, error) {
 	return replyPayload, nil
 }
 
+// cmdVoteDetails returns the AuthorizeVote and StartVote records for the
+// passed in record token.
 func (d *decred) cmdVoteDetails(payload string) (string, error) {
 	log.Tracef("decred cmdVoteDetails")
 
@@ -370,12 +393,15 @@ func (d *decred) cmdVoteDetails(payload string) (string, error) {
 	return string(vdrb), nil
 }
 
-// This function has a database parameter so that it can be called inside of
-// a transaction when required.
+// newCastVote inserts a CastVote record into the database.  This function has
+// a database parameter so that it can be called inside of a transaction when
+// required.
 func (d *decred) newCastVote(db *gorm.DB, cv CastVote) error {
 	return db.Create(&cv).Error
 }
 
+// cmdNewBallot creates CastVote records using the passed in payloads and
+// inserts them into the database.
 func (d *decred) cmdNewBallot(cmdPayload, replyPayload string) (string, error) {
 	log.Tracef("decred cmdNewBallot")
 
@@ -403,6 +429,8 @@ func (d *decred) cmdNewBallot(cmdPayload, replyPayload string) (string, error) {
 	return replyPayload, nil
 }
 
+// cmdProposalVotes returns the StartVote record and all CastVote records for
+// the passed in record token.
 func (d *decred) cmdProposalVotes(payload string) (string, error) {
 	log.Tracef("decred cmdProposalVotes")
 
@@ -452,6 +480,7 @@ func (d *decred) cmdProposalVotes(payload string) (string, error) {
 	return string(vrrb), nil
 }
 
+// cmdInventory returns the decred plugin inventory.
 func (d *decred) cmdInventory() (string, error) {
 	log.Tracef("decred cmdInventory")
 
@@ -526,7 +555,7 @@ func (d *decred) Exec(cmd, cmdPayload, replyPayload string) (string, error) {
 
 // createDecredTables creates the cache tables needed by the decred plugin if
 // they do not already exist. A decred plugin version record is inserted into
-// the versions table if one does not already exist.
+// the database during table creation.
 //
 // This function must be called within a transaction.
 func createDecredTables(tx *gorm.DB) error {
@@ -593,6 +622,8 @@ func createDecredTables(tx *gorm.DB) error {
 	return err
 }
 
+// build the decred plugin cache using the passed in inventory.
+//
 // This function must be called within a transaction.
 func (d *decred) build(tx *gorm.DB, ir *decredplugin.InventoryReply) error {
 	log.Tracef("decred build")
@@ -669,6 +700,9 @@ func (d *decred) build(tx *gorm.DB, ir *decredplugin.InventoryReply) error {
 	return nil
 }
 
+// Build drops all existing decred plugin tables from the database, recreates
+// them, then uses the passed in inventory payload to build the decred plugin
+// cache.
 func (d *decred) Build(payload string) error {
 	log.Tracef("decred Build")
 
@@ -711,6 +745,9 @@ func (d *decred) Setup() error {
 	return tx.Commit().Error
 }
 
+// CheckVersion retrieves the decred plugin version record from the database,
+// if one exists, and checks that it matches the version of the current decred
+// plugin cache implementation.
 func (d *decred) CheckVersion() error {
 	// Sanity check. Ensure version table exists.
 	if !d.recordsdb.HasTable(tableVersions) {

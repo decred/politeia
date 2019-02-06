@@ -1177,10 +1177,9 @@ func (g *gitBackEnd) pluginLikeComment(payload string) (string, error) {
 
 	// Encode reply
 	lcr := decredplugin.LikeCommentReply{
-		Total:     c.TotalVotes,
-		Result:    c.ResultVotes,
-		Receipt:   receipt,
-		Timestamp: lc.Timestamp,
+		Total:   c.TotalVotes,
+		Result:  c.ResultVotes,
+		Receipt: receipt,
 	}
 	lcrb, err := decredplugin.EncodeLikeCommentReply(lcr)
 	if err != nil {

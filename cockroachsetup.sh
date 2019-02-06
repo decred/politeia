@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # This script creates the certificates required to run a CockroachDB instance
-# locally with Politeia.
+# locally as a politeiad cache.
 
 set -ex
 

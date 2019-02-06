@@ -2042,7 +2042,10 @@ func NewBackend(cfg *config) (*backend, error) {
 	for _, v := range b.plugins {
 		p := convertPluginToCache(v)
 		err = b.cache.RegisterPlugin(p)
-		if err != nil {
+		if err == cache.ErrWrongPluginVersion {
+			return nil, fmt.Errorf("%v plugin wrong version.  The "+
+				"cache needs to be rebuilt.", v.ID)
+		} else if err != nil {
 			return nil, fmt.Errorf("cache register plugin '%v': %v",
 				v.ID, err)
 		}

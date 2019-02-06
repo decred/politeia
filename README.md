@@ -1,35 +1,23 @@
-# Politeia
-[![Build Status](https://img.shields.io/travis/decred/politeia.svg)](https://travis-ci.org/decred/politeia)
-[![ISC License](https://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
+# Politeia [![Build
+Status](https://img.shields.io/travis/decred/politeia.svg)](https://travis-ci.org/decred/politeia)
+[![ISC
+License](https://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
 
-**Politeia is the Decred proposal system.**
-Politeia is a system for storing off-chain data that is both versioned and
-timestamped, essentially “git, a popular revision control system, plus
-timestamping”. Instead of attempting to store all the data related to Decred’s
-governance on-chain, we have opted to create an off-chain store of data that is
-anchored into Decred’s blockchain, minimizing its on-chain footprint.
+**Politeia is the Decred proposal system.** Politeia is a system for storing
+off-chain data that is both versioned and timestamped, essentially “git, a
+popular revision control system, plus timestamping”. Instead of attempting to
+store all the data related to Decred’s governance on-chain, we have opted to
+create an off-chain store of data that is anchored into Decred’s blockchain,
+minimizing its on-chain footprint.
 
 The politeia stack is as follows:
 
-```
-~~~~~~~~ Internet ~~~~~~~~~
-            |
-+-------------------------+
-|      politeia www       |
-+-------------------------+
-            |
-+-------------------------+
-|        politeiad        |
-+-------------------------+
-|       git backend       |
-+-------------------------+
-            |
-~~~~~~~~ Internet ~~~~~~~~~
-            |
-+-------------------------+
-|        dcrtimed         |
-+-------------------------+
-```
+``` ~~~~~~~~ Internet ~~~~~~~~~ | +-------------------------+ |      politeia
+www       | +-------------------------+ | +-------------------------+ |
+politeiad        | +-------------------------+ |       git backend       |
++-------------------------+ | ~~~~~~~~ Internet ~~~~~~~~~ |
++-------------------------+ |        dcrtimed         |
++-------------------------+ ```
 
 ## Components
 
@@ -40,12 +28,19 @@ The politeia stack is as follows:
 
 ### Tools and reference clients
 
-* [politeia](https://github.com/decred/politeia/tree/master/politeiad/cmd/politeia) - Reference client application for politeiad.
-* [politeia_verify](https://github.com/decred/politeia/tree/master/politeiad/cmd/politeia_verify) - Reference verification tool.
-* [politeiawwwcli](https://github.com/decred/politeia/tree/master/politeiawww/cmd/politeiawwwcli) - Command-line tool for interacting with politeiawww.
-* [politeiawww_refclient](https://github.com/decred/politeia/tree/master/politeiawww/cmd/politeiawww_refclient) - Reference client application for politeiawww.
-* [politeiawww_dbutil](https://github.com/decred/politeia/tree/master/politeiawww/cmd/politeiawww_dbutil) - Tool for debugging and creating admin users within the politeiawww database.
-* [politeiawww_dataload](https://github.com/decred/politeia/tree/master/politeiawww/cmd/politeiawww_dataload) - Tool using politeiawwwcli to load a basic dataset into politeiawww.
+* [politeia](https://github.com/decred/politeia/tree/master/politeiad/cmd/politeia)
+  - Reference client application for politeiad.
+* [politeia_verify](https://github.com/decred/politeia/tree/master/politeiad/cmd/politeia_verify)
+  - Reference verification tool.
+* [politeiawwwcli](https://github.com/decred/politeia/tree/master/politeiawww/cmd/politeiawwwcli)
+  - Command-line tool for interacting with politeiawww.
+* [politeiawww_refclient](https://github.com/decred/politeia/tree/master/politeiawww/cmd/politeiawww_refclient)
+  - Reference client application for politeiawww.
+* [politeiawww_dbutil](https://github.com/decred/politeia/tree/master/politeiawww/cmd/politeiawww_dbutil)
+  - Tool for debugging and creating admin users within the politeiawww
+    database.
+* [politeiawww_dataload](https://github.com/decred/politeia/tree/master/politeiawww/cmd/politeiawww_dataload)
+  - Tool using politeiawwwcli to load a basic dataset into politeiawww.
 
 **Note:** politeiawww does not provide HTML output.  It strictly handles the
 JSON REST RPC commands only.  The GUI for politeiawww can be found at:
@@ -53,7 +48,8 @@ https://github.com/decred/politeiagui
 
 ## Development
 
-#### 1. Install [Go](https://golang.org/doc/install) version 1.11 or higher, and [Git](https://git-scm.com/downloads).
+#### 1. Install [Go](https://golang.org/doc/install) version 1.11 or higher,
+and [Git](https://git-scm.com/downloads).
 
 Make sure each of these are in the PATH.
 
@@ -61,75 +57,70 @@ Make sure each of these are in the PATH.
 
 #### 3. Setup configuration files:
 
-politeiad and politeiawww both have configuration files that you should
-set up to make execution easier. You should create the configuration files
-under the following paths:
+politeiad and politeiawww both have configuration files that you should set up
+to make execution easier. You should create the configuration files under the
+following paths:
 
 * **macOS**
 
-   ```
-   /Users/<username>/Library/Application Support/Politeiad/politeiad.conf
+   ``` /Users/<username>/Library/Application Support/Politeiad/politeiad.conf
    /Users/<username>/Library/Application Support/Politeiawww/politeiawww.conf
    ```
 
 * **Windows**
 
-   ```
-   C:\Users\<username>\AppData\Local\Politeiad/politeiad.conf
-   C:\Users\<username>\AppData\Local\Politeiawww/politeiawww.conf
-   ```
+   ``` C:\Users\<username>\AppData\Local\Politeiad/politeiad.conf
+   C:\Users\<username>\AppData\Local\Politeiawww/politeiawww.conf ```
 
 * **Ubuntu**
 
-   ```
-   ~/.politeiad/politeiad.conf
-   ~/.politeiawww/politeiawww.conf
-   ```
+   ``` ~/.politeiad/politeiad.conf ~/.politeiawww/politeiawww.conf ```
 
-Copy and change the [`sample-politeiawww.conf`](https://github.com/decred/politeia/blob/master/politeiawww/sample-politeiawww.conf)
-and [`sample-politeiad.conf`](https://github.com/decred/politeia/blob/master/politeiad/sample-politeiad.conf) files.
+Copy and change the
+[`sample-politeiawww.conf`](https://github.com/decred/politeia/blob/master/politeiawww/sample-politeiawww.conf)
+and
+[`sample-politeiad.conf`](https://github.com/decred/politeia/blob/master/politeiad/sample-politeiad.conf)
+files.
 
 You can also use the following default configurations:
 
 **politeiad.conf**:
 
-    rpcuser=user
-    rpcpass=pass
-    testnet=true
-    cachehost=localhost:26257
+    rpcuser=user rpcpass=pass testnet=true cachehost=localhost:26257
+    enablecache=true
     cacherootcert="~/.cockroachdb/certs/ca.crt"
     cachecertdir="~/.cockroachdb/certs"
 
 
 **politeiawww.conf**:
 
-    rpchost=127.0.0.1
-    rpcuser=user
-    rpcpass=pass
-    rpccert="~/.politeiad/https.cert"
-    testnet=true
+    rpchost=127.0.0.1 rpcuser=user rpcpass=pass
+    rpccert="~/.politeiad/https.cert" testnet=true
     paywallxpub=tpubVobLtToNtTq6TZNw4raWQok35PRPZou53vegZqNubtBTJMMFmuMpWybFCfweJ52N8uZJPZZdHE5SRnBBuuRPfC5jdNstfKjiAs8JtbYG9jx
-    paywallamount=10000000
-    cachehost=localhost:26257
+    paywallamount=10000000 cachehost=localhost:26257
     cacherootcert="~/.cockroachdb/certs/ca.crt"
     cachecertdir="~/.cockroachdb/certs"
 
 **Things to note:**
 
-* The `rpccert` path is referencing a macOS path. See above for
-more OS paths.
+* The `rpccert` path is referencing a macOS path. See above for more OS paths.
 
-* politeiawww uses an email server to send verification codes for
-things like new user registration, and those settings are also configured within
- `politeiawww.conf`. The current code should work with most SSL-based SMTP servers
-(but not TLS) using username and password as authentication.
+* politeiawww uses an email server to send verification codes for things like
+  new user registration, and those settings are also configured within
+  `politeiawww.conf`. The current code should work with most SSL-based SMTP
+  servers (but not TLS) using username and password as authentication.
 
 #### 4. Setup CockroachDB or Postgres:
 
 politeiad stores proposal data in git repositories that are regularly backed up
 to github and cryptographically timestamped onto the Decred blockchain.  The
-politeiad git repositories serve as the source of truth for proposal data and a
-CockroachDB database acts as a cache for proposal data.
+politeiad git repositories serve as the source of truth for proposal data. In
+order to increase performance, a CockroachDB database acts as a cache for
+proposal data.
+
+**The cache is not required if you're running just politeiad.  politeiad has
+the cache disable by default. If you're running the full politeia stack,
+politeiad and politeiawww, running the cache is required.**
 
 politeiad has read and write access to the cache.  politeiawww has only read
 access to the cache.  The flow of data is as follows:
@@ -168,7 +159,7 @@ CockroachDB be running.
       --store="~/.cockroachdb/data"
 
 If you want to run database commands manually you can do so by opening a sql
-shell.  
+shell.
 
     cockroach sql \
       --certs-dir="~/.cockroachdb/certs" \

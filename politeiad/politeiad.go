@@ -1249,8 +1249,7 @@ func _main() error {
 			// Build plugin cache
 			err = p.cache.PluginBuild(v.ID, payload)
 			if err != nil {
-				return fmt.Errorf("plugin '%v' build cache: %v",
-					v.ID, err)
+				return fmt.Errorf("plugin '%v' build cache: %v", v.ID, err)
 			}
 		}
 	}

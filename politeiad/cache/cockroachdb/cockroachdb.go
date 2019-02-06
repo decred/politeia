@@ -40,7 +40,7 @@ type cockroachdb struct {
 	plugins   map[string]cache.PluginDriver // [pluginID]PluginDriver
 }
 
-// NewRecord creates a new entry in the database for the given record.
+// NewRecord creates a new entry in the database for the passed in record.
 func (c *cockroachdb) NewRecord(cr cache.Record) error {
 	log.Tracef("NewRecord: %v", cr.CensorshipRecord.Token)
 
@@ -57,8 +57,8 @@ func (c *cockroachdb) NewRecord(cr cache.Record) error {
 }
 
 // recordVersion gets the specified version of a record from the database.
-// This function has a database parameter because there times that it needs
-// to be called inside of a transaction.
+// This function has a database parameter so that it can be called inside of
+// a transaction when required.
 func (c *cockroachdb) recordVersion(db *gorm.DB, token, version string) (*Record, error) {
 	log.Tracef("getRecordVersion: %v %v", token, version)
 
@@ -134,7 +134,7 @@ func (c *cockroachdb) Record(token string) (*cache.Record, error) {
 // updateRecord updates a record in the database.  This includes updating the
 // record as well as any metadata streams and files that are associated with
 // the record. The existing record metadata streams and files are deleted from
-// the database before the given metadata streams and files are added.
+// the database before the passed in metadata streams and files are added.
 //
 // This function must be called within a transaction.
 func (c *cockroachdb) updateRecord(tx *gorm.DB, updated Record) error {
@@ -463,6 +463,7 @@ func (c *cockroachdb) PluginExec(pc cache.PluginCommand) (*cache.PluginCommandRe
 	}, nil
 }
 
+// PluginSetup sets up the database tables for the passed in plugin.
 func (c *cockroachdb) PluginSetup(id string) error {
 	log.Tracef("PluginSetup: %v", id)
 
@@ -482,6 +483,8 @@ func (c *cockroachdb) PluginSetup(id string) error {
 	return plugin.Setup()
 }
 
+// RegisterPlugin registers and plugin with the cache and checks to make sure
+// that the cache is using the correct plugin version.
 func (c *cockroachdb) RegisterPlugin(p cache.Plugin) error {
 	log.Tracef("RegisterPlugin: %v", p.ID)
 
@@ -511,6 +514,7 @@ func (c *cockroachdb) RegisterPlugin(p cache.Plugin) error {
 	return pd.CheckVersion()
 }
 
+// PluginBuilds builds the cache for the passed in plugin.
 func (c *cockroachdb) PluginBuild(id, payload string) error {
 	log.Tracef("PluginBuild: %v", id)
 
@@ -532,8 +536,8 @@ func (c *cockroachdb) PluginBuild(id, payload string) error {
 	return plugin.Build(payload)
 }
 
-// createTables creates the database tables if they do not already exist and
-// sets the record version.
+// createTables creates the database tables if they do not already exist.  A
+// version record is inserted into the database during table creation.
 //
 // This function must be called within a transaction.
 func (c *cockroachdb) createTables(tx *gorm.DB) error {
@@ -577,8 +581,9 @@ func (c *cockroachdb) createTables(tx *gorm.DB) error {
 	return nil
 }
 
-// Setup creates the database tables if they do not already exist. A version
-// record is inserted into the database during table creation.
+// Setup creates the database tables for the records cache if they do not
+// already exist. A version record is inserted into the database during table
+// creation.
 func (c *cockroachdb) Setup() error {
 	log.Tracef("Setup tables")
 
@@ -599,8 +604,7 @@ func (c *cockroachdb) Setup() error {
 	return tx.Commit().Error
 }
 
-// build creates the database tables if they don't already exist then adds the
-// given records to the database.
+// build the records cache using the passed in records.
 //
 // This funcion must be called within a transaction.
 func (c *cockroachdb) build(tx *gorm.DB, records []Record) error {
@@ -621,8 +625,8 @@ func (c *cockroachdb) build(tx *gorm.DB, records []Record) error {
 	return nil
 }
 
-// Build drops all existing tables from the database, recreates them, then adds
-// all of the given records to the new tables.
+// Build drops all existing tables from the records cache, recreates them, then
+// builds the records cache using the passed in records.
 func (c *cockroachdb) Build(records []cache.Record) error {
 	log.Tracef("Build")
 
@@ -691,16 +695,14 @@ func New(user, host, net, rootCert, certDir string) (*cockroachdb, error) {
 	h := "postgresql://" + user + "@" + host + "/" + dbName
 	u, err := url.Parse(h)
 	if err != nil {
-		log.Debugf("New: could not parse url %v", h)
-		return nil, err
+		return nil, fmt.Errorf("parse url '%v': %v", h, err)
 	}
 
 	qs := buildQueryString(u.User.String(), rootCert, certDir)
 	addr := u.String() + "?" + qs
 	db, err := gorm.Open("postgres", addr)
 	if err != nil {
-		log.Debugf("New: could not connect to %v", addr)
-		return nil, err
+		return nil, fmt.Errorf("connect to database '%v': %v", addr, err)
 	}
 
 	// Create context
@@ -741,9 +743,9 @@ func New(user, host, net, rootCert, certDir string) (*cockroachdb, error) {
 	return c, err
 }
 
-// Setup uses the CockroachDB root user to create a database, a politeiad user,
-// and a politeiawww user if they don't already exist. User permissions are set
-// for the database.
+// Setup uses the CockroachDB root user to setup the database for the records
+// cache.  This includes creating the database, creating politeiad and
+// politeiawww users, and setting user permissions.
 func Setup(host, net, rootCert, certDir string) error {
 	log.Tracef("Setup database: %v %v %v %v", host, net, rootCert, certDir)
 
@@ -752,16 +754,14 @@ func Setup(host, net, rootCert, certDir string) error {
 	h := "postgresql://root@" + host
 	u, err := url.Parse(h)
 	if err != nil {
-		log.Debugf("Setup: could not parse url %v", h)
-		return err
+		return fmt.Errorf("parse url '%v': %v", h, err)
 	}
 
 	qs := buildQueryString(u.User.String(), rootCert, certDir)
 	addr := u.String() + "?" + qs
 	db, err := gorm.Open("postgres", addr)
 	if err != nil {
-		log.Debugf("Setup: could not connect to %v", addr)
-		return err
+		return fmt.Errorf("connect to database '%v': %v", addr, err)
 	}
 	defer db.Close()
 
@@ -792,21 +792,6 @@ func Setup(host, net, rootCert, certDir string) error {
 	if err != nil {
 		return err
 	}
-
-	// Connect to records database with root user
-	h = "postgresql://root@" + host + "/" + dbName
-	u, err = url.Parse(h)
-	if err != nil {
-		log.Debugf("Setup: could not parse url %v", h)
-		return err
-	}
-	addr = u.String() + "?" + qs
-	recordsDB, err := gorm.Open("postgres", addr)
-	if err != nil {
-		log.Debugf("Setup: could not connect to %v", addr)
-		return err
-	}
-	defer recordsDB.Close()
 
 	return nil
 }

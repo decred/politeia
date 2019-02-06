@@ -126,7 +126,7 @@ func (b *backend) ProcessUserCommentsLikes(user *database.User, token string) (*
 	log.Tracef("ProcessUserCommentsLikes: %v %v", user.ID, token)
 
 	// Fetch all like comments for the proposal
-	dlc, err := b.decredPropLikeComments(token)
+	dlc, err := b.decredPropCommentLikes(token)
 	if err != nil {
 		return nil, fmt.Errorf("decredPropLikeComments: %v", err)
 	}

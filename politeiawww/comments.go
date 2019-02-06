@@ -16,6 +16,8 @@ import (
 	"github.com/decred/politeia/util"
 )
 
+// getComment retreives the specified comment from the cache then fills in
+// politeiawww specific data for the comment.
 func (b *backend) getComment(token, commentID string) (*www.Comment, error) {
 	// Fetch comment from the cache
 	dc, err := b.decredGetComment(token, commentID)
@@ -47,11 +49,13 @@ func (b *backend) getComment(token, commentID string) (*www.Comment, error) {
 	return &c, nil
 }
 
+// updateCommentScore calculates the comment score for the specified comment
+// then updates the in-memory comment score cache.
 func (b *backend) updateCommentScore(token, commentID string) (int64, error) {
 	log.Tracef("updateCommentScore: %v %v", token, commentID)
 
 	// Fetch all comment likes for the specified comment
-	likes, err := b.decredLikeComments(token, commentID)
+	likes, err := b.decredCommentLikes(token, commentID)
 	if err != nil {
 		return 0, fmt.Errorf("decredLikeComments: %v", err)
 	}

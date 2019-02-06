@@ -171,9 +171,9 @@ const (
 	ErrorStatusInvalidPropVoteBits         ErrorStatusT = 53
 	ErrorStatusInvalidPropVoteParams       ErrorStatusT = 54
 	ErrorStatusEmailNotVerified            ErrorStatusT = 55
-	ErrorStatusInvalidUUID                 ErrorStatusT = 57
-	ErrorStatusInvalidLikeCommentAction    ErrorStatusT = 58
-	ErrorStatusInvalidCensorshipToken      ErrorStatusT = 59
+	ErrorStatusInvalidUUID                 ErrorStatusT = 56
+	ErrorStatusInvalidLikeCommentAction    ErrorStatusT = 57
+	ErrorStatusInvalidCensorshipToken      ErrorStatusT = 58
 
 	// Proposal state codes
 	//
@@ -918,7 +918,7 @@ type Comment struct {
 }
 
 // NewComment sends a comment from a user to a specific proposal.  Note that
-// the user is implied by the public key.  A parent ID of 0 indicates that the
+// the user is implied by the session.  A parent ID of 0 indicates that the
 // comment does not have a parent.  A non-zero parent ID indicates that the
 // comment is a reply to an existing comment.
 type NewComment struct {
