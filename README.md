@@ -137,6 +137,9 @@ proposal data.
 the cache disable by default. If you're running the full politeia stack,
 politeiad and politeiawww, running the cache is required.**
 
+politeiad has read and write access to the cache.  politeiawww has only read
+access to the cache.  The flow of data is as follows:
+
 1. politeiawww receives a command from a user
 2. politeiawww creates a politeiad request for the command and sends it
 3. politeiad writes the command data to the git repository and updates the
