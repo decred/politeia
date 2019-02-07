@@ -224,7 +224,10 @@ func convertStartVoteToDecred(sv StartVote) (decredplugin.StartVote, decredplugi
 		},
 	}
 
-	tix := strings.Split(sv.EligibleTickets, ",")
+	var tix []string
+	if sv.EligibleTickets != "" {
+		tix = strings.Split(sv.EligibleTickets, ",")
+	}
 	dsvr := decredplugin.StartVoteReply{
 		StartBlockHeight: sv.StartBlockHeight,
 		StartBlockHash:   sv.StartBlockHash,

@@ -446,7 +446,10 @@ func (d *decred) cmdProposalVotes(payload string) (string, error) {
 		Preload("Options").
 		Find(&sv).
 		Error
-	if err != nil {
+	if err == gorm.ErrRecordNotFound {
+		// A start vote may note exist if the voting period has not
+		// been started yet. This is ok.
+	} else if err != nil {
 		return "", fmt.Errorf("start vote lookup failed: %v", err)
 	}
 
@@ -456,7 +459,9 @@ func (d *decred) cmdProposalVotes(payload string) (string, error) {
 		Where("token = ?", vr.Token).
 		Find(&cv).
 		Error
-	if err != nil {
+	if err == gorm.ErrRecordNotFound {
+		// No cast votes may exist yet. This is ok.
+	} else if err != nil {
 		return "", fmt.Errorf("cast votes lookup failed: %v", err)
 	}
 
