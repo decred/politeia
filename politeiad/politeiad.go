@@ -422,7 +422,7 @@ func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
 		reply.Record = p.convertBackendRecord(*bpr)
 
 		// Double check record bits before sending them off
-		err := v1.Verify(p.identity.Public,
+		err := util.VerifyCensorshipRecordFiles(p.identity.Public,
 			reply.Record.CensorshipRecord, reply.Record.Files)
 		if err != nil {
 			// Generic internal error.
@@ -486,7 +486,7 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 		reply.Record = p.convertBackendRecord(*bpr)
 
 		// Double check record bits before sending them off
-		err := v1.Verify(p.identity.Public,
+		err := util.VerifyCensorshipRecordFiles(p.identity.Public,
 			reply.Record.CensorshipRecord, reply.Record.Files)
 		if err != nil {
 			// Generic internal error.

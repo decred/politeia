@@ -20,7 +20,6 @@ import (
 	flags "github.com/btcsuite/go-flags"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrtime/api/v1"
-	pdmime "github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 )
@@ -45,6 +44,11 @@ var (
 	defaultHTTPSCertFile = filepath.Join(defaultHomeDir, "https.cert")
 	defaultLogDir        = filepath.Join(defaultHomeDir, defaultLogDirname)
 	defaultIdentityFile  = filepath.Join(defaultHomeDir, defaultIdentityFilename)
+	defaultMimeTypes     = []string{
+		"image/png",
+		"text/plain",
+		"text/plain; charset=utf-8",
+	}
 )
 
 // runServiceCommand is only set to a real function on Windows.  It is used
@@ -269,7 +273,7 @@ func loadConfig() (*config, []string, error) {
 		LogDir:     defaultLogDir,
 		HTTPSKey:   defaultHTTPSKeyFile,
 		HTTPSCert:  defaultHTTPSCertFile,
-		MimeTypes:  pdmime.DefaultMimeTypes,
+		MimeTypes:  defaultMimeTypes,
 		Version:    version.String(),
 	}
 
@@ -478,14 +482,14 @@ func loadConfig() (*config, []string, error) {
 
 	// Load configurable mime types to politeiad.
 	mtlen := len(cfg.MimeTypes)
-	if mtlen != len(pdmime.DefaultMimeTypes) {
+	if mtlen != len(defaultMimeTypes) {
 		mimes, err := parseAndValidateMimeTypes(cfg.MimeTypes[mtlen-1])
 		if err != nil {
 			return nil, nil, err
 		}
 		cfg.MimeTypes = mimes
 	}
-	pdmime.SetMimeTypesMap(cfg.MimeTypes)
+	util.SetMimeTypesMap(cfg.MimeTypes)
 
 	if cfg.TestNet {
 		var timeHost string

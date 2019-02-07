@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"path/filepath"
 
-	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/util"
 )
@@ -93,7 +92,7 @@ func (cmd *NewProposalCmd) Execute(args []string) error {
 
 	f := v1.File{
 		Name:    "index.md",
-		MIME:    mime.DetectMimeType(md),
+		MIME:    util.DetectMimeType(md),
 		Digest:  hex.EncodeToString(util.Digest(md)),
 		Payload: base64.StdEncoding.EncodeToString(md),
 	}
@@ -110,7 +109,7 @@ func (cmd *NewProposalCmd) Execute(args []string) error {
 
 		f := v1.File{
 			Name:    filepath.Base(file),
-			MIME:    mime.DetectMimeType(attachment),
+			MIME:    util.DetectMimeType(attachment),
 			Digest:  hex.EncodeToString(util.Digest(attachment)),
 			Payload: base64.StdEncoding.EncodeToString(attachment),
 		}

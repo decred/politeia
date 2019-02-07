@@ -21,7 +21,6 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg"
-	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/util"
 	"github.com/decred/slog"
@@ -78,7 +77,7 @@ func TestAnchorWithCommits(t *testing.T) {
 		"text/plain",
 		"text/plain; charset=utf-8",
 	}
-	mime.SetMimeTypesMap(mts)
+	util.SetMimeTypesMap(mts)
 
 	// Create 5 unvetted records
 	propCount := 5
@@ -103,7 +102,7 @@ func TestAnchorWithCommits(t *testing.T) {
 
 			files = append(files, backend.File{
 				Name:    name + "_" + strconv.Itoa(j),
-				MIME:    mime.DetectMimeType([]byte(payload)),
+				MIME:    util.DetectMimeType([]byte(payload)),
 				Digest:  digest,
 				Payload: b64,
 			})

@@ -5,15 +5,8 @@
 package v1
 
 import (
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/hex"
 	"errors"
 	"regexp"
-
-	"github.com/decred/dcrtime/merkle"
-	"github.com/decred/politeia/politeiad/api/v1/identity"
-	"github.com/decred/politeia/politeiad/api/v1/mime"
 )
 
 type ErrorStatusT int
@@ -119,52 +112,6 @@ var (
 	ErrInvalidMerkle = errors.New("merkle roots do not match")
 	ErrCorrupt       = errors.New("signature verification failed")
 )
-
-// Verify ensures that a CensorshipRecord properly describes the array of
-// files.
-func Verify(pid identity.PublicIdentity, csr CensorshipRecord, files []File) error {
-	digests := make([]*[sha256.Size]byte, 0, len(files))
-	for _, file := range files {
-		payload, err := base64.StdEncoding.DecodeString(file.Payload)
-		if err != nil {
-			return ErrInvalidBase64
-		}
-
-		// MIME
-		mimeType := mime.DetectMimeType(payload)
-		if !mime.MimeValid(mimeType) {
-			return mime.ErrUnsupportedMimeType
-		}
-
-		// Digest
-		h := sha256.New()
-		h.Write(payload)
-		d := h.Sum(nil)
-		var digest [sha256.Size]byte
-		copy(digest[:], d)
-
-		digests = append(digests, &digest)
-	}
-
-	// Verify merkle root
-	root := merkle.Root(digests)
-	if hex.EncodeToString(root[:]) != csr.Merkle {
-		return ErrInvalidMerkle
-	}
-
-	s, err := hex.DecodeString(csr.Signature)
-	if err != nil {
-		return ErrInvalidHex
-	}
-	var signature [identity.SignatureSize]byte
-	copy(signature[:], s)
-	r := hex.EncodeToString(root[:])
-	if !pid.VerifyMessage([]byte(r+csr.Token), signature) {
-		return ErrCorrupt
-	}
-
-	return nil
-}
 
 // CensorshipRecord contains the proof that a record was accepted for review.
 // The proof is verifiable on the client side.

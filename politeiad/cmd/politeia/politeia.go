@@ -902,7 +902,7 @@ func updateRecord(vetted bool) error {
 	}
 
 	// Verify that the files that were returned match the record.
-	err = v1.Verify(*id, reply.Record.CensorshipRecord, reply.Record.Files)
+	err = util.VerifyCensorshipRecordFiles(*id, reply.Record.CensorshipRecord, reply.Record.Files)
 	if err != nil {
 		return err
 	}
@@ -1007,7 +1007,7 @@ func getUnvetted() error {
 	}
 
 	// Verify content
-	err = v1.Verify(*id, reply.Record.CensorshipRecord,
+	err = util.VerifyCensorshipRecordFiles(*id, reply.Record.CensorshipRecord,
 		reply.Record.Files)
 	if err != nil {
 		return err
@@ -1108,7 +1108,7 @@ func getVetted() error {
 	}
 
 	// Verify content
-	err = v1.Verify(*id, reply.Record.CensorshipRecord,
+	err = util.VerifyCensorshipRecordFiles(*id, reply.Record.CensorshipRecord,
 		reply.Record.Files)
 	if err != nil {
 		return err
