@@ -163,21 +163,21 @@ script must be the same cockroachdb directory that you use in the politeiad and
 politeiawww config files when specifying `cacherootcert` and `cachecertdir`.**
 
     cd $GOPATH/src/github.com/decred/politeia
-    ./cockroachsetup ~/.cockroachdb
+    ./cockroachsetup.sh ~/.cockroachdb
 
 You can now start CockroachDB using the command below.  Politeia requires that
 CockroachDB be running.
 
     cockroach start \
-      --certs-dir="~/.cockroachdb/certs" \
+      --certs-dir=${HOME}/.cockroachdb/certs \
       --listen-addr=localhost \
-      --store="~/.cockroachdb/data"
+      --store=${HOME}/.cockroachdb/data
 
 If you want to run database commands manually you can do so by opening a sql
 shell.
 
     cockroach sql \
-      --certs-dir="~/.cockroachdb/certs" \
+      --certs-dir=${HOME}/.cockroachdb/certs \
       --host localhost \
 
 #### 5. Build the programs:
