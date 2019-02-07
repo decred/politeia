@@ -111,6 +111,13 @@ var (
 	ErrInvalidBase64 = errors.New("corrupt base64")
 	ErrInvalidMerkle = errors.New("merkle roots do not match")
 	ErrCorrupt       = errors.New("signature verification failed")
+
+	// Default mime types
+	DefaultMimeTypes = []string{
+		"image/png",
+		"text/plain",
+		"text/plain; charset=utf-8",
+	}
 )
 
 // CensorshipRecord contains the proof that a record was accepted for review.

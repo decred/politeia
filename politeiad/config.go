@@ -20,6 +20,7 @@ import (
 	flags "github.com/btcsuite/go-flags"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrtime/api/v1"
+	dv1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 )
@@ -44,11 +45,7 @@ var (
 	defaultHTTPSCertFile = filepath.Join(defaultHomeDir, "https.cert")
 	defaultLogDir        = filepath.Join(defaultHomeDir, defaultLogDirname)
 	defaultIdentityFile  = filepath.Join(defaultHomeDir, defaultIdentityFilename)
-	defaultMimeTypes     = []string{
-		"image/png",
-		"text/plain",
-		"text/plain; charset=utf-8",
-	}
+	defaultMimeTypes     = dv1.DefaultMimeTypes
 )
 
 // runServiceCommand is only set to a real function on Windows.  It is used
