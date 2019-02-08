@@ -2,14 +2,16 @@ package main
 
 import (
 	"encoding/hex"
+	"fmt"
+	"sort"
 
-	"github.com/decred/politeia/politeiawww/api/v1"
+	www "github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/politeiawww/database"
 	"github.com/google/uuid"
 )
 
-func convertWWWUserFromDatabaseUser(user *database.User) v1.User {
-	return v1.User{
+func convertWWWUserFromDatabaseUser(user *database.User) www.User {
+	return www.User{
 		ID:                              user.ID.String(),
 		Admin:                           user.Admin,
 		Email:                           user.Email,
@@ -35,16 +37,16 @@ func convertWWWUserFromDatabaseUser(user *database.User) v1.User {
 	}
 }
 
-func convertWWWIdentitiesFromDatabaseIdentities(identities []database.Identity) []v1.UserIdentity {
-	userIdentities := make([]v1.UserIdentity, 0, len(identities))
+func convertWWWIdentitiesFromDatabaseIdentities(identities []database.Identity) []www.UserIdentity {
+	userIdentities := make([]www.UserIdentity, 0, len(identities))
 	for _, v := range identities {
 		userIdentities = append(userIdentities, convertWWWIdentityFromDatabaseIdentity(v))
 	}
 	return userIdentities
 }
 
-func convertWWWIdentityFromDatabaseIdentity(identity database.Identity) v1.UserIdentity {
-	return v1.UserIdentity{
+func convertWWWIdentityFromDatabaseIdentity(identity database.Identity) www.UserIdentity {
+	return www.UserIdentity{
 		Pubkey: hex.EncodeToString(identity.Key[:]),
 		Active: database.IsIdentityActive(identity),
 	}
@@ -53,8 +55,8 @@ func convertWWWIdentityFromDatabaseIdentity(identity database.Identity) v1.UserI
 func (b *backend) getUserByIDStr(userIDStr string) (*database.User, error) {
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
-		return nil, v1.UserError{
-			ErrorCode: v1.ErrorStatusInvalidUUID,
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidUUID,
 		}
 	}
 
@@ -63,16 +65,16 @@ func (b *backend) getUserByIDStr(userIDStr string) (*database.User, error) {
 		return nil, err
 	}
 	if user == nil {
-		return nil, v1.UserError{
-			ErrorCode: v1.ErrorStatusUserNotFound,
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserNotFound,
 		}
 	}
 
 	return user, nil
 }
 
-func filterUserPublicFields(user v1.User) v1.User {
-	return v1.User{
+func filterUserPublicFields(user www.User) www.User {
+	return www.User{
 		ID:         user.ID,
 		Admin:      user.Admin,
 		Username:   user.Username,
@@ -82,7 +84,7 @@ func filterUserPublicFields(user v1.User) v1.User {
 
 // ProcessUserDetails return the requested user's details. Some fields can be
 // omitted or blank depending on the requester's access level.
-func (b *backend) ProcessUserDetails(ud *v1.UserDetails, isCurrentUser bool, isAdmin bool) (*v1.UserDetailsReply, error) {
+func (b *backend) ProcessUserDetails(ud *www.UserDetails, isCurrentUser bool, isAdmin bool) (*www.UserDetailsReply, error) {
 	// Fetch the database user.
 	user, err := b.getUserByIDStr(ud.UserID)
 	if err != nil {
@@ -90,7 +92,7 @@ func (b *backend) ProcessUserDetails(ud *v1.UserDetails, isCurrentUser bool, isA
 	}
 
 	// Convert the database user into a proper response.
-	var udr v1.UserDetailsReply
+	var udr www.UserDetailsReply
 	wwwUser := convertWWWUserFromDatabaseUser(user)
 
 	// Filter returned fields in case the user isn't the admin or the current user
@@ -104,7 +106,7 @@ func (b *backend) ProcessUserDetails(ud *v1.UserDetails, isCurrentUser bool, isA
 }
 
 // ProcessEditUser edits a user's preferences.
-func (b *backend) ProcessEditUser(eu *v1.EditUser, user *database.User) (*v1.EditUserReply, error) {
+func (b *backend) ProcessEditUser(eu *www.EditUser, user *database.User) (*www.EditUserReply, error) {
 	if eu.EmailNotifications != nil {
 		user.EmailNotifications = *eu.EmailNotifications
 	}
@@ -115,5 +117,85 @@ func (b *backend) ProcessEditUser(eu *v1.EditUser, user *database.User) (*v1.Edi
 		return nil, err
 	}
 
-	return &v1.EditUserReply{}, nil
+	return &www.EditUserReply{}, nil
+}
+
+// ProcessUserCommentsLikes returns all of the user's comment likes for the
+// passed in proposal.
+func (b *backend) ProcessUserCommentsLikes(user *database.User, token string) (*www.UserCommentsLikesReply, error) {
+	log.Tracef("ProcessUserCommentsLikes: %v %v", user.ID, token)
+
+	// Fetch all like comments for the proposal
+	dlc, err := b.decredPropCommentLikes(token)
+	if err != nil {
+		return nil, fmt.Errorf("decredPropLikeComments: %v", err)
+	}
+
+	// Sanity check. Like comments should already be sorted in
+	// chronological order.
+	sort.SliceStable(dlc, func(i, j int) bool {
+		return dlc[i].Timestamp < dlc[j].Timestamp
+	})
+
+	b.RLock()
+	defer b.RUnlock()
+
+	// Filter out like comments that are from the user
+	lc := make([]www.LikeComment, 0, len(dlc))
+	for _, v := range dlc {
+		userID, ok := b.userPubkeys[v.PublicKey]
+		if !ok {
+			log.Errorf("getUserCommentLikes: userID lookup failed for "+
+				"token:%v commentID:%v pubkey:%v", v.Token, v.CommentID,
+				v.PublicKey)
+			continue
+		}
+
+		if user.ID.String() == userID {
+			lc = append(lc, convertLikeCommentFromDecred(v))
+		}
+	}
+
+	// Compute the resulting like comment action for each comment.
+	// The resulting action depends on the order of the like
+	// comment actions.
+	//
+	// Example: when a user upvotes a comment twice, the second
+	// upvote cancels out the first upvote and the resulting
+	// comment score is 0.
+	//
+	// Example: when a user upvotes a comment and then downvotes
+	// the same comment, the downvote takes precedent and the
+	// resulting comment score is -1.
+	actions := make(map[string]string) // [commentID]action
+	for _, v := range lc {
+		prevAction := actions[v.CommentID]
+		switch {
+		case v.Action == prevAction:
+			// New action is the same as the previous action so
+			// we undo the previous action.
+			actions[v.CommentID] = ""
+		case v.Action != prevAction:
+			// New action is different than the previous action
+			// so the new action takes precedent.
+			actions[v.CommentID] = v.Action
+		}
+	}
+
+	cl := make([]www.CommentLike, 0, len(lc))
+	for k, v := range actions {
+		// Skip actions that have been taken away
+		if v == "" {
+			continue
+		}
+		cl = append(cl, www.CommentLike{
+			Token:     token,
+			CommentID: k,
+			Action:    v,
+		})
+	}
+
+	return &www.UserCommentsLikesReply{
+		CommentsLikes: cl,
+	}, nil
 }

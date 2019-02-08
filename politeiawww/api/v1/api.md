@@ -106,6 +106,9 @@ notifications.  It does not render HTML.
 - [`ErrorStatusInvalidPropVoteBits`](#ErrorStatusInvalidPropVoteBits)
 - [`ErrorStatusInvalidPropVoteParams`](#ErrorStatusInvalidPropVoteParams)
 - [`ErrorStatusEmailNotVerified`](#ErrorStatusEmailNotVerified)
+- [`ErrorStatusInvalidUUID`](#ErrorStatusInvalidUUID)
+- [`ErrorStatusInvalidLikeCommentAction`](#ErrorStatusInvalidLikeCommentAction)
+- [`ErrorStatusInvalidCensorshipToken`](#ErrorStatusInvalidCensorshipToken)
 
 **Proposal status codes**
 
@@ -2481,6 +2484,10 @@ Reply:
 | <a name="ErrorStatusInvalidPropVoteBits">ErrorStatusInvalidPropVoteBits</a> | 53 | Invalid proposal vote option bits. |
 | <a name="ErrorStatusInvalidPropVoteParams">ErrorStatusInvalidPropVoteParams</a> | 54 | Invalid proposal vote parameters. |
 | <a name="ErrorStatusEmailNotVerified">ErrorStatusEmailNotVerified</a> | 55 | Cannot login because user's email is not yet verified. |
+| <a name="ErrorStatusInvalidUUID">ErrorStatusInvalidUUID</a> | 56 | Invalid user UUID. |
+| <a name="ErrorStatusInvalidLikeCommentAction">ErrorStatusInvalidLikeCommentAction</a> | 57 | Invalid like comment action. |
+| <a name="ErrorStatusInvalidCensorshipToken">ErrorStatusInvalidCensorshipToken</a> | 58 | Invalid proposal censorship token. |
+
 
 
 ### Proposal status codes

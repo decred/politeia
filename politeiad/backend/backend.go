@@ -171,13 +171,13 @@ type Backend interface {
 		[]MetadataStream) (*Record, error)
 
 	// Inventory retrieves various record records.
-	Inventory(uint, uint, bool) ([]Record, []Record, error)
+	Inventory(uint, uint, bool, bool) ([]Record, []Record, error)
 
 	// Obtain plugin settings
 	GetPlugins() ([]Plugin, error)
 
 	// Plugin pass-through command
-	Plugin(string, string) (string, string, error) // command type, payload, errror
+	Plugin(string, string) (string, string, error) // command type, payload, error
 
 	// Close performs cleanup of the backend.
 	Close()

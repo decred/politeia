@@ -28,7 +28,10 @@ require (
 	github.com/gorilla/websocket v1.2.0
 	github.com/h2non/go-is-svg v0.0.0-20160927212452-35e8c4b0612c
 	github.com/jessevdk/go-flags v1.4.0
+	github.com/jinzhu/gorm v1.9.2
+	github.com/jinzhu/inflection v0.0.0-20180308033659-04140366298a // indirect
 	github.com/jrick/logrotate v1.0.0
+	github.com/lib/pq v1.0.0 // indirect
 	github.com/onsi/ginkgo v1.7.0 // indirect
 	github.com/otiai10/copy v0.0.0-20180813032824-7e9a647135a1
 	github.com/otiai10/mint v1.2.1 // indirect

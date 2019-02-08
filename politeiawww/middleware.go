@@ -98,14 +98,3 @@ func remoteAddr(r *http.Request) string {
 	}
 	return via
 }
-
-func (p *politeiawww) loadInventory(f http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if err := p.backend.LoadInventory(); err != nil {
-			RespondWithError(w, r, 0,
-				"failed to load inventory: %v", err)
-			return
-		}
-		f(w, r)
-	}
-}

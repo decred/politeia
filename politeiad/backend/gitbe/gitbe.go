@@ -2257,7 +2257,7 @@ func (g *gitBackEnd) SetVettedStatus(token []byte, status backend.MDStatusT, mdA
 
 // Inventory returns an inventory of vetted and unvetted records.  If
 // includeFiles is set the content is also returned.
-func (g *gitBackEnd) Inventory(vettedCount, branchCount uint, includeFiles bool) ([]backend.Record, []backend.Record, error) {
+func (g *gitBackEnd) Inventory(vettedCount, branchCount uint, includeFiles, allVersions bool) ([]backend.Record, []backend.Record, error) {
 	log.Debugf("Inventory: %v %v %v", vettedCount, branchCount, includeFiles)
 
 	// Lock filesystem
@@ -2291,6 +2291,21 @@ func (g *gitBackEnd) Inventory(vettedCount, branchCount uint, includeFiles bool)
 			return nil, nil, err
 		}
 		pr = append(pr, *prv)
+
+		if allVersions {
+			// Include all versions of the proposal
+			latest, err := strconv.Atoi(prv.Version)
+			if err != nil {
+				return nil, nil, err
+			}
+			for i := 1; i < latest; i++ {
+				r, err := g.getRecord(ids, strconv.Itoa(i), g.vetted, includeFiles)
+				if err != nil {
+					return nil, nil, err
+				}
+				pr = append(pr, *r)
+			}
+		}
 	}
 
 	// Walk Branches on unvetted
@@ -2365,6 +2380,9 @@ func (g *gitBackEnd) Plugin(command, payload string) (string, string, error) {
 	case decredplugin.CmdProposalCommentsLikes:
 		payload, err := g.pluginGetProposalCommentsLikes(payload)
 		return decredplugin.CmdProposalCommentsLikes, payload, err
+	case decredplugin.CmdInventory:
+		payload, err := g.pluginInventory()
+		return decredplugin.CmdInventory, payload, err
 	}
 	return "", "", fmt.Errorf("invalid payload command") // XXX this needs to become a type error
 }

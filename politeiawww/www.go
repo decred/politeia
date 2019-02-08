@@ -1049,7 +1049,13 @@ func (p *politeiawww) handleAllVetted(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	vr := p.backend.ProcessAllVetted(v)
+	vr, err := p.backend.ProcessAllVetted(v)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleAllVetted: ProcessAllVetted %v", err)
+		return
+	}
+
 	util.RespondWithJSON(w, http.StatusOK, vr)
 }
 
@@ -1068,7 +1074,13 @@ func (p *politeiawww) handleAllUnvetted(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	ur := p.backend.ProcessAllUnvetted(u)
+	ur, err := p.backend.ProcessAllUnvetted(u)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleAllUnvetted: ProcessAllUnvetted %v", err)
+		return
+	}
+
 	util.RespondWithJSON(w, http.StatusOK, ur)
 }
 
@@ -1093,10 +1105,10 @@ func (p *politeiawww) handleNewComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cr, err := p.backend.ProcessComment(sc, user)
+	cr, err := p.backend.ProcessNewComment(sc, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleNewComment: ProcessComment %v", err)
+			"handleNewComment: ProcessNewComment: %v", err)
 		return
 	}
 
@@ -1180,10 +1192,10 @@ func (p *politeiawww) handleCommentsGet(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 	}
-	gcr, err := p.backend.ProcessCommentGet(token, user)
+	gcr, err := p.backend.ProcessCommentsGet(token, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleCommentsGet: ProcessCommentGet %v", err)
+			"handleCommentsGet: ProcessCommentsGet %v", err)
 		return
 	}
 	util.RespondWithJSON(w, http.StatusOK, gcr)
@@ -1620,10 +1632,10 @@ func (p *politeiawww) handleEditProposal(w http.ResponseWriter, r *http.Request)
 
 	log.Debugf("handleEditProposal: %v", ep.Token)
 
-	epr, err := p.backend.ProcessEditProposal(user, ep)
+	epr, err := p.backend.ProcessEditProposal(ep, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleEditProposal: processEditProposal %v", err)
+			"handleEditProposal: ProcessEditProposal %v", err)
 		return
 	}
 
@@ -1632,7 +1644,12 @@ func (p *politeiawww) handleEditProposal(w http.ResponseWriter, r *http.Request)
 
 // handleProposalsStats returns the counting of proposals aggrouped by each proposal status
 func (p *politeiawww) handleProposalsStats(w http.ResponseWriter, r *http.Request) {
-	psr := p.backend.ProcessProposalsStats()
+	psr, err := p.backend.ProcessProposalsStats()
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleProposalsStats: ProcessProposalsStats %v", err)
+		return
+	}
 	util.RespondWithJSON(w, http.StatusOK, psr)
 }
 
@@ -1657,12 +1674,9 @@ func (p *politeiawww) handleNotFound(w http.ResponseWriter, r *http.Request) {
 
 // addRoute sets up a handler for a specific method+route. If methos is not
 // specified it adds a websocket.
-func (p *politeiawww) addRoute(method string, route string, handler http.HandlerFunc, perm permission, shouldLoadInventory bool) {
+func (p *politeiawww) addRoute(method string, route string, handler http.HandlerFunc, perm permission) {
 	fullRoute := v1.PoliteiaWWWAPIRoute + route
 
-	if shouldLoadInventory {
-		handler = p.loadInventory(handler)
-	}
 	switch perm {
 	case permissionAdmin:
 		handler = logging(p.isLoggedInAsAdmin(handler))
@@ -1750,13 +1764,6 @@ func _main() error {
 	}
 	p.backend.params = activeNetParams.Params
 
-	// Try to load inventory but do not fail.
-	log.Infof("Attempting to load proposal inventory")
-	err = p.backend.LoadInventory()
-	if err != nil {
-		log.Errorf("LoadInventory: %v", err)
-	}
-
 	// Load or create new CSRF key
 	log.Infof("Load CSRF key")
 	csrfKeyFilename := filepath.Join(p.cfg.DataDir, "csrf.key")
@@ -1811,102 +1818,101 @@ func _main() error {
 	p.router.HandleFunc("/", closeBody(logging(p.handleVersion))).Methods(http.MethodGet)
 	p.router.NotFoundHandler = closeBody(p.handleNotFound)
 	p.addRoute(http.MethodGet, v1.RouteVersion, p.handleVersion,
-		permissionPublic, false)
+		permissionPublic)
 	p.addRoute(http.MethodPost, v1.RouteNewUser, p.handleNewUser,
-		permissionPublic, false)
+		permissionPublic)
 	p.addRoute(http.MethodGet, v1.RouteVerifyNewUser,
-		p.handleVerifyNewUser, permissionPublic, false)
+		p.handleVerifyNewUser, permissionPublic)
 	p.addRoute(http.MethodPost, v1.RouteResendVerification,
-		p.handleResendVerification, permissionPublic, false)
+		p.handleResendVerification, permissionPublic)
 	p.addRoute(http.MethodPost, v1.RouteLogin, p.handleLogin,
-		permissionPublic, false)
+		permissionPublic)
 	p.addRoute(http.MethodPost, v1.RouteLogout, p.handleLogout,
-		permissionPublic, false)
+		permissionPublic)
 	p.addRoute(http.MethodPost, v1.RouteResetPassword,
-		p.handleResetPassword, permissionPublic, false)
+		p.handleResetPassword, permissionPublic)
 	p.addRoute(http.MethodGet, v1.RouteAllVetted, p.handleAllVetted,
-		permissionPublic, true)
+		permissionPublic)
 	p.addRoute(http.MethodGet, v1.RouteProposalDetails,
-		p.handleProposalDetails, permissionPublic, true)
+		p.handleProposalDetails, permissionPublic)
 	p.addRoute(http.MethodGet, v1.RoutePolicy, p.handlePolicy,
-		permissionPublic, false)
+		permissionPublic)
 	p.addRoute(http.MethodGet, v1.RouteCommentsGet, p.handleCommentsGet,
-		permissionPublic, true)
+		permissionPublic)
 	p.addRoute(http.MethodGet, v1.RouteUserProposals, p.handleUserProposals,
-		permissionPublic, true)
+		permissionPublic)
 	p.addRoute(http.MethodGet, v1.RouteActiveVote, p.handleActiveVote,
-		permissionPublic, true)
+		permissionPublic)
 	p.addRoute(http.MethodPost, v1.RouteCastVotes, p.handleCastVotes,
-		permissionPublic, true)
+		permissionPublic)
 	p.addRoute(http.MethodGet, v1.RouteVoteResults,
-		p.handleVoteResults, permissionPublic, true)
+		p.handleVoteResults, permissionPublic)
 	p.addRoute(http.MethodGet, v1.RouteAllVoteStatus,
-		p.handleGetAllVoteStatus, permissionPublic, true)
+		p.handleGetAllVoteStatus, permissionPublic)
 	p.addRoute(http.MethodGet, v1.RouteVoteStatus,
-		p.handleVoteStatus, permissionPublic, true)
+		p.handleVoteStatus, permissionPublic)
 	p.addRoute(http.MethodGet, v1.RouteUserDetails,
-		p.handleUserDetails, permissionPublic, true)
+		p.handleUserDetails, permissionPublic)
 	p.addRoute(http.MethodGet, v1.RoutePropsStats,
-		p.handleProposalsStats, permissionPublic, true)
+		p.handleProposalsStats, permissionPublic)
 
 	// Routes that require being logged in.
 	p.addRoute(http.MethodPost, v1.RouteSecret, p.handleSecret,
-		permissionLogin, false)
+		permissionLogin)
 	p.addRoute(http.MethodGet, v1.RouteProposalPaywallDetails,
-		p.handleProposalPaywallDetails, permissionLogin, false)
+		p.handleProposalPaywallDetails, permissionLogin)
 	p.addRoute(http.MethodPost, v1.RouteNewProposal, p.handleNewProposal,
-		permissionLogin, true)
-	p.addRoute(http.MethodGet, v1.RouteUserMe, p.handleMe, permissionLogin,
-		false)
+		permissionLogin)
+	p.addRoute(http.MethodGet, v1.RouteUserMe, p.handleMe, permissionLogin)
 	p.addRoute(http.MethodPost, v1.RouteUpdateUserKey,
-		p.handleUpdateUserKey, permissionLogin, false)
+		p.handleUpdateUserKey, permissionLogin)
 	p.addRoute(http.MethodPost, v1.RouteVerifyUpdateUserKey,
-		p.handleVerifyUpdateUserKey, permissionLogin, false)
+		p.handleVerifyUpdateUserKey, permissionLogin)
 	p.addRoute(http.MethodPost, v1.RouteChangeUsername,
-		p.handleChangeUsername, permissionLogin, false)
+		p.handleChangeUsername, permissionLogin)
 	p.addRoute(http.MethodPost, v1.RouteChangePassword,
-		p.handleChangePassword, permissionLogin, false)
+		p.handleChangePassword, permissionLogin)
 	p.addRoute(http.MethodPost, v1.RouteNewComment,
-		p.handleNewComment, permissionLogin, true)
+		p.handleNewComment, permissionLogin)
 	p.addRoute(http.MethodPost, v1.RouteLikeComment,
-		p.handleLikeComment, permissionLogin, true)
+		p.handleLikeComment, permissionLogin)
 	p.addRoute(http.MethodGet, v1.RouteVerifyUserPayment,
-		p.handleVerifyUserPayment, permissionLogin, false)
+		p.handleVerifyUserPayment, permissionLogin)
 	p.addRoute(http.MethodGet, v1.RouteUserCommentsLikes,
-		p.handleUserCommentsLikes, permissionLogin, true)
+		p.handleUserCommentsLikes, permissionLogin)
 	p.addRoute(http.MethodGet, v1.RouteUserProposalCredits,
-		p.handleUserProposalCredits, permissionLogin, false)
+		p.handleUserProposalCredits, permissionLogin)
 	p.addRoute(http.MethodPost, v1.RouteEditProposal,
-		p.handleEditProposal, permissionLogin, true)
+		p.handleEditProposal, permissionLogin)
 	p.addRoute(http.MethodPost, v1.RouteAuthorizeVote,
-		p.handleAuthorizeVote, permissionLogin, false)
+		p.handleAuthorizeVote, permissionLogin)
 	p.addRoute(http.MethodGet, v1.RouteProposalPaywallPayment,
-		p.handleProposalPaywallPayment, permissionLogin, false)
+		p.handleProposalPaywallPayment, permissionLogin)
 	p.addRoute(http.MethodPost, v1.RouteEditUser,
-		p.handleEditUser, permissionLogin, false)
+		p.handleEditUser, permissionLogin)
 
 	// Unauthenticated websocket
 	p.addRoute("", v1.RouteUnauthenticatedWebSocket,
-		p.handleUnauthenticatedWebsocket, permissionPublic, false)
+		p.handleUnauthenticatedWebsocket, permissionPublic)
 	// Authenticated websocket
 	p.addRoute("", v1.RouteAuthenticatedWebSocket,
-		p.handleAuthenticatedWebsocket, permissionLogin, false)
+		p.handleAuthenticatedWebsocket, permissionLogin)
 
 	// Routes that require being logged in as an admin user.
 	p.addRoute(http.MethodGet, v1.RouteAllUnvetted, p.handleAllUnvetted,
-		permissionAdmin, true)
+		permissionAdmin)
 	p.addRoute(http.MethodPost, v1.RouteSetProposalStatus,
-		p.handleSetProposalStatus, permissionAdmin, true)
+		p.handleSetProposalStatus, permissionAdmin)
 	p.addRoute(http.MethodPost, v1.RouteStartVote,
-		p.handleStartVote, permissionAdmin, true)
+		p.handleStartVote, permissionAdmin)
 	p.addRoute(http.MethodPost, v1.RouteManageUser,
-		p.handleManageUser, permissionAdmin, true)
+		p.handleManageUser, permissionAdmin)
 	p.addRoute(http.MethodPost, v1.RouteCensorComment,
-		p.handleCensorComment, permissionAdmin, true)
+		p.handleCensorComment, permissionAdmin)
 	p.addRoute(http.MethodGet, v1.RouteUsers,
-		p.handleUsers, permissionAdmin, false)
+		p.handleUsers, permissionAdmin)
 	p.addRoute(http.MethodPut, v1.RouteUserPaymentsRescan,
-		p.handleUserPaymentsRescan, permissionAdmin, false)
+		p.handleUserPaymentsRescan, permissionAdmin)
 
 	// Persist session cookies.
 	var cookieKey []byte

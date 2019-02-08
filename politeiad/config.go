@@ -53,27 +53,32 @@ var runServiceCommand func(string) error
 //
 // See loadConfig for details on the configuration load process.
 type config struct {
-	HomeDir     string   `short:"A" long:"appdata" description:"Path to application home directory"`
-	ShowVersion bool     `short:"V" long:"version" description:"Display version information and exit"`
-	ConfigFile  string   `short:"C" long:"configfile" description:"Path to configuration file"`
-	DataDir     string   `short:"b" long:"datadir" description:"Directory to store data"`
-	LogDir      string   `long:"logdir" description:"Directory to log output."`
-	TestNet     bool     `long:"testnet" description:"Use the test network"`
-	SimNet      bool     `long:"simnet" description:"Use the simulation test network"`
-	Profile     string   `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
-	CPUProfile  string   `long:"cpuprofile" description:"Write CPU profile to the specified file"`
-	MemProfile  string   `long:"memprofile" description:"Write mem profile to the specified file"`
-	DebugLevel  string   `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
-	Listeners   []string `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 49152, testnet: 59152)"`
-	Version     string
-	HTTPSCert   string `long:"httpscert" description:"File containing the https certificate file"`
-	HTTPSKey    string `long:"httpskey" description:"File containing the https certificate key"`
-	RPCUser     string `long:"rpcuser" description:"RPC user name for privileged commands"`
-	RPCPass     string `long:"rpcpass" description:"RPC password for privileged commands"`
-	DcrtimeHost string `long:"dcrtimehost" description:"Dcrtime ip:port"`
-	DcrtimeCert string `long:"dcrtimecert" description:"File containing the https certificate file for dcrtimehost"`
-	Identity    string `long:"identity" description:"File containing the politeiad identity file"`
-	GitTrace    bool   `long:"gittrace" description:"Enable git tracing in logs"`
+	HomeDir       string   `short:"A" long:"appdata" description:"Path to application home directory"`
+	ShowVersion   bool     `short:"V" long:"version" description:"Display version information and exit"`
+	ConfigFile    string   `short:"C" long:"configfile" description:"Path to configuration file"`
+	DataDir       string   `short:"b" long:"datadir" description:"Directory to store data"`
+	LogDir        string   `long:"logdir" description:"Directory to log output."`
+	TestNet       bool     `long:"testnet" description:"Use the test network"`
+	SimNet        bool     `long:"simnet" description:"Use the simulation test network"`
+	Profile       string   `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
+	CPUProfile    string   `long:"cpuprofile" description:"Write CPU profile to the specified file"`
+	MemProfile    string   `long:"memprofile" description:"Write mem profile to the specified file"`
+	DebugLevel    string   `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
+	Listeners     []string `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 49152, testnet: 59152)"`
+	Version       string
+	HTTPSCert     string `long:"httpscert" description:"File containing the https certificate file"`
+	HTTPSKey      string `long:"httpskey" description:"File containing the https certificate key"`
+	RPCUser       string `long:"rpcuser" description:"RPC user name for privileged commands"`
+	RPCPass       string `long:"rpcpass" description:"RPC password for privileged commands"`
+	DcrtimeHost   string `long:"dcrtimehost" description:"Dcrtime ip:port"`
+	DcrtimeCert   string `long:"dcrtimecert" description:"File containing the https certificate file for dcrtimehost"`
+	EnableCache   bool   `long:"enablecache" description:"Enable the external cache"`
+	BuildCache    bool   `long:"buildcache" description:"Build the cache from scratch"`
+	CacheHost     string `long:"cachehost" description:"Cache ip:port"`
+	CacheCertDir  string `long:"cachecertdir" description:"Directory containing SSL client certificates"`
+	CacheRootCert string `long:"cacherootcert" description:"File containing SSL root certificate"`
+	Identity      string `long:"identity" description:"File containing the politeiad identity file"`
+	GitTrace      bool   `long:"gittrace" description:"Enable git tracing in logs"`
 }
 
 // serviceOptions defines the configuration options for the daemon as a service
@@ -403,6 +408,18 @@ func loadConfig() (*config, []string, error) {
 		fmt.Println("Supported subsystems", supportedSubsystems())
 		os.Exit(0)
 	}
+
+	// Validate cache options.
+	if cfg.BuildCache && !cfg.EnableCache {
+		str := "%s: The buildcache param can't be used " +
+			"without the enablecache param"
+		err := fmt.Errorf(str, funcName)
+		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, usageMessage)
+		os.Exit(0)
+	}
+	cfg.CacheCertDir = cleanAndExpandPath(cfg.CacheCertDir)
+	cfg.CacheRootCert = cleanAndExpandPath(cfg.CacheRootCert)
 
 	// Initialize log rotation.  After log rotation has been initialized,
 	// the logger variables may be used.
