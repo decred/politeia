@@ -757,7 +757,7 @@ type StartVoteTuple struct {
 // InventoryReply returns the decred plugin inventory.
 type InventoryReply struct {
 	Comments             []Comment            `json:"comments"`             // Comments
-	LikeComments         []LikeComment        `json:"likecomments"`         // Comment likes
+	LikeComments         []LikeComment        `json:"likecomments"`         // Like comments
 	AuthorizeVotes       []AuthorizeVote      `json:"authorizevotes"`       // Authorize votes
 	AuthorizeVoteReplies []AuthorizeVoteReply `json:"authorizevotereplies"` // Authorize vote replies
 	StartVoteTuples      []StartVoteTuple     `json:"startvotetuples"`      // Start vote tuples
