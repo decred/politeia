@@ -651,7 +651,7 @@ func (d *decred) build(tx *gorm.DB, ir *decredplugin.InventoryReply) error {
 	}
 
 	// Build like comments cache
-	for _, v := range ir.CommentLikes {
+	for _, v := range ir.LikeComments {
 		lc := convertLikeCommentFromDecred(v)
 		err := d.newLikeComment(tx, lc)
 		if err != nil {

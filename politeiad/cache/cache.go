@@ -127,7 +127,10 @@ type Plugin struct {
 	Settings []PluginSetting // Settings
 }
 
-// PluginDriver is the interface that all cache plugins must implement.
+// PluginDriver describes the common set of methods that the cache uses to
+// build and maintain the cache for a plugin.
+//
+// All cache plugins must implement the PluginDriver interface.
 type PluginDriver interface {
 	// Check that the correct plugin version is being used
 	CheckVersion() error
@@ -142,6 +145,10 @@ type PluginDriver interface {
 	Exec(string, string, string) (string, error)
 }
 
+// Cache describes the interface used for interacting with an external
+// politeiad cache.  The politeiad backend implementation serves as the source
+// of truth for politeiad data and an external cache can be used if more
+// performant queries are required.
 type Cache interface {
 	// Create a new record
 	NewRecord(Record) error
@@ -174,10 +181,10 @@ type Cache interface {
 	// Register a plugin with the cache
 	RegisterPlugin(Plugin) error
 
-	// Setup plugin tables
+	// Setup the database tables for a plugin
 	PluginSetup(string) error
 
-	// Build cache for a plugin
+	// Build the cache for a plugin
 	PluginBuild(string, string) error
 
 	// Execute a plugin command

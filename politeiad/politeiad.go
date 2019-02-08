@@ -1203,7 +1203,7 @@ func _main() error {
 	// Build the cache
 	if p.cfg.BuildCache {
 		// Fetch all versions of all records from the inventory and
-		// use them to build the cache
+		// use them to build the cache.
 		vetted, unvetted, err := p.backend.Inventory(0, 0, true, true)
 		if err != nil {
 			return fmt.Errorf("backend inventory: %v", err)
@@ -1217,7 +1217,7 @@ func _main() error {
 			inv = append(inv, p.convertBackendRecordToCache(r))
 		}
 
-		// Build the records cache
+		// Build the cache
 		err = p.cache.Build(inv)
 		if err != nil {
 			return fmt.Errorf("build cache: %v", err)
@@ -1231,7 +1231,7 @@ func _main() error {
 		for _, v := range p.plugins {
 			var cmd string
 			for _, s := range v.Settings {
-				if s.Key == "inventorycmd" {
+				if s.Key == "inventory" {
 					cmd = s.Value
 				}
 			}

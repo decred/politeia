@@ -34,9 +34,9 @@ import (
 // XXX plugins really need to become an interface. Run with this for now.
 
 const (
-	decredPluginIdentity     = "fullidentity"
-	decredPluginJournals     = "journals"
-	decredPluginInventoryCmd = "inventorycmd"
+	decredPluginIdentity  = "fullidentity"
+	decredPluginJournals  = "journals"
+	decredPluginInventory = "inventory"
 
 	defaultCommentIDFilename = "commentid.txt"
 	defaultCommentFilename   = "comments.journal"
@@ -180,9 +180,12 @@ func getDecredPlugin(testnet bool) backend.Plugin {
 			})
 	}
 
+	// This setting is used to tell politeiad how to retrieve the
+	// decred plugin data that is required to build the external
+	// politeiad cache.
 	decredPlugin.Settings = append(decredPlugin.Settings,
 		backend.PluginSetting{
-			Key:   decredPluginInventoryCmd,
+			Key:   decredPluginInventory,
 			Value: decredplugin.CmdInventory,
 		})
 
@@ -2310,6 +2313,9 @@ nodata:
 	return string(reply), nil
 }
 
+// pluginInventory returns the decred plugin inventory for all proposals.  The
+// inventory consists of comments, like comments, vote authorizations, vote
+// details, and cast votes.
 func (g *gitBackEnd) pluginInventory() (string, error) {
 	log.Tracef("pluginInventory")
 
@@ -2489,7 +2495,7 @@ func (g *gitBackEnd) pluginInventory() (string, error) {
 	// Prepare reply
 	ir := decredplugin.InventoryReply{
 		Comments:             comments,
-		CommentLikes:         likes,
+		LikeComments:         likes,
 		AuthorizeVotes:       av,
 		AuthorizeVoteReplies: avr,
 		StartVoteTuples:      svt,
