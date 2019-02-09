@@ -12,11 +12,11 @@ import (
 	"runtime"
 	"strings"
 
-	flags "github.com/btcsuite/go-flags"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiawww/sharedconfig"
 	"github.com/decred/politeia/util/version"
+	flags "github.com/jessevdk/go-flags"
 )
 
 const (
