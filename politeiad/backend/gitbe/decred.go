@@ -1045,7 +1045,9 @@ func (g *gitBackEnd) pluginNewComment(payload string) (string, error) {
 	if _, ok := decredPluginCommentsCache[c.Token]; !ok {
 		decredPluginCommentsCache[c.Token] =
 			make(map[string]decredplugin.Comment)
-	} else {
+	}
+	_, ok = decredPluginCommentsCache[c.Token][c.CommentID]
+	if ok {
 		// Sanity
 		log.Errorf("comment should not have existed.")
 	}
