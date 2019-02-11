@@ -16,11 +16,11 @@ import (
 	"strings"
 	"time"
 
-	flags "github.com/btcsuite/go-flags"
 	"github.com/btcsuite/go-socks/socks"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
+	flags "github.com/jessevdk/go-flags"
 )
 
 const (

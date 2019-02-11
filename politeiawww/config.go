@@ -23,11 +23,11 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/util/version"
 
-	flags "github.com/btcsuite/go-flags"
 	"github.com/dajohi/goemail"
 	"github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiawww/sharedconfig"
 	"github.com/decred/politeia/util"
+	flags "github.com/jessevdk/go-flags"
 )
 
 const (
