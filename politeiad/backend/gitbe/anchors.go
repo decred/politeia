@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018 The Decred developers
+// Copyright (c) 2017-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -201,7 +201,7 @@ func (g *gitBackEnd) readAnchorRecord(key [sha256.Size]byte) (*Anchor, error) {
 		if err != nil {
 			return nil, err
 		}
-		currLine = currLine + linesUsed
+		currLine += linesUsed
 
 		// Check the first line to see if the commit matches the target
 		firstLine := commit.Message[0]
@@ -248,7 +248,7 @@ func (g *gitBackEnd) readLastAnchorRecord() (*LastAnchor, error) {
 		if err != nil {
 			return nil, err
 		}
-		currLine = currLine + linesUsed
+		currLine += linesUsed
 
 		// Check the first line of the commit message
 		// Make sure it is an anchor, not an anchor confirmation
@@ -298,7 +298,7 @@ func (g *gitBackEnd) readUnconfirmedAnchorRecord() (*UnconfirmedAnchor, error) {
 		if err != nil {
 			return nil, err
 		}
-		currLine = currLine + linesUsed
+		currLine += linesUsed
 
 		// Check the first line of the commit message to see if it is an
 		// anchor confirmation or an anchor.

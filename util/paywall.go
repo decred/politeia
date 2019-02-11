@@ -1,3 +1,7 @@
+// Copyright (c) 2017-2019 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package util
 
 import (
@@ -137,7 +141,7 @@ func DcrStringToAmount(dcrstr string) (uint64, error) {
 		return 0, err
 	}
 
-	dcrsplit[1] = dcrsplit[1] + "00000000"
+	dcrsplit[1] += "00000000"
 	fraction, err := strconv.ParseUint(dcrsplit[1][0:8], 10, 64)
 	if err != nil {
 		return 0, err
