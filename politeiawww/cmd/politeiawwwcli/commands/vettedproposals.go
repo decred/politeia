@@ -10,51 +10,60 @@ import (
 	"github.com/decred/politeia/politeiawww/api/v1"
 )
 
-// UserProposalsCmd gets the proposals for the specified user.
-type UserProposalsCmd struct {
-	Args struct {
-		UserID string `positional-arg-name:"userID"` // User ID
-	} `positional-args:"true" required:"true"`
+// VettedProposalsCmd retreives a page of vetted proposals.
+type VettedProposalsCmd struct {
+	Before string `long:"before"` // Before censorship token
+	After  string `long:"after"`  // After censorship token
 }
 
-// Execute executes the user proposals command.
-func (cmd *UserProposalsCmd) Execute(args []string) error {
-	// Get server public key
+// Execute executs the vetted proposals command.
+func (cmd *VettedProposalsCmd) Execute(args []string) error {
+	if cmd.Before != "" && cmd.After != "" {
+		return errInvalidBeforeAfterUsage
+	}
+
+	// Get server's public key
 	vr, err := client.Version()
 	if err != nil {
 		return err
 	}
 
-	// Get user proposals
-	upr, err := client.UserProposals(
-		&v1.UserProposals{
-			UserId: cmd.Args.UserID,
-		})
+	// Get a page of vetted proposals
+	gavr, err := client.GetAllVetted(&v1.GetAllVetted{
+		Before: cmd.Before,
+		After:  cmd.After,
+	})
 	if err != nil {
 		return err
 	}
 
 	// Verify proposal censorship records
-	for _, p := range upr.Proposals {
-		err := verifyProposal(p, vr.PubKey)
+	for _, p := range gavr.Proposals {
+		err = verifyProposal(p, vr.PubKey)
 		if err != nil {
 			return fmt.Errorf("unable to verify proposal %v: %v",
 				p.CensorshipRecord.Token, err)
 		}
 	}
 
-	// Print user proposals
-	return printJSON(upr)
+	// Print vetted proposals
+	return printJSON(gavr)
 }
 
-// userProposalsHelpMsg is the output of the help command when 'userproposals'
-// is specified.
-const userProposalsHelpMsg = `userproposals "userID" 
+// vettedproposalsHelpMsg is the output for the help command when
+// 'vettedproposals' is specified.
+const vettedProposalsHelpMsg = `vettedproposals [flags]
 
-Fetch all proposals submitted by a specific user.
+Fetch a page of vetted proposals. 
 
-Arguments:
-1. userID      (string, required)   User id
+Arguments: None
+
+Flags:
+  --before     (string, optional)   Get proposals before this proposal (token)
+  --after      (string, optional)   Get proposals after this proposal (token)
+
+Example:
+getvetted --after=[token]
 
 Result:
 {
@@ -84,6 +93,5 @@ Result:
       "signature":   (string)  Server side signature of []byte(Merkle+Token)
       }
     }
-  ],
-  "numofproposals":  (int)  Number of proposals submitted by user  
+  ]
 }`

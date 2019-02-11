@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
+// LoadWalletClient connects to a dcrwallet instance.
 func (c *Client) LoadWalletClient() error {
 	creds, err := credentials.NewClientTLSFromFile(c.cfg.WalletCert, "")
 	if err != nil {
@@ -32,6 +33,7 @@ func (c *Client) LoadWalletClient() error {
 	return nil
 }
 
+// WalletAccounts retrieves the walletprc accounts.
 func (c *Client) WalletAccounts() (*walletrpc.AccountsResponse, error) {
 	if c.wallet == nil {
 		return nil, fmt.Errorf("walletrpc client not loaded")
@@ -47,7 +49,7 @@ func (c *Client) WalletAccounts() (*walletrpc.AccountsResponse, error) {
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(ar)
+		err := prettyPrintJSON(ar)
 		if err != nil {
 			return nil, err
 		}
@@ -56,6 +58,8 @@ func (c *Client) WalletAccounts() (*walletrpc.AccountsResponse, error) {
 	return ar, nil
 }
 
+// CommittedTickets returns the committed tickets that belong to the dcrwallet
+// instance out of the the specified list of tickets.
 func (c *Client) CommittedTickets(ct *walletrpc.CommittedTicketsRequest) (*walletrpc.CommittedTicketsResponse, error) {
 	if c.wallet == nil {
 		return nil, fmt.Errorf("walletrpc client not loaded")
@@ -71,7 +75,7 @@ func (c *Client) CommittedTickets(ct *walletrpc.CommittedTicketsRequest) (*walle
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(ctr)
+		err := prettyPrintJSON(ctr)
 		if err != nil {
 			return nil, err
 		}
@@ -80,6 +84,8 @@ func (c *Client) CommittedTickets(ct *walletrpc.CommittedTicketsRequest) (*walle
 	return ctr, nil
 }
 
+// SignMessages signs the passed in messages using the private keys from the
+// specified addresses.
 func (c *Client) SignMessages(sm *walletrpc.SignMessagesRequest) (*walletrpc.SignMessagesResponse, error) {
 	if c.wallet == nil {
 		return nil, fmt.Errorf("walletrpc client not loaded")
@@ -95,7 +101,7 @@ func (c *Client) SignMessages(sm *walletrpc.SignMessagesRequest) (*walletrpc.Sig
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(smr)
+		err := prettyPrintJSON(smr)
 		if err != nil {
 			return nil, err
 		}

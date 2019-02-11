@@ -10,8 +10,53 @@ import (
 	"github.com/decred/politeia/politeiawww/api/v1"
 )
 
-// Help message displayed for the command 'politeiawwwcli help changepassword'
-var ChangePasswordCmdHelpMsg = `changepassword "currentPassword" "newPassword" 
+// ChangePasswordCmd changes the password for the logged in user.
+type ChangePasswordCmd struct {
+	Args struct {
+		Password    string `positional-arg-name:"currentPassword"` // Current password
+		NewPassword string `positional-arg-name:"newPassword"`     // New password
+	} `positional-args:"true" required:"true"`
+}
+
+// Execute executes the change password command.
+func (cmd *ChangePasswordCmd) Execute(args []string) error {
+	// Get password requirements
+	pr, err := client.Policy()
+	if err != nil {
+		return err
+	}
+
+	// Validate new password
+	if uint(len(cmd.Args.NewPassword)) < pr.MinPasswordLength {
+		return fmt.Errorf("password must be %v characters long",
+			pr.MinPasswordLength)
+	}
+
+	// Setup change password request
+	cp := &v1.ChangePassword{
+		CurrentPassword: digestSHA3(cmd.Args.Password),
+		NewPassword:     digestSHA3(cmd.Args.NewPassword),
+	}
+
+	// Print request details
+	err = printJSON(cp)
+	if err != nil {
+		return err
+	}
+
+	// Send request
+	cpr, err := client.ChangePassword(cp)
+	if err != nil {
+		return err
+	}
+
+	// Print response details
+	return printJSON(cpr)
+}
+
+// changePasswordHelpMsg is the output of the help command when
+// 'changepassword' is specified.
+const changePasswordHelpMsg = `changepassword "currentPassword" "newPassword" 
 
 Change password for the currently logged in user. 
 
@@ -27,45 +72,3 @@ Request:
 
 Response:
 {}`
-
-type ChangePasswordCmd struct {
-	Args struct {
-		Password    string `positional-arg-name:"currentPassword"`
-		NewPassword string `positional-arg-name:"newPassword"`
-	} `positional-args:"true" required:"true"`
-}
-
-func (cmd *ChangePasswordCmd) Execute(args []string) error {
-	// Get password requirements
-	pr, err := c.Policy()
-	if err != nil {
-		return err
-	}
-
-	// Validate new password
-	if uint(len(cmd.Args.NewPassword)) < pr.MinPasswordLength {
-		return fmt.Errorf("password must be %v characters long",
-			pr.MinPasswordLength)
-	}
-
-	// Setup change password request
-	cp := &v1.ChangePassword{
-		CurrentPassword: DigestSHA3(cmd.Args.Password),
-		NewPassword:     DigestSHA3(cmd.Args.NewPassword),
-	}
-
-	// Print request details
-	err = Print(cp, cfg.Verbose, cfg.RawJSON)
-	if err != nil {
-		return err
-	}
-
-	// Send request
-	cpr, err := c.ChangePassword(cp)
-	if err != nil {
-		return err
-	}
-
-	// Print response details
-	return Print(cpr, cfg.Verbose, cfg.RawJSON)
-}

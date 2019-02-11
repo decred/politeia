@@ -16,39 +16,28 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-// Help message displayed for the command 'politeiawwwcli help vote'
-var VoteCmdHelpMsg = `vote "token" "voteid"
-
-Cast ticket votes for a proposal.
-
-Arguments:
-1. token       (string, optional)   Proposal censorship token
-2. voteid      (string, optional)   A single word identifying vote (e.g. yes)
-
-Result:
-Enter the private passphrase of your wallet:
-Votes succeeded:  (int)  Number of successful votes
-Votes failed   :  (int)  Number of failed votes`
-
+// VoteCmd casts a proposal ballot for the specified proposal.
 type VoteCmd struct {
 	Args struct {
-		Token  string `positional-arg-name:"token" description:"Proposal censorship token"`
-		VoteID string `positional-arg-name:"voteid" description:"A single unique word identifying the vote (e.g. yes)"`
+		Token  string `positional-arg-name:"token"`  // Censorship token
+		VoteID string `positional-arg-name:"voteid"` // Vote choice ID
 	} `positional-args:"true" required:"true"`
 }
 
+// Execute executes the vote command.
 func (cmd *VoteCmd) Execute(args []string) error {
 	token := cmd.Args.Token
 	voteID := cmd.Args.VoteID
 
 	// Connet to user's wallet
-	err := c.LoadWalletClient()
+	err := client.LoadWalletClient()
 	if err != nil {
 		return fmt.Errorf("LoadWalletClient: %v", err)
 	}
+	defer client.Close()
 
 	// Get server public key
-	vr, err := c.Version()
+	vr, err := client.Version()
 	if err != nil {
 		return fmt.Errorf("Version: %v", err)
 	}
@@ -59,21 +48,21 @@ func (cmd *VoteCmd) Execute(args []string) error {
 	}
 
 	// Get all active proposal votes
-	avr, err := c.ActiveVotes()
+	avr, err := client.ActiveVotes()
 	if err != nil {
 		return fmt.Errorf("ActiveVotes: %v", err)
 	}
 
 	// Find the proposal that the user wants to vote on
-	var pvt *v1.ProposalVoteTuple
+	var pvt v1.ProposalVoteTuple
 	for _, v := range avr.Votes {
 		if token == v.Proposal.CensorshipRecord.Token {
-			pvt = &v
+			pvt = v
 			break
 		}
 	}
 
-	if pvt == nil {
+	if pvt.Proposal.Name == "" {
 		return fmt.Errorf("proposal not found: %v", token)
 	}
 
@@ -93,14 +82,15 @@ func (cmd *VoteCmd) Execute(args []string) error {
 
 	// Find user's tickets that are eligible to vote on this
 	// proposal
-	ticketPool, err := ConvertTicketHashes(pvt.StartVoteReply.EligibleTickets)
+	ticketPool, err := convertTicketHashes(pvt.StartVoteReply.EligibleTickets)
 	if err != nil {
 		return err
 	}
 
-	ctr, err := c.CommittedTickets(&walletrpc.CommittedTicketsRequest{
-		Tickets: ticketPool,
-	})
+	ctr, err := client.CommittedTickets(
+		&walletrpc.CommittedTicketsRequest{
+			Tickets: ticketPool,
+		})
 	if err != nil {
 		return fmt.Errorf("CommittedTickets: %v", err)
 	}
@@ -122,7 +112,7 @@ func (cmd *VoteCmd) Execute(args []string) error {
 	}
 
 	// Prompt user for wallet password
-	passphrase, err := PromptPassphrase()
+	passphrase, err := promptPassphrase()
 	if err != nil {
 		return fmt.Errorf("PromptPassphrase: %v", err)
 	}
@@ -139,7 +129,7 @@ func (cmd *VoteCmd) Execute(args []string) error {
 		})
 	}
 
-	sigs, err := c.SignMessages(&walletrpc.SignMessagesRequest{
+	sigs, err := client.SignMessages(&walletrpc.SignMessagesRequest{
 		Passphrase: passphrase,
 		Messages:   messages,
 	})
@@ -167,7 +157,7 @@ func (cmd *VoteCmd) Execute(args []string) error {
 	}
 
 	// Cast proposal votes
-	br, err := c.CastVotes(&v1.Ballot{
+	br, err := client.CastVotes(&v1.Ballot{
 		Votes: votes,
 	})
 	if err != nil {
@@ -209,11 +199,27 @@ func (cmd *VoteCmd) Execute(args []string) error {
 	}
 
 	// Print results
-	fmt.Printf("Votes succeeded: %v\n", len(br.Receipts)-len(failedReceipts))
-	fmt.Printf("Votes failed   : %v\n", len(failedReceipts))
-	for i, v := range failedReceipts {
-		fmt.Printf("Failed vote    : %v %v\n", failedTickets[i], v.Error)
+	if !cfg.Silent {
+		fmt.Printf("Votes succeeded: %v\n", len(br.Receipts)-len(failedReceipts))
+		fmt.Printf("Votes failed   : %v\n", len(failedReceipts))
+		for i, v := range failedReceipts {
+			fmt.Printf("Failed vote    : %v %v\n", failedTickets[i], v.Error)
+		}
 	}
 
 	return nil
 }
+
+// voteHelpMsg is the output of the help command when 'vote' is specified.
+const voteHelpMsg = `vote "token" "voteid"
+
+Cast ticket votes for a proposal.
+
+Arguments:
+1. token       (string, optional)   Proposal censorship token
+2. voteid      (string, optional)   A single word identifying vote (e.g. yes)
+
+Result:
+Enter the private passphrase of your wallet:
+Votes succeeded:  (int)  Number of successful votes
+Votes failed   :  (int)  Number of failed votes`

@@ -4,8 +4,29 @@
 
 package commands
 
-// Help message displayed for the command 'politeiawwwcli help logout'
-var LogoutCmdHelpMsg = `logout 
+import "fmt"
+
+// LogoutCmd logs the user out of Politeia.
+type LogoutCmd struct{}
+
+// Execute executes the logout command.
+func (cmd *LogoutCmd) Execute(args []string) error {
+	lr, err := client.Logout()
+	if err != nil {
+		return err
+	}
+
+	// Update the logged in username that we store on disk
+	err = cfg.SaveLoggedInUsername("")
+	if err != nil {
+		return fmt.Errorf("SaveLoggedInUsername: %v", err)
+	}
+
+	return printJSON(lr)
+}
+
+// logoutHelpMsg is the output of the help command when 'logout' is specified.
+const logoutHelpMsg = `logout 
 
 Logout as a user or admin.
 
@@ -14,13 +35,3 @@ None
 
 Result:
 {}`
-
-type LogoutCmd struct{}
-
-func (cmd *LogoutCmd) Execute(args []string) error {
-	lr, err := c.Logout()
-	if err != nil {
-		return err
-	}
-	return Print(lr, cfg.Verbose, cfg.RawJSON)
-}

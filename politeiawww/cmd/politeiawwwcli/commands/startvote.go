@@ -12,62 +12,44 @@ import (
 	"github.com/decred/politeia/politeiawww/api/v1"
 )
 
-// Help message displayed for the command 'politeiawwwcli help startvote'
-var StartVoteCmdHelpMsg = `startvote "token" "duration" "quorumpercentage" "passpercentage"
-
-Start voting period for a proposal. Requires admin privileges.
-
-Arguments:
-1. token              (string, required)  Proposal censorship token
-1. duration           (uint32, optional)  Duration of vote in blocks
-2. quorumpercentage   (uint32, optional)  Percent of votes required for quorum
-3. passpercentage     (uint32, optional)  Percent of votes required to pass
-
-Result:
-
-{
-  "startblockheight"     (string)    Block height at start of vote
-  "startblockhash"       (string)    Hash of first block of vote interval
-  "endheight"            (string)    Height of vote end
-  "eligibletickets"      ([]string)  Valid voting tickets   
-}`
-
+// StartVoteCmd starts the voting period on the specified proposal.
 type StartVoteCmd struct {
 	Args struct {
-		Token string `positional-arg-name:"token" description:"Proposal censorship token"`
-	} `positional-args:"true" required:"true"`
-	Duration         string `long:"duration" description:"Vote duration in blocks"`
-	QuorumPercentage string `long:"quorumpercentage" description:"Percentage of eligible tickets required for quorum (0-100)"`
-	PassPercentage   string `long:"passpercentage" description:"Percentage of votes required for vote to pass (0-100)"`
+		Token            string `positional-arg-name:"token" required:"true"` // Censorship token
+		Duration         string `positional-arg-name:"duration"`              // Vote duration
+		QuorumPercentage string `positional-arg-name:"quorumpercentage"`      // Quorum percentage
+		PassPercentage   string `positional-arg-name:"passpercentage"`        // Pass percentage
+	} `positional-args:"true"`
 }
 
+// Execute executes the start vote command.
 func (cmd *StartVoteCmd) Execute(args []string) error {
 	// Check for user identity
 	if cfg.Identity == nil {
-		return fmt.Errorf(ErrorNoUserIdentity)
+		return errUserIdentityNotFound
 	}
 
 	// Set vote parameter defaults
-	if cmd.Duration == "" {
-		cmd.Duration = "2016"
+	if cmd.Args.Duration == "" {
+		cmd.Args.Duration = "2016"
 	}
-	if cmd.QuorumPercentage == "" {
-		cmd.QuorumPercentage = "10"
+	if cmd.Args.QuorumPercentage == "" {
+		cmd.Args.QuorumPercentage = "10"
 	}
-	if cmd.PassPercentage == "" {
-		cmd.PassPercentage = "75"
+	if cmd.Args.PassPercentage == "" {
+		cmd.Args.PassPercentage = "75"
 	}
 
 	// Convert vote parameters
-	duration, err := strconv.ParseUint(cmd.Duration, 10, 32)
+	duration, err := strconv.ParseUint(cmd.Args.Duration, 10, 32)
 	if err != nil {
 		return fmt.Errorf("parsing Duration: %v", err)
 	}
-	quorum, err := strconv.ParseUint(cmd.QuorumPercentage, 10, 32)
+	quorum, err := strconv.ParseUint(cmd.Args.QuorumPercentage, 10, 32)
 	if err != nil {
 		return fmt.Errorf("parsing QuorumPercentage: %v", err)
 	}
-	pass, err := strconv.ParseUint(cmd.PassPercentage, 10, 32)
+	pass, err := strconv.ParseUint(cmd.Args.PassPercentage, 10, 32)
 	if err != nil {
 		return fmt.Errorf("parsing PassPercentage: %v", err)
 	}
@@ -99,19 +81,43 @@ func (cmd *StartVoteCmd) Execute(args []string) error {
 	}
 
 	// Print request details
-	err = Print(sv, cfg.Verbose, cfg.RawJSON)
+	err = printJSON(sv)
 	if err != nil {
 		return err
 	}
 
 	// Send request
-	svr, err := c.StartVote(sv)
+	svr, err := client.StartVote(sv)
 	if err != nil {
 		return err
 	}
 
-	// Print response details.  Remove eligible tickets from
-	// StartVoteReply so that the output is legible.
+	// Remove ticket snapshot from the response so that the output
+	// is legible
 	svr.EligibleTickets = []string{"removed by politeiawwwcli for readability"}
-	return Print(svr, cfg.Verbose, cfg.RawJSON)
+
+	// Print response details
+	return printJSON(svr)
 }
+
+// startVoteHelpMsg is the output of the help command when 'startvote' is
+// specified.
+var startVoteHelpMsg = `startvote "token" "duration" "quorumpercentage" "passpercentage"
+
+Start voting period for a proposal. Requires admin privileges.  The optional
+arguments must either all be used or none be used.
+
+Arguments:
+1. token              (string, required)  Proposal censorship token
+2. duration           (string, optional)  Duration of vote in blocks
+3. quorumpercentage   (string, optional)  Percent of votes required for quorum
+4. passpercentage     (string, optional)  Percent of votes required to pass
+
+Result:
+
+{
+  "startblockheight"     (string)    Block height at start of vote
+  "startblockhash"       (string)    Hash of first block of vote interval
+  "endheight"            (string)    Height of vote end
+  "eligibletickets"      ([]string)  Valid voting tickets   
+}`

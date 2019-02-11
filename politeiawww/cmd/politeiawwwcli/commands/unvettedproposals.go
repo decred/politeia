@@ -10,51 +10,60 @@ import (
 	"github.com/decred/politeia/politeiawww/api/v1"
 )
 
-// UserProposalsCmd gets the proposals for the specified user.
-type UserProposalsCmd struct {
-	Args struct {
-		UserID string `positional-arg-name:"userID"` // User ID
-	} `positional-args:"true" required:"true"`
+// UnvettedProposalsCmd retrieves a page of unvetted proposals.
+type UnvettedProposalsCmd struct {
+	Before string `long:"before"` // Before censorship token filter
+	After  string `long:"after"`  // After censorship token filter
 }
 
-// Execute executes the user proposals command.
-func (cmd *UserProposalsCmd) Execute(args []string) error {
-	// Get server public key
+// Execute executes the proposals unvetted command.
+func (cmd *UnvettedProposalsCmd) Execute(args []string) error {
+	if cmd.Before != "" && cmd.After != "" {
+		return errInvalidBeforeAfterUsage
+	}
+
+	// Get server's public key
 	vr, err := client.Version()
 	if err != nil {
 		return err
 	}
 
-	// Get user proposals
-	upr, err := client.UserProposals(
-		&v1.UserProposals{
-			UserId: cmd.Args.UserID,
-		})
+	// Get all unvetted proposals
+	gaur, err := client.GetAllUnvetted(&v1.GetAllUnvetted{
+		Before: cmd.Before,
+		After:  cmd.After,
+	})
 	if err != nil {
 		return err
 	}
 
 	// Verify proposal censorship records
-	for _, p := range upr.Proposals {
-		err := verifyProposal(p, vr.PubKey)
+	for _, p := range gaur.Proposals {
+		err = verifyProposal(p, vr.PubKey)
 		if err != nil {
 			return fmt.Errorf("unable to verify proposal %v: %v",
 				p.CensorshipRecord.Token, err)
 		}
 	}
 
-	// Print user proposals
-	return printJSON(upr)
+	// Print unvetted proposals
+	return printJSON(gaur)
 }
 
-// userProposalsHelpMsg is the output of the help command when 'userproposals'
-// is specified.
-const userProposalsHelpMsg = `userproposals "userID" 
+// unvettedProposalsHelpMsg is the output for the help command when
+// 'unvettedproposals' is specified.
+const unvettedProposalsHelpMsg = `unvettedproposals [flags]
 
-Fetch all proposals submitted by a specific user.
+Fetch a page of unvetted proposals. 
 
-Arguments:
-1. userID      (string, required)   User id
+Arguments: None
+
+Flags:
+  --before     (string, optional)   Get proposals before this proposal (token)
+  --after      (string, optional)   Get proposals after this proposal (token)
+
+Example:
+getunvetted --after=[token]
 
 Result:
 {
@@ -84,6 +93,5 @@ Result:
       "signature":   (string)  Server side signature of []byte(Merkle+Token)
       }
     }
-  ],
-  "numofproposals":  (int)  Number of proposals submitted by user  
+  ]
 }`

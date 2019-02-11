@@ -4,8 +4,35 @@
 
 package commands
 
-// Help message displayed for the command 'politeiawwwcli help proposalvotes'
-var ProposalVotesCmdHelpMsg = `proposalvotes "token"
+// VoteResultsCmd gets the votes that have been cast for the specified
+// proposal.
+type VoteResultsCmd struct {
+	Args struct {
+		Token string `positional-arg-name:"token"` // Censorship token
+	} `positional-args:"true" required:"true"`
+}
+
+// Execute executes the proposal votes command.
+func (cmd *VoteResultsCmd) Execute(args []string) error {
+	vrr, err := client.VoteResults(cmd.Args.Token)
+	if err != nil {
+		return err
+	}
+
+	// Remove eligible tickets snapshot from response
+	// so that the output is legible
+	if !cfg.RawJSON {
+		vrr.StartVoteReply.EligibleTickets = []string{
+			"removed by politeiawwwcli for readability",
+		}
+	}
+
+	return printJSON(vrr)
+}
+
+// voteResultsHelpMsg is the output of the help command when 'voteresults' is
+// specified.
+const voteResultsHelpMsg = `voteresults "token"
 
 Fetch vote results for a proposal.
 
@@ -47,26 +74,3 @@ Response:
     ]
   }
 }`
-
-type ProposalVotesCmd struct {
-	Args struct {
-		Token string `positional-arg-name:"token" description:"Proposal censorship token"`
-	} `positional-args:"true" required:"true"`
-}
-
-func (cmd *ProposalVotesCmd) Execute(args []string) error {
-	vrr, err := c.ProposalVotes(cmd.Args.Token)
-	if err != nil {
-		return err
-	}
-
-	// Remove eligible tickets snapshot from response
-	// so that the output is legible
-	if !cfg.RawJSON {
-		vrr.StartVoteReply.EligibleTickets = []string{
-			"removed by politeiawwwcli for readability",
-		}
-	}
-
-	return Print(vrr, cfg.Verbose, cfg.RawJSON)
-}

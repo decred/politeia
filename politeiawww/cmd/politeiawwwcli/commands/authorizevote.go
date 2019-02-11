@@ -12,37 +12,22 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-// Help message displayed for the command 'politeiawwwcli help authorizevote'
-var AuthorizeVoteCmdHelpMsg = `authorizevote "token" "action"
-
-Authorize or revoke proposal vote. Only the proposal author (owner of 
-censorship token) can authorize or revoke vote. 
-
-Arguments:
-1. token      (string, required)   Proposal censorship token
-2. action     (string, optional)   Valid actions are 'authorize' or 'revoke'
-                                   (defaults to 'authorize')
-
-Result:
-{
-  "action":    (string)  Action that was executed
-  "receipt":   (string)  Server signature of client signature 
-                         (signed token+version+action)
-}`
-
+// AuthorizeVoteCmd authorizes a proposal vote.  The AuthorizeVoteCmd must be
+// sent by the proposal author to be valid.
 type AuthorizeVoteCmd struct {
 	Args struct {
-		Token  string `positional-arg-name:"token" required:"true" description:"Proposal censorship token"`
-		Action string `positional-arg-name:"action" description:"Valid actions are 'authorize' or 'revoke'"`
+		Token  string `positional-arg-name:"token" required:"true"` // Censorship token
+		Action string `positional-arg-name:"action"`                // Authorize or revoke action
 	} `positional-args:"true"`
 }
 
+// Execute executes the authorize vote command.
 func (cmd *AuthorizeVoteCmd) Execute(args []string) error {
 	token := cmd.Args.Token
 
 	// Check for user identity
 	if cfg.Identity == nil {
-		return fmt.Errorf(ErrorNoUserIdentity)
+		return errUserIdentityNotFound
 	}
 
 	// Validate action
@@ -59,13 +44,13 @@ func (cmd *AuthorizeVoteCmd) Execute(args []string) error {
 	}
 
 	// Get server public key
-	vr, err := c.Version()
+	vr, err := client.Version()
 	if err != nil {
 		return err
 	}
 
 	// Get proposal version
-	pdr, err := c.ProposalDetails(token, nil)
+	pdr, err := client.ProposalDetails(token, nil)
 	if err != nil {
 		return err
 	}
@@ -81,13 +66,13 @@ func (cmd *AuthorizeVoteCmd) Execute(args []string) error {
 	}
 
 	// Print request details
-	err = Print(av, cfg.Verbose, cfg.RawJSON)
+	err = printJSON(av)
 	if err != nil {
 		return err
 	}
 
 	// Send request
-	avr, err := c.AuthorizeVote(av)
+	avr, err := client.AuthorizeVote(av)
 	if err != nil {
 		return err
 	}
@@ -106,5 +91,24 @@ func (cmd *AuthorizeVoteCmd) Execute(args []string) error {
 	}
 
 	// Print response details
-	return Print(avr, cfg.Verbose, cfg.RawJSON)
+	return printJSON(avr)
 }
+
+// authorizeVoteHelpMsg is the output of the help command when 'authorizevote'
+// is specified.
+const authorizeVoteHelpMsg = `authorizevote "token" "action"
+
+Authorize or revoke proposal vote. Only the proposal author (owner of 
+censorship token) can authorize or revoke vote. 
+
+Arguments:
+1. token      (string, required)   Proposal censorship token
+2. action     (string, optional)   Valid actions are 'authorize' or 'revoke'
+                                   (defaults to 'authorize')
+
+Result:
+{
+  "action":    (string)  Action that was executed
+  "receipt":   (string)  Server signature of client signature 
+                         (signed token+version+action)
+}`

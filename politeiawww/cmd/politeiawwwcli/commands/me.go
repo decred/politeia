@@ -4,8 +4,20 @@
 
 package commands
 
-// Help message displayed for the command 'politeiawwwcli help me'
-var MeCmdHelpMsg = `me
+// MeCmd gets the user details of the logged in user.
+type MeCmd struct{}
+
+// Execute executes the me command.
+func (cmd *MeCmd) Execute(args []string) error {
+	lr, err := client.Me()
+	if err != nil {
+		return err
+	}
+	return printJSON(lr)
+}
+
+// meHelpMsg is the output of the help command when 'me' is specified.
+const meHelpMsg = `me
 
 Fetch details for the currently logged in user. 
 
@@ -27,13 +39,3 @@ Response:
   "lastlogintime":           (int64)       Unix timestamp of last login date
   "sessionmaxage":           (int64)       Unix timestamp of session max age
 }`
-
-type MeCmd struct{}
-
-func (cmd *MeCmd) Execute(args []string) error {
-	lr, err := c.Me()
-	if err != nil {
-		return err
-	}
-	return Print(lr, cfg.Verbose, cfg.RawJSON)
-}

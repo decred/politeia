@@ -8,14 +8,37 @@ import (
 	"github.com/decred/politeia/politeiawww/api/v1"
 )
 
-// Help message displayed for the command 'politeiawwwcli help users'
-var UsersCmdHelpMsg = `users "email" "username"
+// UsersCmd retreives a list of users that have been filtered using the
+// specified filtering params.
+type UsersCmd struct {
+	Email    string `long:"email"`    // Email filter
+	Username string `long:"username"` // Username filter
+}
+
+// Execute executes the users command.
+func (cmd *UsersCmd) Execute(args []string) error {
+	u := v1.Users{
+		Email:    cmd.Email,
+		Username: cmd.Username,
+	}
+
+	ur, err := client.Users(&u)
+	if err != nil {
+		return err
+	}
+	return printJSON(ur)
+}
+
+// usersHelpMsg is the output of the help command when 'users' is specified.
+const usersHelpMsg = `users [flags]
 
 Fetch a list of users, optionally filtering by email and/or username.
 
-Arguments:
-1. email       (string, optional)   Email of user
-2. username    (string, optional)   Username of user 
+Arguments: None
+
+Flags:
+  --email       (string, optional)   Email filter
+  --username    (string, optional)   Username filter
 
 Example:
 users --email=user@example.com --username=user
@@ -32,21 +55,3 @@ Result:
     }
   ]
 }`
-
-type UsersCmd struct {
-	Email    string `long:"email" description:"Email query"`
-	Username string `long:"username" description:"Username query"`
-}
-
-func (cmd *UsersCmd) Execute(args []string) error {
-	u := v1.Users{
-		Email:    cmd.Email,
-		Username: cmd.Username,
-	}
-
-	ur, err := c.Users(&u)
-	if err != nil {
-		return err
-	}
-	return Print(ur, cfg.Verbose, cfg.RawJSON)
-}

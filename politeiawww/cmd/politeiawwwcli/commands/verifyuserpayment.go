@@ -4,15 +4,26 @@
 
 package commands
 
-import "fmt"
+// VerifyUserPaymentCmd checks on the status of the logged in user's
+// registration payment.
+type VerifyUserPaymentCmd struct{}
 
-// Help message displayed for the command 'politeiawwwcli help verifyuserpayment'
-var VerifyUserPaymentCmdHelpMsg = `verifyuserpayment 
+// Execute executes the verify user payment command.
+func (cmd *VerifyUserPaymentCmd) Execute(args []string) error {
+	vupr, err := client.VerifyUserPayment()
+	if err != nil {
+		return err
+	}
+	return printJSON(vupr)
+}
+
+// verifyUserPaymentHelpMsg is the output of the help command when
+// 'verifyuserpayment' is specified.
+var verifyUserPaymentHelpMsg = `verifyuserpayment 
 
 Check if the currently logged in user has paid their user registration fee.
 
-Arguments:
-None
+Arguments: None
 
 Result:
 {
@@ -21,13 +32,3 @@ Result:
   "paywallamount"          (uint64)  Registration paywall amount in atoms
   "paywalltxnotbefore"     (int64)   Minimum timestamp for paywall tx
 }`
-
-type VerifyUserPaymentCmd struct{}
-
-func (cmd *VerifyUserPaymentCmd) Execute(args []string) error {
-	vupr, err := c.VerifyUserPayment()
-	if err != nil {
-		return fmt.Errorf("VerifyUserPayment: %v", err)
-	}
-	return Print(vupr, cfg.Verbose, cfg.RawJSON)
-}

@@ -6,6 +6,7 @@ package main
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 
 	flags "github.com/jessevdk/go-flags"
@@ -39,7 +40,13 @@ func _main() error {
 	if cfg.CSRF == "" {
 		_, err := c.Version()
 		if err != nil {
-			return fmt.Errorf("Version: %v", err)
+			if _, ok := err.(*url.Error); !ok {
+				// A url error likely means that politeiawww is not
+				// running. The user may just be trying to print the
+				// help message so only return an error if its not
+				// a url error.
+				return fmt.Errorf("Version: %v", err)
+			}
 		}
 	}
 
@@ -47,7 +54,8 @@ func _main() error {
 	var cli politeiawwwcli
 	var parser = flags.NewParser(&cli, flags.Default)
 	if _, err := parser.Parse(); err != nil {
-		if flagsErr, ok := err.(*flags.Error); ok && flagsErr.Type == flags.ErrHelp {
+		flagsErr, ok := err.(*flags.Error)
+		if ok && flagsErr.Type == flags.ErrHelp {
 			os.Exit(0)
 		} else {
 			os.Exit(1)

@@ -482,6 +482,11 @@ func (b *backend) generateProposalPaywall(user *database.User) (*database.Propos
 func (b *backend) ProcessProposalPaywallDetails(user *database.User) (*v1.ProposalPaywallDetailsReply, error) {
 	log.Tracef("ProcessProposalPaywallDetails")
 
+	// Ensure paywall is enabled
+	if !b.paywallIsEnabled() {
+		return &v1.ProposalPaywallDetailsReply{}, nil
+	}
+
 	// Proposal paywalls cannot be generated until the user has paid their
 	// user registration fee.
 	if !b.HasUserPaid(user) {

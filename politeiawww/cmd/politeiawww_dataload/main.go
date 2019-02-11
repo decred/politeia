@@ -53,10 +53,6 @@ func createPoliteiawwCmd(paywall bool) *exec.Cmd {
 	return executeCommand(
 		"politeiawww",
 		"--testnet",
-		"--mailhost", "",
-		"--mailuser", "",
-		"--mailpass", "",
-		"--webserveraddress", "",
 		"--paywallxpub", paywallXPub,
 		"--paywallamount", strconv.FormatUint(paywallAmount, 10),
 		"--debuglevel", cfg.DebugLevel)
@@ -108,7 +104,7 @@ func startPoliteiawww(paywall bool) error {
 
 func startPoliteiad() error {
 	fmt.Printf("Starting politeiad\n")
-	politeiadCmd = executeCommand("politeiad", "--testnet")
+	politeiadCmd = executeCommand("politeiad", "--testnet", "--buildcache")
 	out, _ := politeiadCmd.StdoutPipe()
 	if err := politeiadCmd.Start(); err != nil {
 		politeiadCmd = nil
@@ -307,6 +303,7 @@ func executeCliCommand(beforeVerify beforeVerifyReply, verify verifyReply, args 
 	fullArgs = append(fullArgs, "--host")
 	fullArgs = append(fullArgs, "https://127.0.0.1:4443")
 	fullArgs = append(fullArgs, "--json")
+	fullArgs = append(fullArgs, "--skipverify")
 	fullArgs = append(fullArgs, args...)
 	cmd := executeCommand(fullArgs...)
 
@@ -403,7 +400,7 @@ func checkProposal(token string) error {
 		func() bool {
 			return pdr.Proposal.CensorshipRecord.Token == token
 		},
-		"getproposal",
+		"proposaldetails",
 		token,
 	)
 	if err != nil {
@@ -619,8 +616,8 @@ func deleteExistingData() error {
 	}
 
 	// politeiawww cli dir
-	cliHomeDir := filepath.Join(wwwconfig.DefaultHomeDir, "cli")
-	return os.RemoveAll(cliHomeDir)
+	cliDataDir := filepath.Join(wwwconfig.DefaultHomeDir, "cli", "data")
+	return os.RemoveAll(cliDataDir)
 }
 
 func stopPoliteiad() {

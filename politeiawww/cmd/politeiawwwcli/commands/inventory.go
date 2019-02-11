@@ -11,49 +11,26 @@ import (
 	"github.com/decred/dcrwallet/rpc/walletrpc"
 )
 
-// Help message displayed for the command 'politeiawwwcli help inventory'
-var InventoryCmdHelpMsg = `inventory
-
-Fetch the proposals that are being voted on.
-
-Arguments:
-None
-
-Response:
-
-Token: (string)  Proposal censorship token
-  Proposal        : (string)  Proposal name
-  Eligible tickets: (int)  Number of eligible tickets
-  Start block     : (string)  Block height at start of vote
-  End block       : (string)  Block height at end of vote
-  Mask            : (uint64)  Valid votebits
-  Vote Option:
-    ID                   : (string)  Unique word identifying vote (e.g. 'no')
-    Description          : (string)  Longer description of the vote
-    Bits                 : (uint64)  Bits used for this option (e.g. '1')
-  Vote Option:
-    ID                   : (string)  Unique word identifying vote (e.g. 'yes')
-    Description          : (string)  Longer description of the vote
-    Bits                 : (uint64)  Bits used for this option (e.g. '2')
-    To choose this option: politeiawwwcli vote 'Token' 'ID'`
-
+// InventoryCmd retreives the proposals that are being voted on.
 type InventoryCmd struct{}
 
+// Execute executes the inventory command.
 func (cmd *InventoryCmd) Execute(args []string) error {
 	// Connect to user's wallet
-	err := c.LoadWalletClient()
+	err := client.LoadWalletClient()
 	if err != nil {
 		return fmt.Errorf("LoadWalletClient: %v", err)
 	}
+	defer client.Close()
 
 	// Get all active proposal votes
-	avr, err := c.ActiveVotes()
+	avr, err := client.ActiveVotes()
 	if err != nil {
 		return fmt.Errorf("ActiveVotes: %v", err)
 	}
 
 	// Get current block height
-	ar, err := c.WalletAccounts()
+	ar, err := client.WalletAccounts()
 	if err != nil {
 		return fmt.Errorf("WalletAccounts: %v", err)
 	}
@@ -90,14 +67,15 @@ func (cmd *InventoryCmd) Execute(args []string) error {
 		}
 
 		// Ensure user has eligible tickets for this proposal vote
-		ticketPool, err := ConvertTicketHashes(v.StartVoteReply.EligibleTickets)
+		ticketPool, err := convertTicketHashes(v.StartVoteReply.EligibleTickets)
 		if err != nil {
 			return err
 		}
 
-		ctr, err := c.CommittedTickets(&walletrpc.CommittedTicketsRequest{
-			Tickets: ticketPool,
-		})
+		ctr, err := client.CommittedTickets(
+			&walletrpc.CommittedTicketsRequest{
+				Tickets: ticketPool,
+			})
 		if err != nil {
 			return fmt.Errorf("CommittedTickets: %v", err)
 		}
@@ -131,3 +109,30 @@ func (cmd *InventoryCmd) Execute(args []string) error {
 
 	return nil
 }
+
+// inventoryHelpMsg is the output of the help command when 'inventory' is
+// specified.
+const inventoryHelpMsg = `inventory
+
+Fetch the proposals that are being voted on.
+
+Arguments:
+None
+
+Response:
+
+Token: (string)  Proposal censorship token
+  Proposal        : (string)  Proposal name
+  Eligible tickets: (int)  Number of eligible tickets
+  Start block     : (string)  Block height at start of vote
+  End block       : (string)  Block height at end of vote
+  Mask            : (uint64)  Valid votebits
+  Vote Option:
+    ID                   : (string)  Unique word identifying vote (e.g. 'no')
+    Description          : (string)  Longer description of the vote
+    Bits                 : (uint64)  Bits used for this option (e.g. '1')
+  Vote Option:
+    ID                   : (string)  Unique word identifying vote (e.g. 'yes')
+    Description          : (string)  Longer description of the vote
+    Bits                 : (uint64)  Bits used for this option (e.g. '2')
+    To choose this option: politeiawwwcli vote 'Token' 'ID'`

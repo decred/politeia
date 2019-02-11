@@ -6,95 +6,113 @@ package commands
 
 import "fmt"
 
+// HelpCmd prints a detailed help message for the specified command.
 type HelpCmd struct {
 	Args struct {
-		Topic string `positional-arg-name:"topic" description:"get information about available commands"`
-	} `positional-args:"true"  required:"true"`
+		Topic string `positional-arg-name:"topic"` // Topic to print help message for
+	} `positional-args:"true"`
 }
 
+// Execute executes the help command.
 func (cmd *HelpCmd) Execute(args []string) error {
+
+	if cmd.Args.Topic == "" {
+		return fmt.Errorf("Specify a command to print a detailed help " +
+			"message for.  Example: politeiawwwcli help login")
+	}
 
 	switch cmd.Args.Topic {
 	case "login":
-		fmt.Printf("%s\n", LoginCmdHelpMsg)
+		fmt.Printf("%s\n", loginHelpMsg)
 	case "logout":
-		fmt.Printf("%s\n", LogoutCmdHelpMsg)
+		fmt.Printf("%s\n", logoutHelpMsg)
 	case "authorizevote":
-		fmt.Printf("%s\n", AuthorizeVoteCmdHelpMsg)
+		fmt.Printf("%s\n", authorizeVoteHelpMsg)
 	case "newuser":
-		fmt.Printf("%s\n", NewUserCmdHelpMsg)
+		fmt.Printf("%s\n", newUserHelpMsg)
 	case "newproposal":
-		fmt.Printf("%s\n", NewProposalCmdHelpMsg)
+		fmt.Printf("%s\n", newProposalHelpMsg)
 	case "changepassword":
-		fmt.Printf("%s\n", ChangePasswordCmdHelpMsg)
+		fmt.Printf("%s\n", changePasswordHelpMsg)
 	case "changeusername":
-		fmt.Printf("%s\n", ChangeUsernameCmdHelpMsg)
-	case "faucet":
-		fmt.Printf("%s\n", FaucetCmdHelpMsg)
+		fmt.Printf("%s\n", changeUsernameHelpMsg)
+	case "sendfaucettx":
+		fmt.Printf("%s\n", sendFaucetTxHelpMsg)
 	case "userdetails":
-		fmt.Printf("%s\n", UserDetailsCmdHelpMsg)
-	case "getproposal":
-		fmt.Printf("%s\n", GetProposalCmdHelpMsg)
+		fmt.Printf("%s\n", userDetailsHelpMsg)
+	case "proposaldetails":
+		fmt.Printf("%s\n", proposalDetailsHelpMsg)
 	case "userproposals":
-		fmt.Printf("%s\n", UserProposalsCmdHelpMsg)
-	case "getunvetted":
-		fmt.Printf("%s\n", GetUnvettedCmdHelpMsg)
-	case "getvetted":
-		fmt.Printf("%s\n", GetVettedCmdHelpMsg)
+		fmt.Printf("%s\n", userProposalsHelpMsg)
+	case "unvettedproposals":
+		fmt.Printf("%s\n", unvettedProposalsHelpMsg)
+	case "vettedproposals":
+		fmt.Printf("%s\n", vettedProposalsHelpMsg)
 	case "setproposalstatus":
-		fmt.Printf("%s\n", SetProposalStatusCmdHelpMsg)
+		fmt.Printf("%s\n", setProposalStatusHelpMsg)
 	case "newcomment":
-		fmt.Printf("%s\n", NewCommentCmdHelpMsg)
-	case "getcomments":
-		fmt.Printf("%s\n", GetCommentsCmdHelpMsg)
+		fmt.Printf("%s\n", newCommentHelpMsg)
+	case "proposalcomments":
+		fmt.Printf("%s\n", proposalCommentsHelpMsg)
 	case "censorcomment":
-		fmt.Printf("%s\n", CensorCommentCmdHelpMsg)
-	case "votecomment":
-		fmt.Printf("%s\n", VoteCommentCmdHelpMsg)
+		fmt.Printf("%s\n", censorCommentHelpMsg)
+	case "likecomment":
+		fmt.Printf("%s\n", likeCommentHelpMsg)
 	case "editproposal":
-		fmt.Printf("%s\n", EditProposalCmdHelpMsg)
+		fmt.Printf("%s\n", editProposalHelpMsg)
 	case "manageuser":
-		fmt.Printf("%s\n", ManageUserCmdHelpMsg)
+		fmt.Printf("%s\n", manageUserHelpMsg)
 	case "users":
-		fmt.Printf("%s\n", UsersCmdHelpMsg)
-	case "verifyuser":
-		fmt.Printf("%s\n", VerifyUserCmdHelpMsg)
+		fmt.Printf("%s\n", usersHelpMsg)
+	case "verifyuseremail":
+		fmt.Printf("%s\n", verifyUserEmailHelpMsg)
 	case "version":
-		fmt.Printf("%s\n", VersionCmdHelpMsg)
+		fmt.Printf("%s\n", versionHelpMsg)
 	case "edituser":
-		fmt.Printf("%s\n", EditUserCmdHelpMsg)
+		fmt.Printf("%s\n", editUserHelpMsg)
 	case "subscribe":
-		fmt.Printf("%s\n", SubscribeCmdHelpMsg)
+		fmt.Printf("%s\n", subscribeHelpMsg)
 	case "me":
-		fmt.Printf("%s\n", MeCmdHelpMsg)
+		fmt.Printf("%s\n", meHelpMsg)
 	case "policy":
-		fmt.Printf("%s\n", PolicyCmdHelpMsg)
+		fmt.Printf("%s\n", policyHelpMsg)
 	case "resetpassword":
-		fmt.Printf("%s\n", ResetPasswordCmdHelpMsg)
+		fmt.Printf("%s\n", resetPasswordHelpMsg)
 	case "updateuserkey":
-		fmt.Printf("%s\n", UpdateUserKeyCmdHelpMsg)
-	case "getpaywallpayment":
-		fmt.Printf("%s\n", GetPaywallPaymentCmdHelpMsg)
+		fmt.Printf("%s\n", updateUserKeyHelpMsg)
+	case "userpendingpayment":
+		fmt.Printf("%s\n", userPendingPaymentHelpMsg)
 	case "proposalpaywall":
-		fmt.Printf("%s\n", ProposalPaywallCmdHelpMsg)
+		fmt.Printf("%s\n", proposalPaywallHelpMsg)
 	case "rescanuserpayments":
-		fmt.Printf("%s\n", RescanUserPaymentsCmdHelpMsg)
+		fmt.Printf("%s\n", rescanUserPaymentsHelpMsg)
 	case "verifyuserpayment":
-		fmt.Printf("%s\n", VerifyUserPaymentCmdHelpMsg)
+		fmt.Printf("%s\n", verifyUserPaymentHelpMsg)
 	case "startvote":
-		fmt.Printf("%s\n", StartVoteCmdHelpMsg)
-	case "proposalvotes":
-		fmt.Printf("%s\n", ProposalVotesCmdHelpMsg)
-	case "votestatus":
-		fmt.Printf("%s\n", VoteStatusCmdHelpMsg)
+		fmt.Printf("%s\n", startVoteHelpMsg)
+	case "voteresults":
+		fmt.Printf("%s\n", voteResultsHelpMsg)
 	case "inventory":
-		fmt.Printf("%s\n", InventoryCmdHelpMsg)
+		fmt.Printf("%s\n", inventoryHelpMsg)
 	case "tally":
-		fmt.Printf("%s\n", TallyCmdHelpMsg)
-	case "commentslikes":
-		fmt.Printf("%s\n", CommentsLikesCmdHelpMsg)
+		fmt.Printf("%s\n", tallyHelpMsg)
+	case "userlikecomments":
+		fmt.Printf("%s\n", userLikeCommentsHelpMsg)
+	case "activevotes":
+		fmt.Printf("%s\n", activeVotesHelpMsg)
+	case "votestatus":
+		fmt.Printf("%s\n", voteStatusHelpMsg)
+	case "votestatuses":
+		fmt.Printf("%s\n", voteStatusesHelpMsg)
+	case "proposalstats":
+		fmt.Printf("%s\n", proposalStatsHelpMsg)
+	case "vote":
+		fmt.Printf("%s\n", voteHelpMsg)
+	case "testrun":
+		fmt.Printf("%s\n", testRunHelpMsg)
 	default:
-		fmt.Printf("invalid command\n")
+		fmt.Printf("invalid command: use 'politeiawwwcli -h' " +
+			"to view a list of valid commands\n")
 	}
 
 	return nil
