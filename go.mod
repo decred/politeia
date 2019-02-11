@@ -1,11 +1,12 @@
 module github.com/decred/politeia
 
 require (
+	bou.ke/monkey v1.0.1 // indirect
 	github.com/agl/ed25519 v0.0.0-20170116200512-5312a6153412
 	github.com/badoux/checkmail v0.0.0-20180430153108-0755fe2dc241
 	github.com/btcsuite/go-flags v0.0.0-20150116065318-6c288d648c1c
 	github.com/btcsuite/go-socks v0.0.0-20170105172521-4720035b7bfd
-	github.com/dajohi/goemail v0.0.0-20180918191546-bf17cdf4557b
+	github.com/dajohi/goemail v0.0.0-20190207191308-61faa215f94d
 	github.com/davecgh/go-spew v1.1.1
 	github.com/decred/dcrd/certgen v1.0.1
 	github.com/decred/dcrd/chaincfg v1.1.1
