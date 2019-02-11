@@ -1,3 +1,7 @@
+// Copyright (c) 2017-2019 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package main
 
 import (
@@ -600,13 +604,6 @@ func updateUserKey() error {
 		"updateuserkey")
 }
 
-func handleError(err error) {
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
-	}
-}
-
 func deleteExistingData() error {
 	fmt.Printf("Deleting existing data\n")
 
@@ -629,7 +626,9 @@ func deleteExistingData() error {
 func stopPoliteiad() {
 	if politeiadCmd != nil {
 		fmt.Printf("Stopping politeiad\n")
-		politeiadCmd.Process.Kill()
+		if err := politeiadCmd.Process.Kill(); err != nil {
+			fmt.Fprintf(os.Stderr, "unable to kill politeiad: %v", err)
+		}
 		politeiadCmd = nil
 	}
 }
@@ -637,7 +636,9 @@ func stopPoliteiad() {
 func stopPoliteiawww() {
 	if politeiawwwCmd != nil {
 		fmt.Printf("Stopping politeiawww\n")
-		politeiawwwCmd.Process.Kill()
+		if err := politeiawwwCmd.Process.Kill(); err != nil {
+			fmt.Fprintf(os.Stderr, "unable to kill politeiawww: %v", err)
+		}
 		politeiawwwCmd = nil
 	}
 }

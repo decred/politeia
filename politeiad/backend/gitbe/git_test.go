@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018 The Decred developers
+// Copyright (c) 2017-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -246,7 +246,7 @@ func TestFsck(t *testing.T) {
 	copy(blobObject, xxx) // restore blob object
 	corruptBuf := buf.Bytes()
 	location = len(corruptBuf) - 2 // account for \n
-	corruptBuf[location] = corruptBuf[location] & 0xdf
+	corruptBuf[location] &= 0xdf
 
 	var bc bytes.Buffer
 	w2, err := zlib.NewWriterLevel(&bc, 1) // git uses zlib level 1

@@ -1,3 +1,7 @@
+// Copyright (c) 2018-2019 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package main
 
 import (
@@ -323,8 +327,10 @@ func (b *backend) ProcessVerifyUserPayment(user *database.User, vupt v1.VerifyUs
 	}
 
 	if paywallHasExpired(user.NewUserPaywallPollExpiry) {
-		b.GenerateNewUserPaywall(user)
-
+		err := b.GenerateNewUserPaywall(user)
+		if err != nil {
+			return nil, err
+		}
 		reply.PaywallAddress = user.NewUserPaywallAddress
 		reply.PaywallAmount = user.NewUserPaywallAmount
 		reply.PaywallTxNotBefore = user.NewUserPaywallTxNotBefore

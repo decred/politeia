@@ -1,3 +1,7 @@
+// Copyright (c) 2017-2019 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package main
 
 import (
@@ -64,7 +68,8 @@ func dumpAction() error {
 		key := iter.Key()
 		value := iter.Value()
 
-		if string(key) == localdb.UserVersionKey {
+		switch string(key) {
+		case localdb.UserVersionKey:
 			v, err := localdb.DecodeVersion(value)
 			if err != nil {
 				return err
@@ -72,10 +77,10 @@ func dumpAction() error {
 
 			fmt.Printf("Key    : %v\n", string(key))
 			fmt.Printf("Record : %v\n", spew.Sdump(v))
-		} else if string(key) == localdb.LastPaywallAddressIndex {
+		case localdb.LastPaywallAddressIndex:
 			fmt.Printf("Key    : %v\n", string(key))
 			fmt.Printf("Record : %v\n", binary.LittleEndian.Uint64(value))
-		} else {
+		default:
 			u, err := localdb.DecodeUser(value)
 			if err != nil {
 				return err
@@ -214,19 +219,14 @@ func _main() error {
 			dbDir)
 	}
 
-	if *addCredits {
-		if err := addCreditsAction(); err != nil {
-			return err
-		}
-	} else if *dumpDb {
-		if err := dumpAction(); err != nil {
-			return err
-		}
-	} else if *setAdmin {
-		if err := setAdminAction(); err != nil {
-			return err
-		}
-	} else {
+	switch {
+	case *addCredits:
+		return addCreditsAction()
+	case *dumpDb:
+		return dumpAction()
+	case *setAdmin:
+		return setAdminAction()
+	default:
 		flag.Usage()
 	}
 

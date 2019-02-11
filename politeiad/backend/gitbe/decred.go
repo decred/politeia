@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018 The Decred developers
+// Copyright (c) 2017-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -228,7 +228,7 @@ func (g *gitBackEnd) replayAllJournals() error {
 	for _, f := range files {
 		name := f.Name()
 		// replay ballot for all props
-		g.replayBallot(name)
+		err := g.replayBallot(name)
 		if err != nil {
 			return fmt.Errorf("replayAllJournals replayBallot %s %v", name, err)
 		}
@@ -1067,18 +1067,6 @@ func (g *gitBackEnd) pluginNewComment(payload string) (string, error) {
 
 	// return success and encoded answer
 	return string(ncrb), nil
-}
-
-func replyLikeCommentReplyError(failure error) (string, error) {
-	lcr := decredplugin.LikeCommentReply{
-		Error: failure.Error(),
-	}
-	lcrb, err := decredplugin.EncodeLikeCommentReply(lcr)
-	if err != nil {
-		return "", fmt.Errorf("EncodeLikeCommentReply: %v", err)
-	}
-
-	return string(lcrb), nil
 }
 
 // pluginLikeComment handles up and down votes of comments.

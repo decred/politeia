@@ -1,3 +1,7 @@
+// Copyright (c) 2017-2019 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package util
 
 import (
@@ -9,7 +13,7 @@ import (
 // Random returns a variable number of bytes of random data.
 func Random(n int) ([]byte, error) {
 	k := make([]byte, n)
-	_, err := io.ReadFull(rand.Reader, k[:])
+	_, err := io.ReadFull(rand.Reader, k)
 	if err != nil {
 		return nil, err
 	}

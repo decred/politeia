@@ -1,3 +1,7 @@
+// Copyright (c) 2017-2019 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package commands
 
 import (
@@ -77,7 +81,7 @@ func NewIdentity() (*identity.FullIdentity, error) {
 		return nil, err
 	}
 
-	r := bytes.NewReader(b[:])
+	r := bytes.NewReader(b)
 	pub, priv, err := ed25519.GenerateKey(r)
 	if err != nil {
 		return nil, err

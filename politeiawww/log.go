@@ -19,8 +19,7 @@ type logWriter struct{}
 
 func (logWriter) Write(p []byte) (n int, err error) {
 	os.Stdout.Write(p)
-	logRotator.Write(p)
-	return len(p), nil
+	return logRotator.Write(p)
 }
 
 // Loggers per subsystem.  A single backend logger is created and all subsytem

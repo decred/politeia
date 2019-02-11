@@ -1,3 +1,7 @@
+// Copyright (c) 2017-2019 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package util
 
 import (
@@ -37,11 +41,6 @@ func isDigest(digest string) bool {
 func defaultTestnetHost() string {
 	return "https://" + NormalizeAddress(v1.DefaultTestnetTimeHost,
 		v1.DefaultTestnetTimePort)
-}
-
-func defaultMainnetHost() string {
-	return "https://" + NormalizeAddress(v1.DefaultMainnetTimeHost,
-		v1.DefaultMainnetTimePort)
 }
 
 // XXX duplicate function
