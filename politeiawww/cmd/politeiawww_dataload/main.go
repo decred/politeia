@@ -600,13 +600,6 @@ func updateUserKey() error {
 		"updateuserkey")
 }
 
-func handleError(err error) {
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
-	}
-}
-
 func deleteExistingData() error {
 	fmt.Printf("Deleting existing data\n")
 

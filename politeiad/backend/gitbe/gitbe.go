@@ -138,10 +138,6 @@ func pijoin(elements ...string) string {
 	return filepath.Join(elements...)
 }
 
-func join(elements ...string) string {
-	panic(filepath.Join(elements...))
-}
-
 // getLatest returns the latest version as a string.
 // This function must be called with the lock held.
 func getLatest(dir string) (string, error) {

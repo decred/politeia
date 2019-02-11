@@ -24,15 +24,11 @@ import (
 )
 
 const (
-	defaultConfigFilename   = "politeiavoter.conf"
-	defaultLogLevel         = "info"
-	defaultLogDirname       = "logs"
-	defaultLogFilename      = "politeiavoter.log"
-	defaultIdentityFilename = "identity.json"
-	defaultWalletHost       = "127.0.0.1"
-
-	defaultMainnetPort = "49374"
-	defaultTestnetPort = "59374"
+	defaultConfigFilename = "politeiavoter.conf"
+	defaultLogLevel       = "info"
+	defaultLogDirname     = "logs"
+	defaultLogFilename    = "politeiavoter.log"
+	defaultWalletHost     = "127.0.0.1"
 
 	defaultWalletMainnetPort = "9111"
 	defaultWalletTestnetPort = "19111"
@@ -42,7 +38,6 @@ var (
 	defaultHomeDir        = dcrutil.AppDataDir("politeiavoter", false)
 	defaultConfigFile     = filepath.Join(defaultHomeDir, defaultConfigFilename)
 	defaultLogDir         = filepath.Join(defaultHomeDir, defaultLogDirname)
-	defaultIdentityFile   = filepath.Join(defaultHomeDir, defaultIdentityFilename)
 	dcrwalletHomeDir      = dcrutil.AppDataDir("dcrwallet", false)
 	defaultWalletCertFile = filepath.Join(dcrwalletHomeDir, "rpc.cert")
 )
@@ -182,40 +177,6 @@ func parseAndSetDebugLevels(debugLevel string) error {
 	}
 
 	return nil
-}
-
-// removeDuplicateAddresses returns a new slice with all duplicate entries in
-// addrs removed.
-func removeDuplicateAddresses(addrs []string) []string {
-	result := make([]string, 0, len(addrs))
-	seen := map[string]struct{}{}
-	for _, val := range addrs {
-		if _, ok := seen[val]; !ok {
-			result = append(result, val)
-			seen[val] = struct{}{}
-		}
-	}
-	return result
-}
-
-// normalizeAddresses returns a new slice with all the passed peer addresses
-// normalized with the given default port, and all duplicates removed.
-func normalizeAddresses(addrs []string, defaultPort string) []string {
-	for i, addr := range addrs {
-		addrs[i] = util.NormalizeAddress(addr, defaultPort)
-	}
-
-	return removeDuplicateAddresses(addrs)
-}
-
-// filesExists reports whether the named file or directory exists.
-func fileExists(name string) bool {
-	if _, err := os.Stat(name); err != nil {
-		if os.IsNotExist(err) {
-			return false
-		}
-	}
-	return true
 }
 
 // newConfigParser returns a new command line flags parser.

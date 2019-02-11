@@ -25,7 +25,6 @@ const (
 	defaultHost              = "https://proposals.decred.org/api"
 	defaultFaucetHost        = "https://faucet.decred.org/requestfaucet"
 	defaultWalletHost        = "127.0.0.1"
-	defaultWalletMainnetPort = "19110" // we don't allow mainnet for right now
 	defaultWalletTestnetPort = "19111"
 
 	cookieFilePrefix   = "cookie_"
@@ -35,10 +34,6 @@ const (
 
 var (
 	defaultHomeDir        = filepath.Join(sharedconfig.DefaultHomeDir, defaultHomeDirname)
-	defaultConfigFile     = filepath.Join(defaultHomeDir, defaultConfigFilename)
-	defaultCookieFile     = filePath(defaultHomeDir, cookieFilePrefix, defaultHost)
-	defaultIdentityFile   = filePath(defaultHomeDir, identityFilePrefix, defaultHost)
-	defaultCSRFFile       = filePath(defaultHomeDir, csrfFilePrefix, defaultHost)
 	dcrwalletHomeDir      = dcrutil.AppDataDir("dcrwallet", false)
 	defaultWalletCertFile = filepath.Join(dcrwalletHomeDir, "rpc.cert")
 )

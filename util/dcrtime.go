@@ -39,11 +39,6 @@ func defaultTestnetHost() string {
 		v1.DefaultTestnetTimePort)
 }
 
-func defaultMainnetHost() string {
-	return "https://" + NormalizeAddress(v1.DefaultMainnetTimeHost,
-		v1.DefaultMainnetTimePort)
-}
-
 // XXX duplicate function
 // getError returns the error that is embedded in a JSON reply.
 func getError(r io.Reader) (string, error) {

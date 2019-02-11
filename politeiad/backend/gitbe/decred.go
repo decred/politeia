@@ -1067,18 +1067,6 @@ func (g *gitBackEnd) pluginNewComment(payload string) (string, error) {
 	return string(ncrb), nil
 }
 
-func replyLikeCommentReplyError(failure error) (string, error) {
-	lcr := decredplugin.LikeCommentReply{
-		Error: failure.Error(),
-	}
-	lcrb, err := decredplugin.EncodeLikeCommentReply(lcr)
-	if err != nil {
-		return "", fmt.Errorf("EncodeLikeCommentReply: %v", err)
-	}
-
-	return string(lcrb), nil
-}
-
 // pluginLikeComment handles up and down votes of comments.
 func (g *gitBackEnd) pluginLikeComment(payload string) (string, error) {
 	log.Tracef("pluginLikeComment")
