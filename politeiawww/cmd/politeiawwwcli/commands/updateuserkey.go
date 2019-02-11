@@ -66,7 +66,7 @@ func (cmd *UpdateUserKeyCmd) Execute(args []string) error {
 
 	// Save the new identity to disk
 	if !cmd.NoSave {
-		cfg.SaveIdentity(id)
+		return cfg.SaveIdentity(id)
 	}
 
 	return nil

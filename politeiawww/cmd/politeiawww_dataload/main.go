@@ -629,7 +629,9 @@ func deleteExistingData() error {
 func stopPoliteiad() {
 	if politeiadCmd != nil {
 		fmt.Printf("Stopping politeiad\n")
-		politeiadCmd.Process.Kill()
+		if err := politeiadCmd.Process.Kill(); err != nil {
+			fmt.Fprintf(os.Stderr, "unable to kill politeiad: %v", err)
+		}
 		politeiadCmd = nil
 	}
 }
@@ -637,7 +639,9 @@ func stopPoliteiad() {
 func stopPoliteiawww() {
 	if politeiawwwCmd != nil {
 		fmt.Printf("Stopping politeiawww\n")
-		politeiawwwCmd.Process.Kill()
+		if err := politeiawwwCmd.Process.Kill(); err != nil {
+			fmt.Fprintf(os.Stderr, "unable to kill politeiawww: %v", err)
+		}
 		politeiawwwCmd = nil
 	}
 }

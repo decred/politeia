@@ -228,7 +228,7 @@ func (g *gitBackEnd) replayAllJournals() error {
 	for _, f := range files {
 		name := f.Name()
 		// replay ballot for all props
-		g.replayBallot(name)
+		err := g.replayBallot(name)
 		if err != nil {
 			return fmt.Errorf("replayAllJournals replayBallot %s %v", name, err)
 		}

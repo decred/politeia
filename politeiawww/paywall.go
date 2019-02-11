@@ -323,8 +323,10 @@ func (b *backend) ProcessVerifyUserPayment(user *database.User, vupt v1.VerifyUs
 	}
 
 	if paywallHasExpired(user.NewUserPaywallPollExpiry) {
-		b.GenerateNewUserPaywall(user)
-
+		err := b.GenerateNewUserPaywall(user)
+		if err != nil {
+			return nil, err
+		}
 		reply.PaywallAddress = user.NewUserPaywallAddress
 		reply.PaywallAmount = user.NewUserPaywallAmount
 		reply.PaywallTxNotBefore = user.NewUserPaywallTxNotBefore

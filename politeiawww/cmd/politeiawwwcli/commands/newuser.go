@@ -92,7 +92,10 @@ func (cmd *NewUserCmd) Execute(args []string) error {
 	}
 
 	if !cmd.NoSave {
-		cfg.SaveIdentity(id)
+		err = cfg.SaveIdentity(id)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Setup new user request

@@ -104,7 +104,10 @@ func (cmd *Subscribe) Execute(args []string) error {
 			return err
 		}
 		var out bytes.Buffer
-		json.Indent(&out, message, "", "  ")
+		err = json.Indent(&out, message, "", "  ")
+		if err != nil {
+			return err
+		}
 		out.WriteTo(os.Stdout)
 	}
 

@@ -174,7 +174,10 @@ func fetchTxWithPrimaryBE(url string, address string, minimumAmount uint64, txno
 	}
 
 	transactions := make([]BEPrimaryTransaction, 0)
-	json.Unmarshal(responseBody, &transactions)
+	err = json.Unmarshal(responseBody, &transactions)
+	if err != nil {
+		return "", 0, err
+	}
 
 	for _, v := range transactions {
 		if v.Timestamp < txnotbefore {
@@ -212,7 +215,10 @@ func fetchTxWithBackupBE(url string, address string, minimumAmount uint64, txnot
 	}
 
 	transactions := make([]BEBackupTransaction, 0)
-	json.Unmarshal(responseBody, &transactions)
+	err = json.Unmarshal(responseBody, &transactions)
+	if err != nil {
+		return "", 0, err
+	}
 
 	for _, v := range transactions {
 		if v.Timestamp < txnotbefore {
