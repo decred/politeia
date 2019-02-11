@@ -1467,6 +1467,11 @@ func (b *backend) ProcessChangePassword(email string, cp www.ChangePassword) (*w
 		return nil, err
 	}
 
+	err = b.emailUserPasswordChanged(email)
+	if err != nil {
+		return nil, err
+	}
+
 	return &reply, nil
 }
 

@@ -92,6 +92,8 @@ var (
 		template.New("comment_reply_on_proposal").Parse(templateCommentReplyOnProposalRaw))
 	templateCommentReplyOnComment = template.Must(
 		template.New("comment_reply_on_comment").Parse(templateCommentReplyOnCommentRaw))
+	templateUserPasswordChanged = template.Must(
+		template.New("user_changed_password").Parse(templateUserPasswordChangedRaw))
 )
 
 // runServiceCommand is only set to a real function on Windows.  It is used

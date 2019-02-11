@@ -544,6 +544,26 @@ func (b *backend) emailUpdateUserKeyVerificationLink(email, publicKey, token str
 	return b.sendEmailTo(subject, body, email)
 }
 
+// emailUserPasswordChanged notifies the user that his password was changed,
+// and verifies if he was the author of this action, for security purposes.
+func (b *backend) emailUserPasswordChanged(email string) error {
+	if b.cfg.SMTP == nil {
+		return nil
+	}
+
+	tplData := userPasswordChangedTemplateData{
+		Email: email,
+	}
+
+	subject := "Password Changed - Security Verification"
+	body, err := createBody(templateUserPasswordChanged, &tplData)
+	if err != nil {
+		return err
+	}
+
+	return b.sendEmailTo(subject, body, email)
+}
+
 // emailUserLocked notifies the user its account has been locked and emails the
 // link with the reset password verification token if the email server is set
 // up.
