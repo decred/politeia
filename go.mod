@@ -4,7 +4,9 @@ require (
 	bou.ke/monkey v1.0.1 // indirect
 	github.com/agl/ed25519 v0.0.0-20170116200512-5312a6153412
 	github.com/badoux/checkmail v0.0.0-20180430153108-0755fe2dc241
+	github.com/btcsuite/go-flags v0.0.0-20150116065318-6c288d648c1c
 	github.com/btcsuite/go-socks v0.0.0-20170105172521-4720035b7bfd
+	github.com/coreos/etcd v3.3.12+incompatible // indirect
 	github.com/dajohi/goemail v0.0.0-20190207191308-61faa215f94d
 	github.com/davecgh/go-spew v1.1.1
 	github.com/decred/dcrd/certgen v1.0.2
@@ -25,7 +27,8 @@ require (
 	github.com/go-sql-driver/mysql v1.4.1 // indirect
 	github.com/gofrs/uuid v3.2.0+incompatible // indirect
 	github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db // indirect
-	github.com/google/go-cmp v0.2.0 // indirect
+	github.com/golangci/golangci-lint v1.14.0 // indirect
+	github.com/golangci/tools v0.0.0-20190108095906-d95fd85c147a // indirect
 	github.com/google/uuid v1.0.0
 	github.com/gorilla/csrf v1.5.1
 	github.com/gorilla/mux v1.6.2
@@ -39,16 +42,24 @@ require (
 	github.com/jinzhu/now v0.0.0-20181116074157-8ec929ed50c3 // indirect
 	github.com/jrick/logrotate v1.0.0
 	github.com/lib/pq v1.0.0 // indirect
+	github.com/marcopeereboom/sbox v0.0.0-20190125180204-32a7c85e429a
+	github.com/mattn/go-colorable v0.1.0 // indirect
 	github.com/mattn/go-sqlite3 v1.10.0 // indirect
-	github.com/onsi/ginkgo v1.7.0 // indirect
+	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/otiai10/copy v0.0.0-20180813032824-7e9a647135a1
 	github.com/otiai10/mint v1.2.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0
 	github.com/robfig/cron v0.0.0-20180505203441-b41be1df6967
+	github.com/rogpeppe/go-internal v1.2.1 // indirect
+	github.com/spf13/afero v1.2.1 // indirect
 	github.com/subosito/norma v0.0.0-20140814002436-523a8b2df221
 	github.com/syndtr/goleveldb v0.0.0-20180815032940-ae2bd5eed72d
-	golang.org/x/crypto v0.0.0-20181203042331-505ab145d0a9
-	golang.org/x/net v0.0.0-20181207154023-610586996380
-	golang.org/x/sync v0.0.0-20181108010431-42b317875d0f
+	github.com/ugorji/go/codec v0.0.0-20190204201341-e444a5086c43 // indirect
+	golang.org/x/crypto v0.0.0-20190211182817-74369b46fc67
+	golang.org/x/net v0.0.0-20190206173232-65e2d4e15006
+	golang.org/x/sync v0.0.0-20181221193216-37e7f081c4d4
+	golang.org/x/sys v0.0.0-20190209173611-3b5209105503 // indirect
+	golang.org/x/tools v0.0.0-20190211224914-44bee7e801e4 // indirect
 	google.golang.org/grpc v1.17.0
+	mvdan.cc/unparam v0.0.0-20190209190245-fbb59629db34 // indirect
 )

@@ -302,11 +302,11 @@ func (l *leveldb) Open() error {
 	}
 
 	// See if we need to write a version record.
-	payload, err := l.Get(database.DatabaseVersionKey)
+	_, err = l.Get(database.DatabaseVersionKey)
 
 	if err == database.ErrNotFound {
 		// Write version record.
-		payload, err = database.EncodeVersion(database.Version{
+		payload, err := database.EncodeVersion(database.Version{
 			Version: database.DatabaseVersion,
 			Time:    time.Now().Unix(),
 		})

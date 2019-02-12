@@ -377,11 +377,11 @@ func (c *cockroachdb) Open() error {
 	c.usersdb = db
 
 	// See if we need to write a version record.
-	payload, err := c.Get(database.DatabaseVersionKey)
+	_, err = c.Get(database.DatabaseVersionKey)
 
 	if err == database.ErrNotFound {
 		// Write version record.
-		payload, err = database.EncodeVersion(database.Version{
+		payload, err := database.EncodeVersion(database.Version{
 			Version: database.DatabaseVersion,
 			Time:    time.Now().Unix(),
 		})

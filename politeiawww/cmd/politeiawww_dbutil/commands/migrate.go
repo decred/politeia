@@ -33,6 +33,9 @@ func (cmd *MigrateCmd) Execute(args []string) error {
 
 		return nil
 	})
+	if err != nil {
+		return err
+	}
 
 	// Update LastPaywallAddressIndex into the database.
 	p, err := database.EncodeLastPaywallAddressIndex(database.LastPaywallAddressIndex{
@@ -51,6 +54,11 @@ func (cmd *MigrateCmd) Execute(args []string) error {
 		Version: database.DatabaseVersion,
 		Time:    time.Now().Unix(),
 	})
+	if err != nil {
+		return fmt.Errorf("could not encode version record %v", err)
+	}
+
+	err = db.Put(database.DatabaseVersionKey, p)
 	if err != nil {
 		return fmt.Errorf("could not insert version record %v", err)
 	}
