@@ -1372,6 +1372,7 @@ SHALL observe.
 | validmimetypes | array of strings | list of all acceptable MIME types that can be communicated between client and server. |
 | maxproposalnamelength | integer | max length of a proposal name |
 | minproposalnamelength | integer | min length of a proposal name |
+| maxproposalsummarylength | integer | max length of a proposal summary |
 | proposalnamesupportedchars | array of strings | the regular expression of a valid proposal name |
 | maxcommentlength | integer | maximum number of characters accepted for comments |
 | backendpublickey | string |  |
@@ -1411,7 +1412,8 @@ Reply:
   "maxcommentlength": 8000,
   "backendpublickey": "",
   "minproposalnamelength": 8,
-  "maxproposalnamelength": 80
+  "maxproposalnamelength": 80,
+  "maxproposalsummarylength": 255
 }
 ```
 

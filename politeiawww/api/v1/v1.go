@@ -106,6 +106,9 @@ const (
 	// accepted for comments
 	PolicyMaxCommentLength = 8000
 
+	// PolicyMaxProposalSummaryLength is the max length of a proposal summary
+	PolicyMaxProposalSummaryLength = 255
+
 	// ProposalListPageSize is the maximum number of proposals returned
 	// for the routes that return lists of proposals
 	ProposalListPageSize = 20
@@ -789,6 +792,7 @@ type PolicyReply struct {
 	ProposalNameSupportedChars []string `json:"proposalnamesupportedchars"`
 	MaxCommentLength           uint     `json:"maxcommentlength"`
 	BackendPublicKey           string   `json:"backendpublickey"`
+	MaxProposalSummaryLength   uint     `json:"maxproposalsummarylength"`
 }
 
 // VoteOption describes a single vote option.
