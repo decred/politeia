@@ -2021,7 +2021,7 @@ func NewBackend(cfg *config) (*backend, error) {
 	cockroachdb.UseLogger(cockroachdbLog)
 	net := filepath.Base(cfg.DataDir)
 	cdb, err := cockroachdb.New(cockroachdb.UserPoliteiawww, cfg.CacheHost,
-		net, cfg.CacheRootCert, cfg.CacheCertDir)
+		net, cfg.CacheRootCert, cfg.CacheCert, cfg.CacheKey)
 	if err != nil {
 		if err == cache.ErrWrongVersion {
 			err = fmt.Errorf("wrong cache version, restart politeiad " +

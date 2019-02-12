@@ -7,8 +7,11 @@ package main
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
+	"encoding/pem"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/url"
 	"os"
@@ -132,8 +135,9 @@ type config struct {
 	MailPass                 string `long:"mailpass" description:"Email server password"`
 	SMTP                     *goemail.SMTP
 	CacheHost                string `long:"cachehost" description:"Cache ip:port"`
-	CacheCertDir             string `long:"cachecertdir" description:"Directory containing SSL client certificates"`
-	CacheRootCert            string `long:"cacherootcert" description:"File containing SSL root certificate"`
+	CacheRootCert            string `long:"cacherootcert" description:"File containing the CA certificate for the cache"`
+	CacheCert                string `long:"cachecert" description:"File containing the politeiawww client certificate for the cache"`
+	CacheKey                 string `long:"cachekey" description:"File containing the politeiawww client certificate key for the cache"`
 	FetchIdentity            bool   `long:"fetchidentity" description:"Whether or not politeiawww fetches the identity from politeiad."`
 	WebServerAddress         string `long:"webserveraddress" description:"Address for the Politeia web server; it should have this format: <scheme>://<host>[:<port>]"`
 	Interactive              string `long:"interactive" description:"Set to i-know-this-is-a-bad-idea to turn off interactive mode during --fetchidentity."`
@@ -593,8 +597,39 @@ func loadConfig() (*config, []string, error) {
 	cfg.HTTPSCert = cleanAndExpandPath(cfg.HTTPSCert)
 	cfg.RPCCert = cleanAndExpandPath(cfg.RPCCert)
 
-	cfg.CacheCertDir = cleanAndExpandPath(cfg.CacheCertDir)
+	// Validate cache options.
+	switch {
+	case cfg.CacheHost == "":
+		return nil, nil, fmt.Errorf("the cachehost param is required")
+	case cfg.CacheRootCert == "":
+		return nil, nil, fmt.Errorf("the cacherootcert param is required")
+	case cfg.CacheCert == "":
+		return nil, nil, fmt.Errorf("the cachecert param is required")
+	case cfg.CacheKey == "":
+		return nil, nil, fmt.Errorf("the cachekey param is required")
+	}
+
 	cfg.CacheRootCert = cleanAndExpandPath(cfg.CacheRootCert)
+	cfg.CacheCert = cleanAndExpandPath(cfg.CacheCert)
+	cfg.CacheKey = cleanAndExpandPath(cfg.CacheKey)
+
+	// Validate cache root cert.
+	b, err := ioutil.ReadFile(cfg.CacheRootCert)
+	if err != nil {
+		return nil, nil, fmt.Errorf("read cacherootcert: %v", err)
+	}
+	block, _ := pem.Decode(b)
+	_, err = x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse cacherootcert: %v", err)
+	}
+
+	// Validate cache key pair.
+	_, err = tls.LoadX509KeyPair(cfg.CacheCert, cfg.CacheKey)
+	if err != nil {
+		return nil, nil, fmt.Errorf("load key pair cachecert "+
+			"and cachekey: %v", err)
+	}
 
 	// Special show command to list supported subsystems and exit.
 	if cfg.DebugLevel == "show" {

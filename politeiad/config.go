@@ -6,8 +6,12 @@
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
+	"encoding/pem"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"os"
 	"os/user"
@@ -74,10 +78,11 @@ type config struct {
 	DcrtimeHost   string `long:"dcrtimehost" description:"Dcrtime ip:port"`
 	DcrtimeCert   string `long:"dcrtimecert" description:"File containing the https certificate file for dcrtimehost"`
 	EnableCache   bool   `long:"enablecache" description:"Enable the external cache"`
-	BuildCache    bool   `long:"buildcache" description:"Build the cache from scratch"`
 	CacheHost     string `long:"cachehost" description:"Cache ip:port"`
-	CacheCertDir  string `long:"cachecertdir" description:"Directory containing SSL client certificates"`
-	CacheRootCert string `long:"cacherootcert" description:"File containing SSL root certificate"`
+	CacheRootCert string `long:"cacherootcert" description:"File containing the CA certificate for the cache"`
+	CacheCert     string `long:"cachecert" description:"File containing the politeiad client certificate for the cache"`
+	CacheKey      string `long:"cachekey" description:"File containing the politeiad client certificate key for the cache"`
+	BuildCache    bool   `long:"buildcache" description:"Build the cache from scratch"`
 	Identity      string `long:"identity" description:"File containing the politeiad identity file"`
 	GitTrace      bool   `long:"gittrace" description:"Enable git tracing in logs"`
 }
@@ -451,16 +456,49 @@ func loadConfig() (*config, []string, error) {
 	}
 
 	// Validate cache options.
-	if cfg.BuildCache && !cfg.EnableCache {
-		str := "%s: The buildcache param can't be used " +
-			"without the enablecache param"
-		err := fmt.Errorf(str, funcName)
-		fmt.Fprintln(os.Stderr, err)
-		fmt.Fprintln(os.Stderr, usageMessage)
-		os.Exit(0)
+	if cfg.EnableCache {
+		switch {
+		case cfg.CacheHost == "":
+			return nil, nil, fmt.Errorf("the enablecache param can " +
+				"not be used without the cachehost param")
+		case cfg.CacheRootCert == "":
+			return nil, nil, fmt.Errorf("the enablecache param can " +
+				"not be used without the cacherootcert param")
+		case cfg.CacheCert == "":
+			return nil, nil, fmt.Errorf("the enablecache param can " +
+				"not be used without the cachecert param")
+		case cfg.CacheKey == "":
+			return nil, nil, fmt.Errorf("the enablecache param can " +
+				"not be used without the cachekey param")
+		}
 	}
-	cfg.CacheCertDir = cleanAndExpandPath(cfg.CacheCertDir)
+
+	if cfg.BuildCache && !cfg.EnableCache {
+		return nil, nil, fmt.Errorf("the buildcache param can " +
+			"not be used without the enablecache param")
+	}
+
 	cfg.CacheRootCert = cleanAndExpandPath(cfg.CacheRootCert)
+	cfg.CacheCert = cleanAndExpandPath(cfg.CacheCert)
+	cfg.CacheKey = cleanAndExpandPath(cfg.CacheKey)
+
+	// Validate cache root cert.
+	b, err := ioutil.ReadFile(cfg.CacheRootCert)
+	if err != nil {
+		return nil, nil, fmt.Errorf("read cacherootcert: %v", err)
+	}
+	block, _ := pem.Decode(b)
+	_, err = x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse cacherootcert: %v", err)
+	}
+
+	// Validate cache key pair.
+	_, err = tls.LoadX509KeyPair(cfg.CacheCert, cfg.CacheKey)
+	if err != nil {
+		return nil, nil, fmt.Errorf("load key pair cachecert "+
+			"and cachekey: %v", err)
+	}
 
 	// Initialize log rotation.  After log rotation has been initialized,
 	// the logger variables may be used.

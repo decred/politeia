@@ -1104,18 +1104,11 @@ func _main() error {
 
 	// Setup cache
 	if p.cfg.EnableCache {
-		// Create the database and database users
+		// Create a new cache context
 		cockroachdb.UseLogger(cockroachdbLog)
 		net := filepath.Base(p.cfg.DataDir)
-		err = cockroachdb.Setup(p.cfg.CacheHost, net, p.cfg.CacheRootCert,
-			p.cfg.CacheCertDir)
-		if err != nil {
-			return fmt.Errorf("cockroachdb setup: %v", err)
-		}
-
-		// Create a new cache context
 		db, err := cockroachdb.New(cockroachdb.UserPoliteiad, p.cfg.CacheHost,
-			net, p.cfg.CacheRootCert, p.cfg.CacheCertDir)
+			net, p.cfg.CacheRootCert, p.cfg.CacheCert, p.cfg.CacheKey)
 		if err == cache.ErrWrongVersion {
 			p.cfg.BuildCache = true
 		} else if err != nil {

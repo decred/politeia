@@ -28,8 +28,8 @@ const (
 	tableFiles           = "files"
 
 	// Database users
-	UserPoliteiad   = "politeiad"   // politeiad user (read/write access)
-	UserPoliteiawww = "politeiawww" // politeiawww user (read access)
+	UserPoliteiad   = "records_politeiad"   // politeiad user (read/write access)
+	UserPoliteiawww = "records_politeiawww" // politeiawww user (read access)
 )
 
 // cockroachdb implements the cache interface.
@@ -675,20 +675,20 @@ func (c *cockroachdb) Close() {
 	c.recordsdb.Close()
 }
 
-func buildQueryString(user, rootCert, certDir string) string {
+func buildQueryString(user, rootCert, cert, key string) string {
 	v := url.Values{}
 	v.Set("ssl", "true")
 	v.Set("sslmode", "require")
 	v.Set("sslrootcert", filepath.Clean(rootCert))
-	v.Set("sslkey", filepath.Join(certDir, "client."+user+".key"))
-	v.Set("sslcert", filepath.Join(certDir, "client."+user+".crt"))
+	v.Set("sslcert", filepath.Join(cert))
+	v.Set("sslkey", filepath.Join(key))
 	return v.Encode()
 }
 
 // New returns a new cockroachdb context that contains a connection to the
 // specified database that was made using the passed in user and certificates.
-func New(user, host, net, rootCert, certDir string) (*cockroachdb, error) {
-	log.Tracef("New: %v %v %v %v %v", user, host, net, rootCert, certDir)
+func New(user, host, net, rootCert, cert, key string) (*cockroachdb, error) {
+	log.Tracef("New: %v %v %v %v %v %v", user, host, net, rootCert, cert, key)
 
 	// Connect to database
 	dbName := cacheID + "_" + net
@@ -698,7 +698,7 @@ func New(user, host, net, rootCert, certDir string) (*cockroachdb, error) {
 		return nil, fmt.Errorf("parse url '%v': %v", h, err)
 	}
 
-	qs := buildQueryString(u.User.String(), rootCert, certDir)
+	qs := buildQueryString(u.User.String(), rootCert, cert, key)
 	addr := u.String() + "?" + qs
 	db, err := gorm.Open("postgres", addr)
 	if err != nil {
@@ -741,57 +741,4 @@ func New(user, host, net, rootCert, certDir string) (*cockroachdb, error) {
 	log.Infof("Cache host: %v", h)
 
 	return c, err
-}
-
-// Setup uses the CockroachDB root user to setup the database for the records
-// cache.  This includes creating the database, creating politeiad and
-// politeiawww users, and setting user permissions.
-func Setup(host, net, rootCert, certDir string) error {
-	log.Tracef("Setup database: %v %v %v %v", host, net, rootCert, certDir)
-
-	// Connect to CockroachDB as root user. CockroachDB connects
-	// to defaultdb when a database is not specified.
-	h := "postgresql://root@" + host
-	u, err := url.Parse(h)
-	if err != nil {
-		return fmt.Errorf("parse url '%v': %v", h, err)
-	}
-
-	qs := buildQueryString(u.User.String(), rootCert, certDir)
-	addr := u.String() + "?" + qs
-	db, err := gorm.Open("postgres", addr)
-	if err != nil {
-		return fmt.Errorf("connect to database '%v': %v", addr, err)
-	}
-	defer db.Close()
-
-	// Setup records database and users
-	dbName := cacheID + "_" + net
-	q := "CREATE DATABASE IF NOT EXISTS " + dbName
-	err = db.Exec(q).Error
-	if err != nil {
-		return err
-	}
-	q = "CREATE USER IF NOT EXISTS " + UserPoliteiad
-	err = db.Exec(q).Error
-	if err != nil {
-		return err
-	}
-	q = "GRANT ALL ON DATABASE " + dbName + " TO " + UserPoliteiad
-	err = db.Exec(q).Error
-	if err != nil {
-		return err
-	}
-	q = "CREATE USER IF NOT EXISTS " + UserPoliteiawww
-	err = db.Exec(q).Error
-	if err != nil {
-		return err
-	}
-	q = "GRANT SELECT ON DATABASE " + dbName + " TO " + UserPoliteiawww
-	err = db.Exec(q).Error
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
