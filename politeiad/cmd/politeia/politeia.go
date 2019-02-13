@@ -95,20 +95,6 @@ func usage() {
 	fmt.Fprintf(os.Stderr, "\n")
 }
 
-// cleanAndExpandPath expands environment variables and leading ~ in the
-// passed path, cleans the result, and returns it.
-func cleanAndExpandPath(path string) string {
-	// Expand initial ~ to OS specific home directory.
-	if strings.HasPrefix(path, "~") {
-		homeDir := filepath.Dir(defaultHomeDir)
-		path = strings.Replace(path, "~", homeDir, 1)
-	}
-
-	// NOTE: The os.ExpandEnv doesn't work with Windows-style %VARIABLE%,
-	// but the variables can still be expanded via POSIX-style $VARIABLE.
-	return filepath.Clean(os.ExpandEnv(path))
-}
-
 // getErrorFromResponse extracts a user-readable string from the response from
 // politeiad, which will contain a JSON error.
 func getErrorFromResponse(r *http.Response) (string, error) {
@@ -161,7 +147,7 @@ func getIdentity() error {
 	} else {
 		fmt.Printf("Saving identity to %v\n", rf)
 	}
-	rf = cleanAndExpandPath(rf)
+	rf = util.CleanAndExpandPath(rf)
 
 	// Save identity
 	err = os.MkdirAll(filepath.Dir(rf), 0700)

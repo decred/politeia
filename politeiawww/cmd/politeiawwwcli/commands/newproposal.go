@@ -82,7 +82,7 @@ func (cmd *NewProposalCmd) Execute(args []string) error {
 		md = b.Bytes()
 	} else {
 		// Read  markdown file into memory and convert to type File
-		fpath := util.CleanAndExpandPath(mdFile, cfg.HomeDir)
+		fpath := util.CleanAndExpandPath(mdFile)
 
 		var err error
 		md, err = ioutil.ReadFile(fpath)
@@ -102,7 +102,7 @@ func (cmd *NewProposalCmd) Execute(args []string) error {
 
 	// Read attachment files into memory and convert to type File
 	for _, file := range attachmentFiles {
-		path := util.CleanAndExpandPath(file, cfg.HomeDir)
+		path := util.CleanAndExpandPath(file)
 		attachment, err := ioutil.ReadFile(path)
 		if err != nil {
 			return fmt.Errorf("ReadFile %v: %v", path, err)
