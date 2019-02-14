@@ -84,10 +84,6 @@ func LoadFile(filename string) (mimeType string, digest string, payload string, 
 
 	// MIME
 	mimeType = mime.DetectMimeType(b)
-	if !mime.MimeValid(mimeType) {
-		err = mime.ErrUnsupportedMimeType
-		return
-	}
 
 	// Digest
 	h := sha256.New()
