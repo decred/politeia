@@ -11,6 +11,7 @@ import (
 	_ "encoding/gob"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -45,6 +46,12 @@ const (
 
 	csrfKeyLength = 32
 	sessionMaxAge = 86400 //One day
+)
+
+var (
+	// ErrSessionUUIDNotFound is emitted when a UUID value is not found
+	// in a session and indicates that the user is not logged in.
+	ErrSessionUUIDNotFound = errors.New("session UUID not found")
 )
 
 // wsContext is the websocket context. If uuid == "" then it is an
@@ -100,8 +107,7 @@ func (p *politeiawww) getSessionUUID(r *http.Request) (string, error) {
 
 	id, ok := session.Values["uuid"].(string)
 	if !ok {
-		// No uuid in session so return "" to indicate that.
-		return "", nil
+		return "", ErrSessionUUIDNotFound
 	}
 	log.Tracef("getSessionUUID: %v", session.ID)
 
@@ -112,11 +118,6 @@ func (p *politeiawww) getSessionUUID(r *http.Request) (string, error) {
 func (p *politeiawww) getSessionUser(w http.ResponseWriter, r *http.Request) (*database.User, error) {
 	id, err := p.getSessionUUID(r)
 	if err != nil {
-		return nil, err
-	}
-
-	if id == "" {
-		// User is not logged in
 		return nil, err
 	}
 
@@ -1019,7 +1020,7 @@ func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Reque
 
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
-		if err != database.ErrUserNotFound {
+		if err != ErrSessionUUIDNotFound {
 			RespondWithError(w, r, 0,
 				"handleProposalDetails: getSessionUser %v", err)
 			return
@@ -1196,7 +1197,7 @@ func (p *politeiawww) handleCommentsGet(w http.ResponseWriter, r *http.Request) 
 
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
-		if err != database.ErrUserNotFound {
+		if err != ErrSessionUUIDNotFound {
 			RespondWithError(w, r, 0,
 				"handleCommentsGet: getSessionUser %v", err)
 			return
