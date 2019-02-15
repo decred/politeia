@@ -114,6 +114,12 @@ func (p *politeiawww) getSessionUser(w http.ResponseWriter, r *http.Request) (*d
 	if err != nil {
 		return nil, err
 	}
+
+	if id == "" {
+		// User is not logged in
+		return nil, err
+	}
+
 	log.Tracef("getSessionUser: %v", id)
 	pid, err := uuid.Parse(id)
 	if err != nil {
