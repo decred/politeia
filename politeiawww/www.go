@@ -904,7 +904,7 @@ func (p *politeiawww) handleUnauthenticatedWebsocket(w http.ResponseWriter, r *h
 	// We are retrieving the uuid here to make sure it is NOT set. This
 	// check looks backwards but is correct.
 	id, err := p.getSessionUUID(r)
-	if err != nil {
+	if err != nil && err != ErrSessionUUIDNotFound {
 		http.Error(w, "Could not get session uuid",
 			http.StatusBadRequest)
 		return
