@@ -302,11 +302,7 @@ func PayWithTestnetFaucet(faucetURL string, address string, amount uint64, overr
 		return "", fmt.Errorf("faucet only supports testnet")
 	}
 
-	dcramount := strconv.FormatFloat(dcrutil.Amount(amount).ToCoin(),
-		'f', -1, 32)
-	if err != nil {
-		return "", fmt.Errorf("unable to process amount: %v", err)
-	}
+	dcramount := strconv.FormatFloat(dcrutil.Amount(amount).ToCoin(), 'f', -1, 32)
 
 	// build request
 	form := url.Values{}
@@ -332,6 +328,16 @@ func PayWithTestnetFaucet(faucetURL string, address string, amount uint64, overr
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return "", fmt.Errorf("testnet faucet error: %v %v %v",
+				resp.StatusCode, faucetURL, err)
+		}
+		return "", fmt.Errorf("testnet faucet error: %v %v %s",
+			resp.StatusCode, faucetURL, body)
 	}
 
 	if resp == nil {
