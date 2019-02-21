@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/decred/politeia/politeiawww/api/v1"
-	"github.com/decred/politeia/politeiawww/database"
+	v1 "github.com/decred/politeia/politeiawww/api/v1"
+	"github.com/decred/politeia/politeiawww/user"
 )
 
 // EventT is the type of event.
@@ -36,13 +36,13 @@ const (
 type EventDataProposalSubmitted struct {
 	CensorshipRecord *v1.CensorshipRecord
 	ProposalName     string
-	User             *database.User
+	User             *user.User
 }
 
 type EventDataProposalStatusChange struct {
 	Proposal          *v1.ProposalRecord
 	SetProposalStatus *v1.SetProposalStatus
-	AdminUser         *database.User
+	AdminUser         *user.User
 }
 
 type EventDataProposalEdited struct {
@@ -50,13 +50,13 @@ type EventDataProposalEdited struct {
 }
 
 type EventDataProposalVoteStarted struct {
-	AdminUser *database.User
+	AdminUser *user.User
 	StartVote *v1.StartVote
 }
 
 type EventDataProposalVoteAuthorized struct {
 	AuthorizeVote *v1.AuthorizeVote
-	User          *database.User
+	User          *user.User
 }
 
 type EventDataComment struct {
@@ -64,14 +64,14 @@ type EventDataComment struct {
 }
 
 type EventDataUserManage struct {
-	AdminUser  *database.User
-	User       *database.User
+	AdminUser  *user.User
+	User       *user.User
 	ManageUser *v1.ManageUser
 }
 
-func (b *backend) _getProposalAuthor(proposal *v1.ProposalRecord) (*database.User, error) {
+func (p *politeiawww) _getProposalAuthor(proposal *v1.ProposalRecord) (*user.User, error) {
 	if proposal.UserId == "" {
-		proposal.UserId = b.userPubkeys[proposal.PublicKey]
+		proposal.UserId = p.userPubkeys[proposal.PublicKey]
 	}
 
 	userID, err := uuid.Parse(proposal.UserId)
@@ -79,7 +79,7 @@ func (b *backend) _getProposalAuthor(proposal *v1.ProposalRecord) (*database.Use
 		return nil, fmt.Errorf("cannot parse UUID for proposal author: %v", err)
 	}
 
-	author, err := b.db.UserGetById(userID)
+	author, err := p.db.UserGetById(userID)
 	if err != nil {
 		return nil, fmt.Errorf("cannot fetch author for proposal: %v", err)
 	}
@@ -87,15 +87,15 @@ func (b *backend) _getProposalAuthor(proposal *v1.ProposalRecord) (*database.Use
 	return author, nil
 }
 
-func (b *backend) getProposalAuthor(proposal *v1.ProposalRecord) (*database.User, error) {
-	b.RLock()
-	defer b.RUnlock()
+func (p *politeiawww) getProposalAuthor(proposal *v1.ProposalRecord) (*user.User, error) {
+	p.RLock()
+	defer p.RUnlock()
 
-	return b._getProposalAuthor(proposal)
+	return p._getProposalAuthor(proposal)
 }
 
-func (b *backend) getProposalAndAuthor(token string) (*v1.ProposalRecord, *database.User, error) {
-	proposal, err := b.getProp(token)
+func (p *politeiawww) getProposalAndAuthor(token string) (*v1.ProposalRecord, *user.User, error) {
+	proposal, err := p.getProp(token)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -106,7 +106,7 @@ func (b *backend) getProposalAndAuthor(token string) (*v1.ProposalRecord, *datab
 			proposal.UserId, err)
 	}
 
-	author, err := b.db.UserGetById(userID)
+	author, err := p.db.UserGetById(userID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("user lookup failed for userID %v: %v",
 			userID, err)
@@ -119,36 +119,36 @@ func (b *backend) getProposalAndAuthor(token string) (*v1.ProposalRecord, *datab
 // holds the lock.
 //
 // This function must be called WITHOUT the mutex held.
-func (b *backend) fireEvent(eventType EventT, data interface{}) {
-	b.Lock()
-	defer b.Unlock()
+func (p *politeiawww) fireEvent(eventType EventT, data interface{}) {
+	p.Lock()
+	defer p.Unlock()
 
-	b.eventManager._fireEvent(eventType, data)
+	p.eventManager._fireEvent(eventType, data)
 }
 
-func (b *backend) initEventManager() {
-	b.Lock()
-	defer b.Unlock()
+func (p *politeiawww) initEventManager() {
+	p.Lock()
+	defer p.Unlock()
 
-	b.eventManager = &EventManager{}
+	p.eventManager = &EventManager{}
 
-	b._setupProposalStatusChangeLogging()
-	b._setupProposalVoteStartedLogging()
-	b._setupUserManageLogging()
+	p._setupProposalStatusChangeLogging()
+	p._setupProposalVoteStartedLogging()
+	p._setupUserManageLogging()
 
-	if b.cfg.SMTP == nil {
+	if p.smtp.disabled {
 		return
 	}
 
-	b._setupProposalSubmittedEmailNotification()
-	b._setupProposalStatusChangeEmailNotification()
-	b._setupProposalEditedEmailNotification()
-	b._setupProposalVoteStartedEmailNotification()
-	b._setupProposalVoteAuthorizedEmailNotification()
-	b._setupCommentReplyEmailNotifications()
+	p._setupProposalSubmittedEmailNotification()
+	p._setupProposalStatusChangeEmailNotification()
+	p._setupProposalEditedEmailNotification()
+	p._setupProposalVoteStartedEmailNotification()
+	p._setupProposalVoteAuthorizedEmailNotification()
+	p._setupCommentReplyEmailNotifications()
 }
 
-func (b *backend) _setupProposalSubmittedEmailNotification() {
+func (p *politeiawww) _setupProposalSubmittedEmailNotification() {
 	ch := make(chan interface{})
 	go func() {
 		for data := range ch {
@@ -158,7 +158,7 @@ func (b *backend) _setupProposalSubmittedEmailNotification() {
 				continue
 			}
 
-			err := b.emailAdminsForNewSubmittedProposal(
+			err := p.emailAdminsForNewSubmittedProposal(
 				ps.CensorshipRecord.Token, ps.ProposalName,
 				ps.User.Username, ps.User.Email)
 			if err != nil {
@@ -167,10 +167,10 @@ func (b *backend) _setupProposalSubmittedEmailNotification() {
 			}
 		}
 	}()
-	b.eventManager._register(EventTypeProposalSubmitted, ch)
+	p.eventManager._register(EventTypeProposalSubmitted, ch)
 }
 
-func (b *backend) _setupProposalStatusChangeEmailNotification() {
+func (p *politeiawww) _setupProposalStatusChangeEmailNotification() {
 	ch := make(chan interface{})
 	go func() {
 		for data := range ch {
@@ -185,7 +185,7 @@ func (b *backend) _setupProposalStatusChangeEmailNotification() {
 				continue
 			}
 
-			author, err := b.getProposalAuthor(psc.Proposal)
+			author, err := p.getProposalAuthor(psc.Proposal)
 			if err != nil {
 				log.Errorf("cannot fetch author for proposal: %v", err)
 				continue
@@ -193,20 +193,20 @@ func (b *backend) _setupProposalStatusChangeEmailNotification() {
 
 			switch psc.SetProposalStatus.ProposalStatus {
 			case v1.PropStatusPublic:
-				err = b.emailAuthorForVettedProposal(psc.Proposal, author,
+				err = p.emailAuthorForVettedProposal(psc.Proposal, author,
 					psc.AdminUser)
 				if err != nil {
 					log.Errorf("email author for vetted proposal %v: %v",
 						psc.Proposal.CensorshipRecord.Token, err)
 				}
-				err = b.emailUsersForVettedProposal(psc.Proposal, author,
+				err = p.emailUsersForVettedProposal(psc.Proposal, author,
 					psc.AdminUser)
 				if err != nil {
 					log.Errorf("email users for vetted proposal %v: %v",
 						psc.Proposal.CensorshipRecord.Token, err)
 				}
 			case v1.PropStatusCensored:
-				err = b.emailAuthorForCensoredProposal(psc.Proposal, author,
+				err = p.emailAuthorForCensoredProposal(psc.Proposal, author,
 					psc.AdminUser)
 				if err != nil {
 					log.Errorf("email author for censored proposal %v: %v",
@@ -216,10 +216,10 @@ func (b *backend) _setupProposalStatusChangeEmailNotification() {
 			}
 		}
 	}()
-	b.eventManager._register(EventTypeProposalStatusChange, ch)
+	p.eventManager._register(EventTypeProposalStatusChange, ch)
 }
 
-func (b *backend) _setupProposalStatusChangeLogging() {
+func (p *politeiawww) _setupProposalStatusChangeLogging() {
 	ch := make(chan interface{})
 	go func() {
 		for data := range ch {
@@ -230,7 +230,7 @@ func (b *backend) _setupProposalStatusChangeLogging() {
 			}
 
 			// Log the action in the admin log.
-			err := b.logAdminProposalAction(psc.AdminUser,
+			err := p.logAdminProposalAction(psc.AdminUser,
 				psc.Proposal.CensorshipRecord.Token,
 				fmt.Sprintf("set proposal status to %v",
 					v1.PropStatus[psc.SetProposalStatus.ProposalStatus]),
@@ -241,10 +241,10 @@ func (b *backend) _setupProposalStatusChangeLogging() {
 			}
 		}
 	}()
-	b.eventManager._register(EventTypeProposalStatusChange, ch)
+	p.eventManager._register(EventTypeProposalStatusChange, ch)
 }
 
-func (b *backend) _setupProposalEditedEmailNotification() {
+func (p *politeiawww) _setupProposalEditedEmailNotification() {
 	ch := make(chan interface{})
 	go func() {
 		for data := range ch {
@@ -258,23 +258,23 @@ func (b *backend) _setupProposalEditedEmailNotification() {
 				continue
 			}
 
-			author, err := b.getProposalAuthor(pe.Proposal)
+			author, err := p.getProposalAuthor(pe.Proposal)
 			if err != nil {
 				log.Errorf("cannot fetch author for proposal: %v", err)
 				continue
 			}
 
-			err = b.emailUsersForEditedProposal(pe.Proposal, author)
+			err = p.emailUsersForEditedProposal(pe.Proposal, author)
 			if err != nil {
 				log.Errorf("email users for edited proposal %v: %v",
 					pe.Proposal.CensorshipRecord.Token, err)
 			}
 		}
 	}()
-	b.eventManager._register(EventTypeProposalEdited, ch)
+	p.eventManager._register(EventTypeProposalEdited, ch)
 }
 
-func (b *backend) _setupProposalVoteStartedEmailNotification() {
+func (p *politeiawww) _setupProposalVoteStartedEmailNotification() {
 	ch := make(chan interface{})
 	go func() {
 		for data := range ch {
@@ -285,14 +285,14 @@ func (b *backend) _setupProposalVoteStartedEmailNotification() {
 			}
 
 			token := pvs.StartVote.Vote.Token
-			proposal, author, err := b.getProposalAndAuthor(
+			proposal, author, err := p.getProposalAndAuthor(
 				token)
 			if err != nil {
 				log.Error(err)
 				continue
 			}
 
-			err = b.emailUsersForProposalVoteStarted(proposal, author,
+			err = p.emailUsersForProposalVoteStarted(proposal, author,
 				pvs.AdminUser)
 			if err != nil {
 				log.Errorf("email all admins for new submitted proposal %v: %v",
@@ -300,10 +300,10 @@ func (b *backend) _setupProposalVoteStartedEmailNotification() {
 			}
 		}
 	}()
-	b.eventManager._register(EventTypeProposalVoteStarted, ch)
+	p.eventManager._register(EventTypeProposalVoteStarted, ch)
 }
 
-func (b *backend) _setupProposalVoteStartedLogging() {
+func (p *politeiawww) _setupProposalVoteStartedLogging() {
 	ch := make(chan interface{})
 	go func() {
 		for data := range ch {
@@ -314,17 +314,17 @@ func (b *backend) _setupProposalVoteStartedLogging() {
 			}
 
 			// Log the action in the admin log.
-			err := b.logAdminProposalAction(pvs.AdminUser,
+			err := p.logAdminProposalAction(pvs.AdminUser,
 				pvs.StartVote.Vote.Token, "start vote", "")
 			if err != nil {
 				log.Errorf("could not log action to file: %v", err)
 			}
 		}
 	}()
-	b.eventManager._register(EventTypeProposalVoteStarted, ch)
+	p.eventManager._register(EventTypeProposalVoteStarted, ch)
 }
 
-func (b *backend) _setupProposalVoteAuthorizedEmailNotification() {
+func (p *politeiawww) _setupProposalVoteAuthorizedEmailNotification() {
 	ch := make(chan interface{})
 	go func() {
 		for data := range ch {
@@ -335,24 +335,24 @@ func (b *backend) _setupProposalVoteAuthorizedEmailNotification() {
 			}
 
 			token := pvs.AuthorizeVote.Token
-			record, err := b.cache.Record(token)
+			record, err := p.cache.Record(token)
 			if err != nil {
 				log.Errorf("proposal not found: %v", err)
 				continue
 			}
 			proposal := convertPropFromCache(*record)
 
-			err = b.emailAdminsForProposalVoteAuthorized(&proposal, pvs.User)
+			err = p.emailAdminsForProposalVoteAuthorized(&proposal, pvs.User)
 			if err != nil {
 				log.Errorf("email all admins for new submitted proposal %v: %v",
 					token, err)
 			}
 		}
 	}()
-	b.eventManager._register(EventTypeProposalVoteAuthorized, ch)
+	p.eventManager._register(EventTypeProposalVoteAuthorized, ch)
 }
 
-func (b *backend) _setupCommentReplyEmailNotifications() {
+func (p *politeiawww) _setupCommentReplyEmailNotifications() {
 	ch := make(chan interface{})
 	go func() {
 		for data := range ch {
@@ -363,7 +363,7 @@ func (b *backend) _setupCommentReplyEmailNotifications() {
 			}
 
 			token := c.Comment.Token
-			proposal, author, err := b.getProposalAndAuthor(token)
+			proposal, author, err := p.getProposalAndAuthor(token)
 			if err != nil {
 				log.Error(err)
 				continue
@@ -371,21 +371,21 @@ func (b *backend) _setupCommentReplyEmailNotifications() {
 
 			if c.Comment.ParentID == "0" {
 				// Top-level comment
-				err := b.emailAuthorForCommentOnProposal(proposal, author,
+				err := p.emailAuthorForCommentOnProposal(proposal, author,
 					c.Comment.CommentID, c.Comment.Username)
 				if err != nil {
 					log.Errorf("email author of proposal %v for new comment %v: %v",
 						c.Comment.Token, c.Comment.CommentID, err)
 				}
 			} else {
-				parent, err := b.decredGetComment(token, c.Comment.ParentID)
+				parent, err := p.decredGetComment(token, c.Comment.ParentID)
 				if err != nil {
 					log.Errorf("EventManager: getComment failed for token %v "+
 						"commentID %v: %v", token, c.Comment.ParentID, err)
 					continue
 				}
 
-				authorID, ok := b.userPubkeys[parent.PublicKey]
+				authorID, ok := p.userPubkeys[parent.PublicKey]
 				if !ok {
 					log.Errorf("EventManager: userID lookup failed for pubkey %v",
 						parent.PublicKey)
@@ -399,14 +399,14 @@ func (b *backend) _setupCommentReplyEmailNotifications() {
 					continue
 				}
 
-				author, err := b.db.UserGetById(authorUUID)
+				author, err := p.db.UserGetById(authorUUID)
 				if err != nil {
 					log.Errorf("cannot fetch author for comment: %v", err)
 					continue
 				}
 
 				// Comment reply to another comment
-				err = b.emailAuthorForCommentOnComment(proposal, author,
+				err = p.emailAuthorForCommentOnComment(proposal, author,
 					c.Comment.CommentID, c.Comment.Username)
 				if err != nil {
 					log.Errorf("email author of comment %v for new comment %v: %v",
@@ -415,10 +415,10 @@ func (b *backend) _setupCommentReplyEmailNotifications() {
 			}
 		}
 	}()
-	b.eventManager._register(EventTypeComment, ch)
+	p.eventManager._register(EventTypeComment, ch)
 }
 
-func (b *backend) _setupUserManageLogging() {
+func (p *politeiawww) _setupUserManageLogging() {
 	ch := make(chan interface{})
 	go func() {
 		for data := range ch {
@@ -429,14 +429,14 @@ func (b *backend) _setupUserManageLogging() {
 			}
 
 			// Log the action in the admin log.
-			err := b.logAdminUserAction(ue.AdminUser, ue.User,
+			err := p.logAdminUserAction(ue.AdminUser, ue.User,
 				ue.ManageUser.Action, ue.ManageUser.Reason)
 			if err != nil {
 				log.Errorf("could not log action to file: %v", err)
 			}
 		}
 	}()
-	b.eventManager._register(EventTypeUserManage, ch)
+	p.eventManager._register(EventTypeUserManage, ch)
 }
 
 // _register adds a listener channel for the given event type.

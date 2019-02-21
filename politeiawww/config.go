@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
+	"net/mail"
 	"net/url"
 	"os"
 	"os/user"
@@ -21,13 +22,11 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"text/template"
 
 	"github.com/decred/dcrd/hdkeychain"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/util/version"
 
-	"github.com/dajohi/goemail"
 	"github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiawww/sharedconfig"
 	"github.com/decred/politeia/util"
@@ -52,6 +51,8 @@ const (
 	defaultVoteDurationMin = uint32(2016)
 	defaultVoteDurationMax = uint32(4032)
 
+	defaultMailAddress = "Politeia <noreply@example.org>"
+
 	// dust value can be found increasing the amount value until we get false
 	// from IsDustAmount function. Amounts can not be lower than dust
 	// func IsDustAmount(amount int64, relayFeePerKb int64) bool {
@@ -59,6 +60,8 @@ const (
 	// 	   return int64(amount)*1000/(3*int64(totalSize)) < int64(relayFeePerKb)
 	// }
 	dust = 60300
+
+	politeiaWWWMode = "piwww"
 )
 
 var (
@@ -67,37 +70,6 @@ var (
 	defaultRPCCertFile   = filepath.Join(sharedconfig.DefaultHomeDir, "rpc.cert")
 	defaultCookieKeyFile = filepath.Join(sharedconfig.DefaultHomeDir, "cookie.key")
 	defaultLogDir        = filepath.Join(sharedconfig.DefaultHomeDir, defaultLogDirname)
-
-	templateNewUserEmail = template.Must(
-		template.New("new_user_email_template").Parse(templateNewUserEmailRaw))
-	templateResetPasswordEmail = template.Must(
-		template.New("reset_password_email_template").Parse(templateResetPasswordEmailRaw))
-	templateUpdateUserKeyEmail = template.Must(
-		template.New("update_user_key_email_template").Parse(templateUpdateUserKeyEmailRaw))
-	templateUserLockedResetPassword = template.Must(
-		template.New("user_locked_reset_password").Parse(templateUserLockedResetPasswordRaw))
-	templateNewProposalSubmitted = template.Must(
-		template.New("new_proposal_submitted_template").Parse(templateNewProposalSubmittedRaw))
-	templateProposalVetted = template.Must(
-		template.New("proposal_vetted_template").Parse(templateProposalVettedRaw))
-	templateProposalEdited = template.Must(
-		template.New("proposal_edited_template").Parse(templateProposalEditedRaw))
-	templateProposalVoteStarted = template.Must(
-		template.New("proposal_vote_started_template").Parse(templateProposalVoteStartedRaw))
-	templateProposalVoteAuthorized = template.Must(
-		template.New("proposal_vote_authorized_template").Parse(templateProposalVoteAuthorizedRaw))
-	templateProposalVettedForAuthor = template.Must(
-		template.New("proposal_vetted_for_author_template").Parse(templateProposalVettedForAuthorRaw))
-	templateProposalCensoredForAuthor = template.Must(
-		template.New("proposal_censored_for_author_template").Parse(templateProposalCensoredForAuthorRaw))
-	templateProposalVoteStartedForAuthor = template.Must(
-		template.New("proposal_vote_started_for_author_template").Parse(templateProposalVoteStartedForAuthorRaw))
-	templateCommentReplyOnProposal = template.Must(
-		template.New("comment_reply_on_proposal").Parse(templateCommentReplyOnProposalRaw))
-	templateCommentReplyOnComment = template.Must(
-		template.New("comment_reply_on_comment").Parse(templateCommentReplyOnCommentRaw))
-	templateUserPasswordChanged = template.Must(
-		template.New("user_changed_password").Parse(templateUserPasswordChangedRaw))
 )
 
 // runServiceCommand is only set to a real function on Windows.  It is used
@@ -133,7 +105,7 @@ type config struct {
 	MailHost                 string `long:"mailhost" description:"Email server address in this format: <host>:<port>"`
 	MailUser                 string `long:"mailuser" description:"Email server username"`
 	MailPass                 string `long:"mailpass" description:"Email server password"`
-	SMTP                     *goemail.SMTP
+	MailAddress              string `long:"mailaddress" description:"Email address for outgoing email in the format: name <address>"`
 	CacheHost                string `long:"cachehost" description:"Cache ip:port"`
 	CacheRootCert            string `long:"cacherootcert" description:"File containing the CA certificate for the cache"`
 	CacheCert                string `long:"cachecert" description:"File containing the politeiawww client certificate for the cache"`
@@ -146,7 +118,8 @@ type config struct {
 	MinConfirmationsRequired uint64 `long:"minconfirmations" description:"Minimum blocks confirmation for accepting paywall as paid. Only works in TestNet."`
 	VoteDurationMin          uint32 `long:"votedurationmin" description:"Minimum duration of a proposal vote in blocks"`
 	VoteDurationMax          uint32 `long:"votedurationmax" description:"Maximum duration of a proposal vote in blocks"`
-	AdminLogFile             string
+	AdminLogFile             string `long:"adminlogfile" description:"admin log filename (Default: admin.log)"`
+	Mode                     string `long:"mode" description:"Mode www runs as. Supported values: piwww"`
 }
 
 // serviceOptions defines the configuration options for the rpc as a service
@@ -336,31 +309,6 @@ func newConfigParser(cfg *config, so *serviceOptions, options flags.Options) *fl
 	return parser
 }
 
-func initSMTP(cfg *config) error {
-	// Check that either all MailServer options are populated or none are,
-	// and then initialize the SMTP object if they're all populated.
-	cfg.SMTP = nil
-	if cfg.MailHost != "" || cfg.MailUser != "" ||
-		cfg.MailPass != "" || cfg.WebServerAddress != "" {
-		if cfg.MailHost == "" || cfg.MailUser == "" ||
-			cfg.MailPass == "" || cfg.WebServerAddress == "" {
-			err := fmt.Errorf("either all or none of the " +
-				"following config options should be supplied:" +
-				" mailhost, mailuser, mailpass, webserveraddress")
-			return err
-		}
-
-		var err error
-		cfg.SMTP, err = goemail.NewSMTP("smtps://"+cfg.MailUser+
-			":"+cfg.MailPass+"@"+cfg.MailHost, &tls.Config{})
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 // loadIdentity fetches an identity from politeiad if necessary.
 func loadIdentity(cfg *config) error {
 	// Set up the path to the politeiad identity file.
@@ -422,6 +370,7 @@ func loadConfig() (*config, []string, error) {
 		Version:                  version.String(),
 		VoteDurationMin:          defaultVoteDurationMin,
 		VoteDurationMax:          defaultVoteDurationMax,
+		MailAddress:              defaultMailAddress,
 	}
 
 	// Service options which are only added on Windows.
@@ -528,6 +477,15 @@ func loadConfig() (*config, []string, error) {
 		if e, ok := err.(*flags.Error); !ok || e.Type != flags.ErrHelp {
 			fmt.Fprintln(os.Stderr, usageMessage)
 		}
+		return nil, nil, err
+	}
+
+	// Verify mode
+	switch cfg.Mode {
+	case politeiaWWWMode:
+	default:
+		err := fmt.Errorf("invalid mode: %v", cfg.Mode)
+		fmt.Fprintln(os.Stderr, err)
 		return nil, nil, err
 	}
 
@@ -716,10 +674,42 @@ func loadConfig() (*config, []string, error) {
 		log.Warnf("RPC password not set, using random value")
 	}
 
-	if err := initSMTP(&cfg); err != nil {
-		return nil, nil, err
+	// Valide mail settings
+	switch {
+	case cfg.MailHost == "" && cfg.MailUser == "" &&
+		cfg.MailPass == "" && cfg.WebServerAddress == "":
+		// Email is disabled; this is ok
+	case cfg.MailHost != "" && cfg.MailUser != "" &&
+		cfg.MailPass != "" && cfg.WebServerAddress != "":
+		// All mail settings have been set; this is ok
+	default:
+		return nil, nil, fmt.Errorf("either all or none of the " +
+			"following config options should be supplied: " +
+			"mailhost, mailuser, mailpass, webserveraddress")
 	}
 
+	u, err = url.Parse(cfg.MailHost)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to parse mail host: %v",
+			err)
+	}
+	cfg.MailHost = u.String()
+
+	a, err := mail.ParseAddress(cfg.MailAddress)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to parse mail address: %v",
+			err)
+	}
+	cfg.MailAddress = a.String()
+
+	u, err = url.Parse(cfg.WebServerAddress)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to parse web server address: %v",
+			err)
+	}
+	cfg.WebServerAddress = u.String()
+
+	// Load identity
 	if err := loadIdentity(&cfg); err != nil {
 		return nil, nil, err
 	}

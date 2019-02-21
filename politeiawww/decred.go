@@ -13,7 +13,7 @@ import (
 
 // decredGetComment sends the decred plugin getcomment command to the cache and
 // returns the specified comment.
-func (b *backend) decredGetComment(token, commentID string) (*decredplugin.Comment, error) {
+func (p *politeiawww) decredGetComment(token, commentID string) (*decredplugin.Comment, error) {
 	// Setup plugin command
 	gc := decredplugin.GetComment{
 		Token:     token,
@@ -32,7 +32,7 @@ func (b *backend) decredGetComment(token, commentID string) (*decredplugin.Comme
 	}
 
 	// Get comment from the cache
-	reply, err := b.cache.PluginExec(pc)
+	reply, err := p.cache.PluginExec(pc)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func (b *backend) decredGetComment(token, commentID string) (*decredplugin.Comme
 
 // decredGetComments sends the decred plugin getcomments command to the cache
 // and returns all of the comments for the passed in proposal token.
-func (b *backend) decredGetComments(token string) ([]decredplugin.Comment, error) {
+func (p *politeiawww) decredGetComments(token string) ([]decredplugin.Comment, error) {
 	// Setup plugin command
 	gc := decredplugin.GetComments{
 		Token: token,
@@ -65,7 +65,7 @@ func (b *backend) decredGetComments(token string) ([]decredplugin.Comment, error
 	}
 
 	// Get comments from the cache
-	reply, err := b.cache.PluginExec(pc)
+	reply, err := p.cache.PluginExec(pc)
 	if err != nil {
 		return nil, fmt.Errorf("PluginExec: %v", err)
 	}
@@ -80,7 +80,7 @@ func (b *backend) decredGetComments(token string) ([]decredplugin.Comment, error
 
 // decredCommentLikes sends the decred plugin commentlikes command to the cache
 // and returns all of the comment likes for the passed in comment.
-func (b *backend) decredCommentLikes(token, commentID string) ([]decredplugin.LikeComment, error) {
+func (p *politeiawww) decredCommentLikes(token, commentID string) ([]decredplugin.LikeComment, error) {
 	// Setup plugin command
 	cl := decredplugin.CommentLikes{
 		Token:     token,
@@ -99,7 +99,7 @@ func (b *backend) decredCommentLikes(token, commentID string) ([]decredplugin.Li
 	}
 
 	// Get comment likes from cache
-	reply, err := b.cache.PluginExec(pc)
+	reply, err := p.cache.PluginExec(pc)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +115,7 @@ func (b *backend) decredCommentLikes(token, commentID string) ([]decredplugin.Li
 // decredPropCommentLikes sends the decred plugin proposalcommentslikes command
 // to the cache and returns all of the comment likes for the passed in proposal
 // token.
-func (b *backend) decredPropCommentLikes(token string) ([]decredplugin.LikeComment, error) {
+func (p *politeiawww) decredPropCommentLikes(token string) ([]decredplugin.LikeComment, error) {
 	// Setup plugin command
 	pcl := decredplugin.GetProposalCommentsLikes{
 		Token: token,
@@ -133,13 +133,13 @@ func (b *backend) decredPropCommentLikes(token string) ([]decredplugin.LikeComme
 	}
 
 	// Get proposal comment likes from cache
-	reply, err := b.cache.PluginExec(pc)
+	reply, err := p.cache.PluginExec(pc)
 	if err != nil {
 		return nil, err
 	}
 
-	p := []byte(reply.Payload)
-	pclr, err := decredplugin.DecodeGetProposalCommentsLikesReply(p)
+	rp := []byte(reply.Payload)
+	pclr, err := decredplugin.DecodeGetProposalCommentsLikesReply(rp)
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +149,7 @@ func (b *backend) decredPropCommentLikes(token string) ([]decredplugin.LikeComme
 
 // decredVoteDetails sends the decred plugin votedetails command to the cache
 // and returns the vote details for the passed in proposal.
-func (b *backend) decredVoteDetails(token string) (*decredplugin.VoteDetailsReply, error) {
+func (p *politeiawww) decredVoteDetails(token string) (*decredplugin.VoteDetailsReply, error) {
 	// Setup plugin command
 	vd := decredplugin.VoteDetails{
 		Token: token,
@@ -167,7 +167,7 @@ func (b *backend) decredVoteDetails(token string) (*decredplugin.VoteDetailsRepl
 	}
 
 	// Get vote details from cache
-	reply, err := b.cache.PluginExec(pc)
+	reply, err := p.cache.PluginExec(pc)
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +182,7 @@ func (b *backend) decredVoteDetails(token string) (*decredplugin.VoteDetailsRepl
 
 // decredProposalVotes sends the decred plugin proposalvotes command to the
 // cache and returns the vote results for the passed in proposal.
-func (b *backend) decredProposalVotes(token string) (*decredplugin.VoteResultsReply, error) {
+func (p *politeiawww) decredProposalVotes(token string) (*decredplugin.VoteResultsReply, error) {
 	// Setup plugin command
 	vr := decredplugin.VoteResults{
 		Token: token,
@@ -200,7 +200,7 @@ func (b *backend) decredProposalVotes(token string) (*decredplugin.VoteResultsRe
 	}
 
 	// Get proposal votes from cache
-	reply, err := b.cache.PluginExec(pc)
+	reply, err := p.cache.PluginExec(pc)
 	if err != nil {
 		return nil, err
 	}
@@ -215,7 +215,7 @@ func (b *backend) decredProposalVotes(token string) (*decredplugin.VoteResultsRe
 
 // decredInventory sends the decred plugin inventory command to the cache and
 // returns the decred plugin inventory.
-func (b *backend) decredInventory() (*decredplugin.InventoryReply, error) {
+func (p *politeiawww) decredInventory() (*decredplugin.InventoryReply, error) {
 	// Setup plugin command
 	i := decredplugin.Inventory{}
 	payload, err := decredplugin.EncodeInventory(i)
@@ -230,7 +230,7 @@ func (b *backend) decredInventory() (*decredplugin.InventoryReply, error) {
 	}
 
 	// Get cache inventory
-	reply, err := b.cache.PluginExec(pc)
+	reply, err := p.cache.PluginExec(pc)
 	if err != nil {
 		return nil, err
 	}

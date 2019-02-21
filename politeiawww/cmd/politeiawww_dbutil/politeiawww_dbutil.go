@@ -15,12 +15,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/decred/politeia/politeiawww/database"
-
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg"
-	"github.com/decred/politeia/politeiawww/database/localdb"
 	"github.com/decred/politeia/politeiawww/sharedconfig"
+	"github.com/decred/politeia/politeiawww/user"
+	"github.com/decred/politeia/politeiawww/user/localdb"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 )
@@ -170,26 +169,26 @@ func addCreditsAction() error {
 	if err != nil {
 		return err
 	}
-	user, err := localdb.DecodeUser(u)
+	usr, err := localdb.DecodeUser(u)
 	if err != nil {
 		return err
 	}
 
 	// Create proposal credits.
-	c := make([]database.ProposalCredit, quantity)
+	c := make([]user.ProposalCredit, quantity)
 	timestamp := time.Now().Unix()
 	for i := 0; i < quantity; i++ {
-		c[i] = database.ProposalCredit{
+		c[i] = user.ProposalCredit{
 			PaywallID:     0,
 			Price:         0,
 			DatePurchased: timestamp,
 			TxID:          "created_by_dbutil",
 		}
 	}
-	user.UnspentProposalCredits = append(user.UnspentProposalCredits, c...)
+	usr.UnspentProposalCredits = append(usr.UnspentProposalCredits, c...)
 
 	// Write user record to db.
-	u, err = localdb.EncodeUser(*user)
+	u, err = localdb.EncodeUser(*usr)
 	if err != nil {
 		return err
 	}
