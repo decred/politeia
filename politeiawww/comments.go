@@ -32,8 +32,8 @@ func (p *politeiawww) initCommentScores() error {
 
 	// XXX this could be done much more efficiently since we
 	// already have all of the like comments in the inventory
-	// repsonse, but re-using the updateCommentScore function is
-	// simplier. This only gets run on startup so I'm not that
+	// response, but re-using the updateCommentScore function is
+	// simpler. This only gets run on startup so I'm not that
 	// worried about performance for right now.
 	for _, v := range ir.Comments {
 		_, err := p.updateCommentScore(v.Token, v.CommentID)
