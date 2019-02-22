@@ -48,43 +48,48 @@ type EditUserCmd struct {
 
 func (cmd *EditUserCmd) Execute(args []string) error {
 
-	EmailNotifs := map[string]v1.EmailNotificationT{
-		"userproposalchange":        1,
-		"userproposalvotingstarted": 2,
-		"proposalvetted":            4,
-		"proposaledited":            8,
-		"votingstarted":             16,
-		"newproposal":               32,
-		"userauthorizedvote":        64,
-		"commentonproposal":         128,
-		"commentoncomment":          256,
+	emailNotifs := map[string]v1.EmailNotificationT{
+		"userproposalchange":        v1.NotificationEmailMyProposalStatusChange,
+		"userproposalvotingstarted": v1.NotificationEmailMyProposalVoteStarted,
+		"proposalvetted":            v1.NotificationEmailRegularProposalVetted,
+		"proposaledited":            v1.NotificationEmailRegularProposalEdited,
+		"votingstarted":             v1.NotificationEmailRegularProposalVoteStarted,
+		"newproposal":               v1.NotificationEmailAdminProposalNew,
+		"userauthorizedvote":        v1.NotificationEmailAdminProposalVoteAuthorized,
+		"commentonproposal":         v1.NotificationEmailCommentOnMyProposal,
+		"commentoncomment":          v1.NotificationEmailCommentOnMyComment,
 	}
+
 
 	var notif v1.EmailNotificationT
 	a, err := strconv.ParseUint(cmd.Args.NotifType, 10, 64)
 	if err == nil {
 		// Numeric action code found
 		notif = v1.EmailNotificationT(a)
-	} else if a, ok := EmailNotifs[cmd.Args.NotifType]; ok {
+	} else if a, ok := emailNotifs[cmd.Args.NotifType]; ok {
 		// Human readable action code found
 		notif = a
 
-	} else if a, ok := EmailNotifs[strings.Split(cmd.Args.NotifType, ",")[0]]; ok {
+
+	} else if strings.Contains(cmd.Args.NotifType, ",") {
 		// List of human readable action codes found
 
 		notif = a
 		// Parse list of strings and calculate associated integer
 		s := strings.Split(cmd.Args.NotifType, ",")
-		for i := 1; i < len(s); i++ {
-			a, ok := EmailNotifs[s[i]]
+		for _, v := range s {
+
+			a, ok := emailNotifs[v]
 			if !ok {
-				return fmt.Errorf("Invalid edituser option. Type 'help edituser' for list of valid options")
+				return fmt.Errorf("Invalid edituser option. Type " + 
+					"'help edituser' for list of valid options")
 			}
-			notif += a
+			notif |= a
 		}
 
 	} else {
-		return fmt.Errorf("Invalid edituser option. Type 'help edituser' for list of valid options")
+		return fmt.Errorf("Invalid edituser option. Type 'help edituser' " +
+			"for list of valid options")
 	}
 
 	// Setup request
