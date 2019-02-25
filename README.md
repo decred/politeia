@@ -96,10 +96,11 @@ You can also use the following default configurations:
     rpcuser=user
     rpcpass=pass
     testnet=true
-    cachehost=localhost:26257
     enablecache=true
-    cacherootcert="~/.cockroachdb/certs/ca.crt"
-    cachecertdir="~/.cockroachdb/certs"
+    cachehost=localhost:26257
+    cacherootcert="~/.cockroachdb/certs/clients/records_politeiad/ca.crt"
+    cachecert="~/.cockroachdb/certs/clients/records_politeiad/client.records_politeiad.crt"
+    cachekey="~/.cockroachdb/certs/clients/records_politeiad/client.records_politeiad.key"
 
 
 **politeiawww.conf**:
@@ -112,8 +113,9 @@ You can also use the following default configurations:
     paywallxpub=tpubVobLtToNtTq6TZNw4raWQok35PRPZou53vegZqNubtBTJMMFmuMpWybFCfweJ52N8uZJPZZdHE5SRnBBuuRPfC5jdNstfKjiAs8JtbYG9jx
     paywallamount=10000000
     cachehost=localhost:26257
-    cacherootcert="~/.cockroachdb/certs/ca.crt"
-    cachecertdir="~/.cockroachdb/certs"
+    cacherootcert="~/.cockroachdb/certs/clients/records_politeiawww/ca.crt"
+    cachecert="~/.cockroachdb/certs/clients/records_politeiawww/client.records_politeiawww.crt"
+    cachekey="~/.cockroachdb/certs/clients/records_politeiawww/client.records_politeiawww.key"
 
 **Things to note:**
 
@@ -125,13 +127,13 @@ things like new user registration, and those settings are also configured within
  `politeiawww.conf`. The current code should work with most SSL-based SMTP servers
 (but not TLS) using username and password as authentication.
 
-#### 4. Setup CockroachDB or Postgres:
+#### 4. Setup politeiad cache:
 
 politeiad stores proposal data in git repositories that are regularly backed up
 to github and cryptographically timestamped onto the Decred blockchain.  The
-politeiad git repositories serve as the source of truth for proposal data. In
-order to increase performance, a CockroachDB database acts as a cache for
-proposal data.
+politeiad git repositories serve as the source of truth for proposal data. A
+CockroachDB database is used as a cache for proposal data in order to increase
+query performance.
 
 **The cache is not required if you're running just politeiad.  politeiad has
 the cache disable by default. If you're running the full politeia stack,
@@ -142,10 +144,9 @@ access to the cache.  The flow of data is as follows:
 
 1. politeiawww receives a command from a user
 2. politeiawww creates a politeiad request for the command and sends it
-3. politeiad writes the command data to the git repository and updates the
-   cache
-4. politeiad returns a response to politeiawww
-5. politeiawww reads the cache if needed
+3. politeiad writes new data to the git repository then updates the cache
+4. politeiad returns the status of the update to politeiawww
+5. politeiawww reads the updated data from the cache
 6. politeiawww returns a response to the user
 
 We use CockroachDB for the cache in the instructions below.  CockroachDB is
@@ -157,28 +158,73 @@ Install CockroachDB using the instructions found in the [CockroachDB
 Documentation](https://www.cockroachlabs.com/docs/stable/install-cockroachdb-mac.html).
 
 Run the following commands to create the CockroachDB certificates required for
-running the cache locally.  It's ok if the directory `~/.cockroachdb` does not
-exist yet.  The script will create it.  **The directory that you pass into the
-script must be the same cockroachdb directory that you use in the politeiad and
-politeiawww config files when specifying `cacherootcert` and `cachecertdir`.**
+running CockroachDB with Politeia.  It's ok if the directory `~/.cockroachdb`
+does not exist yet.  The script will create it.  **The directory that you pass
+into the script must be the same cockroachdb directory that you use in the
+politeiad and politeiawww config files when specifying `cacherootcert` and
+`cachecertdir`.**
 
     cd $GOPATH/src/github.com/decred/politeia
-    ./cockroachsetup.sh ~/.cockroachdb
+    ./cachecerts.sh ~/.cockroachdb
+
+The script will create the following certificates and directories:
+
+    .cockroachdb
+    ├── ca.key
+    ├── certs
+    │   ├── ca.crt
+    │   ├── clients
+    │   │   ├── records_politeiad
+    │   │   │   ├── ca.crt
+    │   │   │   ├── client.records_politeiad.crt
+    │   │   │   └── client.records_politeiad.key
+    │   │   ├── records_politeiawww
+    │   │   │   ├── ca.crt
+    │   │   │   ├── client.records_politeiawww.crt
+    │   │   │   └── client.records_politeiawww.key
+    │   │   └── root
+    │   │       ├── ca.crt
+    │   │       ├── client.root.crt
+    │   │       └── client.root.key
+    │   └── node
+    │       ├── ca.crt
+    │       ├── node.crt
+    │       └── node.key
+    └── data
+
+Client certificates are created for the database users root, records_politeiad,
+and records_politeiawww.  records_politeiad and records_politeiawww are the
+politeiad and politeiawww users for the records cache.  Each client directory
+contains all of the certificates required to connect to the database with that
+user.  The root user is used to setup the CockroachDB databases in the
+`cachesetup.sh` script below and for opening up a sql shell to run database
+commands manually.
+
+The node directory contains the certificates for running a CockroachDB
+instance locally.  Directions for generating node certificates when deploying a
+CockroachDB cluster can be found in the [CockroachDB manual deployment
+docs](https://www.cockroachlabs.com/docs/stable/manual-deployment.html).
 
 You can now start CockroachDB using the command below.  Politeia requires that
 CockroachDB be running.
 
     cockroach start \
-      --certs-dir=${HOME}/.cockroachdb/certs \
+      --certs-dir=${HOME}/.cockroachdb/certs/node \
       --listen-addr=localhost \
       --store=${HOME}/.cockroachdb/data
 
-If you want to run database commands manually you can do so by opening a sql
-shell.
+Once CockroachDB is running, you can setup the cache databases and users using
+the commands below.  We use the CockroachDB root user to set everything up.
+
+    cd $GOPATH/src/github.com/decred/politeia
+    ./cachesetup.sh ~/.cockroachdb/certs/clients/root
+
+The database setup is now complete.  If you want to run database commands
+manually you can do so by opening a sql shell.
 
     cockroach sql \
-      --certs-dir=${HOME}/.cockroachdb/certs \
-      --host localhost \
+      --certs-dir=${HOME}/.cockroachdb/certs/clients/root \
+      --host localhost
 
 #### 5. Build the programs:
 
