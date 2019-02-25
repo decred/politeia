@@ -240,6 +240,7 @@ to get the CSRF token for the session and to ensure API compatibility.
 | route | string | Route that should be prepended to all calls. For example, "/v1". |
 | pubkey | string | The public key for the corresponding private key that signs various tokens to ensure server authenticity and to prevent replay attacks. |
 | testnet | boolean | Value to inform either its running on testnet or not |
+| cms | boolean | Value to inform either its running the contractor management system or not |
 
 **Example**
 

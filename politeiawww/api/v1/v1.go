@@ -460,6 +460,7 @@ type VersionReply struct {
 	Route   string `json:"route"`   // prefix to API calls
 	PubKey  string `json:"pubkey"`  // Server public key
 	TestNet bool   `json:"testnet"` // Network indicator
+	CMS     bool   `json:"cms"`     // CMS indicator
 }
 
 // NewUser is used to request that a new user be created within the db.

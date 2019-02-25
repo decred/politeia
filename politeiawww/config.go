@@ -28,7 +28,7 @@ import (
 	"github.com/decred/politeia/util/version"
 
 	"github.com/dajohi/goemail"
-	"github.com/decred/politeia/politeiad/api/v1"
+	v1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiawww/sharedconfig"
 	"github.com/decred/politeia/util"
 	flags "github.com/jessevdk/go-flags"
@@ -147,6 +147,7 @@ type config struct {
 	VoteDurationMin          uint32 `long:"votedurationmin" description:"Minimum duration of a proposal vote in blocks"`
 	VoteDurationMax          uint32 `long:"votedurationmax" description:"Maximum duration of a proposal vote in blocks"`
 	AdminLogFile             string
+	CMS                      bool `long:"cms" description:"Use the Contractor Management System"`
 }
 
 // serviceOptions defines the configuration options for the rpc as a service
