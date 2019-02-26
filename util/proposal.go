@@ -8,6 +8,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/base64"
+	"fmt"
 	"regexp"
 	"strconv"
 
@@ -15,7 +16,8 @@ import (
 )
 
 var (
-	validProposalName = regexp.MustCompile(CreateProposalNameRegex())
+	validProposalName    = regexp.MustCompile(CreateProposalNameRegex())
+	validProposalSummary = regexp.MustCompile(CreateProposalSummaryRegex())
 )
 
 // ProposalName returns a proposal name
@@ -33,7 +35,6 @@ func GetProposalName(payload string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-
 	return string(proposalName), nil
 }
 
@@ -59,4 +60,31 @@ func CreateProposalNameRegex() string {
 	validProposalNameBuffer.WriteString(strconv.Itoa(www.PolicyMaxProposalNameLength) + "}$")
 
 	return validProposalNameBuffer.String()
+}
+
+// ProposalSummary returns a proposal summary
+func GetProposalSummary(payload string) (string, error) {
+	// decode payload (base64)
+	rawPayload, err := base64.StdEncoding.DecodeString(payload)
+	if err != nil {
+		return "", err
+	}
+
+	reader := bufio.NewReader(bytes.NewReader(rawPayload))
+	proposalSummary, _, err := reader.ReadLine()
+	if err != nil {
+		return "", err
+	}
+	fmt.Println(proposalSummary)
+	return string(proposalSummary), nil
+}
+
+func IsValidProposalSummary(str string) bool {
+	return validProposalSummary.MatchString(str)
+}
+
+func CreateProposalSummaryRegex() string {
+	var validProposalSummaryBuffer bytes.Buffer
+
+	return validProposalSummaryBuffer.String()
 }

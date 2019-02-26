@@ -109,6 +109,7 @@ notifications.  It does not render HTML.
 - [`ErrorStatusInvalidUUID`](#ErrorStatusInvalidUUID)
 - [`ErrorStatusInvalidLikeCommentAction`](#ErrorStatusInvalidLikeCommentAction)
 - [`ErrorStatusInvalidCensorshipToken`](#ErrorStatusInvalidCensorshipToken)
+- [`ErrorStatusProposalInvalidSummary`](#ErrorStatusProposalInvalidSummary)
 
 **Proposal status codes**
 
@@ -1079,6 +1080,7 @@ error codes:
 - [`ErrorStatusInvalidSignature`](#ErrorStatusInvalidSignature)
 - [`ErrorStatusInvalidSigningKey`](#ErrorStatusInvalidSigningKey)
 - [`ErrorStatusUserNotPaid`](#ErrorStatusUserNotPaid)
+- [`ErrorStatusProposalInvalidSummary`](#ErrorStatusProposalInvalidSummary)
 
 **Example**
 
@@ -2489,6 +2491,7 @@ Reply:
 | <a name="ErrorStatusInvalidUUID">ErrorStatusInvalidUUID</a> | 56 | Invalid user UUID. |
 | <a name="ErrorStatusInvalidLikeCommentAction">ErrorStatusInvalidLikeCommentAction</a> | 57 | Invalid like comment action. |
 | <a name="ErrorStatusInvalidCensorshipToken">ErrorStatusInvalidCensorshipToken</a> | 58 | Invalid proposal censorship token. |
+| <a name="ErrorStatusProposalInvalidSummary">ErrorStatusProposalInvalidSummary</a> | 8 | The provided proposal summary is invalid. This error is provided with additional context: the regular expression accepted. |
 
 
 

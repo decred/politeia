@@ -177,6 +177,7 @@ const (
 	ErrorStatusInvalidUUID                 ErrorStatusT = 56
 	ErrorStatusInvalidLikeCommentAction    ErrorStatusT = 57
 	ErrorStatusInvalidCensorshipToken      ErrorStatusT = 58
+	ErrorStatusProposalInvalidSummary      ErrorStatusT = 59
 
 	// Proposal state codes
 	//
@@ -318,6 +319,7 @@ var (
 		ErrorStatusInvalidUUID:                 "invalid user UUID",
 		ErrorStatusInvalidLikeCommentAction:    "invalid like comment action",
 		ErrorStatusInvalidCensorshipToken:      "invalid proposal censorship token",
+		ErrorStatusProposalInvalidSummary:      "invalid proposal summary",
 	}
 
 	// PropStatus converts propsal status codes to human readable text

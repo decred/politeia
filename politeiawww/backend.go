@@ -752,6 +752,18 @@ func (b *backend) validateProposal(np www.NewProposal, user *database.User) erro
 		}
 	}
 
+	// proposal summary validation
+	summary, err := getProposalSummary(np.Files)
+	if err != nil {
+		return err
+	}
+	if !util.IsValidProposalSummary(summary) {
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusProposalInvalidSummary,
+			ErrorContext: []string{util.CreateProposalSummaryRegex()},
+		}
+	}
+
 	// Note that we need validate the string representation of the merkle
 	mr := merkle.Root(hashes)
 	if !pk.VerifyMessage([]byte(hex.EncodeToString(mr[:])), sig) {
@@ -2130,6 +2142,16 @@ func getProposalName(files []www.File) (string, error) {
 	for _, file := range files {
 		if file.Name == indexFile {
 			return util.GetProposalName(file.Payload)
+		}
+	}
+	return "", nil
+}
+
+// getProposalSummary returns the proposal summary based on the index markdown file
+func getProposalSummary(files []www.File) (string, error) {
+	for _, file := range files {
+		if file.Name == indexFile {
+			return util.GetProposalSummary(file.Payload)
 		}
 	}
 	return "", nil
