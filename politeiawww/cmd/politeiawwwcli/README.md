@@ -10,9 +10,9 @@ flag.
 `$ politeiawwwcli -h`
 
 You can view details about a specific command, including required arguments,
-by putting the help flag after the command.
+by using the help comman.
 
-`$ politeiawwwcli <command> -h`
+`$ politeiawwwcli help <command>`
 
 ## Persisting Data Between Commands
 politeiawwwcli stores  user identity data (the user's public/private key
@@ -65,11 +65,14 @@ C:\Users\<username>\AppData\Local\Politeiawww/cli/politeiawwwcli.conf
 
 If you're developing locally, you'll want to set the politeiawww host in the
 configuration file since the default politeiawww host is
-`https://proposals.decred.org`.  Copy this line into your `politeiawwwcli.conf`
-file.
+`https://proposals.decred.org`.  Copy these lines into your
+`politeiawwwcli.conf` file.  `skipverify` is used to skip TLS certificate
+verification and should only be used when running politeia locally.
 
 ```
+testnet=true
 host=https://127.0.0.1:4443
+skipverify=true
 ```
 
 ## Usage
@@ -148,14 +151,24 @@ in the output of the `newproposal` command.
 
 ### Make a proposal public (admin privileges required)
 ```
-$ politeiawwwcli setproposalstatus [censorshipRecordToken] 4
+$ politeiawwwcli setproposalstatus [censorshipRecordToken] public
 ```
 
 Now that the proposal has been vetted and is publicly available, you can
-comment on the proposal or an admin can start the voting period for the
-proposal.
+comment on the proposal or authorize the voting period to start.
+
+### Authorize the voting period on a proposal (must be author)
+Before an admin can start the voting period on a proposal the author must
+authorize the vote.
+
+```
+$ politeiawwwcli authorizevote [censorhipRecordToken]
+```
 
 ### Start a proposal vote (admin privileges required)
+Once a proposal vote has been authorized by the author, an admin can start the
+voting period.
+
 ```
 $ politeiawwwcli startvote [censorhipRecordToken]
 ```

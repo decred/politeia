@@ -8,43 +8,20 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-// Help message displayed for the command 'politeiawwwcli help newuser'
-var NewUserCmdHelpMsg = `newuser "email" "username" "password" 
-
-Create a new Politeia user. Users can be created by supplying all the arguments
-below, or supplying the --random flag. If --random is used, Politeia will 
-generate a random email, username and password.
-
-Arguments:
-1. email      (string, required)   Email address
-2. username   (string, required)   Username 
-3. password   (string, required)   Password
-
-Request:
-{
-  "email":      (string)  User email
-  "password":   (string)  Password
-  "publickey":  (string)  Active public key
-  "username":   (string)  Username
-}
-
-Response:
-{
-  "verificationtoken":   (string)  Server verification token
-}`
-
+// NewUserCmd creates a new politeia user.
 type NewUserCmd struct {
 	Args struct {
-		Email    string `positional-arg-name:"email"`
-		Username string `positional-arg-name:"username"`
-		Password string `positional-arg-name:"password"`
+		Email    string `positional-arg-name:"email"`    // Email address
+		Username string `positional-arg-name:"username"` // Username
+		Password string `positional-arg-name:"password"` // Password
 	} `positional-args:"true"`
-	Random  bool `long:"random" optional:"true" description:"Generate a random email/password for the user"`
-	Paywall bool `long:"paywall" optional:"true" description:"Satisfy paywall fee using testnet faucet"`
-	Verify  bool `long:"verify" optional:"true" description:"Verify the user's email address"`
-	NoSave  bool `long:"nosave" optional:"true" description:"Do not save the user identity to disk"`
+	Random  bool `long:"random" optional:"true"`  // Generate random user credentials
+	Paywall bool `long:"paywall" optional:"true"` // Use faucet to pay paywall (tesnet only)
+	Verify  bool `long:"verify" optional:"true"`  // Verify user email address (testnet only)
+	NoSave  bool `long:"nosave" optional:"true"`  // Don't save user identity to disk
 }
 
+// Execute executes the new user command.
 func (cmd *NewUserCmd) Execute(args []string) error {
 	email := cmd.Args.Email
 	username := cmd.Args.Username
@@ -56,13 +33,13 @@ func (cmd *NewUserCmd) Execute(args []string) error {
 	}
 
 	// Fetch CSRF tokens
-	_, err := c.Version()
+	_, err := client.Version()
 	if err != nil {
 		return fmt.Errorf("Version: %v", err)
 	}
 
 	// Fetch  policy for password requirements
-	pr, err := c.Policy()
+	pr, err := client.Policy()
 	if err != nil {
 		return fmt.Errorf("Policy: %v", err)
 	}
@@ -86,42 +63,49 @@ func (cmd *NewUserCmd) Execute(args []string) error {
 	}
 
 	// Create user identity and save it to disk
-	id, err := NewIdentity()
+	id, err := newIdentity()
 	if err != nil {
 		return err
-	}
-
-	if !cmd.NoSave {
-		err = cfg.SaveIdentity(id)
-		if err != nil {
-			return err
-		}
 	}
 
 	// Setup new user request
 	nu := &v1.NewUser{
 		Email:     email,
 		Username:  username,
-		Password:  DigestSHA3(password),
+		Password:  digestSHA3(password),
 		PublicKey: hex.EncodeToString(id.Public.Key[:]),
 	}
 
 	// Print request details
-	err = Print(nu, cfg.Verbose, cfg.RawJSON)
+	err = printJSON(nu)
 	if err != nil {
 		return err
 	}
 
 	// Send request
-	nur, err := c.NewUser(nu)
+	nur, err := client.NewUser(nu)
 	if err != nil {
 		return fmt.Errorf("NewUser: %v", err)
+	}
+
+	// Save user identity to disk
+	if !cmd.NoSave {
+		err = cfg.SaveIdentity(nu.Username, id)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Print response details
+	err = printJSON(nur)
+	if err != nil {
+		return err
 	}
 
 	// Verify user's email address
 	if cmd.Verify {
 		sig := id.SignMessage([]byte(nur.VerificationToken))
-		vnur, err := c.VerifyNewUser(&v1.VerifyNewUser{
+		vnur, err := client.VerifyNewUser(&v1.VerifyNewUser{
 			Email:             email,
 			VerificationToken: nur.VerificationToken,
 			Signature:         hex.EncodeToString(sig[:]),
@@ -130,39 +114,28 @@ func (cmd *NewUserCmd) Execute(args []string) error {
 			return fmt.Errorf("VerifyNewUser: %v", err)
 		}
 
-		err = Print(vnur, cfg.Verbose, cfg.RawJSON)
+		err = printJSON(vnur)
 		if err != nil {
 			return err
 		}
 	}
 
-	// Setup login request
+	// Login to politeia
 	l := &v1.Login{
 		Email:    email,
-		Password: DigestSHA3(password),
+		Password: digestSHA3(password),
 	}
 
-	// Send login request
-	_, err = c.Login(l)
-	if err != nil {
-		return err
-	}
-
-	// Print response details
-	err = Print(nur, cfg.Verbose, cfg.RawJSON)
+	lr, err := client.Login(l)
 	if err != nil {
 		return err
 	}
 
 	// Pays paywall fee using faucet
 	if cmd.Paywall {
-		me, err := c.Me()
-		if err != nil {
-			return err
-		}
-		faucet := FaucetCmd{}
-		faucet.Args.Address = me.PaywallAddress
-		faucet.Args.Amount = me.PaywallAmount
+		faucet := SendFaucetTxCmd{}
+		faucet.Args.Address = lr.PaywallAddress
+		faucet.Args.Amount = lr.PaywallAmount
 		err = faucet.Execute(nil)
 		if err != nil {
 			return err
@@ -171,3 +144,35 @@ func (cmd *NewUserCmd) Execute(args []string) error {
 
 	return nil
 }
+
+// newUserHelpMsg is the output of the help command when 'newuser' is
+// specified.
+const newUserHelpMsg = `newuser [flags] "email" "username" "password" 
+
+Create a new Politeia user. Users can be created by supplying all the arguments
+below, or supplying the --random flag. If --random is used, Politeia will 
+generate a random email, username and password.
+
+Arguments:
+1. email      (string, required)   Email address
+2. username   (string, required)   Username 
+3. password   (string, required)   Password
+
+Flags:
+  --random    (bool, optional)   Generate a random email/password for the user
+  --paywall   (bool, optional)   Satisfy the paywall fee using testnet faucet
+  --verify    (bool, optional)   Verify the user's email address
+  --nosave    (bool, optional)   Do not save the user identity to disk 
+
+Request:
+{
+  "email":      (string)  User email
+  "password":   (string)  Password
+  "publickey":  (string)  Active public key
+  "username":   (string)  Username
+}
+
+Response:
+{
+  "verificationtoken":   (string)  Server verification token
+}`

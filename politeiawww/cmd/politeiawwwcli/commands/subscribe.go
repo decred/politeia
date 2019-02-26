@@ -15,27 +15,13 @@ import (
 	"golang.org/x/net/publicsuffix"
 )
 
-var SubscribeCmdHelpMsg = `subscribe [auth] <ping...>
-
-Connect and subcribe to www websocket. If auth is provided the connection will
-be made to the authenticated websocket (must be logged in).
-
-Supported commands:
-	- ping (does not require authentication)
-
-Request:
-{
+// SubscribeCmd opens a websocket connect to politeiawww.
+type SubscribeCmd struct {
+	Close bool `long:"close" optional:"true"` // Do not keep connetion alive
 }
-`
 
-type Subscribe struct{}
-
-func (cmd *Subscribe) Execute(args []string) error {
-	// Check for user identity
-	if cfg.Identity == nil {
-		return fmt.Errorf(ErrorNoUserIdentity)
-	}
-
+// Execute executes the subscribe command.
+func (cmd *SubscribeCmd) Execute(args []string) error {
 	// Parse args
 	route := v1.RouteUnauthenticatedWebSocket
 	subscribe := make([]string, 0, len(args))
@@ -80,12 +66,11 @@ func (cmd *Subscribe) Execute(args []string) error {
 	}
 	defer ws.Close()
 
-	err = Print(v1.WSHeader{Command: v1.WSCSubscribe, ID: "1"}, cfg.Verbose,
-		cfg.RawJSON)
+	err = printJSON(v1.WSHeader{Command: v1.WSCSubscribe, ID: "1"})
 	if err != nil {
 		return err
 	}
-	err = Print(v1.WSSubscribe{RPCS: subscribe}, cfg.Verbose, cfg.RawJSON)
+	err = printJSON(v1.WSSubscribe{RPCS: subscribe})
 	if err != nil {
 		return err
 	}
@@ -96,6 +81,10 @@ func (cmd *Subscribe) Execute(args []string) error {
 	})
 	if err != nil {
 		return err
+	}
+
+	if cmd.Close {
+		return nil
 	}
 
 	for {
@@ -113,3 +102,21 @@ func (cmd *Subscribe) Execute(args []string) error {
 
 	// not reached
 }
+
+// subscribeHelpMsg is the output of the help command when 'subscribe' is
+// specified.
+const subscribeHelpMsg = `subscribe [auth] <ping...>
+
+Connect and subcribe to www websocket. If auth is provided the connection will
+be made to the authenticated websocket (must be logged in).
+
+Flags:
+	--close	  (bool, optional)   Do not keep the websocket connection alive
+
+Supported commands:
+	- ping (does not require authentication)
+
+Request:
+{
+}
+`

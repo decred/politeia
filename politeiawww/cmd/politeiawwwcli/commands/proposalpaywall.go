@@ -4,15 +4,25 @@
 
 package commands
 
-import "github.com/decred/politeia/politeiawww/api/v1"
+// ProposalPaywallCmd gets paywall info for the logged in user.
+type ProposalPaywallCmd struct{}
 
-// Help message displayed for the command 'politeiawwwcli help proposalpaywall'
-var ProposalPaywallCmdHelpMsg = `proposalpaywall
+// Execute executes the proposal paywall command.
+func (cmd *ProposalPaywallCmd) Execute(args []string) error {
+	ppdr, err := client.ProposalPaywallDetails()
+	if err != nil {
+		return err
+	}
+	return printJSON(ppdr)
+}
+
+// proposalPaywallHelpMsg is the output of the help command when
+// 'proposalpaywall' is specified.
+const proposalPaywallHelpMsg = `proposalpaywall
 
 Fetch proposal paywall details.
 
-Arguments:
-None
+Arguments: None
 
 Response:
 {
@@ -20,13 +30,3 @@ Response:
   "paywalladdress"       (string)  Proposal paywall address
   "paywalltxnotbefore"   (string)  Minimum timestamp for paywall tx
 }`
-
-type ProposalPaywallCmd struct{}
-
-func (cmd *ProposalPaywallCmd) Execute(args []string) error {
-	ppdr, err := c.ProposalPaywallDetails(&v1.ProposalPaywallDetails{})
-	if err != nil {
-		return err
-	}
-	return Print(ppdr, cfg.Verbose, cfg.RawJSON)
-}

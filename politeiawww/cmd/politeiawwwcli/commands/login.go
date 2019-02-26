@@ -4,10 +4,61 @@
 
 package commands
 
-import "github.com/decred/politeia/politeiawww/api/v1"
+import (
+	"fmt"
 
-// Help message displayed for the command 'politeiawwwcli help login'
-var LoginCmdHelpMsg = `login "email" "password"
+	"github.com/decred/politeia/politeiawww/api/v1"
+)
+
+// LoginCmd logs into Politeia using the specified credentials.
+type LoginCmd struct {
+	Args struct {
+		Email    string `positional-arg-name:"email"`    // User email address
+		Password string `positional-arg-name:"password"` // User password
+	} `positional-args:"true" required:"true"`
+}
+
+// Execute executes the login command.
+func (cmd *LoginCmd) Execute(args []string) error {
+	email := cmd.Args.Email
+	password := cmd.Args.Password
+
+	// Fetch CSRF tokens
+	_, err := client.Version()
+	if err != nil {
+		return err
+	}
+
+	// Setup login request
+	l := &v1.Login{
+		Email:    email,
+		Password: digestSHA3(password),
+	}
+
+	// Print request details
+	err = printJSON(l)
+	if err != nil {
+		return err
+	}
+
+	// Send request
+	lr, err := client.Login(l)
+	if err != nil {
+		return err
+	}
+
+	// Update the logged in username that we store on disk
+	err = cfg.SaveLoggedInUsername(lr.Username)
+	if err != nil {
+		return fmt.Errorf("SaveLoggedInUsername: %v", err)
+	}
+
+	// Print response details
+	return printJSON(lr)
+}
+
+// loginHelpMsg is the output for the help command when 'login' is specified.
+const loginHelpMsg = `login "email" "password"
 
 Login as a user or admin.
 
@@ -29,42 +80,3 @@ Result:
   "lastlogintime":        (int64)   Unix timestamp of last login date
   "sessionmaxage":        (int64)   Unix timestamp of session max age
 }`
-
-type LoginCmd struct {
-	Args struct {
-		Email    string `positional-arg-name:"email"`
-		Password string `positional-arg-name:"password"`
-	} `positional-args:"true" required:"true"`
-}
-
-func (cmd *LoginCmd) Execute(args []string) error {
-	email := cmd.Args.Email
-	password := cmd.Args.Password
-
-	// Fetch CSRF tokens
-	_, err := c.Version()
-	if err != nil {
-		return err
-	}
-
-	// Setup login request
-	l := &v1.Login{
-		Email:    email,
-		Password: DigestSHA3(password),
-	}
-
-	// Print request details
-	err = Print(l, cfg.Verbose, cfg.RawJSON)
-	if err != nil {
-		return err
-	}
-
-	// Send request
-	lr, err := c.Login(l)
-	if err != nil {
-		return err
-	}
-
-	// Print response details
-	return Print(lr, cfg.Verbose, cfg.RawJSON)
-}

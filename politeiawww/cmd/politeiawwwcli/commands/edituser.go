@@ -12,42 +12,15 @@ import (
 	"github.com/decred/politeia/politeiawww/api/v1"
 )
 
-// Help message displayed for the command 'politeiawwwcli help edituser'
-var EditUserCmdHelpMsg = `edituser "emailnotifications"
-
-Edit email notifications for the currently logged in user. 
-
-Arguments:
-1. emailnotifications       (string, required)   Notification option  
-
-Valid options are:
-
-1.   userproposalchange         Notify when status of my proposal changes
-2.   userproposalvotingstarted  Notify when my proposal vote has started
-4.   proposalvetted             Notify when any proposal is vetted
-8.   proposaledited             Notify when any proposal is edited
-16.  votingstarted              Notify when voting on any proposal has started
-32.  newproposal                Notify when proposal is submitted (admin only)
-64.  userauthorizedvote         Notify when user authorizes vote (admin only)
-128. commentonproposal          Notify when comment is made on my proposal
-256. commentoncomment           Notify when comment is made on my comment
-
-Request:
-{
-  "emailnotifications":  (uint64)  Bit flag
-}
-
-Response:
-{}`
-
+// EditUserCmd edits the preferences of the logged in user.
 type EditUserCmd struct {
 	Args struct {
-		NotifType string `long:"emailnotifications" description:"Email notifications"`
+		NotifType string `long:"emailnotifications"` // Email notification bit field
 	}
 }
 
+// Execute executes the edit user command.
 func (cmd *EditUserCmd) Execute(args []string) error {
-
 	emailNotifs := map[string]v1.EmailNotificationT{
 		"userproposalchange":        v1.NotificationEmailMyProposalStatusChange,
 		"userproposalvotingstarted": v1.NotificationEmailMyProposalVoteStarted,
@@ -97,17 +70,46 @@ func (cmd *EditUserCmd) Execute(args []string) error {
 	}
 
 	// Print request details
-	err = Print(eu, cfg.Verbose, cfg.RawJSON)
+	err = printJSON(eu)
 	if err != nil {
 		return err
 	}
 
 	// Send request
-	eur, err := c.EditUser(eu)
+	eur, err := client.EditUser(eu)
 	if err != nil {
 		return err
 	}
 
 	// Print response details
-	return Print(eur, cfg.Verbose, cfg.RawJSON)
+	return printJSON(eur)
 }
+
+// editUserHelpMsg is the output of the help command when 'edituser' is
+// specified.
+const editUserHelpMsg = `edituser "emailnotifications"
+
+Edit user settings for the logged in user.
+ 
+Arguments:
+1. emailnotifications       (string, required)   Email notification bit field
+
+Valid options are:
+
+1.   userproposalchange         Notify when status of my proposal changes
+2.   userproposalvotingstarted  Notify when my proposal vote has started
+4.   proposalvetted             Notify when any proposal is vetted
+8.   proposaledited             Notify when any proposal is edited
+16.  votingstarted              Notify when voting on any proposal has started
+32.  newproposal                Notify when proposal is submitted (admin only)
+64.  userauthorizedvote         Notify when user authorizes vote (admin only)
+128. commentonproposal          Notify when comment is made on my proposal
+256. commentoncomment           Notify when comment is made on my comment
+
+Request:
+{
+  "emailnotifications":  (uint64)  Bit field
+}
+
+Response:
+{}`

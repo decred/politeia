@@ -4,8 +4,20 @@
 
 package commands
 
-// Help message displayed for the command 'politeiawwwcli help policy'
-var PolicyCmdHelpMsg = `policy
+// PolicyCmd gets the server policy information.
+type PolicyCmd struct{}
+
+// Execute executes the policy command.
+func (cmd *PolicyCmd) Execute(args []string) error {
+	pr, err := client.Policy()
+	if err != nil {
+		return err
+	}
+	return printJSON(pr)
+}
+
+// policyHelpMsg is the output of the help command when 'policy' is specified.
+const policyHelpMsg = `policy
 
 Fetch server policy.
 
@@ -31,13 +43,3 @@ Response:
 	"maxcommentlength"           (uint)     Maximum characters in comments
 	"backendpublickey"           (string)   Backend public key
 }`
-
-type PolicyCmd struct{}
-
-func (cmd *PolicyCmd) Execute(args []string) error {
-	pr, err := c.Policy()
-	if err != nil {
-		return err
-	}
-	return Print(pr, cfg.Verbose, cfg.RawJSON)
-}

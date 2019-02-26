@@ -4,8 +4,25 @@
 
 package commands
 
-// Help message displayed for the command 'politeiawwwcli help votestatus'
-var VoteStatusCmdHelpMsg = `votestatus "token"
+// VoteStatusCmd gets the vote status of the specified proposal.
+type VoteStatusCmd struct {
+	Args struct {
+		Token string `positional-arg-name:"token"` // Censorship token
+	} `positional-args:"true" required:"true"`
+}
+
+// Execute executes the vote status command.
+func (cmd *VoteStatusCmd) Execute(args []string) error {
+	vsr, err := client.VoteStatus(cmd.Args.Token)
+	if err != nil {
+		return err
+	}
+	return printJSON(vsr)
+}
+
+// voteStatusHelpMsg is the output of the help command when 'votestatus' is
+// specified.
+const voteStatusHelpMsg = `votestatus "token"
 
 Fetch vote status for a proposal.
 
@@ -46,17 +63,3 @@ Response:
   "quorumpercentage":   (uint32)  Percent of eligible votes required for quorum
   "passpercentage":     (uint32)  Percent of total votes required to pass
 }`
-
-type VoteStatusCmd struct {
-	Args struct {
-		Token string `positional-arg-name:"token" description:"Proposal censorship token"`
-	} `positional-args:"true" required:"true"`
-}
-
-func (cmd *VoteStatusCmd) Execute(args []string) error {
-	vsr, err := c.VoteStatus(cmd.Args.Token)
-	if err != nil {
-		return err
-	}
-	return Print(vsr, cfg.Verbose, cfg.RawJSON)
-}

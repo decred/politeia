@@ -10,33 +10,21 @@ import (
 	"github.com/decred/politeia/politeiawww/api/v1"
 )
 
-// Help message displayed for the command 'politeiawwwcli help resetpassword'
-var ResetPasswordCmdHelpMsg = `resetpassword "email" "password"
-
-Reset password for currently logged in user. 
-
-Arguments:
-1. email      (string, required)   Email address of user
-2. password   (string, required)   New password
-
-Result:
-{
-  "verificationtoken"    (string)  Verification token
-}`
-
+// ResetPasswordCmd resets the password of the specified user.
 type ResetPasswordCmd struct {
 	Args struct {
-		Email       string `positional-arg-name:"email"`
-		NewPassword string `positional-arg-name:"newpassword"`
+		Email       string `positional-arg-name:"email"`       // User email address
+		NewPassword string `positional-arg-name:"newpassword"` // New password
 	} `positional-args:"true" required:"true"`
 }
 
+// Execute executes the reset password command.
 func (cmd *ResetPasswordCmd) Execute(args []string) error {
 	email := cmd.Args.Email
 	newPassword := cmd.Args.NewPassword
 
 	// Get password requirements
-	pr, err := c.Policy()
+	pr, err := client.Policy()
 	if err != nil {
 		return err
 	}
@@ -60,20 +48,20 @@ func (cmd *ResetPasswordCmd) Execute(args []string) error {
 	// 1st reset password call
 	rp := &v1.ResetPassword{
 		Email:       email,
-		NewPassword: DigestSHA3(newPassword),
+		NewPassword: digestSHA3(newPassword),
 	}
 
-	err = Print(rp, cfg.Verbose, cfg.RawJSON)
+	err = printJSON(rp)
 	if err != nil {
 		return err
 	}
 
-	rpr, err := c.ResetPassword(rp)
+	rpr, err := client.ResetPassword(rp)
 	if err != nil {
 		return err
 	}
 
-	err = Print(rpr, cfg.Verbose, cfg.RawJSON)
+	err = printJSON(rpr)
 	if err != nil {
 		return err
 	}
@@ -81,19 +69,34 @@ func (cmd *ResetPasswordCmd) Execute(args []string) error {
 	// 2nd reset password call
 	rp = &v1.ResetPassword{
 		Email:             email,
-		NewPassword:       DigestSHA3(newPassword),
+		NewPassword:       digestSHA3(newPassword),
 		VerificationToken: rpr.VerificationToken,
 	}
 
-	err = Print(rp, cfg.Verbose, cfg.RawJSON)
+	err = printJSON(rp)
 	if err != nil {
 		return err
 	}
 
-	rpr, err = c.ResetPassword(rp)
+	rpr, err = client.ResetPassword(rp)
 	if err != nil {
 		return err
 	}
 
-	return Print(rpr, cfg.Verbose, cfg.RawJSON)
+	return printJSON(rpr)
 }
+
+// resetPasswordHelpMsg is the output of the help command when 'resetpassword'
+// is specified.
+const resetPasswordHelpMsg = `resetpassword "email" "password"
+
+Reset password for currently logged in user. 
+
+Arguments:
+1. email      (string, required)   Email address of user
+2. password   (string, required)   New password
+
+Result:
+{
+  "verificationtoken"    (string)  Verification token
+}`

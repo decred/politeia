@@ -4,12 +4,25 @@
 
 package commands
 
-const ProposalStatsHelpMsg = `proposalstats
+// ProposalStatsCmd retrieves statistics on the proposal inventory.
+type ProposalStatsCmd struct{}
+
+// Execute executes the proposal stats command.
+func (cmd *ProposalStatsCmd) Execute(args []string) error {
+	psr, err := client.ProposalsStats()
+	if err != nil {
+		return err
+	}
+	return printJSON(psr)
+}
+
+// proposalStatsHelpMsg is the output of the help command when 'proposalstats'
+// is specified.
+const proposalStatsHelpMsg = `proposalstats
 
 Get proposal inventory statistics.
 
-Arguments:
-None
+Arguments: None
 
 Result:
 {
@@ -19,13 +32,3 @@ Result:
   "numofpublic": 1,
   "numofabandoned": 1
 }`
-
-type ProposalStatsCmd struct{}
-
-func (cmd *ProposalStatsCmd) Execute(args []string) error {
-	psr, err := c.ProposalsStats()
-	if err != nil {
-		return err
-	}
-	return Print(psr, cfg.Verbose, cfg.RawJSON)
-}

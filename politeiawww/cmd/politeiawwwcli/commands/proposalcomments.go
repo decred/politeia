@@ -4,10 +4,27 @@
 
 package commands
 
-// Help message displayed for the command 'politeiawwwcli help getcomments'
-var GetCommentsCmdHelpMsg = `getcomments "token" 
+// ProposalCommentsCmd retreives the comments for the specified proposal.
+type ProposalCommentsCmd struct {
+	Args struct {
+		Token string `positional-arg-name:"token"` // Censorship token
+	} `positional-args:"true" required:"true"`
+}
 
-Get comments for a proposal.
+// Execute executes the proposal comments command.
+func (cmd *ProposalCommentsCmd) Execute(args []string) error {
+	gcr, err := client.GetComments(cmd.Args.Token)
+	if err != nil {
+		return err
+	}
+	return printJSON(gcr)
+}
+
+// proposalCommentsHelpMsg is the output for the help command when
+// 'proposalcomments' is specified.
+const proposalCommentsHelpMsg = `proposalcomments "token" 
+
+Get the comments for a proposal.
 
 Arguments:
 1. token       (string, required)   Proposal censorship token
@@ -32,17 +49,3 @@ Result:
     }
   ]
 }`
-
-type GetCommentsCmd struct {
-	Args struct {
-		Token string `positional-arg-name:"token"`
-	} `positional-args:"true" required:"true"`
-}
-
-func (cmd *GetCommentsCmd) Execute(args []string) error {
-	gcr, err := c.GetComments(cmd.Args.Token)
-	if err != nil {
-		return err
-	}
-	return Print(gcr, cfg.Verbose, cfg.RawJSON)
-}

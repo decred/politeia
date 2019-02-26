@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"os"
 	"reflect"
 	"strings"
 
@@ -27,6 +28,7 @@ import (
 	"github.com/decred/politeia/politeiawww/cmd/politeiawwwcli/config"
 )
 
+// Client is a politeiawww client.
 type Client struct {
 	http *http.Client
 	cfg  *config.Config
@@ -38,36 +40,13 @@ type Client struct {
 	wallet walletrpc.WalletServiceClient
 }
 
-func New(cfg *config.Config) (*Client, error) {
-	// Create http client
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: cfg.SkipVerify,
-	}
-	tr := &http.Transport{
-		TLSClientConfig: tlsConfig,
-	}
-
-	// Set cookies
-	jar, err := cookiejar.New(&cookiejar.Options{
-		PublicSuffixList: publicsuffix.List,
-	})
+func prettyPrintJSON(v interface{}) error {
+	b, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("MarshalIndent: %v", err)
 	}
-	u, err := url.Parse(cfg.Host)
-	if err != nil {
-		return nil, err
-	}
-	jar.SetCookies(u, cfg.Cookies)
-	httpClient := &http.Client{
-		Transport: tr,
-		Jar:       jar,
-	}
-
-	return &Client{
-		http: httpClient,
-		cfg:  cfg,
-	}, nil
+	fmt.Fprintf(os.Stdout, "%s\n", b)
+	return nil
 }
 
 func (c *Client) makeRequest(method, route string, body interface{}) ([]byte, error) {
@@ -109,13 +88,13 @@ func (c *Client) makeRequest(method, route string, body interface{}) ([]byte, er
 		fmt.Printf("Request: GET %v\n", fullRoute)
 	case c.cfg.Verbose && method == http.MethodPost:
 		fmt.Printf("Request: POST %v\n", fullRoute)
-		err := PrettyPrintJSON(body)
+		err := prettyPrintJSON(body)
 		if err != nil {
 			return nil, err
 		}
 	case c.cfg.Verbose && method == http.MethodPut:
 		fmt.Printf("Request: PUT %v\n", fullRoute)
-		err := PrettyPrintJSON(body)
+		err := prettyPrintJSON(body)
 		if err != nil {
 			return nil, err
 		}
@@ -159,6 +138,7 @@ func (c *Client) makeRequest(method, route string, body interface{}) ([]byte, er
 	return responseBody, nil
 }
 
+// Version returns the version information for the politeiawww instance.
 func (c *Client) Version() (*v1.VersionReply, error) {
 	fullRoute := c.cfg.Host + v1.PoliteiaWWWAPIRoute + v1.RouteVersion
 
@@ -208,7 +188,7 @@ func (c *Client) Version() (*v1.VersionReply, error) {
 	// Print response details
 	if c.cfg.Verbose {
 		fmt.Printf("Response: %v\n", r.StatusCode)
-		err := PrettyPrintJSON(vr)
+		err := prettyPrintJSON(vr)
 		if err != nil {
 			return nil, err
 		}
@@ -235,6 +215,7 @@ func (c *Client) Version() (*v1.VersionReply, error) {
 	return &vr, nil
 }
 
+// Login logs a user into politeiawww.
 func (c *Client) Login(l *v1.Login) (*v1.LoginReply, error) {
 	// Setup request
 	requestBody, err := json.Marshal(l)
@@ -247,7 +228,7 @@ func (c *Client) Login(l *v1.Login) (*v1.LoginReply, error) {
 	// Print request details
 	if c.cfg.Verbose {
 		fmt.Printf("Request: POST %v\n", fullRoute)
-		err := PrettyPrintJSON(l)
+		err := prettyPrintJSON(l)
 		if err != nil {
 			return nil, err
 		}
@@ -295,7 +276,7 @@ func (c *Client) Login(l *v1.Login) (*v1.LoginReply, error) {
 	// Print response details
 	if c.cfg.Verbose {
 		fmt.Printf("Response: %v\n", r.StatusCode)
-		err := PrettyPrintJSON(lr)
+		err := prettyPrintJSON(lr)
 		if err != nil {
 			return nil, err
 		}
@@ -310,6 +291,7 @@ func (c *Client) Login(l *v1.Login) (*v1.LoginReply, error) {
 	return &lr, nil
 }
 
+// Logout logs out a user from politeiawww.
 func (c *Client) Logout() (*v1.LogoutReply, error) {
 	fullRoute := c.cfg.Host + v1.PoliteiaWWWAPIRoute + v1.RouteLogout
 
@@ -359,7 +341,7 @@ func (c *Client) Logout() (*v1.LogoutReply, error) {
 	// Print response details
 	if c.cfg.Verbose {
 		fmt.Printf("Response: %v\n", r.StatusCode)
-		err := PrettyPrintJSON(lr)
+		err := prettyPrintJSON(lr)
 		if err != nil {
 			return nil, err
 		}
@@ -374,6 +356,7 @@ func (c *Client) Logout() (*v1.LogoutReply, error) {
 	return &lr, nil
 }
 
+// Policy returns the politeiawww policy information.
 func (c *Client) Policy() (*v1.PolicyReply, error) {
 	responseBody, err := c.makeRequest("GET", v1.RoutePolicy, nil)
 	if err != nil {
@@ -387,7 +370,7 @@ func (c *Client) Policy() (*v1.PolicyReply, error) {
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(pr)
+		err := prettyPrintJSON(pr)
 		if err != nil {
 			return nil, err
 		}
@@ -396,6 +379,7 @@ func (c *Client) Policy() (*v1.PolicyReply, error) {
 	return &pr, nil
 }
 
+// NewUser creates a new politeiawww user.
 func (c *Client) NewUser(nu *v1.NewUser) (*v1.NewUserReply, error) {
 	responseBody, err := c.makeRequest("POST", v1.RouteNewUser, nu)
 	if err != nil {
@@ -409,7 +393,7 @@ func (c *Client) NewUser(nu *v1.NewUser) (*v1.NewUserReply, error) {
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(nur)
+		err := prettyPrintJSON(nur)
 		if err != nil {
 			return nil, err
 		}
@@ -418,6 +402,7 @@ func (c *Client) NewUser(nu *v1.NewUser) (*v1.NewUserReply, error) {
 	return &nur, nil
 }
 
+// VerifyNewUser verifies a user's email address.
 func (c *Client) VerifyNewUser(vnu *v1.VerifyNewUser) (*v1.VerifyNewUserReply, error) {
 	responseBody, err := c.makeRequest("GET", "/user/verify", vnu)
 	if err != nil {
@@ -431,7 +416,7 @@ func (c *Client) VerifyNewUser(vnu *v1.VerifyNewUser) (*v1.VerifyNewUserReply, e
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(vnur)
+		err := prettyPrintJSON(vnur)
 		if err != nil {
 			return nil, err
 		}
@@ -440,6 +425,7 @@ func (c *Client) VerifyNewUser(vnu *v1.VerifyNewUser) (*v1.VerifyNewUserReply, e
 	return &vnur, nil
 }
 
+// Me returns user details for the logged in user.
 func (c *Client) Me() (*v1.LoginReply, error) {
 	responseBody, err := c.makeRequest("GET", v1.RouteUserMe, nil)
 	if err != nil {
@@ -453,7 +439,7 @@ func (c *Client) Me() (*v1.LoginReply, error) {
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(lr)
+		err := prettyPrintJSON(lr)
 		if err != nil {
 			return nil, err
 		}
@@ -462,6 +448,7 @@ func (c *Client) Me() (*v1.LoginReply, error) {
 	return &lr, nil
 }
 
+// Secret pings politeiawww.
 func (c *Client) Secret() (*v1.UserError, error) {
 	responseBody, err := c.makeRequest("POST", v1.RouteSecret, v1.Login{})
 	if err != nil {
@@ -475,7 +462,7 @@ func (c *Client) Secret() (*v1.UserError, error) {
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(ue)
+		err := prettyPrintJSON(ue)
 		if err != nil {
 			return nil, err
 		}
@@ -484,6 +471,7 @@ func (c *Client) Secret() (*v1.UserError, error) {
 	return &ue, nil
 }
 
+// ChangeUsername changes the username of the logged in user.
 func (c *Client) ChangeUsername(cu *v1.ChangeUsername) (*v1.ChangeUsernameReply, error) {
 	responseBody, err := c.makeRequest("POST", v1.RouteChangeUsername, cu)
 	if err != nil {
@@ -497,7 +485,7 @@ func (c *Client) ChangeUsername(cu *v1.ChangeUsername) (*v1.ChangeUsernameReply,
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(cur)
+		err := prettyPrintJSON(cur)
 		if err != nil {
 			return nil, err
 		}
@@ -506,6 +494,7 @@ func (c *Client) ChangeUsername(cu *v1.ChangeUsername) (*v1.ChangeUsernameReply,
 	return &cur, nil
 }
 
+// ChangePassword changes the password for the logged in user.
 func (c *Client) ChangePassword(cp *v1.ChangePassword) (*v1.ChangePasswordReply, error) {
 	responseBody, err := c.makeRequest("POST", v1.RouteChangePassword, cp)
 	if err != nil {
@@ -519,7 +508,7 @@ func (c *Client) ChangePassword(cp *v1.ChangePassword) (*v1.ChangePasswordReply,
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(cpr)
+		err := prettyPrintJSON(cpr)
 		if err != nil {
 			return nil, err
 		}
@@ -528,6 +517,7 @@ func (c *Client) ChangePassword(cp *v1.ChangePassword) (*v1.ChangePasswordReply,
 	return &cpr, nil
 }
 
+// ResetPassword resets the password of the specified user.
 func (c *Client) ResetPassword(rp *v1.ResetPassword) (*v1.ResetPasswordReply, error) {
 	responseBody, err := c.makeRequest("POST", v1.RouteResetPassword, rp)
 	if err != nil {
@@ -541,7 +531,7 @@ func (c *Client) ResetPassword(rp *v1.ResetPassword) (*v1.ResetPasswordReply, er
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(rpr)
+		err := prettyPrintJSON(rpr)
 		if err != nil {
 			return nil, err
 		}
@@ -550,9 +540,11 @@ func (c *Client) ResetPassword(rp *v1.ResetPassword) (*v1.ResetPasswordReply, er
 	return &rpr, nil
 }
 
-func (c *Client) ProposalPaywallDetails(ppd *v1.ProposalPaywallDetails) (*v1.ProposalPaywallDetailsReply, error) {
-	responseBody, err := c.makeRequest("GET", v1.RouteProposalPaywallDetails,
-		ppd)
+// ProposalPaywallDetails retrieves proposal credit paywall information for the
+// logged in user.
+func (c *Client) ProposalPaywallDetails() (*v1.ProposalPaywallDetailsReply, error) {
+	responseBody, err := c.makeRequest("GET",
+		v1.RouteProposalPaywallDetails, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -564,7 +556,7 @@ func (c *Client) ProposalPaywallDetails(ppd *v1.ProposalPaywallDetails) (*v1.Pro
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(ppdr)
+		err := prettyPrintJSON(ppdr)
 		if err != nil {
 			return nil, err
 		}
@@ -573,6 +565,8 @@ func (c *Client) ProposalPaywallDetails(ppd *v1.ProposalPaywallDetails) (*v1.Pro
 	return &ppdr, nil
 }
 
+// NewProposal submits the specified proposal to politeiawww for the logged in
+// user.
 func (c *Client) NewProposal(np *v1.NewProposal) (*v1.NewProposalReply, error) {
 	responseBody, err := c.makeRequest("POST", v1.RouteNewProposal, np)
 	if err != nil {
@@ -586,7 +580,7 @@ func (c *Client) NewProposal(np *v1.NewProposal) (*v1.NewProposalReply, error) {
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(npr)
+		err := prettyPrintJSON(npr)
 		if err != nil {
 			return nil, err
 		}
@@ -595,6 +589,7 @@ func (c *Client) NewProposal(np *v1.NewProposal) (*v1.NewProposalReply, error) {
 	return &npr, nil
 }
 
+// EditProposal edits the specified proposal with the logged in user.
 func (c *Client) EditProposal(ep *v1.EditProposal) (*v1.EditProposalReply, error) {
 	responseBody, err := c.makeRequest("POST", v1.RouteEditProposal, ep)
 	if err != nil {
@@ -608,7 +603,7 @@ func (c *Client) EditProposal(ep *v1.EditProposal) (*v1.EditProposalReply, error
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(epr)
+		err := prettyPrintJSON(epr)
 		if err != nil {
 			return nil, err
 		}
@@ -617,6 +612,7 @@ func (c *Client) EditProposal(ep *v1.EditProposal) (*v1.EditProposalReply, error
 	return &epr, nil
 }
 
+// ProposalDetails retrieves the specified proposal.
 func (c *Client) ProposalDetails(token string, pd *v1.ProposalsDetails) (*v1.ProposalDetailsReply, error) {
 	responseBody, err := c.makeRequest("GET", "/proposals/"+token, pd)
 	if err != nil {
@@ -630,7 +626,7 @@ func (c *Client) ProposalDetails(token string, pd *v1.ProposalsDetails) (*v1.Pro
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(pr)
+		err := prettyPrintJSON(pr)
 		if err != nil {
 			return nil, err
 		}
@@ -639,6 +635,8 @@ func (c *Client) ProposalDetails(token string, pd *v1.ProposalsDetails) (*v1.Pro
 	return &pr, nil
 }
 
+// UserProposals retrieves the proposals that have been submitted by the
+// specified user.
 func (c *Client) UserProposals(up *v1.UserProposals) (*v1.UserProposalsReply, error) {
 	responseBody, err := c.makeRequest("GET", v1.RouteUserProposals, up)
 	if err != nil {
@@ -652,7 +650,7 @@ func (c *Client) UserProposals(up *v1.UserProposals) (*v1.UserProposalsReply, er
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(upr)
+		err := prettyPrintJSON(upr)
 		if err != nil {
 			return nil, err
 		}
@@ -661,6 +659,7 @@ func (c *Client) UserProposals(up *v1.UserProposals) (*v1.UserProposalsReply, er
 	return &upr, nil
 }
 
+// SetProposalStatus changes the status of the specified proposal.
 func (c *Client) SetProposalStatus(sps *v1.SetProposalStatus) (*v1.SetProposalStatusReply, error) {
 	route := "/proposals/" + sps.Token + "/status"
 	responseBody, err := c.makeRequest("POST", route, sps)
@@ -675,7 +674,7 @@ func (c *Client) SetProposalStatus(sps *v1.SetProposalStatus) (*v1.SetProposalSt
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(spsr)
+		err := prettyPrintJSON(spsr)
 		if err != nil {
 			return nil, err
 		}
@@ -684,6 +683,7 @@ func (c *Client) SetProposalStatus(sps *v1.SetProposalStatus) (*v1.SetProposalSt
 	return &spsr, nil
 }
 
+// GetAllVetted retrieves a page of vetted proposals.
 func (c *Client) GetAllVetted(gav *v1.GetAllVetted) (*v1.GetAllVettedReply, error) {
 	responseBody, err := c.makeRequest("GET", v1.RouteAllVetted, gav)
 	if err != nil {
@@ -697,7 +697,7 @@ func (c *Client) GetAllVetted(gav *v1.GetAllVetted) (*v1.GetAllVettedReply, erro
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(gavr)
+		err := prettyPrintJSON(gavr)
 		if err != nil {
 			return nil, err
 		}
@@ -706,6 +706,7 @@ func (c *Client) GetAllVetted(gav *v1.GetAllVetted) (*v1.GetAllVettedReply, erro
 	return &gavr, nil
 }
 
+// GetAllUnvetted retrieves a page of unvetted proposals.
 func (c *Client) GetAllUnvetted(gau *v1.GetAllUnvetted) (*v1.GetAllUnvettedReply, error) {
 	responseBody, err := c.makeRequest("GET", v1.RouteAllUnvetted, gau)
 	if err != nil {
@@ -719,7 +720,7 @@ func (c *Client) GetAllUnvetted(gau *v1.GetAllUnvetted) (*v1.GetAllUnvettedReply
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(gaur)
+		err := prettyPrintJSON(gaur)
 		if err != nil {
 			return nil, err
 		}
@@ -728,6 +729,7 @@ func (c *Client) GetAllUnvetted(gau *v1.GetAllUnvetted) (*v1.GetAllUnvettedReply
 	return &gaur, nil
 }
 
+// NewComment submits a new proposal comment for the logged in user.
 func (c *Client) NewComment(nc *v1.NewComment) (*v1.NewCommentReply, error) {
 	responseBody, err := c.makeRequest("POST", v1.RouteNewComment, nc)
 	if err != nil {
@@ -741,7 +743,7 @@ func (c *Client) NewComment(nc *v1.NewComment) (*v1.NewCommentReply, error) {
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(ncr)
+		err := prettyPrintJSON(ncr)
 		if err != nil {
 			return nil, err
 		}
@@ -750,6 +752,7 @@ func (c *Client) NewComment(nc *v1.NewComment) (*v1.NewCommentReply, error) {
 	return &ncr, nil
 }
 
+// GetComments retrieves the comments for the specified proposal.
 func (c *Client) GetComments(token string) (*v1.GetCommentsReply, error) {
 	responseBody, err := c.makeRequest("GET", "/proposals/"+token+"/comments",
 		nil)
@@ -764,7 +767,7 @@ func (c *Client) GetComments(token string) (*v1.GetCommentsReply, error) {
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(gcr)
+		err := prettyPrintJSON(gcr)
 		if err != nil {
 			return nil, err
 		}
@@ -773,6 +776,8 @@ func (c *Client) GetComments(token string) (*v1.GetCommentsReply, error) {
 	return &gcr, nil
 }
 
+// UserCommentsLikes retrieves the comment likes (upvotes/downvotes) for the
+// specified proposal that are from the logged in user.
 func (c *Client) UserCommentsLikes(token string) (*v1.UserCommentsLikesReply, error) {
 	route := "/user/proposals/" + token + "/commentslikes"
 	responseBody, err := c.makeRequest("GET", route, nil)
@@ -787,7 +792,7 @@ func (c *Client) UserCommentsLikes(token string) (*v1.UserCommentsLikesReply, er
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(uclr)
+		err := prettyPrintJSON(uclr)
 		if err != nil {
 			return nil, err
 		}
@@ -796,6 +801,8 @@ func (c *Client) UserCommentsLikes(token string) (*v1.UserCommentsLikesReply, er
 	return &uclr, nil
 }
 
+// LikeComment casts a like comment action (upvote/downvote) for the logged in
+// user.
 func (c *Client) LikeComment(lc *v1.LikeComment) (*v1.LikeCommentReply, error) {
 	responseBody, err := c.makeRequest("POST", v1.RouteLikeComment, lc)
 	if err != nil {
@@ -809,7 +816,7 @@ func (c *Client) LikeComment(lc *v1.LikeComment) (*v1.LikeCommentReply, error) {
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(lcr)
+		err := prettyPrintJSON(lcr)
 		if err != nil {
 			return nil, err
 		}
@@ -818,6 +825,7 @@ func (c *Client) LikeComment(lc *v1.LikeComment) (*v1.LikeCommentReply, error) {
 	return &lcr, nil
 }
 
+// CensorComment censors the specified proposal comment.
 func (c *Client) CensorComment(cc *v1.CensorComment) (*v1.CensorCommentReply, error) {
 	responseBody, err := c.makeRequest("POST", v1.RouteCensorComment, cc)
 	if err != nil {
@@ -831,7 +839,7 @@ func (c *Client) CensorComment(cc *v1.CensorComment) (*v1.CensorCommentReply, er
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(ccr)
+		err := prettyPrintJSON(ccr)
 		if err != nil {
 			return nil, err
 		}
@@ -840,6 +848,7 @@ func (c *Client) CensorComment(cc *v1.CensorComment) (*v1.CensorCommentReply, er
 	return &ccr, nil
 }
 
+// StartVote starts the voting period for the specified proposal.
 func (c *Client) StartVote(sv *v1.StartVote) (*v1.StartVoteReply, error) {
 	responseBody, err := c.makeRequest("POST", v1.RouteStartVote, sv)
 	if err != nil {
@@ -853,7 +862,7 @@ func (c *Client) StartVote(sv *v1.StartVote) (*v1.StartVoteReply, error) {
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(svr)
+		err := prettyPrintJSON(svr)
 		if err != nil {
 			return nil, err
 		}
@@ -862,6 +871,8 @@ func (c *Client) StartVote(sv *v1.StartVote) (*v1.StartVoteReply, error) {
 	return &svr, nil
 }
 
+// VerifyUserPayment checks whether the logged in user has paid their user
+// registration fee.
 func (c *Client) VerifyUserPayment() (*v1.VerifyUserPaymentReply, error) {
 	responseBody, err := c.makeRequest("GET", v1.RouteVerifyUserPayment, nil)
 	if err != nil {
@@ -875,7 +886,7 @@ func (c *Client) VerifyUserPayment() (*v1.VerifyUserPaymentReply, error) {
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(vupr)
+		err := prettyPrintJSON(vupr)
 		if err != nil {
 			return nil, err
 		}
@@ -884,7 +895,8 @@ func (c *Client) VerifyUserPayment() (*v1.VerifyUserPaymentReply, error) {
 	return &vupr, nil
 }
 
-func (c *Client) ProposalVotes(token string) (*v1.VoteResultsReply, error) {
+// VoteResults retrieves the vote results for the specified proposal.
+func (c *Client) VoteResults(token string) (*v1.VoteResultsReply, error) {
 	responseBody, err := c.makeRequest("GET", "/proposals/"+token+"/votes", nil)
 	if err != nil {
 		return nil, err
@@ -897,7 +909,7 @@ func (c *Client) ProposalVotes(token string) (*v1.VoteResultsReply, error) {
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(vrr)
+		err := prettyPrintJSON(vrr)
 		if err != nil {
 			return nil, err
 		}
@@ -906,6 +918,7 @@ func (c *Client) ProposalVotes(token string) (*v1.VoteResultsReply, error) {
 	return &vrr, nil
 }
 
+// UserDetails retrieves the user details for the specified user.
 func (c *Client) UserDetails(userID string) (*v1.UserDetailsReply, error) {
 	responseBody, err := c.makeRequest("GET", "/user/"+userID, nil)
 	if err != nil {
@@ -919,7 +932,7 @@ func (c *Client) UserDetails(userID string) (*v1.UserDetailsReply, error) {
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(udr)
+		err := prettyPrintJSON(udr)
 		if err != nil {
 			return nil, err
 		}
@@ -928,6 +941,8 @@ func (c *Client) UserDetails(userID string) (*v1.UserDetailsReply, error) {
 	return &udr, nil
 }
 
+// Users retrieves a list of users that adhere to the specified filtering
+// parameters.
 func (c *Client) Users(u *v1.Users) (*v1.UsersReply, error) {
 	responseBody, err := c.makeRequest("GET", v1.RouteUsers, u)
 	if err != nil {
@@ -941,7 +956,7 @@ func (c *Client) Users(u *v1.Users) (*v1.UsersReply, error) {
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(ur)
+		err := prettyPrintJSON(ur)
 		if err != nil {
 			return nil, err
 		}
@@ -950,6 +965,7 @@ func (c *Client) Users(u *v1.Users) (*v1.UsersReply, error) {
 	return &ur, nil
 }
 
+// ManageUser allows an admin to edit certain attributes of the specified user.
 func (c *Client) ManageUser(mu *v1.ManageUser) (*v1.ManageUserReply, error) {
 	responseBody, err := c.makeRequest("POST", v1.RouteManageUser, mu)
 	if err != nil {
@@ -963,7 +979,7 @@ func (c *Client) ManageUser(mu *v1.ManageUser) (*v1.ManageUserReply, error) {
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(mur)
+		err := prettyPrintJSON(mur)
 		if err != nil {
 			return nil, err
 		}
@@ -972,6 +988,7 @@ func (c *Client) ManageUser(mu *v1.ManageUser) (*v1.ManageUserReply, error) {
 	return &mur, nil
 }
 
+// EditUser allows the logged in user to update their user settings.
 func (c *Client) EditUser(eu *v1.EditUser) (*v1.EditUserReply, error) {
 	responseBody, err := c.makeRequest("POST", v1.RouteEditUser, eu)
 	if err != nil {
@@ -985,7 +1002,7 @@ func (c *Client) EditUser(eu *v1.EditUser) (*v1.EditUserReply, error) {
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(eur)
+		err := prettyPrintJSON(eur)
 		if err != nil {
 			return nil, err
 		}
@@ -994,6 +1011,8 @@ func (c *Client) EditUser(eu *v1.EditUser) (*v1.EditUserReply, error) {
 	return &eur, nil
 }
 
+// AuthorizeVote authorizes the voting period for the specified proposal using
+// the logged in user.
 func (c *Client) AuthorizeVote(av *v1.AuthorizeVote) (*v1.AuthorizeVoteReply, error) {
 	responseBody, err := c.makeRequest("POST", "/proposals/authorizevote", av)
 	if err != nil {
@@ -1007,7 +1026,7 @@ func (c *Client) AuthorizeVote(av *v1.AuthorizeVote) (*v1.AuthorizeVoteReply, er
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(avr)
+		err := prettyPrintJSON(avr)
 		if err != nil {
 			return nil, err
 		}
@@ -1016,6 +1035,7 @@ func (c *Client) AuthorizeVote(av *v1.AuthorizeVote) (*v1.AuthorizeVoteReply, er
 	return &avr, nil
 }
 
+// VoteStatus retrieves the vote status for the specified proposal.
 func (c *Client) VoteStatus(token string) (*v1.VoteStatusReply, error) {
 	route := "/proposals/" + token + "/votestatus"
 	responseBody, err := c.makeRequest("GET", route, nil)
@@ -1030,7 +1050,7 @@ func (c *Client) VoteStatus(token string) (*v1.VoteStatusReply, error) {
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(vsr)
+		err := prettyPrintJSON(vsr)
 		if err != nil {
 			return nil, err
 		}
@@ -1039,6 +1059,30 @@ func (c *Client) VoteStatus(token string) (*v1.VoteStatusReply, error) {
 	return &vsr, nil
 }
 
+// GetAllVoteStatus retreives the vote status of all public proposals.
+func (c *Client) GetAllVoteStatus() (*v1.GetAllVoteStatusReply, error) {
+	responseBody, err := c.makeRequest("GET", v1.RouteAllVoteStatus, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var avsr v1.GetAllVoteStatusReply
+	err = json.Unmarshal(responseBody, &avsr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal GetAllVoteStatusReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(avsr)
+		if err != nil {
+			return nil, fmt.Errorf("prettyPrintJSON: %v", err)
+		}
+	}
+
+	return &avsr, nil
+}
+
+// ActiveVotes retreives all proposals that are currently being voted on.
 func (c *Client) ActiveVotes() (*v1.ActiveVoteReply, error) {
 	responseBody, err := c.makeRequest("GET", v1.RouteActiveVote, nil)
 	if err != nil {
@@ -1052,7 +1096,7 @@ func (c *Client) ActiveVotes() (*v1.ActiveVoteReply, error) {
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(avr)
+		err := prettyPrintJSON(avr)
 		if err != nil {
 			return nil, err
 		}
@@ -1061,6 +1105,7 @@ func (c *Client) ActiveVotes() (*v1.ActiveVoteReply, error) {
 	return &avr, nil
 }
 
+// CastVotes casts votes for a proposal.
 func (c *Client) CastVotes(b *v1.Ballot) (*v1.BallotReply, error) {
 	responseBody, err := c.makeRequest("POST", v1.RouteCastVotes, &b)
 	if err != nil {
@@ -1074,7 +1119,7 @@ func (c *Client) CastVotes(b *v1.Ballot) (*v1.BallotReply, error) {
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(br)
+		err := prettyPrintJSON(br)
 		if err != nil {
 			return nil, err
 		}
@@ -1083,6 +1128,7 @@ func (c *Client) CastVotes(b *v1.Ballot) (*v1.BallotReply, error) {
 	return &br, nil
 }
 
+// UpdateUserKey updates the identity of the logged in user.
 func (c *Client) UpdateUserKey(uuk *v1.UpdateUserKey) (*v1.UpdateUserKeyReply, error) {
 	responseBody, err := c.makeRequest("POST", v1.RouteUpdateUserKey, &uuk)
 	if err != nil {
@@ -1096,7 +1142,7 @@ func (c *Client) UpdateUserKey(uuk *v1.UpdateUserKey) (*v1.UpdateUserKeyReply, e
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(uukr)
+		err := prettyPrintJSON(uukr)
 		if err != nil {
 			return nil, err
 		}
@@ -1105,6 +1151,7 @@ func (c *Client) UpdateUserKey(uuk *v1.UpdateUserKey) (*v1.UpdateUserKeyReply, e
 	return &uukr, nil
 }
 
+// VerifyUpdateUserKey is used to verify a new user identity.
 func (c *Client) VerifyUpdateUserKey(vuuk *v1.VerifyUpdateUserKey) (*v1.VerifyUpdateUserKeyReply, error) {
 	responseBody, err := c.makeRequest("POST", v1.RouteVerifyUpdateUserKey,
 		&vuuk)
@@ -1119,7 +1166,7 @@ func (c *Client) VerifyUpdateUserKey(vuuk *v1.VerifyUpdateUserKey) (*v1.VerifyUp
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(vuukr)
+		err := prettyPrintJSON(vuukr)
 		if err != nil {
 			return nil, err
 		}
@@ -1128,6 +1175,8 @@ func (c *Client) VerifyUpdateUserKey(vuuk *v1.VerifyUpdateUserKey) (*v1.VerifyUp
 	return &vuukr, nil
 }
 
+// ProposalPaywallPayment retrieves payment details of any pending proposal
+// credit payment from the logged in user.
 func (c *Client) ProposalPaywallPayment() (*v1.ProposalPaywallPaymentReply, error) {
 	responseBody, err := c.makeRequest("GET",
 		v1.RouteProposalPaywallPayment, nil)
@@ -1142,7 +1191,7 @@ func (c *Client) ProposalPaywallPayment() (*v1.ProposalPaywallPaymentReply, erro
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(pppr)
+		err := prettyPrintJSON(pppr)
 		if err != nil {
 			return nil, err
 		}
@@ -1151,6 +1200,8 @@ func (c *Client) ProposalPaywallPayment() (*v1.ProposalPaywallPaymentReply, erro
 	return &pppr, nil
 }
 
+// UserPaymentsRescan scans the specified user's paywall address and makes sure
+// that the user's account has been properly credited with all payments.
 func (c *Client) UserPaymentsRescan(upr *v1.UserPaymentsRescan) (*v1.UserPaymentsRescanReply, error) {
 	responseBody, err := c.makeRequest("PUT", v1.RouteUserPaymentsRescan, upr)
 	if err != nil {
@@ -1164,7 +1215,7 @@ func (c *Client) UserPaymentsRescan(upr *v1.UserPaymentsRescan) (*v1.UserPayment
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(uprr)
+		err := prettyPrintJSON(uprr)
 		if err != nil {
 			return nil, err
 		}
@@ -1173,6 +1224,8 @@ func (c *Client) UserPaymentsRescan(upr *v1.UserPaymentsRescan) (*v1.UserPayment
 	return &uprr, nil
 }
 
+// ProposalsStats retrieves summary statistics for the politeiawww proposal
+// inventory.
 func (c *Client) ProposalsStats() (*v1.ProposalsStatsReply, error) {
 	responseBody, err := c.makeRequest("GET", v1.RoutePropsStats, nil)
 	if err != nil {
@@ -1186,11 +1239,75 @@ func (c *Client) ProposalsStats() (*v1.ProposalsStatsReply, error) {
 	}
 
 	if c.cfg.Verbose {
-		err := PrettyPrintJSON(psr)
+		err := prettyPrintJSON(psr)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	return &psr, nil
+}
+
+// UserProposalCredits retrieves the proposal credit history for the logged
+// in user.
+func (c *Client) UserProposalCredits() (*v1.UserProposalCreditsReply, error) {
+	responseBody, err := c.makeRequest("GET", v1.RouteUserProposalCredits, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var upcr v1.UserProposalCreditsReply
+	err = json.Unmarshal(responseBody, &upcr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal UserProposalCreditsReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(upcr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &upcr, nil
+}
+
+// Close all client connections.
+func (c *Client) Close() {
+	if c.conn != nil {
+		c.conn.Close()
+	}
+}
+
+// New returns a new politeiawww client.
+func New(cfg *config.Config) (*Client, error) {
+	// Create http client
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: cfg.SkipVerify,
+	}
+	tr := &http.Transport{
+		TLSClientConfig: tlsConfig,
+	}
+
+	// Set cookies
+	jar, err := cookiejar.New(&cookiejar.Options{
+		PublicSuffixList: publicsuffix.List,
+	})
+	if err != nil {
+		return nil, err
+	}
+	u, err := url.Parse(cfg.Host)
+	if err != nil {
+		return nil, err
+	}
+	jar.SetCookies(u, cfg.Cookies)
+	httpClient := &http.Client{
+		Transport: tr,
+		Jar:       jar,
+	}
+
+	return &Client{
+		http: httpClient,
+		cfg:  cfg,
+	}, nil
 }

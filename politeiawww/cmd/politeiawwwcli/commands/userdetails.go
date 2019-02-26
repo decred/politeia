@@ -4,8 +4,25 @@
 
 package commands
 
-// Help message displayed for the command 'politeiawwwcli help userdetails'
-var UserDetailsCmdHelpMsg = `userdetails "userid" 
+// UserDetailsCmd gets the user details for the specified user.
+type UserDetailsCmd struct {
+	Args struct {
+		UserID string `positional-arg-name:"userid"` // User ID
+	} `positional-args:"true" required:"true"`
+}
+
+// Execute executes the user details command.
+func (cmd *UserDetailsCmd) Execute(args []string) error {
+	udr, err := client.UserDetails(cmd.Args.UserID)
+	if err != nil {
+		return err
+	}
+	return printJSON(udr)
+}
+
+// userDetailsHelpMsg is the output of the help command when 'userdetails' is
+// specified.
+const userDetailsHelpMsg = `userdetails "userid" 
 
 Fetch user details by user id. 
 
@@ -44,17 +61,3 @@ Result:
     "emailnotifications":    (uint64)  Whether to notify via emails
   }
 }`
-
-type UserDetailsCmd struct {
-	Args struct {
-		UserID string `positional-arg-name:"userid"`
-	} `positional-args:"true" required:"true"`
-}
-
-func (cmd *UserDetailsCmd) Execute(args []string) error {
-	udr, err := c.UserDetails(cmd.Args.UserID)
-	if err != nil {
-		return err
-	}
-	return Print(udr, cfg.Verbose, cfg.RawJSON)
-}

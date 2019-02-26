@@ -9,38 +9,18 @@ import (
 	"strconv"
 )
 
-// Help message displayed for the command 'politeiawwwcli help tally'
-var TallyCmdHelpMsg = `tally "token"
-
-Fetch the vote tally for a proposal.
-
-Arguments:
-1. token       (string, required)  Proposal censorship token
-
-Response:
-
-Vote Option:
-  ID                   : (string)  Unique word identifying vote (e.g. 'no')
-  Description          : (string)  Longer description of the vote
-  Bits                 : (uint64)  Bits used for this option (e.g. '1')
-  Votes received       : (uint)    Number of votes received
-  Percentage           : (float64) Percentage of votes for vote option 
-Vote Option:
-  ID                   : (string)  Unique word identifying vote (e.g. 'yes')
-  Description          : (string)  Longer description of the vote
-  Bits                 : (uint64)  Bits used for this option (e.g. '2')
-  Votes received       : (uint)    Number of votes received
-  Percentage           : (float64) Percentage of votes for vote option`
-
+// TallyCmd retrieves all of the cast votes for a proposal, tallies the votes,
+// and displays the result.
 type TallyCmd struct {
 	Args struct {
-		Token string `positional-arg-name:"token" description:"Proposal censorship token"`
+		Token string `positional-arg-name:"token"` // Censorship token
 	} `positional-args:"true" required:"true"`
 }
 
+// Execute executes the tally command.
 func (cmd *TallyCmd) Execute(args []string) error {
 	// Get vote results for proposal
-	vrr, err := c.ProposalVotes(cmd.Args.Token)
+	vrr, err := client.VoteResults(cmd.Args.Token)
 	if err != nil {
 		return fmt.Errorf("ProposalVotes: %v", err)
 	}
@@ -75,3 +55,26 @@ func (cmd *TallyCmd) Execute(args []string) error {
 
 	return nil
 }
+
+// tallyHelpMsg is the output for the help command when 'tally' is specified.
+const tallyHelpMsg = `tally "token"
+
+Fetch the vote tally for a proposal.
+
+Arguments:
+1. token       (string, required)  Proposal censorship token
+
+Response:
+
+Vote Option:
+  ID                   : (string)  Unique word identifying vote (e.g. 'no')
+  Description          : (string)  Longer description of the vote
+  Bits                 : (uint64)  Bits used for this option (e.g. '1')
+  Votes received       : (uint)    Number of votes received
+  Percentage           : (float64) Percentage of votes for vote option 
+Vote Option:
+  ID                   : (string)  Unique word identifying vote (e.g. 'yes')
+  Description          : (string)  Longer description of the vote
+  Bits                 : (uint64)  Bits used for this option (e.g. '2')
+  Votes received       : (uint)    Number of votes received
+  Percentage           : (float64) Percentage of votes for vote option`

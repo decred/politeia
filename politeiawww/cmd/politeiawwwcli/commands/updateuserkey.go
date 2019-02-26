@@ -7,27 +7,22 @@ import (
 	"github.com/decred/politeia/politeiawww/api/v1"
 )
 
-// Help message displayed for the command 'politeiawwwcli help updateuserkey'
-var UpdateUserKeyCmdHelpMsg = `updateuserkey
-
-Generate a new public key for the currently logged in user. 
-
-Arguments:
-None
-
-Result:
-{
-  "publickey"   (string)  User's public key
-}
-{}`
-
+// UpdateUserKeyCmd creates a new identity for the logged in user.
 type UpdateUserKeyCmd struct {
-	NoSave bool `long:"nosave" description:"Do not save the user identity to disk"`
+	NoSave bool `long:"nosave"` // Don't save new identity to disk
 }
 
+// Execute executes the update user key command.
 func (cmd *UpdateUserKeyCmd) Execute(args []string) error {
+	// Get the logged in user's username. We need
+	// this when we save the new identity to disk.
+	me, err := client.Me()
+	if err != nil {
+		return fmt.Errorf("Me: %v", err)
+	}
+
 	// Create new identity
-	id, err := NewIdentity()
+	id, err := newIdentity()
 	if err != nil {
 		return err
 	}
@@ -37,12 +32,12 @@ func (cmd *UpdateUserKeyCmd) Execute(args []string) error {
 		PublicKey: hex.EncodeToString(id.Public.Key[:]),
 	}
 
-	err = Print(uuk, cfg.Verbose, cfg.RawJSON)
+	err = printJSON(uuk)
 	if err != nil {
 		return err
 	}
 
-	uukr, err := c.UpdateUserKey(uuk)
+	uukr, err := client.UpdateUserKey(uuk)
 	if err != nil {
 		return fmt.Errorf("UpdateUserKey: %v", err)
 	}
@@ -54,20 +49,31 @@ func (cmd *UpdateUserKeyCmd) Execute(args []string) error {
 		Signature:         hex.EncodeToString(sig[:]),
 	}
 
-	vuukr, err := c.VerifyUpdateUserKey(vuuk)
+	vuukr, err := client.VerifyUpdateUserKey(vuuk)
 	if err != nil {
 		return fmt.Errorf("VerifyUpdateUserKey: %v", err)
 	}
 
-	err = Print(vuukr, cfg.Verbose, cfg.RawJSON)
-	if err != nil {
-		return err
-	}
-
 	// Save the new identity to disk
 	if !cmd.NoSave {
-		return cfg.SaveIdentity(id)
+		return cfg.SaveIdentity(me.Username, id)
 	}
 
-	return nil
+	// Print response details
+	return printJSON(vuukr)
 }
+
+// updateUserKeyHelpMsg is the output of the help command when 'updateuserkey'
+// is specified.
+const updateUserKeyHelpMsg = `updateuserkey
+
+Generate a new public key for the currently logged in user. 
+
+Arguments:
+None
+
+Result:
+{
+  "publickey"   (string)  User's public key
+}
+{}`

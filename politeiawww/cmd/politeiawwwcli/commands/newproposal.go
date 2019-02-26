@@ -13,59 +13,37 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-// Help message displayed for the command 'politeiawwwcli help newproposal'
-var NewProposalCmdHelpMsg = `newproposal "markdownFile" "attachmentFiles" 
-
-Submit a new proposal to Politeia. Proposal must be a markdown file. Accepted 
-attachment filetypes: png or plain text.
-
-Arguments:
-1. markdownFile      (string, required)   Proposal 
-2. attachmentFiles   (string, optional)   Attachments 
-
-Result:
-{
-  "files": [
-    {
-      "name":      (string)  Filename 
-      "mime":      (string)  Mime type 
-      "digest":    (string)  File digest 
-      "payload":   (string)  File payload 
-    }
-  ],
-  "publickey":   (string)  Public key of user
-  "signature":   (string)  Signed merkel root of files in proposal 
-}`
-
+// NewProposalCmd submits a new proposal.
 type NewProposalCmd struct {
 	Args struct {
-		Markdown    string   `positional-arg-name:"markdownFile"`
-		Attachments []string `positional-arg-name:"attachmentFiles"`
+		Markdown    string   `positional-arg-name:"markdownfile"`    // Proposal MD file
+		Attachments []string `positional-arg-name:"attachmentfiles"` // Proposal attachment files
 	} `positional-args:"true" optional:"true"`
-	Random bool `long:"random" optional:"true" description:"Generate a random proposal"`
+	Random bool `long:"random" optional:"true"` // Generate random proposal data
 }
 
+// Execute executes the new proposal command.
 func (cmd *NewProposalCmd) Execute(args []string) error {
 	mdFile := cmd.Args.Markdown
 	attachmentFiles := cmd.Args.Attachments
 
 	if !cmd.Random && mdFile == "" {
-		return fmt.Errorf(ErrorNoProposalFile)
+		return errProposalMDNotFound
 	}
 
 	// Check for user identity
 	if cfg.Identity == nil {
-		return fmt.Errorf(ErrorNoUserIdentity)
+		return errUserIdentityNotFound
 	}
 
 	// Get server public key
-	vr, err := c.Version()
+	vr, err := client.Version()
 	if err != nil {
 		return err
 	}
 
-	var files []v1.File
 	var md []byte
+	files := make([]v1.File, 0, v1.PolicyMaxImages+1)
 	if cmd.Random {
 		// Generate random proposal markdown text
 		var b bytes.Buffer
@@ -119,7 +97,7 @@ func (cmd *NewProposalCmd) Execute(args []string) error {
 	}
 
 	// Compute merkle root and sign it
-	sig, err := SignMerkleRoot(files, cfg.Identity)
+	sig, err := signedMerkleRoot(files, cfg.Identity)
 	if err != nil {
 		return fmt.Errorf("SignMerkleRoot: %v", err)
 	}
@@ -132,13 +110,13 @@ func (cmd *NewProposalCmd) Execute(args []string) error {
 	}
 
 	// Print request details
-	err = Print(np, cfg.Verbose, cfg.RawJSON)
+	err = printJSON(np)
 	if err != nil {
 		return err
 	}
 
 	// Send request
-	npr, err := c.NewProposal(np)
+	npr, err := client.NewProposal(np)
 	if err != nil {
 		return err
 	}
@@ -150,12 +128,38 @@ func (cmd *NewProposalCmd) Execute(args []string) error {
 		Signature:        np.Signature,
 		CensorshipRecord: npr.CensorshipRecord,
 	}
-	err = VerifyProposal(pr, vr.PubKey)
+	err = verifyProposal(pr, vr.PubKey)
 	if err != nil {
 		return fmt.Errorf("unable to verify proposal %v: %v",
 			pr.CensorshipRecord.Token, err)
 	}
 
 	// Print response details
-	return Print(npr, cfg.Verbose, cfg.RawJSON)
+	return printJSON(npr)
 }
+
+const newProposalHelpMsg = `newproposal [flags] "markdownFile" "attachmentFiles" 
+
+Submit a new proposal to Politeia. Proposal must be a markdown file. Accepted 
+attachment filetypes: png or plain text.
+
+Arguments:
+1. markdownFile      (string, required)   Proposal 
+2. attachmentFiles   (string, optional)   Attachments 
+
+Flags:
+  --random           (bool, optional)     Generate a random proposal
+
+Result:
+{
+  "files": [
+    {
+      "name":      (string)  Filename 
+      "mime":      (string)  Mime type 
+      "digest":    (string)  File digest 
+      "payload":   (string)  File payload 
+    }
+  ],
+  "publickey":   (string)  Public key of user
+  "signature":   (string)  Signed merkel root of files in proposal 
+}`

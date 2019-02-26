@@ -4,12 +4,14 @@
 
 package commands
 
+// SecretCmd pings the politeiawww secret route.
 type SecretCmd struct{}
 
+// Execute executes the secret command.
 func (cmd *SecretCmd) Execute(args []string) error {
-	ue, err := c.Secret()
+	ue, err := client.Secret()
 	if err != nil {
 		return err
 	}
-	return Print(ue, cfg.Verbose, cfg.RawJSON)
+	return printJSON(ue)
 }

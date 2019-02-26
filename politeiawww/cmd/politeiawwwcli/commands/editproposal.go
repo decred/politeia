@@ -13,91 +13,39 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-// Help message displayed for the command 'politeiawwwcli help editproposal'
-var EditProposalCmdHelpMsg = `editproposal "token" "markdownFile" "attachmentFiles" 
-
-Edit a proposal.
-
-Arguments:
-1. token             (string, required)   Proposal censorship token
-2. markdownFile      (string, required)   Edited proposal 
-3. attachmentFiles   (string, optional)   Attachments 
-
-Request:
-{
-  "token":  (string)  Censorship token
-    "files": [
-      {
-        "name":      (string)  Filename 
-        "mime":      (string)  Mime type 
-        "digest":    (string)  File digest 
-        "payload":   (string)  File payload 
-      }
-    ],
-  "publickey": (string)  Public key used to sign proposal
-  "signature": (string)  Signature of the merkle root 
-}
-
-Response:
-{
-  "proposal": {
-    "name":          (string)       Suggested short proposal name 
-    "state":         (PropStateT)   Current state of proposal
-    "status":        (PropStatusT)  Current status of proposal
-    "timestamp":     (int64)        Timestamp of last update of proposal
-    "userid":        (string)       ID of user who submitted proposal
-    "username":      (string)       Username of user who submitted proposal
-    "publickey":     (string)       Public key used to sign proposal
-    "signature":     (string)       Signature of merkle root
-    "files": [
-      {
-        "name":      (string)       Filename 
-        "mime":      (string)       Mime type 
-        "digest":    (string)       File digest 
-        "payload":   (string)       File payload 
-      }
-    ],
-    "numcomments":   (uint)    Number of comments on the proposal
-    "version": 		 (string)  Version of proposal
-    "censorshiprecord": {	
-      "token":       (string)  Censorship token
-      "merkle":      (string)  Merkle root of proposal
-      "signature":   (string)  Server side signature of []byte(Merkle+Token)
-    }
-  }
-}`
-
+// EditProposalCmd edits an existing proposal.
 type EditProposalCmd struct {
 	Args struct {
-		Token       string   `positional-arg-name:"token" required:"true"`
-		Markdown    string   `positional-arg-name:"markdownFile" required:"true"`
-		Attachments []string `positional-arg-name:"attachmentFiles"`
+		Token       string   `positional-arg-name:"token" required:"true"` // Censorship token
+		Markdown    string   `positional-arg-name:"markdownfile"`          // Proposal MD file
+		Attachments []string `positional-arg-name:"attachmentfiles"`       // Proposal attachments
 	} `positional-args:"true" optional:"true"`
-	Random bool `long:"random" optional:"true" description:"Generate a random proposal"`
+	Random bool `long:"random" optional:"true"` // Generate random proposal data
 }
 
+// Execute executes the edit proposal command.
 func (cmd *EditProposalCmd) Execute(args []string) error {
 	token := cmd.Args.Token
 	mdFile := cmd.Args.Markdown
 	attachmentFiles := cmd.Args.Attachments
 
 	if !cmd.Random && mdFile == "" {
-		return fmt.Errorf(ErrorNoProposalFile)
+		return errProposalMDNotFound
 	}
 
 	// Check for user identity
 	if cfg.Identity == nil {
-		return fmt.Errorf(ErrorNoUserIdentity)
+		return errUserIdentityNotFound
 	}
 
 	// Get server public key
-	vr, err := c.Version()
+	vr, err := client.Version()
 	if err != nil {
 		return err
 	}
 
-	var files []v1.File
 	var md []byte
+	files := make([]v1.File, 0, v1.PolicyMaxImages+1)
 	if cmd.Random {
 		// Generate random proposal markdown text
 		var b bytes.Buffer
@@ -151,7 +99,7 @@ func (cmd *EditProposalCmd) Execute(args []string) error {
 	}
 
 	// Compute merkle root and sign it
-	sig, err := SignMerkleRoot(files, cfg.Identity)
+	sig, err := signedMerkleRoot(files, cfg.Identity)
 	if err != nil {
 		return fmt.Errorf("SignMerkleRoot: %v", err)
 	}
@@ -165,24 +113,82 @@ func (cmd *EditProposalCmd) Execute(args []string) error {
 	}
 
 	// Print request details
-	err = Print(ep, cfg.Verbose, cfg.RawJSON)
+	err = printJSON(ep)
 	if err != nil {
 		return err
 	}
 
 	// Send request
-	epr, err := c.EditProposal(ep)
+	epr, err := client.EditProposal(ep)
 	if err != nil {
 		return err
 	}
 
 	// Verify proposal censorship record
-	err = VerifyProposal(epr.Proposal, vr.PubKey)
+	err = verifyProposal(epr.Proposal, vr.PubKey)
 	if err != nil {
 		return fmt.Errorf("unable to verify proposal %v: %v",
 			epr.Proposal.CensorshipRecord.Token, err)
 	}
 
 	// Print response details
-	return Print(epr, cfg.Verbose, cfg.RawJSON)
+	return printJSON(epr)
 }
+
+// editProposalHelpMsg is the output of the help command when 'editproposal'
+// is specified.
+const editProposalHelpMsg = `editproposal [flags] "token" "markdownfile" "attachmentfiles" 
+
+Edit a proposal.
+
+Arguments:
+1. token             (string, required)   Proposal censorship token
+2. markdownfile      (string, required)   Edited proposal 
+3. attachmentfiles   (string, optional)   Attachments 
+
+Flags:
+  --random           (bool, optional)     Generate a random proposal to submit
+
+Request:
+{
+  "token":  (string)  Censorship token
+    "files": [
+      {
+        "name":      (string)  Filename 
+        "mime":      (string)  Mime type 
+        "digest":    (string)  File digest 
+        "payload":   (string)  File payload 
+      }
+    ],
+  "publickey": (string)  Public key used to sign proposal
+  "signature": (string)  Signature of the merkle root 
+}
+
+Response:
+{
+  "proposal": {
+    "name":          (string)       Suggested short proposal name 
+    "state":         (PropStateT)   Current state of proposal
+    "status":        (PropStatusT)  Current status of proposal
+    "timestamp":     (int64)        Timestamp of last update of proposal
+    "userid":        (string)       ID of user who submitted proposal
+    "username":      (string)       Username of user who submitted proposal
+    "publickey":     (string)       Public key used to sign proposal
+    "signature":     (string)       Signature of merkle root
+    "files": [
+      {
+        "name":      (string)       Filename 
+        "mime":      (string)       Mime type 
+        "digest":    (string)       File digest 
+        "payload":   (string)       File payload 
+      }
+    ],
+    "numcomments":   (uint)    Number of comments on the proposal
+    "version": 		 (string)  Version of proposal
+    "censorshiprecord": {	
+      "token":       (string)  Censorship token
+      "merkle":      (string)  Merkle root of proposal
+      "signature":   (string)  Server side signature of []byte(Merkle+Token)
+    }
+  }
+}`

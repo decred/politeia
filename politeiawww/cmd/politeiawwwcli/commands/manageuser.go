@@ -11,43 +11,17 @@ import (
 	"github.com/decred/politeia/politeiawww/api/v1"
 )
 
-// Help message displayed for the command 'politeiawwwcli help manageuser'
-var ManageUserCmdHelpMsg = `manageuser "userid" "action" "reason"
-
-Edit the details for the given user id. Requires admin privileges.
-
-Arguments:
-1. userid       (string, required)   User id
-2. action       (string, required)   Edit user action
-3. reason       (string, required)   Reason for editing the use
-
-Valid actions are:
-1. expirenewuser           Expires new user verification
-2. expireupdatekey         Expires update user key verification
-3. expireresetpassword     Expires reset password verification
-4. clearpaywall            Clears user registration paywall
-5. unlocks                 Unlocks user account from failed logins
-6. deactivates             Deactivates user account
-7. reactivate              Reactivates user account
-
-Request:
-{
-  "userid":  (string)    User id
-  "action":  (string)    Edit user action
-  "reason":  (string)    Reason for action
-}
-
-Response:
-{}`
-
+// ManageUserCmd allows an admin to edit certain properties of the specified
+// user.
 type ManageUserCmd struct {
 	Args struct {
-		UserID string `positional-arg-name:"userid" description:"User ID"`
-		Action string `positional-arg-name:"action" description:"(Admin) edit user action"`
-		Reason string `positional-arg-name:"reason" description:"Reason for editing the user"`
+		UserID string `positional-arg-name:"userid"` // User ID
+		Action string `positional-arg-name:"action"` // Edit user action
+		Reason string `positional-arg-name:"reason"` // Reason for editing user
 	} `positional-args:"true" required:"true"`
 }
 
+// Execute executes the manage user command.
 func (cmd *ManageUserCmd) Execute(args []string) error {
 	ManageActions := map[string]v1.UserManageActionT{
 		"expirenewuser":       v1.UserManageExpireNewUserVerification,
@@ -88,17 +62,47 @@ func (cmd *ManageUserCmd) Execute(args []string) error {
 	}
 
 	// Print request details
-	err = Print(mu, cfg.Verbose, cfg.RawJSON)
+	err = printJSON(mu)
 	if err != nil {
 		return err
 	}
 
 	// Send request
-	mur, err := c.ManageUser(mu)
+	mur, err := client.ManageUser(mu)
 	if err != nil {
 		return err
 	}
 
 	// Print response details
-	return Print(mur, cfg.Verbose, cfg.RawJSON)
+	return printJSON(mur)
 }
+
+// manageUserHelpMsg is the output of the help command when 'edituser' is
+// specified.
+const manageUserHelpMsg = `manageuser "userid" "action" "reason"
+
+Edit the details for the given user id. Requires admin privileges.
+
+Arguments:
+1. userid       (string, required)   User id
+2. action       (string, required)   Edit user action
+3. reason       (string, required)   Reason for editing the user
+
+Valid actions are:
+1. expirenewuser           Expires new user verification
+2. expireupdatekey         Expires update user key verification
+3. expireresetpassword     Expires reset password verification
+4. clearpaywall            Clears user registration paywall
+5. unlocks                 Unlocks user account from failed logins
+6. deactivates             Deactivates user account
+7. reactivate              Reactivates user account
+
+Request:
+{
+  "userid":  (string)    User id
+  "action":  (string)    Edit user action
+  "reason":  (string)    Reason for action
+}
+
+Response:
+{}`

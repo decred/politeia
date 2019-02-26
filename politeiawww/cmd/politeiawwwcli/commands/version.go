@@ -4,13 +4,25 @@
 
 package commands
 
-// Help message displayed for the command 'politeiawwwcli help version'
-var VersionCmdHelpMsg = `version
+// VersionCmd retrieves server version information and CSRF token.
+type VersionCmd struct{}
 
-Fetch server info and CSRF token.
+// Execute executes the version command.
+func (cmd *VersionCmd) Execute(args []string) error {
+	vr, err := client.Version()
+	if err != nil {
+		return err
+	}
+	return printJSON(vr)
+}
 
-Arguments:
-None
+// versionHelpMsg is the output of the help command when 'version' is
+// specified.
+const versionHelpMsg = `version
+
+Fetch server version info and CSRF token.
+
+Arguments: None
 
 Result:
 {
@@ -19,13 +31,3 @@ Result:
   "pubkey":   (string)  Server public key
   "testnet":  (bool)    Whether of not testnet is being used
 }`
-
-type VersionCmd struct{}
-
-func (cmd *VersionCmd) Execute(args []string) error {
-	vr, err := c.Version()
-	if err != nil {
-		return err
-	}
-	return Print(vr, cfg.Verbose, cfg.RawJSON)
-}
