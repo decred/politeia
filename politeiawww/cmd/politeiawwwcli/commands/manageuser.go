@@ -50,13 +50,13 @@ type ManageUserCmd struct {
 
 func (cmd *ManageUserCmd) Execute(args []string) error {
 	ManageActions := map[string]v1.UserManageActionT{
-		"expirenewuser":       1,
-		"expireupdatekey":     2,
-		"expireresetpassword": 3,
-		"clearpaywall":        4,
-		"unlock":              5,
-		"deactivate":          6,
-		"reactivate":          7,
+		"expirenewuser":       v1.UserManageExpireNewUserVerification,
+		"expireupdatekey":     v1.UserManageExpireUpdateKeyVerification,
+		"expireresetpassword": v1.UserManageExpireResetPasswordVerification,
+		"clearpaywall":        v1.UserManageClearUserPaywall,
+		"unlock":              v1.UserManageUnlock,
+		"deactivate":          v1.UserManageDeactivate,
+		"reactivate":          v1.UserManageReactivate,
 	}
 
 	// Parse edit user action.  This can be either the numeric

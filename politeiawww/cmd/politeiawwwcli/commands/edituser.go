@@ -5,27 +5,32 @@
 package commands
 
 import (
+	"fmt"
+	"strconv"
+	"strings"
+
 	"github.com/decred/politeia/politeiawww/api/v1"
 )
 
 // Help message displayed for the command 'politeiawwwcli help edituser'
-var EditUserCmdHelpMsg = `edituser "userid" "action" "reason"
+var EditUserCmdHelpMsg = `edituser "emailnotifications"
 
-Edit the details for the given user id. 
+Edit email notifications for the currently logged in user. 
 
-Valid bit flags are:
-'1 << 0' - Notification email when status of user's proposal changes
-'1 << 1' - Notification email when voting has started on user's proposal
-'1 << 2' - Notification email when a proposal is vetted
-'1 << 3' - Notification email when a proposal is edited
-'1 << 4' - Notification email when voting on a proposal has started
-'1 << 5' - Notification email when a new proposal is submitted (admin only)
-'1 << 6' - Notification email when a user authorizes vote on proposal (admin only)
-'1 << 7' - Notification email when a comment is made on a user's proposal
-'1 << 8' - Notification email when a comment is made on a user's comment
-  
 Arguments:
-1. emailnotifications (uint64, optional)  Email notification setting (bit flag)
+1. emailnotifications       (string, required)   Notification option  
+
+Valid options are:
+
+1.   userproposalchange         Notify when status of my proposal changes
+2.   userproposalvotingstarted  Notify when my proposal vote has started
+4.   proposalvetted             Notify when any proposal is vetted
+8.   proposaledited             Notify when any proposal is edited
+16.  votingstarted              Notify when voting on any proposal has started
+32.  newproposal                Notify when proposal is submitted (admin only)
+64.  userauthorizedvote         Notify when user authorizes vote (admin only)
+128. commentonproposal          Notify when comment is made on my proposal
+256. commentoncomment           Notify when comment is made on my comment
 
 Request:
 {
@@ -36,17 +41,63 @@ Response:
 {}`
 
 type EditUserCmd struct {
-	EmailNotifications *uint64 `long:"emailnotifications" optional:"true" description:"Whether to notify via emails"`
+	Args struct {
+		NotifType string `long:"emailnotifications" description:"Email notifications"`
+	}
 }
 
 func (cmd *EditUserCmd) Execute(args []string) error {
+
+	emailNotifs := map[string]v1.EmailNotificationT{
+		"userproposalchange":        v1.NotificationEmailMyProposalStatusChange,
+		"userproposalvotingstarted": v1.NotificationEmailMyProposalVoteStarted,
+		"proposalvetted":            v1.NotificationEmailRegularProposalVetted,
+		"proposaledited":            v1.NotificationEmailRegularProposalEdited,
+		"votingstarted":             v1.NotificationEmailRegularProposalVoteStarted,
+		"newproposal":               v1.NotificationEmailAdminProposalNew,
+		"userauthorizedvote":        v1.NotificationEmailAdminProposalVoteAuthorized,
+		"commentonproposal":         v1.NotificationEmailCommentOnMyProposal,
+		"commentoncomment":          v1.NotificationEmailCommentOnMyComment,
+	}
+
+	var notif v1.EmailNotificationT
+	a, err := strconv.ParseUint(cmd.Args.NotifType, 10, 64)
+	if err == nil {
+		// Numeric action code found
+		notif = v1.EmailNotificationT(a)
+	} else if a, ok := emailNotifs[cmd.Args.NotifType]; ok {
+		// Human readable action code found
+		notif = a
+
+	} else if strings.Contains(cmd.Args.NotifType, ",") {
+		// List of human readable action codes found
+
+		notif = a
+		// Parse list of strings and calculate associated integer
+		s := strings.Split(cmd.Args.NotifType, ",")
+		for _, v := range s {
+
+			a, ok := emailNotifs[v]
+			if !ok {
+				return fmt.Errorf("Invalid edituser option. Type " +
+					"'help edituser' for list of valid options")
+			}
+			notif |= a
+		}
+
+	} else {
+		return fmt.Errorf("Invalid edituser option. Type 'help edituser' " +
+			"for list of valid options")
+	}
+
 	// Setup request
+	helper := uint64(notif)
 	eu := &v1.EditUser{
-		EmailNotifications: cmd.EmailNotifications,
+		EmailNotifications: &helper,
 	}
 
 	// Print request details
-	err := Print(eu, cfg.Verbose, cfg.RawJSON)
+	err = Print(eu, cfg.Verbose, cfg.RawJSON)
 	if err != nil {
 		return err
 	}
