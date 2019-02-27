@@ -12,6 +12,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg"
+	v1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/cache"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
@@ -259,6 +260,27 @@ func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Reque
 func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 	// Get the policy command.
 	log.Tracef("handlePolicy")
+
+	// Fetch policy configs set in d.
+	if www.PolicyMaxMDs == 0 {
+		responseBody, err := p.makeRequest(http.MethodGet, v1.PolicyRoute, nil)
+		if err != nil {
+			RespondWithError(w, r, 0,
+				"handlePolicy: makeRequest %v", err)
+			return
+		}
+
+		var policy v1.PolicyReply
+		err = json.Unmarshal(responseBody, &policy)
+		if err != nil {
+			RespondWithError(w, r, 0,
+				"handlePolicy: could not unmarshal PolicyReply %v", err)
+			return
+		}
+
+		www.PolicyMaxMDs = policy.MaxFiles
+	}
+
 	reply := &www.PolicyReply{
 		MinPasswordLength:          www.PolicyMinPasswordLength,
 		MinUsernameLength:          www.PolicyMinUsernameLength,

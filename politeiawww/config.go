@@ -27,7 +27,7 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/util/version"
 
-	"github.com/decred/politeia/politeiad/api/v1"
+	v1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiawww/sharedconfig"
 	"github.com/decred/politeia/util"
 	flags "github.com/jessevdk/go-flags"

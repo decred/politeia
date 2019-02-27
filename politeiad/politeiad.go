@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/decred/politeia/decredplugin"
-	"github.com/decred/politeia/politeiad/api/v1"
+	v1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/gitbe"
@@ -292,6 +292,16 @@ func (p *politeia) getIdentity(w http.ResponseWriter, r *http.Request) {
 	reply := v1.IdentityReply{
 		PublicKey: hex.EncodeToString(p.identity.Public.Key[:]),
 		Response:  hex.EncodeToString(response[:]),
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+func (p *politeia) getPolicy(w http.ResponseWriter, r *http.Request) {
+	log.Infof("Fetching policy settings from config")
+
+	reply := v1.PolicyReply{
+		MaxFiles: p.cfg.MaxFiles,
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
@@ -1123,6 +1133,9 @@ func _main() error {
 		}
 	}
 
+	// Setup max files per record
+	v1.PolicyMaxFiles = p.cfg.MaxFiles
+
 	// Setup mux
 	p.router = mux.NewRouter()
 
@@ -1138,6 +1151,8 @@ func _main() error {
 	p.addRoute(http.MethodPost, v1.GetUnvettedRoute, p.getUnvetted,
 		permissionPublic)
 	p.addRoute(http.MethodPost, v1.GetVettedRoute, p.getVetted,
+		permissionPublic)
+	p.addRoute(http.MethodGet, v1.PolicyRoute, p.getPolicy,
 		permissionPublic)
 
 	// Routes that require auth

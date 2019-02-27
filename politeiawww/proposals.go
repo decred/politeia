@@ -186,7 +186,7 @@ func validateProposal(np www.NewProposal, u *user.User) error {
 	filenames := make(map[string]int, len(np.Files))
 	// Check that the file number policy is followed.
 	var (
-		numMDs, numImages, numIndexFiles      int
+		numMDs, numImages, numIndexFiles      uint
 		mdExceedsMaxSize, imageExceedsMaxSize bool
 		hashes                                []*[sha256.Size]byte
 	)

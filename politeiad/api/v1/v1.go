@@ -28,6 +28,7 @@ const (
 	UpdateVettedMetadataRoute = "/v1/updatevettedmd/" // Update vetted metadata
 	GetUnvettedRoute          = "/v1/getunvetted/"    // Retrieve unvetted record
 	GetVettedRoute            = "/v1/getvetted/"      // Retrieve vetted record
+	PolicyRoute               = "/v1/policy/"         // Fetch policy settings
 
 	// Auth required
 	InventoryRoute         = "/v1/inventory/"                  // Inventory records
@@ -109,6 +110,9 @@ var (
 		RecordStatusUnreviewedChanges: "unreviewed changes",
 		RecordStatusArchived:          "archived",
 	}
+
+	// PolicyMaxFiles is the maximum number of files per record
+	PolicyMaxFiles uint
 
 	// Input validation
 	RegexpSHA256 = regexp.MustCompile("[A-Fa-f0-9]{64}")
@@ -406,4 +410,9 @@ type PluginCommandReply struct {
 	Command   string `json:"command"`   // Command identifier
 	CommandID string `json:"commandid"` // User setable command identifier
 	Payload   string `json:"payload"`   // Actual command reply
+}
+
+// PolicyReply returns policy configs that might be setted in d.
+type PolicyReply struct {
+	MaxFiles uint `json:"maxfiles"`
 }

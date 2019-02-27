@@ -160,9 +160,11 @@ func TestValidateProposal(t *testing.T) {
 	// Too many markdown files. We need one correctly named md
 	// file and the rest must have their names changed so that we
 	// don't get a duplicate filename error.
+	var i uint
+	www.PolicyMaxMDs = 1
 	files := make([]www.File, 0, www.PolicyMaxMDs+1)
 	files = append(files, *md)
-	for i := 0; i < www.PolicyMaxMDs; i++ {
+	for i = 0; i < www.PolicyMaxMDs; i++ {
 		m := *md
 		m.Name = fmt.Sprintf("%v.md", i)
 		files = append(files, m)

@@ -78,10 +78,6 @@ const (
 	// accepted when creating a new proposal
 	PolicyMaxImageSize = 512 * 1024
 
-	// PolicyMaxMDs is the maximum number of markdown files accepted
-	// when creating a new proposal
-	PolicyMaxMDs = 1
-
 	// PolicyMaxMDSize is the maximum markdown file size (in bytes)
 	// accepted when creating a new proposal
 	PolicyMaxMDSize = 512 * 1024
@@ -264,6 +260,10 @@ var (
 
 	// PoliteiaWWWAPIRoute is the prefix to the API route
 	PoliteiaWWWAPIRoute = fmt.Sprintf("/v%v", PoliteiaWWWAPIVersion)
+
+	// PolicyMaxMDs is the maximum number of markdown files accepted
+	// when creating a new proposal
+	PolicyMaxMDs uint
 
 	// CookieSession is the cookie name that indicates that a user is
 	// logged in.

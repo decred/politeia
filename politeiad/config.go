@@ -22,7 +22,7 @@ import (
 	"strings"
 
 	"github.com/decred/dcrd/dcrutil"
-	"github.com/decred/dcrtime/api/v1"
+	v1 "github.com/decred/dcrtime/api/v1"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	flags "github.com/jessevdk/go-flags"
@@ -38,6 +38,8 @@ const (
 
 	defaultMainnetPort = "49374"
 	defaultTestnetPort = "59374"
+
+	defaultMaxFiles = 1
 )
 
 var (
@@ -85,6 +87,7 @@ type config struct {
 	BuildCache    bool   `long:"buildcache" description:"Build the cache from scratch"`
 	Identity      string `long:"identity" description:"File containing the politeiad identity file"`
 	GitTrace      bool   `long:"gittrace" description:"Enable git tracing in logs"`
+	MaxFiles      uint   `long:"maxfiles" description:"Max files allowed in a record"`
 }
 
 // serviceOptions defines the configuration options for the daemon as a service
@@ -286,6 +289,7 @@ func loadConfig() (*config, []string, error) {
 		LogDir:     defaultLogDir,
 		HTTPSKey:   defaultHTTPSKeyFile,
 		HTTPSCert:  defaultHTTPSCertFile,
+		MaxFiles:   defaultMaxFiles,
 		Version:    version.String(),
 	}
 
