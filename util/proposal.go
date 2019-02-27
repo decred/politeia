@@ -8,16 +8,15 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/base64"
-	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 
 	www "github.com/decred/politeia/politeiawww/api/v1"
 )
 
 var (
-	validProposalName    = regexp.MustCompile(CreateProposalNameRegex())
-	validProposalSummary = regexp.MustCompile(CreateProposalSummaryRegex())
+	validProposalName = regexp.MustCompile(CreateProposalNameRegex())
 )
 
 // ProposalName returns a proposal name
@@ -35,6 +34,7 @@ func GetProposalName(payload string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return string(proposalName), nil
 }
 
@@ -70,13 +70,23 @@ func GetProposalSummary(payload string) (string, error) {
 		return "", err
 	}
 
-	reader := bufio.NewReader(bytes.NewReader(rawPayload))
-	proposalSummary, _, err := reader.ReadLine()
+	readbuffer := bytes.NewBuffer([]byte(rawPayload))
+	reader := bufio.NewReader(readbuffer)
+	name, _, err := reader.ReadLine()
+	if err != nil {
+		return "", err
+	}
+	// carriage return is insterted after proposal summary.
+	// ReadString stops reading payload after \r
+	// header == title && summary
+	// TrimLeft removes the proposal name
+	header, err := reader.ReadString('\r')
+	proposalSummary := strings.TrimLeft(header, string(name))
 	if err != nil {
 		return "", err
 	}
 	fmt.Println(proposalSummary)
-	return string(proposalSummary), nil
+	return proposalSummary, nil
 }
 
 func IsValidProposalSummary(str string) bool {
@@ -85,6 +95,5 @@ func IsValidProposalSummary(str string) bool {
 
 func CreateProposalSummaryRegex() string {
 	var validProposalSummaryBuffer bytes.Buffer
-
 	return validProposalSummaryBuffer.String()
 }
