@@ -127,6 +127,12 @@ type User struct {
 	// associated with them to signify that they have been spent. The price that
 	// the proposal credit was purchased at is in atoms.
 	SpentProposalCredits []ProposalCredit
+
+	// Contractor Management System fields
+	Name              string // The real name associated with a Contractor
+	Location          string // The general location provided by the Contractor
+	ExtendedPublicKey string // The extendedpublickey provided by the Contractor that will be used to generate outgoing payments from invoices.
+
 }
 
 // ActiveIdentity returns a user's active identity. A user will always have an

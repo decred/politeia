@@ -384,9 +384,11 @@ func _main() error {
 	p.initEventManager()
 
 	// Set up the code that checks for paywall payments.
-	err = p.initPaywallChecker()
-	if err != nil {
-		return err
+	if p.cfg.Mode == "piwww" {
+		err = p.initPaywallChecker()
+		if err != nil {
+			return err
+		}
 	}
 
 	// Load or create new CSRF key
@@ -436,8 +438,10 @@ func _main() error {
 	switch p.cfg.Mode {
 	case politeiaWWWMode:
 		p.setPoliteiaWWWRoutes()
+	case cmsWWWMode:
+		p.setCMSWWWRoutes()
 	default:
-		return fmt.Errorf("Unknown mode %v:", p.cfg.Mode)
+		return fmt.Errorf("unknown mode %v:", p.cfg.Mode)
 	}
 
 	// XXX setup user routes

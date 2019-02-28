@@ -16,6 +16,12 @@ import (
 	"github.com/decred/politeia/politeiawww/user"
 )
 
+const (
+	// This refers to a route for the GUI registration page.  It is used to fill
+	// in email messages giving the direct URL to the page for users to follow.
+	RegisterNewUserGuiRoute = "/register"
+)
+
 func createBody(tpl *template.Template, tplData interface{}) (string, error) {
 	var buf bytes.Buffer
 	err := tpl.Execute(&buf, tplData)
@@ -540,6 +546,33 @@ func (p *politeiawww) emailUserLocked(email string) error {
 
 	subject := "Locked Account - Reset Your Password"
 	body, err := createBody(templateUserLockedResetPassword, &tplData)
+	if err != nil {
+		return err
+	}
+
+	return p.sendEmailTo(subject, body, email)
+}
+
+// emailInviteNewUserVerificationLink emails the link to invite a user to
+// join the Contractor Management System, if the email server is set up.
+func (p *politeiawww) emailInviteNewUserVerificationLink(email, token string) error {
+	if p.smtp.disabled {
+		return nil
+	}
+
+	link, err := p.createEmailLink(RegisterNewUserGuiRoute,
+		email, token)
+	if err != nil {
+		return err
+	}
+
+	tplData := newInviteUserEmailTemplateData{
+		Email: email,
+		Link:  link,
+	}
+
+	subject := "Welcome to the Contractor Management System"
+	body, err := createBody(templateInviteNewUserEmail, &tplData)
 	if err != nil {
 		return err
 	}

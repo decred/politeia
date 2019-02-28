@@ -60,6 +60,7 @@ type Cmds struct {
 	EditUser           EditUserCmd           `command:"edituser" description:"(user)   edit the  preferences of the logged in user"`
 	Help               HelpCmd               `command:"help" description:"         print a detailed help message for a specific command"`
 	Inventory          InventoryCmd          `command:"inventory" description:"(public) get the proposals that are being voted on"`
+	InviteNewUser      InviteNewUserCmd      `command:"invite" description:"(admin) invite a new user"`
 	LikeComment        LikeCommentCmd        `command:"likecomment" description:"(user)   upvote/downvote a comment"`
 	Login              LoginCmd              `command:"login" description:"(public) login to Politeia"`
 	Logout             LogoutCmd             `command:"logout" description:"(public) logout of Politeia"`
@@ -74,6 +75,7 @@ type Cmds struct {
 	ProposalStats      ProposalStatsCmd      `command:"proposalstats" description:"(public) get statistics on the proposal inventory"`
 	UnvettedProposals  UnvettedProposalsCmd  `command:"unvettedproposals" description:"(admin)  get a page of unvetted proposals"`
 	VettedProposals    VettedProposalsCmd    `command:"vettedproposals" description:"(public) get a page of vetted proposals"`
+	RegisterUser       RegisterUserCmd       `command:"register" description:"(public) register an invited user to cms"`
 	RescanUserPayments RescanUserPaymentsCmd `command:"rescanuserpayments" description:"(admin)  rescan a user's payments to check for missed payments"`
 	ResendVerification ResendVerificationCmd `command:"resendverification" description:"(public) resend the user verification email"`
 	ResetPassword      ResetPasswordCmd      `command:"resetpassword" description:"(public) reset the password for a user that is not logged in"`

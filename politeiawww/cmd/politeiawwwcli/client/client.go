@@ -379,6 +379,52 @@ func (c *Client) Policy() (*v1.PolicyReply, error) {
 	return &pr, nil
 }
 
+// InviteNewUser creates a new cmswww user.
+func (c *Client) InviteNewUser(inu *v1.InviteNewUser) (*v1.InviteNewUserReply, error) {
+	responseBody, err := c.makeRequest("POST", v1.RouteInviteNewUser, inu)
+	if err != nil {
+		return nil, err
+	}
+
+	var inur v1.InviteNewUserReply
+	err = json.Unmarshal(responseBody, &inur)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal InviteNewUserReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(inur)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &inur, nil
+}
+
+// InviteNewUser creates a new cmswww user.
+func (c *Client) RegisterUser(ru *v1.RegisterUser) (*v1.RegisterUserReply, error) {
+	responseBody, err := c.makeRequest("POST", v1.RouteRegisterUser, ru)
+	if err != nil {
+		return nil, err
+	}
+
+	var rur v1.RegisterUserReply
+	err = json.Unmarshal(responseBody, &rur)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal RegisterUserReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(rur)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &rur, nil
+}
+
 // NewUser creates a new politeiawww user.
 func (c *Client) NewUser(nu *v1.NewUser) (*v1.NewUserReply, error) {
 	responseBody, err := c.makeRequest("POST", v1.RouteNewUser, nu)

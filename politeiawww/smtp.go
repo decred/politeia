@@ -58,7 +58,7 @@ func newSMTP(host, user, password, emailAddress string) (*smtp, error) {
 	}
 
 	// Initialize SMTP client
-	client, err := goemail.NewSMTP(u.String(), &tls.Config{})
+	client, err := goemail.NewSMTP(u.String(), &tls.Config{InsecureSkipVerify: true})
 	if err != nil {
 		return nil, err
 	}
