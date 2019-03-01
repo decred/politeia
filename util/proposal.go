@@ -16,7 +16,8 @@ import (
 )
 
 var (
-	validProposalName = regexp.MustCompile(CreateProposalNameRegex())
+	validProposalName    = regexp.MustCompile(CreateProposalNameRegex())
+	validProposalSummary = regexp.MustCompile(CreateProposalSummaryRegex())
 )
 
 // ProposalName returns a proposal name
@@ -76,16 +77,15 @@ func GetProposalSummary(payload string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// carriage return is insterted after proposal summary.
+	// \r is insterted after proposal summary.
 	// ReadString stops reading payload after \r
-	// header == title && summary
+	// header == title && summary (both come before \r)
 	// TrimLeft removes the proposal name
 	header, err := reader.ReadString('\r')
-	proposalSummary := strings.TrimLeft(header, string(name))
+	proposalSummary := strings.TrimPrefix(header, string(name))
 	if err != nil {
 		return "", err
 	}
-	fmt.Println(proposalSummary)
 	return proposalSummary, nil
 }
 
@@ -95,5 +95,8 @@ func IsValidProposalSummary(str string) bool {
 
 func CreateProposalSummaryRegex() string {
 	var validProposalSummaryBuffer bytes.Buffer
+	validProposalSummaryBuffer.WriteString(`[\s\S]{`)
+	validProposalSummaryBuffer.WriteString(strconv.Itoa(www.PolicyMinProposalSummaryLength) + ",")
+	validProposalSummaryBuffer.WriteString(strconv.Itoa(www.PolicyMaxProposalSummaryLength) + "}$")
 	return validProposalSummaryBuffer.String()
 }

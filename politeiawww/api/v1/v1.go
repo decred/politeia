@@ -106,6 +106,9 @@ const (
 	// accepted for comments
 	PolicyMaxCommentLength = 8000
 
+	// PolicyMaxProposalSummaryLength is the min length of a proposal summary
+	PolicyMinProposalSummaryLength = 10
+
 	// PolicyMaxProposalSummaryLength is the max length of a proposal summary
 	PolicyMaxProposalSummaryLength = 255
 
@@ -794,6 +797,7 @@ type PolicyReply struct {
 	ProposalNameSupportedChars []string `json:"proposalnamesupportedchars"`
 	MaxCommentLength           uint     `json:"maxcommentlength"`
 	BackendPublicKey           string   `json:"backendpublickey"`
+	MinProposalSummaryLength   uint     `json:"minproposalsummarylength"`
 	MaxProposalSummaryLength   uint     `json:"maxproposalsummarylength"`
 }
 

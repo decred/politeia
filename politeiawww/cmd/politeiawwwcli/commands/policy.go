@@ -39,6 +39,7 @@ Response:
 	"validmimetypes"             ([]string) List of acceptable MIME types
 	"minproposalnamelength"      (uint)     Minimum length of a proposal name
 	"maxproposalnamelength"      (uint)     Maximum length of a proposal name
+	"minproposalsummarylength"   (uint)   	Minimum length of a proposal summary
 	"maxproposalsummarylength"   (uint)   	Maximum length of a proposal summary
 	"proposalnamesupportedchars" ([]string) Regex of a valid proposal name
 	"maxcommentlength"           (uint)     Maximum characters in comments

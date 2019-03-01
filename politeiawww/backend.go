@@ -1934,9 +1934,10 @@ func (b *backend) ProcessPolicy(p www.Policy) *www.PolicyReply {
 		ValidMIMETypes:             mime.ValidMimeTypes(),
 		MinProposalNameLength:      www.PolicyMinProposalNameLength,
 		MaxProposalNameLength:      www.PolicyMaxProposalNameLength,
-		MaxProposalSummaryLength:   www.PolicyMaxProposalSummaryLength,
 		ProposalNameSupportedChars: www.PolicyProposalNameSupportedChars,
 		MaxCommentLength:           www.PolicyMaxCommentLength,
+		MinProposalSummaryLength:   www.PolicyMinProposalSummaryLength,
+		MaxProposalSummaryLength:   www.PolicyMaxProposalSummaryLength,
 	}
 }
 
