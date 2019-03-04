@@ -117,6 +117,10 @@ You can also use the following default configurations:
     cacherootcert="~/.cockroachdb/certs/clients/records_politeiawww/ca.crt"
     cachecert="~/.cockroachdb/certs/clients/records_politeiawww/client.records_politeiawww.crt"
     cachekey="~/.cockroachdb/certs/clients/records_politeiawww/client.records_politeiawww.key"
+    cmshost=localhost:26258
+    cmsrootcert="~/.cockroachdb/certs/clients/invoices_cmsdb/ca.crt"
+    cmscert="~/.cockroachdb/certs/clients/invoices_cmsdb/client.invoices_cmsdb.crt"
+    cmskey="~/.cockroachdb/certs/clients/invoices_cmsdb/client.invoices_cmsdb.key"
 
 **Things to note:**
 
@@ -226,6 +230,21 @@ manually you can do so by opening a sql shell.
     cockroach sql \
       --certs-dir=${HOME}/.cockroachdb/certs/clients/root \
       --host localhost
+
+#### 4a. Setup cms database:
+
+    cd $GOPATH/src/github.com/decred/politeia
+    ./cmscerts.sh ~/.cockroachdb
+
+    cockroach start \
+      --certs-dir=${HOME}/.cockroachdb/certs/node \
+      --listen-addr=localhost:26258 \
+      --store=${HOME}/.cmsdb/data \
+      --http-addr=localhost:8081
+
+    cd $GOPATH/src/github.com/decred/politeia
+    ./cmssetup.sh ~/.cockroachdb/certs/clients/root
+    
 
 #### 5. Build the programs:
 

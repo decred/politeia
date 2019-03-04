@@ -659,6 +659,30 @@ func (c *Client) EditProposal(ep *v1.EditProposal) (*v1.EditProposalReply, error
 	return &epr, nil
 }
 
+// NewInvoice submits the specified invoice to politeiawww for the logged in
+// user.
+func (c *Client) NewInvoice(ni *cms.NewInvoice) (*cms.NewInvoiceReply, error) {
+	responseBody, err := c.makeRequest("POST", cms.RouteNewInvoice, ni)
+	if err != nil {
+		return nil, err
+	}
+
+	var nir cms.NewInvoiceReply
+	err = json.Unmarshal(responseBody, &nir)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal NewInvoiceReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(nir)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &nir, nil
+}
+
 // ProposalDetails retrieves the specified proposal.
 func (c *Client) ProposalDetails(token string, pd *v1.ProposalsDetails) (*v1.ProposalDetailsReply, error) {
 	responseBody, err := c.makeRequest("GET", "/proposals/"+token, pd)
@@ -1341,6 +1365,29 @@ func (c *Client) ResendVerification(rv v1.ResendVerification) (*v1.ResendVerific
 	}
 
 	return &rvr, nil
+}
+
+// InvoiceDetails retrieves the specified invoice.
+func (c *Client) InvoiceDetails(token string) (*cms.InvoiceDetailsReply, error) {
+	responseBody, err := c.makeRequest("GET", "/invoices/"+token, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var idr cms.InvoiceDetailsReply
+	err = json.Unmarshal(responseBody, &idr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal InvoiceDetailsReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(idr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &idr, nil
 }
 
 // Close all client connections.

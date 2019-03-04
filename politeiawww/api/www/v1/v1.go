@@ -112,6 +112,14 @@ const (
 	// accepted for comments
 	PolicyMaxCommentLength = 8000
 
+	// PolicyInvoiceCommentChar is the character which, when used as the first
+	// character of a line, denotes that entire line as a comment.
+	PolicyInvoiceCommentChar rune = '#'
+
+	// PolicyInvoiceFieldDelimiterChar is the character that delimits field
+	// values for each line item in the CSV.
+	PolicyInvoiceFieldDelimiterChar rune = ','
+
 	// ProposalListPageSize is the maximum number of proposals returned
 	// for the routes that return lists of proposals
 	ProposalListPageSize = 20
@@ -183,6 +191,11 @@ const (
 	ErrorStatusEmailAlreadyVerified        ErrorStatusT = 59
 	ErrorStatusMalformedName               ErrorStatusT = 60
 	ErrorStatusMalformedLocation           ErrorStatusT = 61
+	ErrorStatusInvoiceNotFound             ErrorStatusT = 62
+
+	// CMS Errors
+
+	ErrorStatusMalformedInvoiceFile ErrorStatusT = 59
 
 	// Proposal state codes
 	//
@@ -333,6 +346,7 @@ var (
 		ErrorStatusEmailAlreadyVerified:        "email address is already verified",
 		ErrorStatusMalformedName:               "malformed name",
 		ErrorStatusMalformedLocation:           "malformed location",
+		ErrorStatusInvoiceNotFound:             "invoice cannot be found",
 	}
 
 	// PropStatus converts propsal status codes to human readable text
@@ -701,7 +715,7 @@ type ProposalPaywallDetailsReply struct {
 }
 
 // ProposalPaywallPayment is used to request payment details for a pending
-// propsoal paywall payment.
+// proposal paywall payment.
 type ProposalPaywallPayment struct{}
 
 // ProposalPaywallPaymentReply is used to reply to the ProposalPaywallPayment

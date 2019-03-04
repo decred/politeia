@@ -5,10 +5,19 @@
 package main
 
 import (
+	"encoding/base64"
+	"encoding/csv"
+	"encoding/json"
+	"fmt"
+	"strconv"
+	"strings"
+
 	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/cache"
+	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/decred/politeia/politeiawww/database"
 )
 
 func convertCastVoteReplyFromDecredPlugin(cvr decredplugin.CastVoteReply) www.CastVoteReply {
@@ -467,4 +476,153 @@ func convertPluginFromPD(p pd.Plugin) Plugin {
 		Version:  p.Version,
 		Settings: ps,
 	}
+}
+
+func convertInvoiceFileFromWWW(f *www.File) []pd.File {
+	return []pd.File{{
+		Name:    "invoice.csv",
+		MIME:    "text/plain; charset=utf-8",
+		Digest:  f.Digest,
+		Payload: f.Payload,
+	}}
+}
+
+func convertInvoiceCensorFromWWW(f www.CensorshipRecord) pd.CensorshipRecord {
+	return pd.CensorshipRecord{
+		Token:     f.Token,
+		Merkle:    f.Merkle,
+		Signature: f.Signature,
+	}
+}
+
+func convertInvoiceCensorFromPD(f pd.CensorshipRecord) www.CensorshipRecord {
+	return www.CensorshipRecord{
+		Token:     f.Token,
+		Merkle:    f.Merkle,
+		Signature: f.Signature,
+	}
+}
+
+func convertRecordFileToWWW(f pd.File) www.File {
+	return www.File{
+		Name:    f.Name,
+		MIME:    f.MIME,
+		Digest:  f.Digest,
+		Payload: f.Payload,
+	}
+}
+
+func convertRecordFilesToWWW(f []pd.File) []www.File {
+	files := make([]www.File, 0, len(f))
+	for _, v := range f {
+		files = append(files, convertRecordFileToWWW(v))
+	}
+	return files
+}
+func convertDatabaseInvoiceToInvoiceRecord(dbInvoice database.Invoice) (*cms.InvoiceRecord, error) {
+	invRec := &cms.InvoiceRecord{}
+	invRec.Status = dbInvoice.Status
+	invRec.Timestamp = dbInvoice.Timestamp
+	invRec.UserID = dbInvoice.UserID
+	invRec.Month = dbInvoice.Month
+	invRec.Year = dbInvoice.Year
+	invRec.PublicKey = dbInvoice.PublicKey
+	invRec.Version = dbInvoice.Version
+	return invRec, nil
+}
+
+func convertRecordToDatabaseInvoice(p pd.Record) (*database.Invoice, error) {
+	dbInvoice := database.Invoice{
+		Files:           convertRecordFilesToWWW(p.Files),
+		Token:           p.CensorshipRecord.Token,
+		ServerSignature: p.CensorshipRecord.Signature,
+		Version:         p.Version,
+	}
+	for _, m := range p.Metadata {
+		switch m.ID {
+		case mdStreamGeneral:
+			var mdGeneral BackendInvoiceMetadata
+			err := json.Unmarshal([]byte(m.Payload), &mdGeneral)
+			if err != nil {
+				return nil, fmt.Errorf("could not decode metadata '%v' token '%v': %v",
+					p.Metadata, p.CensorshipRecord.Token, err)
+			}
+
+			dbInvoice.Month = mdGeneral.Month
+			dbInvoice.Year = mdGeneral.Year
+			dbInvoice.Timestamp = mdGeneral.Timestamp
+			dbInvoice.PublicKey = mdGeneral.PublicKey
+			dbInvoice.UserSignature = mdGeneral.Signature
+
+			/*dbInvoice.UserID, err = c.db.GetUserIdByPublicKey(mdGeneral.PublicKey)
+			if err != nil {
+				return nil, fmt.Errorf("could not get user id from public key %v",
+					mdGeneral.PublicKey)
+			}
+			*/
+			dbInvoice.LineItems, err = parseCSVFileToLineItems(p.CensorshipRecord.Token, dbInvoice.Files[0])
+			if err != nil {
+				return nil, fmt.Errorf("could not parse invoice csv data for token '%v': %v",
+					p.CensorshipRecord.Token, err)
+			}
+		default:
+			// Log error but proceed
+			log.Errorf("initializeInventory: invalid "+
+				"metadata stream ID %v token %v",
+				m.ID, p.CensorshipRecord.Token)
+		}
+	}
+
+	return &dbInvoice, nil
+}
+
+func parseCSVFileToLineItems(invoiceToken string, file www.File) ([]database.LineItem, error) {
+
+	data, err := base64.StdEncoding.DecodeString(file.Payload)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate that the invoice is CSV-formatted.
+	csvReader := csv.NewReader(strings.NewReader(string(data)))
+	csvReader.Comma = www.PolicyInvoiceFieldDelimiterChar
+	csvReader.Comment = www.PolicyInvoiceCommentChar
+	csvReader.TrimLeadingSpace = true
+
+	csvFields, err := csvReader.ReadAll()
+	if err != nil {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusMalformedInvoiceFile,
+		}
+	}
+	dbLineItems := []database.LineItem{}
+	for lineNum, lineContents := range csvFields {
+		dbLineItem := database.LineItem{}
+		if len(lineContents) < 1 || len(lineContents) > 6 {
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusMalformedInvoiceFile,
+			}
+		}
+		dbLineItem.LineNumber = uint16(lineNum)
+		dbLineItem.InvoiceToken = invoiceToken
+		dbLineItem.Type = lineContents[0]
+		dbLineItem.Subtype = lineContents[1]
+		dbLineItem.Description = lineContents[2]
+		dbLineItem.ProposalURL = lineContents[3]
+		hours, err := strconv.Atoi(lineContents[4])
+		if err != nil {
+			return nil, err
+
+		}
+		dbLineItem.Hours = uint16(hours)
+		cost, err := strconv.Atoi(lineContents[5])
+		if err != nil {
+			return nil, err
+
+		}
+		dbLineItem.TotalCost = uint16(cost)
+		dbLineItems = append(dbLineItems, dbLineItem)
+	}
+
+	return dbLineItems, nil
 }

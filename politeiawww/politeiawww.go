@@ -15,6 +15,7 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/cache"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/decred/politeia/politeiawww/database"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
@@ -114,6 +115,9 @@ type politeiawww struct {
 	userPubkeys     map[string]string               // [pubkey][userid]
 	userPaywallPool map[uuid.UUID]paywallPoolMember // [userid][paywallPoolMember]
 	commentScores   map[string]int64                // [token+commentID]resultVotes
+
+	// cmsDb is only used during cmswww mode
+	cmsDb database.Database
 }
 
 // XXX rig this up

@@ -1,0 +1,222 @@
+// Copyright (c) 2017-2019 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
+package cockroachdb
+
+import (
+	"fmt"
+	"net/url"
+	"path/filepath"
+	"sync"
+
+	"github.com/decred/politeia/decredplugin"
+	"github.com/decred/politeia/politeiawww/database"
+	"github.com/jinzhu/gorm"
+	_ "github.com/jinzhu/gorm/dialects/postgres"
+)
+
+const (
+	cacheID    = "cms"
+	cmsVersion = "1"
+
+	// Database table names
+	tableNameInvoice  = "invoices"
+	tableNameLineItem = "line_items"
+
+	UserCmsdb = "invoices_cmsdb" // cmsdb user (read/write access)
+)
+
+// cockroachdb implements the cache interface.
+type cockroachdb struct {
+	sync.RWMutex
+	shutdown  bool     // Backend is shutdown
+	recordsdb *gorm.DB // Database context
+}
+
+// Create new invoice.
+//
+// CreateInvoice satisfies the backend interface.
+func (c *cockroachdb) NewInvoice(dbInvoice *database.Invoice) error {
+	invoice := EncodeInvoice(dbInvoice)
+
+	log.Debugf("CreateInvoice: %v", invoice.Token)
+	return c.recordsdb.Create(invoice).Error
+}
+
+// Update existing invoice.
+//
+// CreateInvoice satisfies the backend interface.
+func (c *cockroachdb) UpdateInvoice(dbInvoice *database.Invoice) error {
+	invoice := EncodeInvoice(dbInvoice)
+
+	log.Debugf("UpdateInvoice: %v", invoice.Token)
+
+	return c.recordsdb.Save(invoice).Error
+}
+
+// Return invoice by its token.
+func (c *cockroachdb) InvoiceByToken(token string) (*database.Invoice, error) {
+	log.Debugf("InvoiceByToken: %v", token)
+
+	invoice := Invoice{
+		Token: token,
+	}
+	err := c.recordsdb.Find(&invoice).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			err = database.ErrInvoiceNotFound
+		}
+		return nil, err
+	}
+
+	return DecodeInvoice(&invoice)
+}
+
+// Close satisfies the backend interface.
+func (c *cockroachdb) Close() error {
+	return c.recordsdb.Close()
+}
+
+// This function must be called within a transaction.
+func createCmsTables(tx *gorm.DB) error {
+	log.Tracef("createCmsTables")
+
+	// Create cms tables
+	if !tx.HasTable(tableNameInvoice) {
+		err := tx.CreateTable(&Invoice{}).Error
+		if err != nil {
+			return err
+		}
+	}
+	if !tx.HasTable(tableNameLineItem) {
+		err := tx.CreateTable(&LineItem{}).Error
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+//
+// This function must be called within a transaction.
+func (c *cockroachdb) build(tx *gorm.DB, ir *decredplugin.InventoryReply) error {
+	log.Tracef("cms build")
+
+	// Create the database tables
+	err := createCmsTables(tx)
+	if err != nil {
+		return fmt.Errorf("createCmsTables: %v", err)
+	}
+
+	// pull Inventory from d then rebuild invoice database
+	return nil
+}
+
+// Build drops all existing decred plugin tables from the database, recreates
+// them, then uses the passed in inventory payload to build the decred plugin
+// cache.
+func (c *cockroachdb) Build(payload string) error {
+	log.Tracef("invoice Build")
+
+	// Decode the payload
+	ir, err := decredplugin.DecodeInventoryReply([]byte(payload))
+	if err != nil {
+		return fmt.Errorf("DecodeInventoryReply: %v", err)
+	}
+
+	// Drop all decred plugin tables
+	err = c.recordsdb.DropTableIfExists(tableNameInvoice, tableNameLineItem).Error
+	if err != nil {
+		return fmt.Errorf("drop invoice tables failed: %v", err)
+	}
+
+	// Build the decred plugin cache from scratch
+	tx := c.recordsdb.Begin()
+	err = c.build(tx, ir)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
+}
+
+func (c *cockroachdb) Setup() error {
+	tx := c.recordsdb.Begin()
+	err := createCmsTables(tx)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
+}
+
+func buildQueryString(user, rootCert, cert, key string) string {
+	v := url.Values{}
+	v.Set("ssl", "true")
+	v.Set("sslmode", "require")
+	v.Set("sslrootcert", filepath.Clean(rootCert))
+	v.Set("sslcert", filepath.Join(cert))
+	v.Set("sslkey", filepath.Join(key))
+	return v.Encode()
+}
+
+// New returns a new cockroachdb context that contains a connection to the
+// specified database that was made using the passed in user and certificates.
+func New(user, host, net, rootCert, cert, key string) (*cockroachdb, error) {
+	log.Tracef("New: %v %v %v %v %v %v", user, host, net, rootCert, cert, key)
+
+	// Connect to database
+	dbName := cacheID + "_" + net
+	h := "postgresql://" + user + "@" + host + "/" + dbName
+	u, err := url.Parse(h)
+	if err != nil {
+		return nil, fmt.Errorf("parse url '%v': %v", h, err)
+	}
+
+	qs := buildQueryString(u.User.String(), rootCert, cert, key)
+	addr := u.String() + "?" + qs
+	db, err := gorm.Open("postgres", addr)
+	if err != nil {
+		return nil, fmt.Errorf("connect to database '%v': %v", addr, err)
+	}
+
+	// Create context
+	c := &cockroachdb{
+		recordsdb: db,
+	}
+
+	// Disable gorm logging. This prevents duplicate errors from
+	// being printed since we handle errors manually.
+	c.recordsdb.LogMode(false)
+
+	// Disable automatic table name pluralization. We set table
+	// names manually.
+	c.recordsdb.SingularTable(true)
+
+	/*
+		// Ensure we're using the correct cache version.
+		var v Version
+		if c.recordsdb.HasTable(tableVersions) {
+			err = c.recordsdb.
+				Where("id = ?", cacheID).
+				Find(&v).
+				Error
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		// Return an error if the version is incorrect, but also
+		// return the database context so that the cache can be
+		// rebuilt.
+		if v.Version != cmsVersion {
+			err = cache.ErrWrongVersion
+		}
+
+		log.Infof("Cache host: %v", h)
+	*/
+	return c, err
+}

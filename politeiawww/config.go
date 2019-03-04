@@ -125,6 +125,10 @@ type config struct {
 	VoteDurationMax          uint32 `long:"votedurationmax" description:"Maximum duration of a proposal vote in blocks"`
 	AdminLogFile             string `long:"adminlogfile" description:"admin log filename (Default: admin.log)"`
 	Mode                     string `long:"mode" description:"Mode www runs as. Supported values: piwww, cmswww"`
+	CmsHost                  string `long:"cmshost" description:"Cms ip:port"`
+	CmsRootCert              string `long:"cmsrootcert" description:"File containing the CA certificate for the cmsdb"`
+	CmsCert                  string `long:"cmscert" description:"File containing the politeiawww client certificate for the cmsdb"`
+	CmsKey                   string `long:"cmskey" description:"File containing the politeiawww client certificate key for the cmsdb"`
 }
 
 // serviceOptions defines the configuration options for the rpc as a service
@@ -491,6 +495,21 @@ func loadConfig() (*config, []string, error) {
 	case cmsWWWMode:
 		cfg.Mode = cmsWWWMode
 		cfg.MailAddress = defaultCMSMailAddress
+		switch {
+		case cfg.CmsHost == "":
+			return nil, nil, fmt.Errorf("the cmshost param is required, while in cmswww mode")
+		case cfg.CmsRootCert == "":
+			return nil, nil, fmt.Errorf("the cmsrootcert param is required, while in cmswww mode")
+		case cfg.CmsCert == "":
+			return nil, nil, fmt.Errorf("the cmscert param is required, while in cmswww mode")
+		case cfg.CmsKey == "":
+			return nil, nil, fmt.Errorf("the cmskey param is required, while in cmswww mode")
+		}
+
+		cfg.CmsRootCert = cleanAndExpandPath(cfg.CmsRootCert)
+		cfg.CmsCert = cleanAndExpandPath(cfg.CmsCert)
+		cfg.CmsKey = cleanAndExpandPath(cfg.CmsKey)
+
 	case politeiaWWWMode:
 	default:
 		err := fmt.Errorf("invalid mode: %v", cfg.Mode)
