@@ -70,7 +70,6 @@ configuration file since the default politeiawww host is
 verification and should only be used when running politeia locally.
 
 ```
-testnet=true
 host=https://127.0.0.1:4443
 skipverify=true
 ```
