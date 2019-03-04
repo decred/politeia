@@ -316,6 +316,9 @@ func (c *ctx) makeRequest(method, route string, b interface{}) ([]byte, error) {
 
 	responseBody := util.ConvertBodyToByteArray(r.Body, false)
 	log.Tracef("Response: %v %v", r.StatusCode, string(responseBody))
+	if r.StatusCode == http.StatusGatewayTimeout {
+		return nil, errRetry
+	}
 	if r.StatusCode != http.StatusOK {
 		var ue v1.UserError
 		err = json.Unmarshal(responseBody, &ue)
