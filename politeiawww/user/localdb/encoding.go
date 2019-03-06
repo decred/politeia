@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/decred/politeia/politeiawww/database"
+	"github.com/decred/politeia/politeiawww/user"
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
@@ -59,7 +59,7 @@ func (l *localdb) openUserDB(path string) error {
 }
 
 // EncodeUser encodes User into a JSON byte slice.
-func EncodeUser(u database.User) ([]byte, error) {
+func EncodeUser(u user.User) ([]byte, error) {
 	b, err := json.Marshal(u)
 	if err != nil {
 		return nil, err
@@ -69,8 +69,8 @@ func EncodeUser(u database.User) ([]byte, error) {
 }
 
 // DecodeUser decodes a JSON byte slice into a User.
-func DecodeUser(payload []byte) (*database.User, error) {
-	var u database.User
+func DecodeUser(payload []byte) (*user.User, error) {
+	var u user.User
 
 	err := json.Unmarshal(payload, &u)
 	if err != nil {

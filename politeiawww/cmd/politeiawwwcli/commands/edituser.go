@@ -16,7 +16,7 @@ import (
 type EditUserCmd struct {
 	Args struct {
 		NotifType string `long:"emailnotifications"` // Email notification bit field
-	}
+	} `positional-args:"true" required:"true"`
 }
 
 // Execute executes the edit user command.

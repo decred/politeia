@@ -6,6 +6,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/elliptic"
 	"crypto/tls"
 	_ "encoding/gob"
@@ -23,11 +24,15 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"text/template"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/decred/politeia/politeiad/cache"
+	"github.com/decred/politeia/politeiad/cache/cockroachdb"
 	v1 "github.com/decred/politeia/politeiawww/api/v1"
-	"github.com/decred/politeia/politeiawww/database"
+	"github.com/decred/politeia/politeiawww/user"
+	"github.com/decred/politeia/politeiawww/user/localdb"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	"github.com/google/uuid"
@@ -79,19 +84,6 @@ func (w *wsContext) IsAuthenticated() bool {
 	return w.uuid != ""
 }
 
-// politeiawww application context.
-type politeiawww struct {
-	cfg    *config
-	router *mux.Router
-
-	store *sessions.FilesystemStore
-
-	ws    map[string]map[string]*wsContext // [uuid][]*context
-	wsMtx sync.RWMutex
-
-	backend *backend
-}
-
 // getSession returns the active cookie session.
 func (p *politeiawww) getSession(r *http.Request) (*sessions.Session, error) {
 	return p.store.Get(r, v1.CookieSession)
@@ -115,7 +107,7 @@ func (p *politeiawww) getSessionUUID(r *http.Request) (string, error) {
 }
 
 // getSessionUser retrieves the current session user from the database.
-func (p *politeiawww) getSessionUser(w http.ResponseWriter, r *http.Request) (*database.User, error) {
+func (p *politeiawww) getSessionUser(w http.ResponseWriter, r *http.Request) (*user.User, error) {
 	id, err := p.getSessionUUID(r)
 	if err != nil {
 		return nil, err
@@ -127,7 +119,7 @@ func (p *politeiawww) getSessionUser(w http.ResponseWriter, r *http.Request) (*d
 		return nil, err
 	}
 
-	user, err := p.backend.db.UserGetById(pid)
+	user, err := p.db.UserGetById(pid)
 	if err != nil {
 		return nil, err
 	}
@@ -350,7 +342,7 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	reply, err := p.backend.ProcessNewUser(u)
+	reply, err := p.ProcessNewUser(u)
 	if err != nil {
 		RespondWithError(w, r, 0, "handleNewUser: ProcessNewUser %v", err)
 		return
@@ -377,7 +369,7 @@ func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	_, err = p.backend.ProcessVerifyNewUser(vnu)
+	_, err = p.ProcessVerifyNewUser(vnu)
 	if err != nil {
 		RespondWithError(w, r, 0, "handleVerifyNewUser: "+
 			"ProcessVerifyNewUser %v", err)
@@ -403,7 +395,7 @@ func (p *politeiawww) handleResendVerification(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	rvr, err := p.backend.ProcessResendVerification(&rv)
+	rvr, err := p.ProcessResendVerification(&rv)
 	if err != nil {
 		RespondWithError(w, r, 0, "handleResendVerification: "+
 			"ProcessResendVerification %v", err)
@@ -437,7 +429,7 @@ func (p *politeiawww) handleUpdateUserKey(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	reply, err := p.backend.ProcessUpdateUserKey(user, u)
+	reply, err := p.ProcessUpdateUserKey(user, u)
 	if err != nil {
 		RespondWithError(w, r, 0, "handleUpdateUserKey: ProcessUpdateUserKey %v", err)
 		return
@@ -470,7 +462,7 @@ func (p *politeiawww) handleVerifyUpdateUserKey(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	_, err = p.backend.ProcessVerifyUpdateUserKey(user, vuu)
+	_, err = p.ProcessVerifyUpdateUserKey(user, vuu)
 	if err != nil {
 		RespondWithError(w, r, 0, "handleVerifyUpdateUserKey: "+
 			"ProcessVerifyUpdateUserKey %v", err)
@@ -494,7 +486,7 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	reply, err := p.backend.ProcessLogin(l)
+	reply, err := p.ProcessLogin(l)
 	if err != nil {
 		RespondWithError(w, r, http.StatusUnauthorized,
 			"handleLogin: ProcessLogin %v", err)
@@ -558,7 +550,7 @@ func (p *politeiawww) handleMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	reply, err := p.backend.CreateLoginReply(user, user.LastLoginTime)
+	reply, err := p.CreateLoginReply(user, user.LastLoginTime)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleMe: CreateLoginReply %v", err)
@@ -591,7 +583,7 @@ func (p *politeiawww) handleChangeUsername(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	reply, err := p.backend.ProcessChangeUsername(user.Email, cu)
+	reply, err := p.ProcessChangeUsername(user.Email, cu)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleChangeUsername: ProcessChangeUsername %v", err)
@@ -622,7 +614,7 @@ func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	reply, err := p.backend.ProcessChangePassword(user.Email, cp)
+	reply, err := p.ProcessChangePassword(user.Email, cp)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleChangePassword: ProcessChangePassword %v", err)
@@ -646,7 +638,7 @@ func (p *politeiawww) handleResetPassword(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	rpr, err := p.backend.ProcessResetPassword(rp)
+	rpr, err := p.ProcessResetPassword(rp)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleResetPassword: ProcessResetPassword %v", err)
@@ -669,7 +661,7 @@ func (p *politeiawww) handleProposalPaywallDetails(w http.ResponseWriter, r *htt
 		return
 	}
 
-	reply, err := p.backend.ProcessProposalPaywallDetails(user)
+	reply, err := p.ProcessProposalPaywallDetails(user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleProposalPaywallDetails: ProcessProposalPaywallDetails  %v", err)
@@ -691,7 +683,7 @@ func (p *politeiawww) handleProposalPaywallPayment(w http.ResponseWriter, r *htt
 		return
 	}
 
-	reply, err := p.backend.ProcessProposalPaywallPayment(user)
+	reply, err := p.ProcessProposalPaywallPayment(user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleProposalPaywallPayment: ProcessProposalPaywallPayment  %v", err)
@@ -953,7 +945,7 @@ func (p *politeiawww) handleNewProposal(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	reply, err := p.backend.ProcessNewProposal(np, user)
+	reply, err := p.ProcessNewProposal(np, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleNewProposal: ProcessNewProposal %v", err)
@@ -986,7 +978,7 @@ func (p *politeiawww) handleSetProposalStatus(w http.ResponseWriter, r *http.Req
 	}
 
 	// Set status
-	reply, err := p.backend.ProcessSetProposalStatus(sps, user)
+	reply, err := p.ProcessSetProposalStatus(sps, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleSetProposalStatus: ProcessSetProposalStatus %v", err)
@@ -1026,7 +1018,7 @@ func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Reque
 			return
 		}
 	}
-	reply, err := p.backend.ProcessProposalDetails(pd, user)
+	reply, err := p.ProcessProposalDetails(pd, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleProposalDetails: ProcessProposalDetails %v", err)
@@ -1040,8 +1032,7 @@ func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Reque
 func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 	// Get the policy command.
 	log.Tracef("handlePolicy")
-	var policy v1.Policy
-	reply := p.backend.ProcessPolicy(policy)
+	reply := ProcessPolicy()
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
@@ -1060,7 +1051,7 @@ func (p *politeiawww) handleAllVetted(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	vr, err := p.backend.ProcessAllVetted(v)
+	vr, err := p.ProcessAllVetted(v)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleAllVetted: ProcessAllVetted %v", err)
@@ -1085,7 +1076,7 @@ func (p *politeiawww) handleAllUnvetted(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	ur, err := p.backend.ProcessAllUnvetted(u)
+	ur, err := p.ProcessAllUnvetted(u)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleAllUnvetted: ProcessAllUnvetted %v", err)
@@ -1116,7 +1107,7 @@ func (p *politeiawww) handleNewComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cr, err := p.backend.ProcessNewComment(sc, user)
+	cr, err := p.ProcessNewComment(sc, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleNewComment: ProcessNewComment: %v", err)
@@ -1147,7 +1138,7 @@ func (p *politeiawww) handleLikeComment(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	cr, err := p.backend.ProcessLikeComment(lc, user)
+	cr, err := p.ProcessLikeComment(lc, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleLikeComment: ProcessLikeComment %v", err)
@@ -1178,7 +1169,7 @@ func (p *politeiawww) handleCensorComment(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	cr, err := p.backend.ProcessCensorComment(cc, user)
+	cr, err := p.ProcessCensorComment(cc, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleCensorComment: ProcessCensorComment %v", err)
@@ -1203,7 +1194,7 @@ func (p *politeiawww) handleCommentsGet(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 	}
-	gcr, err := p.backend.ProcessCommentsGet(token, user)
+	gcr, err := p.ProcessCommentsGet(token, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleCommentsGet: ProcessCommentsGet %v", err)
@@ -1236,7 +1227,7 @@ func (p *politeiawww) handleVerifyUserPayment(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	vuptr, err := p.backend.ProcessVerifyUserPayment(user, vupt)
+	vuptr, err := p.ProcessVerifyUserPayment(user, vupt)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleVerifyUserPayment: ProcessVerifyUserPayment %v", err)
@@ -1258,7 +1249,7 @@ func (p *politeiawww) handleUserProposalCredits(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	reply, err := p.backend.ProcessUserProposalCredits(user)
+	reply, err := ProcessUserProposalCredits(user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleUserProposalCredits: ProcessUserProposalCredits  %v", err)
@@ -1283,7 +1274,7 @@ func (p *politeiawww) handleUserPaymentsRescan(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	reply, err := p.backend.ProcessUserPaymentsRescan(upr)
+	reply, err := p.ProcessUserPaymentsRescan(upr)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleUserPaymentsRescan: ProcessUserPaymentsRescan:  %v",
@@ -1324,7 +1315,7 @@ func (p *politeiawww) handleUserProposals(w http.ResponseWriter, r *http.Request
 		log.Infof("handleUserProposals: could not get session user %v", err)
 	}
 
-	upr, err := p.backend.ProcessUserProposals(
+	upr, err := p.ProcessUserProposals(
 		&up,
 		user != nil && user.ID == userId,
 		user != nil && user.Admin)
@@ -1341,7 +1332,7 @@ func (p *politeiawww) handleUserProposals(w http.ResponseWriter, r *http.Request
 func (p *politeiawww) handleActiveVote(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleActiveVote")
 
-	avr, err := p.backend.ProcessActiveVote()
+	avr, err := p.ProcessActiveVote()
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleActiveVote: ProcessActivateVote %v", err)
@@ -1364,7 +1355,7 @@ func (p *politeiawww) handleCastVotes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	avr, err := p.backend.ProcessCastVotes(&cv)
+	avr, err := p.ProcessCastVotes(&cv)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleCastVotes: ProcessCastVotes %v", err)
@@ -1381,7 +1372,7 @@ func (p *politeiawww) handleVoteResults(w http.ResponseWriter, r *http.Request) 
 	pathParams := mux.Vars(r)
 	token := pathParams["token"]
 
-	vrr, err := p.backend.ProcessVoteResults(token)
+	vrr, err := p.ProcessVoteResults(token)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleVoteResults: ProcessVoteResults %v",
@@ -1409,7 +1400,7 @@ func (p *politeiawww) handleAuthorizeVote(w http.ResponseWriter, r *http.Request
 			"handleStartVote: getSessionUser %v", err)
 		return
 	}
-	avr, err := p.backend.ProcessAuthorizeVote(av, user)
+	avr, err := p.ProcessAuthorizeVote(av, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleStartVote: ProcessAuthorizeVote %v", err)
@@ -1445,7 +1436,7 @@ func (p *politeiawww) handleStartVote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	svr, err := p.backend.ProcessStartVote(sv, user)
+	svr, err := p.ProcessStartVote(sv, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleStartVote: ProcessStartVote %v", err)
@@ -1478,7 +1469,7 @@ func (p *politeiawww) handleUserDetails(w http.ResponseWriter, r *http.Request) 
 		log.Infof("handleUserDetails: could not get session user %v", err)
 	}
 
-	udr, err := p.backend.ProcessUserDetails(&ud,
+	udr, err := p.ProcessUserDetails(&ud,
 		user != nil && user.ID == userID,
 		user != nil && user.Admin,
 	)
@@ -1507,7 +1498,7 @@ func (p *politeiawww) handleUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ur, err := p.backend.ProcessUsers(&u)
+	ur, err := p.ProcessUsers(&u)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleUsers: ProcessUsers %v", err)
@@ -1536,7 +1527,7 @@ func (p *politeiawww) handleManageUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mur, err := p.backend.ProcessManageUser(&mu, adminUser)
+	mur, err := p.ProcessManageUser(&mu, adminUser)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleManageUser: ProcessManageUser %v", err)
@@ -1565,7 +1556,7 @@ func (p *politeiawww) handleEditUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	eur, err := p.backend.ProcessEditUser(&eu, adminUser)
+	eur, err := p.ProcessEditUser(&eu, adminUser)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleEditUser: ProcessEditUser %v", err)
@@ -1577,7 +1568,7 @@ func (p *politeiawww) handleEditUser(w http.ResponseWriter, r *http.Request) {
 
 // handleGetAllVoteStatus returns the voting status of all public proposals.
 func (p *politeiawww) handleGetAllVoteStatus(w http.ResponseWriter, r *http.Request) {
-	gasvr, err := p.backend.ProcessGetAllVoteStatus()
+	gasvr, err := p.ProcessGetAllVoteStatus()
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleProposalsVotingStatus: ProcessProposalsVotingStatus %v", err)
@@ -1589,7 +1580,7 @@ func (p *politeiawww) handleGetAllVoteStatus(w http.ResponseWriter, r *http.Requ
 // handleVoteStatus returns the vote status for a given proposal.
 func (p *politeiawww) handleVoteStatus(w http.ResponseWriter, r *http.Request) {
 	pathParams := mux.Vars(r)
-	vsr, err := p.backend.ProcessVoteStatus(pathParams["token"])
+	vsr, err := p.ProcessVoteStatus(pathParams["token"])
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleCommentsGet: ProcessCommentGet %v", err)
@@ -1612,7 +1603,7 @@ func (p *politeiawww) handleUserCommentsLikes(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	uclr, err := p.backend.ProcessUserCommentsLikes(user, token)
+	uclr, err := p.ProcessUserCommentsLikes(user, token)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleUserCommentsLikes: processUserCommentsLikes %v", err)
@@ -1643,7 +1634,7 @@ func (p *politeiawww) handleEditProposal(w http.ResponseWriter, r *http.Request)
 
 	log.Debugf("handleEditProposal: %v", ep.Token)
 
-	epr, err := p.backend.ProcessEditProposal(ep, user)
+	epr, err := p.ProcessEditProposal(ep, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleEditProposal: ProcessEditProposal %v", err)
@@ -1655,7 +1646,7 @@ func (p *politeiawww) handleEditProposal(w http.ResponseWriter, r *http.Request)
 
 // handleProposalsStats returns the counting of proposals aggrouped by each proposal status
 func (p *politeiawww) handleProposalsStats(w http.ResponseWriter, r *http.Request) {
-	psr, err := p.backend.ProcessProposalsStats()
+	psr, err := p.ProcessProposalsStats()
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleProposalsStats: ProcessProposalsStats %v", err)
@@ -1709,6 +1700,60 @@ func (p *politeiawww) addRoute(method string, route string, handler http.Handler
 	}
 }
 
+// makeRequest makes an http request to the method and route provided,
+// serializing the provided object as the request body.
+//
+// XXX doesn't belong in this file but stuff it here for now.
+func (p *politeiawww) makeRequest(method string, route string, v interface{}) ([]byte, error) {
+	var (
+		requestBody []byte
+		err         error
+	)
+	if v != nil {
+		requestBody, err = json.Marshal(v)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	fullRoute := p.cfg.RPCHost + route
+
+	if p.client == nil {
+		p.client, err = util.NewClient(false, p.cfg.RPCCert)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	req, err := http.NewRequest(method, fullRoute,
+		bytes.NewReader(requestBody))
+	if err != nil {
+		return nil, err
+	}
+	req.SetBasicAuth(p.cfg.RPCUser, p.cfg.RPCPass)
+	r, err := p.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Body.Close()
+
+	if r.StatusCode != http.StatusOK {
+		var pdErrorReply v1.PDErrorReply
+		decoder := json.NewDecoder(r.Body)
+		if err := decoder.Decode(&pdErrorReply); err != nil {
+			return nil, err
+		}
+
+		return nil, v1.PDError{
+			HTTPCode:   r.StatusCode,
+			ErrorReply: pdErrorReply,
+		}
+	}
+
+	responseBody := util.ConvertBodyToByteArray(r.Body, false)
+	return responseBody, nil
+}
+
 func _main() error {
 	// Load configuration and parse command line.  This function also
 	// initializes logging and configures it accordingly.
@@ -1736,6 +1781,10 @@ func _main() error {
 			"and public key MUST be set")
 	}
 
+	if loadedCfg.MailHost == "" {
+		log.Infof("Email   : DISABLED")
+	}
+
 	// Create the data directory in case it does not exist.
 	err = os.MkdirAll(loadedCfg.DataDir, 0700)
 	if err != nil {
@@ -1760,8 +1809,15 @@ func _main() error {
 
 	// Setup application context.
 	p := &politeiawww{
-		cfg: loadedCfg,
-		ws:  make(map[string]map[string]*wsContext),
+		cfg:       loadedCfg,
+		ws:        make(map[string]map[string]*wsContext),
+		templates: make(map[string]*template.Template),
+
+		// XXX reevaluate where this goes
+		userPubkeys:     make(map[string]string),
+		userPaywallPool: make(map[uuid.UUID]paywallPoolMember),
+		commentScores:   make(map[string]int64),
+		params:          activeNetParams.Params,
 	}
 
 	// Check if this command is being run to fetch the identity.
@@ -1769,11 +1825,78 @@ func _main() error {
 		return p.getIdentity()
 	}
 
-	p.backend, err = NewBackend(p.cfg)
+	// Setup email
+	smtp, err := newSMTP(p.cfg.MailHost, p.cfg.MailUser,
+		p.cfg.MailPass, p.cfg.MailAddress)
+	if err != nil {
+		return fmt.Errorf("unable to initialize SMTP client: %v",
+			err)
+	}
+	p.smtp = smtp
+
+	// Get plugins from politeiad
+	p.plugins, err = p.getPluginInventory()
+	if err != nil {
+		return fmt.Errorf("getPluginInventory: %v", err)
+	}
+
+	// Setup cache connection
+	cockroachdb.UseLogger(cockroachdbLog)
+	net := filepath.Base(p.cfg.DataDir)
+	p.cache, err = cockroachdb.New(cockroachdb.UserPoliteiawww,
+		p.cfg.CacheHost, net, p.cfg.CacheRootCert, p.cfg.CacheCert,
+		p.cfg.CacheKey)
+	if err != nil {
+		if err == cache.ErrWrongVersion {
+			err = fmt.Errorf("wrong cache version, restart politeiad " +
+				"to rebuild the cache")
+		}
+		return err
+	}
+
+	// Register plugins with cache
+	for _, v := range p.plugins {
+		cp := convertPluginToCache(v)
+		err = p.cache.RegisterPlugin(cp)
+		if err == cache.ErrWrongPluginVersion {
+			return fmt.Errorf("%v plugin wrong version.  The "+
+				"cache needs to be rebuilt.", v.ID)
+		} else if err != nil {
+			return fmt.Errorf("cache register plugin '%v': %v",
+				v.ID, err)
+		}
+
+		log.Infof("Registered plugin: %v", v.ID)
+	}
+
+	// Setup database.
+	// localdb.UseLogger(localdbLog)
+	db, err := localdb.New(p.cfg.DataDir)
 	if err != nil {
 		return err
 	}
-	p.backend.params = activeNetParams.Params
+	p.db = db
+
+	// Setup pubkey-userid map
+	err = p.initUserPubkeys()
+	if err != nil {
+		return err
+	}
+
+	// Setup comment scores map
+	err = p.initCommentScores()
+	if err != nil {
+		return fmt.Errorf("initCommentScore: %v", err)
+	}
+
+	// Setup events
+	p.initEventManager()
+
+	// Set up the code that checks for paywall payments.
+	err = p.initPaywallChecker()
+	if err != nil {
+		return err
+	}
 
 	// Load or create new CSRF key
 	log.Infof("Load CSRF key")
@@ -1818,112 +1941,15 @@ func _main() error {
 
 	p.router = mux.NewRouter()
 
-	// Static content.
-	// XXX disable static for now.  This code is broken and it needs to
-	// point to a sane directory.  If a directory is not set it SHALL be
-	// disabled.
-	//p.router.PathPrefix("/static/").Handler(http.StripPrefix("/static/",
-	//	http.FileServer(http.Dir("."))))
+	switch p.cfg.Mode {
+	case politeiaWWWMode:
+		p.setPoliteiaWWWRoutes()
+	default:
+		return fmt.Errorf("Unknown mode %v:", p.cfg.Mode)
+	}
 
-	// Public routes.
-	p.router.HandleFunc("/", closeBody(logging(p.handleVersion))).Methods(http.MethodGet)
-	p.router.NotFoundHandler = closeBody(p.handleNotFound)
-	p.addRoute(http.MethodGet, v1.RouteVersion, p.handleVersion,
-		permissionPublic)
-	p.addRoute(http.MethodPost, v1.RouteNewUser, p.handleNewUser,
-		permissionPublic)
-	p.addRoute(http.MethodGet, v1.RouteVerifyNewUser,
-		p.handleVerifyNewUser, permissionPublic)
-	p.addRoute(http.MethodPost, v1.RouteResendVerification,
-		p.handleResendVerification, permissionPublic)
-	p.addRoute(http.MethodPost, v1.RouteLogin, p.handleLogin,
-		permissionPublic)
-	p.addRoute(http.MethodPost, v1.RouteLogout, p.handleLogout,
-		permissionPublic)
-	p.addRoute(http.MethodPost, v1.RouteResetPassword,
-		p.handleResetPassword, permissionPublic)
-	p.addRoute(http.MethodGet, v1.RouteAllVetted, p.handleAllVetted,
-		permissionPublic)
-	p.addRoute(http.MethodGet, v1.RouteProposalDetails,
-		p.handleProposalDetails, permissionPublic)
-	p.addRoute(http.MethodGet, v1.RoutePolicy, p.handlePolicy,
-		permissionPublic)
-	p.addRoute(http.MethodGet, v1.RouteCommentsGet, p.handleCommentsGet,
-		permissionPublic)
-	p.addRoute(http.MethodGet, v1.RouteUserProposals, p.handleUserProposals,
-		permissionPublic)
-	p.addRoute(http.MethodGet, v1.RouteActiveVote, p.handleActiveVote,
-		permissionPublic)
-	p.addRoute(http.MethodPost, v1.RouteCastVotes, p.handleCastVotes,
-		permissionPublic)
-	p.addRoute(http.MethodGet, v1.RouteVoteResults,
-		p.handleVoteResults, permissionPublic)
-	p.addRoute(http.MethodGet, v1.RouteAllVoteStatus,
-		p.handleGetAllVoteStatus, permissionPublic)
-	p.addRoute(http.MethodGet, v1.RouteVoteStatus,
-		p.handleVoteStatus, permissionPublic)
-	p.addRoute(http.MethodGet, v1.RouteUserDetails,
-		p.handleUserDetails, permissionPublic)
-	p.addRoute(http.MethodGet, v1.RoutePropsStats,
-		p.handleProposalsStats, permissionPublic)
-
-	// Routes that require being logged in.
-	p.addRoute(http.MethodPost, v1.RouteSecret, p.handleSecret,
-		permissionLogin)
-	p.addRoute(http.MethodGet, v1.RouteProposalPaywallDetails,
-		p.handleProposalPaywallDetails, permissionLogin)
-	p.addRoute(http.MethodPost, v1.RouteNewProposal, p.handleNewProposal,
-		permissionLogin)
-	p.addRoute(http.MethodGet, v1.RouteUserMe, p.handleMe, permissionLogin)
-	p.addRoute(http.MethodPost, v1.RouteUpdateUserKey,
-		p.handleUpdateUserKey, permissionLogin)
-	p.addRoute(http.MethodPost, v1.RouteVerifyUpdateUserKey,
-		p.handleVerifyUpdateUserKey, permissionLogin)
-	p.addRoute(http.MethodPost, v1.RouteChangeUsername,
-		p.handleChangeUsername, permissionLogin)
-	p.addRoute(http.MethodPost, v1.RouteChangePassword,
-		p.handleChangePassword, permissionLogin)
-	p.addRoute(http.MethodPost, v1.RouteNewComment,
-		p.handleNewComment, permissionLogin)
-	p.addRoute(http.MethodPost, v1.RouteLikeComment,
-		p.handleLikeComment, permissionLogin)
-	p.addRoute(http.MethodGet, v1.RouteVerifyUserPayment,
-		p.handleVerifyUserPayment, permissionLogin)
-	p.addRoute(http.MethodGet, v1.RouteUserCommentsLikes,
-		p.handleUserCommentsLikes, permissionLogin)
-	p.addRoute(http.MethodGet, v1.RouteUserProposalCredits,
-		p.handleUserProposalCredits, permissionLogin)
-	p.addRoute(http.MethodPost, v1.RouteEditProposal,
-		p.handleEditProposal, permissionLogin)
-	p.addRoute(http.MethodPost, v1.RouteAuthorizeVote,
-		p.handleAuthorizeVote, permissionLogin)
-	p.addRoute(http.MethodGet, v1.RouteProposalPaywallPayment,
-		p.handleProposalPaywallPayment, permissionLogin)
-	p.addRoute(http.MethodPost, v1.RouteEditUser,
-		p.handleEditUser, permissionLogin)
-
-	// Unauthenticated websocket
-	p.addRoute("", v1.RouteUnauthenticatedWebSocket,
-		p.handleUnauthenticatedWebsocket, permissionPublic)
-	// Authenticated websocket
-	p.addRoute("", v1.RouteAuthenticatedWebSocket,
-		p.handleAuthenticatedWebsocket, permissionLogin)
-
-	// Routes that require being logged in as an admin user.
-	p.addRoute(http.MethodGet, v1.RouteAllUnvetted, p.handleAllUnvetted,
-		permissionAdmin)
-	p.addRoute(http.MethodPost, v1.RouteSetProposalStatus,
-		p.handleSetProposalStatus, permissionAdmin)
-	p.addRoute(http.MethodPost, v1.RouteStartVote,
-		p.handleStartVote, permissionAdmin)
-	p.addRoute(http.MethodPost, v1.RouteManageUser,
-		p.handleManageUser, permissionAdmin)
-	p.addRoute(http.MethodPost, v1.RouteCensorComment,
-		p.handleCensorComment, permissionAdmin)
-	p.addRoute(http.MethodGet, v1.RouteUsers,
-		p.handleUsers, permissionAdmin)
-	p.addRoute(http.MethodPut, v1.RouteUserPaymentsRescan,
-		p.handleUserPaymentsRescan, permissionAdmin)
+	// XXX setup user routes
+	p.setUserWWWRoutes()
 
 	// Persist session cookies.
 	var cookieKey []byte

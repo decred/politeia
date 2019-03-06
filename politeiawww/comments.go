@@ -16,25 +16,25 @@ import (
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/cache"
 	www "github.com/decred/politeia/politeiawww/api/v1"
-	"github.com/decred/politeia/politeiawww/database"
+	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 )
 
 // getComment retreives the specified comment from the cache then fills in
 // politeiawww specific data for the comment.
-func (b *backend) getComment(token, commentID string) (*www.Comment, error) {
+func (p *politeiawww) getComment(token, commentID string) (*www.Comment, error) {
 	// Fetch comment from the cache
-	dc, err := b.decredGetComment(token, commentID)
+	dc, err := p.decredGetComment(token, commentID)
 	if err != nil {
 		return nil, fmt.Errorf("decredGetComment: %v", err)
 	}
 	c := convertCommentFromDecred(*dc)
 
-	b.RLock()
-	defer b.RUnlock()
+	p.RLock()
+	defer p.RUnlock()
 
 	// Lookup comment vote score
-	score, ok := b.commentScores[token+commentID]
+	score, ok := p.commentScores[token+commentID]
 	if !ok {
 		log.Errorf("getComment: comment score lookup failed for "+
 			"token:%v commentID:%v", token, commentID)
@@ -42,24 +42,24 @@ func (b *backend) getComment(token, commentID string) (*www.Comment, error) {
 	c.ResultVotes = score
 
 	// Lookup author info
-	userID, ok := b.userPubkeys[c.PublicKey]
+	userID, ok := p.userPubkeys[c.PublicKey]
 	if !ok {
 		log.Errorf("getComment: userID lookup failed for pubkey:%v "+
 			"token:%v commentID:%v", c.PublicKey, token, commentID)
 	}
 	c.UserID = userID
-	c.Username = b.getUsernameById(userID)
+	c.Username = p.getUsernameById(userID)
 
 	return &c, nil
 }
 
 // updateCommentScore calculates the comment score for the specified comment
 // then updates the in-memory comment score cache.
-func (b *backend) updateCommentScore(token, commentID string) (int64, error) {
+func (p *politeiawww) updateCommentScore(token, commentID string) (int64, error) {
 	log.Tracef("updateCommentScore: %v %v", token, commentID)
 
 	// Fetch all comment likes for the specified comment
-	likes, err := b.decredCommentLikes(token, commentID)
+	likes, err := p.decredCommentLikes(token, commentID)
 	if err != nil {
 		return 0, fmt.Errorf("decredLikeComments: %v", err)
 	}
@@ -70,8 +70,8 @@ func (b *backend) updateCommentScore(token, commentID string) (int64, error) {
 		return likes[i].Timestamp < likes[j].Timestamp
 	})
 
-	b.Lock()
-	defer b.Unlock()
+	p.Lock()
+	defer p.Unlock()
 
 	// Compute the comment score. We have to keep track of each
 	// user's most recent like action because the net effect of an
@@ -89,7 +89,7 @@ func (b *backend) updateCommentScore(token, commentID string) (int64, error) {
 		}
 
 		// Lookup the userID of the comment author
-		userID, ok := b.userPubkeys[v.PublicKey]
+		userID, ok := p.userPubkeys[v.PublicKey]
 		if !ok {
 			return 0, fmt.Errorf("userID lookup failed for pubkey %v",
 				v.PublicKey)
@@ -123,7 +123,7 @@ func (b *backend) updateCommentScore(token, commentID string) (int64, error) {
 	}
 
 	// Set final comment likes score
-	b.commentScores[token+commentID] = score
+	p.commentScores[token+commentID] = score
 
 	return score, nil
 }
@@ -147,18 +147,18 @@ func validateComment(c www.NewComment) error {
 
 // ProcessNewComment sends a new comment decred plugin command to politeaid
 // then fetches the new comment from the cache and returns it.
-func (b *backend) ProcessNewComment(nc www.NewComment, user *database.User) (*www.NewCommentReply, error) {
-	log.Tracef("ProcessNewComment: %v %v", nc.Token, user.ID)
+func (p *politeiawww) ProcessNewComment(nc www.NewComment, u *user.User) (*www.NewCommentReply, error) {
+	log.Tracef("ProcessNewComment: %v %v", nc.Token, u.ID)
 
 	// Pay up sucker!
-	if !b.HasUserPaid(user) {
+	if !p.HasUserPaid(u) {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusUserNotPaid,
 		}
 	}
 
 	// Verify authenticity
-	err := checkPublicKeyAndSignature(user, nc.PublicKey, nc.Signature,
+	err := checkPublicKeyAndSignature(u, nc.PublicKey, nc.Signature,
 		nc.Token, nc.ParentID, nc.Comment)
 	if err != nil {
 		return nil, err
@@ -171,7 +171,7 @@ func (b *backend) ProcessNewComment(nc www.NewComment, user *database.User) (*ww
 	}
 
 	// Ensure proposal exists and is public
-	pr, err := b.getProp(nc.Token)
+	pr, err := p.getProp(nc.Token)
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
 			err = www.UserError{
@@ -188,14 +188,14 @@ func (b *backend) ProcessNewComment(nc www.NewComment, user *database.User) (*ww
 	}
 
 	// Ensure proposal voting has not ended
-	vdr, err := b.decredVoteDetails(nc.Token)
+	vdr, err := p.decredVoteDetails(nc.Token)
 	if err != nil {
 		return nil, fmt.Errorf("decredVoteDetails: %v", err)
 	}
 	_, avr := convertAuthVoteFromDecred(vdr.AuthorizeVote)
 	svr := convertStartVoteReplyFromDecred(vdr.StartVoteReply)
 
-	bb, err := b.getBestBlock()
+	bb, err := p.getBestBlock()
 	if err != nil {
 		return nil, fmt.Errorf("getBestBlock: %v", err)
 	}
@@ -227,7 +227,7 @@ func (b *backend) ProcessNewComment(nc www.NewComment, user *database.User) (*ww
 	}
 
 	// Send polieiad request
-	responseBody, err := b.makeRequest(http.MethodPost,
+	responseBody, err := p.makeRequest(http.MethodPost,
 		pd.PluginCommandRoute, pc)
 	if err != nil {
 		return nil, err
@@ -241,7 +241,7 @@ func (b *backend) ProcessNewComment(nc www.NewComment, user *database.User) (*ww
 			"PluginCommandReply: %v", err)
 	}
 
-	err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, reply.Response)
 	if err != nil {
 		return nil, err
 	}
@@ -252,18 +252,18 @@ func (b *backend) ProcessNewComment(nc www.NewComment, user *database.User) (*ww
 	}
 
 	// Add comment to commentScores in-memory cache
-	b.Lock()
-	b.commentScores[nc.Token+ncr.CommentID] = 0
-	b.Unlock()
+	p.Lock()
+	p.commentScores[nc.Token+ncr.CommentID] = 0
+	p.Unlock()
 
 	// Get comment from cache
-	c, err := b.getComment(nc.Token, ncr.CommentID)
+	c, err := p.getComment(nc.Token, ncr.CommentID)
 	if err != nil {
 		return nil, fmt.Errorf("getComment: %v", err)
 	}
 
 	// Fire off new comment event
-	b.fireEvent(EventTypeComment, EventDataComment{
+	p.fireEvent(EventTypeComment, EventDataComment{
 		Comment: c,
 	})
 
@@ -273,25 +273,25 @@ func (b *backend) ProcessNewComment(nc www.NewComment, user *database.User) (*ww
 }
 
 // ProcessLikeComment processes an upvote/downvote on a comment.
-func (b *backend) ProcessLikeComment(lc www.LikeComment, user *database.User) (*www.LikeCommentReply, error) {
-	log.Debugf("ProcessLikeComment: %v %v %v", lc.Token, lc.CommentID, user.ID)
+func (p *politeiawww) ProcessLikeComment(lc www.LikeComment, u *user.User) (*www.LikeCommentReply, error) {
+	log.Debugf("ProcessLikeComment: %v %v %v", lc.Token, lc.CommentID, u.ID)
 
 	// Pay up sucker!
-	if !b.HasUserPaid(user) {
+	if !p.HasUserPaid(u) {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusUserNotPaid,
 		}
 	}
 
 	// Verify authenticity
-	err := checkPublicKeyAndSignature(user, lc.PublicKey, lc.Signature,
+	err := checkPublicKeyAndSignature(u, lc.PublicKey, lc.Signature,
 		lc.Token, lc.CommentID, lc.Action)
 	if err != nil {
 		return nil, err
 	}
 
 	// Ensure proposal exists and is public
-	pr, err := b.getProp(lc.Token)
+	pr, err := p.getProp(lc.Token)
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
 			err = www.UserError{
@@ -308,13 +308,13 @@ func (b *backend) ProcessLikeComment(lc www.LikeComment, user *database.User) (*
 	}
 
 	// Ensure proposal voting has not ended
-	vdr, err := b.decredVoteDetails(lc.Token)
+	vdr, err := p.decredVoteDetails(lc.Token)
 	if err != nil {
 		return nil, fmt.Errorf("decredVoteDetails: %v", err)
 	}
 	vd := convertVoteDetailsReplyFromDecred(*vdr)
 
-	bb, err := b.getBestBlock()
+	bb, err := p.getBestBlock()
 	if err != nil {
 		return nil, fmt.Errorf("getBestBlock: %v", err)
 	}
@@ -327,7 +327,7 @@ func (b *backend) ProcessLikeComment(lc www.LikeComment, user *database.User) (*
 	}
 
 	// Ensure comment exists
-	_, err = b.decredGetComment(lc.Token, lc.CommentID)
+	_, err = p.decredGetComment(lc.Token, lc.CommentID)
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
 			err = www.UserError{
@@ -370,7 +370,7 @@ func (b *backend) ProcessLikeComment(lc www.LikeComment, user *database.User) (*
 	}
 
 	// Send plugin command to politeiad
-	responseBody, err := b.makeRequest(http.MethodPost,
+	responseBody, err := p.makeRequest(http.MethodPost,
 		pd.PluginCommandRoute, pc)
 	if err != nil {
 		return nil, err
@@ -384,7 +384,7 @@ func (b *backend) ProcessLikeComment(lc www.LikeComment, user *database.User) (*
 			"PluginCommandReply: %v", err)
 	}
 
-	err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, reply.Response)
 	if err != nil {
 		return nil, err
 	}
@@ -395,7 +395,7 @@ func (b *backend) ProcessLikeComment(lc www.LikeComment, user *database.User) (*
 	}
 
 	// Update comment score in the in-memory cache
-	result, err := b.updateCommentScore(lc.Token, lc.CommentID)
+	result, err := p.updateCommentScore(lc.Token, lc.CommentID)
 	if err != nil {
 		log.Criticalf("ProcessLikeComment: update comment score failed "+
 			"token:%v commentID:%v error:%v", lc.Token, lc.CommentID, err)
@@ -410,11 +410,11 @@ func (b *backend) ProcessLikeComment(lc www.LikeComment, user *database.User) (*
 
 // ProcessCensorComment sends a censor comment decred plugin command to
 // politeiad then returns the censor comment receipt.
-func (b *backend) ProcessCensorComment(cc www.CensorComment, user *database.User) (*www.CensorCommentReply, error) {
+func (p *politeiawww) ProcessCensorComment(cc www.CensorComment, u *user.User) (*www.CensorCommentReply, error) {
 	log.Tracef("ProcessCensorComment: %v: %v", cc.Token, cc.CommentID)
 
 	// Verify authenticity
-	err := checkPublicKeyAndSignature(user, cc.PublicKey, cc.Signature,
+	err := checkPublicKeyAndSignature(u, cc.PublicKey, cc.Signature,
 		cc.Token, cc.CommentID, cc.Reason)
 	if err != nil {
 		return nil, err
@@ -428,7 +428,7 @@ func (b *backend) ProcessCensorComment(cc www.CensorComment, user *database.User
 	}
 
 	// Ensure comment exists and has not already been censored
-	c, err := b.decredGetComment(cc.Token, cc.CommentID)
+	c, err := p.decredGetComment(cc.Token, cc.CommentID)
 	if err != nil {
 		return nil, fmt.Errorf("decredGetComment: %v", err)
 	}
@@ -439,13 +439,13 @@ func (b *backend) ProcessCensorComment(cc www.CensorComment, user *database.User
 	}
 
 	// Ensure proposal voting has not ended
-	vdr, err := b.decredVoteDetails(cc.Token)
+	vdr, err := p.decredVoteDetails(cc.Token)
 	if err != nil {
 		return nil, fmt.Errorf("decredVoteDetails: %v", err)
 	}
 	vd := convertVoteDetailsReplyFromDecred(*vdr)
 
-	bb, err := b.getBestBlock()
+	bb, err := p.getBestBlock()
 	if err != nil {
 		return nil, fmt.Errorf("getBestBlock: %v", err)
 	}
@@ -478,7 +478,7 @@ func (b *backend) ProcessCensorComment(cc www.CensorComment, user *database.User
 	}
 
 	// Send plugin request
-	responseBody, err := b.makeRequest(http.MethodPost,
+	responseBody, err := p.makeRequest(http.MethodPost,
 		pd.PluginCommandRoute, pc)
 	if err != nil {
 		return nil, err
@@ -491,7 +491,7 @@ func (b *backend) ProcessCensorComment(cc www.CensorComment, user *database.User
 		return nil, err
 	}
 
-	err = util.VerifyChallenge(b.cfg.Identity, challenge, reply.Response)
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, reply.Response)
 	if err != nil {
 		return nil, err
 	}

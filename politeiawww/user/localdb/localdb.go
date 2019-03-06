@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"github.com/badoux/checkmail"
-	"github.com/decred/politeia/politeiawww/database"
+	"github.com/decred/politeia/politeiawww/user"
 	"github.com/google/uuid"
 	"github.com/syndtr/goleveldb/leveldb"
 )
@@ -21,12 +21,13 @@ const (
 )
 
 var (
-	_ database.Database = (*localdb)(nil)
+	_ user.Database = (*localdb)(nil)
 )
 
-// localdb implements the database interface.
+// localdb implements the Database interface.
 type localdb struct {
 	sync.RWMutex
+
 	shutdown bool        // Backend is shutdown
 	root     string      // Database root
 	userdb   *leveldb.DB // Database context
@@ -48,18 +49,18 @@ func isUserRecord(key string) bool {
 // Store new user.
 //
 // UserNew satisfies the backend interface.
-func (l *localdb) UserNew(u database.User) error {
+func (l *localdb) UserNew(u user.User) error {
 	l.Lock()
 	defer l.Unlock()
 
 	if l.shutdown {
-		return database.ErrShutdown
+		return user.ErrShutdown
 	}
 
 	log.Debugf("UserNew: %v", u)
 
 	if err := checkmail.ValidateFormat(u.Email); err != nil {
-		return database.ErrInvalidEmail
+		return user.ErrInvalidEmail
 	}
 
 	// Make sure user does not exist
@@ -67,7 +68,7 @@ func (l *localdb) UserNew(u database.User) error {
 	if err != nil {
 		return err
 	} else if ok {
-		return database.ErrUserExists
+		return user.ErrUserExists
 	}
 
 	// Fetch the next unique paywall index for the user.
@@ -106,17 +107,17 @@ func (l *localdb) UserNew(u database.User) error {
 // UserGet returns a user record if found in the database.
 //
 // UserGet satisfies the backend interface.
-func (l *localdb) UserGet(email string) (*database.User, error) {
-	l.Lock()
-	defer l.Unlock()
+func (l *localdb) UserGet(email string) (*user.User, error) {
+	l.RLock()
+	defer l.RUnlock()
 
 	if l.shutdown {
-		return nil, database.ErrShutdown
+		return nil, user.ErrShutdown
 	}
 
 	payload, err := l.userdb.Get([]byte(strings.ToLower(email)), nil)
 	if err == leveldb.ErrNotFound {
-		return nil, database.ErrUserNotFound
+		return nil, user.ErrUserNotFound
 	} else if err != nil {
 		return nil, err
 	}
@@ -129,15 +130,16 @@ func (l *localdb) UserGet(email string) (*database.User, error) {
 	return u, nil
 }
 
-// UserGetByUsername returns a user record given its username, if found in the database.
+// UserGetByUsername returns a user record given its username, if found in the
+// database.
 //
 // UserGetByUsername satisfies the backend interface.
-func (l *localdb) UserGetByUsername(username string) (*database.User, error) {
-	l.Lock()
-	defer l.Unlock()
+func (l *localdb) UserGetByUsername(username string) (*user.User, error) {
+	l.RLock()
+	defer l.RUnlock()
 
 	if l.shutdown {
-		return nil, database.ErrShutdown
+		return nil, user.ErrShutdown
 	}
 
 	log.Debugf("UserGetByUsername\n")
@@ -151,29 +153,33 @@ func (l *localdb) UserGetByUsername(username string) (*database.User, error) {
 			continue
 		}
 
-		user, err := DecodeUser(value)
+		u, err := DecodeUser(value)
 		if err != nil {
 			return nil, err
 		}
 
-		if strings.ToLower(user.Username) == strings.ToLower(username) {
-			return user, err
+		if strings.ToLower(u.Username) == strings.ToLower(username) {
+			return u, err
 		}
 	}
 	iter.Release()
 
-	return nil, iter.Error()
+	if iter.Error() != nil {
+		return nil, iter.Error()
+	}
+
+	return nil, user.ErrUserNotFound
 }
 
 // UserGetById returns a user record given its id, if found in the database.
 //
 // UserGetById satisfies the backend interface.
-func (l *localdb) UserGetById(id uuid.UUID) (*database.User, error) {
-	l.Lock()
-	defer l.Unlock()
+func (l *localdb) UserGetById(id uuid.UUID) (*user.User, error) {
+	l.RLock()
+	defer l.RUnlock()
 
 	if l.shutdown {
-		return nil, database.ErrShutdown
+		return nil, user.ErrShutdown
 	}
 
 	log.Debugf("UserGetById\n")
@@ -187,29 +193,33 @@ func (l *localdb) UserGetById(id uuid.UUID) (*database.User, error) {
 			continue
 		}
 
-		user, err := DecodeUser(value)
+		u, err := DecodeUser(value)
 		if err != nil {
 			return nil, err
 		}
 
-		if user.ID == id {
-			return user, err
+		if u.ID == id {
+			return u, err
 		}
 	}
 	iter.Release()
 
-	return nil, iter.Error()
+	if iter.Error() != nil {
+		return nil, iter.Error()
+	}
+
+	return nil, user.ErrUserNotFound
 }
 
 // Update existing user.
 //
 // UserUpdate satisfies the backend interface.
-func (l *localdb) UserUpdate(u database.User) error {
+func (l *localdb) UserUpdate(u user.User) error {
 	l.Lock()
 	defer l.Unlock()
 
 	if l.shutdown {
-		return database.ErrShutdown
+		return user.ErrShutdown
 	}
 
 	log.Debugf("UserUpdate: %v", u)
@@ -219,7 +229,7 @@ func (l *localdb) UserUpdate(u database.User) error {
 	if err != nil {
 		return err
 	} else if !exists {
-		return database.ErrUserNotFound
+		return user.ErrUserNotFound
 	}
 
 	payload, err := EncodeUser(u)
@@ -233,12 +243,12 @@ func (l *localdb) UserUpdate(u database.User) error {
 // Update existing user.
 //
 // UserUpdate satisfies the backend interface.
-func (l *localdb) AllUsers(callbackFn func(u *database.User)) error {
+func (l *localdb) AllUsers(callbackFn func(u *user.User)) error {
 	l.Lock()
 	defer l.Unlock()
 
 	if l.shutdown {
-		return database.ErrShutdown
+		return user.ErrShutdown
 	}
 
 	log.Debugf("AllUsers\n")
