@@ -778,11 +778,19 @@ func (p *politeiawww) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 		// User exists
 		// Check if the user is already verified.
 		if existingUser.NewUserVerificationToken == nil {
+			log.Debugf("ProcessNewUser: user is already verified")
 			return &reply, nil
 		}
 
-		// Check if the verification token hasn't expired yet.
+		// Check if the verification token is expired. If the token is
+		// not expired then we simply return. If the token is expired
+		// then we treat this request as a standard NewUser request. A
+		// new token is emailed to the user and the database is updated.
+		// The user is allowed to use a new pubkey if they want to update
+		// their identity.
 		if existingUser.NewUserVerificationExpiry > time.Now().Unix() {
+			log.Debugf("ProcessNewUser: user is unverified and " +
+				"verification token has not yet expired")
 			return &reply, nil
 		}
 	case user.ErrUserNotFound:
@@ -899,6 +907,9 @@ func (p *politeiawww) ProcessNewUser(u www.NewUser) (*www.NewUserReply, error) {
 	if p.smtp.disabled {
 		reply.VerificationToken = hex.EncodeToString(token)
 	}
+
+	log.Debugf("New user created: %v", u.Username)
+
 	return &reply, nil
 }
 
@@ -911,7 +922,7 @@ func (p *politeiawww) ProcessVerifyNewUser(usr www.VerifyNewUser) (*user.User, e
 	if err != nil {
 		if err == user.ErrUserNotFound {
 			log.Debugf("VerifyNewUser failure for %v: user not found",
-				u.Email)
+				usr.Email)
 			return nil, www.UserError{
 				ErrorCode: www.ErrorStatusVerificationTokenInvalid,
 			}
@@ -931,8 +942,9 @@ func (p *politeiawww) ProcessVerifyNewUser(usr www.VerifyNewUser) (*user.User, e
 
 	// Check that the verification token matches.
 	if !bytes.Equal(token, u.NewUserVerificationToken) {
-		log.Debugf("VerifyNewUser failure for %v: verification token doesn't "+
-			"match, expected %v", u.Email, u.NewUserVerificationToken)
+		log.Debugf("VerifyNewUser: wrong token for user %v "+
+			"got %v, want %v", u.Email, hex.EncodeToString(token),
+			hex.EncodeToString(u.NewUserVerificationToken))
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusVerificationTokenInvalid,
 		}
@@ -973,7 +985,7 @@ func (p *politeiawww) ProcessVerifyNewUser(usr www.VerifyNewUser) (*user.User, e
 			ErrorCode: www.ErrorStatusNoPublicKey,
 		}
 	}
-	if !pi.VerifyMessage([]byte(usr.VerificationToken), sig) {
+	if !pi.VerifyMessage(token, sig) {
 		log.Debugf("VerifyNewUser failure for %v: signature doesn't match "+
 			"(pubkey: %v)", u.Email, pi.String())
 		return nil, www.UserError{

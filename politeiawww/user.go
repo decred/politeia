@@ -128,14 +128,24 @@ func validatePassword(password string) error {
 func validatePubkey(publicKey string) ([]byte, error) {
 	pk, err := hex.DecodeString(publicKey)
 	if err != nil {
+		log.Debugf("validatePubkey: decode hex string "+
+			"failed for '%v': %v", publicKey, err)
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusInvalidPublicKey,
 		}
 	}
 
 	var emptyPK [identity.PublicKeySize]byte
-	if len(pk) != len(emptyPK) ||
-		bytes.Equal(pk, emptyPK[:]) {
+	switch {
+	case len(pk) != len(emptyPK):
+		log.Debugf("validatePubkey: invalid size: %v",
+			publicKey)
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidPublicKey,
+		}
+	case bytes.Equal(pk, emptyPK[:]):
+		log.Debugf("validatePubkey: pubkey is empty: %v",
+			publicKey)
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusInvalidPublicKey,
 		}

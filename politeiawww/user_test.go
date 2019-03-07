@@ -4,225 +4,329 @@
 
 package main
 
-//import (
-//	"encoding/hex"
-//	"reflect"
-//	"strings"
-//	"testing"
-//
-//	"github.com/davecgh/go-spew/spew"
-//	"github.com/decred/politeia/politeiad/api/v1/identity"
-//	v1 "github.com/decred/politeia/politeiawww/api/v1"
-//	www "github.com/decred/politeia/politeiawww/api/v1"
-//	"github.com/decred/politeia/politeiawww/database"
-//	"github.com/pmezard/go-difflib/difflib"
-//)
-//
-//// diffString finds the diff between two structs and returns a string
-//// representation of the diff.
-//func diffString(t *testing.T, a, b interface{}) string {
-//	t.Helper()
-//
-//	diff := difflib.UnifiedDiff{
-//		A:        difflib.SplitLines(spew.Sdump(a)),
-//		B:        difflib.SplitLines(spew.Sdump(b)),
-//		FromFile: "Original",
-//		ToFile:   "Current",
-//		Context:  0,
-//	}
-//	d, err := difflib.GetUnifiedDiffString(diff)
-//	if err != nil {
-//		t.Fatalf("%v", err)
-//	}
-//
-//	return d
-//}
-//
-//func TestProcessUserDetails(t *testing.T) {
-//	b := createBackend(t)
-//	defer b.db.Close()
-//
-//	// Create a user and get the user object from the db. This
-//	// is the UUID that we'll use to test the UserDetails route.
-//	nu, _ := createNewUser(t, b)
-//	dbUser, err := b.db.UserGet(nu.Email)
-//	if err != nil {
-//		t.Fatalf("%v", err)
-//	}
-//
-//	// UserDetails will either return the full user details or only
-//	// the public user details depending on who is requesting the
-//	// data. Full user details includes private data such as email
-//	// address and payment information.
-//	user := convertWWWUserFromDatabaseUser(dbUser)
-//	publicUser := filterUserPublicFields(user)
-//
-//	// There is no need to test an invalid UUID with ProcessUserDetails
-//	// since the UUID is a route param and an invalid UUID will result
-//	// in a 404.
-//
-//	// Test a valid UUID that does not belong to a user.
-//	var ud v1.UserDetails
-//	ud.UserID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
-//	_, err = b.ProcessUserDetails(&ud, false, false)
-//	if err.(v1.UserError).ErrorCode != v1.ErrorStatusUserNotFound {
-//		t.Errorf("ProcessUserDetails error got %v, want %v",
-//			err, v1.ErrorStatusUserNotFound)
-//	}
-//
-//	// Use the test user's UUID for the remaining tests.
-//	ud.UserID = user.ID
-//
-//	// Create test cases for requesting user details with
-//	// various privileges.
-//	var tests = []struct {
-//		userDetails   v1.UserDetails
-//		isCurrentUser bool
-//		isAdmin       bool
-//		want          v1.User
-//	}{
-//		// Publicy available user details.
-//		{ud, false, false, publicUser},
-//		// Admin requesting user details.
-//		{ud, false, true, user},
-//		// User requesting their own user details.
-//		{ud, true, false, user},
-//		// Admin requesting their own user details.
-//		{ud, true, true, user},
-//	}
-//
-//	// Run test cases.
-//	for _, test := range tests {
-//		udr, err := b.ProcessUserDetails(&test.userDetails,
-//			test.isCurrentUser, test.isAdmin)
-//		if err != nil {
-//			t.Errorf("ProcessUserDetails error got %v, want %v",
-//				err, nil)
-//		}
-//
-//		// Ensure the correct user object was returned.
-//		if !reflect.DeepEqual(udr.User, test.want) {
-//			t.Errorf("ProcessUserDetails(ud, %t, %t) = unexpected user object\n%v",
-//				test.isCurrentUser, test.isAdmin, diffString(t, udr.User, test.want))
-//		}
-//	}
-//}
-//
-//func TestProcessEditUser(t *testing.T) {
-//	b := createBackend(t)
-//	defer b.db.Close()
-//
-//	// Create a user and get the user object from the db. This
-//	// is the user we'll be editing.
-//	nu, _ := createNewUser(t, b)
-//	user, err := b.db.UserGet(nu.Email)
-//	if err != nil {
-//		t.Fatalf("%v", err)
-//	}
-//
-//	// Create test cases for the different ways a user can
-//	// update their email notifications.
-//	tests := []struct {
-//		notification uint64
-//		want         []v1.EmailNotificationT
-//	}{
-//		// Allow a single notification setting to be set.
-//		{1, []v1.EmailNotificationT{
-//			v1.NotificationEmailMyProposalStatusChange,
-//		}},
-//
-//		// Allow multiple notifications settings to be set.
-//		{7, []v1.EmailNotificationT{
-//			v1.NotificationEmailMyProposalStatusChange,
-//			v1.NotificationEmailMyProposalVoteStarted,
-//			v1.NotificationEmailRegularProposalVetted,
-//		}},
-//
-//		// Allow invalid notification settings to be set.
-//		{0, []v1.EmailNotificationT{}},
-//		{1048576, []v1.EmailNotificationT{}},
-//	}
-//
-//	// Run test cases.
-//	for _, test := range tests {
-//		_, err := b.ProcessEditUser(&v1.EditUser{
-//			EmailNotifications: &test.notification,
-//		}, user)
-//		if err != nil {
-//			t.Errorf("ProcessEditUser error got %v, want %v",
-//				err, nil)
-//		}
-//
-//		// Ensure database was updated with the correct notification
-//		// settings.
-//		u, err := b.db.UserGet(nu.Email)
-//		if err != nil {
-//			t.Fatalf("%v", err)
-//		}
-//
-//		var wantBits uint64
-//		for _, notification := range test.want {
-//			wantBits = wantBits | uint64(notification)
-//		}
-//
-//		// Apply a mask so that we ignore invalid bits. The mask value
-//		// represents all possible notification settings.
-//		var mask uint64 = 0x1FF
-//		gotBits := u.EmailNotifications & mask
-//		if !(wantBits|gotBits == wantBits) {
-//			t.Errorf("EditUser{ EmailNotifications: %v } got %v, want %v",
-//				test.notification, gotBits, wantBits)
-//		}
-//	}
-//}
-//
-//func createUnverifiedUser(t *testing.T, b *backend) (*database.User, *identity.FullIdentity) {
-//	nu, id := createNewUserCommandWithIdentity(t)
-//	nur, err := b.ProcessNewUser(nu)
-//	assertSuccess(t, err)
-//	validateVerificationToken(t, nur.VerificationToken)
-//
-//	user, _ := b.db.UserGet(nu.Email)
-//	return user, id
-//}
-//
-//func verifyUser(t *testing.T, b *backend, user *database.User, identity *identity.FullIdentity, token string) {
-//	signature := identity.SignMessage([]byte(token))
-//	v := www.VerifyNewUser{
-//		Email:             strings.ToUpper(user.Email),
-//		VerificationToken: token,
-//		Signature:         hex.EncodeToString(signature[:]),
-//	}
-//	_, err := b.ProcessVerifyNewUser(v)
-//	assertSuccess(t, err)
-//}
-//
-//// Tests managing a new user by expiring the verification token.
-//func TestProcessManageUser(t *testing.T) {
-//	b := createBackend(t)
-//	nu, _ := createAndVerifyUser(t, b)
-//	adminUser, _ := b.db.UserGet(nu.Email)
-//	user, identity := createUnverifiedUser(t, b)
-//
-//	// Expire the new user verification token
-//	eu := www.ManageUser{
-//		UserID: user.ID.String(),
-//		Action: www.UserManageExpireNewUserVerification,
-//		Reason: "unit test",
-//	}
-//	_, err := b.ProcessManageUser(&eu, adminUser)
-//	assertSuccess(t, err)
-//
-//	// Generate a new verification token
-//	rv := www.ResendVerification{
-//		Email:     user.Email,
-//		PublicKey: hex.EncodeToString(identity.Public.Key[:]),
-//	}
-//	rvr, err := b.ProcessResendVerification(&rv)
-//	assertSuccess(t, err)
-//	validateVerificationToken(t, rvr.VerificationToken)
-//
-//	verifyUser(t, b, user, identity, rvr.VerificationToken)
-//
-//	b.db.Close()
-//}
+import (
+	"encoding/hex"
+	"reflect"
+	"testing"
+
+	"github.com/decred/politeia/politeiad/api/v1/identity"
+	v1 "github.com/decred/politeia/politeiawww/api/v1"
+)
+
+func TestValidatePubkey(t *testing.T) {
+	p := newTestPoliteiawww(t)
+	defer cleanupTestPoliteiawww(t, p)
+
+	id, err := identity.New()
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+
+	// Valid public key
+	valid := hex.EncodeToString(id.Public.Key[:])
+
+	// Invalid hex string. The last character is an 'x'.
+	invalidHex := "62920bbb25dd552c7367677be0abe19f4c11394c82ce4096eabf83469439901x"
+
+	// The private key is 64 bytes so we can use it to test
+	// the invalid size error path. The expected size of the
+	// public key is 32 bytes.
+	invalidSize := hex.EncodeToString(id.PrivateKey[:])
+
+	// Valid size public key that is all zeros
+	var zeros [identity.PublicKeySize]byte
+	empty := hex.EncodeToString(zeros[:])
+
+	// Setup tests
+	var tests = []struct {
+		name   string
+		pubkey string
+		want   error
+	}{
+		{"valid pubkey", valid, nil},
+
+		{"invalid hexadecimal", invalidHex,
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusInvalidPublicKey,
+			}},
+
+		{"invalid size", invalidSize,
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusInvalidPublicKey,
+			}},
+
+		{"empty pubkey", empty,
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusInvalidPublicKey,
+			}},
+	}
+
+	// Run tests
+	for _, v := range tests {
+		t.Run(v.name, func(t *testing.T) {
+			_, err := validatePubkey(v.pubkey)
+			got := errToStr(err)
+			want := errToStr(v.want)
+			if got != want {
+				t.Errorf("got error %v, want %v",
+					got, want)
+			}
+		})
+	}
+}
+
+func TestValidateUsername(t *testing.T) {
+	p := newTestPoliteiawww(t)
+	defer cleanupTestPoliteiawww(t, p)
+
+	// Username under the min length requirement
+	var underMin string
+	for i := 0; i < v1.PolicyMinUsernameLength-1; i++ {
+		underMin += "0"
+	}
+
+	// Username over the max length requirement
+	var overMax string
+	for i := 0; i < v1.PolicyMaxUsernameLength+1; i++ {
+		overMax += "0"
+	}
+
+	// Setup tests
+	var tests = []struct {
+		name     string
+		username string
+		want     error
+	}{
+		{"contains uppercase", "Politeiauser",
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusMalformedUsername,
+			}},
+
+		{"leading whitespace", " politeiauser",
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusMalformedUsername,
+			}},
+
+		{"trailing whitespace", "politeiauser ",
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusMalformedUsername,
+			}},
+
+		{"empty", "",
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusMalformedUsername,
+			}},
+
+		{"under min length", underMin,
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusMalformedUsername,
+			}},
+
+		{"over max length", overMax,
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusMalformedUsername,
+			}},
+
+		{"unsupported character", "politeiauser?",
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusMalformedUsername,
+			}},
+
+		{"contains whitespace", "politeia user",
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusMalformedUsername,
+			}},
+
+		{"valid username", "politeiauser", nil},
+	}
+
+	// Run tests
+	for _, v := range tests {
+		t.Run(v.name, func(t *testing.T) {
+			err := validateUsername(v.username)
+			got := errToStr(err)
+			want := errToStr(v.want)
+			if got != want {
+				t.Errorf("got error %v, want %v",
+					got, want)
+			}
+		})
+	}
+}
+
+func TestValidatePassword(t *testing.T) {
+	p := newTestPoliteiawww(t)
+	defer cleanupTestPoliteiawww(t, p)
+
+	// Password under the min length requirement
+	var minPass string
+	for i := 0; i < v1.PolicyMinPasswordLength-1; i++ {
+		minPass += "0"
+	}
+
+	// Setup tests
+	var tests = []struct {
+		name     string
+		password string
+		want     error
+	}{
+		{"under min length", minPass,
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusMalformedPassword,
+			}},
+	}
+
+	// Run tests
+	for _, v := range tests {
+		t.Run(v.name, func(t *testing.T) {
+			err := validatePassword(v.password)
+			got := errToStr(err)
+			want := errToStr(v.want)
+			if got != want {
+				t.Errorf("got error %v, want %v",
+					got, want)
+			}
+		})
+	}
+}
+
+func TestProcessUserDetails(t *testing.T) {
+	p := newTestPoliteiawww(t)
+	defer cleanupTestPoliteiawww(t, p)
+
+	// Create a new user. This is the UUID that
+	// we'll use to test the UserDetails route.
+	u, _ := newUser(t, p, false)
+	ud := v1.UserDetails{}
+
+	// Test a valid length UUID that does not belong to a user.
+	// We can assume that any invalid UUIDs were caught by the
+	// user details request handler.
+	t.Run("valid UUID with no user", func(t *testing.T) {
+		ud.UserID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+		_, err := p.ProcessUserDetails(&ud, false, false)
+		got := errToStr(err)
+		want := v1.ErrorStatus[v1.ErrorStatusUserNotFound]
+		if got != want {
+			t.Errorf("got error %v, want %v", got, want)
+		}
+	})
+
+	// UserDetails will either return the full user details
+	// or just the public user details depending on who is
+	// requesting the data. The full user details includes
+	// private data such as email address and payment info.
+	fullUser := convertWWWUserFromDatabaseUser(u)
+	fullUserMsg := "full user details"
+
+	publicUser := filterUserPublicFields(fullUser)
+	publicUserMsg := "public user details"
+
+	// Use a valid UUID for the remaining tests
+	ud.UserID = fullUser.ID
+
+	// Setup tests
+	var tests = []struct {
+		name          string         // Test name
+		userDetails   v1.UserDetails // User details request
+		isCurrentUser bool           // Is a user requesting their own details
+		isAdmin       bool           // Is an admin requesting the user details
+		want          v1.User        // Wanted user response
+		wantMsg       string         // Wanted user response description
+	}{
+		{"public user details", ud, false, false,
+			publicUser, publicUserMsg},
+
+		{"admin requesting user details", ud, false, true,
+			fullUser, fullUserMsg},
+
+		{"user requesting their own details", ud, true, false,
+			fullUser, fullUserMsg},
+
+		{"admin requesting their own details", ud, true, true,
+			fullUser, fullUserMsg},
+	}
+
+	// Run tests
+	for _, v := range tests {
+		t.Run(v.name, func(t *testing.T) {
+			udr, err := p.ProcessUserDetails(&v.userDetails,
+				v.isCurrentUser, v.isAdmin)
+			if err != nil {
+				t.Errorf("got error %v, want nil", err)
+			}
+
+			if !reflect.DeepEqual(udr.User, v.want) {
+				t.Errorf("got unexpected user object, want %v",
+					v.wantMsg)
+			}
+		})
+	}
+}
+
+func TestProcessEditUser(t *testing.T) {
+	p := newTestPoliteiawww(t)
+	defer cleanupTestPoliteiawww(t, p)
+
+	// Create a new user. This is the
+	// user that we will be editing.
+	user, _ := newUser(t, p, false)
+
+	// Setup test cases
+	tests := []struct {
+		name         string
+		notification uint64
+		want         []v1.EmailNotificationT
+	}{
+		{"single notification setting", 0x1,
+			[]v1.EmailNotificationT{
+				v1.NotificationEmailMyProposalStatusChange,
+			}},
+
+		{"multiple notification settings", 0x7,
+			[]v1.EmailNotificationT{
+				v1.NotificationEmailMyProposalStatusChange,
+				v1.NotificationEmailMyProposalVoteStarted,
+				v1.NotificationEmailRegularProposalVetted,
+			}},
+
+		{"no notification settings", 0x0,
+			[]v1.EmailNotificationT{}},
+
+		{"invalid notification setting", 0x100000,
+			[]v1.EmailNotificationT{}},
+	}
+
+	// Run test cases
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := p.ProcessEditUser(&v1.EditUser{
+				EmailNotifications: &test.notification,
+			}, user)
+			if err != nil {
+				t.Errorf("got error %v, want nil", err)
+			}
+
+			// Ensure database was updated with
+			// correct notification settings.
+			u, err := p.db.UserGet(user.Email)
+			if err != nil {
+				t.Fatalf("%v", err)
+			}
+
+			var bitsWant uint64
+			for _, notification := range test.want {
+				bitsWant = bitsWant | uint64(notification)
+			}
+
+			// Apply a mask to ignore invalid bits. The mask
+			// represents all possible notification settings.
+			var mask uint64 = 0x1FF
+			bitsGot := u.EmailNotifications & mask
+			if !(bitsWant|bitsGot == bitsWant) {
+				t.Errorf("notification bits got %#x, want %#x",
+					bitsGot, bitsWant)
+			}
+		})
+	}
+}
