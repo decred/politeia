@@ -48,23 +48,14 @@ type PaywallGatewayNewOrderResponse struct {
 	PaywallAmount uint64
 }
 
-// BEPrimaryAddressTransactions is an object representing the transactions
-// for a given address; it's the matches the data returned from the URL for
-// the primary block explorer when fetching the transactions for an address.
-type BEPrimaryAddressTransactions struct {
-	Address             string                 `json:"address"`
-	AddressTransactions []BEPrimaryTransaction `json:"address_transactions"`
-}
-
 // BEPrimaryTransaction is an object representing a transaction; it's
 // part of the data returned from the URL for the primary block explorer
 // when fetching the transactions for an address.
 type BEPrimaryTransaction struct {
-	TxID          string      `json:"txid"`
-	Size          uint64      `json:"size"`
-	Timestamp     int64       `json:"time"`
-	Value         json.Number `json:"value"`
-	Confirmations uint64      `json:"confirmations"`
+	TxId          string                     `json:"txid"`          // Transaction id
+	Vout          []BEPrimaryTransactionVout `json:"vout"`          // Transaction outputs
+	Confirmations uint64                     `json:"confirmations"` // Number of confirmations
+	Timestamp     int64                      `json:"time"`          // Transaction timestamp
 }
 
 // BEPrimaryTransactionVout holds the transaction amount information.
@@ -119,17 +110,17 @@ func makeRequest(url string, timeout time.Duration) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
 		body, err := ioutil.ReadAll(response.Body)
 		if err != nil {
-			return nil, fmt.Errorf("   *** ERROR invalid "+
-				"body: %v %v", response.StatusCode, body)
+			return nil, fmt.Errorf("dcrdata error %v: %v %v %v", err,
+				response.StatusCode, url, body)
 		}
-		return nil, fmt.Errorf("   *** ERROR invalid %v "+
-			"answer: %v %s", url, response.StatusCode, body)
+		return nil, fmt.Errorf("dcrdata error: %v %v %s",
+			response.StatusCode, url, body)
 	}
-	defer response.Body.Close()
 
 	return ioutil.ReadAll(response.Body)
 }
@@ -196,13 +187,13 @@ func fetchTxWithPrimaryBE(url string, address string, minimumAmount uint64, txno
 		return "", 0, err
 	}
 
-	var addressTxs BEPrimaryAddressTransactions
-	err = json.Unmarshal(responseBody, &addressTxs)
+	transactions := make([]BEPrimaryTransaction, 0)
+	err = json.Unmarshal(responseBody, &transactions)
 	if err != nil {
 		return "", 0, err
 	}
 
-	for _, v := range addressTxs.AddressTransactions {
+	for _, v := range transactions {
 		if v.Timestamp < txnotbefore {
 			continue
 		}
@@ -210,16 +201,22 @@ func fetchTxWithPrimaryBE(url string, address string, minimumAmount uint64, txno
 			continue
 		}
 
-		amount, err := DcrStringToAmount(v.Value.String())
-		if err != nil {
-			return "", 0, err
-		}
+		for _, vout := range v.Vout {
+			amount, err := DcrStringToAmount(vout.Amount.String())
+			if err != nil {
+				return "", 0, err
+			}
 
-		if amount < minimumAmount {
-			continue
-		}
+			if amount < minimumAmount {
+				continue
+			}
 
-		return v.TxID, amount, nil
+			for _, addr := range vout.ScriptPubkey.Addresses {
+				if address == addr {
+					return v.TxId, amount, nil
+				}
+			}
+		}
 	}
 
 	return "", 0, nil
@@ -376,7 +373,7 @@ func FetchTxWithBlockExplorers(address string, amount uint64, txnotbefore int64,
 	if err != nil {
 		return "", 0, err
 	}
-	primaryURL := dcrdataURL
+	primaryURL := dcrdataURL + "/raw"
 	backupURL := insightURL + "/utxo?noCache=1"
 
 	// Try the primary (dcrdata) first.
@@ -399,19 +396,19 @@ func FetchTxWithBlockExplorers(address string, amount uint64, txnotbefore int64,
 	return txID, amount, nil
 }
 
-func fetchTxsWithPrimaryBE(url string) (*BEPrimaryAddressTransactions, error) {
+func fetchTxsWithPrimaryBE(url string) ([]BEPrimaryTransaction, error) {
 	responseBody, err := makeRequest(url, 3)
 	if err != nil {
 		return nil, err
 	}
 
-	var addressTxs BEPrimaryAddressTransactions
-	err = json.Unmarshal(responseBody, &addressTxs)
+	transactions := make([]BEPrimaryTransaction, 0)
+	err = json.Unmarshal(responseBody, &transactions)
 	if err != nil {
-		return nil, fmt.Errorf("Unmarshal [EPrimaryAddressTransactions %v", err)
+		return nil, fmt.Errorf("Unmarshal []BEPrimaryTransaction: %v", err)
 	}
 
-	return &addressTxs, nil
+	return transactions, nil
 }
 
 func fetchTxsWithBackupBE(url string) ([]BEBackupTransaction, error) {
@@ -430,14 +427,23 @@ func fetchTxsWithBackupBE(url string) ([]BEBackupTransaction, error) {
 }
 
 func convertBEPrimaryTransactionToTxDetails(address string, tx BEPrimaryTransaction) (*TxDetails, error) {
-	amount, err := DcrStringToAmount(tx.Value.String())
-	if err != nil {
-		return nil, err
+	var amount uint64
+	for _, vout := range tx.Vout {
+		amt, err := DcrStringToAmount(vout.Amount.String())
+		if err != nil {
+			return nil, err
+		}
+
+		for _, addr := range vout.ScriptPubkey.Addresses {
+			if address == addr {
+				amount += amt
+			}
+		}
 	}
 
 	return &TxDetails{
 		Address:       address,
-		TxID:          tx.TxID,
+		TxID:          tx.TxId,
 		Amount:        amount,
 		Confirmations: tx.Confirmations,
 		Timestamp:     tx.Timestamp,
@@ -473,20 +479,20 @@ func FetchTxsForAddress(address string) ([]TxDetails, error) {
 	if err != nil {
 		return nil, err
 	}
-	primaryURL := dcrdataURL
+	primaryURL := dcrdataURL + "/raw"
 	backupURL := insightURL + "/utxo?noCache=1"
 
 	// Try the primary (dcrdata)
-	primaryAddrTxs, err := fetchTxsWithPrimaryBE(primaryURL)
+	primaryTxs, err := fetchTxsWithPrimaryBE(primaryURL)
 	if err != nil {
 		log.Printf("failed to fetch from dcrdata: %v", err)
 	} else {
-		txs := make([]TxDetails, 0, len(primaryAddrTxs.AddressTransactions))
-		for _, tx := range primaryAddrTxs.AddressTransactions {
+		txs := make([]TxDetails, 0, len(primaryTxs))
+		for _, tx := range primaryTxs {
 			txDetail, err := convertBEPrimaryTransactionToTxDetails(address, tx)
 			if err != nil {
 				return nil, fmt.Errorf("convertBEPrimaryTransactionToTxDetails: %v",
-					tx.TxID)
+					tx.TxId)
 			}
 			txs = append(txs, *txDetail)
 		}
@@ -538,19 +544,19 @@ func FetchTxsForAddressNotBefore(address string, notBefore int64) ([]TxDetails, 
 	for !done {
 		// Fetch a page of user payment txs
 		url := dcrdataURL + "/count/" + strconv.Itoa(count) +
-			"/skip/" + strconv.Itoa(skip)
-		dcrdataAddressTxs, err := fetchTxsWithPrimaryBE(url)
+			"/skip/" + strconv.Itoa(skip) + "/raw"
+		dcrdataTxs, err := fetchTxsWithPrimaryBE(url)
 		if err != nil {
 			return nil, fmt.Errorf("fetchDcrdataAddress: %v", err)
 		}
 
 		// Convert transactions to TxDetails
-		txs := make([]TxDetails, len(dcrdataAddressTxs.AddressTransactions))
-		for _, tx := range dcrdataAddressTxs.AddressTransactions {
+		txs := make([]TxDetails, len(dcrdataTxs))
+		for _, tx := range dcrdataTxs {
 			txDetails, err := convertBEPrimaryTransactionToTxDetails(address, tx)
 			if err != nil {
 				return nil, fmt.Errorf("convertBEPrimaryTransactionToTxDetails: %v",
-					tx.TxID)
+					tx.TxId)
 			}
 			txs = append(txs, *txDetails)
 		}
