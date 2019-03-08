@@ -115,8 +115,8 @@ func makeRequest(url string, timeout time.Duration) ([]byte, error) {
 	if response.StatusCode != http.StatusOK {
 		body, err := ioutil.ReadAll(response.Body)
 		if err != nil {
-			return nil, fmt.Errorf("dcrdata error %v: %v %v %v", err,
-				response.StatusCode, url, body)
+			return nil, fmt.Errorf("dcrdata error: %v %v %v"
+				response.StatusCode, url, err)
 		}
 		return nil, fmt.Errorf("dcrdata error: %v %v %s",
 			response.StatusCode, url, body)
