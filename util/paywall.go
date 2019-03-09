@@ -31,7 +31,7 @@ const (
 	insightMainnet = "https://mainnet.decred.org/insight/api"
 	insightTestnet = "https://testnet.decred.org/insight/api"
 
-	requestTimeout = 3 // Block explorer request timeout in seconds
+	requestTimeout = 3 * time.Second // Block explorer request timeout
 )
 
 // FaucetResponse represents the expected JSON response from the testnet faucet.
