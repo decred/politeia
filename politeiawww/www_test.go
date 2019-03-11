@@ -119,9 +119,9 @@ func TestHandleVerifyNewUser(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
-	s := id.SignMessage(tb)
-	sig := hex.EncodeToString(s[:])
 	token := hex.EncodeToString(tb)
+	s := id.SignMessage([]byte(token))
+	sig := hex.EncodeToString(s[:])
 
 	// Test invalid input. We have to run it individually so that
 	// we can set the wrong query param.

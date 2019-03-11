@@ -195,9 +195,9 @@ func TestProcessVerifyNewUser(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
-	s := id.SignMessage(tb)
-	sig := hex.EncodeToString(s[:])
 	token := hex.EncodeToString(tb)
+	s := id.SignMessage([]byte(token))
+	sig := hex.EncodeToString(s[:])
 
 	s = id.SignMessage([]byte("intentionally wrong"))
 	wrongSig := hex.EncodeToString(s[:])

@@ -985,7 +985,7 @@ func (p *politeiawww) ProcessVerifyNewUser(usr www.VerifyNewUser) (*user.User, e
 			ErrorCode: www.ErrorStatusNoPublicKey,
 		}
 	}
-	if !pi.VerifyMessage(token, sig) {
+	if !pi.VerifyMessage([]byte(usr.VerificationToken), sig) {
 		log.Debugf("VerifyNewUser failure for %v: signature doesn't match "+
 			"(pubkey: %v)", u.Email, pi.String())
 		return nil, www.UserError{
