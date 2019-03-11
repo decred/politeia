@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/cache"
 	"github.com/decred/politeia/politeiad/cache/cockroachdb"
 	v1 "github.com/decred/politeia/politeiawww/api/v1"
@@ -1032,7 +1033,23 @@ func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Reque
 func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 	// Get the policy command.
 	log.Tracef("handlePolicy")
-	reply := ProcessPolicy()
+	reply := &v1.PolicyReply{
+		MinPasswordLength:          v1.PolicyMinPasswordLength,
+		MinUsernameLength:          v1.PolicyMinUsernameLength,
+		MaxUsernameLength:          v1.PolicyMaxUsernameLength,
+		UsernameSupportedChars:     v1.PolicyUsernameSupportedChars,
+		ProposalListPageSize:       v1.ProposalListPageSize,
+		UserListPageSize:           v1.UserListPageSize,
+		MaxImages:                  v1.PolicyMaxImages,
+		MaxImageSize:               v1.PolicyMaxImageSize,
+		MaxMDs:                     v1.PolicyMaxMDs,
+		MaxMDSize:                  v1.PolicyMaxMDSize,
+		ValidMIMETypes:             mime.ValidMimeTypes(),
+		MinProposalNameLength:      v1.PolicyMinProposalNameLength,
+		MaxProposalNameLength:      v1.PolicyMaxProposalNameLength,
+		ProposalNameSupportedChars: v1.PolicyProposalNameSupportedChars,
+		MaxCommentLength:           v1.PolicyMaxCommentLength,
+	}
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 

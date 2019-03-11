@@ -109,7 +109,7 @@ func TestHandleVerifyNewUser(t *testing.T) {
 	// by creating a verified user then manually reseting the
 	// verification fields.
 	usr, id := newUser(t, p, false)
-	tb, expiry, err := p.generateVerificationTokenAndExpiry()
+	tb, expiry, err := generateVerificationTokenAndExpiry()
 	if err != nil {
 		t.Fatalf("%v", err)
 	}

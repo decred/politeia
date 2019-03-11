@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"sync"
 	"text/template"
-	"time"
 
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/politeia/politeiad/cache"
@@ -73,8 +72,7 @@ type politeiawww struct {
 	eventManager *EventManager
 
 	// These properties are only used for testing.
-	test                   bool
-	verificationExpiryTime time.Duration
+	test bool
 
 	// Following entries require locks
 	userPubkeys     map[string]string               // [pubkey][userid]
