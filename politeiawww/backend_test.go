@@ -21,7 +21,7 @@ func TestProcessNewUser(t *testing.T) {
 	// token. We do this by creating a verified user then manually
 	// reseting the user's verification token in the database.
 	usrUnexpired, _ := newUser(t, p, false)
-	token, expiry, err := p.generateVerificationTokenAndExpiry()
+	token, expiry, err := generateVerificationTokenAndExpiry()
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -38,7 +38,7 @@ func TestProcessNewUser(t *testing.T) {
 	// A user with an expired verification token is allowed to
 	// send up a new pubkey if they want to update their identity.
 	usrExpired, _ := newUser(t, p, false)
-	token, _, err = p.generateVerificationTokenAndExpiry()
+	token, _, err = generateVerificationTokenAndExpiry()
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -185,7 +185,7 @@ func TestProcessVerifyNewUser(t *testing.T) {
 	// token. We do this by creating a verified user then
 	// reseting the token verification fields manually.
 	usr, id := newUser(t, p, false)
-	tb, expiry, err := p.generateVerificationTokenAndExpiry()
+	tb, expiry, err := generateVerificationTokenAndExpiry()
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -203,7 +203,7 @@ func TestProcessVerifyNewUser(t *testing.T) {
 	wrongSig := hex.EncodeToString(s[:])
 
 	// Create a token that does not correspond to a user
-	b, _, err := p.generateVerificationTokenAndExpiry()
+	b, _, err := generateVerificationTokenAndExpiry()
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -211,7 +211,7 @@ func TestProcessVerifyNewUser(t *testing.T) {
 
 	// Create a user with an expired verification token
 	expiredUsr, id := newUser(t, p, false)
-	tb, _, err = p.generateVerificationTokenAndExpiry()
+	tb, _, err = generateVerificationTokenAndExpiry()
 	if err != nil {
 		t.Fatalf("%v", err)
 	}

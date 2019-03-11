@@ -69,7 +69,7 @@ func newUser(t *testing.T, p *politeiawww, isAdmin bool) (*user.User, *identity.
 		t.Fatalf("%v", err)
 	}
 
-	token, expiry, err := p.generateVerificationTokenAndExpiry()
+	token, expiry, err := generateVerificationTokenAndExpiry()
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
