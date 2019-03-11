@@ -204,11 +204,14 @@ func TestProcessVerifyNewUser(t *testing.T) {
 
 	// Create a token that does not correspond to a user
 	b, _, err := p.generateVerificationTokenAndExpiry()
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
 	wrongToken := hex.EncodeToString(b)
 
 	// Create a user with an expired verification token
 	expiredUsr, id := newUser(t, p, false)
-	tb, expiry, err = p.generateVerificationTokenAndExpiry()
+	tb, _, err = p.generateVerificationTokenAndExpiry()
 	if err != nil {
 		t.Fatalf("%v", err)
 	}

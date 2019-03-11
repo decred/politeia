@@ -316,7 +316,7 @@ func TestProcessEditUser(t *testing.T) {
 
 			var bitsWant uint64
 			for _, notification := range test.want {
-				bitsWant = bitsWant | uint64(notification)
+				bitsWant |= uint64(notification)
 			}
 
 			// Apply a mask to ignore invalid bits. The mask

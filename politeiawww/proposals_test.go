@@ -49,7 +49,10 @@ func createFilePNG(t *testing.T, addColor bool) *www.File {
 		}
 	}
 
-	png.Encode(b, img)
+	err := png.Encode(b, img)
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
 
 	// Generate a random name
 	r, err := util.Random(8)
