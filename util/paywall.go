@@ -28,10 +28,10 @@ import (
 const (
 	dcrdataMainnet = "https://explorer.dcrdata.org/api"
 	dcrdataTestnet = "https://testnet.dcrdata.org/api"
-	insightMainnet = "https://mainnet.decred.org/api"
-	insightTestnet = "https://testnet.decred.org/api"
+	insightMainnet = "https://mainnet.decred.org/insight/api"
+	insightTestnet = "https://testnet.decred.org/insight/api"
 
-	requestTimeout = 3 // Block explorer request timeout in seconds
+	requestTimeout = 3 * time.Second // Block explorer request timeout
 )
 
 // FaucetResponse represents the expected JSON response from the testnet faucet.
@@ -111,6 +111,16 @@ func makeRequest(url string, timeout time.Duration) ([]byte, error) {
 		return nil, err
 	}
 	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		body, err := ioutil.ReadAll(response.Body)
+		if err != nil {
+			return nil, fmt.Errorf("dcrdata error: %v %v %v",
+				response.StatusCode, url, err)
+		}
+		return nil, fmt.Errorf("dcrdata error: %v %v %s",
+			response.StatusCode, url, body)
+	}
 
 	return ioutil.ReadAll(response.Body)
 }
