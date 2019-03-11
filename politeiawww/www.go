@@ -1465,8 +1465,8 @@ func (p *politeiawww) handleUserDetails(w http.ResponseWriter, r *http.Request) 
 
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
-		// since having a logged in user isn't required, simply log the error
-		log.Infof("handleUserDetails: could not get session user %v", err)
+		// This is a public route so a logged in user is not required
+		log.Debugf("handleUserDetails: could not get session user: %v", err)
 	}
 
 	udr, err := p.ProcessUserDetails(&ud,

@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -20,6 +21,7 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	www "github.com/decred/politeia/politeiawww/api/v1"
+	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 )
 
@@ -47,7 +49,10 @@ func createFilePNG(t *testing.T, addColor bool) *www.File {
 		}
 	}
 
-	png.Encode(b, img)
+	err := png.Encode(b, img)
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
 
 	// Generate a random name
 	r, err := util.Random(8)
@@ -64,8 +69,7 @@ func createFilePNG(t *testing.T, addColor bool) *www.File {
 }
 
 // createFileMD creates a File that contains a markdown file.  The markdown
-// file is filled with randomly generated data and adheres to the politeiawwww
-// policies for markdown files.
+// file is filled with randomly generated data.
 func createFileMD(t *testing.T, size int, title string) *www.File {
 	t.Helper()
 
@@ -94,6 +98,7 @@ func createNewProposal(t *testing.T, id *identity.FullIdentity, files []www.File
 		t.Fatalf("no files found")
 	}
 
+	// Compute merkle
 	digests := make([]*[sha256.Size]byte, 0, len(files))
 	for _, f := range files {
 		d, ok := util.ConvertDigest(f.Digest)
@@ -103,6 +108,8 @@ func createNewProposal(t *testing.T, id *identity.FullIdentity, files []www.File
 		digests = append(digests, &d)
 	}
 	root := hex.EncodeToString(merkle.Root(digests)[:])
+
+	// Sign merkle
 	sig := id.SignMessage([]byte(root))
 
 	return &www.NewProposal{
@@ -112,168 +119,151 @@ func createNewProposal(t *testing.T, id *identity.FullIdentity, files []www.File
 	}
 }
 
-//func TestValidateProposal(t *testing.T) {
-//	// Setup backend and user
-//	b := createBackend(t)
-//	defer b.db.Close()
-//
-//	nu, id := createNewUser(t, b)
-//	user, err := b.db.UserGet(nu.Email)
-//	if err != nil {
-//		t.Fatalf("%v", err)
-//	}
-//
-//	// Create test data
-//	md := createFileMD(t, 8, "Valid Title")
-//	png := createFilePNG(t, false)
-//	np := createNewProposal(t, id, []www.File{*md, *png})
-//
-//	// Invalid signature
-//	propInvalidSig := &www.NewProposal{
-//		Files:     np.Files,
-//		PublicKey: np.PublicKey,
-//		Signature: "abc",
-//	}
-//
-//	// Signature is valid but incorrect
-//	propBadSig := createNewProposal(t, id, []www.File{*md})
-//	if err != nil {
-//		t.Fatalf("%v", err)
-//	}
-//	propBadSig.Signature = np.Signature
-//
-//	// No files
-//	propNoFiles := &www.NewProposal{
-//		Files:     make([]www.File, 0),
-//		PublicKey: np.PublicKey,
-//		Signature: np.Signature,
-//	}
-//
-//	// Invalid markdown filename
-//	mdBadFilename := *md
-//	mdBadFilename.Name = "bad_filename.md"
-//	propBadFilename := createNewProposal(t, id, []www.File{mdBadFilename})
-//
-//	// Duplicate filenames
-//	propDupFiles := createNewProposal(t, id, []www.File{*md, *png, *png})
-//
-//	// Too many markdown files. We need one correctly named md
-//	// file and the rest must have their names changed so that we
-//	// don't get a duplicate filename error.
-//	files := make([]www.File, 0, www.PolicyMaxMDs+1)
-//	files = append(files, *md)
-//	for i := 0; i < www.PolicyMaxMDs; i++ {
-//		m := *md
-//		m.Name = fmt.Sprintf("%v.md", i)
-//		files = append(files, m)
-//	}
-//	propMaxMDFiles := createNewProposal(t, id, files)
-//
-//	// Too many image files. All of their names must be different
-//	// so that we don't get a duplicate filename error.
-//	files = make([]www.File, 0, www.PolicyMaxImages+2)
-//	files = append(files, *md)
-//	for i := 0; i <= www.PolicyMaxImages; i++ {
-//		p := *png
-//		p.Name = fmt.Sprintf("%v.png", i)
-//		files = append(files, p)
-//	}
-//	propMaxImages := createNewProposal(t, id, files)
-//
-//	// Markdown file too large
-//	mdLarge := createFileMD(t, www.PolicyMaxMDSize, "Valid Title")
-//	propMDLarge := createNewProposal(t, id, []www.File{*mdLarge, *png})
-//
-//	// Image too large
-//	pngLarge := createFilePNG(t, true)
-//	propImageLarge := createNewProposal(t, id, []www.File{*md, *pngLarge})
-//
-//	// Invalid proposal title
-//	mdBadTitle := createFileMD(t, 8, "{invalid-title}")
-//	propBadTitle := createNewProposal(t, id, []www.File{*mdBadTitle})
-//
-//	// Setup test cases
-//	var tests = []struct {
-//		name        string
-//		newProposal www.NewProposal
-//		user        *database.User
-//		want        error
-//	}{
-//		{"correct proposal", *np, user, nil},
-//
-//		{"invalid signature", *propInvalidSig, user,
-//			www.UserError{
-//				ErrorCode: www.ErrorStatusInvalidSignature,
-//			},
-//		},
-//
-//		{"incorrect signature", *propBadSig, user,
-//			www.UserError{
-//				ErrorCode: www.ErrorStatusInvalidSignature,
-//			},
-//		},
-//
-//		{"no files", *propNoFiles, user,
-//			www.UserError{
-//				ErrorCode: www.ErrorStatusProposalMissingFiles,
-//			},
-//		},
-//
-//		{"bad md filename", *propBadFilename, user,
-//			www.UserError{
-//				ErrorCode: www.ErrorStatusProposalMissingFiles,
-//			},
-//		},
-//
-//		{"duplicate filenames", *propDupFiles, user,
-//			www.UserError{
-//				ErrorCode: www.ErrorStatusProposalDuplicateFilenames,
-//			},
-//		},
-//
-//		{"too may md files", *propMaxMDFiles, user,
-//			www.UserError{
-//				ErrorCode: www.ErrorStatusMaxMDsExceededPolicy,
-//			},
-//		},
-//
-//		{"too many images", *propMaxImages, user,
-//			www.UserError{
-//				ErrorCode: www.ErrorStatusMaxImagesExceededPolicy,
-//			},
-//		},
-//
-//		{"md file too large", *propMDLarge, user,
-//			www.UserError{
-//				ErrorCode: www.ErrorStatusMaxMDSizeExceededPolicy,
-//			},
-//		},
-//
-//		{"image too large", *propImageLarge, user,
-//			www.UserError{
-//				ErrorCode: www.ErrorStatusMaxImageSizeExceededPolicy,
-//			},
-//		},
-//
-//		{"invalid title", *propBadTitle, user,
-//			www.UserError{
-//				ErrorCode: www.ErrorStatusProposalInvalidTitle,
-//			},
-//		},
-//	}
-//
-//	// Run test cases
-//	for _, test := range tests {
-//		t.Run(test.name, func(t *testing.T) {
-//			err := b.validateProposal(test.newProposal, test.user)
-//			got := convertErrorToMsg(err)
-//			want := convertErrorToMsg(test.want)
-//			if got != want {
-//				t.Errorf("got %v, want %v", got, want)
-//			}
-//		})
-//	}
-//}
+func TestValidateProposal(t *testing.T) {
+	// Setup politeiawww and a test user
+	p := newTestPoliteiawww(t)
+	defer cleanupTestPoliteiawww(t, p)
+
+	usr, id := newUser(t, p, false)
+
+	// Create test data
+	md := createFileMD(t, 8, "Valid Title")
+	png := createFilePNG(t, false)
+	np := createNewProposal(t, id, []www.File{*md, *png})
+
+	// Invalid signature
+	propInvalidSig := &www.NewProposal{
+		Files:     np.Files,
+		PublicKey: np.PublicKey,
+		Signature: "abc",
+	}
+
+	// Signature is valid but incorrect
+	propBadSig := createNewProposal(t, id, []www.File{*md})
+	propBadSig.Signature = np.Signature
+
+	// No files
+	propNoFiles := &www.NewProposal{
+		Files:     make([]www.File, 0),
+		PublicKey: np.PublicKey,
+		Signature: np.Signature,
+	}
+
+	// Invalid markdown filename
+	mdBadFilename := *md
+	mdBadFilename.Name = "bad_filename.md"
+	propBadFilename := createNewProposal(t, id, []www.File{mdBadFilename})
+
+	// Duplicate filenames
+	propDupFiles := createNewProposal(t, id, []www.File{*md, *png, *png})
+
+	// Too many markdown files. We need one correctly named md
+	// file and the rest must have their names changed so that we
+	// don't get a duplicate filename error.
+	files := make([]www.File, 0, www.PolicyMaxMDs+1)
+	files = append(files, *md)
+	for i := 0; i < www.PolicyMaxMDs; i++ {
+		m := *md
+		m.Name = fmt.Sprintf("%v.md", i)
+		files = append(files, m)
+	}
+	propMaxMDFiles := createNewProposal(t, id, files)
+
+	// Too many image files. All of their names must be different
+	// so that we don't get a duplicate filename error.
+	files = make([]www.File, 0, www.PolicyMaxImages+2)
+	files = append(files, *md)
+	for i := 0; i <= www.PolicyMaxImages; i++ {
+		p := *png
+		p.Name = fmt.Sprintf("%v.png", i)
+		files = append(files, p)
+	}
+	propMaxImages := createNewProposal(t, id, files)
+
+	// Markdown file too large
+	mdLarge := createFileMD(t, www.PolicyMaxMDSize, "Valid Title")
+	propMDLarge := createNewProposal(t, id, []www.File{*mdLarge, *png})
+
+	// Image too large
+	pngLarge := createFilePNG(t, true)
+	propImageLarge := createNewProposal(t, id, []www.File{*md, *pngLarge})
+
+	// Invalid proposal title
+	mdBadTitle := createFileMD(t, 8, "{invalid-title}")
+	propBadTitle := createNewProposal(t, id, []www.File{*mdBadTitle})
+
+	// Setup test cases
+	var tests = []struct {
+		name        string
+		newProposal www.NewProposal
+		user        *user.User
+		want        error
+	}{
+		{"correct proposal", *np, usr, nil},
+
+		{"invalid signature", *propInvalidSig, usr,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidSignature,
+			}},
+
+		{"incorrect signature", *propBadSig, usr,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidSignature,
+			}},
+
+		{"no files", *propNoFiles, usr,
+			www.UserError{
+				ErrorCode: www.ErrorStatusProposalMissingFiles,
+			}},
+
+		{"bad md filename", *propBadFilename, usr,
+			www.UserError{
+				ErrorCode: www.ErrorStatusProposalMissingFiles,
+			}},
+
+		{"duplicate filenames", *propDupFiles, usr,
+			www.UserError{
+				ErrorCode: www.ErrorStatusProposalDuplicateFilenames,
+			}},
+
+		{"too may md files", *propMaxMDFiles, usr,
+			www.UserError{
+				ErrorCode: www.ErrorStatusMaxMDsExceededPolicy,
+			}},
+
+		{"too many images", *propMaxImages, usr,
+			www.UserError{
+				ErrorCode: www.ErrorStatusMaxImagesExceededPolicy,
+			}},
+
+		{"md file too large", *propMDLarge, usr,
+			www.UserError{
+				ErrorCode: www.ErrorStatusMaxMDSizeExceededPolicy,
+			}},
+
+		{"image too large", *propImageLarge, usr,
+			www.UserError{
+				ErrorCode: www.ErrorStatusMaxImageSizeExceededPolicy,
+			}},
+
+		{"invalid title", *propBadTitle, usr,
+			www.UserError{
+				ErrorCode: www.ErrorStatusProposalInvalidTitle,
+			}},
+	}
+
+	// Run test cases
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateProposal(test.newProposal, test.user)
+			got := errToStr(err)
+			want := errToStr(test.want)
+			if got != want {
+				t.Errorf("got %v, want %v", got, want)
+			}
+		})
+	}
+}
 
 func TestFilterProposals(t *testing.T) {
 	// Test proposal page size. Only a single page of proposals
@@ -323,7 +313,7 @@ func TestFilterProposals(t *testing.T) {
 	}
 
 	// Change the State of a few proposals so that they are not
-	// all the same
+	// all the same.
 	props[2].State = www.PropStateUnvetted
 	props[4].State = www.PropStateUnvetted
 
