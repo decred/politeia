@@ -189,6 +189,19 @@ func (p *politeiawww) handleResendVerification(w http.ResponseWriter, r *http.Re
 
 	rvr, err := p.processResendVerification(&rv)
 	if err != nil {
+		usrErr, ok := err.(v1.UserError)
+		if ok {
+			switch usrErr.ErrorCode {
+			case v1.ErrorStatusUserNotFound, v1.ErrorStatusEmailAlreadyVerified,
+				v1.ErrorStatusVerificationTokenUnexpired:
+				// We do not return these errors because we do not want
+				// the caller to be able to ascertain whether an email
+				// address has an acount.
+				util.RespondWithJSON(w, http.StatusOK, &v1.ResendVerificationReply{})
+				return
+			}
+		}
+
 		RespondWithError(w, r, 0, "handleResendVerification: "+
 			"processResendVerification %v", err)
 		return
@@ -208,7 +221,10 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 	var l v1.Login
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&l); err != nil {
-		RespondWithError(w, r, 0, "handleLogin: failed to decode: %v", err)
+		RespondWithError(w, r, 0, "handleLogin: failed to decode: %v",
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusInvalidInput,
+			})
 		return
 	}
 
@@ -275,6 +291,15 @@ func (p *politeiawww) handleResetPassword(w http.ResponseWriter, r *http.Request
 
 	rpr, err := p.processResetPassword(rp)
 	if err != nil {
+		usrErr, ok := err.(v1.UserError)
+		if ok && usrErr.ErrorCode == v1.ErrorStatusUserNotFound {
+			// We do not return this error because we do not want
+			// the caller to be able to ascertain whether an email
+			// address has an acount.
+			util.RespondWithJSON(w, http.StatusOK, v1.ResetPasswordReply{})
+			return
+		}
+
 		RespondWithError(w, r, 0,
 			"handleResetPassword: processResetPassword %v", err)
 		return
