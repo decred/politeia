@@ -80,6 +80,7 @@ type politeiawww struct {
 	commentScores   map[string]int64                // [token+commentID]resultVotes
 }
 
+// XXX rig this up
 func (p *politeiawww) addTemplate(templateName, templateContent string) {
 	p.tmplMtx.Lock()
 	defer p.tmplMtx.Unlock()
@@ -88,6 +89,7 @@ func (p *politeiawww) addTemplate(templateName, templateContent string) {
 		template.New(templateName).Parse(templateContent))
 }
 
+// XXX rig this up
 func (p *politeiawww) getTemplate(templateName string) *template.Template {
 	p.tmplMtx.RLock()
 	defer p.tmplMtx.RUnlock()
