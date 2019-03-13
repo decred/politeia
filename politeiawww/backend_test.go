@@ -166,7 +166,7 @@ func TestProcessNewUser(t *testing.T) {
 	// Run tests
 	for _, v := range tests {
 		t.Run(v.name, func(t *testing.T) {
-			_, err := p.ProcessNewUser(v.newUser)
+			_, err := p.processNewUser(v.newUser)
 			got := errToStr(err)
 			want := errToStr(v.want)
 			if got != want {
@@ -310,7 +310,7 @@ func TestProcessVerifyNewUser(t *testing.T) {
 	// Run tests
 	for _, v := range tests {
 		t.Run(v.name, func(t *testing.T) {
-			_, err := p.ProcessVerifyNewUser(v.input)
+			_, err := p.processVerifyNewUser(v.input)
 			got := errToStr(err)
 			want := errToStr(v.want)
 			if got != want {

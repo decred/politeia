@@ -204,7 +204,7 @@ func TestProcessUserDetails(t *testing.T) {
 	// user details request handler.
 	t.Run("valid UUID with no user", func(t *testing.T) {
 		ud.UserID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
-		_, err := p.ProcessUserDetails(&ud, false, false)
+		_, err := p.processUserDetails(&ud, false, false)
 		got := errToStr(err)
 		want := v1.ErrorStatus[v1.ErrorStatusUserNotFound]
 		if got != want {
@@ -250,7 +250,7 @@ func TestProcessUserDetails(t *testing.T) {
 	// Run tests
 	for _, v := range tests {
 		t.Run(v.name, func(t *testing.T) {
-			udr, err := p.ProcessUserDetails(&v.userDetails,
+			udr, err := p.processUserDetails(&v.userDetails,
 				v.isCurrentUser, v.isAdmin)
 			if err != nil {
 				t.Errorf("got error %v, want nil", err)
@@ -300,7 +300,7 @@ func TestProcessEditUser(t *testing.T) {
 	// Run test cases
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := p.ProcessEditUser(&v1.EditUser{
+			_, err := p.processEditUser(&v1.EditUser{
 				EmailNotifications: &test.notification,
 			}, user)
 			if err != nil {
