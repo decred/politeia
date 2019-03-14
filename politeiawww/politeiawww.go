@@ -1,17 +1,27 @@
 package main
 
 import (
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
 	"net/http"
+	"net/http/httputil"
 	"sync"
 	"text/template"
+	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/cache"
 	v1 "github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/politeiawww/user"
+	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
+	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
+	"github.com/gorilla/websocket"
 )
 
 const (
@@ -40,6 +50,32 @@ var (
 	templateCommentReplyOnComment = template.Must(
 		template.New("comment_reply_on_comment").Parse(templateCommentReplyOnCommentRaw))
 )
+
+// wsContext is the websocket context. If uuid == "" then it is an
+// unauthenticated websocket.
+type wsContext struct {
+	uuid          string
+	rid           string
+	conn          *websocket.Conn
+	wg            sync.WaitGroup
+	subscriptions map[string]struct{}
+	errorC        chan v1.WSError
+	pingC         chan struct{}
+	done          chan struct{} // SHUT...DOWN...EVERYTHING...
+}
+
+func (w *wsContext) String() string {
+	u := w.uuid
+	if u == "" {
+		u = "anon"
+	}
+	return u + " " + w.rid
+}
+
+// IsAuthenticated returns true if the websocket is authenticated.
+func (w *wsContext) isAuthenticated() bool {
+	return w.uuid != ""
+}
 
 // politeiawww application context.
 type politeiawww struct {
@@ -96,6 +132,876 @@ func (p *politeiawww) getTemplate(templateName string) *template.Template {
 	return p.templates[templateName]
 }
 
+// version is an HTTP GET to determine what version and API route this backend
+// is using.  Additionally it is used to obtain a CSRF token.
+func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleVersion")
+
+	versionReply, err := json.Marshal(v1.VersionReply{
+		Version: v1.PoliteiaWWWAPIVersion,
+		Route:   v1.PoliteiaWWWAPIRoute,
+		PubKey:  hex.EncodeToString(p.cfg.Identity.Key[:]),
+		TestNet: p.cfg.TestNet,
+	})
+	if err != nil {
+		RespondWithError(w, r, 0, "handleVersion: Marshal %v", err)
+		return
+	}
+
+	// Check if there's an active AND invalid session.
+	session, err := p.getSession(r)
+	if err != nil && session != nil {
+		// Create and save a new session for the user.
+		session := sessions.NewSession(p.store, v1.CookieSession)
+		opts := *p.store.Options
+		session.Options = &opts
+		session.IsNew = true
+		err = session.Save(r, w)
+		if err != nil {
+			RespondWithError(w, r, 0, "handleVersion: session.Save %v", err)
+			return
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Add("Strict-Transport-Security",
+		"max-age=63072000; includeSubDomains")
+	w.Header().Set(v1.CsrfToken, csrf.Token(r))
+	w.WriteHeader(http.StatusOK)
+	w.Write(versionReply)
+}
+
+// handleNotFound is a generic handler for an invalid route.
+func (p *politeiawww) handleNotFound(w http.ResponseWriter, r *http.Request) {
+	// Log incoming connection
+	log.Debugf("Invalid route: %v %v %v %v", remoteAddr(r), r.Method, r.URL,
+		r.Proto)
+
+	// Trace incoming request
+	log.Tracef("%v", newLogClosure(func() string {
+		trace, err := httputil.DumpRequest(r, true)
+		if err != nil {
+			trace = []byte(fmt.Sprintf("logging: "+
+				"DumpRequest %v", err))
+		}
+		return string(trace)
+	}))
+
+	util.RespondWithJSON(w, http.StatusNotFound, v1.ErrorReply{})
+}
+
+// handleAllVetted replies with the list of vetted proposals.
+func (p *politeiawww) handleAllVetted(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleAllVetted")
+
+	// Get the all vetted command.
+	var v v1.GetAllVetted
+	err := util.ParseGetParams(r, &v)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleAllVetted: ParseGetParams",
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	vr, err := p.processAllVetted(v)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleAllVetted: processAllVetted %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, vr)
+}
+
+// handleProposalDetails handles the incoming proposal details command. It fetches
+// the complete details for an existing proposal.
+func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Request) {
+	// Add the path param to the struct.
+	log.Tracef("handleProposalDetails")
+	var pd v1.ProposalsDetails
+
+	// get version from query string parameters
+	err := util.ParseGetParams(r, &pd)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleProposalDetails: ParseGetParams",
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	// Get proposal token from path parameters
+	pathParams := mux.Vars(r)
+	pd.Token = pathParams["token"]
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		if err != ErrSessionUUIDNotFound {
+			RespondWithError(w, r, 0,
+				"handleProposalDetails: getSessionUser %v", err)
+			return
+		}
+	}
+	reply, err := p.processProposalDetails(pd, user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleProposalDetails: processProposalDetails %v", err)
+		return
+	}
+
+	// Reply with the proposal details.
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
+	// Get the policy command.
+	log.Tracef("handlePolicy")
+	reply := &v1.PolicyReply{
+		MinPasswordLength:          v1.PolicyMinPasswordLength,
+		MinUsernameLength:          v1.PolicyMinUsernameLength,
+		MaxUsernameLength:          v1.PolicyMaxUsernameLength,
+		UsernameSupportedChars:     v1.PolicyUsernameSupportedChars,
+		ProposalListPageSize:       v1.ProposalListPageSize,
+		UserListPageSize:           v1.UserListPageSize,
+		MaxImages:                  v1.PolicyMaxImages,
+		MaxImageSize:               v1.PolicyMaxImageSize,
+		MaxMDs:                     v1.PolicyMaxMDs,
+		MaxMDSize:                  v1.PolicyMaxMDSize,
+		ValidMIMETypes:             mime.ValidMimeTypes(),
+		MinProposalNameLength:      v1.PolicyMinProposalNameLength,
+		MaxProposalNameLength:      v1.PolicyMaxProposalNameLength,
+		ProposalNameSupportedChars: v1.PolicyProposalNameSupportedChars,
+		MaxCommentLength:           v1.PolicyMaxCommentLength,
+	}
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+// handleCommentsGet handles batched comments get.
+func (p *politeiawww) handleCommentsGet(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleCommentsGet")
+
+	pathParams := mux.Vars(r)
+	token := pathParams["token"]
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		if err != ErrSessionUUIDNotFound {
+			RespondWithError(w, r, 0,
+				"handleCommentsGet: getSessionUser %v", err)
+			return
+		}
+	}
+	gcr, err := p.processCommentsGet(token, user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleCommentsGet: processCommentsGet %v", err)
+		return
+	}
+	util.RespondWithJSON(w, http.StatusOK, gcr)
+}
+
+// handleUserProposals returns the proposals for the given user.
+func (p *politeiawww) handleUserProposals(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleUserProposals")
+
+	// Get the user proposals command.
+	var up v1.UserProposals
+	err := util.ParseGetParams(r, &up)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleUserProposals: ParseGetParams",
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	userId, err := uuid.Parse(up.UserId)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleUserProposals: ParseUint",
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		// since having a logged in user isn't required, simply log the error
+		log.Infof("handleUserProposals: could not get session user %v", err)
+	}
+
+	upr, err := p.processUserProposals(
+		&up,
+		user != nil && user.ID == userId,
+		user != nil && user.Admin)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserProposals: processUserProposals %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, upr)
+}
+
+// handleActiveVote returns all active proposals that have an active vote.
+func (p *politeiawww) handleActiveVote(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleActiveVote")
+
+	avr, err := p.processActiveVote()
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleActiveVote: processActiveVote %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, avr)
+}
+
+// handleCastVotes records the user votes in politeiad.
+func (p *politeiawww) handleCastVotes(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleCastVotes")
+
+	var cv v1.Ballot
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&cv); err != nil {
+		RespondWithError(w, r, 0, "handleCastVotes: unmarshal", v1.UserError{
+			ErrorCode: v1.ErrorStatusInvalidInput,
+		})
+		return
+	}
+
+	avr, err := p.processCastVotes(&cv)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleCastVotes: processCastVotes %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, avr)
+}
+
+// handleVoteResults returns a proposal + all voting action.
+func (p *politeiawww) handleVoteResults(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleVoteResults")
+
+	pathParams := mux.Vars(r)
+	token := pathParams["token"]
+
+	vrr, err := p.processVoteResults(token)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleVoteResults: processVoteResults %v",
+			err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, vrr)
+}
+
+// handleGetAllVoteStatus returns the voting status of all public proposals.
+func (p *politeiawww) handleGetAllVoteStatus(w http.ResponseWriter, r *http.Request) {
+	gasvr, err := p.processGetAllVoteStatus()
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleGetAllVoteStatus: processGetAllVoteStatus %v", err)
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, gasvr)
+}
+
+// handleVoteStatus returns the vote status for a given proposal.
+func (p *politeiawww) handleVoteStatus(w http.ResponseWriter, r *http.Request) {
+	pathParams := mux.Vars(r)
+	vsr, err := p.processVoteStatus(pathParams["token"])
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleCommentsGet: ProcessCommentGet %v", err)
+		return
+	}
+	util.RespondWithJSON(w, http.StatusOK, vsr)
+}
+
+// handleProposalsStats returns the counting of proposals aggrouped by each proposal status
+func (p *politeiawww) handleProposalsStats(w http.ResponseWriter, r *http.Request) {
+	psr, err := p.processProposalsStats()
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleProposalsStats: processProposalsStats %v", err)
+		return
+	}
+	util.RespondWithJSON(w, http.StatusOK, psr)
+}
+
+// handleProposalPaywallDetails returns paywall details that allows the user to
+// purchase proposal credits.
+func (p *politeiawww) handleProposalPaywallDetails(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleProposalPaywallDetails")
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleProposalPaywallDetails: getSessionUser %v", err)
+		return
+	}
+
+	reply, err := p.processProposalPaywallDetails(user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleProposalPaywallDetails: processProposalPaywallDetails  %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+// handleNewProposal handles the incoming new proposal command.
+func (p *politeiawww) handleNewProposal(w http.ResponseWriter, r *http.Request) {
+	// Get the new proposal command.
+	log.Tracef("handleNewProposal")
+	var np v1.NewProposal
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&np); err != nil {
+		RespondWithError(w, r, 0, "handleNewProposal: unmarshal", v1.UserError{
+			ErrorCode: v1.ErrorStatusInvalidInput,
+		})
+		return
+	}
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleNewProposal: getSessionUser %v", err)
+		return
+	}
+
+	reply, err := p.processNewProposal(np, user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleNewProposal: processNewProposal %v", err)
+		return
+	}
+
+	// Reply with the challenge response and censorship token.
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+// handleNewComment handles incomming comments.
+func (p *politeiawww) handleNewComment(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleNewComment")
+
+	var sc v1.NewComment
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&sc); err != nil {
+		RespondWithError(w, r, 0, "handleNewComment: unmarshal",
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleNewComment: getSessionUser %v", err)
+		return
+	}
+
+	cr, err := p.processNewComment(sc, user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleNewComment: processNewComment: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, cr)
+}
+
+// handleLikeComment handles up or down voting of commentd.
+func (p *politeiawww) handleLikeComment(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleLikeComment")
+
+	var lc v1.LikeComment
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&lc); err != nil {
+		RespondWithError(w, r, 0, "handleLikeComment: unmarshal",
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleLikeComment: getSessionUser %v", err)
+		return
+	}
+
+	cr, err := p.processLikeComment(lc, user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleLikeComment: processLikeComment %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, cr)
+}
+
+// handleEditProposal attempts to edit a proposal
+func (p *politeiawww) handleEditProposal(w http.ResponseWriter, r *http.Request) {
+	var ep v1.EditProposal
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&ep); err != nil {
+		RespondWithError(w, r, 0, "handleEditProposal: unmarshal",
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleEditProposal: getSessionUser %v", err)
+		return
+	}
+
+	log.Debugf("handleEditProposal: %v", ep.Token)
+
+	epr, err := p.processEditProposal(ep, user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleEditProposal: processEditProposal %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, epr)
+}
+
+// handleAuthorizeVote handles authorizing a proposal vote.
+func (p *politeiawww) handleAuthorizeVote(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleAuthorizeVote")
+	var av v1.AuthorizeVote
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&av); err != nil {
+		RespondWithError(w, r, 0, "handleAuthorizeVote: unmarshal",
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusInvalidInput,
+			})
+		return
+	}
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleAuthorizeVote: getSessionUser %v", err)
+		return
+	}
+	avr, err := p.processAuthorizeVote(av, user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleAuthorizeVote: processAuthorizeVote %v", err)
+		return
+	}
+	util.RespondWithJSON(w, http.StatusOK, avr)
+}
+
+// handleProposalPaywallPayment returns the payment details for a pending
+// proposal paywall payment.
+func (p *politeiawww) handleProposalPaywallPayment(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleProposalPaywallPayment")
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleProposalPaywallPayment: getSessionUser %v", err)
+		return
+	}
+
+	reply, err := p.processProposalPaywallPayment(user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleProposalPaywallPayment: "+
+				"processProposalPaywallPayment %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+// websocketPing is used to verify that websockets are operational.
+func (p *politeiawww) websocketPing(id string) {
+	log.Tracef("websocketPing %v", id)
+	defer log.Tracef("websocketPing exit %v", id)
+
+	p.wsMtx.RLock()
+	defer p.wsMtx.RUnlock()
+
+	for _, v := range p.ws[id] {
+		if _, ok := v.subscriptions[v1.WSCPing]; !ok {
+			continue
+		}
+
+		select {
+		case v.pingC <- struct{}{}:
+		default:
+		}
+	}
+}
+
+// handleWebsocketRead reads a websocket command off the socket and tries to
+// handle it. Currently it only supports subscribing to websocket events.
+func (p *politeiawww) handleWebsocketRead(wc *wsContext) {
+	defer wc.wg.Done()
+
+	log.Tracef("handleWebsocketRead %v", wc)
+	defer log.Tracef("handleWebsocketRead exit %v", wc)
+
+	for {
+		cmd, id, payload, err := util.WSRead(wc.conn)
+		if err != nil {
+			log.Tracef("handleWebsocketRead read %v %v", wc, err)
+			close(wc.done) // force handlers to quit
+			return
+		}
+		switch cmd {
+		case v1.WSCSubscribe:
+			subscribe, ok := payload.(v1.WSSubscribe)
+			if !ok {
+				// We are treating this a hard error so that
+				// the client knows they sent in something
+				// wrong.
+				log.Errorf("handleWebsocketRead invalid "+
+					"subscribe type %v %v", wc,
+					spew.Sdump(payload))
+				return
+			}
+
+			//log.Tracef("subscribe: %v %v", wc.uuid,
+			//	spew.Sdump(subscribe))
+
+			subscriptions := make(map[string]struct{})
+			var errors []string
+			for _, v := range subscribe.RPCS {
+				if !util.ValidSubscription(v) {
+					log.Tracef("invalid subscription %v %v",
+						wc, v)
+					errors = append(errors,
+						fmt.Sprintf("invalid "+
+							"subscription %v", v))
+					continue
+				}
+				if util.SubsciptionReqAuth(v) &&
+					!wc.isAuthenticated() {
+					log.Tracef("requires auth %v %v", wc, v)
+					errors = append(errors,
+						fmt.Sprintf("requires "+
+							"authentication %v", v))
+					continue
+				}
+				subscriptions[v] = struct{}{}
+			}
+
+			if len(errors) == 0 {
+				// Replace old subscriptions
+				p.wsMtx.Lock()
+				wc.subscriptions = subscriptions
+				p.wsMtx.Unlock()
+			} else {
+				wc.errorC <- v1.WSError{
+					Command: v1.WSCSubscribe,
+					ID:      id,
+					Errors:  errors,
+				}
+			}
+		}
+	}
+}
+
+// handleWebsocketWrite attempts to notify a subscribed websocket. Currently
+// only ping is supported.
+func (p *politeiawww) handleWebsocketWrite(wc *wsContext) {
+	defer wc.wg.Done()
+	log.Tracef("handleWebsocketWrite %v", wc)
+	defer log.Tracef("handleWebsocketWrite exit %v", wc)
+
+	for {
+		var (
+			cmd, id string
+			payload interface{}
+		)
+		select {
+		case <-wc.done:
+			return
+		case e, ok := <-wc.errorC:
+			if !ok {
+				log.Tracef("handleWebsocketWrite error not ok"+
+					" %v", wc)
+				return
+			}
+			cmd = v1.WSCError
+			id = e.ID
+			payload = e
+		case _, ok := <-wc.pingC:
+			if !ok {
+				log.Tracef("handleWebsocketWrite ping not ok"+
+					" %v", wc)
+				return
+			}
+			cmd = v1.WSCPing
+			id = ""
+			payload = v1.WSPing{Timestamp: time.Now().Unix()}
+		}
+
+		err := util.WSWrite(wc.conn, cmd, id, payload)
+		if err != nil {
+			log.Tracef("handleWebsocketWrite write %v %v", wc, err)
+			return
+		}
+	}
+}
+
+// handleWebsocket upgrades a regular HTTP connection to a websocket.
+func (p *politeiawww) handleWebsocket(w http.ResponseWriter, r *http.Request, id string) {
+	log.Tracef("handleWebsocket: %v", id)
+	defer log.Tracef("handleWebsocket exit: %v", id)
+
+	// Setup context
+	wc := wsContext{
+		uuid:          id,
+		subscriptions: make(map[string]struct{}),
+		pingC:         make(chan struct{}),
+		errorC:        make(chan v1.WSError),
+		done:          make(chan struct{}),
+	}
+
+	var upgrader = websocket.Upgrader{
+		EnableCompression: true,
+	}
+
+	var err error
+	wc.conn, err = upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		http.Error(w, "Could not open websocket connection",
+			http.StatusBadRequest)
+		return
+	}
+	defer wc.conn.Close() // causes read to exit as well
+
+	// Create and assign session to map
+	p.wsMtx.Lock()
+	if _, ok := p.ws[id]; !ok {
+		p.ws[id] = make(map[string]*wsContext)
+	}
+	for {
+		rid, err := util.Random(16)
+		if err != nil {
+			p.wsMtx.Unlock()
+			http.Error(w, "Could not create random session id",
+				http.StatusBadRequest)
+			return
+		}
+		wc.rid = hex.EncodeToString(rid)
+		if _, ok := p.ws[id][wc.rid]; !ok {
+			break
+		}
+	}
+	p.ws[id][wc.rid] = &wc
+	p.wsMtx.Unlock()
+
+	// Reads
+	wc.wg.Add(1)
+	go p.handleWebsocketRead(&wc)
+
+	// Writes
+	wc.wg.Add(1)
+	go p.handleWebsocketWrite(&wc)
+
+	// XXX Example of a server side notifcation. Remove once other commands
+	// can be used as examples.
+	// time.Sleep(2 * time.Second)
+	// p.websocketPing(id)
+
+	wc.wg.Wait()
+
+	// Remove session id
+	p.wsMtx.Lock()
+	delete(p.ws[id], wc.rid)
+	if len(p.ws[id]) == 0 {
+		// Remove uuid since it was the last one
+		delete(p.ws, id)
+	}
+	p.wsMtx.Unlock()
+}
+
+// handleUnauthenticatedWebsocket attempts to upgrade the current
+// unauthenticated connection to a websocket connection.
+func (p *politeiawww) handleUnauthenticatedWebsocket(w http.ResponseWriter, r *http.Request) {
+	// We are retrieving the uuid here to make sure it is NOT set. This
+	// check looks backwards but is correct.
+	id, err := p.getSessionUUID(r)
+	if err != nil && err != ErrSessionUUIDNotFound {
+		http.Error(w, "Could not get session uuid",
+			http.StatusBadRequest)
+		return
+	}
+	if id != "" {
+		http.Error(w, "Invalid session uuid", http.StatusBadRequest)
+		return
+	}
+	log.Tracef("handleUnauthenticatedWebsocket: %v", id)
+	defer log.Tracef("handleUnauthenticatedWebsocket exit: %v", id)
+
+	p.handleWebsocket(w, r, id)
+}
+
+// handleAuthenticatedWebsocket attempts to upgrade the current authenticated
+// connection to a websocket connection.
+func (p *politeiawww) handleAuthenticatedWebsocket(w http.ResponseWriter, r *http.Request) {
+	id, err := p.getSessionUUID(r)
+	if err != nil {
+		http.Error(w, "Could not get session uuid",
+			http.StatusBadRequest)
+		return
+	}
+
+	log.Tracef("handleAuthenticatedWebsocket: %v", id)
+	defer log.Tracef("handleAuthenticatedWebsocket exit: %v", id)
+
+	p.handleWebsocket(w, r, id)
+}
+
+// handleAllUnvetted replies with the list of unvetted proposals.
+func (p *politeiawww) handleAllUnvetted(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleAllUnvetted")
+
+	// Get the all unvetted command.
+	var u v1.GetAllUnvetted
+	err := util.ParseGetParams(r, &u)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleAllUnvetted: ParseGetParams",
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	ur, err := p.processAllUnvetted(u)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleAllUnvetted: processAllUnvetted %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, ur)
+}
+
+// handleSetProposalStatus handles the incoming set proposal status command.
+// It's used for either publishing or censoring a proposal.
+func (p *politeiawww) handleSetProposalStatus(w http.ResponseWriter, r *http.Request) {
+	// Get the proposal status command.
+	log.Tracef("handleSetProposalStatus")
+	var sps v1.SetProposalStatus
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&sps); err != nil {
+		RespondWithError(w, r, 0, "handleSetProposalStatus: unmarshal",
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleSetProposalStatus: getSessionUser %v", err)
+		return
+	}
+
+	// Set status
+	reply, err := p.processSetProposalStatus(sps, user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleSetProposalStatus: processSetProposalStatus %v",
+			err)
+		return
+	}
+
+	// Reply with the new proposal status.
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+// handleStartVote handles starting a vote.
+func (p *politeiawww) handleStartVote(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleStartVote")
+
+	var sv v1.StartVote
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&sv); err != nil {
+		RespondWithError(w, r, 0, "handleStartVote: unmarshal",
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleStartVote: getSessionUser %v", err)
+		return
+	}
+
+	// Sanity
+	if !user.Admin {
+		RespondWithError(w, r, 0,
+			"handleStartVote: admin %v", user.Admin)
+		return
+	}
+
+	svr, err := p.processStartVote(sv, user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleStartVote: processStartVote %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, svr)
+}
+
+// handleCensorComment handles the censoring of a comment by an admin.
+func (p *politeiawww) handleCensorComment(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleCensorComment")
+
+	var cc v1.CensorComment
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&cc); err != nil {
+		RespondWithError(w, r, 0, "handleCensorComment: unmarshal",
+			v1.UserError{
+				ErrorCode: v1.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleCensorComment: getSessionUser %v", err)
+		return
+	}
+
+	cr, err := p.processCensorComment(cc, user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleCensorComment: processCensorComment %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, cr)
+}
+
+// setPoliteiaWWWRoutes sets up the politeia routes.
 func (p *politeiawww) setPoliteiaWWWRoutes() {
 	// Templates
 	//p.addTemplate(templateNewProposalSubmittedName,
@@ -143,13 +1049,9 @@ func (p *politeiawww) setPoliteiaWWWRoutes() {
 	p.addRoute(http.MethodPost, v1.RouteNewProposal, p.handleNewProposal,
 		permissionLogin)
 	p.addRoute(http.MethodPost, v1.RouteNewComment,
-		p.handleNewComment, permissionLogin)
+		p.handleNewComment, permissionLogin) // XXX comments need to become a setting
 	p.addRoute(http.MethodPost, v1.RouteLikeComment,
-		p.handleLikeComment, permissionLogin)
-	p.addRoute(http.MethodGet, v1.RouteUserCommentsLikes,
-		p.handleUserCommentsLikes, permissionLogin)
-	p.addRoute(http.MethodGet, v1.RouteUserProposalCredits,
-		p.handleUserProposalCredits, permissionLogin)
+		p.handleLikeComment, permissionLogin) // XXX comments need to become a setting
 	p.addRoute(http.MethodPost, v1.RouteEditProposal,
 		p.handleEditProposal, permissionLogin)
 	p.addRoute(http.MethodPost, v1.RouteAuthorizeVote,

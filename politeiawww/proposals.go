@@ -5,20 +5,58 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/decred/dcrtime/merkle"
+	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
+	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/cache"
+	v1 "github.com/decred/politeia/politeiawww/api/v1"
 	www "github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 )
+
+const (
+	// indexFile contains the file name of the index file
+	indexFile = "index.md"
+
+	// mdStream* indicate the metadata stream used for various types
+	mdStreamGeneral = 0 // General information for this proposal
+	mdStreamChanges = 2 // Changes to record
+	// Note that 14 is in use by the decred plugin
+	// Note that 15 is in use by the decred plugin
+
+	VersionMDStreamChanges         = 1
+	BackendProposalMetadataVersion = 1
+)
+
+type MDStreamChanges struct {
+	Version             uint             `json:"version"`                       // Version of the struct
+	AdminPubKey         string           `json:"adminpubkey"`                   // Identity of the administrator
+	NewStatus           pd.RecordStatusT `json:"newstatus"`                     // NewStatus
+	StatusChangeMessage string           `json:"statuschangemessage,omitempty"` // Status change message
+	Timestamp           int64            `json:"timestamp"`                     // Timestamp of the change
+}
+
+type BackendProposalMetadata struct {
+	Version   uint64 `json:"version"`   // BackendProposalMetadata version
+	Timestamp int64  `json:"timestamp"` // Last update of proposal
+	Name      string `json:"name"`      // Generated proposal name
+	PublicKey string `json:"publickey"` // Key used for signature.
+	Signature string `json:"signature"` // Signature of merkle root
+}
 
 // proposalStats is used to provide a summary of the number of proposals
 // grouped by proposal status.
@@ -38,6 +76,288 @@ type proposalsFilter struct {
 	Before   string
 	UserID   string
 	StateMap map[www.PropStateT]bool
+}
+
+type VoteDetails struct {
+	AuthorizeVote      www.AuthorizeVote      // Authorize vote
+	AuthorizeVoteReply www.AuthorizeVoteReply // Authorize vote reply
+	StartVote          www.StartVote          // Start vote
+	StartVoteReply     www.StartVoteReply     // Start vote reply
+}
+
+// encodeBackendProposalMetadata encodes BackendProposalMetadata into a JSON
+// byte slice.
+func encodeBackendProposalMetadata(md BackendProposalMetadata) ([]byte, error) {
+	b, err := json.Marshal(md)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+// decodeBackendProposalMetadata decodes a JSON byte slice into a
+// BackendProposalMetadata.
+func decodeBackendProposalMetadata(payload []byte) (*BackendProposalMetadata, error) {
+	var md BackendProposalMetadata
+
+	err := json.Unmarshal(payload, &md)
+	if err != nil {
+		return nil, err
+	}
+
+	return &md, nil
+}
+
+// decodeMDStreamChanges decodes a JSON byte slice into a slice of
+// MDStreamChanges.
+func decodeMDStreamChanges(payload []byte) ([]MDStreamChanges, error) {
+	var msc []MDStreamChanges
+
+	d := json.NewDecoder(strings.NewReader(string(payload)))
+	for {
+		var m MDStreamChanges
+		err := d.Decode(&m)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return nil, err
+		}
+
+		msc = append(msc, m)
+	}
+
+	return msc, nil
+}
+
+// validateVoteBit ensures that bit is a valid vote bit.
+func validateVoteBit(vote www.Vote, bit uint64) error {
+	if len(vote.Options) == 0 {
+		return fmt.Errorf("vote corrupt")
+	}
+	if bit == 0 {
+		return fmt.Errorf("invalid bit 0x%x", bit)
+	}
+	if vote.Mask&bit != bit {
+		return fmt.Errorf("invalid mask 0x%x bit 0x%x",
+			vote.Mask, bit)
+	}
+
+	for _, v := range vote.Options {
+		if v.Bits == bit {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("bit not found 0x%x", bit)
+}
+
+// validateProposal ensures that a submitted proposal hashes, merkle and
+// signarures are valid.
+func validateProposal(np www.NewProposal, u *user.User) error {
+	log.Tracef("validateProposal")
+
+	// Obtain signature
+	sig, err := util.ConvertSignature(np.Signature)
+	if err != nil {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSignature,
+		}
+	}
+
+	// Verify public key
+	id, err := checkPublicKey(u, np.PublicKey)
+	if err != nil {
+		return err
+	}
+
+	pk, err := identity.PublicIdentityFromBytes(id[:])
+	if err != nil {
+		return err
+	}
+
+	// Check for at least 1 markdown file with a non-empty payload.
+	if len(np.Files) == 0 || np.Files[0].Payload == "" {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusProposalMissingFiles,
+		}
+	}
+
+	// verify if there are duplicate names
+	filenames := make(map[string]int, len(np.Files))
+	// Check that the file number policy is followed.
+	var (
+		numMDs, numImages, numIndexFiles      int
+		mdExceedsMaxSize, imageExceedsMaxSize bool
+		hashes                                []*[sha256.Size]byte
+	)
+	for _, v := range np.Files {
+		filenames[v.Name]++
+		var (
+			data []byte
+			err  error
+		)
+		if strings.HasPrefix(v.MIME, "image/") {
+			numImages++
+			data, err = base64.StdEncoding.DecodeString(v.Payload)
+			if err != nil {
+				return err
+			}
+			if len(data) > www.PolicyMaxImageSize {
+				imageExceedsMaxSize = true
+			}
+		} else {
+			numMDs++
+
+			if v.Name == indexFile {
+				numIndexFiles++
+			}
+
+			data, err = base64.StdEncoding.DecodeString(v.Payload)
+			if err != nil {
+				return err
+			}
+			if len(data) > www.PolicyMaxMDSize {
+				mdExceedsMaxSize = true
+			}
+		}
+
+		// Append digest to array for merkle root calculation
+		digest := util.Digest(data)
+		var d [sha256.Size]byte
+		copy(d[:], digest)
+		hashes = append(hashes, &d)
+	}
+
+	// verify duplicate file names
+	if len(np.Files) > 1 {
+		var repeated []string
+		for name, count := range filenames {
+			if count > 1 {
+				repeated = append(repeated, name)
+			}
+		}
+		if len(repeated) > 0 {
+			return www.UserError{
+				ErrorCode:    www.ErrorStatusProposalDuplicateFilenames,
+				ErrorContext: repeated,
+			}
+		}
+	}
+
+	// we expect one index file
+	if numIndexFiles == 0 {
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusProposalMissingFiles,
+			ErrorContext: []string{indexFile},
+		}
+	}
+
+	if numMDs > www.PolicyMaxMDs {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusMaxMDsExceededPolicy,
+		}
+	}
+
+	if numImages > www.PolicyMaxImages {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusMaxImagesExceededPolicy,
+		}
+	}
+
+	if mdExceedsMaxSize {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusMaxMDSizeExceededPolicy,
+		}
+	}
+
+	if imageExceedsMaxSize {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusMaxImageSizeExceededPolicy,
+		}
+	}
+
+	// proposal title validation
+	name, err := getProposalName(np.Files)
+	if err != nil {
+		return err
+	}
+	if !util.IsValidProposalName(name) {
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusProposalInvalidTitle,
+			ErrorContext: []string{util.CreateProposalNameRegex()},
+		}
+	}
+
+	// Note that we need validate the string representation of the merkle
+	mr := merkle.Root(hashes)
+	if !pk.VerifyMessage([]byte(hex.EncodeToString(mr[:])), sig) {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSignature,
+		}
+	}
+
+	return nil
+}
+
+// voteIsAuthorized returns whether the author of the proposal has authorized
+// an admin to start the voting period for the proposal.
+func voteIsAuthorized(avr www.AuthorizeVoteReply) bool {
+	if avr.Receipt == "" {
+		// Vote has not been authorized yet
+		return false
+	} else if avr.Action == www.AuthVoteActionRevoke {
+		// Vote authorization was revoked
+		return false
+	}
+	return true
+}
+
+// getVoteStatus returns the status for the provided vote.
+func getVoteStatus(avr www.AuthorizeVoteReply, svr www.StartVoteReply, bestBlock uint64) www.PropVoteStatusT {
+	if svr.StartBlockHeight == "" {
+		// Vote has not started. Check if it's been authorized yet.
+		if voteIsAuthorized(avr) {
+			return www.PropVoteStatusAuthorized
+		} else {
+			return www.PropVoteStatusNotAuthorized
+		}
+	}
+
+	// Vote has at least been started. Check if it has finished.
+	ee, err := strconv.ParseUint(svr.EndHeight, 10, 64)
+	if err != nil {
+		// This should not happen
+		log.Errorf("getVoteStatus: ParseUint failed on '%v': %v",
+			svr.EndHeight, err)
+		return www.PropVoteStatusInvalid
+	}
+
+	if bestBlock >= ee {
+		return www.PropVoteStatusFinished
+	}
+	return www.PropVoteStatusStarted
+}
+
+// getProposalName returns the proposal name based on the index markdown file.
+func getProposalName(files []www.File) (string, error) {
+	for _, file := range files {
+		if file.Name == indexFile {
+			return util.GetProposalName(file.Payload)
+		}
+	}
+	return "", nil
+}
+
+// convertWWWPropCreditFromDatabasePropCredit coverts a database proposal
+// credit to a v1 proposal credit.
+func convertWWWPropCreditFromDatabasePropCredit(credit user.ProposalCredit) www.ProposalCredit {
+	return www.ProposalCredit{
+		PaywallID:     credit.PaywallID,
+		Price:         credit.Price,
+		DatePurchased: credit.DatePurchased,
+		TxID:          credit.TxID,
+	}
 }
 
 // getProp gets the most recent verions of the given proposal from the cache
@@ -349,9 +669,9 @@ func (p *politeiawww) getPropComments(token string) ([]www.Comment, error) {
 	return comments, nil
 }
 
-// ProcessNewProposal tries to submit a new proposal to politeiad.
-func (p *politeiawww) ProcessNewProposal(np www.NewProposal, user *user.User) (*www.NewProposalReply, error) {
-	log.Tracef("ProcessNewProposal")
+// processNewProposal tries to submit a new proposal to politeiad.
+func (p *politeiawww) processNewProposal(np www.NewProposal, user *user.User) (*www.NewProposalReply, error) {
+	log.Tracef("processNewProposal")
 
 	if !p.HasUserPaid(user) {
 		return nil, www.UserError{
@@ -464,10 +784,10 @@ func (p *politeiawww) ProcessNewProposal(np www.NewProposal, user *user.User) (*
 	}, nil
 }
 
-// ProcessProposalDetails fetches a specific proposal version from the records
+// processProposalDetails fetches a specific proposal version from the records
 // cache and returns it.
-func (p *politeiawww) ProcessProposalDetails(propDetails www.ProposalsDetails, user *user.User) (*www.ProposalDetailsReply, error) {
-	log.Tracef("ProcessProposalDetails")
+func (p *politeiawww) processProposalDetails(propDetails www.ProposalsDetails, user *user.User) (*www.ProposalDetailsReply, error) {
+	log.Tracef("processProposalDetails")
 
 	// Version is an optional query param. Fetch latest version
 	// when query param is not specified.
@@ -516,9 +836,9 @@ func (p *politeiawww) ProcessProposalDetails(propDetails www.ProposalsDetails, u
 	return &reply, nil
 }
 
-// ProcessSetProposalStatus changes the status of an existing proposal.
-func (p *politeiawww) ProcessSetProposalStatus(sps www.SetProposalStatus, u *user.User) (*www.SetProposalStatusReply, error) {
-	log.Tracef("ProcessSetProposalStatus %v", sps.Token)
+// processSetProposalStatus changes the status of an existing proposal.
+func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *user.User) (*www.SetProposalStatusReply, error) {
+	log.Tracef("processSetProposalStatus %v", sps.Token)
 
 	err := checkPublicKeyAndSignature(u, sps.PublicKey, sps.Signature,
 		sps.Token, strconv.FormatUint(uint64(sps.ProposalStatus), 10),
@@ -730,9 +1050,9 @@ func (p *politeiawww) ProcessSetProposalStatus(sps www.SetProposalStatus, u *use
 	}, nil
 }
 
-// ProcessEditProposal attempts to edit a proposal on politeiad.
-func (p *politeiawww) ProcessEditProposal(ep www.EditProposal, u *user.User) (*www.EditProposalReply, error) {
-	log.Tracef("ProcessEditProposal %v", ep.Token)
+// processEditProposal attempts to edit a proposal on politeiad.
+func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*www.EditProposalReply, error) {
+	log.Tracef("processEditProposal %v", ep.Token)
 
 	// Validate proposal status
 	cachedProp, err := p.getProp(ep.Token)
@@ -889,10 +1209,10 @@ func (p *politeiawww) ProcessEditProposal(ep www.EditProposal, u *user.User) (*w
 	}, nil
 }
 
-// ProcessAllVetted returns an array of vetted proposals. The maximum number
+// processAllVetted returns an array of vetted proposals. The maximum number
 // of proposals returned is dictated by www.ProposalListPageSize.
-func (p *politeiawww) ProcessAllVetted(v www.GetAllVetted) (*www.GetAllVettedReply, error) {
-	log.Tracef("ProcessAllVetted")
+func (p *politeiawww) processAllVetted(v www.GetAllVetted) (*www.GetAllVettedReply, error) {
+	log.Tracef("processAllVetted")
 
 	// Fetch all proposals from the cache
 	all, err := p.getAllProps()
@@ -921,15 +1241,16 @@ func (p *politeiawww) ProcessAllVetted(v www.GetAllVetted) (*www.GetAllVettedRep
 	}, nil
 }
 
-// ProcessAllUnvetted returns an array of all unvetted proposals in reverse
+// processAllUnvetted returns an array of all unvetted proposals in reverse
 // order, because they're sorted by oldest timestamp first.
-func (p *politeiawww) ProcessAllUnvetted(u www.GetAllUnvetted) (*www.GetAllUnvettedReply, error) {
-	log.Tracef("ProcessAllUnvetted")
+func (p *politeiawww) processAllUnvetted(u www.GetAllUnvetted) (*www.GetAllUnvettedReply, error) {
+	log.Tracef("processAllUnvetted")
 
 	// Fetch all proposals from the cache
 	all, err := p.getAllProps()
 	if err != nil {
-		return nil, fmt.Errorf("getAllProps: %v", err)
+		return nil, fmt.Errorf("processAllUnvetted getAllProps: %v",
+			err)
 	}
 
 	// Filter for unvetted proposals
@@ -955,7 +1276,7 @@ func (p *politeiawww) ProcessAllUnvetted(u www.GetAllUnvetted) (*www.GetAllUnvet
 
 // ProcessProposalStats returns summary statistics on the number of proposals
 // catagorized by proposal status.
-func (p *politeiawww) ProcessProposalsStats() (*www.ProposalsStatsReply, error) {
+func (p *politeiawww) processProposalsStats() (*www.ProposalsStatsReply, error) {
 	inv, err := p.cache.InventoryStats()
 	if err != nil {
 		return nil, err
@@ -963,7 +1284,7 @@ func (p *politeiawww) ProcessProposalsStats() (*www.ProposalsStatsReply, error) 
 	if inv.Invalid > 0 {
 		// There should not be any invalid proposals so log an error
 		// if any are found
-		log.Errorf("ProcessProposalStats: %v invalid proposals found",
+		log.Errorf("processProposalsStats: %v invalid proposals found",
 			inv.Invalid)
 	}
 	return &www.ProposalsStatsReply{
@@ -975,10 +1296,10 @@ func (p *politeiawww) ProcessProposalsStats() (*www.ProposalsStatsReply, error) 
 	}, nil
 }
 
-// ProcessCommentsGet returns all comments for a given proposal. If the user is
+// processCommentsGet returns all comments for a given proposal. If the user is
 // logged in the user's last access time for the given comments will also be
 // returned.
-func (p *politeiawww) ProcessCommentsGet(token string, u *user.User) (*www.GetCommentsReply, error) {
+func (p *politeiawww) processCommentsGet(token string, u *user.User) (*www.GetCommentsReply, error) {
 	log.Tracef("ProcessCommentGet: %v", token)
 
 	// Fetch proposal comments from cache
@@ -1062,8 +1383,8 @@ func (p *politeiawww) getVoteStatus(token string, bestBlock uint64) (*www.VoteSt
 	}, nil
 }
 
-// ProcessVoteStatus returns the vote status for a given proposal
-func (p *politeiawww) ProcessVoteStatus(token string) (*www.VoteStatusReply, error) {
+// processVoteStatus returns the vote status for a given proposal
+func (p *politeiawww) processVoteStatus(token string) (*www.VoteStatusReply, error) {
 	log.Tracef("ProcessProposalVotingStatus: %v", token)
 
 	// Ensure proposal is public
@@ -1097,9 +1418,9 @@ func (p *politeiawww) ProcessVoteStatus(token string) (*www.VoteStatusReply, err
 	return vs, nil
 }
 
-// ProcessGetAllVoteStatus returns the vote status of all public proposals.
-func (p *politeiawww) ProcessGetAllVoteStatus() (*www.GetAllVoteStatusReply, error) {
-	log.Tracef("ProcessGetAllVoteStatus")
+// processGetAllVoteStatus returns the vote status of all public proposals.
+func (p *politeiawww) processGetAllVoteStatus() (*www.GetAllVoteStatusReply, error) {
+	log.Tracef("processGetAllVoteStatus")
 
 	// We need to determine best block height here in order
 	// to set the voting status
@@ -1136,8 +1457,8 @@ func (p *politeiawww) ProcessGetAllVoteStatus() (*www.GetAllVoteStatusReply, err
 	}, nil
 }
 
-func (p *politeiawww) ProcessActiveVote() (*www.ActiveVoteReply, error) {
-	log.Tracef("ProcessActiveVote")
+func (p *politeiawww) processActiveVote() (*www.ActiveVoteReply, error) {
+	log.Tracef("processActiveVote")
 
 	// We need to determine best block height here and only
 	// return active votes.
@@ -1158,7 +1479,7 @@ func (p *politeiawww) ProcessActiveVote() (*www.ActiveVoteReply, error) {
 		// Get vote details from cache
 		vdr, err := p.decredVoteDetails(v.CensorshipRecord.Token)
 		if err != nil {
-			log.Errorf("ProcessActiveVote: decredVoteDetails failed %v: %v",
+			log.Errorf("processActiveVote: decredVoteDetails failed %v: %v",
 				v.CensorshipRecord.Token, err)
 			continue
 		}
@@ -1182,10 +1503,10 @@ func (p *politeiawww) ProcessActiveVote() (*www.ActiveVoteReply, error) {
 	}, nil
 }
 
-// ProcessVoteResults returns the vote details for a specific proposal and all
+// processVoteResults returns the vote details for a specific proposal and all
 // of the votes that have been cast.
-func (p *politeiawww) ProcessVoteResults(token string) (*www.VoteResultsReply, error) {
-	log.Tracef("ProcessVoteResults: %v", token)
+func (p *politeiawww) processVoteResults(token string) (*www.VoteResultsReply, error) {
+	log.Tracef("processVoteResults: %v", token)
 
 	// Ensure proposal is public
 	pr, err := p.getProp(token)
@@ -1220,4 +1541,388 @@ func (p *politeiawww) ProcessVoteResults(token string) (*www.VoteResultsReply, e
 		StartVoteReply: convertStartVoteReplyFromDecred(vdr.StartVoteReply),
 		CastVotes:      convertCastVotesFromDecred(vrr.CastVotes),
 	}, nil
+}
+
+// processCastVotes handles the www.Ballot call
+func (p *politeiawww) processCastVotes(ballot *www.Ballot) (*www.BallotReply, error) {
+	log.Tracef("processCastVotes")
+
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	payload, err := decredplugin.EncodeBallot(convertBallotFromWWW(*ballot))
+	if err != nil {
+		return nil, err
+	}
+	pc := pd.PluginCommand{
+		Challenge: hex.EncodeToString(challenge),
+		ID:        decredplugin.ID,
+		Command:   decredplugin.CmdBallot,
+		CommandID: decredplugin.CmdBallot,
+		Payload:   string(payload),
+	}
+
+	responseBody, err := p.makeRequest(http.MethodPost,
+		pd.PluginCommandRoute, pc)
+	if err != nil {
+		return nil, err
+	}
+
+	var reply pd.PluginCommandReply
+	err = json.Unmarshal(responseBody, &reply)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal "+
+			"PluginCommandReply: %v", err)
+	}
+
+	// Verify the challenge.
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, reply.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	// Decode plugin reply
+	br, err := decredplugin.DecodeBallotReply([]byte(reply.Payload))
+	if err != nil {
+		return nil, err
+	}
+	brr := convertBallotReplyFromDecredPlugin(*br)
+	return &brr, nil
+}
+
+// processProposalPaywallDetails returns a proposal paywall that enables the
+// the user to purchase proposal credits. The user can only have one paywall
+// active at a time.  If no paywall currently exists, a new one is created and
+// the user is added to the paywall pool.
+func (p *politeiawww) processProposalPaywallDetails(u *user.User) (*v1.ProposalPaywallDetailsReply, error) {
+	log.Tracef("processProposalPaywallDetails")
+
+	// Ensure paywall is enabled
+	if !p.paywallIsEnabled() {
+		return &v1.ProposalPaywallDetailsReply{}, nil
+	}
+
+	// Proposal paywalls cannot be generated until the user has paid their
+	// user registration fee.
+	if !p.HasUserPaid(u) {
+		return nil, v1.UserError{
+			ErrorCode: v1.ErrorStatusUserNotPaid,
+		}
+	}
+
+	var pp *user.ProposalPaywall
+	if p.userHasValidProposalPaywall(u) {
+		// Don't create a new paywall if a valid one already exists.
+		pp = p.mostRecentProposalPaywall(u)
+	} else {
+		// Create a new paywall.
+		var err error
+		pp, err = p.generateProposalPaywall(u)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &v1.ProposalPaywallDetailsReply{
+		CreditPrice:        pp.CreditPrice,
+		PaywallAddress:     pp.Address,
+		PaywallTxNotBefore: pp.TxNotBefore,
+	}, nil
+}
+
+// processProposalPaywallPayment checks if the user has a pending paywall
+// payment and returns the payment details if one is found.
+func (p *politeiawww) processProposalPaywallPayment(u *user.User) (*v1.ProposalPaywallPaymentReply, error) {
+	log.Tracef("processProposalPaywallPayment")
+
+	var (
+		txID          string
+		txAmount      uint64
+		confirmations uint64
+	)
+
+	p.RLock()
+	defer p.RUnlock()
+
+	poolMember, ok := p.userPaywallPool[u.ID]
+	if ok {
+		txID = poolMember.txID
+		txAmount = poolMember.txAmount
+		confirmations = poolMember.txConfirmations
+	}
+
+	return &v1.ProposalPaywallPaymentReply{
+		TxID:          txID,
+		TxAmount:      txAmount,
+		Confirmations: confirmations,
+	}, nil
+}
+
+// processAuthorizeVote sends the authorizevote command to decred plugin to
+// indicate that a proposal has been finalized and is ready to be voted on.
+func (p *politeiawww) processAuthorizeVote(av www.AuthorizeVote, u *user.User) (*www.AuthorizeVoteReply, error) {
+	log.Tracef("processAuthorizeVote %v", av.Token)
+
+	// Get proposal from the cache
+	pr, err := p.getProp(av.Token)
+	if err != nil {
+		if err == cache.ErrRecordNotFound {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusProposalNotFound,
+			}
+		}
+		return nil, err
+	}
+
+	// Verify signature authenticity
+	err = checkPublicKeyAndSignature(u, av.PublicKey, av.Signature,
+		av.Token, pr.Version, av.Action)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get vote details from cache
+	vdr, err := p.decredVoteDetails(av.Token)
+	if err != nil {
+		return nil, fmt.Errorf("decredVoteDetails: %v", err)
+	}
+	vd := convertVoteDetailsReplyFromDecred(*vdr)
+
+	// Verify record is in the right state and that the authorize
+	// vote request is valid. A vote authorization may already
+	// exist. We also allow vote authorizations to be revoked.
+	switch {
+	case pr.Status != www.PropStatusPublic:
+		// Record not public
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusWrongStatus,
+		}
+	case vd.StartVoteReply.StartBlockHeight != "":
+		// Vote has already started
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusWrongVoteStatus,
+		}
+	case av.Action != www.AuthVoteActionAuthorize &&
+		av.Action != www.AuthVoteActionRevoke:
+		// Invalid authorize vote action
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidAuthVoteAction,
+		}
+	case av.Action == www.AuthVoteActionAuthorize &&
+		voteIsAuthorized(vd.AuthorizeVoteReply):
+		// Cannot authorize vote; vote has already been
+		// authorized
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusVoteAlreadyAuthorized,
+		}
+	case av.Action == www.AuthVoteActionRevoke &&
+		!voteIsAuthorized(vd.AuthorizeVoteReply):
+		// Cannot revoke authorization; vote has not been
+		// authorized
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusVoteNotAuthorized,
+		}
+	case pr.PublicKey != av.PublicKey:
+		// User is not the author. First make sure the author didn't
+		// submit the proposal using an old identity.
+		p.RLock()
+		userID, ok := p.userPubkeys[pr.PublicKey]
+		p.RUnlock()
+		if ok {
+			if u.ID.String() != userID {
+				return nil, www.UserError{
+					ErrorCode: www.ErrorStatusUserNotAuthor,
+				}
+			}
+		} else {
+			// This should not happen
+			return nil, fmt.Errorf("proposal author not found")
+		}
+	}
+
+	// Setup plugin command
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, fmt.Errorf("Random: %v", err)
+	}
+
+	dav := convertAuthorizeVoteFromWWW(av)
+	payload, err := decredplugin.EncodeAuthorizeVote(dav)
+	if err != nil {
+		return nil, fmt.Errorf("EncodeAuthorizeVote: %v", err)
+	}
+
+	pc := pd.PluginCommand{
+		Challenge: hex.EncodeToString(challenge),
+		ID:        decredplugin.ID,
+		Command:   decredplugin.CmdAuthorizeVote,
+		CommandID: decredplugin.CmdAuthorizeVote + " " + av.Token,
+		Payload:   string(payload),
+	}
+
+	// Send authorizevote plugin request
+	responseBody, err := p.makeRequest(http.MethodPost,
+		pd.PluginCommandRoute, pc)
+	if err != nil {
+		return nil, err
+	}
+
+	var reply pd.PluginCommandReply
+	err = json.Unmarshal(responseBody, &reply)
+	if err != nil {
+		return nil, fmt.Errorf("Unmarshal PluginCommandReply: %v", err)
+	}
+
+	// Verify challenge
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, reply.Response)
+	if err != nil {
+		return nil, fmt.Errorf("VerifyChallenge: %v", err)
+	}
+
+	// Decode plugin reply
+	avr, err := decredplugin.DecodeAuthorizeVoteReply([]byte(reply.Payload))
+	if err != nil {
+		return nil, fmt.Errorf("DecodeAuthorizeVoteReply: %v", err)
+	}
+
+	if !p.test && avr.Action == www.AuthVoteActionAuthorize {
+		p.fireEvent(EventTypeProposalVoteAuthorized,
+			EventDataProposalVoteAuthorized{
+				AuthorizeVote: &av,
+				User:          u,
+			},
+		)
+	}
+
+	return &www.AuthorizeVoteReply{
+		Action:  avr.Action,
+		Receipt: avr.Receipt,
+	}, nil
+}
+
+// processStartVote handles the www.StartVote call.
+func (p *politeiawww) processStartVote(sv www.StartVote, u *user.User) (*www.StartVoteReply, error) {
+	log.Tracef("processStartVote %v", sv.Vote.Token)
+
+	// Verify user
+	err := checkPublicKeyAndSignature(u, sv.PublicKey, sv.Signature,
+		sv.Vote.Token)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate vote bits
+	for _, v := range sv.Vote.Options {
+		err = validateVoteBit(sv.Vote, v.Bits)
+		if err != nil {
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusInvalidPropVoteBits,
+			}
+		}
+	}
+
+	// Validate vote parameters
+	if sv.Vote.Duration < p.cfg.VoteDurationMin ||
+		sv.Vote.Duration > p.cfg.VoteDurationMax ||
+		sv.Vote.QuorumPercentage > 100 || sv.Vote.PassPercentage > 100 {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidPropVoteParams,
+		}
+	}
+
+	// Create vote bits as plugin payload
+	dsv := convertStartVoteFromWWW(sv)
+	payload, err := decredplugin.EncodeStartVote(dsv)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get proposal from the cache
+	pr, err := p.getProp(sv.Vote.Token)
+	if err != nil {
+		if err == cache.ErrRecordNotFound {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusProposalNotFound,
+			}
+		}
+		return nil, err
+	}
+
+	// Get vote details from cache
+	vdr, err := p.decredVoteDetails(sv.Vote.Token)
+	if err != nil {
+		return nil, fmt.Errorf("decredVoteDetails: %v", err)
+	}
+	vd := convertVoteDetailsReplyFromDecred(*vdr)
+
+	// Ensure record is public, vote has been authorized,
+	// and vote has not already started.
+	if pr.Status != www.PropStatusPublic {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusWrongStatus,
+		}
+	}
+	if !voteIsAuthorized(vd.AuthorizeVoteReply) {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusVoteNotAuthorized,
+		}
+	}
+	if vd.StartVoteReply.StartBlockHeight != "" {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusWrongVoteStatus,
+		}
+	}
+
+	// Tell decred plugin to start voting
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	pc := pd.PluginCommand{
+		Challenge: hex.EncodeToString(challenge),
+		ID:        decredplugin.ID,
+		Command:   decredplugin.CmdStartVote,
+		CommandID: decredplugin.CmdStartVote + " " + sv.Vote.Token,
+		Payload:   string(payload),
+	}
+
+	responseBody, err := p.makeRequest(http.MethodPost,
+		pd.PluginCommandRoute, pc)
+	if err != nil {
+		return nil, err
+	}
+
+	var reply pd.PluginCommandReply
+	err = json.Unmarshal(responseBody, &reply)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal "+
+			"PluginCommandReply: %v", err)
+	}
+
+	// Verify the challenge.
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, reply.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	vr, err := decredplugin.DecodeStartVoteReply([]byte(reply.Payload))
+	if err != nil {
+		return nil, err
+	}
+
+	if !p.test {
+		p.eventManager._fireEvent(EventTypeProposalVoteStarted,
+			EventDataProposalVoteStarted{
+				AdminUser: u,
+				StartVote: &sv,
+			},
+		)
+	}
+
+	// return a copy
+	rv := convertStartVoteReplyFromDecred(*vr)
+	return &rv, nil
 }
