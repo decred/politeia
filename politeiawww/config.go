@@ -364,22 +364,22 @@ func loadIdentity(cfg *config) error {
 func loadConfig() (*config, []string, error) {
 	// Default config.
 	cfg := config{
-		HomeDir:                  sharedconfig.DefaultHomeDir,
 		ConfigFile:               sharedconfig.DefaultConfigFile,
-		DebugLevel:               defaultLogLevel,
-		DataDir:                  sharedconfig.DefaultDataDir,
-		LogDir:                   defaultLogDir,
-		HTTPSKey:                 defaultHTTPSKeyFile,
-		HTTPSCert:                defaultHTTPSCertFile,
-		RPCCert:                  defaultRPCCertFile,
 		CookieKeyFile:            defaultCookieKeyFile,
-		PaywallAmount:            defaultPaywallAmount,
-		MinConfirmationsRequired: defaultPaywallMinConfirmations,
-		Version:                  version.String(),
-		VoteDurationMin:          defaultVoteDurationMin,
-		VoteDurationMax:          defaultVoteDurationMax,
+		DataDir:                  sharedconfig.DefaultDataDir,
+		DebugLevel:               defaultLogLevel,
+		HTTPSCert:                defaultHTTPSCertFile,
+		HTTPSKey:                 defaultHTTPSKeyFile,
+		HomeDir:                  sharedconfig.DefaultHomeDir,
+		LogDir:                   defaultLogDir,
 		MailAddress:              defaultMailAddress,
+		MinConfirmationsRequired: defaultPaywallMinConfirmations,
 		Mode:                     defaultWWWMode,
+		PaywallAmount:            defaultPaywallAmount,
+		RPCCert:                  defaultRPCCertFile,
+		Version:                  version.String(),
+		VoteDurationMax:          defaultVoteDurationMax,
+		VoteDurationMin:          defaultVoteDurationMin,
 	}
 
 	// Service options which are only added on Windows.

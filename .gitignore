@@ -14,3 +14,4 @@ vendor
 *.orig
 *.diff
 *.sw?
+tags
