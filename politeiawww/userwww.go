@@ -633,6 +633,52 @@ func (p *politeiawww) handleManageUser(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, mur)
 }
 
+// handleUserCommentsLikes returns the user votes on comments of a given proposal.
+func (p *politeiawww) handleUserCommentsLikes(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleUserCommentsLikes")
+
+	pathParams := mux.Vars(r)
+	token := pathParams["token"]
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserCommentsLikes: getSessionUser %v", err)
+		return
+	}
+
+	uclr, err := p.processUserCommentsLikes(user, token)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserCommentsLikes: processUserCommentsLikes %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, uclr)
+}
+
+// handleUserProposalCredits returns the spent and unspent proposal credits for
+// the logged in user.
+func (p *politeiawww) handleUserProposalCredits(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleUserProposalCredits")
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserProposalCredits: getSessionUser %v", err)
+		return
+	}
+
+	reply, err := processUserProposalCredits(user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserProposalCredits: processUserProposalCredits  %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
 // setUserWWWRoutes setsup the user routes.
 func (p *politeiawww) setUserWWWRoutes() {
 	// Public routes
@@ -667,6 +713,10 @@ func (p *politeiawww) setUserWWWRoutes() {
 		p.handleVerifyUserPayment, permissionLogin)
 	p.addRoute(http.MethodPost, v1.RouteEditUser,
 		p.handleEditUser, permissionLogin)
+	p.addRoute(http.MethodGet, v1.RouteUserCommentsLikes, // XXX comments need to become a setting
+		p.handleUserCommentsLikes, permissionLogin)
+	p.addRoute(http.MethodGet, v1.RouteUserProposalCredits,
+		p.handleUserProposalCredits, permissionLogin)
 
 	// Routes that require being logged in as an admin user.
 	p.addRoute(http.MethodGet, v1.RouteUsers,

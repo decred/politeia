@@ -20,6 +20,31 @@ import (
 	"github.com/decred/politeia/util"
 )
 
+// initCommentScores populates the comment scores cache.
+func (p *politeiawww) initCommentScores() error {
+	log.Tracef("initCommentScores")
+
+	// Fetch decred plugin inventory from cache
+	ir, err := p.decredInventory()
+	if err != nil {
+		return fmt.Errorf("decredInventory: %v", err)
+	}
+
+	// XXX this could be done much more efficiently since we
+	// already have all of the like comments in the inventory
+	// repsonse, but re-using the updateCommentScore function is
+	// simplier. This only gets run on startup so I'm not that
+	// worried about performance for right now.
+	for _, v := range ir.Comments {
+		_, err := p.updateCommentScore(v.Token, v.CommentID)
+		if err != nil {
+			return fmt.Errorf("updateCommentScore: %v", err)
+		}
+	}
+
+	return nil
+}
+
 // getComment retreives the specified comment from the cache then fills in
 // politeiawww specific data for the comment.
 func (p *politeiawww) getComment(token, commentID string) (*www.Comment, error) {
@@ -145,10 +170,10 @@ func validateComment(c www.NewComment) error {
 	return err
 }
 
-// ProcessNewComment sends a new comment decred plugin command to politeaid
+// processNewComment sends a new comment decred plugin command to politeaid
 // then fetches the new comment from the cache and returns it.
-func (p *politeiawww) ProcessNewComment(nc www.NewComment, u *user.User) (*www.NewCommentReply, error) {
-	log.Tracef("ProcessNewComment: %v %v", nc.Token, u.ID)
+func (p *politeiawww) processNewComment(nc www.NewComment, u *user.User) (*www.NewCommentReply, error) {
+	log.Tracef("processNewComment: %v %v", nc.Token, u.ID)
 
 	// Pay up sucker!
 	if !p.HasUserPaid(u) {
@@ -272,9 +297,9 @@ func (p *politeiawww) ProcessNewComment(nc www.NewComment, u *user.User) (*www.N
 	}, nil
 }
 
-// ProcessLikeComment processes an upvote/downvote on a comment.
-func (p *politeiawww) ProcessLikeComment(lc www.LikeComment, u *user.User) (*www.LikeCommentReply, error) {
-	log.Debugf("ProcessLikeComment: %v %v %v", lc.Token, lc.CommentID, u.ID)
+// processLikeComment processes an upvote/downvote on a comment.
+func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www.LikeCommentReply, error) {
+	log.Debugf("processLikeComment: %v %v %v", lc.Token, lc.CommentID, u.ID)
 
 	// Pay up sucker!
 	if !p.HasUserPaid(u) {
@@ -397,8 +422,9 @@ func (p *politeiawww) ProcessLikeComment(lc www.LikeComment, u *user.User) (*www
 	// Update comment score in the in-memory cache
 	result, err := p.updateCommentScore(lc.Token, lc.CommentID)
 	if err != nil {
-		log.Criticalf("ProcessLikeComment: update comment score failed "+
-			"token:%v commentID:%v error:%v", lc.Token, lc.CommentID, err)
+		log.Criticalf("processLikeComment: update comment score "+
+			"failed token:%v commentID:%v error:%v", lc.Token,
+			lc.CommentID, err)
 	}
 
 	return &www.LikeCommentReply{
@@ -408,10 +434,10 @@ func (p *politeiawww) ProcessLikeComment(lc www.LikeComment, u *user.User) (*www
 	}, nil
 }
 
-// ProcessCensorComment sends a censor comment decred plugin command to
+// processCensorComment sends a censor comment decred plugin command to
 // politeiad then returns the censor comment receipt.
-func (p *politeiawww) ProcessCensorComment(cc www.CensorComment, u *user.User) (*www.CensorCommentReply, error) {
-	log.Tracef("ProcessCensorComment: %v: %v", cc.Token, cc.CommentID)
+func (p *politeiawww) processCensorComment(cc www.CensorComment, u *user.User) (*www.CensorCommentReply, error) {
+	log.Tracef("processCensorComment: %v: %v", cc.Token, cc.CommentID)
 
 	// Verify authenticity
 	err := checkPublicKeyAndSignature(u, cc.PublicKey, cc.Signature,

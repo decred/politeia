@@ -26,11 +26,26 @@ import (
 
 const (
 	LoginAttemptsToLockUser = 5
+
+	// Route to reset password at GUI
+	ResetPasswordGuiRoute = "/password" // XXX what is this doing here?
 )
 
 var (
 	validUsername = regexp.MustCompile(createUsernameRegex())
+
+	// MinimumLoginWaitTime is the minimum amount of time to wait before the
+	// server sends a response to the client for the login route. This is done
+	// to prevent an attacker from executing a timing attack to determine whether
+	// the ErrorStatusInvalidEmailOrPassword response is specific to a bad email
+	// or bad password.
+	MinimumLoginWaitTime = 500 * time.Millisecond
 )
+
+type loginReplyWithError struct {
+	reply *www.LoginReply
+	err   error
+}
 
 // createUsernameRegex generates a regex based on the policy supplied valid
 // characters in a user name.
@@ -437,10 +452,10 @@ func (p *politeiawww) processEditUser(eu *www.EditUser, user *user.User) (*www.E
 	return &www.EditUserReply{}, nil
 }
 
-// ProcessUserCommentsLikes returns all of the user's comment likes for the
+// processUserCommentsLikes returns all of the user's comment likes for the
 // passed in proposal.
-func (p *politeiawww) ProcessUserCommentsLikes(user *user.User, token string) (*www.UserCommentsLikesReply, error) {
-	log.Tracef("ProcessUserCommentsLikes: %v %v", user.ID, token)
+func (p *politeiawww) processUserCommentsLikes(user *user.User, token string) (*www.UserCommentsLikesReply, error) {
+	log.Tracef("processUserCommentsLikes: %v %v", user.ID, token)
 
 	// Fetch all like comments for the proposal
 	dlc, err := p.decredPropCommentLikes(token)
@@ -1401,9 +1416,9 @@ func (p *politeiawww) processResetPassword(rp www.ResetPassword) (*www.ResetPass
 	return &reply, nil
 }
 
-// ProcessUserProposalCredits returns a list of the user's unspent proposal
+// processUserProposalCredits returns a list of the user's unspent proposal
 // credits and a list of the user's spent proposal credits.
-func ProcessUserProposalCredits(u *user.User) (*www.UserProposalCreditsReply, error) {
+func processUserProposalCredits(u *user.User) (*www.UserProposalCreditsReply, error) {
 	// Convert from database proposal credits to www proposal credits.
 	upc := make([]www.ProposalCredit, len(u.UnspentProposalCredits))
 	for i, credit := range u.UnspentProposalCredits {
@@ -1420,8 +1435,8 @@ func ProcessUserProposalCredits(u *user.User) (*www.UserProposalCreditsReply, er
 	}, nil
 }
 
-// ProcessUserProposals returns a page of proposals for the given user.
-func (p *politeiawww) ProcessUserProposals(up *www.UserProposals, isCurrentUser, isAdminUser bool) (*www.UserProposalsReply, error) {
+// processUserProposals returns a page of proposals for the given user.
+func (p *politeiawww) processUserProposals(up *www.UserProposals, isCurrentUser, isAdminUser bool) (*www.UserProposalsReply, error) {
 	// Verify user exists
 	_, err := p.getUserByIDStr(up.UserId)
 	if err != nil {
