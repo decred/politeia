@@ -5,9 +5,12 @@
 package main
 
 import (
+	"bytes"
 	"encoding/hex"
+	"encoding/json"
 	"io/ioutil"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -39,10 +42,24 @@ func errToStr(e error) string {
 	return e.Error()
 }
 
+// newPostReq returns an httptest post request that was created using the
+// passed in data.
+func newPostReq(t *testing.T, route string, body interface{}) *http.Request {
+	t.Helper()
+
+	b, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+
+	return httptest.NewRequest(http.MethodPost, route,
+		bytes.NewReader(b))
+}
+
 // newUser creates a new user using randomly generated user credentials and
-// inserts the user into the database.  The user is marked in the database as
-// being verified.  The user details and the full user identity are returned.
-func newUser(t *testing.T, p *politeiawww, isAdmin bool) (*user.User, *identity.FullIdentity) {
+// inserts the user into the database.  The user details and the full user
+// identity are returned.
+func newUser(t *testing.T, p *politeiawww, isVerified, isAdmin bool) (*user.User, *identity.FullIdentity) {
 	t.Helper()
 
 	// Create a new user identity
@@ -84,10 +101,19 @@ func newUser(t *testing.T, p *politeiawww, isAdmin bool) (*user.User, *identity.
 	setNewUserVerificationAndIdentity(&u, token, expiry,
 		false, id.Public.Key[:])
 
-	// Mark user as being verified
-	u.NewUserVerificationToken = nil
-	u.NewUserVerificationExpiry = 0
-	u.ResendNewUserVerificationExpiry = 0
+	// Set user verification status
+	if isVerified {
+		u.NewUserVerificationToken = nil
+		u.NewUserVerificationExpiry = 0
+		u.ResendNewUserVerificationExpiry = 0
+	} else {
+		tb, expiry, err := generateVerificationTokenAndExpiry()
+		if err != nil {
+			t.Fatalf("%v", err)
+		}
+		u.NewUserVerificationToken = tb
+		u.NewUserVerificationExpiry = expiry
+	}
 
 	// Add user to database
 	err = p.db.UserNew(u)
@@ -194,11 +220,11 @@ func newTestPoliteiawww(t *testing.T) *politeiawww {
 		SameSite: http.SameSiteStrictMode,
 	}
 
-	// Init logging
+	// Setup logging
 	initLogRotator(filepath.Join(cfg.DataDir, "politeiawww.test.log"))
 	setLogLevels("off")
 
-	// Init politeiawww context
+	// Create politeiawww context
 	p := politeiawww{
 		cfg:             cfg,
 		db:              db,

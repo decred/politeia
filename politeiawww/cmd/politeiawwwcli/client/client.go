@@ -1272,6 +1272,30 @@ func (c *Client) UserProposalCredits() (*v1.UserProposalCreditsReply, error) {
 	return &upcr, nil
 }
 
+// ResendVerification re-sends the user verification email for an unverified
+// user.
+func (c *Client) ResendVerification(rv v1.ResendVerification) (*v1.ResendVerificationReply, error) {
+	respBody, err := c.makeRequest("POST", v1.RouteResendVerification, rv)
+	if err != nil {
+		return nil, err
+	}
+
+	var rvr v1.ResendVerificationReply
+	err = json.Unmarshal(respBody, &rvr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal ResendVerificationReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(rvr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &rvr, nil
+}
+
 // Close all client connections.
 func (c *Client) Close() {
 	if c.conn != nil {

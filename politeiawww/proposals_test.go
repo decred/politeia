@@ -124,7 +124,7 @@ func TestValidateProposal(t *testing.T) {
 	p := newTestPoliteiawww(t)
 	defer cleanupTestPoliteiawww(t, p)
 
-	usr, id := newUser(t, p, false)
+	usr, id := newUser(t, p, true, false)
 
 	// Create test data
 	md := createFileMD(t, 8, "Valid Title")
