@@ -255,8 +255,7 @@ func (p *politeiawww) setUserPubkeyAssociaton(u *user.User, publicKey string) {
 	p.Lock()
 	defer p.Unlock()
 
-	userID := u.ID.String()
-	p.userPubkeys[publicKey] = userID
+	p.userPubkeys[publicKey] = u.ID.String()
 }
 
 // removeUserPubkeyAssociaton removes a public key from the
@@ -714,7 +713,7 @@ func (p *politeiawww) verifyResetPassword(u *user.User, rp www.ResetPassword, rp
 	// Check that the token hasn't expired.
 	if u.ResetPasswordVerificationExpiry < time.Now().Unix() {
 		log.Debugf("VerifyResetPassword failure for %v: verification "+
-			"token not expired yet", rp.Email)
+			"token is expired", rp.Email)
 		return www.UserError{
 			ErrorCode: www.ErrorStatusVerificationTokenExpired,
 		}
@@ -1034,7 +1033,9 @@ func (p *politeiawww) processResendVerification(rv *www.ResendVerification) (*ww
 		if err == user.ErrUserNotFound {
 			log.Debugf("ResendVerification failure for %v: user not found",
 				rv.Email)
-			return &rvr, nil
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusUserNotFound,
+			}
 		}
 		return nil, err
 	}
@@ -1044,13 +1045,17 @@ func (p *politeiawww) processResendVerification(rv *www.ResendVerification) (*ww
 	if u.NewUserVerificationToken == nil {
 		log.Debugf("ResendVerification failure for %v: user already verified",
 			rv.Email)
-		return &rvr, nil
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusEmailAlreadyVerified,
+		}
 	}
 
 	if u.ResendNewUserVerificationExpiry > time.Now().Unix() {
 		log.Debugf("ResendVerification failure for %v: verification token "+
 			"not expired yet", rv.Email)
-		return &rvr, nil
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusVerificationTokenUnexpired,
+		}
 	}
 
 	// Ensure we got a proper pubkey.
@@ -1392,13 +1397,12 @@ func (p *politeiawww) processResetPassword(rp www.ResetPassword) (*www.ResetPass
 	// Get user from db.
 	u, err := p.db.UserGet(rp.Email)
 	if err != nil {
-		if err == user.ErrInvalidEmail {
-			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusMalformedEmail,
+		if err == user.ErrUserNotFound {
+			log.Debugf("processResetPassword: user not found %v",
+				rp.Email)
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusUserNotFound,
 			}
-		} else if err == user.ErrUserNotFound {
-			log.Debugf("ResetPassword failure for %v: user not found", rp.Email)
-			return &reply, nil
 		}
 
 		return nil, err

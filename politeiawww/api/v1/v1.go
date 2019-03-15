@@ -174,6 +174,7 @@ const (
 	ErrorStatusInvalidUUID                 ErrorStatusT = 56
 	ErrorStatusInvalidLikeCommentAction    ErrorStatusT = 57
 	ErrorStatusInvalidCensorshipToken      ErrorStatusT = 58
+	ErrorStatusEmailAlreadyVerified        ErrorStatusT = 59
 
 	// Proposal state codes
 	//
@@ -315,6 +316,7 @@ var (
 		ErrorStatusInvalidUUID:                 "invalid user UUID",
 		ErrorStatusInvalidLikeCommentAction:    "invalid like comment action",
 		ErrorStatusInvalidCensorshipToken:      "invalid proposal censorship token",
+		ErrorStatusEmailAlreadyVerified:        "email address is already verified",
 	}
 
 	// PropStatus converts propsal status codes to human readable text

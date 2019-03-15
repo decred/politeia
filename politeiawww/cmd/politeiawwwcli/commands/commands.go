@@ -75,6 +75,7 @@ type Cmds struct {
 	UnvettedProposals  UnvettedProposalsCmd  `command:"unvettedproposals" description:"(admin)  get a page of unvetted proposals"`
 	VettedProposals    VettedProposalsCmd    `command:"vettedproposals" description:"(public) get a page of vetted proposals"`
 	RescanUserPayments RescanUserPaymentsCmd `command:"rescanuserpayments" description:"(admin)  rescan a user's payments to check for missed payments"`
+	ResendVerification ResendVerificationCmd `command:"resendverification" description:"(public) resend the user verification email"`
 	ResetPassword      ResetPasswordCmd      `command:"resetpassword" description:"(public) reset the password for a user that is not logged in"`
 	Secret             SecretCmd             `command:"secret" description:"(user)   ping politeiawww"`
 	SendFaucetTx       SendFaucetTxCmd       `command:"sendfaucettx" description:"         send a DCR transaction using the Decred tesnet faucet"`
