@@ -605,7 +605,7 @@ func TestLogin(t *testing.T) {
 	}
 
 	// Create an unverified user
-	usrUnverified, id := newUser(t, p, false, false)
+	usrUnverified, _ := newUser(t, p, false, false)
 	usrUnverifiedPassword := usrUnverified.Username
 
 	// Create a user and lock their account from failed login
@@ -708,7 +708,7 @@ func TestProcessLogin(t *testing.T) {
 	// prevent timing attacks on login requests. Its normally set
 	// to 500 milliseconds. We reduce it to 100ms for these tests
 	// because 100ms still serves the intended purpose in a test
-	// enviroment.
+	// environment.
 	MinimumLoginWaitTime = 100 * time.Millisecond
 
 	// Test the incorrect email error path because it's
@@ -846,7 +846,7 @@ func TestProcessResetPassword(t *testing.T) {
 	// that has already expired. The first expired user can't be
 	// reused in the tests because the expired token gets reset.
 	usrExpired, _ := newUser(t, p, true, false)
-	token, expiry, err = generateVerificationTokenAndExpiry()
+	token, _, err = generateVerificationTokenAndExpiry()
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -858,7 +858,7 @@ func TestProcessResetPassword(t *testing.T) {
 	}
 
 	usrExpired2, _ := newUser(t, p, true, false)
-	token, expiry, err = generateVerificationTokenAndExpiry()
+	token, _, err = generateVerificationTokenAndExpiry()
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
