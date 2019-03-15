@@ -155,12 +155,13 @@ func (u *User) PublicKey() string {
 // Database interface that is required by the web server.
 type Database interface {
 	// User functions
-	UserGet(string) (*User, error)           // Return user record, key is email
-	UserGetByUsername(string) (*User, error) // Return user record given the username
-	UserGetById(uuid.UUID) (*User, error)    // Return user record given its id
-	UserNew(User) error                      // Add new user
-	UserUpdate(User) error                   // Update existing user
-	AllUsers(callbackFn func(u *User)) error // Iterate all users
+	UserGet(string) (*User, error)            // Return user record, key is email
+	UserGetByUsername(string) (*User, error)  // Return user record given the username
+	UserGetById(uuid.UUID) (*User, error)     // Return user record given its id
+	UserGetByPublicKey(string) (*User, error) // Return user record given its pubkey
+	UserNew(User) error                       // Add new user
+	UserUpdate(User) error                    // Update existing user
+	AllUsers(callbackFn func(u *User)) error  // Iterate all users
 
 	// Close performs cleanup of the backend.
 	Close() error

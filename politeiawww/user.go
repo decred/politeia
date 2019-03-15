@@ -1580,47 +1580,96 @@ func (p *politeiawww) processManageUser(mu *www.ManageUser, adminUser *user.User
 	return &www.ManageUserReply{}, nil
 }
 
-// processUsers returns a list of users given a set of filters.
-func (p *politeiawww) processUsers(users *www.Users) (*www.UsersReply, error) {
-	var reply www.UsersReply
-	reply.Users = make([]www.AbridgedUser, 0)
+// processUsers returns a list of users given a set of filters. Admins
+// can search by pubkey, username or admin (partial matches returned).
+// Non admins can search by pubkey or username (only exact matches returned).
+func (p *politeiawww) processUsers(users *v1.Users, isAdmin bool) (*v1.UsersReply, error) {
+	var reply v1.UsersReply
+	reply.Users = make([]v1.AbridgedUser, 0, v1.UserListPageSize)
+	var u *user.User
+	var userID string
 
 	emailQuery := strings.ToLower(users.Email)
 	usernameQuery := formatUsername(users.Username)
+	pubkeyQuery := users.PublicKey
 
-	err := p.db.AllUsers(func(user *user.User) {
-		reply.TotalUsers++
-		userMatches := true
+	// Get user by pubkey, if provided
+	if pubkeyQuery != "" {
+		// Ensure we got a proper pubkey, if provided
+		_, err := validatePubkey(pubkeyQuery)
+		if err != nil {
+			return nil, err
+		}
 
-		// If both emailQuery and usernameQuery are non-empty, the user
-		// must match both to be included in the results.
-		if emailQuery != "" {
-			if !strings.Contains(strings.ToLower(user.Email),
-				emailQuery) {
-				userMatches = false
+		// Get user by pubkey
+		u, err = p.db.UserGetByPublicKey(pubkeyQuery)
+		if err != nil {
+			return nil, err
+		}
+		userID = u.ID.String()
+	}
+
+	if isAdmin {
+		err := p.db.AllUsers(func(user *user.User) {
+			reply.TotalUsers++
+			userMatches := true
+
+			// If both emailQuery and usernameQuery are non-empty, the user
+			// must match both to be included in the results.
+			if emailQuery != "" {
+				if !strings.Contains(strings.ToLower(user.Email),
+					emailQuery) {
+					userMatches = false
+				}
+			}
+
+			if usernameQuery != "" && userMatches {
+				if !strings.Contains(strings.ToLower(user.Username),
+					usernameQuery) {
+					userMatches = false
+				}
+			}
+
+			if pubkeyQuery != "" && userMatches {
+				if user.ID.String() != userID {
+					userMatches = false
+				}
+			}
+
+			if userMatches {
+				reply.TotalMatches++
+				if reply.TotalMatches < v1.UserListPageSize {
+
+					reply.Users = append(reply.Users, v1.AbridgedUser{
+						ID:       user.ID.String(),
+						Email:    user.Email,
+						Username: user.Username})
+				}
+			}
+		})
+		if err != nil {
+			return nil, err
+		}
+
+
+	} else {
+		// Get user by username, if provided
+		if usernameQuery != "" {
+			// Ensure we got a proper username.
+			err := validateUsername(usernameQuery)
+			if err != nil {
+				return nil, err
+			}
+			// Get user by username
+			u, err = p.db.UserGetByUsername(usernameQuery)
+			if err != nil {
+				return nil, err
 			}
 		}
 
-		if usernameQuery != "" && userMatches {
-			if !strings.Contains(strings.ToLower(user.Username),
-				usernameQuery) {
-				userMatches = false
-			}
-		}
-
-		if userMatches {
-			reply.TotalMatches++
-			if reply.TotalMatches < www.UserListPageSize {
-				reply.Users = append(reply.Users, www.AbridgedUser{
-					ID:       user.ID.String(),
-					Email:    user.Email,
-					Username: user.Username,
-				})
-			}
-		}
-	})
-	if err != nil {
-		return nil, err
+		reply.Users = append(reply.Users, v1.AbridgedUser{
+			ID:       u.ID.String(),
+			Username: u.Username})
 	}
 
 	// Sort results alphabetically.
