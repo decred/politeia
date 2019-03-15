@@ -11,15 +11,17 @@ import (
 // UsersCmd retreives a list of users that have been filtered using the
 // specified filtering params.
 type UsersCmd struct {
-	Email    string `long:"email"`    // Email filter
-	Username string `long:"username"` // Username filter
+	Email    string  `long:"email"`    // Email filter
+	Username string  `long:"username"` // Username filter
+	PublicKey string `long:"pubkey"` // Username filter
 }
 
 // Execute executes the users command.
 func (cmd *UsersCmd) Execute(args []string) error {
 	u := v1.Users{
-		Email:    cmd.Email,
-		Username: cmd.Username,
+		Email:     cmd.Email,
+		Username:  cmd.Username,
+		PublicKey: cmd.PublicKey,
 	}
 
 	ur, err := client.Users(&u)

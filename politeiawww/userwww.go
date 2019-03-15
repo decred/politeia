@@ -566,7 +566,15 @@ func (p *politeiawww) handleUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ur, err := p.processUsers(&u)
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		// This is a public route so a logged in user is not required
+		log.Debugf("handleUsers: could not get session user: %v", err)
+	}
+
+
+	ur, err := p.processUsers(&u, user != nil && user.Admin)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleUsers: processUsers %v", err)
@@ -696,6 +704,8 @@ func (p *politeiawww) setUserWWWRoutes() {
 		p.handleResetPassword, permissionPublic)
 	p.addRoute(http.MethodGet, v1.RouteUserDetails,
 		p.handleUserDetails, permissionPublic)
+	p.addRoute(http.MethodGet, v1.RouteUsers,
+		p.handleUsers, permissionPublic)
 
 	// Routes that require being logged in.
 	p.addRoute(http.MethodPost, v1.RouteSecret, p.handleSecret,
@@ -718,9 +728,8 @@ func (p *politeiawww) setUserWWWRoutes() {
 	p.addRoute(http.MethodGet, v1.RouteUserProposalCredits,
 		p.handleUserProposalCredits, permissionLogin)
 
+
 	// Routes that require being logged in as an admin user.
-	p.addRoute(http.MethodGet, v1.RouteUsers,
-		p.handleUsers, permissionAdmin)
 	p.addRoute(http.MethodPut, v1.RouteUserPaymentsRescan,
 		p.handleUserPaymentsRescan, permissionAdmin)
 	p.addRoute(http.MethodPost, v1.RouteManageUser,

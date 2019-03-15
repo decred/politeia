@@ -148,6 +148,7 @@ type Database interface {
 	UserGet(string) (*User, error)           // Return user record, key is email
 	UserGetByUsername(string) (*User, error) // Return user record given the username
 	UserGetById(uuid.UUID) (*User, error)    // Return user record given its id
+	UserGetByPublicKey(string) (*User, error) // Return user record given its pubkey
 	UserNew(User) error                      // Add new user
 	UserUpdate(User) error                   // Update existing user
 	AllUsers(callbackFn func(u *User)) error // Iterate all users

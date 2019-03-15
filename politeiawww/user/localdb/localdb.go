@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"encoding/hex"
 
 	"github.com/badoux/checkmail"
 	"github.com/decred/politeia/politeiawww/user"
@@ -161,6 +162,51 @@ func (l *localdb) UserGetByUsername(username string) (*user.User, error) {
 		if strings.ToLower(u.Username) == strings.ToLower(username) {
 			return u, err
 		}
+	}
+	iter.Release()
+
+	if iter.Error() != nil {
+		return nil, iter.Error()
+	}
+
+	return nil, user.ErrUserNotFound
+}
+
+// UserGetByPublicKey returns a user record given its public key,
+// if found in the database.
+//
+// UserGetByPublicKey satisfies the backend interface.
+func (l *localdb) UserGetByPublicKey(pubkey string) (*user.User, error) {
+	l.RLock()
+	defer l.RUnlock()
+
+	if l.shutdown {
+		return nil, user.ErrShutdown
+	}
+
+	log.Debugf("UserGetByPublicKey\n")
+
+	iter := l.userdb.NewIterator(nil, nil)
+	for iter.Next() {
+		key := iter.Key()
+		value := iter.Value()
+
+		if !isUserRecord(string(key)) {
+			continue
+		}
+
+		u, err := DecodeUser(value)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, Identity := range u.Identities {
+
+			if hex.EncodeToString(Identity.Key[:]) == pubkey {
+				return u, err
+			}
+		}
+
 	}
 	iter.Release()
 
