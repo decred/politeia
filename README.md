@@ -105,6 +105,7 @@ You can also use the following default configurations:
 
 **politeiawww.conf**:
 
+    mode=piwww
     rpchost=127.0.0.1
     rpcuser=user
     rpcpass=pass
