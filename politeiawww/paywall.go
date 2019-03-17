@@ -267,7 +267,7 @@ func ProposalCreditBalance(u *user.User) uint64 {
 // credits.
 func (p *politeiawww) UserHasProposalCredits(u *user.User) bool {
 	// Return true when running unit tests or if paywall is disabled
-	if p.test || !p.paywallIsEnabled() {
+	if !p.paywallIsEnabled() {
 		return true
 	}
 	return ProposalCreditBalance(u) > 0
@@ -278,7 +278,7 @@ func (p *politeiawww) UserHasProposalCredits(u *user.User) bool {
 // list, and then updates the user database.
 func (p *politeiawww) SpendProposalCredit(u *user.User, token string) error {
 	// Skip when running unit tests or if paywall is disabled.
-	if p.test || !p.paywallIsEnabled() {
+	if !p.paywallIsEnabled() {
 		return nil
 	}
 

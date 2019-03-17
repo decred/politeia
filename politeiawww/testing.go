@@ -14,9 +14,12 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
+	"github.com/decred/politeia/politeiad/cache/testcache"
+	"github.com/decred/politeia/politeiad/testpoliteiad"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/politeiawww/user/localdb"
@@ -54,6 +57,40 @@ func newPostReq(t *testing.T, route string, body interface{}) *http.Request {
 
 	return httptest.NewRequest(http.MethodPost, route,
 		bytes.NewReader(b))
+}
+
+func payRegistrationFee(t *testing.T, p *politeiawww, u *user.User) {
+	t.Helper()
+
+	u.NewUserPaywallAmount = 0
+	u.NewUserPaywallTx = "cleared_during_testing"
+	u.NewUserPaywallPollExpiry = 0
+
+	err := p.db.UserUpdate(*u)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func addProposalCredits(t *testing.T, p *politeiawww, u *user.User, quantity int) {
+	t.Helper()
+
+	c := make([]user.ProposalCredit, quantity)
+	ts := time.Now().Unix()
+	for i := 0; i < quantity; i++ {
+		c[i] = user.ProposalCredit{
+			PaywallID:     0,
+			Price:         0,
+			DatePurchased: ts,
+			TxID:          "created_during_testing",
+		}
+	}
+	u.UnspentProposalCredits = append(u.UnspentProposalCredits, c...)
+
+	err := p.db.UserUpdate(*u)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 // newUser creates a new user using randomly generated user credentials and
@@ -148,42 +185,21 @@ func newUser(t *testing.T, p *politeiawww, isVerified, isAdmin bool) (*user.User
 	return usr, id
 }
 
-func cleanupTestPoliteiawww(t *testing.T, p *politeiawww) {
-	t.Helper()
-
-	err := p.db.Close()
-	if err != nil {
-		t.Fatalf("close db: %v", err)
-	}
-
-	err = logRotator.Close()
-	if err != nil {
-		t.Fatalf("close log rotator: %v", err)
-	}
-
-	// DataDir is a temp directory that needs
-	// to be removed.
-	err = os.RemoveAll(p.cfg.DataDir)
-	if err != nil {
-		t.Fatalf("remove tmp dir: %v", err)
-	}
-}
-
 // newTestPoliteiawww returns a new politeiawww context that is setup for
-// testing.
-func newTestPoliteiawww(t *testing.T) *politeiawww {
+// testing and a closure that cleans up the test environment when invoked.
+func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
 	t.Helper()
 
 	// Make a temp directory for test data. Temp directory
-	// is removed in cleanupTestPoliteiawww().
-	dir, err := ioutil.TempDir("", "politeiawww.test")
+	// is removed in the returned closure.
+	dataDir, err := ioutil.TempDir("", "politeiawww.test")
 	if err != nil {
 		t.Fatalf("open tmp dir: %v", err)
 	}
 
 	// Setup config
 	cfg := &config{
-		DataDir:       dir,
+		DataDir:       dataDir,
 		PaywallAmount: 1e7,
 		PaywallXpub:   "tpubVobLtToNtTq6TZNw4raWQok35PRPZou53vegZqNubtBTJMMFmuMpWybFCfweJ52N8uZJPZZdHE5SRnBBuuRPfC5jdNstfKjiAs8JtbYG9jx",
 		TestNet:       true,
@@ -221,13 +237,14 @@ func newTestPoliteiawww(t *testing.T) *politeiawww {
 	}
 
 	// Setup logging
-	initLogRotator(filepath.Join(cfg.DataDir, "politeiawww.test.log"))
+	initLogRotator(filepath.Join(dataDir, "politeiawww.test.log"))
 	setLogLevels("off")
 
 	// Create politeiawww context
 	p := politeiawww{
 		cfg:             cfg,
 		db:              db,
+		cache:           testcache.New(),
 		params:          &chaincfg.TestNet3Params,
 		router:          mux.NewRouter(),
 		store:           store,
@@ -242,5 +259,35 @@ func newTestPoliteiawww(t *testing.T) *politeiawww {
 	p.setPoliteiaWWWRoutes()
 	p.setUserWWWRoutes()
 
-	return &p
+	// The cleanup is handled using a closure so that the temp dir
+	// can be deleted using the local variable and not cfg.DataDir.
+	// Using cfg.DataDir could be misused and lead to the deletion
+	// of an unintended directory.
+	return &p, func() {
+		t.Helper()
+
+		err := db.Close()
+		if err != nil {
+			t.Fatalf("close db: %v", err)
+		}
+
+		err = logRotator.Close()
+		if err != nil {
+			t.Fatalf("close log rotator: %v", err)
+		}
+
+		err = os.RemoveAll(dataDir)
+		if err != nil {
+			t.Fatalf("remove tmp dir: %v", err)
+		}
+	}
+}
+
+// newTestPoliteiad returns a new TestPoliteiad context. The relevant
+// politeiawww config params are updated with the TestPoliteiad info.
+func newTestPoliteiad(t *testing.T, p *politeiawww) *testpoliteiad.TestPoliteiad {
+	td := testpoliteiad.New(t, p.cache)
+	p.cfg.RPCHost = td.URL
+	p.cfg.Identity = td.PublicIdentity
+	return td
 }

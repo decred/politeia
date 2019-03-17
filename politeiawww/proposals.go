@@ -729,24 +729,6 @@ func (p *politeiawww) processNewProposal(np www.NewProposal, user *user.User) (*
 		Files: convertPropFilesFromWWW(np.Files),
 	}
 
-	// Handle test case
-	if p.test {
-		tokenBytes, err := util.Random(pd.TokenSize)
-		if err != nil {
-			return nil, err
-		}
-
-		testReply := pd.NewRecordReply{
-			CensorshipRecord: pd.CensorshipRecord{
-				Token: hex.EncodeToString(tokenBytes),
-			},
-		}
-
-		return &www.NewProposalReply{
-			CensorshipRecord: convertPropCensorFromPD(testReply.CensorshipRecord),
-		}, nil
-	}
-
 	// Send politeiad request
 	responseBody, err := p.makeRequest(http.MethodPost,
 		pd.NewRecordRoute, n)
@@ -845,19 +827,38 @@ func (p *politeiawww) processProposalDetails(propDetails www.ProposalsDetails, u
 	return &reply, nil
 }
 
+// verifyStatusChange verifies that the proposal status change is a valid
+// status transition.  This only applies to manual status transitions that are
+// initiated by an admin.  It does not apply to status changes that are caused
+// by editing a proposal.
+func verifyStatusChange(current, next www.PropStatusT) error {
+	var err error
+	switch {
+	case current == www.PropStatusNotReviewed &&
+		(next == www.PropStatusCensored ||
+			next == www.PropStatusPublic):
+	// allowed; continue
+	case current == www.PropStatusUnreviewedChanges &&
+		(next == www.PropStatusCensored ||
+			next == www.PropStatusPublic):
+		// allowed; continue
+	case current == www.PropStatusPublic &&
+		next == www.PropStatusAbandoned:
+		// allowed; continue
+	default:
+		err = www.UserError{
+			ErrorCode: www.ErrorStatusInvalidPropStatusTransition,
+		}
+	}
+	return err
+}
+
 // processSetProposalStatus changes the status of an existing proposal.
 func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *user.User) (*www.SetProposalStatusReply, error) {
 	log.Tracef("processSetProposalStatus %v", sps.Token)
 
-	err := checkPublicKeyAndSignature(u, sps.PublicKey, sps.Signature,
-		sps.Token, strconv.FormatUint(uint64(sps.ProposalStatus), 10),
-		sps.StatusChangeMessage)
-	if err != nil {
-		return nil, err
-	}
-
-	// Ensure the status change message is not blank if the proposal
-	// is being censored or abandoned
+	// Ensure the status change message is not blank if the
+	// proposal is being censored or abandoned.
 	if sps.StatusChangeMessage == "" &&
 		(sps.ProposalStatus == www.PropStatusCensored ||
 			sps.ProposalStatus == www.PropStatusAbandoned) {
@@ -866,11 +867,19 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 		}
 	}
 
-	// Handle test case
-	if p.test {
-		var reply www.SetProposalStatusReply
-		reply.Proposal.Status = sps.ProposalStatus
-		return &reply, nil
+	// Validate public key
+	if u.PublicKey() != sps.PublicKey {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSigningKey,
+		}
+	}
+
+	// Validate signature
+	msg := sps.Token + strconv.Itoa(int(sps.ProposalStatus)) +
+		sps.StatusChangeMessage
+	err := checkSignature(u.ActiveIdentity().Key[:], sps.Signature, msg)
+	if err != nil {
+		return nil, err
 	}
 
 	// Get proposal from cache
@@ -919,26 +928,16 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 		return nil, err
 	}
 
+	// Ensure status change is allowed
+	err = verifyStatusChange(pr.Status, sps.ProposalStatus)
+	if err != nil {
+		return nil, err
+	}
+
 	var challengeResponse string
 	switch {
 	case pr.State == www.PropStateUnvetted:
 		// Unvetted status change
-
-		// Verify status transition is valid
-		switch {
-		case pr.Status == www.PropStatusNotReviewed &&
-			(sps.ProposalStatus == www.PropStatusCensored ||
-				sps.ProposalStatus == www.PropStatusPublic):
-		// allowed; continue
-		case pr.Status == www.PropStatusUnreviewedChanges &&
-			(sps.ProposalStatus == www.PropStatusCensored ||
-				sps.ProposalStatus == www.PropStatusPublic):
-			// allowed; continue
-		default:
-			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusInvalidPropStatusTransition,
-			}
-		}
 
 		// Setup request
 		sus := pd.SetUnvettedStatus{
@@ -971,24 +970,21 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 	case pr.State == www.PropStateVetted:
 		// Vetted status change
 
-		// We only allow a transition from public to abandoned
-		if pr.Status != www.PropStatusPublic ||
-			sps.ProposalStatus != www.PropStatusAbandoned {
-			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusInvalidPropStatusTransition,
-			}
-		}
-
 		// Ensure voting has not been started or authorized yet
 		vdr, err := p.decredVoteDetails(pr.CensorshipRecord.Token)
 		if err != nil {
 			return nil, fmt.Errorf("decredVoteDetails: %v", err)
 		}
 		vd := convertVoteDetailsReplyFromDecred(*vdr)
-		if vd.StartVoteReply.StartBlockHeight != "" ||
-			voteIsAuthorized(vd.AuthorizeVoteReply) {
+
+		switch {
+		case vd.StartVoteReply.StartBlockHeight != "":
 			return nil, www.UserError{
 				ErrorCode: www.ErrorStatusWrongVoteStatus,
+			}
+		case voteIsAuthorized(vd.AuthorizeVoteReply):
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusVoteAlreadyAuthorized,
 			}
 		}
 
@@ -1021,8 +1017,8 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 		challengeResponse = svsr.Response
 
 	default:
-		return nil, fmt.Errorf("invalid proposal state %v: %v",
-			pr.State, pr.CensorshipRecord.Token)
+		panic(fmt.Sprintf("invalid proposal state %v %v",
+			pr.CensorshipRecord.Token, pr.State))
 	}
 
 	// Verify the challenge

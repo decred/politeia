@@ -120,6 +120,10 @@ func (p *politeiawww) getProposalAndAuthor(token string) (*www.ProposalRecord, *
 //
 // This function must be called WITHOUT the mutex held.
 func (p *politeiawww) fireEvent(eventType EventT, data interface{}) {
+	if p.test {
+		return
+	}
+
 	p.Lock()
 	defer p.Unlock()
 

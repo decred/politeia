@@ -17,9 +17,6 @@ import (
 )
 
 func TestValidatePubkey(t *testing.T) {
-	p := newTestPoliteiawww(t)
-	defer cleanupTestPoliteiawww(t, p)
-
 	id, err := identity.New()
 	if err != nil {
 		t.Fatalf("%v", err)
@@ -79,9 +76,6 @@ func TestValidatePubkey(t *testing.T) {
 }
 
 func TestValidateUsername(t *testing.T) {
-	p := newTestPoliteiawww(t)
-	defer cleanupTestPoliteiawww(t, p)
-
 	// Username under the min length requirement
 	var underMin string
 	for i := 0; i < www.PolicyMinUsernameLength-1; i++ {
@@ -158,9 +152,6 @@ func TestValidateUsername(t *testing.T) {
 }
 
 func TestValidatePassword(t *testing.T) {
-	p := newTestPoliteiawww(t)
-	defer cleanupTestPoliteiawww(t, p)
-
 	// Password under the min length requirement
 	var minPass string
 	for i := 0; i < www.PolicyMinPasswordLength-1; i++ {
@@ -194,8 +185,8 @@ func TestValidatePassword(t *testing.T) {
 }
 
 func TestProcessNewUser(t *testing.T) {
-	p := newTestPoliteiawww(t)
-	defer cleanupTestPoliteiawww(t, p)
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
 
 	// Create a verified user
 	usrVerified, _ := newUser(t, p, true, false)
@@ -346,8 +337,8 @@ func TestProcessNewUser(t *testing.T) {
 }
 
 func TestProcessVerifyNewUser(t *testing.T) {
-	p := newTestPoliteiawww(t)
-	defer cleanupTestPoliteiawww(t, p)
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
 
 	// Create a user with a valid, unexpired verification
 	// token.
@@ -474,8 +465,8 @@ func TestProcessVerifyNewUser(t *testing.T) {
 }
 
 func TestProcessResendVerification(t *testing.T) {
-	p := newTestPoliteiawww(t)
-	defer cleanupTestPoliteiawww(t, p)
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
 
 	// Create a verified user
 	usrVerified, id := newUser(t, p, true, false)
@@ -579,8 +570,8 @@ func TestProcessResendVerification(t *testing.T) {
 }
 
 func TestLogin(t *testing.T) {
-	p := newTestPoliteiawww(t)
-	defer cleanupTestPoliteiawww(t, p)
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
 
 	// newUser() sets the password to be the username, which is
 	// why we keep setting the passwords to be the the usernames.
@@ -701,15 +692,18 @@ func TestLogin(t *testing.T) {
 }
 
 func TestProcessLogin(t *testing.T) {
-	p := newTestPoliteiawww(t)
-	defer cleanupTestPoliteiawww(t, p)
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
 
 	// MinimumLoginWaitTime is a global variable that is used to
 	// prevent timing attacks on login requests. Its normally set
-	// to 500 milliseconds. We reduce it to 100ms for these tests
-	// because 100ms still serves the intended purpose in a test
-	// environment.
+	// to 500 milliseconds. We temporarily reduce it to 100ms for
+	// these tests so that they don't take as long to run.
+	m := MinimumLoginWaitTime
 	MinimumLoginWaitTime = 100 * time.Millisecond
+	defer func() {
+		MinimumLoginWaitTime = m
+	}()
 
 	// Test the incorrect email error path because it's
 	// the quickest failure path for the login route.
@@ -756,8 +750,8 @@ func TestProcessLogin(t *testing.T) {
 }
 
 func TestProcessChangePassword(t *testing.T) {
-	p := newTestPoliteiawww(t)
-	defer cleanupTestPoliteiawww(t, p)
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
 
 	// Create a new user. newUser() sets the password
 	// as the username, which is why currPass is set
@@ -817,8 +811,8 @@ func TestProcessChangePassword(t *testing.T) {
 }
 
 func TestProcessResetPassword(t *testing.T) {
-	p := newTestPoliteiawww(t)
-	defer cleanupTestPoliteiawww(t, p)
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
 
 	// Create a normal user that we can test against
 	usr, _ := newUser(t, p, true, false)
@@ -968,8 +962,8 @@ func TestProcessResetPassword(t *testing.T) {
 }
 
 func TestProcessChangeUsername(t *testing.T) {
-	p := newTestPoliteiawww(t)
-	defer cleanupTestPoliteiawww(t, p)
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
 
 	// Create a new user. newUser() sets
 	// the password to be the username.
@@ -1031,8 +1025,8 @@ func TestProcessChangeUsername(t *testing.T) {
 }
 
 func TestProcessUserDetails(t *testing.T) {
-	p := newTestPoliteiawww(t)
-	defer cleanupTestPoliteiawww(t, p)
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
 
 	// Create a new user. This is the UUID that
 	// we'll use to test the UserDetails route.
@@ -1106,8 +1100,8 @@ func TestProcessUserDetails(t *testing.T) {
 }
 
 func TestProcessEditUser(t *testing.T) {
-	p := newTestPoliteiawww(t)
-	defer cleanupTestPoliteiawww(t, p)
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
 
 	// Create a new user. This is the user
 	// that we will be editing.
