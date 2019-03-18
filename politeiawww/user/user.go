@@ -106,6 +106,10 @@ type User struct {
 	// a UNIX timestamp.
 	ProposalCommentsAccessTimes map[string]int64
 
+	// Read comments organized by proposal. Map keys are proposal tokens, and each
+	// element is an array of commentIDs.
+	ReadComments map[string][]string
+
 	// All identities the user has ever used.  User should only have one
 	// active key at a time.  We allow multiples in order to deal with key
 	// loss.

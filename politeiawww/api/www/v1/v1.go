@@ -29,6 +29,7 @@ const (
 	RouteUserProposals            = "/user/proposals"
 	RouteUserProposalCredits      = "/user/proposals/credits"
 	RouteUserCommentsLikes        = "/user/proposals/{token:[A-z0-9]{64}}/commentslikes"
+	RouteSetUserReadComments      = "/user/proposals/{token:[A-z0-9]{64}}/readcomments"
 	RouteVerifyUserPayment        = "/user/verifypayment"
 	RouteUserPaymentsRescan       = "/user/payments/rescan"
 	RouteUserDetails              = "/user/{userid:[0-9a-zA-Z-]{36}}"
@@ -647,7 +648,7 @@ type ResetPasswordReply struct {
 // that they have been spent.
 type UserProposalCredits struct{}
 
-// UserProposalCredits is used to reply to the UserProposalCredits command.
+// UserProposalCreditsReply is used to reply to the UserProposalCredits command.
 type UserProposalCreditsReply struct {
 	UnspentCredits []ProposalCredit `json:"unspentcredits"` // credits that the user has purchased, but have not yet been used to submit proposals (credit price in atoms)
 	SpentCredits   []ProposalCredit `json:"spentcredits"`   // credits that the user has purchased and that have already been used to submit proposals (credit price in atoms)
@@ -1035,8 +1036,9 @@ type GetComments struct {
 
 // GetCommentsReply returns the provided number of comments.
 type GetCommentsReply struct {
-	Comments   []Comment `json:"comments"`             // Comments
-	AccessTime int64     `json:"accesstime,omitempty"` // User Access Time
+	Comments     []Comment `json:"comments"`               // Comments
+	AccessTime   int64     `json:"accesstime,omitempty"`   // User Access Time
+	ReadComments []string  `json:"readcomments,omitempty"` // List of read commentIDs
 }
 
 // LikeComment allows a user to up or down vote a comment.
@@ -1090,6 +1092,15 @@ type UserCommentsLikes struct{}
 type UserCommentsLikesReply struct {
 	CommentsLikes []CommentLike `json:"commentslikes"`
 }
+
+// SetUserReadComments is a command to set the read comments
+// of a given proposal for an user
+type SetUserReadComments struct {
+	ReadComments []string `json:"readcomments"`
+}
+
+// SetUserReadCommentsReply is the reply for the SetUserReadComments command.
+type SetUserReadCommentsReply struct{}
 
 // VoteOptionResult is a structure that describes a VotingOption along with the
 // number of votes it has received

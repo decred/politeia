@@ -684,6 +684,40 @@ func (p *politeiawww) handleUserCommentsLikes(w http.ResponseWriter, r *http.Req
 	util.RespondWithJSON(w, http.StatusOK, uclr)
 }
 
+// handleSetUserReadComments sets the read comments on a given proposal for
+// an user
+func (p *politeiawww) handleSetUserReadComments(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleSetUserReadComments")
+
+	pathParams := mux.Vars(r)
+	token := pathParams["token"]
+
+	var urc www.SetUserReadComments
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&urc); err != nil {
+		RespondWithError(w, r, 0, "handleSetUserReadComments: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleSetUserReadComments: getSessionUser %v", err)
+		return
+	}
+	urcrply, err := p.processSetUserReadComments(user, token, urc.ReadComments)
+
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleSetUserReadComments: processSetUserReadComments %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, urcrply)
+}
+
 // handleUserProposalCredits returns the spent and unspent proposal credits for
 // the logged in user.
 func (p *politeiawww) handleUserProposalCredits(w http.ResponseWriter, r *http.Request) {
@@ -742,6 +776,8 @@ func (p *politeiawww) setUserWWWRoutes() {
 		p.handleEditUser, permissionLogin)
 	p.addRoute(http.MethodGet, www.RouteUserCommentsLikes, // XXX comments need to become a setting
 		p.handleUserCommentsLikes, permissionLogin)
+	p.addRoute(http.MethodPost, www.RouteSetUserReadComments,
+		p.handleSetUserReadComments, permissionLogin)
 	p.addRoute(http.MethodGet, www.RouteUserProposalCredits,
 		p.handleUserProposalCredits, permissionLogin)
 

@@ -524,6 +524,23 @@ func (p *politeiawww) processUserCommentsLikes(user *user.User, token string) (*
 	}, nil
 }
 
+// processSetUserReadComments sets comments read by user for the passed in
+// proposal.
+func (p *politeiawww) processSetUserReadComments(u *user.User, token string, rcs []string) (*www.SetUserReadCommentsReply, error) {
+	log.Tracef("processSetUserReadComments: %v %v", u.ID, token)
+
+	if u.ReadComments == nil {
+		u.ReadComments = make(map[string][]string)
+	}
+
+	u.ReadComments[token] = rcs
+	err := p.db.UserUpdate(*u)
+	if err != nil {
+		return nil, err
+	}
+	return &www.SetUserReadCommentsReply{}, nil
+}
+
 // login attempts to login a a user.
 func (p *politeiawww) login(l *www.Login) loginReplyWithError {
 	// Get user from db.

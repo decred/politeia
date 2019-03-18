@@ -1663,6 +1663,7 @@ sorted.
 | - | - | - |
 | Comments | Comment | Unsorted array of all comments |
 | AccessTime | int64 | UNIX timestamp of last access time. Omitted if no session cookie is present. |
+| ReadComments | array of string | Array of read comments for the proposal. Omitted if no session cookie is present. |
 
 **Comment:**
 
@@ -2376,6 +2377,42 @@ Reply:
       }
    ]
 }
+```
+
+
+### `Set read comments`
+
+Allows a user to mark comments as read
+
+**Route** `POST v1/user/proposals/{token}/readcomments`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| readcomments | array of string | Proposal comments to be set as read | yes |
+
+**Results:** none
+
+**Example:**
+
+
+Request:
+
+```json
+{
+  "readcomments": [
+    "1",
+    "6",
+    "8",
+  ]
+}
+```
+
+Reply:
+
+```json
+{}
 ```
 
 ### `User Comments Likes`

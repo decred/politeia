@@ -991,6 +991,31 @@ func (c *Client) LikeComment(lc *v1.LikeComment) (*v1.LikeCommentReply, error) {
 	return &lcr, nil
 }
 
+// SetUserReadComments casts a read comments action for the logged in
+// user.
+func (c *Client) SetUserReadComments(urc *v1.SetUserReadComments, token string) (*v1.SetUserReadCommentsReply, error) {
+	route := "/user/proposals/" + token + "/readcomments"
+	responseBody, err := c.makeRequest("POST", route, urc)
+	if err != nil {
+		return nil, err
+	}
+
+	var urcr v1.SetUserReadCommentsReply
+	err = json.Unmarshal(responseBody, &urcr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal SetUserReadCommentsReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(urcr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &urcr, nil
+}
+
 // CensorComment censors the specified proposal comment.
 func (c *Client) CensorComment(cc *v1.CensorComment) (*v1.CensorCommentReply, error) {
 	responseBody, err := c.makeRequest("POST", v1.RouteCensorComment, cc)
