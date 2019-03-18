@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"net/http"
 
 	v1 "github.com/decred/politeia/politeiawww/api/v1"
+	"github.com/decred/politeia/util"
 )
 
 func (p *politeiawww) setCMSWWWRoutes() {
@@ -53,4 +55,54 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		permissionPublic)
 
 	// Admin Routes
+}
+
+// handleInviteNewUser handles the invitation of a new contractor by an
+// administrator for the Contractor Management System.
+func (p *politeiawww) handleInviteNewUser(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleInviteNewUser")
+
+	// Get the new user command.
+	var u v1.InviteNewUser
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&u); err != nil {
+		RespondWithError(w, r, 0, "handleInviteNewUser: unmarshal", v1.UserError{
+			ErrorCode: v1.ErrorStatusInvalidInput,
+		})
+		return
+	}
+
+	reply, err := p.processInviteNewUser(u)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleInviteNewUser: ProcessInviteNewUser %v", err)
+		return
+	}
+
+	// Reply with the verification token.
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+// handleInviteNewUser handles the invitation of a new contractor by an
+// administrator for the Contractor Management System.
+func (p *politeiawww) handleRegisterUser(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleRegister")
+
+	// Get the new user command.
+	var u v1.RegisterUser
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&u); err != nil {
+		RespondWithError(w, r, 0, "handleRegisterUser: unmarshal", v1.UserError{
+			ErrorCode: v1.ErrorStatusInvalidInput,
+		})
+		return
+	}
+
+	reply, err := p.processRegisterUser(u)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleRegisterUser: ProcessRegisterUser %v", err)
+		return
+	}
+
+	// Reply with the verification token.
+	util.RespondWithJSON(w, http.StatusOK, reply)
 }
