@@ -471,33 +471,33 @@ func loadConfig() (*config, []string, error) {
 			return nil, nil, fmt.Errorf("the enablecache param can " +
 				"not be used without the cachekey param")
 		}
+
+		cfg.CacheRootCert = cleanAndExpandPath(cfg.CacheRootCert)
+		cfg.CacheCert = cleanAndExpandPath(cfg.CacheCert)
+		cfg.CacheKey = cleanAndExpandPath(cfg.CacheKey)
+
+		// Validate cache root cert.
+		b, err := ioutil.ReadFile(cfg.CacheRootCert)
+		if err != nil {
+			return nil, nil, fmt.Errorf("read cacherootcert: %v", err)
+		}
+		block, _ := pem.Decode(b)
+		_, err = x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, nil, fmt.Errorf("parse cacherootcert: %v", err)
+		}
+
+		// Validate cache key pair.
+		_, err = tls.LoadX509KeyPair(cfg.CacheCert, cfg.CacheKey)
+		if err != nil {
+			return nil, nil, fmt.Errorf("load key pair cachecert "+
+				"and cachekey: %v", err)
+		}
 	}
 
 	if cfg.BuildCache && !cfg.EnableCache {
 		return nil, nil, fmt.Errorf("the buildcache param can " +
 			"not be used without the enablecache param")
-	}
-
-	cfg.CacheRootCert = cleanAndExpandPath(cfg.CacheRootCert)
-	cfg.CacheCert = cleanAndExpandPath(cfg.CacheCert)
-	cfg.CacheKey = cleanAndExpandPath(cfg.CacheKey)
-
-	// Validate cache root cert.
-	b, err := ioutil.ReadFile(cfg.CacheRootCert)
-	if err != nil {
-		return nil, nil, fmt.Errorf("read cacherootcert: %v", err)
-	}
-	block, _ := pem.Decode(b)
-	_, err = x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		return nil, nil, fmt.Errorf("parse cacherootcert: %v", err)
-	}
-
-	// Validate cache key pair.
-	_, err = tls.LoadX509KeyPair(cfg.CacheCert, cfg.CacheKey)
-	if err != nil {
-		return nil, nil, fmt.Errorf("load key pair cachecert "+
-			"and cachekey: %v", err)
 	}
 
 	// Initialize log rotation.  After log rotation has been initialized,
