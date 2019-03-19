@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httputil"
+	"runtime/debug"
+	"time"
 
 	v1 "github.com/decred/politeia/politeiawww/api/v1"
 	"github.com/decred/politeia/util"
@@ -101,4 +103,27 @@ func remoteAddr(r *http.Request) string {
 		return fmt.Sprintf("%v via %v", xff, r.RemoteAddr)
 	}
 	return via
+}
+
+// recoverMiddleware recovers from any panics by logging the panic and
+// returning a 500 response.
+func recoverMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if err := recover(); err != nil {
+				errorCode := time.Now().Unix()
+				log.Criticalf("%v %v %v %v Internal error %v: %v", remoteAddr(r),
+					r.Method, r.URL, r.Proto, errorCode, err)
+				log.Criticalf("Stacktrace (THIS IS AN ACTUAL PANIC): %s",
+					debug.Stack())
+
+				util.RespondWithJSON(w, http.StatusInternalServerError,
+					v1.ErrorReply{
+						ErrorCode: errorCode,
+					})
+			}
+		}()
+
+		next.ServeHTTP(w, r)
+	})
 }

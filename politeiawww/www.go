@@ -431,6 +431,7 @@ func _main() error {
 	csrfHandle := csrf.Protect(csrfKey, csrf.Path("/"))
 
 	p.router = mux.NewRouter()
+	p.router.Use(recoverMiddleware)
 
 	switch p.cfg.Mode {
 	case politeiaWWWMode:
