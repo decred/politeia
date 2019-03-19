@@ -1560,7 +1560,7 @@ func (p *politeiawww) processManageUser(mu *v1.ManageUser, adminUser *user.User)
 	case v1.UserManageExpireResetPasswordVerification:
 		user.ResetPasswordVerificationExpiry = expiredTime
 	case v1.UserManageClearUserPaywall:
-		p.removeUsersFromPool([]uuid.UUID{user.ID})
+		p.removeUsersFromPool([]uuid.UUID{user.ID}, paywallTypeUser)
 
 		user.NewUserPaywallAmount = 0
 		user.NewUserPaywallTx = "cleared_by_admin"
@@ -1835,14 +1835,25 @@ func (p *politeiawww) processVerifyUserPayment(u *user.User, vupt v1.VerifyUserP
 }
 
 // removeUsersFromPool removes provided user IDs from the the poll pool.
+// Currently, updating user db and removal from pool isn't an atomic
+// operation. This can lead to a scenario where user has been marked as
+// paid in db, but has not yet been removed from the pool. If a user
+// issues a proposal paywall during this time, the proposal paywall will
+// replace the user paywall in the pool. When the pool proceeds to remove
+// the user paywall, it will mistakenly remove the proposal paywall instead.
+// Proposal credits will not be added to the user's account. The workaround 
+// until this code gets replaced with websockets is to pass the paywallType 
+// when removing a pool member.
 //
 // This function must be called WITHOUT the mutex held.
-func (p *politeiawww) removeUsersFromPool(userIDsToRemove []uuid.UUID) {
+func (p *politeiawww) removeUsersFromPool(userIDsToRemove []uuid.UUID, paywallType string) {
 	p.Lock()
 	defer p.Unlock()
 
 	for _, userID := range userIDsToRemove {
-		delete(p.userPaywallPool, userID)
+		if p.userPaywallPool[userID].paywallType == paywallType {
+			delete(p.userPaywallPool, userID)
+		}
 	}
 }
 

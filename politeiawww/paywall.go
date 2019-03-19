@@ -106,6 +106,7 @@ func (p *politeiawww) checkForProposalPayments(pool map[uuid.UUID]paywallPoolMem
 			userIDsToRemove = append(userIDsToRemove, userID)
 			log.Tracef("  removing from polling, user just paid")
 		} else if tx != nil {
+			log.Tracef("  updating pool member with id: %v", userID)
 			// Update pool member if payment tx was found but
 			// does not have enough confimrations.
 			poolMember.txID = tx.TxID
@@ -127,7 +128,6 @@ func (p *politeiawww) checkForPayments() {
 	for {
 		// Removing pool members from the pool while in the middle of
 		// polling can cause a race to occur in checkForProposalPayments.
-
 		userPaywallsToCheck := p.createUserPaywallPoolCopy()
 
 		// Check new user payments.
@@ -135,14 +135,14 @@ func (p *politeiawww) checkForPayments() {
 		if !shouldContinue {
 			return
 		}
-		p.removeUsersFromPool(userIDsToRemove)
+		p.removeUsersFromPool(userIDsToRemove, paywallTypeUser)
 
 		// Check proposal payments.
 		shouldContinue, userIDsToRemove = p.checkForProposalPayments(userPaywallsToCheck)
 		if !shouldContinue {
 			return
 		}
-		p.removeUsersFromPool(userIDsToRemove)
+		p.removeUsersFromPool(userIDsToRemove, paywallTypeProposal)
 
 		time.Sleep(paywallCheckGap)
 	}
@@ -191,7 +191,7 @@ func (p *politeiawww) generateProposalPaywall(u *user.User) (*user.ProposalPaywa
 		return nil, err
 	}
 
-	p.addUserToPaywallPool(u, paywallTypeProposal)
+	p.addUserToPaywallPoolLock(u, paywallTypeProposal)
 	return &pp, nil
 }
 
