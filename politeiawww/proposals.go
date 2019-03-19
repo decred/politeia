@@ -1037,7 +1037,7 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 	}
 
 	// Fire off proposal status change event
-	p.eventManager._fireEvent(EventTypeProposalStatusChange,
+	p.fireEvent(EventTypeProposalStatusChange,
 		EventDataProposalStatusChange{
 			Proposal:          updatedProp,
 			AdminUser:         u,
@@ -1198,7 +1198,7 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 	}
 
 	// Fire off edit proposal event
-	p.eventManager._fireEvent(EventTypeProposalEdited,
+	p.fireEvent(EventTypeProposalEdited,
 		EventDataProposalEdited{
 			Proposal: updatedProp,
 		},
@@ -1913,14 +1913,12 @@ func (p *politeiawww) processStartVote(sv www.StartVote, u *user.User) (*www.Sta
 		return nil, err
 	}
 
-	if !p.test {
-		p.eventManager._fireEvent(EventTypeProposalVoteStarted,
-			EventDataProposalVoteStarted{
-				AdminUser: u,
-				StartVote: &sv,
-			},
-		)
-	}
+	p.fireEvent(EventTypeProposalVoteStarted,
+		EventDataProposalVoteStarted{
+			AdminUser: u,
+			StartVote: &sv,
+		},
+	)
 
 	// return a copy
 	rv := convertStartVoteReplyFromDecred(*vr)
