@@ -108,10 +108,10 @@ func convertWWWIdentitiesFromDatabaseIdentities(identities []user.Identity) []ww
 
 // convertWWWIdentityFromDatabaseIdentity converts a user Identity to a www
 // Identity.
-func convertWWWIdentityFromDatabaseIdentity(identity user.Identity) www.UserIdentity {
+func convertWWWIdentityFromDatabaseIdentity(id user.Identity) www.UserIdentity {
 	return www.UserIdentity{
-		Pubkey: hex.EncodeToString(identity.Key[:]),
-		Active: identity.IsActive(),
+		Pubkey: id.String(),
+		Active: id.IsActive(),
 	}
 }
 

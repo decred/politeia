@@ -7,6 +7,7 @@ package user
 import (
 	"encoding/hex"
 	"errors"
+	"fmt"
 
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/google/uuid"
@@ -129,16 +130,15 @@ type User struct {
 }
 
 // ActiveIdentity returns a user's active identity. A user will always have an
-// active identity.
+// active identity. This function panics if this assumption does not hold.
 func (u *User) ActiveIdentity() *Identity {
-	var id Identity
 	for _, v := range u.Identities {
 		if v.IsActive() {
-			id = v
-			break
+			return &v
 		}
 	}
-	return &id
+	panic(fmt.Sprintf("active identity not found "+
+		"for user %v", u.ID.String()))
 }
 
 // PublicKey returns a hex encoded string of the user's active identity key.
