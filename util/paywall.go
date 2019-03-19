@@ -304,9 +304,6 @@ func PayWithTestnetFaucet(faucetURL string, address string, amount uint64, overr
 
 	dcramount := strconv.FormatFloat(dcrutil.Amount(amount).ToCoin(),
 		'f', -1, 32)
-	if err != nil {
-		return "", fmt.Errorf("unable to process amount: %v", err)
-	}
 
 	// build request
 	form := url.Values{}
