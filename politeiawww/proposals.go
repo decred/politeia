@@ -857,13 +857,6 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 		}
 	}
 
-	// Ensure user is an admin. Only admins are allowed to change
-	// a proposal status.
-	adminPubKey, ok := user.ActiveIdentityString(u.Identities)
-	if !ok {
-		return nil, fmt.Errorf("invalid admin identity: %v", u.ID)
-	}
-
 	// Handle test case
 	if p.test {
 		var reply www.SetProposalStatusReply
@@ -904,7 +897,7 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 		Version:             VersionMDStreamChanges,
 		Timestamp:           time.Now().Unix(),
 		NewStatus:           newStatus,
-		AdminPubKey:         adminPubKey,
+		AdminPubKey:         u.PublicKey(),
 		StatusChangeMessage: sps.StatusChangeMessage,
 	})
 	if err != nil {

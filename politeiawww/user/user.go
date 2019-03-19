@@ -35,28 +35,14 @@ type Identity struct {
 	Deactivated int64                        // Time key was deactivated
 }
 
-// IsIdentityActive returns true if the identity is active, false otherwise
-func IsIdentityActive(id Identity) bool {
-	return id.Activated != 0 && id.Deactivated == 0
+// IsActive returns whether the identity is active.
+func (i *Identity) IsActive() bool {
+	return i.Activated != 0 && i.Deactivated == 0
 }
 
-// ActiveIdentity returns a the current active key.  If there is no active
-// valid key the call returns all 0s and false.
-func ActiveIdentity(i []Identity) ([identity.PublicKeySize]byte, bool) {
-	for _, v := range i {
-		if IsIdentityActive(v) {
-			return v.Key, true
-		}
-	}
-
-	return [identity.PublicKeySize]byte{}, false
-}
-
-// ActiveIdentityString returns a string representation of the current active
-// key.  If there is no active valid key the call returns all 0s and false.
-func ActiveIdentityString(i []Identity) (string, bool) {
-	key, ok := ActiveIdentity(i)
-	return hex.EncodeToString(key[:]), ok
+// String returns a hex encoded string of the identity key.
+func (i *Identity) String() string {
+	return hex.EncodeToString(i.Key[:])
 }
 
 // A proposal paywall allows the user to purchase proposal credits.  Proposal
@@ -140,6 +126,24 @@ type User struct {
 	// associated with them to signify that they have been spent. The price that
 	// the proposal credit was purchased at is in atoms.
 	SpentProposalCredits []ProposalCredit
+}
+
+// ActiveIdentity returns a user's active identity. A user will always have an
+// active identity.
+func (u *User) ActiveIdentity() *Identity {
+	var id Identity
+	for _, v := range u.Identities {
+		if v.IsActive() {
+			id = v
+			break
+		}
+	}
+	return &id
+}
+
+// PublicKey returns a hex encoded string of the user's active identity key.
+func (u *User) PublicKey() string {
+	return u.ActiveIdentity().String()
 }
 
 // Database interface that is required by the web server.
