@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net/mail"
 	"net/url"
@@ -36,7 +37,7 @@ func (s *smtp) sendEmail(subject, body string, addToAddressesFn func(*goemail.Me
 }
 
 // newSMTP returns a new smtp context.
-func newSMTP(host, user, password, emailAddress string) (*smtp, error) {
+func newSMTP(host, user, password, emailAddress string, systemCerts *x509.CertPool, skipVerify bool) (*smtp, error) {
 	// Check if email has been disabled
 	if host == "" || user == "" || password == "" {
 		return &smtp{
@@ -57,8 +58,16 @@ func newSMTP(host, user, password, emailAddress string) (*smtp, error) {
 		return nil, err
 	}
 
+	// Config tlsConfig based on config settings
+	tlsConfig := &tls.Config{}
+	if systemCerts == nil && skipVerify {
+		tlsConfig.InsecureSkipVerify = true
+	} else if systemCerts != nil {
+		tlsConfig.RootCAs = systemCerts
+	}
+
 	// Initialize SMTP client
-	client, err := goemail.NewSMTP(u.String(), &tls.Config{})
+	client, err := goemail.NewSMTP(u.String(), tlsConfig)
 	if err != nil {
 		return nil, err
 	}
