@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/decred/politeia/politeiawww/api/cms/v1"
+	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"golang.org/x/crypto/ssh/terminal"
 )
 
@@ -158,7 +159,7 @@ func (cmd *RegisterUserCmd) Execute(args []string) error {
 	}
 
 	// Login to cms
-	l := &v1.Login{
+	l := &www.Login{
 		Email:    email,
 		Password: digestSHA3(cmd.Password),
 	}

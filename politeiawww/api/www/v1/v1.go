@@ -63,10 +63,6 @@ const (
 	RouteUnauthenticatedWebSocket = "/ws"
 	RouteAuthenticatedWebSocket   = "/aws"
 
-	// Contractor Management Routes
-	RouteInviteNewUser = "/invite"
-	RouteRegisterUser  = "/register"
-
 	// VerificationTokenSize is the size of verification token in bytes
 	VerificationTokenSize = 32
 

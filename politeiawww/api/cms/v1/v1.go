@@ -1,5 +1,13 @@
 package v1
 
+const (
+
+	// Contractor Management Routes
+
+	RouteInviteNewUser = "/invite"
+	RouteRegisterUser  = "/register"
+)
+
 /// Contractor Management System Routes
 
 // InviteNewUser is used to request that a new user invitation be sent via email.

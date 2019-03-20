@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	"github.com/decred/dcrwallet/rpc/walletrpc"
+	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	"github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
 	"github.com/gorilla/schema"
@@ -380,13 +381,13 @@ func (c *Client) Policy() (*v1.PolicyReply, error) {
 }
 
 // InviteNewUser creates a new cmswww user.
-func (c *Client) InviteNewUser(inu *v1.InviteNewUser) (*v1.InviteNewUserReply, error) {
-	responseBody, err := c.makeRequest("POST", v1.RouteInviteNewUser, inu)
+func (c *Client) InviteNewUser(inu *cms.InviteNewUser) (*cms.InviteNewUserReply, error) {
+	responseBody, err := c.makeRequest("POST", cms.RouteInviteNewUser, inu)
 	if err != nil {
 		return nil, err
 	}
 
-	var inur v1.InviteNewUserReply
+	var inur cms.InviteNewUserReply
 	err = json.Unmarshal(responseBody, &inur)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal InviteNewUserReply: %v", err)
@@ -403,13 +404,13 @@ func (c *Client) InviteNewUser(inu *v1.InviteNewUser) (*v1.InviteNewUserReply, e
 }
 
 // InviteNewUser creates a new cmswww user.
-func (c *Client) RegisterUser(ru *v1.RegisterUser) (*v1.RegisterUserReply, error) {
-	responseBody, err := c.makeRequest("POST", v1.RouteRegisterUser, ru)
+func (c *Client) RegisterUser(ru *cms.RegisterUser) (*cms.RegisterUserReply, error) {
+	responseBody, err := c.makeRequest("POST", cms.RouteRegisterUser, ru)
 	if err != nil {
 		return nil, err
 	}
 
-	var rur v1.RegisterUserReply
+	var rur cms.RegisterUserReply
 	err = json.Unmarshal(responseBody, &rur)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal RegisterUserReply: %v", err)
