@@ -182,6 +182,7 @@ const (
 	ErrorStatusInvalidCensorshipToken      ErrorStatusT = 58
 	ErrorStatusEmailAlreadyVerified        ErrorStatusT = 59
 	ErrorStatusMalformedName               ErrorStatusT = 60
+	ErrorStatusMalformedLocation           ErrorStatusT = 61
 
 	// Proposal state codes
 	//
@@ -331,6 +332,7 @@ var (
 		ErrorStatusInvalidCensorshipToken:      "invalid proposal censorship token",
 		ErrorStatusEmailAlreadyVerified:        "email address is already verified",
 		ErrorStatusMalformedName:               "malformed name",
+		ErrorStatusMalformedLocation:           "malformed location",
 	}
 
 	// PropStatus converts propsal status codes to human readable text

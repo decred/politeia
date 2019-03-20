@@ -259,16 +259,16 @@ func formatLocation(location string) string {
 func validateLocation(location string) error {
 	if len(location) < www.PolicyMinUsernameLength ||
 		len(location) > www.PolicyMaxUsernameLength {
-		log.Tracef("Location not within bounds: %s", location)
+		log.Debugf("Location not within bounds: %s", location)
 		return www.UserError{
-			ErrorCode: www.ErrorStatusMalformedUsername,
+			ErrorCode: www.ErrorStatusMalformedLocation,
 		}
 	}
 
 	if !validLocation.MatchString(location) {
-		log.Tracef("Name not valid: %s %s", location, validLocation.String())
+		log.Debugf("Location not valid: %s %s", location, validLocation.String())
 		return www.UserError{
-			ErrorCode: www.ErrorStatusMalformedUsername,
+			ErrorCode: www.ErrorStatusMalformedLocation,
 		}
 	}
 
