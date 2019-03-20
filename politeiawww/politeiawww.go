@@ -142,6 +142,7 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 		Route:   www.PoliteiaWWWAPIRoute,
 		PubKey:  hex.EncodeToString(p.cfg.Identity.Key[:]),
 		TestNet: p.cfg.TestNet,
+		Mode:    p.cfg.Mode,
 	})
 	if err != nil {
 		RespondWithError(w, r, 0, "handleVersion: Marshal %v", err)
