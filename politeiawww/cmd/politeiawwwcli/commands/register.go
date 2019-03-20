@@ -13,6 +13,8 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
+// RegisterUserCmd allows invited contractors to complete the registration
+// process and will allow them to login and submit invoices to receive payment.
 type RegisterUserCmd struct {
 	Args struct {
 		Email string `positional-arg-name:"email"`
@@ -25,6 +27,7 @@ type RegisterUserCmd struct {
 	ExtendedPublicKey string `long:"xpubkey" optional:"true" description:"The extended public key for the payment account"`
 }
 
+// Execute executes the register user command
 func (cmd *RegisterUserCmd) Execute(args []string) error {
 	email := cmd.Args.Email
 	token := cmd.Args.Token

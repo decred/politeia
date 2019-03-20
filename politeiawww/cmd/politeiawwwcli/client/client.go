@@ -403,7 +403,7 @@ func (c *Client) InviteNewUser(inu *cms.InviteNewUser) (*cms.InviteNewUserReply,
 	return &inur, nil
 }
 
-// InviteNewUser creates a new cmswww user.
+// RegisterUser finalizes the signup process for a new cmswww user.
 func (c *Client) RegisterUser(ru *cms.RegisterUser) (*cms.RegisterUserReply, error) {
 	responseBody, err := c.makeRequest("POST", cms.RouteRegisterUser, ru)
 	if err != nil {

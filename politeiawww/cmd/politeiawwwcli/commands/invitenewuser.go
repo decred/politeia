@@ -6,24 +6,20 @@ import (
 	"github.com/decred/politeia/politeiawww/api/cms/v1"
 )
 
+// InviteNewUserCmd allows administrators to invite contractors to join CMS.
 type InviteNewUserCmd struct {
 	Args struct {
 		Email string `positional-arg-name:"email"`
 	} `positional-args:"true" required:"true"`
 }
 
+// Execute executes the invite new user command.
 func (cmd *InviteNewUserCmd) Execute(args []string) error {
 	email := cmd.Args.Email
 
 	if email == "" {
-		return fmt.Errorf("invalid credentials: you must either specify user " +
+		return fmt.Errorf("invalid credentials: you must specify user " +
 			"email")
-	}
-
-	// Fetch CSRF tokens
-	_, err := client.Version()
-	if err != nil {
-		return fmt.Errorf("Version: %v", err)
 	}
 
 	inu := &v1.InviteNewUser{
@@ -31,7 +27,7 @@ func (cmd *InviteNewUserCmd) Execute(args []string) error {
 	}
 
 	// Print request details
-	err = printJSON(inu)
+	err := printJSON(inu)
 	if err != nil {
 		return err
 	}

@@ -60,7 +60,7 @@ type Cmds struct {
 	EditUser           EditUserCmd           `command:"edituser" description:"(user)   edit the  preferences of the logged in user"`
 	Help               HelpCmd               `command:"help" description:"         print a detailed help message for a specific command"`
 	Inventory          InventoryCmd          `command:"inventory" description:"(public) get the proposals that are being voted on"`
-	InviteNewUser      InviteNewUserCmd      `command:"invite" description:"(admin) invite a new user"`
+	InviteNewUser      InviteNewUserCmd      `command:"invite" description:"(admin)  invite a new user"`
 	LikeComment        LikeCommentCmd        `command:"likecomment" description:"(user)   upvote/downvote a comment"`
 	Login              LoginCmd              `command:"login" description:"(public) login to Politeia"`
 	Logout             LogoutCmd             `command:"logout" description:"(public) logout of Politeia"`
