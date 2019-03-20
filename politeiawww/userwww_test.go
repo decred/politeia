@@ -14,8 +14,8 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/decred/politeia/politeiad/api/v1/identity"
-	v1 "github.com/decred/politeia/politeiawww/api/v1"
+	"github.com/decred/politeia/politeiad/api/www/identity"
+	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/go-test/deep"
 	"github.com/gorilla/mux"
 )
@@ -37,17 +37,17 @@ func TestHandleNewUser(t *testing.T) {
 		wantError  error
 	}{
 		{"invalid request body", "", http.StatusBadRequest,
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidInput,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
 			}},
 
-		{"processNewUser error", v1.NewUser{}, http.StatusBadRequest,
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidPublicKey,
+		{"processNewUser error", www.NewUser{}, http.StatusBadRequest,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidPublicKey,
 			}},
 
 		{"success",
-			v1.NewUser{
+			www.NewUser{
 				Email:     "user@example.com",
 				Password:  "password",
 				PublicKey: hex.EncodeToString(id.Public.Key[:]),
@@ -60,7 +60,7 @@ func TestHandleNewUser(t *testing.T) {
 	for _, v := range tests {
 		t.Run(v.name, func(t *testing.T) {
 			// Setup request
-			r := newPostReq(t, v1.RouteNewUser, v.reqBody)
+			r := newPostReq(t, www.RouteNewUser, v.reqBody)
 			w := httptest.NewRecorder()
 
 			// Run test case
@@ -79,7 +79,7 @@ func TestHandleNewUser(t *testing.T) {
 				return
 			}
 
-			var ue v1.UserError
+			var ue www.UserError
 			err = json.Unmarshal(body, &ue)
 			if err != nil {
 				t.Errorf("unmarshal UserError: %v", err)
@@ -109,7 +109,7 @@ func TestHandleVerifyNewUser(t *testing.T) {
 	// so that we can set the wrong query param.
 	t.Run("invalid query params", func(t *testing.T) {
 		// Setup request
-		r := httptest.NewRequest(http.MethodGet, v1.RouteVerifyNewUser, nil)
+		r := httptest.NewRequest(http.MethodGet, www.RouteVerifyNewUser, nil)
 		w := httptest.NewRecorder()
 
 		q := r.URL.Query()
@@ -127,14 +127,14 @@ func TestHandleVerifyNewUser(t *testing.T) {
 				res.StatusCode, http.StatusBadRequest)
 		}
 
-		var ue v1.UserError
+		var ue www.UserError
 		err := json.Unmarshal(body, &ue)
 		if err != nil {
 			t.Errorf("unmarshal UserError: %v", err)
 		}
 
 		got := errToStr(ue)
-		want := v1.ErrorStatus[v1.ErrorStatusInvalidInput]
+		want := www.ErrorStatus[www.ErrorStatusInvalidInput]
 		if got != want {
 			t.Errorf("got error %v, want %v",
 				got, want)
@@ -144,18 +144,18 @@ func TestHandleVerifyNewUser(t *testing.T) {
 	// Setup remaining tests
 	var tests = []struct {
 		name       string
-		params     v1.VerifyNewUser
+		params     www.VerifyNewUser
 		wantStatus int
 		wantError  error
 	}{
 		{"processVerifyNewUser error",
-			v1.VerifyNewUser{}, http.StatusBadRequest,
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusVerificationTokenInvalid,
+			www.VerifyNewUser{}, http.StatusBadRequest,
+			www.UserError{
+				ErrorCode: www.ErrorStatusVerificationTokenInvalid,
 			}},
 
 		{"success",
-			v1.VerifyNewUser{
+			www.VerifyNewUser{
 				Email:             usr.Email,
 				VerificationToken: token,
 				Signature:         sig,
@@ -167,7 +167,7 @@ func TestHandleVerifyNewUser(t *testing.T) {
 	for _, v := range tests {
 		t.Run(v.name, func(t *testing.T) {
 			// Setup request
-			r := httptest.NewRequest(http.MethodGet, v1.RouteVerifyNewUser, nil)
+			r := httptest.NewRequest(http.MethodGet, www.RouteVerifyNewUser, nil)
 			w := httptest.NewRecorder()
 
 			q := r.URL.Query()
@@ -192,7 +192,7 @@ func TestHandleVerifyNewUser(t *testing.T) {
 				return
 			}
 
-			var ue v1.UserError
+			var ue www.UserError
 			err := json.Unmarshal(body, &ue)
 			if err != nil {
 				t.Errorf("unmarshal UserError: %v", err)
@@ -236,41 +236,41 @@ func TestHandleResendVerification(t *testing.T) {
 		wantError  error
 	}{
 		{"invalid request body", "", http.StatusBadRequest,
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidInput,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
 			}},
 
 		{"user not found",
-			v1.ResendVerification{
+			www.ResendVerification{
 				Email:     "",
 				PublicKey: usrPubkey,
 			},
 			http.StatusOK, nil},
 
 		{"user already verified",
-			v1.ResendVerification{
+			www.ResendVerification{
 				Email: usrVerified.Email,
 			},
 			http.StatusOK, nil},
 
 		{"verification already resent",
-			v1.ResendVerification{
+			www.ResendVerification{
 				Email: usrResent.Email,
 			},
 			http.StatusOK, nil},
 
 		{"processResendVerification error",
-			v1.ResendVerification{
+			www.ResendVerification{
 				Email:     usr.Email,
 				PublicKey: "abc",
 			},
 			http.StatusBadRequest,
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidPublicKey,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidPublicKey,
 			}},
 
 		{"success",
-			v1.ResendVerification{
+			www.ResendVerification{
 				Email:     usr.Email,
 				PublicKey: usrPubkey,
 			},
@@ -280,7 +280,7 @@ func TestHandleResendVerification(t *testing.T) {
 	// Run tests
 	for _, v := range tests {
 		t.Run(v.name, func(t *testing.T) {
-			r := newPostReq(t, v1.RouteResendVerification, v.reqBody)
+			r := newPostReq(t, www.RouteResendVerification, v.reqBody)
 			w := httptest.NewRecorder()
 			p.handleResendVerification(w, r)
 			res := w.Result()
@@ -297,7 +297,7 @@ func TestHandleResendVerification(t *testing.T) {
 				return
 			}
 
-			var ue v1.UserError
+			var ue www.UserError
 			err := json.Unmarshal(body, &ue)
 			if err != nil {
 				t.Errorf("unmarshal UserError: %v", err)
@@ -337,21 +337,21 @@ func TestHandleLogin(t *testing.T) {
 		name       string
 		reqBody    interface{}
 		wantStatus int
-		wantReply  *v1.LoginReply
+		wantReply  *www.LoginReply
 		wantError  error
 	}{
 		{"invalid request body", "", http.StatusBadRequest, nil,
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidInput,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
 			}},
 
-		{"processLogin error", v1.Login{}, http.StatusUnauthorized, nil,
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidEmailOrPassword,
+		{"processLogin error", www.Login{}, http.StatusUnauthorized, nil,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidEmailOrPassword,
 			}},
 
 		{"success",
-			v1.Login{
+			www.Login{
 				Email:    u.Email,
 				Password: password,
 			},
@@ -362,7 +362,7 @@ func TestHandleLogin(t *testing.T) {
 	for _, v := range tests {
 		t.Run(v.name, func(t *testing.T) {
 			// Setup request
-			r := newPostReq(t, v1.RouteLogin, v.reqBody)
+			r := newPostReq(t, www.RouteLogin, v.reqBody)
 			w := httptest.NewRecorder()
 
 			// Run test case
@@ -385,7 +385,7 @@ func TestHandleLogin(t *testing.T) {
 				}
 
 				// Check response body
-				var lr v1.LoginReply
+				var lr www.LoginReply
 				err = json.Unmarshal(body, &lr)
 				if err != nil {
 					t.Errorf("unmarshal LoginReply: %v", err)
@@ -401,7 +401,7 @@ func TestHandleLogin(t *testing.T) {
 				return
 			}
 
-			var ue v1.UserError
+			var ue www.UserError
 			err := json.Unmarshal(body, &ue)
 			if err != nil {
 				t.Errorf("unmarshal UserError: %v", err)
@@ -438,22 +438,22 @@ func TestHandleChangePassword(t *testing.T) {
 		// user session.
 
 		{"invalid request body", "", http.StatusBadRequest,
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidInput,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
 			}},
 
 		{"processChangePassword error",
-			v1.ChangePassword{
+			www.ChangePassword{
 				CurrentPassword: "",
 				NewPassword:     newPass,
 			},
 			http.StatusBadRequest,
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidEmailOrPassword,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidEmailOrPassword,
 			}},
 
 		{"success",
-			v1.ChangePassword{
+			www.ChangePassword{
 				CurrentPassword: currPass,
 				NewPassword:     newPass,
 			},
@@ -464,7 +464,7 @@ func TestHandleChangePassword(t *testing.T) {
 	for _, v := range tests {
 		t.Run(v.name, func(t *testing.T) {
 			// Setup request
-			r := newPostReq(t, v1.RouteChangePassword, v.reqBody)
+			r := newPostReq(t, www.RouteChangePassword, v.reqBody)
 			w := httptest.NewRecorder()
 
 			// Set user session
@@ -489,7 +489,7 @@ func TestHandleChangePassword(t *testing.T) {
 				return
 			}
 
-			var ue v1.UserError
+			var ue www.UserError
 			err = json.Unmarshal(body, &ue)
 			if err != nil {
 				t.Errorf("unmarshal UserError: %v", err)
@@ -532,25 +532,25 @@ func TestHandleResetPassword(t *testing.T) {
 		wantError  error
 	}{
 		{"invalid request body", "", http.StatusBadRequest,
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidInput,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
 			}},
 
-		{"user not found", v1.ResetPassword{}, http.StatusOK, nil},
+		{"user not found", www.ResetPassword{}, http.StatusOK, nil},
 
 		{"processResetPassword error",
-			v1.ResetPassword{
+			www.ResetPassword{
 				Email:             usr.Email,
 				VerificationToken: hex.EncodeToString(token),
 				NewPassword:       "x",
 			},
 			http.StatusBadRequest,
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusMalformedPassword,
+			www.UserError{
+				ErrorCode: www.ErrorStatusMalformedPassword,
 			}},
 
 		{"success",
-			v1.ResetPassword{
+			www.ResetPassword{
 				Email:             usr.Email,
 				VerificationToken: hex.EncodeToString(token),
 				NewPassword:       newPass,
@@ -562,7 +562,7 @@ func TestHandleResetPassword(t *testing.T) {
 	for _, v := range tests {
 		t.Run(v.name, func(t *testing.T) {
 			// Setup request
-			r := newPostReq(t, v1.RouteResetPassword, v.reqBody)
+			r := newPostReq(t, www.RouteResetPassword, v.reqBody)
 			w := httptest.NewRecorder()
 
 			// Run test case
@@ -581,7 +581,7 @@ func TestHandleResetPassword(t *testing.T) {
 				return
 			}
 
-			var ue v1.UserError
+			var ue www.UserError
 			err := json.Unmarshal(body, &ue)
 			if err != nil {
 				t.Errorf("unmarshal UserError: %v", err)
@@ -618,18 +618,18 @@ func TestHandleChangeUsername(t *testing.T) {
 		// user session.
 
 		{"invalid request body", "", http.StatusBadRequest,
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidInput,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
 			}},
 
-		{"processChangeUsername error", v1.ChangeUsername{},
+		{"processChangeUsername error", www.ChangeUsername{},
 			http.StatusBadRequest,
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidEmailOrPassword,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidEmailOrPassword,
 			}},
 
 		{"success",
-			v1.ChangeUsername{
+			www.ChangeUsername{
 				Password:    pass,
 				NewUsername: usr.Username + "aaa",
 			},
@@ -640,7 +640,7 @@ func TestHandleChangeUsername(t *testing.T) {
 	for _, v := range tests {
 		t.Run(v.name, func(t *testing.T) {
 			// Setup request
-			r := newPostReq(t, v1.RouteChangeUsername, v.reqBody)
+			r := newPostReq(t, www.RouteChangeUsername, v.reqBody)
 			w := httptest.NewRecorder()
 
 			// Set user session
@@ -665,7 +665,7 @@ func TestHandleChangeUsername(t *testing.T) {
 				return
 			}
 
-			var ue v1.UserError
+			var ue www.UserError
 			err = json.Unmarshal(body, &ue)
 			if err != nil {
 				t.Errorf("unmarshal UserError: %v", err)
@@ -702,14 +702,14 @@ func TestHandleUserDetails(t *testing.T) {
 		// to be tested for.
 		{"invalid uuid format", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 			false, http.StatusBadRequest,
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidInput,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
 			}},
 
 		{"process user details error", "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
 			false, http.StatusBadRequest,
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusUserNotFound,
+			www.UserError{
+				ErrorCode: www.ErrorStatusUserNotFound,
 			}},
 
 		{"logged in user success", usr.ID.String(), true, http.StatusOK, nil},
@@ -720,7 +720,7 @@ func TestHandleUserDetails(t *testing.T) {
 	for _, v := range tests {
 		t.Run(v.name, func(t *testing.T) {
 			// Setup request
-			r := httptest.NewRequest(http.MethodGet, v1.RouteUserDetails, nil)
+			r := httptest.NewRequest(http.MethodGet, www.RouteUserDetails, nil)
 			r = mux.SetURLVars(r, map[string]string{
 				"userid": v.uuid,
 			})
@@ -750,7 +750,7 @@ func TestHandleUserDetails(t *testing.T) {
 				return
 			}
 
-			var ue v1.UserError
+			var ue www.UserError
 			err := json.Unmarshal(body, &ue)
 			if err != nil {
 				t.Errorf("unmarshal UserError: %v", err)
@@ -784,12 +784,12 @@ func TestHandleEditUser(t *testing.T) {
 		// admin session.
 
 		{"invalid request body", "", http.StatusBadRequest,
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidInput,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
 			}},
 
 		{"success",
-			v1.EditUser{
+			www.EditUser{
 				EmailNotifications: &notif,
 			},
 			http.StatusOK, nil},
@@ -799,7 +799,7 @@ func TestHandleEditUser(t *testing.T) {
 	for _, v := range tests {
 		t.Run(v.name, func(t *testing.T) {
 			// Setup request
-			r := newPostReq(t, v1.RouteEditUser, v.reqBody)
+			r := newPostReq(t, www.RouteEditUser, v.reqBody)
 			w := httptest.NewRecorder()
 
 			// Set user session
@@ -824,7 +824,7 @@ func TestHandleEditUser(t *testing.T) {
 				return
 			}
 
-			var ue v1.UserError
+			var ue www.UserError
 			err = json.Unmarshal(body, &ue)
 			if err != nil {
 				t.Errorf("unmarshal UserError: %v", err)

@@ -3,7 +3,7 @@ package commands
 import (
 	"fmt"
 
-	"github.com/decred/politeia/politeiawww/api/v1"
+	"github.com/decred/politeia/politeiawww/api/cms/v1"
 )
 
 type InviteNewUserCmd struct {

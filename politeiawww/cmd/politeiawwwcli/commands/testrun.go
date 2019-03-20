@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/decred/dcrwallet/rpc/walletrpc"
-	"github.com/decred/politeia/politeiawww/api/v1"
+	"github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
 )
 

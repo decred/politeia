@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"text/template"
 
-	v1 "github.com/decred/politeia/politeiawww/api/v1"
+	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
@@ -31,7 +31,7 @@ var (
 
 // getSession returns the active cookie session.
 func (p *politeiawww) getSession(r *http.Request) (*sessions.Session, error) {
-	return p.store.Get(r, v1.CookieSession)
+	return p.store.Get(r, www.CookieSession)
 }
 
 // isAdmin returns true if the current session has admin privileges.
@@ -81,8 +81,8 @@ func (p *politeiawww) getSessionUser(w http.ResponseWriter, r *http.Request) (*u
 
 	if user.Deactivated {
 		p.removeSession(w, r)
-		return nil, v1.UserError{
-			ErrorCode: v1.ErrorStatusNotLoggedIn,
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusNotLoggedIn,
 		}
 	}
 
@@ -91,7 +91,7 @@ func (p *politeiawww) getSessionUser(w http.ResponseWriter, r *http.Request) (*u
 
 // setSessionUserID sets the "uuid" session key to the provided value.
 func (p *politeiawww) setSessionUserID(w http.ResponseWriter, r *http.Request, id string) error {
-	log.Tracef("setSessionUserID: %v %v", id, v1.CookieSession)
+	log.Tracef("setSessionUserID: %v %v", id, www.CookieSession)
 	session, err := p.getSession(r)
 	if err != nil {
 		return err
@@ -103,7 +103,7 @@ func (p *politeiawww) setSessionUserID(w http.ResponseWriter, r *http.Request, i
 
 // removeSession deletes the session from the filesystem.
 func (p *politeiawww) removeSession(w http.ResponseWriter, r *http.Request) error {
-	log.Tracef("removeSession: %v", v1.CookieSession)
+	log.Tracef("removeSession: %v", www.CookieSession)
 	session, err := p.getSession(r)
 	if err != nil {
 		return err
@@ -127,11 +127,11 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleNewUser")
 
 	// Get the new user command.
-	var u v1.NewUser
+	var u www.NewUser
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&u); err != nil {
-		RespondWithError(w, r, 0, "handleNewUser: unmarshal", v1.UserError{
-			ErrorCode: v1.ErrorStatusInvalidInput,
+		RespondWithError(w, r, 0, "handleNewUser: unmarshal", www.UserError{
+			ErrorCode: www.ErrorStatusInvalidInput,
 		})
 		return
 	}
@@ -153,12 +153,12 @@ func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request
 	log.Tracef("handleVerifyNewUser")
 
 	// Get the new user verify command.
-	var vnu v1.VerifyNewUser
+	var vnu www.VerifyNewUser
 	err := util.ParseGetParams(r, &vnu)
 	if err != nil {
 		RespondWithError(w, r, 0, "handleVerifyNewUser: ParseGetParams",
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidInput,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
 			})
 		return
 	}
@@ -170,7 +170,7 @@ func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	util.RespondWithJSON(w, http.StatusOK, v1.VerifyNewUserReply{})
+	util.RespondWithJSON(w, http.StatusOK, www.VerifyNewUserReply{})
 }
 
 // handleResendVerification sends another verification email for new user
@@ -179,27 +179,27 @@ func (p *politeiawww) handleResendVerification(w http.ResponseWriter, r *http.Re
 	log.Tracef("handleResendVerification")
 
 	// Get the resend verification command.
-	var rv v1.ResendVerification
+	var rv www.ResendVerification
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&rv); err != nil {
 		RespondWithError(w, r, 0, "handleResendVerification: unmarshal",
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidInput,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
 			})
 		return
 	}
 
 	rvr, err := p.processResendVerification(&rv)
 	if err != nil {
-		usrErr, ok := err.(v1.UserError)
+		usrErr, ok := err.(www.UserError)
 		if ok {
 			switch usrErr.ErrorCode {
-			case v1.ErrorStatusUserNotFound, v1.ErrorStatusEmailAlreadyVerified,
-				v1.ErrorStatusVerificationTokenUnexpired:
+			case www.ErrorStatusUserNotFound, www.ErrorStatusEmailAlreadyVerified,
+				www.ErrorStatusVerificationTokenUnexpired:
 				// We do not return these errors because we do not want
 				// the caller to be able to ascertain whether an email
 				// address has an acount.
-				util.RespondWithJSON(w, http.StatusOK, &v1.ResendVerificationReply{})
+				util.RespondWithJSON(w, http.StatusOK, &www.ResendVerificationReply{})
 				return
 			}
 		}
@@ -220,12 +220,12 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleLogin")
 
 	// Get the login command.
-	var l v1.Login
+	var l www.Login
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&l); err != nil {
 		RespondWithError(w, r, 0, "handleLogin: failed to decode: %v",
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidInput,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
 			})
 		return
 	}
@@ -258,8 +258,8 @@ func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 	_, err := p.getSessionUser(w, r)
 	if err != nil {
-		RespondWithError(w, r, 0, "handleLogout: getSessionUser", v1.UserError{
-			ErrorCode: v1.ErrorStatusNotLoggedIn,
+		RespondWithError(w, r, 0, "handleLogout: getSessionUser", www.UserError{
+			ErrorCode: www.ErrorStatusNotLoggedIn,
 		})
 		return
 	}
@@ -272,7 +272,7 @@ func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Reply with the user information.
-	var reply v1.LogoutReply
+	var reply www.LogoutReply
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
@@ -281,24 +281,24 @@ func (p *politeiawww) handleResetPassword(w http.ResponseWriter, r *http.Request
 	log.Trace("handleResetPassword")
 
 	// Get the reset password command.
-	var rp v1.ResetPassword
+	var rp www.ResetPassword
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&rp); err != nil {
 		RespondWithError(w, r, 0, "handleResetPassword: unmarshal",
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidInput,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
 			})
 		return
 	}
 
 	rpr, err := p.processResetPassword(rp)
 	if err != nil {
-		usrErr, ok := err.(v1.UserError)
-		if ok && usrErr.ErrorCode == v1.ErrorStatusUserNotFound {
+		usrErr, ok := err.(www.UserError)
+		if ok && usrErr.ErrorCode == www.ErrorStatusUserNotFound {
 			// We do not return this error because we do not want
 			// the caller to be able to ascertain whether an email
 			// address has an acount.
-			util.RespondWithJSON(w, http.StatusOK, v1.ResetPasswordReply{})
+			util.RespondWithJSON(w, http.StatusOK, www.ResetPasswordReply{})
 			return
 		}
 
@@ -316,14 +316,14 @@ func (p *politeiawww) handleUserDetails(w http.ResponseWriter, r *http.Request) 
 	// Add the path param to the struct.
 	log.Tracef("handleUserDetails")
 	pathParams := mux.Vars(r)
-	var ud v1.UserDetails
+	var ud www.UserDetails
 	ud.UserID = pathParams["userid"]
 
 	userID, err := uuid.Parse(ud.UserID)
 	if err != nil {
 		RespondWithError(w, r, 0, "handleUserDetails: ParseUint",
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidInput,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
 			})
 		return
 	}
@@ -387,11 +387,11 @@ func (p *politeiawww) handleUpdateUserKey(w http.ResponseWriter, r *http.Request
 	log.Tracef("handleUpdateUserKey")
 
 	// Get the update user key command.
-	var u v1.UpdateUserKey
+	var u www.UpdateUserKey
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&u); err != nil {
-		RespondWithError(w, r, 0, "handleUpdateUserKey: unmarshal", v1.UserError{
-			ErrorCode: v1.ErrorStatusInvalidInput,
+		RespondWithError(w, r, 0, "handleUpdateUserKey: unmarshal", www.UserError{
+			ErrorCode: www.ErrorStatusInvalidInput,
 		})
 		return
 	}
@@ -420,12 +420,12 @@ func (p *politeiawww) handleVerifyUpdateUserKey(w http.ResponseWriter, r *http.R
 	log.Tracef("handleVerifyUpdateUserKey")
 
 	// Get the new user verify command.
-	var vuu v1.VerifyUpdateUserKey
+	var vuu www.VerifyUpdateUserKey
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&vuu); err != nil {
 		RespondWithError(w, r, 0, "handleVerifyUpdateUserKey: unmarshal",
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidInput,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
 			})
 		return
 	}
@@ -444,7 +444,7 @@ func (p *politeiawww) handleVerifyUpdateUserKey(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	util.RespondWithJSON(w, http.StatusOK, v1.VerifyUpdateUserKeyReply{})
+	util.RespondWithJSON(w, http.StatusOK, www.VerifyUpdateUserKeyReply{})
 }
 
 // handleChangeUsername handles the change user name command.
@@ -452,12 +452,12 @@ func (p *politeiawww) handleChangeUsername(w http.ResponseWriter, r *http.Reques
 	log.Tracef("handleChangeUsername")
 
 	// Get the change username command.
-	var cu v1.ChangeUsername
+	var cu www.ChangeUsername
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&cu); err != nil {
 		RespondWithError(w, r, 0, "handleChangeUsername: unmarshal",
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidInput,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
 			})
 		return
 	}
@@ -485,12 +485,12 @@ func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Reques
 	log.Tracef("handleChangePassword")
 
 	// Get the change password command.
-	var cp v1.ChangePassword
+	var cp www.ChangePassword
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&cp); err != nil {
 		RespondWithError(w, r, 0, "handleChangePassword: unmarshal",
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidInput,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
 			})
 		return
 	}
@@ -520,12 +520,12 @@ func (p *politeiawww) handleVerifyUserPayment(w http.ResponseWriter, r *http.Req
 	log.Tracef("handleVerifyUserPayment")
 
 	// Get the verify user payment tx command.
-	var vupt v1.VerifyUserPayment
+	var vupt www.VerifyUserPayment
 	err := util.ParseGetParams(r, &vupt)
 	if err != nil {
 		RespondWithError(w, r, 0, "handleVerifyUserPayment: ParseGetParams",
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidInput,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
 			})
 		return
 	}
@@ -552,12 +552,12 @@ func (p *politeiawww) handleVerifyUserPayment(w http.ResponseWriter, r *http.Req
 func (p *politeiawww) handleEditUser(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleEditUser")
 
-	var eu v1.EditUser
+	var eu www.EditUser
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&eu); err != nil {
 		RespondWithError(w, r, 0, "handleEditUser: unmarshal",
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidInput,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
 			})
 		return
 	}
@@ -583,12 +583,12 @@ func (p *politeiawww) handleEditUser(w http.ResponseWriter, r *http.Request) {
 func (p *politeiawww) handleUsers(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleUsers")
 
-	var u v1.Users
+	var u www.Users
 	err := util.ParseGetParams(r, &u)
 	if err != nil {
 		RespondWithError(w, r, 0, "handleUsers: ParseGetParams",
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidInput,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
 			})
 		return
 	}
@@ -608,12 +608,12 @@ func (p *politeiawww) handleUsers(w http.ResponseWriter, r *http.Request) {
 func (p *politeiawww) handleUserPaymentsRescan(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleUserPaymentsRescan")
 
-	var upr v1.UserPaymentsRescan
+	var upr www.UserPaymentsRescan
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&upr); err != nil {
 		RespondWithError(w, r, 0, "handleUserPaymentsRescan: unmarshal",
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidInput,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
 			})
 		return
 	}
@@ -633,12 +633,12 @@ func (p *politeiawww) handleUserPaymentsRescan(w http.ResponseWriter, r *http.Re
 func (p *politeiawww) handleManageUser(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleManageUser")
 
-	var mu v1.ManageUser
+	var mu www.ManageUser
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&mu); err != nil {
 		RespondWithError(w, r, 0, "handleManageUser: unmarshal",
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidInput,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
 			})
 		return
 	}
@@ -709,47 +709,47 @@ func (p *politeiawww) handleUserProposalCredits(w http.ResponseWriter, r *http.R
 // setUserWWWRoutes setsup the user routes.
 func (p *politeiawww) setUserWWWRoutes() {
 	// Public routes
-	p.addRoute(http.MethodPost, v1.RouteNewUser, p.handleNewUser,
+	p.addRoute(http.MethodPost, www.RouteNewUser, p.handleNewUser,
 		permissionPublic)
-	p.addRoute(http.MethodGet, v1.RouteVerifyNewUser,
+	p.addRoute(http.MethodGet, www.RouteVerifyNewUser,
 		p.handleVerifyNewUser, permissionPublic)
-	p.addRoute(http.MethodPost, v1.RouteResendVerification,
+	p.addRoute(http.MethodPost, www.RouteResendVerification,
 		p.handleResendVerification, permissionPublic)
-	p.addRoute(http.MethodPost, v1.RouteLogin, p.handleLogin,
+	p.addRoute(http.MethodPost, www.RouteLogin, p.handleLogin,
 		permissionPublic)
-	p.addRoute(http.MethodPost, v1.RouteLogout, p.handleLogout,
+	p.addRoute(http.MethodPost, www.RouteLogout, p.handleLogout,
 		permissionPublic)
-	p.addRoute(http.MethodPost, v1.RouteResetPassword,
+	p.addRoute(http.MethodPost, www.RouteResetPassword,
 		p.handleResetPassword, permissionPublic)
-	p.addRoute(http.MethodGet, v1.RouteUserDetails,
+	p.addRoute(http.MethodGet, www.RouteUserDetails,
 		p.handleUserDetails, permissionPublic)
 
 	// Routes that require being logged in.
-	p.addRoute(http.MethodPost, v1.RouteSecret, p.handleSecret,
+	p.addRoute(http.MethodPost, www.RouteSecret, p.handleSecret,
 		permissionLogin)
-	p.addRoute(http.MethodGet, v1.RouteUserMe, p.handleMe, permissionLogin)
-	p.addRoute(http.MethodPost, v1.RouteUpdateUserKey,
+	p.addRoute(http.MethodGet, www.RouteUserMe, p.handleMe, permissionLogin)
+	p.addRoute(http.MethodPost, www.RouteUpdateUserKey,
 		p.handleUpdateUserKey, permissionLogin)
-	p.addRoute(http.MethodPost, v1.RouteVerifyUpdateUserKey,
+	p.addRoute(http.MethodPost, www.RouteVerifyUpdateUserKey,
 		p.handleVerifyUpdateUserKey, permissionLogin)
-	p.addRoute(http.MethodPost, v1.RouteChangeUsername,
+	p.addRoute(http.MethodPost, www.RouteChangeUsername,
 		p.handleChangeUsername, permissionLogin)
-	p.addRoute(http.MethodPost, v1.RouteChangePassword,
+	p.addRoute(http.MethodPost, www.RouteChangePassword,
 		p.handleChangePassword, permissionLogin)
-	p.addRoute(http.MethodGet, v1.RouteVerifyUserPayment,
+	p.addRoute(http.MethodGet, www.RouteVerifyUserPayment,
 		p.handleVerifyUserPayment, permissionLogin)
-	p.addRoute(http.MethodPost, v1.RouteEditUser,
+	p.addRoute(http.MethodPost, www.RouteEditUser,
 		p.handleEditUser, permissionLogin)
-	p.addRoute(http.MethodGet, v1.RouteUserCommentsLikes, // XXX comments need to become a setting
+	p.addRoute(http.MethodGet, www.RouteUserCommentsLikes, // XXX comments need to become a setting
 		p.handleUserCommentsLikes, permissionLogin)
-	p.addRoute(http.MethodGet, v1.RouteUserProposalCredits,
+	p.addRoute(http.MethodGet, www.RouteUserProposalCredits,
 		p.handleUserProposalCredits, permissionLogin)
 
 	// Routes that require being logged in as an admin user.
-	p.addRoute(http.MethodGet, v1.RouteUsers,
+	p.addRoute(http.MethodGet, www.RouteUsers,
 		p.handleUsers, permissionAdmin)
-	p.addRoute(http.MethodPut, v1.RouteUserPaymentsRescan,
+	p.addRoute(http.MethodPut, www.RouteUserPaymentsRescan,
 		p.handleUserPaymentsRescan, permissionAdmin)
-	p.addRoute(http.MethodPost, v1.RouteManageUser,
+	p.addRoute(http.MethodPost, www.RouteManageUser,
 		p.handleManageUser, permissionAdmin)
 }

@@ -7,7 +7,7 @@ package commands
 import (
 	"encoding/hex"
 
-	"github.com/decred/politeia/politeiawww/api/v1"
+	"github.com/decred/politeia/politeiawww/api/www/v1"
 )
 
 // VerifyUserEmailCmd is used to verify a user's email address.

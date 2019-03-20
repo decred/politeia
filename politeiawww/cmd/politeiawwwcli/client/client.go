@@ -18,7 +18,7 @@ import (
 	"strings"
 
 	"github.com/decred/dcrwallet/rpc/walletrpc"
-	"github.com/decred/politeia/politeiawww/api/v1"
+	"github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
 	"github.com/gorilla/schema"
 	"golang.org/x/net/publicsuffix"

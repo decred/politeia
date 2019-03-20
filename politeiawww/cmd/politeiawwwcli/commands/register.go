@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/decred/politeia/politeiawww/api/v1"
+	"github.com/decred/politeia/politeiawww/api/cms/v1"
 	"golang.org/x/crypto/ssh/terminal"
 )
 

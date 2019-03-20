@@ -26,7 +26,7 @@ import (
 
 	"github.com/decred/politeia/politeiad/cache"
 	"github.com/decred/politeia/politeiad/cache/cockroachdb"
-	v1 "github.com/decred/politeia/politeiawww/api/v1"
+	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user/localdb"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
@@ -104,7 +104,7 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 	// if err == nil -> internal error using format + args
 	// if err != nil -> if defined error -> return defined error + log.Errorf format+args
 	// if err != nil -> if !defined error -> return + log.Errorf format+args
-	if userErr, ok := args[0].(v1.UserError); ok {
+	if userErr, ok := args[0].(www.UserError); ok {
 		if userHttpCode == 0 {
 			userHttpCode = http.StatusBadRequest
 		}
@@ -113,40 +113,40 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 			log.Errorf("RespondWithError: %v %v %v",
 				remoteAddr(r),
 				int64(userErr.ErrorCode),
-				v1.ErrorStatus[userErr.ErrorCode])
+				www.ErrorStatus[userErr.ErrorCode])
 		} else {
 			log.Errorf("RespondWithError: %v %v %v: %v",
 				remoteAddr(r),
 				int64(userErr.ErrorCode),
-				v1.ErrorStatus[userErr.ErrorCode],
+				www.ErrorStatus[userErr.ErrorCode],
 				strings.Join(userErr.ErrorContext, ", "))
 		}
 
 		util.RespondWithJSON(w, userHttpCode,
-			v1.ErrorReply{
+			www.ErrorReply{
 				ErrorCode:    int64(userErr.ErrorCode),
 				ErrorContext: userErr.ErrorContext,
 			})
 		return
 	}
 
-	if pdError, ok := args[0].(v1.PDError); ok {
+	if pdError, ok := args[0].(www.PDError); ok {
 		pdErrorCode := convertErrorStatusFromPD(pdError.ErrorReply.ErrorCode)
-		if pdErrorCode == v1.ErrorStatusInvalid {
+		if pdErrorCode == www.ErrorStatusInvalid {
 			errorCode := time.Now().Unix()
 			log.Errorf("%v %v %v %v Internal error %v: error "+
 				"code from politeiad: %v", remoteAddr(r),
 				r.Method, r.URL, r.Proto, errorCode,
 				pdError.ErrorReply.ErrorCode)
 			util.RespondWithJSON(w, http.StatusInternalServerError,
-				v1.ErrorReply{
+				www.ErrorReply{
 					ErrorCode: errorCode,
 				})
 			return
 		}
 
 		util.RespondWithJSON(w, pdError.HTTPCode,
-			v1.ErrorReply{
+			www.ErrorReply{
 				ErrorCode:    int64(pdErrorCode),
 				ErrorContext: pdError.ErrorReply.ErrorContext,
 			})
@@ -160,7 +160,7 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 	log.Errorf("Stacktrace (NOT A REAL CRASH): %s", debug.Stack())
 
 	util.RespondWithJSON(w, http.StatusInternalServerError,
-		v1.ErrorReply{
+		www.ErrorReply{
 			ErrorCode: errorCode,
 		})
 }
@@ -168,7 +168,7 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 // addRoute sets up a handler for a specific method+route. If methos is not
 // specified it adds a websocket.
 func (p *politeiawww) addRoute(method string, route string, handler http.HandlerFunc, perm permission) {
-	fullRoute := v1.PoliteiaWWWAPIRoute + route
+	fullRoute := www.PoliteiaWWWAPIRoute + route
 
 	switch perm {
 	case permissionAdmin:
@@ -229,13 +229,13 @@ func (p *politeiawww) makeRequest(method string, route string, v interface{}) ([
 	defer r.Body.Close()
 
 	if r.StatusCode != http.StatusOK {
-		var pdErrorReply v1.PDErrorReply
+		var pdErrorReply www.PDErrorReply
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&pdErrorReply); err != nil {
 			return nil, err
 		}
 
-		return nil, v1.PDError{
+		return nil, www.PDError{
 			HTTPCode:   r.StatusCode,
 			ErrorReply: pdErrorReply,
 		}

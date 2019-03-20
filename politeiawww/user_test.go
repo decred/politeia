@@ -11,7 +11,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
-	v1 "github.com/decred/politeia/politeiawww/api/v1"
+	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
 	"github.com/go-test/deep"
 )
@@ -49,18 +49,18 @@ func TestValidatePubkey(t *testing.T) {
 		{"valid pubkey", valid, nil},
 
 		{"invalid hexadecimal", invalidHex,
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidPublicKey,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidPublicKey,
 			}},
 
 		{"invalid size", invalidSize,
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidPublicKey,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidPublicKey,
 			}},
 
 		{"empty pubkey", empty,
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidPublicKey,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidPublicKey,
 			}},
 	}
 
@@ -84,13 +84,13 @@ func TestValidateUsername(t *testing.T) {
 
 	// Username under the min length requirement
 	var underMin string
-	for i := 0; i < v1.PolicyMinUsernameLength-1; i++ {
+	for i := 0; i < www.PolicyMinUsernameLength-1; i++ {
 		underMin += "0"
 	}
 
 	// Username over the max length requirement
 	var overMax string
-	for i := 0; i < v1.PolicyMaxUsernameLength+1; i++ {
+	for i := 0; i < www.PolicyMaxUsernameLength+1; i++ {
 		overMax += "0"
 	}
 
@@ -101,43 +101,43 @@ func TestValidateUsername(t *testing.T) {
 		want     error
 	}{
 		{"contains uppercase", "Politeiauser",
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusMalformedUsername,
+			www.UserError{
+				ErrorCode: www.ErrorStatusMalformedUsername,
 			}},
 
 		{"leading whitespace", " politeiauser",
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusMalformedUsername,
+			www.UserError{
+				ErrorCode: www.ErrorStatusMalformedUsername,
 			}},
 
 		{"trailing whitespace", "politeiauser ",
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusMalformedUsername,
+			www.UserError{
+				ErrorCode: www.ErrorStatusMalformedUsername,
 			}},
 
 		{"empty", "",
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusMalformedUsername,
+			www.UserError{
+				ErrorCode: www.ErrorStatusMalformedUsername,
 			}},
 
 		{"under min length", underMin,
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusMalformedUsername,
+			www.UserError{
+				ErrorCode: www.ErrorStatusMalformedUsername,
 			}},
 
 		{"over max length", overMax,
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusMalformedUsername,
+			www.UserError{
+				ErrorCode: www.ErrorStatusMalformedUsername,
 			}},
 
 		{"unsupported character", "politeiauser?",
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusMalformedUsername,
+			www.UserError{
+				ErrorCode: www.ErrorStatusMalformedUsername,
 			}},
 
 		{"contains whitespace", "politeia user",
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusMalformedUsername,
+			www.UserError{
+				ErrorCode: www.ErrorStatusMalformedUsername,
 			}},
 
 		{"valid username", "politeiauser", nil},
@@ -163,7 +163,7 @@ func TestValidatePassword(t *testing.T) {
 
 	// Password under the min length requirement
 	var minPass string
-	for i := 0; i < v1.PolicyMinPasswordLength-1; i++ {
+	for i := 0; i < www.PolicyMinPasswordLength-1; i++ {
 		minPass += "0"
 	}
 
@@ -174,8 +174,8 @@ func TestValidatePassword(t *testing.T) {
 		want     error
 	}{
 		{"under min length", minPass,
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusMalformedPassword,
+			www.UserError{
+				ErrorCode: www.ErrorStatusMalformedPassword,
 			}},
 	}
 
@@ -229,7 +229,7 @@ func TestProcessNewUser(t *testing.T) {
 		t.Fatalf("%v", err)
 	}
 
-	r, err := util.Random(int(v1.PolicyMinPasswordLength))
+	r, err := util.Random(int(www.PolicyMinPasswordLength))
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -242,22 +242,22 @@ func TestProcessNewUser(t *testing.T) {
 	// Setup tests
 	var tests = []struct {
 		name    string
-		newUser v1.NewUser
+		newUser www.NewUser
 		want    error
 	}{
 		{"verified user",
-			v1.NewUser{
+			www.NewUser{
 				Email: usrVerified.Email,
 			}, nil},
 
 		{"unverified user unexpired token",
-			v1.NewUser{
+			www.NewUser{
 				Email: usrUnexpired.Email,
 			},
 			nil},
 
 		{"unverified user expired token",
-			v1.NewUser{
+			www.NewUser{
 				Email:     usrExpired.Email,
 				Password:  "password",
 				PublicKey: usrExpiredPublicKey,
@@ -265,65 +265,65 @@ func TestProcessNewUser(t *testing.T) {
 			}, nil},
 
 		{"invalid pubkey",
-			v1.NewUser{
+			www.NewUser{
 				Email:     validEmail,
 				Password:  validPassword,
 				PublicKey: "",
 				Username:  validUsername,
 			},
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidPublicKey,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidPublicKey,
 			}},
 
 		{"invalid username",
-			v1.NewUser{
+			www.NewUser{
 				Email:     validEmail,
 				Password:  validPassword,
 				PublicKey: validPublicKey,
 				Username:  "",
 			},
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusMalformedUsername,
+			www.UserError{
+				ErrorCode: www.ErrorStatusMalformedUsername,
 			}},
 
 		{"invalid password",
-			v1.NewUser{
+			www.NewUser{
 				Email:     validEmail,
 				Password:  "",
 				PublicKey: validPublicKey,
 				Username:  validUsername,
 			},
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusMalformedPassword,
+			www.UserError{
+				ErrorCode: www.ErrorStatusMalformedPassword,
 			}},
 
 		// usrExpired gets successfully created during the test
 		// "unverified user expired token" so usrExpiredPublicKey
 		// should now be a duplicate.
 		{"duplicate pubkey",
-			v1.NewUser{
+			www.NewUser{
 				Email:     validEmail,
 				Password:  validPassword,
 				PublicKey: usrExpiredPublicKey,
 				Username:  validUsername,
 			},
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusDuplicatePublicKey,
+			www.UserError{
+				ErrorCode: www.ErrorStatusDuplicatePublicKey,
 			}},
 
 		{"invalid email",
-			v1.NewUser{
+			www.NewUser{
 				Email:     "",
 				Password:  validPassword,
 				PublicKey: validPublicKey,
 				Username:  validUsername,
 			},
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusMalformedEmail,
+			www.UserError{
+				ErrorCode: www.ErrorStatusMalformedEmail,
 			}},
 
 		{"valid new user",
-			v1.NewUser{
+			www.NewUser{
 				Email:     validEmail,
 				Password:  validPassword,
 				PublicKey: validPublicKey,
@@ -380,60 +380,60 @@ func TestProcessVerifyNewUser(t *testing.T) {
 	// Setup tests
 	var tests = []struct {
 		name  string
-		input v1.VerifyNewUser
+		input www.VerifyNewUser
 		want  error
 	}{
 		// An invalid token error is thrown when the user lookup
 		// fails so that info about which email addresses exist
 		// cannot be ascertained.
 		{"user not found",
-			v1.VerifyNewUser{
+			www.VerifyNewUser{
 				Email:             "invalidemail",
 				VerificationToken: token,
 				Signature:         sig,
 			},
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusVerificationTokenInvalid,
+			www.UserError{
+				ErrorCode: www.ErrorStatusVerificationTokenInvalid,
 			}},
 
 		{"invalid verification token",
-			v1.VerifyNewUser{
+			www.VerifyNewUser{
 				Email:             usr.Email,
 				VerificationToken: "zzz",
 				Signature:         sig,
 			},
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusVerificationTokenInvalid,
+			www.UserError{
+				ErrorCode: www.ErrorStatusVerificationTokenInvalid,
 			}},
 
 		{"wrong verification token",
-			v1.VerifyNewUser{
+			www.VerifyNewUser{
 				Email:             usr.Email,
 				VerificationToken: wrongToken,
 				Signature:         sig,
 			},
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusVerificationTokenInvalid,
+			www.UserError{
+				ErrorCode: www.ErrorStatusVerificationTokenInvalid,
 			}},
 
 		{"expired verification token",
-			v1.VerifyNewUser{
+			www.VerifyNewUser{
 				Email:             expiredUsr.Email,
 				VerificationToken: expiredToken,
 				Signature:         expiredSig,
 			},
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusVerificationTokenExpired,
+			www.UserError{
+				ErrorCode: www.ErrorStatusVerificationTokenExpired,
 			}},
 
 		{"invalid signature",
-			v1.VerifyNewUser{
+			www.VerifyNewUser{
 				Email:             usr.Email,
 				VerificationToken: token,
 				Signature:         "abc",
 			},
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidSignature,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidSignature,
 			}},
 
 		// I didn't test the ErrorStatusNoPublicKey error path because
@@ -441,17 +441,17 @@ func TestProcessVerifyNewUser(t *testing.T) {
 		// A user always has an active identity.
 
 		{"wrong signature",
-			v1.VerifyNewUser{
+			www.VerifyNewUser{
 				Email:             usr.Email,
 				VerificationToken: token,
 				Signature:         wrongSig,
 			},
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidSignature,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidSignature,
 			}},
 
 		{"success",
-			v1.VerifyNewUser{
+			www.VerifyNewUser{
 				Email:             usr.Email,
 				VerificationToken: token,
 				Signature:         sig,
@@ -499,58 +499,58 @@ func TestProcessResendVerification(t *testing.T) {
 	// Setup tests
 	var tests = []struct {
 		name string
-		rv   v1.ResendVerification
+		rv   www.ResendVerification
 		want error
 	}{
 		{"user not found",
-			v1.ResendVerification{
+			www.ResendVerification{
 				Email: "someuser@example.com",
 			},
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusUserNotFound,
+			www.UserError{
+				ErrorCode: www.ErrorStatusUserNotFound,
 			}},
 
 		{"user already verified",
-			v1.ResendVerification{
+			www.ResendVerification{
 				Email: usrVerified.Email,
 			},
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusEmailAlreadyVerified,
+			www.UserError{
+				ErrorCode: www.ErrorStatusEmailAlreadyVerified,
 			}},
 
 		{"invalid pubkey",
-			v1.ResendVerification{
+			www.ResendVerification{
 				Email:     usr1.Email,
 				PublicKey: "",
 			},
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidPublicKey,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidPublicKey,
 			}},
 
 		{"duplicate pubkey",
-			v1.ResendVerification{
+			www.ResendVerification{
 				Email:     usr1.Email,
 				PublicKey: usrVerifiedPubkey,
 			},
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusDuplicatePublicKey,
+			www.UserError{
+				ErrorCode: www.ErrorStatusDuplicatePublicKey,
 			}},
 
 		// If the user has an unexpired token, they are allowed
 		// to resend the verification email one time. The second
 		// attempt should fail.
 		{"success",
-			v1.ResendVerification{
+			www.ResendVerification{
 				Email:     usr1.Email,
 				PublicKey: usr1Pubkey,
 			}, nil},
 
 		{"unexpired token",
-			v1.ResendVerification{
+			www.ResendVerification{
 				Email: usr1.Email,
 			},
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusVerificationTokenUnexpired,
+			www.UserError{
+				ErrorCode: www.ErrorStatusVerificationTokenUnexpired,
 			}},
 
 		// The user does not have to pass in the same pubkey that
@@ -558,7 +558,7 @@ func TestProcessResendVerification(t *testing.T) {
 		// different pubkey, their active identity in the database
 		// is updated to reflect the new pubkey.
 		{"success with new pubkey",
-			v1.ResendVerification{
+			www.ResendVerification{
 				Email:     usr2.Email,
 				PublicKey: usr2Pubkey,
 			}, nil},
@@ -590,7 +590,7 @@ func TestLogin(t *testing.T) {
 	usrPassword := usr.Username
 
 	// Create the expected login reply
-	reply := v1.LoginReply{
+	reply := www.LoginReply{
 		IsAdmin:            false,
 		UserID:             usr.ID.String(),
 		Email:              usr.Email,
@@ -629,57 +629,57 @@ func TestLogin(t *testing.T) {
 
 	var tests = []struct {
 		name      string
-		login     v1.Login
-		wantReply *v1.LoginReply
+		login     www.Login
+		wantReply *www.LoginReply
 		wantError error
 	}{
 		{"wrong email",
-			v1.Login{
+			www.Login{
 				Email:    "",
 				Password: usrPassword,
 			}, nil,
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidEmailOrPassword,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidEmailOrPassword,
 			}},
 
 		{"wrong password",
-			v1.Login{
+			www.Login{
 				Email:    usr.Email,
 				Password: "",
 			}, nil,
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidEmailOrPassword,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidEmailOrPassword,
 			}},
 
 		{"user not verified",
-			v1.Login{
+			www.Login{
 				Email:    usrUnverified.Email,
 				Password: usrUnverifiedPassword,
 			}, nil,
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusEmailNotVerified,
+			www.UserError{
+				ErrorCode: www.ErrorStatusEmailNotVerified,
 			}},
 
 		{"user deactivated",
-			v1.Login{
+			www.Login{
 				Email:    usrDeactivated.Email,
 				Password: usrDeactivatedPassword,
 			}, nil,
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusUserDeactivated,
+			www.UserError{
+				ErrorCode: www.ErrorStatusUserDeactivated,
 			}},
 
 		{"user locked",
-			v1.Login{
+			www.Login{
 				Email:    usrLocked.Email,
 				Password: usrLockedPassword,
 			}, nil,
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusUserLocked,
+			www.UserError{
+				ErrorCode: www.ErrorStatusUserLocked,
 			}},
 
 		{"success",
-			v1.Login{
+			www.Login{
 				Email:    usr.Email,
 				Password: usrPassword,
 			}, &reply, nil},
@@ -714,12 +714,12 @@ func TestProcessLogin(t *testing.T) {
 	// Test the incorrect email error path because it's
 	// the quickest failure path for the login route.
 	start := time.Now()
-	_, err := p.processLogin(v1.Login{})
+	_, err := p.processLogin(www.Login{})
 	end := time.Now()
 	elapsed := end.Sub(start)
 
 	got := errToStr(err)
-	want := v1.ErrorStatus[v1.ErrorStatusInvalidEmailOrPassword]
+	want := www.ErrorStatus[www.ErrorStatusInvalidEmailOrPassword]
 	if got != want {
 		t.Errorf("got error %v, want %v", got, want)
 	}
@@ -733,7 +733,7 @@ func TestProcessLogin(t *testing.T) {
 	// pass the username into the password field.
 	u, _ := newUser(t, p, true, false)
 	start = time.Now()
-	lr, err := p.processLogin(v1.Login{
+	lr, err := p.processLogin(www.Login{
 		Email:    u.Email,
 		Password: u.Username,
 	})
@@ -765,7 +765,7 @@ func TestProcessChangePassword(t *testing.T) {
 	u, _ := newUser(t, p, true, false)
 	currPass := u.Username
 
-	r, err := util.Random(int(v1.PolicyMinPasswordLength))
+	r, err := util.Random(int(www.PolicyMinPasswordLength))
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -774,29 +774,29 @@ func TestProcessChangePassword(t *testing.T) {
 	// Setup tests
 	var tests = []struct {
 		name string
-		cp   v1.ChangePassword
+		cp   www.ChangePassword
 		want error
 	}{
 		{"wrong current password",
-			v1.ChangePassword{
+			www.ChangePassword{
 				CurrentPassword: "wrong!",
 				NewPassword:     newPass,
 			},
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidEmailOrPassword,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidEmailOrPassword,
 			}},
 
 		{"invalid new password",
-			v1.ChangePassword{
+			www.ChangePassword{
 				CurrentPassword: currPass,
 				NewPassword:     "",
 			},
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusMalformedPassword,
+			www.UserError{
+				ErrorCode: www.ErrorStatusMalformedPassword,
 			}},
 
 		{"success",
-			v1.ChangePassword{
+			www.ChangePassword{
 				CurrentPassword: currPass,
 				NewPassword:     newPass,
 			}, nil},
@@ -822,7 +822,7 @@ func TestProcessResetPassword(t *testing.T) {
 
 	// Create a normal user that we can test against
 	usr, _ := newUser(t, p, true, false)
-	r, err := util.Random(int(v1.PolicyMinPasswordLength))
+	r, err := util.Random(int(www.PolicyMinPasswordLength))
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -873,7 +873,7 @@ func TestProcessResetPassword(t *testing.T) {
 	// Setup tests
 	var tests = []struct {
 		name string
-		rp   v1.ResetPassword
+		rp   www.ResetPassword
 		want error
 	}{
 		// processRestPassword is unique in that it expects the user
@@ -884,69 +884,69 @@ func TestProcessResetPassword(t *testing.T) {
 		// No request verification token
 
 		{"user not found",
-			v1.ResetPassword{
+			www.ResetPassword{
 				Email: "abc",
 			},
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusUserNotFound,
+			www.UserError{
+				ErrorCode: www.ErrorStatusUserNotFound,
 			}},
 
 		{"unexpired token",
-			v1.ResetPassword{
+			www.ResetPassword{
 				Email: usrUnexpired.Email,
 			}, nil},
 
 		{"expired token",
-			v1.ResetPassword{
+			www.ResetPassword{
 				Email: usrExpired.Email,
 			}, nil},
 
 		{"sucess",
-			v1.ResetPassword{
+			www.ResetPassword{
 				Email: usr.Email,
 			}, nil},
 
 		// With a request verification token
 
 		{"invalid token",
-			v1.ResetPassword{
+			www.ResetPassword{
 				Email:             usr.Email,
 				VerificationToken: "xxx",
 			},
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusVerificationTokenInvalid,
+			www.UserError{
+				ErrorCode: www.ErrorStatusVerificationTokenInvalid,
 			}},
 
 		{"wrong token",
-			v1.ResetPassword{
+			www.ResetPassword{
 				Email:             usr.Email,
 				VerificationToken: usrUnexpiredToken,
 			},
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusVerificationTokenInvalid,
+			www.UserError{
+				ErrorCode: www.ErrorStatusVerificationTokenInvalid,
 			}},
 
 		{"expired token",
-			v1.ResetPassword{
+			www.ResetPassword{
 				Email:             usrExpired2.Email,
 				VerificationToken: usrExpired2Token,
 			},
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusVerificationTokenExpired,
+			www.UserError{
+				ErrorCode: www.ErrorStatusVerificationTokenExpired,
 			}},
 
 		{"invalid password",
-			v1.ResetPassword{
+			www.ResetPassword{
 				Email:             usrUnexpired.Email,
 				VerificationToken: usrUnexpiredToken,
 				NewPassword:       "",
 			},
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusMalformedPassword,
+			www.UserError{
+				ErrorCode: www.ErrorStatusMalformedPassword,
 			}},
 
 		{"success",
-			v1.ResetPassword{
+			www.ResetPassword{
 				Email:             usrUnexpired.Email,
 				VerificationToken: usrUnexpiredToken,
 				NewPassword:       newPassword,
@@ -980,37 +980,37 @@ func TestProcessChangeUsername(t *testing.T) {
 	var tests = []struct {
 		name  string
 		email string
-		cu    v1.ChangeUsername
+		cu    www.ChangeUsername
 		want  error
 	}{
 		{"wrong password", u.Email,
-			v1.ChangeUsername{
+			www.ChangeUsername{
 				Password: "wrong",
 			},
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidEmailOrPassword,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidEmailOrPassword,
 			}},
 
 		{"invalid username", u.Email,
-			v1.ChangeUsername{
+			www.ChangeUsername{
 				Password:    password,
 				NewUsername: "?",
 			},
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusMalformedUsername,
+			www.UserError{
+				ErrorCode: www.ErrorStatusMalformedUsername,
 			}},
 
 		{"duplicate username", u.Email,
-			v1.ChangeUsername{
+			www.ChangeUsername{
 				Password:    password,
 				NewUsername: u.Username,
 			},
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusDuplicateUsername,
+			www.UserError{
+				ErrorCode: www.ErrorStatusDuplicateUsername,
 			}},
 
 		{"success", u.Email,
-			v1.ChangeUsername{
+			www.ChangeUsername{
 				Password:    password,
 				NewUsername: "politeiauser",
 			}, nil},
@@ -1037,7 +1037,7 @@ func TestProcessUserDetails(t *testing.T) {
 	// Create a new user. This is the UUID that
 	// we'll use to test the UserDetails route.
 	u, _ := newUser(t, p, true, false)
-	ud := v1.UserDetails{}
+	ud := www.UserDetails{}
 
 	// Test a valid length UUID that does not belong to a user.
 	// We can assume that any invalid UUIDs were caught by the
@@ -1046,7 +1046,7 @@ func TestProcessUserDetails(t *testing.T) {
 		ud.UserID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 		_, err := p.processUserDetails(&ud, false, false)
 		got := errToStr(err)
-		want := v1.ErrorStatus[v1.ErrorStatusUserNotFound]
+		want := www.ErrorStatus[www.ErrorStatusUserNotFound]
 		if got != want {
 			t.Errorf("got error %v, want %v", got, want)
 		}
@@ -1067,12 +1067,12 @@ func TestProcessUserDetails(t *testing.T) {
 
 	// Setup tests
 	var tests = []struct {
-		name          string         // Test name
-		ud            v1.UserDetails // User details request
-		isCurrentUser bool           // Is a user requesting their own details
-		isAdmin       bool           // Is an admin requesting the user details
-		wantUsr       v1.User        // Wanted user response
-		wantMsg       string         // Description of the wanted user response
+		name          string          // Test name
+		ud            www.UserDetails // User details request
+		isCurrentUser bool            // Is a user requesting their own details
+		isAdmin       bool            // Is an admin requesting the user details
+		wantUsr       www.User        // Wanted user response
+		wantMsg       string          // Description of the wanted user response
 	}{
 		{"public user details", ud, false, false,
 			publicUser, publicUserMsg},
@@ -1117,31 +1117,31 @@ func TestProcessEditUser(t *testing.T) {
 	tests := []struct {
 		name         string
 		notification uint64
-		want         []v1.EmailNotificationT
+		want         []www.EmailNotificationT
 	}{
 		{"single notification setting", 0x1,
-			[]v1.EmailNotificationT{
-				v1.NotificationEmailMyProposalStatusChange,
+			[]www.EmailNotificationT{
+				www.NotificationEmailMyProposalStatusChange,
 			}},
 
 		{"multiple notification settings", 0x7,
-			[]v1.EmailNotificationT{
-				v1.NotificationEmailMyProposalStatusChange,
-				v1.NotificationEmailMyProposalVoteStarted,
-				v1.NotificationEmailRegularProposalVetted,
+			[]www.EmailNotificationT{
+				www.NotificationEmailMyProposalStatusChange,
+				www.NotificationEmailMyProposalVoteStarted,
+				www.NotificationEmailRegularProposalVetted,
 			}},
 
 		{"no notification settings", 0x0,
-			[]v1.EmailNotificationT{}},
+			[]www.EmailNotificationT{}},
 
 		{"invalid notification setting", 0x100000,
-			[]v1.EmailNotificationT{}},
+			[]www.EmailNotificationT{}},
 	}
 
 	// Run test cases
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := p.processEditUser(&v1.EditUser{
+			_, err := p.processEditUser(&www.EditUser{
 				EmailNotifications: &test.notification,
 			}, user)
 			if err != nil {

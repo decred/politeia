@@ -11,7 +11,7 @@ import (
 	"regexp"
 	"strconv"
 
-	www "github.com/decred/politeia/politeiawww/api/v1"
+	www "github.com/decred/politeia/politeiawww/api/www/v1"
 )
 
 var (

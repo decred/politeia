@@ -12,7 +12,7 @@ import (
 
 	"github.com/dajohi/goemail"
 
-	v1 "github.com/decred/politeia/politeiawww/api/v1"
+	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
 )
 
@@ -69,7 +69,7 @@ func (p *politeiawww) emailNewUserVerificationLink(email, token, username string
 		return nil
 	}
 
-	link, err := p.createEmailLink(v1.RouteVerifyNewUser, email,
+	link, err := p.createEmailLink(www.RouteVerifyNewUser, email,
 		token)
 	if err != nil {
 		return err
@@ -97,7 +97,7 @@ func (p *politeiawww) emailResetPasswordVerificationLink(email, token string) er
 		return nil
 	}
 
-	link, err := p.createEmailLink(v1.RouteResetPassword, email,
+	link, err := p.createEmailLink(www.RouteResetPassword, email,
 		token)
 	if err != nil {
 		return err
@@ -119,7 +119,7 @@ func (p *politeiawww) emailResetPasswordVerificationLink(email, token string) er
 
 // emailAuthorForVettedProposal sends an email notification for a new proposal
 // becoming vetted to the proposal's author.
-func (p *politeiawww) emailAuthorForVettedProposal(proposal *v1.ProposalRecord, authorUser *user.User, adminUser *user.User) error {
+func (p *politeiawww) emailAuthorForVettedProposal(proposal *www.ProposalRecord, authorUser *user.User, adminUser *user.User) error {
 	if p.smtp.disabled {
 		return nil
 	}
@@ -131,7 +131,7 @@ func (p *politeiawww) emailAuthorForVettedProposal(proposal *v1.ProposalRecord, 
 	}
 
 	if authorUser.EmailNotifications&
-		uint64(v1.NotificationEmailMyProposalStatusChange) == 0 {
+		uint64(www.NotificationEmailMyProposalStatusChange) == 0 {
 		return nil
 	}
 
@@ -152,7 +152,7 @@ func (p *politeiawww) emailAuthorForVettedProposal(proposal *v1.ProposalRecord, 
 
 // emailAuthorForCensoredProposal sends an email notification for a new
 // proposal becoming censored to the proposal's author.
-func (p *politeiawww) emailAuthorForCensoredProposal(proposal *v1.ProposalRecord, authorUser *user.User, adminUser *user.User) error {
+func (p *politeiawww) emailAuthorForCensoredProposal(proposal *www.ProposalRecord, authorUser *user.User, adminUser *user.User) error {
 	if p.smtp.disabled {
 		return nil
 	}
@@ -164,7 +164,7 @@ func (p *politeiawww) emailAuthorForCensoredProposal(proposal *v1.ProposalRecord
 	}
 
 	if authorUser.EmailNotifications&
-		uint64(v1.NotificationEmailMyProposalStatusChange) == 0 {
+		uint64(www.NotificationEmailMyProposalStatusChange) == 0 {
 		return nil
 	}
 
@@ -185,7 +185,7 @@ func (p *politeiawww) emailAuthorForCensoredProposal(proposal *v1.ProposalRecord
 
 // emailUsersForVettedProposal sends an email notification for a new proposal
 // becoming vetted.
-func (p *politeiawww) emailUsersForVettedProposal(proposal *v1.ProposalRecord, authorUser *user.User, adminUser *user.User) error {
+func (p *politeiawww) emailUsersForVettedProposal(proposal *www.ProposalRecord, authorUser *user.User, adminUser *user.User) error {
 	if p.smtp.disabled {
 		return nil
 	}
@@ -217,7 +217,7 @@ func (p *politeiawww) emailUsersForVettedProposal(proposal *v1.ProposalRecord, a
 			if u.NewUserPaywallTx == "" || u.Deactivated ||
 				u.ID == adminUser.ID || u.ID == authorUser.ID ||
 				(u.EmailNotifications&
-					uint64(v1.NotificationEmailRegularProposalVetted)) == 0 {
+					uint64(www.NotificationEmailRegularProposalVetted)) == 0 {
 				return
 			}
 
@@ -228,7 +228,7 @@ func (p *politeiawww) emailUsersForVettedProposal(proposal *v1.ProposalRecord, a
 
 // emailUsersForEditedProposal sends an email notification for a proposal being
 // edited.
-func (p *politeiawww) emailUsersForEditedProposal(proposal *v1.ProposalRecord, authorUser *user.User) error {
+func (p *politeiawww) emailUsersForEditedProposal(proposal *www.ProposalRecord, authorUser *user.User) error {
 	if p.smtp.disabled {
 		return nil
 	}
@@ -261,7 +261,7 @@ func (p *politeiawww) emailUsersForEditedProposal(proposal *v1.ProposalRecord, a
 			if u.NewUserPaywallTx == "" || u.Deactivated ||
 				u.ID == authorUser.ID ||
 				(u.EmailNotifications&
-					uint64(v1.NotificationEmailRegularProposalEdited)) == 0 {
+					uint64(www.NotificationEmailRegularProposalEdited)) == 0 {
 				return
 			}
 
@@ -272,7 +272,7 @@ func (p *politeiawww) emailUsersForEditedProposal(proposal *v1.ProposalRecord, a
 
 // emailUsersForProposalVoteStarted sends an email notification for a proposal
 // entering the voting state.
-func (p *politeiawww) emailUsersForProposalVoteStarted(proposal *v1.ProposalRecord, authorUser *user.User, adminUser *user.User) error {
+func (p *politeiawww) emailUsersForProposalVoteStarted(proposal *www.ProposalRecord, authorUser *user.User, adminUser *user.User) error {
 	if p.smtp.disabled {
 		return nil
 	}
@@ -292,7 +292,7 @@ func (p *politeiawww) emailUsersForProposalVoteStarted(proposal *v1.ProposalReco
 
 	// Send email to author.
 	if authorUser.EmailNotifications&
-		uint64(v1.NotificationEmailMyProposalVoteStarted) != 0 {
+		uint64(www.NotificationEmailMyProposalVoteStarted) != 0 {
 
 		subject := "Your Proposal Has Started Voting"
 		body, err := createBody(templateProposalVoteStartedForAuthor, &tplData)
@@ -320,7 +320,7 @@ func (p *politeiawww) emailUsersForProposalVoteStarted(proposal *v1.ProposalReco
 				u.ID == adminUser.ID ||
 				u.ID == authorUser.ID ||
 				(u.EmailNotifications&
-					uint64(v1.NotificationEmailRegularProposalVoteStarted)) == 0 {
+					uint64(www.NotificationEmailRegularProposalVoteStarted)) == 0 {
 				return
 			}
 
@@ -357,7 +357,7 @@ func (p *politeiawww) emailAdminsForNewSubmittedProposal(token string, propName 
 		return p.db.AllUsers(func(u *user.User) {
 			if !u.Admin || u.Deactivated ||
 				(u.EmailNotifications&
-					uint64(v1.NotificationEmailAdminProposalNew) == 0) {
+					uint64(www.NotificationEmailAdminProposalNew) == 0) {
 				return
 			}
 			msg.AddBCC(u.Email)
@@ -365,7 +365,7 @@ func (p *politeiawww) emailAdminsForNewSubmittedProposal(token string, propName 
 	})
 }
 
-func (p *politeiawww) emailAdminsForProposalVoteAuthorized(proposal *v1.ProposalRecord, authorUser *user.User) error {
+func (p *politeiawww) emailAdminsForProposalVoteAuthorized(proposal *www.ProposalRecord, authorUser *user.User) error {
 	if p.smtp.disabled {
 		return nil
 	}
@@ -394,7 +394,7 @@ func (p *politeiawww) emailAdminsForProposalVoteAuthorized(proposal *v1.Proposal
 		return p.db.AllUsers(func(u *user.User) {
 			if !u.Admin || u.Deactivated ||
 				(u.EmailNotifications&
-					uint64(v1.NotificationEmailAdminProposalVoteAuthorized) == 0) {
+					uint64(www.NotificationEmailAdminProposalVoteAuthorized) == 0) {
 				return
 			}
 			msg.AddBCC(u.Email)
@@ -404,7 +404,7 @@ func (p *politeiawww) emailAdminsForProposalVoteAuthorized(proposal *v1.Proposal
 
 // emailAuthorForCommentOnProposal sends an email notification to a proposal
 // author for a new comment.
-func (p *politeiawww) emailAuthorForCommentOnProposal(proposal *v1.ProposalRecord, authorUser *user.User, commentID, username string) error {
+func (p *politeiawww) emailAuthorForCommentOnProposal(proposal *www.ProposalRecord, authorUser *user.User, commentID, username string) error {
 	if p.smtp.disabled {
 		return nil
 	}
@@ -416,7 +416,7 @@ func (p *politeiawww) emailAuthorForCommentOnProposal(proposal *v1.ProposalRecor
 	}
 
 	if authorUser.EmailNotifications&
-		uint64(v1.NotificationEmailCommentOnMyProposal) == 0 {
+		uint64(www.NotificationEmailCommentOnMyProposal) == 0 {
 		return nil
 	}
 
@@ -442,7 +442,7 @@ func (p *politeiawww) emailAuthorForCommentOnProposal(proposal *v1.ProposalRecor
 
 // emailAuthorForCommentOnComment sends an email notification to a comment
 // author for a new comment reply.
-func (p *politeiawww) emailAuthorForCommentOnComment(proposal *v1.ProposalRecord, authorUser *user.User, commentID, username string) error {
+func (p *politeiawww) emailAuthorForCommentOnComment(proposal *www.ProposalRecord, authorUser *user.User, commentID, username string) error {
 	if p.smtp.disabled {
 		return nil
 	}
@@ -454,7 +454,7 @@ func (p *politeiawww) emailAuthorForCommentOnComment(proposal *v1.ProposalRecord
 	}
 
 	if authorUser.EmailNotifications&
-		uint64(v1.NotificationEmailCommentOnMyComment) == 0 {
+		uint64(www.NotificationEmailCommentOnMyComment) == 0 {
 		return nil
 	}
 
@@ -485,7 +485,7 @@ func (p *politeiawww) emailUpdateUserKeyVerificationLink(email, publicKey, token
 		return nil
 	}
 
-	link, err := p.createEmailLink(v1.RouteVerifyUpdateUserKey, "", token)
+	link, err := p.createEmailLink(www.RouteVerifyUpdateUserKey, "", token)
 	if err != nil {
 		return err
 	}

@@ -19,7 +19,7 @@ import (
 	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
-	"github.com/decred/politeia/politeiawww/api/v1"
+	"github.com/decred/politeia/politeiawww/api/www/v1"
 	wwwclient "github.com/decred/politeia/politeiawww/cmd/politeiawwwcli/client"
 	"github.com/decred/politeia/politeiawww/cmd/politeiawwwcli/config"
 	"github.com/decred/politeia/util"

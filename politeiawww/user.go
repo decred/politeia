@@ -18,8 +18,8 @@ import (
 	"github.com/btcsuite/golangcrypto/bcrypt"
 	"github.com/decred/dcrd/hdkeychain"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
-	v1 "github.com/decred/politeia/politeiawww/api/v1"
-	www "github.com/decred/politeia/politeiawww/api/v1"
+	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
+	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
@@ -1556,9 +1556,9 @@ func (p *politeiawww) logAdminAction(adminUser *user.User, content string) error
 // logAdminUserAction logs an admin action on a specific user.
 //
 // This function must be called WITHOUT the mutex held.
-func (p *politeiawww) logAdminUserAction(adminUser, user *user.User, action v1.UserManageActionT, reasonForAction string) error {
+func (p *politeiawww) logAdminUserAction(adminUser, user *user.User, action www.UserManageActionT, reasonForAction string) error {
 	return p.logAdminAction(adminUser, fmt.Sprintf("%v,%v,%v,%v",
-		v1.UserManageAction[action], user.ID, user.Username, reasonForAction))
+		www.UserManageAction[action], user.ID, user.Username, reasonForAction))
 }
 
 // logAdminProposalAction logs an admin action on a proposal.
@@ -1569,7 +1569,7 @@ func (p *politeiawww) logAdminProposalAction(adminUser *user.User, token, action
 }
 
 // processManageUser processes the admin ManageUser command.
-func (p *politeiawww) processManageUser(mu *v1.ManageUser, adminUser *user.User) (*v1.ManageUserReply, error) {
+func (p *politeiawww) processManageUser(mu *www.ManageUser, adminUser *user.User) (*www.ManageUserReply, error) {
 	// Fetch the database user.
 	user, err := p.getUserByIDStr(mu.UserID)
 	if err != nil {
@@ -1577,17 +1577,17 @@ func (p *politeiawww) processManageUser(mu *v1.ManageUser, adminUser *user.User)
 	}
 
 	// Validate that the action is valid.
-	if mu.Action == v1.UserManageInvalid {
-		return nil, v1.UserError{
-			ErrorCode: v1.ErrorStatusInvalidUserManageAction,
+	if mu.Action == www.UserManageInvalid {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidUserManageAction,
 		}
 	}
 
 	// Validate that the reason is supplied.
 	mu.Reason = strings.TrimSpace(mu.Reason)
 	if len(mu.Reason) == 0 {
-		return nil, v1.UserError{
-			ErrorCode: v1.ErrorStatusInvalidInput,
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidInput,
 		}
 	}
 
@@ -1595,28 +1595,28 @@ func (p *politeiawww) processManageUser(mu *v1.ManageUser, adminUser *user.User)
 	expiredTime := time.Now().Add(-168 * time.Hour).Unix()
 
 	switch mu.Action {
-	case v1.UserManageExpireNewUserVerification:
+	case www.UserManageExpireNewUserVerification:
 		user.NewUserVerificationExpiry = expiredTime
 		user.ResendNewUserVerificationExpiry = expiredTime
-	case v1.UserManageExpireUpdateKeyVerification:
+	case www.UserManageExpireUpdateKeyVerification:
 		user.UpdateKeyVerificationExpiry = expiredTime
-	case v1.UserManageExpireResetPasswordVerification:
+	case www.UserManageExpireResetPasswordVerification:
 		user.ResetPasswordVerificationExpiry = expiredTime
-	case v1.UserManageClearUserPaywall:
+	case www.UserManageClearUserPaywall:
 		p.removeUsersFromPool([]uuid.UUID{user.ID})
 
 		user.NewUserPaywallAmount = 0
 		user.NewUserPaywallTx = "cleared_by_admin"
 		user.NewUserPaywallPollExpiry = 0
-	case v1.UserManageUnlock:
+	case www.UserManageUnlock:
 		user.FailedLoginAttempts = 0
-	case v1.UserManageDeactivate:
+	case www.UserManageDeactivate:
 		user.Deactivated = true
-	case v1.UserManageReactivate:
+	case www.UserManageReactivate:
 		user.Deactivated = false
 	default:
 		return nil, fmt.Errorf("unsupported user edit action: %v",
-			v1.UserManageAction[mu.Action])
+			www.UserManageAction[mu.Action])
 	}
 
 	// Update the user in the database.
@@ -1633,13 +1633,13 @@ func (p *politeiawww) processManageUser(mu *v1.ManageUser, adminUser *user.User)
 		})
 	}
 
-	return &v1.ManageUserReply{}, nil
+	return &www.ManageUserReply{}, nil
 }
 
 // processUsers returns a list of users given a set of filters.
-func (p *politeiawww) processUsers(users *v1.Users) (*v1.UsersReply, error) {
-	var reply v1.UsersReply
-	reply.Users = make([]v1.AbridgedUser, 0)
+func (p *politeiawww) processUsers(users *www.Users) (*www.UsersReply, error) {
+	var reply www.UsersReply
+	reply.Users = make([]www.AbridgedUser, 0)
 
 	emailQuery := strings.ToLower(users.Email)
 	usernameQuery := formatUsername(users.Username)
@@ -1666,8 +1666,8 @@ func (p *politeiawww) processUsers(users *v1.Users) (*v1.UsersReply, error) {
 
 		if userMatches {
 			reply.TotalMatches++
-			if reply.TotalMatches < v1.UserListPageSize {
-				reply.Users = append(reply.Users, v1.AbridgedUser{
+			if reply.TotalMatches < www.UserListPageSize {
+				reply.Users = append(reply.Users, www.AbridgedUser{
 					ID:       user.ID.String(),
 					Email:    user.Email,
 					Username: user.Username,
@@ -1689,10 +1689,10 @@ func (p *politeiawww) processUsers(users *v1.Users) (*v1.UsersReply, error) {
 
 // processUserPaymentsRescan allows an admin to rescan a user's paywall address
 // to check for any payments that may have been missed by paywall polling.
-func (p *politeiawww) processUserPaymentsRescan(upr v1.UserPaymentsRescan) (*v1.UserPaymentsRescanReply, error) {
+func (p *politeiawww) processUserPaymentsRescan(upr www.UserPaymentsRescan) (*www.UserPaymentsRescanReply, error) {
 	// Ensure paywall is enabled
 	if !p.paywallIsEnabled() {
-		return &v1.UserPaymentsRescanReply{}, nil
+		return &www.UserPaymentsRescanReply{}, nil
 	}
 
 	// Lookup user
@@ -1820,12 +1820,12 @@ func (p *politeiawww) processUserPaymentsRescan(upr v1.UserPaymentsRescan) (*v1.
 	}
 
 	// Convert database credits to www credits
-	newCreditsWWW := make([]v1.ProposalCredit, len(newCredits))
+	newCreditsWWW := make([]www.ProposalCredit, len(newCredits))
 	for i, credit := range newCredits {
 		newCreditsWWW[i] = convertWWWPropCreditFromDatabasePropCredit(credit)
 	}
 
-	return &v1.UserPaymentsRescanReply{
+	return &www.UserPaymentsRescanReply{
 		NewCredits: newCreditsWWW,
 	}, nil
 }
@@ -1833,8 +1833,8 @@ func (p *politeiawww) processUserPaymentsRescan(upr v1.UserPaymentsRescan) (*v1.
 // processVerifyUserPayment verifies that the provided transaction
 // meets the minimum requirements to mark the user as paid, and then does
 // that in the user database.
-func (p *politeiawww) processVerifyUserPayment(u *user.User, vupt v1.VerifyUserPayment) (*v1.VerifyUserPaymentReply, error) {
-	var reply v1.VerifyUserPaymentReply
+func (p *politeiawww) processVerifyUserPayment(u *user.User, vupt www.VerifyUserPayment) (*www.VerifyUserPaymentReply, error) {
+	var reply www.VerifyUserPaymentReply
 	if p.HasUserPaid(u) {
 		reply.HasPaid = true
 		return &reply, nil
@@ -1856,8 +1856,8 @@ func (p *politeiawww) processVerifyUserPayment(u *user.User, vupt v1.VerifyUserP
 		p.cfg.MinConfirmationsRequired)
 	if err != nil {
 		if err == util.ErrCannotVerifyPayment {
-			return nil, v1.UserError{
-				ErrorCode: v1.ErrorStatusCannotVerifyPayment,
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusCannotVerifyPayment,
 			}
 		}
 		return nil, err
@@ -2159,7 +2159,7 @@ func setRegisterUserIdentity(u *user.User, token []byte, expiry int64, includeRe
 //
 // Note that this function always returns a InviteNewUserReply.  The caller shall
 // verify error and determine how to return this information upstream.
-func (p *politeiawww) processInviteNewUser(u www.InviteNewUser) (*www.NewUserReply, error) {
+func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*www.NewUserReply, error) {
 	var (
 		reply  www.NewUserReply
 		token  []byte
@@ -2223,8 +2223,8 @@ func (p *politeiawww) processInviteNewUser(u www.InviteNewUser) (*www.NewUserRep
 	return &reply, nil
 }
 
-func (p *politeiawww) processRegisterUser(u www.RegisterUser) (*www.RegisterUserReply, error) {
-	var reply www.RegisterUserReply
+func (p *politeiawww) processRegisterUser(u cms.RegisterUser) (*cms.RegisterUserReply, error) {
+	var reply cms.RegisterUserReply
 
 	// Check that the user already exists.
 	existingUser, err := p.db.UserGet(u.Email)

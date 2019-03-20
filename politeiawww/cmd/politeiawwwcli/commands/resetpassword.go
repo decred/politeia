@@ -7,7 +7,7 @@ package commands
 import (
 	"fmt"
 
-	"github.com/decred/politeia/politeiawww/api/v1"
+	"github.com/decred/politeia/politeiawww/api/www/v1"
 )
 
 // ResetPasswordCmd resets the password of the specified user.
