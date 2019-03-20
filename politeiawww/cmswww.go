@@ -44,7 +44,7 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		p.handleAuthenticatedWebsocket, permissionLogin)
 
 	// Routes that require being logged in as an admin user.
-	p.addRoute(http.MethodPost, www.RouteInviteNewUser, p.handleInviteNewUser,
+	p.addRoute(http.MethodPost, cms.RouteInviteNewUser, p.handleInviteNewUser,
 		permissionAdmin)
 	p.addRoute(http.MethodPost, www.RouteCensorComment,
 		p.handleCensorComment, permissionAdmin)
@@ -52,7 +52,7 @@ func (p *politeiawww) setCMSWWWRoutes() {
 	// Routes for Contractor Management System
 
 	// Publicish routes
-	p.addRoute(http.MethodPost, www.RouteRegisterUser, p.handleRegisterUser,
+	p.addRoute(http.MethodPost, cms.RouteRegisterUser, p.handleRegisterUser,
 		permissionPublic)
 
 	// Admin Routes
