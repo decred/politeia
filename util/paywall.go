@@ -302,7 +302,8 @@ func PayWithTestnetFaucet(faucetURL string, address string, amount uint64, overr
 		return "", fmt.Errorf("faucet only supports testnet")
 	}
 
-	dcramount := strconv.FormatFloat(dcrutil.Amount(amount).ToCoin(), 'f', -1, 32)
+	dcramount := strconv.FormatFloat(dcrutil.Amount(amount).ToCoin(),
+		'f', -1, 32)
 
 	// build request
 	form := url.Values{}

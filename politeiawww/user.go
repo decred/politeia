@@ -108,10 +108,10 @@ func convertWWWIdentitiesFromDatabaseIdentities(identities []user.Identity) []ww
 
 // convertWWWIdentityFromDatabaseIdentity converts a user Identity to a www
 // Identity.
-func convertWWWIdentityFromDatabaseIdentity(identity user.Identity) www.UserIdentity {
+func convertWWWIdentityFromDatabaseIdentity(id user.Identity) www.UserIdentity {
 	return www.UserIdentity{
-		Pubkey: hex.EncodeToString(identity.Key[:]),
-		Active: user.IsIdentityActive(identity),
+		Pubkey: id.String(),
+		Active: id.IsActive(),
 	}
 }
 
@@ -214,19 +214,12 @@ func checkPublicKeyAndSignature(u *user.User, publicKey string, signature string
 // the user database. It will return the active identity if there are no
 // errors.
 func checkPublicKey(u *user.User, pk string) ([]byte, error) {
-	id, ok := user.ActiveIdentity(u.Identities)
-	if !ok {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusNoPublicKey,
-		}
-	}
-
-	if hex.EncodeToString(id[:]) != pk {
+	if u.PublicKey() != pk {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusInvalidSigningKey,
 		}
 	}
-	return id[:], nil
+	return u.ActiveIdentity().Key[:], nil
 }
 
 // initUserPubkeys initializes the userPubkeys map with all the pubkey-userid
@@ -742,17 +735,12 @@ func (p *politeiawww) verifyResetPassword(u *user.User, rp www.ResetPassword, rp
 
 // createLoginReply creates a login reply.
 func (p *politeiawww) createLoginReply(u *user.User, lastLoginTime int64) (*www.LoginReply, error) {
-	activeIdentity, ok := user.ActiveIdentityString(u.Identities)
-	if !ok {
-		activeIdentity = ""
-	}
-
 	reply := www.LoginReply{
 		IsAdmin:         u.Admin,
 		UserID:          u.ID.String(),
 		Email:           u.Email,
 		Username:        u.Username,
-		PublicKey:       activeIdentity,
+		PublicKey:       u.PublicKey(),
 		PaywallTxID:     u.NewUserPaywallTx,
 		ProposalCredits: ProposalCreditBalance(u),
 		LastLoginTime:   lastLoginTime,

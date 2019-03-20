@@ -857,13 +857,6 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 		}
 	}
 
-	// Ensure user is an admin. Only admins are allowed to change
-	// a proposal status.
-	adminPubKey, ok := user.ActiveIdentityString(u.Identities)
-	if !ok {
-		return nil, fmt.Errorf("invalid admin identity: %v", u.ID)
-	}
-
 	// Handle test case
 	if p.test {
 		var reply www.SetProposalStatusReply
@@ -904,7 +897,7 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 		Version:             VersionMDStreamChanges,
 		Timestamp:           time.Now().Unix(),
 		NewStatus:           newStatus,
-		AdminPubKey:         adminPubKey,
+		AdminPubKey:         u.PublicKey(),
 		StatusChangeMessage: sps.StatusChangeMessage,
 	})
 	if err != nil {
@@ -1037,7 +1030,7 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 	}
 
 	// Fire off proposal status change event
-	p.eventManager._fireEvent(EventTypeProposalStatusChange,
+	p.fireEvent(EventTypeProposalStatusChange,
 		EventDataProposalStatusChange{
 			Proposal:          updatedProp,
 			AdminUser:         u,
@@ -1198,7 +1191,7 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 	}
 
 	// Fire off edit proposal event
-	p.eventManager._fireEvent(EventTypeProposalEdited,
+	p.fireEvent(EventTypeProposalEdited,
 		EventDataProposalEdited{
 			Proposal: updatedProp,
 		},
@@ -1913,14 +1906,12 @@ func (p *politeiawww) processStartVote(sv www.StartVote, u *user.User) (*www.Sta
 		return nil, err
 	}
 
-	if !p.test {
-		p.eventManager._fireEvent(EventTypeProposalVoteStarted,
-			EventDataProposalVoteStarted{
-				AdminUser: u,
-				StartVote: &sv,
-			},
-		)
-	}
+	p.fireEvent(EventTypeProposalVoteStarted,
+		EventDataProposalVoteStarted{
+			AdminUser: u,
+			StartVote: &sv,
+		},
+	)
 
 	// return a copy
 	rv := convertStartVoteReplyFromDecred(*vr)
