@@ -52,7 +52,7 @@ const (
 	defaultVoteDurationMax = uint32(4032)
 
 	defaultMailAddress    = "Politeia <noreply@example.org>"
-	defaultCMSMailAddress = "Contractor Management System <noreply@cms.decred.org>"
+	defaultCMSMailAddress = "Contractor Management System <noreply@example.org>"
 
 	// dust value can be found increasing the amount value until we get false
 	// from IsDustAmount function. Amounts can not be lower than dust
