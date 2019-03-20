@@ -96,6 +96,12 @@ const (
 	// PolicyMinUsernameLength is the min length of a username
 	PolicyMinUsernameLength = 3
 
+	// PolicyMaxUsernameLength is the max length of a username
+	PolicyMaxNameLength = 50
+
+	// PolicyMinUsernameLength is the min length of a username
+	PolicyMinNameLength = 3
+
 	// PolicyMaxProposalNameLength is the max length of a proposal name
 	PolicyMaxProposalNameLength = 80
 
@@ -175,6 +181,7 @@ const (
 	ErrorStatusInvalidLikeCommentAction    ErrorStatusT = 57
 	ErrorStatusInvalidCensorshipToken      ErrorStatusT = 58
 	ErrorStatusEmailAlreadyVerified        ErrorStatusT = 59
+	ErrorStatusMalformedName               ErrorStatusT = 60
 
 	// Proposal state codes
 	//
@@ -248,6 +255,12 @@ var (
 	PolicyUsernameSupportedChars = []string{
 		"a-z", "0-9", ".", ",", ":", ";", "-", "@", "+", "(", ")", "_"}
 
+	// PolicyNameLocationSupportedChars is the regular expression of a valid
+	// name or location for registering users on cms.
+	PolicyNameLocationSupportedChars = []string{
+		"A-z", "0-9", "&", ".", ",", ":", ";", "-", " ", "@", "+", "#", "/",
+		"(", ")", "!", "?", "\"", "'"}
+
 	// PoliteiaWWWAPIRoute is the prefix to the API route
 	PoliteiaWWWAPIRoute = fmt.Sprintf("/v%v", PoliteiaWWWAPIVersion)
 
@@ -317,6 +330,7 @@ var (
 		ErrorStatusInvalidLikeCommentAction:    "invalid like comment action",
 		ErrorStatusInvalidCensorshipToken:      "invalid proposal censorship token",
 		ErrorStatusEmailAlreadyVerified:        "email address is already verified",
+		ErrorStatusMalformedName:               "malformed name",
 	}
 
 	// PropStatus converts propsal status codes to human readable text

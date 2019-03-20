@@ -36,8 +36,8 @@ var (
 	validUsername = regexp.MustCompile(createUsernameRegex())
 	// XXX Need proper regex for name/location fields, possibly need to add
 	// new policy entries depending on how much we'd like it to differ.
-	validName     = regexp.MustCompile(createUsernameRegex())
-	validLocation = regexp.MustCompile(createUsernameRegex())
+	validName     = regexp.MustCompile(createNameLocationRegex())
+	validLocation = regexp.MustCompile(createNameLocationRegex())
 
 	// MinimumLoginWaitTime is the minimum amount of time to wait before the
 	// server sends a response to the client for the login route. This is done
@@ -59,6 +59,26 @@ func createUsernameRegex() string {
 	buf.WriteString("^[")
 
 	for _, supportedChar := range www.PolicyUsernameSupportedChars {
+		if len(supportedChar) > 1 {
+			buf.WriteString(supportedChar)
+		} else {
+			buf.WriteString(`\` + supportedChar)
+		}
+	}
+	buf.WriteString("]{")
+	buf.WriteString(strconv.Itoa(www.PolicyMinUsernameLength) + ",")
+	buf.WriteString(strconv.Itoa(www.PolicyMaxUsernameLength) + "}$")
+
+	return buf.String()
+}
+
+// createUsernameRegex generates a regex based on the policy supplied valid
+// characters in a user name.
+func createNameLocationRegex() string {
+	var buf bytes.Buffer
+	buf.WriteString("^[")
+
+	for _, supportedChar := range www.PolicyNameLocationSupportedChars {
 		if len(supportedChar) > 1 {
 			buf.WriteString(supportedChar)
 		} else {
@@ -212,18 +232,18 @@ func formatName(name string) string {
 }
 
 func validateName(name string) error {
-	if len(name) < www.PolicyMinUsernameLength ||
-		len(name) > www.PolicyMaxUsernameLength {
-		log.Tracef("Name not within bounds: %s", name)
+	if len(name) < www.PolicyMinNameLength ||
+		len(name) > www.PolicyMaxNameLength {
+		log.Debugf("Name not within bounds: %s", name)
 		return www.UserError{
-			ErrorCode: www.ErrorStatusMalformedUsername,
+			ErrorCode: www.ErrorStatusMalformedName,
 		}
 	}
 
 	if !validName.MatchString(name) {
-		log.Tracef("Name not valid: %s %s", name, validName.String())
+		log.Debugf("Name not valid: %s %s", name, validName.String())
 		return www.UserError{
-			ErrorCode: www.ErrorStatusMalformedUsername,
+			ErrorCode: www.ErrorStatusMalformedName,
 		}
 	}
 
