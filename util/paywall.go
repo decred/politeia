@@ -394,7 +394,7 @@ func FetchTxWithBlockExplorers(address string, amount uint64, txnotbefore int64,
 }
 
 func fetchTxsWithPrimaryBE(url string) ([]BEPrimaryTransaction, error) {
-	responseBody, err := makeRequest(url, 3)
+	responseBody, err := makeRequest(url, requestTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -409,7 +409,7 @@ func fetchTxsWithPrimaryBE(url string) ([]BEPrimaryTransaction, error) {
 }
 
 func fetchTxsWithBackupBE(url string) ([]BEBackupTransaction, error) {
-	responseBody, err := makeRequest(url, 3)
+	responseBody, err := makeRequest(url, requestTimeout)
 	if err != nil {
 		return nil, err
 	}
