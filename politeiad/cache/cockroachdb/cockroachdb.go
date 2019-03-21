@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/url"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
@@ -52,7 +53,13 @@ func (c *cockroachdb) NewRecord(cr cache.Record) error {
 		return cache.ErrShutdown
 	}
 
-	r := convertRecordFromCache(cr)
+	v, err := strconv.ParseUint(cr.Version, 10, 64)
+	if err != nil {
+		return fmt.Errorf("parse version '%v' failed: %v",
+			cr.Version, err)
+	}
+
+	r := convertRecordFromCache(cr, v)
 	return c.recordsdb.Create(&r).Error
 }
 
@@ -143,7 +150,8 @@ func (c *cockroachdb) updateRecord(tx *gorm.DB, updated Record) error {
 	// Ensure record exists. We need to do this because updates
 	// will not return an error if you try to update a record that
 	// does not exist.
-	record, err := c.recordVersion(tx, updated.Token, updated.Version)
+	record, err := c.recordVersion(tx, updated.Token,
+		strconv.FormatUint(updated.Version, 10))
 	if err != nil {
 		return err
 	}
@@ -219,9 +227,15 @@ func (c *cockroachdb) UpdateRecord(r cache.Record) error {
 		return cache.ErrShutdown
 	}
 
+	v, err := strconv.ParseUint(r.Version, 10, 64)
+	if err != nil {
+		return fmt.Errorf("parse version '%v' failed: %v",
+			r.Version, err)
+	}
+
 	// Run update within a transaction
 	tx := c.recordsdb.Begin()
-	err := c.updateRecord(tx, convertRecordFromCache(r))
+	err = c.updateRecord(tx, convertRecordFromCache(r, v))
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -641,7 +655,12 @@ func (c *cockroachdb) Build(records []cache.Record) error {
 
 	var r []Record
 	for _, cr := range records {
-		r = append(r, convertRecordFromCache(cr))
+		v, err := strconv.ParseUint(cr.Version, 10, 64)
+		if err != nil {
+			return fmt.Errorf("parse version '%v' failed %v: %v",
+				cr.Version, cr.CensorshipRecord.Token, err)
+		}
+		r = append(r, convertRecordFromCache(cr, v))
 	}
 
 	// Drop all current tables from the cache
