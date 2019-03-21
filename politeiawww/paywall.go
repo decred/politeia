@@ -191,7 +191,7 @@ func (p *politeiawww) generateProposalPaywall(u *user.User) (*user.ProposalPaywa
 		return nil, err
 	}
 
-	p.addUserToPaywallPool(u, paywallTypeProposal)
+	p.addUserToPaywallPoolLock(u, paywallTypeProposal)
 	return &pp, nil
 }
 
