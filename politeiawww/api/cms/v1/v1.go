@@ -9,13 +9,14 @@ type InvoiceStatusT int
 const (
 
 	// Contractor Management Routes
-
-	RouteInviteNewUser  = "/invite"
-	RouteRegisterUser   = "/register"
-	RouteNewInvoice     = "/invoices/new"
-	RouteInvoiceDetails = "/invoices/{token:[A-z0-9]{64}}"
-	RouteUserInvoices   = "/user/invoices"
-	RouteAdminInvoices  = "/admin/invoices"
+	RouteInviteNewUser    = "/invite"
+	RouteRegisterUser     = "/register"
+	RouteNewInvoice       = "/invoices/new"
+	RouteEditInvoice      = "/invoices/edit"
+	RouteInvoiceDetails   = "/invoices/{token:[A-z0-9]{64}}"
+	RouteSetInvoiceStatus = "/invoices/{token:[A-z0-9]{64}}/status"
+	RouteUserInvoices     = "/user/invoices"
+	RouteAdminInvoices    = "/admin/invoices"
 
 	// Invoice status codes
 	InvoiceStatusInvalid  InvoiceStatusT = 0 // Invalid status
@@ -70,6 +71,19 @@ type NewInvoice struct {
 // NewInvoiceReply is used to reply to the NewInvoiceReply command.
 type NewInvoiceReply struct {
 	CensorshipRecord www.CensorshipRecord `json:"censorshiprecord"`
+}
+
+// EditInvoice attempts to edit a proposal
+type EditInvoice struct {
+	Token     string     `json:"token"`
+	Files     []www.File `json:"files"`
+	PublicKey string     `json:"publickey"`
+	Signature string     `json:"signature"`
+}
+
+// EditInvoiceReply is used to reply to the EditInvoice command
+type EditInvoiceReply struct {
+	Invoice InvoiceRecord `json:"invoice"`
 }
 
 // InvoiceRecord is an entire invoice and its content.
@@ -138,4 +152,18 @@ type AdminInvoices struct {
 // AdminInvoiceReply is used to reply to an admin invoices command.
 type AdminInvoicesReply struct {
 	Invoices []InvoiceRecord `json:"invoices"`
+}
+
+// SetInvoiceStatus is used to approve or reject an unreviewed invoice.
+type SetInvoiceStatus struct {
+	Token     string         `json:"token"`
+	Status    InvoiceStatusT `json:"status"`
+	Reason    string         `json:"reason"`
+	Signature string         `json:"signature"` // Signature of Token+string(InvoiceStatus)
+	PublicKey string         `json:"publickey"` // Public key of admin
+}
+
+// SetInvoiceStatusReply is used to reply to a SetInvoiceStatus command.
+type SetInvoiceStatusReply struct {
+	Invoice InvoiceRecord `json:"invoice"`
 }

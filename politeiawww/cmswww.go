@@ -211,6 +211,8 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		p.handleNewComment, permissionLogin)
 	p.addRoute(http.MethodPost, cms.RouteNewInvoice,
 		p.handleNewInvoice, permissionLogin)
+	p.addRoute(http.MethodPost, cms.RouteEditInvoice,
+		p.handleEditInvoice, permissionLogin)
 	p.addRoute(http.MethodGet, cms.RouteInvoiceDetails,
 		p.handleInvoiceDetails, permissionLogin)
 	p.addRoute(http.MethodGet, cms.RouteUserInvoices,
@@ -230,6 +232,8 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		p.handleCensorComment, permissionAdmin)
 	p.addRoute(http.MethodPost, cms.RouteAdminInvoices,
 		p.handleAdminInvoices, permissionAdmin)
+	p.addRoute(http.MethodPost, cms.RouteSetInvoiceStatus,
+		p.handleSetInvoiceStatus, permissionAdmin)
 
 	// Routes for Contractor Management System
 

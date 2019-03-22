@@ -516,7 +516,8 @@ func convertRecordFilesToWWW(f []pd.File) []www.File {
 	}
 	return files
 }
-func convertDatabaseInvoiceToInvoiceRecord(dbInvoice cmsdatabase.Invoice) (*cms.InvoiceRecord, error) {
+
+func convertDatabaseInvoiceToInvoiceRecord(dbInvoice cmsdatabase.Invoice) *cms.InvoiceRecord {
 	invRec := &cms.InvoiceRecord{}
 	invRec.Status = dbInvoice.Status
 	invRec.Timestamp = dbInvoice.Timestamp
@@ -525,7 +526,7 @@ func convertDatabaseInvoiceToInvoiceRecord(dbInvoice cmsdatabase.Invoice) (*cms.
 	invRec.Year = dbInvoice.Year
 	invRec.PublicKey = dbInvoice.PublicKey
 	invRec.Version = dbInvoice.Version
-	return invRec, nil
+	return invRec
 }
 
 func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
