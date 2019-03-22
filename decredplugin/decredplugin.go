@@ -258,7 +258,7 @@ func DecodeStartVoteReply(payload []byte) (*StartVoteReply, error) {
 	return &v, nil
 }
 
-// VoteDetails is used to retreive the voting period details for a record.
+// VoteDetails is used to retrieve the voting period details for a record.
 type VoteDetails struct {
 	Token string `json:"token"` // Censorship token
 }
@@ -725,7 +725,7 @@ func DecodeGetProposalCommentsLikesReply(payload []byte) (*GetProposalCommentsLi
 	return &gpclr, nil
 }
 
-// Inventory is used to retreive the decred plugin inventory.
+// Inventory is used to retrieve the decred plugin inventory.
 type Inventory struct{}
 
 // EncodeInventory encodes Inventory into a JSON byte slice.

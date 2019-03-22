@@ -1268,7 +1268,7 @@ func (p *politeiawww) processAllUnvetted(u www.GetAllUnvetted) (*www.GetAllUnvet
 }
 
 // ProcessProposalStats returns summary statistics on the number of proposals
-// catagorized by proposal status.
+// categorized by proposal status.
 func (p *politeiawww) processProposalsStats() (*www.ProposalsStatsReply, error) {
 	inv, err := p.cache.InventoryStats()
 	if err != nil {

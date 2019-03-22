@@ -11,7 +11,7 @@ import (
 type RecordStatusT int
 
 var (
-	// ErrWrongVersion is emmitted when the version of the cache tables
+	// ErrWrongVersion is emitted when the version of the cache tables
 	// does not match the version of the cache implementation.
 	ErrWrongVersion = errors.New("wrong cache version")
 
