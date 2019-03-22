@@ -18,8 +18,8 @@ github.com/btcsuite/goleveldb v1.0.0/go.mod h1:QiK9vBlgftBg6rWQIj6wFzbPfRjiykIEh
 github.com/btcsuite/snappy-go v1.0.0 h1:ZxaA6lo2EpxGddsA8JwWOcxlzRybb444sgmeJQMJGQE=
 github.com/btcsuite/snappy-go v1.0.0/go.mod h1:8woku9dyThutzjeg+3xrA5iCpBRH8XEEg3lh6TiUghc=
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
-github.com/dajohi/goemail v0.0.0-20190207191308-61faa215f94d h1:erd++vWXw2JEXelnwMBlTjOrllgTby+Oxg17Td8KUTg=
-github.com/dajohi/goemail v0.0.0-20190207191308-61faa215f94d/go.mod h1:YyX3pgj9VJX6VQYu8Cbs0GYHzgFUs8q0vX5pLmFvops=
+github.com/dajohi/goemail v1.0.0 h1:0UbsqT92my1iLTbeBYIsJ8JnrF+6NAAgk2iat6d6e+4=
+github.com/dajohi/goemail v1.0.0/go.mod h1:YyX3pgj9VJX6VQYu8Cbs0GYHzgFUs8q0vX5pLmFvops=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
