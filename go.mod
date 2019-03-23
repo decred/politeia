@@ -15,7 +15,7 @@ require (
 	github.com/decred/dcrd/dcrutil v1.2.0
 	github.com/decred/dcrd/hdkeychain v1.1.1
 	github.com/decred/dcrd/wire v1.2.0
-	github.com/decred/dcrdata v2.1.3+incompatible
+	github.com/decred/dcrdata/v3 v3.1.2
 	github.com/decred/dcrtime v0.0.0-20180808181920-4c91c4cbed09
 	github.com/decred/dcrwallet v1.2.3-0.20190128160919-849f7c01c12d
 	github.com/decred/dcrwallet/rpc/walletrpc v0.2.0
@@ -26,14 +26,12 @@ require (
 	github.com/go-sql-driver/mysql v1.4.1 // indirect
 	github.com/go-test/deep v1.0.1
 	github.com/gofrs/uuid v3.2.0+incompatible // indirect
-	github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db // indirect
-	github.com/google/go-cmp v0.2.0 // indirect
 	github.com/google/uuid v1.0.0
 	github.com/gorilla/csrf v1.5.1
 	github.com/gorilla/mux v1.6.2
 	github.com/gorilla/schema v1.0.2
 	github.com/gorilla/sessions v1.1.3
-	github.com/gorilla/websocket v1.2.0
+	github.com/gorilla/websocket v1.4.0
 	github.com/h2non/go-is-svg v0.0.0-20160927212452-35e8c4b0612c
 	github.com/jessevdk/go-flags v1.4.0
 	github.com/jinzhu/gorm v1.9.2
@@ -47,7 +45,6 @@ require (
 	github.com/otiai10/mint v1.2.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0
 	github.com/robfig/cron v0.0.0-20180505203441-b41be1df6967
-	github.com/stretchr/testify v1.2.2 // indirect
 	github.com/subosito/norma v0.0.0-20140814002436-523a8b2df221
 	github.com/syndtr/goleveldb v0.0.0-20180815032940-ae2bd5eed72d
 	golang.org/x/crypto v0.0.0-20181203042331-505ab145d0a9
