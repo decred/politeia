@@ -31,7 +31,8 @@ const (
 	insightMainnet = "https://mainnet.decred.org/insight/api"
 	insightTestnet = "https://testnet.decred.org/insight/api"
 
-	requestTimeout = 3 * time.Second // Block explorer request timeout
+	dcrdataTimeout = 3 * time.Second // Dcrdata request timeout
+	faucetTimeout  = 5 * time.Second // Testnet faucet request timeout
 )
 
 // FaucetResponse represents the expected JSON response from the testnet faucet.
@@ -182,7 +183,7 @@ func blockExplorerURLForAddress(address string, netParams *chaincfg.Params) (str
 }
 
 func fetchTxWithPrimaryBE(url string, address string, minimumAmount uint64, txnotbefore int64, minConfirmationsRequired uint64) (string, uint64, error) {
-	responseBody, err := makeRequest(url, requestTimeout)
+	responseBody, err := makeRequest(url, dcrdataTimeout)
 	if err != nil {
 		return "", 0, err
 	}
@@ -223,7 +224,7 @@ func fetchTxWithPrimaryBE(url string, address string, minimumAmount uint64, txno
 }
 
 func fetchTxWithBackupBE(url string, address string, minimumAmount uint64, txnotbefore int64, minConfirmationsRequired uint64) (string, uint64, error) {
-	responseBody, err := makeRequest(url, requestTimeout)
+	responseBody, err := makeRequest(url, dcrdataTimeout)
 	if err != nil {
 		return "", 0, err
 	}
@@ -320,7 +321,7 @@ func PayWithTestnetFaucet(faucetURL string, address string, amount uint64, overr
 
 	// limit the time we take
 	ctx, cancel := context.WithTimeout(context.Background(),
-		2500*time.Millisecond)
+		faucetTimeout)
 	// it is good practice to use the cancellation function even with a timeout
 	defer cancel()
 	req = req.WithContext(ctx)
@@ -394,7 +395,7 @@ func FetchTxWithBlockExplorers(address string, amount uint64, txnotbefore int64,
 }
 
 func fetchTxsWithPrimaryBE(url string) ([]BEPrimaryTransaction, error) {
-	responseBody, err := makeRequest(url, 3)
+	responseBody, err := makeRequest(url, dcrdataTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -409,7 +410,7 @@ func fetchTxsWithPrimaryBE(url string) ([]BEPrimaryTransaction, error) {
 }
 
 func fetchTxsWithBackupBE(url string) ([]BEBackupTransaction, error) {
-	responseBody, err := makeRequest(url, 3)
+	responseBody, err := makeRequest(url, dcrdataTimeout)
 	if err != nil {
 		return nil, err
 	}
