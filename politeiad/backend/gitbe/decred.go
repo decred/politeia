@@ -2042,19 +2042,6 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 			continue
 		}
 
-		// Verify voting period has not ended
-		endHeight, err := g.voteEndHeight(v.Token)
-		if err != nil {
-			t := time.Now().Unix()
-			log.Errorf("pluginBallot: voteEndHeight failed %v %v: %v",
-				t, v.Token, err)
-			br.Receipts[k].Error = fmt.Sprintf("internal error %v", t)
-		}
-		if bb.Height > endHeight {
-			br.Receipts[k].Error = "vote has ended: " + v.Token
-			continue
-		}
-
 		// Replay individual votes journal
 		dup, err := g.voteExists(v)
 		if err != nil {
@@ -2082,6 +2069,21 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 				v.Ticket, v.Token, t, err)
 			br.Receipts[k].Error = fmt.Sprintf("internal error %v",
 				t)
+			continue
+		}
+
+		// Verify voting period has not ended
+		endHeight, err := g.voteEndHeight(v.Token)
+		if err != nil {
+			t := time.Now().Unix()
+			log.Errorf("pluginBallot: voteEndHeight %v %v %v %v",
+				v.Ticket, v.Token, t, err)
+			br.Receipts[k].Error = fmt.Sprintf("internal error %v",
+				t)
+			continue
+		}
+		if bb.Height >= endHeight {
+			br.Receipts[k].Error = "vote has ended: " + v.Token
 			continue
 		}
 
