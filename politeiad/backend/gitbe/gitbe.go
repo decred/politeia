@@ -845,7 +845,10 @@ func (g *gitBackEnd) periodicAnchorChecker() {
 		case <-time.After(5 * time.Minute):
 		}
 
-		if g.shutdown {
+		g.Lock()
+		isShutdown := g.shutdown
+		g.Unlock()
+		if isShutdown {
 			return
 		}
 
