@@ -129,8 +129,8 @@ github.com/decred/dcrd/wire v1.1.0/go.mod h1:/JKOsLInOJu6InN+/zH5AyCq3YDIOW/Eqcf
 github.com/decred/dcrd/wire v1.2.0 h1:HqJVB7vcklIguzFWgRXw/WYCQ9cD3bUC5TKj53i1Hng=
 github.com/decred/dcrd/wire v1.2.0/go.mod h1:/JKOsLInOJu6InN+/zH5AyCq3YDIOW/EqcffvU8fJHM=
 github.com/decred/dcrdata/api/types v1.0.2/go.mod h1:WypcRWqc6jsehraDtcVvKnbc1H6L0KtYH5pK6TE0PVA=
-github.com/decred/dcrdata/api/types v1.0.3-0.20190325154125-93d91434f922 h1:k5Hli0SXtDYkTfVvtnW8LSpUYe/NKXTE1r+aOopvW14=
-github.com/decred/dcrdata/api/types v1.0.3-0.20190325154125-93d91434f922/go.mod h1:05sn6XDwH1a5gmDQhb3Kz02XTTelyvnK04Ut4nBrFoY=
+github.com/decred/dcrdata/api/types v1.0.3 h1:rIHX2MObX6bKTrS5G2/1ZpF0/lEKQaiWf0LyfJGdtFU=
+github.com/decred/dcrdata/api/types v1.0.3/go.mod h1:05sn6XDwH1a5gmDQhb3Kz02XTTelyvnK04Ut4nBrFoY=
 github.com/decred/dcrdata/v3 v3.1.2 h1:7/Au8wVmS2C4zuCN/H2H9pndyXTsDOsYJUP6ODMi2qw=
 github.com/decred/dcrdata/v3 v3.1.2/go.mod h1:yzBJXhNSOHsWgLNp9m0rGUY3ajn6HADvre0bL3ApNdE=
 github.com/decred/dcrdata/v4 v4.0.0-rc4 h1:WnkhlP7RAv6qFdJw2QKQVw5Hzkq0MuNYuhuzjxiH6nc=
@@ -322,6 +322,7 @@ github.com/stretchr/testify v1.2.2/go.mod h1:a8OnRcib4nhh0OaRAV+Yts87kKdq0PP7pXf
 github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=
 github.com/subosito/norma v0.0.0-20140814002436-523a8b2df221 h1:SwX/RmhtsC49pJSeUY8wjyqpULVJaOvdN27csmbJsII=
 github.com/subosito/norma v0.0.0-20140814002436-523a8b2df221/go.mod h1:o8V+1TP5jwktAQ5A7Go7REh1KicIBdRMo2X8PPjsWrc=
+github.com/syndtr/goleveldb v0.0.0-20180815032940-ae2bd5eed72d/go.mod h1:Z4AUp2Km+PwemOoO/VB5AOx9XSsIItzFjoJlOSiYmn0=
 github.com/syndtr/goleveldb v1.0.0 h1:fBdIW9lB4Iz0n9khmH8w27SJ3QEJ7+IgjPEwGSZiFdE=
 github.com/syndtr/goleveldb v1.0.0/go.mod h1:ZVVdQEZoIme9iO1Ch2Jdy24qqXrMMOU6lpPAyBWyWuQ=
 github.com/vmihailenco/msgpack v3.3.3+incompatible/go.mod h1:fy3FlTQTDXWkZ7Bh6AcGMlsjHatGryHQYUTf1ShIgkk=

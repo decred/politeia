@@ -14,7 +14,7 @@ require (
 	github.com/decred/dcrd/dcrutil v1.2.1-0.20190118223730-3a5281156b73
 	github.com/decred/dcrd/hdkeychain v1.1.1
 	github.com/decred/dcrd/wire v1.2.0
-	github.com/decred/dcrdata/api/types v1.0.3-0.20190325154125-93d91434f922
+	github.com/decred/dcrdata/api/types v1.0.3
 	github.com/decred/dcrtime v0.0.0-20180808181920-4c91c4cbed09
 	github.com/decred/dcrwallet v1.2.3-0.20190128160919-849f7c01c12d
 	github.com/decred/dcrwallet/rpc/walletrpc v0.2.0
