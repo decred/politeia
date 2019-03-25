@@ -1,6 +1,6 @@
 package commands
 
-import "github.com/decred/politeia/politeiawww/api/v1"
+import "github.com/decred/politeia/politeiawww/api/www/v1"
 
 // ResendVerificationCmd re-sends the user verification email for an unverified
 // user.

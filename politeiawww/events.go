@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
-	v1 "github.com/decred/politeia/politeiawww/api/v1"
+	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
 )
 
@@ -34,42 +34,42 @@ const (
 )
 
 type EventDataProposalSubmitted struct {
-	CensorshipRecord *v1.CensorshipRecord
+	CensorshipRecord *www.CensorshipRecord
 	ProposalName     string
 	User             *user.User
 }
 
 type EventDataProposalStatusChange struct {
-	Proposal          *v1.ProposalRecord
-	SetProposalStatus *v1.SetProposalStatus
+	Proposal          *www.ProposalRecord
+	SetProposalStatus *www.SetProposalStatus
 	AdminUser         *user.User
 }
 
 type EventDataProposalEdited struct {
-	Proposal *v1.ProposalRecord
+	Proposal *www.ProposalRecord
 }
 
 type EventDataProposalVoteStarted struct {
 	AdminUser *user.User
-	StartVote *v1.StartVote
+	StartVote *www.StartVote
 }
 
 type EventDataProposalVoteAuthorized struct {
-	AuthorizeVote *v1.AuthorizeVote
+	AuthorizeVote *www.AuthorizeVote
 	User          *user.User
 }
 
 type EventDataComment struct {
-	Comment *v1.Comment
+	Comment *www.Comment
 }
 
 type EventDataUserManage struct {
 	AdminUser  *user.User
 	User       *user.User
-	ManageUser *v1.ManageUser
+	ManageUser *www.ManageUser
 }
 
-func (p *politeiawww) _getProposalAuthor(proposal *v1.ProposalRecord) (*user.User, error) {
+func (p *politeiawww) _getProposalAuthor(proposal *www.ProposalRecord) (*user.User, error) {
 	if proposal.UserId == "" {
 		proposal.UserId = p.userPubkeys[proposal.PublicKey]
 	}
@@ -87,14 +87,14 @@ func (p *politeiawww) _getProposalAuthor(proposal *v1.ProposalRecord) (*user.Use
 	return author, nil
 }
 
-func (p *politeiawww) getProposalAuthor(proposal *v1.ProposalRecord) (*user.User, error) {
+func (p *politeiawww) getProposalAuthor(proposal *www.ProposalRecord) (*user.User, error) {
 	p.RLock()
 	defer p.RUnlock()
 
 	return p._getProposalAuthor(proposal)
 }
 
-func (p *politeiawww) getProposalAndAuthor(token string) (*v1.ProposalRecord, *user.User, error) {
+func (p *politeiawww) getProposalAndAuthor(token string) (*www.ProposalRecord, *user.User, error) {
 	proposal, err := p.getProp(token)
 	if err != nil {
 		return nil, nil, err
@@ -180,8 +180,8 @@ func (p *politeiawww) _setupProposalStatusChangeEmailNotification() {
 				continue
 			}
 
-			if psc.SetProposalStatus.ProposalStatus != v1.PropStatusPublic &&
-				psc.SetProposalStatus.ProposalStatus != v1.PropStatusCensored {
+			if psc.SetProposalStatus.ProposalStatus != www.PropStatusPublic &&
+				psc.SetProposalStatus.ProposalStatus != www.PropStatusCensored {
 				continue
 			}
 
@@ -192,7 +192,7 @@ func (p *politeiawww) _setupProposalStatusChangeEmailNotification() {
 			}
 
 			switch psc.SetProposalStatus.ProposalStatus {
-			case v1.PropStatusPublic:
+			case www.PropStatusPublic:
 				err = p.emailAuthorForVettedProposal(psc.Proposal, author,
 					psc.AdminUser)
 				if err != nil {
@@ -205,7 +205,7 @@ func (p *politeiawww) _setupProposalStatusChangeEmailNotification() {
 					log.Errorf("email users for vetted proposal %v: %v",
 						psc.Proposal.CensorshipRecord.Token, err)
 				}
-			case v1.PropStatusCensored:
+			case www.PropStatusCensored:
 				err = p.emailAuthorForCensoredProposal(psc.Proposal, author,
 					psc.AdminUser)
 				if err != nil {
@@ -233,7 +233,7 @@ func (p *politeiawww) _setupProposalStatusChangeLogging() {
 			err := p.logAdminProposalAction(psc.AdminUser,
 				psc.Proposal.CensorshipRecord.Token,
 				fmt.Sprintf("set proposal status to %v",
-					v1.PropStatus[psc.SetProposalStatus.ProposalStatus]),
+					www.PropStatus[psc.SetProposalStatus.ProposalStatus]),
 				psc.SetProposalStatus.StatusChangeMessage)
 
 			if err != nil {
@@ -254,7 +254,7 @@ func (p *politeiawww) _setupProposalEditedEmailNotification() {
 				continue
 			}
 
-			if pe.Proposal.Status != v1.PropStatusPublic {
+			if pe.Proposal.Status != www.PropStatusPublic {
 				continue
 			}
 

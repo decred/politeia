@@ -16,7 +16,6 @@ notifications.  It does not render HTML.
 - [`Me`](#me)
 - [`Login`](#login)
 - [`Logout`](#logout)
-- [`Verify user payment`](#verify-user-payment)
 - [`User details`](#user-details)
 - [`Edit user`](#edit-user)
 - [`Users`](#users)
@@ -25,20 +24,23 @@ notifications.  It does not render HTML.
 - [`Change username`](#change-username)
 - [`Change password`](#change-password)
 - [`Reset password`](#reset-password)
+- [`New comment`](#new-comment)
+- [`Get comments`](#get-comments)
+- [`Like comment`](#like-comment)
+- [`Censor comment`](#censor-comment)
+- [`Policy`](#policy)
+
+***Proposal Routes***
 - [`Vetted`](#vetted)
 - [`Unvetted`](#unvetted)
 - [`User proposals`](#user-proposals)
 - [`Proposal paywall details`](#proposal-paywall-details)
 - [`User proposal credits`](#user-proposal-credits)
+- [`Verify user payment`](#verify-user-payment)
 - [`New proposal`](#new-proposal)
 - [`Edit Proposal`](#edit-proposal)
 - [`Proposal details`](#proposal-details)
 - [`Set proposal status`](#set-proposal-status)
-- [`Policy`](#policy)
-- [`New comment`](#new-comment)
-- [`Get comments`](#get-comments)
-- [`Like comment`](#like-comment)
-- [`Censor comment`](#censor-comment)
 - [`Authorize vote`](#authorize-vote)
 - [`Start vote`](#start-vote)
 - [`Active votes`](#active-votes)
@@ -48,6 +50,7 @@ notifications.  It does not render HTML.
 - [`Vote results`](#vote-results)
 - [`User Comments votes`](#user-comments-votes)
 - [`Proposals Stats`](#proposals-stats)
+
 
 **Error status codes**
 
@@ -240,6 +243,7 @@ to get the CSRF token for the session and to ensure API compatibility.
 | route | string | Route that should be prepended to all calls. For example, "/v1". |
 | pubkey | string | The public key for the corresponding private key that signs various tokens to ensure server authenticity and to prevent replay attacks. |
 | testnet | boolean | Value to inform either its running on testnet or not |
+| mode | string | Current mode that politeiawww is running (possibly piwww or cmswww)
 
 **Example**
 
@@ -2423,6 +2427,7 @@ Reply:
   "numofpublic":3
 }
 ```
+
 
 ### Error codes
 

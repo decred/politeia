@@ -16,9 +16,10 @@ import (
 	"time"
 
 	"github.com/btcsuite/golangcrypto/bcrypt"
+	"github.com/decred/dcrd/hdkeychain"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
-	v1 "github.com/decred/politeia/politeiawww/api/v1"
-	www "github.com/decred/politeia/politeiawww/api/v1"
+	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
+	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
@@ -33,6 +34,10 @@ const (
 
 var (
 	validUsername = regexp.MustCompile(createUsernameRegex())
+	// XXX Need proper regex for name/location fields, possibly need to add
+	// new policy entries depending on how much we'd like it to differ.
+	validName     = regexp.MustCompile(createNameLocationRegex())
+	validLocation = regexp.MustCompile(createNameLocationRegex())
 
 	// MinimumLoginWaitTime is the minimum amount of time to wait before the
 	// server sends a response to the client for the login route. This is done
@@ -54,6 +59,26 @@ func createUsernameRegex() string {
 	buf.WriteString("^[")
 
 	for _, supportedChar := range www.PolicyUsernameSupportedChars {
+		if len(supportedChar) > 1 {
+			buf.WriteString(supportedChar)
+		} else {
+			buf.WriteString(`\` + supportedChar)
+		}
+	}
+	buf.WriteString("]{")
+	buf.WriteString(strconv.Itoa(www.PolicyMinUsernameLength) + ",")
+	buf.WriteString(strconv.Itoa(www.PolicyMaxUsernameLength) + "}$")
+
+	return buf.String()
+}
+
+// createUsernameRegex generates a regex based on the policy supplied valid
+// characters in a user name.
+func createNameLocationRegex() string {
+	var buf bytes.Buffer
+	buf.WriteString("^[")
+
+	for _, supportedChar := range www.PolicyNameLocationSupportedChars {
 		if len(supportedChar) > 1 {
 			buf.WriteString(supportedChar)
 		} else {
@@ -198,6 +223,56 @@ func validatePubkey(publicKey string) ([]byte, error) {
 	}
 
 	return pk, nil
+}
+
+// formatName normalizes a contractor name to lowercase without leading and
+// trailing spaces.
+func formatName(name string) string {
+	return strings.ToLower(strings.TrimSpace(name))
+}
+
+func validateName(name string) error {
+	if len(name) < www.PolicyMinNameLength ||
+		len(name) > www.PolicyMaxNameLength {
+		log.Debugf("Name not within bounds: %s", name)
+		return www.UserError{
+			ErrorCode: www.ErrorStatusMalformedName,
+		}
+	}
+
+	if !validName.MatchString(name) {
+		log.Debugf("Name not valid: %s %s", name, validName.String())
+		return www.UserError{
+			ErrorCode: www.ErrorStatusMalformedName,
+		}
+	}
+
+	return nil
+}
+
+// formatLocation normalizes a contractor location to lowercase without leading and
+// trailing spaces.
+func formatLocation(location string) string {
+	return strings.ToLower(strings.TrimSpace(location))
+}
+
+func validateLocation(location string) error {
+	if len(location) < www.PolicyMinUsernameLength ||
+		len(location) > www.PolicyMaxUsernameLength {
+		log.Debugf("Location not within bounds: %s", location)
+		return www.UserError{
+			ErrorCode: www.ErrorStatusMalformedLocation,
+		}
+	}
+
+	if !validLocation.MatchString(location) {
+		log.Debugf("Location not valid: %s %s", location, validLocation.String())
+		return www.UserError{
+			ErrorCode: www.ErrorStatusMalformedLocation,
+		}
+	}
+
+	return nil
 }
 
 // checkPublicKeyAndSignature validates the public key and signature.
@@ -1501,9 +1576,9 @@ func (p *politeiawww) logAdminAction(adminUser *user.User, content string) error
 // logAdminUserAction logs an admin action on a specific user.
 //
 // This function must be called WITHOUT the mutex held.
-func (p *politeiawww) logAdminUserAction(adminUser, user *user.User, action v1.UserManageActionT, reasonForAction string) error {
+func (p *politeiawww) logAdminUserAction(adminUser, user *user.User, action www.UserManageActionT, reasonForAction string) error {
 	return p.logAdminAction(adminUser, fmt.Sprintf("%v,%v,%v,%v",
-		v1.UserManageAction[action], user.ID, user.Username, reasonForAction))
+		www.UserManageAction[action], user.ID, user.Username, reasonForAction))
 }
 
 // logAdminProposalAction logs an admin action on a proposal.
@@ -1514,7 +1589,7 @@ func (p *politeiawww) logAdminProposalAction(adminUser *user.User, token, action
 }
 
 // processManageUser processes the admin ManageUser command.
-func (p *politeiawww) processManageUser(mu *v1.ManageUser, adminUser *user.User) (*v1.ManageUserReply, error) {
+func (p *politeiawww) processManageUser(mu *www.ManageUser, adminUser *user.User) (*www.ManageUserReply, error) {
 	// Fetch the database user.
 	user, err := p.getUserByIDStr(mu.UserID)
 	if err != nil {
@@ -1522,17 +1597,17 @@ func (p *politeiawww) processManageUser(mu *v1.ManageUser, adminUser *user.User)
 	}
 
 	// Validate that the action is valid.
-	if mu.Action == v1.UserManageInvalid {
-		return nil, v1.UserError{
-			ErrorCode: v1.ErrorStatusInvalidUserManageAction,
+	if mu.Action == www.UserManageInvalid {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidUserManageAction,
 		}
 	}
 
 	// Validate that the reason is supplied.
 	mu.Reason = strings.TrimSpace(mu.Reason)
 	if len(mu.Reason) == 0 {
-		return nil, v1.UserError{
-			ErrorCode: v1.ErrorStatusInvalidInput,
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidInput,
 		}
 	}
 
@@ -1540,28 +1615,28 @@ func (p *politeiawww) processManageUser(mu *v1.ManageUser, adminUser *user.User)
 	expiredTime := time.Now().Add(-168 * time.Hour).Unix()
 
 	switch mu.Action {
-	case v1.UserManageExpireNewUserVerification:
+	case www.UserManageExpireNewUserVerification:
 		user.NewUserVerificationExpiry = expiredTime
 		user.ResendNewUserVerificationExpiry = expiredTime
-	case v1.UserManageExpireUpdateKeyVerification:
+	case www.UserManageExpireUpdateKeyVerification:
 		user.UpdateKeyVerificationExpiry = expiredTime
-	case v1.UserManageExpireResetPasswordVerification:
+	case www.UserManageExpireResetPasswordVerification:
 		user.ResetPasswordVerificationExpiry = expiredTime
-	case v1.UserManageClearUserPaywall:
+	case www.UserManageClearUserPaywall:
 		p.removeUsersFromPool([]uuid.UUID{user.ID})
 
 		user.NewUserPaywallAmount = 0
 		user.NewUserPaywallTx = "cleared_by_admin"
 		user.NewUserPaywallPollExpiry = 0
-	case v1.UserManageUnlock:
+	case www.UserManageUnlock:
 		user.FailedLoginAttempts = 0
-	case v1.UserManageDeactivate:
+	case www.UserManageDeactivate:
 		user.Deactivated = true
-	case v1.UserManageReactivate:
+	case www.UserManageReactivate:
 		user.Deactivated = false
 	default:
 		return nil, fmt.Errorf("unsupported user edit action: %v",
-			v1.UserManageAction[mu.Action])
+			www.UserManageAction[mu.Action])
 	}
 
 	// Update the user in the database.
@@ -1578,13 +1653,13 @@ func (p *politeiawww) processManageUser(mu *v1.ManageUser, adminUser *user.User)
 		})
 	}
 
-	return &v1.ManageUserReply{}, nil
+	return &www.ManageUserReply{}, nil
 }
 
 // processUsers returns a list of users given a set of filters.
-func (p *politeiawww) processUsers(users *v1.Users) (*v1.UsersReply, error) {
-	var reply v1.UsersReply
-	reply.Users = make([]v1.AbridgedUser, 0)
+func (p *politeiawww) processUsers(users *www.Users) (*www.UsersReply, error) {
+	var reply www.UsersReply
+	reply.Users = make([]www.AbridgedUser, 0)
 
 	emailQuery := strings.ToLower(users.Email)
 	usernameQuery := formatUsername(users.Username)
@@ -1611,8 +1686,8 @@ func (p *politeiawww) processUsers(users *v1.Users) (*v1.UsersReply, error) {
 
 		if userMatches {
 			reply.TotalMatches++
-			if reply.TotalMatches < v1.UserListPageSize {
-				reply.Users = append(reply.Users, v1.AbridgedUser{
+			if reply.TotalMatches < www.UserListPageSize {
+				reply.Users = append(reply.Users, www.AbridgedUser{
 					ID:       user.ID.String(),
 					Email:    user.Email,
 					Username: user.Username,
@@ -1634,10 +1709,10 @@ func (p *politeiawww) processUsers(users *v1.Users) (*v1.UsersReply, error) {
 
 // processUserPaymentsRescan allows an admin to rescan a user's paywall address
 // to check for any payments that may have been missed by paywall polling.
-func (p *politeiawww) processUserPaymentsRescan(upr v1.UserPaymentsRescan) (*v1.UserPaymentsRescanReply, error) {
+func (p *politeiawww) processUserPaymentsRescan(upr www.UserPaymentsRescan) (*www.UserPaymentsRescanReply, error) {
 	// Ensure paywall is enabled
 	if !p.paywallIsEnabled() {
-		return &v1.UserPaymentsRescanReply{}, nil
+		return &www.UserPaymentsRescanReply{}, nil
 	}
 
 	// Lookup user
@@ -1765,12 +1840,12 @@ func (p *politeiawww) processUserPaymentsRescan(upr v1.UserPaymentsRescan) (*v1.
 	}
 
 	// Convert database credits to www credits
-	newCreditsWWW := make([]v1.ProposalCredit, len(newCredits))
+	newCreditsWWW := make([]www.ProposalCredit, len(newCredits))
 	for i, credit := range newCredits {
 		newCreditsWWW[i] = convertWWWPropCreditFromDatabasePropCredit(credit)
 	}
 
-	return &v1.UserPaymentsRescanReply{
+	return &www.UserPaymentsRescanReply{
 		NewCredits: newCreditsWWW,
 	}, nil
 }
@@ -1778,8 +1853,8 @@ func (p *politeiawww) processUserPaymentsRescan(upr v1.UserPaymentsRescan) (*v1.
 // processVerifyUserPayment verifies that the provided transaction
 // meets the minimum requirements to mark the user as paid, and then does
 // that in the user database.
-func (p *politeiawww) processVerifyUserPayment(u *user.User, vupt v1.VerifyUserPayment) (*v1.VerifyUserPaymentReply, error) {
-	var reply v1.VerifyUserPaymentReply
+func (p *politeiawww) processVerifyUserPayment(u *user.User, vupt www.VerifyUserPayment) (*www.VerifyUserPaymentReply, error) {
+	var reply www.VerifyUserPaymentReply
 	if p.HasUserPaid(u) {
 		reply.HasPaid = true
 		return &reply, nil
@@ -1801,8 +1876,8 @@ func (p *politeiawww) processVerifyUserPayment(u *user.User, vupt v1.VerifyUserP
 		p.cfg.MinConfirmationsRequired)
 	if err != nil {
 		if err == util.ErrCannotVerifyPayment {
-			return nil, v1.UserError{
-				ErrorCode: v1.ErrorStatusCannotVerifyPayment,
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusCannotVerifyPayment,
 			}
 		}
 		return nil, err
@@ -2073,4 +2148,243 @@ func (p *politeiawww) initPaywallChecker() error {
 	// Start the thread that checks for payments.
 	go p.checkForPayments()
 	return nil
+}
+
+func setInviteNewUserVerification(u *user.User, token []byte, expiry int64, includeResend bool) {
+	u.NewUserVerificationToken = token
+	u.NewUserVerificationExpiry = expiry
+	if includeResend {
+		// This field is used to support requesting another registration email
+		// quickly, without having to wait the full email-spam-prevention
+		// period.
+		u.ResendNewUserVerificationExpiry = expiry
+	}
+}
+
+func setRegisterUserIdentity(u *user.User, token []byte, expiry int64, includeResend bool) {
+	u.NewUserVerificationToken = token
+	u.NewUserVerificationExpiry = expiry
+	if includeResend {
+		// This field is used to support requesting another registration email
+		// quickly, without having to wait the full email-spam-prevention
+		// period.
+		u.ResendNewUserVerificationExpiry = expiry
+	}
+}
+
+// processInviteNewUser creates a new user in the db if it doesn't already
+// exist and sets a verification token and expiry; the token must be
+// verified before it expires. If the user already exists in the db
+// and its token is expired, it generates a new one.
+//
+// Note that this function always returns a InviteNewUserReply.  The caller shall
+// verify error and determine how to return this information upstream.
+func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*www.NewUserReply, error) {
+	var (
+		reply  www.NewUserReply
+		token  []byte
+		expiry int64
+	)
+	existingUser, err := p.db.UserGet(u.Email)
+	if err == nil {
+		// Check if the user is already verified.
+		if existingUser.NewUserVerificationToken == nil {
+			return &reply, nil
+		}
+	}
+
+	// Generate the verification token and expiry.
+	token, expiry, err = generateVerificationTokenAndExpiry()
+	if err != nil {
+		return nil, err
+	}
+
+	// Create a new database user with the provided information.
+	newUser := user.User{
+		Email: strings.ToLower(u.Email),
+		Admin: false,
+	}
+	setInviteNewUserVerification(&newUser, token, expiry, false)
+
+	if !p.test {
+		// Try to email the verification link first; if it fails, then
+		// the new user won't be created.
+		//
+		// This is conditional on the email server being setup.
+		err := p.emailInviteNewUserVerificationLink(u.Email, hex.EncodeToString(token))
+		if err != nil {
+			log.Errorf("Email invite new user verification link failed %v, %v", u.Email, err)
+			return &reply, nil
+		}
+	}
+
+	// Check if the user already exists.
+	if existingUser != nil {
+		// Update the user in the db. Which will resend the email and give a new token
+		newUser.ID = existingUser.ID
+		err = p.db.UserUpdate(newUser)
+	} else {
+		// Save the new user in the db.
+		err = p.db.UserNew(newUser)
+	}
+
+	// Error handling for the db write.
+	if err != nil {
+		if err == user.ErrInvalidEmail {
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusMalformedEmail,
+			}
+		}
+
+		return nil, err
+	}
+
+	reply.VerificationToken = hex.EncodeToString(token)
+	return &reply, nil
+}
+
+func (p *politeiawww) processRegisterUser(u cms.RegisterUser) (*cms.RegisterUserReply, error) {
+	var reply cms.RegisterUserReply
+
+	// Check that the user already exists.
+	existingUser, err := p.db.UserGet(u.Email)
+	if err != nil {
+		if err == user.ErrUserNotFound {
+			log.Debugf("RegisterUser failure for %v: user not found",
+				u.Email)
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusVerificationTokenInvalid,
+			}
+		}
+		return nil, err
+	}
+
+	// Ensure we got a proper pubkey.
+	pk, err := validatePubkey(u.PublicKey)
+	if err != nil {
+		return nil, err
+	}
+
+	// Format and validate the username.
+	username := formatUsername(u.Username)
+	err = validateUsername(username)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate the password.
+	err = validatePassword(u.Password)
+	if err != nil {
+		return nil, err
+	}
+
+	// Hash the user's password.
+	hashedPassword, err := p.hashPassword(u.Password)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate that the pubkey isn't already taken.
+	err = p.validatePubkeyIsUnique(u.PublicKey, existingUser)
+	if err != nil {
+		return nil, err
+	}
+
+	// Decode the verification token.
+	token, err := hex.DecodeString(u.VerificationToken)
+	if err != nil {
+		log.Debugf("Register failure for %v: verification token could "+
+			"not be decoded: %v", u.Email, err)
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusVerificationTokenInvalid,
+		}
+	}
+
+	// Check that the verification token matches.
+	if !bytes.Equal(token, existingUser.NewUserVerificationToken) {
+		log.Debugf("Register failure for %v: verification token doesn't "+
+			"match, expected %v", u.Email, existingUser.NewUserVerificationToken)
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusVerificationTokenInvalid,
+		}
+	}
+
+	// Check that the token hasn't expired.
+	if time.Now().Unix() > existingUser.NewUserVerificationExpiry {
+		log.Debugf("Register failure for %v: verification token expired",
+			u.Email)
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusVerificationTokenExpired,
+		}
+	}
+
+	// Validate provided contractor name
+	name := formatName(u.Name)
+	err = validateName(name)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate provided contractor location
+	location := formatLocation(u.Location)
+	err = validateLocation(location)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate provided contractor extended public key
+	contractorKey, err := hdkeychain.NewKeyFromString(u.ExtendedPublicKey)
+	if err != nil {
+		return nil, fmt.Errorf("error processing extended public key: %v",
+			err)
+	}
+	if !contractorKey.IsForNet(activeNetParams.Params) {
+		return nil, fmt.Errorf("contractor extended public key is for the " +
+			"wrong network")
+	}
+
+	// Create a new database user with the provided information.
+	newUser := user.User{
+		Email:                     strings.ToLower(u.Email),
+		Username:                  username,
+		HashedPassword:            hashedPassword,
+		Admin:                     false,
+		Name:                      u.Name,
+		Location:                  u.Location,
+		ExtendedPublicKey:         u.ExtendedPublicKey,
+		NewUserVerificationToken:  nil,
+		NewUserVerificationExpiry: 0,
+	}
+
+	// Set the newUser's identity with the provided public key
+	newUser.Identities = []user.Identity{{
+		Activated: time.Now().Unix(),
+	}}
+	copy(newUser.Identities[0].Key[:], pk)
+	existingPublicKey := hex.EncodeToString(newUser.Identities[0].Key[:])
+	p.removeUserPubkeyAssociaton(existingUser, existingPublicKey)
+
+	// Update the user in the db.
+	newUser.ID = existingUser.ID
+	err = p.db.UserUpdate(newUser)
+	if err != nil {
+		return nil, err
+	}
+
+	// Even if user is non-nil, this will bring it up-to-date
+	// with the new information inserted via newUser.
+	existingUser, err = p.db.UserGet(newUser.Email)
+	if err != nil {
+		return nil, fmt.Errorf("unable to retrieve account info for %v: %v",
+			newUser.Email, err)
+	}
+
+	// Associate the user id with the new public key.
+	p.setUserPubkeyAssociaton(existingUser, u.PublicKey)
+
+	err = p.db.UserUpdate(newUser)
+	if err != nil {
+		return nil, err
+	}
+	return &reply, nil
 }

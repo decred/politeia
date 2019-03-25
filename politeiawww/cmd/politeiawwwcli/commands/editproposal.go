@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/decred/politeia/politeiad/api/v1/mime"
-	"github.com/decred/politeia/politeiawww/api/v1"
+	"github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
 )
 

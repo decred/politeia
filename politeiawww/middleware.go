@@ -11,7 +11,7 @@ import (
 	"runtime/debug"
 	"time"
 
-	v1 "github.com/decred/politeia/politeiawww/api/v1"
+	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
 )
 
@@ -24,16 +24,16 @@ func (p *politeiawww) isLoggedIn(f http.HandlerFunc) http.HandlerFunc {
 
 		id, err := p.getSessionUUID(r)
 		if err != nil {
-			util.RespondWithJSON(w, http.StatusUnauthorized, v1.ErrorReply{
-				ErrorCode: int64(v1.ErrorStatusNotLoggedIn),
+			util.RespondWithJSON(w, http.StatusUnauthorized, www.ErrorReply{
+				ErrorCode: int64(www.ErrorStatusNotLoggedIn),
 			})
 			return
 		}
 
 		// Check if user is authenticated
 		if id == "" {
-			util.RespondWithJSON(w, http.StatusUnauthorized, v1.ErrorReply{
-				ErrorCode: int64(v1.ErrorStatusNotLoggedIn),
+			util.RespondWithJSON(w, http.StatusUnauthorized, www.ErrorReply{
+				ErrorCode: int64(www.ErrorStatusNotLoggedIn),
 			})
 			return
 		}
@@ -53,13 +53,13 @@ func (p *politeiawww) isLoggedInAsAdmin(f http.HandlerFunc) http.HandlerFunc {
 		isAdmin, err := p.isAdmin(w, r)
 		if err != nil {
 			log.Errorf("isLoggedInAsAdmin: isAdmin %v", err)
-			util.RespondWithJSON(w, http.StatusUnauthorized, v1.ErrorReply{
-				ErrorCode: int64(v1.ErrorStatusNotLoggedIn),
+			util.RespondWithJSON(w, http.StatusUnauthorized, www.ErrorReply{
+				ErrorCode: int64(www.ErrorStatusNotLoggedIn),
 			})
 			return
 		}
 		if !isAdmin {
-			util.RespondWithJSON(w, http.StatusForbidden, v1.ErrorReply{})
+			util.RespondWithJSON(w, http.StatusForbidden, www.ErrorReply{})
 			return
 		}
 
@@ -98,7 +98,7 @@ func closeBody(f http.HandlerFunc) http.HandlerFunc {
 
 func remoteAddr(r *http.Request) string {
 	via := r.RemoteAddr
-	xff := r.Header.Get(v1.Forward)
+	xff := r.Header.Get(www.Forward)
 	if xff != "" {
 		return fmt.Sprintf("%v via %v", xff, r.RemoteAddr)
 	}
@@ -118,7 +118,7 @@ func recoverMiddleware(next http.Handler) http.Handler {
 					debug.Stack())
 
 				util.RespondWithJSON(w, http.StatusInternalServerError,
-					v1.ErrorReply{
+					www.ErrorReply{
 						ErrorCode: errorCode,
 					})
 			}

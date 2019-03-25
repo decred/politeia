@@ -12,7 +12,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrwallet/rpc/walletrpc"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
-	"github.com/decred/politeia/politeiawww/api/v1"
+	"github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
 )
 

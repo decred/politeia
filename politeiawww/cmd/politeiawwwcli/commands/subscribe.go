@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"os"
 
-	v1 "github.com/decred/politeia/politeiawww/api/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
 	"github.com/gorilla/websocket"
 	"golang.org/x/net/publicsuffix"

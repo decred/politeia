@@ -96,6 +96,12 @@ const (
 	// PolicyMinUsernameLength is the min length of a username
 	PolicyMinUsernameLength = 3
 
+	// PolicyMaxUsernameLength is the max length of a username
+	PolicyMaxNameLength = 50
+
+	// PolicyMinUsernameLength is the min length of a username
+	PolicyMinNameLength = 3
+
 	// PolicyMaxProposalNameLength is the max length of a proposal name
 	PolicyMaxProposalNameLength = 80
 
@@ -175,6 +181,8 @@ const (
 	ErrorStatusInvalidLikeCommentAction    ErrorStatusT = 57
 	ErrorStatusInvalidCensorshipToken      ErrorStatusT = 58
 	ErrorStatusEmailAlreadyVerified        ErrorStatusT = 59
+	ErrorStatusMalformedName               ErrorStatusT = 60
+	ErrorStatusMalformedLocation           ErrorStatusT = 61
 
 	// Proposal state codes
 	//
@@ -248,6 +256,12 @@ var (
 	PolicyUsernameSupportedChars = []string{
 		"a-z", "0-9", ".", ",", ":", ";", "-", "@", "+", "(", ")", "_"}
 
+	// PolicyNameLocationSupportedChars is the regular expression of a valid
+	// name or location for registering users on cms.
+	PolicyNameLocationSupportedChars = []string{
+		"A-z", "0-9", "&", ".", ",", ":", ";", "-", " ", "@", "+", "#", "/",
+		"(", ")", "!", "?", "\"", "'"}
+
 	// PoliteiaWWWAPIRoute is the prefix to the API route
 	PoliteiaWWWAPIRoute = fmt.Sprintf("/v%v", PoliteiaWWWAPIVersion)
 
@@ -317,6 +331,8 @@ var (
 		ErrorStatusInvalidLikeCommentAction:    "invalid like comment action",
 		ErrorStatusInvalidCensorshipToken:      "invalid proposal censorship token",
 		ErrorStatusEmailAlreadyVerified:        "email address is already verified",
+		ErrorStatusMalformedName:               "malformed name",
+		ErrorStatusMalformedLocation:           "malformed location",
 	}
 
 	// PropStatus converts propsal status codes to human readable text
@@ -462,6 +478,7 @@ type VersionReply struct {
 	Route   string `json:"route"`   // prefix to API calls
 	PubKey  string `json:"pubkey"`  // Server public key
 	TestNet bool   `json:"testnet"` // Network indicator
+	Mode    string `json:"mode"`    // current politeiawww mode running (piwww or cmswww)
 }
 
 // NewUser is used to request that a new user be created within the db.
@@ -1083,6 +1100,9 @@ type User struct {
 	Identities                      []UserIdentity `json:"identities"`
 	ProposalCredits                 uint64         `json:"proposalcredits"`
 	EmailNotifications              uint64         `json:"emailnotifications"` // Notify the user via emails
+	Name                            string         `json:"name"`
+	Location                        string         `json:"location"`
+	ExtendedPublicKey               string         `json:"extpubkey"`
 }
 
 // UserIdentity represents a user's unique identity.

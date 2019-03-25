@@ -22,8 +22,7 @@ import (
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/cache"
-	v1 "github.com/decred/politeia/politeiawww/api/v1"
-	www "github.com/decred/politeia/politeiawww/api/v1"
+	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 )
@@ -1589,19 +1588,19 @@ func (p *politeiawww) processCastVotes(ballot *www.Ballot) (*www.BallotReply, er
 // the user to purchase proposal credits. The user can only have one paywall
 // active at a time.  If no paywall currently exists, a new one is created and
 // the user is added to the paywall pool.
-func (p *politeiawww) processProposalPaywallDetails(u *user.User) (*v1.ProposalPaywallDetailsReply, error) {
+func (p *politeiawww) processProposalPaywallDetails(u *user.User) (*www.ProposalPaywallDetailsReply, error) {
 	log.Tracef("processProposalPaywallDetails")
 
 	// Ensure paywall is enabled
 	if !p.paywallIsEnabled() {
-		return &v1.ProposalPaywallDetailsReply{}, nil
+		return &www.ProposalPaywallDetailsReply{}, nil
 	}
 
 	// Proposal paywalls cannot be generated until the user has paid their
 	// user registration fee.
 	if !p.HasUserPaid(u) {
-		return nil, v1.UserError{
-			ErrorCode: v1.ErrorStatusUserNotPaid,
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserNotPaid,
 		}
 	}
 
@@ -1618,7 +1617,7 @@ func (p *politeiawww) processProposalPaywallDetails(u *user.User) (*v1.ProposalP
 		}
 	}
 
-	return &v1.ProposalPaywallDetailsReply{
+	return &www.ProposalPaywallDetailsReply{
 		CreditPrice:        pp.CreditPrice,
 		PaywallAddress:     pp.Address,
 		PaywallTxNotBefore: pp.TxNotBefore,
@@ -1627,7 +1626,7 @@ func (p *politeiawww) processProposalPaywallDetails(u *user.User) (*v1.ProposalP
 
 // processProposalPaywallPayment checks if the user has a pending paywall
 // payment and returns the payment details if one is found.
-func (p *politeiawww) processProposalPaywallPayment(u *user.User) (*v1.ProposalPaywallPaymentReply, error) {
+func (p *politeiawww) processProposalPaywallPayment(u *user.User) (*www.ProposalPaywallPaymentReply, error) {
 	log.Tracef("processProposalPaywallPayment")
 
 	var (
@@ -1646,7 +1645,7 @@ func (p *politeiawww) processProposalPaywallPayment(u *user.User) (*v1.ProposalP
 		confirmations = poolMember.txConfirmations
 	}
 
-	return &v1.ProposalPaywallPaymentReply{
+	return &www.ProposalPaywallPaymentReply{
 		TxID:          txID,
 		TxAmount:      txAmount,
 		Confirmations: confirmations,

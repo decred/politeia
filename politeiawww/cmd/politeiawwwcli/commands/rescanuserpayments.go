@@ -4,7 +4,7 @@
 
 package commands
 
-import "github.com/decred/politeia/politeiawww/api/v1"
+import "github.com/decred/politeia/politeiawww/api/www/v1"
 
 // RescanUserPaymentsCmd rescans the logged in user's paywall address and
 // makes sure that all payments have been credited to the user's account.

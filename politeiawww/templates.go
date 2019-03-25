@@ -10,6 +10,11 @@ type newUserEmailTemplateData struct {
 	Email    string
 }
 
+type newInviteUserEmailTemplateData struct {
+	Email string
+	Link  string
+}
+
 type updateUserKeyEmailTemplateData struct {
 	Link      string
 	PublicKey string
@@ -201,4 +206,13 @@ const templateCommentReplyOnCommentRaw = `
 
 Proposal: {{.ProposalName}}
 Comment: {{.CommentLink}}
+`
+
+const templateInviteNewUserEmailRaw = `
+You are invited to join Decred as a contractor! To complete your registration, you will need to use the following link and register on the CMS site:
+
+{{.Link}}
+
+You are receiving this email because {{.Email}} was used to be invited to Decred's Contractor Management System.
+If you do not recognize this, please ignore this email.
 `

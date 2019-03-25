@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	v1 "github.com/decred/politeia/politeiawww/api/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/gorilla/websocket"
 )
 

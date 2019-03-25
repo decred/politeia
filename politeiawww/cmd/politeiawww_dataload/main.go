@@ -17,7 +17,7 @@ import (
 	"strings"
 
 	"github.com/decred/dcrd/dcrutil"
-	"github.com/decred/politeia/politeiawww/api/v1"
+	"github.com/decred/politeia/politeiawww/api/www/v1"
 	wwwconfig "github.com/decred/politeia/politeiawww/sharedconfig"
 )
 

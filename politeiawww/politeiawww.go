@@ -14,7 +14,7 @@ import (
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/cache"
-	v1 "github.com/decred/politeia/politeiawww/api/v1"
+	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
@@ -59,7 +59,7 @@ type wsContext struct {
 	conn          *websocket.Conn
 	wg            sync.WaitGroup
 	subscriptions map[string]struct{}
-	errorC        chan v1.WSError
+	errorC        chan www.WSError
 	pingC         chan struct{}
 	done          chan struct{} // SHUT...DOWN...EVERYTHING...
 }
@@ -137,11 +137,12 @@ func (p *politeiawww) getTemplate(templateName string) *template.Template {
 func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleVersion")
 
-	versionReply, err := json.Marshal(v1.VersionReply{
-		Version: v1.PoliteiaWWWAPIVersion,
-		Route:   v1.PoliteiaWWWAPIRoute,
+	versionReply, err := json.Marshal(www.VersionReply{
+		Version: www.PoliteiaWWWAPIVersion,
+		Route:   www.PoliteiaWWWAPIRoute,
 		PubKey:  hex.EncodeToString(p.cfg.Identity.Key[:]),
 		TestNet: p.cfg.TestNet,
+		Mode:    p.cfg.Mode,
 	})
 	if err != nil {
 		RespondWithError(w, r, 0, "handleVersion: Marshal %v", err)
@@ -152,7 +153,7 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	session, err := p.getSession(r)
 	if err != nil && session != nil {
 		// Create and save a new session for the user.
-		session := sessions.NewSession(p.store, v1.CookieSession)
+		session := sessions.NewSession(p.store, www.CookieSession)
 		opts := *p.store.Options
 		session.Options = &opts
 		session.IsNew = true
@@ -166,7 +167,7 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Add("Strict-Transport-Security",
 		"max-age=63072000; includeSubDomains")
-	w.Header().Set(v1.CsrfToken, csrf.Token(r))
+	w.Header().Set(www.CsrfToken, csrf.Token(r))
 	w.WriteHeader(http.StatusOK)
 	w.Write(versionReply)
 }
@@ -187,7 +188,7 @@ func (p *politeiawww) handleNotFound(w http.ResponseWriter, r *http.Request) {
 		return string(trace)
 	}))
 
-	util.RespondWithJSON(w, http.StatusNotFound, v1.ErrorReply{})
+	util.RespondWithJSON(w, http.StatusNotFound, www.ErrorReply{})
 }
 
 // handleAllVetted replies with the list of vetted proposals.
@@ -195,12 +196,12 @@ func (p *politeiawww) handleAllVetted(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleAllVetted")
 
 	// Get the all vetted command.
-	var v v1.GetAllVetted
+	var v www.GetAllVetted
 	err := util.ParseGetParams(r, &v)
 	if err != nil {
 		RespondWithError(w, r, 0, "handleAllVetted: ParseGetParams",
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidInput,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
 			})
 		return
 	}
@@ -220,14 +221,14 @@ func (p *politeiawww) handleAllVetted(w http.ResponseWriter, r *http.Request) {
 func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Request) {
 	// Add the path param to the struct.
 	log.Tracef("handleProposalDetails")
-	var pd v1.ProposalsDetails
+	var pd www.ProposalsDetails
 
 	// get version from query string parameters
 	err := util.ParseGetParams(r, &pd)
 	if err != nil {
 		RespondWithError(w, r, 0, "handleProposalDetails: ParseGetParams",
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidInput,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
 			})
 		return
 	}
@@ -258,22 +259,22 @@ func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Reque
 func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 	// Get the policy command.
 	log.Tracef("handlePolicy")
-	reply := &v1.PolicyReply{
-		MinPasswordLength:          v1.PolicyMinPasswordLength,
-		MinUsernameLength:          v1.PolicyMinUsernameLength,
-		MaxUsernameLength:          v1.PolicyMaxUsernameLength,
-		UsernameSupportedChars:     v1.PolicyUsernameSupportedChars,
-		ProposalListPageSize:       v1.ProposalListPageSize,
-		UserListPageSize:           v1.UserListPageSize,
-		MaxImages:                  v1.PolicyMaxImages,
-		MaxImageSize:               v1.PolicyMaxImageSize,
-		MaxMDs:                     v1.PolicyMaxMDs,
-		MaxMDSize:                  v1.PolicyMaxMDSize,
+	reply := &www.PolicyReply{
+		MinPasswordLength:          www.PolicyMinPasswordLength,
+		MinUsernameLength:          www.PolicyMinUsernameLength,
+		MaxUsernameLength:          www.PolicyMaxUsernameLength,
+		UsernameSupportedChars:     www.PolicyUsernameSupportedChars,
+		ProposalListPageSize:       www.ProposalListPageSize,
+		UserListPageSize:           www.UserListPageSize,
+		MaxImages:                  www.PolicyMaxImages,
+		MaxImageSize:               www.PolicyMaxImageSize,
+		MaxMDs:                     www.PolicyMaxMDs,
+		MaxMDSize:                  www.PolicyMaxMDSize,
 		ValidMIMETypes:             mime.ValidMimeTypes(),
-		MinProposalNameLength:      v1.PolicyMinProposalNameLength,
-		MaxProposalNameLength:      v1.PolicyMaxProposalNameLength,
-		ProposalNameSupportedChars: v1.PolicyProposalNameSupportedChars,
-		MaxCommentLength:           v1.PolicyMaxCommentLength,
+		MinProposalNameLength:      www.PolicyMinProposalNameLength,
+		MaxProposalNameLength:      www.PolicyMaxProposalNameLength,
+		ProposalNameSupportedChars: www.PolicyProposalNameSupportedChars,
+		MaxCommentLength:           www.PolicyMaxCommentLength,
 	}
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
@@ -307,12 +308,12 @@ func (p *politeiawww) handleUserProposals(w http.ResponseWriter, r *http.Request
 	log.Tracef("handleUserProposals")
 
 	// Get the user proposals command.
-	var up v1.UserProposals
+	var up www.UserProposals
 	err := util.ParseGetParams(r, &up)
 	if err != nil {
 		RespondWithError(w, r, 0, "handleUserProposals: ParseGetParams",
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidInput,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
 			})
 		return
 	}
@@ -320,8 +321,8 @@ func (p *politeiawww) handleUserProposals(w http.ResponseWriter, r *http.Request
 	userId, err := uuid.Parse(up.UserId)
 	if err != nil {
 		RespondWithError(w, r, 0, "handleUserProposals: ParseUint",
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidInput,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
 			})
 		return
 	}
@@ -363,11 +364,11 @@ func (p *politeiawww) handleActiveVote(w http.ResponseWriter, r *http.Request) {
 func (p *politeiawww) handleCastVotes(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleCastVotes")
 
-	var cv v1.Ballot
+	var cv www.Ballot
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&cv); err != nil {
-		RespondWithError(w, r, 0, "handleCastVotes: unmarshal", v1.UserError{
-			ErrorCode: v1.ErrorStatusInvalidInput,
+		RespondWithError(w, r, 0, "handleCastVotes: unmarshal", www.UserError{
+			ErrorCode: www.ErrorStatusInvalidInput,
 		})
 		return
 	}
@@ -460,11 +461,11 @@ func (p *politeiawww) handleProposalPaywallDetails(w http.ResponseWriter, r *htt
 func (p *politeiawww) handleNewProposal(w http.ResponseWriter, r *http.Request) {
 	// Get the new proposal command.
 	log.Tracef("handleNewProposal")
-	var np v1.NewProposal
+	var np www.NewProposal
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&np); err != nil {
-		RespondWithError(w, r, 0, "handleNewProposal: unmarshal", v1.UserError{
-			ErrorCode: v1.ErrorStatusInvalidInput,
+		RespondWithError(w, r, 0, "handleNewProposal: unmarshal", www.UserError{
+			ErrorCode: www.ErrorStatusInvalidInput,
 		})
 		return
 	}
@@ -491,12 +492,12 @@ func (p *politeiawww) handleNewProposal(w http.ResponseWriter, r *http.Request) 
 func (p *politeiawww) handleNewComment(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleNewComment")
 
-	var sc v1.NewComment
+	var sc www.NewComment
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&sc); err != nil {
 		RespondWithError(w, r, 0, "handleNewComment: unmarshal",
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidInput,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
 			})
 		return
 	}
@@ -522,12 +523,12 @@ func (p *politeiawww) handleNewComment(w http.ResponseWriter, r *http.Request) {
 func (p *politeiawww) handleLikeComment(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleLikeComment")
 
-	var lc v1.LikeComment
+	var lc www.LikeComment
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&lc); err != nil {
 		RespondWithError(w, r, 0, "handleLikeComment: unmarshal",
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidInput,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
 			})
 		return
 	}
@@ -551,12 +552,12 @@ func (p *politeiawww) handleLikeComment(w http.ResponseWriter, r *http.Request) 
 
 // handleEditProposal attempts to edit a proposal
 func (p *politeiawww) handleEditProposal(w http.ResponseWriter, r *http.Request) {
-	var ep v1.EditProposal
+	var ep www.EditProposal
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&ep); err != nil {
 		RespondWithError(w, r, 0, "handleEditProposal: unmarshal",
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidInput,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
 			})
 		return
 	}
@@ -583,12 +584,12 @@ func (p *politeiawww) handleEditProposal(w http.ResponseWriter, r *http.Request)
 // handleAuthorizeVote handles authorizing a proposal vote.
 func (p *politeiawww) handleAuthorizeVote(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleAuthorizeVote")
-	var av v1.AuthorizeVote
+	var av www.AuthorizeVote
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&av); err != nil {
 		RespondWithError(w, r, 0, "handleAuthorizeVote: unmarshal",
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidInput,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
 			})
 		return
 	}
@@ -639,7 +640,7 @@ func (p *politeiawww) websocketPing(id string) {
 	defer p.wsMtx.RUnlock()
 
 	for _, v := range p.ws[id] {
-		if _, ok := v.subscriptions[v1.WSCPing]; !ok {
+		if _, ok := v.subscriptions[www.WSCPing]; !ok {
 			continue
 		}
 
@@ -666,8 +667,8 @@ func (p *politeiawww) handleWebsocketRead(wc *wsContext) {
 			return
 		}
 		switch cmd {
-		case v1.WSCSubscribe:
-			subscribe, ok := payload.(v1.WSSubscribe)
+		case www.WSCSubscribe:
+			subscribe, ok := payload.(www.WSSubscribe)
 			if !ok {
 				// We are treating this a hard error so that
 				// the client knows they sent in something
@@ -709,8 +710,8 @@ func (p *politeiawww) handleWebsocketRead(wc *wsContext) {
 				wc.subscriptions = subscriptions
 				p.wsMtx.Unlock()
 			} else {
-				wc.errorC <- v1.WSError{
-					Command: v1.WSCSubscribe,
+				wc.errorC <- www.WSError{
+					Command: www.WSCSubscribe,
 					ID:      id,
 					Errors:  errors,
 				}
@@ -740,7 +741,7 @@ func (p *politeiawww) handleWebsocketWrite(wc *wsContext) {
 					" %v", wc)
 				return
 			}
-			cmd = v1.WSCError
+			cmd = www.WSCError
 			id = e.ID
 			payload = e
 		case _, ok := <-wc.pingC:
@@ -749,9 +750,9 @@ func (p *politeiawww) handleWebsocketWrite(wc *wsContext) {
 					" %v", wc)
 				return
 			}
-			cmd = v1.WSCPing
+			cmd = www.WSCPing
 			id = ""
-			payload = v1.WSPing{Timestamp: time.Now().Unix()}
+			payload = www.WSPing{Timestamp: time.Now().Unix()}
 		}
 
 		err := util.WSWrite(wc.conn, cmd, id, payload)
@@ -772,7 +773,7 @@ func (p *politeiawww) handleWebsocket(w http.ResponseWriter, r *http.Request, id
 		uuid:          id,
 		subscriptions: make(map[string]struct{}),
 		pingC:         make(chan struct{}),
-		errorC:        make(chan v1.WSError),
+		errorC:        make(chan www.WSError),
 		done:          make(chan struct{}),
 	}
 
@@ -877,12 +878,12 @@ func (p *politeiawww) handleAllUnvetted(w http.ResponseWriter, r *http.Request) 
 	log.Tracef("handleAllUnvetted")
 
 	// Get the all unvetted command.
-	var u v1.GetAllUnvetted
+	var u www.GetAllUnvetted
 	err := util.ParseGetParams(r, &u)
 	if err != nil {
 		RespondWithError(w, r, 0, "handleAllUnvetted: ParseGetParams",
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidInput,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
 			})
 		return
 	}
@@ -902,12 +903,12 @@ func (p *politeiawww) handleAllUnvetted(w http.ResponseWriter, r *http.Request) 
 func (p *politeiawww) handleSetProposalStatus(w http.ResponseWriter, r *http.Request) {
 	// Get the proposal status command.
 	log.Tracef("handleSetProposalStatus")
-	var sps v1.SetProposalStatus
+	var sps www.SetProposalStatus
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&sps); err != nil {
 		RespondWithError(w, r, 0, "handleSetProposalStatus: unmarshal",
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidInput,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
 			})
 		return
 	}
@@ -936,12 +937,12 @@ func (p *politeiawww) handleSetProposalStatus(w http.ResponseWriter, r *http.Req
 func (p *politeiawww) handleStartVote(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleStartVote")
 
-	var sv v1.StartVote
+	var sv www.StartVote
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&sv); err != nil {
 		RespondWithError(w, r, 0, "handleStartVote: unmarshal",
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidInput,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
 			})
 		return
 	}
@@ -974,12 +975,12 @@ func (p *politeiawww) handleStartVote(w http.ResponseWriter, r *http.Request) {
 func (p *politeiawww) handleCensorComment(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleCensorComment")
 
-	var cc v1.CensorComment
+	var cc www.CensorComment
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&cc); err != nil {
 		RespondWithError(w, r, 0, "handleCensorComment: unmarshal",
-			v1.UserError{
-				ErrorCode: v1.ErrorStatusInvalidInput,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
 			})
 		return
 	}
@@ -1017,62 +1018,62 @@ func (p *politeiawww) setPoliteiaWWWRoutes() {
 	// Public routes.
 	p.router.HandleFunc("/", closeBody(logging(p.handleVersion))).Methods(http.MethodGet)
 	p.router.NotFoundHandler = closeBody(p.handleNotFound)
-	p.addRoute(http.MethodGet, v1.RouteVersion, p.handleVersion,
+	p.addRoute(http.MethodGet, www.RouteVersion, p.handleVersion,
 		permissionPublic)
 
-	p.addRoute(http.MethodGet, v1.RouteAllVetted, p.handleAllVetted,
+	p.addRoute(http.MethodGet, www.RouteAllVetted, p.handleAllVetted,
 		permissionPublic)
-	p.addRoute(http.MethodGet, v1.RouteProposalDetails,
+	p.addRoute(http.MethodGet, www.RouteProposalDetails,
 		p.handleProposalDetails, permissionPublic)
-	p.addRoute(http.MethodGet, v1.RoutePolicy, p.handlePolicy,
+	p.addRoute(http.MethodGet, www.RoutePolicy, p.handlePolicy,
 		permissionPublic)
-	p.addRoute(http.MethodGet, v1.RouteCommentsGet, p.handleCommentsGet,
+	p.addRoute(http.MethodGet, www.RouteCommentsGet, p.handleCommentsGet,
 		permissionPublic)
-	p.addRoute(http.MethodGet, v1.RouteUserProposals, p.handleUserProposals,
+	p.addRoute(http.MethodGet, www.RouteUserProposals, p.handleUserProposals,
 		permissionPublic)
-	p.addRoute(http.MethodGet, v1.RouteActiveVote, p.handleActiveVote,
+	p.addRoute(http.MethodGet, www.RouteActiveVote, p.handleActiveVote,
 		permissionPublic)
-	p.addRoute(http.MethodPost, v1.RouteCastVotes, p.handleCastVotes,
+	p.addRoute(http.MethodPost, www.RouteCastVotes, p.handleCastVotes,
 		permissionPublic)
-	p.addRoute(http.MethodGet, v1.RouteVoteResults,
+	p.addRoute(http.MethodGet, www.RouteVoteResults,
 		p.handleVoteResults, permissionPublic)
-	p.addRoute(http.MethodGet, v1.RouteAllVoteStatus,
+	p.addRoute(http.MethodGet, www.RouteAllVoteStatus,
 		p.handleGetAllVoteStatus, permissionPublic)
-	p.addRoute(http.MethodGet, v1.RouteVoteStatus,
+	p.addRoute(http.MethodGet, www.RouteVoteStatus,
 		p.handleVoteStatus, permissionPublic)
-	p.addRoute(http.MethodGet, v1.RoutePropsStats,
+	p.addRoute(http.MethodGet, www.RoutePropsStats,
 		p.handleProposalsStats, permissionPublic)
 
 	// Routes that require being logged in.
-	p.addRoute(http.MethodGet, v1.RouteProposalPaywallDetails,
+	p.addRoute(http.MethodGet, www.RouteProposalPaywallDetails,
 		p.handleProposalPaywallDetails, permissionLogin)
-	p.addRoute(http.MethodPost, v1.RouteNewProposal, p.handleNewProposal,
+	p.addRoute(http.MethodPost, www.RouteNewProposal, p.handleNewProposal,
 		permissionLogin)
-	p.addRoute(http.MethodPost, v1.RouteNewComment,
+	p.addRoute(http.MethodPost, www.RouteNewComment,
 		p.handleNewComment, permissionLogin) // XXX comments need to become a setting
-	p.addRoute(http.MethodPost, v1.RouteLikeComment,
+	p.addRoute(http.MethodPost, www.RouteLikeComment,
 		p.handleLikeComment, permissionLogin) // XXX comments need to become a setting
-	p.addRoute(http.MethodPost, v1.RouteEditProposal,
+	p.addRoute(http.MethodPost, www.RouteEditProposal,
 		p.handleEditProposal, permissionLogin)
-	p.addRoute(http.MethodPost, v1.RouteAuthorizeVote,
+	p.addRoute(http.MethodPost, www.RouteAuthorizeVote,
 		p.handleAuthorizeVote, permissionLogin)
-	p.addRoute(http.MethodGet, v1.RouteProposalPaywallPayment,
+	p.addRoute(http.MethodGet, www.RouteProposalPaywallPayment,
 		p.handleProposalPaywallPayment, permissionLogin)
 
 	// Unauthenticated websocket
-	p.addRoute("", v1.RouteUnauthenticatedWebSocket,
+	p.addRoute("", www.RouteUnauthenticatedWebSocket,
 		p.handleUnauthenticatedWebsocket, permissionPublic)
 	// Authenticated websocket
-	p.addRoute("", v1.RouteAuthenticatedWebSocket,
+	p.addRoute("", www.RouteAuthenticatedWebSocket,
 		p.handleAuthenticatedWebsocket, permissionLogin)
 
 	// Routes that require being logged in as an admin user.
-	p.addRoute(http.MethodGet, v1.RouteAllUnvetted, p.handleAllUnvetted,
+	p.addRoute(http.MethodGet, www.RouteAllUnvetted, p.handleAllUnvetted,
 		permissionAdmin)
-	p.addRoute(http.MethodPost, v1.RouteSetProposalStatus,
+	p.addRoute(http.MethodPost, www.RouteSetProposalStatus,
 		p.handleSetProposalStatus, permissionAdmin)
-	p.addRoute(http.MethodPost, v1.RouteStartVote,
+	p.addRoute(http.MethodPost, www.RouteStartVote,
 		p.handleStartVote, permissionAdmin)
-	p.addRoute(http.MethodPost, v1.RouteCensorComment,
+	p.addRoute(http.MethodPost, www.RouteCensorComment,
 		p.handleCensorComment, permissionAdmin)
 }

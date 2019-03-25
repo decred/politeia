@@ -18,7 +18,8 @@ import (
 	"strings"
 
 	"github.com/decred/dcrwallet/rpc/walletrpc"
-	"github.com/decred/politeia/politeiawww/api/v1"
+	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
+	"github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
 	"github.com/gorilla/schema"
 	"golang.org/x/net/publicsuffix"
@@ -377,6 +378,52 @@ func (c *Client) Policy() (*v1.PolicyReply, error) {
 	}
 
 	return &pr, nil
+}
+
+// InviteNewUser creates a new cmswww user.
+func (c *Client) InviteNewUser(inu *cms.InviteNewUser) (*cms.InviteNewUserReply, error) {
+	responseBody, err := c.makeRequest("POST", cms.RouteInviteNewUser, inu)
+	if err != nil {
+		return nil, err
+	}
+
+	var inur cms.InviteNewUserReply
+	err = json.Unmarshal(responseBody, &inur)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal InviteNewUserReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(inur)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &inur, nil
+}
+
+// RegisterUser finalizes the signup process for a new cmswww user.
+func (c *Client) RegisterUser(ru *cms.RegisterUser) (*cms.RegisterUserReply, error) {
+	responseBody, err := c.makeRequest("POST", cms.RouteRegisterUser, ru)
+	if err != nil {
+		return nil, err
+	}
+
+	var rur cms.RegisterUserReply
+	err = json.Unmarshal(responseBody, &rur)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal RegisterUserReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(rur)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &rur, nil
 }
 
 // NewUser creates a new politeiawww user.

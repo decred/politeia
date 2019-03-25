@@ -51,7 +51,8 @@ const (
 	defaultVoteDurationMin = uint32(2016)
 	defaultVoteDurationMax = uint32(4032)
 
-	defaultMailAddress = "Politeia <noreply@example.org>"
+	defaultMailAddress    = "Politeia <noreply@example.org>"
+	defaultCMSMailAddress = "Contractor Management System <noreply@example.org>"
 
 	// dust value can be found increasing the amount value until we get false
 	// from IsDustAmount function. Amounts can not be lower than dust
@@ -61,7 +62,11 @@ const (
 	// }
 	dust = 60300
 
+	// Currently available modes to run politeia, by default piwww, is used.
 	politeiaWWWMode = "piwww"
+	cmsWWWMode      = "cmswww"
+
+	defaultWWWMode = politeiaWWWMode
 )
 
 var (
@@ -119,7 +124,7 @@ type config struct {
 	VoteDurationMin          uint32 `long:"votedurationmin" description:"Minimum duration of a proposal vote in blocks"`
 	VoteDurationMax          uint32 `long:"votedurationmax" description:"Maximum duration of a proposal vote in blocks"`
 	AdminLogFile             string `long:"adminlogfile" description:"admin log filename (Default: admin.log)"`
-	Mode                     string `long:"mode" description:"Mode www runs as. Supported values: piwww"`
+	Mode                     string `long:"mode" description:"Mode www runs as. Supported values: piwww, cmswww"`
 }
 
 // serviceOptions defines the configuration options for the rpc as a service
@@ -371,6 +376,7 @@ func loadConfig() (*config, []string, error) {
 		VoteDurationMin:          defaultVoteDurationMin,
 		VoteDurationMax:          defaultVoteDurationMax,
 		MailAddress:              defaultMailAddress,
+		Mode:                     defaultWWWMode,
 	}
 
 	// Service options which are only added on Windows.
@@ -482,6 +488,9 @@ func loadConfig() (*config, []string, error) {
 
 	// Verify mode
 	switch cfg.Mode {
+	case cmsWWWMode:
+		cfg.Mode = cmsWWWMode
+		cfg.MailAddress = defaultCMSMailAddress
 	case politeiaWWWMode:
 	default:
 		err := fmt.Errorf("invalid mode: %v", cfg.Mode)

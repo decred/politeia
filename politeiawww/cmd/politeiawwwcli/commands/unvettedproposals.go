@@ -7,7 +7,7 @@ package commands
 import (
 	"fmt"
 
-	"github.com/decred/politeia/politeiawww/api/v1"
+	"github.com/decred/politeia/politeiawww/api/www/v1"
 )
 
 // UnvettedProposalsCmd retrieves a page of unvetted proposals.
