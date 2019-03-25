@@ -49,7 +49,7 @@ func (MetadataStream) TableName() string {
 type Record struct {
 	Key       string `gorm:"primary_key"`       // Primary key (token+version)
 	Token     string `gorm:"not null;size:64"`  // Censorship token
-	Version   string `gorm:"not null"`          // Version of files
+	Version   uint64 `gorm:"not null"`          // Version of files
 	Status    int    `gorm:"not null"`          // Current status
 	Timestamp int64  `gorm:"not null"`          // UNIX timestamp of last updated
 	Merkle    string `gorm:"not null;size:64"`  // Merkle root of all files in record
@@ -106,7 +106,7 @@ func (LikeComment) TableName() string {
 type AuthorizeVote struct {
 	Key       string `gorm:"primary_key"`       // Primary key (token+version)
 	Token     string `gorm:"not null;size:64"`  // Censorship token
-	Version   string `gorm:"not null"`          // Version of files
+	Version   uint64 `gorm:"not null"`          // Version of files
 	Action    string `gorm:"not null"`          // Authorize or revoke
 	Signature string `gorm:"not null;size:128"` // Signature of token+version+action
 	PublicKey string `gorm:"not null;size:64"`  // Pubkey used for signature
@@ -137,7 +137,7 @@ func (VoteOption) TableName() string {
 // a proposal vote.
 type StartVote struct {
 	Token            string       `gorm:"primary_key;size:64"` // Censorship token
-	Version          string       `gorm:"not null"`            // Version of files
+	Version          uint64       `gorm:"not null"`            // Version of files
 	Mask             uint64       `gorm:"not null"`            // Valid votebits
 	Duration         uint32       `gorm:"not null"`            // Duration in blocks
 	QuorumPercentage uint32       `gorm:"not null"`            // Percent of eligible votes required for quorum

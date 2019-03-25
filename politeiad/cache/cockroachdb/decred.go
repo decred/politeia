@@ -6,6 +6,7 @@ package cockroachdb
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/decred/politeia/decredplugin"
@@ -279,8 +280,14 @@ func (d *decred) cmdAuthorizeVote(cmdPayload, replyPayload string) (string, erro
 		return "", err
 	}
 
+	v, err := strconv.ParseUint(avr.RecordVersion, 10, 64)
+	if err != nil {
+		return "", fmt.Errorf("parse version '%v' failed: %v",
+			avr.RecordVersion, err)
+	}
+
 	// Run update in a transaction
-	a := convertAuthorizeVoteFromDecred(*av, *avr)
+	a := convertAuthorizeVoteFromDecred(*av, *avr, v)
 	tx := d.recordsdb.Begin()
 	err = d.newAuthorizeVote(tx, a)
 	if err != nil {
@@ -354,8 +361,9 @@ func (d *decred) cmdVoteDetails(payload string) (string, error) {
 
 	// Lookup authorize vote
 	var av AuthorizeVote
+	key := vd.Token + strconv.FormatUint(r.Version, 10)
 	err = d.recordsdb.
-		Where("key = ?", vd.Token+r.Version).
+		Where("key = ?", key).
 		Find(&av).
 		Error
 	if err == gorm.ErrRecordNotFound {
@@ -674,8 +682,15 @@ func (d *decred) build(tx *gorm.DB, ir *decredplugin.InventoryReply) error {
 			return fmt.Errorf("AuthorizeVoteReply not found %v", v.Token)
 		}
 
-		av := convertAuthorizeVoteFromDecred(v, r)
-		err := d.newAuthorizeVote(tx, av)
+		rv, err := strconv.ParseUint(r.RecordVersion, 10, 64)
+		if err != nil {
+			log.Debugf("newAuthorizeVote failed on '%v'", r)
+			return fmt.Errorf("parse version '%v' failed: %v",
+				r.RecordVersion, err)
+		}
+
+		av := convertAuthorizeVoteFromDecred(v, r, rv)
+		err = d.newAuthorizeVote(tx, av)
 		if err != nil {
 			log.Debugf("newAuthorizeVote failed on '%v'", av)
 			return fmt.Errorf("newAuthorizeVote: %v", err)
