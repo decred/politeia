@@ -5,7 +5,6 @@
 package commands
 
 import (
-	"bytes"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -27,7 +26,6 @@ type NewInvoiceCmd struct {
 		CSV         string   `positional-arg-name:"csvfile"`         // Invoice CSV file
 		Attachments []string `positional-arg-name:"attachmentfiles"` // Invoice attachment files
 	} `positional-args:"true" optional:"true"`
-	Random bool `long:"random" optional:"true"` // Generate random invoice data
 }
 
 // Execute executes the new invoice command.
@@ -45,7 +43,7 @@ func (cmd *NewInvoiceCmd) Execute(args []string) error {
 		return err
 	}
 
-	if !cmd.Random && csvFile == "" {
+	if csvFile == "" {
 		return errInvoiceCSVNotFound
 	}
 
@@ -62,29 +60,12 @@ func (cmd *NewInvoiceCmd) Execute(args []string) error {
 
 	var csv []byte
 	files := make([]www.File, 0, www.PolicyMaxImages+1)
-	if cmd.Random {
-		// Generate random invoice markdown text
-		var b bytes.Buffer
-		b.WriteString("This is the invoice title\n")
+	// Read csv file into memory and convert to type File
+	fpath := util.CleanAndExpandPath(csvFile)
 
-		for i := 0; i < 10; i++ {
-			r, err := util.Random(32)
-			if err != nil {
-				return err
-			}
-			b.WriteString(base64.StdEncoding.EncodeToString(r) + "\n")
-		}
-
-		csv = b.Bytes()
-	} else {
-		// Read csv file into memory and convert to type File
-		fpath := util.CleanAndExpandPath(csvFile)
-
-		var err error
-		csv, err = ioutil.ReadFile(fpath)
-		if err != nil {
-			return fmt.Errorf("ReadFile %v: %v", fpath, err)
-		}
+	csv, err = ioutil.ReadFile(fpath)
+	if err != nil {
+		return fmt.Errorf("ReadFile %v: %v", fpath, err)
 	}
 
 	f := www.File{
