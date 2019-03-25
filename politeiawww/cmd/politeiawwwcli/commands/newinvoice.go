@@ -1,3 +1,7 @@
+// Copyright (c) 2017-2019 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package commands
 
 import (
@@ -160,10 +164,10 @@ Submit a new invoice to Politeia. Invoice must be a csv file. Accepted
 attachment filetypes: png or plain text.
 
 Arguments:
-1. month 			 (string, required)   Month
-2. year				 (string, required)   Year
-3. csvFile      	 (string, required)   Invoice 
-4. attachmentFiles   (string, optional)   Attachments 
+1. month			 (string, required)   Month (MM, 01-12)
+2. year				 (string, required)   Year (YYYY)
+3. csvFile			 (string, required)   Invoice CSV file
+4. attachmentFiles	 (string, optional)   Attachments 
 
 Flags:
   --random           (bool, optional)     Generate a random invoice
