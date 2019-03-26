@@ -313,10 +313,31 @@ func validateInvoice(ni cms.NewInvoice, u *user.User) error {
 			csvReader.Comment = www.PolicyInvoiceCommentChar
 			csvReader.TrimLeadingSpace = true
 
-			_, err = csvReader.ReadAll()
+			csvFields, err := csvReader.ReadAll()
 			if err != nil {
 				return www.UserError{
 					ErrorCode: www.ErrorStatusMalformedInvoiceFile,
+				}
+			}
+			// Validate that line items are the correct length and contents in
+			// field 4 and 5 are parsable to integers
+			for _, lineContents := range csvFields {
+				if len(lineContents) != 6 {
+					return www.UserError{
+						ErrorCode: www.ErrorStatusMalformedInvoiceFile,
+					}
+				}
+				_, err = strconv.Atoi(lineContents[4])
+				if err != nil {
+					return www.UserError{
+						ErrorCode: www.ErrorStatusMalformedInvoiceFile,
+					}
+				}
+				_, err = strconv.Atoi(lineContents[5])
+				if err != nil {
+					return www.UserError{
+						ErrorCode: www.ErrorStatusMalformedInvoiceFile,
+					}
 				}
 			}
 		}
