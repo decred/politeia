@@ -689,6 +689,21 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 		return nil, err
 	}
 
+	// Update the cmsdb
+	dbInvoice, err := convertRecordToDatabaseInvoice(pd.Record{
+		Files:            convertPropFilesFromWWW(updatedInvoice.Files),
+		Metadata:         mds,
+		CensorshipRecord: convertInvoiceCensorFromWWW(invRec.CensorshipRecord),
+		Version:          invRec.Version,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	err = p.cmsDb.UpdateInvoice(dbInvoice)
+	if err != nil {
+		return nil, err
+	}
 	/*
 		// Fire off edit proposal event
 		p.fireEvent(EventTypeProposalEdited,
