@@ -9,7 +9,8 @@ server side notifications.  It does not render HTML.
 
 ***Contractor Management Routes***
 - [`Register`](#register)
-- [`Invoices`](#invitenewuser)
+- [`Invite new user`](#invitenewuser)
+- [`New invoice`](#newinvoice)
 
 
 ### `Invite new user`
@@ -115,7 +116,7 @@ Reply:
 
 Submit a new invoice for the given month and year.
 
-**Route:** `POST /v1/invoice/new`
+**Route:** `POST /v1/invoices/new`
 
 **Params:**
 

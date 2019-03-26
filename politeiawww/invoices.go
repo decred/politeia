@@ -322,7 +322,7 @@ func validateInvoice(ni cms.NewInvoice, u *user.User) error {
 			// Validate that line items are the correct length and contents in
 			// field 4 and 5 are parsable to integers
 			for _, lineContents := range csvFields {
-				if len(lineContents) != 6 {
+				if len(lineContents) != www.PolicyInvoiceLineItemCount {
 					return www.UserError{
 						ErrorCode: www.ErrorStatusMalformedInvoiceFile,
 					}

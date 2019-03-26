@@ -1382,6 +1382,13 @@ SHALL observe.
 | proposalnamesupportedchars | array of strings | the regular expression of a valid proposal name |
 | maxcommentlength | integer | maximum number of characters accepted for comments |
 | backendpublickey | string |  |
+| maxnamelength | integer | maximum contractor name length (cmswww)
+| minnamelength | integer | mininum contractor name length (cmswww)
+| maxlocationlength | integer | maximum contractor location length (cmswww)
+| minlocationlength | integer | minimum contractor location length (cmswww)
+| invoicecommentchar | char | character for comments on invoices (cmswww)
+| invoicefielddelimiterchar | char | charactor for invoice csv field seperation (cmswww)
+| invoicelineitemcount | integer | expected count for line item fields (cmswww)
 
 
 **Example**
