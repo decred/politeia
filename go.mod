@@ -14,7 +14,7 @@ require (
 	github.com/decred/dcrd/dcrutil v1.2.1-0.20190118223730-3a5281156b73
 	github.com/decred/dcrd/hdkeychain v1.1.1
 	github.com/decred/dcrd/wire v1.2.0
-	github.com/decred/dcrdata/api/types v1.0.3
+	github.com/decred/dcrdata/api/types v1.0.6
 	github.com/decred/dcrtime v0.0.0-20180808181920-4c91c4cbed09
 	github.com/decred/dcrwallet v1.2.3-0.20190128160919-849f7c01c12d
 	github.com/decred/dcrwallet/rpc/walletrpc v0.2.0
@@ -31,8 +31,10 @@ require (
 	github.com/h2non/go-is-svg v0.0.0-20160927212452-35e8c4b0612c
 	github.com/jessevdk/go-flags v1.4.0
 	github.com/jinzhu/gorm v1.9.2
+	github.com/jinzhu/inflection v0.0.0-20180308033659-04140366298a // indirect
 	github.com/jinzhu/now v1.0.0 // indirect
 	github.com/jrick/logrotate v1.0.0
+	github.com/lib/pq v1.0.0 // indirect
 	github.com/otiai10/copy v1.0.1
 	github.com/otiai10/curr v0.0.0-20150429015615-9b4961190c95 // indirect
 	github.com/pmezard/go-difflib v1.0.0
