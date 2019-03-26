@@ -598,7 +598,7 @@ func parseCSVFileToLineItems(invoiceToken string, file www.File) ([]database.Lin
 	dbLineItems := []database.LineItem{}
 	for lineNum, lineContents := range csvFields {
 		dbLineItem := database.LineItem{}
-		if len(lineContents) < 1 || len(lineContents) > 6 {
+		if len(lineContents) != 6 {
 			return nil, www.UserError{
 				ErrorCode: www.ErrorStatusMalformedInvoiceFile,
 			}
