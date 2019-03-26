@@ -9,8 +9,11 @@ server side notifications.  It does not render HTML.
 
 ***Contractor Management Routes***
 - [`Register`](#register)
-- [`Invite new user`](#invitenewuser)
-- [`New invoice`](#newinvoice)
+- [`Invite new user`](#invite-new-user)
+- [`New invoice`](#new-invoice)
+- [`User invoices`](#user-invoices)
+- [`Admin invoices`](#admin-invoices)
+
 
 
 ### `Invite new user`
@@ -170,5 +173,112 @@ Reply:
     "merkle": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
     "signature": "fcc92e26b8f38b90c2887259d88ce614654f32ecd76ade1438a0def40d360e461d995c796f16a17108fad226793fd4f52ff013428eda3b39cd504ed5f1811d0d"
   }
+}
+```
+
+### `User invoices`
+
+Returns a page of the user's invoices.
+
+**Route:** `GET /v1/user/invoices`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| status | int64 | An optional filter for the list; this should be an [invoice status](#invoice-status-codes). | |
+
+**Results:**
+
+| | Type | Description |
+|-|-|-|
+| invoices | array of [`Invoice`](#invoice)s | The page of invoices. |
+
+**Example**
+
+Request:
+
+```json
+{
+  "status": 4
+}
+```
+
+Reply:
+
+```json
+{
+  "invoices": [{
+    "status": 4,
+    "month": 12,
+    "year": 2018,
+    "timestamp": 1508296860781,
+    "userid": "0",
+    "username": "foobar",
+    "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+    "signature": "gdd92f26c8g38c90d2887259e88df614654g32fde76bef1438b0efg40e360f461e995d796g16b17108gbe226793ge4g52gg013428feb3c39de504fe5g1811e0e",
+    "version": "1",
+    "censorshiprecord": {
+      "token": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
+      "merkle": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
+      "signature": "fcc92e26b8f38b90c2887259d88ce614654f32ecd76ade1438a0def40d360e461d995c796f16a17108fad226793fd4f52ff013428eda3b39cd504ed5f1811d0d"
+    }
+  }]
+}
+```
+
+### `Admin invoices`
+
+Retrieve a page of invoices given the month and year and status.
+
+Note: This call requires admin privileges.
+
+**Route:** `GET /v1/admin/invoices`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| month | int16 | An optional filter that can be set (along with year) to return invoices from a given month, from 1 to 12. | |
+| year | int16 | An optional filter that can be set (along with month) to return invoices from a given year. | |
+| status | int64 | An optional filter for the list; this should be an [invoice status](#invoice-status-codes). | |
+
+**Results:**
+
+| | Type | Description |
+|-|-|-|
+| invoices | array of [`Invoice`](#invoice)s | The page of invoices. |
+
+**Example**
+
+Request:
+
+```json
+{
+  "month": 12,
+  "year": 2018
+}
+```
+
+Reply:
+
+```json
+{
+  "invoices": [{
+    "status": 4,
+    "month": 12,
+    "year": 2018,
+    "timestamp": 1508296860781,
+    "userid": "0",
+    "username": "foobar",
+    "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+    "signature": "gdd92f26c8g38c90d2887259e88df614654g32fde76bef1438b0efg40e360f461e995d796g16b17108gbe226793ge4g52gg013428feb3c39de504fe5g1811e0e",
+    "version": "1",
+    "censorshiprecord": {
+      "token": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
+      "merkle": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
+      "signature": "fcc92e26b8f38b90c2887259d88ce614654f32ecd76ade1438a0def40d360e461d995c796f16a17108fad226793fd4f52ff013428eda3b39cd504ed5f1811d0d"
+    }
+  }]
 }
 ```

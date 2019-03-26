@@ -27,8 +27,13 @@ type Database interface {
 	NewInvoice(*Invoice) error // Create new invoice
 
 	UpdateInvoice(*Invoice) error // Update existing invoice
-
+	InvoicesByUserID(string) ([]Invoice, error)
 	InvoiceByToken(string) (*Invoice, error) // Return invoice given its token
+
+	InvoicesByMonthYearStatus(uint16, uint16, int) ([]Invoice, error) // Returns all invoices by month, year and status
+	InvoicesByMonthYear(uint16, uint16) ([]Invoice, error)            // Returns all invoice by month, year
+	InvoicesByStatus(int) ([]Invoice, error)                          // Returns all invoices by status
+	InvoicesAll() ([]Invoice, error)                                  // Returns all invoices
 
 	// Setup the invoice tables
 	Setup() error

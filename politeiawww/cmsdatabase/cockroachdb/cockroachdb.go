@@ -55,6 +55,30 @@ func (c *cockroachdb) UpdateInvoice(dbInvoice *database.Invoice) error {
 	return c.recordsdb.Save(invoice).Error
 }
 
+// Return all invoices by userid
+func (c *cockroachdb) InvoicesByUserID(userid string) ([]database.Invoice, error) {
+	log.Tracef("InvoicesByUserID")
+
+	invoices := make([]Invoice, 0, 1024) // PNOOMA
+	err := c.recordsdb.
+		Where("user_id = ?", userid).
+		Find(&invoices).
+		Error
+	if err != nil {
+		return nil, err
+	}
+
+	dbInvoices := make([]database.Invoice, 0, len(invoices))
+	for _, v := range invoices {
+		dbInvoice, err := DecodeInvoice(&v)
+		if err != nil {
+			return nil, err
+		}
+		dbInvoices = append(dbInvoices, *dbInvoice)
+	}
+	return dbInvoices, nil
+}
+
 // Return invoice by its token.
 func (c *cockroachdb) InvoiceByToken(token string) (*database.Invoice, error) {
 	log.Debugf("InvoiceByToken: %v", token)
@@ -71,6 +95,101 @@ func (c *cockroachdb) InvoiceByToken(token string) (*database.Invoice, error) {
 	}
 
 	return DecodeInvoice(&invoice)
+}
+
+// Return all invoices by month year and status
+func (c *cockroachdb) InvoicesByMonthYearStatus(month, year uint16, status int) ([]database.Invoice, error) {
+	log.Tracef("InvoicesByMonthYearStatus")
+
+	invoices := make([]Invoice, 0, 1024) // PNOOMA
+	err := c.recordsdb.
+		Where("month = ? && year = ? && status == ?", month, year, status).
+		Find(&invoices).
+		Error
+	if err != nil {
+		return nil, err
+	}
+
+	dbInvoices := make([]database.Invoice, 0, len(invoices))
+	for _, v := range invoices {
+		dbInvoice, err := DecodeInvoice(&v)
+		if err != nil {
+			return nil, err
+		}
+		dbInvoices = append(dbInvoices, *dbInvoice)
+	}
+	return dbInvoices, nil
+}
+
+// Return all invoices by month/year
+func (c *cockroachdb) InvoicesByMonthYear(month, year uint16) ([]database.Invoice, error) {
+	log.Tracef("InvoicesByMonthYear")
+
+	invoices := make([]Invoice, 0, 1024) // PNOOMA
+	err := c.recordsdb.
+		Where("month = ? && year = ?", month, year).
+		Find(&invoices).
+		Error
+	if err != nil {
+		return nil, err
+	}
+
+	dbInvoices := make([]database.Invoice, 0, len(invoices))
+	for _, v := range invoices {
+		dbInvoice, err := DecodeInvoice(&v)
+		if err != nil {
+			return nil, err
+		}
+		dbInvoices = append(dbInvoices, *dbInvoice)
+	}
+	return dbInvoices, nil
+}
+
+// Return all invoices by status
+func (c *cockroachdb) InvoicesByStatus(status int) ([]database.Invoice, error) {
+	log.Tracef("InvoicesByStatus")
+
+	invoices := make([]Invoice, 0, 1024) // PNOOMA
+	err := c.recordsdb.
+		Where("status = ?", status).
+		Find(&invoices).
+		Error
+	if err != nil {
+		return nil, err
+	}
+
+	dbInvoices := make([]database.Invoice, 0, len(invoices))
+	for _, v := range invoices {
+		dbInvoice, err := DecodeInvoice(&v)
+		if err != nil {
+			return nil, err
+		}
+		dbInvoices = append(dbInvoices, *dbInvoice)
+	}
+	return dbInvoices, nil
+}
+
+// Return all invoices
+func (c *cockroachdb) InvoicesAll() ([]database.Invoice, error) {
+	log.Tracef("InvoicesAll")
+
+	invoices := make([]Invoice, 0, 1024) // PNOOMA
+	err := c.recordsdb.
+		Find(&invoices).
+		Error
+	if err != nil {
+		return nil, err
+	}
+
+	dbInvoices := make([]database.Invoice, 0, len(invoices))
+	for _, v := range invoices {
+		dbInvoice, err := DecodeInvoice(&v)
+		if err != nil {
+			return nil, err
+		}
+		dbInvoices = append(dbInvoices, *dbInvoice)
+	}
+	return dbInvoices, nil
 }
 
 // Close satisfies the backend interface.

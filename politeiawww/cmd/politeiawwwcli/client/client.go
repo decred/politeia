@@ -730,6 +730,54 @@ func (c *Client) UserProposals(up *v1.UserProposals) (*v1.UserProposalsReply, er
 	return &upr, nil
 }
 
+// UserInvoices retrieves the proposals that have been submitted by the
+// specified user.
+func (c *Client) UserInvoices(up *cms.UserInvoices) (*cms.UserInvoicesReply, error) {
+	responseBody, err := c.makeRequest("GET", cms.RouteUserInvoices, up)
+	if err != nil {
+		return nil, err
+	}
+
+	var upr cms.UserInvoicesReply
+	err = json.Unmarshal(responseBody, &upr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal UserInvoicesReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(upr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &upr, nil
+}
+
+// AdminInvoices retrieves the proposals that have been submitted by the
+// specified user.
+func (c *Client) AdminInvoices(ai *cms.AdminInvoices) (*cms.AdminInvoicesReply, error) {
+	responseBody, err := c.makeRequest("GET", cms.RouteAdminInvoices, ai)
+	if err != nil {
+		return nil, err
+	}
+
+	var air cms.AdminInvoicesReply
+	err = json.Unmarshal(responseBody, &air)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal AdminInvoicesReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(air)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &air, nil
+}
+
 // SetProposalStatus changes the status of the specified proposal.
 func (c *Client) SetProposalStatus(sps *v1.SetProposalStatus) (*v1.SetProposalStatusReply, error) {
 	route := "/proposals/" + sps.Token + "/status"

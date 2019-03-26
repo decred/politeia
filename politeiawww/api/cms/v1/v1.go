@@ -14,6 +14,8 @@ const (
 	RouteRegisterUser   = "/register"
 	RouteNewInvoice     = "/invoices/new"
 	RouteInvoiceDetails = "/invoices/{token:[A-z0-9]{64}}"
+	RouteUserInvoices   = "/user/invoices"
+	RouteAdminInvoices  = "/admin/invoices"
 
 	// Invoice status codes
 	InvoiceStatusInvalid  InvoiceStatusT = 0 // Invalid status
@@ -116,4 +118,24 @@ type LineItemsInput struct {
 	ProposalToken string  `json:"proposaltoken"` // Link to politeia proposal that work is associated with
 	Hours         float64 `json:"hours"`         // Number of Hours
 	TotalCost     float64 `json:"totalcost"`     // Total cost of line item
+}
+
+// UserInvoices is used to get all of the invoices by userID.
+type UserInvoices struct{}
+
+// UserInvoicesReply is used to reply to a user invoices commands.
+type UserInvoicesReply struct {
+	Invoices []InvoiceRecord `json:"invoices"`
+}
+
+// AdminInvoices is used to get all invoices from all users
+type AdminInvoices struct {
+	Month  uint16         `json:"month"`  // Month of Invoice
+	Year   uint16         `json:"year"`   // Year of Invoice
+	Status InvoiceStatusT `json:"status"` // Current status of invoice
+}
+
+// AdminInvoiceReply is used to reply to an admin invoices command.
+type AdminInvoicesReply struct {
+	Invoices []InvoiceRecord `json:"invoices"`
 }
