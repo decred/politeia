@@ -10,6 +10,7 @@ import (
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 )
 
+// Invoice is the database model for the database.Invoice type
 type Invoice struct {
 	Token              string    `gorm:"primary_key"`
 	UserID             string    `gorm:"not_null"`
@@ -27,10 +28,12 @@ type Invoice struct {
 	LineItems []LineItem `gorm:"not_null"`
 }
 
+// TableName returns the table name of the invoices table.
 func (Invoice) TableName() string {
 	return tableNameInvoice
 }
 
+// LineItem is the database model for the database.LineItem type
 type LineItem struct {
 	LineNumber   uint    `gorm:"not_null"` // LineNumber of each line item
 	InvoiceToken string  `gorm:"not_null"` // Token of the Invoice that has this lineitem
@@ -42,6 +45,7 @@ type LineItem struct {
 	TotalCost    float64 `gorm:"not_null"` // Total cost of line item
 }
 
+// TableName returns the table name of the line items table.
 func (LineItem) TableName() string {
 	return tableNameLineItem
 }
