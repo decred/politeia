@@ -112,6 +112,10 @@ func (cmd *HelpCmd) Execute(args []string) error {
 		fmt.Printf("%s\n", testRunHelpMsg)
 	case "resendverification":
 		fmt.Printf("%s\n", resendVerificationHelpMsg)
+	case "newinvoice":
+		fmt.Printf("%s\n", newInvoiceHelpMsg)
+	case "invoicedetails":
+		fmt.Printf("%s\n", invoiceDetailsHelpMsg)
 	default:
 		fmt.Printf("invalid command: use 'politeiawwwcli -h' " +
 			"to view a list of valid commands\n")

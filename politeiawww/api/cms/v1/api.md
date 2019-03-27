@@ -9,7 +9,8 @@ server side notifications.  It does not render HTML.
 
 ***Contractor Management Routes***
 - [`Register`](#register)
-- [`Invoices`](#invitenewuser)
+- [`Invite new user`](#invitenewuser)
+- [`New invoice`](#newinvoice)
 
 
 ### `Invite new user`
@@ -109,4 +110,65 @@ Reply:
 
 ```json
 {}
+```
+
+### `New invoice`
+
+Submit a new invoice for the given month and year.
+
+**Route:** `POST /v1/invoices/new`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| month | int16 | A specific month, from 1 to 12. | Yes |
+| year | int16 | A specific year. | Yes |
+| files | [`[]File`](#file) | The invoice CSV file and any other attachments for line items. The first line should be a comment with the month and year, with the format: `# 2006-01` | Yes |
+| publickey | string | The user's public key. | Yes |
+| signature | string | The signature of the string representation of the file payload. | Yes |
+
+**Results:**
+
+| Parameter | Type | Description |
+|-|-|-|
+| censorshiprecord | [CensorshipRecord](#censorship-record) | A censorship record that provides the submitter with a method to extract the invoice and prove that he/she submitted it. |
+
+This call can return one of the following error codes:
+
+- [`ErrorStatusInvalidSignature`](#ErrorStatusInvalidSignature)
+- [`ErrorStatusInvalidSigningKey`](#ErrorStatusInvalidSigningKey)
+- [`ErrorStatusNoPublicKey`](#ErrorStatusNoPublicKey)
+- [`ErrorStatusInvalidInput`](#ErrorStatusInvalidInput)
+- [`ErrorStatusMalformedInvoiceFile`](#ErrorStatusMalformedInvoiceFile)
+- [`ErrorStatusDuplicateInvoice`](#ErrorStatusDuplicateInvoice)
+
+**Example**
+
+Request:
+
+```json
+{
+  "month": 12,
+  "year": 2018,
+  "files": [{
+      "name":"invoice.csv",
+      "mime": "text/plain; charset=utf-8",
+      "digest": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
+      "payload": "VGhpcyBpcyBhIGRlc2NyaXB0aW9u"
+    }
+  ]
+}
+```
+
+Reply:
+
+```json
+{
+  "censorshiprecord": {
+    "token": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
+    "merkle": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
+    "signature": "fcc92e26b8f38b90c2887259d88ce614654f32ecd76ade1438a0def40d360e461d995c796f16a17108fad226793fd4f52ff013428eda3b39cd504ed5f1811d0d"
+  }
+}
 ```

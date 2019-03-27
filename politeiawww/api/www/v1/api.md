@@ -112,6 +112,9 @@ notifications.  It does not render HTML.
 - [`ErrorStatusInvalidUUID`](#ErrorStatusInvalidUUID)
 - [`ErrorStatusInvalidLikeCommentAction`](#ErrorStatusInvalidLikeCommentAction)
 - [`ErrorStatusInvalidCensorshipToken`](#ErrorStatusInvalidCensorshipToken)
+- [`ErrorStatusMalformedName`](#ErrorStatusMalformedName)
+- [`ErrorStatusMalformedLocation`](#ErrorStatusMalformedLocation)
+- [`ErrorStatusInvoiceNotFound`](#ErrorStatusInvoiceNotFound)
 
 **Proposal status codes**
 
@@ -1379,6 +1382,13 @@ SHALL observe.
 | proposalnamesupportedchars | array of strings | the regular expression of a valid proposal name |
 | maxcommentlength | integer | maximum number of characters accepted for comments |
 | backendpublickey | string |  |
+| maxnamelength | integer | maximum contractor name length (cmswww)
+| minnamelength | integer | mininum contractor name length (cmswww)
+| maxlocationlength | integer | maximum contractor location length (cmswww)
+| minlocationlength | integer | minimum contractor location length (cmswww)
+| invoicecommentchar | char | character for comments on invoices (cmswww)
+| invoicefielddelimiterchar | char | charactor for invoice csv field seperation (cmswww)
+| invoicelineitemcount | integer | expected count for line item fields (cmswww)
 
 
 **Example**
@@ -2428,7 +2438,6 @@ Reply:
 }
 ```
 
-
 ### Error codes
 
 | Status | Value | Description |
@@ -2492,6 +2501,9 @@ Reply:
 | <a name="ErrorStatusInvalidUUID">ErrorStatusInvalidUUID</a> | 56 | Invalid user UUID. |
 | <a name="ErrorStatusInvalidLikeCommentAction">ErrorStatusInvalidLikeCommentAction</a> | 57 | Invalid like comment action. |
 | <a name="ErrorStatusInvalidCensorshipToken">ErrorStatusInvalidCensorshipToken</a> | 58 | Invalid proposal censorship token. |
+| <a name="ErrorStatusMalformedName">ErrorStatusMalformedName</a> | 60 | Invalid name entered for CMS registration. |
+| <a name="ErrorStatusMalformedLocation">ErrorStatusMalformedLocation</a> | 61 | Invalid location entered for CMS registration. |
+| <a name="ErrorStatusInvoiceNotFound">ErrorStatusInvoiceNotFound</a> | 62 | Request invoice not found. |
 
 
 

@@ -257,8 +257,8 @@ func formatLocation(location string) string {
 }
 
 func validateLocation(location string) error {
-	if len(location) < www.PolicyMinUsernameLength ||
-		len(location) > www.PolicyMaxUsernameLength {
+	if len(location) < www.PolicyMinLocationLength ||
+		len(location) > www.PolicyMaxLocationLength {
 		log.Debugf("Location not within bounds: %s", location)
 		return www.UserError{
 			ErrorCode: www.ErrorStatusMalformedLocation,

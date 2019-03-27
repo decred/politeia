@@ -117,6 +117,10 @@ You can also use the following default configurations:
     cacherootcert="~/.cockroachdb/certs/clients/records_politeiawww/ca.crt"
     cachecert="~/.cockroachdb/certs/clients/records_politeiawww/client.records_politeiawww.crt"
     cachekey="~/.cockroachdb/certs/clients/records_politeiawww/client.records_politeiawww.key"
+    cmshost=localhost:26257
+    cmsrootcert="~/.cockroachdb/certs/clients/invoices_cmsdb/ca.crt"
+    cmscert="~/.cockroachdb/certs/clients/invoices_cmsdb/client.invoices_cmsdb.crt"
+    cmskey="~/.cockroachdb/certs/clients/invoices_cmsdb/client.invoices_cmsdb.key"
 
 **Things to note:**
 
@@ -162,52 +166,41 @@ Run the following commands to create the CockroachDB certificates required for
 running CockroachDB with Politeia.  It's ok if the directory `~/.cockroachdb`
 does not exist yet.  The script will create it.  **The directory that you pass
 into the script must be the same cockroachdb directory that you use in the
-politeiad and politeiawww config files when specifying `cacherootcert` and
-`cachecertdir`.**
+politeiad and politeiawww config files when specifying the cache
+certificates.**
 
     cd $GOPATH/src/github.com/decred/politeia
-    ./cachecerts.sh ~/.cockroachdb
+    ./cockroachcerts.sh ~/.cockroachdb
 
 The script will create the following certificates and directories:
 
     .cockroachdb
     ├── ca.key
-    ├── certs
-    │   ├── ca.crt
-    │   ├── clients
-    │   │   ├── records_politeiad
-    │   │   │   ├── ca.crt
-    │   │   │   ├── client.records_politeiad.crt
-    │   │   │   └── client.records_politeiad.key
-    │   │   ├── records_politeiawww
-    │   │   │   ├── ca.crt
-    │   │   │   ├── client.records_politeiawww.crt
-    │   │   │   └── client.records_politeiawww.key
-    │   │   └── root
-    │   │       ├── ca.crt
-    │   │       ├── client.root.crt
-    │   │       └── client.root.key
-    │   └── node
-    │       ├── ca.crt
-    │       ├── node.crt
-    │       └── node.key
-    └── data
+    └── certs
+        ├── ca.crt
+        ├── clients
+        │   └── root
+        │       ├── ca.crt
+        │       ├── client.root.crt
+        │       └── client.root.key
+        └── node
+            ├── ca.crt
+            ├── node.crt
+            └── node.key
 
-Client certificates are created for the database users root, records_politeiad,
-and records_politeiawww.  records_politeiad and records_politeiawww are the
-politeiad and politeiawww users for the records cache.  Each client directory
-contains all of the certificates required to connect to the database with that
-user.  The root user is used to setup the CockroachDB databases in the
-`cachesetup.sh` script below and for opening up a sql shell to run database
-commands manually.
+These are the certificates required to run a CockroachDB node locally. This
+includes creating a CA certificate, a node certificate, and a client
+certificate for the root user. The root user is used to setup the databases and
+can be used to open a sql shell.  Each client directory contains all of the
+certificates required to connect to the database with that user.  
 
 The node directory contains the certificates for running a CockroachDB
 instance locally.  Directions for generating node certificates when deploying a
 CockroachDB cluster can be found in the [CockroachDB manual deployment
 docs](https://www.cockroachlabs.com/docs/stable/manual-deployment.html).
 
-You can now start CockroachDB using the command below.  Politeia requires that
-CockroachDB be running.
+You can now start CockroachDB using the command below.  The `cachesetup.sh`
+script that is run next requires that a CockroachDB is running.
 
     cockroach start \
       --certs-dir=${HOME}/.cockroachdb/certs/node \
@@ -215,10 +208,26 @@ CockroachDB be running.
       --store=${HOME}/.cockroachdb/data
 
 Once CockroachDB is running, you can setup the cache databases and users using
-the commands below.  We use the CockroachDB root user to set everything up.
+the commands below.
 
     cd $GOPATH/src/github.com/decred/politeia
-    ./cachesetup.sh ~/.cockroachdb/certs/clients/root
+    ./cachesetup.sh ~/.cockroachdb
+
+This script creates the client certificates for the politeiad and politeiawww
+users, creates the corresponding database users, sets up the cache databases,
+and assigns user privileges.
+
+    .cockroachdb
+    └─── certs
+        └─── clients
+            ├── records_politeiad
+            │   ├── ca.crt
+            │   ├── client.records_politeiad.crt
+            │   └── client.records_politeiad.key
+            └─── records_politeiawww
+                ├── ca.crt
+                ├── client.records_politeiawww.crt
+                └── client.records_politeiawww.key
 
 The database setup is now complete.  If you want to run database commands
 manually you can do so by opening a sql shell.
@@ -226,6 +235,17 @@ manually you can do so by opening a sql shell.
     cockroach sql \
       --certs-dir=${HOME}/.cockroachdb/certs/clients/root \
       --host localhost
+
+#### 4a. Setup cms database:
+
+CMS uses both the cache database and its own database.  Once the cache database
+has been setup using the instructions above, you can setup the cms database
+using the script below.  CockroachDB must be running when you execute this
+script.
+
+    cd $GOPATH/src/github.com/decred/politeia
+    ./cmssetup.sh ~/.cockroachdb
+    
 
 #### 5. Build the programs:
 

@@ -96,11 +96,17 @@ const (
 	// PolicyMinUsernameLength is the min length of a username
 	PolicyMinUsernameLength = 3
 
-	// PolicyMaxUsernameLength is the max length of a username
+	// PolicyMaxUsernameLength is the max length of a contractor name
 	PolicyMaxNameLength = 50
 
-	// PolicyMinUsernameLength is the min length of a username
+	// PolicyMinUsernameLength is the min length of a contractor name
 	PolicyMinNameLength = 3
+
+	// PolicyMaxUsernameLength is the max length of a contractor location
+	PolicyMaxLocationLength = 100
+
+	// PolicyMinUsernameLength is the min length of a contractor location
+	PolicyMinLocationLength = 3
 
 	// PolicyMaxProposalNameLength is the max length of a proposal name
 	PolicyMaxProposalNameLength = 80
@@ -111,6 +117,18 @@ const (
 	// PolicyMaxCommentLength is the maximum number of characters
 	// accepted for comments
 	PolicyMaxCommentLength = 8000
+
+	// PolicyInvoiceCommentChar is the character which, when used as the first
+	// character of a line, denotes that entire line as a comment.
+	PolicyInvoiceCommentChar rune = '#'
+
+	// PolicyInvoiceFieldDelimiterChar is the character that delimits field
+	// values for each line item in the CSV.
+	PolicyInvoiceFieldDelimiterChar rune = ','
+
+	// PolicyInvoiceLineItemCount is the number of expected fields in the raw
+	// csv line items
+	PolicyInvoiceLineItemCount = 6
 
 	// ProposalListPageSize is the maximum number of proposals returned
 	// for the routes that return lists of proposals
@@ -183,6 +201,11 @@ const (
 	ErrorStatusEmailAlreadyVerified        ErrorStatusT = 59
 	ErrorStatusMalformedName               ErrorStatusT = 60
 	ErrorStatusMalformedLocation           ErrorStatusT = 61
+	ErrorStatusInvoiceNotFound             ErrorStatusT = 62
+
+	// CMS Errors
+
+	ErrorStatusMalformedInvoiceFile ErrorStatusT = 59
 
 	// Proposal state codes
 	//
@@ -333,6 +356,7 @@ var (
 		ErrorStatusEmailAlreadyVerified:        "email address is already verified",
 		ErrorStatusMalformedName:               "malformed name",
 		ErrorStatusMalformedLocation:           "malformed location",
+		ErrorStatusInvoiceNotFound:             "invoice cannot be found",
 	}
 
 	// PropStatus converts propsal status codes to human readable text
@@ -701,7 +725,7 @@ type ProposalPaywallDetailsReply struct {
 }
 
 // ProposalPaywallPayment is used to request payment details for a pending
-// propsoal paywall payment.
+// proposal paywall payment.
 type ProposalPaywallPayment struct{}
 
 // ProposalPaywallPaymentReply is used to reply to the ProposalPaywallPayment
@@ -808,6 +832,13 @@ type PolicyReply struct {
 	ProposalNameSupportedChars []string `json:"proposalnamesupportedchars"`
 	MaxCommentLength           uint     `json:"maxcommentlength"`
 	BackendPublicKey           string   `json:"backendpublickey"`
+	MaxNameLength              uint     `json:"maxnamelength"`
+	MinNameLength              uint     `json:"minnamelength"`
+	MaxLocationLength          uint     `json:"maxlocationlength"`
+	MinLocationLength          uint     `json:"minlocationlength"`
+	InvoiceCommentChar         rune     `json:"invoicecommentchar"`
+	InvoiceFieldDelimiterChar  rune     `json:"invoicefielddelimiterchar"`
+	InvoiceLineItemCount       uint     `json:"invoicelineitemcount"`
 }
 
 // VoteOption describes a single vote option.

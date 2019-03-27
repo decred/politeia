@@ -15,6 +15,7 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/cache"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/decred/politeia/politeiawww/cmsdatabase"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
@@ -114,6 +115,9 @@ type politeiawww struct {
 	userPubkeys     map[string]string               // [pubkey][userid]
 	userPaywallPool map[uuid.UUID]paywallPoolMember // [userid][paywallPoolMember]
 	commentScores   map[string]int64                // [token+commentID]resultVotes
+
+	// cmsDB is only used during cmswww mode
+	cmsDB cmsdatabase.Database
 }
 
 // XXX rig this up
@@ -276,6 +280,17 @@ func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 		ProposalNameSupportedChars: www.PolicyProposalNameSupportedChars,
 		MaxCommentLength:           www.PolicyMaxCommentLength,
 	}
+
+	if p.cfg.Mode == cmsWWWMode {
+		reply.MaxNameLength = www.PolicyMaxNameLength
+		reply.MinNameLength = www.PolicyMinNameLength
+		reply.MaxLocationLength = www.PolicyMaxLocationLength
+		reply.MinLocationLength = www.PolicyMinLocationLength
+		reply.InvoiceCommentChar = www.PolicyInvoiceCommentChar
+		reply.InvoiceFieldDelimiterChar = www.PolicyInvoiceFieldDelimiterChar
+		reply.InvoiceLineItemCount = www.PolicyInvoiceLineItemCount
+	}
+
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
