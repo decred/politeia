@@ -27,7 +27,7 @@ import (
 	"github.com/decred/politeia/politeiad/cache"
 	"github.com/decred/politeia/politeiad/cache/cockroachdb"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
-	cmsdb "github.com/decred/politeia/politeiawww/database/cockroachdb"
+	cmsdb "github.com/decred/politeia/politeiawww/cmsdatabase/cockroachdb"
 	"github.com/decred/politeia/politeiawww/user/localdb"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
@@ -443,8 +443,8 @@ func _main() error {
 		p.setCMSWWWRoutes()
 		cmsdb.UseLogger(cockroachdbLog)
 		net := filepath.Base(p.cfg.DataDir)
-		p.cmsDB, err = cmsdb.New(cmsdb.UserCmsdb, p.cfg.CmsHost,
-			net, p.cfg.CmsRootCert, p.cfg.CmsCert, p.cfg.CmsKey)
+		p.cmsDB, err = cmsdb.New(cmsdb.UserCMSDB, p.cfg.CMSHost,
+			net, p.cfg.CMSRootCert, p.cfg.CMSCert, p.cfg.CMSKey)
 		if err != nil {
 			return err
 		}

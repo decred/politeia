@@ -9,7 +9,7 @@ import (
 
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
-	"github.com/decred/politeia/politeiawww/database"
+	database "github.com/decred/politeia/politeiawww/cmsdatabase"
 )
 
 // EncodeInvoice encodes a generic database.Invoice instance into a cockroachdb

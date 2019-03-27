@@ -14,7 +14,7 @@ import (
 	"github.com/decred/politeia/politeiad/cache"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
-	"github.com/decred/politeia/politeiawww/database"
+	"github.com/decred/politeia/politeiawww/cmsdatabase"
 )
 
 func convertCastVoteReplyFromDecredPlugin(cvr decredplugin.CastVoteReply) www.CastVoteReply {
@@ -516,7 +516,7 @@ func convertRecordFilesToWWW(f []pd.File) []www.File {
 	}
 	return files
 }
-func convertDatabaseInvoiceToInvoiceRecord(dbInvoice database.Invoice) (*cms.InvoiceRecord, error) {
+func convertDatabaseInvoiceToInvoiceRecord(dbInvoice cmsdatabase.Invoice) (*cms.InvoiceRecord, error) {
 	invRec := &cms.InvoiceRecord{}
 	invRec.Status = dbInvoice.Status
 	invRec.Timestamp = dbInvoice.Timestamp
@@ -528,8 +528,8 @@ func convertDatabaseInvoiceToInvoiceRecord(dbInvoice database.Invoice) (*cms.Inv
 	return invRec, nil
 }
 
-func convertRecordToDatabaseInvoice(p pd.Record) (*database.Invoice, error) {
-	dbInvoice := database.Invoice{
+func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
+	dbInvoice := cmsdatabase.Invoice{
 		Files:           convertRecordFilesToWWW(p.Files),
 		Token:           p.CensorshipRecord.Token,
 		ServerSignature: p.CensorshipRecord.Signature,
@@ -566,7 +566,7 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*database.Invoice, error) {
 	return &dbInvoice, nil
 }
 
-func parseJSONFileToLineItems(invoiceToken string, file www.File) ([]database.LineItem, error) {
+func parseJSONFileToLineItems(invoiceToken string, file www.File) ([]cmsdatabase.LineItem, error) {
 	data, err := base64.StdEncoding.DecodeString(file.Payload)
 	if err != nil {
 		return nil, err
@@ -579,9 +579,9 @@ func parseJSONFileToLineItems(invoiceToken string, file www.File) ([]database.Li
 		}
 	}
 
-	dbLineItems := []database.LineItem{}
+	dbLineItems := []cmsdatabase.LineItem{}
 	for lineNum, lineContents := range invInput.LineItems {
-		dbLineItem := database.LineItem{}
+		dbLineItem := cmsdatabase.LineItem{}
 		dbLineItem.LineNumber = uint16(lineNum)
 		dbLineItem.InvoiceToken = invoiceToken
 		dbLineItem.Type = lineContents.Type

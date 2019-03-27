@@ -11,7 +11,7 @@ import (
 	"sync"
 
 	"github.com/decred/politeia/decredplugin"
-	"github.com/decred/politeia/politeiawww/database"
+	database "github.com/decred/politeia/politeiawww/cmsdatabase"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 )
@@ -24,7 +24,7 @@ const (
 	tableNameInvoice  = "invoices"
 	tableNameLineItem = "line_items"
 
-	UserCmsdb = "invoices_cmsdb" // cmsdb user (read/write access)
+	UserCMSDB = "invoices_cmsdb" // cmsdb user (read/write access)
 )
 
 // cockroachdb implements the cache interface.
