@@ -142,6 +142,7 @@ func (c *cockroachdb) Build(payload string) error {
 	return tx.Commit().Error
 }
 
+// Setup calls the tables creation funciton to ensure the database is prepared for use.
 func (c *cockroachdb) Setup() error {
 	tx := c.recordsdb.Begin()
 	err := createCmsTables(tx)
@@ -196,27 +197,5 @@ func New(user, host, net, rootCert, cert, key string) (*cockroachdb, error) {
 	// names manually.
 	c.recordsdb.SingularTable(true)
 
-	/*
-		// Ensure we're using the correct cache version.
-		var v Version
-		if c.recordsdb.HasTable(tableVersions) {
-			err = c.recordsdb.
-				Where("id = ?", cacheID).
-				Find(&v).
-				Error
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		// Return an error if the version is incorrect, but also
-		// return the database context so that the cache can be
-		// rebuilt.
-		if v.Version != cmsVersion {
-			err = cache.ErrWrongVersion
-		}
-
-		log.Infof("Cache host: %v", h)
-	*/
 	return c, err
 }

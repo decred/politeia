@@ -1,3 +1,7 @@
+// Copyright (c) 2017-2019 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package cockroachdb
 
 import (
@@ -68,7 +72,7 @@ func DecodeInvoice(invoice *Invoice) (*database.Invoice, error) {
 	return &dbInvoice, nil
 }
 
-//
+// EncodeInvoiceLineItem encodes a database.LineItem into a cockroachdb line item.
 func EncodeInvoiceLineItem(dbLineItem *database.LineItem) LineItem {
 	lineItem := LineItem{}
 	lineItem.LineNumber = uint(dbLineItem.LineNumber)
@@ -82,6 +86,7 @@ func EncodeInvoiceLineItem(dbLineItem *database.LineItem) LineItem {
 	return lineItem
 }
 
+// DecodeInvoiceLineItem decodes a cockroachdb line item into a generic database.LineItem
 func DecodeInvoiceLineItem(lineItem *LineItem) *database.LineItem {
 	dbLineItem := &database.LineItem{}
 	dbLineItem.LineNumber = uint16(lineItem.LineNumber)

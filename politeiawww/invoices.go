@@ -146,7 +146,8 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 	}
 
 	// Send SetUnvettedStatus request to politeiad
-	responseBody, err = p.makeRequest(http.MethodPost, pd.SetUnvettedStatusRoute, sus)
+	responseBody, err = p.makeRequest(http.MethodPost,
+		pd.SetUnvettedStatusRoute, sus)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +159,8 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 	}
 
 	// Verify the SetUnvettedStatus challenge.
-	err = util.VerifyChallenge(p.cfg.Identity, challenge, pdSetUnvettedStatusReply.Response)
+	err = util.VerifyChallenge(p.cfg.Identity, challenge,
+		pdSetUnvettedStatusReply.Response)
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +178,7 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 	ir.UserID = u.ID.String()
 	ir.Status = cms.InvoiceStatusNew
 
-	err = p.cmsDb.NewInvoice(ir)
+	err = p.cmsDB.NewInvoice(ir)
 	if err != nil {
 		return nil, err
 	}
@@ -264,7 +266,8 @@ func validateInvoice(ni cms.NewInvoice, u *user.User) error {
 				csvExceedsMaxSize = true
 			}
 
-			// Check to see if the data can be parsed properly into InvoiceInput struct
+			// Check to see if the data can be parsed properly into InvoiceInput
+			// struct.
 			var invInput cms.InvoiceInput
 			if err := json.Unmarshal(data, &invInput); err != nil {
 				return www.UserError{
@@ -342,10 +345,11 @@ func validateInvoice(ni cms.NewInvoice, u *user.User) error {
 
 // processInvoiceDetails fetches a specific proposal version from the records
 // cache and returns it.
-func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, user *user.User) (*cms.InvoiceDetailsReply, error) {
+func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails,
+	user *user.User) (*cms.InvoiceDetailsReply, error) {
 	log.Tracef("processInvoiceDetails")
 
-	inv, err := p.cmsDb.InvoiceByToken(invDetails.Token)
+	inv, err := p.cmsDB.InvoiceByToken(invDetails.Token)
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
 			err = www.UserError{

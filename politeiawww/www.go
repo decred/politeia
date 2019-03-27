@@ -441,14 +441,14 @@ func _main() error {
 		p.setPoliteiaWWWRoutes()
 	case cmsWWWMode:
 		p.setCMSWWWRoutes()
-		cockroachdb.UseLogger(cockroachdbLog)
+		cmsdb.UseLogger(cockroachdbLog)
 		net := filepath.Base(p.cfg.DataDir)
-		p.cmsDb, err = cmsdb.New(cmsdb.UserCmsdb, p.cfg.CmsHost,
+		p.cmsDB, err = cmsdb.New(cmsdb.UserCmsdb, p.cfg.CmsHost,
 			net, p.cfg.CmsRootCert, p.cfg.CmsCert, p.cfg.CmsKey)
 		if err != nil {
 			return err
 		}
-		err = p.cmsDb.Setup()
+		err = p.cmsDB.Setup()
 		if err != nil {
 			return fmt.Errorf("cmsdb setup: %v", err)
 		}

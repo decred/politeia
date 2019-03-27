@@ -116,8 +116,8 @@ type politeiawww struct {
 	userPaywallPool map[uuid.UUID]paywallPoolMember // [userid][paywallPoolMember]
 	commentScores   map[string]int64                // [token+commentID]resultVotes
 
-	// cmsDb is only used during cmswww mode
-	cmsDb database.Database
+	// cmsDB is only used during cmswww mode
+	cmsDB database.Database
 }
 
 // XXX rig this up
