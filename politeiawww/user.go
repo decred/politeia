@@ -1583,9 +1583,9 @@ func (p *politeiawww) processManageUser(mu *www.ManageUser, adminUser *user.User
 // processUsers returns a list of users given a set of filters. Admins
 // can search by pubkey, username or admin (partial matches returned).
 // Non admins can search by pubkey or username (only exact matches returned).
-func (p *politeiawww) processUsers(users *v1.Users, isAdmin bool) (*v1.UsersReply, error) {
-	var reply v1.UsersReply
-	reply.Users = make([]v1.AbridgedUser, 0, v1.UserListPageSize)
+func (p *politeiawww) processUsers(users *www.Users, isAdmin bool) (*www.UsersReply, error) {
+	var reply www.UsersReply
+	reply.Users = make([]www.AbridgedUser, 0, www.UserListPageSize)
 	var u *user.User
 	var userID string
 
@@ -1638,9 +1638,9 @@ func (p *politeiawww) processUsers(users *v1.Users, isAdmin bool) (*v1.UsersRepl
 
 			if userMatches {
 				reply.TotalMatches++
-				if reply.TotalMatches < v1.UserListPageSize {
+				if reply.TotalMatches < www.UserListPageSize {
 
-					reply.Users = append(reply.Users, v1.AbridgedUser{
+					reply.Users = append(reply.Users, www.AbridgedUser{
 						ID:       user.ID.String(),
 						Email:    user.Email,
 						Username: user.Username})
@@ -1650,7 +1650,6 @@ func (p *politeiawww) processUsers(users *v1.Users, isAdmin bool) (*v1.UsersRepl
 		if err != nil {
 			return nil, err
 		}
-
 
 	} else {
 		// Get user by username, if provided
@@ -1667,7 +1666,7 @@ func (p *politeiawww) processUsers(users *v1.Users, isAdmin bool) (*v1.UsersRepl
 			}
 		}
 
-		reply.Users = append(reply.Users, v1.AbridgedUser{
+		reply.Users = append(reply.Users, www.AbridgedUser{
 			ID:       u.ID.String(),
 			Username: u.Username})
 	}
