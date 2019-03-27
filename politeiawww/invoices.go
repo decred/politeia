@@ -384,6 +384,7 @@ func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails,
 	return &reply, nil
 }
 
+// BackendInvoiceMetadata is the metadata for Records into politeiad.
 type BackendInvoiceMetadata struct {
 	Version   uint64 `json:"version"` // BackendInvoiceMetadata version
 	Month     uint16 `json:"month"`
@@ -394,6 +395,7 @@ type BackendInvoiceMetadata struct {
 	Name      string `json:"name"`      // Generated invoice name
 }
 
+// BackendInvoiceMDChange is the metadata for updating Records on politeiad.
 type BackendInvoiceMDChange struct {
 	Version        uint               `json:"version"`        // Version of the struct
 	AdminPublicKey string             `json:"adminpublickey"` // Identity of the administrator

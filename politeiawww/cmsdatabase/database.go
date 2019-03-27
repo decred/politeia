@@ -40,6 +40,8 @@ type Database interface {
 	Close() error
 }
 
+// Invoice is the generic invoice type for invoices being added to or found
+// in the cmsdatabase.
 type Invoice struct {
 	Token              string
 	UserID             string
@@ -58,6 +60,8 @@ type Invoice struct {
 	LineItems []LineItem
 }
 
+// LineItem contains information about the individual line items contained in an
+// invoice coming into or out of the cmsdatabase.
 type LineItem struct {
 	LineNumber   uint16
 	InvoiceToken string
