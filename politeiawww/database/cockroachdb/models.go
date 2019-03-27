@@ -28,14 +28,14 @@ func (Invoice) TableName() string {
 }
 
 type LineItem struct {
-	LineNumber   uint   `gorm:"not_null"` // LineNumber of each line item
-	InvoiceToken string `gorm:"not_null"` // Token of the Invoice that has this lineitem
-	Type         string `gorm:"not_null"` // Type of work performed
-	Subtype      string `gorm:"not_null"` // Subtype of work performed
-	Description  string `gorm:"not_null"` // Description of work performed
-	ProposalURL  string `gorm:"not_null"` // Link to politeia proposal that work is associated with
-	Hours        uint   `gorm:"not_null"` // Number of Hours
-	TotalCost    uint   `gorm:"not_null"` // Total cost of line item
+	LineNumber   uint    `gorm:"not_null"` // LineNumber of each line item
+	InvoiceToken string  `gorm:"not_null"` // Token of the Invoice that has this lineitem
+	Type         string  `gorm:"not_null"` // Type of work performed
+	Subtype      string  `gorm:"not_null"` // Subtype of work performed
+	Description  string  `gorm:"not_null"` // Description of work performed
+	ProposalURL  string  `gorm:"not_null"` // Link to politeia proposal that work is associated with
+	Hours        float64 `gorm:"not_null"` // Number of Hours
+	TotalCost    float64 `gorm:"not_null"` // Total cost of line item
 }
 
 func (LineItem) TableName() string {

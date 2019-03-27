@@ -65,6 +65,6 @@ type LineItem struct {
 	Subtype      string
 	Description  string
 	ProposalURL  string
-	Hours        uint16
-	TotalCost    uint16
+	Hours        float64
+	TotalCost    float64
 }

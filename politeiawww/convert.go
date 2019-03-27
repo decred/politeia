@@ -6,11 +6,8 @@ package main
 
 import (
 	"encoding/base64"
-	"encoding/csv"
 	"encoding/json"
 	"fmt"
-	"strconv"
-	"strings"
 
 	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
@@ -553,14 +550,7 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*database.Invoice, error) {
 			dbInvoice.Timestamp = mdGeneral.Timestamp
 			dbInvoice.PublicKey = mdGeneral.PublicKey
 			dbInvoice.UserSignature = mdGeneral.Signature
-
-			/*dbInvoice.UserID, err = c.db.GetUserIdByPublicKey(mdGeneral.PublicKey)
-			if err != nil {
-				return nil, fmt.Errorf("could not get user id from public key %v",
-					mdGeneral.PublicKey)
-			}
-			*/
-			dbInvoice.LineItems, err = parseCSVFileToLineItems(p.CensorshipRecord.Token, dbInvoice.Files[0])
+			dbInvoice.LineItems, err = parseJSONFileToLineItems(p.CensorshipRecord.Token, dbInvoice.Files[0])
 			if err != nil {
 				return nil, fmt.Errorf("could not parse invoice csv data for token '%v': %v",
 					p.CensorshipRecord.Token, err)
@@ -576,51 +566,30 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*database.Invoice, error) {
 	return &dbInvoice, nil
 }
 
-func parseCSVFileToLineItems(invoiceToken string, file www.File) ([]database.LineItem, error) {
-
+func parseJSONFileToLineItems(invoiceToken string, file www.File) ([]database.LineItem, error) {
 	data, err := base64.StdEncoding.DecodeString(file.Payload)
 	if err != nil {
 		return nil, err
 	}
 
-	// Validate that the invoice is CSV-formatted.
-	csvReader := csv.NewReader(strings.NewReader(string(data)))
-	csvReader.Comma = www.PolicyInvoiceFieldDelimiterChar
-	csvReader.Comment = www.PolicyInvoiceCommentChar
-	csvReader.TrimLeadingSpace = true
-
-	csvFields, err := csvReader.ReadAll()
-	if err != nil {
+	var invInput cms.InvoiceInput
+	if err := json.Unmarshal(data, &invInput); err != nil {
 		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusMalformedInvoiceFile,
+			ErrorCode: www.ErrorStatusInvalidInput,
 		}
 	}
+
 	dbLineItems := []database.LineItem{}
-	for lineNum, lineContents := range csvFields {
+	for lineNum, lineContents := range invInput.LineItems {
 		dbLineItem := database.LineItem{}
-		if len(lineContents) != www.PolicyInvoiceLineItemCount {
-			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusMalformedInvoiceFile,
-			}
-		}
 		dbLineItem.LineNumber = uint16(lineNum)
 		dbLineItem.InvoiceToken = invoiceToken
-		dbLineItem.Type = lineContents[0]
-		dbLineItem.Subtype = lineContents[1]
-		dbLineItem.Description = lineContents[2]
-		dbLineItem.ProposalURL = lineContents[3]
-		hours, err := strconv.Atoi(lineContents[4])
-		if err != nil {
-			return nil, err
-
-		}
-		dbLineItem.Hours = uint16(hours)
-		cost, err := strconv.Atoi(lineContents[5])
-		if err != nil {
-			return nil, err
-
-		}
-		dbLineItem.TotalCost = uint16(cost)
+		dbLineItem.Type = lineContents.Type
+		dbLineItem.Subtype = lineContents.Subtype
+		dbLineItem.Description = lineContents.Description
+		dbLineItem.ProposalURL = lineContents.ProposalToken
+		dbLineItem.Hours = lineContents.Hours
+		dbLineItem.TotalCost = lineContents.TotalCost
 		dbLineItems = append(dbLineItems, dbLineItem)
 	}
 

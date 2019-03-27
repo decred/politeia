@@ -7,7 +7,6 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/csv"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -29,7 +28,7 @@ import (
 
 const (
 	// invoiceFile contains the file name of the invoice file
-	invoiceFile = "invoice.csv"
+	invoiceFile = "invoice.json"
 
 	BackendInvoiceMetadataVersion = 1
 	BackendInvoiceMDChangeVersion = 1
@@ -253,6 +252,7 @@ func validateInvoice(ni cms.NewInvoice, u *user.User) error {
 
 	// Check for at least 1 markdown file with a non-empty payload.
 	if len(ni.Files) == 0 || ni.Files[0].Payload == "" {
+		fmt.Println(ni.Files[0].Payload)
 		return www.UserError{
 			ErrorCode: www.ErrorStatusProposalMissingFiles,
 		}
@@ -296,50 +296,14 @@ func validateInvoice(ni cms.NewInvoice, u *user.User) error {
 				csvExceedsMaxSize = true
 			}
 
-			// Validate that the invoice shows the month and date in a comment.
-			t := time.Date(int(ni.Year), time.Month(int(ni.Month)), 1, 0, 0, 0, 0, time.UTC)
-			str := fmt.Sprintf("%v %v", www.PolicyInvoiceCommentChar,
-				t.Format("2006-01"))
-			if strings.HasPrefix(string(data), str) ||
-				strings.Contains(string(data), "\n"+str) {
+			// Check to see if the data can be parsed properly into InvoiceInput struct
+			var invInput cms.InvoiceInput
+			if err := json.Unmarshal(data, &invInput); err != nil {
 				return www.UserError{
 					ErrorCode: www.ErrorStatusMalformedInvoiceFile,
 				}
 			}
 
-			// Validate that the invoice is CSV-formatted.
-			csvReader := csv.NewReader(strings.NewReader(string(data)))
-			csvReader.Comma = www.PolicyInvoiceFieldDelimiterChar
-			csvReader.Comment = www.PolicyInvoiceCommentChar
-			csvReader.TrimLeadingSpace = true
-
-			csvFields, err := csvReader.ReadAll()
-			if err != nil {
-				return www.UserError{
-					ErrorCode: www.ErrorStatusMalformedInvoiceFile,
-				}
-			}
-			// Validate that line items are the correct length and contents in
-			// field 4 and 5 are parsable to integers
-			for _, lineContents := range csvFields {
-				if len(lineContents) != www.PolicyInvoiceLineItemCount {
-					return www.UserError{
-						ErrorCode: www.ErrorStatusMalformedInvoiceFile,
-					}
-				}
-				_, err = strconv.Atoi(lineContents[4])
-				if err != nil {
-					return www.UserError{
-						ErrorCode: www.ErrorStatusMalformedInvoiceFile,
-					}
-				}
-				_, err = strconv.Atoi(lineContents[5])
-				if err != nil {
-					return www.UserError{
-						ErrorCode: www.ErrorStatusMalformedInvoiceFile,
-					}
-				}
-			}
 		}
 
 		// Append digest to array for merkle root calculation

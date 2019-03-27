@@ -96,3 +96,24 @@ type InvoiceDetails struct {
 type InvoiceDetailsReply struct {
 	Invoice InvoiceRecord `json:"invoice"`
 }
+
+// InvoiceInput is the expected structure of the invoice.json file being added to InvoiceRecords.
+// Users' raw csv will be inputted and parsed to help in their creation.
+type InvoiceInput struct {
+	ID        string           `json:"id"`    // Optional field for contractor ID entry
+	Month     uint16           `json:"month"` // Month of Invoice
+	Year      uint16           `json:"year"`  // Year of Invoice
+	LineItems []LineItemsInput `json:"lineitems"`
+}
+
+// LineItemsInput is the expected struct of line items contained within an users'
+// invoice input.
+type LineItemsInput struct {
+	LineNumber    uint16  `json:"linenum"`       // Line number of the line item
+	Type          string  `json:"type"`          // Type of work performed
+	Subtype       string  `json:"subtype"`       // Subtype of work performed
+	Description   string  `json:"description"`   // Description of work performed
+	ProposalToken string  `json:"proposaltoken"` // Link to politeia proposal that work is associated with
+	Hours         float64 `json:"hours"`         // Number of Hours
+	TotalCost     float64 `json:"totalcost"`     // Total cost of line item
+}

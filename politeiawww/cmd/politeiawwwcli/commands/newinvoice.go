@@ -6,11 +6,14 @@ package commands
 
 import (
 	"encoding/base64"
+	"encoding/csv"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiawww/api/cms/v1"
@@ -68,11 +71,30 @@ func (cmd *NewInvoiceCmd) Execute(args []string) error {
 		return fmt.Errorf("ReadFile %v: %v", fpath, err)
 	}
 
+	invInput, err := validateParseCSV(csv)
+	if err != nil {
+		return fmt.Errorf("Parsing CSV failed: %v", err)
+	}
+
+	invInput.Month = uint16(month)
+	invInput.Year = uint16(year)
+
+	b, err := json.Marshal(invInput)
+	if err != nil {
+		return fmt.Errorf("Marshal: %v", err)
+	}
+
+	// Print Raw JSON of invoice
+	err = printJSON(invInput)
+	if err != nil {
+		return err
+	}
+
 	f := www.File{
-		Name:    "invoice.csv",
-		MIME:    mime.DetectMimeType(csv),
-		Digest:  hex.EncodeToString(util.Digest(csv)),
-		Payload: base64.StdEncoding.EncodeToString(csv),
+		Name:    "invoice.json",
+		MIME:    mime.DetectMimeType(b),
+		Digest:  hex.EncodeToString(util.Digest(b)),
+		Payload: base64.StdEncoding.EncodeToString(b),
 	}
 
 	files = append(files, f)
@@ -137,6 +159,56 @@ func (cmd *NewInvoiceCmd) Execute(args []string) error {
 
 	// Print response details
 	return printJSON(nir)
+}
+
+func validateParseCSV(data []byte) (*v1.InvoiceInput, error) {
+	invInput := &v1.InvoiceInput{}
+
+	// Validate that the invoice is CSV-formatted.
+	csvReader := csv.NewReader(strings.NewReader(string(data)))
+	csvReader.Comma = www.PolicyInvoiceFieldDelimiterChar
+	csvReader.Comment = www.PolicyInvoiceCommentChar
+	csvReader.TrimLeadingSpace = true
+
+	csvFields, err := csvReader.ReadAll()
+	if err != nil {
+		return invInput, err
+	}
+
+	lineItems := make([]v1.LineItemsInput, 0, len(csvFields))
+	// Validate that line items are the correct length and contents in
+	// field 4 and 5 are parsable to integers
+	for i, lineContents := range csvFields {
+		lineItem := v1.LineItemsInput{}
+		if len(lineContents) != www.PolicyInvoiceLineItemCount {
+			return invInput, www.UserError{
+				ErrorCode: www.ErrorStatusMalformedInvoiceFile,
+			}
+		}
+		hours, err := strconv.ParseFloat(lineContents[4], 64)
+		if err != nil {
+			return invInput, www.UserError{
+				ErrorCode: www.ErrorStatusMalformedInvoiceFile,
+			}
+		}
+		cost, err := strconv.ParseFloat(lineContents[5], 64)
+		if err != nil {
+			return invInput, www.UserError{
+				ErrorCode: www.ErrorStatusMalformedInvoiceFile,
+			}
+		}
+		lineItem.LineNumber = uint16(i)
+		lineItem.Type = lineContents[0]
+		lineItem.Subtype = lineContents[1]
+		lineItem.Description = lineContents[2]
+		lineItem.ProposalToken = lineContents[3]
+		lineItem.Hours = hours
+		lineItem.TotalCost = cost
+		lineItems = append(lineItems, lineItem)
+	}
+	invInput.LineItems = lineItems
+
+	return invInput, nil
 }
 
 const newInvoiceHelpMsg = `newinvoice [flags] "csvFile" "attachmentFiles" 
