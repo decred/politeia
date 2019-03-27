@@ -84,12 +84,6 @@ func (cmd *NewInvoiceCmd) Execute(args []string) error {
 		return fmt.Errorf("Marshal: %v", err)
 	}
 
-	// Print Raw JSON of invoice
-	err = printJSON(invInput)
-	if err != nil {
-		return err
-	}
-
 	f := www.File{
 		Name:    "invoice.json",
 		MIME:    mime.DetectMimeType(b),
@@ -221,9 +215,6 @@ Arguments:
 2. year				 (string, required)   Year (YYYY)
 3. csvFile			 (string, required)   Invoice CSV file
 4. attachmentFiles	 (string, optional)   Attachments 
-
-Flags:
-  --random           (bool, optional)     Generate a random invoice
 
 Result:
 {
