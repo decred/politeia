@@ -23,7 +23,6 @@ import (
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
-	"github.com/gorilla/mux"
 )
 
 const (
@@ -33,37 +32,6 @@ const (
 	BackendInvoiceMetadataVersion = 1
 	BackendInvoiceMDChangeVersion = 1
 )
-
-// handleNewInvoice handles the incoming new invoice command.
-func (p *politeiawww) handleNewInvoice(w http.ResponseWriter, r *http.Request) {
-	// Get the new proposal command.
-	log.Tracef("handleNewInvoice")
-	var ni cms.NewInvoice
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&ni); err != nil {
-		RespondWithError(w, r, 0, "handleNewInvoice: unmarshal", www.UserError{
-			ErrorCode: www.ErrorStatusInvalidInput,
-		})
-		return
-	}
-
-	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleNewInvoice: getSessionUser %v", err)
-		return
-	}
-
-	reply, err := p.processNewInvoice(ni, user)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleNewInvoice: processNewInvoice %v", err)
-		return
-	}
-
-	// Reply with the challenge response and censorship token.
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
 
 // processNewInvoice tries to submit a new proposal to politeiad.
 func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.NewInvoiceReply, error) {
@@ -370,46 +338,6 @@ func validateInvoice(ni cms.NewInvoice, u *user.User) error {
 	}
 
 	return nil
-}
-
-// handleInvoiceDetails handles the incoming invoice details command. It fetches
-// the complete details for an existing invoice.
-func (p *politeiawww) handleInvoiceDetails(w http.ResponseWriter, r *http.Request) {
-	// Add the path param to the struct.
-	log.Tracef("handleInvoiceDetails")
-	var pd cms.InvoiceDetails
-
-	// get version from query string parameters
-	err := util.ParseGetParams(r, &pd)
-	if err != nil {
-		RespondWithError(w, r, 0, "handleInvoiceDetails: ParseGetParams",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	// Get proposal token from path parameters
-	pathParams := mux.Vars(r)
-	pd.Token = pathParams["token"]
-
-	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		if err != ErrSessionUUIDNotFound {
-			RespondWithError(w, r, 0,
-				"handleInvoiceDetails: getSessionUser %v", err)
-			return
-		}
-	}
-	reply, err := p.processInvoiceDetails(pd, user)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleInvoiceDetails: processInvoiceDetails %v", err)
-		return
-	}
-
-	// Reply with the proposal details.
-	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
 // processInvoiceDetails fetches a specific proposal version from the records
