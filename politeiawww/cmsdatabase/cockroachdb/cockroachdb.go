@@ -142,7 +142,7 @@ func (c *cockroachdb) Build(payload string) error {
 	return tx.Commit().Error
 }
 
-// Setup calls the tables creation funciton to ensure the database is prepared for use.
+// Setup calls the tables creation function to ensure the database is prepared for use.
 func (c *cockroachdb) Setup() error {
 	tx := c.recordsdb.Begin()
 	err := createCmsTables(tx)
