@@ -139,66 +139,68 @@ const (
 	UserListPageSize = 20
 
 	// Error status codes
-	ErrorStatusInvalid                        ErrorStatusT = 0
-	ErrorStatusInvalidEmailOrPassword         ErrorStatusT = 1
-	ErrorStatusMalformedEmail                 ErrorStatusT = 2
-	ErrorStatusVerificationTokenInvalid       ErrorStatusT = 3
-	ErrorStatusVerificationTokenExpired       ErrorStatusT = 4
-	ErrorStatusProposalMissingFiles           ErrorStatusT = 5
-	ErrorStatusProposalNotFound               ErrorStatusT = 6
-	ErrorStatusProposalDuplicateFilenames     ErrorStatusT = 7
-	ErrorStatusProposalInvalidTitle           ErrorStatusT = 8
-	ErrorStatusMaxMDsExceededPolicy           ErrorStatusT = 9
-	ErrorStatusMaxImagesExceededPolicy        ErrorStatusT = 10
-	ErrorStatusMaxMDSizeExceededPolicy        ErrorStatusT = 11
-	ErrorStatusMaxImageSizeExceededPolicy     ErrorStatusT = 12
-	ErrorStatusMalformedPassword              ErrorStatusT = 13
-	ErrorStatusCommentNotFound                ErrorStatusT = 14
-	ErrorStatusInvalidFilename                ErrorStatusT = 15
-	ErrorStatusInvalidFileDigest              ErrorStatusT = 16
-	ErrorStatusInvalidBase64                  ErrorStatusT = 17
-	ErrorStatusInvalidMIMEType                ErrorStatusT = 18
-	ErrorStatusUnsupportedMIMEType            ErrorStatusT = 19
-	ErrorStatusInvalidPropStatusTransition    ErrorStatusT = 20
-	ErrorStatusInvalidPublicKey               ErrorStatusT = 21
-	ErrorStatusNoPublicKey                    ErrorStatusT = 22
-	ErrorStatusInvalidSignature               ErrorStatusT = 23
-	ErrorStatusInvalidInput                   ErrorStatusT = 24
-	ErrorStatusInvalidSigningKey              ErrorStatusT = 25
-	ErrorStatusCommentLengthExceededPolicy    ErrorStatusT = 26
-	ErrorStatusUserNotFound                   ErrorStatusT = 27
-	ErrorStatusWrongStatus                    ErrorStatusT = 28
-	ErrorStatusNotLoggedIn                    ErrorStatusT = 29
-	ErrorStatusUserNotPaid                    ErrorStatusT = 30
-	ErrorStatusReviewerAdminEqualsAuthor      ErrorStatusT = 31
-	ErrorStatusMalformedUsername              ErrorStatusT = 32
-	ErrorStatusDuplicateUsername              ErrorStatusT = 33
-	ErrorStatusVerificationTokenUnexpired     ErrorStatusT = 34
-	ErrorStatusCannotVerifyPayment            ErrorStatusT = 35
-	ErrorStatusDuplicatePublicKey             ErrorStatusT = 36
-	ErrorStatusInvalidPropVoteStatus          ErrorStatusT = 37
-	ErrorStatusUserLocked                     ErrorStatusT = 38
-	ErrorStatusNoProposalCredits              ErrorStatusT = 39
-	ErrorStatusInvalidUserManageAction        ErrorStatusT = 40
-	ErrorStatusUserActionNotAllowed           ErrorStatusT = 41
-	ErrorStatusWrongVoteStatus                ErrorStatusT = 42
-	ErrorStatusCannotCommentOnProp            ErrorStatusT = 43
-	ErrorStatusCannotVoteOnPropComment        ErrorStatusT = 44
-	ErrorStatusChangeMessageCannotBeBlank     ErrorStatusT = 45
-	ErrorStatusCensorReasonCannotBeBlank      ErrorStatusT = 46
-	ErrorStatusCannotCensorComment            ErrorStatusT = 47
-	ErrorStatusUserNotAuthor                  ErrorStatusT = 48
-	ErrorStatusVoteNotAuthorized              ErrorStatusT = 49
-	ErrorStatusVoteAlreadyAuthorized          ErrorStatusT = 50
-	ErrorStatusInvalidAuthVoteAction          ErrorStatusT = 51
-	ErrorStatusUserDeactivated                ErrorStatusT = 52
-	ErrorStatusInvalidPropVoteBits            ErrorStatusT = 53
-	ErrorStatusInvalidPropVoteParams          ErrorStatusT = 54
-	ErrorStatusEmailNotVerified               ErrorStatusT = 55
-	ErrorStatusInvalidUUID                    ErrorStatusT = 56
-	ErrorStatusInvalidLikeCommentAction       ErrorStatusT = 57
-	ErrorStatusInvalidCensorshipToken         ErrorStatusT = 58
-	ErrorStatusEmailAlreadyVerified           ErrorStatusT = 59
+	ErrorStatusInvalid                     ErrorStatusT = 0
+	ErrorStatusInvalidEmailOrPassword      ErrorStatusT = 1
+	ErrorStatusMalformedEmail              ErrorStatusT = 2
+	ErrorStatusVerificationTokenInvalid    ErrorStatusT = 3
+	ErrorStatusVerificationTokenExpired    ErrorStatusT = 4
+	ErrorStatusProposalMissingFiles        ErrorStatusT = 5
+	ErrorStatusProposalNotFound            ErrorStatusT = 6
+	ErrorStatusProposalDuplicateFilenames  ErrorStatusT = 7
+	ErrorStatusProposalInvalidTitle        ErrorStatusT = 8
+	ErrorStatusMaxMDsExceededPolicy        ErrorStatusT = 9
+	ErrorStatusMaxImagesExceededPolicy     ErrorStatusT = 10
+	ErrorStatusMaxMDSizeExceededPolicy     ErrorStatusT = 11
+	ErrorStatusMaxImageSizeExceededPolicy  ErrorStatusT = 12
+	ErrorStatusMalformedPassword           ErrorStatusT = 13
+	ErrorStatusCommentNotFound             ErrorStatusT = 14
+	ErrorStatusInvalidFilename             ErrorStatusT = 15
+	ErrorStatusInvalidFileDigest           ErrorStatusT = 16
+	ErrorStatusInvalidBase64               ErrorStatusT = 17
+	ErrorStatusInvalidMIMEType             ErrorStatusT = 18
+	ErrorStatusUnsupportedMIMEType         ErrorStatusT = 19
+	ErrorStatusInvalidPropStatusTransition ErrorStatusT = 20
+	ErrorStatusInvalidPublicKey            ErrorStatusT = 21
+	ErrorStatusNoPublicKey                 ErrorStatusT = 22
+	ErrorStatusInvalidSignature            ErrorStatusT = 23
+	ErrorStatusInvalidInput                ErrorStatusT = 24
+	ErrorStatusInvalidSigningKey           ErrorStatusT = 25
+	ErrorStatusCommentLengthExceededPolicy ErrorStatusT = 26
+	ErrorStatusUserNotFound                ErrorStatusT = 27
+	ErrorStatusWrongStatus                 ErrorStatusT = 28
+	ErrorStatusNotLoggedIn                 ErrorStatusT = 29
+	ErrorStatusUserNotPaid                 ErrorStatusT = 30
+	ErrorStatusReviewerAdminEqualsAuthor   ErrorStatusT = 31
+	ErrorStatusMalformedUsername           ErrorStatusT = 32
+	ErrorStatusDuplicateUsername           ErrorStatusT = 33
+	ErrorStatusVerificationTokenUnexpired  ErrorStatusT = 34
+	ErrorStatusCannotVerifyPayment         ErrorStatusT = 35
+	ErrorStatusDuplicatePublicKey          ErrorStatusT = 36
+	ErrorStatusInvalidPropVoteStatus       ErrorStatusT = 37
+	ErrorStatusUserLocked                  ErrorStatusT = 38
+	ErrorStatusNoProposalCredits           ErrorStatusT = 39
+	ErrorStatusInvalidUserManageAction     ErrorStatusT = 40
+	ErrorStatusUserActionNotAllowed        ErrorStatusT = 41
+	ErrorStatusWrongVoteStatus             ErrorStatusT = 42
+	ErrorStatusCannotCommentOnProp         ErrorStatusT = 43
+	ErrorStatusCannotVoteOnPropComment     ErrorStatusT = 44
+	ErrorStatusChangeMessageCannotBeBlank  ErrorStatusT = 45
+	ErrorStatusCensorReasonCannotBeBlank   ErrorStatusT = 46
+	ErrorStatusCannotCensorComment         ErrorStatusT = 47
+	ErrorStatusUserNotAuthor               ErrorStatusT = 48
+	ErrorStatusVoteNotAuthorized           ErrorStatusT = 49
+	ErrorStatusVoteAlreadyAuthorized       ErrorStatusT = 50
+	ErrorStatusInvalidAuthVoteAction       ErrorStatusT = 51
+	ErrorStatusUserDeactivated             ErrorStatusT = 52
+	ErrorStatusInvalidPropVoteBits         ErrorStatusT = 53
+	ErrorStatusInvalidPropVoteParams       ErrorStatusT = 54
+	ErrorStatusEmailNotVerified            ErrorStatusT = 55
+	ErrorStatusInvalidUUID                 ErrorStatusT = 56
+	ErrorStatusInvalidLikeCommentAction    ErrorStatusT = 57
+	ErrorStatusInvalidCensorshipToken      ErrorStatusT = 58
+	ErrorStatusEmailAlreadyVerified        ErrorStatusT = 59
+
+	// CMS Errors
 	ErrorStatusMalformedName                  ErrorStatusT = 60
 	ErrorStatusMalformedLocation              ErrorStatusT = 61
 	ErrorStatusInvoiceNotFound                ErrorStatusT = 62
@@ -360,6 +362,7 @@ var (
 		ErrorStatusInvalidMonthYearRequest:        "month or year was set, while the other was not",
 		ErrorStatusInvalidInvoiceStatusTransition: "invalid invoice status",
 		ErrorStatusReasonNotProvided:              "reason for action not provided",
+		ErrorStatusMalformedInvoiceFile:           "submitted invoice file is malformed",
 	}
 
 	// PropStatus converts propsal status codes to human readable text
