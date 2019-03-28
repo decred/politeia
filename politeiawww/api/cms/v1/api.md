@@ -186,7 +186,6 @@ Returns a page of the user's invoices.
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
-| status | int64 | An optional filter for the list; this should be an [invoice status](#invoice-status-codes). | |
 
 **Results:**
 
@@ -199,9 +198,7 @@ Returns a page of the user's invoices.
 Request:
 
 ```json
-{
-  "status": 4
-}
+{}
 ```
 
 Reply:
