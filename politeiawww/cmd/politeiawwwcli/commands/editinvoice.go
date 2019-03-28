@@ -3,6 +3,7 @@ package commands
 import (
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
@@ -16,14 +17,18 @@ import (
 // EditInvoiceCmd edits an existing invoice.
 type EditInvoiceCmd struct {
 	Args struct {
-		Token       string   `positional-arg-name:"token" required:"true"` // Censorship token
-		CSV         string   `positional-arg-name:"csvfile"`               // Invoice CSV file
-		Attachments []string `positional-arg-name:"attachmentfiles"`       // Invoice attachments
+		Month       uint     `positional-arg-name:"month" required:"true"`
+		Year        uint     `positional-arg-name:"year"`
+		Token       string   `positional-arg-name:"token"`           // Censorship token
+		CSV         string   `positional-arg-name:"csvfile"`         // Invoice CSV file
+		Attachments []string `positional-arg-name:"attachmentfiles"` // Invoice attachments
 	} `positional-args:"true" optional:"true"`
 }
 
 // Execute executes the edit invoice command.
 func (cmd *EditInvoiceCmd) Execute(args []string) error {
+	month := cmd.Args.Month
+	year := cmd.Args.Year
 	token := cmd.Args.Token
 	csvFile := cmd.Args.CSV
 	attachmentFiles := cmd.Args.Attachments
@@ -43,20 +48,33 @@ func (cmd *EditInvoiceCmd) Execute(args []string) error {
 		return err
 	}
 
+	var csv []byte
 	files := make([]www.File, 0, www.PolicyMaxImages+1)
 	// Read markdown file into memory and convert to type File
 	fpath := util.CleanAndExpandPath(csvFile)
-
-	csv, err := ioutil.ReadFile(fpath)
+	csv, err = ioutil.ReadFile(fpath)
 	if err != nil {
 		return fmt.Errorf("ReadFile %v: %v", fpath, err)
 	}
 
+	invInput, err := validateParseCSV(csv)
+	if err != nil {
+		return fmt.Errorf("Parsing CSV failed: %v", err)
+	}
+
+	invInput.Month = uint16(month)
+	invInput.Year = uint16(year)
+
+	b, err := json.Marshal(invInput)
+	if err != nil {
+		return fmt.Errorf("Marshal: %v", err)
+	}
+
 	f := www.File{
-		Name:    "invoice.csv",
-		MIME:    mime.DetectMimeType(csv),
-		Digest:  hex.EncodeToString(util.Digest(csv)),
-		Payload: base64.StdEncoding.EncodeToString(csv),
+		Name:    "invoice.json",
+		MIME:    mime.DetectMimeType(b),
+		Digest:  hex.EncodeToString(util.Digest(b)),
+		Payload: base64.StdEncoding.EncodeToString(b),
 	}
 
 	files = append(files, f)

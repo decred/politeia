@@ -382,37 +382,6 @@ func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, user 
 	return &reply, nil
 }
 
-// handleSetInvoiceStatus handles the incoming set invoice status command.
-func (p *politeiawww) handleSetInvoiceStatus(w http.ResponseWriter, r *http.Request) {
-	// Add the path param to the struct.
-	log.Tracef("handleSetInvoiceStatus")
-	var sis cms.SetInvoiceStatus
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&sis); err != nil {
-		RespondWithError(w, r, 0, "handleSetInvoiceStatus: unmarshal", www.UserError{
-			ErrorCode: www.ErrorStatusInvalidInput,
-		})
-		return
-	}
-
-	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleSetInvoiceStatus: getSessionUser %v", err)
-		return
-	}
-
-	reply, err := p.processSetInvoiceStatus(sis, user)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleSetInvoiceStatus: processSetInvoiceStatus %v", err)
-		return
-	}
-
-	// Reply with the challenge response and censorship token.
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
 // processNewInvoice tries to submit a new proposal to politeiad.
 func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus, u *user.User) (*cms.SetInvoiceStatusReply, error) {
 
@@ -559,37 +528,6 @@ func statusInSlice(arr []cms.InvoiceStatusT, status cms.InvoiceStatusT) bool {
 	}
 
 	return false
-}
-
-// handleEditInvoice attempts to edit an invoice
-func (p *politeiawww) handleEditInvoice(w http.ResponseWriter, r *http.Request) {
-	var ei cms.EditInvoice
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&ei); err != nil {
-		RespondWithError(w, r, 0, "handleEditInvoice: unmarshal",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleEditInvoice: getSessionUser %v", err)
-		return
-	}
-
-	log.Debugf("handleEditInvoice: %v", ei.Token)
-
-	epr, err := p.processEditInvoice(ei, user)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleEditInvoice: processEditInvoice %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, epr)
 }
 
 // processEditInvoice attempts to edit a proposal on politeiad.
