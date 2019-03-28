@@ -5,6 +5,7 @@
 package cockroachdb
 
 import (
+	"strconv"
 	"time"
 
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
@@ -72,9 +73,12 @@ func DecodeInvoice(invoice *Invoice) (*database.Invoice, error) {
 	return &dbInvoice, nil
 }
 
+const lineItemSplitChar = "+"
+
 // EncodeInvoiceLineItem encodes a database.LineItem into a cockroachdb line item.
 func EncodeInvoiceLineItem(dbLineItem *database.LineItem) LineItem {
 	lineItem := LineItem{}
+	lineItem.LineItemKey = dbLineItem.InvoiceToken + strconv.Itoa(int(dbLineItem.LineNumber))
 	lineItem.LineNumber = uint(dbLineItem.LineNumber)
 	lineItem.InvoiceToken = dbLineItem.InvoiceToken
 	lineItem.Type = dbLineItem.Type
@@ -89,8 +93,8 @@ func EncodeInvoiceLineItem(dbLineItem *database.LineItem) LineItem {
 // DecodeInvoiceLineItem decodes a cockroachdb line item into a generic database.LineItem
 func DecodeInvoiceLineItem(lineItem *LineItem) *database.LineItem {
 	dbLineItem := &database.LineItem{}
-	dbLineItem.LineNumber = uint16(lineItem.LineNumber)
 	dbLineItem.InvoiceToken = lineItem.InvoiceToken
+	dbLineItem.LineNumber = uint16(lineItem.LineNumber)
 	dbLineItem.Type = lineItem.Type
 	dbLineItem.Subtype = lineItem.Subtype
 	dbLineItem.Description = lineItem.Description

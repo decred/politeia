@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/politeia/decredplugin"
 	database "github.com/decred/politeia/politeiawww/cmsdatabase"
 	"github.com/jinzhu/gorm"
@@ -39,7 +40,7 @@ type cockroachdb struct {
 // CreateInvoice satisfies the backend interface.
 func (c *cockroachdb) NewInvoice(dbInvoice *database.Invoice) error {
 	invoice := EncodeInvoice(dbInvoice)
-
+	spew.Dump(invoice)
 	log.Debugf("CreateInvoice: %v", invoice.Token)
 	return c.recordsdb.Create(invoice).Error
 }

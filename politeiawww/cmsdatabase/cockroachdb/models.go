@@ -25,7 +25,7 @@ type Invoice struct {
 	ServerSignature    string    `gorm:"not null"`
 	Version            string    `gorm:"not null"`
 
-	LineItems []LineItem `gorm:"not null"`
+	LineItems []LineItem `gorm:"foreignkey:LineItemKey"`
 }
 
 // TableName returns the table name of the invoices table.
@@ -35,14 +35,15 @@ func (Invoice) TableName() string {
 
 // LineItem is the database model for the database.LineItem type
 type LineItem struct {
-	LineNumber   uint    `gorm:"not null"` // LineNumber of each line item
-	InvoiceToken string  `gorm:"not null"` // Token of the Invoice that has this lineitem
-	Type         string  `gorm:"not null"` // Type of work performed
-	Subtype      string  `gorm:"not null"` // Subtype of work performed
-	Description  string  `gorm:"not null"` // Description of work performed
-	ProposalURL  string  `gorm:"not null"` // Link to politeia proposal that work is associated with
-	Hours        float64 `gorm:"not null"` // Number of Hours
-	TotalCost    float64 `gorm:"not null"` // Total cost of line item
+	LineItemKey  string  `gorm:"primary_key"` // Token of the Invoice + "-" + line number
+	LineNumber   uint    `gorm:"not null"`    // Line number of the line item
+	InvoiceToken string  `gorm:"not null"`    // Censorship token of the invoice
+	Type         string  `gorm:"not null"`    // Type of work performed
+	Subtype      string  `gorm:"not null"`    // Subtype of work performed
+	Description  string  `gorm:"not null"`    // Description of work performed
+	ProposalURL  string  `gorm:"not null"`    // Link to politeia proposal that work is associated with
+	Hours        float64 `gorm:"not null"`    // Number of Hours
+	TotalCost    float64 `gorm:"not null"`    // Total cost of line item
 }
 
 // TableName returns the table name of the line items table.
