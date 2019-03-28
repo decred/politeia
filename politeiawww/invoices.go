@@ -428,17 +428,17 @@ func (p *politeiawww) processUserInvoices(user *user.User) (*cms.UserInvoicesRep
 func (p *politeiawww) processAdminInvoices(ai cms.AdminInvoices, user *user.User) (*cms.UserInvoicesReply, error) {
 	dbInvs := make([]database.Invoice, 0, 1024)
 	var err error
-	if (ai.Month != 0 && ai.Year != 0) && ai.Status != -1 {
+	if (ai.Month != 0 && ai.Year != 0) && ai.Status != 0 {
 		dbInvs, err = p.cmsDB.InvoicesByMonthYearStatus(ai.Month, ai.Year, int(ai.Status))
 		if err != nil {
 			return nil, err
 		}
-	} else if (ai.Month != 0 && ai.Year != 0) && ai.Status == -1 {
+	} else if (ai.Month != 0 && ai.Year != 0) && ai.Status == 0 {
 		dbInvs, err = p.cmsDB.InvoicesByMonthYear(ai.Month, ai.Year)
 		if err != nil {
 			return nil, err
 		}
-	} else if (ai.Month == 0 && ai.Year == 0) && ai.Status != -1 {
+	} else if (ai.Month == 0 && ai.Year == 0) && ai.Status != 0 {
 		dbInvs, err = p.cmsDB.InvoicesByStatus(int(ai.Status))
 		if err != nil {
 			return nil, err

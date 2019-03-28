@@ -757,7 +757,7 @@ func (c *Client) UserInvoices(up *cms.UserInvoices) (*cms.UserInvoicesReply, err
 // AdminInvoices retrieves the proposals that have been submitted by the
 // specified user.
 func (c *Client) AdminInvoices(ai *cms.AdminInvoices) (*cms.AdminInvoicesReply, error) {
-	responseBody, err := c.makeRequest("GET", cms.RouteAdminInvoices, ai)
+	responseBody, err := c.makeRequest("POST", cms.RouteAdminInvoices, ai)
 	if err != nil {
 		return nil, err
 	}

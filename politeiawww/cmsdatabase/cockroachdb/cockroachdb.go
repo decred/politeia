@@ -103,7 +103,7 @@ func (c *cockroachdb) InvoicesByMonthYearStatus(month, year uint16, status int) 
 
 	invoices := make([]Invoice, 0, 1024) // PNOOMA
 	err := c.recordsdb.
-		Where("month = ? && year = ? && status == ?", month, year, status).
+		Where("month = ? AND year = ? AND status = ?", month, year, status).
 		Find(&invoices).
 		Error
 	if err != nil {
@@ -127,7 +127,7 @@ func (c *cockroachdb) InvoicesByMonthYear(month, year uint16) ([]database.Invoic
 
 	invoices := make([]Invoice, 0, 1024) // PNOOMA
 	err := c.recordsdb.
-		Where("month = ? && year = ?", month, year).
+		Where("month = ? AND year = ?", month, year).
 		Find(&invoices).
 		Error
 	if err != nil {

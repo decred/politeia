@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"net/http"
-	"strconv"
 
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
@@ -159,58 +158,12 @@ func (p *politeiawww) handleUserInvoices(w http.ResponseWriter, r *http.Request)
 func (p *politeiawww) handleAdminInvoices(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleAdminInvoices")
 	var ai cms.AdminInvoices
-
-	// get version from query string parameters
-	err := util.ParseGetParams(r, &ai)
-	if err != nil {
-		RespondWithError(w, r, 0, "handleInvoiceDetails: ParseGetParams",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&ai); err != nil {
+		RespondWithError(w, r, 0, "handleNewInvoice: unmarshal", www.UserError{
+			ErrorCode: www.ErrorStatusInvalidInput,
+		})
 		return
-	}
-
-	// Get proposal token from path parameters
-	pathParams := mux.Vars(r)
-	month := pathParams["month"]
-	year := pathParams["year"]
-	status := pathParams["status"]
-
-	ai.Month = 0
-	ai.Year = 0
-	ai.Status = -1
-
-	if month != "" {
-		aiMonth, err := strconv.Atoi(month)
-		if err != nil {
-			RespondWithError(w, r, 0, "handleInvoiceDetails: ParseGetParams",
-				www.UserError{
-					ErrorCode: www.ErrorStatusInvalidInput,
-				})
-		}
-		ai.Month = uint16(aiMonth)
-	}
-
-	if year != "" {
-		aiYear, err := strconv.Atoi(year)
-		if err != nil {
-			RespondWithError(w, r, 0, "handleInvoiceDetails: ParseGetParams",
-				www.UserError{
-					ErrorCode: www.ErrorStatusInvalidInput,
-				})
-		}
-		ai.Year = uint16(aiYear)
-	}
-
-	if status != "" {
-		aiStatus, err := strconv.Atoi(status)
-		if err != nil {
-			RespondWithError(w, r, 0, "handleInvoiceDetails: ParseGetParams",
-				www.UserError{
-					ErrorCode: www.ErrorStatusInvalidInput,
-				})
-		}
-		ai.Status = cms.InvoiceStatusT(aiStatus)
 	}
 
 	user, err := p.getSessionUser(w, r)
@@ -275,7 +228,7 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		permissionAdmin)
 	p.addRoute(http.MethodPost, www.RouteCensorComment,
 		p.handleCensorComment, permissionAdmin)
-	p.addRoute(http.MethodGet, cms.RouteAdminInvoices,
+	p.addRoute(http.MethodPost, cms.RouteAdminInvoices,
 		p.handleAdminInvoices, permissionAdmin)
 
 	// Routes for Contractor Management System
