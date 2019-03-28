@@ -700,7 +700,7 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 		return nil, err
 	}
 
-	err = p.cmsDb.UpdateInvoice(dbInvoice)
+	err = p.cmsDB.UpdateInvoice(dbInvoice)
 	if err != nil {
 		return nil, err
 	}
