@@ -73,8 +73,6 @@ func DecodeInvoice(invoice *Invoice) (*database.Invoice, error) {
 	return &dbInvoice, nil
 }
 
-const lineItemSplitChar = "+"
-
 // EncodeInvoiceLineItem encodes a database.LineItem into a cockroachdb line item.
 func EncodeInvoiceLineItem(dbLineItem *database.LineItem) LineItem {
 	lineItem := LineItem{}

@@ -25,7 +25,7 @@ type Invoice struct {
 	ServerSignature    string    `gorm:"not null"`
 	Version            string    `gorm:"not null"`
 
-	LineItems []LineItem `gorm:"foreignkey:LineItemKey"`
+	LineItems []LineItem `gorm:"foreignkey:InvoiceToken"`
 }
 
 // TableName returns the table name of the invoices table.
