@@ -1,3 +1,7 @@
+// Copyright (c) 2017-2019 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package commands
 
 import (
@@ -124,13 +128,13 @@ func (cmd *EditInvoiceCmd) Execute(args []string) error {
 	}
 
 	// Verify the censorship record
-	pr := www.ProposalRecord{
+	pr := v1.InvoiceRecord{
 		Files:            ei.Files,
 		PublicKey:        ei.PublicKey,
 		Signature:        ei.Signature,
 		CensorshipRecord: eir.Invoice.CensorshipRecord,
 	}
-	err = verifyProposal(pr, vr.PubKey)
+	err = verifyInvoice(pr, vr.PubKey)
 	if err != nil {
 		return fmt.Errorf("unable to verify invoice %v: %v",
 			eir.Invoice.CensorshipRecord.Token, err)
@@ -142,17 +146,20 @@ func (cmd *EditInvoiceCmd) Execute(args []string) error {
 
 // editInvoiceHelpMsg is the output of the help command when 'editinvoice'
 // is specified.
-const editInvoiceHelpMsg = `editinvoice [flags] "token" "csvfile" "attachmentfiles" 
+const editInvoiceHelpMsg = `editinvoice [flags] "month" "year" token" "csvfile" "attachmentfiles" 
 
 Edit a invoice.
 
 Arguments:
+1. month             (uint, required)     Invoice Month
+2. year              (uint, required)     Invoice Year
 1. token             (string, required)   Invoice censorship token
 2. csvfile           (string, required)   Edited invoice 
 3. attachmentfiles   (string, optional)   Attachments 
 
 Request:
 {
+  "month":  (uint)    Invoice Month
   "token":  (string)  Censorship token
     "files": [
       {
@@ -169,7 +176,8 @@ Request:
 Response:
 {
   "invoice": {
-    "name":          (string)       Suggested short invoice name 
+    "month":         (uint16)       Month of invoice
+    "year":          (uint16)       Year of invoice
     "state":         (PropStateT)   Current state of invoice
     "status":        (PropStatusT)  Current status of invoice
     "timestamp":     (int64)        Timestamp of last update of invoice

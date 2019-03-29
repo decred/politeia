@@ -23,10 +23,9 @@ type SetInvoiceStatusCmd struct {
 
 func (cmd *SetInvoiceStatusCmd) Execute(args []string) error {
 	InvoiceStatus := map[string]cms.InvoiceStatusT{
-		"updated":  cms.InvoiceStatusUpdated,
 		"rejected": cms.InvoiceStatusRejected,
 		"approved": cms.InvoiceStatusApproved,
-		"paid":     cms.InvoiceStatusPaid,
+		"disputed": cms.InvoiceStatusDisputed,
 	}
 	// Check for user identity
 	if cfg.Identity == nil {
@@ -64,3 +63,52 @@ func (cmd *SetInvoiceStatusCmd) Execute(args []string) error {
 
 	return printJSON(sisr)
 }
+
+// setInvoiceStatusHelpMsg is the output of the help command when
+// "setinvoicestatus" is specified.
+const setInvoiceStatusHelpMsg = `setinvoicestatus "token" "status"
+
+Set the status of a invoice. Requires admin privileges.
+
+Arguments:
+1. token      (string, required)   Invoice censorship token
+2. status     (string, required)   New status (approved, disputed, rejected)
+3. message    (string)             Status change message
+
+Request:
+{
+  "token":           (string)          Censorship token
+  "invoicestatus":   (InvoiceStatusT)  Invoice status code    
+  "signature":       (string)          Signature of invoice status change
+  "publickey":       (string)          Public key of user changing invoice status
+}
+
+Response:
+{
+  "invoice": {
+	  "month":         (uint16)       Month of invoice
+	  "year":          (uint16)       Year of invoice
+	  "state":         (PropStateT)   Current state of invoice
+	  "status":        (PropStatusT)  Current status of invoice
+	  "timestamp":     (int64)        Timestamp of last update of invoice
+	  "userid":        (string)       ID of user who submitted invoice
+	  "username":      (string)       Username of user who submitted invoice
+	  "publickey":     (string)       Public key used to sign invoice
+	  "signature":     (string)       Signature of merkle root
+	  "files": [
+		{
+		  "name":      (string)       Filename 
+		  "mime":      (string)       Mime type 
+		  "digest":    (string)       File digest 
+		  "payload":   (string)       File payload 
+		}
+	  ],
+	  "numcomments":   (uint)    Number of comments on the invoice
+	  "version": 		 (string)  Version of invoice
+	  "censorshiprecord": {	
+		"token":       (string)  Censorship token
+		"merkle":      (string)  Merkle root of invoice
+		"signature":   (string)  Server side signature of []byte(Merkle+Token)
+	  }
+	}
+}`

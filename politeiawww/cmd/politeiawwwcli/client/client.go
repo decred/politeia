@@ -683,7 +683,7 @@ func (c *Client) NewInvoice(ni *cms.NewInvoice) (*cms.NewInvoiceReply, error) {
 	return &nir, nil
 }
 
-// EditInvoice edits the specified proposal with the logged in user.
+// EditInvoice edits the specified invoice with the logged in user.
 func (c *Client) EditInvoice(ei *cms.EditInvoice) (*cms.EditInvoiceReply, error) {
 	responseBody, err := c.makeRequest("POST", cms.RouteEditInvoice, ei)
 	if err != nil {
