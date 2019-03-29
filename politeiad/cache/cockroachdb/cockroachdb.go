@@ -551,7 +551,8 @@ func (c *cockroachdb) PluginBuild(id, payload string) error {
 }
 
 // createTables creates the database tables if they do not already exist.  A
-// version record is inserted into the database during table creation.
+// version record for the cache is inserted into the database during this
+// process if one does not already exist.
 //
 // This function must be called within a transaction.
 func (c *cockroachdb) createTables(tx *gorm.DB) error {
@@ -559,16 +560,6 @@ func (c *cockroachdb) createTables(tx *gorm.DB) error {
 
 	if !tx.HasTable(tableVersions) {
 		err := tx.CreateTable(&Version{}).Error
-		if err != nil {
-			return err
-		}
-		// Add record version
-		err = tx.Create(
-			&Version{
-				ID:        cacheID,
-				Version:   cacheVersion,
-				Timestamp: time.Now().Unix(),
-			}).Error
 		if err != nil {
 			return err
 		}
@@ -592,7 +583,34 @@ func (c *cockroachdb) createTables(tx *gorm.DB) error {
 		}
 	}
 
-	return nil
+	var v Version
+	err := tx.Where("id = ?", cacheID).
+		Find(&v).
+		Error
+	if err == gorm.ErrRecordNotFound {
+		err = tx.Create(
+			&Version{
+				ID:        cacheID,
+				Version:   cacheVersion,
+				Timestamp: time.Now().Unix(),
+			}).Error
+	}
+
+	return err
+}
+
+func (c *cockroachdb) dropTables(tx *gorm.DB) error {
+	// Drop record tables
+	err := tx.DropTableIfExists(tableRecords,
+		tableMetadataStreams, tableFiles).Error
+	if err != nil {
+		return err
+	}
+
+	// Remove cache version record
+	return tx.Delete(&Version{
+		ID: cacheID,
+	}).Error
 }
 
 // Setup creates the database tables for the records cache if they do not
@@ -620,19 +638,41 @@ func (c *cockroachdb) Setup() error {
 
 // build the records cache using the passed in records.
 //
-// This funcion must be called within a transaction.
-func (c *cockroachdb) build(tx *gorm.DB, records []Record) error {
+// This function cannot be called using a transaction because it could
+// potentially exceed cockroachdb's transaction size limit.
+func (c *cockroachdb) build(records []Record) error {
 	log.Tracef("build")
 
-	err := c.createTables(tx)
+	// Drop record tables
+	tx := c.recordsdb.Begin()
+	err := c.dropTables(tx)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("drop tables: %v", err)
+	}
+	err = tx.Commit().Error
 	if err != nil {
 		return err
 	}
 
+	// Create record tables
+	tx = c.recordsdb.Begin()
+	err = c.createTables(tx)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("create tables: %v", err)
+	}
+	err = tx.Commit().Error
+	if err != nil {
+		return err
+	}
+
+	// Populate record tables
 	for _, r := range records {
-		err := tx.Create(&r).Error
+		err := c.recordsdb.Create(&r).Error
 		if err != nil {
-			return err
+			log.Debugf("create record failed on '%v'", r)
+			return fmt.Errorf("create record: %v", err)
 		}
 	}
 
@@ -663,23 +703,23 @@ func (c *cockroachdb) Build(records []cache.Record) error {
 		r = append(r, convertRecordFromCache(cr, v))
 	}
 
-	// Drop all current tables from the cache
-	err := c.recordsdb.DropTableIfExists(tableVersions, tableRecords,
-		tableMetadataStreams, tableFiles).Error
+	// Build the records cache. This is not run using a
+	// transaction because it could potentially exceed
+	// cockroachdb's transaction size limit.
+	err := c.build(r)
 	if err != nil {
-		return err
+		// Remove the version record. This will
+		// force a rebuild on the next start up.
+		err1 := c.recordsdb.Delete(&Version{
+			ID: cacheID,
+		}).Error
+		if err1 != nil {
+			panic("the cache is out of sync and will not rebuild" +
+				"automatically; a rebuild must be forced")
+		}
 	}
 
-	// Use a transaction to create new tables and to add all the
-	// politeiad records to the cache
-	tx := c.recordsdb.Begin()
-	err = c.build(tx, r)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	return tx.Commit().Error
+	return err
 }
 
 // Close shuts down the cache.  All interface functions MUST return with
@@ -738,7 +778,9 @@ func New(user, host, net, rootCert, cert, key string) (*cockroachdb, error) {
 	// names manually.
 	c.recordsdb.SingularTable(true)
 
-	// Ensure we're using the correct cache version.
+	// Return an error if there is version mismatch, but also
+	// return the database context so that the cache can be
+	// rebuilt.
 	var v Version
 	if c.recordsdb.HasTable(tableVersions) {
 		err = c.recordsdb.
@@ -746,13 +788,14 @@ func New(user, host, net, rootCert, cert, key string) (*cockroachdb, error) {
 			Find(&v).
 			Error
 		if err != nil {
-			return nil, err
+			if err == gorm.ErrRecordNotFound {
+				// The version record not being found is the
+				// equivalent of the version being wrong.
+				err = cache.ErrWrongVersion
+			}
 		}
 	}
 
-	// Return an error if the version is incorrect, but also
-	// return the database context so that the cache can be
-	// rebuilt.
 	if v.Version != cacheVersion {
 		err = cache.ErrWrongVersion
 	}
