@@ -27,16 +27,23 @@ import (
 )
 
 var (
+	// This covers the possible valid status transitions for any invoices.  If
+	// a current invoice's status does not fall into these 3 categories, then
+	// an admin will not be able to update their status.  For example,
+	// paid or approved invoices cannot have their status changed.
 	validStatusTransitions = map[cms.InvoiceStatusT][]cms.InvoiceStatusT{
+		// New invoices may only be updated to approved, rejected or disputed.
 		cms.InvoiceStatusNew: {
 			cms.InvoiceStatusApproved,
 			cms.InvoiceStatusRejected,
 			cms.InvoiceStatusDisputed,
 		},
+		// Rejected invoices may only be updated to approved or updated.
 		cms.InvoiceStatusRejected: {
 			cms.InvoiceStatusApproved,
 			cms.InvoiceStatusUpdated,
 		},
+		// Updated invoices may only be updated to approved, rejected or disputed.
 		cms.InvoiceStatusUpdated: {
 			cms.InvoiceStatusApproved,
 			cms.InvoiceStatusRejected,
