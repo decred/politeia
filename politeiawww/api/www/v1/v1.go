@@ -360,7 +360,7 @@ var (
 		ErrorStatusMalformedLocation:              "malformed location",
 		ErrorStatusInvoiceNotFound:                "invoice cannot be found",
 		ErrorStatusInvalidMonthYearRequest:        "month or year was set, while the other was not",
-		ErrorStatusInvalidInvoiceStatusTransition: "invalid invoice status",
+		ErrorStatusInvalidInvoiceStatusTransition: "invalid invoice status transition",
 		ErrorStatusReasonNotProvided:              "reason for action not provided",
 		ErrorStatusMalformedInvoiceFile:           "submitted invoice file is malformed",
 	}

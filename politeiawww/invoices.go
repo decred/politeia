@@ -31,6 +31,7 @@ var (
 		cms.InvoiceStatusNew: {
 			cms.InvoiceStatusApproved,
 			cms.InvoiceStatusRejected,
+			cms.InvoiceStatusDisputed,
 		},
 		cms.InvoiceStatusRejected: {
 			cms.InvoiceStatusApproved,
@@ -39,9 +40,7 @@ var (
 		cms.InvoiceStatusUpdated: {
 			cms.InvoiceStatusApproved,
 			cms.InvoiceStatusRejected,
-		},
-		cms.InvoiceStatusApproved: {
-			cms.InvoiceStatusPaid,
+			cms.InvoiceStatusDisputed,
 		},
 	}
 )
@@ -399,11 +398,9 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus, u *user.
 				ErrorCode: www.ErrorStatusInvoiceNotFound,
 			}
 		}
-
 		return nil, err
 	}
-
-	err = validateStatusTransition(dbInvoice, sis.Status, sis.Reason)
+	err = validateStatusTransition(dbInvoice.Status, sis.Status, sis.Reason)
 	if err != nil {
 		return nil, err
 	}
@@ -457,20 +454,14 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus, u *user.
 		return nil, err
 	}
 
-	/*
-		// Update the database with the metadata changes.
-		dbInvoice.Changes = append(dbInvoice.Changes, database.InvoiceChange{
-			Timestamp:      changes.Timestamp,
-			AdminPublicKey: changes.AdminPublicKey,
-			NewStatus:      changes.NewStatus,
-		})
-		if changes.Reason != nil {
-			dbInvoice.Changes[len(dbInvoice.Changes)-1].Reason = *changes.Reason
-			dbInvoice.StatusChangeReason = *changes.Reason
-		} else {
-			dbInvoice.StatusChangeReason = ""
-		}
-	*/
+	// Update the database with the metadata changes.
+	dbInvoice.Changes = append(dbInvoice.Changes, cmsdatabase.InvoiceChange{
+		Timestamp:      changes.Timestamp,
+		AdminPublicKey: changes.AdminPublicKey,
+		NewStatus:      changes.NewStatus,
+		Reason:         changes.Reason,
+	})
+	dbInvoice.StatusChangeReason = changes.Reason
 	dbInvoice.Status = changes.NewStatus
 
 	err = p.cmsDB.UpdateInvoice(dbInvoice)
@@ -493,13 +484,13 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus, u *user.
 }
 
 func validateStatusTransition(
-	dbInvoice *database.Invoice,
+	oldStatus cms.InvoiceStatusT,
 	newStatus cms.InvoiceStatusT,
 	reason string,
 ) error {
-	validStatuses, ok := validStatusTransitions[dbInvoice.Status]
+	validStatuses, ok := validStatusTransitions[oldStatus]
 	if !ok {
-		log.Errorf("status not supported: %v", dbInvoice.Status)
+		log.Errorf("status not supported: %v", oldStatus)
 		return www.UserError{
 			ErrorCode: www.ErrorStatusInvalidInvoiceStatusTransition,
 		}
@@ -637,6 +628,9 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 	if err != nil {
 		return nil, err
 	}
+
+	dbInvoice.UserID = updatedInvoice.UserID
+	dbInvoice.Status = cms.InvoiceStatusUpdated
 
 	err = p.cmsDB.UpdateInvoice(dbInvoice)
 	if err != nil {

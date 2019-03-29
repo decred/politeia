@@ -62,7 +62,8 @@ type Invoice struct {
 	ServerSignature    string
 	Version            string // Version number of this invoice
 
-	LineItems []LineItem
+	LineItems []LineItem      // All line items parsed from the raw invoice provided.
+	Changes   []InvoiceChange // All status changes that the invoice has had.
 }
 
 // LineItem contains information about the individual line items contained in an
@@ -76,4 +77,13 @@ type LineItem struct {
 	ProposalURL  string
 	Hours        float64
 	TotalCost    float64
+}
+
+// InvoiceChange contains entries for any status update that occurs to a given
+// invoice.  This will give a full history of an invoices history.
+type InvoiceChange struct {
+	AdminPublicKey string
+	NewStatus      cms.InvoiceStatusT
+	Reason         string
+	Timestamp      int64
 }

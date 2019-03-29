@@ -21,8 +21,9 @@ const (
 	cmsVersion = "1"
 
 	// Database table names
-	tableNameInvoice  = "invoices"
-	tableNameLineItem = "line_items"
+	tableNameInvoice       = "invoices"
+	tableNameLineItem      = "line_items"
+	tableNameInvoiceChange = "invoice_change"
 
 	UserCMSDB = "invoices_cmsdb" // cmsdb user (read/write access)
 )
@@ -210,6 +211,12 @@ func createCmsTables(tx *gorm.DB) error {
 	}
 	if !tx.HasTable(tableNameLineItem) {
 		err := tx.CreateTable(&LineItem{}).Error
+		if err != nil {
+			return err
+		}
+	}
+	if !tx.HasTable(tableNameInvoiceChange) {
+		err := tx.CreateTable(&InvoiceChange{}).Error
 		if err != nil {
 			return err
 		}

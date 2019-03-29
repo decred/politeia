@@ -25,7 +25,8 @@ type Invoice struct {
 	ServerSignature    string    `gorm:"not null"`
 	Version            string    `gorm:"not null"`
 
-	LineItems []LineItem `gorm:"foreignkey:InvoiceToken"`
+	LineItems []LineItem      `gorm:"foreignkey:InvoiceToken"`
+	Changes   []InvoiceChange `gorm:"foreignkey:InvoiceToken"`
 }
 
 // TableName returns the table name of the invoices table.
@@ -49,4 +50,19 @@ type LineItem struct {
 // TableName returns the table name of the line items table.
 func (LineItem) TableName() string {
 	return tableNameLineItem
+}
+
+// InvoiceChange contains entries for any status update that occurs to a given
+// invoice.  This will give a full history of an invoices history.
+type InvoiceChange struct {
+	InvoiceToken   string    `gorm:"not null"` // Censorship token of the invoice
+	AdminPublicKey string    `gorm:"not null"` // The public of the admin that processed the status change.
+	NewStatus      uint      `gorm:"not null"` // Updated status of the invoice.
+	Reason         string    `gorm:"not null"` // Reason for status updated (required if rejected)
+	Timestamp      time.Time `gorm:"not null"` // The timestamp of the status change.
+}
+
+// TableName returns the table name of the line items table.
+func (InvoiceChange) TableName() string {
+	return tableNameInvoiceChange
 }

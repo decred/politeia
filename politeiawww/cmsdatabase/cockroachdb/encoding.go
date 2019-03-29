@@ -45,6 +45,10 @@ func EncodeInvoice(dbInvoice *database.Invoice) *Invoice {
 		invoice.LineItems = append(invoice.LineItems, invoiceLineItem)
 	}
 
+	for _, dbInvoiceChange := range dbInvoice.Changes {
+		invoiceChange := encodeInvoiceChange(&dbInvoiceChange)
+		invoice.Changes = append(invoice.Changes, invoiceChange)
+	}
 	return &invoice
 }
 
@@ -70,6 +74,10 @@ func DecodeInvoice(invoice *Invoice) (*database.Invoice, error) {
 		dbInvoice.LineItems = append(dbInvoice.LineItems, *dbInvoiceLineItem)
 	}
 
+	for _, invoiceChange := range invoice.Changes {
+		dbInvoiceChanges := decodeInvoiceChange(&invoiceChange)
+		dbInvoice.Changes = append(dbInvoice.Changes, *dbInvoiceChanges)
+	}
 	return &dbInvoice, nil
 }
 
@@ -101,6 +109,24 @@ func DecodeInvoiceLineItem(lineItem *LineItem) *database.LineItem {
 	dbLineItem.TotalCost = lineItem.TotalCost
 
 	return dbLineItem
+}
+
+func encodeInvoiceChange(dbInvoiceChange *database.InvoiceChange) InvoiceChange {
+	invoiceChange := InvoiceChange{}
+	invoiceChange.AdminPublicKey = dbInvoiceChange.AdminPublicKey
+	invoiceChange.NewStatus = uint(dbInvoiceChange.NewStatus)
+	invoiceChange.Reason = dbInvoiceChange.Reason
+	invoiceChange.Timestamp = time.Unix(dbInvoiceChange.Timestamp, 0)
+	return invoiceChange
+}
+
+func decodeInvoiceChange(invoiceChange *InvoiceChange) *database.InvoiceChange {
+	dbInvoiceChange := &database.InvoiceChange{}
+	dbInvoiceChange.AdminPublicKey = invoiceChange.AdminPublicKey
+	dbInvoiceChange.NewStatus = cms.InvoiceStatusT(invoiceChange.NewStatus)
+	dbInvoiceChange.Reason = invoiceChange.Reason
+	dbInvoiceChange.Timestamp = invoiceChange.Timestamp.Unix()
+	return dbInvoiceChange
 }
 
 // DecodeInvoices decodes an array of cockroachdb Invoice instances into
