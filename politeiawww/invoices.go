@@ -426,6 +426,13 @@ func (p *politeiawww) processUserInvoices(user *user.User) (*cms.UserInvoicesRep
 // processAdminInvoices fetches all invoices that are currently stored in the
 // cmsdb.
 func (p *politeiawww) processAdminInvoices(ai cms.AdminInvoices, user *user.User) (*cms.UserInvoicesReply, error) {
+
+	if (ai.Month == 0 && ai.Year != 0) || (ai.Month != 0 && ai.Year == 0) {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidMonthYearRequest,
+		}
+	}
+
 	var dbInvs []database.Invoice
 	var err error
 	if (ai.Month != 0 && ai.Year != 0) && ai.Status != 0 {
