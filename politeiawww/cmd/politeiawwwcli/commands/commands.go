@@ -56,6 +56,7 @@ var (
 
 // Cmds is used to represent all of the politeiawwwcli commands.
 type Cmds struct {
+	AdminInvoices      AdminInvoicesCmd      `command:"admininvoices" description:"(admin) get all invoices (optional by month/year and/or status)"`
 	ActiveVotes        ActiveVotesCmd        `command:"activevotes" description:"(public) get the proposals that are being voted on"`
 	AuthorizeVote      AuthorizeVoteCmd      `command:"authorizevote" description:"(user)   authorize a proposal vote (must be proposal author)"`
 	CensorComment      CensorCommentCmd      `command:"censorcomment" description:"(admin)  censor a proposal comment"`
@@ -98,6 +99,7 @@ type Cmds struct {
 	UserDetails        UserDetailsCmd        `command:"userdetails" description:"(public) get the details of a user profile"`
 	UserLikeComments   UserLikeCommentsCmd   `command:"userlikecomments" description:"(user)   get the logged in user's comment upvotes/downvotes for a proposal"`
 	UserPendingPayment UserPendingPaymentCmd `command:"userpendingpayment" description:"(user)   get details for a pending payment for the logged in user"`
+	UserInvoices       UserInvoicesCmd       `command:"userinvoices" description:"(user) get all invoices submitted by a specific user"`
 	UserProposals      UserProposalsCmd      `command:"userproposals" description:"(public) get all proposals submitted by a specific user"`
 	Users              UsersCmd              `command:"users" description:"(admin)  get a list of users"`
 	VerifyUserEmail    VerifyUserEmailCmd    `command:"verifyuseremail" description:"(public) verify a user's email address"`

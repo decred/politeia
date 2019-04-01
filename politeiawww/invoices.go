@@ -21,6 +21,7 @@ import (
 	"github.com/decred/politeia/politeiad/cache"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	database "github.com/decred/politeia/politeiawww/cmsdatabase"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 )
@@ -345,8 +346,7 @@ func validateInvoice(ni cms.NewInvoice, u *user.User) error {
 
 // processInvoiceDetails fetches a specific proposal version from the records
 // cache and returns it.
-func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails,
-	user *user.User) (*cms.InvoiceDetailsReply, error) {
+func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, user *user.User) (*cms.InvoiceDetailsReply, error) {
 	log.Tracef("processInvoiceDetails")
 
 	inv, err := p.cmsDB.InvoiceByToken(invDetails.Token)
@@ -381,6 +381,127 @@ func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails,
 		Invoice: *invRec,
 	}
 
+	return &reply, nil
+}
+
+// processUserInvoices fetches all invoices that are currently stored in the
+// cmsdb for the logged in user.
+func (p *politeiawww) processUserInvoices(user *user.User) (*cms.UserInvoicesReply, error) {
+	log.Tracef("processUserInvoices")
+
+	dbInvs, err := p.cmsDB.InvoicesByUserID(user.ID.String())
+	if err != nil {
+		return nil, err
+	}
+
+	invRecs := make([]cms.InvoiceRecord, 0, len(dbInvs))
+	for _, inv := range dbInvs {
+		r, err := p.cache.Record(inv.Token)
+		if err != nil {
+			return nil, err
+		}
+
+		invRec, err := convertDatabaseInvoiceToInvoiceRecord(inv)
+		if err != nil {
+			return nil, err
+		}
+		invRec.Username = p.getUsernameById(invRec.UserID)
+
+		// Get raw record information from d cache
+		pr := convertPropFromCache(*r)
+
+		invRec.Files = pr.Files
+		invRec.CensorshipRecord = pr.CensorshipRecord
+		invRec.Signature = pr.Signature
+		invRecs = append(invRecs, *invRec)
+	}
+
+	// Setup reply
+	reply := cms.UserInvoicesReply{
+		Invoices: invRecs,
+	}
+	return &reply, nil
+}
+
+// processAdminInvoices fetches all invoices that are currently stored in the
+// cmsdb for an administrator, based on request fields (month/year and/or status).
+func (p *politeiawww) processAdminInvoices(ai cms.AdminInvoices, user *user.User) (*cms.UserInvoicesReply, error) {
+	log.Tracef("processAdminInvoices")
+
+	// Make sure month AND year are set, if any.
+	if (ai.Month == 0 && ai.Year != 0) || (ai.Month != 0 && ai.Year == 0) {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidMonthYearRequest,
+		}
+	}
+
+	// Make sure month and year are sensible inputs
+	if ai.Month < 0 || ai.Month > 12 {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidMonthYearRequest,
+		}
+	}
+
+	// Only accept year inputs for years +/- some constant from the current year.
+	const acceptableYearRange = 2
+	if ai.Year != 0 && (ai.Year < uint16(time.Now().Year()-acceptableYearRange) ||
+		ai.Year > uint16(time.Now().Year()+acceptableYearRange)) {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidMonthYearRequest,
+		}
+	}
+
+	var dbInvs []database.Invoice
+	var err error
+	switch {
+	case (ai.Month != 0 && ai.Year != 0) && ai.Status != 0:
+		dbInvs, err = p.cmsDB.InvoicesByMonthYearStatus(ai.Month, ai.Year, int(ai.Status))
+		if err != nil {
+			return nil, err
+		}
+	case (ai.Month != 0 && ai.Year != 0) && ai.Status == 0:
+		dbInvs, err = p.cmsDB.InvoicesByMonthYear(ai.Month, ai.Year)
+		if err != nil {
+			return nil, err
+		}
+	case (ai.Month == 0 && ai.Year == 0) && ai.Status != 0:
+		dbInvs, err = p.cmsDB.InvoicesByStatus(int(ai.Status))
+		if err != nil {
+			return nil, err
+		}
+	default:
+		dbInvs, err = p.cmsDB.InvoicesAll()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	invRecs := make([]cms.InvoiceRecord, 0, len(dbInvs))
+	for _, inv := range dbInvs {
+		r, err := p.cache.Record(inv.Token)
+		if err != nil {
+			return nil, err
+		}
+
+		invRec, err := convertDatabaseInvoiceToInvoiceRecord(inv)
+		if err != nil {
+			return nil, err
+		}
+		invRec.Username = p.getUsernameById(invRec.UserID)
+
+		// Get raw record information from d cache
+		pr := convertPropFromCache(*r)
+
+		invRec.Files = pr.Files
+		invRec.CensorshipRecord = pr.CensorshipRecord
+		invRec.Signature = pr.Signature
+		invRecs = append(invRecs, *invRec)
+	}
+
+	// Setup reply
+	reply := cms.UserInvoicesReply{
+		Invoices: invRecs,
+	}
 	return &reply, nil
 }
 

@@ -131,6 +131,58 @@ func (p *politeiawww) handleInvoiceDetails(w http.ResponseWriter, r *http.Reques
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
+// handleUserInvoices handles the request to get all of the  of a new contractor by an
+// administrator for the Contractor Management System.
+func (p *politeiawww) handleUserInvoices(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleUserInvoices")
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleNewInvoice: getSessionUser %v", err)
+		return
+	}
+
+	reply, err := p.processUserInvoices(user)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleUserInvoices: processUserInvoices %v", err)
+		return
+	}
+
+	// Reply with the verification token.
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+// handleAdminInvoices handles the request to get all of the  of a new contractor by an
+// administrator for the Contractor Management System.
+func (p *politeiawww) handleAdminInvoices(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleAdminInvoices")
+	var ai cms.AdminInvoices
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&ai); err != nil {
+		RespondWithError(w, r, 0, "handleNewInvoice: unmarshal", www.UserError{
+			ErrorCode: www.ErrorStatusInvalidInput,
+		})
+		return
+	}
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleNewInvoice: getSessionUser %v", err)
+		return
+	}
+
+	reply, err := p.processAdminInvoices(ai, user)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleAdminInvoices: processAdminInvoices %v", err)
+		return
+	}
+
+	// Reply with the verification token.
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
 func (p *politeiawww) setCMSWWWRoutes() {
 	// Templates
 	//p.addTemplate(templateNewProposalSubmittedName,
@@ -161,6 +213,8 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		p.handleNewInvoice, permissionLogin)
 	p.addRoute(http.MethodGet, cms.RouteInvoiceDetails,
 		p.handleInvoiceDetails, permissionLogin)
+	p.addRoute(http.MethodGet, cms.RouteUserInvoices,
+		p.handleUserInvoices, permissionLogin)
 
 	// Unauthenticated websocket
 	p.addRoute("", www.RouteUnauthenticatedWebSocket,
@@ -174,6 +228,8 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		permissionAdmin)
 	p.addRoute(http.MethodPost, www.RouteCensorComment,
 		p.handleCensorComment, permissionAdmin)
+	p.addRoute(http.MethodPost, cms.RouteAdminInvoices,
+		p.handleAdminInvoices, permissionAdmin)
 
 	// Routes for Contractor Management System
 

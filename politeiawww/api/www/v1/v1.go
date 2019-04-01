@@ -202,10 +202,8 @@ const (
 	ErrorStatusMalformedName               ErrorStatusT = 60
 	ErrorStatusMalformedLocation           ErrorStatusT = 61
 	ErrorStatusInvoiceNotFound             ErrorStatusT = 62
-
-	// CMS Errors
-
-	ErrorStatusMalformedInvoiceFile ErrorStatusT = 59
+	ErrorStatusInvalidMonthYearRequest     ErrorStatusT = 63
+	ErrorStatusMalformedInvoiceFile        ErrorStatusT = 64
 
 	// Proposal state codes
 	//
@@ -357,6 +355,7 @@ var (
 		ErrorStatusMalformedName:               "malformed name",
 		ErrorStatusMalformedLocation:           "malformed location",
 		ErrorStatusInvoiceNotFound:             "invoice cannot be found",
+		ErrorStatusInvalidMonthYearRequest:     "month or year was set, while the other was not",
 	}
 
 	// PropStatus converts propsal status codes to human readable text
