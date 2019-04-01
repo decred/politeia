@@ -346,8 +346,7 @@ func validateInvoice(ni cms.NewInvoice, u *user.User) error {
 
 // processInvoiceDetails fetches a specific proposal version from the records
 // cache and returns it.
-func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails,
-	user *user.User) (*cms.InvoiceDetailsReply, error) {
+func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, user *user.User) (*cms.InvoiceDetailsReply, error) {
 	log.Tracef("processInvoiceDetails")
 
 	inv, err := p.cmsDB.InvoiceByToken(invDetails.Token)
@@ -426,8 +425,7 @@ func (p *politeiawww) processUserInvoices(user *user.User) (*cms.UserInvoicesRep
 
 // processAdminInvoices fetches all invoices that are currently stored in the
 // cmsdb for an administrator, based on request fields (month/year and/or status).
-func (p *politeiawww) processAdminInvoices(ai cms.AdminInvoices,
-	user *user.User) (*cms.UserInvoicesReply, error) {
+func (p *politeiawww) processAdminInvoices(ai cms.AdminInvoices, user *user.User) (*cms.UserInvoicesReply, error) {
 	log.Tracef("processAdminInvoices")
 
 	// Make sure month AND year are set, if any.
