@@ -30,9 +30,10 @@ const (
 	InvoiceStatusPaid     InvoiceStatusT = 7 // Invoice has been paid
 
 	// Line item types
-	LineItemTypeLabor   LineItemTypeT = 0 // Labor line items
-	LineItemTypeExpense LineItemTypeT = 1 // Expenses incurred line items
-	LineItemTypeMisc    LineItemTypeT = 2 // Catch all for anything else
+	LineItemTypeInvalid LineItemTypeT = 0 // Invalid type
+	LineItemTypeLabor   LineItemTypeT = 1 // Labor line items
+	LineItemTypeExpense LineItemTypeT = 2 // Expenses incurred line items
+	LineItemTypeMisc    LineItemTypeT = 3 // Catch all for anything else
 )
 
 /// Contractor Management System Routes

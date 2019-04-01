@@ -450,6 +450,7 @@ Reply:
 
 | Type | Value | Description |
 |-|-|-|
-| <a name="LineItemTypeLabor">LineItemTypeLabor</a>| 0 | Line items that correspond to laborious activities. |
-| <a name="LineItemTypeExpense">LineItemTypeExpense</a> | 1 | Line items that cover expensed costs. |
-| <a name="LineItemTypeMisc">LineItemTypeMisc</a> | 2 | Any line item that doesn't fall into the above 2 categories. |
+| <a name="LineItemTypeInvalid">LineItemTypeInvalid</a>| 0 | An invalid type. This shall be considered a bug. |
+| <a name="LineItemTypeLabor">LineItemTypeLabor</a>| 1 | Line items that correspond to laborious activities. |
+| <a name="LineItemTypeExpense">LineItemTypeExpense</a> | 2 | Line items that cover expensed costs. |
+| <a name="LineItemTypeMisc">LineItemTypeMisc</a> | 3 | Any line item that doesn't fall into the above 2 categories. |
