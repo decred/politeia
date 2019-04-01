@@ -2345,6 +2345,7 @@ func (p *politeiawww) processRegisterUser(u cms.RegisterUser) (*cms.RegisterUser
 
 	// Create a new database user with the provided information.
 	newUser := user.User{
+		ID:                        existingUser.ID,
 		Email:                     strings.ToLower(u.Email),
 		Username:                  username,
 		HashedPassword:            hashedPassword,
@@ -2361,11 +2362,8 @@ func (p *politeiawww) processRegisterUser(u cms.RegisterUser) (*cms.RegisterUser
 		Activated: time.Now().Unix(),
 	}}
 	copy(newUser.Identities[0].Key[:], pk)
-	existingPublicKey := hex.EncodeToString(newUser.Identities[0].Key[:])
-	p.removeUserPubkeyAssociaton(existingUser, existingPublicKey)
 
 	// Update the user in the db.
-	newUser.ID = existingUser.ID
 	err = p.db.UserUpdate(newUser)
 	if err != nil {
 		return nil, err
