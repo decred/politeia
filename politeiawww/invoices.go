@@ -26,6 +26,32 @@ import (
 	"github.com/decred/politeia/util"
 )
 
+var (
+	// This covers the possible valid status transitions for any invoices.  If
+	// a current invoice's status does not fall into these 3 categories, then
+	// an admin will not be able to update their status.  For example,
+	// paid or approved invoices cannot have their status changed.
+	validStatusTransitions = map[cms.InvoiceStatusT][]cms.InvoiceStatusT{
+		// New invoices may only be updated to approved, rejected or disputed.
+		cms.InvoiceStatusNew: {
+			cms.InvoiceStatusApproved,
+			cms.InvoiceStatusRejected,
+			cms.InvoiceStatusDisputed,
+		},
+		// Rejected invoices may only be updated to approved or updated.
+		cms.InvoiceStatusRejected: {
+			cms.InvoiceStatusApproved,
+			cms.InvoiceStatusUpdated,
+		},
+		// Updated invoices may only be updated to approved, rejected or disputed.
+		cms.InvoiceStatusUpdated: {
+			cms.InvoiceStatusApproved,
+			cms.InvoiceStatusRejected,
+			cms.InvoiceStatusDisputed,
+		},
+	}
+)
+
 const (
 	// invoiceFile contains the file name of the invoice file
 	invoiceFile = "invoice.json"
@@ -349,7 +375,32 @@ func validateInvoice(ni cms.NewInvoice, u *user.User) error {
 func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, user *user.User) (*cms.InvoiceDetailsReply, error) {
 	log.Tracef("processInvoiceDetails")
 
-	inv, err := p.cmsDB.InvoiceByToken(invDetails.Token)
+	invRec, err := p.getInvoice(invDetails.Token)
+	if err != nil {
+		return nil, err
+	}
+
+	// Setup reply
+	reply := cms.InvoiceDetailsReply{
+		Invoice: *invRec,
+	}
+
+	return &reply, nil
+}
+
+// processNewInvoice tries to submit a new proposal to politeiad.
+func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus,
+	u *user.User) (*cms.SetInvoiceStatusReply, error) {
+	log.Tracef("processSetInvoiceStatus")
+
+	err := checkPublicKeyAndSignature(u, sis.PublicKey, sis.Signature,
+		sis.Token, strconv.FormatUint(uint64(sis.Status), 10),
+		sis.Reason)
+	if err != nil {
+		return nil, err
+	}
+
+	dbInvoice, err := p.cmsDB.InvoiceByToken(sis.Token)
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
 			err = www.UserError{
@@ -358,30 +409,301 @@ func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, user 
 		}
 		return nil, err
 	}
-	r, err := p.cache.Record(invDetails.Token)
+	err = validateStatusTransition(dbInvoice.Status, sis.Status, sis.Reason)
 	if err != nil {
 		return nil, err
 	}
 
-	invRec, err := convertDatabaseInvoiceToInvoiceRecord(*inv)
+	// Create the change record.
+	changes := BackendInvoiceMDChange{
+		Version:   BackendInvoiceMDChangeVersion,
+		Timestamp: time.Now().Unix(),
+		NewStatus: sis.Status,
+		Reason:    sis.Reason,
+	}
+
+	changes.AdminPublicKey = u.ActiveIdentity().String()
+
+	blob, err := json.Marshal(changes)
 	if err != nil {
 		return nil, err
 	}
+
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	pdCommand := pd.UpdateVettedMetadata{
+		Challenge: hex.EncodeToString(challenge),
+		Token:     sis.Token,
+		MDAppend: []pd.MetadataStream{
+			{
+				ID:      mdStreamChanges,
+				Payload: string(blob),
+			},
+		},
+	}
+
+	responseBody, err := p.makeRequest(http.MethodPost, pd.UpdateVettedMetadataRoute, pdCommand)
+	if err != nil {
+		return nil, err
+	}
+
+	var pdReply pd.UpdateVettedMetadataReply
+	err = json.Unmarshal(responseBody, &pdReply)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal SetUnvettedStatusReply: %v",
+			err)
+	}
+
+	// Verify the SetUnvettedStatus challenge.
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, pdReply.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	// Update the database with the metadata changes.
+	dbInvoice.Changes = append(dbInvoice.Changes, database.InvoiceChange{
+		Timestamp:      changes.Timestamp,
+		AdminPublicKey: changes.AdminPublicKey,
+		NewStatus:      changes.NewStatus,
+		Reason:         changes.Reason,
+	})
+	dbInvoice.StatusChangeReason = changes.Reason
+	dbInvoice.Status = changes.NewStatus
+
+	err = p.cmsDB.UpdateInvoice(dbInvoice)
+	if err != nil {
+		return nil, err
+	}
+	/*
+		p.fireEvent(EventTypeInvoiceStatusChange,
+			EventDataInvoiceStatusChange{
+				Invoice:   dbInvoice,
+				AdminUser: user,
+			},
+		)
+	*/
+	// Return the reply.
+	sisr := cms.SetInvoiceStatusReply{
+		Invoice: *convertDatabaseInvoiceToInvoiceRecord(*dbInvoice),
+	}
+	return &sisr, nil
+}
+
+func validateStatusTransition(
+	oldStatus cms.InvoiceStatusT,
+	newStatus cms.InvoiceStatusT,
+	reason string,
+) error {
+	validStatuses, ok := validStatusTransitions[oldStatus]
+	if !ok {
+		log.Errorf("status not supported: %v", oldStatus)
+		return www.UserError{
+			ErrorCode: www.ErrorStatusInvalidInvoiceStatusTransition,
+		}
+	}
+
+	if !statusInSlice(validStatuses, newStatus) {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusInvalidInvoiceStatusTransition,
+		}
+	}
+
+	if newStatus == cms.InvoiceStatusRejected && reason == "" {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusReasonNotProvided,
+		}
+	}
+
+	return nil
+}
+
+func statusInSlice(arr []cms.InvoiceStatusT, status cms.InvoiceStatusT) bool {
+	for _, s := range arr {
+		if status == s {
+			return true
+		}
+	}
+
+	return false
+}
+
+// processEditInvoice attempts to edit a proposal on politeiad.
+func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms.EditInvoiceReply, error) {
+	log.Tracef("processEditInvoice %v", ei.Token)
+
+	invRec, err := p.getInvoice(ei.Token)
+	if err != nil {
+		return nil, err
+	}
+
+	// Ensure user is the invoice author
+	if invRec.UserID != u.ID.String() {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserNotAuthor,
+		}
+	}
+
+	// Make sure that the edit being submitted is different than the current invoice.
+	// So check the Files to see if the digests are different at all.
+	if len(ei.Files) == len(invRec.Files) {
+		sameFiles := true
+		for i, recFile := range invRec.Files {
+			if recFile.Digest != ei.Files[i].Digest {
+				sameFiles = false
+			}
+		}
+		if sameFiles {
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusInvoiceDuplicate,
+			}
+		}
+	}
+
+	// Validate invoice. Convert it to cms.NewInvoice so that
+	// we can reuse the function validateProposal.
+	ni := cms.NewInvoice{
+		Files:     ei.Files,
+		PublicKey: ei.PublicKey,
+		Signature: ei.Signature,
+	}
+	err = validateInvoice(ni, u)
+	if err != nil {
+		return nil, err
+	}
+
+	backendMetadata := BackendInvoiceMetadata{
+		Version:   BackendProposalMetadataVersion,
+		Timestamp: time.Now().Unix(),
+		Month:     invRec.Month,
+		Year:      invRec.Year,
+		PublicKey: ei.PublicKey,
+		Signature: ei.Signature,
+	}
+	md, err := encodeBackendInvoiceMetadata(backendMetadata)
+	if err != nil {
+		return nil, err
+	}
+
+	mds := []pd.MetadataStream{{
+		ID:      mdStreamGeneral,
+		Payload: string(md),
+	}}
+
+	// Check if any files need to be deleted
+	var delFiles []string
+	for _, v := range invRec.Files {
+		found := false
+		for _, c := range ei.Files {
+			if v.Name == c.Name {
+				found = true
+			}
+		}
+		if !found {
+			delFiles = append(delFiles, v.Name)
+		}
+	}
+
+	// Setup politeiad request
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	e := pd.UpdateRecord{
+		Token:       ei.Token,
+		Challenge:   hex.EncodeToString(challenge),
+		MDOverwrite: mds,
+		FilesAdd:    convertPropFilesFromWWW(ei.Files),
+		FilesDel:    delFiles,
+	}
+
+	// Send politeiad request
+	responseBody, err := p.makeRequest(http.MethodPost, pd.UpdateVettedRoute, e)
+	if err != nil {
+		return nil, err
+	}
+
+	// Handle response
+	var pdReply pd.UpdateRecordReply
+	err = json.Unmarshal(responseBody, &pdReply)
+	if err != nil {
+		return nil, fmt.Errorf("Unmarshal UpdateUnvettedReply: %v", err)
+	}
+
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, pdReply.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get invoice from the cache
+	updatedInvoice, err := p.getInvoice(ei.Token)
+	if err != nil {
+		return nil, err
+	}
+
+	// Update the cmsdb
+	dbInvoice, err := convertRecordToDatabaseInvoice(pd.Record{
+		Files:            convertPropFilesFromWWW(updatedInvoice.Files),
+		Metadata:         mds,
+		CensorshipRecord: convertInvoiceCensorFromWWW(invRec.CensorshipRecord),
+		Version:          invRec.Version,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	dbInvoice.UserID = updatedInvoice.UserID
+	dbInvoice.Status = cms.InvoiceStatusUpdated
+
+	err = p.cmsDB.UpdateInvoice(dbInvoice)
+	if err != nil {
+		return nil, err
+	}
+	/*
+		// Fire off edit proposal event
+		p.fireEvent(EventTypeProposalEdited,
+			EventDataProposalEdited{
+				Proposal: updatedProp,
+			},
+		)
+	*/
+	return &cms.EditInvoiceReply{
+		Invoice: *updatedInvoice,
+	}, nil
+}
+
+// getInvoice gets the most recent verions of the given invoice from the cache
+// then fills in any missing fields from the cmsdb before returning the invoice
+// record.
+func (p *politeiawww) getInvoice(token string) (*cms.InvoiceRecord, error) {
+
+	inv, err := p.cmsDB.InvoiceByToken(token)
+	if err != nil {
+		if err == cache.ErrRecordNotFound {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusInvoiceNotFound,
+			}
+		}
+		return nil, err
+	}
+	invRec := convertDatabaseInvoiceToInvoiceRecord(*inv)
 	invRec.Username = p.getUsernameById(invRec.UserID)
 
 	// Get raw record information from d cache
+	r, err := p.cache.Record(token)
+	if err != nil {
+		return nil, err
+	}
 	pr := convertPropFromCache(*r)
 
 	invRec.Files = pr.Files
 	invRec.CensorshipRecord = pr.CensorshipRecord
 	invRec.Signature = pr.Signature
 
-	// Setup reply
-	reply := cms.InvoiceDetailsReply{
-		Invoice: *invRec,
-	}
-
-	return &reply, nil
+	return invRec, nil
 }
 
 // processUserInvoices fetches all invoices that are currently stored in the
@@ -401,10 +723,7 @@ func (p *politeiawww) processUserInvoices(user *user.User) (*cms.UserInvoicesRep
 			return nil, err
 		}
 
-		invRec, err := convertDatabaseInvoiceToInvoiceRecord(inv)
-		if err != nil {
-			return nil, err
-		}
+		invRec := convertDatabaseInvoiceToInvoiceRecord(inv)
 		invRec.Username = p.getUsernameById(invRec.UserID)
 
 		// Get raw record information from d cache
@@ -483,10 +802,7 @@ func (p *politeiawww) processAdminInvoices(ai cms.AdminInvoices, user *user.User
 			return nil, err
 		}
 
-		invRec, err := convertDatabaseInvoiceToInvoiceRecord(inv)
-		if err != nil {
-			return nil, err
-		}
+		invRec := convertDatabaseInvoiceToInvoiceRecord(inv)
 		invRec.Username = p.getUsernameById(invRec.UserID)
 
 		// Get raw record information from d cache
@@ -521,7 +837,7 @@ type BackendInvoiceMDChange struct {
 	Version        uint               `json:"version"`        // Version of the struct
 	AdminPublicKey string             `json:"adminpublickey"` // Identity of the administrator
 	NewStatus      cms.InvoiceStatusT `json:"newstatus"`      // Status
-	Reason         *string            `json:"reason"`         // Reason
+	Reason         string             `json:"reason"`         // Reason
 	Timestamp      int64              `json:"timestamp"`      // Timestamp of the change
 }
 

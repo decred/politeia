@@ -683,6 +683,29 @@ func (c *Client) NewInvoice(ni *cms.NewInvoice) (*cms.NewInvoiceReply, error) {
 	return &nir, nil
 }
 
+// EditInvoice edits the specified invoice with the logged in user.
+func (c *Client) EditInvoice(ei *cms.EditInvoice) (*cms.EditInvoiceReply, error) {
+	responseBody, err := c.makeRequest("POST", cms.RouteEditInvoice, ei)
+	if err != nil {
+		return nil, err
+	}
+
+	var eir cms.EditInvoiceReply
+	err = json.Unmarshal(responseBody, &eir)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal EditInvoiceReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(eir)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &eir, nil
+}
+
 // ProposalDetails retrieves the specified proposal.
 func (c *Client) ProposalDetails(token string, pd *v1.ProposalsDetails) (*v1.ProposalDetailsReply, error) {
 	responseBody, err := c.makeRequest("GET", "/proposals/"+token, pd)
@@ -1436,6 +1459,30 @@ func (c *Client) InvoiceDetails(token string) (*cms.InvoiceDetailsReply, error) 
 	}
 
 	return &idr, nil
+}
+
+// SetInvoiceStatus changes the status of the specified invoice.
+func (c *Client) SetInvoiceStatus(sis *cms.SetInvoiceStatus) (*cms.SetInvoiceStatusReply, error) {
+	route := "/invoices/" + sis.Token + "/status"
+	responseBody, err := c.makeRequest("POST", route, sis)
+	if err != nil {
+		return nil, err
+	}
+
+	var sisr cms.SetInvoiceStatusReply
+	err = json.Unmarshal(responseBody, &sisr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal SetInvoiceStatusReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(sisr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &sisr, nil
 }
 
 // Close all client connections.

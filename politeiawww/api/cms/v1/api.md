@@ -13,8 +13,19 @@ server side notifications.  It does not render HTML.
 - [`New invoice`](#new-invoice)
 - [`User invoices`](#user-invoices)
 - [`Admin invoices`](#admin-invoices)
+- [`Edit invoice`](#edit-invoice)
+- [`Set invoice status`](#set-invoice-status)
 
+**Invoice status codes**
 
+- [`InvoiceStatusInvalid`](#InvoiceStatusInvalid)
+- [`InvoiceStatusNotFound`](#InvoiceStatusNotFound)
+- [`InvoiceStatusNew`](#InvoiceStatusNew)
+- [`InvoiceStatusUpdated`](#InvoiceStatusUpdated)
+- [`InvoiceStatusDisputed`](#InvoiceStatusDisputed)
+- [`InvoiceStatusRejected`](#InvoiceStatusRejected)
+- [`InvoiceStatusApproved`](#InvoiceStatusApproved)
+- [`InvoiceStatusPaid`](#InvoiceStatusPaid)
 
 ### `Invite new user`
 
@@ -224,6 +235,70 @@ Reply:
 }
 ```
 
+### `Set invoice status`
+
+Sets the invoice status to either `InvoiceStatusApproved`, `InvoiceStatusRejected` or `InvoiceStatusDisputed`.
+
+Note: This call requires admin privileges.
+
+**Route:** `POST /v1/invoice/{token}/status`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| token | string | Token is the unique censorship token that identifies a specific invoice. | Yes |
+| status | number | The new [status](#invoice-status-codes) for the invoice. | Yes |
+| reason | string | The reason for the new status. This is only required if the status is `InvoiceStatusRejected`. | |
+| signature | string | Signature of token+string(status). | Yes |
+| publickey | string | The user's public key, sent for signature verification. | Yes |
+
+**Results:**
+
+| Parameter | Type | Description |
+|-|-|-|-|
+| invoice | [`Invoice`](#invoice) | The updated invoice. |
+
+This call can return one of the following error codes:
+
+- [`ErrorStatusInvoiceNotFound`](#ErrorStatusInvoiceNotFound)
+
+**Example**
+
+Request:
+
+```json
+{
+  "invoicestatus": 4,
+  "publickey": "f5519b6fdee08be45d47d5dd794e81303688a8798012d8983ba3f15af70a747c",
+  "signature": "041a12e5df95ec132be27f0c716fd8f7fc23889d05f66a26ef64326bd5d4e8c2bfed660235856da219237d185fb38c6be99125d834c57030428c6b96a2576900",
+  "token": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527"
+}
+```
+
+Reply:
+
+```json
+{
+  "invoice": {
+    "status": 4,
+    "month": 12,
+    "year": 2018,
+    "timestamp": 1508296860781,
+    "userid": "0",
+    "username": "foobar",
+    "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+    "signature": "gdd92f26c8g38c90d2887259e88df614654g32fde76bef1438b0efg40e360f461e995d796g16b17108gbe226793ge4g52gg013428feb3c39de504fe5g1811e0e",
+    "version": "1",
+    "censorshiprecord": {
+      "token": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
+      "merkle": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
+      "signature": "fcc92e26b8f38b90c2887259d88ce614654f32ecd76ade1438a0def40d360e461d995c796f16a17108fad226793fd4f52ff013428eda3b39cd504ed5f1811d0d"
+    }
+  }
+}
+```
+
 ### `Admin invoices`
 
 Retrieve a page of invoices given the month and year and status.
@@ -279,3 +354,88 @@ Reply:
   }]
 }
 ```
+
+### `Edit invoice`
+
+Edits an exisiting invoice and will update the status to `InvoiceStatusUpdated`.
+
+Note: This call requires the user to be the same as the invoice creator.
+
+**Route:** `POST /v1/invoices/edit`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| token | string | Token is the unique censorship token that identifies a specific invoice. | Yes |
+| files | [`[]File`](#file) | The invoice CSV file and any other attachments for line items. The first line should be a comment with the month and year, with the format: `# 2006-01` | Yes |
+| publickey | string | The user's public key. | Yes |
+| signature | string | The signature of the string representation of the file payload. | Yes |
+
+**Results:**
+
+| Parameter | Type | Description |
+|-|-|-|
+| invoice | [`Invoice`](#invoice) | The updated invoice. |
+
+This call can return one of the following error codes:
+
+- [`ErrorStatusInvalidSignature`](#ErrorStatusInvalidSignature)
+- [`ErrorStatusInvalidSigningKey`](#ErrorStatusInvalidSigningKey)
+- [`ErrorStatusNoPublicKey`](#ErrorStatusNoPublicKey)
+- [`ErrorStatusInvalidInput`](#ErrorStatusInvalidInput)
+- [`ErrorStatusMalformedInvoiceFile`](#ErrorStatusMalformedInvoiceFile)
+- [`ErrorStatusDuplicateInvoice`](#ErrorStatusDuplicateInvoice)
+
+**Example**
+
+Request:
+
+```json
+{
+  "token": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
+  "files": [{
+      "name":"invoice.json",
+      "mime": "text/plain; charset=utf-8",
+      "digest": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
+      "payload": "VGhpcyBpcyBhIGRlc2NyaXB0aW9u"
+    }
+  ]
+}
+```
+
+Reply:
+
+```json
+{
+  "invoice": {
+    "status": 4,
+    "month": 12,
+    "year": 2018,
+    "timestamp": 1508296860781,
+    "userid": "0",
+    "username": "foobar",
+    "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+    "signature": "gdd92f26c8g38c90d2887259e88df614654g32fde76bef1438b0efg40e360f461e995d796g16b17108gbe226793ge4g52gg013428feb3c39de504fe5g1811e0e",
+    "version": "1",
+    "censorshiprecord": {
+      "token": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
+      "merkle": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
+      "signature": "fcc92e26b8f38b90c2887259d88ce614654f32ecd76ade1438a0def40d360e461d995c796f16a17108fad226793fd4f52ff013428eda3b39cd504ed5f1811d0d"
+    }
+  }
+}
+```
+
+### Invoice status codes
+
+| Status | Value | Description |
+|-|-|-|
+| <a name="InvoiceStatusInvalid">InvoiceStatusInvalid</a>| 0 | An invalid status. This shall be considered a bug. |
+| <a name="InvoiceStatusNotFound">InvoiceStatusNotFound</a> | 1 | The invoice was not found. |
+| <a name="InvoiceStatusNew">InvoiceStatusNew</a> | 2 | The invoice has not been reviewed by an admin. |
+| <a name="InvoiceStatusUpdated">InvoiceStatusUpdated</a> | 3 | The invoice has been changed and the changes have not been reviewed by an admin. |
+| <a name="InvoiceStatusDisputed">InvoiceStatusDisputed</a> | 4 | A portion of the invoice has been disputed and requires contractor resolution. |
+| <a name="InvoiceStatusRejected">InvoiceStatusRejected</a> | 5 | The invoice has been rejected by an admin. |
+| <a name="InvoiceStatusApproved">InvoiceStatusApproved</a> | 6 | The invoice has been approved by an admin. |
+| <a name="InvoiceStatusPaid">InvoiceStatusPaid</a> | 7 | The invoice has been paid. |

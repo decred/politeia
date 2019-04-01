@@ -62,8 +62,9 @@ func (p *politeiawww) handleRegisterUser(w http.ResponseWriter, r *http.Request)
 
 // handleNewInvoice handles the incoming new invoice command.
 func (p *politeiawww) handleNewInvoice(w http.ResponseWriter, r *http.Request) {
-	// Get the new proposal command.
 	log.Tracef("handleNewInvoice")
+
+	// Get the new invoice command.
 	var ni cms.NewInvoice
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&ni); err != nil {
@@ -94,10 +95,10 @@ func (p *politeiawww) handleNewInvoice(w http.ResponseWriter, r *http.Request) {
 // handleInvoiceDetails handles the incoming invoice details command. It fetches
 // the complete details for an existing invoice.
 func (p *politeiawww) handleInvoiceDetails(w http.ResponseWriter, r *http.Request) {
-	// Add the path param to the struct.
 	log.Tracef("handleInvoiceDetails")
-	var pd cms.InvoiceDetails
 
+	// Get the invoice details command
+	var pd cms.InvoiceDetails
 	// get version from query string parameters
 	err := util.ParseGetParams(r, &pd)
 	if err != nil {
@@ -108,7 +109,7 @@ func (p *politeiawww) handleInvoiceDetails(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Get proposal token from path parameters
+	// Get invoice token from path parameters
 	pathParams := mux.Vars(r)
 	pd.Token = pathParams["token"]
 
@@ -139,7 +140,7 @@ func (p *politeiawww) handleUserInvoices(w http.ResponseWriter, r *http.Request)
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleNewInvoice: getSessionUser %v", err)
+			"handleUserInvoices: getSessionUser %v", err)
 		return
 	}
 
@@ -153,14 +154,15 @@ func (p *politeiawww) handleUserInvoices(w http.ResponseWriter, r *http.Request)
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-// handleAdminInvoices handles the request to get all of the  of a new contractor by an
-// administrator for the Contractor Management System.
-func (p *politeiawww) handleAdminInvoices(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleAdminInvoices")
-	var ai cms.AdminInvoices
+// handleSetInvoiceStatus handles the incoming set invoice status command.
+func (p *politeiawww) handleSetInvoiceStatus(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleSetInvoiceStatus")
+
+	// Get set invoice command
+	var sis cms.SetInvoiceStatus
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&ai); err != nil {
-		RespondWithError(w, r, 0, "handleNewInvoice: unmarshal", www.UserError{
+	if err := decoder.Decode(&sis); err != nil {
+		RespondWithError(w, r, 0, "handleSetInvoiceStatus: unmarshal", www.UserError{
 			ErrorCode: www.ErrorStatusInvalidInput,
 		})
 		return
@@ -169,7 +171,38 @@ func (p *politeiawww) handleAdminInvoices(w http.ResponseWriter, r *http.Request
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleNewInvoice: getSessionUser %v", err)
+			"handleSetInvoiceStatus: getSessionUser %v", err)
+		return
+	}
+
+	reply, err := p.processSetInvoiceStatus(sis, user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleSetInvoiceStatus: processSetInvoiceStatus %v", err)
+		return
+	}
+
+	// Reply with the challenge response and censorship token.
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+// handleAdminInvoices handles the request to get all of the  of a new contractor by an
+// administrator for the Contractor Management System.
+func (p *politeiawww) handleAdminInvoices(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleAdminInvoices")
+	var ai cms.AdminInvoices
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&ai); err != nil {
+		RespondWithError(w, r, 0, "handleAdminInvoices: unmarshal", www.UserError{
+			ErrorCode: www.ErrorStatusInvalidInput,
+		})
+		return
+	}
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleAdminInvoices: getSessionUser %v", err)
 		return
 	}
 
@@ -181,6 +214,40 @@ func (p *politeiawww) handleAdminInvoices(w http.ResponseWriter, r *http.Request
 
 	// Reply with the verification token.
 	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+// handleEditInvoice attempts to edit an invoice
+func (p *politeiawww) handleEditInvoice(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleEditInvoice")
+
+	// Get edit invoice command
+	var ei cms.EditInvoice
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&ei); err != nil {
+		RespondWithError(w, r, 0, "handleEditInvoice: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleEditInvoice: getSessionUser %v", err)
+		return
+	}
+
+	log.Debugf("handleEditInvoice: %v", ei.Token)
+
+	epr, err := p.processEditInvoice(ei, user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleEditInvoice: processEditInvoice %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, epr)
 }
 
 func (p *politeiawww) setCMSWWWRoutes() {
@@ -211,6 +278,8 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		p.handleNewComment, permissionLogin)
 	p.addRoute(http.MethodPost, cms.RouteNewInvoice,
 		p.handleNewInvoice, permissionLogin)
+	p.addRoute(http.MethodPost, cms.RouteEditInvoice,
+		p.handleEditInvoice, permissionLogin)
 	p.addRoute(http.MethodGet, cms.RouteInvoiceDetails,
 		p.handleInvoiceDetails, permissionLogin)
 	p.addRoute(http.MethodGet, cms.RouteUserInvoices,
@@ -230,6 +299,8 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		p.handleCensorComment, permissionAdmin)
 	p.addRoute(http.MethodPost, cms.RouteAdminInvoices,
 		p.handleAdminInvoices, permissionAdmin)
+	p.addRoute(http.MethodPost, cms.RouteSetInvoiceStatus,
+		p.handleSetInvoiceStatus, permissionAdmin)
 
 	// Routes for Contractor Management System
 

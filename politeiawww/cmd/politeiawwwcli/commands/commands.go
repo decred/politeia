@@ -62,6 +62,7 @@ type Cmds struct {
 	CensorComment      CensorCommentCmd      `command:"censorcomment" description:"(admin)  censor a proposal comment"`
 	ChangePassword     ChangePasswordCmd     `command:"changepassword" description:"(user)   change the password for the logged in user"`
 	ChangeUsername     ChangeUsernameCmd     `command:"changeusername" description:"(user)   change the username for the logged in user"`
+	EditInvoice        EditInvoiceCmd        `command:"editinvoice" description:"(user)    edit a invoice"`
 	EditProposal       EditProposalCmd       `command:"editproposal" description:"(user)   edit a proposal"`
 	ManageUser         ManageUserCmd         `command:"manageuser" description:"(admin)  edit certain properties of the specified user"`
 	EditUser           EditUserCmd           `command:"edituser" description:"(user)   edit the  preferences of the logged in user"`
@@ -90,6 +91,7 @@ type Cmds struct {
 	ResetPassword      ResetPasswordCmd      `command:"resetpassword" description:"(public) reset the password for a user that is not logged in"`
 	Secret             SecretCmd             `command:"secret" description:"(user)   ping politeiawww"`
 	SendFaucetTx       SendFaucetTxCmd       `command:"sendfaucettx" description:"         send a DCR transaction using the Decred testnet faucet"`
+	SetInvoiceStatus   SetInvoiceStatusCmd   `command:"setinvoicestatus" description:"(admin)  set the status of an invoice"`
 	SetProposalStatus  SetProposalStatusCmd  `command:"setproposalstatus" description:"(admin)  set the status of a proposal"`
 	StartVote          StartVoteCmd          `command:"startvote" description:"(admin)  start the voting period on a proposal"`
 	Subscribe          SubscribeCmd          `command:"subscribe" description:"(public) subscribe to all websocket commands and do not exit tool"`
