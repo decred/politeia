@@ -389,7 +389,9 @@ func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, user 
 }
 
 // processNewInvoice tries to submit a new proposal to politeiad.
-func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus, u *user.User) (*cms.SetInvoiceStatusReply, error) {
+func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus,
+	u *user.User) (*cms.SetInvoiceStatusReply, error) {
+	log.Tracef("processSetInvoiceStatus")
 
 	err := checkPublicKeyAndSignature(u, sis.PublicKey, sis.Signature,
 		sis.Token, strconv.FormatUint(uint64(sis.Status), 10),
@@ -531,6 +533,7 @@ func statusInSlice(arr []cms.InvoiceStatusT, status cms.InvoiceStatusT) bool {
 // processEditInvoice attempts to edit a proposal on politeiad.
 func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms.EditInvoiceReply, error) {
 	log.Tracef("processEditInvoice %v", ei.Token)
+
 	invRec, err := p.getInvoice(ei.Token)
 	if err != nil {
 		return nil, err
