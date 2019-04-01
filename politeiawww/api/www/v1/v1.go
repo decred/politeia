@@ -208,6 +208,7 @@ const (
 	ErrorStatusMalformedInvoiceFile           ErrorStatusT = 64
 	ErrorStatusInvalidInvoiceStatusTransition ErrorStatusT = 65
 	ErrorStatusReasonNotProvided              ErrorStatusT = 66
+	ErrorStatusInvoiceDuplicate               ErrorStatusT = 67
 
 	// Proposal state codes
 	//
@@ -363,6 +364,7 @@ var (
 		ErrorStatusInvalidInvoiceStatusTransition: "invalid invoice status transition",
 		ErrorStatusReasonNotProvided:              "reason for action not provided",
 		ErrorStatusMalformedInvoiceFile:           "submitted invoice file is malformed",
+		ErrorStatusInvoiceDuplicate:               "submitted invoice is a duplicate of an existing invoice",
 	}
 
 	// PropStatus converts propsal status codes to human readable text

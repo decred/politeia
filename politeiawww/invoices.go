@@ -546,6 +546,22 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 		}
 	}
 
+	// Make sure that the edit being submitted is different than the current invoice.
+	// So check the Files to see if the digests are different at all.
+	if len(ei.Files) == len(invRec.Files) {
+		sameFiles := true
+		for i, recFile := range invRec.Files {
+			if recFile.Digest != ei.Files[i].Digest {
+				sameFiles = false
+			}
+		}
+		if sameFiles {
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusInvoiceDuplicate,
+			}
+		}
+	}
+
 	// Validate invoice. Convert it to cms.NewInvoice so that
 	// we can reuse the function validateProposal.
 	ni := cms.NewInvoice{
