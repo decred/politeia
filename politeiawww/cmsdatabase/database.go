@@ -71,7 +71,7 @@ type Invoice struct {
 type LineItem struct {
 	LineNumber   uint16
 	InvoiceToken string
-	Type         string
+	Type         cms.LineItemTypeT
 	Subtype      string
 	Description  string
 	ProposalURL  string

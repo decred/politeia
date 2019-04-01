@@ -27,6 +27,12 @@ server side notifications.  It does not render HTML.
 - [`InvoiceStatusApproved`](#InvoiceStatusApproved)
 - [`InvoiceStatusPaid`](#InvoiceStatusPaid)
 
+**Line item type codes**
+
+- [`LineItemTypeLabor`](#LineItemTypeLabor)
+- [`LineItemTypeExpense`](#LineItemTypeExpense)
+- [`LineItemTypeMisc`](#LineItemTypeMisc)
+
 ### `Invite new user`
 
 Create a new user on the cmswww server with a registration token and email
@@ -138,7 +144,7 @@ Submit a new invoice for the given month and year.
 |-|-|-|-|
 | month | int16 | A specific month, from 1 to 12. | Yes |
 | year | int16 | A specific year. | Yes |
-| files | [`[]File`](#file) | The invoice CSV file and any other attachments for line items. The first line should be a comment with the month and year, with the format: `# 2006-01` | Yes |
+| files | [`[]File`](#file) | The invoice json file and any other attachments for line items. | Yes |
 | publickey | string | The user's public key. | Yes |
 | signature | string | The signature of the string representation of the file payload. | Yes |
 
@@ -439,3 +445,12 @@ Reply:
 | <a name="InvoiceStatusRejected">InvoiceStatusRejected</a> | 5 | The invoice has been rejected by an admin. |
 | <a name="InvoiceStatusApproved">InvoiceStatusApproved</a> | 6 | The invoice has been approved by an admin. |
 | <a name="InvoiceStatusPaid">InvoiceStatusPaid</a> | 7 | The invoice has been paid. |
+
+### Line item type codes
+
+| Type | Value | Description |
+|-|-|-|
+| <a name="LineItemTypeInvalid">LineItemTypeInvalid</a>| 0 | An invalid type. This shall be considered a bug. |
+| <a name="LineItemTypeLabor">LineItemTypeLabor</a>| 1 | Line items that correspond to laborious activities. |
+| <a name="LineItemTypeExpense">LineItemTypeExpense</a> | 2 | Line items that cover expensed costs. |
+| <a name="LineItemTypeMisc">LineItemTypeMisc</a> | 3 | Any line item that doesn't fall into the above 2 categories. |

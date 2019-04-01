@@ -87,7 +87,7 @@ func EncodeInvoiceLineItem(dbLineItem *database.LineItem) LineItem {
 	lineItem.LineItemKey = dbLineItem.InvoiceToken + strconv.Itoa(int(dbLineItem.LineNumber))
 	lineItem.LineNumber = uint(dbLineItem.LineNumber)
 	lineItem.InvoiceToken = dbLineItem.InvoiceToken
-	lineItem.Type = dbLineItem.Type
+	lineItem.Type = uint(dbLineItem.Type)
 	lineItem.Subtype = dbLineItem.Subtype
 	lineItem.Description = dbLineItem.Description
 	lineItem.ProposalURL = dbLineItem.ProposalURL
@@ -101,7 +101,7 @@ func DecodeInvoiceLineItem(lineItem *LineItem) *database.LineItem {
 	dbLineItem := &database.LineItem{}
 	dbLineItem.InvoiceToken = lineItem.InvoiceToken
 	dbLineItem.LineNumber = uint16(lineItem.LineNumber)
-	dbLineItem.Type = lineItem.Type
+	dbLineItem.Type = cms.LineItemTypeT(lineItem.Type)
 	dbLineItem.Subtype = lineItem.Subtype
 	dbLineItem.Description = lineItem.Description
 	dbLineItem.ProposalURL = lineItem.ProposalURL

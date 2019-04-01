@@ -156,6 +156,11 @@ func (cmd *NewInvoiceCmd) Execute(args []string) error {
 }
 
 func validateParseCSV(data []byte) (*v1.InvoiceInput, error) {
+	LineItemType := map[string]v1.LineItemTypeT{
+		"labor":   v1.LineItemTypeLabor,
+		"expense": v1.LineItemTypeExpense,
+		"misc":    v1.LineItemTypeMisc,
+	}
 	invInput := &v1.InvoiceInput{}
 
 	// Validate that the invoice is CSV-formatted.
@@ -192,7 +197,14 @@ func validateParseCSV(data []byte) (*v1.InvoiceInput, error) {
 			}
 		}
 		lineItem.LineNumber = uint16(i)
-		lineItem.Type = lineContents[0]
+
+		lineItemType, ok := LineItemType[strings.ToLower(lineContents[0])]
+		if !ok {
+			return invInput, www.UserError{
+				ErrorCode: www.ErrorStatusMalformedInvoiceFile,
+			}
+		}
+		lineItem.Type = lineItemType
 		lineItem.Subtype = lineContents[1]
 		lineItem.Description = lineContents[2]
 		lineItem.ProposalToken = lineContents[3]

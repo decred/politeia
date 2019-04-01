@@ -39,7 +39,7 @@ type LineItem struct {
 	LineItemKey  string  `gorm:"primary_key"` // Token of the Invoice + "-" + line number
 	LineNumber   uint    `gorm:"not null"`    // Line number of the line item
 	InvoiceToken string  `gorm:"not null"`    // Censorship token of the invoice
-	Type         string  `gorm:"not null"`    // Type of work performed
+	Type         uint    `gorm:"not null"`    // Type of work performed
 	Subtype      string  `gorm:"not null"`    // Subtype of work performed
 	Description  string  `gorm:"not null"`    // Description of work performed
 	ProposalURL  string  `gorm:"not null"`    // Link to politeia proposal that work is associated with
