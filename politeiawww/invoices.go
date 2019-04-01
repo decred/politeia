@@ -464,7 +464,7 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus,
 	}
 
 	// Update the database with the metadata changes.
-	dbInvoice.Changes = append(dbInvoice.Changes, cmsdatabase.InvoiceChange{
+	dbInvoice.Changes = append(dbInvoice.Changes, database.InvoiceChange{
 		Timestamp:      changes.Timestamp,
 		AdminPublicKey: changes.AdminPublicKey,
 		NewStatus:      changes.NewStatus,
