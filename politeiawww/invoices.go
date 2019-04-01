@@ -386,8 +386,9 @@ func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails,
 }
 
 // processUserInvoices fetches all invoices that are currently stored in the
-// cmsdb.
+// cmsdb for the logged in user.
 func (p *politeiawww) processUserInvoices(user *user.User) (*cms.UserInvoicesReply, error) {
+	log.Tracef("processUserInvoices")
 
 	dbInvs, err := p.cmsDB.InvoicesByUserID(user.ID.String())
 	if err != nil {
@@ -424,10 +425,29 @@ func (p *politeiawww) processUserInvoices(user *user.User) (*cms.UserInvoicesRep
 }
 
 // processAdminInvoices fetches all invoices that are currently stored in the
-// cmsdb.
-func (p *politeiawww) processAdminInvoices(ai cms.AdminInvoices, user *user.User) (*cms.UserInvoicesReply, error) {
+// cmsdb for an administrator, based on request fields (month/year and/or status).
+func (p *politeiawww) processAdminInvoices(ai cms.AdminInvoices,
+	user *user.User) (*cms.UserInvoicesReply, error) {
+	log.Tracef("processAdminInvoices")
 
+	// Make sure month AND year are set, if any.
 	if (ai.Month == 0 && ai.Year != 0) || (ai.Month != 0 && ai.Year == 0) {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidMonthYearRequest,
+		}
+	}
+
+	// Make sure month and year are sensible inputs
+	if ai.Month < 0 || ai.Month > 12 {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidMonthYearRequest,
+		}
+	}
+
+	// Only accept year inputs for years +/- some constant from the current year.
+	const acceptableYearRange = 2
+	if ai.Year != 0 && (ai.Year < uint16(time.Now().Year()-acceptableYearRange) ||
+		ai.Year > uint16(time.Now().Year()+acceptableYearRange)) {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusInvalidMonthYearRequest,
 		}
@@ -435,22 +455,23 @@ func (p *politeiawww) processAdminInvoices(ai cms.AdminInvoices, user *user.User
 
 	var dbInvs []database.Invoice
 	var err error
-	if (ai.Month != 0 && ai.Year != 0) && ai.Status != 0 {
+	switch {
+	case (ai.Month != 0 && ai.Year != 0) && ai.Status != 0:
 		dbInvs, err = p.cmsDB.InvoicesByMonthYearStatus(ai.Month, ai.Year, int(ai.Status))
 		if err != nil {
 			return nil, err
 		}
-	} else if (ai.Month != 0 && ai.Year != 0) && ai.Status == 0 {
+	case (ai.Month != 0 && ai.Year != 0) && ai.Status == 0:
 		dbInvs, err = p.cmsDB.InvoicesByMonthYear(ai.Month, ai.Year)
 		if err != nil {
 			return nil, err
 		}
-	} else if (ai.Month == 0 && ai.Year == 0) && ai.Status != 0 {
+	case (ai.Month == 0 && ai.Year == 0) && ai.Status != 0:
 		dbInvs, err = p.cmsDB.InvoicesByStatus(int(ai.Status))
 		if err != nil {
 			return nil, err
 		}
-	} else {
+	default:
 		dbInvs, err = p.cmsDB.InvoicesAll()
 		if err != nil {
 			return nil, err

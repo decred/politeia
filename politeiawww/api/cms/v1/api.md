@@ -230,7 +230,7 @@ Retrieve a page of invoices given the month and year and status.
 
 Note: This call requires admin privileges.
 
-**Route:** `GET /v1/admin/invoices`
+**Route:** `POST /v1/admin/invoices`
 
 **Params:**
 
