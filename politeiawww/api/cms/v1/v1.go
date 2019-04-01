@@ -5,6 +5,7 @@ import (
 )
 
 type InvoiceStatusT int
+type LineItemTypeT int
 
 const (
 
@@ -27,6 +28,11 @@ const (
 	InvoiceStatusRejected InvoiceStatusT = 5 // Invoice fully rejected and closed
 	InvoiceStatusApproved InvoiceStatusT = 6 // Invoice has been approved
 	InvoiceStatusPaid     InvoiceStatusT = 7 // Invoice has been paid
+
+	// Line item types
+	LineItemTypeLabor   LineItemTypeT = 0 // Labor line items
+	LineItemTypeExpense LineItemTypeT = 1 // Expenses incurred line items
+	LineItemTypeMisc    LineItemTypeT = 2 // Catch all for anything else
 )
 
 /// Contractor Management System Routes
@@ -125,13 +131,13 @@ type InvoiceInput struct {
 // LineItemsInput is the expected struct of line items contained within an users'
 // invoice input.
 type LineItemsInput struct {
-	LineNumber    uint16  `json:"linenum"`       // Line number of the line item
-	Type          string  `json:"type"`          // Type of work performed
-	Subtype       string  `json:"subtype"`       // Subtype of work performed
-	Description   string  `json:"description"`   // Description of work performed
-	ProposalToken string  `json:"proposaltoken"` // Link to politeia proposal that work is associated with
-	Hours         float64 `json:"hours"`         // Number of Hours
-	TotalCost     float64 `json:"totalcost"`     // Total cost of line item
+	LineNumber    uint16        `json:"linenum"`       // Line number of the line item
+	Type          LineItemTypeT `json:"type"`          // Type of work performed
+	Subtype       string        `json:"subtype"`       // Subtype of work performed
+	Description   string        `json:"description"`   // Description of work performed
+	ProposalToken string        `json:"proposaltoken"` // Link to politeia proposal that work is associated with
+	Hours         float64       `json:"hours"`         // Number of Hours
+	TotalCost     float64       `json:"totalcost"`     // Total cost of line item
 }
 
 // UserInvoices is used to get all of the invoices by userID.
