@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/btcsuite/golangcrypto/bcrypt"
-	"github.com/decred/dcrd/hdkeychain"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
@@ -2318,40 +2317,12 @@ func (p *politeiawww) processRegisterUser(u cms.RegisterUser) (*cms.RegisterUser
 		}
 	}
 
-	// Validate provided contractor name
-	name := formatName(u.Name)
-	err = validateName(name)
-	if err != nil {
-		return nil, err
-	}
-
-	// Validate provided contractor location
-	location := formatLocation(u.Location)
-	err = validateLocation(location)
-	if err != nil {
-		return nil, err
-	}
-
-	// Validate provided contractor extended public key
-	contractorKey, err := hdkeychain.NewKeyFromString(u.ExtendedPublicKey)
-	if err != nil {
-		return nil, fmt.Errorf("error processing extended public key: %v",
-			err)
-	}
-	if !contractorKey.IsForNet(activeNetParams.Params) {
-		return nil, fmt.Errorf("contractor extended public key is for the " +
-			"wrong network")
-	}
-
 	// Create a new database user with the provided information.
 	newUser := user.User{
-		Email:                     strings.ToLower(u.Email),
-		Username:                  username,
-		HashedPassword:            hashedPassword,
-		Admin:                     false,
-		Name:                      u.Name,
-		Location:                  u.Location,
-		ExtendedPublicKey:         u.ExtendedPublicKey,
+		Email:          strings.ToLower(u.Email),
+		Username:       username,
+		HashedPassword: hashedPassword,
+		Admin:          false,
 		NewUserVerificationToken:  nil,
 		NewUserVerificationExpiry: 0,
 	}

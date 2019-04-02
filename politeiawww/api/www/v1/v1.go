@@ -1175,9 +1175,6 @@ type User struct {
 	Identities                      []UserIdentity `json:"identities"`
 	ProposalCredits                 uint64         `json:"proposalcredits"`
 	EmailNotifications              uint64         `json:"emailnotifications"` // Notify the user via emails
-	Name                            string         `json:"name"`
-	Location                        string         `json:"location"`
-	ExtendedPublicKey               string         `json:"extpubkey"`
 }
 
 // UserIdentity represents a user's unique identity.

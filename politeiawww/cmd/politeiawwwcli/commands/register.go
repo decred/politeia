@@ -24,11 +24,8 @@ type RegisterUserCmd struct {
 		Email string `positional-arg-name:"email"`
 		Token string `positional-arg-name:"token"`
 	} `positional-args:"true" required:"true"`
-	Username          string `long:"username" optional:"true" description:"Username"`
-	Password          string `long:"password" optional:"true" description:"Password"`
-	Name              string `long:"name" optional:"true" description:"Full name"`
-	Location          string `long:"location" optional:"true" description:"Location (e.g. Dallas, TX, USA)"`
-	ExtendedPublicKey string `long:"xpubkey" optional:"true" description:"The extended public key for the payment account"`
+	Username string `long:"username" optional:"true" description:"Username"`
+	Password string `long:"password" optional:"true" description:"Password"`
 }
 
 // Execute executes the register user command
@@ -53,8 +50,7 @@ func (cmd *RegisterUserCmd) Execute(args []string) error {
 		return fmt.Errorf("Policy: %v", err)
 	}
 
-	if cmd.Username == "" || cmd.Password == "" || cmd.Name == "" ||
-		cmd.Location == "" || cmd.ExtendedPublicKey == "" {
+	if cmd.Username == "" || cmd.Password == "" {
 		reader := bufio.NewReader(os.Stdin)
 		if cmd.Username == "" {
 			fmt.Print("Create a username: ")
@@ -100,23 +96,6 @@ func (cmd *RegisterUserCmd) Execute(args []string) error {
 				break
 			}
 		}
-		if cmd.Name == "" {
-			fmt.Print("Enter your full name: ")
-			cmd.Name, _ = reader.ReadString('\n')
-		}
-		if cmd.Location == "" {
-			fmt.Print("Enter your location (e.g. Dallas, TX, USA): ")
-			cmd.Location, _ = reader.ReadString('\n')
-		}
-		if cmd.ExtendedPublicKey == "" {
-			fmt.Print("Enter the extended public key for your payment account: ")
-			cmd.ExtendedPublicKey, _ = reader.ReadString('\n')
-		}
-
-		fmt.Print("\nPlease carefully review your information and ensure it's " +
-			"correct. If not, press Ctrl + C to exit. Or, press Enter to continue " +
-			"your registration.")
-		reader.ReadString('\n')
 	}
 
 	// Validate password
@@ -135,9 +114,6 @@ func (cmd *RegisterUserCmd) Execute(args []string) error {
 		Email:             email,
 		Username:          strings.TrimSpace(cmd.Username),
 		Password:          digestSHA3(cmd.Password),
-		Name:              strings.TrimSpace(cmd.Name),
-		Location:          strings.TrimSpace(cmd.Location),
-		ExtendedPublicKey: strings.TrimSpace(cmd.ExtendedPublicKey),
 		VerificationToken: strings.TrimSpace(cmd.Args.Token),
 		PublicKey:         hex.EncodeToString(id.Public.Key[:]),
 	}

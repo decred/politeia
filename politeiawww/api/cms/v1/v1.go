@@ -58,9 +58,6 @@ type RegisterUser struct {
 	Email             string `json:"email"`
 	Username          string `json:"username"`
 	Password          string `json:"password"`
-	Name              string `json:"name"`       // User's full name
-	Location          string `json:"location"`   // User's physical location
-	ExtendedPublicKey string `json:"xpublickey"` // Extended public key for user's payment account
 	VerificationToken string `json:"verificationtoken"`
 	PublicKey         string `json:"publickey"`
 }
