@@ -63,8 +63,8 @@ type Invoice struct {
 	Version            string // Version number of this invoice
 	ContractorName     string
 	ContractorLocation string
-	ContractorEmail    string
-	ContractorRate     float64
+	ContractorContact  string
+	ContractorRate     uint16
 	PaymentAddress     string
 
 	LineItems []LineItem      // All line items parsed from the raw invoice provided.
@@ -80,8 +80,8 @@ type LineItem struct {
 	Subtype      string
 	Description  string
 	ProposalURL  string
-	Hours        float64
-	TotalCost    float64
+	Minutes      uint16
+	TotalCost    uint16
 }
 
 // InvoiceChange contains entries for any status update that occurs to a given

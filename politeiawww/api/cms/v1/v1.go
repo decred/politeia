@@ -134,8 +134,8 @@ type InvoiceInput struct {
 	Year               uint16           `json:"year"`               // Year of Invoice
 	ContractorName     string           `json:"contractorname"`     // IRL name of contractor
 	ContractorLocation string           `json:"contractorlocation"` // IRL location of contractor
-	ContractorContact  string           `json:"contractoremail"`    // Contractor email or other contact
-	ContractorRate     float64          `json:"contractorrate"`     // Contractor Pay Rate
+	ContractorContact  string           `json:"contractorcontact"`  // Contractor email or other contact
+	ContractorRate     uint16           `json:"contractorrate"`     // Contractor Pay Rate in USD cents
 	PaymentAddress     string           `json:"paymentaddress"`     //  DCR payment address
 	LineItems          []LineItemsInput `json:"lineitems"`
 }
@@ -148,8 +148,8 @@ type LineItemsInput struct {
 	Subtype       string        `json:"subtype"`       // Subtype of work performed
 	Description   string        `json:"description"`   // Description of work performed
 	ProposalToken string        `json:"proposaltoken"` // Link to politeia proposal that work is associated with
-	Hours         float64       `json:"hours"`         // Number of Hours (if labor)
-	TotalCost     float64       `json:"totalcost"`     // Total USD cost of line item (if expense or misc)
+	Minutes       uint16        `json:"minutes"`       // Number of minutes (if labor)
+	TotalCost     uint16        `json:"totalcost"`     // Total cost (in USD cents) of line item (if expense or misc)
 }
 
 // UserInvoices is used to get all of the invoices by userID.

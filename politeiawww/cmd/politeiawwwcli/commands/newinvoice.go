@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiawww/api/cms/v1"
@@ -32,6 +33,7 @@ type NewInvoiceCmd struct {
 		CSV         string   `positional-arg-name:"csvfile"`         // Invoice CSV file
 		Attachments []string `positional-arg-name:"attachmentfiles"` // Invoice attachment files
 	} `positional-args:"true" optional:"true"`
+	Testnet        bool   `long:"testnet" optional:"true" description:"Use testnet if flagged."`
 	Name           string `long:"name" optional:"true" description:"Full name of the contractor"`
 	Contact        string `long:"contact" optional:"true" description:"Email address or contact of the contractor"`
 	Location       string `long:"location" optional:"true" description:"Location (e.g. Dallas, TX, USA) of the contractor"`
@@ -102,8 +104,15 @@ func (cmd *NewInvoiceCmd) Execute(args []string) error {
 	if err != nil {
 		return fmt.Errorf("Invalid address submitted, please try again")
 	}
-	if !addr.IsForNet(cfg.Params) {
-		return fmt.Errorf("Invalid network address submitted, please try again")
+
+	if cmd.Testnet {
+		if !addr.IsForNet(&chaincfg.TestNet3Params) {
+			return fmt.Errorf("Invalid network address submitted, please try again")
+		}
+	} else {
+		if !addr.IsForNet(&chaincfg.MainNetParams) {
+			return fmt.Errorf("Invalid network address submitted, please try again")
+		}
 	}
 
 	var csv []byte
@@ -129,11 +138,11 @@ func (cmd *NewInvoiceCmd) Execute(args []string) error {
 	invInput.PaymentAddress = strings.TrimSpace(cmd.PaymentAddress)
 	invInput.Version = v1.InvoiceInputVersion
 
-	rate, err := strconv.ParseFloat(strings.TrimSpace(cmd.Rate), 64)
+	rate, err := strconv.Atoi(strings.TrimSpace(cmd.Rate))
 	if err != nil {
 		return fmt.Errorf("invalid rate entered, please try again")
 	}
-	invInput.ContractorRate = rate
+	invInput.ContractorRate = uint16(rate)
 
 	b, err := json.Marshal(invInput)
 	if err != nil {
@@ -240,12 +249,12 @@ func validateParseCSV(data []byte) (*v1.InvoiceInput, error) {
 				fmt.Errorf("invalid number of line items on line: %v want: %v got: %v",
 					i, www.PolicyInvoiceLineItemCount, len(lineContents))
 		}
-		hours, err := strconv.ParseFloat(lineContents[4], 64)
+		hours, err := strconv.Atoi(lineContents[4])
 		if err != nil {
 			return invInput,
 				fmt.Errorf("invalid line item hours entered on line: %v", i)
 		}
-		cost, err := strconv.ParseFloat(lineContents[5], 64)
+		cost, err := strconv.Atoi(lineContents[5])
 		if err != nil {
 			return invInput,
 				fmt.Errorf("invalid cost entered on line: %v", i)
@@ -262,8 +271,8 @@ func validateParseCSV(data []byte) (*v1.InvoiceInput, error) {
 		lineItem.Subtype = lineContents[1]
 		lineItem.Description = lineContents[2]
 		lineItem.ProposalToken = lineContents[3]
-		lineItem.Hours = hours
-		lineItem.TotalCost = cost
+		lineItem.Minutes = uint16(hours * 60)
+		lineItem.TotalCost = uint16(cost * 100)
 		lineItems = append(lineItems, lineItem)
 	}
 	invInput.LineItems = lineItems

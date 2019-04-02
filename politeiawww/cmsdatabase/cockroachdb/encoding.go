@@ -42,7 +42,7 @@ func EncodeInvoice(dbInvoice *database.Invoice) *Invoice {
 	invoice.ContractorName = dbInvoice.ContractorName
 	invoice.ContractorLocation = dbInvoice.ContractorLocation
 	invoice.PaymentAddress = dbInvoice.PaymentAddress
-	invoice.ContractorEmail = dbInvoice.ContractorEmail
+	invoice.ContractorContact = dbInvoice.ContractorContact
 	invoice.ContractorRate = dbInvoice.ContractorRate
 
 	for _, dbInvoiceLineItem := range dbInvoice.LineItems {
@@ -76,7 +76,7 @@ func DecodeInvoice(invoice *Invoice) (*database.Invoice, error) {
 	dbInvoice.ContractorName = invoice.ContractorName
 	dbInvoice.ContractorLocation = invoice.ContractorLocation
 	dbInvoice.PaymentAddress = invoice.PaymentAddress
-	dbInvoice.ContractorEmail = invoice.ContractorEmail
+	dbInvoice.ContractorContact = invoice.ContractorContact
 	dbInvoice.ContractorRate = invoice.ContractorRate
 
 	for _, invoiceLineItem := range invoice.LineItems {
@@ -101,7 +101,7 @@ func EncodeInvoiceLineItem(dbLineItem *database.LineItem) LineItem {
 	lineItem.Subtype = dbLineItem.Subtype
 	lineItem.Description = dbLineItem.Description
 	lineItem.ProposalURL = dbLineItem.ProposalURL
-	lineItem.Hours = dbLineItem.Hours
+	lineItem.Minutes = dbLineItem.Minutes
 	lineItem.TotalCost = dbLineItem.TotalCost
 	return lineItem
 }
@@ -115,7 +115,7 @@ func DecodeInvoiceLineItem(lineItem *LineItem) *database.LineItem {
 	dbLineItem.Subtype = lineItem.Subtype
 	dbLineItem.Description = lineItem.Description
 	dbLineItem.ProposalURL = lineItem.ProposalURL
-	dbLineItem.Hours = lineItem.Hours
+	dbLineItem.Minutes = lineItem.Minutes
 	dbLineItem.TotalCost = lineItem.TotalCost
 
 	return dbLineItem

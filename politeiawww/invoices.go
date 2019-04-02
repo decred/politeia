@@ -369,7 +369,7 @@ func validateInvoice(ni cms.NewInvoice, u *user.User) error {
 					}
 				case cms.LineItemTypeExpense:
 				case cms.LineItemTypeMisc:
-					if lineInput.Hours != 0 {
+					if lineInput.Minutes != 0 {
 						return www.UserError{
 							ErrorCode: www.ErrorStatusMalformedLineItem,
 						}
