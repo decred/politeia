@@ -110,7 +110,7 @@ type InvoiceRecord struct {
 	Version            string         `json:"version"`                      // Record version
 	ContractorName     string         `json:"contractorname"`               // IRL name of contractor
 	ContractorLocation string         `json:"contractorlocation"`           // IRL location of contractor
-	ContractorEmail    string         `json:"contractoremail"`              // Contractor email contact
+	ContractorEmail    string         `json:"contractorcontact"`            // Contractor email contact
 	PaymentAddress     string         `json:"paymentaddress"`               //  DCR payment address
 
 	CensorshipRecord www.CensorshipRecord `json:"censorshiprecord"`
