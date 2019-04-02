@@ -69,16 +69,11 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 		return nil, err
 	}
 
-	name := strconv.Itoa(int(ni.Year)) + strconv.Itoa(int(ni.Month)) + u.Username
-
 	md, err := encodeBackendInvoiceMetadata(BackendInvoiceMetadata{
 		Version:   BackendInvoiceMetadataVersion,
 		Timestamp: time.Now().Unix(),
-		Name:      name,
 		PublicKey: ni.PublicKey,
 		Signature: ni.Signature,
-		Month:     ni.Month,
-		Year:      ni.Year,
 	})
 	if err != nil {
 		return nil, err
@@ -123,7 +118,8 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 		return nil, err
 	}
 
-	log.Infof("Submitted invoice name: %v", name)
+	log.Infof("Submitted invoice: %v %v-%v",
+		u.Username, ni.Month, ni.Year)
 	for k, f := range n.Files {
 		log.Infof("%02v: %v %v", k, f.Name, f.Digest)
 	}
@@ -215,7 +211,6 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 	p.fireEvent(EventTypeProposalSubmitted,
 		EventDataProposalSubmitted{
 			CensorshipRecord: &cr,
-			ProposalName:     name,
 			User:             u,
 		},
 	)
@@ -577,8 +572,6 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 	backendMetadata := BackendInvoiceMetadata{
 		Version:   BackendProposalMetadataVersion,
 		Timestamp: time.Now().Unix(),
-		Month:     invRec.Month,
-		Year:      invRec.Year,
 		PublicKey: ei.PublicKey,
 		Signature: ei.Signature,
 	}
@@ -823,13 +816,10 @@ func (p *politeiawww) processAdminInvoices(ai cms.AdminInvoices, user *user.User
 
 // BackendInvoiceMetadata is the metadata for Records into politeiad.
 type BackendInvoiceMetadata struct {
-	Version   uint64 `json:"version"` // BackendInvoiceMetadata version
-	Month     uint16 `json:"month"`
-	Year      uint16 `json:"year"`
+	Version   uint64 `json:"version"`   // BackendInvoiceMetadata version
 	Timestamp int64  `json:"timestamp"` // Last update of invoice
-	PublicKey string `json:"publickey"` // Key used for signature.
+	PublicKey string `json:"publickey"` // Key used for signature
 	Signature string `json:"signature"` // Signature of merkle root
-	Name      string `json:"name"`      // Generated invoice name
 }
 
 // BackendInvoiceMDChange is the metadata for updating Records on politeiad.

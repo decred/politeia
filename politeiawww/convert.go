@@ -529,6 +529,23 @@ func convertDatabaseInvoiceToInvoiceRecord(dbInvoice cmsdatabase.Invoice) *cms.I
 	return invRec
 }
 
+func convertLineItemsToDatabase(token string, l []cms.LineItemsInput) []cmsdatabase.LineItem {
+	dl := make([]cmsdatabase.LineItem, 0, len(l))
+	for _, v := range l {
+		dl = append(dl, cmsdatabase.LineItem{
+			LineNumber:   v.LineNumber,
+			InvoiceToken: token,
+			Type:         v.Type,
+			Subtype:      v.Subtype,
+			Description:  v.Description,
+			ProposalURL:  v.ProposalToken,
+			Hours:        v.Hours,
+			TotalCost:    v.TotalCost,
+		})
+	}
+	return dl
+}
+
 func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 	dbInvoice := cmsdatabase.Invoice{
 		Files:           convertRecordFilesToWWW(p.Files),
@@ -536,6 +553,30 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 		ServerSignature: p.CensorshipRecord.Signature,
 		Version:         p.Version,
 	}
+
+	// Decode invoice file
+	for _, v := range p.Files {
+		if v.Name == invoiceFile {
+			b, err := base64.StdEncoding.DecodeString(v.Payload)
+			if err != nil {
+				return nil, err
+			}
+
+			var ii cms.InvoiceInput
+			err = json.Unmarshal(b, &ii)
+			if err != nil {
+				return nil, www.UserError{
+					ErrorCode: www.ErrorStatusInvalidInput,
+				}
+			}
+
+			dbInvoice.Month = ii.Month
+			dbInvoice.Year = ii.Year
+			dbInvoice.LineItems = convertLineItemsToDatabase(dbInvoice.Token,
+				ii.LineItems)
+		}
+	}
+
 	for _, m := range p.Metadata {
 		switch m.ID {
 		case mdStreamGeneral:
@@ -546,16 +587,10 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 					p.Metadata, p.CensorshipRecord.Token, err)
 			}
 
-			dbInvoice.Month = mdGeneral.Month
-			dbInvoice.Year = mdGeneral.Year
 			dbInvoice.Timestamp = mdGeneral.Timestamp
 			dbInvoice.PublicKey = mdGeneral.PublicKey
 			dbInvoice.UserSignature = mdGeneral.Signature
-			dbInvoice.LineItems, err = parseJSONFileToLineItems(p.CensorshipRecord.Token, dbInvoice.Files[0])
-			if err != nil {
-				return nil, fmt.Errorf("could not parse invoice csv data for token '%v': %v",
-					p.CensorshipRecord.Token, err)
-			}
+
 		default:
 			// Log error but proceed
 			log.Errorf("initializeInventory: invalid "+
@@ -565,34 +600,4 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 	}
 
 	return &dbInvoice, nil
-}
-
-func parseJSONFileToLineItems(invoiceToken string, file www.File) ([]cmsdatabase.LineItem, error) {
-	data, err := base64.StdEncoding.DecodeString(file.Payload)
-	if err != nil {
-		return nil, err
-	}
-
-	var invInput cms.InvoiceInput
-	if err := json.Unmarshal(data, &invInput); err != nil {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusInvalidInput,
-		}
-	}
-
-	dbLineItems := []cmsdatabase.LineItem{}
-	for lineNum, lineContents := range invInput.LineItems {
-		dbLineItem := cmsdatabase.LineItem{}
-		dbLineItem.LineNumber = uint16(lineNum)
-		dbLineItem.InvoiceToken = invoiceToken
-		dbLineItem.Type = lineContents.Type
-		dbLineItem.Subtype = lineContents.Subtype
-		dbLineItem.Description = lineContents.Description
-		dbLineItem.ProposalURL = lineContents.ProposalToken
-		dbLineItem.Hours = lineContents.Hours
-		dbLineItem.TotalCost = lineContents.TotalCost
-		dbLineItems = append(dbLineItems, dbLineItem)
-	}
-
-	return dbLineItems, nil
 }
