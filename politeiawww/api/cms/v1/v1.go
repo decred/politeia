@@ -34,6 +34,8 @@ const (
 	LineItemTypeLabor   LineItemTypeT = 1 // Labor line items
 	LineItemTypeExpense LineItemTypeT = 2 // Expenses incurred line items
 	LineItemTypeMisc    LineItemTypeT = 3 // Catch all for anything else
+
+	InvoiceInputVersion = 1
 )
 
 /// Contractor Management System Routes
@@ -127,7 +129,7 @@ type InvoiceDetailsReply struct {
 // InvoiceInput is the expected structure of the invoice.json file being added to InvoiceRecords.
 // Users' raw csv will be inputted and parsed to help in their creation.
 type InvoiceInput struct {
-	ID                 string           `json:"id"`                 // Optional field for contractor ID entry
+	Version            uint16           `json:"version"`            // Version of the invoice input
 	Month              uint16           `json:"month"`              // Month of Invoice
 	Year               uint16           `json:"year"`               // Year of Invoice
 	ContractorName     string           `json:"contractorname"`     // IRL name of contractor

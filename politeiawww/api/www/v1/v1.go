@@ -211,6 +211,7 @@ const (
 	ErrorStatusInvoiceDuplicate               ErrorStatusT = 67
 	ErrorStatusInvalidPaymentAddress          ErrorStatusT = 68
 	ErrorStatusMalformedLineItem              ErrorStatusT = 69
+	ErrorStatusInvalidInvoiceInputVersion     ErrorStatusT = 70
 
 	// Proposal state codes
 	//
@@ -369,6 +370,7 @@ var (
 		ErrorStatusInvoiceDuplicate:               "submitted invoice is a duplicate of an existing invoice",
 		ErrorStatusInvalidPaymentAddress:          "invalid payment address",
 		ErrorStatusMalformedLineItem:              "malformed line item submitted",
+		ErrorStatusInvalidInvoiceInputVersion:     "invalid invoice input version",
 	}
 
 	// PropStatus converts propsal status codes to human readable text

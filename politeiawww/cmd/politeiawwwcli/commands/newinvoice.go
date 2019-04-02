@@ -127,6 +127,8 @@ func (cmd *NewInvoiceCmd) Execute(args []string) error {
 	invInput.ContractorLocation = strings.TrimSpace(cmd.Location)
 	invInput.ContractorContact = strings.TrimSpace(cmd.Contact)
 	invInput.PaymentAddress = strings.TrimSpace(cmd.PaymentAddress)
+	invInput.Version = v1.InvoiceInputVersion
+
 	rate, err := strconv.ParseFloat(strings.TrimSpace(cmd.Rate), 64)
 	if err != nil {
 		return fmt.Errorf("invalid rate entered, please try again")

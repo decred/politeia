@@ -298,6 +298,12 @@ func validateInvoice(ni cms.NewInvoice, u *user.User) error {
 				}
 			}
 
+			// Validate invoice input version
+			if invInput.Version < cms.InvoiceInputVersion {
+				return www.UserError{
+					ErrorCode: www.ErrorStatusInvalidInvoiceInputVersion,
+				}
+			}
 			// Validate Payment Address
 			addr, err := dcrutil.DecodeAddress(strings.TrimSpace(invInput.PaymentAddress))
 			if err != nil {
