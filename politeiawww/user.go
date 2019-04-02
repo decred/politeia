@@ -224,56 +224,6 @@ func validatePubkey(publicKey string) ([]byte, error) {
 	return pk, nil
 }
 
-// formatName normalizes a contractor name to lowercase without leading and
-// trailing spaces.
-func formatName(name string) string {
-	return strings.ToLower(strings.TrimSpace(name))
-}
-
-func validateName(name string) error {
-	if len(name) < www.PolicyMinNameLength ||
-		len(name) > www.PolicyMaxNameLength {
-		log.Debugf("Name not within bounds: %s", name)
-		return www.UserError{
-			ErrorCode: www.ErrorStatusMalformedName,
-		}
-	}
-
-	if !validName.MatchString(name) {
-		log.Debugf("Name not valid: %s %s", name, validName.String())
-		return www.UserError{
-			ErrorCode: www.ErrorStatusMalformedName,
-		}
-	}
-
-	return nil
-}
-
-// formatLocation normalizes a contractor location to lowercase without leading and
-// trailing spaces.
-func formatLocation(location string) string {
-	return strings.ToLower(strings.TrimSpace(location))
-}
-
-func validateLocation(location string) error {
-	if len(location) < www.PolicyMinLocationLength ||
-		len(location) > www.PolicyMaxLocationLength {
-		log.Debugf("Location not within bounds: %s", location)
-		return www.UserError{
-			ErrorCode: www.ErrorStatusMalformedLocation,
-		}
-	}
-
-	if !validLocation.MatchString(location) {
-		log.Debugf("Location not valid: %s %s", location, validLocation.String())
-		return www.UserError{
-			ErrorCode: www.ErrorStatusMalformedLocation,
-		}
-	}
-
-	return nil
-}
-
 // checkPublicKeyAndSignature validates the public key and signature.
 func checkPublicKeyAndSignature(u *user.User, publicKey string, signature string, elements ...string) error {
 	id, err := checkPublicKey(u, publicKey)
