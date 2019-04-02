@@ -80,8 +80,8 @@ type LineItem struct {
 	Subtype      string
 	Description  string
 	ProposalURL  string
-	Minutes      uint16
-	TotalCost    uint16
+	Labor        uint16
+	Expenses     uint16
 }
 
 // InvoiceChange contains entries for any status update that occurs to a given

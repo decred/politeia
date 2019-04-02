@@ -271,8 +271,8 @@ func validateParseCSV(data []byte) (*v1.InvoiceInput, error) {
 		lineItem.Subtype = lineContents[1]
 		lineItem.Description = lineContents[2]
 		lineItem.ProposalToken = lineContents[3]
-		lineItem.Minutes = uint16(hours * 60)
-		lineItem.TotalCost = uint16(cost * 100)
+		lineItem.Labor = uint16(hours * 60)
+		lineItem.Expenses = uint16(cost * 100)
 		lineItems = append(lineItems, lineItem)
 	}
 	invInput.LineItems = lineItems

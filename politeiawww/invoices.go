@@ -362,14 +362,14 @@ func validateInvoice(ni cms.NewInvoice, u *user.User) error {
 
 				switch lineInput.Type {
 				case cms.LineItemTypeLabor:
-					if lineInput.TotalCost != 0 {
+					if lineInput.Expenses != 0 {
 						return www.UserError{
 							ErrorCode: www.ErrorStatusMalformedLineItem,
 						}
 					}
 				case cms.LineItemTypeExpense:
 				case cms.LineItemTypeMisc:
-					if lineInput.Minutes != 0 {
+					if lineInput.Labor != 0 {
 						return www.UserError{
 							ErrorCode: www.ErrorStatusMalformedLineItem,
 						}

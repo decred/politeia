@@ -101,8 +101,8 @@ func EncodeInvoiceLineItem(dbLineItem *database.LineItem) LineItem {
 	lineItem.Subtype = dbLineItem.Subtype
 	lineItem.Description = dbLineItem.Description
 	lineItem.ProposalURL = dbLineItem.ProposalURL
-	lineItem.Minutes = dbLineItem.Minutes
-	lineItem.TotalCost = dbLineItem.TotalCost
+	lineItem.Labor = dbLineItem.Labor
+	lineItem.Expenses = dbLineItem.Expenses
 	return lineItem
 }
 
@@ -115,8 +115,8 @@ func DecodeInvoiceLineItem(lineItem *LineItem) *database.LineItem {
 	dbLineItem.Subtype = lineItem.Subtype
 	dbLineItem.Description = lineItem.Description
 	dbLineItem.ProposalURL = lineItem.ProposalURL
-	dbLineItem.Minutes = lineItem.Minutes
-	dbLineItem.TotalCost = lineItem.TotalCost
+	dbLineItem.Labor = lineItem.Labor
+	dbLineItem.Expenses = lineItem.Expenses
 
 	return dbLineItem
 }

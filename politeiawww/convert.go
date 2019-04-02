@@ -539,8 +539,8 @@ func convertLineItemsToDatabase(token string, l []cms.LineItemsInput) []cmsdatab
 			Subtype:      v.Subtype,
 			Description:  v.Description,
 			ProposalURL:  v.ProposalToken,
-			Minutes:      v.Minutes,
-			TotalCost:    v.TotalCost,
+			Labor:        v.Labor,
+			Expenses:     v.Expenses,
 		})
 	}
 	return dl
