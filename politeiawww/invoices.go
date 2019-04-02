@@ -354,7 +354,7 @@ func validateInvoice(ni cms.NewInvoice, u *user.User) error {
 					}
 				}
 
-				switch cms.LineItemTypeT(lineInput.Type) {
+				switch lineInput.Type {
 				case cms.LineItemTypeLabor:
 					if lineInput.TotalCost != 0 {
 						return www.UserError{

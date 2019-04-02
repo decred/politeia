@@ -36,6 +36,7 @@ type NewInvoiceCmd struct {
 	Contact        string `long:"contact" optional:"true" description:"Email address or contact of the contractor"`
 	Location       string `long:"location" optional:"true" description:"Location (e.g. Dallas, TX, USA) of the contractor"`
 	PaymentAddress string `long:"paymentaddress" optional:"true" description:"Payment address for this invoice."`
+	Rate           string `long:"rate" optional:"true" description:"Hourly rate for labor."`
 }
 
 // Execute executes the new invoice command.
@@ -86,6 +87,10 @@ func (cmd *NewInvoiceCmd) Execute(args []string) error {
 			fmt.Print("Enter payment address for this invoice: ")
 			cmd.PaymentAddress, _ = reader.ReadString('\n')
 		}
+		if cmd.Rate == "" {
+			fmt.Print("Enter hourly rate for this invoice: ")
+			cmd.Rate, _ = reader.ReadString('\n')
+		}
 		fmt.Print("\nPlease carefully review your information and ensure it's " +
 			"correct. If not, press Ctrl + C to exit. Or, press Enter to continue " +
 			"your registration.")
@@ -122,6 +127,11 @@ func (cmd *NewInvoiceCmd) Execute(args []string) error {
 	invInput.ContractorLocation = strings.TrimSpace(cmd.Location)
 	invInput.ContractorContact = strings.TrimSpace(cmd.Contact)
 	invInput.PaymentAddress = strings.TrimSpace(cmd.PaymentAddress)
+	rate, err := strconv.ParseFloat(cmd.Rate, 10)
+	if err != nil {
+		return fmt.Errorf("invalid rate entered, please try again")
+	}
+	invInput.ContractorRate = rate
 
 	b, err := json.Marshal(invInput)
 	if err != nil {
