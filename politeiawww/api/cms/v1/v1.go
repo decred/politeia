@@ -106,6 +106,10 @@ type InvoiceRecord struct {
 	Signature          string         `json:"signature"`                    // Signature of file digest
 	Files              []www.File     `json:"file"`                         // Actual invoice file
 	Version            string         `json:"version"`                      // Record version
+	ContractorName     string         `json:"contractorname"`               // IRL name of contractor
+	ContractorLocation string         `json:"contractorlocation"`           // IRL location of contractor
+	ContractorEmail    string         `json:"contractoremail"`              // Contractor email contact
+	PaymentAddress     string         `json:"paymentaddress"`               //  DCR payment address
 
 	CensorshipRecord www.CensorshipRecord `json:"censorshiprecord"`
 }
@@ -123,10 +127,14 @@ type InvoiceDetailsReply struct {
 // InvoiceInput is the expected structure of the invoice.json file being added to InvoiceRecords.
 // Users' raw csv will be inputted and parsed to help in their creation.
 type InvoiceInput struct {
-	ID        string           `json:"id"`    // Optional field for contractor ID entry
-	Month     uint16           `json:"month"` // Month of Invoice
-	Year      uint16           `json:"year"`  // Year of Invoice
-	LineItems []LineItemsInput `json:"lineitems"`
+	ID                 string           `json:"id"`                 // Optional field for contractor ID entry
+	Month              uint16           `json:"month"`              // Month of Invoice
+	Year               uint16           `json:"year"`               // Year of Invoice
+	ContractorName     string           `json:"contractorname"`     // IRL name of contractor
+	ContractorLocation string           `json:"contractorlocation"` // IRL location of contractor
+	ContractorEmail    string           `json:"contractoremail"`    // Contractor email contact
+	PaymentAddress     string           `json:"paymentaddress"`     //  DCR payment address
+	LineItems          []LineItemsInput `json:"lineitems"`
 }
 
 // LineItemsInput is the expected struct of line items contained within an users'

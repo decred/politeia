@@ -16,6 +16,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiawww/sharedconfig"
@@ -54,6 +55,7 @@ type Config struct {
 	SkipVerify  bool   `long:"skipverify" description:"Skip verifying the server's certifcate chain and host name"`
 	Verbose     bool   `short:"v" long:"verbose" description:"Print verbose output"`
 	Silent      bool   `long:"silent" description:"Suppress all output"`
+	TestNet     bool   `long:"testnet" description:"use testnet params"`
 
 	DataDir    string // Application data dir
 	Version    string // CLI version
@@ -62,6 +64,7 @@ type Config struct {
 	FaucetHost string // Testnet faucet host
 	CSRF       string // CSRF header token
 
+	Params   *chaincfg.Params
 	Identity *identity.FullIdentity // User identity
 	Cookies  []*http.Cookie         // User cookies
 }
@@ -185,6 +188,11 @@ func Load() (*Config, error) {
 	}
 	cfg.Identity = id
 
+	// Set params depending on network
+	cfg.Params = &chaincfg.MainNetParams
+	if cfg.TestNet {
+		cfg.Params = &chaincfg.TestNet3Params
+	}
 	return &cfg, nil
 }
 

@@ -5,16 +5,19 @@
 package commands
 
 import (
+	"bufio"
 	"encoding/base64"
 	"encoding/csv"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 
+	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
@@ -29,6 +32,10 @@ type NewInvoiceCmd struct {
 		CSV         string   `positional-arg-name:"csvfile"`         // Invoice CSV file
 		Attachments []string `positional-arg-name:"attachmentfiles"` // Invoice attachment files
 	} `positional-args:"true" optional:"true"`
+	Name           string `long:"name" optional:"true" description:"Full name of the contractor"`
+	Email          string `long:"email" optional:"true" description:"Email address of the contractor"`
+	Location       string `long:"location" optional:"true" description:"Location (e.g. Dallas, TX, USA) of the contractor"`
+	PaymentAddress string `long:"paymentaddress" optional:"true" description:"Payment address for this invoice."`
 }
 
 // Execute executes the new invoice command.
@@ -61,6 +68,39 @@ func (cmd *NewInvoiceCmd) Execute(args []string) error {
 		return err
 	}
 
+	if cmd.Name == "" || cmd.Location == "" || cmd.PaymentAddress == "" {
+		reader := bufio.NewReader(os.Stdin)
+		if cmd.Name == "" {
+			fmt.Print("Enter name for the invoice: ")
+			cmd.Name, _ = reader.ReadString('\n')
+		}
+		if cmd.Email == "" {
+			fmt.Print("Enter email to associate with this invoice: ")
+			cmd.Email, _ = reader.ReadString('\n')
+		}
+		if cmd.Location == "" {
+			fmt.Print("Enter location to associate with this invoice: ")
+			cmd.Location, _ = reader.ReadString('\n')
+		}
+		if cmd.PaymentAddress == "" {
+			fmt.Print("Enter payment address for this invoice: ")
+			cmd.PaymentAddress, _ = reader.ReadString('\n')
+		}
+		fmt.Print("\nPlease carefully review your information and ensure it's " +
+			"correct. If not, press Ctrl + C to exit. Or, press Enter to continue " +
+			"your registration.")
+		reader.ReadString('\n')
+	}
+
+	// Validate provided address
+	addr, err := dcrutil.DecodeAddress(strings.TrimSpace(cmd.PaymentAddress))
+	if err != nil {
+		return fmt.Errorf("Invalid address submitted, please try again")
+	}
+	if !addr.IsForNet(cfg.Params) {
+		return fmt.Errorf("Invalid network address submitted, please try again")
+	}
+
 	var csv []byte
 	files := make([]www.File, 0, www.PolicyMaxImages+1)
 	// Read csv file into memory and convert to type File
@@ -78,6 +118,10 @@ func (cmd *NewInvoiceCmd) Execute(args []string) error {
 
 	invInput.Month = uint16(month)
 	invInput.Year = uint16(year)
+	invInput.ContractorName = strings.TrimSpace(cmd.Name)
+	invInput.ContractorLocation = strings.TrimSpace(cmd.Location)
+	invInput.ContractorEmail = strings.TrimSpace(cmd.Email)
+	invInput.PaymentAddress = strings.TrimSpace(cmd.PaymentAddress)
 
 	b, err := json.Marshal(invInput)
 	if err != nil {

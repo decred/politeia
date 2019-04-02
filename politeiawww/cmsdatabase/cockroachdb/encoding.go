@@ -39,6 +39,10 @@ func EncodeInvoice(dbInvoice *database.Invoice) *Invoice {
 	invoice.UserSignature = dbInvoice.UserSignature
 	invoice.ServerSignature = dbInvoice.ServerSignature
 	invoice.Version = dbInvoice.Version
+	invoice.ContractorName = dbInvoice.ContractorName
+	invoice.ContractorLocation = dbInvoice.ContractorLocation
+	invoice.PaymentAddress = dbInvoice.PaymentAddress
+	invoice.ContractorEmail = dbInvoice.ContractorEmail
 
 	for _, dbInvoiceLineItem := range dbInvoice.LineItems {
 		invoiceLineItem := EncodeInvoiceLineItem(&dbInvoiceLineItem)
@@ -68,6 +72,10 @@ func DecodeInvoice(invoice *Invoice) (*database.Invoice, error) {
 	dbInvoice.UserSignature = invoice.UserSignature
 	dbInvoice.ServerSignature = invoice.ServerSignature
 	dbInvoice.Version = invoice.Version
+	dbInvoice.ContractorName = invoice.ContractorName
+	dbInvoice.ContractorLocation = invoice.ContractorLocation
+	dbInvoice.PaymentAddress = invoice.PaymentAddress
+	dbInvoice.ContractorEmail = invoice.ContractorEmail
 
 	for _, invoiceLineItem := range invoice.LineItems {
 		dbInvoiceLineItem := DecodeInvoiceLineItem(&invoiceLineItem)

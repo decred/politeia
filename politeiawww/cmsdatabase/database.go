@@ -61,6 +61,10 @@ type Invoice struct {
 	UserSignature      string
 	ServerSignature    string
 	Version            string // Version number of this invoice
+	ContractorName     string
+	ContractorLocation string
+	ContractorEmail    string
+	PaymentAddress     string
 
 	LineItems []LineItem      // All line items parsed from the raw invoice provided.
 	Changes   []InvoiceChange // All status changes that the invoice has had.

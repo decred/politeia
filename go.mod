@@ -7,6 +7,7 @@ require (
 	github.com/btcsuite/golangcrypto v0.0.0-20150304025918-53f62d9b43e8
 	github.com/dajohi/goemail v1.0.0
 	github.com/davecgh/go-spew v1.1.1
+	github.com/decred/dcrd v1.3.0
 	github.com/decred/dcrd/certgen v1.0.2
 	github.com/decred/dcrd/chaincfg v1.3.0
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.1
