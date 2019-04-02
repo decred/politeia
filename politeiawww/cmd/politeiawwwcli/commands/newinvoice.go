@@ -127,7 +127,7 @@ func (cmd *NewInvoiceCmd) Execute(args []string) error {
 	invInput.ContractorLocation = strings.TrimSpace(cmd.Location)
 	invInput.ContractorContact = strings.TrimSpace(cmd.Contact)
 	invInput.PaymentAddress = strings.TrimSpace(cmd.PaymentAddress)
-	rate, err := strconv.ParseFloat(cmd.Rate, 10)
+	rate, err := strconv.ParseFloat(strings.TrimSpace(cmd.Rate), 64)
 	if err != nil {
 		return fmt.Errorf("invalid rate entered, please try again")
 	}
@@ -234,30 +234,28 @@ func validateParseCSV(data []byte) (*v1.InvoiceInput, error) {
 	for i, lineContents := range csvFields {
 		lineItem := v1.LineItemsInput{}
 		if len(lineContents) != www.PolicyInvoiceLineItemCount {
-			return invInput, www.UserError{
-				ErrorCode: www.ErrorStatusMalformedInvoiceFile,
-			}
+			return invInput,
+				fmt.Errorf("invalid number of line items on line: %v want: %v got: %v",
+					i, www.PolicyInvoiceLineItemCount, len(lineContents))
 		}
 		hours, err := strconv.ParseFloat(lineContents[4], 64)
 		if err != nil {
-			return invInput, www.UserError{
-				ErrorCode: www.ErrorStatusMalformedInvoiceFile,
-			}
+			return invInput,
+				fmt.Errorf("invalid line item hours entered on line: %v", i)
 		}
 		cost, err := strconv.ParseFloat(lineContents[5], 64)
 		if err != nil {
-			return invInput, www.UserError{
-				ErrorCode: www.ErrorStatusMalformedInvoiceFile,
-			}
+			return invInput,
+				fmt.Errorf("invalid cost entered on line: %v", i)
 		}
 		lineItem.LineNumber = uint16(i)
 
 		lineItemType, ok := LineItemType[strings.ToLower(lineContents[0])]
 		if !ok {
-			return invInput, www.UserError{
-				ErrorCode: www.ErrorStatusMalformedInvoiceFile,
-			}
+			return invInput,
+				fmt.Errorf("invalid line item type on line: %v", i)
 		}
+
 		lineItem.Type = lineItemType
 		lineItem.Subtype = lineContents[1]
 		lineItem.Description = lineContents[2]
