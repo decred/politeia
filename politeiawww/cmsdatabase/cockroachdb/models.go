@@ -26,6 +26,7 @@ type Invoice struct {
 	Version            string    `gorm:"not null"`
 	ContractorName     string    `gorm:"not null"`
 	ContractorLocation string    `gorm:"not null"`
+	ContractorRate     float64   `gorm:"not null"`
 	ContractorEmail    string    `gorm:"not null"`
 	PaymentAddress     string    `gorm:"not null"`
 

@@ -33,7 +33,7 @@ type NewInvoiceCmd struct {
 		Attachments []string `positional-arg-name:"attachmentfiles"` // Invoice attachment files
 	} `positional-args:"true" optional:"true"`
 	Name           string `long:"name" optional:"true" description:"Full name of the contractor"`
-	Email          string `long:"email" optional:"true" description:"Email address of the contractor"`
+	Contact        string `long:"contact" optional:"true" description:"Email address or contact of the contractor"`
 	Location       string `long:"location" optional:"true" description:"Location (e.g. Dallas, TX, USA) of the contractor"`
 	PaymentAddress string `long:"paymentaddress" optional:"true" description:"Payment address for this invoice."`
 }
@@ -74,9 +74,9 @@ func (cmd *NewInvoiceCmd) Execute(args []string) error {
 			fmt.Print("Enter name for the invoice: ")
 			cmd.Name, _ = reader.ReadString('\n')
 		}
-		if cmd.Email == "" {
+		if cmd.Contact == "" {
 			fmt.Print("Enter email to associate with this invoice: ")
-			cmd.Email, _ = reader.ReadString('\n')
+			cmd.Contact, _ = reader.ReadString('\n')
 		}
 		if cmd.Location == "" {
 			fmt.Print("Enter location to associate with this invoice: ")
@@ -120,7 +120,7 @@ func (cmd *NewInvoiceCmd) Execute(args []string) error {
 	invInput.Year = uint16(year)
 	invInput.ContractorName = strings.TrimSpace(cmd.Name)
 	invInput.ContractorLocation = strings.TrimSpace(cmd.Location)
-	invInput.ContractorEmail = strings.TrimSpace(cmd.Email)
+	invInput.ContractorContact = strings.TrimSpace(cmd.Contact)
 	invInput.PaymentAddress = strings.TrimSpace(cmd.PaymentAddress)
 
 	b, err := json.Marshal(invInput)

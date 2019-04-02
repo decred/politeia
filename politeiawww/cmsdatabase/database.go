@@ -64,6 +64,7 @@ type Invoice struct {
 	ContractorName     string
 	ContractorLocation string
 	ContractorEmail    string
+	ContractorRate     float64
 	PaymentAddress     string
 
 	LineItems []LineItem      // All line items parsed from the raw invoice provided.

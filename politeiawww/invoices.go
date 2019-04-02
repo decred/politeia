@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrtime/merkle"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
@@ -297,6 +298,78 @@ func validateInvoice(ni cms.NewInvoice, u *user.User) error {
 				}
 			}
 
+			// Validate Payment Address
+			addr, err := dcrutil.DecodeAddress(strings.TrimSpace(invInput.PaymentAddress))
+			if err != nil {
+				return www.UserError{
+					ErrorCode: www.ErrorStatusInvalidPaymentAddress,
+				}
+			}
+			if !addr.IsForNet(activeNetParams.Params) {
+				return www.UserError{
+					ErrorCode: www.ErrorStatusInvalidPaymentAddress,
+				}
+			}
+
+			// Validate provided contractor name
+			name := formatName(invInput.ContractorName)
+			err = validateName(name)
+			if err != nil {
+				return www.UserError{
+					ErrorCode: www.ErrorStatusMalformedName,
+				}
+			}
+
+			// Validate provided contractor location
+			location := formatLocation(invInput.ContractorLocation)
+			err = validateLocation(location)
+			if err != nil {
+				return www.UserError{
+					ErrorCode: www.ErrorStatusMalformedLocation,
+				}
+			}
+
+			// Validate provided contractor email/contact
+			// TODO: figure out what exactly we want to validate for here.
+
+			// Validate hourly rate
+			// TODO: Make sure it parses into float64? Though I think it already
+			// is complete with the marshalling/unmarshalling
+
+			// Validate line items
+			for _, lineInput := range invInput.LineItems {
+				subtype := formatName(lineInput.Subtype)
+				err = validateName(subtype)
+				if err != nil {
+					return www.UserError{
+						ErrorCode: www.ErrorStatusMalformedName,
+					}
+				}
+
+				description := formatName(lineInput.Description)
+				err = validateName(description)
+				if err != nil {
+					return www.UserError{
+						ErrorCode: www.ErrorStatusMalformedName,
+					}
+				}
+
+				switch cms.LineItemTypeT(lineInput.Type) {
+				case cms.LineItemTypeLabor:
+					if lineInput.TotalCost != 0 {
+						return www.UserError{
+							ErrorCode: www.ErrorStatusMalformedLineItem,
+						}
+					}
+				case cms.LineItemTypeExpense:
+				case cms.LineItemTypeMisc:
+					if lineInput.Hours != 0 {
+						return www.UserError{
+							ErrorCode: www.ErrorStatusMalformedLineItem,
+						}
+					}
+				}
+			}
 		}
 
 		// Append digest to array for merkle root calculation
