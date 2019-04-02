@@ -68,6 +68,8 @@ var (
 		},
 	}
 	validInvoiceField = regexp.MustCompile(createInvoiceFieldRegex())
+	validName         = regexp.MustCompile(createNameLocationRegex())
+	validLocation     = regexp.MustCompile(createNameLocationRegex())
 )
 
 // formatInvoiceField normalizes an invoice field without leading and
@@ -112,6 +114,26 @@ func createInvoiceFieldRegex() string {
 	}
 	buf.WriteString("]{0,")
 	buf.WriteString(strconv.Itoa(www.PolicyMaxInvoiceFieldLength) + "}$")
+
+	return buf.String()
+}
+
+// createUsernameRegex generates a regex based on the policy supplied valid
+// characters in a user's name or location.
+func createNameLocationRegex() string {
+	var buf bytes.Buffer
+	buf.WriteString("^[")
+
+	for _, supportedChar := range www.PolicyNameLocationSupportedChars {
+		if len(supportedChar) > 1 {
+			buf.WriteString(supportedChar)
+		} else {
+			buf.WriteString(`\` + supportedChar)
+		}
+	}
+	buf.WriteString("]{")
+	buf.WriteString(strconv.Itoa(www.PolicyMinUsernameLength) + ",")
+	buf.WriteString(strconv.Itoa(www.PolicyMaxUsernameLength) + "}$")
 
 	return buf.String()
 }

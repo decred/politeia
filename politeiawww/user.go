@@ -33,10 +33,6 @@ const (
 
 var (
 	validUsername = regexp.MustCompile(createUsernameRegex())
-	// XXX Need proper regex for name/location fields, possibly need to add
-	// new policy entries depending on how much we'd like it to differ.
-	validName     = regexp.MustCompile(createNameLocationRegex())
-	validLocation = regexp.MustCompile(createNameLocationRegex())
 
 	// MinimumLoginWaitTime is the minimum amount of time to wait before the
 	// server sends a response to the client for the login route. This is done
@@ -58,26 +54,6 @@ func createUsernameRegex() string {
 	buf.WriteString("^[")
 
 	for _, supportedChar := range www.PolicyUsernameSupportedChars {
-		if len(supportedChar) > 1 {
-			buf.WriteString(supportedChar)
-		} else {
-			buf.WriteString(`\` + supportedChar)
-		}
-	}
-	buf.WriteString("]{")
-	buf.WriteString(strconv.Itoa(www.PolicyMinUsernameLength) + ",")
-	buf.WriteString(strconv.Itoa(www.PolicyMaxUsernameLength) + "}$")
-
-	return buf.String()
-}
-
-// createNameLocationRegex generates a regex based on the policy supplied valid
-// characters in a user name.
-func createNameLocationRegex() string {
-	var buf bytes.Buffer
-	buf.WriteString("^[")
-
-	for _, supportedChar := range www.PolicyNameLocationSupportedChars {
 		if len(supportedChar) > 1 {
 			buf.WriteString(supportedChar)
 		} else {
@@ -2269,10 +2245,10 @@ func (p *politeiawww) processRegisterUser(u cms.RegisterUser) (*cms.RegisterUser
 
 	// Create a new database user with the provided information.
 	newUser := user.User{
-		Email:          strings.ToLower(u.Email),
-		Username:       username,
-		HashedPassword: hashedPassword,
-		Admin:          false,
+		Email:                     strings.ToLower(u.Email),
+		Username:                  username,
+		HashedPassword:            hashedPassword,
+		Admin:                     false,
 		NewUserVerificationToken:  nil,
 		NewUserVerificationExpiry: 0,
 	}
