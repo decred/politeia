@@ -730,7 +730,17 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 	}
 
 	updatedInvoice := convertDatabaseInvoiceToInvoiceRecord(*dbInvoice)
-	updatedInvoice.CensorshipRecord = invRec.CensorshipRecord
+	// Get raw record information from d cache
+	r, err := p.cache.Record(ei.Token)
+	if err != nil {
+		return nil, err
+	}
+	pr := convertPropFromCache(*r)
+
+	updatedInvoice.Files = pr.Files
+	updatedInvoice.CensorshipRecord = pr.CensorshipRecord
+	updatedInvoice.Signature = pr.Signature
+
 	/*
 		// Fire off edit proposal event
 		p.fireEvent(EventTypeProposalEdited,
