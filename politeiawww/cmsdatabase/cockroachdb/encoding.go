@@ -45,8 +45,9 @@ func EncodeInvoice(dbInvoice *database.Invoice) *Invoice {
 	invoice.ContractorContact = dbInvoice.ContractorContact
 	invoice.ContractorRate = dbInvoice.ContractorRate
 
-	for _, dbInvoiceLineItem := range dbInvoice.LineItems {
+	for i, dbInvoiceLineItem := range dbInvoice.LineItems {
 		invoiceLineItem := EncodeInvoiceLineItem(&dbInvoiceLineItem)
+		invoiceLineItem.LineItemKey = dbInvoiceLineItem.InvoiceToken + strconv.Itoa(i)
 		invoice.LineItems = append(invoice.LineItems, invoiceLineItem)
 	}
 
@@ -94,8 +95,6 @@ func DecodeInvoice(invoice *Invoice) (*database.Invoice, error) {
 // EncodeInvoiceLineItem encodes a database.LineItem into a cockroachdb line item.
 func EncodeInvoiceLineItem(dbLineItem *database.LineItem) LineItem {
 	lineItem := LineItem{}
-	lineItem.LineItemKey = dbLineItem.InvoiceToken + strconv.Itoa(int(dbLineItem.LineNumber))
-	lineItem.LineNumber = dbLineItem.LineNumber
 	lineItem.InvoiceToken = dbLineItem.InvoiceToken
 	lineItem.Type = uint(dbLineItem.Type)
 	lineItem.Subtype = dbLineItem.Subtype
@@ -110,7 +109,6 @@ func EncodeInvoiceLineItem(dbLineItem *database.LineItem) LineItem {
 func DecodeInvoiceLineItem(lineItem *LineItem) *database.LineItem {
 	dbLineItem := &database.LineItem{}
 	dbLineItem.InvoiceToken = lineItem.InvoiceToken
-	dbLineItem.LineNumber = lineItem.LineNumber
 	dbLineItem.Type = cms.LineItemTypeT(lineItem.Type)
 	dbLineItem.Subtype = lineItem.Subtype
 	dbLineItem.Description = lineItem.Description

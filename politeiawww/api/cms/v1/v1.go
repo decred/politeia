@@ -144,7 +144,6 @@ type InvoiceInput struct {
 // LineItemsInput is the expected struct of line items contained within an users'
 // invoice input.
 type LineItemsInput struct {
-	LineNumber    uint          `json:"linenum"`       // Line number of the line item
 	Type          LineItemTypeT `json:"type"`          // Type of work performed
 	Subtype       string        `json:"subtype"`       // Subtype of work performed
 	Description   string        `json:"description"`   // Description of work performed

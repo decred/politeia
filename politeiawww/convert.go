@@ -539,7 +539,6 @@ func convertLineItemsToDatabase(token string, l []cms.LineItemsInput) []cmsdatab
 	dl := make([]cmsdatabase.LineItem, 0, len(l))
 	for _, v := range l {
 		dl = append(dl, cmsdatabase.LineItem{
-			LineNumber:   v.LineNumber,
 			InvoiceToken: token,
 			Type:         v.Type,
 			Subtype:      v.Subtype,
