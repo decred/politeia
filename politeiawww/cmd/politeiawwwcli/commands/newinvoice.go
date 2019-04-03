@@ -291,6 +291,14 @@ Arguments:
 3. csvFile			 (string, required)   Invoice CSV file
 4. attachmentFiles	 (string, optional)   Attachments 
 
+Flags:
+  --testnet           (bool, optional)     Whether or not use testnet for address validation
+  --name              (string, optional)   Fill in contractor name
+  --contact           (string, optional)   Fill in email address or contact of the contractor
+  --location          (string, optional)   Fill in contractor location (e.g. Dallas, TX, USA) of the contractor
+  --paymentaddress    (string, optional)   Fill in payment address for this invoice.
+  --rate              (string, optional)   Fill in contractor pay rate for labor.
+
 Result:
 {
   "files": [
