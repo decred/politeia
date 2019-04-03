@@ -15,8 +15,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/decred/dcrd/chaincfg"
-	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
@@ -32,7 +30,6 @@ type EditInvoiceCmd struct {
 		CSV         string   `positional-arg-name:"csvfile"`         // Invoice CSV file
 		Attachments []string `positional-arg-name:"attachmentfiles"` // Invoice attachments
 	} `positional-args:"true" optional:"true"`
-	Testnet        bool   `long:"testnet" optional:"true" description:"Use testnet if flagged."`
 	Name           string `long:"name" optional:"true" description:"Full name of the contractor"`
 	Contact        string `long:"contact" optional:"true" description:"Email address or contact of the contractor"`
 	Location       string `long:"location" optional:"true" description:"Location (e.g. Dallas, TX, USA) of the contractor"`
@@ -89,22 +86,6 @@ func (cmd *EditInvoiceCmd) Execute(args []string) error {
 			"correct. If not, press Ctrl + C to exit. Or, press Enter to continue " +
 			"your registration.")
 		reader.ReadString('\n')
-	}
-
-	// Validate provided address
-	addr, err := dcrutil.DecodeAddress(strings.TrimSpace(cmd.PaymentAddress))
-	if err != nil {
-		return fmt.Errorf("Invalid address submitted, please try again")
-	}
-
-	if cmd.Testnet {
-		if !addr.IsForNet(&chaincfg.TestNet3Params) {
-			return fmt.Errorf("Invalid network address submitted, please try again")
-		}
-	} else {
-		if !addr.IsForNet(&chaincfg.MainNetParams) {
-			return fmt.Errorf("Invalid network address submitted, please try again")
-		}
 	}
 
 	var csv []byte
@@ -218,7 +199,6 @@ Arguments:
 3. attachmentfiles   (string, optional)   Attachments 
 
 Flags:
-  --testnet           (bool, optional)     Whether or not use testnet for address validation
   --name              (string, optional)   Fill in contractor name
   --contact           (string, optional)   Fill in email address or contact of the contractor
   --location          (string, optional)   Fill in contractor location (e.g. Dallas, TX, USA) of the contractor
