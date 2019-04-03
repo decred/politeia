@@ -1611,8 +1611,6 @@ func (p *politeiawww) processUsers(users *www.Users, isAdmin bool) (*www.UsersRe
 		if err != nil {
 			return nil, err
 		}
-
-		// userID = u.ID.String()
 	}
 
 	if isAdmin {

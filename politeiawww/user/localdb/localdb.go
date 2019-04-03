@@ -172,7 +172,6 @@ func (l *localdb) UserGetByUsername(username string) (*user.User, error) {
 	return nil, user.ErrUserNotFound
 }
 
-
 // UserGetById returns a user record given its id, if found in the database.
 //
 // UserGetById satisfies the backend interface.
