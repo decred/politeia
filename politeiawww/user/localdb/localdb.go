@@ -2,7 +2,6 @@ package localdb
 
 import (
 	"encoding/binary"
-	"encoding/hex"
 	"path/filepath"
 	"strings"
 	"sync"
