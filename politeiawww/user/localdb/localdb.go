@@ -172,50 +172,6 @@ func (l *localdb) UserGetByUsername(username string) (*user.User, error) {
 	return nil, user.ErrUserNotFound
 }
 
-// UserGetByPublicKey returns a user record given its public key,
-// if found in the database.
-//
-// UserGetByPublicKey satisfies the backend interface.
-func (l *localdb) UserGetByPublicKey(pubkey string) (*user.User, error) {
-	l.RLock()
-	defer l.RUnlock()
-
-	if l.shutdown {
-		return nil, user.ErrShutdown
-	}
-
-	log.Debugf("UserGetByPublicKey")
-
-	iter := l.userdb.NewIterator(nil, nil)
-	for iter.Next() {
-		key := iter.Key()
-		value := iter.Value()
-
-		if !isUserRecord(string(key)) {
-			continue
-		}
-
-		u, err := DecodeUser(value)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, identity := range u.Identities {
-
-			if hex.EncodeToString(identity.Key[:]) == pubkey {
-				return u, err
-			}
-		}
-
-	}
-	iter.Release()
-
-	if iter.Error() != nil {
-		return nil, iter.Error()
-	}
-
-	return nil, user.ErrUserNotFound
-}
 
 // UserGetById returns a user record given its id, if found in the database.
 //

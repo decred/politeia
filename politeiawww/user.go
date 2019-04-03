@@ -1601,12 +1601,18 @@ func (p *politeiawww) processUsers(users *www.Users, isAdmin bool) (*www.UsersRe
 			return nil, err
 		}
 
-		// Get user by pubkey
-		u, err = p.db.UserGetByPublicKey(pubkeyQuery)
+		userID, ok := p.userPubkeys[pubkey]
+		if !ok {
+			return nil, fmt.Errorf("pubkey not found")
+		}
+
+		// Get user by userID
+		u, err := p.db.UserGetById(userID)
 		if err != nil {
 			return nil, err
 		}
-		userID = u.ID.String()
+
+		// userID = u.ID.String()
 	}
 
 	if isAdmin {
