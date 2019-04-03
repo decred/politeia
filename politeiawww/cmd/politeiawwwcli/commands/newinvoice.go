@@ -28,8 +28,8 @@ import (
 // NewInvoiceCmd submits a new invoice.
 type NewInvoiceCmd struct {
 	Args struct {
-		Month       string   `positional-arg-name:"month"`           // Invoice Month
-		Year        string   `positional-arg-name:"year"`            // Invoice Year
+		Month       uint     `positional-arg-name:"month"`           // Invoice Month
+		Year        uint     `positional-arg-name:"year"`            // Invoice Year
 		CSV         string   `positional-arg-name:"csvfile"`         // Invoice CSV file
 		Attachments []string `positional-arg-name:"attachmentfiles"` // Invoice attachment files
 	} `positional-args:"true" optional:"true"`
@@ -43,18 +43,10 @@ type NewInvoiceCmd struct {
 
 // Execute executes the new invoice command.
 func (cmd *NewInvoiceCmd) Execute(args []string) error {
+	month := cmd.Args.Month
+	year := cmd.Args.Year
 	csvFile := cmd.Args.CSV
 	attachmentFiles := cmd.Args.Attachments
-
-	month, err := strconv.Atoi(cmd.Args.Month)
-	if err != nil {
-		return err
-	}
-
-	year, err := strconv.Atoi(cmd.Args.Year)
-	if err != nil {
-		return err
-	}
 
 	if csvFile == "" {
 		return errInvoiceCSVNotFound
@@ -130,8 +122,8 @@ func (cmd *NewInvoiceCmd) Execute(args []string) error {
 		return fmt.Errorf("Parsing CSV failed: %v", err)
 	}
 
-	invInput.Month = uint(month)
-	invInput.Year = uint(year)
+	invInput.Month = month
+	invInput.Year = year
 	invInput.ContractorName = strings.TrimSpace(cmd.Name)
 	invInput.ContractorLocation = strings.TrimSpace(cmd.Location)
 	invInput.ContractorContact = strings.TrimSpace(cmd.Contact)
