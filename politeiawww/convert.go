@@ -526,6 +526,12 @@ func convertDatabaseInvoiceToInvoiceRecord(dbInvoice cmsdatabase.Invoice) *cms.I
 	invRec.Year = dbInvoice.Year
 	invRec.PublicKey = dbInvoice.PublicKey
 	invRec.Version = dbInvoice.Version
+	invRec.ContractorRate = dbInvoice.ContractorRate
+	invRec.ContractorContact = dbInvoice.ContractorContact
+	invRec.ContractorName = dbInvoice.ContractorName
+	invRec.ContractorLocation = dbInvoice.ContractorLocation
+	invRec.PaymentAddress = dbInvoice.PaymentAddress
+
 	return invRec
 }
 
@@ -574,6 +580,11 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 			dbInvoice.Year = ii.Year
 			dbInvoice.LineItems = convertLineItemsToDatabase(dbInvoice.Token,
 				ii.LineItems)
+			dbInvoice.ContractorContact = ii.ContractorContact
+			dbInvoice.ContractorLocation = ii.ContractorLocation
+			dbInvoice.ContractorRate = ii.ContractorRate
+			dbInvoice.ContractorName = ii.ContractorName
+			dbInvoice.PaymentAddress = ii.PaymentAddress
 		}
 	}
 

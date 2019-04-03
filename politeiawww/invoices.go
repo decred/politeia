@@ -710,15 +710,9 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 		return nil, err
 	}
 
-	// Get invoice from the cache
-	updatedInvoice, err := p.getInvoice(ei.Token)
-	if err != nil {
-		return nil, err
-	}
-
 	// Update the cmsdb
 	dbInvoice, err := convertRecordToDatabaseInvoice(pd.Record{
-		Files:            convertPropFilesFromWWW(updatedInvoice.Files),
+		Files:            convertPropFilesFromWWW(ei.Files),
 		Metadata:         mds,
 		CensorshipRecord: convertInvoiceCensorFromWWW(invRec.CensorshipRecord),
 		Version:          invRec.Version,
@@ -727,13 +721,16 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 		return nil, err
 	}
 
-	dbInvoice.UserID = updatedInvoice.UserID
+	dbInvoice.UserID = u.ID.String()
 	dbInvoice.Status = cms.InvoiceStatusUpdated
 
 	err = p.cmsDB.UpdateInvoice(dbInvoice)
 	if err != nil {
 		return nil, err
 	}
+
+	updatedInvoice := convertDatabaseInvoiceToInvoiceRecord(*dbInvoice)
+	updatedInvoice.CensorshipRecord = invRec.CensorshipRecord
 	/*
 		// Fire off edit proposal event
 		p.fireEvent(EventTypeProposalEdited,

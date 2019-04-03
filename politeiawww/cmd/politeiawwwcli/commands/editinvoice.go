@@ -13,6 +13,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/decred/politeia/politeiad/api/v1/mime"
@@ -109,6 +110,12 @@ func (cmd *EditInvoiceCmd) Execute(args []string) error {
 	invInput.ContractorContact = strings.TrimSpace(cmd.Contact)
 	invInput.PaymentAddress = strings.TrimSpace(cmd.PaymentAddress)
 	invInput.Version = v1.InvoiceInputVersion
+
+	rate, err := strconv.Atoi(strings.TrimSpace(cmd.Rate))
+	if err != nil {
+		return fmt.Errorf("invalid rate entered, please try again")
+	}
+	invInput.ContractorRate = uint(rate)
 
 	b, err := json.Marshal(invInput)
 	if err != nil {
