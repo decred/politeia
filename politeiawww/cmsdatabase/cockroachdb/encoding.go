@@ -20,8 +20,8 @@ func EncodeInvoice(dbInvoice *database.Invoice) *Invoice {
 
 	invoice.Token = dbInvoice.Token
 	invoice.UserID = dbInvoice.UserID
-	invoice.Month = uint(dbInvoice.Month)
-	invoice.Year = uint(dbInvoice.Year)
+	invoice.Month = dbInvoice.Month
+	invoice.Year = dbInvoice.Year
 	invoice.Status = uint(dbInvoice.Status)
 	invoice.StatusChangeReason = dbInvoice.StatusChangeReason
 	invoice.Timestamp = time.Unix(dbInvoice.Timestamp, 0)
@@ -64,8 +64,8 @@ func DecodeInvoice(invoice *Invoice) (*database.Invoice, error) {
 	dbInvoice.Token = invoice.Token
 	dbInvoice.UserID = invoice.UserID
 	dbInvoice.Username = invoice.Username
-	dbInvoice.Month = uint16(invoice.Month)
-	dbInvoice.Year = uint16(invoice.Year)
+	dbInvoice.Month = invoice.Month
+	dbInvoice.Year = invoice.Year
 	dbInvoice.Status = cms.InvoiceStatusT(invoice.Status)
 	dbInvoice.StatusChangeReason = invoice.StatusChangeReason
 	dbInvoice.Timestamp = invoice.Timestamp.Unix()
@@ -95,7 +95,7 @@ func DecodeInvoice(invoice *Invoice) (*database.Invoice, error) {
 func EncodeInvoiceLineItem(dbLineItem *database.LineItem) LineItem {
 	lineItem := LineItem{}
 	lineItem.LineItemKey = dbLineItem.InvoiceToken + strconv.Itoa(int(dbLineItem.LineNumber))
-	lineItem.LineNumber = uint(dbLineItem.LineNumber)
+	lineItem.LineNumber = dbLineItem.LineNumber
 	lineItem.InvoiceToken = dbLineItem.InvoiceToken
 	lineItem.Type = uint(dbLineItem.Type)
 	lineItem.Subtype = dbLineItem.Subtype
@@ -110,7 +110,7 @@ func EncodeInvoiceLineItem(dbLineItem *database.LineItem) LineItem {
 func DecodeInvoiceLineItem(lineItem *LineItem) *database.LineItem {
 	dbLineItem := &database.LineItem{}
 	dbLineItem.InvoiceToken = lineItem.InvoiceToken
-	dbLineItem.LineNumber = uint16(lineItem.LineNumber)
+	dbLineItem.LineNumber = lineItem.LineNumber
 	dbLineItem.Type = cms.LineItemTypeT(lineItem.Type)
 	dbLineItem.Subtype = lineItem.Subtype
 	dbLineItem.Description = lineItem.Description

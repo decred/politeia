@@ -130,8 +130,8 @@ func (cmd *NewInvoiceCmd) Execute(args []string) error {
 		return fmt.Errorf("Parsing CSV failed: %v", err)
 	}
 
-	invInput.Month = uint16(month)
-	invInput.Year = uint16(year)
+	invInput.Month = uint(month)
+	invInput.Year = uint(year)
 	invInput.ContractorName = strings.TrimSpace(cmd.Name)
 	invInput.ContractorLocation = strings.TrimSpace(cmd.Location)
 	invInput.ContractorContact = strings.TrimSpace(cmd.Contact)
@@ -142,7 +142,7 @@ func (cmd *NewInvoiceCmd) Execute(args []string) error {
 	if err != nil {
 		return fmt.Errorf("invalid rate entered, please try again")
 	}
-	invInput.ContractorRate = uint16(rate)
+	invInput.ContractorRate = uint(rate)
 
 	b, err := json.Marshal(invInput)
 	if err != nil {
@@ -259,7 +259,7 @@ func validateParseCSV(data []byte) (*v1.InvoiceInput, error) {
 			return invInput,
 				fmt.Errorf("invalid cost entered on line: %v", i)
 		}
-		lineItem.LineNumber = uint16(i)
+		lineItem.LineNumber = uint(i)
 
 		lineItemType, ok := LineItemType[strings.ToLower(lineContents[0])]
 		if !ok {
@@ -271,8 +271,8 @@ func validateParseCSV(data []byte) (*v1.InvoiceInput, error) {
 		lineItem.Subtype = lineContents[1]
 		lineItem.Description = lineContents[2]
 		lineItem.ProposalToken = lineContents[3]
-		lineItem.Labor = uint16(hours * 60)
-		lineItem.Expenses = uint16(cost * 100)
+		lineItem.Labor = uint(hours * 60)
+		lineItem.Expenses = uint(cost * 100)
 		lineItems = append(lineItems, lineItem)
 	}
 	invInput.LineItems = lineItems

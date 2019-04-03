@@ -26,7 +26,7 @@ type Invoice struct {
 	Version            string    `gorm:"not null"`
 	ContractorName     string    `gorm:"not null"`
 	ContractorLocation string    `gorm:"not null"`
-	ContractorRate     uint16    `gorm:"not null"`
+	ContractorRate     uint      `gorm:"not null"`
 	ContractorContact  string    `gorm:"not null"`
 	PaymentAddress     string    `gorm:"not null"`
 
@@ -48,8 +48,8 @@ type LineItem struct {
 	Subtype      string `gorm:"not null"`    // Subtype of work performed
 	Description  string `gorm:"not null"`    // Description of work performed
 	ProposalURL  string `gorm:"not null"`    // Link to politeia proposal that work is associated with
-	Labor        uint16 `gorm:"not null"`    // Number of minutes worked
-	Expenses     uint16 `gorm:"not null"`    // Total cost of line item (in USD cents)
+	Labor        uint   `gorm:"not null"`    // Number of minutes worked
+	Expenses     uint   `gorm:"not null"`    // Total cost of line item (in USD cents)
 }
 
 // TableName returns the table name of the line items table.

@@ -66,8 +66,8 @@ func (cmd *EditInvoiceCmd) Execute(args []string) error {
 		return fmt.Errorf("Parsing CSV failed: %v", err)
 	}
 
-	invInput.Month = uint16(month)
-	invInput.Year = uint16(year)
+	invInput.Month = uint(month)
+	invInput.Year = uint(year)
 
 	b, err := json.Marshal(invInput)
 	if err != nil {
