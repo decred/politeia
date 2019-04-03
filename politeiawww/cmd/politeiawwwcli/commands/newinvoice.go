@@ -232,7 +232,6 @@ func validateParseCSV(data []byte) (*v1.InvoiceInput, error) {
 			return invInput,
 				fmt.Errorf("invalid cost entered on line: %v", i)
 		}
-		lineItem.LineNumber = uint(i)
 
 		lineItemType, ok := LineItemType[strings.ToLower(lineContents[0])]
 		if !ok {
