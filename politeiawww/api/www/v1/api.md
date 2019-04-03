@@ -133,6 +133,7 @@ notifications.  It does not render HTML.
 - [`ErrorStatusMalformedDomain`](#ErrorStatusMalformedDomain)
 - [`ErrorStatusMalformedSubdomain`](#ErrorStatusMalformedSubdomain)
 - [`ErrorStatusMalformedDescription`](#ErrorStatusMalformedDescription) 
+- [`ErrorStatusWrongInvoiceStatus`](#ErrorStatusWrongInvoiceStatus) 
 
 **Proposal status codes**
 
@@ -2540,6 +2541,7 @@ Reply:
 | <a name="ErrorStatusMalformedDomain">ErrorStatusMalformedDomain</a> | 78 | Malformed domain for a line item. |
 | <a name="ErrorStatusMalformedSubdomain">ErrorStatusMalformedSubdomain</a> | 79 | Malformed subdomain for a line item. |
 | <a name="ErrorStatusMalformedDescription">ErrorStatusMalformedDescription</a> | 80 | Malformed description for a line item. |
+| <a name="ErrorStatusWrongInvoiceStatus">ErrorStatusWrongInvoiceStatus</a> | 81 | Wrong status for an invoice to be editted (approved, rejected, paid). |
 
 
 ### Proposal status codes

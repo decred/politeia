@@ -698,6 +698,12 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 		return nil, err
 	}
 
+	if invRec.Status == cms.InvoiceStatusPaid || invRec.Status == cms.InvoiceStatusApproved ||
+		invRec.Status == cms.InvoiceStatusRejected {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusWrongInvoiceStatus,
+		}
+	}
 	// Ensure user is the invoice author
 	if invRec.UserID != u.ID.String() {
 		return nil, www.UserError{
