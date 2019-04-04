@@ -131,7 +131,7 @@ const (
 	PolicyInvoiceFieldDelimiterChar rune = ','
 	// PolicyInvoiceLineItemCount is the number of expected fields in the raw
 	// csv line items
-	PolicyInvoiceLineItemCount = 6
+	PolicyInvoiceLineItemCount = 7
 
 	// ProposalListPageSize is the maximum number of proposals returned
 	// for the routes that return lists of proposals
@@ -222,8 +222,9 @@ const (
 	ErrorStatusInvoiceInvalidRate             ErrorStatusT = 75
 	ErrorStatusInvoiceMalformedContact        ErrorStatusT = 76
 	ErrorStatusMalformedProposalToken         ErrorStatusT = 77
-	ErrorStatusMalformedSubType               ErrorStatusT = 78
-	ErrorStatusMalformedDescription           ErrorStatusT = 79
+	ErrorStatusMalformedDomain                ErrorStatusT = 78
+	ErrorStatusMalformedSubdomain             ErrorStatusT = 79
+	ErrorStatusMalformedDescription           ErrorStatusT = 80
 
 	// Proposal state codes
 	//
@@ -395,7 +396,8 @@ var (
 		ErrorStatusInvoiceMissingRate:             "invoice missing contractor rate",
 		ErrorStatusInvoiceInvalidRate:             "invoice has invalid contractor rate",
 		ErrorStatusMalformedProposalToken:         "line item has malformed proposal token",
-		ErrorStatusMalformedSubType:               "line item has malformed subtype",
+		ErrorStatusMalformedDomain:                "line item has malformed domain",
+		ErrorStatusMalformedSubdomain:             "line item has malformed subdomain",
 		ErrorStatusMalformedDescription:           "line item has malformed description",
 	}
 

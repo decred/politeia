@@ -130,7 +130,8 @@ notifications.  It does not render HTML.
 - [`ErrorStatusInvoiceInvalidRate`](#ErrorStatusInvoiceInvalidRate)
 - [`ErrorStatusInvoiceMalformedContact`](#ErrorStatusInvoiceMalformedContact)
 - [`ErrorStatusMalformedProposalToken`](#ErrorStatusMalformedProposalToken)
-- [`ErrorStatusMalformedSubType`](#ErrorStatusMalformedSubType)
+- [`ErrorStatusMalformedDomain`](#ErrorStatusMalformedDomain)
+- [`ErrorStatusMalformedSubdomain`](#ErrorStatusMalformedSubdomain)
 - [`ErrorStatusMalformedDescription`](#ErrorStatusMalformedDescription) 
 
 **Proposal status codes**
@@ -2536,8 +2537,9 @@ Reply:
 | <a name="ErrorStatusInvoiceInvalidRate">ErrorStatusInvoiceInvalidRate</a> | 75 | Submitted contractor rate is invalid (either too high or low). |
 | <a name="ErrorStatusInvoiceMalformedContact">ErrorStatusInvoiceMalformedContact</a> | 76 | Malformed contractor contact was entered. |
 | <a name="ErrorStatusMalformedProposalToken">ErrorStatusMalformedProposalToken</a> | 77 | Malformed proposal token for a line item. |
-| <a name="ErrorStatusMalformedSubType">ErrorStatusMalformedSubType</a> | 78 | Malformed subtype for a line item. |
-| <a name="ErrorStatusMalformedDescription">ErrorStatusMalformedDescription</a> | 79 | Malformed description for a line item. |
+| <a name="ErrorStatusMalformedDomain">ErrorStatusMalformedDomain</a> | 78 | Malformed domain for a line item. |
+| <a name="ErrorStatusMalformedSubdomain">ErrorStatusMalformedSubdomain</a> | 79 | Malformed subdomain for a line item. |
+| <a name="ErrorStatusMalformedDescription">ErrorStatusMalformedDescription</a> | 80 | Malformed description for a line item. |
 
 
 ### Proposal status codes
