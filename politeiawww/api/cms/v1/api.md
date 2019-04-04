@@ -172,7 +172,7 @@ Request:
   "month": 12,
   "year": 2018,
   "files": [{
-      "name":"invoice.csv",
+      "name":"invoice.json",
       "mime": "text/plain; charset=utf-8",
       "digest": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
       "payload": "VGhpcyBpcyBhIGRlc2NyaXB0aW9u"

@@ -34,6 +34,8 @@ const (
 	LineItemTypeLabor   LineItemTypeT = 1 // Labor line items
 	LineItemTypeExpense LineItemTypeT = 2 // Expenses incurred line items
 	LineItemTypeMisc    LineItemTypeT = 3 // Catch all for anything else
+
+	InvoiceInputVersion = 1
 )
 
 /// Contractor Management System Routes
@@ -98,14 +100,19 @@ type InvoiceRecord struct {
 	Status             InvoiceStatusT `json:"status"`                       // Current status of invoice
 	StatusChangeReason string         `json:"statuschangereason,omitempty"` // Reason (if any) for the current status
 	Timestamp          int64          `json:"timestamp"`                    // Last update of invoice
-	Month              uint16         `json:"month"`                        // The month that this invoice applies to
-	Year               uint16         `json:"year"`                         // The year that this invoice applies to
+	Month              uint           `json:"month"`                        // The month that this invoice applies to
+	Year               uint           `json:"year"`                         // The year that this invoice applies to
 	UserID             string         `json:"userid"`                       // ID of user who submitted invoice
 	Username           string         `json:"username"`                     // Username of user who submitted invoice
 	PublicKey          string         `json:"publickey"`                    // User's public key, used to verify signature.
 	Signature          string         `json:"signature"`                    // Signature of file digest
 	Files              []www.File     `json:"file"`                         // Actual invoice file
 	Version            string         `json:"version"`                      // Record version
+	ContractorName     string         `json:"contractorname"`               // IRL name of contractor
+	ContractorLocation string         `json:"contractorlocation"`           // IRL location of contractor
+	ContractorContact  string         `json:"contractorcontact"`            // Contractor email contact
+	ContractorRate     uint           `json:"contractorrate"`               // Contractor Pay Rate in USD cents
+	PaymentAddress     string         `json:"paymentaddress"`               //  DCR payment address
 
 	CensorshipRecord www.CensorshipRecord `json:"censorshiprecord"`
 }
@@ -123,22 +130,26 @@ type InvoiceDetailsReply struct {
 // InvoiceInput is the expected structure of the invoice.json file being added to InvoiceRecords.
 // Users' raw csv will be inputted and parsed to help in their creation.
 type InvoiceInput struct {
-	ID        string           `json:"id"`    // Optional field for contractor ID entry
-	Month     uint16           `json:"month"` // Month of Invoice
-	Year      uint16           `json:"year"`  // Year of Invoice
-	LineItems []LineItemsInput `json:"lineitems"`
+	Version            uint             `json:"version"`            // Version of the invoice input
+	Month              uint             `json:"month"`              // Month of Invoice
+	Year               uint             `json:"year"`               // Year of Invoice
+	ContractorName     string           `json:"contractorname"`     // IRL name of contractor
+	ContractorLocation string           `json:"contractorlocation"` // IRL location of contractor
+	ContractorContact  string           `json:"contractorcontact"`  // Contractor email or other contact
+	ContractorRate     uint             `json:"contractorrate"`     // Contractor Pay Rate in USD cents
+	PaymentAddress     string           `json:"paymentaddress"`     //  DCR payment address
+	LineItems          []LineItemsInput `json:"lineitems"`
 }
 
 // LineItemsInput is the expected struct of line items contained within an users'
 // invoice input.
 type LineItemsInput struct {
-	LineNumber    uint16        `json:"linenum"`       // Line number of the line item
 	Type          LineItemTypeT `json:"type"`          // Type of work performed
 	Subtype       string        `json:"subtype"`       // Subtype of work performed
 	Description   string        `json:"description"`   // Description of work performed
 	ProposalToken string        `json:"proposaltoken"` // Link to politeia proposal that work is associated with
-	Hours         float64       `json:"hours"`         // Number of Hours
-	TotalCost     float64       `json:"totalcost"`     // Total cost of line item
+	Labor         uint          `json:"labor"`         // Number of minutes (if labor)
+	Expenses      uint          `json:"expenses"`      // Total cost (in USD cents) of line item (if expense or misc)
 }
 
 // UserInvoices is used to get all of the invoices by userID.

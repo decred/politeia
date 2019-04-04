@@ -526,6 +526,12 @@ func convertDatabaseInvoiceToInvoiceRecord(dbInvoice cmsdatabase.Invoice) *cms.I
 	invRec.Year = dbInvoice.Year
 	invRec.PublicKey = dbInvoice.PublicKey
 	invRec.Version = dbInvoice.Version
+	invRec.ContractorRate = dbInvoice.ContractorRate
+	invRec.ContractorContact = dbInvoice.ContractorContact
+	invRec.ContractorName = dbInvoice.ContractorName
+	invRec.ContractorLocation = dbInvoice.ContractorLocation
+	invRec.PaymentAddress = dbInvoice.PaymentAddress
+
 	return invRec
 }
 
@@ -533,14 +539,13 @@ func convertLineItemsToDatabase(token string, l []cms.LineItemsInput) []cmsdatab
 	dl := make([]cmsdatabase.LineItem, 0, len(l))
 	for _, v := range l {
 		dl = append(dl, cmsdatabase.LineItem{
-			LineNumber:   v.LineNumber,
 			InvoiceToken: token,
 			Type:         v.Type,
 			Subtype:      v.Subtype,
 			Description:  v.Description,
 			ProposalURL:  v.ProposalToken,
-			Hours:        v.Hours,
-			TotalCost:    v.TotalCost,
+			Labor:        v.Labor,
+			Expenses:     v.Expenses,
 		})
 	}
 	return dl
@@ -574,6 +579,11 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 			dbInvoice.Year = ii.Year
 			dbInvoice.LineItems = convertLineItemsToDatabase(dbInvoice.Token,
 				ii.LineItems)
+			dbInvoice.ContractorContact = ii.ContractorContact
+			dbInvoice.ContractorLocation = ii.ContractorLocation
+			dbInvoice.ContractorRate = ii.ContractorRate
+			dbInvoice.ContractorName = ii.ContractorName
+			dbInvoice.PaymentAddress = ii.PaymentAddress
 		}
 	}
 

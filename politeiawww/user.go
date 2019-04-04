@@ -72,7 +72,7 @@ func createUsernameRegex() string {
 	return buf.String()
 }
 
-// createUsernameRegex generates a regex based on the policy supplied valid
+// createNameLocationRegex generates a regex based on the policy supplied valid
 // characters in a user name.
 func createNameLocationRegex() string {
 	var buf bytes.Buffer

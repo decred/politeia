@@ -51,8 +51,8 @@ type Invoice struct {
 	Token              string
 	UserID             string
 	Username           string // Only populated when reading from the database
-	Month              uint16
-	Year               uint16
+	Month              uint
+	Year               uint
 	Timestamp          int64
 	Status             cms.InvoiceStatusT
 	StatusChangeReason string
@@ -61,6 +61,11 @@ type Invoice struct {
 	UserSignature      string
 	ServerSignature    string
 	Version            string // Version number of this invoice
+	ContractorName     string
+	ContractorLocation string
+	ContractorContact  string
+	ContractorRate     uint
+	PaymentAddress     string
 
 	LineItems []LineItem      // All line items parsed from the raw invoice provided.
 	Changes   []InvoiceChange // All status changes that the invoice has had.
@@ -69,14 +74,14 @@ type Invoice struct {
 // LineItem contains information about the individual line items contained in an
 // invoice coming into or out of the cmsdatabase.
 type LineItem struct {
-	LineNumber   uint16
+	LineNumber   uint
 	InvoiceToken string
 	Type         cms.LineItemTypeT
 	Subtype      string
 	Description  string
 	ProposalURL  string
-	Hours        float64
-	TotalCost    float64
+	Labor        uint
+	Expenses     uint
 }
 
 // InvoiceChange contains entries for any status update that occurs to a given

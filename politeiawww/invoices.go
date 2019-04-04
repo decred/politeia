@@ -5,16 +5,19 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrtime/merkle"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
@@ -50,6 +53,7 @@ var (
 			cms.InvoiceStatusDisputed,
 		},
 	}
+	validInvoiceField = regexp.MustCompile(createInvoiceFieldRegex())
 )
 
 const (
@@ -59,6 +63,52 @@ const (
 	BackendInvoiceMetadataVersion = 1
 	BackendInvoiceMDChangeVersion = 1
 )
+
+// formatInvoiceField normalizes an invoice field without leading and
+// trailing spaces.
+func formatInvoiceField(field string) string {
+	return strings.TrimSpace(field)
+}
+
+// validateInvoiceField verifies that a field filled out in invoice.json is
+// valid
+func validateInvoiceField(field string) bool {
+	if field != formatInvoiceField(field) {
+		log.Tracef("validateInvoiceField: not normalized: %s %s",
+			field, formatInvoiceField(field))
+		return false
+	}
+	if len(field) > www.PolicyMaxInvoiceFieldLength {
+		log.Tracef("validateInvoiceField: not within bounds: %s",
+			field)
+		return false
+	}
+	if !validInvoiceField.MatchString(field) {
+		log.Tracef("validateInvoiceField: not valid: %s %s",
+			field, validInvoiceField.String())
+		return false
+	}
+	return true
+}
+
+// createNameLocationRegex generates a regex based on the policy supplied valid
+// characters in a user name.
+func createInvoiceFieldRegex() string {
+	var buf bytes.Buffer
+	buf.WriteString("^[")
+
+	for _, supportedChar := range www.PolicyInvoiceFieldSupportedChars {
+		if len(supportedChar) > 1 {
+			buf.WriteString(supportedChar)
+		} else {
+			buf.WriteString(`\` + supportedChar)
+		}
+	}
+	buf.WriteString("]{0,")
+	buf.WriteString(strconv.Itoa(www.PolicyMaxInvoiceFieldLength) + "}$")
+
+	return buf.String()
+}
 
 // processNewInvoice tries to submit a new proposal to politeiad.
 func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.NewInvoiceReply, error) {
@@ -297,6 +347,114 @@ func validateInvoice(ni cms.NewInvoice, u *user.User) error {
 				}
 			}
 
+			// Validate Payment Address
+			addr, err := dcrutil.DecodeAddress(strings.TrimSpace(invInput.PaymentAddress))
+			if err != nil {
+				return www.UserError{
+					ErrorCode: www.ErrorStatusInvalidPaymentAddress,
+				}
+			}
+			if !addr.IsForNet(activeNetParams.Params) {
+				return www.UserError{
+					ErrorCode: www.ErrorStatusInvalidPaymentAddress,
+				}
+			}
+
+			// Validate provided contractor name
+			if invInput.ContractorName == "" {
+				return www.UserError{
+					ErrorCode: www.ErrorStatusInvoiceMissingName,
+				}
+			}
+			name := formatInvoiceField(invInput.ContractorName)
+			if !validateInvoiceField(name) {
+				return www.UserError{
+					ErrorCode: www.ErrorStatusMalformedName,
+				}
+			}
+
+			// Validate provided contractor location
+			if invInput.ContractorLocation == "" {
+				return www.UserError{
+					ErrorCode: www.ErrorStatusInvoiceMissingLocation,
+				}
+			}
+			location := formatInvoiceField(invInput.ContractorLocation)
+			if !validateInvoiceField(location) {
+				return www.UserError{
+					ErrorCode: www.ErrorStatusMalformedLocation,
+				}
+			}
+
+			// Validate provided contractor email/contact
+			if invInput.ContractorContact == "" {
+				return www.UserError{
+					ErrorCode: www.ErrorStatusInvoiceMissingContact,
+				}
+			}
+			contact := formatInvoiceField(invInput.ContractorContact)
+			if !validateInvoiceField(contact) {
+				return www.UserError{
+					ErrorCode: www.ErrorStatusInvoiceMalformedContact,
+				}
+			}
+
+			// Validate hourly rate
+			if invInput.ContractorRate == 0 {
+				return www.UserError{
+					ErrorCode: www.ErrorStatusInvoiceMissingRate,
+				}
+			}
+			// Do basic sanity check for contractor rate, since it's in cents
+			// some users may enter in the
+			minRate := 500   // 5 USD (in cents)
+			maxRate := 50000 // 500 USD (in cents)
+			if invInput.ContractorRate < uint(minRate) || invInput.ContractorRate > uint(maxRate) {
+				fmt.Println(invInput.ContractorRate)
+				return www.UserError{
+					ErrorCode: www.ErrorStatusInvoiceInvalidRate,
+				}
+			}
+
+			// Validate line items
+			for _, lineInput := range invInput.LineItems {
+				subtype := formatInvoiceField(lineInput.Subtype)
+				if !validateInvoiceField(subtype) {
+					return www.UserError{
+						ErrorCode: www.ErrorStatusMalformedSubType,
+					}
+				}
+
+				description := formatInvoiceField(lineInput.Description)
+				if !validateInvoiceField(description) {
+					return www.UserError{
+						ErrorCode: www.ErrorStatusMalformedDescription,
+					}
+				}
+
+				piToken := formatInvoiceField(lineInput.ProposalToken)
+				if !validateInvoiceField(piToken) {
+					return www.UserError{
+						ErrorCode: www.ErrorStatusMalformedProposalToken,
+					}
+				}
+
+				switch lineInput.Type {
+				case cms.LineItemTypeLabor:
+					if lineInput.Expenses != 0 {
+						return www.UserError{
+							ErrorCode: www.ErrorStatusMalformedLineItem,
+						}
+					}
+				case cms.LineItemTypeExpense:
+				case cms.LineItemTypeMisc:
+					if lineInput.Labor != 0 {
+						return www.UserError{
+							ErrorCode: www.ErrorStatusMalformedLineItem,
+						}
+					}
+				}
+			}
 		}
 
 		// Append digest to array for merkle root calculation
@@ -631,15 +789,9 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 		return nil, err
 	}
 
-	// Get invoice from the cache
-	updatedInvoice, err := p.getInvoice(ei.Token)
-	if err != nil {
-		return nil, err
-	}
-
 	// Update the cmsdb
 	dbInvoice, err := convertRecordToDatabaseInvoice(pd.Record{
-		Files:            convertPropFilesFromWWW(updatedInvoice.Files),
+		Files:            convertPropFilesFromWWW(ei.Files),
 		Metadata:         mds,
 		CensorshipRecord: convertInvoiceCensorFromWWW(invRec.CensorshipRecord),
 		Version:          invRec.Version,
@@ -648,13 +800,26 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 		return nil, err
 	}
 
-	dbInvoice.UserID = updatedInvoice.UserID
+	dbInvoice.UserID = u.ID.String()
 	dbInvoice.Status = cms.InvoiceStatusUpdated
 
 	err = p.cmsDB.UpdateInvoice(dbInvoice)
 	if err != nil {
 		return nil, err
 	}
+
+	updatedInvoice := convertDatabaseInvoiceToInvoiceRecord(*dbInvoice)
+	// Get raw record information from d cache
+	r, err := p.cache.Record(ei.Token)
+	if err != nil {
+		return nil, err
+	}
+	pr := convertPropFromCache(*r)
+
+	updatedInvoice.Files = pr.Files
+	updatedInvoice.CensorshipRecord = pr.CensorshipRecord
+	updatedInvoice.Signature = pr.Signature
+
 	/*
 		// Fire off edit proposal event
 		p.fireEvent(EventTypeProposalEdited,

@@ -20,8 +20,8 @@ func EncodeInvoice(dbInvoice *database.Invoice) *Invoice {
 
 	invoice.Token = dbInvoice.Token
 	invoice.UserID = dbInvoice.UserID
-	invoice.Month = uint(dbInvoice.Month)
-	invoice.Year = uint(dbInvoice.Year)
+	invoice.Month = dbInvoice.Month
+	invoice.Year = dbInvoice.Year
 	invoice.Status = uint(dbInvoice.Status)
 	invoice.StatusChangeReason = dbInvoice.StatusChangeReason
 	invoice.Timestamp = time.Unix(dbInvoice.Timestamp, 0)
@@ -39,9 +39,15 @@ func EncodeInvoice(dbInvoice *database.Invoice) *Invoice {
 	invoice.UserSignature = dbInvoice.UserSignature
 	invoice.ServerSignature = dbInvoice.ServerSignature
 	invoice.Version = dbInvoice.Version
+	invoice.ContractorName = dbInvoice.ContractorName
+	invoice.ContractorLocation = dbInvoice.ContractorLocation
+	invoice.PaymentAddress = dbInvoice.PaymentAddress
+	invoice.ContractorContact = dbInvoice.ContractorContact
+	invoice.ContractorRate = dbInvoice.ContractorRate
 
-	for _, dbInvoiceLineItem := range dbInvoice.LineItems {
+	for i, dbInvoiceLineItem := range dbInvoice.LineItems {
 		invoiceLineItem := EncodeInvoiceLineItem(&dbInvoiceLineItem)
+		invoiceLineItem.LineItemKey = dbInvoiceLineItem.InvoiceToken + strconv.Itoa(i)
 		invoice.LineItems = append(invoice.LineItems, invoiceLineItem)
 	}
 
@@ -59,8 +65,8 @@ func DecodeInvoice(invoice *Invoice) (*database.Invoice, error) {
 	dbInvoice.Token = invoice.Token
 	dbInvoice.UserID = invoice.UserID
 	dbInvoice.Username = invoice.Username
-	dbInvoice.Month = uint16(invoice.Month)
-	dbInvoice.Year = uint16(invoice.Year)
+	dbInvoice.Month = invoice.Month
+	dbInvoice.Year = invoice.Year
 	dbInvoice.Status = cms.InvoiceStatusT(invoice.Status)
 	dbInvoice.StatusChangeReason = invoice.StatusChangeReason
 	dbInvoice.Timestamp = invoice.Timestamp.Unix()
@@ -68,6 +74,11 @@ func DecodeInvoice(invoice *Invoice) (*database.Invoice, error) {
 	dbInvoice.UserSignature = invoice.UserSignature
 	dbInvoice.ServerSignature = invoice.ServerSignature
 	dbInvoice.Version = invoice.Version
+	dbInvoice.ContractorName = invoice.ContractorName
+	dbInvoice.ContractorLocation = invoice.ContractorLocation
+	dbInvoice.PaymentAddress = invoice.PaymentAddress
+	dbInvoice.ContractorContact = invoice.ContractorContact
+	dbInvoice.ContractorRate = invoice.ContractorRate
 
 	for _, invoiceLineItem := range invoice.LineItems {
 		dbInvoiceLineItem := DecodeInvoiceLineItem(&invoiceLineItem)
@@ -84,15 +95,13 @@ func DecodeInvoice(invoice *Invoice) (*database.Invoice, error) {
 // EncodeInvoiceLineItem encodes a database.LineItem into a cockroachdb line item.
 func EncodeInvoiceLineItem(dbLineItem *database.LineItem) LineItem {
 	lineItem := LineItem{}
-	lineItem.LineItemKey = dbLineItem.InvoiceToken + strconv.Itoa(int(dbLineItem.LineNumber))
-	lineItem.LineNumber = uint(dbLineItem.LineNumber)
 	lineItem.InvoiceToken = dbLineItem.InvoiceToken
 	lineItem.Type = uint(dbLineItem.Type)
 	lineItem.Subtype = dbLineItem.Subtype
 	lineItem.Description = dbLineItem.Description
 	lineItem.ProposalURL = dbLineItem.ProposalURL
-	lineItem.Hours = dbLineItem.Hours
-	lineItem.TotalCost = dbLineItem.TotalCost
+	lineItem.Labor = dbLineItem.Labor
+	lineItem.Expenses = dbLineItem.Expenses
 	return lineItem
 }
 
@@ -100,13 +109,12 @@ func EncodeInvoiceLineItem(dbLineItem *database.LineItem) LineItem {
 func DecodeInvoiceLineItem(lineItem *LineItem) *database.LineItem {
 	dbLineItem := &database.LineItem{}
 	dbLineItem.InvoiceToken = lineItem.InvoiceToken
-	dbLineItem.LineNumber = uint16(lineItem.LineNumber)
 	dbLineItem.Type = cms.LineItemTypeT(lineItem.Type)
 	dbLineItem.Subtype = lineItem.Subtype
 	dbLineItem.Description = lineItem.Description
 	dbLineItem.ProposalURL = lineItem.ProposalURL
-	dbLineItem.Hours = lineItem.Hours
-	dbLineItem.TotalCost = lineItem.TotalCost
+	dbLineItem.Labor = lineItem.Labor
+	dbLineItem.Expenses = lineItem.Expenses
 
 	return dbLineItem
 }

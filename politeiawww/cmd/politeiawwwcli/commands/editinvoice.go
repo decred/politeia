@@ -5,12 +5,16 @@
 package commands
 
 import (
+	"bufio"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiawww/api/cms/v1"
@@ -27,6 +31,11 @@ type EditInvoiceCmd struct {
 		CSV         string   `positional-arg-name:"csvfile"`         // Invoice CSV file
 		Attachments []string `positional-arg-name:"attachmentfiles"` // Invoice attachments
 	} `positional-args:"true" optional:"true"`
+	Name           string `long:"name" optional:"true" description:"Full name of the contractor"`
+	Contact        string `long:"contact" optional:"true" description:"Email address or contact of the contractor"`
+	Location       string `long:"location" optional:"true" description:"Location (e.g. Dallas, TX, USA) of the contractor"`
+	PaymentAddress string `long:"paymentaddress" optional:"true" description:"Payment address for this invoice."`
+	Rate           string `long:"rate" optional:"true" description:"Hourly rate for labor."`
 }
 
 // Execute executes the edit invoice command.
@@ -52,6 +61,34 @@ func (cmd *EditInvoiceCmd) Execute(args []string) error {
 		return err
 	}
 
+	if cmd.Name == "" || cmd.Location == "" || cmd.PaymentAddress == "" {
+		reader := bufio.NewReader(os.Stdin)
+		if cmd.Name == "" {
+			fmt.Print("Enter name for the invoice: ")
+			cmd.Name, _ = reader.ReadString('\n')
+		}
+		if cmd.Contact == "" {
+			fmt.Print("Enter email to associate with this invoice: ")
+			cmd.Contact, _ = reader.ReadString('\n')
+		}
+		if cmd.Location == "" {
+			fmt.Print("Enter location to associate with this invoice: ")
+			cmd.Location, _ = reader.ReadString('\n')
+		}
+		if cmd.PaymentAddress == "" {
+			fmt.Print("Enter payment address for this invoice: ")
+			cmd.PaymentAddress, _ = reader.ReadString('\n')
+		}
+		if cmd.Rate == "" {
+			fmt.Print("Enter hourly rate for this invoice: ")
+			cmd.Rate, _ = reader.ReadString('\n')
+		}
+		fmt.Print("\nPlease carefully review your information and ensure it's " +
+			"correct. If not, press Ctrl + C to exit. Or, press Enter to continue " +
+			"your registration.")
+		reader.ReadString('\n')
+	}
+
 	var csv []byte
 	files := make([]www.File, 0, www.PolicyMaxImages+1)
 	// Read markdown file into memory and convert to type File
@@ -66,8 +103,19 @@ func (cmd *EditInvoiceCmd) Execute(args []string) error {
 		return fmt.Errorf("Parsing CSV failed: %v", err)
 	}
 
-	invInput.Month = uint16(month)
-	invInput.Year = uint16(year)
+	invInput.Month = month
+	invInput.Year = year
+	invInput.ContractorName = strings.TrimSpace(cmd.Name)
+	invInput.ContractorLocation = strings.TrimSpace(cmd.Location)
+	invInput.ContractorContact = strings.TrimSpace(cmd.Contact)
+	invInput.PaymentAddress = strings.TrimSpace(cmd.PaymentAddress)
+	invInput.Version = v1.InvoiceInputVersion
+
+	rate, err := strconv.Atoi(strings.TrimSpace(cmd.Rate))
+	if err != nil {
+		return fmt.Errorf("invalid rate entered, please try again")
+	}
+	invInput.ContractorRate = uint(rate)
 
 	b, err := json.Marshal(invInput)
 	if err != nil {
@@ -156,6 +204,13 @@ Arguments:
 1. token             (string, required)   Invoice censorship token
 2. csvfile           (string, required)   Edited invoice 
 3. attachmentfiles   (string, optional)   Attachments 
+
+Flags:
+  --name              (string, optional)   Fill in contractor name
+  --contact           (string, optional)   Fill in email address or contact of the contractor
+  --location          (string, optional)   Fill in contractor location (e.g. Dallas, TX, USA) of the contractor
+  --paymentaddress    (string, optional)   Fill in payment address for this invoice.
+  --rate              (string, optional)   Fill in contractor pay rate for labor.
 
 Request:
 {
