@@ -68,6 +68,8 @@ var (
 		},
 	}
 	validInvoiceField = regexp.MustCompile(createInvoiceFieldRegex())
+	validName         = regexp.MustCompile(createNameLocationRegex())
+	validLocation     = regexp.MustCompile(createNameLocationRegex())
 )
 
 // formatInvoiceField normalizes an invoice field without leading and
@@ -114,6 +116,76 @@ func createInvoiceFieldRegex() string {
 	buf.WriteString(strconv.Itoa(www.PolicyMaxInvoiceFieldLength) + "}$")
 
 	return buf.String()
+}
+
+// createUsernameRegex generates a regex based on the policy supplied valid
+// characters in a user's name or location.
+func createNameLocationRegex() string {
+	var buf bytes.Buffer
+	buf.WriteString("^[")
+
+	for _, supportedChar := range www.PolicyNameLocationSupportedChars {
+		if len(supportedChar) > 1 {
+			buf.WriteString(supportedChar)
+		} else {
+			buf.WriteString(`\` + supportedChar)
+		}
+	}
+	buf.WriteString("]{")
+	buf.WriteString(strconv.Itoa(www.PolicyMinUsernameLength) + ",")
+	buf.WriteString(strconv.Itoa(www.PolicyMaxUsernameLength) + "}$")
+
+	return buf.String()
+}
+
+// formatName normalizes a contractor name to lowercase without leading and
+// trailing spaces.
+func formatName(name string) string {
+	return strings.ToLower(strings.TrimSpace(name))
+}
+
+func validateName(name string) error {
+	if len(name) < www.PolicyMinNameLength ||
+		len(name) > www.PolicyMaxNameLength {
+		log.Debugf("Name not within bounds: %s", name)
+		return www.UserError{
+			ErrorCode: www.ErrorStatusMalformedName,
+		}
+	}
+
+	if !validName.MatchString(name) {
+		log.Debugf("Name not valid: %s %s", name, validName.String())
+		return www.UserError{
+			ErrorCode: www.ErrorStatusMalformedName,
+		}
+	}
+
+	return nil
+}
+
+// formatLocation normalizes a contractor location to lowercase without leading and
+// trailing spaces.
+func formatLocation(location string) string {
+	return strings.ToLower(strings.TrimSpace(location))
+}
+
+func validateLocation(location string) error {
+	if len(location) < www.PolicyMinLocationLength ||
+		len(location) > www.PolicyMaxLocationLength {
+		log.Debugf("Location not within bounds: %s", location)
+		return www.UserError{
+			ErrorCode: www.ErrorStatusMalformedLocation,
+		}
+	}
+
+	if !validLocation.MatchString(location) {
+		log.Debugf("Location not valid: %s %s", location, validLocation.String())
+		return www.UserError{
+			ErrorCode: www.ErrorStatusMalformedLocation,
+		}
+	}
+
+	return nil
 }
 
 // processNewInvoice tries to submit a new proposal to politeiad.

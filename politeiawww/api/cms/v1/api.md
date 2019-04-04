@@ -93,9 +93,6 @@ Verifies email address of a user account invited via
 | publickey | string | The user's ed25519 public key. | Yes |
 | username | string | A unique username for the user. | Yes |
 | password | string | A password for the user. | Yes |
-| name | string | The user's full name. | Yes |
-| location | string | The user's physical location. | Yes |
-| xpublickey | string | The extended public key for the user's payment account. | Yes |
 
 **Results:** none
 
@@ -120,9 +117,6 @@ Request:
   "publickey": "5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
   "username": "foobar",
   "password": "69af376cca42cd9c",
-  "name": "John Smith",
-  "location": "Atlanta, GA, USA",
-  "xpublickey": "9e4b1018913610c12496ec3e482f2fb42129197001c5d35d4f5848b77d2b5e5071f79b18bcab4f371c5b378280bb478c153b696003ac3a627c3d8a088cd5f00d"
 }
 ```
 
