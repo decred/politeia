@@ -943,6 +943,51 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 	}, nil
 }
 
+// processGeneratePayouts looks for all approved invoices and uses the provided
+// exchange rate to generate a list of addresses and amounts for an admin to
+// process payments.
+func (p *politeiawww) processGeneratePayouts(gp cms.GeneratePayouts, u *user.User) (*cms.GeneratePayoutsReply, error) {
+	log.Tracef("processGeneratePayouts %v", gp.DCRUSDRate)
+
+	dbInvs, err := p.cmsDB.InvoicesByStatus(int(cms.InvoiceStatusApproved))
+	if err != nil {
+		return nil, err
+	}
+
+	// XXX ? Should we trust the dbInvs or should we take the token and get the
+	// raw invoice.json from the cache to get address and calc amount?
+	reply := &cms.GeneratePayoutsReply{}
+	payouts := make([]cms.Payout, 0, len(dbInvs))
+	for _, inv := range dbInvs {
+		payout := cms.Payout{}
+
+		amount, err := calculateInvoiceAmountDCR(inv, gp.DCRUSDRate)
+		if err != nil {
+			return nil, err
+		}
+		payout.Amount = amount
+		payout.Address = inv.PaymentAddress
+		payouts = append(payouts, payout)
+	}
+	reply.Payouts = payouts
+	return reply, err
+}
+
+func calculateInvoiceAmountDCR(inv database.Invoice, dcrUSDRate uint) (uint, error) {
+	var totalAmountUSD uint
+
+	for _, lineItem := range inv.LineItems {
+		switch lineItem.Type {
+		case cms.LineItemTypeLabor:
+			totalAmountUSD += lineItem.Labor * inv.ContractorRate
+		case cms.LineItemTypeExpense:
+		case cms.LineItemTypeMisc:
+			totalAmountUSD += lineItem.Expenses
+		}
+	}
+	return totalAmountUSD / dcrUSDRate, nil
+}
+
 // getInvoice gets the most recent verions of the given invoice from the cache
 // then fills in any missing user fields before returning the invoice record.
 func (p *politeiawww) getInvoice(token string) (*cms.InvoiceRecord, error) {

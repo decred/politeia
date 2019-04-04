@@ -18,6 +18,7 @@ const (
 	RouteSetInvoiceStatus = "/invoices/{token:[A-z0-9]{64}}/status"
 	RouteUserInvoices     = "/user/invoices"
 	RouteAdminInvoices    = "/admin/invoices"
+	RouteGeneratePayouts  = "/admin/generatepayouts"
 
 	// Invoice status codes
 	InvoiceStatusInvalid  InvoiceStatusT = 0 // Invalid status
@@ -182,4 +183,28 @@ type SetInvoiceStatus struct {
 // SetInvoiceStatusReply is used to reply to a SetInvoiceStatus command.
 type SetInvoiceStatusReply struct {
 	Invoice InvoiceRecord `json:"invoice"`
+}
+
+// GeneratePayouts is used to generate a list of addresses and amounts of
+// approved invoices that need to be paid.
+type GeneratePayouts struct {
+	DCRUSDRate uint `json:"dcrusdrate"` // User provided average dcr/usd rate for generating payouts
+}
+
+type GeneratePayoutsReply struct {
+	Payouts []Payout `json:"payouts"`
+}
+
+// Payout contains an address and an amount to be paid
+type Payout struct {
+	Address string `json:"address"`
+	Amount  uint   `json:"amount"`
+}
+
+// PayInvoices is used for an administrator to pay invoices
+type PayInvoices struct {
+	Tokens []string `json:"tokens"`
+}
+
+type PayInvoicesReply struct {
 }

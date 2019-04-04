@@ -250,6 +250,39 @@ func (p *politeiawww) handleEditInvoice(w http.ResponseWriter, r *http.Request) 
 	util.RespondWithJSON(w, http.StatusOK, epr)
 }
 
+// handleGeneratePayouts handles the request to generate all of the payouts for any
+// currently approved invoice.
+func (p *politeiawww) handleGeneratePayouts(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleGeneratePayouts")
+
+	// Get generate payouts command
+	var gp cms.GeneratePayouts
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&gp); err != nil {
+		RespondWithError(w, r, 0, "handleGeneratePayouts: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleGeneratePayouts: getSessionUser %v", err)
+		return
+	}
+
+	reply, err := p.processGeneratePayouts(gp, user)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleGeneratePayouts: processAdminInvoices %v", err)
+		return
+	}
+
+	// Reply with the generated payouts
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
 func (p *politeiawww) setCMSWWWRoutes() {
 	// Templates
 	//p.addTemplate(templateNewProposalSubmittedName,
@@ -301,6 +334,8 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		p.handleAdminInvoices, permissionAdmin)
 	p.addRoute(http.MethodPost, cms.RouteSetInvoiceStatus,
 		p.handleSetInvoiceStatus, permissionAdmin)
+	p.addRoute(http.MethodPost, cms.RouteGeneratePayouts,
+		p.handleGeneratePayouts, permissionAdmin)
 
 	// Routes for Contractor Management System
 
