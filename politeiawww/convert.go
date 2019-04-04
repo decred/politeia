@@ -590,8 +590,8 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 
 	for _, m := range p.Metadata {
 		switch m.ID {
-		case mdStreamGeneral:
-			var mdGeneral BackendInvoiceMetadata
+		case mdStreamInvoiceGeneral:
+			var mdGeneral backendInvoiceMetadata
 			err := json.Unmarshal([]byte(m.Payload), &mdGeneral)
 			if err != nil {
 				return nil, fmt.Errorf("could not decode metadata '%v' token '%v': %v",
@@ -611,4 +611,96 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 	}
 
 	return &dbInvoice, nil
+}
+
+func convertInvoiceFromCache(r cache.Record) cms.InvoiceRecord {
+	// Decode metadata streams
+	var md backendInvoiceMetadata
+	var c backendInvoiceStatusChange
+	for _, v := range r.Metadata {
+		switch v.ID {
+		case mdStreamInvoiceGeneral:
+			// General invoice metadata
+			m, err := decodeBackendInvoiceMetadata([]byte(v.Payload))
+			if err != nil {
+				log.Errorf("convertInvoiceFromCache: decode md stream: "+
+					"token:%v error:%v payload:%v",
+					r.CensorshipRecord.Token, err, v)
+			}
+			md = *m
+
+		case mdStreamInvoiceStatusChanges:
+			// Invoice status changes
+			m, err := decodeBackendInvoiceStatusChanges([]byte(v.Payload))
+			if err != nil {
+				log.Errorf("convertInvoiceFromCache: decode md stream: "+
+					"token:%v error:%v payload:%v",
+					r.CensorshipRecord.Token, err, v)
+			}
+
+			// We don't need all of the status changes.
+			// Just the most recent one.
+			for _, s := range m {
+				c = s
+			}
+		}
+	}
+
+	// Convert files
+	var ii cms.InvoiceInput
+	fs := make([]www.File, 0, len(r.Files))
+	for _, v := range r.Files {
+		f := www.File{
+			Name:    v.Name,
+			MIME:    v.MIME,
+			Digest:  v.Digest,
+			Payload: v.Payload,
+		}
+		fs = append(fs, f)
+
+		// Parse invoice json
+		if f.Name == invoiceFile {
+			b, err := base64.StdEncoding.DecodeString(v.Payload)
+			if err != nil {
+				log.Errorf("convertInvoiceFromCache: decode invoice: "+
+					"token:%v error:%v payload:%v",
+					r.CensorshipRecord.Token, err, f.Payload)
+				continue
+			}
+
+			err = json.Unmarshal(b, &ii)
+			if err != nil {
+				log.Errorf("convertInvoiceFromCache: unmarshal InvoiceInput: "+
+					"token:%v error:%v payload:%v",
+					r.CensorshipRecord.Token, err, f.Payload)
+				continue
+			}
+		}
+	}
+
+	// UserID and Username are left intentionally blank.
+	// These fields not part of a cache record.
+	return cms.InvoiceRecord{
+		Status:             c.NewStatus,
+		StatusChangeReason: c.Reason,
+		Timestamp:          r.Timestamp,
+		Month:              ii.Month,
+		Year:               ii.Year,
+		UserID:             "",
+		Username:           "",
+		PublicKey:          md.PublicKey,
+		Signature:          md.Signature,
+		Files:              fs,
+		Version:            r.Version,
+		ContractorName:     ii.ContractorName,
+		ContractorLocation: ii.ContractorLocation,
+		ContractorContact:  ii.ContractorContact,
+		ContractorRate:     ii.ContractorRate,
+		PaymentAddress:     ii.PaymentAddress,
+		CensorshipRecord: www.CensorshipRecord{
+			Token:     r.CensorshipRecord.Token,
+			Merkle:    r.CensorshipRecord.Merkle,
+			Signature: r.CensorshipRecord.Signature,
+		},
+	}
 }

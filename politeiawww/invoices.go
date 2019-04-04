@@ -11,6 +11,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -27,6 +28,19 @@ import (
 	database "github.com/decred/politeia/politeiawww/cmsdatabase"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
+)
+
+const (
+	// invoiceFile contains the file name of the invoice file
+	invoiceFile = "invoice.json"
+
+	// politeiad invoice record metadata streams
+	mdStreamInvoiceGeneral       = 3 // General invoice metadata
+	mdStreamInvoiceStatusChanges = 4 // Invoice status changes
+
+	// Metadata stream struct versions
+	backendInvoiceMetadataVersion     = 1
+	backendInvoiceStatusChangeVersion = 1
 )
 
 var (
@@ -54,14 +68,6 @@ var (
 		},
 	}
 	validInvoiceField = regexp.MustCompile(createInvoiceFieldRegex())
-)
-
-const (
-	// invoiceFile contains the file name of the invoice file
-	invoiceFile = "invoice.json"
-
-	BackendInvoiceMetadataVersion = 1
-	BackendInvoiceMDChangeVersion = 1
 )
 
 // formatInvoiceField normalizes an invoice field without leading and
@@ -119,12 +125,13 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 		return nil, err
 	}
 
-	md, err := encodeBackendInvoiceMetadata(BackendInvoiceMetadata{
-		Version:   BackendInvoiceMetadataVersion,
+	m := backendInvoiceMetadata{
+		Version:   backendInvoiceMetadataVersion,
 		Timestamp: time.Now().Unix(),
 		PublicKey: ni.PublicKey,
 		Signature: ni.Signature,
-	})
+	}
+	md, err := encodeBackendInvoiceMetadata(m)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +144,7 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 	n := pd.NewRecord{
 		Challenge: hex.EncodeToString(challenge),
 		Metadata: []pd.MetadataStream{{
-			ID:      mdStreamGeneral,
+			ID:      mdStreamInvoiceGeneral,
 			Payload: string(md),
 		}},
 		Files: convertPropFilesFromWWW(ni.Files),
@@ -187,21 +194,20 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 		return nil, err
 	}
 
-	// Create change record since we are immediately considering this Vetted and
-	// New Invoice Status.
-	changes := BackendInvoiceMDChange{
-		Version:   BackendInvoiceMDChangeVersion,
+	// Change politeiad record status to public. Invoices
+	// do not need to be reviewed before becoming public.
+	// An admin signature is not included for this reason.
+	c := MDStreamChanges{
+		Version:   VersionMDStreamChanges,
 		Timestamp: time.Now().Unix(),
-		NewStatus: cms.InvoiceStatusNew,
+		NewStatus: pd.RecordStatusPublic,
 	}
-
-	var pdSetUnvettedStatusReply pd.SetUnvettedStatusReply
-	challenge, err = util.Random(pd.ChallengeSize)
+	blob, err := encodeMDStreamChanges(c)
 	if err != nil {
 		return nil, err
 	}
 
-	blob, err := json.Marshal(changes)
+	challenge, err = util.Random(pd.ChallengeSize)
 	if err != nil {
 		return nil, err
 	}
@@ -225,6 +231,7 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 		return nil, err
 	}
 
+	var pdSetUnvettedStatusReply pd.SetUnvettedStatusReply
 	err = json.Unmarshal(responseBody, &pdSetUnvettedStatusReply)
 	if err != nil {
 		return nil, fmt.Errorf("Could not unmarshal SetUnvettedStatusReply: %v",
@@ -536,6 +543,11 @@ func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, user 
 
 	invRec, err := p.getInvoice(invDetails.Token)
 	if err != nil {
+		if err == cache.ErrRecordNotFound {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusInvoiceNotFound,
+			}
+		}
 		return nil, err
 	}
 
@@ -574,16 +586,14 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus,
 	}
 
 	// Create the change record.
-	changes := BackendInvoiceMDChange{
-		Version:   BackendInvoiceMDChangeVersion,
-		Timestamp: time.Now().Unix(),
-		NewStatus: sis.Status,
-		Reason:    sis.Reason,
+	c := backendInvoiceStatusChange{
+		Version:        backendInvoiceStatusChangeVersion,
+		AdminPublicKey: u.PublicKey(),
+		Timestamp:      time.Now().Unix(),
+		NewStatus:      sis.Status,
+		Reason:         sis.Reason,
 	}
-
-	changes.AdminPublicKey = u.ActiveIdentity().String()
-
-	blob, err := json.Marshal(changes)
+	blob, err := encodeBackendInvoiceStatusChange(c)
 	if err != nil {
 		return nil, err
 	}
@@ -598,7 +608,7 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus,
 		Token:     sis.Token,
 		MDAppend: []pd.MetadataStream{
 			{
-				ID:      mdStreamChanges,
+				ID:      mdStreamInvoiceStatusChanges,
 				Payload: string(blob),
 			},
 		},
@@ -624,13 +634,13 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus,
 
 	// Update the database with the metadata changes.
 	dbInvoice.Changes = append(dbInvoice.Changes, database.InvoiceChange{
-		Timestamp:      changes.Timestamp,
-		AdminPublicKey: changes.AdminPublicKey,
-		NewStatus:      changes.NewStatus,
-		Reason:         changes.Reason,
+		Timestamp:      c.Timestamp,
+		AdminPublicKey: c.AdminPublicKey,
+		NewStatus:      c.NewStatus,
+		Reason:         c.Reason,
 	})
-	dbInvoice.StatusChangeReason = changes.Reason
-	dbInvoice.Status = changes.NewStatus
+	dbInvoice.StatusChangeReason = c.Reason
+	dbInvoice.Status = c.NewStatus
 
 	err = p.cmsDB.UpdateInvoice(dbInvoice)
 	if err != nil {
@@ -695,6 +705,11 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 
 	invRec, err := p.getInvoice(ei.Token)
 	if err != nil {
+		if err == cache.ErrRecordNotFound {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusInvoiceNotFound,
+			}
+		}
 		return nil, err
 	}
 
@@ -733,19 +748,19 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 		return nil, err
 	}
 
-	backendMetadata := BackendInvoiceMetadata{
-		Version:   BackendProposalMetadataVersion,
+	m := backendInvoiceMetadata{
+		Version:   backendInvoiceMetadataVersion,
 		Timestamp: time.Now().Unix(),
 		PublicKey: ei.PublicKey,
 		Signature: ei.Signature,
 	}
-	md, err := encodeBackendInvoiceMetadata(backendMetadata)
+	md, err := encodeBackendInvoiceMetadata(m)
 	if err != nil {
 		return nil, err
 	}
 
 	mds := []pd.MetadataStream{{
-		ID:      mdStreamGeneral,
+		ID:      mdStreamInvoiceGeneral,
 		Payload: string(md),
 	}}
 
@@ -814,17 +829,12 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 		return nil, err
 	}
 
-	updatedInvoice := convertDatabaseInvoiceToInvoiceRecord(*dbInvoice)
-	// Get raw record information from d cache
-	r, err := p.cache.Record(ei.Token)
+	// Get updated invoice from the cache
+	inv, err := p.getInvoice(dbInvoice.Token)
 	if err != nil {
-		return nil, err
+		log.Errorf("processEditInvoice: getInvoice %v: %v",
+			dbInvoice.Token, err)
 	}
-	pr := convertPropFromCache(*r)
-
-	updatedInvoice.Files = pr.Files
-	updatedInvoice.CensorshipRecord = pr.CensorshipRecord
-	updatedInvoice.Signature = pr.Signature
 
 	/*
 		// Fire off edit proposal event
@@ -835,39 +845,30 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 		)
 	*/
 	return &cms.EditInvoiceReply{
-		Invoice: *updatedInvoice,
+		Invoice: *inv,
 	}, nil
 }
 
 // getInvoice gets the most recent verions of the given invoice from the cache
-// then fills in any missing fields from the cmsdb before returning the invoice
-// record.
+// then fills in any missing user fields before returning the invoice record.
 func (p *politeiawww) getInvoice(token string) (*cms.InvoiceRecord, error) {
-
-	inv, err := p.cmsDB.InvoiceByToken(token)
-	if err != nil {
-		if err == cache.ErrRecordNotFound {
-			err = www.UserError{
-				ErrorCode: www.ErrorStatusInvoiceNotFound,
-			}
-		}
-		return nil, err
-	}
-	invRec := convertDatabaseInvoiceToInvoiceRecord(*inv)
-	invRec.Username = p.getUsernameById(invRec.UserID)
-
-	// Get raw record information from d cache
+	// Get invoice from cache
 	r, err := p.cache.Record(token)
 	if err != nil {
 		return nil, err
 	}
-	pr := convertPropFromCache(*r)
+	i := convertInvoiceFromCache(*r)
 
-	invRec.Files = pr.Files
-	invRec.CensorshipRecord = pr.CensorshipRecord
-	invRec.Signature = pr.Signature
+	// Fill in userID and username fields
+	userID, ok := p.getUserIDByPubKey(i.PublicKey)
+	if !ok {
+		log.Errorf("getInvoice: userID not found for "+
+			"pubkey:%v token:%v", i.PublicKey, token)
+	}
+	i.UserID = userID
+	i.Username = p.getUsernameById(userID)
 
-	return invRec, nil
+	return &i, nil
 }
 
 // processUserInvoices fetches all invoices that are currently stored in the
@@ -881,22 +882,12 @@ func (p *politeiawww) processUserInvoices(user *user.User) (*cms.UserInvoicesRep
 	}
 
 	invRecs := make([]cms.InvoiceRecord, 0, len(dbInvs))
-	for _, inv := range dbInvs {
-		r, err := p.cache.Record(inv.Token)
+	for _, v := range dbInvs {
+		inv, err := p.getInvoice(v.Token)
 		if err != nil {
 			return nil, err
 		}
-
-		invRec := convertDatabaseInvoiceToInvoiceRecord(inv)
-		invRec.Username = p.getUsernameById(invRec.UserID)
-
-		// Get raw record information from d cache
-		pr := convertPropFromCache(*r)
-
-		invRec.Files = pr.Files
-		invRec.CensorshipRecord = pr.CensorshipRecord
-		invRec.Signature = pr.Signature
-		invRecs = append(invRecs, *invRec)
+		invRecs = append(invRecs, *inv)
 	}
 
 	// Setup reply
@@ -960,22 +951,12 @@ func (p *politeiawww) processAdminInvoices(ai cms.AdminInvoices, user *user.User
 	}
 
 	invRecs := make([]cms.InvoiceRecord, 0, len(dbInvs))
-	for _, inv := range dbInvs {
-		r, err := p.cache.Record(inv.Token)
+	for _, v := range dbInvs {
+		inv, err := p.getInvoice(v.Token)
 		if err != nil {
 			return nil, err
 		}
-
-		invRec := convertDatabaseInvoiceToInvoiceRecord(inv)
-		invRec.Username = p.getUsernameById(invRec.UserID)
-
-		// Get raw record information from d cache
-		pr := convertPropFromCache(*r)
-
-		invRec.Files = pr.Files
-		invRec.CensorshipRecord = pr.CensorshipRecord
-		invRec.Signature = pr.Signature
-		invRecs = append(invRecs, *invRec)
+		invRecs = append(invRecs, *inv)
 	}
 
 	// Setup reply
@@ -985,16 +966,18 @@ func (p *politeiawww) processAdminInvoices(ai cms.AdminInvoices, user *user.User
 	return &reply, nil
 }
 
-// BackendInvoiceMetadata is the metadata for Records into politeiad.
-type BackendInvoiceMetadata struct {
-	Version   uint64 `json:"version"`   // BackendInvoiceMetadata version
+// backendInvoiceMetadata represents the general metadata for an invoice and is
+// stored in the metadata stream mdStreamInvoiceGeneral in politeiad.
+type backendInvoiceMetadata struct {
+	Version   uint64 `json:"version"`   // Version of the struct
 	Timestamp int64  `json:"timestamp"` // Last update of invoice
 	PublicKey string `json:"publickey"` // Key used for signature
 	Signature string `json:"signature"` // Signature of merkle root
 }
 
-// BackendInvoiceMDChange is the metadata for updating Records on politeiad.
-type BackendInvoiceMDChange struct {
+// backendInvoiceStatusChange represents an invoice status change and is stored
+// in the metadata stream mdStreamInvoiceStatusChanges in politeiad.
+type backendInvoiceStatusChange struct {
 	Version        uint               `json:"version"`        // Version of the struct
 	AdminPublicKey string             `json:"adminpublickey"` // Identity of the administrator
 	NewStatus      cms.InvoiceStatusT `json:"newstatus"`      // Status
@@ -1002,9 +985,9 @@ type BackendInvoiceMDChange struct {
 	Timestamp      int64              `json:"timestamp"`      // Timestamp of the change
 }
 
-// encodeBackendInvoiceMetadata encodes BackendInvoiceMetadata into a JSON
+// encodeBackendInvoiceMetadata encodes a backendInvoiceMetadata into a JSON
 // byte slice.
-func encodeBackendInvoiceMetadata(md BackendInvoiceMetadata) ([]byte, error) {
+func encodeBackendInvoiceMetadata(md backendInvoiceMetadata) ([]byte, error) {
 	b, err := json.Marshal(md)
 	if err != nil {
 		return nil, err
@@ -1014,9 +997,9 @@ func encodeBackendInvoiceMetadata(md BackendInvoiceMetadata) ([]byte, error) {
 }
 
 // decodeBackendInvoiceMetadata decodes a JSON byte slice into a
-// BackendInvoiceMetadata.
-func decodeBackendInvoiceMetadata(payload []byte) (*BackendInvoiceMetadata, error) {
-	var md BackendInvoiceMetadata
+// backendInvoiceMetadata.
+func decodeBackendInvoiceMetadata(payload []byte) (*backendInvoiceMetadata, error) {
+	var md backendInvoiceMetadata
 
 	err := json.Unmarshal(payload, &md)
 	if err != nil {
@@ -1026,9 +1009,9 @@ func decodeBackendInvoiceMetadata(payload []byte) (*BackendInvoiceMetadata, erro
 	return &md, nil
 }
 
-// encodeBackendInvoiceMetadata encodes BackendInvoiceMetadata into a JSON
-// byte slice.
-func encodeBackendInvoiceMDChange(md BackendInvoiceMDChange) ([]byte, error) {
+// encodeBackendInvoiceStatusChange encodes a backendInvoiceStatusChange into a
+// JSON byte slice.
+func encodeBackendInvoiceStatusChange(md backendInvoiceStatusChange) ([]byte, error) {
 	b, err := json.Marshal(md)
 	if err != nil {
 		return nil, err
@@ -1037,15 +1020,23 @@ func encodeBackendInvoiceMDChange(md BackendInvoiceMDChange) ([]byte, error) {
 	return b, nil
 }
 
-// decodeBackendInvoiceMetadata decodes a JSON byte slice into a
-// BackendInvoiceMetadata.
-func decodeBackendInvoiceMDChange(payload []byte) (*BackendInvoiceMDChange, error) {
-	var md BackendInvoiceMDChange
+// decodeBackendInvoiceStatusChange decodes a JSON byte slice into a slice of
+// backendInvoiceStatusChanges.
+func decodeBackendInvoiceStatusChanges(payload []byte) ([]backendInvoiceStatusChange, error) {
+	var md []backendInvoiceStatusChange
 
-	err := json.Unmarshal(payload, &md)
-	if err != nil {
-		return nil, err
+	d := json.NewDecoder(strings.NewReader(string(payload)))
+	for {
+		var m backendInvoiceStatusChange
+		err := d.Decode(&m)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return nil, err
+		}
+
+		md = append(md, m)
 	}
 
-	return &md, nil
+	return md, nil
 }
