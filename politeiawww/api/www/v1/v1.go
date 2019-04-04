@@ -118,6 +118,10 @@ const (
 	// accepted for comments
 	PolicyMaxCommentLength = 8000
 
+	// PolicyyMaxInvoiceFieldLength is the maximum number of characters
+	// accepted for invoice fields within invoice.json
+	PolicyMaxInvoiceFieldLength = 200
+
 	// PolicyInvoiceCommentChar is the character which, when used as the first
 	// character of a line, denotes that entire line as a comment.
 	PolicyInvoiceCommentChar rune = '#'
@@ -125,7 +129,6 @@ const (
 	// PolicyInvoiceFieldDelimiterChar is the character that delimits field
 	// values for each line item in the CSV.
 	PolicyInvoiceFieldDelimiterChar rune = ','
-
 	// PolicyInvoiceLineItemCount is the number of expected fields in the raw
 	// csv line items
 	PolicyInvoiceLineItemCount = 6
@@ -212,6 +215,16 @@ const (
 	ErrorStatusInvalidPaymentAddress          ErrorStatusT = 68
 	ErrorStatusMalformedLineItem              ErrorStatusT = 69
 	ErrorStatusInvalidInvoiceInputVersion     ErrorStatusT = 70
+	ErrorStatusInvoiceMissingName             ErrorStatusT = 71
+	ErrorStatusInvoiceMissingLocation         ErrorStatusT = 72
+	ErrorStatusInvoiceMissingContact          ErrorStatusT = 73
+	ErrorStatusInvoiceMissingRate             ErrorStatusT = 74
+	ErrorStatusInvoiceInvalidRate             ErrorStatusT = 75
+	ErrorStatusInvoiceMalformedContact        ErrorStatusT = 76
+	ErrorStatusMalformedContact               ErrorStatusT = 77
+	ErrorStatusMalformedProposalToken         ErrorStatusT = 78
+	ErrorStatusMalformedSubType               ErrorStatusT = 79
+	ErrorStatusMalformedDescription           ErrorStatusT = 80
 
 	// Proposal state codes
 	//
@@ -288,6 +301,12 @@ var (
 	// PolicyNameLocationSupportedChars is the regular expression of a valid
 	// name or location for registering users on cms.
 	PolicyNameLocationSupportedChars = []string{
+		"A-z", "0-9", "&", ".", ",", ":", ";", "-", " ", "@", "+", "#", "/",
+		"(", ")", "!", "?", "\"", "'"}
+
+	// PolicyProposalNameSupportedChars is the regular expression of a valid
+	// proposal name
+	PolicyInvoiceFieldSupportedChars = []string{
 		"A-z", "0-9", "&", ".", ",", ":", ";", "-", " ", "@", "+", "#", "/",
 		"(", ")", "!", "?", "\"", "'"}
 
@@ -370,7 +389,16 @@ var (
 		ErrorStatusInvoiceDuplicate:               "submitted invoice is a duplicate of an existing invoice",
 		ErrorStatusInvalidPaymentAddress:          "invalid payment address",
 		ErrorStatusMalformedLineItem:              "malformed line item submitted",
-		ErrorStatusInvalidInvoiceInputVersion:     "invalid invoice input version",
+		ErrorStatusInvoiceMissingName:             "invoice missing contractor name",
+		ErrorStatusInvoiceMissingLocation:         "invoice missing contractor location",
+		ErrorStatusInvoiceMissingContact:          "invoice missing contractor contact",
+		ErrorStatusInvoiceMalformedContact:        "invoice has malformed contractor contact",
+		ErrorStatusInvoiceMissingRate:             "invoice missing contractor rate",
+		ErrorStatusInvoiceInvalidRate:             "invoice has invalid contractor rate",
+		ErrorStatusMalformedContact:               "invoice has malformed contractor contact",
+		ErrorStatusMalformedProposalToken:         "line item has malformed proposal token",
+		ErrorStatusMalformedSubType:               "line item has malformed subtype",
+		ErrorStatusMalformedDescription:           "line item has malformed description",
 	}
 
 	// PropStatus converts propsal status codes to human readable text

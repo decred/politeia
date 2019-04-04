@@ -5,12 +5,14 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -51,6 +53,7 @@ var (
 			cms.InvoiceStatusDisputed,
 		},
 	}
+	validInvoiceField = regexp.MustCompile(createInvoiceFieldRegex())
 )
 
 const (
@@ -60,6 +63,52 @@ const (
 	BackendInvoiceMetadataVersion = 1
 	BackendInvoiceMDChangeVersion = 1
 )
+
+// formatInvoiceField normalizes an invoice field without leading and
+// trailing spaces.
+func formatInvoiceField(field string) string {
+	return strings.TrimSpace(field)
+}
+
+// validateInvoiceField verifies that a field filled out in invoice.json is
+// valid
+func validateInvoiceField(field string) bool {
+	if field != formatInvoiceField(field) {
+		log.Tracef("validateInvoiceField: not normalized: %s %s",
+			field, formatInvoiceField(field))
+		return false
+	}
+	if len(field) > www.PolicyMaxInvoiceFieldLength {
+		log.Tracef("validateInvoiceField: not within bounds: %s",
+			field)
+		return false
+	}
+	if !validInvoiceField.MatchString(field) {
+		log.Tracef("validateInvoiceField: not valid: %s %s",
+			field, validInvoiceField.String())
+		return false
+	}
+	return true
+}
+
+// createNameLocationRegex generates a regex based on the policy supplied valid
+// characters in a user name.
+func createInvoiceFieldRegex() string {
+	var buf bytes.Buffer
+	buf.WriteString("^[")
+
+	for _, supportedChar := range www.PolicyInvoiceFieldSupportedChars {
+		if len(supportedChar) > 1 {
+			buf.WriteString(supportedChar)
+		} else {
+			buf.WriteString(`\` + supportedChar)
+		}
+	}
+	buf.WriteString("]{0,")
+	buf.WriteString(strconv.Itoa(www.PolicyMaxInvoiceFieldLength) + "}$")
+
+	return buf.String()
+}
 
 // processNewInvoice tries to submit a new proposal to politeiad.
 func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.NewInvoiceReply, error) {
@@ -298,12 +347,6 @@ func validateInvoice(ni cms.NewInvoice, u *user.User) error {
 				}
 			}
 
-			// Validate invoice input version
-			if invInput.Version < cms.InvoiceInputVersion {
-				return www.UserError{
-					ErrorCode: www.ErrorStatusInvalidInvoiceInputVersion,
-				}
-			}
 			// Validate Payment Address
 			addr, err := dcrutil.DecodeAddress(strings.TrimSpace(invInput.PaymentAddress))
 			if err != nil {
@@ -318,45 +361,81 @@ func validateInvoice(ni cms.NewInvoice, u *user.User) error {
 			}
 
 			// Validate provided contractor name
-			name := formatName(invInput.ContractorName)
-			err = validateName(name)
-			if err != nil {
+			if invInput.ContractorName == "" {
+				return www.UserError{
+					ErrorCode: www.ErrorStatusInvoiceMissingName,
+				}
+			}
+			name := formatInvoiceField(invInput.ContractorName)
+			if !validateInvoiceField(name) {
 				return www.UserError{
 					ErrorCode: www.ErrorStatusMalformedName,
 				}
 			}
 
 			// Validate provided contractor location
-			location := formatLocation(invInput.ContractorLocation)
-			err = validateLocation(location)
-			if err != nil {
+			if invInput.ContractorLocation == "" {
+				return www.UserError{
+					ErrorCode: www.ErrorStatusInvoiceMissingLocation,
+				}
+			}
+			location := formatInvoiceField(invInput.ContractorLocation)
+			if !validateInvoiceField(location) {
 				return www.UserError{
 					ErrorCode: www.ErrorStatusMalformedLocation,
 				}
 			}
 
 			// Validate provided contractor email/contact
-			// TODO: figure out what exactly we want to validate for here.
+			if invInput.ContractorContact == "" {
+				return www.UserError{
+					ErrorCode: www.ErrorStatusInvoiceMissingContact,
+				}
+			}
+			contact := formatInvoiceField(invInput.ContractorContact)
+			if !validateInvoiceField(contact) {
+				return www.UserError{
+					ErrorCode: www.ErrorStatusMalformedContact,
+				}
+			}
 
 			// Validate hourly rate
-			// TODO: Make sure it parses into float64? Though I think it already
-			// is complete with the marshalling/unmarshalling
+			if invInput.ContractorRate == 0 {
+				return www.UserError{
+					ErrorCode: www.ErrorStatusInvoiceMissingRate,
+				}
+			}
+			// Do basic sanity check for contractor rate, since it's in cents
+			// some users may enter in the
+			minRate := 500   // 5 USD (in cents)
+			maxRate := 50000 // 500 USD (in cents)
+			if invInput.ContractorRate < uint(minRate) || invInput.ContractorRate > uint(maxRate) {
+				fmt.Println(invInput.ContractorRate)
+				return www.UserError{
+					ErrorCode: www.ErrorStatusInvoiceInvalidRate,
+				}
+			}
 
 			// Validate line items
 			for _, lineInput := range invInput.LineItems {
-				subtype := formatName(lineInput.Subtype)
-				err = validateName(subtype)
-				if err != nil {
+				subtype := formatInvoiceField(lineInput.Subtype)
+				if !validateInvoiceField(subtype) {
 					return www.UserError{
-						ErrorCode: www.ErrorStatusMalformedName,
+						ErrorCode: www.ErrorStatusMalformedSubType,
 					}
 				}
 
-				description := formatName(lineInput.Description)
-				err = validateName(description)
-				if err != nil {
+				description := formatInvoiceField(lineInput.Description)
+				if !validateInvoiceField(description) {
 					return www.UserError{
-						ErrorCode: www.ErrorStatusMalformedName,
+						ErrorCode: www.ErrorStatusMalformedDescription,
+					}
+				}
+
+				piToken := formatInvoiceField(lineInput.ProposalToken)
+				if !validateInvoiceField(piToken) {
+					return www.UserError{
+						ErrorCode: www.ErrorStatusMalformedProposalToken,
 					}
 				}
 

@@ -60,18 +60,19 @@ func (cmd *NewInvoiceCmd) Execute(args []string) error {
 		return err
 	}
 
-	if cmd.Name == "" || cmd.Location == "" || cmd.PaymentAddress == "" {
+	if cmd.Name == "" || cmd.Location == "" || cmd.PaymentAddress == "" ||
+		cmd.Contact == "" || cmd.Rate == "" {
 		reader := bufio.NewReader(os.Stdin)
 		if cmd.Name == "" {
-			fmt.Print("Enter name for the invoice: ")
+			fmt.Print("Enter your name to associate with this invoice: ")
 			cmd.Name, _ = reader.ReadString('\n')
 		}
 		if cmd.Contact == "" {
-			fmt.Print("Enter email to associate with this invoice: ")
+			fmt.Print("Enter your contact information (email/matrix) to associate with this invoice: ")
 			cmd.Contact, _ = reader.ReadString('\n')
 		}
 		if cmd.Location == "" {
-			fmt.Print("Enter location to associate with this invoice: ")
+			fmt.Print("Enter your location to associate with this invoice: ")
 			cmd.Location, _ = reader.ReadString('\n')
 		}
 		if cmd.PaymentAddress == "" {
@@ -79,7 +80,7 @@ func (cmd *NewInvoiceCmd) Execute(args []string) error {
 			cmd.PaymentAddress, _ = reader.ReadString('\n')
 		}
 		if cmd.Rate == "" {
-			fmt.Print("Enter hourly rate for this invoice: ")
+			fmt.Print("Enter hourly rate for this invoice (in USD): ")
 			cmd.Rate, _ = reader.ReadString('\n')
 		}
 		fmt.Print("\nPlease carefully review your information and ensure it's " +
@@ -115,7 +116,7 @@ func (cmd *NewInvoiceCmd) Execute(args []string) error {
 	if err != nil {
 		return fmt.Errorf("invalid rate entered, please try again")
 	}
-	invInput.ContractorRate = uint(rate)
+	invInput.ContractorRate = uint(rate * 100)
 
 	b, err := json.Marshal(invInput)
 	if err != nil {
