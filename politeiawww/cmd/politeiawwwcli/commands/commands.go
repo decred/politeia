@@ -66,6 +66,7 @@ type Cmds struct {
 	EditProposal       EditProposalCmd       `command:"editproposal" description:"(user)   edit a proposal"`
 	ManageUser         ManageUserCmd         `command:"manageuser" description:"(admin)  edit certain properties of the specified user"`
 	EditUser           EditUserCmd           `command:"edituser" description:"(user)   edit the  preferences of the logged in user"`
+	GeneratePayouts    GeneratePayoutsCmd    `command:"generatepayouts" description:"(admin) generate a list of payouts with addresses and amounts to pay"`
 	Help               HelpCmd               `command:"help" description:"         print a detailed help message for a specific command"`
 	Inventory          InventoryCmd          `command:"inventory" description:"(public) get the proposals that are being voted on"`
 	InviteNewUser      InviteNewUserCmd      `command:"invite" description:"(admin)  invite a new user"`
