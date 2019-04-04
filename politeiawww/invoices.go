@@ -418,10 +418,16 @@ func validateInvoice(ni cms.NewInvoice, u *user.User) error {
 
 			// Validate line items
 			for _, lineInput := range invInput.LineItems {
-				subtype := formatInvoiceField(lineInput.Subtype)
-				if !validateInvoiceField(subtype) {
+				domain := formatInvoiceField(lineInput.Domain)
+				if !validateInvoiceField(domain) {
 					return www.UserError{
-						ErrorCode: www.ErrorStatusMalformedSubType,
+						ErrorCode: www.ErrorStatusMalformedDomain,
+					}
+				}
+				subdomain := formatInvoiceField(lineInput.Subdomain)
+				if !validateInvoiceField(subdomain) {
+					return www.UserError{
+						ErrorCode: www.ErrorStatusMalformedSubdomain,
 					}
 				}
 
