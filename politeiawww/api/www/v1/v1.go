@@ -221,10 +221,9 @@ const (
 	ErrorStatusInvoiceMissingRate             ErrorStatusT = 74
 	ErrorStatusInvoiceInvalidRate             ErrorStatusT = 75
 	ErrorStatusInvoiceMalformedContact        ErrorStatusT = 76
-	ErrorStatusMalformedContact               ErrorStatusT = 77
-	ErrorStatusMalformedProposalToken         ErrorStatusT = 78
-	ErrorStatusMalformedSubType               ErrorStatusT = 79
-	ErrorStatusMalformedDescription           ErrorStatusT = 80
+	ErrorStatusMalformedProposalToken         ErrorStatusT = 77
+	ErrorStatusMalformedSubType               ErrorStatusT = 78
+	ErrorStatusMalformedDescription           ErrorStatusT = 79
 
 	// Proposal state codes
 	//
@@ -395,7 +394,6 @@ var (
 		ErrorStatusInvoiceMalformedContact:        "invoice has malformed contractor contact",
 		ErrorStatusInvoiceMissingRate:             "invoice missing contractor rate",
 		ErrorStatusInvoiceInvalidRate:             "invoice has invalid contractor rate",
-		ErrorStatusMalformedContact:               "invoice has malformed contractor contact",
 		ErrorStatusMalformedProposalToken:         "line item has malformed proposal token",
 		ErrorStatusMalformedSubType:               "line item has malformed subtype",
 		ErrorStatusMalformedDescription:           "line item has malformed description",

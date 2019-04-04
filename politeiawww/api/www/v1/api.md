@@ -115,6 +115,23 @@ notifications.  It does not render HTML.
 - [`ErrorStatusMalformedName`](#ErrorStatusMalformedName)
 - [`ErrorStatusMalformedLocation`](#ErrorStatusMalformedLocation)
 - [`ErrorStatusInvoiceNotFound`](#ErrorStatusInvoiceNotFound)
+- [`ErrorStatusInvalidMonthYearRequest`](#ErrorStatusInvalidMonthYearRequest)
+- [`ErrorStatusMalformedInvoiceFile`](#ErrorStatusMalformedInvoiceFile)
+- [`ErrorStatusInvalidInvoiceStatusTransition`](#ErrorStatusInvalidInvoiceStatusTransition)
+- [`ErrorStatusReasonNotProvided`](#ErrorStatusReasonNotProvided)
+- [`ErrorStatusInvoiceDuplicate`](#ErrorStatusInvoiceDuplicate)
+- [`ErrorStatusInvalidPaymentAddress`](#ErrorStatusInvalidPaymentAddress)
+- [`ErrorStatusMalformedLineItem`](#ErrorStatusMalformedLineItem)
+- [`ErrorStatusInvalidInvoiceInputVersion`](#ErrorStatusInvalidInvoiceInputVersion)
+- [`ErrorStatusInvoiceMissingName`](#ErrorStatusInvoiceMissingName)
+- [`ErrorStatusInvoiceMissingLocation`](#ErrorStatusInvoiceMissingLocation)
+- [`ErrorStatusInvoiceMissingContact`](#ErrorStatusInvoiceMissingContact)
+- [`ErrorStatusInvoiceMissingRate`](#ErrorStatusInvoiceMissingRate)
+- [`ErrorStatusInvoiceInvalidRate`](#ErrorStatusInvoiceInvalidRate)
+- [`ErrorStatusInvoiceMalformedContact`](#ErrorStatusInvoiceMalformedContact)
+- [`ErrorStatusMalformedProposalToken`](#ErrorStatusMalformedProposalToken)
+- [`ErrorStatusMalformedSubType`](#ErrorStatusMalformedSubType)
+- [`ErrorStatusMalformedDescription`](#ErrorStatusMalformedDescription) 
 
 **Proposal status codes**
 
@@ -2504,7 +2521,23 @@ Reply:
 | <a name="ErrorStatusMalformedName">ErrorStatusMalformedName</a> | 60 | Invalid name entered for CMS registration. |
 | <a name="ErrorStatusMalformedLocation">ErrorStatusMalformedLocation</a> | 61 | Invalid location entered for CMS registration. |
 | <a name="ErrorStatusInvoiceNotFound">ErrorStatusInvoiceNotFound</a> | 62 | Request invoice not found. |
-
+| <a name="ErrorStatusInvalidMonthYearRequest">ErrorStatusInvalidMonthYearRequest</a> | 63 | Month and/or was improperly entered for an invoice. |
+| <a name="ErrorStatusMalformedInvoiceFile">ErrorStatusMalformedInvoiceFile</a> | 64 | The invoice file submitted was malformed and not acceptable. |
+| <a name="ErrorStatusInvalidInvoiceStatusTransition">ErrorStatusInvalidInvoiceStatusTransition</a> | 65 | Status update attempted an invalid status transition. |
+| <a name="ErrorStatusReasonNotProvided">ErrorStatusReasonNotProvided</a> | 66 | No reason provided for status updated. |
+| <a name="ErrorStatusInvoiceDuplicate">ErrorStatusInvoiceDuplicate</a> | 67 | Invoice is a duplicate. |
+| <a name="ErrorStatusInvalidPaymentAddress">ErrorStatusInvalidPaymentAddress</a> | 68 | Invalid payment address was submitted. |
+| <a name="ErrorStatusMalformedLineItem">ErrorStatusMalformedLineItem</a> | 69 | Line item in an invoice was malformed and invalid. |
+| <a name="ErrorStatusInvalidInvoiceInputVersion">ErrorStatusInvalidInvoiceInputVersion</a> | 70 | Invalid input version. |
+| <a name="ErrorStatusInvoiceMissingName">ErrorStatusInvoiceMissingName</a> | 71 | Submitted invoice missing contractor name. |
+| <a name="ErrorStatusInvoiceMissingLocation">ErrorStatusInvoiceMissingLocation</a> | 72 | Submitted invoice missing contractor location. |
+| <a name="ErrorStatusInvoiceMissingContact">ErrorStatusInvoiceMissingContact</a> | 73 | Submitted invoice missing contractor contact. |
+| <a name="ErrorStatusInvoiceMissingRate">ErrorStatusInvoiceMissingRate</a> | 74 | Submitted invoice missing contractor rate. |
+| <a name="ErrorStatusInvoiceInvalidRate">ErrorStatusInvoiceInvalidRate</a> | 75 | Submitted contractor rate is invalid (either too high or low). |
+| <a name="ErrorStatusInvoiceMalformedContact">ErrorStatusInvoiceMalformedContact</a> | 76 | Malformed contractor contact was entered. |
+| <a name="ErrorStatusMalformedProposalToken">ErrorStatusMalformedProposalToken</a> | 77 | Malformed proposal token for a line item. |
+| <a name="ErrorStatusMalformedSubType">ErrorStatusMalformedSubType</a> | 78 | Malformed subtype for a line item. |
+| <a name="ErrorStatusMalformedDescription">ErrorStatusMalformedDescription</a> | 79 | Malformed description for a line item. |
 
 
 ### Proposal status codes

@@ -395,7 +395,7 @@ func validateInvoice(ni cms.NewInvoice, u *user.User) error {
 			contact := formatInvoiceField(invInput.ContractorContact)
 			if !validateInvoiceField(contact) {
 				return www.UserError{
-					ErrorCode: www.ErrorStatusMalformedContact,
+					ErrorCode: www.ErrorStatusInvoiceMalformedContact,
 				}
 			}
 
