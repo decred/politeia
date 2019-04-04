@@ -225,6 +225,7 @@ const (
 	ErrorStatusMalformedDomain                ErrorStatusT = 78
 	ErrorStatusMalformedSubdomain             ErrorStatusT = 79
 	ErrorStatusMalformedDescription           ErrorStatusT = 80
+	ErrorStatusWrongInvoiceStatus             ErrorStatusT = 81
 
 	// Proposal state codes
 	//
@@ -399,6 +400,7 @@ var (
 		ErrorStatusMalformedDomain:                "line item has malformed domain",
 		ErrorStatusMalformedSubdomain:             "line item has malformed subdomain",
 		ErrorStatusMalformedDescription:           "line item has malformed description",
+		ErrorStatusWrongInvoiceStatus:             "invoice is an wrong status to be editted (approved, rejected or paid)",
 	}
 
 	// PropStatus converts propsal status codes to human readable text
