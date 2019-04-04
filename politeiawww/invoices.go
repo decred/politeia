@@ -967,6 +967,9 @@ func (p *politeiawww) processGeneratePayouts(gp cms.GeneratePayouts, u *user.Use
 		}
 		payout.Amount = amount
 		payout.Address = inv.PaymentAddress
+		payout.Token = inv.Token
+		payout.ContractorName = inv.ContractorName
+
 		payouts = append(payouts, payout)
 	}
 	reply.Payouts = payouts

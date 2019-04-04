@@ -197,8 +197,10 @@ type GeneratePayoutsReply struct {
 
 // Payout contains an address and an amount to be paid
 type Payout struct {
-	Address string `json:"address"`
-	Amount  uint   `json:"amount"`
+	ContractorName string `json:"contractorname"`
+	Token          string `json:"token"`
+	Address        string `json:"address"`
+	Amount         uint   `json:"amount"`
 }
 
 // PayInvoices is used for an administrator to pay invoices
