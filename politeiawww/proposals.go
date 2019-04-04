@@ -108,6 +108,16 @@ func decodeBackendProposalMetadata(payload []byte) (*BackendProposalMetadata, er
 	return &md, nil
 }
 
+// encodeMDStreamChanges encodes an MDStreamChanges into a JSON byte slice.
+func encodeMDStreamChanges(m MDStreamChanges) ([]byte, error) {
+	b, err := json.Marshal(m)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
 // decodeMDStreamChanges decodes a JSON byte slice into a slice of
 // MDStreamChanges.
 func decodeMDStreamChanges(payload []byte) ([]MDStreamChanges, error) {
