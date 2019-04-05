@@ -1581,13 +1581,12 @@ func (p *politeiawww) processManageUser(mu *www.ManageUser, adminUser *user.User
 }
 
 // processUsers returns a list of users given a set of filters. Admins
-// can search by pubkey, username or admin (partial matches returned).
+// can search by pubkey, username or email (partial matches returned).
 // Non admins can search by pubkey or username (only exact matches returned).
 func (p *politeiawww) processUsers(users *www.Users, isAdmin bool) (*www.UsersReply, error) {
 	var reply www.UsersReply
 	reply.Users = make([]www.AbridgedUser, 0, www.UserListPageSize)
 	var u *user.User
-	var userID string
 
 	emailQuery := strings.ToLower(users.Email)
 	usernameQuery := formatUsername(users.Username)
@@ -1602,17 +1601,13 @@ func (p *politeiawww) processUsers(users *www.Users, isAdmin bool) (*www.UsersRe
 		}
 
 		// Get userID by pubkey
-		id, ok := p.userPubkeys[pubkeyQuery]
-		if !ok {
-			return nil, fmt.Errorf("pubkey not found")
-		}
+		id := p.userPubkeys[pubkeyQuery]
 
 		// Get user by userID
 		u, err = p.getUserByIDStr(id)
 		if err != nil {
 			return nil, err
 		}
-		userID = u.ID.String()
 	}
 
 	if isAdmin {
@@ -1637,7 +1632,7 @@ func (p *politeiawww) processUsers(users *www.Users, isAdmin bool) (*www.UsersRe
 			}
 
 			if pubkeyQuery != "" && userMatches {
-				if user.ID.String() != userID {
+				if user.ID.String() != u.ID.String() {
 					userMatches = false
 				}
 			}
