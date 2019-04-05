@@ -972,13 +972,16 @@ func (p *politeiawww) processGeneratePayouts(gp cms.GeneratePayouts, u *user.Use
 				totalExpenses += lineItem.Expenses
 			}
 		}
-		fmt.Println(len(inv.LineItems))
-		payout.LaborTotal = totalLaborHours * inv.ContractorRate
-		payout.ExpenseTotal = totalExpenses
 
+		// Divide by 100 to get amounts in USD
+		payout.LaborTotal = totalLaborHours * inv.ContractorRate / 100
+		payout.ContractorRate = inv.ContractorRate / 100
+
+		payout.ExpenseTotal = totalExpenses
 		payout.Address = inv.PaymentAddress
 		payout.Token = inv.Token
 		payout.ContractorName = inv.ContractorName
+
 		payout.Username = p.getUsernameById(inv.UserID)
 		payout.Month = inv.Month
 		payout.Year = inv.Year

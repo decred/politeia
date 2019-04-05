@@ -197,6 +197,7 @@ type GeneratePayoutsReply struct {
 // Payout contains an address and an amount to be paid
 type Payout struct {
 	ContractorName string `json:"contractorname"`
+	ContractorRate uint   `json:"contractorrate"`
 	Username       string `json:"username"`
 	Month          uint   `json:"month"`
 	Year           uint   `json:"year"`
