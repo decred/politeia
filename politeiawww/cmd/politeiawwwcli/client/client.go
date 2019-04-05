@@ -804,7 +804,7 @@ func (c *Client) AdminInvoices(ai *cms.AdminInvoices) (*cms.AdminInvoicesReply, 
 // GeneratePayouts generates a list of payouts for all approved invoices that
 // contain an address and amount for an admin to the process
 func (c *Client) GeneratePayouts(gp *cms.GeneratePayouts) (*cms.GeneratePayoutsReply, error) {
-	responseBody, err := c.makeRequest("POST", cms.RouteAdminInvoices, gp)
+	responseBody, err := c.makeRequest("POST", cms.RouteGeneratePayouts, gp)
 	if err != nil {
 		return nil, err
 	}

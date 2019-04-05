@@ -10,9 +10,6 @@ import (
 
 // GeneratePayoutsCmd
 type GeneratePayoutsCmd struct {
-	Args struct {
-		Rate uint `positional-arg-name:"rate"` // DCRUSDRate (in USD per 1 DCR)
-	}
 }
 
 // Execute executes the generate payouts command.
@@ -20,9 +17,7 @@ func (cmd *GeneratePayoutsCmd) Execute(args []string) error {
 
 	// Generate payouts
 	gpr, err := client.GeneratePayouts(
-		&v1.GeneratePayouts{
-			DCRUSDRate: cmd.Args.Rate,
-		})
+		&v1.GeneratePayouts{})
 	if err != nil {
 		return err
 	}

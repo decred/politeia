@@ -188,7 +188,6 @@ type SetInvoiceStatusReply struct {
 // GeneratePayouts is used to generate a list of addresses and amounts of
 // approved invoices that need to be paid.
 type GeneratePayouts struct {
-	DCRUSDRate uint `json:"dcrusdrate"` // User provided average dcr/usd rate for generating payouts
 }
 
 type GeneratePayoutsReply struct {
@@ -198,9 +197,13 @@ type GeneratePayoutsReply struct {
 // Payout contains an address and an amount to be paid
 type Payout struct {
 	ContractorName string `json:"contractorname"`
+	Username       string `json:"username"`
+	Month          uint   `json:"month"`
+	Year           uint   `json:"year"`
 	Token          string `json:"token"`
 	Address        string `json:"address"`
-	Amount         uint   `json:"amount"`
+	LaborTotal     uint   `json:"labortotal"`
+	ExpenseTotal   uint   `json:"expensetotal"`
 }
 
 // PayInvoices is used for an administrator to pay invoices

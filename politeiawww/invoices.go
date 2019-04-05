@@ -947,7 +947,7 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 // exchange rate to generate a list of addresses and amounts for an admin to
 // process payments.
 func (p *politeiawww) processGeneratePayouts(gp cms.GeneratePayouts, u *user.User) (*cms.GeneratePayoutsReply, error) {
-	log.Tracef("processGeneratePayouts %v", gp.DCRUSDRate)
+	log.Tracef("processGeneratePayouts")
 
 	dbInvs, err := p.cmsDB.InvoicesByStatus(int(cms.InvoiceStatusApproved))
 	if err != nil {
@@ -961,34 +961,32 @@ func (p *politeiawww) processGeneratePayouts(gp cms.GeneratePayouts, u *user.Use
 	for _, inv := range dbInvs {
 		payout := cms.Payout{}
 
-		amount, err := calculateInvoiceAmountDCR(inv, gp.DCRUSDRate)
-		if err != nil {
-			return nil, err
+		var totalLaborHours uint
+		var totalExpenses uint
+		for _, lineItem := range inv.LineItems {
+			switch lineItem.Type {
+			case cms.LineItemTypeLabor:
+				totalLaborHours += lineItem.Labor
+			case cms.LineItemTypeExpense:
+			case cms.LineItemTypeMisc:
+				totalExpenses += lineItem.Expenses
+			}
 		}
-		payout.Amount = amount
+		fmt.Println(len(inv.LineItems))
+		payout.LaborTotal = totalLaborHours * inv.ContractorRate
+		payout.ExpenseTotal = totalExpenses
+
 		payout.Address = inv.PaymentAddress
 		payout.Token = inv.Token
 		payout.ContractorName = inv.ContractorName
+		payout.Username = p.getUsernameById(inv.UserID)
+		payout.Month = inv.Month
+		payout.Year = inv.Year
 
 		payouts = append(payouts, payout)
 	}
 	reply.Payouts = payouts
 	return reply, err
-}
-
-func calculateInvoiceAmountDCR(inv database.Invoice, dcrUSDRate uint) (uint, error) {
-	var totalAmountUSD uint
-
-	for _, lineItem := range inv.LineItems {
-		switch lineItem.Type {
-		case cms.LineItemTypeLabor:
-			totalAmountUSD += lineItem.Labor * inv.ContractorRate
-		case cms.LineItemTypeExpense:
-		case cms.LineItemTypeMisc:
-			totalAmountUSD += lineItem.Expenses
-		}
-	}
-	return totalAmountUSD / dcrUSDRate, nil
 }
 
 // getInvoice gets the most recent verions of the given invoice from the cache
