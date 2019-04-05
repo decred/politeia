@@ -122,7 +122,6 @@ notifications.  It does not render HTML.
 - [`ErrorStatusInvoiceDuplicate`](#ErrorStatusInvoiceDuplicate)
 - [`ErrorStatusInvalidPaymentAddress`](#ErrorStatusInvalidPaymentAddress)
 - [`ErrorStatusMalformedLineItem`](#ErrorStatusMalformedLineItem)
-- [`ErrorStatusInvalidInvoiceInputVersion`](#ErrorStatusInvalidInvoiceInputVersion)
 - [`ErrorStatusInvoiceMissingName`](#ErrorStatusInvoiceMissingName)
 - [`ErrorStatusInvoiceMissingLocation`](#ErrorStatusInvoiceMissingLocation)
 - [`ErrorStatusInvoiceMissingContact`](#ErrorStatusInvoiceMissingContact)
@@ -2530,7 +2529,6 @@ Reply:
 | <a name="ErrorStatusInvoiceDuplicate">ErrorStatusInvoiceDuplicate</a> | 67 | Invoice is a duplicate. |
 | <a name="ErrorStatusInvalidPaymentAddress">ErrorStatusInvalidPaymentAddress</a> | 68 | Invalid payment address was submitted. |
 | <a name="ErrorStatusMalformedLineItem">ErrorStatusMalformedLineItem</a> | 69 | Line item in an invoice was malformed and invalid. |
-| <a name="ErrorStatusInvalidInvoiceInputVersion">ErrorStatusInvalidInvoiceInputVersion</a> | 70 | Invalid input version. |
 | <a name="ErrorStatusInvoiceMissingName">ErrorStatusInvoiceMissingName</a> | 71 | Submitted invoice missing contractor name. |
 | <a name="ErrorStatusInvoiceMissingLocation">ErrorStatusInvoiceMissingLocation</a> | 72 | Submitted invoice missing contractor location. |
 | <a name="ErrorStatusInvoiceMissingContact">ErrorStatusInvoiceMissingContact</a> | 73 | Submitted invoice missing contractor contact. |
