@@ -319,7 +319,8 @@ func _main() error {
 
 	// Setup email
 	smtp, err := newSMTP(p.cfg.MailHost, p.cfg.MailUser,
-		p.cfg.MailPass, p.cfg.MailAddress)
+		p.cfg.MailPass, p.cfg.MailAddress, p.cfg.SystemCerts,
+		p.cfg.SMTPSkipVerify)
 	if err != nil {
 		return fmt.Errorf("unable to initialize SMTP client: %v",
 			err)

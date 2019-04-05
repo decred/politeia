@@ -129,6 +129,9 @@ type config struct {
 	CMSRootCert              string `long:"cmsrootcert" description:"File containing the CA certificate for the cmsdb"`
 	CMSCert                  string `long:"cmscert" description:"File containing the politeiawww client certificate for the cmsdb"`
 	CMSKey                   string `long:"cmskey" description:"File containing the politeiawww client certificate key for the cmsdb"`
+	SMTPSkipVerify           bool   `long:"smtpskipverify" description:"Skip SMTP TLS cert verification. Will only skip if SMTPCert is empty"`
+	SMTPCert                 string `long:"smtpcert" description:"File containing the smtp certificate file"`
+	SystemCerts              *x509.CertPool
 }
 
 // serviceOptions defines the configuration options for the rpc as a service
@@ -763,6 +766,31 @@ func loadConfig() (*config, []string, error) {
 		if !paywallKey.IsForNet(activeNetParams.Params) {
 			return nil, nil, fmt.Errorf("paywall extended public key is for the " +
 				"wrong network")
+		}
+	}
+
+	// Validate smtp root cert.
+	if cfg.SMTPCert != "" {
+		cfg.SMTPCert = cleanAndExpandPath(cfg.SMTPCert)
+
+		b, err := ioutil.ReadFile(cfg.SMTPCert)
+		if err != nil {
+			return nil, nil, fmt.Errorf("read smtpcert: %v", err)
+		}
+		block, _ := pem.Decode(b)
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, nil, fmt.Errorf("parse smtpcert: %v", err)
+		}
+		systemCerts, err := x509.SystemCertPool()
+		if err != nil {
+			return nil, nil, fmt.Errorf("getting systemcertpool: %v", err)
+		}
+		systemCerts.AddCert(cert)
+		cfg.SystemCerts = systemCerts
+
+		if cfg.SMTPSkipVerify {
+			log.Warnf("SMTPCert has been set so SMTPSkipVerify is being disregarded.")
 		}
 	}
 

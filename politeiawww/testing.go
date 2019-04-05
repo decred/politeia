@@ -196,7 +196,7 @@ func newTestPoliteiawww(t *testing.T) *politeiawww {
 	}
 
 	// Setup smtp
-	smtp, err := newSMTP("", "", "", "")
+	smtp, err := newSMTP("", "", "", "", nil, false)
 	if err != nil {
 		t.Fatalf("setup SMTP: %v", err)
 	}
