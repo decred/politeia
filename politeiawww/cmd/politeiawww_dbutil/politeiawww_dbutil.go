@@ -5,10 +5,14 @@
 package main
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -17,11 +21,25 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/politeia/decredplugin"
+	"github.com/decred/politeia/politeiad/backend/gitbe"
 	"github.com/decred/politeia/politeiawww/sharedconfig"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/politeiawww/user/localdb"
+	"github.com/decred/politeia/util"
+	"github.com/google/uuid"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
+)
+
+const (
+	commentsJournalFilename = "comments.journal"
+	proposalMDFilename      = "00.metadata.txt"
+
+	// Journal actions
+	journalActionAdd     = "add"     // Add entry
+	journalActionDel     = "del"     // Delete entry
+	journalActionAddLike = "addlike" // Add comment like
 )
 
 var (
@@ -29,9 +47,18 @@ var (
 	dataDir    = flag.String("datadir", sharedconfig.DefaultDataDir, "Specify the politeiawww data directory.")
 	dumpDb     = flag.Bool("dump", false, "Dump the entire politeiawww database contents or contents for a specific user. Parameters: [email]")
 	setAdmin   = flag.Bool("setadmin", false, "Set the admin flag for a user. Parameters: <email> <true/false>")
+	stubUsers  = flag.Bool("stubusers", false, "Create user stubs for the public keys in a politeia repo. Parameters: <importDir>")
 	testnet    = flag.Bool("testnet", false, "Whether to check the testnet database or not.")
 	dbDir      = ""
 )
+
+type proposalMetadata struct {
+	Version   uint64 `json:"version"`   // Version of this struct
+	Timestamp int64  `json:"timestamp"` // Last update of proposal
+	Name      string `json:"name"`      // Generated proposal name
+	PublicKey string `json:"publickey"` // Key used for signature
+	Signature string `json:"signature"` // Signature of merkle root
+}
 
 func dumpAction() error {
 	userdb, err := leveldb.OpenFile(dbDir, &opt.Options{
@@ -200,6 +227,159 @@ func addCreditsAction() error {
 	return nil
 }
 
+func replayCommentsJournal(path string, pubkeys map[string]struct{}) error {
+	b, err := ioutil.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	d := json.NewDecoder(bytes.NewReader(b))
+
+	for {
+		var action gitbe.JournalAction
+		err = d.Decode(&action)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return fmt.Errorf("journal action: %v", err)
+		}
+
+		switch action.Action {
+		case journalActionAdd:
+			var c decredplugin.Comment
+			err = d.Decode(&c)
+			if err != nil {
+				return fmt.Errorf("journal add: %v", err)
+			}
+			pubkeys[c.PublicKey] = struct{}{}
+
+		case journalActionDel:
+			var cc decredplugin.CensorComment
+			err = d.Decode(&cc)
+			if err != nil {
+				return fmt.Errorf("journal censor: %v", err)
+			}
+			pubkeys[cc.PublicKey] = struct{}{}
+
+		case journalActionAddLike:
+			var lc decredplugin.LikeComment
+			err = d.Decode(&lc)
+			if err != nil {
+				return fmt.Errorf("journal addlike: %v", err)
+			}
+			pubkeys[lc.PublicKey] = struct{}{}
+
+		default:
+			return fmt.Errorf("invalid action: %v",
+				action.Action)
+		}
+	}
+
+	return nil
+}
+
+func stubUsersAction() error {
+	if len(flag.Args()) == 0 {
+		return fmt.Errorf("must provide import directory")
+	}
+
+	// Parse import directory
+	importDir := util.CleanAndExpandPath(flag.Arg(0))
+	_, err := os.Stat(importDir)
+	if err != nil {
+		return err
+	}
+
+	// Walk import directory and compile all unique public
+	// keys that are found.
+	fmt.Printf("Walking import directory...\n")
+	pubkeys := make(map[string]struct{})
+	err = filepath.Walk(importDir,
+		func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+
+			// Skip directories
+			if info.IsDir() {
+				return nil
+			}
+
+			switch info.Name() {
+			case commentsJournalFilename:
+				err := replayCommentsJournal(path, pubkeys)
+				if err != nil {
+					return err
+				}
+			case proposalMDFilename:
+				b, err := ioutil.ReadFile(path)
+				if err != nil {
+					return err
+				}
+
+				var md proposalMetadata
+				err = json.Unmarshal(b, &md)
+				if err != nil {
+					return fmt.Errorf("proposal md: %v", err)
+				}
+				pubkeys[md.PublicKey] = struct{}{}
+			}
+
+			return nil
+		})
+	if err != nil {
+		return fmt.Errorf("walk import dir: %v", err)
+	}
+
+	// Open db connection
+	userdb, err := leveldb.OpenFile(dbDir,
+		&opt.Options{
+			ErrorIfMissing: true,
+		})
+	if err != nil {
+		return err
+	}
+	defer userdb.Close()
+
+	// Create a user stub for each pubkey
+	fmt.Printf("Stubbing users...\n")
+	var i int
+	for k := range pubkeys {
+		username := fmt.Sprintf("dbutil_user%v", i)
+		email := username + "@example.com"
+		id, err := util.IdentityFromString(k)
+		if err != nil {
+			return err
+		}
+
+		b, err := localdb.EncodeUser(user.User{
+			ID:             uuid.New(),
+			Email:          email,
+			Username:       username,
+			HashedPassword: []byte("password"),
+			Admin:          false,
+			Identities: []user.Identity{
+				{
+					Key:       id.Key,
+					Activated: time.Now().Unix(),
+				},
+			},
+		})
+		if err != nil {
+			return err
+		}
+
+		err = userdb.Put([]byte(email), b, nil)
+		if err != nil {
+			return err
+		}
+
+		i++
+	}
+
+	fmt.Printf("Done!\n")
+	return nil
+}
+
 func _main() error {
 	flag.Parse()
 
@@ -225,6 +405,8 @@ func _main() error {
 		return dumpAction()
 	case *setAdmin:
 		return setAdminAction()
+	case *stubUsers:
+		return stubUsersAction()
 	default:
 		flag.Usage()
 	}

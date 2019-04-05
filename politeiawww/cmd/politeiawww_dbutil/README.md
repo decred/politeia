@@ -26,6 +26,9 @@ You can specify the following options:
 
     --addcredits <email> <quantity>
     Adds proposal credits to the given user.
+
+  -stubusers <importdir>
+        Create user stubs for the public keys in a politeia repo.
 ```
 
 Example:
@@ -33,3 +36,12 @@ Example:
 ```
 politeiawww_dataload --setadmin user@example.com true
 ```
+
+### Stubbing Users
+
+If you import data from a public politeia repo using the
+[politeiaimport](https://github.com/decred/politeia/tree/master/politeiad/cmd/politeiaimport)
+tool, you will also need to create user stubs in the politeiawww database for
+the public keys found in the import data.  Without the user stubs, politeiawww
+won't be able to associate the public keys with specific user accounts, which
+will cause errors.
