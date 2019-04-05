@@ -496,6 +496,11 @@ func validateInvoice(ni cms.NewInvoice, u *user.User) error {
 			}
 
 			// Validate line items
+			if len(invInput.LineItems) < 1 {
+				return www.UserError{
+					ErrorCode: www.ErrorStatusInvoiceRequireLineItems,
+				}
+			}
 			for _, lineInput := range invInput.LineItems {
 				domain := formatInvoiceField(lineInput.Domain)
 				if !validateInvoiceField(domain) {

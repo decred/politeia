@@ -225,6 +225,7 @@ const (
 	ErrorStatusMalformedSubdomain             ErrorStatusT = 78
 	ErrorStatusMalformedDescription           ErrorStatusT = 89
 	ErrorStatusWrongInvoiceStatus             ErrorStatusT = 80
+	ErrorStatusInvoiceRequireLineItems        ErrorStatusT = 81
 
 	// Proposal state codes
 	//
@@ -400,6 +401,7 @@ var (
 		ErrorStatusMalformedSubdomain:             "line item has malformed subdomain",
 		ErrorStatusMalformedDescription:           "line item has malformed description",
 		ErrorStatusWrongInvoiceStatus:             "invoice is an wrong status to be editted (approved, rejected or paid)",
+		ErrorStatusInvoiceRequireLineItems:        "invoices require at least 1 line item",
 	}
 
 	// PropStatus converts propsal status codes to human readable text
