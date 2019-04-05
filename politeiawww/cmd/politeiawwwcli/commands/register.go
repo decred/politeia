@@ -152,5 +152,7 @@ func (cmd *RegisterUserCmd) Execute(args []string) error {
 		return err
 	}
 
-	return err
+	// Update the logged in username that we store
+	// on disk to know what identity to load.
+	return cfg.SaveLoggedInUsername(ru.Username)
 }
