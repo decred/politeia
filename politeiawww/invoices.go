@@ -1030,10 +1030,17 @@ func (p *politeiawww) processAdminInvoices(ai cms.AdminInvoices, user *user.User
 
 	invRecs := make([]cms.InvoiceRecord, 0, len(dbInvs))
 	for _, v := range dbInvs {
-		inv, err := p.getInvoice(v.Token)
+		inv := convertDatabaseInvoiceToInvoiceRecord(v)
+
+		invCache, err := p.getInvoice(v.Token)
 		if err != nil {
 			return nil, err
 		}
+
+		inv.Files = invCache.Files
+		inv.CensorshipRecord = invCache.CensorshipRecord
+		inv.Signature = invCache.Signature
+
 		invRecs = append(invRecs, *inv)
 	}
 
