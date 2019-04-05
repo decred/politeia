@@ -214,18 +214,17 @@ const (
 	ErrorStatusInvoiceDuplicate               ErrorStatusT = 67
 	ErrorStatusInvalidPaymentAddress          ErrorStatusT = 68
 	ErrorStatusMalformedLineItem              ErrorStatusT = 69
-	ErrorStatusInvalidInvoiceInputVersion     ErrorStatusT = 70
-	ErrorStatusInvoiceMissingName             ErrorStatusT = 71
-	ErrorStatusInvoiceMissingLocation         ErrorStatusT = 72
-	ErrorStatusInvoiceMissingContact          ErrorStatusT = 73
-	ErrorStatusInvoiceMissingRate             ErrorStatusT = 74
-	ErrorStatusInvoiceInvalidRate             ErrorStatusT = 75
-	ErrorStatusInvoiceMalformedContact        ErrorStatusT = 76
-	ErrorStatusMalformedProposalToken         ErrorStatusT = 77
-	ErrorStatusMalformedDomain                ErrorStatusT = 78
-	ErrorStatusMalformedSubdomain             ErrorStatusT = 79
-	ErrorStatusMalformedDescription           ErrorStatusT = 80
-	ErrorStatusWrongInvoiceStatus             ErrorStatusT = 81
+	ErrorStatusInvoiceMissingName             ErrorStatusT = 70
+	ErrorStatusInvoiceMissingLocation         ErrorStatusT = 71
+	ErrorStatusInvoiceMissingContact          ErrorStatusT = 72
+	ErrorStatusInvoiceMissingRate             ErrorStatusT = 73
+	ErrorStatusInvoiceInvalidRate             ErrorStatusT = 74
+	ErrorStatusInvoiceMalformedContact        ErrorStatusT = 75
+	ErrorStatusMalformedProposalToken         ErrorStatusT = 76
+	ErrorStatusMalformedDomain                ErrorStatusT = 77
+	ErrorStatusMalformedSubdomain             ErrorStatusT = 78
+	ErrorStatusMalformedDescription           ErrorStatusT = 89
+	ErrorStatusWrongInvoiceStatus             ErrorStatusT = 80
 
 	// Proposal state codes
 	//
