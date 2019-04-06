@@ -1342,10 +1342,28 @@ func voteResults(sv www.StartVote, cv []www.CastVote) []www.VoteOptionResult {
 	return results
 }
 
-func (p *politeiawww) getVoteStatus(token string, bestBlock uint64) (*www.VoteStatusReply, error) {
-	log.Tracef("getVoteStatus: %v", token)
+// setVoteStatusReply stores the given VoteStatusReply in memory.  This is to
+// only be used for proposals whose voting period has ended so that we don't
+// have to worry about cache invalidation issues.
+//
+// This function must be called without the lock held.
+func (p *politeiawww) setVoteStatusReply(v www.VoteStatusReply) {
+	p.Lock()
+	defer p.Unlock()
 
-	// Get vote details from cache
+	p.voteStatuses[v.Token] = v
+}
+
+func (p *politeiawww) voteStatusReply(token string, bestBlock uint64) (*www.VoteStatusReply, error) {
+	p.RLock()
+	vsr, ok := p.voteStatuses[token]
+	p.RUnlock()
+	if ok {
+		return &vsr, nil
+	}
+
+	// Vote status wasn't in the memory cache so we need
+	// to fetch it from the cache db.
 	vdr, err := p.decredVoteDetails(token)
 	if err != nil {
 		return nil, fmt.Errorf("decredVoteDetails %v: %v",
@@ -1355,7 +1373,6 @@ func (p *politeiawww) getVoteStatus(token string, bestBlock uint64) (*www.VoteSt
 	voteStatus := getVoteStatus(vd.AuthorizeVoteReply,
 		vd.StartVoteReply, bestBlock)
 
-	// Get cast votes from cache
 	vrr, err := p.decredProposalVotes(token)
 	if err != nil {
 		return nil, fmt.Errorf("decredProposalVotes %v: %v",
@@ -1363,16 +1380,25 @@ func (p *politeiawww) getVoteStatus(token string, bestBlock uint64) (*www.VoteSt
 	}
 	sv, cv := convertVoteResultsReplyFromDecred(*vrr)
 
-	return &www.VoteStatusReply{
+	vsr = www.VoteStatusReply{
 		Token:              token,
 		Status:             voteStatus,
 		TotalVotes:         uint64(len(vrr.CastVotes)),
 		OptionsResult:      voteResults(sv, cv),
-		EndHeight:          vd.StartVoteReply.EndHeight,
-		NumOfEligibleVotes: len(vd.StartVoteReply.EligibleTickets),
-		QuorumPercentage:   vd.StartVote.Vote.QuorumPercentage,
-		PassPercentage:     vd.StartVote.Vote.PassPercentage,
-	}, nil
+		EndHeight:          vdr.StartVoteReply.EndHeight,
+		NumOfEligibleVotes: len(vdr.StartVoteReply.EligibleTickets),
+		QuorumPercentage:   vdr.StartVote.Vote.QuorumPercentage,
+		PassPercentage:     vdr.StartVote.Vote.PassPercentage,
+	}
+
+	// If the voting period has ended the vote status
+	// is not going to change so add it to the memory
+	// cache.
+	if vsr.Status == www.PropVoteStatusFinished {
+		p.setVoteStatusReply(vsr)
+	}
+
+	return &vsr, nil
 }
 
 // processVoteStatus returns the vote status for a given proposal
@@ -1402,12 +1428,12 @@ func (p *politeiawww) processVoteStatus(token string) (*www.VoteStatusReply, err
 	}
 
 	// Get vote status
-	vs, err := p.getVoteStatus(token, bestBlock)
+	vsr, err := p.voteStatusReply(token, bestBlock)
 	if err != nil {
-		return nil, fmt.Errorf("getVoteStatus: %v", err)
+		return nil, fmt.Errorf("voteStatusReply: %v", err)
 	}
 
-	return vs, nil
+	return vsr, nil
 }
 
 // processGetAllVoteStatus returns the vote status of all public proposals.
@@ -1436,9 +1462,9 @@ func (p *politeiawww) processGetAllVoteStatus() (*www.GetAllVoteStatusReply, err
 		}
 
 		// Get vote status for proposal
-		vs, err := p.getVoteStatus(v.CensorshipRecord.Token, bestBlock)
+		vs, err := p.voteStatusReply(v.CensorshipRecord.Token, bestBlock)
 		if err != nil {
-			return nil, fmt.Errorf("getVoteStatus: %v", err)
+			return nil, fmt.Errorf("voteStatusReply: %v", err)
 		}
 
 		vrr = append(vrr, *vs)

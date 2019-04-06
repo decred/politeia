@@ -116,6 +116,10 @@ type politeiawww struct {
 	userPaywallPool map[uuid.UUID]paywallPoolMember // [userid][paywallPoolMember]
 	commentScores   map[string]int64                // [token+commentID]resultVotes
 
+	// voteStatuses is a lazy loaded cache of the votes statuses of
+	// proposals whose voting period has ended.
+	voteStatuses map[string]www.VoteStatusReply // [token]VoteStatusReply
+
 	// cmsDB is only used during cmswww mode
 	cmsDB cmsdatabase.Database
 }
