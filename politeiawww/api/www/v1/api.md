@@ -1650,7 +1650,7 @@ Reply:
 
 ### `Get comments`
 
-Retrieve all comments for given proposal.  Not that the comments are not
+Retrieve all comments for given proposal.  Note that the comments are not
 sorted.
 
 **Route:** `GET /v1/proposals/{token}/comments`
