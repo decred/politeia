@@ -208,6 +208,16 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 		return nil, err
 	}
 
+	sc := backendInvoiceStatusChange{
+		Version:   backendInvoiceStatusChangeVersion,
+		Timestamp: time.Now().Unix(),
+		NewStatus: cms.InvoiceStatusNew,
+	}
+	scb, err := encodeBackendInvoiceStatusChange(sc)
+	if err != nil {
+		return nil, err
+	}
+
 	// Setup politeiad request
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
@@ -215,10 +225,16 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 	}
 	n := pd.NewRecord{
 		Challenge: hex.EncodeToString(challenge),
-		Metadata: []pd.MetadataStream{{
-			ID:      mdStreamInvoiceGeneral,
-			Payload: string(md),
-		}},
+		Metadata: []pd.MetadataStream{
+			{
+				ID:      mdStreamInvoiceGeneral,
+				Payload: string(md),
+			},
+			{
+				ID:      mdStreamInvoiceStatusChanges,
+				Payload: string(scb),
+			},
+		},
 		Files: convertPropFilesFromWWW(ni.Files),
 	}
 
