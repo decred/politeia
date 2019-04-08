@@ -312,7 +312,9 @@ func (p *politeiawww) processNewCommentInvoice(nc www.NewComment, u *user.User) 
 		}
 		return nil, err
 	}
+
 	_, ok := p.userPubkeys[ir.PublicKey]
+
 	// Check to make sure the user is either an admin or the creator of the invoice
 	if !u.Admin && !ok {
 		err := www.UserError{

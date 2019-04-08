@@ -942,6 +942,30 @@ func (c *Client) GetComments(token string) (*v1.GetCommentsReply, error) {
 	return &gcr, nil
 }
 
+// GetComments retrieves the comments for the specified proposal.
+func (c *Client) GetInvoiceComments(token string) (*v1.GetCommentsReply, error) {
+	responseBody, err := c.makeRequest("GET", "/invoices/"+token+"/comments",
+		nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var gcr v1.GetCommentsReply
+	err = json.Unmarshal(responseBody, &gcr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal GetCommentsReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(gcr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &gcr, nil
+}
+
 // UserCommentsLikes retrieves the comment likes (upvotes/downvotes) for the
 // specified proposal that are from the logged in user.
 func (c *Client) UserCommentsLikes(token string) (*v1.UserCommentsLikesReply, error) {
