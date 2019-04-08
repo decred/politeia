@@ -1389,7 +1389,7 @@ func (p *politeiawww) getVoteStatus(token string, bestBlock uint64) (*www.VoteSt
 func (p *politeiawww) processVoteStatus(token string) (*www.VoteStatusReply, error) {
 	log.Tracef("ProcessProposalVotingStatus: %v", token)
 
-	// Ensure proposal is public
+	// Ensure proposal is vetted
 	pr, err := p.getProp(token)
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
@@ -1511,7 +1511,7 @@ func (p *politeiawww) processActiveVote() (*www.ActiveVoteReply, error) {
 func (p *politeiawww) processVoteResults(token string) (*www.VoteResultsReply, error) {
 	log.Tracef("processVoteResults: %v", token)
 
-	// Ensure proposal is public
+	// Ensure proposal is vetted
 	pr, err := p.getProp(token)
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
