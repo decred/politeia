@@ -1399,7 +1399,8 @@ func (p *politeiawww) processVoteStatus(token string) (*www.VoteStatusReply, err
 		}
 		return nil, err
 	}
-	if pr.Status != www.PropStatusPublic && pr.Status != www.PropStatusAbandoned {
+
+	if pr.State != www.PropStateVetted {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusWrongStatus,
 		}
@@ -1520,7 +1521,8 @@ func (p *politeiawww) processVoteResults(token string) (*www.VoteResultsReply, e
 		}
 		return nil, err
 	}
-	if pr.Status != www.PropStatusPublic {
+
+	if pr.State != www.PropStateVetted {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusWrongStatus,
 		}
