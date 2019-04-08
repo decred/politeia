@@ -283,6 +283,37 @@ func (p *politeiawww) handleGeneratePayouts(w http.ResponseWriter, r *http.Reque
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
+// handleNewCommentInvoice handles incomming comments for invoices.
+func (p *politeiawww) handleNewCommentInvoice(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleNewCommentInvoice")
+
+	var sc www.NewComment
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&sc); err != nil {
+		RespondWithError(w, r, 0, "handleNewCommentInvoice: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleNewCommentInvoice: getSessionUser %v", err)
+		return
+	}
+
+	cr, err := p.processNewCommentInvoice(sc, user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleNewCommentInvoice: processNewCommentInvoice: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, cr)
+}
+
 func (p *politeiawww) setCMSWWWRoutes() {
 	// Templates
 	//p.addTemplate(templateNewProposalSubmittedName,
@@ -308,7 +339,7 @@ func (p *politeiawww) setCMSWWWRoutes() {
 
 	// Routes that require being logged in.
 	p.addRoute(http.MethodPost, www.RouteNewComment,
-		p.handleNewComment, permissionLogin)
+		p.handleNewCommentInvoice, permissionLogin)
 	p.addRoute(http.MethodPost, cms.RouteNewInvoice,
 		p.handleNewInvoice, permissionLogin)
 	p.addRoute(http.MethodPost, cms.RouteEditInvoice,
