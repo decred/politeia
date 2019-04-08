@@ -602,6 +602,19 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 			dbInvoice.PublicKey = mdGeneral.PublicKey
 			dbInvoice.UserSignature = mdGeneral.Signature
 
+		case mdStreamInvoiceStatusChanges:
+			sc, err := decodeBackendInvoiceStatusChanges([]byte(m.Payload))
+			if err != nil {
+				return nil, fmt.Errorf("could not decode metadata '%v' token '%v': %v",
+					m, p.CensorshipRecord.Token, err)
+			}
+
+			// We don't need all of the status changes.
+			// Just the most recent one.
+			for _, s := range sc {
+				dbInvoice.Status = s.NewStatus
+			}
+
 		default:
 			// Log error but proceed
 			log.Errorf("initializeInventory: invalid "+
