@@ -636,8 +636,18 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus,
 	u *user.User) (*cms.SetInvoiceStatusReply, error) {
 	log.Tracef("processSetInvoiceStatus")
 
-	err := checkPublicKeyAndSignature(u, sis.PublicKey, sis.Signature,
-		sis.Token, strconv.FormatUint(uint64(sis.Status), 10),
+	invRec, err := p.getInvoice(sis.Token)
+	if err != nil {
+		if err == cache.ErrRecordNotFound {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusInvoiceNotFound,
+			}
+		}
+		return nil, err
+	}
+
+	err = checkPublicKeyAndSignature(u, sis.PublicKey, sis.Signature,
+		sis.Token, invRec.Version, strconv.FormatUint(uint64(sis.Status), 10),
 		sis.Reason)
 	if err != nil {
 		return nil, err

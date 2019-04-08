@@ -15,9 +15,10 @@ import (
 
 type SetInvoiceStatusCmd struct {
 	Args struct {
-		Token  string `positional-arg-name:"token"`
-		Status string `positional-arg-name:"status"`
-		Reason string `positional-arg-name:"reason"`
+		Version string `positional-arg-name:"version"`
+		Token   string `positional-arg-name:"token"`
+		Status  string `positional-arg-name:"status"`
+		Reason  string `positional-arg-name:"reason"`
 	} `positional-args:"true" optional:"true"`
 }
 
@@ -38,7 +39,7 @@ func (cmd *SetInvoiceStatusCmd) Execute(args []string) error {
 	}
 
 	// Setup request
-	sig := cfg.Identity.SignMessage([]byte(cmd.Args.Token +
+	sig := cfg.Identity.SignMessage([]byte(cmd.Args.Token + cmd.Args.Version +
 		strconv.Itoa(int(status)) + cmd.Args.Reason))
 
 	sis := &cms.SetInvoiceStatus{
@@ -71,6 +72,7 @@ const setInvoiceStatusHelpMsg = `setinvoicestatus "token" "status"
 Set the status of a invoice. Requires admin privileges.
 
 Arguments:
+1. version    (string, required)   Current version of the invoice record
 1. token      (string, required)   Invoice censorship token
 2. status     (string, required)   New status (approved, disputed, rejected)
 3. message    (string)             Status change message
