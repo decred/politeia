@@ -1399,7 +1399,7 @@ func (p *politeiawww) processVoteStatus(token string) (*www.VoteStatusReply, err
 		}
 		return nil, err
 	}
-	if pr.Status != www.PropStatusPublic {
+	if pr.Status != www.PropStatusPublic && pr.Status != www.PropStatusAbandoned {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusWrongStatus,
 		}
