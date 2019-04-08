@@ -522,16 +522,32 @@ func convertDatabaseInvoiceToInvoiceRecord(dbInvoice cmsdatabase.Invoice) *cms.I
 	invRec.Status = dbInvoice.Status
 	invRec.Timestamp = dbInvoice.Timestamp
 	invRec.UserID = dbInvoice.UserID
-	invRec.Month = dbInvoice.Month
-	invRec.Year = dbInvoice.Year
 	invRec.PublicKey = dbInvoice.PublicKey
 	invRec.Version = dbInvoice.Version
-	invRec.ContractorRate = dbInvoice.ContractorRate
-	invRec.ContractorContact = dbInvoice.ContractorContact
-	invRec.ContractorName = dbInvoice.ContractorName
-	invRec.ContractorLocation = dbInvoice.ContractorLocation
-	invRec.PaymentAddress = dbInvoice.PaymentAddress
 
+	invInput := cms.InvoiceInput{
+		ContractorContact:  dbInvoice.ContractorContact,
+		ContractorRate:     dbInvoice.ContractorRate,
+		ContractorName:     dbInvoice.ContractorName,
+		ContractorLocation: dbInvoice.ContractorLocation,
+		PaymentAddress:     dbInvoice.PaymentAddress,
+		Month:              dbInvoice.Month,
+		Year:               dbInvoice.Year,
+	}
+	invInputLineItems := make([]cms.LineItemsInput, 0, len(dbInvoice.LineItems))
+	for _, dbLineItem := range dbInvoice.LineItems {
+		lineItem := cms.LineItemsInput{
+			Type:          dbLineItem.Type,
+			Domain:        dbLineItem.Domain,
+			Subdomain:     dbLineItem.Subdomain,
+			Description:   dbLineItem.Description,
+			ProposalToken: dbLineItem.ProposalURL,
+			Labor:         dbLineItem.Labor,
+			Expenses:      dbLineItem.Expenses,
+		}
+		invInputLineItems = append(invInputLineItems, lineItem)
+	}
+	invRec.RawInvoice = invInput
 	return invRec
 }
 
@@ -697,23 +713,17 @@ func convertInvoiceFromCache(r cache.Record) cms.InvoiceRecord {
 		Status:             c.NewStatus,
 		StatusChangeReason: c.Reason,
 		Timestamp:          r.Timestamp,
-		Month:              ii.Month,
-		Year:               ii.Year,
 		UserID:             "",
 		Username:           "",
 		PublicKey:          md.PublicKey,
 		Signature:          md.Signature,
 		Files:              fs,
 		Version:            r.Version,
-		ContractorName:     ii.ContractorName,
-		ContractorLocation: ii.ContractorLocation,
-		ContractorContact:  ii.ContractorContact,
-		ContractorRate:     ii.ContractorRate,
-		PaymentAddress:     ii.PaymentAddress,
 		CensorshipRecord: www.CensorshipRecord{
 			Token:     r.CensorshipRecord.Token,
 			Merkle:    r.CensorshipRecord.Merkle,
 			Signature: r.CensorshipRecord.Signature,
 		},
+		RawInvoice: ii,
 	}
 }
