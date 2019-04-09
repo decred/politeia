@@ -352,7 +352,6 @@ func (c *cockroachdb) Setup() error {
 
 func buildQueryString(user, rootCert, cert, key string) string {
 	v := url.Values{}
-	v.Set("ssl", "true")
 	v.Set("sslmode", "require")
 	v.Set("sslrootcert", filepath.Clean(rootCert))
 	v.Set("sslcert", filepath.Join(cert))
