@@ -223,7 +223,7 @@ const (
 	ErrorStatusMalformedProposalToken         ErrorStatusT = 76
 	ErrorStatusMalformedDomain                ErrorStatusT = 77
 	ErrorStatusMalformedSubdomain             ErrorStatusT = 78
-	ErrorStatusMalformedDescription           ErrorStatusT = 89
+	ErrorStatusMalformedDescription           ErrorStatusT = 79
 	ErrorStatusWrongInvoiceStatus             ErrorStatusT = 80
 
 	// Proposal state codes
