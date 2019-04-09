@@ -98,19 +98,13 @@ type InvoiceRecord struct {
 	Status             InvoiceStatusT `json:"status"`                       // Current status of invoice
 	StatusChangeReason string         `json:"statuschangereason,omitempty"` // Reason (if any) for the current status
 	Timestamp          int64          `json:"timestamp"`                    // Last update of invoice
-	Month              uint           `json:"month"`                        // The month that this invoice applies to
-	Year               uint           `json:"year"`                         // The year that this invoice applies to
 	UserID             string         `json:"userid"`                       // ID of user who submitted invoice
 	Username           string         `json:"username"`                     // Username of user who submitted invoice
 	PublicKey          string         `json:"publickey"`                    // User's public key, used to verify signature.
 	Signature          string         `json:"signature"`                    // Signature of file digest
 	Files              []www.File     `json:"file"`                         // Actual invoice file
 	Version            string         `json:"version"`                      // Record version
-	ContractorName     string         `json:"contractorname"`               // IRL name of contractor
-	ContractorLocation string         `json:"contractorlocation"`           // IRL location of contractor
-	ContractorContact  string         `json:"contractorcontact"`            // Contractor email contact
-	ContractorRate     uint           `json:"contractorrate"`               // Contractor Pay Rate in USD cents
-	PaymentAddress     string         `json:"paymentaddress"`               //  DCR payment address
+	Input              InvoiceInput   `json:"input"`                        // Decoded invoice from invoice.json file
 
 	CensorshipRecord www.CensorshipRecord `json:"censorshiprecord"`
 }
