@@ -166,6 +166,9 @@ type Cache interface {
 	UpdateRecordStatus(string, string, RecordStatusT, int64,
 		[]MetadataStream) error
 
+	// Update the metadata streams of a record
+	UpdateRecordMetadata(string, []MetadataStream) error
+
 	// Get the latest version of all records
 	Inventory() ([]Record, error)
 
