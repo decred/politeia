@@ -832,21 +832,19 @@ func New(user, host, net, rootCert, cert, key string) (*cockroachdb, error) {
 	// return the database context so that the cache can be
 	// rebuilt.
 	var v Version
-	if c.recordsdb.HasTable(tableVersions) {
-		err = c.recordsdb.
-			Where("id = ?", cacheID).
-			Find(&v).
-			Error
-		if err != nil {
-			if err == gorm.ErrRecordNotFound {
-				// The version record not being found is the
-				// equivalent of the version being wrong.
-				err = cache.ErrWrongVersion
-			}
-		}
+	if !c.recordsdb.HasTable(tableVersions) {
+		return nil, fmt.Errorf("table '%v' does not exist", tableVersions)
 	}
 
-	if v.Version != cacheVersion {
+	err = c.recordsdb.
+		Where("id = ?", cacheID).
+		Find(&v).
+		Error
+	if err == gorm.ErrRecordNotFound {
+		// The version record not being found is the
+		// equivalent of the version being wrong.
+		err = cache.ErrWrongVersion
+	} else if v.Version != cacheVersion {
 		err = cache.ErrWrongVersion
 	}
 
