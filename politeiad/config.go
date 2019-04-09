@@ -482,6 +482,10 @@ func loadConfig() (*config, []string, error) {
 			return nil, nil, fmt.Errorf("read cacherootcert: %v", err)
 		}
 		block, _ := pem.Decode(b)
+		if block == nil {
+			return nil, nil, fmt.Errorf("%s is not a valid certificate",
+				cfg.CacheRootCert)
+		}
 		_, err = x509.ParseCertificate(block.Bytes)
 		if err != nil {
 			return nil, nil, fmt.Errorf("parse cacherootcert: %v", err)
