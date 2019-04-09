@@ -106,20 +106,12 @@ func (c *cockroachdb) RecordVersion(token, version string) (*cache.Record, error
 	return &cr, nil
 }
 
-// Record gets the most recent version of a record from the database.
-func (c *cockroachdb) Record(token string) (*cache.Record, error) {
-	log.Tracef("Record: %v", token)
-
-	c.RLock()
-	shutdown := c.shutdown
-	c.RUnlock()
-
-	if shutdown {
-		return nil, cache.ErrShutdown
-	}
-
+// record gets the most recent version of a record from the database.  This
+// function has a database parameter so that it can be called inside of a
+// transaction when required.
+func record(db *gorm.DB, token string) (*Record, error) {
 	var r Record
-	err := c.recordsdb.
+	err := db.
 		Where("records.token = ?", token).
 		Order("records.version desc").
 		Limit(1).
@@ -133,9 +125,58 @@ func (c *cockroachdb) Record(token string) (*cache.Record, error) {
 		}
 		return nil, err
 	}
+	return &r, nil
+}
 
-	cr := convertRecordToCache(r)
+// Record gets the most recent version of a record from the database.
+func (c *cockroachdb) Record(token string) (*cache.Record, error) {
+	log.Tracef("Record: %v", token)
+
+	c.RLock()
+	shutdown := c.shutdown
+	c.RUnlock()
+
+	if shutdown {
+		return nil, cache.ErrShutdown
+	}
+
+	r, err := record(c.recordsdb, token)
+	if err != nil {
+		return nil, err
+	}
+
+	cr := convertRecordToCache(*r)
 	return &cr, nil
+}
+
+// updateMetadataStreams updates a records metadata streams by deleting the
+// existing metadata streams then adding the passed in metadata streams to the
+// database.
+//
+// This function must be called using a transaction.
+func updateMetadataStreams(tx *gorm.DB, key string, ms []MetadataStream) error {
+	// Delete existing metadata streams
+	err := tx.Where("record_key = ?", key).
+		Delete(MetadataStream{}).
+		Error
+	if err != nil {
+		return fmt.Errorf("delete MD streams: %v", err)
+	}
+
+	// Add new metadata streams
+	for _, v := range ms {
+		err = tx.Create(&MetadataStream{
+			RecordKey: key,
+			ID:        v.ID,
+			Payload:   v.Payload,
+		}).Error
+		if err != nil {
+			return fmt.Errorf("create MD stream %v: %v",
+				v.ID, err)
+		}
+	}
+
+	return nil
 }
 
 // updateRecord updates a record in the database.  This includes updating the
@@ -168,24 +209,10 @@ func (c *cockroachdb) updateRecord(tx *gorm.DB, updated Record) error {
 		return fmt.Errorf("update record: %v", err)
 	}
 
-	// Delete existing metadata streams
-	err = tx.Where("record_key = ?", record.Key).
-		Delete(MetadataStream{}).
-		Error
+	// Update metadata
+	err = updateMetadataStreams(tx, record.Key, updated.Metadata)
 	if err != nil {
-		return fmt.Errorf("delete metadata streams: %v", err)
-	}
-
-	// Add new metadata streams
-	for _, ms := range updated.Metadata {
-		err = tx.Create(&MetadataStream{
-			RecordKey: record.Key,
-			ID:        ms.ID,
-			Payload:   ms.Payload,
-		}).Error
-		if err != nil {
-			return fmt.Errorf("create metadata stream %v: %v", ms.ID, err)
-		}
+		return err
 	}
 
 	// Delete existing files
@@ -270,27 +297,8 @@ func (c *cockroachdb) updateRecordStatus(tx *gorm.DB, token, version string, sta
 		return fmt.Errorf("update record: %v", err)
 	}
 
-	// Delete existing metadata streams
-	err = tx.Where("record_key = ?", record.Key).
-		Delete(MetadataStream{}).
-		Error
-	if err != nil {
-		return fmt.Errorf("delete metadata streams: %v", err)
-	}
-
-	// Add new metadata streams
-	for _, ms := range metadata {
-		err = tx.Create(&MetadataStream{
-			RecordKey: record.Key,
-			ID:        ms.ID,
-			Payload:   ms.Payload,
-		}).Error
-		if err != nil {
-			return fmt.Errorf("create metadata stream %v: %v", ms.ID, err)
-		}
-	}
-
-	return nil
+	// Update metadata
+	return updateMetadataStreams(tx, record.Key, metadata)
 }
 
 // UpdateRecordStatus updates the status of a record in the database.  This
@@ -316,6 +324,48 @@ func (c *cockroachdb) UpdateRecordStatus(token, version string, status cache.Rec
 	tx := c.recordsdb.Begin()
 	err := c.updateRecordStatus(tx, token, version, int(status),
 		timestamp, mdStreams)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	return tx.Commit().Error
+}
+
+// updateRecordMetadata updates the metadata streams of the given record. It
+// does this by first deleting the existing metadata streams then adding the
+// passed in metadata streams to the database.
+//
+// This function must be called using a transaction.
+func (c *cockroachdb) updateRecordMetadata(tx *gorm.DB, token string, ms []MetadataStream) error {
+	// Ensure record exists. This is required because updates
+	// will not return an error if the record does not exist.
+	r, err := record(tx, token)
+	if err != nil {
+		return err
+	}
+
+	return updateMetadataStreams(tx, r.Key, ms)
+}
+
+// UpdateRecordMetadata updates the metadata streams of the given record. It
+// does this by first deleting the existing metadata streams then adding the
+// passed in metadata streams to the database.
+func (c *cockroachdb) UpdateRecordMetadata(token string, ms []cache.MetadataStream) error {
+	log.Tracef("UpdateRecordMetadata: %v", token)
+
+	c.RLock()
+	shutdown := c.shutdown
+	c.RUnlock()
+
+	if shutdown {
+		return cache.ErrShutdown
+	}
+
+	m := convertMDStreamsFromCache(ms)
+
+	// Run update in a transaction
+	tx := c.recordsdb.Begin()
+	err := c.updateRecordMetadata(tx, token, m)
 	if err != nil {
 		tx.Rollback()
 		return err

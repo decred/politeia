@@ -19,12 +19,15 @@ func convertMDStreamFromCache(ms cache.MetadataStream) MetadataStream {
 	}
 }
 
-func convertRecordFromCache(r cache.Record, version uint64) Record {
-	metadata := make([]MetadataStream, 0, len(r.Metadata))
-	for _, ms := range r.Metadata {
-		metadata = append(metadata, convertMDStreamFromCache(ms))
+func convertMDStreamsFromCache(ms []cache.MetadataStream) []MetadataStream {
+	m := make([]MetadataStream, 0, len(ms))
+	for _, v := range ms {
+		m = append(m, convertMDStreamFromCache(v))
 	}
+	return m
+}
 
+func convertRecordFromCache(r cache.Record, version uint64) Record {
 	files := make([]File, 0, len(r.Files))
 	for _, f := range r.Files {
 		files = append(files,
@@ -44,7 +47,7 @@ func convertRecordFromCache(r cache.Record, version uint64) Record {
 		Timestamp: r.Timestamp,
 		Merkle:    r.CensorshipRecord.Merkle,
 		Signature: r.CensorshipRecord.Signature,
-		Metadata:  metadata,
+		Metadata:  convertMDStreamsFromCache(r.Metadata),
 		Files:     files,
 	}
 }
