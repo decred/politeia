@@ -190,6 +190,7 @@ type SetInvoiceStatusReply struct {
 type GeneratePayouts struct {
 }
 
+// GeneratePayoutsReply is used to replay to a GeneratePayouts command.
 type GeneratePayoutsReply struct {
 	Payouts []Payout `json:"payouts"`
 }
@@ -205,12 +206,4 @@ type Payout struct {
 	Address        string `json:"address"`
 	LaborTotal     uint   `json:"labortotal"`
 	ExpenseTotal   uint   `json:"expensetotal"`
-}
-
-// PayInvoices is used for an administrator to pay invoices
-type PayInvoices struct {
-	Tokens []string `json:"tokens"`
-}
-
-type PayInvoicesReply struct {
 }
