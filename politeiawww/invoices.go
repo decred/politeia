@@ -954,8 +954,6 @@ func (p *politeiawww) processGeneratePayouts(gp cms.GeneratePayouts, u *user.Use
 		return nil, err
 	}
 
-	// XXX ? Should we trust the dbInvs or should we take the token and get the
-	// raw invoice.json from the cache to get address and calc amount?
 	reply := &cms.GeneratePayoutsReply{}
 	payouts := make([]cms.Payout, 0, len(dbInvs))
 	for _, inv := range dbInvs {

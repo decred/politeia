@@ -69,7 +69,6 @@ func (c *cockroachdb) InvoicesByUserID(userid string) ([]database.Invoice, error
 		return nil, err
 	}
 
-	// XXX this could be done in a more efficient way
 	tokens := make([]string, 0, len(invoices))
 	for _, r := range invoices {
 		tokens = append(tokens, r.Token)
@@ -126,7 +125,6 @@ func (c *cockroachdb) InvoicesByMonthYearStatus(month, year uint16, status int) 
 		return nil, err
 	}
 
-	// XXX this could be done in a more efficient way
 	tokens := make([]string, 0, len(invoices))
 	for _, r := range invoices {
 		tokens = append(tokens, r.Token)
@@ -165,7 +163,6 @@ func (c *cockroachdb) InvoicesByMonthYear(month, year uint16) ([]database.Invoic
 		return nil, err
 	}
 
-	// XXX this could be done in a more efficient way
 	tokens := make([]string, 0, len(invoices))
 	for _, r := range invoices {
 		tokens = append(tokens, r.Token)
@@ -204,7 +201,6 @@ func (c *cockroachdb) InvoicesByStatus(status int) ([]database.Invoice, error) {
 		return nil, err
 	}
 
-	// XXX this could be done in a more efficient way
 	tokens := make([]string, 0, len(invoices))
 	for _, r := range invoices {
 		tokens = append(tokens, r.Token)
@@ -242,7 +238,6 @@ func (c *cockroachdb) InvoicesAll() ([]database.Invoice, error) {
 		return nil, err
 	}
 
-	// XXX this could be done in a more efficient way
 	tokens := make([]string, 0, len(invoices))
 	for _, r := range invoices {
 		tokens = append(tokens, r.Token)
