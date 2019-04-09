@@ -547,7 +547,7 @@ func convertDatabaseInvoiceToInvoiceRecord(dbInvoice cmsdatabase.Invoice) *cms.I
 		}
 		invInputLineItems = append(invInputLineItems, lineItem)
 	}
-	invRec.RawInvoice = invInput
+	invRec.Input = invInput
 	return invRec
 }
 
@@ -724,6 +724,6 @@ func convertInvoiceFromCache(r cache.Record) cms.InvoiceRecord {
 			Merkle:    r.CensorshipRecord.Merkle,
 			Signature: r.CensorshipRecord.Signature,
 		},
-		RawInvoice: ii,
+		Input: ii,
 	}
 }

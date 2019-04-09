@@ -103,7 +103,7 @@ type InvoiceRecord struct {
 	Signature          string         `json:"signature"`                    // Signature of file digest
 	Files              []www.File     `json:"file"`                         // Actual invoice file
 	Version            string         `json:"version"`                      // Record version
-	RawInvoice         InvoiceInput   `json:"rawinvoice"`                   // Decoded invoice from invoice.json file
+	Input              InvoiceInput   `json:"input"`                        // Decoded invoice from invoice.json file
 
 	CensorshipRecord www.CensorshipRecord `json:"censorshiprecord"`
 }
