@@ -475,6 +475,15 @@ func convertPluginFromPD(p pd.Plugin) Plugin {
 	}
 }
 
+func convertTokenInventoryReplyFromDecred(r decredplugin.TokenInventoryReply) www.TokenInventoryReply {
+	return www.TokenInventoryReply{
+		Pre:       r.Pre,
+		Active:    r.Active,
+		Finished:  r.Finished,
+		Abandoned: r.Abandoned,
+	}
+}
+
 func convertInvoiceFileFromWWW(f *www.File) []pd.File {
 	return []pd.File{{
 		Name:    "invoice.csv",

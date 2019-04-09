@@ -450,6 +450,17 @@ func (p *politeiawww) handleProposalsStats(w http.ResponseWriter, r *http.Reques
 	util.RespondWithJSON(w, http.StatusOK, psr)
 }
 
+// handleTokenInventory returns the tokens of all proposals in the inventory.
+func (p *politeiawww) handleTokenInventory(w http.ResponseWriter, r *http.Request) {
+	reply, err := p.processTokenInventory()
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleTokenInventory: processTokenInventory: %v", err)
+		return
+	}
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
 // handleProposalPaywallDetails returns paywall details that allows the user to
 // purchase proposal credits.
 func (p *politeiawww) handleProposalPaywallDetails(w http.ResponseWriter, r *http.Request) {
@@ -1058,6 +1069,8 @@ func (p *politeiawww) setPoliteiaWWWRoutes() {
 		p.handleVoteStatus, permissionPublic)
 	p.addRoute(http.MethodGet, www.RoutePropsStats,
 		p.handleProposalsStats, permissionPublic)
+	p.addRoute(http.MethodGet, www.RouteTokenInventory,
+		p.handleTokenInventory, permissionPublic)
 
 	// Routes that require being logged in.
 	p.addRoute(http.MethodGet, www.RouteProposalPaywallDetails,

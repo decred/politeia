@@ -35,10 +35,6 @@ var (
 	// ErrInvalidPluginCmd is emitted when an invalid plugin command
 	// is used.
 	ErrInvalidPluginCmd = errors.New("invalid plugin command")
-
-	// ErrWrongPluginVersion is emitted when the version of a cache
-	// plugin does not match the version of the plugin tables.
-	ErrWrongPluginVersion = errors.New("wrong plugin version")
 )
 
 const (

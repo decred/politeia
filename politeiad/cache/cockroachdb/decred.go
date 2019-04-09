@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/decred/politeia/decredplugin"
+	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/cache"
 	"github.com/jinzhu/gorm"
 )
@@ -325,7 +326,13 @@ func (d *decred) cmdStartVote(cmdPayload, replyPayload string) (string, error) {
 		return "", err
 	}
 
-	s := convertStartVoteFromDecred(*sv, *svr)
+	endHeight, err := strconv.ParseUint(svr.EndHeight, 10, 64)
+	if err != nil {
+		return "", fmt.Errorf("parse end height '%v': %v",
+			svr.EndHeight, err)
+	}
+
+	s := convertStartVoteFromDecred(*sv, *svr, endHeight)
 	err = d.newStartVote(d.recordsdb, s)
 	if err != nil {
 		return "", err
@@ -525,6 +532,110 @@ func (d *decred) cmdInventory() (string, error) {
 	return string(irb), err
 }
 
+// cmdTokenInventory returns the record tokens of all records in the cache,
+// categorized by pre vote, active vote, finished vote, and abandoned.
+func (d *decred) cmdTokenInventory(payload string) (string, error) {
+	log.Tracef("decred cmdTokenInventory")
+
+	it, err := decredplugin.DecodeTokenInventory([]byte(payload))
+	if err != nil {
+		return "", err
+	}
+
+	// Pre voting period tokens. This query returns the
+	// tokens of the most recent version of all records that
+	// are public and do not have an associated StartVote
+	// record, ordered by timestamp in descending order.
+	var token string
+	pre := make([]string, 0, 1024)
+	q := `SELECT a.token
+        FROM records a
+        LEFT OUTER JOIN start_votes
+          ON a.token = start_votes.token
+        LEFT OUTER JOIN records b
+          ON a.token = b.token
+          AND a.version < b.version
+        WHERE b.token IS NULL
+          AND start_votes.token IS NULL
+          AND a.status = ?
+        ORDER BY a.timestamp DESC`
+	rows, err := d.recordsdb.Raw(q, pd.RecordStatusPublic).Rows()
+	if err != nil {
+		return "", fmt.Errorf("pre: %v", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		rows.Scan(&token)
+		pre = append(pre, token)
+	}
+
+	// Active voting period tokens
+	active := make([]string, 0, 1024)
+	q = `SELECT token
+       FROM start_votes
+       WHERE end_height > ?
+       ORDER BY end_height DESC`
+	rows, err = d.recordsdb.Raw(q, it.BestBlock).Rows()
+	if err != nil {
+		return "", fmt.Errorf("active: %v", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		rows.Scan(&token)
+		active = append(active, token)
+	}
+
+	// Finished voting period tokens
+	finished := make([]string, 0, 1024)
+	q = `SELECT token
+       FROM start_votes
+       WHERE end_height <= ?
+       ORDER BY end_height DESC`
+	rows, err = d.recordsdb.Raw(q, it.BestBlock).Rows()
+	if err != nil {
+		return "", fmt.Errorf("finished: %v", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		rows.Scan(&token)
+		finished = append(finished, token)
+	}
+
+	// Abandoned tokens
+	abandoned := make([]string, 0, 1024)
+	q = `SELECT token
+       FROM records
+       WHERE status = ?
+       ORDER BY timestamp DESC`
+	rows, err = d.recordsdb.Raw(q, pd.RecordStatusArchived).Rows()
+	if err != nil {
+		return "", fmt.Errorf("abandoned: %v", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		rows.Scan(&token)
+		abandoned = append(abandoned, token)
+	}
+
+	// Prepare reply
+	reply, err := decredplugin.EncodeTokenInventoryReply(
+		decredplugin.TokenInventoryReply{
+			Pre:       pre,
+			Active:    active,
+			Finished:  finished,
+			Abandoned: abandoned,
+		})
+	if err != nil {
+		return "", err
+	}
+
+	return string(reply), nil
+}
+
 // Exec executes a decred plugin command.  Plugin commands that write data to
 // the cache require both the command payload and the reply payload.  Plugin
 // commands that fetch data from the cache require only the command payload.
@@ -561,6 +672,8 @@ func (d *decred) Exec(cmd, cmdPayload, replyPayload string) (string, error) {
 		return d.cmdProposalCommentsLikes(cmdPayload)
 	case decredplugin.CmdInventory:
 		return d.cmdInventory()
+	case decredplugin.CmdTokenInventory:
+		return d.cmdTokenInventory(cmdPayload)
 	}
 
 	return "", cache.ErrInvalidPluginCmd
@@ -741,8 +854,16 @@ func (d *decred) build(ir *decredplugin.InventoryReply) error {
 	// Build start vote cache
 	log.Tracef("decred: building start vote cache")
 	for _, v := range ir.StartVoteTuples {
-		sv := convertStartVoteFromDecred(v.StartVote, v.StartVoteReply)
-		err := d.newStartVote(d.recordsdb, sv)
+		endHeight, err := strconv.ParseUint(v.StartVoteReply.EndHeight, 10, 64)
+		if err != nil {
+			log.Debugf("newStartVote failed on '%v'", v)
+			return fmt.Errorf("parse end height '%v': %v",
+				v.StartVoteReply.EndHeight, err)
+		}
+
+		sv := convertStartVoteFromDecred(v.StartVote,
+			v.StartVoteReply, endHeight)
+		err = d.newStartVote(d.recordsdb, sv)
 		if err != nil {
 			log.Debugf("newStartVote failed on '%v'", sv)
 			return fmt.Errorf("newStartVote: %v", err)
@@ -836,7 +957,7 @@ func (d *decred) CheckVersion() error {
 	} else if v.Version != decredVersion {
 		log.Debugf("version mismatch for ID '%v': got %v, want %v",
 			decredplugin.ID, v.Version, decredVersion)
-		err = cache.ErrWrongPluginVersion
+		err = cache.ErrWrongVersion
 	}
 
 	return err
