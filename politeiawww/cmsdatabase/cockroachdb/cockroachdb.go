@@ -69,6 +69,20 @@ func (c *cockroachdb) InvoicesByUserID(userid string) ([]database.Invoice, error
 		return nil, err
 	}
 
+	tokens := make([]string, 0, len(invoices))
+	for _, r := range invoices {
+		tokens = append(tokens, r.Token)
+	}
+	err = c.recordsdb.
+		Preload("LineItems").
+		Preload("Changes").
+		Where(tokens).
+		Find(&invoices).
+		Error
+	if err != nil {
+		return nil, err
+	}
+
 	dbInvoices := make([]database.Invoice, 0, len(invoices))
 	for _, v := range invoices {
 		dbInvoice, err := DecodeInvoice(&v)
@@ -111,6 +125,20 @@ func (c *cockroachdb) InvoicesByMonthYearStatus(month, year uint16, status int) 
 		return nil, err
 	}
 
+	tokens := make([]string, 0, len(invoices))
+	for _, r := range invoices {
+		tokens = append(tokens, r.Token)
+	}
+	err = c.recordsdb.
+		Preload("LineItems").
+		Preload("Changes").
+		Where(tokens).
+		Find(&invoices).
+		Error
+	if err != nil {
+		return nil, err
+	}
+
 	dbInvoices := make([]database.Invoice, 0, len(invoices))
 	for _, v := range invoices {
 		dbInvoice, err := DecodeInvoice(&v)
@@ -129,6 +157,20 @@ func (c *cockroachdb) InvoicesByMonthYear(month, year uint16) ([]database.Invoic
 	invoices := make([]Invoice, 0, 1024) // PNOOMA
 	err := c.recordsdb.
 		Where("month = ? AND year = ?", month, year).
+		Find(&invoices).
+		Error
+	if err != nil {
+		return nil, err
+	}
+
+	tokens := make([]string, 0, len(invoices))
+	for _, r := range invoices {
+		tokens = append(tokens, r.Token)
+	}
+	err = c.recordsdb.
+		Preload("LineItems").
+		Preload("Changes").
+		Where(tokens).
 		Find(&invoices).
 		Error
 	if err != nil {
@@ -159,6 +201,20 @@ func (c *cockroachdb) InvoicesByStatus(status int) ([]database.Invoice, error) {
 		return nil, err
 	}
 
+	tokens := make([]string, 0, len(invoices))
+	for _, r := range invoices {
+		tokens = append(tokens, r.Token)
+	}
+	err = c.recordsdb.
+		Preload("LineItems").
+		Preload("Changes").
+		Where(tokens).
+		Find(&invoices).
+		Error
+	if err != nil {
+		return nil, err
+	}
+
 	dbInvoices := make([]database.Invoice, 0, len(invoices))
 	for _, v := range invoices {
 		dbInvoice, err := DecodeInvoice(&v)
@@ -176,6 +232,20 @@ func (c *cockroachdb) InvoicesAll() ([]database.Invoice, error) {
 
 	invoices := make([]Invoice, 0, 1024) // PNOOMA
 	err := c.recordsdb.
+		Find(&invoices).
+		Error
+	if err != nil {
+		return nil, err
+	}
+
+	tokens := make([]string, 0, len(invoices))
+	for _, r := range invoices {
+		tokens = append(tokens, r.Token)
+	}
+	err = c.recordsdb.
+		Preload("LineItems").
+		Preload("Changes").
+		Where(tokens).
 		Find(&invoices).
 		Error
 	if err != nil {

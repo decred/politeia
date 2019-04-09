@@ -943,6 +943,53 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 	}, nil
 }
 
+// processGeneratePayouts looks for all approved invoices and uses the provided
+// exchange rate to generate a list of addresses and amounts for an admin to
+// process payments.
+func (p *politeiawww) processGeneratePayouts(gp cms.GeneratePayouts, u *user.User) (*cms.GeneratePayoutsReply, error) {
+	log.Tracef("processGeneratePayouts")
+
+	dbInvs, err := p.cmsDB.InvoicesByStatus(int(cms.InvoiceStatusApproved))
+	if err != nil {
+		return nil, err
+	}
+
+	reply := &cms.GeneratePayoutsReply{}
+	payouts := make([]cms.Payout, 0, len(dbInvs))
+	for _, inv := range dbInvs {
+		payout := cms.Payout{}
+
+		var totalLaborHours uint
+		var totalExpenses uint
+		for _, lineItem := range inv.LineItems {
+			switch lineItem.Type {
+			case cms.LineItemTypeLabor:
+				totalLaborHours += lineItem.Labor
+			case cms.LineItemTypeExpense:
+			case cms.LineItemTypeMisc:
+				totalExpenses += lineItem.Expenses
+			}
+		}
+
+		// Divide by 100 to get amounts in USD
+		payout.LaborTotal = totalLaborHours * inv.ContractorRate / 100
+		payout.ContractorRate = inv.ContractorRate / 100
+
+		payout.ExpenseTotal = totalExpenses
+		payout.Address = inv.PaymentAddress
+		payout.Token = inv.Token
+		payout.ContractorName = inv.ContractorName
+
+		payout.Username = p.getUsernameById(inv.UserID)
+		payout.Month = inv.Month
+		payout.Year = inv.Year
+
+		payouts = append(payouts, payout)
+	}
+	reply.Payouts = payouts
+	return reply, err
+}
+
 // getInvoice gets the most recent verions of the given invoice from the cache
 // then fills in any missing user fields before returning the invoice record.
 func (p *politeiawww) getInvoice(token string) (*cms.InvoiceRecord, error) {

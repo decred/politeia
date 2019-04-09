@@ -777,8 +777,8 @@ func (c *Client) UserInvoices(up *cms.UserInvoices) (*cms.UserInvoicesReply, err
 	return &upr, nil
 }
 
-// AdminInvoices retrieves the proposals that have been submitted by the
-// specified user.
+// AdminInvoices retrieves invoices base on possible field set in the request
+// month/year and/or status
 func (c *Client) AdminInvoices(ai *cms.AdminInvoices) (*cms.AdminInvoicesReply, error) {
 	responseBody, err := c.makeRequest("POST", cms.RouteAdminInvoices, ai)
 	if err != nil {
@@ -799,6 +799,30 @@ func (c *Client) AdminInvoices(ai *cms.AdminInvoices) (*cms.AdminInvoicesReply, 
 	}
 
 	return &air, nil
+}
+
+// GeneratePayouts generates a list of payouts for all approved invoices that
+// contain an address and amount for an admin to the process
+func (c *Client) GeneratePayouts(gp *cms.GeneratePayouts) (*cms.GeneratePayoutsReply, error) {
+	responseBody, err := c.makeRequest("POST", cms.RouteGeneratePayouts, gp)
+	if err != nil {
+		return nil, err
+	}
+
+	var gpr cms.GeneratePayoutsReply
+	err = json.Unmarshal(responseBody, &gpr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal GeneratePayoutsReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(gpr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &gpr, nil
 }
 
 // SetProposalStatus changes the status of the specified proposal.

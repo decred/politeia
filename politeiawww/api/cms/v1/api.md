@@ -15,6 +15,7 @@ server side notifications.  It does not render HTML.
 - [`Admin invoices`](#admin-invoices)
 - [`Edit invoice`](#edit-invoice)
 - [`Set invoice status`](#set-invoice-status)
+- [`Generate payouts`](#generate-payouts)
 
 **Invoice status codes**
 
@@ -427,6 +428,51 @@ Reply:
 }
 ```
 
+### `Generate payouts`
+
+Generates a list of payout information for currently approved invoices.
+
+Note: This call requires admin privileges.
+
+**Route:** `POST /v1/admin/generatepayouts`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+
+**Results:**
+
+| | Type | Description |
+|-|-|-|
+| payouts | array of [`Payout`](#payout)s | The page of invoices. |
+
+**Example**
+
+Request:
+
+```json
+{}
+```
+
+Reply:
+
+```json
+{
+  "payouts": [
+    {
+      "contractorname": "bill",
+      "username": "bill0012",
+      "month": 1,
+      "year": 2019,
+      "token": "123afed4609f21f4e3262420a875405440f42dcdaa98c163c6610fd9d6b7e855",
+      "address": "TsfDLrRkk9ciUuwfp2b8PawwnukYD7yAjGd",
+      "labortotal": 120000,
+      "expensetotal": 400
+    }
+  ]
+}
+```
 ### Invoice status codes
 
 | Status | Value | Description |
