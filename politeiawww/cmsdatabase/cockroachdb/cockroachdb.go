@@ -25,7 +25,7 @@ const (
 	tableNameLineItem      = "line_items"
 	tableNameInvoiceChange = "invoice_change"
 
-	UserCMSDB = "invoices_cmsdb" // cmsdb user (read/write access)
+	userPoliteiawww = "politeiawww" // cmsdb user (read/write access)
 )
 
 // cockroachdb implements the cache interface.
@@ -361,13 +361,14 @@ func buildQueryString(user, rootCert, cert, key string) string {
 }
 
 // New returns a new cockroachdb context that contains a connection to the
-// specified database that was made using the passed in user and certificates.
-func New(user, host, net, rootCert, cert, key string) (*cockroachdb, error) {
-	log.Tracef("New: %v %v %v %v %v %v", user, host, net, rootCert, cert, key)
+// specified database that was made using the politeiawww user and the passed
+// in certificates.
+func New(host, net, rootCert, cert, key string) (*cockroachdb, error) {
+	log.Tracef("New: %v %v %v %v %v", host, net, rootCert, cert, key)
 
 	// Connect to database
 	dbName := cacheID + "_" + net
-	h := "postgresql://" + user + "@" + host + "/" + dbName
+	h := "postgresql://" + userPoliteiawww + "@" + host + "/" + dbName
 	u, err := url.Parse(h)
 	if err != nil {
 		return nil, fmt.Errorf("parse url '%v': %v", h, err)

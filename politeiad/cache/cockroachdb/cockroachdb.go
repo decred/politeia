@@ -29,8 +29,8 @@ const (
 	tableFiles           = "files"
 
 	// Database users
-	UserPoliteiad   = "records_politeiad"   // politeiad user (read/write access)
-	UserPoliteiawww = "records_politeiawww" // politeiawww user (read access)
+	UserPoliteiad   = "politeiad"   // politeiad user (read/write access)
+	UserPoliteiawww = "politeiawww" // politeiawww user (read access)
 )
 
 // cockroachdb implements the cache interface.

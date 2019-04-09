@@ -9,6 +9,10 @@
 
 set -ex
 
+# Database usernames
+readonly USER_POLITEIAD="politeiad"
+readonly USER_POLITEIAWWW="politeiawww"
+
 # COCKROACHDB_DIR is where all of the certificates will be created.
 readonly COCKROACHDB_DIR=$1
 
@@ -20,6 +24,9 @@ fi
 # Create cockroachdb directories.
 mkdir -p "${COCKROACHDB_DIR}/certs/node"
 mkdir -p "${COCKROACHDB_DIR}/certs/clients/root"
+mkdir -p "${COCKROACHDB_DIR}/certs/clients/${USER_POLITEIAD}"
+mkdir -p "${COCKROACHDB_DIR}/certs/clients/${USER_POLITEIAWWW}"
+
 
 # Create CA certificate and key.
 cockroach cert create-ca \
@@ -47,4 +54,20 @@ cockroach cert create-node localhost \
 cp "${COCKROACHDB_DIR}/certs/ca.crt" "${COCKROACHDB_DIR}/certs/clients/root"
 cockroach cert create-client root \
   --certs-dir="${COCKROACHDB_DIR}/certs/clients/root" \
+  --ca-key="${COCKROACHDB_DIR}/ca.key"
+
+# Create the client certificate and key for the politeiad user.
+cp "${COCKROACHDB_DIR}/certs/ca.crt" \
+  "${COCKROACHDB_DIR}/certs/clients/${USER_POLITEIAD}"
+
+cockroach cert create-client ${USER_POLITEIAD} \
+  --certs-dir="${COCKROACHDB_DIR}/certs/clients/${USER_POLITEIAD}" \
+  --ca-key="${COCKROACHDB_DIR}/ca.key"
+
+# Create the client certificate and key for politeiawww user.
+cp "${COCKROACHDB_DIR}/certs/ca.crt" \
+  "${COCKROACHDB_DIR}/certs/clients/${USER_POLITEIAWWW}"
+
+cockroach cert create-client ${USER_POLITEIAWWW} \
+  --certs-dir="${COCKROACHDB_DIR}/certs/clients/${USER_POLITEIAWWW}" \
   --ca-key="${COCKROACHDB_DIR}/ca.key"

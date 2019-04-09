@@ -337,8 +337,8 @@ func _main() error {
 	cockroachdb.UseLogger(cockroachdbLog)
 	net := filepath.Base(p.cfg.DataDir)
 	p.cache, err = cockroachdb.New(cockroachdb.UserPoliteiawww,
-		p.cfg.CacheHost, net, p.cfg.CacheRootCert, p.cfg.CacheCert,
-		p.cfg.CacheKey)
+		p.cfg.DBHost, net, p.cfg.DBRootCert, p.cfg.DBCert,
+		p.cfg.DBKey)
 	if err != nil {
 		if err == cache.ErrWrongVersion {
 			err = fmt.Errorf("wrong cache version, restart politeiad " +
@@ -444,8 +444,8 @@ func _main() error {
 		p.setCMSWWWRoutes()
 		cmsdb.UseLogger(cockroachdbLog)
 		net := filepath.Base(p.cfg.DataDir)
-		p.cmsDB, err = cmsdb.New(cmsdb.UserCMSDB, p.cfg.CMSHost,
-			net, p.cfg.CMSRootCert, p.cfg.CMSCert, p.cfg.CMSKey)
+		p.cmsDB, err = cmsdb.New(p.cfg.DBHost, net, p.cfg.DBRootCert,
+			p.cfg.DBCert, p.cfg.DBKey)
 		if err != nil {
 			return err
 		}
