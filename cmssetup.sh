@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
-# This script sets up the CockroachDB databases and users for the cms database.
-# This includes creating the client certificates for the cms user, creating the
-# corresponding database user, setting up the cms databases, and assigning user
-# privileges.  
+# This script sets up the CockroachDB databases and assigns user privileges.
 # This script requires that you have already created CockroachDB certificates
 # using the cockroachcerts.sh script and that you have a CockroachDB instance
 # listening on the default port localhost:26257.
@@ -37,19 +34,7 @@ readonly DB_MAINNET="cms_mainnet"
 readonly DB_TESTNET="cms_testnet3"
 
 # Database usernames.
-readonly 	USER_CMS="invoices_cmsdb" 
-
-# Make directory for the cms client certs.
-mkdir -p "${COCKROACHDB_DIR}/certs/clients/$USER_CMS"
-
-# Create the client certificate and key for the cmsdb user.
-cp "${COCKROACHDB_DIR}/certs/ca.crt" \
-  "${COCKROACHDB_DIR}/certs/clients/${USER_CMS}"
-
-cockroach cert create-client ${USER_CMS} \
-  --certs-dir="${COCKROACHDB_DIR}/certs/clients/${USER_CMS}" \
-  --ca-key="${COCKROACHDB_DIR}/ca.key"
-
+readonly 	USER_POLITEIAWWW="politeiawww" 
 
 # Create the mainnet and testnet databases for the cms database.
 cockroach sql \
@@ -60,17 +45,17 @@ cockroach sql \
   --certs-dir="${ROOT_CERTS_DIR}" \
   --execute "CREATE DATABASE IF NOT EXISTS ${DB_TESTNET}"
 
-# Create the cmsdb user and assign privileges.
+# Create the politeiawww user and assign privileges.
 cockroach sql \
   --certs-dir="${ROOT_CERTS_DIR}" \
-  --execute "CREATE USER IF NOT EXISTS ${USER_CMS}"
+  --execute "CREATE USER IF NOT EXISTS ${USER_POLITEIAWWW}"
 
 cockroach sql \
   --certs-dir="${ROOT_CERTS_DIR}" \
   --execute "GRANT CREATE, SELECT, DROP, INSERT, DELETE, UPDATE \
-  ON DATABASE ${DB_MAINNET} TO  ${USER_CMS}"
+  ON DATABASE ${DB_MAINNET} TO  ${USER_POLITEIAWWW}"
 
 cockroach sql \
   --certs-dir="${ROOT_CERTS_DIR}" \
   --execute "GRANT CREATE, SELECT, DROP, INSERT, DELETE, UPDATE \
-  ON DATABASE ${DB_TESTNET} TO  ${USER_CMS}"
+  ON DATABASE ${DB_TESTNET} TO  ${USER_POLITEIAWWW}"
