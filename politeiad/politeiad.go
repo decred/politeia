@@ -1129,7 +1129,10 @@ func _main() error {
 		net := filepath.Base(p.cfg.DataDir)
 		db, err := cockroachdb.New(cockroachdb.UserPoliteiad, p.cfg.CacheHost,
 			net, p.cfg.CacheRootCert, p.cfg.CacheCert, p.cfg.CacheKey)
-		if err == cache.ErrWrongVersion {
+		if err == cache.ErrNoVersionRecord || err == cache.ErrWrongVersion {
+			// The cache version record was either not found or
+			// is the wrong version which means that the cache
+			// needs to be built/rebuilt.
 			p.cfg.BuildCache = true
 		} else if err != nil {
 			return fmt.Errorf("cockroachdb new: %v", err)

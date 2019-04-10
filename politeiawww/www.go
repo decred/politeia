@@ -340,26 +340,35 @@ func _main() error {
 		p.cfg.CacheHost, net, p.cfg.CacheRootCert, p.cfg.CacheCert,
 		p.cfg.CacheKey)
 	if err != nil {
-		if err == cache.ErrWrongVersion {
-			err = fmt.Errorf("wrong cache version, restart politeiad " +
-				"to rebuild the cache")
+		switch err {
+		case cache.ErrNoVersionRecord:
+			err = fmt.Errorf("cache version record not found; " +
+				"start politeiad to setup the cache")
+		case cache.ErrWrongVersion:
+			err = fmt.Errorf("wrong cache version found; " +
+				"restart politeiad to rebuild the cache")
 		}
-		return err
+		return fmt.Errorf("cockroachdb new: %v", err)
 	}
 
 	// Register plugins with cache
 	for _, v := range p.plugins {
 		cp := convertPluginToCache(v)
 		err = p.cache.RegisterPlugin(cp)
-		if err == cache.ErrWrongPluginVersion {
-			return fmt.Errorf("%v plugin wrong version.  The "+
-				"cache needs to be rebuilt.", v.ID)
-		} else if err != nil {
+		if err != nil {
+			switch err {
+			case cache.ErrNoVersionRecord:
+				err = fmt.Errorf("version record not found;" +
+					"start politeiad to setup the cache")
+			case cache.ErrWrongVersion:
+				err = fmt.Errorf("wrong version found; " +
+					"restart politeiad to rebuild the cache")
+			}
 			return fmt.Errorf("cache register plugin '%v': %v",
 				v.ID, err)
 		}
 
-		log.Infof("Registered plugin: %v", v.ID)
+		log.Infof("Registered cache plugin: %v", v.ID)
 	}
 
 	// Setup database.

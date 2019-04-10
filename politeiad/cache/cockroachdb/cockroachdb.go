@@ -828,27 +828,29 @@ func New(user, host, net, rootCert, cert, key string) (*cockroachdb, error) {
 	// names manually.
 	c.recordsdb.SingularTable(true)
 
-	// Return an error if there is version mismatch, but also
-	// return the database context so that the cache can be
-	// rebuilt.
-	var v Version
+	log.Infof("Cache host: %v", h)
+
+	// Return an error if the version record is not found or
+	// if there is a version mismatch, but also return the
+	// cache context so that the cache can be built/rebuilt.
 	if !c.recordsdb.HasTable(tableVersions) {
-		return nil, fmt.Errorf("table '%v' does not exist", tableVersions)
+		log.Debugf("table '%v' does not exist", tableVersions)
+		return c, cache.ErrNoVersionRecord
 	}
 
+	var v Version
 	err = c.recordsdb.
 		Where("id = ?", cacheID).
 		Find(&v).
 		Error
 	if err == gorm.ErrRecordNotFound {
-		// The version record not being found is the
-		// equivalent of the version being wrong.
-		err = cache.ErrWrongVersion
+		log.Debugf("version record not found for ID '%v'", cacheID)
+		err = cache.ErrNoVersionRecord
 	} else if v.Version != cacheVersion {
+		log.Debugf("version mismatch for ID '%v': got %v, want %v",
+			cacheID, v.Version, cacheVersion)
 		err = cache.ErrWrongVersion
 	}
-
-	log.Infof("Cache host: %v", h)
 
 	return c, err
 }

@@ -821,31 +821,25 @@ func (d *decred) CheckVersion() error {
 		return fmt.Errorf("versions table not found")
 	}
 
-	// Lookup version record
+	// Lookup version record. If the version is not found or
+	// if there is a version mismatch, return an error so
+	// that the decred plugin cache can be built/rebuilt.
 	var v Version
 	err := d.recordsdb.
 		Where("id = ?", decredplugin.ID).
 		Find(&v).
 		Error
 	if err == gorm.ErrRecordNotFound {
-		// A version record not being found indicates that the
-		// decred plugin cache has not been built yet. Return a
-		// ErrWrongPluginVersion error so that the cache will be
-		// built.
-		log.Debugf("decred: no version record found")
-		return cache.ErrWrongPluginVersion
-	} else if err != nil {
-		return err
+		log.Debugf("version record not found for ID '%v'",
+			decredplugin.ID)
+		err = cache.ErrNoVersionRecord
+	} else if v.Version != decredVersion {
+		log.Debugf("version mismatch for ID '%v': got %v, want %v",
+			decredplugin.ID, v.Version, decredVersion)
+		err = cache.ErrWrongPluginVersion
 	}
 
-	// Ensure we're using the correct version
-	if v.Version != decredVersion {
-		log.Debugf("decred: wrong version %v %v",
-			v.Version, decredVersion)
-		return cache.ErrWrongPluginVersion
-	}
-
-	return nil
+	return err
 }
 
 // newDecredPlugin returns a cache decred plugin context.
