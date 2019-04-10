@@ -1198,7 +1198,10 @@ func _main() error {
 			// Register plugin with the cache
 			cp := convertBackendPluginToCache(v)
 			err := p.cache.RegisterPlugin(cp)
-			if err == cache.ErrWrongPluginVersion {
+			if err == cache.ErrNoVersionRecord || err == cache.ErrWrongVersion {
+				// The cache plugin version record was either not found
+				// or it is the wrong version which means that the cache
+				// needs to be built/rebuilt.
 				p.cfg.BuildCache = true
 			} else if err != nil {
 				return fmt.Errorf("cache register plugin '%v': %v",
