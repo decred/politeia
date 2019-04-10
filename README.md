@@ -124,7 +124,7 @@ You can also use the following default configurations:
 
 **Things to note:**
 
-* The `rpccert` path is referencing a macOS path. See above for
+* The `rpccert` path is referencing a Linux path. See above for
 more OS paths.
 
 * politeiawww uses an email server to send verification codes for
