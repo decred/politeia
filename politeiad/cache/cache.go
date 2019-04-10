@@ -11,9 +11,12 @@ import (
 type RecordStatusT int
 
 var (
-	// ErrWrongVersion is emitted when the version of the cache tables
-	// does not match the version of the cache implementation.
-	ErrWrongVersion = errors.New("wrong cache version")
+	// ErrNoVersionRecord is emitted when no version record exists.
+	ErrNoVersionRecord = errors.New("no version record")
+
+	// ErrWrongVersion is emitted when the version record does not
+	// match the implementation version.
+	ErrWrongVersion = errors.New("wrong version")
 
 	// ErrShutdown is emitted when the cache is shutting down.
 	ErrShutdown = errors.New("cache is shutting down")
