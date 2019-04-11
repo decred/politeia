@@ -283,6 +283,61 @@ func (p *politeiawww) handleGeneratePayouts(w http.ResponseWriter, r *http.Reque
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
+// handleNewCommentInvoice handles incomming comments for invoices.
+func (p *politeiawww) handleNewCommentInvoice(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleNewCommentInvoice")
+
+	var sc www.NewComment
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&sc); err != nil {
+		RespondWithError(w, r, 0, "handleNewCommentInvoice: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleNewCommentInvoice: getSessionUser %v", err)
+		return
+	}
+
+	cr, err := p.processNewCommentInvoice(sc, user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleNewCommentInvoice: processNewCommentInvoice: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, cr)
+}
+
+// handleCommentsGet handles batched comments get.
+func (p *politeiawww) handleInvoiceComments(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleCommentsGet")
+
+	pathParams := mux.Vars(r)
+	token := pathParams["token"]
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		if err != ErrSessionUUIDNotFound {
+			RespondWithError(w, r, 0,
+				"handleCommentsGet: getSessionUser %v", err)
+			return
+		}
+	}
+	gcr, err := p.processInvoiceComments(token, user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleCommentsGet: processCommentsGet %v", err)
+		return
+	}
+	util.RespondWithJSON(w, http.StatusOK, gcr)
+}
+
 func (p *politeiawww) setCMSWWWRoutes() {
 	// Templates
 	//p.addTemplate(templateNewProposalSubmittedName,
@@ -303,12 +358,10 @@ func (p *politeiawww) setCMSWWWRoutes() {
 
 	p.addRoute(http.MethodGet, www.RoutePolicy, p.handlePolicy,
 		permissionPublic)
-	p.addRoute(http.MethodGet, www.RouteCommentsGet, p.handleCommentsGet,
-		permissionPublic)
 
 	// Routes that require being logged in.
 	p.addRoute(http.MethodPost, www.RouteNewComment,
-		p.handleNewComment, permissionLogin)
+		p.handleNewCommentInvoice, permissionLogin)
 	p.addRoute(http.MethodPost, cms.RouteNewInvoice,
 		p.handleNewInvoice, permissionLogin)
 	p.addRoute(http.MethodPost, cms.RouteEditInvoice,
@@ -317,6 +370,8 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		p.handleInvoiceDetails, permissionLogin)
 	p.addRoute(http.MethodGet, cms.RouteUserInvoices,
 		p.handleUserInvoices, permissionLogin)
+	p.addRoute(http.MethodGet, cms.RouteInvoiceComments,
+		p.handleInvoiceComments, permissionLogin)
 
 	// Unauthenticated websocket
 	p.addRoute("", www.RouteUnauthenticatedWebSocket,

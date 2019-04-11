@@ -19,6 +19,7 @@ const (
 	RouteUserInvoices     = "/user/invoices"
 	RouteAdminInvoices    = "/admin/invoices"
 	RouteGeneratePayouts  = "/admin/generatepayouts"
+	RouteInvoiceComments  = "/invoices/{token:[A-z0-9]{64}}/comments"
 
 	// Invoice status codes
 	InvoiceStatusInvalid  InvoiceStatusT = 0 // Invalid status

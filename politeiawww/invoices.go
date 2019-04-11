@@ -1107,6 +1107,98 @@ func (p *politeiawww) processAdminInvoices(ai cms.AdminInvoices, user *user.User
 	return &reply, nil
 }
 
+// processCommentsGet returns all comments for a given proposal. If the user is
+// logged in the user's last access time for the given comments will also be
+// returned.
+func (p *politeiawww) processInvoiceComments(token string, u *user.User) (*www.GetCommentsReply, error) {
+	log.Tracef("ProcessCommentGet: %v", token)
+
+	ir, err := p.getInvoice(token)
+	if err != nil {
+		if err == cache.ErrRecordNotFound {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusInvoiceNotFound,
+			}
+		}
+		return nil, err
+	}
+
+	_, ok := p.userPubkeys[ir.PublicKey]
+
+	// Check to make sure the user is either an admin or the creator of the invoice
+	if !u.Admin && !ok {
+		err := www.UserError{
+			ErrorCode: www.ErrorStatusUserActionNotAllowed,
+		}
+		return nil, err
+	}
+
+	// Fetch proposal comments from cache
+	c, err := p.getInvoiceComments(token)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get the last time the user accessed these comments. This is
+	// a public route so a user may not exist.
+	var accessTime int64
+	if u != nil {
+		if u.ProposalCommentsAccessTimes == nil {
+			u.ProposalCommentsAccessTimes = make(map[string]int64)
+		}
+		accessTime = u.ProposalCommentsAccessTimes[token]
+		u.ProposalCommentsAccessTimes[token] = time.Now().Unix()
+		err = p.db.UserUpdate(*u)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &www.GetCommentsReply{
+		Comments:   c,
+		AccessTime: accessTime,
+	}, nil
+}
+
+func (p *politeiawww) getInvoiceComments(token string) ([]www.Comment, error) {
+	log.Tracef("getInvoiceComments: %v", token)
+
+	dc, err := p.decredGetComments(token)
+	if err != nil {
+		return nil, fmt.Errorf("decredGetComments: %v", err)
+	}
+
+	p.RLock()
+	defer p.RUnlock()
+
+	// Fill in politeiawww data. Cache usernames to reduce
+	// database lookups.
+	comments := make([]www.Comment, 0, len(dc))
+	usernames := make(map[string]string, len(dc)) // [userID]username
+	for _, v := range dc {
+		c := convertCommentFromDecred(v)
+
+		// Fill in author info
+		userID, ok := p.userPubkeys[c.PublicKey]
+		if !ok {
+			log.Errorf("getInvoiceComments: userID lookup failed "+
+				"pubkey:%v token:%v comment:%v", c.PublicKey,
+				c.Token, c.CommentID)
+		}
+		u, ok := usernames[userID]
+		if !ok && userID != "" {
+			u = p.getUsernameById(userID)
+			usernames[userID] = u
+		}
+		c.UserID = userID
+		c.Username = u
+
+		comments = append(comments, c)
+	}
+
+	return comments, nil
+}
+
 // backendInvoiceMetadata represents the general metadata for an invoice and is
 // stored in the metadata stream mdStreamInvoiceGeneral in politeiad.
 type backendInvoiceMetadata struct {
