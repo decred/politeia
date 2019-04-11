@@ -1110,7 +1110,7 @@ func (p *politeiawww) processAdminInvoices(ai cms.AdminInvoices, user *user.User
 // processCommentsGet returns all comments for a given proposal. If the user is
 // logged in the user's last access time for the given comments will also be
 // returned.
-func (p *politeiawww) processCommentsInvoiceGet(token string, u *user.User) (*www.GetCommentsReply, error) {
+func (p *politeiawww) processInvoiceComments(token string, u *user.User) (*www.GetCommentsReply, error) {
 	log.Tracef("ProcessCommentGet: %v", token)
 
 	ir, err := p.getInvoice(token)

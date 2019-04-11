@@ -16,7 +16,7 @@ server side notifications.  It does not render HTML.
 - [`Edit invoice`](#edit-invoice)
 - [`Set invoice status`](#set-invoice-status)
 - [`Generate payouts`](#generate-payouts)
-- [`Get invoice comments`](#get-invoice-comments)
+- [`Invoice comments`](#invoice-comments)
 
 **Invoice status codes**
 
@@ -447,7 +447,7 @@ Note: This call requires admin privileges.
 | | Type | Description |
 |-|-|-|
 | payouts | array of [`Payout`](#payout)s | The page of invoices. |
-y
+
 **Example**
 
 Request:
@@ -474,7 +474,7 @@ Reply:
 }
 ```
 
-### `Get comments`
+### `Invoice comments`
 
 Retrieve all comments for given invoice.  Note that the comments are not
 sorted.

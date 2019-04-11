@@ -943,7 +943,7 @@ func (c *Client) GetComments(token string) (*v1.GetCommentsReply, error) {
 }
 
 // GetComments retrieves the comments for the specified proposal.
-func (c *Client) GetInvoiceComments(token string) (*v1.GetCommentsReply, error) {
+func (c *Client) InvoiceComments(token string) (*v1.GetCommentsReply, error) {
 	responseBody, err := c.makeRequest("GET", "/invoices/"+token+"/comments",
 		nil)
 	if err != nil {
@@ -953,7 +953,7 @@ func (c *Client) GetInvoiceComments(token string) (*v1.GetCommentsReply, error) 
 	var gcr v1.GetCommentsReply
 	err = json.Unmarshal(responseBody, &gcr)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal GetCommentsReply: %v", err)
+		return nil, fmt.Errorf("unmarshal InvoiceCommentsReply: %v", err)
 	}
 
 	if c.cfg.Verbose {

@@ -10,16 +10,16 @@ type LineItemTypeT int
 const (
 
 	// Contractor Management Routes
-	RouteInviteNewUser      = "/invite"
-	RouteRegisterUser       = "/register"
-	RouteNewInvoice         = "/invoices/new"
-	RouteEditInvoice        = "/invoices/edit"
-	RouteInvoiceDetails     = "/invoices/{token:[A-z0-9]{64}}"
-	RouteSetInvoiceStatus   = "/invoices/{token:[A-z0-9]{64}}/status"
-	RouteUserInvoices       = "/user/invoices"
-	RouteAdminInvoices      = "/admin/invoices"
-	RouteGeneratePayouts    = "/admin/generatepayouts"
-	RouteCommentsInvoiceGet = "/invoices/{token:[A-z0-9]{64}}/comments"
+	RouteInviteNewUser    = "/invite"
+	RouteRegisterUser     = "/register"
+	RouteNewInvoice       = "/invoices/new"
+	RouteEditInvoice      = "/invoices/edit"
+	RouteInvoiceDetails   = "/invoices/{token:[A-z0-9]{64}}"
+	RouteSetInvoiceStatus = "/invoices/{token:[A-z0-9]{64}}/status"
+	RouteUserInvoices     = "/user/invoices"
+	RouteAdminInvoices    = "/admin/invoices"
+	RouteGeneratePayouts  = "/admin/generatepayouts"
+	RouteInvoiceComments  = "/invoices/{token:[A-z0-9]{64}}/comments"
 
 	// Invoice status codes
 	InvoiceStatusInvalid  InvoiceStatusT = 0 // Invalid status

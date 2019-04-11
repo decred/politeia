@@ -315,7 +315,7 @@ func (p *politeiawww) handleNewCommentInvoice(w http.ResponseWriter, r *http.Req
 }
 
 // handleCommentsGet handles batched comments get.
-func (p *politeiawww) handleCommentsInvoiceGet(w http.ResponseWriter, r *http.Request) {
+func (p *politeiawww) handleInvoiceComments(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleCommentsGet")
 
 	pathParams := mux.Vars(r)
@@ -329,7 +329,7 @@ func (p *politeiawww) handleCommentsInvoiceGet(w http.ResponseWriter, r *http.Re
 			return
 		}
 	}
-	gcr, err := p.processCommentsInvoiceGet(token, user)
+	gcr, err := p.processInvoiceComments(token, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleCommentsGet: processCommentsGet %v", err)
@@ -370,8 +370,8 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		p.handleInvoiceDetails, permissionLogin)
 	p.addRoute(http.MethodGet, cms.RouteUserInvoices,
 		p.handleUserInvoices, permissionLogin)
-	p.addRoute(http.MethodGet, cms.RouteCommentsInvoiceGet,
-		p.handleCommentsInvoiceGet, permissionLogin)
+	p.addRoute(http.MethodGet, cms.RouteInvoiceComments,
+		p.handleInvoiceComments, permissionLogin)
 
 	// Unauthenticated websocket
 	p.addRoute("", www.RouteUnauthenticatedWebSocket,

@@ -13,7 +13,7 @@ type InvoiceCommentsCmd struct {
 
 // Execute executes the invoice comments command.
 func (cmd *InvoiceCommentsCmd) Execute(args []string) error {
-	gcr, err := client.GetInvoiceComments(cmd.Args.Token)
+	gcr, err := client.InvoiceComments(cmd.Args.Token)
 	if err != nil {
 		return err
 	}
