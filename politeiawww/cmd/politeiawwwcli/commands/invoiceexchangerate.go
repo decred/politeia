@@ -22,8 +22,8 @@ func (cmd *InvoiceExchangeRateCmd) Execute(args []string) error {
 	year := cmd.Args.Year
 
 	ier := &v1.InvoiceExchangeRate{
-		Month: uint(month),
-		Year:  uint(year),
+		Month: month,
+		Year:  year,
 	}
 
 	// Print request details
