@@ -1,3 +1,7 @@
+// Copyright (c) 2019 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package main
 
 import (
@@ -338,6 +342,30 @@ func (p *politeiawww) handleInvoiceComments(w http.ResponseWriter, r *http.Reque
 	util.RespondWithJSON(w, http.StatusOK, gcr)
 }
 
+// handleInvoiceExchangeRate handles incoming requests for monthly exchange rate
+func (p *politeiawww) handleInvoiceExchangeRate(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleInvoiceExchangeRate")
+
+	var ier cms.InvoiceExchangeRate
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&ier); err != nil {
+		RespondWithError(w, r, 0, "handleInvoiceExchangeRate: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	ierr, err := p.processInvoiceExchangeRate(ier)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleInvoiceExchangeRate: processNewCommentInvoice: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, ierr)
+}
+
 func (p *politeiawww) setCMSWWWRoutes() {
 	// Templates
 	//p.addTemplate(templateNewProposalSubmittedName,
@@ -372,6 +400,8 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		p.handleUserInvoices, permissionLogin)
 	p.addRoute(http.MethodGet, cms.RouteInvoiceComments,
 		p.handleInvoiceComments, permissionLogin)
+	p.addRoute(http.MethodPost, cms.RouteExchangeRate,
+		p.handleInvoiceExchangeRate, permissionLogin)
 
 	// Unauthenticated websocket
 	p.addRoute("", www.RouteUnauthenticatedWebSocket,
