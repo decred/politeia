@@ -1557,6 +1557,28 @@ func (c *Client) TokenInventory() (*v1.TokenInventoryReply, error) {
 	return &tir, nil
 }
 
+// InvoiceExchangeRate changes the status of the specified invoice.
+func (c *Client) InvoiceExchangeRate(ier *cms.InvoiceExchangeRate) (*cms.InvoiceExchangeRateReply, error) {
+	responseBody, err := c.makeRequest("POST", cms.RouteInvoiceExchangeRate, ier)
+	if err != nil {
+		return nil, err
+	}
+
+	var ierr cms.InvoiceExchangeRateReply
+	err = json.Unmarshal(responseBody, &ierr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal SetInvoiceStatusReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(ierr)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &ierr, nil
+}
+
 // Close all client connections.
 func (c *Client) Close() {
 	if c.conn != nil {

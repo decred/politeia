@@ -400,7 +400,7 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		p.handleUserInvoices, permissionLogin)
 	p.addRoute(http.MethodGet, cms.RouteInvoiceComments,
 		p.handleInvoiceComments, permissionLogin)
-	p.addRoute(http.MethodPost, cms.RouteExchangeRate,
+	p.addRoute(http.MethodPost, cms.RouteInvoiceExchangeRate,
 		p.handleInvoiceExchangeRate, permissionLogin)
 
 	// Unauthenticated websocket
