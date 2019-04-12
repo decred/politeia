@@ -188,7 +188,7 @@ func validateLocation(location string) error {
 	return nil
 }
 
-// processNewInvoice tries to submit a new proposal to politeiad.
+// processNewInvoice tries to submit a new invoice to politeiad.
 func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.NewInvoiceReply, error) {
 	log.Tracef("processNewInvoice")
 
@@ -455,6 +455,17 @@ func validateInvoice(ni cms.NewInvoice, u *user.User) error {
 				}
 			}
 
+			// Validate month/year to make sure the first day of the following
+			// month is after the current date.  For example, if a user submits
+			// an invoice for 03/2019, the first time that they could submit an
+			// invoice would be approx. 12:01 AM 04/01/2019
+			startOfFollowingMonth := time.Date(int(invInput.Year), time.Month(invInput.Month+1), 0, 0, 0, 0, 0, time.UTC)
+			if startOfFollowingMonth.After(time.Now()) {
+				return www.UserError{
+					ErrorCode: www.ErrorStatusInvalidInvoiceMonthYear,
+				}
+			}
+
 			// Validate Payment Address
 			addr, err := dcrutil.DecodeAddress(strings.TrimSpace(invInput.PaymentAddress))
 			if err != nil {
@@ -665,7 +676,7 @@ func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, user 
 	return &reply, nil
 }
 
-// processNewInvoice tries to submit a new proposal to politeiad.
+// processSetInvoiceStatus updates the status of the specified invoice.
 func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus,
 	u *user.User) (*cms.SetInvoiceStatusReply, error) {
 	log.Tracef("processSetInvoiceStatus")

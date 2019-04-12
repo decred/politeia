@@ -134,6 +134,7 @@ notifications.  It does not render HTML.
 - [`ErrorStatusMalformedDescription`](#ErrorStatusMalformedDescription) 
 - [`ErrorStatusWrongInvoiceStatus`](#ErrorStatusWrongInvoiceStatus) 
 - [`ErrorStatusInvoiceRequireLineItems`](#ErrorStatusInvoiceRequireLineItems)
+- [`ErrorStatusInvalidInvoiceMonthYear`](#ErrorStatusInvalidInvoiceMonthYear)
 - [`ErrorStatusMultipleInvoiceMonthYear`](#ErrorStatusMultipleInvoiceMonthYear)
 
 **Proposal status codes**
@@ -2549,6 +2550,7 @@ Reply:
 | <a name="ErrorStatusWrongInvoiceStatus">ErrorStatusWrongInvoiceStatus</a> | 80 | Wrong status for an invoice to be editted (approved, rejected, paid). |
 | <a name="ErrorStatusInvoiceRequireLineItems">ErrorStatusInvoiceRequireLineItems</a> | 81 | Invoices require at least 1 line item to be included. |
 | <a name="ErrorStatusMultipleInvoiceMonthYear">ErrorStatusMultipleInvoiceMonthYear</a> | 82 | Users are only allowed to submit 1 invoice per month/year. |
+| <a name="ErrorStatusInvalidInvoiceMonthYear">ErrorStatusInvalidInvoiceMonthYear</a> | 83 | An invalid month/year was detected in an invoice. |
 
 
 ### Proposal status codes
