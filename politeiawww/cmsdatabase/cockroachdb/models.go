@@ -17,6 +17,7 @@ type Invoice struct {
 	Username           string    `gorm:"-"` // Only populated when reading from the database
 	Month              uint      `gorm:"not null"`
 	Year               uint      `gorm:"not null"`
+	ExchangeRate       uint      `gorm:"not null"`
 	Timestamp          time.Time `gorm:"not null"`
 	Status             uint      `gorm:"not null"`
 	StatusChangeReason string    `gorm:"not null"`

@@ -104,8 +104,20 @@ func (cmd *NewInvoiceCmd) Execute(args []string) error {
 		return fmt.Errorf("Parsing CSV failed: %v", err)
 	}
 
+	ier := &v1.InvoiceExchangeRate{
+		Month: month,
+		Year:  year,
+	}
+
+	// Send request
+	ierr, err := client.InvoiceExchangeRate(ier)
+	if err != nil {
+		return err
+	}
+
 	invInput.Month = month
 	invInput.Year = year
+	invInput.ExchangeRate = ierr.ExchangeRate
 	invInput.ContractorName = strings.TrimSpace(cmd.Name)
 	invInput.ContractorLocation = strings.TrimSpace(cmd.Location)
 	invInput.ContractorContact = strings.TrimSpace(cmd.Contact)
@@ -118,6 +130,11 @@ func (cmd *NewInvoiceCmd) Execute(args []string) error {
 	}
 	invInput.ContractorRate = uint(rate * 100)
 
+	// Print request details
+	err = printJSON(invInput)
+	if err != nil {
+		return err
+	}
 	b, err := json.Marshal(invInput)
 	if err != nil {
 		return fmt.Errorf("Marshal: %v", err)
