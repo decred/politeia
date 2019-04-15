@@ -1064,8 +1064,10 @@ func (p *politeiawww) processResendVerification(rv *www.ResendVerification) (*ww
 	}
 
 	// Remove the original pubkey from the cache.
-	existingPublicKey := hex.EncodeToString(u.Identities[0].Key[:])
-	p.removeUserPubkeyAssociaton(u, existingPublicKey)
+	if len(u.Identities) > 0 {
+		existingPublicKey := hex.EncodeToString(u.Identities[0].Key[:])
+		p.removeUserPubkeyAssociaton(u, existingPublicKey)
+	}
 
 	// Set a new verificaton token and identity.
 	setNewUserVerificationAndIdentity(u, token, expiry, true, pk)
