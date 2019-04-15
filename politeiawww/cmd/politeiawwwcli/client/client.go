@@ -1533,6 +1533,30 @@ func (c *Client) SetInvoiceStatus(sis *cms.SetInvoiceStatus) (*cms.SetInvoiceSta
 	return &sisr, nil
 }
 
+// TokenInventory retrieves the censorship record tokens of all proposals in
+// the inventory.
+func (c *Client) TokenInventory() (*v1.TokenInventoryReply, error) {
+	responseBody, err := c.makeRequest("GET", v1.RouteTokenInventory, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var tir v1.TokenInventoryReply
+	err = json.Unmarshal(responseBody, &tir)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal TokenInventoryReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(tir)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &tir, nil
+}
+
 // Close all client connections.
 func (c *Client) Close() {
 	if c.conn != nil {

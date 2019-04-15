@@ -1954,3 +1954,20 @@ func (p *politeiawww) processStartVote(sv www.StartVote, u *user.User) (*www.Sta
 	rv := convertStartVoteReplyFromDecred(*vr)
 	return &rv, nil
 }
+
+// processTokenInventory returns the tokens of all proposals in the inventory,
+// categorized by stage of the voting process.
+func (p *politeiawww) processTokenInventory() (*www.TokenInventoryReply, error) {
+	bb, err := p.getBestBlock()
+	if err != nil {
+		return nil, err
+	}
+
+	reply, err := p.decredTokenInventory(bb)
+	if err != nil {
+		return nil, err
+	}
+
+	itr := convertTokenInventoryReplyFromDecred(*reply)
+	return &itr, err
+}

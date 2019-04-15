@@ -60,6 +60,7 @@ const (
 	RouteAllVoteStatus            = "/proposals/votestatus"
 	RouteVoteStatus               = "/proposals/{token:[A-z0-9]{64}}/votestatus"
 	RoutePropsStats               = "/proposals/stats"
+	RouteTokenInventory           = "/proposals/tokeninventory"
 	RouteUnauthenticatedWebSocket = "/ws"
 	RouteAuthenticatedWebSocket   = "/aws"
 
@@ -1205,6 +1206,20 @@ type ProposalsStatsReply struct {
 	NumOfUnvettedChanges int `json:"numofunvettedchanges"` // Counting number of proposals with unvetted changes
 	NumOfPublic          int `json:"numofpublic"`          // Counting number of public proposals
 	NumOfAbandoned       int `json:"numofabandoned"`       // Counting number of abandoned proposals
+}
+
+// TokenInventory retrieves the censorship record tokens of all proposals in
+// the inventory.  The token are categorized in a manner that resembles their
+// vote statuses, but that has been altered to be a more natural fit with how a
+// UI would display them.
+type TokenInventory struct{}
+
+// TokenInventoryReply is used to reply to the TokenInventory command.
+type TokenInventoryReply struct {
+	Pre       []string `json:"pre"`       // Tokens of all props that are pre-vote
+	Active    []string `json:"active"`    // Tokens of all props with an active voting period
+	Finished  []string `json:"finished"`  // Tokens of all props with a finished voting period
+	Abandoned []string `json:"abandoned"` // Tokens of all props that have been abandoned
 }
 
 // Websocket commands
