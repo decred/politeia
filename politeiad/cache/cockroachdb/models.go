@@ -158,11 +158,11 @@ func (StartVote) TableName() string {
 
 // CastVote is a decred plugin struct that is used to record a signed vote.
 type CastVote struct {
-	Key       uint   `gorm:"primary_key"`       // Primary key
-	Token     string `gorm:"not null;size:64"`  // Censorship token
-	Ticket    string `gorm:"not null"`          // Ticket ID
-	VoteBit   string `gorm:"not null"`          // Vote bit that was selected, this is encode in hex
-	Signature string `gorm:"not null;size:130"` // Signature of Token+Ticket+VoteBit
+	Key       uint   `gorm:"primary_key"`            // Primary key
+	Token     string `gorm:"not null;size:64;index"` // Censorship token
+	Ticket    string `gorm:"not null"`               // Ticket ID
+	VoteBit   string `gorm:"not null"`               // Hex encoded vote bit that was selected
+	Signature string `gorm:"not null;size:130"`      // Signature of Token+Ticket+VoteBit
 }
 
 // TableName returns the name of the CastVote database table.
