@@ -161,8 +161,8 @@ func (cmd *NewInvoiceCmd) Execute(args []string) error {
 		Files:     files,
 		PublicKey: hex.EncodeToString(cfg.Identity.Public.Key[:]),
 		Signature: sig,
-		Month:     uint16(month),
-		Year:      uint16(year),
+		Month:     month,
+		Year:      year,
 	}
 
 	// Print request details
