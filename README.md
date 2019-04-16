@@ -43,7 +43,6 @@ The politeia stack is as follows:
 * [politeia](https://github.com/decred/politeia/tree/master/politeiad/cmd/politeia) - Reference client application for politeiad.
 * [politeia_verify](https://github.com/decred/politeia/tree/master/politeiad/cmd/politeia_verify) - Reference verification tool.
 * [politeiawwwcli](https://github.com/decred/politeia/tree/master/politeiawww/cmd/politeiawwwcli) - Command-line tool for interacting with politeiawww.
-* [politeiawww_refclient](https://github.com/decred/politeia/tree/master/politeiawww/cmd/politeiawww_refclient) - Reference client application for politeiawww.
 * [politeiawww_dbutil](https://github.com/decred/politeia/tree/master/politeiawww/cmd/politeiawww_dbutil) - Tool for debugging and creating admin users within the politeiawww database.
 * [politeiawww_dataload](https://github.com/decred/politeia/tree/master/politeiawww/cmd/politeiawww_dataload) - Tool using politeiawwwcli to load a basic dataset into politeiawww.
 
