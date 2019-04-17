@@ -965,8 +965,7 @@ func (p *politeiawww) processGeneratePayouts(gp cms.GeneratePayouts, u *user.Use
 			switch lineItem.Type {
 			case cms.LineItemTypeLabor:
 				totalLaborHours += lineItem.Labor
-			case cms.LineItemTypeExpense:
-			case cms.LineItemTypeMisc:
+			case cms.LineItemTypeExpense, cms.LineItemTypeMisc:
 				totalExpenses += lineItem.Expenses
 			}
 		}
