@@ -542,11 +542,12 @@ type Version struct{}
 // is running and additionally the route to the API and the public signing key of
 // the server.
 type VersionReply struct {
-	Version uint   `json:"version"` // politeia WWW API version
-	Route   string `json:"route"`   // prefix to API calls
-	PubKey  string `json:"pubkey"`  // Server public key
-	TestNet bool   `json:"testnet"` // Network indicator
-	Mode    string `json:"mode"`    // current politeiawww mode running (piwww or cmswww)
+	Version           uint   `json:"version"`           // politeia WWW API version
+	Route             string `json:"route"`             // prefix to API calls
+	PubKey            string `json:"pubkey"`            // Server public key
+	TestNet           bool   `json:"testnet"`           // Network indicator
+	Mode              string `json:"mode"`              // current politeiawww mode running (piwww or cmswww)
+	ActiveUserSession bool   `json:"activeusersession"` // indicates if there is an active user session
 }
 
 // NewUser is used to request that a new user be created within the db.

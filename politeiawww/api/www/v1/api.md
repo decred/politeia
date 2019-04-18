@@ -264,7 +264,8 @@ to get the CSRF token for the session and to ensure API compatibility.
 | route | string | Route that should be prepended to all calls. For example, "/v1". |
 | pubkey | string | The public key for the corresponding private key that signs various tokens to ensure server authenticity and to prevent replay attacks. |
 | testnet | boolean | Value to inform either its running on testnet or not |
-| mode | string | Current mode that politeiawww is running (possibly piwww or cmswww)
+| mode | string | Current mode that politeiawww is running (possibly piwww or cmswww) |
+| activeusersesstion | boolean | Indicates if there is an active user from the session or not |
 
 **Example**
 
@@ -280,7 +281,11 @@ Reply:
 {
   "version": 1,
   "route": "/v1",
-  "identity": "99e748e13d7ecf70ef6b5afa376d692cd7cb4dbb3d26fa83f417d29e44c6bb6c"
+  "pubkey": "99e748e13d7ecf70ef6b5afa376d692cd7cb4dbb3d26fa83f417d29e44c6bb6c",
+  "testnet": true,
+  "mode": "piwww",
+  "activeusersession": true
+
 }
 ```
 
