@@ -166,17 +166,14 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 			RespondWithError(w, r, 0, "handleVersion: session.Save %v", err)
 			return
 		}
-
-		versionReply.ActiveSession = true
 	}
 
-	vr, err := json.Marshal(www.VersionReply{
-		Version: www.PoliteiaWWWAPIVersion,
-		Route:   www.PoliteiaWWWAPIRoute,
-		PubKey:  hex.EncodeToString(p.cfg.Identity.Key[:]),
-		TestNet: p.cfg.TestNet,
-		Mode:    p.cfg.Mode,
-	})
+	_, err = p.getSessionUser(w, r)
+	if err == nil {
+		versionReply.ActiveUserSession = true
+	}
+
+	vr, err := json.Marshal(versionReply)
 	if err != nil {
 		RespondWithError(w, r, 0, "handleVersion: Marshal %v", err)
 		return
