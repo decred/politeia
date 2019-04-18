@@ -145,16 +145,12 @@ func (p *politeiawww) getTemplate(templateName string) *template.Template {
 func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleVersion")
 
-	versionReply, err := json.Marshal(www.VersionReply{
+	versionReply := www.VersionReply{
 		Version: www.PoliteiaWWWAPIVersion,
 		Route:   www.PoliteiaWWWAPIRoute,
 		PubKey:  hex.EncodeToString(p.cfg.Identity.Key[:]),
 		TestNet: p.cfg.TestNet,
 		Mode:    p.cfg.Mode,
-	})
-	if err != nil {
-		RespondWithError(w, r, 0, "handleVersion: Marshal %v", err)
-		return
 	}
 
 	// Check if there's an active AND invalid session.
@@ -170,6 +166,20 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 			RespondWithError(w, r, 0, "handleVersion: session.Save %v", err)
 			return
 		}
+
+		versionReply.ActiveSession = true
+	}
+
+	vr, err := json.Marshal(www.VersionReply{
+		Version: www.PoliteiaWWWAPIVersion,
+		Route:   www.PoliteiaWWWAPIRoute,
+		PubKey:  hex.EncodeToString(p.cfg.Identity.Key[:]),
+		TestNet: p.cfg.TestNet,
+		Mode:    p.cfg.Mode,
+	})
+	if err != nil {
+		RespondWithError(w, r, 0, "handleVersion: Marshal %v", err)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -177,7 +187,7 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 		"max-age=63072000; includeSubDomains")
 	w.Header().Set(www.CsrfToken, csrf.Token(r))
 	w.WriteHeader(http.StatusOK)
-	w.Write(versionReply)
+	w.Write(vr)
 }
 
 // handleNotFound is a generic handler for an invalid route.
