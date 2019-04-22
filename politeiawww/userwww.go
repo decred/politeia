@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"text/template"
 
+	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
@@ -706,6 +707,31 @@ func (p *politeiawww) handleUserProposalCredits(w http.ResponseWriter, r *http.R
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
+// handleRegisterUser handles the completion of registration by invited users of
+// the Contractor Management System.
+func (p *politeiawww) handleRegisterUser(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleRegisterUser")
+
+	// Get the new user command.
+	var u cms.RegisterUser
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&u); err != nil {
+		RespondWithError(w, r, 0, "handleRegisterUser: unmarshal", www.UserError{
+			ErrorCode: www.ErrorStatusInvalidInput,
+		})
+		return
+	}
+
+	reply, err := p.processRegisterUser(u)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleRegisterUser: ProcessRegisterUser %v", err)
+		return
+	}
+
+	// Reply with the verification token.
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
 // setUserWWWRoutes setsup the user routes.
 func (p *politeiawww) setUserWWWRoutes() {
 	// Public routes
@@ -765,6 +791,8 @@ func (p *politeiawww) setCMSUserWWWRoutes() {
 		p.handleResetPassword, permissionPublic)
 	p.addRoute(http.MethodGet, www.RouteUserDetails,
 		p.handleUserDetails, permissionPublic)
+	p.addRoute(http.MethodPost, cms.RouteRegisterUser, p.handleRegisterUser,
+		permissionPublic)
 
 	// Routes that require being logged in.
 	p.addRoute(http.MethodPost, www.RouteSecret, p.handleSecret,
