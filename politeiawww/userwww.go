@@ -753,3 +753,37 @@ func (p *politeiawww) setUserWWWRoutes() {
 	p.addRoute(http.MethodPost, www.RouteManageUser,
 		p.handleManageUser, permissionAdmin)
 }
+
+// setCMSUserWWWRoutes setsup the user routes for cms mode
+func (p *politeiawww) setCMSUserWWWRoutes() {
+	// Public routes
+	p.addRoute(http.MethodPost, www.RouteLogin, p.handleLogin,
+		permissionPublic)
+	p.addRoute(http.MethodPost, www.RouteLogout, p.handleLogout,
+		permissionPublic)
+	p.addRoute(http.MethodPost, www.RouteResetPassword,
+		p.handleResetPassword, permissionPublic)
+	p.addRoute(http.MethodGet, www.RouteUserDetails,
+		p.handleUserDetails, permissionPublic)
+
+	// Routes that require being logged in.
+	p.addRoute(http.MethodPost, www.RouteSecret, p.handleSecret,
+		permissionLogin)
+	p.addRoute(http.MethodGet, www.RouteUserMe, p.handleMe, permissionLogin)
+	p.addRoute(http.MethodPost, www.RouteUpdateUserKey,
+		p.handleUpdateUserKey, permissionLogin)
+	p.addRoute(http.MethodPost, www.RouteVerifyUpdateUserKey,
+		p.handleVerifyUpdateUserKey, permissionLogin)
+	p.addRoute(http.MethodPost, www.RouteChangeUsername,
+		p.handleChangeUsername, permissionLogin)
+	p.addRoute(http.MethodPost, www.RouteChangePassword,
+		p.handleChangePassword, permissionLogin)
+	p.addRoute(http.MethodPost, www.RouteEditUser,
+		p.handleEditUser, permissionLogin)
+
+	// Routes that require being logged in as an admin user.
+	p.addRoute(http.MethodGet, www.RouteUsers,
+		p.handleUsers, permissionAdmin)
+	p.addRoute(http.MethodPost, www.RouteManageUser,
+		p.handleManageUser, permissionAdmin)
+}
