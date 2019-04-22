@@ -55,9 +55,6 @@ func (p *politeiawww) GetMonthAverage(month time.Month, year int) (float64, erro
 	}
 	average = average / float64(len(usdtDcrPrices))
 
-	// Polo doesn't like >6 requests per second
-	time.Sleep(300 * time.Millisecond)
-
 	return average, nil
 }
 
