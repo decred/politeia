@@ -976,7 +976,7 @@ func (p *politeiawww) processGeneratePayouts(gp cms.GeneratePayouts, u *user.Use
 		}
 
 		// Divide by 100 to get amounts in USD
-		payout.LaborTotal = (totalLaborMinutes / 60) * inv.ContractorRate / 100
+		payout.LaborTotal = totalLaborMinutes * inv.ContractorRate / (60 * 100)
 		payout.ContractorRate = inv.ContractorRate / 100
 		payout.ExpenseTotal = totalExpenses / 100
 
