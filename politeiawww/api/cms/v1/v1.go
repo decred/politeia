@@ -171,7 +171,7 @@ type SetInvoiceStatus struct {
 	Token     string         `json:"token"`
 	Status    InvoiceStatusT `json:"status"`
 	Reason    string         `json:"reason"`
-	Signature string         `json:"signature"` // Signature of Token+string(InvoiceStatus)
+	Signature string         `json:"signature"` // Signature of Token+Version+Reason(InvoiceStatus)
 	PublicKey string         `json:"publickey"` // Public key of admin
 }
 
