@@ -974,22 +974,22 @@ func (p *politeiawww) processGeneratePayouts(gp cms.GeneratePayouts, u *user.Use
 	for _, inv := range dbInvs {
 		payout := cms.Payout{}
 
-		var totalLaborHours uint
+		var totalLaborMinutes uint
 		var totalExpenses uint
 		for _, lineItem := range inv.LineItems {
 			switch lineItem.Type {
 			case cms.LineItemTypeLabor:
-				totalLaborHours += lineItem.Labor
+				totalLaborMinutes += lineItem.Labor
 			case cms.LineItemTypeExpense, cms.LineItemTypeMisc:
 				totalExpenses += lineItem.Expenses
 			}
 		}
 
 		// Divide by 100 to get amounts in USD
-		payout.LaborTotal = totalLaborHours * inv.ContractorRate / 100
+		payout.LaborTotal = totalLaborMinutes * inv.ContractorRate / (60 * 100)
 		payout.ContractorRate = inv.ContractorRate / 100
+		payout.ExpenseTotal = totalExpenses / 100
 
-		payout.ExpenseTotal = totalExpenses
 		payout.Address = inv.PaymentAddress
 		payout.Token = inv.Token
 		payout.ContractorName = inv.ContractorName
