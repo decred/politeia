@@ -393,6 +393,16 @@ func bestBlock() (*dcrdataapi.BlockDataBasic, error) {
 	}
 	defer r.Body.Close()
 
+	if r.StatusCode != http.StatusOK {
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			return nil, fmt.Errorf("dcrdata error: %v %v %v",
+				r.StatusCode, url, err)
+		}
+		return nil, fmt.Errorf("dcrdata error: %v %v %s",
+			r.StatusCode, url, body)
+	}
+
 	var bdb dcrdataapi.BlockDataBasic
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&bdb); err != nil {
@@ -412,6 +422,16 @@ func block(block uint32) (*dcrdataapi.BlockDataBasic, error) {
 	}
 	defer r.Body.Close()
 
+	if r.StatusCode != http.StatusOK {
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			return nil, fmt.Errorf("dcrdata error: %v %v %v",
+				r.StatusCode, url, err)
+		}
+		return nil, fmt.Errorf("dcrdata error: %v %v %s",
+			r.StatusCode, url, body)
+	}
+
 	var bdb dcrdataapi.BlockDataBasic
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&bdb); err != nil {
@@ -430,6 +450,16 @@ func snapshot(hash string) ([]string, error) {
 		return nil, err
 	}
 	defer r.Body.Close()
+
+	if r.StatusCode != http.StatusOK {
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			return nil, fmt.Errorf("dcrdata error: %v %v %v",
+				r.StatusCode, url, err)
+		}
+		return nil, fmt.Errorf("dcrdata error: %v %v %s",
+			r.StatusCode, url, body)
+	}
 
 	var tickets []string
 	decoder := json.NewDecoder(r.Body)
@@ -460,7 +490,13 @@ func batchTransactions(hashes []string) ([]dcrdataapi.TrimmedTx, error) {
 	defer r.Body.Close()
 
 	if r.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("POST request failed: %d", r.StatusCode)
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			return nil, fmt.Errorf("dcrdata error: %v %v %v",
+				r.StatusCode, url, err)
+		}
+		return nil, fmt.Errorf("dcrdata error: %v %v %s",
+			r.StatusCode, url, body)
 	}
 
 	// Unmarshal the response

@@ -332,6 +332,16 @@ func PayWithTestnetFaucet(faucetURL string, address string, amount uint64, overr
 		return "", err
 	}
 
+	if resp.StatusCode != http.StatusOK {
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return "", fmt.Errorf("testnet faucet error: %v %v %v",
+				resp.StatusCode, faucetURL, err)
+		}
+		return "", fmt.Errorf("testnet faucet error: %v %v %s",
+			resp.StatusCode, faucetURL, body)
+	}
+
 	if resp == nil {
 		return "", errors.New("unknown error")
 	}
