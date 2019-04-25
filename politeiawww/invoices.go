@@ -482,14 +482,12 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 
 			// Verify that the submitted monthly average matches the value
 			// was calculated server side.
-			monthAvg, err := p.GetMonthAverage(time.Month(invInput.Month),
+			monthAvg, err := p.cmsDB.ExchangeRate(int(invInput.Month),
 				int(invInput.Year))
 			if err != nil {
-				return www.UserError{
-					ErrorCode: www.ErrorStatusInvalidExchangeRate,
-				}
+				return err
 			}
-			if monthAvg != invInput.ExchangeRate {
+			if monthAvg.ExchangeRate != invInput.ExchangeRate {
 				return www.UserError{
 					ErrorCode: www.ErrorStatusInvalidExchangeRate,
 				}

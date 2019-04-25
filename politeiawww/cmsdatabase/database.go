@@ -19,6 +19,9 @@ var (
 	// ErrInvoiceNotFound indicates that the invoice was not found in the
 	// database.
 	ErrInvoiceNotFound = errors.New("invoice not found")
+
+	// ErrExchangeRateNotFound indicates that an exchange rate for a given month/year was not found
+	ErrExchangeRateNotFound = errors.New("exchange rate not found")
 )
 
 // Database interface that is required by the web server.
@@ -38,7 +41,7 @@ type Database interface {
 	// ExchangeRate functions
 	NewExchangeRate(*ExchangeRate) error // Create new exchange rate
 
-	ExchangeRate(uint16, uint16) (*ExchangeRate, error) // Return an exchange rate based on month and year
+	ExchangeRate(int, int) (*ExchangeRate, error) // Return an exchange rate based on month and year
 	// Setup the invoice tables
 	Setup() error
 

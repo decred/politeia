@@ -275,7 +275,7 @@ func (c *cockroachdb) NewExchangeRate(dbExchangeRate *database.ExchangeRate) err
 }
 
 // Return exchange rate by month/year
-func (c *cockroachdb) ExchangeRate(month, year uint) (*database.ExchangeRate, error) {
+func (c *cockroachdb) ExchangeRate(month, year int) (*database.ExchangeRate, error) {
 	log.Tracef("ExchangeRate")
 
 	exchangeRate := ExchangeRate{}
@@ -284,6 +284,9 @@ func (c *cockroachdb) ExchangeRate(month, year uint) (*database.ExchangeRate, er
 		Find(&exchangeRate).
 		Error
 	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			err = database.ErrExchangeRateNotFound
+		}
 		return nil, err
 	}
 
@@ -314,6 +317,12 @@ func createCmsTables(tx *gorm.DB) error {
 	}
 	if !tx.HasTable(tableNameInvoiceChange) {
 		err := tx.CreateTable(&InvoiceChange{}).Error
+		if err != nil {
+			return err
+		}
+	}
+	if !tx.HasTable(tableNameExchangeRate) {
+		err := tx.CreateTable(&ExchangeRate{}).Error
 		if err != nil {
 			return err
 		}
