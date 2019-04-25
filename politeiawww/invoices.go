@@ -725,11 +725,11 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus,
 	var pdReply pd.UpdateVettedMetadataReply
 	err = json.Unmarshal(responseBody, &pdReply)
 	if err != nil {
-		return nil, fmt.Errorf("Could not unmarshal SetUnvettedStatusReply: %v",
+		return nil, fmt.Errorf("Could not unmarshal UpdateVettedMetadataReply: %v",
 			err)
 	}
 
-	// Verify the SetUnvettedStatus challenge.
+	// Verify the UpdateVettedMetadata challenge.
 	err = util.VerifyChallenge(p.cfg.Identity, challenge, pdReply.Response)
 	if err != nil {
 		return nil, err
@@ -915,6 +915,53 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 	}
 
 	err = util.VerifyChallenge(p.cfg.Identity, challenge, pdReply.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create the change record.
+	c := backendInvoiceStatusChange{
+		Version:        backendInvoiceStatusChangeVersion,
+		AdminPublicKey: u.PublicKey(),
+		Timestamp:      time.Now().Unix(),
+		NewStatus:      cms.InvoiceStatusUpdated,
+	}
+	blob, err := encodeBackendInvoiceStatusChange(c)
+	if err != nil {
+		return nil, err
+	}
+
+	challenge, err = util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	pdCommand := pd.UpdateVettedMetadata{
+		Challenge: hex.EncodeToString(challenge),
+		Token:     ei.Token,
+		MDAppend: []pd.MetadataStream{
+			{
+				ID:      mdStreamInvoiceStatusChanges,
+				Payload: string(blob),
+			},
+		},
+	}
+
+	var updateMetaReply pd.UpdateVettedMetadataReply
+	responseBody, err = p.makeRequest(http.MethodPost,
+		pd.UpdateVettedMetadataRoute, pdCommand)
+	if err != nil {
+		return nil, err
+	}
+
+	err = json.Unmarshal(responseBody, &updateMetaReply)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal UpdateVettedMetadataReply: %v",
+			err)
+	}
+
+	// Verify the UpdateVettedMetadata challenge.
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, updateMetaReply.Response)
 	if err != nil {
 		return nil, err
 	}
