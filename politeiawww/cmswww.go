@@ -35,31 +35,6 @@ func (p *politeiawww) handleInviteNewUser(w http.ResponseWriter, r *http.Request
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-// handleInviteNewUser handles the invitation of a new contractor by an
-// administrator for the Contractor Management System.
-func (p *politeiawww) handleRegisterUser(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleRegister")
-
-	// Get the new user command.
-	var u cms.RegisterUser
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&u); err != nil {
-		RespondWithError(w, r, 0, "handleRegisterUser: unmarshal", www.UserError{
-			ErrorCode: www.ErrorStatusInvalidInput,
-		})
-		return
-	}
-
-	reply, err := p.processRegisterUser(u)
-	if err != nil {
-		RespondWithError(w, r, 0, "handleRegisterUser: ProcessRegisterUser %v", err)
-		return
-	}
-
-	// Reply with the verification token.
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
 // handleNewInvoice handles the incoming new invoice command.
 func (p *politeiawww) handleNewInvoice(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleNewInvoice")
@@ -391,12 +366,4 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		p.handleSetInvoiceStatus, permissionAdmin)
 	p.addRoute(http.MethodPost, cms.RouteGeneratePayouts,
 		p.handleGeneratePayouts, permissionAdmin)
-
-	// Routes for Contractor Management System
-
-	// Publicish routes
-	p.addRoute(http.MethodPost, cms.RouteRegisterUser, p.handleRegisterUser,
-		permissionPublic)
-
-	// Admin Routes
 }

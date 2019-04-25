@@ -450,8 +450,12 @@ func _main() error {
 	switch p.cfg.Mode {
 	case politeiaWWWMode:
 		p.setPoliteiaWWWRoutes()
+		// XXX setup user routes
+		p.setUserWWWRoutes()
 	case cmsWWWMode:
 		p.setCMSWWWRoutes()
+		// XXX setup user routes
+		p.setCMSUserWWWRoutes()
 		cmsdb.UseLogger(cockroachdbLog)
 		net := filepath.Base(p.cfg.DataDir)
 		p.cmsDB, err = cmsdb.New(p.cfg.DBHost, net, p.cfg.DBRootCert,
@@ -466,9 +470,6 @@ func _main() error {
 	default:
 		return fmt.Errorf("unknown mode %v:", p.cfg.Mode)
 	}
-
-	// XXX setup user routes
-	p.setUserWWWRoutes()
 
 	// Persist session cookies.
 	var cookieKey []byte
