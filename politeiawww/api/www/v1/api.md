@@ -1614,7 +1614,6 @@ proposal"; if the value is not empty it means "reply to comment".
 | publickey | string | Public key from the client side, sent to politeiawww for verification |
 | signature | string | Signature of Token, ParentID and Comment |
 | receipt | string | Server signature of the client Signature |
-| totalvotes | uint64 | Total number of up/down votes |
 | resultvotes | int64 | Vote score |
 
 On failure the call shall return `400 Bad Request` and one of the following

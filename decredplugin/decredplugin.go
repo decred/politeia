@@ -429,7 +429,6 @@ type Comment struct {
 	CommentID   string `json:"commentid"`   // Comment ID
 	Receipt     string `json:"receipt"`     // Server signature of the client Signature
 	Timestamp   int64  `json:"timestamp"`   // Received UNIX timestamp
-	TotalVotes  uint64 `json:"totalvotes"`  // Total number of up/down votes
 	ResultVotes int64  `json:"resultvotes"` // Vote score
 	Censored    bool   `json:"censored"`    // Has this comment been censored
 }

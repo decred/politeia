@@ -506,7 +506,6 @@ sorted.
 | publickey | string | Public key from the client side, sent to politeiawww for verification |
 | signature | string | Signature of Token, ParentID and Comment |
 | receipt | string | Server signature of the client Signature |
-| totalvotes | uint64 | Total number of up/down votes |
 | resultvotes | int64 | Vote score |
 
 **Example**

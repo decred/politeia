@@ -130,7 +130,6 @@ func convertCommentToDecred(c Comment) decredplugin.Comment {
 		CommentID:   c.CommentID,
 		Receipt:     c.Receipt,
 		Timestamp:   c.Timestamp,
-		TotalVotes:  0,
 		ResultVotes: 0,
 		Censored:    c.Censored,
 	}
