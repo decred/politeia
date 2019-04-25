@@ -21,8 +21,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrtime/api/v1"
+	"github.com/decred/politeia/politeiad/sharedconfig"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	flags "github.com/jessevdk/go-flags"
@@ -30,7 +30,7 @@ import (
 
 const (
 	defaultConfigFilename   = "politeiad.conf"
-	defaultDataDirname      = "data"
+	defaultDataDirname      = sharedconfig.DefaultDataDirname
 	defaultLogLevel         = "info"
 	defaultLogDirname       = "logs"
 	defaultLogFilename      = "politeiad.log"
@@ -41,7 +41,7 @@ const (
 )
 
 var (
-	defaultHomeDir       = dcrutil.AppDataDir("politeiad", false)
+	defaultHomeDir       = sharedconfig.DefaultHomeDir
 	defaultConfigFile    = filepath.Join(defaultHomeDir, defaultConfigFilename)
 	defaultDataDir       = filepath.Join(defaultHomeDir, defaultDataDirname)
 	defaultHTTPSKeyFile  = filepath.Join(defaultHomeDir, "https.key")
