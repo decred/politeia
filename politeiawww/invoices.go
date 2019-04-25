@@ -715,7 +715,7 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus,
 	var pdReply pd.UpdateVettedMetadataReply
 	err = json.Unmarshal(responseBody, &pdReply)
 	if err != nil {
-		return nil, fmt.Errorf("Could not unmarshal SetUnvettedStatusReply: %v",
+		return nil, fmt.Errorf("Could not unmarshal UpdateVettedMetadataReply: %v",
 			err)
 	}
 
@@ -937,19 +937,21 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 		},
 	}
 
-	responseBody, err = p.makeRequest(http.MethodPost, pd.UpdateVettedMetadataRoute, pdCommand)
+	var updateMetaReply pd.UpdateVettedMetadataReply
+	responseBody, err = p.makeRequest(http.MethodPost,
+		pd.UpdateVettedMetadataRoute, pdCommand)
 	if err != nil {
 		return nil, err
 	}
 
-	err = json.Unmarshal(responseBody, &pdReply)
+	err = json.Unmarshal(responseBody, &updateMetaReply)
 	if err != nil {
-		return nil, fmt.Errorf("Could not unmarshal SetUnvettedStatusReply: %v",
+		return nil, fmt.Errorf("Could not unmarshal UpdateVettedMetadataReply: %v",
 			err)
 	}
 
 	// Verify the UpdateVettedMetadata challenge.
-	err = util.VerifyChallenge(p.cfg.Identity, challenge, pdReply.Response)
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, updateMetaReply.Response)
 	if err != nil {
 		return nil, err
 	}
