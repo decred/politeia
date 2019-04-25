@@ -459,7 +459,8 @@ func validateInvoice(ni cms.NewInvoice, u *user.User) error {
 			// month is after the current date.  For example, if a user submits
 			// an invoice for 03/2019, the first time that they could submit an
 			// invoice would be approx. 12:01 AM 04/01/2019
-			startOfFollowingMonth := time.Date(int(invInput.Year), time.Month(invInput.Month+1), 0, 0, 0, 0, 0, time.UTC)
+			startOfFollowingMonth := time.Date(int(invInput.Year),
+				time.Month(invInput.Month+1), 0, 0, 0, 0, 0, time.UTC)
 			if startOfFollowingMonth.After(time.Now()) {
 				return www.UserError{
 					ErrorCode: www.ErrorStatusInvalidInvoiceMonthYear,
