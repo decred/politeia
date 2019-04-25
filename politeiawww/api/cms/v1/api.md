@@ -17,6 +17,7 @@ server side notifications.  It does not render HTML.
 - [`Set invoice status`](#set-invoice-status)
 - [`Generate payouts`](#generate-payouts)
 - [`Invoice comments`](#invoice-comments)
+- [`Invoice exchange rate`](#invoice-exchange-rate)
 
 **Invoice status codes**
 
@@ -564,6 +565,45 @@ Reply:
   "accesstime": 1543539276
 }
 ```
+
+### `Invoice exchange rate`
+
+Retrieve the calculated monthly exchange rate for a given month/year
+
+**Route:** `POST /v1/invoices/exchangerate`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| month | int16 | A specific month, from 1 to 12. | Yes |
+| year | int16 | A specific year. | Yes |
+
+**Results:**
+
+| | Type | Description |
+| - | - | - |
+| ExchangeRate | float64 | The calculated monthly average exchange rate |
+
+**Example**
+
+Request:
+
+```json
+{
+  "month": 12,
+  "year": 2018
+}
+```
+
+Reply:
+
+```json
+{
+  "exchangerate": "17.50659503883639"
+}
+```
+
 
 ### Invoice status codes
 

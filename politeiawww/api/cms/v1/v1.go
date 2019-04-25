@@ -10,16 +10,17 @@ type LineItemTypeT int
 const (
 
 	// Contractor Management Routes
-	RouteInviteNewUser    = "/invite"
-	RouteRegisterUser     = "/register"
-	RouteNewInvoice       = "/invoices/new"
-	RouteEditInvoice      = "/invoices/edit"
-	RouteInvoiceDetails   = "/invoices/{token:[A-z0-9]{64}}"
-	RouteSetInvoiceStatus = "/invoices/{token:[A-z0-9]{64}}/status"
-	RouteUserInvoices     = "/user/invoices"
-	RouteAdminInvoices    = "/admin/invoices"
-	RouteGeneratePayouts  = "/admin/generatepayouts"
-	RouteInvoiceComments  = "/invoices/{token:[A-z0-9]{64}}/comments"
+	RouteInviteNewUser       = "/invite"
+	RouteRegisterUser        = "/register"
+	RouteNewInvoice          = "/invoices/new"
+	RouteEditInvoice         = "/invoices/edit"
+	RouteInvoiceDetails      = "/invoices/{token:[A-z0-9]{64}}"
+	RouteSetInvoiceStatus    = "/invoices/{token:[A-z0-9]{64}}/status"
+	RouteUserInvoices        = "/user/invoices"
+	RouteAdminInvoices       = "/admin/invoices"
+	RouteGeneratePayouts     = "/admin/generatepayouts"
+	RouteInvoiceComments     = "/invoices/{token:[A-z0-9]{64}}/comments"
+	RouteInvoiceExchangeRate = "/invoices/exchangerate"
 
 	// Invoice status codes
 	InvoiceStatusInvalid  InvoiceStatusT = 0 // Invalid status
@@ -201,4 +202,15 @@ type Payout struct {
 	Address        string `json:"address"`
 	LaborTotal     uint   `json:"labortotal"`
 	ExpenseTotal   uint   `json:"expensetotal"`
+}
+
+// InvoiceExchangeRate contains the request to receive a monthly exchange rate
+type InvoiceExchangeRate struct {
+	Month uint `json:"month"`
+	Year  uint `json:"year"`
+}
+
+// InvoiceExchangeRateReply returns the calculated monthly exchange rate
+type InvoiceExchangeRateReply struct {
+	ExchangeRate float64 `json:"exchangerate"`
 }
