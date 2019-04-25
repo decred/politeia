@@ -69,8 +69,8 @@ type RegisterUserReply struct{}
 
 // NewInvoice attempts to submit a new invoice.
 type NewInvoice struct {
-	Month     uint16     `json:"month"`
-	Year      uint16     `json:"year"`
+	Month     uint       `json:"month"`
+	Year      uint       `json:"year"`
 	Files     []www.File `json:"files"`     // Invoice file and any attachments along with it
 	PublicKey string     `json:"publickey"` // Key used to verify signature
 	Signature string     `json:"signature"` // Signature of file hash

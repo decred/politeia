@@ -133,7 +133,8 @@ notifications.  It does not render HTML.
 - [`ErrorStatusMalformedSubdomain`](#ErrorStatusMalformedSubdomain)
 - [`ErrorStatusMalformedDescription`](#ErrorStatusMalformedDescription) 
 - [`ErrorStatusWrongInvoiceStatus`](#ErrorStatusWrongInvoiceStatus) 
-- [`ErrorStatusInvoiceRequireLineItems`](#ErrorStatusWrongInvoiceStatus)
+- [`ErrorStatusInvoiceRequireLineItems`](#ErrorStatusInvoiceRequireLineItems)
+- [`ErrorStatusMultipleInvoiceMonthYear`](#ErrorStatusMultipleInvoiceMonthYear)
 
 **Proposal status codes**
 
@@ -2535,19 +2536,19 @@ Reply:
 | <a name="ErrorStatusInvoiceDuplicate">ErrorStatusInvoiceDuplicate</a> | 67 | Invoice is a duplicate. |
 | <a name="ErrorStatusInvalidPaymentAddress">ErrorStatusInvalidPaymentAddress</a> | 68 | Invalid payment address was submitted. |
 | <a name="ErrorStatusMalformedLineItem">ErrorStatusMalformedLineItem</a> | 69 | Line item in an invoice was malformed and invalid. |
-| <a name="ErrorStatusInvoiceMissingName">ErrorStatusInvoiceMissingName</a> | 71 | Submitted invoice missing contractor name. |
-| <a name="ErrorStatusInvoiceMissingLocation">ErrorStatusInvoiceMissingLocation</a> | 72 | Submitted invoice missing contractor location. |
-| <a name="ErrorStatusInvoiceMissingContact">ErrorStatusInvoiceMissingContact</a> | 73 | Submitted invoice missing contractor contact. |
-| <a name="ErrorStatusInvoiceMissingRate">ErrorStatusInvoiceMissingRate</a> | 74 | Submitted invoice missing contractor rate. |
-| <a name="ErrorStatusInvoiceInvalidRate">ErrorStatusInvoiceInvalidRate</a> | 75 | Submitted contractor rate is invalid (either too high or low). |
-| <a name="ErrorStatusInvoiceMalformedContact">ErrorStatusInvoiceMalformedContact</a> | 76 | Malformed contractor contact was entered. |
-| <a name="ErrorStatusMalformedProposalToken">ErrorStatusMalformedProposalToken</a> | 77 | Malformed proposal token for a line item. |
-| <a name="ErrorStatusMalformedDomain">ErrorStatusMalformedDomain</a> | 78 | Malformed domain for a line item. |
-| <a name="ErrorStatusMalformedSubdomain">ErrorStatusMalformedSubdomain</a> | 79 | Malformed subdomain for a line item. |
-| <a name="ErrorStatusMalformedDescription">ErrorStatusMalformedDescription</a> | 80 | Malformed description for a line item. |
-| <a name="ErrorStatusWrongInvoiceStatus">ErrorStatusWrongInvoiceStatus</a> | 81 | Wrong status for an invoice to be editted (approved, rejected, paid). |
+| <a name="ErrorStatusInvoiceMissingName">ErrorStatusInvoiceMissingName</a> | 70 | Submitted invoice missing contractor name. |
+| <a name="ErrorStatusInvoiceMissingLocation">ErrorStatusInvoiceMissingLocation</a> | 71 | Submitted invoice missing contractor location. |
+| <a name="ErrorStatusInvoiceMissingContact">ErrorStatusInvoiceMissingContact</a> | 72 | Submitted invoice missing contractor contact. |
+| <a name="ErrorStatusInvoiceMissingRate">ErrorStatusInvoiceMissingRate</a> | 73 | Submitted invoice missing contractor rate. |
+| <a name="ErrorStatusInvoiceInvalidRate">ErrorStatusInvoiceInvalidRate</a> | 74 | Submitted contractor rate is invalid (either too high or low). |
+| <a name="ErrorStatusInvoiceMalformedContact">ErrorStatusInvoiceMalformedContact</a> | 75 | Malformed contractor contact was entered. |
+| <a name="ErrorStatusMalformedProposalToken">ErrorStatusMalformedProposalToken</a> | 76 | Malformed proposal token for a line item. |
+| <a name="ErrorStatusMalformedDomain">ErrorStatusMalformedDomain</a> | 77 | Malformed domain for a line item. |
+| <a name="ErrorStatusMalformedSubdomain">ErrorStatusMalformedSubdomain</a> | 78 | Malformed subdomain for a line item. |
+| <a name="ErrorStatusMalformedDescription">ErrorStatusMalformedDescription</a> | 79 | Malformed description for a line item. |
+| <a name="ErrorStatusWrongInvoiceStatus">ErrorStatusWrongInvoiceStatus</a> | 80 | Wrong status for an invoice to be editted (approved, rejected, paid). |
 | <a name="ErrorStatusInvoiceRequireLineItems">ErrorStatusInvoiceRequireLineItems</a> | 81 | Invoices require at least 1 line item to be included. |
-
+| <a name="ErrorStatusMultipleInvoiceMonthYear">ErrorStatusMultipleInvoiceMonthYear</a> | 82 | Users are only allowed to submit 1 invoice per month/year. |
 
 
 ### Proposal status codes

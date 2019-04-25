@@ -227,6 +227,7 @@ const (
 	ErrorStatusMalformedDescription           ErrorStatusT = 79
 	ErrorStatusWrongInvoiceStatus             ErrorStatusT = 80
 	ErrorStatusInvoiceRequireLineItems        ErrorStatusT = 81
+	ErrorStatusMultipleInvoiceMonthYear       ErrorStatusT = 82
 
 	// Proposal state codes
 	//
@@ -403,6 +404,7 @@ var (
 		ErrorStatusMalformedDescription:           "line item has malformed description",
 		ErrorStatusWrongInvoiceStatus:             "invoice is an wrong status to be editted (approved, rejected or paid)",
 		ErrorStatusInvoiceRequireLineItems:        "invoices require at least 1 line item",
+		ErrorStatusMultipleInvoiceMonthYear:       "only one invoice per month/year is allowed to be submitted",
 	}
 
 	// PropStatus converts propsal status codes to human readable text
