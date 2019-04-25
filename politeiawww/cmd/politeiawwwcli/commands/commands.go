@@ -32,19 +32,19 @@ var (
 	cfg    *config.Config
 	client *wwwclient.Client
 
-	// errUserIdentityNotFound is emitted when a user identity is
-	// required but the config object does not contain one.
-	errUserIdentityNotFound = errors.New("user identity not found.  You must " +
+	// errUserIdentityNotFound is emitted when a user identity is required
+	// but the config object does not contain one.
+	errUserIdentityNotFound = errors.New("user identity not found; you must " +
 		"either create a new user or use the updateuserkey command to generate " +
-		"a new identity for the logged in user.")
+		"a new identity for the logged in user")
 
-	// errProposalMDNotFound is emitted when a proposal markdown file
-	// is required but has not been passed into the command.
-	errProposalMDNotFound = errors.New("proposal markdown file not found.  " +
-		"You must either provide a markdown file or use the --random flag.")
+	// errProposalMDNotFound is emitted when a proposal markdown file is
+	// required but has not been passed into the command.
+	errProposalMDNotFound = errors.New("proposal markdown file not found; " +
+		"you must either provide a markdown file or use the --random flag")
 
-	// errInvalidBeforeAfterUsage is emitted when the command flags
-	// 'before' and 'after' are used at the same time.
+	// errInvalidBeforeAfterUsage is emitted when the command flags 'before'
+	// and 'after' are used at the same time.
 	errInvalidBeforeAfterUsage = errors.New("the 'before' and 'after' flags " +
 		"cannot be used at the same time")
 
@@ -153,7 +153,7 @@ func printJSON(body interface{}) error {
 	return nil
 }
 
-// PromptPassphrase is used to prompt the user for the private passphrase to
+// promptPassphrase is used to prompt the user for the private passphrase to
 // their wallet.
 func promptPassphrase() ([]byte, error) {
 	prompt := "Enter the private passphrase of your wallet: "

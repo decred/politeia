@@ -158,6 +158,14 @@ func convertPropCensorFromPD(f pd.CensorshipRecord) www.CensorshipRecord {
 	}
 }
 
+func convertPropCensorFromWWW(f www.CensorshipRecord) pd.CensorshipRecord {
+	return pd.CensorshipRecord{
+		Token:     f.Token,
+		Merkle:    f.Merkle,
+		Signature: f.Signature,
+	}
+}
+
 func convertErrorStatusFromPD(s int) www.ErrorStatusT {
 	switch pd.ErrorStatusT(s) {
 	case pd.ErrorStatusInvalidFileDigest:

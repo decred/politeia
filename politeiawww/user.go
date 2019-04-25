@@ -264,7 +264,6 @@ func (p *politeiawww) removeUserPubkeyAssociaton(u *user.User, publicKey string)
 // checkSignature validates an incoming signature against the specified user's
 // pubkey.
 func checkSignature(id []byte, signature string, elements ...string) error {
-	// Check incoming signature verify(token+string(ProposalStatus))
 	sig, err := util.ConvertSignature(signature)
 	if err != nil {
 		return www.UserError{
@@ -2045,11 +2044,6 @@ func (p *politeiawww) GenerateNewUserPaywall(u *user.User) error {
 
 // HasUserPaid checks that a user has paid the paywall
 func (p *politeiawww) HasUserPaid(u *user.User) bool {
-	// Return true when running unit tests
-	if p.test {
-		return true
-	}
-
 	// Return true if paywall is disabled
 	if !p.paywallIsEnabled() {
 		return true
