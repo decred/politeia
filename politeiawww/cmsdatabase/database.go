@@ -35,6 +35,10 @@ type Database interface {
 	InvoicesByStatus(int) ([]Invoice, error)                          // Returns all invoices by status
 	InvoicesAll() ([]Invoice, error)                                  // Returns all invoices
 
+	// ExchangeRate functions
+	NewExchangeRate(*ExchangeRate) error // Create new exchange rate
+
+	ExchangeRate(uint16, uint16) (*ExchangeRate, error) // Return an exchange rate based on month and year
 	// Setup the invoice tables
 	Setup() error
 
@@ -93,4 +97,11 @@ type InvoiceChange struct {
 	NewStatus      cms.InvoiceStatusT
 	Reason         string
 	Timestamp      int64
+}
+
+// ExchangeRate contains cached calculated rates for a given month/year
+type ExchangeRate struct {
+	Month        uint
+	Year         uint
+	ExchangeRate uint
 }

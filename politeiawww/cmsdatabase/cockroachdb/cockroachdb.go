@@ -24,6 +24,7 @@ const (
 	tableNameInvoice       = "invoices"
 	tableNameLineItem      = "line_items"
 	tableNameInvoiceChange = "invoice_change"
+	tableNameExchangeRate  = "exchange_rate"
 
 	userPoliteiawww = "politeiawww" // cmsdb user (read/write access)
 )
@@ -261,6 +262,32 @@ func (c *cockroachdb) InvoicesAll() ([]database.Invoice, error) {
 		dbInvoices = append(dbInvoices, *dbInvoice)
 	}
 	return dbInvoices, nil
+}
+
+// Create new exchange rate.
+//
+// NewExchangeRate satisfies the backend interface.
+func (c *cockroachdb) NewExchangeRate(dbExchangeRate *database.ExchangeRate) error {
+	exchRate := encodeExchangeRate(dbExchangeRate)
+
+	log.Debugf("NewExchangeRate: %v %v", exchRate.Month, exchRate.Year)
+	return c.recordsdb.Create(exchRate).Error
+}
+
+// Return exchange rate by month/year
+func (c *cockroachdb) ExchangeRate(month, year uint) (*database.ExchangeRate, error) {
+	log.Tracef("ExchangeRate")
+
+	exchangeRate := ExchangeRate{}
+	err := c.recordsdb.
+		Where("month = ? AND year = ?", month, year).
+		Find(&exchangeRate).
+		Error
+	if err != nil {
+		return nil, err
+	}
+
+	return decodeExchangeRate(exchangeRate), nil
 }
 
 // Close satisfies the backend interface.

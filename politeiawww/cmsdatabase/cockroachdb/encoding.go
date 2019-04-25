@@ -157,3 +157,19 @@ func DecodeInvoices(invoices []Invoice) ([]database.Invoice, error) {
 
 	return dbInvoices, nil
 }
+
+func encodeExchangeRate(dbExchangeRate *database.ExchangeRate) ExchangeRate {
+	exchangeRate := ExchangeRate{}
+	exchangeRate.Month = dbExchangeRate.Month
+	exchangeRate.Year = dbExchangeRate.Year
+	exchangeRate.ExchangeRate = dbExchangeRate.ExchangeRate
+	return exchangeRate
+}
+
+func decodeExchangeRate(exchangeRate ExchangeRate) *database.ExchangeRate {
+	dbExchangeRate := &database.ExchangeRate{}
+	dbExchangeRate.Month = exchangeRate.Month
+	dbExchangeRate.Year = exchangeRate.Year
+	dbExchangeRate.ExchangeRate = exchangeRate.ExchangeRate
+	return dbExchangeRate
+}
