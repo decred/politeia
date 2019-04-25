@@ -122,16 +122,15 @@ func convertCommentFromDecred(c decredplugin.Comment) Comment {
 
 func convertCommentToDecred(c Comment) decredplugin.Comment {
 	return decredplugin.Comment{
-		Token:       c.Token,
-		ParentID:    c.ParentID,
-		Comment:     c.Comment,
-		Signature:   c.Signature,
-		PublicKey:   c.PublicKey,
-		CommentID:   c.CommentID,
-		Receipt:     c.Receipt,
-		Timestamp:   c.Timestamp,
-		ResultVotes: 0,
-		Censored:    c.Censored,
+		Token:     c.Token,
+		ParentID:  c.ParentID,
+		Comment:   c.Comment,
+		Signature: c.Signature,
+		PublicKey: c.PublicKey,
+		CommentID: c.CommentID,
+		Receipt:   c.Receipt,
+		Timestamp: c.Timestamp,
+		Censored:  c.Censored,
 	}
 }
 

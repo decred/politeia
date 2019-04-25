@@ -1157,7 +1157,7 @@ func (g *gitBackEnd) pluginLikeComment(payload string) (string, error) {
 	_ = os.Remove(flushFilename)
 
 	// Verify cache
-	c, ok := decredPluginCommentsCache[like.Token][like.CommentID]
+	_, ok = decredPluginCommentsCache[like.Token][like.CommentID]
 	if !ok {
 		g.Unlock()
 		return "", fmt.Errorf("comment not found %v:%v",
@@ -1206,7 +1206,6 @@ func (g *gitBackEnd) pluginLikeComment(payload string) (string, error) {
 
 	// Encode reply
 	lcr := decredplugin.LikeCommentReply{
-		Result:  c.ResultVotes,
 		Receipt: receipt,
 	}
 	lcrb, err := decredplugin.EncodeLikeCommentReply(lcr)
