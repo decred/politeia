@@ -192,7 +192,7 @@ func validateLocation(location string) error {
 func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.NewInvoiceReply, error) {
 	log.Tracef("processNewInvoice")
 
-	err := validateInvoice(ni, u)
+	err := p.validateInvoice(ni, u)
 	if err != nil {
 		return nil, err
 	}
@@ -378,7 +378,7 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 	}, nil
 }
 
-func validateInvoice(ni cms.NewInvoice, u *user.User) error {
+func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 	log.Tracef("validateInvoice")
 
 	// Obtain signature
@@ -477,6 +477,21 @@ func validateInvoice(ni cms.NewInvoice, u *user.User) error {
 			if !addr.IsForNet(activeNetParams.Params) {
 				return www.UserError{
 					ErrorCode: www.ErrorStatusInvalidPaymentAddress,
+				}
+			}
+
+			// Verify that the submitted monthly average matches the value
+			// was calculated server side.
+			monthAvg, err := p.GetMonthAverage(time.Month(invInput.Month),
+				int(invInput.Year))
+			if err != nil {
+				return www.UserError{
+					ErrorCode: www.ErrorStatusInvalidExchangeRate,
+				}
+			}
+			if monthAvg != invInput.ExchangeRate {
+				return www.UserError{
+					ErrorCode: www.ErrorStatusInvalidExchangeRate,
 				}
 			}
 
@@ -877,7 +892,7 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 		PublicKey: ei.PublicKey,
 		Signature: ei.Signature,
 	}
-	err = validateInvoice(ni, u)
+	err = p.validateInvoice(ni, u)
 	if err != nil {
 		return nil, err
 	}
@@ -1057,10 +1072,9 @@ func (p *politeiawww) processGeneratePayouts(gp cms.GeneratePayouts, u *user.Use
 			}
 		}
 
-		// Divide by 100 to get amounts in USD
-		payout.LaborTotal = totalLaborMinutes * inv.ContractorRate / (60 * 100)
-		payout.ContractorRate = inv.ContractorRate / 100
-		payout.ExpenseTotal = totalExpenses / 100
+		payout.LaborTotal = totalLaborMinutes * inv.ContractorRate / 60
+		payout.ContractorRate = inv.ContractorRate
+		payout.ExpenseTotal = totalExpenses
 
 		payout.Address = inv.PaymentAddress
 		payout.Token = inv.Token
@@ -1069,6 +1083,12 @@ func (p *politeiawww) processGeneratePayouts(gp cms.GeneratePayouts, u *user.Use
 		payout.Username = p.getUsernameById(inv.UserID)
 		payout.Month = inv.Month
 		payout.Year = inv.Year
+		payout.Total = payout.LaborTotal + payout.ExpenseTotal
+		if inv.ExchangeRate > 0 {
+			payout.DCRTotal, err = dcrutil.NewAmount(float64(payout.Total) /
+				float64(inv.ExchangeRate))
+		}
+		payout.ExchangeRate = inv.ExchangeRate
 
 		payouts = append(payouts, payout)
 	}

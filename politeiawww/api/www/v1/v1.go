@@ -229,6 +229,7 @@ const (
 	ErrorStatusInvoiceRequireLineItems        ErrorStatusT = 81
 	ErrorStatusMultipleInvoiceMonthYear       ErrorStatusT = 82
 	ErrorStatusInvalidInvoiceMonthYear        ErrorStatusT = 83
+	ErrorStatusInvalidExchangeRate            ErrorStatusT = 84
 
 	// Proposal state codes
 	//
@@ -407,6 +408,7 @@ var (
 		ErrorStatusInvoiceRequireLineItems:        "invoices require at least 1 line item",
 		ErrorStatusMultipleInvoiceMonthYear:       "only one invoice per month/year is allowed to be submitted",
 		ErrorStatusInvalidInvoiceMonthYear:        "an invalid month/year was submitted on an invoice",
+		ErrorStatusInvalidExchangeRate:            "exchange rate was invalid or didn't match expected result",
 	}
 
 	// PropStatus converts propsal status codes to human readable text

@@ -22,6 +22,7 @@ func EncodeInvoice(dbInvoice *database.Invoice) *Invoice {
 	invoice.UserID = dbInvoice.UserID
 	invoice.Month = dbInvoice.Month
 	invoice.Year = dbInvoice.Year
+	invoice.ExchangeRate = dbInvoice.ExchangeRate
 	invoice.Status = uint(dbInvoice.Status)
 	invoice.StatusChangeReason = dbInvoice.StatusChangeReason
 	invoice.Timestamp = time.Unix(dbInvoice.Timestamp, 0)
@@ -67,6 +68,7 @@ func DecodeInvoice(invoice *Invoice) (*database.Invoice, error) {
 	dbInvoice.Username = invoice.Username
 	dbInvoice.Month = invoice.Month
 	dbInvoice.Year = invoice.Year
+	dbInvoice.ExchangeRate = invoice.ExchangeRate
 	dbInvoice.Status = cms.InvoiceStatusT(invoice.Status)
 	dbInvoice.StatusChangeReason = invoice.StatusChangeReason
 	dbInvoice.Timestamp = invoice.Timestamp.Unix()

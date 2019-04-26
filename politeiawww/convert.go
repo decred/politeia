@@ -550,6 +550,7 @@ func convertDatabaseInvoiceToInvoiceRecord(dbInvoice cmsdatabase.Invoice) *cms.I
 		PaymentAddress:     dbInvoice.PaymentAddress,
 		Month:              dbInvoice.Month,
 		Year:               dbInvoice.Year,
+		ExchangeRate:       dbInvoice.ExchangeRate,
 	}
 	invInputLineItems := make([]cms.LineItemsInput, 0, len(dbInvoice.LineItems))
 	for _, dbLineItem := range dbInvoice.LineItems {
@@ -611,6 +612,7 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 
 			dbInvoice.Month = ii.Month
 			dbInvoice.Year = ii.Year
+			dbInvoice.ExchangeRate = ii.ExchangeRate
 			dbInvoice.LineItems = convertLineItemsToDatabase(dbInvoice.Token,
 				ii.LineItems)
 			dbInvoice.ContractorContact = ii.ContractorContact

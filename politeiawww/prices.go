@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -19,7 +20,7 @@ type poloChartData struct {
 }
 
 // GetMonthAverage returns the average USD/DCR price for a given month
-func (p *politeiawww) GetMonthAverage(month time.Month, year int) (float64, error) {
+func (p *politeiawww) GetMonthAverage(month time.Month, year int) (uint, error) {
 	startTime := time.Date(year, month, 1, 0, 0, 0, 0, time.UTC)
 	endTime := startTime.AddDate(0, 1, 0)
 
@@ -55,7 +56,7 @@ func (p *politeiawww) GetMonthAverage(month time.Month, year int) (float64, erro
 	}
 	average = average / float64(len(usdtDcrPrices))
 
-	return average, nil
+	return uint(math.Round(average * 100)), nil
 }
 
 // GetPrices contacts the Poloniex API to download

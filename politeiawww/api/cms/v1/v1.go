@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"github.com/decred/dcrd/dcrutil"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 )
 
@@ -127,6 +128,7 @@ type InvoiceInput struct {
 	Version            uint             `json:"version"`            // Version of the invoice input
 	Month              uint             `json:"month"`              // Month of Invoice
 	Year               uint             `json:"year"`               // Year of Invoice
+	ExchangeRate       uint             `json:"exchangerate"`       // Exchange rate of a given month/year in USD cents
 	ContractorName     string           `json:"contractorname"`     // IRL name of contractor
 	ContractorLocation string           `json:"contractorlocation"` // IRL location of contractor
 	ContractorContact  string           `json:"contractorcontact"`  // Contractor email or other contact
@@ -193,15 +195,18 @@ type GeneratePayoutsReply struct {
 
 // Payout contains an address and an amount to be paid
 type Payout struct {
-	ContractorName string `json:"contractorname"`
-	ContractorRate uint   `json:"contractorrate"`
-	Username       string `json:"username"`
-	Month          uint   `json:"month"`
-	Year           uint   `json:"year"`
-	Token          string `json:"token"`
-	Address        string `json:"address"`
-	LaborTotal     uint   `json:"labortotal"`
-	ExpenseTotal   uint   `json:"expensetotal"`
+	ContractorName string         `json:"contractorname"`
+	ContractorRate uint           `json:"contractorrate"` // in USD cents
+	Username       string         `json:"username"`
+	Month          uint           `json:"month"`        // Invoice month
+	Year           uint           `json:"year"`         // Invoice year
+	Token          string         `json:"token"`        // Invoice token
+	Address        string         `json:"address"`      // User provided payment address
+	LaborTotal     uint           `json:"labortotal"`   // in USD cents
+	ExpenseTotal   uint           `json:"expensetotal"` // in USD cents
+	Total          uint           `json:"total"`        // in USD cents
+	DCRTotal       dcrutil.Amount `json:"dcrtotal"`     // in DCR atoms
+	ExchangeRate   uint           `json:"exchangerate"` // in USD cents
 }
 
 // InvoiceExchangeRate contains the request to receive a monthly exchange rate
@@ -212,5 +217,5 @@ type InvoiceExchangeRate struct {
 
 // InvoiceExchangeRateReply returns the calculated monthly exchange rate
 type InvoiceExchangeRateReply struct {
-	ExchangeRate float64 `json:"exchangerate"`
+	ExchangeRate uint `json:"exchangerate"` // in USD cents
 }

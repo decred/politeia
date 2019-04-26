@@ -53,6 +53,7 @@ type Invoice struct {
 	Username           string // Only populated when reading from the database
 	Month              uint
 	Year               uint
+	ExchangeRate       uint
 	Timestamp          int64
 	Status             cms.InvoiceStatusT
 	StatusChangeReason string
