@@ -4,6 +4,12 @@
 
 package main
 
+type invoiceNotificationEmailData struct {
+	Username string
+	Month    string
+	Year     int
+}
+
 type newUserEmailTemplateData struct {
 	Username string
 	Link     string
@@ -215,4 +221,13 @@ You are invited to join Decred as a contractor! To complete your registration, y
 
 You are receiving this email because {{.Email}} was used to be invited to Decred's Contractor Management System.
 If you do not recognize this, please ignore this email.
+`
+
+const templateInvoiceNotificationRaw = `
+{{.Username}},
+
+You have not yet submitted an invoice for {{.Month}} {{.Year}}.  Please do so as soon as possible, so your invoice may be reviewed and paid out in a timely manner.
+
+Regards,
+Contractor Management System
 `

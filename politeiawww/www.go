@@ -36,6 +36,7 @@ import (
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
+	"github.com/robfig/cron"
 )
 
 type permission uint
@@ -509,6 +510,8 @@ func _main() error {
 		if err != nil {
 			return fmt.Errorf("cmsdb setup: %v", err)
 		}
+		p.cron = cron.New()
+		p.checkInvoiceNotifications()
 	default:
 		return fmt.Errorf("unknown mode %v:", p.cfg.Mode)
 	}

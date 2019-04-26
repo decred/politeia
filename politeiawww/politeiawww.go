@@ -23,6 +23,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
 	"github.com/gorilla/websocket"
+	"github.com/robfig/cron"
 )
 
 const (
@@ -127,6 +128,9 @@ type politeiawww struct {
 
 	// cmsDB is only used during cmswww mode
 	cmsDB cmsdatabase.Database
+
+	// cron
+	cron *cron.Cron
 }
 
 // XXX rig this up
