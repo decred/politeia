@@ -20,6 +20,7 @@ const (
 	RouteUserInvoices        = "/user/invoices"
 	RouteAdminInvoices       = "/admin/invoices"
 	RouteGeneratePayouts     = "/admin/generatepayouts"
+	RoutePayInvoices         = "/admin/payinvoices"
 	RouteInvoiceComments     = "/invoices/{token:[A-z0-9]{64}}/comments"
 	RouteInvoiceExchangeRate = "/invoices/exchangerate"
 
@@ -312,3 +313,10 @@ type InvoiceExchangeRate struct {
 type InvoiceExchangeRateReply struct {
 	ExchangeRate uint `json:"exchangerate"` // in USD cents
 }
+
+// PayInvoices temporarily allows the administrator to set all approved invoices
+// to paid status.
+type PayInvoices struct{}
+
+// PayInvoicesReply will be empty if no errors have occured.
+type PayInvoicesReply struct{}
