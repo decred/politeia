@@ -2382,6 +2382,9 @@ func (g *gitBackEnd) Plugin(command, payload string) (string, string, error) {
 	case decredplugin.CmdInventory:
 		payload, err := g.pluginInventory()
 		return decredplugin.CmdInventory, payload, err
+	case decredplugin.CmdLoadVoteSummaries:
+		payload, err := g.pluginLoadVoteSummaries()
+		return decredplugin.CmdLoadVoteSummaries, payload, err
 	}
 	return "", "", fmt.Errorf("invalid payload command") // XXX this needs to become a type error
 }

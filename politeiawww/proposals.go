@@ -1954,16 +1954,39 @@ func (p *politeiawww) processStartVote(sv www.StartVote, u *user.User) (*www.Sta
 // processTokenInventory returns the tokens of all proposals in the inventory,
 // categorized by stage of the voting process.
 func (p *politeiawww) processTokenInventory() (*www.TokenInventoryReply, error) {
+	log.Tracef("processTokenInventory")
+
 	bb, err := p.getBestBlock()
 	if err != nil {
 		return nil, err
 	}
 
-	reply, err := p.decredTokenInventory(bb)
-	if err != nil {
-		return nil, err
+	// The vote summaries cache table is lazy loaded and may
+	// need to be updated. If it does need to be updated, the
+	// token inventory call will need to be retried after the
+	// update is complete.
+	var done bool
+	var r www.TokenInventoryReply
+	for retries := 0; !done && retries <= 1; retries++ {
+		ti, err := p.decredTokenInventory(bb)
+		if err != nil {
+			if err == cache.ErrRecordNotFound {
+				// There are missing entries in the vote
+				// summaries cache table. Load them.
+				_, err := p.decredLoadVoteSummaries(bb)
+				if err != nil {
+					return nil, err
+				}
+
+				// Retry token inventory call
+				continue
+			}
+			return nil, err
+		}
+
+		r = convertTokenInventoryReplyFromDecred(*ti)
+		done = true
 	}
 
-	itr := convertTokenInventoryReplyFromDecred(*reply)
-	return &itr, err
+	return &r, err
 }
