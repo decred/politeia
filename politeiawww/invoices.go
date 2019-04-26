@@ -482,7 +482,8 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 
 			// Verify that the submitted monthly average matches the value
 			// was calculated server side.
-			monthAvg, err := p.GetMonthAverage(time.Month(invInput.Month), int(invInput.Year))
+			monthAvg, err := p.GetMonthAverage(time.Month(invInput.Month),
+				int(invInput.Year))
 			if err != nil {
 				return www.UserError{
 					ErrorCode: www.ErrorStatusInvalidExchangeRate,
@@ -1071,10 +1072,9 @@ func (p *politeiawww) processGeneratePayouts(gp cms.GeneratePayouts, u *user.Use
 			}
 		}
 
-		// Divide by 100 to get amounts in USD
-		payout.LaborTotal = totalLaborMinutes * inv.ContractorRate / (60 * 100)
+		payout.LaborTotal = totalLaborMinutes * inv.ContractorRate / 60
 		payout.ContractorRate = inv.ContractorRate
-		payout.ExpenseTotal = totalExpenses / 100
+		payout.ExpenseTotal = totalExpenses
 
 		payout.Address = inv.PaymentAddress
 		payout.Token = inv.Token
@@ -1085,7 +1085,8 @@ func (p *politeiawww) processGeneratePayouts(gp cms.GeneratePayouts, u *user.Use
 		payout.Year = inv.Year
 		payout.Total = payout.LaborTotal + payout.ExpenseTotal
 		if inv.ExchangeRate > 0 {
-			payout.DCRTotal, err = dcrutil.NewAmount(float64(payout.Total*100) / float64(inv.ExchangeRate))
+			payout.DCRTotal, err = dcrutil.NewAmount(float64(payout.Total) /
+				float64(inv.ExchangeRate))
 		}
 		payout.ExchangeRate = inv.ExchangeRate
 

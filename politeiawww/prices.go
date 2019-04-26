@@ -56,8 +56,7 @@ func (p *politeiawww) GetMonthAverage(month time.Month, year int) (uint, error) 
 	}
 	average = average / float64(len(usdtDcrPrices))
 
-	averageInt := uint(math.Round(average * 100))
-	return averageInt, nil
+	return uint(math.Round(average * 100)), nil
 }
 
 // GetPrices contacts the Poloniex API to download
