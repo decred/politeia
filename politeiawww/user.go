@@ -1653,7 +1653,7 @@ func (p *politeiawww) processUsers(users *www.Users, isAdmin bool) (*www.UsersRe
 
 			if pubkeyQuery != "" && userMatches {
 				if user.ID.String() != u.ID.String() {
-				// if user.ID.String() != id {
+					// if user.ID.String() != id {
 					userMatches = false
 				}
 			}
