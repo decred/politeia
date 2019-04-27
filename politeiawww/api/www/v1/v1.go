@@ -712,15 +712,15 @@ type VerifyUserPaymentReply struct {
 type Users struct {
 	Username  string `json:"username"`  // String which should match or partially match a username
 	Email     string `json:"email"`     // String which should match or partially match an email
-	PublicKey string `json:"publickey"` // Pubkey used for Signature
+	PublicKey string `json:"publickey"` // Active or inactive user pubkey
 
 }
 
 // UsersReply is a reply to the Users command, replying with a list of users.
 type UsersReply struct {
-	TotalUsers   uint64         `json:"totalusers,omitempty"`   // Total number of all users in the database
-	TotalMatches uint64         `json:"totalmatches,omitempty"` // Total number of users that match the filters
-	Users        []AbridgedUser `json:"users"`                  // List of users that match the filters
+	TotalUsers   uint64         `json:"totalusers,omitempty"` // Total number of all users in the database
+	TotalMatches uint64         `json:"totalmatches"`         // Total number of users that match the filters
+	Users        []AbridgedUser `json:"users"`                // List of users that match the filters
 }
 
 // AbridgedUser is a shortened version of User that's used for the admin list.
