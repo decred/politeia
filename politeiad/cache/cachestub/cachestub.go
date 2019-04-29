@@ -34,6 +34,10 @@ func (c *cachestub) UpdateRecordStatus(token, version string, status cache.Recor
 	return nil
 }
 
+func (c *cachestub) UpdateRecordMetadata(token string, ms []cache.MetadataStream) error {
+	return nil
+}
+
 // Inventory is a stub to satisfy the cache interface.
 func (c *cachestub) Inventory() ([]cache.Record, error) {
 	return make([]cache.Record, 0), nil

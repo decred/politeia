@@ -19,6 +19,7 @@ import (
 	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
+	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	"github.com/decred/politeia/politeiawww/api/www/v1"
 	wwwclient "github.com/decred/politeia/politeiawww/cmd/politeiawwwcli/client"
 	"github.com/decred/politeia/politeiawww/cmd/politeiawwwcli/config"
@@ -31,74 +32,89 @@ var (
 	cfg    *config.Config
 	client *wwwclient.Client
 
-	// errUserIdentityNotFound is emitted when a user identity is
-	// required but the config object does not contain one.
-	errUserIdentityNotFound = errors.New("user identity not found.  You must " +
+	// errUserIdentityNotFound is emitted when a user identity is required
+	// but the config object does not contain one.
+	errUserIdentityNotFound = errors.New("user identity not found; you must " +
 		"either create a new user or use the updateuserkey command to generate " +
-		"a new identity for the logged in user.")
+		"a new identity for the logged in user")
 
-	// errProposalMDNotFound is emitted when a proposal markdown file
-	// is required but has not been passed into the command.
-	errProposalMDNotFound = errors.New("proposal markdown file not found.  " +
-		"You must either provide a markdown file or use the --random flag.")
+	// errProposalMDNotFound is emitted when a proposal markdown file is
+	// required but has not been passed into the command.
+	errProposalMDNotFound = errors.New("proposal markdown file not found; " +
+		"you must either provide a markdown file or use the --random flag")
 
-	// errInvalidBeforeAfterUsage is emitted when the command flags
-	// 'before' and 'after' are used at the same time.
+	// errInvalidBeforeAfterUsage is emitted when the command flags 'before'
+	// and 'after' are used at the same time.
 	errInvalidBeforeAfterUsage = errors.New("the 'before' and 'after' flags " +
 		"cannot be used at the same time")
+
+	// errInvoiceCSVNotFound is emitted when a invoice csv file
+	// is required but has not been passed into the command.
+	errInvoiceCSVNotFound = errors.New("invoice csv file not found.  " +
+		"You must either provide a csv file or use the --random flag.")
 )
 
 // Cmds is used to represent all of the politeiawwwcli commands.
 type Cmds struct {
-	ActiveVotes        ActiveVotesCmd        `command:"activevotes" description:"(public) get the proposals that are being voted on"`
-	AuthorizeVote      AuthorizeVoteCmd      `command:"authorizevote" description:"(user)   authorize a proposal vote (must be proposal author)"`
-	CensorComment      CensorCommentCmd      `command:"censorcomment" description:"(admin)  censor a proposal comment"`
-	ChangePassword     ChangePasswordCmd     `command:"changepassword" description:"(user)   change the password for the logged in user"`
-	ChangeUsername     ChangeUsernameCmd     `command:"changeusername" description:"(user)   change the username for the logged in user"`
-	EditProposal       EditProposalCmd       `command:"editproposal" description:"(user)   edit a proposal"`
-	ManageUser         ManageUserCmd         `command:"manageuser" description:"(admin)  edit certain properties of the specified user"`
-	EditUser           EditUserCmd           `command:"edituser" description:"(user)   edit the  preferences of the logged in user"`
-	Help               HelpCmd               `command:"help" description:"         print a detailed help message for a specific command"`
-	Inventory          InventoryCmd          `command:"inventory" description:"(public) get the proposals that are being voted on"`
-	InviteNewUser      InviteNewUserCmd      `command:"invite" description:"(admin)  invite a new user"`
-	LikeComment        LikeCommentCmd        `command:"likecomment" description:"(user)   upvote/downvote a comment"`
-	Login              LoginCmd              `command:"login" description:"(public) login to Politeia"`
-	Logout             LogoutCmd             `command:"logout" description:"(public) logout of Politeia"`
-	Me                 MeCmd                 `command:"me" description:"(user)   get user details for the logged in user"`
-	NewProposal        NewProposalCmd        `command:"newproposal" description:"(user)   create a new proposal"`
-	NewComment         NewCommentCmd         `command:"newcomment" description:"(user)   create a new proposal comment"`
-	NewUser            NewUserCmd            `command:"newuser" description:"(public) create a new user"`
-	Policy             PolicyCmd             `command:"policy" description:"(public) get the server policy"`
-	ProposalComments   ProposalCommentsCmd   `command:"proposalcomments" description:"(public) get the comments for a proposal"`
-	ProposalDetails    ProposalDetailsCmd    `command:"proposaldetails" description:"(public) get the detials of a proposal"`
-	ProposalPaywall    ProposalPaywallCmd    `command:"proposalpaywall" description:"(user)   get proposal paywall details for the logged in user"`
-	ProposalStats      ProposalStatsCmd      `command:"proposalstats" description:"(public) get statistics on the proposal inventory"`
-	UnvettedProposals  UnvettedProposalsCmd  `command:"unvettedproposals" description:"(admin)  get a page of unvetted proposals"`
-	VettedProposals    VettedProposalsCmd    `command:"vettedproposals" description:"(public) get a page of vetted proposals"`
-	RegisterUser       RegisterUserCmd       `command:"register" description:"(public) register an invited user to cms"`
-	RescanUserPayments RescanUserPaymentsCmd `command:"rescanuserpayments" description:"(admin)  rescan a user's payments to check for missed payments"`
-	ResendVerification ResendVerificationCmd `command:"resendverification" description:"(public) resend the user verification email"`
-	ResetPassword      ResetPasswordCmd      `command:"resetpassword" description:"(public) reset the password for a user that is not logged in"`
-	Secret             SecretCmd             `command:"secret" description:"(user)   ping politeiawww"`
-	SendFaucetTx       SendFaucetTxCmd       `command:"sendfaucettx" description:"         send a DCR transaction using the Decred tesnet faucet"`
-	SetProposalStatus  SetProposalStatusCmd  `command:"setproposalstatus" description:"(admin)  set the status of a proposal"`
-	StartVote          StartVoteCmd          `command:"startvote" description:"(admin)  start the voting period on a proposal"`
-	Subscribe          SubscribeCmd          `command:"subscribe" description:"(public) subscribe to all websocket commands and do not exit tool"`
-	Tally              TallyCmd              `command:"tally" description:"(public) get the vote tally for a proposal"`
-	TestRun            TestRunCmd            `command:"testrun" description:"         run a series of tests on the politeiawww routes (dev use only)"`
-	UpdateUserKey      UpdateUserKeyCmd      `command:"updateuserkey" description:"(user)   generate a new identity for the logged in user"`
-	UserDetails        UserDetailsCmd        `command:"userdetails" description:"(public) get the details of a user profile"`
-	UserLikeComments   UserLikeCommentsCmd   `command:"userlikecomments" description:"(user)   get the logged in user's comment upvotes/downvotes for a proposal"`
-	UserPendingPayment UserPendingPaymentCmd `command:"userpendingpayment" description:"(user)   get details for a pending payment for the logged in user"`
-	UserProposals      UserProposalsCmd      `command:"userproposals" description:"(public) get all proposals submitted by a specific user"`
-	Users              UsersCmd              `command:"users" description:"(admin)  get a list of users"`
-	VerifyUserEmail    VerifyUserEmailCmd    `command:"verifyuseremail" description:"(public) verify a user's email address"`
-	VerifyUserPayment  VerifyUserPaymentCmd  `command:"verifyuserpayment" description:"(user)   check if the logged in user has paid their user registration fee"`
-	Version            VersionCmd            `command:"version" description:"(public) get server info and CSRF token"`
-	Vote               VoteCmd               `command:"vote" description:"(public) cast votes for a proposal"`
-	VoteResults        VoteResultsCmd        `command:"voteresults" description:"(public) get vote results for a proposal"`
-	VoteStatus         VoteStatusCmd         `command:"votestatus" description:"(public) get the vote status of a proposal"`
-	VoteStatuses       VoteStatusesCmd       `command:"votestatuses" description:"(public) get the vote status for all public proposals"`
+	AdminInvoices       AdminInvoicesCmd       `command:"admininvoices" description:"(admin) get all invoices (optional by month/year and/or status)"`
+	ActiveVotes         ActiveVotesCmd         `command:"activevotes" description:"(public) get the proposals that are being voted on"`
+	AuthorizeVote       AuthorizeVoteCmd       `command:"authorizevote" description:"(user)   authorize a proposal vote (must be proposal author)"`
+	CensorComment       CensorCommentCmd       `command:"censorcomment" description:"(admin)  censor a proposal comment"`
+	ChangePassword      ChangePasswordCmd      `command:"changepassword" description:"(user)   change the password for the logged in user"`
+	ChangeUsername      ChangeUsernameCmd      `command:"changeusername" description:"(user)   change the username for the logged in user"`
+	EditInvoice         EditInvoiceCmd         `command:"editinvoice" description:"(user)    edit a invoice"`
+	EditProposal        EditProposalCmd        `command:"editproposal" description:"(user)   edit a proposal"`
+	ManageUser          ManageUserCmd          `command:"manageuser" description:"(admin)  edit certain properties of the specified user"`
+	EditUser            EditUserCmd            `command:"edituser" description:"(user)   edit the  preferences of the logged in user"`
+	GeneratePayouts     GeneratePayoutsCmd     `command:"generatepayouts" description:"(admin) generate a list of payouts with addresses and amounts to pay"`
+	Help                HelpCmd                `command:"help" description:"         print a detailed help message for a specific command"`
+	InvoiceComments     InvoiceCommentsCmd     `command:"invoicecomments" description:"(user) get the comments for a invoice"`
+	InvoiceExchangeRate InvoiceExchangeRateCmd `command:"invoiceexchangerate" description:"(user) get exchange rate for a given month/year"`
+	Inventory           InventoryCmd           `command:"inventory" description:"(public) get the proposals that are being voted on"`
+	InviteNewUser       InviteNewUserCmd       `command:"invite" description:"(admin)  invite a new user"`
+	InvoiceDetails      InvoiceDetailsCmd      `command:"invoicedetails" description:"(public) get the details of a proposal"`
+	LikeComment         LikeCommentCmd         `command:"likecomment" description:"(user)   upvote/downvote a comment"`
+	Login               LoginCmd               `command:"login" description:"(public) login to Politeia"`
+	Logout              LogoutCmd              `command:"logout" description:"(public) logout of Politeia"`
+	Me                  MeCmd                  `command:"me" description:"(user)   get user details for the logged in user"`
+	NewInvoice          NewInvoiceCmd          `command:"newinvoice" description:"(user)   create a new invoice"`
+	NewProposal         NewProposalCmd         `command:"newproposal" description:"(user)   create a new proposal"`
+	NewComment          NewCommentCmd          `command:"newcomment" description:"(user)   create a new proposal comment"`
+	NewUser             NewUserCmd             `command:"newuser" description:"(public) create a new user"`
+	Policy              PolicyCmd              `command:"policy" description:"(public) get the server policy"`
+	ProposalComments    ProposalCommentsCmd    `command:"proposalcomments" description:"(public) get the comments for a proposal"`
+	ProposalDetails     ProposalDetailsCmd     `command:"proposaldetails" description:"(public) get the details of a proposal"`
+	ProposalPaywall     ProposalPaywallCmd     `command:"proposalpaywall" description:"(user)   get proposal paywall details for the logged in user"`
+	ProposalStats       ProposalStatsCmd       `command:"proposalstats" description:"(public) get statistics on the proposal inventory"`
+	UnvettedProposals   UnvettedProposalsCmd   `command:"unvettedproposals" description:"(admin)  get a page of unvetted proposals"`
+	VettedProposals     VettedProposalsCmd     `command:"vettedproposals" description:"(public) get a page of vetted proposals"`
+	RegisterUser        RegisterUserCmd        `command:"register" description:"(public) register an invited user to cms"`
+	RescanUserPayments  RescanUserPaymentsCmd  `command:"rescanuserpayments" description:"(admin)  rescan a user's payments to check for missed payments"`
+	ResendVerification  ResendVerificationCmd  `command:"resendverification" description:"(public) resend the user verification email"`
+	ResetPassword       ResetPasswordCmd       `command:"resetpassword" description:"(public) reset the password for a user that is not logged in"`
+	Secret              SecretCmd              `command:"secret" description:"(user)   ping politeiawww"`
+	SendFaucetTx        SendFaucetTxCmd        `command:"sendfaucettx" description:"         send a DCR transaction using the Decred testnet faucet"`
+	SetInvoiceStatus    SetInvoiceStatusCmd    `command:"setinvoicestatus" description:"(admin)  set the status of an invoice"`
+	SetProposalStatus   SetProposalStatusCmd   `command:"setproposalstatus" description:"(admin)  set the status of a proposal"`
+	StartVote           StartVoteCmd           `command:"startvote" description:"(admin)  start the voting period on a proposal"`
+	Subscribe           SubscribeCmd           `command:"subscribe" description:"(public) subscribe to all websocket commands and do not exit tool"`
+	Tally               TallyCmd               `command:"tally" description:"(public) get the vote tally for a proposal"`
+	TestRun             TestRunCmd             `command:"testrun" description:"         run a series of tests on the politeiawww routes (dev use only)"`
+	TokenInventory      TokenInventoryCmd      `command:"tokeninventory" description:"(public) get the censorship record tokens of all proposals"`
+	UpdateUserKey       UpdateUserKeyCmd       `command:"updateuserkey" description:"(user)   generate a new identity for the logged in user"`
+	UserDetails         UserDetailsCmd         `command:"userdetails" description:"(public) get the details of a user profile"`
+	UserLikeComments    UserLikeCommentsCmd    `command:"userlikecomments" description:"(user)   get the logged in user's comment upvotes/downvotes for a proposal"`
+	UserPendingPayment  UserPendingPaymentCmd  `command:"userpendingpayment" description:"(user)   get details for a pending payment for the logged in user"`
+	UserInvoices        UserInvoicesCmd        `command:"userinvoices" description:"(user) get all invoices submitted by a specific user"`
+	UserProposals       UserProposalsCmd       `command:"userproposals" description:"(public) get all proposals submitted by a specific user"`
+	Users               UsersCmd               `command:"users" description:"(admin)  get a list of users"`
+	VerifyUserEmail     VerifyUserEmailCmd     `command:"verifyuseremail" description:"(public) verify a user's email address"`
+	VerifyUserPayment   VerifyUserPaymentCmd   `command:"verifyuserpayment" description:"(user)   check if the logged in user has paid their user registration fee"`
+	Version             VersionCmd             `command:"version" description:"(public) get server info and CSRF token"`
+	Vote                VoteCmd                `command:"vote" description:"(public) cast votes for a proposal"`
+	VoteResults         VoteResultsCmd         `command:"voteresults" description:"(public) get vote results for a proposal"`
+	VoteStatus          VoteStatusCmd          `command:"votestatus" description:"(public) get the vote status of a proposal"`
+	VoteStatuses        VoteStatusesCmd        `command:"votestatuses" description:"(public) get the vote status for all public proposals"`
 }
 
 // SetConfig sets the global config variable.
@@ -138,7 +154,7 @@ func printJSON(body interface{}) error {
 	return nil
 }
 
-// PromptPassphrase is used to prompt the user for the private passphrase to
+// promptPassphrase is used to prompt the user for the private passphrase to
 // their wallet.
 func promptPassphrase() ([]byte, error) {
 	prompt := "Enter the private passphrase of your wallet: "
@@ -239,6 +255,50 @@ func signedMerkleRoot(files []v1.File, id *identity.FullIdentity) (string, error
 // verifyProposal verifies a proposal's merkle root, author signature, and
 // censorship record.
 func verifyProposal(p v1.ProposalRecord, serverPubKey string) error {
+	// Verify merkle root
+	if len(p.Files) > 0 {
+		mr, err := merkleRoot(p.Files)
+		if err != nil {
+			return err
+		}
+		if mr != p.CensorshipRecord.Merkle {
+			return fmt.Errorf("merkle roots do not match")
+		}
+	}
+
+	// Verify proposal signature
+	pid, err := util.IdentityFromString(p.PublicKey)
+	if err != nil {
+		return err
+	}
+	sig, err := util.ConvertSignature(p.Signature)
+	if err != nil {
+		return err
+	}
+	if !pid.VerifyMessage([]byte(p.CensorshipRecord.Merkle), sig) {
+		return fmt.Errorf("could not verify proposal signature")
+	}
+
+	// Verify censorship record signature
+	id, err := util.IdentityFromString(serverPubKey)
+	if err != nil {
+		return err
+	}
+	s, err := util.ConvertSignature(p.CensorshipRecord.Signature)
+	if err != nil {
+		return err
+	}
+	msg := []byte(p.CensorshipRecord.Merkle + p.CensorshipRecord.Token)
+	if !id.VerifyMessage(msg, s) {
+		return fmt.Errorf("could not verify censorship record signature")
+	}
+
+	return nil
+}
+
+// verifyInvoice verifies a invoice's merkle root, author signature, and
+// censorship record.
+func verifyInvoice(p cms.InvoiceRecord, serverPubKey string) error {
 	// Verify merkle root
 	if len(p.Files) > 0 {
 		mr, err := merkleRoot(p.Files)

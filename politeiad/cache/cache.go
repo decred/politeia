@@ -11,9 +11,12 @@ import (
 type RecordStatusT int
 
 var (
-	// ErrWrongVersion is emitted when the version of the cache tables
-	// does not match the version of the cache implementation.
-	ErrWrongVersion = errors.New("wrong cache version")
+	// ErrNoVersionRecord is emitted when no version record exists.
+	ErrNoVersionRecord = errors.New("no version record")
+
+	// ErrWrongVersion is emitted when the version record does not
+	// match the implementation version.
+	ErrWrongVersion = errors.New("wrong version")
 
 	// ErrShutdown is emitted when the cache is shutting down.
 	ErrShutdown = errors.New("cache is shutting down")
@@ -32,10 +35,6 @@ var (
 	// ErrInvalidPluginCmd is emitted when an invalid plugin command
 	// is used.
 	ErrInvalidPluginCmd = errors.New("invalid plugin command")
-
-	// ErrWrongPluginVersion is emitted when the version of a cache
-	// plugin does not match the version of the plugin tables.
-	ErrWrongPluginVersion = errors.New("wrong plugin version")
 )
 
 const (
@@ -165,6 +164,9 @@ type Cache interface {
 	// Update the status of a record
 	UpdateRecordStatus(string, string, RecordStatusT, int64,
 		[]MetadataStream) error
+
+	// Update the metadata streams of a record
+	UpdateRecordMetadata(string, []MetadataStream) error
 
 	// Get the latest version of all records
 	Inventory() ([]Record, error)

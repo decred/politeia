@@ -112,6 +112,30 @@ notifications.  It does not render HTML.
 - [`ErrorStatusInvalidUUID`](#ErrorStatusInvalidUUID)
 - [`ErrorStatusInvalidLikeCommentAction`](#ErrorStatusInvalidLikeCommentAction)
 - [`ErrorStatusInvalidCensorshipToken`](#ErrorStatusInvalidCensorshipToken)
+- [`ErrorStatusMalformedName`](#ErrorStatusMalformedName)
+- [`ErrorStatusMalformedLocation`](#ErrorStatusMalformedLocation)
+- [`ErrorStatusInvoiceNotFound`](#ErrorStatusInvoiceNotFound)
+- [`ErrorStatusInvalidMonthYearRequest`](#ErrorStatusInvalidMonthYearRequest)
+- [`ErrorStatusMalformedInvoiceFile`](#ErrorStatusMalformedInvoiceFile)
+- [`ErrorStatusInvalidInvoiceStatusTransition`](#ErrorStatusInvalidInvoiceStatusTransition)
+- [`ErrorStatusReasonNotProvided`](#ErrorStatusReasonNotProvided)
+- [`ErrorStatusInvoiceDuplicate`](#ErrorStatusInvoiceDuplicate)
+- [`ErrorStatusInvalidPaymentAddress`](#ErrorStatusInvalidPaymentAddress)
+- [`ErrorStatusMalformedLineItem`](#ErrorStatusMalformedLineItem)
+- [`ErrorStatusInvoiceMissingName`](#ErrorStatusInvoiceMissingName)
+- [`ErrorStatusInvoiceMissingLocation`](#ErrorStatusInvoiceMissingLocation)
+- [`ErrorStatusInvoiceMissingContact`](#ErrorStatusInvoiceMissingContact)
+- [`ErrorStatusInvoiceMissingRate`](#ErrorStatusInvoiceMissingRate)
+- [`ErrorStatusInvoiceInvalidRate`](#ErrorStatusInvoiceInvalidRate)
+- [`ErrorStatusInvoiceMalformedContact`](#ErrorStatusInvoiceMalformedContact)
+- [`ErrorStatusMalformedProposalToken`](#ErrorStatusMalformedProposalToken)
+- [`ErrorStatusMalformedDomain`](#ErrorStatusMalformedDomain)
+- [`ErrorStatusMalformedSubdomain`](#ErrorStatusMalformedSubdomain)
+- [`ErrorStatusMalformedDescription`](#ErrorStatusMalformedDescription) 
+- [`ErrorStatusWrongInvoiceStatus`](#ErrorStatusWrongInvoiceStatus) 
+- [`ErrorStatusInvoiceRequireLineItems`](#ErrorStatusInvoiceRequireLineItems)
+- [`ErrorStatusInvalidInvoiceMonthYear`](#ErrorStatusInvalidInvoiceMonthYear)
+- [`ErrorStatusMultipleInvoiceMonthYear`](#ErrorStatusMultipleInvoiceMonthYear)
 
 **Proposal status codes**
 
@@ -243,7 +267,8 @@ to get the CSRF token for the session and to ensure API compatibility.
 | route | string | Route that should be prepended to all calls. For example, "/v1". |
 | pubkey | string | The public key for the corresponding private key that signs various tokens to ensure server authenticity and to prevent replay attacks. |
 | testnet | boolean | Value to inform either its running on testnet or not |
-| mode | string | Current mode that politeiawww is running (possibly piwww or cmswww)
+| mode | string | Current mode that politeiawww is running (possibly piwww or cmswww) |
+| activeusersesstion | boolean | Indicates if there is an active user from the session or not |
 
 **Example**
 
@@ -259,7 +284,11 @@ Reply:
 {
   "version": 1,
   "route": "/v1",
-  "identity": "99e748e13d7ecf70ef6b5afa376d692cd7cb4dbb3d26fa83f417d29e44c6bb6c"
+  "pubkey": "99e748e13d7ecf70ef6b5afa376d692cd7cb4dbb3d26fa83f417d29e44c6bb6c",
+  "testnet": true,
+  "mode": "piwww",
+  "activeusersession": true
+
 }
 ```
 
@@ -1379,6 +1408,13 @@ SHALL observe.
 | proposalnamesupportedchars | array of strings | the regular expression of a valid proposal name |
 | maxcommentlength | integer | maximum number of characters accepted for comments |
 | backendpublickey | string |  |
+| maxnamelength | integer | maximum contractor name length (cmswww)
+| minnamelength | integer | mininum contractor name length (cmswww)
+| maxlocationlength | integer | maximum contractor location length (cmswww)
+| minlocationlength | integer | minimum contractor location length (cmswww)
+| invoicecommentchar | char | character for comments on invoices (cmswww)
+| invoicefielddelimiterchar | char | charactor for invoice csv field seperation (cmswww)
+| invoicelineitemcount | integer | expected count for line item fields (cmswww)
 
 
 **Example**
@@ -1622,7 +1658,7 @@ Reply:
 
 ### `Get comments`
 
-Retrieve all comments for given proposal.  Not that the comments are not
+Retrieve all comments for given proposal.  Note that the comments are not
 sorted.
 
 **Route:** `GET /v1/proposals/{token}/comments`
@@ -2428,7 +2464,6 @@ Reply:
 }
 ```
 
-
 ### Error codes
 
 | Status | Value | Description |
@@ -2492,7 +2527,30 @@ Reply:
 | <a name="ErrorStatusInvalidUUID">ErrorStatusInvalidUUID</a> | 56 | Invalid user UUID. |
 | <a name="ErrorStatusInvalidLikeCommentAction">ErrorStatusInvalidLikeCommentAction</a> | 57 | Invalid like comment action. |
 | <a name="ErrorStatusInvalidCensorshipToken">ErrorStatusInvalidCensorshipToken</a> | 58 | Invalid proposal censorship token. |
-
+| <a name="ErrorStatusMalformedName">ErrorStatusMalformedName</a> | 60 | Invalid name entered for CMS registration. |
+| <a name="ErrorStatusMalformedLocation">ErrorStatusMalformedLocation</a> | 61 | Invalid location entered for CMS registration. |
+| <a name="ErrorStatusInvoiceNotFound">ErrorStatusInvoiceNotFound</a> | 62 | Request invoice not found. |
+| <a name="ErrorStatusInvalidMonthYearRequest">ErrorStatusInvalidMonthYearRequest</a> | 63 | Month and/or was improperly entered for an invoice. |
+| <a name="ErrorStatusMalformedInvoiceFile">ErrorStatusMalformedInvoiceFile</a> | 64 | The invoice file submitted was malformed and not acceptable. |
+| <a name="ErrorStatusInvalidInvoiceStatusTransition">ErrorStatusInvalidInvoiceStatusTransition</a> | 65 | Status update attempted an invalid status transition. |
+| <a name="ErrorStatusReasonNotProvided">ErrorStatusReasonNotProvided</a> | 66 | No reason provided for status updated. |
+| <a name="ErrorStatusInvoiceDuplicate">ErrorStatusInvoiceDuplicate</a> | 67 | Invoice is a duplicate. |
+| <a name="ErrorStatusInvalidPaymentAddress">ErrorStatusInvalidPaymentAddress</a> | 68 | Invalid payment address was submitted. |
+| <a name="ErrorStatusMalformedLineItem">ErrorStatusMalformedLineItem</a> | 69 | Line item in an invoice was malformed and invalid. |
+| <a name="ErrorStatusInvoiceMissingName">ErrorStatusInvoiceMissingName</a> | 70 | Submitted invoice missing contractor name. |
+| <a name="ErrorStatusInvoiceMissingLocation">ErrorStatusInvoiceMissingLocation</a> | 71 | Submitted invoice missing contractor location. |
+| <a name="ErrorStatusInvoiceMissingContact">ErrorStatusInvoiceMissingContact</a> | 72 | Submitted invoice missing contractor contact. |
+| <a name="ErrorStatusInvoiceMissingRate">ErrorStatusInvoiceMissingRate</a> | 73 | Submitted invoice missing contractor rate. |
+| <a name="ErrorStatusInvoiceInvalidRate">ErrorStatusInvoiceInvalidRate</a> | 74 | Submitted contractor rate is invalid (either too high or low). |
+| <a name="ErrorStatusInvoiceMalformedContact">ErrorStatusInvoiceMalformedContact</a> | 75 | Malformed contractor contact was entered. |
+| <a name="ErrorStatusMalformedProposalToken">ErrorStatusMalformedProposalToken</a> | 76 | Malformed proposal token for a line item. |
+| <a name="ErrorStatusMalformedDomain">ErrorStatusMalformedDomain</a> | 77 | Malformed domain for a line item. |
+| <a name="ErrorStatusMalformedSubdomain">ErrorStatusMalformedSubdomain</a> | 78 | Malformed subdomain for a line item. |
+| <a name="ErrorStatusMalformedDescription">ErrorStatusMalformedDescription</a> | 79 | Malformed description for a line item. |
+| <a name="ErrorStatusWrongInvoiceStatus">ErrorStatusWrongInvoiceStatus</a> | 80 | Wrong status for an invoice to be editted (approved, rejected, paid). |
+| <a name="ErrorStatusInvoiceRequireLineItems">ErrorStatusInvoiceRequireLineItems</a> | 81 | Invoices require at least 1 line item to be included. |
+| <a name="ErrorStatusMultipleInvoiceMonthYear">ErrorStatusMultipleInvoiceMonthYear</a> | 82 | Users are only allowed to submit 1 invoice per month/year. |
+| <a name="ErrorStatusInvalidInvoiceMonthYear">ErrorStatusInvalidInvoiceMonthYear</a> | 83 | An invalid month/year was detected in an invoice. |
 
 
 ### Proposal status codes

@@ -220,6 +220,17 @@ func convertBackendPluginToCache(p backend.Plugin) cache.Plugin {
 	}
 }
 
+func convertMDStreamsToCache(ms []backend.MetadataStream) []cache.MetadataStream {
+	m := make([]cache.MetadataStream, 0, len(ms))
+	for _, v := range ms {
+		m = append(m, cache.MetadataStream{
+			ID:      v.ID,
+			Payload: v.Payload,
+		})
+	}
+	return m
+}
+
 func (p *politeia) convertBackendRecordToCache(r backend.Record) cache.Record {
 	msg := []byte(r.RecordMetadata.Merkle + r.RecordMetadata.Token)
 	signature := p.identity.SignMessage(msg)
@@ -227,15 +238,6 @@ func (p *politeia) convertBackendRecordToCache(r backend.Record) cache.Record {
 		Token:     r.RecordMetadata.Token,
 		Merkle:    r.RecordMetadata.Merkle,
 		Signature: hex.EncodeToString(signature[:]),
-	}
-
-	metadata := make([]cache.MetadataStream, 0, len(r.Metadata))
-	for _, ms := range r.Metadata {
-		metadata = append(metadata,
-			cache.MetadataStream{
-				ID:      ms.ID,
-				Payload: ms.Payload,
-			})
 	}
 
 	files := make([]cache.File, 0, len(r.Files))
@@ -254,7 +256,7 @@ func (p *politeia) convertBackendRecordToCache(r backend.Record) cache.Record {
 		Status:           convertBackendStatusToCache(r.RecordMetadata.Status),
 		Timestamp:        r.RecordMetadata.Timestamp,
 		CensorshipRecord: cr,
-		Metadata:         metadata,
+		Metadata:         convertMDStreamsToCache(r.Metadata),
 		Files:            files,
 	}
 }
@@ -842,6 +844,17 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
+func (p *politeia) cacheUpdateVettedMetadata(token []byte) error {
+	r, err := p.backend.GetVetted(token, "")
+	if err != nil {
+		return fmt.Errorf("get vetted: %v", err)
+	}
+
+	m := convertMDStreamsToCache(r.Metadata)
+	t := hex.EncodeToString(token)
+	return p.cache.UpdateRecordMetadata(t, m)
+}
+
 func (p *politeia) updateVettedMetadata(w http.ResponseWriter, r *http.Request) {
 	var t v1.UpdateVettedMetadata
 	decoder := json.NewDecoder(r.Body)
@@ -892,6 +905,13 @@ func (p *politeia) updateVettedMetadata(w http.ResponseWriter, r *http.Request) 
 			remoteAddr(r), errorCode, err)
 		p.respondWithServerError(w, errorCode)
 		return
+	}
+
+	// Update the cache
+	err = p.cacheUpdateVettedMetadata(token)
+	if err != nil {
+		log.Criticalf("Cache updated vetted metadata failed %x: %v",
+			token, err)
 	}
 
 	// Reply
@@ -1119,7 +1139,10 @@ func _main() error {
 		net := filepath.Base(p.cfg.DataDir)
 		db, err := cockroachdb.New(cockroachdb.UserPoliteiad, p.cfg.CacheHost,
 			net, p.cfg.CacheRootCert, p.cfg.CacheCert, p.cfg.CacheKey)
-		if err == cache.ErrWrongVersion {
+		if err == cache.ErrNoVersionRecord || err == cache.ErrWrongVersion {
+			// The cache version record was either not found or
+			// is the wrong version which means that the cache
+			// needs to be built/rebuilt.
 			p.cfg.BuildCache = true
 		} else if err != nil {
 			return fmt.Errorf("cockroachdb new: %v", err)
@@ -1190,7 +1213,10 @@ func _main() error {
 			// Register plugin with the cache
 			cp := convertBackendPluginToCache(v)
 			err := p.cache.RegisterPlugin(cp)
-			if err == cache.ErrWrongPluginVersion {
+			if err == cache.ErrNoVersionRecord || err == cache.ErrWrongVersion {
+				// The cache plugin version record was either not found
+				// or it is the wrong version which means that the cache
+				// needs to be built/rebuilt.
 				p.cfg.BuildCache = true
 			} else if err != nil {
 				return fmt.Errorf("cache register plugin '%v': %v",

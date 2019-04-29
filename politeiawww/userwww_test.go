@@ -21,8 +21,8 @@ import (
 )
 
 func TestHandleNewUser(t *testing.T) {
-	p := newTestPoliteiawww(t)
-	defer cleanupTestPoliteiawww(t, p)
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
 
 	id, err := identity.New()
 	if err != nil {
@@ -96,8 +96,8 @@ func TestHandleNewUser(t *testing.T) {
 }
 
 func TestHandleVerifyNewUser(t *testing.T) {
-	p := newTestPoliteiawww(t)
-	defer cleanupTestPoliteiawww(t, p)
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
 
 	// Create an unverified user to test against
 	usr, id := newUser(t, p, false, false)
@@ -209,8 +209,8 @@ func TestHandleVerifyNewUser(t *testing.T) {
 }
 
 func TestHandleResendVerification(t *testing.T) {
-	p := newTestPoliteiawww(t)
-	defer cleanupTestPoliteiawww(t, p)
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
 
 	// Create a verified user
 	usrVerified, _ := newUser(t, p, true, false)
@@ -314,13 +314,18 @@ func TestHandleResendVerification(t *testing.T) {
 }
 
 func TestHandleLogin(t *testing.T) {
-	p := newTestPoliteiawww(t)
-	defer cleanupTestPoliteiawww(t, p)
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
 
 	// MinimumLoginWaitTime is a global variable used to
 	// prevent timing attacks. We're not testing it here
-	// so we zero it out to make the tests run faster.
+	// so we temporarily zero it out to make the tests
+	// run faster.
+	m := MinimumLoginWaitTime
 	MinimumLoginWaitTime = 0
+	defer func() {
+		MinimumLoginWaitTime = m
+	}()
 
 	// Create a user to test against. newUser() sets the
 	// password to be the same as the username.
@@ -418,8 +423,8 @@ func TestHandleLogin(t *testing.T) {
 }
 
 func TestHandleChangePassword(t *testing.T) {
-	p := newTestPoliteiawww(t)
-	defer cleanupTestPoliteiawww(t, p)
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
 
 	// Create a user to test against. newUser()
 	// sets the password to be the username.
@@ -506,8 +511,8 @@ func TestHandleChangePassword(t *testing.T) {
 }
 
 func TestHandleResetPassword(t *testing.T) {
-	p := newTestPoliteiawww(t)
-	defer cleanupTestPoliteiawww(t, p)
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
 
 	// Create a user that has already been assigned a reset
 	// password verification token.
@@ -598,8 +603,8 @@ func TestHandleResetPassword(t *testing.T) {
 }
 
 func TestHandleChangeUsername(t *testing.T) {
-	p := newTestPoliteiawww(t)
-	defer cleanupTestPoliteiawww(t, p)
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
 
 	// Create a user to test against. newUser()
 	// sets the password to be the username.
@@ -682,8 +687,8 @@ func TestHandleChangeUsername(t *testing.T) {
 }
 
 func TestHandleUserDetails(t *testing.T) {
-	p := newTestPoliteiawww(t)
-	defer cleanupTestPoliteiawww(t, p)
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
 
 	// Create a user whose details we can fetch
 	usr, _ := newUser(t, p, true, false)
@@ -767,8 +772,8 @@ func TestHandleUserDetails(t *testing.T) {
 }
 
 func TestHandleEditUser(t *testing.T) {
-	p := newTestPoliteiawww(t)
-	defer cleanupTestPoliteiawww(t, p)
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
 
 	var notif uint64 = 0x01
 	usr, _ := newUser(t, p, true, true)

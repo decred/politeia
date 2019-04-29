@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/decred/politeia/decredplugin"
+	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/cache"
 	"github.com/jinzhu/gorm"
 )
@@ -325,7 +326,13 @@ func (d *decred) cmdStartVote(cmdPayload, replyPayload string) (string, error) {
 		return "", err
 	}
 
-	s := convertStartVoteFromDecred(*sv, *svr)
+	endHeight, err := strconv.ParseUint(svr.EndHeight, 10, 64)
+	if err != nil {
+		return "", fmt.Errorf("parse end height '%v': %v",
+			svr.EndHeight, err)
+	}
+
+	s := convertStartVoteFromDecred(*sv, *svr, endHeight)
 	err = d.newStartVote(d.recordsdb, s)
 	if err != nil {
 		return "", err
@@ -525,6 +532,110 @@ func (d *decred) cmdInventory() (string, error) {
 	return string(irb), err
 }
 
+// cmdTokenInventory returns the record tokens of all records in the cache,
+// categorized by pre vote, active vote, finished vote, and abandoned.
+func (d *decred) cmdTokenInventory(payload string) (string, error) {
+	log.Tracef("decred cmdTokenInventory")
+
+	it, err := decredplugin.DecodeTokenInventory([]byte(payload))
+	if err != nil {
+		return "", err
+	}
+
+	// Pre voting period tokens. This query returns the
+	// tokens of the most recent version of all records that
+	// are public and do not have an associated StartVote
+	// record, ordered by timestamp in descending order.
+	var token string
+	pre := make([]string, 0, 1024)
+	q := `SELECT a.token
+        FROM records a
+        LEFT OUTER JOIN start_votes
+          ON a.token = start_votes.token
+        LEFT OUTER JOIN records b
+          ON a.token = b.token
+          AND a.version < b.version
+        WHERE b.token IS NULL
+          AND start_votes.token IS NULL
+          AND a.status = ?
+        ORDER BY a.timestamp DESC`
+	rows, err := d.recordsdb.Raw(q, pd.RecordStatusPublic).Rows()
+	if err != nil {
+		return "", fmt.Errorf("pre: %v", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		rows.Scan(&token)
+		pre = append(pre, token)
+	}
+
+	// Active voting period tokens
+	active := make([]string, 0, 1024)
+	q = `SELECT token
+       FROM start_votes
+       WHERE end_height > ?
+       ORDER BY end_height DESC`
+	rows, err = d.recordsdb.Raw(q, it.BestBlock).Rows()
+	if err != nil {
+		return "", fmt.Errorf("active: %v", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		rows.Scan(&token)
+		active = append(active, token)
+	}
+
+	// Finished voting period tokens
+	finished := make([]string, 0, 1024)
+	q = `SELECT token
+       FROM start_votes
+       WHERE end_height <= ?
+       ORDER BY end_height DESC`
+	rows, err = d.recordsdb.Raw(q, it.BestBlock).Rows()
+	if err != nil {
+		return "", fmt.Errorf("finished: %v", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		rows.Scan(&token)
+		finished = append(finished, token)
+	}
+
+	// Abandoned tokens
+	abandoned := make([]string, 0, 1024)
+	q = `SELECT token
+       FROM records
+       WHERE status = ?
+       ORDER BY timestamp DESC`
+	rows, err = d.recordsdb.Raw(q, pd.RecordStatusArchived).Rows()
+	if err != nil {
+		return "", fmt.Errorf("abandoned: %v", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		rows.Scan(&token)
+		abandoned = append(abandoned, token)
+	}
+
+	// Prepare reply
+	reply, err := decredplugin.EncodeTokenInventoryReply(
+		decredplugin.TokenInventoryReply{
+			Pre:       pre,
+			Active:    active,
+			Finished:  finished,
+			Abandoned: abandoned,
+		})
+	if err != nil {
+		return "", err
+	}
+
+	return string(reply), nil
+}
+
 // Exec executes a decred plugin command.  Plugin commands that write data to
 // the cache require both the command payload and the reply payload.  Plugin
 // commands that fetch data from the cache require only the command payload.
@@ -561,18 +672,20 @@ func (d *decred) Exec(cmd, cmdPayload, replyPayload string) (string, error) {
 		return d.cmdProposalCommentsLikes(cmdPayload)
 	case decredplugin.CmdInventory:
 		return d.cmdInventory()
+	case decredplugin.CmdTokenInventory:
+		return d.cmdTokenInventory(cmdPayload)
 	}
 
 	return "", cache.ErrInvalidPluginCmd
 }
 
-// createDecredTables creates the cache tables needed by the decred plugin if
-// they do not already exist. A decred plugin version record is inserted into
-// the database during table creation.
+// createTables creates the cache tables needed by the decred plugin if they do
+// not already exist. A decred plugin version record is inserted into the
+// database during table creation.
 //
 // This function must be called within a transaction.
-func createDecredTables(tx *gorm.DB) error {
-	log.Tracef("createDecredTables")
+func (d *decred) createTables(tx *gorm.DB) error {
+	log.Tracef("createTables")
 
 	// Create decred plugin tables
 	if !tx.HasTable(tableComments) {
@@ -635,23 +748,61 @@ func createDecredTables(tx *gorm.DB) error {
 	return err
 }
 
-// build the decred plugin cache using the passed in inventory.
+// droptTables drops all decred plugin tables from the cache and remove the
+// decred plugin version record.
 //
 // This function must be called within a transaction.
-func (d *decred) build(tx *gorm.DB, ir *decredplugin.InventoryReply) error {
-	log.Tracef("decred build")
-
-	// Create the database tables
-	err := createDecredTables(tx)
+func (d *decred) dropTables(tx *gorm.DB) error {
+	// Drop decred plugin tables
+	err := tx.DropTableIfExists(tableComments, tableCommentLikes,
+		tableCastVotes, tableAuthorizeVotes, tableVoteOptions,
+		tableStartVotes).Error
 	if err != nil {
-		return fmt.Errorf("createDecredTables: %v", err)
+		return err
 	}
 
-	// Build comments cache. Comments that have been censored will
-	// be marked as censored.
+	// Remove decred plugin version record
+	return tx.Delete(&Version{
+		ID: decredplugin.ID,
+	}).Error
+}
+
+// build the decred plugin cache using the passed in inventory.
+//
+// This function cannot be called using a transaction because it could
+// potentially exceed cockroachdb's transaction size limit.
+func (d *decred) build(ir *decredplugin.InventoryReply) error {
+	log.Tracef("decred build")
+
+	// Drop all decred plugin tables
+	tx := d.recordsdb.Begin()
+	err := d.dropTables(tx)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("drop tables: %v", err)
+	}
+	err = tx.Commit().Error
+	if err != nil {
+		return err
+	}
+
+	// Create decred plugin tables
+	tx = d.recordsdb.Begin()
+	err = d.createTables(tx)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("create tables: %v", err)
+	}
+	err = tx.Commit().Error
+	if err != nil {
+		return err
+	}
+
+	// Build comments cache
+	log.Tracef("decred: building comments cache")
 	for _, v := range ir.Comments {
 		c := convertCommentFromDecred(v)
-		err := d.newComment(tx, c)
+		err := d.newComment(d.recordsdb, c)
 		if err != nil {
 			log.Debugf("newComment failed on '%v'", c)
 			return fmt.Errorf("newComment: %v", err)
@@ -659,9 +810,10 @@ func (d *decred) build(tx *gorm.DB, ir *decredplugin.InventoryReply) error {
 	}
 
 	// Build like comments cache
+	log.Tracef("decred: building like comments cache")
 	for _, v := range ir.LikeComments {
 		lc := convertLikeCommentFromDecred(v)
-		err := d.newLikeComment(tx, lc)
+		err := d.newLikeComment(d.recordsdb, lc)
 		if err != nil {
 			log.Debugf("newLikeComment failed on '%v'", lc)
 			return fmt.Errorf("newLikeComment: %v", err)
@@ -676,10 +828,12 @@ func (d *decred) build(tx *gorm.DB, ir *decredplugin.InventoryReply) error {
 	}
 
 	// Build authorize vote cache
+	log.Tracef("decred: building authorize vote cache")
 	for _, v := range ir.AuthorizeVotes {
 		r, ok := avr[v.Receipt]
 		if !ok {
-			return fmt.Errorf("AuthorizeVoteReply not found %v", v.Token)
+			return fmt.Errorf("AuthorizeVoteReply not found %v",
+				v.Token)
 		}
 
 		rv, err := strconv.ParseUint(r.RecordVersion, 10, 64)
@@ -690,7 +844,7 @@ func (d *decred) build(tx *gorm.DB, ir *decredplugin.InventoryReply) error {
 		}
 
 		av := convertAuthorizeVoteFromDecred(v, r, rv)
-		err = d.newAuthorizeVote(tx, av)
+		err = d.newAuthorizeVote(d.recordsdb, av)
 		if err != nil {
 			log.Debugf("newAuthorizeVote failed on '%v'", av)
 			return fmt.Errorf("newAuthorizeVote: %v", err)
@@ -698,9 +852,18 @@ func (d *decred) build(tx *gorm.DB, ir *decredplugin.InventoryReply) error {
 	}
 
 	// Build start vote cache
+	log.Tracef("decred: building start vote cache")
 	for _, v := range ir.StartVoteTuples {
-		sv := convertStartVoteFromDecred(v.StartVote, v.StartVoteReply)
-		err := d.newStartVote(tx, sv)
+		endHeight, err := strconv.ParseUint(v.StartVoteReply.EndHeight, 10, 64)
+		if err != nil {
+			log.Debugf("newStartVote failed on '%v'", v)
+			return fmt.Errorf("parse end height '%v': %v",
+				v.StartVoteReply.EndHeight, err)
+		}
+
+		sv := convertStartVoteFromDecred(v.StartVote,
+			v.StartVoteReply, endHeight)
+		err = d.newStartVote(d.recordsdb, sv)
 		if err != nil {
 			log.Debugf("newStartVote failed on '%v'", sv)
 			return fmt.Errorf("newStartVote: %v", err)
@@ -708,9 +871,10 @@ func (d *decred) build(tx *gorm.DB, ir *decredplugin.InventoryReply) error {
 	}
 
 	// Build cast vote cache
+	log.Tracef("decred: building cast vote cache")
 	for _, v := range ir.CastVotes {
 		cv := convertCastVoteFromDecred(v)
-		err := d.newCastVote(tx, cv)
+		err := d.newCastVote(d.recordsdb, cv)
 		if err != nil {
 			log.Debugf("newCastVote failed on '%v'", cv)
 			return fmt.Errorf("newCastVote: %v", err)
@@ -732,31 +896,33 @@ func (d *decred) Build(payload string) error {
 		return fmt.Errorf("DecodeInventoryReply: %v", err)
 	}
 
-	// Drop all decred plugin tables
-	err = d.recordsdb.DropTableIfExists(tableComments,
-		tableCommentLikes, tableCastVotes, tableAuthorizeVotes,
-		tableVoteOptions, tableStartVotes).Error
+	// Build the decred plugin cache. This is not run using
+	// a transaction because it could potentially exceed
+	// cockroachdb's transaction size limit.
+	err = d.build(ir)
 	if err != nil {
-		return fmt.Errorf("drop decred tables failed: %v", err)
+		// Remove the version record. This will
+		// force a rebuild on the next start up.
+		err1 := d.recordsdb.Delete(&Version{
+			ID: decredplugin.ID,
+		}).Error
+		if err1 != nil {
+			panic("the cache is out of sync and will not rebuild" +
+				"automatically; a rebuild must be forced")
+		}
 	}
 
-	// Build the decred plugin cache from scratch
-	tx := d.recordsdb.Begin()
-	err = d.build(tx, ir)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	return tx.Commit().Error
+	return err
 }
 
 // Setup creates the decred plugin tables if they do not already exist.  A
 // decred plugin version record is inserted into the database during table
 // creation.
 func (d *decred) Setup() error {
+	log.Tracef("decred: Setup")
+
 	tx := d.recordsdb.Begin()
-	err := createDecredTables(tx)
+	err := d.createTables(tx)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -769,33 +935,32 @@ func (d *decred) Setup() error {
 // if one exists, and checks that it matches the version of the current decred
 // plugin cache implementation.
 func (d *decred) CheckVersion() error {
+	log.Tracef("decred: CheckVersion")
+
 	// Sanity check. Ensure version table exists.
 	if !d.recordsdb.HasTable(tableVersions) {
 		return fmt.Errorf("versions table not found")
 	}
 
-	// Lookup version record
+	// Lookup version record. If the version is not found or
+	// if there is a version mismatch, return an error so
+	// that the decred plugin cache can be built/rebuilt.
 	var v Version
 	err := d.recordsdb.
 		Where("id = ?", decredplugin.ID).
 		Find(&v).
 		Error
 	if err == gorm.ErrRecordNotFound {
-		// A version record not being found indicates that the
-		// decred plugin cache has not been built yet. Return a
-		// ErrWrongPluginVersion error so that the cache will be
-		// built.
-		return cache.ErrWrongPluginVersion
-	} else if err != nil {
-		return err
+		log.Debugf("version record not found for ID '%v'",
+			decredplugin.ID)
+		err = cache.ErrNoVersionRecord
+	} else if v.Version != decredVersion {
+		log.Debugf("version mismatch for ID '%v': got %v, want %v",
+			decredplugin.ID, v.Version, decredVersion)
+		err = cache.ErrWrongVersion
 	}
 
-	// Ensure we're using the correct version
-	if v.Version != decredVersion {
-		return cache.ErrWrongPluginVersion
-	}
-
-	return nil
+	return err
 }
 
 // newDecredPlugin returns a cache decred plugin context.

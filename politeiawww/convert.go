@@ -5,10 +5,16 @@
 package main
 
 import (
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+
 	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/cache"
+	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/decred/politeia/politeiawww/cmsdatabase"
 )
 
 func convertCastVoteReplyFromDecredPlugin(cvr decredplugin.CastVoteReply) www.CastVoteReply {
@@ -146,6 +152,14 @@ func convertPropStatusFromPD(s pd.RecordStatusT) www.PropStatusT {
 
 func convertPropCensorFromPD(f pd.CensorshipRecord) www.CensorshipRecord {
 	return www.CensorshipRecord{
+		Token:     f.Token,
+		Merkle:    f.Merkle,
+		Signature: f.Signature,
+	}
+}
+
+func convertPropCensorFromWWW(f www.CensorshipRecord) pd.CensorshipRecord {
+	return pd.CensorshipRecord{
 		Token:     f.Token,
 		Merkle:    f.Merkle,
 		Signature: f.Signature,
@@ -466,5 +480,269 @@ func convertPluginFromPD(p pd.Plugin) Plugin {
 		ID:       p.ID,
 		Version:  p.Version,
 		Settings: ps,
+	}
+}
+
+func convertTokenInventoryReplyFromDecred(r decredplugin.TokenInventoryReply) www.TokenInventoryReply {
+	return www.TokenInventoryReply{
+		Pre:       r.Pre,
+		Active:    r.Active,
+		Finished:  r.Finished,
+		Abandoned: r.Abandoned,
+	}
+}
+
+func convertInvoiceFileFromWWW(f *www.File) []pd.File {
+	return []pd.File{{
+		Name:    "invoice.csv",
+		MIME:    "text/plain; charset=utf-8",
+		Digest:  f.Digest,
+		Payload: f.Payload,
+	}}
+}
+
+func convertInvoiceCensorFromWWW(f www.CensorshipRecord) pd.CensorshipRecord {
+	return pd.CensorshipRecord{
+		Token:     f.Token,
+		Merkle:    f.Merkle,
+		Signature: f.Signature,
+	}
+}
+
+func convertInvoiceCensorFromPD(f pd.CensorshipRecord) www.CensorshipRecord {
+	return www.CensorshipRecord{
+		Token:     f.Token,
+		Merkle:    f.Merkle,
+		Signature: f.Signature,
+	}
+}
+
+func convertRecordFileToWWW(f pd.File) www.File {
+	return www.File{
+		Name:    f.Name,
+		MIME:    f.MIME,
+		Digest:  f.Digest,
+		Payload: f.Payload,
+	}
+}
+
+func convertRecordFilesToWWW(f []pd.File) []www.File {
+	files := make([]www.File, 0, len(f))
+	for _, v := range f {
+		files = append(files, convertRecordFileToWWW(v))
+	}
+	return files
+}
+
+func convertDatabaseInvoiceToInvoiceRecord(dbInvoice cmsdatabase.Invoice) *cms.InvoiceRecord {
+	invRec := &cms.InvoiceRecord{}
+	invRec.Status = dbInvoice.Status
+	invRec.Timestamp = dbInvoice.Timestamp
+	invRec.UserID = dbInvoice.UserID
+	invRec.PublicKey = dbInvoice.PublicKey
+	invRec.Version = dbInvoice.Version
+
+	invInput := cms.InvoiceInput{
+		ContractorContact:  dbInvoice.ContractorContact,
+		ContractorRate:     dbInvoice.ContractorRate,
+		ContractorName:     dbInvoice.ContractorName,
+		ContractorLocation: dbInvoice.ContractorLocation,
+		PaymentAddress:     dbInvoice.PaymentAddress,
+		Month:              dbInvoice.Month,
+		Year:               dbInvoice.Year,
+		ExchangeRate:       dbInvoice.ExchangeRate,
+	}
+	invInputLineItems := make([]cms.LineItemsInput, 0, len(dbInvoice.LineItems))
+	for _, dbLineItem := range dbInvoice.LineItems {
+		lineItem := cms.LineItemsInput{
+			Type:          dbLineItem.Type,
+			Domain:        dbLineItem.Domain,
+			Subdomain:     dbLineItem.Subdomain,
+			Description:   dbLineItem.Description,
+			ProposalToken: dbLineItem.ProposalURL,
+			Labor:         dbLineItem.Labor,
+			Expenses:      dbLineItem.Expenses,
+		}
+		invInputLineItems = append(invInputLineItems, lineItem)
+	}
+	invRec.Input = invInput
+	return invRec
+}
+
+func convertLineItemsToDatabase(token string, l []cms.LineItemsInput) []cmsdatabase.LineItem {
+	dl := make([]cmsdatabase.LineItem, 0, len(l))
+	for _, v := range l {
+		dl = append(dl, cmsdatabase.LineItem{
+			InvoiceToken: token,
+			Type:         v.Type,
+			Domain:       v.Domain,
+			Subdomain:    v.Subdomain,
+			Description:  v.Description,
+			ProposalURL:  v.ProposalToken,
+			Labor:        v.Labor,
+			Expenses:     v.Expenses,
+		})
+	}
+	return dl
+}
+
+func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
+	dbInvoice := cmsdatabase.Invoice{
+		Files:           convertRecordFilesToWWW(p.Files),
+		Token:           p.CensorshipRecord.Token,
+		ServerSignature: p.CensorshipRecord.Signature,
+		Version:         p.Version,
+	}
+
+	// Decode invoice file
+	for _, v := range p.Files {
+		if v.Name == invoiceFile {
+			b, err := base64.StdEncoding.DecodeString(v.Payload)
+			if err != nil {
+				return nil, err
+			}
+
+			var ii cms.InvoiceInput
+			err = json.Unmarshal(b, &ii)
+			if err != nil {
+				return nil, www.UserError{
+					ErrorCode: www.ErrorStatusInvalidInput,
+				}
+			}
+
+			dbInvoice.Month = ii.Month
+			dbInvoice.Year = ii.Year
+			dbInvoice.ExchangeRate = ii.ExchangeRate
+			dbInvoice.LineItems = convertLineItemsToDatabase(dbInvoice.Token,
+				ii.LineItems)
+			dbInvoice.ContractorContact = ii.ContractorContact
+			dbInvoice.ContractorLocation = ii.ContractorLocation
+			dbInvoice.ContractorRate = ii.ContractorRate
+			dbInvoice.ContractorName = ii.ContractorName
+			dbInvoice.PaymentAddress = ii.PaymentAddress
+		}
+	}
+
+	for _, m := range p.Metadata {
+		switch m.ID {
+		case mdStreamInvoiceGeneral:
+			var mdGeneral backendInvoiceMetadata
+			err := json.Unmarshal([]byte(m.Payload), &mdGeneral)
+			if err != nil {
+				return nil, fmt.Errorf("could not decode metadata '%v' token '%v': %v",
+					p.Metadata, p.CensorshipRecord.Token, err)
+			}
+
+			dbInvoice.Timestamp = mdGeneral.Timestamp
+			dbInvoice.PublicKey = mdGeneral.PublicKey
+			dbInvoice.UserSignature = mdGeneral.Signature
+
+		case mdStreamInvoiceStatusChanges:
+			sc, err := decodeBackendInvoiceStatusChanges([]byte(m.Payload))
+			if err != nil {
+				return nil, fmt.Errorf("could not decode metadata '%v' token '%v': %v",
+					m, p.CensorshipRecord.Token, err)
+			}
+
+			// We don't need all of the status changes.
+			// Just the most recent one.
+			for _, s := range sc {
+				dbInvoice.Status = s.NewStatus
+			}
+
+		default:
+			// Log error but proceed
+			log.Errorf("initializeInventory: invalid "+
+				"metadata stream ID %v token %v",
+				m.ID, p.CensorshipRecord.Token)
+		}
+	}
+
+	return &dbInvoice, nil
+}
+
+func convertInvoiceFromCache(r cache.Record) cms.InvoiceRecord {
+	// Decode metadata streams
+	var md backendInvoiceMetadata
+	var c backendInvoiceStatusChange
+	for _, v := range r.Metadata {
+		switch v.ID {
+		case mdStreamInvoiceGeneral:
+			// General invoice metadata
+			m, err := decodeBackendInvoiceMetadata([]byte(v.Payload))
+			if err != nil {
+				log.Errorf("convertInvoiceFromCache: decode md stream: "+
+					"token:%v error:%v payload:%v",
+					r.CensorshipRecord.Token, err, v)
+			}
+			md = *m
+
+		case mdStreamInvoiceStatusChanges:
+			// Invoice status changes
+			m, err := decodeBackendInvoiceStatusChanges([]byte(v.Payload))
+			if err != nil {
+				log.Errorf("convertInvoiceFromCache: decode md stream: "+
+					"token:%v error:%v payload:%v",
+					r.CensorshipRecord.Token, err, v)
+			}
+
+			// We don't need all of the status changes.
+			// Just the most recent one.
+			for _, s := range m {
+				c = s
+			}
+		}
+	}
+
+	// Convert files
+	var ii cms.InvoiceInput
+	fs := make([]www.File, 0, len(r.Files))
+	for _, v := range r.Files {
+		f := www.File{
+			Name:    v.Name,
+			MIME:    v.MIME,
+			Digest:  v.Digest,
+			Payload: v.Payload,
+		}
+		fs = append(fs, f)
+
+		// Parse invoice json
+		if f.Name == invoiceFile {
+			b, err := base64.StdEncoding.DecodeString(v.Payload)
+			if err != nil {
+				log.Errorf("convertInvoiceFromCache: decode invoice: "+
+					"token:%v error:%v payload:%v",
+					r.CensorshipRecord.Token, err, f.Payload)
+				continue
+			}
+
+			err = json.Unmarshal(b, &ii)
+			if err != nil {
+				log.Errorf("convertInvoiceFromCache: unmarshal InvoiceInput: "+
+					"token:%v error:%v payload:%v",
+					r.CensorshipRecord.Token, err, f.Payload)
+				continue
+			}
+		}
+	}
+
+	// UserID and Username are left intentionally blank.
+	// These fields not part of a cache record.
+	return cms.InvoiceRecord{
+		Status:             c.NewStatus,
+		StatusChangeReason: c.Reason,
+		Timestamp:          r.Timestamp,
+		UserID:             "",
+		Username:           "",
+		PublicKey:          md.PublicKey,
+		Signature:          md.Signature,
+		Files:              fs,
+		Version:            r.Version,
+		CensorshipRecord: www.CensorshipRecord{
+			Token:     r.CensorshipRecord.Token,
+			Merkle:    r.CensorshipRecord.Merkle,
+			Signature: r.CensorshipRecord.Signature,
+		},
+		Input: ii,
 	}
 }

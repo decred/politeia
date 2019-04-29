@@ -44,14 +44,14 @@ const (
 	LockDuration = 15 * time.Second
 
 	// defaultUnvettedPath is the landing zone for unvetted content.
-	defaultUnvettedPath = "unvetted"
+	DefaultUnvettedPath = "unvetted"
 
 	// defaultVettedPath is the publicly visible git vetted record repo.
-	defaultVettedPath = "vetted"
+	DefaultVettedPath = "vetted"
 
 	// defaultJournalsPath is the path where data is journaled and/or
 	// cached.
-	defaultJournalsPath = "journals" // XXX it looks like this belongs in plugins
+	DefaultJournalsPath = "journals" // XXX it looks like this belongs in plugins
 
 	// defaultRecordMetadataFilename is the filename of record record.
 	defaultRecordMetadataFilename = "recordmetadata.json"
@@ -845,7 +845,10 @@ func (g *gitBackEnd) periodicAnchorChecker() {
 		case <-time.After(5 * time.Minute):
 		}
 
-		if g.shutdown {
+		g.Lock()
+		isShutdown := g.shutdown
+		g.Unlock()
+		if isShutdown {
 			return
 		}
 
@@ -2532,9 +2535,9 @@ func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, 
 		activeNetParams: anp,
 		root:            root,
 		cron:            cron.New(),
-		unvetted:        filepath.Join(root, defaultUnvettedPath),
-		vetted:          filepath.Join(root, defaultVettedPath),
-		journals:        filepath.Join(root, defaultJournalsPath),
+		unvetted:        filepath.Join(root, DefaultUnvettedPath),
+		vetted:          filepath.Join(root, DefaultVettedPath),
+		journals:        filepath.Join(root, DefaultJournalsPath),
 		gitPath:         gitPath,
 		dcrtimeHost:     dcrtimeHost,
 		gitTrace:        gitTrace,

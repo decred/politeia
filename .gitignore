@@ -1,4 +1,5 @@
 politeiad/cmd/politeia/politeia
+politeiad/cmd/politeiaimport/politeiaimport
 politeiad/politeiad
 politeiavoter/politeiavoter
 politeiawww/cmd/politeiawww_dbutil/politeiawww_dbutil

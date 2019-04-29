@@ -15,6 +15,7 @@ import (
 	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/cache"
+	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
@@ -228,6 +229,117 @@ func (p *politeiawww) processNewComment(nc www.NewComment, u *user.User) (*www.N
 	if getVoteStatus(avr, svr, bb) == www.PropVoteStatusFinished {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusWrongVoteStatus,
+		}
+	}
+
+	// Setup plugin command
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	dnc := convertNewCommentToDecredPlugin(nc)
+	payload, err := decredplugin.EncodeNewComment(dnc)
+	if err != nil {
+		return nil, err
+	}
+
+	pc := pd.PluginCommand{
+		Challenge: hex.EncodeToString(challenge),
+		ID:        decredplugin.ID,
+		Command:   decredplugin.CmdNewComment,
+		CommandID: decredplugin.CmdNewComment,
+		Payload:   string(payload),
+	}
+
+	// Send polieiad request
+	responseBody, err := p.makeRequest(http.MethodPost,
+		pd.PluginCommandRoute, pc)
+	if err != nil {
+		return nil, err
+	}
+
+	// Handle response
+	var reply pd.PluginCommandReply
+	err = json.Unmarshal(responseBody, &reply)
+	if err != nil {
+		return nil, fmt.Errorf("could not unmarshal "+
+			"PluginCommandReply: %v", err)
+	}
+
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, reply.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	ncr, err := decredplugin.DecodeNewCommentReply([]byte(reply.Payload))
+	if err != nil {
+		return nil, err
+	}
+
+	// Add comment to commentScores in-memory cache
+	p.Lock()
+	p.commentScores[nc.Token+ncr.CommentID] = 0
+	p.Unlock()
+
+	// Get comment from cache
+	c, err := p.getComment(nc.Token, ncr.CommentID)
+	if err != nil {
+		return nil, fmt.Errorf("getComment: %v", err)
+	}
+
+	// Fire off new comment event
+	p.fireEvent(EventTypeComment, EventDataComment{
+		Comment: c,
+	})
+
+	return &www.NewCommentReply{
+		Comment: *c,
+	}, nil
+}
+
+// processNewCommentInvoice sends a new comment decred plugin command to politeaid
+// then fetches the new comment from the cache and returns it.
+func (p *politeiawww) processNewCommentInvoice(nc www.NewComment, u *user.User) (*www.NewCommentReply, error) {
+	log.Tracef("processNewComment: %v %v", nc.Token, u.ID)
+
+	ir, err := p.getInvoice(nc.Token)
+	if err != nil {
+		if err == cache.ErrRecordNotFound {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusInvoiceNotFound,
+			}
+		}
+		return nil, err
+	}
+
+	_, ok := p.userPubkeys[ir.PublicKey]
+
+	// Check to make sure the user is either an admin or the creator of the invoice
+	if !u.Admin && !ok {
+		err := www.UserError{
+			ErrorCode: www.ErrorStatusUserActionNotAllowed,
+		}
+		return nil, err
+	}
+
+	// Verify authenticity
+	err = checkPublicKeyAndSignature(u, nc.PublicKey, nc.Signature,
+		nc.Token, nc.ParentID, nc.Comment)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate comment
+	err = validateComment(nc)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check to make sure that invoice isn't already approved or paid.
+	if ir.Status == cms.InvoiceStatusApproved || ir.Status == cms.InvoiceStatusPaid {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusCannotCommentOnProp,
 		}
 	}
 

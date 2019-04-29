@@ -242,3 +242,33 @@ func (p *politeiawww) decredInventory() (*decredplugin.InventoryReply, error) {
 
 	return ir, nil
 }
+
+// decredTokenInventory sends the decred plugin tokeninventory command to the
+// cache.
+func (p *politeiawww) decredTokenInventory(bestBlock uint64) (*decredplugin.TokenInventoryReply, error) {
+	payload, err := decredplugin.EncodeTokenInventory(
+		decredplugin.TokenInventory{
+			BestBlock: bestBlock,
+		})
+	if err != nil {
+		return nil, err
+	}
+
+	pc := cache.PluginCommand{
+		ID:             decredplugin.ID,
+		Command:        decredplugin.CmdTokenInventory,
+		CommandPayload: string(payload),
+	}
+
+	reply, err := p.cache.PluginExec(pc)
+	if err != nil {
+		return nil, err
+	}
+
+	tir, err := decredplugin.DecodeTokenInventoryReply([]byte(reply.Payload))
+	if err != nil {
+		return nil, err
+	}
+
+	return tir, nil
+}

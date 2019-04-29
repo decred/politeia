@@ -20,6 +20,7 @@ const (
 	CmdCommentLikes          = "commentlikes"
 	CmdProposalCommentsLikes = "proposalcommentslikes"
 	CmdInventory             = "inventory"
+	CmdTokenInventory        = "tokeninventory"
 	MDStreamAuthorizeVote    = 13 // Vote authorization by proposal author
 	MDStreamVoteBits         = 14 // Vote bits and mask
 	MDStreamVoteSnapshot     = 15 // Vote tickets and start/end parameters
@@ -779,4 +780,54 @@ func DecodeInventoryReply(payload []byte) (*InventoryReply, error) {
 	}
 
 	return &ir, nil
+}
+
+// TokenInventory requests the tokens of all records in the inventory.
+type TokenInventory struct {
+	BestBlock uint64 `json:"bestblock"` // Best block
+}
+
+// EncodeTokenInventory encodes a TokenInventory into a JSON byte slice.
+func EncodeTokenInventory(i TokenInventory) ([]byte, error) {
+	return json.Marshal(i)
+}
+
+// DecodeTokenInventory decodes a JSON byte slice into a TokenInventory.
+func DecodeTokenInventory(payload []byte) (*TokenInventory, error) {
+	var i TokenInventory
+
+	err := json.Unmarshal(payload, &i)
+	if err != nil {
+		return nil, err
+	}
+
+	return &i, nil
+}
+
+// TokenInventoryReply is the response to the TokenInventory command and
+// returns the tokens of all records in the inventory, categorized by stage of
+// the voting process.
+type TokenInventoryReply struct {
+	Pre       []string `json:"pre"`       // Tokens of records that are pre-vote
+	Active    []string `json:"active"`    // Tokens of records with an active voting period
+	Finished  []string `json:"finished"`  // Tokens of records with a finished voting period
+	Abandoned []string `json:"abandoned"` // Tokens of records that have been abandoned
+}
+
+// EncodeTokenInventoryReply encodes a TokenInventoryReply into a JSON byte
+// slice.
+func EncodeTokenInventoryReply(itr TokenInventoryReply) ([]byte, error) {
+	return json.Marshal(itr)
+}
+
+// DecodeTokenInventoryReply decodes a JSON byte slice into a inventory.
+func DecodeTokenInventoryReply(payload []byte) (*TokenInventoryReply, error) {
+	var itr TokenInventoryReply
+
+	err := json.Unmarshal(payload, &itr)
+	if err != nil {
+		return nil, err
+	}
+
+	return &itr, nil
 }

@@ -42,4 +42,11 @@ Response:
 	"proposalnamesupportedchars" ([]string) Regex of a valid proposal name
 	"maxcommentlength"           (uint)     Maximum characters in comments
 	"backendpublickey"           (string)   Backend public key
+	"maxnamelength"              (uint)     Maximum contractor name length (cmswww)
+	"minnamelength"              (uint)     Mininum contractor name length (cmswww)
+	"maxlocationlength"          (uint)     Maximum contractor location length (cmswww)
+	"minlocationlength"          (uint)     Minimum contractor location length (cmswww)
+	"invoicecommentchar"         (rune)     Character for comments on invoices (cmswww)
+	"invoicefielddelimiterchar"  (rune)     Charactor for invoice csv field seperation (cmswww)
+	"invoicelineitemcount"       (uint)     Expected count for line item fields (cmswww)
 }`

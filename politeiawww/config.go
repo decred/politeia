@@ -111,10 +111,10 @@ type config struct {
 	MailUser                 string `long:"mailuser" description:"Email server username"`
 	MailPass                 string `long:"mailpass" description:"Email server password"`
 	MailAddress              string `long:"mailaddress" description:"Email address for outgoing email in the format: name <address>"`
-	CacheHost                string `long:"cachehost" description:"Cache ip:port"`
-	CacheRootCert            string `long:"cacherootcert" description:"File containing the CA certificate for the cache"`
-	CacheCert                string `long:"cachecert" description:"File containing the politeiawww client certificate for the cache"`
-	CacheKey                 string `long:"cachekey" description:"File containing the politeiawww client certificate key for the cache"`
+	DBHost                   string `long:"dbhost" description:"Database ip:port"`
+	DBRootCert               string `long:"dbrootcert" description:"File containing the CA certificate for the database"`
+	DBCert                   string `long:"dbcert" description:"File containing the politeiawww client certificate for the database"`
+	DBKey                    string `long:"dbkey" description:"File containing the politeiawww client certificate key for the database"`
 	FetchIdentity            bool   `long:"fetchidentity" description:"Whether or not politeiawww fetches the identity from politeiad."`
 	WebServerAddress         string `long:"webserveraddress" description:"Address for the Politeia web server; it should have this format: <scheme>://<host>[:<port>]"`
 	Interactive              string `long:"interactive" description:"Set to i-know-this-is-a-bad-idea to turn off interactive mode during --fetchidentity."`
@@ -125,6 +125,9 @@ type config struct {
 	VoteDurationMax          uint32 `long:"votedurationmax" description:"Maximum duration of a proposal vote in blocks"`
 	AdminLogFile             string `long:"adminlogfile" description:"admin log filename (Default: admin.log)"`
 	Mode                     string `long:"mode" description:"Mode www runs as. Supported values: piwww, cmswww"`
+	SMTPSkipVerify           bool   `long:"smtpskipverify" description:"Skip SMTP TLS cert verification. Will only skip if SMTPCert is empty"`
+	SMTPCert                 string `long:"smtpcert" description:"File containing the smtp certificate file"`
+	SystemCerts              *x509.CertPool
 }
 
 // serviceOptions defines the configuration options for the rpc as a service
@@ -566,36 +569,36 @@ func loadConfig() (*config, []string, error) {
 
 	// Validate cache options.
 	switch {
-	case cfg.CacheHost == "":
-		return nil, nil, fmt.Errorf("the cachehost param is required")
-	case cfg.CacheRootCert == "":
-		return nil, nil, fmt.Errorf("the cacherootcert param is required")
-	case cfg.CacheCert == "":
-		return nil, nil, fmt.Errorf("the cachecert param is required")
-	case cfg.CacheKey == "":
-		return nil, nil, fmt.Errorf("the cachekey param is required")
+	case cfg.DBHost == "":
+		return nil, nil, fmt.Errorf("dbhost param is required")
+	case cfg.DBRootCert == "":
+		return nil, nil, fmt.Errorf("dbrootcert param is required")
+	case cfg.DBCert == "":
+		return nil, nil, fmt.Errorf("dbcert param is required")
+	case cfg.DBKey == "":
+		return nil, nil, fmt.Errorf("dbkey param is required")
 	}
 
-	cfg.CacheRootCert = cleanAndExpandPath(cfg.CacheRootCert)
-	cfg.CacheCert = cleanAndExpandPath(cfg.CacheCert)
-	cfg.CacheKey = cleanAndExpandPath(cfg.CacheKey)
+	cfg.DBRootCert = cleanAndExpandPath(cfg.DBRootCert)
+	cfg.DBCert = cleanAndExpandPath(cfg.DBCert)
+	cfg.DBKey = cleanAndExpandPath(cfg.DBKey)
 
-	// Validate cache root cert.
-	b, err := ioutil.ReadFile(cfg.CacheRootCert)
+	// Validate db root cert.
+	b, err := ioutil.ReadFile(cfg.DBRootCert)
 	if err != nil {
-		return nil, nil, fmt.Errorf("read cacherootcert: %v", err)
+		return nil, nil, fmt.Errorf("read dbrootcert: %v", err)
 	}
 	block, _ := pem.Decode(b)
 	_, err = x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		return nil, nil, fmt.Errorf("parse cacherootcert: %v", err)
+		return nil, nil, fmt.Errorf("parse dbrootcert: %v", err)
 	}
 
-	// Validate cache key pair.
-	_, err = tls.LoadX509KeyPair(cfg.CacheCert, cfg.CacheKey)
+	// Validate db key pair.
+	_, err = tls.LoadX509KeyPair(cfg.DBCert, cfg.DBKey)
 	if err != nil {
-		return nil, nil, fmt.Errorf("load key pair cachecert "+
-			"and cachekey: %v", err)
+		return nil, nil, fmt.Errorf("load key pair dbcert "+
+			"and dbkey: %v", err)
 	}
 
 	// Special show command to list supported subsystems and exit.
@@ -744,6 +747,31 @@ func loadConfig() (*config, []string, error) {
 		if !paywallKey.IsForNet(activeNetParams.Params) {
 			return nil, nil, fmt.Errorf("paywall extended public key is for the " +
 				"wrong network")
+		}
+	}
+
+	// Validate smtp root cert.
+	if cfg.SMTPCert != "" {
+		cfg.SMTPCert = cleanAndExpandPath(cfg.SMTPCert)
+
+		b, err := ioutil.ReadFile(cfg.SMTPCert)
+		if err != nil {
+			return nil, nil, fmt.Errorf("read smtpcert: %v", err)
+		}
+		block, _ := pem.Decode(b)
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, nil, fmt.Errorf("parse smtpcert: %v", err)
+		}
+		systemCerts, err := x509.SystemCertPool()
+		if err != nil {
+			return nil, nil, fmt.Errorf("getting systemcertpool: %v", err)
+		}
+		systemCerts.AddCert(cert)
+		cfg.SystemCerts = systemCerts
+
+		if cfg.SMTPSkipVerify {
+			log.Warnf("SMTPCert has been set so SMTPSkipVerify is being disregarded.")
 		}
 	}
 

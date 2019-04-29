@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/btcsuite/golangcrypto/bcrypt"
-	"github.com/decred/dcrd/hdkeychain"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
@@ -34,10 +33,6 @@ const (
 
 var (
 	validUsername = regexp.MustCompile(createUsernameRegex())
-	// XXX Need proper regex for name/location fields, possibly need to add
-	// new policy entries depending on how much we'd like it to differ.
-	validName     = regexp.MustCompile(createNameLocationRegex())
-	validLocation = regexp.MustCompile(createNameLocationRegex())
 
 	// MinimumLoginWaitTime is the minimum amount of time to wait before the
 	// server sends a response to the client for the login route. This is done
@@ -59,26 +54,6 @@ func createUsernameRegex() string {
 	buf.WriteString("^[")
 
 	for _, supportedChar := range www.PolicyUsernameSupportedChars {
-		if len(supportedChar) > 1 {
-			buf.WriteString(supportedChar)
-		} else {
-			buf.WriteString(`\` + supportedChar)
-		}
-	}
-	buf.WriteString("]{")
-	buf.WriteString(strconv.Itoa(www.PolicyMinUsernameLength) + ",")
-	buf.WriteString(strconv.Itoa(www.PolicyMaxUsernameLength) + "}$")
-
-	return buf.String()
-}
-
-// createUsernameRegex generates a regex based on the policy supplied valid
-// characters in a user name.
-func createNameLocationRegex() string {
-	var buf bytes.Buffer
-	buf.WriteString("^[")
-
-	for _, supportedChar := range www.PolicyNameLocationSupportedChars {
 		if len(supportedChar) > 1 {
 			buf.WriteString(supportedChar)
 		} else {
@@ -225,56 +200,6 @@ func validatePubkey(publicKey string) ([]byte, error) {
 	return pk, nil
 }
 
-// formatName normalizes a contractor name to lowercase without leading and
-// trailing spaces.
-func formatName(name string) string {
-	return strings.ToLower(strings.TrimSpace(name))
-}
-
-func validateName(name string) error {
-	if len(name) < www.PolicyMinNameLength ||
-		len(name) > www.PolicyMaxNameLength {
-		log.Debugf("Name not within bounds: %s", name)
-		return www.UserError{
-			ErrorCode: www.ErrorStatusMalformedName,
-		}
-	}
-
-	if !validName.MatchString(name) {
-		log.Debugf("Name not valid: %s %s", name, validName.String())
-		return www.UserError{
-			ErrorCode: www.ErrorStatusMalformedName,
-		}
-	}
-
-	return nil
-}
-
-// formatLocation normalizes a contractor location to lowercase without leading and
-// trailing spaces.
-func formatLocation(location string) string {
-	return strings.ToLower(strings.TrimSpace(location))
-}
-
-func validateLocation(location string) error {
-	if len(location) < www.PolicyMinUsernameLength ||
-		len(location) > www.PolicyMaxUsernameLength {
-		log.Debugf("Location not within bounds: %s", location)
-		return www.UserError{
-			ErrorCode: www.ErrorStatusMalformedLocation,
-		}
-	}
-
-	if !validLocation.MatchString(location) {
-		log.Debugf("Location not valid: %s %s", location, validLocation.String())
-		return www.UserError{
-			ErrorCode: www.ErrorStatusMalformedLocation,
-		}
-	}
-
-	return nil
-}
-
 // checkPublicKeyAndSignature validates the public key and signature.
 func checkPublicKeyAndSignature(u *user.User, publicKey string, signature string, elements ...string) error {
 	id, err := checkPublicKey(u, publicKey)
@@ -339,7 +264,6 @@ func (p *politeiawww) removeUserPubkeyAssociaton(u *user.User, publicKey string)
 // checkSignature validates an incoming signature against the specified user's
 // pubkey.
 func checkSignature(id []byte, signature string, elements ...string) error {
-	// Check incoming signature verify(token+string(ProposalStatus))
 	sig, err := util.ConvertSignature(signature)
 	if err != nil {
 		return www.UserError{
@@ -2120,11 +2044,6 @@ func (p *politeiawww) GenerateNewUserPaywall(u *user.User) error {
 
 // HasUserPaid checks that a user has paid the paywall
 func (p *politeiawww) HasUserPaid(u *user.User) bool {
-	// Return true when running unit tests
-	if p.test {
-		return true
-	}
-
 	// Return true if paywall is disabled
 	if !p.paywallIsEnabled() {
 		return true
@@ -2318,40 +2237,13 @@ func (p *politeiawww) processRegisterUser(u cms.RegisterUser) (*cms.RegisterUser
 		}
 	}
 
-	// Validate provided contractor name
-	name := formatName(u.Name)
-	err = validateName(name)
-	if err != nil {
-		return nil, err
-	}
-
-	// Validate provided contractor location
-	location := formatLocation(u.Location)
-	err = validateLocation(location)
-	if err != nil {
-		return nil, err
-	}
-
-	// Validate provided contractor extended public key
-	contractorKey, err := hdkeychain.NewKeyFromString(u.ExtendedPublicKey)
-	if err != nil {
-		return nil, fmt.Errorf("error processing extended public key: %v",
-			err)
-	}
-	if !contractorKey.IsForNet(activeNetParams.Params) {
-		return nil, fmt.Errorf("contractor extended public key is for the " +
-			"wrong network")
-	}
-
 	// Create a new database user with the provided information.
 	newUser := user.User{
+		ID:                        existingUser.ID,
 		Email:                     strings.ToLower(u.Email),
 		Username:                  username,
 		HashedPassword:            hashedPassword,
 		Admin:                     false,
-		Name:                      u.Name,
-		Location:                  u.Location,
-		ExtendedPublicKey:         u.ExtendedPublicKey,
 		NewUserVerificationToken:  nil,
 		NewUserVerificationExpiry: 0,
 	}
@@ -2361,11 +2253,8 @@ func (p *politeiawww) processRegisterUser(u cms.RegisterUser) (*cms.RegisterUser
 		Activated: time.Now().Unix(),
 	}}
 	copy(newUser.Identities[0].Key[:], pk)
-	existingPublicKey := hex.EncodeToString(newUser.Identities[0].Key[:])
-	p.removeUserPubkeyAssociaton(existingUser, existingPublicKey)
 
 	// Update the user in the db.
-	newUser.ID = existingUser.ID
 	err = p.db.UserUpdate(newUser)
 	if err != nil {
 		return nil, err

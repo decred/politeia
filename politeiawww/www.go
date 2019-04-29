@@ -27,6 +27,7 @@ import (
 	"github.com/decred/politeia/politeiad/cache"
 	"github.com/decred/politeia/politeiad/cache/cockroachdb"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	cmsdb "github.com/decred/politeia/politeiawww/cmsdatabase/cockroachdb"
 	"github.com/decred/politeia/politeiawww/user/localdb"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
@@ -308,6 +309,7 @@ func _main() error {
 		userPubkeys:     make(map[string]string),
 		userPaywallPool: make(map[uuid.UUID]paywallPoolMember),
 		commentScores:   make(map[string]int64),
+		voteStatuses:    make(map[string]www.VoteStatusReply),
 		params:          activeNetParams.Params,
 	}
 
@@ -318,7 +320,8 @@ func _main() error {
 
 	// Setup email
 	smtp, err := newSMTP(p.cfg.MailHost, p.cfg.MailUser,
-		p.cfg.MailPass, p.cfg.MailAddress)
+		p.cfg.MailPass, p.cfg.MailAddress, p.cfg.SystemCerts,
+		p.cfg.SMTPSkipVerify)
 	if err != nil {
 		return fmt.Errorf("unable to initialize SMTP client: %v",
 			err)
@@ -335,29 +338,38 @@ func _main() error {
 	cockroachdb.UseLogger(cockroachdbLog)
 	net := filepath.Base(p.cfg.DataDir)
 	p.cache, err = cockroachdb.New(cockroachdb.UserPoliteiawww,
-		p.cfg.CacheHost, net, p.cfg.CacheRootCert, p.cfg.CacheCert,
-		p.cfg.CacheKey)
+		p.cfg.DBHost, net, p.cfg.DBRootCert, p.cfg.DBCert,
+		p.cfg.DBKey)
 	if err != nil {
-		if err == cache.ErrWrongVersion {
-			err = fmt.Errorf("wrong cache version, restart politeiad " +
-				"to rebuild the cache")
+		switch err {
+		case cache.ErrNoVersionRecord:
+			err = fmt.Errorf("cache version record not found; " +
+				"start politeiad to setup the cache")
+		case cache.ErrWrongVersion:
+			err = fmt.Errorf("wrong cache version found; " +
+				"restart politeiad to rebuild the cache")
 		}
-		return err
+		return fmt.Errorf("cockroachdb new: %v", err)
 	}
 
 	// Register plugins with cache
 	for _, v := range p.plugins {
 		cp := convertPluginToCache(v)
 		err = p.cache.RegisterPlugin(cp)
-		if err == cache.ErrWrongPluginVersion {
-			return fmt.Errorf("%v plugin wrong version.  The "+
-				"cache needs to be rebuilt.", v.ID)
-		} else if err != nil {
+		if err != nil {
+			switch err {
+			case cache.ErrNoVersionRecord:
+				err = fmt.Errorf("version record not found;" +
+					"start politeiad to setup the cache")
+			case cache.ErrWrongVersion:
+				err = fmt.Errorf("wrong version found; " +
+					"restart politeiad to rebuild the cache")
+			}
 			return fmt.Errorf("cache register plugin '%v': %v",
 				v.ID, err)
 		}
 
-		log.Infof("Registered plugin: %v", v.ID)
+		log.Infof("Registered cache plugin: %v", v.ID)
 	}
 
 	// Setup database.
@@ -438,14 +450,26 @@ func _main() error {
 	switch p.cfg.Mode {
 	case politeiaWWWMode:
 		p.setPoliteiaWWWRoutes()
+		// XXX setup user routes
+		p.setUserWWWRoutes()
 	case cmsWWWMode:
 		p.setCMSWWWRoutes()
+		// XXX setup user routes
+		p.setCMSUserWWWRoutes()
+		cmsdb.UseLogger(cockroachdbLog)
+		net := filepath.Base(p.cfg.DataDir)
+		p.cmsDB, err = cmsdb.New(p.cfg.DBHost, net, p.cfg.DBRootCert,
+			p.cfg.DBCert, p.cfg.DBKey)
+		if err != nil {
+			return err
+		}
+		err = p.cmsDB.Setup()
+		if err != nil {
+			return fmt.Errorf("cmsdb setup: %v", err)
+		}
 	default:
 		return fmt.Errorf("unknown mode %v:", p.cfg.Mode)
 	}
-
-	// XXX setup user routes
-	p.setUserWWWRoutes()
 
 	// Persist session cookies.
 	var cookieKey []byte

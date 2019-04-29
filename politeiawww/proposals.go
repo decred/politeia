@@ -108,6 +108,16 @@ func decodeBackendProposalMetadata(payload []byte) (*BackendProposalMetadata, er
 	return &md, nil
 }
 
+// encodeMDStreamChanges encodes an MDStreamChanges into a JSON byte slice.
+func encodeMDStreamChanges(m MDStreamChanges) ([]byte, error) {
+	b, err := json.Marshal(m)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
 // decodeMDStreamChanges decodes a JSON byte slice into a slice of
 // MDStreamChanges.
 func decodeMDStreamChanges(payload []byte) ([]MDStreamChanges, error) {
@@ -719,24 +729,6 @@ func (p *politeiawww) processNewProposal(np www.NewProposal, user *user.User) (*
 		Files: convertPropFilesFromWWW(np.Files),
 	}
 
-	// Handle test case
-	if p.test {
-		tokenBytes, err := util.Random(pd.TokenSize)
-		if err != nil {
-			return nil, err
-		}
-
-		testReply := pd.NewRecordReply{
-			CensorshipRecord: pd.CensorshipRecord{
-				Token: hex.EncodeToString(tokenBytes),
-			},
-		}
-
-		return &www.NewProposalReply{
-			CensorshipRecord: convertPropCensorFromPD(testReply.CensorshipRecord),
-		}, nil
-	}
-
 	// Send politeiad request
 	responseBody, err := p.makeRequest(http.MethodPost,
 		pd.NewRecordRoute, n)
@@ -835,19 +827,38 @@ func (p *politeiawww) processProposalDetails(propDetails www.ProposalsDetails, u
 	return &reply, nil
 }
 
+// verifyStatusChange verifies that the proposal status change is a valid
+// status transition.  This only applies to manual status transitions that are
+// initiated by an admin.  It does not apply to status changes that are caused
+// by editing a proposal.
+func verifyStatusChange(current, next www.PropStatusT) error {
+	var err error
+	switch {
+	case current == www.PropStatusNotReviewed &&
+		(next == www.PropStatusCensored ||
+			next == www.PropStatusPublic):
+	// allowed; continue
+	case current == www.PropStatusUnreviewedChanges &&
+		(next == www.PropStatusCensored ||
+			next == www.PropStatusPublic):
+		// allowed; continue
+	case current == www.PropStatusPublic &&
+		next == www.PropStatusAbandoned:
+		// allowed; continue
+	default:
+		err = www.UserError{
+			ErrorCode: www.ErrorStatusInvalidPropStatusTransition,
+		}
+	}
+	return err
+}
+
 // processSetProposalStatus changes the status of an existing proposal.
 func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *user.User) (*www.SetProposalStatusReply, error) {
 	log.Tracef("processSetProposalStatus %v", sps.Token)
 
-	err := checkPublicKeyAndSignature(u, sps.PublicKey, sps.Signature,
-		sps.Token, strconv.FormatUint(uint64(sps.ProposalStatus), 10),
-		sps.StatusChangeMessage)
-	if err != nil {
-		return nil, err
-	}
-
-	// Ensure the status change message is not blank if the proposal
-	// is being censored or abandoned
+	// Ensure the status change message is not blank if the
+	// proposal is being censored or abandoned.
 	if sps.StatusChangeMessage == "" &&
 		(sps.ProposalStatus == www.PropStatusCensored ||
 			sps.ProposalStatus == www.PropStatusAbandoned) {
@@ -856,11 +867,19 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 		}
 	}
 
-	// Handle test case
-	if p.test {
-		var reply www.SetProposalStatusReply
-		reply.Proposal.Status = sps.ProposalStatus
-		return &reply, nil
+	// Validate public key
+	if u.PublicKey() != sps.PublicKey {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSigningKey,
+		}
+	}
+
+	// Validate signature
+	msg := sps.Token + strconv.Itoa(int(sps.ProposalStatus)) +
+		sps.StatusChangeMessage
+	err := checkSignature(u.ActiveIdentity().Key[:], sps.Signature, msg)
+	if err != nil {
+		return nil, err
 	}
 
 	// Get proposal from cache
@@ -909,26 +928,16 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 		return nil, err
 	}
 
+	// Ensure status change is allowed
+	err = verifyStatusChange(pr.Status, sps.ProposalStatus)
+	if err != nil {
+		return nil, err
+	}
+
 	var challengeResponse string
 	switch {
 	case pr.State == www.PropStateUnvetted:
 		// Unvetted status change
-
-		// Verify status transition is valid
-		switch {
-		case pr.Status == www.PropStatusNotReviewed &&
-			(sps.ProposalStatus == www.PropStatusCensored ||
-				sps.ProposalStatus == www.PropStatusPublic):
-		// allowed; continue
-		case pr.Status == www.PropStatusUnreviewedChanges &&
-			(sps.ProposalStatus == www.PropStatusCensored ||
-				sps.ProposalStatus == www.PropStatusPublic):
-			// allowed; continue
-		default:
-			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusInvalidPropStatusTransition,
-			}
-		}
 
 		// Setup request
 		sus := pd.SetUnvettedStatus{
@@ -961,24 +970,21 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 	case pr.State == www.PropStateVetted:
 		// Vetted status change
 
-		// We only allow a transition from public to abandoned
-		if pr.Status != www.PropStatusPublic ||
-			sps.ProposalStatus != www.PropStatusAbandoned {
-			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusInvalidPropStatusTransition,
-			}
-		}
-
 		// Ensure voting has not been started or authorized yet
 		vdr, err := p.decredVoteDetails(pr.CensorshipRecord.Token)
 		if err != nil {
 			return nil, fmt.Errorf("decredVoteDetails: %v", err)
 		}
 		vd := convertVoteDetailsReplyFromDecred(*vdr)
-		if vd.StartVoteReply.StartBlockHeight != "" ||
-			voteIsAuthorized(vd.AuthorizeVoteReply) {
+
+		switch {
+		case vd.StartVoteReply.StartBlockHeight != "":
 			return nil, www.UserError{
 				ErrorCode: www.ErrorStatusWrongVoteStatus,
+			}
+		case voteIsAuthorized(vd.AuthorizeVoteReply):
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusVoteAlreadyAuthorized,
 			}
 		}
 
@@ -1011,8 +1017,8 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 		challengeResponse = svsr.Response
 
 	default:
-		return nil, fmt.Errorf("invalid proposal state %v: %v",
-			pr.State, pr.CensorshipRecord.Token)
+		panic(fmt.Sprintf("invalid proposal state %v %v",
+			pr.CensorshipRecord.Token, pr.State))
 	}
 
 	// Verify the challenge
@@ -1342,10 +1348,28 @@ func voteResults(sv www.StartVote, cv []www.CastVote) []www.VoteOptionResult {
 	return results
 }
 
-func (p *politeiawww) getVoteStatus(token string, bestBlock uint64) (*www.VoteStatusReply, error) {
-	log.Tracef("getVoteStatus: %v", token)
+// setVoteStatusReply stores the given VoteStatusReply in memory.  This is to
+// only be used for proposals whose voting period has ended so that we don't
+// have to worry about cache invalidation issues.
+//
+// This function must be called without the lock held.
+func (p *politeiawww) setVoteStatusReply(v www.VoteStatusReply) {
+	p.Lock()
+	defer p.Unlock()
 
-	// Get vote details from cache
+	p.voteStatuses[v.Token] = v
+}
+
+func (p *politeiawww) voteStatusReply(token string, bestBlock uint64) (*www.VoteStatusReply, error) {
+	p.RLock()
+	vsr, ok := p.voteStatuses[token]
+	p.RUnlock()
+	if ok {
+		return &vsr, nil
+	}
+
+	// Vote status wasn't in the memory cache so we need
+	// to fetch it from the cache db.
 	vdr, err := p.decredVoteDetails(token)
 	if err != nil {
 		return nil, fmt.Errorf("decredVoteDetails %v: %v",
@@ -1355,7 +1379,6 @@ func (p *politeiawww) getVoteStatus(token string, bestBlock uint64) (*www.VoteSt
 	voteStatus := getVoteStatus(vd.AuthorizeVoteReply,
 		vd.StartVoteReply, bestBlock)
 
-	// Get cast votes from cache
 	vrr, err := p.decredProposalVotes(token)
 	if err != nil {
 		return nil, fmt.Errorf("decredProposalVotes %v: %v",
@@ -1363,23 +1386,32 @@ func (p *politeiawww) getVoteStatus(token string, bestBlock uint64) (*www.VoteSt
 	}
 	sv, cv := convertVoteResultsReplyFromDecred(*vrr)
 
-	return &www.VoteStatusReply{
+	vsr = www.VoteStatusReply{
 		Token:              token,
 		Status:             voteStatus,
 		TotalVotes:         uint64(len(vrr.CastVotes)),
 		OptionsResult:      voteResults(sv, cv),
-		EndHeight:          vd.StartVoteReply.EndHeight,
-		NumOfEligibleVotes: len(vd.StartVoteReply.EligibleTickets),
-		QuorumPercentage:   vd.StartVote.Vote.QuorumPercentage,
-		PassPercentage:     vd.StartVote.Vote.PassPercentage,
-	}, nil
+		EndHeight:          vdr.StartVoteReply.EndHeight,
+		NumOfEligibleVotes: len(vdr.StartVoteReply.EligibleTickets),
+		QuorumPercentage:   vdr.StartVote.Vote.QuorumPercentage,
+		PassPercentage:     vdr.StartVote.Vote.PassPercentage,
+	}
+
+	// If the voting period has ended the vote status
+	// is not going to change so add it to the memory
+	// cache.
+	if vsr.Status == www.PropVoteStatusFinished {
+		p.setVoteStatusReply(vsr)
+	}
+
+	return &vsr, nil
 }
 
 // processVoteStatus returns the vote status for a given proposal
 func (p *politeiawww) processVoteStatus(token string) (*www.VoteStatusReply, error) {
 	log.Tracef("ProcessProposalVotingStatus: %v", token)
 
-	// Ensure proposal is public
+	// Ensure proposal is vetted
 	pr, err := p.getProp(token)
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
@@ -1389,7 +1421,8 @@ func (p *politeiawww) processVoteStatus(token string) (*www.VoteStatusReply, err
 		}
 		return nil, err
 	}
-	if pr.Status != www.PropStatusPublic {
+
+	if pr.State != www.PropStateVetted {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusWrongStatus,
 		}
@@ -1402,12 +1435,12 @@ func (p *politeiawww) processVoteStatus(token string) (*www.VoteStatusReply, err
 	}
 
 	// Get vote status
-	vs, err := p.getVoteStatus(token, bestBlock)
+	vsr, err := p.voteStatusReply(token, bestBlock)
 	if err != nil {
-		return nil, fmt.Errorf("getVoteStatus: %v", err)
+		return nil, fmt.Errorf("voteStatusReply: %v", err)
 	}
 
-	return vs, nil
+	return vsr, nil
 }
 
 // processGetAllVoteStatus returns the vote status of all public proposals.
@@ -1436,9 +1469,9 @@ func (p *politeiawww) processGetAllVoteStatus() (*www.GetAllVoteStatusReply, err
 		}
 
 		// Get vote status for proposal
-		vs, err := p.getVoteStatus(v.CensorshipRecord.Token, bestBlock)
+		vs, err := p.voteStatusReply(v.CensorshipRecord.Token, bestBlock)
 		if err != nil {
-			return nil, fmt.Errorf("getVoteStatus: %v", err)
+			return nil, fmt.Errorf("voteStatusReply: %v", err)
 		}
 
 		vrr = append(vrr, *vs)
@@ -1500,7 +1533,7 @@ func (p *politeiawww) processActiveVote() (*www.ActiveVoteReply, error) {
 func (p *politeiawww) processVoteResults(token string) (*www.VoteResultsReply, error) {
 	log.Tracef("processVoteResults: %v", token)
 
-	// Ensure proposal is public
+	// Ensure proposal is vetted
 	pr, err := p.getProp(token)
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
@@ -1510,7 +1543,8 @@ func (p *politeiawww) processVoteResults(token string) (*www.VoteResultsReply, e
 		}
 		return nil, err
 	}
-	if pr.Status != www.PropStatusPublic {
+
+	if pr.State != www.PropStateVetted {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusWrongStatus,
 		}
@@ -1915,4 +1949,21 @@ func (p *politeiawww) processStartVote(sv www.StartVote, u *user.User) (*www.Sta
 	// return a copy
 	rv := convertStartVoteReplyFromDecred(*vr)
 	return &rv, nil
+}
+
+// processTokenInventory returns the tokens of all proposals in the inventory,
+// categorized by stage of the voting process.
+func (p *politeiawww) processTokenInventory() (*www.TokenInventoryReply, error) {
+	bb, err := p.getBestBlock()
+	if err != nil {
+		return nil, err
+	}
+
+	reply, err := p.decredTokenInventory(bb)
+	if err != nil {
+		return nil, err
+	}
+
+	itr := convertTokenInventoryReplyFromDecred(*reply)
+	return &itr, err
 }

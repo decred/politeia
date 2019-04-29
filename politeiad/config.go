@@ -21,8 +21,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/decred/dcrd/dcrutil"
-	v1 "github.com/decred/dcrtime/api/v1"
+	"github.com/decred/dcrtime/api/v1"
+	"github.com/decred/politeia/politeiad/sharedconfig"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	flags "github.com/jessevdk/go-flags"
@@ -30,7 +30,7 @@ import (
 
 const (
 	defaultConfigFilename   = "politeiad.conf"
-	defaultDataDirname      = "data"
+	defaultDataDirname      = sharedconfig.DefaultDataDirname
 	defaultLogLevel         = "info"
 	defaultLogDirname       = "logs"
 	defaultLogFilename      = "politeiad.log"
@@ -43,7 +43,7 @@ const (
 )
 
 var (
-	defaultHomeDir       = dcrutil.AppDataDir("politeiad", false)
+	defaultHomeDir       = sharedconfig.DefaultHomeDir
 	defaultConfigFile    = filepath.Join(defaultHomeDir, defaultConfigFilename)
 	defaultDataDir       = filepath.Join(defaultHomeDir, defaultDataDirname)
 	defaultHTTPSKeyFile  = filepath.Join(defaultHomeDir, "https.key")
@@ -486,6 +486,10 @@ func loadConfig() (*config, []string, error) {
 			return nil, nil, fmt.Errorf("read cacherootcert: %v", err)
 		}
 		block, _ := pem.Decode(b)
+		if block == nil {
+			return nil, nil, fmt.Errorf("%s is not a valid certificate",
+				cfg.CacheRootCert)
+		}
 		_, err = x509.ParseCertificate(block.Bytes)
 		if err != nil {
 			return nil, nil, fmt.Errorf("parse cacherootcert: %v", err)

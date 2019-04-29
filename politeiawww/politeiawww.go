@@ -16,6 +16,7 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/cache"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/decred/politeia/politeiawww/cmsdatabase"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
@@ -115,6 +116,13 @@ type politeiawww struct {
 	userPubkeys     map[string]string               // [pubkey][userid]
 	userPaywallPool map[uuid.UUID]paywallPoolMember // [userid][paywallPoolMember]
 	commentScores   map[string]int64                // [token+commentID]resultVotes
+
+	// voteStatuses is a lazy loaded cache of the votes statuses of
+	// proposals whose voting period has ended.
+	voteStatuses map[string]www.VoteStatusReply // [token]VoteStatusReply
+
+	// cmsDB is only used during cmswww mode
+	cmsDB cmsdatabase.Database
 }
 
 // XXX rig this up
@@ -138,16 +146,12 @@ func (p *politeiawww) getTemplate(templateName string) *template.Template {
 func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleVersion")
 
-	versionReply, err := json.Marshal(www.VersionReply{
+	versionReply := www.VersionReply{
 		Version: www.PoliteiaWWWAPIVersion,
 		Route:   www.PoliteiaWWWAPIRoute,
 		PubKey:  hex.EncodeToString(p.cfg.Identity.Key[:]),
 		TestNet: p.cfg.TestNet,
 		Mode:    p.cfg.Mode,
-	})
-	if err != nil {
-		RespondWithError(w, r, 0, "handleVersion: Marshal %v", err)
-		return
 	}
 
 	// Check if there's an active AND invalid session.
@@ -165,12 +169,23 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	_, err = p.getSessionUser(w, r)
+	if err == nil {
+		versionReply.ActiveUserSession = true
+	}
+
+	vr, err := json.Marshal(versionReply)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleVersion: Marshal %v", err)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Add("Strict-Transport-Security",
 		"max-age=63072000; includeSubDomains")
 	w.Header().Set(www.CsrfToken, csrf.Token(r))
 	w.WriteHeader(http.StatusOK)
-	w.Write(versionReply)
+	w.Write(vr)
 }
 
 // handleNotFound is a generic handler for an invalid route.
@@ -298,6 +313,17 @@ func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 		ProposalNameSupportedChars: www.PolicyProposalNameSupportedChars,
 		MaxCommentLength:           www.PolicyMaxCommentLength,
 	}
+
+	if p.cfg.Mode == cmsWWWMode {
+		reply.MaxNameLength = www.PolicyMaxNameLength
+		reply.MinNameLength = www.PolicyMinNameLength
+		reply.MaxLocationLength = www.PolicyMaxLocationLength
+		reply.MinLocationLength = www.PolicyMinLocationLength
+		reply.InvoiceCommentChar = www.PolicyInvoiceCommentChar
+		reply.InvoiceFieldDelimiterChar = www.PolicyInvoiceFieldDelimiterChar
+		reply.InvoiceLineItemCount = www.PolicyInvoiceLineItemCount
+	}
+
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
@@ -455,6 +481,17 @@ func (p *politeiawww) handleProposalsStats(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	util.RespondWithJSON(w, http.StatusOK, psr)
+}
+
+// handleTokenInventory returns the tokens of all proposals in the inventory.
+func (p *politeiawww) handleTokenInventory(w http.ResponseWriter, r *http.Request) {
+	reply, err := p.processTokenInventory()
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleTokenInventory: processTokenInventory: %v", err)
+		return
+	}
+	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
 // handleProposalPaywallDetails returns paywall details that allows the user to
@@ -1065,6 +1102,8 @@ func (p *politeiawww) setPoliteiaWWWRoutes() {
 		p.handleVoteStatus, permissionPublic)
 	p.addRoute(http.MethodGet, www.RoutePropsStats,
 		p.handleProposalsStats, permissionPublic)
+	p.addRoute(http.MethodGet, www.RouteTokenInventory,
+		p.handleTokenInventory, permissionPublic)
 
 	// Routes that require being logged in.
 	p.addRoute(http.MethodGet, www.RouteProposalPaywallDetails,
