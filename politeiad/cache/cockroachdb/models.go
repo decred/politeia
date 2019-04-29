@@ -179,3 +179,35 @@ type CastVote struct {
 func (CastVote) TableName() string {
 	return tableCastVotes
 }
+
+// VoteOptionResults records the vote result for a vote option. A
+// VoteOptionResult should only be created once the proposal vote has finished.
+//
+// This is a decred plugin model.
+type VoteOptionResult struct {
+	Key    string     `gorm:"primary_key"`      // Primary key (token+votebit)
+	Token  string     `gorm:"not null;size:64"` // Censorship token (VoteSummary foreign key)
+	Votes  uint64     `gorm:"not null"`         // Number of votes cast for this option
+	Option VoteOption `gorm:"not null"`         // Vote option
+}
+
+// TableName returns the name of the VoteOptionResult database table.
+func (VoteOptionResult) TableName() string {
+	return tableVoteOptionResults
+}
+
+// VoteSummary records the tallied vote results for a proposal and whether the
+// vote was approved/rejected.  A vote summary should only be created once the
+// voting period has ended.  The vote summaries table is lazy loaded.
+//
+// This is a decred plugin model.
+type VoteSummary struct {
+	Token    string             `gorm:"primary_key;size:64"` // Censorship token
+	Approved bool               `gorm:"not null"`            // Vote was approved
+	Results  []VoteOptionResult `gorm:"foreignkey:Token"`    // Results for the vote options
+}
+
+// TableName returns the name of the VoteSummary database table.
+func (VoteSummary) TableName() string {
+	return tableVoteSummaries
+}

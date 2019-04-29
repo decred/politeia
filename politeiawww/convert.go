@@ -487,7 +487,8 @@ func convertTokenInventoryReplyFromDecred(r decredplugin.TokenInventoryReply) ww
 	return www.TokenInventoryReply{
 		Pre:       r.Pre,
 		Active:    r.Active,
-		Finished:  r.Finished,
+		Approved:  r.Approved,
+		Rejected:  r.Rejected,
 		Abandoned: r.Abandoned,
 	}
 }

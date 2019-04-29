@@ -5,10 +5,16 @@
 package main
 
 import (
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"net/http"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/politeia/decredplugin"
+	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/cache"
+	"github.com/decred/politeia/util"
 )
 
 // decredGetComment sends the decred plugin getcomment command to the cache and
@@ -271,4 +277,57 @@ func (p *politeiawww) decredTokenInventory(bestBlock uint64) (*decredplugin.Toke
 	}
 
 	return tir, nil
+}
+
+// decredLoadVoteSummaries sends the loadvotesummaries command to politeiad.
+func (p *politeiawww) decredLoadVoteSummaries(bestBlock uint64) (*decredplugin.LoadVoteSummariesReply, error) {
+	// Setup plugin command
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	lvs := decredplugin.LoadVoteSummaries{
+		BestBlock: bestBlock,
+	}
+	payload, err := decredplugin.EncodeLoadVoteSummaries(lvs)
+	if err != nil {
+		return nil, err
+	}
+
+	pc := pd.PluginCommand{
+		Challenge: hex.EncodeToString(challenge),
+		ID:        decredplugin.ID,
+		Command:   decredplugin.CmdLoadVoteSummaries,
+		CommandID: decredplugin.CmdLoadVoteSummaries,
+		Payload:   string(payload),
+	}
+
+	// Send plugin command to politeiad
+	respBody, err := p.makeRequest(http.MethodPost,
+		pd.PluginCommandRoute, pc)
+	if err != nil {
+		return nil, err
+	}
+
+	// Handle response
+	var pcr pd.PluginCommandReply
+	err = json.Unmarshal(respBody, &pcr)
+	if err != nil {
+		return nil, err
+	}
+
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, pcr.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	b := []byte(pcr.Payload)
+	reply, err := decredplugin.DecodeLoadVoteSummariesReply(b)
+	if err != nil {
+		spew.Dump("here")
+		return nil, err
+	}
+
+	return reply, nil
 }

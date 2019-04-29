@@ -21,6 +21,7 @@ const (
 	CmdProposalCommentsLikes = "proposalcommentslikes"
 	CmdInventory             = "inventory"
 	CmdTokenInventory        = "tokeninventory"
+	CmdLoadVoteSummaries     = "loadvotesummaries"
 	MDStreamAuthorizeVote    = 13 // Vote authorization by proposal author
 	MDStreamVoteBits         = 14 // Vote bits and mask
 	MDStreamVoteSnapshot     = 15 // Vote tickets and start/end parameters
@@ -782,7 +783,8 @@ func DecodeInventoryReply(payload []byte) (*InventoryReply, error) {
 	return &ir, nil
 }
 
-// TokenInventory requests the tokens of all records in the inventory.
+// TokenInventory requests the tokens of all records in the inventory,
+// categorized by stage of the voting process.
 type TokenInventory struct {
 	BestBlock uint64 `json:"bestblock"` // Best block
 }
@@ -805,12 +807,15 @@ func DecodeTokenInventory(payload []byte) (*TokenInventory, error) {
 }
 
 // TokenInventoryReply is the response to the TokenInventory command and
-// returns the tokens of all records in the inventory, categorized by stage of
-// the voting process.
+// returns the tokens of all records in the inventory.  The tokens are
+// categorized by stage of the voting process.  Pre and abandoned tokens are
+// sorted by timestamp in decending order.  Active, approved, and rejected
+// tokens are sorted by voting period start block height in decending order.
 type TokenInventoryReply struct {
 	Pre       []string `json:"pre"`       // Tokens of records that are pre-vote
 	Active    []string `json:"active"`    // Tokens of records with an active voting period
-	Finished  []string `json:"finished"`  // Tokens of records with a finished voting period
+	Approved  []string `json:"approved"`  // Tokens of records that have been approved by a vote
+	Rejected  []string `json:"rejected"`  // Tokens of records that have been rejected by a vote
 	Abandoned []string `json:"abandoned"` // Tokens of records that have been abandoned
 }
 
@@ -830,4 +835,50 @@ func DecodeTokenInventoryReply(payload []byte) (*TokenInventoryReply, error) {
 	}
 
 	return &itr, nil
+}
+
+// LoadVoteSummaries creates a vote summary entry in the cache for any
+// proposals that have finsished voting but have not been added to the vote
+// summaries table.
+type LoadVoteSummaries struct {
+	BestBlock uint64 `json:"bestblock"` // Best block height
+}
+
+// EncodeLoadVoteSummaries encodes a LoadVoteSummaries into a JSON byte
+// slice.
+func EncodeLoadVoteSummaries(lvs LoadVoteSummaries) ([]byte, error) {
+	return json.Marshal(lvs)
+}
+
+// DecodeLoadVoteSummaries decodes a JSON byte slice into a inventory.
+func DecodeLoadVoteSummaries(payload []byte) (*LoadVoteSummaries, error) {
+	var lvs LoadVoteSummaries
+
+	err := json.Unmarshal(payload, &lvs)
+	if err != nil {
+		return nil, err
+	}
+
+	return &lvs, nil
+}
+
+// LoadVoteSummariesReply is the reply to the LoadVoteSummaries command.
+type LoadVoteSummariesReply struct{}
+
+// EncodeLoadVoteSummariesReply encodes a LoadVoteSummariesReply into a JSON
+// byte slice.
+func EncodeLoadVoteSummariesReply(reply LoadVoteSummariesReply) ([]byte, error) {
+	return json.Marshal(reply)
+}
+
+// DecodeLoadVoteSummariesReply decodes a JSON byte slice into a inventory.
+func DecodeLoadVoteSummariesReply(payload []byte) (*LoadVoteSummariesReply, error) {
+	var reply LoadVoteSummariesReply
+
+	err := json.Unmarshal(payload, &reply)
+	if err != nil {
+		return nil, err
+	}
+
+	return &reply, nil
 }
