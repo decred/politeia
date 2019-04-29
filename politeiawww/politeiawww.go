@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg"
+	client "github.com/decred/dcrdata/pubsub/psclient"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/cache"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
@@ -64,6 +66,11 @@ type wsContext struct {
 	errorC        chan www.WSError
 	pingC         chan struct{}
 	done          chan struct{} // SHUT...DOWN...EVERYTHING...
+}
+
+type addressWatcherContext struct {
+	action  string
+	address string
 }
 
 func (w *wsContext) String() string {
@@ -127,6 +134,13 @@ type politeiawww struct {
 	// Following entries are use only during cmswww mode
 	cmsDB cmsdatabase.Database
 	cron  *cron.Cron
+
+	// currentSubs is a list of currently subscribed websocket notifications to
+	// dcrdata
+	wsClient           *client.Client
+	currentSubs        []string
+	addressWatcherChan chan *addressWatcherContext
+	cancelContext      context.CancelFunc
 }
 
 // XXX rig this up

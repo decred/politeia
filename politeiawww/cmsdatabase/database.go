@@ -44,6 +44,12 @@ type Database interface {
 	NewExchangeRate(*ExchangeRate) error // Create new exchange rate
 
 	ExchangeRate(int, int) (*ExchangeRate, error) // Return an exchange rate based on month and year
+
+	// Update Payments
+	UpdatePayments(*Payments) error // Update existing payment information
+	PaymentsByAddress(string) (*Payments, error)
+	PaymentsByStatus(uint) ([]Payments, error)
+
 	// Setup the invoice tables
 	Setup() error
 
@@ -79,6 +85,7 @@ type Invoice struct {
 
 	LineItems []LineItem      // All line items parsed from the raw invoice provided.
 	Changes   []InvoiceChange // All status changes that the invoice has had.
+	Payments  Payments        // All payment information.
 }
 
 // LineItem contains information about the individual line items contained in an
@@ -109,4 +116,15 @@ type ExchangeRate struct {
 	Month        uint
 	Year         uint
 	ExchangeRate uint
+}
+
+type Payments struct {
+	InvoiceToken    string
+	Address         string
+	TxIDs           string
+	TimeStarted     int64
+	TimeLastUpdated int64
+	AmountNeeded    int64
+	AmountReceived  int64
+	Status          cms.PaymentStatusT
 }

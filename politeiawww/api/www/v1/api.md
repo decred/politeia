@@ -139,6 +139,7 @@ notifications.  It does not render HTML.
 - [`ErrorStatusInvalidLineItemType`](#ErrorStatusInvalidLineItemType) 
 - [`ErrorStatusInvalidLaborExpense`](#ErrorStatusInvalidLaborExpense)
 - [`ErrorStatusNoProposalChanges`](#ErrorStatusNoProposalChanges)
+- [`ErrorStatusDuplicatePaymentAddress`](#ErrorStatusDuplicatePaymentAddress)
 
 **Proposal status codes**
 
@@ -2535,6 +2536,7 @@ Reply:
 | <a name="ErrorStatusInvalidCensorshipToken">ErrorStatusInvalidCensorshipToken</a> | 58 | Invalid proposal censorship token. |
 | <a name="ErrorStatusInvalidPassword">ErrorStatusInvalidPassword</a> | 85 | User password was invalid |
 | <a name="ErrorStatusNoProposalChanges">ErrorStatusNoProposalChanges</a> | 88 | No changes found in proposal. |
+| <a name="ErrorStatusDuplicatePaymentAddress">ErrorStatusDuplicatePaymentAddress</a> | 89 | An duplicate payment address was entered. |
 
 
 ### Proposal status codes

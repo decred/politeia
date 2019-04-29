@@ -56,6 +56,8 @@ func EncodeInvoice(dbInvoice *database.Invoice) *Invoice {
 		invoiceChange := encodeInvoiceChange(&dbInvoiceChange)
 		invoice.Changes = append(invoice.Changes, invoiceChange)
 	}
+
+	invoice.Payments = encodePayments(&dbInvoice.Payments)
 	return &invoice
 }
 
@@ -91,6 +93,8 @@ func DecodeInvoice(invoice *Invoice) (*database.Invoice, error) {
 		dbInvoiceChanges := decodeInvoiceChange(&invoiceChange)
 		dbInvoice.Changes = append(dbInvoice.Changes, *dbInvoiceChanges)
 	}
+
+	dbInvoice.Payments = decodePayment(&invoice.Payments)
 	return &dbInvoice, nil
 }
 
@@ -172,4 +176,28 @@ func decodeExchangeRate(exchangeRate ExchangeRate) *database.ExchangeRate {
 	dbExchangeRate.Year = exchangeRate.Year
 	dbExchangeRate.ExchangeRate = exchangeRate.ExchangeRate
 	return dbExchangeRate
+}
+
+func encodePayments(dbPayments *database.Payments) Payments {
+	payments := Payments{}
+	payments.InvoiceToken = dbPayments.InvoiceToken
+	payments.Address = dbPayments.Address
+	payments.TxIDs = dbPayments.TxIDs
+	payments.TimeStarted = dbPayments.TimeStarted
+	payments.TimeLastUpdated = dbPayments.TimeLastUpdated
+	payments.AmountNeeded = dbPayments.AmountNeeded
+	payments.AmountReceived = dbPayments.AmountReceived
+	return payments
+}
+
+func decodePayment(payments *Payments) database.Payments {
+	dbPayments := database.Payments{}
+	dbPayments.InvoiceToken = payments.InvoiceToken
+	dbPayments.Address = payments.Address
+	dbPayments.TxIDs = payments.TxIDs
+	dbPayments.TimeStarted = payments.TimeStarted
+	dbPayments.TimeLastUpdated = payments.TimeLastUpdated
+	dbPayments.AmountNeeded = payments.AmountNeeded
+	dbPayments.AmountReceived = payments.AmountReceived
+	return dbPayments
 }

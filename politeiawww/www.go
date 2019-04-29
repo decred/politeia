@@ -533,12 +533,29 @@ func _main() error {
 		}
 
 		// Setup invoice notifications
+
 		p.cron = cron.New()
 		p.checkInvoiceNotifications()
+
+		// XXX set up address watcher by checking db for approved invoices
+		// and get their addresses and add them to the watcher.
+
+		// XXX how many addresses should we plan on storing?
+		p.currentSubs = make([]string, 0, 1048)
+		p.addressWatcherChan = make(chan *addressWatcherContext)
+
+		p.setupWatcher()
+		if p.wsClient != nil {
+			defer p.wsClient.Stop()
+		}
+
+		p.restartAddressesWatching()
+
+		p.addPing()
+
 	default:
 		return fmt.Errorf("unknown mode: %v", p.cfg.Mode)
 	}
-
 	// Persist session cookies.
 	var cookieKey []byte
 	if cookieKey, err = ioutil.ReadFile(p.cfg.CookieKeyFile); err != nil {

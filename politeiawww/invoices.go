@@ -565,6 +565,18 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 				}
 			}
 
+			// Check payment history for address
+			currentPayment, err := p.cmsDB.PaymentsByAddress(invInput.PaymentAddress)
+			if err != nil {
+				return www.UserError{
+					ErrorCode: cms.ErrorStatusInvalidPaymentAddress,
+				}
+			}
+			if currentPayment != nil {
+				return www.UserError{
+					ErrorCode: cms.ErrorStatusDuplicatePaymentAddress,
+				}
+			}
 			// Verify that the submitted monthly average matches the value
 			// was calculated server side.
 			monthAvg, err := p.cmsDB.ExchangeRate(int(invInput.Month),
@@ -893,6 +905,19 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus, u *user.
 	dbInvoice.StatusChangeReason = c.Reason
 	dbInvoice.Status = c.NewStatus
 
+	// Calculate amount of DCR needed
+	dcrAmount := dcrutil.Amount(0)
+
+	// If approved then update Invoice's Payment table in DB
+	if c.NewStatus == cms.InvoiceStatusApproved {
+		dbInvoice.Payments = database.Payments{
+			Address:      dbInvoice.PaymentAddress,
+			TimeStarted:  time.Now().Unix(),
+			Status:       cms.PaymentStatusWatching,
+			AmountNeeded: int64(dcrAmount),
+		}
+	}
+
 	err = p.cmsDB.UpdateInvoice(dbInvoice)
 	if err != nil {
 		return nil, err
@@ -905,6 +930,10 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus, u *user.
 		if err != nil {
 			return nil, fmt.Errorf("failed to get user by username %v %v",
 				invRec.Username, err)
+		}
+		// If approved and successfully entered into DB, start watcher for address
+		if c.NewStatus == cms.InvoiceStatusApproved {
+			p.addWatchAddress(dbInvoice.PaymentAddress)
 		}
 		p.fireEvent(EventTypeInvoiceStatusUpdate,
 			EventDataInvoiceStatusUpdate{

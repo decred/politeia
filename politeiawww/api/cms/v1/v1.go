@@ -8,6 +8,7 @@ import (
 type ErrorStatusT int
 type InvoiceStatusT int
 type LineItemTypeT int
+type PaymentStatusT int
 type DomainTypeT int
 
 const (
@@ -45,6 +46,11 @@ const (
 
 	// Domain types
 	DomainTypeInvalid DomainTypeT = 0 // Invalid Domain type
+
+	// Payment information status types
+	PaymentStatusInvalid  PaymentStatusT = 0 // Invalid status
+	PaymentStatusWatching PaymentStatusT = 1 // Payment currently watching
+	PaymentStatusPaid     PaymentStatusT = 2 // Payment fully paid
 
 	InvoiceInputVersion = 1
 
@@ -415,4 +421,15 @@ type LineItemPayouts struct {
 // date range.
 type LineItemPayoutsReply struct {
 	LineItems []LineItemsInput `json:"lineitems"` // Line items within the requested date range.
+}
+
+type PaymentInformation struct {
+	Token           string         `json:"token"`
+	Address         string         `json:"address"`
+	TxsID           []string       `json:"txsid"`
+	TimeStarted     int64          `json:"timestarted"`
+	TimeLastUpdated int64          `json:"timelastupdated"`
+	AmountNeeded    dcrutil.Amount `json:"amountneeded"`
+	AmountReceived  dcrutil.Amount `json:"amountreceived"`
+	Status          PaymentStatusT `json:"status"`
 }

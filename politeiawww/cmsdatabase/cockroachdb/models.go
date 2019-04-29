@@ -33,6 +33,7 @@ type Invoice struct {
 
 	LineItems []LineItem      `gorm:"foreignkey:InvoiceToken"`
 	Changes   []InvoiceChange `gorm:"foreignkey:InvoiceToken"`
+	Payments  Payments        `gorm:"foreignkey:InvoiceToken"`
 }
 
 // TableName returns the table name of the invoices table.
@@ -83,4 +84,21 @@ type ExchangeRate struct {
 // TableName returns the table name of the line items table.
 func (ExchangeRate) TableName() string {
 	return tableNameExchangeRate
+}
+
+// Payments contains all the information about a given invoice's payment
+type Payments struct {
+	InvoiceToken    string `gorm:"not null"`
+	Address         string `gorm:"not null"`
+	TxIDs           string `gorm:"not null"`
+	TimeStarted     int64  `gorm:"not null"`
+	TimeLastUpdated int64  `gorm:"not null"`
+	AmountNeeded    int64  `gorm:"not null"`
+	AmountReceived  int64  `gorm:"not null"`
+	Status          uint   `gorm:"not null"`
+}
+
+// TableName returns the table name of the line items table.
+func (Payments) TableName() string {
+	return tableNamePayments
 }

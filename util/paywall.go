@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -25,8 +26,10 @@ import (
 )
 
 const (
-	dcrdataMainnet = "https://explorer.dcrdata.org/api"
-	dcrdataTestnet = "https://testnet.dcrdata.org/api"
+	dcrdataMainnet   = "https://explorer.dcrdata.org/api"
+	dcrdataTestnet   = "https://testnet.dcrdata.org/api"
+	dcrdataMainnetWS = "wss://explorer.dcrdata.org/ps"
+	dcrdataTestnetWS = "wss://testnet.dcrdata.org/ps"
 
 	dcrdataTimeout = 3 * time.Second // Dcrdata request timeout
 	faucetTimeout  = 5 * time.Second // Testnet faucet request timeout
@@ -145,6 +148,45 @@ func blockExplorerURLForAddress(address string, netParams *chaincfg.Params) (str
 		dcrdata = dcrdataMainnet + "/address/" + address
 	case &chaincfg.TestNet3Params:
 		dcrdata = dcrdataTestnet + "/address/" + address
+	default:
+		return "", fmt.Errorf("unsupported network %v",
+			getNetworkName(netParams))
+	}
+
+	return dcrdata, nil
+}
+
+func blockExplorerURLForTx(txid string, netParams *chaincfg.Params) (string, string, error) {
+	var (
+		dcrdata string
+		insight string
+	)
+
+	switch netParams {
+	case &chaincfg.MainNetParams:
+		dcrdata = dcrdataMainnet + "/tx/" + txid + "?spends=false"
+	case &chaincfg.TestNet3Params:
+		dcrdata = dcrdataTestnet + "/tx/" + txid + "?spends=false"
+	default:
+		return "", "", fmt.Errorf("unsupported network %v",
+			getNetworkName(netParams))
+	}
+
+	return dcrdata, insight, nil
+}
+
+// BlockExplorerURLforSubscriptions generates a proper URL for either
+// dcrdata testnet or mainnet depending on the provided netParams.
+func BlockExplorerURLForSubscriptions(netParams *chaincfg.Params) (string, error) {
+	var (
+		dcrdata string
+	)
+
+	switch netParams {
+	case &chaincfg.MainNetParams:
+		dcrdata = dcrdataMainnetWS
+	case &chaincfg.TestNet3Params:
+		dcrdata = dcrdataTestnetWS
 	default:
 		return "", fmt.Errorf("unsupported network %v",
 			getNetworkName(netParams))
@@ -463,4 +505,36 @@ func FetchTxsForAddressNotBefore(address string, notBefore int64) ([]TxDetails, 
 	}
 
 	return targetTxs, nil
+}
+
+// FetchTx fetches a given transaction based on the provided txid.
+func FetchTx(address, txid string) ([]TxDetails, error) {
+	// Get block explorer URLs
+	addr, err := dcrutil.DecodeAddress(address)
+	if err != nil {
+		return nil, fmt.Errorf("invalid address %v: %v", addr, err)
+	}
+	dcrdataURL, err := blockExplorerURLForAddress(address, addr.Net())
+	if err != nil {
+		return nil, err
+	}
+	primaryURL := dcrdataURL + "/raw"
+
+	log.Printf("fetching tx %s %s from primary %s\n", address, txid, primaryURL)
+	// Try the primary (dcrdata)
+	primaryTxs, err := fetchTxsWithBE(primaryURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch from dcrdata: %v", err)
+	}
+	txs := make([]TxDetails, 0, len(primaryTxs))
+	for _, tx := range primaryTxs {
+		txDetail, err := convertBETransactionToTxDetails(address, tx)
+		if err != nil {
+			return nil, fmt.Errorf("convertBETransactionToTxDetails: %v",
+				tx.TxId)
+		}
+		txs = append(txs, *txDetail)
+	}
+
+	return txs, nil
 }
