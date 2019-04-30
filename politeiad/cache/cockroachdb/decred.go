@@ -20,7 +20,7 @@ const (
 	// decredVersion is the version of the cache implementation of
 	// decred plugin. This may differ from the decredplugin package
 	// version.
-	decredVersion = "1"
+	decredVersion = "1.1"
 
 	// Decred plugin table names
 	tableComments          = "comments"
@@ -30,7 +30,7 @@ const (
 	tableVoteOptions       = "vote_options"
 	tableStartVotes        = "start_votes"
 	tableVoteOptionResults = "vote_option_results"
-	tableVoteSummaries     = "vote_summaries"
+	tableVoteResults       = "vote_results"
 
 	// Vote option IDs
 	voteOptionIDApproved = "yes"
@@ -538,11 +538,11 @@ func (d *decred) cmdInventory() (string, error) {
 	return string(irb), err
 }
 
-// newVoteSummary creates a VoteSummary record for a proposal and inserts it
-// into the cache. A VoteSummary should only be created for proposals with a
-// finished voting period.
-func (d *decred) newVoteSummary(token string) error {
-	log.Tracef("newVoteSummary %v", token)
+// newVoteResults creates a VoteResults record for a proposal and inserts it
+// into the cache. A VoteResults record should only be created for proposals
+// once the voting period has ended.
+func (d *decred) newVoteResults(token string) error {
+	log.Tracef("newVoteResults %v", token)
 
 	// Lookup start vote
 	var sv StartVote
@@ -619,41 +619,41 @@ func (d *decred) newVoteSummary(token string) error {
 		approved = true
 	}
 
-	// Create vote summary
-	err = d.recordsdb.Create(&VoteSummary{
+	// Create a vote results entry
+	err = d.recordsdb.Create(&VoteResults{
 		Token:    token,
 		Approved: approved,
 		Results:  results,
 	}).Error
 	if err != nil {
-		return fmt.Errorf("new vote summary: %v", err)
+		return fmt.Errorf("new vote results: %v", err)
 	}
 
 	return nil
 }
 
-// cmdLoadVoteSummaries creates vote summary entries for any proposals that
-// have a finished voting period but have not yet been added to the vote
-// summaries table. The vote summary table is lazy loaded.
-func (d *decred) cmdLoadVoteSummaries(payload string) (string, error) {
-	log.Tracef("cmdLoadVoteSummaries")
+// cmdLoadVoteResults creates vote results entries for any proposals that have
+// a finished voting period but have not yet been added to the vote results
+// table. The vote results table is lazy loaded.
+func (d *decred) cmdLoadVoteResults(payload string) (string, error) {
+	log.Tracef("cmdLoadVoteResults")
 
-	lvs, err := decredplugin.DecodeLoadVoteSummaries([]byte(payload))
+	lvs, err := decredplugin.DecodeLoadVoteResults([]byte(payload))
 	if err != nil {
 		return "", err
 	}
 
 	// Find proposals that have a finished voting period but
-	// have not yet been added to the vote summaries table.
+	// have not yet been added to the vote results table.
 	q := `SELECT start_votes.token
         FROM start_votes
-        LEFT OUTER JOIN vote_summaries
-          ON start_votes.token = vote_summaries.token
+        LEFT OUTER JOIN vote_results
+          ON start_votes.token = vote_results.token
           WHERE start_votes.end_height <= ?
-          AND vote_summaries.token IS NULL`
+          AND vote_results.token IS NULL`
 	rows, err := d.recordsdb.Raw(q, lvs.BestBlock).Rows()
 	if err != nil {
-		return "", fmt.Errorf("lookup no summary: %v", err)
+		return "", fmt.Errorf("no vote results: %v", err)
 	}
 	defer rows.Close()
 
@@ -664,17 +664,17 @@ func (d *decred) cmdLoadVoteSummaries(payload string) (string, error) {
 		tokens = append(tokens, token)
 	}
 
-	// Create vote summary entries
+	// Create vote result entries
 	for _, v := range tokens {
-		err := d.newVoteSummary(v)
+		err := d.newVoteResults(v)
 		if err != nil {
-			return "", fmt.Errorf("newVoteSummary %v: %v", v, err)
+			return "", fmt.Errorf("newVoteResults %v: %v", v, err)
 		}
 	}
 
 	// Prepare reply
-	r := decredplugin.LoadVoteSummariesReply{}
-	reply, err := decredplugin.EncodeLoadVoteSummariesReply(r)
+	r := decredplugin.LoadVoteResultsReply{}
+	reply, err := decredplugin.EncodeLoadVoteResultsReply(r)
 	if err != nil {
 		return "", err
 	}
@@ -694,17 +694,17 @@ func (d *decred) cmdTokenInventory(payload string) (string, error) {
 
 	// The token inventory call cannot be completed if there
 	// are any proposals that have finished voting but that
-	// don't have an entry in the vote summaries table yet.
+	// don't have an entry in the vote results table yet.
 	// Fail here if any are found.
 	q := `SELECT start_votes.token
         FROM start_votes
-        LEFT OUTER JOIN vote_summaries
-          ON start_votes.token = vote_summaries.token
+        LEFT OUTER JOIN vote_results
+          ON start_votes.token = vote_results.token
           WHERE start_votes.end_height <= ?
-          AND vote_summaries.token IS NULL`
+          AND vote_results.token IS NULL`
 	rows, err := d.recordsdb.Raw(q, ti.BestBlock).Rows()
 	if err != nil {
-		return "", fmt.Errorf("no summary: %v", err)
+		return "", fmt.Errorf("no vote results: %v", err)
 	}
 	defer rows.Close()
 
@@ -717,7 +717,7 @@ func (d *decred) cmdTokenInventory(payload string) (string, error) {
 
 	if len(missing) > 0 {
 		// Return a ErrRecordNotFound to indicate one
-		// or more vote summary records were not found.
+		// or more vote result records were not found.
 		return "", cache.ErrRecordNotFound
 	}
 
@@ -766,11 +766,11 @@ func (d *decred) cmdTokenInventory(payload string) (string, error) {
 	}
 
 	// Approved vote tokens
-	q = `SELECT vote_summaries.token
-       FROM vote_summaries
+	q = `SELECT vote_results.token
+       FROM vote_results
        INNER JOIN start_votes
-         ON vote_summaries.token = start_votes.token
-         WHERE vote_summaries.approved = true
+         ON vote_results.token = start_votes.token
+         WHERE vote_results.approved = true
        ORDER BY start_votes.start_block_height DESC`
 	rows, err = d.recordsdb.Raw(q).Rows()
 	if err != nil {
@@ -785,11 +785,11 @@ func (d *decred) cmdTokenInventory(payload string) (string, error) {
 	}
 
 	// Rejected vote tokens
-	q = `SELECT vote_summaries.token
-       FROM vote_summaries
+	q = `SELECT vote_results.token
+       FROM vote_results
        INNER JOIN start_votes
-         ON vote_summaries.token = start_votes.token
-         WHERE vote_summaries.approved = false
+         ON vote_results.token = start_votes.token
+         WHERE vote_results.approved = false
        ORDER BY start_votes.start_block_height DESC`
 	rows, err = d.recordsdb.Raw(q).Rows()
 	if err != nil {
@@ -836,6 +836,131 @@ func (d *decred) cmdTokenInventory(payload string) (string, error) {
 	return string(reply), nil
 }
 
+func (d *decred) cmdVoteSummary(payload string) (string, error) {
+	log.Tracef("cmdVoteSummary")
+
+	vs, err := decredplugin.DecodeVoteSummary([]byte(payload))
+	if err != nil {
+		return "", err
+	}
+
+	// Lookup the most recent record version
+	var r Record
+	err = d.recordsdb.
+		Where("records.token = ?", vs.Token).
+		Order("records.version desc").
+		Limit(1).
+		Find(&r).
+		Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			err = cache.ErrRecordNotFound
+		}
+		return "", err
+	}
+
+	// Declare here to prevent goto errors
+	results := make([]decredplugin.VoteOptionResult, 0, 16)
+	var (
+		av AuthorizeVote
+		sv StartVote
+		vr VoteResults
+	)
+
+	// Lookup authorize vote
+	key := vs.Token + strconv.FormatUint(r.Version, 10)
+	err = d.recordsdb.
+		Where("key = ?", key).
+		Find(&av).
+		Error
+	if err == gorm.ErrRecordNotFound {
+		// If an authorize vote doesn't exist
+		// then there is no need to continue.
+		goto sendReply
+	} else if err != nil {
+		return "", fmt.Errorf("lookup authorize vote: %v", err)
+	}
+
+	// Lookup start vote
+	err = d.recordsdb.
+		Where("token = ?", vs.Token).
+		Preload("Options").
+		Find(&sv).
+		Error
+	if err == gorm.ErrRecordNotFound {
+		// If an start vote doesn't exist then
+		// there is no need to continue.
+		goto sendReply
+	} else if err != nil {
+		return "", fmt.Errorf("lookup start vote: %v", err)
+	}
+
+	// Lookup vote results
+	err = d.recordsdb.
+		Where("token = ?", vs.Token).
+		Preload("Results").
+		Find(&vr).
+		Error
+	if err == gorm.ErrRecordNotFound {
+		// A vote results record was not found. This means that
+		// the vote is either still active or has not been lazy
+		// loaded yet. The vote results will need to be looked
+		// up manually.
+	} else if err != nil {
+		return "", fmt.Errorf("lookup vote results: %v", err)
+	} else {
+		// Vote results record exists. We have all of the data
+		// that we need to send the reply.
+		vor := convertVoteOptionResultsToDecred(vr.Results)
+		results = append(results, vor...)
+		goto sendReply
+	}
+
+	// Lookup vote results manually
+	for _, v := range sv.Options {
+		var votes uint64
+		tokenVoteBit := v.Token + strconv.FormatUint(v.Bits, 16)
+		err := d.recordsdb.
+			Model(&CastVote{}).
+			Where("token_vote_bit = ?", tokenVoteBit).
+			Count(&votes).
+			Error
+		if err != nil {
+			return "", fmt.Errorf("count cast votes: %v", err)
+		}
+
+		results = append(results,
+			decredplugin.VoteOptionResult{
+				ID:          v.ID,
+				Description: v.Description,
+				Bits:        v.Bits,
+				Votes:       votes,
+			})
+	}
+
+sendReply:
+	// Return "" not "0" if end height doesn't exist
+	var endHeight string
+	if sv.EndHeight != 0 {
+		endHeight = strconv.FormatUint(sv.EndHeight, 10)
+	}
+
+	vsr := decredplugin.VoteSummaryReply{
+		Authorized:          (av.Action == decredplugin.AuthVoteActionAuthorize),
+		EndHeight:           endHeight,
+		EligibleTicketCount: sv.EligibleTicketCount,
+		QuorumPercentage:    sv.QuorumPercentage,
+		PassPercentage:      sv.PassPercentage,
+		Results:             results,
+	}
+	reply, err := decredplugin.EncodeVoteSummaryReply(vsr)
+	if err != nil {
+		return "", err
+	}
+
+	return string(reply), nil
+}
+
 // Exec executes a decred plugin command.  Plugin commands that write data to
 // the cache require both the command payload and the reply payload.  Plugin
 // commands that fetch data from the cache require only the command payload.
@@ -872,10 +997,12 @@ func (d *decred) Exec(cmd, cmdPayload, replyPayload string) (string, error) {
 		return d.cmdProposalCommentsLikes(cmdPayload)
 	case decredplugin.CmdInventory:
 		return d.cmdInventory()
-	case decredplugin.CmdLoadVoteSummaries:
-		return d.cmdLoadVoteSummaries(cmdPayload)
+	case decredplugin.CmdLoadVoteResults:
+		return d.cmdLoadVoteResults(cmdPayload)
 	case decredplugin.CmdTokenInventory:
 		return d.cmdTokenInventory(cmdPayload)
+	case decredplugin.CmdVoteSummary:
+		return d.cmdVoteSummary(cmdPayload)
 	}
 
 	return "", cache.ErrInvalidPluginCmd
@@ -932,8 +1059,8 @@ func (d *decred) createTables(tx *gorm.DB) error {
 			return err
 		}
 	}
-	if !tx.HasTable(tableVoteSummaries) {
-		err := tx.CreateTable(&VoteSummary{}).Error
+	if !tx.HasTable(tableVoteResults) {
+		err := tx.CreateTable(&VoteResults{}).Error
 		if err != nil {
 			return err
 		}
@@ -968,7 +1095,7 @@ func (d *decred) dropTables(tx *gorm.DB) error {
 	// Drop decred plugin tables
 	err := tx.DropTableIfExists(tableComments, tableCommentLikes,
 		tableCastVotes, tableAuthorizeVotes, tableVoteOptions,
-		tableStartVotes, tableVoteOptionResults, tableVoteSummaries).
+		tableStartVotes, tableVoteOptionResults, tableVoteResults).
 		Error
 	if err != nil {
 		return err

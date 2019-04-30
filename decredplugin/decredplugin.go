@@ -9,6 +9,8 @@ const (
 	CmdAuthorizeVote         = "authorizevote"
 	CmdStartVote             = "startvote"
 	CmdVoteDetails           = "votedetails"
+	CmdVoteSummary           = "votesummary"
+	CmdLoadVoteResults       = "loadvoteresults"
 	CmdBallot                = "ballot"
 	CmdBestBlock             = "bestblock"
 	CmdNewComment            = "newcomment"
@@ -21,13 +23,16 @@ const (
 	CmdProposalCommentsLikes = "proposalcommentslikes"
 	CmdInventory             = "inventory"
 	CmdTokenInventory        = "tokeninventory"
-	CmdLoadVoteSummaries     = "loadvotesummaries"
 	MDStreamAuthorizeVote    = 13 // Vote authorization by proposal author
 	MDStreamVoteBits         = 14 // Vote bits and mask
 	MDStreamVoteSnapshot     = 15 // Vote tickets and start/end parameters
 
 	VoteDurationMin = 2016 // Minimum vote duration (in blocks)
 	VoteDurationMax = 4032 // Maximum vote duration (in blocks)
+
+	// Authorize vote actions
+	AuthVoteActionAuthorize = "authorize" // Authorize a proposal vote
+	AuthVoteActionRevoke    = "revoke"    // Revoke a proposal vote authorization
 )
 
 // CastVote is a signed vote.
@@ -340,6 +345,66 @@ func EncodeVoteResultsReply(v VoteResultsReply) ([]byte, error) {
 // DecodeVoteResultsReply decodes a JSON byte slice into a VoteResults.
 func DecodeVoteResultsReply(payload []byte) (*VoteResultsReply, error) {
 	var v VoteResultsReply
+
+	err := json.Unmarshal(payload, &v)
+	if err != nil {
+		return nil, err
+	}
+
+	return &v, nil
+}
+
+// VoteSummary requests a summary of a proposal vote. This includes certain
+// voting period parameters and a summary of the vote results.
+type VoteSummary struct {
+	Token string `json:"token"` // Censorship token
+}
+
+// EncodeVoteSummary encodes VoteSummary into a JSON byte slice.
+func EncodeVoteSummary(v VoteSummary) ([]byte, error) {
+	return json.Marshal(v)
+}
+
+// DecodeVoteSummary decodes a JSON byte slice into a VoteSummary.
+func DecodeVoteSummary(payload []byte) (*VoteSummary, error) {
+	var v VoteSummary
+
+	err := json.Unmarshal(payload, &v)
+	if err != nil {
+		return nil, err
+	}
+
+	return &v, nil
+}
+
+// VoteOptionResult describes a vote option and the total number of votes that
+// have been cast for this option.
+type VoteOptionResult struct {
+	ID          string `json:"id"`          // Single unique word identifying vote (e.g. yes)
+	Description string `json:"description"` // Longer description of the vote.
+	Bits        uint64 `json:"bits"`        // Bits used for this option
+	Votes       uint64 `json:"votes"`       // Number of votes cast for this option
+}
+
+// VoteSummaryReply is the reply to the VoteSummary command and returns certain
+// voting period parameters as well as a summary of the vote results.
+type VoteSummaryReply struct {
+	Authorized          bool               `json:"authorized"`          // Vote is authorized
+	EndHeight           string             `json:"endheight"`           // End block height
+	EligibleTicketCount int                `json:"eligibleticketcount"` // Number of eligible tickets
+	QuorumPercentage    uint32             `json:"quorumpercentage"`    // Percent of eligible votes required for quorum
+	PassPercentage      uint32             `json:"passpercentage"`      // Percent of total votes required to pass
+	Results             []VoteOptionResult `json:"results"`             // Vote results
+}
+
+// EncodeVoteSummaryReply encodes VoteSummary into a JSON byte slice.
+func EncodeVoteSummaryReply(v VoteSummaryReply) ([]byte, error) {
+	return json.Marshal(v)
+}
+
+// DecodeVoteSummaryReply decodes a JSON byte slice into a VoteSummaryReply.
+func DecodeVoteSummaryReply(payload []byte) (*VoteSummaryReply, error) {
+	var v VoteSummaryReply
 
 	err := json.Unmarshal(payload, &v)
 	if err != nil {
@@ -837,43 +902,42 @@ func DecodeTokenInventoryReply(payload []byte) (*TokenInventoryReply, error) {
 	return &itr, nil
 }
 
-// LoadVoteSummaries creates a vote summary entry in the cache for any
-// proposals that have finsished voting but have not been added to the vote
-// summaries table.
-type LoadVoteSummaries struct {
+// LoadVoteResults creates a vote results entry in the cache for any proposals
+// that have finsished voting but have not yet been added to the lazy loaded
+// vote results table.
+type LoadVoteResults struct {
 	BestBlock uint64 `json:"bestblock"` // Best block height
 }
 
-// EncodeLoadVoteSummaries encodes a LoadVoteSummaries into a JSON byte
-// slice.
-func EncodeLoadVoteSummaries(lvs LoadVoteSummaries) ([]byte, error) {
-	return json.Marshal(lvs)
+// EncodeLoadVoteResults encodes a LoadVoteResults into a JSON byte slice.
+func EncodeLoadVoteResults(lvr LoadVoteResults) ([]byte, error) {
+	return json.Marshal(lvr)
 }
 
-// DecodeLoadVoteSummaries decodes a JSON byte slice into a inventory.
-func DecodeLoadVoteSummaries(payload []byte) (*LoadVoteSummaries, error) {
-	var lvs LoadVoteSummaries
+// DecodeLoadVoteResults decodes a JSON byte slice into a LoadVoteResults.
+func DecodeLoadVoteResults(payload []byte) (*LoadVoteResults, error) {
+	var lvr LoadVoteResults
 
-	err := json.Unmarshal(payload, &lvs)
+	err := json.Unmarshal(payload, &lvr)
 	if err != nil {
 		return nil, err
 	}
 
-	return &lvs, nil
+	return &lvr, nil
 }
 
-// LoadVoteSummariesReply is the reply to the LoadVoteSummaries command.
-type LoadVoteSummariesReply struct{}
+// LoadVoteResultsReply is the reply to the LoadVoteResults command.
+type LoadVoteResultsReply struct{}
 
-// EncodeLoadVoteSummariesReply encodes a LoadVoteSummariesReply into a JSON
+// EncodeLoadVoteResultsReply encodes a LoadVoteResultsReply into a JSON
 // byte slice.
-func EncodeLoadVoteSummariesReply(reply LoadVoteSummariesReply) ([]byte, error) {
+func EncodeLoadVoteResultsReply(reply LoadVoteResultsReply) ([]byte, error) {
 	return json.Marshal(reply)
 }
 
-// DecodeLoadVoteSummariesReply decodes a JSON byte slice into a inventory.
-func DecodeLoadVoteSummariesReply(payload []byte) (*LoadVoteSummariesReply, error) {
-	var reply LoadVoteSummariesReply
+// DecodeLoadVoteResultsReply decodes a JSON byte slice into a LoadVoteResults.
+func DecodeLoadVoteResultsReply(payload []byte) (*LoadVoteResultsReply, error) {
+	var reply LoadVoteResultsReply
 
 	err := json.Unmarshal(payload, &reply)
 	if err != nil {

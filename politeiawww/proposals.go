@@ -348,6 +348,28 @@ func getVoteStatus(avr www.AuthorizeVoteReply, svr www.StartVoteReply, bestBlock
 	return www.PropVoteStatusStarted
 }
 
+func voteStatusFromVoteSummary(r decredplugin.VoteSummaryReply, bestBlock uint64) www.PropVoteStatusT {
+	switch {
+	case !r.Authorized:
+		return www.PropVoteStatusNotAuthorized
+	case r.EndHeight == "":
+		return www.PropVoteStatusAuthorized
+	default:
+		endHeight, err := strconv.ParseUint(r.EndHeight, 10, 64)
+		if err != nil {
+			// This should not happen
+			log.Errorf("voteStatusFromVoteSummary: ParseUint "+
+				"failed on '%v': %v", r.EndHeight, err)
+		}
+
+		if bestBlock < endHeight {
+			return www.PropVoteStatusStarted
+		}
+
+		return www.PropVoteStatusFinished
+	}
+}
+
 // getProposalName returns the proposal name based on the index markdown file.
 func getProposalName(files []www.File) (string, error) {
 	for _, file := range files {
@@ -1368,33 +1390,28 @@ func (p *politeiawww) voteStatusReply(token string, bestBlock uint64) (*www.Vote
 		return &vsr, nil
 	}
 
-	// Vote status wasn't in the memory cache so we need
-	// to fetch it from the cache db.
-	vdr, err := p.decredVoteDetails(token)
+	// Vote status wasn't in the memory cache
+	// so fetch it from the cache database.
+	r, err := p.decredVoteSummary(token)
 	if err != nil {
-		return nil, fmt.Errorf("decredVoteDetails %v: %v",
-			token, err)
+		return nil, err
 	}
-	vd := convertVoteDetailsReplyFromDecred(*vdr)
-	voteStatus := getVoteStatus(vd.AuthorizeVoteReply,
-		vd.StartVoteReply, bestBlock)
 
-	vrr, err := p.decredProposalVotes(token)
-	if err != nil {
-		return nil, fmt.Errorf("decredProposalVotes %v: %v",
-			token, err)
+	results := convertVoteOptionResultsFromDecred(r.Results)
+	var total uint64
+	for _, v := range results {
+		total += v.VotesReceived
 	}
-	sv, cv := convertVoteResultsReplyFromDecred(*vrr)
 
 	vsr = www.VoteStatusReply{
 		Token:              token,
-		Status:             voteStatus,
-		TotalVotes:         uint64(len(vrr.CastVotes)),
-		OptionsResult:      voteResults(sv, cv),
-		EndHeight:          vdr.StartVoteReply.EndHeight,
-		NumOfEligibleVotes: len(vdr.StartVoteReply.EligibleTickets),
-		QuorumPercentage:   vdr.StartVote.Vote.QuorumPercentage,
-		PassPercentage:     vdr.StartVote.Vote.PassPercentage,
+		Status:             voteStatusFromVoteSummary(*r, bestBlock),
+		TotalVotes:         total,
+		OptionsResult:      results,
+		EndHeight:          r.EndHeight,
+		NumOfEligibleVotes: r.EligibleTicketCount,
+		QuorumPercentage:   r.QuorumPercentage,
+		PassPercentage:     r.PassPercentage,
 	}
 
 	// If the voting period has ended the vote status
@@ -1961,7 +1978,7 @@ func (p *politeiawww) processTokenInventory() (*www.TokenInventoryReply, error) 
 		return nil, err
 	}
 
-	// The vote summaries cache table is lazy loaded and may
+	// The vote results cache table is lazy loaded and may
 	// need to be updated. If it does need to be updated, the
 	// token inventory call will need to be retried after the
 	// update is complete.
@@ -1972,8 +1989,8 @@ func (p *politeiawww) processTokenInventory() (*www.TokenInventoryReply, error) 
 		if err != nil {
 			if err == cache.ErrRecordNotFound {
 				// There are missing entries in the vote
-				// summaries cache table. Load them.
-				_, err := p.decredLoadVoteSummaries(bb)
+				// results cache table. Load them.
+				_, err := p.decredLoadVoteResults(bb)
 				if err != nil {
 					return nil, err
 				}

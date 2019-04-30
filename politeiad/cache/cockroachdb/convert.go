@@ -191,18 +191,19 @@ func convertStartVoteFromDecred(sv decredplugin.StartVote, svr decredplugin.Star
 		})
 	}
 	return StartVote{
-		Token:            sv.Vote.Token,
-		Mask:             sv.Vote.Mask,
-		Duration:         sv.Vote.Duration,
-		QuorumPercentage: sv.Vote.QuorumPercentage,
-		PassPercentage:   sv.Vote.PassPercentage,
-		Options:          opts,
-		PublicKey:        sv.PublicKey,
-		Signature:        sv.Signature,
-		StartBlockHeight: svr.StartBlockHeight,
-		StartBlockHash:   svr.StartBlockHash,
-		EndHeight:        endHeight,
-		EligibleTickets:  strings.Join(svr.EligibleTickets, ","),
+		Token:               sv.Vote.Token,
+		Mask:                sv.Vote.Mask,
+		Duration:            sv.Vote.Duration,
+		QuorumPercentage:    sv.Vote.QuorumPercentage,
+		PassPercentage:      sv.Vote.PassPercentage,
+		Options:             opts,
+		PublicKey:           sv.PublicKey,
+		Signature:           sv.Signature,
+		StartBlockHeight:    svr.StartBlockHeight,
+		StartBlockHash:      svr.StartBlockHash,
+		EndHeight:           endHeight,
+		EligibleTickets:     strings.Join(svr.EligibleTickets, ","),
+		EligibleTicketCount: len(svr.EligibleTickets),
 	}
 }
 
@@ -245,10 +246,11 @@ func convertStartVoteToDecred(sv StartVote) (decredplugin.StartVote, decredplugi
 
 func convertCastVoteFromDecred(cv decredplugin.CastVote) CastVote {
 	return CastVote{
-		Token:     cv.Token,
-		Ticket:    cv.Ticket,
-		VoteBit:   cv.VoteBit,
-		Signature: cv.Signature,
+		Token:        cv.Token,
+		Ticket:       cv.Ticket,
+		VoteBit:      cv.VoteBit,
+		Signature:    cv.Signature,
+		TokenVoteBit: cv.Token + cv.VoteBit,
 	}
 }
 
@@ -259,4 +261,21 @@ func convertCastVoteToDecred(cv CastVote) decredplugin.CastVote {
 		VoteBit:   cv.VoteBit,
 		Signature: cv.Signature,
 	}
+}
+
+func convertVoteOptionResultToDecred(r VoteOptionResult) decredplugin.VoteOptionResult {
+	return decredplugin.VoteOptionResult{
+		ID:          r.Option.ID,
+		Description: r.Option.Description,
+		Bits:        r.Option.Bits,
+		Votes:       r.Votes,
+	}
+}
+
+func convertVoteOptionResultsToDecred(r []VoteOptionResult) []decredplugin.VoteOptionResult {
+	results := make([]decredplugin.VoteOptionResult, 0, len(r))
+	for _, v := range r {
+		results = append(results, convertVoteOptionResultToDecred(v))
+	}
+	return results
 }
