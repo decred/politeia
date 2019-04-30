@@ -1167,23 +1167,26 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 		}
 	}
 
-	oldName, err := getProposalName(cachedProp.Files)
-	if err != nil {
-		return nil, err
+	//Check for changes between index.md
+	var mdchanges bool
+	for _, c := range cachedProp.Files {
+		if c.Name == indexFile {
+			for _, v := range ep.Files {
+				if v.Name == indexFile {
+					mdchanges = c.Payload != v.Payload
+				}
+			}
+		}
 	}
 
+	//Check for deleted files, added files, and markdown changes
 	if len(delFiles) == 0 &&
 		len(convertPropFilesFromWWW(cachedProp.Files)) ==
-			len(convertPropFilesFromWWW(ep.Files)) {
+			len(convertPropFilesFromWWW(ep.Files)) && !mdchanges {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusNoProposalChanges,
 		}
 	}
-
-	fmt.Println("New name equal to old name:", name == oldName)
-	fmt.Println("deletedFiles", len(delFiles))
-	fmt.Println("cachedprop added files", len(convertPropFilesFromWWW(cachedProp.Files)))
-	fmt.Println("added files", len(convertPropFilesFromWWW(ep.Files)))
 
 	// Setup politeiad request
 	challenge, err := util.Random(pd.ChallengeSize)
