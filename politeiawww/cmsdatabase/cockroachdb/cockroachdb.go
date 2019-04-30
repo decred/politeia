@@ -23,8 +23,8 @@ const (
 	// Database table names
 	tableNameInvoice       = "invoices"
 	tableNameLineItem      = "line_items"
-	tableNameInvoiceChange = "invoice_change"
-	tableNameExchangeRate  = "exchange_rate"
+	tableNameInvoiceChange = "invoice_changes"
+	tableNameExchangeRate  = "exchange_rates"
 
 	userPoliteiawww = "politeiawww" // cmsdb user (read/write access)
 )
@@ -38,7 +38,7 @@ type cockroachdb struct {
 
 // Create new invoice.
 //
-// CreateInvoice satisfies the backend interface.
+// CreateInvoice satisfies the database interface.
 func (c *cockroachdb) NewInvoice(dbInvoice *database.Invoice) error {
 	invoice := EncodeInvoice(dbInvoice)
 
@@ -48,7 +48,7 @@ func (c *cockroachdb) NewInvoice(dbInvoice *database.Invoice) error {
 
 // Update existing invoice.
 //
-// CreateInvoice satisfies the backend interface.
+// UpdateInvoice satisfies the database interface.
 func (c *cockroachdb) UpdateInvoice(dbInvoice *database.Invoice) error {
 	invoice := EncodeInvoice(dbInvoice)
 
@@ -95,7 +95,7 @@ func (c *cockroachdb) InvoicesByUserID(userid string) ([]database.Invoice, error
 	return dbInvoices, nil
 }
 
-// Return invoice by its token.
+// InvoiceByToken Return invoice by its token.
 func (c *cockroachdb) InvoiceByToken(token string) (*database.Invoice, error) {
 	log.Debugf("InvoiceByToken: %v", token)
 
@@ -113,7 +113,7 @@ func (c *cockroachdb) InvoiceByToken(token string) (*database.Invoice, error) {
 	return DecodeInvoice(&invoice)
 }
 
-// Return all invoices by month year and status
+// InvoicesByMonthYearStatus returns all invoices by month year and status
 func (c *cockroachdb) InvoicesByMonthYearStatus(month, year uint16, status int) ([]database.Invoice, error) {
 	log.Tracef("InvoicesByMonthYearStatus")
 
@@ -151,7 +151,7 @@ func (c *cockroachdb) InvoicesByMonthYearStatus(month, year uint16, status int) 
 	return dbInvoices, nil
 }
 
-// Return all invoices by month/year
+// InvoicesByMonthYear returns all invoices by month/year
 func (c *cockroachdb) InvoicesByMonthYear(month, year uint16) ([]database.Invoice, error) {
 	log.Tracef("InvoicesByMonthYear")
 
@@ -189,7 +189,7 @@ func (c *cockroachdb) InvoicesByMonthYear(month, year uint16) ([]database.Invoic
 	return dbInvoices, nil
 }
 
-// Return all invoices by status
+// InvoicesByStatus returns all invoices by status
 func (c *cockroachdb) InvoicesByStatus(status int) ([]database.Invoice, error) {
 	log.Tracef("InvoicesByStatus")
 
@@ -227,7 +227,7 @@ func (c *cockroachdb) InvoicesByStatus(status int) ([]database.Invoice, error) {
 	return dbInvoices, nil
 }
 
-// Return all invoices
+// InvoicesAll returns all invoices
 func (c *cockroachdb) InvoicesAll() ([]database.Invoice, error) {
 	log.Tracef("InvoicesAll")
 
@@ -266,7 +266,7 @@ func (c *cockroachdb) InvoicesAll() ([]database.Invoice, error) {
 
 // Create new exchange rate.
 //
-// NewExchangeRate satisfies the backend interface.
+// NewExchangeRate satisfies the database interface.
 func (c *cockroachdb) NewExchangeRate(dbExchangeRate *database.ExchangeRate) error {
 	exchRate := encodeExchangeRate(dbExchangeRate)
 
@@ -274,7 +274,7 @@ func (c *cockroachdb) NewExchangeRate(dbExchangeRate *database.ExchangeRate) err
 	return c.recordsdb.Create(exchRate).Error
 }
 
-// Return exchange rate by month/year
+// ExchangeRate returns exchange rate by month/year
 func (c *cockroachdb) ExchangeRate(month, year int) (*database.ExchangeRate, error) {
 	log.Tracef("ExchangeRate")
 
@@ -293,7 +293,7 @@ func (c *cockroachdb) ExchangeRate(month, year int) (*database.ExchangeRate, err
 	return decodeExchangeRate(exchangeRate), nil
 }
 
-// Close satisfies the backend interface.
+// Close satisfies the database interface.
 func (c *cockroachdb) Close() error {
 	return c.recordsdb.Close()
 }
