@@ -341,6 +341,32 @@ func (p *politeiawww) handleInvoiceExchangeRate(w http.ResponseWriter, r *http.R
 	util.RespondWithJSON(w, http.StatusOK, ierr)
 }
 
+func (p *politeiawww) handleCMSPolicy(w http.ResponseWriter, r *http.Request) {
+	// Get the policy command.
+	log.Tracef("handlePolicy")
+	reply := &cms.PolicyReply{
+		MinPasswordLength:         www.PolicyMinPasswordLength,
+		MinUsernameLength:         www.PolicyMinUsernameLength,
+		MaxUsernameLength:         www.PolicyMaxUsernameLength,
+		MaxImages:                 www.PolicyMaxImages,
+		MaxImageSize:              www.PolicyMaxImageSize,
+		MaxMDs:                    www.PolicyMaxMDs,
+		MaxMDSize:                 www.PolicyMaxMDSize,
+		ValidMIMETypes:            cms.PolicyValidMimeTypes,
+		MinLineItemColLength:      cms.PolicyMinLineItemColLength,
+		MaxLineItemColLength:      cms.PolicyMaxLineItemColLength,
+		MaxNameLength:             cms.PolicyMaxNameLength,
+		MinNameLength:             cms.PolicyMinNameLength,
+		MaxLocationLength:         cms.PolicyMaxLocationLength,
+		MinLocationLength:         cms.PolicyMinLocationLength,
+		InvoiceCommentChar:        cms.PolicyInvoiceCommentChar,
+		InvoiceFieldDelimiterChar: cms.PolicyInvoiceFieldDelimiterChar,
+		InvoiceLineItemCount:      cms.PolicyInvoiceLineItemCount,
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
 func (p *politeiawww) setCMSWWWRoutes() {
 	// Templates
 	//p.addTemplate(templateNewProposalSubmittedName,
@@ -359,7 +385,7 @@ func (p *politeiawww) setCMSWWWRoutes() {
 	p.addRoute(http.MethodGet, www.RouteVersion, p.handleVersion,
 		permissionPublic)
 
-	p.addRoute(http.MethodGet, www.RoutePolicy, p.handlePolicy,
+	p.addRoute(http.MethodGet, www.RoutePolicy, p.handleCMSPolicy,
 		permissionPublic)
 
 	// Routes that require being logged in.

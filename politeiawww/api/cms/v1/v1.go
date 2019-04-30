@@ -40,6 +40,78 @@ const (
 	LineItemTypeMisc    LineItemTypeT = 3 // Catch all for anything else
 
 	InvoiceInputVersion = 1
+
+	// PolicyMaxImages is the maximum number of images accepted
+	// when creating a new invoice
+	PolicyMaxImages = 5
+
+	// PolicyMaxImageSize is the maximum image file size (in bytes)
+	// accepted when creating a new invoice
+	PolicyMaxImageSize = 512 * 1024
+
+	// PolicyMaxMDs is the maximum number of markdown files accepted
+	// when creating a new invoice
+	PolicyMaxMDs = 1
+
+	// PolicyMaxMDSize is the maximum markdown file size (in bytes)
+	// accepted when creating a new invoice
+	PolicyMaxMDSize = 512 * 1024
+
+	// PolicyMaxUsernameLength is the max length of a contractor name
+	PolicyMaxNameLength = 50
+
+	// PolicyMinUsernameLength is the min length of a contractor name
+	PolicyMinNameLength = 3
+
+	// PolicyMaxUsernameLength is the max length of a contractor location
+	PolicyMaxLocationLength = 100
+
+	// PolicyMinUsernameLength is the min length of a contractor location
+	PolicyMinLocationLength = 3
+
+	// PolicyInvoiceCommentChar is the character which, when used as the first
+	// character of a line, denotes that entire line as a comment.
+	PolicyInvoiceCommentChar rune = '#'
+
+	// PolicyInvoiceFieldDelimiterChar is the character that delimits field
+	// values for each line item in the CSV.
+	PolicyInvoiceFieldDelimiterChar rune = ','
+
+	// PolicyInvoiceLineItemCount is the number of expected fields in the raw
+	// csv line items
+	PolicyInvoiceLineItemCount = 7
+
+	// PolicyMinLineItemColMinLength is the minimun length for the strings in
+	// each column field of the lineItem structure.
+	PolicyMinLineItemColLength = 3
+
+	// PolicyMaxLineItemColLength is the maximum length for the strings in
+	// each column field of the lineItem structure.
+	PolicyMaxLineItemColLength = 50
+
+	// PolicyyMaxInvoiceFieldLength is the maximum number of characters
+	// accepted for invoice fields within invoice.json
+	PolicyMaxInvoiceFieldLength = 200
+)
+
+var (
+	// PolicyValidMimeTypes is the accepted mime types of attachments
+	// in invoices
+	PolicyValidMimeTypes = []string{
+		"image/png",
+	}
+
+	// PolicyProposalNameSupportedChars is the regular expression of a valid
+	// proposal name
+	PolicyInvoiceFieldSupportedChars = []string{
+		"A-z", "0-9", "&", ".", ",", ":", ";", "-", " ", "@", "+", "#", "/",
+		"(", ")", "!", "?", "\"", "'"}
+
+	// PolicyNameLocationSupportedChars is the regular expression of a valid
+	// name or location for registering users on cms.
+	PolicyNameLocationSupportedChars = []string{
+		"A-z", "0-9", "&", ".", ",", ":", ";", "-", " ", "@", "+", "#", "/",
+		"(", ")", "!", "?", "\"", "'"}
 )
 
 /// Contractor Management System Routes
@@ -147,6 +219,27 @@ type LineItemsInput struct {
 	ProposalToken string        `json:"proposaltoken"` // Link to politeia proposal that work is associated with
 	Labor         uint          `json:"labor"`         // Number of minutes (if labor)
 	Expenses      uint          `json:"expenses"`      // Total cost (in USD cents) of line item (if expense or misc)
+}
+
+// Policy for CMS
+type PolicyReply struct {
+	MinPasswordLength         uint     `json:"minpasswordlength"`
+	MinUsernameLength         uint     `json:"minusernamelength"`
+	MaxUsernameLength         uint     `json:"maxusernamelength"`
+	MaxImages                 uint     `json:"maximages"`
+	MaxImageSize              uint     `json:"maximagesize"`
+	MaxMDs                    uint     `json:"maxmds"`
+	MaxMDSize                 uint     `json:"maxmdsize"`
+	ValidMIMETypes            []string `json:"validmimetypes"`
+	MaxNameLength             uint     `json:"maxnamelength"`
+	MinNameLength             uint     `json:"minnamelength"`
+	MaxLocationLength         uint     `json:"maxlocationlength"`
+	MinLocationLength         uint     `json:"minlocationlength"`
+	MaxLineItemColLength      uint     `json:"maxlineitemcollength"`
+	MinLineItemColLength      uint     `json:"minlineitemcollength"`
+	InvoiceCommentChar        rune     `json:"invoicecommentchar"`
+	InvoiceFieldDelimiterChar rune     `json:"invoicefielddelimiterchar"`
+	InvoiceLineItemCount      uint     `json:"invoicelineitemcount"`
 }
 
 // UserInvoices is used to get all of the invoices by userID.
