@@ -18,7 +18,7 @@ import (
 	"strings"
 
 	"github.com/decred/politeia/politeiad/api/v1/mime"
-	"github.com/decred/politeia/politeiawww/api/cms/v1"
+	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
 )
@@ -104,7 +104,7 @@ func (cmd *NewInvoiceCmd) Execute(args []string) error {
 		return fmt.Errorf("Parsing CSV failed: %v", err)
 	}
 
-	ier := &v1.InvoiceExchangeRate{
+	ier := &cms.InvoiceExchangeRate{
 		Month: month,
 		Year:  year,
 	}
@@ -122,7 +122,7 @@ func (cmd *NewInvoiceCmd) Execute(args []string) error {
 	invInput.ContractorLocation = strings.TrimSpace(cmd.Location)
 	invInput.ContractorContact = strings.TrimSpace(cmd.Contact)
 	invInput.PaymentAddress = strings.TrimSpace(cmd.PaymentAddress)
-	invInput.Version = v1.InvoiceInputVersion
+	invInput.Version = cms.InvoiceInputVersion
 
 	rate, err := strconv.Atoi(strings.TrimSpace(cmd.Rate))
 	if err != nil {
@@ -174,7 +174,7 @@ func (cmd *NewInvoiceCmd) Execute(args []string) error {
 	}
 
 	// Setup new proposal request
-	ni := &v1.NewInvoice{
+	ni := &cms.NewInvoice{
 		Files:     files,
 		PublicKey: hex.EncodeToString(cfg.Identity.Public.Key[:]),
 		Signature: sig,
@@ -211,18 +211,18 @@ func (cmd *NewInvoiceCmd) Execute(args []string) error {
 	return printJSON(nir)
 }
 
-func validateParseCSV(data []byte) (*v1.InvoiceInput, error) {
-	LineItemType := map[string]v1.LineItemTypeT{
-		"labor":   v1.LineItemTypeLabor,
-		"expense": v1.LineItemTypeExpense,
-		"misc":    v1.LineItemTypeMisc,
+func validateParseCSV(data []byte) (*cms.InvoiceInput, error) {
+	LineItemType := map[string]cms.LineItemTypeT{
+		"labor":   cms.LineItemTypeLabor,
+		"expense": cms.LineItemTypeExpense,
+		"misc":    cms.LineItemTypeMisc,
 	}
-	invInput := &v1.InvoiceInput{}
+	invInput := &cms.InvoiceInput{}
 
 	// Validate that the invoice is CSV-formatted.
 	csvReader := csv.NewReader(strings.NewReader(string(data)))
-	csvReader.Comma = v1.PolicyInvoiceFieldDelimiterChar
-	csvReader.Comment = v1.PolicyInvoiceCommentChar
+	csvReader.Comma = cms.PolicyInvoiceFieldDelimiterChar
+	csvReader.Comment = cms.PolicyInvoiceCommentChar
 	csvReader.TrimLeadingSpace = true
 
 	csvFields, err := csvReader.ReadAll()
@@ -230,15 +230,15 @@ func validateParseCSV(data []byte) (*v1.InvoiceInput, error) {
 		return invInput, err
 	}
 
-	lineItems := make([]v1.LineItemsInput, 0, len(csvFields))
+	lineItems := make([]cms.LineItemsInput, 0, len(csvFields))
 	// Validate that line items are the correct length and contents in
 	// field 4 and 5 are parsable to integers
 	for i, lineContents := range csvFields {
-		lineItem := v1.LineItemsInput{}
-		if len(lineContents) != v1.PolicyInvoiceLineItemCount {
+		lineItem := cms.LineItemsInput{}
+		if len(lineContents) != cms.PolicyInvoiceLineItemCount {
 			return invInput,
 				fmt.Errorf("invalid number of line items on line: %v want: %v got: %v",
-					i, v1.PolicyInvoiceLineItemCount, len(lineContents))
+					i, cms.PolicyInvoiceLineItemCount, len(lineContents))
 		}
 		hours, err := strconv.Atoi(lineContents[5])
 		if err != nil {
@@ -271,16 +271,16 @@ func validateParseCSV(data []byte) (*v1.InvoiceInput, error) {
 	return invInput, nil
 }
 
-const newInvoiceHelpMsg = `newinvoice [flags] "csvFile" "attachmentFiles" 
+const newInvoiceHelpMsg = `newinvoice [flags] "csvFile" "attachmentFiles"
 
-Submit a new invoice to Politeia. Invoice must be a csv file. Accepted 
+Submit a new invoice to Politeia. Invoice must be a csv file. Accepted
 attachment filetypes: png or plain text.
 
 Arguments:
 1. month			 (string, required)   Month (MM, 01-12)
 2. year				 (string, required)   Year (YYYY)
 3. csvFile			 (string, required)   Invoice CSV file
-4. attachmentFiles	 (string, optional)   Attachments 
+4. attachmentFiles	 (string, optional)   Attachments
 
 Flags:
   --name              (string, optional)   Fill in contractor name
@@ -293,10 +293,10 @@ Result:
 {
   "files": [
     {
-      "name":      (string)  Filename 
-      "mime":      (string)  Mime type 
-      "digest":    (string)  File digest 
-      "payload":   (string)  File payload 
+      "name":      (string)  Filename
+      "mime":      (string)  Mime type
+      "digest":    (string)  File digest
+      "payload":   (string)  File payload
     }
   ],
   "publickey":   (string)  Public key of user
