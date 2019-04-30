@@ -8,6 +8,8 @@ import (
 	"time"
 
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
+	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	database "github.com/decred/politeia/politeiawww/cmsdatabase"
 )
 
 const poloURL = "https://poloniex.com/public"
@@ -111,10 +113,29 @@ func getPrices(pairing string, startDate int64, endDate int64) (map[uint64]float
 func (p *politeiawww) processInvoiceExchangeRate(ier cms.InvoiceExchangeRate) (cms.InvoiceExchangeRateReply, error) {
 	reply := cms.InvoiceExchangeRateReply{}
 
-	monthAvg, err := p.GetMonthAverage(time.Month(ier.Month), int(ier.Year))
+	monthAvg, err := p.cmsDB.ExchangeRate(int(ier.Month), int(ier.Year))
 	if err != nil {
-		return reply, err
+		if err == database.ErrExchangeRateNotFound {
+			monthAvgRaw, err := p.GetMonthAverage(time.Month(ier.Month), int(ier.Year))
+			if err != nil {
+				return reply, www.UserError{
+					ErrorCode: www.ErrorStatusInvalidExchangeRate,
+				}
+			}
+			monthAvg = &database.ExchangeRate{
+				Month:        ier.Month,
+				Year:         ier.Year,
+				ExchangeRate: monthAvgRaw,
+			}
+			err = p.cmsDB.NewExchangeRate(monthAvg)
+			if err != nil {
+				return reply, err
+			}
+		} else {
+
+			return reply, err
+		}
 	}
-	reply.ExchangeRate = monthAvg
+	reply.ExchangeRate = monthAvg.ExchangeRate
 	return reply, nil
 }

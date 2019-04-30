@@ -72,3 +72,15 @@ type InvoiceChange struct {
 func (InvoiceChange) TableName() string {
 	return tableNameInvoiceChange
 }
+
+// ExchangeRate contains cached calculated rates for a given month/year
+type ExchangeRate struct {
+	Month        uint `gorm:"not null"`
+	Year         uint `gorm:"not null"`
+	ExchangeRate uint `gorm:"not null"`
+}
+
+// TableName returns the table name of the line items table.
+func (ExchangeRate) TableName() string {
+	return tableNameExchangeRate
+}

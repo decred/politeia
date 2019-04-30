@@ -19,6 +19,9 @@ var (
 	// ErrInvoiceNotFound indicates that the invoice was not found in the
 	// database.
 	ErrInvoiceNotFound = errors.New("invoice not found")
+
+	// ErrExchangeRateNotFound indicates that an exchange rate for a given month/year was not found
+	ErrExchangeRateNotFound = errors.New("exchange rate not found")
 )
 
 // Database interface that is required by the web server.
@@ -35,6 +38,10 @@ type Database interface {
 	InvoicesByStatus(int) ([]Invoice, error)                          // Returns all invoices by status
 	InvoicesAll() ([]Invoice, error)                                  // Returns all invoices
 
+	// ExchangeRate functions
+	NewExchangeRate(*ExchangeRate) error // Create new exchange rate
+
+	ExchangeRate(int, int) (*ExchangeRate, error) // Return an exchange rate based on month and year
 	// Setup the invoice tables
 	Setup() error
 
@@ -93,4 +100,11 @@ type InvoiceChange struct {
 	NewStatus      cms.InvoiceStatusT
 	Reason         string
 	Timestamp      int64
+}
+
+// ExchangeRate contains cached calculated rates for a given month/year
+type ExchangeRate struct {
+	Month        uint
+	Year         uint
+	ExchangeRate uint
 }
