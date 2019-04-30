@@ -114,7 +114,6 @@ var (
 		"(", ")", "!", "?", "\"", "'"}
 )
 
-
 /// Contractor Management System Routes
 
 // InviteNewUser is used to request that a new user invitation be sent via email.
@@ -224,23 +223,23 @@ type LineItemsInput struct {
 
 // Policy for CMS
 type PolicyReply struct {
-	MinPasswordLength          uint     `json:"minpasswordlength"`
-	MinUsernameLength          uint     `json:"minusernamelength"`
-	MaxUsernameLength          uint     `json:"maxusernamelength"`
-	MaxImages                  uint     `json:"maximages"`
-	MaxImageSize               uint     `json:"maximagesize"`
-	MaxMDs                     uint     `json:"maxmds"`
-	MaxMDSize                  uint     `json:"maxmdsize"`
-	ValidMIMETypes             []string `json:"validmimetypes"`
-	MaxNameLength              uint     `json:"maxnamelength"`
-	MinNameLength              uint     `json:"minnamelength"`
-	MaxLocationLength          uint     `json:"maxlocationlength"`
-	MinLocationLength          uint     `json:"minlocationlength"`
-	MaxLineItemColLength       uint     `json:"maxlineitemcollength"`
-	MinLineItemColLength       uint     `json:"minlineitemcollength"`
-	InvoiceCommentChar         rune     `json:"invoicecommentchar"`
-	InvoiceFieldDelimiterChar  rune     `json:"invoicefielddelimiterchar"`
-	InvoiceLineItemCount       uint     `json:"invoicelineitemcount"`
+	MinPasswordLength         uint     `json:"minpasswordlength"`
+	MinUsernameLength         uint     `json:"minusernamelength"`
+	MaxUsernameLength         uint     `json:"maxusernamelength"`
+	MaxImages                 uint     `json:"maximages"`
+	MaxImageSize              uint     `json:"maximagesize"`
+	MaxMDs                    uint     `json:"maxmds"`
+	MaxMDSize                 uint     `json:"maxmdsize"`
+	ValidMIMETypes            []string `json:"validmimetypes"`
+	MaxNameLength             uint     `json:"maxnamelength"`
+	MinNameLength             uint     `json:"minnamelength"`
+	MaxLocationLength         uint     `json:"maxlocationlength"`
+	MinLocationLength         uint     `json:"minlocationlength"`
+	MaxLineItemColLength      uint     `json:"maxlineitemcollength"`
+	MinLineItemColLength      uint     `json:"minlineitemcollength"`
+	InvoiceCommentChar        rune     `json:"invoicecommentchar"`
+	InvoiceFieldDelimiterChar rune     `json:"invoicefielddelimiterchar"`
+	InvoiceLineItemCount      uint     `json:"invoicelineitemcount"`
 }
 
 // UserInvoices is used to get all of the invoices by userID.
