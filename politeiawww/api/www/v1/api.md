@@ -112,6 +112,7 @@ notifications.  It does not render HTML.
 - [`ErrorStatusInvalidUUID`](#ErrorStatusInvalidUUID)
 - [`ErrorStatusInvalidLikeCommentAction`](#ErrorStatusInvalidLikeCommentAction)
 - [`ErrorStatusInvalidCensorshipToken`](#ErrorStatusInvalidCensorshipToken)
+- [`ErrorStatusNoProposalChanges`](#ErrorStatusNoProposalChanges)
 - [`ErrorStatusMalformedName`](#ErrorStatusMalformedName)
 - [`ErrorStatusMalformedLocation`](#ErrorStatusMalformedLocation)
 - [`ErrorStatusInvoiceNotFound`](#ErrorStatusInvoiceNotFound)
@@ -2528,6 +2529,7 @@ Reply:
 | <a name="ErrorStatusInvalidUUID">ErrorStatusInvalidUUID</a> | 56 | Invalid user UUID. |
 | <a name="ErrorStatusInvalidLikeCommentAction">ErrorStatusInvalidLikeCommentAction</a> | 57 | Invalid like comment action. |
 | <a name="ErrorStatusInvalidCensorshipToken">ErrorStatusInvalidCensorshipToken</a> | 58 | Invalid proposal censorship token. |
+| <a name="ErrorStatusNoProposalChanges">ErrorStatusNoProposalChanges</a> | 85 | No changes found in proposal. |
 | <a name="ErrorStatusMalformedName">ErrorStatusMalformedName</a> | 60 | Invalid name entered for CMS registration. |
 | <a name="ErrorStatusMalformedLocation">ErrorStatusMalformedLocation</a> | 61 | Invalid location entered for CMS registration. |
 | <a name="ErrorStatusInvoiceNotFound">ErrorStatusInvoiceNotFound</a> | 62 | Request invoice not found. |
