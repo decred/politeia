@@ -630,7 +630,7 @@ func TestHandleChangeUsername(t *testing.T) {
 		{"processChangeUsername error", www.ChangeUsername{},
 			http.StatusBadRequest,
 			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidEmailOrPassword,
+				ErrorCode: www.ErrorStatusInvalidPassword,
 			}},
 
 		{"success",

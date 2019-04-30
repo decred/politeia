@@ -2551,6 +2551,8 @@ Reply:
 | <a name="ErrorStatusInvoiceRequireLineItems">ErrorStatusInvoiceRequireLineItems</a> | 81 | Invoices require at least 1 line item to be included. |
 | <a name="ErrorStatusMultipleInvoiceMonthYear">ErrorStatusMultipleInvoiceMonthYear</a> | 82 | Users are only allowed to submit 1 invoice per month/year. |
 | <a name="ErrorStatusInvalidInvoiceMonthYear">ErrorStatusInvalidInvoiceMonthYear</a> | 83 | An invalid month/year was detected in an invoice. |
+| <a name="ErrorStatusInvalidExchangeRate">ErrorStatusInvalidExchangeRate</a> | 84 | Invalid Exchange Rate |
+| <a name="ErrorStatusInvalidPassword">ErrorStatusInvalidPassword</a> | 85 | User password was invalid |
 
 
 ### Proposal status codes
