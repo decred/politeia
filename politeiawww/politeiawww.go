@@ -292,16 +292,6 @@ func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 		MaxCommentLength:           www.PolicyMaxCommentLength,
 	}
 
-	if p.cfg.Mode == cmsWWWMode {
-		reply.MaxNameLength = www.PolicyMaxNameLength
-		reply.MinNameLength = www.PolicyMinNameLength
-		reply.MaxLocationLength = www.PolicyMaxLocationLength
-		reply.MinLocationLength = www.PolicyMinLocationLength
-		reply.InvoiceCommentChar = www.PolicyInvoiceCommentChar
-		reply.InvoiceFieldDelimiterChar = www.PolicyInvoiceFieldDelimiterChar
-		reply.InvoiceLineItemCount = www.PolicyInvoiceLineItemCount
-	}
-
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 

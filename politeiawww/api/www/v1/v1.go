@@ -97,18 +97,6 @@ const (
 	// PolicyMinUsernameLength is the min length of a username
 	PolicyMinUsernameLength = 3
 
-	// PolicyMaxUsernameLength is the max length of a contractor name
-	PolicyMaxNameLength = 50
-
-	// PolicyMinUsernameLength is the min length of a contractor name
-	PolicyMinNameLength = 3
-
-	// PolicyMaxUsernameLength is the max length of a contractor location
-	PolicyMaxLocationLength = 100
-
-	// PolicyMinUsernameLength is the min length of a contractor location
-	PolicyMinLocationLength = 3
-
 	// PolicyMaxProposalNameLength is the max length of a proposal name
 	PolicyMaxProposalNameLength = 80
 
@@ -118,21 +106,6 @@ const (
 	// PolicyMaxCommentLength is the maximum number of characters
 	// accepted for comments
 	PolicyMaxCommentLength = 8000
-
-	// PolicyyMaxInvoiceFieldLength is the maximum number of characters
-	// accepted for invoice fields within invoice.json
-	PolicyMaxInvoiceFieldLength = 200
-
-	// PolicyInvoiceCommentChar is the character which, when used as the first
-	// character of a line, denotes that entire line as a comment.
-	PolicyInvoiceCommentChar rune = '#'
-
-	// PolicyInvoiceFieldDelimiterChar is the character that delimits field
-	// values for each line item in the CSV.
-	PolicyInvoiceFieldDelimiterChar rune = ','
-	// PolicyInvoiceLineItemCount is the number of expected fields in the raw
-	// csv line items
-	PolicyInvoiceLineItemCount = 7
 
 	// ProposalListPageSize is the maximum number of proposals returned
 	// for the routes that return lists of proposals
@@ -302,18 +275,6 @@ var (
 	// username
 	PolicyUsernameSupportedChars = []string{
 		"a-z", "0-9", ".", ",", ":", ";", "-", "@", "+", "(", ")", "_"}
-
-	// PolicyNameLocationSupportedChars is the regular expression of a valid
-	// name or location for registering users on cms.
-	PolicyNameLocationSupportedChars = []string{
-		"A-z", "0-9", "&", ".", ",", ":", ";", "-", " ", "@", "+", "#", "/",
-		"(", ")", "!", "?", "\"", "'"}
-
-	// PolicyProposalNameSupportedChars is the regular expression of a valid
-	// proposal name
-	PolicyInvoiceFieldSupportedChars = []string{
-		"A-z", "0-9", "&", ".", ",", ":", ";", "-", " ", "@", "+", "#", "/",
-		"(", ")", "!", "?", "\"", "'"}
 
 	// PoliteiaWWWAPIRoute is the prefix to the API route
 	PoliteiaWWWAPIRoute = fmt.Sprintf("/v%v", PoliteiaWWWAPIVersion)
@@ -885,13 +846,6 @@ type PolicyReply struct {
 	ProposalNameSupportedChars []string `json:"proposalnamesupportedchars"`
 	MaxCommentLength           uint     `json:"maxcommentlength"`
 	BackendPublicKey           string   `json:"backendpublickey"`
-	MaxNameLength              uint     `json:"maxnamelength"`
-	MinNameLength              uint     `json:"minnamelength"`
-	MaxLocationLength          uint     `json:"maxlocationlength"`
-	MinLocationLength          uint     `json:"minlocationlength"`
-	InvoiceCommentChar         rune     `json:"invoicecommentchar"`
-	InvoiceFieldDelimiterChar  rune     `json:"invoicefielddelimiterchar"`
-	InvoiceLineItemCount       uint     `json:"invoicelineitemcount"`
 }
 
 // VoteOption describes a single vote option.

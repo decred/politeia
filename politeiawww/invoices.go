@@ -86,7 +86,7 @@ func validateInvoiceField(field string) bool {
 			field, formatInvoiceField(field))
 		return false
 	}
-	if len(field) > www.PolicyMaxInvoiceFieldLength {
+	if len(field) > cms.PolicyMaxInvoiceFieldLength {
 		log.Tracef("validateInvoiceField: not within bounds: %s",
 			field)
 		return false
@@ -105,7 +105,7 @@ func createInvoiceFieldRegex() string {
 	var buf bytes.Buffer
 	buf.WriteString("^[")
 
-	for _, supportedChar := range www.PolicyInvoiceFieldSupportedChars {
+	for _, supportedChar := range cms.PolicyInvoiceFieldSupportedChars {
 		if len(supportedChar) > 1 {
 			buf.WriteString(supportedChar)
 		} else {
@@ -113,7 +113,7 @@ func createInvoiceFieldRegex() string {
 		}
 	}
 	buf.WriteString("]{0,")
-	buf.WriteString(strconv.Itoa(www.PolicyMaxInvoiceFieldLength) + "}$")
+	buf.WriteString(strconv.Itoa(cms.PolicyMaxInvoiceFieldLength) + "}$")
 
 	return buf.String()
 }
@@ -124,7 +124,7 @@ func createNameLocationRegex() string {
 	var buf bytes.Buffer
 	buf.WriteString("^[")
 
-	for _, supportedChar := range www.PolicyNameLocationSupportedChars {
+	for _, supportedChar := range cms.PolicyNameLocationSupportedChars {
 		if len(supportedChar) > 1 {
 			buf.WriteString(supportedChar)
 		} else {
@@ -145,8 +145,8 @@ func formatName(name string) string {
 }
 
 func validateName(name string) error {
-	if len(name) < www.PolicyMinNameLength ||
-		len(name) > www.PolicyMaxNameLength {
+	if len(name) < cms.PolicyMinNameLength ||
+		len(name) > cms.PolicyMaxNameLength {
 		log.Debugf("Name not within bounds: %s", name)
 		return www.UserError{
 			ErrorCode: www.ErrorStatusMalformedName,
@@ -170,8 +170,8 @@ func formatLocation(location string) string {
 }
 
 func validateLocation(location string) error {
-	if len(location) < www.PolicyMinLocationLength ||
-		len(location) > www.PolicyMaxLocationLength {
+	if len(location) < cms.PolicyMinLocationLength ||
+		len(location) > cms.PolicyMaxLocationLength {
 		log.Debugf("Location not within bounds: %s", location)
 		return www.UserError{
 			ErrorCode: www.ErrorStatusMalformedLocation,
@@ -428,7 +428,7 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 			if err != nil {
 				return err
 			}
-			if len(data) > www.PolicyMaxImageSize {
+			if len(data) > cms.PolicyMaxImageSize {
 				imageExceedsMaxSize = true
 			}
 		} else {
@@ -442,7 +442,7 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 			if err != nil {
 				return err
 			}
-			if len(data) > www.PolicyMaxMDSize {
+			if len(data) > cms.PolicyMaxMDSize {
 				csvExceedsMaxSize = true
 			}
 

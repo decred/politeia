@@ -221,8 +221,8 @@ func validateParseCSV(data []byte) (*v1.InvoiceInput, error) {
 
 	// Validate that the invoice is CSV-formatted.
 	csvReader := csv.NewReader(strings.NewReader(string(data)))
-	csvReader.Comma = www.PolicyInvoiceFieldDelimiterChar
-	csvReader.Comment = www.PolicyInvoiceCommentChar
+	csvReader.Comma = v1.PolicyInvoiceFieldDelimiterChar
+	csvReader.Comment = v1.PolicyInvoiceCommentChar
 	csvReader.TrimLeadingSpace = true
 
 	csvFields, err := csvReader.ReadAll()
@@ -235,10 +235,10 @@ func validateParseCSV(data []byte) (*v1.InvoiceInput, error) {
 	// field 4 and 5 are parsable to integers
 	for i, lineContents := range csvFields {
 		lineItem := v1.LineItemsInput{}
-		if len(lineContents) != www.PolicyInvoiceLineItemCount {
+		if len(lineContents) != v1.PolicyInvoiceLineItemCount {
 			return invInput,
 				fmt.Errorf("invalid number of line items on line: %v want: %v got: %v",
-					i, www.PolicyInvoiceLineItemCount, len(lineContents))
+					i, v1.PolicyInvoiceLineItemCount, len(lineContents))
 		}
 		hours, err := strconv.Atoi(lineContents[5])
 		if err != nil {
