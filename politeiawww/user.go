@@ -1580,55 +1580,139 @@ func (p *politeiawww) processManageUser(mu *www.ManageUser, adminUser *user.User
 	return &www.ManageUserReply{}, nil
 }
 
-// processUsers returns a list of users given a set of filters.
-func (p *politeiawww) processUsers(users *www.Users) (*www.UsersReply, error) {
-	var reply www.UsersReply
-	reply.Users = make([]www.AbridgedUser, 0)
+// userByPubKey fetches a user by public key
+func (p *politeiawww) userByPubKey(pubkey string) (*user.User, error) {
+	id, ok := p.getUserIDByPubKey(pubkey)
+	if ok {
+		return p.getUserByIDStr(id)
+	} else {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserNotFound,
+		}
+	}
+}
+
+// processUsers returns a list of users given a set of filters. Admins can
+// search by pubkey, username or email. Username and email searches will
+// return partial matches. Pubkey searches must be an exact match. Non admins
+// can search by pubkey or username. Non admin searches will only return exact
+// matches.
+func (p *politeiawww) processUsers(users *www.Users, isAdmin bool) (*www.UsersReply, error) {
+	log.Tracef("processUsers: %v", isAdmin)
 
 	emailQuery := strings.ToLower(users.Email)
 	usernameQuery := formatUsername(users.Username)
+	pubkeyQuery := users.PublicKey
 
-	err := p.db.AllUsers(func(user *user.User) {
-		reply.TotalUsers++
-		userMatches := true
+	var u *user.User
+	var totalUsers uint64
+	var totalMatches uint64
+	matchedUsers := make([]www.AbridgedUser, 0, www.UserListPageSize)
 
-		// If both emailQuery and usernameQuery are non-empty, the user
-		// must match both to be included in the results.
-		if emailQuery != "" {
-			if !strings.Contains(strings.ToLower(user.Email),
-				emailQuery) {
-				userMatches = false
-			}
+	if pubkeyQuery != "" {
+		// Search by pubkey. Only exact matches are returned.
+		// Validate pubkey
+		_, err := validatePubkey(pubkeyQuery)
+		if err != nil {
+			return nil, err
 		}
 
-		if usernameQuery != "" && userMatches {
-			if !strings.Contains(strings.ToLower(user.Username),
-				usernameQuery) {
-				userMatches = false
+		u, err = p.userByPubKey(pubkeyQuery)
+		if err != nil {
+			// ErrUserNotFound is ok. Empty search results
+			// will be returned.
+			if err != user.ErrUserNotFound {
+				return nil, err
 			}
 		}
-
-		if userMatches {
-			reply.TotalMatches++
-			if reply.TotalMatches < www.UserListPageSize {
-				reply.Users = append(reply.Users, www.AbridgedUser{
-					ID:       user.ID.String(),
-					Email:    user.Email,
-					Username: user.Username,
-				})
-			}
-		}
-	})
-	if err != nil {
-		return nil, err
 	}
 
-	// Sort results alphabetically.
-	sort.Slice(reply.Users, func(i, j int) bool {
-		return reply.Users[i].Username < reply.Users[j].Username
-	})
+	switch {
+	case isAdmin:
+		// Admins can search by username and/or email with
+		// partial matches being returned.
+		err := p.db.AllUsers(func(user *user.User) {
+			totalUsers++
+			userMatches := true
 
-	return &reply, nil
+			// If both emailQuery and usernameQuery are non-empty, the
+			// user must match both to be included in the results.
+			if emailQuery != "" {
+				if !strings.Contains(strings.ToLower(user.Email),
+					emailQuery) {
+					userMatches = false
+				}
+			}
+
+			if usernameQuery != "" && userMatches {
+				if !strings.Contains(strings.ToLower(user.Username),
+					usernameQuery) {
+					userMatches = false
+				}
+			}
+
+			if pubkeyQuery != "" && userMatches {
+				if user.ID.String() != u.ID.String() {
+					// if user.ID.String() != id {
+					userMatches = false
+				}
+			}
+
+			if userMatches {
+				totalMatches++
+				if totalMatches < www.UserListPageSize {
+					matchedUsers = append(matchedUsers, www.AbridgedUser{
+						ID:       user.ID.String(),
+						Email:    user.Email,
+						Username: user.Username,
+					})
+				}
+			}
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		// Sort results alphabetically.
+		sort.Slice(matchedUsers, func(i, j int) bool {
+			return matchedUsers[i].Username < matchedUsers[j].Username
+		})
+
+	default:
+		// Non-admins can search by username and the search
+		// must be an exact match.
+		id := u.ID.String()
+
+		if usernameQuery != "" {
+			// Validate username
+			err := validateUsername(usernameQuery)
+			if err != nil {
+				return nil, err
+			}
+
+			u, err = p.db.UserGetByUsername(usernameQuery)
+			if err != nil {
+				// ErrUserNotFound is ok. Empty search results
+				// will be returned.
+				if err != user.ErrUserNotFound {
+					return nil, err
+				}
+			}
+		}
+
+		if u != nil && u.ID.String() == id {
+			totalMatches++
+			matchedUsers = append(matchedUsers, www.AbridgedUser{
+				ID:       u.ID.String(),
+				Username: u.Username})
+		}
+	}
+
+	return &www.UsersReply{
+		TotalUsers:   totalUsers,
+		TotalMatches: totalMatches,
+		Users:        matchedUsers,
+	}, nil
 }
 
 // processUserPaymentsRescan allows an admin to rescan a user's paywall address

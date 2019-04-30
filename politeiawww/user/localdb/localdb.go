@@ -142,7 +142,7 @@ func (l *localdb) UserGetByUsername(username string) (*user.User, error) {
 		return nil, user.ErrShutdown
 	}
 
-	log.Debugf("UserGetByUsername\n")
+	log.Debugf("UserGetByUsername")
 
 	iter := l.userdb.NewIterator(nil, nil)
 	for iter.Next() {
@@ -182,7 +182,7 @@ func (l *localdb) UserGetById(id uuid.UUID) (*user.User, error) {
 		return nil, user.ErrShutdown
 	}
 
-	log.Debugf("UserGetById\n")
+	log.Debugf("UserGetById")
 
 	iter := l.userdb.NewIterator(nil, nil)
 	for iter.Next() {
@@ -251,7 +251,7 @@ func (l *localdb) AllUsers(callbackFn func(u *user.User)) error {
 		return user.ErrShutdown
 	}
 
-	log.Debugf("AllUsers\n")
+	log.Debugf("AllUsers")
 
 	iter := l.userdb.NewIterator(nil, nil)
 	for iter.Next() {
