@@ -485,7 +485,9 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 			monthAvg, err := p.cmsDB.ExchangeRate(int(invInput.Month),
 				int(invInput.Year))
 			if err != nil {
-				return err
+				return www.UserError{
+					ErrorCode: www.ErrorStatusInvalidExchangeRate,
+				}
 			}
 			if monthAvg.ExchangeRate != invInput.ExchangeRate {
 				return www.UserError{
