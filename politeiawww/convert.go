@@ -482,6 +482,20 @@ func convertPluginFromPD(p pd.Plugin) Plugin {
 		Settings: ps,
 	}
 }
+func convertVoteOptionResultsFromDecred(vor []decredplugin.VoteOptionResult) []www.VoteOptionResult {
+	r := make([]www.VoteOptionResult, 0, len(vor))
+	for _, v := range vor {
+		r = append(r, www.VoteOptionResult{
+			Option: www.VoteOption{
+				Id:          v.ID,
+				Description: v.Description,
+				Bits:        v.Bits,
+			},
+			VotesReceived: v.Votes,
+		})
+	}
+	return r
+}
 
 func convertTokenInventoryReplyFromDecred(r decredplugin.TokenInventoryReply) www.TokenInventoryReply {
 	return www.TokenInventoryReply{

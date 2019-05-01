@@ -434,7 +434,7 @@ func (p *politeiawww) handleVoteStatus(w http.ResponseWriter, r *http.Request) {
 	vsr, err := p.processVoteStatus(pathParams["token"])
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleCommentsGet: ProcessCommentGet %v", err)
+			"handleVoteStatus: ProcessVoteStatus: %v", err)
 		return
 	}
 	util.RespondWithJSON(w, http.StatusOK, vsr)

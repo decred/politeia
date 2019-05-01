@@ -279,18 +279,18 @@ func (p *politeiawww) decredTokenInventory(bestBlock uint64) (*decredplugin.Toke
 	return tir, nil
 }
 
-// decredLoadVoteSummaries sends the loadvotesummaries command to politeiad.
-func (p *politeiawww) decredLoadVoteSummaries(bestBlock uint64) (*decredplugin.LoadVoteSummariesReply, error) {
+// decredLoadVoteResults sends the loadvotesummaries command to politeiad.
+func (p *politeiawww) decredLoadVoteResults(bestBlock uint64) (*decredplugin.LoadVoteResultsReply, error) {
 	// Setup plugin command
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
 		return nil, err
 	}
 
-	lvs := decredplugin.LoadVoteSummaries{
+	lvr := decredplugin.LoadVoteResults{
 		BestBlock: bestBlock,
 	}
-	payload, err := decredplugin.EncodeLoadVoteSummaries(lvs)
+	payload, err := decredplugin.EncodeLoadVoteResults(lvr)
 	if err != nil {
 		return nil, err
 	}
@@ -298,8 +298,8 @@ func (p *politeiawww) decredLoadVoteSummaries(bestBlock uint64) (*decredplugin.L
 	pc := pd.PluginCommand{
 		Challenge: hex.EncodeToString(challenge),
 		ID:        decredplugin.ID,
-		Command:   decredplugin.CmdLoadVoteSummaries,
-		CommandID: decredplugin.CmdLoadVoteSummaries,
+		Command:   decredplugin.CmdLoadVoteResults,
+		CommandID: decredplugin.CmdLoadVoteResults,
 		Payload:   string(payload),
 	}
 
@@ -323,9 +323,39 @@ func (p *politeiawww) decredLoadVoteSummaries(bestBlock uint64) (*decredplugin.L
 	}
 
 	b := []byte(pcr.Payload)
-	reply, err := decredplugin.DecodeLoadVoteSummariesReply(b)
+	reply, err := decredplugin.DecodeLoadVoteResultsReply(b)
 	if err != nil {
 		spew.Dump("here")
+		return nil, err
+	}
+
+	return reply, nil
+}
+
+// decredVoteSummary uses the decred plugin vote summary command to request a
+// vote summary for a specific proposal from the cache.
+func (p *politeiawww) decredVoteSummary(token string) (*decredplugin.VoteSummaryReply, error) {
+	v := decredplugin.VoteSummary{
+		Token: token,
+	}
+	payload, err := decredplugin.EncodeVoteSummary(v)
+	if err != nil {
+		return nil, err
+	}
+
+	pc := cache.PluginCommand{
+		ID:             decredplugin.ID,
+		Command:        decredplugin.CmdVoteSummary,
+		CommandPayload: string(payload),
+	}
+
+	resp, err := p.cache.PluginExec(pc)
+	if err != nil {
+		return nil, err
+	}
+
+	reply, err := decredplugin.DecodeVoteSummaryReply([]byte(resp.Payload))
+	if err != nil {
 		return nil, err
 	}
 

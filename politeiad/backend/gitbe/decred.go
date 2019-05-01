@@ -2538,11 +2538,11 @@ func (g *gitBackEnd) pluginInventory() (string, error) {
 	return string(payload), nil
 }
 
-// pluginLoadVoteSummaries is a pass through function. CmdLoadVoteSummaries
-// does not require any work to be performed in gitBackEnd.
-func (g *gitBackEnd) pluginLoadVoteSummaries() (string, error) {
-	r := decredplugin.LoadVoteSummariesReply{}
-	reply, err := decredplugin.EncodeLoadVoteSummariesReply(r)
+// pluginLoadVoteResults is a pass through function. CmdLoadVoteResults does
+// not require any work to be performed in gitBackEnd.
+func (g *gitBackEnd) pluginLoadVoteResults() (string, error) {
+	r := decredplugin.LoadVoteResultsReply{}
+	reply, err := decredplugin.EncodeLoadVoteResultsReply(r)
 	if err != nil {
 		return "", err
 	}
