@@ -20,7 +20,7 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
-	"github.com/decred/politeia/politeiawww/api/www/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	wwwclient "github.com/decred/politeia/politeiawww/cmd/politeiawwwcli/client"
 	"github.com/decred/politeia/politeiawww/cmd/politeiawwwcli/config"
 	"github.com/decred/politeia/util"
@@ -81,6 +81,7 @@ type Cmds struct {
 	NewProposal         NewProposalCmd         `command:"newproposal" description:"(user)   create a new proposal"`
 	NewComment          NewCommentCmd          `command:"newcomment" description:"(user)   create a new proposal comment"`
 	NewUser             NewUserCmd             `command:"newuser" description:"(public) create a new user"`
+	PayInvoices         PayInvoicesCmd         `command:"payinvoices" description:"(admin) set all approved invoices to paid"`
 	Policy              PolicyCmd              `command:"policy" description:"(public) get the server policy"`
 	ProposalComments    ProposalCommentsCmd    `command:"proposalcomments" description:"(public) get the comments for a proposal"`
 	ProposalDetails     ProposalDetailsCmd     `command:"proposaldetails" description:"(public) get the details of a proposal"`

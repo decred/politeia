@@ -19,7 +19,7 @@ import (
 
 	"github.com/decred/dcrwallet/rpc/walletrpc"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
-	"github.com/decred/politeia/politeiawww/api/www/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
 	"github.com/gorilla/schema"
 	"golang.org/x/net/publicsuffix"
@@ -823,6 +823,24 @@ func (c *Client) GeneratePayouts(gp *cms.GeneratePayouts) (*cms.GeneratePayoutsR
 	}
 
 	return &gpr, nil
+}
+
+// PayInvoices is a temporary command that allows an administrator to set all
+// approved invoices to the paid status. This will be removed once the
+// address watching for payment is complete and working.
+func (c *Client) PayInvoices(pi *cms.PayInvoices) (*cms.PayInvoicesReply, error) {
+	responseBody, err := c.makeRequest("GET", cms.RoutePayInvoices, pi)
+	if err != nil {
+		return nil, err
+	}
+
+	var pir cms.PayInvoicesReply
+	err = json.Unmarshal(responseBody, &pir)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal PayInvoiceReply: %v", err)
+	}
+
+	return &pir, nil
 }
 
 // SetProposalStatus changes the status of the specified proposal.

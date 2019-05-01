@@ -454,6 +454,6 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		p.handleSetInvoiceStatus, permissionAdmin)
 	p.addRoute(http.MethodPost, cms.RouteGeneratePayouts,
 		p.handleGeneratePayouts, permissionAdmin)
-	p.addRoute(http.MethodPost, cms.RoutePayInvoices,
+	p.addRoute(http.MethodGet, cms.RoutePayInvoices,
 		p.handlePayInvoices, permissionAdmin)
 }
