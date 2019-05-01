@@ -359,6 +359,8 @@ func (p *politeiawww) handleCMSPolicy(w http.ResponseWriter, r *http.Request) {
 		MinNameLength:             cms.PolicyMinNameLength,
 		MaxLocationLength:         cms.PolicyMaxLocationLength,
 		MinLocationLength:         cms.PolicyMinLocationLength,
+		MaxContactLength:          cms.PolicyMaxContactLength,
+		MinContactLength:          cms.PolicyMinContactLength,
 		InvoiceCommentChar:        cms.PolicyInvoiceCommentChar,
 		InvoiceFieldDelimiterChar: cms.PolicyInvoiceFieldDelimiterChar,
 		InvoiceLineItemCount:      cms.PolicyInvoiceLineItemCount,

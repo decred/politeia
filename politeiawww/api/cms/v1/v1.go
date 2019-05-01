@@ -245,6 +245,8 @@ type PolicyReply struct {
 	MinNameLength             uint     `json:"minnamelength"`
 	MaxLocationLength         uint     `json:"maxlocationlength"`
 	MinLocationLength         uint     `json:"minlocationlength"`
+	MaxContactLength          uint     `json:"maxcontactlength"`
+	MinContactLength          uint     `json:"mincontactlength"`
 	MaxLineItemColLength      uint     `json:"maxlineitemcollength"`
 	MinLineItemColLength      uint     `json:"minlineitemcollength"`
 	InvoiceCommentChar        rune     `json:"invoicecommentchar"`
