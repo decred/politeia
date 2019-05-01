@@ -158,18 +158,14 @@ Install CockroachDB using the instructions found in the [CockroachDB
 Documentation](https://www.cockroachlabs.com/docs/stable/install-cockroachdb-mac.html).
 
 Run the following commands to create the CockroachDB certificates required for
-running CockroachDB with Politeia.  It's ok if the directory `~/.cockroachdb`
-does not exist yet.  The script will create it.  **The directory that you pass
-into the script must be the same cockroachdb directory that you use in the
-politeiad and politeiawww config files when specifying the cache
-certificates.**
+running CockroachDB with Politeia.
 
     cd $GOPATH/src/github.com/decred/politeia
-    ./cockroachcerts.sh ~/.cockroachdb
+    ./scripts/cockroachcerts.sh
 
-The script will create the following certificates and directories:
+The script creates following certificates and directories.
 
-    .cockroachdb
+    ~/.cockroachdb
     ├── ca.key
     └── certs
         ├── ca.crt
@@ -215,7 +211,7 @@ Once CockroachDB is running, you can setup the cache databases using the
 commands below.
 
     cd $GOPATH/src/github.com/decred/politeia
-    ./cachesetup.sh ~/.cockroachdb
+    ./scripts/cachesetup.sh
 
 The database setup is now complete.  If you want to run database commands
 manually you can do so by opening a sql shell.
@@ -232,7 +228,7 @@ using the script below.  CockroachDB must be running when you execute this
 script.
 
     cd $GOPATH/src/github.com/decred/politeia
-    ./cmssetup.sh ~/.cockroachdb
+    ./scripts/cmssetup.sh
     
 
 #### 5. Build the programs:
@@ -298,6 +294,49 @@ to setup Politeia and access it through the UI.
 
 
 ### Further information
+
+
+#### politeiawww user databaes options
+
+Both Pi and CMS use the same politeiawww user database.  The default user
+database is LevelDB, a simple key-value store.  This is fine if you're just
+getting started, but LevelDB has some scalability limitations due to it being a
+simple key-value store that doesn't allow concurrent connections.
+
+A more scalable option is setting up the user database to use CockroachDB.  The
+CockroachDB implementation makes public user fields queryable and encrypts
+private user data at rest.  You can setup the user database to use CockroachDB
+with the following commands.  Before running these commands, make sure that
+you've followed the instructions above and have a CockroachDB instance running.
+
+Create a CockroachDB user database and assign user privileges:
+
+    cd $GOPATH/src/github.com/decred/politeia
+    ./scripts/userdbsetup.sh
+
+Create an encryption key to be used to encrypt data at rest:
+
+    $ politeiawww_dbutil -createkey
+    Encryption key saved to: ~/.politeiawww/dbkey.json
+
+Add the following settings to your politeiawww config file.  The encryption key
+location may be different depending on your operating system.
+
+    userdb=cockroachdb
+    encryptionkey=~/.politeiawww/dbkey.json
+
+##### Rotating encryption key
+
+Encryption keys can be rotated using the `oldencryptionkey` politeiawww config
+setting.  To rotate keys, set `oldencryptionkey` to the existing key and set
+`encryptionkey` to the new key.  Starting politeiawww with both of these config
+params set will kick off a key rotation.
+
+##### Migrating LevelDB to CockroachDB
+
+If you need to migrate a LevelDB user database to CockroachDB, instructions are
+provided in the README of
+[politeiawww_dbutil](https://github.com/decred/politeia/tree/master/politeiawww/cmd/politeiawww_dbutil).
 
 #### Paywall
 

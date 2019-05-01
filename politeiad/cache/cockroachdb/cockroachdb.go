@@ -827,7 +827,7 @@ func New(user, host, net, rootCert, cert, key string) (*cockroachdb, error) {
 	// names manually.
 	c.recordsdb.SingularTable(true)
 
-	log.Infof("Cache host: %v", h)
+	log.Infof("Cache host  : %v", h)
 
 	// Return an error if the version record is not found or
 	// if there is a version mismatch, but also return the

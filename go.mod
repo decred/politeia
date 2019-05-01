@@ -4,7 +4,6 @@ require (
 	github.com/AndreasBriese/bbloom v0.0.0-20190306092124-e2d15f34fcf9 // indirect
 	github.com/DataDog/zstd v1.3.5 // indirect
 	github.com/agl/ed25519 v0.0.0-20170116200512-5312a6153412
-	github.com/badoux/checkmail v0.0.0-20181210160741-9661bd69e9ad
 	github.com/btcsuite/go-socks v0.0.0-20170105172521-4720035b7bfd
 	github.com/btcsuite/golangcrypto v0.0.0-20150304025918-53f62d9b43e8
 	github.com/dajohi/goemail v1.0.0
@@ -29,7 +28,6 @@ require (
 	github.com/go-sql-driver/mysql v1.4.1 // indirect
 	github.com/go-test/deep v1.0.1
 	github.com/gofrs/uuid v3.2.0+incompatible // indirect
-	github.com/google/go-cmp v0.2.0 // indirect
 	github.com/google/uuid v1.0.0
 	github.com/gorilla/csrf v1.5.1
 	github.com/gorilla/mux v1.6.2
@@ -42,12 +40,12 @@ require (
 	github.com/jinzhu/inflection v0.0.0-20180308033659-04140366298a // indirect
 	github.com/jinzhu/now v1.0.0 // indirect
 	github.com/jrick/logrotate v1.0.0
+	github.com/marcopeereboom/sbox v0.0.0-20190125180204-32a7c85e429a
 	github.com/mattn/go-sqlite3 v1.10.0 // indirect
 	github.com/otiai10/copy v1.0.1
 	github.com/otiai10/curr v0.0.0-20150429015615-9b4961190c95 // indirect
 	github.com/pmezard/go-difflib v1.0.0
 	github.com/robfig/cron v0.0.0-20180505203441-b41be1df6967
-	github.com/stretchr/testify v1.3.0 // indirect
 	github.com/subosito/norma v0.0.0-20140814002436-523a8b2df221
 	github.com/syndtr/goleveldb v1.0.0
 	golang.org/x/crypto v0.0.0-20190131182504-b8fe1690c613

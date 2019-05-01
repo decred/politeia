@@ -771,7 +771,7 @@ func TestProcessNewProposal(t *testing.T) {
 
 			// Ensure a proposal credit has been deducted
 			// from the user's account.
-			u, err := p.db.UserGet(v.usr.Email)
+			u, err := p.db.UserGetById(v.usr.ID)
 			if err != nil {
 				t.Error(err)
 			}

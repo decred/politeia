@@ -29,10 +29,15 @@ const (
 
 	// Route to reset password at GUI
 	ResetPasswordGuiRoute = "/password" // XXX what is this doing here?
+
+	emailRegex = "^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@" +
+		"[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?" +
+		"(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"
 )
 
 var (
 	validUsername = regexp.MustCompile(createUsernameRegex())
+	validEmail    = regexp.MustCompile(emailRegex)
 
 	// MinimumLoginWaitTime is the minimum amount of time to wait before the
 	// server sends a response to the client for the login route. This is done
@@ -259,6 +264,50 @@ func (p *politeiawww) removeUserPubkeyAssociaton(u *user.User, publicKey string)
 	defer p.Unlock()
 
 	delete(p.userPubkeys, publicKey)
+}
+
+// initUserEmails initializes the userEmails cache by iterating through all the
+// users in the database and adding a email-userID mapping for them.
+//
+// This function must be called WITHOUT the lock held.
+func (p *politeiawww) initUserEmails() error {
+	p.Lock()
+	defer p.Unlock()
+
+	return p.db.AllUsers(func(u *user.User) {
+		p.userEmails[u.Email] = u.ID
+	})
+}
+
+// setUserEmails sets a email-userID mapping in the user emails cache.
+//
+// This function must be called WITHOUT the lock held.
+func (p *politeiawww) setUserEmails(email string, id uuid.UUID) {
+	p.Lock()
+	defer p.Unlock()
+	p.userEmails[email] = id
+}
+
+// userIDByEmail returns a userID given their email address.
+//
+// This function must be called WITHOUT the lock held.
+func (p *politeiawww) userIDByEmail(email string) (uuid.UUID, bool) {
+	p.RLock()
+	defer p.RUnlock()
+	id, ok := p.userEmails[email]
+	return id, ok
+}
+
+// userByEmail returns a User object given their email address.
+//
+// This function must be called WITHOUT the lock held.
+func (p *politeiawww) userByEmail(email string) (*user.User, error) {
+	id, ok := p.userIDByEmail(email)
+	if !ok {
+		log.Debugf("userByEmail: email lookup failed for '%v'", email)
+		return nil, user.ErrUserNotFound
+	}
+	return p.db.UserGetById(id)
 }
 
 // checkSignature validates an incoming signature against the specified user's
@@ -526,7 +575,7 @@ func (p *politeiawww) processUserCommentsLikes(user *user.User, token string) (*
 // login attempts to login a a user.
 func (p *politeiawww) login(l *www.Login) loginReplyWithError {
 	// Get user from db.
-	u, err := p.db.UserGet(l.Email)
+	u, err := p.userByEmail(l.Email)
 	if err != nil {
 		if err == user.ErrUserNotFound {
 			log.Debugf("Login failure for %v: user not found in database",
@@ -773,7 +822,7 @@ func (p *politeiawww) processNewUser(u www.NewUser) (*www.NewUserReply, error) {
 		expiry int64
 	)
 
-	existingUser, err := p.db.UserGet(u.Email)
+	existingUser, err := p.userByEmail(u.Email)
 	switch err {
 	case nil:
 		// User exists
@@ -818,6 +867,14 @@ func (p *politeiawww) processNewUser(u www.NewUser) (*www.NewUserReply, error) {
 	err = validatePassword(u.Password)
 	if err != nil {
 		return nil, err
+	}
+
+	// Validate email.
+	if !validEmail.MatchString(u.Email) {
+		log.Debugf("processNewUser: invalid email '%v'", u.Email)
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusMalformedEmail,
+		}
 	}
 
 	// Validate that the pubkey isn't already taken.
@@ -867,20 +924,25 @@ func (p *politeiawww) processNewUser(u www.NewUser) (*www.NewUserReply, error) {
 		// Update the user in the db.
 		newUser.ID = existingUser.ID
 		err = p.db.UserUpdate(newUser)
+		if err != nil {
+			return nil, err
+		}
 	} else {
 		// Save the new user in the db.
 		err = p.db.UserNew(newUser)
-	}
-
-	// Error handling for the db write.
-	if err != nil {
-		if err == user.ErrInvalidEmail {
-			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusMalformedEmail,
-			}
+		if err != nil {
+			return nil, err
 		}
 
-		return nil, err
+		// Update user emails cache. The user ID needs to be
+		// looked up first.
+		u, err := p.db.UserGetByUsername(newUser.Username)
+		if err != nil {
+			return nil, fmt.Errorf("userByUsername '%v': %v",
+				newUser.Username, err)
+		}
+
+		p.setUserEmails(u.Email, u.ID)
 	}
 
 	// Get user that we just inserted so we can use their numerical user
@@ -889,7 +951,7 @@ func (p *politeiawww) processNewUser(u www.NewUser) (*www.NewUserReply, error) {
 	//
 	// Even if existingUser is non-nil, this will bring it up-to-date
 	// with the new information inserted via newUser.
-	existingUser, err = p.db.UserGet(newUser.Email)
+	existingUser, err = p.userByEmail(newUser.Email)
 	if err != nil {
 		return nil, fmt.Errorf("unable to retrieve account info for %v: %v",
 			newUser.Email, err)
@@ -919,7 +981,7 @@ func (p *politeiawww) processNewUser(u www.NewUser) (*www.NewUserReply, error) {
 // hasn't expired.  On success it returns database user record.
 func (p *politeiawww) processVerifyNewUser(usr www.VerifyNewUser) (*user.User, error) {
 	// Check that the user already exists.
-	u, err := p.db.UserGet(usr.Email)
+	u, err := p.userByEmail(usr.Email)
 	if err != nil {
 		if err == user.ErrUserNotFound {
 			log.Debugf("VerifyNewUser failure for %v: user not found",
@@ -1014,7 +1076,7 @@ func (p *politeiawww) processResendVerification(rv *www.ResendVerification) (*ww
 	rvr := www.ResendVerificationReply{}
 
 	// Get user from db.
-	u, err := p.db.UserGet(rv.Email)
+	u, err := p.userByEmail(rv.Email)
 	if err != nil {
 		if err == user.ErrUserNotFound {
 			log.Debugf("ResendVerification failure for %v: user not found",
@@ -1279,7 +1341,7 @@ func (p *politeiawww) processChangeUsername(email string, cu www.ChangeUsername)
 	var reply www.ChangeUsernameReply
 
 	// Get user from db.
-	u, err := p.db.UserGet(email)
+	u, err := p.userByEmail(email)
 	if err != nil {
 		return nil, err
 	}
@@ -1331,7 +1393,7 @@ func (p *politeiawww) processChangePassword(email string, cp www.ChangePassword)
 	var reply www.ChangePasswordReply
 
 	// Get user from db.
-	u, err := p.db.UserGet(email)
+	u, err := p.userByEmail(email)
 	if err != nil {
 		return nil, err
 	}
@@ -1381,7 +1443,7 @@ func (p *politeiawww) processResetPassword(rp www.ResetPassword) (*www.ResetPass
 	var reply www.ResetPasswordReply
 
 	// Get user from db.
-	u, err := p.db.UserGet(rp.Email)
+	u, err := p.userByEmail(rp.Email)
 	if err != nil {
 		if err == user.ErrUserNotFound {
 			log.Debugf("processResetPassword: user not found %v",
@@ -1834,7 +1896,7 @@ func (p *politeiawww) processUserPaymentsRescan(upr www.UserPaymentsRescan) (*ww
 	// credits since the start of this request. Failure to relookup the
 	// user record here could result in adding proposal credits to the
 	// user's account that have already been spent.
-	u, err = p.db.UserGet(u.Email)
+	u, err = p.userByEmail(u.Email)
 	if err != nil {
 		return nil, fmt.Errorf("UserGet %v", err)
 	}
@@ -2188,7 +2250,16 @@ func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*www.NewUserRep
 		token  []byte
 		expiry int64
 	)
-	existingUser, err := p.db.UserGet(u.Email)
+
+	// Validate email
+	if !validEmail.MatchString(u.Email) {
+		log.Debugf("processInviteNewUser: invalid email '%v'", u.Email)
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusMalformedEmail,
+		}
+	}
+
+	existingUser, err := p.userByEmail(u.Email)
 	if err == nil {
 		// Check if the user is already verified.
 		if existingUser.NewUserVerificationToken == nil {
@@ -2226,20 +2297,25 @@ func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*www.NewUserRep
 		// Update the user in the db. Which will resend the email and give a new token
 		newUser.ID = existingUser.ID
 		err = p.db.UserUpdate(newUser)
+		if err != nil {
+			return nil, err
+		}
 	} else {
 		// Save the new user in the db.
 		err = p.db.UserNew(newUser)
-	}
-
-	// Error handling for the db write.
-	if err != nil {
-		if err == user.ErrInvalidEmail {
-			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusMalformedEmail,
-			}
+		if err != nil {
+			return nil, err
 		}
 
-		return nil, err
+		// Update user emails cache. The user ID needs to be
+		// looked up first.
+		u, err := p.db.UserGetByUsername(newUser.Username)
+		if err != nil {
+			return nil, fmt.Errorf("userByUsername '%v': %v",
+				newUser.Username, err)
+		}
+
+		p.setUserEmails(u.Email, u.ID)
 	}
 
 	reply.VerificationToken = hex.EncodeToString(token)
@@ -2250,7 +2326,7 @@ func (p *politeiawww) processRegisterUser(u cms.RegisterUser) (*cms.RegisterUser
 	var reply cms.RegisterUserReply
 
 	// Check that the user already exists.
-	existingUser, err := p.db.UserGet(u.Email)
+	existingUser, err := p.userByEmail(u.Email)
 	if err != nil {
 		if err == user.ErrUserNotFound {
 			log.Debugf("RegisterUser failure for %v: user not found",
@@ -2346,7 +2422,7 @@ func (p *politeiawww) processRegisterUser(u cms.RegisterUser) (*cms.RegisterUser
 
 	// Even if user is non-nil, this will bring it up-to-date
 	// with the new information inserted via newUser.
-	existingUser, err = p.db.UserGet(newUser.Email)
+	existingUser, err = p.userByEmail(newUser.Email)
 	if err != nil {
 		return nil, fmt.Errorf("unable to retrieve account info for %v: %v",
 			newUser.Email, err)

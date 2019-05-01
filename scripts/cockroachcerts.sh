@@ -14,11 +14,9 @@ readonly USER_POLITEIAD="politeiad"
 readonly USER_POLITEIAWWW="politeiawww"
 
 # COCKROACHDB_DIR is where all of the certificates will be created.
-readonly COCKROACHDB_DIR=$1
-
+COCKROACHDB_DIR=$1
 if [ "${COCKROACHDB_DIR}" == "" ]; then
-    >&2 echo "error: missing argument CockroachDB directory"
-    exit
+  COCKROACHDB_DIR="${HOME}/.cockroachdb"
 fi
 
 # Create cockroachdb directories.

@@ -34,11 +34,12 @@ import (
 )
 
 const (
-	defaultLogLevel         = "info"
-	defaultLogDirname       = "logs"
-	defaultLogFilename      = "politeiawww.log"
-	adminLogFilename        = "admin.log"
-	defaultIdentityFilename = "identity.json"
+	defaultLogLevel              = "info"
+	defaultLogDirname            = "logs"
+	defaultLogFilename           = "politeiawww.log"
+	adminLogFilename             = "admin.log"
+	defaultIdentityFilename      = "identity.json"
+	defaultEncryptionKeyFilename = "dbkey.json"
 
 	defaultMainnetPort = "4443"
 	defaultTestnetPort = "4443"
@@ -67,6 +68,12 @@ const (
 	cmsWWWMode      = "cmswww"
 
 	defaultWWWMode = politeiaWWWMode
+
+	// User database options
+	userDBLevel     = "leveldb"
+	userDBCockroach = "cockroachdb"
+
+	defaultUserDB = userDBLevel
 )
 
 var (
@@ -115,6 +122,9 @@ type config struct {
 	DBRootCert               string `long:"dbrootcert" description:"File containing the CA certificate for the database"`
 	DBCert                   string `long:"dbcert" description:"File containing the politeiawww client certificate for the database"`
 	DBKey                    string `long:"dbkey" description:"File containing the politeiawww client certificate key for the database"`
+	UserDB                   string `long:"userdb" description:"Database choice for the user database"`
+	EncryptionKey            string `long:"encryptionkey" description:"File containing encryption key used for encrypting user data at rest"`
+	OldEncryptionKey         string `long:"oldencryptionkey" description:"File containing old encryption key (only set when rotating keys)"`
 	FetchIdentity            bool   `long:"fetchidentity" description:"Whether or not politeiawww fetches the identity from politeiad."`
 	WebServerAddress         string `long:"webserveraddress" description:"Address for the Politeia web server; it should have this format: <scheme>://<host>[:<port>]"`
 	Interactive              string `long:"interactive" description:"Set to i-know-this-is-a-bad-idea to turn off interactive mode during --fetchidentity."`
@@ -380,6 +390,7 @@ func loadConfig() (*config, []string, error) {
 		VoteDurationMax:          defaultVoteDurationMax,
 		MailAddress:              defaultMailAddress,
 		Mode:                     defaultWWWMode,
+		UserDB:                   defaultUserDB,
 	}
 
 	// Service options which are only added on Windows.
@@ -583,6 +594,12 @@ func loadConfig() (*config, []string, error) {
 	cfg.DBCert = cleanAndExpandPath(cfg.DBCert)
 	cfg.DBKey = cleanAndExpandPath(cfg.DBKey)
 
+	// Validate db host.
+	_, err = url.Parse(cfg.DBHost)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse dbhost: %v", err)
+	}
+
 	// Validate db root cert.
 	b, err := ioutil.ReadFile(cfg.DBRootCert)
 	if err != nil {
@@ -599,6 +616,46 @@ func loadConfig() (*config, []string, error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("load key pair dbcert "+
 			"and dbkey: %v", err)
+	}
+
+	// Validate user database selection.
+	switch cfg.UserDB {
+	case userDBLevel, userDBCockroach:
+		// Valid selection; continue
+	default:
+		return nil, nil, fmt.Errorf("invalid userdb '%v'; must "+
+			"be either leveldb or cockroachdb", cfg.UserDB)
+	}
+
+	// Validate encryption keys.
+	if cfg.EncryptionKey != "" {
+		if cfg.UserDB == userDBLevel {
+			return nil, nil, fmt.Errorf("data at rest encryption is not" +
+				"currently supported for leveldb; remove encryption key " +
+				"param or change user database param")
+		}
+
+		_, err = util.LoadEncryptionKey(cfg.EncryptionKey)
+		if err != nil {
+			return nil, nil, fmt.Errorf("load encryption key: %v", err)
+		}
+	}
+
+	if cfg.OldEncryptionKey != "" {
+		if cfg.EncryptionKey == "" {
+			return nil, nil, fmt.Errorf("old encryption key param " +
+				"cannot be used without encryption key param")
+		}
+
+		if cfg.EncryptionKey == cfg.OldEncryptionKey {
+			return nil, nil, fmt.Errorf("old encryption key param " +
+				"and encryption key param must be different")
+		}
+
+		_, err = util.LoadEncryptionKey(cfg.OldEncryptionKey)
+		if err != nil {
+			return nil, nil, fmt.Errorf("load old encryption key: %v", err)
+		}
 	}
 
 	// Special show command to list supported subsystems and exit.

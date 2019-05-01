@@ -6,6 +6,7 @@ package user
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -20,9 +21,6 @@ var (
 
 	// ErrUserExists indicates that a user already exists in the database.
 	ErrUserExists = errors.New("user already exists")
-
-	// ErrInvalidEmail indicates that a user's email is not properly formatted.
-	ErrInvalidEmail = errors.New("invalid user email")
 
 	// ErrShutdown is emitted when the database is shutting down.
 	ErrShutdown = errors.New("database is shutting down")
@@ -75,7 +73,10 @@ type ProposalCredit struct {
 	CensorshipToken string // Censorship token of proposal that used this credit
 }
 
-// User record.
+// VersionUser is the version of the User struct.
+const VersionUser uint32 = 1
+
+// User is a politeiawww user.
 type User struct {
 	ID                              uuid.UUID // Unique user uuid
 	Email                           string    // Email address + lookup key.
@@ -146,10 +147,31 @@ func (u *User) PublicKey() string {
 	return u.ActiveIdentity().String()
 }
 
+// EncodeUser encodes User into a JSON byte slice.
+func EncodeUser(u User) ([]byte, error) {
+	b, err := json.Marshal(u)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+// DecodeUser decodes a JSON byte slice into a User.
+func DecodeUser(payload []byte) (*User, error) {
+	var u User
+
+	err := json.Unmarshal(payload, &u)
+	if err != nil {
+		return nil, err
+	}
+
+	return &u, nil
+}
+
 // Database interface that is required by the web server.
 type Database interface {
 	// User functions
-	UserGet(string) (*User, error)           // Return user record, key is email
 	UserGetByUsername(string) (*User, error) // Return user record given the username
 	UserGetById(uuid.UUID) (*User, error)    // Return user record given its id
 	UserNew(User) error                      // Add new user

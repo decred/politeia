@@ -1144,7 +1144,7 @@ func TestProcessEditUser(t *testing.T) {
 
 			// Ensure database was updated with
 			// correct notification settings.
-			u, err := p.db.UserGet(user.Email)
+			u, err := p.db.UserGetById(user.ID)
 			if err != nil {
 				t.Fatalf("%v", err)
 			}
