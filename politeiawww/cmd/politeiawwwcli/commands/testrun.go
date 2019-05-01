@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/decred/dcrwallet/rpc/walletrpc"
+	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
 )
@@ -541,14 +542,14 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	fmt.Printf("  Authorize vote: authorize\n")
 	avc := AuthorizeVoteCmd{}
 	avc.Args.Token = token
-	avc.Args.Action = v1.AuthVoteActionAuthorize
+	avc.Args.Action = decredplugin.AuthVoteActionAuthorize
 	err = avc.Execute(nil)
 	if err != nil {
 		return err
 	}
 
 	fmt.Printf("  Authorize vote: revoke\n")
-	avc.Args.Action = v1.AuthVoteActionRevoke
+	avc.Args.Action = decredplugin.AuthVoteActionRevoke
 	err = avc.Execute(nil)
 	if err != nil {
 		return err
@@ -568,7 +569,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 	// Authorize vote
 	fmt.Printf("  Authorize vote: authorize\n")
-	avc.Args.Action = v1.AuthVoteActionAuthorize
+	avc.Args.Action = decredplugin.AuthVoteActionAuthorize
 	err = avc.Execute(nil)
 	if err != nil {
 		return err

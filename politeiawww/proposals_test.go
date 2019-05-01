@@ -923,7 +923,7 @@ func TestProcessSetProposalStatus(t *testing.T) {
 
 	d.AddRecord(t, convertPropToPD(t, propVoteAuthorized))
 	cmd := newAuthorizeVoteCmd(t, tokenVoteAuthorized,
-		propVoteAuthorized.Version, www.AuthVoteActionAuthorize, id)
+		propVoteAuthorized.Version, decredplugin.AuthVoteActionAuthorize, id)
 	d.Plugin(t, cmd)
 
 	// Create a proposal whose voting period has started

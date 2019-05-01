@@ -55,10 +55,6 @@ const (
 
 	// Following are what should be well-known interface hooks
 	PluginPostHookEdit = "postedit" // Hook Post Edit
-
-	// Authorize vote actions
-	AuthVoteActionAuthorize = "authorize" // Authorize a proposal vote
-	AuthVoteActionRevoke    = "revoke"    // Revoke a proposal vote authorization
 )
 
 var (
@@ -1750,7 +1746,7 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("DecodeAuthorizeVote: %v", err)
 	}
-	if av.Action == AuthVoteActionRevoke {
+	if av.Action == decredplugin.AuthVoteActionRevoke {
 		return "", fmt.Errorf("vote authorization revoked")
 	}
 
