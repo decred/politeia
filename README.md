@@ -158,18 +158,14 @@ Install CockroachDB using the instructions found in the [CockroachDB
 Documentation](https://www.cockroachlabs.com/docs/stable/install-cockroachdb-mac.html).
 
 Run the following commands to create the CockroachDB certificates required for
-running CockroachDB with Politeia.  It's ok if the directory `~/.cockroachdb`
-does not exist yet.  The script will create it.  **The directory that you pass
-into the script must be the same cockroachdb directory that you use in the
-politeiad and politeiawww config files when specifying the cache
-certificates.**
+running CockroachDB with Politeia.
 
     cd $GOPATH/src/github.com/decred/politeia
-    ./cockroachcerts.sh ~/.cockroachdb
+    ./scripts/cockroachcerts.sh
 
-The script will create the following certificates and directories:
+The script creates following certificates and directories.
 
-    .cockroachdb
+    ~/.cockroachdb
     ├── ca.key
     └── certs
         ├── ca.crt
@@ -215,7 +211,7 @@ Once CockroachDB is running, you can setup the cache databases using the
 commands below.
 
     cd $GOPATH/src/github.com/decred/politeia
-    ./cachesetup.sh ~/.cockroachdb
+    ./scripts/cachesetup.sh
 
 The database setup is now complete.  If you want to run database commands
 manually you can do so by opening a sql shell.
@@ -232,7 +228,7 @@ using the script below.  CockroachDB must be running when you execute this
 script.
 
     cd $GOPATH/src/github.com/decred/politeia
-    ./cmssetup.sh ~/.cockroachdb
+    ./scripts/cmssetup.sh
     
 
 #### 5. Build the programs:
