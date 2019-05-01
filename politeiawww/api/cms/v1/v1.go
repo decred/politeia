@@ -318,5 +318,5 @@ type InvoiceExchangeRateReply struct {
 // to paid status.
 type PayInvoices struct{}
 
-// PayInvoicesReply will be empty if no errors have occured.
+// PayInvoicesReply will be empty if no errors have occurred.
 type PayInvoicesReply struct{}
