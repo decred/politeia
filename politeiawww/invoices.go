@@ -412,7 +412,8 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 	filenames := make(map[string]int, len(ni.Files))
 	// Check that the file number policy is followed.
 	var (
-		numCSVs, numImages, numInvoiceFiles    int
+		numCSVs 															 uint
+		numImages, numInvoiceFiles    				 int
 		csvExceedsMaxSize, imageExceedsMaxSize bool
 		hashes                                 []*[sha256.Size]byte
 	)
