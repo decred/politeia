@@ -492,11 +492,19 @@ func loadConfig() (*config, []string, error) {
 	// Verify mode
 	switch cfg.Mode {
 	case cmsWWWMode:
-		cfg.Mode = cmsWWWMode
-		cfg.MailAddress = defaultCMSMailAddress
+		if cfg.MailAddress == defaultMailAddress {
+			cfg.MailAddress = defaultCMSMailAddress
+		}
 	case politeiaWWWMode:
 	default:
 		err := fmt.Errorf("invalid mode: %v", cfg.Mode)
+		fmt.Fprintln(os.Stderr, err)
+		return nil, nil, err
+	}
+
+	// Verify mail address
+	if _, err := mail.ParseAddress(cfg.MailAddress); err != nil {
+		err := fmt.Errorf("invalid mailaddress: %v", err)
 		fmt.Fprintln(os.Stderr, err)
 		return nil, nil, err
 	}
