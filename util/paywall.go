@@ -47,25 +47,25 @@ type PaywallGatewayNewOrderResponse struct {
 	PaywallAmount uint64
 }
 
-// BEPrimaryTransaction is an object representing a transaction; it's
-// part of the data returned from the URL for the primary block explorer
+// BETransaction is an object representing a transaction; it's
+// part of the data returned from the URL for the block explorer
 // when fetching the transactions for an address.
-type BEPrimaryTransaction struct {
-	TxId          string                     `json:"txid"`          // Transaction id
-	Vout          []BEPrimaryTransactionVout `json:"vout"`          // Transaction outputs
-	Confirmations uint64                     `json:"confirmations"` // Number of confirmations
-	Timestamp     int64                      `json:"time"`          // Transaction timestamp
+type BETransaction struct {
+	TxId          string              `json:"txid"`          // Transaction id
+	Vout          []BETransactionVout `json:"vout"`          // Transaction outputs
+	Confirmations uint64              `json:"confirmations"` // Number of confirmations
+	Timestamp     int64               `json:"time"`          // Transaction timestamp
 }
 
-// BEPrimaryTransactionVout holds the transaction amount information.
-type BEPrimaryTransactionVout struct {
-	Amount       json.Number                      `json:"value"`        // Transaction amount (in DCR)
-	ScriptPubkey BEPrimaryTransactionScriptPubkey `json:"scriptPubkey"` // Transaction script info
+// BETransactionVout holds the transaction amount information.
+type BETransactionVout struct {
+	Amount       json.Number               `json:"value"`        // Transaction amount (in DCR)
+	ScriptPubkey BETransactionScriptPubkey `json:"scriptPubkey"` // Transaction script info
 }
 
-// BEPrimaryTransactionScriptPubkey holds the script info for a
+// BETransactionScriptPubkey holds the script info for a
 // transaction.
-type BEPrimaryTransactionScriptPubkey struct {
+type BETransactionScriptPubkey struct {
 	Addresses []string `json:"addresses"` // Array of transaction input addresses
 }
 
@@ -164,13 +164,13 @@ func blockExplorerURLForAddress(address string, netParams *chaincfg.Params) (str
 	return dcrdata, nil
 }
 
-func fetchTxWithPrimaryBE(url string, address string, minimumAmount uint64, txnotbefore int64, minConfirmationsRequired uint64) (string, uint64, error) {
+func fetchTxWithBE(url string, address string, minimumAmount uint64, txnotbefore int64, minConfirmationsRequired uint64) (string, uint64, error) {
 	responseBody, err := makeRequest(url, dcrdataTimeout)
 	if err != nil {
 		return "", 0, err
 	}
 
-	transactions := make([]BEPrimaryTransaction, 0)
+	transactions := make([]BETransaction, 0)
 	err = json.Unmarshal(responseBody, &transactions)
 	if err != nil {
 		return "", 0, err
@@ -329,10 +329,10 @@ func FetchTxWithBlockExplorers(address string, amount uint64, txnotbefore int64,
 	if err != nil {
 		return "", 0, err
 	}
-	primaryURL := dcrdataURL + "/raw"
+	explorerURL := dcrdataURL + "/raw"
 
 	//Fetch transaction from dcrdata
-	txID, amount, err := fetchTxWithPrimaryBE(primaryURL, address, amount,
+	txID, amount, err := fetchTxWithBE(explorerURL, address, amount,
 		txnotbefore, minConfirmations)
 	if err != nil {
 		log.Printf("failed to fetch from dcrdata: %v", err)
@@ -342,22 +342,22 @@ func FetchTxWithBlockExplorers(address string, amount uint64, txnotbefore int64,
 	return txID, amount, nil
 }
 
-func fetchTxsWithPrimaryBE(url string) ([]BEPrimaryTransaction, error) {
+func fetchTxsWithBE(url string) ([]BETransaction, error) {
 	responseBody, err := makeRequest(url, dcrdataTimeout)
 	if err != nil {
 		return nil, err
 	}
 
-	transactions := make([]BEPrimaryTransaction, 0)
+	transactions := make([]BETransaction, 0)
 	err = json.Unmarshal(responseBody, &transactions)
 	if err != nil {
-		return nil, fmt.Errorf("Unmarshal []BEPrimaryTransaction: %v", err)
+		return nil, fmt.Errorf("Unmarshal []BETransaction: %v", err)
 	}
 
 	return transactions, nil
 }
 
-func convertBEPrimaryTransactionToTxDetails(address string, tx BEPrimaryTransaction) (*TxDetails, error) {
+func convertBETransactionToTxDetails(address string, tx BETransaction) (*TxDetails, error) {
 	var amount uint64
 	for _, vout := range tx.Vout {
 		amt, err := DcrStringToAmount(vout.Amount.String())
@@ -394,18 +394,18 @@ func FetchTxsForAddress(address string) ([]TxDetails, error) {
 	if err != nil {
 		return nil, err
 	}
-	primaryURL := dcrdataURL + "/raw"
+	explorerURL := dcrdataURL + "/raw"
 
-	// Fetch using dcrdata
-	primaryTxs, err := fetchTxsWithPrimaryBE(primaryURL)
+	// Fetch using dcrdata block explorer
+	dcrdataTxs, err := fetchTxsWithBE(explorerURL)
 	if err != nil {
 		log.Printf("failed to fetch from dcrdata: %v", err)
 	}
-	txs := make([]TxDetails, 0, len(primaryTxs))
-	for _, tx := range primaryTxs {
-		txDetail, err := convertBEPrimaryTransactionToTxDetails(address, tx)
+	txs := make([]TxDetails, 0, len(dcrdataTxs))
+	for _, tx := range dcrdataTxs {
+		txDetail, err := convertBETransactionToTxDetails(address, tx)
 		if err != nil {
-			return nil, fmt.Errorf("convertBEPrimaryTransactionToTxDetails: %v",
+			return nil, fmt.Errorf("convertBETransactionToTxDetails: %v",
 				tx.TxId)
 		}
 		txs = append(txs, *txDetail)
@@ -438,7 +438,7 @@ func FetchTxsForAddressNotBefore(address string, notBefore int64) ([]TxDetails, 
 		// Fetch a page of user payment txs
 		url := dcrdataURL + "/count/" + strconv.Itoa(count) +
 			"/skip/" + strconv.Itoa(skip) + "/raw"
-		dcrdataTxs, err := fetchTxsWithPrimaryBE(url)
+		dcrdataTxs, err := fetchTxsWithBE(url)
 		if err != nil {
 			return nil, fmt.Errorf("fetchDcrdataAddress: %v", err)
 		}
@@ -446,9 +446,9 @@ func FetchTxsForAddressNotBefore(address string, notBefore int64) ([]TxDetails, 
 		// Convert transactions to TxDetails
 		txs := make([]TxDetails, len(dcrdataTxs))
 		for _, tx := range dcrdataTxs {
-			txDetails, err := convertBEPrimaryTransactionToTxDetails(address, tx)
+			txDetails, err := convertBETransactionToTxDetails(address, tx)
 			if err != nil {
-				return nil, fmt.Errorf("convertBEPrimaryTransactionToTxDetails: %v",
+				return nil, fmt.Errorf("convertBETransactionToTxDetails: %v",
 					tx.TxId)
 			}
 			txs = append(txs, *txDetails)
