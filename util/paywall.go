@@ -69,17 +69,6 @@ type BEPrimaryTransactionScriptPubkey struct {
 	Addresses []string `json:"addresses"` // Array of transaction input addresses
 }
 
-// BEBackupTransaction is an object representing a transaction; it's
-// part of the data returned from the URL for the backup block explorer
-// when fetching the transactions for an address.
-type BEBackupTransaction struct {
-	Address       string      `json:"address"`       // Transaction address
-	TxId          string      `json:"txid"`          // Transaction id
-	Amount        json.Number `json:"amount"`        // Transaction amount (in DCR)
-	Confirmations uint64      `json:"confirmations"` // Number of confirmations
-	Timestamp     int64       `json:"ts"`            // Transaction timestamp
-}
-
 // TxDetails is an object representing a transaction from dcrdata
 type TxDetails struct {
 	Address       string // Transaction address
@@ -90,8 +79,7 @@ type TxDetails struct {
 }
 
 var (
-	// ErrCannotVerifyPayment is emitted when a transaction cannot be verified
-	// because it cannot reach either of the block explorer servers.
+	// ErrCannotVerifyPayment is emitted when a transaction cannot be verified by dcrdata
 	ErrCannotVerifyPayment = errors.New("cannot verify payment at this time")
 )
 
@@ -212,40 +200,6 @@ func fetchTxWithPrimaryBE(url string, address string, minimumAmount uint64, txno
 				}
 			}
 		}
-	}
-
-	return "", 0, nil
-}
-
-func fetchTxWithBackupBE(url string, address string, minimumAmount uint64, txnotbefore int64, minConfirmationsRequired uint64) (string, uint64, error) {
-	responseBody, err := makeRequest(url, dcrdataTimeout)
-	if err != nil {
-		return "", 0, err
-	}
-
-	transactions := make([]BEBackupTransaction, 0)
-	err = json.Unmarshal(responseBody, &transactions)
-	if err != nil {
-		return "", 0, err
-	}
-
-	for _, v := range transactions {
-		if v.Timestamp < txnotbefore {
-			continue
-		}
-		if v.Confirmations < minConfirmationsRequired {
-			continue
-		}
-
-		amount, err := DcrStringToAmount(v.Amount.String())
-		if err != nil {
-			return "", 0, err
-		}
-		if amount < minimumAmount {
-			continue
-		}
-
-		return v.TxId, amount, nil
 	}
 
 	return "", 0, nil
@@ -377,7 +331,7 @@ func FetchTxWithBlockExplorers(address string, amount uint64, txnotbefore int64,
 	}
 	primaryURL := dcrdataURL + "/raw"
 
-	// Try the primary (dcrdata) first.
+	//Fetch transaction from dcrdata
 	txID, amount, err := fetchTxWithPrimaryBE(primaryURL, address, amount,
 		txnotbefore, minConfirmations)
 	if err != nil {
@@ -398,21 +352,6 @@ func fetchTxsWithPrimaryBE(url string) ([]BEPrimaryTransaction, error) {
 	err = json.Unmarshal(responseBody, &transactions)
 	if err != nil {
 		return nil, fmt.Errorf("Unmarshal []BEPrimaryTransaction: %v", err)
-	}
-
-	return transactions, nil
-}
-
-func fetchTxsWithBackupBE(url string) ([]BEBackupTransaction, error) {
-	responseBody, err := makeRequest(url, dcrdataTimeout)
-	if err != nil {
-		return nil, err
-	}
-
-	transactions := make([]BEBackupTransaction, 0)
-	err = json.Unmarshal(responseBody, &transactions)
-	if err != nil {
-		return nil, fmt.Errorf("Unmarshal []BEBackupTransaction: %v", err)
 	}
 
 	return transactions, nil
@@ -442,21 +381,6 @@ func convertBEPrimaryTransactionToTxDetails(address string, tx BEPrimaryTransact
 	}, nil
 }
 
-func convertBEBackupTransactionToTxDetails(tx BEBackupTransaction) (*TxDetails, error) {
-	amount, err := DcrStringToAmount(tx.Amount.String())
-	if err != nil {
-		return nil, err
-	}
-
-	return &TxDetails{
-		Address:       tx.Address,
-		TxID:          tx.TxId,
-		Amount:        amount,
-		Confirmations: tx.Confirmations,
-		Timestamp:     tx.Timestamp,
-	}, nil
-}
-
 // FetchTxsForAddress fetches the transactions that have been sent to the
 // provided wallet address from the dcrdata block explorer
 func FetchTxsForAddress(address string) ([]TxDetails, error) {
@@ -472,7 +396,7 @@ func FetchTxsForAddress(address string) ([]TxDetails, error) {
 	}
 	primaryURL := dcrdataURL + "/raw"
 
-	// Try the primary (dcrdata)
+	// Fetch using dcrdata
 	primaryTxs, err := fetchTxsWithPrimaryBE(primaryURL)
 	if err != nil {
 		log.Printf("failed to fetch from dcrdata: %v", err)
