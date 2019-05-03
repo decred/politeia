@@ -48,7 +48,7 @@ func (cmd *NewProposalCmd) Execute(args []string) error {
 	}
 
 	var md []byte
-	files := make([]v1.File, 0, v1.PolicyMaxImages+1)
+	files := make([]v1.File, 0, v1.PolicyMaxAttachments+1)
 	if cmd.Random {
 		// Generate random proposal markdown text
 		var b bytes.Buffer

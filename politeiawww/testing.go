@@ -21,6 +21,7 @@ import (
 	"github.com/decred/politeia/politeiad/cache/testcache"
 	"github.com/decred/politeia/politeiad/testpoliteiad"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/decred/politeia/politeiawww/cmsdatabase/testcmsdb"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/politeiawww/user/localdb"
 	"github.com/decred/politeia/util"
@@ -179,7 +180,7 @@ func newUser(t *testing.T, p *politeiawww, isVerified, isAdmin bool) (*user.User
 
 // newTestPoliteiawww returns a new politeiawww context that is setup for
 // testing and a closure that cleans up the test environment when invoked.
-func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
+func newTestPoliteiawww(t *testing.T, mode string) (*politeiawww, func()) {
 	t.Helper()
 
 	// Make a temp directory for test data. Temp directory
@@ -195,6 +196,7 @@ func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
 		PaywallAmount: 1e7,
 		PaywallXpub:   "tpubVobLtToNtTq6TZNw4raWQok35PRPZou53vegZqNubtBTJMMFmuMpWybFCfweJ52N8uZJPZZdHE5SRnBBuuRPfC5jdNstfKjiAs8JtbYG9jx",
 		TestNet:       true,
+		Mode:          mode,
 	}
 
 	// Setup database
@@ -245,11 +247,21 @@ func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
 		userEmails:      make(map[string]uuid.UUID),
 		userPaywallPool: make(map[uuid.UUID]paywallPoolMember),
 		commentVotes:    make(map[string]counters),
+		commentScores:   make(map[string]int64),
+		cmsDB:           testcmsdb.New(),
 	}
 
-	// Setup routes
-	p.setPoliteiaWWWRoutes()
-	p.setUserWWWRoutes()
+	// Setup routes depending on the mode
+	switch mode {
+	case politeiaWWWMode:
+		p.setPoliteiaWWWRoutes()
+		p.setUserWWWRoutes()
+	case cmsWWWMode:
+		p.setCMSWWWRoutes()
+		p.setCMSUserWWWRoutes()
+	default:
+		t.Fatalf("invalid")
+	}
 
 	// The cleanup is handled using a closure so that the temp dir
 	// can be deleted using the local variable and not cfg.DataDir.

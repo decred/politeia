@@ -486,9 +486,8 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 
 	// Check for at least 1 markdown file with a non-empty payload.
 	if len(ni.Files) == 0 || ni.Files[0].Payload == "" {
-		fmt.Println(ni.Files[0].Payload)
 		return www.UserError{
-			ErrorCode: www.ErrorStatusProposalMissingFiles,
+			ErrorCode: www.ErrorStatusNoIndexFile,
 		}
 	}
 
@@ -496,38 +495,35 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 	filenames := make(map[string]int, len(ni.Files))
 	// Check that the file number policy is followed.
 	var (
-		numCSVs, numImages, numInvoiceFiles    int
-		csvExceedsMaxSize, imageExceedsMaxSize bool
-		hashes                                 []*[sha256.Size]byte
+		numAttachments, numInvoiceFiles int
+		invoiceExceedsMaxSize           bool
+		attachmentExceedsMaxSize        bool
+		hashes                          []*[sha256.Size]byte
 	)
 	for _, v := range ni.Files {
 		filenames[v.Name]++
+
 		var (
 			data []byte
 			err  error
 		)
-		if strings.HasPrefix(v.MIME, "image/") {
-			numImages++
-			data, err = base64.StdEncoding.DecodeString(v.Payload)
-			if err != nil {
-				return err
-			}
-			if len(data) > cms.PolicyMaxImageSize {
-				imageExceedsMaxSize = true
-			}
-		} else {
-			numCSVs++
 
-			if v.Name == invoiceFile {
-				numInvoiceFiles++
+		data, err = base64.StdEncoding.DecodeString(v.Payload)
+		if err != nil {
+			return err
+		}
+
+		if v.Name == invoiceFile {
+			numInvoiceFiles++
+			if len(data) > www.PolicyMaxIndexFileSize {
+				invoiceExceedsMaxSize = true
 			}
 
-			data, err = base64.StdEncoding.DecodeString(v.Payload)
-			if err != nil {
-				return err
-			}
-			if len(data) > cms.PolicyMaxMDSize {
-				csvExceedsMaxSize = true
+			// Check if invoice file is of type json
+			if !json.Valid(data) {
+				return www.UserError{
+					ErrorCode: www.ErrorStatusInvalidMIMEType,
+				}
 			}
 
 			// Check to see if the data can be parsed properly into InvoiceInput
@@ -568,12 +564,7 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 			// was calculated server side.
 			monthAvg, err := p.cmsDB.ExchangeRate(int(invInput.Month),
 				int(invInput.Year))
-			if err != nil {
-				return www.UserError{
-					ErrorCode: cms.ErrorStatusInvalidExchangeRate,
-				}
-			}
-			if monthAvg.ExchangeRate != invInput.ExchangeRate {
+			if err != nil || monthAvg.ExchangeRate != invInput.ExchangeRate {
 				return www.UserError{
 					ErrorCode: cms.ErrorStatusInvalidExchangeRate,
 				}
@@ -693,6 +684,11 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 					}
 				}
 			}
+		} else {
+			numAttachments++
+			if len(data) > www.PolicyMaxAttachmentSize {
+				attachmentExceedsMaxSize = true
+			}
 		}
 
 		// Append digest to array for merkle root calculation
@@ -700,6 +696,38 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 		var d [sha256.Size]byte
 		copy(d[:], digest)
 		hashes = append(hashes, &d)
+	}
+
+	// we expect one index file
+	if numInvoiceFiles == 0 {
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusNoIndexFile,
+			ErrorContext: []string{indexFile},
+		}
+	}
+
+	if numInvoiceFiles > www.PolicyMaxIndexFile {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusMaxIndexFileExceededPolicy,
+		}
+	}
+
+	if numAttachments > www.PolicyMaxAttachments {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusMaxAttachmentsExceededPolicy,
+		}
+	}
+
+	if invoiceExceedsMaxSize {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusMaxIndexFileSizeExceededPolicy,
+		}
+	}
+
+	if attachmentExceedsMaxSize {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusMaxAttachmentSizeExceededPolicy,
+		}
 	}
 
 	// verify duplicate file names
@@ -715,38 +743,6 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 				ErrorCode:    www.ErrorStatusProposalDuplicateFilenames,
 				ErrorContext: repeated,
 			}
-		}
-	}
-
-	// we expect one index file
-	if numInvoiceFiles == 0 {
-		return www.UserError{
-			ErrorCode:    www.ErrorStatusProposalMissingFiles,
-			ErrorContext: []string{indexFile},
-		}
-	}
-
-	if numCSVs > www.PolicyMaxMDs {
-		return www.UserError{
-			ErrorCode: www.ErrorStatusMaxMDsExceededPolicy,
-		}
-	}
-
-	if numImages > www.PolicyMaxImages {
-		return www.UserError{
-			ErrorCode: www.ErrorStatusMaxImagesExceededPolicy,
-		}
-	}
-
-	if csvExceedsMaxSize {
-		return www.UserError{
-			ErrorCode: www.ErrorStatusMaxMDSizeExceededPolicy,
-		}
-	}
-
-	if imageExceedsMaxSize {
-		return www.UserError{
-			ErrorCode: www.ErrorStatusMaxImageSizeExceededPolicy,
 		}
 	}
 

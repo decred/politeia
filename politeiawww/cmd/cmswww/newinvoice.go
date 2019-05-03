@@ -90,7 +90,7 @@ func (cmd *NewInvoiceCmd) Execute(args []string) error {
 	}
 
 	var csv []byte
-	files := make([]www.File, 0, www.PolicyMaxImages+1)
+	files := make([]www.File, 0, www.PolicyMaxAttachments+1)
 	// Read csv file into memory and convert to type File
 	fpath := util.CleanAndExpandPath(csvFile)
 

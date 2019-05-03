@@ -21,7 +21,7 @@ import (
 )
 
 func TestHandleNewUser(t *testing.T) {
-	p, cleanup := newTestPoliteiawww(t)
+	p, cleanup := newTestPoliteiawww(t, politeiaWWWMode)
 	defer cleanup()
 
 	id, err := identity.New()
@@ -105,7 +105,7 @@ func TestHandleNewUser(t *testing.T) {
 }
 
 func TestHandleVerifyNewUser(t *testing.T) {
-	p, cleanup := newTestPoliteiawww(t)
+	p, cleanup := newTestPoliteiawww(t, politeiaWWWMode)
 	defer cleanup()
 
 	// Create an unverified user to test against
@@ -218,7 +218,7 @@ func TestHandleVerifyNewUser(t *testing.T) {
 }
 
 func TestHandleResendVerification(t *testing.T) {
-	p, cleanup := newTestPoliteiawww(t)
+	p, cleanup := newTestPoliteiawww(t, politeiaWWWMode)
 	defer cleanup()
 
 	// Create a verified user
@@ -323,7 +323,7 @@ func TestHandleResendVerification(t *testing.T) {
 }
 
 func TestHandleLogin(t *testing.T) {
-	p, cleanup := newTestPoliteiawww(t)
+	p, cleanup := newTestPoliteiawww(t, politeiaWWWMode)
 	defer cleanup()
 
 	// loginMinWaitTime is a global variable used to prevent
@@ -561,7 +561,7 @@ func TestHandleLogin(t *testing.T) {
 */
 
 func TestHandleChangePassword(t *testing.T) {
-	p, cleanup := newTestPoliteiawww(t)
+	p, cleanup := newTestPoliteiawww(t, politeiaWWWMode)
 	defer cleanup()
 
 	// Create a user to test against. newUser()
@@ -649,7 +649,7 @@ func TestHandleChangePassword(t *testing.T) {
 }
 
 func TestHandleResetPassword(t *testing.T) {
-	p, cleanup := newTestPoliteiawww(t)
+	p, cleanup := newTestPoliteiawww(t, politeiaWWWMode)
 	defer cleanup()
 
 	// Create a test user
@@ -832,7 +832,7 @@ func TestHandleVerifyResetPassword(t *testing.T) {
 }
 
 func TestHandleChangeUsername(t *testing.T) {
-	p, cleanup := newTestPoliteiawww(t)
+	p, cleanup := newTestPoliteiawww(t, politeiaWWWMode)
 	defer cleanup()
 
 	// Create a user to test against. newUser()
@@ -916,7 +916,7 @@ func TestHandleChangeUsername(t *testing.T) {
 }
 
 func TestHandleUserDetails(t *testing.T) {
-	p, cleanup := newTestPoliteiawww(t)
+	p, cleanup := newTestPoliteiawww(t, politeiaWWWMode)
 	defer cleanup()
 
 	// Create a user whose details we can fetch
@@ -1001,7 +1001,7 @@ func TestHandleUserDetails(t *testing.T) {
 }
 
 func TestHandleEditUser(t *testing.T) {
-	p, cleanup := newTestPoliteiawww(t)
+	p, cleanup := newTestPoliteiawww(t, politeiaWWWMode)
 	defer cleanup()
 
 	var notif uint64 = 0x01

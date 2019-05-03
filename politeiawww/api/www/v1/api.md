@@ -60,14 +60,14 @@ notifications.  It does not render HTML.
 - [`ErrorStatusMalformedEmail`](#ErrorStatusMalformedEmail)
 - [`ErrorStatusVerificationTokenInvalid`](#ErrorStatusVerificationTokenInvalid)
 - [`ErrorStatusVerificationTokenExpired`](#ErrorStatusVerificationTokenExpired)
-- [`ErrorStatusProposalMissingFiles`](#ErrorStatusProposalMissingFiles)
+- [`ErrorStatusNoIndexFile`](#ErrorStatusNoIndexFile)
 - [`ErrorStatusProposalNotFound`](#ErrorStatusProposalNotFound)
 - [`ErrorStatusProposalDuplicateFilenames`](#ErrorStatusProposalDuplicateFilenames)
 - [`ErrorStatusProposalInvalidTitle`](#ErrorStatusProposalInvalidTitle)
-- [`ErrorStatusMaxMDsExceededPolicy`](#ErrorStatusMaxMDsExceededPolicy)
-- [`ErrorStatusMaxImagesExceededPolicy`](#ErrorStatusMaxImagesExceededPolicy)
-- [`ErrorStatusMaxMDSizeExceededPolicy`](#ErrorStatusMaxMDSizeExceededPolicy)
-- [`ErrorStatusMaxImageSizeExceededPolicy`](#ErrorStatusMaxImageSizeExceededPolicy)
+- [`ErrorStatusMaxIndexFileExceededPolicy`](#ErrorStatusMaxIndexFileExceededPolicy)
+- [`ErrorStatusMaxIndexFileSizeExceededPolicy`](#ErrorStatusMaxIndexFileSizeExceededPolicy)
+- [`ErrorStatusMaxAttachmentsExceededPolicy`](#ErrorStatusMaxAttachmentsExceededPolicy)
+- [`ErrorStatusMaxAttachmentSizeExceededPolicy`](#ErrorStatusMaxAttachmentSizeExceededPolicy)
 - [`ErrorStatusMalformedPassword`](#ErrorStatusMalformedPassword)
 - [`ErrorStatusCommentNotFound`](#ErrorStatusCommentNotFound)
 - [`ErrorStatusInvalidFilename`](#ErrorStatusInvalidFilename)
@@ -1070,13 +1070,13 @@ The proposal name is derived from the first line of the markdown file - index.md
 On failure the call shall return `400 Bad Request` and one of the following
 error codes:
 - [`ErrorStatusNoProposalCredits`](#ErrorStatusNoProposalCredits)
-- [`ErrorStatusProposalMissingFiles`](#ErrorStatusProposalMissingFiles)
+- [`ErrorStatusNoIndexFile`](#ErrorStatusNoIndexFile)
 - [`ErrorStatusProposalDuplicateFilenames`](#ErrorStatusProposalDuplicateFilenames)
 - [`ErrorStatusProposalInvalidTitle`](#ErrorStatusProposalInvalidTitle)
-- [`ErrorStatusMaxMDsExceededPolicy`](#ErrorStatusMaxMDsExceededPolicy)
-- [`ErrorStatusMaxImagesExceededPolicy`](#ErrorStatusMaxImagesExceededPolicy)
-- [`ErrorStatusMaxMDSizeExceededPolicy`](#ErrorStatusMaxMDSizeExceededPolicy)
-- [`ErrorStatusMaxImageSizeExceededPolicy`](#ErrorStatusMaxImageSizeExceededPolicy)
+- [`ErrorStatusMaxIndexFileExceededPolicy`](#ErrorStatusMaxIndexFileExceededPolicy)
+- [`ErrorStatusMaxIndexFileSizeExceededPolicy`](#ErrorStatusMaxIndexFileSizeExceededPolicy)
+- [`ErrorStatusMaxAttachmentsExceededPolicy`](#ErrorStatusMaxAttachmentsExceededPolicy)
+- [`ErrorStatusMaxAttachmentSizeExceededPolicy`](#ErrorStatusMaxAttachmentSizeExceededPolicy)
 - [`ErrorStatusInvalidSignature`](#ErrorStatusInvalidSignature)
 - [`ErrorStatusInvalidSigningKey`](#ErrorStatusInvalidSigningKey)
 - [`ErrorStatusUserNotPaid`](#ErrorStatusUserNotPaid)
@@ -1315,10 +1315,10 @@ SHALL observe.
 | usernamesupportedchars | array of strings | the regular expression of a valid username |
 | proposallistpagesize | integer | maximum number of proposals returned for the routes that return lists of proposals |
 | userlistpagesize | integer | maximum number of users returned for the routes that return lists of users |
-| maximages | integer | maximum number of images accepted when creating a new proposal |
-| maximagesize | integer | maximum image file size (in bytes) accepted when creating a new proposal |
-| maxmds | integer | maximum number of markdown files accepted when creating a new proposal |
-| maxmdsize | integer | maximum markdown file size (in bytes) accepted when creating a new proposal |
+| maxindexfile | integer | maximum number of index files on a proposal |
+| maxindexfilesize | integer | maximum size (in bytes) for the index file of a proposal |
+| maxattachments | integer | maximum number of attachments accepted when creating a new proposal |
+| maxattachmentsize | integer | maximum attached file size (in bytes) accepted when creating a new proposal |
 | validmimetypes | array of strings | list of all acceptable MIME types that can be communicated between client and server. |
 | maxproposalnamelength | integer | max length of a proposal name |
 | minproposalnamelength | integer | min length of a proposal name |
@@ -1353,10 +1353,10 @@ Reply:
     "A-z", "0-9", ".", ":", ";", ",", "-", " ", "@", "+"
   ],
   "proposallistpagesize": 20,
-  "maximages": 5,
-  "maximagesize": 524288,
-  "maxmds": 1,
-  "maxmdsize": 524288,
+  "maxindexfile": 1,
+  "maxindexfilesize": 524288,
+  "maxattachments": 5,
+  "maxattachmentsize": 524288,
   "validmimetypes": [
     "image/png",
     "text/plain",
@@ -2654,14 +2654,14 @@ Reply:
 | <a name="ErrorStatusMalformedEmail">ErrorStatusMalformedEmail</a> | 2 | The provided email address was malformed. |
 | <a name="ErrorStatusVerificationTokenInvalid">ErrorStatusVerificationTokenInvalid</a> | 3 | The provided user activation token is invalid. |
 | <a name="ErrorStatusVerificationTokenExpired">ErrorStatusVerificationTokenExpired</a> | 4 | The provided user activation token is expired. |
-| <a name="ErrorStatusProposalMissingFiles">ErrorStatusProposalMissingFiles</a> | 5 | The provided proposal does not have files. This error may include additional context: index file is missing - "index.md". |
+| <a name="ErrorStatusNoIndexFile">ErrorStatusNoIndexFile</a> | 5 | The provided proposal does not have a index file "index.md". |
 | <a name="ErrorStatusProposalNotFound">ErrorStatusProposalNotFound</a> | 6 | The requested proposal does not exist. |
 | <a name="ErrorStatusProposalDuplicateFilenames">ErrorStatusProposalDuplicateFilenames</a> | 7 | The provided proposal has duplicate files. This error is provided with additional context: the duplicate name(s). |
 | <a name="ErrorStatusProposalInvalidTitle">ErrorStatusProposalInvalidTitle</a> | 8 | The provided proposal title is invalid. This error is provided with additional context: the regular expression accepted. |
-| <a name="ErrorStatusMaxMDsExceededPolicy">ErrorStatusMaxMDsExceededPolicy</a> | 9 | The submitted proposal has too many markdown files. Limits can be obtained by issuing the [Policy](#policy) command. |
-| <a name="ErrorStatusMaxImagesExceededPolicy">ErrorStatusMaxImagesExceededPolicy</a> | 10 | The submitted proposal has too many images. Limits can be obtained by issuing the [Policy](#policy) command. |
-| <a name="ErrorStatusMaxMDSizeExceededPolicy">ErrorStatusMaxMDSizeExceededPolicy</a> | 11 | The submitted proposal markdown is too large. Limits can be obtained by issuing the [Policy](#policy) command. |
-| <a name="ErrorStatusMaxImageSizeExceededPolicy">ErrorStatusMaxImageSizeExceededPolicy</a> | 12 | The submitted proposal has one or more images that are too large. Limits can be obtained by issuing the [Policy](#policy) command. |
+| <a name="ErrorStatusMaxIndexFileExceededPolicy">ErrorStatusMaxIndexFileExceededPolicy</a> | 9 | The submitted proposal has too many index files. Limits can be obtained by issuing the [Policy](#policy) command. |
+| <a name="ErrorStatusMaxIndexFileSizeExceededPolicy">ErrorStatusMaxIndexFileSizeExceededPolicy</a> | 10 | The submitted proposal has an index file that is too large. Limits can be obtained by issuing the [Policy](#policy) command. |
+| <a name="ErrorStatusMaxAttachmentsExceededPolicy">ErrorStatusMaxAttachmentsExceededPolicy</a> | 11 | The submitted proposal has too many attached files. Limits can be obtained by issuing the [Policy](#policy) command. |
+| <a name="ErrorStatusMaxAttachmentSizeExceededPolicy">ErrorStatusMaxAttachmentSizeExceededPolicy</a> | 12 | The submitted proposal has an attachment that is too large. Limits can be obtained by issuing the [Policy](#policy) command. |
 | <a name="ErrorStatusMalformedPassword">ErrorStatusMalformedPassword</a> | 13 | The provided password was malformed. |
 | <a name="ErrorStatusCommentNotFound">ErrorStatusCommentNotFound</a> | 14 | The requested comment does not exist. |
 | <a name="ErrorStatusInvalidFilename">ErrorStatusInvalidFilename</a> | 15 | The filename was invalid. |
@@ -2712,7 +2712,6 @@ Reply:
 | <a name="ErrorStatusMaxProposalsExceedsPolicy">ErrorStatusMaxProposalsExceededPolicy</a> | 61 | Number of proposals requested exceeded the ProposalListPageSize. |
 | <a name="ErrorStatusDuplicateComment">ErrorStatusDuplicateComment</a> | 62 | Duplicate comment. |
 | <a name="ErrorStatusInvalidLogin">ErrorStatusInvalidLogin</a> | 62 | Invalid login credentials. |
-
 
 ### Proposal status codes
 

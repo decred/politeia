@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"image/jpeg"
 	"image/png"
 	"math/rand"
 	"strconv"
@@ -72,6 +73,28 @@ func createFilePNG(t *testing.T, addColor bool) *www.File {
 	}
 }
 
+// createFileJPEG is used to create a jpeg image file used in testing.
+func createFileJPEG(t *testing.T, name string) *www.File {
+	t.Helper()
+
+	b := new(bytes.Buffer)
+	img := image.NewRGBA(image.Rect(0, 0, 1000, 500))
+
+	var opt jpeg.Options
+
+	err := jpeg.Encode(b, img, &opt) // put quality to 80%
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+
+	return &www.File{
+		Name:    name,
+		MIME:    mime.DetectMimeType(b.Bytes()),
+		Digest:  hex.EncodeToString(util.Digest(b.Bytes())),
+		Payload: base64.StdEncoding.EncodeToString(b.Bytes()),
+	}
+}
+
 // createFileMD creates a File that contains a markdown file.  The markdown
 // file is filled with randomly generated data.
 func createFileMD(t *testing.T, size int, title string) *www.File {
@@ -117,7 +140,7 @@ func newFileRandomMD(t *testing.T) www.File {
 	}
 
 	return www.File{
-		Name:    "index.md",
+		Name:    indexFile,
 		MIME:    mime.DetectMimeType(b.Bytes()),
 		Digest:  hex.EncodeToString(util.Digest(b.Bytes())),
 		Payload: base64.StdEncoding.EncodeToString(b.Bytes()),
@@ -372,7 +395,7 @@ func convertPropToPD(t *testing.T, p www.ProposalRecord) pd.Record {
 
 func TestValidateProposal(t *testing.T) {
 	// Setup politeiawww and a test user
-	p, cleanup := newTestPoliteiawww(t)
+	p, cleanup := newTestPoliteiawww(t, politeiaWWWMode)
 	defer cleanup()
 
 	usr, id := newUser(t, p, true, false)
@@ -389,6 +412,13 @@ func TestValidateProposal(t *testing.T) {
 		Signature: "abc",
 	}
 
+	// Invalid public key
+	propInvalidPubKey := &www.NewProposal{
+		Files:     np.Files,
+		PublicKey: "abc",
+		Signature: np.Signature,
+	}
+
 	// Signature is valid but incorrect
 	propBadSig := createNewProposal(t, id, []www.File{*md})
 	propBadSig.Signature = np.Signature
@@ -403,45 +433,53 @@ func TestValidateProposal(t *testing.T) {
 	// Invalid markdown filename
 	mdBadFilename := *md
 	mdBadFilename.Name = "bad_filename.md"
-	propBadFilename := createNewProposal(t, id, []www.File{mdBadFilename})
+	propInvalidFilename := createNewProposal(t, id, []www.File{mdBadFilename})
+
+	// Invalid index mime type
+	indexJpeg := createFileJPEG(t, indexFile)
+	propInvalidIndexMimeType := createNewProposal(t, id,
+		[]www.File{*indexJpeg})
 
 	// Duplicate filenames
 	propDupFiles := createNewProposal(t, id, []www.File{*md, *png, *png})
 
-	// Too many markdown files. We need one correctly named md
-	// file and the rest must have their names changed so that we
-	// don't get a duplicate filename error.
-	files := make([]www.File, 0, www.PolicyMaxMDs+1)
-	files = append(files, *md)
-	for i := 0; i < www.PolicyMaxMDs; i++ {
-		m := *md
-		m.Name = fmt.Sprintf("%v.md", i)
-		files = append(files, m)
-	}
-	propMaxMDFiles := createNewProposal(t, id, files)
-
-	// Too many image files. All of their names must be different
-	// so that we don't get a duplicate filename error.
-	files = make([]www.File, 0, www.PolicyMaxImages+2)
-	files = append(files, *md)
-	for i := 0; i <= www.PolicyMaxImages; i++ {
-		p := *png
-		p.Name = fmt.Sprintf("%v.png", i)
-		files = append(files, p)
-	}
-	propMaxImages := createNewProposal(t, id, files)
-
-	// Markdown file too large
-	mdLarge := createFileMD(t, www.PolicyMaxMDSize, "Valid Title")
-	propMDLarge := createNewProposal(t, id, []www.File{*mdLarge, *png})
-
-	// Image too large
-	pngLarge := createFilePNG(t, true)
-	propImageLarge := createNewProposal(t, id, []www.File{*md, *pngLarge})
+	// Attachment is duplicate of index file
+	attachmentFile := createFileMD(t, 8, "Valid Title")
+	propAttachmentIndexDup := createNewProposal(t, id,
+		[]www.File{*md, *attachmentFile})
 
 	// Invalid proposal title
 	mdBadTitle := createFileMD(t, 8, "{invalid-title}")
 	propBadTitle := createNewProposal(t, id, []www.File{*mdBadTitle})
+
+	// No index file
+	propNoIndexFile := createNewProposal(t, id, []www.File{*png, *png})
+
+	// Too many index files
+	propMaxIndexFiles := createNewProposal(t, id, []www.File{*md, *md})
+
+	// Index file too large
+	indexFileLarge := createFileMD(t,
+		www.PolicyMaxIndexFileSize, "Valid Title")
+	propIndexLarge := createNewProposal(t, id,
+		[]www.File{*indexFileLarge, *png})
+
+	// Too many attached files. We need one correctly named md
+	// file and the rest must have their names changed so that we
+	// don't get a duplicate filename error.
+	files := make([]www.File, 0, www.PolicyMaxAttachments+1)
+	files = append(files, *md)
+	for i := 0; i < www.PolicyMaxAttachments+1; i++ {
+		m := *md
+		m.Name = fmt.Sprintf("%v.md", i)
+		files = append(files, m)
+	}
+	propMaxAttachments := createNewProposal(t, id, files)
+
+	// Attached file too large
+	fileLarge := createFilePNG(t, true)
+	propAttachmentLarge := createNewProposal(t, id,
+		[]www.File{*md, *fileLarge})
 
 	// Setup test cases
 	var tests = []struct {
@@ -457,49 +495,69 @@ func TestValidateProposal(t *testing.T) {
 				ErrorCode: www.ErrorStatusInvalidSignature,
 			}},
 
+		{"invalid public key", *propInvalidPubKey, usr,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidPublicKey,
+			}},
+
 		{"incorrect signature", *propBadSig, usr,
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidSignature,
 			}},
 
+		{"no index file", *propNoIndexFile, usr,
+			www.UserError{
+				ErrorCode: www.ErrorStatusNoIndexFile,
+			}},
+
 		{"no files", *propNoFiles, usr,
 			www.UserError{
-				ErrorCode: www.ErrorStatusProposalMissingFiles,
+				ErrorCode: www.ErrorStatusNoIndexFile,
 			}},
 
-		{"bad md filename", *propBadFilename, usr,
+		{"invalid index filename", *propInvalidFilename, usr,
 			www.UserError{
-				ErrorCode: www.ErrorStatusProposalMissingFiles,
+				ErrorCode: www.ErrorStatusNoIndexFile,
 			}},
 
-		{"duplicate filenames", *propDupFiles, usr,
+		{"invalid index mime type", *propInvalidIndexMimeType, usr,
 			www.UserError{
-				ErrorCode: www.ErrorStatusProposalDuplicateFilenames,
-			}},
-
-		{"too may md files", *propMaxMDFiles, usr,
-			www.UserError{
-				ErrorCode: www.ErrorStatusMaxMDsExceededPolicy,
-			}},
-
-		{"too many images", *propMaxImages, usr,
-			www.UserError{
-				ErrorCode: www.ErrorStatusMaxImagesExceededPolicy,
-			}},
-
-		{"md file too large", *propMDLarge, usr,
-			www.UserError{
-				ErrorCode: www.ErrorStatusMaxMDSizeExceededPolicy,
-			}},
-
-		{"image too large", *propImageLarge, usr,
-			www.UserError{
-				ErrorCode: www.ErrorStatusMaxImageSizeExceededPolicy,
+				ErrorCode: www.ErrorStatusInvalidMIMEType,
 			}},
 
 		{"invalid title", *propBadTitle, usr,
 			www.UserError{
 				ErrorCode: www.ErrorStatusProposalInvalidTitle,
+			}},
+
+		{"too many attached files", *propMaxAttachments, usr,
+			www.UserError{
+				ErrorCode: www.ErrorStatusMaxAttachmentsExceededPolicy,
+			}},
+
+		{"attachment file too large", *propAttachmentLarge, usr,
+			www.UserError{
+				ErrorCode: www.ErrorStatusMaxAttachmentSizeExceededPolicy,
+			}},
+
+		{"too many index files", *propMaxIndexFiles, usr,
+			www.UserError{
+				ErrorCode: www.ErrorStatusMaxIndexFileExceededPolicy,
+			}},
+
+		{"index file too large", *propIndexLarge, usr,
+			www.UserError{
+				ErrorCode: www.ErrorStatusMaxIndexFileSizeExceededPolicy,
+			}},
+
+		{"duplicate attachments", *propDupFiles, usr,
+			www.UserError{
+				ErrorCode: www.ErrorStatusProposalDuplicateFilenames,
+			}},
+
+		{"attachment is duplicate of index file", *propAttachmentIndexDup, usr,
+			www.UserError{
+				ErrorCode: www.ErrorStatusMaxIndexFileExceededPolicy,
 			}},
 	}
 
@@ -689,7 +747,7 @@ func TestFilterProposals(t *testing.T) {
 
 func TestProcessNewProposal(t *testing.T) {
 	// Setup test environment
-	p, cleanup := newTestPoliteiawww(t)
+	p, cleanup := newTestPoliteiawww(t, politeiaWWWMode)
 	defer cleanup()
 
 	td := testpoliteiad.New(t, p.cache)
@@ -862,7 +920,7 @@ func TestVerifyStatusChange(t *testing.T) {
 
 func TestProcessSetProposalStatus(t *testing.T) {
 	// Setup test environment
-	p, cleanup := newTestPoliteiawww(t)
+	p, cleanup := newTestPoliteiawww(t, politeiaWWWMode)
 	defer cleanup()
 
 	d := newTestPoliteiad(t, p)
@@ -1110,7 +1168,7 @@ func TestProcessSetProposalStatus(t *testing.T) {
 
 func TestProcessAllVetted(t *testing.T) {
 	// Setup test environment
-	p, cleanup := newTestPoliteiawww(t)
+	p, cleanup := newTestPoliteiawww(t, politeiaWWWMode)
 	defer cleanup()
 
 	d := newTestPoliteiad(t, p)
@@ -1196,6 +1254,101 @@ func TestProcessAllVetted(t *testing.T) {
 	for _, v := range tests {
 		t.Run(v.name, func(t *testing.T) {
 			_, err := p.processAllVetted(v.av)
+			got := errToStr(err)
+			want := errToStr(v.want)
+			if got != want {
+				t.Errorf("got error %v, want %v",
+					got, want)
+			}
+		})
+	}
+}
+
+func TestProcessAllUnvetted(t *testing.T) {
+	// Setup test environment
+	p, cleanup := newTestPoliteiawww(t, politeiaWWWMode)
+	defer cleanup()
+
+	// Create test data
+	tokenValid := "3575a65bbc3616c939acf6edf801e1168485dc864efef910034268f695351b5d"
+	tokenNotHex := "3575a65bbc3616c939acf6edf801e1168485dc864efef910034268f695351zzz"
+	tokenShort := "3575a65bbc3616c939acf6edf801e1168485dc864efef910034268f695351b5"
+	tokenLong := "3575a65bbc3616c939acf6edf801e1168485dc864efef910034268f695351b5dd"
+
+	// Setup tests
+	var tests = []struct {
+		name string
+		au   www.GetAllUnvetted
+		want error
+	}{
+		{"before token not hex",
+			www.GetAllUnvetted{
+				Before: tokenNotHex,
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidCensorshipToken,
+			},
+		},
+		{"before token invalid length short",
+			www.GetAllUnvetted{
+				Before: tokenShort,
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidCensorshipToken,
+			},
+		},
+		{"before token invalid length long",
+			www.GetAllUnvetted{
+				Before: tokenLong,
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidCensorshipToken,
+			},
+		},
+		{"after token not hex",
+			www.GetAllUnvetted{
+				After: tokenNotHex,
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidCensorshipToken,
+			},
+		},
+		{"after token invalid length short",
+			www.GetAllUnvetted{
+				After: tokenShort,
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidCensorshipToken,
+			},
+		},
+		{"after token invalid length long",
+			www.GetAllUnvetted{
+				After: tokenLong,
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidCensorshipToken,
+			},
+		},
+		{"valid before token",
+			www.GetAllUnvetted{
+				Before: tokenValid,
+			},
+			nil,
+		},
+		{"valid after token",
+			www.GetAllUnvetted{
+				After: tokenValid,
+			},
+			nil,
+		},
+
+		// XXX only partial test coverage has been added to this route
+	}
+
+	// Run tests
+	for _, v := range tests {
+		t.Run(v.name, func(t *testing.T) {
+			_, err := p.processAllUnvetted(v.au)
 			got := errToStr(err)
 			want := errToStr(v.want)
 			if got != want {

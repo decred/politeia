@@ -202,7 +202,7 @@ func validateProposal(np www.NewProposal, u *user.User) error {
 	// Verify public key
 	if u.PublicKey() != np.PublicKey {
 		return www.UserError{
-			ErrorCode: www.ErrorStatusInvalidSigningKey,
+			ErrorCode: www.ErrorStatusInvalidPublicKey,
 		}
 	}
 
@@ -214,7 +214,7 @@ func validateProposal(np www.NewProposal, u *user.User) error {
 	// Check for at least 1 markdown file with a non-empty payload.
 	if len(np.Files) == 0 || np.Files[0].Payload == "" {
 		return www.UserError{
-			ErrorCode: www.ErrorStatusProposalMissingFiles,
+			ErrorCode: www.ErrorStatusNoIndexFile,
 		}
 	}
 
@@ -222,38 +222,39 @@ func validateProposal(np www.NewProposal, u *user.User) error {
 	filenames := make(map[string]int, len(np.Files))
 	// Check that the file number policy is followed.
 	var (
-		numMDs, numImages, numIndexFiles      int
-		mdExceedsMaxSize, imageExceedsMaxSize bool
-		hashes                                []*[sha256.Size]byte
+		numAttachments, numIndexFiles int
+		indexExceedsMaxSize           bool
+		attachmentExceedsMaxSize      bool
+		hashes                        []*[sha256.Size]byte
 	)
 	for _, v := range np.Files {
 		filenames[v.Name]++
+
 		var (
 			data []byte
 			err  error
 		)
-		if strings.HasPrefix(v.MIME, "image/") {
-			numImages++
-			data, err = base64.StdEncoding.DecodeString(v.Payload)
-			if err != nil {
-				return err
+
+		data, err = base64.StdEncoding.DecodeString(v.Payload)
+		if err != nil {
+			return err
+		}
+
+		if v.Name == indexFile {
+			numIndexFiles++
+			if len(data) > www.PolicyMaxIndexFileSize {
+				indexExceedsMaxSize = true
 			}
-			if len(data) > www.PolicyMaxImageSize {
-				imageExceedsMaxSize = true
+			// Enforces that index file is in fact a markdown file
+			if v.MIME != "text/plain; charset=utf-8" {
+				return www.UserError{
+					ErrorCode: www.ErrorStatusInvalidMIMEType,
+				}
 			}
 		} else {
-			numMDs++
-
-			if v.Name == indexFile {
-				numIndexFiles++
-			}
-
-			data, err = base64.StdEncoding.DecodeString(v.Payload)
-			if err != nil {
-				return err
-			}
-			if len(data) > www.PolicyMaxMDSize {
-				mdExceedsMaxSize = true
+			numAttachments++
+			if len(data) > www.PolicyMaxAttachmentSize {
+				attachmentExceedsMaxSize = true
 			}
 		}
 
@@ -262,6 +263,38 @@ func validateProposal(np www.NewProposal, u *user.User) error {
 		var d [sha256.Size]byte
 		copy(d[:], digest)
 		hashes = append(hashes, &d)
+	}
+
+	// we expect one index file
+	if numIndexFiles == 0 {
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusNoIndexFile,
+			ErrorContext: []string{indexFile},
+		}
+	}
+
+	if numIndexFiles > www.PolicyMaxIndexFile {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusMaxIndexFileExceededPolicy,
+		}
+	}
+
+	if numAttachments > www.PolicyMaxAttachments {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusMaxAttachmentsExceededPolicy,
+		}
+	}
+
+	if indexExceedsMaxSize {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusMaxIndexFileSizeExceededPolicy,
+		}
+	}
+
+	if attachmentExceedsMaxSize {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusMaxAttachmentSizeExceededPolicy,
+		}
 	}
 
 	// verify duplicate file names
@@ -277,38 +310,6 @@ func validateProposal(np www.NewProposal, u *user.User) error {
 				ErrorCode:    www.ErrorStatusProposalDuplicateFilenames,
 				ErrorContext: repeated,
 			}
-		}
-	}
-
-	// we expect one index file
-	if numIndexFiles == 0 {
-		return www.UserError{
-			ErrorCode:    www.ErrorStatusProposalMissingFiles,
-			ErrorContext: []string{indexFile},
-		}
-	}
-
-	if numMDs > www.PolicyMaxMDs {
-		return www.UserError{
-			ErrorCode: www.ErrorStatusMaxMDsExceededPolicy,
-		}
-	}
-
-	if numImages > www.PolicyMaxImages {
-		return www.UserError{
-			ErrorCode: www.ErrorStatusMaxImagesExceededPolicy,
-		}
-	}
-
-	if mdExceedsMaxSize {
-		return www.UserError{
-			ErrorCode: www.ErrorStatusMaxMDSizeExceededPolicy,
-		}
-	}
-
-	if imageExceedsMaxSize {
-		return www.UserError{
-			ErrorCode: www.ErrorStatusMaxImageSizeExceededPolicy,
 		}
 	}
 

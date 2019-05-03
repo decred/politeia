@@ -90,21 +90,12 @@ const (
 
 	InvoiceInputVersion = 1
 
-	// PolicyMaxImages is the maximum number of images accepted
-	// when creating a new invoice
-	PolicyMaxImages = 5
-
-	// PolicyMaxImageSize is the maximum image file size (in bytes)
+	// PolicyMaxAttachments is the maximum number of attachments
 	// accepted when creating a new invoice
-	PolicyMaxImageSize = 512 * 1024
+	PolicyMaxAttachments = 20
 
-	// PolicyMaxMDs is the maximum number of markdown files accepted
-	// when creating a new invoice
-	PolicyMaxMDs = 1
-
-	// PolicyMaxMDSize is the maximum markdown file size (in bytes)
-	// accepted when creating a new invoice
-	PolicyMaxMDSize = 512 * 1024
+	// PolicyMaxAttachmentSize is the maximum file size of attachments
+	PolicyMaxAttachmentSize = 512 * 1024
 
 	// PolicyMaxNameLength is the max length of a contractor name
 	PolicyMaxNameLength = 50
@@ -389,10 +380,10 @@ type PolicyReply struct {
 	MinPasswordLength             uint     `json:"minpasswordlength"`
 	MinUsernameLength             uint     `json:"minusernamelength"`
 	MaxUsernameLength             uint     `json:"maxusernamelength"`
-	MaxImages                     uint     `json:"maximages"`
-	MaxImageSize                  uint     `json:"maximagesize"`
-	MaxMDs                        uint     `json:"maxmds"`
-	MaxMDSize                     uint     `json:"maxmdsize"`
+	MaxIndexFile                  uint     `json:"maxindexfile"`
+	MaxIndexFileSize              uint     `json:"maxindexfilesize"`
+	MaxAttachments                uint     `json:"maxattachments"`
+	MaxAttachmentSize             uint     `json:"maxattachmentsize"`
 	ValidMIMETypes                []string `json:"validmimetypes"`
 	MaxNameLength                 uint     `json:"maxnamelength"`
 	MinNameLength                 uint     `json:"minnamelength"`
