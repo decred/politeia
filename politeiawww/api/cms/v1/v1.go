@@ -87,11 +87,7 @@ const (
 
 	// PolicyMaxLineItemColLength is the maximum length for the strings in
 	// each column field of the lineItem structure.
-	PolicyMaxLineItemColLength = 50
-
-	// PolicyyMaxInvoiceFieldLength is the maximum number of characters
-	// accepted for invoice fields within invoice.json
-	PolicyMaxInvoiceFieldLength = 200
+	PolicyMaxLineItemColLength = 200
 )
 
 var (
