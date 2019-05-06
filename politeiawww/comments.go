@@ -400,10 +400,13 @@ func (p *politeiawww) processNewCommentInvoice(nc www.NewComment, u *user.User) 
 	}
 
 	// Fire off new comment event
-	p.fireEvent(EventTypeComment, EventDataComment{
-		Comment: c,
-	})
-
+	/*
+		// XXX This is implemented only for proposal comments.  If we want email
+		// notifications for cms here is where to add the updated impls.
+		p.fireEvent(EventTypeComment, EventDataComment{
+			Comment: c,
+		})
+	*/
 	return &www.NewCommentReply{
 		Comment: *c,
 	}, nil
