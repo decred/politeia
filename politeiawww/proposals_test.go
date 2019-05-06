@@ -22,7 +22,6 @@ import (
 	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
-	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/testpoliteiad"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
@@ -66,7 +65,7 @@ func createFilePNG(t *testing.T, addColor bool) *www.File {
 
 	return &www.File{
 		Name:    hex.EncodeToString(r) + ".png",
-		MIME:    mime.DetectMimeType(b.Bytes()),
+		MIME:    util.DetectMimeType(b.Bytes()),
 		Digest:  hex.EncodeToString(util.Digest(b.Bytes())),
 		Payload: base64.StdEncoding.EncodeToString(b.Bytes()),
 	}
@@ -87,7 +86,7 @@ func createFileMD(t *testing.T, size int, title string) *www.File {
 
 	return &www.File{
 		Name:    indexFile,
-		MIME:    mime.DetectMimeType(b.Bytes()),
+		MIME:    util.DetectMimeType(b.Bytes()),
 		Digest:  hex.EncodeToString(util.Digest(b.Bytes())),
 		Payload: base64.StdEncoding.EncodeToString(b.Bytes()),
 	}
@@ -118,7 +117,7 @@ func newFileRandomMD(t *testing.T) www.File {
 
 	return www.File{
 		Name:    "index.md",
-		MIME:    mime.DetectMimeType(b.Bytes()),
+		MIME:    util.DetectMimeType(b.Bytes()),
 		Digest:  hex.EncodeToString(util.Digest(b.Bytes())),
 		Payload: base64.StdEncoding.EncodeToString(b.Bytes()),
 	}

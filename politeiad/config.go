@@ -12,6 +12,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
+	"mime"
 	"net"
 	"os"
 	"os/user"
@@ -21,7 +22,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/decred/dcrtime/api/v1"
+	v1 "github.com/decred/dcrtime/api/v1"
+	dv1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/sharedconfig"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
@@ -48,6 +50,7 @@ var (
 	defaultHTTPSCertFile = filepath.Join(defaultHomeDir, "https.cert")
 	defaultLogDir        = filepath.Join(defaultHomeDir, defaultLogDirname)
 	defaultIdentityFile  = filepath.Join(defaultHomeDir, defaultIdentityFilename)
+	defaultMimeTypes     = dv1.DefaultMimeTypes
 )
 
 // runServiceCommand is only set to a real function on Windows.  It is used
@@ -71,20 +74,21 @@ type config struct {
 	DebugLevel    string   `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
 	Listeners     []string `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 49152, testnet: 59152)"`
 	Version       string
-	HTTPSCert     string `long:"httpscert" description:"File containing the https certificate file"`
-	HTTPSKey      string `long:"httpskey" description:"File containing the https certificate key"`
-	RPCUser       string `long:"rpcuser" description:"RPC user name for privileged commands"`
-	RPCPass       string `long:"rpcpass" description:"RPC password for privileged commands"`
-	DcrtimeHost   string `long:"dcrtimehost" description:"Dcrtime ip:port"`
-	DcrtimeCert   string `long:"dcrtimecert" description:"File containing the https certificate file for dcrtimehost"`
-	EnableCache   bool   `long:"enablecache" description:"Enable the external cache"`
-	CacheHost     string `long:"cachehost" description:"Cache ip:port"`
-	CacheRootCert string `long:"cacherootcert" description:"File containing the CA certificate for the cache"`
-	CacheCert     string `long:"cachecert" description:"File containing the politeiad client certificate for the cache"`
-	CacheKey      string `long:"cachekey" description:"File containing the politeiad client certificate key for the cache"`
-	BuildCache    bool   `long:"buildcache" description:"Build the cache from scratch"`
-	Identity      string `long:"identity" description:"File containing the politeiad identity file"`
-	GitTrace      bool   `long:"gittrace" description:"Enable git tracing in logs"`
+	HTTPSCert     string   `long:"httpscert" description:"File containing the https certificate file"`
+	HTTPSKey      string   `long:"httpskey" description:"File containing the https certificate key"`
+	RPCUser       string   `long:"rpcuser" description:"RPC user name for privileged commands"`
+	RPCPass       string   `long:"rpcpass" description:"RPC password for privileged commands"`
+	DcrtimeHost   string   `long:"dcrtimehost" description:"Dcrtime ip:port"`
+	DcrtimeCert   string   `long:"dcrtimecert" description:"File containing the https certificate file for dcrtimehost"`
+	EnableCache   bool     `long:"enablecache" description:"Enable the external cache"`
+	CacheHost     string   `long:"cachehost" description:"Cache ip:port"`
+	CacheRootCert string   `long:"cacherootcert" description:"File containing the CA certificate for the cache"`
+	CacheCert     string   `long:"cachecert" description:"File containing the politeiad client certificate for the cache"`
+	CacheKey      string   `long:"cachekey" description:"File containing the politeiad client certificate key for the cache"`
+	BuildCache    bool     `long:"buildcache" description:"Build the cache from scratch"`
+	Identity      string   `long:"identity" description:"File containing the politeiad identity file"`
+	GitTrace      bool     `long:"gittrace" description:"Enable git tracing in logs"`
+	MimeTypes     []string `long:"mimetypes" description:"Valid mimetypes accepted by politeiad"`
 }
 
 // serviceOptions defines the configuration options for the daemon as a service
@@ -178,6 +182,39 @@ func supportedSubsystems() []string {
 	// Sort the subsytems for stable display.
 	sort.Strings(subsystems)
 	return subsystems
+}
+
+// parseAndValidateMimeTypes attempts to parse the list of acceptable mime
+// types received in config file
+func parseAndValidateMimeTypes(mimeTypes string) ([]string, error) {
+	mimes := strings.Split(mimeTypes, ",")
+	parsed := make([]string, 0, len(mimes))
+
+	for _, m := range mimes {
+		mediatype, params, err := mime.ParseMediaType(m)
+		if err != nil {
+			return nil, err
+		}
+		// Check if the input media type is recognized by the mime
+		// package. This is a rough indication of whether the input
+		// media type is valid. The mime package does not include
+		// all media types so just throw a warning if the input
+		// media type is not recognized.
+		ext, err := mime.ExtensionsByType(mediatype)
+		if err != nil {
+			return nil, err
+		} else if len(ext) == 0 {
+			log.Warnf("MIME type '%v' not recognized", m)
+		}
+		// Media type params get put into a map during parsing where
+		// "charset=utf-8" becomes ["charset"]"utf-8". Concatenate
+		// them back onto the media type.
+		for k, v := range params {
+			mediatype += ("; " + k + "=" + v)
+		}
+		parsed = append(parsed, mediatype)
+	}
+	return parsed, nil
 }
 
 // parseAndSetDebugLevels attempts to parse the specified debug level and set
@@ -286,6 +323,7 @@ func loadConfig() (*config, []string, error) {
 		LogDir:     defaultLogDir,
 		HTTPSKey:   defaultHTTPSKeyFile,
 		HTTPSCert:  defaultHTTPSCertFile,
+		MimeTypes:  defaultMimeTypes,
 		Version:    version.String(),
 	}
 
@@ -431,6 +469,17 @@ func loadConfig() (*config, []string, error) {
 		fmt.Fprintln(os.Stderr, usageMessage)
 		return nil, nil, err
 	}
+
+	// Load configurable mime types to politeiad.
+	mtlen := len(cfg.MimeTypes)
+	if mtlen != len(defaultMimeTypes) {
+		mimes, err := parseAndValidateMimeTypes(cfg.MimeTypes[mtlen-1])
+		if err != nil {
+			return nil, nil, err
+		}
+		cfg.MimeTypes = mimes
+	}
+	util.SetMimeTypesMap(cfg.MimeTypes)
 
 	// Append the network type to the data directory so it is "namespaced"
 	// per network.  In addition to the block database, there are other

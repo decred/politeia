@@ -23,9 +23,8 @@ import (
 
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrtime/merkle"
-	"github.com/decred/politeia/politeiad/api/v1"
+	v1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
-	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/util"
 )
 
@@ -437,7 +436,7 @@ func getFile(filename string) (*v1.File, *[sha256.Size]byte, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	if !mime.MimeValid(file.MIME) {
+	if !util.MimeValid(file.MIME) {
 		return nil, nil, fmt.Errorf("unsupported mime type '%v' "+
 			"for file '%v'", file.MIME, filename)
 	}
@@ -970,7 +969,7 @@ func getUnvetted() error {
 	}
 
 	// Verify content
-	err = v1.Verify(*id, reply.Record.CensorshipRecord,
+	err = util.VerifyCenshorshipRecord(*id, reply.Record.CensorshipRecord,
 		reply.Record.Files)
 	if err != nil {
 		return err
@@ -1071,7 +1070,7 @@ func getVetted() error {
 	}
 
 	// Verify content
-	err = v1.Verify(*id, reply.Record.CensorshipRecord,
+	err = util.VerifyCenshorshipRecord(*id, reply.Record.CensorshipRecord,
 		reply.Record.Files)
 	if err != nil {
 		return err

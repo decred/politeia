@@ -18,7 +18,6 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
-	"github.com/decred/politeia/politeiad/api/v1/mime"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	wwwclient "github.com/decred/politeia/politeiawww/cmd/politeiawwwcli/client"
@@ -372,7 +371,7 @@ func createMDFile() (*v1.File, error) {
 
 	return &v1.File{
 		Name:    "index.md",
-		MIME:    mime.DetectMimeType(b.Bytes()),
+		MIME:    util.DetectMimeType(b.Bytes()),
 		Digest:  hex.EncodeToString(util.Digest(b.Bytes())),
 		Payload: base64.StdEncoding.EncodeToString(b.Bytes()),
 	}, nil

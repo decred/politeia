@@ -13,7 +13,6 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg"
 	client "github.com/decred/dcrdata/pubsub/v2/psclient"
-	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/cache"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmsdatabase"
@@ -301,7 +300,7 @@ func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 		MaxImageSize:               www.PolicyMaxImageSize,
 		MaxMDs:                     www.PolicyMaxMDs,
 		MaxMDSize:                  www.PolicyMaxMDSize,
-		ValidMIMETypes:             mime.ValidMimeTypes(),
+		ValidMIMETypes:             www.PolicyValidMimeTypes,
 		MinProposalNameLength:      www.PolicyMinProposalNameLength,
 		MaxProposalNameLength:      www.PolicyMaxProposalNameLength,
 		ProposalNameSupportedChars: www.PolicyProposalNameSupportedChars,

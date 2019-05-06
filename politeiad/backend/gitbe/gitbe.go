@@ -25,12 +25,11 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg"
-	"github.com/decred/dcrtime/api/v1"
+	v1 "github.com/decred/dcrtime/api/v1"
 	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
-	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/util"
 	filesystem "github.com/otiai10/copy"
@@ -394,7 +393,7 @@ func verifyContent(metadata []backend.MetadataStream, files []backend.File, file
 		f.digest = dp
 
 		// Verify MIME
-		detectedMIMEType := mime.DetectMimeType(f.payload)
+		detectedMIMEType := util.DetectMimeType(f.payload)
 		if detectedMIMEType != files[i].MIME {
 			return nil, backend.ContentVerificationError{
 				ErrorCode: pd.ErrorStatusInvalidMIMEType,
@@ -405,7 +404,7 @@ func verifyContent(metadata []backend.MetadataStream, files []backend.File, file
 			}
 		}
 
-		if !mime.MimeValid(files[i].MIME) {
+		if !util.MimeValid(files[i].MIME) {
 			return nil, backend.ContentVerificationError{
 				ErrorCode: pd.ErrorStatusUnsupportedMIMEType,
 				ErrorContext: []string{

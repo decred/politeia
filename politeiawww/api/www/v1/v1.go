@@ -249,6 +249,14 @@ var (
 	// PoliteiaWWWAPIRoute is the prefix to the API route
 	PoliteiaWWWAPIRoute = fmt.Sprintf("/v%v", PoliteiaWWWAPIVersion)
 
+	// PolicyValidMimeTypes is the list of accepted mime types in politeiad.
+	// Temporary solution, must call politeiad to fetch valid mime types list.
+	PolicyValidMimeTypes = []string{
+		"image/png",
+		"text/plain",
+		"text/plain; charset=utf-8",
+	}
+
 	// CookieSession is the cookie name that indicates that a user is
 	// logged in.
 	CookieSession = "session"

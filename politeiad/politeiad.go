@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/decred/politeia/decredplugin"
-	"github.com/decred/politeia/politeiad/api/v1"
+	v1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/gitbe"
@@ -567,7 +567,7 @@ func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
 		reply.Record = p.convertBackendRecord(*bpr)
 
 		// Double check record bits before sending them off
-		err := v1.Verify(p.identity.Public,
+		err := util.VerifyCenshorshipRecord(p.identity.Public,
 			reply.Record.CensorshipRecord, reply.Record.Files)
 		if err != nil {
 			// Generic internal error.
@@ -631,7 +631,7 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 		reply.Record = p.convertBackendRecord(*bpr)
 
 		// Double check record bits before sending them off
-		err := v1.Verify(p.identity.Public,
+		err := util.VerifyCenshorshipRecord(p.identity.Public,
 			reply.Record.CensorshipRecord, reply.Record.Files)
 		if err != nil {
 			// Generic internal error.

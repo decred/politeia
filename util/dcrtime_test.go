@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/decred/dcrtime/merkle"
+	v1 "github.com/decred/politeia/politeiad/api/v1"
 )
 
 func tempFile(size int) string {
@@ -41,6 +42,9 @@ func TestTimestamp(t *testing.T) {
 
 	filename := tempFile(512)
 	defer os.Remove(filename)
+
+	// Sets valid mime types
+	SetMimeTypesMap(v1.DefaultMimeTypes)
 
 	// use util internal functions ito get some free testing
 	_, digest, _, err := LoadFile(filename)

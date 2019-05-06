@@ -17,7 +17,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/decred/politeia/politeiad/api/v1/mime"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
@@ -142,7 +141,7 @@ func (cmd *NewInvoiceCmd) Execute(args []string) error {
 
 	f := www.File{
 		Name:    "invoice.json",
-		MIME:    mime.DetectMimeType(b),
+		MIME:    util.DetectMimeType(b),
 		Digest:  hex.EncodeToString(util.Digest(b)),
 		Payload: base64.StdEncoding.EncodeToString(b),
 	}
@@ -159,7 +158,7 @@ func (cmd *NewInvoiceCmd) Execute(args []string) error {
 
 		f := www.File{
 			Name:    filepath.Base(file),
-			MIME:    mime.DetectMimeType(attachment),
+			MIME:    util.DetectMimeType(attachment),
 			Digest:  hex.EncodeToString(util.Digest(attachment)),
 			Payload: base64.StdEncoding.EncodeToString(attachment),
 		}
