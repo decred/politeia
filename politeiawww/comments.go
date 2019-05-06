@@ -388,7 +388,7 @@ func (p *politeiawww) processNewCommentInvoice(nc www.NewComment, u *user.User) 
 		return nil, err
 	}
 
-	// Add comment to commentScores in-memory ca
+	// Add comment to commentScores in-memory cache
 	p.Lock()
 	p.commentScores[nc.Token+ncr.CommentID] = 0
 	p.Unlock()
