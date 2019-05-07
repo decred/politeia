@@ -476,7 +476,7 @@ func New(host, network, sslRootCert, sslCert, sslKey, encryptionKey string) (*co
 			u.String(), err)
 	}
 
-	log.Infof("UserDB host : %v", h)
+	log.Infof("UserDB host: %v", h)
 
 	// Load encryption key
 	ek, err := util.LoadEncryptionKey(encryptionKey)
