@@ -82,8 +82,8 @@ func LoadEncryptionKey(filepath string) (*EncryptionKey, error) {
 	return ek, nil
 }
 
-// NewEncryptionKeyFile generates a new secret key for a NACL secret box and
-// writes it to the provided filepath.
+// NewEncryptionKeyFile generates a new EncryptionKey and writes it to the
+// provided filepath.
 func NewEncryptionKeyFile(filepath string) error {
 	secretKey, err := sbox.NewKey()
 	if err != nil {
