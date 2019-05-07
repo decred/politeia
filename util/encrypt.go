@@ -12,14 +12,17 @@ import (
 	"github.com/marcopeereboom/sbox"
 )
 
-// EncryptionKey wraps a 32 byte encryption key and the time when it
-// was created.
+// VersionEncryptionKey is the version of the EncryptionKey struct.
+const VersionEncryptionKey = 1
+
+// EncryptionKey wraps a 32 byte encryption key.
 type EncryptionKey struct {
-	Key  [32]byte // Key used for encryption
-	Time int64    // Time key was created
+	Version uint      `json:"version"` // Version of this struct
+	Key     *[32]byte `json:"key"`     // Key used for encryption
+	Time    int64     `json:"time"`    // UNIX timestamp of key creation
 }
 
-// EncodeEncryptionKey encodes EncryptionKey into a JSON byte slice.
+// EncodeEncryptionKey encodes an EncryptionKey into a JSON byte slice.
 func EncodeEncryptionKey(ek EncryptionKey) ([]byte, error) {
 	k, err := json.Marshal(ek)
 	if err != nil {
@@ -29,7 +32,7 @@ func EncodeEncryptionKey(ek EncryptionKey) ([]byte, error) {
 	return k, nil
 }
 
-// DecodeEncryptionKey decodes a JSON byte slice into EncryptionKey.
+// DecodeEncryptionKey decodes a JSON byte slice into an EncryptionKey.
 func DecodeEncryptionKey(payload []byte) (*EncryptionKey, error) {
 	var ek EncryptionKey
 
@@ -41,18 +44,20 @@ func DecodeEncryptionKey(payload []byte) (*EncryptionKey, error) {
 	return &ek, nil
 }
 
-// Encrypt encrypts a byte slice with the provided version using the
-// provided key.
-func Encrypt(version uint32, key [32]byte, data []byte) ([]byte, error) {
-	return sbox.Encrypt(version, &key, data)
+// Encrypt encrypts the provided byte slice with the provided key. It prefixes
+// the encrypted blob with an sbox header which encodes the provided version.
+// The version is used to identify or version the packed blob.
+func Encrypt(version uint32, key *[32]byte, data []byte) ([]byte, error) {
+	return sbox.Encrypt(version, key, data)
 }
 
-// Decrypt decrypts a byte slice using the provided key.
-func Decrypt(key [32]byte, data []byte) ([]byte, uint32, error) {
-	return sbox.Decrypt(&key, data)
+// Decrypt decrypts the packed blob using the provided key. It unpacks the sbox
+// header and returns the version and unencrypted data if successful.
+func Decrypt(key *[32]byte, packed []byte) ([]byte, uint32, error) {
+	return sbox.Decrypt(key, packed)
 }
 
-// SaveEncryptionKey saves a EncryptionKey into the provided filepath.
+// SaveEncryptionKey saves an EncryptionKey into the provided filepath.
 func SaveEncryptionKey(ek EncryptionKey, filepath string) error {
 	k, err := EncodeEncryptionKey(ek)
 	if err != nil {
@@ -62,7 +67,7 @@ func SaveEncryptionKey(ek EncryptionKey, filepath string) error {
 	return ioutil.WriteFile(filepath, k, 0600)
 }
 
-// LoadEncryptionKey loads a EncryptionKey from the provided filepath.
+// LoadEncryptionKey loads an EncryptionKey from the provided filepath.
 func LoadEncryptionKey(filepath string) (*EncryptionKey, error) {
 	k, err := ioutil.ReadFile(filepath)
 	if err != nil {
@@ -77,16 +82,17 @@ func LoadEncryptionKey(filepath string) (*EncryptionKey, error) {
 	return ek, nil
 }
 
-// NewEncryptionKey creates and save a new encryption key at the provided
-// filepath.
-func NewEncryptionKey(filepath string) error {
+// NewEncryptionKeyFile generates a new secret key for a NACL secret box and
+// writes it to the provided filepath.
+func NewEncryptionKeyFile(filepath string) error {
 	secretKey, err := sbox.NewKey()
 	if err != nil {
 		return err
 	}
 
 	return SaveEncryptionKey(EncryptionKey{
-		Key:  *secretKey,
-		Time: time.Now().Unix(),
+		Version: VersionEncryptionKey,
+		Key:     secretKey,
+		Time:    time.Now().Unix(),
 	}, filepath)
 }

@@ -296,7 +296,7 @@ to setup Politeia and access it through the UI.
 ### Further information
 
 
-#### politeiawww user databaes options
+#### politeiawww user database options
 
 Both Pi and CMS use the same politeiawww user database.  The default user
 database is LevelDB, a simple key-value store.  This is fine if you're just

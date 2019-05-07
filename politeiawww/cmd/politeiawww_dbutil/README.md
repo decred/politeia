@@ -70,9 +70,15 @@ You can specify the following options:
             Required DB flag : None
             Args             : None
 
-Examples:
+### Examples
+
+Mainnet example:
 
     $ politeiawww_dbutil -cockroachdb -setadmin username true
+
+Testnet example:
+
+    $ politeiawww_dbutil -testnet -cockroachdb -setadmin username true
 
 ### Migrate from LevelDB to CockroachDB
 

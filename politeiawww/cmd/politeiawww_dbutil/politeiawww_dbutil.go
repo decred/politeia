@@ -655,8 +655,8 @@ func cmdCreateKey() error {
 			"overwrite %v", path)
 	}
 
-	// Create key
-	err = util.NewEncryptionKey(path)
+	// Create key file
+	err = util.NewEncryptionKeyFile(path)
 	if err != nil {
 		return err
 	}
@@ -719,27 +719,27 @@ func _main() error {
 	// Validate database selection
 	if *level && *cockroach {
 		return fmt.Errorf("database choice cannot be both " +
-			"--leveldb and --cockroachdb")
+			"-leveldb and -cockroachdb")
 	}
 
 	switch {
 	case *addCredits || *setAdmin || *stubUsers:
-		// These commands must be run with -cockroachdb or -localdb
+		// These commands must be run with -cockroachdb or -leveldb
 		if !*level && !*cockroach {
 			return fmt.Errorf("missing database flag; must use " +
-				"either --leveldb or --cockroachdb")
+				"either -leveldb or -cockroachdb")
 		}
 	case *dump:
-		// These commands must be run with -localdb
+		// These commands must be run with -leveldb
 		if !*level {
 			return fmt.Errorf("missing database flag; must use " +
-				"-localdb with this command")
+				"-leveldb with this command")
 		}
 	case *migrate || *createKey:
 		// These commands must be run without a database flag
 		if *level || *cockroach {
 			return fmt.Errorf("unexpected database flag found; " +
-				"remove database flag -localdb and -cockroachdb")
+				"remove database flag -leveldb and -cockroachdb")
 		}
 	}
 

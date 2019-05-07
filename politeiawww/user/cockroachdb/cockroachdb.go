@@ -38,9 +38,9 @@ const (
 type cockroachdb struct {
 	sync.RWMutex
 
-	shutdown      bool     // Backend is shutdown
-	encryptionKey [32]byte // Data at rest encryption key
-	userDB        *gorm.DB // Database context
+	shutdown      bool      // Backend is shutdown
+	encryptionKey *[32]byte // Data at rest encryption key
+	userDB        *gorm.DB  // Database context
 }
 
 // setPaywallAddressIndex updates the paywall address index record in the
@@ -290,7 +290,7 @@ func (c *cockroachdb) AllUsers(callback func(u *user.User)) error {
 // key.
 //
 // This function must be called using a transaction.
-func rotateKeys(tx *gorm.DB, oldKey [32]byte, newKey [32]byte) error {
+func rotateKeys(tx *gorm.DB, oldKey *[32]byte, newKey *[32]byte) error {
 	// Lookup all users
 	var users []User
 	err := tx.Find(&users).Error
