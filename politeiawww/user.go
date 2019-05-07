@@ -1289,7 +1289,7 @@ func (p *politeiawww) processChangeUsername(email string, cu www.ChangeUsername)
 		[]byte(cu.Password))
 	if err != nil {
 		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusInvalidEmailOrPassword,
+			ErrorCode: www.ErrorStatusInvalidPassword,
 		}
 	}
 

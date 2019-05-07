@@ -982,7 +982,7 @@ func TestProcessChangeUsername(t *testing.T) {
 				Password: "wrong",
 			},
 			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidEmailOrPassword,
+				ErrorCode: www.ErrorStatusInvalidPassword,
 			}},
 
 		{"invalid username", u.Email,

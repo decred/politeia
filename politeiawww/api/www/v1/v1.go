@@ -176,6 +176,7 @@ const (
 	ErrorStatusInvalidLikeCommentAction    ErrorStatusT = 57
 	ErrorStatusInvalidCensorshipToken      ErrorStatusT = 58
 	ErrorStatusEmailAlreadyVerified        ErrorStatusT = 59
+	ErrorStatusInvalidPassword             ErrorStatusT = 85
 
 	// CMS Errors
 	ErrorStatusMalformedName                  ErrorStatusT = 60
@@ -370,6 +371,7 @@ var (
 		ErrorStatusMultipleInvoiceMonthYear:       "only one invoice per month/year is allowed to be submitted",
 		ErrorStatusInvalidInvoiceMonthYear:        "an invalid month/year was submitted on an invoice",
 		ErrorStatusInvalidExchangeRate:            "exchange rate was invalid or didn't match expected result",
+		ErrorStatusInvalidPassword:                "invalid password",
 	}
 
 	// PropStatus converts propsal status codes to human readable text
