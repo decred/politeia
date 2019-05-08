@@ -669,6 +669,11 @@ func cmdCreateKey() error {
 	}
 
 	fmt.Printf("Encryption key saved to: %v\n", path)
+
+	// Zero out encryption key
+	util.Zero(k[:])
+	k = nil
+
 	return nil
 }
 

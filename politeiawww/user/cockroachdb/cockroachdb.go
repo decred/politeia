@@ -405,6 +405,10 @@ func (c *cockroachdb) Close() error {
 	c.Lock()
 	defer c.Unlock()
 
+	// Zero out encryption key
+	util.Zero(c.encryptionKey[:])
+	c.encryptionKey = nil
+
 	c.shutdown = true
 	return c.userDB.Close()
 }

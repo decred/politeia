@@ -595,6 +595,9 @@ done:
 
 	log.Infof("Exiting")
 
+	// Close user db connection
+	p.db.Close()
+
 	return nil
 }
 
