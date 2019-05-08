@@ -86,7 +86,8 @@ func validateInvoiceField(field string) bool {
 			field, formatInvoiceField(field))
 		return false
 	}
-	if len(field) > cms.PolicyMaxInvoiceFieldLength {
+	if len(field) > cms.PolicyMaxLineItemColLength ||
+		len(field) < cms.PolicyMinLineItemColLength {
 		log.Tracef("validateInvoiceField: not within bounds: %s",
 			field)
 		return false
@@ -113,7 +114,8 @@ func createInvoiceFieldRegex() string {
 		}
 	}
 	buf.WriteString("]{0,")
-	buf.WriteString(strconv.Itoa(cms.PolicyMaxInvoiceFieldLength) + "}$")
+	buf.WriteString(strconv.Itoa(cms.PolicyMinLineItemColLength) + ",")
+	buf.WriteString(strconv.Itoa(cms.PolicyMaxLineItemColLength) + "}$")
 
 	return buf.String()
 }
