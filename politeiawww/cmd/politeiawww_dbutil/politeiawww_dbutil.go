@@ -34,6 +34,7 @@ import (
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
+	"github.com/marcopeereboom/sbox"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 )
@@ -57,7 +58,7 @@ const (
 var (
 	defaultHomeDir       = sharedconfig.DefaultHomeDir
 	defaultDataDir       = sharedconfig.DefaultDataDir
-	defaultEncryptionKey = filepath.Join(defaultHomeDir, "dbkey.json")
+	defaultEncryptionKey = filepath.Join(defaultHomeDir, "sbox.key")
 
 	// Database options
 	level     = flag.Bool("leveldb", false, "")
@@ -114,7 +115,7 @@ const usageMsg = `politeiawww_dbutil usage:
           (default ~/.cockroachdb/certs/clients/politeiawww/client.politeiawww.key)
     -encryptionkey string
           File containing the CockroachDB encryption key
-          (default osDataDir/politeiawww/dbkey.json)
+          (default osDataDir/politeiawww/sbox.key)
 
   Commands
     -addcredits
@@ -140,7 +141,7 @@ const usageMsg = `politeiawww_dbutil usage:
           Create a new encryption key that can be used to encrypt data at rest
           Required DB flag : None
           Args             : <destination (optional)>
-                             (default osDataDir/politeiawww/dbkey.json)
+                             (default osDataDir/politeiawww/sbox.key)
     -migrate
           Migrate a LevelDB user database to CockroachDB
           Required DB flag : None
@@ -655,8 +656,14 @@ func cmdCreateKey() error {
 			"overwrite %v", path)
 	}
 
-	// Create key file
-	err = util.NewEncryptionKeyFile(path)
+	// Create a new key
+	k, err := sbox.NewKey()
+	if err != nil {
+		return err
+	}
+
+	// Write hex encoded key to file
+	err = ioutil.WriteFile(path, []byte(hex.EncodeToString(k[:])), 0644)
 	if err != nil {
 		return err
 	}
@@ -692,10 +699,9 @@ func validateCockroachParams() error {
 			"clientkey: %v", err)
 	}
 
-	// Validate encryption key
-	_, err = util.LoadEncryptionKey(*encryptionKey)
-	if err != nil {
-		return fmt.Errorf("load encryption key: %v", err)
+	// Ensure encryption key file exists
+	if !util.FileExists(*encryptionKey) {
+		return fmt.Errorf("file not found %v", *encryptionKey)
 	}
 
 	return nil

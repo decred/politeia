@@ -39,7 +39,7 @@ const (
 	defaultLogFilename           = "politeiawww.log"
 	adminLogFilename             = "admin.log"
 	defaultIdentityFilename      = "identity.json"
-	defaultEncryptionKeyFilename = "dbkey.json"
+	defaultEncryptionKeyFilename = "sbox.key"
 
 	defaultMainnetPort = "4443"
 	defaultTestnetPort = "4443"
@@ -635,9 +635,9 @@ func loadConfig() (*config, []string, error) {
 				"param or change user database param")
 		}
 
-		_, err = util.LoadEncryptionKey(cfg.EncryptionKey)
-		if err != nil {
-			return nil, nil, fmt.Errorf("load encryption key: %v", err)
+		if !util.FileExists(cfg.EncryptionKey) {
+			return nil, nil, fmt.Errorf("file not found %v",
+				cfg.EncryptionKey)
 		}
 	}
 
@@ -652,9 +652,9 @@ func loadConfig() (*config, []string, error) {
 				"and encryption key param must be different")
 		}
 
-		_, err = util.LoadEncryptionKey(cfg.OldEncryptionKey)
-		if err != nil {
-			return nil, nil, fmt.Errorf("load old encryption key: %v", err)
+		if !util.FileExists(cfg.OldEncryptionKey) {
+			return nil, nil, fmt.Errorf("file not found %v",
+				cfg.OldEncryptionKey)
 		}
 	}
 

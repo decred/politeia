@@ -38,7 +38,7 @@ You can specify the following options:
             (default ~/.cockroachdb/certs/clients/politeiawww/client.politeiawww.key)
       -encryptionkey string
             File containing the CockroachDB encryption key
-            (default osDataDir/politeiawww/dbkey.json)
+            (default osDataDir/politeiawww/sbox.key)
 
     Commands
       -addcredits
@@ -64,7 +64,7 @@ You can specify the following options:
             Create a new encryption key that can be used to encrypt data at rest
             Required DB flag : None
             Args             : <destination (optional)>
-                               (default osDataDir/politeiawww/dbkey.json)
+                               (default osDataDir/politeiawww/sbox.key)
       -migrate
             Migrate a LevelDB user database to CockroachDB
             Required DB flag : None
@@ -91,7 +91,7 @@ set if they deviate from the defaults.
 Create an encryption key.
 
     $ politeiawww_dbutil -createkey
-    Encryption key saved to: ~/.politeiawww/dbkey.json
+    Encryption key saved to: ~/.politeiawww/sbox.key
 
 Migrate the user database.
 
@@ -107,7 +107,7 @@ Update your politeiawww.conf file.  The location of the encryption key may
 differ depending on your operating system.
 
     userdb=cockroachdb
-    encryptionkey=~/.politeiawww/dbkey.json
+    encryptionkey=~/.politeiawww/sbox.key
 
 ### Stubbing Users
 

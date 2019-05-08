@@ -70,3 +70,14 @@ func ConvertDigest(d string) ([sha256.Size]byte, bool) {
 
 	return digest, true
 }
+
+// Zero out a byte slice.
+func Zero(in []byte) {
+	if in == nil {
+		return
+	}
+	inlen := len(in)
+	for i := 0; i < inlen; i++ {
+		in[i] ^= in[i]
+	}
+}

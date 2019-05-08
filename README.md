@@ -317,13 +317,13 @@ Create a CockroachDB user database and assign user privileges:
 Create an encryption key to be used to encrypt data at rest:
 
     $ politeiawww_dbutil -createkey
-    Encryption key saved to: ~/.politeiawww/dbkey.json
+    Encryption key saved to: ~/.politeiawww/sbox.key
 
 Add the following settings to your politeiawww config file.  The encryption key
 location may be different depending on your operating system.
 
     userdb=cockroachdb
-    encryptionkey=~/.politeiawww/dbkey.json
+    encryptionkey=~/.politeiawww/sbox.key
 
 ##### Rotating encryption key
 

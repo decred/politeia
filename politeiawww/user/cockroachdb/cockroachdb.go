@@ -7,7 +7,9 @@ package cockroachdb
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
+	"io/ioutil"
 	"net/url"
 	"sync"
 
@@ -15,6 +17,7 @@ import (
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
 	"github.com/jinzhu/gorm"
+	"github.com/marcopeereboom/sbox"
 )
 
 const (
@@ -103,7 +106,7 @@ func (c *cockroachdb) userNew(tx *gorm.DB, u user.User) error {
 		return err
 	}
 
-	eb, err := util.Encrypt(user.VersionUser, c.encryptionKey, ub)
+	eb, err := sbox.Encrypt(user.VersionUser, c.encryptionKey, ub)
 	if err != nil {
 		return err
 	}
@@ -171,7 +174,7 @@ func (c *cockroachdb) UserGetByUsername(username string) (*user.User, error) {
 		return nil, err
 	}
 
-	b, _, err := util.Decrypt(c.encryptionKey, u.Blob)
+	b, _, err := sbox.Decrypt(c.encryptionKey, u.Blob)
 	if err != nil {
 		return nil, err
 	}
@@ -209,7 +212,7 @@ func (c *cockroachdb) UserGetById(id uuid.UUID) (*user.User, error) {
 		return nil, err
 	}
 
-	b, _, err := util.Decrypt(c.encryptionKey, u.Blob)
+	b, _, err := sbox.Decrypt(c.encryptionKey, u.Blob)
 	if err != nil {
 		return nil, err
 	}
@@ -239,7 +242,7 @@ func (c *cockroachdb) UserUpdate(u user.User) error {
 		return err
 	}
 
-	eb, err := util.Encrypt(user.VersionUser, c.encryptionKey, b)
+	eb, err := sbox.Encrypt(user.VersionUser, c.encryptionKey, b)
 	if err != nil {
 		return err
 	}
@@ -270,7 +273,7 @@ func (c *cockroachdb) AllUsers(callback func(u *user.User)) error {
 
 	// Invoke callback on each user
 	for _, v := range users {
-		b, _, err := util.Decrypt(c.encryptionKey, v.Blob)
+		b, _, err := sbox.Decrypt(c.encryptionKey, v.Blob)
 		if err != nil {
 			return err
 		}
@@ -300,13 +303,13 @@ func rotateKeys(tx *gorm.DB, oldKey *[32]byte, newKey *[32]byte) error {
 
 	// Rotate keys
 	for _, v := range users {
-		b, _, err := util.Decrypt(oldKey, v.Blob)
+		b, _, err := sbox.Decrypt(oldKey, v.Blob)
 		if err != nil {
 			return fmt.Errorf("decrypt user '%v': %v",
 				v.ID, err)
 		}
 
-		eb, err := util.Encrypt(user.VersionUser, newKey, b)
+		eb, err := sbox.Encrypt(user.VersionUser, newKey, b)
 		if err != nil {
 			return fmt.Errorf("encrypt user '%v': %v",
 				v.ID, err)
@@ -337,16 +340,13 @@ func (c *cockroachdb) RotateKeys(newKeyPath string) error {
 	}
 
 	// Load and validate new encryption key
-	ek, err := util.LoadEncryptionKey(newKeyPath)
+	newKey, err := loadEncryptionKey(newKeyPath)
 	if err != nil {
 		return fmt.Errorf("load encryption key '%v': %v",
 			newKeyPath, err)
 	}
 
-	oldKey := c.encryptionKey
-	newKey := ek.Key
-
-	if bytes.Equal(newKey[:], oldKey[:]) {
+	if bytes.Equal(newKey[:], c.encryptionKey[:]) {
 		return fmt.Errorf("keys are the same")
 	}
 
@@ -354,7 +354,7 @@ func (c *cockroachdb) RotateKeys(newKeyPath string) error {
 
 	// Rotate keys using a transaction
 	tx := c.userDB.Begin()
-	err = rotateKeys(tx, oldKey, newKey)
+	err = rotateKeys(tx, c.encryptionKey, newKey)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -365,7 +365,7 @@ func (c *cockroachdb) RotateKeys(newKeyPath string) error {
 		return fmt.Errorf("commit tx: %v", err)
 	}
 
-	// Update context encryption key
+	// Update context
 	c.encryptionKey = newKey
 
 	return nil
@@ -388,7 +388,7 @@ func (c *cockroachdb) InsertUser(u user.User) error {
 		return err
 	}
 
-	eb, err := util.Encrypt(user.VersionUser, c.encryptionKey, ub)
+	eb, err := sbox.Encrypt(user.VersionUser, c.encryptionKey, ub)
 	if err != nil {
 		return err
 	}
@@ -446,6 +446,34 @@ func (c *cockroachdb) createTables(tx *gorm.DB) error {
 	return err
 }
 
+func loadEncryptionKey(filepath string) (*[32]byte, error) {
+	log.Tracef("loadEncryptionKey: %v", filepath)
+
+	b, err := ioutil.ReadFile(filepath)
+	if err != nil {
+		return nil, fmt.Errorf("load encryption key '%v': %v",
+			filepath, err)
+	}
+
+	if hex.DecodedLen(len(b)) != 32 {
+		return nil, fmt.Errorf("invalid key length: %v",
+			filepath)
+	}
+
+	k := make([]byte, 32)
+	_, err = hex.Decode(k, b)
+	if err != nil {
+		return nil, fmt.Errorf("decode hex %v: %v",
+			filepath, err)
+	}
+
+	var key [32]byte
+	copy(key[:], k)
+	util.Zero(k)
+
+	return &key, nil
+}
+
 // New opens a connection to the CockroachDB user database and returns a new
 // cockroachdb context. sslRootCert, sslCert, sslKey, and encryptionKey are
 // file paths.
@@ -479,16 +507,15 @@ func New(host, network, sslRootCert, sslCert, sslKey, encryptionKey string) (*co
 	log.Infof("UserDB host: %v", h)
 
 	// Load encryption key
-	ek, err := util.LoadEncryptionKey(encryptionKey)
+	key, err := loadEncryptionKey(encryptionKey)
 	if err != nil {
-		return nil, fmt.Errorf("load encryption key '%v': %v",
-			encryptionKey, err)
+		return nil, err
 	}
 
 	// Create context
 	c := &cockroachdb{
 		userDB:        db,
-		encryptionKey: ek.Key,
+		encryptionKey: key,
 	}
 
 	// Disable gorm logging. This prevents duplicate errors
