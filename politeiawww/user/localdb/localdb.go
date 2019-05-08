@@ -6,7 +6,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/badoux/checkmail"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/google/uuid"
 	"github.com/syndtr/goleveldb/leveldb"
@@ -59,10 +58,6 @@ func (l *localdb) UserNew(u user.User) error {
 
 	log.Debugf("UserNew: %v", u)
 
-	if err := checkmail.ValidateFormat(u.Email); err != nil {
-		return user.ErrInvalidEmail
-	}
-
 	// Make sure user does not exist
 	ok, err := l.userdb.Has([]byte(u.Email), nil)
 	if err != nil {
@@ -96,7 +91,7 @@ func (l *localdb) UserNew(u user.User) error {
 	// Set unique uuid for the user.
 	u.ID = uuid.New()
 
-	payload, err := EncodeUser(u)
+	payload, err := user.EncodeUser(u)
 	if err != nil {
 		return err
 	}
@@ -122,7 +117,7 @@ func (l *localdb) UserGet(email string) (*user.User, error) {
 		return nil, err
 	}
 
-	u, err := DecodeUser(payload)
+	u, err := user.DecodeUser(payload)
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +148,7 @@ func (l *localdb) UserGetByUsername(username string) (*user.User, error) {
 			continue
 		}
 
-		u, err := DecodeUser(value)
+		u, err := user.DecodeUser(value)
 		if err != nil {
 			return nil, err
 		}
@@ -193,7 +188,7 @@ func (l *localdb) UserGetById(id uuid.UUID) (*user.User, error) {
 			continue
 		}
 
-		u, err := DecodeUser(value)
+		u, err := user.DecodeUser(value)
 		if err != nil {
 			return nil, err
 		}
@@ -232,7 +227,7 @@ func (l *localdb) UserUpdate(u user.User) error {
 		return user.ErrUserNotFound
 	}
 
-	payload, err := EncodeUser(u)
+	payload, err := user.EncodeUser(u)
 	if err != nil {
 		return err
 	}
@@ -262,7 +257,7 @@ func (l *localdb) AllUsers(callbackFn func(u *user.User)) error {
 			continue
 		}
 
-		u, err := DecodeUser(value)
+		u, err := user.DecodeUser(value)
 		if err != nil {
 			return err
 		}

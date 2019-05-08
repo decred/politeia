@@ -129,6 +129,7 @@ func newUser(t *testing.T, p *politeiawww, isVerified, isAdmin bool) (*user.User
 	}
 
 	u := user.User{
+		ID:             uuid.New(),
 		Email:          hex.EncodeToString(r) + "@example.com",
 		Username:       hex.EncodeToString(r),
 		HashedPassword: pass,
@@ -159,14 +160,16 @@ func newUser(t *testing.T, p *politeiawww, isVerified, isAdmin bool) (*user.User
 	}
 
 	// Add the user to the politeiawww in-memory [pubkey]userID
-	// cache. Since the userID is generated in the database layer
-	// we need to lookup the user in order to get the userID.
-	usr, err := p.db.UserGet(u.Email)
+	// and [email]userID caches. Since the userID is generated
+	// in the database layer we need to lookup the user in order
+	// to get the userID.
+	usr, err := p.db.UserGetByUsername(u.Username)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
 
 	p.setUserPubkeyAssociaton(usr, pubkey)
+	p.setUserEmails(usr.Email, usr.ID)
 
 	// Add paywall info to the user record
 	err = p.GenerateNewUserPaywall(usr)
@@ -177,7 +180,7 @@ func newUser(t *testing.T, p *politeiawww, isVerified, isAdmin bool) (*user.User
 	// Lookup user record one more time so that
 	// we return a user object with the paywall
 	// details filled in.
-	usr, err = p.db.UserGet(usr.Email)
+	usr, err = p.db.UserGetByUsername(u.Username)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -251,6 +254,7 @@ func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
 		smtp:            smtp,
 		test:            true,
 		userPubkeys:     make(map[string]string),
+		userEmails:      make(map[string]uuid.UUID),
 		userPaywallPool: make(map[uuid.UUID]paywallPoolMember),
 		commentScores:   make(map[string]int64),
 	}

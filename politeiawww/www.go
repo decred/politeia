@@ -25,9 +25,10 @@ import (
 	"time"
 
 	"github.com/decred/politeia/politeiad/cache"
-	"github.com/decred/politeia/politeiad/cache/cockroachdb"
+	cachedb "github.com/decred/politeia/politeiad/cache/cockroachdb"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	cmsdb "github.com/decred/politeia/politeiawww/cmsdatabase/cockroachdb"
+	userdb "github.com/decred/politeia/politeiawww/user/cockroachdb"
 	"github.com/decred/politeia/politeiawww/user/localdb"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
@@ -307,6 +308,7 @@ func _main() error {
 
 		// XXX reevaluate where this goes
 		userPubkeys:     make(map[string]string),
+		userEmails:      make(map[string]uuid.UUID),
 		userPaywallPool: make(map[uuid.UUID]paywallPoolMember),
 		commentScores:   make(map[string]int64),
 		voteStatuses:    make(map[string]www.VoteStatusReply),
@@ -328,6 +330,49 @@ func _main() error {
 	}
 	p.smtp = smtp
 
+	// Setup user database
+	switch p.cfg.UserDB {
+	case userDBLevel:
+		// localdb.UseLogger(localdbLog)
+		db, err := localdb.New(p.cfg.DataDir)
+		if err != nil {
+			return err
+		}
+		p.db = db
+	case userDBCockroach:
+		// If old encryption key is set it means that we need
+		// to open a db connection using the old key and then
+		// rotate keys.
+		var encryptionKey string
+		if p.cfg.OldEncryptionKey != "" {
+			encryptionKey = p.cfg.OldEncryptionKey
+		} else {
+			encryptionKey = p.cfg.EncryptionKey
+		}
+
+		// Setup logging
+		userdb.UseLogger(cockroachdbLog)
+
+		// Open db connection
+		network := filepath.Base(p.cfg.DataDir)
+		db, err := userdb.New(p.cfg.DBHost, network, p.cfg.DBRootCert,
+			p.cfg.DBCert, p.cfg.DBKey, encryptionKey)
+		if err != nil {
+			return fmt.Errorf("new cockroachdb: %v", err)
+		}
+		p.db = db
+
+		// Rotate keys
+		if p.cfg.OldEncryptionKey != "" {
+			err = db.RotateKeys(p.cfg.EncryptionKey)
+			if err != nil {
+				return fmt.Errorf("rotate userdb keys: %v", err)
+			}
+		}
+	default:
+		return fmt.Errorf("no user db option found")
+	}
+
 	// Get plugins from politeiad
 	p.plugins, err = p.getPluginInventory()
 	if err != nil {
@@ -335,11 +380,10 @@ func _main() error {
 	}
 
 	// Setup cache connection
-	cockroachdb.UseLogger(cockroachdbLog)
+	cachedb.UseLogger(cockroachdbLog)
 	net := filepath.Base(p.cfg.DataDir)
-	p.cache, err = cockroachdb.New(cockroachdb.UserPoliteiawww,
-		p.cfg.DBHost, net, p.cfg.DBRootCert, p.cfg.DBCert,
-		p.cfg.DBKey)
+	p.cache, err = cachedb.New(cachedb.UserPoliteiawww, p.cfg.DBHost,
+		net, p.cfg.DBRootCert, p.cfg.DBCert, p.cfg.DBKey)
 	if err != nil {
 		switch err {
 		case cache.ErrNoVersionRecord:
@@ -349,7 +393,7 @@ func _main() error {
 			err = fmt.Errorf("wrong cache version found; " +
 				"restart politeiad to rebuild the cache")
 		}
-		return fmt.Errorf("cockroachdb new: %v", err)
+		return fmt.Errorf("cachedb new: %v", err)
 	}
 
 	// Register plugins with cache
@@ -372,16 +416,14 @@ func _main() error {
 		log.Infof("Registered cache plugin: %v", v.ID)
 	}
 
-	// Setup database.
-	// localdb.UseLogger(localdbLog)
-	db, err := localdb.New(p.cfg.DataDir)
+	// Setup pubkey-userid map
+	err = p.initUserPubkeys()
 	if err != nil {
 		return err
 	}
-	p.db = db
 
-	// Setup pubkey-userid map
-	err = p.initUserPubkeys()
+	// Setup email-userID map
+	err = p.initUserEmails()
 	if err != nil {
 		return err
 	}
@@ -552,6 +594,9 @@ func _main() error {
 done:
 
 	log.Infof("Exiting")
+
+	// Close user db connection
+	p.db.Close()
 
 	return nil
 }
