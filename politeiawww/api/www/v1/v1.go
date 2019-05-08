@@ -1183,7 +1183,7 @@ type TokenInventory struct{}
 // returns the tokens of all proposals in the inventory.  The tokens are
 // categorized by stage of the voting process.  Pre and abandoned tokens are
 // sorted by timestamp in decending order.  Active, approved, and rejected
-// tokens are sorted by voting period start block height in decending order.
+// tokens are sorted by voting period end block height in decending order.
 type TokenInventoryReply struct {
 	Pre       []string `json:"pre"`       // Tokens of all props that are pre-vote
 	Active    []string `json:"active"`    // Tokens of all props with an active voting period
