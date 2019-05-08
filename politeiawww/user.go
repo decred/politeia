@@ -1585,11 +1585,8 @@ func (p *politeiawww) userByPubKey(pubkey string) (*user.User, error) {
 	id, ok := p.getUserIDByPubKey(pubkey)
 	if ok {
 		return p.getUserByIDStr(id)
-	} else {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusUserNotFound,
-		}
 	}
+	return nil, user.ErrUserNotFound
 }
 
 // processUsers returns a list of users given a set of filters. Admins can
@@ -1607,6 +1604,7 @@ func (p *politeiawww) processUsers(users *www.Users, isAdmin bool) (*www.UsersRe
 	var u *user.User
 	var totalUsers uint64
 	var totalMatches uint64
+	var pubkeyMatchID string
 	matchedUsers := make([]www.AbridgedUser, 0, www.UserListPageSize)
 
 	if pubkeyQuery != "" {
@@ -1619,12 +1617,15 @@ func (p *politeiawww) processUsers(users *www.Users, isAdmin bool) (*www.UsersRe
 
 		u, err = p.userByPubKey(pubkeyQuery)
 		if err != nil {
-			// ErrUserNotFound is ok. Empty search results
-			// will be returned.
-			if err != user.ErrUserNotFound {
-				return nil, err
+			if err == user.ErrUserNotFound {
+				// Pubkey searches require an exact match. If no
+				// match was found, we can go ahead and return.
+				return &www.UsersReply{}, nil
 			}
+			return nil, err
 		}
+
+		pubkeyMatchID = u.ID.String()
 	}
 
 	switch {
@@ -1652,8 +1653,7 @@ func (p *politeiawww) processUsers(users *www.Users, isAdmin bool) (*www.UsersRe
 			}
 
 			if pubkeyQuery != "" && userMatches {
-				if user.ID.String() != u.ID.String() {
-					// if user.ID.String() != id {
+				if user.ID.String() != pubkeyMatchID {
 					userMatches = false
 				}
 			}
@@ -1681,8 +1681,6 @@ func (p *politeiawww) processUsers(users *www.Users, isAdmin bool) (*www.UsersRe
 	default:
 		// Non-admins can search by username and the search
 		// must be an exact match.
-		id := u.ID.String()
-
 		if usernameQuery != "" {
 			// Validate username
 			err := validateUsername(usernameQuery)
@@ -1698,9 +1696,17 @@ func (p *politeiawww) processUsers(users *www.Users, isAdmin bool) (*www.UsersRe
 					return nil, err
 				}
 			}
+
+			// If both pubkeyQuery and usernameQuery are non-empty, the
+			// user must match both to be included in the results.
+			if (u != nil) && (pubkeyQuery != "") &&
+				(u.ID.String() != pubkeyMatchID) {
+				// User doesn't match both
+				u = nil
+			}
 		}
 
-		if u != nil && u.ID.String() == id {
+		if u != nil {
 			totalMatches++
 			matchedUsers = append(matchedUsers, www.AbridgedUser{
 				ID:       u.ID.String(),
