@@ -451,12 +451,12 @@ func loadEncryptionKey(filepath string) (*[32]byte, error) {
 
 	b, err := ioutil.ReadFile(filepath)
 	if err != nil {
-		return nil, fmt.Errorf("load encryption key '%v': %v",
+		return nil, fmt.Errorf("load encryption key %v: %v",
 			filepath, err)
 	}
 
 	if hex.DecodedLen(len(b)) != 32 {
-		return nil, fmt.Errorf("invalid key length: %v",
+		return nil, fmt.Errorf("invalid key length %v",
 			filepath)
 	}
 
