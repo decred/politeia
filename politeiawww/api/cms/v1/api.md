@@ -18,6 +18,7 @@ server side notifications.  It does not render HTML.
 - [`Generate payouts`](#generate-payouts)
 - [`Invoice comments`](#invoice-comments)
 - [`Invoice exchange rate`](#invoice-exchange-rate)
+- [`Pay invoices`](#pay-invoices)
 
 **Invoice status codes**
 
@@ -604,6 +605,39 @@ Reply:
 }
 ```
 
+### `Pay invoices`
+
+Temporary command that allows administrators to set all approved invoices to paid.
+This command will be removed once the address watcher for approved invoices 
+is complete and properly functioning.
+
+Note: This call requires admin privileges.
+
+**Route:** `GET /v1/admin/payinvoices`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+
+**Results:**
+
+| | Type | Description |
+|-|-|-|
+
+**Example**
+
+Request:
+
+```json
+{}
+```
+
+Reply:
+
+```json
+{}
+```
 
 ### Invoice status codes
 

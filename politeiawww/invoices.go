@@ -1376,6 +1376,85 @@ func (p *politeiawww) getInvoiceComments(token string) ([]www.Comment, error) {
 	return comments, nil
 }
 
+// processPayInvoices looks for all approved invoices and then goes about
+// changing their statuses' to paid.
+func (p *politeiawww) processPayInvoices(u *user.User) (*cms.PayInvoicesReply, error) {
+	log.Tracef("processPayInvoices")
+
+	dbInvs, err := p.cmsDB.InvoicesByStatus(int(cms.InvoiceStatusApproved))
+	if err != nil {
+		return nil, err
+	}
+
+	reply := &cms.PayInvoicesReply{}
+	for _, inv := range dbInvs {
+
+		// Create the change record.
+		c := backendInvoiceStatusChange{
+			Version:        backendInvoiceStatusChangeVersion,
+			AdminPublicKey: u.PublicKey(),
+			Timestamp:      time.Now().Unix(),
+			NewStatus:      cms.InvoiceStatusPaid,
+		}
+		blob, err := encodeBackendInvoiceStatusChange(c)
+		if err != nil {
+			return nil, err
+		}
+
+		challenge, err := util.Random(pd.ChallengeSize)
+		if err != nil {
+			return nil, err
+		}
+
+		pdCommand := pd.UpdateVettedMetadata{
+			Challenge: hex.EncodeToString(challenge),
+			Token:     inv.Token,
+			MDAppend: []pd.MetadataStream{
+				{
+					ID:      mdStreamInvoiceStatusChanges,
+					Payload: string(blob),
+				},
+			},
+		}
+
+		responseBody, err := p.makeRequest(http.MethodPost,
+			pd.UpdateVettedMetadataRoute, pdCommand)
+		if err != nil {
+			return nil, err
+		}
+
+		var pdReply pd.UpdateVettedMetadataReply
+		err = json.Unmarshal(responseBody, &pdReply)
+		if err != nil {
+			return nil,
+				fmt.Errorf("Could not unmarshal UpdateVettedMetadataReply: %v",
+					err)
+		}
+
+		// Verify the UpdateVettedMetadata challenge.
+		err = util.VerifyChallenge(p.cfg.Identity, challenge, pdReply.Response)
+		if err != nil {
+			return nil, err
+		}
+
+		// Update the database with the metadata changes.
+		inv.Changes = append(inv.Changes, database.InvoiceChange{
+			Timestamp:      c.Timestamp,
+			AdminPublicKey: c.AdminPublicKey,
+			NewStatus:      c.NewStatus,
+			Reason:         c.Reason,
+		})
+		inv.StatusChangeReason = c.Reason
+		inv.Status = c.NewStatus
+
+		err = p.cmsDB.UpdateInvoice(&inv)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return reply, err
+}
+
 // backendInvoiceMetadata represents the general metadata for an invoice and is
 // stored in the metadata stream mdStreamInvoiceGeneral in politeiad.
 type backendInvoiceMetadata struct {
