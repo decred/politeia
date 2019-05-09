@@ -2280,9 +2280,12 @@ func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*www.NewUserRep
 	}
 
 	// Create a new database user with the provided information.
+	// This temporarily sets the username to the given email.
+	// This will be overwritten during registration.
 	newUser := user.User{
-		Email: strings.ToLower(u.Email),
-		Admin: false,
+		Email:    strings.ToLower(u.Email),
+		Username: strings.ToLower(u.Email),
+		Admin:    false,
 	}
 	setInviteNewUserVerification(&newUser, token, expiry, false)
 
