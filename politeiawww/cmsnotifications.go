@@ -5,15 +5,9 @@
 package main
 
 import (
-	"text/template"
 	"time"
 
 	"github.com/decred/politeia/politeiawww/user"
-)
-
-var (
-	templateInvoiceNotification = template.Must(
-		template.New("invoice_notification").Parse(templateInvoiceNotificationRaw))
 )
 
 // Seconds Minutes Hours Days Months DayOfWeek
@@ -35,7 +29,8 @@ func (p *politeiawww) checkInvoiceNotifications() {
 			invoiceFound := false
 			userInvoices, err := p.cmsDB.InvoicesByUserID(user.ID.String())
 			if err != nil {
-				log.Errorf("Error retrieving user invoices email: %v %v", err, user.Email)
+				log.Errorf("Error retrieving user invoices email: %v %v", err,
+					user.Email)
 			}
 			for _, inv := range userInvoices {
 				// Check to see if invoices match last month + current year
@@ -43,7 +38,8 @@ func (p *politeiawww) checkInvoiceNotifications() {
 					invoiceFound = true
 				}
 			}
-			log.Tracef("Checked user: %v sending email? %v", user.Username, !invoiceFound)
+			log.Tracef("Checked user: %v sending email? %v", user.Username,
+				!invoiceFound)
 			if !invoiceFound {
 				err = p.emailInvoiceNotifications(user.Email, user.Username)
 				if err != nil {
