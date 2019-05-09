@@ -1305,7 +1305,8 @@ func (p *politeiawww) getInvoiceComments(token string) ([]www.Comment, error) {
 	return comments, nil
 }
 
-// processPayInvoices
+// processPayInvoices looks for all approved invoices and then goes about
+// changing their statuses' to paid.
 func (p *politeiawww) processPayInvoices(u *user.User) (*cms.PayInvoicesReply, error) {
 	log.Tracef("processPayInvoices")
 
@@ -1345,7 +1346,8 @@ func (p *politeiawww) processPayInvoices(u *user.User) (*cms.PayInvoicesReply, e
 			},
 		}
 
-		responseBody, err := p.makeRequest(http.MethodPost, pd.UpdateVettedMetadataRoute, pdCommand)
+		responseBody, err := p.makeRequest(http.MethodPost,
+			pd.UpdateVettedMetadataRoute, pdCommand)
 		if err != nil {
 			return nil, err
 		}
@@ -1353,8 +1355,9 @@ func (p *politeiawww) processPayInvoices(u *user.User) (*cms.PayInvoicesReply, e
 		var pdReply pd.UpdateVettedMetadataReply
 		err = json.Unmarshal(responseBody, &pdReply)
 		if err != nil {
-			return nil, fmt.Errorf("Could not unmarshal UpdateVettedMetadataReply: %v",
-				err)
+			return nil,
+				fmt.Errorf("Could not unmarshal UpdateVettedMetadataReply: %v",
+					err)
 		}
 
 		// Verify the UpdateVettedMetadata challenge.

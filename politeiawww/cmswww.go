@@ -372,17 +372,6 @@ func (p *politeiawww) handleCMSPolicy(w http.ResponseWriter, r *http.Request) {
 func (p *politeiawww) handlePayInvoices(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handlePayInvoices")
 
-	// Get pay invoices command
-	var pi cms.PayInvoices
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&pi); err != nil {
-		RespondWithError(w, r, 0, "handlePayInvoices: unmarshal",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
