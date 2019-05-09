@@ -771,7 +771,7 @@ func (d *decred) cmdTokenInventory(payload string) (string, error) {
        INNER JOIN start_votes
          ON vote_results.token = start_votes.token
          WHERE vote_results.approved = true
-       ORDER BY start_votes.start_block_height DESC`
+       ORDER BY start_votes.end_height DESC`
 	rows, err = d.recordsdb.Raw(q).Rows()
 	if err != nil {
 		return "", fmt.Errorf("approved: %v", err)
@@ -790,7 +790,7 @@ func (d *decred) cmdTokenInventory(payload string) (string, error) {
        INNER JOIN start_votes
          ON vote_results.token = start_votes.token
          WHERE vote_results.approved = false
-       ORDER BY start_votes.start_block_height DESC`
+       ORDER BY start_votes.end_height DESC`
 	rows, err = d.recordsdb.Raw(q).Rows()
 	if err != nil {
 		return "", fmt.Errorf("rejected: %v", err)
