@@ -114,7 +114,7 @@ func createInvoiceFieldRegex() string {
 			buf.WriteString(`\` + supportedChar)
 		}
 	}
-	buf.WriteString("]{0,")
+	buf.WriteString("]{")
 	buf.WriteString(strconv.Itoa(cms.PolicyMinLineItemColLength) + ",")
 	buf.WriteString(strconv.Itoa(cms.PolicyMaxLineItemColLength) + "}$")
 
@@ -650,7 +650,7 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 				}
 
 				piToken := formatInvoiceField(lineInput.ProposalToken)
-				if !validateInvoiceField(piToken) {
+				if piToken != "" && !validateInvoiceField(piToken) {
 					return www.UserError{
 						ErrorCode: www.ErrorStatusMalformedProposalToken,
 					}
