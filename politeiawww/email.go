@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/url"
 	"text/template"
+	"time"
 
 	"github.com/dajohi/goemail"
 
@@ -573,6 +574,28 @@ func (p *politeiawww) emailInviteNewUserVerificationLink(email, token string) er
 
 	subject := "Welcome to the Contractor Management System"
 	body, err := createBody(templateInviteNewUserEmail, &tplData)
+	if err != nil {
+		return err
+	}
+
+	return p.sendEmailTo(subject, body, email)
+}
+
+// emailInvoiceNotifications emails users that have not yet submitted an invoice
+// for the given month/year
+func (p *politeiawww) emailInvoiceNotifications(email, username string) error {
+	if p.smtp.disabled {
+		return nil
+	}
+
+	tplData := invoiceNotificationEmailData{
+		Username: username,
+		Month:    time.Now().Month().String(),
+		Year:     time.Now().Year(),
+	}
+
+	subject := "Awaiting Montly Invoice"
+	body, err := createBody(templateInvoiceNotification, &tplData)
 	if err != nil {
 		return err
 	}

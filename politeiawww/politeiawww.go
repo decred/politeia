@@ -23,6 +23,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
 	"github.com/gorilla/websocket"
+	"github.com/robfig/cron"
 )
 
 const (
@@ -125,8 +126,9 @@ type politeiawww struct {
 	// lookups are completely removed from politeiawww.
 	userEmails map[string]uuid.UUID // [email]userID
 
-	// cmsDB is only used during cmswww mode
+	// Following entries are use only during cmswww mode
 	cmsDB cmsdatabase.Database
+	cron  *cron.Cron
 }
 
 // XXX rig this up

@@ -7,11 +7,17 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"text/template"
 
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
 	"github.com/gorilla/mux"
+)
+
+var (
+	templateInvoiceNotification = template.Must(
+		template.New("invoice_notification").Parse(templateInvoiceNotificationRaw))
 )
 
 // handleInviteNewUser handles the invitation of a new contractor by an
