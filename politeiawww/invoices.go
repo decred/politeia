@@ -68,8 +68,9 @@ var (
 		},
 	}
 	validInvoiceField = regexp.MustCompile(createInvoiceFieldRegex())
-	validName         = regexp.MustCompile(createNameLocationRegex())
-	validLocation     = regexp.MustCompile(createNameLocationRegex())
+	validName         = regexp.MustCompile(createNameRegex())
+	validLocation     = regexp.MustCompile(createLocationRegex())
+	validContact      = regexp.MustCompile(createContactRegex())
 )
 
 // formatInvoiceField normalizes an invoice field without leading and
@@ -100,8 +101,8 @@ func validateInvoiceField(field string) bool {
 	return true
 }
 
-// createNameLocationRegex generates a regex based on the policy supplied valid
-// characters in a user name.
+// createInvoiceFieldRegex generates a regex based on the policy supplied for
+// valid characters invoice field.
 func createInvoiceFieldRegex() string {
 	var buf bytes.Buffer
 	buf.WriteString("^[")
@@ -120,13 +121,13 @@ func createInvoiceFieldRegex() string {
 	return buf.String()
 }
 
-// createUsernameRegex generates a regex based on the policy supplied valid
-// characters in a user's name or location.
-func createNameLocationRegex() string {
+// createNameRegex generates a regex based on the policy supplied for valid
+// characters in a user's name.
+func createNameRegex() string {
 	var buf bytes.Buffer
 	buf.WriteString("^[")
 
-	for _, supportedChar := range cms.PolicyNameLocationSupportedChars {
+	for _, supportedChar := range cms.PolicyCMSNameLocationSupportedChars {
 		if len(supportedChar) > 1 {
 			buf.WriteString(supportedChar)
 		} else {
@@ -134,8 +135,48 @@ func createNameLocationRegex() string {
 		}
 	}
 	buf.WriteString("]{")
-	buf.WriteString(strconv.Itoa(www.PolicyMinUsernameLength) + ",")
-	buf.WriteString(strconv.Itoa(www.PolicyMaxUsernameLength) + "}$")
+	buf.WriteString(strconv.Itoa(cms.PolicyMinNameLength) + ",")
+	buf.WriteString(strconv.Itoa(cms.PolicyMaxNameLength) + "}$")
+
+	return buf.String()
+}
+
+// createLocationRegex generates a regex based on the policy supplied for valid
+// characters in a user's location.
+func createLocationRegex() string {
+	var buf bytes.Buffer
+	buf.WriteString("^[")
+
+	for _, supportedChar := range cms.PolicyCMSNameLocationSupportedChars {
+		if len(supportedChar) > 1 {
+			buf.WriteString(supportedChar)
+		} else {
+			buf.WriteString(`\` + supportedChar)
+		}
+	}
+	buf.WriteString("]{")
+	buf.WriteString(strconv.Itoa(cms.PolicyMinLocationLength) + ",")
+	buf.WriteString(strconv.Itoa(cms.PolicyMaxLocationLength) + "}$")
+
+	return buf.String()
+}
+
+// createContactRegex generates a regex based on the policy supplied for valid
+// characters in a user's contact information.
+func createContactRegex() string {
+	var buf bytes.Buffer
+	buf.WriteString("^[")
+
+	for _, supportedChar := range cms.PolicyCMSContactSupportedChars {
+		if len(supportedChar) > 1 {
+			buf.WriteString(supportedChar)
+		} else {
+			buf.WriteString(`\` + supportedChar)
+		}
+	}
+	buf.WriteString("]{")
+	buf.WriteString(strconv.Itoa(cms.PolicyMinContactLength) + ",")
+	buf.WriteString(strconv.Itoa(cms.PolicyMaxContactLength) + "}$")
 
 	return buf.String()
 }
@@ -182,6 +223,31 @@ func validateLocation(location string) error {
 
 	if !validLocation.MatchString(location) {
 		log.Debugf("Location not valid: %s %s", location, validLocation.String())
+		return www.UserError{
+			ErrorCode: www.ErrorStatusMalformedLocation,
+		}
+	}
+
+	return nil
+}
+
+// formatLocation normalizes a contractor location to lowercase without leading and
+// trailing spaces.
+func formatContact(contact string) string {
+	return strings.ToLower(strings.TrimSpace(contact))
+}
+
+func validateContact(contact string) error {
+	if len(contact) < cms.PolicyMinContactLength ||
+		len(contact) > cms.PolicyMaxContactLength {
+		log.Debugf("Contact not within bounds: %s", contact)
+		return www.UserError{
+			ErrorCode: www.ErrorStatusInvoiceMalformedContact,
+		}
+	}
+
+	if !validContact.MatchString(contact) {
+		log.Debugf("Location not valid: %s %s", contact, validContact.String())
 		return www.UserError{
 			ErrorCode: www.ErrorStatusMalformedLocation,
 		}
@@ -503,8 +569,9 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 					ErrorCode: www.ErrorStatusInvoiceMissingName,
 				}
 			}
-			name := formatInvoiceField(invInput.ContractorName)
-			if !validateInvoiceField(name) {
+			name := formatName(invInput.ContractorName)
+			err = validateName(name)
+			if err != nil {
 				return www.UserError{
 					ErrorCode: www.ErrorStatusMalformedName,
 				}
@@ -516,8 +583,9 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 					ErrorCode: www.ErrorStatusInvoiceMissingLocation,
 				}
 			}
-			location := formatInvoiceField(invInput.ContractorLocation)
-			if !validateInvoiceField(location) {
+			location := formatLocation(invInput.ContractorLocation)
+			err = validateLocation(location)
+			if err != nil {
 				return www.UserError{
 					ErrorCode: www.ErrorStatusMalformedLocation,
 				}
@@ -529,8 +597,9 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 					ErrorCode: www.ErrorStatusInvoiceMissingContact,
 				}
 			}
-			contact := formatInvoiceField(invInput.ContractorContact)
-			if !validateInvoiceField(contact) {
+			contact := formatContact(invInput.ContractorContact)
+			err = validateContact(contact)
+			if err != nil {
 				return www.UserError{
 					ErrorCode: www.ErrorStatusInvoiceMalformedContact,
 				}

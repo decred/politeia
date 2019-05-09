@@ -57,17 +57,23 @@ const (
 	// accepted when creating a new invoice
 	PolicyMaxMDSize = 512 * 1024
 
-	// PolicyMaxUsernameLength is the max length of a contractor name
+	// PolicyMaxNameLength is the max length of a contractor name
 	PolicyMaxNameLength = 50
 
-	// PolicyMinUsernameLength is the min length of a contractor name
+	// PolicyMinNameLength is the min length of a contractor name
 	PolicyMinNameLength = 3
 
-	// PolicyMaxUsernameLength is the max length of a contractor location
+	// PolicyMaxLocationLength is the max length of a contractor location
 	PolicyMaxLocationLength = 100
 
-	// PolicyMinUsernameLength is the min length of a contractor location
+	// PolicyMinLocationLength is the min length of a contractor location
 	PolicyMinLocationLength = 3
+
+	// PolicyMaxContactLength is the max length of a contractor contact
+	PolicyMaxContactLength = 100
+
+	// PolicyMinContactLength is the min length of a contractor contact
+	PolicyMinContactLength = 3
 
 	// PolicyInvoiceCommentChar is the character which, when used as the first
 	// character of a line, denotes that entire line as a comment.
@@ -81,7 +87,7 @@ const (
 	// csv line items
 	PolicyInvoiceLineItemCount = 7
 
-	// PolicyMinLineItemColMinLength is the minimun length for the strings in
+	// PolicyMinLineItemColLength is the minimun length for the strings in
 	// each column field of the lineItem structure.
 	PolicyMinLineItemColLength = 3
 
@@ -97,17 +103,21 @@ var (
 		"image/png",
 	}
 
-	// PolicyProposalNameSupportedChars is the regular expression of a valid
-	// proposal name
+	// PolicyInvoiceFieldSupportedChars is the regular expression of a valid
+	// invoice fields.
 	PolicyInvoiceFieldSupportedChars = []string{
 		"A-z", "0-9", "&", ".", ",", ":", ";", "-", " ", "@", "+", "#", "/",
 		"(", ")", "!", "?", "\"", "'"}
 
-	// PolicyNameLocationSupportedChars is the regular expression of a valid
+	// PolicyCMSNameLocationSupportedChars is the regular expression of a valid
 	// name or location for registering users on cms.
-	PolicyNameLocationSupportedChars = []string{
-		"A-z", "0-9", "&", ".", ",", ":", ";", "-", " ", "@", "+", "#", "/",
-		"(", ")", "!", "?", "\"", "'"}
+	PolicyCMSNameLocationSupportedChars = []string{
+		"A-z", ".", "-", " "}
+
+	// PolicyCMSContactSupportedChars is the regular expression of a valid
+	// contact for registering users on cms.
+	PolicyCMSContactSupportedChars = []string{
+		"A-z", "0-9", "&", ".", ":", "-", "_", "@", "+"}
 )
 
 /// Contractor Management System Routes
@@ -231,6 +241,8 @@ type PolicyReply struct {
 	MinNameLength             uint     `json:"minnamelength"`
 	MaxLocationLength         uint     `json:"maxlocationlength"`
 	MinLocationLength         uint     `json:"minlocationlength"`
+	MaxContactLength          uint     `json:"maxcontactlength"`
+	MinContactLength          uint     `json:"mincontactlength"`
 	MaxLineItemColLength      uint     `json:"maxlineitemcollength"`
 	MinLineItemColLength      uint     `json:"minlineitemcollength"`
 	InvoiceCommentChar        rune     `json:"invoicecommentchar"`
