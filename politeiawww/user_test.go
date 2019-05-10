@@ -64,7 +64,7 @@ func TestValidatePubkey(t *testing.T) {
 	// Run tests
 	for _, v := range tests {
 		t.Run(v.name, func(t *testing.T) {
-			_, err := validatePubkey(v.pubkey)
+			err := validatePubKey(v.pubkey)
 			got := errToStr(err)
 			want := errToStr(v.want)
 			if got != want {
@@ -193,38 +193,46 @@ func TestProcessNewUser(t *testing.T) {
 
 	// Create an unverified user with an unexpired
 	// verification token.
-	usrUnexpired, _ := newUser(t, p, false, false)
+	usrUnexpired, id := newUser(t, p, false, false)
+	usrUnexpiredPublicKey := id.Public.String()
 
-	// Create an unverified user with an expired verification
-	// token. We do this by creating an unverified user then
-	// manually updating the expiration time in the database. A
-	// user with an expired verification token is allowed to send
-	// up a new pubkey if they want to update their identity. We
-	// create a new pubkey to test this.
-	usrExpired, _ := newUser(t, p, false, false)
-	usrExpired.NewUserVerificationExpiry = time.Now().Unix() - 1
-	err := p.db.UserUpdate(*usrExpired)
+	// Create two unverified users with expired verification tokens.
+	// The verification tokens are expired manually. A user with an
+	// expired verification token is allowed to use a new pubkey if
+	// they want to update their identity.
+	//
+	// usrExpiredSame will use the same pubkey that is saved to the db.
+	// usrExpiredDiff will use a different pubkey to test the identity
+	// update path.
+	usrExpiredSame, id := newUser(t, p, false, false)
+	usrExpiredSame.NewUserVerificationExpiry = time.Now().Unix() - 1
+	err := p.db.UserUpdate(*usrExpiredSame)
 	if err != nil {
-		t.Fatalf("%v", err)
+		t.Fatal(err)
 	}
+	usrExpiredSamePublicKey := id.Public.String()
 
-	id, err := identity.New()
+	usrExpiredDiff, _ := newUser(t, p, false, false)
+	usrExpiredDiff.NewUserVerificationExpiry = time.Now().Unix() - 1
+	err = p.db.UserUpdate(*usrExpiredDiff)
 	if err != nil {
-		t.Fatalf("%v", err)
+		t.Fatal(err)
 	}
-	usrExpiredPublicKey := id.Public.String()
+	id, err = identity.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	usrExpiredDiffPublicKey := id.Public.String()
 
 	// Create valid user credentials to use in the tests.
 	id, err = identity.New()
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
-
 	r, err := util.Random(int(www.PolicyMinPasswordLength))
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
-
 	validEmail := hex.EncodeToString(r) + "@example.com"
 	validUsername := hex.EncodeToString(r)
 	validPassword := hex.EncodeToString(r)
@@ -236,81 +244,8 @@ func TestProcessNewUser(t *testing.T) {
 		newUser www.NewUser
 		want    error
 	}{
-		{"verified user",
-			www.NewUser{
-				Email: usrVerified.Email,
-			}, nil},
-
-		{"unverified user unexpired token",
-			www.NewUser{
-				Email: usrUnexpired.Email,
-			},
-			nil},
-
-		{"unverified user expired token",
-			www.NewUser{
-				Email:     usrExpired.Email,
-				Password:  "password",
-				PublicKey: usrExpiredPublicKey,
-				Username:  usrExpired.Username,
-			}, nil},
-
-		{"invalid pubkey",
-			www.NewUser{
-				Email:     validEmail,
-				Password:  validPassword,
-				PublicKey: "",
-				Username:  validUsername,
-			},
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidPublicKey,
-			}},
-
-		{"invalid username",
-			www.NewUser{
-				Email:     validEmail,
-				Password:  validPassword,
-				PublicKey: validPublicKey,
-				Username:  "",
-			},
-			www.UserError{
-				ErrorCode: www.ErrorStatusMalformedUsername,
-			}},
-
-		{"invalid password",
-			www.NewUser{
-				Email:     validEmail,
-				Password:  "",
-				PublicKey: validPublicKey,
-				Username:  validUsername,
-			},
-			www.UserError{
-				ErrorCode: www.ErrorStatusMalformedPassword,
-			}},
-
-		{"duplicate pubkey",
-			www.NewUser{
-				Email:     validEmail,
-				Password:  validPassword,
-				PublicKey: usrVerified.PublicKey(),
-				Username:  validUsername,
-			},
-			www.UserError{
-				ErrorCode: www.ErrorStatusDuplicatePublicKey,
-			}},
-
-		{"duplicate username",
-			www.NewUser{
-				Email:     validEmail,
-				Password:  validPassword,
-				PublicKey: validPublicKey,
-				Username:  usrVerified.Username,
-			},
-			www.UserError{
-				ErrorCode: www.ErrorStatusDuplicateUsername,
-			}},
-
-		{"invalid email",
+		{
+			"invalid email",
 			www.NewUser{
 				Email:     "",
 				Password:  validPassword,
@@ -319,15 +254,118 @@ func TestProcessNewUser(t *testing.T) {
 			},
 			www.UserError{
 				ErrorCode: www.ErrorStatusMalformedEmail,
-			}},
-
-		{"valid new user",
+			},
+		},
+		{
+			"invalid pubkey",
+			www.NewUser{
+				Email:     validEmail,
+				Password:  validPassword,
+				PublicKey: "",
+				Username:  validUsername,
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidPublicKey,
+			},
+		},
+		{
+			"invalid username",
+			www.NewUser{
+				Email:     validEmail,
+				Password:  validPassword,
+				PublicKey: validPublicKey,
+				Username:  "",
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusMalformedUsername,
+			},
+		},
+		{
+			"invalid password",
+			www.NewUser{
+				Email:     validEmail,
+				Password:  "",
+				PublicKey: validPublicKey,
+				Username:  validUsername,
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusMalformedPassword,
+			},
+		},
+		{
+			"user already verified",
+			www.NewUser{
+				Email:     usrVerified.Email,
+				Password:  validPassword,
+				PublicKey: usrVerified.PublicKey(),
+				Username:  usrVerified.Username,
+			},
+			nil,
+		},
+		{
+			"unverified user unexpired token",
+			www.NewUser{
+				Email:     usrUnexpired.Email,
+				Password:  validPassword,
+				PublicKey: usrUnexpiredPublicKey,
+				Username:  usrUnexpired.Username,
+			},
+			nil,
+		},
+		{
+			"unverified user expired token same pubkey",
+			www.NewUser{
+				Email:     usrExpiredSame.Email,
+				Password:  validPassword,
+				PublicKey: usrExpiredSamePublicKey,
+				Username:  usrExpiredSame.Username,
+			},
+			nil,
+		},
+		{
+			"unverified user expired token different pubkey",
+			www.NewUser{
+				Email:     usrExpiredDiff.Email,
+				Password:  validPassword,
+				PublicKey: usrExpiredDiffPublicKey,
+				Username:  usrExpiredDiff.Username,
+			},
+			nil,
+		},
+		{
+			"duplicate username",
+			www.NewUser{
+				Email:     validEmail,
+				Password:  validPassword,
+				PublicKey: validPublicKey,
+				Username:  usrVerified.Username,
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusDuplicateUsername,
+			},
+		},
+		{
+			"duplicate pubkey",
+			www.NewUser{
+				Email:     validEmail,
+				Password:  validPassword,
+				PublicKey: usrVerified.PublicKey(),
+				Username:  validUsername,
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusDuplicatePublicKey,
+			},
+		},
+		{
+			"valid new user",
 			www.NewUser{
 				Email:     validEmail,
 				Password:  validPassword,
 				PublicKey: validPublicKey,
 				Username:  validUsername,
-			}, nil},
+			},
+			nil,
+		},
 	}
 
 	// Run tests
@@ -359,7 +397,7 @@ func TestProcessVerifyNewUser(t *testing.T) {
 	wrongSig := hex.EncodeToString(s[:])
 
 	// Create a token that does not correspond to a user
-	b, _, err := generateVerificationTokenAndExpiry()
+	b, _, err := newVerificationTokenAndExpiry()
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -483,7 +521,6 @@ func TestProcessResendVerification(t *testing.T) {
 	// Create two unverified users
 	usr1, id := newUser(t, p, false, false)
 	usr1Pubkey := id.Public.String()
-
 	usr2, _ := newUser(t, p, false, false)
 
 	// A user is allowed to pass in a different pubkey
@@ -501,66 +538,79 @@ func TestProcessResendVerification(t *testing.T) {
 		rv   www.ResendVerification
 		want error
 	}{
-		{"user not found",
+		{
+			"user not found",
 			www.ResendVerification{
-				Email: "someuser@example.com",
+				Email:     "someuser@example.com",
+				PublicKey: usrVerifiedPubkey,
 			},
 			www.UserError{
 				ErrorCode: www.ErrorStatusUserNotFound,
-			}},
-
-		{"user already verified",
+			},
+		},
+		{
+			"user already verified",
 			www.ResendVerification{
-				Email: usrVerified.Email,
+				Email:     usrVerified.Email,
+				PublicKey: usrVerifiedPubkey,
 			},
 			www.UserError{
 				ErrorCode: www.ErrorStatusEmailAlreadyVerified,
-			}},
-
-		{"invalid pubkey",
+			},
+		},
+		{
+			"invalid pubkey",
 			www.ResendVerification{
 				Email:     usr1.Email,
 				PublicKey: "",
 			},
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidPublicKey,
-			}},
-
-		{"duplicate pubkey",
+			},
+		},
+		{
+			"duplicate pubkey",
 			www.ResendVerification{
 				Email:     usr1.Email,
 				PublicKey: usrVerifiedPubkey,
 			},
 			www.UserError{
 				ErrorCode: www.ErrorStatusDuplicatePublicKey,
-			}},
-
+			},
+		},
 		// If the user has an unexpired token, they are allowed
 		// to resend the verification email one time. The second
 		// attempt should fail.
-		{"success",
+		{
+			"success",
 			www.ResendVerification{
 				Email:     usr1.Email,
 				PublicKey: usr1Pubkey,
-			}, nil},
-
-		{"unexpired token",
+			},
+			nil,
+		},
+		{
+			"unexpired token",
 			www.ResendVerification{
-				Email: usr1.Email,
+				Email:     usr1.Email,
+				PublicKey: usr1Pubkey,
 			},
 			www.UserError{
 				ErrorCode: www.ErrorStatusVerificationTokenUnexpired,
-			}},
-
+			},
+		},
 		// The user does not have to pass in the same pubkey that
 		// is currently saved in the database. If they do use a
 		// different pubkey, their active identity in the database
 		// is updated to reflect the new pubkey.
-		{"success with new pubkey",
+		{
+			"success with new pubkey",
 			www.ResendVerification{
 				Email:     usr2.Email,
 				PublicKey: usr2Pubkey,
-			}, nil},
+			},
+			nil,
+		},
 	}
 
 	// Run tests
@@ -832,7 +882,7 @@ func TestProcessResetPassword(t *testing.T) {
 
 	// Create a user with a verification token already set
 	usrUnexpired, _ := newUser(t, p, true, false)
-	token, expiry, err := generateVerificationTokenAndExpiry()
+	token, expiry, err := newVerificationTokenAndExpiry()
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -848,7 +898,7 @@ func TestProcessResetPassword(t *testing.T) {
 	// that has already expired. The first expired user can't be
 	// reused in the tests because the expired token gets reset.
 	usrExpired, _ := newUser(t, p, true, false)
-	token, _, err = generateVerificationTokenAndExpiry()
+	token, _, err = newVerificationTokenAndExpiry()
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -860,7 +910,7 @@ func TestProcessResetPassword(t *testing.T) {
 	}
 
 	usrExpired2, _ := newUser(t, p, true, false)
-	token, _, err = generateVerificationTokenAndExpiry()
+	token, _, err = newVerificationTokenAndExpiry()
 	if err != nil {
 		t.Fatalf("%v", err)
 	}

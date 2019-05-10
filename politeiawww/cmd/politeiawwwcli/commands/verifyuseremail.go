@@ -13,20 +13,22 @@ import (
 // VerifyUserEmailCmd is used to verify a user's email address.
 type VerifyUserEmailCmd struct {
 	Args struct {
-		Email string `positional-arg-name:"email"` // User email address
-		Token string `positional-arg-name:"token"` // Verification token
+		Username string `positional-arg-name:"username"` // Username
+		Email    string `positional-arg-name:"email"`    // User email address
+		Token    string `positional-arg-name:"token"`    // Verification token
 	} `positional-args:"true" required:"true"`
 }
 
 // Execute executes the verify user email command.
 func (cmd *VerifyUserEmailCmd) Execute(args []string) error {
-	// Check for user identity
-	if cfg.Identity == nil {
-		return errUserIdentityNotFound
+	// Load user identity
+	id, err := cfg.LoadIdentity(cmd.Args.Username)
+	if err != nil {
+		return err
 	}
 
 	// Verify user's email address
-	sig := cfg.Identity.SignMessage([]byte(cmd.Args.Token))
+	sig := id.SignMessage([]byte(cmd.Args.Token))
 	vnur, err := client.VerifyNewUser(
 		&v1.VerifyNewUser{
 			Email:             cmd.Args.Email,
