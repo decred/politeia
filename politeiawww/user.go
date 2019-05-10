@@ -883,6 +883,22 @@ func (p *politeiawww) processNewUser(u www.NewUser) (*www.NewUserReply, error) {
 		return nil, err
 	}
 
+	// Ensure username is unique
+	if existingUser == nil {
+		_, err = p.db.UserGetByUsername(u.Username)
+		switch err {
+		case nil:
+			// Duplicate username
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusDuplicateUsername,
+			}
+		case user.ErrUserNotFound:
+			// Username doesn't exist; continue
+		default:
+			return nil, err
+		}
+	}
+
 	// Hash the user's password.
 	hashedPassword, err := p.hashPassword(u.Password)
 	if err != nil {
@@ -2360,6 +2376,20 @@ func (p *politeiawww) processRegisterUser(u cms.RegisterUser) (*cms.RegisterUser
 	username := formatUsername(u.Username)
 	err = validateUsername(username)
 	if err != nil {
+		return nil, err
+	}
+
+	// Ensure username is unique.
+	_, err = p.db.UserGetByUsername(u.Username)
+	switch err {
+	case nil:
+		// Duplicate username
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusDuplicateUsername,
+		}
+	case user.ErrUserNotFound:
+		// Username doesn't exist; continue
+	default:
 		return nil, err
 	}
 

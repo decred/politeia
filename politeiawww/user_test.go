@@ -288,18 +288,26 @@ func TestProcessNewUser(t *testing.T) {
 				ErrorCode: www.ErrorStatusMalformedPassword,
 			}},
 
-		// usrExpired gets successfully created during the test
-		// "unverified user expired token" so usrExpiredPublicKey
-		// should now be a duplicate.
 		{"duplicate pubkey",
 			www.NewUser{
 				Email:     validEmail,
 				Password:  validPassword,
-				PublicKey: usrExpiredPublicKey,
+				PublicKey: usrVerified.PublicKey(),
 				Username:  validUsername,
 			},
 			www.UserError{
 				ErrorCode: www.ErrorStatusDuplicatePublicKey,
+			}},
+
+		{"duplicate username",
+			www.NewUser{
+				Email:     validEmail,
+				Password:  validPassword,
+				PublicKey: validPublicKey,
+				Username:  usrVerified.Username,
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusDuplicateUsername,
 			}},
 
 		{"invalid email",
