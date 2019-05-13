@@ -636,6 +636,9 @@ func loadConfig() (*config, []string, error) {
 	}
 
 	// Validate encryption keys.
+	cfg.EncryptionKey = cleanAndExpandPath(cfg.EncryptionKey)
+	cfg.OldEncryptionKey = cleanAndExpandPath(cfg.OldEncryptionKey)
+
 	if cfg.EncryptionKey != "" {
 		if cfg.UserDB == userDBLevel {
 			return nil, nil, fmt.Errorf("data at rest encryption is not" +
