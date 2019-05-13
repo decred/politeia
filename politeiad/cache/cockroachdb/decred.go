@@ -899,6 +899,7 @@ func (d *decred) cmdVoteSummary(payload string) (string, error) {
 	err = d.recordsdb.
 		Where("token = ?", vs.Token).
 		Preload("Results").
+		Preload("Results.Option").
 		Find(&vr).
 		Error
 	if err == gorm.ErrRecordNotFound {

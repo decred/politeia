@@ -190,10 +190,11 @@ func (CastVote) TableName() string {
 //
 // This is a decred plugin model.
 type VoteOptionResult struct {
-	Key    string     `gorm:"primary_key"`      // Primary key (token+votebit)
-	Token  string     `gorm:"not null;size:64"` // Censorship token (VoteResults foreign key)
-	Votes  uint64     `gorm:"not null"`         // Number of votes cast for this option
-	Option VoteOption `gorm:"not null"`         // Vote option
+	Key       string     `gorm:"primary_key"`      // Primary key (token+votebit)
+	Token     string     `gorm:"not null;size:64"` // Censorship token (VoteResults foreign key)
+	Votes     uint64     `gorm:"not null"`         // Number of votes cast for this option
+	Option    VoteOption `gorm:"not null"`         // Vote option
+	OptionKey uint       `gorm:"not null"`         // VoteOption foreign key
 }
 
 // TableName returns the name of the VoteOptionResult database table.
