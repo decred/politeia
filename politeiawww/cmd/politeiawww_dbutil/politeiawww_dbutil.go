@@ -5,6 +5,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/tls"
 	"crypto/x509"
@@ -616,6 +617,46 @@ func cmdMigrate() error {
 				return fmt.Errorf("decode user '%v': %v",
 					value, err)
 			}
+
+			// Check if username already exists in db. There was a
+			// ~2 month period where a bug allowed for users to be
+			// created with duplicate usernames.
+			_, err = cdb.UserGetByUsername(u.Username)
+			switch err {
+			case nil:
+				for err != user.ErrUserNotFound {
+					// Username is a duplicate. Allow for the username to be
+					// updated here. The migration will fail if the username
+					// is not unique.
+					fmt.Printf("Username '%v' already exists. Username must be "+
+						"updated for the following user before the migration can "+
+						"continue.\n", u.Username)
+
+					fmt.Printf("ID                 : %v\n", u.ID.String())
+					fmt.Printf("Email              : %v\n", u.Email)
+					fmt.Printf("Username           : %v\n", u.Username)
+					fmt.Printf("Input new username : ")
+
+					var input string
+					r := bufio.NewReader(os.Stdin)
+					input, err = r.ReadString('\n')
+					if err != nil {
+						return err
+					}
+
+					username := strings.TrimSuffix(input, "\n")
+					u.Username = strings.ToLower(strings.TrimSpace(username))
+					_, err = cdb.UserGetByUsername(u.Username)
+				}
+
+				fmt.Printf("Username updated to '%v'\n", u.Username)
+
+			case user.ErrUserNotFound:
+				// Username doesn't exist; continue
+			default:
+				return err
+			}
+
 			err = cdb.InsertUser(*u)
 			if err != nil {
 				return fmt.Errorf("migrate user '%v': %v",
