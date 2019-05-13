@@ -46,6 +46,33 @@ type cockroachdb struct {
 	userDB        *gorm.DB  // Database context
 }
 
+// encrypt encrypts the provided data with the cockroachdb encryption key. The
+// encrypted blob is prefixed with an sbox header which encodes the provided
+// version. The read lock is taken despite the encryption key being a static
+// value because the encryption key is zeroed out on shutdown, which causes
+// race conditions to be reported when the golang race detector is used.
+//
+// This function must be called without the lock held.
+func (c *cockroachdb) encrypt(version uint32, b []byte) ([]byte, error) {
+	c.RLock()
+	defer c.RUnlock()
+
+	return sbox.Encrypt(version, c.encryptionKey, b)
+}
+
+// decrypt decrypts the provided packed blob using the cockroachdb encryption
+// key. The read lock is taken despite the encryption key being a static value
+// because the encryption key is zeroed out on shutdown, which causes race
+// conditions to be reported when the golang race detector is used.
+//
+// This function must be called without the lock held.
+func (c *cockroachdb) decrypt(b []byte) ([]byte, uint32, error) {
+	c.RLock()
+	defer c.RUnlock()
+
+	return sbox.Decrypt(c.encryptionKey, b)
+}
+
 // setPaywallAddressIndex updates the paywall address index record in the
 // key-value store.
 //
@@ -106,7 +133,7 @@ func (c *cockroachdb) userNew(tx *gorm.DB, u user.User) error {
 		return err
 	}
 
-	eb, err := sbox.Encrypt(user.VersionUser, c.encryptionKey, ub)
+	eb, err := c.encrypt(user.VersionUser, ub)
 	if err != nil {
 		return err
 	}
@@ -174,7 +201,7 @@ func (c *cockroachdb) UserGetByUsername(username string) (*user.User, error) {
 		return nil, err
 	}
 
-	b, _, err := sbox.Decrypt(c.encryptionKey, u.Blob)
+	b, _, err := c.decrypt(u.Blob)
 	if err != nil {
 		return nil, err
 	}
@@ -212,7 +239,7 @@ func (c *cockroachdb) UserGetById(id uuid.UUID) (*user.User, error) {
 		return nil, err
 	}
 
-	b, _, err := sbox.Decrypt(c.encryptionKey, u.Blob)
+	b, _, err := c.decrypt(u.Blob)
 	if err != nil {
 		return nil, err
 	}
@@ -242,7 +269,7 @@ func (c *cockroachdb) UserUpdate(u user.User) error {
 		return err
 	}
 
-	eb, err := sbox.Encrypt(user.VersionUser, c.encryptionKey, b)
+	eb, err := c.encrypt(user.VersionUser, b)
 	if err != nil {
 		return err
 	}
@@ -273,7 +300,7 @@ func (c *cockroachdb) AllUsers(callback func(u *user.User)) error {
 
 	// Invoke callback on each user
 	for _, v := range users {
-		b, _, err := sbox.Decrypt(c.encryptionKey, v.Blob)
+		b, _, err := c.decrypt(v.Blob)
 		if err != nil {
 			return err
 		}
@@ -331,11 +358,10 @@ func rotateKeys(tx *gorm.DB, oldKey *[32]byte, newKey *[32]byte) error {
 func (c *cockroachdb) RotateKeys(newKeyPath string) error {
 	log.Tracef("RotateKeys: %v", newKeyPath)
 
-	c.RLock()
-	shutdown := c.shutdown
-	c.RUnlock()
+	c.Lock()
+	defer c.Unlock()
 
-	if shutdown {
+	if c.shutdown {
 		return user.ErrShutdown
 	}
 
@@ -388,7 +414,7 @@ func (c *cockroachdb) InsertUser(u user.User) error {
 		return err
 	}
 
-	eb, err := sbox.Encrypt(user.VersionUser, c.encryptionKey, ub)
+	eb, err := c.encrypt(user.VersionUser, ub)
 	if err != nil {
 		return err
 	}
