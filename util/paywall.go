@@ -331,14 +331,13 @@ func FetchTxWithBlockExplorers(address string, amount uint64, txnotbefore int64,
 	}
 	explorerURL := dcrdataURL + "/raw"
 
-	//Fetch transaction from dcrdata
+	// Fetch transaction from dcrdata
 	txID, amount, err := fetchTxWithBE(explorerURL, address, amount,
 		txnotbefore, minConfirmations)
 	if err != nil {
 		log.Printf("failed to fetch from dcrdata: %v", err)
-	} else {
-		return txID, amount, nil
 	}
+
 	return txID, amount, nil
 }
 
@@ -384,13 +383,12 @@ func convertBETransactionToTxDetails(address string, tx BETransaction) (*TxDetai
 // FetchTxsForAddress fetches the transactions that have been sent to the
 // provided wallet address from the dcrdata block explorer
 func FetchTxsForAddress(address string) ([]TxDetails, error) {
-	// Get block explorer URLs
+	// Get block explorer URL
 	addr, err := dcrutil.DecodeAddress(address)
 	if err != nil {
 		return nil, fmt.Errorf("invalid address %v: %v", addr, err)
 	}
-	dcrdataURL, err := blockExplorerURLForAddress(address,
-		addr.Net())
+	dcrdataURL, err := blockExplorerURLForAddress(address, addr.Net())
 	if err != nil {
 		return nil, err
 	}
