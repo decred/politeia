@@ -1167,22 +1167,26 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 		}
 	}
 
-	//Check for changes between index.md
-	var mdchanges bool
-	for _, c := range cachedProp.Files {
-		if c.Name == indexFile {
-			for _, v := range ep.Files {
-				if v.Name == indexFile {
-					mdchanges = c.Payload != v.Payload
-				}
-			}
+	// Check for changes in the index.md file
+	var newMDFile www.File
+	for _, v := range ep.Files {
+		if v.Name == indexFile {
+			newMDFile = v
 		}
 	}
 
-	//Check for deleted files, added files, and markdown changes
-	if len(delFiles) == 0 &&
-		len(convertPropFilesFromWWW(cachedProp.Files)) ==
-			len(convertPropFilesFromWWW(ep.Files)) && !mdchanges {
+	var oldMDFile www.File
+	for _, v := range cachedProp.Files {
+		if v.Name == indexFile {
+			oldMDFile = v
+		}
+	}
+
+	mdChanges := newMDFile.Payload != oldMDFile.Payload
+
+	// Check that the proposal has been changed
+	if !mdChanges && len(delFiles) == 0 &&
+		len(cachedProp.Files) == len(ep.Files) {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusNoProposalChanges,
 		}

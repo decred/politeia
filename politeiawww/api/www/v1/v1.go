@@ -177,7 +177,7 @@ const (
 	ErrorStatusInvalidCensorshipToken      ErrorStatusT = 58
 	ErrorStatusEmailAlreadyVerified        ErrorStatusT = 59
 	ErrorStatusInvalidPassword             ErrorStatusT = 85
-	ErrorStatusNoProposalChanges           ErrorStatusT = 86
+	ErrorStatusNoProposalChanges           ErrorStatusT = 88
 
 	// CMS Errors
 	ErrorStatusMalformedName                  ErrorStatusT = 60
