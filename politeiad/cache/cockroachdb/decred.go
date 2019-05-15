@@ -414,11 +414,29 @@ func (d *decred) cmdVoteDetails(payload string) (string, error) {
 	return string(vdrb), nil
 }
 
-// newCastVote inserts a CastVote record into the database.  This function has
-// a database parameter so that it can be called inside of a transaction when
-// required.
-func (d *decred) newCastVote(db *gorm.DB, cv CastVote) error {
-	return db.Create(&cv).Error
+// newCastVote inserts a CastVote record into the database.
+//
+// This function must be called using a transaction.
+func (d *decred) newCastVote(tx *gorm.DB, cv CastVote) error {
+	// Ensure vote does not already exist
+	var v CastVote
+	err := tx.Where(&CastVote{
+		Token:  cv.Token,
+		Ticket: cv.Ticket,
+	}).First(&v).Error
+	switch {
+	case err == nil:
+		// Duplicate vote; don't add it
+		log.Debugf("newCastVote: duplicate vote %v %v",
+			cv.Token, cv.Ticket)
+		return nil
+	case err == gorm.ErrRecordNotFound:
+		// Not a duplicate vote; continue
+	default:
+		return err
+	}
+
+	return tx.Create(&cv).Error
 }
 
 // cmdNewBallot creates CastVote records using the passed in payloads and
@@ -431,9 +449,29 @@ func (d *decred) cmdNewBallot(cmdPayload, replyPayload string) (string, error) {
 		return "", err
 	}
 
+	br, err := decredplugin.DecodeBallotReply([]byte(replyPayload))
+	if err != nil {
+		return "", err
+	}
+
+	// Put votes receipts into a map for easy lookup. Only votes
+	// with a receipt signature will be added to the cache.
+	receipts := make(map[string]string, len(br.Receipts)) // [clientSig]receiptSig
+	for _, v := range br.Receipts {
+		receipts[v.ClientSignature] = v.Signature
+	}
+
 	// Add votes to database
 	tx := d.recordsdb.Begin()
 	for _, v := range b.Votes {
+		// Don't add votes that don't have a receipt signature
+		receipt := receipts[v.Signature]
+		if receipt == "" {
+			log.Debugf("cmdNewBallot: vote receipt not found %v %v",
+				v.Token, v.Ticket)
+			continue
+		}
+
 		cv := convertCastVoteFromDecred(v)
 		err = d.newCastVote(tx, cv)
 		if err != nil {
