@@ -73,6 +73,8 @@ func (p *politeiawww) GetMonthAverage(month time.Month, year int) (uint, error) 
 // getPricesPolo contacts the Poloniex API to download
 // price data for a given CC pairing. Returns a map
 // of unix timestamp => average price
+// Currently being replaced by Binance data due to Polo's ongoing issues with
+// volume.
 func getPricesPolo(pairing string, startDate int64, endDate int64) (map[uint64]float64, error) {
 	// Construct HTTP request and set parameters
 	req, err := http.NewRequest(http.MethodGet, poloURL, nil)
