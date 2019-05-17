@@ -12,9 +12,16 @@ import (
 	database "github.com/decred/politeia/politeiawww/cmsdatabase"
 )
 
+const binanceURL = "https://api.binance.com"
 const poloURL = "https://poloniex.com/public"
 const httpTimeout = time.Second * 3
 const pricePeriod = 900
+
+const dcrSymbolBinance = "DCRBTC"
+const usdtSymbolBinance = "BTCUSDT"
+
+const dcrSymbolPolo = "BTC_DCR"
+const usdtSymbolPolo = "USDT_BTC"
 
 type poloChartData struct {
 	Date            uint64  `json:"date"`
@@ -30,11 +37,11 @@ func (p *politeiawww) GetMonthAverage(month time.Month, year int) (uint, error) 
 	unixEnd := endTime.Unix()
 
 	// Download BTC/DCR and USDT/BTC prices from Poloniex
-	dcrPrices, err := getPrices("BTC_DCR", unixStart, unixEnd)
+	dcrPrices, err := getPricesBinance(dcrSymbolBinance, unixStart, unixEnd)
 	if err != nil {
 		return 0, err
 	}
-	btcPrices, err := getPrices("USDT_BTC", unixStart, unixEnd)
+	btcPrices, err := getPricesBinance(dcrSymbolPolo, unixStart, unixEnd)
 	if err != nil {
 		return 0, err
 	}
@@ -64,7 +71,7 @@ func (p *politeiawww) GetMonthAverage(month time.Month, year int) (uint, error) 
 // GetPrices contacts the Poloniex API to download
 // price data for a given CC pairing. Returns a map
 // of unix timestamp => average price
-func getPrices(pairing string, startDate int64, endDate int64) (map[uint64]float64, error) {
+func getPricesPolo(pairing string, startDate int64, endDate int64) (map[uint64]float64, error) {
 	// Construct HTTP request and set parameters
 	req, err := http.NewRequest(http.MethodGet, poloURL, nil)
 	if err != nil {
@@ -109,6 +116,81 @@ func getPrices(pairing string, startDate int64, endDate int64) (map[uint64]float
 	return prices, nil
 }
 
+// GetPrices contacts the Poloniex API to download
+// price data for a given CC pairing. Returns a map
+// of unix timestamp => average price
+func getPricesBinance(pairing string, startDate int64, endDate int64) (map[uint64]float64, error) {
+	// Construct HTTP request and set parameters
+	req, err := http.NewRequest(http.MethodGet, binanceURL+"/api/v1/klines", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	q := req.URL.Query()
+	q.Set("symbol", pairing)
+	q.Set("startTime", strconv.FormatInt(startDate*1000, 10))
+	q.Set("endTime", strconv.FormatInt(endDate*1000, 10))
+	q.Set("interval", "15m")
+	q.Set("limit", "1000")
+
+	req.URL.RawQuery = q.Encode()
+
+	// Create HTTP client,
+	httpClient := http.Client{
+		Timeout: httpTimeout,
+	}
+
+	// Send HTTP request
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+
+	var chartData [][]json.RawMessage
+
+	// Read response and deserialise JSON
+	decoder := json.NewDecoder(resp.Body)
+	err = decoder.Decode(&chartData)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create a map of unix timestamps => average price
+	//prices := make(map[uint64]float64, len(chartData))
+
+	prices := make(map[uint64]float64, len(chartData))
+	for _, v := range chartData {
+		var openTime uint64
+		var highStr string
+		var lowStr string
+		err := json.Unmarshal(v[0], &openTime)
+		if err != nil {
+			return nil, err
+		}
+		err = json.Unmarshal(v[2], &highStr)
+		if err != nil {
+			return nil, err
+		}
+		high, err := strconv.ParseFloat(highStr, 64)
+		if err != nil {
+			return nil, err
+		}
+		err = json.Unmarshal(v[3], &lowStr)
+		if err != nil {
+			return nil, err
+		}
+		low, err := strconv.ParseFloat(lowStr, 64)
+		if err != nil {
+			return nil, err
+		}
+		// Create a map of unix timestamps => average price
+		prices[openTime/1000] = (high + low) / 2
+	}
+	return prices, nil
+}
+
 // GetMonthAverage returns the average USD/DCR price for a given month
 func (p *politeiawww) processInvoiceExchangeRate(ier cms.InvoiceExchangeRate) (cms.InvoiceExchangeRateReply, error) {
 	reply := cms.InvoiceExchangeRateReply{}
@@ -122,6 +204,7 @@ func (p *politeiawww) processInvoiceExchangeRate(ier cms.InvoiceExchangeRate) (c
 					ErrorCode: www.ErrorStatusInvalidExchangeRate,
 				}
 			}
+
 			monthAvg = &database.ExchangeRate{
 				Month:        ier.Month,
 				Year:         ier.Year,
@@ -131,6 +214,7 @@ func (p *politeiawww) processInvoiceExchangeRate(ier cms.InvoiceExchangeRate) (c
 			if err != nil {
 				return reply, err
 			}
+
 		} else {
 
 			return reply, err
