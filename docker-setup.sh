@@ -27,8 +27,6 @@ dbhost=localhost:26257
 dbrootcert="~/.cockroachdb/certs/clients/politeiawww/ca.crt"
 dbcert="~/.cockroachdb/certs/clients/politeiawww/client.politeiawww.crt"
 dbkey="~/.cockroachdb/certs/clients/politeiawww/client.politeiawww.key"
-userdb=cockroachdb
-encryptionkey=~/.politeiawww/sbox.key
 EOL
 
 cat >> /go/bin/picachedb <<EOL
@@ -80,7 +78,6 @@ cd $GOPATH/src/github.com/decred/politeia
 export GO111MODULE=on
 go install -v ./...
 
-politeiawww_dbutil -createkey
 
 politeiad &
 sleep 5s;
@@ -93,3 +90,9 @@ sleep 5s;
 cd $GOPATH/src/github.com/decred/politeia
 ./scripts/userdbsetup.sh
 
+politeiawww_dbutil -createkey
+
+cat >> ~/.politeiawww/politeiawww.conf <<EOL
+encryptionkey=~/.politeiawww/sbox.key
+userdb=cockroachdb
+EOL
