@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"math"
 	"net/http"
 	"strconv"
@@ -190,10 +189,7 @@ func getPricesBinance(pairing string, startDate int64, endDate int64) (map[uint6
 		}
 		// Create a map of unix timestamps => average price
 		prices[openTime/1000] = (high + low) / 2
-
-		fmt.Println(time.Unix(int64(openTime/1000), 0).String())
 	}
-	fmt.Println(len(chartData))
 	return prices, nil
 }
 
@@ -216,10 +212,10 @@ func (p *politeiawww) processInvoiceExchangeRate(ier cms.InvoiceExchangeRate) (c
 				Year:         ier.Year,
 				ExchangeRate: monthAvgRaw,
 			}
-			//err = p.cmsDB.NewExchangeRate(monthAvg)
-			//if err != nil {
-			//	return reply, err
-			//}
+			err = p.cmsDB.NewExchangeRate(monthAvg)
+			if err != nil {
+				return reply, err
+			}
 
 		} else {
 
