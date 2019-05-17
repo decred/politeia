@@ -70,7 +70,7 @@ func (p *politeiawww) GetMonthAverage(month time.Month, year int) (uint, error) 
 	return uint(math.Round(average * 100)), nil
 }
 
-// GetPrices contacts the Poloniex API to download
+// getPricesPolo contacts the Poloniex API to download
 // price data for a given CC pairing. Returns a map
 // of unix timestamp => average price
 func getPricesPolo(pairing string, startDate int64, endDate int64) (map[uint64]float64, error) {
@@ -118,7 +118,7 @@ func getPricesPolo(pairing string, startDate int64, endDate int64) (map[uint64]f
 	return prices, nil
 }
 
-// GetPrices contacts the Poloniex API to download
+// getPricesBinance contacts the Binance API to download
 // price data for a given CC pairing. Returns a map
 // of unix timestamp => average price
 func getPricesBinance(pairing string, startDate int64, endDate int64) (map[uint64]float64, error) {
@@ -132,6 +132,9 @@ func getPricesBinance(pairing string, startDate int64, endDate int64) (map[uint6
 	q.Set("symbol", pairing)
 	q.Set("startTime", strconv.FormatInt(startDate*1000, 10))
 	q.Set("endTime", strconv.FormatInt(endDate*1000, 10))
+
+	// Request 1 hour intervals since there is a 1000 point limit on requests
+	// 31 Days * 24 Hours = 720 data points
 	q.Set("interval", "1h")
 	q.Set("limit", "1000")
 
@@ -152,21 +155,19 @@ func getPricesBinance(pairing string, startDate int64, endDate int64) (map[uint6
 
 	var chartData [][]json.RawMessage
 
-	// Read response and deserialise JSON
+	// Read response and deserialise JSON into [][]json.RawMessage
 	decoder := json.NewDecoder(resp.Body)
 	err = decoder.Decode(&chartData)
 	if err != nil {
 		return nil, err
 	}
 
-	// Create a map of unix timestamps => average price
-	//prices := make(map[uint64]float64, len(chartData))
-
 	prices := make(map[uint64]float64, len(chartData))
 	for _, v := range chartData {
-		var openTime uint64
-		var highStr string
-		var lowStr string
+		var openTime uint64 // v[0]
+		var highStr string  // v[2]
+		var lowStr string   // v[3]
+
 		err := json.Unmarshal(v[0], &openTime)
 		if err != nil {
 			return nil, err
