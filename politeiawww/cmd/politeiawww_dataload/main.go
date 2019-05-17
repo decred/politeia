@@ -170,6 +170,7 @@ func setAdmin(email string) error {
 	fmt.Printf("Elevating user to admin: %v\n", email)
 	cmd := executeCommand(
 		dbutil,
+		"-cockroachdb",
 		"-testnet",
 		"-setadmin",
 		email,
@@ -201,6 +202,7 @@ func addProposalCredits(email, quantity string) error {
 	fmt.Printf("Adding %v proposal credits to user account: %v\n", quantity, email)
 	cmd := executeCommand(
 		dbutil,
+		"-cockroachdb",
 		"-testnet",
 		"-addcredits",
 		email,

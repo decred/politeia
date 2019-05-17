@@ -127,6 +127,13 @@ things like new user registration, and those settings are also configured within
  `politeiawww.conf`. The current code should work with most SSL-based SMTP servers
 (but not TLS) using username and password as authentication.
 
+### Alternatively with docker
+
+This is primarily intended for politeiagui development:
+
+docker build ./ --tag=pi
+docker run -d -p 4443:4443 pi
+
 #### 4. Setup politeiad cache:
 
 politeiad stores proposal data in git repositories that are regularly backed up
