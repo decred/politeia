@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -58,6 +59,11 @@ const (
 	// Authorize vote actions
 	AuthVoteActionAuthorize = "authorize" // Authorize a proposal vote
 	AuthVoteActionRevoke    = "revoke"    // Revoke a proposal vote authorization
+)
+
+var (
+	// errDuplicateVote is emitted when a cast vote is a duplicate.
+	errDuplicateVote = errors.New("duplicate vote")
 )
 
 // FlushRecord is a structure that is stored on disk when a journal has been
@@ -2014,15 +2020,50 @@ func (g *gitBackEnd) voteEndHeight(token string) (uint32, error) {
 	return uint32(endHeight), nil
 }
 
-// voteExists verifies if a vote exists in the memory cache. If the cache does
-// not exists it is replayed from disk. If the vote exists in the cache the
-// functions returns true.
+// writeVote writes the provided vote to the provided journal file path, if the
+// vote does not already exist. Once successfully written to the journal, the
+// vote is added to the cast vote memory cache.
 //
-// Functions must be called WITH the lock held.
-func (g *gitBackEnd) voteExists(v decredplugin.CastVote) (bool, error) {
-	// Check if journal exists, use fast path
-	_, ok := decredPluginVotesCache[v.Token][v.Ticket]
-	return ok, nil
+// This function must be called WITHOUT the lock held.
+func (g *gitBackEnd) writeVote(v decredplugin.CastVote, receipt, journalPath string) error {
+	g.Lock()
+	defer g.Unlock()
+
+	// Ensure vote is not a duplicate
+	_, ok := decredPluginVotesCache[v.Token]
+	if !ok {
+		decredPluginVotesCache[v.Token] = make(map[string]struct{})
+	}
+
+	_, ok = decredPluginVotesCache[v.Token][v.Ticket]
+	if ok {
+		return errDuplicateVote
+	}
+
+	// Create journal entry
+	cvj := CastVoteJournal{
+		CastVote: v,
+		Receipt:  receipt,
+	}
+	blob, err := encodeCastVoteJournal(cvj)
+	if err != nil {
+		// Should not fail, so return failure to alert people
+		return fmt.Errorf("encodeCastVoteJournal: %v", err)
+	}
+
+	// Write vote to journal
+	err = g.journal.Journal(journalPath, string(journalAdd)+
+		string(blob))
+	if err != nil {
+		// Should not fail, so return failure to alert people
+		return fmt.Errorf("could not journal vote %v: %v %v",
+			v.Token, v.Ticket, err)
+	}
+
+	// Add vote to memory cache
+	decredPluginVotesCache[v.Token][v.Ticket] = struct{}{}
+
+	return nil
 }
 
 func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
@@ -2075,21 +2116,6 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 			log.Errorf("pluginBallot: proposal not found: %v",
 				v.Token)
 			br.Receipts[k].Error = "proposal not found: " + v.Token
-			continue
-		}
-
-		// Replay individual votes journal
-		dup, err := g.voteExists(v)
-		if err != nil {
-			t := time.Now().Unix()
-			log.Errorf("pluginBallot: voteExists %v %v %v %v",
-				v.Ticket, v.Token, t, err)
-			br.Receipts[k].Error = fmt.Sprintf("internal error %v",
-				t)
-			continue
-		}
-		if dup {
-			br.Receipts[k].Error = "duplicate vote: " + v.Token
 			continue
 		}
 
@@ -2147,12 +2173,13 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 		}
 		br.Receipts[k].ClientSignature = v.Signature
 
+		// Ensure journal directory exists
 		dir := pijoin(g.journals, v.Token)
 		bfilename := pijoin(dir, defaultBallotFilename)
 		err = os.MkdirAll(dir, 0774)
 		if err != nil {
 			// Should not fail, so return failure to alert people
-			return "", fmt.Errorf("EncodeCastVoteJournal: %v", err)
+			return "", fmt.Errorf("make journal dir: %v", err)
 		}
 
 		// Sign signature
@@ -2160,33 +2187,15 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 		receipt := hex.EncodeToString(r[:])
 		br.Receipts[k].Signature = receipt
 
-		// Create Journal entry
-		cvj := CastVoteJournal{
-			CastVote: v,
-			Receipt:  receipt,
-		}
-		blob, err := encodeCastVoteJournal(cvj)
+		// Write vote to journal
+		err = g.writeVote(v, receipt, bfilename)
 		if err != nil {
-			// Should not fail, so return failure to alert people
-			return "", fmt.Errorf("EncodeCastVoteJournal: %v", err)
+			if err == errDuplicateVote {
+				br.Receipts[k].Error = "duplicate vote: " + v.Token
+				continue
+			}
+			return "", err
 		}
-
-		// Add comment to journal
-		err = g.journal.Journal(bfilename, string(journalAdd)+
-			string(blob))
-		if err != nil {
-			// Should not fail, so return failure to alert people
-			return "", fmt.Errorf("could not journal vote %v: %v %v",
-				v.Token, v.Ticket, err)
-		}
-
-		// Add to cache
-		g.Lock()
-		if _, ok := decredPluginVotesCache[v.Token]; !ok {
-			decredPluginVotesCache[v.Token] = make(map[string]struct{})
-		}
-		decredPluginVotesCache[v.Token][v.Ticket] = struct{}{}
-		g.Unlock()
 
 		// Mark comment journal dirty
 		flushFilename := pijoin(g.journals, v.Token,
