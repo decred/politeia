@@ -44,7 +44,7 @@ const (
 
 	// PolicyMaxImages is the maximum number of images accepted
 	// when creating a new invoice
-	PolicyMaxImages = 5
+	PolicyMaxImages = 20
 
 	// PolicyMaxImageSize is the maximum image file size (in bytes)
 	// accepted when creating a new invoice
