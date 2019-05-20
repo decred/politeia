@@ -94,7 +94,7 @@ const (
 
 	// PolicyMaxLineItemColLength is the maximum length for the strings in
 	// each column field of the lineItem structure.
-	PolicyMaxLineItemColLength = 200
+	PolicyMaxLineItemColLength = 500
 )
 
 var (
