@@ -664,6 +664,7 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 						}
 					}
 				case cms.LineItemTypeExpense:
+					fallthrough
 				case cms.LineItemTypeMisc:
 					if lineInput.Labor != 0 {
 						return www.UserError{
