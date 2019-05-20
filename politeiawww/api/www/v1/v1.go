@@ -204,6 +204,8 @@ const (
 	ErrorStatusMultipleInvoiceMonthYear       ErrorStatusT = 82
 	ErrorStatusInvalidInvoiceMonthYear        ErrorStatusT = 83
 	ErrorStatusInvalidExchangeRate            ErrorStatusT = 84
+	ErrorStatusInvalidLineItemType            ErrorStatusT = 86
+	ErrorStatusInvalidLaborExpense            ErrorStatusT = 87
 
 	// Proposal state codes
 	//
