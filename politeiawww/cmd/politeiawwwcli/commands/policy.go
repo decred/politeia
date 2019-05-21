@@ -5,15 +5,25 @@
 package commands
 
 // PolicyCmd gets the server policy information.
-type PolicyCmd struct{}
+type PolicyCmd struct {
+	CMS bool `long:"cms" optional:"true" description:"Get CMS policy"`
+}
 
 // Execute executes the policy command.
 func (cmd *PolicyCmd) Execute(args []string) error {
-	pr, err := client.Policy()
-	if err != nil {
-		return err
+	if cmd.CMS {
+		pr, err := client.CMSPolicy()
+		if err != nil {
+			return err
+		}
+		return printJSON(pr)
+	} else {
+		pr, err := client.Policy()
+		if err != nil {
+			return err
+		}
+		return printJSON(pr)
 	}
-	return printJSON(pr)
 }
 
 // policyHelpMsg is the output of the help command when 'policy' is specified.
