@@ -380,6 +380,29 @@ func (c *Client) Policy() (*v1.PolicyReply, error) {
 	return &pr, nil
 }
 
+// CMSPolicy returns the politeiawww policy information.
+func (c *Client) CMSPolicy() (*cms.PolicyReply, error) {
+	responseBody, err := c.makeRequest("GET", v1.RoutePolicy, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var pr cms.PolicyReply
+	err = json.Unmarshal(responseBody, &pr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal CMSPolicyReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(pr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &pr, nil
+}
+
 // InviteNewUser creates a new cmswww user.
 func (c *Client) InviteNewUser(inu *cms.InviteNewUser) (*cms.InviteNewUserReply, error) {
 	responseBody, err := c.makeRequest("POST", cms.RouteInviteNewUser, inu)
