@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"net/http"
 	"strconv"
@@ -28,26 +29,53 @@ type poloChartData struct {
 	WeightedAverage float64 `json:"weightedAverage"`
 }
 
+// Set the last date to use polo as 4/1/2019.  If any start date requested is
+// after that date then use Binance instead.
+var endPoloDate = time.Date(2019, 4, 1, 0, 0, 0, 0, time.UTC)
+
 // GetMonthAverage returns the average USD/DCR price for a given month
 func (p *politeiawww) GetMonthAverage(month time.Month, year int) (uint, error) {
 	startTime := time.Date(year, month, 1, 0, 0, 0, 0, time.UTC)
 	endTime := startTime.AddDate(0, 1, 0)
 
+	if time.Now().Before(endTime) {
+		return 0, fmt.Errorf("Requested rate end time (%v) is past current time (%v)", endTime, time.Now())
+	}
+
 	unixStart := startTime.Unix()
 	unixEnd := endTime.Unix()
 
-	// Download BTC/DCR and USDT/BTC prices from Poloniex
-	dcrPrices, err := getPricesBinance(dcrSymbolBinance, unixStart, unixEnd)
-	if err != nil {
-		log.Error(err)
-		return 0, err
-	}
-	btcPrices, err := getPricesBinance(usdtSymbolBinance, unixStart, unixEnd)
-	if err != nil {
-		log.Error(err)
-		return 0, err
-	}
+	var dcrPrices map[uint64]float64
+	var btcPrices map[uint64]float64
+	var err error
 
+	// Use Binance if start date is AFTER 3/31/19
+	if startTime.Before(endPoloDate) {
+		// Download BTC/DCR and USDT/BTC prices from Polo
+		dcrPrices, err = getPricesPolo(dcrSymbolPolo, unixStart, unixEnd)
+		if err != nil {
+			log.Error(err)
+			return 0, err
+		}
+		btcPrices, err = getPricesPolo(usdtSymbolPolo, unixStart, unixEnd)
+		if err != nil {
+			log.Error(err)
+			return 0, err
+		}
+	} else {
+		// Download BTC/DCR and USDT/BTC prices from Binance
+		dcrPrices, err = getPricesBinance(dcrSymbolBinance, unixStart, unixEnd)
+		if err != nil {
+			log.Error(err)
+			return 0, err
+		}
+		btcPrices, err = getPricesBinance(usdtSymbolBinance, unixStart, unixEnd)
+		if err != nil {
+			log.Error(err)
+			return 0, err
+		}
+
+	}
 	// Create a map of unix timestamps => average price
 	usdtDcrPrices := make(map[uint64]float64)
 
@@ -205,6 +233,7 @@ func (p *politeiawww) processInvoiceExchangeRate(ier cms.InvoiceExchangeRate) (c
 		if err == database.ErrExchangeRateNotFound {
 			monthAvgRaw, err := p.GetMonthAverage(time.Month(ier.Month), int(ier.Year))
 			if err != nil {
+				log.Error(err)
 				return reply, www.UserError{
 					ErrorCode: www.ErrorStatusInvalidExchangeRate,
 				}
@@ -221,7 +250,6 @@ func (p *politeiawww) processInvoiceExchangeRate(ier cms.InvoiceExchangeRate) (c
 			}
 
 		} else {
-
 			return reply, err
 		}
 	}
