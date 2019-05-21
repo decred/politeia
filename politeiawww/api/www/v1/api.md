@@ -136,6 +136,8 @@ notifications.  It does not render HTML.
 - [`ErrorStatusInvoiceRequireLineItems`](#ErrorStatusInvoiceRequireLineItems)
 - [`ErrorStatusInvalidInvoiceMonthYear`](#ErrorStatusInvalidInvoiceMonthYear)
 - [`ErrorStatusMultipleInvoiceMonthYear`](#ErrorStatusMultipleInvoiceMonthYear)
+- [`ErrorStatusInvalidLineItemType`](#ErrorStatusInvalidLineItemType) 
+- [`ErrorStatusInvalidLaborExpense`](#ErrorStatusInvalidLaborExpense) 
 
 **Proposal status codes**
 
@@ -2553,6 +2555,8 @@ Reply:
 | <a name="ErrorStatusInvalidInvoiceMonthYear">ErrorStatusInvalidInvoiceMonthYear</a> | 83 | An invalid month/year was detected in an invoice. |
 | <a name="ErrorStatusInvalidExchangeRate">ErrorStatusInvalidExchangeRate</a> | 84 | Invalid Exchange Rate |
 | <a name="ErrorStatusInvalidPassword">ErrorStatusInvalidPassword</a> | 85 | User password was invalid |
+| <a name="ErrorStatusInvalidLineItemType">ErrorStatusInvalidLineItemType</a> | 86 | An invalid line item type was attempted. |
+| <a name="ErrorStatusInvalidLaborExpense">ErrorStatusInvalidLaborExpense</a> | 87 | An invalid value was entered into labor or expenses. |
 
 
 ### Proposal status codes

@@ -660,15 +660,20 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 				case cms.LineItemTypeLabor:
 					if lineInput.Expenses != 0 {
 						return www.UserError{
-							ErrorCode: www.ErrorStatusMalformedLineItem,
+							ErrorCode: www.ErrorStatusInvalidLaborExpense,
 						}
 					}
 				case cms.LineItemTypeExpense:
+					fallthrough
 				case cms.LineItemTypeMisc:
 					if lineInput.Labor != 0 {
 						return www.UserError{
-							ErrorCode: www.ErrorStatusMalformedLineItem,
+							ErrorCode: www.ErrorStatusInvalidLaborExpense,
 						}
+					}
+				default:
+					return www.UserError{
+						ErrorCode: www.ErrorStatusInvalidLineItemType,
 					}
 				}
 			}
