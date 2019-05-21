@@ -231,7 +231,7 @@ func validateLocation(location string) error {
 	return nil
 }
 
-// formatLocation normalizes a contractor location to lowercase without leading and
+// formatContact normalizes a contractor contact to lowercase without leading and
 // trailing spaces.
 func formatContact(contact string) string {
 	return strings.ToLower(strings.TrimSpace(contact))
@@ -247,9 +247,9 @@ func validateContact(contact string) error {
 	}
 
 	if !validContact.MatchString(contact) {
-		log.Debugf("Location not valid: %s %s", contact, validContact.String())
+		log.Debugf("Contact not valid: %s %s", contact, validContact.String())
 		return www.UserError{
-			ErrorCode: www.ErrorStatusMalformedLocation,
+			ErrorCode: www.ErrorStatusInvoiceMalformedContact,
 		}
 	}
 
