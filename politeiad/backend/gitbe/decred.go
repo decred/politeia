@@ -2171,7 +2171,6 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 				t)
 			continue
 		}
-		br.Receipts[k].ClientSignature = v.Signature
 
 		// Ensure journal directory exists
 		dir := pijoin(g.journals, v.Token)
@@ -2185,7 +2184,6 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 		// Sign signature
 		r := fi.SignMessage([]byte(v.Signature))
 		receipt := hex.EncodeToString(r[:])
-		br.Receipts[k].Signature = receipt
 
 		// Write vote to journal
 		err = g.writeVote(v, receipt, bfilename)
@@ -2194,8 +2192,13 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 				br.Receipts[k].Error = "duplicate vote: " + v.Token
 				continue
 			}
-			return "", err
+			// Should not fail, so return failure to alert people
+			return "", fmt.Errorf("write vote: %v", err)
 		}
+
+		// Update reply
+		br.Receipts[k].ClientSignature = v.Signature
+		br.Receipts[k].Signature = receipt
 
 		// Mark comment journal dirty
 		flushFilename := pijoin(g.journals, v.Token,

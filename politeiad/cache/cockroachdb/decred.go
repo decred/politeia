@@ -414,31 +414,6 @@ func (d *decred) cmdVoteDetails(payload string) (string, error) {
 	return string(vdrb), nil
 }
 
-// newCastVote inserts a CastVote record into the database.
-//
-// This function must be called using a transaction.
-func (d *decred) newCastVote(tx *gorm.DB, cv CastVote) error {
-	// Ensure vote does not already exist
-	var v CastVote
-	err := tx.Where(&CastVote{
-		Token:  cv.Token,
-		Ticket: cv.Ticket,
-	}).First(&v).Error
-	switch {
-	case err == nil:
-		// Duplicate vote; don't add it
-		log.Debugf("newCastVote: duplicate vote %v %v",
-			cv.Token, cv.Ticket)
-		return nil
-	case err == gorm.ErrRecordNotFound:
-		// Not a duplicate vote; continue
-	default:
-		return err
-	}
-
-	return tx.Create(&cv).Error
-}
-
 // cmdNewBallot creates CastVote records using the passed in payloads and
 // inserts them into the database.
 func (d *decred) cmdNewBallot(cmdPayload, replyPayload string) (string, error) {
@@ -461,28 +436,20 @@ func (d *decred) cmdNewBallot(cmdPayload, replyPayload string) (string, error) {
 		receipts[v.ClientSignature] = v.Signature
 	}
 
-	// Add votes to database
-	tx := d.recordsdb.Begin()
+	// Add cast votes to the cache
 	for _, v := range b.Votes {
 		// Don't add votes that don't have a receipt signature
-		receipt := receipts[v.Signature]
-		if receipt == "" {
+		if receipts[v.Signature] == "" {
 			log.Debugf("cmdNewBallot: vote receipt not found %v %v",
 				v.Token, v.Ticket)
 			continue
 		}
 
 		cv := convertCastVoteFromDecred(v)
-		err = d.newCastVote(tx, cv)
+		err := d.recordsdb.Create(&cv).Error
 		if err != nil {
-			tx.Rollback()
 			return "", err
 		}
-	}
-
-	err = tx.Commit().Error
-	if err != nil {
-		return "", fmt.Errorf("commit transaction failed: %v", err)
 	}
 
 	return replyPayload, nil
@@ -1253,10 +1220,10 @@ func (d *decred) build(ir *decredplugin.InventoryReply) error {
 	log.Tracef("decred: building cast vote cache")
 	for _, v := range ir.CastVotes {
 		cv := convertCastVoteFromDecred(v)
-		err := d.newCastVote(d.recordsdb, cv)
+		err := d.recordsdb.Create(&cv).Error
 		if err != nil {
-			log.Debugf("newCastVote failed on '%v'", cv)
-			return fmt.Errorf("newCastVote: %v", err)
+			log.Debugf("insert cast vote failed on '%v'", cv)
+			return fmt.Errorf("insert cast vote: %v", err)
 		}
 	}
 
