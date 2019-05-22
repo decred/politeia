@@ -1167,6 +1167,31 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 		}
 	}
 
+	// Check for changes in the index.md file
+	var newMDFile www.File
+	for _, v := range ep.Files {
+		if v.Name == indexFile {
+			newMDFile = v
+		}
+	}
+
+	var oldMDFile www.File
+	for _, v := range cachedProp.Files {
+		if v.Name == indexFile {
+			oldMDFile = v
+		}
+	}
+
+	mdChanges := newMDFile.Payload != oldMDFile.Payload
+
+	// Check that the proposal has been changed
+	if !mdChanges && len(delFiles) == 0 &&
+		len(cachedProp.Files) == len(ep.Files) {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusNoProposalChanges,
+		}
+	}
+
 	// Setup politeiad request
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {

@@ -137,7 +137,8 @@ notifications.  It does not render HTML.
 - [`ErrorStatusInvalidInvoiceMonthYear`](#ErrorStatusInvalidInvoiceMonthYear)
 - [`ErrorStatusMultipleInvoiceMonthYear`](#ErrorStatusMultipleInvoiceMonthYear)
 - [`ErrorStatusInvalidLineItemType`](#ErrorStatusInvalidLineItemType) 
-- [`ErrorStatusInvalidLaborExpense`](#ErrorStatusInvalidLaborExpense) 
+- [`ErrorStatusInvalidLaborExpense`](#ErrorStatusInvalidLaborExpense)
+- [`ErrorStatusNoProposalChanges`](#ErrorStatusNoProposalChanges)
 
 **Proposal status codes**
 
@@ -2556,6 +2557,7 @@ Reply:
 | <a name="ErrorStatusInvalidPassword">ErrorStatusInvalidPassword</a> | 85 | User password was invalid |
 | <a name="ErrorStatusInvalidLineItemType">ErrorStatusInvalidLineItemType</a> | 86 | An invalid line item type was attempted. |
 | <a name="ErrorStatusInvalidLaborExpense">ErrorStatusInvalidLaborExpense</a> | 87 | An invalid value was entered into labor or expenses. |
+| <a name="ErrorStatusNoProposalChanges">ErrorStatusNoProposalChanges</a> | 88 | No changes found in proposal. |
 
 
 ### Proposal status codes
@@ -2652,7 +2654,7 @@ This is a shortened representation of a user, used for lists.
 | censorshiprecord | [`censorshiprecord`](#censorship-record) | The censorship record that was created when the proposal was submitted. |
 | files | array of [`File`](#file)s | This property will only be populated for the [`Proposal details`](#proposal-details) call. |
 | numcomments | number | The number of comments on the proposal. This should be ignored for proposals which are not public. |
-| statatuschangemessage | Message associated to the status change. |
+| statatuschangemessage | Message associated to the status change. |
 | pubishedat | The timestamp of when the proposal has been published. If the proposals has not been pubished, this field will not be present. |
 | censoredat | The timestamp of when the proposal has been censored. If the proposals has not been censored, this field will not be present. |
 | abandonedat | The timestamp of when the proposal has been abandoned. If the proposals has not been abandoned, this field will not be present. |

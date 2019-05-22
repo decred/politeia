@@ -177,6 +177,7 @@ const (
 	ErrorStatusInvalidCensorshipToken      ErrorStatusT = 58
 	ErrorStatusEmailAlreadyVerified        ErrorStatusT = 59
 	ErrorStatusInvalidPassword             ErrorStatusT = 85
+	ErrorStatusNoProposalChanges           ErrorStatusT = 88
 
 	// CMS Errors
 	ErrorStatusMalformedName                  ErrorStatusT = 60
@@ -374,6 +375,7 @@ var (
 		ErrorStatusInvalidInvoiceMonthYear:        "an invalid month/year was submitted on an invoice",
 		ErrorStatusInvalidExchangeRate:            "exchange rate was invalid or didn't match expected result",
 		ErrorStatusInvalidPassword:                "invalid password",
+		ErrorStatusNoProposalChanges:              "no changes found in proposal",
 	}
 
 	// PropStatus converts propsal status codes to human readable text
