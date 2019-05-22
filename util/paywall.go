@@ -78,11 +78,6 @@ type TxDetails struct {
 	Confirmations uint64 // Number of confirmations
 }
 
-var (
-	// ErrCannotVerifyPayment is emitted when a transaction cannot be verified by dcrdata
-	ErrCannotVerifyPayment = errors.New("cannot verify payment at this time")
-)
-
 func makeRequest(url string, timeout time.Duration) ([]byte, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -335,7 +330,7 @@ func FetchTxWithBlockExplorers(address string, amount uint64, txnotbefore int64,
 	txID, amount, err := fetchTxWithBE(explorerURL, address, amount,
 		txnotbefore, minConfirmations)
 	if err != nil {
-		log.Printf("failed to fetch from dcrdata: %v", err)
+		return "", 0, fmt.Errorf("failed to fetch from dcrdata: %v", err)
 	}
 
 	return txID, amount, nil
@@ -397,7 +392,7 @@ func FetchTxsForAddress(address string) ([]TxDetails, error) {
 	// Fetch using dcrdata block explorer
 	dcrdataTxs, err := fetchTxsWithBE(explorerURL)
 	if err != nil {
-		log.Printf("failed to fetch from dcrdata: %v", err)
+		return nil, fmt.Errorf("failed to fetch from dcrdata: %v", err)
 	}
 	txs := make([]TxDetails, 0, len(dcrdataTxs))
 	for _, tx := range dcrdataTxs {
