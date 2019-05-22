@@ -41,7 +41,6 @@ Result:
       "commentid":    (string)  Id of the comment
       "receipt":      (string)  Server signature of the comment signature
       "timestamp":    (int64)   Received UNIX timestamp
-      "totalvotes":   (uint64)  Total number of up/down votes
       "resultvotes":  (int64)   Vote score
       "censored":     (bool)    If comment has been censored
       "userid":       (string)  User id
