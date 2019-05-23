@@ -1988,15 +1988,16 @@ func (p *politeiawww) processVerifyUserPayment(u *user.User, vupt www.VerifyUser
 	return &reply, nil
 }
 
-// removeUsersFromPool removes provided user IDs from the the poll pool.
-// Currently, updating user db and removal from pool isn't an atomic
-// operation. This can lead to a scenario where user has been marked as
-// paid in db, but has not yet been removed from the pool. If a user
-// issues a proposal paywall during this time, the proposal paywall will
-// replace the user paywall in the pool. When the pool proceeds to remove
-// the user paywall, it will mistakenly remove the proposal paywall instead.
+// removeUsersFromPool removes the provided user IDs from the the poll pool.
+//
+// Currently, updating the user db and removing the user from pool isn't an
+// atomic operation.  This can lead to a scenario where the user has been
+// marked as paid in the db, but has not yet been removed from the pool. If a
+// user issues a proposal paywall during this time, the proposal paywall will
+// replace the user paywall in the pool. When the pool proceeds to remove the
+// user paywall, it will mistakenly remove the proposal paywall instead.
 // Proposal credits will not be added to the user's account. The workaround
-// until this code gets replaced with websockets is to pass the paywallType
+// until this code gets replaced with websockets is to pass in the paywallType
 // when removing a pool member.
 //
 // This function must be called WITHOUT the mutex held.

@@ -83,6 +83,12 @@ func (p *politeiawww) checkForProposalPayments(pool map[uuid.UUID]paywallPoolMem
 		log.Tracef("Checking proposal paywall address for user %v...", u.Email)
 
 		paywall := p.mostRecentProposalPaywall(u)
+
+		// Sanity check
+		if paywall == nil {
+			continue
+		}
+
 		if paywallHasExpired(paywall.PollExpiry) {
 			userIDsToRemove = append(userIDsToRemove, userID)
 			log.Tracef("  removing from polling, poll has expired")
@@ -107,6 +113,7 @@ func (p *politeiawww) checkForProposalPayments(pool map[uuid.UUID]paywallPoolMem
 			log.Tracef("  removing from polling, user just paid")
 		} else if tx != nil {
 			log.Tracef("  updating pool member with id: %v", userID)
+
 			// Update pool member if payment tx was found but
 			// does not have enough confimrations.
 			poolMember.txID = tx.TxID
