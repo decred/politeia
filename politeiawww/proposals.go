@@ -139,6 +139,19 @@ func decodeMDStreamChanges(payload []byte) ([]MDStreamChanges, error) {
 	return msc, nil
 }
 
+// tokenIsValid returns whether the provided string is a valid politeiad
+// censorship record token.
+func tokenIsValid(token string) bool {
+	b, err := hex.DecodeString(token)
+	if err != nil {
+		return false
+	}
+	if len(b) != pd.TokenSize {
+		return false
+	}
+	return true
+}
+
 // validateVoteBit ensures that bit is a valid vote bit.
 func validateVoteBit(vote www.Vote, bit uint64) error {
 	if len(vote.Options) == 0 {
@@ -1259,6 +1272,14 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 func (p *politeiawww) processAllVetted(v www.GetAllVetted) (*www.GetAllVettedReply, error) {
 	log.Tracef("processAllVetted")
 
+	// Validate query params
+	if (v.Before != "" && !tokenIsValid(v.Before)) ||
+		(v.After != "" && !tokenIsValid(v.After)) {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidCensorshipToken,
+		}
+	}
+
 	// Fetch all proposals from the cache
 	all, err := p.getAllProps()
 	if err != nil {
@@ -1290,6 +1311,14 @@ func (p *politeiawww) processAllVetted(v www.GetAllVetted) (*www.GetAllVettedRep
 // order, because they're sorted by oldest timestamp first.
 func (p *politeiawww) processAllUnvetted(u www.GetAllUnvetted) (*www.GetAllUnvettedReply, error) {
 	log.Tracef("processAllUnvetted")
+
+	// Validate query params
+	if (u.Before != "" && !tokenIsValid(u.Before)) ||
+		(u.After != "" && !tokenIsValid(u.After)) {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidCensorshipToken,
+		}
+	}
 
 	// Fetch all proposals from the cache
 	all, err := p.getAllProps()
