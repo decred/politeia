@@ -433,14 +433,6 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 	}
 	cr := convertPropCensorFromPD(pdReply.CensorshipRecord)
 
-	// Fire off new proposal event
-	p.fireEvent(EventTypeProposalSubmitted,
-		EventDataProposalSubmitted{
-			CensorshipRecord: &cr,
-			User:             u,
-		},
-	)
-
 	return &cms.NewInvoiceReply{
 		CensorshipRecord: cr,
 	}, nil
@@ -865,14 +857,7 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus,
 	if err != nil {
 		return nil, err
 	}
-	/*
-		p.fireEvent(EventTypeInvoiceStatusChange,
-			EventDataInvoiceStatusChange{
-				Invoice:   dbInvoice,
-				AdminUser: user,
-			},
-		)
-	*/
+
 	// Return the reply.
 	sisr := cms.SetInvoiceStatusReply{
 		Invoice: *convertDatabaseInvoiceToInvoiceRecord(*dbInvoice),
@@ -1108,14 +1093,6 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 			dbInvoice.Token, err)
 	}
 
-	/*
-		// Fire off edit proposal event
-		p.fireEvent(EventTypeProposalEdited,
-			EventDataProposalEdited{
-				Proposal: updatedProp,
-			},
-		)
-	*/
 	return &cms.EditInvoiceReply{
 		Invoice: *inv,
 	}, nil
