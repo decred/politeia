@@ -87,6 +87,9 @@ type commentReplyOnCommentTemplateData struct {
 	CommentLink  string
 }
 
+type newInvoiceCommentTemplateData struct {
+}
+
 const templateNewUserEmailRaw = `
 Thanks for joining Politeia, {{.Username}}!
 
@@ -230,4 +233,8 @@ You have not yet submitted an invoice for {{.Month}} {{.Year}}.  Please do so as
 
 Regards,
 Contractor Management System
+`
+
+const templateNewInvoiceCommentRaw = `
+An administrator has submitted a new comment to your invoice, please login to cms.decred.org to view the message.
 `

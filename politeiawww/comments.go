@@ -407,6 +407,20 @@ func (p *politeiawww) processNewCommentInvoice(nc www.NewComment, u *user.User) 
 			Comment: c,
 		})
 	*/
+
+	if u.Admin {
+		invoiceUser, err := p.db.UserGetByUsername(ir.Username)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get user by username %v %v", ir.Username, err)
+		}
+		// Fire off new invoice comment event
+		p.fireEvent(EventTypeInvoiceComment,
+			EventDataInvoiceComment{
+				Token: nc.Token,
+				User:  invoiceUser,
+			},
+		)
+	}
 	return &www.NewCommentReply{
 		Comment: *c,
 	}, nil

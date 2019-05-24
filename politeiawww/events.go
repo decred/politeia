@@ -31,6 +31,7 @@ const (
 	EventTypeProposalVoteFinished
 	EventTypeComment
 	EventTypeUserManage
+	EventTypeInvoiceComment // CMS Type
 )
 
 type EventDataProposalSubmitted struct {
@@ -67,6 +68,11 @@ type EventDataUserManage struct {
 	AdminUser  *user.User
 	User       *user.User
 	ManageUser *www.ManageUser
+}
+
+type EventDataInvoiceComment struct {
+	Token string
+	User  *user.User
 }
 
 func (p *politeiawww) _getProposalAuthor(proposal *www.ProposalRecord) (*user.User, error) {
@@ -150,6 +156,42 @@ func (p *politeiawww) initEventManager() {
 	p._setupProposalVoteStartedEmailNotification()
 	p._setupProposalVoteAuthorizedEmailNotification()
 	p._setupCommentReplyEmailNotifications()
+}
+
+func (p *politeiawww) initCMSEventManager() {
+	p.Lock()
+	defer p.Unlock()
+
+	p.eventManager = &EventManager{}
+
+	if p.smtp.disabled {
+		return
+	}
+
+	p._setupInvoiceCommentEmailNotification()
+	//p._setupInvoiceStatusChangeEmailNotification()
+	//p._setupInvoiceEditedEmailNotification()
+	//p._setupInvoiceCommentEmailNotification()
+}
+
+func (p *politeiawww) _setupInvoiceCommentEmailNotification() {
+	ch := make(chan interface{})
+	go func() {
+		for data := range ch {
+			ic, ok := data.(EventDataInvoiceComment)
+			if !ok {
+				log.Errorf("invalid event data")
+				continue
+			}
+
+			err := p.emailUserInvoiceComment(ic.User.Email)
+			if err != nil {
+				log.Errorf("email for new admin comment %v: %v",
+					ic.Token, err)
+			}
+		}
+	}()
+	p.eventManager._register(EventTypeInvoiceComment, ch)
 }
 
 func (p *politeiawww) _setupProposalSubmittedEmailNotification() {

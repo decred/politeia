@@ -18,6 +18,8 @@ import (
 var (
 	templateInvoiceNotification = template.Must(
 		template.New("invoice_notification").Parse(templateInvoiceNotificationRaw))
+	templateNewInvoiceComment = template.Must(
+		template.New("invoice_comment").Parse(templateNewInvoiceCommentRaw))
 )
 
 // handleInviteNewUser handles the invitation of a new contractor by an
