@@ -20,6 +20,8 @@ var (
 		template.New("invoice_notification").Parse(templateInvoiceNotificationRaw))
 	templateNewInvoiceComment = template.Must(
 		template.New("invoice_comment").Parse(templateNewInvoiceCommentRaw))
+	templateNewInvoiceStatusUpdate = template.Must(
+		template.New("invoice_status_update").Parse(templateNewInvoiceStatusUpdateRaw))
 )
 
 // handleInviteNewUser handles the invitation of a new contractor by an
