@@ -11,7 +11,7 @@ EXPOSE 4443
 WORKDIR /go/src/github.com/decred/politeia
 COPY . /go/src/github.com/decred/politeia
 
-RUN ./docker-setup.sh
+RUN ./scripts/docker-setup.sh
 RUN pidataload
 
 CMD ["pi"]

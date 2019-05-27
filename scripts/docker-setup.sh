@@ -79,7 +79,6 @@ export GO111MODULE=on
 
 # Uncomment if an SSL cert is expired and you still need to build
 # go get -insecure
-
 go install -v ./...
 
 
