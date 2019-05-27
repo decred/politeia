@@ -55,7 +55,7 @@ cat >> $GOPATH/bin/pidataload <<EOL
 
 picachedb &
 sleep 3s
-politeiawww_dataload --verbose || true
+politeiawww_dataload --verbose
 EOL
 chmod a+x $GOPATH/bin/pidataload
 
@@ -76,6 +76,10 @@ cd $GOPATH/src/github.com/decred/politeia
 cd $GOPATH/src/github.com/decred/politeia
 
 export GO111MODULE=on
+
+# Uncomment if an SSL cert is expired and you still need to build
+# go get -insecure
+
 go install -v ./...
 
 
