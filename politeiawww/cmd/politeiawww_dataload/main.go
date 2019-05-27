@@ -166,14 +166,14 @@ func createUserWithPoliteiawww(email, username, password string) error {
 	)
 }
 
-func setAdmin(email string) error {
-	fmt.Printf("Elevating user to admin: %v\n", email)
+func setAdmin(user string) error {
+	fmt.Printf("Elevating user to admin: %v\n", user)
 	cmd := executeCommand(
 		dbutil,
 		"-cockroachdb",
 		"-testnet",
 		"-setadmin",
-		email,
+		user,
 		"true")
 	if err := cmd.Start(); err != nil {
 		return err
@@ -198,14 +198,14 @@ func clearPaywall(userID string) error {
 		"politeaiwww_dataload")
 }
 
-func addProposalCredits(email, quantity string) error {
-	fmt.Printf("Adding %v proposal credits to user account: %v\n", quantity, email)
+func addProposalCredits(user, quantity string) error {
+	fmt.Printf("Adding %v proposal credits to user account: %v\n", quantity, user)
 	cmd := executeCommand(
 		dbutil,
 		"-cockroachdb",
 		"-testnet",
 		"-addcredits",
-		email,
+		user,
 		quantity)
 	if err := cmd.Start(); err != nil {
 		return err
@@ -244,11 +244,11 @@ func createPaidUsers() error {
 
 	stopServers()
 
-	if err = setAdmin(cfg.AdminEmail); err != nil {
+	if err = setAdmin(cfg.AdminUser); err != nil {
 		return err
 	}
 
-	if err = addProposalCredits(cfg.AdminEmail, "5"); err != nil {
+	if err = addProposalCredits(cfg.AdminUser, "5"); err != nil {
 		return err
 	}
 
@@ -427,7 +427,7 @@ func createComment(parentID, token string) (string, error) {
 		},
 		"newcomment",
 		token,
-		"This is a comment",
+		"\"This is a comment\"",
 		parentID)
 	if err != nil {
 		return "", err

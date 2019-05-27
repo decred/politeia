@@ -1,9 +1,9 @@
-mkdir ~/.politeiad ~/.politeiawww
+mkdir ~/.politeiad ~/.politeiawww $GOPATH/bin
 cd ~/
 wget -qO- https://binaries.cockroachdb.com/cockroach-v19.1.0.linux-amd64.tgz | tar  xvz
-cp -i cockroach-v19.1.0.linux-amd64/cockroach /go/bin
+cp -i cockroach-v19.1.0.linux-amd64/cockroach $GOPATH/bin
 
-cat >> ~/.politeiad/politeiad.conf <<EOL
+cat > ~/.politeiad/politeiad.conf <<EOL
 rpcuser=user
 rpcpass=pass
 testnet=true
@@ -14,7 +14,7 @@ cachecert="~/.cockroachdb/certs/clients/politeiad/client.politeiad.crt"
 cachekey="~/.cockroachdb/certs/clients/politeiad/client.politeiad.key"
 EOL
 
-cat >> ~/.politeiawww/politeiawww.conf <<EOL
+cat > ~/.politeiawww/politeiawww.conf <<EOL
 mode=piwww
 rpchost=127.0.0.1
 rpcuser=user
@@ -29,7 +29,7 @@ dbcert="~/.cockroachdb/certs/clients/politeiawww/client.politeiawww.crt"
 dbkey="~/.cockroachdb/certs/clients/politeiawww/client.politeiawww.key"
 EOL
 
-cat >> /go/bin/picachedb <<EOL
+cat > $GOPATH/bin/picachedb <<EOL
 #!/bin/bash
 
 cockroach start \
@@ -37,9 +37,9 @@ cockroach start \
   --listen-addr=localhost \
   --store=${HOME}/.cockroachdb/data
 EOL
-chmod a+x /go/bin/picachedb
+chmod a+x $GOPATH/bin/picachedb
 
-cat >> /go/bin/pi <<EOL
+cat > $GOPATH/bin/pi <<EOL
 #!/bin/bash
 
 picachedb &
@@ -48,16 +48,16 @@ politeiad &
 sleep 3s
 politeiawww
 EOL
-chmod a+x /go/bin/pi
+chmod a+x $GOPATH/bin/pi
 
-cat >> /go/bin/pidataload <<EOL
+cat >> $GOPATH/bin/pidataload <<EOL
 #!/bin/bash
 
 picachedb &
 sleep 3s
 politeiawww_dataload --verbose || true
 EOL
-chmod a+x /go/bin/pidataload
+chmod a+x $GOPATH/bin/pidataload
 
 
 cd $GOPATH/src/github.com/decred/politeia
