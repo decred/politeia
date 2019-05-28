@@ -394,8 +394,60 @@ func (p *politeiawww) handlePayInvoices(w http.ResponseWriter, r *http.Request) 
 
 	reply, err := p.processPayInvoices(user)
 	if err != nil {
-		RespondWithError(w, r, 0, "handlePayInvoices: processAdminInvoices %v",
+		RespondWithError(w, r, 0, "handlePayInvoices: processPayInvoices %v",
 			err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+// handleUpdateUserInformation handles the request to update a given user's
+// additional user information.
+func (p *politeiawww) handleUpdateUserInformation(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleUpdateUserInformation")
+
+	var uui cms.UpdateUserInformation
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&uui); err != nil {
+		RespondWithError(w, r, 0, "handleUpdateUserInformation: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUpdateUserInformation: getSessionUser %v", err)
+		return
+	}
+
+	reply, err := p.processUpdateUserInformation(uui, user)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleUpdateUserInformation: "+
+			"processUpdateUserInformation %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+func (p *politeiawww) handleUserInformation(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleUserInformation")
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserInformation: getSessionUser %v", err)
+		return
+	}
+
+	reply, err := p.processUserInformation(user)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleUserInformation: "+
+			"processUserInformation %v", err)
 		return
 	}
 
@@ -462,6 +514,10 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		p.handleInvoiceComments, permissionLogin)
 	p.addRoute(http.MethodPost, cms.RouteInvoiceExchangeRate,
 		p.handleInvoiceExchangeRate, permissionLogin)
+	p.addRoute(http.MethodPost, cms.RouteUpdateUserInformation,
+		p.handleUpdateUserInformation, permissionLogin)
+	p.addRoute(http.MethodGet, cms.RouteUserInformation,
+		p.handleUserInformation, permissionLogin)
 
 	// Unauthenticated websocket
 	p.addRoute("", www.RouteUnauthenticatedWebSocket,

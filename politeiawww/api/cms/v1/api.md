@@ -674,8 +674,8 @@ Request:
 Reply:
 
 ```json
-{
-  "lineitems": [{  
+  "lineitems": [
+    {  
       "type": 1,
       "domain": "Design",
       "subdomain": "dcrweb",
@@ -694,6 +694,98 @@ Reply:
       "expenses": 5000
     }
   ]
+```
+
+### `Update user information`
+
+Allows a user to submit updates to their user information.
+
+**Route:** `POST /v1/user/updateinformation`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| userinformation | instance of [`Additional Fields`](#additionalfields) | the information that will be updated in the cmsdb | yes |
+| publickey | string | the public key for the user's active identity | yes |
+| signature | string | the signature from hashing the attached userinformation | yes |
+
+**Results:**
+
+| | Type | Description |
+|-|-|-|
+
+**Example**
+
+Request:
+
+```json
+{
+  "userinformation":
+    {
+      "userid": "0",
+      "domain": 1,
+      "githubname": "smobs",
+      "matrixname": "smobs:decred.org",
+      "contractortype": 1,
+      "contractorname": "Steve Mobs",
+      "contractorlocation": "Cupertino, CA",
+      "contractorcontact": "smobs@apple.com",
+      "supervisoruserid": "",
+    },
+  "publickey": "5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+  "signature": "gdd92f26c8g38c90d2887259e88df614654g32fde76bef1438b0efg40e360f461e995d796g16b17108gbe226793ge4g52gg013428feb3c39de504fe5g1811e0e",
+}
+```
+
+Reply:
+
+```json
+{}
+```
+
+
+### `User information`
+
+Returns a logged-in user's information beyond what is stored in the userdb.
+
+**Route:** `GET /v1/user/information`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+
+**Results:**
+
+| | Type | Description |
+|-|-|-|
+| userinformation | instance of [`Additional Fields`](#additionalfields) | various user information |
+
+**Example**
+
+Request:
+
+```json
+{}
+```
+
+Reply:
+
+```json
+{
+  "userinformation":
+    {
+      "userid": "0",
+      "domain": 1,
+      "githubname": "smobs",
+      "matrixname": "smobs:decred.org",
+      "contractortype": 1,
+      "contractorname": "Steve Mobs",
+      "contractorlocation": "Cupertino, CA",
+      "contractorcontact": "smobs@apple.com",
+      "supervisoruserid": "",
+    }
 }
 ```
 
@@ -752,3 +844,22 @@ Reply:
 | <a name="LineItemTypeLabor">LineItemTypeLabor</a>| 1 | Line items that correspond to laborious activities. |
 | <a name="LineItemTypeExpense">LineItemTypeExpense</a> | 2 | Line items that cover expensed costs. |
 | <a name="LineItemTypeMisc">LineItemTypeMisc</a> | 3 | Any line item that doesn't fall into the above 2 categories. |
+
+### Domain type codes
+| Type | Value | Description |
+|-|-|-|
+| <a name="DomainTypeInvalid">DomainTypeInvalid</a>| 0 | An invalid Domain type. This shall be considered a bug. |
+| <a name="DomainTypeDeveloper">DomainTypeDeveloper</a>| 1 | Development work, typically writing code or designing software architecture. |
+| <a name="DomainTypeMarketing">DomainTypeMarketing</a>| 2 | Marketing work, typically event planning, publication outreach or writing. |
+| <a name="DomainTypeCommunity">DomainTypeCommunity</a>| 3 | Community work, typically organizing and interacting with various online communities. |
+| <a name="DomainTypeDesign">DomainTypeDesign</a>| 4 | Design work, typically creating art, web design or sound production for the project. |
+| <a name="DomainTypeResearch">DomainTypeResearch</a>| 5 | Research work, typically looking deeper into various subjects closely related to the project. |
+| <a name="DomainTypeDocumentation">DomainTypeDocumentation</a>| 6 | Documentation work, typically writing documents that help users understand the project (and its software) better. |
+
+### Contractor type codes
+| Type | Value | Description |
+|-|-|-|
+| <a name="ContractorTypeInvalid">ContractorTypeInvalid</a>| 0 | An invalid Contractor type.  This shall be considered a bug. |
+| <a name="ContractorTypeDirect">ContractorTypeDirect</a>| 1 | A direct contractor that does not work under another organization. Able to submit invoices. |
+| <a name="ContractorTypeSupervisor">ContractorTypeSupervisor</a>| 2 | The supervising manager of a team of sub contractors.  Able to submit invoices for themselves and subs. |
+| <a name="ContractorTypeSubContractor">ContractorTypeSubContractor</a>| 3 | A sub contractor that works for a supervising manager.  NOT able to submit invoices. |

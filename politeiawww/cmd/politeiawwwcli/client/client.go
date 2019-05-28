@@ -1700,8 +1700,54 @@ func (c *Client) LineItemPayouts(lip *cms.LineItemPayouts) (*cms.LineItemPayouts
 			return nil, err
 		}
 	}
-
 	return &lipr, nil
+}
+
+// CMSUserInformation returns the current user's information.
+func (c *Client) CMSUserInfomation() (*cms.UserInformationReply, error) {
+	responseBody, err := c.makeRequest("GET", cms.RouteUserInformation, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var uir cms.UserInformationReply
+	err = json.Unmarshal(responseBody, &uir)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal UserInformationReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(uir)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &uir, nil
+}
+
+// CMSUpdateUserInformation returns the current user's information.
+func (c *Client) CMSUpdateUserInfomation(uui cms.UpdateUserInformation) (*cms.UpdateUserInformationReply, error) {
+	responseBody, err := c.makeRequest("POST", cms.RouteUpdateUserInformation,
+		uui)
+	if err != nil {
+		return nil, err
+	}
+
+	var uuir cms.UpdateUserInformationReply
+	err = json.Unmarshal(responseBody, &uuir)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal UpdateUserInformationReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(uuir)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &uuir, nil
 }
 
 // Close all client connections.

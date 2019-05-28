@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -284,4 +285,172 @@ func (p *politeiawww) processRegisterUser(u cms.RegisterUser) (*cms.RegisterUser
 		return nil, err
 	}
 	return &reply, nil
+}
+
+func (p *politeiawww) processUpdateUserInformation(uui cms.UpdateUserInformation, u *user.User) (*cms.UpdateUserInformationReply, error) {
+	reply := cms.UpdateUserInformationReply{}
+
+	// Get the raw json of the user information in the request to confirm the
+	// signature that was included.
+	userInfoRaw, err := json.Marshal(uui.UserInformation)
+	if err != nil {
+		return nil, fmt.Errorf("processUpdateUserInformation: Marshal %v", err)
+	}
+
+	// Ensure the public key is the user's active key
+	if uui.PublicKey != u.PublicKey() {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSigningKey,
+		}
+	}
+
+	// Validate signature
+	err = validateSignature(uui.PublicKey, uui.Signature, string(userInfoRaw))
+	if err != nil {
+		return nil, err
+	}
+
+	err = validateUserInformation(uui.UserInformation)
+	if err != nil {
+		return nil, err
+	}
+
+	uu := user.UpdateCMSUser{
+		ID: u.ID,
+	}
+	// Update a cms user with the provided information.
+	// Only set fields in dbUserInfo if they are set in the request,
+	// otherwise use the existing fields from the above db request.
+	if uui.UserInformation.Domain != 0 {
+		uu.Domain = int(uui.UserInformation.Domain)
+	}
+	if uui.UserInformation.GitHubName != "" {
+		uu.GitHubName = uui.UserInformation.GitHubName
+	}
+	if uui.UserInformation.MatrixName != "" {
+		uu.MatrixName = uui.UserInformation.MatrixName
+	}
+	if uui.UserInformation.ContractorType != 0 {
+		uu.ContractorType = int(uui.UserInformation.ContractorType)
+	}
+	if uui.UserInformation.ContractorName != "" {
+		uu.ContractorName = uui.UserInformation.ContractorName
+	}
+	if uui.UserInformation.ContractorLocation != "" {
+		uu.ContractorLocation = uui.UserInformation.ContractorLocation
+	}
+	if uui.UserInformation.ContractorContact != "" {
+		uu.ContractorContact = uui.UserInformation.ContractorContact
+	}
+	if uui.UserInformation.SupervisorUserID != "" {
+		uu.SupervisorUserID = uui.UserInformation.SupervisorUserID
+	}
+	payload, err := user.EncodeUpdateCMSUser(uu)
+	if err != nil {
+		return nil, err
+	}
+	pc := user.PluginCommand{
+		ID:      user.CMSPluginID,
+		Command: user.CmdUpdateCMSUser,
+		Payload: string(payload),
+	}
+	_, err = p.db.PluginExec(pc)
+	if err != nil {
+		return nil, err
+	}
+	return &reply, nil
+}
+
+func (p *politeiawww) processUserInformation(u *user.User) (*cms.UserInformationReply, error) {
+	reply := cms.UserInformationReply{}
+	ubi := user.CMSUserByID{
+		ID: u.ID.String(),
+	}
+	payload, err := user.EncodeCMSUserByID(ubi)
+	if err != nil {
+		return nil, err
+	}
+	pc := user.PluginCommand{
+		ID:      user.CMSPluginID,
+		Command: user.CmdCMSUserByID,
+		Payload: string(payload),
+	}
+	payloadReply, err := p.db.PluginExec(pc)
+	if err != nil {
+		if err == user.ErrUserNotFound {
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusUserNotFound,
+			}
+		}
+		return nil, err
+	}
+	ubir, err := user.DecodeCMSUserByIDReply([]byte(payloadReply.Payload))
+	if err != nil {
+		return nil, err
+	}
+	reply.UserInformation = &cms.AdditionalFields{
+		Domain:             cms.DomainTypeT(ubir.User.Domain),
+		ContractorType:     cms.ContractorTypeT(ubir.User.ContractorType),
+		ContractorName:     ubir.User.ContractorName,
+		ContractorLocation: ubir.User.ContractorLocation,
+		ContractorContact:  ubir.User.ContractorContact,
+		MatrixName:         ubir.User.MatrixName,
+		GitHubName:         ubir.User.GitHubName,
+		SupervisorUserID:   ubir.User.SupervisorUserID,
+	}
+
+	return &reply, nil
+}
+
+func validateUserInformation(userInfo cms.AdditionalFields) error {
+	var err error
+	if userInfo.GitHubName != "" {
+		contact := formatContact(userInfo.GitHubName)
+		err = validateContact(contact)
+		if err != nil {
+			return www.UserError{
+				ErrorCode: cms.ErrorStatusInvoiceMalformedContact,
+			}
+		}
+	}
+	if userInfo.MatrixName != "" {
+		contact := formatContact(userInfo.MatrixName)
+		err = validateContact(contact)
+		if err != nil {
+			return www.UserError{
+				ErrorCode: cms.ErrorStatusInvoiceMalformedContact,
+			}
+		}
+	}
+	if userInfo.ContractorName != "" {
+		name := formatName(userInfo.ContractorName)
+		err = validateName(name)
+		if err != nil {
+			return www.UserError{
+				ErrorCode: cms.ErrorStatusMalformedName,
+			}
+		}
+	}
+	if userInfo.ContractorLocation != "" {
+		location := formatLocation(userInfo.ContractorLocation)
+		err = validateLocation(location)
+		if err != nil {
+			return www.UserError{
+				ErrorCode: cms.ErrorStatusMalformedLocation,
+			}
+		}
+	}
+	if userInfo.ContractorContact != "" {
+		contact := formatContact(userInfo.ContractorContact)
+		err = validateContact(contact)
+		if err != nil {
+			return www.UserError{
+				ErrorCode: cms.ErrorStatusInvoiceMalformedContact,
+			}
+		}
+	}
+	if userInfo.SupervisorUserID != "" {
+		// check if it is a valid user id, and that user is a super?
+	}
+	return nil
 }

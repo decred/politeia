@@ -10,23 +10,26 @@ type InvoiceStatusT int
 type LineItemTypeT int
 type PaymentStatusT int
 type DomainTypeT int
+type ContractorTypeT int
 
 const (
 
 	// Contractor Management Routes
-	RouteInviteNewUser       = "/invite"
-	RouteRegisterUser        = "/register"
-	RouteNewInvoice          = "/invoices/new"
-	RouteEditInvoice         = "/invoices/edit"
-	RouteInvoiceDetails      = "/invoices/{token:[A-z0-9]{64}}"
-	RouteSetInvoiceStatus    = "/invoices/{token:[A-z0-9]{64}}/status"
-	RouteUserInvoices        = "/user/invoices"
-	RouteAdminInvoices       = "/admin/invoices"
-	RouteGeneratePayouts     = "/admin/generatepayouts"
-	RouteLineItemPayouts     = "/admin/lineitempayouts"
-	RoutePayInvoices         = "/admin/payinvoices"
-	RouteInvoiceComments     = "/invoices/{token:[A-z0-9]{64}}/comments"
-	RouteInvoiceExchangeRate = "/invoices/exchangerate"
+	RouteInviteNewUser         = "/invite"
+	RouteRegisterUser          = "/register"
+	RouteNewInvoice            = "/invoices/new"
+	RouteEditInvoice           = "/invoices/edit"
+	RouteInvoiceDetails        = "/invoices/{token:[A-z0-9]{64}}"
+	RouteSetInvoiceStatus      = "/invoices/{token:[A-z0-9]{64}}/status"
+	RouteUserInvoices          = "/user/invoices"
+	RouteUpdateUserInformation = "/user/updateinformation"
+	RouteUserInformation       = "/user/information"
+	RouteAdminInvoices         = "/admin/invoices"
+	RouteGeneratePayouts       = "/admin/generatepayouts"
+	RouteLineItemPayouts       = "/admin/lineitempayouts"
+	RoutePayInvoices           = "/admin/payinvoices"
+	RouteInvoiceComments       = "/invoices/{token:[A-z0-9]{64}}/comments"
+	RouteInvoiceExchangeRate   = "/invoices/exchangerate"
 
 	// Invoice status codes
 	InvoiceStatusInvalid  InvoiceStatusT = 0 // Invalid status
@@ -45,7 +48,19 @@ const (
 	LineItemTypeMisc    LineItemTypeT = 3 // Catch all for anything else
 
 	// Domain types
-	DomainTypeInvalid DomainTypeT = 0 // Invalid Domain type
+	DomainTypeInvalid       DomainTypeT = 0 // Invalid Domain type
+	DomainTypeDeveloper     DomainTypeT = 1 // Developer domain
+	DomainTypeMarketing     DomainTypeT = 2 // Marketing domain
+	DomainTypeCommunity     DomainTypeT = 3 // Community domain
+	DomainTypeResearch      DomainTypeT = 4 // Research domain
+	DomainTypeDesign        DomainTypeT = 5 // Design domain
+	DomainTypeDocumentation DomainTypeT = 6 // Documentation domain
+
+	// Contractor types
+	ContractorTypeInvalid       ContractorTypeT = 0 // Invalid contractor type
+	ContractorTypeDirect        ContractorTypeT = 1 // Direct contractor
+	ContractorTypeSupervisor    ContractorTypeT = 2 // Supervisor contractor
+	ContractorTypeSubContractor ContractorTypeT = 3 // SubContractor
 
 	// Payment information status types
 	PaymentStatusInvalid  PaymentStatusT = 0 // Invalid status
@@ -432,4 +447,41 @@ type PaymentInformation struct {
 	AmountNeeded    dcrutil.Amount `json:"amountneeded"`
 	AmountReceived  dcrutil.Amount `json:"amountreceived"`
 	Status          PaymentStatusT `json:"status"`
+}
+
+// AdditionalFields contains additional information about a given user.
+// This information covers things beyond the basics of passwords and identities
+// that are currently contained in the userdb.
+type AdditionalFields struct {
+	UserID             string          `json:"userid"`
+	Domain             DomainTypeT     `json:"domain"`
+	GitHubName         string          `json:"githubname"`
+	MatrixName         string          `json:"matrixname"`
+	ContractorType     ContractorTypeT `json:"contractortype"`
+	ContractorName     string          `json:"contractorname"`
+	ContractorLocation string          `json:"contractorlocation"`
+	ContractorContact  string          `json:"contractorcontact"`
+	SupervisorUserID   string          `json:"supervisoruserid"`
+}
+
+// UpdateUserInformation allows for users to submit updates to their existing
+// UserInformation that is stored in the cmsdatabase.
+type UpdateUserInformation struct {
+	UserInformation AdditionalFields `json:"userinformation"` // Updated fields that need to be saved
+	Signature       string           `json:"signature"`       // Signature of updatedfields
+	PublicKey       string           `json:"publickey"`       // Public key of user
+}
+
+// UpdateUserInformationReply will return an empty reply if the information
+// was successfully updated, otherwise an error will be provided.
+type UpdateUserInformationReply struct{}
+
+// UserInformation allows for currently logged in users to view their
+// UserInformation that is stored in the cmsdatabase.
+type UserInformation struct{}
+
+// UserInformationReply will contain the populated UserInformation field, if
+// found.  Otherwise it will UserInformation will be nil.
+type UserInformationReply struct {
+	UserInformation *AdditionalFields `json:"userinformation"`
 }
