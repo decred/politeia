@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
+	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
 )
@@ -32,11 +33,12 @@ func (cmd *AuthorizeVoteCmd) Execute(args []string) error {
 
 	// Validate action
 	switch cmd.Args.Action {
-	case v1.AuthVoteActionAuthorize, v1.AuthVoteActionRevoke:
+	case decredplugin.AuthVoteActionAuthorize,
+		decredplugin.AuthVoteActionRevoke:
 		// This is correct; continue
 	case "":
 		// Default to authorize
-		cmd.Args.Action = v1.AuthVoteActionAuthorize
+		cmd.Args.Action = decredplugin.AuthVoteActionAuthorize
 	default:
 		return fmt.Errorf("Invalid action.  Valid actions are:\n  " +
 			"authorize  (default) authorize a vote\n  " +

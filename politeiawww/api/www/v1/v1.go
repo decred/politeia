@@ -251,11 +251,6 @@ const (
 	UserManageDeactivate                      UserManageActionT = 6
 	UserManageReactivate                      UserManageActionT = 7
 
-	// Authorize vote actions
-	// XXX these should be in decredplugin
-	AuthVoteActionAuthorize = "authorize" // Authorize a proposal vote
-	AuthVoteActionRevoke    = "revoke"    // Revoke a proposal vote authorization
-
 	// Email notification types
 	NotificationEmailMyProposalStatusChange      EmailNotificationT = 1 << 0
 	NotificationEmailMyProposalVoteStarted       EmailNotificationT = 1 << 1

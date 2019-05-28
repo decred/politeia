@@ -315,7 +315,7 @@ func voteIsAuthorized(avr www.AuthorizeVoteReply) bool {
 	if avr.Receipt == "" {
 		// Vote has not been authorized yet
 		return false
-	} else if avr.Action == www.AuthVoteActionRevoke {
+	} else if avr.Action == decredplugin.AuthVoteActionRevoke {
 		// Vote authorization was revoked
 		return false
 	}
@@ -1772,20 +1772,20 @@ func (p *politeiawww) processAuthorizeVote(av www.AuthorizeVote, u *user.User) (
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusWrongVoteStatus,
 		}
-	case av.Action != www.AuthVoteActionAuthorize &&
-		av.Action != www.AuthVoteActionRevoke:
+	case av.Action != decredplugin.AuthVoteActionAuthorize &&
+		av.Action != decredplugin.AuthVoteActionRevoke:
 		// Invalid authorize vote action
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusInvalidAuthVoteAction,
 		}
-	case av.Action == www.AuthVoteActionAuthorize &&
+	case av.Action == decredplugin.AuthVoteActionAuthorize &&
 		voteIsAuthorized(vd.AuthorizeVoteReply):
 		// Cannot authorize vote; vote has already been
 		// authorized
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusVoteAlreadyAuthorized,
 		}
-	case av.Action == www.AuthVoteActionRevoke &&
+	case av.Action == decredplugin.AuthVoteActionRevoke &&
 		!voteIsAuthorized(vd.AuthorizeVoteReply):
 		// Cannot revoke authorization; vote has not been
 		// authorized
@@ -1855,7 +1855,7 @@ func (p *politeiawww) processAuthorizeVote(av www.AuthorizeVote, u *user.User) (
 		return nil, fmt.Errorf("DecodeAuthorizeVoteReply: %v", err)
 	}
 
-	if !p.test && avr.Action == www.AuthVoteActionAuthorize {
+	if !p.test && avr.Action == decredplugin.AuthVoteActionAuthorize {
 		p.fireEvent(EventTypeProposalVoteAuthorized,
 			EventDataProposalVoteAuthorized{
 				AuthorizeVote: &av,
