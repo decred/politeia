@@ -1230,7 +1230,9 @@ Reply:
 
 ### `Unvetted`
 
-Retrieve a page of unvetted proposals; the number of proposals returned in the page is limited by the `proposallistpagesize` property, which is provided via [`Policy`](#policy).  This call requires admin privileges.
+Retrieve a page of unvetted proposals; the number of proposals returned in the
+page is limited by the `ProposalListPageSize` property, which is provided via
+[`Policy`](#policy).  This call requires admin privileges.
 
 **Route:** `GET /v1/proposals/unvetted`
 
@@ -1238,8 +1240,8 @@ Retrieve a page of unvetted proposals; the number of proposals returned in the p
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
-| before | String | A proposal censorship token; if provided, the page of proposals returned will end right before the proposal whose token is provided. This parameter should not be specified if `after` is set. | |
-| after | String | A proposal censorship token; if provided, the page of proposals returned will begin right after the proposal whose token is provided. This parameter should not be specified if `before` is set. | |
+| before | String | A proposal censorship token; if provided, the page of proposals returned will end right before the proposal whose token is provided, when sorted in reverse chronological order. This parameter should not be specified if `after` is set. | |
+| after | String | A proposal censorship token; if provided, the page of proposals returned will begin right after the proposal whose token is provided, when sorted in reverse chronological order. This parameter should not be specified if `before` is set. | |
 
 **Results:**
 
@@ -1282,7 +1284,9 @@ Reply:
 
 ### `Vetted`
 
-Retrieve a page of vetted proposals; the number of proposals returned in the page is limited by the `proposallistpagesize` property, which is provided via [`Policy`](#policy).
+Retrieve a page of vetted proposals; the number of proposals returned in the
+page is limited by the `ProposalListPageSize` property, which is provided via
+[`Policy`](#policy).
 
 **Route:** `GET /v1/proposals/vetted`
 
@@ -1290,8 +1294,8 @@ Retrieve a page of vetted proposals; the number of proposals returned in the pag
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
-| before | String | A proposal censorship token; if provided, the page of proposals returned will end right before the proposal whose token is provided. This parameter should not be specified if `after` is set. | |
-| after | String | A proposal censorship token; if provided, the page of proposals returned will begin right after the proposal whose token is provided. This parameter should not be specified if `before` is set. | |
+| before | String | A proposal censorship token; if provided, the page of proposals returned will end right before the proposal whose token is provided, when sorted in reverse chronological order. This parameter should not be specified if `after` is set. | |
+| after | String | A proposal censorship token; if provided, the page of proposals returned will begin right after the proposal whose token is provided, when sorted in reverse chronological order. This parameter should not be specified if `before` is set. | |
 
 **Results:**
 

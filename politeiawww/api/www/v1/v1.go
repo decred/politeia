@@ -793,11 +793,19 @@ type SetProposalStatusReply struct {
 }
 
 // GetAllUnvetted retrieves all unvetted proposals; the maximum number returned
-// is dictated by ProposalListPageSize. This command optionally takes either
-// a Before or After parameter, which specify a proposal's censorship token.
-// If After is specified, the "page" returned starts after the proposal whose
-// censorship token is provided. If Before is specified, the "page" returned
-// starts before the proposal whose censorship token is provided.
+// is dictated by ProposalListPageSize.
+//
+// This command optionally takes either a Before or After parameter, which
+// specify a proposal's censorship token. If After is specified, the "page"
+// returned starts after the provided censorship token, when sorted in reverse
+// chronological order. A simplified example is shown below.
+//
+// input: [5,4,3,2,1]
+// after=3
+// output: [2,1]
+//
+// If Before is specified, the "page" returned starts before the provided
+// proposal censorship token, when sorted in reverse chronological order.
 //
 // Note: This call requires admin privileges.
 type GetAllUnvetted struct {
@@ -810,12 +818,20 @@ type GetAllUnvettedReply struct {
 	Proposals []ProposalRecord `json:"proposals"`
 }
 
-// GetAllVetted retrieves vetted proposals; the maximum number returned is dictated
-// by ProposalListPageSize. This command optionally takes either a Before or After
-// parameter, which specify a proposal's censorship token. If After is specified,
-// the "page" returned starts after the proposal whose censorship token is provided.
-// If Before is specified, the "page" returned starts before the proposal whose
-// censorship token is provided.
+// GetAllVetted retrieves vetted proposals; the maximum number returned is
+// dictated by ProposalListPageSize.
+//
+// This command optionally takes either a Before or After parameter, which
+// specify a proposal's censorship token. If After is specified, the "page"
+// returned starts after the provided censorship token, when sorted in reverse
+// chronological order. A simplified example is shown below.
+//
+// input: [5,4,3,2,1]
+// after=3
+// output: [2,1]
+//
+// If Before is specified, the "page" returned starts before the provided
+// proposal censorship token, when sorted in reverse chronological order.
 type GetAllVetted struct {
 	Before string `schema:"before"`
 	After  string `schema:"after"`
