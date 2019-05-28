@@ -162,13 +162,12 @@ func validateComment(c www.NewComment) error {
 		}
 	}
 	// validate token
-	_, err := util.ConvertStringToken(c.Token)
-	if err != nil && err.Error() == "invalid censorship token size" {
-		err = www.UserError{
+	if !tokenIsValid(c.Token) {
+		return www.UserError{
 			ErrorCode: www.ErrorStatusInvalidCensorshipToken,
 		}
 	}
-	return err
+	return nil
 }
 
 // processNewComment sends a new comment decred plugin command to politeaid
