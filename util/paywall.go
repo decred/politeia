@@ -38,14 +38,6 @@ type FaucetResponse struct {
 	Error string
 }
 
-// PaywallGatewayNewOrderResponse respresents the expected JSON response to a
-// PaywallGatewayNewOrder command.
-type PaywallGatewayNewOrderResponse struct {
-	Error         string
-	OrderID       string
-	PaywallAmount uint64
-}
-
 // BETransaction is an object representing a transaction; it's
 // part of the data returned from the URL for the block explorer
 // when fetching the transactions for an address.
