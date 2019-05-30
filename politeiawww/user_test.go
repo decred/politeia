@@ -903,7 +903,7 @@ func TestProcessResetPassword(t *testing.T) {
 				Email: usrExpired.Email,
 			}, nil},
 
-		{"sucess",
+		{"success",
 			www.ResetPassword{
 				Email: usr.Email,
 			}, nil},

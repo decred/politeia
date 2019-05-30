@@ -1420,7 +1420,7 @@ SHALL observe.
 | maxlocationlength | integer | maximum contractor location length (cmswww)
 | minlocationlength | integer | minimum contractor location length (cmswww)
 | invoicecommentchar | char | character for comments on invoices (cmswww)
-| invoicefielddelimiterchar | char | charactor for invoice csv field seperation (cmswww)
+| invoicefielddelimiterchar | char | character for invoice csv field separation (cmswww)
 | invoicelineitemcount | integer | expected count for line item fields (cmswww)
 
 

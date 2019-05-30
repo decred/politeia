@@ -33,7 +33,7 @@ func (cmd *ActiveVotesCmd) Execute(args []string) error {
 // is specified.
 const activeVotesHelpMsg = `activevotes "token"
 
-Retreive all proposals that are currently being voted on.
+Retrieve all proposals that are currently being voted on.
 
 Arguments: None
 

@@ -269,7 +269,7 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 	}
 
 	// Convert files
-	var files []www.File
+	files := make([]www.File, 0, len(r.Files))
 	for _, f := range r.Files {
 		files = append(files,
 			www.File{

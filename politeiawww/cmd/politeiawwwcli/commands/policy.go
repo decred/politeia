@@ -57,6 +57,6 @@ Response:
 	"maxlocationlength"          (uint)     Maximum contractor location length (cmswww)
 	"minlocationlength"          (uint)     Minimum contractor location length (cmswww)
 	"invoicecommentchar"         (rune)     Character for comments on invoices (cmswww)
-	"invoicefielddelimiterchar"  (rune)     Charactor for invoice csv field seperation (cmswww)
+	"invoicefielddelimiterchar"  (rune)     Character for invoice csv field separation (cmswww)
 	"invoicelineitemcount"       (uint)     Expected count for line item fields (cmswww)
 }`

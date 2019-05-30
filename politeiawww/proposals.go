@@ -193,7 +193,7 @@ func validateProposal(np www.NewProposal, u *user.User) error {
 		return err
 	}
 
-	pk, err := identity.PublicIdentityFromBytes(id[:])
+	pk, err := identity.PublicIdentityFromBytes(id)
 	if err != nil {
 		return err
 	}
