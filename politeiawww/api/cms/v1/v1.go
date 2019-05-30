@@ -5,6 +5,7 @@ import (
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 )
 
+type ErrorStatusT int
 type InvoiceStatusT int
 type LineItemTypeT int
 
@@ -95,6 +96,35 @@ const (
 	// PolicyMaxLineItemColLength is the maximum length for the strings in
 	// each column field of the lineItem structure.
 	PolicyMaxLineItemColLength = 500
+
+	ErrorStatusMalformedName                  www.ErrorStatusT = 1001
+	ErrorStatusMalformedLocation              www.ErrorStatusT = 1002
+	ErrorStatusInvoiceNotFound                www.ErrorStatusT = 1003
+	ErrorStatusInvalidMonthYearRequest        www.ErrorStatusT = 1004
+	ErrorStatusMalformedInvoiceFile           www.ErrorStatusT = 1005
+	ErrorStatusInvalidInvoiceStatusTransition www.ErrorStatusT = 1006
+	ErrorStatusReasonNotProvided              www.ErrorStatusT = 1007
+	ErrorStatusInvoiceDuplicate               www.ErrorStatusT = 1008
+	ErrorStatusInvalidPaymentAddress          www.ErrorStatusT = 1009
+	ErrorStatusMalformedLineItem              www.ErrorStatusT = 1010
+	ErrorStatusInvoiceMissingName             www.ErrorStatusT = 1011
+	ErrorStatusInvoiceMissingLocation         www.ErrorStatusT = 1012
+	ErrorStatusInvoiceMissingContact          www.ErrorStatusT = 1013
+	ErrorStatusInvoiceMissingRate             www.ErrorStatusT = 1014
+	ErrorStatusInvoiceInvalidRate             www.ErrorStatusT = 1015
+	ErrorStatusInvoiceMalformedContact        www.ErrorStatusT = 1016
+	ErrorStatusMalformedProposalToken         www.ErrorStatusT = 1017
+	ErrorStatusMalformedDomain                www.ErrorStatusT = 1018
+	ErrorStatusMalformedSubdomain             www.ErrorStatusT = 1019
+	ErrorStatusMalformedDescription           www.ErrorStatusT = 1020
+	ErrorStatusWrongInvoiceStatus             www.ErrorStatusT = 1021
+	ErrorStatusInvoiceRequireLineItems        www.ErrorStatusT = 1022
+	ErrorStatusMultipleInvoiceMonthYear       www.ErrorStatusT = 1023
+	ErrorStatusInvalidInvoiceMonthYear        www.ErrorStatusT = 1024
+	ErrorStatusInvalidExchangeRate            www.ErrorStatusT = 1025
+	ErrorStatusInvalidLineItemType            www.ErrorStatusT = 1026
+	ErrorStatusInvalidLaborExpense            www.ErrorStatusT = 1027
+	ErrorStatusDuplicatePaymentAddress        www.ErrorStatusT = 1028
 )
 
 var (
@@ -119,6 +149,36 @@ var (
 	// contact for registering users on cms.
 	PolicyCMSContactSupportedChars = []string{
 		"A-z", "0-9", "&", ".", ":", "-", "_", "@", "+", ",", " "}
+
+	// ErrorStatus converts error status codes to human readable text.
+	ErrorStatus = map[www.ErrorStatusT]string{
+		ErrorStatusMalformedName:                  "malformed name",
+		ErrorStatusMalformedLocation:              "malformed location",
+		ErrorStatusInvoiceNotFound:                "invoice cannot be found",
+		ErrorStatusInvalidMonthYearRequest:        "month or year was set, while the other was not",
+		ErrorStatusInvalidInvoiceStatusTransition: "invalid invoice status transition",
+		ErrorStatusReasonNotProvided:              "reason for action not provided",
+		ErrorStatusMalformedInvoiceFile:           "submitted invoice file is malformed",
+		ErrorStatusInvoiceDuplicate:               "submitted invoice is a duplicate of an existing invoice",
+		ErrorStatusInvalidPaymentAddress:          "invalid payment address",
+		ErrorStatusMalformedLineItem:              "malformed line item submitted",
+		ErrorStatusInvoiceMissingName:             "invoice missing contractor name",
+		ErrorStatusInvoiceMissingLocation:         "invoice missing contractor location",
+		ErrorStatusInvoiceMissingContact:          "invoice missing contractor contact",
+		ErrorStatusInvoiceMalformedContact:        "invoice has malformed contractor contact",
+		ErrorStatusInvoiceMissingRate:             "invoice missing contractor rate",
+		ErrorStatusInvoiceInvalidRate:             "invoice has invalid contractor rate",
+		ErrorStatusMalformedProposalToken:         "line item has malformed proposal token",
+		ErrorStatusMalformedDomain:                "line item has malformed domain",
+		ErrorStatusMalformedSubdomain:             "line item has malformed subdomain",
+		ErrorStatusMalformedDescription:           "line item has malformed description",
+		ErrorStatusWrongInvoiceStatus:             "invoice is an wrong status to be editted (approved, rejected or paid)",
+		ErrorStatusInvoiceRequireLineItems:        "invoices require at least 1 line item",
+		ErrorStatusMultipleInvoiceMonthYear:       "only one invoice per month/year is allowed to be submitted",
+		ErrorStatusInvalidInvoiceMonthYear:        "an invalid month/year was submitted on an invoice",
+		ErrorStatusInvalidExchangeRate:            "exchange rate was invalid or didn't match expected result",
+		ErrorStatusDuplicatePaymentAddress:        "a duplicate payment address was used",
+	}
 )
 
 /// Contractor Management System Routes
