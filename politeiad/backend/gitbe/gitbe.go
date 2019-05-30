@@ -1783,6 +1783,102 @@ func (g *gitBackEnd) UpdateVettedMetadata(token []byte, mdAppend []backend.Metad
 	return g._updateVettedMetadata(token, mdAppend, mdOverwrite)
 }
 
+// Overwrites README.md in unvetted folder with new content
+//
+// Must be called WITH the lock held.
+func (g *gitBackEnd) overwriteReadmeFile(content string) error {
+	filename := pijoin(g.unvetted, "README.md")
+
+	err := ioutil.WriteFile(filename, []byte(content), 0664)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Updates the README.md file
+//
+// This function must be called WITH the lock held.
+func (g *gitBackEnd) _updateReadme(content string) error {
+	// git checkout master
+	err := g.gitCheckout(g.unvetted, "master")
+	if err != nil {
+		return err
+	}
+
+	// git pull --ff-only --rebase
+	err = g.gitPull(g.unvetted, true)
+	if err != nil {
+		return err
+	}
+
+	const tmpBranch = "updateReadmeTmp"
+
+	// Delete old temporary branch
+	_ = g.gitBranchDelete(g.unvetted, tmpBranch)
+
+	// Checkout temporary branch
+	err = g.gitNewBranch(g.unvetted, tmpBranch)
+	if err != nil {
+		return err
+	}
+
+	//If anything goes wrong, checkout master and delete the temp branch
+	defer func() {
+		err := g.gitCheckout(g.unvetted, "master")
+		if err != nil {
+			log.Errorf("could not switch to master: %v", err)
+		}
+
+		_ = g.gitBranchDelete(g.unvetted, tmpBranch)
+	}()
+
+	// Update readme file
+	err = g.overwriteReadmeFile(content)
+	if err != nil {
+		return err
+	}
+
+	// If there are no changes, do not continue
+	if !g.gitHasChanges(g.unvetted) {
+		return backend.ErrNoChanges
+	}
+
+	// Add readme file
+	err = g.gitAdd(g.unvetted, "README.md")
+	if err != nil {
+		return err
+	}
+
+	// Commit change
+	err = g.gitCommit(g.unvetted, "Update README.md")
+	if err != nil {
+		return err
+	}
+
+	// create and rebase PR
+	return g.rebasePR(tmpBranch)
+}
+
+// UpdateReadme updates the README.md file.
+//
+// This function must be called WITHOUT the lock held.
+//
+// UpdateReadme satisfies the backend interface.
+func (g *gitBackEnd) UpdateReadme(content string) error {
+	log.Debugf("UpdateReadme")
+
+	// Lock filesystem
+	g.Lock()
+	defer g.Unlock()
+	if g.shutdown {
+		return backend.ErrShutdown
+	}
+
+	return g._updateReadme(content)
+}
+
 // getRecordLock is the generic implementation of GetUnvetted/GetVetted.  It
 // returns a record record from the provided repo.
 //
