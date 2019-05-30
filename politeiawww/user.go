@@ -319,7 +319,7 @@ func checkSignature(id []byte, signature string, elements ...string) error {
 			ErrorCode: www.ErrorStatusInvalidSignature,
 		}
 	}
-	pk, err := identity.PublicIdentityFromBytes(id[:])
+	pk, err := identity.PublicIdentityFromBytes(id)
 	if err != nil {
 		return err
 	}

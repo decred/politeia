@@ -743,7 +743,7 @@ func (c *cockroachdb) Build(records []cache.Record) error {
 
 	log.Infof("Building records cache")
 
-	var r []Record
+	r := make([]Record, 0, len(records))
 	for _, cr := range records {
 		v, err := strconv.ParseUint(cr.Version, 10, 64)
 		if err != nil {

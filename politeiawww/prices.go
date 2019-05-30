@@ -56,7 +56,7 @@ func (p *politeiawww) GetMonthAverage(month time.Month, year int) (uint, error) 
 	for _, price := range usdtDcrPrices {
 		average += price
 	}
-	average = average / float64(len(usdtDcrPrices))
+	average /= float64(len(usdtDcrPrices))
 
 	return uint(math.Round(average * 100)), nil
 }

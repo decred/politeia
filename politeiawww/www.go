@@ -513,7 +513,7 @@ func _main() error {
 		p.cron = cron.New()
 		p.checkInvoiceNotifications()
 	default:
-		return fmt.Errorf("unknown mode %v:", p.cfg.Mode)
+		return fmt.Errorf("unknown mode: %v", p.cfg.Mode)
 	}
 
 	// Persist session cookies.

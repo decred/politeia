@@ -41,7 +41,7 @@ expire.  The 'publickey' argument is typically the same public key that was
 used during user creation, but it does not have to be.  Sending in a different
 public key is allowed and will update the user's active identity.
 
-The repsonse field 'verificationtoken' will only contain a value if email has
+The response field 'verificationtoken' will only contain a value if email has
 been disabled on politeiawww.
 
 Arguments:

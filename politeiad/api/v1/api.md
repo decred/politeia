@@ -377,7 +377,7 @@ issuing a [`Set vetted status`](#set-vetted-status) call.
 One can, optionally, send in metadata streams for update as well.  This can,
 for example, be used to mark who made an update.
 
-Marking a proposal as abanonded is a permanent action and once a record is
+Marking a proposal as abandoned is a permanent action and once a record is
 archived it can not be modified.
 
 This command requires administrator privileges.
