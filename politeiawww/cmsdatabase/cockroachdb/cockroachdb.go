@@ -264,6 +264,24 @@ func (c *cockroachdb) InvoicesAll() ([]database.Invoice, error) {
 	return dbInvoices, nil
 }
 
+// InvoiceByAddress Return invoice by its payment address.
+func (c *cockroachdb) InvoiceByAddress(address string) (*database.Invoice, error) {
+	log.Debugf("InvoiceByAddress: %v", address)
+
+	invoice := Invoice{
+		PaymentAddress: address,
+	}
+	err := c.recordsdb.Find(&invoice).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			err = database.ErrInvoiceNotFound
+		}
+		return nil, err
+	}
+
+	return DecodeInvoice(&invoice)
+}
+
 // Create new exchange rate.
 //
 // NewExchangeRate satisfies the database interface.
