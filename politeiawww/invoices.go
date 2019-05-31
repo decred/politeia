@@ -540,13 +540,13 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 				}
 			}
 
-			invoiceAddress, err := p.cmsDB.InvoiceByAddress(invInput.PaymentAddress)
+			invoiceAddress, err := p.cmsDB.InvoicesByAddress(invInput.PaymentAddress)
 			if err != nil {
 				return www.UserError{
 					ErrorCode: www.ErrorStatusInvalidPaymentAddress,
 				}
 			}
-			if invoiceAddress != nil {
+			if len(invoiceAddress) > 0 {
 				return www.UserError{
 					ErrorCode: www.ErrorStatusDuplicatePaymentAddress,
 				}
