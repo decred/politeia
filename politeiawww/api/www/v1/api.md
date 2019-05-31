@@ -2562,6 +2562,7 @@ Reply:
 | <a name="ErrorStatusInvalidLineItemType">ErrorStatusInvalidLineItemType</a> | 86 | An invalid line item type was attempted. |
 | <a name="ErrorStatusInvalidLaborExpense">ErrorStatusInvalidLaborExpense</a> | 87 | An invalid value was entered into labor or expenses. |
 | <a name="ErrorStatusNoProposalChanges">ErrorStatusNoProposalChanges</a> | 88 | No changes found in proposal. |
+| <a name="ErrorStatusDuplicatePaymentAddress">ErrorStatusDuplicatePaymentAddress</a> | 89 | An duplicate payment address was entered. |
 
 
 ### Proposal status codes

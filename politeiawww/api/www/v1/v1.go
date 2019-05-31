@@ -207,6 +207,7 @@ const (
 	ErrorStatusInvalidExchangeRate            ErrorStatusT = 84
 	ErrorStatusInvalidLineItemType            ErrorStatusT = 86
 	ErrorStatusInvalidLaborExpense            ErrorStatusT = 87
+	ErrorStatusDuplicatePaymentAddress        ErrorStatusT = 89
 
 	// Proposal state codes
 	//
@@ -371,6 +372,7 @@ var (
 		ErrorStatusInvalidExchangeRate:            "exchange rate was invalid or didn't match expected result",
 		ErrorStatusInvalidPassword:                "invalid password",
 		ErrorStatusNoProposalChanges:              "no changes found in proposal",
+		ErrorStatusDuplicatePaymentAddress:        "a duplicate payment address was used",
 	}
 
 	// PropStatus converts propsal status codes to human readable text

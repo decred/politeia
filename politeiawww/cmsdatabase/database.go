@@ -31,7 +31,8 @@ type Database interface {
 
 	UpdateInvoice(*Invoice) error // Update existing invoice
 	InvoicesByUserID(string) ([]Invoice, error)
-	InvoiceByToken(string) (*Invoice, error) // Return invoice given its token
+	InvoiceByToken(string) (*Invoice, error)     // Return invoice given its token
+	InvoicesByAddress(string) ([]Invoice, error) // Return invoice by its address
 
 	InvoicesByMonthYearStatus(uint16, uint16, int) ([]Invoice, error) // Returns all invoices by month, year and status
 	InvoicesByMonthYear(uint16, uint16) ([]Invoice, error)            // Returns all invoice by month, year

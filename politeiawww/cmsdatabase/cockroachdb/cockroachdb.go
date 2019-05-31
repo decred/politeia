@@ -264,6 +264,31 @@ func (c *cockroachdb) InvoicesAll() ([]database.Invoice, error) {
 	return dbInvoices, nil
 }
 
+// InvoicesByAddress return invoices by its payment address.
+func (c *cockroachdb) InvoicesByAddress(address string) ([]database.Invoice, error) {
+	log.Debugf("InvoiceByAddress: %v", address)
+
+	invoices := make([]Invoice, 0, 1024) // PNOOMA
+	err := c.recordsdb.
+		Where("payment_address = ?", address).
+		Find(&invoices).
+		Error
+	if err != nil {
+		return nil, err
+	}
+
+	dbInvoices := make([]database.Invoice, 0, len(invoices))
+	for _, v := range invoices {
+		dbInvoice, err := DecodeInvoice(&v)
+		if err != nil {
+			return nil, err
+		}
+		dbInvoices = append(dbInvoices, *dbInvoice)
+	}
+
+	return dbInvoices, nil
+}
+
 // Create new exchange rate.
 //
 // NewExchangeRate satisfies the database interface.
