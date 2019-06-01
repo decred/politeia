@@ -1308,7 +1308,6 @@ func (p *politeiawww) processVerifyUpdateUserKey(u *user.User, vu www.VerifyUpda
 	for k, v := range u.Identities {
 		if v.Deactivated == 0 {
 			u.Identities[k].Deactivated = t
-			break
 		}
 	}
 	u.Identities[len(u.Identities)-1].Activated = t
