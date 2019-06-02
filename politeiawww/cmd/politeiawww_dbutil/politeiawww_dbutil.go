@@ -75,12 +75,13 @@ var (
 	encryptionKey = flag.String("encryptionkey", defaultEncryptionKey, "")
 
 	// Commands
-	addCredits = flag.Bool("addcredits", false, "")
-	dump       = flag.Bool("dump", false, "")
-	setAdmin   = flag.Bool("setadmin", false, "")
-	stubUsers  = flag.Bool("stubusers", false, "")
-	migrate    = flag.Bool("migrate", false, "")
-	createKey  = flag.Bool("createkey", false, "")
+	addCredits     = flag.Bool("addcredits", false, "")
+	dump           = flag.Bool("dump", false, "")
+	setAdmin       = flag.Bool("setadmin", false, "")
+	stubUsers      = flag.Bool("stubusers", false, "")
+	migrate        = flag.Bool("migrate", false, "")
+	createKey      = flag.Bool("createkey", false, "")
+	verifyIdentity = flag.Bool("verifyidentity", false, "")
 
 	network string // Mainnet or testnet3
 	// XXX ldb should be abstracted away. dbutil commands should use
@@ -147,6 +148,12 @@ const usageMsg = `politeiawww_dbutil usage:
           Migrate a LevelDB user database to CockroachDB
           Required DB flag : None
           Args             : None
+    -verifyidentity
+          Verify that the user only has one active identity. If multiple
+          identities are found, deactivate all but the most recent identity.
+          Required DB flag : -leveldb or -cockroachdb
+          LevelDB args     : <email>
+          CockroachDB args : <username>
 `
 
 type proposalMetadata struct {
@@ -718,6 +725,113 @@ func cmdCreateKey() error {
 	return nil
 }
 
+// verifyUserIdentity verifies that the user has only one active identity. If
+// multiple active identities are found, all but the most recent identity are
+// deactivated. An identity that does not have a deactivated timestamp is
+// considered to be active.
+func verifyUserIdentity(u *user.User) (*user.User, error) {
+	// Tally active identities
+	var active int
+	for _, v := range u.Identities {
+		if v.Deactivated == 0 {
+			active++
+		}
+	}
+	if active == 0 {
+		return nil, fmt.Errorf("no active identity found")
+	}
+
+	// Deactivate all but the most recent identity
+	var deactivated int
+	t := time.Now().Unix()
+	for k, v := range u.Identities {
+		if v.Deactivated == 0 {
+			// Leave one active identity and make
+			// sure it has an activated timestamp.
+			if deactivated == (active - 1) {
+				if v.Activated == 0 {
+					u.Identities[k].Activated = t
+				}
+				break
+			}
+			// Deactivate the identity
+			u.Identities[k].Deactivated = t
+			deactivated++
+		}
+	}
+
+	// Clear out the verification token and expiry
+	u.UpdateKeyVerificationToken = nil
+	u.UpdateKeyVerificationExpiry = 0
+
+	fmt.Printf("Deactivated %v identities\n", deactivated)
+
+	return u, nil
+}
+
+func levelVerifyIdentity() error {
+	if len(flag.Args()) == 0 {
+		return fmt.Errorf("must provide email")
+	}
+	email := flag.Arg(0)
+	b, err := ldb.Get([]byte(email), nil)
+	if err != nil {
+		return fmt.Errorf("email '%v' not found",
+			email)
+	}
+	u, err := user.DecodeUser(b)
+	if err != nil {
+		return err
+	}
+	u, err = verifyUserIdentity(u)
+	if err != nil {
+		return err
+	}
+	b, err = user.EncodeUser(*u)
+	if err != nil {
+		return err
+	}
+	err = ldb.Put([]byte(email), b, nil)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func cockroachVerifyIdentity() error {
+	if len(flag.Args()) == 0 {
+		return fmt.Errorf("must provide username")
+	}
+	u, err := userDB.UserGetByUsername(flag.Arg(0))
+	if err != nil {
+		return err
+	}
+	u, err = verifyUserIdentity(u)
+	if err != nil {
+		return err
+	}
+	err = userDB.UserUpdate(*u)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// cmdVerifyIdentity verifies that a user has only one active identity. If
+// multiple active identities are found, all but the most recent identity are
+// deactivated.  It's necessary to do this in certain cases due to a bug that
+// is allowing a user to have more than one active identity at a time.
+func cmdVerifyIdentity() error {
+	switch {
+	case *level:
+		return levelVerifyIdentity()
+	case *cockroach:
+		return cockroachVerifyIdentity()
+	default:
+		return fmt.Errorf("invalid database option")
+	}
+}
+
 func validateCockroachParams() error {
 	// Validate host
 	_, err := url.Parse(*host)
@@ -775,7 +889,7 @@ func _main() error {
 	}
 
 	switch {
-	case *addCredits || *setAdmin || *stubUsers:
+	case *addCredits || *setAdmin || *stubUsers || *verifyIdentity:
 		// These commands must be run with -cockroachdb or -leveldb
 		if !*level && !*cockroach {
 			return fmt.Errorf("missing database flag; must use " +
@@ -845,6 +959,8 @@ func _main() error {
 		return cmdMigrate()
 	case *createKey:
 		return cmdCreateKey()
+	case *verifyIdentity:
+		return cmdVerifyIdentity()
 	default:
 		flag.Usage()
 	}
