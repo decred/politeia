@@ -137,10 +137,9 @@ type politeiawww struct {
 
 	// currentSubs is a list of currently subscribed websocket notifications to
 	// dcrdata
-	wsClient           *client.Client
-	currentSubs        []string
-	addressWatcherChan chan *addressWatcherContext
-	cancelContext      context.CancelFunc
+	wsClient      *client.Client
+	currentSubs   []string
+	cancelContext context.CancelFunc
 }
 
 // XXX rig this up

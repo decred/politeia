@@ -88,7 +88,7 @@ func (ExchangeRate) TableName() string {
 
 // Payments contains all the information about a given invoice's payment
 type Payments struct {
-	InvoiceToken    string `gorm:"not null"`
+	InvoiceToken    string `gorm:"primary_key"`
 	Address         string `gorm:"not null"`
 	TxIDs           string `gorm:"not null"`
 	TimeStarted     int64  `gorm:"not null"`

@@ -542,12 +542,8 @@ func _main() error {
 
 		// XXX how many addresses should we plan on storing?
 		p.currentSubs = make([]string, 0, 1048)
-		p.addressWatcherChan = make(chan *addressWatcherContext)
 
 		p.setupWatcher()
-		if p.wsClient != nil {
-			defer p.wsClient.Stop()
-		}
 
 		p.restartAddressesWatching()
 
@@ -640,6 +636,10 @@ done:
 
 	// Close user db connection
 	p.db.Close()
+
+	if p.wsClient != nil {
+		p.wsClient.Stop()
+	}
 
 	return nil
 }

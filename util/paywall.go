@@ -156,25 +156,6 @@ func blockExplorerURLForAddress(address string, netParams *chaincfg.Params) (str
 	return dcrdata, nil
 }
 
-func blockExplorerURLForTx(txid string, netParams *chaincfg.Params) (string, string, error) {
-	var (
-		dcrdata string
-		insight string
-	)
-
-	switch netParams {
-	case &chaincfg.MainNetParams:
-		dcrdata = dcrdataMainnet + "/tx/" + txid + "?spends=false"
-	case &chaincfg.TestNet3Params:
-		dcrdata = dcrdataTestnet + "/tx/" + txid + "?spends=false"
-	default:
-		return "", "", fmt.Errorf("unsupported network %v",
-			getNetworkName(netParams))
-	}
-
-	return dcrdata, insight, nil
-}
-
 // BlockExplorerURLforSubscriptions generates a proper URL for either
 // dcrdata testnet or mainnet depending on the provided netParams.
 func BlockExplorerURLForSubscriptions(netParams *chaincfg.Params) (string, error) {

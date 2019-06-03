@@ -26,7 +26,7 @@ func (p *politeiawww) addWatchAddress(address string) error {
 	p.currentSubs = append(p.currentSubs, address)
 	resp, err := p.wsClient.Subscribe(address)
 	if err != nil {
-		return fmt.Errorf("Failed to subscribe: %v", err)
+		return fmt.Errorf("failed to subscribe: %v", err)
 	}
 	log.Infof(resp.Data)
 	return nil
@@ -42,18 +42,18 @@ func (p *politeiawww) removeWatchAddress(address string) error {
 	p.currentSubs = append(p.currentSubs[:i], p.currentSubs[i+1:]...)
 	resp, err := p.wsClient.Unsubscribe(address)
 	if err != nil {
-		return fmt.Errorf("Failed to unsubscribe: %v", err)
+		return fmt.Errorf("failed to unsubscribe: %v", err)
 	}
 	log.Infof(resp.Data)
 	return nil
 }
 
 func (p *politeiawww) addPing() error {
-	resp, err := p.wsClient.Subscribe("ping")
+	_, err := p.wsClient.Subscribe("ping")
 	if err != nil {
-		return fmt.Errorf("Failed to subscribe: %v", err)
+		return fmt.Errorf("failed to subscribe: %v", err)
 	}
-	log.Infof(resp.Data)
+	log.Infof("Subscribed to ping")
 	return nil
 }
 
@@ -63,10 +63,8 @@ func (p *politeiawww) setupWatcher() error {
 	if err != nil {
 		return err
 	}
-	log.Infof("connecting to ws at: %v", wsURL)
+	log.Infof("Connecting to ws at: %v", wsURL)
 
-	// XXX How to handle the ws close?
-	//defer ws.Close()
 	ctx, cancel := context.WithCancel(context.Background())
 	opts := client.Opts{
 		ReadTimeout:  3 * time.Second,
@@ -75,7 +73,7 @@ func (p *politeiawww) setupWatcher() error {
 	p.cancelContext = cancel
 	p.wsClient, err = client.New(wsURL, ctx, &opts)
 	if err != nil {
-		log.Errorf("Failed to connect to %s: %v", wsURL, err)
+		log.Errorf("failed to connect to %s: %v", wsURL, err)
 		return err
 	}
 	go func() {
@@ -88,24 +86,24 @@ func (p *politeiawww) setupWatcher() error {
 
 			switch m := msg.Message.(type) {
 			case string:
-				log.Infof("Message (%s): %s", msg.EventId, m)
+				log.Debugf("Message (%s): %s", msg.EventId, m)
 			case *pstypes.AddressMessage:
-				log.Infof("Message (%s): AddressMessage(address=%s, txHash=%s)",
+				log.Debugf("Message (%s): AddressMessage(address=%s, txHash=%s)",
 					msg.EventId, m.Address, m.TxHash)
 
 				// Check payment history for address
 				payment, err := p.cmsDB.PaymentsByAddress(m.Address)
 				if err != nil {
-					log.Errorf("Error retreiving payments information from db %v", err)
+					log.Errorf("error retreiving payments information from db %v", err)
 				}
 				paid := p.checkPayments(payment)
 				if paid {
 					p.removeWatchAddress(payment.Address)
 				}
 			case *pstypes.TxList:
-				log.Infof("Message (%s): TxList(len=%d)", msg.EventId, len(*m))
+				log.Debugf("Message (%s): TxList(len=%d)", msg.EventId, len(*m))
 			default:
-				log.Infof("Message of type %v unhandled. %v", msg.EventId, m)
+				log.Debugf("Message of type %v unhandled. %v", msg.EventId, m)
 			}
 		}
 	}()
@@ -113,7 +111,6 @@ func (p *politeiawww) setupWatcher() error {
 }
 
 func (p *politeiawww) restartAddressesWatching() error {
-
 	unpaidPayments, err := p.cmsDB.PaymentsByStatus(uint(cms.PaymentStatusWatching))
 	if err != nil {
 		return err
@@ -121,15 +118,9 @@ func (p *politeiawww) restartAddressesWatching() error {
 	for _, payments := range unpaidPayments {
 		paid := p.checkPayments(&payments)
 		if !paid {
-			p.addressWatcherChan <- &addressWatcherContext{action: "addWatchAddress",
-				address: payments.Address}
+			p.addWatchAddress(payments.Address)
 		}
 	}
-	return nil
-}
-
-func (p *politeiawww) stopWatcher() error {
-	p.wsClient.Stop()
 	return nil
 }
 
@@ -147,7 +138,7 @@ func (p *politeiawww) checkPayments(payment *database.Payments) bool {
 	txs, err := util.FetchTxsForAddressNotBefore(payment.Address, payment.TimeStarted)
 	if err != nil {
 		// XXX Some sort of 'recheck' or notice that it should do it again?
-		log.Errorf("Error FetchTxsForAddressNotBefore for %s", payment.Address)
+		log.Errorf("error FetchTxsForAddressNotBefore for %s", payment.Address)
 	}
 
 	if len(txs) == len(payment.TxIDs) {

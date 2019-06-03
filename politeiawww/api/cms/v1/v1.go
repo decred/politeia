@@ -423,10 +423,11 @@ type LineItemPayoutsReply struct {
 	LineItems []LineItemsInput `json:"lineitems"` // Line items within the requested date range.
 }
 
+// PaymentInformation contains information for each invoice's payout.
 type PaymentInformation struct {
 	Token           string         `json:"token"`
 	Address         string         `json:"address"`
-	TxsID           []string       `json:"txsid"`
+	TxIDs           []string       `json:"txids"`
 	TimeStarted     int64          `json:"timestarted"`
 	TimeLastUpdated int64          `json:"timelastupdated"`
 	AmountNeeded    dcrutil.Amount `json:"amountneeded"`
