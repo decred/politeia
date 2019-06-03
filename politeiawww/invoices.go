@@ -565,18 +565,6 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 				}
 			}
 
-			// Check payment history for address
-			currentPayment, err := p.cmsDB.PaymentsByAddress(invInput.PaymentAddress)
-			if err != nil {
-				return www.UserError{
-					ErrorCode: cms.ErrorStatusInvalidPaymentAddress,
-				}
-			}
-			if currentPayment != nil {
-				return www.UserError{
-					ErrorCode: cms.ErrorStatusDuplicatePaymentAddress,
-				}
-			}
 			// Verify that the submitted monthly average matches the value
 			// was calculated server side.
 			monthAvg, err := p.cmsDB.ExchangeRate(int(invInput.Month),
