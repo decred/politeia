@@ -546,7 +546,18 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 					ErrorCode: cms.ErrorStatusInvalidPaymentAddress,
 				}
 			}
-			if len(invoiceAddress) > 0 {
+			// If more than 1 invoice comes back with the same address, it's
+			// surely a duplicate.
+			if len(invoiceAddress) > 1 {
+				return www.UserError{
+					ErrorCode: cms.ErrorStatusDuplicatePaymentAddress,
+				}
+			} else if len(invoiceAddress) == 1 &&
+				(invoiceAddress[0].Month != invInput.Month ||
+					invoiceAddress[0].Year != invInput.Year) {
+				// When attempting to edit an existing invoice, there will be 1
+				// result that has a matching payment address.  Throw dupe address
+				// error if the Month or Year doesn't match.
 				return www.UserError{
 					ErrorCode: cms.ErrorStatusDuplicatePaymentAddress,
 				}
