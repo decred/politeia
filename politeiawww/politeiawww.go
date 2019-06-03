@@ -68,11 +68,6 @@ type wsContext struct {
 	done          chan struct{} // SHUT...DOWN...EVERYTHING...
 }
 
-type addressWatcherContext struct {
-	action  string
-	address string
-}
-
 func (w *wsContext) String() string {
 	u := w.uuid
 	if u == "" {
