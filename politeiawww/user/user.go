@@ -5,10 +5,12 @@
 package user
 
 import (
+	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/google/uuid"
@@ -27,11 +29,36 @@ var (
 )
 
 // Identity wraps an ed25519 public key and timestamps to indicate if it is
-// active.  If deactivated != 0 then the key is no longer valid.
+// active. An identity can be in one of three states: inactive, active, or
+// deactivated.
+//
+// inactive: Activated == 0 && Deactivated == 0
+// The identity has been created, but has not yet been activated.
+//
+// active: Activated != 0 && Deactivated == 0
+// The identity has been created and has been activated.
+//
+// deactivated: Deactivated != 0
+// The identity in no longer active and the key is no longer valid.
 type Identity struct {
 	Key         [identity.PublicKeySize]byte // ed25519 public key
 	Activated   int64                        // Time key as activated for use
 	Deactivated int64                        // Time key was deactivated
+}
+
+// Activate activates the identity by setting the activated timestamp.
+func (i *Identity) Activate() {
+	i.Activated = time.Now().Unix()
+}
+
+// Deactivate deactivates the identity by setting the deactivated timestamp.
+func (i *Identity) Deactivate() {
+	i.Deactivated = time.Now().Unix()
+}
+
+// IsInactive returns whether the identity is inactive.
+func (i *Identity) IsInactive() bool {
+	return i.Activated == 0 && i.Deactivated == 0
 }
 
 // IsActive returns whether the identity is active.
@@ -42,6 +69,27 @@ func (i *Identity) IsActive() bool {
 // String returns a hex encoded string of the identity key.
 func (i *Identity) String() string {
 	return hex.EncodeToString(i.Key[:])
+}
+
+// NewIdentity returns a new inactive identity that was created using the
+// provided public key.
+func NewIdentity(publicKey string) (*Identity, error) {
+	b, err := hex.DecodeString(publicKey)
+	if err != nil {
+		return nil, err
+	}
+
+	var empty [identity.PublicKeySize]byte
+	switch {
+	case len(b) != len(empty):
+		return nil, fmt.Errorf("invalid length")
+	case bytes.Equal(b, empty[:]):
+		return nil, fmt.Errorf("empty bytes")
+	}
+
+	id := Identity{}
+	copy(id.Key[:], b)
+	return &id, nil
 }
 
 // A proposal paywall allows the user to purchase proposal credits.  Proposal
@@ -107,9 +155,16 @@ type User struct {
 	// a UNIX timestamp.
 	ProposalCommentsAccessTimes map[string]int64
 
-	// All identities the user has ever used.  User should only have one
-	// active key at a time.  We allow multiples in order to deal with key
-	// loss.
+	// All identities the user has ever used. We allow the user to change
+	// identities to deal with key loss. An identity can be in one of three
+	// states: inactive, active, or deactivated.
+	//
+	// An identity is consider inactive until it has been verified.
+	// An unverified user will have an inactive identity.
+	// A verified user will always have an active identity.
+	// A verified user can only have one active identity at a time.
+	// A verified user may have both an active and inactive identity if
+	// they have requested a new identity but have not yet verified it.
 	Identities []Identity
 
 	// All proposal paywalls that have been issued to the user in chronological
@@ -130,21 +185,111 @@ type User struct {
 	SpentProposalCredits []ProposalCredit
 }
 
-// ActiveIdentity returns a user's active identity. A user will always have an
-// active identity. This function panics if this assumption does not hold.
+// ActiveIdentity returns the active identity for the user if one exists.
 func (u *User) ActiveIdentity() *Identity {
-	for _, v := range u.Identities {
+	for k, v := range u.Identities {
 		if v.IsActive() {
-			return &v
+			return &u.Identities[k]
 		}
 	}
-	panic(fmt.Sprintf("active identity not found "+
-		"for user %v", u.ID.String()))
+	return nil
 }
 
-// PublicKey returns a hex encoded string of the user's active identity key.
+// InactiveIdentity returns the inactive identity for the user if one exists.
+func (u *User) InactiveIdentity() *Identity {
+	for k, v := range u.Identities {
+		if v.IsInactive() {
+			return &u.Identities[k]
+		}
+	}
+	return nil
+}
+
+// PublicKey returns a hex encoded string of the user's identity.
 func (u *User) PublicKey() string {
-	return u.ActiveIdentity().String()
+	if u.ActiveIdentity() != nil {
+		return u.ActiveIdentity().String()
+	}
+	if u.InactiveIdentity() != nil {
+		return u.InactiveIdentity().String()
+	}
+	return ""
+}
+
+// AddIdentity adds the provided inactive identity to the identities array for
+// the user. Any existing inactive identities are deactivated. A user should
+// only ever have one inactive identity at a time, but due to a prior bug, this
+// may not always be the case.
+func (u *User) AddIdentity(id Identity) error {
+	if u.Identities == nil {
+		u.Identities = make([]Identity, 0)
+	}
+
+	// Validate provided identity
+	for _, v := range u.Identities {
+		if bytes.Equal(v.Key[:], id.Key[:]) {
+			if v.IsInactive() {
+				// Inactive identity has already been
+				// added. This is ok.
+				return nil
+			}
+			return fmt.Errorf("duplicate key")
+		}
+	}
+	switch {
+	case id.Deactivated != 0:
+		return fmt.Errorf("identity is deactivated")
+	case id.Activated != 0:
+		return fmt.Errorf("identity is activated")
+	}
+
+	// Deactivate any existing inactive identities
+	for k, v := range u.Identities {
+		if v.IsInactive() {
+			u.Identities[k].Deactivate()
+		}
+	}
+
+	// Add new inactive identity
+	u.Identities = append(u.Identities, id)
+
+	return nil
+}
+
+// ActivateIdentity sets the identity associated with the provided key as the
+// active identity for the user. The provided key must correspond to an
+// inactive identity. If there is an existing active identity, it is
+// deactivated.
+func (u *User) ActivateIdentity(key []byte) error {
+	if u.Identities == nil {
+		return fmt.Errorf("identity not found")
+	}
+
+	// Ensure provided key exists and is inactive
+	var inactive *Identity
+	for k, v := range u.Identities {
+		if bytes.Equal(v.Key[:], key[:]) {
+			inactive = &u.Identities[k]
+			break
+		}
+	}
+	switch {
+	case inactive == nil:
+		return fmt.Errorf("identity not found")
+	case inactive.Deactivated != 0:
+		return fmt.Errorf("identity is deactivated")
+	case inactive.Activated != 0:
+		return fmt.Errorf("identity is activated")
+	}
+
+	// Update identities
+	active := u.ActiveIdentity()
+	if active != nil {
+		active.Deactivate()
+	}
+	inactive.Activate()
+
+	return nil
 }
 
 // EncodeUser encodes User into a JSON byte slice.
