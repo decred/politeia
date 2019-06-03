@@ -894,8 +894,11 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus, u *user.
 	dbInvoice.Status = c.NewStatus
 
 	// Calculate amount of DCR needed
-	dcrAmount := dcrutil.Amount(0)
-
+	payout, err := p.calculatePayout(*dbInvoice)
+	if err != nil {
+		return nil, err
+	}
+	dcrAmount := payout.DCRTotal * dcrutil.AtomsPerCoin
 	// If approved then update Invoice's Payment table in DB
 	if c.NewStatus == cms.InvoiceStatusApproved {
 		dbInvoice.Payments = database.Payments{

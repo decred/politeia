@@ -545,7 +545,10 @@ func _main() error {
 
 		p.setupWatcher()
 
-		p.restartAddressesWatching()
+		err = p.restartAddressesWatching()
+		if err != nil {
+			log.Errorf("error restarting address watcher %v", err)
+		}
 
 		p.addPing()
 

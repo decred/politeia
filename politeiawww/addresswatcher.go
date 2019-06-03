@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/dcrutil"
 	client "github.com/decred/dcrdata/pubsub/psclient"
 	pstypes "github.com/decred/dcrdata/pubsub/types"
@@ -128,10 +129,41 @@ func (p *politeiawww) setupWatcher() error {
 }
 
 func (p *politeiawww) restartAddressesWatching() error {
+	approvedInvoices, err := p.cmsDB.InvoicesByStatus(int(cms.InvoiceStatusApproved))
+	if err != nil {
+		return err
+	}
+	for _, invoice := range approvedInvoices {
+		_, err := p.cmsDB.PaymentsByAddress(invoice.PaymentAddress)
+		if err != nil {
+			if err == database.ErrInvoiceNotFound {
+				payout, err := p.calculatePayout(invoice)
+				if err != nil {
+					return err
+				}
+				dcrAmount := payout.DCRTotal * dcrutil.AtomsPerCoin
+				// Start listening the first day of the next month of invoice.
+				listenStartDate := time.Date(int(invoice.Year),
+					time.Month(invoice.Month+1), 0, 0, 0, 0, 0, time.UTC)
+				invoice.Payments = database.Payments{
+					Address:      invoice.PaymentAddress,
+					TimeStarted:  listenStartDate.Unix(),
+					Status:       cms.PaymentStatusWatching,
+					AmountNeeded: int64(dcrAmount),
+				}
+				spew.Dump(invoice.Payments)
+				err = p.cmsDB.UpdateInvoice(&invoice)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
 	unpaidPayments, err := p.cmsDB.PaymentsByStatus(uint(cms.PaymentStatusWatching))
 	if err != nil {
 		return err
 	}
+	spew.Dump(unpaidPayments)
 	for _, payments := range unpaidPayments {
 		paid := p.checkPayments(&payments)
 		if !paid {
