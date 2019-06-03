@@ -1,10 +1,5 @@
 module github.com/decred/politeia
 
-replace (
-	github.com/decred/dcrdata/pubsub => github.com/decred/dcrdata/pubsub v1.0.1-0.20190517192937-08d3bd9099e0
-	github.com/decred/dcrdata/pubsub/types => github.com/decred/dcrdata/pubsub/types v1.0.1-0.20190517192937-08d3bd9099e0
-)
-
 require (
 	github.com/agl/ed25519 v0.0.0-20170116200512-5312a6153412
 	github.com/btcsuite/go-socks v0.0.0-20170105172521-4720035b7bfd
@@ -19,8 +14,10 @@ require (
 	github.com/decred/dcrd/hdkeychain v1.1.1
 	github.com/decred/dcrd/wire v1.2.0
 	github.com/decred/dcrdata/api/types v1.0.6
-	github.com/decred/dcrdata/pubsub v1.0.1
-	github.com/decred/dcrdata/pubsub/types v1.0.1
+	github.com/decred/dcrdata/explorer/types v1.0.1 // indirect
+	github.com/decred/dcrdata/pubsub v1.0.1-0.20190528205258-3b3bd0d00f08
+	github.com/decred/dcrdata/pubsub/types v1.0.1-0.20190528205258-3b3bd0d00f08
+	github.com/decred/dcrdata/semver v1.0.0
 	github.com/decred/dcrtime v0.0.0-20180808181920-4c91c4cbed09
 	github.com/decred/dcrwallet v1.2.3-0.20190128160919-849f7c01c12d
 	github.com/decred/dcrwallet/rpc/walletrpc v0.2.0

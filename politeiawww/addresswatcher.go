@@ -12,6 +12,7 @@ import (
 	"github.com/decred/dcrd/dcrutil"
 	client "github.com/decred/dcrdata/pubsub/psclient"
 	pstypes "github.com/decred/dcrdata/pubsub/types"
+	"github.com/decred/dcrdata/semver"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	database "github.com/decred/politeia/politeiawww/cmsdatabase"
 	"github.com/decred/politeia/util"
@@ -76,6 +77,20 @@ func (p *politeiawww) setupWatcher() error {
 		log.Errorf("failed to connect to %s: %v", wsURL, err)
 		return err
 	}
+	serverVer, err := p.wsClient.ServerVersion()
+	if err != nil {
+		log.Errorf("failed to get server version: %v", err)
+		return err
+	}
+
+	clientSemVer := client.Version()
+	log.Infof("PubSub Server version: %s, Client version %v", serverVer, clientSemVer)
+	serverSemVer := semver.NewSemver(serverVer.Major, serverVer.Minor, serverVer.Patch)
+	if !semver.Compatible(clientSemVer, serverSemVer) {
+		return fmt.Errorf("pubsub server version is %v, but client is version %v",
+			serverSemVer, clientSemVer)
+	}
+
 	go func() {
 		for {
 			msg := <-p.wsClient.Receive()
@@ -87,6 +102,8 @@ func (p *politeiawww) setupWatcher() error {
 			switch m := msg.Message.(type) {
 			case string:
 				log.Debugf("Message (%s): %s", msg.EventId, m)
+			case int:
+				log.Debugf("Message (%s): %v", msg.EventId, m)
 			case *pstypes.AddressMessage:
 				log.Debugf("Message (%s): AddressMessage(address=%s, txHash=%s)",
 					msg.EventId, m.Address, m.TxHash)
