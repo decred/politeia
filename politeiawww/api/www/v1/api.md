@@ -2533,36 +2533,8 @@ Reply:
 | <a name="ErrorStatusInvalidUUID">ErrorStatusInvalidUUID</a> | 56 | Invalid user UUID. |
 | <a name="ErrorStatusInvalidLikeCommentAction">ErrorStatusInvalidLikeCommentAction</a> | 57 | Invalid like comment action. |
 | <a name="ErrorStatusInvalidCensorshipToken">ErrorStatusInvalidCensorshipToken</a> | 58 | Invalid proposal censorship token. |
-| <a name="ErrorStatusMalformedName">ErrorStatusMalformedName</a> | 60 | Invalid name entered for CMS registration. |
-| <a name="ErrorStatusMalformedLocation">ErrorStatusMalformedLocation</a> | 61 | Invalid location entered for CMS registration. |
-| <a name="ErrorStatusInvoiceNotFound">ErrorStatusInvoiceNotFound</a> | 62 | Request invoice not found. |
-| <a name="ErrorStatusInvalidMonthYearRequest">ErrorStatusInvalidMonthYearRequest</a> | 63 | Month and/or was improperly entered for an invoice. |
-| <a name="ErrorStatusMalformedInvoiceFile">ErrorStatusMalformedInvoiceFile</a> | 64 | The invoice file submitted was malformed and not acceptable. |
-| <a name="ErrorStatusInvalidInvoiceStatusTransition">ErrorStatusInvalidInvoiceStatusTransition</a> | 65 | Status update attempted an invalid status transition. |
-| <a name="ErrorStatusReasonNotProvided">ErrorStatusReasonNotProvided</a> | 66 | No reason provided for status updated. |
-| <a name="ErrorStatusInvoiceDuplicate">ErrorStatusInvoiceDuplicate</a> | 67 | Invoice is a duplicate. |
-| <a name="ErrorStatusInvalidPaymentAddress">ErrorStatusInvalidPaymentAddress</a> | 68 | Invalid payment address was submitted. |
-| <a name="ErrorStatusMalformedLineItem">ErrorStatusMalformedLineItem</a> | 69 | Line item in an invoice was malformed and invalid. |
-| <a name="ErrorStatusInvoiceMissingName">ErrorStatusInvoiceMissingName</a> | 70 | Submitted invoice missing contractor name. |
-| <a name="ErrorStatusInvoiceMissingLocation">ErrorStatusInvoiceMissingLocation</a> | 71 | Submitted invoice missing contractor location. |
-| <a name="ErrorStatusInvoiceMissingContact">ErrorStatusInvoiceMissingContact</a> | 72 | Submitted invoice missing contractor contact. |
-| <a name="ErrorStatusInvoiceMissingRate">ErrorStatusInvoiceMissingRate</a> | 73 | Submitted invoice missing contractor rate. |
-| <a name="ErrorStatusInvoiceInvalidRate">ErrorStatusInvoiceInvalidRate</a> | 74 | Submitted contractor rate is invalid (either too high or low). |
-| <a name="ErrorStatusInvoiceMalformedContact">ErrorStatusInvoiceMalformedContact</a> | 75 | Malformed contractor contact was entered. |
-| <a name="ErrorStatusMalformedProposalToken">ErrorStatusMalformedProposalToken</a> | 76 | Malformed proposal token for a line item. |
-| <a name="ErrorStatusMalformedDomain">ErrorStatusMalformedDomain</a> | 77 | Malformed domain for a line item. |
-| <a name="ErrorStatusMalformedSubdomain">ErrorStatusMalformedSubdomain</a> | 78 | Malformed subdomain for a line item. |
-| <a name="ErrorStatusMalformedDescription">ErrorStatusMalformedDescription</a> | 79 | Malformed description for a line item. |
-| <a name="ErrorStatusWrongInvoiceStatus">ErrorStatusWrongInvoiceStatus</a> | 80 | Wrong status for an invoice to be editted (approved, rejected, paid). |
-| <a name="ErrorStatusInvoiceRequireLineItems">ErrorStatusInvoiceRequireLineItems</a> | 81 | Invoices require at least 1 line item to be included. |
-| <a name="ErrorStatusMultipleInvoiceMonthYear">ErrorStatusMultipleInvoiceMonthYear</a> | 82 | Users are only allowed to submit 1 invoice per month/year. |
-| <a name="ErrorStatusInvalidInvoiceMonthYear">ErrorStatusInvalidInvoiceMonthYear</a> | 83 | An invalid month/year was detected in an invoice. |
-| <a name="ErrorStatusInvalidExchangeRate">ErrorStatusInvalidExchangeRate</a> | 84 | Invalid Exchange Rate |
 | <a name="ErrorStatusInvalidPassword">ErrorStatusInvalidPassword</a> | 85 | User password was invalid |
-| <a name="ErrorStatusInvalidLineItemType">ErrorStatusInvalidLineItemType</a> | 86 | An invalid line item type was attempted. |
-| <a name="ErrorStatusInvalidLaborExpense">ErrorStatusInvalidLaborExpense</a> | 87 | An invalid value was entered into labor or expenses. |
 | <a name="ErrorStatusNoProposalChanges">ErrorStatusNoProposalChanges</a> | 88 | No changes found in proposal. |
-| <a name="ErrorStatusDuplicatePaymentAddress">ErrorStatusDuplicatePaymentAddress</a> | 89 | An duplicate payment address was entered. |
 
 
 ### Proposal status codes

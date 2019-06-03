@@ -306,7 +306,7 @@ func (p *politeiawww) processNewCommentInvoice(nc www.NewComment, u *user.User) 
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
 			err = www.UserError{
-				ErrorCode: www.ErrorStatusInvoiceNotFound,
+				ErrorCode: cms.ErrorStatusInvoiceNotFound,
 			}
 		}
 		return nil, err

@@ -179,36 +179,6 @@ const (
 	ErrorStatusInvalidPassword             ErrorStatusT = 85
 	ErrorStatusNoProposalChanges           ErrorStatusT = 88
 
-	// CMS Errors
-	ErrorStatusMalformedName                  ErrorStatusT = 60
-	ErrorStatusMalformedLocation              ErrorStatusT = 61
-	ErrorStatusInvoiceNotFound                ErrorStatusT = 62
-	ErrorStatusInvalidMonthYearRequest        ErrorStatusT = 63
-	ErrorStatusMalformedInvoiceFile           ErrorStatusT = 64
-	ErrorStatusInvalidInvoiceStatusTransition ErrorStatusT = 65
-	ErrorStatusReasonNotProvided              ErrorStatusT = 66
-	ErrorStatusInvoiceDuplicate               ErrorStatusT = 67
-	ErrorStatusInvalidPaymentAddress          ErrorStatusT = 68
-	ErrorStatusMalformedLineItem              ErrorStatusT = 69
-	ErrorStatusInvoiceMissingName             ErrorStatusT = 70
-	ErrorStatusInvoiceMissingLocation         ErrorStatusT = 71
-	ErrorStatusInvoiceMissingContact          ErrorStatusT = 72
-	ErrorStatusInvoiceMissingRate             ErrorStatusT = 73
-	ErrorStatusInvoiceInvalidRate             ErrorStatusT = 74
-	ErrorStatusInvoiceMalformedContact        ErrorStatusT = 75
-	ErrorStatusMalformedProposalToken         ErrorStatusT = 76
-	ErrorStatusMalformedDomain                ErrorStatusT = 77
-	ErrorStatusMalformedSubdomain             ErrorStatusT = 78
-	ErrorStatusMalformedDescription           ErrorStatusT = 79
-	ErrorStatusWrongInvoiceStatus             ErrorStatusT = 80
-	ErrorStatusInvoiceRequireLineItems        ErrorStatusT = 81
-	ErrorStatusMultipleInvoiceMonthYear       ErrorStatusT = 82
-	ErrorStatusInvalidInvoiceMonthYear        ErrorStatusT = 83
-	ErrorStatusInvalidExchangeRate            ErrorStatusT = 84
-	ErrorStatusInvalidLineItemType            ErrorStatusT = 86
-	ErrorStatusInvalidLaborExpense            ErrorStatusT = 87
-	ErrorStatusDuplicatePaymentAddress        ErrorStatusT = 89
-
 	// Proposal state codes
 	//
 	// PropStateUnvetted includes proposals with a status of:
@@ -285,94 +255,68 @@ var (
 
 	// ErrorStatus converts error status codes to human readable text.
 	ErrorStatus = map[ErrorStatusT]string{
-		ErrorStatusInvalid:                        "invalid error status",
-		ErrorStatusInvalidEmailOrPassword:         "invalid email or password",
-		ErrorStatusMalformedEmail:                 "malformed email",
-		ErrorStatusVerificationTokenInvalid:       "invalid verification token",
-		ErrorStatusVerificationTokenExpired:       "expired verification token",
-		ErrorStatusProposalMissingFiles:           "missing proposal files",
-		ErrorStatusProposalNotFound:               "proposal not found",
-		ErrorStatusProposalDuplicateFilenames:     "duplicate proposal files",
-		ErrorStatusProposalInvalidTitle:           "invalid proposal title",
-		ErrorStatusMaxMDsExceededPolicy:           "maximum markdown files exceeded",
-		ErrorStatusMaxImagesExceededPolicy:        "maximum image files exceeded",
-		ErrorStatusMaxMDSizeExceededPolicy:        "maximum markdown file size exceeded",
-		ErrorStatusMaxImageSizeExceededPolicy:     "maximum image file size exceeded",
-		ErrorStatusMalformedPassword:              "malformed password",
-		ErrorStatusCommentNotFound:                "comment not found",
-		ErrorStatusInvalidFilename:                "invalid filename",
-		ErrorStatusInvalidFileDigest:              "invalid file digest",
-		ErrorStatusInvalidBase64:                  "invalid base64 file content",
-		ErrorStatusInvalidMIMEType:                "invalid MIME type detected for file",
-		ErrorStatusUnsupportedMIMEType:            "unsupported MIME type for file",
-		ErrorStatusInvalidPropStatusTransition:    "invalid proposal status",
-		ErrorStatusInvalidPublicKey:               "invalid public key",
-		ErrorStatusNoPublicKey:                    "no active public key",
-		ErrorStatusInvalidSignature:               "invalid signature",
-		ErrorStatusInvalidInput:                   "invalid input",
-		ErrorStatusInvalidSigningKey:              "invalid signing key",
-		ErrorStatusCommentLengthExceededPolicy:    "maximum comment length exceeded",
-		ErrorStatusUserNotFound:                   "user not found",
-		ErrorStatusWrongStatus:                    "wrong status",
-		ErrorStatusNotLoggedIn:                    "user not logged in",
-		ErrorStatusUserNotPaid:                    "user hasn't paid paywall",
-		ErrorStatusReviewerAdminEqualsAuthor:      "user cannot change the status of his own proposal",
-		ErrorStatusMalformedUsername:              "malformed username",
-		ErrorStatusDuplicateUsername:              "duplicate username",
-		ErrorStatusVerificationTokenUnexpired:     "verification token not yet expired",
-		ErrorStatusCannotVerifyPayment:            "cannot verify payment at this time",
-		ErrorStatusDuplicatePublicKey:             "public key already taken by another user",
-		ErrorStatusInvalidPropVoteStatus:          "invalid proposal vote status",
-		ErrorStatusUserLocked:                     "user locked due to too many login attempts",
-		ErrorStatusNoProposalCredits:              "no proposal credits",
-		ErrorStatusInvalidUserManageAction:        "invalid user edit action",
-		ErrorStatusUserActionNotAllowed:           "user action is not allowed",
-		ErrorStatusWrongVoteStatus:                "wrong proposal vote status",
-		ErrorStatusCannotCommentOnProp:            "cannot comment on proposal",
-		ErrorStatusCannotVoteOnPropComment:        "cannot vote on proposal comment",
-		ErrorStatusChangeMessageCannotBeBlank:     "status change message cannot be blank",
-		ErrorStatusCensorReasonCannotBeBlank:      "censor comment reason cannot be blank",
-		ErrorStatusCannotCensorComment:            "cannot censor comment",
-		ErrorStatusUserNotAuthor:                  "user is not the proposal author",
-		ErrorStatusVoteNotAuthorized:              "vote has not been authorized",
-		ErrorStatusVoteAlreadyAuthorized:          "vote has already been authorized",
-		ErrorStatusInvalidAuthVoteAction:          "invalid authorize vote action",
-		ErrorStatusUserDeactivated:                "user account is deactivated",
-		ErrorStatusInvalidPropVoteBits:            "invalid proposal vote option bits",
-		ErrorStatusInvalidPropVoteParams:          "invalid proposal vote parameters",
-		ErrorStatusEmailNotVerified:               "email address is not verified",
-		ErrorStatusInvalidUUID:                    "invalid user UUID",
-		ErrorStatusInvalidLikeCommentAction:       "invalid like comment action",
-		ErrorStatusInvalidCensorshipToken:         "invalid proposal censorship token",
-		ErrorStatusEmailAlreadyVerified:           "email address is already verified",
-		ErrorStatusMalformedName:                  "malformed name",
-		ErrorStatusMalformedLocation:              "malformed location",
-		ErrorStatusInvoiceNotFound:                "invoice cannot be found",
-		ErrorStatusInvalidMonthYearRequest:        "month or year was set, while the other was not",
-		ErrorStatusInvalidInvoiceStatusTransition: "invalid invoice status transition",
-		ErrorStatusReasonNotProvided:              "reason for action not provided",
-		ErrorStatusMalformedInvoiceFile:           "submitted invoice file is malformed",
-		ErrorStatusInvoiceDuplicate:               "submitted invoice is a duplicate of an existing invoice",
-		ErrorStatusInvalidPaymentAddress:          "invalid payment address",
-		ErrorStatusMalformedLineItem:              "malformed line item submitted",
-		ErrorStatusInvoiceMissingName:             "invoice missing contractor name",
-		ErrorStatusInvoiceMissingLocation:         "invoice missing contractor location",
-		ErrorStatusInvoiceMissingContact:          "invoice missing contractor contact",
-		ErrorStatusInvoiceMalformedContact:        "invoice has malformed contractor contact",
-		ErrorStatusInvoiceMissingRate:             "invoice missing contractor rate",
-		ErrorStatusInvoiceInvalidRate:             "invoice has invalid contractor rate",
-		ErrorStatusMalformedProposalToken:         "line item has malformed proposal token",
-		ErrorStatusMalformedDomain:                "line item has malformed domain",
-		ErrorStatusMalformedSubdomain:             "line item has malformed subdomain",
-		ErrorStatusMalformedDescription:           "line item has malformed description",
-		ErrorStatusWrongInvoiceStatus:             "invoice is an wrong status to be editted (approved, rejected or paid)",
-		ErrorStatusInvoiceRequireLineItems:        "invoices require at least 1 line item",
-		ErrorStatusMultipleInvoiceMonthYear:       "only one invoice per month/year is allowed to be submitted",
-		ErrorStatusInvalidInvoiceMonthYear:        "an invalid month/year was submitted on an invoice",
-		ErrorStatusInvalidExchangeRate:            "exchange rate was invalid or didn't match expected result",
-		ErrorStatusInvalidPassword:                "invalid password",
-		ErrorStatusNoProposalChanges:              "no changes found in proposal",
-		ErrorStatusDuplicatePaymentAddress:        "a duplicate payment address was used",
+		ErrorStatusInvalid:                     "invalid error status",
+		ErrorStatusInvalidEmailOrPassword:      "invalid email or password",
+		ErrorStatusMalformedEmail:              "malformed email",
+		ErrorStatusVerificationTokenInvalid:    "invalid verification token",
+		ErrorStatusVerificationTokenExpired:    "expired verification token",
+		ErrorStatusProposalMissingFiles:        "missing proposal files",
+		ErrorStatusProposalNotFound:            "proposal not found",
+		ErrorStatusProposalDuplicateFilenames:  "duplicate proposal files",
+		ErrorStatusProposalInvalidTitle:        "invalid proposal title",
+		ErrorStatusMaxMDsExceededPolicy:        "maximum markdown files exceeded",
+		ErrorStatusMaxImagesExceededPolicy:     "maximum image files exceeded",
+		ErrorStatusMaxMDSizeExceededPolicy:     "maximum markdown file size exceeded",
+		ErrorStatusMaxImageSizeExceededPolicy:  "maximum image file size exceeded",
+		ErrorStatusMalformedPassword:           "malformed password",
+		ErrorStatusCommentNotFound:             "comment not found",
+		ErrorStatusInvalidFilename:             "invalid filename",
+		ErrorStatusInvalidFileDigest:           "invalid file digest",
+		ErrorStatusInvalidBase64:               "invalid base64 file content",
+		ErrorStatusInvalidMIMEType:             "invalid MIME type detected for file",
+		ErrorStatusUnsupportedMIMEType:         "unsupported MIME type for file",
+		ErrorStatusInvalidPropStatusTransition: "invalid proposal status",
+		ErrorStatusInvalidPublicKey:            "invalid public key",
+		ErrorStatusNoPublicKey:                 "no active public key",
+		ErrorStatusInvalidSignature:            "invalid signature",
+		ErrorStatusInvalidInput:                "invalid input",
+		ErrorStatusInvalidSigningKey:           "invalid signing key",
+		ErrorStatusCommentLengthExceededPolicy: "maximum comment length exceeded",
+		ErrorStatusUserNotFound:                "user not found",
+		ErrorStatusWrongStatus:                 "wrong status",
+		ErrorStatusNotLoggedIn:                 "user not logged in",
+		ErrorStatusUserNotPaid:                 "user hasn't paid paywall",
+		ErrorStatusReviewerAdminEqualsAuthor:   "user cannot change the status of his own proposal",
+		ErrorStatusMalformedUsername:           "malformed username",
+		ErrorStatusDuplicateUsername:           "duplicate username",
+		ErrorStatusVerificationTokenUnexpired:  "verification token not yet expired",
+		ErrorStatusCannotVerifyPayment:         "cannot verify payment at this time",
+		ErrorStatusDuplicatePublicKey:          "public key already taken by another user",
+		ErrorStatusInvalidPropVoteStatus:       "invalid proposal vote status",
+		ErrorStatusUserLocked:                  "user locked due to too many login attempts",
+		ErrorStatusNoProposalCredits:           "no proposal credits",
+		ErrorStatusInvalidUserManageAction:     "invalid user edit action",
+		ErrorStatusUserActionNotAllowed:        "user action is not allowed",
+		ErrorStatusWrongVoteStatus:             "wrong proposal vote status",
+		ErrorStatusCannotCommentOnProp:         "cannot comment on proposal",
+		ErrorStatusCannotVoteOnPropComment:     "cannot vote on proposal comment",
+		ErrorStatusChangeMessageCannotBeBlank:  "status change message cannot be blank",
+		ErrorStatusCensorReasonCannotBeBlank:   "censor comment reason cannot be blank",
+		ErrorStatusCannotCensorComment:         "cannot censor comment",
+		ErrorStatusUserNotAuthor:               "user is not the proposal author",
+		ErrorStatusVoteNotAuthorized:           "vote has not been authorized",
+		ErrorStatusVoteAlreadyAuthorized:       "vote has already been authorized",
+		ErrorStatusInvalidAuthVoteAction:       "invalid authorize vote action",
+		ErrorStatusUserDeactivated:             "user account is deactivated",
+		ErrorStatusInvalidPropVoteBits:         "invalid proposal vote option bits",
+		ErrorStatusInvalidPropVoteParams:       "invalid proposal vote parameters",
+		ErrorStatusEmailNotVerified:            "email address is not verified",
+		ErrorStatusInvalidUUID:                 "invalid user UUID",
+		ErrorStatusInvalidLikeCommentAction:    "invalid like comment action",
+		ErrorStatusInvalidCensorshipToken:      "invalid proposal censorship token",
+		ErrorStatusEmailAlreadyVerified:        "email address is already verified",
+		ErrorStatusInvalidPassword:             "invalid password",
+		ErrorStatusNoProposalChanges:           "no changes found in proposal",
 	}
 
 	// PropStatus converts propsal status codes to human readable text

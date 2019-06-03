@@ -638,6 +638,39 @@ Reply:
 {}
 ```
 
+### Error codes
+
+| Status | Value | Description |
+|-|-|-|
+| <a name="ErrorStatusMalformedName">ErrorStatusMalformedName</a> | 1001 | Invalid name entered for CMS registration. |
+| <a name="ErrorStatusMalformedLocation">ErrorStatusMalformedLocation</a> | 1002 | Invalid location entered for CMS registration. |
+| <a name="ErrorStatusInvoiceNotFound">ErrorStatusInvoiceNotFound</a> | 1003 | Request invoice not found. |
+| <a name="ErrorStatusInvalidMonthYearRequest">ErrorStatusInvalidMonthYearRequest</a> | 1004 | Month and/or was improperly entered for an invoice. |
+| <a name="ErrorStatusMalformedInvoiceFile">ErrorStatusMalformedInvoiceFile</a> | 1005 | The invoice file submitted was malformed and not acceptable. |
+| <a name="ErrorStatusInvalidInvoiceStatusTransition">ErrorStatusInvalidInvoiceStatusTransition</a> | 1006 | Status update attempted an invalid status transition. |
+| <a name="ErrorStatusReasonNotProvided">ErrorStatusReasonNotProvided</a> | 1007 | No reason provided for status updated. |
+| <a name="ErrorStatusInvoiceDuplicate">ErrorStatusInvoiceDuplicate</a> | 1008 | Invoice is a duplicate. |
+| <a name="ErrorStatusInvalidPaymentAddress">ErrorStatusInvalidPaymentAddress</a> | 1009 | Invalid payment address was submitted. |
+| <a name="ErrorStatusMalformedLineItem">ErrorStatusMalformedLineItem</a> | 1010 | Line item in an invoice was malformed and invalid. |
+| <a name="ErrorStatusInvoiceMissingName">ErrorStatusInvoiceMissingName</a> | 1011 | Submitted invoice missing contractor name. |
+| <a name="ErrorStatusInvoiceMissingLocation">ErrorStatusInvoiceMissingLocation</a> | 1012 | Submitted invoice missing contractor location. |
+| <a name="ErrorStatusInvoiceMissingContact">ErrorStatusInvoiceMissingContact</a> | 1013 | Submitted invoice missing contractor contact. |
+| <a name="ErrorStatusInvoiceMissingRate">ErrorStatusInvoiceMissingRate</a> | 1014 | Submitted invoice missing contractor rate. |
+| <a name="ErrorStatusInvoiceInvalidRate">ErrorStatusInvoiceInvalidRate</a> | 1015 | Submitted contractor rate is invalid (either too high or low). |
+| <a name="ErrorStatusInvoiceMalformedContact">ErrorStatusInvoiceMalformedContact</a> | 1016 | Malformed contractor contact was entered. |
+| <a name="ErrorStatusMalformedProposalToken">ErrorStatusMalformedProposalToken</a> | 1017 | Malformed proposal token for a line item. |
+| <a name="ErrorStatusMalformedDomain">ErrorStatusMalformedDomain</a> | 1018 | Malformed domain for a line item. |
+| <a name="ErrorStatusMalformedSubdomain">ErrorStatusMalformedSubdomain</a> | 1019 | Malformed subdomain for a line item. |
+| <a name="ErrorStatusMalformedDescription">ErrorStatusMalformedDescription</a> | 1020 | Malformed description for a line item. |
+| <a name="ErrorStatusWrongInvoiceStatus">ErrorStatusWrongInvoiceStatus</a> | 1021 | Wrong status for an invoice to be editted (approved, rejected, paid). |
+| <a name="ErrorStatusInvoiceRequireLineItems">ErrorStatusInvoiceRequireLineItems</a> | 1022 | Invoices require at least 1 line item to be included. |
+| <a name="ErrorStatusMultipleInvoiceMonthYear">ErrorStatusMultipleInvoiceMonthYear</a> | 1023 | Users are only allowed to submit 1 invoice per month/year. |
+| <a name="ErrorStatusInvalidInvoiceMonthYear">ErrorStatusInvalidInvoiceMonthYear</a> | 1024 | An invalid month/year was detected in an invoice. |
+| <a name="ErrorStatusInvalidExchangeRate">ErrorStatusInvalidExchangeRate</a> | 1025 | Invalid Exchange Rate |
+| <a name="ErrorStatusInvalidLineItemType">ErrorStatusInvalidLineItemType</a> | 1026 | An invalid line item type was attempted. |
+| <a name="ErrorStatusInvalidLaborExpense">ErrorStatusInvalidLaborExpense</a> | 1027 | An invalid value was entered into labor or expenses. |
+| <a name="ErrorStatusDuplicatePaymentAddress">ErrorStatusDuplicatePaymentAddress</a> | 1028 | An duplicate payment address was entered. |
+
 ### Invoice status codes
 
 | Status | Value | Description |

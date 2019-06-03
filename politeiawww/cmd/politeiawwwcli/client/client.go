@@ -50,6 +50,20 @@ func prettyPrintJSON(v interface{}) error {
 	return nil
 }
 
+// userErrorStatus retrieves the human readable error message for an error
+// status code. The status code can be from either the pi or cms api.
+func userErrorStatus(e v1.ErrorStatusT) string {
+	s, ok := v1.ErrorStatus[e]
+	if ok {
+		return s
+	}
+	s, ok = cms.ErrorStatus[e]
+	if ok {
+		return s
+	}
+	return ""
+}
+
 func (c *Client) makeRequest(method, route string, body interface{}) ([]byte, error) {
 	// Setup request
 	var requestBody []byte
@@ -125,7 +139,7 @@ func (c *Client) makeRequest(method, route string, body interface{}) ([]byte, er
 		err = json.Unmarshal(responseBody, &ue)
 		if err == nil && ue.ErrorCode != 0 {
 			return nil, fmt.Errorf("%v, %v %v", r.StatusCode,
-				v1.ErrorStatus[ue.ErrorCode], strings.Join(ue.ErrorContext, ", "))
+				userErrorStatus(ue.ErrorCode), strings.Join(ue.ErrorContext, ", "))
 		}
 
 		return nil, fmt.Errorf("%v", r.StatusCode)
@@ -173,7 +187,7 @@ func (c *Client) Version() (*v1.VersionReply, error) {
 		err = json.Unmarshal(responseBody, &ue)
 		if err == nil {
 			return nil, fmt.Errorf("%v, %v %v", r.StatusCode,
-				v1.ErrorStatus[ue.ErrorCode], strings.Join(ue.ErrorContext, ", "))
+				userErrorStatus(ue.ErrorCode), strings.Join(ue.ErrorContext, ", "))
 		}
 
 		return nil, fmt.Errorf("%v", r.StatusCode)
@@ -261,7 +275,7 @@ func (c *Client) Login(l *v1.Login) (*v1.LoginReply, error) {
 		err = json.Unmarshal(responseBody, &ue)
 		if err == nil {
 			return nil, fmt.Errorf("%v, %v %v", r.StatusCode,
-				v1.ErrorStatus[ue.ErrorCode], strings.Join(ue.ErrorContext, ", "))
+				userErrorStatus(ue.ErrorCode), strings.Join(ue.ErrorContext, ", "))
 		}
 
 		return nil, fmt.Errorf("%v", r.StatusCode)
@@ -326,7 +340,7 @@ func (c *Client) Logout() (*v1.LogoutReply, error) {
 		err = json.Unmarshal(responseBody, &ue)
 		if err == nil {
 			return nil, fmt.Errorf("%v, %v %v", r.StatusCode,
-				v1.ErrorStatus[ue.ErrorCode], strings.Join(ue.ErrorContext, ", "))
+				userErrorStatus(ue.ErrorCode), strings.Join(ue.ErrorContext, ", "))
 		}
 
 		return nil, fmt.Errorf("%v", r.StatusCode)

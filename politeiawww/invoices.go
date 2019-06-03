@@ -192,14 +192,14 @@ func validateName(name string) error {
 		len(name) > cms.PolicyMaxNameLength {
 		log.Debugf("Name not within bounds: %s", name)
 		return www.UserError{
-			ErrorCode: www.ErrorStatusMalformedName,
+			ErrorCode: cms.ErrorStatusMalformedName,
 		}
 	}
 
 	if !validName.MatchString(name) {
 		log.Debugf("Name not valid: %s %s", name, validName.String())
 		return www.UserError{
-			ErrorCode: www.ErrorStatusMalformedName,
+			ErrorCode: cms.ErrorStatusMalformedName,
 		}
 	}
 
@@ -217,14 +217,14 @@ func validateLocation(location string) error {
 		len(location) > cms.PolicyMaxLocationLength {
 		log.Debugf("Location not within bounds: %s", location)
 		return www.UserError{
-			ErrorCode: www.ErrorStatusMalformedLocation,
+			ErrorCode: cms.ErrorStatusMalformedLocation,
 		}
 	}
 
 	if !validLocation.MatchString(location) {
 		log.Debugf("Location not valid: %s %s", location, validLocation.String())
 		return www.UserError{
-			ErrorCode: www.ErrorStatusMalformedLocation,
+			ErrorCode: cms.ErrorStatusMalformedLocation,
 		}
 	}
 
@@ -242,14 +242,14 @@ func validateContact(contact string) error {
 		len(contact) > cms.PolicyMaxContactLength {
 		log.Debugf("Contact not within bounds: %s", contact)
 		return www.UserError{
-			ErrorCode: www.ErrorStatusInvoiceMalformedContact,
+			ErrorCode: cms.ErrorStatusInvoiceMalformedContact,
 		}
 	}
 
 	if !validContact.MatchString(contact) {
 		log.Debugf("Contact not valid: %s %s", contact, validContact.String())
 		return www.UserError{
-			ErrorCode: www.ErrorStatusInvoiceMalformedContact,
+			ErrorCode: cms.ErrorStatusInvoiceMalformedContact,
 		}
 	}
 
@@ -273,7 +273,7 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 	for _, dbInv := range dbInvs {
 		if dbInv.Month == ni.Month && dbInv.Year == ni.Year {
 			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusMultipleInvoiceMonthYear,
+				ErrorCode: cms.ErrorStatusMultipleInvoiceMonthYear,
 			}
 		}
 	}
@@ -511,7 +511,7 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 			var invInput cms.InvoiceInput
 			if err := json.Unmarshal(data, &invInput); err != nil {
 				return www.UserError{
-					ErrorCode: www.ErrorStatusMalformedInvoiceFile,
+					ErrorCode: cms.ErrorStatusMalformedInvoiceFile,
 				}
 			}
 
@@ -523,7 +523,7 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 				time.Month(invInput.Month+1), 0, 0, 0, 0, 0, time.UTC)
 			if startOfFollowingMonth.After(time.Now()) {
 				return www.UserError{
-					ErrorCode: www.ErrorStatusInvalidInvoiceMonthYear,
+					ErrorCode: cms.ErrorStatusInvalidInvoiceMonthYear,
 				}
 			}
 
@@ -531,24 +531,24 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 			addr, err := dcrutil.DecodeAddress(strings.TrimSpace(invInput.PaymentAddress))
 			if err != nil {
 				return www.UserError{
-					ErrorCode: www.ErrorStatusInvalidPaymentAddress,
+					ErrorCode: cms.ErrorStatusInvalidPaymentAddress,
 				}
 			}
 			if !addr.IsForNet(activeNetParams.Params) {
 				return www.UserError{
-					ErrorCode: www.ErrorStatusInvalidPaymentAddress,
+					ErrorCode: cms.ErrorStatusInvalidPaymentAddress,
 				}
 			}
 
 			invoiceAddress, err := p.cmsDB.InvoicesByAddress(invInput.PaymentAddress)
 			if err != nil {
 				return www.UserError{
-					ErrorCode: www.ErrorStatusInvalidPaymentAddress,
+					ErrorCode: cms.ErrorStatusInvalidPaymentAddress,
 				}
 			}
 			if len(invoiceAddress) > 0 {
 				return www.UserError{
-					ErrorCode: www.ErrorStatusDuplicatePaymentAddress,
+					ErrorCode: cms.ErrorStatusDuplicatePaymentAddress,
 				}
 			}
 
@@ -558,61 +558,61 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 				int(invInput.Year))
 			if err != nil {
 				return www.UserError{
-					ErrorCode: www.ErrorStatusInvalidExchangeRate,
+					ErrorCode: cms.ErrorStatusInvalidExchangeRate,
 				}
 			}
 			if monthAvg.ExchangeRate != invInput.ExchangeRate {
 				return www.UserError{
-					ErrorCode: www.ErrorStatusInvalidExchangeRate,
+					ErrorCode: cms.ErrorStatusInvalidExchangeRate,
 				}
 			}
 
 			// Validate provided contractor name
 			if invInput.ContractorName == "" {
 				return www.UserError{
-					ErrorCode: www.ErrorStatusInvoiceMissingName,
+					ErrorCode: cms.ErrorStatusInvoiceMissingName,
 				}
 			}
 			name := formatName(invInput.ContractorName)
 			err = validateName(name)
 			if err != nil {
 				return www.UserError{
-					ErrorCode: www.ErrorStatusMalformedName,
+					ErrorCode: cms.ErrorStatusMalformedName,
 				}
 			}
 
 			// Validate provided contractor location
 			if invInput.ContractorLocation == "" {
 				return www.UserError{
-					ErrorCode: www.ErrorStatusInvoiceMissingLocation,
+					ErrorCode: cms.ErrorStatusInvoiceMissingLocation,
 				}
 			}
 			location := formatLocation(invInput.ContractorLocation)
 			err = validateLocation(location)
 			if err != nil {
 				return www.UserError{
-					ErrorCode: www.ErrorStatusMalformedLocation,
+					ErrorCode: cms.ErrorStatusMalformedLocation,
 				}
 			}
 
 			// Validate provided contractor email/contact
 			if invInput.ContractorContact == "" {
 				return www.UserError{
-					ErrorCode: www.ErrorStatusInvoiceMissingContact,
+					ErrorCode: cms.ErrorStatusInvoiceMissingContact,
 				}
 			}
 			contact := formatContact(invInput.ContractorContact)
 			err = validateContact(contact)
 			if err != nil {
 				return www.UserError{
-					ErrorCode: www.ErrorStatusInvoiceMalformedContact,
+					ErrorCode: cms.ErrorStatusInvoiceMalformedContact,
 				}
 			}
 
 			// Validate hourly rate
 			if invInput.ContractorRate == 0 {
 				return www.UserError{
-					ErrorCode: www.ErrorStatusInvoiceMissingRate,
+					ErrorCode: cms.ErrorStatusInvoiceMissingRate,
 				}
 			}
 			// Do basic sanity check for contractor rate, since it's in cents
@@ -622,41 +622,41 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 			if invInput.ContractorRate < uint(minRate) || invInput.ContractorRate > uint(maxRate) {
 				fmt.Println(invInput.ContractorRate)
 				return www.UserError{
-					ErrorCode: www.ErrorStatusInvoiceInvalidRate,
+					ErrorCode: cms.ErrorStatusInvoiceInvalidRate,
 				}
 			}
 
 			// Validate line items
 			if len(invInput.LineItems) < 1 {
 				return www.UserError{
-					ErrorCode: www.ErrorStatusInvoiceRequireLineItems,
+					ErrorCode: cms.ErrorStatusInvoiceRequireLineItems,
 				}
 			}
 			for _, lineInput := range invInput.LineItems {
 				domain := formatInvoiceField(lineInput.Domain)
 				if !validateInvoiceField(domain) {
 					return www.UserError{
-						ErrorCode: www.ErrorStatusMalformedDomain,
+						ErrorCode: cms.ErrorStatusMalformedDomain,
 					}
 				}
 				subdomain := formatInvoiceField(lineInput.Subdomain)
 				if !validateInvoiceField(subdomain) {
 					return www.UserError{
-						ErrorCode: www.ErrorStatusMalformedSubdomain,
+						ErrorCode: cms.ErrorStatusMalformedSubdomain,
 					}
 				}
 
 				description := formatInvoiceField(lineInput.Description)
 				if !validateInvoiceField(description) {
 					return www.UserError{
-						ErrorCode: www.ErrorStatusMalformedDescription,
+						ErrorCode: cms.ErrorStatusMalformedDescription,
 					}
 				}
 
 				piToken := formatInvoiceField(lineInput.ProposalToken)
 				if piToken != "" && !validateInvoiceField(piToken) {
 					return www.UserError{
-						ErrorCode: www.ErrorStatusMalformedProposalToken,
+						ErrorCode: cms.ErrorStatusMalformedProposalToken,
 					}
 				}
 
@@ -664,7 +664,7 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 				case cms.LineItemTypeLabor:
 					if lineInput.Expenses != 0 {
 						return www.UserError{
-							ErrorCode: www.ErrorStatusInvalidLaborExpense,
+							ErrorCode: cms.ErrorStatusInvalidLaborExpense,
 						}
 					}
 				case cms.LineItemTypeExpense:
@@ -672,12 +672,12 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 				case cms.LineItemTypeMisc:
 					if lineInput.Labor != 0 {
 						return www.UserError{
-							ErrorCode: www.ErrorStatusInvalidLaborExpense,
+							ErrorCode: cms.ErrorStatusInvalidLaborExpense,
 						}
 					}
 				default:
 					return www.UserError{
-						ErrorCode: www.ErrorStatusInvalidLineItemType,
+						ErrorCode: cms.ErrorStatusInvalidLineItemType,
 					}
 				}
 			}
@@ -758,7 +758,7 @@ func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, user 
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
 			err = www.UserError{
-				ErrorCode: www.ErrorStatusInvoiceNotFound,
+				ErrorCode: cms.ErrorStatusInvoiceNotFound,
 			}
 		}
 		return nil, err
@@ -781,7 +781,7 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus,
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
 			err = www.UserError{
-				ErrorCode: www.ErrorStatusInvoiceNotFound,
+				ErrorCode: cms.ErrorStatusInvoiceNotFound,
 			}
 		}
 		return nil, err
@@ -798,7 +798,7 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus,
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
 			err = www.UserError{
-				ErrorCode: www.ErrorStatusInvoiceNotFound,
+				ErrorCode: cms.ErrorStatusInvoiceNotFound,
 			}
 		}
 		return nil, err
@@ -886,19 +886,19 @@ func validateStatusTransition(
 	if !ok {
 		log.Errorf("status not supported: %v", oldStatus)
 		return www.UserError{
-			ErrorCode: www.ErrorStatusInvalidInvoiceStatusTransition,
+			ErrorCode: cms.ErrorStatusInvalidInvoiceStatusTransition,
 		}
 	}
 
 	if !statusInSlice(validStatuses, newStatus) {
 		return www.UserError{
-			ErrorCode: www.ErrorStatusInvalidInvoiceStatusTransition,
+			ErrorCode: cms.ErrorStatusInvalidInvoiceStatusTransition,
 		}
 	}
 
 	if newStatus == cms.InvoiceStatusRejected && reason == "" {
 		return www.UserError{
-			ErrorCode: www.ErrorStatusReasonNotProvided,
+			ErrorCode: cms.ErrorStatusReasonNotProvided,
 		}
 	}
 
@@ -923,7 +923,7 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
 			err = www.UserError{
-				ErrorCode: www.ErrorStatusInvoiceNotFound,
+				ErrorCode: cms.ErrorStatusInvoiceNotFound,
 			}
 		}
 		return nil, err
@@ -932,7 +932,7 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 	if invRec.Status == cms.InvoiceStatusPaid || invRec.Status == cms.InvoiceStatusApproved ||
 		invRec.Status == cms.InvoiceStatusRejected {
 		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusWrongInvoiceStatus,
+			ErrorCode: cms.ErrorStatusWrongInvoiceStatus,
 		}
 	}
 	// Ensure user is the invoice author
@@ -953,7 +953,7 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 		}
 		if sameFiles {
 			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusInvoiceDuplicate,
+				ErrorCode: cms.ErrorStatusInvoiceDuplicate,
 			}
 		}
 	}
@@ -1217,14 +1217,14 @@ func (p *politeiawww) processAdminInvoices(ai cms.AdminInvoices, user *user.User
 	// Make sure month AND year are set, if any.
 	if (ai.Month == 0 && ai.Year != 0) || (ai.Month != 0 && ai.Year == 0) {
 		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusInvalidMonthYearRequest,
+			ErrorCode: cms.ErrorStatusInvalidMonthYearRequest,
 		}
 	}
 
 	// Make sure month and year are sensible inputs
 	if ai.Month < 0 || ai.Month > 12 {
 		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusInvalidMonthYearRequest,
+			ErrorCode: cms.ErrorStatusInvalidMonthYearRequest,
 		}
 	}
 
@@ -1233,7 +1233,7 @@ func (p *politeiawww) processAdminInvoices(ai cms.AdminInvoices, user *user.User
 	if ai.Year != 0 && (ai.Year < uint16(time.Now().Year()-acceptableYearRange) ||
 		ai.Year > uint16(time.Now().Year()+acceptableYearRange)) {
 		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusInvalidMonthYearRequest,
+			ErrorCode: cms.ErrorStatusInvalidMonthYearRequest,
 		}
 	}
 
@@ -1288,7 +1288,7 @@ func (p *politeiawww) processInvoiceComments(token string, u *user.User) (*www.G
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
 			err = www.UserError{
-				ErrorCode: www.ErrorStatusInvoiceNotFound,
+				ErrorCode: cms.ErrorStatusInvoiceNotFound,
 			}
 		}
 		return nil, err

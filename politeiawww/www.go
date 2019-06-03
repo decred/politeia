@@ -26,6 +26,7 @@ import (
 
 	"github.com/decred/politeia/politeiad/cache"
 	cachedb "github.com/decred/politeia/politeiad/cache/cockroachdb"
+	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	cmsdb "github.com/decred/politeia/politeiawww/cmsdatabase/cockroachdb"
 	userdb "github.com/decred/politeia/politeiawww/user/cockroachdb"
@@ -95,6 +96,20 @@ func (p *politeiawww) getIdentity() error {
 	return nil
 }
 
+// userErrorStatus retrieves the human readable error message for an error
+// status code. The status code can be from either the pi or cms api.
+func userErrorStatus(e www.ErrorStatusT) string {
+	s, ok := www.ErrorStatus[e]
+	if ok {
+		return s
+	}
+	s, ok = cms.ErrorStatus[e]
+	if ok {
+		return s
+	}
+	return ""
+}
+
 // RespondWithError returns an HTTP error status to the client. If it's a user
 // error, it returns a 4xx HTTP status and the specific user error code. If it's
 // an internal server error, it returns 500 and an error code which is also
@@ -116,12 +131,12 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 			log.Errorf("RespondWithError: %v %v %v",
 				remoteAddr(r),
 				int64(userErr.ErrorCode),
-				www.ErrorStatus[userErr.ErrorCode])
+				userErrorStatus(userErr.ErrorCode))
 		} else {
 			log.Errorf("RespondWithError: %v %v %v: %v",
 				remoteAddr(r),
 				int64(userErr.ErrorCode),
-				www.ErrorStatus[userErr.ErrorCode],
+				userErrorStatus(userErr.ErrorCode),
 				strings.Join(userErr.ErrorContext, ", "))
 		}
 
