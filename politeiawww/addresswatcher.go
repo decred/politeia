@@ -6,15 +6,20 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/dcrutil"
 	client "github.com/decred/dcrdata/pubsub/psclient"
 	pstypes "github.com/decred/dcrdata/pubsub/types"
 	"github.com/decred/dcrdata/semver"
+	pd "github.com/decred/politeia/politeiad/api/v1"
+	"github.com/decred/politeia/politeiad/cache"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
+	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	database "github.com/decred/politeia/politeiawww/cmsdatabase"
 	"github.com/decred/politeia/util"
 )
@@ -26,11 +31,11 @@ func (p *politeiawww) addWatchAddress(address string) error {
 		return nil
 	}
 	p.currentSubs = append(p.currentSubs, address)
-	resp, err := p.wsClient.Subscribe(address)
+	_, err := p.wsClient.Subscribe(address)
 	if err != nil {
 		return fmt.Errorf("failed to subscribe: %v", err)
 	}
-	log.Infof(resp.Data)
+	log.Infof("Subscribed to listen: %v", address)
 	return nil
 }
 
@@ -42,11 +47,11 @@ func (p *politeiawww) removeWatchAddress(address string) error {
 		return nil
 	}
 	p.currentSubs = append(p.currentSubs[:i], p.currentSubs[i+1:]...)
-	resp, err := p.wsClient.Unsubscribe(address)
+	_, err := p.wsClient.Unsubscribe(address)
 	if err != nil {
 		return fmt.Errorf("failed to unsubscribe: %v", err)
 	}
-	log.Infof(resp.Data)
+	log.Infof("Unsubscribed: %v", address)
 	return nil
 }
 
@@ -142,7 +147,6 @@ func (p *politeiawww) restartAddressesWatching() error {
 				if err != nil {
 					return err
 				}
-				dcrAmount := payout.DCRTotal * dcrutil.AtomsPerCoin
 				// Start listening the first day of the next month of invoice.
 				listenStartDate := time.Date(int(invoice.Year),
 					time.Month(invoice.Month+1), 0, 0, 0, 0, 0, time.UTC)
@@ -150,9 +154,9 @@ func (p *politeiawww) restartAddressesWatching() error {
 					Address:      invoice.PaymentAddress,
 					TimeStarted:  listenStartDate.Unix(),
 					Status:       cms.PaymentStatusWatching,
-					AmountNeeded: int64(dcrAmount),
+					AmountNeeded: int64(payout.DCRTotal),
 				}
-				spew.Dump(invoice.Payments)
+				fmt.Println(listenStartDate)
 				err = p.cmsDB.UpdateInvoice(&invoice)
 				if err != nil {
 					return err
@@ -164,7 +168,6 @@ func (p *politeiawww) restartAddressesWatching() error {
 	if err != nil {
 		return err
 	}
-	spew.Dump(unpaidPayments)
 	for _, payments := range unpaidPayments {
 		paid := p.checkPayments(&payments)
 		if !paid {
@@ -190,7 +193,6 @@ func (p *politeiawww) checkPayments(payment *database.Payments) bool {
 		// XXX Some sort of 'recheck' or notice that it should do it again?
 		log.Errorf("error FetchTxsForAddressNotBefore for %s", payment.Address)
 	}
-
 	if len(txs) == len(payment.TxIDs) {
 		// Same number of txids found, so nothing to update.
 		return false
@@ -200,7 +202,7 @@ func (p *politeiawww) checkPayments(payment *database.Payments) bool {
 	// Calculate amount received
 	amountReceived := dcrutil.Amount(0)
 	for i, tx := range txs {
-		payment.AmountReceived += int64(tx.Amount)
+		amountReceived += dcrutil.Amount(tx.Amount)
 		if i == 0 {
 			txIDs = tx.TxID
 		} else {
@@ -217,7 +219,7 @@ func (p *politeiawww) checkPayments(payment *database.Payments) bool {
 	if int64(amountReceived) >= payment.AmountNeeded {
 		payment.Status = cms.PaymentStatusPaid
 	}
-
+	payment.AmountReceived = int64(amountReceived)
 	payment.TimeLastUpdated = time.Now().Unix()
 
 	err = p.cmsDB.UpdatePayments(payment)
@@ -226,7 +228,87 @@ func (p *politeiawww) checkPayments(payment *database.Payments) bool {
 	}
 
 	if payment.Status == cms.PaymentStatusPaid {
+		// Update invoice status here
+		err := p.invoiceStatusPaid(payment.InvoiceToken)
+		if err != nil {
+			log.Errorf("error updating invoice status to paid %v", err)
+		}
 		return true
 	}
 	return false
+}
+
+func (p *politeiawww) invoiceStatusPaid(token string) error {
+
+	dbInvoice, err := p.cmsDB.InvoiceByToken(token)
+	if err != nil {
+		if err == cache.ErrRecordNotFound {
+			err = www.UserError{
+				ErrorCode: cms.ErrorStatusInvoiceNotFound,
+			}
+		}
+		return err
+	}
+
+	// Create the change record.
+	c := backendInvoiceStatusChange{
+		Version:   backendInvoiceStatusChangeVersion,
+		Timestamp: time.Now().Unix(),
+		NewStatus: cms.InvoiceStatusPaid,
+		Reason:    "Invoice watcher found payment transactions.",
+	}
+
+	blob, err := encodeBackendInvoiceStatusChange(c)
+	if err != nil {
+		return err
+	}
+
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return err
+	}
+
+	pdCommand := pd.UpdateVettedMetadata{
+		Challenge: hex.EncodeToString(challenge),
+		Token:     token,
+		MDAppend: []pd.MetadataStream{
+			{
+				ID:      mdStreamInvoiceStatusChanges,
+				Payload: string(blob),
+			},
+		},
+	}
+	responseBody, err := p.makeRequest(http.MethodPost, pd.UpdateVettedMetadataRoute, pdCommand)
+	if err != nil {
+		return err
+	}
+
+	var pdReply pd.UpdateVettedMetadataReply
+	err = json.Unmarshal(responseBody, &pdReply)
+	if err != nil {
+		return fmt.Errorf("Could not unmarshal UpdateVettedMetadataReply: %v",
+			err)
+	}
+
+	// Verify the UpdateVettedMetadata challenge.
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, pdReply.Response)
+	if err != nil {
+		return err
+	}
+
+	// Update the database with the metadata changes.
+	dbInvoice.Changes = append(dbInvoice.Changes, database.InvoiceChange{
+		Timestamp: c.Timestamp,
+		NewStatus: c.NewStatus,
+		Reason:    c.Reason,
+	})
+	dbInvoice.StatusChangeReason = c.Reason
+	dbInvoice.Status = c.NewStatus
+
+	err = p.cmsDB.UpdateInvoice(dbInvoice)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

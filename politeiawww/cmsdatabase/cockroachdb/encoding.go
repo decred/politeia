@@ -187,6 +187,7 @@ func encodePayments(dbPayments *database.Payments) Payments {
 	payments.TimeLastUpdated = dbPayments.TimeLastUpdated
 	payments.AmountNeeded = dbPayments.AmountNeeded
 	payments.AmountReceived = dbPayments.AmountReceived
+	payments.Status = uint(dbPayments.Status)
 	return payments
 }
 
@@ -199,5 +200,6 @@ func decodePayment(payments *Payments) database.Payments {
 	dbPayments.TimeLastUpdated = payments.TimeLastUpdated
 	dbPayments.AmountNeeded = payments.AmountNeeded
 	dbPayments.AmountReceived = payments.AmountReceived
+	dbPayments.Status = cms.PaymentStatusT(payments.Status)
 	return dbPayments
 }
