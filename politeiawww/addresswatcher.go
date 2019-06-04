@@ -67,13 +67,11 @@ func (p *politeiawww) setupWatcher() error {
 	}
 	log.Infof("Connecting to ws at: %v", wsURL)
 
-	ctx, cancel := context.WithCancel(context.Background())
 	opts := client.Opts{
 		ReadTimeout:  3 * time.Second,
 		WriteTimeout: 3 * time.Second,
 	}
-	p.cancelContext = cancel
-	p.wsClient, err = client.New(wsURL, ctx, &opts)
+	p.wsClient, err = client.New(wsURL, context.Background(), &opts)
 	if err != nil {
 		log.Errorf("failed to connect to %s: %v", wsURL, err)
 		return err
