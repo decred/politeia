@@ -94,7 +94,10 @@ func (p *politeiawww) setupWatcher() error {
 
 	go func() {
 		for {
-			msg := <-p.wsClient.Receive()
+			msg, ok := <-p.wsClient.Receive()
+			if !ok {
+				break
+			}
 			if msg == nil {
 				log.Errorf("ReceiveMsg failed")
 				continue
