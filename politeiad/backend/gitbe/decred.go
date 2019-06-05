@@ -60,6 +60,10 @@ const (
 var (
 	// errDuplicateVote is emitted when a cast vote is a duplicate.
 	errDuplicateVote = errors.New("duplicate vote")
+
+	// errIneligibleTicket is emitted when a vote is cast using an
+	// ineligible ticket.
+	errIneligibleTicket = errors.New("ineligible ticket")
 )
 
 // FlushRecord is a structure that is stored on disk when a journal has been
@@ -110,7 +114,7 @@ var (
 	decredPluginSettings map[string]string             // [key]setting
 	decredPluginHooks    map[string]func(string) error // [key]func(token) error
 
-	// cached values, requires lock
+	// Cached values, requires lock. These caches are lazy loaded.
 	// XXX why is this a pointer? Convert if possible after investigating
 	decredPluginVoteCache         = make(map[string]*decredplugin.StartVote)     // [token]startvote
 	decredPluginVoteSnapshotCache = make(map[string]decredplugin.StartVoteReply) // [token]StartVoteReply
@@ -123,10 +127,8 @@ var (
 	// Plugin specific data that CANNOT be treated as metadata
 	pluginDataDir = filepath.Join("plugins", "decred")
 
-	// Individual votes cache
-	//decredPluginVotesCache = make(map[string]map[string]decredplugin.CastVote) // [token][ticket]castvote
-	decredPluginVotesCache = make(map[string]map[string]struct{})
-
+	// Cached values, requires lock. These caches are built on startup.
+	decredPluginVotesCache         = make(map[string]map[string]struct{})             // [token][ticket]struct{}
 	decredPluginCommentsCache      = make(map[string]map[string]decredplugin.Comment) // [token][commentid]comment
 	decredPluginCommentsLikesCache = make(map[string][]decredplugin.LikeComment)      // [token]LikeComment
 
@@ -1967,9 +1969,44 @@ func (g *gitBackEnd) replayBallot(token string) error {
 	return nil
 }
 
-// voteEndHeight returns the end height for the voting period of the passed in
-// proposal.  This function is expensive due to it's filesystem touches and
-// therefore is lazily cached.
+// loadVoteSnapshotCache loads the StartVoteReply from disk for the provided
+// token and adds it to the decredPluginVoteSnapshotCache.
+//
+// This function must be called WITH the lock held.
+func (g *gitBackEnd) loadVoteSnapshotCache(token string) (*decredplugin.StartVoteReply, error) {
+	// git checkout master
+	err := g.gitCheckout(g.unvetted, "master")
+	if err != nil {
+		return nil, err
+	}
+
+	// git pull --ff-only --rebase
+	err = g.gitPull(g.unvetted, true)
+	if err != nil {
+		return nil, err
+	}
+
+	// Load the vote snapshot from disk
+	f, err := os.Open(mdFilename(g.vetted, token,
+		decredplugin.MDStreamVoteSnapshot))
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var svr decredplugin.StartVoteReply
+	d := json.NewDecoder(f)
+	err = d.Decode(&svr)
+	if err != nil {
+		return nil, err
+	}
+
+	decredPluginVoteSnapshotCache[token] = svr
+
+	return &svr, nil
+}
+
+// voteEndHeight returns the voting period end height for the provided token.
 func (g *gitBackEnd) voteEndHeight(token string) (uint32, error) {
 	g.Lock()
 	defer g.Unlock()
@@ -1979,33 +2016,11 @@ func (g *gitBackEnd) voteEndHeight(token string) (uint32, error) {
 
 	svr, ok := decredPluginVoteSnapshotCache[token]
 	if !ok {
-		// git checkout master
-		err := g.gitCheckout(g.unvetted, "master")
+		s, err := g.loadVoteSnapshotCache(token)
 		if err != nil {
 			return 0, err
 		}
-
-		// git pull --ff-only --rebase
-		err = g.gitPull(g.unvetted, true)
-		if err != nil {
-			return 0, err
-		}
-
-		// Load md stream
-		f, err := os.Open(mdFilename(g.vetted, token,
-			decredplugin.MDStreamVoteSnapshot))
-		if err != nil {
-			return 0, err
-		}
-		defer f.Close()
-
-		d := json.NewDecoder(f)
-		err = d.Decode(&svr)
-		if err != nil {
-			return 0, err
-		}
-
-		decredPluginVoteSnapshotCache[token] = svr
+		svr = *s
 	}
 
 	endHeight, err := strconv.ParseUint(svr.EndHeight, 10, 64)
@@ -2025,8 +2040,31 @@ func (g *gitBackEnd) writeVote(v decredplugin.CastVote, receipt, journalPath str
 	g.Lock()
 	defer g.Unlock()
 
+	// Ensure ticket is eligible to vote.
+	// This cache should have already been loaded when the
+	// vote end height was validated, but lets be sure.
+	svr, ok := decredPluginVoteSnapshotCache[v.Token]
+	if !ok {
+		s, err := g.loadVoteSnapshotCache(v.Token)
+		if err != nil {
+			return fmt.Errorf("loadVoteSnapshotCache: %v",
+				err)
+		}
+		svr = *s
+	}
+	var found bool
+	for _, t := range svr.EligibleTickets {
+		if t == v.Ticket {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return errIneligibleTicket
+	}
+
 	// Ensure vote is not a duplicate
-	_, ok := decredPluginVotesCache[v.Token]
+	_, ok = decredPluginVotesCache[v.Token]
 	if !ok {
 		decredPluginVotesCache[v.Token] = make(map[string]struct{})
 	}
@@ -2043,15 +2081,14 @@ func (g *gitBackEnd) writeVote(v decredplugin.CastVote, receipt, journalPath str
 	}
 	blob, err := encodeCastVoteJournal(cvj)
 	if err != nil {
-		// Should not fail, so return failure to alert people
-		return fmt.Errorf("encodeCastVoteJournal: %v", err)
+		return fmt.Errorf("encodeCastVoteJournal: %v",
+			err)
 	}
 
 	// Write vote to journal
 	err = g.journal.Journal(journalPath, string(journalAdd)+
 		string(blob))
 	if err != nil {
-		// Should not fail, so return failure to alert people
 		return fmt.Errorf("could not journal vote %v: %v %v",
 			v.Token, v.Ticket, err)
 	}
@@ -2184,12 +2221,17 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 		// Write vote to journal
 		err = g.writeVote(v, receipt, bfilename)
 		if err != nil {
-			if err == errDuplicateVote {
+			switch err {
+			case errDuplicateVote:
 				br.Receipts[k].Error = "duplicate vote: " + v.Token
 				continue
+			case errIneligibleTicket:
+				br.Receipts[k].Error = "ineligible ticket: " + v.Token
+				continue
+			default:
+				// Should not fail, so return failure to alert people
+				return "", fmt.Errorf("write vote: %v", err)
 			}
-			// Should not fail, so return failure to alert people
-			return "", fmt.Errorf("write vote: %v", err)
 		}
 
 		// Update reply
