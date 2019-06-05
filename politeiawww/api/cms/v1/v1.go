@@ -143,7 +143,7 @@ var (
 	// PolicyCMSNameLocationSupportedChars is the regular expression of a valid
 	// name or location for registering users on cms.
 	PolicyCMSNameLocationSupportedChars = []string{
-		"A-z", ".", "-", " ", ","}
+		"A-z", "0-9", ".", "-", " ", ","}
 
 	// PolicyCMSContactSupportedChars is the regular expression of a valid
 	// contact for registering users on cms.
