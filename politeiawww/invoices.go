@@ -861,19 +861,18 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus,
 	if dbInvoice.Status == cms.InvoiceStatusApproved ||
 		dbInvoice.Status == cms.InvoiceStatusRejected ||
 		dbInvoice.Status == cms.InvoiceStatusDisputed {
-		fmt.Println("asdasas")
 		invoiceUser, err := p.db.UserGetByUsername(invRec.Username)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get user by username %v %v", invRec.Username, err)
+			return nil, fmt.Errorf("failed to get user by username %v %v",
+				invRec.Username, err)
 		}
 		p.fireEvent(EventTypeInvoiceStatusUpdate,
 			EventDataInvoiceStatusUpdate{
 				Token: sis.Token,
 				User:  invoiceUser,
 			})
-	} else {
-		fmt.Println(dbInvoice.Status)
 	}
+
 	// Return the reply.
 	sisr := cms.SetInvoiceStatusReply{
 		Invoice: *convertDatabaseInvoiceToInvoiceRecord(*dbInvoice),

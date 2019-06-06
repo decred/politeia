@@ -399,19 +399,11 @@ func (p *politeiawww) processNewCommentInvoice(nc www.NewComment, u *user.User) 
 		return nil, fmt.Errorf("getComment: %v", err)
 	}
 
-	// Fire off new comment event
-	/*
-		// XXX This is implemented only for proposal comments.  If we want email
-		// notifications for cms here is where to add the updated impls.
-		p.fireEvent(EventTypeComment, EventDataComment{
-			Comment: c,
-		})
-	*/
-
 	if u.Admin {
 		invoiceUser, err := p.db.UserGetByUsername(ir.Username)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get user by username %v %v", ir.Username, err)
+			return nil, fmt.Errorf("failed to get user by username %v %v",
+				ir.Username, err)
 		}
 		// Fire off new invoice comment event
 		p.fireEvent(EventTypeInvoiceComment,
