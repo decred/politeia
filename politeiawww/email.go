@@ -587,11 +587,12 @@ func (p *politeiawww) emailInvoiceNotifications(email, username string) error {
 	if p.smtp.disabled {
 		return nil
 	}
-
+	// Set the date to the first day of the previous month.
+	newDate := time.Date(time.Now().Year(), time.Now().Month()-1, 0, 0, 0, 0, 0, time.UTC)
 	tplData := invoiceNotificationEmailData{
 		Username: username,
-		Month:    time.Now().Month().String(),
-		Year:     time.Now().Year(),
+		Month:    newDate.Month().String(),
+		Year:     newDate.Year(),
 	}
 
 	subject := "Awaiting Montly Invoice"
