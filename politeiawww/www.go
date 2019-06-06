@@ -450,15 +450,15 @@ func _main() error {
 		return fmt.Errorf("initCommentScore: %v", err)
 	}
 
-	// Setup events
-	p.initEventManager()
-
 	// Set up the code that checks for paywall payments.
 	if p.cfg.Mode == "piwww" {
 		err = p.initPaywallChecker()
 		if err != nil {
 			return err
 		}
+		p.initEventManager()
+	} else if p.cfg.Mode == "cmswww" {
+		p.initCMSEventManager()
 	}
 
 	// Load or create new CSRF key

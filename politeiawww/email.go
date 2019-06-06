@@ -603,3 +603,35 @@ func (p *politeiawww) emailInvoiceNotifications(email, username string) error {
 
 	return p.sendEmailTo(subject, body, email)
 }
+
+func (p *politeiawww) emailUserInvoiceComment(userEmail string) error {
+	if p.smtp.disabled {
+		return nil
+	}
+
+	tplData := newInvoiceCommentTemplateData{}
+
+	subject := "New Invoice Comment"
+	body, err := createBody(templateNewInvoiceComment, &tplData)
+	if err != nil {
+		return err
+	}
+
+	return p.sendEmailTo(subject, body, userEmail)
+}
+
+func (p *politeiawww) emailUserInvoiceStatusUpdate(userEmail string) error {
+	if p.smtp.disabled {
+		return nil
+	}
+
+	tplData := newInvoiceStatusUpdateTemplate{}
+
+	subject := "Invoice status has been updated"
+	body, err := createBody(templateNewInvoiceStatusUpdate, &tplData)
+	if err != nil {
+		return err
+	}
+
+	return p.sendEmailTo(subject, body, userEmail)
+}
