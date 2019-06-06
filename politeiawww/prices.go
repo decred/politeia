@@ -33,13 +33,16 @@ type poloChartData struct {
 // after that date then use Binance instead.
 var endPoloDate = time.Date(2019, 4, 1, 0, 0, 0, 0, time.UTC)
 
-// GetMonthAverage returns the average USD/DCR price for a given month
-func (p *politeiawww) GetMonthAverage(month time.Month, year int) (uint, error) {
+// getMonthAverage returns the average USD/DCR price for a given month
+func (p *politeiawww) getMonthAverage(month time.Month, year int) (uint, error) {
 	startTime := time.Date(year, month, 1, 0, 0, 0, 0, time.UTC)
 	endTime := startTime.AddDate(0, 1, 0)
 
 	if time.Now().Before(endTime) {
-		return 0, fmt.Errorf("Requested rate end time (%v) is past current time (%v)", endTime, time.Now())
+		return 0, fmt.Errorf(
+			"Requested rate end time (%v) is past current time (%v)",
+			endTime,
+			time.Now())
 	}
 
 	unixStart := startTime.Unix()
@@ -54,25 +57,21 @@ func (p *politeiawww) GetMonthAverage(month time.Month, year int) (uint, error) 
 		// Download BTC/DCR and USDT/BTC prices from Polo
 		dcrPrices, err = getPricesPolo(dcrSymbolPolo, unixStart, unixEnd)
 		if err != nil {
-			log.Error(err)
-			return 0, err
+			return 0, fmt.Errorf("getPricesPolo %v: %v", dcrSymbolPolo, err)
 		}
 		btcPrices, err = getPricesPolo(usdtSymbolPolo, unixStart, unixEnd)
 		if err != nil {
-			log.Error(err)
-			return 0, err
+			return 0, fmt.Errorf("getPricesPolo %v: %v", usdtSymbolPolo, err)
 		}
 	} else {
 		// Download BTC/DCR and USDT/BTC prices from Binance
 		dcrPrices, err = getPricesBinance(dcrSymbolBinance, unixStart, unixEnd)
 		if err != nil {
-			log.Error(err)
-			return 0, err
+			return 0, fmt.Errorf("getPricesBinance %v: %v", dcrSymbolBinance, err)
 		}
 		btcPrices, err = getPricesBinance(usdtSymbolBinance, unixStart, unixEnd)
 		if err != nil {
-			log.Error(err)
-			return 0, err
+			return 0, fmt.Errorf("getPricesBinance %v: %v", usdtSymbolBinance, err)
 		}
 
 	}
@@ -224,16 +223,18 @@ func getPricesBinance(pairing string, startDate int64, endDate int64) (map[uint6
 	return prices, nil
 }
 
-// GetMonthAverage returns the average USD/DCR price for a given month
+// processInvoiceExchangeRate handles requests to return an exchange for a given
+// month and year. It first attempts to find the exchange rate from the database
+// and if none is found it requests the monthly average from the exchange API.
 func (p *politeiawww) processInvoiceExchangeRate(ier cms.InvoiceExchangeRate) (cms.InvoiceExchangeRateReply, error) {
 	reply := cms.InvoiceExchangeRateReply{}
 
 	monthAvg, err := p.cmsDB.ExchangeRate(int(ier.Month), int(ier.Year))
 	if err != nil {
 		if err == database.ErrExchangeRateNotFound {
-			monthAvgRaw, err := p.GetMonthAverage(time.Month(ier.Month), int(ier.Year))
+			monthAvgRaw, err := p.getMonthAverage(time.Month(ier.Month), int(ier.Year))
 			if err != nil {
-				log.Error(err)
+				log.Error("processInvoiceExchangeRate: getMonthAverage: %v", err)
 				return reply, www.UserError{
 					ErrorCode: www.ErrorStatusInvalidExchangeRate,
 				}
