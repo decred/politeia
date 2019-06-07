@@ -186,9 +186,14 @@ func strInSlice(sl []string, str string) (bool, int) {
 	return false, -1
 }
 
+// checkPayments checks to see if a given payment has been successfully paid.
+// It will return TRUE if paid, otherwise false.  It utilizes the util
+// FetchTxsForAddressNotBefore which looks for transaction at a given address
+// after a certain time (in Unix seconds).
 func (p *politeiawww) checkPayments(payment *database.Payments) bool {
 	// Get all txs since start time of watcher
-	txs, err := util.FetchTxsForAddressNotBefore(payment.Address, payment.TimeStarted)
+	txs, err := util.FetchTxsForAddressNotBefore(payment.Address,
+		payment.TimeStarted)
 	if err != nil {
 		// XXX Some sort of 'recheck' or notice that it should do it again?
 		log.Errorf("error FetchTxsForAddressNotBefore for %s", payment.Address)
@@ -224,7 +229,8 @@ func (p *politeiawww) checkPayments(payment *database.Payments) bool {
 
 	err = p.cmsDB.UpdatePayments(payment)
 	if err != nil {
-		log.Errorf("Error updating payments information for: %v %v", payment.Address, err)
+		log.Errorf("Error updating payments information for: %v %v",
+			payment.Address, err)
 	}
 
 	if payment.Status == cms.PaymentStatusPaid {
@@ -239,7 +245,6 @@ func (p *politeiawww) checkPayments(payment *database.Payments) bool {
 }
 
 func (p *politeiawww) invoiceStatusPaid(token string) error {
-
 	dbInvoice, err := p.cmsDB.InvoiceByToken(token)
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
@@ -278,7 +283,8 @@ func (p *politeiawww) invoiceStatusPaid(token string) error {
 			},
 		},
 	}
-	responseBody, err := p.makeRequest(http.MethodPost, pd.UpdateVettedMetadataRoute, pdCommand)
+	responseBody, err := p.makeRequest(http.MethodPost,
+		pd.UpdateVettedMetadataRoute, pdCommand)
 	if err != nil {
 		return err
 	}

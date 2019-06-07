@@ -423,7 +423,8 @@ type LineItemPayoutsReply struct {
 	LineItems []LineItemsInput `json:"lineitems"` // Line items within the requested date range.
 }
 
-// PaymentInformation contains information for each invoice's payout.
+// PaymentInformation contains information for each invoice's payout. A payout
+// might be a single transaction or it might include multiple transactions.
 type PaymentInformation struct {
 	Token           string         `json:"token"`
 	Address         string         `json:"address"`

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -132,9 +131,8 @@ type politeiawww struct {
 
 	// currentSubs is a list of currently subscribed websocket notifications to
 	// dcrdata
-	wsClient      *client.Client
-	currentSubs   []string
-	cancelContext context.CancelFunc
+	wsClient    *client.Client
+	currentSubs []string
 }
 
 // XXX rig this up
