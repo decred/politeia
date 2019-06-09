@@ -1966,11 +1966,6 @@ func (p *politeiawww) processVerifyUserPayment(u *user.User, vupt www.VerifyUser
 		u.NewUserPaywallAmount, u.NewUserPaywallTxNotBefore,
 		p.cfg.MinConfirmationsRequired)
 	if err != nil {
-		if err == util.ErrCannotVerifyPayment {
-			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusCannotVerifyPayment,
-			}
-		}
 		return nil, err
 	}
 
