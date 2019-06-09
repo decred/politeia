@@ -60,7 +60,10 @@ type BETransactionScriptPubkey struct {
 	Addresses []string `json:"addresses"` // Array of transaction input addresses
 }
 
-// TxDetails is an object representing a transaction from dcrdata
+// TxDetails is an object representing a transaction.
+// XXX This was previously being used to standardize the different responses
+// from the dcrdata and insight APIs. Support for the insight API was removed
+// but parts of politeiawww still consume this struct so it has remained.
 type TxDetails struct {
 	Address       string // Transaction address
 	TxID          string // Transacion ID
