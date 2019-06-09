@@ -54,100 +54,6 @@ func TestExtendUnextend(t *testing.T) {
 	}
 }
 
-func TestUpdateReadme(t *testing.T) {
-	log := slog.NewBackend(&testWriter{t}).Logger("TEST")
-	UseLogger(log)
-
-	dir, err := ioutil.TempDir("", "politeia.test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
-
-	g, err := New(&chaincfg.TestNet3Params, dir, "", "", nil,
-		testing.Verbose())
-	if err != nil {
-		t.Fatal(err)
-	}
-	g.test = true
-
-	updatedReadmeContent := "Updated Readme Content!! \n"
-	err = g.UpdateReadme(updatedReadmeContent)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	unvettedReadmeContent, err := ioutil.ReadFile(filepath.Join(g.unvetted, "README.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	unvettedReadmeString := string(unvettedReadmeContent)
-	if unvettedReadmeString != updatedReadmeContent {
-		t.Fatalf("Expected README.md content to be: %s \n but got: %s ", updatedReadmeContent, unvettedReadmeString)
-	}
-
-	vettedReadmeContent, err := ioutil.ReadFile(filepath.Join(g.vetted, "README.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	vettedReadmeString := string(vettedReadmeContent)
-	if vettedReadmeString != updatedReadmeContent {
-		t.Fatalf("Expected README.md content to be: %s \n but got: %s ", updatedReadmeContent, vettedReadmeString)
-	}
-
-	branches, err := g.git(g.unvetted, "branch")
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
-	if len(branches) != 1 {
-		t.Fatalf("Expected 1 branch in unvetted repo, but it got %v", len(branches))
-	}
-	if !strings.HasSuffix(branches[0], "master") {
-		t.Fatalf("The only branch in the vetted repo should be master")
-	}
-
-	branches, err = g.git(g.vetted, "branch")
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
-	if len(branches) != 1 {
-		t.Fatalf("Expected 1 branch in vetted repo, but it got %v", len(branches))
-	}
-	if !strings.HasSuffix(branches[0], "master") {
-		t.Fatalf("The only branch in the vetted repo should be master")
-	}
-
-	// Trying to update readme to the same content returns an error, but does not add
-	// any new branches.
-	err = g.UpdateReadme(updatedReadmeContent)
-	if err == nil {
-		t.Fatal("Updating readme the current content should return an error")
-	}
-
-	branches, err = g.git(g.unvetted, "branch")
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
-	if len(branches) != 1 {
-		t.Fatalf("Expected 1 branch in unvetted repo, but it got %v", len(branches))
-	}
-	if !strings.HasSuffix(branches[0], "master") {
-		t.Fatalf("The only branch in the vetted repo should be master")
-	}
-
-	branches, err = g.git(g.vetted, "branch")
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
-	if len(branches) != 1 {
-		t.Fatalf("Expected 1 branch in vetted repo, but it got %v", len(branches))
-	}
-	if !strings.HasSuffix(branches[0], "master") {
-		t.Fatalf("The only branch in the vetted repo should be master")
-	}
-
-}
-
 func TestAnchorWithCommits(t *testing.T) {
 	log := slog.NewBackend(&testWriter{t}).Logger("TEST")
 	UseLogger(log)
@@ -551,3 +457,95 @@ func TestFilePathVersion(t *testing.T) {
 		t.Fatalf("invalid dir, expected 33, got %v", splitFile)
 	}
 }
+
+func TestUpdateReadme(t *testing.T) {
+	dir, err := ioutil.TempDir("", "politeia.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+
+	g, err := New(&chaincfg.TestNet3Params, dir, "", "", nil,
+		testing.Verbose())
+	if err != nil {
+		t.Fatal(err)
+	}
+	g.test = true
+
+	updatedReadmeContent := "Updated Readme Content!! \n"
+	err = g.UpdateReadme(updatedReadmeContent)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	unvettedReadmeContent, err := ioutil.ReadFile(filepath.Join(g.unvetted, "README.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	unvettedReadmeString := string(unvettedReadmeContent)
+	if unvettedReadmeString != updatedReadmeContent {
+		t.Fatalf("Expected README.md content to be: %s \n but got: %s ", updatedReadmeContent, unvettedReadmeString)
+	}
+
+	vettedReadmeContent, err := ioutil.ReadFile(filepath.Join(g.vetted, "README.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	vettedReadmeString := string(vettedReadmeContent)
+	if vettedReadmeString != updatedReadmeContent {
+		t.Fatalf("Expected README.md content to be: %s \n but got: %s ", updatedReadmeContent, vettedReadmeString)
+	}
+
+	branches, err := g.git(g.unvetted, "branch")
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	if len(branches) != 1 {
+		t.Fatalf("Expected 1 branch in unvetted repo, but it got %v", len(branches))
+	}
+	if !strings.HasSuffix(branches[0], "master") {
+		t.Fatalf("The only branch in the vetted repo should be master")
+	}
+
+	branches, err = g.git(g.vetted, "branch")
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	if len(branches) != 1 {
+		t.Fatalf("Expected 1 branch in vetted repo, but it got %v", len(branches))
+	}
+	if !strings.HasSuffix(branches[0], "master") {
+		t.Fatalf("The only branch in the vetted repo should be master")
+	}
+
+	// Trying to update readme to the same content returns an error, but does not add
+	// any new branches.
+	err = g.UpdateReadme(updatedReadmeContent)
+	if err == nil {
+		t.Fatal("Updating readme the current content should return an error")
+	}
+
+	branches, err = g.git(g.unvetted, "branch")
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	if len(branches) != 1 {
+		t.Fatalf("Expected 1 branch in unvetted repo, but it got %v", len(branches))
+	}
+	if !strings.HasSuffix(branches[0], "master") {
+		t.Fatalf("The only branch in the vetted repo should be master")
+	}
+
+	branches, err = g.git(g.vetted, "branch")
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	if len(branches) != 1 {
+		t.Fatalf("Expected 1 branch in vetted repo, but it got %v", len(branches))
+	}
+	if !strings.HasSuffix(branches[0], "master") {
+		t.Fatalf("The only branch in the vetted repo should be master")
+	}
+
+}
+
