@@ -46,6 +46,14 @@ type cockroachdb struct {
 	userDB        *gorm.DB  // Database context
 }
 
+// isShutdown returns whether the backend has been shutdown.
+func (c *cockroachdb) isShutdown() bool {
+	c.RLock()
+	defer c.RUnlock()
+
+	return c.shutdown
+}
+
 // encrypt encrypts the provided data with the cockroachdb encryption key. The
 // encrypted blob is prefixed with an sbox header which encodes the provided
 // version. The read lock is taken despite the encryption key being a static
@@ -92,11 +100,7 @@ func setPaywallAddressIndex(db *gorm.DB, index uint64) error {
 func (c *cockroachdb) SetPaywallAddressIndex(index uint64) error {
 	log.Tracef("SetPaywallAddressIndex: %v", index)
 
-	c.RLock()
-	shutdown := c.shutdown
-	c.RUnlock()
-
-	if shutdown {
+	if c.isShutdown() {
 		return user.ErrShutdown
 	}
 
@@ -157,11 +161,7 @@ func (c *cockroachdb) userNew(tx *gorm.DB, u user.User) error {
 func (c *cockroachdb) UserNew(u user.User) error {
 	log.Tracef("UserNew: %v", u.Username)
 
-	c.RLock()
-	shutdown := c.shutdown
-	c.RUnlock()
-
-	if shutdown {
+	if c.isShutdown() {
 		return user.ErrShutdown
 	}
 
@@ -181,11 +181,7 @@ func (c *cockroachdb) UserNew(u user.User) error {
 func (c *cockroachdb) UserGetByUsername(username string) (*user.User, error) {
 	log.Tracef("UserGetByUsername: %v", username)
 
-	c.RLock()
-	shutdown := c.shutdown
-	c.RUnlock()
-
-	if shutdown {
+	if c.isShutdown() {
 		return nil, user.ErrShutdown
 	}
 
@@ -219,11 +215,7 @@ func (c *cockroachdb) UserGetByUsername(username string) (*user.User, error) {
 func (c *cockroachdb) UserGetById(id uuid.UUID) (*user.User, error) {
 	log.Tracef("UserGetById: %v", id)
 
-	c.RLock()
-	shutdown := c.shutdown
-	c.RUnlock()
-
-	if shutdown {
+	if c.isShutdown() {
 		return nil, user.ErrShutdown
 	}
 
@@ -252,15 +244,46 @@ func (c *cockroachdb) UserGetById(id uuid.UUID) (*user.User, error) {
 	return usr, nil
 }
 
+// UserGetByPubKey returns a user record given its public key. The public key
+// can be any of the public keys in the user's identity history.
+func (c *cockroachdb) UserGetByPubKey(pubKey string) (*user.User, error) {
+	log.Tracef("UserGetByPubKey: %v", pubKey)
+
+	if c.isShutdown() {
+		return nil, user.ErrShutdown
+	}
+
+	var u User
+	q := `SELECT *
+        FROM users
+        INNER JOIN identities
+          ON users.id = identities.user_id
+          WHERE identities.public_key = ?`
+	err := c.userDB.Raw(q, pubKey).Scan(&u).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			err = user.ErrUserNotFound
+		}
+		return nil, err
+	}
+
+	b, _, err := c.decrypt(u.Blob)
+	if err != nil {
+		return nil, err
+	}
+	usr, err := user.DecodeUser(b)
+	if err != nil {
+		return nil, err
+	}
+
+	return usr, nil
+}
+
 // UserUpdate updates an existing user record in the database.
 func (c *cockroachdb) UserUpdate(u user.User) error {
 	log.Tracef("UserUpdate: %v", u.Username)
 
-	c.RLock()
-	shutdown := c.shutdown
-	c.RUnlock()
-
-	if shutdown {
+	if c.isShutdown() {
 		return user.ErrShutdown
 	}
 
@@ -283,11 +306,7 @@ func (c *cockroachdb) UserUpdate(u user.User) error {
 func (c *cockroachdb) AllUsers(callback func(u *user.User)) error {
 	log.Tracef("AllUsers")
 
-	c.RLock()
-	shutdown := c.shutdown
-	c.RUnlock()
-
-	if shutdown {
+	if c.isShutdown() {
 		return user.ErrShutdown
 	}
 
@@ -358,10 +377,7 @@ func rotateKeys(tx *gorm.DB, oldKey *[32]byte, newKey *[32]byte) error {
 func (c *cockroachdb) RotateKeys(newKeyPath string) error {
 	log.Tracef("RotateKeys: %v", newKeyPath)
 
-	c.Lock()
-	defer c.Unlock()
-
-	if c.shutdown {
+	if c.isShutdown() {
 		return user.ErrShutdown
 	}
 
@@ -397,15 +413,13 @@ func (c *cockroachdb) RotateKeys(newKeyPath string) error {
 	return nil
 }
 
-// InsertUser inserts a user record into the database.
+// InsertUser inserts a user record into the database. The user record is
+// required to already be complete and the user must not already exist. This
+// function is intended to be used migrations between databases.
 func (c *cockroachdb) InsertUser(u user.User) error {
 	log.Tracef("InsertUser: %v", u.ID)
 
-	c.RLock()
-	shutdown := c.shutdown
-	c.RUnlock()
-
-	if shutdown {
+	if c.isShutdown() {
 		return user.ErrShutdown
 	}
 

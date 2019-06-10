@@ -450,12 +450,13 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 	}
 
 	// Verify public key
-	id, err := checkPublicKey(u, ni.PublicKey)
-	if err != nil {
-		return err
+	if u.PublicKey() != ni.PublicKey {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSigningKey,
+		}
 	}
 
-	pk, err := identity.PublicIdentityFromBytes(id)
+	pk, err := identity.PublicIdentityFromBytes(u.ActiveIdentity().Key[:])
 	if err != nil {
 		return err
 	}
@@ -784,8 +785,7 @@ func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, user 
 }
 
 // processSetInvoiceStatus updates the status of the specified invoice.
-func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus,
-	u *user.User) (*cms.SetInvoiceStatusReply, error) {
+func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus, u *user.User) (*cms.SetInvoiceStatusReply, error) {
 	log.Tracef("processSetInvoiceStatus")
 
 	invRec, err := p.getInvoice(sis.Token)
@@ -798,9 +798,17 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus,
 		return nil, err
 	}
 
-	err = checkPublicKeyAndSignature(u, sis.PublicKey, sis.Signature,
-		sis.Token, invRec.Version, strconv.FormatUint(uint64(sis.Status), 10),
-		sis.Reason)
+	// Ensure the provided public key is the user's active key.
+	if sis.PublicKey != u.PublicKey() {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSigningKey,
+		}
+	}
+
+	// Validate signature
+	msg := fmt.Sprintf("%v%v%v%v", sis.Token, invRec.Version,
+		sis.Status, sis.Reason)
+	err = validateSignature(sis.PublicKey, sis.Signature, msg)
 	if err != nil {
 		return nil, err
 	}
@@ -1152,6 +1160,15 @@ func (p *politeiawww) processGeneratePayouts(gp cms.GeneratePayouts, u *user.Use
 	for _, inv := range dbInvs {
 		payout := cms.Payout{}
 
+		var username string
+		u, err := p.db.UserGetByPubKey(inv.PublicKey)
+		if err != nil {
+			log.Errorf("processGeneratePayouts: UserGetByPubKey: "+
+				"token:%v pubkey:%v err:%v", inv.Token, inv.PublicKey, err)
+		} else {
+			username = u.Username
+		}
+
 		var totalLaborMinutes uint
 		var totalExpenses uint
 		for _, lineItem := range inv.LineItems {
@@ -1171,13 +1188,15 @@ func (p *politeiawww) processGeneratePayouts(gp cms.GeneratePayouts, u *user.Use
 		payout.Token = inv.Token
 		payout.ContractorName = inv.ContractorName
 
-		payout.Username = p.getUsernameById(inv.UserID)
+		payout.Username = username
 		payout.Month = inv.Month
 		payout.Year = inv.Year
 		payout.Total = payout.LaborTotal + payout.ExpenseTotal
 		if inv.ExchangeRate > 0 {
 			payout.DCRTotal, err = dcrutil.NewAmount(float64(payout.Total) /
 				float64(inv.ExchangeRate))
+			log.Errorf("processGeneratePayouts %v: NewAmount: %v",
+				inv.Token, err)
 		}
 		payout.ExchangeRate = inv.ExchangeRate
 
@@ -1198,13 +1217,14 @@ func (p *politeiawww) getInvoice(token string) (*cms.InvoiceRecord, error) {
 	i := convertInvoiceFromCache(*r)
 
 	// Fill in userID and username fields
-	userID, ok := p.getUserIDByPubKey(i.PublicKey)
-	if !ok {
-		log.Errorf("getInvoice: userID not found for "+
-			"pubkey:%v token:%v", i.PublicKey, token)
+	u, err := p.db.UserGetByPubKey(i.PublicKey)
+	if err != nil {
+		log.Errorf("getInvoice: getUserByPubKey: token:%v "+
+			"pubKey:%v err:%v", token, i.PublicKey, err)
+	} else {
+		i.UserID = u.ID.String()
+		i.Username = u.Username
 	}
-	i.UserID = userID
-	i.Username = p.getUsernameById(userID)
 
 	return &i, nil
 }
@@ -1320,10 +1340,9 @@ func (p *politeiawww) processInvoiceComments(token string, u *user.User) (*www.G
 		return nil, err
 	}
 
-	_, ok := p.userPubkeys[ir.PublicKey]
-
-	// Check to make sure the user is either an admin or the creator of the invoice
-	if !u.Admin && !ok {
+	// Check to make sure the user is either an admin or the
+	// invoice author.
+	if !u.Admin && (ir.Username != u.Username) {
 		err := www.UserError{
 			ErrorCode: www.ErrorStatusUserActionNotAllowed,
 		}
@@ -1365,31 +1384,19 @@ func (p *politeiawww) getInvoiceComments(token string) ([]www.Comment, error) {
 		return nil, fmt.Errorf("decredGetComments: %v", err)
 	}
 
-	p.RLock()
-	defer p.RUnlock()
-
-	// Fill in politeiawww data. Cache usernames to reduce
-	// database lookups.
+	// Convert comments and fill in author info.
 	comments := make([]www.Comment, 0, len(dc))
-	usernames := make(map[string]string, len(dc)) // [userID]username
 	for _, v := range dc {
 		c := convertCommentFromDecred(v)
-
-		// Fill in author info
-		userID, ok := p.userPubkeys[c.PublicKey]
-		if !ok {
-			log.Errorf("getInvoiceComments: userID lookup failed "+
-				"pubkey:%v token:%v comment:%v", c.PublicKey,
-				c.Token, c.CommentID)
+		u, err := p.db.UserGetByPubKey(c.PublicKey)
+		if err != nil {
+			log.Errorf("getInvoiceComments: UserGetByPubKey: "+
+				"token:%v commentID:%v pubKey:%v err:%v",
+				token, c.CommentID, c.PublicKey, err)
+		} else {
+			c.UserID = u.ID.String()
+			c.Username = u.Username
 		}
-		u, ok := usernames[userID]
-		if !ok && userID != "" {
-			u = p.getUsernameById(userID)
-			usernames[userID] = u
-		}
-		c.UserID = userID
-		c.Username = u
-
 		comments = append(comments, c)
 	}
 

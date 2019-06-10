@@ -188,12 +188,13 @@ func validateProposal(np www.NewProposal, u *user.User) error {
 	}
 
 	// Verify public key
-	id, err := checkPublicKey(u, np.PublicKey)
-	if err != nil {
-		return err
+	if u.PublicKey() != np.PublicKey {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSigningKey,
+		}
 	}
 
-	pk, err := identity.PublicIdentityFromBytes(id)
+	pk, err := identity.PublicIdentityFromBytes(u.ActiveIdentity().Key[:])
 	if err != nil {
 		return err
 	}
@@ -423,17 +424,15 @@ func (p *politeiawww) getProp(token string) (*www.ProposalRecord, error) {
 	}
 	pr.NumComments = uint(len(dc))
 
-	p.RLock()
-	defer p.RUnlock()
-
 	// Fill in proposal author info
-	userID, ok := p.userPubkeys[pr.PublicKey]
-	if !ok {
-		log.Errorf("getProp: userID lookup failed for "+
-			"token:%v pubkey:%v", token, pr.PublicKey)
+	u, err := p.db.UserGetByPubKey(pr.PublicKey)
+	if err != nil {
+		log.Errorf("getProp: UserGetByPubKey: token:%v "+
+			"pubKey:%v err:%v", token, pr.PublicKey, err)
+	} else {
+		pr.UserId = u.ID.String()
+		pr.Username = u.Username
 	}
-	pr.UserId = userID
-	pr.Username = p.getUsernameById(userID)
 
 	return &pr, nil
 }
@@ -457,17 +456,15 @@ func (p *politeiawww) getPropVersion(token, version string) (*www.ProposalRecord
 	}
 	pr.NumComments = uint(len(dc))
 
-	p.RLock()
-	defer p.RUnlock()
-
 	// Fill in proposal author info
-	userID, ok := p.userPubkeys[pr.PublicKey]
-	if !ok {
-		log.Errorf("getPropVersion: user not found for "+
-			"pubkey:%v token:%v", pr.PublicKey, token)
+	u, err := p.db.UserGetByPubKey(pr.PublicKey)
+	if err != nil {
+		log.Errorf("getPropVersion: UserGetByPubKey: pubKey:%v "+
+			"token:%v err:%v", pr.PublicKey, token, err)
+	} else {
+		pr.UserId = u.ID.String()
+		pr.Username = u.Username
 	}
-	pr.UserId = userID
-	pr.Username = p.getUsernameById(userID)
 
 	return &pr, nil
 }
@@ -483,11 +480,12 @@ func (p *politeiawww) getAllProps() ([]www.ProposalRecord, error) {
 		return nil, err
 	}
 
-	// Fill in the number of comments for each proposal
+	// Convert props and fill in missing info
 	props := make([]www.ProposalRecord, 0, len(records))
 	for _, v := range records {
 		pr := convertPropFromCache(v)
 
+		// Fill in num comments
 		dc, err := p.decredGetComments(pr.CensorshipRecord.Token)
 		if err != nil {
 			log.Errorf("getAllProps: decredGetComments failed "+
@@ -495,32 +493,17 @@ func (p *politeiawww) getAllProps() ([]www.ProposalRecord, error) {
 		}
 		pr.NumComments = uint(len(dc))
 
+		// Fill in author info
+		u, err := p.db.UserGetByPubKey(pr.PublicKey)
+		if err != nil {
+			log.Errorf("getAllProps: UserGetByPubKey: token:%v "+
+				"pubKey:%v", pr.CensorshipRecord.Token, pr.PublicKey)
+		} else {
+			pr.UserId = u.ID.String()
+			pr.Username = u.Username
+		}
+
 		props = append(props, pr)
-	}
-
-	p.RLock()
-	defer p.RUnlock()
-
-	// Fill in author info for each proposal. Cache usernames to
-	// prevent duplicate database lookups.
-	usernames := make(map[string]string, len(props)) // [userID]username
-	for i, pr := range props {
-		userID, ok := p.userPubkeys[pr.PublicKey]
-		if !ok {
-			log.Errorf("getAllProps: userID lookup failed for "+
-				"token:%v pubkey:%v", pr.CensorshipRecord.Token,
-				pr.PublicKey)
-		}
-		pr.UserId = userID
-
-		u, ok := usernames[userID]
-		if !ok {
-			u = p.getUsernameById(userID)
-			usernames[userID] = u
-		}
-		pr.Username = u
-
-		props[i] = pr
 	}
 
 	return props, nil
@@ -673,41 +656,34 @@ func (p *politeiawww) getPropComments(token string) ([]www.Comment, error) {
 		return nil, fmt.Errorf("decredGetComments: %v", err)
 	}
 
+	// Convert comments and fill in author info
+	comments := make([]www.Comment, 0, len(dc))
+	for _, v := range dc {
+		c := convertCommentFromDecred(v)
+		u, err := p.db.UserGetByPubKey(c.PublicKey)
+		if err != nil {
+			log.Errorf("getPropComments: UserGetByPubKey: "+
+				"token:%v commentID:%v pubKey:%v err:%v",
+				token, c.CommentID, c.PublicKey, err)
+		} else {
+			c.UserID = u.ID.String()
+			c.Username = u.Username
+		}
+		comments = append(comments, c)
+	}
+
+	// Fill in comment scores
 	p.RLock()
 	defer p.RUnlock()
 
-	// Fill in politeiawww data. Cache usernames to reduce
-	// database lookups.
-	comments := make([]www.Comment, 0, len(dc))
-	usernames := make(map[string]string, len(dc)) // [userID]username
-	for _, v := range dc {
-		c := convertCommentFromDecred(v)
-
-		// Fill in author info
-		userID, ok := p.userPubkeys[c.PublicKey]
+	for i, v := range comments {
+		score, ok := p.commentScores[v.Token+v.CommentID]
 		if !ok {
-			log.Errorf("getPropComments: userID lookup failed "+
-				"pubkey:%v token:%v comment:%v", c.PublicKey,
-				c.Token, c.CommentID)
+			log.Errorf("getPropComments: comment scores lookup "+
+				"failed: token:%v commentID:%v pubKey:%v", v.Token,
+				v.CommentID, v.PublicKey)
 		}
-		u, ok := usernames[userID]
-		if !ok && userID != "" {
-			u = p.getUsernameById(userID)
-			usernames[userID] = u
-		}
-		c.UserID = userID
-		c.Username = u
-
-		// Fill in result votes
-		score, ok := p.commentScores[c.Token+c.CommentID]
-		if !ok {
-			log.Errorf("getPropComments: comment score lookup failed"+
-				"pubkey:%v token:%v comment:%v", c.PublicKey, c.Token,
-				c.CommentID)
-		}
-		c.ResultVotes = score
-
-		comments = append(comments, c)
+		comments[i].ResultVotes = score
 	}
 
 	return comments, nil
@@ -902,8 +878,8 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 		}
 	}
 
-	// Validate public key
-	if u.PublicKey() != sps.PublicKey {
+	// Ensure the provided public key is the user's active key.
+	if sps.PublicKey != u.PublicKey() {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusInvalidSigningKey,
 		}
@@ -912,7 +888,7 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 	// Validate signature
 	msg := sps.Token + strconv.Itoa(int(sps.ProposalStatus)) +
 		sps.StatusChangeMessage
-	err := checkSignature(u.ActiveIdentity().Key[:], sps.Signature, msg)
+	err := validateSignature(sps.PublicKey, sps.Signature, msg)
 	if err != nil {
 		return nil, err
 	}
@@ -931,13 +907,11 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 	// The only time admins are allowed to change the status of
 	// their own proposals is on testnet
 	if !p.cfg.TestNet {
-		authorID, ok := p.getUserIDByPubKey(pr.PublicKey)
-		if !ok {
-			return nil, fmt.Errorf("user not found for public key %v for "+
-				"proposal %v", pr.PublicKey, pr.CensorshipRecord.Token)
+		author, err := p.db.UserGetByPubKey(pr.PublicKey)
+		if err != nil {
+			return nil, err
 		}
-
-		if authorID == u.ID.String() {
+		if author.ID.String() == u.ID.String() {
 			return nil, www.UserError{
 				ErrorCode: www.ErrorStatusReviewerAdminEqualsAuthor,
 			}
@@ -1773,9 +1747,16 @@ func (p *politeiawww) processAuthorizeVote(av www.AuthorizeVote, u *user.User) (
 		return nil, err
 	}
 
-	// Verify signature authenticity
-	err = checkPublicKeyAndSignature(u, av.PublicKey, av.Signature,
-		av.Token, pr.Version, av.Action)
+	// Ensure the public key is the user's active key
+	if av.PublicKey != u.PublicKey() {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSigningKey,
+		}
+	}
+
+	// Validate signature
+	msg := av.Token + pr.Version + av.Action
+	err = validateSignature(av.PublicKey, av.Signature, msg)
 	if err != nil {
 		return nil, err
 	}
@@ -1824,18 +1805,14 @@ func (p *politeiawww) processAuthorizeVote(av www.AuthorizeVote, u *user.User) (
 	case pr.PublicKey != av.PublicKey:
 		// User is not the author. First make sure the author didn't
 		// submit the proposal using an old identity.
-		p.RLock()
-		userID, ok := p.userPubkeys[pr.PublicKey]
-		p.RUnlock()
-		if ok {
-			if u.ID.String() != userID {
-				return nil, www.UserError{
-					ErrorCode: www.ErrorStatusUserNotAuthor,
-				}
+		usr, err := p.db.UserGetByPubKey(pr.PublicKey)
+		if err != nil {
+			return nil, err
+		}
+		if u.ID.String() != usr.ID.String() {
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusUserNotAuthor,
 			}
-		} else {
-			// This should not happen
-			return nil, fmt.Errorf("proposal author not found")
 		}
 	}
 
@@ -1903,9 +1880,15 @@ func (p *politeiawww) processAuthorizeVote(av www.AuthorizeVote, u *user.User) (
 func (p *politeiawww) processStartVote(sv www.StartVote, u *user.User) (*www.StartVoteReply, error) {
 	log.Tracef("processStartVote %v", sv.Vote.Token)
 
-	// Verify user
-	err := checkPublicKeyAndSignature(u, sv.PublicKey, sv.Signature,
-		sv.Vote.Token)
+	// Ensure the public key is the user's active key
+	if sv.PublicKey != u.PublicKey() {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSigningKey,
+		}
+	}
+
+	// Validate signature
+	err := validateSignature(sv.PublicKey, sv.Signature, sv.Vote.Token)
 	if err != nil {
 		return nil, err
 	}

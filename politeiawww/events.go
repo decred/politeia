@@ -81,31 +81,6 @@ type EventDataInvoiceStatusUpdate struct {
 	User  *user.User
 }
 
-func (p *politeiawww) _getProposalAuthor(proposal *www.ProposalRecord) (*user.User, error) {
-	if proposal.UserId == "" {
-		proposal.UserId = p.userPubkeys[proposal.PublicKey]
-	}
-
-	userID, err := uuid.Parse(proposal.UserId)
-	if err != nil {
-		return nil, fmt.Errorf("cannot parse UUID for proposal author: %v", err)
-	}
-
-	author, err := p.db.UserGetById(userID)
-	if err != nil {
-		return nil, fmt.Errorf("cannot fetch author for proposal: %v", err)
-	}
-
-	return author, nil
-}
-
-func (p *politeiawww) getProposalAuthor(proposal *www.ProposalRecord) (*user.User, error) {
-	p.RLock()
-	defer p.RUnlock()
-
-	return p._getProposalAuthor(proposal)
-}
-
 func (p *politeiawww) getProposalAndAuthor(token string) (*www.ProposalRecord, *user.User, error) {
 	proposal, err := p.getProp(token)
 	if err != nil {
@@ -257,7 +232,7 @@ func (p *politeiawww) _setupProposalStatusChangeEmailNotification() {
 				continue
 			}
 
-			author, err := p.getProposalAuthor(psc.Proposal)
+			author, err := p.db.UserGetByPubKey(psc.Proposal.PublicKey)
 			if err != nil {
 				log.Errorf("cannot fetch author for proposal: %v", err)
 				continue
@@ -330,7 +305,7 @@ func (p *politeiawww) _setupProposalEditedEmailNotification() {
 				continue
 			}
 
-			author, err := p.getProposalAuthor(pe.Proposal)
+			author, err := p.db.UserGetByPubKey(pe.Proposal.PublicKey)
 			if err != nil {
 				log.Errorf("cannot fetch author for proposal: %v", err)
 				continue
@@ -457,21 +432,7 @@ func (p *politeiawww) _setupCommentReplyEmailNotifications() {
 					continue
 				}
 
-				authorID, ok := p.userPubkeys[parent.PublicKey]
-				if !ok {
-					log.Errorf("EventManager: userID lookup failed for pubkey %v",
-						parent.PublicKey)
-					continue
-				}
-
-				authorUUID, err := uuid.Parse(authorID)
-				if err != nil {
-					log.Errorf("cannot parse UUID for comment author: %v",
-						err)
-					continue
-				}
-
-				author, err := p.db.UserGetById(authorUUID)
+				author, err := p.db.UserGetByPubKey(parent.PublicKey)
 				if err != nil {
 					log.Errorf("cannot fetch author for comment: %v", err)
 					continue

@@ -323,7 +323,6 @@ func _main() error {
 		templates: make(map[string]*template.Template),
 
 		// XXX reevaluate where this goes
-		userPubkeys:     make(map[string]string),
 		userEmails:      make(map[string]uuid.UUID),
 		userPaywallPool: make(map[uuid.UUID]paywallPoolMember),
 		commentScores:   make(map[string]int64),
@@ -432,14 +431,8 @@ func _main() error {
 		log.Infof("Registered cache plugin: %v", v.ID)
 	}
 
-	// Setup pubkey-userid map
-	err = p.initUserPubkeys()
-	if err != nil {
-		return err
-	}
-
 	// Setup email-userID map
-	err = p.initUserEmails()
+	err = p.initUserEmailsCache()
 	if err != nil {
 		return err
 	}

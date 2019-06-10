@@ -213,13 +213,10 @@ func (u *User) InactiveIdentity() *Identity {
 	return nil
 }
 
-// PublicKey returns a hex encoded string of the user's identity.
+// PublicKey returns a hex encoded string of the user's active identity.
 func (u *User) PublicKey() string {
 	if u.ActiveIdentity() != nil {
 		return u.ActiveIdentity().String()
-	}
-	if u.InactiveIdentity() != nil {
-		return u.InactiveIdentity().String()
 	}
 	return ""
 }
@@ -327,6 +324,7 @@ type Database interface {
 	// User functions
 	UserGetByUsername(string) (*User, error) // Return user record given the username
 	UserGetById(uuid.UUID) (*User, error)    // Return user record given its id
+	UserGetByPubKey(string) (*User, error)   // Return user record given a public key
 	UserNew(User) error                      // Add new user
 	UserUpdate(User) error                   // Update existing user
 	AllUsers(callbackFn func(u *User)) error // Iterate all users
