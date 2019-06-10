@@ -1132,10 +1132,6 @@ func (p *politeiawww) processResendVerification(rv *www.ResendVerification) (*ww
 		return nil, err
 	}
 
-	// Remove the original pubkey from the cache.
-	existingPublicKey := hex.EncodeToString(u.Identities[0].Key[:])
-	p.removeUserPubkeyAssociaton(u, existingPublicKey)
-
 	// Set a new verificaton token and identity.
 	u.NewUserVerificationToken = token
 	u.NewUserVerificationExpiry = expiry
@@ -1149,8 +1145,17 @@ func (p *politeiawww) processResendVerification(rv *www.ResendVerification) (*ww
 		return nil, err
 	}
 
-	// Associate the user id with the new identity.
-	p.setUserPubkeyAssociaton(u, rv.PublicKey)
+	// Try to email the verification link first; if it fails, then
+	// the user won't be updated.
+	//
+	// This is conditional on the email server being setup.
+	err = p.emailNewUserVerificationLink(u.Email,
+		hex.EncodeToString(token), u.Username)
+	if err != nil {
+		log.Errorf("processResendVerification: email verification link "+
+			"failed for '%v': %v", u.Email, err)
+		return nil, err
+	}
 
 	// Update the user in the db.
 	err = p.db.UserUpdate(*u)
@@ -1158,14 +1163,8 @@ func (p *politeiawww) processResendVerification(rv *www.ResendVerification) (*ww
 		return nil, err
 	}
 
-	if !p.test {
-		// This is conditional on the email server being setup.
-		err := p.emailNewUserVerificationLink(u.Email,
-			hex.EncodeToString(token), u.Username)
-		if err != nil {
-			return nil, err
-		}
-	}
+	// Update user pubkey cache
+	p.setUserPubkeyAssociaton(u, rv.PublicKey)
 
 	// Only set the token if email verification is disabled.
 	if p.smtp.disabled {
