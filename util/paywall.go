@@ -54,13 +54,13 @@ type BETransaction struct {
 
 // BETransactionVin holds the transaction prevOut address information
 type BETransactionVin struct {
-	PrevOuts []BETransactionPrevOut `json:"prevout"` // Previous transaction output
+	PrevOut BETransactionPrevOut `json:"prevOut"` // Previous transaction output
 }
 
 // BETransactionPrevOut holds the information about the inputs' previous addresses.
 // This will allow one to check for dev subsidy origination, etc.
 type BETransactionPrevOut struct {
-	Addresses []string `json:"address"` // Array of transaction input addresses
+	Addresses []string `json:"addresses"` // Array of transaction input addresses
 }
 
 // BETransactionVout holds the transaction amount information.
@@ -395,12 +395,9 @@ func convertBETransactionToTxDetails(address string, tx BETransaction) (*TxDetai
 			}
 		}
 	}
-
 	inputAddresses := make([]string, 0, 1064)
 	for _, vin := range tx.Vin {
-		for _, prevOut := range vin.PrevOuts {
-			inputAddresses = append(inputAddresses, prevOut.Addresses...)
-		}
+		inputAddresses = append(inputAddresses, vin.PrevOut.Addresses...)
 	}
 
 	return &TxDetails{

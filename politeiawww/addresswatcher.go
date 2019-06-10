@@ -198,7 +198,7 @@ func (p *politeiawww) checkPayments(payment *database.Payments) bool {
 		payment.TimeStarted)
 	if err != nil {
 		// XXX Some sort of 'recheck' or notice that it should do it again?
-		log.Errorf("error FetchTxsForAddressNotBefore for %s", payment.Address)
+		log.Errorf("error FetchTxsForAddressNotBefore for address %s: %v", payment.Address, err)
 	}
 	if len(txs) == len(payment.TxIDs) {
 		// Same number of txids found, so nothing to update.
