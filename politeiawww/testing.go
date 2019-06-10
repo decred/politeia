@@ -129,28 +129,30 @@ func newUser(t *testing.T, p *politeiawww, isVerified, isAdmin bool) (*user.User
 	}
 
 	u := user.User{
-		ID:             uuid.New(),
-		Email:          hex.EncodeToString(r) + "@example.com",
-		Username:       hex.EncodeToString(r),
-		HashedPassword: pass,
-		Admin:          isAdmin,
+		ID:                        uuid.New(),
+		Admin:                     isAdmin,
+		Email:                     hex.EncodeToString(r) + "@example.com",
+		Username:                  hex.EncodeToString(r),
+		HashedPassword:            pass,
+		NewUserVerificationToken:  token,
+		NewUserVerificationExpiry: expiry,
 	}
-
-	setNewUserVerificationAndIdentity(&u, token, expiry,
-		false, id.Public.Key[:])
-
-	// Set user verification status
+	identity, err := user.NewIdentity(pubkey)
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	err = u.AddIdentity(*identity)
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
 	if isVerified {
 		u.NewUserVerificationToken = nil
 		u.NewUserVerificationExpiry = 0
 		u.ResendNewUserVerificationExpiry = 0
-	} else {
-		tb, expiry, err := generateVerificationTokenAndExpiry()
+		err := u.ActivateIdentity(identity.Key[:])
 		if err != nil {
 			t.Fatalf("%v", err)
 		}
-		u.NewUserVerificationToken = tb
-		u.NewUserVerificationExpiry = expiry
 	}
 
 	// Add user to database

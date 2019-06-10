@@ -354,22 +354,6 @@ func checkUserIsLocked(failedLoginAttempts uint64) bool {
 	return failedLoginAttempts >= LoginAttemptsToLockUser
 }
 
-// setNewUserVerificationAndIdentity adds an identity to a user.
-func setNewUserVerificationAndIdentity(u *user.User, token []byte, expiry int64, includeResend bool, pk []byte) {
-	u.NewUserVerificationToken = token
-	u.NewUserVerificationExpiry = expiry
-	if includeResend {
-		// This field is used to support requesting another
-		// registration email quickly, without having to wait the full
-		// email-spam-prevention period.
-		u.ResendNewUserVerificationExpiry = expiry
-	}
-	u.Identities = []user.Identity{{
-		Activated: time.Now().Unix(),
-	}}
-	copy(u.Identities[0].Key[:], pk)
-}
-
 // hashPassword hashes the given password string with the default bcrypt cost
 // or the minimum cost if the test flag is set to speed up running tests.
 func (p *politeiawww) hashPassword(password string) ([]byte, error) {
@@ -851,7 +835,7 @@ func (p *politeiawww) processNewUser(u www.NewUser) (*www.NewUserReply, error) {
 	}
 
 	// Ensure we got a proper pubkey.
-	pk, err := validatePubkey(u.PublicKey)
+	_, err = validatePubkey(u.PublicKey)
 	if err != nil {
 		return nil, err
 	}
@@ -913,12 +897,20 @@ func (p *politeiawww) processNewUser(u www.NewUser) (*www.NewUserReply, error) {
 
 	// Create a new database user with the provided information.
 	newUser := user.User{
-		Email:          strings.ToLower(u.Email),
-		Username:       username,
-		HashedPassword: hashedPassword,
-		Admin:          false,
+		Email:                     strings.ToLower(u.Email),
+		Username:                  username,
+		HashedPassword:            hashedPassword,
+		NewUserVerificationToken:  token,
+		NewUserVerificationExpiry: expiry,
 	}
-	setNewUserVerificationAndIdentity(&newUser, token, expiry, false, pk)
+	id, err := user.NewIdentity(u.PublicKey)
+	if err != nil {
+		return nil, err
+	}
+	err = newUser.AddIdentity(*id)
+	if err != nil {
+		return nil, err
+	}
 
 	if !p.test {
 		// Try to email the verification link first; if it fails, then
@@ -1047,22 +1039,17 @@ func (p *politeiawww) processVerifyNewUser(usr www.VerifyNewUser) (*user.User, e
 			ErrorCode: www.ErrorStatusInvalidSignature,
 		}
 	}
-	var pi *identity.PublicIdentity
-	for _, v := range u.Identities {
-		if v.Deactivated != 0 {
-			continue
-		}
-		pi, err = identity.PublicIdentityFromBytes(v.Key[:])
-		if err != nil {
-			return nil, err
-		}
-	}
-	if pi == nil {
+	id := u.InactiveIdentity()
+	if id == nil {
 		log.Debugf("VerifyNewUser failure for %v: no public key",
 			u.Email)
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusNoPublicKey,
 		}
+	}
+	pi, err := identity.PublicIdentityFromBytes(id.Key[:])
+	if err != nil {
+		return nil, err
 	}
 	if !pi.VerifyMessage([]byte(usr.VerificationToken), sig) {
 		log.Debugf("VerifyNewUser failure for %v: signature doesn't match "+
@@ -1072,10 +1059,15 @@ func (p *politeiawww) processVerifyNewUser(usr www.VerifyNewUser) (*user.User, e
 		}
 	}
 
-	// Clear out the verification token fields in the db.
+	// Clear out the verification token fields
+	// and activate the identity for the user.
 	u.NewUserVerificationToken = nil
 	u.NewUserVerificationExpiry = 0
 	u.ResendNewUserVerificationExpiry = 0
+	err = u.ActivateIdentity(id.Key[:])
+	if err != nil {
+		return nil, err
+	}
 	err = p.db.UserUpdate(*u)
 	if err != nil {
 		return nil, err
@@ -1123,7 +1115,7 @@ func (p *politeiawww) processResendVerification(rv *www.ResendVerification) (*ww
 	}
 
 	// Ensure we got a proper pubkey.
-	pk, err := validatePubkey(rv.PublicKey)
+	_, err = validatePubkey(rv.PublicKey)
 	if err != nil {
 		return nil, err
 	}
@@ -1140,15 +1132,30 @@ func (p *politeiawww) processResendVerification(rv *www.ResendVerification) (*ww
 		return nil, err
 	}
 
-	// Remove the original pubkey from the cache.
-	existingPublicKey := hex.EncodeToString(u.Identities[0].Key[:])
-	p.removeUserPubkeyAssociaton(u, existingPublicKey)
-
 	// Set a new verificaton token and identity.
-	setNewUserVerificationAndIdentity(u, token, expiry, true, pk)
+	u.NewUserVerificationToken = token
+	u.NewUserVerificationExpiry = expiry
+	u.ResendNewUserVerificationExpiry = expiry
+	id, err := user.NewIdentity(rv.PublicKey)
+	if err != nil {
+		return nil, err
+	}
+	err = u.AddIdentity(*id)
+	if err != nil {
+		return nil, err
+	}
 
-	// Associate the user id with the new identity.
-	p.setUserPubkeyAssociaton(u, rv.PublicKey)
+	// Try to email the verification link first; if it fails, then
+	// the user won't be updated.
+	//
+	// This is conditional on the email server being setup.
+	err = p.emailNewUserVerificationLink(u.Email,
+		hex.EncodeToString(token), u.Username)
+	if err != nil {
+		log.Errorf("processResendVerification: email verification link "+
+			"failed for '%v': %v", u.Email, err)
+		return nil, err
+	}
 
 	// Update the user in the db.
 	err = p.db.UserUpdate(*u)
@@ -1156,14 +1163,8 @@ func (p *politeiawww) processResendVerification(rv *www.ResendVerification) (*ww
 		return nil, err
 	}
 
-	if !p.test {
-		// This is conditional on the email server being setup.
-		err := p.emailNewUserVerificationLink(u.Email,
-			hex.EncodeToString(token), u.Username)
-		if err != nil {
-			return nil, err
-		}
-	}
+	// Update user pubkey cache
+	p.setUserPubkeyAssociaton(u, rv.PublicKey)
 
 	// Only set the token if email verification is disabled.
 	if p.smtp.disabled {
@@ -1181,7 +1182,7 @@ func (p *politeiawww) processUpdateUserKey(usr *user.User, u www.UpdateUserKey) 
 	var expiry int64
 
 	// Ensure we got a proper pubkey.
-	pk, err := validatePubkey(u.PublicKey)
+	_, err := validatePubkey(u.PublicKey)
 	if err != nil {
 		return nil, err
 	}
@@ -1209,15 +1210,20 @@ func (p *politeiawww) processUpdateUserKey(usr *user.User, u www.UpdateUserKey) 
 	if err != nil {
 		return nil, err
 	}
-
-	// Add the updated user information to the db.
 	usr.UpdateKeyVerificationToken = token
 	usr.UpdateKeyVerificationExpiry = expiry
 
-	identity := user.Identity{}
-	copy(identity.Key[:], pk)
-	usr.Identities = append(usr.Identities, identity)
+	// Add inactive identity to the user
+	id, err := user.NewIdentity(u.PublicKey)
+	if err != nil {
+		return nil, err
+	}
+	err = usr.AddIdentity(*id)
+	if err != nil {
+		return nil, err
+	}
 
+	// Save user changes to the db
 	err = p.db.UserUpdate(*usr)
 	if err != nil {
 		return nil, err
@@ -1282,7 +1288,12 @@ func (p *politeiawww) processVerifyUpdateUserKey(u *user.User, vu www.VerifyUpda
 		}
 	}
 
-	id := u.Identities[len(u.Identities)-1]
+	id := u.InactiveIdentity()
+	if id == nil {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusNoPublicKey,
+		}
+	}
 	pi, err := identity.PublicIdentityFromBytes(id.Key[:])
 	if err != nil {
 		return nil, err
@@ -1303,16 +1314,10 @@ func (p *politeiawww) processVerifyUpdateUserKey(u *user.User, vu www.VerifyUpda
 	// the key and deactivate the one it's replacing.
 	u.UpdateKeyVerificationToken = nil
 	u.UpdateKeyVerificationExpiry = 0
-
-	t := time.Now().Unix()
-	for k, v := range u.Identities {
-		if v.Deactivated == 0 {
-			u.Identities[k].Deactivated = t
-			break
-		}
+	err = u.ActivateIdentity(id.Key[:])
+	if err != nil {
+		return nil, err
 	}
-	u.Identities[len(u.Identities)-1].Activated = t
-	u.Identities[len(u.Identities)-1].Deactivated = 0
 
 	return u, p.db.UserUpdate(*u)
 }
@@ -2373,7 +2378,7 @@ func (p *politeiawww) processRegisterUser(u cms.RegisterUser) (*cms.RegisterUser
 	}
 
 	// Ensure we got a proper pubkey.
-	pk, err := validatePubkey(u.PublicKey)
+	_, err = validatePubkey(u.PublicKey)
 	if err != nil {
 		return nil, err
 	}
@@ -2447,20 +2452,28 @@ func (p *politeiawww) processRegisterUser(u cms.RegisterUser) (*cms.RegisterUser
 
 	// Create a new database user with the provided information.
 	newUser := user.User{
-		ID:                        existingUser.ID,
-		Email:                     strings.ToLower(u.Email),
-		Username:                  username,
-		HashedPassword:            hashedPassword,
-		Admin:                     false,
-		NewUserVerificationToken:  nil,
-		NewUserVerificationExpiry: 0,
+		ID:             existingUser.ID,
+		Email:          strings.ToLower(u.Email),
+		Username:       username,
+		HashedPassword: hashedPassword,
 	}
 
-	// Set the newUser's identity with the provided public key
-	newUser.Identities = []user.Identity{{
-		Activated: time.Now().Unix(),
-	}}
-	copy(newUser.Identities[0].Key[:], pk)
+	// Setup newUser's identity with the provided public key. An
+	// additional verification step to activate the identity is
+	// not needed since the registration email already serves as
+	// the verification.
+	id, err := user.NewIdentity(u.PublicKey)
+	if err != nil {
+		return nil, err
+	}
+	err = newUser.AddIdentity(*id)
+	if err != nil {
+		return nil, err
+	}
+	err = newUser.ActivateIdentity(id.Key[:])
+	if err != nil {
+		return nil, err
+	}
 
 	// Update the user in the db.
 	err = p.db.UserUpdate(newUser)
