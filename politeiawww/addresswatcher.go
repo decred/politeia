@@ -28,12 +28,12 @@ const mainnetSubsidyAddr = "Dcur2mcGjmENx4DhNqDctW5wJCVyT3Qeqkx"
 
 func (p *politeiawww) addWatchAddress(address string) error {
 	address = "address:" + address
-	if subd, _ := strInSlice(p.currentSubs, address); subd {
+	if subd, _ := strInSlice(p.pubSubDcrdata.currentSubs, address); subd {
 		log.Infof("Already subscribed to %s.", address)
 		return nil
 	}
-	p.currentSubs = append(p.currentSubs, address)
-	_, err := p.wsClient.Subscribe(address)
+	p.pubSubDcrdata.currentSubs = append(p.pubSubDcrdata.currentSubs, address)
+	_, err := p.pubSubDcrdata.client.Subscribe(address)
 	if err != nil {
 		return fmt.Errorf("failed to subscribe: %v", err)
 	}
@@ -43,13 +43,13 @@ func (p *politeiawww) addWatchAddress(address string) error {
 
 func (p *politeiawww) removeWatchAddress(address string) error {
 	address = "address:" + address
-	subd, i := strInSlice(p.currentSubs, address)
+	subd, i := strInSlice(p.pubSubDcrdata.currentSubs, address)
 	if !subd {
 		log.Infof("Not subscribed to %s.", address)
 		return nil
 	}
-	p.currentSubs = append(p.currentSubs[:i], p.currentSubs[i+1:]...)
-	_, err := p.wsClient.Unsubscribe(address)
+	p.pubSubDcrdata.currentSubs = append(p.pubSubDcrdata.currentSubs[:i], p.pubSubDcrdata.currentSubs[i+1:]...)
+	_, err := p.pubSubDcrdata.client.Unsubscribe(address)
 	if err != nil {
 		return fmt.Errorf("failed to unsubscribe: %v", err)
 	}
@@ -58,7 +58,7 @@ func (p *politeiawww) removeWatchAddress(address string) error {
 }
 
 func (p *politeiawww) addPing() error {
-	_, err := p.wsClient.Subscribe("ping")
+	_, err := p.pubSubDcrdata.client.Subscribe("ping")
 	if err != nil {
 		return fmt.Errorf("failed to subscribe: %v", err)
 	}
@@ -78,12 +78,12 @@ func (p *politeiawww) setupWatcher() error {
 		ReadTimeout:  3 * time.Second,
 		WriteTimeout: 3 * time.Second,
 	}
-	p.wsClient, err = client.New(wsURL, context.Background(), &opts)
+	p.pubSubDcrdata.client, err = client.New(wsURL, context.Background(), &opts)
 	if err != nil {
 		log.Errorf("failed to connect to %s: %v", wsURL, err)
 		return err
 	}
-	serverVer, err := p.wsClient.ServerVersion()
+	serverVer, err := p.pubSubDcrdata.client.ServerVersion()
 	if err != nil {
 		log.Errorf("failed to get server version: %v", err)
 		return err
@@ -99,7 +99,7 @@ func (p *politeiawww) setupWatcher() error {
 
 	go func() {
 		for {
-			msg, ok := <-p.wsClient.Receive()
+			msg, ok := <-p.pubSubDcrdata.client.Receive()
 			if !ok {
 				break
 			}

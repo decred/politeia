@@ -67,6 +67,12 @@ type wsContext struct {
 	done          chan struct{} // SHUT...DOWN...EVERYTHING...
 }
 
+// wsDcrdata is the context for the dcrdata websocket connection.
+type wsDcrdata struct {
+	client      *client.Client
+	currentSubs []string
+}
+
 func (w *wsContext) String() string {
 	u := w.uuid
 	if u == "" {
@@ -129,10 +135,9 @@ type politeiawww struct {
 	cmsDB cmsdatabase.Database
 	cron  *cron.Cron
 
-	// currentSubs is a list of currently subscribed websocket notifications to
-	// dcrdata
-	wsClient    *client.Client
-	currentSubs []string
+	// pubSubDcrdata contains the client and list of current subscriptions to
+	// dcrdata's public subscription websocket
+	pubSubDcrdata *wsDcrdata
 }
 
 // XXX rig this up
