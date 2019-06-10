@@ -399,9 +399,7 @@ func convertBETransactionToTxDetails(address string, tx BETransaction) (*TxDetai
 	inputAddresses := make([]string, 0, 1064)
 	for _, vin := range tx.Vin {
 		for _, prevOut := range vin.PrevOuts {
-			for _, inputAddress := range prevOut.Addresses {
-				inputAddresses = append(inputAddresses, inputAddress)
-			}
+			inputAddresses = append(inputAddresses, prevOut.Addresses...)
 		}
 	}
 
