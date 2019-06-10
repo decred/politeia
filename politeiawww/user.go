@@ -1136,7 +1136,7 @@ func (p *politeiawww) processResendVerification(rv *www.ResendVerification) (*ww
 	existingPublicKey := hex.EncodeToString(u.Identities[0].Key[:])
 	p.removeUserPubkeyAssociaton(u, existingPublicKey)
 
-	// Set a new verificaton token
+	// Set a new verificaton token and identity.
 	u.NewUserVerificationToken = token
 	u.NewUserVerificationExpiry = expiry
 	u.ResendNewUserVerificationExpiry = expiry
@@ -1289,7 +1289,12 @@ func (p *politeiawww) processVerifyUpdateUserKey(u *user.User, vu www.VerifyUpda
 		}
 	}
 
-	id := u.Identities[len(u.Identities)-1]
+	id := u.InactiveIdentity()
+	if id == nil {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusNoPublicKey,
+		}
+	}
 	pi, err := identity.PublicIdentityFromBytes(id.Key[:])
 	if err != nil {
 		return nil, err
@@ -1310,8 +1315,7 @@ func (p *politeiawww) processVerifyUpdateUserKey(u *user.User, vu www.VerifyUpda
 	// the key and deactivate the one it's replacing.
 	u.UpdateKeyVerificationToken = nil
 	u.UpdateKeyVerificationExpiry = 0
-
-	err = u.ActivateIdentity(u.InactiveIdentity().Key[:])
+	err = u.ActivateIdentity(id.Key[:])
 	if err != nil {
 		return nil, err
 	}
