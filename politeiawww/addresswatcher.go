@@ -24,6 +24,8 @@ import (
 	"github.com/decred/politeia/util"
 )
 
+const mainnetSubsidyAddr = "Dcur2mcGjmENx4DhNqDctW5wJCVyT3Qeqkx"
+
 func (p *politeiawww) addWatchAddress(address string) error {
 	address = "address:" + address
 	if subd, _ := strInSlice(p.currentSubs, address); subd {
@@ -207,6 +209,20 @@ func (p *politeiawww) checkPayments(payment *database.Payments) bool {
 	// Calculate amount received
 	amountReceived := dcrutil.Amount(0)
 	for i, tx := range txs {
+		// Check to see if running mainnet, if so, only accept transactions
+		// that originate from the Treasury Subsidy.
+		if !p.cfg.TestNet && !p.cfg.SimNet {
+			found := false
+			for _, address := range tx.InputAddresses {
+				if address == mainnetSubsidyAddr {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
 		amountReceived += dcrutil.Amount(tx.Amount)
 		if i == 0 {
 			txIDs = tx.TxID

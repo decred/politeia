@@ -46,9 +46,21 @@ type FaucetResponse struct {
 // when fetching the transactions for an address.
 type BETransaction struct {
 	TxId          string              `json:"txid"`          // Transaction id
+	Vin           []BETransactionVin  `json:"vin"`           // Transaction inputs
 	Vout          []BETransactionVout `json:"vout"`          // Transaction outputs
 	Confirmations uint64              `json:"confirmations"` // Number of confirmations
 	Timestamp     int64               `json:"time"`          // Transaction timestamp
+}
+
+// BETransactionVin holds the transaction prevOut address information
+type BETransactionVin struct {
+	PrevOuts []BETransactionPrevOut `json:"prevout"` // Previous transaction output
+}
+
+// BETransactionPrevOut holds the information about the inputs' previous addresses.
+// This will allow one to check for dev subsidy origination, etc.
+type BETransactionPrevOut struct {
+	Addresses []string `json:"address"` // Array of transaction input addresses
 }
 
 // BETransactionVout holds the transaction amount information.
@@ -68,11 +80,12 @@ type BETransactionScriptPubkey struct {
 // from the dcrdata and insight APIs. Support for the insight API was removed
 // but parts of politeiawww still consume this struct so it has remained.
 type TxDetails struct {
-	Address       string // Transaction address
-	TxID          string // Transacion ID
-	Amount        uint64 // Transaction amount (in atoms)
-	Timestamp     int64  // Transaction timestamp
-	Confirmations uint64 // Number of confirmations
+	Address        string   // Transaction address
+	TxID           string   // Transacion ID
+	Amount         uint64   // Transaction amount (in atoms)
+	Timestamp      int64    // Transaction timestamp
+	Confirmations  uint64   // Number of confirmations
+	InputAddresses []string /// An array of all addresses from previous outputs
 }
 
 func makeRequest(url string, timeout time.Duration) ([]byte, error) {
@@ -383,12 +396,22 @@ func convertBETransactionToTxDetails(address string, tx BETransaction) (*TxDetai
 		}
 	}
 
+	inputAddresses := make([]string, 0, 1064)
+	for _, vin := range tx.Vin {
+		for _, prevOut := range vin.PrevOuts {
+			for _, inputAddress := range prevOut.Addresses {
+				inputAddresses = append(inputAddresses, inputAddress)
+			}
+		}
+	}
+
 	return &TxDetails{
-		Address:       address,
-		TxID:          tx.TxId,
-		Amount:        amount,
-		Confirmations: tx.Confirmations,
-		Timestamp:     tx.Timestamp,
+		Address:        address,
+		TxID:           tx.TxId,
+		Amount:         amount,
+		Confirmations:  tx.Confirmations,
+		Timestamp:      tx.Timestamp,
+		InputAddresses: inputAddresses,
 	}, nil
 }
 
