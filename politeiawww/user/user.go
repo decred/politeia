@@ -266,7 +266,7 @@ func (u *User) AddIdentity(id Identity) error {
 
 // ActivateIdentity sets the identity associated with the provided key as the
 // active identity for the user. The provided key must correspond to an
-// inactive identity. If there is an existing active identity, it is
+// inactive identity. If there is an existing active identity, it wil be
 // deactivated.
 func (u *User) ActivateIdentity(key []byte) error {
 	if u.Identities == nil {

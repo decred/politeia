@@ -2458,19 +2458,16 @@ func (p *politeiawww) processRegisterUser(u cms.RegisterUser) (*cms.RegisterUser
 
 	// Create a new database user with the provided information.
 	newUser := user.User{
-		ID:                        existingUser.ID,
-		Email:                     strings.ToLower(u.Email),
-		Username:                  username,
-		HashedPassword:            hashedPassword,
-		Admin:                     false,
-		NewUserVerificationToken:  nil,
-		NewUserVerificationExpiry: 0,
+		ID:             existingUser.ID,
+		Email:          strings.ToLower(u.Email),
+		Username:       username,
+		HashedPassword: hashedPassword,
 	}
 
-	// Setup newUser's identity with the provided public key.
-	// The identity does not need an additional verification
-	// step to activate the identity since the registration
-	// email already serves as the verification.
+	// Setup newUser's identity with the provided public key. An
+	// additional verification step to activate the identity is
+	// not needed since the registration email already serves as
+	// the verification.
 	id, err := user.NewIdentity(u.PublicKey)
 	if err != nil {
 		return nil, err
