@@ -159,12 +159,20 @@ type User struct {
 	// identities to deal with key loss. An identity can be in one of three
 	// states: inactive, active, or deactivated.
 	//
+	// Inactive identities
 	// An identity is consider inactive until it has been verified.
 	// An unverified user will have an inactive identity.
-	// A verified user will always have an active identity.
-	// A verified user can only have one active identity at a time.
+	// A user will only ever have one inactive identity at a time.
+	//
+	// Active identities
+	// A verified user will always have one active identity.
 	// A verified user may have both an active and inactive identity if
 	// they have requested a new identity but have not yet verified it.
+	//
+	// Deactivated identities
+	// An identity is deactivated when it is replaced by a new identity.
+	// The key of a deactivated identity is no longer valid.
+	// An identity cannot be re-activated once it has been deactivated.
 	Identities []Identity
 
 	// All proposal paywalls that have been issued to the user in chronological
