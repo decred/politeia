@@ -11,6 +11,8 @@ type LineItemTypeT int
 type PaymentStatusT int
 type DomainTypeT int
 type ContractorTypeT int
+type DCCTypeT int
+type DCCStatusT int
 
 const (
 
@@ -22,6 +24,10 @@ const (
 	RouteInvoiceDetails      = "/invoices/{token:[A-z0-9]{64}}"
 	RouteSetInvoiceStatus    = "/invoices/{token:[A-z0-9]{64}}/status"
 	RouteUserInvoices        = "/user/invoices"
+	RouteNewDCC              = "/dcc/new"
+	RouteNewDCCUser          = "/dcc/newuser"
+	RouteDCCDetails          = "/dcc/{token:[A-z0-9]{64}}"
+	RouteGetDCCs             = "/dcc/status"
 	RouteAdminInvoices       = "/admin/invoices"
 	RouteAdminUserInvoices   = "/admin/userinvoices"
 	RouteGeneratePayouts     = "/admin/generatepayouts"
@@ -60,11 +66,27 @@ const (
 	ContractorTypeDirect        ContractorTypeT = 1 // Direct contractor
 	ContractorTypeSupervisor    ContractorTypeT = 2 // Supervisor contractor
 	ContractorTypeSubContractor ContractorTypeT = 3 // SubContractor
+	ContractorTypeRevoked       ContractorTypeT = 4 // Contractors that have been revoked via DCC
+	ContractorTypeDormant       ContractorTypeT = 5 // Contractors that have left for a period of time without invoice or contact
+	ContractorTypeNominee       ContractorTypeT = 6 // Nominated DCC user
 
 	// Payment information status types
 	PaymentStatusInvalid  PaymentStatusT = 0 // Invalid status
 	PaymentStatusWatching PaymentStatusT = 1 // Payment currently watching
 	PaymentStatusPaid     PaymentStatusT = 2 // Payment fully paid
+
+	// DCC types
+	DCCTypeInvalid    DCCTypeT = 0 // Invalid DCC type
+	DCCTypeIssuance   DCCTypeT = 1 // Issuance DCC type
+	DCCTypeRevocation DCCTypeT = 2 // Revocation DCC type
+
+	// DCC status types
+	DCCStatusInvalid   DCCStatusT = 0 // Invalid issuance/revocation status
+	DCCStatusActive    DCCStatusT = 1 // Currently active issuance/revocation (awaiting sponsors)
+	DCCStatusSupported DCCStatusT = 2 // Fully supported issuance/revocation (received enough sponsors to proceed)
+	DCCStatusApproved  DCCStatusT = 3 // Approved issuance/revocation
+	DCCStatusRejected  DCCStatusT = 4 // Rejected issuance/revocation?  In the event of a Debate this would be result of a rejected issuance/revocation (that would override the mere sponsoring).
+	DCCStatusDebate    DCCStatusT = 5 // If a issuance/revocation receives enough comments, it would enter a "debate" status that would require a full contractor vote (to be added later).
 
 	InvoiceInputVersion = 1
 
@@ -122,6 +144,14 @@ const (
 	// each column field of the lineItem structure.
 	PolicyMaxLineItemColLength = 500
 
+	// PolicyMinSponsorStatementLength is the maximum length for the sponsor
+	// statement contained within a DCC
+	PolicyMinSponsorStatementLength = 0
+
+	// PolicyMaxSponsorStatementLength is the maximum length for the sponsor
+	// statement contained within a DCC
+	PolicyMaxSponsorStatementLength = 500
+
 	ErrorStatusMalformedName                  www.ErrorStatusT = 1001
 	ErrorStatusMalformedLocation              www.ErrorStatusT = 1002
 	ErrorStatusInvoiceNotFound                www.ErrorStatusT = 1003
@@ -151,6 +181,14 @@ const (
 	ErrorStatusDuplicatePaymentAddress        www.ErrorStatusT = 1028
 	ErrorStatusInvalidDatesRequested          www.ErrorStatusT = 1029
 	ErrorStatusInvalidInvoiceEditMonthYear    www.ErrorStatusT = 1030
+	ErrorStatusInvalidDCCType                 www.ErrorStatusT = 1031
+	ErrorStatusInvalidNominatingDomain        www.ErrorStatusT = 1032
+	ErrorStatusMalformedSponsorStatement      www.ErrorStatusT = 1033
+	ErrorStatusMalformedDCCFile               www.ErrorStatusT = 1034
+	ErrorStatusInvalidDCCComment              www.ErrorStatusT = 1035
+	ErrorStatusInvalidDCCStatusTransition     www.ErrorStatusT = 1036
+	ErrorStatusDuplicateEmail                 www.ErrorStatusT = 1037
+	ErrorStatusInvalidUserNewInvoice          www.ErrorStatusT = 1038
 )
 
 var (
@@ -175,6 +213,12 @@ var (
 	// contact for registering users on cms.
 	PolicyCMSContactSupportedChars = []string{
 		"A-z", "0-9", "&", ".", ":", "-", "_", "@", "+", ",", " "}
+
+	// PolicySponsorStatementSupportedChars is the regular expression of a valid
+	// sponsor statement for DCC in cms.
+	PolicySponsorStatementSupportedChars = []string{
+		"A-z", "0-9", "&", ".", ",", ":", ";", "-", " ", "@", "+", "#", "/",
+		"(", ")", "!", "?", "\"", "'"}
 
 	// ErrorStatus converts error status codes to human readable text.
 	ErrorStatus = map[www.ErrorStatusT]string{
@@ -205,6 +249,14 @@ var (
 		ErrorStatusDuplicatePaymentAddress:        "a duplicate payment address was used",
 		ErrorStatusInvalidDatesRequested:          "invalid dates were requested",
 		ErrorStatusInvalidInvoiceEditMonthYear:    "invalid attempt to edit invoice month/year",
+		ErrorStatusInvalidDCCType:                 "invalid DCC type was included",
+		ErrorStatusInvalidNominatingDomain:        "non-matching domain was attempt",
+		ErrorStatusMalformedSponsorStatement:      "DCC sponsor statement was malformed",
+		ErrorStatusMalformedDCCFile:               "submitted DCC file was malformed according to standards",
+		ErrorStatusInvalidDCCComment:              "submitted DCC comment must either be aye or nay",
+		ErrorStatusInvalidDCCStatusTransition:     "invalid status transition for a DCC",
+		ErrorStatusDuplicateEmail:                 "another user already has that email registered",
+		ErrorStatusInvalidUserNewInvoice:          "current contractor status does not allow new invoices to be created",
 	}
 )
 
@@ -316,7 +368,7 @@ type LineItemsInput struct {
 	Expenses      uint          `json:"expenses"`      // Total cost (in USD cents) of line item (if expense or misc)
 }
 
-// Policy for CMS
+// PolicyReply for returns the various policy information while in CMS mode.
 type PolicyReply struct {
 	MinPasswordLength             uint     `json:"minpasswordlength"`
 	MinUsernameLength             uint     `json:"minusernamelength"`
@@ -513,3 +565,84 @@ type EditUser struct {
 
 // EditUserReply is the reply for the EditUser command.
 type EditUserReply struct{}
+
+// DCCInput contains all of the information concerning a DCC object that
+// will be submitted as a Record to the politeiad backend.
+type DCCInput struct {
+	Type          DCCTypeT `json:"type"`          // Type of DCC object
+	NomineeUserID string   `json:"nomineeuserid"` // UserID of the DCC nominee (issuance or revocation)
+	//SponsorUserID    string      `json:"sponsoruserid"` // UserID of the sponsoring user
+	SponsorStatement string      `json:"statement"` // Statement from sponsoring user about why DCC should be approved
+	Domain           DomainTypeT `json:"domain"`    // Domain of proposed contractor issuance
+}
+
+// DCCRecord is what will be decoded from a Record for a DCC object to the politeiad backend.
+type DCCRecord struct {
+	Type               DCCTypeT   `json:"type"`               // Type of DCC
+	Status             DCCStatusT `json:"status"`             // Current status of the DCC
+	StatusChangeReason string     `json:"statuschangereason"` // The reason for changing the DCC status.
+	Timestamp          int64      `json:"timestamp"`          // Last update of dcc
+	DCC                DCCInput   `json:"dccpayload"`         // DCC payload for the given object
+	Files              []www.File `json:"file"`               // Actual DCC files (dcc.json, etc)
+	PublicKey          string     `json:"publickey"`          // Sponsoring user's public key, used to verify signature.
+	Signature          string     `json:"signature"`          // Signature of file digest
+	Version            string     `json:"version"`            // Record version
+
+	SponsorStatement string      `json:"statement"` // Sponsor statement in support of the DCC
+	Domain           DomainTypeT `json:"domain"`    // Domain of DCC
+
+	SponsorUserID   string `json:"sponsoruserid"`   // The userid of the sponsoring user.
+	SponsorUsername string `json:"sponsorusername"` // The username of the sponsoring user.
+
+	SupportUserIDs    []string `json:"supportuserids"` // List of UserIDs for those that have shown support of the DCC.
+	OppositionUserIDs []string `json:"againstuserids"` // List of UserIDs for those that have shown opposition of the DCC.
+
+	CensorshipRecord www.CensorshipRecord `json:"censorshiprecord"`
+}
+
+// NewDCC is a request for submitting a new DCC proposal.
+type NewDCC struct {
+	Files     []www.File `json:"files"`     // Issuance/Revocation file and any attachments along with it
+	PublicKey string     `json:"publickey"` // Pubkey of the sponsoring user
+	Signature string     `json:"signature"` // Signature of the issuance struct by the sponsoring user.
+}
+
+// NewDCCReply returns the censorship record when the DCC is successfully submitted to the backend.
+type NewDCCReply struct {
+	CensorshipRecord www.CensorshipRecord `json:"censorshiprecord"`
+}
+
+// NewDCCUser request adds a new user to the userdb (much like Invite), but this
+// user's information and access is limited until they are fully approved.
+type NewDCCUser struct {
+	ContractorName    string `json:"contractorname"`
+	ContractorContact string `json:"contractorcontact"`
+	ContractorEmail   string `json:"contractoremail"`
+	Signature         string `json:"signature"` // Signature of name + contact + email
+	PublicKey         string `json:"publickey"` // Public key of user
+}
+
+// NewDCCUserReply returns an empty response when successful.
+type NewDCCUserReply struct {
+	UserID string `json:"userid"` // UserID of the newly created nominee user.
+}
+
+// DCCDetails request finds a DCC with a matching token.
+type DCCDetails struct {
+	Token string `json:"token"` // Token of requested DCC
+}
+
+// DCCDetailsReply returns the DCC details if found.
+type DCCDetailsReply struct {
+	DCC DCCRecord `json:"dcc"` // DCCRecord of requested token
+}
+
+// GetDCCs request finds all DCCs that have matching status (if used).
+type GetDCCs struct {
+	Status DCCStatusT `json:"status"` // Return all DCCs of this status
+}
+
+// GetDCCsReply returns the DCCs if found.
+type GetDCCsReply struct {
+	DCCs []DCCRecord `json:"dccs"` // DCCRecords of matching status
+}

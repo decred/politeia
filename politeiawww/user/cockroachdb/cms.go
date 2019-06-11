@@ -3,6 +3,7 @@ package cockroachdb
 import (
 	"fmt"
 
+	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/jinzhu/gorm"
 )
@@ -266,6 +267,66 @@ func (c *cockroachdb) cmdCMSUserByID(payload string) (string, error) {
 	return string(reply), nil
 }
 
+// newDCCUser creates a new User record and a corresponding CMSUser record
+// with the provided user info.
+//
+// This function must be called using a transaction.
+func (c *cockroachdb) newDCCUser(tx *gorm.DB, ndu user.NewDCCUser) error {
+	// Create a new User record
+	u := user.User{
+		Email:    ndu.Email,
+		Username: ndu.Username,
+	}
+	id, err := c.userNew(tx, u)
+	if err != nil {
+		return err
+	}
+
+	// Create a CMSUser record
+	cms := CMSUser{
+		ID:                *id,
+		ContractorName:    ndu.ContractorName,
+		ContractorContact: ndu.ContractorContact,
+		ContractorType:    int(cms.ContractorTypeNominee),
+	}
+	err = tx.Create(&cms).Error
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// cmdNewDCCUser inserts a new DCCUser record into the database.
+func (c *cockroachdb) cmdNewDCCUser(payload string) (string, error) {
+	// Decode payload
+	ndu, err := user.DecodeNewDCCUser([]byte(payload))
+	if err != nil {
+		return "", err
+	}
+
+	// Create a new User record and a new CMSUser
+	// record using a transaction.
+	tx := c.userDB.Begin()
+	err = c.newDCCUser(tx, *ndu)
+	if err != nil {
+		tx.Rollback()
+		return "", err
+	}
+	err = tx.Commit().Error
+	if err != nil {
+		return "", err
+	}
+
+	// Prepare reply
+	var ndur user.NewDCCUserReply
+	reply, err := user.EncodeNewDCCUserReply(ndur)
+	if err != nil {
+		return "", nil
+	}
+
+	return string(reply), nil
+}
+
 // Exec executes a cms plugin command.
 func (c *cockroachdb) cmsPluginExec(cmd, payload string) (string, error) {
 	switch cmd {
@@ -277,6 +338,8 @@ func (c *cockroachdb) cmsPluginExec(cmd, payload string) (string, error) {
 		return c.cmdUpdateCMSUser(payload)
 	case user.CmdCMSUserByID:
 		return c.cmdCMSUserByID(payload)
+	case user.CmdNewDCCUser:
+		return c.cmdNewDCCUser(payload)
 	default:
 		return "", user.ErrInvalidPluginCmd
 	}

@@ -54,6 +54,10 @@ var (
 	// is required but has not been passed into the command.
 	errInvoiceCSVNotFound = errors.New("invoice csv file not found.  " +
 		"You must either provide a csv file or use the --random flag.")
+
+	// errInvalidDCCType is emitted if there is a bad dcc type used.
+	errInvalidDCCType = errors.New("submitted dcc type is invalid," +
+		"must be 1 (Issuance) or 2 (Revocation)")
 )
 
 // Cmds is used to represent all of the politeiawwwcli commands.
@@ -67,6 +71,8 @@ type Cmds struct {
 	ChangeUsername      ChangeUsernameCmd      `command:"changeusername" description:"(user)   change the username for the logged in user"`
 	CMSUserDetails      CMSUserDetailsCmd      `command:"cmsuserdetails" description:"(user) get current cms user details"`
 	CMSEditUser         CMSEditUserCmd         `command:"cmsedituser" description:"(user) edit current cms user information"`
+	DCCDetails          DCCDetailsCmd          `command:"dccdetails" description:"(user) get the details of a dcc"`
+	GetDCCs             GetDCCsCmd             `command:"getdccs" description:"(user) get all dccs (optional by status)"`
 	EditInvoice         EditInvoiceCmd         `command:"editinvoice" description:"(user)    edit a invoice"`
 	EditProposal        EditProposalCmd        `command:"editproposal" description:"(user)   edit a proposal"`
 	ManageUser          ManageUserCmd          `command:"manageuser" description:"(admin)  edit certain properties of the specified user"`
@@ -83,10 +89,12 @@ type Cmds struct {
 	Login               LoginCmd               `command:"login" description:"(public) login to Politeia"`
 	Logout              LogoutCmd              `command:"logout" description:"(public) logout of Politeia"`
 	Me                  MeCmd                  `command:"me" description:"(user)   get user details for the logged in user"`
+	NewDCC              NewDCCCmd              `command:"newdcc" description:"(user)   creates a new dcc proposal"`
 	NewInvoice          NewInvoiceCmd          `command:"newinvoice" description:"(user)   create a new invoice"`
 	NewProposal         NewProposalCmd         `command:"newproposal" description:"(user)   create a new proposal"`
 	NewComment          NewCommentCmd          `command:"newcomment" description:"(user)   create a new proposal comment"`
 	NewUser             NewUserCmd             `command:"newuser" description:"(public) create a new user"`
+	NewDCCUser          NewDCCUserCmd          `command:"newdccuser" description:"(user) create a new dcc user"`
 	PayInvoices         PayInvoicesCmd         `command:"payinvoices" description:"(admin) set all approved invoices to paid"`
 	Policy              PolicyCmd              `command:"policy" description:"(public) get the server policy"`
 	ProposalComments    ProposalCommentsCmd    `command:"proposalcomments" description:"(public) get the comments for a proposal"`
@@ -306,6 +314,50 @@ func verifyProposal(p v1.ProposalRecord, serverPubKey string) error {
 // verifyInvoice verifies a invoice's merkle root, author signature, and
 // censorship record.
 func verifyInvoice(p cms.InvoiceRecord, serverPubKey string) error {
+	// Verify merkle root
+	if len(p.Files) > 0 {
+		mr, err := merkleRoot(p.Files)
+		if err != nil {
+			return err
+		}
+		if mr != p.CensorshipRecord.Merkle {
+			return fmt.Errorf("merkle roots do not match")
+		}
+	}
+
+	// Verify proposal signature
+	pid, err := util.IdentityFromString(p.PublicKey)
+	if err != nil {
+		return err
+	}
+	sig, err := util.ConvertSignature(p.Signature)
+	if err != nil {
+		return err
+	}
+	if !pid.VerifyMessage([]byte(p.CensorshipRecord.Merkle), sig) {
+		return fmt.Errorf("could not verify proposal signature")
+	}
+
+	// Verify censorship record signature
+	id, err := util.IdentityFromString(serverPubKey)
+	if err != nil {
+		return err
+	}
+	s, err := util.ConvertSignature(p.CensorshipRecord.Signature)
+	if err != nil {
+		return err
+	}
+	msg := []byte(p.CensorshipRecord.Merkle + p.CensorshipRecord.Token)
+	if !id.VerifyMessage(msg, s) {
+		return fmt.Errorf("could not verify censorship record signature")
+	}
+
+	return nil
+}
+
+// verifyDCC verifies a dcc's merkle root, author signature, and
+// censorship record.
+func verifyDCC(p cms.DCCRecord, serverPubKey string) error {
 	// Verify merkle root
 	if len(p.Files) > 0 {
 		mr, err := merkleRoot(p.Files)

@@ -22,6 +22,9 @@ var (
 
 	// ErrExchangeRateNotFound indicates that an exchange rate for a given month/year was not found
 	ErrExchangeRateNotFound = errors.New("exchange rate not found")
+
+	// ErrDCCNotFound indicates that a DCC was not found from a given token
+	ErrDCCNotFound = errors.New("dcc not found")
 )
 
 // Database interface that is required by the web server.
@@ -48,6 +51,14 @@ type Database interface {
 	UpdatePayments(*Payments) error // Update existing payment information
 	PaymentsByAddress(string) (*Payments, error)
 	PaymentsByStatus(uint) ([]Payments, error)
+
+	// DCC
+	NewDCC(*DCC) error
+	UpdateDCC(*DCC) error
+
+	DCCByToken(string) (*DCC, error)
+	DCCsByStatus(int) ([]*DCC, error)
+	DCCsAll() ([]*DCC, error)
 
 	// Setup the invoice tables
 	Setup() error
@@ -127,4 +138,24 @@ type Payments struct {
 	AmountNeeded    int64
 	AmountReceived  int64
 	Status          cms.PaymentStatusT
+}
+
+type DCC struct {
+	Token              string
+	SponsorUserID      string
+	NomineeUserID      string
+	Type               cms.DCCTypeT
+	Status             cms.DCCStatusT
+	Files              []www.File
+	StatusChangeReason string
+	Timestamp          int64
+	PublicKey          string
+	UserSignature      string
+	ServerSignature    string
+	Version            string
+	SponsorStatement   string
+	Domain             cms.DomainTypeT
+
+	SupportUserIDs    string
+	OppositionUserIDs string
 }
