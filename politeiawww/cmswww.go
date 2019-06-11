@@ -523,6 +523,277 @@ func (p *politeiawww) handleLineItemPayouts(w http.ResponseWriter, r *http.Reque
 	util.RespondWithJSON(w, http.StatusOK, lipr)
 }
 
+func (p *politeiawww) handleNewDCC(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleNewDCC")
+
+	var nd cms.NewDCC
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&nd); err != nil {
+		RespondWithError(w, r, 0, "handleNewDCC: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+	u, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleNewDCC: getSessionUser %v", err)
+		return
+	}
+
+	ndr, err := p.processNewDCC(nd, u)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleNewDCC: processNewDCC: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, ndr)
+}
+
+func (p *politeiawww) handleSupportDCC(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleSupportDCC")
+
+	var sd cms.SupportDCC
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&sd); err != nil {
+		RespondWithError(w, r, 0, "handleSupportDCC: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+	u, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleSupportDCC: getSessionUser %v", err)
+		return
+	}
+
+	sdr, err := p.processSupportDCC(sd, u)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleSupportDCC: processSupportDCC: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, sdr)
+}
+
+func (p *politeiawww) handleOpposeDCC(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleOpposeDCC")
+
+	var od cms.OpposeDCC
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&od); err != nil {
+		RespondWithError(w, r, 0, "handleOpposeDCC: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+	u, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleOpposeDCC: getSessionUser %v", err)
+		return
+	}
+
+	odr, err := p.processOpposeDCC(od, u)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleOpposeDCC: processOpposeDCC: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, odr)
+}
+
+func (p *politeiawww) handleDCCDetails(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleDCCDetails")
+
+	var gd cms.DCCDetails
+	// get version from query string parameters
+	err := util.ParseGetParams(r, &gd)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleDCCDetails: ParseGetParams",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	// Get dcc token from path parameters
+	pathParams := mux.Vars(r)
+	gd.Token = pathParams["token"]
+
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&gd); err != nil {
+		RespondWithError(w, r, 0, "handleDCCDetails: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	gdr, err := p.processDCCDetails(gd)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleDCCDetails: processDCCDetails: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, gdr)
+}
+
+func (p *politeiawww) handleGetDCCs(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleGetDCCs")
+
+	var gds cms.GetDCCs
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&gds); err != nil {
+		RespondWithError(w, r, 0, "handleGetDCCs: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+	_, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleGetDCCs: getSessionUser %v", err)
+		return
+	}
+
+	gdsr, err := p.processGetDCCs(gds)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleGetDCCs: processGetDCCs: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, gdsr)
+}
+
+func (p *politeiawww) handleApproveDCC(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleApproveDCC")
+
+	var ad cms.ApproveDCC
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&ad); err != nil {
+		RespondWithError(w, r, 0, "handleApproveDCC: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+	u, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleApproveDCC: getSessionUser %v", err)
+		return
+	}
+
+	adr, err := p.processApproveDCC(ad, u)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleApproveDCC: processApproveDCC: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, adr)
+}
+
+func (p *politeiawww) handleRejectDCC(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleRejectDCC")
+
+	var rd cms.RejectDCC
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&rd); err != nil {
+		RespondWithError(w, r, 0, "handleRejectDCC: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+	u, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleRejectDCC: getSessionUser %v", err)
+		return
+	}
+
+	rdr, err := p.processRejectDCC(rd, u)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleRejectDCC: processRejectDCC: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, rdr)
+}
+
+func (p *politeiawww) handleNewDCCUser(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleNewDCCUser")
+
+	var ndu cms.NewDCCUser
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&ndu); err != nil {
+		RespondWithError(w, r, 0, "handleNewDCCUser: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+	u, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleNewDCCUser: getSessionUser %v", err)
+		return
+	}
+
+	ndur, err := p.processNewDCCUser(ndu, u)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleNewDCCUser: processNewDCCUser: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, ndur)
+}
+
+// handleNewCommentDCC handles incomming comments for DCC.
+func (p *politeiawww) handleNewCommentDCC(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleNewCommentDCC")
+
+	var sc www.NewComment
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&sc); err != nil {
+		RespondWithError(w, r, 0, "handleNewCommentDCC: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleNewCommentDCC: getSessionUser %v", err)
+		return
+	}
+
+	cr, err := p.processNewCommentDCC(sc, user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleNewCommentDCC: processNewCommentDCC: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, cr)
+}
+
 func (p *politeiawww) setCMSWWWRoutes() {
 	// Templates
 	//p.addTemplate(templateNewProposalSubmittedName,
@@ -559,6 +830,20 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		p.handleInvoiceComments, permissionLogin)
 	p.addRoute(http.MethodPost, cms.RouteInvoiceExchangeRate,
 		p.handleInvoiceExchangeRate, permissionLogin)
+	p.addRoute(http.MethodPost, cms.RouteNewDCC,
+		p.handleNewDCC, permissionLogin)
+	p.addRoute(http.MethodPost, cms.RouteSupportDCC,
+		p.handleSupportDCC, permissionLogin)
+	p.addRoute(http.MethodPost, cms.RouteOpposeDCC,
+		p.handleOpposeDCC, permissionLogin)
+	p.addRoute(http.MethodGet, cms.RouteDCCDetails,
+		p.handleDCCDetails, permissionLogin)
+	p.addRoute(http.MethodPost, cms.RouteGetDCCs,
+		p.handleGetDCCs, permissionLogin)
+	p.addRoute(http.MethodPost, cms.RouteNewDCCUser,
+		p.handleNewDCCUser, permissionLogin)
+	p.addRoute(http.MethodPost, cms.RouteNewCommentDCC,
+		p.handleNewCommentDCC, permissionLogin)
 
 	// Unauthenticated websocket
 	p.addRoute("", www.RouteUnauthenticatedWebSocket,
@@ -584,4 +869,8 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		p.handleLineItemPayouts, permissionAdmin)
 	p.addRoute(http.MethodGet, cms.RouteAdminUserInvoices,
 		p.handleAdminUserInvoices, permissionAdmin)
+	p.addRoute(http.MethodPost, cms.RouteApproveDCC,
+		p.handleApproveDCC, permissionAdmin)
+	p.addRoute(http.MethodPost, cms.RouteRejectDCC,
+		p.handleRejectDCC, permissionAdmin)
 }

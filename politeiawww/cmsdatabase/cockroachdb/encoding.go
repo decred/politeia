@@ -203,3 +203,47 @@ func decodePayment(payments *Payments) database.Payments {
 	dbPayments.Status = cms.PaymentStatusT(payments.Status)
 	return dbPayments
 }
+
+func encodeDCC(dbDCC *database.DCC) DCC {
+	dcc := DCC{
+		Token:              dbDCC.Token,
+		SponsorUserID:      dbDCC.SponsorUserID,
+		NomineeUserID:      dbDCC.NomineeUserID,
+		Type:               int(dbDCC.Type),
+		Status:             int(dbDCC.Status),
+		StatusChangeReason: dbDCC.StatusChangeReason,
+		Timestamp:          dbDCC.Timestamp,
+		PublicKey:          dbDCC.PublicKey,
+		UserSignature:      dbDCC.UserSignature,
+		ServerSignature:    dbDCC.ServerSignature,
+		Version:            dbDCC.Version,
+		SponsorStatement:   dbDCC.SponsorStatement,
+		Domain:             int(dbDCC.Domain),
+
+		SupportUserIDs:    dbDCC.SupportUserIDs,
+		OppositionUserIDs: dbDCC.OppositionUserIDs,
+	}
+	return dcc
+}
+
+func decodeDCC(dcc *DCC) *database.DCC {
+	dbDCC := database.DCC{
+		Token:              dcc.Token,
+		SponsorUserID:      dcc.SponsorUserID,
+		NomineeUserID:      dcc.NomineeUserID,
+		Type:               cms.DCCTypeT(dcc.Type),
+		Status:             cms.DCCStatusT(dcc.Status),
+		StatusChangeReason: dcc.StatusChangeReason,
+		Timestamp:          dcc.Timestamp,
+		PublicKey:          dcc.PublicKey,
+		UserSignature:      dcc.UserSignature,
+		ServerSignature:    dcc.ServerSignature,
+		Version:            dcc.Version,
+		SponsorStatement:   dcc.SponsorStatement,
+		Domain:             cms.DomainTypeT(dcc.Domain),
+
+		SupportUserIDs:    dcc.SupportUserIDs,
+		OppositionUserIDs: dcc.OppositionUserIDs,
+	}
+	return &dbDCC
+}

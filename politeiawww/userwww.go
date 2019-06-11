@@ -28,6 +28,8 @@ var (
 		template.New("user_changed_password").Parse(templateUserPasswordChangedRaw))
 	templateInviteNewUserEmail = template.Must(
 		template.New("invite_new_user_email_template").Parse(templateInviteNewUserEmailRaw))
+	templateApproveDCCUserEmail = template.Must(
+		template.New("approve_dcc_user_email_template").Parse(templateApproveDCCUserEmailRaw))
 )
 
 // getSession returns the active cookie session.

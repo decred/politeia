@@ -1750,6 +1750,197 @@ func (c *Client) CMSEditUser(uui cms.EditUser) (*cms.EditUserReply, error) {
 	return &eur, nil
 }
 
+// NewDCC creates a new dcc proposal.
+func (c *Client) NewDCC(nd cms.NewDCC) (*cms.NewDCCReply, error) {
+	responseBody, err := c.makeRequest("POST", cms.RouteNewDCC,
+		nd)
+	if err != nil {
+		return nil, err
+	}
+
+	var ndr cms.NewDCCReply
+	err = json.Unmarshal(responseBody, &ndr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal NewDCCReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(ndr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &ndr, nil
+}
+
+// NewDCCUser creates a new user that is used for dcc nomination
+func (c *Client) NewDCCUser(ndu cms.NewDCCUser) (*cms.NewDCCUserReply, error) {
+	responseBody, err := c.makeRequest("POST", cms.RouteNewDCCUser,
+		ndu)
+	if err != nil {
+		return nil, err
+	}
+
+	var ndur cms.NewDCCUserReply
+	err = json.Unmarshal(responseBody, &ndur)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal NewDCCReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(ndur)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &ndur, nil
+}
+
+// SupportDCC issues support for a given DCC proposal.
+func (c *Client) SupportDCC(sd cms.SupportDCC) (*cms.SupportDCCReply, error) {
+	responseBody, err := c.makeRequest("POST", cms.RouteSupportDCC,
+		sd)
+	if err != nil {
+		return nil, err
+	}
+
+	var sdr cms.SupportDCCReply
+	err = json.Unmarshal(responseBody, &sdr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal SupportDCCReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(sdr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &sdr, nil
+}
+
+// OpposeDCC issues an opposition for a given DCC proposal.
+func (c *Client) OpposeDCC(sd cms.OpposeDCC) (*cms.OpposeDCCReply, error) {
+	responseBody, err := c.makeRequest("POST", cms.RouteOpposeDCC,
+		sd)
+	if err != nil {
+		return nil, err
+	}
+
+	var sdr cms.OpposeDCCReply
+	err = json.Unmarshal(responseBody, &sdr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal OpposeDCCReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(sdr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &sdr, nil
+}
+
+// ApproveDCC issues an admin approval for a given DCC proposal.
+func (c *Client) ApproveDCC(sd cms.ApproveDCC) (*cms.ApproveDCCReply, error) {
+	responseBody, err := c.makeRequest("POST", cms.RouteApproveDCC,
+		sd)
+	if err != nil {
+		return nil, err
+	}
+
+	var sdr cms.ApproveDCCReply
+	err = json.Unmarshal(responseBody, &sdr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal ApproveDCCReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(sdr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &sdr, nil
+}
+
+// RejectDCC issues an admin approval for a given DCC proposal.
+func (c *Client) RejectDCC(rd cms.RejectDCC) (*cms.RejectDCCReply, error) {
+	responseBody, err := c.makeRequest("POST", cms.RouteRejectDCC,
+		rd)
+	if err != nil {
+		return nil, err
+	}
+
+	var rdr cms.RejectDCCReply
+	err = json.Unmarshal(responseBody, &rdr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal RejectDCCReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(rdr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &rdr, nil
+}
+
+// DCCDetails retrieves the specified dcc.
+func (c *Client) DCCDetails(token string) (*cms.DCCDetailsReply, error) {
+	responseBody, err := c.makeRequest("GET", "/dcc/"+token, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var ddr cms.DCCDetailsReply
+	err = json.Unmarshal(responseBody, &ddr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal DCCDetailsReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(ddr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &ddr, nil
+}
+
+// GetDCCss retrieves invoices base on possible field set in the request
+// month/year and/or status
+func (c *Client) GetDCCs(gd *cms.GetDCCs) (*cms.GetDCCsReply, error) {
+	responseBody, err := c.makeRequest("POST", cms.RouteGetDCCs, gd)
+	if err != nil {
+		return nil, err
+	}
+
+	var gdr cms.GetDCCsReply
+	err = json.Unmarshal(responseBody, &gdr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal GetDCCsReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(gdr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &gdr, nil
+}
+
 // Close all client connections.
 func (c *Client) Close() {
 	if c.conn != nil {
