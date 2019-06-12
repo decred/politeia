@@ -35,7 +35,7 @@ const (
 	SetVettedStatusRoute   = "/v1/setvettedstatus/"            // Set vetted status
 	PluginCommandRoute     = "/v1/plugin/"                     // Send a command to a plugin
 	PluginInventoryRoute   = PluginCommandRoute + "inventory/" // Inventory all plugins
-	UpdateReadmeRoute      = "/v1/updatereadme/"               // Update git repository README.md
+	UpdateReadmeRoute      = "/v1/updatereadme/"               // Update README
 
 	ChallengeSize      = 32         // Size of challenge token in bytes
 	TokenSize          = 32         // Size of token
