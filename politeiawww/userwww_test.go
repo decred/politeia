@@ -36,24 +36,33 @@ func TestHandleNewUser(t *testing.T) {
 		wantStatus int
 		wantError  error
 	}{
-		{"invalid request body", "", http.StatusBadRequest,
+		{
+			"invalid request body",
+			"",
+			http.StatusBadRequest,
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidInput,
-			}},
-
-		{"processNewUser error", www.NewUser{}, http.StatusBadRequest,
+			},
+		},
+		{
+			"processNewUser error",
+			www.NewUser{},
+			http.StatusBadRequest,
 			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidPublicKey,
-			}},
-
-		{"success",
+				ErrorCode: www.ErrorStatusMalformedEmail,
+			},
+		},
+		{
+			"success",
 			www.NewUser{
 				Email:     "user@example.com",
 				Password:  "password",
 				PublicKey: hex.EncodeToString(id.Public.Key[:]),
 				Username:  "user",
 			},
-			http.StatusOK, nil},
+			http.StatusOK,
+			nil,
+		},
 	}
 
 	// Run tests
@@ -518,7 +527,7 @@ func TestHandleResetPassword(t *testing.T) {
 	// password verification token.
 	usr, _ := newUser(t, p, true, false)
 	newPass := usr.Username + "aaa"
-	token, expiry, err := generateVerificationTokenAndExpiry()
+	token, expiry, err := newVerificationTokenAndExpiry()
 	if err != nil {
 		t.Fatalf("%v", err)
 	}

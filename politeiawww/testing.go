@@ -99,12 +99,6 @@ func addProposalCredits(t *testing.T, p *politeiawww, u *user.User, quantity int
 func newUser(t *testing.T, p *politeiawww, isVerified, isAdmin bool) (*user.User, *identity.FullIdentity) {
 	t.Helper()
 
-	// Create a new user identity
-	id, err := identity.New()
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
-
 	// Generate random bytes to be used as user credentials
 	r, err := util.Random(int(www.PolicyMinPasswordLength))
 	if err != nil {
@@ -116,40 +110,36 @@ func newUser(t *testing.T, p *politeiawww, isVerified, isAdmin bool) (*user.User
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
-
-	pubkey := hex.EncodeToString(id.Public.Key[:])
-	_, err = validatePubkey(pubkey)
+	tokenb, expiry, err := newVerificationTokenAndExpiry()
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
-
-	token, expiry, err := generateVerificationTokenAndExpiry()
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
-
 	u := user.User{
 		ID:                        uuid.New(),
 		Admin:                     isAdmin,
 		Email:                     hex.EncodeToString(r) + "@example.com",
 		Username:                  hex.EncodeToString(r),
 		HashedPassword:            pass,
-		NewUserVerificationToken:  token,
+		NewUserVerificationToken:  tokenb,
 		NewUserVerificationExpiry: expiry,
 	}
-	identity, err := user.NewIdentity(pubkey)
+	fid, err := identity.New()
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
-	err = u.AddIdentity(*identity)
+	pubkey := hex.EncodeToString(fid.Public.Key[:])
+	id, err := user.NewIdentity(pubkey)
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	err = u.AddIdentity(*id)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
 	if isVerified {
 		u.NewUserVerificationToken = nil
 		u.NewUserVerificationExpiry = 0
-		u.ResendNewUserVerificationExpiry = 0
-		err := u.ActivateIdentity(identity.Key[:])
+		err := u.ActivateIdentity(id.Key[:])
 		if err != nil {
 			t.Fatalf("%v", err)
 		}
@@ -187,7 +177,7 @@ func newUser(t *testing.T, p *politeiawww, isVerified, isAdmin bool) (*user.User
 		t.Fatalf("%v", err)
 	}
 
-	return usr, id
+	return usr, fid
 }
 
 // newTestPoliteiawww returns a new politeiawww context that is setup for

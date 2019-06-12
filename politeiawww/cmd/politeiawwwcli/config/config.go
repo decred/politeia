@@ -179,9 +179,9 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("load username: %v", err)
 	}
-	id, err := cfg.loadIdentity(username)
+	id, err := cfg.LoadIdentity(username)
 	if err != nil {
-		return nil, fmt.Errorf("loadIdentity: %v", err)
+		return nil, fmt.Errorf("load identity: %v", err)
 	}
 	cfg.Identity = id
 
@@ -290,7 +290,7 @@ func (cfg *Config) identityFilePath(username string) (string, error) {
 	return cfg.hostFilePath(fmt.Sprintf("%v_%v", username, identityFile))
 }
 
-func (cfg *Config) loadIdentity(username string) (*identity.FullIdentity, error) {
+func (cfg *Config) LoadIdentity(username string) (*identity.FullIdentity, error) {
 	if username == "" {
 		// No logged in user
 		return nil, nil
@@ -369,7 +369,7 @@ func (cfg *Config) SaveLoggedInUsername(username string) error {
 	// The config identity is the identity of the logged in
 	// user so we need to update the identity when the logged
 	// in user changes.
-	id, err := cfg.loadIdentity(username)
+	id, err := cfg.LoadIdentity(username)
 	if err != nil {
 		return fmt.Errorf("load identity: %v", err)
 	}
