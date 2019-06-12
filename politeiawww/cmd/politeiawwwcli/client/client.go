@@ -1634,6 +1634,30 @@ func (c *Client) InvoiceExchangeRate(ier *cms.InvoiceExchangeRate) (*cms.Invoice
 	return &ierr, nil
 }
 
+// LineItemPayouts retrieves invoices base on possible field set in the request
+// month/year and/or status
+func (c *Client) LineItemPayouts(lip *cms.LineItemPayouts) (*cms.LineItemPayoutsReply, error) {
+	responseBody, err := c.makeRequest("POST", cms.RouteLineItemPayouts, lip)
+	if err != nil {
+		return nil, err
+	}
+
+	var lipr cms.LineItemPayoutsReply
+	err = json.Unmarshal(responseBody, &lipr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal LineItemPayouts: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(lipr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &lipr, nil
+}
+
 // Close all client connections.
 func (c *Client) Close() {
 	if c.conn != nil {

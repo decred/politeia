@@ -21,6 +21,7 @@ const (
 	RouteUserInvoices        = "/user/invoices"
 	RouteAdminInvoices       = "/admin/invoices"
 	RouteGeneratePayouts     = "/admin/generatepayouts"
+	RouteLineItemPayouts     = "/admin/lineitempayouts"
 	RoutePayInvoices         = "/admin/payinvoices"
 	RouteInvoiceComments     = "/invoices/{token:[A-z0-9]{64}}/comments"
 	RouteInvoiceExchangeRate = "/invoices/exchangerate"
@@ -125,6 +126,7 @@ const (
 	ErrorStatusInvalidLineItemType            www.ErrorStatusT = 1026
 	ErrorStatusInvalidLaborExpense            www.ErrorStatusT = 1027
 	ErrorStatusDuplicatePaymentAddress        www.ErrorStatusT = 1028
+	ErrorStatusInvalidDatesRequested          www.ErrorStatusT = 1029
 )
 
 var (
@@ -178,6 +180,7 @@ var (
 		ErrorStatusInvalidInvoiceMonthYear:        "an invalid month/year was submitted on an invoice",
 		ErrorStatusInvalidExchangeRate:            "exchange rate was invalid or didn't match expected result",
 		ErrorStatusDuplicatePaymentAddress:        "a duplicate payment address was used",
+		ErrorStatusInvalidDatesRequested:          "invalid dates were requested",
 	}
 )
 
@@ -391,3 +394,16 @@ type PayInvoices struct{}
 
 // PayInvoicesReply will be empty if no errors have occurred.
 type PayInvoicesReply struct{}
+
+// LineItemPayouts contains the request to receive line items from payouts
+// within a start and end date.
+type LineItemPayouts struct {
+	StartTime int64 `json:"starttime"` // Start time for range (in unix seconds)
+	EndTime   int64 `json:"endtime"`   // End time for rang (in unix seconds)
+}
+
+// LineItemPayoutsReply returns an array of line items within the requested
+// date range.
+type LineItemPayoutsReply struct {
+	LineItems []LineItemsInput `json:"lineitems"` // Line items within the requested date range.
+}

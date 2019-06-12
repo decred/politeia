@@ -74,6 +74,7 @@ type Cmds struct {
 	InviteNewUser       InviteNewUserCmd       `command:"invite" description:"(admin)  invite a new user"`
 	InvoiceDetails      InvoiceDetailsCmd      `command:"invoicedetails" description:"(public) get the details of a proposal"`
 	LikeComment         LikeCommentCmd         `command:"likecomment" description:"(user)   upvote/downvote a comment"`
+	LineItemPayouts     LineItemPayoutsCmd     `command:"lineitempayouts" description:"(admin) generate line item list for a given date range"`
 	Login               LoginCmd               `command:"login" description:"(public) login to Politeia"`
 	Logout              LogoutCmd              `command:"logout" description:"(public) logout of Politeia"`
 	Me                  MeCmd                  `command:"me" description:"(user)   get user details for the logged in user"`

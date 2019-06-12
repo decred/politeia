@@ -19,6 +19,7 @@ server side notifications.  It does not render HTML.
 - [`Invoice comments`](#invoice-comments)
 - [`Invoice exchange rate`](#invoice-exchange-rate)
 - [`Pay invoices`](#pay-invoices)
+- [`Line item payouts`](#line-item-payouts)
 
 **Invoice status codes**
 
@@ -638,6 +639,63 @@ Reply:
 {}
 ```
 
+### `Line Item Payouts`
+
+This command would provide a list of line items that were paid out in a given
+date range.  
+
+Note: This call requires admin privileges.
+
+**Route:** `GET /v1/admin/lineitempayouts`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| starttime | int64 | Start time for the line item range (in Unix seconds) | Yes |
+| endtime | int64 | End time for the line item range (in Unix seconds) | Yes |
+
+**Results:**
+
+| | Type | Description |
+|-|-|-|
+
+**Example**
+
+Request:
+
+```json
+{
+  "starttime": "1559460156",
+  "endtime": "1560460156"
+}
+```
+
+Reply:
+
+```json
+{
+  "lineitems": [{  
+      "type": 1,
+      "domain": "Design",
+      "subdomain": "dcrweb",
+      "description": "Creating mock ups of the current site.",
+      "proposaltoken": "",
+      "labor": 7380,
+      "expenses": 0
+    },
+    {
+      "type": 2,
+      "domain": "Design",
+      "subdomain": "dcrweb",
+      "description": "Buying stickers.  Lots of stickers.",
+      "proposaltoken": "",
+      "labor": 0,
+      "expenses": 5000
+    }
+  ]
+```
+
 ### Error codes
 
 | Status | Value | Description |
@@ -670,6 +728,7 @@ Reply:
 | <a name="ErrorStatusInvalidLineItemType">ErrorStatusInvalidLineItemType</a> | 1026 | An invalid line item type was attempted. |
 | <a name="ErrorStatusInvalidLaborExpense">ErrorStatusInvalidLaborExpense</a> | 1027 | An invalid value was entered into labor or expenses. |
 | <a name="ErrorStatusDuplicatePaymentAddress">ErrorStatusDuplicatePaymentAddress</a> | 1028 | An duplicate payment address was entered. |
+| <a name="ErrorStatusInvalidDatesRequested"></a> | 1029 | Invalid dates were submitted for a request. |
 
 ### Invoice status codes
 

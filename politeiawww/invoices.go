@@ -1556,3 +1556,22 @@ func decodeBackendInvoiceStatusChanges(payload []byte) ([]backendInvoiceStatusCh
 
 	return md, nil
 }
+
+// processLineItemPayouts looks for all line items within the given start and end dates.
+func (p *politeiawww) processLineItemPayouts(lip cms.LineItemPayouts) (*cms.LineItemPayoutsReply, error) {
+	reply := &cms.LineItemPayoutsReply{}
+
+	// check for valid dates
+	if lip.StartTime > lip.EndTime {
+		return nil, www.UserError{
+			ErrorCode: cms.ErrorStatusInvalidDatesRequested,
+		}
+	}
+	dbLineItems, err := p.cmsDB.LineItemsByDateRange(lip.StartTime, lip.EndTime)
+	if err != nil {
+		return nil, err
+	}
+	lineItems := convertDatabaseToLineItems(dbLineItems)
+	reply.LineItems = lineItems
+	return reply, nil
+}
