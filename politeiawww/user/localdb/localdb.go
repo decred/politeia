@@ -47,7 +47,7 @@ func isUserRecord(key string) bool {
 
 // Store new user.
 //
-// UserNew satisfies the backend interface.
+// UserNew satisfies the Database interface.
 func (l *localdb) UserNew(u user.User) error {
 	l.Lock()
 	defer l.Unlock()
@@ -101,7 +101,7 @@ func (l *localdb) UserNew(u user.User) error {
 
 // UserGet returns a user record if found in the database.
 //
-// UserGet satisfies the backend interface.
+// UserGet satisfies the Database interface.
 func (l *localdb) UserGet(email string) (*user.User, error) {
 	l.RLock()
 	defer l.RUnlock()
@@ -128,7 +128,7 @@ func (l *localdb) UserGet(email string) (*user.User, error) {
 // UserGetByUsername returns a user record given its username, if found in the
 // database.
 //
-// UserGetByUsername satisfies the backend interface.
+// UserGetByUsername satisfies the Database interface.
 func (l *localdb) UserGetByUsername(username string) (*user.User, error) {
 	l.RLock()
 	defer l.RUnlock()
@@ -166,9 +166,49 @@ func (l *localdb) UserGetByUsername(username string) (*user.User, error) {
 	return nil, user.ErrUserNotFound
 }
 
+// UserGetByPubKey returns a user record given its public key. The public key
+// can be any of the public keys in the user's identity history.
+//
+// UserGetByPubKey satisfies the Database interface.
+func (l *localdb) UserGetByPubKey(pubKey string) (*user.User, error) {
+	log.Tracef("UserGetByPubKey: %v", pubKey)
+
+	l.RLock()
+	defer l.RUnlock()
+
+	if l.shutdown {
+		return nil, user.ErrShutdown
+	}
+
+	iter := l.userdb.NewIterator(nil, nil)
+	for iter.Next() {
+		key := iter.Key()
+		value := iter.Value()
+		if !isUserRecord(string(key)) {
+			continue
+		}
+		u, err := user.DecodeUser(value)
+		if err != nil {
+			return nil, err
+		}
+		for _, v := range u.Identities {
+			if v.String() == pubKey {
+				return u, err
+			}
+		}
+	}
+	iter.Release()
+
+	if iter.Error() != nil {
+		return nil, iter.Error()
+	}
+
+	return nil, user.ErrUserNotFound
+}
+
 // UserGetById returns a user record given its id, if found in the database.
 //
-// UserGetById satisfies the backend interface.
+// UserGetById satisfies the Database interface.
 func (l *localdb) UserGetById(id uuid.UUID) (*user.User, error) {
 	l.RLock()
 	defer l.RUnlock()
@@ -208,7 +248,7 @@ func (l *localdb) UserGetById(id uuid.UUID) (*user.User, error) {
 
 // Update existing user.
 //
-// UserUpdate satisfies the backend interface.
+// UserUpdate satisfies the Database interface.
 func (l *localdb) UserUpdate(u user.User) error {
 	l.Lock()
 	defer l.Unlock()
@@ -237,7 +277,7 @@ func (l *localdb) UserUpdate(u user.User) error {
 
 // Update existing user.
 //
-// UserUpdate satisfies the backend interface.
+// UserUpdate satisfies the Database interface.
 func (l *localdb) AllUsers(callbackFn func(u *user.User)) error {
 	l.Lock()
 	defer l.Unlock()
@@ -272,7 +312,7 @@ func (l *localdb) AllUsers(callbackFn func(u *user.User)) error {
 // Close shuts down the database.  All interface functions MUST return with
 // errShutdown if the backend is shutting down.
 //
-// Close satisfies the backend interface.
+// Close satisfies the Database interface.
 func (l *localdb) Close() error {
 	l.Lock()
 	defer l.Unlock()

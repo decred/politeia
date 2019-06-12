@@ -56,25 +56,26 @@ func (p *politeiawww) getComment(token, commentID string) (*www.Comment, error) 
 	}
 	c := convertCommentFromDecred(*dc)
 
+	// Lookup author info
+	u, err := p.db.UserGetByPubKey(c.PublicKey)
+	if err != nil {
+		log.Errorf("getComment: UserGetByPubKey: token:%v commentID:%v "+
+			"pubKey:%v err:%v", token, commentID, c.PublicKey, err)
+	} else {
+		c.UserID = u.ID.String()
+		c.Username = u.Username
+	}
+
+	// Lookup comment vote score
 	p.RLock()
 	defer p.RUnlock()
 
-	// Lookup comment vote score
 	score, ok := p.commentScores[token+commentID]
 	if !ok {
 		log.Errorf("getComment: comment score lookup failed for "+
 			"token:%v commentID:%v", token, commentID)
 	}
 	c.ResultVotes = score
-
-	// Lookup author info
-	userID, ok := p.userPubkeys[c.PublicKey]
-	if !ok {
-		log.Errorf("getComment: userID lookup failed for pubkey:%v "+
-			"token:%v commentID:%v", c.PublicKey, token, commentID)
-	}
-	c.UserID = userID
-	c.Username = p.getUsernameById(userID)
 
 	return &c, nil
 }
@@ -115,11 +116,12 @@ func (p *politeiawww) updateCommentScore(token, commentID string) (int64, error)
 		}
 
 		// Lookup the userID of the comment author
-		userID, ok := p.userPubkeys[v.PublicKey]
-		if !ok {
-			return 0, fmt.Errorf("userID lookup failed for pubkey %v",
+		u, err := p.db.UserGetByPubKey(v.PublicKey)
+		if err != nil {
+			return 0, fmt.Errorf("user lookup failed for pubkey %v",
 				v.PublicKey)
 		}
+		userID := u.ID.String()
 
 		// Lookup the previous like comment action that the author
 		// made on this comment
@@ -182,9 +184,16 @@ func (p *politeiawww) processNewComment(nc www.NewComment, u *user.User) (*www.N
 		}
 	}
 
-	// Verify authenticity
-	err := checkPublicKeyAndSignature(u, nc.PublicKey, nc.Signature,
-		nc.Token, nc.ParentID, nc.Comment)
+	// Ensure the public key is the user's active key
+	if nc.PublicKey != u.PublicKey() {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSigningKey,
+		}
+	}
+
+	// Validate signature
+	msg := nc.Token + nc.ParentID + nc.Comment
+	err := validateSignature(nc.PublicKey, nc.Signature, msg)
 	if err != nil {
 		return nil, err
 	}
@@ -312,19 +321,24 @@ func (p *politeiawww) processNewCommentInvoice(nc www.NewComment, u *user.User) 
 		return nil, err
 	}
 
-	_, ok := p.userPubkeys[ir.PublicKey]
-
-	// Check to make sure the user is either an admin or the creator of the invoice
-	if !u.Admin && !ok {
-		err := www.UserError{
+	// Check to make sure the user is either an admin or the
+	// author of the invoice.
+	if !u.Admin && (ir.Username != u.Username) {
+		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusUserActionNotAllowed,
 		}
-		return nil, err
 	}
 
-	// Verify authenticity
-	err = checkPublicKeyAndSignature(u, nc.PublicKey, nc.Signature,
-		nc.Token, nc.ParentID, nc.Comment)
+	// Ensure the public key is the user's active key
+	if nc.PublicKey != u.PublicKey() {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSigningKey,
+		}
+	}
+
+	// Validate signature
+	msg := nc.Token + nc.ParentID + nc.Comment
+	err = validateSignature(nc.PublicKey, nc.Signature, msg)
 	if err != nil {
 		return nil, err
 	}
@@ -428,9 +442,16 @@ func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www
 		}
 	}
 
-	// Verify authenticity
-	err := checkPublicKeyAndSignature(u, lc.PublicKey, lc.Signature,
-		lc.Token, lc.CommentID, lc.Action)
+	// Ensure the public key is the user's active key
+	if lc.PublicKey != u.PublicKey() {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSigningKey,
+		}
+	}
+
+	// Validate signature
+	msg := lc.Token + lc.CommentID + lc.Action
+	err := validateSignature(lc.PublicKey, lc.Signature, msg)
 	if err != nil {
 		return nil, err
 	}
@@ -559,9 +580,16 @@ func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www
 func (p *politeiawww) processCensorComment(cc www.CensorComment, u *user.User) (*www.CensorCommentReply, error) {
 	log.Tracef("processCensorComment: %v: %v", cc.Token, cc.CommentID)
 
-	// Verify authenticity
-	err := checkPublicKeyAndSignature(u, cc.PublicKey, cc.Signature,
-		cc.Token, cc.CommentID, cc.Reason)
+	// Ensure the public key is the user's active key
+	if cc.PublicKey != u.PublicKey() {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSigningKey,
+		}
+	}
+
+	// Validate signature
+	msg := cc.Token + cc.CommentID + cc.Reason
+	err := validateSignature(cc.PublicKey, cc.Signature, msg)
 	if err != nil {
 		return nil, err
 	}

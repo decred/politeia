@@ -113,8 +113,6 @@ type politeiawww struct {
 	test bool
 
 	// Following entries require locks
-	// XXX userPubkeys can be removed now that the userdb is queryable
-	userPubkeys     map[string]string               // [pubkey][userid]
 	userPaywallPool map[uuid.UUID]paywallPoolMember // [userid][paywallPoolMember]
 	commentScores   map[string]int64                // [token+commentID]resultVotes
 
