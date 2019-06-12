@@ -47,3 +47,23 @@ type User struct {
 func (User) TableName() string {
 	return tableUsers
 }
+
+// CMSUser represents a CMS user. A CMS user includes the politeiawww User
+// object as well as CMS specific user fields. A CMS user must correspond to
+// a politeiawww User.
+//
+// This is a CMS plugin model.
+type CMSUser struct {
+	ID     uuid.UUID `gorm:"primary_key"`            // UUID (User foreign key)
+	User   User      `gorm:"not null;foreignkey:ID"` // politeiawww user
+	Domain int       `gorm:"not null"`               // Contractor domain
+
+	// Set by gorm
+	CreatedAt time.Time // Time of record creation
+	UpdatedAt time.Time // Time of last record update
+}
+
+// TableName returns the table name of the CMSUsers table.
+func (CMSUser) TableName() string {
+	return tableCMSUsers
+}

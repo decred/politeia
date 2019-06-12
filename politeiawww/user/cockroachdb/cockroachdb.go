@@ -41,9 +41,10 @@ const (
 type cockroachdb struct {
 	sync.RWMutex
 
-	shutdown      bool      // Backend is shutdown
-	encryptionKey *[32]byte // Data at rest encryption key
-	userDB        *gorm.DB  // Database context
+	shutdown       bool                            // Backend is shutdown
+	encryptionKey  *[32]byte                       // Data at rest encryption key
+	userDB         *gorm.DB                        // Database context
+	pluginSettings map[string][]user.PluginSetting // [pluginID][]PluginSettings
 }
 
 // isShutdown returns whether the backend has been shutdown.
@@ -111,7 +112,7 @@ func (c *cockroachdb) SetPaywallAddressIndex(index uint64) error {
 // index are set before the user record is inserted into the database.
 //
 // This function must be called using a transaction.
-func (c *cockroachdb) userNew(tx *gorm.DB, u user.User) error {
+func (c *cockroachdb) userNew(tx *gorm.DB, u user.User) (*uuid.UUID, error) {
 	// Set user paywall address index
 	var index uint64
 	kv := KeyValue{
@@ -120,7 +121,7 @@ func (c *cockroachdb) userNew(tx *gorm.DB, u user.User) error {
 	err := tx.Find(&kv).Error
 	if err != nil {
 		if err != gorm.ErrRecordNotFound {
-			return fmt.Errorf("find paywall index: %v", err)
+			return nil, fmt.Errorf("find paywall index: %v", err)
 		}
 	} else {
 		index = binary.LittleEndian.Uint64(kv.Value) + 1
@@ -134,27 +135,27 @@ func (c *cockroachdb) userNew(tx *gorm.DB, u user.User) error {
 	// Create user record
 	ub, err := user.EncodeUser(u)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	eb, err := c.encrypt(user.VersionUser, ub)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	ur := convertUserFromUser(u, eb)
 	err = tx.Create(&ur).Error
 	if err != nil {
-		return fmt.Errorf("create user: %v", err)
+		return nil, fmt.Errorf("create user: %v", err)
 	}
 
 	// Update paywall address index
 	err = setPaywallAddressIndex(tx, index)
 	if err != nil {
-		return fmt.Errorf("set paywall index: %v", err)
+		return nil, fmt.Errorf("set paywall index: %v", err)
 	}
 
-	return nil
+	return &u.ID, nil
 }
 
 // UserNew creates a new user record in the database.
@@ -167,7 +168,7 @@ func (c *cockroachdb) UserNew(u user.User) error {
 
 	// Create new user with a transaction
 	tx := c.userDB.Begin()
-	err := c.userNew(tx, u)
+	_, err := c.userNew(tx, u)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -413,9 +414,9 @@ func (c *cockroachdb) RotateKeys(newKeyPath string) error {
 	return nil
 }
 
-// InsertUser inserts a user record into the database. The user record is
-// required to already be complete and the user must not already exist. This
-// function is intended to be used migrations between databases.
+// InsertUser inserts a user record into the database. The record must be a
+// complete user record and the user must not already exist. This function is
+// intended to be used for migrations between databases.
 func (c *cockroachdb) InsertUser(u user.User) error {
 	log.Tracef("InsertUser: %v", u.ID)
 
@@ -435,6 +436,62 @@ func (c *cockroachdb) InsertUser(u user.User) error {
 
 	ur := convertUserFromUser(u, eb)
 	return c.userDB.Create(&ur).Error
+}
+
+// PluginExec executes the provided plugin command.
+func (c *cockroachdb) PluginExec(pc user.PluginCommand) (*user.PluginCommandReply, error) {
+	log.Tracef("PluginExec: %v %v", pc.ID, pc.Command)
+
+	if c.isShutdown() {
+		return nil, user.ErrShutdown
+	}
+
+	var payload string
+	var err error
+	switch pc.ID {
+	case user.CMSPluginID:
+		payload, err = c.cmsPluginExec(pc.Command, pc.Payload)
+	default:
+		return nil, user.ErrInvalidPlugin
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return &user.PluginCommandReply{
+		ID:      pc.ID,
+		Command: pc.Command,
+		Payload: payload,
+	}, nil
+}
+
+// RegisterPlugin registers a plugin with the user database.
+func (c *cockroachdb) RegisterPlugin(p user.Plugin) error {
+	log.Tracef("RegisterPlugin: %v %v", p.ID, p.Version)
+
+	if c.isShutdown() {
+		return user.ErrShutdown
+	}
+
+	// Setup plugin tables
+	var err error
+	switch p.ID {
+	case user.CMSPluginID:
+		err = c.cmsPluginSetup()
+	default:
+		return user.ErrInvalidPlugin
+	}
+	if err != nil {
+		return err
+	}
+
+	// Save plugin settings
+	c.Lock()
+	defer c.Unlock()
+
+	c.pluginSettings[p.ID] = p.Settings
+
+	return nil
 }
 
 // Close shuts down the database.  All interface functions must return with
@@ -558,8 +615,9 @@ func New(host, network, sslRootCert, sslCert, sslKey, encryptionKey string) (*co
 
 	// Create context
 	c := &cockroachdb{
-		userDB:        db,
-		encryptionKey: key,
+		encryptionKey:  key,
+		userDB:         db,
+		pluginSettings: make(map[string][]user.PluginSetting),
 	}
 
 	// Disable gorm logging. This prevents duplicate errors

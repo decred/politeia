@@ -26,6 +26,13 @@ var (
 
 	// ErrShutdown is emitted when the database is shutting down.
 	ErrShutdown = errors.New("database is shutting down")
+
+	// ErrInvalidPlugin is emitted when a invalid plugin is used.
+	ErrInvalidPlugin = errors.New("invalid plugin")
+
+	// ErrInvalidPluginCmd is emitted when an invalid plugin command
+	// is used.
+	ErrInvalidPluginCmd = errors.New("invalid plugin command")
 )
 
 // Identity wraps an ed25519 public key and timestamps to indicate if it is
@@ -41,9 +48,9 @@ var (
 // deactivated: Deactivated != 0
 // The identity in no longer active and the key is no longer valid.
 type Identity struct {
-	Key         [identity.PublicKeySize]byte // ed25519 public key
-	Activated   int64                        // Time key as activated for use
-	Deactivated int64                        // Time key was deactivated
+	Key         [identity.PublicKeySize]byte `json:"key"`         // ed25519 public key
+	Activated   int64                        `json:"activated"`   // Time key as activated for use
+	Deactivated int64                        `json:"deactivated"` // Time key was deactivated
 }
 
 // Activate activates the identity by setting the activated timestamp.
@@ -98,14 +105,14 @@ func NewIdentity(publicKey string) (*Identity, error) {
 // paywalls expire after a set duration. politeiawww polls the paywall address
 // for a payment tx until the paywall is either paid or it expires.
 type ProposalPaywall struct {
-	ID          uint64 // Paywall ID
-	CreditPrice uint64 // Cost per proposal credit in atoms
-	Address     string // Paywall address
-	TxNotBefore int64  // Minimum timestamp for paywall tx
-	PollExpiry  int64  // After this time, the paywall address will not be continuously polled
-	TxID        string // Payment transaction ID
-	TxAmount    uint64 // Amount sent to paywall address in atoms
-	NumCredits  uint64 // Number of proposal credits created by payment tx
+	ID          uint64 `json:"id"`          // Paywall ID
+	CreditPrice uint64 `json:"creditprice"` // Cost per proposal credit in atoms
+	Address     string `json:"address"`     // Paywall address
+	TxNotBefore int64  `json:"txnotbefore"` // Unix timestamp of minimum timestamp for paywall tx
+	PollExpiry  int64  `json:"pollexpiry"`  // Unix timestamp of expiration time of paywall polling
+	TxID        string `json:"txid"`        // Payment transaction ID
+	TxAmount    uint64 `json:"txamount"`    // Amount sent to paywall address in atoms
+	NumCredits  uint64 `json:"numcredits"`  // Number of proposal credits created by payment tx
 }
 
 // A proposal credit allows the user to submit a new proposal.  Credits are
@@ -114,46 +121,66 @@ type ProposalPaywall struct {
 // spent, it is updated with the proposal's censorship token and moved to the
 // user's spent proposal credits list.
 type ProposalCredit struct {
-	PaywallID       uint64 // ID of the proposal paywall that created this credit
-	Price           uint64 // Price this credit was purchased at in atoms
-	DatePurchased   int64  // Unix timestamp of when the credit was purchased
-	TxID            string // Payment transaction ID
-	CensorshipToken string // Censorship token of proposal that used this credit
+	PaywallID       uint64 `json:"paywallid"`       // Proposal paywall ID of associated paywall
+	Price           uint64 `json:"price"`           // Credit price in atoms
+	DatePurchased   int64  `json:"datepurchased"`   // Unix timestamp of credit purchase
+	TxID            string `json:"txid"`            // Payment transaction ID
+	CensorshipToken string `json:"censorshiptoken"` // Token of proposal that spent this credit
 }
 
 // VersionUser is the version of the User struct.
 const VersionUser uint32 = 1
 
-// User is a politeiawww user.
+// User represents a politeiawww user.
 type User struct {
-	ID                              uuid.UUID // Unique user uuid
-	Email                           string    // Email address + lookup key.
-	Username                        string    // Unique username
-	HashedPassword                  []byte    // Blowfish hash
-	Admin                           bool      // Is user an admin
-	PaywallAddressIndex             uint64    // Sequential id used to generate paywall address
-	NewUserPaywallAddress           string    // Address the user needs to send to
-	NewUserPaywallAmount            uint64    // Amount the user needs to send
-	NewUserPaywallTx                string    // Paywall transaction id
-	NewUserPaywallTxNotBefore       int64     // Transactions occurring before this time will not be valid.
-	NewUserPaywallPollExpiry        int64     // After this time, the user's paywall address will not be continuously polled
-	NewUserVerificationToken        []byte    // New user registration verification token
-	NewUserVerificationExpiry       int64     // New user registration verification expiration
-	ResendNewUserVerificationExpiry int64     // Resend request for new user registration verification expiration
-	UpdateKeyVerificationToken      []byte    // Verification token for updating keypair
-	UpdateKeyVerificationExpiry     int64     // Verification expiration
-	ResetPasswordVerificationToken  []byte    // Reset password token
-	ResetPasswordVerificationExpiry int64     // Reset password token expiration
-	LastLoginTime                   int64     // Unix timestamp of when the user last logged in
-	FailedLoginAttempts             uint64    // Number of failed login a user has made in a row
-	Deactivated                     bool      // Whether the account is deactivated or not
-	EmailNotifications              uint64    // Notify the user via emails
+	ID                  uuid.UUID `json:"id"`                  // Unique user uuid
+	Email               string    `json:"email"`               // Email address
+	Username            string    `json:"username"`            // Unique username
+	HashedPassword      []byte    `json:"hashedpassword"`      // Blowfish hash
+	Admin               bool      `json:"admin"`               // Is user an admin
+	EmailNotifications  uint64    `json:"emailnotifications"`  // Email notification setting
+	LastLoginTime       int64     `json:"lastlogintime"`       // Unix timestamp of last login
+	FailedLoginAttempts uint64    `json:"failedloginattempts"` // Sequential failed login attempts
+	Deactivated         bool      `json:"deactivated"`         // Is account deactivated
 
-	// Access times for proposal comments that have been accessed by the user.
-	// Each string represents a proposal token, and the int64 represents the
-	// time that the proposal has been most recently accessed in the format of
-	// a UNIX timestamp.
-	ProposalCommentsAccessTimes map[string]int64
+	// Verification tokens and their expirations
+	NewUserVerificationToken        []byte `json:"newuserverificationtoken"`
+	NewUserVerificationExpiry       int64  `json:"newuserverificationtokenexiry"`
+	ResendNewUserVerificationExpiry int64  `json:"resendnewuserverificationtoken"`
+	UpdateKeyVerificationToken      []byte `json:"updatekeyverificationtoken"`
+	UpdateKeyVerificationExpiry     int64  `json:"updatekeyverificationexpiry"`
+	ResetPasswordVerificationToken  []byte `json:"resetpasswordverificationtoken"`
+	ResetPasswordVerificationExpiry int64  `json:"resetpasswordverificationexpiry"`
+
+	// PaywallAddressIndex is the index that is used to generate the
+	// paywall address for the user. The same paywall address is used
+	// for the user registration paywall and for proposal credit
+	// paywalls. The index is set during the new user record creation
+	// and is sequential.
+	// XXX why is this an uint64 when hdkeychain requires a uint32?
+	PaywallAddressIndex uint64 `json:"paywalladdressindex"`
+
+	// User registration paywall info
+	NewUserPaywallAddress string `json:"newuserpaywalladdress"`
+	NewUserPaywallAmount  uint64 `json:"newuserpaywallamount"`
+	NewUserPaywallTx      string `json:"newuserpaywalltx"`
+
+	// NewUserPaywallTxNotBeore is the minimum UNIX time (in seconds)
+	// required for the block containing the transaction sent to
+	// NewUserPaywallAddress. If the user has already paid, this field
+	// will be empty.
+	NewUserPaywallTxNotBefore int64 `json:"newuserpaywalltxnotbefore"`
+
+	// The UNIX time (in seconds) for when the server will stop polling
+	// the server for transactions at NewUserPaywallAddress. If the
+	// user has already paid, this field will be empty.
+	NewUserPaywallPollExpiry int64 `json:"newuserpaywallpollexpiry"`
+
+	// User access times for proposal comments. The access time is a
+	// Unix timestamp of the last time the user accessed a proposal's
+	// comments.
+	// [token]accessTime
+	ProposalCommentsAccessTimes map[string]int64 `json:"proposalcommentsaccesstime"`
 
 	// All identities the user has ever used. We allow the user to change
 	// identities to deal with key loss. An identity can be in one of three
@@ -173,24 +200,24 @@ type User struct {
 	// An identity is deactivated when it is replaced by a new identity.
 	// The key of a deactivated identity is no longer valid.
 	// An identity cannot be re-activated once it has been deactivated.
-	Identities []Identity
+	Identities []Identity `json:"identities"`
 
 	// All proposal paywalls that have been issued to the user in chronological
 	// order.
-	ProposalPaywalls []ProposalPaywall
+	ProposalPaywalls []ProposalPaywall `json:"proposalpaywalls"`
 
 	// All proposal credits that have been purchased by the user, but have not
 	// yet been used to submit a proposal.  Once a credit is used to submit a
 	// proposal, it is updated with the proposal's censorship token and moved to
 	// the user's spent proposal credits list.  The price that the proposal
 	// credit was purchased at is in atoms.
-	UnspentProposalCredits []ProposalCredit
+	UnspentProposalCredits []ProposalCredit `json:"unspendproposalcredits"`
 
 	// All credits that have been purchased by the user and have already been
 	// used to submit proposals.  Spent credits have a proposal censorship token
 	// associated with them to signify that they have been spent. The price that
 	// the proposal credit was purchased at is in atoms.
-	SpentProposalCredits []ProposalCredit
+	SpentProposalCredits []ProposalCredit `json:"spentproposalcredits"`
 }
 
 // ActiveIdentity returns the active identity for the user if one exists.
@@ -319,15 +346,59 @@ func DecodeUser(payload []byte) (*User, error) {
 	return &u, nil
 }
 
-// Database interface that is required by the web server.
+// PluginCommand is used to execute a plugin command.
+type PluginCommand struct {
+	ID      string // Plugin identifier
+	Command string // Command identifier
+	Payload string // Command payload
+}
+
+// PluginCommandReply is used to reply to a PluginCommand.
+type PluginCommandReply struct {
+	ID      string // Plugin identifier
+	Command string // Command identifier
+	Payload string // Command reply payload
+}
+
+// PluginSetting holds the key/value pair of a plugin setting.
+type PluginSetting struct {
+	Key   string // Name of setting
+	Value string // Value of setting
+}
+
+// Plugin describes a plugin and its settings.
+type Plugin struct {
+	ID       string
+	Version  string
+	Settings []PluginSetting
+}
+
+// Database describes the interface used for interacting with the user
+// database.
 type Database interface {
-	// User functions
-	UserGetByUsername(string) (*User, error) // Return user record given the username
-	UserGetById(uuid.UUID) (*User, error)    // Return user record given its id
-	UserGetByPubKey(string) (*User, error)   // Return user record given a public key
-	UserNew(User) error                      // Add new user
-	UserUpdate(User) error                   // Update existing user
-	AllUsers(callbackFn func(u *User)) error // Iterate all users
+	// Add a new user
+	UserNew(User) error
+
+	// Update an existing user
+	UserUpdate(User) error
+
+	// Return user record given the username
+	UserGetByUsername(string) (*User, error)
+
+	// Return user record given its id
+	UserGetById(uuid.UUID) (*User, error)
+
+	// Return user record given a public key
+	UserGetByPubKey(string) (*User, error)
+
+	// Iterate over all users
+	AllUsers(callbackFn func(u *User)) error
+
+	// Register a plugin
+	RegisterPlugin(Plugin) error
+
+	// Execute a plugin command
+	PluginExec(PluginCommand) (*PluginCommandReply, error)
 
 	// Close performs cleanup of the backend.
 	Close() error

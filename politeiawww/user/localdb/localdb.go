@@ -309,6 +309,16 @@ func (l *localdb) AllUsers(callbackFn func(u *user.User)) error {
 	return iter.Error()
 }
 
+// PluginExec executes the provided plugin command.
+func (l *localdb) PluginExec(pc user.PluginCommand) (*user.PluginCommandReply, error) {
+	return nil, user.ErrInvalidPlugin
+}
+
+// RegisterPlugin registers a plugin with the user database.
+func (l *localdb) RegisterPlugin(user.Plugin) error {
+	return user.ErrInvalidPlugin
+}
+
 // Close shuts down the database.  All interface functions MUST return with
 // errShutdown if the backend is shutting down.
 //

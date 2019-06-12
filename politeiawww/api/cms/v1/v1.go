@@ -8,6 +8,7 @@ import (
 type ErrorStatusT int
 type InvoiceStatusT int
 type LineItemTypeT int
+type DomainTypeT int
 
 const (
 
@@ -40,6 +41,9 @@ const (
 	LineItemTypeLabor   LineItemTypeT = 1 // Labor line items
 	LineItemTypeExpense LineItemTypeT = 2 // Expenses incurred line items
 	LineItemTypeMisc    LineItemTypeT = 3 // Catch all for anything else
+
+	// Domain types
+	DomainTypeInvalid DomainTypeT = 0 // Invalid Domain type
 
 	InvoiceInputVersion = 1
 
