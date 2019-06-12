@@ -1801,41 +1801,8 @@ func (g *gitBackEnd) overwriteReadmeFile(content string) error {
 //
 // This function must be called WITH the lock held.
 func (g *gitBackEnd) _updateReadme(content string) error {
-	// git checkout master
-	err := g.gitCheckout(g.unvetted, "master")
-	if err != nil {
-		return err
-	}
-
-	// git pull --ff-only --rebase
-	err = g.gitPull(g.unvetted, true)
-	if err != nil {
-		return err
-	}
-
-	const tmpBranch = "updateReadmeTmp"
-
-	// Delete old temporary branch
-	_ = g.gitBranchDelete(g.unvetted, tmpBranch)
-
-	// Checkout temporary branch
-	err = g.gitNewBranch(g.unvetted, tmpBranch)
-	if err != nil {
-		return err
-	}
-
-	//If anything goes wrong, checkout master and delete the temp branch
-	defer func() {
-		err := g.gitCheckout(g.unvetted, "master")
-		if err != nil {
-			log.Errorf("could not switch to master: %v", err)
-		}
-
-		_ = g.gitBranchDelete(g.unvetted, tmpBranch)
-	}()
-
 	// Update readme file
-	err = g.overwriteReadmeFile(content)
+	err := g.overwriteReadmeFile(content)
 	if err != nil {
 		return err
 	}
@@ -1852,9 +1819,33 @@ func (g *gitBackEnd) _updateReadme(content string) error {
 	}
 
 	// Commit change
-	err = g.gitCommit(g.unvetted, "Update README.md")
+	return g.gitCommit(g.unvetted, "Update README.md")
+}
+
+// Updates the README.md file.
+//
+// This function must be called WITH the lock held.
+func (g *gitBackEnd) updateReadme(content string) error {
+	const tmpBranch = "updateReadmeTmp"
+
+	// Delete old temporary branch
+	g.gitBranchDelete(g.unvetted, tmpBranch)
+
+	// Checkout temporary branch
+	err := g.gitNewBranch(g.unvetted, tmpBranch)
 	if err != nil {
 		return err
+	}
+
+	err2 := g._updateReadme(content)
+	if err2 != nil {
+		// Unwind and complain
+		err := g.gitUnwindBranch(g.unvetted, tmpBranch)
+		if err != nil {
+			// We are in trouble and should consider a panic
+			log.Criticalf("updateReadme: %v", err)
+		}
+		return err2
 	}
 
 	// create and rebase PR
@@ -1875,8 +1866,19 @@ func (g *gitBackEnd) UpdateReadme(content string) error {
 	if g.shutdown {
 		return backend.ErrShutdown
 	}
+	// git checkout master
+	err := g.gitCheckout(g.unvetted, "master")
+	if err != nil {
+		return err
+	}
 
-	return g._updateReadme(content)
+	// git pull --ff-only --rebase
+	err = g.gitPull(g.unvetted, true)
+	if err != nil {
+		return err
+	}
+
+	return g.updateReadme(content)
 }
 
 // getRecordLock is the generic implementation of GetUnvetted/GetVetted.  It
