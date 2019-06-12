@@ -327,15 +327,14 @@ type UpdateVettedMetadataReply struct {
 	Response string `json:"response"` // Challenge response
 }
 
-// Update update a vetted metadata.  This is allowed for
-// priviledged users.  The record itself may not change.
+// UpdateReadme updated the README.md file in the vetted and unvetted repos.
 type UpdateReadme struct {
 	Challenge string `json:"challenge"` // Random challenge
 	Content   string `json:"content"`   // New content of README.md
 }
 
-// UpdateVettedMetadataReply returns a response challenge to an
-// UpdateVettedMetadata command.
+// UpdateReadmeReply returns a response challenge to an
+// UpdateReadme command.
 type UpdateReadmeReply struct {
 	Response string `json:"response"` // Challenge response
 }
