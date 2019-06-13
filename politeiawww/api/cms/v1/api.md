@@ -694,6 +694,7 @@ Reply:
       "expenses": 5000
     }
   ]
+}
 ```
 
 ### Error codes
