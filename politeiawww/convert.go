@@ -601,6 +601,22 @@ func convertLineItemsToDatabase(token string, l []cms.LineItemsInput) []cmsdatab
 	return dl
 }
 
+func convertDatabaseToLineItems(dl []cmsdatabase.LineItem) []cms.LineItemsInput {
+	l := make([]cms.LineItemsInput, 0, len(dl))
+	for _, v := range dl {
+		l = append(l, cms.LineItemsInput{
+			Type:          v.Type,
+			Domain:        v.Domain,
+			Subdomain:     v.Subdomain,
+			Description:   v.Description,
+			ProposalToken: v.ProposalURL,
+			Labor:         v.Labor,
+			Expenses:      v.Expenses,
+		})
+	}
+	return l
+}
+
 func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 	dbInvoice := cmsdatabase.Invoice{
 		Files:           convertRecordFilesToWWW(p.Files),

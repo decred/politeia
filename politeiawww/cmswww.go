@@ -394,11 +394,36 @@ func (p *politeiawww) handlePayInvoices(w http.ResponseWriter, r *http.Request) 
 
 	reply, err := p.processPayInvoices(user)
 	if err != nil {
-		RespondWithError(w, r, 0, "handlePayInvoices: processAdminInvoices %v", err)
+		RespondWithError(w, r, 0, "handlePayInvoices: processAdminInvoices %v",
+			err)
 		return
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+// handleLineItemPayouts handles incoming requests for line item payout information
+func (p *politeiawww) handleLineItemPayouts(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleLineItemPayouts")
+
+	var lip cms.LineItemPayouts
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&lip); err != nil {
+		RespondWithError(w, r, 0, "handleLineItemPayouts: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	lipr, err := p.processLineItemPayouts(lip)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleLineItemPayouts: processLineItemPayouts: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, lipr)
 }
 
 func (p *politeiawww) setCMSWWWRoutes() {
@@ -458,4 +483,6 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		p.handleGeneratePayouts, permissionAdmin)
 	p.addRoute(http.MethodGet, cms.RoutePayInvoices,
 		p.handlePayInvoices, permissionAdmin)
+	p.addRoute(http.MethodPost, cms.RouteLineItemPayouts,
+		p.handleLineItemPayouts, permissionAdmin)
 }
