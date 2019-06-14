@@ -32,8 +32,10 @@ func (cmd *LineItemPayoutsCmd) Execute(args []string) error {
 		return fmt.Errorf("month and year are both required to determine line item date range")
 	}
 
-	startDate := time.Date(int(cmd.Args.Year), time.Month(int(cmd.Args.Month)), 0, 0, 0, 0, 0, time.UTC)
-	endDate := time.Date(int(cmd.Args.Year), time.Month(int(cmd.Args.Month+1)), 0, 0, 0, 0, 0, time.UTC)
+	startDate := time.Date(int(cmd.Args.Year), time.Month(int(cmd.Args.Month)),
+		0, 0, 0, 0, 0, time.UTC)
+	endDate := time.Date(int(cmd.Args.Year), time.Month(int(cmd.Args.Month+1)),
+		0, 0, 0, 0, 0, time.UTC)
 
 	lip := v1.LineItemPayouts{
 		StartTime: startDate.Unix(),

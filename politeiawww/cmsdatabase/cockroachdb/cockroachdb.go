@@ -320,14 +320,17 @@ func (c *cockroachdb) ExchangeRate(month, year int) (*database.ExchangeRate, err
 }
 
 // LineItemsByDateRange takes a start and end time (in Unix seconds) and returns
-// all line items that have been paid in that range.  This uses the invoice_changes
-// table to discover the token to look up the correct line items.
+// all line items that have been paid in that range.  This uses the
+// invoice_changes table to discover the token to look up the correct line items.
 func (c *cockroachdb) LineItemsByDateRange(start, end int64) ([]database.LineItem, error) {
-	log.Debugf("LineItemsByDateRange: %v %v", time.Unix(start, 0), time.Unix(end, 0))
+	log.Debugf("LineItemsByDateRange: %v %v", time.Unix(start, 0),
+		time.Unix(end, 0))
 	// Get all invoice changes of PAID status within date range.
 	invoiceChanges := make([]InvoiceChange, 0, 1024) // PNOOMA
 	err := c.recordsdb.
-		Where("timestamp BETWEEN ? AND ?", time.Unix(start, 0), time.Unix(end, 0)).
+		Where("timestamp BETWEEN ? AND ?",
+			time.Unix(start, 0),
+			time.Unix(end, 0)).
 		Find(&invoiceChanges).
 		Error
 	if err != nil {

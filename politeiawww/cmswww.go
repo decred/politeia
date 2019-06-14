@@ -394,7 +394,8 @@ func (p *politeiawww) handlePayInvoices(w http.ResponseWriter, r *http.Request) 
 
 	reply, err := p.processPayInvoices(user)
 	if err != nil {
-		RespondWithError(w, r, 0, "handlePayInvoices: processAdminInvoices %v", err)
+		RespondWithError(w, r, 0, "handlePayInvoices: processAdminInvoices %v",
+			err)
 		return
 	}
 
