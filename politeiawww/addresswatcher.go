@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/dcrutil"
-	client "github.com/decred/dcrdata/pubsub/psclient"
-	pstypes "github.com/decred/dcrdata/pubsub/types"
+	pstypes "github.com/decred/dcrdata/pubsub/types/v2"
+	client "github.com/decred/dcrdata/pubsub/v2/psclient"
 	"github.com/decred/dcrdata/semver"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/cache"

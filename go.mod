@@ -7,16 +7,15 @@ require (
 	github.com/dajohi/goemail v1.0.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/decred/dcrd/certgen v1.0.2
-	github.com/decred/dcrd/chaincfg v1.4.0
+	github.com/decred/dcrd/chaincfg v1.5.1
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.1
 	github.com/decred/dcrd/dcrec/secp256k1 v1.0.1
-	github.com/decred/dcrd/dcrutil v1.2.1-0.20190118223730-3a5281156b73
+	github.com/decred/dcrd/dcrutil v1.3.0
 	github.com/decred/dcrd/hdkeychain v1.1.1
 	github.com/decred/dcrd/wire v1.2.0
-	github.com/decred/dcrdata/api/types v1.0.6
-	github.com/decred/dcrdata/explorer/types v1.0.1 // indirect
-	github.com/decred/dcrdata/pubsub v1.0.1-0.20190528205258-3b3bd0d00f08
-	github.com/decred/dcrdata/pubsub/types v1.0.1-0.20190528205258-3b3bd0d00f08
+	github.com/decred/dcrdata/api/types/v3 v3.0.0
+	github.com/decred/dcrdata/pubsub/types/v2 v2.0.0
+	github.com/decred/dcrdata/pubsub/v2 v2.0.0
 	github.com/decred/dcrdata/semver v1.0.0
 	github.com/decred/dcrtime v0.0.0-20180808181920-4c91c4cbed09
 	github.com/decred/dcrwallet v1.2.3-0.20190128160919-849f7c01c12d
@@ -48,8 +47,8 @@ require (
 	github.com/robfig/cron v0.0.0-20180505203441-b41be1df6967
 	github.com/subosito/norma v0.0.0-20140814002436-523a8b2df221
 	github.com/syndtr/goleveldb v1.0.0
-	golang.org/x/crypto v0.0.0-20190411191339-88737f569e3a
-	golang.org/x/net v0.0.0-20190415214537-1da14a5a36f2
-	golang.org/x/sync v0.0.0-20190227155943-e225da77a7e6
+	golang.org/x/crypto v0.0.0-20190611184440-5c40567a22f8
+	golang.org/x/net v0.0.0-20190613194153-d28f0bde5980
+	golang.org/x/sync v0.0.0-20190423024810-112230192c58
 	google.golang.org/grpc v1.20.0
 )
