@@ -1184,9 +1184,9 @@ func (p *politeiawww) processGeneratePayouts(gp cms.GeneratePayouts, u *user.Use
 		payout.ContractorRate = inv.ContractorRate
 		payout.ExpenseTotal = totalExpenses
 
-		payout.Address = inv.PaymentAddress
+		payout.Address = strings.TrimSpace(inv.PaymentAddress)
 		payout.Token = inv.Token
-		payout.ContractorName = inv.ContractorName
+		payout.ContractorName = strings.TrimSpace(inv.ContractorName)
 
 		payout.Username = username
 		payout.Month = inv.Month
