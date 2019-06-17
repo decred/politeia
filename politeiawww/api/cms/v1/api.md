@@ -729,7 +729,8 @@ Reply:
 | <a name="ErrorStatusInvalidLineItemType">ErrorStatusInvalidLineItemType</a> | 1026 | An invalid line item type was attempted. |
 | <a name="ErrorStatusInvalidLaborExpense">ErrorStatusInvalidLaborExpense</a> | 1027 | An invalid value was entered into labor or expenses. |
 | <a name="ErrorStatusDuplicatePaymentAddress">ErrorStatusDuplicatePaymentAddress</a> | 1028 | An duplicate payment address was entered. |
-| <a name="ErrorStatusInvalidDatesRequested"></a> | 1029 | Invalid dates were submitted for a request. |
+| <a name="ErrorStatusInvalidDatesRequested">ErrorStatusInvalidDatesRequested</a> | 1029 | Invalid dates were submitted for a request. |
+| <a name="ErrorStatusInvalidInvoiceEditMonthYear">ErrorStatusInvalidInvoiceEditMonthYear</a> | 1030 | Invoice month/year was attempted to be edited. |
 
 ### Invoice status codes
 

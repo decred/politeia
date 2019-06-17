@@ -127,6 +127,7 @@ const (
 	ErrorStatusInvalidLaborExpense            www.ErrorStatusT = 1027
 	ErrorStatusDuplicatePaymentAddress        www.ErrorStatusT = 1028
 	ErrorStatusInvalidDatesRequested          www.ErrorStatusT = 1029
+	ErrorStatusInvalidInvoiceEditMonthYear    www.ErrorStatusT = 1030
 )
 
 var (

@@ -1004,6 +1004,14 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 		return nil, err
 	}
 
+	// Check to see that the month/year of the editted invoice is the same as
+	// the previous record.
+	month, year := getInvoiceMonthYear(ei.Files)
+	if month != invRec.Input.Month || year != invRec.Input.Year {
+		return nil, www.UserError{
+			ErrorCode: cms.ErrorStatusInvalidInvoiceEditMonthYear,
+		}
+	}
 	m := backendInvoiceMetadata{
 		Version:   backendInvoiceMetadataVersion,
 		Timestamp: time.Now().Unix(),
@@ -1574,4 +1582,25 @@ func (p *politeiawww) processLineItemPayouts(lip cms.LineItemPayouts) (*cms.Line
 	lineItems := convertDatabaseToLineItems(dbLineItems)
 	reply.LineItems = lineItems
 	return reply, nil
+}
+
+// getInvoiceMonthYear will return the first invoice.json month/year that is
+// found, otherwise 0, 0 in the event of any error.
+func getInvoiceMonthYear(files []www.File) (uint, uint) {
+	for _, v := range files {
+		if v.Name != invoiceFile {
+			continue
+		}
+		data, err := base64.StdEncoding.DecodeString(v.Payload)
+		if err != nil {
+			return 0, 0
+		}
+
+		var invInput cms.InvoiceInput
+		if err := json.Unmarshal(data, &invInput); err != nil {
+			return 0, 0
+		}
+		return invInput.Month, invInput.Year
+	}
+	return 0, 0
 }
