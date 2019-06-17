@@ -35,6 +35,7 @@ const (
 	SetVettedStatusRoute   = "/v1/setvettedstatus/"            // Set vetted status
 	PluginCommandRoute     = "/v1/plugin/"                     // Send a command to a plugin
 	PluginInventoryRoute   = PluginCommandRoute + "inventory/" // Inventory all plugins
+	UpdateReadmeRoute      = "/v1/updatereadme/"               // Update README
 
 	ChallengeSize      = 32         // Size of challenge token in bytes
 	TokenSize          = 32         // Size of token
@@ -323,6 +324,18 @@ type UpdateVettedMetadata struct {
 // UpdateVettedMetadataReply returns a response challenge to an
 // UpdateVettedMetadata command.
 type UpdateVettedMetadataReply struct {
+	Response string `json:"response"` // Challenge response
+}
+
+// UpdateReadme updated the README.md file in the vetted and unvetted repos.
+type UpdateReadme struct {
+	Challenge string `json:"challenge"` // Random challenge
+	Content   string `json:"content"`   // New content of README.md
+}
+
+// UpdateReadmeReply returns a response challenge to an
+// UpdateReadme command.
+type UpdateReadmeReply struct {
 	Response string `json:"response"` // Challenge response
 }
 

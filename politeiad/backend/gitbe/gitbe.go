@@ -1783,6 +1783,95 @@ func (g *gitBackEnd) UpdateVettedMetadata(token []byte, mdAppend []backend.Metad
 	return g._updateVettedMetadata(token, mdAppend, mdOverwrite)
 }
 
+// _updateReadme updates the README.md file in the unvetted repo, then
+// does a commit. This function must be called WITH the lock
+// held, and must be wrapped with a function that puts the repo
+// into the proper state and unwinds it in case something goes wrong.
+func (g *gitBackEnd) _updateReadme(content string) error {
+
+	// Update readme file
+	filename := pijoin(g.unvetted, "README.md")
+	err := ioutil.WriteFile(filename, []byte(content), 0664)
+	if err != nil {
+		return err
+	}
+
+	// If there are no changes, do not continue
+	if !g.gitHasChanges(g.unvetted) {
+		return backend.ErrNoChanges
+	}
+
+	// Add readme file
+	err = g.gitAdd(g.unvetted, "README.md")
+	if err != nil {
+		return err
+	}
+
+	// Commit change
+	return g.gitCommit(g.unvetted, "Update README.md")
+}
+
+// updateReadme updates the README.md file in the unvetted repo
+// then rebases the change and pushes it to the vetted repo. If
+// anything goes wrong it unwinds the changes are returns the repo
+// to master.
+// This function must be called WITH the lock held.
+func (g *gitBackEnd) updateReadme(content string) error {
+	const tmpBranch = "updateReadmeTmp"
+
+	// Delete old temporary branch if it exists
+	g.gitBranchDelete(g.unvetted, tmpBranch)
+
+	// Checkout temporary branch
+	err := g.gitNewBranch(g.unvetted, tmpBranch)
+	if err != nil {
+		return err
+	}
+
+	err2 := g._updateReadme(content)
+	if err2 != nil {
+		// Unwind and complain
+		err := g.gitUnwindBranch(g.unvetted, tmpBranch)
+		if err != nil {
+			// We are in trouble and should consider a panic
+			log.Criticalf("updateReadme: %v", err)
+		}
+		return err2
+	}
+
+	// create and rebase PR
+	return g.rebasePR(tmpBranch)
+}
+
+// UpdateReadme updates the README.md file in the unvetted repo,
+// then rebases the change and pushes it to the vetted repo.
+// This function must be called WITHOUT the lock held.
+//
+// UpdateReadme satisfies the backend interface.
+func (g *gitBackEnd) UpdateReadme(content string) error {
+	log.Debugf("UpdateReadme")
+
+	// Lock filesystem
+	g.Lock()
+	defer g.Unlock()
+	if g.shutdown {
+		return backend.ErrShutdown
+	}
+	// git checkout master
+	err := g.gitCheckout(g.unvetted, "master")
+	if err != nil {
+		return err
+	}
+
+	// git pull --ff-only --rebase
+	err = g.gitPull(g.unvetted, true)
+	if err != nil {
+		return err
+	}
+
+	return g.updateReadme(content)
+}
+
 // getRecordLock is the generic implementation of GetUnvetted/GetVetted.  It
 // returns a record record from the provided repo.
 //

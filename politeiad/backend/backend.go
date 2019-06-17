@@ -156,6 +156,9 @@ type Backend interface {
 	UpdateVettedMetadata([]byte, []MetadataStream,
 		[]MetadataStream) error
 
+	// Update README.md file at the root of git repo
+	UpdateReadme(string) error
+
 	// Get unvetted record
 	GetUnvetted([]byte) (*Record, error)
 
