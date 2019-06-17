@@ -782,11 +782,11 @@ func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, user 
 	if err != nil {
 		return nil, err
 	}
-	invRec.Payout = payout
 
 	// Setup reply
 	reply := cms.InvoiceDetailsReply{
 		Invoice: *invRec,
+		Payout:  payout,
 	}
 
 	return &reply, nil

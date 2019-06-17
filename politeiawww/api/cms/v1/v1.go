@@ -252,7 +252,6 @@ type InvoiceRecord struct {
 	Files              []www.File     `json:"file"`                         // Actual invoice file
 	Version            string         `json:"version"`                      // Record version
 	Input              InvoiceInput   `json:"input"`                        // Decoded invoice from invoice.json file
-	Payout             Payout         `json:"payout"`                       // Calculated payout from the Input
 
 	CensorshipRecord www.CensorshipRecord `json:"censorshiprecord"`
 }
@@ -265,6 +264,7 @@ type InvoiceDetails struct {
 // InvoiceDetailsReply is used to reply to a invoice details command.
 type InvoiceDetailsReply struct {
 	Invoice InvoiceRecord `json:"invoice"`
+	Payout  Payout        `json:"payout"` // Calculated payout from the InvoiceRecord
 }
 
 // InvoiceInput is the expected structure of the invoice.json file being added to InvoiceRecords.
