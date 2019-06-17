@@ -252,6 +252,7 @@ type InvoiceRecord struct {
 	Files              []www.File     `json:"file"`                         // Actual invoice file
 	Version            string         `json:"version"`                      // Record version
 	Input              InvoiceInput   `json:"input"`                        // Decoded invoice from invoice.json file
+	Payout             Payout         `json:"payout"`                       // Calculated payout from the Input
 
 	CensorshipRecord www.CensorshipRecord `json:"censorshiprecord"`
 }
