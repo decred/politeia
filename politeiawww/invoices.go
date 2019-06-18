@@ -14,6 +14,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -1180,6 +1181,9 @@ func (p *politeiawww) processGeneratePayouts(gp cms.GeneratePayouts, u *user.Use
 		}
 		payouts = append(payouts, payout)
 	}
+	sort.Slice(payouts, func(i, j int) bool {
+		return payouts[i].ApprovedTime > payouts[j].ApprovedTime
+	})
 	reply.Payouts = payouts
 	return reply, err
 }
@@ -1616,6 +1620,17 @@ func (p *politeiawww) calculatePayout(inv database.Invoice) (cms.Payout, error) 
 		log.Errorf("processGeneratePayouts %v: NewAmount: %v",
 			inv.Token, err)
 	}
+
 	payout.ExchangeRate = inv.ExchangeRate
+
+	// Range through invoice's documented status changes to find the
+	// time in which the invoice was approved.
+	for _, change := range inv.Changes {
+		if change.NewStatus == cms.InvoiceStatusApproved {
+			payout.ApprovedTime = change.Timestamp
+			break
+		}
+	}
+
 	return payout, nil
 }
