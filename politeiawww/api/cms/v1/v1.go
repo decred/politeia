@@ -379,6 +379,7 @@ type Payout struct {
 	Total          uint           `json:"total"`        // in USD cents
 	DCRTotal       dcrutil.Amount `json:"dcrtotal"`     // in DCR atoms
 	ExchangeRate   uint           `json:"exchangerate"` // in USD cents
+	ApprovedTime   int64          `json:"approvedtime"` // Time of invoice approval (in Unix seconds)
 }
 
 // InvoiceExchangeRate contains the request to receive a monthly exchange rate
