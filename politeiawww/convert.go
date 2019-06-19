@@ -584,6 +584,38 @@ func convertDatabaseInvoiceToInvoiceRecord(dbInvoice cmsdatabase.Invoice) *cms.I
 	return invRec
 }
 
+func convertInvoiceRecordToDatabaseInvoice(invRec *cms.InvoiceRecord) *cmsdatabase.Invoice {
+	dbInvoice := &cmsdatabase.Invoice{}
+	dbInvoice.Status = invRec.Status
+	dbInvoice.Timestamp = invRec.Timestamp
+	dbInvoice.UserID = invRec.UserID
+	dbInvoice.PublicKey = invRec.PublicKey
+	dbInvoice.Version = invRec.Version
+	dbInvoice.ContractorContact = invRec.Input.ContractorContact
+	dbInvoice.ContractorRate = invRec.Input.ContractorRate
+	dbInvoice.ContractorName = invRec.Input.ContractorName
+	dbInvoice.ContractorLocation = invRec.Input.ContractorLocation
+	dbInvoice.PaymentAddress = invRec.Input.PaymentAddress
+	dbInvoice.Month = invRec.Input.Month
+	dbInvoice.Year = invRec.Input.Year
+	dbInvoice.ExchangeRate = invRec.Input.ExchangeRate
+
+	dbInvoice.LineItems = make([]cmsdatabase.LineItem, 0, len(invRec.Input.LineItems))
+	for _, lineItem := range invRec.Input.LineItems {
+		dbLineItem := cmsdatabase.LineItem{
+			Type:        lineItem.Type,
+			Domain:      lineItem.Domain,
+			Subdomain:   lineItem.Subdomain,
+			Description: lineItem.Description,
+			ProposalURL: lineItem.ProposalToken,
+			Labor:       lineItem.Labor,
+			Expenses:    lineItem.Expenses,
+		}
+		dbInvoice.LineItems = append(dbInvoice.LineItems, dbLineItem)
+	}
+	return dbInvoice
+}
+
 func convertLineItemsToDatabase(token string, l []cms.LineItemsInput) []cmsdatabase.LineItem {
 	dl := make([]cmsdatabase.LineItem, 0, len(l))
 	for _, v := range l {
