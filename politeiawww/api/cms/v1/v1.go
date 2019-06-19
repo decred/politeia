@@ -182,6 +182,7 @@ var (
 		ErrorStatusInvalidExchangeRate:            "exchange rate was invalid or didn't match expected result",
 		ErrorStatusDuplicatePaymentAddress:        "a duplicate payment address was used",
 		ErrorStatusInvalidDatesRequested:          "invalid dates were requested",
+		ErrorStatusInvalidInvoiceEditMonthYear:    "invalid attempt to edit invoice month/year",
 	}
 )
 
