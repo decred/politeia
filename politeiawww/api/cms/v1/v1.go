@@ -313,6 +313,7 @@ type PolicyReply struct {
 	InvoiceFieldDelimiterChar     rune     `json:"invoicefielddelimiterchar"`
 	InvoiceLineItemCount          uint     `json:"invoicelineitemcount"`
 	InvoiceFieldSupportedChars    []string `json:"invoicefieldsupportedchars"`
+	CMSUsernameSupportedChars     []string `json:"cmsusernamesupportedchars"`
 	CMSNameLocationSupportedChars []string `json:"cmsnamelocationsupportedchars"`
 	CMSContactSupportedChars      []string `json:"cmscontactsupportedchars"`
 }
