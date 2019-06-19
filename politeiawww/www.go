@@ -29,6 +29,7 @@ import (
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	cmsdb "github.com/decred/politeia/politeiawww/cmsdatabase/cockroachdb"
+	"github.com/decred/politeia/politeiawww/user"
 	userdb "github.com/decred/politeia/politeiawww/user/cockroachdb"
 	"github.com/decred/politeia/politeiawww/user/localdb"
 	"github.com/decred/politeia/util"
@@ -507,6 +508,8 @@ func _main() error {
 		p.setCMSWWWRoutes()
 		// XXX setup user routes
 		p.setCMSUserWWWRoutes()
+
+		// Setup cmsdb
 		cmsdb.UseLogger(cockroachdbLog)
 		net := filepath.Base(p.cfg.DataDir)
 		p.cmsDB, err = cmsdb.New(p.cfg.DBHost, net, p.cfg.DBRootCert,
@@ -518,6 +521,18 @@ func _main() error {
 		if err != nil {
 			return fmt.Errorf("cmsdb setup: %v", err)
 		}
+
+		// Register cms userdb plugin
+		plugin := user.Plugin{
+			ID:      user.CMSPluginID,
+			Version: user.CMSPluginVersion,
+		}
+		err = p.db.RegisterPlugin(plugin)
+		if err != nil {
+			return fmt.Errorf("register userdb plugin: %v", err)
+		}
+
+		// Setup invoice notifications
 		p.cron = cron.New()
 		p.checkInvoiceNotifications()
 	default:
