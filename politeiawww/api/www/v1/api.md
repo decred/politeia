@@ -2252,6 +2252,7 @@ Returns the vote status for a single public proposal
 | status | int | Status identifier |
 | optionsresult | array of VoteOptionResult | Option description along with the number of votes it has received |
 | totalvotes | int | Proposal's total number of votes |
+| bestblock | string | The current chain height |
 | endheight | string | The chain height in which the vote will end |
 | numofeligiblevotes | int | Total number of eligible votes |
 | quorumpercentage | uint32 | Percent of eligible votes required for quorum |
@@ -2306,6 +2307,7 @@ Reply:
         "votesreceived":0
     }
   ],
+  "bestblock": "45391",
   "endheight": "45567",
   "numofeligiblevotes": 2000,
   "quorumpercentage": 20,
@@ -2336,6 +2338,7 @@ Returns the vote status of all public proposals
 | optionsresult | array of VoteOptionResult | Option description along with the number of votes it has received |
 | totalvotes | int | Proposal's total number of votes |
 | endheight | string | The chain height in which the vote will end |
+| bestblock | string | The current chain height |
 | numofeligiblevotes | int | Total number of eligible votes |
 | quorumpercentage | uint32 | Percent of eligible votes required for quorum |
 | passpercentage | uint32 | Percent of total votes required to pass |
@@ -2373,6 +2376,7 @@ Reply:
             }
          ],
          "totalvotes":0,
+         "bestblock": "45392",
          "endheight": "45567",
          "numofeligiblevotes": 2000,
          "quorumpercentage": 20,
@@ -2383,6 +2387,7 @@ Reply:
          "status":1,
          "optionsresult":null,
          "totalvotes":0,
+         "bestblock": "45392",
          "endheight": "",
          "numofeligiblevotes": 0,
          "quorumpercentage": 0,

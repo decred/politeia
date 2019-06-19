@@ -1415,6 +1415,7 @@ func (p *politeiawww) voteStatusReply(token string, bestBlock uint64) (*www.Vote
 	vsr, ok := p.voteStatuses[token]
 	p.RUnlock()
 	if ok {
+		vsr.BestBlock = strconv.Itoa(int(bestBlock))
 		return &vsr, nil
 	}
 
@@ -1437,6 +1438,7 @@ func (p *politeiawww) voteStatusReply(token string, bestBlock uint64) (*www.Vote
 		TotalVotes:         total,
 		OptionsResult:      results,
 		EndHeight:          r.EndHeight,
+		BestBlock:          strconv.Itoa(int(bestBlock)),
 		NumOfEligibleVotes: r.EligibleTicketCount,
 		QuorumPercentage:   r.QuorumPercentage,
 		PassPercentage:     r.PassPercentage,
