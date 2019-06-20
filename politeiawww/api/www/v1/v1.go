@@ -1037,6 +1037,7 @@ type VoteStatusReply struct {
 	TotalVotes         uint64             `json:"totalvotes"`         // Proposal's total number of votes
 	OptionsResult      []VoteOptionResult `json:"optionsresult"`      // VoteOptionResult for each option
 	EndHeight          string             `json:"endheight"`          // Vote end height
+	BestBlock          string             `json:"bestblock"`          // Current best block height
 	NumOfEligibleVotes int                `json:"numofeligiblevotes"` // Total number of eligible votes
 	QuorumPercentage   uint32             `json:"quorumpercentage"`   // Percent of eligible votes required for quorum
 	PassPercentage     uint32             `json:"passpercentage"`     // Percent of total votes required to pass
