@@ -561,8 +561,7 @@ func (p *politeiawww) emailInviteNewUserVerificationLink(email, token string) er
 		return nil
 	}
 
-	link, err := p.createEmailLink(RegisterNewUserGuiRoute,
-		email, token)
+	link, err := p.createEmailLink(RegisterNewUserGuiRoute, "", token)
 	if err != nil {
 		return err
 	}
