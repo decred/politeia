@@ -36,7 +36,7 @@ func (cmd *CMSUpdateUserInformationCmd) Execute(args []string) error {
 	}
 	uir, err := client.CMSUserInfomation()
 	if err != nil {
-		fmt.Sprintf("%v", err)
+		fmt.Println(err)
 	}
 	userInfo := cms.AdditionalFields{}
 	if uir != nil && uir.UserInformation != nil {
