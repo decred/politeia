@@ -53,10 +53,6 @@ type politeia struct {
 	plugins  map[string]v1.Plugin
 }
 
-func (p *politeia) isValid(s string) {
-
-}
-
 func remoteAddr(r *http.Request) string {
 	via := r.RemoteAddr
 	xff := r.Header.Get(v1.Forward)
@@ -574,7 +570,7 @@ func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
 		reply.Record = p.convertBackendRecord(*bpr)
 
 		// Double check record bits before sending them off
-		err := VerifyCenshorshipRecord(p.identity.Public,
+		err := VerifyCensorshipRecord(p.identity.Public,
 			reply.Record.CensorshipRecord, reply.Record.Files)
 		if err != nil {
 			// Generic internal error.
@@ -638,7 +634,7 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 		reply.Record = p.convertBackendRecord(*bpr)
 
 		// Double check record bits before sending them off
-		err := VerifyCenshorshipRecord(p.identity.Public,
+		err := VerifyCensorshipRecord(p.identity.Public,
 			reply.Record.CensorshipRecord, reply.Record.Files)
 		if err != nil {
 			// Generic internal error.
@@ -1066,9 +1062,9 @@ func (p *politeia) addRoute(method string, route string, handler http.HandlerFun
 	p.router.StrictSlash(true).HandleFunc(route, handler).Methods(method)
 }
 
-// VerifyCenshorshipRecord ensures that a CensorshipRecord properly
+// VerifyCensorshipRecord ensures that a CensorshipRecord properly
 // describes the array of files.
-func VerifyCenshorshipRecord(pid identity.PublicIdentity, csr v1.CensorshipRecord, files []v1.File) error {
+func VerifyCensorshipRecord(pid identity.PublicIdentity, csr v1.CensorshipRecord, files []v1.File) error {
 	digests := make([]*[sha256.Size]byte, 0, len(files))
 	for _, file := range files {
 		payload, err := base64.StdEncoding.DecodeString(file.Payload)
@@ -1177,6 +1173,8 @@ func _main() error {
 		v1.ValidMimeTypesMap[m] = struct{}{}
 	}
 
+	fmt.Println(v1.ValidMimeTypesMap)
+	fmt.Println(p.cfg.MimeTypes)
 	// Load identity.
 	p.identity, err = identity.LoadFullIdentity(loadedCfg.Identity)
 	if err != nil {
