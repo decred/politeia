@@ -91,22 +91,37 @@ func (p *politeiawww) emailNewUserVerificationLink(email, token, username string
 	return p.sendEmailTo(subject, body, email)
 }
 
+func (p *politeiawww) newVerificationURL(route, token string) (*url.URL, error) {
+	u, err := url.Parse(p.cfg.WebServerAddress + route)
+	if err != nil {
+		return nil, err
+	}
+
+	q := u.Query()
+	q.Set("verificationtoken", token)
+	u.RawQuery = q.Encode()
+
+	return u, nil
+}
+
 // emailResetPasswordVerificationLink emails the link with the reset password
 // verification token if the email server is set up.
-func (p *politeiawww) emailResetPasswordVerificationLink(email, token string) error {
+func (p *politeiawww) emailResetPasswordVerificationLink(email, username, token string) error {
 	if p.smtp.disabled {
 		return nil
 	}
 
-	link, err := p.createEmailLink(www.RouteResetPassword, email,
-		token)
+	u, err := p.newVerificationURL(www.RouteResetPassword, token)
 	if err != nil {
 		return err
 	}
+	q := u.Query()
+	q.Set("username", username)
+	u.RawQuery = q.Encode()
 
 	tplData := resetPasswordEmailTemplateData{
 		Email: email,
-		Link:  link,
+		Link:  u.String(),
 	}
 
 	subject := "Reset Your Password"

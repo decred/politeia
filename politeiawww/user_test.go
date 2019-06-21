@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/btcsuite/golangcrypto/bcrypt"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
@@ -849,7 +850,7 @@ func TestProcessChangePassword(t *testing.T) {
 		t.Run(v.name, func(t *testing.T) {
 			_, err := p.processChangePassword(u.Email, v.cp)
 			got := errToStr(err)
-			want := errToStr(err)
+			want := errToStr(v.want)
 			if got != want {
 				t.Errorf("got error %v, want %v",
 					got, want)
@@ -862,148 +863,334 @@ func TestProcessResetPassword(t *testing.T) {
 	p, cleanup := newTestPoliteiawww(t)
 	defer cleanup()
 
-	// Create a normal user that we can test against
-	usr, _ := newUser(t, p, true, false)
-	r, err := util.Random(int(www.PolicyMinPasswordLength))
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
-	newPassword := hex.EncodeToString(r)
+	// Test resetPasswordMinWaitTime
+	t.Run("minimum wait time", func(t *testing.T) {
+		usr, _ := newUser(t, p, true, false)
+		rp := www.ResetPassword{
+			Username: usr.Username,
+			Email:    usr.Email,
+		}
+		start := time.Now()
+		rpr, err := p.processResetPassword(rp)
 
-	// Create a user with a verification token already set
+		// Ensure the wait time is being adhered to.
+		if time.Since(start) < resetPasswordMinWaitTime {
+			t.Fatalf("min wait time violated")
+		}
+
+		// Check reply
+		got := errToStr(err)
+		if err != nil {
+			t.Fatalf("got error %v, want nil", got)
+		}
+		if rpr.VerificationToken == "" {
+			t.Errorf("verification token not sent")
+		}
+	})
+
+	// Remove the min wait time requirement so that the
+	// remaining tests aren't super slow.
+	wt := resetPasswordMinWaitTime
+	resetPasswordMinWaitTime = 0 * time.Millisecond
+	defer func() {
+		resetPasswordMinWaitTime = wt
+	}()
+
+	// Setup test data
+
+	// Create a user with no verification token yet.
+	usrNoToken, _ := newUser(t, p, true, false)
+
+	// Create a user with an unexpired verification token.
 	usrUnexpired, _ := newUser(t, p, true, false)
-	token, expiry, err := newVerificationTokenAndExpiry()
+	tokenb, expiry, err := newVerificationTokenAndExpiry()
 	if err != nil {
-		t.Fatalf("%v", err)
+		t.Fatal(err)
 	}
-	usrUnexpired.ResetPasswordVerificationToken = token
+	usrUnexpired.ResetPasswordVerificationToken = tokenb
 	usrUnexpired.ResetPasswordVerificationExpiry = expiry
 	err = p.db.UserUpdate(*usrUnexpired)
 	if err != nil {
-		t.Fatalf("%v", err)
+		t.Fatal(err)
 	}
-	usrUnexpiredToken := hex.EncodeToString(token)
 
-	// Create two users with verification tokens already set and
-	// that has already expired. The first expired user can't be
-	// reused in the tests because the expired token gets reset.
+	// Create a user with an expired verification token.
 	usrExpired, _ := newUser(t, p, true, false)
-	token, _, err = newVerificationTokenAndExpiry()
+	tokenb, _, err = newVerificationTokenAndExpiry()
 	if err != nil {
-		t.Fatalf("%v", err)
+		t.Fatal(err)
 	}
-	usrExpired.ResetPasswordVerificationToken = token
+	usrExpired.ResetPasswordVerificationToken = tokenb
 	usrExpired.ResetPasswordVerificationExpiry = time.Now().Unix() - 1
 	err = p.db.UserUpdate(*usrExpired)
 	if err != nil {
-		t.Fatalf("%v", err)
+		t.Fatal(err)
 	}
-
-	usrExpired2, _ := newUser(t, p, true, false)
-	token, _, err = newVerificationTokenAndExpiry()
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
-	usrExpired2.ResetPasswordVerificationToken = token
-	usrExpired2.ResetPasswordVerificationExpiry = time.Now().Unix() - 1
-	err = p.db.UserUpdate(*usrExpired2)
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
-	usrExpired2Token := hex.EncodeToString(token)
 
 	// Setup tests
 	var tests = []struct {
-		name string
-		rp   www.ResetPassword
-		want error
+		name      string
+		rp        www.ResetPassword
+		wantErr   error
+		wantToken bool // Should the verification token have been sent
 	}{
-		// processRestPassword is unique in that it expects the user
-		// to call it twice. The first time without a verification
-		// token included in the request and the second time with a
-		// verification token included in the request.
-
-		// No request verification token
-
-		{"user not found",
+		{
+			"invalid username",
 			www.ResetPassword{
-				Email: "abc",
+				Username: "wrongusername",
+				Email:    usrNoToken.Email,
 			},
 			www.UserError{
 				ErrorCode: www.ErrorStatusUserNotFound,
-			}},
-
-		{"unexpired token",
-			www.ResetPassword{
-				Email: usrUnexpired.Email,
-			}, nil},
-
-		{"expired token",
-			www.ResetPassword{
-				Email: usrExpired.Email,
-			}, nil},
-
-		{"success",
-			www.ResetPassword{
-				Email: usr.Email,
-			}, nil},
-
-		// With a request verification token
-
-		{"invalid token",
-			www.ResetPassword{
-				Email:             usr.Email,
-				VerificationToken: "xxx",
 			},
-			www.UserError{
-				ErrorCode: www.ErrorStatusVerificationTokenInvalid,
-			}},
-
-		{"wrong token",
+			false,
+		},
+		{
+			"wrong email",
 			www.ResetPassword{
-				Email:             usr.Email,
-				VerificationToken: usrUnexpiredToken,
+				Username: usrNoToken.Username,
+				Email:    "wrongemail",
 			},
-			www.UserError{
-				ErrorCode: www.ErrorStatusVerificationTokenInvalid,
-			}},
-
-		{"expired token",
+			nil,
+			false,
+		},
+		// User has already requested a reset password
+		// verification token and it has not expired.
+		{
+			"unexpired verification token",
 			www.ResetPassword{
-				Email:             usrExpired2.Email,
-				VerificationToken: usrExpired2Token,
+				Username: usrUnexpired.Username,
+				Email:    usrUnexpired.Email,
 			},
-			www.UserError{
-				ErrorCode: www.ErrorStatusVerificationTokenExpired,
-			}},
-
-		{"invalid password",
+			nil,
+			false,
+		},
+		// User has already requested a reset password
+		// verification token but the token is expired.
+		{
+			"expired verification token",
 			www.ResetPassword{
-				Email:             usrUnexpired.Email,
-				VerificationToken: usrUnexpiredToken,
-				NewPassword:       "",
+				Username: usrExpired.Username,
+				Email:    usrExpired.Email,
 			},
-			www.UserError{
-				ErrorCode: www.ErrorStatusMalformedPassword,
-			}},
-
-		{"success",
+			nil,
+			true,
+		},
+		// User has not yet requested a reset password
+		// verification token.
+		{
+			"no token",
 			www.ResetPassword{
-				Email:             usrUnexpired.Email,
-				VerificationToken: usrUnexpiredToken,
-				NewPassword:       newPassword,
-			}, nil},
+				Username: usrNoToken.Username,
+				Email:    usrNoToken.Email,
+			},
+			nil,
+			true,
+		},
 	}
 
 	// Run tests
 	for _, v := range tests {
 		t.Run(v.name, func(t *testing.T) {
-			_, err := p.processResetPassword(v.rp)
+			rpr, err := p.processResetPassword(v.rp)
 			got := errToStr(err)
-			want := errToStr(v.want)
+			want := errToStr(v.wantErr)
 			if got != want {
-				t.Errorf("got error %v, want %v",
-					got, want)
+				t.Errorf("got error %v, want %v", got, want)
+			}
+
+			// Check if the verification token was successfully
+			// sent. The email server is disabled for testing so
+			// if the token is in the reply then it is considered
+			// to have been successfully sent.
+			if v.wantToken && rpr.VerificationToken == "" {
+				t.Errorf("verification token not sent")
+			}
+		})
+	}
+}
+
+func TestProcessVerifyResetPassword(t *testing.T) {
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
+
+	// Create a user with an unexpired verification token
+	usrUnexpired, _ := newUser(t, p, true, false)
+	token, expiry, err := newVerificationTokenAndExpiry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	usrUnexpired.ResetPasswordVerificationToken = token
+	usrUnexpired.ResetPasswordVerificationExpiry = expiry
+	err = p.db.UserUpdate(*usrUnexpired)
+	if err != nil {
+		t.Fatal(err)
+	}
+	usrUnexpiredToken := hex.EncodeToString(token)
+
+	// Create a user with an exipred verification token
+	usrExpired, _ := newUser(t, p, true, false)
+	token, _, err = newVerificationTokenAndExpiry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	usrExpired.ResetPasswordVerificationToken = token
+	usrExpired.ResetPasswordVerificationExpiry = time.Now().Unix() - 1
+	err = p.db.UserUpdate(*usrExpired)
+	if err != nil {
+		t.Fatal(err)
+	}
+	usrExpiredToken := hex.EncodeToString(token)
+
+	// Create a locked user with an unexpired verification token.
+	usrLocked, _ := newUser(t, p, true, false)
+	token, expiry, err = newVerificationTokenAndExpiry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	usrLocked.ResetPasswordVerificationToken = token
+	usrLocked.ResetPasswordVerificationExpiry = expiry
+	usrLocked.FailedLoginAttempts = LoginAttemptsToLockUser
+	err = p.db.UserUpdate(*usrLocked)
+	if err != nil {
+		t.Fatal(err)
+	}
+	usrLockedToken := hex.EncodeToString(token)
+
+	// Create a new password
+	h, err := p.hashPassword("newpassword")
+	if err != nil {
+		t.Fatal(err)
+	}
+	newPass := hex.EncodeToString(h)
+
+	// Setup tests
+	var tests = []struct {
+		name    string
+		vrp     www.VerifyResetPassword
+		wantErr error
+	}{
+		{
+			"user not found",
+			www.VerifyResetPassword{
+				Username:          "badusername",
+				VerificationToken: usrUnexpiredToken,
+				NewPassword:       newPass,
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusUserNotFound,
+			},
+		},
+		{
+			"no verification token",
+			www.VerifyResetPassword{
+				Username:          usrUnexpired.Username,
+				VerificationToken: "",
+				NewPassword:       newPass,
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusVerificationTokenInvalid,
+			},
+		},
+		{
+			"invalid verification token",
+			www.VerifyResetPassword{
+				Username:          usrUnexpired.Username,
+				VerificationToken: "invalidtoken",
+				NewPassword:       newPass,
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusVerificationTokenInvalid,
+			},
+		},
+		{
+			"wrong verification token",
+			www.VerifyResetPassword{
+				Username:          usrUnexpired.Username,
+				VerificationToken: usrExpiredToken,
+				NewPassword:       newPass,
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusVerificationTokenInvalid,
+			},
+		},
+		{
+			"expired verification token",
+			www.VerifyResetPassword{
+				Username:          usrExpired.Username,
+				VerificationToken: usrExpiredToken,
+				NewPassword:       newPass,
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusVerificationTokenExpired,
+			},
+		},
+		{
+			"invalid password",
+			www.VerifyResetPassword{
+				Username:          usrUnexpired.Username,
+				VerificationToken: usrUnexpiredToken,
+				NewPassword:       "",
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusMalformedPassword,
+			},
+		},
+		{
+			"success",
+			www.VerifyResetPassword{
+				Username:          usrUnexpired.Username,
+				VerificationToken: usrUnexpiredToken,
+				NewPassword:       newPass,
+			},
+			nil,
+		},
+		{
+			"success with locked account",
+			www.VerifyResetPassword{
+				Username:          usrLocked.Username,
+				VerificationToken: usrLockedToken,
+				NewPassword:       newPass,
+			},
+			nil,
+		},
+	}
+
+	// Run tests
+	for _, v := range tests {
+		t.Run(v.name, func(t *testing.T) {
+			_, err := p.processVerifyResetPassword(v.vrp)
+			got := errToStr(err)
+			want := errToStr(v.wantErr)
+			if got != want {
+				t.Errorf("got error %v, want %v", got, want)
+				return
+			}
+
+			// If there were no errors, ensure that the user password
+			// was updated correctly, the user account was unlocked,
+			// and the verification token fields were cleared out.
+			if err == nil {
+				u, err := p.db.UserGetByUsername(v.vrp.Username)
+				if err != nil {
+					t.Fatal(err)
+				}
+				err = bcrypt.CompareHashAndPassword(u.HashedPassword,
+					[]byte(v.vrp.NewPassword))
+				if err != nil {
+					if err == bcrypt.ErrMismatchedHashAndPassword {
+						t.Errorf("user password not updated")
+					}
+					t.Fatal(err)
+				}
+				switch {
+				case userIsLocked(u.FailedLoginAttempts):
+					t.Errorf("user account is still locked")
+				case u.ResetPasswordVerificationToken != nil:
+					t.Errorf("verification token not nil")
+				case u.ResetPasswordVerificationExpiry != 0:
+					t.Errorf("verification expiry not 0")
+				}
 			}
 		})
 	}

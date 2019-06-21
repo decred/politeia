@@ -624,6 +624,29 @@ func (c *Client) ResetPassword(rp *v1.ResetPassword) (*v1.ResetPasswordReply, er
 	return &rpr, nil
 }
 
+// VerifyResetPassword sends the VerifyResetPassword command to politeiawww.
+func (c *Client) VerifyResetPassword(vrp v1.VerifyResetPassword) (*v1.VerifyResetPasswordReply, error) {
+	respBody, err := c.makeRequest("POST", v1.RouteVerifyResetPassword, vrp)
+	if err != nil {
+		return nil, err
+	}
+
+	var reply v1.VerifyResetPasswordReply
+	err = json.Unmarshal(respBody, &reply)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal VerifyResetPasswordReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(reply)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &reply, nil
+}
+
 // ProposalPaywallDetails retrieves proposal credit paywall information for the
 // logged in user.
 func (c *Client) ProposalPaywallDetails() (*v1.ProposalPaywallDetailsReply, error) {
