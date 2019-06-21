@@ -44,7 +44,9 @@ func TestTimestamp(t *testing.T) {
 	defer os.Remove(filename)
 
 	// Sets valid mime types
-	SetMimeTypesMap(v1.DefaultMimeTypes)
+	for _, m := range v1.DefaultMimeTypes {
+		v1.ValidMimeTypesMap[m] = struct{}{}
+	}
 
 	// use util internal functions ito get some free testing
 	_, digest, _, err := LoadFile(filename)

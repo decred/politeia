@@ -404,7 +404,7 @@ func verifyContent(metadata []backend.MetadataStream, files []backend.File, file
 			}
 		}
 
-		if !util.MimeValid(files[i].MIME) {
+		if _, ok := pd.ValidMimeTypesMap[files[i].MIME]; !ok {
 			return nil, backend.ContentVerificationError{
 				ErrorCode: pd.ErrorStatusUnsupportedMIMEType,
 				ErrorContext: []string{

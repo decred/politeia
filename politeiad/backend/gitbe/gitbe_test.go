@@ -73,7 +73,9 @@ func TestAnchorWithCommits(t *testing.T) {
 	g.test = true
 
 	// Sets valid mime types
-	util.SetMimeTypesMap(v1.DefaultMimeTypes)
+	for _, m := range v1.DefaultMimeTypes {
+		v1.ValidMimeTypesMap[m] = struct{}{}
+	}
 
 	// Create 5 unvetted records
 	propCount := 5

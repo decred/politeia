@@ -6,7 +6,9 @@ package main
 
 import (
 	"crypto/elliptic"
+	"crypto/sha256"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -20,6 +22,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/decredplugin"
 	v1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
@@ -48,6 +51,10 @@ type politeia struct {
 	router   *mux.Router
 	identity *identity.FullIdentity
 	plugins  map[string]v1.Plugin
+}
+
+func (p *politeia) isValid(s string) {
+
 }
 
 func remoteAddr(r *http.Request) string {
@@ -567,7 +574,7 @@ func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
 		reply.Record = p.convertBackendRecord(*bpr)
 
 		// Double check record bits before sending them off
-		err := util.VerifyCenshorshipRecord(p.identity.Public,
+		err := VerifyCenshorshipRecord(p.identity.Public,
 			reply.Record.CensorshipRecord, reply.Record.Files)
 		if err != nil {
 			// Generic internal error.
@@ -631,7 +638,7 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 		reply.Record = p.convertBackendRecord(*bpr)
 
 		// Double check record bits before sending them off
-		err := util.VerifyCenshorshipRecord(p.identity.Public,
+		err := VerifyCenshorshipRecord(p.identity.Public,
 			reply.Record.CensorshipRecord, reply.Record.Files)
 		if err != nil {
 			// Generic internal error.
@@ -1059,6 +1066,52 @@ func (p *politeia) addRoute(method string, route string, handler http.HandlerFun
 	p.router.StrictSlash(true).HandleFunc(route, handler).Methods(method)
 }
 
+// VerifyCenshorshipRecord ensures that a CensorshipRecord properly
+// describes the array of files.
+func VerifyCenshorshipRecord(pid identity.PublicIdentity, csr v1.CensorshipRecord, files []v1.File) error {
+	digests := make([]*[sha256.Size]byte, 0, len(files))
+	for _, file := range files {
+		payload, err := base64.StdEncoding.DecodeString(file.Payload)
+		if err != nil {
+			return v1.ErrInvalidBase64
+		}
+
+		// MIME
+		mimeType := util.DetectMimeType(payload)
+		if _, ok := v1.ValidMimeTypesMap[mimeType]; !ok {
+			return v1.ErrInvalidMimeType
+		}
+
+		// Digest
+		h := sha256.New()
+		h.Write(payload)
+		d := h.Sum(nil)
+		var digest [sha256.Size]byte
+		copy(digest[:], d)
+
+		digests = append(digests, &digest)
+	}
+
+	// Verify merkle root
+	root := merkle.Root(digests)
+	if hex.EncodeToString(root[:]) != csr.Merkle {
+		return v1.ErrInvalidMerkle
+	}
+
+	s, err := hex.DecodeString(csr.Signature)
+	if err != nil {
+		return v1.ErrInvalidHex
+	}
+	var signature [identity.SignatureSize]byte
+	copy(signature[:], s)
+	r := hex.EncodeToString(root[:])
+	if !pid.VerifyMessage([]byte(r+csr.Token), signature) {
+		return v1.ErrCorrupt
+	}
+
+	return nil
+}
+
 func _main() error {
 	// Load configuration and parse command line.  This function also
 	// initializes logging and configures it accordingly.
@@ -1117,6 +1170,11 @@ func _main() error {
 		cfg:     loadedCfg,
 		plugins: make(map[string]v1.Plugin),
 		cache:   cachestub.New(),
+	}
+
+	// Sets valid mime types map.
+	for _, m := range p.cfg.MimeTypes {
+		v1.ValidMimeTypesMap[m] = struct{}{}
 	}
 
 	// Load identity.

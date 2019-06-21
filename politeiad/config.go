@@ -479,7 +479,6 @@ func loadConfig() (*config, []string, error) {
 		}
 		cfg.MimeTypes = mimes
 	}
-	util.SetMimeTypesMap(cfg.MimeTypes)
 
 	// Append the network type to the data directory so it is "namespaced"
 	// per network.  In addition to the block database, there are other

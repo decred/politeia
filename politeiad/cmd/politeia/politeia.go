@@ -436,7 +436,7 @@ func getFile(filename string) (*v1.File, *[sha256.Size]byte, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	if !util.MimeValid(file.MIME) {
+	if _, ok := v1.ValidMimeTypesMap[file.MIME]; !ok {
 		return nil, nil, fmt.Errorf("unsupported mime type '%v' "+
 			"for file '%v'", file.MIME, filename)
 	}
@@ -968,13 +968,6 @@ func getUnvetted() error {
 		return nil
 	}
 
-	// Verify content
-	err = util.VerifyCenshorshipRecord(*id, reply.Record.CensorshipRecord,
-		reply.Record.Files)
-	if err != nil {
-		return err
-	}
-
 	if !*printJson {
 		printRecord("Unvetted record", reply.Record)
 	}
@@ -1067,13 +1060,6 @@ func getVetted() error {
 		fmt.Printf("Record     : %v\n", flags[0])
 		fmt.Printf("  Status   : %v\n", status)
 		return nil
-	}
-
-	// Verify content
-	err = util.VerifyCenshorshipRecord(*id, reply.Record.CensorshipRecord,
-		reply.Record.Files)
-	if err != nil {
-		return err
 	}
 
 	if !*printJson {

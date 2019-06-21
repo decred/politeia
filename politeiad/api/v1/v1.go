@@ -107,6 +107,11 @@ var (
 	// Input validation
 	RegexpSHA256 = regexp.MustCompile("[A-Fa-f0-9]{64}")
 
+	// ValidMimeTypesMap is used to verify if a mime type is valid within a
+	// politeiad config setting
+	ValidMimeTypesMap = make(map[string]struct{})
+
+	// DefaultMimeTypes is the default list for valid mime types
 	DefaultMimeTypes = []string{
 		"image/png",
 		"text/plain",
@@ -114,10 +119,11 @@ var (
 	}
 
 	// Verification errors
-	ErrInvalidHex    = errors.New("corrupt hex string")
-	ErrInvalidBase64 = errors.New("corrupt base64")
-	ErrInvalidMerkle = errors.New("merkle roots do not match")
-	ErrCorrupt       = errors.New("signature verification failed")
+	ErrInvalidHex      = errors.New("corrupt hex string")
+	ErrInvalidBase64   = errors.New("corrupt base64")
+	ErrInvalidMerkle   = errors.New("merkle roots do not match")
+	ErrCorrupt         = errors.New("signature verification failed")
+	ErrInvalidMimeType = errors.New("unsupported MIME type")
 )
 
 // CensorshipRecord contains the proof that a record was accepted for review.

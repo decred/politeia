@@ -8,7 +8,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
-	"errors"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -18,26 +17,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/decred/dcrtime/merkle"
-	v1 "github.com/decred/politeia/politeiad/api/v1"
-	"github.com/decred/politeia/politeiad/api/v1/identity"
 	svg "github.com/h2non/go-is-svg"
 )
-
-var (
-	// validMimeTypesMap is initialized from d's config, so that
-	// we can check for valid mime types throughout the code.
-	validMimeTypesMap = make(map[string]struct{})
-
-	ErrUnsupportedMimeType = errors.New("unsupported MIME type")
-)
-
-// MimeValid returns true if the passed string is a valid
-// MIME type, false otherwise.
-func MimeValid(s string) bool {
-	_, ok := validMimeTypesMap[s]
-	return ok
-}
 
 // DetectMimeType returns the file MIME type
 func DetectMimeType(data []byte) string {
@@ -47,13 +28,6 @@ func DetectMimeType(data []byte) string {
 		return "image/svg+xml"
 	}
 	return http.DetectContentType(data)
-}
-
-// SetMimeTypesMap sets valid mimetypes list with loaded config.
-func SetMimeTypesMap(validMimeTypesCfg []string) {
-	for _, m := range validMimeTypesCfg {
-		validMimeTypesMap[m] = struct{}{}
-	}
 }
 
 // DigestFile returns the SHA256 of a file.
@@ -176,50 +150,4 @@ func CleanAndExpandPath(path string) string {
 	}
 
 	return filepath.Join(homeDir, path)
-}
-
-// Verify ensures that a CensorshipRecord properly describes the array of
-// files.
-func VerifyCenshorshipRecord(pid identity.PublicIdentity, csr v1.CensorshipRecord, files []v1.File) error {
-	digests := make([]*[sha256.Size]byte, 0, len(files))
-	for _, file := range files {
-		payload, err := base64.StdEncoding.DecodeString(file.Payload)
-		if err != nil {
-			return v1.ErrInvalidBase64
-		}
-
-		// MIME
-		mimeType := DetectMimeType(payload)
-		if !MimeValid(mimeType) {
-			return ErrUnsupportedMimeType
-		}
-
-		// Digest
-		h := sha256.New()
-		h.Write(payload)
-		d := h.Sum(nil)
-		var digest [sha256.Size]byte
-		copy(digest[:], d)
-
-		digests = append(digests, &digest)
-	}
-
-	// Verify merkle root
-	root := merkle.Root(digests)
-	if hex.EncodeToString(root[:]) != csr.Merkle {
-		return v1.ErrInvalidMerkle
-	}
-
-	s, err := hex.DecodeString(csr.Signature)
-	if err != nil {
-		return v1.ErrInvalidHex
-	}
-	var signature [identity.SignatureSize]byte
-	copy(signature[:], s)
-	r := hex.EncodeToString(root[:])
-	if !pid.VerifyMessage([]byte(r+csr.Token), signature) {
-		return v1.ErrCorrupt
-	}
-
-	return nil
 }
