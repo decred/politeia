@@ -1591,8 +1591,8 @@ func (p *politeiawww) calculatePayout(inv database.Invoice) (cms.Payout, error) 
 	var username string
 	u, err := p.db.UserGetByPubKey(inv.PublicKey)
 	if err != nil {
-		log.Errorf("processGeneratePayouts: UserGetByPubKey: "+
-			"token:%v pubkey:%v err:%v", inv.Token, inv.PublicKey, err)
+		log.Errorf("calculatePayout: UserGetByPubKey: token:%v "+
+			"pubkey:%v err:%v", inv.Token, inv.PublicKey, err)
 	} else {
 		username = u.Username
 	}
@@ -1623,8 +1623,10 @@ func (p *politeiawww) calculatePayout(inv database.Invoice) (cms.Payout, error) 
 	if inv.ExchangeRate > 0 {
 		payout.DCRTotal, err = dcrutil.NewAmount(float64(payout.Total) /
 			float64(inv.ExchangeRate))
-		log.Errorf("processGeneratePayouts %v: NewAmount: %v",
-			inv.Token, err)
+		if err != nil {
+			log.Errorf("calculatePayout %v: NewAmount: %v",
+				inv.Token, err)
+		}
 	}
 
 	payout.ExchangeRate = inv.ExchangeRate
