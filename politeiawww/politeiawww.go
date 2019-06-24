@@ -12,7 +12,6 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg"
-	client "github.com/decred/dcrdata/pubsub/v2/psclient"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/cache"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
@@ -65,12 +64,6 @@ type wsContext struct {
 	errorC        chan www.WSError
 	pingC         chan struct{}
 	done          chan struct{} // SHUT...DOWN...EVERYTHING...
-}
-
-// wsDcrdata is the context for the dcrdata websocket connection.
-type wsDcrdata struct {
-	client      *client.Client
-	currentSubs []string
 }
 
 func (w *wsContext) String() string {
@@ -135,9 +128,9 @@ type politeiawww struct {
 	cmsDB cmsdatabase.Database
 	cron  *cron.Cron
 
-	// pubSubDcrdata contains the client and list of current subscriptions to
+	// wsDcrdata contains the client and list of current subscriptions to
 	// dcrdata's public subscription websocket
-	pubSubDcrdata *wsDcrdata
+	wsDcrdata *wsDcrdata
 }
 
 // XXX rig this up
