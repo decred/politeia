@@ -15,21 +15,19 @@ type ContractorTypeT int
 const (
 
 	// Contractor Management Routes
-	RouteInviteNewUser         = "/invite"
-	RouteRegisterUser          = "/register"
-	RouteNewInvoice            = "/invoices/new"
-	RouteEditInvoice           = "/invoices/edit"
-	RouteInvoiceDetails        = "/invoices/{token:[A-z0-9]{64}}"
-	RouteSetInvoiceStatus      = "/invoices/{token:[A-z0-9]{64}}/status"
-	RouteUserInvoices          = "/user/invoices"
-	RouteUpdateUserInformation = "/user/updateinformation"
-	RouteUserInformation       = "/user/information"
-	RouteAdminInvoices         = "/admin/invoices"
-	RouteGeneratePayouts       = "/admin/generatepayouts"
-	RouteLineItemPayouts       = "/admin/lineitempayouts"
-	RoutePayInvoices           = "/admin/payinvoices"
-	RouteInvoiceComments       = "/invoices/{token:[A-z0-9]{64}}/comments"
-	RouteInvoiceExchangeRate   = "/invoices/exchangerate"
+	RouteInviteNewUser       = "/invite"
+	RouteRegisterUser        = "/register"
+	RouteNewInvoice          = "/invoices/new"
+	RouteEditInvoice         = "/invoices/edit"
+	RouteInvoiceDetails      = "/invoices/{token:[A-z0-9]{64}}"
+	RouteSetInvoiceStatus    = "/invoices/{token:[A-z0-9]{64}}/status"
+	RouteUserInvoices        = "/user/invoices"
+	RouteAdminInvoices       = "/admin/invoices"
+	RouteGeneratePayouts     = "/admin/generatepayouts"
+	RouteLineItemPayouts     = "/admin/lineitempayouts"
+	RoutePayInvoices         = "/admin/payinvoices"
+	RouteInvoiceComments     = "/invoices/{token:[A-z0-9]{64}}/comments"
+	RouteInvoiceExchangeRate = "/invoices/exchangerate"
 
 	// Invoice status codes
 	InvoiceStatusInvalid  InvoiceStatusT = 0 // Invalid status
@@ -449,12 +447,11 @@ type PaymentInformation struct {
 	Status          PaymentStatusT `json:"status"`
 }
 
-// AdditionalFields contains additional information about a given user.
-// This information covers things beyond the basics of passwords and identities
-// that are currently contained in the userdb.
-type AdditionalFields struct {
-	UserID             string          `json:"userid"`
-	Domain             DomainTypeT     `json:"domain"`
+// CMSUser represents a CMS user. It contains the standard politeiawww user
+// fields as well as CMS specific user fields.
+type CMSUser struct {
+	User               www.User        `json:"user"`
+	Domain             DomainTypeT     `json:"domain"` // Contractor domain
 	GitHubName         string          `json:"githubname"`
 	MatrixName         string          `json:"matrixname"`
 	ContractorType     ContractorTypeT `json:"contractortype"`
@@ -464,24 +461,22 @@ type AdditionalFields struct {
 	SupervisorUserID   string          `json:"supervisoruserid"`
 }
 
-// UpdateUserInformation allows for users to submit updates to their existing
-// UserInformation that is stored in the cmsdatabase.
-type UpdateUserInformation struct {
-	UserInformation AdditionalFields `json:"userinformation"` // Updated fields that need to be saved
-	Signature       string           `json:"signature"`       // Signature of updatedfields
-	PublicKey       string           `json:"publickey"`       // Public key of user
+// UserDetails fetches a cms user's details by their id.
+type UserDetails struct {
+	UserID string `json:"userid"` // User id
 }
 
-// UpdateUserInformationReply will return an empty reply if the information
-// was successfully updated, otherwise an error will be provided.
-type UpdateUserInformationReply struct{}
-
-// UserInformation allows for currently logged in users to view their
-// UserInformation that is stored in the cmsdatabase.
-type UserInformation struct{}
-
-// UserInformationReply will contain the populated UserInformation field, if
-// found.  Otherwise it will UserInformation will be nil.
-type UserInformationReply struct {
-	UserInformation *AdditionalFields `json:"userinformation"`
+// UserDetailsReply returns a cms user's details.
+type UserDetailsReply struct {
+	User *CMSUser `json:"user"`
 }
+
+// EditUser edits a user's preferences.
+type EditUser struct {
+	CMSUser   CMSUser `json:"user"`
+	Signature string  `json:"signature"` // Signature of raw user json
+	PublicKey string  `json:"publickey"` // Public key of user
+}
+
+// EditUserReply is the reply for the EditUser command.
+type EditUserReply struct{}

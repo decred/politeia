@@ -287,30 +287,29 @@ func (p *politeiawww) processRegisterUser(u cms.RegisterUser) (*cms.RegisterUser
 	return &reply, nil
 }
 
-func (p *politeiawww) processUpdateUserInformation(uui cms.UpdateUserInformation, u *user.User) (*cms.UpdateUserInformationReply, error) {
-	reply := cms.UpdateUserInformationReply{}
+func (p *politeiawww) processEditCMSUser(ecu cms.EditUser, u *user.User) (*cms.EditUserReply, error) {
+	reply := cms.EditUserReply{}
 
 	// Get the raw json of the user information in the request to confirm the
 	// signature that was included.
-	userInfoRaw, err := json.Marshal(uui.UserInformation)
+	userInfoRaw, err := json.Marshal(ecu.CMSUser)
 	if err != nil {
 		return nil, fmt.Errorf("processUpdateUserInformation: Marshal %v", err)
 	}
-
 	// Ensure the public key is the user's active key
-	if uui.PublicKey != u.PublicKey() {
+	if ecu.PublicKey != u.PublicKey() {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusInvalidSigningKey,
 		}
 	}
 
 	// Validate signature
-	err = validateSignature(uui.PublicKey, uui.Signature, string(userInfoRaw))
+	err = validateSignature(ecu.PublicKey, ecu.Signature, string(userInfoRaw))
 	if err != nil {
 		return nil, err
 	}
 
-	err = validateUserInformation(uui.UserInformation)
+	err = validateUserInformation(ecu.CMSUser)
 	if err != nil {
 		return nil, err
 	}
@@ -321,29 +320,29 @@ func (p *politeiawww) processUpdateUserInformation(uui cms.UpdateUserInformation
 	// Update a cms user with the provided information.
 	// Only set fields in dbUserInfo if they are set in the request,
 	// otherwise use the existing fields from the above db request.
-	if uui.UserInformation.Domain != 0 {
-		uu.Domain = int(uui.UserInformation.Domain)
+	if ecu.CMSUser.Domain != 0 {
+		uu.Domain = int(ecu.CMSUser.Domain)
 	}
-	if uui.UserInformation.GitHubName != "" {
-		uu.GitHubName = uui.UserInformation.GitHubName
+	if ecu.CMSUser.GitHubName != "" {
+		uu.GitHubName = ecu.CMSUser.GitHubName
 	}
-	if uui.UserInformation.MatrixName != "" {
-		uu.MatrixName = uui.UserInformation.MatrixName
+	if ecu.CMSUser.MatrixName != "" {
+		uu.MatrixName = ecu.CMSUser.MatrixName
 	}
-	if uui.UserInformation.ContractorType != 0 {
-		uu.ContractorType = int(uui.UserInformation.ContractorType)
+	if ecu.CMSUser.ContractorType != 0 {
+		uu.ContractorType = int(ecu.CMSUser.ContractorType)
 	}
-	if uui.UserInformation.ContractorName != "" {
-		uu.ContractorName = uui.UserInformation.ContractorName
+	if ecu.CMSUser.ContractorName != "" {
+		uu.ContractorName = ecu.CMSUser.ContractorName
 	}
-	if uui.UserInformation.ContractorLocation != "" {
-		uu.ContractorLocation = uui.UserInformation.ContractorLocation
+	if ecu.CMSUser.ContractorLocation != "" {
+		uu.ContractorLocation = ecu.CMSUser.ContractorLocation
 	}
-	if uui.UserInformation.ContractorContact != "" {
-		uu.ContractorContact = uui.UserInformation.ContractorContact
+	if ecu.CMSUser.ContractorContact != "" {
+		uu.ContractorContact = ecu.CMSUser.ContractorContact
 	}
-	if uui.UserInformation.SupervisorUserID != "" {
-		uu.SupervisorUserID = uui.UserInformation.SupervisorUserID
+	if ecu.CMSUser.SupervisorUserID != "" {
+		uu.SupervisorUserID = ecu.CMSUser.SupervisorUserID
 	}
 	payload, err := user.EncodeUpdateCMSUser(uu)
 	if err != nil {
@@ -361,8 +360,8 @@ func (p *politeiawww) processUpdateUserInformation(uui cms.UpdateUserInformation
 	return &reply, nil
 }
 
-func (p *politeiawww) processUserInformation(u *user.User) (*cms.UserInformationReply, error) {
-	reply := cms.UserInformationReply{}
+func (p *politeiawww) processCMSUserDetails(u *user.User) (*cms.UserDetailsReply, error) {
+	reply := cms.UserDetailsReply{}
 	ubi := user.CMSUserByID{
 		ID: u.ID.String(),
 	}
@@ -388,7 +387,8 @@ func (p *politeiawww) processUserInformation(u *user.User) (*cms.UserInformation
 	if err != nil {
 		return nil, err
 	}
-	reply.UserInformation = &cms.AdditionalFields{
+	reply.User = &cms.CMSUser{
+		User:               convertWWWUserFromDatabaseUser(&ubir.User.User),
 		Domain:             cms.DomainTypeT(ubir.User.Domain),
 		ContractorType:     cms.ContractorTypeT(ubir.User.ContractorType),
 		ContractorName:     ubir.User.ContractorName,
@@ -402,7 +402,7 @@ func (p *politeiawww) processUserInformation(u *user.User) (*cms.UserInformation
 	return &reply, nil
 }
 
-func validateUserInformation(userInfo cms.AdditionalFields) error {
+func validateUserInformation(userInfo cms.CMSUser) error {
 	var err error
 	if userInfo.GitHubName != "" {
 		contact := formatContact(userInfo.GitHubName)

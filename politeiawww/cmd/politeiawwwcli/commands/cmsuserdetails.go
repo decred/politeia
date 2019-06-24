@@ -4,15 +4,15 @@
 
 package commands
 
-// CMSUserInformationCmd requests a user's information.
-type CMSUserInformationCmd struct {
+// CMSUserDetailsCmd requests a user's information.
+type CMSUserDetailsCmd struct {
 	Args struct{}
 }
 
 // Execute executes the cms user information command.
-func (cmd *CMSUserInformationCmd) Execute(args []string) error {
+func (cmd *CMSUserDetailsCmd) Execute(args []string) error {
 
-	uir, err := client.CMSUserInfomation()
+	uir, err := client.CMSUserDetails()
 	if err != nil {
 		return err
 	}

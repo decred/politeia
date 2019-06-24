@@ -1703,17 +1703,17 @@ func (c *Client) LineItemPayouts(lip *cms.LineItemPayouts) (*cms.LineItemPayouts
 	return &lipr, nil
 }
 
-// CMSUserInformation returns the current user's information.
-func (c *Client) CMSUserInfomation() (*cms.UserInformationReply, error) {
-	responseBody, err := c.makeRequest("GET", cms.RouteUserInformation, nil)
+// CMSUserDetails returns the current cms user's information.
+func (c *Client) CMSUserDetails() (*cms.UserDetailsReply, error) {
+	responseBody, err := c.makeRequest("GET", v1.RouteUserDetails, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var uir cms.UserInformationReply
+	var uir cms.UserDetailsReply
 	err = json.Unmarshal(responseBody, &uir)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal UserInformationReply: %v", err)
+		return nil, fmt.Errorf("unmarshal UserDetailsReply: %v", err)
 	}
 
 	if c.cfg.Verbose {
@@ -1726,28 +1726,28 @@ func (c *Client) CMSUserInfomation() (*cms.UserInformationReply, error) {
 	return &uir, nil
 }
 
-// CMSUpdateUserInformation returns the current user's information.
-func (c *Client) CMSUpdateUserInfomation(uui cms.UpdateUserInformation) (*cms.UpdateUserInformationReply, error) {
-	responseBody, err := c.makeRequest("POST", cms.RouteUpdateUserInformation,
+// CMSEditUser returns the current user's information.
+func (c *Client) CMSEditUser(uui cms.EditUser) (*cms.EditUserReply, error) {
+	responseBody, err := c.makeRequest("POST", v1.RouteEditUser,
 		uui)
 	if err != nil {
 		return nil, err
 	}
 
-	var uuir cms.UpdateUserInformationReply
-	err = json.Unmarshal(responseBody, &uuir)
+	var eur cms.EditUserReply
+	err = json.Unmarshal(responseBody, &eur)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal UpdateUserInformationReply: %v", err)
+		return nil, fmt.Errorf("unmarshal CMSEditUserReply: %v", err)
 	}
 
 	if c.cfg.Verbose {
-		err := prettyPrintJSON(uuir)
+		err := prettyPrintJSON(eur)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return &uuir, nil
+	return &eur, nil
 }
 
 // Close all client connections.

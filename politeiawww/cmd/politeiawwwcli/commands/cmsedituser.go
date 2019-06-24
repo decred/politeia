@@ -16,8 +16,8 @@ import (
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 )
 
-// CMSUpdateUserInformationCmd updates a user's information.
-type CMSUpdateUserInformationCmd struct {
+// CMSEditUserCmd updates a user's information.
+type CMSEditUserCmd struct {
 	Domain             string `long:"domain" optional:"true" description:"Domain type: Developer, Marketing, Design, Documentation, Research, Community"`
 	GitHubName         string `long:"githubname" optional:"true" description:"Github handle"`
 	MatrixName         string `long:"matrixname" optional:"true" description:"Matrix name"`
@@ -29,18 +29,18 @@ type CMSUpdateUserInformationCmd struct {
 }
 
 // Execute executes the cms update user information command.
-func (cmd *CMSUpdateUserInformationCmd) Execute(args []string) error {
+func (cmd *CMSEditUserCmd) Execute(args []string) error {
 	// Check for user identity
 	if cfg.Identity == nil {
 		return errUserIdentityNotFound
 	}
-	uir, err := client.CMSUserInfomation()
+	uir, err := client.CMSUserDetails()
 	if err != nil {
 		fmt.Println(err)
 	}
-	userInfo := cms.AdditionalFields{}
-	if uir != nil && uir.UserInformation != nil {
-		userInfo = *uir.UserInformation
+	userInfo := cms.CMSUser{}
+	if uir != nil && uir.User != nil {
+		userInfo = *uir.User
 	}
 	var domainType, contractorType int
 	if cmd.Domain == "" || cmd.GitHubName == "" ||
@@ -270,24 +270,24 @@ func (cmd *CMSUpdateUserInformationCmd) Execute(args []string) error {
 	}
 	userInfoRaw, err := json.Marshal(userInfo)
 	if err != nil {
-		return fmt.Errorf("execute CMSUpdateUserInformationCmd: Marshal UserInformation %v",
+		return fmt.Errorf("execute CMSEditUserCmd: Marshal UserInformation %v",
 			err)
 	}
 	sig := cfg.Identity.SignMessage(userInfoRaw)
 
-	updateInfo := cms.UpdateUserInformation{
-		UserInformation: userInfo,
-		Signature:       hex.EncodeToString(sig[:]),
-		PublicKey:       hex.EncodeToString(cfg.Identity.Public.Key[:]),
+	updateInfo := cms.EditUser{
+		CMSUser:   userInfo,
+		Signature: hex.EncodeToString(sig[:]),
+		PublicKey: hex.EncodeToString(cfg.Identity.Public.Key[:]),
 	}
 
-	uuir, err := client.CMSUpdateUserInfomation(updateInfo)
+	ecur, err := client.CMSEditUser(updateInfo)
 	if err != nil {
 		return err
 	}
 
 	// Print update user information reply. (should be empty)
-	return printJSON(uuir)
+	return printJSON(ecur)
 }
 
 func parseDomain(domain string) (cms.DomainTypeT, error) {

@@ -696,17 +696,17 @@ Reply:
   ]
 ```
 
-### `Update user information`
+### `Edit user`
 
 Allows a user to submit updates to their user information.
 
-**Route:** `POST /v1/user/updateinformation`
+**Route:** `POST /v1/user/edit`
 
 **Params:**
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
-| userinformation | instance of [`Additional Fields`](#additionalfields) | the information that will be updated in the cmsdb | yes |
+| user | instance of [`CMS User](#cmsuser) | the information that will be updated in the cmsdb | yes |
 | publickey | string | the public key for the user's active identity | yes |
 | signature | string | the signature from hashing the attached userinformation | yes |
 
@@ -721,7 +721,7 @@ Request:
 
 ```json
 {
-  "userinformation":
+  "user":
     {
       "userid": "0",
       "domain": 1,
@@ -745,11 +745,11 @@ Reply:
 ```
 
 
-### `User information`
+### `User details`
 
 Returns a logged-in user's information beyond what is stored in the userdb.
 
-**Route:** `GET /v1/user/information`
+**Route:** `GET /v1/user/details`
 
 **Params:**
 
@@ -760,7 +760,7 @@ Returns a logged-in user's information beyond what is stored in the userdb.
 
 | | Type | Description |
 |-|-|-|
-| userinformation | instance of [`Additional Fields`](#additionalfields) | various user information |
+| user | instance of [`CMS User`](#cmsuser) | various user details |
 
 **Example**
 
@@ -774,9 +774,8 @@ Reply:
 
 ```json
 {
-  "userinformation":
+  "user":
     {
-      "userid": "0",
       "domain": 1,
       "githubname": "smobs",
       "matrixname": "smobs:decred.org",

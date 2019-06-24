@@ -402,15 +402,15 @@ func (p *politeiawww) handlePayInvoices(w http.ResponseWriter, r *http.Request) 
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-// handleUpdateUserInformation handles the request to update a given user's
+// handleEditCMSUser handles the request to edit a given user's
 // additional user information.
-func (p *politeiawww) handleUpdateUserInformation(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleUpdateUserInformation")
+func (p *politeiawww) handleEditCMSUser(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleEditCMSUser")
 
-	var uui cms.UpdateUserInformation
+	var eu cms.EditUser
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&uui); err != nil {
-		RespondWithError(w, r, 0, "handleUpdateUserInformation: unmarshal",
+	if err := decoder.Decode(&eu); err != nil {
+		RespondWithError(w, r, 0, "handleEditCMSUser: unmarshal",
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidInput,
 			})
@@ -420,13 +420,13 @@ func (p *politeiawww) handleUpdateUserInformation(w http.ResponseWriter, r *http
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleUpdateUserInformation: getSessionUser %v", err)
+			"handleEditCMSUser: getSessionUser %v", err)
 		return
 	}
 
-	reply, err := p.processUpdateUserInformation(uui, user)
+	reply, err := p.processEditCMSUser(eu, user)
 	if err != nil {
-		RespondWithError(w, r, 0, "handleUpdateUserInformation: "+
+		RespondWithError(w, r, 0, "handleEditCMSUser: "+
 			"processUpdateUserInformation %v", err)
 		return
 	}
@@ -434,19 +434,19 @@ func (p *politeiawww) handleUpdateUserInformation(w http.ResponseWriter, r *http
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-func (p *politeiawww) handleUserInformation(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleUserInformation")
+func (p *politeiawww) handleCMSUserDetails(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleCMSUserDetails")
 
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleUserInformation: getSessionUser %v", err)
+			"handleCMSUserDetails: getSessionUser %v", err)
 		return
 	}
 
-	reply, err := p.processUserInformation(user)
+	reply, err := p.processCMSUserDetails(user)
 	if err != nil {
-		RespondWithError(w, r, 0, "handleUserInformation: "+
+		RespondWithError(w, r, 0, "handleCMSUserDetails: "+
 			"processUserInformation %v", err)
 		return
 	}
@@ -514,10 +514,6 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		p.handleInvoiceComments, permissionLogin)
 	p.addRoute(http.MethodPost, cms.RouteInvoiceExchangeRate,
 		p.handleInvoiceExchangeRate, permissionLogin)
-	p.addRoute(http.MethodPost, cms.RouteUpdateUserInformation,
-		p.handleUpdateUserInformation, permissionLogin)
-	p.addRoute(http.MethodGet, cms.RouteUserInformation,
-		p.handleUserInformation, permissionLogin)
 
 	// Unauthenticated websocket
 	p.addRoute("", www.RouteUnauthenticatedWebSocket,
