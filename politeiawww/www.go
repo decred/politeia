@@ -639,7 +639,7 @@ done:
 	// Close user db connection
 	p.db.Close()
 
-	if p.pubSubDcrdata.client != nil {
+	if p.pubSubDcrdata != nil && p.pubSubDcrdata.client != nil {
 		p.pubSubDcrdata.client.Stop()
 	}
 

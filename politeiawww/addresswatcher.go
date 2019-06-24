@@ -48,7 +48,8 @@ func (p *politeiawww) removeWatchAddress(address string) error {
 		log.Infof("Not subscribed to %s.", address)
 		return nil
 	}
-	p.pubSubDcrdata.currentSubs = append(p.pubSubDcrdata.currentSubs[:i], p.pubSubDcrdata.currentSubs[i+1:]...)
+	p.pubSubDcrdata.currentSubs = append(p.pubSubDcrdata.currentSubs[:i],
+		p.pubSubDcrdata.currentSubs[i+1:]...)
 	_, err := p.pubSubDcrdata.client.Unsubscribe(address)
 	if err != nil {
 		return fmt.Errorf("failed to unsubscribe: %v", err)
@@ -90,8 +91,10 @@ func (p *politeiawww) setupWatcher() error {
 	}
 
 	clientSemVer := client.Version()
-	log.Infof("PubSub Server version: %s, Client version %v", serverVer, clientSemVer)
-	serverSemVer := semver.NewSemver(serverVer.Major, serverVer.Minor, serverVer.Patch)
+	log.Infof("PubSub Server version: %s, Client version %v", serverVer,
+		clientSemVer)
+	serverSemVer := semver.NewSemver(serverVer.Major, serverVer.Minor,
+		serverVer.Patch)
 	if !semver.Compatible(clientSemVer, serverSemVer) {
 		return fmt.Errorf("pubsub server version is %v, but client is version %v",
 			serverSemVer, clientSemVer)
@@ -198,7 +201,8 @@ func (p *politeiawww) checkPayments(payment *database.Payments) bool {
 		payment.TimeStarted)
 	if err != nil {
 		// XXX Some sort of 'recheck' or notice that it should do it again?
-		log.Errorf("error FetchTxsForAddressNotBefore for address %s: %v", payment.Address, err)
+		log.Errorf("error FetchTxsForAddressNotBefore for address %s: %v",
+			payment.Address, err)
 	}
 	if len(txs) == len(payment.TxIDs) {
 		// Same number of txids found, so nothing to update.
