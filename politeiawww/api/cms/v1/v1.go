@@ -124,7 +124,6 @@ const (
 	ErrorStatusMalformedDescription           www.ErrorStatusT = 1020
 	ErrorStatusWrongInvoiceStatus             www.ErrorStatusT = 1021
 	ErrorStatusInvoiceRequireLineItems        www.ErrorStatusT = 1022
-	ErrorStatusMultipleInvoiceMonthYear       www.ErrorStatusT = 1023
 	ErrorStatusInvalidInvoiceMonthYear        www.ErrorStatusT = 1024
 	ErrorStatusInvalidExchangeRate            www.ErrorStatusT = 1025
 	ErrorStatusInvalidLineItemType            www.ErrorStatusT = 1026
@@ -181,7 +180,6 @@ var (
 		ErrorStatusMalformedDescription:           "line item has malformed description",
 		ErrorStatusWrongInvoiceStatus:             "invoice is an wrong status to be editted (approved, rejected or paid)",
 		ErrorStatusInvoiceRequireLineItems:        "invoices require at least 1 line item",
-		ErrorStatusMultipleInvoiceMonthYear:       "only one invoice per month/year is allowed to be submitted",
 		ErrorStatusInvalidInvoiceMonthYear:        "an invalid month/year was submitted on an invoice",
 		ErrorStatusInvalidExchangeRate:            "exchange rate was invalid or didn't match expected result",
 		ErrorStatusDuplicatePaymentAddress:        "a duplicate payment address was used",

@@ -723,7 +723,6 @@ Reply:
 | <a name="ErrorStatusMalformedDescription">ErrorStatusMalformedDescription</a> | 1020 | Malformed description for a line item. |
 | <a name="ErrorStatusWrongInvoiceStatus">ErrorStatusWrongInvoiceStatus</a> | 1021 | Wrong status for an invoice to be editted (approved, rejected, paid). |
 | <a name="ErrorStatusInvoiceRequireLineItems">ErrorStatusInvoiceRequireLineItems</a> | 1022 | Invoices require at least 1 line item to be included. |
-| <a name="ErrorStatusMultipleInvoiceMonthYear">ErrorStatusMultipleInvoiceMonthYear</a> | 1023 | Users are only allowed to submit 1 invoice per month/year. |
 | <a name="ErrorStatusInvalidInvoiceMonthYear">ErrorStatusInvalidInvoiceMonthYear</a> | 1024 | An invalid month/year was detected in an invoice. |
 | <a name="ErrorStatusInvalidExchangeRate">ErrorStatusInvalidExchangeRate</a> | 1025 | Invalid Exchange Rate |
 | <a name="ErrorStatusInvalidLineItemType">ErrorStatusInvalidLineItemType</a> | 1026 | An invalid line item type was attempted. |

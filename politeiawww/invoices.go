@@ -265,19 +265,6 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 	if err != nil {
 		return nil, err
 	}
-	// Check to make sure user has not yet submitted an invoice for the month/year
-	dbInvs, err := p.cmsDB.InvoicesByUserID(u.ID.String())
-	if err != nil {
-		return nil, err
-	}
-
-	for _, dbInv := range dbInvs {
-		if dbInv.Month == ni.Month && dbInv.Year == ni.Year {
-			return nil, www.UserError{
-				ErrorCode: cms.ErrorStatusMultipleInvoiceMonthYear,
-			}
-		}
-	}
 
 	m := backendInvoiceMetadata{
 		Version:   backendInvoiceMetadataVersion,
