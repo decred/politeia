@@ -880,6 +880,21 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus, u *user.
 	dbInvoice.StatusChangeReason = c.Reason
 	dbInvoice.Status = c.NewStatus
 
+	// Calculate amount of DCR needed
+	payout, err := p.calculatePayout(*dbInvoice)
+	if err != nil {
+		return nil, err
+	}
+	// If approved then update Invoice's Payment table in DB
+	if c.NewStatus == cms.InvoiceStatusApproved {
+		dbInvoice.Payments = database.Payments{
+			Address:      dbInvoice.PaymentAddress,
+			TimeStarted:  time.Now().Unix(),
+			Status:       cms.PaymentStatusWatching,
+			AmountNeeded: int64(payout.DCRTotal),
+		}
+	}
+
 	err = p.cmsDB.UpdateInvoice(dbInvoice)
 	if err != nil {
 		return nil, err
@@ -892,6 +907,10 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus, u *user.
 		if err != nil {
 			return nil, fmt.Errorf("failed to get user by username %v %v",
 				invRec.Username, err)
+		}
+		// If approved and successfully entered into DB, start watcher for address
+		if c.NewStatus == cms.InvoiceStatusApproved {
+			p.addWatchAddress(dbInvoice.PaymentAddress)
 		}
 		p.fireEvent(EventTypeInvoiceStatusUpdate,
 			EventDataInvoiceStatusUpdate{

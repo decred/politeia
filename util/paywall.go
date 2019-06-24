@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -25,8 +26,10 @@ import (
 )
 
 const (
-	dcrdataMainnet = "https://explorer.dcrdata.org/api"
-	dcrdataTestnet = "https://testnet.dcrdata.org/api"
+	dcrdataMainnet   = "https://explorer.dcrdata.org/api"
+	dcrdataTestnet   = "https://testnet.dcrdata.org/api"
+	dcrdataMainnetWS = "wss://explorer.dcrdata.org/ps"
+	dcrdataTestnetWS = "wss://testnet.dcrdata.org/ps"
 
 	dcrdataTimeout = 3 * time.Second // Dcrdata request timeout
 	faucetTimeout  = 5 * time.Second // Testnet faucet request timeout
@@ -43,9 +46,21 @@ type FaucetResponse struct {
 // when fetching the transactions for an address.
 type BETransaction struct {
 	TxId          string              `json:"txid"`          // Transaction id
+	Vin           []BETransactionVin  `json:"vin"`           // Transaction inputs
 	Vout          []BETransactionVout `json:"vout"`          // Transaction outputs
 	Confirmations uint64              `json:"confirmations"` // Number of confirmations
 	Timestamp     int64               `json:"time"`          // Transaction timestamp
+}
+
+// BETransactionVin holds the transaction prevOut address information
+type BETransactionVin struct {
+	PrevOut BETransactionPrevOut `json:"prevOut"` // Previous transaction output
+}
+
+// BETransactionPrevOut holds the information about the inputs' previous addresses.
+// This will allow one to check for dev subsidy origination, etc.
+type BETransactionPrevOut struct {
+	Addresses []string `json:"addresses"` // Array of transaction input addresses
 }
 
 // BETransactionVout holds the transaction amount information.
@@ -65,11 +80,12 @@ type BETransactionScriptPubkey struct {
 // from the dcrdata and insight APIs. Support for the insight API was removed
 // but parts of politeiawww still consume this struct so it has remained.
 type TxDetails struct {
-	Address       string // Transaction address
-	TxID          string // Transacion ID
-	Amount        uint64 // Transaction amount (in atoms)
-	Timestamp     int64  // Transaction timestamp
-	Confirmations uint64 // Number of confirmations
+	Address        string   // Transaction address
+	TxID           string   // Transacion ID
+	Amount         uint64   // Transaction amount (in atoms)
+	Timestamp      int64    // Transaction timestamp
+	Confirmations  uint64   // Number of confirmations
+	InputAddresses []string /// An array of all addresses from previous outputs
 }
 
 func makeRequest(url string, timeout time.Duration) ([]byte, error) {
@@ -145,6 +161,26 @@ func blockExplorerURLForAddress(address string, netParams *chaincfg.Params) (str
 		dcrdata = dcrdataMainnet + "/address/" + address
 	case &chaincfg.TestNet3Params:
 		dcrdata = dcrdataTestnet + "/address/" + address
+	default:
+		return "", fmt.Errorf("unsupported network %v",
+			getNetworkName(netParams))
+	}
+
+	return dcrdata, nil
+}
+
+// BlockExplorerURLforSubscriptions generates a proper URL for either
+// dcrdata testnet or mainnet depending on the provided netParams.
+func BlockExplorerURLForSubscriptions(netParams *chaincfg.Params) (string, error) {
+	var (
+		dcrdata string
+	)
+
+	switch netParams {
+	case &chaincfg.MainNetParams:
+		dcrdata = dcrdataMainnetWS
+	case &chaincfg.TestNet3Params:
+		dcrdata = dcrdataTestnetWS
 	default:
 		return "", fmt.Errorf("unsupported network %v",
 			getNetworkName(netParams))
@@ -359,13 +395,18 @@ func convertBETransactionToTxDetails(address string, tx BETransaction) (*TxDetai
 			}
 		}
 	}
+	inputAddresses := make([]string, 0, 1064)
+	for _, vin := range tx.Vin {
+		inputAddresses = append(inputAddresses, vin.PrevOut.Addresses...)
+	}
 
 	return &TxDetails{
-		Address:       address,
-		TxID:          tx.TxId,
-		Amount:        amount,
-		Confirmations: tx.Confirmations,
-		Timestamp:     tx.Timestamp,
+		Address:        address,
+		TxID:           tx.TxId,
+		Amount:         amount,
+		Confirmations:  tx.Confirmations,
+		Timestamp:      tx.Timestamp,
+		InputAddresses: inputAddresses,
 	}, nil
 }
 
@@ -463,4 +504,36 @@ func FetchTxsForAddressNotBefore(address string, notBefore int64) ([]TxDetails, 
 	}
 
 	return targetTxs, nil
+}
+
+// FetchTx fetches a given transaction based on the provided txid.
+func FetchTx(address, txid string) ([]TxDetails, error) {
+	// Get block explorer URLs
+	addr, err := dcrutil.DecodeAddress(address)
+	if err != nil {
+		return nil, fmt.Errorf("invalid address %v: %v", addr, err)
+	}
+	dcrdataURL, err := blockExplorerURLForAddress(address, addr.Net())
+	if err != nil {
+		return nil, err
+	}
+	primaryURL := dcrdataURL + "/raw"
+
+	log.Printf("fetching tx %s %s from primary %s\n", address, txid, primaryURL)
+	// Try the primary (dcrdata)
+	primaryTxs, err := fetchTxsWithBE(primaryURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch from dcrdata: %v", err)
+	}
+	txs := make([]TxDetails, 0, len(primaryTxs))
+	for _, tx := range primaryTxs {
+		txDetail, err := convertBETransactionToTxDetails(address, tx)
+		if err != nil {
+			return nil, fmt.Errorf("convertBETransactionToTxDetails: %v",
+				tx.TxId)
+		}
+		txs = append(txs, *txDetail)
+	}
+
+	return txs, nil
 }

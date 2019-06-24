@@ -533,12 +533,27 @@ func _main() error {
 		}
 
 		// Setup invoice notifications
+
 		p.cron = cron.New()
 		p.checkInvoiceNotifications()
+
+		p.pubSubDcrdata = &wsDcrdata{}
+
+		// XXX how many addresses should we plan on storing?
+		p.pubSubDcrdata.currentSubs = make([]string, 0, 1048)
+
+		p.setupWatcher()
+
+		err = p.restartAddressesWatching()
+		if err != nil {
+			log.Errorf("error restarting address watcher %v", err)
+		}
+
+		p.addPing()
+
 	default:
 		return fmt.Errorf("unknown mode: %v", p.cfg.Mode)
 	}
-
 	// Persist session cookies.
 	var cookieKey []byte
 	if cookieKey, err = ioutil.ReadFile(p.cfg.CookieKeyFile); err != nil {
@@ -623,6 +638,10 @@ done:
 
 	// Close user db connection
 	p.db.Close()
+
+	if p.pubSubDcrdata != nil && p.pubSubDcrdata.client != nil {
+		p.pubSubDcrdata.client.Stop()
+	}
 
 	return nil
 }

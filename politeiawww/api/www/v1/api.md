@@ -139,6 +139,7 @@ notifications.  It does not render HTML.
 - [`ErrorStatusInvalidLineItemType`](#ErrorStatusInvalidLineItemType) 
 - [`ErrorStatusInvalidLaborExpense`](#ErrorStatusInvalidLaborExpense)
 - [`ErrorStatusNoProposalChanges`](#ErrorStatusNoProposalChanges)
+- [`ErrorStatusDuplicatePaymentAddress`](#ErrorStatusDuplicatePaymentAddress)
 
 **Proposal status codes**
 

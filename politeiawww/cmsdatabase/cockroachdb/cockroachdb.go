@@ -26,6 +26,7 @@ const (
 	tableNameLineItem      = "line_items"
 	tableNameInvoiceChange = "invoice_changes"
 	tableNameExchangeRate  = "exchange_rates"
+	tableNamePayments      = "payments"
 
 	userPoliteiawww = "politeiawww" // cmsdb user (read/write access)
 )
@@ -78,6 +79,7 @@ func (c *cockroachdb) InvoicesByUserID(userid string) ([]database.Invoice, error
 	err = c.recordsdb.
 		Preload("LineItems").
 		Preload("Changes").
+		Preload("Payments").
 		Where(tokens).
 		Find(&invoices).
 		Error
@@ -134,6 +136,7 @@ func (c *cockroachdb) InvoicesByMonthYearStatus(month, year uint16, status int) 
 	err = c.recordsdb.
 		Preload("LineItems").
 		Preload("Changes").
+		Preload("Payments").
 		Where(tokens).
 		Find(&invoices).
 		Error
@@ -172,6 +175,7 @@ func (c *cockroachdb) InvoicesByMonthYear(month, year uint16) ([]database.Invoic
 	err = c.recordsdb.
 		Preload("LineItems").
 		Preload("Changes").
+		Preload("Payments").
 		Where(tokens).
 		Find(&invoices).
 		Error
@@ -210,6 +214,7 @@ func (c *cockroachdb) InvoicesByStatus(status int) ([]database.Invoice, error) {
 	err = c.recordsdb.
 		Preload("LineItems").
 		Preload("Changes").
+		Preload("Payments").
 		Where(tokens).
 		Find(&invoices).
 		Error
@@ -247,6 +252,7 @@ func (c *cockroachdb) InvoicesAll() ([]database.Invoice, error) {
 	err = c.recordsdb.
 		Preload("LineItems").
 		Preload("Changes").
+		Preload("Payments").
 		Where(tokens).
 		Find(&invoices).
 		Error
@@ -392,6 +398,12 @@ func createCmsTables(tx *gorm.DB) error {
 			return err
 		}
 	}
+	if !tx.HasTable(tableNamePayments) {
+		err := tx.CreateTable(&Payments{}).Error
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -495,4 +507,55 @@ func New(host, net, rootCert, cert, key string) (*cockroachdb, error) {
 	c.recordsdb.SingularTable(true)
 
 	return c, err
+}
+
+// Update existing payment.
+//
+// UpdatePayments satisfies the database interface.
+func (c *cockroachdb) UpdatePayments(dbPayments *database.Payments) error {
+	payments := encodePayments(dbPayments)
+
+	log.Debugf("UpdatePayments: %v", payments.InvoiceToken)
+
+	return c.recordsdb.Save(payments).Error
+}
+
+// PaymentsByAddress returns payments row that has the matching Address.
+func (c *cockroachdb) PaymentsByAddress(address string) (*database.Payments, error) {
+	log.Debugf("PaymentsByAddress: %v", address)
+
+	payments := Payments{
+		Address: address,
+	}
+	err := c.recordsdb.Find(&payments).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			err = database.ErrInvoiceNotFound
+		}
+		return nil, err
+	}
+	dbPayments := decodePayment(&payments)
+	return &dbPayments, nil
+}
+
+// PaymentsByStatus returns all payments rows that match the given status.
+func (c *cockroachdb) PaymentsByStatus(status uint) ([]database.Payments, error) {
+	log.Debugf("PaymentsByStatus: %v", status)
+
+	payments := make([]Payments, 0, 1048)
+	err := c.recordsdb.
+		Where("status = ?", status).
+		Find(&payments).
+		Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			err = database.ErrInvoiceNotFound
+		}
+		return nil, err
+	}
+	dbPayments := make([]database.Payments, 0, 1048)
+	for _, v := range payments {
+		dbPayments = append(dbPayments, decodePayment(&v))
+	}
+	return dbPayments, nil
 }
