@@ -537,19 +537,17 @@ func _main() error {
 		p.cron = cron.New()
 		p.checkInvoiceNotifications()
 
-		p.pubSubDcrdata = &wsDcrdata{}
-
-		// XXX how many addresses should we plan on storing?
-		p.pubSubDcrdata.currentSubs = make([]string, 0, 1048)
-
-		p.setupWatcher()
-
-		err = p.restartAddressesWatching()
+		// Setup address watcher
+		ws, err := newWSDcrdata()
+		if err != nil {
+			return fmt.Errorf("new wsDcrdata: %v", err)
+		}
+		p.wsDcrdata = ws
+		p.setupCMSAddressWatcher()
+		err = p.restartCMSAddressesWatching()
 		if err != nil {
 			log.Errorf("error restarting address watcher %v", err)
 		}
-
-		p.addPing()
 
 	default:
 		return fmt.Errorf("unknown mode: %v", p.cfg.Mode)
@@ -639,8 +637,9 @@ done:
 	// Close user db connection
 	p.db.Close()
 
-	if p.pubSubDcrdata != nil && p.pubSubDcrdata.client != nil {
-		p.pubSubDcrdata.client.Stop()
+	// Shutdown all dcrdata websockets
+	if p.wsDcrdata != nil {
+		p.wsDcrdata.client.Stop()
 	}
 
 	return nil

@@ -5,7 +5,6 @@
 package main
 
 import (
-	"context"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -14,8 +13,6 @@ import (
 
 	"github.com/decred/dcrd/dcrutil"
 	pstypes "github.com/decred/dcrdata/pubsub/types/v2"
-	client "github.com/decred/dcrdata/pubsub/v2/psclient"
-	"github.com/decred/dcrdata/semver"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/cache"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
@@ -24,85 +21,37 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-const mainnetSubsidyAddr = "Dcur2mcGjmENx4DhNqDctW5wJCVyT3Qeqkx"
+const (
+	// mainnetSubsidyAddr is the mainnet address in which cms payments
+	// must come from in order to be considered a valid payment.
+	mainnetSubsidyAddr = "Dcur2mcGjmENx4DhNqDctW5wJCVyT3Qeqkx"
+)
 
-func (p *politeiawww) addWatchAddress(address string) error {
-	address = "address:" + address
-	if subd, _ := strInSlice(p.pubSubDcrdata.currentSubs, address); subd {
-		log.Infof("Already subscribed to %s.", address)
-		return nil
-	}
-	p.pubSubDcrdata.currentSubs = append(p.pubSubDcrdata.currentSubs, address)
-	_, err := p.pubSubDcrdata.client.Subscribe(address)
+func (p *politeiawww) addWatchAddress(address string) {
+	err := p.wsDcrdata.subToAddr(address)
 	if err != nil {
-		return fmt.Errorf("failed to subscribe: %v", err)
+		log.Errorf("addWatchAddress: subscribe '%v': %v",
+			address, err)
+		return
 	}
 	log.Infof("Subscribed to listen: %v", address)
-	return nil
 }
 
-func (p *politeiawww) removeWatchAddress(address string) error {
-	address = "address:" + address
-	subd, i := strInSlice(p.pubSubDcrdata.currentSubs, address)
-	if !subd {
-		log.Infof("Not subscribed to %s.", address)
-		return nil
-	}
-	p.pubSubDcrdata.currentSubs = append(p.pubSubDcrdata.currentSubs[:i],
-		p.pubSubDcrdata.currentSubs[i+1:]...)
-	_, err := p.pubSubDcrdata.client.Unsubscribe(address)
+func (p *politeiawww) removeWatchAddress(address string) {
+	err := p.wsDcrdata.unsubFromAddr(address)
 	if err != nil {
-		return fmt.Errorf("failed to unsubscribe: %v", err)
+		log.Errorf("removeWatchAddress: unsubscribe '%v': %v",
+			address, err)
+		return
 	}
 	log.Infof("Unsubscribed: %v", address)
-	return nil
 }
 
-func (p *politeiawww) addPing() error {
-	_, err := p.pubSubDcrdata.client.Subscribe("ping")
-	if err != nil {
-		return fmt.Errorf("failed to subscribe: %v", err)
-	}
-	log.Infof("Subscribed to ping")
-	return nil
-}
-
-func (p *politeiawww) setupWatcher() error {
-	// Create the websocket connection.
-	wsURL, err := util.BlockExplorerURLForSubscriptions(activeNetParams.Params)
-	if err != nil {
-		return err
-	}
-	log.Infof("Connecting to ws at: %v", wsURL)
-
-	opts := client.Opts{
-		ReadTimeout:  3 * time.Second,
-		WriteTimeout: 3 * time.Second,
-	}
-	p.pubSubDcrdata.client, err = client.New(wsURL, context.Background(), &opts)
-	if err != nil {
-		log.Errorf("failed to connect to %s: %v", wsURL, err)
-		return err
-	}
-	serverVer, err := p.pubSubDcrdata.client.ServerVersion()
-	if err != nil {
-		log.Errorf("failed to get server version: %v", err)
-		return err
-	}
-
-	clientSemVer := client.Version()
-	log.Infof("PubSub Server version: %s, Client version %v", serverVer,
-		clientSemVer)
-	serverSemVer := semver.NewSemver(serverVer.Major, serverVer.Minor,
-		serverVer.Patch)
-	if !semver.Compatible(clientSemVer, serverSemVer) {
-		return fmt.Errorf("pubsub server version is %v, but client is version %v",
-			serverSemVer, clientSemVer)
-	}
-
+func (p *politeiawww) setupCMSAddressWatcher() {
+	p.wsDcrdata.subToPing()
 	go func() {
 		for {
-			msg, ok := <-p.pubSubDcrdata.client.Receive()
+			msg, ok := <-p.wsDcrdata.client.Receive()
 			if !ok {
 				break
 			}
@@ -136,10 +85,9 @@ func (p *politeiawww) setupWatcher() error {
 			}
 		}
 	}()
-	return nil
 }
 
-func (p *politeiawww) restartAddressesWatching() error {
+func (p *politeiawww) restartCMSAddressesWatching() error {
 	approvedInvoices, err := p.cmsDB.InvoicesByStatus(int(cms.InvoiceStatusApproved))
 	if err != nil {
 		return err
@@ -180,15 +128,6 @@ func (p *politeiawww) restartAddressesWatching() error {
 		}
 	}
 	return nil
-}
-
-func strInSlice(sl []string, str string) (bool, int) {
-	for i, s := range sl {
-		if s == str {
-			return true, i
-		}
-	}
-	return false, -1
 }
 
 // checkPayments checks to see if a given payment has been successfully paid.
