@@ -217,7 +217,6 @@ func (p *politeiawww) checkHistoricalPayments(payment *database.Payments) bool {
 // It will return TRUE if paid, otherwise false.  It utilizes the util
 // FetchTxs which looks for transaction at a given address.
 func (p *politeiawww) checkPayments(payment *database.Payments, watchedAddr, notifiedTx string) bool {
-	// Get all txs since start time of watcher
 	txs, err := util.FetchTx(watchedAddr, notifiedTx)
 	if err != nil {
 		// XXX Some sort of 'recheck' or notice that it should do it again?

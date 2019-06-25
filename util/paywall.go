@@ -470,8 +470,6 @@ func FetchTxsForAddressNotBefore(address string, notBefore int64) ([]TxDetails, 
 		if err != nil {
 			return nil, fmt.Errorf("fetchDcrdataAddress: %v", err)
 		}
-		log.Printf("fetching txs for address %s not before %s from primary %s\n",
-			address, time.Unix(notBefore, 0), url)
 		// Convert transactions to TxDetails
 		txs := make([]TxDetails, len(dcrdataTxs))
 		for _, tx := range dcrdataTxs {
