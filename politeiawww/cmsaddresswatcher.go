@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/decred/dcrd/dcrutil"
@@ -74,7 +75,7 @@ func (p *politeiawww) setupCMSAddressWatcher() {
 				if err != nil {
 					log.Errorf("error retreiving payments information from db %v", err)
 				}
-				paid := p.checkPayments(payment)
+				paid := p.checkPayments(payment, m.Address, m.TxHash)
 				if paid {
 					p.removeWatchAddress(payment.Address)
 				}
@@ -122,7 +123,7 @@ func (p *politeiawww) restartCMSAddressesWatching() error {
 		return err
 	}
 	for _, payments := range unpaidPayments {
-		paid := p.checkPayments(&payments)
+		paid := p.checkHistoricalPayments(&payments)
 		if !paid {
 			p.addWatchAddress(payments.Address)
 		}
@@ -130,11 +131,11 @@ func (p *politeiawww) restartCMSAddressesWatching() error {
 	return nil
 }
 
-// checkPayments checks to see if a given payment has been successfully paid.
+// checkHistoicalPayments checks to see if a given payment has been successfully paid.
 // It will return TRUE if paid, otherwise false.  It utilizes the util
 // FetchTxsForAddressNotBefore which looks for transaction at a given address
 // after a certain time (in Unix seconds).
-func (p *politeiawww) checkPayments(payment *database.Payments) bool {
+func (p *politeiawww) checkHistoricalPayments(payment *database.Payments) bool {
 	// Get all txs since start time of watcher
 	txs, err := util.FetchTxsForAddressNotBefore(payment.Address,
 		payment.TimeStarted)
@@ -143,7 +144,9 @@ func (p *politeiawww) checkPayments(payment *database.Payments) bool {
 		log.Errorf("error FetchTxsForAddressNotBefore for address %s: %v",
 			payment.Address, err)
 	}
-	if len(txs) == len(payment.TxIDs) {
+
+	paymentTxids := strings.Split(payment.TxIDs, ",")
+	if len(txs) == len(paymentTxids) {
 		// Same number of txids found, so nothing to update.
 		return false
 	}
@@ -151,6 +154,7 @@ func (p *politeiawww) checkPayments(payment *database.Payments) bool {
 	txIDs := ""
 	// Calculate amount received
 	amountReceived := dcrutil.Amount(0)
+	log.Debugf("Reviewing transactions for address: %v", payment.Address)
 	for i, tx := range txs {
 		// Check to see if running mainnet, if so, only accept transactions
 		// that originate from the Treasury Subsidy.
@@ -166,6 +170,7 @@ func (p *politeiawww) checkPayments(payment *database.Payments) bool {
 				continue
 			}
 		}
+		log.Debugf("Transaction %v with amount %v", tx.TxID, tx.Amount)
 		amountReceived += dcrutil.Amount(tx.Amount)
 		if i == 0 {
 			txIDs = tx.TxID
@@ -175,12 +180,16 @@ func (p *politeiawww) checkPayments(payment *database.Payments) bool {
 	}
 	payment.TxIDs = txIDs
 
+	log.Debugf("Amount received %v amount needed %v", int64(amountReceived),
+		payment.AmountNeeded)
+
 	if int64(amountReceived) == payment.AmountReceived {
 		// Amount received still the same so nothing to update.
 		return false
 	}
 
-	if int64(amountReceived) >= payment.AmountNeeded {
+	if int64(amountReceived) >= payment.AmountNeeded && amountReceived > 0 {
+		log.Debugf("Invoice %v paid!", payment.InvoiceToken)
 		payment.Status = cms.PaymentStatusPaid
 	}
 	payment.AmountReceived = int64(amountReceived)
@@ -193,6 +202,84 @@ func (p *politeiawww) checkPayments(payment *database.Payments) bool {
 	}
 
 	if payment.Status == cms.PaymentStatusPaid {
+		log.Debugf("Updating invoice %v status to paid", payment.InvoiceToken)
+		// Update invoice status here
+		err := p.invoiceStatusPaid(payment.InvoiceToken)
+		if err != nil {
+			log.Errorf("error updating invoice status to paid %v", err)
+		}
+		return true
+	}
+	return false
+}
+
+// checkPayments checks to see if a given payment has been successfully paid.
+// It will return TRUE if paid, otherwise false.  It utilizes the util
+// FetchTxs which looks for transaction at a given address.
+func (p *politeiawww) checkPayments(payment *database.Payments, watchedAddr, notifiedTx string) bool {
+	// Get all txs since start time of watcher
+	txs, err := util.FetchTx(watchedAddr, notifiedTx)
+	if err != nil {
+		// XXX Some sort of 'recheck' or notice that it should do it again?
+		log.Errorf("error FetchTxsForAddressNotBefore for address %s: %v",
+			payment.Address, err)
+		return false
+	}
+	if len(txs) == 0 {
+		return false
+	}
+
+	txIDs := ""
+	// Calculate amount received
+	amountReceived := dcrutil.Amount(0)
+	log.Debugf("Reviewing transactions for address: %v", payment.Address)
+	for i, tx := range txs {
+		// Check to see if running mainnet, if so, only accept transactions
+		// that originate from the Treasury Subsidy.
+		if !p.cfg.TestNet && !p.cfg.SimNet {
+			found := false
+			for _, address := range tx.InputAddresses {
+				if address == mainnetSubsidyAddr {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+		log.Debugf("Transaction %v with amount %v", tx.TxID, tx.Amount)
+		amountReceived += dcrutil.Amount(tx.Amount)
+		if i == 0 {
+			txIDs = tx.TxID
+		} else {
+			txIDs += ", " + tx.TxID
+		}
+	}
+	if payment.TxIDs == "" {
+		payment.TxIDs = txIDs
+	} else {
+		payment.TxIDs += ", " + txIDs
+	}
+
+	log.Debugf("Amount received %v amount needed %v", int64(amountReceived),
+		payment.AmountNeeded)
+
+	if int64(amountReceived) >= payment.AmountNeeded && amountReceived > 0 {
+		log.Debugf("Invoice %v paid!", payment.InvoiceToken)
+		payment.Status = cms.PaymentStatusPaid
+	}
+	payment.AmountReceived = int64(amountReceived)
+	payment.TimeLastUpdated = time.Now().Unix()
+
+	err = p.cmsDB.UpdatePayments(payment)
+	if err != nil {
+		log.Errorf("Error updating payments information for: %v %v",
+			payment.Address, err)
+	}
+
+	if payment.Status == cms.PaymentStatusPaid {
+		log.Debugf("Updating invoice %v status to paid", payment.InvoiceToken)
 		// Update invoice status here
 		err := p.invoiceStatusPaid(payment.InvoiceToken)
 		if err != nil {
