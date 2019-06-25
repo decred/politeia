@@ -28,7 +28,7 @@ var (
 	errSubNotFound = errors.New("subscription not found")
 )
 
-// wsDcrdata is the context used for managing dcrdata websocket connections.
+// wsDcrdata is the context used for managing a dcrdata websocket connection.
 type wsDcrdata struct {
 	sync.RWMutex
 	client        *client.Client      // dcrdata websocket client
@@ -85,7 +85,7 @@ func (w *wsDcrdata) subToAddr(address string) error {
 	return nil
 }
 
-// subToAddr unsubscribes from dcrdata events for the provided address.
+// unsubFromAddr unsubscribes from dcrdata events for the provided address.
 func (w *wsDcrdata) unsubFromAddr(address string) error {
 	event := addrSubPrefix + address
 	if !w.isSubscribed(event) {
