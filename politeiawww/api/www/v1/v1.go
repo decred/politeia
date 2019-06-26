@@ -106,13 +106,13 @@ const (
 	// accepted for comments
 	PolicyMaxCommentLength = 8000
 
+	// PolicyIndexFileMimeType is the mime type that an index file should
+	// have
+	PolicyIndexFileMimeType = "text/plain; charset=utf-8"
+
 	// ProposalListPageSize is the maximum number of proposals returned
 	// for the routes that return lists of proposals
 	ProposalListPageSize = 20
-
-	// ProposalIndexFileMimeType is the mime type that an index file should
-	// have
-	ProposalIndexFileMimeType = "text/plain; charset=utf-8"
 
 	// UserListPageSize is the maximum number of users returned
 	// for the routes that return lists of users

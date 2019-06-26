@@ -249,7 +249,7 @@ func validateProposal(np www.NewProposal, u *user.User) error {
 				indexExceedsMaxSize = true
 			}
 			// Enforces that index file is in fact a markdown file
-			if mime != www.ProposalIndexFileMimeType {
+			if mime != www.PolicyIndexFileMimeType {
 				return www.UserError{
 					ErrorCode: www.ErrorStatusInvalidIndexFileMimeType,
 				}
