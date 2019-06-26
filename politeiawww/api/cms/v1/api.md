@@ -674,6 +674,7 @@ Request:
 Reply:
 
 ```json
+{
   "lineitems": [
     {  
       "type": 1,
@@ -694,6 +695,7 @@ Reply:
       "expenses": 5000
     }
   ]
+}
 ```
 
 ### `Edit user`
@@ -747,7 +749,7 @@ Reply:
 
 ### `User details`
 
-Returns a logged-in user's information beyond what is stored in the userdb.
+Returns a logged-in CMS user's information beyond what is stored in the userdb.
 
 **Route:** `GET /v1/user/details`
 
@@ -774,17 +776,40 @@ Reply:
 
 ```json
 {
-  "user":
-    {
-      "domain": 1,
-      "githubname": "smobs",
-      "matrixname": "smobs:decred.org",
-      "contractortype": 1,
-      "contractorname": "Steve Mobs",
-      "contractorlocation": "Cupertino, CA",
-      "contractorcontact": "smobs@apple.com",
-      "supervisoruserid": "",
-    }
+  "user": {
+    "user":
+      {
+        "id": "0",
+        "email": "6b87b6ebb0c80cb7@example.com",
+        "username": "6b87b6ebb0c80cb7",
+        "isadmin": false,
+        "newuserpaywalladdress": "Tsgs7qb1Gnc43D9EY3xx9ou8Lbo8rB7me6M",
+        "newuserpaywallamount": 10000000,
+        "newuserpaywalltxnotbefore": 1528821554,
+        "newuserpaywalltx": "",
+        "newuserpaywallpollexpiry": 1528821554,
+        "newuserverificationtoken": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
+        "newuserverificationexpiry": 1528821554,
+        "updatekeyverificationtoken": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
+        "updatekeyverificationexpiry": 1528821554,
+        "numofproposals": 0,
+        "resetpasswordverificationtoken": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
+        "resetpasswordverificationexpiry": 1528821554,
+        "identities": [{
+          "pubkey": "5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+          "isactive": true
+        }],
+      },
+    "comments": [],
+    "domain": 1,
+    "githubname": "smobs",
+    "matrixname": "smobs:decred.org",
+    "contractortype": 1,
+    "contractorname": "Steve Mobs",
+    "contractorlocation": "Cupertino, CA",
+    "contractorcontact": "smobs@apple.com",
+    "supervisoruserid": "",
+  }
 }
 ```
 
