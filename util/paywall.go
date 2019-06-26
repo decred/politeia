@@ -470,7 +470,6 @@ func FetchTxsForAddressNotBefore(address string, notBefore int64) ([]TxDetails, 
 		if err != nil {
 			return nil, fmt.Errorf("fetchDcrdataAddress: %v", err)
 		}
-
 		// Convert transactions to TxDetails
 		txs := make([]TxDetails, len(dcrdataTxs))
 		for _, tx := range dcrdataTxs {
@@ -481,7 +480,10 @@ func FetchTxsForAddressNotBefore(address string, notBefore int64) ([]TxDetails, 
 			}
 			txs = append(txs, *txDetails)
 		}
-
+		if len(txs) == 0 {
+			done = true
+			continue
+		}
 		// Sanity check. Txs should already be sorted
 		// in reverse chronological order.
 		sort.SliceStable(txs, func(i, j int) bool {

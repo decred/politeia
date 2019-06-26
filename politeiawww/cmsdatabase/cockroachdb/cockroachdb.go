@@ -105,7 +105,11 @@ func (c *cockroachdb) InvoiceByToken(token string) (*database.Invoice, error) {
 	invoice := Invoice{
 		Token: token,
 	}
-	err := c.recordsdb.Find(&invoice).Error
+	err := c.recordsdb.
+		Preload("LineItems").
+		Preload("Changes").
+		Preload("Payments").
+		Find(&invoice).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			err = database.ErrInvoiceNotFound
@@ -524,10 +528,10 @@ func (c *cockroachdb) UpdatePayments(dbPayments *database.Payments) error {
 func (c *cockroachdb) PaymentsByAddress(address string) (*database.Payments, error) {
 	log.Debugf("PaymentsByAddress: %v", address)
 
-	payments := Payments{
-		Address: address,
-	}
-	err := c.recordsdb.Find(&payments).Error
+	payments := Payments{}
+	err := c.recordsdb.
+		Where("address = ?", address).
+		Find(&payments).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			err = database.ErrInvoiceNotFound
