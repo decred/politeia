@@ -261,7 +261,8 @@ func validateContact(contact string) error {
 func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.NewInvoiceReply, error) {
 	log.Tracef("processNewInvoice")
 
-	err := p.validateInvoice(ni, u)
+	isEdit := false
+	err := p.validateInvoice(ni, u, isEdit)
 	if err != nil {
 		return nil, err
 	}
@@ -426,7 +427,7 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 	}, nil
 }
 
-func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
+func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User, isEdit bool) error {
 	log.Tracef("validateInvoice")
 
 	// Obtain signature
@@ -526,29 +527,6 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 			if !addr.IsForNet(activeNetParams.Params) {
 				return www.UserError{
 					ErrorCode: cms.ErrorStatusInvalidPaymentAddress,
-				}
-			}
-
-			invoiceAddress, err := p.cmsDB.InvoicesByAddress(invInput.PaymentAddress)
-			if err != nil {
-				return www.UserError{
-					ErrorCode: cms.ErrorStatusInvalidPaymentAddress,
-				}
-			}
-			// If more than 1 invoice comes back with the same address, it's
-			// surely a duplicate.
-			if len(invoiceAddress) > 1 {
-				return www.UserError{
-					ErrorCode: cms.ErrorStatusDuplicatePaymentAddress,
-				}
-			} else if len(invoiceAddress) == 1 &&
-				(invoiceAddress[0].Month != invInput.Month ||
-					invoiceAddress[0].Year != invInput.Year) {
-				// When attempting to edit an existing invoice, there will be 1
-				// result that has a matching payment address.  Throw dupe address
-				// error if the Month or Year doesn't match.
-				return www.UserError{
-					ErrorCode: cms.ErrorStatusDuplicatePaymentAddress,
 				}
 			}
 
@@ -679,6 +657,27 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 					return www.UserError{
 						ErrorCode: cms.ErrorStatusInvalidLineItemType,
 					}
+				}
+			}
+
+			invoiceAddress, err := p.cmsDB.InvoicesByAddress(invInput.PaymentAddress)
+			if err != nil {
+				return www.UserError{
+					ErrorCode: cms.ErrorStatusInvalidPaymentAddress,
+				}
+			}
+			// If more than 1 invoice comes back with the same address, it's
+			// surely a duplicate.
+			if len(invoiceAddress) > 1 {
+				return www.UserError{
+					ErrorCode: cms.ErrorStatusDuplicatePaymentAddress,
+				}
+			} else if len(invoiceAddress) == 1 && !isEdit {
+				// When attempting to edit an existing invoice, there will be 1
+				// result that has a matching payment address.  Throw dupe address
+				// error if it's not editting validation.
+				return www.UserError{
+					ErrorCode: cms.ErrorStatusDuplicatePaymentAddress,
 				}
 			}
 		}
@@ -1014,7 +1013,8 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 		PublicKey: ei.PublicKey,
 		Signature: ei.Signature,
 	}
-	err = p.validateInvoice(ni, u)
+	isEdit := true
+	err = p.validateInvoice(ni, u, isEdit)
 	if err != nil {
 		return nil, err
 	}
