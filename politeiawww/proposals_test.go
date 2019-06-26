@@ -419,10 +419,6 @@ func TestValidateProposal(t *testing.T) {
 		Signature: np.Signature,
 	}
 
-	// Signature is valid but incorrect
-	propBadSig := createNewProposal(t, id, []www.File{*md})
-	propBadSig.Signature = np.Signature
-
 	// No files
 	propNoFiles := &www.NewProposal{
 		Files:     make([]www.File, 0),
@@ -430,39 +426,26 @@ func TestValidateProposal(t *testing.T) {
 		Signature: np.Signature,
 	}
 
-	// Invalid markdown filename
-	mdBadFilename := *md
-	mdBadFilename.Name = "bad_filename.md"
-	propInvalidFilename := createNewProposal(t, id, []www.File{mdBadFilename})
-
 	// Invalid index mime type
 	indexJpeg := createFileJPEG(t, indexFile)
 	propInvalidIndexMimeType := createNewProposal(t, id,
 		[]www.File{*indexJpeg})
 
-	// Duplicate filenames
-	propDupFiles := createNewProposal(t, id, []www.File{*md, *png, *png})
+	// No index file
+	propNoIndexFile := createNewProposal(t, id, []www.File{*png, *png})
+
+	// Invalid index filename
+	mdBadFilename := *md
+	mdBadFilename.Name = "bad_filename.md"
+	propInvalidFilename := createNewProposal(t, id, []www.File{mdBadFilename})
 
 	// Attachment is duplicate of index file
 	attachmentFile := createFileMD(t, 8, "Valid Title")
 	propAttachmentIndexDup := createNewProposal(t, id,
 		[]www.File{*md, *attachmentFile})
 
-	// Invalid proposal title
-	mdBadTitle := createFileMD(t, 8, "{invalid-title}")
-	propBadTitle := createNewProposal(t, id, []www.File{*mdBadTitle})
-
-	// No index file
-	propNoIndexFile := createNewProposal(t, id, []www.File{*png, *png})
-
 	// Too many index files
 	propMaxIndexFiles := createNewProposal(t, id, []www.File{*md, *md})
-
-	// Index file too large
-	indexFileLarge := createFileMD(t,
-		www.PolicyMaxIndexFileSize, "Valid Title")
-	propIndexLarge := createNewProposal(t, id,
-		[]www.File{*indexFileLarge, *png})
 
 	// Too many attached files. We need one correctly named md
 	// file and the rest must have their names changed so that we
@@ -476,10 +459,27 @@ func TestValidateProposal(t *testing.T) {
 	}
 	propMaxAttachments := createNewProposal(t, id, files)
 
+	// Index file too large
+	indexFileLarge := createFileMD(t,
+		www.PolicyMaxIndexFileSize, "Valid Title")
+	propIndexLarge := createNewProposal(t, id,
+		[]www.File{*indexFileLarge, *png})
+
 	// Attached file too large
 	fileLarge := createFilePNG(t, true)
 	propAttachmentLarge := createNewProposal(t, id,
 		[]www.File{*md, *fileLarge})
+
+	// Duplicate filenames
+	propDupFiles := createNewProposal(t, id, []www.File{*md, *png, *png})
+
+	// Invalid proposal title
+	mdBadTitle := createFileMD(t, 8, "{invalid-title}")
+	propBadTitle := createNewProposal(t, id, []www.File{*mdBadTitle})
+
+	// Signature is valid but incorrect
+	propBadSig := createNewProposal(t, id, []www.File{*md})
+	propBadSig.Signature = np.Signature
 
 	// Setup test cases
 	var tests = []struct {
@@ -500,17 +500,17 @@ func TestValidateProposal(t *testing.T) {
 				ErrorCode: www.ErrorStatusInvalidPublicKey,
 			}},
 
-		{"incorrect signature", *propBadSig, usr,
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidSignature,
-			}},
-
-		{"no index file", *propNoIndexFile, usr,
+		{"no files", *propNoFiles, usr,
 			www.UserError{
 				ErrorCode: www.ErrorStatusNoIndexFile,
 			}},
 
-		{"no files", *propNoFiles, usr,
+		{"invalid index mime type", *propInvalidIndexMimeType, usr,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidIndexFileMimeType,
+			}},
+
+		{"no index file", *propNoIndexFile, usr,
 			www.UserError{
 				ErrorCode: www.ErrorStatusNoIndexFile,
 			}},
@@ -520,34 +520,29 @@ func TestValidateProposal(t *testing.T) {
 				ErrorCode: www.ErrorStatusNoIndexFile,
 			}},
 
-		{"invalid index mime type", *propInvalidIndexMimeType, usr,
+		{"attachment is duplicate of index file", *propAttachmentIndexDup, usr,
 			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidMIMEType,
-			}},
-
-		{"invalid title", *propBadTitle, usr,
-			www.UserError{
-				ErrorCode: www.ErrorStatusProposalInvalidTitle,
-			}},
-
-		{"too many attached files", *propMaxAttachments, usr,
-			www.UserError{
-				ErrorCode: www.ErrorStatusMaxAttachmentsExceededPolicy,
-			}},
-
-		{"attachment file too large", *propAttachmentLarge, usr,
-			www.UserError{
-				ErrorCode: www.ErrorStatusMaxAttachmentSizeExceededPolicy,
+				ErrorCode: www.ErrorStatusMaxIndexFileExceeded,
 			}},
 
 		{"too many index files", *propMaxIndexFiles, usr,
 			www.UserError{
-				ErrorCode: www.ErrorStatusMaxIndexFileExceededPolicy,
+				ErrorCode: www.ErrorStatusMaxIndexFileExceeded,
+			}},
+
+		{"too many attached files", *propMaxAttachments, usr,
+			www.UserError{
+				ErrorCode: www.ErrorStatusMaxAttachmentsExceeded,
 			}},
 
 		{"index file too large", *propIndexLarge, usr,
 			www.UserError{
-				ErrorCode: www.ErrorStatusMaxIndexFileSizeExceededPolicy,
+				ErrorCode: www.ErrorStatusMaxIndexFileSizeExceeded,
+			}},
+
+		{"attachment file too large", *propAttachmentLarge, usr,
+			www.UserError{
+				ErrorCode: www.ErrorStatusMaxAttachmentSizeExceeded,
 			}},
 
 		{"duplicate attachments", *propDupFiles, usr,
@@ -555,9 +550,14 @@ func TestValidateProposal(t *testing.T) {
 				ErrorCode: www.ErrorStatusProposalDuplicateFilenames,
 			}},
 
-		{"attachment is duplicate of index file", *propAttachmentIndexDup, usr,
+		{"invalid title", *propBadTitle, usr,
 			www.UserError{
-				ErrorCode: www.ErrorStatusMaxIndexFileExceededPolicy,
+				ErrorCode: www.ErrorStatusProposalInvalidTitle,
+			}},
+
+		{"incorrect signature", *propBadSig, usr,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidSignature,
 			}},
 	}
 

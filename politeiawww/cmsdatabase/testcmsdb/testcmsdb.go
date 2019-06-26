@@ -10,7 +10,7 @@ type testcmsdb struct {
 	sync.RWMutex
 	shutdown bool // Backend is shutdown
 
-	records map[string]cmsdb.Invoice // Database context
+	records map[string]cmsdb.Invoice // [token]invoice
 }
 
 // ExchangeRate satisfies the db interface and is used in testing.
@@ -25,6 +25,9 @@ func (c *testcmsdb) ExchangeRate(month, year int) (*cmsdb.ExchangeRate, error) {
 
 // InvoicesByAddress satisfies the db interface and is used in testing.
 func (c *testcmsdb) InvoicesByAddress(addr string) ([]cmsdb.Invoice, error) {
+	c.Lock()
+	defer c.Unlock()
+
 	invoices := make([]cmsdb.Invoice, 0, 1024)
 	for _, v := range c.records {
 		if v.PaymentAddress == addr {
@@ -50,14 +53,17 @@ func (c *testcmsdb) InvoicesByUserID(s string) ([]cmsdb.Invoice, error) {
 	return make([]cmsdb.Invoice, 0), nil
 }
 
-// InvoiceByToken is a stub to satisfy the db interface.
+// InvoiceByToken satisfies the db interface and is used in testing.
 func (c *testcmsdb) InvoiceByToken(t string) (*cmsdb.Invoice, error) {
-	for _, v := range c.records {
-		if v.Token == t {
-			return &v, nil
-		}
+	c.Lock()
+	defer c.Unlock()
+
+	invoice, ok := c.records[t]
+	if !ok {
+		return nil, cmsdb.ErrInvoiceNotFound
 	}
-	return &cmsdb.Invoice{}, nil
+
+	return &invoice, nil
 }
 
 // InvoicesByMonthYearStatus is a stub to satisfy the db interface.

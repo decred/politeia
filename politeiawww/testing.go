@@ -248,7 +248,6 @@ func newTestPoliteiawww(t *testing.T, mode string) (*politeiawww, func()) {
 		userPaywallPool: make(map[uuid.UUID]paywallPoolMember),
 		commentVotes:    make(map[string]counters),
 		commentScores:   make(map[string]int64),
-		cmsDB:           testcmsdb.New(),
 	}
 
 	// Setup routes depending on the mode
@@ -259,6 +258,7 @@ func newTestPoliteiawww(t *testing.T, mode string) (*politeiawww, func()) {
 	case cmsWWWMode:
 		p.setCMSWWWRoutes()
 		p.setCMSUserWWWRoutes()
+		p.cmsDB = testcmsdb.New()
 	default:
 		t.Fatalf("invalid")
 	}

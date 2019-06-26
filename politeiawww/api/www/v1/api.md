@@ -64,10 +64,10 @@ notifications.  It does not render HTML.
 - [`ErrorStatusProposalNotFound`](#ErrorStatusProposalNotFound)
 - [`ErrorStatusProposalDuplicateFilenames`](#ErrorStatusProposalDuplicateFilenames)
 - [`ErrorStatusProposalInvalidTitle`](#ErrorStatusProposalInvalidTitle)
-- [`ErrorStatusMaxIndexFileExceededPolicy`](#ErrorStatusMaxIndexFileExceededPolicy)
-- [`ErrorStatusMaxIndexFileSizeExceededPolicy`](#ErrorStatusMaxIndexFileSizeExceededPolicy)
-- [`ErrorStatusMaxAttachmentsExceededPolicy`](#ErrorStatusMaxAttachmentsExceededPolicy)
-- [`ErrorStatusMaxAttachmentSizeExceededPolicy`](#ErrorStatusMaxAttachmentSizeExceededPolicy)
+- [`ErrorStatusMaxIndexFileExceeded`](#ErrorStatusMaxIndexFileExceeded)
+- [`ErrorStatusMaxIndexFileSizeExceeded`](#ErrorStatusMaxIndexFileSizeExceeded)
+- [`ErrorStatusMaxAttachmentsExceeded`](#ErrorStatusMaxAttachmentsExceeded)
+- [`ErrorStatusMaxAttachmentSizeExceeded`](#ErrorStatusMaxAttachmentSizeExceeded)
 - [`ErrorStatusMalformedPassword`](#ErrorStatusMalformedPassword)
 - [`ErrorStatusCommentNotFound`](#ErrorStatusCommentNotFound)
 - [`ErrorStatusInvalidFilename`](#ErrorStatusInvalidFilename)
@@ -1073,10 +1073,10 @@ error codes:
 - [`ErrorStatusNoIndexFile`](#ErrorStatusNoIndexFile)
 - [`ErrorStatusProposalDuplicateFilenames`](#ErrorStatusProposalDuplicateFilenames)
 - [`ErrorStatusProposalInvalidTitle`](#ErrorStatusProposalInvalidTitle)
-- [`ErrorStatusMaxIndexFileExceededPolicy`](#ErrorStatusMaxIndexFileExceededPolicy)
-- [`ErrorStatusMaxIndexFileSizeExceededPolicy`](#ErrorStatusMaxIndexFileSizeExceededPolicy)
-- [`ErrorStatusMaxAttachmentsExceededPolicy`](#ErrorStatusMaxAttachmentsExceededPolicy)
-- [`ErrorStatusMaxAttachmentSizeExceededPolicy`](#ErrorStatusMaxAttachmentSizeExceededPolicy)
+- [`ErrorStatusMaxIndexFileExceeded`](#ErrorStatusMaxIndexFileExceeded)
+- [`ErrorStatusMaxIndexFileSizeExceeded`](#ErrorStatusMaxIndexFileSizeExceeded)
+- [`ErrorStatusMaxAttachmentsExceeded`](#ErrorStatusMaxAttachmentsExceeded)
+- [`ErrorStatusMaxAttachmentSizeExceeded`](#ErrorStatusMaxAttachmentSizeExceeded)
 - [`ErrorStatusInvalidSignature`](#ErrorStatusInvalidSignature)
 - [`ErrorStatusInvalidSigningKey`](#ErrorStatusInvalidSigningKey)
 - [`ErrorStatusUserNotPaid`](#ErrorStatusUserNotPaid)
@@ -2658,10 +2658,10 @@ Reply:
 | <a name="ErrorStatusProposalNotFound">ErrorStatusProposalNotFound</a> | 6 | The requested proposal does not exist. |
 | <a name="ErrorStatusProposalDuplicateFilenames">ErrorStatusProposalDuplicateFilenames</a> | 7 | The provided proposal has duplicate files. This error is provided with additional context: the duplicate name(s). |
 | <a name="ErrorStatusProposalInvalidTitle">ErrorStatusProposalInvalidTitle</a> | 8 | The provided proposal title is invalid. This error is provided with additional context: the regular expression accepted. |
-| <a name="ErrorStatusMaxIndexFileExceededPolicy">ErrorStatusMaxIndexFileExceededPolicy</a> | 9 | The submitted proposal has too many index files. Limits can be obtained by issuing the [Policy](#policy) command. |
-| <a name="ErrorStatusMaxIndexFileSizeExceededPolicy">ErrorStatusMaxIndexFileSizeExceededPolicy</a> | 10 | The submitted proposal has an index file that is too large. Limits can be obtained by issuing the [Policy](#policy) command. |
-| <a name="ErrorStatusMaxAttachmentsExceededPolicy">ErrorStatusMaxAttachmentsExceededPolicy</a> | 11 | The submitted proposal has too many attached files. Limits can be obtained by issuing the [Policy](#policy) command. |
-| <a name="ErrorStatusMaxAttachmentSizeExceededPolicy">ErrorStatusMaxAttachmentSizeExceededPolicy</a> | 12 | The submitted proposal has an attachment that is too large. Limits can be obtained by issuing the [Policy](#policy) command. |
+| <a name="ErrorStatusMaxIndexFileExceeded">ErrorStatusMaxIndexFileExceeded</a> | 9 | The submitted proposal has too many index files. Limits can be obtained by issuing the [Policy](#policy) command. |
+| <a name="ErrorStatusMaxIndexFileSizeExceeded">ErrorStatusMaxIndexFileSizeExceeded</a> | 10 | The submitted proposal has an index file that is too large. Limits can be obtained by issuing the [Policy](#policy) command. |
+| <a name="ErrorStatusMaxAttachmentsExceeded">ErrorStatusMaxAttachmentsExceeded</a> | 11 | The submitted proposal has too many attached files. Limits can be obtained by issuing the [Policy](#policy) command. |
+| <a name="ErrorStatusMaxAttachmentSizeExceeded">ErrorStatusMaxAttachmentSizeExceeded</a> | 12 | The submitted proposal has an attachment that is too large. Limits can be obtained by issuing the [Policy](#policy) command. |
 | <a name="ErrorStatusMalformedPassword">ErrorStatusMalformedPassword</a> | 13 | The provided password was malformed. |
 | <a name="ErrorStatusCommentNotFound">ErrorStatusCommentNotFound</a> | 14 | The requested comment does not exist. |
 | <a name="ErrorStatusInvalidFilename">ErrorStatusInvalidFilename</a> | 15 | The filename was invalid. |

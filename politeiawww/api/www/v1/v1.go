@@ -110,6 +110,10 @@ const (
 	// for the routes that return lists of proposals
 	ProposalListPageSize = 20
 
+	// ProposalIndexMimeType is the mime type that an index file should
+	// have
+	ProposalIndexMimeType = "text/plain; charset=utf-8"
+
 	// UserListPageSize is the maximum number of users returned
 	// for the routes that return lists of users
 	UserListPageSize = 20
@@ -178,6 +182,7 @@ const (
 	ErrorStatusMaxProposalsExceededPolicy      ErrorStatusT = 61
 	ErrorStatusDuplicateComment                ErrorStatusT = 62
 	ErrorStatusInvalidLogin                    ErrorStatusT = 63
+	ErrorStatusInvalidIndexFileMimeType        ErrorStatusT = 64
 
 	// Proposal state codes
 	//
@@ -316,6 +321,7 @@ var (
 		ErrorStatusNoProposalChanges:               "no changes found in proposal",
 		ErrorStatusDuplicateComment:                "duplicate comment",
 		ErrorStatusInvalidLogin:                    "invalid login credentials",
+		ErrorStatusInvalidIndexFileMimeType:        "index file with incorrect mime type",
 	}
 
 	// PropStatus converts propsal status codes to human readable text

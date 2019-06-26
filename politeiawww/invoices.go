@@ -522,7 +522,7 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 			// Check if invoice file is of type json
 			if !json.Valid(data) {
 				return www.UserError{
-					ErrorCode: www.ErrorStatusInvalidMIMEType,
+					ErrorCode: www.ErrorStatusInvalidIndexFileMimeType,
 				}
 			}
 
@@ -708,25 +708,25 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 
 	if numInvoiceFiles > www.PolicyMaxIndexFile {
 		return www.UserError{
-			ErrorCode: www.ErrorStatusMaxIndexFileExceededPolicy,
+			ErrorCode: www.ErrorStatusMaxIndexFileExceeded,
 		}
 	}
 
 	if numAttachments > www.PolicyMaxAttachments {
 		return www.UserError{
-			ErrorCode: www.ErrorStatusMaxAttachmentsExceededPolicy,
+			ErrorCode: www.ErrorStatusMaxAttachmentsExceeded,
 		}
 	}
 
 	if invoiceExceedsMaxSize {
 		return www.UserError{
-			ErrorCode: www.ErrorStatusMaxIndexFileSizeExceededPolicy,
+			ErrorCode: www.ErrorStatusMaxIndexFileSizeExceeded,
 		}
 	}
 
 	if attachmentExceedsMaxSize {
 		return www.UserError{
-			ErrorCode: www.ErrorStatusMaxAttachmentSizeExceededPolicy,
+			ErrorCode: www.ErrorStatusMaxAttachmentSizeExceeded,
 		}
 	}
 

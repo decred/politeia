@@ -246,9 +246,9 @@ func validateProposal(np www.NewProposal, u *user.User) error {
 				indexExceedsMaxSize = true
 			}
 			// Enforces that index file is in fact a markdown file
-			if v.MIME != "text/plain; charset=utf-8" {
+			if v.MIME != www.ProposalIndexMimeType {
 				return www.UserError{
-					ErrorCode: www.ErrorStatusInvalidMIMEType,
+					ErrorCode: www.ErrorStatusInvalidIndexFileMimeType,
 				}
 			}
 		} else {
@@ -275,25 +275,25 @@ func validateProposal(np www.NewProposal, u *user.User) error {
 
 	if numIndexFiles > www.PolicyMaxIndexFile {
 		return www.UserError{
-			ErrorCode: www.ErrorStatusMaxIndexFileExceededPolicy,
+			ErrorCode: www.ErrorStatusMaxIndexFileExceeded,
 		}
 	}
 
 	if numAttachments > www.PolicyMaxAttachments {
 		return www.UserError{
-			ErrorCode: www.ErrorStatusMaxAttachmentsExceededPolicy,
+			ErrorCode: www.ErrorStatusMaxAttachmentsExceeded,
 		}
 	}
 
 	if indexExceedsMaxSize {
 		return www.UserError{
-			ErrorCode: www.ErrorStatusMaxIndexFileSizeExceededPolicy,
+			ErrorCode: www.ErrorStatusMaxIndexFileSizeExceeded,
 		}
 	}
 
 	if attachmentExceedsMaxSize {
 		return www.UserError{
-			ErrorCode: www.ErrorStatusMaxAttachmentSizeExceededPolicy,
+			ErrorCode: www.ErrorStatusMaxAttachmentSizeExceeded,
 		}
 	}
 

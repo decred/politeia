@@ -63,27 +63,16 @@ func createValidLineItems(t *testing.T) []cms.LineItemsInput {
 func createInvoiceInput(t *testing.T, li []cms.LineItemsInput) cms.InvoiceInput {
 	t.Helper()
 
-	var (
-		month       uint = 2
-		year        uint = 2019
-		rate        uint = 4000
-		monthAvg    uint = 1651
-		name             = "test"
-		location         = "testlocation"
-		contact          = "test@gmail.com"
-		paymentaddr      = "DsUHkmH555D4tLQi5ap4gVAV86tVN29nqYi"
-	)
-
 	return cms.InvoiceInput{
 		Version:            1,
-		Month:              month,
-		Year:               year,
-		ExchangeRate:       monthAvg,
-		ContractorName:     name,
-		ContractorLocation: location,
-		ContractorContact:  contact,
-		ContractorRate:     rate,
-		PaymentAddress:     paymentaddr,
+		Month:              2,
+		Year:               2019,
+		ExchangeRate:       1651,
+		ContractorName:     "test",
+		ContractorLocation: "testlocation",
+		ContractorContact:  "test@gmail.com",
+		ContractorRate:     4000,
+		PaymentAddress:     "DsUHkmH555D4tLQi5ap4gVAV86tVN29nqYi",
 		LineItems:          li,
 	}
 }
@@ -104,8 +93,7 @@ func createInvoiceJSON(t *testing.T, ii cms.InvoiceInput) *www.File {
 
 // createNewInvoice computes the merkle root of the given files, signs the
 // merkle root with the given identity then returns a NewInvoice object.
-func createNewInvoice(t *testing.T, id *identity.FullIdentity,
-	files []www.File, month uint, year uint) *cms.NewInvoice {
+func createNewInvoice(t *testing.T, id *identity.FullIdentity, files []www.File, month uint, year uint) *cms.NewInvoice {
 
 	t.Helper()
 
@@ -151,7 +139,7 @@ func TestValidateInvoice(t *testing.T) {
 	ni := createNewInvoice(t, id, []www.File{*json, *png}, ii.Month, ii.Year)
 
 	// Invalid signature test
-	invoiceInvalidSig := &cms.NewInvoice{
+	invoiceInvalidSig := cms.NewInvoice{
 		Month:     ni.Month,
 		Year:      ni.Year,
 		Files:     ni.Files,
@@ -165,7 +153,7 @@ func TestValidateInvoice(t *testing.T) {
 	invoiceIncorrectSig.Signature = ni.Signature
 
 	// No index file test
-	invoiceNoIndexFile := &cms.NewInvoice{
+	invoiceNoIndexFile := cms.NewInvoice{
 		Month:     ni.Month,
 		Year:      ni.Year,
 		Files:     make([]www.File, 0),
@@ -218,6 +206,7 @@ func TestValidateInvoice(t *testing.T) {
 	invoiceMaxAttachments := createNewInvoice(t, id, files, ii.Month, ii.Year)
 
 	// Setup test cases
+	// XXX this only adds partial test coverage to validateInvoice
 	var tests = []struct {
 		name       string
 		newInvoice cms.NewInvoice
@@ -226,7 +215,7 @@ func TestValidateInvoice(t *testing.T) {
 	}{
 		{"correct invoice", *ni, usr, nil},
 
-		{"invalid signature", *invoiceInvalidSig, usr,
+		{"invalid signature", invoiceInvalidSig, usr,
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidSignature,
 			}},
@@ -236,34 +225,34 @@ func TestValidateInvoice(t *testing.T) {
 				ErrorCode: www.ErrorStatusInvalidSignature,
 			}},
 
-		{"no index file", *invoiceNoIndexFile, usr,
+		{"no index file", invoiceNoIndexFile, usr,
 			www.UserError{
 				ErrorCode: www.ErrorStatusNoIndexFile,
 			}},
 
 		{"invalid index mime type", *invoiceInvalidIndexMimeType, usr,
 			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidMIMEType,
+				ErrorCode: www.ErrorStatusInvalidIndexFileMimeType,
 			}},
 
 		{"index file too large", *invoiceIndexLarge, usr,
 			www.UserError{
-				ErrorCode: www.ErrorStatusMaxIndexFileSizeExceededPolicy,
+				ErrorCode: www.ErrorStatusMaxIndexFileSizeExceeded,
 			}},
 
 		{"too many index files", *invoiceMaxIndexFiles, usr,
 			www.UserError{
-				ErrorCode: www.ErrorStatusMaxIndexFileExceededPolicy,
+				ErrorCode: www.ErrorStatusMaxIndexFileExceeded,
 			}},
 
 		{"attachment file too large", *invoiceAttachmentLarge, usr,
 			www.UserError{
-				ErrorCode: www.ErrorStatusMaxAttachmentSizeExceededPolicy,
+				ErrorCode: www.ErrorStatusMaxAttachmentSizeExceeded,
 			}},
 
 		{"too many attached files", *invoiceMaxAttachments, usr,
 			www.UserError{
-				ErrorCode: www.ErrorStatusMaxAttachmentsExceededPolicy,
+				ErrorCode: www.ErrorStatusMaxAttachmentsExceeded,
 			}},
 	}
 
