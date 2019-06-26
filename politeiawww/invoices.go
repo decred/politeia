@@ -484,10 +484,10 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 		return err
 	}
 
-	// Check for at least 1 markdown file with a non-empty payload.
+	// Check for at least 1 file with a non-empty payload.
 	if len(ni.Files) == 0 || ni.Files[0].Payload == "" {
 		return www.UserError{
-			ErrorCode: www.ErrorStatusNoIndexFile,
+			ErrorCode: www.ErrorStatusProposalMissingFiles,
 		}
 	}
 

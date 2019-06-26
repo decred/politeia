@@ -260,7 +260,7 @@ func newTestPoliteiawww(t *testing.T, mode string) (*politeiawww, func()) {
 		p.setCMSUserWWWRoutes()
 		p.cmsDB = testcmsdb.New()
 	default:
-		t.Fatalf("invalid")
+		t.Fatalf("invalid www mode")
 	}
 
 	// The cleanup is handled using a closure so that the temp dir

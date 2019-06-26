@@ -21,6 +21,7 @@ import (
 	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
+	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/cache"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
@@ -211,10 +212,10 @@ func validateProposal(np www.NewProposal, u *user.User) error {
 		return err
 	}
 
-	// Check for at least 1 markdown file with a non-empty payload.
+	// Check for at least 1 file with a non-empty payload.
 	if len(np.Files) == 0 || np.Files[0].Payload == "" {
 		return www.UserError{
-			ErrorCode: www.ErrorStatusNoIndexFile,
+			ErrorCode: www.ErrorStatusProposalMissingFiles,
 		}
 	}
 
@@ -240,13 +241,15 @@ func validateProposal(np www.NewProposal, u *user.User) error {
 			return err
 		}
 
+		mime := mime.DetectMimeType(data)
+
 		if v.Name == indexFile {
 			numIndexFiles++
 			if len(data) > www.PolicyMaxIndexFileSize {
 				indexExceedsMaxSize = true
 			}
 			// Enforces that index file is in fact a markdown file
-			if v.MIME != www.ProposalIndexMimeType {
+			if mime != www.ProposalIndexFileMimeType {
 				return www.UserError{
 					ErrorCode: www.ErrorStatusInvalidIndexFileMimeType,
 				}

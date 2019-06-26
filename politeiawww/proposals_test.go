@@ -502,7 +502,7 @@ func TestValidateProposal(t *testing.T) {
 
 		{"no files", *propNoFiles, usr,
 			www.UserError{
-				ErrorCode: www.ErrorStatusNoIndexFile,
+				ErrorCode: www.ErrorStatusProposalMissingFiles,
 			}},
 
 		{"invalid index mime type", *propInvalidIndexMimeType, usr,

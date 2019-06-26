@@ -110,9 +110,9 @@ const (
 	// for the routes that return lists of proposals
 	ProposalListPageSize = 20
 
-	// ProposalIndexMimeType is the mime type that an index file should
+	// ProposalIndexFileMimeType is the mime type that an index file should
 	// have
-	ProposalIndexMimeType = "text/plain; charset=utf-8"
+	ProposalIndexFileMimeType = "text/plain; charset=utf-8"
 
 	// UserListPageSize is the maximum number of users returned
 	// for the routes that return lists of users
@@ -124,7 +124,7 @@ const (
 	ErrorStatusMalformedEmail                  ErrorStatusT = 2
 	ErrorStatusVerificationTokenInvalid        ErrorStatusT = 3
 	ErrorStatusVerificationTokenExpired        ErrorStatusT = 4
-	ErrorStatusNoIndexFile                     ErrorStatusT = 5
+	ErrorStatusProposalMissingFiles            ErrorStatusT = 5
 	ErrorStatusProposalNotFound                ErrorStatusT = 6
 	ErrorStatusProposalDuplicateFilenames      ErrorStatusT = 7
 	ErrorStatusProposalInvalidTitle            ErrorStatusT = 8
@@ -182,7 +182,8 @@ const (
 	ErrorStatusMaxProposalsExceededPolicy      ErrorStatusT = 61
 	ErrorStatusDuplicateComment                ErrorStatusT = 62
 	ErrorStatusInvalidLogin                    ErrorStatusT = 63
-	ErrorStatusInvalidIndexFileMimeType        ErrorStatusT = 64
+	ErrorStatusNoIndexFile                     ErrorStatusT = 64
+	ErrorStatusInvalidIndexFileMimeType        ErrorStatusT = 65
 
 	// Proposal state codes
 	//
@@ -264,7 +265,7 @@ var (
 		ErrorStatusMalformedEmail:                  "malformed email",
 		ErrorStatusVerificationTokenInvalid:        "invalid verification token",
 		ErrorStatusVerificationTokenExpired:        "expired verification token",
-		ErrorStatusNoIndexFile:                     "missing index files",
+		ErrorStatusProposalMissingFiles:            "missing proposal files",
 		ErrorStatusProposalNotFound:                "proposal not found",
 		ErrorStatusProposalDuplicateFilenames:      "duplicate proposal files",
 		ErrorStatusProposalInvalidTitle:            "invalid proposal title",
@@ -321,6 +322,7 @@ var (
 		ErrorStatusNoProposalChanges:               "no changes found in proposal",
 		ErrorStatusDuplicateComment:                "duplicate comment",
 		ErrorStatusInvalidLogin:                    "invalid login credentials",
+		ErrorStatusNoIndexFile:                     "missing index files",
 		ErrorStatusInvalidIndexFileMimeType:        "index file with incorrect mime type",
 	}
 

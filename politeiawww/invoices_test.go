@@ -152,8 +152,8 @@ func TestValidateInvoice(t *testing.T) {
 		ii.Month, ii.Year)
 	invoiceIncorrectSig.Signature = ni.Signature
 
-	// No index file test
-	invoiceNoIndexFile := cms.NewInvoice{
+	// No file test
+	invoiceNoFiles := cms.NewInvoice{
 		Month:     ni.Month,
 		Year:      ni.Year,
 		Files:     make([]www.File, 0),
@@ -165,6 +165,9 @@ func TestValidateInvoice(t *testing.T) {
 	indexJpeg := createFileJPEG(t, invoiceFile)
 	invoiceInvalidIndexMimeType := createNewInvoice(t, id,
 		[]www.File{*indexJpeg}, ii.Month, ii.Year)
+
+	// No index file test
+	invoiceNoIndexFile := createNewInvoice(t, id, []www.File{*png}, ii.Month, ii.Year)
 
 	// Index file too large test.
 	// It creates a valid line item input, but too large to be accepted
@@ -225,14 +228,19 @@ func TestValidateInvoice(t *testing.T) {
 				ErrorCode: www.ErrorStatusInvalidSignature,
 			}},
 
-		{"no index file", invoiceNoIndexFile, usr,
+		{"no files", invoiceNoFiles, usr,
 			www.UserError{
-				ErrorCode: www.ErrorStatusNoIndexFile,
+				ErrorCode: www.ErrorStatusProposalMissingFiles,
 			}},
 
 		{"invalid index mime type", *invoiceInvalidIndexMimeType, usr,
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidIndexFileMimeType,
+			}},
+
+		{"no index files", *invoiceNoIndexFile, usr,
+			www.UserError{
+				ErrorCode: www.ErrorStatusNoIndexFile,
 			}},
 
 		{"index file too large", *invoiceIndexLarge, usr,

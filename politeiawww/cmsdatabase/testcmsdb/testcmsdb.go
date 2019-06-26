@@ -25,8 +25,8 @@ func (c *testcmsdb) ExchangeRate(month, year int) (*cmsdb.ExchangeRate, error) {
 
 // InvoicesByAddress satisfies the db interface and is used in testing.
 func (c *testcmsdb) InvoicesByAddress(addr string) ([]cmsdb.Invoice, error) {
-	c.Lock()
-	defer c.Unlock()
+	c.RLock()
+	defer c.RUnlock()
 
 	invoices := make([]cmsdb.Invoice, 0, 1024)
 	for _, v := range c.records {
@@ -55,8 +55,8 @@ func (c *testcmsdb) InvoicesByUserID(s string) ([]cmsdb.Invoice, error) {
 
 // InvoiceByToken satisfies the db interface and is used in testing.
 func (c *testcmsdb) InvoiceByToken(t string) (*cmsdb.Invoice, error) {
-	c.Lock()
-	defer c.Unlock()
+	c.RLock()
+	defer c.RUnlock()
 
 	invoice, ok := c.records[t]
 	if !ok {
