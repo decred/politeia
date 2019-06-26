@@ -11,8 +11,11 @@ type CMSUserDetailsCmd struct {
 
 // Execute executes the cms user information command.
 func (cmd *CMSUserDetailsCmd) Execute(args []string) error {
-
-	uir, err := client.CMSUserDetails()
+	lr, err := client.Me()
+	if err != nil {
+		return err
+	}
+	uir, err := client.CMSUserDetails(lr.UserID)
 	if err != nil {
 		return err
 	}

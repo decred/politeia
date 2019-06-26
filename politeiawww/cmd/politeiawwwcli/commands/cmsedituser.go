@@ -34,7 +34,11 @@ func (cmd *CMSEditUserCmd) Execute(args []string) error {
 	if cfg.Identity == nil {
 		return errUserIdentityNotFound
 	}
-	uir, err := client.CMSUserDetails()
+	lr, err := client.Me()
+	if err != nil {
+		return err
+	}
+	uir, err := client.CMSUserDetails(lr.UserID)
 	if err != nil {
 		fmt.Println(err)
 	}

@@ -1704,8 +1704,8 @@ func (c *Client) LineItemPayouts(lip *cms.LineItemPayouts) (*cms.LineItemPayouts
 }
 
 // CMSUserDetails returns the current cms user's information.
-func (c *Client) CMSUserDetails() (*cms.UserDetailsReply, error) {
-	responseBody, err := c.makeRequest("GET", v1.RouteUserDetails, nil)
+func (c *Client) CMSUserDetails(userID string) (*cms.UserDetailsReply, error) {
+	responseBody, err := c.makeRequest("GET", "/user/"+userID, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1713,7 +1713,7 @@ func (c *Client) CMSUserDetails() (*cms.UserDetailsReply, error) {
 	var uir cms.UserDetailsReply
 	err = json.Unmarshal(responseBody, &uir)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal UserDetailsReply: %v", err)
+		return nil, fmt.Errorf("unmarshal CMSUserDetailsReply: %v", err)
 	}
 
 	if c.cfg.Verbose {

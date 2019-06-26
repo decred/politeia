@@ -831,8 +831,6 @@ func (p *politeiawww) setCMSUserWWWRoutes() {
 		p.handleChangeUsername, permissionLogin)
 	p.addRoute(http.MethodPost, www.RouteChangePassword,
 		p.handleChangePassword, permissionLogin)
-	p.addRoute(http.MethodPost, www.RouteEditUser,
-		p.handleEditUser, permissionLogin)
 	p.addRoute(http.MethodGet, www.RouteUserDetails,
 		p.handleCMSUserDetails, permissionLogin)
 	p.addRoute(http.MethodPost, www.RouteEditUser,
