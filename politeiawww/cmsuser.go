@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
@@ -347,7 +348,7 @@ func (p *politeiawww) processCMSUserDetails(ud *cms.UserDetails, isCurrentUser b
 			ErrorCode: www.ErrorStatusUserActionNotAllowed,
 		}
 	}
-
+	spew.Dump(ud)
 	reply := cms.UserDetailsReply{}
 	ubi := user.CMSUserByID{
 		ID: ud.UserID,
@@ -363,28 +364,21 @@ func (p *politeiawww) processCMSUserDetails(ud *cms.UserDetails, isCurrentUser b
 	}
 	payloadReply, err := p.db.PluginExec(pc)
 	if err != nil {
-		if err == user.ErrUserNotFound {
-			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusUserNotFound,
-			}
-		}
 		return nil, err
 	}
 	ubir, err := user.DecodeCMSUserByIDReply([]byte(payloadReply.Payload))
 	if err != nil {
 		return nil, err
 	}
-	reply.User = cms.User{
-		User:               convertWWWUserFromDatabaseUser(&ubir.User.User),
-		Domain:             cms.DomainTypeT(ubir.User.Domain),
-		ContractorType:     cms.ContractorTypeT(ubir.User.ContractorType),
-		ContractorName:     ubir.User.ContractorName,
-		ContractorLocation: ubir.User.ContractorLocation,
-		ContractorContact:  ubir.User.ContractorContact,
-		MatrixName:         ubir.User.MatrixName,
-		GitHubName:         ubir.User.GitHubName,
-		SupervisorUserID:   ubir.User.SupervisorUserID,
-	}
+	reply.User = convertCMSUserFromDatabaseUser(&ubir.User.User)
+	reply.User.Domain = cms.DomainTypeT(ubir.User.Domain)
+	reply.User.ContractorType = cms.ContractorTypeT(ubir.User.ContractorType)
+	reply.User.ContractorName = ubir.User.ContractorName
+	reply.User.ContractorLocation = ubir.User.ContractorLocation
+	reply.User.ContractorContact = ubir.User.ContractorContact
+	reply.User.MatrixName = ubir.User.MatrixName
+	reply.User.GitHubName = ubir.User.GitHubName
+	reply.User.SupervisorUserID = ubir.User.SupervisorUserID
 
 	return &reply, nil
 }
@@ -440,4 +434,26 @@ func validateUserInformation(userInfo cms.EditUser) error {
 		// check if it is a valid user id, and that user is a super?
 	}
 	return nil
+}
+
+// convertCMSUserFromDatabaseUser converts a user User to a cms User.
+func convertCMSUserFromDatabaseUser(user *user.User) cms.User {
+	return cms.User{
+		ID:                              user.ID.String(),
+		Admin:                           user.Admin,
+		Email:                           user.Email,
+		Username:                        user.Username,
+		NewUserVerificationToken:        user.NewUserVerificationToken,
+		NewUserVerificationExpiry:       user.NewUserVerificationExpiry,
+		UpdateKeyVerificationToken:      user.UpdateKeyVerificationToken,
+		UpdateKeyVerificationExpiry:     user.UpdateKeyVerificationExpiry,
+		ResetPasswordVerificationToken:  user.ResetPasswordVerificationToken,
+		ResetPasswordVerificationExpiry: user.ResetPasswordVerificationExpiry,
+		LastLoginTime:                   user.LastLoginTime,
+		FailedLoginAttempts:             user.FailedLoginAttempts,
+		Deactivated:                     user.Deactivated,
+		Locked:                          userIsLocked(user.FailedLoginAttempts),
+		Identities:                      convertWWWIdentitiesFromDatabaseIdentities(user.Identities),
+		EmailNotifications:              user.EmailNotifications,
+	}
 }

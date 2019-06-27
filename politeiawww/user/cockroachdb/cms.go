@@ -230,9 +230,24 @@ func (c *cockroachdb) cmdCMSUserByID(payload string) (string, error) {
 		Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			err = user.ErrUserNotFound
+			// It's ok if there are no cms records found for this user.
+			// But we do need to request the rest of the user details from the
+			// www User table.
+			var u User
+			err = c.userDB.
+				Where("id = ?", p.ID).
+				Find(&u).
+				Error
+			if err != nil {
+				if err == gorm.ErrRecordNotFound {
+					err = user.ErrUserNotFound
+				}
+				return "", err
+			}
+			cmsUser.User = u
+		} else {
+			return "", err
 		}
-		return "", err
 	}
 
 	// Prepare reply

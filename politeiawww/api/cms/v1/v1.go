@@ -450,7 +450,24 @@ type PaymentInformation struct {
 // User represents a CMS user. It contains the standard politeiawww user
 // fields as well as CMS specific user fields.
 type User struct {
-	User               www.User        `json:"user"`
+	ID                              string             `json:"id"`
+	Email                           string             `json:"email"`
+	Username                        string             `json:"username"`
+	Admin                           bool               `json:"isadmin"`
+	Identities                      []www.UserIdentity `json:"identities"`
+	LastLoginTime                   int64              `json:"lastlogintime"`
+	FailedLoginAttempts             uint64             `json:"failedloginattempts"`
+	Deactivated                     bool               `json:"isdeactivated"`
+	Locked                          bool               `json:"islocked"`
+	EmailNotifications              uint64             `json:"emailnotifications"` // Notify the user via emails
+	NewUserVerificationToken        []byte             `json:"newuserverificationtoken"`
+	NewUserVerificationExpiry       int64              `json:"newuserverificationexpiry"`
+	UpdateKeyVerificationToken      []byte             `json:"updatekeyverificationtoken"`
+	UpdateKeyVerificationExpiry     int64              `json:"updatekeyverificationexpiry"`
+	ResetPasswordVerificationToken  []byte             `json:"resetpasswordverificationtoken"`
+	ResetPasswordVerificationExpiry int64              `json:"resetpasswordverificationexpiry"`
+
+	// CMS Information
 	Domain             DomainTypeT     `json:"domain"` // Contractor domain
 	GitHubName         string          `json:"githubname"`
 	MatrixName         string          `json:"matrixname"`
