@@ -41,8 +41,8 @@ func (cmd *CMSEditUserCmd) Execute(args []string) error {
 		fmt.Println(err)
 	}
 	userInfo := cms.User{}
-	if uir != nil && uir.User != nil {
-		userInfo = *uir.User
+	if uir != nil {
+		userInfo = uir.User
 	}
 	var domainType, contractorType int
 	if cmd.Domain == "" || cmd.GitHubName == "" ||
