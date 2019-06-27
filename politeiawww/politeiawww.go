@@ -350,6 +350,7 @@ func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 		UsernameSupportedChars:     www.PolicyUsernameSupportedChars,
 		ProposalListPageSize:       www.ProposalListPageSize,
 		UserListPageSize:           www.UserListPageSize,
+		IndexFileMimeType:          www.PolicyIndexFileMimeType,
 		MaxIndexFile:               www.PolicyMaxIndexFile,
 		MaxIndexFileSize:           www.PolicyMaxIndexFileSize,
 		MaxAttachments:             www.PolicyMaxAttachments,

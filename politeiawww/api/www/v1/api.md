@@ -1315,6 +1315,7 @@ SHALL observe.
 | usernamesupportedchars | array of strings | the regular expression of a valid username |
 | proposallistpagesize | integer | maximum number of proposals returned for the routes that return lists of proposals |
 | userlistpagesize | integer | maximum number of users returned for the routes that return lists of users |
+| indexfilemimetype | string | mime type that an index file must have in a proposal |
 | maxindexfile | integer | maximum number of index files on a proposal |
 | maxindexfilesize | integer | maximum size (in bytes) for the index file of a proposal |
 | maxattachments | integer | maximum number of attachments accepted when creating a new proposal |
@@ -1353,6 +1354,7 @@ Reply:
     "A-z", "0-9", ".", ":", ";", ",", "-", " ", "@", "+"
   ],
   "proposallistpagesize": 20,
+  "indexfilemimetype": "text/plain; charset=utf-8",
   "maxindexfile": 1,
   "maxindexfilesize": 524288,
   "maxattachments": 5,

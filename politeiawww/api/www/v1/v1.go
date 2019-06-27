@@ -72,6 +72,10 @@ const (
 	// verification token expires
 	VerificationExpiryHours = 24
 
+	// PolicyIndexFileMimeType is the mime type that an index file should
+	// have
+	PolicyIndexFileMimeType = "text/plain; charset=utf-8"
+
 	// PolicyMaxIndexFile is the maximum number of index file
 	// for a proposal
 	PolicyMaxIndexFile = 1
@@ -105,10 +109,6 @@ const (
 	// PolicyMaxCommentLength is the maximum number of characters
 	// accepted for comments
 	PolicyMaxCommentLength = 8000
-
-	// PolicyIndexFileMimeType is the mime type that an index file should
-	// have
-	PolicyIndexFileMimeType = "text/plain; charset=utf-8"
 
 	// ProposalListPageSize is the maximum number of proposals returned
 	// for the routes that return lists of proposals
