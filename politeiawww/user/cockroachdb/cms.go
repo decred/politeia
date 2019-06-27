@@ -289,12 +289,6 @@ func (c *cockroachdb) cmsPluginCreateTables(tx *gorm.DB) error {
 		}
 	}
 
-	// XXX How should we handle the auto-migrate?
-	err := tx.AutoMigrate(&CMSUser{}).Error
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
