@@ -21,7 +21,7 @@ func (c *cachestub) Record(token string) (*cache.Record, error) {
 
 // Records is a stub to satisfy the cache interface.
 func (c *cachestub) Records(token []string) ([]cache.Record, error) {
-	records := make([]cache.Record, 0, 0)
+	records := make([]cache.Record, 0)
 	return records, nil
 }
 
