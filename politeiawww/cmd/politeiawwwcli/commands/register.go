@@ -143,7 +143,7 @@ func (cmd *RegisterUserCmd) Execute(args []string) error {
 
 	// Login to cms
 	l := &www.Login{
-		Email:    email,
+		Username: cmd.Username,
 		Password: digestSHA3(cmd.Password),
 	}
 
