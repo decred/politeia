@@ -1150,8 +1150,8 @@ func (p *politeiawww) processVerifyUpdateUserKey(u *user.User, vu www.VerifyUpda
 	return u, p.db.UserUpdate(*u)
 }
 
-// processLogin logs a user into politeiawww using the provided username and
-// password.
+// processLogin checks that the provided user credentials are valid and updates
+// the login fields for the user.
 func (p *politeiawww) processLogin(l www.Login) (*www.LoginReply, error) {
 	log.Tracef("processLogin: %v", l.Username)
 
