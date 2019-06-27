@@ -391,6 +391,9 @@ type Database interface {
 	// Return user record given a public key
 	UserGetByPubKey(string) (*User, error)
 
+	// Return a map of public key to user record
+	UsersGetByPubKey(pubKeys []string) (map[string]User, error)
+
 	// Iterate over all users
 	AllUsers(callbackFn func(u *User)) error
 

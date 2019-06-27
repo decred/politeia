@@ -5,6 +5,7 @@
 package cockroachdb
 
 import (
+	"database/sql"
 	"fmt"
 	"net/url"
 	"path/filepath"
@@ -373,9 +374,10 @@ func (c *cockroachdb) UpdateRecordMetadata(token string, ms []cache.MetadataStre
 	return tx.Commit().Error
 }
 
-// Inventory returns the latest version of all records from the database.
-func (c *cockroachdb) Inventory() ([]cache.Record, error) {
-	log.Tracef("Inventory")
+// getRecords is a helper used by Records and Inventory. Returns all of the
+// records if getAllRecords is true, otherwise returns the ones specified by
+// tokens.
+func (c *cockroachdb) getRecords(getAllRecords bool, tokens []string) ([]cache.Record, error) {
 
 	c.RLock()
 	shutdown := c.shutdown
@@ -391,7 +393,18 @@ func (c *cockroachdb) Inventory() ([]cache.Record, error) {
 			ON a.token = b.token AND a.version < b.version
 		WHERE b.token IS NULL`
 
-	rows, err := c.recordsdb.Raw(query).Rows()
+	var (
+		err  error
+		rows *sql.Rows
+	)
+
+	if getAllRecords {
+		rows, err = c.recordsdb.Raw(query).Rows()
+	} else {
+		query += ` AND a.token IN (?)`
+		rows, err = c.recordsdb.Raw(query, tokens).Rows()
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -428,6 +441,18 @@ func (c *cockroachdb) Inventory() ([]cache.Record, error) {
 	}
 
 	return cr, nil
+}
+
+// Record gets the most recent versions of a list of records.
+func (c *cockroachdb) Records(tokens []string) ([]cache.Record, error) {
+	log.Tracef("Records: %v", tokens)
+	return c.getRecords(false, tokens)
+}
+
+// Inventory returns the latest version of all records from the database.
+func (c *cockroachdb) Inventory() ([]cache.Record, error) {
+	log.Tracef("Inventory")
+	return c.getRecords(true, nil)
 }
 
 // InventoryStats compiles summary statistics on the number of records in the

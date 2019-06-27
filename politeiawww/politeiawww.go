@@ -280,6 +280,39 @@ func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Reque
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
+func (p *politeiawww) handleBatchProposals(w http.ResponseWriter,
+	r *http.Request) {
+	log.Tracef("handleBatchProposals")
+	var bp www.BatchProposals
+
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&bp); err != nil {
+		RespondWithError(w, r, 0, "handleBatchProposals: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		if err != ErrSessionUUIDNotFound {
+			RespondWithError(w, r, 0,
+				"handleProposalDetails: getSessionUser %v", err)
+			return
+		}
+	}
+
+	reply, err := p.processBatchProposals(bp, user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleBatchProposals: processBatchProposals %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
 func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 	// Get the policy command.
 	log.Tracef("handlePolicy")
@@ -1081,6 +1114,8 @@ func (p *politeiawww) setPoliteiaWWWRoutes() {
 		p.handleProposalsStats, permissionPublic)
 	p.addRoute(http.MethodGet, www.RouteTokenInventory,
 		p.handleTokenInventory, permissionPublic)
+	p.addRoute(http.MethodPost, www.RouteBatchProposals,
+		p.handleBatchProposals, permissionPublic)
 
 	// Routes that require being logged in.
 	p.addRoute(http.MethodGet, www.RouteProposalPaywallDetails,

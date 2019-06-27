@@ -180,6 +180,40 @@ func (d *decred) cmdGetComments(payload string) (string, error) {
 	return string(gcrb), nil
 }
 
+func (d *decred) cmdGetBatchComments(payload string) (string, error) {
+	log.Tracef("decred cmdGetBatchComments")
+
+	gbc, err := decredplugin.DecodeGetBatchComments([]byte(payload))
+	if err != nil {
+		return "", err
+	}
+
+	comments := make([]Comment, 0, 1024)
+	err = d.recordsdb.
+		Where("token IN (?)", gbc.Tokens).
+		Find(&comments).
+		Error
+	if err != nil {
+		return "", err
+	}
+
+	commentMap := make(map[string][]decredplugin.Comment)
+	for _, c := range comments {
+		commentMap[c.Token] =
+			append(commentMap[c.Token], convertCommentToDecred(c))
+	}
+
+	gbcr := decredplugin.GetBatchCommentsReply{
+		CommentsMap: commentMap,
+	}
+	gbcrb, err := decredplugin.EncodeGetBatchCommentsReply(gbcr)
+	if err != nil {
+		return "", err
+	}
+
+	return string(gbcrb), nil
+}
+
 // cmdCommentLikes returns all of the comment likes for the passed in comment.
 func (d *decred) cmdCommentLikes(payload string) (string, error) {
 	log.Tracef("decred cmdCommentLikes")
@@ -995,6 +1029,8 @@ func (d *decred) Exec(cmd, cmdPayload, replyPayload string) (string, error) {
 		return d.cmdGetComment(cmdPayload)
 	case decredplugin.CmdGetComments:
 		return d.cmdGetComments(cmdPayload)
+	case decredplugin.CmdGetBatchComments:
+		return d.cmdGetBatchComments(cmdPayload)
 	case decredplugin.CmdProposalVotes:
 		return d.cmdProposalVotes(cmdPayload)
 	case decredplugin.CmdCommentLikes:

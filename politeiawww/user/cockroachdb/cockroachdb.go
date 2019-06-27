@@ -280,6 +280,61 @@ func (c *cockroachdb) UserGetByPubKey(pubKey string) (*user.User, error) {
 	return usr, nil
 }
 
+func (c *cockroachdb) UsersGetByPubKey(pubKeys []string) (
+	map[string]user.User, error) {
+
+	log.Tracef("UserGetByPubKey: %v", pubKeys)
+
+	if c.isShutdown() {
+		return nil, user.ErrShutdown
+	}
+
+	query := `SELECT * FROM users INNER JOIN identities
+                ON users.id = identities.user_id
+                WHERE identities.public_key IN (?)`
+
+	rows, err := c.userDB.Raw(query, pubKeys).Rows()
+	defer rows.Close()
+
+	if err != nil {
+		return nil, err
+	}
+
+	users := make(map[string]user.User)
+	pubKeyLookup := make(map[string]bool)
+	for _, pk := range pubKeys {
+		pubKeyLookup[pk] = true
+	}
+
+	for rows.Next() {
+		var u User
+		err := c.userDB.ScanRows(rows, &u)
+		if err != nil {
+			return nil, err
+		}
+
+		b, _, err := c.decrypt(u.Blob)
+		if err != nil {
+			return nil, err
+		}
+
+		usr, err := user.DecodeUser(b)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, id := range usr.Identities {
+			pk := id.String()
+			if _, ok := pubKeyLookup[pk]; ok {
+				users[pk] = *usr
+			}
+		}
+
+	}
+
+	return users, nil
+}
+
 // UserUpdate updates an existing user record in the database.
 func (c *cockroachdb) UserUpdate(u user.User) error {
 	log.Tracef("UserUpdate: %v", u.Username)

@@ -84,6 +84,42 @@ func (p *politeiawww) decredGetComments(token string) ([]decredplugin.Comment, e
 	return gcr.Comments, nil
 }
 
+// decredGetBatchComments sends the decred plugin GetBachComments command to the
+// cache and returns all of the comments for each of the tokens passed in.
+func (p *politeiawww) decredGetBatchComments(
+	tokens []string) (map[string][]decredplugin.Comment, error) {
+
+	// Setup plugin command
+	gbc := decredplugin.GetBatchComments{
+		Tokens: tokens,
+	}
+
+	payload, err := decredplugin.EncodeGetBatchComments(gbc)
+	if err != nil {
+		return nil, err
+	}
+
+	pc := cache.PluginCommand{
+		ID:             decredplugin.ID,
+		Command:        decredplugin.CmdGetBatchComments,
+		CommandPayload: string(payload),
+	}
+
+	// Get comments from the cache
+	reply, err := p.cache.PluginExec(pc)
+	if err != nil {
+		return nil, fmt.Errorf("PluginExec: %v", err)
+	}
+
+	gbcr, err := decredplugin.DecodeGetBatchCommentsReply(
+		[]byte(reply.Payload))
+	if err != nil {
+		return nil, err
+	}
+
+	return gbcr.CommentsMap, nil
+}
+
 // decredCommentLikes sends the decred plugin commentlikes command to the cache
 // and returns all of the comment likes for the passed in comment.
 func (p *politeiawww) decredCommentLikes(token, commentID string) ([]decredplugin.LikeComment, error) {

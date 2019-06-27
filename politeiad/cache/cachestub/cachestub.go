@@ -19,6 +19,12 @@ func (c *cachestub) Record(token string) (*cache.Record, error) {
 	return &cache.Record{}, nil
 }
 
+// Records is a stub to satisfy the cache interface.
+func (c *cachestub) Records(token []string) ([]cache.Record, error) {
+	records := make([]cache.Record, 0, 0)
+	return records, nil
+}
+
 // RecordVersion is a stub to satisfy the cache interface.
 func (c *cachestub) RecordVersion(token, version string) (*cache.Record, error) {
 	return &cache.Record{}, nil

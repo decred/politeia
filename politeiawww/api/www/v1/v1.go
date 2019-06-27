@@ -41,6 +41,7 @@ const (
 	RouteEditUser                 = "/user/edit"
 	RouteUsers                    = "/users"
 	RouteTokenInventory           = "/proposals/tokeninventory"
+	RouteBatchProposals           = "/proposals/batchproposals"
 	RouteAllVetted                = "/proposals/vetted"
 	RouteAllUnvetted              = "/proposals/unvetted"
 	RouteNewProposal              = "/proposals/new"
@@ -722,6 +723,16 @@ type ProposalsDetails struct {
 // ProposalDetailsReply is used to reply to a proposal details command.
 type ProposalDetailsReply struct {
 	Proposal ProposalRecord `json:"proposal"`
+}
+
+// BatchProposals is used to request the details of multiple proposals.
+type BatchProposals struct {
+	Tokens []string `json:"tokens"`
+}
+
+// BatchProposalsReply is used to reply to a BatchProposals command.
+type BatchProposalsReply struct {
+	Proposals []ProposalRecord `json:"proposals"`
 }
 
 // SetProposalStatus is used to publish or censor an unreviewed proposal.
