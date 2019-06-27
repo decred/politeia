@@ -109,8 +109,8 @@ admin privileges if you want to be able to start proposal votes.
 get a `resource temporarily unavailable` error if you don't.**
 
 ```
-$ politeiawww_dbutil -testnet -setadmin email@example.com true
-$ politeiawww_dbutil -testnet -addcredits email@example.com 50
+$ politeiawww_dbutil -testnet -setadmin username true
+$ politeiawww_dbutil -testnet -addcredits username 50
 ```
 
 **Start politeiawww back up.**
