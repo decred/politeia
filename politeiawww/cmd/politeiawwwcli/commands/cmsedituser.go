@@ -6,8 +6,6 @@ package commands
 
 import (
 	"bufio"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -42,7 +40,7 @@ func (cmd *CMSEditUserCmd) Execute(args []string) error {
 	if err != nil {
 		fmt.Println(err)
 	}
-	userInfo := cms.CMSUser{}
+	userInfo := cms.User{}
 	if uir != nil && uir.User != nil {
 		userInfo = *uir.User
 	}
@@ -272,17 +270,15 @@ func (cmd *CMSEditUserCmd) Execute(args []string) error {
 			"your registration.")
 		reader.ReadString('\n')
 	}
-	userInfoRaw, err := json.Marshal(userInfo)
-	if err != nil {
-		return fmt.Errorf("execute CMSEditUserCmd: Marshal UserInformation %v",
-			err)
-	}
-	sig := cfg.Identity.SignMessage(userInfoRaw)
 
 	updateInfo := cms.EditUser{
-		CMSUser:   userInfo,
-		Signature: hex.EncodeToString(sig[:]),
-		PublicKey: hex.EncodeToString(cfg.Identity.Public.Key[:]),
+		Domain:             userInfo.Domain,
+		ContractorType:     userInfo.ContractorType,
+		ContractorName:     userInfo.ContractorName,
+		ContractorLocation: userInfo.ContractorLocation,
+		ContractorContact:  userInfo.ContractorContact,
+		MatrixName:         userInfo.MatrixName,
+		GitHubName:         userInfo.GitHubName,
 	}
 
 	ecur, err := client.CMSEditUser(updateInfo)

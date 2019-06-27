@@ -700,7 +700,7 @@ Reply:
 
 ### `Edit user`
 
-Allows a user to submit updates to their user information.
+Allows a user to submit updates to their cms user information.
 
 **Route:** `POST /v1/user/edit`
 
@@ -708,9 +708,14 @@ Allows a user to submit updates to their user information.
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
-| user | instance of [`CMS User](#cmsuser) | the information that will be updated in the cmsdb | yes |
-| publickey | string | the public key for the user's active identity | yes |
-| signature | string | the signature from hashing the attached userinformation | yes |
+| domain | int | The Domain Type that the user currently has | no |
+| githubname | string | The Github Name tied to the user. | no |
+| matrixname | string | The Matrix Name tied to the user. | no |
+| contractortype | int | The contractor type of the user. | no |
+| contractorname | string | The contractors IRL name/identity. | no |
+| contractorlocation | string | Current general locaiton of the contractor. | no |
+| contractorcontact | string | Email or contact information of the contractor. | no |
+| supervisoruserid | string | The userid of the user (if the user is a sub contractor. ) | no |
 
 **Results:**
 
@@ -723,20 +728,14 @@ Request:
 
 ```json
 {
-  "user":
-    {
-      "userid": "0",
-      "domain": 1,
-      "githubname": "smobs",
-      "matrixname": "smobs:decred.org",
-      "contractortype": 1,
-      "contractorname": "Steve Mobs",
-      "contractorlocation": "Cupertino, CA",
-      "contractorcontact": "smobs@apple.com",
-      "supervisoruserid": "",
-    },
-  "publickey": "5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
-  "signature": "gdd92f26c8g38c90d2887259e88df614654g32fde76bef1438b0efg40e360f461e995d796g16b17108gbe226793ge4g52gg013428feb3c39de504fe5g1811e0e",
+  "domain": 1,
+  "githubname": "smobs",
+  "matrixname": "smobs:decred.org",
+  "contractortype": 1,
+  "contractorname": "Steve Mobs",
+  "contractorlocation": "Cupertino, CA",
+  "contractorcontact": "smobs@apple.com",
+  "supervisoruserid": "",
 }
 ```
 

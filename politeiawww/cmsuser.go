@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -290,26 +289,7 @@ func (p *politeiawww) processRegisterUser(u cms.RegisterUser) (*cms.RegisterUser
 func (p *politeiawww) processEditCMSUser(ecu cms.EditUser, u *user.User) (*cms.EditUserReply, error) {
 	reply := cms.EditUserReply{}
 
-	// Get the raw json of the user information in the request to confirm the
-	// signature that was included.
-	userInfoRaw, err := json.Marshal(ecu.CMSUser)
-	if err != nil {
-		return nil, fmt.Errorf("processUpdateUserInformation: Marshal %v", err)
-	}
-	// Ensure the public key is the user's active key
-	if ecu.PublicKey != u.PublicKey() {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusInvalidSigningKey,
-		}
-	}
-
-	// Validate signature
-	err = validateSignature(ecu.PublicKey, ecu.Signature, string(userInfoRaw))
-	if err != nil {
-		return nil, err
-	}
-
-	err = validateUserInformation(ecu.CMSUser)
+	err := validateUserInformation(ecu)
 	if err != nil {
 		return nil, err
 	}
@@ -320,29 +300,29 @@ func (p *politeiawww) processEditCMSUser(ecu cms.EditUser, u *user.User) (*cms.E
 	// Update a cms user with the provided information.
 	// Only set fields in dbUserInfo if they are set in the request,
 	// otherwise use the existing fields from the above db request.
-	if ecu.CMSUser.Domain != 0 {
-		uu.Domain = int(ecu.CMSUser.Domain)
+	if ecu.Domain != 0 {
+		uu.Domain = int(ecu.Domain)
 	}
-	if ecu.CMSUser.GitHubName != "" {
-		uu.GitHubName = ecu.CMSUser.GitHubName
+	if ecu.GitHubName != "" {
+		uu.GitHubName = ecu.GitHubName
 	}
-	if ecu.CMSUser.MatrixName != "" {
-		uu.MatrixName = ecu.CMSUser.MatrixName
+	if ecu.MatrixName != "" {
+		uu.MatrixName = ecu.MatrixName
 	}
-	if ecu.CMSUser.ContractorType != 0 {
-		uu.ContractorType = int(ecu.CMSUser.ContractorType)
+	if ecu.ContractorType != 0 {
+		uu.ContractorType = int(ecu.ContractorType)
 	}
-	if ecu.CMSUser.ContractorName != "" {
-		uu.ContractorName = ecu.CMSUser.ContractorName
+	if ecu.ContractorName != "" {
+		uu.ContractorName = ecu.ContractorName
 	}
-	if ecu.CMSUser.ContractorLocation != "" {
-		uu.ContractorLocation = ecu.CMSUser.ContractorLocation
+	if ecu.ContractorLocation != "" {
+		uu.ContractorLocation = ecu.ContractorLocation
 	}
-	if ecu.CMSUser.ContractorContact != "" {
-		uu.ContractorContact = ecu.CMSUser.ContractorContact
+	if ecu.ContractorContact != "" {
+		uu.ContractorContact = ecu.ContractorContact
 	}
-	if ecu.CMSUser.SupervisorUserID != "" {
-		uu.SupervisorUserID = ecu.CMSUser.SupervisorUserID
+	if ecu.SupervisorUserID != "" {
+		uu.SupervisorUserID = ecu.SupervisorUserID
 	}
 	payload, err := user.EncodeUpdateCMSUser(uu)
 	if err != nil {
@@ -387,7 +367,7 @@ func (p *politeiawww) processCMSUserDetails(u *user.User) (*cms.UserDetailsReply
 	if err != nil {
 		return nil, err
 	}
-	reply.User = &cms.CMSUser{
+	reply.User = cms.User{
 		User:               convertWWWUserFromDatabaseUser(&ubir.User.User),
 		Domain:             cms.DomainTypeT(ubir.User.Domain),
 		ContractorType:     cms.ContractorTypeT(ubir.User.ContractorType),
@@ -402,7 +382,7 @@ func (p *politeiawww) processCMSUserDetails(u *user.User) (*cms.UserDetailsReply
 	return &reply, nil
 }
 
-func validateUserInformation(userInfo cms.CMSUser) error {
+func validateUserInformation(userInfo cms.EditUser) error {
 	var err error
 	if userInfo.GitHubName != "" {
 		contact := formatContact(userInfo.GitHubName)

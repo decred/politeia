@@ -447,9 +447,9 @@ type PaymentInformation struct {
 	Status          PaymentStatusT `json:"status"`
 }
 
-// CMSUser represents a CMS user. It contains the standard politeiawww user
+// User represents a CMS user. It contains the standard politeiawww user
 // fields as well as CMS specific user fields.
-type CMSUser struct {
+type User struct {
 	User               www.User        `json:"user"`
 	Domain             DomainTypeT     `json:"domain"` // Contractor domain
 	GitHubName         string          `json:"githubname"`
@@ -468,14 +468,19 @@ type UserDetails struct {
 
 // UserDetailsReply returns a cms user's details.
 type UserDetailsReply struct {
-	User *CMSUser `json:"user"`
+	User User `json:"user"`
 }
 
 // EditUser edits a user's preferences.
 type EditUser struct {
-	CMSUser   CMSUser `json:"user"`
-	Signature string  `json:"signature"` // Signature of raw user json
-	PublicKey string  `json:"publickey"` // Public key of user
+	Domain             DomainTypeT     `json:"domain"` // Contractor domain
+	GitHubName         string          `json:"githubname"`
+	MatrixName         string          `json:"matrixname"`
+	ContractorType     ContractorTypeT `json:"contractortype"`
+	ContractorName     string          `json:"contractorname"`
+	ContractorLocation string          `json:"contractorlocation"`
+	ContractorContact  string          `json:"contractorcontact"`
+	SupervisorUserID   string          `json:"supervisoruserid"`
 }
 
 // EditUserReply is the reply for the EditUser command.

@@ -122,7 +122,7 @@ func DecodeCMSUsersByDomainReply(b []byte) (*CMSUsersByDomainReply, error) {
 
 // UpdateCMSUser creates a new CMS user record in the user database.
 type UpdateCMSUser struct {
-	ID                 uuid.UUID `json:"id"`     //
+	ID                 uuid.UUID `json:"id"`
 	Domain             int       `json:"domain"` // Contractor domain
 	GitHubName         string    `json:"githubname"`
 	MatrixName         string    `json:"matrixname"`
