@@ -117,7 +117,7 @@ const (
 
 	// Error status codes
 	ErrorStatusInvalid                     ErrorStatusT = 0
-	ErrorStatusInvalidEmailOrPassword      ErrorStatusT = 1
+	ErrorStatusInvalidPassword             ErrorStatusT = 1
 	ErrorStatusMalformedEmail              ErrorStatusT = 2
 	ErrorStatusVerificationTokenInvalid    ErrorStatusT = 3
 	ErrorStatusVerificationTokenExpired    ErrorStatusT = 4
@@ -176,7 +176,6 @@ const (
 	ErrorStatusInvalidLikeCommentAction    ErrorStatusT = 57
 	ErrorStatusInvalidCensorshipToken      ErrorStatusT = 58
 	ErrorStatusEmailAlreadyVerified        ErrorStatusT = 59
-	ErrorStatusInvalidPassword             ErrorStatusT = 85
 	ErrorStatusNoProposalChanges           ErrorStatusT = 88
 
 	// Proposal state codes
@@ -256,7 +255,7 @@ var (
 	// ErrorStatus converts error status codes to human readable text.
 	ErrorStatus = map[ErrorStatusT]string{
 		ErrorStatusInvalid:                     "invalid error status",
-		ErrorStatusInvalidEmailOrPassword:      "invalid email or password",
+		ErrorStatusInvalidPassword:             "invalid password",
 		ErrorStatusMalformedEmail:              "malformed email",
 		ErrorStatusVerificationTokenInvalid:    "invalid verification token",
 		ErrorStatusVerificationTokenExpired:    "expired verification token",
@@ -315,7 +314,6 @@ var (
 		ErrorStatusInvalidLikeCommentAction:    "invalid like comment action",
 		ErrorStatusInvalidCensorshipToken:      "invalid proposal censorship token",
 		ErrorStatusEmailAlreadyVerified:        "email address is already verified",
-		ErrorStatusInvalidPassword:             "invalid password",
 		ErrorStatusNoProposalChanges:           "no changes found in proposal",
 	}
 
@@ -643,7 +641,7 @@ type AbridgedUser struct {
 // Login attempts to login the user.  Note that by necessity the password
 // travels in the clear.
 type Login struct {
-	Email    string `json:"email"`
+	Username string `json:"username"`
 	Password string `json:"password"`
 }
 

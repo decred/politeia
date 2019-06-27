@@ -55,7 +55,7 @@ notifications.  It does not render HTML.
 **Error status codes**
 
 - [`ErrorStatusInvalid`](#ErrorStatusInvalid)
-- [`ErrorStatusInvalidEmailOrPassword`](#ErrorStatusInvalidEmailOrPassword)
+- [`ErrorStatusInvalidPassword`](#ErrorStatusInvalidPassword)
 - [`ErrorStatusMalformedEmail`](#ErrorStatusMalformedEmail)
 - [`ErrorStatusVerificationTokenInvalid`](#ErrorStatusVerificationTokenInvalid)
 - [`ErrorStatusVerificationTokenExpired`](#ErrorStatusVerificationTokenExpired)
@@ -306,10 +306,6 @@ Return pertinent user information of the current logged in user.
 
 **Results**: See the [`Login reply`](#login-reply).
 
-On failure the call shall return `403 Forbidden` and one of the following
-error codes:
-- [`ErrorStatusInvalidEmailOrPassword`](#ErrorStatusInvalidEmailOrPassword)
-
 **Example**
 
 Request:
@@ -506,7 +502,7 @@ the user database.  Note that Login reply is identical to Me reply.
 
 On failure the call shall return `401 Unauthorized` and one of the following
 error codes:
-- [`ErrorStatusInvalidEmailOrPassword`](#ErrorStatusInvalidEmailOrPassword)
+- [`ErrorStatusInvalidPassword`](#ErrorStatusInvalidPassword)
 - [`ErrorStatusUserLocked`](#ErrorStatusUserLocked)
 - [`ErrorStatusUserDeactivated`](#ErrorStatusUserDeactivated)
 - [`ErrorStatusEmailNotVerified`](#ErrorStatusEmailNotVerified)
@@ -859,7 +855,7 @@ Changes the username for the currently logged in user.
 
 On failure the call shall return `400 Bad Request` and one of the following
 error codes:
-- [`ErrorStatusInvalidEmailOrPassword`](#ErrorStatusInvalidEmailOrPassword)
+- [`ErrorStatusInvalidPassword`](#ErrorStatusInvalidPassword)
 - [`ErrorStatusMalformedUsername`](#ErrorStatusMalformedUsername)
 - [`ErrorStatusDuplicateUsername`](#ErrorStatusDuplicateUsername)
 
@@ -897,7 +893,7 @@ Changes the password for the currently logged in user.
 
 On failure the call shall return `400 Bad Request` and one of the following
 error codes:
-- [`ErrorStatusInvalidEmailOrPassword`](#ErrorStatusInvalidEmailOrPassword)
+- [`ErrorStatusInvalidPassword`](#ErrorStatusInvalidPassword)
 - [`ErrorStatusMalformedPassword`](#ErrorStatusMalformedPassword)
 
 **Example**
@@ -2481,7 +2477,7 @@ Reply:
 | Status | Value | Description |
 |-|-|-|
 | <a name="ErrorStatusInvalid">ErrorStatusInvalid</a> | 0 | The operation returned an invalid status. This shall be considered a bug. |
-| <a name="ErrorStatusInvalidEmailOrPassword">ErrorStatusInvalidEmailOrPassword</a> | 1 | Either the user name or password was invalid. |
+| <a name="ErrorStatusInvalidPassword">ErrorStatusInvalidPassword</a> | 1 | The password is invalid. |
 | <a name="ErrorStatusMalformedEmail">ErrorStatusMalformedEmail</a> | 2 | The provided email address was malformed. |
 | <a name="ErrorStatusVerificationTokenInvalid">ErrorStatusVerificationTokenInvalid</a> | 3 | The provided user activation token is invalid. |
 | <a name="ErrorStatusVerificationTokenExpired">ErrorStatusVerificationTokenExpired</a> | 4 | The provided user activation token is expired. |
@@ -2539,7 +2535,6 @@ Reply:
 | <a name="ErrorStatusInvalidUUID">ErrorStatusInvalidUUID</a> | 56 | Invalid user UUID. |
 | <a name="ErrorStatusInvalidLikeCommentAction">ErrorStatusInvalidLikeCommentAction</a> | 57 | Invalid like comment action. |
 | <a name="ErrorStatusInvalidCensorshipToken">ErrorStatusInvalidCensorshipToken</a> | 58 | Invalid proposal censorship token. |
-| <a name="ErrorStatusInvalidPassword">ErrorStatusInvalidPassword</a> | 85 | User password was invalid |
 | <a name="ErrorStatusNoProposalChanges">ErrorStatusNoProposalChanges</a> | 88 | No changes found in proposal. |
 
 
