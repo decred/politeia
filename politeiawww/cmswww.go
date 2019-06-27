@@ -12,6 +12,7 @@ import (
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 )
 
@@ -435,7 +436,20 @@ func (p *politeiawww) handleEditCMSUser(w http.ResponseWriter, r *http.Request) 
 }
 
 func (p *politeiawww) handleCMSUserDetails(w http.ResponseWriter, r *http.Request) {
+	// Add the path param to the struct.
 	log.Tracef("handleCMSUserDetails")
+	pathParams := mux.Vars(r)
+	var ud cms.UserDetails
+	ud.UserID = pathParams["userid"]
+
+	userID, err := uuid.Parse(ud.UserID)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleCMSUserDetails: ParseUint",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
 
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
@@ -444,10 +458,14 @@ func (p *politeiawww) handleCMSUserDetails(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	reply, err := p.processCMSUserDetails(user)
+	reply, err := p.processCMSUserDetails(&ud,
+		user != nil && user.ID == userID,
+		user != nil && user.Admin,
+	)
+
 	if err != nil {
 		RespondWithError(w, r, 0, "handleCMSUserDetails: "+
-			"processUserInformation %v", err)
+			"processCMSUserDetails %v", err)
 		return
 	}
 

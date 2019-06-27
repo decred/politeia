@@ -340,10 +340,17 @@ func (p *politeiawww) processEditCMSUser(ecu cms.EditUser, u *user.User) (*cms.E
 	return &reply, nil
 }
 
-func (p *politeiawww) processCMSUserDetails(u *user.User) (*cms.UserDetailsReply, error) {
+func (p *politeiawww) processCMSUserDetails(ud *cms.UserDetails, isCurrentUser bool, isAdmin bool) (*cms.UserDetailsReply, error) {
+	// Return error in case the user isn't the admin or the current user.
+	if !isAdmin || !isCurrentUser {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserActionNotAllowed,
+		}
+	}
+
 	reply := cms.UserDetailsReply{}
 	ubi := user.CMSUserByID{
-		ID: u.ID.String(),
+		ID: ud.UserID,
 	}
 	payload, err := user.EncodeCMSUserByID(ubi)
 	if err != nil {
