@@ -1035,19 +1035,14 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 			ErrorCode: cms.ErrorStatusInvalidPaymentAddress,
 		}
 	}
-	// If more than 1 invoice comes back with the same address, it's
-	// surely a duplicate.
-	if len(invoiceAddress) > 1 {
-		return nil, www.UserError{
-			ErrorCode: cms.ErrorStatusDuplicatePaymentAddress,
-		}
-	} else if len(invoiceAddress) == 1 &&
-		invInput.PaymentAddress != invRec.Input.PaymentAddress {
-		// If there is one invoice found with the edited address,
-		// only throw error if that is not the address of the current invoice
-		// being edited.
-		return nil, www.UserError{
-			ErrorCode: cms.ErrorStatusDuplicatePaymentAddress,
+
+	// Only disregard any duplicate hits to InvoicesByAddress if it's not the
+	// current invoice being edited.
+	for _, v := range invoiceAddress {
+		if v.Token != ei.Token {
+			return nil, www.UserError{
+				ErrorCode: cms.ErrorStatusDuplicatePaymentAddress,
+			}
 		}
 	}
 
