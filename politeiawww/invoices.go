@@ -266,6 +266,24 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 		return nil, err
 	}
 
+	// Dupe address check.
+	invInput, err := parseInvoiceInput(ni.Files)
+	if err != nil {
+		return nil, err
+	}
+
+	invoiceAddress, err := p.cmsDB.InvoicesByAddress(invInput.PaymentAddress)
+	if err != nil {
+		return nil, www.UserError{
+			ErrorCode: cms.ErrorStatusInvalidPaymentAddress,
+		}
+	}
+	if len(invoiceAddress) > 0 {
+		return nil, www.UserError{
+			ErrorCode: cms.ErrorStatusDuplicatePaymentAddress,
+		}
+	}
+
 	m := backendInvoiceMetadata{
 		Version:   backendInvoiceMetadataVersion,
 		Timestamp: time.Now().Unix(),
@@ -526,29 +544,6 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 			if !addr.IsForNet(activeNetParams.Params) {
 				return www.UserError{
 					ErrorCode: cms.ErrorStatusInvalidPaymentAddress,
-				}
-			}
-
-			invoiceAddress, err := p.cmsDB.InvoicesByAddress(invInput.PaymentAddress)
-			if err != nil {
-				return www.UserError{
-					ErrorCode: cms.ErrorStatusInvalidPaymentAddress,
-				}
-			}
-			// If more than 1 invoice comes back with the same address, it's
-			// surely a duplicate.
-			if len(invoiceAddress) > 1 {
-				return www.UserError{
-					ErrorCode: cms.ErrorStatusDuplicatePaymentAddress,
-				}
-			} else if len(invoiceAddress) == 1 &&
-				(invoiceAddress[0].Month != invInput.Month ||
-					invoiceAddress[0].Year != invInput.Year) {
-				// When attempting to edit an existing invoice, there will be 1
-				// result that has a matching payment address.  Throw dupe address
-				// error if the Month or Year doesn't match.
-				return www.UserError{
-					ErrorCode: cms.ErrorStatusDuplicatePaymentAddress,
 				}
 			}
 
@@ -1027,6 +1022,30 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 			ErrorCode: cms.ErrorStatusInvalidInvoiceEditMonthYear,
 		}
 	}
+
+	// Dupe address check.
+	invInput, err := parseInvoiceInput(ei.Files)
+	if err != nil {
+		return nil, err
+	}
+
+	invoiceAddress, err := p.cmsDB.InvoicesByAddress(invInput.PaymentAddress)
+	if err != nil {
+		return nil, www.UserError{
+			ErrorCode: cms.ErrorStatusInvalidPaymentAddress,
+		}
+	}
+
+	// Only disregard any duplicate hits to InvoicesByAddress if it's not the
+	// current invoice being edited.
+	for _, v := range invoiceAddress {
+		if v.Token != ei.Token {
+			return nil, www.UserError{
+				ErrorCode: cms.ErrorStatusDuplicatePaymentAddress,
+			}
+		}
+	}
+
 	m := backendInvoiceMetadata{
 		Version:   backendInvoiceMetadataVersion,
 		Timestamp: time.Now().Unix(),
@@ -1641,4 +1660,21 @@ func (p *politeiawww) calculatePayout(inv database.Invoice) (cms.Payout, error) 
 	}
 
 	return payout, nil
+}
+
+func parseInvoiceInput(files []www.File) (*cms.InvoiceInput, error) {
+	data, err := base64.StdEncoding.DecodeString(files[0].Payload)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check to see if the data can be parsed properly into InvoiceInput
+	// struct.
+	var invInput cms.InvoiceInput
+	if err := json.Unmarshal(data, &invInput); err != nil {
+		return nil, www.UserError{
+			ErrorCode: cms.ErrorStatusMalformedInvoiceFile,
+		}
+	}
+	return &invInput, nil
 }
