@@ -439,6 +439,16 @@ func TestValidateProposal(t *testing.T) {
 	mdBadFilename.Name = "bad_filename.md"
 	propInvalidFilename := createNewProposal(t, id, []www.File{mdBadFilename})
 
+	// Duplicate payload within files
+	pngDuplicatePayload := www.File{
+		Name:    "otherpng.png",
+		MIME:    png.MIME,
+		Digest:  png.Digest,
+		Payload: png.Payload,
+	}
+	propDuplicatePayload := createNewProposal(t, id,
+		[]www.File{*md, *png, pngDuplicatePayload})
+
 	// Attachment is duplicate of index file
 	attachmentFile := createFileMD(t, 8, "Valid Title")
 	propAttachmentIndexDup := createNewProposal(t, id,
@@ -471,7 +481,13 @@ func TestValidateProposal(t *testing.T) {
 		[]www.File{*md, *fileLarge})
 
 	// Duplicate filenames
-	propDupFiles := createNewProposal(t, id, []www.File{*md, *png, *png})
+	pngDuplicateFilename := www.File{
+		Name:    png.Name,
+		MIME:    png.MIME,
+		Digest:  png.Digest,
+		Payload: "",
+	}
+	propDupFiles := createNewProposal(t, id, []www.File{*md, *png, pngDuplicateFilename})
 
 	// Invalid proposal title
 	mdBadTitle := createFileMD(t, 8, "{invalid-title}")
@@ -545,7 +561,12 @@ func TestValidateProposal(t *testing.T) {
 				ErrorCode: www.ErrorStatusMaxAttachmentSizeExceeded,
 			}},
 
-		{"duplicate attachments", *propDupFiles, usr,
+		{"files with duplicate payload", *propDuplicatePayload, usr,
+			www.UserError{
+				ErrorCode: www.ErrorStatusFilesDuplicatePayload,
+			}},
+
+		{"duplicate file names in attachments", *propDupFiles, usr,
 			www.UserError{
 				ErrorCode: www.ErrorStatusProposalDuplicateFilenames,
 			}},

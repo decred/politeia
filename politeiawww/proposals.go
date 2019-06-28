@@ -221,11 +221,14 @@ func validateProposal(np www.NewProposal, u *user.User) error {
 
 	// verify if there are duplicate names
 	filenames := make(map[string]int, len(np.Files))
+	// verify if there are duplicate payload within files
+	payloads := make(map[string]int, len(np.Files))
 	// Check that the file number policy is followed.
 	var (
 		numAttachments, numIndexFiles int
 		indexExceedsMaxSize           bool
 		attachmentExceedsMaxSize      bool
+		filesDuplicatePayload         bool
 		hashes                        []*[sha256.Size]byte
 	)
 	for _, v := range np.Files {
@@ -258,6 +261,14 @@ func validateProposal(np www.NewProposal, u *user.User) error {
 			if len(data) > www.PolicyMaxAttachmentSize {
 				attachmentExceedsMaxSize = true
 			}
+		}
+
+		// Checks for duplicate payload within files
+		_, exist := payloads[v.Payload]
+		if exist {
+			filesDuplicatePayload = true
+		} else {
+			payloads[v.Payload]++
 		}
 
 		// Append digest to array for merkle root calculation
@@ -296,6 +307,12 @@ func validateProposal(np www.NewProposal, u *user.User) error {
 	if attachmentExceedsMaxSize {
 		return www.UserError{
 			ErrorCode: www.ErrorStatusMaxAttachmentSizeExceeded,
+		}
+	}
+
+	if filesDuplicatePayload {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusFilesDuplicatePayload,
 		}
 	}
 

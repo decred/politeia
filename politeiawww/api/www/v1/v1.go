@@ -184,6 +184,7 @@ const (
 	ErrorStatusInvalidLogin                    ErrorStatusT = 63
 	ErrorStatusNoIndexFile                     ErrorStatusT = 64
 	ErrorStatusInvalidIndexFileMimeType        ErrorStatusT = 65
+	ErrorStatusFilesDuplicatePayload           ErrorStatusT = 66
 
 	// Proposal state codes
 	//
@@ -324,6 +325,7 @@ var (
 		ErrorStatusInvalidLogin:                    "invalid login credentials",
 		ErrorStatusNoIndexFile:                     "missing index files",
 		ErrorStatusInvalidIndexFileMimeType:        "index file with incorrect mime type",
+		ErrorStatusFilesDuplicatePayload:           "files in the proposal have duplicate payloads",
 	}
 
 	// PropStatus converts propsal status codes to human readable text
@@ -830,6 +832,7 @@ type PolicyReply struct {
 	UsernameSupportedChars     []string `json:"usernamesupportedchars"`
 	ProposalListPageSize       uint     `json:"proposallistpagesize"`
 	UserListPageSize           uint     `json:"userlistpagesize"`
+	IndexFileMimeType          string   `json:"indexfilemimetype"`
 	MaxIndexFile               uint     `json:"maxindexfile"`
 	MaxIndexFileSize           uint     `json:"maxindexfilesize"`
 	MaxAttachments             uint     `json:"maxattachments"`
