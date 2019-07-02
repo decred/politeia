@@ -440,7 +440,7 @@ func (p *politeiawww) getProp(token string) (*www.ProposalRecord, error) {
 func (p *politeiawww) getProps(tokens []string) (*[]www.ProposalRecord, error) {
 	log.Tracef("getProps: %v", tokens)
 
-	records, err := p.cache.Records(tokens)
+	records, err := p.cache.Records(tokens, false)
 	if err != nil {
 		return nil, err
 	}
@@ -927,10 +927,10 @@ func (p *politeiawww) processBatchProposals(batchProposals www.BatchProposals,
 			}
 
 			// Strip the non-public proposal contents if user is
-			// not the author or an admin
+			// not the author or an admin. The files are already
+			// not included in this request.
 			if !isAuthor && !isAdmin {
 				reply.Proposals[i].Name = ""
-				reply.Proposals[i].Files = make([]www.File, 0)
 			}
 		}
 	}
