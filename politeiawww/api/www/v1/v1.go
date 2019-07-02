@@ -41,7 +41,7 @@ const (
 	RouteEditUser                 = "/user/edit"
 	RouteUsers                    = "/users"
 	RouteTokenInventory           = "/proposals/tokeninventory"
-	RouteBatchProposals           = "/proposals/batchproposals"
+	RouteBatchProposals           = "/proposals/batch"
 	RouteAllVetted                = "/proposals/vetted"
 	RouteAllUnvetted              = "/proposals/unvetted"
 	RouteNewProposal              = "/proposals/new"

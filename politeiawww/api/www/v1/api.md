@@ -1619,7 +1619,7 @@ error codes:
 Request:
 
 ```
-/v1/proposals/batchproposals
+/v1/proposals/batch
 ```
 
 ```json
