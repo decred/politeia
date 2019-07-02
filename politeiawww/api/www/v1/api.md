@@ -1594,8 +1594,8 @@ Reply:
 ```
 
 ### `Batch Proposals`
-
-Retrieve proposal and its details. The number of proposals that may be requested is limited by the `ProposalListPageSize` property, which is provided via [`Policy`](#policy). 
+git
+Retrieve the details of a set of proposals. This route will not return the files that comprise the proposal. The number of proposals that may be requested is limited by the `ProposalListPageSize` property, which is provided via [`Policy`](#policy).
 
 **Routes:** `POST /v1/batch`
 
@@ -1645,14 +1645,7 @@ Reply:
             "username": "username",
             "publickey": "e008f83793c023321d54f283698c47fb50083489501a8c3b4b020b7c92930cb9",
             "signature": "9c05c50b67c74d7c7e80be702afe123f46ddb417583bcd97674073d0d5ddc35804bec88b01d158bc1ab89bdb21e3cabbb4f290365c375ca226f8652d8dc01602",
-            "files": [
-                {
-                    "name": "index.md",
-                    "mime": "text/plain; charset=utf-8",
-                    "digest": "ab7d4fe5d89a1110b0c684d89a48558efaeb0247d13ba8a79200d7fdbde91559",
-                    "payload": "VGhpcyBvbmUgaXMgdmV0dHRlZCBiaXRjaGgKClN1Y2sgaXQgZmFnZw=="
-                }
-            ],
+            "files": [],
             "numcomments": 0,
             "version": "1",
             "publishedat": 1561637933,
@@ -1671,14 +1664,7 @@ Reply:
             "username": "user2",
             "publickey": "ceaca7ba3579620968a1720e0748f3005802a2fd9e5afe0c7916f79c70234664",
             "signature": "ea41d5f8808892488185d18447f5b8c9d77c0d65932464d5742c1d22dbb0c975b42aaddcb1dae4f5d4a4423f4965c8af4a9273d48faae1f0531abe3039608001",
-            "files": [
-                {
-                    "name": "index.md",
-                    "mime": "text/plain; charset=utf-8",
-                    "digest": "34745ec2aee7ba0bf3111c66f8484efb32bfea3bfe6cdcc46420adc1c7d181cc",
-                    "payload": "UHJvcG9zYWwgRlVja2VyegoKZGlzIG15IHByb3Bvc2FsIGJpdGNo"
-                }
-            ],
+            "files": [],
             "numcomments": 3,
             "version": "1",
             "publishedat": 1560824670,
