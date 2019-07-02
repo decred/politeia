@@ -81,7 +81,7 @@ func (c *testcache) Record(token string) (*cache.Record, error) {
 }
 
 // Records returns the most recent version of a set of records.
-func (c *testcache) Records(tokens []string) ([]cache.Record, error) {
+func (c *testcache) Records(tokens []string, fetchFiles bool) ([]cache.Record, error) {
 	c.RLock()
 	defer c.RUnlock()
 
