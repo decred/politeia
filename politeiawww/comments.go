@@ -172,6 +172,23 @@ func validateComment(c www.NewComment) error {
 	return nil
 }
 
+func (p *politeiawww) checkDuplicateComments(token string, signature string) error {
+	// Fetch proposal comments from cache
+	cs, err := p.getPropComments(token)
+	if err != nil {
+		return err
+	}
+	for _, c := range cs {
+		if c.Signature == signature {
+			return www.UserError{
+				ErrorCode: www.ErrorStatusDuplicateComments,
+			}
+		}
+	}
+
+	return nil
+}
+
 // processNewComment sends a new comment decred plugin command to politeaid
 // then fetches the new comment from the cache and returns it.
 func (p *politeiawww) processNewComment(nc www.NewComment, u *user.User) (*www.NewCommentReply, error) {
@@ -219,6 +236,13 @@ func (p *politeiawww) processNewComment(nc www.NewComment, u *user.User) (*www.N
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusCannotCommentOnProp,
 		}
+	}
+
+	// Ensure comment is not duplicate
+	err = p.checkDuplicateComments(nc.Token,
+		nc.Signature)
+	if err != nil {
+		return nil, err
 	}
 
 	// Ensure proposal voting has not ended
@@ -345,6 +369,13 @@ func (p *politeiawww) processNewCommentInvoice(nc www.NewComment, u *user.User) 
 
 	// Validate comment
 	err = validateComment(nc)
+	if err != nil {
+		return nil, err
+	}
+
+	// Ensure comment is not duplicate
+	err = p.checkDuplicateComments(nc.Token,
+		nc.Signature)
 	if err != nil {
 		return nil, err
 	}

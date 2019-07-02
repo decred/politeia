@@ -178,6 +178,7 @@ const (
 	ErrorStatusEmailAlreadyVerified        ErrorStatusT = 59
 	ErrorStatusInvalidPassword             ErrorStatusT = 85
 	ErrorStatusNoProposalChanges           ErrorStatusT = 88
+	ErrorStatusDuplicateComments           ErrorStatusT = 89
 
 	// Proposal state codes
 	//
@@ -317,6 +318,7 @@ var (
 		ErrorStatusEmailAlreadyVerified:        "email address is already verified",
 		ErrorStatusInvalidPassword:             "invalid password",
 		ErrorStatusNoProposalChanges:           "no changes found in proposal",
+		ErrorStatusDuplicateComments:           "cannot send duplicate comments",
 	}
 
 	// PropStatus converts propsal status codes to human readable text

@@ -1629,6 +1629,7 @@ error codes:
 
 - [`ErrorStatusCommentLengthExceededPolicy`](#ErrorStatusCommentLengthExceededPolicy)
 - [`ErrorStatusUserNotPaid`](#ErrorStatusUserNotPaid)
+- [`ErrorStatusErrorStatusDuplicateComments`](#ErrorStatusErrorStatusDuplicateComments)
 
 **Example**
 
@@ -2541,6 +2542,7 @@ Reply:
 | <a name="ErrorStatusInvalidCensorshipToken">ErrorStatusInvalidCensorshipToken</a> | 58 | Invalid proposal censorship token. |
 | <a name="ErrorStatusInvalidPassword">ErrorStatusInvalidPassword</a> | 85 | User password was invalid |
 | <a name="ErrorStatusNoProposalChanges">ErrorStatusNoProposalChanges</a> | 88 | No changes found in proposal. |
+| <a name="ErrorStatusDuplicateComments">ErrorStatusDuplicateComments</a> | 89 | Cannot send duplicate comments |
 
 
 ### Proposal status codes
