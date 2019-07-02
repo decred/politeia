@@ -206,8 +206,7 @@ func (l *localdb) UserGetByPubKey(pubKey string) (*user.User, error) {
 	return nil, user.ErrUserNotFound
 }
 
-func (l *localdb) UsersGetByPubKey(
-	pubKeys []string) (map[string]user.User, error) {
+func (l *localdb) UsersGetByPubKey(pubKeys []string) (map[string]user.User, error) {
 
 	log.Tracef("UsersGetByPubKey: %v", pubKeys)
 

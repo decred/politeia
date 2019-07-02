@@ -280,8 +280,9 @@ func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Reque
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-func (p *politeiawww) handleBatchProposals(w http.ResponseWriter,
-	r *http.Request) {
+// handleBatchProposals handles the incoming proposal batch command. It fetches
+// the complete details for a list of proposals.
+func (p *politeiawww) handleBatchProposals(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleBatchProposals")
 	var bp www.BatchProposals
 
