@@ -896,6 +896,12 @@ func (p *politeiawww) processBatchProposals(batchProposals www.BatchProposals, u
 
 	log.Tracef("processBatchProposals")
 
+	if len(batchProposals.Tokens) > www.ProposalListPageSize {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusMaxProposalsExceededPolicy,
+		}
+	}
+
 	props, err := p.getProps(batchProposals.Tokens)
 	if err != nil {
 		return nil, err

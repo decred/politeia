@@ -141,6 +141,7 @@ notifications.  It does not render HTML.
 - [`ErrorStatusInvalidLaborExpense`](#ErrorStatusInvalidLaborExpense)
 - [`ErrorStatusNoProposalChanges`](#ErrorStatusNoProposalChanges)
 - [`ErrorStatusDuplicatePaymentAddress`](#ErrorStatusDuplicatePaymentAddress)
+- [`ErrorStatusMaxProposalsExceededPolicy`](#ErrorStatusMaxProposalsExceededPolicy)
 
 **Proposal status codes**
 
@@ -1594,9 +1595,9 @@ Reply:
 
 ### `Batch Proposals`
 
-Retrieve proposal and its details.
+Retrieve proposal and its details. The number of proposals that may be requested is limited by the `ProposalListPageSize` property, which is provided via [`Policy`](#policy). 
 
-**Routes:** `POST /v1/batchproposals`
+**Routes:** `POST /v1/batch`
 
 **Params:**
 
@@ -1613,6 +1614,7 @@ Retrieve proposal and its details.
 On failure the call shall return `400 Bad Request` and one of the following
 error codes:
 - [`ErrorStatusProposalNotFound`](#ErrorStatusProposalNotFound)
+- [`ErrorStatusMaxProposalsExceededPolicy`](#ErrorStatusMaxProposalsExceededPolicy)
 
 **Example**
 
@@ -2641,7 +2643,7 @@ Reply:
 | <a name="ErrorStatusInvalidCensorshipToken">ErrorStatusInvalidCensorshipToken</a> | 58 | Invalid proposal censorship token. |
 | <a name="ErrorStatusInvalidPassword">ErrorStatusInvalidPassword</a> | 85 | User password was invalid |
 | <a name="ErrorStatusNoProposalChanges">ErrorStatusNoProposalChanges</a> | 88 | No changes found in proposal. |
-
+| <a name="ErrorStatusNoProposalChanges">ErrorStatusMaxProposalsExceededPolicy</a> | 89 | Number of proposals request exceeded ProposalListPageSize. |
 
 ### Proposal status codes
 

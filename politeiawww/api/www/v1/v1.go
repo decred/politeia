@@ -179,6 +179,7 @@ const (
 	ErrorStatusEmailAlreadyVerified        ErrorStatusT = 59
 	ErrorStatusInvalidPassword             ErrorStatusT = 85
 	ErrorStatusNoProposalChanges           ErrorStatusT = 88
+	ErrorStatusMaxProposalsExceededPolicy  ErrorStatusT = 89
 
 	// Proposal state codes
 	//
