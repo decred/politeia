@@ -451,14 +451,14 @@ func (p *politeiawww) getProps(tokens []string) (*[]www.ProposalRecord, error) {
 	}
 
 	// Find the number of comments each proposal
-	dbc, err := p.decredGetBatchComments(tokens)
+	dnc, err := p.decredGetNumComments(tokens)
 	if err != nil {
-		log.Errorf("getProp: decredGetBatchComments failed "+
+		log.Errorf("getProp: decredGetNumComments failed "+
 			"for tokens %v", tokens)
 	} else {
 		for i := range proposalRecords {
 			proposalRecords[i].NumComments =
-				uint(len(dbc[proposalRecords[i].CensorshipRecord.Token]))
+				uint(dnc[proposalRecords[i].CensorshipRecord.Token])
 		}
 	}
 

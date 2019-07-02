@@ -180,38 +180,47 @@ func (d *decred) cmdGetComments(payload string) (string, error) {
 	return string(gcrb), nil
 }
 
-func (d *decred) cmdGetBatchComments(payload string) (string, error) {
-	log.Tracef("decred cmdGetBatchComments")
+func (d *decred) cmdGetNumComments(payload string) (string, error) {
+	log.Tracef("decred cmdGetNumComments")
 
-	gbc, err := decredplugin.DecodeGetBatchComments([]byte(payload))
+	gnc, err := decredplugin.DecodeGetNumComments([]byte(payload))
 	if err != nil {
 		return "", err
 	}
 
-	comments := make([]Comment, 0, 1024)
+	type Result struct {
+		Token  string
+		Counts int
+	}
+
+	results := make([]Result, 0, 1024)
+
 	err = d.recordsdb.
-		Where("token IN (?)", gbc.Tokens).
-		Find(&comments).
+		Table("comments").
+		Select("count(*) as counts, token").
+		Group("token").
+		Where("token IN (?)", gnc.Tokens).
+		Find(&results).
 		Error
+
 	if err != nil {
 		return "", err
 	}
 
-	commentMap := make(map[string][]decredplugin.Comment)
-	for _, c := range comments {
-		commentMap[c.Token] =
-			append(commentMap[c.Token], convertCommentToDecred(c))
+	commentMap := make(map[string]int)
+	for _, c := range results {
+		commentMap[c.Token] = c.Counts
 	}
 
-	gbcr := decredplugin.GetBatchCommentsReply{
+	gncr := decredplugin.GetNumCommentsReply{
 		CommentsMap: commentMap,
 	}
-	gbcrb, err := decredplugin.EncodeGetBatchCommentsReply(gbcr)
+	gncre, err := decredplugin.EncodeGetNumCommentsReply(gncr)
 	if err != nil {
 		return "", err
 	}
 
-	return string(gbcrb), nil
+	return string(gncre), nil
 }
 
 // cmdCommentLikes returns all of the comment likes for the passed in comment.
@@ -1029,8 +1038,8 @@ func (d *decred) Exec(cmd, cmdPayload, replyPayload string) (string, error) {
 		return d.cmdGetComment(cmdPayload)
 	case decredplugin.CmdGetComments:
 		return d.cmdGetComments(cmdPayload)
-	case decredplugin.CmdGetBatchComments:
-		return d.cmdGetBatchComments(cmdPayload)
+	case decredplugin.CmdGetNumComments:
+		return d.cmdGetNumComments(cmdPayload)
 	case decredplugin.CmdProposalVotes:
 		return d.cmdProposalVotes(cmdPayload)
 	case decredplugin.CmdCommentLikes:

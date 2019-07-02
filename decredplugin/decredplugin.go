@@ -18,7 +18,7 @@ const (
 	CmdCensorComment         = "censorcomment"
 	CmdGetComment            = "getcomment"
 	CmdGetComments           = "getcomments"
-	CmdGetBatchComments      = "getbatchcomments"
+	CmdGetNumComments        = "getnumcomments"
 	CmdProposalVotes         = "proposalvotes"
 	CmdCommentLikes          = "commentlikes"
 	CmdProposalCommentsLikes = "proposalcommentslikes"
@@ -699,52 +699,50 @@ func DecodeGetCommentsReply(payload []byte) (*GetCommentsReply, error) {
 	return &gcr, nil
 }
 
-// GetBatchComments retrieve all comments for a list of proposals. This call
-// returns the cooked comments; deleted/censored comments are not returned.
-type GetBatchComments struct {
+// GetNumComments retrieve the number of comments for a list of proposals.
+type GetNumComments struct {
 	Tokens []string `json:"tokens"` // Proposal ID
 }
 
-// EncodeGetBatchComments encodes GetBatchComments into a JSON byte slice.
-func EncodeGetBatchComments(gbc GetBatchComments) ([]byte, error) {
-	return json.Marshal(gbc)
+// EncodeGetNumComments encodes GetBatchComments into a JSON byte slice.
+func EncodeGetNumComments(gnc GetNumComments) ([]byte, error) {
+	return json.Marshal(gnc)
 }
 
-// DecodeGetBatchComments decodes a JSON byte slice into a GetBatchComments.
-func DecodeGetBatchComments(payload []byte) (*GetBatchComments, error) {
-	var gbc GetBatchComments
+// DecodeGetNumComments decodes a JSON byte slice into a GetBatchComments.
+func DecodeGetNumComments(payload []byte) (*GetNumComments, error) {
+	var gnc GetNumComments
 
-	err := json.Unmarshal(payload, &gbc)
+	err := json.Unmarshal(payload, &gnc)
 	if err != nil {
 		return nil, err
 	}
 
-	return &gbc, nil
+	return &gnc, nil
 }
 
-// GetBatchCommentsReply returns a map from proposal token to a list
-// of comments.
-type GetBatchCommentsReply struct {
-	CommentsMap map[string][]Comment `json:"commentsmap"` // Comments
+// GetNumCommentsReply returns a map from proposal token to int
+type GetNumCommentsReply struct {
+	CommentsMap map[string]int `json:"commentsmap"` // Comments
 }
 
-// EncodeGetBatchCommentsReply encodes GetBatchCommentsReply into a
+// EncodeGetNumCommentsReply encodes GetNumCommentsReply into a
 // JSON byte slice.
-func EncodeGetBatchCommentsReply(gbcr GetBatchCommentsReply) ([]byte, error) {
-	return json.Marshal(gbcr)
+func EncodeGetNumCommentsReply(gncr GetNumCommentsReply) ([]byte, error) {
+	return json.Marshal(gncr)
 }
 
-// DecodeGetBatchCommentsReply decodes a JSON byte slice into a
-// GetBatchCommentsReply.
-func DecodeGetBatchCommentsReply(payload []byte) (*GetBatchCommentsReply, error) {
-	var gbcr GetBatchCommentsReply
+// DecodeGetNumCommentsReply decodes a JSON byte slice into a
+// GetNumCommentsReply.
+func DecodeGetNumCommentsReply(payload []byte) (*GetNumCommentsReply, error) {
+	var gncr GetNumCommentsReply
 
-	err := json.Unmarshal(payload, &gbcr)
+	err := json.Unmarshal(payload, &gncr)
 	if err != nil {
 		return nil, err
 	}
 
-	return &gbcr, nil
+	return &gncr, nil
 }
 
 // CommentLikes is used to retrieve all of the comment likes for a single

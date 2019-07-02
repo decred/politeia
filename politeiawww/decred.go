@@ -86,21 +86,21 @@ func (p *politeiawww) decredGetComments(token string) ([]decredplugin.Comment, e
 
 // decredGetBatchComments sends the decred plugin GetBachComments command to the
 // cache and returns all of the comments for each of the tokens passed in.
-func (p *politeiawww) decredGetBatchComments(tokens []string) (map[string][]decredplugin.Comment, error) {
+func (p *politeiawww) decredGetNumComments(tokens []string) (map[string]int, error) {
 
 	// Setup plugin command
-	gbc := decredplugin.GetBatchComments{
+	gnc := decredplugin.GetNumComments{
 		Tokens: tokens,
 	}
 
-	payload, err := decredplugin.EncodeGetBatchComments(gbc)
+	payload, err := decredplugin.EncodeGetNumComments(gnc)
 	if err != nil {
 		return nil, err
 	}
 
 	pc := cache.PluginCommand{
 		ID:             decredplugin.ID,
-		Command:        decredplugin.CmdGetBatchComments,
+		Command:        decredplugin.CmdGetNumComments,
 		CommandPayload: string(payload),
 	}
 
@@ -110,13 +110,13 @@ func (p *politeiawww) decredGetBatchComments(tokens []string) (map[string][]decr
 		return nil, fmt.Errorf("PluginExec: %v", err)
 	}
 
-	gbcr, err := decredplugin.DecodeGetBatchCommentsReply(
+	gncr, err := decredplugin.DecodeGetNumCommentsReply(
 		[]byte(reply.Payload))
 	if err != nil {
 		return nil, err
 	}
 
-	return gbcr.CommentsMap, nil
+	return gncr.CommentsMap, nil
 }
 
 // decredCommentLikes sends the decred plugin commentlikes command to the cache
