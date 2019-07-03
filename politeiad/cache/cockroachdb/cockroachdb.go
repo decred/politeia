@@ -444,7 +444,7 @@ func (c *cockroachdb) getRecords(getAllRecords bool, tokens []string, fetchFiles
 	return cr, nil
 }
 
-// Record gets the most recent versions of a list of records.
+// Records gets the most recent versions of a list of records.
 func (c *cockroachdb) Records(tokens []string, fetchFiles bool) ([]cache.Record, error) {
 	log.Tracef("Records: %v", tokens)
 

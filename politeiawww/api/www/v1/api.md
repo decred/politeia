@@ -1594,7 +1594,7 @@ Reply:
 ```
 
 ### `Batch Proposals`
-git
+
 Retrieve the details of a set of proposals. This route will not return the files that comprise the proposal. The number of proposals that may be requested is limited by the `ProposalListPageSize` property, which is provided via [`Policy`](#policy).
 
 **Routes:** `POST /v1/batch`
@@ -2630,6 +2630,7 @@ Reply:
 | <a name="ErrorStatusInvalidPassword">ErrorStatusInvalidPassword</a> | 85 | User password was invalid |
 | <a name="ErrorStatusNoProposalChanges">ErrorStatusNoProposalChanges</a> | 88 | No changes found in proposal. |
 | <a name="ErrorStatusNoProposalChanges">ErrorStatusMaxProposalsExceededPolicy</a> | 89 | Number of proposals request exceeded ProposalListPageSize. |
+
 
 ### Proposal status codes
 

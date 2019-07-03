@@ -723,7 +723,7 @@ func DecodeGetNumComments(payload []byte) (*GetNumComments, error) {
 
 // GetNumCommentsReply returns a map from proposal token to int
 type GetNumCommentsReply struct {
-	CommentsMap map[string]int `json:"commentsmap"` // Comments
+	CommentsMap map[string]int `json:"commentsmap"`
 }
 
 // EncodeGetNumCommentsReply encodes GetNumCommentsReply into a
