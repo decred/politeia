@@ -105,7 +105,7 @@ func (p *politeiawww) restartCMSAddressesWatching() error {
 				listenStartDate := time.Date(int(invoice.Year),
 					time.Month(invoice.Month+1), 0, 0, 0, 0, 0, time.UTC)
 				invoice.Payments = database.Payments{
-					Address:      invoice.PaymentAddress,
+					Address:      strings.TrimSpace(invoice.PaymentAddress),
 					TimeStarted:  listenStartDate.Unix(),
 					Status:       cms.PaymentStatusWatching,
 					AmountNeeded: int64(payout.DCRTotal),
@@ -123,6 +123,7 @@ func (p *politeiawww) restartCMSAddressesWatching() error {
 		return err
 	}
 	for _, payments := range unpaidPayments {
+		payments.Address = strings.TrimSpace(payments.Address)
 		paid := p.checkHistoricalPayments(&payments)
 		if !paid {
 			p.addWatchAddress(payments.Address)
@@ -137,18 +138,12 @@ func (p *politeiawww) restartCMSAddressesWatching() error {
 // after a certain time (in Unix seconds).
 func (p *politeiawww) checkHistoricalPayments(payment *database.Payments) bool {
 	// Get all txs since start time of watcher
-	txs, err := util.FetchTxsForAddressNotBefore(payment.Address,
+	txs, err := util.FetchTxsForAddressNotBefore(strings.TrimSpace(payment.Address),
 		payment.TimeStarted)
 	if err != nil {
 		// XXX Some sort of 'recheck' or notice that it should do it again?
 		log.Errorf("error FetchTxsForAddressNotBefore for address %s: %v",
 			payment.Address, err)
-	}
-
-	paymentTxids := strings.Split(payment.TxIDs, ",")
-	if len(txs) == len(paymentTxids) {
-		// Same number of txids found, so nothing to update.
-		return false
 	}
 
 	txIDs := ""
@@ -219,9 +214,7 @@ func (p *politeiawww) checkHistoricalPayments(payment *database.Payments) bool {
 func (p *politeiawww) checkPayments(payment *database.Payments, watchedAddr, notifiedTx string) bool {
 	txs, err := util.FetchTx(watchedAddr, notifiedTx)
 	if err != nil {
-		// XXX Some sort of 'recheck' or notice that it should do it again?
-		log.Errorf("error FetchTxsForAddressNotBefore for address %s: %v",
-			payment.Address, err)
+		log.Errorf("error FetchTxs for address %s: %v", payment.Address, err)
 		return false
 	}
 	if len(txs) == 0 {
@@ -232,7 +225,9 @@ func (p *politeiawww) checkPayments(payment *database.Payments, watchedAddr, not
 	// Calculate amount received
 	amountReceived := dcrutil.Amount(0)
 	log.Debugf("Reviewing transactions for address: %v", payment.Address)
-	for i, tx := range txs {
+	// Transaction counter
+	i := 0
+	for _, tx := range txs {
 		// Check to see if running mainnet, if so, only accept transactions
 		// that originate from the Treasury Subsidy.
 		if !p.cfg.TestNet && !p.cfg.SimNet {
@@ -254,6 +249,7 @@ func (p *politeiawww) checkPayments(payment *database.Payments, watchedAddr, not
 		} else {
 			txIDs += ", " + tx.TxID
 		}
+		i++
 	}
 	if payment.TxIDs == "" {
 		payment.TxIDs = txIDs
