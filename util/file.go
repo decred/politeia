@@ -96,6 +96,17 @@ func LoadFile(filename string) (mimeType string, digest string, payload string, 
 	return
 }
 
+// LoadFile2 returns a file and its mime type.
+func LoadFile2(filename string) (string, []byte, error) {
+	var b []byte // file payload
+	b, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return "", nil, err
+	}
+
+	return mime.DetectMimeType(b), b, nil
+}
+
 // FilesExists reports whether the named file or directory exists.
 func FileExists(name string) bool {
 	if _, err := os.Stat(name); err != nil {
