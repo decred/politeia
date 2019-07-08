@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/decred/politeia/politeiad/api/v1/identity"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/go-test/deep"
 )
@@ -18,12 +17,8 @@ func TestHandleVersion(t *testing.T) {
 	p, cleanup := newTestPoliteiawww(t)
 	defer cleanup()
 
-	id, err := identity.New()
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
-
-	p.cfg.Identity = &id.Public
+	d := newTestPoliteiad(t, p)
+	defer d.Close()
 
 	expectedReply := www.VersionReply{
 		Version: www.PoliteiaWWWAPIVersion,
