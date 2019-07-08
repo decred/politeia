@@ -6,11 +6,12 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"testing"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/go-test/deep"
 )
 
 func TestHandleVersion(t *testing.T) {
@@ -24,7 +25,7 @@ func TestHandleVersion(t *testing.T) {
 
 	p.cfg.Identity = &id.Public
 
-	expectedResponse := www.VersionReply{
+	expectedReply := www.VersionReply{
 		Version: www.PoliteiaWWWAPIVersion,
 		Route:   www.PoliteiaWWWAPIRoute,
 		PubKey:  hex.EncodeToString(p.cfg.Identity.Key[:]),
@@ -32,14 +33,14 @@ func TestHandleVersion(t *testing.T) {
 	}
 
 	var tests = []struct {
-		name         string
-		wantResponse interface{}
-		wantStatus   int
-		wantError    error
+		name       string
+		wantReply  www.VersionReply
+		wantStatus int
+		wantError  error
 	}{
 		{
-			"version call success",
-			expectedResponse,
+			"success",
+			expectedReply,
 			http.StatusOK,
 			nil,
 		},
@@ -57,39 +58,23 @@ func TestHandleVersion(t *testing.T) {
 			body, _ := ioutil.ReadAll(res.Body)
 
 			// Unmarshal body response
-			var receivedResponse www.VersionReply
-			err := json.Unmarshal(body, &receivedResponse)
+			var gotReply www.VersionReply
+			err := json.Unmarshal(body, &gotReply)
 			if err != nil {
 				t.Errorf("unmarshal error with body %v", body)
 			}
 
 			// Validate response status
 			if res.StatusCode != v.wantStatus {
-				t.Errorf("got status code %v, want %v", res.StatusCode, v.wantStatus)
+				t.Errorf("got status code %v, want %v",
+					res.StatusCode, v.wantStatus)
 			}
 
-			// Validate that response body is what we expect
-			if !reflect.DeepEqual(receivedResponse, expectedResponse) {
-				t.Errorf("got response body %v, expected %v", receivedResponse, expectedResponse)
-			}
-
-			// Test case passed; next case
-			if res.StatusCode == http.StatusOK {
-				return
-			}
-
-			// Get user error if test failed
-			var ue www.UserError
-			err = json.Unmarshal(body, &ue)
-			if err != nil {
-				t.Errorf("unmarshal UserError: %v", err)
-			}
-
-			got := errToStr(ue)
-			want := errToStr(v.wantError)
-			if got != want {
-				t.Errorf("got error %v, want %v",
-					got, want)
+			// Validate response body
+			diff := deep.Equal(gotReply, v.wantReply)
+			if diff != nil {
+				t.Errorf("VersionReply got/want diff:\n%v",
+					spew.Sdump(diff))
 			}
 		})
 	}
