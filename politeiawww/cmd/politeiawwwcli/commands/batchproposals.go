@@ -43,9 +43,9 @@ func (cmd *BatchProposalsCmd) Execute(args []string) error {
 	return printJSON(bpr)
 }
 
-// batchProposalsHelpString is the output for the help command when
+// batchProposalsHelpMsg is the output for the help command when
 // 'batchproposals' is specified.
-const batchProposalsHelpString = `batchproposals
+const batchProposalsHelpMsg = `batchproposals
 
 Fetch a list of proposals.
 

@@ -297,6 +297,7 @@ func (p *politeiawww) handleBatchProposals(w http.ResponseWriter, r *http.Reques
 
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
+		// This is a public route so a session might not exist
 		if err != ErrSessionUUIDNotFound {
 			RespondWithError(w, r, 0,
 				"handleProposalDetails: getSessionUser %v", err)
