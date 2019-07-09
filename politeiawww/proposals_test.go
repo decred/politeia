@@ -439,16 +439,6 @@ func TestValidateProposal(t *testing.T) {
 	mdBadFilename.Name = "bad_filename.md"
 	propInvalidFilename := createNewProposal(t, id, []www.File{mdBadFilename})
 
-	// Duplicate payload within files
-	pngDuplicatePayload := www.File{
-		Name:    "otherpng.png",
-		MIME:    png.MIME,
-		Digest:  png.Digest,
-		Payload: png.Payload,
-	}
-	propDuplicatePayload := createNewProposal(t, id,
-		[]www.File{*md, *png, pngDuplicatePayload})
-
 	// Attachment is duplicate of index file
 	attachmentFile := createFileMD(t, 8, "Valid Title")
 	propAttachmentIndexDup := createNewProposal(t, id,
@@ -479,6 +469,16 @@ func TestValidateProposal(t *testing.T) {
 	fileLarge := createFilePNG(t, true)
 	propAttachmentLarge := createNewProposal(t, id,
 		[]www.File{*md, *fileLarge})
+
+	// Duplicate payload within files
+	pngDuplicatePayload := www.File{
+		Name:    "otherpng.png",
+		MIME:    png.MIME,
+		Digest:  png.Digest,
+		Payload: png.Payload,
+	}
+	propDuplicatePayload := createNewProposal(t, id,
+		[]www.File{*md, *png, pngDuplicatePayload})
 
 	// Duplicate filenames
 	pngDuplicateFilename := www.File{

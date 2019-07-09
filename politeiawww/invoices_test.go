@@ -147,11 +147,6 @@ func TestValidateInvoice(t *testing.T) {
 		Signature: "invalid",
 	}
 
-	// Incorrect signature test
-	invoiceIncorrectSig := createNewInvoice(t, id, []www.File{*json},
-		ii.Month, ii.Year)
-	invoiceIncorrectSig.Signature = ni.Signature
-
 	// No file test
 	invoiceNoFiles := cms.NewInvoice{
 		Month:     ni.Month,
@@ -167,7 +162,22 @@ func TestValidateInvoice(t *testing.T) {
 		[]www.File{*indexJpeg}, ii.Month, ii.Year)
 
 	// No index file test
-	invoiceNoIndexFile := createNewInvoice(t, id, []www.File{*png}, ii.Month, ii.Year)
+	invoiceNoIndexFile := createNewInvoice(t, id,
+		[]www.File{*png}, ii.Month, ii.Year)
+
+	// Too many index files test
+	invoiceMaxIndexFiles := createNewInvoice(t, id, []www.File{*json, *json},
+		ii.Month, ii.Year)
+
+	// Too many attached files test
+	files := make([]www.File, 0, cms.PolicyMaxAttachments+1)
+	files = append(files, *json)
+	for i := 0; i < cms.PolicyMaxAttachments+1; i++ {
+		m := md
+		m.Name = fmt.Sprintf("%v.md", i)
+		files = append(files, m)
+	}
+	invoiceMaxAttachments := createNewInvoice(t, id, files, ii.Month, ii.Year)
 
 	// Index file too large test.
 	// It creates a valid line item input, but too large to be accepted
@@ -189,24 +199,25 @@ func TestValidateInvoice(t *testing.T) {
 	invoiceIndexLarge := createNewInvoice(t, id, []www.File{*jsonLarge},
 		ii.Month, ii.Year)
 
-	// Too many index files test
-	invoiceMaxIndexFiles := createNewInvoice(t, id, []www.File{*json, *json},
-		ii.Month, ii.Year)
-
 	// Attachment file too large test
 	fileLarge := createFilePNG(t, true)
 	invoiceAttachmentLarge := createNewInvoice(t, id,
 		[]www.File{*json, *fileLarge}, ii.Month, ii.Year)
 
-	// Too many attached files test
-	files := make([]www.File, 0, cms.PolicyMaxAttachments+1)
-	files = append(files, *json)
-	for i := 0; i < cms.PolicyMaxAttachments+1; i++ {
-		m := md
-		m.Name = fmt.Sprintf("%v.md", i)
-		files = append(files, m)
+	// Files with duplicate payload test
+	pngDuplicatePayload := www.File{
+		Name:    "otherpng.png",
+		MIME:    png.MIME,
+		Digest:  png.Digest,
+		Payload: png.Payload,
 	}
-	invoiceMaxAttachments := createNewInvoice(t, id, files, ii.Month, ii.Year)
+	invoiceDuplicatePayload := createNewInvoice(t, id,
+		[]www.File{*json, *png, pngDuplicatePayload}, ii.Month, ii.Year)
+
+	// Incorrect signature test
+	invoiceIncorrectSig := createNewInvoice(t, id, []www.File{*json},
+		ii.Month, ii.Year)
+	invoiceIncorrectSig.Signature = ni.Signature
 
 	// Setup test cases
 	// XXX this only adds partial test coverage to validateInvoice
@@ -219,11 +230,6 @@ func TestValidateInvoice(t *testing.T) {
 		{"correct invoice", *ni, usr, nil},
 
 		{"invalid signature", invoiceInvalidSig, usr,
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidSignature,
-			}},
-
-		{"incorrect signature", *invoiceIncorrectSig, usr,
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidSignature,
 			}},
@@ -243,14 +249,19 @@ func TestValidateInvoice(t *testing.T) {
 				ErrorCode: www.ErrorStatusNoIndexFile,
 			}},
 
-		{"index file too large", *invoiceIndexLarge, usr,
-			www.UserError{
-				ErrorCode: www.ErrorStatusMaxIndexFileSizeExceeded,
-			}},
-
 		{"too many index files", *invoiceMaxIndexFiles, usr,
 			www.UserError{
 				ErrorCode: www.ErrorStatusMaxIndexFileExceeded,
+			}},
+
+		{"too many attached files", *invoiceMaxAttachments, usr,
+			www.UserError{
+				ErrorCode: www.ErrorStatusMaxAttachmentsExceeded,
+			}},
+
+		{"index file too large", *invoiceIndexLarge, usr,
+			www.UserError{
+				ErrorCode: www.ErrorStatusMaxIndexFileSizeExceeded,
 			}},
 
 		{"attachment file too large", *invoiceAttachmentLarge, usr,
@@ -258,9 +269,14 @@ func TestValidateInvoice(t *testing.T) {
 				ErrorCode: www.ErrorStatusMaxAttachmentSizeExceeded,
 			}},
 
-		{"too many attached files", *invoiceMaxAttachments, usr,
+		{"files with duplicate payload", *invoiceDuplicatePayload, usr,
 			www.UserError{
-				ErrorCode: www.ErrorStatusMaxAttachmentsExceeded,
+				ErrorCode: www.ErrorStatusFilesDuplicatePayload,
+			}},
+
+		{"incorrect signature", *invoiceIncorrectSig, usr,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidSignature,
 			}},
 	}
 

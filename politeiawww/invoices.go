@@ -493,11 +493,14 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 
 	// verify if there are duplicate names
 	filenames := make(map[string]int, len(ni.Files))
+	// verify if there are duplicate payload within files
+	payloads := make(map[string]int, len(ni.Files))
 	// Check that the file number policy is followed.
 	var (
 		numAttachments, numInvoiceFiles int
 		invoiceExceedsMaxSize           bool
 		attachmentExceedsMaxSize        bool
+		filesDuplicatePayload           bool
 		hashes                          []*[sha256.Size]byte
 	)
 	for _, v := range ni.Files {
@@ -691,6 +694,14 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 			}
 		}
 
+		// Checks for duplicate payload within files
+		_, exist := payloads[v.Payload]
+		if exist {
+			filesDuplicatePayload = true
+		} else {
+			payloads[v.Payload]++
+		}
+
 		// Append digest to array for merkle root calculation
 		digest := util.Digest(data)
 		var d [sha256.Size]byte
@@ -727,6 +738,12 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 	if attachmentExceedsMaxSize {
 		return www.UserError{
 			ErrorCode: www.ErrorStatusMaxAttachmentSizeExceeded,
+		}
+	}
+
+	if filesDuplicatePayload {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusFilesDuplicatePayload,
 		}
 	}
 
