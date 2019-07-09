@@ -912,9 +912,9 @@ func (c *ctx) tally(args []string) error {
 	return nil
 }
 
-func (c *ctx) login(email, password string) (*v1.LoginReply, error) {
+func (c *ctx) login(username, password string) (*v1.LoginReply, error) {
 	l := v1.Login{
-		Email:    email,
+		Username: username,
 		Password: password,
 	}
 
@@ -952,7 +952,7 @@ func (c *ctx) _startVote(sv *v1.StartVote) (*v1.StartVoteReply, error) {
 func (c *ctx) startVote(args []string) error {
 	if len(args) != 4 {
 		return fmt.Errorf("startvote: not enough arguments, expected:" +
-			"identityfile email password token")
+			"identityfile username password token")
 	}
 
 	// startvote identityfile email password token

@@ -627,21 +627,45 @@ func TestProcessResendVerification(t *testing.T) {
 	}
 }
 
-func TestLogin(t *testing.T) {
+func TestProcessLogin(t *testing.T) {
 	p, cleanup := newTestPoliteiawww(t)
 	defer cleanup()
 
-	// newUser() sets the password to be the username, which is
-	// why we keep setting the passwords to be the the usernames.
+	// newUser() sets the password to be the username. This is
+	// why the test case passwords are set to be the usernames.
 
-	// Create a verified user to test against
+	// Test that the failed login attempts are being incremented
+	// properly on the user object.
+	t.Run("failed login attempts", func(t *testing.T) {
+		usr, _ := newUser(t, p, true, false)
+		l := www.Login{
+			Username: usr.Username,
+			Password: "wrongpassword",
+		}
+		_, err := p.processLogin(l)
+		got := errToStr(err)
+		want := www.ErrorStatus[www.ErrorStatusInvalidPassword]
+		if got != want {
+			t.Errorf("got error %v, want %v",
+				got, want)
+		}
+		usr, err = p.db.UserGetById(usr.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if usr.FailedLoginAttempts != 1 {
+			t.Errorf("failed login attempts got %v, want 1",
+				usr.FailedLoginAttempts)
+		}
+	})
+
+	// Create a verified user and the expected login reply.
 	usr, id := newUser(t, p, true, false)
 	usrPassword := usr.Username
-
-	// Create the expected login reply
-	reply := www.LoginReply{
+	usrReply := www.LoginReply{
 		IsAdmin:            false,
 		UserID:             usr.ID.String(),
+		Username:           usr.Username,
 		Email:              usr.Email,
 		PublicKey:          id.Public.String(),
 		PaywallAddress:     usr.NewUserPaywallAddress,
@@ -650,160 +674,126 @@ func TestLogin(t *testing.T) {
 		PaywallTxID:        "",
 		ProposalCredits:    0,
 		LastLoginTime:      0,
-		SessionMaxAge:      sessionMaxAge,
 	}
+
+	// Create a user with a locked account
+	usrLocked, _ := newUser(t, p, true, false)
+	usrLocked.FailedLoginAttempts = LoginAttemptsToLockUser
+	err := p.db.UserUpdate(*usrLocked)
+	if err != nil {
+		t.Fatal(err)
+	}
+	usrLockedPassword := usrLocked.Username
 
 	// Create an unverified user
 	usrUnverified, _ := newUser(t, p, false, false)
 	usrUnverifiedPassword := usrUnverified.Username
-
-	// Create a user and lock their account from failed login
-	// attempts.
-	usrLocked, _ := newUser(t, p, true, false)
-	usrLocked.FailedLoginAttempts = LoginAttemptsToLockUser + 1
-	err := p.db.UserUpdate(*usrLocked)
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
-	usrLockedPassword := usrLocked.Username
 
 	// Create a deactivated user
 	usrDeactivated, _ := newUser(t, p, true, false)
 	usrDeactivated.Deactivated = true
 	err = p.db.UserUpdate(*usrDeactivated)
 	if err != nil {
-		t.Fatalf("%v", err)
+		t.Fatal(err)
 	}
 	usrDeactivatedPassword := usrDeactivated.Username
 
+	// Setup tests
 	var tests = []struct {
 		name      string
 		login     www.Login
 		wantReply *www.LoginReply
-		wantError error
+		wantErr   error
 	}{
-		{"wrong email",
+		{
+			"user not found",
 			www.Login{
-				Email:    "",
+				Username: "",
 				Password: usrPassword,
-			}, nil,
+			},
+			nil,
 			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidEmailOrPassword,
-			}},
-
-		{"wrong password",
+				ErrorCode: www.ErrorStatusUserNotFound,
+			},
+		},
+		{
+			"user locked",
 			www.Login{
-				Email:    usr.Email,
-				Password: "",
-			}, nil,
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidEmailOrPassword,
-			}},
-
-		{"user not verified",
-			www.Login{
-				Email:    usrUnverified.Email,
-				Password: usrUnverifiedPassword,
-			}, nil,
-			www.UserError{
-				ErrorCode: www.ErrorStatusEmailNotVerified,
-			}},
-
-		{"user deactivated",
-			www.Login{
-				Email:    usrDeactivated.Email,
-				Password: usrDeactivatedPassword,
-			}, nil,
-			www.UserError{
-				ErrorCode: www.ErrorStatusUserDeactivated,
-			}},
-
-		{"user locked",
-			www.Login{
-				Email:    usrLocked.Email,
+				Username: usrLocked.Username,
 				Password: usrLockedPassword,
-			}, nil,
+			},
+			nil,
 			www.UserError{
 				ErrorCode: www.ErrorStatusUserLocked,
-			}},
-
-		{"success",
+			},
+		},
+		{
+			"wrong password",
 			www.Login{
-				Email:    usr.Email,
+				Username: usr.Username,
+				Password: "wrongpassword",
+			},
+			nil,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidPassword,
+			},
+		},
+		{
+			"user not verified",
+			www.Login{
+				Username: usrUnverified.Username,
+				Password: usrUnverifiedPassword,
+			},
+			nil,
+			www.UserError{
+				ErrorCode: www.ErrorStatusEmailNotVerified,
+			},
+		},
+		{
+			"user deactivated",
+			www.Login{
+				Username: usrDeactivated.Username,
+				Password: usrDeactivatedPassword,
+			},
+			nil,
+			www.UserError{
+				ErrorCode: www.ErrorStatusUserDeactivated,
+			},
+		},
+		{
+			"success",
+			www.Login{
+				Username: usr.Username,
 				Password: usrPassword,
-			}, &reply, nil},
+			},
+			&usrReply,
+			nil,
+		},
 	}
 
 	// Run tests
 	for _, v := range tests {
 		t.Run(v.name, func(t *testing.T) {
-			lr := p.login(&v.login)
-			got := errToStr(lr.err)
-			want := errToStr(v.wantError)
-			if got != want {
+			lr, err := p.processLogin(v.login)
+			gotErr := errToStr(err)
+			wantErr := errToStr(v.wantErr)
+			if gotErr != wantErr {
 				t.Errorf("got error %v, want %v",
-					got, want)
+					gotErr, wantErr)
+			}
+
+			// If there were errors then we're done.
+			if err != nil {
+				return
+			}
+
+			// Check the reply
+			diff := deep.Equal(lr, v.wantReply)
+			if diff != nil {
+				t.Errorf("got/want diff:\n%v",
+					spew.Sdump(diff))
 			}
 		})
-	}
-
-}
-
-func TestProcessLogin(t *testing.T) {
-	p, cleanup := newTestPoliteiawww(t)
-	defer cleanup()
-
-	// MinimumLoginWaitTime is a global variable that is used to
-	// prevent timing attacks on login requests. Its normally set
-	// to 500 milliseconds. We temporarily reduce it to 100ms for
-	// these tests so that they don't take as long to run.
-	m := MinimumLoginWaitTime
-	MinimumLoginWaitTime = 100 * time.Millisecond
-	defer func() {
-		MinimumLoginWaitTime = m
-	}()
-
-	// Test the incorrect email error path because it's
-	// the quickest failure path for the login route.
-	start := time.Now()
-	_, err := p.processLogin(www.Login{})
-	end := time.Now()
-	elapsed := end.Sub(start)
-
-	got := errToStr(err)
-	want := www.ErrorStatus[www.ErrorStatusInvalidEmailOrPassword]
-	if got != want {
-		t.Errorf("got error %v, want %v", got, want)
-	}
-	if elapsed < MinimumLoginWaitTime {
-		t.Errorf("execution time got %v, want >%v",
-			elapsed, MinimumLoginWaitTime)
-	}
-
-	// Test a successful login. newUser() sets the
-	// password to be the username, which is why we
-	// pass the username into the password field.
-	u, _ := newUser(t, p, true, false)
-	start = time.Now()
-	lr, err := p.processLogin(www.Login{
-		Email:    u.Email,
-		Password: u.Username,
-	})
-	end = time.Now()
-	elapsed = end.Sub(start)
-	got = errToStr(err)
-
-	switch {
-	case got != "nil":
-		t.Errorf("got error %v, want nil", got)
-
-	case lr.UserID != u.ID.String():
-		t.Errorf("login reply userID got %v, want %v",
-			lr.UserID, u.ID.String())
-
-	case elapsed < MinimumLoginWaitTime:
-		t.Errorf("execution time got %v, want >%v",
-			elapsed, MinimumLoginWaitTime)
 	}
 }
 
@@ -835,7 +825,7 @@ func TestProcessChangePassword(t *testing.T) {
 				NewPassword:     newPass,
 			},
 			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidEmailOrPassword,
+				ErrorCode: www.ErrorStatusInvalidPassword,
 			}},
 
 		{"invalid new password",

@@ -122,7 +122,7 @@ func (cmd *NewUserCmd) Execute(args []string) error {
 
 	// Login to politeia
 	l := &v1.Login{
-		Email:    email,
+		Username: username,
 		Password: digestSHA3(password),
 	}
 

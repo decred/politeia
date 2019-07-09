@@ -13,30 +13,21 @@ import (
 // LoginCmd logs into Politeia using the specified credentials.
 type LoginCmd struct {
 	Args struct {
-		Email    string `positional-arg-name:"email"`    // User email address
-		Password string `positional-arg-name:"password"` // User password
+		Username string `positional-arg-name:"username"`
+		Password string `positional-arg-name:"password"`
 	} `positional-args:"true" required:"true"`
 }
 
 // Execute executes the login command.
 func (cmd *LoginCmd) Execute(args []string) error {
-	email := cmd.Args.Email
-	password := cmd.Args.Password
-
-	// Fetch CSRF tokens
-	_, err := client.Version()
-	if err != nil {
-		return err
-	}
-
 	// Setup login request
 	l := &v1.Login{
-		Email:    email,
-		Password: digestSHA3(password),
+		Username: cmd.Args.Username,
+		Password: digestSHA3(cmd.Args.Password),
 	}
 
 	// Print request details
-	err = printJSON(l)
+	err := printJSON(l)
 	if err != nil {
 		return err
 	}
@@ -58,13 +49,13 @@ func (cmd *LoginCmd) Execute(args []string) error {
 }
 
 // loginHelpMsg is the output for the help command when 'login' is specified.
-const loginHelpMsg = `login "email" "password"
+const loginHelpMsg = `login "username" "password"
 
 Login as a user or admin.
 
 Arguments:
-1. email      (string, required)   Email address of user
-2. password   (string, required)   Accompanying password for provided email
+1. username   (string, required)   Username
+2. password   (string, required)   Password
 
 Result:
 {

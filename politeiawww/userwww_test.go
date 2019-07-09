@@ -326,23 +326,13 @@ func TestHandleLogin(t *testing.T) {
 	p, cleanup := newTestPoliteiawww(t)
 	defer cleanup()
 
-	// MinimumLoginWaitTime is a global variable used to
-	// prevent timing attacks. We're not testing it here
-	// so we temporarily zero it out to make the tests
-	// run faster.
-	m := MinimumLoginWaitTime
-	MinimumLoginWaitTime = 0
-	defer func() {
-		MinimumLoginWaitTime = m
-	}()
-
 	// Create a user to test against. newUser() sets the
 	// password to be the same as the username.
 	u, _ := newUser(t, p, true, false)
 	password := u.Username
 	expectedReply, err := p.createLoginReply(u, u.LastLoginTime)
 	if err != nil {
-		t.Fatalf("%v", err)
+		t.Fatal(err)
 	}
 	expectedReply.SessionMaxAge = sessionMaxAge
 
@@ -354,22 +344,34 @@ func TestHandleLogin(t *testing.T) {
 		wantReply  *www.LoginReply
 		wantError  error
 	}{
-		{"invalid request body", "", http.StatusBadRequest, nil,
+		{
+			"invalid request body",
+			"",
+			http.StatusBadRequest,
+			nil,
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidInput,
-			}},
-
-		{"processLogin error", www.Login{}, http.StatusUnauthorized, nil,
+			},
+		},
+		{
+			"processLogin error",
+			www.Login{},
+			http.StatusUnauthorized,
+			nil,
 			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidEmailOrPassword,
-			}},
-
-		{"success",
+				ErrorCode: www.ErrorStatusUserNotFound,
+			},
+		},
+		{
+			"success",
 			www.Login{
-				Email:    u.Email,
+				Username: u.Username,
 				Password: password,
 			},
-			http.StatusOK, expectedReply, nil},
+			http.StatusOK,
+			expectedReply,
+			nil,
+		},
 	}
 
 	// Run tests
@@ -463,7 +465,7 @@ func TestHandleChangePassword(t *testing.T) {
 			},
 			http.StatusBadRequest,
 			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidEmailOrPassword,
+				ErrorCode: www.ErrorStatusInvalidPassword,
 			}},
 
 		{"success",
