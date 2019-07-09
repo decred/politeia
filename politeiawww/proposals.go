@@ -891,7 +891,8 @@ func (p *politeiawww) processProposalDetails(propDetails www.ProposalsDetails, u
 }
 
 // processBatchProposals fetches a list of proposals from the records
-// cache and returns them
+// cache and returns them. The returned proposals do not include the
+// proposal files.
 func (p *politeiawww) processBatchProposals(batchProposals www.BatchProposals, user *user.User) (*www.BatchProposalsReply, error) {
 
 	log.Tracef("processBatchProposals")

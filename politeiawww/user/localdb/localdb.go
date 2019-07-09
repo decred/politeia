@@ -206,6 +206,11 @@ func (l *localdb) UserGetByPubKey(pubKey string) (*user.User, error) {
 	return nil, user.ErrUserNotFound
 }
 
+// UsersGetByPubKey, given a list of public keys, returns a map where the keys
+// are a public key and the value is a user record. Public keys can be any of
+// the public keys in the user's identity history.
+//
+// UsersGetByPubKey satisfies the Database interface.
 func (l *localdb) UsersGetByPubKey(pubKeys []string) (map[string]user.User, error) {
 
 	log.Tracef("UsersGetByPubKey: %v", pubKeys)

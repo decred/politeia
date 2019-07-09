@@ -726,7 +726,8 @@ type ProposalDetailsReply struct {
 	Proposal ProposalRecord `json:"proposal"`
 }
 
-// BatchProposals is used to request the details of multiple proposals.
+// BatchProposals is used to request the details of multiple proposals. The
+// returned proposals do not include the proposal files.
 type BatchProposals struct {
 	Tokens []string `json:"tokens"`
 }
