@@ -168,6 +168,9 @@ type Cache interface {
 	// Update the metadata streams of a record
 	UpdateRecordMetadata(string, []MetadataStream) error
 
+	// Get the latest version of a set of records
+	Records([]string, bool) ([]Record, error)
+
 	// Get the latest version of all records
 	Inventory() ([]Record, error)
 

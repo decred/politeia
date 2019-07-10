@@ -180,6 +180,49 @@ func (d *decred) cmdGetComments(payload string) (string, error) {
 	return string(gcrb), nil
 }
 
+func (d *decred) cmdGetNumComments(payload string) (string, error) {
+	log.Tracef("decred cmdGetNumComments")
+
+	gnc, err := decredplugin.DecodeGetNumComments([]byte(payload))
+	if err != nil {
+		return "", err
+	}
+
+	type Result struct {
+		Token  string
+		Counts int
+	}
+
+	results := make([]Result, 0, 1024)
+
+	err = d.recordsdb.
+		Table("comments").
+		Select("count(*) as counts, token").
+		Group("token").
+		Where("token IN (?)", gnc.Tokens).
+		Find(&results).
+		Error
+
+	if err != nil {
+		return "", err
+	}
+
+	commentMap := make(map[string]int)
+	for _, c := range results {
+		commentMap[c.Token] = c.Counts
+	}
+
+	gncr := decredplugin.GetNumCommentsReply{
+		CommentsMap: commentMap,
+	}
+	gncre, err := decredplugin.EncodeGetNumCommentsReply(gncr)
+	if err != nil {
+		return "", err
+	}
+
+	return string(gncre), nil
+}
+
 // cmdCommentLikes returns all of the comment likes for the passed in comment.
 func (d *decred) cmdCommentLikes(payload string) (string, error) {
 	log.Tracef("decred cmdCommentLikes")
@@ -995,6 +1038,8 @@ func (d *decred) Exec(cmd, cmdPayload, replyPayload string) (string, error) {
 		return d.cmdGetComment(cmdPayload)
 	case decredplugin.CmdGetComments:
 		return d.cmdGetComments(cmdPayload)
+	case decredplugin.CmdGetNumComments:
+		return d.cmdGetNumComments(cmdPayload)
 	case decredplugin.CmdProposalVotes:
 		return d.cmdProposalVotes(cmdPayload)
 	case decredplugin.CmdCommentLikes:

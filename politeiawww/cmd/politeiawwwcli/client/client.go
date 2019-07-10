@@ -904,6 +904,29 @@ func (c *Client) SetProposalStatus(sps *v1.SetProposalStatus) (*v1.SetProposalSt
 	return &spsr, nil
 }
 
+// BatchProposals retrieves a list of proposals
+func (c *Client) BatchProposals(bp *v1.BatchProposals) (*v1.BatchProposalsReply, error) {
+	responseBody, err := c.makeRequest("POST", v1.RouteBatchProposals, bp)
+	if err != nil {
+		return nil, err
+	}
+
+	var bpr v1.BatchProposalsReply
+	err = json.Unmarshal(responseBody, &bpr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal BatchProposals: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(bpr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &bpr, nil
+}
+
 // GetAllVetted retrieves a page of vetted proposals.
 func (c *Client) GetAllVetted(gav *v1.GetAllVetted) (*v1.GetAllVettedReply, error) {
 	responseBody, err := c.makeRequest("GET", v1.RouteAllVetted, gav)

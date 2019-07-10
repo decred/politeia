@@ -5,6 +5,7 @@
 package cockroachdb
 
 import (
+	"database/sql"
 	"fmt"
 	"net/url"
 	"path/filepath"
@@ -373,17 +374,10 @@ func (c *cockroachdb) UpdateRecordMetadata(token string, ms []cache.MetadataStre
 	return tx.Commit().Error
 }
 
-// Inventory returns the latest version of all records from the database.
-func (c *cockroachdb) Inventory() ([]cache.Record, error) {
-	log.Tracef("Inventory")
-
-	c.RLock()
-	shutdown := c.shutdown
-	c.RUnlock()
-
-	if shutdown {
-		return nil, cache.ErrShutdown
-	}
+// getRecords is a helper used by Records and Inventory. Returns all of the
+// records if getAllRecords is true, otherwise returns the ones specified by
+// tokens.
+func (c *cockroachdb) getRecords(getAllRecords bool, tokens []string, fetchFiles bool) ([]cache.Record, error) {
 
 	// This query gets the latest version of each record
 	query := `SELECT a.* FROM records a
@@ -391,7 +385,18 @@ func (c *cockroachdb) Inventory() ([]cache.Record, error) {
 			ON a.token = b.token AND a.version < b.version
 		WHERE b.token IS NULL`
 
-	rows, err := c.recordsdb.Raw(query).Rows()
+	var (
+		err  error
+		rows *sql.Rows
+	)
+
+	if getAllRecords {
+		rows, err = c.recordsdb.Raw(query).Rows()
+	} else {
+		query += ` AND a.token IN (?)`
+		rows, err = c.recordsdb.Raw(query, tokens).Rows()
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -412,12 +417,21 @@ func (c *cockroachdb) Inventory() ([]cache.Record, error) {
 	for _, r := range records {
 		keys = append(keys, r.Key)
 	}
-	err = c.recordsdb.
-		Preload("Files").
+
+	var db *gorm.DB
+
+	if fetchFiles {
+		db = c.recordsdb.Preload("Files")
+	} else {
+		db = c.recordsdb
+	}
+
+	err = db.
 		Preload("Metadata").
 		Where(keys).
 		Find(&records).
 		Error
+
 	if err != nil {
 		return nil, err
 	}
@@ -428,6 +442,36 @@ func (c *cockroachdb) Inventory() ([]cache.Record, error) {
 	}
 
 	return cr, nil
+}
+
+// Records gets the most recent versions of a list of records.
+func (c *cockroachdb) Records(tokens []string, fetchFiles bool) ([]cache.Record, error) {
+	log.Tracef("Records: %v", tokens)
+
+	c.RLock()
+	shutdown := c.shutdown
+	c.RUnlock()
+
+	if shutdown {
+		return nil, cache.ErrShutdown
+	}
+
+	return c.getRecords(false, tokens, fetchFiles)
+}
+
+// Inventory returns the latest version of all records from the database.
+func (c *cockroachdb) Inventory() ([]cache.Record, error) {
+	log.Tracef("Inventory")
+
+	c.RLock()
+	shutdown := c.shutdown
+	c.RUnlock()
+
+	if shutdown {
+		return nil, cache.ErrShutdown
+	}
+
+	return c.getRecords(true, nil, true)
 }
 
 // InventoryStats compiles summary statistics on the number of records in the

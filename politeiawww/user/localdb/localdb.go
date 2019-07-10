@@ -206,6 +206,59 @@ func (l *localdb) UserGetByPubKey(pubKey string) (*user.User, error) {
 	return nil, user.ErrUserNotFound
 }
 
+// UsersGetByPubKey, given a list of public keys, returns a map where the keys
+// are a public key and the value is a user record. Public keys can be any of
+// the public keys in the user's identity history.
+//
+// UsersGetByPubKey satisfies the Database interface.
+func (l *localdb) UsersGetByPubKey(pubKeys []string) (map[string]user.User, error) {
+
+	log.Tracef("UsersGetByPubKey: %v", pubKeys)
+
+	l.RLock()
+	defer l.RUnlock()
+
+	if l.shutdown {
+		return nil, user.ErrShutdown
+	}
+
+	pubKeyMap := make(map[string]bool)
+	for _, v := range pubKeys {
+		pubKeyMap[v] = true
+	}
+
+	userMap := make(map[string]user.User)
+
+	iter := l.userdb.NewIterator(nil, nil)
+	for iter.Next() {
+		key := iter.Key()
+		value := iter.Value()
+		if !isUserRecord(string(key)) {
+			continue
+		}
+		u, err := user.DecodeUser(value)
+		if err != nil {
+			return nil, err
+		}
+		for _, v := range u.Identities {
+			if _, ok := pubKeyMap[v.String()]; ok {
+				userMap[v.String()] = *u
+			}
+		}
+	}
+	iter.Release()
+
+	if iter.Error() != nil {
+		return nil, iter.Error()
+	}
+
+	if len(userMap) != len(pubKeys) {
+		return nil, user.ErrUserNotFound
+	}
+
+	return userMap, nil
+}
+
 // UserGetById returns a user record given its id, if found in the database.
 //
 // UserGetById satisfies the Database interface.

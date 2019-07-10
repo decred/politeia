@@ -59,6 +59,7 @@ type Cmds struct {
 	AdminInvoices       AdminInvoicesCmd       `command:"admininvoices" description:"(admin) get all invoices (optional by month/year and/or status)"`
 	ActiveVotes         ActiveVotesCmd         `command:"activevotes" description:"(public) get the proposals that are being voted on"`
 	AuthorizeVote       AuthorizeVoteCmd       `command:"authorizevote" description:"(user)   authorize a proposal vote (must be proposal author)"`
+	BatchProposals      BatchProposalsCmd      `command:"batchproposals" description:"(user) retrieve a set of proposals"`
 	CensorComment       CensorCommentCmd       `command:"censorcomment" description:"(admin)  censor a proposal comment"`
 	ChangePassword      ChangePasswordCmd      `command:"changepassword" description:"(user)   change the password for the logged in user"`
 	ChangeUsername      ChangeUsernameCmd      `command:"changeusername" description:"(user)   change the username for the logged in user"`
