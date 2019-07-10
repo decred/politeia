@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -13,7 +14,10 @@ import (
 	v1 "github.com/decred/politeia/tlog/api/v1"
 	"github.com/decred/politeia/util"
 	"github.com/google/trillian"
+	"github.com/google/trillian/client"
+	tcrypto "github.com/google/trillian/crypto"
 	"github.com/google/trillian/types"
+	"google.golang.org/grpc/codes"
 )
 
 const (
@@ -21,6 +25,93 @@ const (
 	// Seconds Minutes Hours Days Months DayOfWeek
 	anchorSchedule = "0 56 * * * *" // At 56 minutes every hour
 )
+
+// findLeafAnchor returns the DataAnchor for the provided leaf. If there is no
+// anchor it returns nil.
+func (t *tserver) findLeafAnchor(treeId int64, leaf *trillian.LogLeaf) (*v1.DataAnchor, error) {
+	log.Tracef("findAnchorByLeafHash %v %x", treeId, leaf.MerkleLeafHash)
+
+	// Retrieve STH
+	reply, err := t.client.GetLatestSignedLogRoot(t.ctx,
+		&trillian.GetLatestSignedLogRootRequest{
+			LogId: treeId,
+		})
+	if err != nil {
+		return nil, err
+	}
+	var lrv1 types.LogRootV1
+	err = lrv1.UnmarshalBinary(reply.SignedLogRoot.LogRoot)
+	if err != nil {
+		return nil, err
+	}
+
+	// Start at the provided leaf and scan the tree for
+	// an anchor. We request a page of leaves at a time.
+	var (
+		anchor     *v1.DataAnchor
+		pageSize   int64 = 10
+		startIndex int64 = leaf.LeafIndex + 1
+	)
+	for anchor == nil && startIndex < int64(lrv1.TreeSize) {
+		// Retrieve a page of leaves
+		glbrr, err := t.client.GetLeavesByRange(t.ctx,
+			&trillian.GetLeavesByRangeRequest{
+				LogId:      treeId,
+				StartIndex: startIndex,
+				Count:      pageSize,
+			})
+		if err != nil {
+			return nil, err
+		}
+
+		// Scan leaves for an anchor
+		for _, v := range glbrr.Leaves {
+			// Retrieve leaf payload from backend
+			payload, err := t.s.Get(v.ExtraData)
+			if err != nil {
+				return nil, err
+			}
+			re, err := deblob(payload)
+			if err != nil {
+				return nil, err
+			}
+
+			// Investigate data hint
+			dhb, err := base64.StdEncoding.DecodeString(re.DataHint)
+			if err != nil {
+				return nil, err
+			}
+			var dh v1.DataDescriptor
+			err = json.Unmarshal(dhb, &dh)
+			if err != nil {
+				return nil, err
+			}
+			if !(dh.Type == v1.DataTypeStructure &&
+				dh.Descriptor == v1.DataDescriptorAnchor) {
+				// Not a anchor. Try the next one.
+				continue
+			}
+
+			// Found one!
+			data, err := base64.StdEncoding.DecodeString(re.Data)
+			if err != nil {
+				return nil, err
+			}
+			var da v1.DataAnchor
+			err = json.Unmarshal(data, &da)
+			if err != nil {
+				return nil, err
+			}
+			anchor = &da
+			break
+		}
+
+		// Increment startIndex and try again
+		startIndex += pageSize
+	}
+
+	return anchor, nil
+}
 
 // findLatestAnchor scans all leaves in a tree and returns the latest anchor.
 // If there is no anchor it returns nil.
@@ -103,7 +194,7 @@ func (t *tserver) scanAllRecords() error {
 	log.Debugf("scanAllRecords scanning records: %v", len(ltr.Tree))
 	for _, tree := range ltr.Tree {
 		// Retrieve STH
-		sth, lrv1, err := t.getLatestSignedLogRoot(tree)
+		_, lrv1, err := t.getLatestSignedLogRoot(tree)
 		if err != nil {
 			return err
 		}
@@ -123,8 +214,6 @@ func (t *tserver) scanAllRecords() error {
 			t.Unlock()
 			continue
 		}
-
-		_ = sth
 	}
 
 	t.Lock()
@@ -157,7 +246,6 @@ func (t *tserver) anchorRecords() {
 		return
 	}
 
-	// XXX note that we are doing this serially as a POC.
 	// XXX Abort entire run if there is an error for now.
 
 	// Scan over the dirty records
@@ -205,9 +293,7 @@ func (t *tserver) anchorRecords() {
 		return
 	}
 
-	// XXX the code that follows needs to become a go routine
 	go t.waitForAchor(trees, anchors, hashes, lrv1s)
-
 }
 
 // waitForAchor waits until an anchor drops.
@@ -273,7 +359,6 @@ func (t *tserver) waitForAchor(trees []*trillian.Tree, anchors []v1.DataAnchor, 
 		log.Infof("Anchor dropped")
 
 		// Drop anchor records
-		log.Errorf("Drop anchor records in trillian here")
 		for k, v := range anchors {
 			da := v1.DataAnchor{
 				RecordId:     v.RecordId,
@@ -299,26 +384,59 @@ func (t *tserver) waitForAchor(trees []*trillian.Tree, anchors []v1.DataAnchor, 
 					err)
 				continue
 			}
-			re := v1.RecordEntryNew(nil, dd, data)
+			re := util.RecordEntryNew(nil, dd, data)
 
-			qlr, sth, err := t.appendRecord(trees[k], &v.STH,
+			treeID := trees[k].TreeId
+			proofs, sth, err := t.appendRecord(trees[k], &v.STH,
 				[]v1.RecordEntry{re})
 			if err != nil {
-				log.Errorf("waitForAchor appendRecord: %v", err)
+				log.Errorf("waitForAchor appendRecord %v: %v",
+					treeID, err)
 				continue
 			}
 
-			// XXX check sth?
-			_ = sth
-
-			// Check QueuedLeaves
-			if len(qlr.QueuedLeaves) != 1 {
-				log.Errorf("waitForAchor QueuedLeaves != 1")
+			// Check QueuedLogLeafProofs
+			if len(proofs) != 1 {
+				log.Errorf("waitForAchor %v: QueuedLogLeaveProofs != 1",
+					treeID)
 				continue
 			}
-			//if qlr.QueuedLeaves[0].Status != codes.OK {
-			//}
-			// XXX Do something with qlr..QueuedLeaves[0].Leaf?
+			ql := proofs[0].QueuedLeaf
+			c := codes.Code(ql.GetStatus().GetCode())
+			if c != codes.OK {
+				log.Errorf("waitForAnchor leaf not appended %v: %v",
+					treeID, ql.GetStatus().GetMessage())
+				continue
+			}
+			if proofs[0].Proof == nil {
+				log.Errorf("waitForAnchor %v: no proof",
+					treeID)
+				continue
+			}
+
+			// Verify STH
+			verifier, err := client.NewLogVerifierFromTree(trees[k])
+			if err != nil {
+				log.Errorf("waitForAnchor NewLogVerifierFromTree %v: %v",
+					treeID, err)
+				continue
+			}
+			lrv1, err := tcrypto.VerifySignedLogRoot(verifier.PubKey,
+				crypto.SHA256, sth)
+			if err != nil {
+				log.Errorf("waitForAnchor VerifySignedLogRoot %v: %v",
+					treeID, err)
+				continue
+			}
+
+			// Verify inclusion proof
+			err = verifier.VerifyInclusionByHash(lrv1,
+				ql.Leaf.MerkleLeafHash, proofs[0].Proof)
+			if err != nil {
+				log.Errorf("waitForAnchor VerifyInclusionByHash %v: %v",
+					treeID, err)
+				continue
+			}
 		}
 
 		// Fixup dirty structure
@@ -375,7 +493,7 @@ func (t *tserver) fsckRecord(tree *trillian.Tree, lrv1 *types.LogRootV1) error {
 	if err != nil {
 		return err
 	}
-	// log.Tracef("%v", glbrr)
+
 	// XXX perform trillian tree coherency test
 
 	// Walk leaves backwards
@@ -383,7 +501,14 @@ func (t *tserver) fsckRecord(tree *trillian.Tree, lrv1 *types.LogRootV1) error {
 		log.Tracef("fsckRecord get: %s", glbrr.Leaves[x].ExtraData)
 		payload, err := t.s.Get(glbrr.Leaves[x].ExtraData)
 		if err != nil {
-			return err
+			// Absence of a record entry does not necessarily mean something
+			// is wrong. If there was an error during the record append call
+			// the trillian leaves will still exist but the record entry
+			// blobs would have been unwound.
+			log.Debugf("Record entry not found %v %v: %v",
+				glbrr.Leaves[x].MerkleLeafHash,
+				glbrr.Leaves[x].ExtraData, err)
+			continue
 		}
 		re, err := deblob(payload)
 		if err != nil {

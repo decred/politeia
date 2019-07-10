@@ -189,22 +189,6 @@ func (t *tserver) getTree(treeId int64) (*trillian.Tree, error) {
 	return tree, nil
 }
 
-//func (t *tserver) getLeafByIndex(treeId, recordId int64) (*trillian.LogLeaf, *trillian.SignedLogRoot, error) {
-//	resp, err := t.client.GetLeavesByIndex(t.ctx,
-//		&trillian.GetLeavesByIndexRequest{
-//			LogId:     treeId,
-//			LeafIndex: []int64{recordId},
-//		})
-//	if err != nil {
-//		return nil, nil, err
-//	}
-//	if got, want := len(resp.Leaves), 1; got != want {
-//		return nil, nil, fmt.Errorf("len(leaves): %v, want %v",
-//			got, want)
-//	}
-//	return resp.Leaves[0], resp.SignedLogRoot, nil
-//}
-
 func (t *tserver) list(w http.ResponseWriter, r *http.Request) {
 	// Ignore structure since it is empty
 	ltr, err := t.admin.ListTrees(t.ctx, &trillian.ListTreesRequest{})
@@ -339,98 +323,128 @@ func (t *tserver) countErrors(qlr *trillian.QueueLeavesResponse) int {
 	return n
 }
 
-// getEntry retrieves a single record entry + proofs.
-// XXX We should be coalescing requests!
-func (t *tserver) getEntry(id int64, merkleHash string) (re v1.RecordEntryProof) {
-	hash, err := hex.DecodeString(merkleHash)
+// getEntry returns the record entry proof for the provided leaf.
+// XXX we need to not return internal errors
+func (t *tserver) getEntry(id int64, leaf *trillian.LogLeaf) (re v1.RecordEntryProof) {
+	// Retrieve record entry
+	payload, err := t.s.Get(leaf.ExtraData)
 	if err != nil {
-		re.Error = err.Error()
-		return
-	}
-
-	// Retrieve leaf
-	glbyhr, err := t.client.GetLeavesByHash(t.ctx,
-		&trillian.GetLeavesByHashRequest{
-			LogId:    id,
-			LeafHash: [][]byte{hash},
-		})
-	if err != nil {
-		// XXX we need to not return internal error
-		re.Error = fmt.Sprintf("GetLeavesByHashRequest: %v", err)
-		return
-	}
-	if len(glbyhr.Leaves) != 1 {
-		re.Error = fmt.Sprintf("leaf not found: %v", merkleHash)
-		return
-	}
-
-	// Retrieve data
-	payload, err := t.s.Get(glbyhr.Leaves[0].ExtraData)
-	if err != nil {
-		// XXX we need to not return internal error
 		re.Error = fmt.Sprintf("Get: %v", err)
 		return
 	}
 	entry, err := deblob(payload)
 	if err != nil {
-		// XXX we need to not return internal error
 		re.Error = fmt.Sprintf("deblob: %v", err)
 		return
 	}
 
-	// Retrieve proof
-	tree, err := t.getTree(id)
+	// Retrieve anchor
+	da, err := t.findLeafAnchor(id, leaf)
 	if err != nil {
-		// XXX can't happen
-		re.Error = fmt.Sprintf("invalid record id: %v", id)
+		re.Error = fmt.Sprintf("findLeafAnchor: %v", err)
 		return
 	}
-	_, lrv1, err := t.getLatestSignedLogRoot(tree)
-	if err != nil {
-		// XXX we need to not return internal error
-		re.Error = fmt.Sprintf("getLatestSignedLogRoot: %v", err)
+	if da == nil {
+		// Entry hasn't been anchored yet. No need to continue.
+		re.RecordEntry = entry
+		re.Leaf = leaf
 		return
 	}
+	var lrv1 types.LogRootV1
+	err = lrv1.UnmarshalBinary(da.STH.LogRoot)
+	if err != nil {
+		re.Error = fmt.Sprintf("unmarshal LogRootV1: %v", err)
+		return
+	}
+
+	// Retrieve inclusion proof for anchored LogRoot
 	gipr, err := t.client.GetInclusionProof(t.ctx,
 		&trillian.GetInclusionProofRequest{
 			LogId:     id,
-			LeafIndex: glbyhr.Leaves[0].LeafIndex,
-			TreeSize:  int64(lrv1.TreeSize),
+			LeafIndex: leaf.LeafIndex,
+			TreeSize:  int64(lrv1.TreeSize), // tree size when anchor was dropped
 		})
 	if err != nil {
-		// XXX we need to not return internal error
 		re.Error = fmt.Sprintf("GetInclusionProof: %v", err)
 		return
 	}
+
 	// Fill record out
 	re.RecordEntry = entry
-	re.Leaf = glbyhr.Leaves[0]
-	re.Proof = gipr
+	re.Leaf = leaf
+	re.STH = &da.STH
+	re.Proof = gipr.Proof
+	re.Anchor = &da.VerifyDigest.ChainInformation
 
 	return
 }
 
+// getEntries returns the record entry proofs for the provided leaf hashes.
+// XXX we need to not return internal errors
+func (t *tserver) getEntries(id int64, leafHashes [][]byte) ([]v1.RecordEntryProof, error) {
+	// Retrieve leaves
+	glbhr, err := t.client.GetLeavesByHash(t.ctx,
+		&trillian.GetLeavesByHashRequest{
+			LogId:    id,
+			LeafHash: leafHashes,
+		})
+	if err != nil {
+		return nil, fmt.Errorf("GetLeavesByHashRequest: %v", err)
+	}
+	if len(glbhr.Leaves) != len(leafHashes) {
+		return nil, fmt.Errorf("leaf not found")
+	}
+
+	// Retrieve record entry proofs
+	rep := make([]v1.RecordEntryProof, 0, len(glbhr.Leaves))
+	for _, v := range glbhr.Leaves {
+		rep = append(rep, t.getEntry(id, v))
+	}
+
+	return rep, nil
+}
+
+// unwindBlobs deletes the passed in blobs from the backend. This function
+// panics if anything goes wrong.
+func (t *tserver) unwindBlobs(blobIDs map[string]struct{}) {
+	var failed bool
+	for id, _ := range blobIDs {
+		log.Debugf("Unwinding blob %s", id)
+		err := t.s.Del([]byte(id))
+		if err != nil {
+			log.Critical("del blob %s: %v", id, err)
+			failed = true
+		}
+	}
+	if failed {
+		// We are in trouble!
+		panic("could not unwind blobs")
+	}
+}
+
 // appendRecord stores pointers to record entries into trillian and data into a
 // backend.
-func (t *tserver) appendRecord(tree *trillian.Tree, root *trillian.SignedLogRoot, re []v1.RecordEntry) (*trillian.QueueLeavesResponse, *trillian.SignedLogRoot, error) {
+func (t *tserver) appendRecord(tree *trillian.Tree, root *trillian.SignedLogRoot, re []v1.RecordEntry) ([]v1.QueuedLeafProof, *trillian.SignedLogRoot, error) {
 	ll := make([]*trillian.LogLeaf, 0, len(re))
+	blobIDs := make(map[string]struct{}, len(re)) // [blobID]struct{}
 	for _, v := range re {
 		blob, err := blobify(v)
 		if err != nil {
-			// XXX we need to unwind the work
+			t.unwindBlobs(blobIDs)
 			return nil, nil, fmt.Errorf("appendRecord blobify: %v",
 				err)
 		}
 		id, err := t.s.Put(blob)
 		if err != nil {
-			// XXX we need to unwind the work
+			t.unwindBlobs(blobIDs)
 			return nil, nil, fmt.Errorf("appendRecord Put: %v", err)
 		}
+		blobIDs[string(id)] = struct{}{}
 
 		h, err := hex.DecodeString(v.Hash)
 		if err != nil {
-			// Shouldn'y happen, really should be a panic
-			// XXX we need to unwind the work
+			// Shouldn't happen, really should be a panic
+			t.unwindBlobs(blobIDs)
 			return nil, nil, fmt.Errorf("appendRecord DecodeString: %v",
 				err)
 		}
@@ -448,7 +462,7 @@ func (t *tserver) appendRecord(tree *trillian.Tree, root *trillian.SignedLogRoot
 		Leaves: ll,
 	})
 	if err != nil {
-		// XXX we need to unwind the work
+		t.unwindBlobs(blobIDs)
 		return nil, nil, fmt.Errorf("appendRecord QueueLeaves: %v", err)
 	}
 
@@ -456,7 +470,19 @@ func (t *tserver) appendRecord(tree *trillian.Tree, root *trillian.SignedLogRoot
 	n := t.countErrors(qlr)
 	log.Debugf("Stored/Ignored leaves: %v/%v %v", len(ll)-n, n, tree.TreeId)
 
-	// XXX remove duplicate leafs here or in some unwind function
+	// Unwind blobs of ignored leaves
+	if n != 0 {
+		ignored := make(map[string]struct{})
+		for _, v := range qlr.QueuedLeaves {
+			c := codes.Code(v.GetStatus().GetCode())
+			if c != codes.OK {
+				// Blob ID is stored in Leaf.ExtraData
+				ignored[string(v.Leaf.ExtraData)] = struct{}{}
+				delete(blobIDs, string(v.Leaf.ExtraData))
+			}
+		}
+		t.unwindBlobs(ignored)
+	}
 
 	// Only wait if we actually updated the tree
 	if len(ll)-n != 0 {
@@ -464,7 +490,7 @@ func (t *tserver) appendRecord(tree *trillian.Tree, root *trillian.SignedLogRoot
 		log.Debugf("Waiting for update: %v", tree.TreeId)
 		err = t.waitForRootUpdate(tree, root)
 		if err != nil {
-			// XXX we need to unwind the work
+			t.unwindBlobs(blobIDs)
 			return nil, nil, fmt.Errorf("appendRecord "+
 				"waitForRootUpdate: %v", err)
 		}
@@ -473,9 +499,40 @@ func (t *tserver) appendRecord(tree *trillian.Tree, root *trillian.SignedLogRoot
 	// Get latest signed tree head
 	sth, lrv1, err := t.getLatestSignedLogRoot(tree)
 	if err != nil {
-		// XXX we need to unwind the work
+		t.unwindBlobs(blobIDs)
 		return nil, nil, fmt.Errorf("appendRecord "+
 			"getLatestSignedLogRoot: %v", err)
+	}
+
+	// Get inclusion proofs
+	proofs := make([]v1.QueuedLeafProof, 0, len(qlr.QueuedLeaves))
+	for _, v := range qlr.QueuedLeaves {
+		qllp := v1.QueuedLeafProof{
+			QueuedLeaf: *v,
+		}
+		c := codes.Code(v.GetStatus().GetCode())
+		if c == codes.OK {
+			// LeafIndex of a QueuedLogLeaf will not be set so
+			// get the inclusion proof by hash.
+			resp, err := t.client.GetInclusionProofByHash(t.ctx,
+				&trillian.GetInclusionProofByHashRequest{
+					LogId:    tree.TreeId,
+					LeafHash: v.Leaf.MerkleLeafHash,
+					TreeSize: int64(lrv1.TreeSize),
+				})
+			if err != nil {
+				t.unwindBlobs(blobIDs)
+				return nil, nil, fmt.Errorf("appendRecord "+
+					"GetInclusionProof: %v", err)
+			}
+			if len(resp.Proof) != 1 {
+				t.unwindBlobs(blobIDs)
+				return nil, nil, fmt.Errorf("appendRecord "+
+					"%v proofs != 1", v.Leaf.MerkleLeafHash)
+			}
+			qllp.Proof = resp.Proof[0]
+		}
+		proofs = append(proofs, qllp)
 	}
 
 	// Mark dirty
@@ -483,7 +540,7 @@ func (t *tserver) appendRecord(tree *trillian.Tree, root *trillian.SignedLogRoot
 	t.dirty[tree.TreeId] = int64(lrv1.TreeSize)
 	t.Unlock()
 
-	return qlr, sth, nil
+	return proofs, sth, nil
 }
 
 // publicKey returns the public key to the caller.
@@ -512,7 +569,7 @@ func (t *tserver) recordNew(w http.ResponseWriter, r *http.Request) {
 
 	// Verify individual record entries
 	for k := range rn.RecordEntries {
-		err := v1.RecordEntryVerify(rn.RecordEntries[k])
+		err := util.RecordEntryVerify(rn.RecordEntries[k])
 		if err != nil {
 			// Abort entire thing if any RecordEntry is invalid
 			e := fmt.Sprintf("recordNew RecordEntryVerify(%v): %v",
@@ -526,9 +583,6 @@ func (t *tserver) recordNew(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// XXX create unwind function that checks dup leafs and rm data from
-	// backend
-
 	// Create tree to hold record
 	tree, root, err := t.createTree()
 	if err != nil {
@@ -538,7 +592,7 @@ func (t *tserver) recordNew(w http.ResponseWriter, r *http.Request) {
 	log.Debugf("Created tree: %v", tree.TreeId)
 
 	// Append record entries and data
-	qlr, sth, err := t.appendRecord(tree, root, rn.RecordEntries)
+	proofs, sth, err := t.appendRecord(tree, root, rn.RecordEntries)
 	if err != nil {
 		RespondWithError(w, r, 0, "recordNew appendRecord: %v", err)
 		return
@@ -547,9 +601,9 @@ func (t *tserver) recordNew(w http.ResponseWriter, r *http.Request) {
 	// Return the good news
 	util.RespondWithJSON(w, http.StatusOK, v1.RecordNewReply{
 		Tree:        *tree,
-		Leaves:      qlr.QueuedLeaves,
 		InitialRoot: *root,
 		STH:         *sth,
+		Proofs:      proofs,
 	})
 }
 
@@ -570,7 +624,7 @@ func (t *tserver) recordAppend(w http.ResponseWriter, r *http.Request) {
 
 	// Verify individual record entries
 	for k := range ra.RecordEntries {
-		err := v1.RecordEntryVerify(ra.RecordEntries[k])
+		err := util.RecordEntryVerify(ra.RecordEntries[k])
 		if err != nil {
 			// Abort entire thing if any RecordEntry is invalid
 			e := fmt.Sprintf("recordAppend RecordEntryVerify(%v): %v",
@@ -599,14 +653,13 @@ func (t *tserver) recordAppend(w http.ResponseWriter, r *http.Request) {
 	// Retrieve STH
 	root, _, err := t.getLatestSignedLogRoot(tree)
 	if err != nil {
-		// XXX we need to unwind the work
 		RespondWithError(w, r, 0, "recordAppend "+
 			"getLatestSignedLogRoot: %v",
 			err)
 		return
 	}
 	// Append record entries and data
-	qlr, sth, err := t.appendRecord(tree, root, ra.RecordEntries)
+	proofs, sth, err := t.appendRecord(tree, root, ra.RecordEntries)
 	if err != nil {
 		RespondWithError(w, r, 0, "recordAppend appendRecord: %v", err)
 		return
@@ -614,8 +667,8 @@ func (t *tserver) recordAppend(w http.ResponseWriter, r *http.Request) {
 
 	// Return the good news
 	util.RespondWithJSON(w, http.StatusOK, v1.RecordAppendReply{
-		Leaves: qlr.QueuedLeaves,
 		STH:    *sth,
+		Proofs: proofs,
 	})
 }
 
@@ -647,7 +700,6 @@ func (t *tserver) recordGet(w http.ResponseWriter, r *http.Request) {
 	// Retrieve STH
 	sth, lrv1, err := t.getLatestSignedLogRoot(tree)
 	if err != nil {
-		// XXX we need to unwind the work
 		RespondWithError(w, r, 0, "recordGet getLatestSignedLogRoot: %v",
 			err)
 		return
@@ -670,54 +722,16 @@ func (t *tserver) recordGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get data
-	res := make([]v1.RecordEntry, 0, len(glbrr.Leaves))
-	log.Debugf("Retrieving data (%v): %v", lrv1.TreeSize, tree.TreeId)
+	// Retrieve record entry proofs
+	rep := make([]v1.RecordEntryProof, 0, len(glbrr.Leaves))
 	for _, v := range glbrr.Leaves {
-		payload, err := t.s.Get(v.ExtraData)
-		if err != nil {
-			// XXX Should we return a partial fail?
-			RespondWithError(w, r, 0, "recordGet Get: %v", err)
-			return
-		}
-		re, err := deblob(payload)
-		if err != nil {
-			// XXX Should we return a partial fail?
-			RespondWithError(w, r, 0, "recordGet deblob: %v", err)
-			return
-		}
-		res = append(res, *re)
-	}
-
-	// XXX Retrieve every individual proof
-	proofs := make([]trillian.GetInclusionProofResponse, 0,
-		len(glbrr.Leaves))
-	for _, v := range glbrr.Leaves {
-		gipr, err := t.client.GetInclusionProof(t.ctx,
-			&trillian.GetInclusionProofRequest{
-				LogId:     tree.TreeId,
-				LeafIndex: v.LeafIndex,
-				TreeSize:  int64(lrv1.TreeSize),
-			})
-		if err != nil {
-			// XXX Should we return a partial fail?
-			RespondWithError(w, r, 0, "recordGet GetInclusionProof: %v",
-				err)
-			return
-		}
-		proofs = append(proofs, *gipr)
+		rep = append(rep, t.getEntry(tree.TreeId, v))
 	}
 
 	// Return the good news
 	util.RespondWithJSON(w, http.StatusOK, v1.RecordGetReply{
-		Leaves:        glbrr.Leaves,
-		STH:           *sth,
-		RecordEntries: res,
-		Proofs:        proofs,
-		// XXX Add Anchor information if available
-		// XXX Are we going to need to add individual leaves to anchors?
-		// XXX If so we need to anchor individual leaves in addition
-		// XXX to STH.
+		STH:    *sth,
+		Proofs: rep,
 	})
 }
 
@@ -734,13 +748,33 @@ func (t *tserver) recordEntriesGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rep := make([]v1.RecordEntryProof, 0, len(reg.Entries))
+	// Coalesce requests
+	trees := make(map[int64][][]byte) // [treeId]merkleHashes
 	for _, v := range reg.Entries {
-		log.Debugf("recordEntriesGet: %v %v", v.Id, v.MerkleHash)
-		rep = append(rep, t.getEntry(v.Id, v.MerkleHash))
+		_, ok := trees[v.Id]
+		if !ok {
+			trees[v.Id] = make([][]byte, 0, len(reg.Entries))
+		}
+		h, err := hex.DecodeString(v.MerkleHash)
+		if err != nil {
+			// XXX we need to not return internal errors
+			RespondWithError(w, r, 0, "decode merkle hash: %v", err)
+			return
+		}
+		trees[v.Id] = append(trees[v.Id], h)
 	}
 
-	// XXX return anchor information as well
+	// Retrieve record entries
+	rep := make([]v1.RecordEntryProof, 0, len(reg.Entries))
+	for id, hashes := range trees {
+		log.Debugf("recordEntriesGet: %v %x", id, hashes)
+		entries, err := t.getEntries(id, hashes)
+		if err != nil {
+			RespondWithError(w, r, 0, "getEntries: %v", err)
+			return
+		}
+		rep = append(rep, entries...)
+	}
 
 	util.RespondWithJSON(w, http.StatusOK, v1.RecordEntriesGetReply{
 		Proofs: rep,
@@ -766,9 +800,7 @@ func (t *tserver) recordFsck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	util.RespondWithJSON(w, http.StatusOK, v1.RecordFsckReply{
-		// XXX do we need to return stuff to client minus good news?
-	})
+	util.RespondWithJSON(w, http.StatusOK, v1.RecordFsckReply{})
 }
 
 func _main() error {

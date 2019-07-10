@@ -13,14 +13,13 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/user"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/dcrutil"
+	dcrtime "github.com/decred/dcrtime/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	v1 "github.com/decred/politeia/tlog/api/v1"
 	"github.com/decred/politeia/util"
@@ -28,7 +27,6 @@ import (
 	"github.com/google/trillian/client"
 	tcrypto "github.com/google/trillian/crypto"
 	"github.com/google/trillian/crypto/keys/der"
-	"github.com/google/trillian/merkle/hashers"
 	_ "github.com/google/trillian/merkle/rfc6962"
 	"github.com/google/trillian/types"
 )
@@ -52,60 +50,6 @@ var (
 	myID      *identity.FullIdentity // our identity
 	publicKey crypto.PublicKey       // remote server signing key
 )
-
-// cleanAndExpandPath expands environment variables and leading ~ in the
-// passed path, cleans the result, and returns it.
-func cleanAndExpandPath(path string) string {
-	// Nothing to do when no path is given.
-	if path == "" {
-		return path
-	}
-
-	// NOTE: The os.ExpandEnv doesn't work with Windows cmd.exe-style
-	// %VARIABLE%, but the variables can still be expanded via POSIX-style
-	// $VARIABLE.
-	path = os.ExpandEnv(path)
-
-	if !strings.HasPrefix(path, "~") {
-		return filepath.Clean(path)
-	}
-
-	// Expand initial ~ to the current user's home directory, or ~otheruser
-	// to otheruser's home directory.  On Windows, both forward and backward
-	// slashes can be used.
-	path = path[1:]
-
-	var pathSeparators string
-	if runtime.GOOS == "windows" {
-		pathSeparators = string(os.PathSeparator) + "/"
-	} else {
-		pathSeparators = string(os.PathSeparator)
-	}
-
-	userName := ""
-	if i := strings.IndexAny(path, pathSeparators); i != -1 {
-		userName = path[:i]
-		path = path[i:]
-	}
-
-	homeDir := ""
-	var u *user.User
-	var err error
-	if userName == "" {
-		u, err = user.Current()
-	} else {
-		u, err = user.Lookup(userName)
-	}
-	if err == nil {
-		homeDir = u.HomeDir
-	}
-	// Fallback to CWD if user lookup fails or user has no home directory.
-	if homeDir == "" {
-		homeDir = "."
-	}
-
-	return filepath.Join(homeDir, path)
-}
 
 // getErrorFromResponse extracts a user-readable string from the response from
 // politeiad, which will contain a JSON error.
@@ -193,7 +137,7 @@ func handleFile(filename string) (*v1.RecordEntry, error) {
 		return nil, err
 	}
 
-	re := v1.RecordEntryNew(myID, dd, data)
+	re := util.RecordEntryNew(myID, dd, data)
 	return &re, nil
 }
 
@@ -278,10 +222,13 @@ func printProof(p trillian.Proof) {
 	}
 }
 
-func printGetInclusionProofResponse(gipr trillian.GetInclusionProofResponse) {
-	printProof(*gipr.Proof)
-	printRoot(*gipr.SignedLogRoot)
-	// We are not pretty printing LogRootV1 for now
+func printAnchor(a dcrtime.ChainInformation) {
+	fmt.Printf("Timestamp : %v\n", a.ChainTimestamp)
+	fmt.Printf("Tx        : %v\n", a.Transaction)
+	fmt.Printf("MerkleRoot: %v\n", a.MerkleRoot)
+	for k, v := range a.MerklePath.Hashes {
+		fmt.Printf("Hash(%3v) : %x\n", k, v)
+	}
 }
 
 func list() error {
@@ -330,7 +277,7 @@ func list() error {
 
 func getPublicKey() error {
 	// Make sure we won't overwrite the key file
-	pkf := cleanAndExpandPath(*publicKeyFilename)
+	pkf := util.CleanAndExpandPath(*publicKeyFilename)
 	if util.FileExists(pkf) {
 		return fmt.Errorf("public key file already exists")
 	}
@@ -436,7 +383,7 @@ func recordParse(index int) ([]v1.RecordEntry, error) {
 			if err != nil {
 				return nil, err
 			}
-			re = append(re, v1.RecordEntryNew(myID, dd, kv))
+			re = append(re, util.RecordEntryNew(myID, dd, kv))
 			continue
 		}
 		r, err := handleFile(v)
@@ -455,9 +402,6 @@ func recordNew() error {
 		return err
 	}
 	rn := v1.RecordNew{RecordEntries: re}
-	//if !*printJson {
-	//	spew.Dump(rn)
-	//}
 
 	// convert to JSON and sent it to server
 	b, err := json.Marshal(rn)
@@ -507,6 +451,12 @@ func recordNew() error {
 	if err != nil {
 		return err
 	}
+	for _, v := range rnr.Proofs {
+		err := util.QueuedLeafProofVerify(publicKey, lrSTH, v)
+		if err != nil {
+			return err
+		}
+	}
 
 	if !*printJson {
 		fmt.Printf("\nTree:\n")
@@ -523,8 +473,8 @@ func recordNew() error {
 		printLogRootV1(*lrSTH)
 
 		fmt.Printf("\n")
-		for _, v := range rnr.Leaves {
-			printQueuedLeaf(*v)
+		for _, v := range rnr.Proofs {
+			printQueuedLeaf(v.QueuedLeaf)
 			fmt.Printf("\n")
 		}
 	}
@@ -552,9 +502,6 @@ func recordAppend() error {
 		Id:            id,
 		RecordEntries: re,
 	}
-	//if !*printJson {
-	//	spew.Dump(rn)
-	//}
 
 	// convert to JSON and sent it to server
 	b, err := json.Marshal(ra)
@@ -591,29 +538,19 @@ func recordAppend() error {
 	}
 
 	// Let's verify what came back
-	//verifier, err := client.NewLogVerifierFromTree(&rar.Tree)
-	//if err != nil {
-	//	return err
-	//}
-	//lrInitial, err := tcrypto.VerifySignedLogRoot(verifier.PubKey,
-	//	crypto.SHA256, &rnr.InitialRoot)
-	//if err != nil {
-	//	return err
-	//}
-	//lrSTH, err := tcrypto.VerifySignedLogRoot(verifier.PubKey,
-	//	crypto.SHA256, &rnr.STH)
-	//if err != nil {
-	//	return err
-	//}
+	lrv1, err := tcrypto.VerifySignedLogRoot(publicKey,
+		crypto.SHA256, &rar.STH)
+	if err != nil {
+		return fmt.Errorf("VerifySignedLogRoot: %v", err)
+	}
+	for _, v := range rar.Proofs {
+		err := util.QueuedLeafProofVerify(publicKey, lrv1, v)
+		if err != nil {
+			return err
+		}
+	}
 
-	//// XXX
-	//pk, err := der.UnmarshalPublicKey(rnr.Tree.PublicKey.Der)
-	//if err != nil {
-	//	return err
-	//}
-	//spew.Dump(pk)
-	//fmt.Printf("Pubkey: %v\n", hex.EncodeToString(rnr.Tree.PublicKey.Der))
-
+	// XXX fix printing
 	if !*printJson {
 		fmt.Printf("\nSTH:\n")
 		printRoot(rar.STH)
@@ -621,8 +558,8 @@ func recordAppend() error {
 		//printLogRootV1(*lrSTH)
 
 		fmt.Printf("\n")
-		for _, v := range rar.Leaves {
-			printQueuedLeaf(*v)
+		for _, v := range rar.Proofs {
+			printQueuedLeaf(v.QueuedLeaf)
 			fmt.Printf("\n")
 		}
 	}
@@ -675,40 +612,16 @@ func recordGet() error {
 		return fmt.Errorf("Could not unmarshal RecordGetReply: %v", err)
 	}
 
-	// Verify records
-	for _, v := range rgr.RecordEntries {
-		err = v1.RecordEntryVerify(v)
-		if err != nil {
-			return err
-		}
+	// Verify STH
+	_, err = tcrypto.VerifySignedLogRoot(publicKey, crypto.SHA256,
+		&rgr.STH)
+	if err != nil {
+		return err
 	}
 
-	// Verify inclusion
-	for k, v := range rgr.Proofs {
-		lh, err := hashers.NewLogHasher(trillian.HashStrategy_RFC6962_SHA256)
-		if err != nil {
-			return err
-		}
-
-		// Verify v.SignedLogRoot.LogRoot
-		lr, err := tcrypto.VerifySignedLogRoot(publicKey, crypto.SHA256,
-			v.SignedLogRoot)
-		if err != nil {
-			return err
-		}
-
-		// Verify inclusion proof
-		verifier := client.NewLogVerifier(lh, publicKey, crypto.SHA256)
-		err = verifier.VerifyInclusionAtIndex(lr,
-			rgr.Leaves[k].LeafValue, rgr.Leaves[k].LeafIndex,
-			v.Proof.Hashes)
-		if err != nil {
-			return err
-		}
-
-		// Also verify by hash
-		err = verifier.VerifyInclusionByHash(lr,
-			rgr.Leaves[k].MerkleLeafHash, v.Proof)
+	// Verify record entry proofs
+	for _, v := range rgr.Proofs {
+		err := util.RecordEntryProofVerify(publicKey, v)
 		if err != nil {
 			return err
 		}
@@ -719,20 +632,15 @@ func recordGet() error {
 		printRoot(rgr.STH)
 		fmt.Printf("\nLeaves:\n")
 
-		for _, v := range rgr.Leaves {
-			printLeaf(*v)
+		// XXX fix printing
+		for _, v := range rgr.Proofs {
+			printLeaf(*v.Leaf)
 			fmt.Printf("\n")
 		}
 
 		fmt.Printf("\nRecords:\n")
-		for _, v := range rgr.RecordEntries {
-			printRecordEntry(v)
-			fmt.Printf("\n")
-		}
-
-		fmt.Printf("\nProofs:\n")
 		for _, v := range rgr.Proofs {
-			printGetInclusionProofResponse(v)
+			printRecordEntry(*v.RecordEntry)
 			fmt.Printf("\n")
 		}
 	}
@@ -802,37 +710,9 @@ func recordEntriesGet() error {
 		return fmt.Errorf("Could not unmarshal RecordEntriesGetReply: %v", err)
 	}
 
+	// Verify record entry proofs
 	for _, v := range rgr.Proofs {
-		err = v1.RecordEntryVerify(*v.RecordEntry)
-		if err != nil {
-			return err
-		}
-
-		// Inclusion
-		lh, err := hashers.NewLogHasher(trillian.HashStrategy_RFC6962_SHA256)
-		if err != nil {
-			return err
-		}
-
-		// Verify v.SignedLogRoot.LogRoot
-		lr, err := tcrypto.VerifySignedLogRoot(publicKey, crypto.SHA256,
-			v.Proof.SignedLogRoot)
-		if err != nil {
-			return err
-		}
-
-		// Verify inclusion proof
-		verifier := client.NewLogVerifier(lh, publicKey, crypto.SHA256)
-		err = verifier.VerifyInclusionAtIndex(lr,
-			v.Leaf.LeafValue, v.Leaf.LeafIndex,
-			v.Proof.Proof.Hashes)
-		if err != nil {
-			return err
-		}
-
-		// Also verify by hash
-		err = verifier.VerifyInclusionByHash(lr,
-			v.Leaf.MerkleLeafHash, v.Proof.Proof)
+		err := util.RecordEntryProofVerify(publicKey, v)
 		if err != nil {
 			return err
 		}
@@ -911,7 +791,7 @@ func _main() error {
 	*rpchost = u.String()
 
 	// Generate ed25519 identity to save messages, tokens etc.
-	idf := cleanAndExpandPath(*identityFilename)
+	idf := util.CleanAndExpandPath(*identityFilename)
 	if !util.FileExists(idf) {
 		err = os.MkdirAll(defaultHomeDir, 0700)
 		if err != nil {
@@ -936,7 +816,7 @@ func _main() error {
 	}
 
 	// See if we have a remote identity stored
-	pkf := cleanAndExpandPath(*publicKeyFilename)
+	pkf := util.CleanAndExpandPath(*publicKeyFilename)
 	if !util.FileExists(pkf) {
 		if len(flag.Args()) != 1 || flag.Args()[0] != "publickey" {
 			return fmt.Errorf("Missing remote signing key. Use " +
@@ -961,8 +841,6 @@ func _main() error {
 			switch a {
 			case "list":
 				return list()
-			//case "newtree":
-			//	return newTree()
 			case "publickey":
 				return getPublicKey()
 			case "recordappend":

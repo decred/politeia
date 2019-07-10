@@ -8,6 +8,8 @@ politeiawww/cmd/politeiawwwcli/politeiawwwcli
 politeiawww/cmd/politeiawwwtest/politeiawwwtest
 politeiawww/politeiawww
 politeiavoter/politeiavoter
+tlog/tclient/tclient
+tlog/tserver/tserver
 vendor
 *~
 *.pyc

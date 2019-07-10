@@ -37,8 +37,29 @@ Launch `tserver`
 tserver --testnet
 ```
 
-# Add new record
+# tclient
+
+tclient is used to interact with the tserver API.
 
 ```
-tclient --testnet put README.md
+Commands:
+  list                list all records
+  publickey           retrieve the tserver public signing key and save it
+  recordnew           create a new record
+  recordappend        append a record
+  recordget           retrieve a record
+  recordentriesget    retrieve the entries for a record
+  fsck                run fsck on a record
+```
+
+You must retrieve the tserver identity before you can submit a record.
+
+```
+tclient --testnet publickey
+```
+
+Submit a new record.
+
+```
+tclient --testnet recrodnew README.md
 ```

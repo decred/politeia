@@ -144,7 +144,7 @@ func (b *blobFilesystem) Get(id []byte) ([]byte, error) {
 func (b *blobFilesystem) Del(id []byte) error {
 	err := os.Remove(filepath.Join(b.path, string(id)))
 	if err != nil {
-		// ALways return doen't exist
+		// Always return doesn't exist
 		return (ErrDoesntExist)
 	}
 	return nil
