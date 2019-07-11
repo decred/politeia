@@ -294,15 +294,6 @@ func (p *politeiawww) handleResetPassword(w http.ResponseWriter, r *http.Request
 
 	rpr, err := p.processResetPassword(rp)
 	if err != nil {
-		usrErr, ok := err.(www.UserError)
-		if ok && usrErr.ErrorCode == www.ErrorStatusUserNotFound {
-			// We do not return this error because we do not want
-			// the caller to be able to ascertain whether an email
-			// address has an acount.
-			util.RespondWithJSON(w, http.StatusOK, www.ResetPasswordReply{})
-			return
-		}
-
 		RespondWithError(w, r, 0,
 			"handleResetPassword: processResetPassword %v", err)
 		return
@@ -310,6 +301,30 @@ func (p *politeiawww) handleResetPassword(w http.ResponseWriter, r *http.Request
 
 	// Reply with the error code.
 	util.RespondWithJSON(w, http.StatusOK, rpr)
+}
+
+// handleVerifyResetPassword handles the verify reset password command.
+func (p *politeiawww) handleVerifyResetPassword(w http.ResponseWriter, r *http.Request) {
+	log.Trace("handleVerifyResetPassword")
+
+	var vrp www.VerifyResetPassword
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&vrp); err != nil {
+		RespondWithError(w, r, 0, "handleVerifyResetPassword: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	reply, err := p.processVerifyResetPassword(vrp)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleVerifyResetPassword: processVerifyResetPassword %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
 // handleUserDetails handles fetching user details by user id.
@@ -755,6 +770,8 @@ func (p *politeiawww) setUserWWWRoutes() {
 		permissionPublic)
 	p.addRoute(http.MethodPost, www.RouteResetPassword,
 		p.handleResetPassword, permissionPublic)
+	p.addRoute(http.MethodPost, www.RouteVerifyResetPassword,
+		p.handleVerifyResetPassword, permissionPublic)
 	p.addRoute(http.MethodGet, www.RouteUserDetails,
 		p.handleUserDetails, permissionPublic)
 	p.addRoute(http.MethodGet, www.RouteUsers,
@@ -797,6 +814,8 @@ func (p *politeiawww) setCMSUserWWWRoutes() {
 		permissionPublic)
 	p.addRoute(http.MethodPost, www.RouteResetPassword,
 		p.handleResetPassword, permissionPublic)
+	p.addRoute(http.MethodPost, www.RouteVerifyResetPassword,
+		p.handleVerifyResetPassword, permissionPublic)
 	p.addRoute(http.MethodGet, www.RouteUserDetails,
 		p.handleUserDetails, permissionPublic)
 	p.addRoute(http.MethodPost, cms.RouteRegisterUser, p.handleRegisterUser,

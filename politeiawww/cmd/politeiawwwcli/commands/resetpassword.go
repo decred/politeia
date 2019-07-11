@@ -7,12 +7,13 @@ package commands
 import (
 	"fmt"
 
-	"github.com/decred/politeia/politeiawww/api/www/v1"
+	www "github.com/decred/politeia/politeiawww/api/www/v1"
 )
 
 // ResetPasswordCmd resets the password of the specified user.
 type ResetPasswordCmd struct {
 	Args struct {
+		Username    string `positional-arg-name:"username"`    // Username
 		Email       string `positional-arg-name:"email"`       // User email address
 		NewPassword string `positional-arg-name:"newpassword"` // New password
 	} `positional-args:"true" required:"true"`
@@ -20,6 +21,7 @@ type ResetPasswordCmd struct {
 
 // Execute executes the reset password command.
 func (cmd *ResetPasswordCmd) Execute(args []string) error {
+	username := cmd.Args.Username
 	email := cmd.Args.Email
 	newPassword := cmd.Args.NewPassword
 
@@ -35,20 +37,10 @@ func (cmd *ResetPasswordCmd) Execute(args []string) error {
 			pr.MinPasswordLength)
 	}
 
-	// The reset password command is special.  It must be called twice with
-	// different parameters.  For the 1st call, it should be called with only
-	// an email parameter. On success it will send an email containing a
-	// verification token to the email address provided.  If the email server
-	// has been disabled, the verification token is sent back in the response
-	// body. The 2nd call to reset password should be called with an email,
-	// verification token, and new password parameters.
-	//
-	// politeiawwwcli assumes the email server is disabled.
-
-	// 1st reset password call
-	rp := &v1.ResetPassword{
-		Email:       email,
-		NewPassword: digestSHA3(newPassword),
+	// Reset password
+	rp := &www.ResetPassword{
+		Username: username,
+		Email:    email,
 	}
 
 	err = printJSON(rp)
@@ -66,37 +58,42 @@ func (cmd *ResetPasswordCmd) Execute(args []string) error {
 		return err
 	}
 
-	// 2nd reset password call
-	rp = &v1.ResetPassword{
-		Email:             email,
-		NewPassword:       digestSHA3(newPassword),
+	// The verification token will only be present in the
+	// reply if the politeiawww email server has been
+	// disabled. If the verification token is not in the
+	// reply then there is nothing more that we can do.
+	if rpr.VerificationToken == "" {
+		return nil
+	}
+
+	// Verify  reset password
+	vrp := www.VerifyResetPassword{
+		Username:          username,
 		VerificationToken: rpr.VerificationToken,
+		NewPassword:       digestSHA3(newPassword),
 	}
 
-	err = printJSON(rp)
+	err = printJSON(vrp)
 	if err != nil {
 		return err
 	}
 
-	rpr, err = client.ResetPassword(rp)
+	vrpr, err := client.VerifyResetPassword(vrp)
 	if err != nil {
 		return err
 	}
 
-	return printJSON(rpr)
+	return printJSON(vrpr)
 }
 
 // resetPasswordHelpMsg is the output of the help command when 'resetpassword'
 // is specified.
-const resetPasswordHelpMsg = `resetpassword "email" "password"
+const resetPasswordHelpMsg = `resetpassword "username" "email" "newpassword"
 
-Reset password for currently logged in user. 
+Reset the password for a user that is not logged in.
 
 Arguments:
-1. email      (string, required)   Email address of user
-2. password   (string, required)   New password
-
-Result:
-{
-  "verificationtoken"    (string)  Verification token
-}`
+1. username   (string, required)   Username of user
+2. email      (string, required)   Email address of user
+3. password   (string, required)   New password
+`
