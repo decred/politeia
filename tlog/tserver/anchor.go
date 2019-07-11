@@ -60,7 +60,7 @@ func (t *tserver) findLatestAnchor(tree *trillian.Tree, lrv1 *types.LogRootV1) (
 		return nil, err
 	}
 	var dh v1.DataDescriptor
-	err = json.Unmarshal([]byte(dhb), &dh)
+	err = json.Unmarshal(dhb, &dh)
 	if err != nil {
 		log.Errorf("findLatestAnchor invalid datahint %v", dh.Type)
 		return nil, err
@@ -72,6 +72,9 @@ func (t *tserver) findLatestAnchor(tree *trillian.Tree, lrv1 *types.LogRootV1) (
 
 	// Found one!
 	data, err := base64.StdEncoding.DecodeString(re.Data)
+	if err != nil {
+		return nil, err
+	}
 	var da v1.DataAnchor
 	err = json.Unmarshal(data, &da)
 	if err != nil {
@@ -240,9 +243,7 @@ func (t *tserver) waitForAchor(trees []*trillian.Tree, anchors []v1.DataAnchor, 
 	defer ticker.Stop()
 	for try := 0; try < retries; try++ {
 	restart:
-		select {
-		case <-ticker.C:
-		}
+		<-ticker.C
 
 		log.Tracef("anchorRecords checking anchor")
 
@@ -395,7 +396,7 @@ func (t *tserver) fsckRecord(tree *trillian.Tree, lrv1 *types.LogRootV1) error {
 			return err
 		}
 		var dh v1.DataDescriptor
-		err = json.Unmarshal([]byte(dhb), &dh)
+		err = json.Unmarshal(dhb, &dh)
 		if err != nil {
 			return fmt.Errorf("fsckRecord invalid datahint %v %v",
 				x, dh.Type)

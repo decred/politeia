@@ -48,7 +48,7 @@ type tserver struct {
 	// anchored. Note that we only anchor the latest STH and do so
 	// opportunistically. If the application is closed and restarted it
 	// simply will drop a new anchor at the next interval; it will not try
-	// to finish a prior oustanding anchor drop.
+	// to finish a prior outstanding anchor drop.
 	dirty          map[int64]int64 // [treeid]height
 	droppingAnchor bool            // anchor dropping is in progress
 
@@ -364,7 +364,7 @@ func (t *tserver) getEntry(id int64, merkleHash string) (re v1.RecordEntryProof)
 		return
 	}
 
-	// Retrive data
+	// Retrieve data
 	payload, err := t.s.Get(glbyhr.Leaves[0].ExtraData)
 	if err != nil {
 		// XXX we need to not return internal error
@@ -378,7 +378,7 @@ func (t *tserver) getEntry(id int64, merkleHash string) (re v1.RecordEntryProof)
 		return
 	}
 
-	// Retrive proof
+	// Retrieve proof
 	tree, err := t.getTree(id)
 	if err != nil {
 		// XXX can't happen

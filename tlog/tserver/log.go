@@ -40,7 +40,7 @@ var (
 	// application shutdown.
 	logRotator *rotator.Rotator
 
-	log            = backendLog.Logger("TSRV")
+	log = backendLog.Logger("TSRV")
 )
 
 // subsystemLoggers maps each subsystem identifier to its associated logger.
