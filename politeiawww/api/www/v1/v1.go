@@ -184,7 +184,7 @@ const (
 	ErrorStatusInvalidLogin                    ErrorStatusT = 63
 	ErrorStatusNoIndexFile                     ErrorStatusT = 64
 	ErrorStatusInvalidIndexFileMimeType        ErrorStatusT = 65
-	ErrorStatusFilesDuplicatePayload           ErrorStatusT = 66
+	ErrorStatusDuplicateFilePayloads           ErrorStatusT = 66
 
 	// Proposal state codes
 	//
@@ -260,6 +260,7 @@ var (
 	// logged in.
 	CookieSession = "session"
 
+	// ErrorStatus converts error status codes to human readable text.
 	ErrorStatus = map[ErrorStatusT]string{
 		ErrorStatusInvalid:                         "invalid error status",
 		ErrorStatusInvalidEmailOrPassword:          "invalid email or password",
@@ -325,7 +326,7 @@ var (
 		ErrorStatusInvalidLogin:                    "invalid login credentials",
 		ErrorStatusNoIndexFile:                     "missing index files",
 		ErrorStatusInvalidIndexFileMimeType:        "index file with incorrect mime type",
-		ErrorStatusFilesDuplicatePayload:           "files in the proposal have duplicate payloads",
+		ErrorStatusDuplicateFilePayloads:           "files in the proposal have duplicate payloads",
 	}
 
 	// PropStatus converts propsal status codes to human readable text

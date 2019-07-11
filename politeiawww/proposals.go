@@ -221,14 +221,14 @@ func validateProposal(np www.NewProposal, u *user.User) error {
 
 	// verify if there are duplicate names
 	filenames := make(map[string]int, len(np.Files))
-	// verify if there are duplicate payload within files
+	// verify if there are duplicate file payloads
 	payloads := make(map[string]int, len(np.Files))
 	// Check that the file number policy is followed.
 	var (
 		numAttachments, numIndexFiles int
 		indexExceedsMaxSize           bool
 		attachmentExceedsMaxSize      bool
-		filesDuplicatePayload         bool
+		duplicateFilePayloads         bool
 		hashes                        []*[sha256.Size]byte
 	)
 	for _, v := range np.Files {
@@ -266,7 +266,7 @@ func validateProposal(np www.NewProposal, u *user.User) error {
 		// Checks for duplicate payload within files
 		_, exist := payloads[v.Payload]
 		if exist {
-			filesDuplicatePayload = true
+			duplicateFilePayloads = true
 		} else {
 			payloads[v.Payload]++
 		}
@@ -310,9 +310,9 @@ func validateProposal(np www.NewProposal, u *user.User) error {
 		}
 	}
 
-	if filesDuplicatePayload {
+	if duplicateFilePayloads {
 		return www.UserError{
-			ErrorCode: www.ErrorStatusFilesDuplicatePayload,
+			ErrorCode: www.ErrorStatusDuplicateFilePayloads,
 		}
 	}
 

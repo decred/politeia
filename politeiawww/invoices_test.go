@@ -269,9 +269,9 @@ func TestValidateInvoice(t *testing.T) {
 				ErrorCode: www.ErrorStatusMaxAttachmentSizeExceeded,
 			}},
 
-		{"files with duplicate payload", *invoiceDuplicatePayload, usr,
+		{"duplicate file payloads", *invoiceDuplicatePayload, usr,
 			www.UserError{
-				ErrorCode: www.ErrorStatusFilesDuplicatePayload,
+				ErrorCode: www.ErrorStatusDuplicateFilePayloads,
 			}},
 
 		{"incorrect signature", *invoiceIncorrectSig, usr,

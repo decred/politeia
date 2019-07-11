@@ -561,9 +561,9 @@ func TestValidateProposal(t *testing.T) {
 				ErrorCode: www.ErrorStatusMaxAttachmentSizeExceeded,
 			}},
 
-		{"files with duplicate payload", *propDuplicatePayload, usr,
+		{"duplicate file payloads", *propDuplicatePayload, usr,
 			www.UserError{
-				ErrorCode: www.ErrorStatusFilesDuplicatePayload,
+				ErrorCode: www.ErrorStatusDuplicateFilePayloads,
 			}},
 
 		{"duplicate file names in attachments", *propDupFiles, usr,

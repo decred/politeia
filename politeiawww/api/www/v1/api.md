@@ -60,7 +60,7 @@ notifications.  It does not render HTML.
 - [`ErrorStatusMalformedEmail`](#ErrorStatusMalformedEmail)
 - [`ErrorStatusVerificationTokenInvalid`](#ErrorStatusVerificationTokenInvalid)
 - [`ErrorStatusVerificationTokenExpired`](#ErrorStatusVerificationTokenExpired)
-- [`ErrorStatusNoIndexFile`](#ErrorStatusNoIndexFile)
+- [`ErrorStatusProposalMissingFiles`](#ErrorStatusProposalMissingFiles)
 - [`ErrorStatusProposalNotFound`](#ErrorStatusProposalNotFound)
 - [`ErrorStatusProposalDuplicateFilenames`](#ErrorStatusProposalDuplicateFilenames)
 - [`ErrorStatusProposalInvalidTitle`](#ErrorStatusProposalInvalidTitle)
@@ -1071,6 +1071,8 @@ On failure the call shall return `400 Bad Request` and one of the following
 error codes:
 - [`ErrorStatusNoProposalCredits`](#ErrorStatusNoProposalCredits)
 - [`ErrorStatusNoIndexFile`](#ErrorStatusNoIndexFile)
+- [`ErrorStatusInvalidIndexFileMimeType`](#ErrorStatusInvalidIndexFileMimeType)
+- [`ErrorStatusDuplicateFilePayloads`](#ErrorStatusDuplicateFilePayloads)
 - [`ErrorStatusProposalDuplicateFilenames`](#ErrorStatusProposalDuplicateFilenames)
 - [`ErrorStatusProposalInvalidTitle`](#ErrorStatusProposalInvalidTitle)
 - [`ErrorStatusMaxIndexFileExceeded`](#ErrorStatusMaxIndexFileExceeded)
@@ -2656,7 +2658,7 @@ Reply:
 | <a name="ErrorStatusMalformedEmail">ErrorStatusMalformedEmail</a> | 2 | The provided email address was malformed. |
 | <a name="ErrorStatusVerificationTokenInvalid">ErrorStatusVerificationTokenInvalid</a> | 3 | The provided user activation token is invalid. |
 | <a name="ErrorStatusVerificationTokenExpired">ErrorStatusVerificationTokenExpired</a> | 4 | The provided user activation token is expired. |
-| <a name="ErrorStatusNoIndexFile">ErrorStatusNoIndexFile</a> | 5 | The provided proposal does not have a index file "index.md". |
+| <a name="ErrorStatusProposalMissingFiles">ErrorStatusProposalMissingFiles</a> | 5 | The provided proposal does not have files. This error may include additional context: index file is missing - "index.md". |
 | <a name="ErrorStatusProposalNotFound">ErrorStatusProposalNotFound</a> | 6 | The requested proposal does not exist. |
 | <a name="ErrorStatusProposalDuplicateFilenames">ErrorStatusProposalDuplicateFilenames</a> | 7 | The provided proposal has duplicate files. This error is provided with additional context: the duplicate name(s). |
 | <a name="ErrorStatusProposalInvalidTitle">ErrorStatusProposalInvalidTitle</a> | 8 | The provided proposal title is invalid. This error is provided with additional context: the regular expression accepted. |
@@ -2713,7 +2715,11 @@ Reply:
 | <a name="ErrorStatusNoProposalChanges">ErrorStatusNoProposalChanges</a> | 60 | No changes found in proposal. |
 | <a name="ErrorStatusMaxProposalsExceedsPolicy">ErrorStatusMaxProposalsExceededPolicy</a> | 61 | Number of proposals requested exceeded the ProposalListPageSize. |
 | <a name="ErrorStatusDuplicateComment">ErrorStatusDuplicateComment</a> | 62 | Duplicate comment. |
-| <a name="ErrorStatusInvalidLogin">ErrorStatusInvalidLogin</a> | 62 | Invalid login credentials. |
+| <a name="ErrorStatusInvalidLogin">ErrorStatusInvalidLogin</a> | 63 | Invalid login credentials. |
+| <a name="ErrorStatusNoIndexFile">ErrorStatusNoIndexFile</a> | 64 | The provided proposal does not have a index file "index.md". |
+| <a name="ErrorStatusInvalidIndexFileMimeType">ErrorStatusInvalidIndexFileMimeType</a> | 65 | The index file in the proposal has an invalid mime type. |
+| <a name="ErrorStatusDuplicateFilePayloads">ErrorStatusDuplicateFilePayloads</a> | 66 | The proposal contains files with duplicate payloads. |
+
 
 ### Proposal status codes
 
