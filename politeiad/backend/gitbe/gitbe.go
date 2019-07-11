@@ -35,7 +35,7 @@ import (
 	"github.com/decred/politeia/util"
 	filesystem "github.com/otiai10/copy"
 	"github.com/robfig/cron"
-	"github.com/subosito/norma"
+	"github.com/subosito/gozaru"
 )
 
 const (
@@ -344,7 +344,7 @@ func verifyContent(metadata []backend.MetadataStream, files []backend.File, file
 
 	fa := make([]file, 0, len(files))
 	for i := range files {
-		if norma.Sanitize(files[i].Name) != files[i].Name {
+		if gozaru.Sanitize(files[i].Name) != files[i].Name {
 			return nil, backend.ContentVerificationError{
 				ErrorCode: pd.ErrorStatusInvalidFilename,
 				ErrorContext: []string{
