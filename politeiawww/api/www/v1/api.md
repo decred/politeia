@@ -1215,6 +1215,17 @@ Reply:
             "payload":"RWRpdGVkIHByb3Bvc2FsCmVkaXRlZCBkZXNjcmlwdGlvbg=="
          }
       ],
+      "votesummary": {
+        "status": 1,
+        "totalvotes": 0,
+        "optionsresult": [],
+        "endheight": "",
+        "bestblock": "228207",
+        "numofeligiblevotes": 0,
+        "quorumpercentage": 0,
+        "passpercentage": 0,
+        "testnet" : true
+      },
       "numcomments":0,
       "version":"2",
       "censorshiprecord":{
@@ -1271,6 +1282,17 @@ Reply:
       "publishedat": 0,
       "censoredat": 0,
       "abandonedat": 0,
+      "votesummary": {
+        "status": 1,
+        "totalvotes": 0,
+        "optionsresult": [],
+        "endheight": "",
+        "bestblock": "228207",
+        "numofeligiblevotes": 0,
+        "quorumpercentage": 0,
+        "passpercentage": 0,
+        "testnet": true
+      },
       "censorshiprecord": {
         "token": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
         "merkle": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
@@ -1323,6 +1345,34 @@ Reply:
     "publishedat": 1508296860900,
     "censoredat": 0,
     "abandonedat": 0,
+    "votesummary": {
+      "status": 3,
+      "totalvotes": 0,
+      "optionsresult": [
+        {
+           "option": {
+            "id": "no",
+            "description": "Don't approve proposal",
+            "bits": 1
+          },
+          "votesreceived": 0
+        },
+        {
+          "option": {
+            "id": "yes",
+            "description": "Approve proposal",
+            "bits": 2
+          },
+          "votesreceived": 0
+        }
+      ],
+      "endheight": "229472",
+      "bestblock": "228729",
+      "numofeligiblevotes": 5312,
+      "quorumpercentage": 20,
+      "passpercentage": 60,
+      "testnet": true
+    },
     "censorshiprecord": {
       "token": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
       "merkle": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
@@ -1375,6 +1425,34 @@ Reply:
     "name": "My Proposal",
     "status": 2,
     "timestamp": 1508296860781,
+    "votesummary": {
+      "status": 3,
+      "totalvotes": 0,
+      "optionsresult": [
+        {
+           "option": {
+            "id": "no",
+            "description": "Don't approve proposal",
+            "bits": 1
+          },
+          "votesreceived": 0
+        },
+        {
+          "option": {
+            "id": "yes",
+            "description": "Approve proposal",
+            "bits": 2
+          },
+          "votesreceived": 0
+        }
+      ],
+      "endheight": "229472",
+      "bestblock": "228729",
+      "numofeligiblevotes": 5312,
+      "quorumpercentage": 20,
+      "passpercentage": 60,
+      "testnet": true
+    },
     "censorshiprecord": {
       "token": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
       "merkle": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
@@ -1511,18 +1589,46 @@ Reply:
 
 ```json
 {
-	"proposal": {
-		"name": "My Proposal",
-		"state": "2",
-		"status": 4,
-		"timestamp": 1539212044,
-		"userid": "",
-		"username": "",
-		"publickey": "57cf10a15828c633dc0af423669e7bbad2d30a062e4eb1e9c78919f77ebd1022",
-		"signature": "553beffb3fece5bdd540e0b83e977e4f68c1ac31e6f2e0a85c3c9aef9e65e3efe3d778edc504a9e88c101f68ad25e677dc3574c67a6e8d0ba711de4b91bec40d",
-		"files": [],
-		"numcomments": 0,
-		"version": "1",
+  "proposal": {
+    "name": "My Proposal",
+    "state": "2",
+    "status": 4,
+    "timestamp": 1539212044,
+    "userid": "",
+    "username": "",
+    "publickey": "57cf10a15828c633dc0af423669e7bbad2d30a062e4eb1e9c78919f77ebd1022",
+    "signature": "553beffb3fece5bdd540e0b83e977e4f68c1ac31e6f2e0a85c3c9aef9e65e3efe3d778edc504a9e88c101f68ad25e677dc3574c67a6e8d0ba711de4b91bec40d",
+    "files": [],
+    "numcomments": 0,
+    "version": "1",
+    "votesummary": {
+      "status": 3,
+      "totalvotes": 0,
+      "optionsresult": [
+        {
+           "option": {
+            "id": "no",
+            "description": "Don't approve proposal",
+            "bits": 1
+          },
+          "votesreceived": 0
+        },
+        {
+          "option": {
+            "id": "yes",
+            "description": "Approve proposal",
+            "bits": 2
+          },
+          "votesreceived": 0
+        }
+      ],
+      "endheight": "229472",
+      "bestblock": "228729",
+      "numofeligiblevotes": 5312,
+      "quorumpercentage": 20,
+      "passpercentage": 60,
+      "testnet": true
+    },
 		"censorshiprecord": {
 			"token": "fc320c72bb55b6233a8df388109bf494081f007395489a7cdc945e05d656a467",
 			"merkle": "ffc1e4b6a1b0b1e8eb99d476aed7ace9ed6475b3bbab9470d01028c24ae51992",
@@ -1580,6 +1686,34 @@ Reply:
       "digest": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
       "payload": "VGhpcyBpcyBhIGRlc2NyaXB0aW9u"
     }],
+    "votesummary": {
+      "status": 3,
+      "totalvotes": 0,
+      "optionsresult": [
+        {
+           "option": {
+            "id": "no",
+            "description": "Don't approve proposal",
+            "bits": 1
+          },
+          "votesreceived": 0
+        },
+        {
+          "option": {
+            "id": "yes",
+            "description": "Approve proposal",
+            "bits": 2
+          },
+          "votesreceived": 0
+        }
+      ],
+      "endheight": "229472",
+      "bestblock": "228729",
+      "numofeligiblevotes": 5312,
+      "quorumpercentage": 20,
+      "passpercentage": 60,
+      "testnet": true
+    },
     "censorshiprecord": {
       "token": "c378e0735b5650c9e79f70113323077b107b0d778547f0d40592955668f21ebf",
       "merkle": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
@@ -1631,46 +1765,102 @@ Reply:
 
 ```json
 {
-    "proposals": [
-        {
-            "name": "Sample proposal 1",
-            "state": 2,
-            "status": 4,
-            "timestamp": 1561637933,
-            "userid": "bda3852b-f9e8-49a3-924a-147303b7d6b8",
-            "username": "username",
-            "publickey": "e008f83793c023321d54f283698c47fb50083489501a8c3b4b020b7c92930cb9",
-            "signature": "9c05c50b67c74d7c7e80be702afe123f46ddb417583bcd97674073d0d5ddc35804bec88b01d158bc1ab89bdb21e3cabbb4f290365c375ca226f8652d8dc01602",
-            "files": [],
-            "numcomments": 0,
-            "version": "1",
-            "publishedat": 1561637933,
-            "censorshiprecord": {
-                "token": "c9aaf64f9474a0c2aa2227363e3ba575e1926acd4257deba42dc6d5ab85f2cd2",
-                "merkle": "ab7d4fe5d89a1110b0c684d89a48558efaeb0247d13ba8a79200d7fdbde91559",
-                "signature": "8860999e0df2b9b7cc727f2ebc6c32fd26a8c9bb7660524fefbf85202ea4e1296699544acdcc723d70708f9f1561007bac1c4d250eb5aa5ebdecea224a8fd105"
-            }
-        },
-        {
-            "name": "Sample Proposal 2",
-            "state": 2,
-            "status": 4,
-            "timestamp": 1560824670,
-            "userid": "6bd802af-42cc-47af-b1dc-412f93f21689",
-            "username": "user2",
-            "publickey": "ceaca7ba3579620968a1720e0748f3005802a2fd9e5afe0c7916f79c70234664",
-            "signature": "ea41d5f8808892488185d18447f5b8c9d77c0d65932464d5742c1d22dbb0c975b42aaddcb1dae4f5d4a4423f4965c8af4a9273d48faae1f0531abe3039608001",
-            "files": [],
-            "numcomments": 3,
-            "version": "1",
-            "publishedat": 1560824670,
-            "censorshiprecord": {
-                "token": "f08dc22069f854856e27a6cb107e10064a85b85b2a4db41755d54f90bd30b84f",
-                "merkle": "34745ec2aee7ba0bf3111c66f8484efb32bfea3bfe6cdcc46420adc1c7d181cc",
-                "signature": "f0638afa9466ec3e4954f64e77929a0dd22d05b685180eaf36816e6cd65237760d4485be8afee04b824665acc809856aeabe9eade48f23a99b7be42e4508ac05"
-            }
-        }
-    ]
+  "proposals": [
+    {
+      "name": "Sample proposal 1",
+      "state": 2,
+      "status": 4,
+      "timestamp": 1561637933,
+      "userid": "bda3852b-f9e8-49a3-924a-147303b7d6b8",
+      "username": "username",
+      "publickey": "e008f83793c023321d54f283698c47fb50083489501a8c3b4b020b7c92930cb9",
+      "signature": "9c05c50b67c74d7c7e80be702afe123f46ddb417583bcd97674073d0d5ddc35804bec88b01d158bc1ab89bdb21e3cabbb4f290365c375ca226f8652d8dc01602",
+      "files": [],
+      "numcomments": 0,
+      "version": "1",
+      "publishedat": 1561637933,
+      "votesummary": {
+        "status": 3,
+        "totalvotes": 0,
+        "optionsresult": [
+          {
+            "option": {
+              "id": "no",
+              "description": "Don't approve proposal",
+              "bits": 1
+            },
+            "votesreceived": 0
+          },
+          {
+            "option": {
+              "id": "yes",
+              "description": "Approve proposal",
+              "bits": 2
+            },
+            "votesreceived": 0
+          }
+        ],
+        "endheight": "229472",
+        "bestblock": "228729",
+        "numofeligiblevotes": 5312,
+        "quorumpercentage": 20,
+        "passpercentage": 60,
+        "testnet": true
+      },
+      "censorshiprecord": {
+        "token": "c9aaf64f9474a0c2aa2227363e3ba575e1926acd4257deba42dc6d5ab85f2cd2",
+        "merkle": "ab7d4fe5d89a1110b0c684d89a48558efaeb0247d13ba8a79200d7fdbde91559",
+        "signature": "8860999e0df2b9b7cc727f2ebc6c32fd26a8c9bb7660524fefbf85202ea4e1296699544acdcc723d70708f9f1561007bac1c4d250eb5aa5ebdecea224a8fd105"
+      }
+    },
+    {
+      "name": "Sample Proposal 2",
+      "state": 2,
+      "status": 4,
+      "timestamp": 1560824670,
+      "userid": "6bd802af-42cc-47af-b1dc-412f93f21689",
+      "username": "user2",
+      "publickey": "ceaca7ba3579620968a1720e0748f3005802a2fd9e5afe0c7916f79c70234664",
+      "signature": "ea41d5f8808892488185d18447f5b8c9d77c0d65932464d5742c1d22dbb0c975b42aaddcb1dae4f5d4a4423f4965c8af4a9273d48faae1f0531abe3039608001",
+      "files": [],
+      "numcomments": 3,
+      "version": "1",
+      "publishedat": 1560824670,
+      "votesummary": {
+        "status": 3,
+        "totalvotes": 0,
+        "optionsresult": [
+          {
+            "option": {
+              "id": "no",
+              "description": "Don't approve proposal",
+              "bits": 1
+            },
+            "votesreceived": 0
+          },
+          {
+            "option": {
+              "id": "yes",
+              "description": "Approve proposal",
+              "bits": 2
+            },
+            "votesreceived": 0
+          }
+        ],
+        "endheight": "229472",
+        "bestblock": "228729",
+        "numofeligiblevotes": 5312,
+        "quorumpercentage": 20,
+        "passpercentage": 60,
+        "testnet": true
+      },
+      "censorshiprecord": {
+          "token": "f08dc22069f854856e27a6cb107e10064a85b85b2a4db41755d54f90bd30b84f",
+          "merkle": "34745ec2aee7ba0bf3111c66f8484efb32bfea3bfe6cdcc46420adc1c7d181cc",
+          "signature": "f0638afa9466ec3e4954f64e77929a0dd22d05b685180eaf36816e6cd65237760d4485be8afee04b824665acc809856aeabe9eade48f23a99b7be42e4508ac05"
+      }
+  }
+  ]
 }
 ```
 
@@ -2725,6 +2915,7 @@ This is a shortened representation of a user, used for lists.
 | pubishedat | The timestamp of when the proposal has been published. If the proposals has not been pubished, this field will not be present. |
 | censoredat | The timestamp of when the proposal has been censored. If the proposals has not been censored, this field will not be present. |
 | abandonedat | The timestamp of when the proposal has been abandoned. If the proposals has not been abandoned, this field will not be present. |
+| votesummary | A [`summary`](#Vote-Summary) of the proposals voting process |
  
 ### `Identity`
 
@@ -2741,6 +2932,21 @@ This is a shortened representation of a user, used for lists.
 | mime | string | MIME type of the payload. Currently the system only supports md and png files. The server shall reject invalid MIME types. |
 | digest | string | Digest is a SHA256 digest of the payload. The digest shall be verified by politeiad. |
 | payload | string | Payload is the actual file content. It shall be base64 encoded. Files have size limits that can be obtained via the [`Policy`](#policy) call. The server shall strictly enforce policy limits. |
+
+### `Vote Summary`
+
+| | Type | Description |
+|-|-|-|
+| token | string  | Censorship token |
+| status | int | Status identifier |
+| optionsresult | array of VoteOptionResult | Option description along with the number of votes it has received |
+| totalvotes | int | Proposal's total number of votes |
+| bestblock | string | The current chain height |
+| endheight | string | The chain height in which the vote will end |
+| numofeligiblevotes | int | Total number of eligible votes |
+| quorumpercentage | uint32 | Percent of eligible votes required for quorum |
+| passpercentage | uint32 | Percent of total votes required to pass |
+| testnet | boolean | True if voting is using testnet tickets |
 
 ### `Censorship record`
 

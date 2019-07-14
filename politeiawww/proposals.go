@@ -405,6 +405,56 @@ func convertWWWPropCreditFromDatabasePropCredit(credit user.ProposalCredit) www.
 	}
 }
 
+// updatePropPointersWithVoteSummary takes a Proposal Record
+// and updates it with a summary of its voting process.
+func (p *politeiawww) updatePropWithVoteSummary(prop *www.ProposalRecord) error {
+	props := make([]*www.ProposalRecord, 0, 1)
+	props = append(props, prop)
+	return p.updatePropPointersWithVoteSummary(props)
+}
+
+// updatePropPointersWithVoteSummary takes a slice of Proposal Records
+// and updates them with a summary of their voting process.
+func (p *politeiawww) updatePropsWithVoteSummary(props []www.ProposalRecord) ([]www.ProposalRecord, error) {
+	propPointers := make([]*www.ProposalRecord, len(props))
+	for i := range props {
+		propPointers[i] = &props[i]
+	}
+
+	err := p.updatePropPointersWithVoteSummary(propPointers)
+	if err != nil {
+		return nil, err
+	}
+
+	return props, nil
+}
+
+// updatePropPointersWithVoteSummary takes a slice of pointers to Proposal
+// Records and updates them with a summary of their voting process.
+func (p *politeiawww) updatePropPointersWithVoteSummary(props []*www.ProposalRecord) error {
+	tokens := make([]string, len(props))
+
+	for _, prop := range props {
+		tokens = append(tokens, prop.CensorshipRecord.Token)
+	}
+
+	bb, err := p.getBestBlock()
+	if err != nil {
+		return err
+	}
+
+	voteSummaries, err := p.voteSummaries(tokens, bb)
+	if err != nil {
+		return err
+	}
+
+	for _, prop := range props {
+		prop.VoteSummary = voteSummaries[prop.CensorshipRecord.Token]
+	}
+
+	return nil
+}
+
 // getProp gets the most recent verions of the given proposal from the cache
 // then fills in any missing fields before returning the proposal.
 func (p *politeiawww) getProp(token string) (*www.ProposalRecord, error) {
@@ -423,6 +473,11 @@ func (p *politeiawww) getProp(token string) (*www.ProposalRecord, error) {
 			"for token %v", token)
 	}
 	pr.NumComments = uint(len(dc))
+
+	err = p.updatePropWithVoteSummary(&pr)
+	if err != nil {
+		return nil, err
+	}
 
 	// Fill in proposal author info
 	u, err := p.db.UserGetByPubKey(pr.PublicKey)
@@ -445,9 +500,9 @@ func (p *politeiawww) getProps(tokens []string) (*[]www.ProposalRecord, error) {
 		return nil, err
 	}
 
-	proposalRecords := make([]www.ProposalRecord, 0, len(tokens))
+	props := make([]www.ProposalRecord, 0, len(tokens))
 	for _, record := range records {
-		proposalRecords = append(proposalRecords, convertPropFromCache(record))
+		props = append(props, convertPropFromCache(record))
 	}
 
 	// Find the number of comments each proposal
@@ -456,16 +511,15 @@ func (p *politeiawww) getProps(tokens []string) (*[]www.ProposalRecord, error) {
 		log.Errorf("getProp: decredGetNumComments failed "+
 			"for tokens %v", tokens)
 	} else {
-		for i := range proposalRecords {
-			proposalRecords[i].NumComments =
-				uint(dnc[proposalRecords[i].CensorshipRecord.Token])
+		for i := range props {
+			props[i].NumComments = uint(dnc[props[i].CensorshipRecord.Token])
 		}
 	}
 
 	// Get the list of pubkeys of the proposal authors
 	pubKeys := make([]string, 0, 16)
 	pubKeysMap := make(map[string]bool)
-	for _, pr := range proposalRecords {
+	for _, pr := range props {
 		if _, ok := pubKeysMap[pr.PublicKey]; !ok {
 			pubKeysMap[pr.PublicKey] = true
 			pubKeys = append(pubKeys, pr.PublicKey)
@@ -478,15 +532,18 @@ func (p *politeiawww) getProps(tokens []string) (*[]www.ProposalRecord, error) {
 		log.Errorf("getProps: UsersGetByPubKey: tokens:%v "+
 			"pubKeys:%v err:%v", tokens, pubKeys, err)
 	} else {
-		for i := range proposalRecords {
-			proposalRecords[i].UserId =
-				users[proposalRecords[i].PublicKey].ID.String()
-			proposalRecords[i].Username =
-				users[proposalRecords[i].PublicKey].Username
+		for i := range props {
+			props[i].UserId = users[props[i].PublicKey].ID.String()
+			props[i].Username = users[props[i].PublicKey].Username
 		}
 	}
 
-	return &proposalRecords, nil
+	props, err = p.updatePropsWithVoteSummary(props)
+	if err != nil {
+		return nil, err
+	}
+
+	return &props, nil
 }
 
 // getPropVersion gets a specific version of a proposal from the cache then
@@ -516,6 +573,11 @@ func (p *politeiawww) getPropVersion(token, version string) (*www.ProposalRecord
 	} else {
 		pr.UserId = u.ID.String()
 		pr.Username = u.Username
+	}
+
+	err = p.updatePropWithVoteSummary(&pr)
+	if err != nil {
+		return nil, err
 	}
 
 	return &pr, nil
@@ -556,6 +618,11 @@ func (p *politeiawww) getAllProps() ([]www.ProposalRecord, error) {
 		}
 
 		props = append(props, pr)
+	}
+
+	props, err = p.updatePropsWithVoteSummary(props)
+	if err != nil {
+		return nil, err
 	}
 
 	return props, nil
@@ -1514,6 +1581,42 @@ func (p *politeiawww) setVoteStatusReply(v www.VoteStatusReply) {
 	defer p.Unlock()
 
 	p.voteStatuses[v.Token] = v
+}
+
+// voteSummaries retrieves the voting summary information for a set of
+// proposals.
+func (p *politeiawww) voteSummaries(tokens []string, bestBlock uint64) (map[string]www.VoteSummary, error) {
+
+	r, err := p.decredBatchVoteSummary(tokens)
+	if err != nil {
+		return nil, err
+	}
+
+	voteSummaries := make(map[string]www.VoteSummary)
+
+	for token, summary := range r.Summaries {
+		results := convertVoteOptionResultsFromDecred(summary.Results)
+		var total uint64
+		for _, v := range results {
+			total += v.VotesReceived
+		}
+
+		vs := www.VoteSummary{
+			Status:             voteStatusFromVoteSummary(summary, bestBlock),
+			TotalVotes:         total,
+			OptionsResult:      results,
+			EndHeight:          summary.EndHeight,
+			BestBlock:          strconv.Itoa(int(bestBlock)),
+			NumOfEligibleVotes: summary.EligibleTicketCount,
+			QuorumPercentage:   summary.QuorumPercentage,
+			PassPercentage:     summary.PassPercentage,
+			TestNet:            p.cfg.TestNet,
+		}
+
+		voteSummaries[token] = vs
+	}
+
+	return voteSummaries, nil
 }
 
 func (p *politeiawww) voteStatusReply(token string, bestBlock uint64) (*www.VoteStatusReply, error) {

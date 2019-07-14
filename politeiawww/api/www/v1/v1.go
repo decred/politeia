@@ -379,6 +379,20 @@ type CensorshipRecord struct {
 	Signature string `json:"signature"` // Server side signature of []byte(Merkle+Token)
 }
 
+// VoteSummary contains information about the voting state of the process
+// related to a proposal.
+type VoteSummary struct {
+	Status             PropVoteStatusT    `json:"status"`             // Vote status (finished, started, etc)
+	TotalVotes         uint64             `json:"totalvotes"`         // Proposal's total number of votes
+	OptionsResult      []VoteOptionResult `json:"optionsresult"`      // VoteOptionResult for each option
+	EndHeight          string             `json:"endheight"`          // Vote end height
+	BestBlock          string             `json:"bestblock"`          // Current best block height
+	NumOfEligibleVotes int                `json:"numofeligiblevotes"` // Total number of eligible votes
+	QuorumPercentage   uint32             `json:"quorumpercentage"`   // Percent of eligible votes required for quorum
+	PassPercentage     uint32             `json:"passpercentage"`     // Percent of total votes required to pass
+	TestNet            bool               `json:"testnet"`            // Is the vote using mainnet or testnet tickets
+}
+
 // ProposalRecord is an entire proposal and it's content.
 type ProposalRecord struct {
 	Name                string      `json:"name"`                          // Suggested short proposal name
@@ -396,6 +410,7 @@ type ProposalRecord struct {
 	PublishedAt         int64       `json:"publishedat,omitempty"`         // The timestamp of when the proposal has been published
 	CensoredAt          int64       `json:"censoredat,omitempty"`          // The timestamp of when the proposal has been censored
 	AbandonedAt         int64       `json:"abandonedat,omitempty"`         // The timestamp of when the proposal has been abandoned
+	VoteSummary         VoteSummary `json:"votesummary"`                   // Summary of current state of voting process
 
 	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
 }
