@@ -470,7 +470,7 @@ func TestValidateProposal(t *testing.T) {
 	propAttachmentLarge := createNewProposal(t, id,
 		[]www.File{*md, *fileLarge})
 
-	// Duplicate payload within files
+	// Duplicate file payloads
 	pngDuplicatePayload := www.File{
 		Name:    "otherpng.png",
 		MIME:    png.MIME,

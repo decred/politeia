@@ -263,7 +263,7 @@ func validateProposal(np www.NewProposal, u *user.User) error {
 			}
 		}
 
-		// Checks for duplicate payload within files
+		// Check for duplicate file payloads
 		_, exist := payloads[v.Payload]
 		if exist {
 			duplicateFilePayloads = true
