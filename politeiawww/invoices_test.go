@@ -24,39 +24,34 @@ import (
 func createValidLineItems(t *testing.T) []cms.LineItemsInput {
 	t.Helper()
 
-	// valid line item entries
-	lineItemLabor := cms.LineItemsInput{
-		Type:          cms.LineItemTypeLabor,
-		Domain:        "Development",
-		Subdomain:     "politeia",
-		Description:   "PR #1",
-		ProposalToken: "",
-		Labor:         40,
-		Expenses:      0,
-	}
-	lineItemExpense := cms.LineItemsInput{
-		Type:          cms.LineItemTypeExpense,
-		Domain:        "Design",
-		Subdomain:     "pgui",
-		Description:   "Artwork",
-		ProposalToken: "",
-		Labor:         0,
-		Expenses:      1000,
-	}
-	lineItemMisc := cms.LineItemsInput{
-		Type:          cms.LineItemTypeMisc,
-		Domain:        "Research",
-		Subdomain:     "dcrd",
-		Description:   "reorg",
-		ProposalToken: "",
-		Labor:         0,
-		Expenses:      10000,
-	}
-
 	return []cms.LineItemsInput{
-		lineItemLabor,
-		lineItemExpense,
-		lineItemMisc,
+		{
+			Type:          cms.LineItemTypeLabor,
+			Domain:        "Development",
+			Subdomain:     "politeia",
+			Description:   "PR #1",
+			ProposalToken: "",
+			Labor:         40,
+			Expenses:      0,
+		},
+		{
+			Type:          cms.LineItemTypeExpense,
+			Domain:        "Design",
+			Subdomain:     "pgui",
+			Description:   "Artwork",
+			ProposalToken: "",
+			Labor:         0,
+			Expenses:      1000,
+		},
+		{
+			Type:          cms.LineItemTypeMisc,
+			Domain:        "Research",
+			Subdomain:     "dcrd",
+			Description:   "reorg",
+			ProposalToken: "",
+			Labor:         0,
+			Expenses:      10000,
+		},
 	}
 }
 
@@ -94,7 +89,6 @@ func createInvoiceJSON(t *testing.T, ii cms.InvoiceInput) *www.File {
 // createNewInvoice computes the merkle root of the given files, signs the
 // merkle root with the given identity then returns a NewInvoice object.
 func createNewInvoice(t *testing.T, id *identity.FullIdentity, files []www.File, month uint, year uint) *cms.NewInvoice {
-
 	t.Helper()
 
 	if len(files) == 0 {

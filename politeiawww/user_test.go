@@ -186,7 +186,7 @@ func TestValidatePassword(t *testing.T) {
 }
 
 func TestProcessNewUser(t *testing.T) {
-	p, cleanup := newTestPoliteiawww(t)
+	p, cleanup := newTestPoliteiawww(t, politeiaWWWMode)
 	defer cleanup()
 
 	// Create a verified user
@@ -384,7 +384,7 @@ func TestProcessNewUser(t *testing.T) {
 }
 
 func TestProcessVerifyNewUser(t *testing.T) {
-	p, cleanup := newTestPoliteiawww(t)
+	p, cleanup := newTestPoliteiawww(t, politeiaWWWMode)
 	defer cleanup()
 
 	// Create a user with a valid, unexpired verification
@@ -512,7 +512,7 @@ func TestProcessVerifyNewUser(t *testing.T) {
 }
 
 func TestProcessResendVerification(t *testing.T) {
-	p, cleanup := newTestPoliteiawww(t)
+	p, cleanup := newTestPoliteiawww(t, politeiaWWWMode)
 	defer cleanup()
 
 	// Create a verified user
@@ -839,7 +839,7 @@ to username.
 https://github.com/decred/politeia/issues/860#issuecomment-520871500
 
 func TestProcessLogin(t *testing.T) {
-	p, cleanup := newTestPoliteiawww(t)
+	p, cleanup := newTestPoliteiawww(t, politeiaWWWMode)
 	defer cleanup()
 
 	// newUser() sets the password to be the username. This is
@@ -1010,7 +1010,7 @@ func TestProcessLogin(t *testing.T) {
 */
 
 func TestProcessChangePassword(t *testing.T) {
-	p, cleanup := newTestPoliteiawww(t)
+	p, cleanup := newTestPoliteiawww(t, politeiaWWWMode)
 	defer cleanup()
 
 	// Create a new user. newUser() sets the password
@@ -1071,7 +1071,7 @@ func TestProcessChangePassword(t *testing.T) {
 }
 
 func TestProcessResetPassword(t *testing.T) {
-	p, cleanup := newTestPoliteiawww(t)
+	p, cleanup := newTestPoliteiawww(t, politeiaWWWMode)
 	defer cleanup()
 
 	// Test resetPasswordMinWaitTime
@@ -1222,7 +1222,7 @@ func TestProcessResetPassword(t *testing.T) {
 }
 
 func TestProcessVerifyResetPassword(t *testing.T) {
-	p, cleanup := newTestPoliteiawww(t)
+	p, cleanup := newTestPoliteiawww(t, politeiaWWWMode)
 	defer cleanup()
 
 	// Create a user with an unexpired verification token
@@ -1408,7 +1408,7 @@ func TestProcessVerifyResetPassword(t *testing.T) {
 }
 
 func TestProcessChangeUsername(t *testing.T) {
-	p, cleanup := newTestPoliteiawww(t)
+	p, cleanup := newTestPoliteiawww(t, politeiaWWWMode)
 	defer cleanup()
 
 	// Create a new user. newUser() sets
@@ -1471,7 +1471,7 @@ func TestProcessChangeUsername(t *testing.T) {
 }
 
 func TestProcessUserDetails(t *testing.T) {
-	p, cleanup := newTestPoliteiawww(t)
+	p, cleanup := newTestPoliteiawww(t, politeiaWWWMode)
 	defer cleanup()
 
 	// Create a new user. This is the UUID that
@@ -1546,7 +1546,7 @@ func TestProcessUserDetails(t *testing.T) {
 }
 
 func TestProcessEditUser(t *testing.T) {
-	p, cleanup := newTestPoliteiawww(t)
+	p, cleanup := newTestPoliteiawww(t, politeiaWWWMode)
 	defer cleanup()
 
 	// Create a new user. This is the user

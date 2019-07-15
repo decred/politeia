@@ -739,7 +739,7 @@ func TestHandleResetPassword(t *testing.T) {
 }
 
 func TestHandleVerifyResetPassword(t *testing.T) {
-	p, cleanup := newTestPoliteiawww(t)
+	p, cleanup := newTestPoliteiawww(t, politeiaWWWMode)
 	defer cleanup()
 
 	// Create a user that has already been assigned a reset

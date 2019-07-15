@@ -14,7 +14,7 @@ import (
 )
 
 func TestHandleVersion(t *testing.T) {
-	p, cleanup := newTestPoliteiawww(t)
+	p, cleanup := newTestPoliteiawww(t, politeiaWWWMode)
 	defer cleanup()
 
 	d := newTestPoliteiad(t, p)
@@ -25,6 +25,7 @@ func TestHandleVersion(t *testing.T) {
 		Route:   www.PoliteiaWWWAPIRoute,
 		PubKey:  hex.EncodeToString(p.cfg.Identity.Key[:]),
 		TestNet: p.cfg.TestNet,
+		Mode:    p.cfg.Mode,
 	}
 
 	var tests = []struct {
