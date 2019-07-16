@@ -99,6 +99,8 @@ func (p *TestPoliteiad) decredExec(pc v1.PluginCommand) (string, error) {
 		return p.startVote(pc.Payload)
 	case decred.CmdAuthorizeVote:
 		return p.authorizeVote(pc.Payload)
+	case decred.CmdBestBlock:
+		return strconv.FormatUint(uint64(bestBlock), 10), nil
 	}
 	return "", fmt.Errorf("invalid plugin command")
 }
