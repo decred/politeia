@@ -283,6 +283,10 @@ func (p *TestPoliteiad) handlePluginCommand(w http.ResponseWriter, r *http.Reque
 	response := p.identity.SignMessage(challenge)
 
 	payload, err := p.decredExec(t)
+	if err != nil {
+		respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
+		return
+	}
 
 	util.RespondWithJSON(w, http.StatusOK,
 		v1.PluginCommandReply{

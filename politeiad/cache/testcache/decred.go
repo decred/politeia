@@ -115,7 +115,6 @@ func (c *testcache) voteDetails(payload string) (string, error) {
 // This is left as a stub for now. The results of this are not used in any
 // tests.
 func (c *testcache) batchVoteSummary(payload string) (string, error) {
-
 	summaries := make(map[string]decredplugin.VoteSummaryReply)
 
 	bvr, _ := decred.EncodeBatchVoteSummaryReply(
@@ -124,7 +123,6 @@ func (c *testcache) batchVoteSummary(payload string) (string, error) {
 		})
 
 	return string(bvr), nil
-
 }
 
 func (c *testcache) decredExec(cmd, cmdPayload, replyPayload string) (string, error) {
