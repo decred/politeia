@@ -153,9 +153,24 @@ func (c *testcache) UpdateRecordMetadata(token string, md []cache.MetadataStream
 	return nil
 }
 
-// Inventory is a stub to satisfy the cache interface.
+// inventory returns all records in the cache.
+func (c *testcache) inventory() ([]cache.Record, error) {
+	records := make([]cache.Record, 0, len(c.records))
+	version := "1"
+
+	for token := range c.records {
+		records = append(records, c.records[token][version])
+	}
+
+	return records, nil
+}
+
+// Inventory returns all records in the cache.
 func (c *testcache) Inventory() ([]cache.Record, error) {
-	return make([]cache.Record, 0), nil
+	c.RLock()
+	defer c.RUnlock()
+
+	return c.inventory()
 }
 
 // InventoryStats is a stub to satisfy the cache interface.
