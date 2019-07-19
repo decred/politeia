@@ -375,9 +375,18 @@ func (p *politeiawww) reconnectWS() {
 		p.wsDcrdata = nil
 	}
 	var err error
-	p.wsDcrdata, err = newWSDcrdata()
-	if err != nil {
-		log.Errorf("reconnectWS: %v", err)
+	// Retry wsDcrdata reconnect every 1 minute
+	for {
+		p.wsDcrdata, err = newWSDcrdata()
+		if err != nil {
+			log.Errorf("reconnectWS error: %v", err)
+
+		}
+		if p.wsDcrdata != nil {
+			break
+		}
+		log.Infof("Retrying ws dcrdata reconnect in 1 minute...")
+		time.Sleep(1 * time.Minute)
 	}
 	p.setupCMSAddressWatcher()
 }
