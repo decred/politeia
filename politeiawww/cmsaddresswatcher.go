@@ -33,6 +33,8 @@ func (p *politeiawww) addWatchAddress(address string) {
 	if err != nil {
 		log.Errorf("addWatchAddress: subscribe '%v': %v",
 			address, err)
+		p.reconnectWS()
+		p.addWatchAddress(address)
 		return
 	}
 	log.Infof("Subscribed to listen: %v", address)
@@ -43,6 +45,7 @@ func (p *politeiawww) removeWatchAddress(address string) {
 	if err != nil {
 		log.Errorf("removeWatchAddress: unsubscribe '%v': %v",
 			address, err)
+		p.reconnectWS()
 		return
 	}
 	log.Infof("Unsubscribed: %v", address)
@@ -358,4 +361,17 @@ func (p *politeiawww) invoiceStatusPaid(token string) error {
 	}
 
 	return nil
+}
+
+func (p *politeiawww) reconnectWS() {
+
+	if p.wsDcrdata != nil {
+		p.wsDcrdata.client.Stop()
+	}
+	var err error
+	p.wsDcrdata, err = newWSDcrdata()
+	if err != nil {
+		log.Errorf("reconnectWS: %v", err)
+	}
+	p.setupCMSAddressWatcher()
 }
