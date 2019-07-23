@@ -2505,7 +2505,9 @@ Reply:
 
 ### `Proposal vote status`
 
-Returns the vote status for a single public proposal
+**This route deprecated by VoteSummary in [`Proposal`](#proposal).**
+
+Returns the vote status for a single public proposal.
 
 **Route:** `GET /V1/proposals/{token}/votestatus`
 
@@ -2584,7 +2586,9 @@ Reply:
 
 ### `Proposals vote status`
 
-Returns the vote status of all public proposals
+**This route deprecated by VoteSummary in [`Proposal`](#proposal).**
+
+Returns the vote status of all public proposals.
 
 **Route:** `GET /V1/proposals/votestatus`
 
