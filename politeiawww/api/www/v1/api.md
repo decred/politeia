@@ -1223,8 +1223,7 @@ Reply:
         "bestblock": "228207",
         "numofeligiblevotes": 0,
         "quorumpercentage": 0,
-        "passpercentage": 0,
-        "testnet" : true
+        "passpercentage": 0
       },
       "numcomments":0,
       "version":"2",
@@ -1290,8 +1289,7 @@ Reply:
         "bestblock": "228207",
         "numofeligiblevotes": 0,
         "quorumpercentage": 0,
-        "passpercentage": 0,
-        "testnet": true
+        "passpercentage": 0
       },
       "censorshiprecord": {
         "token": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
@@ -1370,8 +1368,7 @@ Reply:
       "bestblock": "228729",
       "numofeligiblevotes": 5312,
       "quorumpercentage": 20,
-      "passpercentage": 60,
-      "testnet": true
+      "passpercentage": 60
     },
     "censorshiprecord": {
       "token": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
@@ -1450,8 +1447,7 @@ Reply:
       "bestblock": "228729",
       "numofeligiblevotes": 5312,
       "quorumpercentage": 20,
-      "passpercentage": 60,
-      "testnet": true
+      "passpercentage": 60
     },
     "censorshiprecord": {
       "token": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
@@ -1626,8 +1622,7 @@ Reply:
       "bestblock": "228729",
       "numofeligiblevotes": 5312,
       "quorumpercentage": 20,
-      "passpercentage": 60,
-      "testnet": true
+      "passpercentage": 60
     },
 		"censorshiprecord": {
 			"token": "fc320c72bb55b6233a8df388109bf494081f007395489a7cdc945e05d656a467",
@@ -1711,8 +1706,7 @@ Reply:
       "bestblock": "228729",
       "numofeligiblevotes": 5312,
       "quorumpercentage": 20,
-      "passpercentage": 60,
-      "testnet": true
+      "passpercentage": 60
     },
     "censorshiprecord": {
       "token": "c378e0735b5650c9e79f70113323077b107b0d778547f0d40592955668f21ebf",
@@ -1804,8 +1798,7 @@ Reply:
         "bestblock": "228729",
         "numofeligiblevotes": 5312,
         "quorumpercentage": 20,
-        "passpercentage": 60,
-        "testnet": true
+        "passpercentage": 60
       },
       "censorshiprecord": {
         "token": "c9aaf64f9474a0c2aa2227363e3ba575e1926acd4257deba42dc6d5ab85f2cd2",
@@ -1851,8 +1844,7 @@ Reply:
         "bestblock": "228729",
         "numofeligiblevotes": 5312,
         "quorumpercentage": 20,
-        "passpercentage": 60,
-        "testnet": true
+        "passpercentage": 60
       },
       "censorshiprecord": {
           "token": "f08dc22069f854856e27a6cb107e10064a85b85b2a4db41755d54f90bd30b84f",
@@ -2946,7 +2938,6 @@ This is a shortened representation of a user, used for lists.
 | numofeligiblevotes | int | Total number of eligible votes |
 | quorumpercentage | uint32 | Percent of eligible votes required for quorum |
 | passpercentage | uint32 | Percent of total votes required to pass |
-| testnet | boolean | True if voting is using testnet tickets |
 
 ### `Censorship record`
 
