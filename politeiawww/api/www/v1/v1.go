@@ -390,27 +390,26 @@ type VoteSummary struct {
 	NumOfEligibleVotes int                `json:"numofeligiblevotes"` // Total number of eligible votes
 	QuorumPercentage   uint32             `json:"quorumpercentage"`   // Percent of eligible votes required for quorum
 	PassPercentage     uint32             `json:"passpercentage"`     // Percent of total votes required to pass
-	TestNet            bool               `json:"testnet"`            // Is the vote using mainnet or testnet tickets
 }
 
 // ProposalRecord is an entire proposal and it's content.
 type ProposalRecord struct {
-	Name                string      `json:"name"`                          // Suggested short proposal name
-	State               PropStateT  `json:"state"`                         // Current state of proposal
-	Status              PropStatusT `json:"status"`                        // Current status of proposal
-	Timestamp           int64       `json:"timestamp"`                     // Last update of proposal
-	UserId              string      `json:"userid"`                        // ID of user who submitted proposal
-	Username            string      `json:"username"`                      // Username of user who submitted proposal
-	PublicKey           string      `json:"publickey"`                     // Key used for signature.
-	Signature           string      `json:"signature"`                     // Signature of merkle root
-	Files               []File      `json:"files"`                         // Files that make up the proposal
-	NumComments         uint        `json:"numcomments"`                   // Number of comments on the proposal
-	Version             string      `json:"version"`                       // Record version
-	StatusChangeMessage string      `json:"statuschangemessage,omitempty"` // Message associated to the status change
-	PublishedAt         int64       `json:"publishedat,omitempty"`         // The timestamp of when the proposal has been published
-	CensoredAt          int64       `json:"censoredat,omitempty"`          // The timestamp of when the proposal has been censored
-	AbandonedAt         int64       `json:"abandonedat,omitempty"`         // The timestamp of when the proposal has been abandoned
-	VoteSummary         VoteSummary `json:"votesummary"`                   // Summary of current state of voting process
+	Name                string       `json:"name"`                          // Suggested short proposal name
+	State               PropStateT   `json:"state"`                         // Current state of proposal
+	Status              PropStatusT  `json:"status"`                        // Current status of proposal
+	Timestamp           int64        `json:"timestamp"`                     // Last update of proposal
+	UserId              string       `json:"userid"`                        // ID of user who submitted proposal
+	Username            string       `json:"username"`                      // Username of user who submitted proposal
+	PublicKey           string       `json:"publickey"`                     // Key used for signature.
+	Signature           string       `json:"signature"`                     // Signature of merkle root
+	Files               []File       `json:"files"`                         // Files that make up the proposal
+	NumComments         uint         `json:"numcomments"`                   // Number of comments on the proposal
+	Version             string       `json:"version"`                       // Record version
+	StatusChangeMessage string       `json:"statuschangemessage,omitempty"` // Message associated to the status change
+	PublishedAt         int64        `json:"publishedat,omitempty"`         // The timestamp of when the proposal has been published
+	CensoredAt          int64        `json:"censoredat,omitempty"`          // The timestamp of when the proposal has been censored
+	AbandonedAt         int64        `json:"abandonedat,omitempty"`         // The timestamp of when the proposal has been abandoned
+	VoteSummary         *VoteSummary `json:"votesummary"`                   // Summary of current state of voting process
 
 	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
 }
@@ -1068,10 +1067,12 @@ type VoteOptionResult struct {
 }
 
 // VoteStatus is a command to fetch the the current vote status for a single
-// public proposal
+// public proposal.
+// *** This is deprecated by VoteSummary in Proposal Details. ***
 type VoteStatus struct{}
 
 // VoteStatusReply describes the vote status for a given proposal
+// *** This is deprecated by VoteSummary in Proposal Details. ***
 type VoteStatusReply struct {
 	Token              string             `json:"token"`              // Censorship token
 	Status             PropVoteStatusT    `json:"status"`             // Vote status (finished, started, etc)
@@ -1085,9 +1086,11 @@ type VoteStatusReply struct {
 }
 
 // GetAllVoteStatus attempts to fetch the vote status of all public propsals
+// *** This is deprecated by VoteSummary in Proposal Details. ***
 type GetAllVoteStatus struct{}
 
 // GetAllVoteStatusReply returns the vote status of all public proposals
+// *** This is deprecated by VoteSummary in Proposal Details. ***
 type GetAllVoteStatusReply struct {
 	VotesStatus []VoteStatusReply `json:"votesstatus"` // Vote status of all public proposals
 }

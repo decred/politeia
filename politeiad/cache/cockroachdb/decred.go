@@ -886,16 +886,16 @@ func (d *decred) cmdTokenInventory(payload string) (string, error) {
 
 // getAuthorizeVotesForRecords looks up vote authorizations in the cache for
 // a set of records.
-func (d *decred) getAuthorizeVotesForRecords(recordsMap map[string]Record) (map[string]AuthorizeVote, error) {
+func (d *decred) getAuthorizeVotesForRecords(records map[string]Record) (map[string]AuthorizeVote, error) {
 
 	avMap := make(map[string]AuthorizeVote)
 
-	if len(recordsMap) == 0 {
+	if len(records) == 0 {
 		return avMap, nil
 	}
 
-	keys := make([]string, 0, len(recordsMap))
-	for token, record := range recordsMap {
+	keys := make([]string, 0, len(records))
+	for token, record := range records {
 		keys = append(keys, token+strconv.FormatUint(record.Version, 10))
 	}
 
@@ -917,15 +917,15 @@ func (d *decred) getAuthorizeVotesForRecords(recordsMap map[string]Record) (map[
 
 // getStartVotesForAuthorizeVotes looks up the start votes for records which
 // have been authorized to start voting.
-func (d *decred) getStartVotesForAuthorizeVotes(avMap map[string]AuthorizeVote) (map[string]StartVote, error) {
+func (d *decred) getStartVotes(authorizeVotes map[string]AuthorizeVote) (map[string]StartVote, error) {
 	svMap := make(map[string]StartVote)
 
-	if len(avMap) == 0 {
+	if len(authorizeVotes) == 0 {
 		return svMap, nil
 	}
 
-	tokens := make([]string, 0, len(avMap))
-	for token := range avMap {
+	tokens := make([]string, 0, len(authorizeVotes))
+	for token := range authorizeVotes {
 		tokens = append(tokens, token)
 	}
 
@@ -944,40 +944,6 @@ func (d *decred) getStartVotesForAuthorizeVotes(avMap map[string]AuthorizeVote) 
 	}
 
 	return svMap, nil
-}
-
-// getVoteResultsForStartVotes retrieves vote results for records that have
-// begun the voting process. Results are lazily loaded into this table, so
-// some results will need to be manually looked up in the CastVote table.
-func (d *decred) getVoteResultsForStartVotes(svMap map[string]StartVote) (map[string][]decredplugin.VoteOptionResult, error) {
-
-	resMap := make(map[string][]decredplugin.VoteOptionResult)
-
-	if len(svMap) == 0 {
-		return resMap, nil
-	}
-
-	tokens := make([]string, 0, len(svMap))
-	for token := range svMap {
-		tokens = append(tokens, token)
-	}
-
-	vrs := make([]VoteResults, 0, len(tokens))
-	err := d.recordsdb.
-		Where("token IN (?)", tokens).
-		Preload("Results").
-		Preload("Results.Option").
-		Find(&vrs).
-		Error
-	if err != nil {
-		return nil, err
-	}
-
-	for _, vr := range vrs {
-		resMap[vr.Token] = convertVoteOptionResultsToDecred(vr.Results)
-	}
-
-	return resMap, nil
 }
 
 // lookupResultsForVoteOptions looks in the CastVote to see how many votes
@@ -1010,28 +976,52 @@ func (d *decred) lookupResultsForVoteOptions(options []VoteOption) ([]decredplug
 	return results, nil
 }
 
-// manuallyLookupNewVoteResults manually looks up vote results for records
-// for which voting has started but there is no vote option result in resMap.
-// This is meant to be called after resMap has been populated with the records
-// for which the vote results have been lazily loaded into the VoteResults
-// table.
-func (d *decred) manuallyLookupNewVoteResults(resMap map[string][]decredplugin.VoteOptionResult, svMap map[string]StartVote) error {
+// getVoteResultsForStartVotes retrieves vote results for records that have
+// begun the voting process. Results are lazily loaded into this table, so
+// some results are manually looked up in the CastVote table.
+func (d *decred) getVoteResults(startVotes map[string]StartVote) (map[string][]decredplugin.VoteOptionResult, error) {
 
-	for token, sv := range svMap {
-		_, ok := resMap[token]
+	results := make(map[string][]decredplugin.VoteOptionResult)
+
+	if len(startVotes) == 0 {
+		return results, nil
+	}
+
+	tokens := make([]string, 0, len(startVotes))
+	for token := range startVotes {
+		tokens = append(tokens, token)
+	}
+
+	vrs := make([]VoteResults, 0, len(tokens))
+	err := d.recordsdb.
+		Where("token IN (?)", tokens).
+		Preload("Results").
+		Preload("Results.Option").
+		Find(&vrs).
+		Error
+	if err != nil {
+		return nil, err
+	}
+
+	for _, vr := range vrs {
+		results[vr.Token] = convertVoteOptionResultsToDecred(vr.Results)
+	}
+
+	for token, sv := range startVotes {
+		_, ok := results[token]
 		if ok {
 			continue
 		}
 
-		results, err := d.lookupResultsForVoteOptions(sv.Options)
+		res, err := d.lookupResultsForVoteOptions(sv.Options)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
-		resMap[token] = results
+		results[token] = res
 	}
 
-	return nil
+	return results, nil
 }
 
 func (d *decred) cmdBatchVoteSummary(payload string) (string, error) {
@@ -1055,44 +1045,37 @@ func (d *decred) cmdBatchVoteSummary(payload string) (string, error) {
 	}
 	defer rows.Close()
 
-	recordsMap := make(map[string]Record)
+	records := make(map[string]Record)
 	for rows.Next() {
 		var r Record
 		err := d.recordsdb.ScanRows(rows, &r)
 		if err != nil {
 			return "", err
 		}
-		recordsMap[r.Token] = r
+		records[r.Token] = r
 	}
 
-	avMap, err := d.getAuthorizeVotesForRecords(recordsMap)
+	authorizeVotes, err := d.getAuthorizeVotesForRecords(records)
 	if err != nil {
 		return "", fmt.Errorf("lookup authorize votes: %v", err)
 	}
 
-	// Check the votes which have been authorized to see if they have
-	// been started
-	svMap, err := d.getStartVotesForAuthorizeVotes(avMap)
+	startVotes, err := d.getStartVotes(authorizeVotes)
 	if err != nil {
 		return "", fmt.Errorf("lookup start vote: %v", err)
 	}
 
-	// Results are lazily loaded into this table, so some records who's voting
-	// has started will need to be manually looked up
-	resMap, err := d.getVoteResultsForStartVotes(svMap)
+	results, err := d.getVoteResults(startVotes)
 	if err != nil {
 		return "", fmt.Errorf("lookup vote results: %v", err)
 	}
 
-	// Fill resMap with the results not yet lazily loaded
-	d.manuallyLookupNewVoteResults(resMap, svMap)
-
-	summariesMap := make(map[string]decredplugin.VoteSummaryReply)
+	summaries := make(map[string]decredplugin.VoteSummaryReply)
 	for _, token := range bvs.Tokens {
 
-		av := avMap[token]
-		sv := svMap[token]
-		results := resMap[token]
+		av := authorizeVotes[token]
+		sv := startVotes[token]
+		res := results[token]
 
 		var endHeight string
 		if sv.EndHeight != 0 {
@@ -1105,13 +1088,13 @@ func (d *decred) cmdBatchVoteSummary(payload string) (string, error) {
 			EligibleTicketCount: sv.EligibleTicketCount,
 			QuorumPercentage:    sv.QuorumPercentage,
 			PassPercentage:      sv.PassPercentage,
-			Results:             results,
+			Results:             res,
 		}
-		summariesMap[token] = vsr
+		summaries[token] = vsr
 	}
 
 	bvsr := decredplugin.BatchVoteSummaryReply{
-		Summaries: summariesMap,
+		Summaries: summaries,
 	}
 	reply, err := decredplugin.EncodeBatchVoteSummaryReply(bvsr)
 	if err != nil {
@@ -1203,25 +1186,9 @@ func (d *decred) cmdVoteSummary(payload string) (string, error) {
 	}
 
 	// Lookup vote results manually
-	for _, v := range sv.Options {
-		var votes uint64
-		tokenVoteBit := v.Token + strconv.FormatUint(v.Bits, 16)
-		err := d.recordsdb.
-			Model(&CastVote{}).
-			Where("token_vote_bit = ?", tokenVoteBit).
-			Count(&votes).
-			Error
-		if err != nil {
-			return "", fmt.Errorf("count cast votes: %v", err)
-		}
-
-		results = append(results,
-			decredplugin.VoteOptionResult{
-				ID:          v.ID,
-				Description: v.Description,
-				Bits:        v.Bits,
-				Votes:       votes,
-			})
+	results, err = d.lookupResultsForVoteOptions(sv.Options)
+	if err != nil {
+		return "", fmt.Errorf("count cast votes: %v", err)
 	}
 
 sendReply:

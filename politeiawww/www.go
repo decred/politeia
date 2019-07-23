@@ -35,7 +35,6 @@ import (
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	"github.com/google/uuid"
-	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
 	"github.com/robfig/cron"
@@ -494,7 +493,7 @@ func _main() error {
 	}
 	fCSRF.Close()
 
-	csrfHandle := csrf.Protect(csrfKey, csrf.Path("/"))
+	//csrfHandle := csrf.Protect(csrfKey, csrf.Path("/"))
 
 	p.router = mux.NewRouter()
 	p.router.Use(recoverMiddleware)
@@ -600,7 +599,7 @@ func _main() error {
 				},
 			}
 			srv := &http.Server{
-				Handler:   csrfHandle(p.router),
+				Handler:   p.router, //csrfHandle(p.router),
 				Addr:      listen,
 				TLSConfig: cfg,
 				TLSNextProto: make(map[string]func(*http.Server,
