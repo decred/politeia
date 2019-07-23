@@ -888,10 +888,10 @@ func (d *decred) cmdTokenInventory(payload string) (string, error) {
 // a set of records.
 func (d *decred) getAuthorizeVotesForRecords(records map[string]Record) (map[string]AuthorizeVote, error) {
 
-	avMap := make(map[string]AuthorizeVote)
+	authorizeVotes := make(map[string]AuthorizeVote)
 
 	if len(records) == 0 {
-		return avMap, nil
+		return authorizeVotes, nil
 	}
 
 	keys := make([]string, 0, len(records))
@@ -909,19 +909,19 @@ func (d *decred) getAuthorizeVotesForRecords(records map[string]Record) (map[str
 	}
 
 	for _, av := range avs {
-		avMap[av.Token] = av
+		authorizeVotes[av.Token] = av
 	}
 
-	return avMap, nil
+	return authorizeVotes, nil
 }
 
 // getStartVotesForAuthorizeVotes looks up the start votes for records which
 // have been authorized to start voting.
 func (d *decred) getStartVotes(authorizeVotes map[string]AuthorizeVote) (map[string]StartVote, error) {
-	svMap := make(map[string]StartVote)
+	startVotes := make(map[string]StartVote)
 
 	if len(authorizeVotes) == 0 {
-		return svMap, nil
+		return startVotes, nil
 	}
 
 	tokens := make([]string, 0, len(authorizeVotes))
@@ -940,10 +940,10 @@ func (d *decred) getStartVotes(authorizeVotes map[string]AuthorizeVote) (map[str
 		return nil, err
 	}
 	for _, sv := range svs {
-		svMap[sv.Token] = sv
+		startVotes[sv.Token] = sv
 	}
 
-	return svMap, nil
+	return startVotes, nil
 }
 
 // lookupResultsForVoteOptions looks in the CastVote to see how many votes
