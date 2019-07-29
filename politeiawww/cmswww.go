@@ -121,8 +121,8 @@ func (p *politeiawww) handleInvoiceDetails(w http.ResponseWriter, r *http.Reques
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-// handleUserInvoices handles the request to get all of the  of a new contractor by an
-// administrator for the Contractor Management System.
+// handleUserInvoices handles the request to get all of the invoices from the
+// currently logged in user.
 func (p *politeiawww) handleUserInvoices(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleUserInvoices")
 
@@ -134,6 +134,30 @@ func (p *politeiawww) handleUserInvoices(w http.ResponseWriter, r *http.Request)
 	}
 
 	reply, err := p.processUserInvoices(user)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleUserInvoices: processUserInvoices %v", err)
+		return
+	}
+
+	// Reply with the verification token.
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+// handleAdminUserInvoices handles the request to get all of the invoices of a
+// user by an administrator for the Contractor Management System.
+func (p *politeiawww) handleAdminUserInvoices(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleAdminUserInvoices")
+
+	var aui cms.AdminUserInvoices
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&aui); err != nil {
+		RespondWithError(w, r, 0, "handleAdminUserInvoices: unmarshal", www.UserError{
+			ErrorCode: www.ErrorStatusInvalidInput,
+		})
+		return
+	}
+
+	reply, err := p.processAdminUserInvoices(aui)
 	if err != nil {
 		RespondWithError(w, r, 0, "handleUserInvoices: processUserInvoices %v", err)
 		return
@@ -485,4 +509,6 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		p.handlePayInvoices, permissionAdmin)
 	p.addRoute(http.MethodPost, cms.RouteLineItemPayouts,
 		p.handleLineItemPayouts, permissionAdmin)
+	p.addRoute(http.MethodPost, cms.RouteAdminUserInvoices,
+		p.handleAdminUserInvoices, permissionAdmin)
 }
