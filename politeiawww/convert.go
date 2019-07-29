@@ -556,7 +556,10 @@ func convertDatabaseInvoiceToInvoiceRecord(dbInvoice cmsdatabase.Invoice) *cms.I
 	invRec.UserID = dbInvoice.UserID
 	invRec.PublicKey = dbInvoice.PublicKey
 	invRec.Version = dbInvoice.Version
-
+	invRec.Signature = dbInvoice.UserSignature
+	invRec.CensorshipRecord = www.CensorshipRecord{
+		Token: dbInvoice.Token,
+	}
 	invInput := cms.InvoiceInput{
 		ContractorContact:  dbInvoice.ContractorContact,
 		ContractorRate:     dbInvoice.ContractorRate,
