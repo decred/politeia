@@ -34,9 +34,7 @@ func (p *politeiawww) addWatchAddress(address string) {
 		log.Errorf("addWatchAddress: subscribe '%v': %v",
 			address, err)
 		p.reconnectWS()
-		if p.wsDcrdata != nil {
-			p.addWatchAddress(address)
-		}
+		p.addWatchAddress(address)
 		return
 	}
 	log.Infof("Subscribed to listen: %v", address)
@@ -48,9 +46,7 @@ func (p *politeiawww) removeWatchAddress(address string) {
 		log.Errorf("removeWatchAddress: unsubscribe '%v': %v",
 			address, err)
 		p.reconnectWS()
-		if p.wsDcrdata != nil {
-			p.removeWatchAddress(address)
-		}
+		p.removeWatchAddress(address)
 		return
 	}
 	log.Infof("Unsubscribed: %v", address)
