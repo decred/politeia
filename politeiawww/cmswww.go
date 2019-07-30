@@ -12,6 +12,7 @@ import (
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 )
 
@@ -158,9 +159,15 @@ func (p *politeiawww) handleAdminUserInvoices(w http.ResponseWriter, r *http.Req
 			})
 		return
 	}
-	// Get userid from path parameters
-	pathParams := mux.Vars(r)
-	aui.UserID = pathParams["userid"]
+
+	_, err = uuid.Parse(aui.UserID)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleAdminUserInvoices: ParseUint",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
 
 	reply, err := p.processAdminUserInvoices(aui)
 	if err != nil {
