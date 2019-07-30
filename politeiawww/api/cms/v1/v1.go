@@ -22,6 +22,7 @@ const (
 	RouteSetInvoiceStatus    = "/invoices/{token:[A-z0-9]{64}}/status"
 	RouteUserInvoices        = "/user/invoices"
 	RouteAdminInvoices       = "/admin/invoices"
+	RouteAdminUserInvoices   = "/admin/userinvoices"
 	RouteGeneratePayouts     = "/admin/generatepayouts"
 	RouteLineItemPayouts     = "/admin/lineitempayouts"
 	RoutePayInvoices         = "/admin/payinvoices"
@@ -344,8 +345,18 @@ type AdminInvoices struct {
 	Status InvoiceStatusT `json:"status"` // Current status of invoice
 }
 
-// AdminInvoiceReply is used to reply to an admin invoices command.
+// AdminInvoicesReply is used to reply to an admin invoices command.
 type AdminInvoicesReply struct {
+	Invoices []InvoiceRecord `json:"invoices"`
+}
+
+// AdminUserInvoices is used to get all invoices from a given user
+type AdminUserInvoices struct {
+	UserID string `json:"userid"` // Invoices from a given user
+}
+
+// AdminUserInvoicesReply is used to reply to a user invoices commands.
+type AdminUserInvoicesReply struct {
 	Invoices []InvoiceRecord `json:"invoices"`
 }
 

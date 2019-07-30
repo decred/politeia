@@ -12,6 +12,7 @@ import (
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 )
 
@@ -121,8 +122,8 @@ func (p *politeiawww) handleInvoiceDetails(w http.ResponseWriter, r *http.Reques
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-// handleUserInvoices handles the request to get all of the  of a new contractor by an
-// administrator for the Contractor Management System.
+// handleUserInvoices handles the request to get all of the invoices from the
+// currently logged in user.
 func (p *politeiawww) handleUserInvoices(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleUserInvoices")
 
@@ -140,6 +141,40 @@ func (p *politeiawww) handleUserInvoices(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Reply with the verification token.
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+// handleAdminUserInvoices handles the request to get all of the invoices of a
+// user by an administrator for the Contractor Management System.
+func (p *politeiawww) handleAdminUserInvoices(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleAdminUserInvoices")
+
+	var aui cms.AdminUserInvoices
+	// get version from query string parameters
+	err := util.ParseGetParams(r, &aui)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleAdminUserInvoices: ParseGetParams",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	_, err = uuid.Parse(aui.UserID)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleAdminUserInvoices: ParseUint",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	reply, err := p.processAdminUserInvoices(aui)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleAdminUserInvoices: processAdminUserInvoices %v", err)
+		return
+	}
+
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
@@ -478,4 +513,6 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		p.handlePayInvoices, permissionAdmin)
 	p.addRoute(http.MethodPost, cms.RouteLineItemPayouts,
 		p.handleLineItemPayouts, permissionAdmin)
+	p.addRoute(http.MethodGet, cms.RouteAdminUserInvoices,
+		p.handleAdminUserInvoices, permissionAdmin)
 }

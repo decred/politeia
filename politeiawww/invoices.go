@@ -1262,6 +1262,32 @@ func (p *politeiawww) processUserInvoices(user *user.User) (*cms.UserInvoicesRep
 	return &reply, nil
 }
 
+// processAdminUserInvoices fetches all invoices that are currently stored in the
+// cmsdb for the logged in user.
+func (p *politeiawww) processAdminUserInvoices(aui cms.AdminUserInvoices) (*cms.AdminUserInvoicesReply, error) {
+	log.Tracef("processAdminUserInvoices")
+
+	dbInvs, err := p.cmsDB.InvoicesByUserID(aui.UserID)
+	if err != nil {
+		return nil, err
+	}
+
+	invRecs := make([]cms.InvoiceRecord, 0, len(dbInvs))
+	for _, v := range dbInvs {
+		inv, err := p.getInvoice(v.Token)
+		if err != nil {
+			return nil, err
+		}
+		invRecs = append(invRecs, *inv)
+	}
+
+	// Setup reply
+	reply := cms.AdminUserInvoicesReply{
+		Invoices: invRecs,
+	}
+	return &reply, nil
+}
+
 // processAdminInvoices fetches all invoices that are currently stored in the
 // cmsdb for an administrator, based on request fields (month/year and/or status).
 func (p *politeiawww) processAdminInvoices(ai cms.AdminInvoices) (*cms.UserInvoicesReply, error) {
