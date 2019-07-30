@@ -188,14 +188,7 @@ func (p *politeiawww) handleAdminInvoices(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleAdminInvoices: getSessionUser %v", err)
-		return
-	}
-
-	reply, err := p.processAdminInvoices(ai, user)
+	reply, err := p.processAdminInvoices(ai)
 	if err != nil {
 		RespondWithError(w, r, 0, "handleAdminInvoices: processAdminInvoices %v", err)
 		return
