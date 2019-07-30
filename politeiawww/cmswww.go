@@ -149,21 +149,25 @@ func (p *politeiawww) handleAdminUserInvoices(w http.ResponseWriter, r *http.Req
 	log.Tracef("handleAdminUserInvoices")
 
 	var aui cms.AdminUserInvoices
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&aui); err != nil {
-		RespondWithError(w, r, 0, "handleAdminUserInvoices: unmarshal", www.UserError{
-			ErrorCode: www.ErrorStatusInvalidInput,
-		})
+	// get version from query string parameters
+	err := util.ParseGetParams(r, &aui)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleAdminUserInvoices: ParseGetParams",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
 		return
 	}
+	// Get userid from path parameters
+	pathParams := mux.Vars(r)
+	aui.UserID = pathParams["userid"]
 
 	reply, err := p.processAdminUserInvoices(aui)
 	if err != nil {
-		RespondWithError(w, r, 0, "handleUserInvoices: processUserInvoices %v", err)
+		RespondWithError(w, r, 0, "handleAdminUserInvoices: processAdminUserInvoices %v", err)
 		return
 	}
 
-	// Reply with the verification token.
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
@@ -509,6 +513,6 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		p.handlePayInvoices, permissionAdmin)
 	p.addRoute(http.MethodPost, cms.RouteLineItemPayouts,
 		p.handleLineItemPayouts, permissionAdmin)
-	p.addRoute(http.MethodPost, cms.RouteAdminUserInvoices,
+	p.addRoute(http.MethodGet, cms.RouteAdminUserInvoices,
 		p.handleAdminUserInvoices, permissionAdmin)
 }
