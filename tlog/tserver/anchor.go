@@ -16,6 +16,8 @@ import (
 	"github.com/google/trillian"
 	"github.com/google/trillian/client"
 	tcrypto "github.com/google/trillian/crypto"
+	"github.com/google/trillian/merkle"
+	"github.com/google/trillian/merkle/hashers"
 	"github.com/google/trillian/types"
 	"google.golang.org/grpc/codes"
 )
@@ -449,7 +451,7 @@ func (t *tserver) waitForAchor(trees []*trillian.Tree, anchors []v1.DataAnchor, 
 			size, ok := t.dirty[v.RecordId]
 			if !ok {
 				// XXX panic?
-				log.Criticalf("anchorRecords id dissapeared: %v",
+				log.Criticalf("anchorRecords id disappeared: %v",
 					v.RecordId)
 				return
 			}
@@ -494,7 +496,38 @@ func (t *tserver) fsckRecord(tree *trillian.Tree, lrv1 *types.LogRootV1) error {
 		return err
 	}
 
-	// XXX perform trillian tree coherency test
+	// Perform tree coherency test
+	gcprr, err := t.client.GetConsistencyProof(t.ctx,
+		&trillian.GetConsistencyProofRequest{
+			LogId:          tree.TreeId,
+			FirstTreeSize:  1,
+			SecondTreeSize: int64(lrv1.TreeSize),
+		})
+	if err != nil {
+		return err
+	}
+	lh, err := hashers.NewLogHasher(trillian.HashStrategy_RFC6962_SHA256)
+	if err != nil {
+		return err
+	}
+	verifier := merkle.NewLogVerifier(lh)
+	// The log root hash when TreeSize=1 is just the MerkleLeafHash
+	// of the single leaf.
+	var root1 []byte
+	for _, v := range glbrr.Leaves {
+		if v.LeafIndex == 0 {
+			root1 = v.MerkleLeafHash
+			break
+		}
+	}
+	if root1 == nil {
+		return fmt.Errorf("leaf index 0 not found")
+	}
+	err = verifier.VerifyConsistencyProof(1, int64(lrv1.TreeSize),
+		root1, lrv1.RootHash, gcprr.Proof.Hashes)
+	if err != nil {
+		return err
+	}
 
 	// Walk leaves backwards
 	for x := len(glbrr.Leaves) - 1; x >= 0; x-- {

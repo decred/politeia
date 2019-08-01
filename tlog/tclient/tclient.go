@@ -81,42 +81,20 @@ func usage() {
 	fmt.Fprintf(os.Stderr, " flags:\n")
 	flag.PrintDefaults()
 	fmt.Fprintf(os.Stderr, "\n actions:\n")
-	// XXX fix doco
-	//fmt.Fprintf(os.Stderr, "  newtree           - create new tree"+
-	//	"\n")
-	//fmt.Fprintf(os.Stderr, "\n actions:\n")
-	//fmt.Fprintf(os.Stderr, "  append            - append file to tree "+
-	//	"<treeid> <filename>\n")
-	//fmt.Fprintf(os.Stderr, "  recordget         - retrieve record "+
-	//	"<treeid> <recordid>\n")
-
-	//fmt.Fprintf(os.Stderr, "  plugins           - Retrieve plugin "+
-	//	"inventory\n")
-	//fmt.Fprintf(os.Stderr, "  inventory         - Inventory records "+
-	//	"<vetted count> <branches count>\n")
-	//fmt.Fprintf(os.Stderr, "  new               - Create new record "+
-	//	"[metadata<id>]... <filename>...\n")
-	//fmt.Fprintf(os.Stderr, "  getunvetted       - Retrieve record "+
-	//	"<id>\n")
-	//fmt.Fprintf(os.Stderr, "  setunvettedstatus - Set unvetted record "+
-	//	"status <publish|censor> <id> [actionmdid:metadata]...\n")
-	//fmt.Fprintf(os.Stderr, "  updateunvetted    - Update unvetted record "+
-	//	"[actionmdid:metadata]... <actionfile:filename>... "+
-	//	"token:<token>\n")
-	//fmt.Fprintf(os.Stderr, "  updatevetted      - Update vetted record "+
-	//	"[actionmdid:metadata]... <actionfile:filename>... "+
-	//	"token:<token>\n")
-	//fmt.Fprintf(os.Stderr, "  updatevettedmd    - Update vetted record "+
-	//	"metadata [actionmdid:metadata]... token:<token>\n")
-	//fmt.Fprintf(os.Stderr, "\n")
-	//fmt.Fprintf(os.Stderr, " metadata<id> is the word metadata followed "+
-	//	"by digits. Example with 2 metadata records "+
-	//	"metadata0:{\"moo\":\"12\",\"blah\":\"baz\"} "+
-	//	"metadata1:{\"lala\":42}\n")
-	//fmt.Fprintf(os.Stderr, " actionmdid is an action + metadatastream id "+
-	//	"E.g. appendmetadata0:{\"foo\":\"bar\"} or "+
-	//	"overwritemetadata12:{\"bleh\":\"truff\"}\n")
-
+	fmt.Fprintf(os.Stderr, "  list              - List all records "+
+		"\n")
+	fmt.Fprintf(os.Stderr, "  publickey         - Retrieve the tserver public "+
+		"key\n")
+	fmt.Fprintf(os.Stderr, "  recordnew         - Create a new record "+
+		"[key=value]... <filename>...\n")
+	fmt.Fprintf(os.Stderr, "  recordappend      - Append a record "+
+		"<recordid> [key=value]... <filename>...\n")
+	fmt.Fprintf(os.Stderr, "  recordget         - Retrieve a record "+
+		"<id>\n")
+	fmt.Fprintf(os.Stderr, "  recordentriesget  - Retrieve the entries for a "+
+		"record <id,merklehash>...\n")
+	fmt.Fprintf(os.Stderr, "  fsck              - Run fsck on a record "+
+		"<id>\n")
 	fmt.Fprintf(os.Stderr, "\n")
 }
 
@@ -472,7 +450,7 @@ func recordNew() error {
 		fmt.Printf("\nSTH LogRootV1:\n")
 		printLogRootV1(*lrSTH)
 
-		fmt.Printf("\n")
+		fmt.Printf("\nQueued leaves:\n")
 		for _, v := range rnr.Proofs {
 			printQueuedLeaf(v.QueuedLeaf)
 			fmt.Printf("\n")
@@ -550,14 +528,11 @@ func recordAppend() error {
 		}
 	}
 
-	// XXX fix printing
 	if !*printJson {
 		fmt.Printf("\nSTH:\n")
 		printRoot(rar.STH)
-		//fmt.Printf("\nSTH LogRootV1:\n")
-		//printLogRootV1(*lrSTH)
 
-		fmt.Printf("\n")
+		fmt.Printf("\nQueuedLeaves\n")
 		for _, v := range rar.Proofs {
 			printQueuedLeaf(v.QueuedLeaf)
 			fmt.Printf("\n")
@@ -621,7 +596,25 @@ func recordGet() error {
 
 	// Verify record entry proofs
 	for _, v := range rgr.Proofs {
-		err := util.RecordEntryProofVerify(publicKey, v)
+		// XXX anchor records won't have a public key or signature.
+		// This is a temporary workaround until trillian properly
+		// supports ed25519. Skip verification for anchor records
+		// until this is fixed.
+		b, err := base64.StdEncoding.DecodeString(v.RecordEntry.DataHint)
+		if err != nil {
+			return err
+		}
+		var dh v1.DataDescriptor
+		err = json.Unmarshal(b, &dh)
+		if err != nil {
+			return err
+		}
+		if dh.Type == v1.DataTypeStructure &&
+			dh.Descriptor == v1.DataDescriptorAnchor {
+			continue
+		}
+
+		err = util.RecordEntryProofVerify(publicKey, v)
 		if err != nil {
 			return err
 		}
@@ -630,9 +623,8 @@ func recordGet() error {
 	if !*printJson {
 		fmt.Printf("\nSTH:\n")
 		printRoot(rgr.STH)
-		fmt.Printf("\nLeaves:\n")
 
-		// XXX fix printing
+		fmt.Printf("\nLeaves:\n")
 		for _, v := range rgr.Proofs {
 			printLeaf(*v.Leaf)
 			fmt.Printf("\n")
@@ -715,6 +707,40 @@ func recordEntriesGet() error {
 		err := util.RecordEntryProofVerify(publicKey, v)
 		if err != nil {
 			return err
+		}
+	}
+
+	if !*printJson {
+		fmt.Printf("\nLeaves:\n")
+		for _, v := range rgr.Proofs {
+			printLeaf(*v.Leaf)
+			fmt.Printf("\n")
+		}
+
+		fmt.Printf("\nRecords:\n")
+		for _, v := range rgr.Proofs {
+			printRecordEntry(*v.RecordEntry)
+			fmt.Printf("\n")
+		}
+
+		fmt.Printf("\nAnchors:\n")
+		for _, v := range rgr.Proofs {
+			if v.Anchor == nil {
+				fmt.Printf("No anchor yet\n\n")
+				continue
+			}
+			printAnchor(*v.Anchor)
+			fmt.Printf("\n")
+		}
+
+		fmt.Printf("\nProofs:\n")
+		for _, v := range rgr.Proofs {
+			if v.Proof == nil {
+				fmt.Printf("No proof yet\n\n")
+				continue
+			}
+			printProof(*v.Proof)
+			fmt.Printf("\n")
 		}
 	}
 

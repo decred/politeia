@@ -12,6 +12,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
+	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	v1 "github.com/decred/politeia/tlog/api/v1"
 	"github.com/google/trillian"
@@ -54,19 +55,19 @@ func RecordEntryVerify(record v1.RecordEntry) error {
 	// Decode identity
 	id, err := IdentityFromString(record.PublicKey)
 	if err != nil {
-		return err
+		return fmt.Errorf("invalid pubkey: %v", err)
 	}
 
 	// Decode hash
 	hash, err := hex.DecodeString(record.Hash)
 	if err != nil {
-		return err
+		return fmt.Errorf("invalid record hash: %v", err)
 	}
 
 	// Decode signature
 	s, err := hex.DecodeString(record.Signature)
 	if err != nil {
-		return err
+		return fmt.Errorf("invalid signature: %v", err)
 	}
 	var signature [64]byte
 	copy(signature[:], s)
@@ -74,8 +75,9 @@ func RecordEntryVerify(record v1.RecordEntry) error {
 	// Decode data
 	data, err := base64.StdEncoding.DecodeString(record.Data)
 	if err != nil {
-		return err
+		return fmt.Errorf("invalid record data: %v", err)
 	}
+
 	// Verify hash
 	h := sha256.New()
 	h.Write(data)
@@ -163,7 +165,24 @@ func RecordEntryProofVerify(pk crypto.PublicKey, rep v1.RecordEntryProof) error 
 		return fmt.Errorf("VerifyInclusionByHash: %v", err)
 	}
 
-	// XXX Verify anchor merkle path
+	// Verify anchor merkle path
+	_, err = merkle.VerifyAuthPath(&rep.Anchor.MerklePath)
+	if err != nil {
+		return fmt.Errorf("VerifyAuthPath: %v", err)
+	}
+
+	// Verify that the log root hash is included in the anchor
+	var found bool
+	h := Hash(rep.STH.LogRoot)
+	for _, v := range rep.Anchor.MerklePath.Hashes {
+		if bytes.Equal(h[:], v[:]) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("anchor does not contain log root hash")
+	}
 
 	return nil
 }

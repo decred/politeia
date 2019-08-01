@@ -133,7 +133,7 @@ type RecordNewReply struct {
 	Tree        trillian.Tree          `json:"tree"`        // TreeId is the record id
 	InitialRoot trillian.SignedLogRoot `json:"initialroot"` // Tree creation root
 	STH         trillian.SignedLogRoot `json:"sth"`         // Signed tree head after record addition
-	Proofs      []QueuedLeafProof      `json"proofs"`       // Queued leaves and their proofs
+	Proofs      []QueuedLeafProof      `json:"proofs"`      // Queued leaves and their proofs
 }
 
 // RecordAppend adds new record entries to a record.  The server will not
@@ -150,8 +150,8 @@ type RecordAppend struct {
 // that were append to a record. It returns trillian types so that the client
 // can perform verifications.
 type RecordAppendReply struct {
-	STH    trillian.SignedLogRoot `json:"sth"`   // Signed tree head after record addition
-	Proofs []QueuedLeafProof      `json"proofs"` // Queued leaves and their proofs
+	STH    trillian.SignedLogRoot `json:"sth"`    // Signed tree head after record addition
+	Proofs []QueuedLeafProof      `json:"proofs"` // Queued leaves and their proofs
 }
 
 // RecordGet retrieves the entire record including proofs. This is an expensive
