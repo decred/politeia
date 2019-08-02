@@ -26,6 +26,11 @@ func (p *politeiawww) checkInvoiceNotifications() {
 			if user.Admin {
 				return
 			}
+			// If HashedPassword not set to anything that means the user has
+			// not completed registration.
+			if len(user.HashedPassword) == 0 {
+				return
+			}
 			invoiceFound := false
 			userInvoices, err := p.cmsDB.InvoicesByUserID(user.ID.String())
 			if err != nil {
@@ -36,6 +41,7 @@ func (p *politeiawww) checkInvoiceNotifications() {
 				// Check to see if invoices match last month + current year
 				if inv.Month == uint(currentMonth-1) && inv.Year == uint(currentYear) {
 					invoiceFound = true
+					break
 				}
 			}
 			log.Tracef("Checked user: %v sending email? %v", user.Username,

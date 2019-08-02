@@ -91,6 +91,7 @@ type newInvoiceCommentTemplateData struct {
 }
 
 type newInvoiceStatusUpdateTemplate struct {
+	Token string
 }
 
 const templateNewUserEmailRaw = `
@@ -244,4 +245,9 @@ An administrator has submitted a new comment to your invoice, please login to cm
 
 const templateNewInvoiceStatusUpdateRaw = `
 An invoice's status has been updated, please login to cms.decred.org to review the changes.
+
+Updated Invoice Token: {{.Token}}
+
+Regards,
+Contractor Management System
 `

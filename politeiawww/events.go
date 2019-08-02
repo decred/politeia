@@ -185,7 +185,7 @@ func (p *politeiawww) _setupInvoiceStatusUpdateEmailNotification() {
 				continue
 			}
 
-			err := p.emailUserInvoiceStatusUpdate(isu.User.Email)
+			err := p.emailUserInvoiceStatusUpdate(isu.User.Email, isu.Token)
 			if err != nil {
 				log.Errorf("email for new admin comment %v: %v",
 					isu.Token, err)
