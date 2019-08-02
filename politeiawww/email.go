@@ -609,7 +609,7 @@ func (p *politeiawww) emailInvoiceNotifications(email, username string) error {
 		Year:     newDate.Year(),
 	}
 
-	subject := "Awaiting Montly Invoice"
+	subject := "Awaiting Monthly Invoice"
 	body, err := createBody(templateInvoiceNotification, &tplData)
 	if err != nil {
 		return err
