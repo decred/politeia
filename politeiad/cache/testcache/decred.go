@@ -5,6 +5,7 @@
 package testcache
 
 import (
+	"github.com/decred/politeia/decredplugin"
 	decred "github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiad/cache"
 )
@@ -111,6 +112,19 @@ func (c *testcache) voteDetails(payload string) (string, error) {
 	return string(vdb), nil
 }
 
+// This is left as a stub for now. The results of this are not used in any
+// tests.
+func (c *testcache) batchVoteSummary(payload string) (string, error) {
+	summaries := make(map[string]decredplugin.VoteSummaryReply)
+
+	bvr, _ := decred.EncodeBatchVoteSummaryReply(
+		decred.BatchVoteSummaryReply{
+			Summaries: summaries,
+		})
+
+	return string(bvr), nil
+}
+
 func (c *testcache) decredExec(cmd, cmdPayload, replyPayload string) (string, error) {
 	switch cmd {
 	case decred.CmdGetComments:
@@ -121,6 +135,9 @@ func (c *testcache) decredExec(cmd, cmdPayload, replyPayload string) (string, er
 		return c.startVote(cmdPayload, replyPayload)
 	case decred.CmdVoteDetails:
 		return c.voteDetails(cmdPayload)
+	case decred.CmdBatchVoteSummary:
+		return c.batchVoteSummary(cmdPayload)
+
 	}
 
 	return "", cache.ErrInvalidPluginCmd

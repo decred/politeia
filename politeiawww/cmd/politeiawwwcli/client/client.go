@@ -950,6 +950,29 @@ func (c *Client) BatchProposals(bp *v1.BatchProposals) (*v1.BatchProposalsReply,
 	return &bpr, nil
 }
 
+// BatchVoteSummary retrieves the vote status for a set of proposals
+func (c *Client) BatchVoteSummary(bvs *v1.BatchVoteSummary) (*v1.BatchVoteSummaryReply, error) {
+	responseBody, err := c.makeRequest("POST", v1.RouteBatchVoteSummary, bvs)
+	if err != nil {
+		return nil, err
+	}
+
+	var bvsr v1.BatchVoteSummaryReply
+	err = json.Unmarshal(responseBody, &bvsr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal BatchVoteSummary: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(bvsr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &bvsr, nil
+}
+
 // GetAllVetted retrieves a page of vetted proposals.
 func (c *Client) GetAllVetted(gav *v1.GetAllVetted) (*v1.GetAllVettedReply, error) {
 	responseBody, err := c.makeRequest("GET", v1.RouteAllVetted, gav)

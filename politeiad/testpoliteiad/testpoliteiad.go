@@ -264,6 +264,40 @@ func (p *TestPoliteiad) handleSetUnvettedStatus(w http.ResponseWriter, r *http.R
 		})
 }
 
+func (p *TestPoliteiad) handlePluginCommand(w http.ResponseWriter, r *http.Request) {
+	// Decode request
+	var t v1.PluginCommand
+	decoder := json.NewDecoder(r.Body)
+
+	if err := decoder.Decode(&t); err != nil {
+		respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
+		return
+	}
+
+	// Verify challenge
+	challenge, err := hex.DecodeString(t.Challenge)
+	if err != nil || len(challenge) != v1.ChallengeSize {
+		respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
+		return
+	}
+	response := p.identity.SignMessage(challenge)
+
+	payload, err := p.decredExec(t)
+	if err != nil {
+		respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK,
+		v1.PluginCommandReply{
+			Response:  hex.EncodeToString(response[:]),
+			ID:        t.ID,
+			Command:   t.Command,
+			CommandID: t.CommandID,
+			Payload:   payload,
+		})
+}
+
 func (p *TestPoliteiad) handleSetVettedStatus(w http.ResponseWriter, r *http.Request) {
 	// Decode request
 	var t v1.SetVettedStatus
@@ -410,6 +444,7 @@ func New(t *testing.T, c cache.Cache) *TestPoliteiad {
 	router.HandleFunc(v1.NewRecordRoute, p.handleNewRecord)
 	router.HandleFunc(v1.SetUnvettedStatusRoute, p.handleSetUnvettedStatus)
 	router.HandleFunc(v1.SetVettedStatusRoute, p.handleSetVettedStatus)
+	router.HandleFunc(v1.PluginCommandRoute, p.handlePluginCommand)
 
 	// Setup the test server
 	p.server = httptest.NewServer(router)
