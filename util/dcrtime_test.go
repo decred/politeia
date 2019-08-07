@@ -52,7 +52,7 @@ func TestTimestamp(t *testing.T) {
 		t.Fatalf("not a valid digest")
 	}
 
-	err = Timestamp(defaultTestnetHost(), []*[sha256.Size]byte{&d})
+	err = Timestamp("test", defaultTestnetHost(), []*[sha256.Size]byte{&d})
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -66,7 +66,7 @@ func TestVerify(t *testing.T) {
 	// Use pre anchored digest
 	digest := "44425372a555e6ac6dad89d5a5b05cd33385c0c9114c5e90e7861da31ae2f289"
 
-	vr, err := Verify(defaultTestnetHost(), []string{digest})
+	vr, err := Verify("test", defaultTestnetHost(), []string{digest})
 	if err != nil {
 		t.Fatalf("%v", err)
 	}

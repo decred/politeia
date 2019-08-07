@@ -15,7 +15,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/decred/dcrtime/api/v1"
+	v1 "github.com/decred/dcrtime/api/v1"
 	"github.com/decred/dcrtime/merkle"
 )
 
@@ -32,6 +32,14 @@ var (
 		},
 	}
 )
+
+type ErrNotAnchored struct {
+	err error
+}
+
+func (e ErrNotAnchored) Error() string {
+	return e.err.Error()
+}
 
 // isTimestamp determines if a string is a valid SHA256 digest.
 func isDigest(digest string) bool {
@@ -62,12 +70,23 @@ func getError(r io.Reader) (string, error) {
 	return fmt.Sprintf("%v", rError), nil
 }
 
+// Hash returns a pointer to the sha256 hash of data.
+func Hash(data []byte) *[sha256.Size]byte {
+	h := sha256.New()
+	h.Write(data)
+	hash := h.Sum(nil)
+
+	var rh [sha256.Size]byte
+	copy(rh[:], hash)
+	return &rh
+}
+
 // Timestamp sends a Timestamp request to the provided host.  The caller is
 // responsible for assembling the host string based on what net to use.
-func Timestamp(host string, digests []*[sha256.Size]byte) error {
+func Timestamp(id, host string, digests []*[sha256.Size]byte) error {
 	// batch uploads
 	ts := v1.Timestamp{
-		ID:      "politeia",
+		ID:      id,
 		Digests: make([]string, 0, len(digests)),
 	}
 	for _, digest := range digests {
@@ -122,9 +141,9 @@ func Timestamp(host string, digests []*[sha256.Size]byte) error {
 // error is returned.  If the reply is valid it is returned to the caller for
 // further processing.  This means that the caller can be assured that all
 // checks have been done and the data is readily usable.
-func Verify(host string, digests []string) (*v1.VerifyReply, error) {
+func Verify(id, host string, digests []string) (*v1.VerifyReply, error) {
 	ver := v1.Verify{
-		ID: "politeia",
+		ID: id,
 	}
 
 	for _, digest := range digests {
@@ -165,6 +184,15 @@ func Verify(host string, digests []string) (*v1.VerifyReply, error) {
 	}
 
 	for _, v := range vr.Digests {
+		if v.Result != v1.ResultOK {
+			// We only report not found since the other errors are
+			// not applicable.
+			if v.Result == v1.ResultDoesntExistError {
+				return nil, fmt.Errorf("Digest not found: %v",
+					v.Digest)
+			}
+			continue
+		}
 		_, ok := v1.Result[v.Result]
 		if !ok {
 			return nil, fmt.Errorf("%v invalid error code %v",
@@ -178,7 +206,9 @@ func Verify(host string, digests []string) (*v1.VerifyReply, error) {
 				return nil, fmt.Errorf("%v invalid auth path "+
 					"%v", v.Digest, err)
 			}
-			return nil, fmt.Errorf("%v Not anchored", v.Digest)
+			return nil, ErrNotAnchored{
+				err: fmt.Errorf("%v Not anchored", v.Digest),
+			}
 		}
 
 		// Verify merkle root.
