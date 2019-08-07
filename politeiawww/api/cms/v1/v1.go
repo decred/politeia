@@ -490,14 +490,14 @@ type UserDetailsReply struct {
 
 // EditUser edits a user's preferences.
 type EditUser struct {
-	Domain             DomainTypeT     `json:"domain"` // Contractor domain
-	GitHubName         string          `json:"githubname"`
-	MatrixName         string          `json:"matrixname"`
-	ContractorType     ContractorTypeT `json:"contractortype"`
-	ContractorName     string          `json:"contractorname"`
-	ContractorLocation string          `json:"contractorlocation"`
-	ContractorContact  string          `json:"contractorcontact"`
-	SupervisorUserID   string          `json:"supervisoruserid"`
+	Domain             DomainTypeT     `json:"domain,omitempty"` // Contractor domain
+	GitHubName         string          `json:"githubname,omitempty"`
+	MatrixName         string          `json:"matrixname,omitempty"`
+	ContractorType     ContractorTypeT `json:"contractortype,omitempty"`
+	ContractorName     string          `json:"contractorname,omitempty"`
+	ContractorLocation string          `json:"contractorlocation,omitempty"`
+	ContractorContact  string          `json:"contractorcontact,omitempty"`
+	SupervisorUserID   string          `json:"supervisoruserid,omitempty"`
 }
 
 // EditUserReply is the reply for the EditUser command.

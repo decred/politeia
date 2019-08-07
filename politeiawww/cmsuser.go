@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
@@ -348,7 +347,6 @@ func (p *politeiawww) processCMSUserDetails(ud *cms.UserDetails, isCurrentUser b
 			ErrorCode: www.ErrorStatusUserActionNotAllowed,
 		}
 	}
-	spew.Dump(ud)
 	reply := cms.UserDetailsReply{}
 	ubi := user.CMSUserByID{
 		ID: ud.UserID,
