@@ -602,14 +602,14 @@ func (p *politeiawww) emailInvoiceNotifications(email, username string) error {
 		return nil
 	}
 	// Set the date to the first day of the previous month.
-	newDate := time.Date(time.Now().Year(), time.Now().Month()-1, 0, 0, 0, 0, 0, time.UTC)
+	newDate := time.Date(time.Now().Year(), time.Now().Month()-1, 1, 0, 0, 0, 0, time.UTC)
 	tplData := invoiceNotificationEmailData{
 		Username: username,
 		Month:    newDate.Month().String(),
 		Year:     newDate.Year(),
 	}
 
-	subject := "Awaiting Montly Invoice"
+	subject := "Awaiting Monthly Invoice"
 	body, err := createBody(templateInvoiceNotification, &tplData)
 	if err != nil {
 		return err
@@ -634,12 +634,14 @@ func (p *politeiawww) emailUserInvoiceComment(userEmail string) error {
 	return p.sendEmailTo(subject, body, userEmail)
 }
 
-func (p *politeiawww) emailUserInvoiceStatusUpdate(userEmail string) error {
+func (p *politeiawww) emailUserInvoiceStatusUpdate(userEmail, invoiceToken string) error {
 	if p.smtp.disabled {
 		return nil
 	}
 
-	tplData := newInvoiceStatusUpdateTemplate{}
+	tplData := newInvoiceStatusUpdateTemplate{
+		Token: invoiceToken,
+	}
 
 	subject := "Invoice status has been updated"
 	body, err := createBody(templateNewInvoiceStatusUpdate, &tplData)
