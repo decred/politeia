@@ -816,8 +816,6 @@ func (p *politeiawww) setCMSUserWWWRoutes() {
 		p.handleResetPassword, permissionPublic)
 	p.addRoute(http.MethodPost, www.RouteVerifyResetPassword,
 		p.handleVerifyResetPassword, permissionPublic)
-	p.addRoute(http.MethodGet, www.RouteUserDetails,
-		p.handleUserDetails, permissionPublic)
 	p.addRoute(http.MethodPost, cms.RouteRegisterUser, p.handleRegisterUser,
 		permissionPublic)
 
@@ -833,8 +831,10 @@ func (p *politeiawww) setCMSUserWWWRoutes() {
 		p.handleChangeUsername, permissionLogin)
 	p.addRoute(http.MethodPost, www.RouteChangePassword,
 		p.handleChangePassword, permissionLogin)
+	p.addRoute(http.MethodGet, www.RouteUserDetails,
+		p.handleCMSUserDetails, permissionLogin)
 	p.addRoute(http.MethodPost, www.RouteEditUser,
-		p.handleEditUser, permissionLogin)
+		p.handleEditCMSUser, permissionLogin)
 
 	// Routes that require being logged in as an admin user.
 	p.addRoute(http.MethodGet, www.RouteUsers,

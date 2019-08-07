@@ -285,3 +285,173 @@ func (p *politeiawww) processRegisterUser(u cms.RegisterUser) (*cms.RegisterUser
 	}
 	return &reply, nil
 }
+
+func (p *politeiawww) processEditCMSUser(ecu cms.EditUser, u *user.User) (*cms.EditUserReply, error) {
+	reply := cms.EditUserReply{}
+
+	err := validateUserInformation(ecu)
+	if err != nil {
+		return nil, err
+	}
+
+	uu := user.UpdateCMSUser{
+		ID: u.ID,
+	}
+	// Update a cms user with the provided information.
+	// Only set fields in dbUserInfo if they are set in the request,
+	// otherwise use the existing fields from the above db request.
+	if ecu.Domain != 0 {
+		uu.Domain = int(ecu.Domain)
+	}
+	if ecu.GitHubName != "" {
+		uu.GitHubName = ecu.GitHubName
+	}
+	if ecu.MatrixName != "" {
+		uu.MatrixName = ecu.MatrixName
+	}
+	if ecu.ContractorType != 0 {
+		uu.ContractorType = int(ecu.ContractorType)
+	}
+	if ecu.ContractorName != "" {
+		uu.ContractorName = ecu.ContractorName
+	}
+	if ecu.ContractorLocation != "" {
+		uu.ContractorLocation = ecu.ContractorLocation
+	}
+	if ecu.ContractorContact != "" {
+		uu.ContractorContact = ecu.ContractorContact
+	}
+	if ecu.SupervisorUserID != "" {
+		uu.SupervisorUserID = ecu.SupervisorUserID
+	}
+	payload, err := user.EncodeUpdateCMSUser(uu)
+	if err != nil {
+		return nil, err
+	}
+	pc := user.PluginCommand{
+		ID:      user.CMSPluginID,
+		Command: user.CmdUpdateCMSUser,
+		Payload: string(payload),
+	}
+	_, err = p.db.PluginExec(pc)
+	if err != nil {
+		return nil, err
+	}
+	return &reply, nil
+}
+
+func (p *politeiawww) processCMSUserDetails(ud *cms.UserDetails, isCurrentUser bool, isAdmin bool) (*cms.UserDetailsReply, error) {
+	// Return error in case the user isn't the admin or the current user.
+	if !isAdmin || !isCurrentUser {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserActionNotAllowed,
+		}
+	}
+	reply := cms.UserDetailsReply{}
+	ubi := user.CMSUserByID{
+		ID: ud.UserID,
+	}
+	payload, err := user.EncodeCMSUserByID(ubi)
+	if err != nil {
+		return nil, err
+	}
+	pc := user.PluginCommand{
+		ID:      user.CMSPluginID,
+		Command: user.CmdCMSUserByID,
+		Payload: string(payload),
+	}
+	payloadReply, err := p.db.PluginExec(pc)
+	if err != nil {
+		return nil, err
+	}
+	ubir, err := user.DecodeCMSUserByIDReply([]byte(payloadReply.Payload))
+	if err != nil {
+		return nil, err
+	}
+	reply.User = convertCMSUserFromDatabaseUser(&ubir.User.User)
+	reply.User.Domain = cms.DomainTypeT(ubir.User.Domain)
+	reply.User.ContractorType = cms.ContractorTypeT(ubir.User.ContractorType)
+	reply.User.ContractorName = ubir.User.ContractorName
+	reply.User.ContractorLocation = ubir.User.ContractorLocation
+	reply.User.ContractorContact = ubir.User.ContractorContact
+	reply.User.MatrixName = ubir.User.MatrixName
+	reply.User.GitHubName = ubir.User.GitHubName
+	reply.User.SupervisorUserID = ubir.User.SupervisorUserID
+
+	return &reply, nil
+}
+
+func validateUserInformation(userInfo cms.EditUser) error {
+	var err error
+	if userInfo.GitHubName != "" {
+		contact := formatContact(userInfo.GitHubName)
+		err = validateContact(contact)
+		if err != nil {
+			return www.UserError{
+				ErrorCode: cms.ErrorStatusInvoiceMalformedContact,
+			}
+		}
+	}
+	if userInfo.MatrixName != "" {
+		contact := formatContact(userInfo.MatrixName)
+		err = validateContact(contact)
+		if err != nil {
+			return www.UserError{
+				ErrorCode: cms.ErrorStatusInvoiceMalformedContact,
+			}
+		}
+	}
+	if userInfo.ContractorName != "" {
+		name := formatName(userInfo.ContractorName)
+		err = validateName(name)
+		if err != nil {
+			return www.UserError{
+				ErrorCode: cms.ErrorStatusMalformedName,
+			}
+		}
+	}
+	if userInfo.ContractorLocation != "" {
+		location := formatLocation(userInfo.ContractorLocation)
+		err = validateLocation(location)
+		if err != nil {
+			return www.UserError{
+				ErrorCode: cms.ErrorStatusMalformedLocation,
+			}
+		}
+	}
+	if userInfo.ContractorContact != "" {
+		contact := formatContact(userInfo.ContractorContact)
+		err = validateContact(contact)
+		if err != nil {
+			return www.UserError{
+				ErrorCode: cms.ErrorStatusInvoiceMalformedContact,
+			}
+		}
+	}
+	if userInfo.SupervisorUserID != "" {
+		// check if it is a valid user id, and that user is a super?
+	}
+	return nil
+}
+
+// convertCMSUserFromDatabaseUser converts a user User to a cms User.
+func convertCMSUserFromDatabaseUser(user *user.User) cms.User {
+	return cms.User{
+		ID:                              user.ID.String(),
+		Admin:                           user.Admin,
+		Email:                           user.Email,
+		Username:                        user.Username,
+		NewUserVerificationToken:        user.NewUserVerificationToken,
+		NewUserVerificationExpiry:       user.NewUserVerificationExpiry,
+		UpdateKeyVerificationToken:      user.UpdateKeyVerificationToken,
+		UpdateKeyVerificationExpiry:     user.UpdateKeyVerificationExpiry,
+		ResetPasswordVerificationToken:  user.ResetPasswordVerificationToken,
+		ResetPasswordVerificationExpiry: user.ResetPasswordVerificationExpiry,
+		LastLoginTime:                   user.LastLoginTime,
+		FailedLoginAttempts:             user.FailedLoginAttempts,
+		Deactivated:                     user.Deactivated,
+		Locked:                          userIsLocked(user.FailedLoginAttempts),
+		Identities:                      convertWWWIdentitiesFromDatabaseIdentities(user.Identities),
+		EmailNotifications:              user.EmailNotifications,
+	}
+}

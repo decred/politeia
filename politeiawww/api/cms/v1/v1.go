@@ -10,6 +10,7 @@ type InvoiceStatusT int
 type LineItemTypeT int
 type PaymentStatusT int
 type DomainTypeT int
+type ContractorTypeT int
 
 const (
 
@@ -46,7 +47,19 @@ const (
 	LineItemTypeMisc    LineItemTypeT = 3 // Catch all for anything else
 
 	// Domain types
-	DomainTypeInvalid DomainTypeT = 0 // Invalid Domain type
+	DomainTypeInvalid       DomainTypeT = 0 // Invalid Domain type
+	DomainTypeDeveloper     DomainTypeT = 1 // Developer domain
+	DomainTypeMarketing     DomainTypeT = 2 // Marketing domain
+	DomainTypeCommunity     DomainTypeT = 3 // Community domain
+	DomainTypeResearch      DomainTypeT = 4 // Research domain
+	DomainTypeDesign        DomainTypeT = 5 // Design domain
+	DomainTypeDocumentation DomainTypeT = 6 // Documentation domain
+
+	// Contractor types
+	ContractorTypeInvalid       ContractorTypeT = 0 // Invalid contractor type
+	ContractorTypeDirect        ContractorTypeT = 1 // Direct contractor
+	ContractorTypeSupervisor    ContractorTypeT = 2 // Supervisor contractor
+	ContractorTypeSubContractor ContractorTypeT = 3 // SubContractor
 
 	// Payment information status types
 	PaymentStatusInvalid  PaymentStatusT = 0 // Invalid status
@@ -444,3 +457,59 @@ type PaymentInformation struct {
 	AmountReceived  dcrutil.Amount `json:"amountreceived"`
 	Status          PaymentStatusT `json:"status"`
 }
+
+// User represents a CMS user. It contains the standard politeiawww user
+// fields as well as CMS specific user fields.
+type User struct {
+	ID                              string             `json:"id"`
+	Email                           string             `json:"email"`
+	Username                        string             `json:"username"`
+	Admin                           bool               `json:"isadmin"`
+	Identities                      []www.UserIdentity `json:"identities"`
+	LastLoginTime                   int64              `json:"lastlogintime"`
+	FailedLoginAttempts             uint64             `json:"failedloginattempts"`
+	Deactivated                     bool               `json:"isdeactivated"`
+	Locked                          bool               `json:"islocked"`
+	EmailNotifications              uint64             `json:"emailnotifications"` // Notify the user via emails
+	NewUserVerificationToken        []byte             `json:"newuserverificationtoken"`
+	NewUserVerificationExpiry       int64              `json:"newuserverificationexpiry"`
+	UpdateKeyVerificationToken      []byte             `json:"updatekeyverificationtoken"`
+	UpdateKeyVerificationExpiry     int64              `json:"updatekeyverificationexpiry"`
+	ResetPasswordVerificationToken  []byte             `json:"resetpasswordverificationtoken"`
+	ResetPasswordVerificationExpiry int64              `json:"resetpasswordverificationexpiry"`
+
+	// CMS Information
+	Domain             DomainTypeT     `json:"domain"` // Contractor domain
+	GitHubName         string          `json:"githubname"`
+	MatrixName         string          `json:"matrixname"`
+	ContractorType     ContractorTypeT `json:"contractortype"`
+	ContractorName     string          `json:"contractorname"`
+	ContractorLocation string          `json:"contractorlocation"`
+	ContractorContact  string          `json:"contractorcontact"`
+	SupervisorUserID   string          `json:"supervisoruserid"`
+}
+
+// UserDetails fetches a cms user's details by their id.
+type UserDetails struct {
+	UserID string `json:"userid"` // User id
+}
+
+// UserDetailsReply returns a cms user's details.
+type UserDetailsReply struct {
+	User User `json:"user"`
+}
+
+// EditUser edits a user's preferences.
+type EditUser struct {
+	Domain             DomainTypeT     `json:"domain,omitempty"` // Contractor domain
+	GitHubName         string          `json:"githubname,omitempty"`
+	MatrixName         string          `json:"matrixname,omitempty"`
+	ContractorType     ContractorTypeT `json:"contractortype,omitempty"`
+	ContractorName     string          `json:"contractorname,omitempty"`
+	ContractorLocation string          `json:"contractorlocation,omitempty"`
+	ContractorContact  string          `json:"contractorcontact,omitempty"`
+	SupervisorUserID   string          `json:"supervisoruserid,omitempty"`
+}
+
+// EditUserReply is the reply for the EditUser command.
+type EditUserReply struct{}

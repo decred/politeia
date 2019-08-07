@@ -54,9 +54,16 @@ func (User) TableName() string {
 //
 // This is a CMS plugin model.
 type CMSUser struct {
-	ID     uuid.UUID `gorm:"primary_key"`            // UUID (User foreign key)
-	User   User      `gorm:"not null;foreignkey:ID"` // politeiawww user
-	Domain int       `gorm:"not null"`               // Contractor domain
+	ID                 uuid.UUID `gorm:"primary_key"`            // UUID (User foreign key)
+	User               User      `gorm:"not null;foreignkey:ID"` // politeiawww user
+	Domain             int       `gorm:"not null"`               // Contractor domain
+	GitHubName         string
+	MatrixName         string
+	ContractorType     int
+	ContractorName     string
+	ContractorLocation string
+	ContractorContact  string
+	SupervisorUserID   string
 
 	// Set by gorm
 	CreatedAt time.Time // Time of record creation

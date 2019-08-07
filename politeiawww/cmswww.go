@@ -422,8 +422,77 @@ func (p *politeiawww) handlePayInvoices(w http.ResponseWriter, r *http.Request) 
 
 	reply, err := p.processPayInvoices(user)
 	if err != nil {
-		RespondWithError(w, r, 0, "handlePayInvoices: processAdminInvoices %v",
+		RespondWithError(w, r, 0, "handlePayInvoices: processPayInvoices %v",
 			err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+// handleEditCMSUser handles the request to edit a given user's
+// additional user information.
+func (p *politeiawww) handleEditCMSUser(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleEditCMSUser")
+
+	var eu cms.EditUser
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&eu); err != nil {
+		RespondWithError(w, r, 0, "handleEditCMSUser: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleEditCMSUser: getSessionUser %v", err)
+		return
+	}
+
+	reply, err := p.processEditCMSUser(eu, user)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleEditCMSUser: "+
+			"processUpdateUserInformation %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+func (p *politeiawww) handleCMSUserDetails(w http.ResponseWriter, r *http.Request) {
+	// Add the path param to the struct.
+	log.Tracef("handleCMSUserDetails")
+	pathParams := mux.Vars(r)
+	var ud cms.UserDetails
+	ud.UserID = pathParams["userid"]
+
+	userID, err := uuid.Parse(ud.UserID)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleCMSUserDetails: ParseUint",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleCMSUserDetails: getSessionUser %v", err)
+		return
+	}
+
+	reply, err := p.processCMSUserDetails(&ud,
+		user != nil && user.ID == userID,
+		user != nil && user.Admin,
+	)
+
+	if err != nil {
+		RespondWithError(w, r, 0, "handleCMSUserDetails: "+
+			"processCMSUserDetails %v", err)
 		return
 	}
 
