@@ -1690,7 +1690,7 @@ Retrieve the vote status for a list of proposals.
 
 | | Type | Description |
 |-|-|-|
-| statuses | { string : [`VoteStatus`](#Vote-Summary) } | Map of token to vote summary |
+| statuses | { string : [`VoteSummary`](#Vote-Summary) } | Map of token to vote summary |
 
 On failure the call shall return `400 Bad Request` on the following error code:
 - [`ErrorStatusProposalNotFound`](#ErrorStatusProposalNotFound)

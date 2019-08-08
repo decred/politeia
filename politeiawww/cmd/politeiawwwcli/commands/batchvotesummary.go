@@ -40,9 +40,9 @@ Result:
   "statuses": {
     "token": {(                   (string)  Censorship token of proposal
       "status":                   (int)     Vote status code,
-      "eligibletickets":          (uint32)     Number of tickets eligible to vote
-      "endheight":                (uint64)     Final voting block of proposal
-      "bestblock":                (uint64)     Current block
+      "eligibletickets":          (uint32)  Number of tickets eligible to vote
+      "endheight":                (uint64)  Final voting block of proposal
+      "bestblock":                (uint64)  Current block
       "quorumpercentage":         (uint32)  Percent of eligible votes required for quorum
       "passpercentage":           (uint32)  Percent of total votes required to pass
       "results": [

@@ -405,41 +405,6 @@ func convertWWWPropCreditFromDatabasePropCredit(credit user.ProposalCredit) www.
 	}
 }
 
-// voteSummaries retrieves the voting summary information for a set of
-// proposals.
-func (p *politeiawww) voteSummaries(tokens []string, bestBlock uint64) (map[string]www.VoteSummary, error) {
-
-	r, err := p.decredBatchVoteSummary(tokens)
-	if err != nil {
-		return nil, err
-	}
-
-	voteSummaries := make(map[string]www.VoteSummary)
-
-	for token, summary := range r.Summaries {
-		results := convertVoteOptionResultsFromDecred(summary.Results)
-
-		endHeight, err := strconv.ParseUint(summary.EndHeight, 10, 64)
-		if err != nil {
-			endHeight = 0
-		}
-
-		vs := www.VoteSummary{
-			Status:           voteStatusFromVoteSummary(summary, bestBlock),
-			EligibleTickets:  uint32(summary.EligibleTicketCount),
-			EndHeight:        endHeight,
-			BestBlock:        bestBlock,
-			QuorumPercentage: summary.QuorumPercentage,
-			PassPercentage:   summary.PassPercentage,
-			Results:          results,
-		}
-
-		voteSummaries[token] = vs
-	}
-
-	return voteSummaries, nil
-}
-
 // getProp gets the most recent verions of the given proposal from the cache
 // then fills in any missing fields before returning the proposal.
 func (p *politeiawww) getProp(token string) (*www.ProposalRecord, error) {
@@ -922,6 +887,43 @@ func (p *politeiawww) processProposalDetails(propDetails www.ProposalsDetails, u
 	return &reply, nil
 }
 
+// voteSummaries fetches the voting summary information for a set of
+// proposals.
+func (p *politeiawww) voteSummaries(tokens []string, bestBlock uint64) (map[string]www.VoteSummary, error) {
+
+	r, err := p.decredBatchVoteSummary(tokens)
+	if err != nil {
+		return nil, err
+	}
+
+	voteSummaries := make(map[string]www.VoteSummary)
+
+	for token, summary := range r.Summaries {
+		results := convertVoteOptionResultsFromDecred(summary.Results)
+
+		endHeight, err := strconv.ParseUint(summary.EndHeight, 10, 64)
+		if err != nil {
+			endHeight = 0
+		}
+
+		vs := www.VoteSummary{
+			Status:           voteStatusFromVoteSummary(summary, bestBlock),
+			EligibleTickets:  uint32(summary.EligibleTicketCount),
+			EndHeight:        endHeight,
+			BestBlock:        bestBlock,
+			QuorumPercentage: summary.QuorumPercentage,
+			PassPercentage:   summary.PassPercentage,
+			Results:          results,
+		}
+
+		voteSummaries[token] = vs
+	}
+
+	return voteSummaries, nil
+}
+
+// processBatchVoteSummary the voting summary information for a set of
+// proposals.
 func (p *politeiawww) processBatchVoteSummary(batchVoteSummary www.BatchVoteSummary) (*www.BatchVoteSummaryReply, error) {
 	log.Tracef("processBatchVoteSummary")
 

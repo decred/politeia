@@ -763,7 +763,8 @@ type BatchProposalsReply struct {
 	Proposals []ProposalRecord `json:"proposals"`
 }
 
-// BatchVoteSummary is used to request the voting summary of multiple proposals.
+// BatchVoteSummary is used to request the voting summary of multiple
+// proposals.
 type BatchVoteSummary struct {
 	Tokens []string `json:"tokens"`
 }
