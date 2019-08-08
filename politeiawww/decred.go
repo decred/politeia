@@ -367,8 +367,8 @@ func (p *politeiawww) decredLoadVoteResults(bestBlock uint64) (*decredplugin.Loa
 	return reply, nil
 }
 
-// decredBatchVoteSummary uses the decred plugin batch vote summary command to request a
-// vote summary for a specific proposal from the cache.
+// decredBatchVoteSummary uses the decred plugin batch vote summary command to
+// request a vote summary for a set of proposals from the cache.
 func (p *politeiawww) decredBatchVoteSummary(tokens []string) (*decredplugin.BatchVoteSummaryReply, error) {
 	bvs := decredplugin.BatchVoteSummary{
 		Tokens: tokens,

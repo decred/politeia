@@ -1069,7 +1069,8 @@ func (d *decred) cmdBatchVoteSummary(payload string) (string, error) {
 		return "", fmt.Errorf("lookup vote results: %v", err)
 	}
 
-	summaries := make(map[string]decredplugin.VoteSummaryReply, len(bvs.Tokens))
+	summaries := make(map[string]decredplugin.VoteSummaryReply,
+		len(bvs.Tokens))
 	for token := range records {
 
 		av := authorizeVotes[token]
@@ -1081,8 +1082,9 @@ func (d *decred) cmdBatchVoteSummary(payload string) (string, error) {
 			endHeight = strconv.FormatUint(sv.EndHeight, 10)
 		}
 
+		authorized := av.Action == decredplugin.AuthVoteActionAuthorize
 		vsr := decredplugin.VoteSummaryReply{
-			Authorized:          (av.Action == decredplugin.AuthVoteActionAuthorize),
+			Authorized:          authorized,
 			EndHeight:           endHeight,
 			EligibleTicketCount: sv.EligibleTicketCount,
 			QuorumPercentage:    sv.QuorumPercentage,

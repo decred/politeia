@@ -280,8 +280,8 @@ func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Reque
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-// handleBatchVoteSummary handles the incoming batch vote summary command. It returns
-// a summary of the voting process for a set of proposals.
+// handleBatchVoteSummary handles the incoming batch vote summary command. It
+// returns a summary of the voting process for a set of proposals.
 func (p *politeiawww) handleBatchVoteSummary(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleBatchVoteSummary")
 	var bvs www.BatchVoteSummary

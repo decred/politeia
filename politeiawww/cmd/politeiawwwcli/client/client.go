@@ -950,7 +950,8 @@ func (c *Client) BatchProposals(bp *v1.BatchProposals) (*v1.BatchProposalsReply,
 	return &bpr, nil
 }
 
-// BatchVoteSummary retrieves the vote status for a set of proposals
+// BatchVoteSummary retrieves a summary of the voting process for a set of
+// proposals.
 func (c *Client) BatchVoteSummary(bvs *v1.BatchVoteSummary) (*v1.BatchVoteSummaryReply, error) {
 	responseBody, err := c.makeRequest("POST", v1.RouteBatchVoteSummary, bvs)
 	if err != nil {
