@@ -1630,6 +1630,7 @@ Request:
 Reply:
 
 ```json
+{
     "proposals": [
         {
             "name": "Sample proposal 1",

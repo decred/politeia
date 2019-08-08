@@ -380,7 +380,7 @@ type CensorshipRecord struct {
 	Signature string `json:"signature"` // Server side signature of []byte(Merkle+Token)
 }
 
-// VoteSummary contains information about the voting state of the process
+// VoteSummary contains information about the state of the voting process
 // related to a proposal.
 type VoteSummary struct {
 	Status           PropVoteStatusT    `json:"status"`                     // Vote status
@@ -1076,12 +1076,12 @@ type VoteOptionResult struct {
 }
 
 // VoteStatus is a command to fetch the the current vote status for a single
-// public proposal.
-// *** This is deprecated by VoteSummary in Proposal Details. ***
+// public proposal
+// *** This is deprecated by the BatchVoteSummary request. ***
 type VoteStatus struct{}
 
 // VoteStatusReply describes the vote status for a given proposal
-// *** This is deprecated by VoteSummary in Proposal Details. ***
+// *** This is deprecated by the BatchVoteSummary request. ***
 type VoteStatusReply struct {
 	Token              string             `json:"token"`              // Censorship token
 	Status             PropVoteStatusT    `json:"status"`             // Vote status (finished, started, etc)
@@ -1095,11 +1095,11 @@ type VoteStatusReply struct {
 }
 
 // GetAllVoteStatus attempts to fetch the vote status of all public propsals
-// *** This is deprecated by VoteSummary in Proposal Details. ***
+// *** This is deprecated by the BatchVoteSummary request. ***
 type GetAllVoteStatus struct{}
 
 // GetAllVoteStatusReply returns the vote status of all public proposals
-// *** This is deprecated by VoteSummary in Proposal Details. ***
+// *** This is deprecated by the BatchVoteSummary request. ***
 type GetAllVoteStatusReply struct {
 	VotesStatus []VoteStatusReply `json:"votesstatus"` // Vote status of all public proposals
 }

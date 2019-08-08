@@ -946,8 +946,8 @@ func (d *decred) getStartVotes(authorizeVotes map[string]AuthorizeVote) (map[str
 	return startVotes, nil
 }
 
-// lookupResultsForVoteOptions looks in the CastVote to see how many votes
-// each option has received.
+// lookupResultsForVoteOptions looks in the CastVote table to see how many
+// votes each option has received.
 func (d *decred) lookupResultsForVoteOptions(options []VoteOption) ([]decredplugin.VoteOptionResult, error) {
 
 	results := make([]decredplugin.VoteOptionResult, 0, len(options))
