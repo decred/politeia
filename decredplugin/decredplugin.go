@@ -442,7 +442,7 @@ func DecodeBatchVoteSummary(payload []byte) (*BatchVoteSummary, error) {
 
 // BatchVoteSummaryReply is the reply to the VoteSummary command and returns
 // certain voting period parameters as well as a summary of the vote results.
-// Results will only be returned fo	r tokens of valid vetted proposals.
+// Results will only be returned for tokens of valid vetted proposals.
 type BatchVoteSummaryReply struct {
 	Summaries map[string]VoteSummaryReply `json:"summaries"` // Vote summaries
 }

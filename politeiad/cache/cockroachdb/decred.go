@@ -884,8 +884,8 @@ func (d *decred) cmdTokenInventory(payload string) (string, error) {
 	return string(reply), nil
 }
 
-// getAuthorizeVotesForRecords looks up vote authorizations in the cache for
-// a set of records.
+// getAuthorizeVotesForRecords looks up vote authorizations in the cache for a set
+// of records.
 func (d *decred) getAuthorizeVotesForRecords(records map[string]Record) (map[string]AuthorizeVote, error) {
 
 	authorizeVotes := make(map[string]AuthorizeVote)
@@ -915,8 +915,8 @@ func (d *decred) getAuthorizeVotesForRecords(records map[string]Record) (map[str
 	return authorizeVotes, nil
 }
 
-// getStartVotesForAuthorizeVotes looks up the start votes for records which
-// have been authorized to start voting.
+// getStartVotes looks up the start votes for records which have been
+// authorized to start voting.
 func (d *decred) getStartVotes(authorizeVotes map[string]AuthorizeVote) (map[string]StartVote, error) {
 	startVotes := make(map[string]StartVote)
 
@@ -976,9 +976,9 @@ func (d *decred) lookupResultsForVoteOptions(options []VoteOption) ([]decredplug
 	return results, nil
 }
 
-// getVoteResultsForStartVotes retrieves vote results for records that have
-// begun the voting process. Results are lazily loaded into this table, so
-// some results are manually looked up in the CastVote table.
+// getVoteResults retrieves vote results for records that have begun the voting
+// process. Results are lazily loaded into this table, so some results are
+// manually looked up in the CastVote table.
 func (d *decred) getVoteResults(startVotes map[string]StartVote) (map[string][]decredplugin.VoteOptionResult, error) {
 
 	results := make(map[string][]decredplugin.VoteOptionResult)
@@ -1070,7 +1070,7 @@ func (d *decred) cmdBatchVoteSummary(payload string) (string, error) {
 	}
 
 	summaries := make(map[string]decredplugin.VoteSummaryReply, len(bvs.Tokens))
-	for _, token := range bvs.Tokens {
+	for token := range records {
 
 		av := authorizeVotes[token]
 		sv := startVotes[token]

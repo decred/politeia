@@ -935,6 +935,12 @@ func (p *politeiawww) processBatchVoteSummary(batchVoteSummary www.BatchVoteSumm
 		return nil, err
 	}
 
+	if len(summaries) != len(batchVoteSummary.Tokens) {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusProposalNotFound,
+		}
+	}
+
 	reply := www.BatchVoteSummaryReply{
 		Summaries: summaries,
 	}
