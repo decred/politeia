@@ -10,6 +10,7 @@ import (
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
+	"github.com/google/uuid"
 )
 
 // cmsUsersByDomain returns all cms user within the provided contractor domain.
@@ -533,4 +534,83 @@ func (p *politeiawww) processNewDCCUser(ndu cms.NewDCCUser, u *user.User) (*cms.
 	return &cms.NewDCCUserReply{
 		UserID: usr.ID.String(),
 	}, nil
+}
+
+// issuanceDCCUser does the processing to move a nominated user to a fully
+// approved and invite them onto CMS.
+func (p *politeiawww) issuanceDCCUser(userid string) ([]byte, error) {
+	nominatedUser, err := p.userByIDStr(userid)
+	if err != nil {
+		return nil, err
+	}
+
+	if nominatedUser == nil {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserNotFound,
+		}
+	}
+
+	if !validEmail.MatchString(nominatedUser.Email) {
+		log.Debugf("processApproveDCC: invalid email '%v'", nominatedUser.Email)
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusMalformedEmail,
+		}
+	}
+
+	// Generate the verification token and expiry.
+	token, expiry, err := newVerificationTokenAndExpiry()
+	if err != nil {
+		return nil, err
+	}
+
+	// Try to email the verification link first; if it fails, then
+	// the new user won't be created.
+	//
+	// This is conditional on the email server being setup.
+	err = p.emailApproveDCCVerificationLink(nominatedUser.Email,
+		hex.EncodeToString(token))
+	if err != nil {
+		log.Errorf("processApproveDCC: verification email "+
+			"failed for '%v': %v", nominatedUser.Email, err)
+		return token, nil
+	}
+
+	// If the user already exists, the user record is updated
+	// in the db in order to reset the verification token and
+	// expiry.
+	nominatedUser.NewUserVerificationToken = token
+	nominatedUser.NewUserVerificationExpiry = expiry
+	err = p.db.UserUpdate(*nominatedUser)
+	if err != nil {
+		return nil, err
+	}
+	return token, nil
+}
+
+func (p *politeiawww) revokeDCCUser(userid string) error {
+	// Do full userdb update and reject user creds
+	nomineeUserID, err := uuid.Parse(userid)
+	if err != nil {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusInvalidUUID,
+		}
+	}
+	uu := user.UpdateCMSUser{
+		ID:             nomineeUserID,
+		ContractorType: int(cms.ContractorTypeRevoked),
+	}
+	payload, err := user.EncodeUpdateCMSUser(uu)
+	if err != nil {
+		return err
+	}
+	pc := user.PluginCommand{
+		ID:      user.CMSPluginID,
+		Command: user.CmdUpdateCMSUser,
+		Payload: string(payload),
+	}
+	_, err = p.db.PluginExec(pc)
+	if err != nil {
+		return err
+	}
+	return nil
 }

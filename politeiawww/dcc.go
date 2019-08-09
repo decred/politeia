@@ -28,7 +28,6 @@ import (
 	"github.com/decred/politeia/politeiawww/cmsdatabase"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
-	"github.com/google/uuid"
 )
 
 const (
@@ -921,73 +920,18 @@ func (p *politeiawww) processApproveDCC(ad cms.ApproveDCC, u *user.User) (*cms.A
 	}
 
 	if dcc.DCC.Type == cms.DCCTypeIssuance {
-		nominatedUser, err := p.userByIDStr(dcc.DCC.NomineeUserID)
+		// Do DCC user Issuance processing
+		verifyToken, err := p.issuanceDCCUser(dcc.DCC.NomineeUserID)
 		if err != nil {
 			return nil, err
 		}
+		return &cms.ApproveDCCReply{
+			VerificationToken: hex.EncodeToString(verifyToken),
+		}, nil
 
-		if !validEmail.MatchString(nominatedUser.Email) {
-			log.Debugf("processApproveDCC: invalid email '%v'", u.Email)
-			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusMalformedEmail,
-			}
-		}
-
-		// Generate the verification token and expiry.
-		token, expiry, err := newVerificationTokenAndExpiry()
-		if err != nil {
-			return nil, err
-		}
-
-		// Try to email the verification link first; if it fails, then
-		// the new user won't be created.
-		//
-		// This is conditional on the email server being setup.
-		err = p.emailApproveDCCVerificationLink(nominatedUser.Email,
-			hex.EncodeToString(token))
-		if err != nil {
-			log.Errorf("processApproveDCC: verification email "+
-				"failed for '%v': %v", nominatedUser.Email, err)
-			return &cms.ApproveDCCReply{}, nil
-		}
-
-		// If the user already exists, the user record is updated
-		// in the db in order to reset the verification token and
-		// expiry.
-		if nominatedUser != nil {
-			nominatedUser.NewUserVerificationToken = token
-			nominatedUser.NewUserVerificationExpiry = expiry
-			err = p.db.UserUpdate(*nominatedUser)
-			if err != nil {
-				return nil, err
-			}
-
-			return &cms.ApproveDCCReply{
-				VerificationToken: hex.EncodeToString(token),
-			}, nil
-		}
 	} else if dcc.DCC.Type == cms.DCCTypeRevocation {
-		// Do full userdb update and reject user creds
-		nomineeUserID, err := uuid.Parse(dcc.DCC.NomineeUserID)
-		if err != nil {
-			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusInvalidUUID,
-			}
-		}
-		uu := user.UpdateCMSUser{
-			ID:             nomineeUserID,
-			ContractorType: int(cms.ContractorTypeRevoked),
-		}
-		payload, err := user.EncodeUpdateCMSUser(uu)
-		if err != nil {
-			return nil, err
-		}
-		pc := user.PluginCommand{
-			ID:      user.CMSPluginID,
-			Command: user.CmdUpdateCMSUser,
-			Payload: string(payload),
-		}
-		_, err = p.db.PluginExec(pc)
+		// Do DCC user Revocation processing
+		err = p.revokeDCCUser(dcc.DCC.NomineeUserID)
 		if err != nil {
 			return nil, err
 		}
