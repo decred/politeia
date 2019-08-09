@@ -845,6 +845,14 @@ Reply:
 | <a name="ErrorStatusDuplicatePaymentAddress">ErrorStatusDuplicatePaymentAddress</a> | 1028 | An duplicate payment address was entered. |
 | <a name="ErrorStatusInvalidDatesRequested">ErrorStatusInvalidDatesRequested</a> | 1029 | Invalid dates were submitted for a request. |
 | <a name="ErrorStatusInvalidInvoiceEditMonthYear">ErrorStatusInvalidInvoiceEditMonthYear</a> | 1030 | Invoice month/year was attempted to be edited. |
+| <a name="ErrorStatusInvalidDCCType">ErrorStatusInvalidDCCType</a> | 1031 | An invalid DCC type was detected. |
+| <a name="ErrorStatusInvalidNominatingDomain">ErrorStatusInvalidNominatingDomain</a> | 1032 | An invalid nominating domain was detected.  Domain must match sponsoring user's domain. |
+| <a name="ErrorStatusMalformedSponsorStatement">ErrorStatusMalformedSponsorStatement</a> | 1033 | The sponsor statement was malformed. |
+| <a name="ErrorStatusMalformedDCCFile">ErrorStatusMalformedDCCFile</a> | 1034 | The DCC files was malformed. |
+| <a name="ErrorStatusInvalidDCCComment">ErrorStatusInvalidDCCComment</a> | 1035 | A DCC comment was invalid. |
+| <a name="ErrorStatusInvalidDCCStatusTransition">ErrorStatusInvalidDCCStatusTransition</a> | 1036 | An invalid DCC status transition. |
+| <a name="ErrorStatusDuplicateEmail">ErrorStatusDuplicateEmail</a> | 1037 | A duplicate email address was detected. |
+| <a name="ErrorStatusInvalidUserNewInvoice">ErrorStatusInvalidUserNewInvoice</a> | 1038 | The user was not allowed to create a new invoice. |
 
 ### Invoice status codes
 
@@ -886,3 +894,32 @@ Reply:
 | <a name="ContractorTypeDirect">ContractorTypeDirect</a>| 1 | A direct contractor that does not work under another organization. Able to submit invoices. |
 | <a name="ContractorTypeSupervisor">ContractorTypeSupervisor</a>| 2 | The supervising manager of a team of sub contractors.  Able to submit invoices for themselves and subs. |
 | <a name="ContractorTypeSubContractor">ContractorTypeSubContractor</a>| 3 | A sub contractor that works for a supervising manager.  NOT able to submit invoices. |
+| <a name="ContractorTypeRevoked">ContractorTypeRevoked</a>| 4 | A contractor that has been revoked by a DCC. |
+| <a name="ContractorTypeDormant">ContractorTypeDormant</a>| 5 | A contractor that has left for a period of time without invoice or contact. |
+| <a name="ContractorTypeNominee">ContractorTypeNominee</a>| 6 | A nominated contractor that has an associated DCC. |
+
+
+### Payment status codes
+| Status | Value | Description |
+|-|-|-|
+| <a name="PaymentStatusInvalid">PaymentStatusInvalid</a>| 0 | Invalid status. |
+| <a name="PaymentStatusWatching">PaymentStatusWatching</a>| 1 | Payment is currently watching. |
+| <a name="PaymentStatusPaid">PaymentStatusPaid</a>| 2 | Payment has been observed to have been paid. |
+
+### DCC type codes
+| Type | Value | Description |
+|-|-|-|
+| <a name="DCCTypeInvalid">DCCTypeInvalid</a>| 0 | Invalid type. |
+| <a name="DCCTypeIssuance">DCCTypeIssuance</a>| 1 | DCC issuance proposal. |
+| <a name="DCCTypeRevocation">DCCTypeRevocation</a>| 2 | DCC revocation proposal. |
+
+### DCC status codes
+| Status | Value | Description |
+|-|-|-|
+| <a name="DCCStatusInvalid">DCCStatusInvalid</a>| 0 | Invalid status. |
+| <a name="DCCStatusActive">DCCStatusActive</a>| 1 | Currently active issuance/revocation (awaiting sponsors). |
+| <a name="DCCStatusSupported">DCCStatusSupported</a>| 2 | Fully supported issuance/revocation (received enough sponsors to proceed). |
+| <a name="DCCStatusApproved">DCCStatusApproved</a>| 3 | Approved issuance/revocation |
+| <a name="DCCStatusRejected">DCCStatusRejected</a>| 4 | Rejected issuance/revocation |
+| <a name="DCCStatusDebate">DCCStatusDebate</a>| 5 | If a issuance/revocation receives enough comments, it would enter a "debate" status that would require a full contractor vote (to be added later).  |
+
