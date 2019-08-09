@@ -982,6 +982,232 @@ Reply:
 {}
 ```
 
+### `Approve DCC`
+
+Approves a DCC proposal that will then move the nominated user into a fully invited contractor.
+
+Note: This call requires admin privileges.
+
+**Route:** `POST /v1/admin/approvedcc`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| reason | string | The reason for approving the DCC. | Yes |
+| token | string | The token of the DCC to approve. | Yes |
+| publickey | string | The user's public key. | Yes |
+| signature | string | The signature of the string representation of the reason and token payload. | Yes |
+
+**Results:**
+
+| | Type | Description |
+|-|-|-|
+| verificationtoken | String | The verification token which is required when calling [`Register`](#register). The token will be sent to the email address sent in the request.|
+
+**Example**
+
+Request:
+
+```json
+{
+  "comment":"nay",
+  "token":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+  "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+  "signature": "gdd92f26c8g38c90d2887259e88df614654g32fde76bef1438b0efg40e360f461e995d796g16b17108gbe226793ge4g52gg013428feb3c39de504fe5g1811e0e"}
+```
+
+Reply:
+
+```json
+{
+  "verificationtoken": "fc8f660e7f4d590e27e6b11639ceeaaec2ce9bc6b0303344555ac023ab8ee55f"
+}
+```
+
+### `Reject DCC`
+
+Rejects a DCC proposal that will then move the nominated user into a ContractorRevoked status.
+
+Note: This call requires admin privileges.
+
+**Route:** `POST /v1/admin/rejectdcc`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| reason | string | The reason for rejecting the DCC. | Yes |
+| token | string | The token of the DCC to reject. | Yes |
+| publickey | string | The user's public key. | Yes |
+| signature | string | The signature of the string representation of the reason and token payload. | Yes |
+
+**Results:**
+
+| | Type | Description |
+|-|-|-|
+
+**Example**
+
+Request:
+
+```json
+{
+  "comment":"nay",
+  "token":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+  "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+  "signature": "gdd92f26c8g38c90d2887259e88df614654g32fde76bef1438b0efg40e360f461e995d796g16b17108gbe226793ge4g52gg013428feb3c39de504fe5g1811e0e"}
+```
+
+Reply:
+
+```json
+{}
+```
+
+### `DCC details`
+
+Retrieve DCC and its details.
+
+**Routes:** `GET /v1/dcc/{token}`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| token | string | Token is the unique censorship token that identifies a specific proposal. | Yes |
+
+**Results:**
+
+| | Type | Description |
+|-|-|-|
+| dcc | [`DCC`](#dcc) | The DCC with the provided token. |
+
+**Example**
+
+Request:
+
+The request params should be provided within the URL:
+
+```
+/v1/dcc/f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde?version=2
+```
+
+Reply:
+
+```json
+{  
+  "dcc": {
+    "type": 2,
+    "status": 4,
+    "statuschangereason": "This has been revoked due to strong support.",
+    "timestamp": 1565374601,
+    "dccpayload": {
+      "type": 2,
+      "nomineeuserid": "6638a1c9-271f-433e-bf2c-6144ddd8bed5",
+      "statement": "This is a statement to support the DCC to revoke this user.",
+      "domain": 2
+    },
+    "file": [
+      {
+        "name": "dcc.json",
+        "mime": "text/plain; charset=utf-8",
+        "digest": "cd5176184a510776abf1c394d830427f94d2f7fe4622e27ac839ceefa7fcf277",
+        "payload": "eyJ0eXBlIjoyLCJub21pbmVldXNlcmlkIjoiNjYzOGExYzktMjcxZi00MzNlLWJmMmMtNjE0NGRkZDhiZWQ1Iiwic3RhdGVtZW50Ijoic2RhZnNkZmFzZmRzZGYiLCJkb21haW4iOjJ9"
+      }
+    ],
+    "publickey": "311fa61d27b18c0033589ef1fb49edd162d791d0702cbab623ffd4486452322a",
+    "signature": "8a3c5b5cb984cfb7fd59a11d2d7d11a8d50b936358541d917ba348d30bfb1d805c26686836695a9b4b347feee6a674b689b448ed941280874a4b8dbdf360600b",
+    "version": "1",
+    "statement": "",
+    "domain": 0,
+    "sponsoruserid": "b35ab9d3-a98d-4170-ad5a-85b5bce9fb10",
+    "sponsorusername": "bsaget",
+    "supportuserids": [],
+    "againstuserids": [
+      "a5c98ca0-7369-4147-8902-3d268ec2fb24"
+    ],
+    "censorshiprecord": {
+      "token": "edd0882152f9800e7a6240f23d7310bd45145eb85ec463458de828b631083d84",
+      "merkle": "cd5176184a510776abf1c394d830427f94d2f7fe4622e27ac839ceefa7fcf277",
+      "signature": "4ea9f76a6c6659d4936aa556182604a3099778a981ebf500d5d47424b7ba0127ab033202b0be7872d09473088c04e9d1145f801455f0ae07be29e2f2d99ac00f"
+    }
+  }
+}
+```
+
+### `Get DCCs`
+
+Retrieve DCCs by status.
+
+**Routes:** `POST /v1/dcc/status`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| status | int | Returns all of the DCCs depending by the provided status. | Yes |
+
+**Results:**
+
+| | Type | Description |
+|-|-|-|
+| dccs | [`DCC`](#dcc) | The DCCs with the provided status. |
+
+**Example**
+
+Request:
+
+```json
+{
+  "status":1,
+},
+
+Reply:
+
+```json
+{  
+  "dccs": [{
+    "dcc": {
+      "type": 2,
+      "status": 4,
+      "statuschangereason": "This has been revoked due to strong support.",
+      "timestamp": 1565374601,
+      "dccpayload": {
+        "type": 2,
+        "nomineeuserid": "6638a1c9-271f-433e-bf2c-6144ddd8bed5",
+        "statement": "This is a statement to support the DCC to revoke this user.",
+        "domain": 2
+      },
+      "file": [
+        {
+          "name": "dcc.json",
+          "mime": "text/plain; charset=utf-8",
+          "digest": "cd5176184a510776abf1c394d830427f94d2f7fe4622e27ac839ceefa7fcf277",
+          "payload": "eyJ0eXBlIjoyLCJub21pbmVldXNlcmlkIjoiNjYzOGExYzktMjcxZi00MzNlLWJmMmMtNjE0NGRkZDhiZWQ1Iiwic3RhdGVtZW50Ijoic2RhZnNkZmFzZmRzZGYiLCJkb21haW4iOjJ9"
+        }
+      ],
+      "publickey": "311fa61d27b18c0033589ef1fb49edd162d791d0702cbab623ffd4486452322a",
+      "signature": "8a3c5b5cb984cfb7fd59a11d2d7d11a8d50b936358541d917ba348d30bfb1d805c26686836695a9b4b347feee6a674b689b448ed941280874a4b8dbdf360600b",
+      "version": "1",
+      "statement": "",
+      "domain": 0,
+      "sponsoruserid": "b35ab9d3-a98d-4170-ad5a-85b5bce9fb10",
+      "sponsorusername": "bsaget",
+      "supportuserids": [],
+      "againstuserids": [
+        "a5c98ca0-7369-4147-8902-3d268ec2fb24"
+      ],
+      "censorshiprecord": {
+        "token": "edd0882152f9800e7a6240f23d7310bd45145eb85ec463458de828b631083d84",
+        "merkle": "cd5176184a510776abf1c394d830427f94d2f7fe4622e27ac839ceefa7fcf277",
+        "signature": "4ea9f76a6c6659d4936aa556182604a3099778a981ebf500d5d47424b7ba0127ab033202b0be7872d09473088c04e9d1145f801455f0ae07be29e2f2d99ac00f"
+      }
+    }
+  }]
+}
+```
+
 ### Error codes
 
 | Status | Value | Description |
