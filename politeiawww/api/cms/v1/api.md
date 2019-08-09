@@ -812,6 +812,176 @@ Reply:
 }
 ```
 
+### `New DCC`
+
+Creates a new DCC Proposal.
+
+**Route:** `POST /v1/dcc/new`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| files | [`[]File`](#file) | The dcc json file and any other attachments. | Yes |
+| publickey | string | The user's public key. | Yes |
+| signature | string | The signature of the string representation of the file payload. | Yes |
+
+**Results:**
+
+| | Type | Description |
+|-|-|-|
+| censorshiprecord | [CensorshipRecord](#censorship-record) | A censorship record that provides the submitter with a method to extract the dcc and prove that he/she submitted it. |
+
+**Example**
+
+Request:
+
+```json
+{
+  "files": [
+    {
+      "name":"dcc.json",
+      "mime": "text/plain; charset=utf-8",
+      "digest": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
+      "payload": "VGhpcyBpcyBhIGRlc2NyaXB0aW9u"
+    }
+  ],
+  "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+  "signature": "gdd92f26c8g38c90d2887259e88df614654g32fde76bef1438b0efg40e360f461e995d796g16b17108gbe226793ge4g52gg013428feb3c39de504fe5g1811e0e"
+}
+```
+
+Reply:
+
+```json
+{
+  "censorshiprecord": {
+    "token": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
+    "merkle": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
+    "signature": "fcc92e26b8f38b90c2887259d88ce614654f32ecd76ade1438a0def40d360e461d995c796f16a17108fad226793fd4f52ff013428eda3b39cd504ed5f1811d0d"
+  }
+}
+```
+
+### `New DCC User`
+
+Returns a logged-in CMS user's information beyond what is stored in the userdb.
+
+**Route:** `POST /v1/dcc/newuser`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| contractorname | string | The name of the nominated DCC user. | Yes |
+| contractorcontact | string | The contact information of the nominated DCC user. | Yes |
+| contractoremail | string | The email address for the nominated DCC user. | Yes |
+| publickey | string | The user's public key. | Yes |
+| signature | string | The signature of the string representation of the file payload. | Yes |
+
+**Results:**
+
+| | Type | Description |
+|-|-|-|
+| userid | string | The UserID of the newly created nominated user. |
+
+**Example**
+
+Request:
+
+```json
+{
+  "contractorname":"Bob Saget",
+  "contractorcontact":"bsaget:decred.org",
+  "contractoremail":"bsaget@decred.org",
+  "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+  "signature": "gdd92f26c8g38c90d2887259e88df614654g32fde76bef1438b0efg40e360f461e995d796g16b17108gbe226793ge4g52gg013428feb3c39de504fe5g1811e0e"}
+```
+
+Reply:
+
+```json
+{
+  "userid":"a5c98ca0-7369-4147-8902-3d268ec2fb24",
+}
+```
+
+### `Support DCC`
+
+Creates a comment on a DCC Record that is used to tabulate support.
+
+**Route:** `POST /v1/dcc/support`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| comment | string | The comment for support of DCC, needs to be "aye". | Yes |
+| token | string | The token of the DCC to support | Yes |
+| publickey | string | The user's public key. | Yes |
+| signature | string | The signature of the string representation of the comment and token payload. | Yes |
+
+**Results:**
+
+| | Type | Description |
+|-|-|-|
+
+**Example**
+
+Request:
+
+```json
+{
+  "comment":"aye",
+  "token":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+  "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+  "signature": "gdd92f26c8g38c90d2887259e88df614654g32fde76bef1438b0efg40e360f461e995d796g16b17108gbe226793ge4g52gg013428feb3c39de504fe5g1811e0e"}
+```
+
+Reply:
+
+```json
+{}
+```
+
+### `Oppose DCC`
+
+Creates a comment on a DCC Record that is used to tabulate opposition.
+
+**Route:** `POST /v1/dcc/support`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| comment | string | The comment for support of DCC, needs to be "nay". | Yes |
+| token | string | The token of the DCC to support | Yes |
+| publickey | string | The user's public key. | Yes |
+| signature | string | The signature of the string representation of the comment and token payload. | Yes |
+
+**Results:**
+
+| | Type | Description |
+|-|-|-|
+
+**Example**
+
+Request:
+
+```json
+{
+  "comment":"nay",
+  "token":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+  "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+  "signature": "gdd92f26c8g38c90d2887259e88df614654g32fde76bef1438b0efg40e360f461e995d796g16b17108gbe226793ge4g52gg013428feb3c39de504fe5g1811e0e"}
+```
+
+Reply:
+
+```json
+{}
+```
+
 ### Error codes
 
 | Status | Value | Description |
