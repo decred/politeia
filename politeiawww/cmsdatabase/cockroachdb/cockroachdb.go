@@ -577,7 +577,7 @@ func (c *cockroachdb) PaymentsByStatus(status uint) ([]database.Payments, error)
 func (c *cockroachdb) NewDCC(dbDCC *database.DCC) error {
 	dcc := encodeDCC(dbDCC)
 
-	log.Debugf("NewDCC: %v %v", dcc.Token)
+	log.Debugf("NewDCC: %v", dcc.Token)
 	return c.recordsdb.Create(dcc).Error
 }
 

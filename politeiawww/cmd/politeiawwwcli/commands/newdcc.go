@@ -13,6 +13,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/decred/politeia/politeiad/api/v1/mime"
@@ -37,7 +38,7 @@ type NewDCCCmd struct {
 func (cmd *NewDCCCmd) Execute(args []string) error {
 
 	// Check for a valid DCC type
-	if int(cmd.Args.Type) <= 0 || int(cmd.Args.Type) > 1 {
+	if int(cmd.Args.Type) <= 0 || int(cmd.Args.Type) > 2 {
 		return errInvalidDCCType
 	}
 
@@ -51,8 +52,8 @@ func (cmd *NewDCCCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-
-	if cmd.Statement == "" || cmd.NomineeUserID == "" {
+	var domainType int
+	if cmd.Statement == "" || cmd.NomineeUserID == "" || cmd.Domain == "" {
 		reader := bufio.NewReader(os.Stdin)
 		if cmd.Statement == "" {
 			fmt.Print("Enter your statement to support the DCC: ")
@@ -62,9 +63,34 @@ func (cmd *NewDCCCmd) Execute(args []string) error {
 			fmt.Print("Enter the nominee user id: ")
 			cmd.NomineeUserID, _ = reader.ReadString('\n')
 		}
+		if cmd.Domain == "" {
+			for {
+				fmt.Printf("Domain Type: (1) Developer, (2) Marketing, (3) " +
+					"Community, (4) Research, (5) Design, (6) Documentation:  ")
+				cmd.Domain, _ = reader.ReadString('\n')
+				domainType, err = strconv.Atoi(strings.TrimSpace(cmd.Domain))
+				if err != nil {
+					fmt.Println("Invalid entry, please try again.")
+					continue
+				}
+				if domainType < 1 || domainType > 6 {
+					fmt.Println("Invalid domain type entered, please try again.")
+					continue
+				}
+				str := fmt.Sprintf(
+					"Your current Domain setting is: \"%v\" Keep this?",
+					domainType)
+				update, err := promptListBool(reader, str, "yes")
+				if err != nil {
+					return err
+				}
+				if update {
+					break
+				}
+			}
+		}
 		fmt.Print("\nPlease carefully review your information and ensure it's " +
-			"correct. If not, press Ctrl + C to exit. Or, press Enter to continue " +
-			"your registration.")
+			"correct. If not, press Ctrl + C to exit. Or, press Enter to continue.")
 		reader.ReadString('\n')
 	}
 
@@ -72,6 +98,7 @@ func (cmd *NewDCCCmd) Execute(args []string) error {
 	dccInput.SponsorStatement = strings.TrimSpace(cmd.Statement)
 	dccInput.NomineeUserID = strings.TrimSpace(cmd.NomineeUserID)
 	dccInput.Type = cms.DCCTypeT(int(cmd.Args.Type))
+	dccInput.Domain = cms.DomainTypeT(domainType)
 
 	// Print request details
 	err = printJSON(dccInput)

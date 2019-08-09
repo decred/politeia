@@ -623,19 +623,9 @@ func (p *politeiawww) handleDCCDetails(w http.ResponseWriter, r *http.Request) {
 			})
 		return
 	}
-
 	// Get dcc token from path parameters
 	pathParams := mux.Vars(r)
 	gd.Token = pathParams["token"]
-
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&gd); err != nil {
-		RespondWithError(w, r, 0, "handleDCCDetails: unmarshal",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
 
 	gdr, err := p.processDCCDetails(gd)
 	if err != nil {

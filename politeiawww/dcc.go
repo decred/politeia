@@ -51,6 +51,7 @@ var (
 	validSponsorStatement     = regexp.MustCompile(createSponsorStatementRegex())
 	validDCCStatusTransitions = map[cms.DCCStatusT][]cms.DCCStatusT{
 		cms.DCCStatusActive: {
+			cms.DCCStatusApproved,
 			cms.DCCStatusSupported,
 			cms.DCCStatusRejected,
 			cms.DCCStatusDebate,
@@ -307,7 +308,7 @@ func (p *politeiawww) validateDCC(nd cms.NewDCC, u *user.User) error {
 				}
 			}
 			// Check UserID of Nominee
-			nomineeUser, err := p.getCMSUserByID(issuance.NomineeUserID)
+			_, err := p.getCMSUserByID(issuance.NomineeUserID)
 			if err != nil {
 				return err
 			}
@@ -318,7 +319,8 @@ func (p *politeiawww) validateDCC(nd cms.NewDCC, u *user.User) error {
 			}
 
 			// Check that domains match
-			if sponsorUser.Domain != nomineeUser.Domain {
+			if sponsorUser.Domain != issuance.Domain {
+				fmt.Println(sponsorUser.Domain, issuance.Domain)
 				return www.UserError{
 					ErrorCode: cms.ErrorStatusInvalidNominatingDomain,
 				}
@@ -919,14 +921,6 @@ func (p *politeiawww) processApproveDCC(ad cms.ApproveDCC, u *user.User) (*cms.A
 		}
 	}
 
-	// Check if the user is already verified.
-	existingUser, err := p.userByEmail(u.Email)
-	if err != nil {
-		if existingUser.NewUserVerificationToken == nil {
-			return &cms.ApproveDCCReply{}, nil
-		}
-	}
-
 	// Generate the verification token and expiry.
 	token, expiry, err := newVerificationTokenAndExpiry()
 	if err != nil {
@@ -937,21 +931,21 @@ func (p *politeiawww) processApproveDCC(ad cms.ApproveDCC, u *user.User) (*cms.A
 	// the new user won't be created.
 	//
 	// This is conditional on the email server being setup.
-	err = p.emailApproveDCCVerificationLink(u.Email,
+	err = p.emailApproveDCCVerificationLink(nominatedUser.Email,
 		hex.EncodeToString(token))
 	if err != nil {
 		log.Errorf("processApproveDCC: verification email "+
-			"failed for '%v': %v", u.Email, err)
+			"failed for '%v': %v", nominatedUser.Email, err)
 		return &cms.ApproveDCCReply{}, nil
 	}
 
 	// If the user already exists, the user record is updated
 	// in the db in order to reset the verification token and
 	// expiry.
-	if existingUser != nil {
-		existingUser.NewUserVerificationToken = token
-		existingUser.NewUserVerificationExpiry = expiry
-		err = p.db.UserUpdate(*existingUser)
+	if nominatedUser != nil {
+		nominatedUser.NewUserVerificationToken = token
+		nominatedUser.NewUserVerificationExpiry = expiry
+		err = p.db.UserUpdate(*nominatedUser)
 		if err != nil {
 			return nil, err
 		}

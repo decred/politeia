@@ -204,7 +204,7 @@ func decodePayment(payments *Payments) database.Payments {
 	return dbPayments
 }
 
-func encodeDCC(dbDCC *database.DCC) DCC {
+func encodeDCC(dbDCC *database.DCC) *DCC {
 	dcc := DCC{
 		Token:              dbDCC.Token,
 		SponsorUserID:      dbDCC.SponsorUserID,
@@ -223,7 +223,7 @@ func encodeDCC(dbDCC *database.DCC) DCC {
 		SupportUserIDs:    dbDCC.SupportUserIDs,
 		OppositionUserIDs: dbDCC.OppositionUserIDs,
 	}
-	return dcc
+	return &dcc
 }
 
 func decodeDCC(dcc *DCC) *database.DCC {
