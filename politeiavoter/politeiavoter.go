@@ -139,10 +139,11 @@ func verifyMessage(address, message, signature string) (bool, error) {
 }
 
 type ctx struct {
-	client *http.Client
-	cfg    *config
-	id     *identity.PublicIdentity
-	csrf   string
+	client    *http.Client
+	cfg       *config
+	id        *identity.PublicIdentity
+	csrf      string
+	userAgent string
 
 	// wallet grpc
 	ctx    context.Context
@@ -188,7 +189,9 @@ func newClient(cfg *config) (*ctx, error) {
 		client: &http.Client{
 			Transport: tr,
 			Jar:       jar,
-		}}, nil
+		},
+		userAgent: fmt.Sprintf("politeiavoter/%s", cfg.Version),
+	}, nil
 }
 
 func (c *ctx) getCSRF() (*v1.VersionReply, error) {
@@ -208,6 +211,7 @@ func (c *ctx) getCSRF() (*v1.VersionReply, error) {
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("User-Agent", c.userAgent)
 	r, err := c.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -302,6 +306,8 @@ func (c *ctx) makeRequest(method, route string, b interface{}) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	req.Header.Set("User-Agent", c.userAgent)
 	req.Header.Add(v1.CsrfToken, c.csrf)
 	r, err := c.client.Do(req)
 	if _, ok := err.(*url.Error); ok {
