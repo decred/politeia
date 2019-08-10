@@ -19,13 +19,8 @@ import (
 
 // decredGetComment sends the decred plugin getcomment command to the cache and
 // returns the specified comment.
-func (p *politeiawww) decredGetComment(token, commentID string) (*decredplugin.Comment, error) {
+func (p *politeiawww) decredGetComment(gc decredplugin.GetComment) (*decredplugin.Comment, error) {
 	// Setup plugin command
-	gc := decredplugin.GetComment{
-		Token:     token,
-		CommentID: commentID,
-	}
-
 	payload, err := decredplugin.EncodeGetComment(gc)
 	if err != nil {
 		return nil, err
@@ -49,6 +44,26 @@ func (p *politeiawww) decredGetComment(token, commentID string) (*decredplugin.C
 	}
 
 	return &gcr.Comment, nil
+}
+
+// decredCommentGetByID retrieves the specified decred plugin comment from the
+// cache.
+func (p *politeiawww) decredCommentGetByID(token, commentID string) (*decredplugin.Comment, error) {
+	gc := decredplugin.GetComment{
+		Token:     token,
+		CommentID: commentID,
+	}
+	return p.decredGetComment(gc)
+}
+
+// decredCommentGetBySignature retrieves the specified decred plugin comment
+// from the cache.
+func (p *politeiawww) decredCommentGetBySignature(token, sig string) (*decredplugin.Comment, error) {
+	gc := decredplugin.GetComment{
+		Token:     token,
+		Signature: sig,
+	}
+	return p.decredGetComment(gc)
 }
 
 // decredGetComments sends the decred plugin getcomments command to the cache

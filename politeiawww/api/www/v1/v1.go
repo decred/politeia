@@ -161,7 +161,6 @@ const (
 	ErrorStatusInvalidUserManageAction     ErrorStatusT = 40
 	ErrorStatusUserActionNotAllowed        ErrorStatusT = 41
 	ErrorStatusWrongVoteStatus             ErrorStatusT = 42
-	ErrorStatusCannotCommentOnProp         ErrorStatusT = 43
 	ErrorStatusCannotVoteOnPropComment     ErrorStatusT = 44
 	ErrorStatusChangeMessageCannotBeBlank  ErrorStatusT = 45
 	ErrorStatusCensorReasonCannotBeBlank   ErrorStatusT = 46
@@ -178,8 +177,9 @@ const (
 	ErrorStatusInvalidLikeCommentAction    ErrorStatusT = 57
 	ErrorStatusInvalidCensorshipToken      ErrorStatusT = 58
 	ErrorStatusEmailAlreadyVerified        ErrorStatusT = 59
-	ErrorStatusNoProposalChanges           ErrorStatusT = 88
-	ErrorStatusMaxProposalsExceededPolicy  ErrorStatusT = 89
+	ErrorStatusNoProposalChanges           ErrorStatusT = 60
+	ErrorStatusMaxProposalsExceededPolicy  ErrorStatusT = 61
+	ErrorStatusDuplicateComment            ErrorStatusT = 62
 
 	// Proposal state codes
 	//
@@ -300,7 +300,6 @@ var (
 		ErrorStatusInvalidUserManageAction:     "invalid user edit action",
 		ErrorStatusUserActionNotAllowed:        "user action is not allowed",
 		ErrorStatusWrongVoteStatus:             "wrong proposal vote status",
-		ErrorStatusCannotCommentOnProp:         "cannot comment on proposal",
 		ErrorStatusCannotVoteOnPropComment:     "cannot vote on proposal comment",
 		ErrorStatusChangeMessageCannotBeBlank:  "status change message cannot be blank",
 		ErrorStatusCensorReasonCannotBeBlank:   "censor comment reason cannot be blank",
@@ -318,6 +317,7 @@ var (
 		ErrorStatusInvalidCensorshipToken:      "invalid proposal censorship token",
 		ErrorStatusEmailAlreadyVerified:        "email address is already verified",
 		ErrorStatusNoProposalChanges:           "no changes found in proposal",
+		ErrorStatusDuplicateComment:            "duplicate comment",
 	}
 
 	// PropStatus converts propsal status codes to human readable text

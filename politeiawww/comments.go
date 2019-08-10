@@ -50,7 +50,7 @@ func (p *politeiawww) initCommentScores() error {
 // politeiawww specific data for the comment.
 func (p *politeiawww) getComment(token, commentID string) (*www.Comment, error) {
 	// Fetch comment from the cache
-	dc, err := p.decredGetComment(token, commentID)
+	dc, err := p.decredCommentGetByID(token, commentID)
 	if err != nil {
 		return nil, fmt.Errorf("decredGetComment: %v", err)
 	}
@@ -217,7 +217,8 @@ func (p *politeiawww) processNewComment(nc www.NewComment, u *user.User) (*www.N
 
 	if pr.Status != www.PropStatusPublic {
 		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusCannotCommentOnProp,
+			ErrorCode:    www.ErrorStatusWrongStatus,
+			ErrorContext: []string{"proposal is not public"},
 		}
 	}
 
@@ -236,7 +237,16 @@ func (p *politeiawww) processNewComment(nc www.NewComment, u *user.User) (*www.N
 
 	if getVoteStatus(avr, svr, bb) == www.PropVoteStatusFinished {
 		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusWrongVoteStatus,
+			ErrorCode:    www.ErrorStatusWrongVoteStatus,
+			ErrorContext: []string{"vote is finished"},
+		}
+	}
+
+	// Ensure the comment is not a duplicate
+	_, err = p.decredCommentGetBySignature(nc.Token, nc.Signature)
+	if err != cache.ErrRecordNotFound {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusDuplicateComment,
 		}
 	}
 
@@ -352,7 +362,7 @@ func (p *politeiawww) processNewCommentInvoice(nc www.NewComment, u *user.User) 
 	// Check to make sure that invoice isn't already approved or paid.
 	if ir.Status == cms.InvoiceStatusApproved || ir.Status == cms.InvoiceStatusPaid {
 		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusCannotCommentOnProp,
+			ErrorCode: cms.ErrorStatusWrongInvoiceStatus,
 		}
 	}
 
@@ -493,7 +503,7 @@ func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www
 	}
 
 	// Ensure comment exists
-	_, err = p.decredGetComment(lc.Token, lc.CommentID)
+	_, err = p.decredCommentGetByID(lc.Token, lc.CommentID)
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
 			err = www.UserError{
@@ -602,7 +612,7 @@ func (p *politeiawww) processCensorComment(cc www.CensorComment, u *user.User) (
 	}
 
 	// Ensure comment exists and has not already been censored
-	c, err := p.decredGetComment(cc.Token, cc.CommentID)
+	c, err := p.decredCommentGetByID(cc.Token, cc.CommentID)
 	if err != nil {
 		return nil, fmt.Errorf("decredGetComment: %v", err)
 	}
