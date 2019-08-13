@@ -35,6 +35,10 @@ var (
 	// ErrInvalidPluginCmd is emitted when an invalid plugin command
 	// is used.
 	ErrInvalidPluginCmd = errors.New("invalid plugin command")
+
+	// ErrInvalidPluginCmdArgs is emitted when a plugin command is used
+	// with invalid arguments.
+	ErrInvalidPluginCmdArgs = errors.New("invalid plugin command arguments")
 )
 
 const (

@@ -43,13 +43,6 @@ type decred struct {
 	settings  []cache.PluginSetting // Plugin settings
 }
 
-// newComment inserts a Comment record into the database.  This function has a
-// database parameter so that it can be called inside of a transaction when
-// required.
-func (d *decred) newComment(db *gorm.DB, c Comment) error {
-	return db.Create(&c).Error
-}
-
 // cmdNewComment creates a Comment record using the passed in payloads and
 // inserts it into the database.
 func (d *decred) cmdNewComment(cmdPayload, replyPayload string) (string, error) {
@@ -65,16 +58,9 @@ func (d *decred) cmdNewComment(cmdPayload, replyPayload string) (string, error) 
 	}
 
 	c := convertNewCommentFromDecred(*nc, *ncr)
-	err = d.newComment(d.recordsdb, c)
+	err = d.recordsdb.Create(&c).Error
 
 	return replyPayload, err
-}
-
-// newLikeComment inserts a LikeComment record into the database.  This
-// function has a database parameter so that it can be called inside of a
-// transaction when required.
-func (d *decred) newLikeComment(db *gorm.DB, lc LikeComment) error {
-	return db.Create(&lc).Error
 }
 
 // cmdLikeComment creates a LikeComment record using the passed in payloads
@@ -88,7 +74,7 @@ func (d *decred) cmdLikeComment(cmdPayload, replyPayload string) (string, error)
 	}
 
 	lc := convertLikeCommentFromDecred(*dlc)
-	err = d.newLikeComment(d.recordsdb, lc)
+	err = d.recordsdb.Create(&lc).Error
 
 	return replyPayload, err
 }
@@ -115,6 +101,35 @@ func (d *decred) cmdCensorComment(cmdPayload, replyPayload string) (string, erro
 	return replyPayload, err
 }
 
+func (d *decred) commentGetByID(token string, commentID string) (*Comment, error) {
+	c := Comment{
+		Key: token + commentID,
+	}
+	err := d.recordsdb.Find(&c).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			err = cache.ErrRecordNotFound
+		}
+		return nil, err
+	}
+	return &c, nil
+}
+
+func (d *decred) commentGetBySignature(token string, sig string) (*Comment, error) {
+	var c Comment
+	err := d.recordsdb.
+		Where("token = ? AND signature = ?", token, sig).
+		Find(&c).
+		Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			err = cache.ErrRecordNotFound
+		}
+		return nil, err
+	}
+	return &c, nil
+}
+
 // cmdGetComment retreives the passed in comment from the database.
 func (d *decred) cmdGetComment(payload string) (string, error) {
 	log.Tracef("decred cmdGetComment")
@@ -124,19 +139,25 @@ func (d *decred) cmdGetComment(payload string) (string, error) {
 		return "", err
 	}
 
-	c := Comment{
-		Key: gc.Token + gc.CommentID,
+	if gc.Token == "" {
+		return "", cache.ErrInvalidPluginCmdArgs
 	}
-	err = d.recordsdb.Find(&c).Error
+
+	var c *Comment
+	switch {
+	case gc.CommentID != "":
+		c, err = d.commentGetByID(gc.Token, gc.CommentID)
+	case gc.Signature != "":
+		c, err = d.commentGetBySignature(gc.Token, gc.Signature)
+	default:
+		return "", cache.ErrInvalidPluginCmdArgs
+	}
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			err = cache.ErrRecordNotFound
-		}
 		return "", err
 	}
 
 	gcr := decredplugin.GetCommentReply{
-		Comment: convertCommentToDecred(c),
+		Comment: convertCommentToDecred(*c),
 	}
 	gcrb, err := decredplugin.EncodeGetCommentReply(gcr)
 	if err != nil {
@@ -1193,9 +1214,9 @@ func (d *decred) build(ir *decredplugin.InventoryReply) error {
 	log.Tracef("decred: building comments cache")
 	for _, v := range ir.Comments {
 		c := convertCommentFromDecred(v)
-		err := d.newComment(d.recordsdb, c)
+		err := d.recordsdb.Create(&c).Error
 		if err != nil {
-			log.Debugf("newComment failed on '%v'", c)
+			log.Debugf("create comment failed on '%v'", c)
 			return fmt.Errorf("newComment: %v", err)
 		}
 	}
@@ -1204,7 +1225,7 @@ func (d *decred) build(ir *decredplugin.InventoryReply) error {
 	log.Tracef("decred: building like comments cache")
 	for _, v := range ir.LikeComments {
 		lc := convertLikeCommentFromDecred(v)
-		err := d.newLikeComment(d.recordsdb, lc)
+		err := d.recordsdb.Create(&lc).Error
 		if err != nil {
 			log.Debugf("newLikeComment failed on '%v'", lc)
 			return fmt.Errorf("newLikeComment: %v", err)

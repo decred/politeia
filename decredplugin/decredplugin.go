@@ -609,10 +609,12 @@ func DecodeCensorCommentReply(payload []byte) (*CensorCommentReply, error) {
 	return &ccr, nil
 }
 
-// GetComment retrieves a single comment.
+// GetComment retrieves a single comment. The comment can be retrieved by
+// either comment ID or by signature.
 type GetComment struct {
-	Token     string `json:"token"`     // Proposal ID
-	CommentID string `json:"commentid"` // Comment ID
+	Token     string `json:"token"`               // Proposal ID
+	CommentID string `json:"commentid,omitempty"` // Comment ID
+	Signature string `json:"signature,omitempty"` // Client signature
 }
 
 // EncodeGetComment encodes a GetComment into a JSON byte slice.
