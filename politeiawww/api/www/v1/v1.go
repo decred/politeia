@@ -180,6 +180,7 @@ const (
 	ErrorStatusNoProposalChanges           ErrorStatusT = 60
 	ErrorStatusMaxProposalsExceededPolicy  ErrorStatusT = 61
 	ErrorStatusDuplicateComment            ErrorStatusT = 62
+	ErrorStatusInvalidLogin                ErrorStatusT = 63
 
 	// Proposal state codes
 	//
@@ -318,6 +319,7 @@ var (
 		ErrorStatusEmailAlreadyVerified:        "email address is already verified",
 		ErrorStatusNoProposalChanges:           "no changes found in proposal",
 		ErrorStatusDuplicateComment:            "duplicate comment",
+		ErrorStatusInvalidLogin:                "invalid login credentials",
 	}
 
 	// PropStatus converts propsal status codes to human readable text
@@ -658,7 +660,7 @@ type AbridgedUser struct {
 // Login attempts to login the user.  Note that by necessity the password
 // travels in the clear.
 type Login struct {
-	Username string `json:"username"`
+	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 

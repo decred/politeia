@@ -17,7 +17,7 @@ import (
 // TestRunCmd performs a test run of all the politeiawww routes.
 type TestRunCmd struct {
 	Args struct {
-		AdminUsername string `positional-arg-name:"adminusername"`
+		AdminEmail    string `positional-arg-name:"adminemail"`
 		AdminPassword string `positional-arg-name:"adminpassword"`
 	} `positional-args:"true" required:"true"`
 }
@@ -32,9 +32,9 @@ type testUser struct {
 }
 
 // login logs in the specified user.
-func login(username, password string) error {
+func login(email, password string) error {
 	lc := LoginCmd{}
-	lc.Args.Username = username
+	lc.Args.Email = email
 	lc.Args.Password = password
 	return lc.Execute(nil)
 }
@@ -107,9 +107,9 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	// Ensure admin credentials are valid and that the admin has
 	// paid their user registration fee.
 	fmt.Printf("Validating admin credentials\n")
-	admin.username = cmd.Args.AdminUsername
+	admin.email = cmd.Args.AdminEmail
 	admin.password = cmd.Args.AdminPassword
-	err = login(admin.username, admin.password)
+	err = login(admin.email, admin.password)
 	if err != nil {
 		return err
 	}
@@ -162,7 +162,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	fmt.Printf("Login user\n")
 	lr, err := client.Login(
 		&v1.Login{
-			Username: username,
+			Email:    email,
 			Password: digestSHA3(password),
 		})
 	if err != nil {
@@ -386,7 +386,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 	// Login with admin and make the proposal public
 	fmt.Printf("  Login admin\n")
-	err = login(admin.username, admin.password)
+	err = login(admin.email, admin.password)
 	if err != nil {
 		return err
 	}
@@ -402,7 +402,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 	// Log back in with user
 	fmt.Printf("  Login user\n")
-	err = login(user.username, user.password)
+	err = login(user.email, user.password)
 	if err != nil {
 		return err
 	}
@@ -601,7 +601,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 	// Login
 	fmt.Printf("  Login admin\n")
-	err = login(admin.username, admin.password)
+	err = login(admin.email, admin.password)
 	if err != nil {
 		return err
 	}
@@ -664,7 +664,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	// Login with user in order to submit proposals that we can
 	// use to test the set proposal status route.
 	fmt.Printf("  Login user\n")
-	err = login(user.username, user.password)
+	err = login(user.email, user.password)
 	if err != nil {
 		return err
 	}
@@ -756,7 +756,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 	// Log back in with admin
 	fmt.Printf("  Login admin\n")
-	err = login(admin.username, admin.password)
+	err = login(admin.email, admin.password)
 	if err != nil {
 		return err
 	}
@@ -931,7 +931,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 	// Login with user
 	fmt.Printf("  Login user\n")
-	err = login(user.username, user.password)
+	err = login(user.email, user.password)
 	if err != nil {
 		return err
 	}
@@ -951,7 +951,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 	// Log back in with admin
 	fmt.Printf("  Login admin\n")
-	err = login(admin.username, admin.password)
+	err = login(admin.email, admin.password)
 	if err != nil {
 		return err
 	}
@@ -1394,7 +1394,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 	// Login with user
 	fmt.Printf("  Login user\n")
-	err = login(user.username, user.password)
+	err = login(user.email, user.password)
 	if err != nil {
 		return err
 	}

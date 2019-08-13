@@ -116,6 +116,7 @@ notifications.  It does not render HTML.
 - [`ErrorStatusNoProposalChanges`](#ErrorStatusNoProposalChanges)
 - [`ErrorStatusMaxProposalsExceededPolicy`](#ErrorStatusMaxProposalsExceededPolicy)
 - [`ErrorStatusDuplicateComment`](#ErrorStatusDuplicateComment)
+- [`ErrorStatusInvalidLogin`](#ErrorStatusInvalidLogin)
 
 **Websockets**
 
@@ -469,10 +470,10 @@ the user database.  Note that Login reply is identical to Me reply.
 
 On failure the call shall return `401 Unauthorized` and one of the following
 error codes:
-- [`ErrorStatusInvalidPassword`](#ErrorStatusInvalidPassword)
-- [`ErrorStatusUserLocked`](#ErrorStatusUserLocked)
-- [`ErrorStatusUserDeactivated`](#ErrorStatusUserDeactivated)
+- [`ErrorStatusInvalidLogin`](#ErrorStatusInvalidLogin)
 - [`ErrorStatusEmailNotVerified`](#ErrorStatusEmailNotVerified)
+- [`ErrorStatusUserDeactivated`](#ErrorStatusUserDeactivated)
+- [`ErrorStatusUserLocked`](#ErrorStatusUserLocked)
 
 **Example**
 
@@ -2599,6 +2600,7 @@ Reply:
 | <a name="ErrorStatusNoProposalChanges">ErrorStatusNoProposalChanges</a> | 60 | No changes found in proposal. |
 | <a name="ErrorStatusMaxProposalsExceedsPolicy">ErrorStatusMaxProposalsExceededPolicy</a> | 61 | Number of proposals requested exceeded the ProposalListPageSize. |
 | <a name="ErrorStatusDuplicateComment">ErrorStatusDuplicateComment</a> | 62 | Duplicate comment. |
+| <a name="ErrorStatusInvalidLogin">ErrorStatusInvalidLogin</a> | 62 | Invalid login credentials. |
 
 
 ### Proposal status codes
