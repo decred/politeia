@@ -1483,27 +1483,6 @@ func (p *politeiawww) processCommentsGet(token string, u *user.User) (*www.GetCo
 	}, nil
 }
 
-func voteResults(sv www.StartVote, cv []www.CastVote) []www.VoteOptionResult {
-	log.Tracef("voteResults: %v", sv.Vote.Token)
-
-	// Tally votes
-	votes := make(map[string]uint64)
-	for _, v := range cv {
-		votes[v.VoteBit]++
-	}
-
-	// Prepare vote option results
-	results := make([]www.VoteOptionResult, 0, len(sv.Vote.Options))
-	for _, v := range sv.Vote.Options {
-		results = append(results, www.VoteOptionResult{
-			Option:        v,
-			VotesReceived: votes[strconv.FormatUint(v.Bits, 10)],
-		})
-	}
-
-	return results
-}
-
 // setVoteStatusReply stores the given VoteStatusReply in memory.  This is to
 // only be used for proposals whose voting period has ended so that we don't
 // have to worry about cache invalidation issues.

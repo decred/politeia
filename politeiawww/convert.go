@@ -458,12 +458,6 @@ func convertCastVotesFromDecred(cv []decredplugin.CastVote) []www.CastVote {
 	return cvr
 }
 
-func convertVoteResultsReplyFromDecred(vrr decredplugin.VoteResultsReply) (www.StartVote, []www.CastVote) {
-	sv := convertStartVoteFromDecred(vrr.StartVote)
-	cv := convertCastVotesFromDecred(vrr.CastVotes)
-	return sv, cv
-}
-
 func convertPluginSettingFromPD(ps pd.PluginSetting) PluginSetting {
 	return PluginSetting{
 		Key:   ps.Key,
@@ -507,25 +501,8 @@ func convertTokenInventoryReplyFromDecred(r decredplugin.TokenInventoryReply) ww
 	}
 }
 
-func convertInvoiceFileFromWWW(f *www.File) []pd.File {
-	return []pd.File{{
-		Name:    "invoice.csv",
-		MIME:    "text/plain; charset=utf-8",
-		Digest:  f.Digest,
-		Payload: f.Payload,
-	}}
-}
-
 func convertInvoiceCensorFromWWW(f www.CensorshipRecord) pd.CensorshipRecord {
 	return pd.CensorshipRecord{
-		Token:     f.Token,
-		Merkle:    f.Merkle,
-		Signature: f.Signature,
-	}
-}
-
-func convertInvoiceCensorFromPD(f pd.CensorshipRecord) www.CensorshipRecord {
-	return www.CensorshipRecord{
 		Token:     f.Token,
 		Merkle:    f.Merkle,
 		Signature: f.Signature,
