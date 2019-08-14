@@ -1387,47 +1387,6 @@ func (p *politeiawww) processAllVetted(v www.GetAllVetted) (*www.GetAllVettedRep
 	}, nil
 }
 
-// processAllUnvetted returns an array of all unvetted proposals in reverse
-// order, because they're sorted by oldest timestamp first.
-func (p *politeiawww) processAllUnvetted(u www.GetAllUnvetted) (*www.GetAllUnvettedReply, error) {
-	log.Tracef("processAllUnvetted")
-
-	// Validate query params
-	if (u.Before != "" && !tokenIsValid(u.Before)) ||
-		(u.After != "" && !tokenIsValid(u.After)) {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusInvalidCensorshipToken,
-		}
-	}
-
-	// Fetch all proposals from the cache
-	all, err := p.getAllProps()
-	if err != nil {
-		return nil, fmt.Errorf("processAllUnvetted getAllProps: %v",
-			err)
-	}
-
-	// Filter for unvetted proposals
-	filter := proposalsFilter{
-		After:  u.After,
-		Before: u.Before,
-		StateMap: map[www.PropStateT]bool{
-			www.PropStateUnvetted: true,
-		},
-	}
-	props := filterProps(filter, all)
-
-	// Remove files from proposals
-	for i, p := range props {
-		p.Files = make([]www.File, 0)
-		props[i] = p
-	}
-
-	return &www.GetAllUnvettedReply{
-		Proposals: props,
-	}, nil
-}
-
 // ProcessProposalStats returns summary statistics on the number of proposals
 // categorized by proposal status.
 func (p *politeiawww) processProposalsStats() (*www.ProposalsStatsReply, error) {
