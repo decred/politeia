@@ -1167,16 +1167,26 @@ type ProposalsStatsReply struct {
 type TokenInventory struct{}
 
 // TokenInventoryReply is used to reply to the TokenInventory command and
-// returns the tokens of all proposals in the inventory.  The tokens are
-// categorized by stage of the voting process.  Pre and abandoned tokens are
-// sorted by timestamp in decending order.  Active, approved, and rejected
-// tokens are sorted by voting period end block height in decending order.
+// returns the tokens of all proposals in the inventory. The tokens are
+// categorized by stage of the voting process and sorted according to the
+// rules listed below. Unvetted proposal tokens are only returned to admins.
+//
+// Sorted by record timestamp in descending order:
+// Pre, Abandonded, Unreviewed, Censored
+//
+// Sorted by voting period end block height in descending order:
+// Active, Approved, Rejected
 type TokenInventoryReply struct {
+	// Vetted
 	Pre       []string `json:"pre"`       // Tokens of all props that are pre-vote
 	Active    []string `json:"active"`    // Tokens of all props with an active voting period
 	Approved  []string `json:"approved"`  // Tokens of all props that have been approved by a vote
 	Rejected  []string `json:"rejected"`  // Tokens of all props that have been rejected by a vote
 	Abandoned []string `json:"abandoned"` // Tokens of all props that have been abandoned
+
+	// Unvetted
+	Unreviewed []string `json:"unreviewed,omitempty"` // Tokens of all unreviewed props
+	Censored   []string `json:"censored,omitempty"`   // Tokens of all censored props
 }
 
 // Websocket commands

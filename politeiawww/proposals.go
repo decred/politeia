@@ -2115,7 +2115,7 @@ func (p *politeiawww) processStartVote(sv www.StartVote, u *user.User) (*www.Sta
 
 // processTokenInventory returns the tokens of all proposals in the inventory,
 // categorized by stage of the voting process.
-func (p *politeiawww) processTokenInventory() (*www.TokenInventoryReply, error) {
+func (p *politeiawww) processTokenInventory(isAdmin bool) (*www.TokenInventoryReply, error) {
 	log.Tracef("processTokenInventory")
 
 	bb, err := p.getBestBlock()
@@ -2130,7 +2130,10 @@ func (p *politeiawww) processTokenInventory() (*www.TokenInventoryReply, error) 
 	var done bool
 	var r www.TokenInventoryReply
 	for retries := 0; !done && retries <= 1; retries++ {
-		ti, err := p.decredTokenInventory(bb)
+		// Both vetted and unvetted tokens should be returned
+		// for admins. Only vetted tokens should be returned
+		// for non-admins.
+		ti, err := p.decredTokenInventory(bb, isAdmin)
 		if err != nil {
 			if err == cache.ErrRecordNotFound {
 				// There are missing entries in the vote

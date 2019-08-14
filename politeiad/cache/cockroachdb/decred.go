@@ -889,15 +889,63 @@ func (d *decred) cmdTokenInventory(payload string) (string, error) {
 		abandoned = append(abandoned, token)
 	}
 
-	// Prepare reply
-	reply, err := decredplugin.EncodeTokenInventoryReply(
-		decredplugin.TokenInventoryReply{
-			Pre:       pre,
-			Active:    active,
-			Approved:  approved,
-			Rejected:  rejected,
-			Abandoned: abandoned,
-		})
+	// Setup reply
+	tir := decredplugin.TokenInventoryReply{
+		Pre:       pre,
+		Active:    active,
+		Approved:  approved,
+		Rejected:  rejected,
+		Abandoned: abandoned,
+	}
+
+	// Add unvetted records if specified
+	if ti.Unvetted {
+		// Unreviewed tokens. Edits to an unreviewed record do not
+		// increment the version. Only edits to a public record
+		// increment the version. This means means we don't need
+		// to worry about fetching the most recent version here
+		// because an unreviewed record will only have one version.
+		unreviewed := make([]string, 0, 1024)
+		q = `SELECT token
+         FROM records
+         WHERE status = ? or status = ?
+         ORDER BY timestamp DESC`
+		rows, err = d.recordsdb.Raw(q, pd.RecordStatusNotReviewed,
+			pd.RecordStatusUnreviewedChanges).Rows()
+		if err != nil {
+			return "", fmt.Errorf("unreviewed: %v", err)
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			rows.Scan(&token)
+			unreviewed = append(unreviewed, token)
+		}
+
+		// Censored tokens
+		censored := make([]string, 0, 1024)
+		q = `SELECT token
+         FROM records
+         WHERE status = ?
+         ORDER BY timestamp DESC`
+		rows, err = d.recordsdb.Raw(q, pd.RecordStatusCensored).Rows()
+		if err != nil {
+			return "", fmt.Errorf("censored: %v", err)
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			rows.Scan(&token)
+			censored = append(censored, token)
+		}
+
+		// Update reply
+		tir.Unreviewed = unreviewed
+		tir.Censored = censored
+	}
+
+	// Encode reply
+	reply, err := decredplugin.EncodeTokenInventoryReply(tir)
 	if err != nil {
 		return "", err
 	}
