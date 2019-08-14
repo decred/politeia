@@ -13,7 +13,6 @@ type BatchVoteSummaryCmd struct{}
 
 // Execute executes the batch proposals command.
 func (cmd *BatchVoteSummaryCmd) Execute(args []string) error {
-
 	// Get proposals
 	bpr, err := client.BatchVoteSummary(&v1.BatchVoteSummary{
 		Tokens: args,

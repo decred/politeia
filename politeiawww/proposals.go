@@ -152,6 +152,18 @@ func tokenIsValid(token string) bool {
 	return true
 }
 
+func getInvalidTokens(tokens []string) []string {
+	invalidTokens := make([]string, 0)
+
+	for _, token := range tokens {
+		if !tokenIsValid(token) {
+			invalidTokens = append(invalidTokens, token)
+		}
+	}
+
+	return invalidTokens
+}
+
 // validateVoteBit ensures that bit is a valid vote bit.
 func validateVoteBit(vote www.Vote, bit uint64) error {
 	if len(vote.Options) == 0 {
@@ -890,7 +902,6 @@ func (p *politeiawww) processProposalDetails(propDetails www.ProposalsDetails, u
 // voteSummaries fetches the voting summary information for a set of
 // proposals.
 func (p *politeiawww) voteSummaries(tokens []string, bestBlock uint64) (map[string]www.VoteSummary, error) {
-
 	r, err := p.decredBatchVoteSummary(tokens)
 	if err != nil {
 		return nil, err
@@ -910,7 +921,6 @@ func (p *politeiawww) voteSummaries(tokens []string, bestBlock uint64) (map[stri
 			Status:           voteStatusFromVoteSummary(summary, bestBlock),
 			EligibleTickets:  uint32(summary.EligibleTicketCount),
 			EndHeight:        endHeight,
-			BestBlock:        bestBlock,
 			QuorumPercentage: summary.QuorumPercentage,
 			PassPercentage:   summary.PassPercentage,
 			Results:          results,
@@ -927,6 +937,20 @@ func (p *politeiawww) voteSummaries(tokens []string, bestBlock uint64) (map[stri
 func (p *politeiawww) processBatchVoteSummary(batchVoteSummary www.BatchVoteSummary) (*www.BatchVoteSummaryReply, error) {
 	log.Tracef("processBatchVoteSummary")
 
+	if len(batchVoteSummary.Tokens) > www.ProposalListPageSize {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusMaxProposalsExceededPolicy,
+		}
+	}
+
+	invalidTokens := getInvalidTokens(batchVoteSummary.Tokens)
+	if len(invalidTokens) > 0 {
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
+			ErrorContext: invalidTokens,
+		}
+	}
+
 	bb, err := p.getBestBlock()
 	if err != nil {
 		return nil, err
@@ -938,16 +962,24 @@ func (p *politeiawww) processBatchVoteSummary(batchVoteSummary www.BatchVoteSumm
 	}
 
 	if len(summaries) != len(batchVoteSummary.Tokens) {
+		tokensNotFound := make([]string, 0, len(batchVoteSummary.Tokens)-len(summaries))
+
+		for _, token := range batchVoteSummary.Tokens {
+			if _, exists := summaries[token]; !exists {
+				tokensNotFound = append(tokensNotFound, token)
+			}
+		}
+
 		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusProposalNotFound,
+			ErrorCode:    www.ErrorStatusProposalNotFound,
+			ErrorContext: tokensNotFound,
 		}
 	}
 
-	reply := www.BatchVoteSummaryReply{
+	return &www.BatchVoteSummaryReply{
+		BestBlock: bb,
 		Summaries: summaries,
-	}
-
-	return &reply, nil
+	}, nil
 }
 
 // processBatchProposals fetches a list of proposals from the records
@@ -960,6 +992,14 @@ func (p *politeiawww) processBatchProposals(batchProposals www.BatchProposals, u
 	if len(batchProposals.Tokens) > www.ProposalListPageSize {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusMaxProposalsExceededPolicy,
+		}
+	}
+
+	invalidTokens := getInvalidTokens(batchProposals.Tokens)
+	if len(invalidTokens) > 0 {
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
+			ErrorContext: invalidTokens,
 		}
 	}
 

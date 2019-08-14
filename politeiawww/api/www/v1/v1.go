@@ -386,7 +386,6 @@ type VoteSummary struct {
 	Status           PropVoteStatusT    `json:"status"`                     // Vote status
 	EligibleTickets  uint32             `json:"eligibletickets,omitempty"`  // Number of eligible tickets
 	EndHeight        uint64             `json:"endheight,omitempty"`        // Vote end height
-	BestBlock        uint64             `json:"bestblock,omitempty"`        // Current best block
 	QuorumPercentage uint32             `json:"quorumpercentage,omitempty"` // Percent of eligible votes required for quorum
 	PassPercentage   uint32             `json:"passpercentage,omitempty"`   // Percent of total votes required to pass
 	Results          []VoteOptionResult `json:"results,omitempty"`          // Vote results
@@ -771,6 +770,7 @@ type BatchVoteSummary struct {
 
 // BatchVoteSummaryReply is used to reply to a BatchVoteSummary command.
 type BatchVoteSummaryReply struct {
+	BestBlock uint64                 `json:"bestblock,omitempty"`
 	Summaries map[string]VoteSummary `json:"summaries"`
 }
 

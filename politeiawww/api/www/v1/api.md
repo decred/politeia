@@ -1611,6 +1611,7 @@ On failure the call shall return `400 Bad Request` and one of the following
 error codes:
 - [`ErrorStatusProposalNotFound`](#ErrorStatusProposalNotFound)
 - [`ErrorStatusMaxProposalsExceededPolicy`](#ErrorStatusMaxProposalsExceededPolicy)
+- [`ErrorStatusInvalidCensorshipToken`](#ErrorStatusInvalidCensorshipToken)
 
 **Example**
 
@@ -1676,7 +1677,7 @@ Reply:
 
 ### `Batch Vote Summary`
 
-Retrieve the vote status for a list of proposals.
+Retrieve the vote summary for a list of proposals.
 
 **Routes:** `POST /v1/proposals/batchvotesummary`
 
@@ -1694,13 +1695,15 @@ Retrieve the vote status for a list of proposals.
 
 On failure the call shall return `400 Bad Request` on the following error code:
 - [`ErrorStatusProposalNotFound`](#ErrorStatusProposalNotFound)
+- [`ErrorStatusMaxProposalsExceededPolicy`](#ErrorStatusMaxProposalsExceededPolicy)
+- [`ErrorStatusInvalidCensorshipToken`](#ErrorStatusInvalidCensorshipToken)
 
 **Example**
 
 Request:
 
 ```
-/v1/proposals/batch
+/v1/proposals/batchvotesummary
 ```
 
 ```json
@@ -1715,11 +1718,11 @@ Reply:
 ```json
 {
   "summaries": {
+    "bestblock": 243994,
     "f08dc22069f854856e27a6cb107e10064a85b85b2a4db41755d54f90bd30b84f": {
       "status": 4,
       "eligibletickets": 5267,
       "endheight": 231614,
-      "bestblock": 243994,
       "quorumpercentage": 20,
       "passpercentage": 60,
       "results": [
@@ -1745,7 +1748,6 @@ Reply:
       "status": 4,
       "eligibletickets": 5270,
       "endheight": 229602,
-      "bestblock": 243994,
       "quorumpercentage": 20,
       "passpercentage": 60,
       "results": [

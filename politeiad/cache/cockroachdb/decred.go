@@ -887,7 +887,6 @@ func (d *decred) cmdTokenInventory(payload string) (string, error) {
 // getAuthorizeVotesForRecords looks up vote authorizations in the cache for a set
 // of records.
 func (d *decred) getAuthorizeVotesForRecords(records map[string]Record) (map[string]AuthorizeVote, error) {
-
 	authorizeVotes := make(map[string]AuthorizeVote)
 
 	if len(records) == 0 {
@@ -949,7 +948,6 @@ func (d *decred) getStartVotes(authorizeVotes map[string]AuthorizeVote) (map[str
 // lookupResultsForVoteOptions looks in the CastVote table to see how many
 // votes each option has received.
 func (d *decred) lookupResultsForVoteOptions(options []VoteOption) ([]decredplugin.VoteOptionResult, error) {
-
 	results := make([]decredplugin.VoteOptionResult, 0, len(options))
 
 	for _, v := range options {
@@ -980,7 +978,6 @@ func (d *decred) lookupResultsForVoteOptions(options []VoteOption) ([]decredplug
 // process. Results are lazily loaded into this table, so some results are
 // manually looked up in the CastVote table.
 func (d *decred) getVoteResults(startVotes map[string]StartVote) (map[string][]decredplugin.VoteOptionResult, error) {
-
 	results := make(map[string][]decredplugin.VoteOptionResult)
 
 	if len(startVotes) == 0 {
@@ -1072,7 +1069,6 @@ func (d *decred) cmdBatchVoteSummary(payload string) (string, error) {
 	summaries := make(map[string]decredplugin.VoteSummaryReply,
 		len(bvs.Tokens))
 	for token := range records {
-
 		av := authorizeVotes[token]
 		sv := startVotes[token]
 		res := results[token]
