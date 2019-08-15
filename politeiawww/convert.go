@@ -58,6 +58,42 @@ func convertBallotReplyFromDecredPlugin(b decredplugin.BallotReply) www.BallotRe
 	return br
 }
 
+func convertDCCCastVoteReplyFromDecredPlugin(cvr decredplugin.CastVoteReply) cms.CastVoteReply {
+	return cms.CastVoteReply{
+		ClientSignature: cvr.ClientSignature,
+		Signature:       cvr.Signature,
+		Error:           cvr.Error,
+	}
+}
+
+func convertCastVoteFromCMS(b cms.CastVote) decredplugin.CastVote {
+	return decredplugin.CastVote{
+		Token:     b.Token,
+		VoteBit:   b.VoteBit,
+		Signature: b.Signature,
+	}
+}
+func convertBallotFromCMS(b cms.Ballot) decredplugin.Ballot {
+	br := decredplugin.Ballot{
+		Votes: make([]decredplugin.CastVote, 0, len(b.Votes)),
+	}
+	for _, v := range b.Votes {
+		br.Votes = append(br.Votes, convertCastVoteFromCMS(v))
+	}
+	return br
+}
+
+func convertDCCBallotReplyFromDecredPlugin(b decredplugin.BallotReply) cms.BallotReply {
+	br := cms.BallotReply{
+		Receipts: make([]cms.CastVoteReply, 0, len(b.Receipts)),
+	}
+	for _, v := range b.Receipts {
+		br.Receipts = append(br.Receipts,
+			convertDCCCastVoteReplyFromDecredPlugin(v))
+	}
+	return br
+}
+
 func convertVoteOptionFromWWW(vo www.VoteOption) decredplugin.VoteOption {
 	return decredplugin.VoteOption{
 		Id:          vo.Id,
@@ -74,6 +110,22 @@ func convertVoteOptionsFromWWW(vo []www.VoteOption) []decredplugin.VoteOption {
 	return vor
 }
 
+func convertVoteOptionFromCMS(vo cms.VoteOption) decredplugin.VoteOption {
+	return decredplugin.VoteOption{
+		Id:          vo.ID,
+		Description: vo.Description,
+		Bits:        vo.Bits,
+	}
+}
+
+func convertVoteOptionsFromCMS(vo []cms.VoteOption) []decredplugin.VoteOption {
+	vor := make([]decredplugin.VoteOption, 0, len(vo))
+	for _, v := range vo {
+		vor = append(vor, convertVoteOptionFromCMS(v))
+	}
+	return vor
+}
+
 func convertVoteFromWWW(v www.Vote) decredplugin.Vote {
 	return decredplugin.Vote{
 		Token:            v.Token,
@@ -82,6 +134,17 @@ func convertVoteFromWWW(v www.Vote) decredplugin.Vote {
 		QuorumPercentage: v.QuorumPercentage,
 		PassPercentage:   v.PassPercentage,
 		Options:          convertVoteOptionsFromWWW(v.Options),
+	}
+}
+
+func convertVoteFromCMS(v cms.Vote) decredplugin.Vote {
+	return decredplugin.Vote{
+		Token:            v.Token,
+		Mask:             v.Mask,
+		Duration:         v.Duration,
+		QuorumPercentage: v.QuorumPercentage,
+		PassPercentage:   v.PassPercentage,
+		Options:          convertVoteOptionsFromCMS(v.Options),
 	}
 }
 
@@ -98,6 +161,14 @@ func convertStartVoteFromWWW(sv www.StartVote) decredplugin.StartVote {
 	return decredplugin.StartVote{
 		PublicKey: sv.PublicKey,
 		Vote:      convertVoteFromWWW(sv.Vote),
+		Signature: sv.Signature,
+	}
+}
+
+func convertStartVoteFromCMS(sv cms.StartVote) decredplugin.StartVote {
+	return decredplugin.StartVote{
+		PublicKey: sv.PublicKey,
+		Vote:      convertVoteFromCMS(sv.Vote),
 		Signature: sv.Signature,
 	}
 }
@@ -446,6 +517,44 @@ func convertVoteDetailsReplyFromDecred(vdr decredplugin.VoteDetailsReply) VoteDe
 	}
 }
 
+func convertDCCStartVoteFromDecred(sv decredplugin.StartVote) cms.StartVote {
+	opts := make([]cms.VoteOption, 0, len(sv.Vote.Options))
+	for _, v := range sv.Vote.Options {
+		opts = append(opts, cms.VoteOption{
+			ID:          v.Id,
+			Description: v.Description,
+			Bits:        v.Bits,
+		})
+	}
+	return cms.StartVote{
+		PublicKey: sv.PublicKey,
+		Vote: cms.Vote{
+			Token:            sv.Vote.Token,
+			Mask:             sv.Vote.Mask,
+			Duration:         sv.Vote.Duration,
+			QuorumPercentage: sv.Vote.QuorumPercentage,
+			PassPercentage:   sv.Vote.PassPercentage,
+			Options:          opts,
+		},
+		Signature: sv.Signature,
+	}
+}
+
+func convertDCCStartVoteReplyFromDecred(svr decredplugin.StartVoteReply) cms.StartVoteReply {
+	return cms.StartVoteReply{
+		StartBlockHeight: svr.StartBlockHeight,
+		StartBlockHash:   svr.StartBlockHash,
+		EndHeight:        svr.EndHeight,
+	}
+}
+
+func convertDCCVoteDetailsReplyFromDecred(vdr decredplugin.VoteDetailsReply) DCCVoteDetails {
+	return DCCVoteDetails{
+		StartVote:      convertDCCStartVoteFromDecred(vdr.StartVote),
+		StartVoteReply: convertDCCStartVoteReplyFromDecred(vdr.StartVoteReply),
+	}
+}
+
 func convertCastVoteFromDecred(cv decredplugin.CastVote) www.CastVote {
 	return www.CastVote{
 		Token:     cv.Token,
@@ -462,6 +571,30 @@ func convertCastVotesFromDecred(cv []decredplugin.CastVote) []www.CastVote {
 	}
 	return cvr
 }
+
+/* XXX Previous contractor vote stuff
+func convertDCCCastVoteFromDecred(cv decredplugin.CastVote) cms.CastVote {
+	return cms.CastVote{
+		Token:     cv.Token,
+		VoteBit:   cv.VoteBit,
+		Signature: cv.Signature,
+	}
+}
+
+func convertDCCCastVotesFromDecred(cv []decredplugin.CastVote) []cms.CastVote {
+	cvr := make([]cms.CastVote, 0, len(cv))
+	for _, v := range cv {
+		cvr = append(cvr, convertDCCCastVoteFromDecred(v))
+	}
+	return cvr
+}
+
+func convertVoteResultsReplyFromDecred(vrr decredplugin.VoteResultsReply) (www.StartVote, []www.CastVote) {
+	sv := convertStartVoteFromDecred(vrr.StartVote)
+	cv := convertCastVotesFromDecred(vrr.CastVotes)
+	return sv, cv
+}
+*/
 
 func convertPluginSettingFromPD(ps pd.PluginSetting) PluginSetting {
 	return PluginSetting{
@@ -481,12 +614,28 @@ func convertPluginFromPD(p pd.Plugin) Plugin {
 		Settings: ps,
 	}
 }
+
 func convertVoteOptionResultsFromDecred(vor []decredplugin.VoteOptionResult) []www.VoteOptionResult {
 	r := make([]www.VoteOptionResult, 0, len(vor))
 	for _, v := range vor {
 		r = append(r, www.VoteOptionResult{
 			Option: www.VoteOption{
 				Id:          v.ID,
+				Description: v.Description,
+				Bits:        v.Bits,
+			},
+			VotesReceived: v.Votes,
+		})
+	}
+	return r
+}
+
+func convertDCCVoteOptionResultsFromDecred(vor []decredplugin.VoteOptionResult) []cms.VoteOptionResult {
+	r := make([]cms.VoteOptionResult, 0, len(vor))
+	for _, v := range vor {
+		r = append(r, cms.VoteOptionResult{
+			Option: cms.VoteOption{
+				ID:          v.ID,
 				Description: v.Description,
 				Bits:        v.Bits,
 			},

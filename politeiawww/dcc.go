@@ -81,6 +81,11 @@ var (
 	}
 )
 
+type DCCVoteDetails struct {
+	StartVote      cms.StartVote      // Start vote
+	StartVoteReply cms.StartVoteReply // Start vote reply
+}
+
 // createSponsorStatementRegex generates a regex based on the policy supplied for
 // valid characters sponsor statement.
 func createSponsorStatementRegex() string {
@@ -1421,7 +1426,7 @@ func (p *politeiawww) dccVoteStatusReply(token string, bestBlock uint64) (*cms.V
 		return nil, err
 	}
 
-	results := convertVoteOptionResultsFromDecred(r.Results)
+	results := convertDCCVoteOptionResultsFromDecred(r.Results)
 	var total uint64
 	for _, v := range results {
 		total += v.VotesReceived
@@ -1429,7 +1434,7 @@ func (p *politeiawww) dccVoteStatusReply(token string, bestBlock uint64) (*cms.V
 
 	vsr = cms.VoteStatusReply{
 		Token:              token,
-		Status:             voteStatusFromVoteSummary(*r, bestBlock),
+		Status:             dccVoteStatusFromVoteSummary(*r, bestBlock),
 		TotalVotes:         total,
 		OptionsResult:      results,
 		EndHeight:          r.EndHeight,
@@ -1548,8 +1553,8 @@ func (p *politeiawww) processDCCActiveVote() (*cms.ActiveVoteReply, error) {
 		vd := convertDCCVoteDetailsReplyFromDecred(*vdr)
 
 		// We only want proposals that are currently being voted on
-		s := getDCCVoteStatus(vd.AuthorizeVoteReply, vd.StartVoteReply, bestBlock)
-		if s != www.PropVoteStatusStarted {
+		s := getDCCVoteStatus(vd.StartVoteReply, bestBlock)
+		if s != cms.DCCVoteStatusStarted {
 			continue
 		}
 
@@ -1570,13 +1575,13 @@ func (p *politeiawww) processDCCVoteResults(token string) (*cms.VoteResultsReply
 	log.Tracef("processDCCVoteResults: %v", token)
 
 	// Get vote details from cache
-	vdr, err := p.decredDCCVoteDetails(token)
+	vdr, err := p.decredVoteDetails(token)
 	if err != nil {
 		return nil, fmt.Errorf("decredDCCVoteDetails: %v", err)
 	}
 
 	// Get cast votes from cache
-	vrr, err := p.decredDCCVotes(token)
+	vrr, err := p.decredProposalVotes(token)
 	if err != nil {
 		return nil, fmt.Errorf("decredDCCVoteDetails: %v", err)
 	}
@@ -1597,7 +1602,7 @@ func (p *politeiawww) processDCCCastVotes(ballot *cms.Ballot) (*cms.BallotReply,
 		return nil, err
 	}
 
-	payload, err := decredplugin.EncodeBallot(convertBallotFromWWW(*ballot))
+	payload, err := decredplugin.EncodeBallot(convertBallotFromCMS(*ballot))
 	if err != nil {
 		return nil, err
 	}
@@ -1633,20 +1638,22 @@ func (p *politeiawww) processDCCCastVotes(ballot *cms.Ballot) (*cms.BallotReply,
 	if err != nil {
 		return nil, err
 	}
-	brr := convertBallotReplyFromDecredPlugin(*br)
+	brr := convertDCCBallotReplyFromDecredPlugin(*br)
 	return &brr, nil
 }
 
 // getDCCVoteStatus returns the status for the provided vote.
-func getDCCVoteStatus(avr www.AuthorizeVoteReply, svr cms.StartVoteReply, bestBlock uint64) cms.DCCVoteStatusT {
-	if svr.StartBlockHeight == "" {
-		// Vote has not started. Check if it's been authorized yet.
-		if voteIsAuthorized(avr) {
-			return cms.DCCVoteStatusAuthorized
-		} else {
-			return cms.DCCVoteStatusNotAuthorized
+func getDCCVoteStatus(svr cms.StartVoteReply, bestBlock uint64) cms.DCCVoteStatusT {
+	/*
+		if svr.StartBlockHeight == "" {
+			// Vote has not started. Check if it's been authorized yet.
+			if voteIsAuthorized(avr) {
+				return cms.DCCVoteStatusAuthorized
+			} else {
+				return cms.DCCVoteStatusNotAuthorized
+			}
 		}
-	}
+	*/
 
 	// Vote has at least been started. Check if it has finished.
 	ee, err := strconv.ParseUint(svr.EndHeight, 10, 64)
@@ -1661,4 +1668,197 @@ func getDCCVoteStatus(avr www.AuthorizeVoteReply, svr cms.StartVoteReply, bestBl
 		return cms.DCCVoteStatusFinished
 	}
 	return cms.DCCVoteStatusStarted
+}
+
+func dccVoteStatusFromVoteSummary(r decredplugin.VoteSummaryReply, bestBlock uint64) cms.DCCVoteStatusT {
+	switch {
+	case !r.Authorized:
+		return cms.DCCVoteStatusNotAuthorized
+	case r.EndHeight == "":
+		return cms.DCCVoteStatusAuthorized
+	default:
+		endHeight, err := strconv.ParseUint(r.EndHeight, 10, 64)
+		if err != nil {
+			// This should not happen
+			log.Errorf("voteStatusFromVoteSummary: ParseUint "+
+				"failed on '%v': %v", r.EndHeight, err)
+		}
+
+		if bestBlock < endHeight {
+			return cms.DCCVoteStatusStarted
+		}
+
+		return cms.DCCVoteStatusFinished
+	}
+}
+
+// processDCCStartVote handles the cms.StartVote call.
+func (p *politeiawww) processDCCStartVote(sv cms.StartVote, u *user.User) (*cms.StartVoteReply, error) {
+
+	// AuthorizeVoteBits looks like nothing useful on this side, d is handling most of the lifting there
+	/*
+		// Setup plugin command
+		challenge, err := util.Random(pd.ChallengeSize)
+		if err != nil {
+			return nil, fmt.Errorf("Random: %v", err)
+		}
+
+		dav := convertAuthorizeVoteFromWWW(av)
+		payload, err := decredplugin.EncodeAuthorizeVote(dav)
+		if err != nil {
+			return nil, fmt.Errorf("EncodeAuthorizeVote: %v", err)
+		}
+
+		pc := pd.PluginCommand{
+			Challenge: hex.EncodeToString(challenge),
+			ID:        decredplugin.ID,
+			Command:   decredplugin.CmdAuthorizeVote,
+			CommandID: decredplugin.CmdAuthorizeVote + " " + sv.Vote.Token,
+			Payload:   string(payload),
+		}
+
+		// Send authorizevote plugin request
+		responseBody, err := p.makeRequest(http.MethodPost,
+			pd.PluginCommandRoute, pc)
+		if err != nil {
+			return nil, err
+		}
+
+		var reply pd.PluginCommandReply
+		err = json.Unmarshal(responseBody, &reply)
+		if err != nil {
+			return nil, fmt.Errorf("Unmarshal PluginCommandReply: %v", err)
+		}
+
+		// Verify challenge
+		err = util.VerifyChallenge(p.cfg.Identity, challenge, reply.Response)
+		if err != nil {
+			return nil, fmt.Errorf("VerifyChallenge: %v", err)
+		}
+	*/
+	log.Tracef("processDCCStartVote %v", sv.Vote.Token)
+
+	// Ensure the public key is the user's active key
+	if sv.PublicKey != u.PublicKey() {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSigningKey,
+		}
+	}
+
+	// Validate signature
+	err := validateSignature(sv.PublicKey, sv.Signature, sv.Vote.Token)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate vote bits
+	for _, v := range sv.Vote.Options {
+		err = validateDCCVoteBit(sv.Vote, v.Bits)
+		if err != nil {
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusInvalidPropVoteBits,
+			}
+		}
+	}
+
+	// Validate vote parameters
+	if sv.Vote.Duration < p.cfg.VoteDurationMin ||
+		sv.Vote.Duration > p.cfg.VoteDurationMax ||
+		sv.Vote.QuorumPercentage > 100 || sv.Vote.PassPercentage > 100 {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidPropVoteParams,
+		}
+	}
+
+	// Create vote bits as plugin payload
+	dsv := convertStartVoteFromCMS(sv)
+	payload, err := decredplugin.EncodeStartVote(dsv)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get vote details from cache
+	vdr, err := p.decredVoteDetails(sv.Vote.Token)
+	if err != nil {
+		return nil, fmt.Errorf("decredVoteDetails: %v", err)
+	}
+	vd := convertDCCVoteDetailsReplyFromDecred(*vdr)
+
+	if vd.StartVoteReply.StartBlockHeight != "" {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusWrongVoteStatus,
+		}
+	}
+
+	// Tell decred plugin to start voting
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	pc := pd.PluginCommand{
+		Challenge: hex.EncodeToString(challenge),
+		ID:        decredplugin.ID,
+		Command:   decredplugin.CmdStartVote,
+		CommandID: decredplugin.CmdStartVote + " " + sv.Vote.Token,
+		Payload:   string(payload),
+	}
+
+	responseBody, err := p.makeRequest(http.MethodPost,
+		pd.PluginCommandRoute, pc)
+	if err != nil {
+		return nil, err
+	}
+
+	var reply pd.PluginCommandReply
+	err = json.Unmarshal(responseBody, &reply)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal "+
+			"PluginCommandReply: %v", err)
+	}
+
+	// Verify the challenge.
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, reply.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	vr, err := decredplugin.DecodeStartVoteReply([]byte(reply.Payload))
+	if err != nil {
+		return nil, err
+	}
+	/*
+		Notification to alert users of new all-contractor vote?
+		p.fireEvent(EventTypeProposalVoteStarted,
+			EventDataProposalVoteStarted{
+				AdminUser: u,
+				StartVote: &sv,
+			},
+		)
+	*/
+	// return a copy
+	rv := convertDCCStartVoteReplyFromDecred(*vr)
+	return &rv, nil
+}
+
+// validateDCCVoteBit ensures that bit is a valid vote bit.
+func validateDCCVoteBit(vote cms.Vote, bit uint64) error {
+	if len(vote.Options) == 0 {
+		return fmt.Errorf("vote corrupt")
+	}
+	if bit == 0 {
+		return fmt.Errorf("invalid bit 0x%x", bit)
+	}
+	if vote.Mask&bit != bit {
+		return fmt.Errorf("invalid mask 0x%x bit 0x%x",
+			vote.Mask, bit)
+	}
+
+	for _, v := range vote.Options {
+		if v.Bits == bit {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("bit not found 0x%x", bit)
 }
