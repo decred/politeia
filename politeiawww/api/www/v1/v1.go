@@ -770,7 +770,7 @@ type BatchVoteSummary struct {
 
 // BatchVoteSummaryReply is used to reply to a BatchVoteSummary command.
 type BatchVoteSummaryReply struct {
-	BestBlock uint64                 `json:"bestblock,omitempty"`
+	BestBlock uint64                 `json:"bestblock"`
 	Summaries map[string]VoteSummary `json:"summaries"`
 }
 
