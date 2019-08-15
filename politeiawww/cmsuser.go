@@ -342,7 +342,7 @@ func (p *politeiawww) processEditCMSUser(ecu cms.EditUser, u *user.User) (*cms.E
 
 func (p *politeiawww) processCMSUserDetails(ud *cms.UserDetails, isCurrentUser bool, isAdmin bool) (*cms.UserDetailsReply, error) {
 	// Return error in case the user isn't the admin or the current user.
-	if !isAdmin || !isCurrentUser {
+	if !isAdmin && !isCurrentUser {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusUserActionNotAllowed,
 		}
