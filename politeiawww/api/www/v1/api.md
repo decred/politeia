@@ -2826,7 +2826,6 @@ This is a shortened representation of a user, used for lists.
 | pubishedat | The timestamp of when the proposal has been published. If the proposals has not been pubished, this field will not be present. |
 | censoredat | The timestamp of when the proposal has been censored. If the proposals has not been censored, this field will not be present. |
 | abandonedat | The timestamp of when the proposal has been abandoned. If the proposals has not been abandoned, this field will not be present. |
-| votesummary | A [`summary`](#Vote-Summary) of the proposals voting process |
  
 ### `Identity`
 

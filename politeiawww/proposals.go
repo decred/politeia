@@ -902,7 +902,6 @@ func (p *politeiawww) processProposalDetails(propDetails www.ProposalsDetails, u
 // voteSummaries fetches the voting summary information for a set of
 // proposals.
 func (p *politeiawww) voteSummaries(tokens []string, bestBlock uint64) (map[string]www.VoteSummary, error) {
-
 	r, err := p.decredBatchVoteSummary(tokens)
 	if err != nil {
 		return nil, err
