@@ -14,6 +14,7 @@ import (
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/cache"
+	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmsdatabase"
 	"github.com/decred/politeia/politeiawww/user"
@@ -127,6 +128,10 @@ type politeiawww struct {
 	// Following entries are use only during cmswww mode
 	cmsDB cmsdatabase.Database
 	cron  *cron.Cron
+
+	// dccVoteStatuses is a lazy loaded cache of the votes statuses of
+	// dccs whose voting period has ended.
+	dccVoteStatuses map[string]cms.VoteStatusReply // [token]VoteStatusReply
 
 	// wsDcrdata contains the client and list of current subscriptions to
 	// dcrdata's public subscription websocket

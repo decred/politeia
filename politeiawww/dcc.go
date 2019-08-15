@@ -1371,3 +1371,294 @@ func (p *politeiawww) debateDCC(token string, u *user.User) error {
 
 	return nil
 }
+
+func dccVoteResults(sv cms.StartVote, cv []cms.CastVote) []cms.VoteOptionResult {
+	log.Tracef("dccVoteResults: %v", sv.Vote.Token)
+
+	// Tally votes
+	votes := make(map[string]uint64)
+	for _, v := range cv {
+		votes[v.VoteBit]++
+	}
+
+	// Prepare vote option results
+	results := make([]cms.VoteOptionResult, 0, len(sv.Vote.Options))
+	for _, v := range sv.Vote.Options {
+		results = append(results, cms.VoteOptionResult{
+			Option:        v,
+			VotesReceived: votes[strconv.FormatUint(v.Bits, 10)],
+		})
+	}
+
+	return results
+}
+
+// setVoteStatusReply stores the given VoteStatusReply in memory.  This is to
+// only be used for dccs whose voting period has ended so that we don't
+// have to worry about cache invalidation issues.
+//
+// This function must be called without the lock held.
+func (p *politeiawww) setDCCVoteStatusReply(v cms.VoteStatusReply) {
+	p.Lock()
+	defer p.Unlock()
+
+	p.dccVoteStatuses[v.Token] = v
+}
+
+func (p *politeiawww) dccVoteStatusReply(token string, bestBlock uint64) (*cms.VoteStatusReply, error) {
+	p.RLock()
+	vsr, ok := p.dccVoteStatuses[token]
+	p.RUnlock()
+	if ok {
+		vsr.BestBlock = strconv.Itoa(int(bestBlock))
+		return &vsr, nil
+	}
+
+	// Vote status wasn't in the memory cache
+	// so fetch it from the cache database.
+	r, err := p.decredVoteSummary(token)
+	if err != nil {
+		return nil, err
+	}
+
+	results := convertVoteOptionResultsFromDecred(r.Results)
+	var total uint64
+	for _, v := range results {
+		total += v.VotesReceived
+	}
+
+	vsr = cms.VoteStatusReply{
+		Token:              token,
+		Status:             voteStatusFromVoteSummary(*r, bestBlock),
+		TotalVotes:         total,
+		OptionsResult:      results,
+		EndHeight:          r.EndHeight,
+		BestBlock:          strconv.Itoa(int(bestBlock)),
+		NumOfEligibleVotes: r.EligibleTicketCount,
+		QuorumPercentage:   r.QuorumPercentage,
+		PassPercentage:     r.PassPercentage,
+	}
+
+	// If the voting period has ended the vote status
+	// is not going to change so add it to the memory
+	// cache.
+	if vsr.Status == cms.DCCVoteStatusFinished {
+		p.setDCCVoteStatusReply(vsr)
+	}
+
+	return &vsr, nil
+}
+
+// processVoteStatus returns the vote status for a given proposal
+func (p *politeiawww) processDCCVoteStatus(token string) (*cms.VoteStatusReply, error) {
+	log.Tracef("processDCCVotingStatus: %v", token)
+
+	// Ensure proposal is vetted
+	pr, err := p.getProp(token)
+	if err != nil {
+		if err == cache.ErrRecordNotFound {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusProposalNotFound,
+			}
+		}
+		return nil, err
+	}
+
+	if pr.State != www.PropStateVetted {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusWrongStatus,
+		}
+	}
+
+	// Get best block
+	bestBlock, err := p.getBestBlock()
+	if err != nil {
+		return nil, fmt.Errorf("bestBlock: %v", err)
+	}
+
+	// Get vote status
+	vsr, err := p.dccVoteStatusReply(token, bestBlock)
+	if err != nil {
+		return nil, fmt.Errorf("voteStatusReply: %v", err)
+	}
+
+	return vsr, nil
+}
+
+// processGetAllVoteStatus returns the vote status of all public proposals.
+func (p *politeiawww) processDCCGetAllVoteStatus() (*cms.GetAllVoteStatusReply, error) {
+	log.Tracef("processDCCGetAllVoteStatus")
+
+	// We need to determine best block height here in order
+	// to set the voting status
+	bestBlock, err := p.getBestBlock()
+	if err != nil {
+		return nil, fmt.Errorf("bestBlock: %v", err)
+	}
+
+	// Get all proposals from cache
+	all, err := p.getAllProps()
+	if err != nil {
+		return nil, fmt.Errorf("getAllProps: %v", err)
+	}
+
+	// Compile votes statuses
+	vrr := make([]cms.VoteStatusReply, 0, len(all))
+	for _, v := range all {
+		// Get vote status for proposal
+		vs, err := p.dccVoteStatusReply(v.CensorshipRecord.Token, bestBlock)
+		if err != nil {
+			return nil, fmt.Errorf("dccVoteStatusReply: %v", err)
+		}
+
+		vrr = append(vrr, *vs)
+	}
+
+	return &cms.GetAllVoteStatusReply{
+		VotesStatus: vrr,
+	}, nil
+}
+
+func (p *politeiawww) processDCCActiveVote() (*cms.ActiveVoteReply, error) {
+	log.Tracef("processDCCActiveVote")
+
+	// We need to determine best block height here and only
+	// return active votes.
+	bestBlock, err := p.getBestBlock()
+	if err != nil {
+		return nil, err
+	}
+
+	// Get all proposals from cache
+	all, err := p.getAllProps()
+	if err != nil {
+		return nil, fmt.Errorf("getAllProps: %v", err)
+	}
+
+	// Compile dcc vote tuples
+	pvt := make([]cms.DCCVoteTuple, 0, len(all))
+	for _, v := range all {
+		// Get vote details from cache
+		vdr, err := p.decredVoteDetails(v.CensorshipRecord.Token)
+		if err != nil {
+			log.Errorf("processDCCActiveVote: decredVoteDetails failed %v: %v",
+				v.CensorshipRecord.Token, err)
+			continue
+		}
+		vd := convertDCCVoteDetailsReplyFromDecred(*vdr)
+
+		// We only want proposals that are currently being voted on
+		s := getDCCVoteStatus(vd.AuthorizeVoteReply, vd.StartVoteReply, bestBlock)
+		if s != www.PropVoteStatusStarted {
+			continue
+		}
+
+		pvt = append(pvt, cms.DCCVoteTuple{
+			StartVote:      vd.StartVote,
+			StartVoteReply: vd.StartVoteReply,
+		})
+	}
+
+	return &cms.ActiveVoteReply{
+		Votes: pvt,
+	}, nil
+}
+
+// processDCCVoteResults returns the vote details for a specific dcc and all
+// of the votes that have been cast.
+func (p *politeiawww) processDCCVoteResults(token string) (*cms.VoteResultsReply, error) {
+	log.Tracef("processDCCVoteResults: %v", token)
+
+	// Get vote details from cache
+	vdr, err := p.decredDCCVoteDetails(token)
+	if err != nil {
+		return nil, fmt.Errorf("decredDCCVoteDetails: %v", err)
+	}
+
+	// Get cast votes from cache
+	vrr, err := p.decredDCCVotes(token)
+	if err != nil {
+		return nil, fmt.Errorf("decredDCCVoteDetails: %v", err)
+	}
+
+	return &cms.VoteResultsReply{
+		StartVote:      convertDCCStartVoteFromDecred(vdr.StartVote),
+		StartVoteReply: convertDCCStartVoteReplyFromDecred(vdr.StartVoteReply),
+		CastVotes:      convertDCCCastVotesFromDecred(vrr.CastVotes),
+	}, nil
+}
+
+// processCastVotes handles the www.Ballot call
+func (p *politeiawww) processDCCCastVotes(ballot *cms.Ballot) (*cms.BallotReply, error) {
+	log.Tracef("processDCCCastVotes")
+
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	payload, err := decredplugin.EncodeBallot(convertBallotFromWWW(*ballot))
+	if err != nil {
+		return nil, err
+	}
+	pc := pd.PluginCommand{
+		Challenge: hex.EncodeToString(challenge),
+		ID:        decredplugin.ID,
+		Command:   decredplugin.CmdBallot,
+		CommandID: decredplugin.CmdBallot,
+		Payload:   string(payload),
+	}
+
+	responseBody, err := p.makeRequest(http.MethodPost,
+		pd.PluginCommandRoute, pc)
+	if err != nil {
+		return nil, err
+	}
+
+	var reply pd.PluginCommandReply
+	err = json.Unmarshal(responseBody, &reply)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal "+
+			"PluginCommandReply: %v", err)
+	}
+
+	// Verify the challenge.
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, reply.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	// Decode plugin reply
+	br, err := decredplugin.DecodeBallotReply([]byte(reply.Payload))
+	if err != nil {
+		return nil, err
+	}
+	brr := convertBallotReplyFromDecredPlugin(*br)
+	return &brr, nil
+}
+
+// getDCCVoteStatus returns the status for the provided vote.
+func getDCCVoteStatus(avr www.AuthorizeVoteReply, svr cms.StartVoteReply, bestBlock uint64) cms.DCCVoteStatusT {
+	if svr.StartBlockHeight == "" {
+		// Vote has not started. Check if it's been authorized yet.
+		if voteIsAuthorized(avr) {
+			return cms.DCCVoteStatusAuthorized
+		} else {
+			return cms.DCCVoteStatusNotAuthorized
+		}
+	}
+
+	// Vote has at least been started. Check if it has finished.
+	ee, err := strconv.ParseUint(svr.EndHeight, 10, 64)
+	if err != nil {
+		// This should not happen
+		log.Errorf("getDCCVoteStatus: ParseUint failed on '%v': %v",
+			svr.EndHeight, err)
+		return cms.DCCVoteStatusInvalid
+	}
+
+	if bestBlock >= ee {
+		return cms.DCCVoteStatusFinished
+	}
+	return cms.DCCVoteStatusStarted
+}

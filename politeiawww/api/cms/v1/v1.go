@@ -13,6 +13,7 @@ type DomainTypeT int
 type ContractorTypeT int
 type DCCTypeT int
 type DCCStatusT int
+type DCCVoteStatusT int
 
 const (
 
@@ -91,6 +92,14 @@ const (
 	DCCStatusApproved DCCStatusT = 2 // Fully approved DCC proposal
 	DCCStatusRejected DCCStatusT = 3 // Rejected DCC proposal
 	DCCStatusDebate   DCCStatusT = 4 // Debated DCC proposal (full contractor vote)
+
+	// DCC vote status codes
+	DCCVoteStatusInvalid       DCCVoteStatusT = 0 // Invalid vote status
+	DCCVoteStatusNotAuthorized DCCVoteStatusT = 1 // Vote has not been authorized by author
+	DCCVoteStatusAuthorized    DCCVoteStatusT = 2 // Vote has been authorized by author
+	DCCVoteStatusStarted       DCCVoteStatusT = 3 // DCC vote has been started
+	DCCVoteStatusFinished      DCCVoteStatusT = 4 // DCC vote has been finished
+	DCCVoteStatusDoesntExist   DCCVoteStatusT = 5 // DCC doesn't exist
 
 	InvoiceInputVersion = 1
 
@@ -745,6 +754,7 @@ type VoteDCC struct {
 // VoteDCCReply returns an emptry response when successful.
 type VoteDCCReply struct{}
 
+/* Previous all contractor vote stuff
 // DCCVoteResults is an authenticated user request that will return the all contractor vote results for a given DCC proposal.
 type DCCVoteResults struct {
 	Token string `json:"token"` // Token of the DCC iss/rev
@@ -754,3 +764,123 @@ type DCCVoteResults struct {
 type DCCVoteResultsReply struct {
 	Votes []DCCVote `json:"votes"` // List of submitted all contractor votes.
 }
+
+// RejectDCCReply returns an empty response when successful.
+type RejectDCCReply struct{}
+
+// VoteOption describes a single vote option.
+type VoteOption struct {
+	ID          string `json:"id"`          // Single unique word identifying vote (e.g. yes)
+	Description string `json:"description"` // Longer description of the vote.
+	Bits        uint64 `json:"bits"`        // Bits used for this option
+}
+
+// Vote represents the vote options for vote that is identified by its token.
+type Vote struct {
+	Token            string       `json:"token"`            // Token that identifies vote
+	Mask             uint64       `json:"mask"`             // Valid votebits
+	Duration         uint32       `json:"duration"`         // Duration in blocks
+	QuorumPercentage uint32       `json:"quorumpercentage"` // Percent of eligible votes required for quorum
+	PassPercentage   uint32       `json:"passpercentage"`   // Percent of total votes required to pass
+	Options          []VoteOption `json:"options"`          // Vote options
+}
+
+// ActiveVote obtains all dccs that have active votes.
+type ActiveVote struct{}
+
+// DCCVoteTuple is the dcc, vote and vote details.
+type DCCVoteTuple struct {
+	DCC            DCCRecord      `json:"dcc"`            // Proposal
+	StartVote      StartVote      `json:"startvote"`      // Vote bits and mask
+	StartVoteReply StartVoteReply `json:"startvotereply"` // Eligible tickets and other details
+}
+
+// ActiveVoteReply returns all dccs that have active votes.
+type ActiveVoteReply struct {
+	Votes []DCCVoteTuple `json:"votes"` // Active votes
+}
+
+// plugin commands
+
+// StartVote starts the voting process for a proposal.
+type StartVote struct {
+	PublicKey string `json:"publickey"` // Key used for signature.
+	Vote      Vote   `json:"vote"`      // Vote
+	Signature string `json:"signature"` // Signature of Votehash
+}
+
+// StartVoteReply returns the eligible ticket pool.
+type StartVoteReply struct {
+	StartBlockHeight    string           `json:"startblockheight"`    // Block height
+	StartBlockHash      string           `json:"startblockhash"`      // Block hash
+	EndHeight           string           `json:"endheight"`           // Height of vote end
+	EligibleUserWeights map[string]int64 `json:"eligibleuserweights"` // Snapshot of contractor hourly 'weights'
+}
+
+// CastVote is a signed vote.
+type CastVote struct {
+	Token     string `json:"token"`     // DCC ID
+	VoteBit   string `json:"votebit"`   // Vote bit that was selected, this is encode in hex
+	Signature string `json:"signature"` // Signature of Token+VoteBit
+}
+
+// Ballot is a batch of votes that are sent to the server.
+type Ballot struct {
+	Votes []CastVote `json:"votes"`
+}
+
+// CastVoteReply is the answer to the CastVote command.
+type CastVoteReply struct {
+	ClientSignature string `json:"clientsignature"` // Signature that was sent in
+	Signature       string `json:"signature"`       // Signature of the ClientSignature
+	Error           string `json:"error"`           // Error if something went wrong during casting a vote
+}
+
+// BallotReply is a reply to a batched list of votes.
+type BallotReply struct {
+	Receipts []CastVoteReply `json:"receipts"`
+}
+
+// VoteResults retrieves a single dcc vote results from the server.
+type VoteResults struct{}
+
+// VoteResultsReply returns the original dcc vote and the associated cast
+// votes.
+type VoteResultsReply struct {
+	StartVote      StartVote      `json:"startvote"`      // Original vote
+	CastVotes      []CastVote     `json:"castvotes"`      // Vote results
+	StartVoteReply StartVoteReply `json:"startvotereply"` // Eligible user weights and other details
+}
+
+// VoteOptionResult is a structure that describes a VotingOption along with the
+// number of votes it has received
+type VoteOptionResult struct {
+	Option        VoteOption `json:"option"`        // Vote Option
+	VotesReceived uint64     `json:"votesreceived"` // Number of votes received by the option
+}
+
+// VoteStatus is a command to fetch the the current vote status for a single
+// public proposal
+type VoteStatus struct{}
+
+// VoteStatusReply describes the vote status for a given proposal
+type VoteStatusReply struct {
+	Token              string             `json:"token"`              // Censorship token
+	Status             DCCVoteStatusT     `json:"status"`             // Vote status (finished, started, etc)
+	TotalVotes         uint64             `json:"totalvotes"`         // DCC's total number of votes
+	OptionsResult      []VoteOptionResult `json:"optionsresult"`      // VoteOptionResult for each option
+	EndHeight          string             `json:"endheight"`          // Vote end height
+	BestBlock          string             `json:"bestblock"`          // Current best block height
+	NumOfEligibleVotes int                `json:"numofeligiblevotes"` // Total number of eligible votes
+	QuorumPercentage   uint32             `json:"quorumpercentage"`   // Percent of eligible votes required for quorum
+	PassPercentage     uint32             `json:"passpercentage"`     // Percent of total votes required to pass
+}
+
+// GetAllVoteStatus attempts to fetch the vote status of all dccs
+type GetAllVoteStatus struct{}
+
+// GetAllVoteStatusReply returns the vote status of all dccs
+type GetAllVoteStatusReply struct {
+	VotesStatus []VoteStatusReply `json:"votesstatus"` // Vote status of all dccs
+}
+*/
