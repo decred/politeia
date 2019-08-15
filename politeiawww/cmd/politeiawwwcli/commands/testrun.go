@@ -651,15 +651,6 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 		return fmt.Errorf("censored comment not marked as censored")
 	}
 
-	// Proposal stats.  We save the stats here so that we can
-	// compare them to the stats after we test the set proposal
-	// status route.
-	fmt.Printf("  Proposal stats\n")
-	stats, err := client.ProposalsStats()
-	if err != nil {
-		return err
-	}
-
 	// Login with user in order to submit proposals that we can
 	// use to test the set proposal status route.
 	fmt.Printf("  Login user\n")
@@ -887,47 +878,6 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 			pdr.Proposal.Status, v1.PropStatusAbandoned)
 	}
 
-	// Proposal stats. Make sure that the stats are being
-	// incremented correctly. We can do this by comparing
-	// against the proposal stats that we saved before we
-	// created all the proposals that we used for testing
-	// the set proposal status route.
-	fmt.Printf("  Proposal stats\n")
-	psr, err := client.ProposalsStats()
-	if err != nil {
-		return err
-	}
-
-	// Account for the proposals that were added while
-	// testing the set proposal status routes.
-	wantCensored := stats.NumOfCensored + 2
-	wantUnvetted := stats.NumOfUnvetted + 1
-	wantUnvettedChanges := stats.NumOfUnvettedChanges
-	wantPublic := stats.NumOfPublic + 1
-	wantAbandoned := stats.NumOfAbandoned + 1
-
-	switch {
-	case psr.NumOfCensored != wantCensored:
-		return fmt.Errorf("num censored got %v, want %v",
-			psr.NumOfCensored, wantCensored)
-
-	case psr.NumOfUnvetted != wantUnvetted:
-		return fmt.Errorf("num unvetted got %v, want %v",
-			psr.NumOfUnvetted, wantUnvetted)
-
-	case psr.NumOfUnvettedChanges != wantUnvettedChanges:
-		return fmt.Errorf("num unvetted changes got %v, want %v",
-			psr.NumOfUnvettedChanges, wantUnvettedChanges)
-
-	case psr.NumOfPublic != wantPublic:
-		return fmt.Errorf("num public got %v, want %v",
-			psr.NumOfPublic, wantPublic)
-
-	case psr.NumOfAbandoned != wantAbandoned:
-		return fmt.Errorf("num abandoned got %v, want %v",
-			psr.NumOfAbandoned, wantAbandoned)
-	}
-
 	// Users - filter by email
 	fmt.Printf("  Users: filter by email\n")
 	ur, err := client.Users(
@@ -973,14 +923,6 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	rupc := RescanUserPaymentsCmd{}
 	rupc.Args.UserID = user.ID
 	err = rupc.Execute(nil)
-	if err != nil {
-		return err
-	}
-
-	// Proposal stats. We need these stats to compare
-	// against when testing the public routes.
-	fmt.Printf("  Proposal stats\n")
-	stats, err = client.ProposalsStats()
 	if err != nil {
 		return err
 	}
@@ -1095,35 +1037,6 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 	case !c1.Censored:
 		return fmt.Errorf("censored comment not marked as censored")
-	}
-
-	// Proposal stats
-	fmt.Printf("  Proposal stats\n")
-	psr, err = client.ProposalsStats()
-	if err != nil {
-		return err
-	}
-
-	switch {
-	case psr.NumOfUnvetted != stats.NumOfUnvetted:
-		return fmt.Errorf("proposal stats unvetted got %v, want %v",
-			psr.NumOfUnvetted, stats.NumOfUnvetted)
-
-	case psr.NumOfUnvettedChanges != stats.NumOfUnvettedChanges:
-		return fmt.Errorf("proposal stats unvetted changes got %v, want %v",
-			psr.NumOfUnvettedChanges, stats.NumOfUnvettedChanges)
-
-	case psr.NumOfCensored != stats.NumOfCensored:
-		return fmt.Errorf("proposal stats censored got %v, want %v",
-			psr.NumOfCensored, stats.NumOfCensored)
-
-	case psr.NumOfPublic != stats.NumOfPublic:
-		return fmt.Errorf("proposal stats public got %v, want %v",
-			psr.NumOfPublic, stats.NumOfPublic)
-
-	case psr.NumOfAbandoned != stats.NumOfAbandoned:
-		return fmt.Errorf("proposal stats abandoned got %v, want %v",
-			psr.NumOfAbandoned, stats.NumOfAbandoned)
 	}
 
 	// Vetted proposals. We need to submit a page of proposals and

@@ -178,9 +178,6 @@ type Cache interface {
 	// Get the latest version of all records
 	Inventory() ([]Record, error)
 
-	// Get a summary of the number of records by status
-	InventoryStats() (*InventoryStats, error)
-
 	// Setup the record cache tables
 	Setup() error
 

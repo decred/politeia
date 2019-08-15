@@ -1387,28 +1387,6 @@ func (p *politeiawww) processAllVetted(v www.GetAllVetted) (*www.GetAllVettedRep
 	}, nil
 }
 
-// ProcessProposalStats returns summary statistics on the number of proposals
-// categorized by proposal status.
-func (p *politeiawww) processProposalsStats() (*www.ProposalsStatsReply, error) {
-	inv, err := p.cache.InventoryStats()
-	if err != nil {
-		return nil, err
-	}
-	if inv.Invalid > 0 {
-		// There should not be any invalid proposals so log an error
-		// if any are found
-		log.Errorf("processProposalsStats: %v invalid proposals found",
-			inv.Invalid)
-	}
-	return &www.ProposalsStatsReply{
-		NumOfCensored:        inv.Censored,
-		NumOfUnvetted:        inv.NotReviewed,
-		NumOfUnvettedChanges: inv.UnreviewedChanges,
-		NumOfPublic:          inv.Public,
-		NumOfAbandoned:       inv.Archived,
-	}, nil
-}
-
 // processCommentsGet returns all comments for a given proposal. If the user is
 // logged in the user's last access time for the given comments will also be
 // returned.

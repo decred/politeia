@@ -474,63 +474,6 @@ func (c *cockroachdb) Inventory() ([]cache.Record, error) {
 	return c.getRecords(true, nil, true)
 }
 
-// InventoryStats compiles summary statistics on the number of records in the
-// database grouped by record status.  Only the latest version of each record
-// is included in the statistics.
-func (c *cockroachdb) InventoryStats() (*cache.InventoryStats, error) {
-	log.Tracef("InventoryStats")
-
-	c.RLock()
-	shutdown := c.shutdown
-	c.RUnlock()
-
-	if shutdown {
-		return nil, cache.ErrShutdown
-	}
-
-	// This query gets the latest version of each record
-	query := `SELECT a.* FROM records a
-		LEFT OUTER JOIN records b
-			ON a.token = b.token AND a.version < b.version
-		WHERE b.token IS NULL`
-
-	rows, err := c.recordsdb.Raw(query).Rows()
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	records := make([]Record, 0, 1024) // PNOOMA
-	for rows.Next() {
-		var r Record
-		err := c.recordsdb.ScanRows(rows, &r)
-		if err != nil {
-			return nil, err
-		}
-		records = append(records, r)
-	}
-
-	var is cache.InventoryStats
-	for _, r := range records {
-		switch cache.RecordStatusT(r.Status) {
-		case cache.RecordStatusNotReviewed:
-			is.NotReviewed++
-		case cache.RecordStatusCensored:
-			is.Censored++
-		case cache.RecordStatusPublic:
-			is.Public++
-		case cache.RecordStatusUnreviewedChanges:
-			is.UnreviewedChanges++
-		case cache.RecordStatusArchived:
-			is.Archived++
-		default:
-			is.Invalid++
-		}
-	}
-
-	return &is, nil
-}
-
 func (c *cockroachdb) getPlugin(id string) (cache.PluginDriver, error) {
 	c.Lock()
 	defer c.Unlock()

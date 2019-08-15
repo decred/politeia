@@ -1492,30 +1492,6 @@ func (c *Client) UserPaymentsRescan(upr *v1.UserPaymentsRescan) (*v1.UserPayment
 	return &uprr, nil
 }
 
-// ProposalsStats retrieves summary statistics for the politeiawww proposal
-// inventory.
-func (c *Client) ProposalsStats() (*v1.ProposalsStatsReply, error) {
-	responseBody, err := c.makeRequest("GET", v1.RoutePropsStats, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var psr v1.ProposalsStatsReply
-	err = json.Unmarshal(responseBody, &psr)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal ProposalsStatsReply: %v", err)
-	}
-
-	if c.cfg.Verbose {
-		err := prettyPrintJSON(psr)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &psr, nil
-}
-
 // UserProposalCredits retrieves the proposal credit history for the logged
 // in user.
 func (c *Client) UserProposalCredits() (*v1.UserProposalCreditsReply, error) {

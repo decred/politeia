@@ -484,17 +484,6 @@ func (p *politeiawww) handleVoteStatus(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, vsr)
 }
 
-// handleProposalsStats returns the counting of proposals aggrouped by each proposal status
-func (p *politeiawww) handleProposalsStats(w http.ResponseWriter, r *http.Request) {
-	psr, err := p.processProposalsStats()
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleProposalsStats: processProposalsStats %v", err)
-		return
-	}
-	util.RespondWithJSON(w, http.StatusOK, psr)
-}
-
 // handleTokenInventory returns the tokens of all proposals in the inventory.
 func (p *politeiawww) handleTokenInventory(w http.ResponseWriter, r *http.Request) {
 	user, err := p.getSessionUser(w, r)
@@ -1098,8 +1087,6 @@ func (p *politeiawww) setPoliteiaWWWRoutes() {
 		p.handleGetAllVoteStatus, permissionPublic)
 	p.addRoute(http.MethodGet, www.RouteVoteStatus,
 		p.handleVoteStatus, permissionPublic)
-	p.addRoute(http.MethodGet, www.RoutePropsStats,
-		p.handleProposalsStats, permissionPublic)
 	p.addRoute(http.MethodGet, www.RouteTokenInventory,
 		p.handleTokenInventory, permissionPublic)
 	p.addRoute(http.MethodPost, www.RouteBatchProposals,
