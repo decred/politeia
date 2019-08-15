@@ -1611,7 +1611,6 @@ On failure the call shall return `400 Bad Request` and one of the following
 error codes:
 - [`ErrorStatusProposalNotFound`](#ErrorStatusProposalNotFound)
 - [`ErrorStatusMaxProposalsExceededPolicy`](#ErrorStatusMaxProposalsExceededPolicy)
-- [`ErrorStatusInvalidCensorshipToken`](#ErrorStatusInvalidCensorshipToken)
 
 **Example**
 

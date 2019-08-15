@@ -902,6 +902,7 @@ func (p *politeiawww) processProposalDetails(propDetails www.ProposalsDetails, u
 // voteSummaries fetches the voting summary information for a set of
 // proposals.
 func (p *politeiawww) voteSummaries(tokens []string, bestBlock uint64) (map[string]www.VoteSummary, error) {
+
 	r, err := p.decredBatchVoteSummary(tokens)
 	if err != nil {
 		return nil, err
@@ -992,14 +993,6 @@ func (p *politeiawww) processBatchProposals(batchProposals www.BatchProposals, u
 	if len(batchProposals.Tokens) > www.ProposalListPageSize {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusMaxProposalsExceededPolicy,
-		}
-	}
-
-	invalidTokens := getInvalidTokens(batchProposals.Tokens)
-	if len(invalidTokens) > 0 {
-		return nil, www.UserError{
-			ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
-			ErrorContext: invalidTokens,
 		}
 	}
 
