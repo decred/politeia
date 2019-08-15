@@ -499,11 +499,13 @@ func convertVoteOptionResultsFromDecred(vor []decredplugin.VoteOptionResult) []w
 
 func convertTokenInventoryReplyFromDecred(r decredplugin.TokenInventoryReply) www.TokenInventoryReply {
 	return www.TokenInventoryReply{
-		Pre:       r.Pre,
-		Active:    r.Active,
-		Approved:  r.Approved,
-		Rejected:  r.Rejected,
-		Abandoned: r.Abandoned,
+		Pre:        r.Pre,
+		Active:     r.Active,
+		Approved:   r.Approved,
+		Rejected:   r.Rejected,
+		Abandoned:  r.Abandoned,
+		Unreviewed: r.Unreviewed,
+		Censored:   r.Censored,
 	}
 }
 

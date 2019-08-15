@@ -301,10 +301,11 @@ func (p *politeiawww) decredInventory() (*decredplugin.InventoryReply, error) {
 
 // decredTokenInventory sends the decred plugin tokeninventory command to the
 // cache.
-func (p *politeiawww) decredTokenInventory(bestBlock uint64) (*decredplugin.TokenInventoryReply, error) {
+func (p *politeiawww) decredTokenInventory(bestBlock uint64, includeUnvetted bool) (*decredplugin.TokenInventoryReply, error) {
 	payload, err := decredplugin.EncodeTokenInventory(
 		decredplugin.TokenInventory{
 			BestBlock: bestBlock,
+			Unvetted:  includeUnvetted,
 		})
 	if err != nil {
 		return nil, err

@@ -497,7 +497,18 @@ func (p *politeiawww) handleProposalsStats(w http.ResponseWriter, r *http.Reques
 
 // handleTokenInventory returns the tokens of all proposals in the inventory.
 func (p *politeiawww) handleTokenInventory(w http.ResponseWriter, r *http.Request) {
-	reply, err := p.processTokenInventory()
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		// This is a public route so a session might not exist
+		if err != ErrSessionUUIDNotFound {
+			RespondWithError(w, r, 0,
+				"handleProposalDetails: getSessionUser %v", err)
+			return
+		}
+	}
+
+	isAdmin := user != nil && user.Admin
+	reply, err := p.processTokenInventory(isAdmin)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleTokenInventory: processTokenInventory: %v", err)

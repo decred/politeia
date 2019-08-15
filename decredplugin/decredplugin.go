@@ -897,10 +897,12 @@ func DecodeInventoryReply(payload []byte) (*InventoryReply, error) {
 	return &ir, nil
 }
 
-// TokenInventory requests the tokens of all records in the inventory,
-// categorized by stage of the voting process.
+// TokenInventory requests the tokens of the records in the inventory,
+// categorized by stage of the voting process. By default, only vetted
+// records are returned.
 type TokenInventory struct {
 	BestBlock uint64 `json:"bestblock"` // Best block
+	Unvetted  bool   `json:"unvetted"`  // Include unvetted records
 }
 
 // EncodeTokenInventory encodes a TokenInventory into a JSON byte slice.
@@ -921,16 +923,26 @@ func DecodeTokenInventory(payload []byte) (*TokenInventory, error) {
 }
 
 // TokenInventoryReply is the response to the TokenInventory command and
-// returns the tokens of all records in the inventory.  The tokens are
-// categorized by stage of the voting process.  Pre and abandoned tokens are
-// sorted by timestamp in decending order.  Active, approved, and rejected
-// tokens are sorted by voting period end block height in decending order.
+// returns the tokens of all records in the inventory. The tokens are
+// categorized by stage of the voting process and are sorted according to
+// the following rule.
+//
+// Sorted by record timestamp in descending order:
+// Pre, Abandonded, Unreviewed, Censored
+//
+// Sorted by voting period end block height in descending order:
+// Active, Approved, Rejected
 type TokenInventoryReply struct {
+	// Vetted Records
 	Pre       []string `json:"pre"`       // Tokens of records that are pre-vote
 	Active    []string `json:"active"`    // Tokens of records with an active voting period
 	Approved  []string `json:"approved"`  // Tokens of records that have been approved by a vote
 	Rejected  []string `json:"rejected"`  // Tokens of records that have been rejected by a vote
 	Abandoned []string `json:"abandoned"` // Tokens of records that have been abandoned
+
+	// Unvetted records
+	Unreviewed []string `json:"unreviewied,omitempty"` // Tokens of records that are unreviewed
+	Censored   []string `json:"censored,omitempty"`    // Tokens of records that have been censored
 }
 
 // EncodeTokenInventoryReply encodes a TokenInventoryReply into a JSON byte
