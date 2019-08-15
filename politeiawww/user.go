@@ -45,7 +45,21 @@ var (
 	// able to execute a timing attack to determine if the provided
 	// email address is the user's valid email address.
 	resetPasswordMinWaitTime = 500 * time.Millisecond
+
+	// loginMinWaitTime is the minimum amount of time to wait before
+	// the server sends a response to the client for the login route.
+	// This is done to prevent an attacker from being able to execute
+	// a timing attack to determine whether the ErrorStatusInvalidLogin
+	// response is specific to a bad email or a bad password.
+	loginMinWaitTime = 500 * time.Millisecond
 )
+
+// loginReply is used to pass the results of the login command between go
+// routines.
+type loginResult struct {
+	reply *www.LoginReply
+	err   error
+}
 
 // resetPassword is used to pass the results of the reset password command
 // between go routines.
@@ -1069,6 +1083,138 @@ func (p *politeiawww) processVerifyUpdateUserKey(u *user.User, vu www.VerifyUpda
 	return u, p.db.UserUpdate(*u)
 }
 
+func (p *politeiawww) login(l www.Login) loginResult {
+	// Get user record
+	u, err := p.userByEmail(l.Email)
+	if err != nil {
+		if err == user.ErrUserNotFound {
+			log.Debugf("login: user not found for email '%v'",
+				l.Email)
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusInvalidLogin,
+			}
+		}
+		return loginResult{
+			reply: nil,
+			err:   err,
+		}
+	}
+
+	// Verify password
+	err = bcrypt.CompareHashAndPassword(u.HashedPassword,
+		[]byte(l.Password))
+	if err != nil {
+		// Wrong password. Update user record with failed attempt.
+		log.Debugf("login: wrong password")
+		if !userIsLocked(u.FailedLoginAttempts) {
+			u.FailedLoginAttempts++
+			err := p.db.UserUpdate(*u)
+			if err != nil {
+				return loginResult{
+					reply: nil,
+					err:   err,
+				}
+			}
+			// If the failed attempt puts the user over the limit,
+			// send them an email informing them their account is
+			// now locked.
+			if userIsLocked(u.FailedLoginAttempts) {
+				err := p.emailUserLocked(u.Email)
+				if err != nil {
+					return loginResult{
+						reply: nil,
+						err:   err,
+					}
+				}
+			}
+		}
+		return loginResult{
+			reply: nil,
+			err: www.UserError{
+				ErrorCode: www.ErrorStatusInvalidLogin,
+			},
+		}
+	}
+
+	// Verify user account is in good standing
+	if u.NewUserVerificationToken != nil {
+		return loginResult{
+			reply: nil,
+			err: www.UserError{
+				ErrorCode: www.ErrorStatusEmailNotVerified,
+			},
+		}
+	}
+	if u.Deactivated {
+		return loginResult{
+			reply: nil,
+			err: www.UserError{
+				ErrorCode: www.ErrorStatusUserDeactivated,
+			},
+		}
+	}
+	if userIsLocked(u.FailedLoginAttempts) {
+		return loginResult{
+			reply: nil,
+			err: www.UserError{
+				ErrorCode: www.ErrorStatusUserLocked,
+			},
+		}
+	}
+
+	// Update user record with successful login
+	lastLoginTime := u.LastLoginTime
+	u.FailedLoginAttempts = 0
+	u.LastLoginTime = time.Now().Unix()
+	err = p.db.UserUpdate(*u)
+	if err != nil {
+		return loginResult{
+			reply: nil,
+			err:   err,
+		}
+	}
+
+	reply, err := p.createLoginReply(u, lastLoginTime)
+	return loginResult{
+		reply: reply,
+		err:   err,
+	}
+}
+
+// processLogin logs the provided user into politeia. This is done using go
+// routines in order to prevent timing attacks.
+func (p *politeiawww) processLogin(l www.Login) (*www.LoginReply, error) {
+	log.Tracef("processLogin: %v", l.Email)
+
+	var (
+		wg sync.WaitGroup
+		ch = make(chan loginResult)
+	)
+
+	// Wait for both go routines to finish before returning the
+	// reply. This is done to prevent an attacker from being able
+	// to execute a timing attack to determine if the provided
+	// email address is the user's valid email address.
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		ch <- p.login(l)
+	}()
+	go func() {
+		defer wg.Done()
+		time.Sleep(loginMinWaitTime)
+	}()
+	lr := <-ch
+	wg.Wait()
+
+	return lr.reply, lr.err
+}
+
+/*
+XXX this login implementation is being commented out until we switch
+the login credentials back to using username instead of email.
+https://github.com/decred/politeia/issues/860#issuecomment-520871500
+
 // processLogin checks that the provided user credentials are valid and updates
 // the login fields for the user.
 func (p *politeiawww) processLogin(l www.Login) (*www.LoginReply, error) {
@@ -1142,6 +1288,7 @@ func (p *politeiawww) processLogin(l www.Login) (*www.LoginReply, error) {
 
 	return p.createLoginReply(u, lastLoginTime)
 }
+*/
 
 // processChangeUsername checks that the password matches the one
 // in the database, then checks that the username is valid and not

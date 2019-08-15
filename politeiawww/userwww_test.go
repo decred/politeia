@@ -326,6 +326,132 @@ func TestHandleLogin(t *testing.T) {
 	p, cleanup := newTestPoliteiawww(t)
 	defer cleanup()
 
+	// loginMinWaitTime is a global variable used to prevent
+	// timing attacks. We're not testing it here so we
+	// temporarily zero it out to make the tests run faster.
+	m := loginMinWaitTime
+	loginMinWaitTime = 0
+	defer func() {
+		loginMinWaitTime = m
+	}()
+
+	// Create a user to test against. newUser() sets the
+	// password to be the same as the username.
+	u, _ := newUser(t, p, true, false)
+	password := u.Username
+	successReply, err := p.createLoginReply(u, u.LastLoginTime)
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	successReply.SessionMaxAge = sessionMaxAge
+
+	// Setup tests
+	var tests = []struct {
+		name       string
+		reqBody    interface{}
+		wantStatus int
+		wantReply  *www.LoginReply
+		wantError  error
+	}{
+		{
+			"invalid request body",
+			"",
+			http.StatusBadRequest,
+			nil,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			},
+		},
+		{
+			"processLogin error",
+			www.Login{},
+			http.StatusUnauthorized,
+			nil,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidLogin,
+			},
+		},
+		{
+			"success",
+			www.Login{
+				Email:    u.Email,
+				Password: password,
+			},
+			http.StatusOK,
+			successReply,
+			nil,
+		},
+	}
+
+	// Run tests
+	for _, v := range tests {
+		t.Run(v.name, func(t *testing.T) {
+			// Setup request
+			r := newPostReq(t, www.RouteLogin, v.reqBody)
+			w := httptest.NewRecorder()
+
+			// Run test case
+			p.handleLogin(w, r)
+			res := w.Result()
+			body, _ := ioutil.ReadAll(res.Body)
+
+			// Validate response
+			if res.StatusCode != v.wantStatus {
+				t.Errorf("got status code %v, want %v",
+					res.StatusCode, v.wantStatus)
+			}
+
+			if res.StatusCode == http.StatusOK {
+				// A user session should have been
+				// created if login was successful.
+				_, err := p.getSessionUser(w, r)
+				if err != nil {
+					t.Errorf("session not created")
+				}
+
+				// Check response body
+				var lr www.LoginReply
+				err = json.Unmarshal(body, &lr)
+				if err != nil {
+					t.Errorf("unmarshal LoginReply: %v", err)
+				}
+
+				diff := deep.Equal(lr, *v.wantReply)
+				if diff != nil {
+					t.Errorf("LoginReply got/want diff:\n%v",
+						spew.Sdump(diff))
+				}
+
+				// Test case passes; next case
+				return
+			}
+
+			var ue www.UserError
+			err := json.Unmarshal(body, &ue)
+			if err != nil {
+				t.Errorf("unmarshal UserError: %v", err)
+			}
+
+			got := errToStr(ue)
+			want := errToStr(v.wantError)
+			if got != want {
+				t.Errorf("got error %v, want %v",
+					got, want)
+			}
+		})
+	}
+}
+
+/*
+XXX these tests are for the login implementation that uses username instead of
+email. They are being commented out until we switch the login credentials back
+to username.
+https://github.com/decred/politeia/issues/860#issuecomment-520871500
+
+func TestHandleLogin(t *testing.T) {
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
+
 	// Create a user to test against. newUser() sets the
 	// password to be the same as the username.
 	u, _ := newUser(t, p, true, false)
@@ -432,6 +558,7 @@ func TestHandleLogin(t *testing.T) {
 		})
 	}
 }
+*/
 
 func TestHandleChangePassword(t *testing.T) {
 	p, cleanup := newTestPoliteiawww(t)

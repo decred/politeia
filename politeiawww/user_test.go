@@ -628,6 +628,216 @@ func TestProcessResendVerification(t *testing.T) {
 	}
 }
 
+func TestLogin(t *testing.T) {
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
+
+	// newUser() sets the password to be the username, which is
+	// why we keep setting the passwords to be the the usernames.
+
+	// Create an unverified user
+	usrUnverified, _ := newUser(t, p, false, false)
+	usrUnverifiedPassword := usrUnverified.Username
+
+	// Create a user and lock their account from failed login
+	// attempts.
+	usrLocked, _ := newUser(t, p, true, false)
+	usrLocked.FailedLoginAttempts = LoginAttemptsToLockUser + 1
+	err := p.db.UserUpdate(*usrLocked)
+	if err != nil {
+		t.Fatal(err)
+	}
+	usrLockedPassword := usrLocked.Username
+
+	// Create a deactivated user
+	usrDeactivated, _ := newUser(t, p, true, false)
+	usrDeactivated.Deactivated = true
+	err = p.db.UserUpdate(*usrDeactivated)
+	if err != nil {
+		t.Fatal(err)
+	}
+	usrDeactivatedPassword := usrDeactivated.Username
+
+	// Create a verified user and the expected login reply
+	// for the success case.
+	usr, id := newUser(t, p, true, false)
+	usrPassword := usr.Username
+	successReply := www.LoginReply{
+		IsAdmin:            false,
+		UserID:             usr.ID.String(),
+		Email:              usr.Email,
+		Username:           usr.Username,
+		PublicKey:          id.Public.String(),
+		PaywallAddress:     usr.NewUserPaywallAddress,
+		PaywallAmount:      usr.NewUserPaywallAmount,
+		PaywallTxNotBefore: usr.NewUserPaywallTxNotBefore,
+		PaywallTxID:        "",
+		ProposalCredits:    0,
+		LastLoginTime:      0,
+	}
+
+	// Setup tests
+	var tests = []struct {
+		name      string
+		login     www.Login
+		wantReply *www.LoginReply
+		wantError error
+	}{
+		{
+			"wrong email",
+			www.Login{
+				Email:    "",
+				Password: usrPassword,
+			},
+			nil,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidLogin,
+			},
+		},
+		{
+			"wrong password",
+			www.Login{
+				Email:    usr.Email,
+				Password: "",
+			},
+			nil,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidLogin,
+			},
+		},
+		{
+			"user not verified",
+			www.Login{
+				Email:    usrUnverified.Email,
+				Password: usrUnverifiedPassword,
+			},
+			nil,
+			www.UserError{
+				ErrorCode: www.ErrorStatusEmailNotVerified,
+			},
+		},
+		{
+			"user deactivated",
+			www.Login{
+				Email:    usrDeactivated.Email,
+				Password: usrDeactivatedPassword,
+			},
+			nil,
+			www.UserError{
+				ErrorCode: www.ErrorStatusUserDeactivated,
+			},
+		},
+		{
+			"user account locked",
+			www.Login{
+				Email:    usrLocked.Email,
+				Password: usrLockedPassword,
+			},
+			nil,
+			www.UserError{
+				ErrorCode: www.ErrorStatusUserLocked,
+			},
+		},
+		{
+			"success",
+			www.Login{
+				Email:    usr.Email,
+				Password: usrPassword,
+			},
+			&successReply,
+			nil,
+		},
+	}
+
+	// Run tests
+	for _, v := range tests {
+		t.Run(v.name, func(t *testing.T) {
+			lr := p.login(v.login)
+			gotErr := errToStr(lr.err)
+			wantErr := errToStr(v.wantError)
+			if gotErr != wantErr {
+				t.Errorf("got error %v, want %v",
+					gotErr, wantErr)
+			}
+
+			// If there were errors then we're done
+			if err != nil {
+				return
+			}
+
+			// Verify reply
+			diff := deep.Equal(lr.reply, v.wantReply)
+			if diff != nil {
+				t.Errorf("got/want diff:\n%v",
+					spew.Sdump(diff))
+			}
+		})
+	}
+
+}
+
+func TestProcessLogin(t *testing.T) {
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
+
+	// loginMinWaitTime is a global variable that is used to
+	// prevent timing attacks on login requests. Its normally set
+	// to 500 milliseconds. We temporarily reduce it to 50ms for
+	// these tests so that they don't take as long to run.
+	m := loginMinWaitTime
+	loginMinWaitTime = 50 * time.Millisecond
+	defer func() {
+		loginMinWaitTime = m
+	}()
+
+	// Test the incorrect email error path because it's
+	// the quickest failure path for the login route.
+	start := time.Now()
+	_, err := p.processLogin(www.Login{})
+	end := time.Now()
+	elapsed := end.Sub(start)
+
+	got := errToStr(err)
+	want := www.ErrorStatus[www.ErrorStatusInvalidLogin]
+	if got != want {
+		t.Errorf("got error %v, want %v",
+			got, want)
+	}
+	if elapsed < loginMinWaitTime {
+		t.Errorf("execution time got %v, want >%v",
+			elapsed, loginMinWaitTime)
+	}
+
+	// Test a successful login. newUser() sets the password
+	// to be the username, which is why we pass the username
+	// into the password field.
+	u, _ := newUser(t, p, true, false)
+	start = time.Now()
+	lr, err := p.processLogin(www.Login{
+		Email:    u.Email,
+		Password: u.Username,
+	})
+	end = time.Now()
+	elapsed = end.Sub(start)
+	got = errToStr(err)
+	switch {
+	case got != "nil":
+		t.Errorf("got error %v, want nil", got)
+	case lr.UserID != u.ID.String():
+		t.Errorf("login reply userID got %v, want %v",
+			lr.UserID, u.ID.String())
+	case elapsed < loginMinWaitTime:
+		t.Errorf("execution time got %v, want >%v",
+			elapsed, loginMinWaitTime)
+	}
+}
+
+/*
+XXX these tests are for the login implementation that uses username instead of
+email. They are being commented out until we switch the login credentials back
+to username.
+https://github.com/decred/politeia/issues/860#issuecomment-520871500
+
 func TestProcessLogin(t *testing.T) {
 	p, cleanup := newTestPoliteiawww(t)
 	defer cleanup()
@@ -797,6 +1007,7 @@ func TestProcessLogin(t *testing.T) {
 		})
 	}
 }
+*/
 
 func TestProcessChangePassword(t *testing.T) {
 	p, cleanup := newTestPoliteiawww(t)
