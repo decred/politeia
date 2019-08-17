@@ -286,9 +286,9 @@ func validateProposal(np www.NewProposal, u *user.User) error {
 		}
 	}
 
-	if numIndexFiles > www.PolicyMaxIndexFile {
+	if numIndexFiles > www.PolicyMaxIndexFiles {
 		return www.UserError{
-			ErrorCode: www.ErrorStatusMaxIndexFileExceeded,
+			ErrorCode: www.ErrorStatusMaxIndexFilesExceeded,
 		}
 	}
 

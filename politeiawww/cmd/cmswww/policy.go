@@ -34,7 +34,7 @@ Response:
 	"usernamesupportedchars"     ([]string) List of unsupported characters
 	"proposallistpagesize"       (uint)     Maximum proposals per page
 	"userlistpagesize"           (uint)     Maximum users per page
-	"maxindexfile"               (uint)     Maximum number of index files on a proposal
+	"maxindexfiles"              (uint)     Maximum number of index files on a proposal
 	"maxindexfilesize"           (uint)     Maximum index file size (in bytes)
 	"maxattachments"             (uint)     Maximum number of attached files
 	"maxattachmentsize"          (uint)     Maximum attached file size (in bytes)

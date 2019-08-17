@@ -538,12 +538,12 @@ func TestValidateProposal(t *testing.T) {
 
 		{"attachment is duplicate of index file", *propAttachmentIndexDup, usr,
 			www.UserError{
-				ErrorCode: www.ErrorStatusMaxIndexFileExceeded,
+				ErrorCode: www.ErrorStatusMaxIndexFilesExceeded,
 			}},
 
 		{"too many index files", *propMaxIndexFiles, usr,
 			www.UserError{
-				ErrorCode: www.ErrorStatusMaxIndexFileExceeded,
+				ErrorCode: www.ErrorStatusMaxIndexFilesExceeded,
 			}},
 
 		{"too many attached files", *propMaxAttachments, usr,

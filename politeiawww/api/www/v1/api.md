@@ -64,7 +64,7 @@ notifications.  It does not render HTML.
 - [`ErrorStatusProposalNotFound`](#ErrorStatusProposalNotFound)
 - [`ErrorStatusProposalDuplicateFilenames`](#ErrorStatusProposalDuplicateFilenames)
 - [`ErrorStatusProposalInvalidTitle`](#ErrorStatusProposalInvalidTitle)
-- [`ErrorStatusMaxIndexFileExceeded`](#ErrorStatusMaxIndexFileExceeded)
+- [`ErrorStatusMaxIndexFilesExceeded`](#ErrorStatusMaxIndexFilesExceeded)
 - [`ErrorStatusMaxIndexFileSizeExceeded`](#ErrorStatusMaxIndexFileSizeExceeded)
 - [`ErrorStatusMaxAttachmentsExceeded`](#ErrorStatusMaxAttachmentsExceeded)
 - [`ErrorStatusMaxAttachmentSizeExceeded`](#ErrorStatusMaxAttachmentSizeExceeded)
@@ -1075,7 +1075,7 @@ error codes:
 - [`ErrorStatusDuplicateFilePayloads`](#ErrorStatusDuplicateFilePayloads)
 - [`ErrorStatusProposalDuplicateFilenames`](#ErrorStatusProposalDuplicateFilenames)
 - [`ErrorStatusProposalInvalidTitle`](#ErrorStatusProposalInvalidTitle)
-- [`ErrorStatusMaxIndexFileExceeded`](#ErrorStatusMaxIndexFileExceeded)
+- [`ErrorStatusMaxIndexFilesExceeded`](#ErrorStatusMaxIndexFilesExceeded)
 - [`ErrorStatusMaxIndexFileSizeExceeded`](#ErrorStatusMaxIndexFileSizeExceeded)
 - [`ErrorStatusMaxAttachmentsExceeded`](#ErrorStatusMaxAttachmentsExceeded)
 - [`ErrorStatusMaxAttachmentSizeExceeded`](#ErrorStatusMaxAttachmentSizeExceeded)
@@ -1318,7 +1318,7 @@ SHALL observe.
 | proposallistpagesize | integer | maximum number of proposals returned for the routes that return lists of proposals |
 | userlistpagesize | integer | maximum number of users returned for the routes that return lists of users |
 | indexfilemimetype | string | mime type that an index file must have in a proposal |
-| maxindexfile | integer | maximum number of index files on a proposal |
+| maxindexfiles| integer | maximum number of index files on a proposal |
 | maxindexfilesize | integer | maximum size (in bytes) for the index file of a proposal |
 | maxattachments | integer | maximum number of attachments accepted when creating a new proposal |
 | maxattachmentsize | integer | maximum attached file size (in bytes) accepted when creating a new proposal |
@@ -1357,7 +1357,7 @@ Reply:
   ],
   "proposallistpagesize": 20,
   "indexfilemimetype": "text/plain; charset=utf-8",
-  "maxindexfile": 1,
+  "maxindexfiles": 1,
   "maxindexfilesize": 524288,
   "maxattachments": 5,
   "maxattachmentsize": 524288,
@@ -2662,7 +2662,7 @@ Reply:
 | <a name="ErrorStatusProposalNotFound">ErrorStatusProposalNotFound</a> | 6 | The requested proposal does not exist. |
 | <a name="ErrorStatusProposalDuplicateFilenames">ErrorStatusProposalDuplicateFilenames</a> | 7 | The provided proposal has duplicate files. This error is provided with additional context: the duplicate name(s). |
 | <a name="ErrorStatusProposalInvalidTitle">ErrorStatusProposalInvalidTitle</a> | 8 | The provided proposal title is invalid. This error is provided with additional context: the regular expression accepted. |
-| <a name="ErrorStatusMaxIndexFileExceeded">ErrorStatusMaxIndexFileExceeded</a> | 9 | The submitted proposal has too many index files. Limits can be obtained by issuing the [Policy](#policy) command. |
+| <a name="ErrorStatusMaxIndexFilesExceeded">ErrorStatusMaxIndexFilesExceeded</a> | 9 | The submitted proposal has too many index files. Limits can be obtained by issuing the [Policy](#policy) command. |
 | <a name="ErrorStatusMaxIndexFileSizeExceeded">ErrorStatusMaxIndexFileSizeExceeded</a> | 10 | The submitted proposal has an index file that is too large. Limits can be obtained by issuing the [Policy](#policy) command. |
 | <a name="ErrorStatusMaxAttachmentsExceeded">ErrorStatusMaxAttachmentsExceeded</a> | 11 | The submitted proposal has too many attached files. Limits can be obtained by issuing the [Policy](#policy) command. |
 | <a name="ErrorStatusMaxAttachmentSizeExceeded">ErrorStatusMaxAttachmentSizeExceeded</a> | 12 | The submitted proposal has an attachment that is too large. Limits can be obtained by issuing the [Policy](#policy) command. |

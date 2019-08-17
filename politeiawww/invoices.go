@@ -717,9 +717,9 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 		}
 	}
 
-	if numInvoiceFiles > www.PolicyMaxIndexFile {
+	if numInvoiceFiles > www.PolicyMaxIndexFiles {
 		return www.UserError{
-			ErrorCode: www.ErrorStatusMaxIndexFileExceeded,
+			ErrorCode: www.ErrorStatusMaxIndexFilesExceeded,
 		}
 	}
 

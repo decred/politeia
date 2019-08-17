@@ -76,9 +76,9 @@ const (
 	// have
 	PolicyIndexFileMimeType = "text/plain; charset=utf-8"
 
-	// PolicyMaxIndexFile is the maximum number of index file
+	// PolicyMaxIndexFiles is the maximum number of index file
 	// for a proposal
-	PolicyMaxIndexFile = 1
+	PolicyMaxIndexFiles = 1
 
 	// PolicyMaxAttachments is the maximum size of index file
 	PolicyMaxIndexFileSize = 512 * 1024
@@ -128,7 +128,7 @@ const (
 	ErrorStatusProposalNotFound                ErrorStatusT = 6
 	ErrorStatusProposalDuplicateFilenames      ErrorStatusT = 7
 	ErrorStatusProposalInvalidTitle            ErrorStatusT = 8
-	ErrorStatusMaxIndexFileExceededPolicy      ErrorStatusT = 9
+	ErrorStatusMaxIndexFilesExceededPolicy     ErrorStatusT = 9
 	ErrorStatusMaxIndexFileSizeExceededPolicy  ErrorStatusT = 10
 	ErrorStatusMaxAttachmentsExceededPolicy    ErrorStatusT = 11
 	ErrorStatusMaxAttachmentSizeExceededPolicy ErrorStatusT = 12
@@ -271,7 +271,7 @@ var (
 		ErrorStatusProposalNotFound:                "proposal not found",
 		ErrorStatusProposalDuplicateFilenames:      "duplicate proposal files",
 		ErrorStatusProposalInvalidTitle:            "invalid proposal title",
-		ErrorStatusMaxIndexFileExceededPolicy:      "maximum index files exceeded",
+		ErrorStatusMaxIndexFilesExceededPolicy:     "maximum index files exceeded",
 		ErrorStatusMaxIndexFileSizeExceededPolicy:  "maximum index file size exceeded",
 		ErrorStatusMaxAttachmentsExceededPolicy:    "maximum file attachments exceeded",
 		ErrorStatusMaxAttachmentSizeExceededPolicy: "maximum attachment file size exceeded",
@@ -834,7 +834,7 @@ type PolicyReply struct {
 	ProposalListPageSize       uint     `json:"proposallistpagesize"`
 	UserListPageSize           uint     `json:"userlistpagesize"`
 	IndexFileMimeType          string   `json:"indexfilemimetype"`
-	MaxIndexFile               uint     `json:"maxindexfile"`
+	MaxIndexFiles              uint     `json:"maxindexfiles"`
 	MaxIndexFileSize           uint     `json:"maxindexfilesize"`
 	MaxAttachments             uint     `json:"maxattachments"`
 	MaxAttachmentSize          uint     `json:"maxattachmentsize"`

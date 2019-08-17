@@ -245,7 +245,7 @@ func TestValidateInvoice(t *testing.T) {
 
 		{"too many index files", *invoiceMaxIndexFiles, usr,
 			www.UserError{
-				ErrorCode: www.ErrorStatusMaxIndexFileExceeded,
+				ErrorCode: www.ErrorStatusMaxIndexFilesExceeded,
 			}},
 
 		{"too many attached files", *invoiceMaxAttachments, usr,

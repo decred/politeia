@@ -380,7 +380,7 @@ type PolicyReply struct {
 	MinPasswordLength             uint     `json:"minpasswordlength"`
 	MinUsernameLength             uint     `json:"minusernamelength"`
 	MaxUsernameLength             uint     `json:"maxusernamelength"`
-	MaxIndexFile                  uint     `json:"maxindexfile"`
+	MaxIndexFiles                 uint     `json:"maxindexfiles"`
 	MaxIndexFileSize              uint     `json:"maxindexfilesize"`
 	MaxAttachments                uint     `json:"maxattachments"`
 	MaxAttachmentSize             uint     `json:"maxattachmentsize"`

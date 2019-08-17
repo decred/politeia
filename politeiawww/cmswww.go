@@ -386,7 +386,7 @@ func (p *politeiawww) handleCMSPolicy(w http.ResponseWriter, r *http.Request) {
 		MinPasswordLength:             www.PolicyMinPasswordLength,
 		MinUsernameLength:             www.PolicyMinUsernameLength,
 		MaxUsernameLength:             www.PolicyMaxUsernameLength,
-		MaxIndexFile:                  www.PolicyMaxIndexFile,
+		MaxIndexFiles:                 www.PolicyMaxIndexFiles,
 		MaxIndexFileSize:              www.PolicyMaxIndexFileSize,
 		MaxAttachments:                cms.PolicyMaxAttachments,
 		MaxAttachmentSize:             cms.PolicyMaxAttachmentSize,
