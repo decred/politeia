@@ -67,7 +67,7 @@ type config struct {
 	Proxy            string `long:"proxy" description:"Connect via SOCKS5 proxy (eg. 127.0.0.1:9050)"`
 	ProxyUser        string `long:"proxyuser" description:"Username for proxy server"`
 	ProxyPass        string `long:"proxypass" default-mask:"-" description:"Password for proxy server"`
-	VoteDuration     string `long:"voteduration" description:"Duration to cast all votes e.g. 1d2h10m (default 0s)"`
+	VoteDuration     string `long:"voteduration" description:"Duration to cast all votes in hours, minutes and seconds e.g. 5h10m30s (default 0s)"`
 	SkipVerify       bool   `long:"skipverify" description:"Skip verifying the server's certifcate chain and host name."`
 
 	dial         func(string, string) (net.Conn, error)
