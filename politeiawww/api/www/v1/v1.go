@@ -1187,8 +1187,8 @@ type TokenInventoryReply struct {
 	Abandoned []string `json:"abandoned"` // Tokens of all props that have been abandoned
 
 	// Unvetted
-	Unreviewed []string `json:"unreviewed,omitempty"` // Tokens of all unreviewed props
-	Censored   []string `json:"censored,omitempty"`   // Tokens of all censored props
+	Unreviewed []string `json:"unreviewed"` // Tokens of all unreviewed props
+	Censored   []string `json:"censored"`   // Tokens of all censored props
 }
 
 // Websocket commands
