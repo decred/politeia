@@ -26,7 +26,9 @@ const (
 	RouteUserInvoices        = "/user/invoices"
 	RouteNewDCC              = "/dcc/new"
 	RouteDCCDetails          = "/dcc/{token:[A-z0-9]{64}}"
-	RouteGetDCCs             = "/dcc"
+	RouteGetDCCs             = "/dcc/status"
+	RouteSupportOpposeDCC    = "/dcc/supportoppose"
+	RouteNewCommentDCC       = "/dcc/comment"
 	RouteAdminInvoices       = "/admin/invoices"
 	RouteAdminUserInvoices   = "/admin/userinvoices"
 	RouteGeneratePayouts     = "/admin/generatepayouts"
@@ -184,6 +186,7 @@ const (
 	ErrorStatusInvalidUserNewInvoice          www.ErrorStatusT = 1038
 	ErrorStatusInvalidDCCNominee              www.ErrorStatusT = 1039
 	ErrorStatusDCCNotFound                    www.ErrorStatusT = 1040
+	ErrorStatusCannotCommentOnDCC             www.ErrorStatusT = 1041
 )
 
 var (
@@ -254,6 +257,7 @@ var (
 		ErrorStatusInvalidUserNewInvoice:          "current contractor status does not allow new invoices to be created",
 		ErrorStatusInvalidDCCNominee:              "invalid nominee user was submitted for a DCC",
 		ErrorStatusDCCNotFound:                    "a requested dcc was not found",
+		ErrorStatusCannotCommentOnDCC:             "cannot comment/approve/oppose DCC in its current state",
 	}
 )
 
@@ -622,3 +626,12 @@ type GetDCCs struct {
 type GetDCCsReply struct {
 	DCCs []DCCRecord `json:"dccs"` // DCCRecords of matching status
 }
+
+// SupportOpposeDCC request allows a user to support a given DCC issuance or revocation.
+type SupportOpposeDCC struct {
+	Vote  string `json:"comment"` // Vote must be "aye" or "nay"
+	Token string `json:"token"`   // The censorship token of the given DCC issuance or revocation.
+}
+
+// SupportOpposeDCCReply returns an empty response when successful.
+type SupportOpposeDCCReply struct{}

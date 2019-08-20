@@ -608,6 +608,66 @@ func (p *politeiawww) handleGetDCCs(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, gdsr)
 }
 
+func (p *politeiawww) handleSupportOpposeDCC(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleSupportOpposeDCC")
+
+	var sd cms.SupportOpposeDCC
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&sd); err != nil {
+		RespondWithError(w, r, 0, "handleSupportOpposeDCC: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+	u, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleSupportOpposeDCC: getSessionUser %v", err)
+		return
+	}
+
+	sdr, err := p.processSupportOpposeDCC(sd, u)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleSupportOpposeDCC: processSupportOpposeDCC: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, sdr)
+}
+
+// handleNewCommentDCC handles incomming comments for DCC.
+func (p *politeiawww) handleNewCommentDCC(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleNewCommentDCC")
+
+	var sc www.NewComment
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&sc); err != nil {
+		RespondWithError(w, r, 0, "handleNewCommentDCC: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleNewCommentDCC: getSessionUser %v", err)
+		return
+	}
+
+	cr, err := p.processNewCommentDCC(sc, user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleNewCommentDCC: processNewCommentDCC: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, cr)
+}
+
 func (p *politeiawww) setCMSWWWRoutes() {
 	// Templates
 	//p.addTemplate(templateNewProposalSubmittedName,
@@ -650,6 +710,11 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		p.handleDCCDetails, permissionLogin)
 	p.addRoute(http.MethodPost, cms.RouteGetDCCs,
 		p.handleGetDCCs, permissionLogin)
+	p.addRoute(http.MethodPost, cms.RouteSupportOpposeDCC,
+		p.handleSupportOpposeDCC, permissionLogin)
+	p.addRoute(http.MethodPost, cms.RouteNewCommentDCC,
+		p.handleNewCommentDCC, permissionLogin)
+
 	// Unauthenticated websocket
 	p.addRoute("", www.RouteUnauthenticatedWebSocket,
 		p.handleUnauthenticatedWebsocket, permissionPublic)

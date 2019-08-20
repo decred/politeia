@@ -1751,6 +1751,30 @@ func (c *Client) NewDCC(nd cms.NewDCC) (*cms.NewDCCReply, error) {
 	return &ndr, nil
 }
 
+// SupportOpposeDCC issues support for a given DCC proposal.
+func (c *Client) SupportOpposeDCC(sd cms.SupportOpposeDCC) (*cms.SupportOpposeDCCReply, error) {
+	responseBody, err := c.makeRequest("POST", cms.RouteSupportOpposeDCC,
+		sd)
+	if err != nil {
+		return nil, err
+	}
+
+	var sdr cms.SupportOpposeDCCReply
+	err = json.Unmarshal(responseBody, &sdr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal SupportOpposeDCCReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(sdr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &sdr, nil
+}
+
 // DCCDetails retrieves the specified dcc.
 func (c *Client) DCCDetails(token string) (*cms.DCCDetailsReply, error) {
 	responseBody, err := c.makeRequest("GET", "/dcc/"+token, nil)

@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/decred/dcrtime/merkle"
+	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/cache"
@@ -34,14 +35,16 @@ const (
 	dccFile = "dcc.json"
 
 	// politeiad dcc record metadata streams
-	mdStreamDCCGeneral       = 5 // General DCC metadata
-	mdStreamDCCStatusChanges = 6 // DCC status changes
+	mdStreamDCCGeneral           = 5 // General DCC metadata
+	mdStreamDCCStatusChanges     = 6 // DCC status changes
+	mdStreamDCCSupportOpposition = 7 // DCC support/opposition changes
 
 	// Metadata stream struct versions
-	backendDCCMetadataVersion     = 1
-	backendDCCStatusChangeVersion = 1
+	backendDCCMetadataVersion                  = 1
+	backendDCCStatusChangeVersion              = 1
+	backendDCCSupposeOppositionMetadataVersion = 1
 
-	sponsorString = "aye"
+	supportString = "aye"
 	opposeString  = "nay"
 )
 
@@ -376,6 +379,15 @@ type backendDCCStatusChange struct {
 	Timestamp      int64          `json:"timestamp"`      // Timestamp of the change
 }
 
+// backendDCCSupportOppositionMetadata represents the general metadata for a DCC
+// Support/Opposition 'vote' for a given DCC proposal.
+type backendDCCSupportOppositionMetadata struct {
+	Version   uint64 `json:"version"`   // Version of the struct
+	Timestamp int64  `json:"timestamp"` // Last update of invoice
+	PublicKey string `json:"publickey"` // Key used for signature
+	Vote      string `json:"vote"`      // Vote for support/opposition
+}
+
 // encodeBackendDCCMetadata encodes a backendDCCMetadata into a JSON
 // byte slice.
 func encodeBackendDCCMetadata(md backendDCCMetadata) ([]byte, error) {
@@ -432,6 +444,38 @@ func decodeBackendDCCStatusChanges(payload []byte) ([]backendDCCStatusChange, er
 	return md, nil
 }
 
+// encodeBackendDCCSupportOppositionMetadata encodes a backendDCCSupportOppositionMetadata into a JSON
+// byte slice.
+func encodeBackendDCCSupportOppositionMetadata(md backendDCCSupportOppositionMetadata) ([]byte, error) {
+	b, err := json.Marshal(md)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+// decodeBackendDCCSupportOppositionMetadata decodes a JSON byte slice into a
+// backendDCCSupportOppositionMetadata.
+func decodeBackendDCCSupportOppositionMetadata(payload []byte) ([]backendDCCSupportOppositionMetadata, error) {
+	var md []backendDCCSupportOppositionMetadata
+
+	d := json.NewDecoder(strings.NewReader(string(payload)))
+	for {
+		var m backendDCCSupportOppositionMetadata
+		err := d.Decode(&m)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return nil, err
+		}
+
+		md = append(md, m)
+	}
+
+	return md, nil
+}
+
 // getDCC gets the most recent verions of the given DCC from the cache
 // then fills in any missing user fields before returning the DCC record.
 func (p *politeiawww) getDCC(token string) (*cms.DCCRecord, error) {
@@ -442,6 +486,32 @@ func (p *politeiawww) getDCC(token string) (*cms.DCCRecord, error) {
 	}
 	i := convertDCCFromCache(*r)
 
+	// Get user IDs of support/oppose pubkeys
+	supportUserIDs := make([]string, len(i.SupportUserIDs))
+	opposeUserIDs := make([]string, len(i.OppositionUserIDs))
+	for _, v := range i.SupportUserIDs {
+		// Fill in userID and username fields
+		u, err := p.db.UserGetByPubKey(v)
+		if err != nil {
+			log.Errorf("getDCC: getUserByPubKey: token:%v "+
+				"pubKey:%v err:%v", token, v, err)
+		} else {
+			supportUserIDs = append(supportUserIDs, u.ID.String())
+		}
+	}
+	for _, v := range i.OppositionUserIDs {
+		// Fill in userID and username fields
+		u, err := p.db.UserGetByPubKey(v)
+		if err != nil {
+			log.Errorf("getDCC: getUserByPubKey: token:%v "+
+				"pubKey:%v err:%v", token, v, err)
+		} else {
+			opposeUserIDs = append(opposeUserIDs, u.ID.String())
+		}
+	}
+	i.SupportUserIDs = supportUserIDs
+	i.OppositionUserIDs = opposeUserIDs
+
 	// Fill in userID and username fields
 	u, err := p.db.UserGetByPubKey(i.PublicKey)
 	if err != nil {
@@ -451,41 +521,7 @@ func (p *politeiawww) getDCC(token string) (*cms.DCCRecord, error) {
 		i.SponsorUserID = u.ID.String()
 		i.SponsorUsername = u.Username
 	}
-	support, oppose, err := p.getDCCSupportOppositionComments(token)
-	if err != nil {
-		log.Errorf("getDCC: %v", err)
-	}
-	i.SupportUserIDs = support
-	i.OppositionUserIDs = oppose
 	return &i, nil
-}
-
-func (p *politeiawww) getDCCSupportOppositionComments(token string) ([]string, []string, error) {
-	log.Tracef("getDCCSupportOpposition: %v", token)
-
-	dc, err := p.decredGetComments(token)
-	if err != nil {
-		return nil, nil, fmt.Errorf("decredGetComments: %v", err)
-	}
-
-	support := make([]string, 0, len(dc))
-	oppose := make([]string, 0, len(dc))
-	for _, v := range dc {
-		c := convertCommentFromDecred(v)
-		u, err := p.db.UserGetByPubKey(c.PublicKey)
-		if err != nil {
-			log.Errorf("getDCCSupportOpposition: UserGetByPubKey: "+
-				"token:%v commentID:%v pubKey:%v err:%v",
-				token, c.CommentID, c.PublicKey, err)
-		}
-		if c.Comment == sponsorString {
-			support = append(support, u.ID.String())
-		} else if c.Comment == opposeString {
-			oppose = append(support, u.ID.String())
-		}
-	}
-
-	return support, oppose, nil
 }
 
 func (p *politeiawww) processDCCDetails(gd cms.DCCDetails) (*cms.DCCDetailsReply, error) {
@@ -536,5 +572,223 @@ func (p *politeiawww) processGetDCCs(gds cms.GetDCCs) (*cms.GetDCCsReply, error)
 
 	return &cms.GetDCCsReply{
 		DCCs: dccs,
+	}, nil
+}
+
+func (p *politeiawww) processSupportOpposeDCC(sd cms.SupportOpposeDCC, u *user.User) (*cms.SupportOpposeDCCReply, error) {
+	log.Tracef("processSupportOpposeDCC: %v %v", sd.Token, u.ID)
+
+	dcc, err := p.getDCC(sd.Token)
+	if err != nil {
+		if err == cache.ErrRecordNotFound {
+			err = www.UserError{
+				ErrorCode: cms.ErrorStatusInvoiceNotFound,
+			}
+		}
+		return nil, err
+	}
+
+	if sd.Vote != supportString && sd.Vote != opposeString {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserActionNotAllowed,
+		}
+	}
+	// Check to make sure the user has not SupportOpposeed or Opposed this DCC yet
+	if stringInSlice(dcc.SupportUserIDs, u.ID.String()) ||
+		stringInSlice(dcc.OppositionUserIDs, u.ID.String()) {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserActionNotAllowed,
+		}
+	}
+
+	// Check to make sure the user is not the author of the DCC.
+	if dcc.SponsorUserID == u.ID.String() {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserActionNotAllowed,
+		}
+	}
+
+	// Check to make sure that the DCC is still active
+	if dcc.Status != cms.DCCStatusActive {
+		return nil, www.UserError{
+			ErrorCode: cms.ErrorStatusCannotCommentOnDCC,
+		}
+	}
+
+	// Create the change record.
+	c := backendDCCSupportOppositionMetadata{
+		Version:   backendDCCSupposeOppositionMetadataVersion,
+		PublicKey: u.PublicKey(),
+		Timestamp: time.Now().Unix(),
+		Vote:      sd.Vote,
+	}
+	blob, err := encodeBackendDCCSupportOppositionMetadata(c)
+	if err != nil {
+		return nil, err
+	}
+
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	pdCommand := pd.UpdateVettedMetadata{
+		Challenge: hex.EncodeToString(challenge),
+		Token:     sd.Token,
+		MDAppend: []pd.MetadataStream{
+			{
+				ID:      mdStreamDCCSupportOpposition,
+				Payload: string(blob),
+			},
+		},
+	}
+
+	responseBody, err := p.makeRequest(http.MethodPost, pd.UpdateVettedMetadataRoute, pdCommand)
+	if err != nil {
+		return nil, err
+	}
+
+	var pdReply pd.UpdateVettedMetadataReply
+	err = json.Unmarshal(responseBody, &pdReply)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal UpdateVettedMetadataReply: %v",
+			err)
+	}
+
+	// Verify the UpdateVettedMetadata challenge.
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, pdReply.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	return &cms.SupportOpposeDCCReply{}, nil
+}
+
+func stringInSlice(arr []string, str string) bool {
+	for _, s := range arr {
+		if str == s {
+			return true
+		}
+	}
+
+	return false
+}
+
+// processNewCommentDCC sends a new comment decred plugin command to politeaid
+// then fetches the new comment from the cache and returns it.
+func (p *politeiawww) processNewCommentDCC(nc www.NewComment, u *user.User) (*www.NewCommentReply, error) {
+	log.Tracef("processNewCommentDCC: %v %v", nc.Token, u.ID)
+
+	dcc, err := p.getDCC(nc.Token)
+	if err != nil {
+		if err == cache.ErrRecordNotFound {
+			err = www.UserError{
+				ErrorCode: cms.ErrorStatusInvoiceNotFound,
+			}
+		}
+		return nil, err
+	}
+
+	// Check to make sure the user is either an admin or the
+	// author of the invoice.
+	if !u.Admin && (dcc.SponsorUsername != u.Username) {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserActionNotAllowed,
+		}
+	}
+
+	// Ensure the public key is the user's active key
+	if nc.PublicKey != u.PublicKey() {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSigningKey,
+		}
+	}
+
+	// Validate signature
+	msg := nc.Token + nc.ParentID + nc.Comment
+	err = validateSignature(nc.PublicKey, nc.Signature, msg)
+	if err != nil {
+		return nil, err
+	}
+
+	// Don't allow comments of just "aye" or "nay" that would be confused
+	// with support or opposition.
+	if nc.Comment == supportString || nc.Comment == opposeString {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserActionNotAllowed,
+		}
+	}
+
+	// Validate comment
+	err = validateComment(nc)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check to make sure that dcc isn't already approved.
+	if dcc.Status != cms.DCCStatusActive {
+		return nil, www.UserError{
+			ErrorCode: cms.ErrorStatusCannotCommentOnDCC,
+		}
+	}
+
+	// Setup plugin command
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	dnc := convertNewCommentToDecredPlugin(nc)
+	payload, err := decredplugin.EncodeNewComment(dnc)
+	if err != nil {
+		return nil, err
+	}
+
+	pc := pd.PluginCommand{
+		Challenge: hex.EncodeToString(challenge),
+		ID:        decredplugin.ID,
+		Command:   decredplugin.CmdNewComment,
+		CommandID: decredplugin.CmdNewComment,
+		Payload:   string(payload),
+	}
+
+	// Send polieiad request
+	responseBody, err := p.makeRequest(http.MethodPost,
+		pd.PluginCommandRoute, pc)
+	if err != nil {
+		return nil, err
+	}
+
+	// Handle response
+	var reply pd.PluginCommandReply
+	err = json.Unmarshal(responseBody, &reply)
+	if err != nil {
+		return nil, fmt.Errorf("could not unmarshal "+
+			"PluginCommandReply: %v", err)
+	}
+
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, reply.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	ncr, err := decredplugin.DecodeNewCommentReply([]byte(reply.Payload))
+	if err != nil {
+		return nil, err
+	}
+
+	// Add comment to commentScores in-memory cache
+	p.Lock()
+	p.commentScores[nc.Token+ncr.CommentID] = 0
+	p.Unlock()
+
+	// Get comment from cache
+	c, err := p.getComment(nc.Token, ncr.CommentID)
+	if err != nil {
+		return nil, fmt.Errorf("getComment: %v", err)
+	}
+
+	return &www.NewCommentReply{
+		Comment: *c,
 	}, nil
 }

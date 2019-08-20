@@ -873,7 +873,7 @@ Reply:
 
 ### `DCC Details`
 
-Retrieve DCC by its token.
+Retrieve DCC and its details.
 
 **Routes:** `GET /v1/dcc/{token}`
 
@@ -906,11 +906,7 @@ The request params should be provided within the URL:
 Reply:
 
 ```json
-
-Reply:
-
-```json
-{  
+{
     "dcc": {
       "status": 4,
       "statuschangereason": "This has been revoked due to strong support.",
@@ -942,8 +938,24 @@ Reply:
         "token": "edd0882152f9800e7a6240f23d7310bd45145eb85ec463458de828b631083d84",
         "merkle": "cd5176184a510776abf1c394d830427f94d2f7fe4622e27ac839ceefa7fcf277",
         "signature": "4ea9f76a6c6659d4936aa556182604a3099778a981ebf500d5d47424b7ba0127ab033202b0be7872d09473088c04e9d1145f801455f0ae07be29e2f2d99ac00f"
-      }
+      },
+    "publickey": "311fa61d27b18c0033589ef1fb49edd162d791d0702cbab623ffd4486452322a",
+    "signature": "8a3c5b5cb984cfb7fd59a11d2d7d11a8d50b936358541d917ba348d30bfb1d805c26686836695a9b4b347feee6a674b689b448ed941280874a4b8dbdf360600b",
+    "version": "1",
+    "statement": "",
+    "domain": 0,
+    "sponsoruserid": "b35ab9d3-a98d-4170-ad5a-85b5bce9fb10",
+    "sponsorusername": "bsaget",
+    "supportuserids": [],
+    "againstuserids": [
+      "a5c98ca0-7369-4147-8902-3d268ec2fb24"
+    ],
+    "censorshiprecord": {
+      "token": "edd0882152f9800e7a6240f23d7310bd45145eb85ec463458de828b631083d84",
+      "merkle": "cd5176184a510776abf1c394d830427f94d2f7fe4622e27ac839ceefa7fcf277",
+      "signature": "4ea9f76a6c6659d4936aa556182604a3099778a981ebf500d5d47424b7ba0127ab033202b0be7872d09473088c04e9d1145f801455f0ae07be29e2f2d99ac00f"
     }
+  }
 }
 ```
 
@@ -1019,6 +1031,42 @@ Reply:
 }
 ```
 
+### `Support/Oppose DCC`
+
+Creates a vote on a DCC Record that is used to tabulate support or opposition .
+
+**Route:** `POST /v1/dcc/supportoppose`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| vote | string | The vote for the given DCC | Yes |
+| token | string | The token of the DCC to support | Yes |
+
+**Results:**
+
+| | Type | Description |
+|-|-|-|
+
+**Example**
+
+Request:
+
+```json
+{
+  "vote": "aye",
+  "token":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b"
+}
+```
+
+Reply:
+
+```json
+{}
+```
+
+
 ### Error codes
 
 | Status | Value | Description |
@@ -1061,6 +1109,8 @@ Reply:
 | <a name="ErrorStatusDuplicateEmail">ErrorStatusDuplicateEmail</a> | 1037 | A duplicate email address was detected. |
 | <a name="ErrorStatusInvalidUserNewInvoice">ErrorStatusInvalidUserNewInvoice</a> | 1038 | The user was not allowed to create a new invoice. |
 | <a name="ErrorStatusInvalidDCCNominee">ErrorStatusInvalidDCCNominee</a> | 1039 | The user that was nominated was invalid, either not found or not a potential nominee. |
+| <a name="ErrorStatusDCCNotFound">ErrorStatusDCCNotFound</a> | 1040 | A requested DCC proposal was not able to be located based on the provided token. |
+| <a name="ErrorStatusCannotCommentOnDCC">ErrorStatusCannotCommentOnDCC</a> | 1041 | A user is unable to comment on a DCC, due to them being the author or some other situation. |
 
 ### Invoice status codes
 
