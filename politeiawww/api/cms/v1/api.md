@@ -889,10 +889,6 @@ Retrieve DCC and its details.
 |-|-|-|
 | dcc | [`DCC`](#dcc) | The DCC with the provided token. |
 
-On failure the call shall return `400 Bad Request` and one of the following
-error codes:
-- [`ErrorStatusProposalNotFound`](#ErrorStatusProposalNotFound)
-
 **Example**
 
 Request:
@@ -1233,6 +1229,90 @@ Reply:
   "accesstime": 1543539276
 }
 ```
+
+### `Approve DCC`
+
+Approves a DCC proposal that will then move the nominated user into a fully invited contractor.
+
+Note: This call requires admin privileges.
+
+**Route:** `POST /v1/admin/approvedcc`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| reason | string | The reason for approving the DCC. | Yes |
+| token | string | The token of the DCC to approve. | Yes |
+| publickey | string | The user's public key. | Yes |
+| signature | string | The signature of the string representation of the reason and token payload. | Yes |
+
+**Results:**
+
+| | Type | Description |
+|-|-|-|
+| verificationtoken | String | The verification token which is required when calling [`Register`](#register). The token will be sent to the email address sent in the request.|
+
+**Example**
+
+Request:
+
+```json
+{
+  "comment":"nay",
+  "token":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+  "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+  "signature": "gdd92f26c8g38c90d2887259e88df614654g32fde76bef1438b0efg40e360f461e995d796g16b17108gbe226793ge4g52gg013428feb3c39de504fe5g1811e0e"}
+```
+
+Reply:
+
+```json
+{
+  "verificationtoken": "fc8f660e7f4d590e27e6b11639ceeaaec2ce9bc6b0303344555ac023ab8ee55f"
+}
+```
+
+### `Reject DCC`
+
+Rejects a DCC proposal that will then move the nominated user into a ContractorRevoked status.
+
+Note: This call requires admin privileges.
+
+**Route:** `POST /v1/admin/rejectdcc`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| reason | string | The reason for rejecting the DCC. | Yes |
+| token | string | The token of the DCC to reject. | Yes |
+| publickey | string | The user's public key. | Yes |
+| signature | string | The signature of the string representation of the reason and token payload. | Yes |
+
+**Results:**
+
+| | Type | Description |
+|-|-|-|
+
+**Example**
+
+Request:
+
+```json
+{
+  "comment":"nay",
+  "token":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+  "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+  "signature": "gdd92f26c8g38c90d2887259e88df614654g32fde76bef1438b0efg40e360f461e995d796g16b17108gbe226793ge4g52gg013428feb3c39de504fe5g1811e0e"}
+```
+
+Reply:
+
+```json
+{}
+```
+
 ### Error codes
 
 | Status | Value | Description |

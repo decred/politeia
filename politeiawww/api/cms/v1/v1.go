@@ -30,6 +30,8 @@ const (
 	RouteSupportOpposeDCC    = "/dcc/supportoppose"
 	RouteNewCommentDCC       = "/dcc/newcomment"
 	RouteDCCComments         = "/dcc/{token:[A-z0-9]{64}}/comments"
+	RouteApproveDCC          = "/admin/approvedcc"
+	RouteRejectDCC           = "/admin/rejectdcc"
 	RouteAdminInvoices       = "/admin/invoices"
 	RouteAdminUserInvoices   = "/admin/userinvoices"
 	RouteGeneratePayouts     = "/admin/generatepayouts"
@@ -69,6 +71,7 @@ const (
 	ContractorTypeSupervisor    ContractorTypeT = 2 // Supervisor contractor
 	ContractorTypeSubContractor ContractorTypeT = 3 // SubContractor
 	ContractorTypeNominee       ContractorTypeT = 4 // Nominated DCC user
+	ContractorTypeRevoked       ContractorTypeT = 5 // Revoked CMS User
 
 	// Payment information status types
 	PaymentStatusInvalid  PaymentStatusT = 0 // Invalid status
@@ -81,8 +84,10 @@ const (
 	DCCTypeRevocation DCCTypeT = 2 // Revocation DCC type
 
 	// DCC status types
-	DCCStatusInvalid DCCStatusT = 0 // Invalid issuance/revocation status
-	DCCStatusActive  DCCStatusT = 1 // Currently active issuance/revocation (awaiting sponsors)
+	DCCStatusInvalid  DCCStatusT = 0 // Invalid issuance/revocation status
+	DCCStatusActive   DCCStatusT = 1 // Currently active issuance/revocation (awaiting sponsors)
+	DCCStatusApproved DCCStatusT = 2 // Fully approved DCC proposal
+	DCCStatusRejected DCCStatusT = 3 // Rejected DCC proposal
 
 	InvoiceInputVersion = 1
 
@@ -652,3 +657,30 @@ type SupportOpposeDCC struct {
 
 // SupportOpposeDCCReply returns an empty response when successful.
 type SupportOpposeDCCReply struct{}
+
+// ApproveDCC is an admin request that gives final approval
+// to a given DCC iss or rev.
+type ApproveDCC struct {
+	Token     string `json:"token"`     // Token of the DCC iss/rev
+	Reason    string `json:"comment"`   // Reason for approval
+	Signature string `json:"signature"` // Client Signature of Token+Reason
+	PublicKey string `json:"publickey"` // Pubkey used for Signature
+}
+
+// ApproveDCCReply returns the verification token that has been given to the
+// invited user.
+type ApproveDCCReply struct {
+	VerificationToken string `json:"verificationtoken"`
+}
+
+// RejectDCC is an admin request that gives a final rejection to a given DCC
+// issuance or revocation.
+type RejectDCC struct {
+	Token     string `json:"token"`     // Token of the DCC iss/rev
+	Reason    string `json:"comment"`   // Reason for rejection
+	Signature string `json:"signature"` // Client Signature of Token+Reason
+	PublicKey string `json:"publickey"` // Pubkey used for Signature
+}
+
+// RejectDCCReply returns an empty response when successful.
+type RejectDCCReply struct{}

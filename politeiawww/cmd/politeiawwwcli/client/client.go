@@ -1869,6 +1869,54 @@ func (c *Client) GetDCCs(gd *cms.GetDCCs) (*cms.GetDCCsReply, error) {
 	return &gdr, nil
 }
 
+// ApproveDCC issues an admin approval for a given DCC proposal.
+func (c *Client) ApproveDCC(sd cms.ApproveDCC) (*cms.ApproveDCCReply, error) {
+	responseBody, err := c.makeRequest("POST", cms.RouteApproveDCC,
+		sd)
+	if err != nil {
+		return nil, err
+	}
+
+	var sdr cms.ApproveDCCReply
+	err = json.Unmarshal(responseBody, &sdr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal ApproveDCCReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(sdr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &sdr, nil
+}
+
+// RejectDCC issues an admin approval for a given DCC proposal.
+func (c *Client) RejectDCC(rd cms.RejectDCC) (*cms.RejectDCCReply, error) {
+	responseBody, err := c.makeRequest("POST", cms.RouteRejectDCC,
+		rd)
+	if err != nil {
+		return nil, err
+	}
+
+	var rdr cms.RejectDCCReply
+	err = json.Unmarshal(responseBody, &rdr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal RejectDCCReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(rdr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &rdr, nil
+}
+
 // Close all client connections.
 func (c *Client) Close() {
 	if c.conn != nil {
