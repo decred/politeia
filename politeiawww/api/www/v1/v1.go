@@ -44,7 +44,6 @@ const (
 	RouteTokenInventory           = "/proposals/tokeninventory"
 	RouteBatchProposals           = "/proposals/batch"
 	RouteAllVetted                = "/proposals/vetted"
-	RouteAllUnvetted              = "/proposals/unvetted"
 	RouteNewProposal              = "/proposals/new"
 	RouteEditProposal             = "/proposals/edit"
 	RouteAuthorizeVote            = "/proposals/authorizevote"
@@ -764,32 +763,6 @@ type SetProposalStatus struct {
 // SetProposalStatusReply is used to reply to a SetProposalStatus command.
 type SetProposalStatusReply struct {
 	Proposal ProposalRecord `json:"proposal"`
-}
-
-// GetAllUnvetted retrieves all unvetted proposals; the maximum number returned
-// is dictated by ProposalListPageSize.
-//
-// This command optionally takes either a Before or After parameter, which
-// specify a proposal's censorship token. If After is specified, the "page"
-// returned starts after the provided censorship token, when sorted in reverse
-// chronological order. A simplified example is shown below.
-//
-// input: [5,4,3,2,1]
-// after=3
-// output: [2,1]
-//
-// If Before is specified, the "page" returned starts before the provided
-// proposal censorship token, when sorted in reverse chronological order.
-//
-// Note: This call requires admin privileges.
-type GetAllUnvetted struct {
-	Before string `schema:"before"`
-	After  string `schema:"after"`
-}
-
-// GetAllUnvettedReply is used to reply with a list of all unvetted proposals.
-type GetAllUnvettedReply struct {
-	Proposals []ProposalRecord `json:"proposals"`
 }
 
 // GetAllVetted retrieves vetted proposals; the maximum number returned is

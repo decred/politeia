@@ -955,31 +955,6 @@ func (p *politeiawww) handleAuthenticatedWebsocket(w http.ResponseWriter, r *htt
 	p.handleWebsocket(w, r, id)
 }
 
-// handleAllUnvetted replies with the list of unvetted proposals.
-func (p *politeiawww) handleAllUnvetted(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleAllUnvetted")
-
-	// Get the all unvetted command.
-	var u www.GetAllUnvetted
-	err := util.ParseGetParams(r, &u)
-	if err != nil {
-		RespondWithError(w, r, 0, "handleAllUnvetted: ParseGetParams",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	ur, err := p.processAllUnvetted(u)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleAllUnvetted: processAllUnvetted %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, ur)
-}
-
 // handleSetProposalStatus handles the incoming set proposal status command.
 // It's used for either publishing or censoring a proposal.
 func (p *politeiawww) handleSetProposalStatus(w http.ResponseWriter, r *http.Request) {
@@ -1154,8 +1129,6 @@ func (p *politeiawww) setPoliteiaWWWRoutes() {
 		p.handleAuthenticatedWebsocket, permissionLogin)
 
 	// Routes that require being logged in as an admin user.
-	p.addRoute(http.MethodGet, www.RouteAllUnvetted, p.handleAllUnvetted,
-		permissionAdmin)
 	p.addRoute(http.MethodPost, www.RouteSetProposalStatus,
 		p.handleSetProposalStatus, permissionAdmin)
 	p.addRoute(http.MethodPost, www.RouteStartVote,
