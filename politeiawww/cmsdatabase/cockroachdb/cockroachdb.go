@@ -634,7 +634,7 @@ func (c *cockroachdb) DCCsByStatus(status int) ([]*database.DCC, error) {
 	return dbDCCs, nil
 }
 
-// DCCsByStatus Return DCCs by status.
+// DCCsAll Returns all DCCs regardless of status.
 func (c *cockroachdb) DCCsAll() ([]*database.DCC, error) {
 	log.Debugf("DCCsAll:")
 
