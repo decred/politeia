@@ -595,8 +595,11 @@ func (p *politeiawww) processGetDCCs(gds cms.GetDCCs) (*cms.GetDCCsReply, error)
 	dccs := make([]cms.DCCRecord, 0, len(dbDCCs))
 
 	for _, v := range dbDCCs {
-		dcc := convertDCCDatabaseToRecord(v)
-		dccs = append(dccs, dcc)
+		dcc, err := p.getDCC(v.Token)
+		if err != nil {
+			return nil, err
+		}
+		dccs = append(dccs, *dcc)
 	}
 
 	return &cms.GetDCCsReply{

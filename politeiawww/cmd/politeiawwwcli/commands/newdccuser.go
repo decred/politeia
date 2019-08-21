@@ -49,7 +49,9 @@ func (cmd *NewDCCUserCmd) Execute(args []string) error {
 		reader.ReadString('\n')
 	}
 
-	sig := cfg.Identity.SignMessage([]byte(name + contact + email))
+	msg := fmt.Sprintf("%v%v%v", strings.TrimSpace(name), strings.TrimSpace(contact),
+		strings.TrimSpace(email))
+	sig := cfg.Identity.SignMessage([]byte(msg))
 
 	// Setup new user request
 	ndu := cms.NewDCCUser{

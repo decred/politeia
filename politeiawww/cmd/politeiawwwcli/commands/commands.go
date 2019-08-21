@@ -369,7 +369,7 @@ func verifyDCC(p cms.DCCRecord, serverPubKey string) error {
 		}
 	}
 
-	// Verify proposal signature
+	// Verify dcc signature
 	pid, err := util.IdentityFromString(p.PublicKey)
 	if err != nil {
 		return err
@@ -379,7 +379,7 @@ func verifyDCC(p cms.DCCRecord, serverPubKey string) error {
 		return err
 	}
 	if !pid.VerifyMessage([]byte(p.CensorshipRecord.Merkle), sig) {
-		return fmt.Errorf("could not verify proposal signature")
+		return fmt.Errorf("could not verify dcc signature")
 	}
 
 	// Verify censorship record signature

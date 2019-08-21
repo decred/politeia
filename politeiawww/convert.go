@@ -934,7 +934,7 @@ func convertRecordToDatabaseDCC(p pd.Record) (*cmsdatabase.DCC, error) {
 
 	for _, m := range p.Metadata {
 		switch m.ID {
-		case mdStreamInvoiceGeneral:
+		case mdStreamDCCGeneral:
 			var mdGeneral backendDCCMetadata
 			err := json.Unmarshal([]byte(m.Payload), &mdGeneral)
 			if err != nil {
@@ -946,7 +946,7 @@ func convertRecordToDatabaseDCC(p pd.Record) (*cmsdatabase.DCC, error) {
 			dbDCC.PublicKey = mdGeneral.PublicKey
 			dbDCC.UserSignature = mdGeneral.Signature
 
-		case mdStreamInvoiceStatusChanges:
+		case mdStreamDCCStatusChanges:
 			sc, err := decodeBackendDCCStatusChanges([]byte(m.Payload))
 			if err != nil {
 				return nil, fmt.Errorf("could not decode metadata '%v' token '%v': %v",
