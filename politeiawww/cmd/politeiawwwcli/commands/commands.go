@@ -92,7 +92,6 @@ type Cmds struct {
 	ProposalComments    ProposalCommentsCmd    `command:"proposalcomments" description:"(public) get the comments for a proposal"`
 	ProposalDetails     ProposalDetailsCmd     `command:"proposaldetails" description:"(public) get the details of a proposal"`
 	ProposalPaywall     ProposalPaywallCmd     `command:"proposalpaywall" description:"(user)   get proposal paywall details for the logged in user"`
-	ProposalStats       ProposalStatsCmd       `command:"proposalstats" description:"(public) get statistics on the proposal inventory"`
 	VettedProposals     VettedProposalsCmd     `command:"vettedproposals" description:"(public) get a page of vetted proposals"`
 	RegisterUser        RegisterUserCmd        `command:"register" description:"(public) register an invited user to cms"`
 	RescanUserPayments  RescanUserPaymentsCmd  `command:"rescanuserpayments" description:"(admin)  rescan a user's payments to check for missed payments"`
