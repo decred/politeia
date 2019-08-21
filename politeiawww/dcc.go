@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/decred/dcrtime/merkle"
+	"github.com/decred/politeia/cmsplugin"
 	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
@@ -1421,7 +1422,7 @@ func (p *politeiawww) dccVoteStatusReply(token string, bestBlock uint64) (*cms.V
 
 	// Vote status wasn't in the memory cache
 	// so fetch it from the cache database.
-	r, err := p.decredVoteSummary(token)
+	r, err := p.decredDCCVoteSummary(token)
 	if err != nil {
 		return nil, err
 	}
@@ -1544,9 +1545,9 @@ func (p *politeiawww) processDCCActiveVote() (*cms.ActiveVoteReply, error) {
 	pvt := make([]cms.DCCVoteTuple, 0, len(all))
 	for _, v := range all {
 		// Get vote details from cache
-		vdr, err := p.decredVoteDetails(v.CensorshipRecord.Token)
+		vdr, err := p.decredDCCVoteDetails(v.CensorshipRecord.Token)
 		if err != nil {
-			log.Errorf("processDCCActiveVote: decredVoteDetails failed %v: %v",
+			log.Errorf("processDCCActiveVote: decredDCCVoteDetails failed %v: %v",
 				v.CensorshipRecord.Token, err)
 			continue
 		}
@@ -1575,7 +1576,7 @@ func (p *politeiawww) processDCCVoteResults(token string) (*cms.VoteResultsReply
 	log.Tracef("processDCCVoteResults: %v", token)
 
 	// Get vote details from cache
-	vdr, err := p.decredVoteDetails(token)
+	vdr, err := p.decredDCCVoteDetails(token)
 	if err != nil {
 		return nil, fmt.Errorf("decredDCCVoteDetails: %v", err)
 	}
@@ -1602,15 +1603,15 @@ func (p *politeiawww) processDCCCastVotes(ballot *cms.Ballot) (*cms.BallotReply,
 		return nil, err
 	}
 
-	payload, err := decredplugin.EncodeBallot(convertBallotFromCMS(*ballot))
+	payload, err := cmsplugin.EncodeBallot(convertBallotFromCMS(*ballot))
 	if err != nil {
 		return nil, err
 	}
 	pc := pd.PluginCommand{
 		Challenge: hex.EncodeToString(challenge),
-		ID:        decredplugin.ID,
-		Command:   decredplugin.CmdBallot,
-		CommandID: decredplugin.CmdBallot,
+		ID:        cmsplugin.ID,
+		Command:   cmsplugin.CmdBallot,
+		CommandID: cmsplugin.CmdBallot,
 		Payload:   string(payload),
 	}
 
@@ -1634,7 +1635,7 @@ func (p *politeiawww) processDCCCastVotes(ballot *cms.Ballot) (*cms.BallotReply,
 	}
 
 	// Decode plugin reply
-	br, err := decredplugin.DecodeBallotReply([]byte(reply.Payload))
+	br, err := cmsplugin.DecodeBallotReply([]byte(reply.Payload))
 	if err != nil {
 		return nil, err
 	}
@@ -1670,7 +1671,7 @@ func getDCCVoteStatus(svr cms.StartVoteReply, bestBlock uint64) cms.DCCVoteStatu
 	return cms.DCCVoteStatusStarted
 }
 
-func dccVoteStatusFromVoteSummary(r decredplugin.VoteSummaryReply, bestBlock uint64) cms.DCCVoteStatusT {
+func dccVoteStatusFromVoteSummary(r cmsplugin.VoteSummaryReply, bestBlock uint64) cms.DCCVoteStatusT {
 	switch {
 	case !r.Authorized:
 		return cms.DCCVoteStatusNotAuthorized
@@ -1772,15 +1773,15 @@ func (p *politeiawww) processDCCStartVote(sv cms.StartVote, u *user.User) (*cms.
 
 	// Create vote bits as plugin payload
 	dsv := convertStartVoteFromCMS(sv)
-	payload, err := decredplugin.EncodeStartVote(dsv)
+	payload, err := cmsplugin.EncodeStartVote(dsv)
 	if err != nil {
 		return nil, err
 	}
 
 	// Get vote details from cache
-	vdr, err := p.decredVoteDetails(sv.Vote.Token)
+	vdr, err := p.decredDCCVoteDetails(sv.Vote.Token)
 	if err != nil {
-		return nil, fmt.Errorf("decredVoteDetails: %v", err)
+		return nil, fmt.Errorf("decredDCCVoteDetails: %v", err)
 	}
 	vd := convertDCCVoteDetailsReplyFromDecred(*vdr)
 
@@ -1798,9 +1799,9 @@ func (p *politeiawww) processDCCStartVote(sv cms.StartVote, u *user.User) (*cms.
 
 	pc := pd.PluginCommand{
 		Challenge: hex.EncodeToString(challenge),
-		ID:        decredplugin.ID,
-		Command:   decredplugin.CmdStartVote,
-		CommandID: decredplugin.CmdStartVote + " " + sv.Vote.Token,
+		ID:        cmsplugin.ID,
+		Command:   cmsplugin.CmdStartVote,
+		CommandID: cmsplugin.CmdStartVote + " " + sv.Vote.Token,
 		Payload:   string(payload),
 	}
 
@@ -1823,7 +1824,7 @@ func (p *politeiawww) processDCCStartVote(sv cms.StartVote, u *user.User) (*cms.
 		return nil, err
 	}
 
-	vr, err := decredplugin.DecodeStartVoteReply([]byte(reply.Payload))
+	vr, err := cmsplugin.DecodeStartVoteReply([]byte(reply.Payload))
 	if err != nil {
 		return nil, err
 	}
@@ -1861,4 +1862,67 @@ func validateDCCVoteBit(vote cms.Vote, bit uint64) error {
 	}
 
 	return fmt.Errorf("bit not found 0x%x", bit)
+}
+
+// decredDCCVoteSummary uses the cms plugin vote summary command to request a
+// vote summary for a specific proposal from the cache.
+func (p *politeiawww) decredDCCVoteSummary(token string) (*cmsplugin.VoteSummaryReply, error) {
+	v := cmsplugin.VoteSummary{
+		Token: token,
+	}
+	payload, err := cmsplugin.EncodeVoteSummary(v)
+	if err != nil {
+		return nil, err
+	}
+
+	pc := cache.PluginCommand{
+		ID:             cmsplugin.ID,
+		Command:        cmsplugin.CmdVoteSummary,
+		CommandPayload: string(payload),
+	}
+
+	resp, err := p.cache.PluginExec(pc)
+	if err != nil {
+		return nil, err
+	}
+
+	reply, err := cmsplugin.DecodeVoteSummaryReply([]byte(resp.Payload))
+	if err != nil {
+		return nil, err
+	}
+
+	return reply, nil
+}
+
+// decredDCCVoteDetails sends the cms plugin votedetails command to the cache
+// and returns the vote details for the passed in proposal.
+func (p *politeiawww) decredDCCVoteDetails(token string) (*cmsplugin.VoteDetailsReply, error) {
+	// Setup plugin command
+	vd := cmsplugin.VoteDetails{
+		Token: token,
+	}
+
+	payload, err := cmsplugin.EncodeVoteDetails(vd)
+	if err != nil {
+		return nil, err
+	}
+
+	pc := cache.PluginCommand{
+		ID:             cmsplugin.ID,
+		Command:        cmsplugin.CmdVoteDetails,
+		CommandPayload: string(payload),
+	}
+
+	// Get vote details from cache
+	reply, err := p.cache.PluginExec(pc)
+	if err != nil {
+		return nil, err
+	}
+
+	vdr, err := cmsplugin.DecodeVoteDetailsReply([]byte(reply.Payload))
+	if err != nil {
+		return nil, err
+	}
+
+	return vdr, nil
 }

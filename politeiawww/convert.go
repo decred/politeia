@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/politeia/cmsplugin"
 	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/cache"
@@ -58,7 +59,7 @@ func convertBallotReplyFromDecredPlugin(b decredplugin.BallotReply) www.BallotRe
 	return br
 }
 
-func convertDCCCastVoteReplyFromDecredPlugin(cvr decredplugin.CastVoteReply) cms.CastVoteReply {
+func convertDCCCastVoteReplyFromDecredPlugin(cvr cmsplugin.CastVoteReply) cms.CastVoteReply {
 	return cms.CastVoteReply{
 		ClientSignature: cvr.ClientSignature,
 		Signature:       cvr.Signature,
@@ -66,16 +67,16 @@ func convertDCCCastVoteReplyFromDecredPlugin(cvr decredplugin.CastVoteReply) cms
 	}
 }
 
-func convertCastVoteFromCMS(b cms.CastVote) decredplugin.CastVote {
-	return decredplugin.CastVote{
+func convertCastVoteFromCMS(b cms.CastVote) cmsplugin.CastVote {
+	return cmsplugin.CastVote{
 		Token:     b.Token,
 		VoteBit:   b.VoteBit,
 		Signature: b.Signature,
 	}
 }
-func convertBallotFromCMS(b cms.Ballot) decredplugin.Ballot {
-	br := decredplugin.Ballot{
-		Votes: make([]decredplugin.CastVote, 0, len(b.Votes)),
+func convertBallotFromCMS(b cms.Ballot) cmsplugin.Ballot {
+	br := cmsplugin.Ballot{
+		Votes: make([]cmsplugin.CastVote, 0, len(b.Votes)),
 	}
 	for _, v := range b.Votes {
 		br.Votes = append(br.Votes, convertCastVoteFromCMS(v))
@@ -83,7 +84,7 @@ func convertBallotFromCMS(b cms.Ballot) decredplugin.Ballot {
 	return br
 }
 
-func convertDCCBallotReplyFromDecredPlugin(b decredplugin.BallotReply) cms.BallotReply {
+func convertDCCBallotReplyFromDecredPlugin(b cmsplugin.BallotReply) cms.BallotReply {
 	br := cms.BallotReply{
 		Receipts: make([]cms.CastVoteReply, 0, len(b.Receipts)),
 	}
@@ -110,16 +111,16 @@ func convertVoteOptionsFromWWW(vo []www.VoteOption) []decredplugin.VoteOption {
 	return vor
 }
 
-func convertVoteOptionFromCMS(vo cms.VoteOption) decredplugin.VoteOption {
-	return decredplugin.VoteOption{
+func convertVoteOptionFromCMS(vo cms.VoteOption) cmsplugin.VoteOption {
+	return cmsplugin.VoteOption{
 		Id:          vo.ID,
 		Description: vo.Description,
 		Bits:        vo.Bits,
 	}
 }
 
-func convertVoteOptionsFromCMS(vo []cms.VoteOption) []decredplugin.VoteOption {
-	vor := make([]decredplugin.VoteOption, 0, len(vo))
+func convertVoteOptionsFromCMS(vo []cms.VoteOption) []cmsplugin.VoteOption {
+	vor := make([]cmsplugin.VoteOption, 0, len(vo))
 	for _, v := range vo {
 		vor = append(vor, convertVoteOptionFromCMS(v))
 	}
@@ -137,8 +138,8 @@ func convertVoteFromWWW(v www.Vote) decredplugin.Vote {
 	}
 }
 
-func convertVoteFromCMS(v cms.Vote) decredplugin.Vote {
-	return decredplugin.Vote{
+func convertVoteFromCMS(v cms.Vote) cmsplugin.Vote {
+	return cmsplugin.Vote{
 		Token:            v.Token,
 		Mask:             v.Mask,
 		Duration:         v.Duration,
@@ -165,8 +166,8 @@ func convertStartVoteFromWWW(sv www.StartVote) decredplugin.StartVote {
 	}
 }
 
-func convertStartVoteFromCMS(sv cms.StartVote) decredplugin.StartVote {
-	return decredplugin.StartVote{
+func convertStartVoteFromCMS(sv cms.StartVote) cmsplugin.StartVote {
+	return cmsplugin.StartVote{
 		PublicKey: sv.PublicKey,
 		Vote:      convertVoteFromCMS(sv.Vote),
 		Signature: sv.Signature,
@@ -517,7 +518,7 @@ func convertVoteDetailsReplyFromDecred(vdr decredplugin.VoteDetailsReply) VoteDe
 	}
 }
 
-func convertDCCStartVoteFromDecred(sv decredplugin.StartVote) cms.StartVote {
+func convertDCCStartVoteFromDecred(sv cmsplugin.StartVote) cms.StartVote {
 	opts := make([]cms.VoteOption, 0, len(sv.Vote.Options))
 	for _, v := range sv.Vote.Options {
 		opts = append(opts, cms.VoteOption{
@@ -540,15 +541,16 @@ func convertDCCStartVoteFromDecred(sv decredplugin.StartVote) cms.StartVote {
 	}
 }
 
-func convertDCCStartVoteReplyFromDecred(svr decredplugin.StartVoteReply) cms.StartVoteReply {
+func convertDCCStartVoteReplyFromDecred(svr cmsplugin.StartVoteReply) cms.StartVoteReply {
 	return cms.StartVoteReply{
-		StartBlockHeight: svr.StartBlockHeight,
-		StartBlockHash:   svr.StartBlockHash,
-		EndHeight:        svr.EndHeight,
+		StartBlockHeight:    svr.StartBlockHeight,
+		StartBlockHash:      svr.StartBlockHash,
+		EndHeight:           svr.EndHeight,
+		EligibleUserWeights: svr.EligibleUserWeights,
 	}
 }
 
-func convertDCCVoteDetailsReplyFromDecred(vdr decredplugin.VoteDetailsReply) DCCVoteDetails {
+func convertDCCVoteDetailsReplyFromDecred(vdr cmsplugin.VoteDetailsReply) DCCVoteDetails {
 	return DCCVoteDetails{
 		StartVote:      convertDCCStartVoteFromDecred(vdr.StartVote),
 		StartVoteReply: convertDCCStartVoteReplyFromDecred(vdr.StartVoteReply),
@@ -630,7 +632,7 @@ func convertVoteOptionResultsFromDecred(vor []decredplugin.VoteOptionResult) []w
 	return r
 }
 
-func convertDCCVoteOptionResultsFromDecred(vor []decredplugin.VoteOptionResult) []cms.VoteOptionResult {
+func convertDCCVoteOptionResultsFromDecred(vor []cmsplugin.VoteOptionResult) []cms.VoteOptionResult {
 	r := make([]cms.VoteOptionResult, 0, len(vor))
 	for _, v := range vor {
 		r = append(r, cms.VoteOptionResult{
