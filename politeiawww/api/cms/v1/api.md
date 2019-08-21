@@ -864,7 +864,7 @@ Reply:
 
 ### `New DCC User`
 
-Returns a logged-in CMS user's information beyond what is stored in the userdb.
+Creates a new nominee user that will be included in an upcoming DCC.
 
 **Route:** `POST /v1/dcc/newuser`
 

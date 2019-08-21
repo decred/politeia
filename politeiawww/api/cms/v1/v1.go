@@ -144,7 +144,7 @@ const (
 	// each column field of the lineItem structure.
 	PolicyMaxLineItemColLength = 500
 
-	// PolicyMinSponsorStatementLength is the maximum length for the sponsor
+	// PolicyMinSponsorStatementLength is the minimum length for the sponsor
 	// statement contained within a DCC
 	PolicyMinSponsorStatementLength = 0
 
@@ -368,7 +368,7 @@ type LineItemsInput struct {
 	Expenses      uint          `json:"expenses"`      // Total cost (in USD cents) of line item (if expense or misc)
 }
 
-// PolicyReply for returns the various policy information while in CMS mode.
+// PolicyReply returns the various policy information while in CMS mode.
 type PolicyReply struct {
 	MinPasswordLength             uint     `json:"minpasswordlength"`
 	MinUsernameLength             uint     `json:"minusernamelength"`
@@ -569,11 +569,10 @@ type EditUserReply struct{}
 // DCCInput contains all of the information concerning a DCC object that
 // will be submitted as a Record to the politeiad backend.
 type DCCInput struct {
-	Type          DCCTypeT `json:"type"`          // Type of DCC object
-	NomineeUserID string   `json:"nomineeuserid"` // UserID of the DCC nominee (issuance or revocation)
-	//SponsorUserID    string      `json:"sponsoruserid"` // UserID of the sponsoring user
-	SponsorStatement string      `json:"statement"` // Statement from sponsoring user about why DCC should be approved
-	Domain           DomainTypeT `json:"domain"`    // Domain of proposed contractor issuance
+	Type             DCCTypeT    `json:"type"`          // Type of DCC object
+	NomineeUserID    string      `json:"nomineeuserid"` // UserID of the DCC nominee (issuance or revocation)
+	SponsorStatement string      `json:"statement"`     // Statement from sponsoring user about why DCC should be approved
+	Domain           DomainTypeT `json:"domain"`        // Domain of proposed contractor issuance
 }
 
 // DCCRecord is what will be decoded from a Record for a DCC object to the politeiad backend.

@@ -468,6 +468,22 @@ func convertCMSUserFromDatabaseUser(user *user.CMSUser) cms.User {
 func (p *politeiawww) processNewDCCUser(ndu cms.NewDCCUser, u *user.User) (*cms.NewDCCUserReply, error) {
 	log.Tracef("processNewDCCUser: %v", ndu.ContractorEmail)
 
+	// Verify public key
+	if u.PublicKey() != ndu.PublicKey {
+		fmt.Println(u.PublicKey(), ndu.PublicKey)
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSigningKey,
+		}
+	}
+
+	// Validate signature
+	msg := fmt.Sprintf("%v%v%v", ndu.ContractorName, ndu.ContractorContact,
+		ndu.ContractorEmail)
+	err := validateSignature(ndu.PublicKey, ndu.Signature, msg)
+	if err != nil {
+		return nil, err
+	}
+
 	// Validate email
 	if !validEmail.MatchString(ndu.ContractorEmail) {
 		log.Debugf("processNewDCCUser: invalid email '%v'", ndu.ContractorEmail)
@@ -476,8 +492,8 @@ func (p *politeiawww) processNewDCCUser(ndu cms.NewDCCUser, u *user.User) (*cms.
 		}
 	}
 
-	// Check if the user is already verified.
-	_, err := p.userByEmail(ndu.ContractorEmail)
+	// Check if the email is available.
+	_, err = p.userByEmail(ndu.ContractorEmail)
 	if err == nil {
 		return nil, www.UserError{
 			ErrorCode: cms.ErrorStatusDuplicateEmail,

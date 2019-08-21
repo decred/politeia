@@ -318,7 +318,6 @@ func (p *politeiawww) validateDCC(nd cms.NewDCC, u *user.User) error {
 
 			// Check that domains match
 			if sponsorUser.Domain != issuance.Domain {
-				fmt.Println(sponsorUser.Domain, issuance.Domain)
 				return www.UserError{
 					ErrorCode: cms.ErrorStatusInvalidNominatingDomain,
 				}

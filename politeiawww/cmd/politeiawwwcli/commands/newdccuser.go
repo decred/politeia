@@ -2,6 +2,7 @@ package commands
 
 import (
 	"bufio"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"strings"
@@ -47,11 +48,16 @@ func (cmd *NewDCCUserCmd) Execute(args []string) error {
 			"correct. If not, press Ctrl + C to exit. Or, press Enter to continue.")
 		reader.ReadString('\n')
 	}
+
+	sig := cfg.Identity.SignMessage([]byte(name + contact + email))
+
 	// Setup new user request
 	ndu := cms.NewDCCUser{
 		ContractorName:    strings.TrimSpace(name),
 		ContractorContact: strings.TrimSpace(contact),
 		ContractorEmail:   strings.TrimSpace(email),
+		Signature:         hex.EncodeToString(sig[:]),
+		PublicKey:         hex.EncodeToString(cfg.Identity.Public.Key[:]),
 	}
 
 	// Print request details
