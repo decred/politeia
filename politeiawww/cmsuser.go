@@ -10,7 +10,6 @@ import (
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
-	"github.com/google/uuid"
 )
 
 // cmsUsersByDomain returns all cms user within the provided contractor domain.
@@ -298,20 +297,13 @@ func (p *politeiawww) processEditCMSUser(ecu cms.EditUser, u *user.User) (*cms.E
 		}
 	}
 
-	userID, err := uuid.Parse(ecu.UserID)
-	if err != nil {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusInvalidUUID,
-		}
-	}
-
-	err = validateUserInformation(ecu)
+	err := validateUserInformation(ecu)
 	if err != nil {
 		return nil, err
 	}
 
 	uu := user.UpdateCMSUser{
-		ID: userID,
+		ID: u.ID,
 	}
 
 	// Only allow Domain, ContractorType and SupervisorID to be updated by an
