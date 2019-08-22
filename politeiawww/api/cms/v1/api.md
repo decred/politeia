@@ -711,6 +711,7 @@ Allows a user to submit updates to their cms user information.
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
+| userid | string | UserID string of the user to be edited. | yes |
 | domain | int | The Domain Type that the user currently has | no |
 | githubname | string | The Github Name tied to the user. | no |
 | matrixname | string | The Matrix Name tied to the user. | no |

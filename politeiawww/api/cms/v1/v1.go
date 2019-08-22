@@ -569,6 +569,7 @@ type UserDetailsReply struct {
 
 // EditUser edits a user's preferences.
 type EditUser struct {
+	UserID             string          `json:"userid"`           // The ID of the user being Edited
 	Domain             DomainTypeT     `json:"domain,omitempty"` // Contractor domain
 	GitHubName         string          `json:"githubname,omitempty"`
 	MatrixName         string          `json:"matrixname,omitempty"`

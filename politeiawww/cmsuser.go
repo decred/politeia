@@ -291,14 +291,39 @@ func (p *politeiawww) processRegisterUser(u cms.RegisterUser) (*cms.RegisterUser
 func (p *politeiawww) processEditCMSUser(ecu cms.EditUser, u *user.User) (*cms.EditUserReply, error) {
 	reply := cms.EditUserReply{}
 
-	err := validateUserInformation(ecu)
+	// Return error in case the user isn't the admin or the current user.
+	if !u.Admin && u.ID.String() != ecu.UserID {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserActionNotAllowed,
+		}
+	}
+
+	userID, err := uuid.Parse(ecu.UserID)
+	if err != nil {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidUUID,
+		}
+	}
+
+	err = validateUserInformation(ecu)
 	if err != nil {
 		return nil, err
 	}
 
 	uu := user.UpdateCMSUser{
-		ID: u.ID,
+		ID: userID,
 	}
+
+	// Only allow Domain, ContractorType and SupervisorID to be updated by an
+	// administrator.
+	if !u.Admin && (ecu.Domain != 0 ||
+		ecu.ContractorType != 0 ||
+		ecu.SupervisorUserID != "") {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserActionNotAllowed,
+		}
+	}
+
 	// Update a cms user with the provided information.
 	// Only set fields in dbUserInfo if they are set in the request,
 	// otherwise use the existing fields from the above db request.

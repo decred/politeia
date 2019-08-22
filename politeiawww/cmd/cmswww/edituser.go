@@ -273,6 +273,7 @@ func (cmd *EditUserCmd) Execute(args []string) error {
 	}
 
 	updateInfo := cms.EditUser{
+		UserID:             lr.UserID,
 		Domain:             userInfo.Domain,
 		ContractorType:     userInfo.ContractorType,
 		ContractorName:     userInfo.ContractorName,
