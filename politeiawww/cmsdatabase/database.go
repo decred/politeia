@@ -38,7 +38,7 @@ type Database interface {
 	InvoicesByMonthYear(uint16, uint16) ([]Invoice, error)            // Returns all invoice by month, year
 	InvoicesByStatus(int) ([]Invoice, error)                          // Returns all invoices by status
 	InvoicesAll() ([]Invoice, error)                                  // Returns all invoices
-	LineItemsByDateRange(int64, int64) ([]LineItem, error)            // Returns all paid invoice line items from range provided
+	LineItemsByDateRange(int64, int64, int) ([]LineItem, error)       // Returns all paid invoice line items from range provided
 
 	// ExchangeRate functions
 	NewExchangeRate(*ExchangeRate) error          // Create new exchange rate

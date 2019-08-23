@@ -1606,7 +1606,7 @@ func (p *politeiawww) processLineItemPayouts(lip cms.LineItemPayouts) (*cms.Line
 			ErrorCode: cms.ErrorStatusInvalidDatesRequested,
 		}
 	}
-	dbLineItems, err := p.cmsDB.LineItemsByDateRange(lip.StartTime, lip.EndTime)
+	dbLineItems, err := p.cmsDB.LineItemsByDateRange(lip.StartTime, lip.EndTime, int(cms.InvoiceStatusPaid))
 	if err != nil {
 		return nil, err
 	}
