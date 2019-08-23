@@ -1774,30 +1774,6 @@ func (c *Client) NewDCC(nd cms.NewDCC) (*cms.NewDCCReply, error) {
 	return &ndr, nil
 }
 
-// NewDCCUser creates a new user that is used for dcc nomination
-func (c *Client) NewDCCUser(ndu cms.NewDCCUser) (*cms.NewDCCUserReply, error) {
-	responseBody, err := c.makeRequest("POST", cms.RouteNewDCCUser,
-		ndu)
-	if err != nil {
-		return nil, err
-	}
-
-	var ndur cms.NewDCCUserReply
-	err = json.Unmarshal(responseBody, &ndur)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal NewDCCReply: %v", err)
-	}
-
-	if c.cfg.Verbose {
-		err := prettyPrintJSON(ndur)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &ndur, nil
-}
-
 // DCCDetails retrieves the specified dcc.
 func (c *Client) DCCDetails(token string) (*cms.DCCDetailsReply, error) {
 	responseBody, err := c.makeRequest("GET", "/dcc/"+token, nil)

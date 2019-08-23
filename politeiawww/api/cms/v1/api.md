@@ -862,49 +862,6 @@ Reply:
 }
 ```
 
-### `New DCC User`
-
-Creates a new nominee user that will be included in an upcoming DCC.
-
-**Route:** `POST /v1/dcc/newuser`
-
-**Params:**
-
-| Parameter | Type | Description | Required |
-|-|-|-|-|
-| contractorname | string | The name of the nominated DCC user. | Yes |
-| contractorcontact | string | The contact information of the nominated DCC user. | Yes |
-| contractoremail | string | The email address for the nominated DCC user. | Yes |
-| publickey | string | The user's public key. | Yes |
-| signature | string | The signature of the string representation of the file payload. | Yes |
-
-**Results:**
-
-| | Type | Description |
-|-|-|-|
-| userid | string | The UserID of the newly created nominated user. |
-
-**Example**
-
-Request:
-
-```json
-{
-  "contractorname":"Bob Saget",
-  "contractorcontact":"bsaget:decred.org",
-  "contractoremail":"bsaget@decred.org",
-  "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
-  "signature": "gdd92f26c8g38c90d2887259e88df614654g32fde76bef1438b0efg40e360f461e995d796g16b17108gbe226793ge4g52gg013428feb3c39de504fe5g1811e0e"}
-```
-
-Reply:
-
-```json
-{
-  "userid":"a5c98ca0-7369-4147-8902-3d268ec2fb24",
-}
-```
-
 ### `DCC Details`
 
 Retrieve DCC by its token.

@@ -25,7 +25,6 @@ const (
 	RouteSetInvoiceStatus    = "/invoices/{token:[A-z0-9]{64}}/status"
 	RouteUserInvoices        = "/user/invoices"
 	RouteNewDCC              = "/dcc/new"
-	RouteNewDCCUser          = "/dcc/newuser"
 	RouteDCCDetails          = "/dcc/{token:[A-z0-9]{64}}"
 	RouteGetDCCs             = "/dcc/status"
 	RouteAdminInvoices       = "/admin/invoices"
@@ -609,21 +608,6 @@ type NewDCC struct {
 // NewDCCReply returns the censorship record when the DCC is successfully submitted to the backend.
 type NewDCCReply struct {
 	CensorshipRecord www.CensorshipRecord `json:"censorshiprecord"`
-}
-
-// NewDCCUser request adds a new user to the userdb (much like Invite), but this
-// user's information and access is limited until they are fully approved.
-type NewDCCUser struct {
-	ContractorName    string `json:"contractorname"`
-	ContractorContact string `json:"contractorcontact"`
-	ContractorEmail   string `json:"contractoremail"`
-	Signature         string `json:"signature"` // Signature of name + contact + email
-	PublicKey         string `json:"publickey"` // Public key of user
-}
-
-// NewDCCUserReply returns an empty response when successful.
-type NewDCCUserReply struct {
-	UserID string `json:"userid"` // UserID of the newly created nominee user.
 }
 
 // DCCDetails request finds a DCC with a matching token.
