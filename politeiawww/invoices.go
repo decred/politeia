@@ -1627,6 +1627,11 @@ func (p *politeiawww) processLineItemPayouts(lip cms.LineItemPayouts) (*cms.Line
 	if err != nil {
 		return nil, err
 	}
+	// Clean up Labor and Expenses to Payout display in full USD
+	for i := range dbLineItems {
+		dbLineItems[i].Labor = dbLineItems[i].Labor * dbLineItems[i].ContractorRate / 60 / 100
+		dbLineItems[i].Expenses = dbLineItems[i].Expenses / 100
+	}
 	lineItems := convertDatabaseToLineItems(dbLineItems)
 	reply.LineItems = lineItems
 	return reply, nil

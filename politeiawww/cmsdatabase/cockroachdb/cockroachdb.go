@@ -354,20 +354,23 @@ func (c *cockroachdb) LineItemsByDateRange(start, end int64, status int) ([]data
 	// line items that match those tokens.
 	dbLineItems := make([]database.LineItem, 0, 1024)
 	for _, v := range invoiceChanges {
-		lineItems := make([]LineItem, 0, 1024)
+		invoices := make([]Invoice, 0, 1024)
 		err = c.recordsdb.
-			Where("invoice_token = ?", v.InvoiceToken).
-			Find(&lineItems).
+			Preload("LineItems").
+			Where("token = ?", v.InvoiceToken).
+			Find(&invoices).
 			Error
 		if err != nil {
 			return nil, err
 		}
-		for _, vv := range lineItems {
-			dbLineItem := DecodeInvoiceLineItem(&vv)
-			dbLineItems = append(dbLineItems, *dbLineItem)
+		for _, vv := range invoices {
+			for _, vvv := range vv.LineItems {
+				dbLineItem := DecodeInvoiceLineItem(&vvv)
+				dbLineItem.ContractorRate = vv.ContractorRate
+				dbLineItems = append(dbLineItems, *dbLineItem)
+			}
 		}
 	}
-
 	return dbLineItems, nil
 }
 
