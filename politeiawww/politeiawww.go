@@ -116,9 +116,9 @@ type politeiawww struct {
 	userPaywallPool map[uuid.UUID]paywallPoolMember // [userid][paywallPoolMember]
 	commentScores   map[string]int64                // [token+commentID]resultVotes
 
-	// voteStatuses is a lazy loaded cache of the votes statuses of
+	// voteSummaries is a lazy loaded cache of the votes summaries of
 	// proposals whose voting period has ended.
-	voteStatuses map[string]www.VoteStatusReply // [token]VoteStatusReply
+	voteSummaries map[string]www.VoteSummary // [token]VoteSummary
 
 	// XXX userEmails is a temporary measure until the user by email
 	// lookups are completely removed from politeiawww.

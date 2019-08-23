@@ -153,7 +153,7 @@ func tokenIsValid(token string) bool {
 }
 
 func getInvalidTokens(tokens []string) []string {
-	invalidTokens := make([]string, 0)
+	invalidTokens := make([]string, 0, len(tokens))
 
 	for _, token := range tokens {
 		if !tokenIsValid(token) {
@@ -899,15 +899,44 @@ func (p *politeiawww) processProposalDetails(propDetails www.ProposalsDetails, u
 	return &reply, nil
 }
 
-// voteSummaries fetches the voting summary information for a set of
+// cacheVoteSumamary stores a given VoteSummary in memory.  This is to only
+// be used for proposals whose voting period has ended so that we don't have
+// to worry about cache invalidation issues.
+//
+// This function must be called without the lock held.
+func (p *politeiawww) cacheVoteSummary(token string, voteSummary www.VoteSummary) {
+	p.Lock()
+	defer p.Unlock()
+
+	p.voteSummaries[token] = voteSummary
+}
+
+// getVoteSummaries fetches the voting summary information for a set of
 // proposals.
-func (p *politeiawww) voteSummaries(tokens []string, bestBlock uint64) (map[string]www.VoteSummary, error) {
+func (p *politeiawww) getVoteSummaries(tokens []string, bestBlock uint64) (map[string]www.VoteSummary, error) {
+
+	voteSummaries := make(map[string]www.VoteSummary)
+	tokensToLookup := make([]string, 0, len(tokens))
+
+	p.Lock()
+	for _, token := range tokens {
+		vs, ok := p.voteSummaries[token]
+		if ok {
+			voteSummaries[token] = vs
+		} else {
+			tokensToLookup = append(tokensToLookup, token)
+		}
+	}
+	p.Unlock()
+
+	if len(tokensToLookup) == 0 {
+		return voteSummaries, nil
+	}
+
 	r, err := p.decredBatchVoteSummary(tokens)
 	if err != nil {
 		return nil, err
 	}
-
-	voteSummaries := make(map[string]www.VoteSummary)
 
 	for token, summary := range r.Summaries {
 		results := convertVoteOptionResultsFromDecred(summary.Results)
@@ -927,6 +956,14 @@ func (p *politeiawww) voteSummaries(tokens []string, bestBlock uint64) (map[stri
 		}
 
 		voteSummaries[token] = vs
+
+		// If the voting period has ended the vote status
+		// is not going to change so add it to the memory
+		// cache.
+		if vs.Status == www.PropVoteStatusFinished {
+			p.cacheVoteSummary(token, vs)
+		}
+
 	}
 
 	return voteSummaries, nil
@@ -956,7 +993,7 @@ func (p *politeiawww) processBatchVoteSummary(batchVoteSummary www.BatchVoteSumm
 		return nil, err
 	}
 
-	summaries, err := p.voteSummaries(batchVoteSummary.Tokens, bb)
+	summaries, err := p.getVoteSummaries(batchVoteSummary.Tokens, bb)
 	if err != nil {
 		return nil, err
 	}
@@ -1596,25 +1633,78 @@ func voteResults(sv www.StartVote, cv []www.CastVote) []www.VoteOptionResult {
 	return results
 }
 
-// setVoteStatusReply stores the given VoteStatusReply in memory.  This is to
-// only be used for proposals whose voting period has ended so that we don't
-// have to worry about cache invalidation issues.
+// setVoteStatusReply converts a VoteStatusReply to a VoteSummary and stores it
+// in memory.  This is to only be used for proposals whose voting period has
+// ended so that we don't have to worry about cache invalidation issues.
 //
 // This function must be called without the lock held.
-func (p *politeiawww) setVoteStatusReply(v www.VoteStatusReply) {
+//
+// ** This fuction is to be removed when the deprecated vote status route is
+// ** removed.
+func (p *politeiawww) setVoteStatusReply(v www.VoteStatusReply) error {
 	p.Lock()
 	defer p.Unlock()
 
-	p.voteStatuses[v.Token] = v
+	endHeight, err := strconv.Atoi(v.EndHeight)
+	if err != nil {
+		return err
+	}
+
+	voteSummary := www.VoteSummary{
+		Status:           v.Status,
+		EligibleTickets:  uint32(v.NumOfEligibleVotes),
+		EndHeight:        uint64(endHeight),
+		QuorumPercentage: v.QuorumPercentage,
+		PassPercentage:   v.PassPercentage,
+		Results:          v.OptionsResult,
+	}
+
+	p.voteSummaries[v.Token] = voteSummary
+
+	return nil
+}
+
+// getVoteStatusReply retrieves the VoteSummary from the cache for a proposal
+// whose voting period has ended and converts it to a VoteStatusReply.
+//
+// This function must be called without the lock held.
+//
+// ** This fuction is to be removed when the deprecated vote status route is
+// ** removed.
+func (p *politeiawww) getVoteStatusReply(token string) (*www.VoteStatusReply, bool) {
+	p.RLock()
+	vs, ok := p.voteSummaries[token]
+	p.RUnlock()
+
+	if !ok {
+		return nil, false
+	}
+
+	totalVotes := uint64(0)
+	for _, or := range vs.Results {
+		totalVotes += or.VotesReceived
+	}
+
+	voteStatusReply := www.VoteStatusReply{
+		Token:              token,
+		Status:             vs.Status,
+		TotalVotes:         totalVotes,
+		OptionsResult:      vs.Results,
+		EndHeight:          strconv.Itoa(int(vs.EndHeight)),
+		NumOfEligibleVotes: int(vs.EligibleTickets),
+		QuorumPercentage:   vs.QuorumPercentage,
+		PassPercentage:     vs.PassPercentage,
+	}
+
+	return &voteStatusReply, true
 }
 
 func (p *politeiawww) voteStatusReply(token string, bestBlock uint64) (*www.VoteStatusReply, error) {
-	p.RLock()
-	vsr, ok := p.voteStatuses[token]
-	p.RUnlock()
+	cachedVsr, ok := p.getVoteStatusReply(token)
+
 	if ok {
-		vsr.BestBlock = strconv.Itoa(int(bestBlock))
-		return &vsr, nil
+		cachedVsr.BestBlock = strconv.Itoa(int(bestBlock))
+		return cachedVsr, nil
 	}
 
 	// Vote status wasn't in the memory cache
@@ -1630,7 +1720,7 @@ func (p *politeiawww) voteStatusReply(token string, bestBlock uint64) (*www.Vote
 		total += v.VotesReceived
 	}
 
-	vsr = www.VoteStatusReply{
+	voteStatusReply := www.VoteStatusReply{
 		Token:              token,
 		Status:             voteStatusFromVoteSummary(*r, bestBlock),
 		TotalVotes:         total,
@@ -1645,11 +1735,14 @@ func (p *politeiawww) voteStatusReply(token string, bestBlock uint64) (*www.Vote
 	// If the voting period has ended the vote status
 	// is not going to change so add it to the memory
 	// cache.
-	if vsr.Status == www.PropVoteStatusFinished {
-		p.setVoteStatusReply(vsr)
+	if voteStatusReply.Status == www.PropVoteStatusFinished {
+		err = p.setVoteStatusReply(voteStatusReply)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	return &vsr, nil
+	return &voteStatusReply, nil
 }
 
 // processVoteStatus returns the vote status for a given proposal

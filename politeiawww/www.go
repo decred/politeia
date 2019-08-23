@@ -327,7 +327,7 @@ func _main() error {
 		userEmails:      make(map[string]uuid.UUID),
 		userPaywallPool: make(map[uuid.UUID]paywallPoolMember),
 		commentScores:   make(map[string]int64),
-		voteStatuses:    make(map[string]www.VoteStatusReply),
+		voteSummaries:   make(map[string]www.VoteSummary),
 		params:          activeNetParams.Params,
 	}
 
