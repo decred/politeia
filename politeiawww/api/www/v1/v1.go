@@ -45,7 +45,6 @@ const (
 	RouteBatchProposals           = "/proposals/batch"
 	RouteBatchVoteSummary         = "/proposals/batchvotesummary"
 	RouteAllVetted                = "/proposals/vetted"
-	RouteAllUnvetted              = "/proposals/unvetted"
 	RouteNewProposal              = "/proposals/new"
 	RouteEditProposal             = "/proposals/edit"
 	RouteAuthorizeVote            = "/proposals/authorizevote"
@@ -53,7 +52,6 @@ const (
 	RouteActiveVote               = "/proposals/activevote" // XXX rename to ActiveVotes
 	RouteCastVotes                = "/proposals/castvotes"
 	RouteAllVoteStatus            = "/proposals/votestatus"
-	RoutePropsStats               = "/proposals/stats"
 	RouteProposalPaywallDetails   = "/proposals/paywall"
 	RouteProposalPaywallPayment   = "/proposals/paywallpayment"
 	RouteProposalDetails          = "/proposals/{token:[A-z0-9]{64}}"
@@ -162,7 +160,6 @@ const (
 	ErrorStatusInvalidUserManageAction     ErrorStatusT = 40
 	ErrorStatusUserActionNotAllowed        ErrorStatusT = 41
 	ErrorStatusWrongVoteStatus             ErrorStatusT = 42
-	ErrorStatusCannotCommentOnProp         ErrorStatusT = 43
 	ErrorStatusCannotVoteOnPropComment     ErrorStatusT = 44
 	ErrorStatusChangeMessageCannotBeBlank  ErrorStatusT = 45
 	ErrorStatusCensorReasonCannotBeBlank   ErrorStatusT = 46
@@ -179,8 +176,10 @@ const (
 	ErrorStatusInvalidLikeCommentAction    ErrorStatusT = 57
 	ErrorStatusInvalidCensorshipToken      ErrorStatusT = 58
 	ErrorStatusEmailAlreadyVerified        ErrorStatusT = 59
-	ErrorStatusNoProposalChanges           ErrorStatusT = 88
-	ErrorStatusMaxProposalsExceededPolicy  ErrorStatusT = 89
+	ErrorStatusNoProposalChanges           ErrorStatusT = 60
+	ErrorStatusMaxProposalsExceededPolicy  ErrorStatusT = 61
+	ErrorStatusDuplicateComment            ErrorStatusT = 62
+	ErrorStatusInvalidLogin                ErrorStatusT = 63
 
 	// Proposal state codes
 	//
@@ -301,7 +300,6 @@ var (
 		ErrorStatusInvalidUserManageAction:     "invalid user edit action",
 		ErrorStatusUserActionNotAllowed:        "user action is not allowed",
 		ErrorStatusWrongVoteStatus:             "wrong proposal vote status",
-		ErrorStatusCannotCommentOnProp:         "cannot comment on proposal",
 		ErrorStatusCannotVoteOnPropComment:     "cannot vote on proposal comment",
 		ErrorStatusChangeMessageCannotBeBlank:  "status change message cannot be blank",
 		ErrorStatusCensorReasonCannotBeBlank:   "censor comment reason cannot be blank",
@@ -319,6 +317,8 @@ var (
 		ErrorStatusInvalidCensorshipToken:      "invalid proposal censorship token",
 		ErrorStatusEmailAlreadyVerified:        "email address is already verified",
 		ErrorStatusNoProposalChanges:           "no changes found in proposal",
+		ErrorStatusDuplicateComment:            "duplicate comment",
+		ErrorStatusInvalidLogin:                "invalid login credentials",
 	}
 
 	// PropStatus converts propsal status codes to human readable text
@@ -670,7 +670,7 @@ type AbridgedUser struct {
 // Login attempts to login the user.  Note that by necessity the password
 // travels in the clear.
 type Login struct {
-	Username string `json:"username"`
+	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
@@ -786,32 +786,6 @@ type SetProposalStatus struct {
 // SetProposalStatusReply is used to reply to a SetProposalStatus command.
 type SetProposalStatusReply struct {
 	Proposal ProposalRecord `json:"proposal"`
-}
-
-// GetAllUnvetted retrieves all unvetted proposals; the maximum number returned
-// is dictated by ProposalListPageSize.
-//
-// This command optionally takes either a Before or After parameter, which
-// specify a proposal's censorship token. If After is specified, the "page"
-// returned starts after the provided censorship token, when sorted in reverse
-// chronological order. A simplified example is shown below.
-//
-// input: [5,4,3,2,1]
-// after=3
-// output: [2,1]
-//
-// If Before is specified, the "page" returned starts before the provided
-// proposal censorship token, when sorted in reverse chronological order.
-//
-// Note: This call requires admin privileges.
-type GetAllUnvetted struct {
-	Before string `schema:"before"`
-	After  string `schema:"after"`
-}
-
-// GetAllUnvettedReply is used to reply with a list of all unvetted proposals.
-type GetAllUnvettedReply struct {
-	Proposals []ProposalRecord `json:"proposals"`
 }
 
 // GetAllVetted retrieves vetted proposals; the maximum number returned is
@@ -1178,33 +1152,31 @@ type EditProposalReply struct {
 	Proposal ProposalRecord `json:"proposal"`
 }
 
-// ProposalsStats is a command to fetch the stats for all proposals
-type ProposalsStats struct{}
-
-// ProposalsStatsReply returns the stats for all proposals
-type ProposalsStatsReply struct {
-	NumOfCensored        int `json:"numofcensored"`        // Counting number of censored proposals
-	NumOfUnvetted        int `json:"numofunvetted"`        // Counting number of unvetted proposals
-	NumOfUnvettedChanges int `json:"numofunvettedchanges"` // Counting number of proposals with unvetted changes
-	NumOfPublic          int `json:"numofpublic"`          // Counting number of public proposals
-	NumOfAbandoned       int `json:"numofabandoned"`       // Counting number of abandoned proposals
-}
-
 // TokenInventory retrieves the censorship record tokens of all proposals in
 // the inventory, categorized by stage of the voting process.
 type TokenInventory struct{}
 
 // TokenInventoryReply is used to reply to the TokenInventory command and
-// returns the tokens of all proposals in the inventory.  The tokens are
-// categorized by stage of the voting process.  Pre and abandoned tokens are
-// sorted by timestamp in decending order.  Active, approved, and rejected
-// tokens are sorted by voting period end block height in decending order.
+// returns the tokens of all proposals in the inventory. The tokens are
+// categorized by stage of the voting process and sorted according to the
+// rules listed below. Unvetted proposal tokens are only returned to admins.
+//
+// Sorted by record timestamp in descending order:
+// Pre, Abandonded, Unreviewed, Censored
+//
+// Sorted by voting period end block height in descending order:
+// Active, Approved, Rejected
 type TokenInventoryReply struct {
+	// Vetted
 	Pre       []string `json:"pre"`       // Tokens of all props that are pre-vote
 	Active    []string `json:"active"`    // Tokens of all props with an active voting period
 	Approved  []string `json:"approved"`  // Tokens of all props that have been approved by a vote
 	Rejected  []string `json:"rejected"`  // Tokens of all props that have been rejected by a vote
 	Abandoned []string `json:"abandoned"` // Tokens of all props that have been abandoned
+
+	// Unvetted
+	Unreviewed []string `json:"unreviewed"` // Tokens of all unreviewed props
+	Censored   []string `json:"censored"`   // Tokens of all censored props
 }
 
 // Websocket commands

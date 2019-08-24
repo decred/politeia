@@ -27,9 +27,9 @@ var (
 // Database interface that is required by the web server.
 type Database interface {
 	// Invoice functions
-	NewInvoice(*Invoice) error // Create new invoice
-
+	NewInvoice(*Invoice) error    // Create new invoice
 	UpdateInvoice(*Invoice) error // Update existing invoice
+
 	InvoicesByUserID(string) ([]Invoice, error)
 	InvoiceByToken(string) (*Invoice, error)     // Return invoice given its token
 	InvoicesByAddress(string) ([]Invoice, error) // Return invoice by its address
@@ -38,11 +38,10 @@ type Database interface {
 	InvoicesByMonthYear(uint16, uint16) ([]Invoice, error)            // Returns all invoice by month, year
 	InvoicesByStatus(int) ([]Invoice, error)                          // Returns all invoices by status
 	InvoicesAll() ([]Invoice, error)                                  // Returns all invoices
-	LineItemsByDateRange(int64, int64) ([]LineItem, error)            // Returns all paid invoice line items from range provided
+	LineItemsByDateRange(int64, int64, int) ([]LineItem, error)       // Returns all paid invoice line items from range provided
 
 	// ExchangeRate functions
-	NewExchangeRate(*ExchangeRate) error // Create new exchange rate
-
+	NewExchangeRate(*ExchangeRate) error          // Create new exchange rate
 	ExchangeRate(int, int) (*ExchangeRate, error) // Return an exchange rate based on month and year
 
 	// Update Payments

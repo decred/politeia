@@ -5,6 +5,7 @@
 package commands
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
@@ -13,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/agl/ed25519"
 	"github.com/decred/dcrd/chaincfg/chainhash"
@@ -64,6 +66,8 @@ type Cmds struct {
 	CensorComment       CensorCommentCmd       `command:"censorcomment" description:"(admin)  censor a proposal comment"`
 	ChangePassword      ChangePasswordCmd      `command:"changepassword" description:"(user)   change the password for the logged in user"`
 	ChangeUsername      ChangeUsernameCmd      `command:"changeusername" description:"(user)   change the username for the logged in user"`
+	CMSUserDetails      CMSUserDetailsCmd      `command:"cmsuserdetails" description:"(user) get current cms user details"`
+	CMSEditUser         CMSEditUserCmd         `command:"cmsedituser" description:"(user) edit current cms user information"`
 	EditInvoice         EditInvoiceCmd         `command:"editinvoice" description:"(user)    edit a invoice"`
 	EditProposal        EditProposalCmd        `command:"editproposal" description:"(user)   edit a proposal"`
 	ManageUser          ManageUserCmd          `command:"manageuser" description:"(admin)  edit certain properties of the specified user"`
@@ -89,8 +93,6 @@ type Cmds struct {
 	ProposalComments    ProposalCommentsCmd    `command:"proposalcomments" description:"(public) get the comments for a proposal"`
 	ProposalDetails     ProposalDetailsCmd     `command:"proposaldetails" description:"(public) get the details of a proposal"`
 	ProposalPaywall     ProposalPaywallCmd     `command:"proposalpaywall" description:"(user)   get proposal paywall details for the logged in user"`
-	ProposalStats       ProposalStatsCmd       `command:"proposalstats" description:"(public) get statistics on the proposal inventory"`
-	UnvettedProposals   UnvettedProposalsCmd   `command:"unvettedproposals" description:"(admin)  get a page of unvetted proposals"`
 	VettedProposals     VettedProposalsCmd     `command:"vettedproposals" description:"(public) get a page of vetted proposals"`
 	RegisterUser        RegisterUserCmd        `command:"register" description:"(public) register an invited user to cms"`
 	RescanUserPayments  RescanUserPaymentsCmd  `command:"rescanuserpayments" description:"(admin)  rescan a user's payments to check for missed payments"`
@@ -378,4 +380,51 @@ func createMDFile() (*v1.File, error) {
 		Digest:  hex.EncodeToString(util.Digest(b.Bytes())),
 		Payload: base64.StdEncoding.EncodeToString(b.Bytes()),
 	}, nil
+}
+
+// promptList prompts the user with the given prefix, list of valid responses,
+// and default list entry to use.  The function will repeat the prompt to the
+// user until they enter a valid response.
+func promptList(reader *bufio.Reader, prefix string, validResponses []string, defaultEntry string) (string, error) {
+	// Setup the prompt according to the parameters.
+	validStrings := strings.Join(validResponses, "/")
+	var prompt string
+	if defaultEntry != "" {
+		prompt = fmt.Sprintf("%s (%s) [%s]: ", prefix, validStrings,
+			defaultEntry)
+	} else {
+		prompt = fmt.Sprintf("%s (%s): ", prefix, validStrings)
+	}
+
+	// Prompt the user until one of the valid responses is given.
+	for {
+		fmt.Print(prompt)
+		reply, err := reader.ReadString('\n')
+		if err != nil {
+			return "", err
+		}
+		reply = strings.TrimSpace(strings.ToLower(reply))
+		if reply == "" {
+			reply = defaultEntry
+		}
+
+		for _, validResponse := range validResponses {
+			if reply == validResponse {
+				return reply, nil
+			}
+		}
+	}
+}
+
+// promptListBool prompts the user for a boolean (yes/no) with the given prefix.
+// The function will repeat the prompt to the user until they enter a valid
+// response.
+func promptListBool(reader *bufio.Reader, prefix string, defaultEntry string) (bool, error) {
+	// Setup the valid responses.
+	valid := []string{"n", "no", "y", "yes"}
+	response, err := promptList(reader, prefix, valid, defaultEntry)
+	if err != nil {
+		return false, err
+	}
+	return response == "yes" || response == "y", nil
 }

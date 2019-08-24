@@ -509,20 +509,20 @@ func (p *politeiawww) handleVoteStatus(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, vsr)
 }
 
-// handleProposalsStats returns the counting of proposals aggrouped by each proposal status
-func (p *politeiawww) handleProposalsStats(w http.ResponseWriter, r *http.Request) {
-	psr, err := p.processProposalsStats()
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleProposalsStats: processProposalsStats %v", err)
-		return
-	}
-	util.RespondWithJSON(w, http.StatusOK, psr)
-}
-
 // handleTokenInventory returns the tokens of all proposals in the inventory.
 func (p *politeiawww) handleTokenInventory(w http.ResponseWriter, r *http.Request) {
-	reply, err := p.processTokenInventory()
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		// This is a public route so a session might not exist
+		if err != ErrSessionUUIDNotFound {
+			RespondWithError(w, r, 0,
+				"handleProposalDetails: getSessionUser %v", err)
+			return
+		}
+	}
+
+	isAdmin := user != nil && user.Admin
+	reply, err := p.processTokenInventory(isAdmin)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleTokenInventory: processTokenInventory: %v", err)
@@ -969,31 +969,6 @@ func (p *politeiawww) handleAuthenticatedWebsocket(w http.ResponseWriter, r *htt
 	p.handleWebsocket(w, r, id)
 }
 
-// handleAllUnvetted replies with the list of unvetted proposals.
-func (p *politeiawww) handleAllUnvetted(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleAllUnvetted")
-
-	// Get the all unvetted command.
-	var u www.GetAllUnvetted
-	err := util.ParseGetParams(r, &u)
-	if err != nil {
-		RespondWithError(w, r, 0, "handleAllUnvetted: ParseGetParams",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	ur, err := p.processAllUnvetted(u)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleAllUnvetted: processAllUnvetted %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, ur)
-}
-
 // handleSetProposalStatus handles the incoming set proposal status command.
 // It's used for either publishing or censoring a proposal.
 func (p *politeiawww) handleSetProposalStatus(w http.ResponseWriter, r *http.Request) {
@@ -1137,8 +1112,6 @@ func (p *politeiawww) setPoliteiaWWWRoutes() {
 		p.handleGetAllVoteStatus, permissionPublic)
 	p.addRoute(http.MethodGet, www.RouteVoteStatus,
 		p.handleVoteStatus, permissionPublic)
-	p.addRoute(http.MethodGet, www.RoutePropsStats,
-		p.handleProposalsStats, permissionPublic)
 	p.addRoute(http.MethodGet, www.RouteTokenInventory,
 		p.handleTokenInventory, permissionPublic)
 	p.addRoute(http.MethodPost, www.RouteBatchProposals,
@@ -1170,8 +1143,6 @@ func (p *politeiawww) setPoliteiaWWWRoutes() {
 		p.handleAuthenticatedWebsocket, permissionLogin)
 
 	// Routes that require being logged in as an admin user.
-	p.addRoute(http.MethodGet, www.RouteAllUnvetted, p.handleAllUnvetted,
-		permissionAdmin)
 	p.addRoute(http.MethodPost, www.RouteSetProposalStatus,
 		p.handleSetProposalStatus, permissionAdmin)
 	p.addRoute(http.MethodPost, www.RouteStartVote,

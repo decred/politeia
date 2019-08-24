@@ -35,6 +35,10 @@ var (
 	// ErrInvalidPluginCmd is emitted when an invalid plugin command
 	// is used.
 	ErrInvalidPluginCmd = errors.New("invalid plugin command")
+
+	// ErrInvalidPluginCmdArgs is emitted when a plugin command is used
+	// with invalid arguments.
+	ErrInvalidPluginCmdArgs = errors.New("invalid plugin command arguments")
 )
 
 const (
@@ -173,9 +177,6 @@ type Cache interface {
 
 	// Get the latest version of all records
 	Inventory() ([]Record, error)
-
-	// Get a summary of the number of records by status
-	InventoryStats() (*InventoryStats, error)
 
 	// Setup the record cache tables
 	Setup() error

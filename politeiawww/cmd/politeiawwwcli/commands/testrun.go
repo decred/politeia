@@ -3,7 +3,6 @@ package commands
 import (
 	"encoding/hex"
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -17,7 +16,7 @@ import (
 // TestRunCmd performs a test run of all the politeiawww routes.
 type TestRunCmd struct {
 	Args struct {
-		AdminUsername string `positional-arg-name:"adminusername"`
+		AdminEmail    string `positional-arg-name:"adminemail"`
 		AdminPassword string `positional-arg-name:"adminpassword"`
 	} `positional-args:"true" required:"true"`
 }
@@ -32,9 +31,9 @@ type testUser struct {
 }
 
 // login logs in the specified user.
-func login(username, password string) error {
+func login(email, password string) error {
 	lc := LoginCmd{}
-	lc.Args.Username = username
+	lc.Args.Email = email
 	lc.Args.Password = password
 	return lc.Execute(nil)
 }
@@ -107,9 +106,9 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	// Ensure admin credentials are valid and that the admin has
 	// paid their user registration fee.
 	fmt.Printf("Validating admin credentials\n")
-	admin.username = cmd.Args.AdminUsername
+	admin.email = cmd.Args.AdminEmail
 	admin.password = cmd.Args.AdminPassword
-	err = login(admin.username, admin.password)
+	err = login(admin.email, admin.password)
 	if err != nil {
 		return err
 	}
@@ -162,7 +161,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	fmt.Printf("Login user\n")
 	lr, err := client.Login(
 		&v1.Login{
-			Username: username,
+			Email:    email,
 			Password: digestSHA3(password),
 		})
 	if err != nil {
@@ -386,7 +385,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 	// Login with admin and make the proposal public
 	fmt.Printf("  Login admin\n")
-	err = login(admin.username, admin.password)
+	err = login(admin.email, admin.password)
 	if err != nil {
 		return err
 	}
@@ -402,7 +401,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 	// Log back in with user
 	fmt.Printf("  Login user\n")
-	err = login(user.username, user.password)
+	err = login(user.email, user.password)
 	if err != nil {
 		return err
 	}
@@ -601,7 +600,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 	// Login
 	fmt.Printf("  Login admin\n")
-	err = login(admin.username, admin.password)
+	err = login(admin.email, admin.password)
 	if err != nil {
 		return err
 	}
@@ -652,19 +651,10 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 		return fmt.Errorf("censored comment not marked as censored")
 	}
 
-	// Proposal stats.  We save the stats here so that we can
-	// compare them to the stats after we test the set proposal
-	// status route.
-	fmt.Printf("  Proposal stats\n")
-	stats, err := client.ProposalsStats()
-	if err != nil {
-		return err
-	}
-
 	// Login with user in order to submit proposals that we can
 	// use to test the set proposal status route.
 	fmt.Printf("  Login user\n")
-	err = login(user.username, user.password)
+	err = login(user.email, user.password)
 	if err != nil {
 		return err
 	}
@@ -756,7 +746,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 	// Log back in with admin
 	fmt.Printf("  Login admin\n")
-	err = login(admin.username, admin.password)
+	err = login(admin.email, admin.password)
 	if err != nil {
 		return err
 	}
@@ -888,116 +878,6 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 			pdr.Proposal.Status, v1.PropStatusAbandoned)
 	}
 
-	// Proposal stats. Make sure that the stats are being
-	// incremented correctly. We can do this by comparing
-	// against the proposal stats that we saved before we
-	// created all the proposals that we used for testing
-	// the set proposal status route.
-	fmt.Printf("  Proposal stats\n")
-	psr, err := client.ProposalsStats()
-	if err != nil {
-		return err
-	}
-
-	// Account for the proposals that were added while
-	// testing the set proposal status routes.
-	wantCensored := stats.NumOfCensored + 2
-	wantUnvetted := stats.NumOfUnvetted + 1
-	wantUnvettedChanges := stats.NumOfUnvettedChanges
-	wantPublic := stats.NumOfPublic + 1
-	wantAbandoned := stats.NumOfAbandoned + 1
-
-	switch {
-	case psr.NumOfCensored != wantCensored:
-		return fmt.Errorf("num censored got %v, want %v",
-			psr.NumOfCensored, wantCensored)
-
-	case psr.NumOfUnvetted != wantUnvetted:
-		return fmt.Errorf("num unvetted got %v, want %v",
-			psr.NumOfUnvetted, wantUnvetted)
-
-	case psr.NumOfUnvettedChanges != wantUnvettedChanges:
-		return fmt.Errorf("num unvetted changes got %v, want %v",
-			psr.NumOfUnvettedChanges, wantUnvettedChanges)
-
-	case psr.NumOfPublic != wantPublic:
-		return fmt.Errorf("num public got %v, want %v",
-			psr.NumOfPublic, wantPublic)
-
-	case psr.NumOfAbandoned != wantAbandoned:
-		return fmt.Errorf("num abandoned got %v, want %v",
-			psr.NumOfAbandoned, wantAbandoned)
-	}
-
-	// Login with user
-	fmt.Printf("  Login user\n")
-	err = login(user.username, user.password)
-	if err != nil {
-		return err
-	}
-
-	// Submit a page of proposals to test the unvetted route
-	fmt.Printf("  Submitting a page of proposals to test unvetted route\n")
-	for i := 0; i < v1.ProposalListPageSize; i++ {
-		np, err = newProposal()
-		if err != nil {
-			return err
-		}
-		_, err = client.NewProposal(np)
-		if err != nil {
-			return err
-		}
-	}
-
-	// Log back in with admin
-	fmt.Printf("  Login admin\n")
-	err = login(admin.username, admin.password)
-	if err != nil {
-		return err
-	}
-
-	// Unvetted proposals
-	fmt.Printf("  Unvetted proposals\n")
-	gaur, err := client.GetAllUnvetted(&v1.GetAllUnvetted{})
-	if err != nil {
-		return err
-	}
-	unvetted := gaur.Proposals
-
-	if len(unvetted) != v1.ProposalListPageSize {
-		return fmt.Errorf("proposals page size got %v, want %v",
-			len(unvetted), v1.ProposalListPageSize)
-	}
-
-	sorted := sort.SliceIsSorted(unvetted, func(i, j int) bool {
-		// Reverse chronological order
-		return unvetted[i].Timestamp > unvetted[j].Timestamp
-	})
-	if !sorted {
-		return fmt.Errorf("proposals are not sorted")
-	}
-
-	for _, v := range unvetted {
-		err = verifyProposal(v, version.PubKey)
-		if err != nil {
-			return fmt.Errorf("verify proposal failed %v: %v",
-				v.CensorshipRecord.Token, err)
-		}
-	}
-
-	// Make the page of unreviewed proposals public. We use them
-	// to test the public vetted route.
-	fmt.Printf("  Making unvetted proposals public to test vetted route\n")
-	for _, v := range unvetted {
-		spsc := SetProposalStatusCmd{}
-		spsc.Args.Token = v.CensorshipRecord.Token
-		spsc.Args.Status = strconv.Itoa(int(v1.PropStatusPublic))
-		err = spsc.Execute(nil)
-		if err != nil {
-			return err
-		}
-	}
-
 	// Users - filter by email
 	fmt.Printf("  Users: filter by email\n")
 	ur, err := client.Users(
@@ -1043,14 +923,6 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	rupc := RescanUserPaymentsCmd{}
 	rupc.Args.UserID = user.ID
 	err = rupc.Execute(nil)
-	if err != nil {
-		return err
-	}
-
-	// Proposal stats. We need these stats to compare
-	// against when testing the public routes.
-	fmt.Printf("  Proposal stats\n")
-	stats, err = client.ProposalsStats()
 	if err != nil {
 		return err
 	}
@@ -1167,33 +1039,72 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 		return fmt.Errorf("censored comment not marked as censored")
 	}
 
-	// Proposal stats
-	fmt.Printf("  Proposal stats\n")
-	psr, err = client.ProposalsStats()
+	// Vetted proposals. We need to submit a page of proposals and
+	// make them public first in order to test the vetted route.
+	fmt.Printf("  Login admin\n")
+	err = login(admin.email, admin.password)
 	if err != nil {
 		return err
 	}
 
-	switch {
-	case psr.NumOfUnvetted != stats.NumOfUnvetted:
-		return fmt.Errorf("proposal stats unvetted got %v, want %v",
-			psr.NumOfUnvetted, stats.NumOfUnvetted)
+	fmt.Printf("  Submitting a page of proposals to test vetted route\n")
+	for i := 0; i < v1.ProposalListPageSize; i++ {
+		np, err = newProposal()
+		if err != nil {
+			return err
+		}
+		_, err = client.NewProposal(np)
+		if err != nil {
+			return err
+		}
+	}
 
-	case psr.NumOfUnvettedChanges != stats.NumOfUnvettedChanges:
-		return fmt.Errorf("proposal stats unvetted changes got %v, want %v",
-			psr.NumOfUnvettedChanges, stats.NumOfUnvettedChanges)
+	fmt.Printf("  Token inventory\n")
+	tir, err := client.TokenInventory()
+	if err != nil {
+		return err
+	}
 
-	case psr.NumOfCensored != stats.NumOfCensored:
-		return fmt.Errorf("proposal stats censored got %v, want %v",
-			psr.NumOfCensored, stats.NumOfCensored)
+	fmt.Printf("  Batch proposals\n")
+	bpr, err := client.BatchProposals(&v1.BatchProposals{
+		Tokens: tir.Unreviewed[:v1.ProposalListPageSize],
+	})
 
-	case psr.NumOfPublic != stats.NumOfPublic:
-		return fmt.Errorf("proposal stats public got %v, want %v",
-			psr.NumOfPublic, stats.NumOfPublic)
+	fmt.Printf("  Making unvetted proposals public\n")
+	for _, v := range bpr.Proposals {
+		spsc := SetProposalStatusCmd{}
+		spsc.Args.Token = v.CensorshipRecord.Token
+		spsc.Args.Status = strconv.Itoa(int(v1.PropStatusPublic))
+		err = spsc.Execute(nil)
+		if err != nil {
+			return err
+		}
+	}
 
-	case psr.NumOfAbandoned != stats.NumOfAbandoned:
-		return fmt.Errorf("proposal stats abandoned got %v, want %v",
-			psr.NumOfAbandoned, stats.NumOfAbandoned)
+	fmt.Printf("  Logout\n")
+	lc = LogoutCmd{}
+	err = lc.Execute(nil)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("  Vetted\n")
+	gavr, err := client.GetAllVetted(&v1.GetAllVetted{})
+	if err != nil {
+		return err
+	}
+
+	if len(gavr.Proposals) != v1.ProposalListPageSize {
+		return fmt.Errorf("proposals page size got %v, want %v",
+			len(gavr.Proposals), v1.ProposalListPageSize)
+	}
+
+	for _, v := range gavr.Proposals {
+		err = verifyProposal(v, version.PubKey)
+		if err != nil {
+			return fmt.Errorf("verify proposal failed %v: %v",
+				v.CensorshipRecord.Token, err)
+		}
 	}
 
 	// User details
@@ -1218,43 +1129,17 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 		return err
 	}
 
-	// total is the total number of proposals that we've
-	// submitted with the test user during the test run
-	// that are public.
-	total := v1.ProposalListPageSize + 3
-
-	switch {
-	case len(upr.Proposals) != v1.ProposalListPageSize:
-		return fmt.Errorf("proposal page size got %v, want %v",
-			len(upr.Proposals), v1.ProposalListPageSize)
-
-	case upr.NumOfProposals != total:
-		return fmt.Errorf("total proposal count got %v, want %v",
-			upr.NumOfProposals, total)
+	// userPropCount is the total number of proposals that we've
+	// submitted with the test user during the test run that are
+	// public.
+	userPropCount := 3
+	if upr.NumOfProposals != userPropCount {
+		return fmt.Errorf("user proposal count got %v, want %v",
+			upr.NumOfProposals, userPropCount)
 	}
 
 	for _, v := range upr.Proposals {
 		err := verifyProposal(v, version.PubKey)
-		if err != nil {
-			return fmt.Errorf("verify proposal failed %v: %v",
-				v.CensorshipRecord.Token, err)
-		}
-	}
-
-	// Vetted proposals
-	fmt.Printf("  Vetted\n")
-	gavr, err := client.GetAllVetted(&v1.GetAllVetted{})
-	if err != nil {
-		return err
-	}
-
-	if len(gavr.Proposals) != v1.ProposalListPageSize {
-		return fmt.Errorf("proposals page size got %v, want %v",
-			len(gavr.Proposals), v1.ProposalListPageSize)
-	}
-
-	for _, v := range gavr.Proposals {
-		err = verifyProposal(v, version.PubKey)
 		if err != nil {
 			return fmt.Errorf("verify proposal failed %v: %v",
 				v.CensorshipRecord.Token, err)
@@ -1271,18 +1156,6 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	if vsr.Status != v1.PropVoteStatusStarted {
 		return fmt.Errorf("vote status got %v, want %v",
 			vsr.Status, v1.PropVoteStatusStarted)
-	}
-
-	// Vote statuses
-	fmt.Printf("  Vote statuses\n")
-	avsr, err := client.GetAllVoteStatus()
-	if err != nil {
-		return err
-	}
-
-	if len(avsr.VotesStatus) != stats.NumOfPublic {
-		return fmt.Errorf("vote statuses len got %v, want %v",
-			len(avsr.VotesStatus), stats.NumOfPublic)
 	}
 
 	// Active votes
@@ -1394,7 +1267,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 	// Login with user
 	fmt.Printf("  Login user\n")
-	err = login(user.username, user.password)
+	err = login(user.email, user.password)
 	if err != nil {
 		return err
 	}

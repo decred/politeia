@@ -10,6 +10,7 @@ notifications.  It does not render HTML.
 **Methods**
 
 - [`Version`](#version)
+- [`Policy`](#policy)
 - [`New user`](#new-user)
 - [`Verify user`](#verify-user)
 - [`Resend verification`](#resend-verification)
@@ -24,18 +25,13 @@ notifications.  It does not render HTML.
 - [`Change username`](#change-username)
 - [`Change password`](#change-password)
 - [`Reset password`](#reset-password)
-- [`New comment`](#new-comment)
-- [`Get comments`](#get-comments)
-- [`Like comment`](#like-comment)
-- [`Censor comment`](#censor-comment)
-- [`Policy`](#policy)
+- [`User proposal credits`](#user-proposal-credits)
+- [`User comments votes`](#user-comments-votes)
 
-***Proposal Routes***
+**Proposal Routes**
 - [`Vetted`](#vetted)
-- [`Unvetted`](#unvetted)
 - [`User proposals`](#user-proposals)
 - [`Proposal paywall details`](#proposal-paywall-details)
-- [`User proposal credits`](#user-proposal-credits)
 - [`Verify user payment`](#verify-user-payment)
 - [`New proposal`](#new-proposal)
 - [`Edit Proposal`](#edit-proposal)
@@ -49,8 +45,12 @@ notifications.  It does not render HTML.
 - [`Proposal vote status`](#proposal-vote-status)
 - [`Proposals vote status`](#proposals-vote-status)
 - [`Vote results`](#vote-results)
-- [`User Comments votes`](#user-comments-votes)
 - [`Proposals Stats`](#proposals-stats)
+- [`Token inventory`](#token-inventory)
+- [`New comment`](#new-comment)
+- [`Get comments`](#get-comments)
+- [`Like comment`](#like-comment)
+- [`Censor comment`](#censor-comment)
 
 
 **Error status codes**
@@ -97,7 +97,6 @@ notifications.  It does not render HTML.
 - [`ErrorStatusInvalidUserManageAction`](#ErrorStatusInvalidUserManageAction)
 - [`ErrorStatusUserActionNotAllowed`](#ErrorStatusUserActionNotAllowed)
 - [`ErrorStatusWrongVoteStatus`](#ErrorStatusWrongVoteStatus)
-- [`ErrorStatusCannotCommentOnProp`](#ErrorStatusCannotCommentOnProp)
 - [`ErrorStatusCannotVoteOnPropComment`](#ErrorStatusCannotVoteOnPropComment)
 - [`ErrorStatusChangeMessageCannotBeBlank`](#ErrorStatusChangeMessageCannotBeBlank)
 - [`ErrorStatusCensorReasonCannotBeBlank`](#ErrorStatusCensorReasonCannotBeBlank)
@@ -113,44 +112,11 @@ notifications.  It does not render HTML.
 - [`ErrorStatusInvalidUUID`](#ErrorStatusInvalidUUID)
 - [`ErrorStatusInvalidLikeCommentAction`](#ErrorStatusInvalidLikeCommentAction)
 - [`ErrorStatusInvalidCensorshipToken`](#ErrorStatusInvalidCensorshipToken)
-- [`ErrorStatusMalformedName`](#ErrorStatusMalformedName)
-- [`ErrorStatusMalformedLocation`](#ErrorStatusMalformedLocation)
-- [`ErrorStatusInvoiceNotFound`](#ErrorStatusInvoiceNotFound)
-- [`ErrorStatusInvalidMonthYearRequest`](#ErrorStatusInvalidMonthYearRequest)
-- [`ErrorStatusMalformedInvoiceFile`](#ErrorStatusMalformedInvoiceFile)
-- [`ErrorStatusInvalidInvoiceStatusTransition`](#ErrorStatusInvalidInvoiceStatusTransition)
-- [`ErrorStatusReasonNotProvided`](#ErrorStatusReasonNotProvided)
-- [`ErrorStatusInvoiceDuplicate`](#ErrorStatusInvoiceDuplicate)
-- [`ErrorStatusInvalidPaymentAddress`](#ErrorStatusInvalidPaymentAddress)
-- [`ErrorStatusMalformedLineItem`](#ErrorStatusMalformedLineItem)
-- [`ErrorStatusInvoiceMissingName`](#ErrorStatusInvoiceMissingName)
-- [`ErrorStatusInvoiceMissingLocation`](#ErrorStatusInvoiceMissingLocation)
-- [`ErrorStatusInvoiceMissingContact`](#ErrorStatusInvoiceMissingContact)
-- [`ErrorStatusInvoiceMissingRate`](#ErrorStatusInvoiceMissingRate)
-- [`ErrorStatusInvoiceInvalidRate`](#ErrorStatusInvoiceInvalidRate)
-- [`ErrorStatusInvoiceMalformedContact`](#ErrorStatusInvoiceMalformedContact)
-- [`ErrorStatusMalformedProposalToken`](#ErrorStatusMalformedProposalToken)
-- [`ErrorStatusMalformedDomain`](#ErrorStatusMalformedDomain)
-- [`ErrorStatusMalformedSubdomain`](#ErrorStatusMalformedSubdomain)
-- [`ErrorStatusMalformedDescription`](#ErrorStatusMalformedDescription) 
-- [`ErrorStatusWrongInvoiceStatus`](#ErrorStatusWrongInvoiceStatus) 
-- [`ErrorStatusInvoiceRequireLineItems`](#ErrorStatusInvoiceRequireLineItems)
-- [`ErrorStatusInvalidInvoiceMonthYear`](#ErrorStatusInvalidInvoiceMonthYear)
-- [`ErrorStatusMultipleInvoiceMonthYear`](#ErrorStatusMultipleInvoiceMonthYear)
-- [`ErrorStatusInvalidLineItemType`](#ErrorStatusInvalidLineItemType) 
-- [`ErrorStatusInvalidLaborExpense`](#ErrorStatusInvalidLaborExpense)
+- [`ErrorStatusEmailAlreadyVerified`](#ErrorStatusEmailAlreadyVerified)
 - [`ErrorStatusNoProposalChanges`](#ErrorStatusNoProposalChanges)
-- [`ErrorStatusDuplicatePaymentAddress`](#ErrorStatusDuplicatePaymentAddress)
 - [`ErrorStatusMaxProposalsExceededPolicy`](#ErrorStatusMaxProposalsExceededPolicy)
-
-**Proposal status codes**
-
-- [`PropStatusInvalid`](#PropStatusInvalid)
-- [`PropStatusNotFound`](#PropStatusNotFound)
-- [`PropStatusNotReviewed`](#PropStatusNotReviewed)
-- [`PropStatusCensored`](#PropStatusCensored)
-- [`PropStatusPublic`](#PropStatusPublic)
-- [`PropStatusAbandoned`](#PropStatusAbandoned)
+- [`ErrorStatusDuplicateComment`](#ErrorStatusDuplicateComment)
+- [`ErrorStatusInvalidLogin`](#ErrorStatusInvalidLogin)
 
 **Websockets**
 
@@ -504,10 +470,10 @@ the user database.  Note that Login reply is identical to Me reply.
 
 On failure the call shall return `401 Unauthorized` and one of the following
 error codes:
-- [`ErrorStatusInvalidPassword`](#ErrorStatusInvalidPassword)
-- [`ErrorStatusUserLocked`](#ErrorStatusUserLocked)
-- [`ErrorStatusUserDeactivated`](#ErrorStatusUserDeactivated)
+- [`ErrorStatusInvalidLogin`](#ErrorStatusInvalidLogin)
 - [`ErrorStatusEmailNotVerified`](#ErrorStatusEmailNotVerified)
+- [`ErrorStatusUserDeactivated`](#ErrorStatusUserDeactivated)
+- [`ErrorStatusUserLocked`](#ErrorStatusUserLocked)
 
 **Example**
 
@@ -1226,61 +1192,6 @@ Reply:
 }
 ```
 
-
-### `Unvetted`
-
-Retrieve a page of unvetted proposals; the number of proposals returned in the
-page is limited by the `ProposalListPageSize` property, which is provided via
-[`Policy`](#policy).  This call requires admin privileges.
-
-**Route:** `GET /v1/proposals/unvetted`
-
-**Params:**
-
-| Parameter | Type | Description | Required |
-|-|-|-|-|
-| before | String | A proposal censorship token; if provided, the page of proposals returned will end right before the proposal whose token is provided, when sorted in reverse chronological order. This parameter should not be specified if `after` is set. | |
-| after | String | A proposal censorship token; if provided, the page of proposals returned will begin right after the proposal whose token is provided, when sorted in reverse chronological order. This parameter should not be specified if `before` is set. | |
-
-**Results:**
-
-| | Type | Description |
-|-|-|-|
-| proposals | array of [`Proposal`](#proposal)s | An Array of unvetted proposals. |
-
-If the caller is not privileged the unvetted call returns `403 Forbidden`.
-
-**Example**
-
-Request:
-
-The request params should be provided within the URL:
-
-```
-/v1/proposals/unvetted?after=f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde
-```
-
-Reply:
-
-```json
-{
-  "proposals": [{
-      "name": "My Proposal",
-      "status": 2,
-      "timestamp": 1508296860781,
-      "publishedat": 0,
-      "censoredat": 0,
-      "abandonedat": 0,
-      "censorshiprecord": {
-        "token": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
-        "merkle": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
-        "signature": "fcc92e26b8f38b90c2887259d88ce614654f32ecd76ade1438a0def40d360e461d995c796f16a17108fad226793fd4f52ff013428eda3b39cd504ed5f1811d0d"
-      }
-    }
-  ]
-}
-```
-
 ### `Vetted`
 
 Retrieve a page of vetted proposals; the number of proposals returned in the
@@ -1793,23 +1704,31 @@ proposal"; if the value is not empty it means "reply to comment".
 
 | | Type | Description |
 | - | - | - |
+| token | string | Censorship token |
+| parentid | string | Parent comment identifier |
+| comment | string | Comment text |
+| signature | string | Signature of Token, ParentID and Comment |
+| publickey | string | Public key from the client side, sent to politeiawww for verification |
+| commentid | string | Unique comment identifier |
+| receipt | string | Server signature of the client Signature |
+| timestamp | int64 | UNIX time when comment was accepted |
+| resultvotes | int64 | Vote score |
+| censored | bool | Has the comment been censored |
 | userid | string | Unique user identifier |
 | username | string | Unique username |
-| timestamp | int64 | UNIX time when comment was accepted |
-| commentid | string | Unique comment identifier |
-| parentid | string | Parent comment identifier |
-| token | string | Censorship token |
-| comment | string | Comment text |
-| publickey | string | Public key from the client side, sent to politeiawww for verification |
-| signature | string | Signature of Token, ParentID and Comment |
-| receipt | string | Server signature of the client Signature |
-| resultvotes | int64 | Vote score |
 
 On failure the call shall return `400 Bad Request` and one of the following
 error codes:
 
-- [`ErrorStatusCommentLengthExceededPolicy`](#ErrorStatusCommentLengthExceededPolicy)
 - [`ErrorStatusUserNotPaid`](#ErrorStatusUserNotPaid)
+- [`ErrorStatusInvalidSigningKey`](#ErrorStatusInvalidSigningKey)
+- [`ErrorStatusInvalidSignature`](#ErrorStatusInvalidSignature)
+- [`ErrorStatusCommentLengthExceededPolicy`](#ErrorStatusCommentLengthExceededPolicy)
+- [`ErrorStatusInvalidCensorshipToken`](#ErrorStatusInvalidCensorshipToken)
+- [`ErrorStatusProposalNotFound`](#ErrorStatusProposalNotFound)
+- [`ErrorStatusWrongStatus`](#ErrorStatusWrongStatus)
+- [`ErrorStatusWrongVoteStatus`](#ErrorStatusWrongVoteStatus)
+- [`ErrorStatusDuplicateComment`](#ErrorStatusDuplicateComment)
 
 **Example**
 
@@ -1829,18 +1748,18 @@ Reply:
 
 ```json
 {
-  "comment": "I dont like this prop",
-  "commentid": "4",
-  "parentid": "0",
-  "publickey": "4206fa1f45c898f1dee487d7a7a82e0ed293858313b8b022a6a88f2bcae6cdd7",
-  "receipt": "96f3956ea3decb75ee129e6ee4e77c6c608f0b5c99ff41960a4e6078d8bb74e8ad9d2545c01fff2f8b7e0af38ee9de406aea8a0b897777d619e93d797bc1650a",
-  "signature":"af969d7f0f711e25cb411bdbbe3268bbf3004075cde8ebaee0fc9d988f24e45013cc2df6762dca5b3eb8abb077f76e0b016380a7eba2d46839b04c507d86290d",
-  "timestamp": 1527277504,
   "token": "abf0fd1fc1b8c1c9535685373dce6c54948b7eb018e17e3a8cea26a3c9b85684",
+  "parentid": "0",
+  "comment": "I dont like this prop",
+  "signature":"af969d7f0f711e25cb411bdbbe3268bbf3004075cde8ebaee0fc9d988f24e45013cc2df6762dca5b3eb8abb077f76e0b016380a7eba2d46839b04c507d86290d",
+  "publickey": "4206fa1f45c898f1dee487d7a7a82e0ed293858313b8b022a6a88f2bcae6cdd7",
+  "commentid": "4",
+  "receipt": "96f3956ea3decb75ee129e6ee4e77c6c608f0b5c99ff41960a4e6078d8bb74e8ad9d2545c01fff2f8b7e0af38ee9de406aea8a0b897777d619e93d797bc1650a",
+  "timestamp": 1527277504,
+  "resultvotes": 0,
+  "censored": false,
   "userid": "124",
   "username": "john",
-  "totalvotes": 0,
-  "resultvotes": 0
 }
 ```
 
@@ -2661,6 +2580,57 @@ Reply:
 }
 ```
 
+### `Token inventory`
+
+Retrieve the censorship record tokens of all proposals in the inventory. The
+tokens are categorized by stage of the voting process and sorted according to
+the rules listed below. Unvetted proposal tokens are only returned to admins.
+Unvetted proposals include unvreviewed and censored proposals.
+
+Sorted by record timestamp in descending order:
+Pre, Abandonded, Unreviewed, Censored
+
+Sorted by voting period end block height in descending order:
+Active, Approved, Rejected
+
+**Route:** `GET v1/proposals/tokeninventory`
+
+**Params:** none
+
+**Results:**
+
+| | Type | Description |
+| - | - | - |
+| pre | []string | Tokens of all vetted proposals that are pre-vote. |
+| active | []string | Tokens of all vetted proposals with an active voting period. |
+| approved | []string | Tokens of all vetted proposals that have been approved by a vote. |
+| rejected | []string | Tokens of all vetted proposals that have been rejected by a vote. |
+| abandoned | []string | Tokens of all vetted proposals that have been abandoned. |
+| unreviewed | []string | Tokens of all unreviewed proposals. |
+| censored | []string | Tokens of all censored proposals. |
+
+**Example:**
+Request:
+Path: `v1/proposals/tokeninventory`
+
+Reply:
+
+```json
+{
+  "pre": [
+    "567ec4cdca78362f725dbb2b8b5161991fe6ba3bb6da1ad3f99067dd4712e48e"
+  ],
+  "active": [
+    "79cb792d8a15e83ce6809b2846f4dfdd04a65f5aa674c04926599fabf80c1b62"
+  ],
+  "approved": [],
+  "rejected": [],
+  "abandoned": [
+    "99376fbf7b79e30a7ff778743da46e04ae3b360109fa71011930f4c9a15c4ef5"
+  ]
+}
+```
+
 ### Error codes
 
 | Status | Value | Description |
@@ -2708,7 +2678,6 @@ Reply:
 | <a name="ErrorStatusInvalidUserManageAction">ErrorStatusInvalidUserManageAction</a> | 40 | Invalid action for editing a user. |
 | <a name="ErrorStatusUserActionNotAllowed">ErrorStatusUserActionNotAllowed</a> | 41 | User action is not allowed. |
 | <a name="ErrorStatusWrongVoteStatus">ErrorStatusWrongVoteStatus</a> | 42 | The proposal has the wrong vote status for the action to be performed. |
-| <a name="ErrorStatusCannotCommentOnProp">ErrorStatusCannotCommentOnProp</a> | 43 | Cannot comment on proposal. |
 | <a name="ErrorStatusCannotVoteOnPropComment">ErrorStatusCannotVoteOnPropComment</a> | 44 | Cannot vote on proposal comment. |
 | <a name="ErrorStatusChangeMessageCannotBeBlank">ErrorStatusChangeMessageCannotBeBlank</a> | 45 | Status change message cannot be blank. |
 | <a name="ErrorStatusCensorReasonCannotBeBlank">ErrorStatusCensorReasonCannotBeBlank</a> | 46 | Censor comment reason cannot be blank. |
@@ -2724,8 +2693,11 @@ Reply:
 | <a name="ErrorStatusInvalidUUID">ErrorStatusInvalidUUID</a> | 56 | Invalid user UUID. |
 | <a name="ErrorStatusInvalidLikeCommentAction">ErrorStatusInvalidLikeCommentAction</a> | 57 | Invalid like comment action. |
 | <a name="ErrorStatusInvalidCensorshipToken">ErrorStatusInvalidCensorshipToken</a> | 58 | Invalid proposal censorship token. |
-| <a name="ErrorStatusNoProposalChanges">ErrorStatusNoProposalChanges</a> | 88 | No changes found in proposal. |
-| <a name="ErrorStatusNoProposalChanges">ErrorStatusMaxProposalsExceededPolicy</a> | 89 | Number of proposals request exceeded ProposalListPageSize. |
+| <a name="ErrorStatusEmailAlreadyVerified">ErrorStatusEmailAlreadyVerified</a> | 59 | Email address is already verified. |
+| <a name="ErrorStatusNoProposalChanges">ErrorStatusNoProposalChanges</a> | 60 | No changes found in proposal. |
+| <a name="ErrorStatusMaxProposalsExceedsPolicy">ErrorStatusMaxProposalsExceededPolicy</a> | 61 | Number of proposals requested exceeded the ProposalListPageSize. |
+| <a name="ErrorStatusDuplicateComment">ErrorStatusDuplicateComment</a> | 62 | Duplicate comment. |
+| <a name="ErrorStatusInvalidLogin">ErrorStatusInvalidLogin</a> | 62 | Invalid login credentials. |
 
 
 ### Proposal status codes

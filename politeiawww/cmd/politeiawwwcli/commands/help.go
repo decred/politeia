@@ -44,8 +44,6 @@ func (cmd *HelpCmd) Execute(args []string) error {
 		fmt.Printf("%s\n", proposalDetailsHelpMsg)
 	case "userproposals":
 		fmt.Printf("%s\n", userProposalsHelpMsg)
-	case "unvettedproposals":
-		fmt.Printf("%s\n", unvettedProposalsHelpMsg)
 	case "vettedproposals":
 		fmt.Printf("%s\n", vettedProposalsHelpMsg)
 	case "setproposalstatus":
@@ -104,14 +102,18 @@ func (cmd *HelpCmd) Execute(args []string) error {
 		fmt.Printf("%s\n", voteStatusHelpMsg)
 	case "votestatuses":
 		fmt.Printf("%s\n", voteStatusesHelpMsg)
-	case "proposalstats":
-		fmt.Printf("%s\n", proposalStatsHelpMsg)
 	case "vote":
 		fmt.Printf("%s\n", voteHelpMsg)
 	case "testrun":
 		fmt.Printf("%s\n", testRunHelpMsg)
 	case "resendverification":
 		fmt.Printf("%s\n", resendVerificationHelpMsg)
+	case "batchproposals":
+		fmt.Printf("%s\n", batchProposalsHelpMsg)
+	case "batchvotesummary":
+		fmt.Printf("%s\n", batchVoteSummaryHelpMsg)
+
+		// CMS commands
 	case "newinvoice":
 		fmt.Printf("%s\n", newInvoiceHelpMsg)
 	case "invoicedetails":
@@ -122,10 +124,12 @@ func (cmd *HelpCmd) Execute(args []string) error {
 		fmt.Printf("%s\n", setInvoiceStatusHelpMsg)
 	case "invoicecomments":
 		fmt.Printf("%s\n", invoiceCommentsHelpMsg)
-	case "batchproposals":
-		fmt.Printf("%s\n", batchProposalsHelpMsg)
-	case "batchvotesummary":
-		fmt.Printf("%s\n", batchVoteSummaryHelpMsg)
+	case "admininvoices":
+		fmt.Printf("%s\n", adminInvoicesHelpMsg)
+	case "userinvoices":
+		fmt.Printf("%s\n", userInvoicesHelpMsg)
+	case "invoiceexchangerate":
+		fmt.Printf("%s\n", invoiceExchangeRateHelpMsg)
 
 	default:
 		fmt.Printf("invalid command: use 'politeiawwwcli -h' " +

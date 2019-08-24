@@ -42,7 +42,7 @@ func (cmd *InvoiceExchangeRateCmd) Execute(args []string) error {
 	return printJSON(ierr)
 }
 
-const newInvoiceExchangeRateMsg = `invoiceexchangerate [flags]" 
+const invoiceExchangeRateHelpMsg = `invoiceexchangerate [flags]"
 
 Request an USD/DCR exchange rate for a given month.
 

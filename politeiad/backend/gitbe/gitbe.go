@@ -25,7 +25,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg"
-	"github.com/decred/dcrtime/api/v1"
+	v1 "github.com/decred/dcrtime/api/v1"
 	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
@@ -35,7 +35,7 @@ import (
 	"github.com/decred/politeia/util"
 	filesystem "github.com/otiai10/copy"
 	"github.com/robfig/cron"
-	"github.com/subosito/norma"
+	"github.com/subosito/gozaru"
 )
 
 const (
@@ -122,7 +122,7 @@ type gitBackEnd struct {
 	unvetted        string           // Unvettend content
 	vetted          string           // Vetted, public, visible content
 	journals        string           // Journals/cache
-	dcrtimeHost     string           // Dcrtimed directory
+	dcrtimeHost     string           // Dcrtimed host
 	gitPath         string           // Path to git
 	gitTrace        bool             // Enable git tracing
 	test            bool             // Set during UT
@@ -344,7 +344,7 @@ func verifyContent(metadata []backend.MetadataStream, files []backend.File, file
 
 	fa := make([]file, 0, len(files))
 	for i := range files {
-		if norma.Sanitize(files[i].Name) != files[i].Name {
+		if gozaru.Sanitize(files[i].Name) != files[i].Name {
 			return nil, backend.ContentVerificationError{
 				ErrorCode: pd.ErrorStatusInvalidFilename,
 				ErrorContext: []string{
@@ -679,7 +679,7 @@ func (g *gitBackEnd) anchor(digests []*[sha256.Size]byte) error {
 		return nil
 	}
 
-	return util.Timestamp(g.dcrtimeHost, digests)
+	return util.Timestamp("politeia", g.dcrtimeHost, digests)
 }
 
 // appendAuditTrail adds a record to the audit trail.
@@ -1027,7 +1027,8 @@ func (g *gitBackEnd) verifyAnchor(digest string) (*v1.VerifyDigest, error) {
 		})
 	} else {
 		// Call dcrtime
-		vr, err = util.Verify(g.dcrtimeHost, []string{digest})
+		vr, err = util.Verify("politeia", g.dcrtimeHost,
+			[]string{digest})
 		if err != nil {
 			return nil, err
 		}
@@ -2051,7 +2052,7 @@ func (g *gitBackEnd) fsck(path string) error {
 	for d := range gitDigests {
 		digests = append(digests, d)
 	}
-	vr, err := util.Verify(g.dcrtimeHost, digests)
+	vr, err := util.Verify("politeia", g.dcrtimeHost, digests)
 	if err != nil {
 		return err
 	}

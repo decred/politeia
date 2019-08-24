@@ -28,7 +28,6 @@ const (
 	EventTypeProposalEdited
 	EventTypeProposalVoteStarted
 	EventTypeProposalVoteAuthorized
-	EventTypeProposalVoteFinished
 	EventTypeComment
 	EventTypeUserManage
 	EventTypeInvoiceComment      // CMS Type
@@ -185,7 +184,7 @@ func (p *politeiawww) _setupInvoiceStatusUpdateEmailNotification() {
 				continue
 			}
 
-			err := p.emailUserInvoiceStatusUpdate(isu.User.Email)
+			err := p.emailUserInvoiceStatusUpdate(isu.User.Email, isu.Token)
 			if err != nil {
 				log.Errorf("email for new admin comment %v: %v",
 					isu.Token, err)
@@ -425,7 +424,7 @@ func (p *politeiawww) _setupCommentReplyEmailNotifications() {
 						c.Comment.Token, c.Comment.CommentID, err)
 				}
 			} else {
-				parent, err := p.decredGetComment(token, c.Comment.ParentID)
+				parent, err := p.decredCommentGetByID(token, c.Comment.ParentID)
 				if err != nil {
 					log.Errorf("EventManager: getComment failed for token %v "+
 						"commentID %v: %v", token, c.Comment.ParentID, err)

@@ -1518,69 +1518,6 @@ func (p *politeiawww) processAllVetted(v www.GetAllVetted) (*www.GetAllVettedRep
 	}, nil
 }
 
-// processAllUnvetted returns an array of all unvetted proposals in reverse
-// order, because they're sorted by oldest timestamp first.
-func (p *politeiawww) processAllUnvetted(u www.GetAllUnvetted) (*www.GetAllUnvettedReply, error) {
-	log.Tracef("processAllUnvetted")
-
-	// Validate query params
-	if (u.Before != "" && !tokenIsValid(u.Before)) ||
-		(u.After != "" && !tokenIsValid(u.After)) {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusInvalidCensorshipToken,
-		}
-	}
-
-	// Fetch all proposals from the cache
-	all, err := p.getAllProps()
-	if err != nil {
-		return nil, fmt.Errorf("processAllUnvetted getAllProps: %v",
-			err)
-	}
-
-	// Filter for unvetted proposals
-	filter := proposalsFilter{
-		After:  u.After,
-		Before: u.Before,
-		StateMap: map[www.PropStateT]bool{
-			www.PropStateUnvetted: true,
-		},
-	}
-	props := filterProps(filter, all)
-
-	// Remove files from proposals
-	for i, p := range props {
-		p.Files = make([]www.File, 0)
-		props[i] = p
-	}
-
-	return &www.GetAllUnvettedReply{
-		Proposals: props,
-	}, nil
-}
-
-// ProcessProposalStats returns summary statistics on the number of proposals
-// categorized by proposal status.
-func (p *politeiawww) processProposalsStats() (*www.ProposalsStatsReply, error) {
-	inv, err := p.cache.InventoryStats()
-	if err != nil {
-		return nil, err
-	}
-	if inv.Invalid > 0 {
-		// There should not be any invalid proposals so log an error
-		// if any are found
-		log.Errorf("processProposalsStats: %v invalid proposals found",
-			inv.Invalid)
-	}
-	return &www.ProposalsStatsReply{
-		NumOfCensored:        inv.Censored,
-		NumOfUnvetted:        inv.NotReviewed,
-		NumOfUnvettedChanges: inv.UnreviewedChanges,
-		NumOfPublic:          inv.Public,
-		NumOfAbandoned:       inv.Archived,
-	}, nil
-}
-
 // processCommentsGet returns all comments for a given proposal. If the user is
 // logged in the user's last access time for the given comments will also be
 // returned.
@@ -1612,27 +1549,6 @@ func (p *politeiawww) processCommentsGet(token string, u *user.User) (*www.GetCo
 		Comments:   c,
 		AccessTime: accessTime,
 	}, nil
-}
-
-func voteResults(sv www.StartVote, cv []www.CastVote) []www.VoteOptionResult {
-	log.Tracef("voteResults: %v", sv.Vote.Token)
-
-	// Tally votes
-	votes := make(map[string]uint64)
-	for _, v := range cv {
-		votes[v.VoteBit]++
-	}
-
-	// Prepare vote option results
-	results := make([]www.VoteOptionResult, 0, len(sv.Vote.Options))
-	for _, v := range sv.Vote.Options {
-		results = append(results, www.VoteOptionResult{
-			Option:        v,
-			VotesReceived: votes[strconv.FormatUint(v.Bits, 10)],
-		})
-	}
-
-	return results
 }
 
 // setVoteStatusReply converts a VoteStatusReply to a VoteSummary and stores it
@@ -2302,7 +2218,7 @@ func (p *politeiawww) processStartVote(sv www.StartVote, u *user.User) (*www.Sta
 
 // processTokenInventory returns the tokens of all proposals in the inventory,
 // categorized by stage of the voting process.
-func (p *politeiawww) processTokenInventory() (*www.TokenInventoryReply, error) {
+func (p *politeiawww) processTokenInventory(isAdmin bool) (*www.TokenInventoryReply, error) {
 	log.Tracef("processTokenInventory")
 
 	bb, err := p.getBestBlock()
@@ -2317,7 +2233,10 @@ func (p *politeiawww) processTokenInventory() (*www.TokenInventoryReply, error) 
 	var done bool
 	var r www.TokenInventoryReply
 	for retries := 0; !done && retries <= 1; retries++ {
-		ti, err := p.decredTokenInventory(bb)
+		// Both vetted and unvetted tokens should be returned
+		// for admins. Only vetted tokens should be returned
+		// for non-admins.
+		ti, err := p.decredTokenInventory(bb, isAdmin)
 		if err != nil {
 			if err == cache.ErrRecordNotFound {
 				// There are missing entries in the vote
