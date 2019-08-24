@@ -933,7 +933,7 @@ func (p *politeiawww) getVoteSummaries(tokens []string, bestBlock uint64) (map[s
 		return voteSummaries, nil
 	}
 
-	r, err := p.decredBatchVoteSummary(tokens)
+	r, err := p.decredBatchVoteSummary(tokensToLookup)
 	if err != nil {
 		return nil, err
 	}
@@ -943,6 +943,8 @@ func (p *politeiawww) getVoteSummaries(tokens []string, bestBlock uint64) (map[s
 
 		endHeight, err := strconv.ParseUint(summary.EndHeight, 10, 64)
 		if err != nil {
+			log.Errorf("getVoteSummaries: ParseUint "+
+				"failed on '%v': %v", summary.EndHeight, err)
 			endHeight = 0
 		}
 
@@ -1680,7 +1682,7 @@ func (p *politeiawww) getVoteStatusReply(token string) (*www.VoteStatusReply, bo
 		return nil, false
 	}
 
-	totalVotes := uint64(0)
+	var totalVotes uint64
 	for _, or := range vs.Results {
 		totalVotes += or.VotesReceived
 	}
