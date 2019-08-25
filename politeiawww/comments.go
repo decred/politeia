@@ -105,8 +105,9 @@ func (cs *counters) subtract(v int64) {
 	}
 }
 
-// updateCommentScore calculates the comment score for the specified comment
-// then updates the in-memory comment score cache.
+// updateCommentScore calculates the comment score for the specified comment,
+// updates the in-memory comment score cache and returns the up / down vote
+// counts.
 func (p *politeiawww) updateCommentScore(token, commentID string) (uint64, uint64, error) {
 	log.Tracef("updateCommentScore: %v %v", token, commentID)
 
