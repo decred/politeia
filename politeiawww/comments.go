@@ -165,14 +165,14 @@ func (p *politeiawww) updateCommentScore(token, commentID string) (uint64, uint6
 			// New action is the same as the previous action so we
 			// remove the previous action from the vote score
 			score -= prevAction
-			votes.subtract(action)
+			votes.subtract(prevAction)
 			userActions[userID] = 0
 
 		case prevAction != action:
 			// New action is different than the previous action so
 			// we remove the previous action from the vote score..
 			score -= prevAction
-			votes.subtract(action)
+			votes.subtract(prevAction)
 
 			// ..and then add the new action to the vote score
 			score += action
