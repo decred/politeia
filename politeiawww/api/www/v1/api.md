@@ -1834,7 +1834,8 @@ Allows a user to up or down vote a comment
 | | Type | Description |
 |-|-|-|
 | total | uint64 | Total number of up and down votes |
-| result | int64 | Vote score |
+| upvotes | uint64 | Pro votes |
+| downvotes | uint64 | Contra votes |
 | receipt | string | Server signature of client signature |
 | error | Error if something went wront during liking a comment
 **Example:**

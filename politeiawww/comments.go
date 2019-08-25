@@ -37,7 +37,7 @@ func (p *politeiawww) initCommentScores() error {
 	// simpler. This only gets run on startup so I'm not that
 	// worried about performance for right now.
 	for _, v := range ir.Comments {
-		_, err := p.updateCommentScore(v.Token, v.CommentID)
+		_, _, err := p.updateCommentScore(v.Token, v.CommentID)
 		if err != nil {
 			return fmt.Errorf("updateCommentScore: %v", err)
 		}
@@ -80,15 +80,40 @@ func (p *politeiawww) getComment(token, commentID string) (*www.Comment, error) 
 	return &c, nil
 }
 
+// counters is a struct that helps us keep track of up/down votes.
+type counters struct {
+	up   uint64
+	down uint64
+}
+
+// add increases up / down votes if the value passed is positive / negative.
+func (cs *counters) add(v int64) {
+	if v < 0 {
+		cs.down += uint64(-v)
+	} else {
+		cs.up += uint64(v)
+	}
+}
+
+// subtract decreases up / down votes if the value passed is positive /
+// negative.
+func (cs *counters) subtract(v int64) {
+	if v < 0 {
+		cs.down -= uint64(-v)
+	} else {
+		cs.up -= uint64(v)
+	}
+}
+
 // updateCommentScore calculates the comment score for the specified comment
 // then updates the in-memory comment score cache.
-func (p *politeiawww) updateCommentScore(token, commentID string) (int64, error) {
+func (p *politeiawww) updateCommentScore(token, commentID string) (uint64, uint64, error) {
 	log.Tracef("updateCommentScore: %v %v", token, commentID)
 
 	// Fetch all comment likes for the specified comment
 	likes, err := p.decredCommentLikes(token, commentID)
 	if err != nil {
-		return 0, fmt.Errorf("decredLikeComments: %v", err)
+		return 0, 0, fmt.Errorf("decredLikeComments: %v", err)
 	}
 
 	// Sanity check. Like comments should already be sorted in
@@ -107,18 +132,19 @@ func (p *politeiawww) updateCommentScore(token, commentID string) (int64, error)
 	// twice results in a net score of 0 because the second upvote
 	// is actually the user taking away their original upvote.
 	var score int64
+	var votes counters
 	userActions := make(map[string]int64) // [userID]action
 	for _, v := range likes {
 		action, err := strconv.ParseInt(v.Action, 10, 64)
 		if err != nil {
-			return 0, fmt.Errorf("parse action '%v' failed on "+
+			return 0, 0, fmt.Errorf("parse action '%v' failed on "+
 				"commentID %v: %v", v.Action, v.CommentID, err)
 		}
 
 		// Lookup the userID of the comment author
 		u, err := p.db.UserGetByPubKey(v.PublicKey)
 		if err != nil {
-			return 0, fmt.Errorf("user lookup failed for pubkey %v",
+			return 0, 0, fmt.Errorf("user lookup failed for pubkey %v",
 				v.PublicKey)
 		}
 		userID := u.ID.String()
@@ -132,20 +158,25 @@ func (p *politeiawww) updateCommentScore(token, commentID string) (int64, error)
 			// No previous action so we add the new action to the
 			// vote score
 			score += action
+			votes.add(action)
 			userActions[userID] = action
 
 		case prevAction == action:
 			// New action is the same as the previous action so we
 			// remove the previous action from the vote score
 			score -= prevAction
+			votes.subtract(action)
 			userActions[userID] = 0
 
 		case prevAction != action:
 			// New action is different than the previous action so
-			// we remove the previous action from the vote score
-			// and then add the new action to the vote score
+			// we remove the previous action from the vote score..
 			score -= prevAction
+			votes.subtract(action)
+
+			// ..and then add the new action to the vote score
 			score += action
+			votes.add(action)
 			userActions[userID] = action
 		}
 	}
@@ -153,7 +184,7 @@ func (p *politeiawww) updateCommentScore(token, commentID string) (int64, error)
 	// Set final comment likes score
 	p.commentScores[token+commentID] = score
 
-	return score, nil
+	return votes.up, votes.down, nil
 }
 
 func validateComment(c www.NewComment) error {
@@ -571,7 +602,7 @@ func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www
 	}
 
 	// Update comment score in the in-memory cache
-	result, err := p.updateCommentScore(lc.Token, lc.CommentID)
+	upvotes, downvotes, err := p.updateCommentScore(lc.Token, lc.CommentID)
 	if err != nil {
 		log.Criticalf("processLikeComment: update comment score "+
 			"failed token:%v commentID:%v error:%v", lc.Token,
@@ -579,9 +610,10 @@ func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www
 	}
 
 	return &www.LikeCommentReply{
-		Result:  result,
-		Receipt: lcr.Receipt,
-		Error:   lcr.Error,
+		Upvotes:   upvotes,
+		Downvotes: downvotes,
+		Receipt:   lcr.Receipt,
+		Error:     lcr.Error,
 	}, nil
 }
 

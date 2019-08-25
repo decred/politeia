@@ -1007,10 +1007,11 @@ type LikeComment struct {
 // LikeCommentReply returns the current up/down vote result.
 type LikeCommentReply struct {
 	// XXX we probably need a sequence numkber or something here and some sort of rate limit
-	Total   uint64 `json:"total"`           // Total number of up and down votes
-	Result  int64  `json:"result"`          // Current tally of likes, can be negative
-	Receipt string `json:"receipt"`         // Server signature of client signature
-	Error   string `json:"error,omitempty"` // Error if something went wrong during liking a comment
+	Total     uint64 `json:"total"`           // Total number of up and down votes
+	Upvotes   uint64 `json:"upvotes"`         // Current tally of pro votes
+	Downvotes uint64 `json:"downvotes"`       // Current tally of contra votes
+	Receipt   string `json:"receipt"`         // Server signature of client signature
+	Error     string `json:"error,omitempty"` // Error if something went wrong during liking a comment
 }
 
 // CensorComment allows an admin to censor a comment. The signature and
