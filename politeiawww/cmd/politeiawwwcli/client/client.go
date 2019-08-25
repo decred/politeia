@@ -973,29 +973,6 @@ func (c *Client) GetAllVetted(gav *v1.GetAllVetted) (*v1.GetAllVettedReply, erro
 	return &gavr, nil
 }
 
-// GetAllUnvetted retrieves a page of unvetted proposals.
-func (c *Client) GetAllUnvetted(gau *v1.GetAllUnvetted) (*v1.GetAllUnvettedReply, error) {
-	responseBody, err := c.makeRequest("GET", v1.RouteAllUnvetted, gau)
-	if err != nil {
-		return nil, err
-	}
-
-	var gaur v1.GetAllUnvettedReply
-	err = json.Unmarshal(responseBody, &gaur)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal GetAllUnvettedReply: %v", err)
-	}
-
-	if c.cfg.Verbose {
-		err := prettyPrintJSON(gaur)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &gaur, nil
-}
-
 // NewComment submits a new proposal comment for the logged in user.
 func (c *Client) NewComment(nc *v1.NewComment) (*v1.NewCommentReply, error) {
 	responseBody, err := c.makeRequest("POST", v1.RouteNewComment, nc)
@@ -1513,30 +1490,6 @@ func (c *Client) UserPaymentsRescan(upr *v1.UserPaymentsRescan) (*v1.UserPayment
 	}
 
 	return &uprr, nil
-}
-
-// ProposalsStats retrieves summary statistics for the politeiawww proposal
-// inventory.
-func (c *Client) ProposalsStats() (*v1.ProposalsStatsReply, error) {
-	responseBody, err := c.makeRequest("GET", v1.RoutePropsStats, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var psr v1.ProposalsStatsReply
-	err = json.Unmarshal(responseBody, &psr)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal ProposalsStatsReply: %v", err)
-	}
-
-	if c.cfg.Verbose {
-		err := prettyPrintJSON(psr)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &psr, nil
 }
 
 // UserProposalCredits retrieves the proposal credit history for the logged

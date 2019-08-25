@@ -34,12 +34,11 @@ import (
 )
 
 const (
-	defaultLogLevel              = "info"
-	defaultLogDirname            = "logs"
-	defaultLogFilename           = "politeiawww.log"
-	adminLogFilename             = "admin.log"
-	defaultIdentityFilename      = "identity.json"
-	defaultEncryptionKeyFilename = "sbox.key"
+	defaultLogLevel         = "info"
+	defaultLogDirname       = "logs"
+	defaultLogFilename      = "politeiawww.log"
+	adminLogFilename        = "admin.log"
+	defaultIdentityFilename = "identity.json"
 
 	defaultMainnetPort = "4443"
 	defaultTestnetPort = "4443"

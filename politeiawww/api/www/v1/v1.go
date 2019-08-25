@@ -44,7 +44,6 @@ const (
 	RouteTokenInventory           = "/proposals/tokeninventory"
 	RouteBatchProposals           = "/proposals/batch"
 	RouteAllVetted                = "/proposals/vetted"
-	RouteAllUnvetted              = "/proposals/unvetted"
 	RouteNewProposal              = "/proposals/new"
 	RouteEditProposal             = "/proposals/edit"
 	RouteAuthorizeVote            = "/proposals/authorizevote"
@@ -52,7 +51,6 @@ const (
 	RouteActiveVote               = "/proposals/activevote" // XXX rename to ActiveVotes
 	RouteCastVotes                = "/proposals/castvotes"
 	RouteAllVoteStatus            = "/proposals/votestatus"
-	RoutePropsStats               = "/proposals/stats"
 	RouteProposalPaywallDetails   = "/proposals/paywall"
 	RouteProposalPaywallPayment   = "/proposals/paywallpayment"
 	RouteProposalDetails          = "/proposals/{token:[A-z0-9]{64}}"
@@ -766,32 +764,6 @@ type SetProposalStatusReply struct {
 	Proposal ProposalRecord `json:"proposal"`
 }
 
-// GetAllUnvetted retrieves all unvetted proposals; the maximum number returned
-// is dictated by ProposalListPageSize.
-//
-// This command optionally takes either a Before or After parameter, which
-// specify a proposal's censorship token. If After is specified, the "page"
-// returned starts after the provided censorship token, when sorted in reverse
-// chronological order. A simplified example is shown below.
-//
-// input: [5,4,3,2,1]
-// after=3
-// output: [2,1]
-//
-// If Before is specified, the "page" returned starts before the provided
-// proposal censorship token, when sorted in reverse chronological order.
-//
-// Note: This call requires admin privileges.
-type GetAllUnvetted struct {
-	Before string `schema:"before"`
-	After  string `schema:"after"`
-}
-
-// GetAllUnvettedReply is used to reply with a list of all unvetted proposals.
-type GetAllUnvettedReply struct {
-	Proposals []ProposalRecord `json:"proposals"`
-}
-
 // GetAllVetted retrieves vetted proposals; the maximum number returned is
 // dictated by ProposalListPageSize.
 //
@@ -1153,18 +1125,6 @@ type EditProposalReply struct {
 	Proposal ProposalRecord `json:"proposal"`
 }
 
-// ProposalsStats is a command to fetch the stats for all proposals
-type ProposalsStats struct{}
-
-// ProposalsStatsReply returns the stats for all proposals
-type ProposalsStatsReply struct {
-	NumOfCensored        int `json:"numofcensored"`        // Counting number of censored proposals
-	NumOfUnvetted        int `json:"numofunvetted"`        // Counting number of unvetted proposals
-	NumOfUnvettedChanges int `json:"numofunvettedchanges"` // Counting number of proposals with unvetted changes
-	NumOfPublic          int `json:"numofpublic"`          // Counting number of public proposals
-	NumOfAbandoned       int `json:"numofabandoned"`       // Counting number of abandoned proposals
-}
-
 // TokenInventory retrieves the censorship record tokens of all proposals in
 // the inventory, categorized by stage of the voting process.
 type TokenInventory struct{}
@@ -1188,8 +1148,8 @@ type TokenInventoryReply struct {
 	Abandoned []string `json:"abandoned"` // Tokens of all props that have been abandoned
 
 	// Unvetted
-	Unreviewed []string `json:"unreviewed,omitempty"` // Tokens of all unreviewed props
-	Censored   []string `json:"censored,omitempty"`   // Tokens of all censored props
+	Unreviewed []string `json:"unreviewed"` // Tokens of all unreviewed props
+	Censored   []string `json:"censored"`   // Tokens of all censored props
 }
 
 // Websocket commands

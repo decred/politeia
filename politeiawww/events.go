@@ -28,7 +28,6 @@ const (
 	EventTypeProposalEdited
 	EventTypeProposalVoteStarted
 	EventTypeProposalVoteAuthorized
-	EventTypeProposalVoteFinished
 	EventTypeComment
 	EventTypeUserManage
 	EventTypeInvoiceComment      // CMS Type
