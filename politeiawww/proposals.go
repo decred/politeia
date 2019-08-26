@@ -918,7 +918,7 @@ func (p *politeiawww) getVoteSummaries(tokens []string, bestBlock uint64) (map[s
 	voteSummaries := make(map[string]www.VoteSummary)
 	tokensToLookup := make([]string, 0, len(tokens))
 
-	p.Lock()
+	p.RLock()
 	for _, token := range tokens {
 		vs, ok := p.voteSummaries[token]
 		if ok {
@@ -927,7 +927,7 @@ func (p *politeiawww) getVoteSummaries(tokens []string, bestBlock uint64) (map[s
 			tokensToLookup = append(tokensToLookup, token)
 		}
 	}
-	p.Unlock()
+	p.RUnlock()
 
 	if len(tokensToLookup) == 0 {
 		return voteSummaries, nil
@@ -1001,7 +1001,8 @@ func (p *politeiawww) processBatchVoteSummary(batchVoteSummary www.BatchVoteSumm
 	}
 
 	if len(summaries) != len(batchVoteSummary.Tokens) {
-		tokensNotFound := make([]string, 0, len(batchVoteSummary.Tokens)-len(summaries))
+		tokensNotFound := make([]string, 0,
+			len(batchVoteSummary.Tokens)-len(summaries))
 
 		for _, token := range batchVoteSummary.Tokens {
 			if _, exists := summaries[token]; !exists {

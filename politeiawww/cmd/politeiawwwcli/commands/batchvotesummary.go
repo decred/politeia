@@ -8,12 +8,11 @@ import (
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 )
 
-// BatchVoteSummaryCmd retrieves a set of proposals.
+// BatchVoteSummaryCmd retrieves a set of proposal vote summaries.
 type BatchVoteSummaryCmd struct{}
 
-// Execute executes the batch proposals command.
+// Execute executes the batch vote summaries command.
 func (cmd *BatchVoteSummaryCmd) Execute(args []string) error {
-	// Get proposals
 	bpr, err := client.BatchVoteSummary(&v1.BatchVoteSummary{
 		Tokens: args,
 	})
@@ -21,7 +20,6 @@ func (cmd *BatchVoteSummaryCmd) Execute(args []string) error {
 		return err
 	}
 
-	// Print proposals
 	return printJSON(bpr)
 }
 
