@@ -75,7 +75,8 @@ func (p *politeiawww) getComment(token, commentID string) (*www.Comment, error) 
 		log.Errorf("getComment: comment score lookup failed for "+
 			"token:%v commentID:%v", token, commentID)
 	}
-	c.ResultVotes = score
+	c.Upvotes = score.up
+	c.Downvotes = score.down
 
 	return &c, nil
 }

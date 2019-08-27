@@ -735,7 +735,8 @@ func (p *politeiawww) getPropComments(token string) ([]www.Comment, error) {
 				"failed: token:%v commentID:%v pubKey:%v", v.Token,
 				v.CommentID, v.PublicKey)
 		}
-		comments[i].ResultVotes = score
+		comments[i].Upvotes = score.up
+		comments[i].Downvotes = score.down
 	}
 
 	return comments, nil
