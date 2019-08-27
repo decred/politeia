@@ -507,7 +507,8 @@ sorted.
 | publickey | string | Public key from the client side, sent to politeiawww for verification |
 | signature | string | Signature of Token, ParentID and Comment |
 | receipt | string | Server signature of the client Signature |
-| resultvotes | int64 | Vote score |
+| upvotes | uint64 | Pro votes |
+| downvotes | uint64 | Contra votes |
 
 **Example**
 
@@ -535,7 +536,8 @@ Reply:
     "userid": "124",
     "username": "admin",
     "totalvotes": 0,
-    "resultvotes": 0
+    "upvotes": 0,
+    "downvotes": 0
   },{
     "comment":"but i did some good work!",
     "commentid": "4",
@@ -548,7 +550,8 @@ Reply:
     "userid": "122",
     "username": "steve",
     "totalvotes": 0,
-    "resultvotes": 0
+    "upvotes": 0,
+    "downvotes": 0
   },{
     "comment":"you're right, approving",
     "commentid": "4",
@@ -561,7 +564,8 @@ Reply:
     "userid": "124",
     "username": "admin",
     "totalvotes": 0,
-    "resultvotes": 0
+    "upvotes": 0,
+    "downvotes": 0
   }],
   "accesstime": 1543539276
 }
