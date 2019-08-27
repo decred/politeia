@@ -515,7 +515,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	for _, v := range gcr.Comments {
 		if v.CommentID == "1" {
 			if v.Upvotes != 3 {
-				return fmt.Errorf("comment result up votes got %v, want 1",
+				return fmt.Errorf("comment result up votes got %v, want 3",
 					v.Upvotes)
 			}
 			if v.Downvotes != 1 {
