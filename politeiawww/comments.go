@@ -81,9 +81,8 @@ func (p *politeiawww) getComment(token, commentID string) (*www.Comment, error) 
 	return &c, nil
 }
 
-// updateCommentScore calculates the comment score for the specified comment,
-// updates the in-memory comment score cache and returns the up / down vote
-// counts.
+// updateCommentScore calculates the up/down votes for the specified comment,
+// updates the in-memory comment score cache with these and returns them.
 func (p *politeiawww) updateCommentScore(token, commentID string) (uint64, uint64, error) {
 	log.Tracef("updateCommentScore: %v %v", token, commentID)
 
@@ -108,7 +107,6 @@ func (p *politeiawww) updateCommentScore(token, commentID string) (uint64, uint6
 	// user's previous action. Example: a user upvoting a comment
 	// twice results in a net score of 0 because the second upvote
 	// is actually the user taking away their original upvote.
-	var score int64
 	var votes counters
 	userActions := make(map[string]int64) // [userID]action
 	for _, v := range likes {
@@ -134,32 +132,28 @@ func (p *politeiawww) updateCommentScore(token, commentID string) (uint64, uint6
 		case prevAction == 0:
 			// No previous action so we add the new action to the
 			// vote score
-			score += action
 			votes.add(action)
 			userActions[userID] = action
 
 		case prevAction == action:
 			// New action is the same as the previous action so we
 			// remove the previous action from the vote score
-			score -= prevAction
 			votes.subtract(prevAction)
 			userActions[userID] = 0
 
 		case prevAction != action:
 			// New action is different than the previous action so
 			// we remove the previous action from the vote score..
-			score -= prevAction
 			votes.subtract(prevAction)
 
 			// ..and then add the new action to the vote score
-			score += action
 			votes.add(action)
 			userActions[userID] = action
 		}
 	}
 
 	// Set final comment likes score
-	p.commentScores[token+commentID] = score
+	p.commentScores[token+commentID] = votes
 
 	return votes.up, votes.down, nil
 }
@@ -305,7 +299,7 @@ func (p *politeiawww) processNewComment(nc www.NewComment, u *user.User) (*www.N
 
 	// Add comment to commentScores in-memory cache
 	p.Lock()
-	p.commentScores[nc.Token+ncr.CommentID] = 0
+	p.commentScores[nc.Token+ncr.CommentID] = counters{up: 0, down: 0}
 	p.Unlock()
 
 	// Get comment from cache
@@ -421,7 +415,7 @@ func (p *politeiawww) processNewCommentInvoice(nc www.NewComment, u *user.User) 
 
 	// Add comment to commentScores in-memory cache
 	p.Lock()
-	p.commentScores[nc.Token+ncr.CommentID] = 0
+	p.commentScores[nc.Token+ncr.CommentID] = counters{up: 0, down: 0}
 	p.Unlock()
 
 	// Get comment from cache
