@@ -6,7 +6,7 @@ package commands
 
 import (
 	"encoding/hex"
-	v1 "politeia/politeiawww/api/www/v1"
+	"github.com/decred/politeia/politeiawww/api/www/v1"
 )
 
 // NewCommentCmd submits a new proposal comment.
