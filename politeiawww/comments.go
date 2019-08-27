@@ -70,7 +70,7 @@ func (p *politeiawww) getComment(token, commentID string) (*www.Comment, error) 
 	p.RLock()
 	defer p.RUnlock()
 
-	score, ok := p.commentScores[token+commentID]
+	score, ok := p.commentVotes[token+commentID]
 	if !ok {
 		log.Errorf("getComment: comment score lookup failed for "+
 			"token:%v commentID:%v", token, commentID)
@@ -153,7 +153,7 @@ func (p *politeiawww) updateCommentVotes(token, commentID string) (counters, err
 	}
 
 	// Update in-memory cache
-	p.commentScores[token+commentID] = votes
+	p.commentVotes[token+commentID] = votes
 
 	return votes, nil
 }
@@ -297,9 +297,9 @@ func (p *politeiawww) processNewComment(nc www.NewComment, u *user.User) (*www.N
 		return nil, err
 	}
 
-	// Add comment to commentScores in-memory cache
+	// Add comment to commentVotes in-memory cache
 	p.Lock()
-	p.commentScores[nc.Token+ncr.CommentID] = counters{}
+	p.commentVotes[nc.Token+ncr.CommentID] = counters{}
 	p.Unlock()
 
 	// Get comment from cache
@@ -413,9 +413,9 @@ func (p *politeiawww) processNewCommentInvoice(nc www.NewComment, u *user.User) 
 		return nil, err
 	}
 
-	// Add comment to commentScores in-memory cache
+	// Add comment to commentVotes in-memory cache
 	p.Lock()
-	p.commentScores[nc.Token+ncr.CommentID] = counters{}
+	p.commentVotes[nc.Token+ncr.CommentID] = counters{}
 	p.Unlock()
 
 	// Get comment from cache
