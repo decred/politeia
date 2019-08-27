@@ -514,9 +514,13 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 	for _, v := range gcr.Comments {
 		if v.CommentID == "1" {
-			if v.ResultVotes != -1 {
-				return fmt.Errorf("comment result votes got %v, want -1",
-					v.ResultVotes)
+			if v.Upvotes != 3 {
+				return fmt.Errorf("comment result up votes got %v, want 1",
+					v.Upvotes)
+			}
+			if v.Downvotes != 1 {
+				return fmt.Errorf("comment result down votes got %v, want 1",
+					v.Downvotes)
 			}
 		}
 	}
@@ -1023,9 +1027,13 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 		return fmt.Errorf("comment ID got %v, want 1",
 			c0.CommentID)
 
-	case c0.ResultVotes != -1:
-		return fmt.Errorf("comment %v result votes got %v, want -1",
-			c0.CommentID, c0.ResultVotes)
+	case c0.Upvotes != 3:
+		return fmt.Errorf("comment %v result up votes got %v, want 3",
+			c0.CommentID, c0.Upvotes)
+
+	case c0.Downvotes != 1:
+		return fmt.Errorf("comment %v result down votes got %v, want 1",
+			c0.CommentID, c0.Downvotes)
 
 	case c1.CommentID != "2":
 		return fmt.Errorf("comment ID got %v, want 2",
