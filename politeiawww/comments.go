@@ -66,17 +66,17 @@ func (p *politeiawww) getComment(token, commentID string) (*www.Comment, error) 
 		c.Username = u.Username
 	}
 
-	// Lookup comment vote score
+	// Lookup comment votes
 	p.RLock()
 	defer p.RUnlock()
 
-	score, ok := p.commentVotes[token+commentID]
+	votes, ok := p.commentVotes[token+commentID]
 	if !ok {
-		log.Errorf("getComment: comment score lookup failed for "+
+		log.Errorf("getComment: comment votes lookup failed for "+
 			"token:%v commentID:%v", token, commentID)
 	}
-	c.Upvotes = score.up
-	c.Downvotes = score.down
+	c.Upvotes = votes.up
+	c.Downvotes = votes.down
 
 	return &c, nil
 }
