@@ -21,6 +21,31 @@ import (
 	"github.com/decred/politeia/util"
 )
 
+// counters is a struct that helps us keep track of up/down votes.
+type counters struct {
+	up   uint64
+	down uint64
+}
+
+// add increases up / down votes if the value passed is positive / negative.
+func (cs *counters) add(v int64) {
+	if v < 0 {
+		cs.down += uint64(-v)
+	} else {
+		cs.up += uint64(v)
+	}
+}
+
+// subtract decreases up / down votes if the value passed is positive /
+// negative.
+func (cs *counters) subtract(v int64) {
+	if v < 0 {
+		cs.down -= uint64(-v)
+	} else {
+		cs.up -= uint64(v)
+	}
+}
+
 // initCommentScores populates the comment scores cache.
 func (p *politeiawww) initCommentScores() error {
 	log.Tracef("initCommentScores")
