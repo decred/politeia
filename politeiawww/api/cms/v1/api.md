@@ -550,7 +550,7 @@ Reply:
     "userid": "122",
     "username": "steve",
     "totalvotes": 0,
-    "resultvotes": 0,
+    "resultvotes": 0
   },{
     "comment":"you're right, approving",
     "commentid": "4",
