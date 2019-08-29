@@ -29,9 +29,9 @@ const (
 // CastVote is a signed vote.
 type CastVote struct {
 	Token     string `json:"token"`     // Proposal ID
-	Ticket    string `json:"ticket"`    // Ticket ID
+	Pubkey    string `json:"ticket"`    // Voting user's pubkey
 	VoteBit   string `json:"votebit"`   // Vote bit that was selected, this is encode in hex
-	Signature string `json:"signature"` // Signature of Token+Ticket+VoteBit
+	Signature string `json:"signature"` // Signature of Tokenhrm +VoteBit
 }
 
 // Ballot is a batch of votes that are sent to the server.
@@ -39,12 +39,12 @@ type Ballot struct {
 	Votes []CastVote `json:"votes"`
 }
 
-// EncodeCastVotes encodes CastVotes into a JSON byte slice.
+// EncodeBallot encodes Ballot into a JSON byte slice.
 func EncodeBallot(b Ballot) ([]byte, error) {
 	return json.Marshal(b)
 }
 
-// DecodeCastVotes decodes a JSON byte slice into a CastVotes.
+// DecodeBallot decodes a JSON byte slice into a Ballot.
 func DecodeBallot(payload []byte) (*Ballot, error) {
 	var b Ballot
 

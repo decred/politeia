@@ -6,7 +6,6 @@ package gitbe
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -31,19 +30,12 @@ const (
 	cmsPluginInventory = "inventory"
 )
 
-// FlushRecord is a structure that is stored on disk when a journal has been
-// flushed.
-type FlushRecord struct {
-	Version   string `json:"version"`   // Version
-	Timestamp string `json:"timestamp"` // Timestamp
-}
-
-type CastVoteJournal struct {
+type CastCMSVoteJournal struct {
 	CastVote cmsplugin.CastVote `json:"castvote"` // Client side vote
 	Receipt  string             `json:"receipt"`  // Signature of CastVote.Signature
 }
 
-func encodeCastVoteJournal(cvj CastVoteJournal) ([]byte, error) {
+func encodeCastCMSVoteJournal(cvj CastCMSVoteJournal) ([]byte, error) {
 	b, err := json.Marshal(cvj)
 	if err != nil {
 		return nil, err
@@ -52,7 +44,7 @@ func encodeCastVoteJournal(cvj CastVoteJournal) ([]byte, error) {
 	return b, nil
 }
 
-func decodeCastVoteJournal(payload []byte) (*CastVoteJournal, error) {
+func decodeCastCMSVoteJournal(payload []byte) (*CastVoteJournal, error) {
 	var cvj CastVoteJournal
 
 	err := json.Unmarshal(payload, &cvj)
@@ -71,9 +63,6 @@ var (
 	// XXX why is this a pointer? Convert if possible after investigating
 	cmsPluginVoteCache         = make(map[string]*cmsplugin.StartVote)     // [token]startvote
 	cmsPluginVoteSnapshotCache = make(map[string]cmsplugin.StartVoteReply) // [token]StartVoteReply
-
-	// Plugin specific data that CANNOT be treated as metadata
-	pluginDataDir = filepath.Join("plugins", "cms")
 
 	// Cached values, requires lock. These caches are built on startup.
 	cmsPluginVotesCache = make(map[string]map[string]struct{}) // [token][ticket]struct{}
@@ -179,11 +168,6 @@ func setCmsPluginHook(name string, f func(string) error) {
 	cmsPluginHooks[name] = f
 }
 
-func (g *gitBackEnd) propExists(repo, token string) bool {
-	_, err := os.Stat(pijoin(repo, token))
-	return err == nil
-}
-
 func dccSnapshot(hash string) ([]string, error) {
 	/*
 		REMOVE TICKET SNAPSHOT AND REPLACE WITH USER WEIGHT SNAPSHOT
@@ -211,107 +195,7 @@ func dccSnapshot(hash string) ([]string, error) {
 	return tickets, nil
 }
 
-// pluginAuthorizeVote updates the vetted repo with vote authorization
-// metadata from the proposal author.
-func (g *gitBackEnd) pluginAuthorizeVote(payload string) (string, error) {
-	log.Tracef("pluginAuthorizeVote")
-
-	// Decode authorize vote
-	authorize, err := cmsplugin.DecodeAuthorizeVote([]byte(payload))
-	if err != nil {
-		return "", fmt.Errorf("DecodeAuthorizeVote %v", err)
-	}
-	token := authorize.Token
-
-	// Verify proposal exists
-	if !g.propExists(g.vetted, token) {
-		return "", fmt.Errorf("unknown proposal: %v", token)
-	}
-
-	// Get identity
-	// XXX this should become part of some sort of context
-	fiJSON, ok := decredPluginSettings[decredPluginIdentity]
-	if !ok {
-		return "", fmt.Errorf("full identity not set")
-	}
-	fi, err := identity.UnmarshalFullIdentity([]byte(fiJSON))
-	if err != nil {
-		return "", fmt.Errorf("UnmarshalFullIdentity: %v", err)
-	}
-
-	// Sign signature
-	r := fi.SignMessage([]byte(authorize.Signature))
-	receipt := hex.EncodeToString(r[:])
-
-	// Create on disk structure
-	t := time.Now().Unix()
-	av := cmsplugin.AuthorizeVote{
-		Version:   cmsplugin.VersionAuthorizeVote,
-		Receipt:   receipt,
-		Timestamp: t,
-		Action:    authorize.Action,
-		Token:     token,
-		Signature: authorize.Signature,
-		PublicKey: authorize.PublicKey,
-	}
-	avb, err := cmsplugin.EncodeAuthorizeVote(av)
-	if err != nil {
-		return "", fmt.Errorf("EncodeAuthorizeVote: %v", err)
-	}
-	tokenb, err := util.ConvertStringToken(token)
-	if err != nil {
-		return "", fmt.Errorf("ConvertStringToken %v", err)
-	}
-
-	// Verify proposal state
-	g.Lock()
-	defer g.Unlock()
-	if g.shutdown {
-		return "", backend.ErrShutdown
-	}
-
-	_, err = os.Stat(pijoin(joinLatest(g.vetted, token),
-		fmt.Sprintf("%02v%v", cmsplugin.MDStreamVoteBits,
-			defaultMDFilenameSuffix)))
-	if err == nil {
-		// Vote has already started. This should not happen.
-		return "", fmt.Errorf("proposal vote already started: %v",
-			token)
-	}
-
-	// Update metadata
-	err = g._updateVettedMetadata(tokenb, nil, []backend.MetadataStream{
-		{
-			ID:      cmsplugin.MDStreamAuthorizeVote,
-			Payload: string(avb),
-		},
-	})
-	if err != nil {
-		return "", fmt.Errorf("_updateVettedMetadata: %v", err)
-	}
-
-	// Prepare reply
-	version, err := getLatest(pijoin(g.vetted, token))
-	if err != nil {
-		return "", fmt.Errorf("getLatest: %v", err)
-	}
-	avr := cmsplugin.AuthorizeVoteReply{
-		Action:        av.Action,
-		RecordVersion: version,
-		Receipt:       av.Receipt,
-		Timestamp:     av.Timestamp,
-	}
-	avrb, err := cmsplugin.EncodeAuthorizeVoteReply(avr)
-	if err != nil {
-		return "", err
-	}
-
-	log.Infof("Vote authorized for %v", token)
-
-	return string(avrb), nil
-}
-
-func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
+func (g *gitBackEnd) pluginStartCMSVote(payload string) (string, error) {
 	vote, err := cmsplugin.DecodeStartVote([]byte(payload))
 	if err != nil {
 		return "", fmt.Errorf("DecodeStartVote %v", err)
@@ -351,15 +235,16 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("bestBlock %v", err)
 	}
-	// 3. Get ticket pool snapshot
-	snapshot, err := snapshot(snapshotBlock.Hash)
-	if err != nil {
-		return "", fmt.Errorf("snapshot %v", err)
-	}
-	if len(snapshot) == 0 {
-		return "", fmt.Errorf("no eligible voters for %v", token)
-	}
-
+	/*
+		// 3. Get ticket pool snapshot
+		snapshot, err := snapshot(snapshotBlock.Hash)
+		if err != nil {
+			return "", fmt.Errorf("snapshot %v", err)
+		}
+		if len(snapshot) == 0 {
+			return "", fmt.Errorf("no eligible voters for %v", token)
+		}
+	*/
 	// Make sure vote duration is within min/max range
 	// XXX calculate this value for testnet instead of using hard coded values.
 	if vote.Vote.Duration < cmsplugin.VoteDurationMin ||
@@ -369,7 +254,7 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 			vote.Vote.Duration, cmsplugin.VoteDurationMin,
 			cmsplugin.VoteDurationMax)
 	}
-
+	snapshot := make(map[string]int64)
 	svr := cmsplugin.StartVoteReply{
 		Version: cmsplugin.VersionStartVoteReply,
 		StartBlockHeight: strconv.FormatUint(uint64(snapshotBlock.Height),
@@ -379,7 +264,7 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 		EndHeight: strconv.FormatUint(uint64(snapshotBlock.Height+
 			vote.Vote.Duration+
 			uint32(g.activeNetParams.TicketMaturity)), 10),
-		EligibleTickets: snapshot,
+		EligibleUserWeights: snapshot,
 	}
 	svrb, err := cmsplugin.EncodeStartVoteReply(svr)
 	if err != nil {
@@ -401,9 +286,6 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 		return "", backend.ErrShutdown
 	}
 
-	_, err1 := os.Stat(pijoin(joinLatest(g.vetted, token),
-		fmt.Sprintf("%02v%v", cmsplugin.MDStreamAuthorizeVote,
-			defaultMDFilenameSuffix)))
 	_, err2 := os.Stat(pijoin(joinLatest(g.vetted, token),
 		fmt.Sprintf("%02v%v", cmsplugin.MDStreamVoteBits,
 			defaultMDFilenameSuffix)))
@@ -411,11 +293,7 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 		fmt.Sprintf("%02v%v", cmsplugin.MDStreamVoteSnapshot,
 			defaultMDFilenameSuffix)))
 
-	if err1 != nil {
-		// Authorize vote md is not present
-		return "", fmt.Errorf("no authorize vote metadata: %v",
-			token)
-	} else if err2 != nil && err3 != nil {
+	if err2 != nil && err3 != nil {
 		// Vote has not started, continue
 	} else if err2 == nil && err3 == nil {
 		// Vote has started
@@ -425,21 +303,6 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 		// This is bad, both files should exist or not exist
 		return "", fmt.Errorf("proposal is unknown vote state: %v",
 			token)
-	}
-
-	// Ensure vote authorization has not been revoked
-	b, err := ioutil.ReadFile(pijoin(joinLatest(g.vetted, token),
-		fmt.Sprintf("%02v%v", cmsplugin.MDStreamAuthorizeVote,
-			defaultMDFilenameSuffix)))
-	if err != nil {
-		return "", fmt.Errorf("readfile authorizevote: %v", err)
-	}
-	av, err := cmsplugin.DecodeAuthorizeVote(b)
-	if err != nil {
-		return "", fmt.Errorf("DecodeAuthorizeVote: %v", err)
-	}
-	if av.Action == cmsplugin.AuthVoteActionRevoke {
-		return "", fmt.Errorf("vote authorization revoked")
 	}
 
 	// Store snapshot in metadata
@@ -459,38 +322,12 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 	// Add vote snapshot to in-memory cache
 	cmsPluginVoteSnapshotCache[token] = svr
 
-	log.Infof("Vote started for: %v snapshot %v start %v end %v",
+	log.Infof("CMS Vote started for: %v snapshot %v start %v end %v",
 		token, svr.StartBlockHash, svr.StartBlockHeight,
 		svr.EndHeight)
 
 	// return success and encoded answer
 	return string(svrb), nil
-}
-
-// validateVoteByAddress validates that vote, as specified by the commitment
-// address with largest amount, is signed correctly.
-func (g *gitBackEnd) validateVoteByAddress(token, ticket, addr, votebit, signature string) error {
-	// Recreate message
-	msg := token + ticket + votebit
-
-	// verifyMessage expects base64 encoded sig
-	sig, err := hex.DecodeString(signature)
-	if err != nil {
-		return err
-	}
-
-	// Verify message
-	validated, err := g.verifyMessage(addr, msg,
-		base64.StdEncoding.EncodeToString(sig))
-	if err != nil {
-		return err
-	}
-
-	if !validated {
-		return fmt.Errorf("could not verify message")
-	}
-
-	return nil
 }
 
 // validateVoteBits ensures that the passed in bit is a valid vote option.
@@ -544,10 +381,10 @@ func (g *gitBackEnd) validateVoteBit(token, bit string) error {
 	return _validateVoteBit(sv.Vote, b)
 }
 
-// replayBallot replays voting journalfor given proposal.
+// replayCMSBallot replays voting journalfor given proposal.
 //
 // Functions must be called WITH the lock held.
-func (g *gitBackEnd) replayBallot(token string) error {
+func (g *gitBackEnd) replayCMSBallot(token string) error {
 	// Verify proposal exists, we can run this lockless
 	if !g.propExists(g.vetted, token) {
 		return nil
@@ -586,7 +423,7 @@ func (g *gitBackEnd) replayBallot(token string) error {
 
 			switch action.Action {
 			case journalActionAdd:
-				var cvj CastVoteJournal
+				var cvj CastCMSVoteJournal
 				err = d.Decode(&cvj)
 				if err != nil {
 					return fmt.Errorf("journal add: %v",
@@ -596,17 +433,17 @@ func (g *gitBackEnd) replayBallot(token string) error {
 				token := cvj.CastVote.Token
 				ticket := cvj.CastVote.Ticket
 				// See if the prop already exists
-				if _, ok := decredPluginVotesCache[token]; !ok {
+				if _, ok := cmsPluginVotesCache[token]; !ok {
 					// Create map to track tickets
-					decredPluginVotesCache[token] = make(map[string]struct{})
+					cmsPluginVotesCache[token] = make(map[string]struct{})
 				}
 				// See if we have a duplicate vote
-				if _, ok := decredPluginVotesCache[token][ticket]; ok {
+				if _, ok := cmsPluginVotesCache[token][ticket]; ok {
 					log.Errorf("duplicate cast vote %v %v",
 						token, ticket)
 				}
 				// All good, record vote in cache
-				decredPluginVotesCache[token][ticket] = struct{}{}
+				cmsPluginVotesCache[token][ticket] = struct{}{}
 
 			default:
 				return fmt.Errorf("invalid action: %v",
@@ -624,11 +461,11 @@ func (g *gitBackEnd) replayBallot(token string) error {
 	return nil
 }
 
-// loadVoteSnapshotCache loads the StartVoteReply from disk for the provided
-// token and adds it to the decredPluginVoteSnapshotCache.
+// loadCMSVoteSnapshotCache loads the StartVoteReply from disk for the provided
+// token and adds it to the cmsPluginVoteSnapshotCache.
 //
 // This function must be called WITH the lock held.
-func (g *gitBackEnd) loadVoteSnapshotCache(token string) (*cmsplugin.StartVoteReply, error) {
+func (g *gitBackEnd) loadCMSVoteSnapshotCache(token string) (*cmsplugin.StartVoteReply, error) {
 	// git checkout master
 	err := g.gitCheckout(g.unvetted, "master")
 	if err != nil {
@@ -656,22 +493,22 @@ func (g *gitBackEnd) loadVoteSnapshotCache(token string) (*cmsplugin.StartVoteRe
 		return nil, err
 	}
 
-	decredPluginVoteSnapshotCache[token] = svr
+	cmsPluginVoteSnapshotCache[token] = svr
 
 	return &svr, nil
 }
 
 // voteEndHeight returns the voting period end height for the provided token.
-func (g *gitBackEnd) voteEndHeight(token string) (uint32, error) {
+func (g *gitBackEnd) voteCMSEndHeight(token string) (uint32, error) {
 	g.Lock()
 	defer g.Unlock()
 	if g.shutdown {
 		return 0, backend.ErrShutdown
 	}
 
-	svr, ok := decredPluginVoteSnapshotCache[token]
+	svr, ok := cmsPluginVoteSnapshotCache[token]
 	if !ok {
-		s, err := g.loadVoteSnapshotCache(token)
+		s, err := g.loadCMSVoteSnapshotCache(token)
 		if err != nil {
 			return 0, err
 		}
@@ -691,52 +528,52 @@ func (g *gitBackEnd) voteEndHeight(token string) (uint32, error) {
 // vote is added to the cast vote memory cache.
 //
 // This function must be called WITHOUT the lock held.
-func (g *gitBackEnd) writeVote(v cmsplugin.CastVote, receipt, journalPath string) error {
+func (g *gitBackEnd) writeCMSVote(v cmsplugin.CastVote, receipt, journalPath string) error {
 	g.Lock()
 	defer g.Unlock()
 
 	// Ensure ticket is eligible to vote.
 	// This cache should have already been loaded when the
 	// vote end height was validated, but lets be sure.
-	svr, ok := decredPluginVoteSnapshotCache[v.Token]
+	svr, ok := cmsPluginVoteSnapshotCache[v.Token]
 	if !ok {
-		s, err := g.loadVoteSnapshotCache(v.Token)
+		s, err := g.loadCMSVoteSnapshotCache(v.Token)
 		if err != nil {
 			return fmt.Errorf("loadVoteSnapshotCache: %v",
 				err)
 		}
 		svr = *s
 	}
-	var found bool
-	for _, t := range svr.EligibleTickets {
-		if t == v.Ticket {
-			found = true
-			break
+	/*
+		Check to make sure user is eligible
+		var found bool
+		for _, t := range svr.EligibleUserWeights {
+
 		}
-	}
-	if !found {
-		return errIneligibleTicket
-	}
+		if !found {
+			return errIneligibleTicket
+		}
+	*/
 
 	// Ensure vote is not a duplicate
-	_, ok = decredPluginVotesCache[v.Token]
+	_, ok = cmsPluginVotesCache[v.Token]
 	if !ok {
-		decredPluginVotesCache[v.Token] = make(map[string]struct{})
+		cmsPluginVotesCache[v.Token] = make(map[string]struct{})
 	}
 
-	_, ok = decredPluginVotesCache[v.Token][v.Ticket]
+	_, ok = cmsPluginVotesCache[v.Token][v.Ticket]
 	if ok {
 		return errDuplicateVote
 	}
 
 	// Create journal entry
-	cvj := CastVoteJournal{
+	cvj := CastCMSVoteJournal{
 		CastVote: v,
 		Receipt:  receipt,
 	}
-	blob, err := encodeCastVoteJournal(cvj)
+	blob, err := encodeCastCMSVoteJournal(cvj)
 	if err != nil {
-		return fmt.Errorf("encodeCastVoteJournal: %v",
+		return fmt.Errorf("encodeCastCMSVoteJournal: %v",
 			err)
 	}
 
@@ -749,13 +586,13 @@ func (g *gitBackEnd) writeVote(v cmsplugin.CastVote, receipt, journalPath string
 	}
 
 	// Add vote to memory cache
-	decredPluginVotesCache[v.Token][v.Ticket] = struct{}{}
+	cmsPluginVotesCache[v.Token][v.Ticket] = struct{}{}
 
 	return nil
 }
 
-func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
-	log.Tracef("pluginBallot")
+func (g *gitBackEnd) pluginCMSBallot(payload string) (string, error) {
+	log.Tracef("pluginCMSBallot")
 
 	// Check if journals were replayed
 	if !journalsReplayed {
@@ -769,7 +606,7 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 	}
 
 	// XXX this should become part of some sort of context
-	fiJSON, ok := decredPluginSettings[decredPluginIdentity]
+	fiJSON, ok := cmsPluginSettings[cmsPluginIdentity]
 	if !ok {
 		return "", fmt.Errorf("full identity not set")
 	}
@@ -801,7 +638,7 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 	for k, v := range ballot.Votes {
 		// Verify proposal exists, we can run this lockless
 		if !g.propExists(g.vetted, v.Token) {
-			log.Errorf("pluginBallot: proposal not found: %v",
+			log.Errorf("pluginCMSBallot: proposal not found: %v",
 				v.Token)
 			br.Receipts[k].Error = "proposal not found: " + v.Token
 			continue
@@ -815,7 +652,7 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 				continue
 			}
 			t := time.Now().Unix()
-			log.Errorf("pluginBallot: validateVoteBit %v %v %v %v",
+			log.Errorf("pluginCMSBallot: validateVoteBit %v %v %v %v",
 				v.Ticket, v.Token, t, err)
 			br.Receipts[k].Error = fmt.Sprintf("internal error %v",
 				t)
@@ -826,7 +663,7 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 		endHeight, err := g.voteEndHeight(v.Token)
 		if err != nil {
 			t := time.Now().Unix()
-			log.Errorf("pluginBallot: voteEndHeight %v %v %v %v",
+			log.Errorf("pluginCMSBallot: voteEndHeight %v %v %v %v",
 				v.Ticket, v.Token, t, err)
 			br.Receipts[k].Error = fmt.Sprintf("internal error %v",
 				t)
@@ -840,7 +677,7 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 		// See if there was an error for this address
 		if ticketAddresses[k].err != nil {
 			t := time.Now().Unix()
-			log.Errorf("pluginBallot: ticketAddresses %v %v %v %v",
+			log.Errorf("pluginCMSBallot: ticketAddresses %v %v %v %v",
 				v.Ticket, v.Token, t, err)
 			br.Receipts[k].Error = fmt.Sprintf("internal error %v",
 				t)
@@ -853,7 +690,7 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 			ticketAddresses[k].bestAddr, v.VoteBit, v.Signature)
 		if err != nil {
 			t := time.Now().Unix()
-			log.Errorf("pluginBallot: validateVote %v %v %v %v",
+			log.Errorf("pluginCMSBallot: validateVote %v %v %v %v",
 				v.Ticket, v.Token, t, err)
 			br.Receipts[k].Error = fmt.Sprintf("internal error %v",
 				t)
@@ -912,7 +749,7 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 // tallyVotes replays the ballot journal for a proposal and tallies the votes.
 //
 // Function must be called WITH the lock held.
-func (g *gitBackEnd) tallyVotes(token string) ([]cmsplugin.CastVote, error) {
+func (g *gitBackEnd) tallyCMSVotes(token string) ([]cmsplugin.CastVote, error) {
 	// Do some cheap things before expensive calls
 	bfilename := pijoin(g.journals, token, defaultBallotFilename)
 
@@ -946,7 +783,7 @@ func (g *gitBackEnd) tallyVotes(token string) ([]cmsplugin.CastVote, error) {
 
 			switch action.Action {
 			case journalActionAdd:
-				var cvj CastVoteJournal
+				var cvj CastCMSVoteJournal
 				err = d.Decode(&cvj)
 				if err != nil {
 					return fmt.Errorf("journal add: %v",
