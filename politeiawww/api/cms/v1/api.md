@@ -537,7 +537,7 @@ Reply:
     "userid": "124",
     "username": "admin",
     "totalvotes": 0,
-    "resultvotes": 0,
+    "resultvotes": 0
   },{
     "comment":"but i did some good work!",
     "commentid": "4",
@@ -563,7 +563,7 @@ Reply:
     "userid": "124",
     "username": "admin",
     "totalvotes": 0,
-    "resultvotes": 0,
+    "resultvotes": 0
   }],
   "accesstime": 1543539276
 }

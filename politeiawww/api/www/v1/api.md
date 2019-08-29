@@ -1909,7 +1909,7 @@ Reply:
 ```json
 {
   "total": 4,
-  "resultvotes": 2,
+  "result": 2,
   "upvotes": 3,
   "downvotes": 1,
   "receipt": "96f3956ea3decb75ee129e6ee4e77c6c608f0b5c99ff41960a4e6078d8bb74e8ad9d2545c01fff2f8b7e0af38ee9de406aea8a0b897777d619e93d797bc1650a"
