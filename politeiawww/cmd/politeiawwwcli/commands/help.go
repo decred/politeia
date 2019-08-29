@@ -110,6 +110,8 @@ func (cmd *HelpCmd) Execute(args []string) error {
 		fmt.Printf("%s\n", resendVerificationHelpMsg)
 	case "batchproposals":
 		fmt.Printf("%s\n", batchProposalsHelpMsg)
+	case "batchvotesummary":
+		fmt.Printf("%s\n", batchVoteSummaryHelpMsg)
 
 		// CMS commands
 	case "newinvoice":

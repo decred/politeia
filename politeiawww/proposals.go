@@ -152,6 +152,18 @@ func tokenIsValid(token string) bool {
 	return true
 }
 
+func getInvalidTokens(tokens []string) []string {
+	invalidTokens := make([]string, 0, len(tokens))
+
+	for _, token := range tokens {
+		if !tokenIsValid(token) {
+			invalidTokens = append(invalidTokens, token)
+		}
+	}
+
+	return invalidTokens
+}
+
 // validateVoteBit ensures that bit is a valid vote bit.
 func validateVoteBit(vote www.Vote, bit uint64) error {
 	if len(vote.Options) == 0 {
@@ -445,9 +457,9 @@ func (p *politeiawww) getProps(tokens []string) (*[]www.ProposalRecord, error) {
 		return nil, err
 	}
 
-	proposalRecords := make([]www.ProposalRecord, 0, len(tokens))
+	props := make([]www.ProposalRecord, 0, len(tokens))
 	for _, record := range records {
-		proposalRecords = append(proposalRecords, convertPropFromCache(record))
+		props = append(props, convertPropFromCache(record))
 	}
 
 	// Find the number of comments each proposal
@@ -456,16 +468,15 @@ func (p *politeiawww) getProps(tokens []string) (*[]www.ProposalRecord, error) {
 		log.Errorf("getProp: decredGetNumComments failed "+
 			"for tokens %v", tokens)
 	} else {
-		for i := range proposalRecords {
-			proposalRecords[i].NumComments =
-				uint(dnc[proposalRecords[i].CensorshipRecord.Token])
+		for i := range props {
+			props[i].NumComments = uint(dnc[props[i].CensorshipRecord.Token])
 		}
 	}
 
 	// Get the list of pubkeys of the proposal authors
 	pubKeys := make([]string, 0, 16)
 	pubKeysMap := make(map[string]bool)
-	for _, pr := range proposalRecords {
+	for _, pr := range props {
 		if _, ok := pubKeysMap[pr.PublicKey]; !ok {
 			pubKeysMap[pr.PublicKey] = true
 			pubKeys = append(pubKeys, pr.PublicKey)
@@ -478,15 +489,13 @@ func (p *politeiawww) getProps(tokens []string) (*[]www.ProposalRecord, error) {
 		log.Errorf("getProps: UsersGetByPubKey: tokens:%v "+
 			"pubKeys:%v err:%v", tokens, pubKeys, err)
 	} else {
-		for i := range proposalRecords {
-			proposalRecords[i].UserId =
-				users[proposalRecords[i].PublicKey].ID.String()
-			proposalRecords[i].Username =
-				users[proposalRecords[i].PublicKey].Username
+		for i := range props {
+			props[i].UserId = users[props[i].PublicKey].ID.String()
+			props[i].Username = users[props[i].PublicKey].Username
 		}
 	}
 
-	return &proposalRecords, nil
+	return &props, nil
 }
 
 // getPropVersion gets a specific version of a proposal from the cache then
@@ -890,6 +899,129 @@ func (p *politeiawww) processProposalDetails(propDetails www.ProposalsDetails, u
 	}
 
 	return &reply, nil
+}
+
+// cacheVoteSumamary stores a given VoteSummary in memory.  This is to only
+// be used for proposals whose voting period has ended so that we don't have
+// to worry about cache invalidation issues.
+//
+// This function must be called without the lock held.
+func (p *politeiawww) cacheVoteSummary(token string, voteSummary www.VoteSummary) {
+	p.Lock()
+	defer p.Unlock()
+
+	p.voteSummaries[token] = voteSummary
+}
+
+// getVoteSummaries fetches the voting summary information for a set of
+// proposals.
+func (p *politeiawww) getVoteSummaries(tokens []string, bestBlock uint64) (map[string]www.VoteSummary, error) {
+
+	voteSummaries := make(map[string]www.VoteSummary)
+	tokensToLookup := make([]string, 0, len(tokens))
+
+	p.RLock()
+	for _, token := range tokens {
+		vs, ok := p.voteSummaries[token]
+		if ok {
+			voteSummaries[token] = vs
+		} else {
+			tokensToLookup = append(tokensToLookup, token)
+		}
+	}
+	p.RUnlock()
+
+	if len(tokensToLookup) == 0 {
+		return voteSummaries, nil
+	}
+
+	r, err := p.decredBatchVoteSummary(tokensToLookup)
+	if err != nil {
+		return nil, err
+	}
+
+	for token, summary := range r.Summaries {
+		results := convertVoteOptionResultsFromDecred(summary.Results)
+
+		endHeight, err := strconv.ParseUint(summary.EndHeight, 10, 64)
+		if err != nil {
+			log.Errorf("getVoteSummaries: ParseUint "+
+				"failed on '%v': %v", summary.EndHeight, err)
+			endHeight = 0
+		}
+
+		vs := www.VoteSummary{
+			Status:           voteStatusFromVoteSummary(summary, bestBlock),
+			EligibleTickets:  uint32(summary.EligibleTicketCount),
+			EndHeight:        endHeight,
+			QuorumPercentage: summary.QuorumPercentage,
+			PassPercentage:   summary.PassPercentage,
+			Results:          results,
+		}
+
+		voteSummaries[token] = vs
+
+		// If the voting period has ended the vote status
+		// is not going to change so add it to the memory
+		// cache.
+		if vs.Status == www.PropVoteStatusFinished {
+			p.cacheVoteSummary(token, vs)
+		}
+
+	}
+
+	return voteSummaries, nil
+}
+
+// processBatchVoteSummary the voting summary information for a set of
+// proposals.
+func (p *politeiawww) processBatchVoteSummary(batchVoteSummary www.BatchVoteSummary) (*www.BatchVoteSummaryReply, error) {
+	log.Tracef("processBatchVoteSummary")
+
+	if len(batchVoteSummary.Tokens) > www.ProposalListPageSize {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusMaxProposalsExceededPolicy,
+		}
+	}
+
+	invalidTokens := getInvalidTokens(batchVoteSummary.Tokens)
+	if len(invalidTokens) > 0 {
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
+			ErrorContext: invalidTokens,
+		}
+	}
+
+	bb, err := p.getBestBlock()
+	if err != nil {
+		return nil, err
+	}
+
+	summaries, err := p.getVoteSummaries(batchVoteSummary.Tokens, bb)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(summaries) != len(batchVoteSummary.Tokens) {
+		tokensNotFound := make([]string, 0,
+			len(batchVoteSummary.Tokens)-len(summaries))
+
+		for _, token := range batchVoteSummary.Tokens {
+			if _, exists := summaries[token]; !exists {
+				tokensNotFound = append(tokensNotFound, token)
+			}
+		}
+
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusProposalNotFound,
+			ErrorContext: tokensNotFound,
+		}
+	}
+
+	return &www.BatchVoteSummaryReply{
+		BestBlock: bb,
+		Summaries: summaries,
+	}, nil
 }
 
 // processBatchProposals fetches a list of proposals from the records
@@ -1422,25 +1554,78 @@ func (p *politeiawww) processCommentsGet(token string, u *user.User) (*www.GetCo
 	}, nil
 }
 
-// setVoteStatusReply stores the given VoteStatusReply in memory.  This is to
-// only be used for proposals whose voting period has ended so that we don't
-// have to worry about cache invalidation issues.
+// setVoteStatusReply converts a VoteStatusReply to a VoteSummary and stores it
+// in memory.  This is to only be used for proposals whose voting period has
+// ended so that we don't have to worry about cache invalidation issues.
 //
 // This function must be called without the lock held.
-func (p *politeiawww) setVoteStatusReply(v www.VoteStatusReply) {
+//
+// ** This fuction is to be removed when the deprecated vote status route is
+// ** removed.
+func (p *politeiawww) setVoteStatusReply(v www.VoteStatusReply) error {
 	p.Lock()
 	defer p.Unlock()
 
-	p.voteStatuses[v.Token] = v
+	endHeight, err := strconv.Atoi(v.EndHeight)
+	if err != nil {
+		return err
+	}
+
+	voteSummary := www.VoteSummary{
+		Status:           v.Status,
+		EligibleTickets:  uint32(v.NumOfEligibleVotes),
+		EndHeight:        uint64(endHeight),
+		QuorumPercentage: v.QuorumPercentage,
+		PassPercentage:   v.PassPercentage,
+		Results:          v.OptionsResult,
+	}
+
+	p.voteSummaries[v.Token] = voteSummary
+
+	return nil
+}
+
+// getVoteStatusReply retrieves the VoteSummary from the cache for a proposal
+// whose voting period has ended and converts it to a VoteStatusReply.
+//
+// This function must be called without the lock held.
+//
+// ** This fuction is to be removed when the deprecated vote status route is
+// ** removed.
+func (p *politeiawww) getVoteStatusReply(token string) (*www.VoteStatusReply, bool) {
+	p.RLock()
+	vs, ok := p.voteSummaries[token]
+	p.RUnlock()
+
+	if !ok {
+		return nil, false
+	}
+
+	var totalVotes uint64
+	for _, or := range vs.Results {
+		totalVotes += or.VotesReceived
+	}
+
+	voteStatusReply := www.VoteStatusReply{
+		Token:              token,
+		Status:             vs.Status,
+		TotalVotes:         totalVotes,
+		OptionsResult:      vs.Results,
+		EndHeight:          strconv.Itoa(int(vs.EndHeight)),
+		NumOfEligibleVotes: int(vs.EligibleTickets),
+		QuorumPercentage:   vs.QuorumPercentage,
+		PassPercentage:     vs.PassPercentage,
+	}
+
+	return &voteStatusReply, true
 }
 
 func (p *politeiawww) voteStatusReply(token string, bestBlock uint64) (*www.VoteStatusReply, error) {
-	p.RLock()
-	vsr, ok := p.voteStatuses[token]
-	p.RUnlock()
+	cachedVsr, ok := p.getVoteStatusReply(token)
+
 	if ok {
-		vsr.BestBlock = strconv.Itoa(int(bestBlock))
-		return &vsr, nil
+		cachedVsr.BestBlock = strconv.Itoa(int(bestBlock))
+		return cachedVsr, nil
 	}
 
 	// Vote status wasn't in the memory cache
@@ -1456,7 +1641,7 @@ func (p *politeiawww) voteStatusReply(token string, bestBlock uint64) (*www.Vote
 		total += v.VotesReceived
 	}
 
-	vsr = www.VoteStatusReply{
+	voteStatusReply := www.VoteStatusReply{
 		Token:              token,
 		Status:             voteStatusFromVoteSummary(*r, bestBlock),
 		TotalVotes:         total,
@@ -1471,11 +1656,14 @@ func (p *politeiawww) voteStatusReply(token string, bestBlock uint64) (*www.Vote
 	// If the voting period has ended the vote status
 	// is not going to change so add it to the memory
 	// cache.
-	if vsr.Status == www.PropVoteStatusFinished {
-		p.setVoteStatusReply(vsr)
+	if voteStatusReply.Status == www.PropVoteStatusFinished {
+		err = p.setVoteStatusReply(voteStatusReply)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	return &vsr, nil
+	return &voteStatusReply, nil
 }
 
 // processVoteStatus returns the vote status for a given proposal
