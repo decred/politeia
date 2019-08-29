@@ -1759,8 +1759,6 @@ Reply:
   "receipt": "96f3956ea3decb75ee129e6ee4e77c6c608f0b5c99ff41960a4e6078d8bb74e8ad9d2545c01fff2f8b7e0af38ee9de406aea8a0b897777d619e93d797bc1650a",
   "timestamp": 1527277504,
   "resultvotes": 0,
-  "upvotes": 0,
-  "downvotes": 0,
   "censored": false,
   "userid": "124",
   "username": "john",
