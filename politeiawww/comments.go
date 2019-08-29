@@ -100,6 +100,7 @@ func (p *politeiawww) getComment(token, commentID string) (*www.Comment, error) 
 		log.Errorf("getComment: comment votes lookup failed for "+
 			"token:%v commentID:%v", token, commentID)
 	}
+	c.ResultVotes = int64(votes.up - votes.down)
 	c.Upvotes = votes.up
 	c.Downvotes = votes.down
 
@@ -606,6 +607,7 @@ func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www
 	}
 
 	return &www.LikeCommentReply{
+		Result:    int64(votes.up - votes.down),
 		Upvotes:   votes.up,
 		Downvotes: votes.down,
 		Receipt:   lcr.Receipt,

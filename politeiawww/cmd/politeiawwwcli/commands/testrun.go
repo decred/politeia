@@ -523,6 +523,10 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 					v.Downvotes)
 			}
 		}
+		if v.ResultVotes != 2 {
+			return fmt.Errorf("comment result vote score got %v, want 2",
+				v.Upvotes)
+		}
 	}
 
 	fmt.Printf("  User like comments\n")
@@ -1033,6 +1037,10 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 	case c0.Downvotes != 1:
 		return fmt.Errorf("comment %v result down votes got %v, want 1",
+			c0.CommentID, c0.Downvotes)
+
+	case c0.ResultVotes != 2:
+		return fmt.Errorf("comment %v result vote score got %v, want 2",
 			c0.CommentID, c0.Downvotes)
 
 	case c1.CommentID != "2":
