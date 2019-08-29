@@ -116,9 +116,9 @@ type politeiawww struct {
 	userPaywallPool map[uuid.UUID]paywallPoolMember // [userid][paywallPoolMember]
 	commentScores   map[string]int64                // [token+commentID]resultVotes
 
-	// voteStatuses is a lazy loaded cache of the votes statuses of
+	// voteSummaries is a lazy loaded cache of the votes summaries of
 	// proposals whose voting period has ended.
-	voteStatuses map[string]www.VoteStatusReply // [token]VoteStatusReply
+	voteSummaries map[string]www.VoteSummary // [token]VoteSummary
 
 	// XXX userEmails is a temporary measure until the user by email
 	// lookups are completely removed from politeiawww.
@@ -277,6 +277,31 @@ func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Reply with the proposal details.
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+// handleBatchVoteSummary handles the incoming batch vote summary command. It
+// returns a summary of the voting process for a set of proposals.
+func (p *politeiawww) handleBatchVoteSummary(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleBatchVoteSummary")
+	var bvs www.BatchVoteSummary
+
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&bvs); err != nil {
+		RespondWithError(w, r, 0, "handleBatchVoteSummary: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	reply, err := p.processBatchVoteSummary(bvs)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleBatchVoteSummary: processBatchVoteSummary %v", err)
+		return
+	}
+
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
@@ -1091,6 +1116,8 @@ func (p *politeiawww) setPoliteiaWWWRoutes() {
 		p.handleTokenInventory, permissionPublic)
 	p.addRoute(http.MethodPost, www.RouteBatchProposals,
 		p.handleBatchProposals, permissionPublic)
+	p.addRoute(http.MethodPost, www.RouteBatchVoteSummary,
+		p.handleBatchVoteSummary, permissionPublic)
 
 	// Routes that require being logged in.
 	p.addRoute(http.MethodGet, www.RouteProposalPaywallDetails,

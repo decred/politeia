@@ -1113,6 +1113,9 @@ func TestProcessAllVetted(t *testing.T) {
 	p, cleanup := newTestPoliteiawww(t)
 	defer cleanup()
 
+	d := newTestPoliteiad(t, p)
+	defer d.Close()
+
 	// Create test data
 	tokenValid := "3575a65bbc3616c939acf6edf801e1168485dc864efef910034268f695351b5d"
 	tokenNotHex := "3575a65bbc3616c939acf6edf801e1168485dc864efef910034268f695351zzz"

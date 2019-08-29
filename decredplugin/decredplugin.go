@@ -10,6 +10,7 @@ const (
 	CmdStartVote             = "startvote"
 	CmdVoteDetails           = "votedetails"
 	CmdVoteSummary           = "votesummary"
+	CmdBatchVoteSummary      = "batchvotesummary"
 	CmdLoadVoteResults       = "loadvoteresults"
 	CmdBallot                = "ballot"
 	CmdBestBlock             = "bestblock"
@@ -413,6 +414,56 @@ func DecodeVoteSummaryReply(payload []byte) (*VoteSummaryReply, error) {
 	}
 
 	return &v, nil
+}
+
+// BatchVoteSummary requests a summary of a set of proposal votes. This
+// includes certain voting period parameters and a summary of the vote
+// results.
+type BatchVoteSummary struct {
+	Tokens []string `json:"token"` // Censorship token
+}
+
+// EncodeBatchVoteSummary encodes BatchVoteSummary into a JSON byte slice.
+func EncodeBatchVoteSummary(v BatchVoteSummary) ([]byte, error) {
+	return json.Marshal(v)
+}
+
+// DecodeBatchVoteSummary decodes a JSON byte slice into a BatchVoteSummary.
+func DecodeBatchVoteSummary(payload []byte) (*BatchVoteSummary, error) {
+	var bv BatchVoteSummary
+
+	err := json.Unmarshal(payload, &bv)
+	if err != nil {
+		return nil, err
+	}
+
+	return &bv, nil
+}
+
+// BatchVoteSummaryReply is the reply to the VoteSummary command and returns
+// certain voting period parameters as well as a summary of the vote results.
+// Results will only be returned for tokens of valid vetted proposals.
+type BatchVoteSummaryReply struct {
+	Summaries map[string]VoteSummaryReply `json:"summaries"` // Vote summaries
+}
+
+// EncodeBatchVoteSummaryReply encodes BatchVoteSummaryReply into a JSON byte
+// slice.
+func EncodeBatchVoteSummaryReply(v BatchVoteSummaryReply) ([]byte, error) {
+	return json.Marshal(v)
+}
+
+// DecodeBatchVoteSummaryReply decodes a JSON byte slice into a
+// BatchVoteSummaryReply.
+func DecodeBatchVoteSummaryReply(payload []byte) (*BatchVoteSummaryReply, error) {
+	var bv BatchVoteSummaryReply
+
+	err := json.Unmarshal(payload, &bv)
+	if err != nil {
+		return nil, err
+	}
+
+	return &bv, nil
 }
 
 // Comment is the structure that describes the full server side content.  It

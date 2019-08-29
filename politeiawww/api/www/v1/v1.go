@@ -43,6 +43,7 @@ const (
 	RouteUsers                    = "/users"
 	RouteTokenInventory           = "/proposals/tokeninventory"
 	RouteBatchProposals           = "/proposals/batch"
+	RouteBatchVoteSummary         = "/proposals/batchvotesummary"
 	RouteAllVetted                = "/proposals/vetted"
 	RouteNewProposal              = "/proposals/new"
 	RouteEditProposal             = "/proposals/edit"
@@ -377,6 +378,17 @@ type CensorshipRecord struct {
 	Token     string `json:"token"`     // Censorship token
 	Merkle    string `json:"merkle"`    // Merkle root of proposal
 	Signature string `json:"signature"` // Server side signature of []byte(Merkle+Token)
+}
+
+// VoteSummary contains information about the state of the voting process
+// related to a proposal.
+type VoteSummary struct {
+	Status           PropVoteStatusT    `json:"status"`                     // Vote status
+	EligibleTickets  uint32             `json:"eligibletickets,omitempty"`  // Number of eligible tickets
+	EndHeight        uint64             `json:"endheight,omitempty"`        // Vote end height
+	QuorumPercentage uint32             `json:"quorumpercentage,omitempty"` // Percent of eligible votes required for quorum
+	PassPercentage   uint32             `json:"passpercentage,omitempty"`   // Percent of total votes required to pass
+	Results          []VoteOptionResult `json:"results,omitempty"`          // Vote results
 }
 
 // ProposalRecord is an entire proposal and it's content.
@@ -750,6 +762,18 @@ type BatchProposalsReply struct {
 	Proposals []ProposalRecord `json:"proposals"`
 }
 
+// BatchVoteSummary is used to request the voting summary of multiple
+// proposals.
+type BatchVoteSummary struct {
+	Tokens []string `json:"tokens"`
+}
+
+// BatchVoteSummaryReply is used to reply to a BatchVoteSummary command.
+type BatchVoteSummaryReply struct {
+	BestBlock uint64                 `json:"bestblock"`
+	Summaries map[string]VoteSummary `json:"summaries"`
+}
+
 // SetProposalStatus is used to publish or censor an unreviewed proposal.
 type SetProposalStatus struct {
 	Token               string      `json:"token"`
@@ -1028,9 +1052,11 @@ type VoteOptionResult struct {
 
 // VoteStatus is a command to fetch the the current vote status for a single
 // public proposal
+// *** This is deprecated by the BatchVoteSummary request. ***
 type VoteStatus struct{}
 
 // VoteStatusReply describes the vote status for a given proposal
+// *** This is deprecated by the BatchVoteSummary request. ***
 type VoteStatusReply struct {
 	Token              string             `json:"token"`              // Censorship token
 	Status             PropVoteStatusT    `json:"status"`             // Vote status (finished, started, etc)
@@ -1044,9 +1070,11 @@ type VoteStatusReply struct {
 }
 
 // GetAllVoteStatus attempts to fetch the vote status of all public propsals
+// *** This is deprecated by the BatchVoteSummary request. ***
 type GetAllVoteStatus struct{}
 
 // GetAllVoteStatusReply returns the vote status of all public proposals
+// *** This is deprecated by the BatchVoteSummary request. ***
 type GetAllVoteStatusReply struct {
 	VotesStatus []VoteStatusReply `json:"votesstatus"` // Vote status of all public proposals
 }
