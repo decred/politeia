@@ -973,7 +973,10 @@ func convertRecordToDatabaseDCC(p pd.Record) (*cmsdatabase.DCC, error) {
 func convertDCCDatabaseToRecord(dbDCC *cmsdatabase.DCC) cms.DCCRecord {
 	dccRecord := cms.DCCRecord{}
 
-	dccRecord.Type = dbDCC.Type
+	dccRecord.DCC.Type = dbDCC.Type
+	dccRecord.DCC.NomineeUserID = dbDCC.NomineeUserID
+	dccRecord.DCC.SponsorStatement = dbDCC.SponsorStatement
+	dccRecord.DCC.Domain = dbDCC.Domain
 	dccRecord.Status = dbDCC.Status
 	dccRecord.StatusChangeReason = dbDCC.StatusChangeReason
 	dccRecord.Timestamp = dbDCC.Timestamp

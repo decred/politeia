@@ -576,7 +576,6 @@ type DCCInput struct {
 
 // DCCRecord is what will be decoded from a Record for a DCC object to the politeiad backend.
 type DCCRecord struct {
-	Type               DCCTypeT   `json:"type"`               // Type of DCC
 	Status             DCCStatusT `json:"status"`             // Current status of the DCC
 	StatusChangeReason string     `json:"statuschangereason"` // The reason for changing the DCC status.
 	Timestamp          int64      `json:"timestamp"`          // Last update of dcc
@@ -585,9 +584,6 @@ type DCCRecord struct {
 	PublicKey          string     `json:"publickey"`          // Sponsoring user's public key, used to verify signature.
 	Signature          string     `json:"signature"`          // Signature of file digest
 	Version            string     `json:"version"`            // Record version
-
-	SponsorStatement string      `json:"statement"` // Sponsor statement in support of the DCC
-	Domain           DomainTypeT `json:"domain"`    // Domain of DCC
 
 	SponsorUserID   string `json:"sponsoruserid"`   // The userid of the sponsoring user.
 	SponsorUsername string `json:"sponsorusername"` // The username of the sponsoring user.

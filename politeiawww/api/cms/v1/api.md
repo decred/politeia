@@ -902,7 +902,6 @@ Reply:
 ```json
 {  
     "dcc": {
-      "type": 2,
       "status": 4,
       "statuschangereason": "This has been revoked due to strong support.",
       "timestamp": 1565374601,
@@ -923,8 +922,6 @@ Reply:
       "publickey": "311fa61d27b18c0033589ef1fb49edd162d791d0702cbab623ffd4486452322a",
       "signature": "8a3c5b5cb984cfb7fd59a11d2d7d11a8d50b936358541d917ba348d30bfb1d805c26686836695a9b4b347feee6a674b689b448ed941280874a4b8dbdf360600b",
       "version": "1",
-      "statement": "",
-      "domain": 0,
       "sponsoruserid": "b35ab9d3-a98d-4170-ad5a-85b5bce9fb10",
       "sponsorusername": "bsaget",
       "supportuserids": [],
