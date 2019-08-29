@@ -10,9 +10,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -117,27 +115,8 @@ func (cmd *NewDCCCmd) Execute(args []string) error {
 		Payload: base64.StdEncoding.EncodeToString(b),
 	}
 
-	files := make([]www.File, 0, www.PolicyMaxImages+1)
+	files := make([]www.File, 1)
 	files = append(files, f)
-
-	attachmentFiles := cmd.Args.Attachments
-	// Read attachment files into memory and convert to type File
-	for _, file := range attachmentFiles {
-		path := util.CleanAndExpandPath(file)
-		attachment, err := ioutil.ReadFile(path)
-		if err != nil {
-			return fmt.Errorf("ReadFile %v: %v", path, err)
-		}
-
-		f := www.File{
-			Name:    filepath.Base(file),
-			MIME:    mime.DetectMimeType(attachment),
-			Digest:  hex.EncodeToString(util.Digest(attachment)),
-			Payload: base64.StdEncoding.EncodeToString(attachment),
-		}
-
-		files = append(files, f)
-	}
 
 	// Compute merkle root and sign it
 	sig, err := signedMerkleRoot(files, cfg.Identity)
@@ -147,7 +126,7 @@ func (cmd *NewDCCCmd) Execute(args []string) error {
 
 	// Setup new dcc request
 	nd := cms.NewDCC{
-		Files:     files,
+		File:      f,
 		PublicKey: hex.EncodeToString(cfg.Identity.Public.Key[:]),
 		Signature: sig,
 	}
@@ -164,9 +143,12 @@ func (cmd *NewDCCCmd) Execute(args []string) error {
 		return err
 	}
 
+	ndFiles := make([]www.File, 1)
+	ndFiles = append(ndFiles, nd.File)
+
 	// Verify the censorship record
 	pr := www.ProposalRecord{
-		Files:            nd.Files,
+		Files:            ndFiles,
 		PublicKey:        nd.PublicKey,
 		Signature:        nd.Signature,
 		CensorshipRecord: ndr.CensorshipRecord,

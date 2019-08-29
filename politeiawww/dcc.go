@@ -110,6 +110,10 @@ func (p *politeiawww) processNewDCC(nd cms.NewDCC, u *user.User) (*cms.NewDCCRep
 		return nil, err
 	}
 
+	// Create expected []www.File from single dcc.json file
+	files := make([]www.File, 1)
+	files = append(files, nd.File)
+
 	// Setup politeiad request
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
@@ -127,7 +131,7 @@ func (p *politeiawww) processNewDCC(nd cms.NewDCC, u *user.User) (*cms.NewDCCRep
 				Payload: string(scb),
 			},
 		},
-		Files: convertPropFilesFromWWW(nd.Files),
+		Files: convertPropFilesFromWWW(files),
 	}
 
 	// Send the newrecord politeiad request
@@ -252,137 +256,78 @@ func (p *politeiawww) validateDCC(nd cms.NewDCC, u *user.User) error {
 		return err
 	}
 
-	// Check for at least 1 markdown file with a non-empty payload.
-	if len(nd.Files) == 0 || nd.Files[0].Payload == "" {
+	// Check for at least 1 a non-empty payload.
+	if nd.File.Payload == "" {
 		return www.UserError{
 			ErrorCode: www.ErrorStatusProposalMissingFiles,
 		}
 	}
 
-	// verify if there are duplicate names
-	filenames := make(map[string]int, len(nd.Files))
 	// Check that the file number policy is followed.
 	var (
-		numFiles, numImages, numDCCFiles        int
-		jsonExceedsMaxSize, imageExceedsMaxSize bool
-		hashes                                  []*[sha256.Size]byte
+		jsonExceedsMaxSize bool
+		hashes             []*[sha256.Size]byte
 	)
-	for _, v := range nd.Files {
-		filenames[v.Name]++
-		var (
-			data []byte
-			err  error
-		)
-		if strings.HasPrefix(v.MIME, "image/") {
-			numImages++
-			data, err = base64.StdEncoding.DecodeString(v.Payload)
-			if err != nil {
-				return err
-			}
-			if len(data) > cms.PolicyMaxImageSize {
-				imageExceedsMaxSize = true
-			}
-		} else {
-			numFiles++
 
-			if v.Name == dccFile {
-				numDCCFiles++
-			}
+	v := nd.File
 
-			data, err = base64.StdEncoding.DecodeString(v.Payload)
-			if err != nil {
-				return err
-			}
-			if len(data) > cms.PolicyMaxMDSize {
-				jsonExceedsMaxSize = true
-			}
-
-			// Check to see if the data can be parsed properly into DCCInput
-			// struct.
-			var issuance cms.DCCInput
-			if err := json.Unmarshal(data, &issuance); err != nil {
-				return www.UserError{
-					ErrorCode: cms.ErrorStatusMalformedDCCFile,
-				}
-			}
-			// Check UserID of Nominee
-			_, err := p.getCMSUserByID(issuance.NomineeUserID)
-			if err != nil {
-				return err
-			}
-
-			sponsorUser, err := p.getCMSUserByID(u.ID.String())
-			if err != nil {
-				return err
-			}
-
-			// Check that domains match
-			if sponsorUser.Domain != issuance.Domain {
-				return www.UserError{
-					ErrorCode: cms.ErrorStatusInvalidNominatingDomain,
-				}
-			}
-
-			// Validate sponsor statement input
-			statement := formatSponsorStatement(issuance.SponsorStatement)
-			if !validateSponsorStatement(statement) {
-				return www.UserError{
-					ErrorCode: cms.ErrorStatusMalformedSponsorStatement,
-				}
-			}
-		}
-
-		// Append digest to array for merkle root calculation
-		digest := util.Digest(data)
-		var d [sha256.Size]byte
-		copy(d[:], digest)
-		hashes = append(hashes, &d)
-	}
-	// verify duplicate file names
-	if len(nd.Files) > 1 {
-		var repeated []string
-		for name, count := range filenames {
-			if count > 1 {
-				repeated = append(repeated, name)
-			}
-		}
-		if len(repeated) > 0 {
-			return www.UserError{
-				ErrorCode:    www.ErrorStatusProposalDuplicateFilenames,
-				ErrorContext: repeated,
-			}
-		}
-	}
-
-	// we expect one index file
-	if numDCCFiles == 0 {
+	if v.Name != dccFile {
 		return www.UserError{
-			ErrorCode:    www.ErrorStatusProposalMissingFiles,
-			ErrorContext: []string{indexFile},
+			ErrorCode: cms.ErrorStatusMalformedDCCFile,
 		}
 	}
 
-	if numFiles > www.PolicyMaxMDs {
+	data, err := base64.StdEncoding.DecodeString(v.Payload)
+	if err != nil {
+		return err
+	}
+	if len(data) > cms.PolicyMaxMDSize {
+		jsonExceedsMaxSize = true
+	}
+
+	// Check to see if the data can be parsed properly into DCCInput
+	// struct.
+	var issuance cms.DCCInput
+	if err := json.Unmarshal(data, &issuance); err != nil {
 		return www.UserError{
-			ErrorCode: www.ErrorStatusMaxMDsExceededPolicy,
+			ErrorCode: cms.ErrorStatusMalformedDCCFile,
+		}
+	}
+	// Check UserID of Nominee
+	_, err = p.getCMSUserByID(issuance.NomineeUserID)
+	if err != nil {
+		return err
+	}
+
+	sponsorUser, err := p.getCMSUserByID(u.ID.String())
+	if err != nil {
+		return err
+	}
+
+	// Check that domains match
+	if sponsorUser.Domain != issuance.Domain {
+		return www.UserError{
+			ErrorCode: cms.ErrorStatusInvalidNominatingDomain,
 		}
 	}
 
-	if numImages > www.PolicyMaxImages {
+	// Validate sponsor statement input
+	statement := formatSponsorStatement(issuance.SponsorStatement)
+	if !validateSponsorStatement(statement) {
 		return www.UserError{
-			ErrorCode: www.ErrorStatusMaxImagesExceededPolicy,
+			ErrorCode: cms.ErrorStatusMalformedSponsorStatement,
 		}
 	}
+
+	// Append digest to array for merkle root calculation
+	digest := util.Digest(data)
+	var d [sha256.Size]byte
+	copy(d[:], digest)
+	hashes = append(hashes, &d)
 
 	if jsonExceedsMaxSize {
 		return www.UserError{
 			ErrorCode: www.ErrorStatusMaxMDSizeExceededPolicy,
-		}
-	}
-
-	if imageExceedsMaxSize {
-		return www.UserError{
-			ErrorCode: www.ErrorStatusMaxImageSizeExceededPolicy,
 		}
 	}
 

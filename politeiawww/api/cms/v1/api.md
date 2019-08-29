@@ -821,7 +821,7 @@ Creates a new DCC Proposal.
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
-| files | [`[]File`](#file) | The dcc json file and any other attachments. | Yes |
+| file | [`File`](#file) | The dcc json file. | Yes |
 | publickey | string | The user's public key. | Yes |
 | signature | string | The signature of the string representation of the file payload. | Yes |
 
@@ -837,14 +837,13 @@ Request:
 
 ```json
 {
-  "files": [
-    {
+  "file": 
+  {
       "name":"dcc.json",
       "mime": "text/plain; charset=utf-8",
       "digest": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
       "payload": "VGhpcyBpcyBhIGRlc2NyaXB0aW9u"
-    }
-  ],
+  },
   "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
   "signature": "gdd92f26c8g38c90d2887259e88df614654g32fde76bef1438b0efg40e360f461e995d796g16b17108gbe226793ge4g52gg013428feb3c39de504fe5g1811e0e"
 }

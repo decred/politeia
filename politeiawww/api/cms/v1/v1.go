@@ -600,9 +600,9 @@ type DCCRecord struct {
 
 // NewDCC is a request for submitting a new DCC proposal.
 type NewDCC struct {
-	Files     []www.File `json:"files"`     // Issuance/Revocation file and any attachments along with it
-	PublicKey string     `json:"publickey"` // Pubkey of the sponsoring user
-	Signature string     `json:"signature"` // Signature of the issuance struct by the sponsoring user.
+	File      www.File `json:"file"`      // Issuance/Revocation file
+	PublicKey string   `json:"publickey"` // Pubkey of the sponsoring user
+	Signature string   `json:"signature"` // Signature of the issuance struct by the sponsoring user.
 }
 
 // NewDCCReply returns the censorship record when the DCC is successfully submitted to the backend.
