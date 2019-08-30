@@ -26,7 +26,7 @@ const (
 	RouteUserInvoices        = "/user/invoices"
 	RouteNewDCC              = "/dcc/new"
 	RouteDCCDetails          = "/dcc/{token:[A-z0-9]{64}}"
-	RouteGetDCCs             = "/dcc/status"
+	RouteGetDCCs             = "/dcc"
 	RouteAdminInvoices       = "/admin/invoices"
 	RouteAdminUserInvoices   = "/admin/userinvoices"
 	RouteGeneratePayouts     = "/admin/generatepayouts"
