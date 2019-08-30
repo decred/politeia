@@ -921,9 +921,8 @@ func convertRecordToDatabaseDCC(p pd.Record) (*cmsdatabase.DCC, error) {
 			var dcc cms.DCCInput
 			err = json.Unmarshal(b, &dcc)
 			if err != nil {
-				return nil, www.UserError{
-					ErrorCode: www.ErrorStatusInvalidInput,
-				}
+				return nil, fmt.Errorf("could not decode DCC input data: token '%v': %v",
+					p.CensorshipRecord.Token, err)
 			}
 			dbDCC.Type = dcc.Type
 			dbDCC.NomineeUserID = dcc.NomineeUserID
