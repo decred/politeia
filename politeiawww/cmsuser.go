@@ -113,6 +113,7 @@ func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*www.NewUserRep
 		Username:                  strings.ToLower(u.Email),
 		NewUserVerificationToken:  token,
 		NewUserVerificationExpiry: expiry,
+		ContractorType:            int(cms.ContractorTypeNominee),
 	}
 	payload, err := user.EncodeNewCMSUser(nu)
 	if err != nil {

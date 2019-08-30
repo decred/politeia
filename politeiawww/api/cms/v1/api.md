@@ -813,7 +813,17 @@ Reply:
 
 ### `New DCC`
 
-Creates a new DCC Proposal.
+Creates a new Decred Contractor Clearance proposal.  These may either be an
+issuance or a revocation.  In the case of an issuance, an existing user (sponsor)
+nominates a yet-to-be-approved user to join the contractors.  The sponsor also
+includes a statement to support the nomination of the user.  In the case of
+a revocation, an existing user (sponsor) nominates another existing user to
+have their access to the contractors' group rescinded and also includes a statement
+to support that revocation.  
+
+In either case, issuance or revocation, other existing contractors will
+be asked to offer their support or opposition to a DCC and based upon those
+results, an administrator will approve or reject the DCC.
 
 **Route:** `POST /v1/dcc/new`
 

@@ -907,7 +907,6 @@ func convertRecordToDatabaseDCC(p pd.Record) (*cmsdatabase.DCC, error) {
 		Files:           convertRecordFilesToWWW(p.Files),
 		Token:           p.CensorshipRecord.Token,
 		ServerSignature: p.CensorshipRecord.Signature,
-		Version:         p.Version,
 	}
 
 	// Decode invoice file

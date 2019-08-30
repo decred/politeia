@@ -216,7 +216,6 @@ func encodeDCC(dbDCC *database.DCC) *DCC {
 		PublicKey:          dbDCC.PublicKey,
 		UserSignature:      dbDCC.UserSignature,
 		ServerSignature:    dbDCC.ServerSignature,
-		Version:            dbDCC.Version,
 		SponsorStatement:   dbDCC.SponsorStatement,
 		Domain:             int(dbDCC.Domain),
 
@@ -238,7 +237,6 @@ func decodeDCC(dcc *DCC) *database.DCC {
 		PublicKey:          dcc.PublicKey,
 		UserSignature:      dcc.UserSignature,
 		ServerSignature:    dcc.ServerSignature,
-		Version:            dcc.Version,
 		SponsorStatement:   dcc.SponsorStatement,
 		Domain:             cms.DomainTypeT(dcc.Domain),
 

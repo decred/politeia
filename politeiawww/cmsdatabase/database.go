@@ -152,7 +152,6 @@ type DCC struct {
 	PublicKey          string
 	UserSignature      string
 	ServerSignature    string
-	Version            string
 	SponsorStatement   string
 	Domain             cms.DomainTypeT
 

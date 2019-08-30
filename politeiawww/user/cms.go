@@ -13,7 +13,6 @@ const (
 	CmdCMSUsersByDomain = "cmsusersbydomain"
 	CmdUpdateCMSUser    = "updatecmsuser"
 	CmdCMSUserByID      = "cmsuserbyid"
-	CmdNewDCCUser       = "newdccuser"
 )
 
 // CMSUser represents a CMS user. It contains the standard politeiawww user
@@ -36,6 +35,7 @@ type NewCMSUser struct {
 	Username                  string `json:"username"`
 	NewUserVerificationToken  []byte `json:"newuserverificationtoken"`
 	NewUserVerificationExpiry int64  `json:"newuserverificationtokenexiry"`
+	ContractorType            int    `json:"contractortype"`
 }
 
 // EncodeNewCMSUser encodes a NewCMSUser into a JSON byte slice.
@@ -208,51 +208,6 @@ func EncodeCMSUserByIDReply(u CMSUserByIDReply) ([]byte, error) {
 // CMSUserByIDReply.
 func DecodeCMSUserByIDReply(b []byte) (*CMSUserByIDReply, error) {
 	var reply CMSUserByIDReply
-
-	err := json.Unmarshal(b, &reply)
-	if err != nil {
-		return nil, err
-	}
-
-	return &reply, nil
-}
-
-// NewDCCUser creates a new DCC user record in the user database.
-type NewDCCUser struct {
-	ContractorContact string `json:"contractorcontact"`
-	ContractorName    string `json:"contractorname"`
-	Email             string `json:"email"`
-	Username          string `json:"username"`
-}
-
-// EncodeNewDCCUser encodes a NewDCCUser into a JSON byte slice.
-func EncodeNewDCCUser(u NewDCCUser) ([]byte, error) {
-	return json.Marshal(u)
-}
-
-// DecodeNewDCCUser decodes JSON byte slice into a NewDCCUser.
-func DecodeNewDCCUser(b []byte) (*NewDCCUser, error) {
-	var u NewDCCUser
-
-	err := json.Unmarshal(b, &u)
-	if err != nil {
-		return nil, err
-	}
-
-	return &u, nil
-}
-
-// NewDCCUserReply is the reply to the NewDCCUser command.
-type NewDCCUserReply struct{}
-
-// EncodeNewDCCUserReply encodes a NewDCCUserReply into a JSON byte slice.
-func EncodeNewDCCUserReply(u NewDCCUserReply) ([]byte, error) {
-	return json.Marshal(u)
-}
-
-// DecodeNewDCCUserReply decodes JSON byte slice into a NewDCCUserReply.
-func DecodeNewDCCUserReply(b []byte) (*NewDCCUserReply, error) {
-	var reply NewDCCUserReply
 
 	err := json.Unmarshal(b, &reply)
 	if err != nil {
