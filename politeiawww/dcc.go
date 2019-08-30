@@ -263,12 +263,6 @@ func (p *politeiawww) validateDCC(nd cms.NewDCC, u *user.User) error {
 		}
 	}
 
-	// Check that the file number policy is followed.
-	var (
-		jsonExceedsMaxSize bool
-		hashes             []*[sha256.Size]byte
-	)
-
 	v := nd.File
 
 	if v.Name != dccFile {
@@ -281,8 +275,11 @@ func (p *politeiawww) validateDCC(nd cms.NewDCC, u *user.User) error {
 	if err != nil {
 		return err
 	}
+
 	if len(data) > cms.PolicyMaxMDSize {
-		jsonExceedsMaxSize = true
+		return www.UserError{
+			ErrorCode: www.ErrorStatusMaxMDSizeExceededPolicy,
+		}
 	}
 
 	// Check to see if the data can be parsed properly into DCCInput
@@ -330,13 +327,9 @@ func (p *politeiawww) validateDCC(nd cms.NewDCC, u *user.User) error {
 	digest := util.Digest(data)
 	var d [sha256.Size]byte
 	copy(d[:], digest)
-	hashes = append(hashes, &d)
 
-	if jsonExceedsMaxSize {
-		return www.UserError{
-			ErrorCode: www.ErrorStatusMaxMDSizeExceededPolicy,
-		}
-	}
+	var hashes []*[sha256.Size]byte
+	hashes = append(hashes, &d)
 
 	// Note that we need validate the string representation of the merkle
 	mr := merkle.Root(hashes)
