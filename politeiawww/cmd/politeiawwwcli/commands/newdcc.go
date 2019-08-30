@@ -115,7 +115,7 @@ func (cmd *NewDCCCmd) Execute(args []string) error {
 		Payload: base64.StdEncoding.EncodeToString(b),
 	}
 
-	files := make([]www.File, 1)
+	files := make([]www.File, 0, 1)
 	files = append(files, f)
 
 	// Compute merkle root and sign it
@@ -143,7 +143,7 @@ func (cmd *NewDCCCmd) Execute(args []string) error {
 		return err
 	}
 
-	ndFiles := make([]www.File, 1)
+	ndFiles := make([]www.File, 0, 1)
 	ndFiles = append(ndFiles, nd.File)
 
 	// Verify the censorship record

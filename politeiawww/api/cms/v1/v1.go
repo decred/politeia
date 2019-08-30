@@ -188,6 +188,7 @@ const (
 	ErrorStatusInvalidDCCStatusTransition     www.ErrorStatusT = 1036
 	ErrorStatusDuplicateEmail                 www.ErrorStatusT = 1037
 	ErrorStatusInvalidUserNewInvoice          www.ErrorStatusT = 1038
+	ErrorStatusInvalidDCCNominee              www.ErrorStatusT = 1039
 )
 
 var (
@@ -256,6 +257,7 @@ var (
 		ErrorStatusInvalidDCCStatusTransition:     "invalid status transition for a DCC",
 		ErrorStatusDuplicateEmail:                 "another user already has that email registered",
 		ErrorStatusInvalidUserNewInvoice:          "current contractor status does not allow new invoices to be created",
+		ErrorStatusInvalidDCCNominee:              "invalid nominee user was submitted for a DCC",
 	}
 )
 

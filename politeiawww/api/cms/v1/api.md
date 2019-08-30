@@ -1050,6 +1050,7 @@ Reply:
 | <a name="ErrorStatusInvalidDCCStatusTransition">ErrorStatusInvalidDCCStatusTransition</a> | 1036 | An invalid DCC status transition. |
 | <a name="ErrorStatusDuplicateEmail">ErrorStatusDuplicateEmail</a> | 1037 | A duplicate email address was detected. |
 | <a name="ErrorStatusInvalidUserNewInvoice">ErrorStatusInvalidUserNewInvoice</a> | 1038 | The user was not allowed to create a new invoice. |
+| <a name="ErrorStatusInvalidDCCNominee">ErrorStatusInvalidDCCNominee</a> | 1039 | The user that was nominated was invalid, either not found or not a potential nominee. |
 
 ### Invoice status codes
 

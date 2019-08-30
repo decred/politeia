@@ -111,7 +111,7 @@ func (p *politeiawww) processNewDCC(nd cms.NewDCC, u *user.User) (*cms.NewDCCRep
 	}
 
 	// Create expected []www.File from single dcc.json file
-	files := make([]www.File, 1)
+	files := make([]www.File, 0, 1)
 	files = append(files, nd.File)
 
 	// Setup politeiad request
@@ -287,16 +287,23 @@ func (p *politeiawww) validateDCC(nd cms.NewDCC, u *user.User) error {
 
 	// Check to see if the data can be parsed properly into DCCInput
 	// struct.
-	var issuance cms.DCCInput
-	if err := json.Unmarshal(data, &issuance); err != nil {
+	var dcc cms.DCCInput
+	if err := json.Unmarshal(data, &dcc); err != nil {
 		return www.UserError{
 			ErrorCode: cms.ErrorStatusMalformedDCCFile,
 		}
 	}
 	// Check UserID of Nominee
-	_, err = p.getCMSUserByID(issuance.NomineeUserID)
+	nomineeUser, err := p.getCMSUserByID(dcc.NomineeUserID)
 	if err != nil {
-		return err
+		return www.UserError{
+			ErrorCode: cms.ErrorStatusInvalidDCCNominee,
+		}
+	}
+	if nomineeUser.ContractorType != cms.ContractorTypeNominee {
+		return www.UserError{
+			ErrorCode: cms.ErrorStatusInvalidDCCNominee,
+		}
 	}
 
 	sponsorUser, err := p.getCMSUserByID(u.ID.String())
@@ -305,14 +312,14 @@ func (p *politeiawww) validateDCC(nd cms.NewDCC, u *user.User) error {
 	}
 
 	// Check that domains match
-	if sponsorUser.Domain != issuance.Domain {
+	if sponsorUser.Domain != dcc.Domain {
 		return www.UserError{
 			ErrorCode: cms.ErrorStatusInvalidNominatingDomain,
 		}
 	}
 
 	// Validate sponsor statement input
-	statement := formatSponsorStatement(issuance.SponsorStatement)
+	statement := formatSponsorStatement(dcc.SponsorStatement)
 	if !validateSponsorStatement(statement) {
 		return www.UserError{
 			ErrorCode: cms.ErrorStatusMalformedSponsorStatement,
