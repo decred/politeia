@@ -358,14 +358,15 @@ func verifyInvoice(p cms.InvoiceRecord, serverPubKey string) error {
 // censorship record.
 func verifyDCC(p cms.DCCRecord, serverPubKey string) error {
 	// Verify merkle root
-	if len(p.Files) > 0 {
-		mr, err := merkleRoot(p.Files)
-		if err != nil {
-			return err
-		}
-		if mr != p.CensorshipRecord.Merkle {
-			return fmt.Errorf("merkle roots do not match")
-		}
+
+	files := make([]v1.File, 0, 1)
+	files = append(files, p.File)
+	mr, err := merkleRoot(files)
+	if err != nil {
+		return err
+	}
+	if mr != p.CensorshipRecord.Merkle {
+		return fmt.Errorf("merkle roots do not match")
 	}
 
 	// Verify dcc signature

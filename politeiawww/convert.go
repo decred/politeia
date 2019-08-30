@@ -851,21 +851,22 @@ func convertDCCFromCache(r cache.Record) cms.DCCRecord {
 
 	// Convert files
 	var di cms.DCCInput
-	fs := make([]www.File, 0, len(r.Files))
+
+	var f www.File
+
 	for _, v := range r.Files {
-		f := www.File{
+		f = www.File{
 			Name:    v.Name,
 			MIME:    v.MIME,
 			Digest:  v.Digest,
 			Payload: v.Payload,
 		}
-		fs = append(fs, f)
 
 		// Parse invoice json
 		if f.Name == dccFile {
 			b, err := base64.StdEncoding.DecodeString(v.Payload)
 			if err != nil {
-				log.Errorf("convertDCCFromCache: decode invoice: "+
+				log.Errorf("convertDCCFromCache: decode dcc: "+
 					"token:%v error:%v payload:%v",
 					r.CensorshipRecord.Token, err, f.Payload)
 				continue
@@ -873,7 +874,7 @@ func convertDCCFromCache(r cache.Record) cms.DCCRecord {
 
 			err = json.Unmarshal(b, &di)
 			if err != nil {
-				log.Errorf("convertDCCFromCache: unmarshal InvoiceInput: "+
+				log.Errorf("convertDCCFromCache: unmarshal DCCInput: "+
 					"token:%v error:%v payload:%v",
 					r.CensorshipRecord.Token, err, f.Payload)
 				continue
@@ -891,8 +892,7 @@ func convertDCCFromCache(r cache.Record) cms.DCCRecord {
 		SponsorUsername:    "",
 		PublicKey:          md.PublicKey,
 		Signature:          md.Signature,
-		Files:              fs,
-		Version:            r.Version,
+		File:               f,
 		CensorshipRecord: www.CensorshipRecord{
 			Token:     r.CensorshipRecord.Token,
 			Merkle:    r.CensorshipRecord.Merkle,

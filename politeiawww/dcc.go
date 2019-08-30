@@ -46,19 +46,7 @@ const (
 )
 
 var (
-	validSponsorStatement     = regexp.MustCompile(createSponsorStatementRegex())
-	validDCCStatusTransitions = map[cms.DCCStatusT][]cms.DCCStatusT{
-		cms.DCCStatusActive: {
-			cms.DCCStatusApproved,
-			cms.DCCStatusSupported,
-			cms.DCCStatusRejected,
-			cms.DCCStatusDebate,
-		},
-		cms.DCCStatusSupported: {
-			cms.DCCStatusApproved,
-			cms.DCCStatusRejected,
-		},
-	}
+	validSponsorStatement = regexp.MustCompile(createSponsorStatementRegex())
 )
 
 // createSponsorStatementRegex generates a regex based on the policy supplied for
@@ -215,8 +203,8 @@ func (p *politeiawww) processNewDCC(nd cms.NewDCC, u *user.User) (*cms.NewDCCRep
 		Files:            n.Files,
 		CensorshipRecord: pdReply.CensorshipRecord,
 	}
-	// Submit issuance to cmsdb
 
+	// Submit issuance to cmsdb
 	dccRec, err := convertRecordToDatabaseDCC(r)
 	if err != nil {
 		return nil, err
@@ -234,7 +222,6 @@ func (p *politeiawww) processNewDCC(nd cms.NewDCC, u *user.User) (*cms.NewDCCRep
 }
 
 func (p *politeiawww) validateDCC(nd cms.NewDCC, u *user.User) error {
-
 	// Obtain signature
 	sig, err := util.ConvertSignature(nd.Signature)
 	if err != nil {
@@ -448,7 +435,7 @@ func decodeBackendDCCStatusChanges(payload []byte) ([]backendDCCStatusChange, er
 // getDCC gets the most recent verions of the given DCC from the cache
 // then fills in any missing user fields before returning the DCC record.
 func (p *politeiawww) getDCC(token string) (*cms.DCCRecord, error) {
-	// Get invoice from cache
+	// Get dcc from cache
 	r, err := p.cache.Record(token)
 	if err != nil {
 		return nil, err
@@ -508,7 +495,7 @@ func (p *politeiawww) processDCCDetails(gd cms.DCCDetails) (*cms.DCCDetailsReply
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
 			err = www.UserError{
-				ErrorCode: cms.ErrorStatusInvoiceNotFound,
+				ErrorCode: cms.ErrorStatusDCCNotFound,
 			}
 		}
 		return nil, err

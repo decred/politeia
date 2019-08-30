@@ -65,9 +65,7 @@ const (
 	ContractorTypeDirect        ContractorTypeT = 1 // Direct contractor
 	ContractorTypeSupervisor    ContractorTypeT = 2 // Supervisor contractor
 	ContractorTypeSubContractor ContractorTypeT = 3 // SubContractor
-	ContractorTypeRevoked       ContractorTypeT = 4 // Contractors that have been revoked via DCC
-	ContractorTypeDormant       ContractorTypeT = 5 // Contractors that have left for a period of time without invoice or contact
-	ContractorTypeNominee       ContractorTypeT = 6 // Nominated DCC user
+	ContractorTypeNominee       ContractorTypeT = 4 // Nominated DCC user
 
 	// Payment information status types
 	PaymentStatusInvalid  PaymentStatusT = 0 // Invalid status
@@ -80,12 +78,8 @@ const (
 	DCCTypeRevocation DCCTypeT = 2 // Revocation DCC type
 
 	// DCC status types
-	DCCStatusInvalid   DCCStatusT = 0 // Invalid issuance/revocation status
-	DCCStatusActive    DCCStatusT = 1 // Currently active issuance/revocation (awaiting sponsors)
-	DCCStatusSupported DCCStatusT = 2 // Fully supported issuance/revocation (received enough sponsors to proceed)
-	DCCStatusApproved  DCCStatusT = 3 // Approved issuance/revocation
-	DCCStatusRejected  DCCStatusT = 4 // Rejected issuance/revocation?  In the event of a Debate this would be result of a rejected issuance/revocation (that would override the mere sponsoring).
-	DCCStatusDebate    DCCStatusT = 5 // If a issuance/revocation receives enough comments, it would enter a "debate" status that would require a full contractor vote (to be added later).
+	DCCStatusInvalid DCCStatusT = 0 // Invalid issuance/revocation status
+	DCCStatusActive  DCCStatusT = 1 // Currently active issuance/revocation (awaiting sponsors)
 
 	InvoiceInputVersion = 1
 
@@ -189,6 +183,7 @@ const (
 	ErrorStatusDuplicateEmail                 www.ErrorStatusT = 1037
 	ErrorStatusInvalidUserNewInvoice          www.ErrorStatusT = 1038
 	ErrorStatusInvalidDCCNominee              www.ErrorStatusT = 1039
+	ErrorStatusDCCNotFound                    www.ErrorStatusT = 1040
 )
 
 var (
@@ -258,6 +253,7 @@ var (
 		ErrorStatusDuplicateEmail:                 "another user already has that email registered",
 		ErrorStatusInvalidUserNewInvoice:          "current contractor status does not allow new invoices to be created",
 		ErrorStatusInvalidDCCNominee:              "invalid nominee user was submitted for a DCC",
+		ErrorStatusDCCNotFound:                    "a requested dcc was not found",
 	}
 )
 
@@ -582,10 +578,9 @@ type DCCRecord struct {
 	StatusChangeReason string     `json:"statuschangereason"` // The reason for changing the DCC status.
 	Timestamp          int64      `json:"timestamp"`          // Last update of dcc
 	DCC                DCCInput   `json:"dccpayload"`         // DCC payload for the given object
-	Files              []www.File `json:"file"`               // Actual DCC files (dcc.json, etc)
+	File               www.File   `json:"file"`               // Actual DCC file (dcc.json, etc)
 	PublicKey          string     `json:"publickey"`          // Sponsoring user's public key, used to verify signature.
 	Signature          string     `json:"signature"`          // Signature of file digest
-	Version            string     `json:"version"`            // Record version
 
 	SponsorUserID   string `json:"sponsoruserid"`   // The userid of the sponsoring user.
 	SponsorUsername string `json:"sponsorusername"` // The username of the sponsoring user.

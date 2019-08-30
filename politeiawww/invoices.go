@@ -70,8 +70,6 @@ var (
 	}
 	// The valid contractor
 	invalidNewInvoiceContractorType = map[cms.ContractorTypeT]bool{
-		cms.ContractorTypeRevoked: true,
-		cms.ContractorTypeDormant: true,
 		cms.ContractorTypeNominee: true,
 	}
 
