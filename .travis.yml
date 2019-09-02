@@ -15,5 +15,6 @@ script:
   - (cd politeiawww/cmd/politeiawww_dataload && go build)
   - (cd politeiawww/cmd/politeiawww_dbutil && go build)
   - (cd politeiawww/cmd/politeiavoter && go build)
-  - (cd politeiawww/cmd/politeiawwwcli && go build)
+  - (cd politeiawww/cmd/piwww && go build)
+  - (cd politeiawww/cmd/cmswww && go build)
   - ./goclean.sh
