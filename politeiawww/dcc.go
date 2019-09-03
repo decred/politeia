@@ -487,8 +487,8 @@ func (p *politeiawww) getDCC(token string) (*cms.DCCRecord, error) {
 	i := convertDCCFromCache(*r)
 
 	// Get user IDs of support/oppose pubkeys
-	supportUserIDs := make([]string, len(i.SupportUserIDs))
-	opposeUserIDs := make([]string, len(i.OppositionUserIDs))
+	supportUserIDs := make([]string, 0, len(i.SupportUserIDs))
+	opposeUserIDs := make([]string, 0, len(i.OppositionUserIDs))
 	for _, v := range i.SupportUserIDs {
 		// Fill in userID and username fields
 		u, err := p.db.UserGetByPubKey(v)

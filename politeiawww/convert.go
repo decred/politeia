@@ -833,8 +833,8 @@ func convertDCCFromCache(r cache.Record) cms.DCCRecord {
 					"token:%v error:%v payload:%v",
 					r.CensorshipRecord.Token, err, v)
 			}
-			supportPubkeys := make([]string, len(so))
-			opposePubkeys := make([]string, len(so))
+			supportPubkeys := make([]string, 0, len(so))
+			opposePubkeys := make([]string, 0, len(so))
 			// Tabulate all support and opposition
 			for _, s := range so {
 				if s.Vote == supportString {
