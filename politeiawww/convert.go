@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
@@ -790,4 +791,180 @@ func convertInvoiceFromCache(r cache.Record) cms.InvoiceRecord {
 		},
 		Input: ii,
 	}
+}
+
+func convertDCCFromCache(r cache.Record) cms.DCCRecord {
+	// Decode metadata streams
+	var md backendDCCMetadata
+	var c backendDCCStatusChange
+	for _, v := range r.Metadata {
+		switch v.ID {
+		case mdStreamDCCGeneral:
+			// General invoice metadata
+			m, err := decodeBackendDCCMetadata([]byte(v.Payload))
+			if err != nil {
+				log.Errorf("convertDCCFromCache: decode md stream: "+
+					"token:%v error:%v payload:%v",
+					r.CensorshipRecord.Token, err, v)
+			}
+			md = *m
+
+		case mdStreamDCCStatusChanges:
+			// Invoice status changes
+			m, err := decodeBackendDCCStatusChanges([]byte(v.Payload))
+			if err != nil {
+				log.Errorf("convertDCCFromCache: decode md stream: "+
+					"token:%v error:%v payload:%v",
+					r.CensorshipRecord.Token, err, v)
+			}
+
+			// We don't need all of the status changes.
+			// Just the most recent one.
+			for _, s := range m {
+				c = s
+			}
+		}
+	}
+
+	// Convert files
+	var di cms.DCCInput
+
+	var f www.File
+
+	for _, v := range r.Files {
+		f = www.File{
+			Name:    v.Name,
+			MIME:    v.MIME,
+			Digest:  v.Digest,
+			Payload: v.Payload,
+		}
+
+		// Parse invoice json
+		if f.Name == dccFile {
+			b, err := base64.StdEncoding.DecodeString(v.Payload)
+			if err != nil {
+				log.Errorf("convertDCCFromCache: decode dcc: "+
+					"token:%v error:%v payload:%v",
+					r.CensorshipRecord.Token, err, f.Payload)
+				continue
+			}
+
+			err = json.Unmarshal(b, &di)
+			if err != nil {
+				log.Errorf("convertDCCFromCache: unmarshal DCCInput: "+
+					"token:%v error:%v payload:%v",
+					r.CensorshipRecord.Token, err, f.Payload)
+				continue
+			}
+		}
+	}
+
+	// UserID and Username are left intentionally blank.
+	// These fields not part of a cache record.
+	return cms.DCCRecord{
+		Status:             c.NewStatus,
+		StatusChangeReason: c.Reason,
+		Timestamp:          r.Timestamp,
+		SponsorUserID:      "",
+		SponsorUsername:    "",
+		PublicKey:          md.PublicKey,
+		Signature:          md.Signature,
+		File:               f,
+		CensorshipRecord: www.CensorshipRecord{
+			Token:     r.CensorshipRecord.Token,
+			Merkle:    r.CensorshipRecord.Merkle,
+			Signature: r.CensorshipRecord.Signature,
+		},
+		DCC: di,
+	}
+}
+
+func convertRecordToDatabaseDCC(p pd.Record) (*cmsdatabase.DCC, error) {
+	dbDCC := cmsdatabase.DCC{
+		Files:           convertRecordFilesToWWW(p.Files),
+		Token:           p.CensorshipRecord.Token,
+		ServerSignature: p.CensorshipRecord.Signature,
+	}
+
+	// Decode invoice file
+	for _, v := range p.Files {
+		if v.Name == dccFile {
+			b, err := base64.StdEncoding.DecodeString(v.Payload)
+			if err != nil {
+				return nil, err
+			}
+
+			var dcc cms.DCCInput
+			err = json.Unmarshal(b, &dcc)
+			if err != nil {
+				return nil, fmt.Errorf("could not decode DCC input data: token '%v': %v",
+					p.CensorshipRecord.Token, err)
+			}
+			dbDCC.Type = dcc.Type
+			dbDCC.NomineeUserID = dcc.NomineeUserID
+			dbDCC.SponsorStatement = dcc.SponsorStatement
+			dbDCC.Domain = dcc.Domain
+		}
+	}
+
+	for _, m := range p.Metadata {
+		switch m.ID {
+		case mdStreamDCCGeneral:
+			var mdGeneral backendDCCMetadata
+			err := json.Unmarshal([]byte(m.Payload), &mdGeneral)
+			if err != nil {
+				return nil, fmt.Errorf("could not decode metadata '%v' token '%v': %v",
+					p.Metadata, p.CensorshipRecord.Token, err)
+			}
+
+			dbDCC.Timestamp = mdGeneral.Timestamp
+			dbDCC.PublicKey = mdGeneral.PublicKey
+			dbDCC.UserSignature = mdGeneral.Signature
+
+		case mdStreamDCCStatusChanges:
+			sc, err := decodeBackendDCCStatusChanges([]byte(m.Payload))
+			if err != nil {
+				return nil, fmt.Errorf("could not decode metadata '%v' token '%v': %v",
+					m, p.CensorshipRecord.Token, err)
+			}
+
+			// We don't need all of the status changes.
+			// Just the most recent one.
+			for _, s := range sc {
+				dbDCC.Status = s.NewStatus
+				dbDCC.StatusChangeReason = s.Reason
+			}
+		default:
+			// Log error but proceed
+			log.Errorf("initializeInventory: invalid "+
+				"metadata stream ID %v token %v",
+				m.ID, p.CensorshipRecord.Token)
+		}
+	}
+
+	return &dbDCC, nil
+}
+
+func convertDCCDatabaseToRecord(dbDCC *cmsdatabase.DCC) cms.DCCRecord {
+	dccRecord := cms.DCCRecord{}
+
+	dccRecord.DCC.Type = dbDCC.Type
+	dccRecord.DCC.NomineeUserID = dbDCC.NomineeUserID
+	dccRecord.DCC.SponsorStatement = dbDCC.SponsorStatement
+	dccRecord.DCC.Domain = dbDCC.Domain
+	dccRecord.Status = dbDCC.Status
+	dccRecord.StatusChangeReason = dbDCC.StatusChangeReason
+	dccRecord.Timestamp = dbDCC.Timestamp
+	dccRecord.CensorshipRecord = www.CensorshipRecord{
+		Token: dbDCC.Token,
+	}
+	dccRecord.PublicKey = dbDCC.PublicKey
+	dccRecord.Signature = dbDCC.ServerSignature
+	dccRecord.SponsorUserID = dbDCC.SponsorUserID
+	supportUserIDs := strings.Split(dbDCC.SupportUserIDs, ",")
+	dccRecord.SupportUserIDs = supportUserIDs
+	oppositionUserIDs := strings.Split(dbDCC.OppositionUserIDs, ",")
+	dccRecord.OppositionUserIDs = oppositionUserIDs
+
+	return dccRecord
 }

@@ -35,6 +35,7 @@ type NewCMSUser struct {
 	Username                  string `json:"username"`
 	NewUserVerificationToken  []byte `json:"newuserverificationtoken"`
 	NewUserVerificationExpiry int64  `json:"newuserverificationtokenexiry"`
+	ContractorType            int    `json:"contractortype"`
 }
 
 // EncodeNewCMSUser encodes a NewCMSUser into a JSON byte slice.

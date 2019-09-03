@@ -523,6 +523,91 @@ func (p *politeiawww) handleLineItemPayouts(w http.ResponseWriter, r *http.Reque
 	util.RespondWithJSON(w, http.StatusOK, lipr)
 }
 
+func (p *politeiawww) handleNewDCC(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleNewDCC")
+
+	var nd cms.NewDCC
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&nd); err != nil {
+		RespondWithError(w, r, 0, "handleNewDCC: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+	u, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleNewDCC: getSessionUser %v", err)
+		return
+	}
+
+	ndr, err := p.processNewDCC(nd, u)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleNewDCC: processNewDCC: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, ndr)
+}
+
+func (p *politeiawww) handleDCCDetails(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleDCCDetails")
+
+	var gd cms.DCCDetails
+	// get version from query string parameters
+	err := util.ParseGetParams(r, &gd)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleDCCDetails: ParseGetParams",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+	// Get dcc token from path parameters
+	pathParams := mux.Vars(r)
+	gd.Token = pathParams["token"]
+
+	gdr, err := p.processDCCDetails(gd)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleDCCDetails: processDCCDetails: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, gdr)
+}
+
+func (p *politeiawww) handleGetDCCs(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleGetDCCs")
+
+	var gds cms.GetDCCs
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&gds); err != nil {
+		RespondWithError(w, r, 0, "handleGetDCCs: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+	_, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleGetDCCs: getSessionUser %v", err)
+		return
+	}
+
+	gdsr, err := p.processGetDCCs(gds)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleGetDCCs: processGetDCCs: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, gdsr)
+}
+
 func (p *politeiawww) setCMSWWWRoutes() {
 	// Templates
 	//p.addTemplate(templateNewProposalSubmittedName,
@@ -559,7 +644,12 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		p.handleInvoiceComments, permissionLogin)
 	p.addRoute(http.MethodPost, cms.RouteInvoiceExchangeRate,
 		p.handleInvoiceExchangeRate, permissionLogin)
-
+	p.addRoute(http.MethodPost, cms.RouteNewDCC,
+		p.handleNewDCC, permissionLogin)
+	p.addRoute(http.MethodGet, cms.RouteDCCDetails,
+		p.handleDCCDetails, permissionLogin)
+	p.addRoute(http.MethodPost, cms.RouteGetDCCs,
+		p.handleGetDCCs, permissionLogin)
 	// Unauthenticated websocket
 	p.addRoute("", www.RouteUnauthenticatedWebSocket,
 		p.handleUnauthenticatedWebsocket, permissionPublic)

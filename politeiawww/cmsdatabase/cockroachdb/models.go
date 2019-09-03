@@ -102,3 +102,27 @@ type Payments struct {
 func (Payments) TableName() string {
 	return tableNamePayments
 }
+
+// DCC contains all the information about a given DCC proposal.
+type DCC struct {
+	Token              string `gorm:"primary_key"`
+	SponsorUserID      string
+	NomineeUserID      string
+	Type               int
+	Status             int
+	StatusChangeReason string
+	Timestamp          int64
+	PublicKey          string
+	UserSignature      string
+	ServerSignature    string
+	SponsorStatement   string
+	Domain             int
+
+	SupportUserIDs    string
+	OppositionUserIDs string
+}
+
+// TableName returns the table name of the issuance table.
+func (DCC) TableName() string {
+	return tableNameDCC
+}
