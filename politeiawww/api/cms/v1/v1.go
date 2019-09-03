@@ -26,7 +26,7 @@ const (
 	RouteUserInvoices        = "/user/invoices"
 	RouteNewDCC              = "/dcc/new"
 	RouteDCCDetails          = "/dcc/{token:[A-z0-9]{64}}"
-	RouteGetDCCs             = "/dcc/status"
+	RouteGetDCCs             = "/dcc"
 	RouteSupportOpposeDCC    = "/dcc/supportoppose"
 	RouteNewCommentDCC       = "/dcc/comment"
 	RouteDCCComments         = "/dcc/{token:[A-z0-9]{64}}/comments"
@@ -148,46 +148,46 @@ const (
 	// statement contained within a DCC
 	PolicyMaxSponsorStatementLength = 500
 
-	ErrorStatusMalformedName                  www.ErrorStatusT = 1001
-	ErrorStatusMalformedLocation              www.ErrorStatusT = 1002
-	ErrorStatusInvoiceNotFound                www.ErrorStatusT = 1003
-	ErrorStatusInvalidMonthYearRequest        www.ErrorStatusT = 1004
-	ErrorStatusMalformedInvoiceFile           www.ErrorStatusT = 1005
-	ErrorStatusInvalidInvoiceStatusTransition www.ErrorStatusT = 1006
-	ErrorStatusReasonNotProvided              www.ErrorStatusT = 1007
-	ErrorStatusInvoiceDuplicate               www.ErrorStatusT = 1008
-	ErrorStatusInvalidPaymentAddress          www.ErrorStatusT = 1009
-	ErrorStatusMalformedLineItem              www.ErrorStatusT = 1010
-	ErrorStatusInvoiceMissingName             www.ErrorStatusT = 1011
-	ErrorStatusInvoiceMissingLocation         www.ErrorStatusT = 1012
-	ErrorStatusInvoiceMissingContact          www.ErrorStatusT = 1013
-	ErrorStatusInvoiceMissingRate             www.ErrorStatusT = 1014
-	ErrorStatusInvoiceInvalidRate             www.ErrorStatusT = 1015
-	ErrorStatusInvoiceMalformedContact        www.ErrorStatusT = 1016
-	ErrorStatusMalformedProposalToken         www.ErrorStatusT = 1017
-	ErrorStatusMalformedDomain                www.ErrorStatusT = 1018
-	ErrorStatusMalformedSubdomain             www.ErrorStatusT = 1019
-	ErrorStatusMalformedDescription           www.ErrorStatusT = 1020
-	ErrorStatusWrongInvoiceStatus             www.ErrorStatusT = 1021
-	ErrorStatusInvoiceRequireLineItems        www.ErrorStatusT = 1022
-	ErrorStatusInvalidInvoiceMonthYear        www.ErrorStatusT = 1024
-	ErrorStatusInvalidExchangeRate            www.ErrorStatusT = 1025
-	ErrorStatusInvalidLineItemType            www.ErrorStatusT = 1026
-	ErrorStatusInvalidLaborExpense            www.ErrorStatusT = 1027
-	ErrorStatusDuplicatePaymentAddress        www.ErrorStatusT = 1028
-	ErrorStatusInvalidDatesRequested          www.ErrorStatusT = 1029
-	ErrorStatusInvalidInvoiceEditMonthYear    www.ErrorStatusT = 1030
-	ErrorStatusInvalidDCCType                 www.ErrorStatusT = 1031
-	ErrorStatusInvalidNominatingDomain        www.ErrorStatusT = 1032
-	ErrorStatusMalformedSponsorStatement      www.ErrorStatusT = 1033
-	ErrorStatusMalformedDCCFile               www.ErrorStatusT = 1034
-	ErrorStatusInvalidDCCComment              www.ErrorStatusT = 1035
-	ErrorStatusInvalidDCCStatusTransition     www.ErrorStatusT = 1036
-	ErrorStatusDuplicateEmail                 www.ErrorStatusT = 1037
-	ErrorStatusInvalidUserNewInvoice          www.ErrorStatusT = 1038
-	ErrorStatusInvalidDCCNominee              www.ErrorStatusT = 1039
-	ErrorStatusDCCNotFound                    www.ErrorStatusT = 1040
-	ErrorStatusCannotCommentOnDCC             www.ErrorStatusT = 1041
+	ErrorStatusMalformedName                            www.ErrorStatusT = 1001
+	ErrorStatusMalformedLocation                        www.ErrorStatusT = 1002
+	ErrorStatusInvoiceNotFound                          www.ErrorStatusT = 1003
+	ErrorStatusInvalidMonthYearRequest                  www.ErrorStatusT = 1004
+	ErrorStatusMalformedInvoiceFile                     www.ErrorStatusT = 1005
+	ErrorStatusInvalidInvoiceStatusTransition           www.ErrorStatusT = 1006
+	ErrorStatusReasonNotProvided                        www.ErrorStatusT = 1007
+	ErrorStatusInvoiceDuplicate                         www.ErrorStatusT = 1008
+	ErrorStatusInvalidPaymentAddress                    www.ErrorStatusT = 1009
+	ErrorStatusMalformedLineItem                        www.ErrorStatusT = 1010
+	ErrorStatusInvoiceMissingName                       www.ErrorStatusT = 1011
+	ErrorStatusInvoiceMissingLocation                   www.ErrorStatusT = 1012
+	ErrorStatusInvoiceMissingContact                    www.ErrorStatusT = 1013
+	ErrorStatusInvoiceMissingRate                       www.ErrorStatusT = 1014
+	ErrorStatusInvoiceInvalidRate                       www.ErrorStatusT = 1015
+	ErrorStatusInvoiceMalformedContact                  www.ErrorStatusT = 1016
+	ErrorStatusMalformedProposalToken                   www.ErrorStatusT = 1017
+	ErrorStatusMalformedDomain                          www.ErrorStatusT = 1018
+	ErrorStatusMalformedSubdomain                       www.ErrorStatusT = 1019
+	ErrorStatusMalformedDescription                     www.ErrorStatusT = 1020
+	ErrorStatusWrongInvoiceStatus                       www.ErrorStatusT = 1021
+	ErrorStatusInvoiceRequireLineItems                  www.ErrorStatusT = 1022
+	ErrorStatusInvalidInvoiceMonthYear                  www.ErrorStatusT = 1024
+	ErrorStatusInvalidExchangeRate                      www.ErrorStatusT = 1025
+	ErrorStatusInvalidLineItemType                      www.ErrorStatusT = 1026
+	ErrorStatusInvalidLaborExpense                      www.ErrorStatusT = 1027
+	ErrorStatusDuplicatePaymentAddress                  www.ErrorStatusT = 1028
+	ErrorStatusInvalidDatesRequested                    www.ErrorStatusT = 1029
+	ErrorStatusInvalidInvoiceEditMonthYear              www.ErrorStatusT = 1030
+	ErrorStatusInvalidDCCType                           www.ErrorStatusT = 1031
+	ErrorStatusInvalidNominatingDomain                  www.ErrorStatusT = 1032
+	ErrorStatusMalformedSponsorStatement                www.ErrorStatusT = 1033
+	ErrorStatusMalformedDCCFile                         www.ErrorStatusT = 1034
+	ErrorStatusInvalidDCCComment                        www.ErrorStatusT = 1035
+	ErrorStatusInvalidDCCStatusTransition               www.ErrorStatusT = 1036
+	ErrorStatusDuplicateEmail                           www.ErrorStatusT = 1037
+	ErrorStatusInvalidUserNewInvoice                    www.ErrorStatusT = 1038
+	ErrorStatusInvalidDCCNominee                        www.ErrorStatusT = 1039
+	ErrorStatusDCCNotFound                              www.ErrorStatusT = 1040
+	ErrorStatusCannotSupportOpposeCommentOnNonActiveDCC www.ErrorStatusT = 1041
 )
 
 var (
@@ -221,44 +221,44 @@ var (
 
 	// ErrorStatus converts error status codes to human readable text.
 	ErrorStatus = map[www.ErrorStatusT]string{
-		ErrorStatusMalformedName:                  "malformed name",
-		ErrorStatusMalformedLocation:              "malformed location",
-		ErrorStatusInvoiceNotFound:                "invoice cannot be found",
-		ErrorStatusInvalidMonthYearRequest:        "month or year was set, while the other was not",
-		ErrorStatusInvalidInvoiceStatusTransition: "invalid invoice status transition",
-		ErrorStatusReasonNotProvided:              "reason for action not provided",
-		ErrorStatusMalformedInvoiceFile:           "submitted invoice file is malformed",
-		ErrorStatusInvoiceDuplicate:               "submitted invoice is a duplicate of an existing invoice",
-		ErrorStatusInvalidPaymentAddress:          "invalid payment address",
-		ErrorStatusMalformedLineItem:              "malformed line item submitted",
-		ErrorStatusInvoiceMissingName:             "invoice missing contractor name",
-		ErrorStatusInvoiceMissingLocation:         "invoice missing contractor location",
-		ErrorStatusInvoiceMissingContact:          "invoice missing contractor contact",
-		ErrorStatusInvoiceMalformedContact:        "invoice has malformed contractor contact",
-		ErrorStatusInvoiceMissingRate:             "invoice missing contractor rate",
-		ErrorStatusInvoiceInvalidRate:             "invoice has invalid contractor rate",
-		ErrorStatusMalformedProposalToken:         "line item has malformed proposal token",
-		ErrorStatusMalformedDomain:                "line item has malformed domain",
-		ErrorStatusMalformedSubdomain:             "line item has malformed subdomain",
-		ErrorStatusMalformedDescription:           "line item has malformed description",
-		ErrorStatusWrongInvoiceStatus:             "invoice is an wrong status to be editted (approved, rejected or paid)",
-		ErrorStatusInvoiceRequireLineItems:        "invoices require at least 1 line item",
-		ErrorStatusInvalidInvoiceMonthYear:        "an invalid month/year was submitted on an invoice",
-		ErrorStatusInvalidExchangeRate:            "exchange rate was invalid or didn't match expected result",
-		ErrorStatusDuplicatePaymentAddress:        "a duplicate payment address was used",
-		ErrorStatusInvalidDatesRequested:          "invalid dates were requested",
-		ErrorStatusInvalidInvoiceEditMonthYear:    "invalid attempt to edit invoice month/year",
-		ErrorStatusInvalidDCCType:                 "invalid DCC type was included",
-		ErrorStatusInvalidNominatingDomain:        "non-matching domain was attempt",
-		ErrorStatusMalformedSponsorStatement:      "DCC sponsor statement was malformed",
-		ErrorStatusMalformedDCCFile:               "submitted DCC file was malformed according to standards",
-		ErrorStatusInvalidDCCComment:              "submitted DCC comment must either be aye or nay",
-		ErrorStatusInvalidDCCStatusTransition:     "invalid status transition for a DCC",
-		ErrorStatusDuplicateEmail:                 "another user already has that email registered",
-		ErrorStatusInvalidUserNewInvoice:          "current contractor status does not allow new invoices to be created",
-		ErrorStatusInvalidDCCNominee:              "invalid nominee user was submitted for a DCC",
-		ErrorStatusDCCNotFound:                    "a requested dcc was not found",
-		ErrorStatusCannotCommentOnDCC:             "cannot comment/approve/oppose DCC in its current state",
+		ErrorStatusMalformedName:                            "malformed name",
+		ErrorStatusMalformedLocation:                        "malformed location",
+		ErrorStatusInvoiceNotFound:                          "invoice cannot be found",
+		ErrorStatusInvalidMonthYearRequest:                  "month or year was set, while the other was not",
+		ErrorStatusInvalidInvoiceStatusTransition:           "invalid invoice status transition",
+		ErrorStatusReasonNotProvided:                        "reason for action not provided",
+		ErrorStatusMalformedInvoiceFile:                     "submitted invoice file is malformed",
+		ErrorStatusInvoiceDuplicate:                         "submitted invoice is a duplicate of an existing invoice",
+		ErrorStatusInvalidPaymentAddress:                    "invalid payment address",
+		ErrorStatusMalformedLineItem:                        "malformed line item submitted",
+		ErrorStatusInvoiceMissingName:                       "invoice missing contractor name",
+		ErrorStatusInvoiceMissingLocation:                   "invoice missing contractor location",
+		ErrorStatusInvoiceMissingContact:                    "invoice missing contractor contact",
+		ErrorStatusInvoiceMalformedContact:                  "invoice has malformed contractor contact",
+		ErrorStatusInvoiceMissingRate:                       "invoice missing contractor rate",
+		ErrorStatusInvoiceInvalidRate:                       "invoice has invalid contractor rate",
+		ErrorStatusMalformedProposalToken:                   "line item has malformed proposal token",
+		ErrorStatusMalformedDomain:                          "line item has malformed domain",
+		ErrorStatusMalformedSubdomain:                       "line item has malformed subdomain",
+		ErrorStatusMalformedDescription:                     "line item has malformed description",
+		ErrorStatusWrongInvoiceStatus:                       "invoice is an wrong status to be editted (approved, rejected or paid)",
+		ErrorStatusInvoiceRequireLineItems:                  "invoices require at least 1 line item",
+		ErrorStatusInvalidInvoiceMonthYear:                  "an invalid month/year was submitted on an invoice",
+		ErrorStatusInvalidExchangeRate:                      "exchange rate was invalid or didn't match expected result",
+		ErrorStatusDuplicatePaymentAddress:                  "a duplicate payment address was used",
+		ErrorStatusInvalidDatesRequested:                    "invalid dates were requested",
+		ErrorStatusInvalidInvoiceEditMonthYear:              "invalid attempt to edit invoice month/year",
+		ErrorStatusInvalidDCCType:                           "invalid DCC type was included",
+		ErrorStatusInvalidNominatingDomain:                  "non-matching domain was attempt",
+		ErrorStatusMalformedSponsorStatement:                "DCC sponsor statement was malformed",
+		ErrorStatusMalformedDCCFile:                         "submitted DCC file was malformed according to standards",
+		ErrorStatusInvalidDCCComment:                        "submitted DCC comment must either be aye or nay",
+		ErrorStatusInvalidDCCStatusTransition:               "invalid status transition for a DCC",
+		ErrorStatusDuplicateEmail:                           "another user already has that email registered",
+		ErrorStatusInvalidUserNewInvoice:                    "current contractor status does not allow new invoices to be created",
+		ErrorStatusInvalidDCCNominee:                        "invalid nominee user was submitted for a DCC",
+		ErrorStatusDCCNotFound:                              "a requested dcc was not found",
+		ErrorStatusCannotSupportOpposeCommentOnNonActiveDCC: "cannot comment/approve/oppose DCC if it's not active state",
 	}
 )
 
@@ -577,7 +577,8 @@ type DCCInput struct {
 	Domain           DomainTypeT `json:"domain"`        // Domain of proposed contractor issuance
 }
 
-// DCCRecord is what will be decoded from a Record for a DCC object to the politeiad backend.
+// DCCRecord is what will be decoded from a Record for a DCC object to the
+// politeiad backend.
 type DCCRecord struct {
 	Status             DCCStatusT `json:"status"`             // Current status of the DCC
 	StatusChangeReason string     `json:"statuschangereason"` // The reason for changing the DCC status.
@@ -603,7 +604,8 @@ type NewDCC struct {
 	Signature string   `json:"signature"` // Signature of the issuance struct by the sponsoring user.
 }
 
-// NewDCCReply returns the censorship record when the DCC is successfully submitted to the backend.
+// NewDCCReply returns the censorship record when the DCC is successfully
+// submitted to the backend.
 type NewDCCReply struct {
 	CensorshipRecord www.CensorshipRecord `json:"censorshiprecord"`
 }
@@ -628,10 +630,13 @@ type GetDCCsReply struct {
 	DCCs []DCCRecord `json:"dccs"` // DCCRecords of matching status
 }
 
-// SupportOpposeDCC request allows a user to support a given DCC issuance or revocation.
+// SupportOpposeDCC request allows a user to support a given DCC issuance or
+// revocation.
 type SupportOpposeDCC struct {
-	Vote  string `json:"comment"` // Vote must be "aye" or "nay"
-	Token string `json:"token"`   // The censorship token of the given DCC issuance or revocation.
+	Vote      string `json:"comment"`   // Vote must be "aye" or "nay"
+	Token     string `json:"token"`     // The censorship token of the given DCC issuance or revocation.
+	PublicKey string `json:"publickey"` // Pubkey of the submitting user
+	Signature string `json:"signature"` // Signature of the Token+Vote by the submitting user.
 }
 
 // SupportOpposeDCCReply returns an empty response when successful.

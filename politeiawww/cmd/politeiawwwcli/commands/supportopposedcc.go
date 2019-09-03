@@ -5,6 +5,7 @@
 package commands
 
 import (
+	"encoding/hex"
 	"fmt"
 
 	v1 "github.com/decred/politeia/politeiawww/api/cms/v1"
@@ -37,9 +38,12 @@ func (cmd *SupportOpposeDCCCmd) Execute(args []string) error {
 		return errUserIdentityNotFound
 	}
 
+	sig := cfg.Identity.SignMessage([]byte(token + vote))
 	sd := v1.SupportOpposeDCC{
-		Vote:  vote,
-		Token: token,
+		Vote:      vote,
+		Token:     token,
+		PublicKey: hex.EncodeToString(cfg.Identity.Public.Key[:]),
+		Signature: hex.EncodeToString(sig[:]),
 	}
 
 	// Print request details

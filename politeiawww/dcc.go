@@ -386,6 +386,7 @@ type backendDCCSupportOppositionMetadata struct {
 	Timestamp int64  `json:"timestamp"` // Last update of invoice
 	PublicKey string `json:"publickey"` // Key used for signature
 	Vote      string `json:"vote"`      // Vote for support/opposition
+	Signature string `json:"signature"` // Signature of merkle root
 }
 
 // encodeBackendDCCMetadata encodes a backendDCCMetadata into a JSON
@@ -582,7 +583,7 @@ func (p *politeiawww) processSupportOpposeDCC(sd cms.SupportOpposeDCC, u *user.U
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
 			err = www.UserError{
-				ErrorCode: cms.ErrorStatusInvoiceNotFound,
+				ErrorCode: cms.ErrorStatusDCCNotFound,
 			}
 		}
 		return nil, err
@@ -611,16 +612,24 @@ func (p *politeiawww) processSupportOpposeDCC(sd cms.SupportOpposeDCC, u *user.U
 	// Check to make sure that the DCC is still active
 	if dcc.Status != cms.DCCStatusActive {
 		return nil, www.UserError{
-			ErrorCode: cms.ErrorStatusCannotCommentOnDCC,
+			ErrorCode: cms.ErrorStatusCannotSupportOpposeCommentOnNonActiveDCC,
 		}
+	}
+
+	// Validate signature
+	msg := fmt.Sprintf("%v%v", sd.Token, sd.Vote)
+	err = validateSignature(sd.PublicKey, sd.Signature, msg)
+	if err != nil {
+		return nil, err
 	}
 
 	// Create the change record.
 	c := backendDCCSupportOppositionMetadata{
 		Version:   backendDCCSupposeOppositionMetadataVersion,
-		PublicKey: u.PublicKey(),
+		PublicKey: sd.PublicKey,
 		Timestamp: time.Now().Unix(),
 		Vote:      sd.Vote,
+		Signature: sd.Signature,
 	}
 	blob, err := encodeBackendDCCSupportOppositionMetadata(c)
 	if err != nil {
@@ -643,7 +652,8 @@ func (p *politeiawww) processSupportOpposeDCC(sd cms.SupportOpposeDCC, u *user.U
 		},
 	}
 
-	responseBody, err := p.makeRequest(http.MethodPost, pd.UpdateVettedMetadataRoute, pdCommand)
+	responseBody, err := p.makeRequest(http.MethodPost,
+		pd.UpdateVettedMetadataRoute, pdCommand)
 	if err != nil {
 		return nil, err
 	}
@@ -703,14 +713,6 @@ func (p *politeiawww) processNewCommentDCC(nc www.NewComment, u *user.User) (*ww
 		return nil, err
 	}
 
-	// Don't allow comments of just "aye" or "nay" that would be confused
-	// with support or opposition.
-	if nc.Comment == supportString || nc.Comment == opposeString {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusUserActionNotAllowed,
-		}
-	}
-
 	// Validate comment
 	err = validateComment(nc)
 	if err != nil {
@@ -720,7 +722,7 @@ func (p *politeiawww) processNewCommentDCC(nc www.NewComment, u *user.User) (*ww
 	// Check to make sure that dcc isn't already approved.
 	if dcc.Status != cms.DCCStatusActive {
 		return nil, www.UserError{
-			ErrorCode: cms.ErrorStatusCannotCommentOnDCC,
+			ErrorCode: cms.ErrorStatusCannotSupportOpposeCommentOnNonActiveDCC,
 		}
 	}
 
@@ -768,11 +770,6 @@ func (p *politeiawww) processNewCommentDCC(nc www.NewComment, u *user.User) (*ww
 	if err != nil {
 		return nil, err
 	}
-
-	// Add comment to commentScores in-memory cache
-	p.Lock()
-	p.commentScores[nc.Token+ncr.CommentID] = 0
-	p.Unlock()
 
 	// Get comment from cache
 	c, err := p.getComment(nc.Token, ncr.CommentID)
