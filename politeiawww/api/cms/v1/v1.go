@@ -29,6 +29,7 @@ const (
 	RouteGetDCCs             = "/dcc/status"
 	RouteSupportOpposeDCC    = "/dcc/supportoppose"
 	RouteNewCommentDCC       = "/dcc/comment"
+	RouteDCCComments         = "/dcc/{token:[A-z0-9]{64}}/comments"
 	RouteAdminInvoices       = "/admin/invoices"
 	RouteAdminUserInvoices   = "/admin/userinvoices"
 	RouteGeneratePayouts     = "/admin/generatepayouts"

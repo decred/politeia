@@ -668,6 +668,30 @@ func (p *politeiawww) handleNewCommentDCC(w http.ResponseWriter, r *http.Request
 	util.RespondWithJSON(w, http.StatusOK, cr)
 }
 
+// handleDCCComments handles batched comments get.
+func (p *politeiawww) handleDCCComments(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleDCCComments")
+
+	pathParams := mux.Vars(r)
+	token := pathParams["token"]
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		if err != ErrSessionUUIDNotFound {
+			RespondWithError(w, r, 0,
+				"handleDCCComments: getSessionUser %v", err)
+			return
+		}
+	}
+	gcr, err := p.processDCCComments(token, user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleDCCComments: processDCCComments %v", err)
+		return
+	}
+	util.RespondWithJSON(w, http.StatusOK, gcr)
+}
+
 func (p *politeiawww) setCMSWWWRoutes() {
 	// Templates
 	//p.addTemplate(templateNewProposalSubmittedName,
@@ -714,6 +738,8 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		p.handleSupportOpposeDCC, permissionLogin)
 	p.addRoute(http.MethodPost, cms.RouteNewCommentDCC,
 		p.handleNewCommentDCC, permissionLogin)
+	p.addRoute(http.MethodGet, cms.RouteDCCComments,
+		p.handleDCCComments, permissionLogin)
 
 	// Unauthenticated websocket
 	p.addRoute("", www.RouteUnauthenticatedWebSocket,

@@ -683,18 +683,10 @@ func (p *politeiawww) processNewCommentDCC(nc www.NewComment, u *user.User) (*ww
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
 			err = www.UserError{
-				ErrorCode: cms.ErrorStatusInvoiceNotFound,
+				ErrorCode: cms.ErrorStatusDCCNotFound,
 			}
 		}
 		return nil, err
-	}
-
-	// Check to make sure the user is either an admin or the
-	// author of the invoice.
-	if !u.Admin && (dcc.SponsorUsername != u.Username) {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusUserActionNotAllowed,
-		}
 	}
 
 	// Ensure the public key is the user's active key
@@ -791,4 +783,64 @@ func (p *politeiawww) processNewCommentDCC(nc www.NewComment, u *user.User) (*ww
 	return &www.NewCommentReply{
 		Comment: *c,
 	}, nil
+}
+
+// processDCCComments returns all comments for a given dcc. If the user is
+// logged in the user's last access time for the given comments will also be
+// returned.
+func (p *politeiawww) processDCCComments(token string, u *user.User) (*www.GetCommentsReply, error) {
+	log.Tracef("processDCCComment: %v", token)
+
+	// Fetch dcc comments from cache
+	c, err := p.getDCCComments(token)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get the last time the user accessed these comments. This is
+	// a public route so a user may not exist.
+	var accessTime int64
+	if u != nil {
+		if u.ProposalCommentsAccessTimes == nil {
+			u.ProposalCommentsAccessTimes = make(map[string]int64)
+		}
+		accessTime = u.ProposalCommentsAccessTimes[token]
+		u.ProposalCommentsAccessTimes[token] = time.Now().Unix()
+		err = p.db.UserUpdate(*u)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &www.GetCommentsReply{
+		Comments:   c,
+		AccessTime: accessTime,
+	}, nil
+}
+
+func (p *politeiawww) getDCCComments(token string) ([]www.Comment, error) {
+	log.Tracef("getDCCComments: %v", token)
+
+	dc, err := p.decredGetComments(token)
+	if err != nil {
+		return nil, fmt.Errorf("decredGetComments: %v", err)
+	}
+
+	// Convert comments and fill in author info.
+	comments := make([]www.Comment, 0, len(dc))
+	for _, v := range dc {
+		c := convertCommentFromDecred(v)
+		u, err := p.db.UserGetByPubKey(c.PublicKey)
+		if err != nil {
+			log.Errorf("getDCCComments: UserGetByPubKey: "+
+				"token:%v commentID:%v pubKey:%v err:%v",
+				token, c.CommentID, c.PublicKey, err)
+		} else {
+			c.UserID = u.ID.String()
+			c.Username = u.Username
+		}
+		comments = append(comments, c)
+	}
+
+	return comments, nil
 }
