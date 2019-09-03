@@ -188,6 +188,9 @@ const (
 	ErrorStatusInvalidDCCNominee                        www.ErrorStatusT = 1039
 	ErrorStatusDCCNotFound                              www.ErrorStatusT = 1040
 	ErrorStatusCannotSupportOpposeCommentOnNonActiveDCC www.ErrorStatusT = 1041
+	ErrorStatusInvalidSupportOppose                     www.ErrorStatusT = 1042
+	ErrorStatusUserDuplicateSupportOppose               www.ErrorStatusT = 1043
+	ErrorStatusUserCannotSupportOpposeOwn               www.ErrorStatusT = 1044
 )
 
 var (
@@ -259,6 +262,9 @@ var (
 		ErrorStatusInvalidDCCNominee:                        "invalid nominee user was submitted for a DCC",
 		ErrorStatusDCCNotFound:                              "a requested dcc was not found",
 		ErrorStatusCannotSupportOpposeCommentOnNonActiveDCC: "cannot comment/approve/oppose DCC if it's not active state",
+		ErrorStatusInvalidSupportOppose:                     "invalid support or opposition vote was included in the request, must be aye or nay",
+		ErrorStatusUserDuplicateSupportOppose:               "user has already supported or opposed the given DCC",
+		ErrorStatusUserCannotSupportOpposeOwn:               "user cannot support or oppose their own sponsored DCC",
 	}
 )
 

@@ -589,23 +589,24 @@ func (p *politeiawww) processSupportOpposeDCC(sd cms.SupportOpposeDCC, u *user.U
 		return nil, err
 	}
 
+	// The submitted Vote in the request must either be "aye" or "nay"
 	if sd.Vote != supportString && sd.Vote != opposeString {
 		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusUserActionNotAllowed,
+			ErrorCode: cms.ErrorStatusInvalidSupportOppose,
 		}
 	}
 	// Check to make sure the user has not SupportOpposeed or Opposed this DCC yet
 	if stringInSlice(dcc.SupportUserIDs, u.ID.String()) ||
 		stringInSlice(dcc.OppositionUserIDs, u.ID.String()) {
 		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusUserActionNotAllowed,
+			ErrorCode: cms.ErrorStatusUserDuplicateSupportOppose,
 		}
 	}
 
 	// Check to make sure the user is not the author of the DCC.
 	if dcc.SponsorUserID == u.ID.String() {
 		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusUserActionNotAllowed,
+			ErrorCode: cms.ErrorStatusUserCannotSupportOpposeOwn,
 		}
 	}
 
