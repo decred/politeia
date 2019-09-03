@@ -1066,7 +1066,173 @@ Reply:
 {}
 ```
 
+### `New DCC comment`
 
+Submit comment on given DCC.  ParentID value "0" means "comment on
+proposal"; if the value is not empty it means "reply to comment".
+
+**Route:** `POST /v1/dcc/newcomment`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+| - | - | - | - |
+| token | string | Censorship token | Yes |
+| parentid | string | Parent comment identifier | Yes |
+| comment | string | Comment | Yes |
+| signature | string | Signature of Token, ParentID and Comment | Yes |
+| publickey | string | Public key from the client side, sent to politeiawww for verification | Yes |
+
+**Results:**
+
+| | Type | Description |
+| - | - | - |
+| token | string | Censorship token |
+| parentid | string | Parent comment identifier |
+| comment | string | Comment text |
+| signature | string | Signature of Token, ParentID and Comment |
+| publickey | string | Public key from the client side, sent to politeiawww for verification |
+| commentid | string | Unique comment identifier |
+| receipt | string | Server signature of the client Signature |
+| timestamp | int64 | UNIX time when comment was accepted |
+| resultvotes | int64 | Vote score |
+| censored | bool | Has the comment been censored |
+| userid | string | Unique user identifier |
+| username | string | Unique username |
+
+On failure the call shall return `400 Bad Request` and one of the following
+error codes:
+
+- [`ErrorStatusInvalidSigningKey`](#ErrorStatusInvalidSigningKey)
+- [`ErrorStatusInvalidSignature`](#ErrorStatusInvalidSignature)
+- [`ErrorStatusCommentLengthExceededPolicy`](#ErrorStatusCommentLengthExceededPolicy)
+- [`ErrorStatusInvalidCensorshipToken`](#ErrorStatusInvalidCensorshipToken)
+- [`ErrorStatusDCCNotFound`](#ErrorStatusDCCNotFound)
+- [`ErrorStatusCannotSupportOpposeCommentOnNonActiveDCC`](#ErrorStatusCannotSupportOpposeCommentOnNonActiveDCC)
+- [`ErrorStatusDuplicateComment`](#ErrorStatusDuplicateComment)
+
+**Example**
+
+Request:
+
+```json
+{
+  "token":"abf0fd1fc1b8c1c9535685373dce6c54948b7eb018e17e3a8cea26a3c9b85684",
+  "parentid":"0",
+  "comment":"I dont like this dcc",
+  "signature":"af969d7f0f711e25cb411bdbbe3268bbf3004075cde8ebaee0fc9d988f24e45013cc2df6762dca5b3eb8abb077f76e0b016380a7eba2d46839b04c507d86290d",
+  "publickey":"4206fa1f45c898f1dee487d7a7a82e0ed293858313b8b022a6a88f2bcae6cdd7"
+}
+```
+
+Reply:
+
+```json
+{
+  "token": "abf0fd1fc1b8c1c9535685373dce6c54948b7eb018e17e3a8cea26a3c9b85684",
+  "parentid": "0",
+  "comment": "I dont like this dcc",
+  "signature":"af969d7f0f711e25cb411bdbbe3268bbf3004075cde8ebaee0fc9d988f24e45013cc2df6762dca5b3eb8abb077f76e0b016380a7eba2d46839b04c507d86290d",
+  "publickey": "4206fa1f45c898f1dee487d7a7a82e0ed293858313b8b022a6a88f2bcae6cdd7",
+  "commentid": "4",
+  "receipt": "96f3956ea3decb75ee129e6ee4e77c6c608f0b5c99ff41960a4e6078d8bb74e8ad9d2545c01fff2f8b7e0af38ee9de406aea8a0b897777d619e93d797bc1650a",
+  "timestamp": 1527277504,
+  "resultvotes": 0,
+  "censored": false,
+  "userid": "124",
+  "username": "john",
+}
+```
+
+### `DCC comments`
+
+Retrieve all comments for given DCC.  Note that the comments are not
+sorted.
+
+**Route:** `GET /v1/dcc/{token}/comments`
+
+**Params:**
+
+**Results:**
+
+| | Type | Description |
+| - | - | - |
+| Comments | Comment | Unsorted array of all comments |
+| AccessTime | int64 | UNIX timestamp of last access time. Omitted if no session cookie is present. |
+
+**Comment:**
+
+| | Type | Description |
+| - | - | - |
+| userid | string | Unique user identifier |
+| username | string | Unique username |
+| timestamp | int64 | UNIX time when comment was accepted |
+| commentid | string | Unique comment identifier |
+| parentid | string | Parent comment identifier |
+| token | string | Censorship token |
+| comment | string | Comment text |
+| publickey | string | Public key from the client side, sent to politeiawww for verification |
+| signature | string | Signature of Token, ParentID and Comment |
+| receipt | string | Server signature of the client Signature |
+| resultvotes | int64 | Vote score |
+
+**Example**
+
+Request:
+
+The request params should be provided within the URL:
+
+```
+/v1/dcc/f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde/comments
+```
+
+Reply:
+
+```json
+{
+  "comments": [{
+    "comment": "I dont like this dcc",
+    "commentid": "4",
+    "parentid": "0",
+    "publickey": "4206fa1f45c898f1dee487d7a7a82e0ed293858313b8b022a6a88f2bcae6cdd7",
+    "receipt": "96f3956ea3decb75ee129e6ee4e77c6c608f0b5c99ff41960a4e6078d8bb74e8ad9d2545c01fff2f8b7e0af38ee9de406aea8a0b897777d619e93d797bc1650a",
+    "signature":"af969d7f0f711e25cb411bdbbe3268bbf3004075cde8ebaee0fc9d988f24e45013cc2df6762dca5b3eb8abb077f76e0b016380a7eba2d46839b04c507d86290d",
+    "timestamp": 1527277504,
+    "token": "abf0fd1fc1b8c1c9535685373dce6c54948b7eb018e17e3a8cea26a3c9b85684",
+    "userid": "124",
+    "username": "admin",
+    "totalvotes": 0,
+    "resultvotes": 0
+  },{
+    "comment":"Yah this user stinks!",
+    "commentid": "4",
+    "parentid": "0",
+    "publickey": "4206fa1f45c898f1dee487d7a7a82e0ed293858313b8b022a6a88f2bcae6cdd7",
+    "receipt": "96f3956ea3decb75ee129e6ee4e77c6c608f0b5c99ff41960a4e6078d8bb74e8ad9d2545c01fff2f8b7e0af38ee9de406aea8a0b897777d619e93d797bc1650a",
+    "signature":"af969d7f0f711e25cb411bdbbe3268bbf3004075cde8ebaee0fc9d988f24e45013cc2df6762dca5b3eb8abb077f76e0b016380a7eba2d46839b04c507d86290d",
+    "timestamp": 1527277504,
+    "token": "abf0fd1fc1b8c1c9535685373dce6c54948b7eb018e17e3a8cea26a3c9b85684",
+    "userid": "122",
+    "username": "steve",
+    "totalvotes": 0,
+    "resultvotes": 0
+  },{
+    "comment":"you're right, approving",
+    "commentid": "4",
+    "parentid": "0",
+    "publickey": "4206fa1f45c898f1dee487d7a7a82e0ed293858313b8b022a6a88f2bcae6cdd7",
+    "receipt": "96f3956ea3decb75ee129e6ee4e77c6c608f0b5c99ff41960a4e6078d8bb74e8ad9d2545c01fff2f8b7e0af38ee9de406aea8a0b897777d619e93d797bc1650a",
+    "signature":"af969d7f0f711e25cb411bdbbe3268bbf3004075cde8ebaee0fc9d988f24e45013cc2df6762dca5b3eb8abb077f76e0b016380a7eba2d46839b04c507d86290d",
+    "timestamp": 1527277504,
+    "token": "abf0fd1fc1b8c1c9535685373dce6c54948b7eb018e17e3a8cea26a3c9b85684",
+    "userid": "124",
+    "username": "admin",
+    "totalvotes": 0,
+    "resultvotes": 0
+  }],
+  "accesstime": 1543539276
+}
+```
 ### Error codes
 
 | Status | Value | Description |
@@ -1110,7 +1276,7 @@ Reply:
 | <a name="ErrorStatusInvalidUserNewInvoice">ErrorStatusInvalidUserNewInvoice</a> | 1038 | The user was not allowed to create a new invoice. |
 | <a name="ErrorStatusInvalidDCCNominee">ErrorStatusInvalidDCCNominee</a> | 1039 | The user that was nominated was invalid, either not found or not a potential nominee. |
 | <a name="ErrorStatusDCCNotFound">ErrorStatusDCCNotFound</a> | 1040 | A requested DCC proposal was not able to be located based on the provided token. |
-| <a name="ErrorStatusCannotCommentOnDCC">ErrorStatusCannotCommentOnDCC</a> | 1041 | A user is unable to comment on a DCC, due to them being the author or some other situation. |
+| <a name="ErrorStatusCannotSupportOpposeCommentOnNonActiveDCC">ErrorStatusCannotCommentOnDCC</a> | 1041 | A user is unable to support/oppose/comment on a DCC that is not active. |
 
 ### Invoice status codes
 
