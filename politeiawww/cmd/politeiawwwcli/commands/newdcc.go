@@ -20,6 +20,16 @@ import (
 	"github.com/decred/politeia/util"
 )
 
+// domainTypes gives human readable output for the various domain types available
+var domainTypes = map[cms.DomainTypeT]string{
+	cms.DomainTypeDeveloper:     "(1) Developer",
+	cms.DomainTypeMarketing:     "(2) Marketing",
+	cms.DomainTypeCommunity:     "(3) Community Management",
+	cms.DomainTypeResearch:      "(4) Research",
+	cms.DomainTypeDesign:        "(5) Design",
+	cms.DomainTypeDocumentation: "(6) Documentation",
+}
+
 // NewDCCCmd submits a new dcc.
 type NewDCCCmd struct {
 	Args struct {
@@ -63,8 +73,13 @@ func (cmd *NewDCCCmd) Execute(args []string) error {
 		}
 		if cmd.Domain == "" {
 			for {
-				fmt.Printf("Domain Type: (1) Developer, (2) Marketing, (3) " +
-					"Community, (4) Research, (5) Design, (6) Documentation:  ")
+				fmt.Printf("Domain Type: " +
+					domainTypes[cms.DomainTypeDeveloper] + ", " +
+					domainTypes[cms.DomainTypeMarketing] + ", " +
+					domainTypes[cms.DomainTypeCommunity] + ", " +
+					domainTypes[cms.DomainTypeResearch] + ", " +
+					domainTypes[cms.DomainTypeDesign] + ", " +
+					domainTypes[cms.DomainTypeDocumentation] + ":")
 				cmd.Domain, _ = reader.ReadString('\n')
 				domainType, err = strconv.Atoi(strings.TrimSpace(cmd.Domain))
 				if err != nil {
