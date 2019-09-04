@@ -599,18 +599,6 @@ func (p *politeiawww) processGetDCCs(gds cms.GetDCCs) (*cms.GetDCCsReply, error)
 func (p *politeiawww) processSupportOpposeDCC(sd cms.SupportOpposeDCC, u *user.User) (*cms.SupportOpposeDCCReply, error) {
 	log.Tracef("processSupportOpposeDCC: %v %v", sd.Token, u.ID)
 
-	cmsUser, err := p.getCMSUserByID(u.ID.String())
-	if err != nil {
-		return nil, err
-	}
-
-	// Ensure that the user is authorized to support/oppose DCCs
-	if _, ok := invalidNewInvoiceContractorType[cmsUser.ContractorType]; !ok {
-		return nil, www.UserError{
-			ErrorCode: cms.ErrorStatusInvalidUserDCC,
-		}
-	}
-
 	dcc, err := p.getDCC(sd.Token)
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
@@ -656,6 +644,18 @@ func (p *politeiawww) processSupportOpposeDCC(sd cms.SupportOpposeDCC, u *user.U
 	err = validateSignature(sd.PublicKey, sd.Signature, msg)
 	if err != nil {
 		return nil, err
+	}
+
+	cmsUser, err := p.getCMSUserByID(u.ID.String())
+	if err != nil {
+		return nil, err
+	}
+
+	// Ensure that the user is authorized to support/oppose DCCs
+	if _, ok := invalidNewInvoiceContractorType[cmsUser.ContractorType]; !ok {
+		return nil, www.UserError{
+			ErrorCode: cms.ErrorStatusInvalidUserDCC,
+		}
 	}
 
 	// Create the change record.
@@ -724,16 +724,10 @@ func stringInSlice(arr []string, str string) bool {
 func (p *politeiawww) processNewCommentDCC(nc www.NewComment, u *user.User) (*www.NewCommentReply, error) {
 	log.Tracef("processNewCommentDCC: %v %v", nc.Token, u.ID)
 
-	cmsUser, err := p.getCMSUserByID(u.ID.String())
+	// Validate comment
+	err := validateComment(nc)
 	if err != nil {
 		return nil, err
-	}
-
-	// Ensure that the user is authorized to comment on a DCCs
-	if _, ok := invalidNewInvoiceContractorType[cmsUser.ContractorType]; !ok {
-		return nil, www.UserError{
-			ErrorCode: cms.ErrorStatusInvalidUserDCC,
-		}
 	}
 
 	dcc, err := p.getDCC(nc.Token)
@@ -760,12 +754,17 @@ func (p *politeiawww) processNewCommentDCC(nc www.NewComment, u *user.User) (*ww
 		return nil, err
 	}
 
-	// Validate comment
-	err = validateComment(nc)
+	cmsUser, err := p.getCMSUserByID(u.ID.String())
 	if err != nil {
 		return nil, err
 	}
 
+	// Ensure that the user is authorized to comment on a DCCs
+	if _, ok := invalidNewInvoiceContractorType[cmsUser.ContractorType]; !ok {
+		return nil, www.UserError{
+			ErrorCode: cms.ErrorStatusInvalidUserDCC,
+		}
+	}
 	// Check to make sure that dcc isn't already approved.
 	if dcc.Status != cms.DCCStatusActive {
 		return nil, www.UserError{
