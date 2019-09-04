@@ -191,6 +191,7 @@ const (
 	ErrorStatusInvalidSupportOppose           www.ErrorStatusT = 1042
 	ErrorStatusDuplicateSupportOppose         www.ErrorStatusT = 1043
 	ErrorStatusUserIsAuthor                   www.ErrorStatusT = 1044
+	ErrorStatusInvalidUserDCC                 www.ErrorStatusT = 1045
 )
 
 var (
@@ -265,6 +266,7 @@ var (
 		ErrorStatusInvalidSupportOppose:           "invalid support or opposition vote was included in the request, must be aye or nay",
 		ErrorStatusDuplicateSupportOppose:         "user has already supported or opposed the given DCC",
 		ErrorStatusUserIsAuthor:                   "user cannot support or oppose their own sponsored DCC",
+		ErrorStatusInvalidUserDCC:                 "user is not authorized to complete the DCC request",
 	}
 )
 

@@ -50,6 +50,12 @@ const (
 
 var (
 	validSponsorStatement = regexp.MustCompile(createSponsorStatementRegex())
+
+	// The valid contractor
+	invalidDCCContractorType = map[cms.ContractorTypeT]bool{
+		cms.ContractorTypeNominee: true,
+		cms.ContractorTypeInvalid: true,
+	}
 )
 
 // createSponsorStatementRegex generates a regex based on the policy supplied for
@@ -78,6 +84,18 @@ func (p *politeiawww) processNewDCC(nd cms.NewDCC, u *user.User) (*cms.NewDCCRep
 	err := p.validateDCC(nd, u)
 	if err != nil {
 		return nil, err
+	}
+
+	cmsUser, err := p.getCMSUserByID(u.ID.String())
+	if err != nil {
+		return nil, err
+	}
+
+	// Ensure that the user is authorized to create DCCs
+	if _, ok := invalidNewInvoiceContractorType[cmsUser.ContractorType]; !ok {
+		return nil, www.UserError{
+			ErrorCode: cms.ErrorStatusInvalidUserDCC,
+		}
 	}
 
 	m := backendDCCMetadata{
@@ -581,6 +599,18 @@ func (p *politeiawww) processGetDCCs(gds cms.GetDCCs) (*cms.GetDCCsReply, error)
 func (p *politeiawww) processSupportOpposeDCC(sd cms.SupportOpposeDCC, u *user.User) (*cms.SupportOpposeDCCReply, error) {
 	log.Tracef("processSupportOpposeDCC: %v %v", sd.Token, u.ID)
 
+	cmsUser, err := p.getCMSUserByID(u.ID.String())
+	if err != nil {
+		return nil, err
+	}
+
+	// Ensure that the user is authorized to support/oppose DCCs
+	if _, ok := invalidNewInvoiceContractorType[cmsUser.ContractorType]; !ok {
+		return nil, www.UserError{
+			ErrorCode: cms.ErrorStatusInvalidUserDCC,
+		}
+	}
+
 	dcc, err := p.getDCC(sd.Token)
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
@@ -693,6 +723,18 @@ func stringInSlice(arr []string, str string) bool {
 // then fetches the new comment from the cache and returns it.
 func (p *politeiawww) processNewCommentDCC(nc www.NewComment, u *user.User) (*www.NewCommentReply, error) {
 	log.Tracef("processNewCommentDCC: %v %v", nc.Token, u.ID)
+
+	cmsUser, err := p.getCMSUserByID(u.ID.String())
+	if err != nil {
+		return nil, err
+	}
+
+	// Ensure that the user is authorized to comment on a DCCs
+	if _, ok := invalidNewInvoiceContractorType[cmsUser.ContractorType]; !ok {
+		return nil, www.UserError{
+			ErrorCode: cms.ErrorStatusInvalidUserDCC,
+		}
+	}
 
 	dcc, err := p.getDCC(nc.Token)
 	if err != nil {
