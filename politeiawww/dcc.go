@@ -599,6 +599,14 @@ func (p *politeiawww) processGetDCCs(gds cms.GetDCCs) (*cms.GetDCCsReply, error)
 func (p *politeiawww) processSupportOpposeDCC(sd cms.SupportOpposeDCC, u *user.User) (*cms.SupportOpposeDCCReply, error) {
 	log.Tracef("processSupportOpposeDCC: %v %v", sd.Token, u.ID)
 
+	// The submitted Vote in the request must either be "aye" or "nay"
+	if sd.Vote != supportString && sd.Vote != opposeString {
+		return nil, www.UserError{
+			ErrorCode:    cms.ErrorStatusInvalidSupportOppose,
+			ErrorContext: []string{"support string not aye or nay"},
+		}
+	}
+
 	dcc, err := p.getDCC(sd.Token)
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
@@ -607,14 +615,6 @@ func (p *politeiawww) processSupportOpposeDCC(sd cms.SupportOpposeDCC, u *user.U
 			}
 		}
 		return nil, err
-	}
-
-	// The submitted Vote in the request must either be "aye" or "nay"
-	if sd.Vote != supportString && sd.Vote != opposeString {
-		return nil, www.UserError{
-			ErrorCode:    cms.ErrorStatusInvalidSupportOppose,
-			ErrorContext: []string{"support string not aye or nay"},
-		}
 	}
 	// Check to make sure the user has not SupportOpposeed or Opposed this DCC yet
 	if stringInSlice(dcc.SupportUserIDs, u.ID.String()) ||
@@ -730,16 +730,6 @@ func (p *politeiawww) processNewCommentDCC(nc www.NewComment, u *user.User) (*ww
 		return nil, err
 	}
 
-	dcc, err := p.getDCC(nc.Token)
-	if err != nil {
-		if err == cache.ErrRecordNotFound {
-			err = www.UserError{
-				ErrorCode: cms.ErrorStatusDCCNotFound,
-			}
-		}
-		return nil, err
-	}
-
 	// Ensure the public key is the user's active key
 	if nc.PublicKey != u.PublicKey() {
 		return nil, www.UserError{
@@ -765,6 +755,17 @@ func (p *politeiawww) processNewCommentDCC(nc www.NewComment, u *user.User) (*ww
 			ErrorCode: cms.ErrorStatusInvalidUserDCC,
 		}
 	}
+
+	dcc, err := p.getDCC(nc.Token)
+	if err != nil {
+		if err == cache.ErrRecordNotFound {
+			err = www.UserError{
+				ErrorCode: cms.ErrorStatusDCCNotFound,
+			}
+		}
+		return nil, err
+	}
+
 	// Check to make sure that dcc isn't already approved.
 	if dcc.Status != cms.DCCStatusActive {
 		return nil, www.UserError{
