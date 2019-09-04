@@ -1276,10 +1276,10 @@ Reply:
 | <a name="ErrorStatusInvalidUserNewInvoice">ErrorStatusInvalidUserNewInvoice</a> | 1038 | The user was not allowed to create a new invoice. |
 | <a name="ErrorStatusInvalidDCCNominee">ErrorStatusInvalidDCCNominee</a> | 1039 | The user that was nominated was invalid, either not found or not a potential nominee. |
 | <a name="ErrorStatusDCCNotFound">ErrorStatusDCCNotFound</a> | 1040 | A requested DCC proposal was not able to be located based on the provided token. |
-| <a name="ErrorStatusCannotSupportOpposeCommentOnNonActiveDCC">ErrorStatusCannotCommentOnDCC</a> | 1041 | A user is unable to support/oppose/comment on a DCC that is not active. |
+| <a name="ErrorStatusWrongDCCStatus">ErrorStatusWrongDCCStatus</a> | 1041 | A user is unable to support/oppose/comment on a DCC that is not active. |
 | <a name="ErrorStatusInvalidSupportOppose">ErrorStatusInvalidSupportOppose</a> | 1042 | An invalid "vote" for a support or oppose request.  Must be "aye" or "nay". |
-| <a name="ErrorStatusUserDuplicateSupportOppose">ErrorStatusUserDuplicateSupportOppose</a> | 1043 | A user attempted to support or oppose a DCC multiple times. |
-| <a name="ErrorStatusUserCannotSupportOpposeOwn">ErrorStatusUserCannotSupportOpposeOwn</a> | 1044 | A user attempted to support or oppose a DCC that they authored. |
+| <a name="ErrorStatusDuplicateSupportOppose">ErrorStatusDuplicateSupportOppose</a> | 1043 | A user attempted to support or oppose a DCC multiple times. |
+| <a name="ErrorStatusUserIsAuthor">ErrorStatusUserIsAuthor</a> | 1044 | A user attempted to support or oppose a DCC that they authored. |
 
 ### Invoice status codes
 

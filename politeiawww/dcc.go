@@ -95,6 +95,7 @@ func (p *politeiawww) processNewDCC(nd cms.NewDCC, u *user.User) (*cms.NewDCCRep
 		Version:   backendDCCStatusChangeVersion,
 		Timestamp: time.Now().Unix(),
 		NewStatus: cms.DCCStatusActive,
+		Reason:    "new dcc",
 	}
 	scb, err := encodeBackendDCCStatusChange(sc)
 	if err != nil {
@@ -377,6 +378,7 @@ type backendDCCStatusChange struct {
 	NewStatus      cms.DCCStatusT `json:"newstatus"`      // Status
 	Reason         string         `json:"reason"`         // Reason
 	Timestamp      int64          `json:"timestamp"`      // Timestamp of the change
+	Signature      string         `json:"signature"`      // Signature of NewStatus + Reason
 }
 
 // backendDCCSupportOppositionMetadata represents the general metadata for a DCC
@@ -386,7 +388,7 @@ type backendDCCSupportOppositionMetadata struct {
 	Timestamp int64  `json:"timestamp"` // Last update of invoice
 	PublicKey string `json:"publickey"` // Key used for signature
 	Vote      string `json:"vote"`      // Vote for support/opposition
-	Signature string `json:"signature"` // Signature of merkle root
+	Signature string `json:"signature"` // Signature of Token + Vote
 }
 
 // encodeBackendDCCMetadata encodes a backendDCCMetadata into a JSON
@@ -592,28 +594,30 @@ func (p *politeiawww) processSupportOpposeDCC(sd cms.SupportOpposeDCC, u *user.U
 	// The submitted Vote in the request must either be "aye" or "nay"
 	if sd.Vote != supportString && sd.Vote != opposeString {
 		return nil, www.UserError{
-			ErrorCode: cms.ErrorStatusInvalidSupportOppose,
+			ErrorCode:    cms.ErrorStatusInvalidSupportOppose,
+			ErrorContext: []string{"support string not aye or nay"},
 		}
 	}
 	// Check to make sure the user has not SupportOpposeed or Opposed this DCC yet
 	if stringInSlice(dcc.SupportUserIDs, u.ID.String()) ||
 		stringInSlice(dcc.OppositionUserIDs, u.ID.String()) {
 		return nil, www.UserError{
-			ErrorCode: cms.ErrorStatusUserDuplicateSupportOppose,
+			ErrorCode: cms.ErrorStatusDuplicateSupportOppose,
 		}
 	}
 
 	// Check to make sure the user is not the author of the DCC.
 	if dcc.SponsorUserID == u.ID.String() {
 		return nil, www.UserError{
-			ErrorCode: cms.ErrorStatusUserCannotSupportOpposeOwn,
+			ErrorCode: cms.ErrorStatusUserIsAuthor,
 		}
 	}
 
 	// Check to make sure that the DCC is still active
 	if dcc.Status != cms.DCCStatusActive {
 		return nil, www.UserError{
-			ErrorCode: cms.ErrorStatusCannotSupportOpposeCommentOnNonActiveDCC,
+			ErrorCode:    cms.ErrorStatusWrongDCCStatus,
+			ErrorContext: []string{"dcc status must be active"},
 		}
 	}
 
@@ -723,7 +727,8 @@ func (p *politeiawww) processNewCommentDCC(nc www.NewComment, u *user.User) (*ww
 	// Check to make sure that dcc isn't already approved.
 	if dcc.Status != cms.DCCStatusActive {
 		return nil, www.UserError{
-			ErrorCode: cms.ErrorStatusCannotSupportOpposeCommentOnNonActiveDCC,
+			ErrorCode:    cms.ErrorStatusWrongDCCStatus,
+			ErrorContext: []string{"dcc status must be active"},
 		}
 	}
 
