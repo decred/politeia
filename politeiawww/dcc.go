@@ -607,6 +607,13 @@ func (p *politeiawww) processSupportOpposeDCC(sd cms.SupportOpposeDCC, u *user.U
 		}
 	}
 
+	// Validate signature
+	msg := fmt.Sprintf("%v%v", sd.Token, sd.Vote)
+	err := validateSignature(sd.PublicKey, sd.Signature, msg)
+	if err != nil {
+		return nil, err
+	}
+
 	dcc, err := p.getDCC(sd.Token)
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
@@ -637,13 +644,6 @@ func (p *politeiawww) processSupportOpposeDCC(sd cms.SupportOpposeDCC, u *user.U
 			ErrorCode:    cms.ErrorStatusWrongDCCStatus,
 			ErrorContext: []string{"dcc status must be active"},
 		}
-	}
-
-	// Validate signature
-	msg := fmt.Sprintf("%v%v", sd.Token, sd.Vote)
-	err = validateSignature(sd.PublicKey, sd.Signature, msg)
-	if err != nil {
-		return nil, err
 	}
 
 	cmsUser, err := p.getCMSUserByID(u.ID.String())
