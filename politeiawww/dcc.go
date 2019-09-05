@@ -332,7 +332,10 @@ func (p *politeiawww) validateDCC(nd cms.NewDCC, u *user.User) error {
 		}
 	}
 
-	if dcc.ContractorType != cms.ContractorTypeDirect &&
+	// Check to see that ContractorType is valid for any issuance
+	// DCC Proposal
+	if dcc.Type == cms.DCCTypeIssuance &&
+		dcc.ContractorType != cms.ContractorTypeDirect &&
 		dcc.ContractorType != cms.ContractorTypeSubContractor {
 		return www.UserError{
 			ErrorCode: cms.ErrorStatusInvalidDCCContractorType,
