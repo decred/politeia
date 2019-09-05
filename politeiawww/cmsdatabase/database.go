@@ -140,6 +140,7 @@ type Payments struct {
 	Status          cms.PaymentStatusT
 }
 
+// DCC contains information about a DCC proposal for issuance or revocation.
 type DCC struct {
 	Token              string
 	SponsorUserID      string
@@ -154,6 +155,7 @@ type DCC struct {
 	ServerSignature    string
 	SponsorStatement   string
 	Domain             cms.DomainTypeT
+	ContractorType     cms.ContractorTypeT
 
 	SupportUserIDs    string
 	OppositionUserIDs string

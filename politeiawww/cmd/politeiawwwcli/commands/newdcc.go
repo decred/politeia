@@ -30,16 +30,23 @@ var domainTypes = map[cms.DomainTypeT]string{
 	cms.DomainTypeDocumentation: "(6) Documentation",
 }
 
+// contractorTypes gives human readable output for the various contractor types available
+var contractorTypes = map[cms.ContractorTypeT]string{
+	cms.ContractorTypeDirect:        "(1) Direct",
+	cms.ContractorTypeSubContractor: "(3) Sub-contractor",
+}
+
 // NewDCCCmd submits a new dcc.
 type NewDCCCmd struct {
 	Args struct {
 		Type        uint     `positional-arg-name:"type"`            // 1 for Issuance, 2 for Revocation
 		Attachments []string `positional-arg-name:"attachmentfiles"` // DCC attachment files
 	} `positional-args:"true" optional:"true"`
-	Type          string ``
-	NomineeUserID string `long:"nomineeuserid" optional:"true" description:"The UserID of the Nominated User"`
-	Statement     string `long:"statement" optional:"true" description:"Statement in support of the DCC"`
-	Domain        string `long:"domain" optional:"true" description:"The domain of the nominated user"`
+	Type           string ``
+	NomineeUserID  string `long:"nomineeuserid" optional:"true" description:"The UserID of the Nominated User"`
+	Statement      string `long:"statement" optional:"true" description:"Statement in support of the DCC"`
+	Domain         string `long:"domain" optional:"true" description:"The domain of the nominated user"`
+	ContractorType string `long:"contractortype" optional:"true" description:"The contractor type of the nominated user"`
 }
 
 // Execute executes the new dcc command.
@@ -61,7 +68,9 @@ func (cmd *NewDCCCmd) Execute(args []string) error {
 		return err
 	}
 	var domainType int
-	if cmd.Statement == "" || cmd.NomineeUserID == "" || cmd.Domain == "" {
+	var contractorType int
+	if cmd.Statement == "" || cmd.NomineeUserID == "" || cmd.Domain == "" ||
+		cmd.ContractorType == "" {
 		reader := bufio.NewReader(os.Stdin)
 		if cmd.Statement == "" {
 			fmt.Print("Enter your statement to support the DCC: ")
@@ -101,6 +110,49 @@ func (cmd *NewDCCCmd) Execute(args []string) error {
 					break
 				}
 			}
+		} else {
+			domainType, err = strconv.Atoi(strings.TrimSpace(cmd.Domain))
+			if err != nil {
+				return fmt.Errorf("invalid domain type: %v", err)
+			}
+			if domainType < 1 || domainType > 6 {
+				return fmt.Errorf("invalid domain type")
+			}
+		}
+		if cmd.ContractorType == "" {
+			for {
+				fmt.Printf("Contractor Type: " +
+					contractorTypes[cms.ContractorTypeDirect] + ", " +
+					contractorTypes[cms.ContractorTypeSubContractor] + ":")
+				cmd.ContractorType, _ = reader.ReadString('\n')
+				contractorType, err = strconv.Atoi(strings.TrimSpace(cmd.ContractorType))
+				if err != nil {
+					fmt.Println("Invalid entry, please try again.")
+					continue
+				}
+				if contractorType != 1 && contractorType != 3 {
+					fmt.Println("Invalid contractor type entered, please try again.")
+					continue
+				}
+				str := fmt.Sprintf(
+					"Your current Contractor Type setting is: \"%v\" Keep this?",
+					domainType)
+				update, err := promptListBool(reader, str, "yes")
+				if err != nil {
+					return err
+				}
+				if update {
+					break
+				}
+			}
+		} else {
+			contractorType, err = strconv.Atoi(strings.TrimSpace(cmd.ContractorType))
+			if err != nil {
+				return fmt.Errorf("invalid contractor type: %v", err)
+			}
+			if contractorType != 1 && contractorType != 3 {
+				return fmt.Errorf("invalid contractor type")
+			}
 		}
 		fmt.Print("\nPlease carefully review your information and ensure it's " +
 			"correct. If not, press Ctrl + C to exit. Or, press Enter to continue.")
@@ -112,6 +164,7 @@ func (cmd *NewDCCCmd) Execute(args []string) error {
 	dccInput.NomineeUserID = strings.TrimSpace(cmd.NomineeUserID)
 	dccInput.Type = cms.DCCTypeT(int(cmd.Args.Type))
 	dccInput.Domain = cms.DomainTypeT(domainType)
+	dccInput.ContractorType = cms.ContractorTypeT(contractorType)
 
 	// Print request details
 	err = printJSON(dccInput)

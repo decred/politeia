@@ -192,6 +192,7 @@ const (
 	ErrorStatusDuplicateSupportOppose         www.ErrorStatusT = 1043
 	ErrorStatusUserIsAuthor                   www.ErrorStatusT = 1044
 	ErrorStatusInvalidUserDCC                 www.ErrorStatusT = 1045
+	ErrorStatusInvalidDCCContractorType       www.ErrorStatusT = 1046
 )
 
 var (
@@ -267,6 +268,7 @@ var (
 		ErrorStatusDuplicateSupportOppose:         "user has already supported or opposed the given DCC",
 		ErrorStatusUserIsAuthor:                   "user cannot support or oppose their own sponsored DCC",
 		ErrorStatusInvalidUserDCC:                 "user is not authorized to complete the DCC request",
+		ErrorStatusInvalidDCCContractorType:       "DCC must have a valid contractor type",
 	}
 )
 
@@ -579,10 +581,11 @@ type EditUserReply struct{}
 // DCCInput contains all of the information concerning a DCC object that
 // will be submitted as a Record to the politeiad backend.
 type DCCInput struct {
-	Type             DCCTypeT    `json:"type"`          // Type of DCC object
-	NomineeUserID    string      `json:"nomineeuserid"` // UserID of the DCC nominee (issuance or revocation)
-	SponsorStatement string      `json:"statement"`     // Statement from sponsoring user about why DCC should be approved
-	Domain           DomainTypeT `json:"domain"`        // Domain of proposed contractor issuance
+	Type             DCCTypeT        `json:"type"`           // Type of DCC object
+	NomineeUserID    string          `json:"nomineeuserid"`  // UserID of the DCC nominee (issuance or revocation)
+	SponsorStatement string          `json:"statement"`      // Statement from sponsoring user about why DCC should be approved
+	Domain           DomainTypeT     `json:"domain"`         // Domain of proposed contractor issuance
+	ContractorType   ContractorTypeT `json:"contractortype"` // The Contractor Type of the nominee for when they are approved
 }
 
 // DCCRecord is what will be decoded from a Record for a DCC object to the
