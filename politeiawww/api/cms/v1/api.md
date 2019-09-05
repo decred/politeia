@@ -1232,7 +1232,7 @@ Reply:
 
 ### `Approve DCC`
 
-Approves a DCC proposal that will then move the nominated user into a fully invited contractor.
+Approves a DCC proposal that will then either move a user into a fully invited contractor or revokes an existing user's credentials.
 
 Note: This call requires admin privileges.
 
@@ -1275,7 +1275,7 @@ Reply:
 
 ### `Reject DCC`
 
-Rejects a DCC proposal that will then move the nominated user into a ContractorRevoked status.
+Rejects a DCC proposal and any proposed issuance or revocation has failed.
 
 Note: This call requires admin privileges.
 
