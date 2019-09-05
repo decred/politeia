@@ -113,6 +113,7 @@ func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*www.NewUserRep
 		Username:                  strings.ToLower(u.Email),
 		NewUserVerificationToken:  token,
 		NewUserVerificationExpiry: expiry,
+		ContractorType:            int(cms.ContractorTypeNominee),
 	}
 	payload, err := user.EncodeNewCMSUser(nu)
 	if err != nil {
@@ -348,35 +349,11 @@ func (p *politeiawww) processCMSUserDetails(ud *cms.UserDetails, isCurrentUser b
 		}
 	}
 	reply := cms.UserDetailsReply{}
-	ubi := user.CMSUserByID{
-		ID: ud.UserID,
-	}
-	payload, err := user.EncodeCMSUserByID(ubi)
+	u, err := p.getCMSUserByID(ud.UserID)
 	if err != nil {
 		return nil, err
 	}
-	pc := user.PluginCommand{
-		ID:      user.CMSPluginID,
-		Command: user.CmdCMSUserByID,
-		Payload: string(payload),
-	}
-	payloadReply, err := p.db.PluginExec(pc)
-	if err != nil {
-		return nil, err
-	}
-	ubir, err := user.DecodeCMSUserByIDReply([]byte(payloadReply.Payload))
-	if err != nil {
-		return nil, err
-	}
-	reply.User = convertCMSUserFromDatabaseUser(&ubir.User.User)
-	reply.User.Domain = cms.DomainTypeT(ubir.User.Domain)
-	reply.User.ContractorType = cms.ContractorTypeT(ubir.User.ContractorType)
-	reply.User.ContractorName = ubir.User.ContractorName
-	reply.User.ContractorLocation = ubir.User.ContractorLocation
-	reply.User.ContractorContact = ubir.User.ContractorContact
-	reply.User.MatrixName = ubir.User.MatrixName
-	reply.User.GitHubName = ubir.User.GitHubName
-	reply.User.SupervisorUserID = ubir.User.SupervisorUserID
+	reply.User = *u
 
 	return &reply, nil
 }
@@ -433,25 +410,58 @@ func validateUserInformation(userInfo cms.EditUser) error {
 	}
 	return nil
 }
+func (p *politeiawww) getCMSUserByID(id string) (*cms.User, error) {
+	ubi := user.CMSUserByID{
+		ID: id,
+	}
+	payload, err := user.EncodeCMSUserByID(ubi)
+	if err != nil {
+		return nil, err
+	}
+	pc := user.PluginCommand{
+		ID:      user.CMSPluginID,
+		Command: user.CmdCMSUserByID,
+		Payload: string(payload),
+	}
+	payloadReply, err := p.db.PluginExec(pc)
+	if err != nil {
+		return nil, err
+	}
+	ubir, err := user.DecodeCMSUserByIDReply([]byte(payloadReply.Payload))
+	if err != nil {
+		return nil, err
+	}
+	u := convertCMSUserFromDatabaseUser(ubir.User)
+	return &u, nil
+
+}
 
 // convertCMSUserFromDatabaseUser converts a user User to a cms User.
-func convertCMSUserFromDatabaseUser(user *user.User) cms.User {
+func convertCMSUserFromDatabaseUser(user *user.CMSUser) cms.User {
 	return cms.User{
-		ID:                              user.ID.String(),
-		Admin:                           user.Admin,
-		Email:                           user.Email,
-		Username:                        user.Username,
-		NewUserVerificationToken:        user.NewUserVerificationToken,
-		NewUserVerificationExpiry:       user.NewUserVerificationExpiry,
-		UpdateKeyVerificationToken:      user.UpdateKeyVerificationToken,
-		UpdateKeyVerificationExpiry:     user.UpdateKeyVerificationExpiry,
-		ResetPasswordVerificationToken:  user.ResetPasswordVerificationToken,
-		ResetPasswordVerificationExpiry: user.ResetPasswordVerificationExpiry,
-		LastLoginTime:                   user.LastLoginTime,
-		FailedLoginAttempts:             user.FailedLoginAttempts,
-		Deactivated:                     user.Deactivated,
-		Locked:                          userIsLocked(user.FailedLoginAttempts),
-		Identities:                      convertWWWIdentitiesFromDatabaseIdentities(user.Identities),
-		EmailNotifications:              user.EmailNotifications,
+		ID:                              user.User.ID.String(),
+		Admin:                           user.User.Admin,
+		Email:                           user.User.Email,
+		Username:                        user.User.Username,
+		NewUserVerificationToken:        user.User.NewUserVerificationToken,
+		NewUserVerificationExpiry:       user.User.NewUserVerificationExpiry,
+		UpdateKeyVerificationToken:      user.User.UpdateKeyVerificationToken,
+		UpdateKeyVerificationExpiry:     user.User.UpdateKeyVerificationExpiry,
+		ResetPasswordVerificationToken:  user.User.ResetPasswordVerificationToken,
+		ResetPasswordVerificationExpiry: user.User.ResetPasswordVerificationExpiry,
+		LastLoginTime:                   user.User.LastLoginTime,
+		FailedLoginAttempts:             user.User.FailedLoginAttempts,
+		Deactivated:                     user.User.Deactivated,
+		Locked:                          userIsLocked(user.User.FailedLoginAttempts),
+		Identities:                      convertWWWIdentitiesFromDatabaseIdentities(user.User.Identities),
+		EmailNotifications:              user.User.EmailNotifications,
+		Domain:                          cms.DomainTypeT(user.Domain),
+		ContractorType:                  cms.ContractorTypeT(user.ContractorType),
+		ContractorName:                  user.ContractorName,
+		ContractorLocation:              user.ContractorLocation,
+		ContractorContact:               user.ContractorContact,
+		MatrixName:                      user.MatrixName,
+		GitHubName:                      user.GitHubName,
+		SupervisorUserID:                user.SupervisorUserID,
 	}
 }

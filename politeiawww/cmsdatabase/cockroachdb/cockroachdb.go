@@ -27,6 +27,7 @@ const (
 	tableNameInvoiceChange = "invoice_changes"
 	tableNameExchangeRate  = "exchange_rates"
 	tableNamePayments      = "payments"
+	tableNameDCC           = "dcc"
 
 	userPoliteiawww = "politeiawww" // cmsdb user (read/write access)
 )
@@ -410,6 +411,12 @@ func createCmsTables(tx *gorm.DB) error {
 			return err
 		}
 	}
+	if !tx.HasTable(tableNameDCC) {
+		err := tx.CreateTable(&DCC{}).Error
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -564,4 +571,89 @@ func (c *cockroachdb) PaymentsByStatus(status uint) ([]database.Payments, error)
 		dbPayments = append(dbPayments, decodePayment(&v))
 	}
 	return dbPayments, nil
+}
+
+// Create new dcc.
+//
+// NewDCC satisfies the database interface.
+func (c *cockroachdb) NewDCC(dbDCC *database.DCC) error {
+	dcc := encodeDCC(dbDCC)
+
+	log.Debugf("NewDCC: %v", dcc.Token)
+	return c.recordsdb.Create(dcc).Error
+}
+
+// Update existing dcc.
+//
+// UpdateDCC satisfies the database interface.
+func (c *cockroachdb) UpdateDCC(dbDCC *database.DCC) error {
+	dcc := encodeDCC(dbDCC)
+
+	log.Debugf("UpdateDCC: %v", dcc.Token)
+
+	return c.recordsdb.Save(dcc).Error
+}
+
+// DCCByToken Return DCC by its token.
+func (c *cockroachdb) DCCByToken(token string) (*database.DCC, error) {
+	log.Debugf("DCCByToken: %v", token)
+
+	dcc := DCC{
+		Token: token,
+	}
+	err := c.recordsdb.
+		Find(&dcc).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			err = database.ErrDCCNotFound
+		}
+		return nil, err
+	}
+
+	return decodeDCC(&dcc), nil
+}
+
+// DCCsByStatus Return DCCs by status.
+func (c *cockroachdb) DCCsByStatus(status int) ([]*database.DCC, error) {
+	log.Debugf("DCCsByStatus: %v", status)
+
+	dccs := make([]DCC, 0, 1048)
+	err := c.recordsdb.
+		Where("status = ?", status).
+		Find(&dccs).
+		Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			err = database.ErrDCCNotFound
+		}
+		return nil, err
+	}
+
+	dbDCCs := make([]*database.DCC, 0, 1048)
+	for _, v := range dccs {
+		dbDCCs = append(dbDCCs, decodeDCC(&v))
+	}
+	return dbDCCs, nil
+}
+
+// DCCsAll Returns all DCCs regardless of status.
+func (c *cockroachdb) DCCsAll() ([]*database.DCC, error) {
+	log.Debugf("DCCsAll:")
+
+	dccs := make([]DCC, 0, 1048)
+	err := c.recordsdb.
+		Find(&dccs).
+		Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			err = database.ErrDCCNotFound
+		}
+		return nil, err
+	}
+
+	dbDCCs := make([]*database.DCC, 0, 1048)
+	for _, v := range dccs {
+		dbDCCs = append(dbDCCs, decodeDCC(&v))
+	}
+	return dbDCCs, nil
 }

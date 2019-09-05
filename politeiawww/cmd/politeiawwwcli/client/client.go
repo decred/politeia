@@ -1727,6 +1727,77 @@ func (c *Client) CMSEditUser(uui cms.EditUser) (*cms.EditUserReply, error) {
 	return &eur, nil
 }
 
+// NewDCC creates a new dcc proposal.
+func (c *Client) NewDCC(nd cms.NewDCC) (*cms.NewDCCReply, error) {
+	responseBody, err := c.makeRequest("POST", cms.RouteNewDCC,
+		nd)
+	if err != nil {
+		return nil, err
+	}
+
+	var ndr cms.NewDCCReply
+	err = json.Unmarshal(responseBody, &ndr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal NewDCCReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(ndr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &ndr, nil
+}
+
+// DCCDetails retrieves the specified dcc.
+func (c *Client) DCCDetails(token string) (*cms.DCCDetailsReply, error) {
+	responseBody, err := c.makeRequest("GET", "/dcc/"+token, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var ddr cms.DCCDetailsReply
+	err = json.Unmarshal(responseBody, &ddr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal DCCDetailsReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(ddr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &ddr, nil
+}
+
+// GetDCCss retrieves invoices base on possible field set in the request
+// month/year and/or status
+func (c *Client) GetDCCs(gd *cms.GetDCCs) (*cms.GetDCCsReply, error) {
+	responseBody, err := c.makeRequest("POST", cms.RouteGetDCCs, gd)
+	if err != nil {
+		return nil, err
+	}
+
+	var gdr cms.GetDCCsReply
+	err = json.Unmarshal(responseBody, &gdr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal GetDCCsReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(gdr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &gdr, nil
+}
+
 // Close all client connections.
 func (c *Client) Close() {
 	if c.conn != nil {
