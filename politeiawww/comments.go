@@ -88,13 +88,6 @@ type counters struct {
 	down uint64
 }
 
-func absVoteValue(v int64) (bool, uint64) {
-	if v < 0 {
-		return true, uint64(-v)
-	}
-	return false, uint64(v)
-}
-
 // updateCommentVotes calculates the up/down votes for the specified comment,
 // updates the in-memory comment votes cache with these and returns them.
 func (p *politeiawww) updateCommentVotes(token, commentID string) (counters, error) {
@@ -146,41 +139,41 @@ func (p *politeiawww) updateCommentVotes(token, commentID string) (counters, err
 		case prevAction == 0:
 			// No previous action so we add the new action to the
 			// vote score
-			negativeVote, avv := absVoteValue(action)
-			if negativeVote {
-				votes.down += avv
-			} else {
-				votes.up += avv
+			switch action {
+			case -1:
+				votes.down += 1
+			case 1:
+				votes.up += 1
 			}
 			userActions[userID] = action
 
 		case prevAction == action:
 			// New action is the same as the previous action so we
 			// remove the previous action from the vote score
-			negativeVote, avv := absVoteValue(prevAction)
-			if negativeVote {
-				votes.down -= avv
-			} else {
-				votes.up -= avv
+			switch prevAction {
+			case -1:
+				votes.down -= 1
+			case 1:
+				votes.up -= 1
 			}
 			userActions[userID] = 0
 
 		case prevAction != action:
 			// New action is different than the previous action so
 			// we remove the previous action from the vote score..
-			negativeVote, avv := absVoteValue(prevAction)
-			if negativeVote {
-				votes.down -= avv
-			} else {
-				votes.up -= avv
+			switch prevAction {
+			case -1:
+				votes.down -= 1
+			case 1:
+				votes.up -= 1
 			}
 
 			// ..and then add the new action to the vote score
-			negativeVote, avv = absVoteValue(action)
-			if negativeVote {
-				votes.down += avv
-			} else {
-				votes.up += avv
+			switch action {
+			case -1:
+				votes.down += 1
+			case 1:
+				votes.up += 1
 			}
 			userActions[userID] = action
 		}
