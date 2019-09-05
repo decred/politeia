@@ -73,6 +73,7 @@ type Cmds struct {
 	CMSUserDetails      CMSUserDetailsCmd      `command:"cmsuserdetails" description:"(user) get current cms user details"`
 	CMSEditUser         CMSEditUserCmd         `command:"cmsedituser" description:"(user) edit current cms user information"`
 	DCCDetails          DCCDetailsCmd          `command:"dccdetails" description:"(user) get the details of a dcc"`
+	DCCComments         DCCCommentsCmd         `command:"dcccomments" description:"(user) get the comments for a dcc proposal"`
 	GetDCCs             GetDCCsCmd             `command:"getdccs" description:"(user) get all dccs (optional by status)"`
 	EditInvoice         EditInvoiceCmd         `command:"editinvoice" description:"(user)    edit a invoice"`
 	EditProposal        EditProposalCmd        `command:"editproposal" description:"(user)   edit a proposal"`
@@ -91,6 +92,7 @@ type Cmds struct {
 	Logout              LogoutCmd              `command:"logout" description:"(public) logout of Politeia"`
 	Me                  MeCmd                  `command:"me" description:"(user)   get user details for the logged in user"`
 	NewDCC              NewDCCCmd              `command:"newdcc" description:"(user)   creates a new dcc proposal"`
+	NewDCCComment       NewDCCCommentCmd       `command:"newdcccomment" description:"(user)   creates a new comment on a dcc proposal"`
 	NewInvoice          NewInvoiceCmd          `command:"newinvoice" description:"(user)   create a new invoice"`
 	NewProposal         NewProposalCmd         `command:"newproposal" description:"(user)   create a new proposal"`
 	NewComment          NewCommentCmd          `command:"newcomment" description:"(user)   create a new proposal comment"`
@@ -111,6 +113,7 @@ type Cmds struct {
 	SetProposalStatus   SetProposalStatusCmd   `command:"setproposalstatus" description:"(admin)  set the status of a proposal"`
 	StartVote           StartVoteCmd           `command:"startvote" description:"(admin)  start the voting period on a proposal"`
 	Subscribe           SubscribeCmd           `command:"subscribe" description:"(public) subscribe to all websocket commands and do not exit tool"`
+	SupportOpposeDCC    SupportOpposeDCCCmd    `command:"supportopposedcc" description:"(user) support or oppose a given DCC"`
 	Tally               TallyCmd               `command:"tally" description:"(public) get the vote tally for a proposal"`
 	TestRun             TestRunCmd             `command:"testrun" description:"         run a series of tests on the politeiawww routes (dev use only)"`
 	TokenInventory      TokenInventoryCmd      `command:"tokeninventory" description:"(public) get the censorship record tokens of all proposals"`

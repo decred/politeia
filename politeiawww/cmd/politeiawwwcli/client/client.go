@@ -1751,6 +1751,77 @@ func (c *Client) NewDCC(nd cms.NewDCC) (*cms.NewDCCReply, error) {
 	return &ndr, nil
 }
 
+// SupportOpposeDCC issues support for a given DCC proposal.
+func (c *Client) SupportOpposeDCC(sd cms.SupportOpposeDCC) (*cms.SupportOpposeDCCReply, error) {
+	responseBody, err := c.makeRequest("POST", cms.RouteSupportOpposeDCC,
+		sd)
+	if err != nil {
+		return nil, err
+	}
+
+	var sdr cms.SupportOpposeDCCReply
+	err = json.Unmarshal(responseBody, &sdr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal SupportOpposeDCCReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(sdr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &sdr, nil
+}
+
+// NewDCCComment submits a new dcc comment for the logged in user.
+func (c *Client) NewDCCComment(nc *v1.NewComment) (*v1.NewCommentReply, error) {
+	responseBody, err := c.makeRequest("POST", cms.RouteNewCommentDCC, nc)
+	if err != nil {
+		return nil, err
+	}
+
+	var ncr v1.NewCommentReply
+	err = json.Unmarshal(responseBody, &ncr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal NewDCCCommentReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(ncr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &ncr, nil
+}
+
+// DCCComments retrieves the comments for the specified proposal.
+func (c *Client) DCCComments(token string) (*v1.GetCommentsReply, error) {
+	responseBody, err := c.makeRequest("GET", "/dcc/"+token+"/comments",
+		nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var gcr v1.GetCommentsReply
+	err = json.Unmarshal(responseBody, &gcr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal DCCCommentsReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(gcr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &gcr, nil
+}
+
 // DCCDetails retrieves the specified dcc.
 func (c *Client) DCCDetails(token string) (*cms.DCCDetailsReply, error) {
 	responseBody, err := c.makeRequest("GET", "/dcc/"+token, nil)

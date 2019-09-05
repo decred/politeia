@@ -27,6 +27,9 @@ const (
 	RouteNewDCC              = "/dcc/new"
 	RouteDCCDetails          = "/dcc/{token:[A-z0-9]{64}}"
 	RouteGetDCCs             = "/dcc"
+	RouteSupportOpposeDCC    = "/dcc/supportoppose"
+	RouteNewCommentDCC       = "/dcc/newcomment"
+	RouteDCCComments         = "/dcc/{token:[A-z0-9]{64}}/comments"
 	RouteAdminInvoices       = "/admin/invoices"
 	RouteAdminUserInvoices   = "/admin/userinvoices"
 	RouteGeneratePayouts     = "/admin/generatepayouts"
@@ -184,6 +187,11 @@ const (
 	ErrorStatusInvalidUserNewInvoice          www.ErrorStatusT = 1038
 	ErrorStatusInvalidDCCNominee              www.ErrorStatusT = 1039
 	ErrorStatusDCCNotFound                    www.ErrorStatusT = 1040
+	ErrorStatusWrongDCCStatus                 www.ErrorStatusT = 1041
+	ErrorStatusInvalidSupportOppose           www.ErrorStatusT = 1042
+	ErrorStatusDuplicateSupportOppose         www.ErrorStatusT = 1043
+	ErrorStatusUserIsAuthor                   www.ErrorStatusT = 1044
+	ErrorStatusInvalidUserDCC                 www.ErrorStatusT = 1045
 )
 
 var (
@@ -254,6 +262,11 @@ var (
 		ErrorStatusInvalidUserNewInvoice:          "current contractor status does not allow new invoices to be created",
 		ErrorStatusInvalidDCCNominee:              "invalid nominee user was submitted for a DCC",
 		ErrorStatusDCCNotFound:                    "a requested dcc was not found",
+		ErrorStatusWrongDCCStatus:                 "cannot comment/approve/oppose DCC if it's not active state",
+		ErrorStatusInvalidSupportOppose:           "invalid support or opposition vote was included in the request, must be aye or nay",
+		ErrorStatusDuplicateSupportOppose:         "user has already supported or opposed the given DCC",
+		ErrorStatusUserIsAuthor:                   "user cannot support or oppose their own sponsored DCC",
+		ErrorStatusInvalidUserDCC:                 "user is not authorized to complete the DCC request",
 	}
 )
 
@@ -572,7 +585,8 @@ type DCCInput struct {
 	Domain           DomainTypeT `json:"domain"`        // Domain of proposed contractor issuance
 }
 
-// DCCRecord is what will be decoded from a Record for a DCC object to the politeiad backend.
+// DCCRecord is what will be decoded from a Record for a DCC object to the
+// politeiad backend.
 type DCCRecord struct {
 	Status             DCCStatusT `json:"status"`             // Current status of the DCC
 	StatusChangeReason string     `json:"statuschangereason"` // The reason for changing the DCC status.
@@ -598,7 +612,8 @@ type NewDCC struct {
 	Signature string   `json:"signature"` // Signature of the issuance struct by the sponsoring user.
 }
 
-// NewDCCReply returns the censorship record when the DCC is successfully submitted to the backend.
+// NewDCCReply returns the censorship record when the DCC is successfully
+// submitted to the backend.
 type NewDCCReply struct {
 	CensorshipRecord www.CensorshipRecord `json:"censorshiprecord"`
 }
@@ -622,3 +637,15 @@ type GetDCCs struct {
 type GetDCCsReply struct {
 	DCCs []DCCRecord `json:"dccs"` // DCCRecords of matching status
 }
+
+// SupportOpposeDCC request allows a user to support a given DCC issuance or
+// revocation.
+type SupportOpposeDCC struct {
+	Vote      string `json:"comment"`   // Vote must be "aye" or "nay"
+	Token     string `json:"token"`     // The censorship token of the given DCC issuance or revocation.
+	PublicKey string `json:"publickey"` // Pubkey of the submitting user
+	Signature string `json:"signature"` // Signature of the Token+Vote by the submitting user.
+}
+
+// SupportOpposeDCCReply returns an empty response when successful.
+type SupportOpposeDCCReply struct{}
