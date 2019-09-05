@@ -1281,6 +1281,8 @@ Reply:
 | <a name="ErrorStatusDuplicateSupportOppose">ErrorStatusDuplicateSupportOppose</a> | 1043 | A user attempted to support or oppose a DCC multiple times. |
 | <a name="ErrorStatusUserIsAuthor">ErrorStatusUserIsAuthor</a> | 1044 | A user attempted to support or oppose a DCC that they authored. |
 | <a name="ErrorStatusInvalidUserDCC">ErrorStatusInvalidUserDCC</a> | 1045 | A user with an invalid status attempted to complete a DCC task. |
+| <a name="ErrorStatusInvalidDCCContractorType">ErrorStatusInvalidDCCContractorType</a> | 1046 | An invalid contractor type was attempted to be used in a DCC proposal. |
+
 ### Invoice status codes
 
 | Status | Value | Description |

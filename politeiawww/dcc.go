@@ -332,6 +332,16 @@ func (p *politeiawww) validateDCC(nd cms.NewDCC, u *user.User) error {
 		}
 	}
 
+	// Check to see that ContractorType is valid for any issuance
+	// DCC Proposal
+	if dcc.Type == cms.DCCTypeIssuance &&
+		dcc.ContractorType != cms.ContractorTypeDirect &&
+		dcc.ContractorType != cms.ContractorTypeSubContractor {
+		return www.UserError{
+			ErrorCode: cms.ErrorStatusInvalidDCCContractorType,
+		}
+
+	}
 	// Append digest to array for merkle root calculation
 	digest := util.Digest(data)
 	var d [sha256.Size]byte

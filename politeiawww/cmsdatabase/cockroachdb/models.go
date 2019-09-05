@@ -117,6 +117,7 @@ type DCC struct {
 	ServerSignature    string
 	SponsorStatement   string
 	Domain             int
+	ContractorType     int
 
 	SupportUserIDs    string
 	OppositionUserIDs string
