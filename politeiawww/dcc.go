@@ -92,7 +92,7 @@ func (p *politeiawww) processNewDCC(nd cms.NewDCC, u *user.User) (*cms.NewDCCRep
 	}
 
 	// Ensure that the user is authorized to create DCCs
-	if _, ok := invalidNewInvoiceContractorType[cmsUser.ContractorType]; !ok {
+	if _, ok := invalidDCCContractorType[cmsUser.ContractorType]; ok {
 		return nil, www.UserError{
 			ErrorCode: cms.ErrorStatusInvalidUserDCC,
 		}
@@ -662,7 +662,7 @@ func (p *politeiawww) processSupportOpposeDCC(sd cms.SupportOpposeDCC, u *user.U
 	}
 
 	// Ensure that the user is authorized to support/oppose DCCs
-	if _, ok := invalidNewInvoiceContractorType[cmsUser.ContractorType]; !ok {
+	if _, ok := invalidDCCContractorType[cmsUser.ContractorType]; ok {
 		return nil, www.UserError{
 			ErrorCode: cms.ErrorStatusInvalidUserDCC,
 		}
@@ -760,7 +760,7 @@ func (p *politeiawww) processNewCommentDCC(nc www.NewComment, u *user.User) (*ww
 	}
 
 	// Ensure that the user is authorized to comment on a DCCs
-	if _, ok := invalidNewInvoiceContractorType[cmsUser.ContractorType]; !ok {
+	if _, ok := invalidDCCContractorType[cmsUser.ContractorType]; ok {
 		return nil, www.UserError{
 			ErrorCode: cms.ErrorStatusInvalidUserDCC,
 		}

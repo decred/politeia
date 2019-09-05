@@ -88,7 +88,7 @@ func (cmd *NewDCCCmd) Execute(args []string) error {
 					domainTypes[cms.DomainTypeCommunity] + ", " +
 					domainTypes[cms.DomainTypeResearch] + ", " +
 					domainTypes[cms.DomainTypeDesign] + ", " +
-					domainTypes[cms.DomainTypeDocumentation] + ":")
+					domainTypes[cms.DomainTypeDocumentation] + ": ")
 				cmd.Domain, _ = reader.ReadString('\n')
 				domainType, err = strconv.Atoi(strings.TrimSpace(cmd.Domain))
 				if err != nil {
@@ -123,7 +123,7 @@ func (cmd *NewDCCCmd) Execute(args []string) error {
 			for {
 				fmt.Printf("Contractor Type: " +
 					contractorTypes[cms.ContractorTypeDirect] + ", " +
-					contractorTypes[cms.ContractorTypeSubContractor] + ":")
+					contractorTypes[cms.ContractorTypeSubContractor] + ": ")
 				cmd.ContractorType, _ = reader.ReadString('\n')
 				contractorType, err = strconv.Atoi(strings.TrimSpace(cmd.ContractorType))
 				if err != nil {
