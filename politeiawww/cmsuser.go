@@ -469,7 +469,7 @@ func convertCMSUserFromDatabaseUser(user *user.CMSUser) cms.User {
 
 // issuanceDCCUser does the processing to move a nominated user to a fully
 // approved and invite them onto CMS.
-func (p *politeiawww) issuanceDCCUser(userid string) ([]byte, error) {
+func (p *politeiawww) issuanceDCCUser(userid, sponsorUserID string, domain, contractorType int) ([]byte, error) {
 	nominatedUser, err := p.userByIDStr(userid)
 	if err != nil {
 		return nil, err
@@ -489,8 +489,16 @@ func (p *politeiawww) issuanceDCCUser(userid string) ([]byte, error) {
 	}
 	uu := user.UpdateCMSUser{
 		ID:             nomineeUserID,
-		ContractorType: int(cms.ContractorTypeDirect),
+		ContractorType: contractorType,
+		Domain:         domain,
 	}
+
+	// If the nominee was an approved Subcontractor, then use the sponsor user
+	// ID as the SupervisorUserID
+	if contractorType == int(cms.ContractorTypeSubContractor) {
+		uu.SupervisorUserID = sponsorUserID
+	}
+
 	payload, err := user.EncodeUpdateCMSUser(uu)
 	if err != nil {
 		return nil, err
