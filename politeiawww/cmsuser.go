@@ -481,6 +481,30 @@ func (p *politeiawww) issuanceDCCUser(userid string) ([]byte, error) {
 		}
 	}
 
+	nomineeUserID, err := uuid.Parse(userid)
+	if err != nil {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidUUID,
+		}
+	}
+	uu := user.UpdateCMSUser{
+		ID:             nomineeUserID,
+		ContractorType: int(cms.ContractorTypeDirect),
+	}
+	payload, err := user.EncodeUpdateCMSUser(uu)
+	if err != nil {
+		return nil, err
+	}
+	pc := user.PluginCommand{
+		ID:      user.CMSPluginID,
+		Command: user.CmdUpdateCMSUser,
+		Payload: string(payload),
+	}
+	_, err = p.db.PluginExec(pc)
+	if err != nil {
+		return nil, err
+	}
+
 	if !validEmail.MatchString(nominatedUser.Email) {
 		log.Debugf("processApproveDCC: invalid email '%v'", nominatedUser.Email)
 		return nil, www.UserError{
@@ -506,15 +530,15 @@ func (p *politeiawww) issuanceDCCUser(userid string) ([]byte, error) {
 		return token, nil
 	}
 
-	// If the user already exists, the user record is updated
-	// in the db in order to reset the verification token and
-	// expiry.
+	// The user record is updated in the db in order to reset the verification
+	// token and expiry.
 	nominatedUser.NewUserVerificationToken = token
 	nominatedUser.NewUserVerificationExpiry = expiry
 	err = p.db.UserUpdate(*nominatedUser)
 	if err != nil {
 		return nil, err
 	}
+
 	return token, nil
 }
 
