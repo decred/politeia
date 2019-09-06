@@ -273,7 +273,7 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 	}
 
 	// Ensure that the user is not unauthorized to create invoices
-	if _, ok := invalidNewInvoiceContractorType[cmsUser.ContractorType]; !ok {
+	if _, ok := invalidNewInvoiceContractorType[cmsUser.ContractorType]; ok {
 		return nil, www.UserError{
 			ErrorCode: cms.ErrorStatusInvalidUserNewInvoice,
 		}

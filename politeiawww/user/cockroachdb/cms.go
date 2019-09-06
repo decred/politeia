@@ -122,6 +122,7 @@ func (c *cockroachdb) updateCMSUser(tx *gorm.DB, nu user.UpdateCMSUser) error {
 			cms.GitHubName = nu.GitHubName
 			cms.MatrixName = nu.MatrixName
 			cms.ContractorName = nu.ContractorName
+			cms.ContractorType = nu.ContractorType
 			cms.ContractorLocation = nu.ContractorLocation
 			cms.ContractorContact = nu.ContractorContact
 			cms.SupervisorUserID = nu.SupervisorUserID
@@ -137,6 +138,7 @@ func (c *cockroachdb) updateCMSUser(tx *gorm.DB, nu user.UpdateCMSUser) error {
 	cms.GitHubName = nu.GitHubName
 	cms.MatrixName = nu.MatrixName
 	cms.ContractorName = nu.ContractorName
+	cms.ContractorType = nu.ContractorType
 	cms.ContractorLocation = nu.ContractorLocation
 	cms.ContractorContact = nu.ContractorContact
 	cms.SupervisorUserID = nu.SupervisorUserID
