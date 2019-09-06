@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/decred/dcrd/blockchain/stake"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrec/secp256k1"
 	"github.com/decred/dcrd/dcrutil"
@@ -340,6 +341,75 @@ func (c *ctx) makeRequest(method, route string, b interface{}) ([]byte, error) {
 	return responseBody, nil
 }
 
+// eligibleVotes takes a vote result reply that contains the full list of
+// eligible tickets as well as the votes already cast along with a committed
+// tickets response from wallet which consists of a list of tickets the wallet
+// is aware of and returns a list of tickets that the wallet is actually able
+// to sign and vote with.
+//
+// When a ticket has already voted, the signature is also checked to ensure it
+// is valid.  In the case it is invalid, and the wallet can sign it, the ticket
+// is included so it may be resubmitted.  This could be caused by bad data on
+// the server or if the server is lying to the client.
+func (c *ctx) eligibleVotes(vrr *v1.VoteResultsReply, ctres *pb.CommittedTicketsResponse) ([]*pb.CommittedTicketsResponse_TicketAddress, error) {
+	// Put cast votes into a map to filter in linear time
+	castVotes := make(map[string]v1.CastVote)
+	for _, v := range vrr.CastVotes {
+		castVotes[v.Ticket] = v
+	}
+
+	// Filter out tickets that have already voted. If a ticket has
+	// voted but the signature is invalid, resubmit the vote. This
+	// could be caused by bad data on the server or if the server is
+	// lying to the client.
+	eligible := make([]*pb.CommittedTicketsResponse_TicketAddress, 0,
+		len(ctres.TicketAddresses))
+	for _, t := range ctres.TicketAddresses {
+		h, err := chainhash.NewHash(t.Ticket)
+		if err != nil {
+			return nil, err
+		}
+
+		// Filter out tickets tracked by imported xpub accounts.
+		r, err := c.wallet.GetTransaction(context.TODO(), &pb.GetTransactionRequest{
+			TransactionHash: h[:],
+		})
+		if err != nil {
+			log.Error(err)
+			continue
+		}
+		tx := new(wire.MsgTx)
+		err = tx.Deserialize(bytes.NewReader(r.Transaction.Transaction))
+		if err != nil {
+			log.Error(err)
+			continue
+		}
+		addr, err := stake.AddrFromSStxPkScrCommitment(tx.TxOut[1].PkScript, activeNetParams.Params)
+		if err != nil {
+			log.Error(err)
+			continue
+		}
+		vr, err := c.wallet.ValidateAddress(context.TODO(), &pb.ValidateAddressRequest{
+			Address: addr.String(),
+		})
+		if err != nil {
+			log.Error(err)
+			continue
+		}
+		if vr.AccountNumber >= 1<<31-1 { // imported xpub account
+			// do not append to filtered.
+			continue
+		}
+
+		v, ok := castVotes[h.String()]
+		if !ok || !verifyV1Vote(t.Address, &v) {
+			eligible = append(eligible, t)
+		}
+	}
+
+	return eligible, nil
+}
+
 func (c *ctx) _inventory() (*v1.ActiveVoteReply, error) {
 	responseBody, err := c.makeRequest("GET", v1.RouteActiveVote, nil)
 	if err != nil {
@@ -421,6 +491,27 @@ func (c *ctx) inventory() error {
 			fmt.Printf("No eligible tickets: %v\n", v.StartVote.Vote.Token)
 		}
 
+		// _tally provides the eligible tickets snapshot as well as a list of
+		// the votes that have already been cast. Use these to filter out the
+		// tickets that have already voted.
+		vrr, err := c._tally(v.StartVote.Vote.Token)
+		if err != nil {
+			fmt.Printf("Failed to obtain voting results for %v: %v\n",
+				v.StartVote.Vote.Token, err)
+			continue
+		}
+
+		// Filter out tickets that have already voted or are otherwise
+		// ineligible for the wallet to sign.  Note that tickets that have
+		// already voted, but have an invalid signature are included so they
+		// may be resubmitted.
+		eligible, err := c.eligibleVotes(vrr, ctres)
+		if err != nil {
+			fmt.Printf("Eligible vote filtering error: %v %v\n",
+				v.StartVote.Vote.Token, err)
+			continue
+		}
+
 		// Display vote bits
 		fmt.Printf("Vote: %v\n", v.StartVote.Vote.Token)
 		fmt.Printf("  Proposal        : %v\n", v.Proposal.Name)
@@ -428,6 +519,7 @@ func (c *ctx) inventory() error {
 		fmt.Printf("  End block       : %v\n", v.StartVoteReply.EndHeight)
 		fmt.Printf("  Mask            : %v\n", v.StartVote.Vote.Mask)
 		fmt.Printf("  Eligible tickets: %v\n", len(ctres.TicketAddresses))
+		fmt.Printf("  Eligible votes  : %v\n", len(eligible))
 		for _, vo := range v.StartVote.Vote.Options {
 			fmt.Printf("  Vote Option:\n")
 			fmt.Printf("    Id                   : %v\n", vo.Id)
@@ -703,41 +795,26 @@ func (c *ctx) _vote(seed int64, token, voteId string) ([]string, *v1.BallotReply
 		return nil, nil, fmt.Errorf("no eligible tickets found")
 	}
 
-	// Put cast votes into a map so that we can
-	// filter in linear time
-	castVotes := make(map[string]v1.CastVote)
-	for _, v := range vrr.CastVotes {
-		castVotes[v.Ticket] = v
+	// Filter out tickets that have already voted or are otherwise ineligible
+	// for the wallet to sign.  Note that tickets that have already voted, but
+	// have an invalid signature are included so they may be resubmitted.
+	eligible, err := c.eligibleVotes(vrr, ctres)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	// Filter out tickets that have already voted. If a ticket has
-	// voted but the signature is invalid, resubmit the vote. This
-	// could be caused by bad data on the server or if the server is
-	// lying to the client.
-	filtered := make([]*pb.CommittedTicketsResponse_TicketAddress, 0,
-		len(ctres.TicketAddresses))
-	for _, t := range ctres.TicketAddresses {
-		h, err := chainhash.NewHash(t.Ticket)
-		if err != nil {
-			return nil, nil, err
-		}
-		v, ok := castVotes[h.String()]
-		if !ok || !verifyV1Vote(t.Address, &v) {
-			filtered = append(filtered, t)
-		}
-	}
-	filteredLen := len(filtered)
-	if filteredLen == 0 {
+	eligibleLen := len(eligible)
+	if eligibleLen == 0 {
 		return nil, nil, fmt.Errorf("no eligible tickets found")
 	}
 	r := rand.New(rand.NewSource(seed))
 	// Fisher-Yates shuffle the ticket addresses.
-	for i := 0; i < filteredLen; i++ {
+	for i := 0; i < eligibleLen; i++ {
 		// Pick a number between current index and the end.
-		j := r.Intn(filteredLen-i) + i
-		filtered[i], filtered[j] = filtered[j], filtered[i]
+		j := r.Intn(eligibleLen-i) + i
+		eligible[i], eligible[j] = eligible[j], eligible[i]
 	}
-	ctres.TicketAddresses = filtered
+	ctres.TicketAddresses = eligible
 
 	passphrase, err := ProvidePrivPassphrase()
 	if err != nil {
