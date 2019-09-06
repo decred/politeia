@@ -90,13 +90,13 @@ type counters struct {
 
 // updateCommentVotes calculates the up/down votes for the specified comment,
 // updates the in-memory comment votes cache with these and returns them.
-func (p *politeiawww) updateCommentVotes(token, commentID string) (counters, error) {
+func (p *politeiawww) updateCommentVotes(token, commentID string) (*counters, error) {
 	log.Tracef("updateCommentVotes: %v %v", token, commentID)
 
 	// Fetch all comment likes for the specified comment
 	likes, err := p.decredCommentLikes(token, commentID)
 	if err != nil {
-		return counters{}, fmt.Errorf("decredLikeComments: %v", err)
+		return nil, fmt.Errorf("decredLikeComments: %v", err)
 	}
 
 	// Sanity check. Like comments should already be sorted in
@@ -119,14 +119,14 @@ func (p *politeiawww) updateCommentVotes(token, commentID string) (counters, err
 	for _, v := range likes {
 		action, err := strconv.ParseInt(v.Action, 10, 64)
 		if err != nil {
-			return counters{}, fmt.Errorf("parse action '%v' failed on "+
+			return nil, fmt.Errorf("parse action '%v' failed on "+
 				"commentID %v: %v", v.Action, v.CommentID, err)
 		}
 
 		// Lookup the userID of the comment author
 		u, err := p.db.UserGetByPubKey(v.PublicKey)
 		if err != nil {
-			return counters{}, fmt.Errorf("user lookup failed for pubkey %v",
+			return nil, fmt.Errorf("user lookup failed for pubkey %v",
 				v.PublicKey)
 		}
 		userID := u.ID.String()
@@ -182,7 +182,7 @@ func (p *politeiawww) updateCommentVotes(token, commentID string) (counters, err
 	// Update in-memory cache
 	p.commentVotes[token+commentID] = votes
 
-	return votes, nil
+	return &votes, nil
 }
 
 func validateComment(c www.NewComment) error {
