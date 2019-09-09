@@ -417,7 +417,7 @@ type backendDCCStatusChange struct {
 	NewStatus      cms.DCCStatusT `json:"newstatus"`      // Status
 	Reason         string         `json:"reason"`         // Reason
 	Timestamp      int64          `json:"timestamp"`      // Timestamp of the change
-	Signature      string         `json:"signature"`      // Signature of NewStatus + Reason
+	Signature      string         `json:"signature"`      // Signature of Token + NewStatus + Reason
 }
 
 // backendDCCSupportOppositionMetadata represents the general metadata for a DCC
@@ -918,14 +918,14 @@ func (p *politeiawww) processApproveDCC(ad cms.ApproveDCC, u *user.User) (*cms.A
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
 			err = www.UserError{
-				ErrorCode: cms.ErrorStatusInvoiceNotFound,
+				ErrorCode: cms.ErrorStatusDCCNotFound,
 			}
 		}
 		return nil, err
 	}
 
 	// Validate signature
-	msg := fmt.Sprintf("%v%v", ad.Token, ad.Reason)
+	msg := fmt.Sprintf("%v%v%v", ad.Token, int(cms.DCCStatusApproved), ad.Reason)
 	err = validateSignature(ad.PublicKey, ad.Signature, msg)
 	if err != nil {
 		return nil, err
@@ -938,7 +938,7 @@ func (p *politeiawww) processApproveDCC(ad cms.ApproveDCC, u *user.User) (*cms.A
 
 	// Create the change record.
 	c := backendDCCStatusChange{
-		Version:        backendInvoiceStatusChangeVersion,
+		Version:        backendDCCStatusChangeVersion,
 		AdminPublicKey: u.PublicKey(),
 		Timestamp:      time.Now().Unix(),
 		NewStatus:      cms.DCCStatusApproved,
@@ -1051,20 +1051,20 @@ func (p *politeiawww) processRejectDCC(rd cms.RejectDCC, u *user.User) (*cms.Rej
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
 			err = www.UserError{
-				ErrorCode: cms.ErrorStatusInvoiceNotFound,
+				ErrorCode: cms.ErrorStatusDCCNotFound,
 			}
 		}
 		return nil, err
 	}
 
 	// Validate signature
-	msg := fmt.Sprintf("%v%v", rd.Token, rd.Reason)
+	msg := fmt.Sprintf("%v%v%v", rd.Token, int(cms.DCCStatusRejected), rd.Reason)
 	err = validateSignature(rd.PublicKey, rd.Signature, msg)
 	if err != nil {
 		return nil, err
 	}
 
-	err = validateDCCStatusTransition(dcc.Status, cms.DCCStatusApproved)
+	err = validateDCCStatusTransition(dcc.Status, cms.DCCStatusRejected)
 	if err != nil {
 		return nil, err
 	}

@@ -49,7 +49,9 @@ func (cmd *ApproveDCCCmd) Execute(args []string) error {
 	}
 
 	// Setup new comment request
-	sig := cfg.Identity.SignMessage([]byte(token + cmd.Reason))
+
+	msg := fmt.Sprintf("%v%v%v", token, int(v1.DCCStatusApproved), cmd.Reason)
+	sig := cfg.Identity.SignMessage([]byte(msg))
 
 	ad := v1.ApproveDCC{
 		Token:     cmd.Args.Token,
