@@ -82,6 +82,11 @@ func (p *politeiawww) getComment(token, commentID string) (*www.Comment, error) 
 	return &c, nil
 }
 
+const (
+	actionDownvote = -1
+	actionUpvote   = 1
+)
+
 // counters is a struct that helps us keep track of up/down votes.
 type counters struct {
 	up   uint64
@@ -140,9 +145,9 @@ func (p *politeiawww) updateCommentVotes(token, commentID string) (*counters, er
 			// No previous action so we add the new action to the
 			// vote score
 			switch action {
-			case -1:
+			case actionDownvote:
 				votes.down += 1
-			case 1:
+			case actionUpvote:
 				votes.up += 1
 			}
 			userActions[userID] = action
@@ -151,9 +156,9 @@ func (p *politeiawww) updateCommentVotes(token, commentID string) (*counters, er
 			// New action is the same as the previous action so we
 			// remove the previous action from the vote score
 			switch prevAction {
-			case -1:
+			case actionDownvote:
 				votes.down -= 1
-			case 1:
+			case actionUpvote:
 				votes.up -= 1
 			}
 			userActions[userID] = 0
@@ -162,17 +167,17 @@ func (p *politeiawww) updateCommentVotes(token, commentID string) (*counters, er
 			// New action is different than the previous action so
 			// we remove the previous action from the vote score..
 			switch prevAction {
-			case -1:
+			case actionDownvote:
 				votes.down -= 1
-			case 1:
+			case actionUpvote:
 				votes.up -= 1
 			}
 
 			// ..and then add the new action to the vote score
 			switch action {
-			case -1:
+			case actionDownvote:
 				votes.down += 1
-			case 1:
+			case actionUpvote:
 				votes.up += 1
 			}
 			userActions[userID] = action
