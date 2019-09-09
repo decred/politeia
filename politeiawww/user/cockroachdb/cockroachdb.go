@@ -28,6 +28,7 @@ const (
 	tableKeyValue   = "key_value"
 	tableUsers      = "users"
 	tableIdentities = "identities"
+	tableSessions   = "sessions"
 
 	// Database user (read/write access)
 	userPoliteiawww = "politeiawww"
