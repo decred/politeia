@@ -32,6 +32,7 @@ const (
 	RouteNewCommentDCC       = "/dcc/newcomment"
 	RouteDCCComments         = "/dcc/{token:[A-z0-9]{64}}/comments"
 	RouteSetDCCStatus        = "/dcc/{token:[A-z0-9]{64}}/status"
+	RouteVoteDCC             = "/dcc/vote"
 	RouteAdminInvoices       = "/admin/invoices"
 	RouteAdminUserInvoices   = "/admin/userinvoices"
 	RouteGeneratePayouts     = "/admin/generatepayouts"
@@ -89,6 +90,7 @@ const (
 	DCCStatusActive   DCCStatusT = 1 // Currently active issuance/revocation (awaiting sponsors)
 	DCCStatusApproved DCCStatusT = 2 // Fully approved DCC proposal
 	DCCStatusRejected DCCStatusT = 3 // Rejected DCC proposal
+	DCCStatusDebate   DCCStatusT = 4 // Debated DCC proposal (full contractor vote)
 
 	InvoiceInputVersion = 1
 
@@ -203,6 +205,11 @@ const (
 	ErrorStatusMissingSubUserIDLineItem       www.ErrorStatusT = 1048
 	ErrorStatusInvalidSubUserIDLineItem       www.ErrorStatusT = 1049
 	ErrorStatusInvalidSupervisorUser          www.ErrorStatusT = 1050
+	ErrorStatusInvalidDCCVoteStatus           www.ErrorStatusT = 1051
+	ErrorStatusInvalidDCCAllVoteUserWeight    www.ErrorStatusT = 1052
+	ErrorStatusDCCVoteEnded                   www.ErrorStatusT = 1053
+	ErrorStatusDCCVoteStillLive               www.ErrorStatusT = 1054
+	ErrorStatusDCCDuplicateVote               www.ErrorStatusT = 1055
 )
 
 var (
@@ -285,6 +292,11 @@ var (
 		ErrorStatusMissingSubUserIDLineItem:       "must supply a userid for a subcontractor hours line item",
 		ErrorStatusInvalidSubUserIDLineItem:       "the userid supplied for the subcontractor hours line item is invalid",
 		ErrorStatusInvalidSupervisorUser:          "attempted input of an invalid supervisor user id",
+		ErrorStatusInvalidDCCVoteStatus:           "the DCC to be voted isn't currently up for debate",
+		ErrorStatusInvalidDCCAllVoteUserWeight:    "the user does not have a corresponding user weight for this vote",
+		ErrorStatusDCCVoteEnded:                   "the all contractor voting period has ended",
+		ErrorStatusDCCVoteStillLive:               "cannot update status of a DCC while a vote is still live",
+		ErrorStatusDCCDuplicateVote:               "user has already submitted a vote for the given dcc",
 	}
 )
 
@@ -631,7 +643,28 @@ type DCCRecord struct {
 	SupportUserIDs    []string `json:"supportuserids"` // List of UserIDs for those that have shown support of the DCC.
 	OppositionUserIDs []string `json:"againstuserids"` // List of UserIDs for those that have shown opposition of the DCC.
 
+	VoteStart   int64       // Time at which the all contractor vote was started.
+	VoteEnd     int64       // Time at which the all contractor vote will complete.
+	UserWeights []DCCWeight // User weights that is populated for all contractor votes.
+	VoteResults []DCCVote   // Map votes that have been submitted to the backend, keyed by users' ids.
+
 	CensorshipRecord www.CensorshipRecord `json:"censorshiprecord"`
+}
+
+// DCCWeight contains a user id and their assigned weight for a given DCC all contractor vote.
+type DCCWeight struct {
+	UserID string // User ID
+	Weight int64  // User Weight of the vote (as calculated at the start of the vote).
+}
+
+// DCCVote contains the information for all submitted votes.
+type DCCVote struct {
+	UserID    string // User ID
+	Vote      string // Value of the vote (needs to be yay or nay).
+	Weight    int64  // User Weight of the vote (as calculated at the start of the vote).
+	Signature string // Signature of the Vote (for user verification)
+	PublicKey string // Public Key used to sign the Vote (for user verification)
+	Timestamp int64  // Time in which the Vote was submitted
 }
 
 // NewDCC is a request for submitting a new DCC proposal.
@@ -699,4 +732,25 @@ type UserSubContractors struct{}
 // sub contractors of the logged in user making the request.
 type UserSubContractorsReply struct {
 	Users []User `json:"users"`
+}
+
+// VoteDCC is an authenticated user request that will vote on a debated DCC proposal.
+type VoteDCC struct {
+	Vote      string `json:"comment"`   // Vote must be "aye" or "nay"
+	Token     string `json:"token"`     // The censorship token of the given DCC issuance or revocation.
+	PublicKey string `json:"publickey"` // Pubkey of the submitting user
+	Signature string `json:"signature"` // Signature of the Token+Vote by the submitting user.
+}
+
+// VoteDCCReply returns an emptry response when successful.
+type VoteDCCReply struct{}
+
+// DCCVoteResults is an authenticated user request that will return the all contractor vote results for a given DCC proposal.
+type DCCVoteResults struct {
+	Token string `json:"token"` // Token of the DCC iss/rev
+}
+
+// DCCVoteResultsReply contains the list of submitted votes from a given all contractor vote.
+type DCCVoteResultsReply struct {
+	Votes []DCCVote `json:"votes"` // List of submitted all contractor votes.
 }

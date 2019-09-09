@@ -26,6 +26,7 @@ func (cmd *SetDCCStatusCmd) Execute(args []string) error {
 	DCCStatus := map[string]cms.DCCStatusT{
 		"rejected": cms.DCCStatusRejected,
 		"approved": cms.DCCStatusApproved,
+		"debate":   cms.DCCStatusDebate,
 	}
 	// Check for user identity
 	if cfg.Identity == nil {

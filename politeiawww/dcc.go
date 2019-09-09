@@ -35,17 +35,26 @@ const (
 	dccFile = "dcc.json"
 
 	// politeiad dcc record metadata streams
-	mdStreamDCCGeneral           = 5 // General DCC metadata
-	mdStreamDCCStatusChanges     = 6 // DCC status changes
-	mdStreamDCCSupportOpposition = 7 // DCC support/opposition changes
+	mdStreamDCCGeneral             = 5 // General DCC metadata
+	mdStreamDCCStatusChanges       = 6 // DCC status changes
+	mdStreamDCCSupportOpposition   = 7 // DCC support/opposition changes
+	mdStreamDCCStartContractorVote = 8 // DCC start contractor vote
+	mdStreamDCCContractorVote      = 9 // DCC contractor votes
 
 	// Metadata stream struct versions
 	backendDCCMetadataVersion                  = 1
 	backendDCCStatusChangeVersion              = 1
 	backendDCCSupposeOppositionMetadataVersion = 1
+	backendDCCContractorVoteMetadataVersion    = 1
+	backendDCCStartContractorVoteVersion       = 1
 
 	supportString = "aye"
 	opposeString  = "nay"
+
+	// DCC All User Vote Configuration
+	dccVoteDuration         = 24 * 7 * time.Hour // 1 Week
+	averageMonthlyMinutes   = 180 * 60           // 180 Hours * 60 Minutes
+	userWeightMonthLookback = 6                  // Lookback 6 months to deteremine user voting weight
 )
 
 var (
@@ -58,11 +67,14 @@ var (
 	}
 
 	// This covers the possible valid status transitions for any dcc.
-	// Currentyly, this only applies to active DCC's.  In the future there will
-	// be more options with the addition of Debated DCC's.
 	validDCCStatusTransitions = map[cms.DCCStatusT][]cms.DCCStatusT{
 		// Active DCC's may only be approved or rejected.
 		cms.DCCStatusActive: {
+			cms.DCCStatusApproved,
+			cms.DCCStatusRejected,
+			cms.DCCStatusDebate,
+		},
+		cms.DCCStatusDebate: {
 			cms.DCCStatusApproved,
 			cms.DCCStatusRejected,
 		},
@@ -430,6 +442,31 @@ type backendDCCSupportOppositionMetadata struct {
 	Signature string `json:"signature"` // Signature of Token + Vote
 }
 
+// backendDCCStartContractorVoteMetadata contains information about the full
+// contractor vote that will be done to decide the fate of a given DCC.
+type backendDCCStartContractorVoteMetadata struct {
+	Version        uint64           `json:"version"`     // Version of the struct
+	Timestamp      int64            `json:"timestamp"`   // Last update of invoice
+	AdminPublicKey string           `json:"publickey"`   // Key used for signature
+	StartTime      int64            `json:"starttime"`   // Time that the vote started
+	StopTime       int64            `json:"stoptime"`    // Time that the vote is stopping
+	UserWeights    map[string]int64 `json:"userweights"` // Contractor Voting Weights
+	Signature      string           `json:"signature"`   // Signature of Token + Vote + Weight
+}
+
+// backendDCCContractorVoteMetadata represents the individual contractor votes
+// that will be appended to the particular DCC proposal in the event of
+// a debated DCC.
+type backendDCCContractorVoteMetadata struct {
+	Version   uint64 `json:"version"`   // Version of the struct
+	Timestamp int64  `json:"timestamp"` // Last update of invoice
+	PublicKey string `json:"publickey"` // Key used for signature
+	UserID    string `json:"userid"`    // UserID of the submitting user
+	Vote      string `json:"vote"`      // Vote for support/opposition
+	Weight    int64  `json:"weight"`    // Weight of the contractor's vote
+	Signature string `json:"signature"` // Signature of Token + Vote + Weight
+}
+
 // encodeBackendDCCMetadata encodes a backendDCCMetadata into a JSON
 // byte slice.
 func encodeBackendDCCMetadata(md backendDCCMetadata) ([]byte, error) {
@@ -505,6 +542,70 @@ func decodeBackendDCCSupportOppositionMetadata(payload []byte) ([]backendDCCSupp
 	d := json.NewDecoder(strings.NewReader(string(payload)))
 	for {
 		var m backendDCCSupportOppositionMetadata
+		err := d.Decode(&m)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return nil, err
+		}
+
+		md = append(md, m)
+	}
+
+	return md, nil
+}
+
+// encodeBackendDCCStartContractorVoteMetadata encodes a backendDCCStartContractorVoteMetadata into a JSON
+// byte slice.
+func encodeBackendDCCStartContractorVoteMetadata(md backendDCCStartContractorVoteMetadata) ([]byte, error) {
+	b, err := json.Marshal(md)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+// decodeBackendDCCStartContractorVoteMetadata decodes a JSON byte slice into a
+// backendDCCStartContractorVoteMetadata.
+func decodeBackendDCCStartContractorVoteMetadata(payload []byte) ([]backendDCCStartContractorVoteMetadata, error) {
+	var md []backendDCCStartContractorVoteMetadata
+
+	d := json.NewDecoder(strings.NewReader(string(payload)))
+	for {
+		var m backendDCCStartContractorVoteMetadata
+		err := d.Decode(&m)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return nil, err
+		}
+
+		md = append(md, m)
+	}
+
+	return md, nil
+}
+
+// encodeBackendDCCContractorVoteMetadata encodes a backendDCCContractorVoteMetadata into a JSON
+// byte slice.
+func encodeBackendDCCContractorVoteMetadata(md backendDCCContractorVoteMetadata) ([]byte, error) {
+	b, err := json.Marshal(md)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+// decodeBackendDCCContractorVoteMetadata decodes a JSON byte slice into a
+// backendDCCContractorVoteMetadata.
+func decodeBackendDCCContractorVoteMetadata(payload []byte) ([]backendDCCContractorVoteMetadata, error) {
+	var md []backendDCCContractorVoteMetadata
+
+	d := json.NewDecoder(strings.NewReader(string(payload)))
+	for {
+		var m backendDCCContractorVoteMetadata
 		err := d.Decode(&m)
 		if err == io.EOF {
 			break
@@ -931,6 +1032,7 @@ func (p *politeiawww) processSetDCCStatus(sds cms.SetDCCStatus, u *user.User) (*
 			ErrorCode: www.ErrorStatusInvalidSigningKey,
 		}
 	}
+
 	// Validate signature
 	msg := fmt.Sprintf("%v%v%v", sds.Token, int(sds.Status), sds.Reason)
 	err := validateSignature(sds.PublicKey, sds.Signature, msg)
@@ -951,6 +1053,15 @@ func (p *politeiawww) processSetDCCStatus(sds cms.SetDCCStatus, u *user.User) (*
 	err = validateDCCStatusTransition(dcc.Status, sds.Status, sds.Reason)
 	if err != nil {
 		return nil, err
+	}
+
+	// If it's a debated DCC and the vote is still occurring, admin cannot update
+	// the status.
+	if dcc.Status == cms.DCCStatusDebate &&
+		time.Unix(dcc.VoteEnd, 0).After(time.Now()) {
+		return nil, www.UserError{
+			ErrorCode: cms.ErrorStatusDCCVoteStillLive,
+		}
 	}
 
 	// Create the change record.
@@ -1015,8 +1126,8 @@ func (p *politeiawww) processSetDCCStatus(sds cms.SetDCCStatus, u *user.User) (*
 		return nil, err
 	}
 
-	// Only do further processing if it was an approved DCC
-	if sds.Status == cms.DCCStatusApproved {
+	switch sds.Status {
+	case cms.DCCStatusApproved:
 		switch dcc.DCC.Type {
 		case cms.DCCTypeIssuance:
 			// Do DCC user Issuance processing
@@ -1031,6 +1142,12 @@ func (p *politeiawww) processSetDCCStatus(sds cms.SetDCCStatus, u *user.User) (*
 			if err != nil {
 				return nil, err
 			}
+		}
+	case cms.DCCStatusDebate:
+		// Do DCC user debate start processing
+		err = p.debateDCC(sds.Token, u)
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -1069,4 +1186,188 @@ func dccStatusInSlice(arr []cms.DCCStatusT, status cms.DCCStatusT) bool {
 	}
 
 	return false
+}
+
+func (p *politeiawww) processVoteDCC(vd cms.VoteDCC, u *user.User) (*cms.VoteDCCReply, error) {
+	log.Tracef("processVoteDCC: %v", u.PublicKey())
+
+	if vd.Vote != supportString && vd.Vote != opposeString {
+		return nil, www.UserError{
+			ErrorCode:    cms.ErrorStatusInvalidSupportOppose,
+			ErrorContext: []string{"vote string not aye or nay"},
+		}
+	}
+
+	dcc, err := p.getDCC(vd.Token)
+	if err != nil {
+		if err == cache.ErrRecordNotFound {
+			err = www.UserError{
+				ErrorCode: cms.ErrorStatusDCCNotFound,
+			}
+		}
+		return nil, err
+	}
+
+	// Only allow voting on Debated DCC proposals
+	if dcc.Status != cms.DCCStatusDebate {
+		return nil, www.UserError{
+			ErrorCode: cms.ErrorStatusInvalidDCCVoteStatus,
+		}
+	}
+
+	// Check to make sure that the Vote hasn't ended yet.
+	if !time.Unix(dcc.VoteEnd, 0).After(time.Now()) {
+		return nil, www.UserError{
+			ErrorCode: cms.ErrorStatusDCCVoteEnded,
+		}
+	}
+
+	// Check to make sure that the user hasn't already voted for this DCC.
+	for _, v := range dcc.VoteResults {
+		if v.UserID == u.ID.String() {
+			return nil, www.UserError{
+				ErrorCode: cms.ErrorStatusDCCDuplicateVote,
+			}
+		}
+	}
+
+	var votingWeight int64
+	found := false
+	for _, weight := range dcc.UserWeights {
+		if weight.UserID == u.ID.String() {
+			votingWeight = weight.Weight
+			found = true
+			break
+		}
+	}
+	// Check to make sure that the user's weight is available. If not,
+	// throw an error.
+	if !found {
+		return nil, www.UserError{
+			ErrorCode: cms.ErrorStatusInvalidDCCAllVoteUserWeight,
+		}
+	}
+
+	cc := backendDCCContractorVoteMetadata{
+		Version:   backendDCCStartContractorVoteVersion,
+		PublicKey: u.PublicKey(),
+		Timestamp: time.Now().Unix(),
+		Vote:      vd.Vote,
+		Weight:    votingWeight,
+		Signature: vd.Signature,
+		UserID:    u.ID.String(),
+	}
+	blob, err := encodeBackendDCCContractorVoteMetadata(cc)
+	if err != nil {
+		return nil, err
+	}
+
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	pdCommand := pd.UpdateVettedMetadata{
+		Challenge: hex.EncodeToString(challenge),
+		Token:     vd.Token,
+		MDAppend: []pd.MetadataStream{
+			{
+				ID:      mdStreamDCCContractorVote,
+				Payload: string(blob),
+			},
+		},
+	}
+
+	responseBody, err := p.makeRequest(http.MethodPost, pd.UpdateVettedMetadataRoute, pdCommand)
+	if err != nil {
+		return nil, err
+	}
+
+	var pdReply pd.UpdateVettedMetadataReply
+	err = json.Unmarshal(responseBody, &pdReply)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal UpdateVettedMetadataReply: %v",
+			err)
+	}
+
+	// Verify the UpdateVettedMetadata challenge.
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, pdReply.Response)
+	if err != nil {
+		return nil, err
+	}
+	dbDCCVote := &cmsdatabase.DCCVote{
+		Token:      vd.Token,
+		UserID:     u.ID.String(),
+		Vote:       vd.Vote,
+		UserWeight: votingWeight,
+	}
+	err = p.cmsDB.NewDCCVote(dbDCCVote)
+	if err != nil {
+		return nil, err
+	}
+
+	return &cms.VoteDCCReply{}, nil
+}
+
+func (p *politeiawww) debateDCC(token string, u *user.User) error {
+	log.Tracef("debateDCC: %v %v", token, u.PublicKey())
+
+	userWeights, err := p.getCMSUserWeights()
+	if err != nil {
+		return err
+	}
+
+	startTime := time.Now().Unix()
+	stopTime := time.Now().Add(dccVoteDuration).Unix()
+
+	// Create the start vote metadata record.
+	cc := backendDCCStartContractorVoteMetadata{
+		Version:        backendDCCStartContractorVoteVersion,
+		AdminPublicKey: u.PublicKey(),
+		Timestamp:      time.Now().Unix(),
+		StartTime:      startTime,
+		StopTime:       stopTime,
+		UserWeights:    userWeights,
+		//Signature:      ad.Signature,   XXX how to deal with this?
+	}
+	blob, err := encodeBackendDCCStartContractorVoteMetadata(cc)
+	if err != nil {
+		return err
+	}
+
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return err
+	}
+
+	pdCommand := pd.UpdateVettedMetadata{
+		Challenge: hex.EncodeToString(challenge),
+		Token:     token,
+		MDAppend: []pd.MetadataStream{
+			{
+				ID:      mdStreamDCCStartContractorVote,
+				Payload: string(blob),
+			},
+		},
+	}
+
+	responseBody, err := p.makeRequest(http.MethodPost, pd.UpdateVettedMetadataRoute, pdCommand)
+	if err != nil {
+		return err
+	}
+
+	var pdReply pd.UpdateVettedMetadataReply
+	err = json.Unmarshal(responseBody, &pdReply)
+	if err != nil {
+		return fmt.Errorf("Could not unmarshal UpdateVettedMetadataReply: %v",
+			err)
+	}
+
+	// Verify the UpdateVettedMetadata challenge.
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, pdReply.Response)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

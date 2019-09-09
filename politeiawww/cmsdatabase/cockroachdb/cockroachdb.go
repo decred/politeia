@@ -28,6 +28,7 @@ const (
 	tableNameExchangeRate  = "exchange_rates"
 	tableNamePayments      = "payments"
 	tableNameDCC           = "dcc"
+	tableNameDCCVote       = "dcc_vote"
 
 	userPoliteiawww = "politeiawww" // cmsdb user (read/write access)
 )
@@ -420,6 +421,12 @@ func createCmsTables(tx *gorm.DB) error {
 			return err
 		}
 	}
+	if !tx.HasTable(tableNameDCCVote) {
+		err := tx.CreateTable(&DCCVote{}).Error
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -659,4 +666,14 @@ func (c *cockroachdb) DCCsAll() ([]*database.DCC, error) {
 		dbDCCs = append(dbDCCs, decodeDCC(&v))
 	}
 	return dbDCCs, nil
+}
+
+// Create new dcc vote.
+//
+// NewDCCVote satisfies the database interface.
+func (c *cockroachdb) NewDCCVote(dbDCCVote *database.DCCVote) error {
+	dccVote := encodeDCCVote(dbDCCVote)
+
+	log.Debugf("NewDCCVote: %v", dccVote.Token)
+	return c.recordsdb.Create(dccVote).Error
 }

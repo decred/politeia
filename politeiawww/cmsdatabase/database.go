@@ -60,6 +60,8 @@ type Database interface {
 	DCCsByStatus(int) ([]*DCC, error)
 	DCCsAll() ([]*DCC, error)
 
+	NewDCCVote(*DCCVote) error
+
 	// Setup the invoice tables
 	Setup() error
 
@@ -111,6 +113,7 @@ type LineItem struct {
 	Labor          uint
 	Expenses       uint
 	ContractorRate uint
+	SubUserID      string
 }
 
 // InvoiceChange contains entries for any status update that occurs to a given
@@ -160,4 +163,12 @@ type DCC struct {
 
 	SupportUserIDs    string
 	OppositionUserIDs string
+}
+
+// DCCVote contains information about submitted DCC all contractor votes
+type DCCVote struct {
+	Token      string
+	UserID     string
+	Vote       string
+	UserWeight int64
 }

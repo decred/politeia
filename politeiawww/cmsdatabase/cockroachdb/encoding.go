@@ -109,6 +109,7 @@ func EncodeInvoiceLineItem(dbLineItem *database.LineItem) LineItem {
 	lineItem.ProposalURL = dbLineItem.ProposalURL
 	lineItem.Labor = dbLineItem.Labor
 	lineItem.Expenses = dbLineItem.Expenses
+	lineItem.SubUserID = dbLineItem.SubUserID
 	return lineItem
 }
 
@@ -123,6 +124,7 @@ func DecodeInvoiceLineItem(lineItem *LineItem) *database.LineItem {
 	dbLineItem.ProposalURL = lineItem.ProposalURL
 	dbLineItem.Labor = lineItem.Labor
 	dbLineItem.Expenses = lineItem.Expenses
+	dbLineItem.SubUserID = lineItem.SubUserID
 
 	return dbLineItem
 }
@@ -246,4 +248,24 @@ func decodeDCC(dcc *DCC) *database.DCC {
 		OppositionUserIDs: dcc.OppositionUserIDs,
 	}
 	return &dbDCC
+}
+
+func encodeDCCVote(dbDCCVote *database.DCCVote) *DCCVote {
+	dccVote := DCCVote{
+		Token:      dbDCCVote.Token,
+		UserID:     dbDCCVote.UserID,
+		UserWeight: dbDCCVote.UserWeight,
+		Vote:       dbDCCVote.Vote,
+	}
+	return &dccVote
+}
+
+func decodeDCCVote(dcc *DCCVote) *database.DCCVote {
+	dbDCCVote := database.DCCVote{
+		Token:      dcc.Token,
+		UserID:     dcc.UserID,
+		UserWeight: dcc.UserWeight,
+		Vote:       dcc.Vote,
+	}
+	return &dbDCCVote
 }

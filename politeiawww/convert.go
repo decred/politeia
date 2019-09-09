@@ -564,6 +564,7 @@ func convertDatabaseInvoiceToInvoiceRecord(dbInvoice cmsdatabase.Invoice) *cms.I
 			ProposalToken: dbLineItem.ProposalURL,
 			Labor:         dbLineItem.Labor,
 			Expenses:      dbLineItem.Expenses,
+			SubUserID:     dbLineItem.SubUserID,
 		}
 		invInputLineItems = append(invInputLineItems, lineItem)
 	}
@@ -599,6 +600,7 @@ func convertInvoiceRecordToDatabaseInvoice(invRec *cms.InvoiceRecord) *cmsdataba
 			ProposalURL: lineItem.ProposalToken,
 			Labor:       lineItem.Labor,
 			Expenses:    lineItem.Expenses,
+			SubUserID:   lineItem.SubUserID,
 		}
 		dbInvoice.LineItems = append(dbInvoice.LineItems, dbLineItem)
 	}
@@ -869,6 +871,7 @@ func convertDCCFromCache(r cache.Record) cms.DCCRecord {
 	// Decode metadata streams
 	var md backendDCCMetadata
 	var c backendDCCStatusChange
+	dccVotes := make([]cms.DCCVote, 0, 1048) // POOMA ?
 	for _, v := range r.Metadata {
 		switch v.ID {
 		case mdStreamDCCGeneral:
@@ -915,7 +918,49 @@ func convertDCCFromCache(r cache.Record) cms.DCCRecord {
 			}
 			dcc.SupportUserIDs = supportPubkeys
 			dcc.OppositionUserIDs = opposePubkeys
+		case mdStreamDCCContractorVote:
+			// All contractor vote results
+			cv, err := decodeBackendDCCContractorVoteMetadata([]byte(v.Payload))
+			if err != nil {
+				log.Errorf("convertDCCFromCache: decode md stream: "+
+					"token:%v error:%v payload:%v",
+					r.CensorshipRecord.Token, err, v)
+			}
+			for _, s := range cv {
+				dccVote := cms.DCCVote{
+					Vote:      s.Vote,
+					Weight:    s.Weight,
+					UserID:    s.UserID,
+					Signature: s.Signature,
+					PublicKey: s.PublicKey,
+					Timestamp: s.Timestamp,
+				}
+				dccVotes = append(dccVotes, dccVote)
+			}
+		case mdStreamDCCStartContractorVote:
+			// All contractor vote information
+			scv, err := decodeBackendDCCStartContractorVoteMetadata([]byte(v.Payload))
+			if err != nil {
+				log.Errorf("convertDCCFromCache: decode md stream: "+
+					"token:%v error:%v payload:%v",
+					r.CensorshipRecord.Token, err, v)
+			}
+			for _, s := range scv {
+				userWeights := make([]cms.DCCWeight, 0, len(s.UserWeights))
+				for id, weight := range s.UserWeights {
+					userWeight := cms.DCCWeight{
+						UserID: id,
+						Weight: weight,
+					}
+					userWeights = append(userWeights, userWeight)
+				}
+				dcc.UserWeights = userWeights
+				dcc.VoteStart = s.StartTime
+				dcc.VoteEnd = s.StopTime
+				break
+			}
 		}
+		dcc.VoteResults = dccVotes
 	}
 
 	// Convert files

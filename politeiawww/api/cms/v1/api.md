@@ -22,6 +22,9 @@ server side notifications.  It does not render HTML.
 - [`Pay invoices`](#pay-invoices)
 - [`Line item payouts`](#line-item-payouts)
 - [`User sub-contractors`](#user-sub-contractors)
+- [`New DCC comment`](#new-dcc-comment)
+- [`Support oppose DCC`](#support-oppose-dcc)
+- [`Vote DCC`](#vote-dcc)
 
 **Invoice status codes**
 
@@ -1074,7 +1077,7 @@ Reply:
 }
 ```
 
-### `Support/Oppose DCC`
+### `Support Oppose DCC`
 
 Creates a vote on a DCC Record that is used to tabulate support or opposition .
 
@@ -1086,6 +1089,8 @@ Creates a vote on a DCC Record that is used to tabulate support or opposition .
 |-|-|-|-|
 | vote | string | The vote for the given DCC | Yes |
 | token | string | The token of the DCC to support | Yes |
+| signature | string | Signature of Token and Vote | Yes |
+| publickey | string | Public key from the client side, sent to politeiawww for verification | Yes |
 
 **Results:**
 
@@ -1099,7 +1104,9 @@ Request:
 ```json
 {
   "vote": "aye",
-  "token":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b"
+  "token":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+  "signature":"af969d7f0f711e25cb411bdbbe3268bbf3004075cde8ebaee0fc9d988f24e45013cc2df6762dca5b3eb8abb077f76e0b016380a7eba2d46839b04c507d86290d",
+  "publickey":"4206fa1f45c898f1dee487d7a7a82e0ed293858313b8b022a6a88f2bcae6cdd7"
 }
 ```
 
@@ -1333,7 +1340,7 @@ Returns a list of the user's associated subcontractors
 **Results:**
 
 | | Type | Description |
-|-|-|-|
+|-|-|-|-|
 | users | array of [`User`](#user)s | The list of subcontractors. |
 
 **Example**
@@ -1418,6 +1425,46 @@ Reply:
   ]
 }
 ```
+
+### `Vote DCC`
+
+Creates a vote on a DCC Record that is used for all contractor votes.
+
+**Route:** `POST /v1/dcc/vote`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| vote | string | The vote for the given DCC | Yes |
+| token | string | The token of the DCC to support | Yes |
+| signature | string | Signature of Token and Vote | Yes |
+| publickey | string | Public key from the client side, sent to politeiawww for verification | Yes |
+
+**Results:**
+
+| | Type | Description |
+|-|-|-|
+
+**Example**
+
+Request:
+
+```json
+{
+  "vote": "aye",
+  "token":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+  "signature":"af969d7f0f711e25cb411bdbbe3268bbf3004075cde8ebaee0fc9d988f24e45013cc2df6762dca5b3eb8abb077f76e0b016380a7eba2d46839b04c507d86290d",
+  "publickey":"4206fa1f45c898f1dee487d7a7a82e0ed293858313b8b022a6a88f2bcae6cdd7"
+}
+```
+
+Reply:
+
+```json
+{}
+```
+
 
 ### Error codes
 

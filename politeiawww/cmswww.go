@@ -331,9 +331,9 @@ func (p *politeiawww) handleNewCommentInvoice(w http.ResponseWriter, r *http.Req
 	util.RespondWithJSON(w, http.StatusOK, cr)
 }
 
-// handleCommentsGet handles batched comments get.
+// handleInvoiceComments handles batched invoice comments get.
 func (p *politeiawww) handleInvoiceComments(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleCommentsGet")
+	log.Tracef("handleInvoiceComments")
 
 	pathParams := mux.Vars(r)
 	token := pathParams["token"]
@@ -342,14 +342,14 @@ func (p *politeiawww) handleInvoiceComments(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		if err != ErrSessionUUIDNotFound {
 			RespondWithError(w, r, 0,
-				"handleCommentsGet: getSessionUser %v", err)
+				"handleInvoiceComments: getSessionUser %v", err)
 			return
 		}
 	}
 	gcr, err := p.processInvoiceComments(token, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleCommentsGet: processCommentsGet %v", err)
+			"handleInvoiceComments: processInvoiceComments %v", err)
 		return
 	}
 	util.RespondWithJSON(w, http.StatusOK, gcr)
@@ -766,6 +766,35 @@ func (p *politeiawww) handleUserSubContractors(w http.ResponseWriter, r *http.Re
 	util.RespondWithJSON(w, http.StatusOK, uscr)
 }
 
+func (p *politeiawww) handleVoteDCC(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleVoteDCC")
+
+	var vd cms.VoteDCC
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&vd); err != nil {
+		RespondWithError(w, r, 0, "handleVoteDCC: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+	u, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleVoteDCC: getSessionUser %v", err)
+		return
+	}
+
+	vdr, err := p.processVoteDCC(vd, u)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleVoteDCC: processVoteDCC: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, vdr)
+}
+
 func (p *politeiawww) setCMSWWWRoutes() {
 	// Templates
 	//p.addTemplate(templateNewProposalSubmittedName,
@@ -816,6 +845,8 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		p.handleDCCComments, permissionLogin)
 	p.addRoute(http.MethodGet, cms.RouteUserSubContractors,
 		p.handleUserSubContractors, permissionLogin)
+	p.addRoute(http.MethodPost, cms.RouteVoteDCC,
+		p.handleVoteDCC, permissionLogin)
 
 	// Unauthenticated websocket
 	p.addRoute("", www.RouteUnauthenticatedWebSocket,
