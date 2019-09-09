@@ -589,6 +589,12 @@ func (c *cockroachdb) createTables(tx *gorm.DB) error {
 			return err
 		}
 	}
+	if !tx.HasTable(tableSessions) {
+		err := tx.CreateTable(&Session{}).Error
+		if err != nil {
+			return err
+		}
+	}
 
 	// Insert version record
 	kv := KeyValue{
