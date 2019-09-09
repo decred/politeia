@@ -26,6 +26,7 @@ func (cmd *SetDCCStatusCmd) Execute(args []string) error {
 	DCCStatus := map[string]cms.DCCStatusT{
 		"rejected": cms.DCCStatusRejected,
 		"approved": cms.DCCStatusApproved,
+		"debate":   cms.DCCStatusDebate,
 	}
 	// Check for user identity
 	if cfg.Identity == nil {
@@ -37,7 +38,8 @@ func (cmd *SetDCCStatusCmd) Execute(args []string) error {
 		return fmt.Errorf("Invalid status: '%v'.  "+
 			"Valid statuses are:\n"+
 			"  rejected  reject the DCC\n"+
-			"  approved  approve the DCC",
+			"  approved  approve the DCC\n"+
+			"  debate    send the DCC to all-vote",
 			cmd.Args.Status)
 	}
 

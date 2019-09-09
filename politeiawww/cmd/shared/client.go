@@ -2103,7 +2103,6 @@ func (c *Client) UserSubContractors(usc *cms.UserSubContractors) (*cms.UserSubCo
 	if err != nil {
 		return nil, err
 	}
-
 	var uscr cms.UserSubContractorsReply
 	err = json.Unmarshal(responseBody, &uscr)
 	if err != nil {
@@ -2116,7 +2115,6 @@ func (c *Client) UserSubContractors(usc *cms.UserSubContractors) (*cms.UserSubCo
 			return nil, err
 		}
 	}
-
 	return &uscr, nil
 }
 
@@ -2142,6 +2140,29 @@ func (c *Client) ProposalOwner(po *cms.ProposalOwner) (*cms.ProposalOwnerReply, 
 	}
 
 	return &por, nil
+}
+
+// VoteDCC issues an admin approval for a given DCC proposal.
+func (c *Client) VoteDCC(vd cms.VoteDCC) (*cms.VoteDCCReply, error) {
+	responseBody, err := c.makeRequest("POST", cms.APIRoute, cms.RouteVoteDCC,
+		vd)
+	if err != nil {
+		return nil, err
+	}
+	var vdr cms.VoteDCCReply
+	err = json.Unmarshal(responseBody, &vdr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal VoteDCCReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(vdr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &vdr, nil
 }
 
 // WalletAccounts retrieves the walletprc accounts.

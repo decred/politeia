@@ -29,6 +29,7 @@ const (
 	tableNameExchangeRate  = "exchange_rates"
 	tableNamePayments      = "payments"
 	tableNameDCC           = "dcc"
+	tableNameDCCVote       = "dcc_vote"
 
 	userPoliteiawww = "politeiawww" // cmsdb user (read/write access)
 )
@@ -508,7 +509,6 @@ func createCmsTables(tx *gorm.DB) error {
 			}).Error
 		return err
 	}
-
 	return nil
 }
 

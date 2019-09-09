@@ -110,6 +110,7 @@ func EncodeInvoiceLineItem(dbLineItem *database.LineItem) LineItem {
 	lineItem.Labor = dbLineItem.Labor
 	lineItem.Expenses = dbLineItem.Expenses
 	lineItem.ContractorRate = dbLineItem.ContractorRate
+	lineItem.SubUserID = dbLineItem.SubUserID
 	return lineItem
 }
 
@@ -125,6 +126,7 @@ func DecodeInvoiceLineItem(lineItem *LineItem) *database.LineItem {
 	dbLineItem.Labor = lineItem.Labor
 	dbLineItem.Expenses = lineItem.Expenses
 	dbLineItem.ContractorRate = lineItem.ContractorRate
+	dbLineItem.SubUserID = lineItem.SubUserID
 
 	return dbLineItem
 }
