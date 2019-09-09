@@ -56,7 +56,6 @@ type Session struct {
 
 	// Set by gorm
 	CreatedAt time.Time // Time of record creation
-	UpdatedAt time.Time // Time of last record update
 }
 
 // TableName returns the table name of the Session table.
