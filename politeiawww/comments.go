@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
-	"strconv"
 
 	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
@@ -20,6 +19,17 @@ import (
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 )
+
+const (
+	actionDownvote = "-1" // user downvoted a comment
+	actionUpvote   = "1"  // user upvoted a comment
+)
+
+// counters is a struct that helps us keep track of up/down votes.
+type counters struct {
+	up   uint64
+	down uint64
+}
 
 // initCommentScores populates the comment scores cache.
 func (p *politeiawww) initCommentScores() error {
@@ -82,17 +92,6 @@ func (p *politeiawww) getComment(token, commentID string) (*www.Comment, error) 
 	return &c, nil
 }
 
-const (
-	actionDownvote = -1
-	actionUpvote   = 1
-)
-
-// counters is a struct that helps us keep track of up/down votes.
-type counters struct {
-	up   uint64
-	down uint64
-}
-
 // updateCommentVotes calculates the up/down votes for the specified comment,
 // updates the in-memory comment votes cache with these and returns them.
 func (p *politeiawww) updateCommentVotes(token, commentID string) (*counters, error) {
@@ -120,14 +119,8 @@ func (p *politeiawww) updateCommentVotes(token, commentID string) (*counters, er
 	// because the second upvote is actually the user taking away their original
 	// upvote.
 	var votes counters
-	userActions := make(map[string]int64) // [userID]action
+	userActions := make(map[string]string) // [userID]action
 	for _, v := range likes {
-		action, err := strconv.ParseInt(v.Action, 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("parse action '%v' failed on "+
-				"commentID %v: %v", v.Action, v.CommentID, err)
-		}
-
 		// Lookup the userID of the comment author
 		u, err := p.db.UserGetByPubKey(v.PublicKey)
 		if err != nil {
@@ -141,18 +134,18 @@ func (p *politeiawww) updateCommentVotes(token, commentID string) (*counters, er
 		prevAction := userActions[userID]
 
 		switch {
-		case prevAction == 0:
+		case prevAction == "":
 			// No previous action so we add the new action to the
 			// vote score
-			switch action {
+			switch v.Action {
 			case actionDownvote:
 				votes.down += 1
 			case actionUpvote:
 				votes.up += 1
 			}
-			userActions[userID] = action
+			userActions[userID] = v.Action
 
-		case prevAction == action:
+		case prevAction == v.Action:
 			// New action is the same as the previous action so we
 			// remove the previous action from the vote score
 			switch prevAction {
@@ -161,9 +154,9 @@ func (p *politeiawww) updateCommentVotes(token, commentID string) (*counters, er
 			case actionUpvote:
 				votes.up -= 1
 			}
-			userActions[userID] = 0
+			delete(userActions, userID)
 
-		case prevAction != action:
+		case prevAction != v.Action:
 			// New action is different than the previous action so
 			// we remove the previous action from the vote score..
 			switch prevAction {
@@ -174,13 +167,13 @@ func (p *politeiawww) updateCommentVotes(token, commentID string) (*counters, er
 			}
 
 			// ..and then add the new action to the vote score
-			switch action {
+			switch v.Action {
 			case actionDownvote:
 				votes.down += 1
 			case actionUpvote:
 				votes.up += 1
 			}
-			userActions[userID] = action
+			userActions[userID] = v.Action
 		}
 	}
 
