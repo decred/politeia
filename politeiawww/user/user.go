@@ -373,11 +373,21 @@ type Plugin struct {
 	Settings []PluginSetting
 }
 
+// Session represents a user session.
+type Session struct {
+	ID        uuid.UUID `json:"id"`        // Unique session uuid
+	CreatedAt int64     `json:"createdat"` // Time session was created at
+	MaxAge    uint32    `json:"maxage"`    // Max session duration in seconds
+}
+
 // Database describes the interface used for interacting with the user
 // database.
 type Database interface {
 	// Add a new user
 	UserNew(User) error
+
+	// Add a new session for the given user id
+	SessionNew(Session, uuid.UUID) error
 
 	// Update an existing user
 	UserUpdate(User) error
@@ -388,11 +398,17 @@ type Database interface {
 	// Return user record given its id
 	UserGetById(uuid.UUID) (*User, error)
 
+	// Return user session record given its id
+	SessionGetById(uuid.UUID) (*Session, error)
+
 	// Return user record given a public key
 	UserGetByPubKey(string) (*User, error)
 
 	// Return a map of public key to user record
 	UsersGetByPubKey(pubKeys []string) (map[string]User, error)
+
+	// Return list of sessions for a given user id
+	SessionsGetByUserId(uuid.UUID) ([]Session, error)
 
 	// Iterate over all users
 	AllUsers(callbackFn func(u *User)) error
