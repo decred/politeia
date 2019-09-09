@@ -396,6 +396,27 @@ func (c *cockroachdb) AllUsers(callback func(u *user.User)) error {
 	return nil
 }
 
+// Store new session for given user id.
+//
+// SessionNew satisfies the Database interface.
+func (c *cockroachdb) SessionNew(s user.Session, u uuid.UUID) error {
+	return nil
+}
+
+// Get a session by its id if present in the database.
+//
+// SessionGetById satisfies the Database interface.
+func (c *cockroachdb) SessionGetById(s uuid.UUID) (*user.Session, error) {
+	return nil, nil
+}
+
+// Get all sessions for the given user id.
+//
+// SessionsGetByUserId satisfies the Database interface.
+func (c *cockroachdb) SessionsGetByUserId(s uuid.UUID) ([]user.Session, error) {
+	return nil, nil
+}
+
 // rotateKeys rotates the existing database encryption key with the given new
 // key.
 //

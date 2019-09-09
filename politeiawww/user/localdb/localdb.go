@@ -384,6 +384,27 @@ func (l *localdb) Close() error {
 	return l.userdb.Close()
 }
 
+// Store new session for given user id.
+//
+// SessionNew satisfies the Database interface.
+func (l *localdb) SessionNew(s user.Session, u uuid.UUID) error {
+	return nil
+}
+
+// Get a session by its id if present in the database.
+//
+// SessionGetById satisfies the Database interface.
+func (l *localdb) SessionGetById(s uuid.UUID) (*user.Session, error) {
+	return nil, nil
+}
+
+// Get all sessions for the given user id.
+//
+// SessionsGetByUserId satisfies the Database interface.
+func (l *localdb) SessionsGetByUserId(s uuid.UUID) ([]user.Session, error) {
+	return nil, nil
+}
+
 // New creates a new localdb instance.
 func New(root string) (*localdb, error) {
 	log.Tracef("localdb New: %v", root)
