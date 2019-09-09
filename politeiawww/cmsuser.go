@@ -51,7 +51,7 @@ func (p *politeiawww) cmsUsersByDomain(d cms.DomainTypeT) ([]user.CMSUser, error
 //
 // Note that this function always returns a InviteNewUserReply. The caller
 // shall verify error and determine how to return this information upstream.
-func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*www.NewUserReply, error) {
+func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*cms.InviteNewUserReply, error) {
 	log.Tracef("processInviteNewUser: %v", u.Email)
 
 	// Validate email
@@ -66,7 +66,7 @@ func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*www.NewUserRep
 	existingUser, err := p.userByEmail(u.Email)
 	if err == nil {
 		if existingUser.NewUserVerificationToken == nil {
-			return &www.NewUserReply{}, nil
+			return &cms.InviteNewUserReply{}, nil
 		}
 	}
 
@@ -76,22 +76,33 @@ func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*www.NewUserRep
 		return nil, err
 	}
 
-	// Try to email the verification link first; if it fails, then
-	// the new user won't be created.
-	//
-	// This is conditional on the email server being setup.
-	err = p.emailInviteNewUserVerificationLink(u.Email,
-		hex.EncodeToString(token))
-	if err != nil {
-		log.Errorf("processInviteNewUser: verification email "+
-			"failed for '%v': %v", u.Email, err)
-		return &www.NewUserReply{}, nil
-	}
-
-	// If the user already exists, the user record is updated
-	// in the db in order to reset the verification token and
-	// expiry.
+	// This is the case that the token has expired and the existing user needs
+	// an administrator to regenerate the token and send it again.
 	if existingUser != nil {
+		// Check to make sure that the requested user is an approved DCC
+		// member and not a nominee or revoked.
+		u, err := p.getCMSUserByID(existingUser.ID.String())
+		if err != nil {
+			return nil, err
+		}
+		if u.ContractorType == cms.ContractorTypeNominee ||
+			u.ContractorType == cms.ContractorTypeRevoked {
+			return nil, www.UserError{
+				ErrorCode: cms.ErrorStatusInvalidDCCNominee,
+			}
+		}
+		// Try to email the verification link first; if it fails, then
+		// the user information won't be updated.
+		//
+		// This is conditional on the email server being setup.
+		err = p.emailInviteNewUserVerificationLink(u.Email,
+			hex.EncodeToString(token))
+		if err != nil {
+			log.Errorf("processInviteNewUser: verification email "+
+				"failed for '%v': %v", u.Email, err)
+			return &cms.InviteNewUserReply{}, nil
+		}
+
 		existingUser.NewUserVerificationToken = token
 		existingUser.NewUserVerificationExpiry = expiry
 		err = p.db.UserUpdate(*existingUser)
@@ -99,9 +110,7 @@ func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*www.NewUserRep
 			return nil, err
 		}
 
-		return &www.NewUserReply{
-			VerificationToken: hex.EncodeToString(token),
-		}, nil
+		return &cms.InviteNewUserReply{}, nil
 	}
 
 	// Create a new cms user with the provided information.
@@ -110,11 +119,9 @@ func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*www.NewUserRep
 	// on cockroachdb for usernames requires there to be no duplicates. If
 	// unset, the username of "" will cause a duplicate error to be thrown.
 	nu := user.NewCMSUser{
-		Email:                     strings.ToLower(u.Email),
-		Username:                  strings.ToLower(u.Email),
-		NewUserVerificationToken:  token,
-		NewUserVerificationExpiry: expiry,
-		ContractorType:            int(cms.ContractorTypeNominee),
+		Email:          strings.ToLower(u.Email),
+		Username:       strings.ToLower(u.Email),
+		ContractorType: int(cms.ContractorTypeNominee),
 	}
 	payload, err := user.EncodeNewCMSUser(nu)
 	if err != nil {
@@ -137,8 +144,8 @@ func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*www.NewUserRep
 	}
 	p.setUserEmailsCache(usr.Email, usr.ID)
 
-	return &www.NewUserReply{
-		VerificationToken: hex.EncodeToString(token),
+	return &cms.InviteNewUserReply{
+		UserID: usr.ID.String(),
 	}, nil
 }
 
@@ -514,7 +521,7 @@ func (p *politeiawww) issuanceDCCUser(userid, sponsorUserID string, domain, cont
 	}
 
 	if !validEmail.MatchString(nominatedUser.Email) {
-		log.Debugf("processApproveDCC: invalid email '%v'", nominatedUser.Email)
+		log.Debugf("issuanceDCCUser: invalid email '%v'", nominatedUser.Email)
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusMalformedEmail,
 		}
@@ -527,13 +534,13 @@ func (p *politeiawww) issuanceDCCUser(userid, sponsorUserID string, domain, cont
 	}
 
 	// Try to email the verification link first; if it fails, then
-	// the new user won't be created.
+	// the existing user won't be updated.
 	//
 	// This is conditional on the email server being setup.
 	err = p.emailApproveDCCVerificationLink(nominatedUser.Email,
 		hex.EncodeToString(token))
 	if err != nil {
-		log.Errorf("processApproveDCC: verification email "+
+		log.Errorf("issuanceDCCUser: verification email "+
 			"failed for '%v': %v", nominatedUser.Email, err)
 		return token, nil
 	}
