@@ -943,6 +943,7 @@ func (p *politeiawww) processApproveDCC(ad cms.ApproveDCC, u *user.User) (*cms.A
 		Timestamp:      time.Now().Unix(),
 		NewStatus:      cms.DCCStatusApproved,
 		Reason:         ad.Reason,
+		Signature:      ad.Signature,
 	}
 	blob, err := encodeBackendDCCStatusChange(c)
 	if err != nil {
@@ -1075,6 +1076,7 @@ func (p *politeiawww) processRejectDCC(rd cms.RejectDCC, u *user.User) (*cms.Rej
 		Timestamp:      time.Now().Unix(),
 		NewStatus:      cms.DCCStatusRejected,
 		Reason:         rd.Reason,
+		Signature:      rd.Signature,
 	}
 	blob, err := encodeBackendDCCStatusChange(c)
 	if err != nil {
