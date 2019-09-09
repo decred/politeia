@@ -410,11 +410,11 @@ func (c *cockroachdb) SessionGetById(s uuid.UUID) (*user.Session, error) {
 	return nil, nil
 }
 
-// Get all sessions for the given user id.
+// Delete all sessions for the given user id.
 //
-// SessionsGetByUserId satisfies the Database interface.
-func (c *cockroachdb) SessionsGetByUserId(s uuid.UUID) ([]user.Session, error) {
-	return nil, nil
+// SessionsDeleteByUserId satisfies the Database interface.
+func (c *cockroachdb) SessionsDeleteByUserId(s uuid.UUID) error {
+	return nil
 }
 
 // rotateKeys rotates the existing database encryption key with the given new

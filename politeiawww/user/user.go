@@ -407,8 +407,8 @@ type Database interface {
 	// Return a map of public key to user record
 	UsersGetByPubKey(pubKeys []string) (map[string]User, error)
 
-	// Return list of sessions for a given user id
-	SessionsGetByUserId(uuid.UUID) ([]Session, error)
+	// Delete all sessions for the given user id
+	SessionsDeleteByUserId(uuid.UUID) error
 
 	// Iterate over all users
 	AllUsers(callbackFn func(u *User)) error

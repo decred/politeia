@@ -398,11 +398,11 @@ func (l *localdb) SessionGetById(s uuid.UUID) (*user.Session, error) {
 	return nil, nil
 }
 
-// Get all sessions for the given user id.
+// Delete all sessions for the given user id.
 //
-// SessionsGetByUserId satisfies the Database interface.
-func (l *localdb) SessionsGetByUserId(s uuid.UUID) ([]user.Session, error) {
-	return nil, nil
+// SessionsDeleteByUserId satisfies the Database interface.
+func (l *localdb) SessionsDeleteByUserId(s uuid.UUID) error {
+	return nil
 }
 
 // New creates a new localdb instance.
