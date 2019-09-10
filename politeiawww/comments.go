@@ -20,11 +20,6 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-const (
-	actionDownvote = "-1" // user downvoted a comment
-	actionUpvote   = "1"  // user upvoted a comment
-)
-
 // counters is a struct that helps us keep track of up/down votes.
 type counters struct {
 	up   uint64
@@ -138,9 +133,9 @@ func (p *politeiawww) updateCommentVotes(token, commentID string) (*counters, er
 			// No previous action so we add the new action to the
 			// vote score
 			switch v.Action {
-			case actionDownvote:
+			case www.VoteActionDown:
 				votes.down += 1
-			case actionUpvote:
+			case www.VoteActionUp:
 				votes.up += 1
 			}
 			userActions[userID] = v.Action
@@ -149,9 +144,9 @@ func (p *politeiawww) updateCommentVotes(token, commentID string) (*counters, er
 			// New action is the same as the previous action so we
 			// remove the previous action from the vote score
 			switch prevAction {
-			case actionDownvote:
+			case www.VoteActionDown:
 				votes.down -= 1
-			case actionUpvote:
+			case www.VoteActionUp:
 				votes.up -= 1
 			}
 			delete(userActions, userID)
@@ -160,17 +155,17 @@ func (p *politeiawww) updateCommentVotes(token, commentID string) (*counters, er
 			// New action is different than the previous action so
 			// we remove the previous action from the vote score..
 			switch prevAction {
-			case actionDownvote:
+			case www.VoteActionDown:
 				votes.down -= 1
-			case actionUpvote:
+			case www.VoteActionUp:
 				votes.up -= 1
 			}
 
 			// ..and then add the new action to the vote score
 			switch v.Action {
-			case actionDownvote:
+			case www.VoteActionDown:
 				votes.down += 1
-			case actionUpvote:
+			case www.VoteActionUp:
 				votes.up += 1
 			}
 			userActions[userID] = v.Action
@@ -546,7 +541,7 @@ func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www
 		// Clip action to not fill up logs and prevent DOS of sorts
 		action = lc.Action[0:9] + "..."
 	}
-	if action != actionUpvote && action != actionDownvote {
+	if action != www.VoteActionUp && action != www.VoteActionDown {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusInvalidLikeCommentAction,
 		}

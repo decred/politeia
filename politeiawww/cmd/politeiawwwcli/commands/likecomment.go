@@ -8,7 +8,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/decred/politeia/politeiawww/api/www/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 )
 
 // LikeCommentCmd is used to upvote/downvote a proposal comment using the
@@ -45,9 +45,9 @@ func (cmd *LikeCommentCmd) Execute(args []string) error {
 	var actionCode string
 	switch action {
 	case actionUpvote:
-		actionCode = "1"
+		actionCode = v1.VoteActionUp
 	case actionDownvote:
-		actionCode = "-1"
+		actionCode = v1.VoteActionDown
 	}
 
 	sig := cfg.Identity.SignMessage([]byte(token + commentID + actionCode))

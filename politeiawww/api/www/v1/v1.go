@@ -993,11 +993,16 @@ type GetCommentsReply struct {
 	AccessTime int64     `json:"accesstime,omitempty"` // User Access Time
 }
 
+const (
+	VoteActionDown = "-1" // User votes down a comment
+	VoteActionUp   = "1"  // User votes up a comment
+)
+
 // LikeComment allows a user to up or down vote a comment.
 type LikeComment struct {
 	Token     string `json:"token"`     // Censorship token
 	CommentID string `json:"commentid"` // Comment ID
-	Action    string `json:"action"`    // Up or downvote (1, -1)
+	Action    string `json:"action"`    // VoteActionUp or VoteActionDown above
 	Signature string `json:"signature"` // Client Signature of Token+CommentID+Action
 	PublicKey string `json:"publickey"` // Pubkey used for Signature
 }
@@ -1032,7 +1037,7 @@ type CensorCommentReply struct {
 // CommentLike describes the voting action an user has given
 // to a comment (e.g: up or down vote)
 type CommentLike struct {
-	Action    string `json:"action"`    // Up or downvote (1, -1)
+	Action    string `json:"action"`    // VoteActionUp or VoteActionDown above
 	CommentID string `json:"commentid"` // Comment ID
 	Token     string `json:"token"`     // Censorship token
 }

@@ -9,7 +9,7 @@ import (
 
 	"github.com/decred/dcrwallet/rpc/walletrpc"
 	"github.com/decred/politeia/decredplugin"
-	"github.com/decred/politeia/politeiawww/api/www/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
 )
 
@@ -540,9 +540,9 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 		return fmt.Errorf("user like comments got %v, want 1",
 			len(crv.CommentsLikes))
 
-	case crv.CommentsLikes[0].Action != "-1":
-		return fmt.Errorf("user like comment action got %v, want -1",
-			crv.CommentsLikes[0].Action)
+	case crv.CommentsLikes[0].Action != v1.VoteActionDown:
+		return fmt.Errorf("user like comment action got %v, want %v",
+			crv.CommentsLikes[0].Action, v1.VoteActionDown)
 	}
 
 	// Authorize vote then revoke
