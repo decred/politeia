@@ -57,7 +57,7 @@ Note: This call requires admin privileges.
 
 | Parameter | Type | Description |
 |-|-|-|
-| userid | String | The userid of the created User.  If there is an existing (and approved) user this will resend an invitation email with regenerated token and expiry.  |
+| verificationtoken | String | The verification token which is required when calling [`Register`](#register). If an email server is set up, this property will be empty or nonexistent; the token will be sent to the email address sent in the request.|
 
 This call can return one of the following error codes:
 
@@ -78,7 +78,7 @@ Reply:
 
 ```json
 {
-  "userid": "6638a1c9-271f-433e-bf2c-6144ddd8bed5"
+  "verificationtoken": "fc8f660e7f4d590e27e6b11639ceeaaec2ce9bc6b0303344555ac023ab8ee55f"
 }
 ```
 
