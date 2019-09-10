@@ -508,6 +508,8 @@ sorted.
 | signature | string | Signature of Token, ParentID and Comment |
 | receipt | string | Server signature of the client Signature |
 | resultvotes | int64 | Vote score |
+| upvotes | uint64 | Pro votes |
+| downvotes | uint64 | Contra votes |
 
 **Example**
 

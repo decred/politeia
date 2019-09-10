@@ -9,7 +9,7 @@ import (
 
 	"github.com/decred/dcrwallet/rpc/walletrpc"
 	"github.com/decred/politeia/decredplugin"
-	"github.com/decred/politeia/politeiawww/api/www/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
 )
 
@@ -514,10 +514,18 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 
 	for _, v := range gcr.Comments {
 		if v.CommentID == "1" {
-			if v.ResultVotes != -1 {
-				return fmt.Errorf("comment result votes got %v, want -1",
-					v.ResultVotes)
+			if v.Upvotes != 3 {
+				return fmt.Errorf("comment result up votes got %v, want 3",
+					v.Upvotes)
 			}
+			if v.Downvotes != 1 {
+				return fmt.Errorf("comment result down votes got %v, want 1",
+					v.Downvotes)
+			}
+		}
+		if v.ResultVotes != 2 {
+			return fmt.Errorf("comment result vote score got %v, want 2",
+				v.Upvotes)
 		}
 	}
 
@@ -532,9 +540,9 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 		return fmt.Errorf("user like comments got %v, want 1",
 			len(crv.CommentsLikes))
 
-	case crv.CommentsLikes[0].Action != "-1":
-		return fmt.Errorf("user like comment action got %v, want -1",
-			crv.CommentsLikes[0].Action)
+	case crv.CommentsLikes[0].Action != v1.VoteActionDown:
+		return fmt.Errorf("user like comment action got %v, want %v",
+			crv.CommentsLikes[0].Action, v1.VoteActionDown)
 	}
 
 	// Authorize vote then revoke
@@ -1023,9 +1031,17 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 		return fmt.Errorf("comment ID got %v, want 1",
 			c0.CommentID)
 
-	case c0.ResultVotes != -1:
-		return fmt.Errorf("comment %v result votes got %v, want -1",
-			c0.CommentID, c0.ResultVotes)
+	case c0.Upvotes != 3:
+		return fmt.Errorf("comment %v result up votes got %v, want 3",
+			c0.CommentID, c0.Upvotes)
+
+	case c0.Downvotes != 1:
+		return fmt.Errorf("comment %v result down votes got %v, want 1",
+			c0.CommentID, c0.Downvotes)
+
+	case c0.ResultVotes != 2:
+		return fmt.Errorf("comment %v result vote score got %v, want 2",
+			c0.CommentID, c0.Downvotes)
 
 	case c1.CommentID != "2":
 		return fmt.Errorf("comment ID got %v, want 2",

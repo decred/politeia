@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
-	"strconv"
 
 	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
@@ -20,6 +19,12 @@ import (
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 )
+
+// counters is a struct that helps us keep track of up/down votes.
+type counters struct {
+	up   uint64
+	down uint64
+}
 
 // initCommentScores populates the comment scores cache.
 func (p *politeiawww) initCommentScores() error {
@@ -33,13 +38,13 @@ func (p *politeiawww) initCommentScores() error {
 
 	// XXX this could be done much more efficiently since we
 	// already have all of the like comments in the inventory
-	// response, but re-using the updateCommentScore function is
+	// response, but re-using the updateCommentVotes function is
 	// simpler. This only gets run on startup so I'm not that
 	// worried about performance for right now.
 	for _, v := range ir.Comments {
-		_, err := p.updateCommentScore(v.Token, v.CommentID)
+		_, err := p.updateCommentVotes(v.Token, v.CommentID)
 		if err != nil {
-			return fmt.Errorf("updateCommentScore: %v", err)
+			return fmt.Errorf("updateCommentVotes: %v", err)
 		}
 	}
 
@@ -66,29 +71,31 @@ func (p *politeiawww) getComment(token, commentID string) (*www.Comment, error) 
 		c.Username = u.Username
 	}
 
-	// Lookup comment vote score
+	// Lookup comment votes
 	p.RLock()
 	defer p.RUnlock()
 
-	score, ok := p.commentScores[token+commentID]
+	votes, ok := p.commentVotes[token+commentID]
 	if !ok {
-		log.Errorf("getComment: comment score lookup failed for "+
+		log.Errorf("getComment: comment votes lookup failed for "+
 			"token:%v commentID:%v", token, commentID)
 	}
-	c.ResultVotes = score
+	c.ResultVotes = int64(votes.up - votes.down)
+	c.Upvotes = votes.up
+	c.Downvotes = votes.down
 
 	return &c, nil
 }
 
-// updateCommentScore calculates the comment score for the specified comment
-// then updates the in-memory comment score cache.
-func (p *politeiawww) updateCommentScore(token, commentID string) (int64, error) {
-	log.Tracef("updateCommentScore: %v %v", token, commentID)
+// updateCommentVotes calculates the up/down votes for the specified comment,
+// updates the in-memory comment votes cache with these and returns them.
+func (p *politeiawww) updateCommentVotes(token, commentID string) (*counters, error) {
+	log.Tracef("updateCommentVotes: %v %v", token, commentID)
 
 	// Fetch all comment likes for the specified comment
 	likes, err := p.decredCommentLikes(token, commentID)
 	if err != nil {
-		return 0, fmt.Errorf("decredLikeComments: %v", err)
+		return nil, fmt.Errorf("decredLikeComments: %v", err)
 	}
 
 	// Sanity check. Like comments should already be sorted in
@@ -100,25 +107,19 @@ func (p *politeiawww) updateCommentScore(token, commentID string) (int64, error)
 	p.Lock()
 	defer p.Unlock()
 
-	// Compute the comment score. We have to keep track of each
-	// user's most recent like action because the net effect of an
-	// upvote/downvote on the comment score is dependent on the
-	// user's previous action. Example: a user upvoting a comment
-	// twice results in a net score of 0 because the second upvote
-	// is actually the user taking away their original upvote.
-	var score int64
-	userActions := make(map[string]int64) // [userID]action
+	// Compute the comment votes. We have to keep track of each user's most
+	// recent like action because the net effect of an upvote/downvote is
+	// dependent on the user's previous action.
+	// Example: a user upvoting a comment twice results in a net score of 0
+	// because the second upvote is actually the user taking away their original
+	// upvote.
+	var votes counters
+	userActions := make(map[string]string) // [userID]action
 	for _, v := range likes {
-		action, err := strconv.ParseInt(v.Action, 10, 64)
-		if err != nil {
-			return 0, fmt.Errorf("parse action '%v' failed on "+
-				"commentID %v: %v", v.Action, v.CommentID, err)
-		}
-
 		// Lookup the userID of the comment author
 		u, err := p.db.UserGetByPubKey(v.PublicKey)
 		if err != nil {
-			return 0, fmt.Errorf("user lookup failed for pubkey %v",
+			return nil, fmt.Errorf("user lookup failed for pubkey %v",
 				v.PublicKey)
 		}
 		userID := u.ID.String()
@@ -128,32 +129,53 @@ func (p *politeiawww) updateCommentScore(token, commentID string) (int64, error)
 		prevAction := userActions[userID]
 
 		switch {
-		case prevAction == 0:
+		case prevAction == "":
 			// No previous action so we add the new action to the
 			// vote score
-			score += action
-			userActions[userID] = action
+			switch v.Action {
+			case www.VoteActionDown:
+				votes.down += 1
+			case www.VoteActionUp:
+				votes.up += 1
+			}
+			userActions[userID] = v.Action
 
-		case prevAction == action:
+		case prevAction == v.Action:
 			// New action is the same as the previous action so we
 			// remove the previous action from the vote score
-			score -= prevAction
-			userActions[userID] = 0
+			switch prevAction {
+			case www.VoteActionDown:
+				votes.down -= 1
+			case www.VoteActionUp:
+				votes.up -= 1
+			}
+			delete(userActions, userID)
 
-		case prevAction != action:
+		case prevAction != v.Action:
 			// New action is different than the previous action so
-			// we remove the previous action from the vote score
-			// and then add the new action to the vote score
-			score -= prevAction
-			score += action
-			userActions[userID] = action
+			// we remove the previous action from the vote score..
+			switch prevAction {
+			case www.VoteActionDown:
+				votes.down -= 1
+			case www.VoteActionUp:
+				votes.up -= 1
+			}
+
+			// ..and then add the new action to the vote score
+			switch v.Action {
+			case www.VoteActionDown:
+				votes.down += 1
+			case www.VoteActionUp:
+				votes.up += 1
+			}
+			userActions[userID] = v.Action
 		}
 	}
 
-	// Set final comment likes score
-	p.commentScores[token+commentID] = score
+	// Update in-memory cache
+	p.commentVotes[token+commentID] = votes
 
-	return score, nil
+	return &votes, nil
 }
 
 func validateComment(c www.NewComment) error {
@@ -295,9 +317,9 @@ func (p *politeiawww) processNewComment(nc www.NewComment, u *user.User) (*www.N
 		return nil, err
 	}
 
-	// Add comment to commentScores in-memory cache
+	// Add comment to commentVotes in-memory cache
 	p.Lock()
-	p.commentScores[nc.Token+ncr.CommentID] = 0
+	p.commentVotes[nc.Token+ncr.CommentID] = counters{}
 	p.Unlock()
 
 	// Get comment from cache
@@ -411,9 +433,9 @@ func (p *politeiawww) processNewCommentInvoice(nc www.NewComment, u *user.User) 
 		return nil, err
 	}
 
-	// Add comment to commentScores in-memory cache
+	// Add comment to commentVotes in-memory cache
 	p.Lock()
-	p.commentScores[nc.Token+ncr.CommentID] = 0
+	p.commentVotes[nc.Token+ncr.CommentID] = counters{}
 	p.Unlock()
 
 	// Get comment from cache
@@ -519,7 +541,7 @@ func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www
 		// Clip action to not fill up logs and prevent DOS of sorts
 		action = lc.Action[0:9] + "..."
 	}
-	if action != "1" && action != "-1" {
+	if action != www.VoteActionUp && action != www.VoteActionDown {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusInvalidLikeCommentAction,
 		}
@@ -571,7 +593,7 @@ func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www
 	}
 
 	// Update comment score in the in-memory cache
-	result, err := p.updateCommentScore(lc.Token, lc.CommentID)
+	votes, err := p.updateCommentVotes(lc.Token, lc.CommentID)
 	if err != nil {
 		log.Criticalf("processLikeComment: update comment score "+
 			"failed token:%v commentID:%v error:%v", lc.Token,
@@ -579,9 +601,11 @@ func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www
 	}
 
 	return &www.LikeCommentReply{
-		Result:  result,
-		Receipt: lcr.Receipt,
-		Error:   lcr.Error,
+		Result:    int64(votes.up - votes.down),
+		Upvotes:   votes.up,
+		Downvotes: votes.down,
+		Receipt:   lcr.Receipt,
+		Error:     lcr.Error,
 	}, nil
 }
 

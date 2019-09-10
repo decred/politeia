@@ -6,7 +6,6 @@ package commands
 
 import (
 	"encoding/hex"
-
 	"github.com/decred/politeia/politeiawww/api/www/v1"
 )
 
@@ -88,6 +87,8 @@ Response:
     "receipt":      (string)  Server signature of the comment signature
     "timestamp":    (int64)   Received UNIX timestamp
     "resultvotes":  (int64)   Vote score
+    "upvotes":      (uint64)  Pro votes
+    "downvotes":    (uint64)  Contra votes
     "censored":     (bool)    If comment has been censored
     "userid":       (string)  User id
     "username":     (string)  Username
