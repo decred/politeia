@@ -692,13 +692,13 @@ func (p *politeiawww) handleDCCComments(w http.ResponseWriter, r *http.Request) 
 	util.RespondWithJSON(w, http.StatusOK, gcr)
 }
 
-func (p *politeiawww) handleApproveDCC(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleApproveDCC")
+func (p *politeiawww) handleSetDCCStatus(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleSetDCCStatus")
 
-	var ad cms.ApproveDCC
+	var ad cms.SetDCCStatus
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&ad); err != nil {
-		RespondWithError(w, r, 0, "handleApproveDCC: unmarshal",
+		RespondWithError(w, r, 0, "handleSetDCCStatus: unmarshal",
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidInput,
 			})
@@ -707,47 +707,18 @@ func (p *politeiawww) handleApproveDCC(w http.ResponseWriter, r *http.Request) {
 	u, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleApproveDCC: getSessionUser %v", err)
+			"handleSetDCCStatus: getSessionUser %v", err)
 		return
 	}
 
-	adr, err := p.processApproveDCC(ad, u)
+	adr, err := p.processSetDCCStatus(ad, u)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleApproveDCC: processApproveDCC: %v", err)
+			"handleSetDCCStatus: processSetDCCStatus: %v", err)
 		return
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, adr)
-}
-
-func (p *politeiawww) handleRejectDCC(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleRejectDCC")
-
-	var rd cms.RejectDCC
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&rd); err != nil {
-		RespondWithError(w, r, 0, "handleRejectDCC: unmarshal",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-	u, err := p.getSessionUser(w, r)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleRejectDCC: getSessionUser %v", err)
-		return
-	}
-
-	rdr, err := p.processRejectDCC(rd, u)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleRejectDCC: processRejectDCC: %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, rdr)
 }
 
 func (p *politeiawww) setCMSWWWRoutes() {
@@ -823,8 +794,6 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		p.handleLineItemPayouts, permissionAdmin)
 	p.addRoute(http.MethodGet, cms.RouteAdminUserInvoices,
 		p.handleAdminUserInvoices, permissionAdmin)
-	p.addRoute(http.MethodPost, cms.RouteApproveDCC,
-		p.handleApproveDCC, permissionAdmin)
-	p.addRoute(http.MethodPost, cms.RouteRejectDCC,
-		p.handleRejectDCC, permissionAdmin)
+	p.addRoute(http.MethodPost, cms.RouteSetDCCStatus,
+		p.handleSetDCCStatus, permissionAdmin)
 }

@@ -64,7 +64,6 @@ var (
 type Cmds struct {
 	AdminInvoices       AdminInvoicesCmd       `command:"admininvoices" description:"(admin) get all invoices (optional by month/year and/or status)"`
 	ActiveVotes         ActiveVotesCmd         `command:"activevotes" description:"(public) get the proposals that are being voted on"`
-	ApproveDCC          ApproveDCCCmd          `command:"approvedcc" description:"(admin) approve a given DCC"`
 	AuthorizeVote       AuthorizeVoteCmd       `command:"authorizevote" description:"(user)   authorize a proposal vote (must be proposal author)"`
 	BatchProposals      BatchProposalsCmd      `command:"batchproposals" description:"(user) retrieve a set of proposals"`
 	BatchVoteSummary    BatchVoteSummaryCmd    `command:"batchvotesummary" description:"(user) retrieve the vote summary for a set of proposals"`
@@ -105,12 +104,12 @@ type Cmds struct {
 	ProposalPaywall     ProposalPaywallCmd     `command:"proposalpaywall" description:"(user)   get proposal paywall details for the logged in user"`
 	VettedProposals     VettedProposalsCmd     `command:"vettedproposals" description:"(public) get a page of vetted proposals"`
 	RegisterUser        RegisterUserCmd        `command:"register" description:"(public) register an invited user to cms"`
-	RejectDCC           RejectDCCCmd           `command:"rejectdcc" description:"(admin) reject a given DCC"`
 	RescanUserPayments  RescanUserPaymentsCmd  `command:"rescanuserpayments" description:"(admin)  rescan a user's payments to check for missed payments"`
 	ResendVerification  ResendVerificationCmd  `command:"resendverification" description:"(public) resend the user verification email"`
 	ResetPassword       ResetPasswordCmd       `command:"resetpassword" description:"(public) reset the password for a user that is not logged in"`
 	Secret              SecretCmd              `command:"secret" description:"(user)   ping politeiawww"`
 	SendFaucetTx        SendFaucetTxCmd        `command:"sendfaucettx" description:"         send a DCR transaction using the Decred testnet faucet"`
+	SetDCCStatus        SetDCCStatusCmd        `command:"setinvoicestatus" description:"(admin)  set the status of a DCC"`
 	SetInvoiceStatus    SetInvoiceStatusCmd    `command:"setinvoicestatus" description:"(admin)  set the status of an invoice"`
 	SetProposalStatus   SetProposalStatusCmd   `command:"setproposalstatus" description:"(admin)  set the status of a proposal"`
 	StartVote           StartVoteCmd           `command:"startvote" description:"(admin)  start the voting period on a proposal"`

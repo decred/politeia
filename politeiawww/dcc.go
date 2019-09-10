@@ -911,8 +911,15 @@ func (p *politeiawww) getDCCComments(token string) ([]www.Comment, error) {
 	return comments, nil
 }
 
-func (p *politeiawww) processApproveDCC(ad cms.ApproveDCC, u *user.User) (*cms.ApproveDCCReply, error) {
-	log.Tracef("processApproveDCC: %v", u.PublicKey())
+func (p *politeiawww) processSetDCCStatus(ad cms.SetDCCStatus, u *user.User) (*cms.SetDCCStatusReply, error) {
+	log.Tracef("processSetDCCStatus: %v", u.PublicKey())
+
+	// Validate signature
+	msg := fmt.Sprintf("%v%v%v", ad.Token, int(ad.Status), ad.Reason)
+	err := validateSignature(ad.PublicKey, ad.Signature, msg)
+	if err != nil {
+		return nil, err
+	}
 
 	dcc, err := p.getDCC(ad.Token)
 	if err != nil {
@@ -924,14 +931,7 @@ func (p *politeiawww) processApproveDCC(ad cms.ApproveDCC, u *user.User) (*cms.A
 		return nil, err
 	}
 
-	// Validate signature
-	msg := fmt.Sprintf("%v%v%v", ad.Token, int(cms.DCCStatusApproved), ad.Reason)
-	err = validateSignature(ad.PublicKey, ad.Signature, msg)
-	if err != nil {
-		return nil, err
-	}
-
-	err = validateDCCStatusTransition(dcc.Status, cms.DCCStatusApproved)
+	err = validateDCCStatusTransition(dcc.Status, ad.Status)
 	if err != nil {
 		return nil, err
 	}
@@ -941,7 +941,7 @@ func (p *politeiawww) processApproveDCC(ad cms.ApproveDCC, u *user.User) (*cms.A
 		Version:        backendDCCStatusChangeVersion,
 		AdminPublicKey: u.PublicKey(),
 		Timestamp:      time.Now().Unix(),
-		NewStatus:      cms.DCCStatusApproved,
+		NewStatus:      ad.Status,
 		Reason:         ad.Reason,
 		Signature:      ad.Signature,
 	}
@@ -988,7 +988,7 @@ func (p *politeiawww) processApproveDCC(ad cms.ApproveDCC, u *user.User) (*cms.A
 	if err != nil {
 		return nil, err
 	}
-	dbDCC.Status = cms.DCCStatusApproved
+	dbDCC.Status = ad.Status
 	dbDCC.StatusChangeReason = ad.Reason
 
 	// Update cmsdb
@@ -997,22 +997,26 @@ func (p *politeiawww) processApproveDCC(ad cms.ApproveDCC, u *user.User) (*cms.A
 		return nil, err
 	}
 
-	if dcc.DCC.Type == cms.DCCTypeIssuance {
-		// Do DCC user Issuance processing
-		err := p.issuanceDCCUser(dcc.DCC.NomineeUserID, u.ID.String(), int(dcc.DCC.Domain), int(dcc.DCC.ContractorType))
-		if err != nil {
-			return nil, err
-		}
-		return &cms.ApproveDCCReply{}, nil
+	// Only do further processing if it was an approved DCC
+	if ad.Status == cms.DCCStatusApproved {
+		if dcc.DCC.Type == cms.DCCTypeIssuance {
+			// Do DCC user Issuance processing
+			err := p.issuanceDCCUser(dcc.DCC.NomineeUserID, u.ID.String(), int(dcc.DCC.Domain), int(dcc.DCC.ContractorType))
+			if err != nil {
+				return nil, err
+			}
+			return &cms.SetDCCStatusReply{}, nil
 
-	} else if dcc.DCC.Type == cms.DCCTypeRevocation {
-		// Do DCC user Revocation processing
-		err = p.revokeDCCUser(dcc.DCC.NomineeUserID)
-		if err != nil {
-			return nil, err
+		} else if dcc.DCC.Type == cms.DCCTypeRevocation {
+			// Do DCC user Revocation processing
+			err = p.revokeDCCUser(dcc.DCC.NomineeUserID)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
-	return &cms.ApproveDCCReply{}, nil
+
+	return &cms.SetDCCStatusReply{}, nil
 }
 
 func validateDCCStatusTransition(oldStatus cms.DCCStatusT, newStatus cms.DCCStatusT) error {
@@ -1041,92 +1045,4 @@ func dccStatusInSlice(arr []cms.DCCStatusT, status cms.DCCStatusT) bool {
 	}
 
 	return false
-}
-func (p *politeiawww) processRejectDCC(rd cms.RejectDCC, u *user.User) (*cms.RejectDCCReply, error) {
-	log.Tracef("processRejectDCC: %v", u.PublicKey())
-
-	dcc, err := p.getDCC(rd.Token)
-	if err != nil {
-		if err == cache.ErrRecordNotFound {
-			err = www.UserError{
-				ErrorCode: cms.ErrorStatusDCCNotFound,
-			}
-		}
-		return nil, err
-	}
-
-	// Validate signature
-	msg := fmt.Sprintf("%v%v%v", rd.Token, int(cms.DCCStatusRejected), rd.Reason)
-	err = validateSignature(rd.PublicKey, rd.Signature, msg)
-	if err != nil {
-		return nil, err
-	}
-
-	err = validateDCCStatusTransition(dcc.Status, cms.DCCStatusRejected)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create the change record.
-	c := backendDCCStatusChange{
-		Version:        backendDCCStatusChangeVersion,
-		AdminPublicKey: u.PublicKey(),
-		Timestamp:      time.Now().Unix(),
-		NewStatus:      cms.DCCStatusRejected,
-		Reason:         rd.Reason,
-		Signature:      rd.Signature,
-	}
-	blob, err := encodeBackendDCCStatusChange(c)
-	if err != nil {
-		return nil, err
-	}
-
-	challenge, err := util.Random(pd.ChallengeSize)
-	if err != nil {
-		return nil, err
-	}
-
-	pdCommand := pd.UpdateVettedMetadata{
-		Challenge: hex.EncodeToString(challenge),
-		Token:     rd.Token,
-		MDAppend: []pd.MetadataStream{
-			{
-				ID:      mdStreamDCCStatusChanges,
-				Payload: string(blob),
-			},
-		},
-	}
-
-	responseBody, err := p.makeRequest(http.MethodPost, pd.UpdateVettedMetadataRoute, pdCommand)
-	if err != nil {
-		return nil, err
-	}
-
-	var pdReply pd.UpdateVettedMetadataReply
-	err = json.Unmarshal(responseBody, &pdReply)
-	if err != nil {
-		return nil, fmt.Errorf("Could not unmarshal UpdateVettedMetadataReply: %v",
-			err)
-	}
-
-	// Verify the UpdateVettedMetadata challenge.
-	err = util.VerifyChallenge(p.cfg.Identity, challenge, pdReply.Response)
-	if err != nil {
-		return nil, err
-	}
-
-	dbDCC, err := p.cmsDB.DCCByToken(rd.Token)
-	if err != nil {
-		return nil, err
-	}
-	dbDCC.Status = cms.DCCStatusRejected
-	dbDCC.StatusChangeReason = rd.Reason
-
-	// Update cmsdb
-	err = p.cmsDB.UpdateDCC(dbDCC)
-	if err != nil {
-		return nil, err
-	}
-
-	return &cms.RejectDCCReply{}, nil
 }

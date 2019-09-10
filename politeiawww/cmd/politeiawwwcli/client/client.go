@@ -1869,18 +1869,18 @@ func (c *Client) GetDCCs(gd *cms.GetDCCs) (*cms.GetDCCsReply, error) {
 	return &gdr, nil
 }
 
-// ApproveDCC issues an admin approval for a given DCC proposal.
-func (c *Client) ApproveDCC(sd cms.ApproveDCC) (*cms.ApproveDCCReply, error) {
-	responseBody, err := c.makeRequest("POST", cms.RouteApproveDCC,
-		sd)
+// SetDCCStatus issues an status update for a given DCC proposal.
+func (c *Client) SetDCCStatus(sd *cms.SetDCCStatus) (*cms.SetDCCStatusReply, error) {
+	route := "/dcc/" + sd.Token + "/status"
+	responseBody, err := c.makeRequest("POST", route, sd)
 	if err != nil {
 		return nil, err
 	}
 
-	var sdr cms.ApproveDCCReply
+	var sdr cms.SetDCCStatusReply
 	err = json.Unmarshal(responseBody, &sdr)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal ApproveDCCReply: %v", err)
+		return nil, fmt.Errorf("unmarshal SetDCCStatusReply: %v", err)
 	}
 
 	if c.cfg.Verbose {
@@ -1891,30 +1891,6 @@ func (c *Client) ApproveDCC(sd cms.ApproveDCC) (*cms.ApproveDCCReply, error) {
 	}
 
 	return &sdr, nil
-}
-
-// RejectDCC issues an admin approval for a given DCC proposal.
-func (c *Client) RejectDCC(rd cms.RejectDCC) (*cms.RejectDCCReply, error) {
-	responseBody, err := c.makeRequest("POST", cms.RouteRejectDCC,
-		rd)
-	if err != nil {
-		return nil, err
-	}
-
-	var rdr cms.RejectDCCReply
-	err = json.Unmarshal(responseBody, &rdr)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal RejectDCCReply: %v", err)
-	}
-
-	if c.cfg.Verbose {
-		err := prettyPrintJSON(rdr)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &rdr, nil
 }
 
 // Close all client connections.
