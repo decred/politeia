@@ -446,14 +446,40 @@ func (c *cockroachdb) SessionGetById(sid uuid.UUID) (*user.Session, error) {
 // Delete the session with the given id.
 //
 // SessionDeleteById satisfies the Database interface.
-func (c *cockroachdb) SessionDeleteById(s uuid.UUID) error {
+func (c *cockroachdb) SessionDeleteById(sid uuid.UUID) error {
+	log.Tracef("SessionDeleteById: %v", sid)
+
+	if c.isShutdown() {
+		return user.ErrShutdown
+	}
+
+	err := c.userDB.
+		Delete(Session{ID: sid}).
+		Error
+
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
 // Delete all sessions for the given user id.
 //
 // SessionsDeleteByUserId satisfies the Database interface.
-func (c *cockroachdb) SessionsDeleteByUserId(u uuid.UUID) error {
+func (c *cockroachdb) SessionsDeleteByUserId(uid uuid.UUID) error {
+	log.Tracef("SessionsDeleteByUserId: %v", uid)
+
+	if c.isShutdown() {
+		return user.ErrShutdown
+	}
+
+	err := c.userDB.
+		Delete(Session{}, "UserID = ?", uid).
+		Error
+
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
