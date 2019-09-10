@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/btcsuite/golangcrypto/bcrypt"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
 	"github.com/go-test/deep"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func TestValidatePubkey(t *testing.T) {
