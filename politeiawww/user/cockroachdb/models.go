@@ -52,7 +52,7 @@ func (User) TableName() string {
 type Session struct {
 	ID     uuid.UUID `gorm:"primary_key"`            // UUID
 	UserID uuid.UUID `gorm:"not null"`               // User UUID (foreign key)
-	MaxAge uint32    `gorm:"not null;default:86400"` // default: one day
+	MaxAge int64     `gorm:"not null;default:86400"` // default: one day
 
 	// Set by gorm
 	CreatedAt time.Time // Time of record creation

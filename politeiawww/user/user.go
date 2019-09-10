@@ -381,11 +381,13 @@ type Plugin struct {
 type Session struct {
 	ID        uuid.UUID `json:"id"`        // Unique session uuid
 	CreatedAt int64     `json:"createdat"` // Time session was created at
-	MaxAge    uint32    `json:"maxage"`    // Max session duration in seconds
+	MaxAge    int64     `json:"maxage"`    // Max session duration in seconds
 }
 
 func (s Session) HasExpired() bool {
-	return true
+	// gorm's `CreatedAt` also uses `time.Now()`
+	timeNow := time.Now().Unix()
+	return timeNow > (s.CreatedAt + s.MaxAge)
 }
 
 // Database describes the interface used for interacting with the user
