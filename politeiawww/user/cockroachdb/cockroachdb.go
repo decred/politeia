@@ -417,8 +417,30 @@ func (c *cockroachdb) SessionNew(s user.Session, u uuid.UUID) error {
 // Get a session by its id if present in the database.
 //
 // SessionGetById satisfies the Database interface.
-func (c *cockroachdb) SessionGetById(s uuid.UUID) (*user.Session, error) {
-	return nil, nil
+func (c *cockroachdb) SessionGetById(sid uuid.UUID) (*user.Session, error) {
+	log.Tracef("SessionGetById: %v", sid)
+
+	if c.isShutdown() {
+		return nil, user.ErrShutdown
+	}
+
+	var s Session
+	err := c.userDB.
+		Where("id = ?", sid).
+		Find(&s).
+		Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			err = user.ErrSessionNotFound
+		}
+		return nil, err
+	}
+	result := user.Session{
+		ID:        s.ID,
+		CreatedAt: s.CreatedAt.Unix(),
+		MaxAge:    s.MaxAge}
+
+	return &result, nil
 }
 
 // Delete the session with the given id.

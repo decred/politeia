@@ -17,6 +17,10 @@ import (
 )
 
 var (
+	// ErrSessionNotFound indicates that a user session was not found in the
+	// database.
+	ErrSessionNotFound = errors.New("user session not found")
+
 	// ErrUserNotFound indicates that a user name was not found in the
 	// database.
 	ErrUserNotFound = errors.New("user not found")
