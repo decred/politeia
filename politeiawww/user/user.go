@@ -380,6 +380,10 @@ type Session struct {
 	MaxAge    uint32    `json:"maxage"`    // Max session duration in seconds
 }
 
+func (s Session) HasExpired() bool {
+	return true
+}
+
 // Database describes the interface used for interacting with the user
 // database.
 type Database interface {
@@ -406,6 +410,9 @@ type Database interface {
 
 	// Return a map of public key to user record
 	UsersGetByPubKey(pubKeys []string) (map[string]User, error)
+
+	// Delete the session with the given id
+	SessionDeleteById(uuid.UUID) error
 
 	// Delete all sessions for the given user id
 	SessionsDeleteByUserId(uuid.UUID) error

@@ -398,10 +398,17 @@ func (l *localdb) SessionGetById(s uuid.UUID) (*user.Session, error) {
 	return nil, nil
 }
 
+// Delete the session with the given id.
+//
+// SessionDeleteById satisfies the Database interface.
+func (l *localdb) SessionDeleteById(s uuid.UUID) error {
+	return nil
+}
+
 // Delete all sessions for the given user id.
 //
 // SessionsDeleteByUserId satisfies the Database interface.
-func (l *localdb) SessionsDeleteByUserId(s uuid.UUID) error {
+func (l *localdb) SessionsDeleteByUserId(u uuid.UUID) error {
 	return nil
 }
 
