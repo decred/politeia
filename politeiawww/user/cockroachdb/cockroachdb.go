@@ -473,14 +473,17 @@ func (c *cockroachdb) SessionsDeleteByUserId(uid uuid.UUID) error {
 		return user.ErrShutdown
 	}
 
-	err := c.userDB.
+	// this may delete 0+ records, hence the transaction
+	tx := c.userDB.Begin()
+	err := tx.
 		Delete(Session{}, "UserID = ?", uid).
 		Error
 
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
-	return nil
+	return tx.Commit().Error
 }
 
 // rotateKeys rotates the existing database encryption key with the given new
