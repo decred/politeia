@@ -15,6 +15,7 @@ server side notifications.  It does not render HTML.
 - [`Admin invoices`](#admin-invoices)
 - [`Edit invoice`](#edit-invoice)
 - [`Set invoice status`](#set-invoice-status)
+- [`Set DCC status`](#set-dcc-status)
 - [`Generate payouts`](#generate-payouts)
 - [`Invoice comments`](#invoice-comments)
 - [`Invoice exchange rate`](#invoice-exchange-rate)
@@ -1230,65 +1231,23 @@ Reply:
 }
 ```
 
-### `Approve DCC`
+### `Set DCC Status`
 
-Approves a DCC proposal that will then either move a user into a fully invited contractor or revokes an existing user's credentials.
+Updates the status of a given DCC proposal.
 
 Note: This call requires admin privileges.
 
-**Route:** `POST /v1/admin/approvedcc`
+**Route:** `POST /v1/dcc/{token}/status`
 
 **Params:**
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
-| reason | string | The reason for approving the DCC. | Yes |
+| reason | string | The reason for approving the DCC. | No |
+| status | int | The status to which the DCC will be updated. | Yes |
 | token | string | The token of the DCC to approve. | Yes |
 | publickey | string | The user's public key. | Yes |
-| signature | string | The signature of the string representation of the reason and token payload. | Yes |
-
-**Results:**
-
-| | Type | Description |
-|-|-|-|
-| verificationtoken | String | The verification token which is required when calling [`Register`](#register). The token will be sent to the email address sent in the request.|
-
-**Example**
-
-Request:
-
-```json
-{
-  "comment":"nay",
-  "token":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
-  "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
-  "signature": "gdd92f26c8g38c90d2887259e88df614654g32fde76bef1438b0efg40e360f461e995d796g16b17108gbe226793ge4g52gg013428feb3c39de504fe5g1811e0e"}
-```
-
-Reply:
-
-```json
-{
-  "verificationtoken": "fc8f660e7f4d590e27e6b11639ceeaaec2ce9bc6b0303344555ac023ab8ee55f"
-}
-```
-
-### `Reject DCC`
-
-Rejects a DCC proposal and any proposed issuance or revocation has failed.
-
-Note: This call requires admin privileges.
-
-**Route:** `POST /v1/admin/rejectdcc`
-
-**Params:**
-
-| Parameter | Type | Description | Required |
-|-|-|-|-|
-| reason | string | The reason for rejecting the DCC. | Yes |
-| token | string | The token of the DCC to reject. | Yes |
-| publickey | string | The user's public key. | Yes |
-| signature | string | The signature of the string representation of the reason and token payload. | Yes |
+| signature | string | The signature of the string representation of the token, status and reason payload. | Yes |
 
 **Results:**
 
@@ -1301,7 +1260,8 @@ Request:
 
 ```json
 {
-  "comment":"nay",
+  "reason":"this dcc looks well supported!",
+  "status": 2,
   "token":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
   "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
   "signature": "gdd92f26c8g38c90d2887259e88df614654g32fde76bef1438b0efg40e360f461e995d796g16b17108gbe226793ge4g52gg013428feb3c39de504fe5g1811e0e"}
