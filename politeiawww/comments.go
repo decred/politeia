@@ -546,7 +546,7 @@ func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www
 		// Clip action to not fill up logs and prevent DOS of sorts
 		action = lc.Action[0:9] + "..."
 	}
-	if action != "1" && action != "-1" {
+	if action != actionUpvote && action != actionDownvote {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusInvalidLikeCommentAction,
 		}
