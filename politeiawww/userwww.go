@@ -62,12 +62,12 @@ func (p *politeiawww) getSessionUUID(r *http.Request) (string, error) {
 	}
 	log.Tracef("getSessionUUID: %v", cookie.ID)
 
-	pid, err := uuid.Parse(id)
+	sid, err := uuid.Parse(id)
 	if err != nil {
 		return "", err
 	}
 
-	session, err := p.db.SessionGetById(pid)
+	session, err := p.db.SessionGetById(sid)
 	if err != nil {
 		return "", err
 	}
