@@ -285,9 +285,10 @@ type InviteNewUser struct {
 	Email string `json:"email"`
 }
 
-// InviteNewUserReply responds with the UserID of the created user
+// InviteNewUserReply responds with the verification token for the user
+// (if an email server is not set up).
 type InviteNewUserReply struct {
-	UserID string `json:"userid"`
+	VerificationToken string `json:"verificationtoken"`
 }
 
 // RegisterUser is used by an contractor that has been invited to join the
