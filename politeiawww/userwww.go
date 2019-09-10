@@ -103,13 +103,28 @@ func (p *politeiawww) getSessionUser(w http.ResponseWriter, r *http.Request) (*u
 // setSessionUserID sets the "sessionid" session key to the provided value.
 func (p *politeiawww) setSessionUserID(w http.ResponseWriter, r *http.Request, id string) error {
 	log.Tracef("setSessionUserID: %v %v", id, www.CookieSession)
-	session, err := p.getSession(r)
+	cookie, err := p.getSession(r)
 	if err != nil {
 		return err
 	}
 
-	session.Values["sessionid"] = id
-	return session.Save(r, w)
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		return err
+	}
+
+	sessionid := uuid.New()
+	err = p.db.SessionNew(user.Session{
+		ID:     sessionid,
+		UserID: uid,
+		MaxAge: int64(p.store.Options.MaxAge),
+	})
+	if err != nil {
+		return err
+	}
+
+	cookie.Values["sessionid"] = sessionid.String()
+	return cookie.Save(r, w)
 }
 
 // removeSession deletes the session from the filesystem and the database.
@@ -125,9 +140,13 @@ func (p *politeiawww) removeSession(w http.ResponseWriter, r *http.Request) erro
 		return nil
 	}
 
-	// FIXME: what should be done in case of an error? Proceed and hope that the
-	// cookie is invalidated?
-	p.db.SessionDeleteById(session.Values["sessionid"])
+	sid, err := uuid.Parse(session.Values["sessionid"].(string))
+	if err == nil {
+		// FIXME: what should be done in case of a database error?
+		//		- `return err` or
+		//		- proceed and hope that the cookie is invalidated?
+		p.db.SessionDeleteById(sid)
+	}
 
 	// Saving the session with a negative MaxAge will cause it to be deleted
 	// from the filesystem.
