@@ -597,22 +597,16 @@ func (p *politeiawww) emailInviteNewUserVerificationLink(email, token string) er
 
 // emailApproveDCCVerificationLink emails the link to invite a user that
 // has been approved by the other contractors from a DCC proposal.
-func (p *politeiawww) emailApproveDCCVerificationLink(email, token string) error {
+func (p *politeiawww) emailApproveDCCVerificationLink(email string) error {
 	if p.smtp.disabled {
 		return nil
 	}
 
-	link, err := p.createEmailLink(RegisterNewUserGuiRoute, "", token)
-	if err != nil {
-		return err
-	}
-
 	tplData := approveDCCUserEmailTemplateData{
 		Email: email,
-		Link:  link,
 	}
 
-	subject := "Welcome to the Contractor Management System"
+	subject := "Congratulations, You've been approved!"
 	body, err := createBody(templateApproveDCCUserEmail, &tplData)
 	if err != nil {
 		return err

@@ -469,21 +469,21 @@ func convertCMSUserFromDatabaseUser(user *user.CMSUser) cms.User {
 
 // issuanceDCCUser does the processing to move a nominated user to a fully
 // approved and invite them onto CMS.
-func (p *politeiawww) issuanceDCCUser(userid, sponsorUserID string, domain, contractorType int) ([]byte, error) {
+func (p *politeiawww) issuanceDCCUser(userid, sponsorUserID string, domain, contractorType int) error {
 	nominatedUser, err := p.userByIDStr(userid)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if nominatedUser == nil {
-		return nil, www.UserError{
+		return www.UserError{
 			ErrorCode: www.ErrorStatusUserNotFound,
 		}
 	}
 
 	nomineeUserID, err := uuid.Parse(userid)
 	if err != nil {
-		return nil, www.UserError{
+		return www.UserError{
 			ErrorCode: www.ErrorStatusInvalidUUID,
 		}
 	}
@@ -501,7 +501,7 @@ func (p *politeiawww) issuanceDCCUser(userid, sponsorUserID string, domain, cont
 
 	payload, err := user.EncodeUpdateCMSUser(uu)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	pc := user.PluginCommand{
 		ID:      user.CMSPluginID,
@@ -510,44 +510,21 @@ func (p *politeiawww) issuanceDCCUser(userid, sponsorUserID string, domain, cont
 	}
 	_, err = p.db.PluginExec(pc)
 	if err != nil {
-		return nil, err
-	}
-
-	if !validEmail.MatchString(nominatedUser.Email) {
-		log.Debugf("processApproveDCC: invalid email '%v'", nominatedUser.Email)
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusMalformedEmail,
-		}
-	}
-
-	// Generate the verification token and expiry.
-	token, expiry, err := newVerificationTokenAndExpiry()
-	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// Try to email the verification link first; if it fails, then
 	// the new user won't be created.
 	//
 	// This is conditional on the email server being setup.
-	err = p.emailApproveDCCVerificationLink(nominatedUser.Email,
-		hex.EncodeToString(token))
+	err = p.emailApproveDCCVerificationLink(nominatedUser.Email)
 	if err != nil {
 		log.Errorf("processApproveDCC: verification email "+
 			"failed for '%v': %v", nominatedUser.Email, err)
-		return token, nil
+		return err
 	}
 
-	// The user record is updated in the db in order to reset the verification
-	// token and expiry.
-	nominatedUser.NewUserVerificationToken = token
-	nominatedUser.NewUserVerificationExpiry = expiry
-	err = p.db.UserUpdate(*nominatedUser)
-	if err != nil {
-		return nil, err
-	}
-
-	return token, nil
+	return nil
 }
 
 func (p *politeiawww) revokeDCCUser(userid string) error {

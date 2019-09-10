@@ -667,11 +667,8 @@ type ApproveDCC struct {
 	PublicKey string `json:"publickey"` // Pubkey used for Signature
 }
 
-// ApproveDCCReply returns the verification token that has been given to the
-// invited user.
-type ApproveDCCReply struct {
-	VerificationToken string `json:"verificationtoken"`
-}
+// ApproveDCCReply returns an empty response when successful.
+type ApproveDCCReply struct{}
 
 // RejectDCC is an admin request that gives a final rejection to a given DCC
 // issuance or revocation.

@@ -999,13 +999,11 @@ func (p *politeiawww) processApproveDCC(ad cms.ApproveDCC, u *user.User) (*cms.A
 
 	if dcc.DCC.Type == cms.DCCTypeIssuance {
 		// Do DCC user Issuance processing
-		verifyToken, err := p.issuanceDCCUser(dcc.DCC.NomineeUserID, u.ID.String(), int(dcc.DCC.Domain), int(dcc.DCC.ContractorType))
+		err := p.issuanceDCCUser(dcc.DCC.NomineeUserID, u.ID.String(), int(dcc.DCC.Domain), int(dcc.DCC.ContractorType))
 		if err != nil {
 			return nil, err
 		}
-		return &cms.ApproveDCCReply{
-			VerificationToken: hex.EncodeToString(verifyToken),
-		}, nil
+		return &cms.ApproveDCCReply{}, nil
 
 	} else if dcc.DCC.Type == cms.DCCTypeRevocation {
 		// Do DCC user Revocation processing

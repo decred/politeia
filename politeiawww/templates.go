@@ -236,12 +236,10 @@ If you do not recognize this, please ignore this email.
 `
 
 const templateApproveDCCUserEmailRaw = `
-Congratulations! Your Decred Clearance Proposal has been approved! 
+Congratulations! Your Decred Contractor Clearance Proposal has been approved! 
 
-As such, you are being invited to complete your registration on the Contractor Management System.
-Please use the following link and register on the CMS site:
-
-{{.Link}}
+You are now a fully registered contractor and may now submit invoices.  You should also be receiving an invitation to the contractors room on matrix.  
+If you have any questions please feel free to ask them there.
 
 You are receiving this email because {{.Email}} was used to be invited to Decred's Contractor Management System.
 If you do not recognize this, please ignore this email.
