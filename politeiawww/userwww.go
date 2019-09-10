@@ -32,6 +32,9 @@ var (
 
 // getSession returns the active cookie session.
 func (p *politeiawww) getSession(r *http.Request) (*sessions.Session, error) {
+	// TODO(al-maisan) add session expiration check here
+	//		- use `Session.HasExpired()`
+	//		- add new error type if needed
 	return p.store.Get(r, www.CookieSession)
 }
 
