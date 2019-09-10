@@ -380,6 +380,7 @@ type Plugin struct {
 // Session represents a user session.
 type Session struct {
 	ID        uuid.UUID `json:"id"`        // Unique session uuid
+	UserID    uuid.UUID `json:"userid"`    // The user's uuid
 	CreatedAt int64     `json:"createdat"` // Time session was created at
 	MaxAge    int64     `json:"maxage"`    // Max session duration in seconds
 }
@@ -397,7 +398,7 @@ type Database interface {
 	UserNew(User) error
 
 	// Add a new session for the given user id
-	SessionNew(Session, uuid.UUID) error
+	SessionNew(Session) error
 
 	// Update an existing user
 	UserUpdate(User) error

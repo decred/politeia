@@ -399,14 +399,14 @@ func (c *cockroachdb) AllUsers(callback func(u *user.User)) error {
 // Store new session for given user id.
 //
 // SessionNew satisfies the Database interface.
-func (c *cockroachdb) SessionNew(s user.Session, u uuid.UUID) error {
-	log.Tracef("SessionNew: %v", u)
+func (c *cockroachdb) SessionNew(s user.Session) error {
+	log.Tracef("SessionNew: %v", s.ID)
 
 	if c.isShutdown() {
 		return user.ErrShutdown
 	}
 
-	err := c.userDB.Create(&Session{ID: s.ID, UserID: u, MaxAge: s.MaxAge}).Error
+	err := c.userDB.Create(&Session{ID: s.ID, UserID: s.UserID, MaxAge: s.MaxAge}).Error
 	if err != nil {
 		return fmt.Errorf("create session: %v", err)
 	}

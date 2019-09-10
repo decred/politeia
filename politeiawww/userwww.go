@@ -48,18 +48,28 @@ func (p *politeiawww) isAdmin(w http.ResponseWriter, r *http.Request) (bool, err
 // getSessionUUID returns the uuid address of the currently logged in user from
 // the session store.
 func (p *politeiawww) getSessionUUID(r *http.Request) (string, error) {
-	session, err := p.getSession(r)
+	cookie, err := p.getSession(r)
 	if err != nil {
 		return "", err
 	}
 
-	id, ok := session.Values["uuid"].(string)
+	id, ok := cookie.Values["sessionid"].(string)
 	if !ok {
 		return "", ErrSessionUUIDNotFound
 	}
-	log.Tracef("getSessionUUID: %v", session.ID)
+	log.Tracef("getSessionUUID: %v", cookie.ID)
 
-	return id, nil
+	pid, err := uuid.Parse(id)
+	if err != nil {
+		return "", err
+	}
+
+	session, err := p.db.SessionGetById(pid)
+	if err != nil {
+		return "", err
+	}
+
+	return session.UserID.String(), nil
 }
 
 // getSessionUser retrieves the current session user from the database.
@@ -90,7 +100,7 @@ func (p *politeiawww) getSessionUser(w http.ResponseWriter, r *http.Request) (*u
 	return user, nil
 }
 
-// setSessionUserID sets the "uuid" session key to the provided value.
+// setSessionUserID sets the "sessionid" session key to the provided value.
 func (p *politeiawww) setSessionUserID(w http.ResponseWriter, r *http.Request, id string) error {
 	log.Tracef("setSessionUserID: %v %v", id, www.CookieSession)
 	session, err := p.getSession(r)
@@ -98,11 +108,11 @@ func (p *politeiawww) setSessionUserID(w http.ResponseWriter, r *http.Request, i
 		return err
 	}
 
-	session.Values["uuid"] = id
+	session.Values["sessionid"] = id
 	return session.Save(r, w)
 }
 
-// removeSession deletes the session from the filesystem.
+// removeSession deletes the session from the filesystem and the database.
 func (p *politeiawww) removeSession(w http.ResponseWriter, r *http.Request) error {
 	log.Tracef("removeSession: %v", www.CookieSession)
 	session, err := p.getSession(r)
@@ -114,6 +124,10 @@ func (p *politeiawww) removeSession(w http.ResponseWriter, r *http.Request) erro
 	if session.ID == "" {
 		return nil
 	}
+
+	// FIXME: what should be done in case of an error? Proceed and hope that the
+	// cookie is invalidated?
+	p.db.SessionDeleteById(session.Values["sessionid"])
 
 	// Saving the session with a negative MaxAge will cause it to be deleted
 	// from the filesystem.

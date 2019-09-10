@@ -387,7 +387,7 @@ func (l *localdb) Close() error {
 // Store new session for given user id.
 //
 // SessionNew satisfies the Database interface.
-func (l *localdb) SessionNew(s user.Session, u uuid.UUID) error {
+func (l *localdb) SessionNew(s user.Session) error {
 	return nil
 }
 
