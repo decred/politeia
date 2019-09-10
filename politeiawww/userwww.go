@@ -30,12 +30,17 @@ var (
 		template.New("invite_new_user_email_template").Parse(templateInviteNewUserEmailRaw))
 )
 
-// getSession returns the active cookie session.
-func (p *politeiawww) getSession(r *http.Request) (*sessions.Session, error) {
+// getCookie returns the active cookie session.
+func (p *politeiawww) getCookie(r *http.Request) (*sessions.Session, error) {
+	return p.store.Get(r, www.CookieSession)
+}
+
+// getSession looks up the database session that is linked to the given cookie.
+func (p *politeiawww) getSession(s *sessions.Session) (*user.Session, error) {
 	// TODO(al-maisan) add session expiration check here
 	//		- use `Session.HasExpired()`
 	//		- add new error type if needed
-	return p.store.Get(r, www.CookieSession)
+	return nil, nil
 }
 
 // isAdmin returns true if the current session has admin privileges.
@@ -51,7 +56,7 @@ func (p *politeiawww) isAdmin(w http.ResponseWriter, r *http.Request) (bool, err
 // getSessionUUID returns the uuid address of the currently logged in user from
 // the session store.
 func (p *politeiawww) getSessionUUID(r *http.Request) (string, error) {
-	cookie, err := p.getSession(r)
+	cookie, err := p.getCookie(r)
 	if err != nil {
 		return "", err
 	}
@@ -106,7 +111,7 @@ func (p *politeiawww) getSessionUser(w http.ResponseWriter, r *http.Request) (*u
 // setSessionUserID sets the "sessionid" session key to the provided value.
 func (p *politeiawww) setSessionUserID(w http.ResponseWriter, r *http.Request, id string) error {
 	log.Tracef("setSessionUserID: %v %v", id, www.CookieSession)
-	cookie, err := p.getSession(r)
+	cookie, err := p.getCookie(r)
 	if err != nil {
 		return err
 	}
@@ -133,17 +138,17 @@ func (p *politeiawww) setSessionUserID(w http.ResponseWriter, r *http.Request, i
 // removeSession deletes the session from the filesystem and the database.
 func (p *politeiawww) removeSession(w http.ResponseWriter, r *http.Request) error {
 	log.Tracef("removeSession: %v", www.CookieSession)
-	session, err := p.getSession(r)
+	cookie, err := p.getCookie(r)
 	if err != nil {
 		return err
 	}
 
-	// Check for invalid session.
-	if session.ID == "" {
+	// Check for invalid cookie
+	if cookie.ID == "" {
 		return nil
 	}
 
-	sid, err := uuid.Parse(session.Values["sessionid"].(string))
+	sid, err := uuid.Parse(cookie.Values["sessionid"].(string))
 	if err == nil {
 		// FIXME: what should be done in case of a database error?
 		//		- `return err` or
@@ -151,10 +156,10 @@ func (p *politeiawww) removeSession(w http.ResponseWriter, r *http.Request) erro
 		p.db.SessionDeleteById(sid)
 	}
 
-	// Saving the session with a negative MaxAge will cause it to be deleted
+	// Saving the cookie with a negative MaxAge will cause it to be deleted
 	// from the filesystem.
-	session.Options.MaxAge = -1
-	return session.Save(r, w)
+	cookie.Options.MaxAge = -1
+	return cookie.Save(r, w)
 }
 
 // handleNewUser handles the incoming new user command. It verifies that the new user

@@ -163,18 +163,21 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if there's an active AND invalid session.
-	session, err := p.getSession(r)
-	if err != nil && session != nil {
-		// Create and save a new session for the user.
-		session := sessions.NewSession(p.store, www.CookieSession)
+	cookie, err := p.getCookie(r)
+	if err != nil && cookie != nil {
+		// Create and save a new cookie session for the user.
+		cookie := sessions.NewSession(p.store, www.CookieSession)
 		opts := *p.store.Options
-		session.Options = &opts
-		session.IsNew = true
-		err = session.Save(r, w)
+		cookie.Options = &opts
+		cookie.IsNew = true
+		err = cookie.Save(r, w)
 		if err != nil {
-			RespondWithError(w, r, 0, "handleVersion: session.Save %v", err)
+			RespondWithError(w, r, 0, "handleVersion: cookie.Save %v", err)
 			return
 		}
+		// FIXME: the cookie saved here is problematic since it will *not* have
+		//		- a corresponding session in the database
+		//		- an association with the Politeia user's UUID
 	}
 
 	_, err = p.getSessionUser(w, r)
