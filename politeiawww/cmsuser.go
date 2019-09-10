@@ -51,7 +51,7 @@ func (p *politeiawww) cmsUsersByDomain(d cms.DomainTypeT) ([]user.CMSUser, error
 //
 // Note that this function always returns a InviteNewUserReply. The caller
 // shall verify error and determine how to return this information upstream.
-func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*www.NewUserReply, error) {
+func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*cms.InviteNewUserReply, error) {
 	log.Tracef("processInviteNewUser: %v", u.Email)
 
 	// Validate email
@@ -66,7 +66,7 @@ func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*www.NewUserRep
 	existingUser, err := p.userByEmail(u.Email)
 	if err == nil {
 		if existingUser.NewUserVerificationToken == nil {
-			return &www.NewUserReply{}, nil
+			return &cms.InviteNewUserReply{}, nil
 		}
 	}
 
@@ -85,7 +85,7 @@ func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*www.NewUserRep
 	if err != nil {
 		log.Errorf("processInviteNewUser: verification email "+
 			"failed for '%v': %v", u.Email, err)
-		return &www.NewUserReply{}, nil
+		return &cms.InviteNewUserReply{}, nil
 	}
 
 	// If the user already exists, the user record is updated
@@ -99,7 +99,7 @@ func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*www.NewUserRep
 			return nil, err
 		}
 
-		return &www.NewUserReply{
+		return &cms.InviteNewUserReply{
 			VerificationToken: hex.EncodeToString(token),
 		}, nil
 	}
@@ -137,7 +137,7 @@ func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*www.NewUserRep
 	}
 	p.setUserEmailsCache(usr.Email, usr.ID)
 
-	return &www.NewUserReply{
+	return &cms.InviteNewUserReply{
 		VerificationToken: hex.EncodeToString(token),
 	}, nil
 }
