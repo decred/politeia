@@ -397,7 +397,7 @@ type Database interface {
 	// Add a new user
 	UserNew(User) error
 
-	// Add a new session for the given user id
+	// Add a new session for an authenticated user
 	SessionNew(Session) error
 
 	// Update an existing user
@@ -421,7 +421,7 @@ type Database interface {
 	// Delete the session with the given id
 	SessionDeleteById(uuid.UUID) error
 
-	// Delete all sessions for the given user id
+	// Delete all sessions with the given user id
 	SessionsDeleteByUserId(uuid.UUID) error
 
 	// Iterate over all users

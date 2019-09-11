@@ -408,6 +408,7 @@ func (c *cockroachdb) SessionNew(us user.Session) error {
 
 	s := Session{ID: us.ID, UserID: us.UserID, MaxAge: us.MaxAge}
 	err := c.userDB.Create(&s).Error
+
 	if err != nil {
 		return fmt.Errorf("create session: %v", err)
 	}
@@ -430,18 +431,16 @@ func (c *cockroachdb) SessionGetById(sid uuid.UUID) (*user.Session, error) {
 		Where("id = ?", sid).
 		Find(&s).
 		Error
+
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			err = user.ErrSessionNotFound
 		}
 		return nil, err
 	}
-	result := user.Session{
-		ID:        s.ID,
-		CreatedAt: s.CreatedAt.Unix(),
-		MaxAge:    s.MaxAge}
 
-	return &result, nil
+	us := user.Session{ID: s.ID, CreatedAt: s.CreatedAt.Unix(), MaxAge: s.MaxAge}
+	return &us, nil
 }
 
 // Delete the session with the given id.
