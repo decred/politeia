@@ -114,7 +114,7 @@ type politeiawww struct {
 
 	// Following entries require locks
 	userPaywallPool map[uuid.UUID]paywallPoolMember // [userid][paywallPoolMember]
-	commentScores   map[string]int64                // [token+commentID]resultVotes
+	commentVotes    map[string]counters             // [token+commentID]counters
 
 	// voteSummaries is a lazy loaded cache of the votes summaries of
 	// proposals whose voting period has ended.

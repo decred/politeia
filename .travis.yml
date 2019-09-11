@@ -1,15 +1,16 @@
 language: go
 go:
-  - 1.11.x
   - 1.12.x
+  - 1.13.x
 sudo: false
 install:
-  - go get -v github.com/golangci/golangci-lint/cmd/golangci-lint
+  - curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s -- -b $(go env GOPATH)/bin v1.18.0
 script:
   - export GO111MODULE=on
   - (cd politeiad && go build)
   - (cd politeiad/cmd/politeia && go build)
   - (cd politeiad/cmd/politeia_verify && go build)
+  - (cd politeiad/cmd/politeiaimport && go build)
   - (cd politeiavoter && go build)
   - (cd politeiawww && go build)
   - (cd politeiawww/cmd/politeiawww_dataload && go build)

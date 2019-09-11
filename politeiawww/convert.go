@@ -351,7 +351,7 @@ func convertCensorCommentToDecred(cc www.CensorComment) decredplugin.CensorComme
 }
 
 func convertCommentFromDecred(c decredplugin.Comment) www.Comment {
-	// ResultVotes, UserID, and Username are filled in as zero
+	// Upvotes, Downvotes, UserID, and Username are filled in as zero
 	// values since a cache comment does not contain this data.
 	return www.Comment{
 		Token:       c.Token,
@@ -363,6 +363,8 @@ func convertCommentFromDecred(c decredplugin.Comment) www.Comment {
 		Receipt:     c.Receipt,
 		Timestamp:   c.Timestamp,
 		ResultVotes: 0,
+		Upvotes:     0,
+		Downvotes:   0,
 		UserID:      "",
 		Username:    "",
 		Censored:    c.Censored,

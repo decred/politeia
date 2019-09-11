@@ -1713,6 +1713,8 @@ proposal"; if the value is not empty it means "reply to comment".
 | receipt | string | Server signature of the client Signature |
 | timestamp | int64 | UNIX time when comment was accepted |
 | resultvotes | int64 | Vote score |
+| upvotes | uint64 | Pro votes |
+| downvotes | uint64 | Contra votes |
 | censored | bool | Has the comment been censored |
 | userid | string | Unique user identifier |
 | username | string | Unique username |
@@ -1795,6 +1797,8 @@ sorted.
 | receipt | string | Server signature of the client Signature |
 | totalvotes | uint64 | Total number of up/down votes |
 | resultvotes | int64 | Vote score |
+| upvotes | uint64 | Pro votes |
+| downvotes | uint64 | Contra votes |
 
 **Example**
 
@@ -1822,7 +1826,9 @@ Reply:
     "userid": "124",
     "username": "john",
     "totalvotes": 4,
-    "resultvotes": 3
+    "resultvotes": 2,
+    "upvotes": 3,
+    "downvotes": 1
   },{
     "comment":"you are right!",
     "commentid": "4",
@@ -1835,7 +1841,9 @@ Reply:
     "userid": "124",
     "username": "john",
     "totalvotes": 4,
-    "resultvotes": 3
+    "resultvotes": 2,
+    "upvotes": 3,
+    "downvotes": 1
   },{
     "comment":"you are crazy!",
     "commentid": "4",
@@ -1848,7 +1856,9 @@ Reply:
     "userid": "124",
     "username": "john",
     "totalvotes": 4,
-    "resultvotes": 3
+    "resultvotes": 2,
+    "upvotes": 3,
+    "downvotes": 1
   }],
   "accesstime": 1543539276
 }
@@ -1875,7 +1885,9 @@ Allows a user to up or down vote a comment
 | | Type | Description |
 |-|-|-|
 | total | uint64 | Total number of up and down votes |
-| result | int64 | Vote score |
+| resultvotes | int64 | Vote score |
+| upvotes | uint64 | Pro votes |
+| downvotes | uint64 | Contra votes |
 | receipt | string | Server signature of client signature |
 | error | Error if something went wront during liking a comment
 **Example:**
@@ -1897,7 +1909,9 @@ Reply:
 ```json
 {
   "total": 4,
-  "result": 3,
+  "result": 2,
+  "upvotes": 3,
+  "downvotes": 1,
   "receipt": "96f3956ea3decb75ee129e6ee4e77c6c608f0b5c99ff41960a4e6078d8bb74e8ad9d2545c01fff2f8b7e0af38ee9de406aea8a0b897777d619e93d797bc1650a"
 }
 ```
