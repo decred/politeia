@@ -317,7 +317,8 @@ func (p *politeiawww) validateDCC(nd cms.NewDCC, u *user.User) error {
 			ErrorCode: cms.ErrorStatusInvalidDCCNominee,
 		}
 	}
-	if nomineeUser.ContractorType != cms.ContractorTypeNominee {
+	if nomineeUser.ContractorType != cms.ContractorTypeNominee &&
+		dcc.Type == cms.DCCTypeIssuance {
 		return www.UserError{
 			ErrorCode: cms.ErrorStatusInvalidDCCNominee,
 		}
