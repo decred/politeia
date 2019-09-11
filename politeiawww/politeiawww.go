@@ -266,7 +266,7 @@ func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Reque
 
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
-		if err != ErrSessionUUIDNotFound {
+		if err != ErrSessionNotFound {
 			RespondWithError(w, r, 0,
 				"handleProposalDetails: getSessionUser %v", err)
 			return
@@ -326,7 +326,7 @@ func (p *politeiawww) handleBatchProposals(w http.ResponseWriter, r *http.Reques
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		// This is a public route so a session might not exist
-		if err != ErrSessionUUIDNotFound {
+		if err != ErrSessionNotFound {
 			RespondWithError(w, r, 0,
 				"handleProposalDetails: getSessionUser %v", err)
 			return
@@ -376,7 +376,7 @@ func (p *politeiawww) handleCommentsGet(w http.ResponseWriter, r *http.Request) 
 
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
-		if err != ErrSessionUUIDNotFound {
+		if err != ErrSessionNotFound {
 			RespondWithError(w, r, 0,
 				"handleCommentsGet: getSessionUser %v", err)
 			return
@@ -517,7 +517,7 @@ func (p *politeiawww) handleTokenInventory(w http.ResponseWriter, r *http.Reques
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		// This is a public route so a session might not exist
-		if err != ErrSessionUUIDNotFound {
+		if err != ErrSessionNotFound {
 			RespondWithError(w, r, 0,
 				"handleProposalDetails: getSessionUser %v", err)
 			return
@@ -940,8 +940,8 @@ func (p *politeiawww) handleWebsocket(w http.ResponseWriter, r *http.Request, id
 func (p *politeiawww) handleUnauthenticatedWebsocket(w http.ResponseWriter, r *http.Request) {
 	// We are retrieving the uuid here to make sure it is NOT set. This
 	// check looks backwards but is correct.
-	id, err := p.getSessionUUID(r)
-	if err != nil && err != ErrSessionUUIDNotFound {
+	id, err := p.getSessionUUID(w, r)
+	if err != nil && err != ErrSessionNotFound {
 		http.Error(w, "Could not get session uuid",
 			http.StatusBadRequest)
 		return
@@ -959,7 +959,7 @@ func (p *politeiawww) handleUnauthenticatedWebsocket(w http.ResponseWriter, r *h
 // handleAuthenticatedWebsocket attempts to upgrade the current authenticated
 // connection to a websocket connection.
 func (p *politeiawww) handleAuthenticatedWebsocket(w http.ResponseWriter, r *http.Request) {
-	id, err := p.getSessionUUID(r)
+	id, err := p.getSessionUUID(w, r)
 	if err != nil {
 		http.Error(w, "Could not get session uuid",
 			http.StatusBadRequest)

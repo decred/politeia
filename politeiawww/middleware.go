@@ -22,7 +22,7 @@ func (p *politeiawww) isLoggedIn(f http.HandlerFunc) http.HandlerFunc {
 		log.Debugf("isLoggedIn: %v %v %v %v", remoteAddr(r), r.Method,
 			r.URL, r.Proto)
 
-		id, err := p.getSessionUUID(r)
+		id, err := p.getSessionUUID(w, r)
 		if err != nil {
 			util.RespondWithJSON(w, http.StatusUnauthorized, www.ErrorReply{
 				ErrorCode: int64(www.ErrorStatusNotLoggedIn),

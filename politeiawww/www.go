@@ -53,9 +53,13 @@ const (
 )
 
 var (
-	// ErrSessionUUIDNotFound is emitted when a UUID value is not found
-	// in a session and indicates that the user is not logged in.
-	ErrSessionUUIDNotFound = errors.New("session UUID not found")
+	// ErrSessionNotFound is emitted when a session is not found and indicates
+	// that the user is not logged in.
+	ErrSessionNotFound = errors.New("session not found")
+
+	// ErrSessionExpired is emitted when a user session has expired and
+	// indicates that the user needs to go through the login process again.
+	ErrSessionExpired = errors.New("session expired")
 )
 
 // Fetch remote identity

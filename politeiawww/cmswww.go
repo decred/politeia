@@ -105,7 +105,7 @@ func (p *politeiawww) handleInvoiceDetails(w http.ResponseWriter, r *http.Reques
 
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
-		if err != ErrSessionUUIDNotFound {
+		if err != ErrSessionNotFound {
 			RespondWithError(w, r, 0,
 				"handleInvoiceDetails: getSessionUser %v", err)
 			return
@@ -340,7 +340,7 @@ func (p *politeiawww) handleInvoiceComments(w http.ResponseWriter, r *http.Reque
 
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
-		if err != ErrSessionUUIDNotFound {
+		if err != ErrSessionNotFound {
 			RespondWithError(w, r, 0,
 				"handleCommentsGet: getSessionUser %v", err)
 			return
@@ -677,7 +677,7 @@ func (p *politeiawww) handleDCCComments(w http.ResponseWriter, r *http.Request) 
 
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
-		if err != ErrSessionUUIDNotFound {
+		if err != ErrSessionNotFound {
 			RespondWithError(w, r, 0,
 				"handleDCCComments: getSessionUser %v", err)
 			return

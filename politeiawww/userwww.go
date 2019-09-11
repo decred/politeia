@@ -30,19 +30,6 @@ var (
 		template.New("invite_new_user_email_template").Parse(templateInviteNewUserEmailRaw))
 )
 
-// getCookie returns the active cookie session.
-func (p *politeiawww) getCookie(r *http.Request) (*sessions.Session, error) {
-	return p.store.Get(r, www.CookieSession)
-}
-
-// getSession looks up the database session that is linked to the given cookie.
-func (p *politeiawww) getSession(s *sessions.Session) (*user.Session, error) {
-	// TODO(al-maisan) add session expiration check here
-	//		- use `Session.HasExpired()`
-	//		- add new error type if needed
-	return nil, nil
-}
-
 // isAdmin returns true if the current session has admin privileges.
 func (p *politeiawww) isAdmin(w http.ResponseWriter, r *http.Request) (bool, error) {
 	user, err := p.getSessionUser(w, r)
@@ -53,26 +40,49 @@ func (p *politeiawww) isAdmin(w http.ResponseWriter, r *http.Request) (bool, err
 	return user.Admin, nil
 }
 
-// getSessionUUID returns the uuid address of the currently logged in user from
-// the session store.
-func (p *politeiawww) getSessionUUID(r *http.Request) (string, error) {
+// getCookie returns the active cookie session.
+func (p *politeiawww) getCookie(r *http.Request) (*sessions.Session, error) {
+	return p.store.Get(r, www.CookieSession)
+}
+
+// getSession looks up the database session for the given request.
+func (p *politeiawww) getSession(w http.ResponseWriter, r *http.Request) (*user.Session, error) {
 	cookie, err := p.getCookie(r)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	id, ok := cookie.Values["sessionid"].(string)
 	if !ok {
-		return "", ErrSessionUUIDNotFound
+		return nil, ErrSessionNotFound
 	}
-	log.Tracef("getSessionUUID: %v", cookie.ID)
 
 	sid, err := uuid.Parse(id)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
+	log.Tracef("getSession: %v", sid)
 
 	session, err := p.db.SessionGetById(sid)
+	if err != nil {
+		return nil, err
+	}
+	if session.HasExpired() {
+		// FIXME: how should `SessionDeleteById()` db errors be handled?
+		// delete session from db
+		p.db.SessionDeleteById(sid)
+		// delete cookie
+		cookie.Options.MaxAge = -1
+		cookie.Save(r, w)
+		return nil, ErrSessionExpired
+	}
+	return session, nil
+}
+
+// getSessionUUID returns the uuid address of the currently logged in user from
+// the session store.
+func (p *politeiawww) getSessionUUID(w http.ResponseWriter, r *http.Request) (string, error) {
+	session, err := p.getSession(w, r)
 	if err != nil {
 		return "", err
 	}
@@ -82,7 +92,7 @@ func (p *politeiawww) getSessionUUID(r *http.Request) (string, error) {
 
 // getSessionUser retrieves the current session user from the database.
 func (p *politeiawww) getSessionUser(w http.ResponseWriter, r *http.Request) (*user.User, error) {
-	id, err := p.getSessionUUID(r)
+	id, err := p.getSessionUUID(w, r)
 	if err != nil {
 		return nil, err
 	}
@@ -150,9 +160,7 @@ func (p *politeiawww) removeSession(w http.ResponseWriter, r *http.Request) erro
 
 	sid, err := uuid.Parse(cookie.Values["sessionid"].(string))
 	if err == nil {
-		// FIXME: what should be done in case of a database error?
-		//		- `return err` or
-		//		- proceed and hope that the cookie is invalidated?
+		// ignore errors and proceed to allow the cookie to be invalidated
 		p.db.SessionDeleteById(sid)
 	}
 
