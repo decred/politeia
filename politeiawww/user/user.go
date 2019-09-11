@@ -386,7 +386,7 @@ type Session struct {
 }
 
 func (s Session) HasExpired() bool {
-	// gorm's `CreatedAt` also uses `time.Now()`
+	// gorm's CreatedAt also uses time.Now()
 	timeNow := time.Now().Unix()
 	return timeNow > (s.CreatedAt + s.MaxAge)
 }

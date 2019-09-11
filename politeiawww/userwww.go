@@ -45,7 +45,10 @@ func (p *politeiawww) getCookie(r *http.Request) (*sessions.Session, error) {
 	return p.store.Get(r, www.CookieSession)
 }
 
-// getSession looks up the database session for the given request.
+// getSession looks up the user session for the given request in the database.
+//
+// Please note that the session record in the database will be deleted and the
+// cookie invalidated if the user session has expired.
 func (p *politeiawww) getSession(w http.ResponseWriter, r *http.Request) (*user.Session, error) {
 	cookie, err := p.getCookie(r)
 	if err != nil {
@@ -118,9 +121,9 @@ func (p *politeiawww) getSessionUser(w http.ResponseWriter, r *http.Request) (*u
 	return user, nil
 }
 
-// setSessionUserID sets the "sessionid" session key to the provided value.
-func (p *politeiawww) setSessionUserID(w http.ResponseWriter, r *http.Request, id string) error {
-	log.Tracef("setSessionUserID: %v %v", id, www.CookieSession)
+// initSession adds a session record to the db and sets its ID in the cookie.
+func (p *politeiawww) initSession(w http.ResponseWriter, r *http.Request, id string) error {
+	log.Tracef("initSession: %v %v", id, www.CookieSession)
 	cookie, err := p.getCookie(r)
 	if err != nil {
 		return err
@@ -287,8 +290,8 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Mark user as logged in if there's no error.
-	err = p.setSessionUserID(w, r, reply.UserID)
+	// initialize a session for the logged in user
+	err = p.initSession(w, r, reply.UserID)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleLogin: setSessionUser %v", err)

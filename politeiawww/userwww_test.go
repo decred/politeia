@@ -610,8 +610,8 @@ func TestHandleChangePassword(t *testing.T) {
 			r := newPostReq(t, www.RouteChangePassword, v.reqBody)
 			w := httptest.NewRecorder()
 
-			// Set user session
-			err := p.setSessionUserID(w, r, usr.ID.String())
+			// Initialize the user session
+			err := p.initSession(w, r, usr.ID.String())
 			if err != nil {
 				t.Fatalf("%v", err)
 			}
@@ -877,8 +877,8 @@ func TestHandleChangeUsername(t *testing.T) {
 			r := newPostReq(t, www.RouteChangeUsername, v.reqBody)
 			w := httptest.NewRecorder()
 
-			// Set user session
-			err := p.setSessionUserID(w, r, usr.ID.String())
+			// Initialize the user session
+			err := p.initSession(w, r, usr.ID.String())
 			if err != nil {
 				t.Fatalf("%v", err)
 			}
@@ -960,9 +960,9 @@ func TestHandleUserDetails(t *testing.T) {
 			})
 			w := httptest.NewRecorder()
 
-			// Set user session
+			// Initialize the user session
 			if v.loggedIn {
-				err := p.setSessionUserID(w, r, usr.ID.String())
+				err := p.initSession(w, r, usr.ID.String())
 				if err != nil {
 					t.Fatalf("%v", err)
 				}
@@ -1036,8 +1036,8 @@ func TestHandleEditUser(t *testing.T) {
 			r := newPostReq(t, www.RouteEditUser, v.reqBody)
 			w := httptest.NewRecorder()
 
-			// Set user session
-			err := p.setSessionUserID(w, r, usr.ID.String())
+			// Initialize the user session
+			err := p.initSession(w, r, usr.ID.String())
 			if err != nil {
 				t.Fatalf("%v", err)
 			}
