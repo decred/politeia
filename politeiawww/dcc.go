@@ -1029,7 +1029,7 @@ func (p *politeiawww) processSetDCCStatus(sds cms.SetDCCStatus, u *user.User) (*
 func validateDCCStatusTransition(oldStatus cms.DCCStatusT, newStatus cms.DCCStatusT, reason string) error {
 	validStatuses, ok := validDCCStatusTransitions[oldStatus]
 	if !ok {
-		log.Errorf("status not supported: %v", oldStatus)
+		log.Debugf("status not supported: %v", oldStatus)
 		return www.UserError{
 			ErrorCode: cms.ErrorStatusInvalidDCCStatusTransition,
 		}

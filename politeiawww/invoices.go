@@ -945,7 +945,7 @@ func validateStatusTransition(
 ) error {
 	validStatuses, ok := validStatusTransitions[oldStatus]
 	if !ok {
-		log.Errorf("status not supported: %v", oldStatus)
+		log.Debugf("status not supported: %v", oldStatus)
 		return www.UserError{
 			ErrorCode: cms.ErrorStatusInvalidInvoiceStatusTransition,
 		}
