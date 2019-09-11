@@ -33,7 +33,11 @@ func (cmd *SetDCCStatusCmd) Execute(args []string) error {
 
 	status, ok := DCCStatus[strings.ToLower(cmd.Args.Status)]
 	if !ok {
-		return fmt.Errorf("Invalid status: %v", cmd.Args.Status)
+		return fmt.Errorf("Invalid status: '%v'.  "+
+			"Valid statuses are:\n"+
+			"  rejected  reject the DCC\n"+
+			"  approved  approve the DCC",
+			cmd.Args.Status)
 	}
 
 	sig := cfg.Identity.SignMessage([]byte(cmd.Args.Token +
