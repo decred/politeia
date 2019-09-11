@@ -148,7 +148,7 @@ func (p *politeiawww) initSession(w http.ResponseWriter, r *http.Request, id str
 	return cookie.Save(r, w)
 }
 
-// removeSession deletes the session from the filesystem and the database.
+// removeSession deletes the session from the db and invalidates the cookie.
 func (p *politeiawww) removeSession(w http.ResponseWriter, r *http.Request) error {
 	log.Tracef("removeSession: %v", www.CookieSession)
 	cookie, err := p.getCookie(r)
@@ -163,7 +163,7 @@ func (p *politeiawww) removeSession(w http.ResponseWriter, r *http.Request) erro
 
 	sid, err := uuid.Parse(cookie.Values["sessionid"].(string))
 	if err == nil {
-		// ignore errors and proceed to allow the cookie to be invalidated
+		// ignore db errors and proceed to allow the cookie to be invalidated
 		p.db.SessionDeleteById(sid)
 	}
 
@@ -376,6 +376,13 @@ func (p *politeiawww) handleVerifyResetPassword(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	// FIXME: what should be done in case of database errors?
+	user, err := p.db.UserGetByUsername(vrp.Username)
+	if err == nil {
+		// log off user everywhere by deleting all his sessions
+		p.db.SessionsDeleteByUserId(user.ID)
+	}
+
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
@@ -576,6 +583,10 @@ func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Reques
 			"handleChangePassword: processChangePassword %v", err)
 		return
 	}
+
+	// FIXME: what should be done in case of a `SessionsDeleteByUserId()` error?
+	// log off user everywhere by deleting all his sessions
+	p.db.SessionsDeleteByUserId(user.ID)
 
 	// Reply with the error code.
 	util.RespondWithJSON(w, http.StatusOK, reply)
