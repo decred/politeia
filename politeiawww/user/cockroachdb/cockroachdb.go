@@ -476,7 +476,7 @@ func (c *cockroachdb) SessionsDeleteByUserId(uid uuid.UUID) error {
 	// this may delete 0+ records, hence the transaction
 	tx := c.userDB.Begin()
 	err := tx.
-		Delete(Session{}, "UserID = ?", uid).
+		Delete(Session{}, "userid = ?", uid).
 		Error
 
 	if err != nil {
