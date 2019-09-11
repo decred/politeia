@@ -36,7 +36,8 @@ func (cmd *SetDCCStatusCmd) Execute(args []string) error {
 		return fmt.Errorf("Invalid status: %v", cmd.Args.Status)
 	}
 
-	sig := cfg.Identity.SignMessage([]byte(cmd.Args.Token + strconv.Itoa(int(status)) + cmd.Args.Reason))
+	sig := cfg.Identity.SignMessage([]byte(cmd.Args.Token +
+		strconv.Itoa(int(status)) + cmd.Args.Reason))
 	sd := &cms.SetDCCStatus{
 		Token:     cmd.Args.Token,
 		Status:    status,

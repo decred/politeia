@@ -476,16 +476,12 @@ func (p *politeiawww) issuanceDCCUser(userid, sponsorUserID string, domain, cont
 	}
 
 	if nominatedUser == nil {
-		return www.UserError{
-			ErrorCode: www.ErrorStatusUserNotFound,
-		}
+		return err
 	}
 
 	nomineeUserID, err := uuid.Parse(userid)
 	if err != nil {
-		return www.UserError{
-			ErrorCode: www.ErrorStatusInvalidUUID,
-		}
+		return err
 	}
 	uu := user.UpdateCMSUser{
 		ID:             nomineeUserID,
@@ -531,9 +527,7 @@ func (p *politeiawww) revokeDCCUser(userid string) error {
 	// Do full userdb update and reject user creds
 	nomineeUserID, err := uuid.Parse(userid)
 	if err != nil {
-		return www.UserError{
-			ErrorCode: www.ErrorStatusInvalidUUID,
-		}
+		return err
 	}
 	uu := user.UpdateCMSUser{
 		ID:             nomineeUserID,

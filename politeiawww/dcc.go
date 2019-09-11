@@ -911,17 +911,23 @@ func (p *politeiawww) getDCCComments(token string) ([]www.Comment, error) {
 	return comments, nil
 }
 
-func (p *politeiawww) processSetDCCStatus(ad cms.SetDCCStatus, u *user.User) (*cms.SetDCCStatusReply, error) {
+func (p *politeiawww) processSetDCCStatus(sds cms.SetDCCStatus, u *user.User) (*cms.SetDCCStatusReply, error) {
 	log.Tracef("processSetDCCStatus: %v", u.PublicKey())
 
+	// Ensure the provided public key is the user's active key.
+	if sds.PublicKey != u.PublicKey() {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSigningKey,
+		}
+	}
 	// Validate signature
-	msg := fmt.Sprintf("%v%v%v", ad.Token, int(ad.Status), ad.Reason)
-	err := validateSignature(ad.PublicKey, ad.Signature, msg)
+	msg := fmt.Sprintf("%v%v%v", sds.Token, int(sds.Status), sds.Reason)
+	err := validateSignature(sds.PublicKey, sds.Signature, msg)
 	if err != nil {
 		return nil, err
 	}
 
-	dcc, err := p.getDCC(ad.Token)
+	dcc, err := p.getDCC(sds.Token)
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
 			err = www.UserError{
@@ -931,7 +937,7 @@ func (p *politeiawww) processSetDCCStatus(ad cms.SetDCCStatus, u *user.User) (*c
 		return nil, err
 	}
 
-	err = validateDCCStatusTransition(dcc.Status, ad.Status)
+	err = validateDCCStatusTransition(dcc.Status, sds.Status, sds.Reason)
 	if err != nil {
 		return nil, err
 	}
@@ -941,9 +947,9 @@ func (p *politeiawww) processSetDCCStatus(ad cms.SetDCCStatus, u *user.User) (*c
 		Version:        backendDCCStatusChangeVersion,
 		AdminPublicKey: u.PublicKey(),
 		Timestamp:      time.Now().Unix(),
-		NewStatus:      ad.Status,
-		Reason:         ad.Reason,
-		Signature:      ad.Signature,
+		NewStatus:      sds.Status,
+		Reason:         sds.Reason,
+		Signature:      sds.Signature,
 	}
 	blob, err := encodeBackendDCCStatusChange(c)
 	if err != nil {
@@ -957,7 +963,7 @@ func (p *politeiawww) processSetDCCStatus(ad cms.SetDCCStatus, u *user.User) (*c
 
 	pdCommand := pd.UpdateVettedMetadata{
 		Challenge: hex.EncodeToString(challenge),
-		Token:     ad.Token,
+		Token:     sds.Token,
 		MDAppend: []pd.MetadataStream{
 			{
 				ID:      mdStreamDCCStatusChanges,
@@ -966,7 +972,8 @@ func (p *politeiawww) processSetDCCStatus(ad cms.SetDCCStatus, u *user.User) (*c
 		},
 	}
 
-	responseBody, err := p.makeRequest(http.MethodPost, pd.UpdateVettedMetadataRoute, pdCommand)
+	responseBody, err := p.makeRequest(http.MethodPost,
+		pd.UpdateVettedMetadataRoute, pdCommand)
 	if err != nil {
 		return nil, err
 	}
@@ -984,12 +991,12 @@ func (p *politeiawww) processSetDCCStatus(ad cms.SetDCCStatus, u *user.User) (*c
 		return nil, err
 	}
 
-	dbDCC, err := p.cmsDB.DCCByToken(ad.Token)
+	dbDCC, err := p.cmsDB.DCCByToken(sds.Token)
 	if err != nil {
 		return nil, err
 	}
-	dbDCC.Status = ad.Status
-	dbDCC.StatusChangeReason = ad.Reason
+	dbDCC.Status = sds.Status
+	dbDCC.StatusChangeReason = sds.Reason
 
 	// Update cmsdb
 	err = p.cmsDB.UpdateDCC(dbDCC)
@@ -998,16 +1005,16 @@ func (p *politeiawww) processSetDCCStatus(ad cms.SetDCCStatus, u *user.User) (*c
 	}
 
 	// Only do further processing if it was an approved DCC
-	if ad.Status == cms.DCCStatusApproved {
-		if dcc.DCC.Type == cms.DCCTypeIssuance {
+	if sds.Status == cms.DCCStatusApproved {
+		switch dcc.DCC.Type {
+		case cms.DCCTypeIssuance:
 			// Do DCC user Issuance processing
-			err := p.issuanceDCCUser(dcc.DCC.NomineeUserID, u.ID.String(), int(dcc.DCC.Domain), int(dcc.DCC.ContractorType))
+			err := p.issuanceDCCUser(dcc.DCC.NomineeUserID, u.ID.String(),
+				int(dcc.DCC.Domain), int(dcc.DCC.ContractorType))
 			if err != nil {
 				return nil, err
 			}
-			return &cms.SetDCCStatusReply{}, nil
-
-		} else if dcc.DCC.Type == cms.DCCTypeRevocation {
+		case cms.DCCTypeRevocation:
 			// Do DCC user Revocation processing
 			err = p.revokeDCCUser(dcc.DCC.NomineeUserID)
 			if err != nil {
@@ -1019,7 +1026,7 @@ func (p *politeiawww) processSetDCCStatus(ad cms.SetDCCStatus, u *user.User) (*c
 	return &cms.SetDCCStatusReply{}, nil
 }
 
-func validateDCCStatusTransition(oldStatus cms.DCCStatusT, newStatus cms.DCCStatusT) error {
+func validateDCCStatusTransition(oldStatus cms.DCCStatusT, newStatus cms.DCCStatusT, reason string) error {
 	validStatuses, ok := validDCCStatusTransitions[oldStatus]
 	if !ok {
 		log.Errorf("status not supported: %v", oldStatus)
@@ -1034,6 +1041,12 @@ func validateDCCStatusTransition(oldStatus cms.DCCStatusT, newStatus cms.DCCStat
 		}
 	}
 
+	if (newStatus == cms.DCCStatusApproved ||
+		newStatus == cms.DCCStatusRejected) && reason == "" {
+		return www.UserError{
+			ErrorCode: cms.ErrorStatusReasonNotProvided,
+		}
+	}
 	return nil
 }
 

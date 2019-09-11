@@ -660,7 +660,7 @@ type SupportOpposeDCCReply struct{}
 // SetDCCStatus is an admin request that updates the status of a DCC
 type SetDCCStatus struct {
 	Token     string     `json:"token"`     // Token of the DCC iss/rev
-	Reason    string     `json:"comment"`   // Reason for approval
+	Reason    string     `json:"reason"`    // Reason for approval
 	Status    DCCStatusT `json:"status"`    // New status
 	Signature string     `json:"signature"` // Client Signature of Token+Status+Reason
 	PublicKey string     `json:"publickey"` // Pubkey used for Signature
