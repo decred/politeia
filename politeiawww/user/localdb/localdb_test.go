@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func cleanup(t *testing.T, db *localdb, dataDir string) {
+func tearDownTestData(t *testing.T, db *localdb, dataDir string) {
 	t.Helper()
 
 	err := db.Close()
@@ -26,12 +26,12 @@ func cleanup(t *testing.T, db *localdb, dataDir string) {
 
 func TestSessionNew(t *testing.T) {
 	// Setup database
-	dataDir, err := ioutil.TempDir("", "politeiawww.test")
+	dataDir, err := ioutil.TempDir("", "politeiawww.user.localdb.test")
 	db, err := New(filepath.Join(dataDir, "localdb"))
 	if err != nil {
 		t.Fatalf("setup database: %v", err)
 	}
-	defer cleanup(t, db, dataDir)
+	defer tearDownTestData(t, db, dataDir)
 	s := user.Session{
 		ID:        uuid.New(),
 		UserID:    uuid.New(),
@@ -60,12 +60,12 @@ func TestSessionNew(t *testing.T) {
 
 func TestSessionExistsAlready(t *testing.T) {
 	// Setup database
-	dataDir, err := ioutil.TempDir("", "politeiawww.test")
+	dataDir, err := ioutil.TempDir("", "politeiawww.user.localdb.test")
 	db, err := New(filepath.Join(dataDir, "localdb"))
 	if err != nil {
 		t.Fatalf("setup database: %v", err)
 	}
-	defer cleanup(t, db, dataDir)
+	defer tearDownTestData(t, db, dataDir)
 	s := user.Session{
 		ID:        uuid.New(),
 		UserID:    uuid.New(),
@@ -85,12 +85,12 @@ func TestSessionExistsAlready(t *testing.T) {
 
 func TestSessionGetById(t *testing.T) {
 	// Setup database
-	dataDir, err := ioutil.TempDir("", "politeiawww.test")
+	dataDir, err := ioutil.TempDir("", "politeiawww.user.localdb.test")
 	db, err := New(filepath.Join(dataDir, "localdb"))
 	if err != nil {
 		t.Fatalf("setup database: %v", err)
 	}
-	defer cleanup(t, db, dataDir)
+	defer tearDownTestData(t, db, dataDir)
 	s := user.Session{
 		ID:        uuid.New(),
 		UserID:    uuid.New(),
@@ -115,19 +115,13 @@ func TestSessionGetById(t *testing.T) {
 
 func TestSessionGetByIdAndNoRecord(t *testing.T) {
 	// Setup database
-	dataDir, err := ioutil.TempDir("", "politeiawww.test")
+	dataDir, err := ioutil.TempDir("", "politeiawww.user.localdb.test")
 	db, err := New(filepath.Join(dataDir, "localdb"))
 	if err != nil {
 		t.Fatalf("setup database: %v", err)
 	}
-	defer cleanup(t, db, dataDir)
-	s := user.Session{
-		ID:        uuid.New(),
-		UserID:    uuid.New(),
-		CreatedAt: 3,
-		MaxAge:    4,
-	}
-	_, err = db.SessionGetById(s.ID)
+	defer tearDownTestData(t, db, dataDir)
+	_, err = db.SessionGetById(uuid.New())
 	if err != user.ErrSessionNotFound {
 		t.Errorf("got error: %v, want: %v", err, user.ErrSessionNotFound)
 	}
@@ -135,12 +129,12 @@ func TestSessionGetByIdAndNoRecord(t *testing.T) {
 
 func TestSessionDeleteById(t *testing.T) {
 	// Setup database
-	dataDir, err := ioutil.TempDir("", "politeiawww.test")
+	dataDir, err := ioutil.TempDir("", "politeiawww.user.localdb.test")
 	db, err := New(filepath.Join(dataDir, "localdb"))
 	if err != nil {
 		t.Fatalf("setup database: %v", err)
 	}
-	defer cleanup(t, db, dataDir)
+	defer tearDownTestData(t, db, dataDir)
 	sa := []user.Session{
 		{ID: uuid.New(),
 			UserID:    uuid.New(),
@@ -158,7 +152,7 @@ func TestSessionDeleteById(t *testing.T) {
 	for _, s := range sa {
 		err = db.SessionNew(s)
 		if err != nil {
-			t.Error("SessionNew() returned an error")
+			t.Errorf("SessionNew() returned an error for: %v", s)
 		}
 	}
 	err = db.SessionDeleteById(sa[1].ID)
@@ -184,5 +178,75 @@ func TestSessionDeleteById(t *testing.T) {
 	}
 	if *sessionInDB != sa[2] {
 		t.Errorf("got session: %v, want: %v", sessionInDB, sa[2])
+	}
+}
+
+func TestIsUserRecordWithSessionKey(t *testing.T) {
+	result := isUserRecord(sessionPrefix + uuid.New().String())
+	if result != false {
+		t.Error("isUserRecord() confuses User and Session records")
+	}
+}
+
+func TestSessionsDeleteByUserId(t *testing.T) {
+	// Setup database
+	dataDir, err := ioutil.TempDir("", "politeiawww.user.localdb.test")
+	db, err := New(filepath.Join(dataDir, "localdb"))
+	if err != nil {
+		t.Fatalf("setup database: %v", err)
+	}
+	defer tearDownTestData(t, db, dataDir)
+	remove := uuid.New()
+	keep := uuid.New()
+	sa := []user.Session{
+		{ID: uuid.New(),
+			UserID:    keep,
+			CreatedAt: 5,
+			MaxAge:    6},
+		{ID: uuid.New(),
+			UserID:    remove,
+			CreatedAt: 7,
+			MaxAge:    8},
+		{ID: uuid.New(),
+			UserID:    keep,
+			CreatedAt: 9,
+			MaxAge:    10},
+		{ID: uuid.New(),
+			UserID:    remove,
+			CreatedAt: 11,
+			MaxAge:    12},
+		{ID: uuid.New(),
+			UserID:    keep,
+			CreatedAt: 13,
+			MaxAge:    14},
+	}
+	for _, s := range sa {
+		err = db.SessionNew(s)
+		if err != nil {
+			t.Errorf("SessionNew() returned an error for: %v", s)
+		}
+	}
+	err = db.SessionsDeleteByUserId(remove)
+	if err != nil {
+		t.Errorf("SessionsDeleteByUserId() returned an error: %v", err)
+	}
+	// make sure the right session got deleted
+	removed := []int{1, 3}
+	for _, idx := range removed {
+		_, err := db.SessionGetById(sa[idx].ID)
+		if err != user.ErrSessionNotFound {
+			t.Errorf("index: %v, got error: %v, want: %v", idx, err, user.ErrSessionNotFound)
+		}
+	}
+	// make sure the other sessions are still in place
+	kept := []int{0, 2, 4}
+	for _, idx := range kept {
+		sessionInDB, err := db.SessionGetById(sa[idx].ID)
+		if err != nil {
+			t.Errorf("index: %v, SessionGetById() returned an error: %v", idx, err)
+		}
+		if *sessionInDB != sa[idx] {
+			t.Errorf("index: %v, got session: %v, want: %v", idx, sessionInDB, sa[idx])
+		}
 	}
 }
