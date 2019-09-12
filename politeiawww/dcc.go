@@ -56,6 +56,17 @@ var (
 		cms.ContractorTypeNominee: true,
 		cms.ContractorTypeInvalid: true,
 	}
+
+	// This covers the possible valid status transitions for any dcc.
+	// Currentyly, this only applies to active DCC's.  In the future there will
+	// be more options with the addition of Debated DCC's.
+	validDCCStatusTransitions = map[cms.DCCStatusT][]cms.DCCStatusT{
+		// Active DCC's may only be approved or rejected.
+		cms.DCCStatusActive: {
+			cms.DCCStatusApproved,
+			cms.DCCStatusRejected,
+		},
+	}
 )
 
 // createSponsorStatementRegex generates a regex based on the policy supplied for
@@ -306,7 +317,8 @@ func (p *politeiawww) validateDCC(nd cms.NewDCC, u *user.User) error {
 			ErrorCode: cms.ErrorStatusInvalidDCCNominee,
 		}
 	}
-	if nomineeUser.ContractorType != cms.ContractorTypeNominee {
+	if nomineeUser.ContractorType != cms.ContractorTypeNominee &&
+		dcc.Type == cms.DCCTypeIssuance {
 		return www.UserError{
 			ErrorCode: cms.ErrorStatusInvalidDCCNominee,
 		}
@@ -406,7 +418,7 @@ type backendDCCStatusChange struct {
 	NewStatus      cms.DCCStatusT `json:"newstatus"`      // Status
 	Reason         string         `json:"reason"`         // Reason
 	Timestamp      int64          `json:"timestamp"`      // Timestamp of the change
-	Signature      string         `json:"signature"`      // Signature of NewStatus + Reason
+	Signature      string         `json:"signature"`      // Signature of Token + NewStatus + Reason
 }
 
 // backendDCCSupportOppositionMetadata represents the general metadata for a DCC
@@ -898,4 +910,153 @@ func (p *politeiawww) getDCCComments(token string) ([]www.Comment, error) {
 	}
 
 	return comments, nil
+}
+
+func (p *politeiawww) processSetDCCStatus(sds cms.SetDCCStatus, u *user.User) (*cms.SetDCCStatusReply, error) {
+	log.Tracef("processSetDCCStatus: %v", u.PublicKey())
+
+	// Ensure the provided public key is the user's active key.
+	if sds.PublicKey != u.PublicKey() {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSigningKey,
+		}
+	}
+	// Validate signature
+	msg := fmt.Sprintf("%v%v%v", sds.Token, int(sds.Status), sds.Reason)
+	err := validateSignature(sds.PublicKey, sds.Signature, msg)
+	if err != nil {
+		return nil, err
+	}
+
+	dcc, err := p.getDCC(sds.Token)
+	if err != nil {
+		if err == cache.ErrRecordNotFound {
+			err = www.UserError{
+				ErrorCode: cms.ErrorStatusDCCNotFound,
+			}
+		}
+		return nil, err
+	}
+
+	err = validateDCCStatusTransition(dcc.Status, sds.Status, sds.Reason)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create the change record.
+	c := backendDCCStatusChange{
+		Version:        backendDCCStatusChangeVersion,
+		AdminPublicKey: u.PublicKey(),
+		Timestamp:      time.Now().Unix(),
+		NewStatus:      sds.Status,
+		Reason:         sds.Reason,
+		Signature:      sds.Signature,
+	}
+	blob, err := encodeBackendDCCStatusChange(c)
+	if err != nil {
+		return nil, err
+	}
+
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+
+	pdCommand := pd.UpdateVettedMetadata{
+		Challenge: hex.EncodeToString(challenge),
+		Token:     sds.Token,
+		MDAppend: []pd.MetadataStream{
+			{
+				ID:      mdStreamDCCStatusChanges,
+				Payload: string(blob),
+			},
+		},
+	}
+
+	responseBody, err := p.makeRequest(http.MethodPost,
+		pd.UpdateVettedMetadataRoute, pdCommand)
+	if err != nil {
+		return nil, err
+	}
+
+	var pdReply pd.UpdateVettedMetadataReply
+	err = json.Unmarshal(responseBody, &pdReply)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal UpdateVettedMetadataReply: %v",
+			err)
+	}
+
+	// Verify the UpdateVettedMetadata challenge.
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, pdReply.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	dbDCC, err := p.cmsDB.DCCByToken(sds.Token)
+	if err != nil {
+		return nil, err
+	}
+	dbDCC.Status = sds.Status
+	dbDCC.StatusChangeReason = sds.Reason
+
+	// Update cmsdb
+	err = p.cmsDB.UpdateDCC(dbDCC)
+	if err != nil {
+		return nil, err
+	}
+
+	// Only do further processing if it was an approved DCC
+	if sds.Status == cms.DCCStatusApproved {
+		switch dcc.DCC.Type {
+		case cms.DCCTypeIssuance:
+			// Do DCC user Issuance processing
+			err := p.issuanceDCCUser(dcc.DCC.NomineeUserID, u.ID.String(),
+				int(dcc.DCC.Domain), int(dcc.DCC.ContractorType))
+			if err != nil {
+				return nil, err
+			}
+		case cms.DCCTypeRevocation:
+			// Do DCC user Revocation processing
+			err = p.revokeDCCUser(dcc.DCC.NomineeUserID)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return &cms.SetDCCStatusReply{}, nil
+}
+
+func validateDCCStatusTransition(oldStatus cms.DCCStatusT, newStatus cms.DCCStatusT, reason string) error {
+	validStatuses, ok := validDCCStatusTransitions[oldStatus]
+	if !ok {
+		log.Debugf("status not supported: %v", oldStatus)
+		return www.UserError{
+			ErrorCode: cms.ErrorStatusInvalidDCCStatusTransition,
+		}
+	}
+
+	if !dccStatusInSlice(validStatuses, newStatus) {
+		return www.UserError{
+			ErrorCode: cms.ErrorStatusInvalidDCCStatusTransition,
+		}
+	}
+
+	if (newStatus == cms.DCCStatusApproved ||
+		newStatus == cms.DCCStatusRejected) && reason == "" {
+		return www.UserError{
+			ErrorCode: cms.ErrorStatusReasonNotProvided,
+		}
+	}
+	return nil
+}
+
+func dccStatusInSlice(arr []cms.DCCStatusT, status cms.DCCStatusT) bool {
+	for _, s := range arr {
+		if status == s {
+			return true
+		}
+	}
+
+	return false
 }

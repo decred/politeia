@@ -30,6 +30,7 @@ const (
 	RouteSupportOpposeDCC    = "/dcc/supportoppose"
 	RouteNewCommentDCC       = "/dcc/newcomment"
 	RouteDCCComments         = "/dcc/{token:[A-z0-9]{64}}/comments"
+	RouteSetDCCStatus        = "/dcc/{token:[A-z0-9]{64}}/status"
 	RouteAdminInvoices       = "/admin/invoices"
 	RouteAdminUserInvoices   = "/admin/userinvoices"
 	RouteGeneratePayouts     = "/admin/generatepayouts"
@@ -69,6 +70,7 @@ const (
 	ContractorTypeSupervisor    ContractorTypeT = 2 // Supervisor contractor
 	ContractorTypeSubContractor ContractorTypeT = 3 // SubContractor
 	ContractorTypeNominee       ContractorTypeT = 4 // Nominated DCC user
+	ContractorTypeRevoked       ContractorTypeT = 5 // Revoked CMS User
 
 	// Payment information status types
 	PaymentStatusInvalid  PaymentStatusT = 0 // Invalid status
@@ -81,8 +83,10 @@ const (
 	DCCTypeRevocation DCCTypeT = 2 // Revocation DCC type
 
 	// DCC status types
-	DCCStatusInvalid DCCStatusT = 0 // Invalid issuance/revocation status
-	DCCStatusActive  DCCStatusT = 1 // Currently active issuance/revocation (awaiting sponsors)
+	DCCStatusInvalid  DCCStatusT = 0 // Invalid issuance/revocation status
+	DCCStatusActive   DCCStatusT = 1 // Currently active issuance/revocation (awaiting sponsors)
+	DCCStatusApproved DCCStatusT = 2 // Fully approved DCC proposal
+	DCCStatusRejected DCCStatusT = 3 // Rejected DCC proposal
 
 	InvoiceInputVersion = 1
 
@@ -652,3 +656,15 @@ type SupportOpposeDCC struct {
 
 // SupportOpposeDCCReply returns an empty response when successful.
 type SupportOpposeDCCReply struct{}
+
+// SetDCCStatus is an admin request that updates the status of a DCC
+type SetDCCStatus struct {
+	Token     string     `json:"token"`     // Token of the DCC iss/rev
+	Reason    string     `json:"reason"`    // Reason for approval
+	Status    DCCStatusT `json:"status"`    // New status
+	Signature string     `json:"signature"` // Client Signature of Token+Status+Reason
+	PublicKey string     `json:"publickey"` // Pubkey used for Signature
+}
+
+// SetDCCStatusReply returns an empty response when successful.
+type SetDCCStatusReply struct{}
