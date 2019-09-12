@@ -9,6 +9,7 @@ import (
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/google/uuid"
 	"github.com/syndtr/goleveldb/leveldb"
+	"github.com/syndtr/goleveldb/leveldb/util"
 )
 
 const (
@@ -17,6 +18,7 @@ const (
 
 	UserVersion    uint32 = 1
 	UserVersionKey        = "userversion"
+	sessionPrefix         = "pius::"
 )
 
 var (
@@ -42,7 +44,7 @@ type Version struct {
 // and false otherwise. This is helpful when iterating the user records
 // because the DB contains some non-user records.
 func isUserRecord(key string) bool {
-	return key != UserVersionKey && key != LastPaywallAddressIndex
+	return key != UserVersionKey && key != LastPaywallAddressIndex && !strings.HasPrefix(key, sessionPrefix)
 }
 
 // Store new user.
@@ -388,28 +390,111 @@ func (l *localdb) Close() error {
 //
 // SessionNew satisfies the Database interface.
 func (l *localdb) SessionNew(s user.Session) error {
-	return nil
+	l.Lock()
+	defer l.Unlock()
+
+	if l.shutdown {
+		return user.ErrShutdown
+	}
+	log.Debugf("SessionNew: %v", s)
+
+	key := []byte(sessionPrefix + s.ID.String())
+	// Make sure user session does not exist
+	ok, err := l.userdb.Has(key, nil)
+	if err != nil {
+		return err
+	} else if ok {
+		return user.ErrSessionExists
+	}
+
+	payload, err := user.EncodeSession(s)
+	if err != nil {
+		return err
+	}
+
+	return l.userdb.Put(key, payload, nil)
 }
 
 // Get a session by its id if present in the database.
 //
 // SessionGetById satisfies the Database interface.
-func (l *localdb) SessionGetById(s uuid.UUID) (*user.Session, error) {
-	return nil, nil
+func (l *localdb) SessionGetById(sid uuid.UUID) (*user.Session, error) {
+	l.RLock()
+	defer l.RUnlock()
+
+	if l.shutdown {
+		return nil, user.ErrShutdown
+	}
+	log.Debugf("SessionGetById: %v", sid)
+
+	payload, err := l.userdb.Get([]byte(sessionPrefix+sid.String()), nil)
+	if err == leveldb.ErrNotFound {
+		return nil, user.ErrSessionNotFound
+	} else if err != nil {
+		return nil, err
+	}
+
+	us, err := user.DecodeSession(payload)
+	if err != nil {
+		return nil, err
+	}
+
+	return us, nil
 }
 
 // Delete the session with the given id.
 //
 // SessionDeleteById satisfies the Database interface.
-func (l *localdb) SessionDeleteById(s uuid.UUID) error {
+func (l *localdb) SessionDeleteById(sid uuid.UUID) error {
+	l.RLock()
+	defer l.RUnlock()
+
+	if l.shutdown {
+		return user.ErrShutdown
+	}
+	log.Debugf("SessionDeleteById: %v", sid)
+
+	err := l.userdb.Delete([]byte(sessionPrefix+sid.String()), nil)
+	if err == leveldb.ErrNotFound {
+		return user.ErrSessionNotFound
+	} else if err != nil {
+		return err
+	}
+
 	return nil
 }
 
 // Delete all sessions for the given user id.
 //
 // SessionsDeleteByUserId satisfies the Database interface.
-func (l *localdb) SessionsDeleteByUserId(u uuid.UUID) error {
-	return nil
+func (l *localdb) SessionsDeleteByUserId(uid uuid.UUID) error {
+	l.RLock()
+	defer l.RUnlock()
+
+	if l.shutdown {
+		return user.ErrShutdown
+	}
+
+	log.Debugf("SessionsDeleteBySessionId: %v", uid)
+
+	batch := new(leveldb.Batch)
+	iter := l.userdb.NewIterator(util.BytesPrefix([]byte(sessionPrefix)), nil)
+	for iter.Next() {
+		key := iter.Key()
+		value := iter.Value()
+
+		s, err := user.DecodeSession(value)
+		if err != nil {
+			return err
+		}
+
+		if s.UserID == uid {
+			batch.Delete(key)
+		}
+	}
+	iter.Release()
+
+	return l.userdb.Write(batch, nil)
 }
 
 // New creates a new localdb instance.
