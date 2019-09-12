@@ -410,26 +410,60 @@ func (c *ctx) eligibleVotes(vrr *v1.VoteResultsReply, ctres *pb.CommittedTickets
 	return eligible, nil
 }
 
-func (c *ctx) _inventory() (*v1.ActiveVoteReply, error) {
-	responseBody, err := c.makeRequest("GET", v1.RouteActiveVote, nil)
+// activeVoteTokens retrieves the list of tokens of proposals that are
+// actively being voted on.
+func (c *ctx) activeVoteTokens() ([]string, error) {
+	responseBody, err := c.makeRequest("GET", v1.RouteTokenInventory, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var ar v1.ActiveVoteReply
-	err = json.Unmarshal(responseBody, &ar)
+	var ti v1.TokenInventoryReply
+	err = json.Unmarshal(responseBody, &ti)
 	if err != nil {
-		return nil, fmt.Errorf("Could not unmarshal ActiveVoteReply: %v",
+		return nil, fmt.Errorf("Could not unmarshal TokenInventoryReply: %v",
 			err)
 	}
 
-	return &ar, nil
+	return ti.Active, nil
+}
+
+func (c *ctx) batchProposals(tokens []string) ([]v1.ProposalRecord, error) {
+	bp := v1.BatchProposals{
+		Tokens: tokens,
+	}
+
+	responseBody, err := c.makeRequest("POST", v1.RouteBatchProposals, bp)
+	if err != nil {
+		return nil, err
+	}
+
+	var bpr v1.BatchProposalsReply
+	err = json.Unmarshal(responseBody, &bpr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal "+
+			"BatchProposalsReply: %v", err)
+	}
+
+	return bpr.Proposals, nil
 }
 
 func (c *ctx) inventory() error {
-	i, err := c._inventory()
+	tokens, err := c.activeVoteTokens()
 	if err != nil {
 		return err
+	}
+
+	proposalRecords, err := c.batchProposals(tokens)
+	if err != nil {
+		log.Errorf("batchprop error: %v",
+			err)
+		return err
+	}
+
+	tokenToProposalName := make(map[string]string)
+	for _, proposal := range proposalRecords {
+		tokenToProposalName[proposal.CensorshipRecord.Token] = proposal.Name
 	}
 
 	// Get latest block
@@ -438,14 +472,11 @@ func (c *ctx) inventory() error {
 		return err
 	}
 	latestBlock := ar.CurrentBlockHeight
-	//fmt.Printf("Current block: %v\n", latestBlock)
 
-	for _, v := range i.Votes {
-		// Make sure we have a CensorshipRecord
-		if v.Proposal.CensorshipRecord.Token == "" {
-			// This should not happen
-			log.Debugf("skipping empty CensorshipRecord")
-			continue
+	for _, token := range tokens {
+		v, err := c._tally(token)
+		if err != nil {
+			return err
 		}
 
 		// Make sure we have valid vote bits
@@ -453,7 +484,7 @@ func (c *ctx) inventory() error {
 			v.StartVote.Vote.Options == nil {
 			// This should not happen
 			log.Errorf("invalid vote bits: %v",
-				v.Proposal.CensorshipRecord.Token)
+				token)
 			continue
 		}
 
@@ -491,21 +522,11 @@ func (c *ctx) inventory() error {
 			fmt.Printf("No eligible tickets: %v\n", v.StartVote.Vote.Token)
 		}
 
-		// _tally provides the eligible tickets snapshot as well as a list of
-		// the votes that have already been cast. Use these to filter out the
-		// tickets that have already voted.
-		vrr, err := c._tally(v.StartVote.Vote.Token)
-		if err != nil {
-			fmt.Printf("Failed to obtain voting results for %v: %v\n",
-				v.StartVote.Vote.Token, err)
-			continue
-		}
-
 		// Filter out tickets that have already voted or are otherwise
 		// ineligible for the wallet to sign.  Note that tickets that have
 		// already voted, but have an invalid signature are included so they
 		// may be resubmitted.
-		eligible, err := c.eligibleVotes(vrr, ctres)
+		eligible, err := c.eligibleVotes(v, ctres)
 		if err != nil {
 			fmt.Printf("Eligible vote filtering error: %v %v\n",
 				v.StartVote.Vote.Token, err)
@@ -514,7 +535,7 @@ func (c *ctx) inventory() error {
 
 		// Display vote bits
 		fmt.Printf("Vote: %v\n", v.StartVote.Vote.Token)
-		fmt.Printf("  Proposal        : %v\n", v.Proposal.Name)
+		fmt.Printf("  Proposal        : %v\n", tokenToProposalName[token])
 		fmt.Printf("  Start block     : %v\n", v.StartVoteReply.StartBlockHeight)
 		fmt.Printf("  End block       : %v\n", v.StartVoteReply.EndHeight)
 		fmt.Printf("  Mask            : %v\n", v.StartVote.Vote.Mask)
