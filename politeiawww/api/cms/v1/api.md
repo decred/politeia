@@ -703,7 +703,11 @@ Reply:
 
 ### `Edit user`
 
-Allows a user to submit updates to their cms user information.
+Allows a user or administrator to submit updates to their CMS user information.
+Users are allowed to update all fields except domain, contractor type and 
+supervisorid.  These fields require administrator access to update.  Once DCC
+goes into production these fields will primarily be updated upon approved
+DCC issuance.
 
 **Route:** `POST /v1/user/edit`
 

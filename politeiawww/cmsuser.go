@@ -298,11 +298,9 @@ func (p *politeiawww) processEditCMSUser(ecu cms.EditUser, u *user.User) (*cms.E
 		}
 	}
 
-	userID, err := uuid.Parse(ecu.UserID)
+	editUser, err := p.userByIDStr(ecu.UserID)
 	if err != nil {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusInvalidUUID,
-		}
+		return nil, err
 	}
 
 	err = validateUserInformation(ecu)
@@ -311,7 +309,7 @@ func (p *politeiawww) processEditCMSUser(ecu cms.EditUser, u *user.User) (*cms.E
 	}
 
 	uu := user.UpdateCMSUser{
-		ID: userID,
+		ID: editUser.ID,
 	}
 
 	// Only allow Domain, ContractorType and SupervisorID to be updated by an
