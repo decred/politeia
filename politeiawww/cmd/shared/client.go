@@ -1701,7 +1701,7 @@ func (c *Client) CMSUserDetails(userID string) (*cms.UserDetailsReply, error) {
 	return &uir, nil
 }
 
-// CMSEditUser returns the current user's information.
+// CMSEditUser edits the current user's information.
 func (c *Client) CMSEditUser(uui cms.EditUser) (*cms.EditUserReply, error) {
 	responseBody, err := c.makeRequest("POST", v1.RouteEditUser,
 		uui)
@@ -1713,6 +1713,30 @@ func (c *Client) CMSEditUser(uui cms.EditUser) (*cms.EditUserReply, error) {
 	err = json.Unmarshal(responseBody, &eur)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal CMSEditUserReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(eur)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &eur, nil
+}
+
+// CMSManageUser updates the given user's information.
+func (c *Client) CMSManageUser(uui cms.ManageUser) (*cms.ManageUserReply, error) {
+	responseBody, err := c.makeRequest("POST", v1.RouteManageUser,
+		uui)
+	if err != nil {
+		return nil, err
+	}
+
+	var eur cms.ManageUserReply
+	err = json.Unmarshal(responseBody, &eur)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal CMSManageUserReply: %v", err)
 	}
 
 	if c.cfg.Verbose {

@@ -703,11 +703,7 @@ Reply:
 
 ### `Edit user`
 
-Allows a user or administrator to submit updates to their CMS user information.
-Users are allowed to update all fields except domain, contractor type and 
-supervisorid.  These fields require administrator access to update.  Once DCC
-goes into production these fields will primarily be updated upon approved
-DCC issuance.
+Allows a user to submit updates to their cms user information.
 
 **Route:** `POST /v1/user/edit`
 
@@ -715,14 +711,50 @@ DCC issuance.
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
-| userid | string | UserID string of the user to be edited. | yes |
-| domain | int | The Domain Type that the user currently has | no |
 | githubname | string | The Github Name tied to the user. | no |
 | matrixname | string | The Matrix Name tied to the user. | no |
-| contractortype | int | The contractor type of the user. | no |
 | contractorname | string | The contractors IRL name/identity. | no |
 | contractorlocation | string | Current general locaiton of the contractor. | no |
 | contractorcontact | string | Email or contact information of the contractor. | no |
+
+**Results:**
+
+| | Type | Description |
+|-|-|-|
+
+**Example**
+
+Request:
+
+```json
+{
+  "githubname": "smobs",
+  "matrixname": "smobs:decred.org",
+  "contractorname": "Steve Mobs",
+  "contractorlocation": "Cupertino, CA",
+  "contractorcontact": "smobs@apple.com",
+}
+```
+
+Reply:
+
+```json
+{}
+```
+
+### `Manage CMS user`
+
+Edits a user's details. This call requires admin privileges.
+
+**Route:** `POST /v1/user/manage`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| userid | string | UserID string of the user to be edited. | yes |
+| domain | int | The Domain Type that the user currently has | no |
+| contractortype | int | The contractor type of the user. | no |
 | supervisoruserid | string | The userid of the user (if the user is a sub contractor. ) | no |
 
 **Results:**
@@ -737,12 +769,7 @@ Request:
 ```json
 {
   "domain": 1,
-  "githubname": "smobs",
-  "matrixname": "smobs:decred.org",
   "contractortype": 1,
-  "contractorname": "Steve Mobs",
-  "contractorlocation": "Cupertino, CA",
-  "contractorcontact": "smobs@apple.com",
   "supervisoruserid": "",
 }
 ```

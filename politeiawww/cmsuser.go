@@ -291,51 +291,20 @@ func (p *politeiawww) processRegisterUser(u cms.RegisterUser) (*cms.RegisterUser
 func (p *politeiawww) processEditCMSUser(ecu cms.EditUser, u *user.User) (*cms.EditUserReply, error) {
 	reply := cms.EditUserReply{}
 
-	// Return error in case the user isn't the admin or the current user.
-	if !u.Admin && u.ID.String() != ecu.UserID {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusUserActionNotAllowed,
-		}
-	}
-
-	editUser, err := p.userByIDStr(ecu.UserID)
-	if err != nil {
-		return nil, err
-	}
-
-	err = validateUserInformation(ecu)
+	err := validateUserInformation(ecu)
 	if err != nil {
 		return nil, err
 	}
 
 	uu := user.UpdateCMSUser{
-		ID: editUser.ID,
+		ID: u.ID,
 	}
 
-	// Only allow Domain, ContractorType and SupervisorID to be updated by an
-	// administrator.
-	if !u.Admin && (ecu.Domain != 0 ||
-		ecu.ContractorType != 0 ||
-		ecu.SupervisorUserID != "") {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusUserActionNotAllowed,
-		}
-	}
-
-	// Update a cms user with the provided information.
-	// Only set fields in dbUserInfo if they are set in the request,
-	// otherwise use the existing fields from the above db request.
-	if ecu.Domain != 0 {
-		uu.Domain = int(ecu.Domain)
-	}
 	if ecu.GitHubName != "" {
 		uu.GitHubName = ecu.GitHubName
 	}
 	if ecu.MatrixName != "" {
 		uu.MatrixName = ecu.MatrixName
-	}
-	if ecu.ContractorType != 0 {
-		uu.ContractorType = int(ecu.ContractorType)
 	}
 	if ecu.ContractorName != "" {
 		uu.ContractorName = ecu.ContractorName
@@ -345,9 +314,6 @@ func (p *politeiawww) processEditCMSUser(ecu cms.EditUser, u *user.User) (*cms.E
 	}
 	if ecu.ContractorContact != "" {
 		uu.ContractorContact = ecu.ContractorContact
-	}
-	if ecu.SupervisorUserID != "" {
-		uu.SupervisorUserID = ecu.SupervisorUserID
 	}
 	payload, err := user.EncodeUpdateCMSUser(uu)
 	if err != nil {
@@ -363,6 +329,41 @@ func (p *politeiawww) processEditCMSUser(ecu cms.EditUser, u *user.User) (*cms.E
 		return nil, err
 	}
 	return &reply, nil
+}
+
+func (p *politeiawww) processManageCMSUser(mu cms.ManageUser) (*cms.ManageUserReply, error) {
+	editUser, err := p.userByIDStr(mu.UserID)
+	if err != nil {
+		return nil, err
+	}
+
+	uu := user.UpdateCMSUser{
+		ID: editUser.ID,
+	}
+
+	if mu.Domain != 0 {
+		uu.Domain = int(mu.Domain)
+	}
+	if mu.ContractorType != 0 {
+		uu.ContractorType = int(mu.ContractorType)
+	}
+	if mu.SupervisorUserID != "" {
+		uu.SupervisorUserID = mu.SupervisorUserID
+	}
+	payload, err := user.EncodeUpdateCMSUser(uu)
+	if err != nil {
+		return nil, err
+	}
+	pc := user.PluginCommand{
+		ID:      user.CMSPluginID,
+		Command: user.CmdUpdateCMSUser,
+		Payload: string(payload),
+	}
+	_, err = p.db.PluginExec(pc)
+	if err != nil {
+		return nil, err
+	}
+	return &cms.ManageUserReply{}, nil
 }
 
 func (p *politeiawww) processCMSUserDetails(ud *cms.UserDetails, isCurrentUser bool, isAdmin bool) (*cms.UserDetailsReply, error) {
@@ -428,9 +429,6 @@ func validateUserInformation(userInfo cms.EditUser) error {
 				ErrorCode: cms.ErrorStatusInvoiceMalformedContact,
 			}
 		}
-	}
-	if userInfo.SupervisorUserID != "" {
-		// check if it is a valid user id, and that user is a super?
 	}
 	return nil
 }

@@ -567,21 +567,28 @@ type UserDetailsReply struct {
 	User User `json:"user"`
 }
 
-// EditUser edits a user's preferences.
+// EditUser edits a user's CMS information.
 type EditUser struct {
-	UserID             string          `json:"userid"`           // The ID of the user being Edited
-	Domain             DomainTypeT     `json:"domain,omitempty"` // Contractor domain
-	GitHubName         string          `json:"githubname,omitempty"`
-	MatrixName         string          `json:"matrixname,omitempty"`
-	ContractorType     ContractorTypeT `json:"contractortype,omitempty"`
-	ContractorName     string          `json:"contractorname,omitempty"`
-	ContractorLocation string          `json:"contractorlocation,omitempty"`
-	ContractorContact  string          `json:"contractorcontact,omitempty"`
-	SupervisorUserID   string          `json:"supervisoruserid,omitempty"`
+	GitHubName         string `json:"githubname,omitempty"`
+	MatrixName         string `json:"matrixname,omitempty"`
+	ContractorName     string `json:"contractorname,omitempty"`
+	ContractorLocation string `json:"contractorlocation,omitempty"`
+	ContractorContact  string `json:"contractorcontact,omitempty"`
 }
 
 // EditUserReply is the reply for the EditUser command.
 type EditUserReply struct{}
+
+// ManageUser performs the given action on a user.
+type ManageUser struct {
+	UserID           string          `json:"userid"`
+	Domain           DomainTypeT     `json:"domain,omitempty"`
+	ContractorType   ContractorTypeT `json:"contractortype,omitempty"`
+	SupervisorUserID string          `json:"supervisoruserid,omitempty"`
+}
+
+// ManageUserReply is the reply for the ManageUserReply command.
+type ManageUserReply struct{}
 
 // DCCInput contains all of the information concerning a DCC object that
 // will be submitted as a Record to the politeiad backend.

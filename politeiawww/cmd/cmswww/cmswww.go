@@ -72,7 +72,7 @@ type cmswww struct {
 	LineItemPayouts     LineItemPayoutsCmd       `command:"lineitempayouts" description:"(admin)  generate line item list for a given date range"`
 	Login               shared.LoginCmd          `command:"login" description:"(public) login to Politeia"`
 	Logout              shared.LogoutCmd         `command:"logout" description:"(public) logout of Politeia"`
-	ManageUser          shared.ManageUserCmd     `command:"manageuser" description:"(admin)  edit certain properties of the specified user"`
+	ManageUser          ManageUserCmd            `command:"manageuser" description:"(admin)  edit certain properties of the specified user"`
 	Me                  shared.MeCmd             `command:"me" description:"(user)   get user details for the logged in user"`
 	NewComment          shared.NewCommentCmd     `command:"newcomment" description:"(user)   create a new comment"`
 	NewDCC              NewDCCCmd                `command:"newdcc" description:"(user)   creates a new dcc proposal"`
