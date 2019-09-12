@@ -11,9 +11,9 @@ script:
   - (cd politeiad/cmd/politeia && go build)
   - (cd politeiad/cmd/politeia_verify && go build)
   - (cd politeiad/cmd/politeiaimport && go build)
-  - (cd politeiavoter && go build)
   - (cd politeiawww && go build)
   - (cd politeiawww/cmd/politeiawww_dataload && go build)
   - (cd politeiawww/cmd/politeiawww_dbutil && go build)
+  - (cd politeiawww/cmd/politeiavoter && go build)
   - (cd politeiawww/cmd/politeiawwwcli && go build)
   - ./goclean.sh
