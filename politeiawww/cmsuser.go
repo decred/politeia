@@ -289,6 +289,8 @@ func (p *politeiawww) processRegisterUser(u cms.RegisterUser) (*cms.RegisterUser
 }
 
 func (p *politeiawww) processEditCMSUser(ecu cms.EditUser, u *user.User) (*cms.EditUserReply, error) {
+	log.Tracef("processEditCMSUser: %v", u.Email)
+
 	reply := cms.EditUserReply{}
 
 	err := validateUserInformation(ecu)
@@ -332,6 +334,8 @@ func (p *politeiawww) processEditCMSUser(ecu cms.EditUser, u *user.User) (*cms.E
 }
 
 func (p *politeiawww) processManageCMSUser(mu cms.ManageUser) (*cms.ManageUserReply, error) {
+	log.Tracef("processManageCMSUser: %v", mu.UserID)
+
 	editUser, err := p.userByIDStr(mu.UserID)
 	if err != nil {
 		return nil, err

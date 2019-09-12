@@ -40,17 +40,18 @@ func (cmd *ManageUserCmd) Execute(args []string) error {
 	var userID string
 	// If it's an admin requesting, get the userID from the options or
 	// commandline entry.  Otherwise just request with the current user's ID.
-	if lr.IsAdmin {
-		reader := bufio.NewReader(os.Stdin)
-		if cmd.UserID == "" {
-			fmt.Print("Enter the id of the user to edit:")
-			userID, _ = reader.ReadString('\n')
-		} else {
-			userID = cmd.UserID
-		}
-	} else {
-		userID = lr.UserID
+	if !lr.IsAdmin {
+		return fmt.Errorf("must be an administrator to complete this request")
 	}
+
+	reader := bufio.NewReader(os.Stdin)
+	if cmd.UserID == "" {
+		fmt.Print("Enter the id of the user to edit: ")
+		userID, _ = reader.ReadString('\n')
+	} else {
+		userID = cmd.UserID
+	}
+
 	uir, err := client.CMSUserDetails(strings.TrimSpace(userID))
 	if err != nil {
 		return err
@@ -61,7 +62,6 @@ func (cmd *ManageUserCmd) Execute(args []string) error {
 		userInfo = uir.User
 	}
 	var domainType, contractorType int
-	reader := bufio.NewReader(os.Stdin)
 	if cmd.Domain == "" && lr.IsAdmin {
 		str := fmt.Sprintf("The current Domain setting is: \"%v\" Update?",
 			userInfo.Domain)
