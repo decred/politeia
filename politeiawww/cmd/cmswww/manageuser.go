@@ -15,11 +15,8 @@ import (
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
-// ManageUserCmd allows a user to edit their own information.  This also
-// allows administrators to update a user's information (and more importantly,
-// domain, contractor type and supervisorid).  Admin's will have to update this
-// information for existing users, but after the DCC is put into production
-// that information will be populated upon approved issuance.
+// ManageUserCmd allows an administrator to update Domain, ContractorType
+// and SupervisorID of a given user.
 type ManageUserCmd struct {
 	UserID             string `long:"userid" optional:"true" description:"User ID of the user to edit information"`
 	Domain             string `long:"domain" optional:"true" description:"Domain type: Developer, Marketing, Design, Documentation, Research, Community"`
@@ -27,7 +24,7 @@ type ManageUserCmd struct {
 	SupervisorUsername string `long:"supervisoruserid" optional:"true" description:"Supervisor Username"`
 }
 
-// Execute executes the cms update user information command.
+// Execute executes the cms manage user command.
 func (cmd *ManageUserCmd) Execute(args []string) error {
 	// Check for user identity
 	if cfg.Identity == nil {

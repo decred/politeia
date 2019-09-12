@@ -14,11 +14,8 @@ import (
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
-// EditUserCmd allows a user to edit their own information.  This also
-// allows administrators to update a user's information (and more importantly,
-// domain, contractor type and supervisorid).  Admin's will have to update this
-// information for existing users, but after the DCC is put into production
-// that information will be populated upon approved issuance.
+// EditUserCmd allows a user to edit their own contractor information, such as
+// GithubName, MatrixName, Contractor Name, Location and Contact.
 type EditUserCmd struct {
 	GitHubName         string `long:"githubname" optional:"true" description:"Github handle"`
 	MatrixName         string `long:"matrixname" optional:"true" description:"Matrix name"`
@@ -27,7 +24,7 @@ type EditUserCmd struct {
 	ContractorContact  string `long:"contact" optional:"true" description:"Contact information"`
 }
 
-// Execute executes the cms update user information command.
+// Execute executes the cms edit user information command.
 func (cmd *EditUserCmd) Execute(args []string) error {
 	// Check for user identity
 	if cfg.Identity == nil {
