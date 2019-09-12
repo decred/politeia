@@ -32,7 +32,7 @@ import (
 	"github.com/decred/dcrd/wire"
 	pb "github.com/decred/dcrwallet/rpc/walletrpc"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
-	"github.com/decred/politeia/politeiawww/api/www/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
 	"github.com/gorilla/schema"
 	"golang.org/x/crypto/ssh/terminal"
@@ -160,6 +160,10 @@ func newClient(cfg *config) (*ctx, error) {
 	tr := &http.Transport{
 		TLSClientConfig: tlsConfig,
 		Dial:            cfg.dial,
+	}
+	if cfg.Proxy != "" {
+		tr.MaxConnsPerHost = 1
+		tr.DisableKeepAlives = true
 	}
 	jar, err := cookiejar.New(&cookiejar.Options{
 		PublicSuffixList: publicsuffix.List,
