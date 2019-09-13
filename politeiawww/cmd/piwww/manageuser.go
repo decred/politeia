@@ -2,13 +2,14 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package shared
+package main
 
 import (
 	"fmt"
 	"strconv"
 
-	"github.com/decred/politeia/politeiawww/api/www/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
 // ManageUserCmd allows an admin to edit certain properties of the specified
@@ -62,7 +63,7 @@ func (cmd *ManageUserCmd) Execute(args []string) error {
 	}
 
 	// Print request details
-	err = PrintJSON(mu)
+	err = shared.PrintJSON(mu)
 	if err != nil {
 		return err
 	}
@@ -74,7 +75,7 @@ func (cmd *ManageUserCmd) Execute(args []string) error {
 	}
 
 	// Print response details
-	return PrintJSON(mur)
+	return shared.PrintJSON(mur)
 }
 
 // ManageUserHelpMsg is the output of the help command when 'edituser' is

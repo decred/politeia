@@ -18,7 +18,9 @@ import (
 // ManageUserCmd allows an administrator to update Domain, ContractorType
 // and SupervisorID of a given user.
 type ManageUserCmd struct {
-	UserID             string `long:"userid" optional:"true" description:"User ID of the user to edit information"`
+	Args struct {
+		UserID string `positional-arg-name:"month" required:"true"`
+	} `positional-args:"true" optional:"true"`
 	Domain             string `long:"domain" optional:"true" description:"Domain type: Developer, Marketing, Design, Documentation, Research, Community"`
 	ContractorType     string `long:"contractortype" optional:"true" description:"Contractor type: Direct, Sub, Super"`
 	SupervisorUsername string `long:"supervisoruserid" optional:"true" description:"Supervisor Username"`
@@ -34,20 +36,13 @@ func (cmd *ManageUserCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	var userID string
 	// If it's an admin requesting, get the userID from the options or
 	// commandline entry.  Otherwise just request with the current user's ID.
 	if !lr.IsAdmin {
 		return fmt.Errorf("must be an administrator to complete this request")
 	}
 
-	reader := bufio.NewReader(os.Stdin)
-	if cmd.UserID == "" {
-		fmt.Print("Enter the id of the user to edit: ")
-		userID, _ = reader.ReadString('\n')
-	} else {
-		userID = cmd.UserID
-	}
+	userID := cmd.Args.UserID
 
 	uir, err := client.CMSUserDetails(strings.TrimSpace(userID))
 	if err != nil {
@@ -60,6 +55,7 @@ func (cmd *ManageUserCmd) Execute(args []string) error {
 	}
 	var domainType, contractorType int
 	if cmd.Domain != "" || cmd.ContractorType != "" {
+		reader := bufio.NewReader(os.Stdin)
 		if cmd.Domain == "" {
 			str := fmt.Sprintf("The current Domain setting is: \"%v\" Update?",
 				userInfo.Domain)
@@ -127,6 +123,10 @@ func (cmd *ManageUserCmd) Execute(args []string) error {
 				}
 			}
 		}
+		fmt.Print("\nPlease carefully review your information and ensure it's " +
+			"correct. If not, press Ctrl + C to exit. Or, press Enter to continue " +
+			"your request.")
+		reader.ReadString('\n')
 	}
 	domainType, err = strconv.Atoi(strings.TrimSpace(cmd.Domain))
 	if err != nil {
@@ -164,10 +164,6 @@ func (cmd *ManageUserCmd) Execute(args []string) error {
 					userInfo.SupervisorUserID = cmd.SupervisorUsername
 				}
 	*/
-	fmt.Print("\nPlease carefully review your information and ensure it's " +
-		"correct. If not, press Ctrl + C to exit. Or, press Enter to continue " +
-		"your request.")
-	reader.ReadString('\n')
 
 	updateInfo := cms.ManageUser{
 		UserID:         lr.UserID,
@@ -217,3 +213,24 @@ func parseContractorType(contractorType string) (cms.ContractorTypeT, error) {
 		return cms.ContractorTypeInvalid, fmt.Errorf("invalid domain type")
 	}
 }
+
+const manageUserHelpMsg = `manageuser [flags] "userid"
+
+Edit a invoice.
+
+Arguments:
+1. userid             (string, required)     ID of the user to manage
+
+Flags:
+  --domain              	(int, optional)   Domain of the contractor
+  --contractortype          (int, optional)   Contractor Type
+
+Request:
+{
+	"domain": 1,
+	"contractortype": 1,
+	"supervisoruserid": "",
+}
+
+Response:
+{}`
