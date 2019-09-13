@@ -66,7 +66,7 @@ type piwww struct {
 	LikeComment        LikeCommentCmd           `command:"likecomment" description:"(user)   upvote/downvote a comment"`
 	Login              shared.LoginCmd          `command:"login" description:"(public) login to Politeia"`
 	Logout             shared.LogoutCmd         `command:"logout" description:"(public) logout of Politeia"`
-	ManageUser         ManageUserCmd     `command:"manageuser" description:"(admin)  edit certain properties of the specified user"`
+	ManageUser         ManageUserCmd            `command:"manageuser" description:"(admin)  edit certain properties of the specified user"`
 	Me                 shared.MeCmd             `command:"me" description:"(user)   get user details for the logged in user"`
 	NewComment         shared.NewCommentCmd     `command:"newcomment" description:"(user)   create a new comment"`
 	NewProposal        NewProposalCmd           `command:"newproposal" description:"(user)   create a new proposal"`
