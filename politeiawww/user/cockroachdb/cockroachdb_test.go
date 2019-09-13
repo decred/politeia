@@ -46,12 +46,21 @@ func connect2testdb() (*cockroachdb, error) {
 	return New(tdbhost, tnetwork, tdbrootcert, tdbcert, tdbkey, tencryptionkey)
 }
 
-func TestSessionNew(t *testing.T) {
+func TestSessionMethods(t *testing.T) {
 	db, err := connect2testdb()
 	if err != nil {
 		t.Fatalf("connect to cockroachdb: %v", err)
 	}
+	CheckSessionNew(t, db)
+	CheckSessionNewWithDefaultMaxAge(t, db)
+	CheckSessionNewSameID(t, db)
+	CheckSessionGetById(t, db)
+	CheckSessionGetByIdWithNoRecord(t, db)
+	CheckSessionDeleteById(t, db)
+	CheckSessionDeleteByUserId(t, db)
+}
 
+func CheckSessionNew(t *testing.T, db *cockroachdb) {
 	expected := user.Session{
 		ID:     uuid.New(),
 		UserID: uuid.New(),
@@ -59,7 +68,7 @@ func TestSessionNew(t *testing.T) {
 	}
 	var model Session
 
-	err = db.SessionNew(expected)
+	err := db.SessionNew(expected)
 	if err != nil {
 		t.Errorf("SessionNew() returned an error: %v", err)
 	}
@@ -73,12 +82,7 @@ func TestSessionNew(t *testing.T) {
 	}
 }
 
-func TestSessionNewWithDefaultMaxAge(t *testing.T) {
-	db, err := connect2testdb()
-	if err != nil {
-		t.Fatalf("connect to cockroachdb: %v", err)
-	}
-
+func CheckSessionNewWithDefaultMaxAge(t *testing.T, db *cockroachdb) {
 	expected := user.Session{
 		ID:     uuid.New(),
 		UserID: uuid.New(),
@@ -86,7 +90,7 @@ func TestSessionNewWithDefaultMaxAge(t *testing.T) {
 	}
 	var model Session
 
-	err = db.SessionNew(expected)
+	err := db.SessionNew(expected)
 	if err != nil {
 		t.Errorf("SessionNew() returned an error: %v", err)
 	}
@@ -101,19 +105,14 @@ func TestSessionNewWithDefaultMaxAge(t *testing.T) {
 	}
 }
 
-func TestSessionNewSameID(t *testing.T) {
-	db, err := connect2testdb()
-	if err != nil {
-		t.Fatalf("connect to cockroachdb: %v", err)
-	}
-
+func CheckSessionNewSameID(t *testing.T, db *cockroachdb) {
 	expected := user.Session{
 		ID:     uuid.New(),
 		UserID: uuid.New(),
 		MaxAge: 3,
 	}
 
-	err = db.SessionNew(expected)
+	err := db.SessionNew(expected)
 	if err != nil {
 		t.Errorf("SessionNew() returned an error: %v", err)
 	}
@@ -127,12 +126,7 @@ func TestSessionNewSameID(t *testing.T) {
 	}
 }
 
-func TestSessionGetById(t *testing.T) {
-	db, err := connect2testdb()
-	if err != nil {
-		t.Fatalf("connect to cockroachdb: %v", err)
-	}
-
+func CheckSessionGetById(t *testing.T, db *cockroachdb) {
 	expected := user.Session{
 		ID:     uuid.New(),
 		UserID: uuid.New(),
@@ -140,7 +134,7 @@ func TestSessionGetById(t *testing.T) {
 	}
 
 	// insert a session
-	err = db.SessionNew(expected)
+	err := db.SessionNew(expected)
 	if err != nil {
 		t.Errorf("SessionNew() returned an error: %v", err)
 	}
@@ -167,12 +161,7 @@ func TestSessionGetById(t *testing.T) {
 	}
 }
 
-func TestSessionGetByIdWithNoRecord(t *testing.T) {
-	db, err := connect2testdb()
-	if err != nil {
-		t.Fatalf("connect to cockroachdb: %v", err)
-	}
-
+func CheckSessionGetByIdWithNoRecord(t *testing.T, db *cockroachdb) {
 	expected := user.Session{
 		ID:     uuid.New(),
 		UserID: uuid.New(),
@@ -180,7 +169,7 @@ func TestSessionGetByIdWithNoRecord(t *testing.T) {
 	}
 
 	// try to get a session that does not exist
-	_, err = db.SessionGetById(expected.ID)
+	_, err := db.SessionGetById(expected.ID)
 	if err == nil {
 		t.Error("SessionGetById() did not return an error")
 	}
@@ -189,12 +178,8 @@ func TestSessionGetByIdWithNoRecord(t *testing.T) {
 	}
 }
 
-func TestSessionDeleteById(t *testing.T) {
-	db, err := connect2testdb()
-	if err != nil {
-		t.Fatalf("connect to cockroachdb: %v", err)
-	}
-
+func CheckSessionDeleteById(t *testing.T, db *cockroachdb) {
+	var err error
 	sa := []user.Session{
 		{
 			ID:     uuid.New(),
@@ -250,12 +235,8 @@ func TestSessionDeleteById(t *testing.T) {
 	}
 }
 
-func TestSessionDeleteByUserId(t *testing.T) {
-	db, err := connect2testdb()
-	if err != nil {
-		t.Fatalf("connect to cockroachdb: %v", err)
-	}
-
+func CheckSessionDeleteByUserId(t *testing.T, db *cockroachdb) {
+	var err error
 	keep := uuid.New()
 	remove := uuid.New()
 
