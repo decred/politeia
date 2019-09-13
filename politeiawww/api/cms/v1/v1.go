@@ -510,7 +510,7 @@ type LineItemPayouts struct {
 // LineItemPayoutsReply returns an array of line items within the requested
 // date range.
 type LineItemPayoutsReply struct {
-	LineItems []LineItemsInput `json:"lineitems"` // Line items within the requested date range.
+	Invoices []InvoiceRecord `json:"invoices"` // Line items within the requested date range.
 }
 
 // PaymentInformation contains information for each invoice's payout. A payout

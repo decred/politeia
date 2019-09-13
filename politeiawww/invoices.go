@@ -1623,17 +1623,16 @@ func (p *politeiawww) processLineItemPayouts(lip cms.LineItemPayouts) (*cms.Line
 			ErrorCode: cms.ErrorStatusInvalidDatesRequested,
 		}
 	}
-	dbLineItems, err := p.cmsDB.LineItemsByDateRange(lip.StartTime, lip.EndTime, int(cms.InvoiceStatusPaid))
+	dbInvs, err := p.cmsDB.InvoicesByDateRangeStatus(lip.StartTime, lip.EndTime, int(cms.InvoiceStatusPaid))
 	if err != nil {
 		return nil, err
 	}
-	// Clean up Labor and Expenses to Payout display in full USD
-	for i := range dbLineItems {
-		dbLineItems[i].Labor = dbLineItems[i].Labor * dbLineItems[i].ContractorRate / 60 / 100
-		dbLineItems[i].Expenses = dbLineItems[i].Expenses / 100
+	invoices := make([]cms.InvoiceRecord, 0, len(dbInvs))
+	for _, inv := range dbInvs {
+		invRec := convertDatabaseInvoiceToInvoiceRecord(*inv)
+		invoices = append(invoices, *invRec)
 	}
-	lineItems := convertDatabaseToLineItems(dbLineItems)
-	reply.LineItems = lineItems
+	reply.Invoices = invoices
 	return reply, nil
 }
 
