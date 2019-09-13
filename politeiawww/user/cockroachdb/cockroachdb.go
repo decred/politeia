@@ -406,8 +406,22 @@ func (c *cockroachdb) SessionNew(us user.Session) error {
 		return user.ErrShutdown
 	}
 
+	var model Session
+	err := c.userDB.
+		Where("id = ?", us.ID).
+		First(&model).
+		Error
+
+	if err == nil {
+		// session exists
+		return user.ErrSessionExists
+	}
+
+	if err != nil && err != gorm.ErrRecordNotFound {
+		return err
+	}
 	s := Session{ID: us.ID, UserID: us.UserID, MaxAge: us.MaxAge}
-	err := c.userDB.Create(&s).Error
+	err = c.userDB.Create(&s).Error
 
 	if err != nil {
 		return fmt.Errorf("create session: %v", err)
@@ -426,10 +440,10 @@ func (c *cockroachdb) SessionGetById(sid uuid.UUID) (*user.Session, error) {
 		return nil, user.ErrShutdown
 	}
 
-	var s Session
+	var model Session
 	err := c.userDB.
 		Where("id = ?", sid).
-		Find(&s).
+		First(&model).
 		Error
 
 	if err != nil {
@@ -439,7 +453,12 @@ func (c *cockroachdb) SessionGetById(sid uuid.UUID) (*user.Session, error) {
 		return nil, err
 	}
 
-	us := user.Session{ID: s.ID, CreatedAt: s.CreatedAt.Unix(), MaxAge: s.MaxAge}
+	us := user.Session{
+		ID:        model.ID,
+		UserID:    model.UserID,
+		CreatedAt: model.CreatedAt.Unix(),
+		MaxAge:    model.MaxAge,
+	}
 	return &us, nil
 }
 
