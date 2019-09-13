@@ -10,7 +10,20 @@ import (
 	"github.com/google/uuid"
 )
 
-func tearDownTestData(t *testing.T, db *localdb, dataDir string) {
+func setupTestData(t *testing.T) (*localdb, string) {
+	// Setup database
+	dataDir, err := ioutil.TempDir("", "politeiawww.user.localdb.test")
+	if err != nil {
+		t.Error("TempDir() returned an error")
+	}
+	db, err := New(filepath.Join(dataDir, "localdb"))
+	if err != nil {
+		t.Fatalf("setup database: %v", err)
+	}
+	return db, dataDir
+}
+
+func teardownTestData(t *testing.T, db *localdb, dataDir string) {
 	t.Helper()
 
 	err := db.Close()
@@ -25,16 +38,9 @@ func tearDownTestData(t *testing.T, db *localdb, dataDir string) {
 }
 
 func TestSessionNew(t *testing.T) {
-	// Setup database
-	dataDir, err := ioutil.TempDir("", "politeiawww.user.localdb.test")
-	if err != nil {
-		t.Error("TempDir() returned an error")
-	}
-	db, err := New(filepath.Join(dataDir, "localdb"))
-	if err != nil {
-		t.Fatalf("setup database: %v", err)
-	}
-	defer tearDownTestData(t, db, dataDir)
+	var err error
+	db, dataDir := setupTestData(t)
+	defer teardownTestData(t, db, dataDir)
 	s := user.Session{
 		ID:        uuid.New(),
 		UserID:    uuid.New(),
@@ -63,16 +69,9 @@ func TestSessionNew(t *testing.T) {
 }
 
 func TestSessionExistsAlready(t *testing.T) {
-	// Setup database
-	dataDir, err := ioutil.TempDir("", "politeiawww.user.localdb.test")
-	if err != nil {
-		t.Error("TempDir() returned an error")
-	}
-	db, err := New(filepath.Join(dataDir, "localdb"))
-	if err != nil {
-		t.Fatalf("setup database: %v", err)
-	}
-	defer tearDownTestData(t, db, dataDir)
+	var err error
+	db, dataDir := setupTestData(t)
+	defer teardownTestData(t, db, dataDir)
 	s := user.Session{
 		ID:        uuid.New(),
 		UserID:    uuid.New(),
@@ -91,16 +90,9 @@ func TestSessionExistsAlready(t *testing.T) {
 }
 
 func TestSessionGetById(t *testing.T) {
-	// Setup database
-	dataDir, err := ioutil.TempDir("", "politeiawww.user.localdb.test")
-	if err != nil {
-		t.Error("TempDir() returned an error")
-	}
-	db, err := New(filepath.Join(dataDir, "localdb"))
-	if err != nil {
-		t.Fatalf("setup database: %v", err)
-	}
-	defer tearDownTestData(t, db, dataDir)
+	var err error
+	db, dataDir := setupTestData(t)
+	defer teardownTestData(t, db, dataDir)
 	s := user.Session{
 		ID:        uuid.New(),
 		UserID:    uuid.New(),
@@ -125,16 +117,9 @@ func TestSessionGetById(t *testing.T) {
 }
 
 func TestSessionGetByIdAndNoRecord(t *testing.T) {
-	// Setup database
-	dataDir, err := ioutil.TempDir("", "politeiawww.user.localdb.test")
-	if err != nil {
-		t.Error("TempDir() returned an error")
-	}
-	db, err := New(filepath.Join(dataDir, "localdb"))
-	if err != nil {
-		t.Fatalf("setup database: %v", err)
-	}
-	defer tearDownTestData(t, db, dataDir)
+	var err error
+	db, dataDir := setupTestData(t)
+	defer teardownTestData(t, db, dataDir)
 	_, err = db.SessionGetById(uuid.New())
 	if err != user.ErrSessionNotFound {
 		t.Errorf("got error: %v, want: %v", err, user.ErrSessionNotFound)
@@ -142,16 +127,9 @@ func TestSessionGetByIdAndNoRecord(t *testing.T) {
 }
 
 func TestSessionDeleteById(t *testing.T) {
-	// Setup database
-	dataDir, err := ioutil.TempDir("", "politeiawww.user.localdb.test")
-	if err != nil {
-		t.Error("TempDir() returned an error")
-	}
-	db, err := New(filepath.Join(dataDir, "localdb"))
-	if err != nil {
-		t.Fatalf("setup database: %v", err)
-	}
-	defer tearDownTestData(t, db, dataDir)
+	var err error
+	db, dataDir := setupTestData(t)
+	defer teardownTestData(t, db, dataDir)
 	sa := []user.Session{
 		{ID: uuid.New(),
 			UserID:    uuid.New(),
@@ -203,16 +181,9 @@ func TestIsUserRecordWithSessionKey(t *testing.T) {
 }
 
 func TestSessionsDeleteByUserId(t *testing.T) {
-	// Setup database
-	dataDir, err := ioutil.TempDir("", "politeiawww.user.localdb.test")
-	if err != nil {
-		t.Error("TempDir() returned an error")
-	}
-	db, err := New(filepath.Join(dataDir, "localdb"))
-	if err != nil {
-		t.Fatalf("setup database: %v", err)
-	}
-	defer tearDownTestData(t, db, dataDir)
+	var err error
+	db, dataDir := setupTestData(t)
+	defer teardownTestData(t, db, dataDir)
 	remove := uuid.New()
 	keep := uuid.New()
 	sa := []user.Session{
