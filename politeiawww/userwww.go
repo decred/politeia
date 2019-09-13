@@ -73,12 +73,17 @@ func (p *politeiawww) getSession(w http.ResponseWriter, r *http.Request) (*user.
 		return nil, err
 	}
 	if session.HasExpired() {
-		// FIXME: how should `SessionDeleteById()` db errors be handled?
+		// deletion of session / cookie from db / file system is best effort;
+		// in the worst case some of this data will linger but the `getSession()`
+		// logic will be able to establish that the user either has no session or
+		// that the latter has expired.
+
 		// delete session from db
 		p.db.SessionDeleteById(sid)
 		// delete cookie
 		cookie.Options.MaxAge = -1
 		cookie.Save(r, w)
+
 		return nil, ErrSessionExpired
 	}
 	return session, nil
@@ -378,7 +383,8 @@ func (p *politeiawww) handleVerifyResetPassword(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// FIXME: what should be done in case of database errors?
+	// the trade off here is that we don't want to fail the password change
+	// because we cannot delete all the user's sessions.
 	user, err := p.db.UserGetByUsername(vrp.Username)
 	if err == nil {
 		// log off user everywhere by deleting all his sessions
@@ -586,8 +592,8 @@ func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// FIXME: what should be done in case of a `SessionsDeleteByUserId()` error?
-	// log off user everywhere by deleting all his sessions
+	// the trade off here is that we don't want to fail the password change
+	// because we cannot delete all the user's sessions.
 	p.db.SessionsDeleteByUserId(user.ID)
 
 	// Reply with the error code.
