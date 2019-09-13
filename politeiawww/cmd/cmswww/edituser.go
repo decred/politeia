@@ -46,7 +46,7 @@ func (cmd *EditUserCmd) Execute(args []string) error {
 	reader := bufio.NewReader(os.Stdin)
 	if cmd.MatrixName != "" || cmd.GitHubName != "" ||
 		cmd.ContractorName != "" || cmd.ContractorLocation != "" ||
-		cmd.ContractorLocation != "" {
+		cmd.ContractorContact != "" {
 		if cmd.MatrixName == "" {
 			str := fmt.Sprintf(
 				"Your current MatrixName setting is: \"%v\" Update?",
