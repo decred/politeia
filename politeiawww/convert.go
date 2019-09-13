@@ -565,7 +565,9 @@ func convertDatabaseInvoiceToInvoiceRecord(dbInvoice cmsdatabase.Invoice) *cms.I
 		}
 		invInputLineItems = append(invInputLineItems, lineItem)
 	}
+	invInput.LineItems = invInputLineItems
 	invRec.Input = invInput
+	invRec.Input.LineItems = invInputLineItems
 	return invRec
 }
 
