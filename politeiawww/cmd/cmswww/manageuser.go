@@ -59,103 +59,110 @@ func (cmd *ManageUserCmd) Execute(args []string) error {
 		userInfo = uir.User
 	}
 	var domainType, contractorType int
-	if cmd.Domain == "" && lr.IsAdmin {
-		str := fmt.Sprintf("The current Domain setting is: \"%v\" Update?",
-			userInfo.Domain)
-		update, err := promptListBool(reader, str, "no")
-		if err != nil {
-			return err
-		}
-		if update {
-			for {
-				fmt.Printf("Domain Type: (1) Developer, (2) Marketing, (3) " +
-					"Community, (4) Research, (5) Design, (6) Documentation:  ")
-				cmd.Domain, _ = reader.ReadString('\n')
-				domainType, err = strconv.Atoi(strings.TrimSpace(cmd.Domain))
-				if err != nil {
-					fmt.Println("Invalid entry, please try again.")
-					continue
-				}
-				if domainType < 1 || domainType > 6 {
-					fmt.Println("Invalid domain type entered, please try again.")
-					continue
-				}
-				str := fmt.Sprintf(
-					"Your current Domain setting is: \"%v\" Keep this?",
-					domainType)
-				update, err := promptListBool(reader, str, "yes")
-				if err != nil {
-					return err
-				}
-				if update {
-					userInfo.Domain = cms.DomainTypeT(domainType)
-					break
+	if cmd.Domain != "" || cmd.ContractorType != "" {
+		if cmd.Domain == "" {
+			str := fmt.Sprintf("The current Domain setting is: \"%v\" Update?",
+				userInfo.Domain)
+			update, err := promptListBool(reader, str, "no")
+			if err != nil {
+				return err
+			}
+			if update {
+				for {
+					fmt.Printf("Domain Type: (1) Developer, (2) Marketing, (3) " +
+						"Community, (4) Research, (5) Design, (6) Documentation:  ")
+					cmd.Domain, _ = reader.ReadString('\n')
+					domainType, err = strconv.Atoi(strings.TrimSpace(cmd.Domain))
+					if err != nil {
+						fmt.Println("Invalid entry, please try again.")
+						continue
+					}
+					if domainType < 1 || domainType > 6 {
+						fmt.Println("Invalid domain type entered, please try again.")
+						continue
+					}
+					str := fmt.Sprintf(
+						"Your current Domain setting is: \"%v\" Keep this?",
+						domainType)
+					update, err := promptListBool(reader, str, "yes")
+					if err != nil {
+						return err
+					}
+					if update {
+						break
+					}
 				}
 			}
 		}
-	} else if cmd.Domain != "" && lr.IsAdmin {
-		domainType, err = strconv.Atoi(strings.TrimSpace(cmd.Domain))
-		if err != nil {
-			return fmt.Errorf("invalid domain attempted, please try again")
+		if cmd.ContractorType == "" {
+			str := fmt.Sprintf("Your current Contractor Type setting is: \"%v\" Update?",
+				userInfo.ContractorType)
+			update, err := promptListBool(reader, str, "no")
+			if err != nil {
+				return err
+			}
+			if update {
+				for {
+					fmt.Printf("(1) Direct, (2) Supervisor, (3) Sub contractor:  ")
+					cmd.ContractorType, _ = reader.ReadString('\n')
+					contractorType, err = strconv.Atoi(strings.TrimSpace(cmd.ContractorType))
+					if err != nil {
+						fmt.Println("Invalid entry, please try again.")
+						continue
+					}
+					if contractorType < 1 || contractorType > 3 {
+						fmt.Println("Invalid contractor type entered, please try again.")
+						continue
+					}
+					str := fmt.Sprintf(
+						"Your current Contractor Type setting is: \"%v\" Keep this?",
+						contractorType)
+					update, err := promptListBool(reader, str, "yes")
+					if err != nil {
+						return err
+					}
+					if update {
+						break
+					}
+				}
+			}
 		}
-		userInfo.Domain = cms.DomainTypeT(domainType)
 	}
-	if cmd.ContractorType == "" && lr.IsAdmin {
-		str := fmt.Sprintf("Your current Contractor Type setting is: \"%v\" Update?",
-			userInfo.ContractorType)
-		update, err := promptListBool(reader, str, "no")
-		if err != nil {
-			return err
-		}
-		if update {
-			for {
-				fmt.Printf("(1) Direct, (2) Supervisor, (3) Sub contractor:  ")
-				cmd.ContractorType, _ = reader.ReadString('\n')
-				contractorType, err = strconv.Atoi(strings.TrimSpace(cmd.ContractorType))
-				if err != nil {
-					fmt.Println("Invalid entry, please try again.")
-					continue
-				}
-				if contractorType < 1 || contractorType > 3 {
-					fmt.Println("Invalid contractor type entered, please try again.")
-					continue
-				}
-				str := fmt.Sprintf(
-					"Your current Contractor Type setting is: \"%v\" Keep this?",
-					contractorType)
-				update, err := promptListBool(reader, str, "yes")
-				if err != nil {
-					return err
-				}
-				if update {
-					userInfo.ContractorType = cms.ContractorTypeT(contractorType)
-					break
-				}
-			}
-		}
-	} else if cmd.ContractorType != "" && lr.IsAdmin {
-		contractorType, err = strconv.Atoi(strings.TrimSpace(cmd.ContractorType))
-		if err != nil {
-			return fmt.Errorf("invalid contractor type entered, please try again")
+	domainType, err = strconv.Atoi(strings.TrimSpace(cmd.Domain))
+	if err != nil {
+		return fmt.Errorf("invalid domain attempted, please try again")
+	}
+	userInfo.Domain = cms.DomainTypeT(domainType)
+	contractorType, err = strconv.Atoi(strings.TrimSpace(cmd.ContractorType))
+	if err != nil {
+		return fmt.Errorf("invalid domain attempted, please try again")
+	}
+	userInfo.ContractorType = cms.ContractorTypeT(contractorType)
 
-		}
-		userInfo.ContractorType = cms.ContractorTypeT(contractorType)
-	}
 	/*
-		XXX Need to decide how to handle Supervisor name lookup for CLI.
-			if cmd.SupervisorUsername == "" && lr.IsAdmin  {
-				str := fmt.Sprintf("Your current Supervisor ID setting is: %v Update?", userInfo.SupervisorUserID)
-				update, err := promptListBool(reader, str, "no")
-				if err != nil {
-					return err
-				}
-				if update {
-					cmd.SupervisorUsername, _ = reader.ReadString('\n')
-				}
-				userInfo.SupervisorUserID = cmd.SupervisorUsername
-			} else if cmd.SupervisorUsername == "" && lr.IsAdmin {
-				userInfo.SupervisorUserID = cmd.SupervisorUsername
+
+		else if cmd.ContractorType != "" {
+			contractorType, err = strconv.Atoi(strings.TrimSpace(cmd.ContractorType))
+			if err != nil {
+				return fmt.Errorf("invalid contractor type entered, please try again")
+
 			}
+			userInfo.ContractorType = cms.ContractorTypeT(contractorType)
+		}
+			XXX Need to decide how to handle Supervisor name lookup for CLI.
+				if cmd.SupervisorUsername == "" && lr.IsAdmin  {
+					str := fmt.Sprintf("Your current Supervisor ID setting is: %v Update?", userInfo.SupervisorUserID)
+					update, err := promptListBool(reader, str, "no")
+					if err != nil {
+						return err
+					}
+					if update {
+						cmd.SupervisorUsername, _ = reader.ReadString('\n')
+					}
+					userInfo.SupervisorUserID = cmd.SupervisorUsername
+				} else if cmd.SupervisorUsername == "" && lr.IsAdmin {
+					userInfo.SupervisorUserID = cmd.SupervisorUsername
+				}
 	*/
 	fmt.Print("\nPlease carefully review your information and ensure it's " +
 		"correct. If not, press Ctrl + C to exit. Or, press Enter to continue " +
