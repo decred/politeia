@@ -11,6 +11,7 @@ import (
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/google/uuid"
 
+	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 )
 
@@ -163,5 +164,88 @@ func TestSessionGetById(t *testing.T) {
 	expected.CreatedAt = us.CreatedAt
 	if expected != *us {
 		t.Errorf("got session: %v, want: %v", us, expected)
+	}
+}
+
+func TestSessionGetByIdWithNoRecord(t *testing.T) {
+	db, err := connect2testdb()
+	if err != nil {
+		t.Fatalf("connect to cockroachdb: %v", err)
+	}
+
+	expected := user.Session{
+		ID:     uuid.New(),
+		UserID: uuid.New(),
+		MaxAge: 5,
+	}
+
+	// try to get a session that does not exist
+	_, err = db.SessionGetById(expected.ID)
+	if err == nil {
+		t.Error("SessionGetById() did not return an error")
+	}
+	if err != user.ErrSessionNotFound {
+		t.Errorf("got error: %v, want: %v", err, user.ErrSessionNotFound)
+	}
+}
+
+func TestSessionDeleteById(t *testing.T) {
+	db, err := connect2testdb()
+	if err != nil {
+		t.Fatalf("connect to cockroachdb: %v", err)
+	}
+
+	sa := []user.Session{
+		{
+			ID:     uuid.New(),
+			UserID: uuid.New(),
+			MaxAge: 6,
+		},
+		{
+			ID:     uuid.New(),
+			UserID: uuid.New(),
+			MaxAge: 7,
+		},
+		{
+			ID:     uuid.New(),
+			UserID: uuid.New(),
+			MaxAge: 8,
+		},
+	}
+
+	for idx, s := range sa {
+		// insert a session
+		err = db.SessionNew(s)
+		if err != nil {
+			t.Errorf("idx: %v, SessionNew() returned an error: %v", idx, err)
+		}
+	}
+
+	removed := []int{1}
+	for _, idx := range removed {
+		// delete the session
+		err = db.SessionDeleteById(sa[idx].ID)
+		if err != nil {
+			t.Errorf("idx: %v, SessionDeleteById() returned an error: %v", idx, err)
+		}
+		// make sure the deleted session is gone
+		var model Session
+		err = db.userDB.Where("id = ?", sa[idx].ID).First(&model).Error
+		if err != gorm.ErrRecordNotFound {
+			t.Errorf("idx: %v, got error: %v, want: %v", idx, err, gorm.ErrRecordNotFound)
+		}
+	}
+	// make sure the other sessions are stil in place
+	kept := []int{0, 2}
+	for _, idx := range kept {
+		var model Session
+		err = db.userDB.Where("id = ?", sa[idx].ID).First(&model).Error
+		if err != nil {
+			t.Errorf("idx: %v (%v), First() returned an error: %v", idx, sa[idx].ID, err)
+		}
+		sa[idx].CreatedAt = model.CreatedAt.Unix()
+		if sa[idx] != model2session(model) {
+			t.Errorf("got session: %v, want: %v", model2session(model), sa[idx])
+		}
 	}
 }
