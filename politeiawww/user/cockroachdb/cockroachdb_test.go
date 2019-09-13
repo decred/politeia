@@ -6,7 +6,6 @@ import (
 	"os"
 	"path"
 	"testing"
-	"time"
 
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/google/uuid"
@@ -21,15 +20,6 @@ func model2session(s Session) user.Session {
 		UserID:    s.UserID,
 		MaxAge:    s.MaxAge,
 		CreatedAt: s.CreatedAt.Unix(),
-	}
-}
-
-func session2model(s user.Session) Session {
-	return Session{
-		ID:        s.ID,
-		UserID:    s.UserID,
-		MaxAge:    s.MaxAge,
-		CreatedAt: time.Unix(s.CreatedAt, 0),
 	}
 }
 
