@@ -26,6 +26,7 @@ const (
 	defaultConfigFilename = "politeiavoter.conf"
 	defaultLogLevel       = "info"
 	defaultLogDirname     = "logs"
+	defaultVoteDirname    = "vote"
 	defaultLogFilename    = "politeiavoter.log"
 	defaultWalletHost     = "127.0.0.1"
 
@@ -37,6 +38,7 @@ var (
 	defaultHomeDir        = dcrutil.AppDataDir("politeiavoter", false)
 	defaultConfigFile     = filepath.Join(defaultHomeDir, defaultConfigFilename)
 	defaultLogDir         = filepath.Join(defaultHomeDir, defaultLogDirname)
+	defaultVoteDir        = filepath.Join(defaultHomeDir, defaultVoteDirname)
 	dcrwalletHomeDir      = dcrutil.AppDataDir("dcrwallet", false)
 	defaultWalletCertFile = filepath.Join(dcrwalletHomeDir, "rpc.cert")
 )
@@ -70,6 +72,7 @@ type config struct {
 	VoteDuration     string `long:"voteduration" description:"Duration to cast all votes in hours, minutes and seconds e.g. 5h10m30s (default 0s)"`
 	SkipVerify       bool   `long:"skipverify" description:"Skip verifying the server's certifcate chain and host name."`
 
+	voteDir      string
 	dial         func(string, string) (net.Conn, error)
 	voteDuration time.Duration // Parsed VoteDuration
 }
@@ -206,6 +209,7 @@ func loadConfig() (*config, []string, error) {
 		ConfigFile: defaultConfigFile,
 		DebugLevel: defaultLogLevel,
 		LogDir:     defaultLogDir,
+		voteDir:    defaultVoteDir,
 		Version:    version.String(),
 	}
 
@@ -267,6 +271,11 @@ func loadConfig() (*config, []string, error) {
 		} else {
 			cfg.LogDir = preCfg.LogDir
 		}
+		if preCfg.voteDir == defaultVoteDir {
+			cfg.voteDir = filepath.Join(cfg.HomeDir, defaultVoteDirname)
+		} else {
+			cfg.voteDir = preCfg.voteDir
+		}
 	}
 
 	// Load additional config from file.
@@ -294,7 +303,7 @@ func loadConfig() (*config, []string, error) {
 
 	// Create the home directory if it doesn't already exist.
 	funcName := "loadConfig"
-	err = os.MkdirAll(defaultHomeDir, 0700)
+	err = os.MkdirAll(cfg.HomeDir, 0700)
 	if err != nil {
 		// Show a nicer error message if it's because a symlink is
 		// linked to a directory that does not exist (probably because
@@ -307,6 +316,25 @@ func loadConfig() (*config, []string, error) {
 		}
 
 		str := "%s: Failed to create home directory: %v"
+		err := fmt.Errorf(str, funcName, err)
+		fmt.Fprintln(os.Stderr, err)
+		return nil, nil, err
+	}
+
+	// Create vote directory if it doesn't already exist.
+	err = os.MkdirAll(cfg.voteDir, 0700)
+	if err != nil {
+		// Show a nicer error message if it's because a symlink is
+		// linked to a directory that does not exist (probably because
+		// it's not mounted).
+		if e, ok := err.(*os.PathError); ok && os.IsExist(err) {
+			if link, lerr := os.Readlink(e.Path); lerr == nil {
+				str := "is symlink %s -> %s mounted?"
+				err = fmt.Errorf(str, e.Path, link)
+			}
+		}
+
+		str := "%s: Failed to create vote directory: %v"
 		err := fmt.Errorf(str, funcName, err)
 		fmt.Fprintln(os.Stderr, err)
 		return nil, nil, err
