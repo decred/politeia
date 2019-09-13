@@ -39,7 +39,7 @@ func (cmd *HelpCmd) Execute(args []string) error {
 	case "censorcomment":
 		fmt.Printf("%s\n", shared.CensorCommentHelpMsg)
 	case "manageuser":
-		fmt.Printf("%s\n", shared.ManageUserHelpMsg)
+		fmt.Printf("%s\n", manageUserHelpMsg)
 	case "version":
 		fmt.Printf("%s\n", shared.VersionHelpMsg)
 	case "me":

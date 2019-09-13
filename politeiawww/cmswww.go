@@ -462,6 +462,31 @@ func (p *politeiawww) handleEditCMSUser(w http.ResponseWriter, r *http.Request) 
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
+// handleManageCMSUser handles the request to edit a given user's
+// additional user information.
+func (p *politeiawww) handleManageCMSUser(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleManageCMSUser")
+
+	var mu cms.ManageUser
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&mu); err != nil {
+		RespondWithError(w, r, 0, "handleManageCMSUser: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	reply, err := p.processManageCMSUser(mu)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleManageCMSUser: "+
+			"processManageCMSUser %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
 func (p *politeiawww) handleCMSUserDetails(w http.ResponseWriter, r *http.Request) {
 	// Add the path param to the struct.
 	log.Tracef("handleCMSUserDetails")
