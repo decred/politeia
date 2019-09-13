@@ -19,7 +19,7 @@ import (
 // and SupervisorID of a given user.
 type ManageUserCmd struct {
 	Args struct {
-		UserID string `positional-arg-name:"month" required:"true"`
+		UserID string `positional-arg-name:"userid" required:"true"`
 	} `positional-args:"true" optional:"true"`
 	Domain             string `long:"domain" optional:"true" description:"Domain type: Developer, Marketing, Design, Documentation, Research, Community"`
 	ContractorType     string `long:"contractortype" optional:"true" description:"Contractor type: Direct, Sub, Super"`
