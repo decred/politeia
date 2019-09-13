@@ -296,7 +296,7 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 	err = p.initSession(w, r, reply.UserID)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleLogin: setSessionUser %v", err)
+			"handleLogin: initSession %v", err)
 		return
 	}
 

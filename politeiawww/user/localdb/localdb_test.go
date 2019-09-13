@@ -27,6 +27,9 @@ func tearDownTestData(t *testing.T, db *localdb, dataDir string) {
 func TestSessionNew(t *testing.T) {
 	// Setup database
 	dataDir, err := ioutil.TempDir("", "politeiawww.user.localdb.test")
+	if err != nil {
+		t.Error("TempDir() returned an error")
+	}
 	db, err := New(filepath.Join(dataDir, "localdb"))
 	if err != nil {
 		t.Fatalf("setup database: %v", err)
@@ -53,6 +56,7 @@ func TestSessionNew(t *testing.T) {
 	if sessionInDB == nil {
 		t.Error("DecodeSession() returned a nil pointer")
 	}
+	s.CreatedAt = sessionInDB.CreatedAt
 	if s != *sessionInDB {
 		t.Errorf("got session: %v, want: %v", sessionInDB, s)
 	}
@@ -61,6 +65,9 @@ func TestSessionNew(t *testing.T) {
 func TestSessionExistsAlready(t *testing.T) {
 	// Setup database
 	dataDir, err := ioutil.TempDir("", "politeiawww.user.localdb.test")
+	if err != nil {
+		t.Error("TempDir() returned an error")
+	}
 	db, err := New(filepath.Join(dataDir, "localdb"))
 	if err != nil {
 		t.Fatalf("setup database: %v", err)
@@ -86,6 +93,9 @@ func TestSessionExistsAlready(t *testing.T) {
 func TestSessionGetById(t *testing.T) {
 	// Setup database
 	dataDir, err := ioutil.TempDir("", "politeiawww.user.localdb.test")
+	if err != nil {
+		t.Error("TempDir() returned an error")
+	}
 	db, err := New(filepath.Join(dataDir, "localdb"))
 	if err != nil {
 		t.Fatalf("setup database: %v", err)
@@ -108,6 +118,7 @@ func TestSessionGetById(t *testing.T) {
 	if sessionInDB == nil {
 		t.Error("SessionGetById() returned a nil pointer")
 	}
+	s.CreatedAt = sessionInDB.CreatedAt
 	if s != *sessionInDB {
 		t.Errorf("got session: %v, want: %v", sessionInDB, s)
 	}
@@ -116,6 +127,9 @@ func TestSessionGetById(t *testing.T) {
 func TestSessionGetByIdAndNoRecord(t *testing.T) {
 	// Setup database
 	dataDir, err := ioutil.TempDir("", "politeiawww.user.localdb.test")
+	if err != nil {
+		t.Error("TempDir() returned an error")
+	}
 	db, err := New(filepath.Join(dataDir, "localdb"))
 	if err != nil {
 		t.Fatalf("setup database: %v", err)
@@ -130,6 +144,9 @@ func TestSessionGetByIdAndNoRecord(t *testing.T) {
 func TestSessionDeleteById(t *testing.T) {
 	// Setup database
 	dataDir, err := ioutil.TempDir("", "politeiawww.user.localdb.test")
+	if err != nil {
+		t.Error("TempDir() returned an error")
+	}
 	db, err := New(filepath.Join(dataDir, "localdb"))
 	if err != nil {
 		t.Fatalf("setup database: %v", err)
@@ -165,19 +182,16 @@ func TestSessionDeleteById(t *testing.T) {
 		t.Errorf("got error: %v, want: %v", err, user.ErrSessionNotFound)
 	}
 	// make sure the other 2 sessions are still in place
-	sessionInDB, err = db.SessionGetById(sa[0].ID)
-	if err != nil {
-		t.Errorf("SessionGetById() returned an error: %v", err)
-	}
-	if *sessionInDB != sa[0] {
-		t.Errorf("got session: %v, want: %v", sessionInDB, sa[0])
-	}
-	sessionInDB, err = db.SessionGetById(sa[2].ID)
-	if err != nil {
-		t.Errorf("SessionGetById() returned an error: %v", err)
-	}
-	if *sessionInDB != sa[2] {
-		t.Errorf("got session: %v, want: %v", sessionInDB, sa[2])
+	kept := []int{0, 2}
+	for _, idx := range kept {
+		sessionInDB, err = db.SessionGetById(sa[idx].ID)
+		if err != nil {
+			t.Errorf("SessionGetById() returned an error: %v", err)
+		}
+		sa[idx].CreatedAt = sessionInDB.CreatedAt
+		if *sessionInDB != sa[idx] {
+			t.Errorf("got session: %v, want: %v", sessionInDB, sa[idx])
+		}
 	}
 }
 
@@ -191,6 +205,9 @@ func TestIsUserRecordWithSessionKey(t *testing.T) {
 func TestSessionsDeleteByUserId(t *testing.T) {
 	// Setup database
 	dataDir, err := ioutil.TempDir("", "politeiawww.user.localdb.test")
+	if err != nil {
+		t.Error("TempDir() returned an error")
+	}
 	db, err := New(filepath.Join(dataDir, "localdb"))
 	if err != nil {
 		t.Fatalf("setup database: %v", err)
@@ -245,6 +262,7 @@ func TestSessionsDeleteByUserId(t *testing.T) {
 		if err != nil {
 			t.Errorf("index: %v, SessionGetById() returned an error: %v", idx, err)
 		}
+		sa[idx].CreatedAt = sessionInDB.CreatedAt
 		if *sessionInDB != sa[idx] {
 			t.Errorf("index: %v, got session: %v, want: %v", idx, sessionInDB, sa[idx])
 		}

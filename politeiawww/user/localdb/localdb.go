@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/google/uuid"
@@ -396,6 +397,8 @@ func (l *localdb) SessionNew(s user.Session) error {
 	if l.shutdown {
 		return user.ErrShutdown
 	}
+	s.CreatedAt = time.Now().Unix()
+
 	log.Debugf("SessionNew: %v", s)
 
 	key := []byte(sessionPrefix + s.ID.String())

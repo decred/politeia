@@ -417,7 +417,7 @@ func (c *cockroachdb) SessionNew(us user.Session) error {
 		return user.ErrSessionExists
 	}
 
-	if err != nil && err != gorm.ErrRecordNotFound {
+	if err != gorm.ErrRecordNotFound {
 		return err
 	}
 	s := Session{ID: us.ID, UserID: us.UserID, MaxAge: us.MaxAge}

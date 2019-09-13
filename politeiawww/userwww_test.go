@@ -406,7 +406,7 @@ func TestHandleLogin(t *testing.T) {
 				// created if login was successful.
 				_, err := p.getSessionUser(w, r)
 				if err != nil {
-					t.Errorf("session not created")
+					t.Errorf("session not created: %v", err)
 				}
 
 				// Check response body
