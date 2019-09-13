@@ -692,6 +692,35 @@ func (p *politeiawww) handleDCCComments(w http.ResponseWriter, r *http.Request) 
 	util.RespondWithJSON(w, http.StatusOK, gcr)
 }
 
+func (p *politeiawww) handleSetDCCStatus(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleSetDCCStatus")
+
+	var ad cms.SetDCCStatus
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&ad); err != nil {
+		RespondWithError(w, r, 0, "handleSetDCCStatus: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+	u, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleSetDCCStatus: getSessionUser %v", err)
+		return
+	}
+
+	adr, err := p.processSetDCCStatus(ad, u)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleSetDCCStatus: processSetDCCStatus: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, adr)
+}
+
 func (p *politeiawww) setCMSWWWRoutes() {
 	// Templates
 	//p.addTemplate(templateNewProposalSubmittedName,
@@ -765,4 +794,6 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		p.handleLineItemPayouts, permissionAdmin)
 	p.addRoute(http.MethodGet, cms.RouteAdminUserInvoices,
 		p.handleAdminUserInvoices, permissionAdmin)
+	p.addRoute(http.MethodPost, cms.RouteSetDCCStatus,
+		p.handleSetDCCStatus, permissionAdmin)
 }

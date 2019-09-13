@@ -10,6 +10,7 @@ import (
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
+	"github.com/google/uuid"
 )
 
 // cmsUsersByDomain returns all cms user within the provided contractor domain.
@@ -50,7 +51,7 @@ func (p *politeiawww) cmsUsersByDomain(d cms.DomainTypeT) ([]user.CMSUser, error
 //
 // Note that this function always returns a InviteNewUserReply. The caller
 // shall verify error and determine how to return this information upstream.
-func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*www.NewUserReply, error) {
+func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*cms.InviteNewUserReply, error) {
 	log.Tracef("processInviteNewUser: %v", u.Email)
 
 	// Validate email
@@ -65,7 +66,7 @@ func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*www.NewUserRep
 	existingUser, err := p.userByEmail(u.Email)
 	if err == nil {
 		if existingUser.NewUserVerificationToken == nil {
-			return &www.NewUserReply{}, nil
+			return &cms.InviteNewUserReply{}, nil
 		}
 	}
 
@@ -84,7 +85,7 @@ func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*www.NewUserRep
 	if err != nil {
 		log.Errorf("processInviteNewUser: verification email "+
 			"failed for '%v': %v", u.Email, err)
-		return &www.NewUserReply{}, nil
+		return &cms.InviteNewUserReply{}, nil
 	}
 
 	// If the user already exists, the user record is updated
@@ -98,7 +99,7 @@ func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*www.NewUserRep
 			return nil, err
 		}
 
-		return &www.NewUserReply{
+		return &cms.InviteNewUserReply{
 			VerificationToken: hex.EncodeToString(token),
 		}, nil
 	}
@@ -136,7 +137,7 @@ func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*www.NewUserRep
 	}
 	p.setUserEmailsCache(usr.Email, usr.ID)
 
-	return &www.NewUserReply{
+	return &cms.InviteNewUserReply{
 		VerificationToken: hex.EncodeToString(token),
 	}, nil
 }
@@ -464,4 +465,86 @@ func convertCMSUserFromDatabaseUser(user *user.CMSUser) cms.User {
 		GitHubName:                      user.GitHubName,
 		SupervisorUserID:                user.SupervisorUserID,
 	}
+}
+
+// issuanceDCCUser does the processing to move a nominated user to a fully
+// approved and invite them onto CMS.
+func (p *politeiawww) issuanceDCCUser(userid, sponsorUserID string, domain, contractorType int) error {
+	nominatedUser, err := p.userByIDStr(userid)
+	if err != nil {
+		return err
+	}
+
+	if nominatedUser == nil {
+		return err
+	}
+
+	nomineeUserID, err := uuid.Parse(userid)
+	if err != nil {
+		return err
+	}
+	uu := user.UpdateCMSUser{
+		ID:             nomineeUserID,
+		ContractorType: contractorType,
+		Domain:         domain,
+	}
+
+	// If the nominee was an approved Subcontractor, then use the sponsor user
+	// ID as the SupervisorUserID
+	if contractorType == int(cms.ContractorTypeSubContractor) {
+		uu.SupervisorUserID = sponsorUserID
+	}
+
+	payload, err := user.EncodeUpdateCMSUser(uu)
+	if err != nil {
+		return err
+	}
+	pc := user.PluginCommand{
+		ID:      user.CMSPluginID,
+		Command: user.CmdUpdateCMSUser,
+		Payload: string(payload),
+	}
+	_, err = p.db.PluginExec(pc)
+	if err != nil {
+		return err
+	}
+
+	// Try to email the verification link first; if it fails, then
+	// the new user won't be created.
+	//
+	// This is conditional on the email server being setup.
+	err = p.emailApproveDCCVerificationLink(nominatedUser.Email)
+	if err != nil {
+		log.Errorf("processApproveDCC: verification email "+
+			"failed for '%v': %v", nominatedUser.Email, err)
+		return err
+	}
+
+	return nil
+}
+
+func (p *politeiawww) revokeDCCUser(userid string) error {
+	// Do full userdb update and reject user creds
+	nomineeUserID, err := uuid.Parse(userid)
+	if err != nil {
+		return err
+	}
+	uu := user.UpdateCMSUser{
+		ID:             nomineeUserID,
+		ContractorType: int(cms.ContractorTypeRevoked),
+	}
+	payload, err := user.EncodeUpdateCMSUser(uu)
+	if err != nil {
+		return err
+	}
+	pc := user.PluginCommand{
+		ID:      user.CMSPluginID,
+		Command: user.CmdUpdateCMSUser,
+		Payload: string(payload),
+	}
+	_, err = p.db.PluginExec(pc)
+	if err != nil {
+		return err
+	}
+	return nil
 }

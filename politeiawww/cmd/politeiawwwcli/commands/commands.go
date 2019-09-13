@@ -109,6 +109,7 @@ type Cmds struct {
 	ResetPassword       ResetPasswordCmd       `command:"resetpassword" description:"(public) reset the password for a user that is not logged in"`
 	Secret              SecretCmd              `command:"secret" description:"(user)   ping politeiawww"`
 	SendFaucetTx        SendFaucetTxCmd        `command:"sendfaucettx" description:"         send a DCR transaction using the Decred testnet faucet"`
+	SetDCCStatus        SetDCCStatusCmd        `command:"setdccstatus" description:"(admin)  set the status of a DCC"`
 	SetInvoiceStatus    SetInvoiceStatusCmd    `command:"setinvoicestatus" description:"(admin)  set the status of an invoice"`
 	SetProposalStatus   SetProposalStatusCmd   `command:"setproposalstatus" description:"(admin)  set the status of a proposal"`
 	StartVote           StartVoteCmd           `command:"startvote" description:"(admin)  start the voting period on a proposal"`

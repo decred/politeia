@@ -28,6 +28,8 @@ var (
 		template.New("user_changed_password").Parse(templateUserPasswordChangedRaw))
 	templateInviteNewUserEmail = template.Must(
 		template.New("invite_new_user_email_template").Parse(templateInviteNewUserEmailRaw))
+	templateApproveDCCUserEmail = template.Must(
+		template.New("invite_approved_dcc_user").Parse(templateApproveDCCUserEmailRaw))
 )
 
 // isAdmin returns true if the current session has admin privileges.

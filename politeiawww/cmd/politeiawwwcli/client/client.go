@@ -1869,6 +1869,30 @@ func (c *Client) GetDCCs(gd *cms.GetDCCs) (*cms.GetDCCsReply, error) {
 	return &gdr, nil
 }
 
+// SetDCCStatus issues an status update for a given DCC proposal.
+func (c *Client) SetDCCStatus(sd *cms.SetDCCStatus) (*cms.SetDCCStatusReply, error) {
+	route := "/dcc/" + sd.Token + "/status"
+	responseBody, err := c.makeRequest("POST", route, sd)
+	if err != nil {
+		return nil, err
+	}
+
+	var sdr cms.SetDCCStatusReply
+	err = json.Unmarshal(responseBody, &sdr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal SetDCCStatusReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(sdr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &sdr, nil
+}
+
 // Close all client connections.
 func (c *Client) Close() {
 	if c.conn != nil {
