@@ -456,14 +456,12 @@ func (c *ctx) inventory() error {
 
 	proposalRecords, err := c.batchProposals(tokens)
 	if err != nil {
-		log.Errorf("batchprop error: %v",
-			err)
 		return err
 	}
 
-	tokenToProposalName := make(map[string]string)
+	names := make(map[string]string) // [token]name
 	for _, proposal := range proposalRecords {
-		tokenToProposalName[proposal.CensorshipRecord.Token] = proposal.Name
+		names[proposal.CensorshipRecord.Token] = proposal.Name
 	}
 
 	// Get latest block
@@ -476,7 +474,9 @@ func (c *ctx) inventory() error {
 	for _, token := range tokens {
 		v, err := c._tally(token)
 		if err != nil {
-			return err
+			fmt.Printf("Failed to obtain voting results for %v: %v\n",
+				token, err)
+			continue
 		}
 
 		// Make sure we have valid vote bits
@@ -535,7 +535,7 @@ func (c *ctx) inventory() error {
 
 		// Display vote bits
 		fmt.Printf("Vote: %v\n", v.StartVote.Vote.Token)
-		fmt.Printf("  Proposal        : %v\n", tokenToProposalName[token])
+		fmt.Printf("  Proposal        : %v\n", names[token])
 		fmt.Printf("  Start block     : %v\n", v.StartVoteReply.StartBlockHeight)
 		fmt.Printf("  End block       : %v\n", v.StartVoteReply.EndHeight)
 		fmt.Printf("  Mask            : %v\n", v.StartVote.Vote.Mask)
