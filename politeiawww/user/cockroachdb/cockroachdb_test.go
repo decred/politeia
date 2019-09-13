@@ -1,5 +1,8 @@
 // +build cockroachdb
 
+// The tests in this file need cockroachdb to be up and will only be run if you
+// specify "-tags=cockroachdb" with `go test`.
+
 package cockroachdb
 
 import (
