@@ -482,21 +482,29 @@ func (c *cockroachdb) SessionDeleteById(sid uuid.UUID) error {
 	return nil
 }
 
-// Delete all sessions for the given user id.
+// Delete all sessions for the given user id except the one specified.
 //
 // SessionsDeleteByUserId satisfies the Database interface.
-func (c *cockroachdb) SessionsDeleteByUserId(uid uuid.UUID) error {
+func (c *cockroachdb) SessionsDeleteByUserId(uid uuid.UUID, sessionToKeep uuid.UUID) error {
 	log.Tracef("SessionsDeleteByUserId: %v", uid)
 
 	if c.isShutdown() {
 		return user.ErrShutdown
 	}
 
+	var err error
 	// this may delete 0+ records, hence the transaction
 	tx := c.userDB.Begin()
-	err := tx.
-		Delete(Session{}, "user_id = ?", uid).
-		Error
+
+	if sessionToKeep == uuid.Nil {
+		err = tx.
+			Delete(Session{}, "user_id = ?", uid).
+			Error
+	} else {
+		err = tx.
+			Delete(Session{}, "user_id = ? AND id != ?", uid, sessionToKeep).
+			Error
+	}
 
 	if err != nil {
 		tx.Rollback()

@@ -467,10 +467,10 @@ func (l *localdb) SessionDeleteById(sid uuid.UUID) error {
 	return nil
 }
 
-// Delete all sessions for the given user id.
+// Delete all sessions for the given user id except the one specified.
 //
 // SessionsDeleteByUserId satisfies the Database interface.
-func (l *localdb) SessionsDeleteByUserId(uid uuid.UUID) error {
+func (l *localdb) SessionsDeleteByUserId(uid uuid.UUID, sessionToKeep uuid.UUID) error {
 	l.RLock()
 	defer l.RUnlock()
 
@@ -491,6 +491,9 @@ func (l *localdb) SessionsDeleteByUserId(uid uuid.UUID) error {
 			return err
 		}
 
+		if s.ID == sessionToKeep {
+			continue
+		}
 		if s.UserID == uid {
 			batch.Delete(key)
 		}

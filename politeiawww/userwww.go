@@ -100,6 +100,17 @@ func (p *politeiawww) getSessionUUID(w http.ResponseWriter, r *http.Request) (st
 	return session.UserID.String(), nil
 }
 
+// getSessionID returns the ID of the user's current session if it could be
+// obtained and a Nil uuid otherwise.
+func (p *politeiawww) getSessionID(w http.ResponseWriter, r *http.Request) uuid.UUID {
+	session, err := p.getSession(w, r)
+	if err != nil || session == nil {
+		return uuid.Nil
+	}
+
+	return session.ID
+}
+
 // getSessionUser retrieves the current session user from the database.
 func (p *politeiawww) getSessionUser(w http.ResponseWriter, r *http.Request) (*user.User, error) {
 	id, err := p.getSessionUUID(w, r)
@@ -387,8 +398,8 @@ func (p *politeiawww) handleVerifyResetPassword(w http.ResponseWriter, r *http.R
 	// because we cannot delete all the user's sessions.
 	user, err := p.db.UserGetByUsername(vrp.Username)
 	if err == nil {
-		// log off user everywhere by deleting all his sessions
-		p.db.SessionsDeleteByUserId(user.ID)
+		// log off user everywhere by deleting all sessions
+		p.db.SessionsDeleteByUserId(user.ID, uuid.Nil)
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
@@ -592,9 +603,9 @@ func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// the trade off here is that we don't want to fail the password change
-	// because we cannot delete all the user's sessions.
-	p.db.SessionsDeleteByUserId(user.ID)
+	// valid, authenticated user changing his password,
+	// delete all sesssions except this current one
+	p.db.SessionsDeleteByUserId(user.ID, p.getSessionID(w, r))
 
 	// Reply with the error code.
 	util.RespondWithJSON(w, http.StatusOK, reply)

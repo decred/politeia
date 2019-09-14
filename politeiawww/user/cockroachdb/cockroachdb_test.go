@@ -51,6 +51,7 @@ func TestSessionMethods(t *testing.T) {
 	CheckSessionGetByIdWithNoRecord(t, db)
 	CheckSessionDeleteById(t, db)
 	CheckSessionDeleteByUserId(t, db)
+	CheckSessionDeleteByUserIdAndSessionToKeep(t, db)
 }
 
 func CheckSessionNew(t *testing.T, db *cockroachdb) {
@@ -269,7 +270,7 @@ func CheckSessionDeleteByUserId(t *testing.T, db *cockroachdb) {
 		}
 	}
 
-	err = db.SessionsDeleteByUserId(remove)
+	err = db.SessionsDeleteByUserId(remove, uuid.Nil)
 	if err != nil {
 		t.Errorf("SessionsDeleteByUserId() returned an error: %v", err)
 	}
@@ -285,6 +286,78 @@ func CheckSessionDeleteByUserId(t *testing.T, db *cockroachdb) {
 	}
 	// make sure the other sessions are stil in place
 	kept := []int{0, 2, 4}
+	for _, idx := range kept {
+		var model Session
+		err = db.userDB.Where("id = ?", sa[idx].ID).First(&model).Error
+		if err != nil {
+			t.Errorf("idx: %v (%v), First() returned an error: %v", idx, sa[idx].ID, err)
+		}
+		sa[idx].CreatedAt = model.CreatedAt.Unix()
+		if sa[idx] != model2session(model) {
+			t.Errorf("got session: %v, want: %v", model2session(model), sa[idx])
+		}
+	}
+}
+
+func CheckSessionDeleteByUserIdAndSessionToKeep(t *testing.T, db *cockroachdb) {
+	var err error
+	keep := uuid.New()
+	remove := uuid.New()
+
+	sa := []user.Session{
+		{
+			ID:     uuid.New(),
+			UserID: keep,
+			MaxAge: 14,
+		},
+		{
+			ID:     uuid.New(),
+			UserID: remove,
+			MaxAge: 15,
+		},
+		{
+			ID:     uuid.New(),
+			UserID: keep,
+			MaxAge: 16,
+		},
+		{
+			ID:     uuid.New(),
+			UserID: remove,
+			MaxAge: 17,
+		},
+		{
+			ID:     uuid.New(),
+			UserID: remove,
+			MaxAge: 18,
+		},
+	}
+
+	for idx, s := range sa {
+		// insert a session
+		err = db.SessionNew(s)
+		if err != nil {
+			t.Errorf("idx: %v, SessionNew() returned an error: %v", idx, err)
+		}
+	}
+
+	// remove all sessions associated with user id `remove` except the one with
+	// index 3
+	err = db.SessionsDeleteByUserId(remove, sa[3].ID)
+	if err != nil {
+		t.Errorf("SessionsDeleteByUserId() returned an error: %v", err)
+	}
+
+	removed := []int{1, 4}
+	for _, idx := range removed {
+		// make sure the deleted session is gone
+		var model Session
+		err = db.userDB.Where("id = ?", sa[idx].ID).First(&model).Error
+		if err != gorm.ErrRecordNotFound {
+			t.Errorf("idx: %v, got error: %v, want: %v", idx, err, gorm.ErrRecordNotFound)
+		}
+	}
+	// make sure the other sessions are stil in place
+	kept := []int{0, 2, 3}
 	for _, idx := range kept {
 		var model Session
 		err = db.userDB.Where("id = ?", sa[idx].ID).First(&model).Error

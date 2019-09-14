@@ -214,7 +214,7 @@ func TestSessionsDeleteByUserId(t *testing.T) {
 			t.Errorf("SessionNew() returned an error for: %v", s)
 		}
 	}
-	err = db.SessionsDeleteByUserId(remove)
+	err = db.SessionsDeleteByUserId(remove, uuid.Nil)
 	if err != nil {
 		t.Errorf("SessionsDeleteByUserId() returned an error: %v", err)
 	}
@@ -228,6 +228,68 @@ func TestSessionsDeleteByUserId(t *testing.T) {
 	}
 	// make sure the other sessions are still in place
 	kept := []int{0, 2, 4}
+	for _, idx := range kept {
+		sessionInDB, err := db.SessionGetById(sa[idx].ID)
+		if err != nil {
+			t.Errorf("index: %v, SessionGetById() returned an error: %v", idx, err)
+		}
+		sa[idx].CreatedAt = sessionInDB.CreatedAt
+		if *sessionInDB != sa[idx] {
+			t.Errorf("index: %v, got session: %v, want: %v", idx, sessionInDB, sa[idx])
+		}
+	}
+}
+
+func TestSessionsDeleteByUserIdAndKeepOneSession(t *testing.T) {
+	var err error
+	db, dataDir := setupTestData(t)
+	defer teardownTestData(t, db, dataDir)
+	remove := uuid.New()
+	keep := uuid.New()
+	sa := []user.Session{
+		{ID: uuid.New(),
+			UserID:    keep,
+			CreatedAt: 5,
+			MaxAge:    6},
+		{ID: uuid.New(),
+			UserID:    remove,
+			CreatedAt: 7,
+			MaxAge:    8},
+		{ID: uuid.New(),
+			UserID:    keep,
+			CreatedAt: 9,
+			MaxAge:    10},
+		{ID: uuid.New(),
+			UserID:    remove,
+			CreatedAt: 11,
+			MaxAge:    12},
+		{ID: uuid.New(),
+			UserID:    remove,
+			CreatedAt: 13,
+			MaxAge:    14},
+	}
+	for _, s := range sa {
+		err = db.SessionNew(s)
+		if err != nil {
+			t.Errorf("SessionNew() returned an error for: %v", s)
+		}
+	}
+	// delete all sessions associated with the `removed` user id
+	// except the one with index 3.
+	err = db.SessionsDeleteByUserId(remove, sa[3].ID)
+	if err != nil {
+		t.Errorf("SessionsDeleteByUserId() returned an error: %v", err)
+	}
+	// make sure the right sessions got deleted
+	removed := []int{1, 4}
+	for _, idx := range removed {
+		_, err := db.SessionGetById(sa[idx].ID)
+		if err != user.ErrSessionNotFound {
+			t.Errorf("index: %v, got error: %v, want: %v", idx, err, user.ErrSessionNotFound)
+		}
+	}
+	// make sure the other sessions are still in place
+	kept := []int{0, 2, 3}
 	for _, idx := range kept {
 		sessionInDB, err := db.SessionGetById(sa[idx].ID)
 		if err != nil {

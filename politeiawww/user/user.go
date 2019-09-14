@@ -446,8 +446,8 @@ type Database interface {
 	// Delete the session with the given id
 	SessionDeleteById(uuid.UUID) error
 
-	// Delete all sessions with the given user id
-	SessionsDeleteByUserId(uuid.UUID) error
+	// Delete all sessions with the given user id except the one specified.
+	SessionsDeleteByUserId(uid uuid.UUID, sessionToKeep uuid.UUID) error
 
 	// Iterate over all users
 	AllUsers(callbackFn func(u *User)) error
