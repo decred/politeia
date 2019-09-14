@@ -462,6 +462,31 @@ func (p *politeiawww) handleEditCMSUser(w http.ResponseWriter, r *http.Request) 
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
+// handleManageCMSUser handles the request to edit a given user's
+// additional user information.
+func (p *politeiawww) handleManageCMSUser(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleManageCMSUser")
+
+	var mu cms.ManageUser
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&mu); err != nil {
+		RespondWithError(w, r, 0, "handleManageCMSUser: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	reply, err := p.processManageCMSUser(mu)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleManageCMSUser: "+
+			"processManageCMSUser %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
 func (p *politeiawww) handleCMSUserDetails(w http.ResponseWriter, r *http.Request) {
 	// Add the path param to the struct.
 	log.Tracef("handleCMSUserDetails")
@@ -692,6 +717,35 @@ func (p *politeiawww) handleDCCComments(w http.ResponseWriter, r *http.Request) 
 	util.RespondWithJSON(w, http.StatusOK, gcr)
 }
 
+func (p *politeiawww) handleSetDCCStatus(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleSetDCCStatus")
+
+	var ad cms.SetDCCStatus
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&ad); err != nil {
+		RespondWithError(w, r, 0, "handleSetDCCStatus: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+	u, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleSetDCCStatus: getSessionUser %v", err)
+		return
+	}
+
+	adr, err := p.processSetDCCStatus(ad, u)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleSetDCCStatus: processSetDCCStatus: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, adr)
+}
+
 func (p *politeiawww) setCMSWWWRoutes() {
 	// Templates
 	//p.addTemplate(templateNewProposalSubmittedName,
@@ -765,4 +819,6 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		p.handleLineItemPayouts, permissionAdmin)
 	p.addRoute(http.MethodGet, cms.RouteAdminUserInvoices,
 		p.handleAdminUserInvoices, permissionAdmin)
+	p.addRoute(http.MethodPost, cms.RouteSetDCCStatus,
+		p.handleSetDCCStatus, permissionAdmin)
 }
