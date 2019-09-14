@@ -107,7 +107,7 @@ func (p *politeiawww) getSessionUserID(w http.ResponseWriter, r *http.Request) (
 // obtained and a Nil uuid otherwise.
 func (p *politeiawww) getSessionID(w http.ResponseWriter, r *http.Request) uuid.UUID {
 	session, err := p.getSession(w, r)
-	if err != nil || session == nil {
+	if err != nil {
 		return uuid.Nil
 	}
 
