@@ -448,7 +448,7 @@ func (c *cockroachdb) SessionGetById(sid uuid.UUID) (*user.Session, error) {
 
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			err = user.ErrSessionNotFound
+			err = user.ErrNoSessionFound
 		}
 		return nil, err
 	}

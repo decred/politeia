@@ -70,6 +70,9 @@ func (p *politeiawww) getSession(w http.ResponseWriter, r *http.Request) (*user.
 
 	session, err := p.db.SessionGetById(sid)
 	if err != nil {
+		if err == user.ErrNoSessionFound {
+			err = ErrSessionNotFound
+		}
 		return nil, err
 	}
 	if session.HasExpired() {

@@ -432,7 +432,7 @@ func (l *localdb) SessionGetById(sid uuid.UUID) (*user.Session, error) {
 
 	payload, err := l.userdb.Get([]byte(sessionPrefix+sid.String()), nil)
 	if err == leveldb.ErrNotFound {
-		return nil, user.ErrSessionNotFound
+		return nil, user.ErrNoSessionFound
 	} else if err != nil {
 		return nil, err
 	}
@@ -459,7 +459,7 @@ func (l *localdb) SessionDeleteById(sid uuid.UUID) error {
 
 	err := l.userdb.Delete([]byte(sessionPrefix+sid.String()), nil)
 	if err == leveldb.ErrNotFound {
-		return user.ErrSessionNotFound
+		return user.ErrNoSessionFound
 	} else if err != nil {
 		return err
 	}

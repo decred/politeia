@@ -501,7 +501,7 @@ func (p *politeiawww) handleTokenInventory(w http.ResponseWriter, r *http.Reques
 		// This is a public route so a session might not exist
 		if err != ErrSessionNotFound {
 			RespondWithError(w, r, 0,
-				"handleProposalDetails: getSessionUser %v", err)
+				"handleTokenInventory: getSessionUser %v", err)
 			return
 		}
 	}

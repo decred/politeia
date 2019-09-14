@@ -167,8 +167,8 @@ func CheckSessionGetByIdWithNoRecord(t *testing.T, db *cockroachdb) {
 	if err == nil {
 		t.Error("SessionGetById() did not return an error")
 	}
-	if err != user.ErrSessionNotFound {
-		t.Errorf("got error: %v, want: %v", err, user.ErrSessionNotFound)
+	if err != user.ErrNoSessionFound {
+		t.Errorf("got error: %v, want: %v", err, user.ErrNoSessionFound)
 	}
 }
 
