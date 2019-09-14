@@ -301,3 +301,12 @@ func TestSessionsDeleteByUserIdAndKeepOneSession(t *testing.T) {
 		}
 	}
 }
+
+func TestSessionDeleteByIdAndNoSession(t *testing.T) {
+	db, dataDir := setupTestData(t)
+	defer teardownTestData(t, db, dataDir)
+	err := db.SessionDeleteById(uuid.Nil)
+	if err != nil {
+		t.Errorf("SessionDeleteById() returned an error: %v", err)
+	}
+}

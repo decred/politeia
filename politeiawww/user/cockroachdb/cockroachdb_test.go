@@ -52,6 +52,7 @@ func TestSessionMethods(t *testing.T) {
 	CheckSessionDeleteById(t, db)
 	CheckSessionDeleteByUserId(t, db)
 	CheckSessionDeleteByUserIdAndSessionToKeep(t, db)
+	CheckSessionDeleteByIdAndNoSession(t, db)
 }
 
 func CheckSessionNew(t *testing.T, db *cockroachdb) {
@@ -368,5 +369,13 @@ func CheckSessionDeleteByUserIdAndSessionToKeep(t *testing.T, db *cockroachdb) {
 		if sa[idx] != model2session(model) {
 			t.Errorf("got session: %v, want: %v", model2session(model), sa[idx])
 		}
+	}
+}
+
+func CheckSessionDeleteByIdAndNoSession(t *testing.T, db *cockroachdb) {
+	err := db.SessionDeleteById(uuid.Nil)
+
+	if err != nil {
+		t.Errorf("SessionDeleteById() returned an error: %v", err)
 	}
 }

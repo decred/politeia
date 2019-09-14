@@ -458,9 +458,7 @@ func (l *localdb) SessionDeleteById(sid uuid.UUID) error {
 	log.Debugf("SessionDeleteById: %v", sid)
 
 	err := l.userdb.Delete([]byte(sessionPrefix+sid.String()), nil)
-	if err == leveldb.ErrNotFound {
-		return user.ErrSessionDoesNotExist
-	} else if err != nil {
+	if err != nil {
 		return err
 	}
 
