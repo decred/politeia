@@ -476,6 +476,9 @@ func (c *ctx) inventory() error {
 	latestBlock := ar.CurrentBlockHeight
 
 	for _, token := range tokens {
+		// _tally provides the eligible tickets snapshot as well as a list of
+		// the votes that have already been cast. We use these to filter out
+		// the tickets that have already voted.
 		v, err := c._tally(token)
 		if err != nil {
 			fmt.Printf("Failed to obtain voting results for %v: %v\n",
