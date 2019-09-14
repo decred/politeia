@@ -922,36 +922,36 @@ func (p *politeiawww) handleWebsocket(w http.ResponseWriter, r *http.Request, id
 func (p *politeiawww) handleUnauthenticatedWebsocket(w http.ResponseWriter, r *http.Request) {
 	// We are retrieving the uuid here to make sure it is NOT set. This
 	// check looks backwards but is correct.
-	id, err := p.getSessionUUID(w, r)
+	uid, err := p.getSessionUserID(w, r)
 	if err != nil && err != ErrSessionNotFound {
 		http.Error(w, "Could not get session uuid",
 			http.StatusBadRequest)
 		return
 	}
-	if id != "" {
+	if uid != "" {
 		http.Error(w, "Invalid session uuid", http.StatusBadRequest)
 		return
 	}
-	log.Tracef("handleUnauthenticatedWebsocket: %v", id)
-	defer log.Tracef("handleUnauthenticatedWebsocket exit: %v", id)
+	log.Tracef("handleUnauthenticatedWebsocket: %v", uid)
+	defer log.Tracef("handleUnauthenticatedWebsocket exit: %v", uid)
 
-	p.handleWebsocket(w, r, id)
+	p.handleWebsocket(w, r, uid)
 }
 
 // handleAuthenticatedWebsocket attempts to upgrade the current authenticated
 // connection to a websocket connection.
 func (p *politeiawww) handleAuthenticatedWebsocket(w http.ResponseWriter, r *http.Request) {
-	id, err := p.getSessionUUID(w, r)
+	uid, err := p.getSessionUserID(w, r)
 	if err != nil {
 		http.Error(w, "Could not get session uuid",
 			http.StatusBadRequest)
 		return
 	}
 
-	log.Tracef("handleAuthenticatedWebsocket: %v", id)
-	defer log.Tracef("handleAuthenticatedWebsocket exit: %v", id)
+	log.Tracef("handleAuthenticatedWebsocket: %v", uid)
+	defer log.Tracef("handleAuthenticatedWebsocket exit: %v", uid)
 
-	p.handleWebsocket(w, r, id)
+	p.handleWebsocket(w, r, uid)
 }
 
 // handleSetProposalStatus handles the incoming set proposal status command.

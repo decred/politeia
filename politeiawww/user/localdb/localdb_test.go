@@ -121,8 +121,8 @@ func TestSessionGetByIdAndNoRecord(t *testing.T) {
 	db, dataDir := setupTestData(t)
 	defer teardownTestData(t, db, dataDir)
 	_, err = db.SessionGetById(uuid.New())
-	if err != user.ErrNoSessionFound {
-		t.Errorf("got error: %v, want: %v", err, user.ErrNoSessionFound)
+	if err != user.ErrSessionDoesNotExist {
+		t.Errorf("got error: %v, want: %v", err, user.ErrSessionDoesNotExist)
 	}
 }
 
@@ -156,8 +156,8 @@ func TestSessionDeleteById(t *testing.T) {
 	}
 	// make sure the right session got deleted
 	sessionInDB, err := db.SessionGetById(sa[1].ID)
-	if err != user.ErrNoSessionFound {
-		t.Errorf("got error: %v, want: %v", err, user.ErrNoSessionFound)
+	if err != user.ErrSessionDoesNotExist {
+		t.Errorf("got error: %v, want: %v", err, user.ErrSessionDoesNotExist)
 	}
 	// make sure the other 2 sessions are still in place
 	kept := []int{0, 2}
@@ -222,8 +222,8 @@ func TestSessionsDeleteByUserId(t *testing.T) {
 	removed := []int{1, 3}
 	for _, idx := range removed {
 		_, err := db.SessionGetById(sa[idx].ID)
-		if err != user.ErrNoSessionFound {
-			t.Errorf("index: %v, got error: %v, want: %v", idx, err, user.ErrNoSessionFound)
+		if err != user.ErrSessionDoesNotExist {
+			t.Errorf("index: %v, got error: %v, want: %v", idx, err, user.ErrSessionDoesNotExist)
 		}
 	}
 	// make sure the other sessions are still in place
@@ -284,8 +284,8 @@ func TestSessionsDeleteByUserIdAndKeepOneSession(t *testing.T) {
 	removed := []int{1, 4}
 	for _, idx := range removed {
 		_, err := db.SessionGetById(sa[idx].ID)
-		if err != user.ErrNoSessionFound {
-			t.Errorf("index: %v, got error: %v, want: %v", idx, err, user.ErrNoSessionFound)
+		if err != user.ErrSessionDoesNotExist {
+			t.Errorf("index: %v, got error: %v, want: %v", idx, err, user.ErrSessionDoesNotExist)
 		}
 	}
 	// make sure the other sessions are still in place

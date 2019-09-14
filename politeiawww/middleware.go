@@ -22,7 +22,7 @@ func (p *politeiawww) isLoggedIn(f http.HandlerFunc) http.HandlerFunc {
 		log.Debugf("isLoggedIn: %v %v %v %v", remoteAddr(r), r.Method,
 			r.URL, r.Proto)
 
-		id, err := p.getSessionUUID(w, r)
+		uid, err := p.getSessionUserID(w, r)
 		if err != nil {
 			util.RespondWithJSON(w, http.StatusUnauthorized, www.ErrorReply{
 				ErrorCode: int64(www.ErrorStatusNotLoggedIn),
@@ -31,7 +31,7 @@ func (p *politeiawww) isLoggedIn(f http.HandlerFunc) http.HandlerFunc {
 		}
 
 		// Check if user is authenticated
-		if id == "" {
+		if uid == "" {
 			util.RespondWithJSON(w, http.StatusUnauthorized, www.ErrorReply{
 				ErrorCode: int64(www.ErrorStatusNotLoggedIn),
 			})

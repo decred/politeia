@@ -70,7 +70,7 @@ func (p *politeiawww) getSession(w http.ResponseWriter, r *http.Request) (*user.
 
 	session, err := p.db.SessionGetById(sid)
 	if err != nil {
-		if err == user.ErrNoSessionFound {
+		if err == user.ErrSessionDoesNotExist {
 			err = ErrSessionNotFound
 		}
 		return nil, err
@@ -92,9 +92,9 @@ func (p *politeiawww) getSession(w http.ResponseWriter, r *http.Request) (*user.
 	return session, nil
 }
 
-// getSessionUUID returns the uuid address of the currently logged in user from
-// the session store.
-func (p *politeiawww) getSessionUUID(w http.ResponseWriter, r *http.Request) (string, error) {
+// getSessionUserID returns the uuid address of the currently logged in user
+// from the session store.
+func (p *politeiawww) getSessionUserID(w http.ResponseWriter, r *http.Request) (string, error) {
 	session, err := p.getSession(w, r)
 	if err != nil {
 		return "", err
@@ -116,13 +116,13 @@ func (p *politeiawww) getSessionID(w http.ResponseWriter, r *http.Request) uuid.
 
 // getSessionUser retrieves the current session user from the database.
 func (p *politeiawww) getSessionUser(w http.ResponseWriter, r *http.Request) (*user.User, error) {
-	id, err := p.getSessionUUID(w, r)
+	uid, err := p.getSessionUserID(w, r)
 	if err != nil {
 		return nil, err
 	}
 
-	log.Tracef("getSessionUser: %v", id)
-	pid, err := uuid.Parse(id)
+	log.Tracef("getSessionUser: %v", uid)
+	pid, err := uuid.Parse(uid)
 	if err != nil {
 		return nil, err
 	}

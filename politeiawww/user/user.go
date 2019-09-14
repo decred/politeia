@@ -17,9 +17,9 @@ import (
 )
 
 var (
-	// ErrNoSessionFound indicates that a user session was not found in the
+	// ErrSessionDoesNotExist indicates that a user session was not found in the
 	// database.
-	ErrNoSessionFound = errors.New("no user session found")
+	ErrSessionDoesNotExist = errors.New("no user session found")
 
 	// ErrUserNotFound indicates that a user name was not found in the
 	// database.
