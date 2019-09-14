@@ -143,14 +143,14 @@ func (p *politeiawww) getSessionUser(w http.ResponseWriter, r *http.Request) (*u
 }
 
 // initSession adds a session record to the db and sets its ID in the cookie.
-func (p *politeiawww) initSession(w http.ResponseWriter, r *http.Request, id string) error {
-	log.Tracef("initSession: %v %v", id, www.CookieSession)
+func (p *politeiawww) initSession(w http.ResponseWriter, r *http.Request, uid string) error {
+	log.Tracef("initSession: %v %v", uid, www.CookieSession)
 	cookie, err := p.getCookie(r)
 	if err != nil {
 		return err
 	}
 
-	uid, err := uuid.Parse(id)
+	pid, err := uuid.Parse(uid)
 	if err != nil {
 		return err
 	}
@@ -158,7 +158,7 @@ func (p *politeiawww) initSession(w http.ResponseWriter, r *http.Request, id str
 	sessionid := uuid.New()
 	err = p.db.SessionNew(user.Session{
 		ID:     sessionid,
-		UserID: uid,
+		UserID: pid,
 		MaxAge: int64(p.store.Options.MaxAge),
 	})
 	if err != nil {
