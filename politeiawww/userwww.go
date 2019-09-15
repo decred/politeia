@@ -159,7 +159,7 @@ func (p *politeiawww) initSession(w http.ResponseWriter, r *http.Request, uid st
 	err = p.db.SessionNew(user.Session{
 		ID:     sessionid,
 		UserID: pid,
-		MaxAge: int64(p.store.Options.MaxAge),
+		MaxAge: sessionMaxAge,
 	})
 	if err != nil {
 		return err
