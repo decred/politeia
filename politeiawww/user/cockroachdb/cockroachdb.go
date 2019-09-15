@@ -411,18 +411,16 @@ func (c *cockroachdb) SessionNew(us user.Session) error {
 		Where("id = ?", us.ID).
 		First(&model).
 		Error
-
 	if err == nil {
 		// session exists
 		return user.ErrSessionExists
 	}
-
 	if err != gorm.ErrRecordNotFound {
 		return err
 	}
+
 	s := Session{ID: us.ID, UserID: us.UserID, MaxAge: us.MaxAge}
 	err = c.userDB.Create(&s).Error
-
 	if err != nil {
 		return fmt.Errorf("create session: %v", err)
 	}
@@ -445,7 +443,6 @@ func (c *cockroachdb) SessionGetById(sid uuid.UUID) (*user.Session, error) {
 		Where("id = ?", sid).
 		First(&model).
 		Error
-
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			err = user.ErrSessionDoesNotExist
@@ -475,7 +472,6 @@ func (c *cockroachdb) SessionDeleteById(sid uuid.UUID) error {
 	err := c.userDB.
 		Delete(Session{ID: sid}).
 		Error
-
 	if err != nil {
 		return err
 	}
@@ -505,7 +501,6 @@ func (c *cockroachdb) SessionsDeleteByUserId(uid uuid.UUID, sessionToKeep uuid.U
 			Delete(Session{}, "user_id = ? AND id != ?", uid, sessionToKeep).
 			Error
 	}
-
 	if err != nil {
 		tx.Rollback()
 		return err
