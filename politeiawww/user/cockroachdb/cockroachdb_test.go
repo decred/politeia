@@ -17,7 +17,7 @@ import (
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 )
 
-func model2session(s Session) user.Session {
+func modelToSession(s Session) user.Session {
 	return user.Session{
 		ID:        s.ID,
 		UserID:    s.UserID,
@@ -72,7 +72,7 @@ func CheckSessionNew(t *testing.T, db *cockroachdb) {
 		t.Errorf("Last() returned an error: %v", err)
 	}
 	expected.CreatedAt = model.CreatedAt.Unix()
-	if expected != model2session(model) {
+	if expected != modelToSession(model) {
 		t.Errorf("got session: %v, want: %v", model, expected)
 	}
 }
@@ -95,7 +95,7 @@ func CheckSessionNewWithDefaultMaxAge(t *testing.T, db *cockroachdb) {
 	}
 	expected.CreatedAt = model.CreatedAt.Unix()
 	expected.MaxAge = 86400
-	if expected != model2session(model) {
+	if expected != modelToSession(model) {
 		t.Errorf("got session: %v, want: %v", model, expected)
 	}
 }
@@ -224,8 +224,8 @@ func CheckSessionDeleteById(t *testing.T, db *cockroachdb) {
 			t.Errorf("idx: %v (%v), First() returned an error: %v", idx, sa[idx].ID, err)
 		}
 		sa[idx].CreatedAt = model.CreatedAt.Unix()
-		if sa[idx] != model2session(model) {
-			t.Errorf("got session: %v, want: %v", model2session(model), sa[idx])
+		if sa[idx] != modelToSession(model) {
+			t.Errorf("got session: %v, want: %v", modelToSession(model), sa[idx])
 		}
 	}
 }
@@ -294,8 +294,8 @@ func CheckSessionDeleteByUserId(t *testing.T, db *cockroachdb) {
 			t.Errorf("idx: %v (%v), First() returned an error: %v", idx, sa[idx].ID, err)
 		}
 		sa[idx].CreatedAt = model.CreatedAt.Unix()
-		if sa[idx] != model2session(model) {
-			t.Errorf("got session: %v, want: %v", model2session(model), sa[idx])
+		if sa[idx] != modelToSession(model) {
+			t.Errorf("got session: %v, want: %v", modelToSession(model), sa[idx])
 		}
 	}
 }
@@ -366,8 +366,8 @@ func CheckSessionDeleteByUserIdAndSessionToKeep(t *testing.T, db *cockroachdb) {
 			t.Errorf("idx: %v (%v), First() returned an error: %v", idx, sa[idx].ID, err)
 		}
 		sa[idx].CreatedAt = model.CreatedAt.Unix()
-		if sa[idx] != model2session(model) {
-			t.Errorf("got session: %v, want: %v", model2session(model), sa[idx])
+		if sa[idx] != modelToSession(model) {
+			t.Errorf("got session: %v, want: %v", modelToSession(model), sa[idx])
 		}
 	}
 }
