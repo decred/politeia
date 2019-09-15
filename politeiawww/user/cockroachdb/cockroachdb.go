@@ -419,7 +419,10 @@ func (c *cockroachdb) SessionNew(us user.Session) error {
 		return err
 	}
 
-	s := Session{ID: us.ID, UserID: us.UserID, MaxAge: us.MaxAge}
+	s := Session{
+		ID:     us.ID,
+		UserID: us.UserID,
+		MaxAge: us.MaxAge}
 	err = c.userDB.Create(&s).Error
 	if err != nil {
 		return fmt.Errorf("create session: %v", err)
