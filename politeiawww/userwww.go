@@ -59,7 +59,7 @@ func (p *politeiawww) getSession(w http.ResponseWriter, r *http.Request) (*user.
 
 	id, ok := cookie.Values["sessionid"].(string)
 	if !ok {
-		return nil, ErrSessionNotFound
+		return nil, errSessionNotFound
 	}
 
 	sid, err := uuid.Parse(id)
@@ -71,7 +71,7 @@ func (p *politeiawww) getSession(w http.ResponseWriter, r *http.Request) (*user.
 	session, err := p.db.SessionGetById(sid)
 	if err != nil {
 		if err == user.ErrSessionDoesNotExist {
-			err = ErrSessionNotFound
+			err = errSessionNotFound
 		}
 		return nil, err
 	}
@@ -87,7 +87,7 @@ func (p *politeiawww) getSession(w http.ResponseWriter, r *http.Request) (*user.
 		cookie.Options.MaxAge = -1
 		cookie.Save(r, w)
 
-		return nil, ErrSessionExpired
+		return nil, errSessionExpired
 	}
 	return session, nil
 }

@@ -53,13 +53,13 @@ const (
 )
 
 var (
-	// ErrSessionNotFound is emitted when a session is not found and indicates
+	// errSessionNotFound is emitted when a session is not found and indicates
 	// that the user is not logged in.
-	ErrSessionNotFound = errors.New("session not found")
+	errSessionNotFound = errors.New("session not found")
 
-	// ErrSessionExpired is emitted when a user session has expired and
+	// errSessionExpired is emitted when a user session has expired and
 	// indicates that the user needs to go through the login process again.
-	ErrSessionExpired = errors.New("session expired")
+	errSessionExpired = errors.New("session expired")
 )
 
 // Fetch remote identity
@@ -178,7 +178,7 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 
 	if err, ok := args[0].(error); ok {
 		// user session was deleted e.g. due to a password change or expired?
-		if err == ErrSessionNotFound || err == ErrSessionExpired {
+		if err == errSessionNotFound || err == errSessionExpired {
 			http.Redirect(w, r, "/", http.StatusFound)
 		}
 	}

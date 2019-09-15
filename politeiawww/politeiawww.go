@@ -248,7 +248,7 @@ func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Reque
 
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
-		if err != ErrSessionNotFound {
+		if err != errSessionNotFound {
 			RespondWithError(w, r, 0,
 				"handleProposalDetails: getSessionUser %v", err)
 			return
@@ -308,7 +308,7 @@ func (p *politeiawww) handleBatchProposals(w http.ResponseWriter, r *http.Reques
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		// This is a public route so a session might not exist
-		if err != ErrSessionNotFound {
+		if err != errSessionNotFound {
 			RespondWithError(w, r, 0,
 				"handleProposalDetails: getSessionUser %v", err)
 			return
@@ -358,7 +358,7 @@ func (p *politeiawww) handleCommentsGet(w http.ResponseWriter, r *http.Request) 
 
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
-		if err != ErrSessionNotFound {
+		if err != errSessionNotFound {
 			RespondWithError(w, r, 0,
 				"handleCommentsGet: getSessionUser %v", err)
 			return
@@ -499,7 +499,7 @@ func (p *politeiawww) handleTokenInventory(w http.ResponseWriter, r *http.Reques
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		// This is a public route so a session might not exist
-		if err != ErrSessionNotFound {
+		if err != errSessionNotFound {
 			RespondWithError(w, r, 0,
 				"handleTokenInventory: getSessionUser %v", err)
 			return
@@ -923,7 +923,7 @@ func (p *politeiawww) handleUnauthenticatedWebsocket(w http.ResponseWriter, r *h
 	// We are retrieving the uuid here to make sure it is NOT set. This
 	// check looks backwards but is correct.
 	uid, err := p.getSessionUserID(w, r)
-	if err != nil && err != ErrSessionNotFound {
+	if err != nil && err != errSessionNotFound {
 		http.Error(w, "Could not get session uuid",
 			http.StatusBadRequest)
 		return
