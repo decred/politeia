@@ -434,7 +434,7 @@ func (c *cockroachdb) SessionNew(us user.Session) error {
 // Get a session by its id if present in the database.
 //
 // SessionGetById satisfies the Database interface.
-func (c *cockroachdb) SessionGetById(sid uuid.UUID) (*user.Session, error) {
+func (c *cockroachdb) SessionGetById(sid string) (*user.Session, error) {
 	log.Tracef("SessionGetById: %v", sid)
 
 	if c.isShutdown() {
@@ -465,7 +465,7 @@ func (c *cockroachdb) SessionGetById(sid uuid.UUID) (*user.Session, error) {
 // Delete the session with the given id.
 //
 // SessionDeleteById satisfies the Database interface.
-func (c *cockroachdb) SessionDeleteById(sid uuid.UUID) error {
+func (c *cockroachdb) SessionDeleteById(sid string) error {
 	log.Tracef("SessionDeleteById: %v", sid)
 
 	if c.isShutdown() {
@@ -484,7 +484,7 @@ func (c *cockroachdb) SessionDeleteById(sid uuid.UUID) error {
 // Delete all sessions for the given user id except the one specified.
 //
 // SessionsDeleteByUserId satisfies the Database interface.
-func (c *cockroachdb) SessionsDeleteByUserId(uid uuid.UUID, sessionToKeep uuid.UUID) error {
+func (c *cockroachdb) SessionsDeleteByUserId(uid uuid.UUID, sessionToKeep string) error {
 	log.Tracef("SessionsDeleteByUserId: %v", uid)
 
 	if c.isShutdown() {
@@ -495,7 +495,7 @@ func (c *cockroachdb) SessionsDeleteByUserId(uid uuid.UUID, sessionToKeep uuid.U
 	// this may delete 0+ records, hence the transaction
 	tx := c.userDB.Begin()
 
-	if sessionToKeep == uuid.Nil {
+	if sessionToKeep == "" {
 		err = tx.
 			Delete(Session{}, "user_id = ?", uid).
 			Error

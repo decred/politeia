@@ -57,14 +57,9 @@ func (p *politeiawww) getSession(w http.ResponseWriter, r *http.Request) (*user.
 		return nil, err
 	}
 
-	id, ok := cookie.Values["sessionid"].(string)
+	sid, ok := cookie.Values["sessionid"].(string)
 	if !ok {
 		return nil, errSessionNotFound
-	}
-
-	sid, err := uuid.Parse(id)
-	if err != nil {
-		return nil, err
 	}
 	log.Tracef("getSession: %v", sid)
 
@@ -104,11 +99,11 @@ func (p *politeiawww) getSessionUserID(w http.ResponseWriter, r *http.Request) (
 }
 
 // getSessionID returns the ID of the user's current session if it could be
-// obtained and a Nil uuid otherwise.
-func (p *politeiawww) getSessionID(w http.ResponseWriter, r *http.Request) uuid.UUID {
+// obtained and an empty string otherwise.
+func (p *politeiawww) getSessionID(w http.ResponseWriter, r *http.Request) string {
 	session, err := p.getSession(w, r)
 	if err != nil {
-		return uuid.Nil
+		return ""
 	}
 
 	return session.ID
@@ -157,7 +152,7 @@ func (p *politeiawww) initSession(w http.ResponseWriter, r *http.Request, uid st
 
 	sessionid := uuid.New()
 	err = p.db.SessionNew(user.Session{
-		ID:     sessionid,
+		ID:     sessionid.String(),
 		UserID: pid,
 		MaxAge: sessionMaxAge,
 	})
@@ -182,8 +177,8 @@ func (p *politeiawww) removeSession(w http.ResponseWriter, r *http.Request) erro
 		return nil
 	}
 
-	sid, err := uuid.Parse(cookie.Values["sessionid"].(string))
-	if err == nil {
+	sid, ok := cookie.Values["sessionid"].(string)
+	if ok {
 		// ignore db errors and proceed to allow the cookie to be invalidated
 		p.db.SessionDeleteById(sid)
 	}
@@ -402,7 +397,7 @@ func (p *politeiawww) handleVerifyResetPassword(w http.ResponseWriter, r *http.R
 	user, err := p.db.UserGetByUsername(vrp.Username)
 	if err == nil {
 		// log off user everywhere by deleting all sessions
-		p.db.SessionsDeleteByUserId(user.ID, uuid.Nil)
+		p.db.SessionsDeleteByUserId(user.ID, "")
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)

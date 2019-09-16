@@ -42,7 +42,7 @@ func TestSessionNew(t *testing.T) {
 	db, dataDir := setupTestData(t)
 	defer teardownTestData(t, db, dataDir)
 	s := user.Session{
-		ID:        uuid.New(),
+		ID:        uuid.New().String(),
 		UserID:    uuid.New(),
 		CreatedAt: 1,
 		MaxAge:    2,
@@ -51,7 +51,7 @@ func TestSessionNew(t *testing.T) {
 	if err != nil {
 		t.Error("SessionNew() returned an error")
 	}
-	data, err := db.userdb.Get([]byte(sessionPrefix+s.ID.String()), nil)
+	data, err := db.userdb.Get([]byte(sessionPrefix+s.ID), nil)
 	if err != nil {
 		t.Errorf("db.Get() returned an error: %v", err)
 	}
@@ -73,7 +73,7 @@ func TestSessionExistsAlready(t *testing.T) {
 	db, dataDir := setupTestData(t)
 	defer teardownTestData(t, db, dataDir)
 	s := user.Session{
-		ID:        uuid.New(),
+		ID:        uuid.New().String(),
 		UserID:    uuid.New(),
 		CreatedAt: 1,
 		MaxAge:    2,
@@ -94,7 +94,7 @@ func TestSessionGetById(t *testing.T) {
 	db, dataDir := setupTestData(t)
 	defer teardownTestData(t, db, dataDir)
 	s := user.Session{
-		ID:        uuid.New(),
+		ID:        uuid.New().String(),
 		UserID:    uuid.New(),
 		CreatedAt: 3,
 		MaxAge:    4,
@@ -120,7 +120,7 @@ func TestSessionGetByIdAndNoRecord(t *testing.T) {
 	var err error
 	db, dataDir := setupTestData(t)
 	defer teardownTestData(t, db, dataDir)
-	_, err = db.SessionGetById(uuid.New())
+	_, err = db.SessionGetById(uuid.New().String())
 	if err != user.ErrSessionDoesNotExist {
 		t.Errorf("got error: %v, want: %v", err, user.ErrSessionDoesNotExist)
 	}
@@ -131,15 +131,15 @@ func TestSessionDeleteById(t *testing.T) {
 	db, dataDir := setupTestData(t)
 	defer teardownTestData(t, db, dataDir)
 	sa := []user.Session{
-		{ID: uuid.New(),
+		{ID: uuid.New().String(),
 			UserID:    uuid.New(),
 			CreatedAt: 5,
 			MaxAge:    6},
-		{ID: uuid.New(),
+		{ID: uuid.New().String(),
 			UserID:    uuid.New(),
 			CreatedAt: 7,
 			MaxAge:    8},
-		{ID: uuid.New(),
+		{ID: uuid.New().String(),
 			UserID:    uuid.New(),
 			CreatedAt: 9,
 			MaxAge:    10},
@@ -187,23 +187,23 @@ func TestSessionsDeleteByUserId(t *testing.T) {
 	remove := uuid.New()
 	keep := uuid.New()
 	sa := []user.Session{
-		{ID: uuid.New(),
+		{ID: uuid.New().String(),
 			UserID:    keep,
 			CreatedAt: 5,
 			MaxAge:    6},
-		{ID: uuid.New(),
+		{ID: uuid.New().String(),
 			UserID:    remove,
 			CreatedAt: 7,
 			MaxAge:    8},
-		{ID: uuid.New(),
+		{ID: uuid.New().String(),
 			UserID:    keep,
 			CreatedAt: 9,
 			MaxAge:    10},
-		{ID: uuid.New(),
+		{ID: uuid.New().String(),
 			UserID:    remove,
 			CreatedAt: 11,
 			MaxAge:    12},
-		{ID: uuid.New(),
+		{ID: uuid.New().String(),
 			UserID:    keep,
 			CreatedAt: 13,
 			MaxAge:    14},
@@ -214,7 +214,7 @@ func TestSessionsDeleteByUserId(t *testing.T) {
 			t.Errorf("SessionNew() returned an error for: %v", s)
 		}
 	}
-	err = db.SessionsDeleteByUserId(remove, uuid.Nil)
+	err = db.SessionsDeleteByUserId(remove, "")
 	if err != nil {
 		t.Errorf("SessionsDeleteByUserId() returned an error: %v", err)
 	}
@@ -247,23 +247,23 @@ func TestSessionsDeleteByUserIdAndKeepOneSession(t *testing.T) {
 	remove := uuid.New()
 	keep := uuid.New()
 	sa := []user.Session{
-		{ID: uuid.New(),
+		{ID: uuid.New().String(),
 			UserID:    keep,
 			CreatedAt: 5,
 			MaxAge:    6},
-		{ID: uuid.New(),
+		{ID: uuid.New().String(),
 			UserID:    remove,
 			CreatedAt: 7,
 			MaxAge:    8},
-		{ID: uuid.New(),
+		{ID: uuid.New().String(),
 			UserID:    keep,
 			CreatedAt: 9,
 			MaxAge:    10},
-		{ID: uuid.New(),
+		{ID: uuid.New().String(),
 			UserID:    remove,
 			CreatedAt: 11,
 			MaxAge:    12},
-		{ID: uuid.New(),
+		{ID: uuid.New().String(),
 			UserID:    remove,
 			CreatedAt: 13,
 			MaxAge:    14},
@@ -305,7 +305,7 @@ func TestSessionsDeleteByUserIdAndKeepOneSession(t *testing.T) {
 func TestSessionDeleteByIdAndNoSession(t *testing.T) {
 	db, dataDir := setupTestData(t)
 	defer teardownTestData(t, db, dataDir)
-	err := db.SessionDeleteById(uuid.Nil)
+	err := db.SessionDeleteById(uuid.Nil.String())
 	if err != nil {
 		t.Errorf("SessionDeleteById() returned an error: %v", err)
 	}

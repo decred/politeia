@@ -382,7 +382,7 @@ type Plugin struct {
 
 // Session represents a user session.
 type Session struct {
-	ID        uuid.UUID `json:"id"`        // Unique session uuid
+	ID        string    `json:"id"`        // Unique session uuid
 	UserID    uuid.UUID `json:"userid"`    // The user's uuid
 	CreatedAt int64     `json:"createdat"` // Time session was created at
 	MaxAge    int64     `json:"maxage"`    // Max session duration in seconds
@@ -435,7 +435,7 @@ type Database interface {
 	UserGetById(uuid.UUID) (*User, error)
 
 	// Return user session record given its id
-	SessionGetById(uuid.UUID) (*Session, error)
+	SessionGetById(string) (*Session, error)
 
 	// Return user record given a public key
 	UserGetByPubKey(string) (*User, error)
@@ -444,10 +444,10 @@ type Database interface {
 	UsersGetByPubKey(pubKeys []string) (map[string]User, error)
 
 	// Delete the session with the given id
-	SessionDeleteById(uuid.UUID) error
+	SessionDeleteById(string) error
 
 	// Delete all sessions with the given user id except the one specified.
-	SessionsDeleteByUserId(uid uuid.UUID, sessionToKeep uuid.UUID) error
+	SessionsDeleteByUserId(uid uuid.UUID, sessionToKeep string) error
 
 	// Iterate over all users
 	AllUsers(callbackFn func(u *User)) error

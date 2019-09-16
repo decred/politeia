@@ -401,7 +401,7 @@ func (l *localdb) SessionNew(s user.Session) error {
 
 	log.Debugf("SessionNew: %v", s)
 
-	key := []byte(sessionPrefix + s.ID.String())
+	key := []byte(sessionPrefix + s.ID)
 	// Make sure user session does not exist
 	ok, err := l.userdb.Has(key, nil)
 	if err != nil {
@@ -421,7 +421,7 @@ func (l *localdb) SessionNew(s user.Session) error {
 // Get a session by its id if present in the database.
 //
 // SessionGetById satisfies the Database interface.
-func (l *localdb) SessionGetById(sid uuid.UUID) (*user.Session, error) {
+func (l *localdb) SessionGetById(sid string) (*user.Session, error) {
 	l.RLock()
 	defer l.RUnlock()
 
@@ -430,7 +430,7 @@ func (l *localdb) SessionGetById(sid uuid.UUID) (*user.Session, error) {
 	}
 	log.Debugf("SessionGetById: %v", sid)
 
-	payload, err := l.userdb.Get([]byte(sessionPrefix+sid.String()), nil)
+	payload, err := l.userdb.Get([]byte(sessionPrefix+sid), nil)
 	if err == leveldb.ErrNotFound {
 		return nil, user.ErrSessionDoesNotExist
 	} else if err != nil {
@@ -448,7 +448,7 @@ func (l *localdb) SessionGetById(sid uuid.UUID) (*user.Session, error) {
 // Delete the session with the given id.
 //
 // SessionDeleteById satisfies the Database interface.
-func (l *localdb) SessionDeleteById(sid uuid.UUID) error {
+func (l *localdb) SessionDeleteById(sid string) error {
 	l.RLock()
 	defer l.RUnlock()
 
@@ -457,7 +457,7 @@ func (l *localdb) SessionDeleteById(sid uuid.UUID) error {
 	}
 	log.Debugf("SessionDeleteById: %v", sid)
 
-	err := l.userdb.Delete([]byte(sessionPrefix+sid.String()), nil)
+	err := l.userdb.Delete([]byte(sessionPrefix+sid), nil)
 	if err != nil {
 		return err
 	}
@@ -468,7 +468,7 @@ func (l *localdb) SessionDeleteById(sid uuid.UUID) error {
 // Delete all sessions for the given user id except the one specified.
 //
 // SessionsDeleteByUserId satisfies the Database interface.
-func (l *localdb) SessionsDeleteByUserId(uid uuid.UUID, sessionToKeep uuid.UUID) error {
+func (l *localdb) SessionsDeleteByUserId(uid uuid.UUID, sessionToKeep string) error {
 	l.RLock()
 	defer l.RUnlock()
 
@@ -476,7 +476,7 @@ func (l *localdb) SessionsDeleteByUserId(uid uuid.UUID, sessionToKeep uuid.UUID)
 		return user.ErrShutdown
 	}
 
-	log.Debugf("SessionsDeleteBySessionId: %v", uid)
+	log.Debugf("SessionsDeleteByUserId %v", uid)
 
 	batch := new(leveldb.Batch)
 	iter := l.userdb.NewIterator(util.BytesPrefix([]byte(sessionPrefix)), nil)
@@ -489,7 +489,7 @@ func (l *localdb) SessionsDeleteByUserId(uid uuid.UUID, sessionToKeep uuid.UUID)
 			return err
 		}
 
-		if s.ID == sessionToKeep {
+		if sessionToKeep != "" && s.ID == sessionToKeep {
 			continue
 		}
 		if s.UserID == uid {

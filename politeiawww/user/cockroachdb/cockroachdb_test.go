@@ -52,7 +52,7 @@ func connectToTestDB(t *testing.T) *cockroachdb {
 func TestSessionNew(t *testing.T) {
 	db := connectToTestDB(t)
 	expected := user.Session{
-		ID:     uuid.New(),
+		ID:     uuid.New().String(),
 		UserID: uuid.New(),
 		MaxAge: 2,
 	}
@@ -75,7 +75,7 @@ func TestSessionNew(t *testing.T) {
 func TestSessionNewWithDefaultMaxAge(t *testing.T) {
 	db := connectToTestDB(t)
 	expected := user.Session{
-		ID:     uuid.New(),
+		ID:     uuid.New().String(),
 		UserID: uuid.New(),
 		// omit MaxAge, it should be set to default defined in gorm model (86400)
 	}
@@ -99,7 +99,7 @@ func TestSessionNewWithDefaultMaxAge(t *testing.T) {
 func TestSessionNewSameID(t *testing.T) {
 	db := connectToTestDB(t)
 	expected := user.Session{
-		ID:     uuid.New(),
+		ID:     uuid.New().String(),
 		UserID: uuid.New(),
 		MaxAge: 3,
 	}
@@ -121,7 +121,7 @@ func TestSessionNewSameID(t *testing.T) {
 func TestSessionGetById(t *testing.T) {
 	db := connectToTestDB(t)
 	expected := user.Session{
-		ID:     uuid.New(),
+		ID:     uuid.New().String(),
 		UserID: uuid.New(),
 		MaxAge: 4,
 	}
@@ -157,7 +157,7 @@ func TestSessionGetById(t *testing.T) {
 func TestSessionGetByIdWithNoRecord(t *testing.T) {
 	db := connectToTestDB(t)
 	expected := user.Session{
-		ID:     uuid.New(),
+		ID:     uuid.New().String(),
 		UserID: uuid.New(),
 		MaxAge: 5,
 	}
@@ -177,17 +177,17 @@ func TestSessionDeleteById(t *testing.T) {
 	var err error
 	sa := []user.Session{
 		{
-			ID:     uuid.New(),
+			ID:     uuid.New().String(),
 			UserID: uuid.New(),
 			MaxAge: 6,
 		},
 		{
-			ID:     uuid.New(),
+			ID:     uuid.New().String(),
 			UserID: uuid.New(),
 			MaxAge: 7,
 		},
 		{
-			ID:     uuid.New(),
+			ID:     uuid.New().String(),
 			UserID: uuid.New(),
 			MaxAge: 8,
 		},
@@ -238,27 +238,27 @@ func TestSessionDeleteByUserId(t *testing.T) {
 
 	sa := []user.Session{
 		{
-			ID:     uuid.New(),
+			ID:     uuid.New().String(),
 			UserID: keep,
 			MaxAge: 9,
 		},
 		{
-			ID:     uuid.New(),
+			ID:     uuid.New().String(),
 			UserID: remove,
 			MaxAge: 10,
 		},
 		{
-			ID:     uuid.New(),
+			ID:     uuid.New().String(),
 			UserID: keep,
 			MaxAge: 11,
 		},
 		{
-			ID:     uuid.New(),
+			ID:     uuid.New().String(),
 			UserID: remove,
 			MaxAge: 12,
 		},
 		{
-			ID:     uuid.New(),
+			ID:     uuid.New().String(),
 			UserID: keep,
 			MaxAge: 13,
 		},
@@ -272,7 +272,7 @@ func TestSessionDeleteByUserId(t *testing.T) {
 		}
 	}
 
-	err = db.SessionsDeleteByUserId(remove, uuid.Nil)
+	err = db.SessionsDeleteByUserId(remove, "")
 	if err != nil {
 		t.Errorf("SessionsDeleteByUserId() returned an error: %v", err)
 	}
@@ -309,27 +309,27 @@ func TestSessionDeleteByUserIdAndSessionToKeep(t *testing.T) {
 
 	sa := []user.Session{
 		{
-			ID:     uuid.New(),
+			ID:     uuid.New().String(),
 			UserID: keep,
 			MaxAge: 14,
 		},
 		{
-			ID:     uuid.New(),
+			ID:     uuid.New().String(),
 			UserID: remove,
 			MaxAge: 15,
 		},
 		{
-			ID:     uuid.New(),
+			ID:     uuid.New().String(),
 			UserID: keep,
 			MaxAge: 16,
 		},
 		{
-			ID:     uuid.New(),
+			ID:     uuid.New().String(),
 			UserID: remove,
 			MaxAge: 17,
 		},
 		{
-			ID:     uuid.New(),
+			ID:     uuid.New().String(),
 			UserID: remove,
 			MaxAge: 18,
 		},
@@ -376,7 +376,7 @@ func TestSessionDeleteByUserIdAndSessionToKeep(t *testing.T) {
 
 func TestSessionDeleteByIdAndNoSession(t *testing.T) {
 	db := connectToTestDB(t)
-	err := db.SessionDeleteById(uuid.Nil)
+	err := db.SessionDeleteById(uuid.Nil.String())
 
 	if err != nil {
 		t.Errorf("SessionDeleteById() returned an error: %v", err)
