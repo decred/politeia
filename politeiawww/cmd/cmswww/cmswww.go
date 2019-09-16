@@ -69,7 +69,7 @@ type cmswww struct {
 	InvoiceExchangeRate InvoiceExchangeRateCmd   `command:"invoiceexchangerate" description:"(user)   get exchange rate for a given month/year"`
 	InviteNewUser       InviteNewUserCmd         `command:"invite" description:"(admin)  invite a new user"`
 	InvoiceDetails      InvoiceDetailsCmd        `command:"invoicedetails" description:"(public) get the details of a proposal"`
-	LineItemPayouts     LineItemPayoutsCmd       `command:"lineitempayouts" description:"(admin)  generate line item list for a given date range"`
+	InvoicePayouts      InvoicePayoutsCmd        `command:"invoicepayouts" description:"(admin)  generate paid invoice list for a given date range"`
 	Login               shared.LoginCmd          `command:"login" description:"(public) login to Politeia"`
 	Logout              shared.LogoutCmd         `command:"logout" description:"(public) logout of Politeia"`
 	ManageUser          ManageUserCmd            `command:"manageuser" description:"(admin)  edit certain properties of the specified user"`

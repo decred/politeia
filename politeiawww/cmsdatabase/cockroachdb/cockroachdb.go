@@ -330,11 +330,11 @@ func (c *cockroachdb) ExchangeRate(month, year int) (*database.ExchangeRate, err
 	return decodeExchangeRate(exchangeRate), nil
 }
 
-// LineItemsByDateRange takes a start and end time (in Unix seconds) and returns
-// all line items that have been paid in that range.  This uses the
+// InvoicesByDateRangeStatus takes a start and end time (in Unix seconds) and returns
+// all invoices with the included status.  This uses the
 // invoice_changes table to discover the token to look up the correct line items.
-func (c *cockroachdb) LineItemsByDateRange(start, end int64, status int) ([]database.LineItem, error) {
-	log.Debugf("LineItemsByDateRange: %v %v", time.Unix(start, 0),
+func (c *cockroachdb) InvoicesByDateRangeStatus(start, end int64, status int) ([]*database.Invoice, error) {
+	log.Debugf("InvoicesByDateRangeStatus: %v %v", time.Unix(start, 0),
 		time.Unix(end, 0))
 	// Get all invoice changes of PAID status within date range.
 	invoiceChanges := make([]InvoiceChange, 0, 1024) // PNOOMA
@@ -351,24 +351,27 @@ func (c *cockroachdb) LineItemsByDateRange(start, end int64, status int) ([]data
 	}
 
 	// Using all invoice tokens from the results of the query above, ask for all
-	// line items that match those tokens.
-	dbLineItems := make([]database.LineItem, 0, 1024)
+	// invoices that match those tokens.
+	dbInvoices := make([]*database.Invoice, 0, 1024)
 	for _, v := range invoiceChanges {
-		lineItems := make([]LineItem, 0, 1024)
+		invoices := make([]Invoice, 0, 1024)
 		err = c.recordsdb.
-			Where("invoice_token = ?", v.InvoiceToken).
-			Find(&lineItems).
+			Preload("LineItems").
+			Where("token = ?", v.InvoiceToken).
+			Find(&invoices).
 			Error
 		if err != nil {
 			return nil, err
 		}
-		for _, vv := range lineItems {
-			dbLineItem := DecodeInvoiceLineItem(&vv)
-			dbLineItems = append(dbLineItems, *dbLineItem)
+		for _, vv := range invoices {
+			inv, err := DecodeInvoice(&vv)
+			if err != nil {
+				return nil, err
+			}
+			dbInvoices = append(dbInvoices, inv)
 		}
 	}
-
-	return dbLineItems, nil
+	return dbInvoices, nil
 }
 
 // Close satisfies the database interface.

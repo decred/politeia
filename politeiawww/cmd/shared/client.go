@@ -19,7 +19,7 @@ import (
 
 	"github.com/decred/dcrwallet/rpc/walletrpc"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
-	"github.com/decred/politeia/politeiawww/api/www/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
 	"github.com/gorilla/schema"
 	"golang.org/x/net/publicsuffix"
@@ -1655,18 +1655,18 @@ func (c *Client) InvoiceExchangeRate(ier *cms.InvoiceExchangeRate) (*cms.Invoice
 	return &ierr, nil
 }
 
-// LineItemPayouts retrieves invoices base on possible field set in the request
+// InvoicePayouts retrieves invoices base on possible field set in the request
 // month/year and/or status
-func (c *Client) LineItemPayouts(lip *cms.LineItemPayouts) (*cms.LineItemPayoutsReply, error) {
-	responseBody, err := c.makeRequest("POST", cms.RouteLineItemPayouts, lip)
+func (c *Client) InvoicePayouts(lip *cms.InvoicePayouts) (*cms.InvoicePayoutsReply, error) {
+	responseBody, err := c.makeRequest("POST", cms.RouteInvoicePayouts, lip)
 	if err != nil {
 		return nil, err
 	}
 
-	var lipr cms.LineItemPayoutsReply
+	var lipr cms.InvoicePayoutsReply
 	err = json.Unmarshal(responseBody, &lipr)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal LineItemPayouts: %v", err)
+		return nil, fmt.Errorf("unmarshal InvoicePayouts: %v", err)
 	}
 
 	if c.cfg.Verbose {

@@ -34,7 +34,7 @@ const (
 	RouteAdminInvoices       = "/admin/invoices"
 	RouteAdminUserInvoices   = "/admin/userinvoices"
 	RouteGeneratePayouts     = "/admin/generatepayouts"
-	RouteLineItemPayouts     = "/admin/lineitempayouts"
+	RouteInvoicePayouts      = "/admin/invoicepayouts"
 	RoutePayInvoices         = "/admin/payinvoices"
 	RouteInvoiceComments     = "/invoices/{token:[A-z0-9]{64}}/comments"
 	RouteInvoiceExchangeRate = "/invoices/exchangerate"
@@ -500,17 +500,17 @@ type PayInvoices struct{}
 // PayInvoicesReply will be empty if no errors have occurred.
 type PayInvoicesReply struct{}
 
-// LineItemPayouts contains the request to receive line items from payouts
+// InvoicePayouts contains the request to receive invoices that have been paid
 // within a start and end date.
-type LineItemPayouts struct {
+type InvoicePayouts struct {
 	StartTime int64 `json:"starttime"` // Start time for range (in unix seconds)
-	EndTime   int64 `json:"endtime"`   // End time for rang (in unix seconds)
+	EndTime   int64 `json:"endtime"`   // End time for range (in unix seconds)
 }
 
-// LineItemPayoutsReply returns an array of line items within the requested
+// InvoicePayoutsReply returns an array of invoices within the requested
 // date range.
-type LineItemPayoutsReply struct {
-	LineItems []LineItemsInput `json:"lineitems"` // Line items within the requested date range.
+type InvoicePayoutsReply struct {
+	Invoices []InvoiceRecord `json:"invoices"` // Invoices within the requested date range.
 }
 
 // PaymentInformation contains information for each invoice's payout. A payout
