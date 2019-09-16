@@ -1613,9 +1613,9 @@ func decodeBackendInvoiceStatusChanges(payload []byte) ([]backendInvoiceStatusCh
 	return md, nil
 }
 
-// processLineItemPayouts looks for all line items within the given start and end dates.
-func (p *politeiawww) processLineItemPayouts(lip cms.LineItemPayouts) (*cms.LineItemPayoutsReply, error) {
-	reply := &cms.LineItemPayoutsReply{}
+// processInvoicePayouts looks for all paid invoices within the given start and end dates.
+func (p *politeiawww) processInvoicePayouts(lip cms.InvoicePayouts) (*cms.InvoicePayoutsReply, error) {
+	reply := &cms.InvoicePayoutsReply{}
 
 	// check for valid dates
 	if lip.StartTime > lip.EndTime {
@@ -1623,7 +1623,8 @@ func (p *politeiawww) processLineItemPayouts(lip cms.LineItemPayouts) (*cms.Line
 			ErrorCode: cms.ErrorStatusInvalidDatesRequested,
 		}
 	}
-	dbInvs, err := p.cmsDB.InvoicesByDateRangeStatus(lip.StartTime, lip.EndTime, int(cms.InvoiceStatusPaid))
+	dbInvs, err := p.cmsDB.InvoicesByDateRangeStatus(lip.StartTime, lip.EndTime,
+		int(cms.InvoiceStatusPaid))
 	if err != nil {
 		return nil, err
 	}
