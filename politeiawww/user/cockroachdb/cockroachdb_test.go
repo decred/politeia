@@ -90,7 +90,7 @@ func TestSessionNewWithDefaultMaxAge(t *testing.T) {
 		t.Errorf("Last() returned an error: %v", err)
 	}
 	expected.CreatedAt = model.CreatedAt.Unix()
-	expected.MaxAge = 86400
+	expected.MaxAge = 0
 	if expected != modelToSession(model) {
 		t.Errorf("got session: %v, want: %v", model, expected)
 	}

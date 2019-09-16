@@ -50,9 +50,9 @@ func (User) TableName() string {
 
 // Session represents a politeiawww user session.
 type Session struct {
-	ID     uuid.UUID `gorm:"primary_key"`            // UUID
-	UserID uuid.UUID `gorm:"not null"`               // User UUID (foreign key)
-	MaxAge int64     `gorm:"not null;default:86400"` // default: one day
+	ID     uuid.UUID `gorm:"primary_key"` // UUID
+	UserID uuid.UUID `gorm:"not null"`    // User UUID (foreign key)
+	MaxAge int64     `gorm:"not null"`
 
 	// Set by gorm
 	CreatedAt time.Time // Time of record creation
