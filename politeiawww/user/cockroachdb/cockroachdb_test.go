@@ -26,7 +26,9 @@ func modelToSession(s Session) user.Session {
 	}
 }
 
-func connect2testdb() (*cockroachdb, error) {
+var testDBConnection *cockroachdb
+
+func connectToTestDB(t *testing.T) *cockroachdb {
 	home := os.Getenv("HOME")
 	var (
 		tdbhost        string = "localhost:26257"
@@ -35,27 +37,20 @@ func connect2testdb() (*cockroachdb, error) {
 		tdbcert        string = path.Join(home, ".cockroachdb/certs/clients/politeiawww/client.politeiawww.crt")
 		tdbkey         string = path.Join(home, ".cockroachdb/certs/clients/politeiawww/client.politeiawww.key")
 		tencryptionkey string = path.Join(home, ".politeiawww/sbox.key")
+		err            error
 	)
-	return New(tdbhost, tnetwork, tdbrootcert, tdbcert, tdbkey, tencryptionkey)
-}
 
-func TestSessionMethods(t *testing.T) {
-	db, err := connect2testdb()
-	if err != nil {
-		t.Fatalf("connect to cockroachdb: %v", err)
+	if testDBConnection == nil {
+		testDBConnection, err = New(tdbhost, tnetwork, tdbrootcert, tdbcert, tdbkey, tencryptionkey)
+		if err != nil {
+			t.Fatalf("cockroachdb.New() returned an error: %v", err)
+		}
 	}
-	CheckSessionNew(t, db)
-	CheckSessionNewWithDefaultMaxAge(t, db)
-	CheckSessionNewSameID(t, db)
-	CheckSessionGetById(t, db)
-	CheckSessionGetByIdWithNoRecord(t, db)
-	CheckSessionDeleteById(t, db)
-	CheckSessionDeleteByUserId(t, db)
-	CheckSessionDeleteByUserIdAndSessionToKeep(t, db)
-	CheckSessionDeleteByIdAndNoSession(t, db)
+	return testDBConnection
 }
 
-func CheckSessionNew(t *testing.T, db *cockroachdb) {
+func TestSessionNew(t *testing.T) {
+	db := connectToTestDB(t)
 	expected := user.Session{
 		ID:     uuid.New(),
 		UserID: uuid.New(),
@@ -77,7 +72,8 @@ func CheckSessionNew(t *testing.T, db *cockroachdb) {
 	}
 }
 
-func CheckSessionNewWithDefaultMaxAge(t *testing.T, db *cockroachdb) {
+func TestSessionNewWithDefaultMaxAge(t *testing.T) {
+	db := connectToTestDB(t)
 	expected := user.Session{
 		ID:     uuid.New(),
 		UserID: uuid.New(),
@@ -100,7 +96,8 @@ func CheckSessionNewWithDefaultMaxAge(t *testing.T, db *cockroachdb) {
 	}
 }
 
-func CheckSessionNewSameID(t *testing.T, db *cockroachdb) {
+func TestSessionNewSameID(t *testing.T) {
+	db := connectToTestDB(t)
 	expected := user.Session{
 		ID:     uuid.New(),
 		UserID: uuid.New(),
@@ -121,7 +118,8 @@ func CheckSessionNewSameID(t *testing.T, db *cockroachdb) {
 	}
 }
 
-func CheckSessionGetById(t *testing.T, db *cockroachdb) {
+func TestSessionGetById(t *testing.T) {
+	db := connectToTestDB(t)
 	expected := user.Session{
 		ID:     uuid.New(),
 		UserID: uuid.New(),
@@ -156,7 +154,8 @@ func CheckSessionGetById(t *testing.T, db *cockroachdb) {
 	}
 }
 
-func CheckSessionGetByIdWithNoRecord(t *testing.T, db *cockroachdb) {
+func TestSessionGetByIdWithNoRecord(t *testing.T) {
+	db := connectToTestDB(t)
 	expected := user.Session{
 		ID:     uuid.New(),
 		UserID: uuid.New(),
@@ -173,7 +172,8 @@ func CheckSessionGetByIdWithNoRecord(t *testing.T, db *cockroachdb) {
 	}
 }
 
-func CheckSessionDeleteById(t *testing.T, db *cockroachdb) {
+func TestSessionDeleteById(t *testing.T) {
+	db := connectToTestDB(t)
 	var err error
 	sa := []user.Session{
 		{
@@ -230,7 +230,8 @@ func CheckSessionDeleteById(t *testing.T, db *cockroachdb) {
 	}
 }
 
-func CheckSessionDeleteByUserId(t *testing.T, db *cockroachdb) {
+func TestSessionDeleteByUserId(t *testing.T) {
+	db := connectToTestDB(t)
 	var err error
 	keep := uuid.New()
 	remove := uuid.New()
@@ -300,7 +301,8 @@ func CheckSessionDeleteByUserId(t *testing.T, db *cockroachdb) {
 	}
 }
 
-func CheckSessionDeleteByUserIdAndSessionToKeep(t *testing.T, db *cockroachdb) {
+func TestSessionDeleteByUserIdAndSessionToKeep(t *testing.T) {
+	db := connectToTestDB(t)
 	var err error
 	keep := uuid.New()
 	remove := uuid.New()
@@ -372,7 +374,8 @@ func CheckSessionDeleteByUserIdAndSessionToKeep(t *testing.T, db *cockroachdb) {
 	}
 }
 
-func CheckSessionDeleteByIdAndNoSession(t *testing.T, db *cockroachdb) {
+func TestSessionDeleteByIdAndNoSession(t *testing.T) {
+	db := connectToTestDB(t)
 	err := db.SessionDeleteById(uuid.Nil)
 
 	if err != nil {
