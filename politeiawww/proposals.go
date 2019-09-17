@@ -943,11 +943,16 @@ func (p *politeiawww) getVoteSummaries(tokens []string, bestBlock uint64) (map[s
 	for token, summary := range r.Summaries {
 		results := convertVoteOptionResultsFromDecred(summary.Results)
 
-		endHeight, err := strconv.ParseUint(summary.EndHeight, 10, 64)
-		if err != nil {
-			log.Errorf("getVoteSummaries: ParseUint "+
-				"failed on '%v': %v", summary.EndHeight, err)
-			endHeight = 0
+		// An endHeight will not exist if the proposal has not gone
+		// up for vote yet.
+		var endHeight uint64
+		if summary.EndHeight != "" {
+			i, err := strconv.ParseUint(summary.EndHeight, 10, 64)
+			if err != nil {
+				log.Errorf("getVoteSummaries %v: ParseUint failed "+
+					"on '%v': %v", token, summary.EndHeight, err)
+			}
+			endHeight = i
 		}
 
 		vs := www.VoteSummary{
