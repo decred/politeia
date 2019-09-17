@@ -23,6 +23,7 @@ func convertCastVoteReplyFromDecredPlugin(cvr decredplugin.CastVoteReply) www.Ca
 		ClientSignature: cvr.ClientSignature,
 		Signature:       cvr.Signature,
 		Error:           cvr.Error,
+		ErrorStatus:     cvr.ErrorStatus,
 	}
 }
 

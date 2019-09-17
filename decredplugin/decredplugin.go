@@ -1,6 +1,10 @@
 package decredplugin
 
-import "encoding/json"
+import (
+	"encoding/json"
+)
+
+type ErrorStatusT int
 
 // Plugin settings, kinda doesn;t go here but for now it is fine
 const (
@@ -35,6 +39,28 @@ const (
 	// Authorize vote actions
 	AuthVoteActionAuthorize = "authorize" // Authorize a proposal vote
 	AuthVoteActionRevoke    = "revoke"    // Revoke a proposal vote authorization
+
+	// Error status codes
+	ErrorStatusInvalid          ErrorStatusT = 0
+	ErrorStatusInternalError    ErrorStatusT = 1
+	ErrorStatusProposalNotFound ErrorStatusT = 2
+	ErrorStatusInvalidVoteBit   ErrorStatusT = 3
+	ErrorStatusVoteHasEnded     ErrorStatusT = 4
+	ErrorStatusDuplicateVote    ErrorStatusT = 5
+	ErrorStatusIneligibleTicket ErrorStatusT = 6
+)
+
+var (
+	// ErrorStatus converts error status codes to human readable text.
+	ErrorStatus = map[ErrorStatusT]string{
+		ErrorStatusInvalid:          "invalid error status",
+		ErrorStatusInternalError:    "internal error",
+		ErrorStatusProposalNotFound: "proposal not found",
+		ErrorStatusInvalidVoteBit:   "invalid vote bit",
+		ErrorStatusVoteHasEnded:     "vote has ended",
+		ErrorStatusDuplicateVote:    "duplicate vote",
+		ErrorStatusIneligibleTicket: "ineligbile ticket",
+	}
 )
 
 // CastVote is a signed vote.
@@ -67,11 +93,14 @@ func DecodeBallot(payload []byte) (*Ballot, error) {
 	return &b, nil
 }
 
-// CastVoteReply contains the signature or error to a cast vote command.
+// CastVoteReply contains the signature or error to a cast vote command. The
+// Error and ErrorStatus fields will only be populated if something went wrong
+// while attempting to cast the vote.
 type CastVoteReply struct {
-	ClientSignature string `json:"clientsignature"` // Signature that was sent in
-	Signature       string `json:"signature"`       // Signature of the ClientSignature
-	Error           string `json:"error"`           // Error if something wen't wrong during casting a vote
+	ClientSignature string       `json:"clientsignature"`       // Signature that was sent in
+	Signature       string       `json:"signature"`             // Signature of the ClientSignature
+	Error           string       `json:"error"`                 // Error status message
+	ErrorStatus     ErrorStatusT `json:"errorstatus,omitempty"` // Error status code
 }
 
 // EncodeCastVoteReply encodes CastVoteReply into a JSON byte slice.
