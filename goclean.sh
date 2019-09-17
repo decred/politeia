@@ -6,8 +6,9 @@
 # 4. unconvert     (https://github.com/mdempsky/unconvert)
 # 5. ineffassign   (https://github.com/gordonklaus/ineffassign)
 # 6. misspell      (https://github.com/client9/misspell)
-# 7. race detector (http://blog.golang.org/race-detector)
-# 8. test coverage (http://blog.golang.org/cover)
+# 7. bodyclose     (https://github.com/timakin/bodyclose)
+# 8. race detector (http://blog.golang.org/race-detector)
+# 9. test coverage (http://blog.golang.org/cover)
 
 set -ex
 
@@ -24,4 +25,5 @@ golangci-lint run --disable-all --deadline=10m \
   --enable=gosimple \
   --enable=unconvert \
   --enable=ineffassign \
-  --enable=misspell
+  --enable=misspell \
+  --enable=bodyclose

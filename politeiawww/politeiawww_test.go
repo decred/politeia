@@ -51,6 +51,7 @@ func TestHandleVersion(t *testing.T) {
 			p.handleVersion(w, r)
 			res := w.Result()
 			body, _ := ioutil.ReadAll(res.Body)
+			res.Body.Close()
 
 			// Unmarshal body response
 			var gotReply www.VersionReply
