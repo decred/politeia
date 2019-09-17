@@ -949,8 +949,8 @@ func (p *politeiawww) getVoteSummaries(tokens []string, bestBlock uint64) (map[s
 		if summary.EndHeight != "" {
 			i, err := strconv.ParseUint(summary.EndHeight, 10, 64)
 			if err != nil {
-				log.Errorf("getVoteSummaries %v: ParseUint failed "+
-					"on '%v': %v", token, summary.EndHeight, err)
+				return nil, fmt.Errorf("failed to parse end height "+
+					"'%v' for %v: %v", summary.EndHeight, token, err)
 			}
 			endHeight = i
 		}
