@@ -304,6 +304,7 @@ func PayWithTestnetFaucet(faucetURL string, address string, amount uint64, overr
 	if err != nil {
 		return "", err
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, err := ioutil.ReadAll(resp.Body)
