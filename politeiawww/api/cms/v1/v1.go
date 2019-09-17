@@ -90,6 +90,13 @@ const (
 
 	InvoiceInputVersion = 1
 
+	// PolicyMaxIndexFiles is the maximum number of index file
+	// for a invoice
+	PolicyMaxIndexFiles = 1
+
+	// PolicyMaxAttachments is the maximum size of index file
+	PolicyMaxIndexFileSize = 512 * 1024
+
 	// PolicyMaxAttachments is the maximum number of attachments
 	// accepted when creating a new invoice
 	PolicyMaxAttachments = 20

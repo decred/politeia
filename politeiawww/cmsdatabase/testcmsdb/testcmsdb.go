@@ -86,6 +86,11 @@ func (c *testcmsdb) InvoicesAll() ([]cmsdb.Invoice, error) {
 	return make([]cmsdb.Invoice, 0), nil
 }
 
+// InvoicesByDateRangeStatus is a stub to satisfy the db interface.
+func (c *testcmsdb) InvoicesByDateRangeStatus(d, m int64, y int) ([]*cmsdb.Invoice, error) {
+	return make([]*cmsdb.Invoice, 0), nil
+}
+
 // LineItemsByDateRange is a stub to satisfy the db interface.
 func (c *testcmsdb) LineItemsByDateRange(m int64, y int64) ([]cmsdb.LineItem, error) {
 	return make([]cmsdb.LineItem, 0), nil
@@ -109,6 +114,31 @@ func (c *testcmsdb) PaymentsByAddress(addr string) (*cmsdb.Payments, error) {
 // PaymentsByStatus is a stub to satisfy the db interface.
 func (c *testcmsdb) PaymentsByStatus(s uint) ([]cmsdb.Payments, error) {
 	return make([]cmsdb.Payments, 0), nil
+}
+
+// NewDCC is a stub to satisfy the db interface.
+func (c *testcmsdb) NewDCC(dcc *cmsdb.DCC) error {
+	return nil
+}
+
+// UpdateDCC is a stub to satisfy the db interface.
+func (c *testcmsdb) UpdateDCC(dcc *cmsdb.DCC) error {
+	return nil
+}
+
+// DCCByToken is a stub to satisfy the db interface.
+func (c *testcmsdb) DCCByToken(s string) (*cmsdb.DCC, error) {
+	return &cmsdb.DCC{}, nil
+}
+
+// DCCByStatus is a stub to satisfy the db interface.
+func (c *testcmsdb) DCCsByStatus(s int) ([]*cmsdb.DCC, error) {
+	return make([]*cmsdb.DCC, 0), nil
+}
+
+// DCCsAll is a stub to satisfy the db interface.
+func (c *testcmsdb) DCCsAll() ([]*cmsdb.DCC, error) {
+	return make([]*cmsdb.DCC, 0), nil
 }
 
 // Setup is a stub to satisfy the db interface.

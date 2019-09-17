@@ -296,9 +296,9 @@ func (p *politeiawww) validateDCC(nd cms.NewDCC, u *user.User) error {
 		return err
 	}
 
-	if len(data) > cms.PolicyMaxMDSize {
+	if len(data) > cms.PolicyMaxIndexFileSize {
 		return www.UserError{
-			ErrorCode: www.ErrorStatusMaxMDSizeExceededPolicy,
+			ErrorCode: www.ErrorStatusMaxIndexFileSizeExceeded,
 		}
 	}
 

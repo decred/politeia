@@ -629,7 +629,7 @@ func TestProcessResendVerification(t *testing.T) {
 }
 
 func TestLogin(t *testing.T) {
-	p, cleanup := newTestPoliteiawww(t)
+	p, cleanup := newTestPoliteiawww(t, politeiaWWWMode)
 	defer cleanup()
 
 	// newUser() sets the password to be the username, which is
@@ -777,7 +777,7 @@ func TestLogin(t *testing.T) {
 }
 
 func TestProcessLogin(t *testing.T) {
-	p, cleanup := newTestPoliteiawww(t)
+	p, cleanup := newTestPoliteiawww(t, politeiaWWWMode)
 	defer cleanup()
 
 	// loginMinWaitTime is a global variable that is used to

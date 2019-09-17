@@ -247,7 +247,6 @@ func newTestPoliteiawww(t *testing.T, mode string) (*politeiawww, func()) {
 		userEmails:      make(map[string]uuid.UUID),
 		userPaywallPool: make(map[uuid.UUID]paywallPoolMember),
 		commentVotes:    make(map[string]counters),
-		commentScores:   make(map[string]int64),
 	}
 
 	// Setup routes depending on the mode

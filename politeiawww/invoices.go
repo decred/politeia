@@ -518,7 +518,7 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 
 		if v.Name == invoiceFile {
 			numInvoiceFiles++
-			if len(data) > www.PolicyMaxIndexFileSize {
+			if len(data) > cms.PolicyMaxIndexFileSize {
 				invoiceExceedsMaxSize = true
 			}
 
@@ -717,7 +717,7 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 		}
 	}
 
-	if numInvoiceFiles > www.PolicyMaxIndexFiles {
+	if numInvoiceFiles > cms.PolicyMaxIndexFiles {
 		return www.UserError{
 			ErrorCode: www.ErrorStatusMaxIndexFilesExceeded,
 		}
