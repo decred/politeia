@@ -19,10 +19,9 @@ import (
 
 func modelToSession(s Session) user.Session {
 	return user.Session{
-		ID:        s.ID,
-		UserID:    s.UserID,
-		MaxAge:    s.MaxAge,
-		CreatedAt: s.CreatedAt.Unix(),
+		ID:     s.ID,
+		UserID: s.UserID,
+		Values: s.Values,
 	}
 }
 
@@ -49,72 +48,59 @@ func connectToTestDB(t *testing.T) *cockroachdb {
 	return testDBConnection
 }
 
-func TestSessionNew(t *testing.T) {
+func TestSessionSave(t *testing.T) {
 	db := connectToTestDB(t)
 	expected := user.Session{
 		ID:     uuid.New().String(),
 		UserID: uuid.New(),
-		MaxAge: 2,
+		Values: "TestSessionSave()",
 	}
 	var model Session
 
-	err := db.SessionNew(expected)
+	err := db.SessionSave(expected)
 	if err != nil {
-		t.Errorf("SessionNew() returned an error: %v", err)
+		t.Errorf("SessionSave() returned an error: %v", err)
 	}
 	err = db.userDB.Where("id = ?", expected.ID).Last(&model).Error
 	if err != nil {
 		t.Errorf("Last() returned an error: %v", err)
 	}
-	expected.CreatedAt = model.CreatedAt.Unix()
 	if expected != modelToSession(model) {
 		t.Errorf("got session: %v, want: %v", model, expected)
 	}
 }
 
-func TestSessionNewWithDefaultMaxAge(t *testing.T) {
+func TestSessionSaveMoreThanOnce(t *testing.T) {
 	db := connectToTestDB(t)
 	expected := user.Session{
 		ID:     uuid.New().String(),
 		UserID: uuid.New(),
-		// omit MaxAge, it should be set to default defined in gorm model (86400)
-	}
-	var model Session
-
-	err := db.SessionNew(expected)
-	if err != nil {
-		t.Errorf("SessionNew() returned an error: %v", err)
-	}
-	err = db.userDB.Where("id = ?", expected.ID).Last(&model).Error
-	if err != nil {
-		t.Errorf("Last() returned an error: %v", err)
-	}
-	expected.CreatedAt = model.CreatedAt.Unix()
-	expected.MaxAge = 0
-	if expected != modelToSession(model) {
-		t.Errorf("got session: %v, want: %v", model, expected)
-	}
-}
-
-func TestSessionNewSameID(t *testing.T) {
-	db := connectToTestDB(t)
-	expected := user.Session{
-		ID:     uuid.New().String(),
-		UserID: uuid.New(),
-		MaxAge: 3,
+		Values: "TestSessionSaveMoreThanOnce()",
 	}
 
-	err := db.SessionNew(expected)
+	err := db.SessionSave(expected)
 	if err != nil {
-		t.Errorf("SessionNew() returned an error: %v", err)
+		t.Errorf("SessionSave() #1 returned an error: %v", err)
 	}
-	// try inserting the same session
-	err = db.SessionNew(expected)
-	if err == nil {
-		t.Error("SessionNew() did not return an error")
+	// try updating the same session, this should not return an error but
+	// update the record.
+	expected.Values += " / update"
+	expected.UserID = uuid.New()
+	err = db.SessionSave(expected)
+	if err != nil {
+		t.Errorf("SessionSave() #2 returned an error: %v", err)
 	}
-	if err != user.ErrSessionExists {
-		t.Errorf("got error: %v, want: %v", err, user.ErrSessionExists)
+
+	us2, err := db.SessionGetById(expected.ID)
+	if err != nil {
+		t.Errorf("SessionGetById() returned an error: %v", err)
+	}
+
+	if us2.Values != expected.Values {
+		t.Errorf("got Values: %v, want: %v", us2.Values, expected.Values)
+	}
+	if us2.UserID != expected.UserID {
+		t.Errorf("got UserID: %v, want: %v", us2.UserID, expected.UserID)
 	}
 }
 
@@ -123,13 +109,13 @@ func TestSessionGetById(t *testing.T) {
 	expected := user.Session{
 		ID:     uuid.New().String(),
 		UserID: uuid.New(),
-		MaxAge: 4,
+		Values: "TestSessionDeleteById()",
 	}
 
 	// insert a session
-	err := db.SessionNew(expected)
+	err := db.SessionSave(expected)
 	if err != nil {
-		t.Errorf("SessionNew() returned an error: %v", err)
+		t.Errorf("SessionSave() returned an error: %v", err)
 	}
 
 	// get the Session we just inserted
@@ -138,17 +124,12 @@ func TestSessionGetById(t *testing.T) {
 		t.Errorf("SessionGetById() returned an error: %v", err)
 	}
 
-	// make sure the CreatedAt time stamp is correct
 	var model Session
 	err = db.userDB.Where("id = ?", expected.ID).First(&model).Error
 	if err != nil {
 		t.Errorf("First() returned an error: %v", err)
 	}
-	if us.CreatedAt != model.CreatedAt.Unix() {
-		t.Errorf("got CreatedAt: %v, want: %v", us.CreatedAt, model.CreatedAt.Unix())
-	}
 
-	expected.CreatedAt = us.CreatedAt
 	if expected != *us {
 		t.Errorf("got session: %v, want: %v", us, expected)
 	}
@@ -159,7 +140,7 @@ func TestSessionGetByIdWithNoRecord(t *testing.T) {
 	expected := user.Session{
 		ID:     uuid.New().String(),
 		UserID: uuid.New(),
-		MaxAge: 5,
+		Values: "TestSessionGetByIdWithNoRecord()",
 	}
 
 	// try to get a session that does not exist
@@ -179,25 +160,25 @@ func TestSessionDeleteById(t *testing.T) {
 		{
 			ID:     uuid.New().String(),
 			UserID: uuid.New(),
-			MaxAge: 6,
+			Values: "TestSessionDeleteById() / 1",
 		},
 		{
 			ID:     uuid.New().String(),
 			UserID: uuid.New(),
-			MaxAge: 7,
+			Values: "TestSessionDeleteById() / 2",
 		},
 		{
 			ID:     uuid.New().String(),
 			UserID: uuid.New(),
-			MaxAge: 8,
+			Values: "TestSessionDeleteById() / 3",
 		},
 	}
 
 	for idx, s := range sa {
 		// insert a session
-		err = db.SessionNew(s)
+		err = db.SessionSave(s)
 		if err != nil {
-			t.Errorf("idx: %v, SessionNew() returned an error: %v", idx, err)
+			t.Errorf("idx: %v, SessionSave() returned an error: %v", idx, err)
 		}
 	}
 
@@ -223,7 +204,6 @@ func TestSessionDeleteById(t *testing.T) {
 		if err != nil {
 			t.Errorf("idx: %v (%v), First() returned an error: %v", idx, sa[idx].ID, err)
 		}
-		sa[idx].CreatedAt = model.CreatedAt.Unix()
 		if sa[idx] != modelToSession(model) {
 			t.Errorf("got session: %v, want: %v", modelToSession(model), sa[idx])
 		}
@@ -240,35 +220,35 @@ func TestSessionDeleteByUserId(t *testing.T) {
 		{
 			ID:     uuid.New().String(),
 			UserID: keep,
-			MaxAge: 9,
+			Values: "TestSessionDeleteByUserId() / 9",
 		},
 		{
 			ID:     uuid.New().String(),
 			UserID: remove,
-			MaxAge: 10,
+			Values: "TestSessionDeleteByUserId() /10",
 		},
 		{
 			ID:     uuid.New().String(),
 			UserID: keep,
-			MaxAge: 11,
+			Values: "TestSessionDeleteByUserId() /11",
 		},
 		{
 			ID:     uuid.New().String(),
 			UserID: remove,
-			MaxAge: 12,
+			Values: "TestSessionDeleteByUserId() /12",
 		},
 		{
 			ID:     uuid.New().String(),
 			UserID: keep,
-			MaxAge: 13,
+			Values: "TestSessionDeleteByUserId() /13",
 		},
 	}
 
 	for idx, s := range sa {
 		// insert a session
-		err = db.SessionNew(s)
+		err = db.SessionSave(s)
 		if err != nil {
-			t.Errorf("idx: %v, SessionNew() returned an error: %v", idx, err)
+			t.Errorf("idx: %v, SessionSave() returned an error: %v", idx, err)
 		}
 	}
 
@@ -294,7 +274,6 @@ func TestSessionDeleteByUserId(t *testing.T) {
 		if err != nil {
 			t.Errorf("idx: %v (%v), First() returned an error: %v", idx, sa[idx].ID, err)
 		}
-		sa[idx].CreatedAt = model.CreatedAt.Unix()
 		if sa[idx] != modelToSession(model) {
 			t.Errorf("got session: %v, want: %v", modelToSession(model), sa[idx])
 		}
@@ -311,35 +290,35 @@ func TestSessionDeleteByUserIdAndSessionToKeep(t *testing.T) {
 		{
 			ID:     uuid.New().String(),
 			UserID: keep,
-			MaxAge: 14,
+			Values: "TestSessionDeleteByUserId() /14",
 		},
 		{
 			ID:     uuid.New().String(),
 			UserID: remove,
-			MaxAge: 15,
+			Values: "TestSessionDeleteByUserId() /15",
 		},
 		{
 			ID:     uuid.New().String(),
 			UserID: keep,
-			MaxAge: 16,
+			Values: "TestSessionDeleteByUserId() /16",
 		},
 		{
 			ID:     uuid.New().String(),
 			UserID: remove,
-			MaxAge: 17,
+			Values: "TestSessionDeleteByUserId() /17",
 		},
 		{
 			ID:     uuid.New().String(),
 			UserID: remove,
-			MaxAge: 18,
+			Values: "TestSessionDeleteByUserId() /18",
 		},
 	}
 
 	for idx, s := range sa {
 		// insert a session
-		err = db.SessionNew(s)
+		err = db.SessionSave(s)
 		if err != nil {
-			t.Errorf("idx: %v, SessionNew() returned an error: %v", idx, err)
+			t.Errorf("idx: %v, SessionSave() returned an error: %v", idx, err)
 		}
 	}
 
@@ -367,7 +346,6 @@ func TestSessionDeleteByUserIdAndSessionToKeep(t *testing.T) {
 		if err != nil {
 			t.Errorf("idx: %v (%v), First() returned an error: %v", idx, sa[idx].ID, err)
 		}
-		sa[idx].CreatedAt = model.CreatedAt.Unix()
 		if sa[idx] != modelToSession(model) {
 			t.Errorf("got session: %v, want: %v", modelToSession(model), sa[idx])
 		}

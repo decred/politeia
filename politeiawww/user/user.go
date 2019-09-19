@@ -383,8 +383,8 @@ type Plugin struct {
 // Session represents a user session.
 type Session struct {
 	ID     string    `json:"id"`     // Unique session uuid
-	Values string    `json:"values"` // session values (encoded)
 	UserID uuid.UUID `json:"userid"` // The user's uuid
+	Values string    `json:"values"` // session values (encoded)
 }
 
 // EncodeSession encodes Session into a JSON byte slice.

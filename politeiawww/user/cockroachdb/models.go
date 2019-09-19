@@ -51,8 +51,8 @@ func (User) TableName() string {
 // Session represents a politeiawww user session.
 type Session struct {
 	ID     string    `gorm:"primary_key"` // UUID
-	Values string    `gorm:"not null"`    // session values (encoded)
 	UserID uuid.UUID `gorm:"not null"`    // User UUID (foreign key)
+	Values string    `gorm:"not null"`    // session values (encoded)
 }
 
 // TableName returns the table name of the Session table.

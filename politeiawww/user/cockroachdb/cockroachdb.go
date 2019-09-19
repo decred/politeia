@@ -407,15 +407,16 @@ func (c *cockroachdb) SessionSave(us user.Session) error {
 	}
 
 	var model Session
+	var update bool
+
 	err := c.userDB.
 		Where("id = ?", us.ID).
 		First(&model).
 		Error
 	if err == nil {
-		// session exists, update the encoded values.
-		return c.userDB.Model(&model).Update("values", us.Values).Error
-	}
-	if err != gorm.ErrRecordNotFound {
+		// session exists, update the record.
+		update = true
+	} else if err != gorm.ErrRecordNotFound {
 		return err
 	}
 
@@ -423,7 +424,12 @@ func (c *cockroachdb) SessionSave(us user.Session) error {
 		ID:     us.ID,
 		UserID: us.UserID,
 		Values: us.Values}
-	err = c.userDB.Create(&model).Error
+
+	if update {
+		err = c.userDB.Save(&model).Error
+	} else {
+		err = c.userDB.Create(&model).Error
+	}
 	if err != nil {
 		return fmt.Errorf("create session: %v", err)
 	}

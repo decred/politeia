@@ -80,16 +80,15 @@ func TestSessionExistsAlready(t *testing.T) {
 		t.Error("SessionSave() #1 returned an error")
 	}
 	// repeated insertion should not result in an error but just update
-	// the `Values` property and nothing else.
+	// the record.
 	s.Values += " -- version 2"
-	s.UserID = uuid.New()
 	err = db.SessionSave(s)
 	if err != nil {
 		t.Error("SessionSave() #2 returned an error")
 	}
 	us2, err := db.SessionGetById(s.ID)
-	if s.UserID != us2.UserID {
-		t.Errorf("got UserID: %v, want: %v", us2.UserID, s.UserID)
+	if err != nil {
+		t.Error("SessionGetById() returned an error")
 	}
 	if s.Values != us2.Values {
 		t.Errorf("got Values: %v, want: %v", us2.Values, s.Values)
