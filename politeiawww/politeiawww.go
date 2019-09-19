@@ -21,7 +21,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
-	"github.com/gorilla/sessions"
 	"github.com/gorilla/websocket"
 	"github.com/robfig/cron"
 )
@@ -84,7 +83,7 @@ type politeiawww struct {
 	cfg    *config
 	router *mux.Router
 
-	store *sessions.FilesystemStore
+	store *SessionStore
 
 	ws    map[string]map[string]*wsContext // [uuid][]*context
 	wsMtx sync.RWMutex

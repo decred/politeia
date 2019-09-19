@@ -396,11 +396,11 @@ func (c *cockroachdb) AllUsers(callback func(u *user.User)) error {
 	return nil
 }
 
-// Store new session for given user id.
+// Store new session or update existing record.
 //
-// SessionNew satisfies the Database interface.
-func (c *cockroachdb) SessionNew(us user.Session) error {
-	log.Tracef("SessionNew: %v", us.ID)
+// SessionSave satisfies the Database interface.
+func (c *cockroachdb) SessionSave(us user.Session) error {
+	log.Tracef("SessionSave: %v", us.ID)
 
 	if c.isShutdown() {
 		return user.ErrShutdown
@@ -412,18 +412,18 @@ func (c *cockroachdb) SessionNew(us user.Session) error {
 		First(&model).
 		Error
 	if err == nil {
-		// session exists
-		return user.ErrSessionExists
+		// session exists, update the encoded values.
+		return c.userDB.Model(&model).Update("values", us.Values).Error
 	}
 	if err != gorm.ErrRecordNotFound {
 		return err
 	}
 
-	s := Session{
+	model = Session{
 		ID:     us.ID,
 		UserID: us.UserID,
-		MaxAge: us.MaxAge}
-	err = c.userDB.Create(&s).Error
+		Values: us.Values}
+	err = c.userDB.Create(&model).Error
 	if err != nil {
 		return fmt.Errorf("create session: %v", err)
 	}
@@ -454,10 +454,9 @@ func (c *cockroachdb) SessionGetById(sid string) (*user.Session, error) {
 	}
 
 	us := user.Session{
-		ID:        model.ID,
-		UserID:    model.UserID,
-		CreatedAt: model.CreatedAt.Unix(),
-		MaxAge:    model.MaxAge,
+		ID:     model.ID,
+		UserID: model.UserID,
+		Values: model.Values,
 	}
 	return &us, nil
 }

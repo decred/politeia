@@ -382,16 +382,9 @@ type Plugin struct {
 
 // Session represents a user session.
 type Session struct {
-	ID        string    `json:"id"`        // Unique session uuid
-	UserID    uuid.UUID `json:"userid"`    // The user's uuid
-	CreatedAt int64     `json:"createdat"` // Time session was created at
-	MaxAge    int64     `json:"maxage"`    // Max session duration in seconds
-}
-
-func (s Session) HasExpired() bool {
-	// gorm's CreatedAt also uses time.Now()
-	timeNow := time.Now().Unix()
-	return timeNow > (s.CreatedAt + s.MaxAge)
+	ID     string    `json:"id"`     // Unique session uuid
+	Values string    `json:"values"` // session values (encoded)
+	UserID uuid.UUID `json:"userid"` // The user's uuid
 }
 
 // EncodeSession encodes Session into a JSON byte slice.
@@ -423,7 +416,7 @@ type Database interface {
 	UserNew(User) error
 
 	// Add a new session for an authenticated user
-	SessionNew(Session) error
+	SessionSave(Session) error
 
 	// Update an existing user
 	UserUpdate(User) error

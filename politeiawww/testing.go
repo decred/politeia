@@ -219,7 +219,7 @@ func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
 	if err != nil {
 		t.Fatalf("make sessions dir: %v", err)
 	}
-	store := sessions.NewFilesystemStore(sessionsDir, cookieKey)
+	store := NewSessionStore(db, cookieKey)
 	store.Options = &sessions.Options{
 		Path:     "/",
 		MaxAge:   sessionMaxAge,

@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/google/uuid"
@@ -387,34 +386,24 @@ func (l *localdb) Close() error {
 	return l.userdb.Close()
 }
 
-// Store new session for given user id.
+// Store new session or update existing session.
 //
-// SessionNew satisfies the Database interface.
-func (l *localdb) SessionNew(s user.Session) error {
+// SessionSave satisfies the Database interface.
+func (l *localdb) SessionSave(s user.Session) error {
 	l.Lock()
 	defer l.Unlock()
 
 	if l.shutdown {
 		return user.ErrShutdown
 	}
-	s.CreatedAt = time.Now().Unix()
-
-	log.Debugf("SessionNew: %v", s)
-
-	key := []byte(sessionPrefix + s.ID)
-	// Make sure user session does not exist
-	ok, err := l.userdb.Has(key, nil)
-	if err != nil {
-		return err
-	} else if ok {
-		return user.ErrSessionExists
-	}
+	log.Debugf("SessionSave: %v", s)
 
 	payload, err := user.EncodeSession(s)
 	if err != nil {
 		return err
 	}
 
+	key := []byte(sessionPrefix + s.ID)
 	return l.userdb.Put(key, payload, nil)
 }
 

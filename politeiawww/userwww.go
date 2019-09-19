@@ -42,66 +42,36 @@ func (p *politeiawww) isAdmin(w http.ResponseWriter, r *http.Request) (bool, err
 	return user.Admin, nil
 }
 
-// getCookie returns the active cookie session.
-func (p *politeiawww) getCookie(r *http.Request) (*sessions.Session, error) {
-	return p.store.Get(r, www.CookieSession)
+func hasExpired(session *sessions.Session) bool {
+	// TODO(al-maisan) finish this
+	return false
 }
 
-// getSession looks up the user session for the given request in the database.
-//
-// Please note that the session record in the database will be deleted and the
-// cookie invalidated if the user session has expired.
-func (p *politeiawww) getSession(w http.ResponseWriter, r *http.Request) (*user.Session, error) {
-	cookie, err := p.getCookie(r)
-	if err != nil {
-		return nil, err
-	}
-
-	sid, ok := cookie.Values["sessionid"].(string)
-	if !ok {
-		return nil, errSessionNotFound
-	}
-	log.Tracef("getSession: %v", sid)
-
-	session, err := p.db.SessionGetById(sid)
-	if err != nil {
-		if err == user.ErrSessionDoesNotExist {
-			err = errSessionNotFound
-		}
-		return nil, err
-	}
-	if session.HasExpired() {
-		// deletion of session / cookie from db / file system is best effort;
-		// in the worst case some of this data will linger but the `getSession()`
-		// logic will be able to establish that the user either has no session or
-		// that the latter has expired.
-
-		// delete session from db
-		p.db.SessionDeleteById(sid)
-		// delete cookie
-		cookie.Options.MaxAge = -1
-		cookie.Save(r, w)
-
-		return nil, errSessionExpired
-	}
-	return session, nil
+// getSession returns the active cookie session.
+func (p *politeiawww) getSession(r *http.Request) (*sessions.Session, error) {
+	return p.store.Get(r, www.CookieSession)
 }
 
 // getSessionUserID returns the uuid address of the currently logged in user
 // from the session store.
 func (p *politeiawww) getSessionUserID(w http.ResponseWriter, r *http.Request) (string, error) {
-	session, err := p.getSession(w, r)
+	session, err := p.getSession(r)
 	if err != nil {
 		return "", err
 	}
+	// get the user for this session
+	uid, ok := session.Values["user_id"].(string)
+	if !ok {
+		return "", errSessionNoUser
+	}
 
-	return session.UserID.String(), nil
+	return uid, nil
 }
 
 // getSessionID returns the ID of the user's current session if it could be
 // obtained and an empty string otherwise.
 func (p *politeiawww) getSessionID(w http.ResponseWriter, r *http.Request) string {
-	session, err := p.getSession(w, r)
+	session, err := p.getSession(r)
 	if err != nil {
 		return ""
 	}
@@ -137,56 +107,35 @@ func (p *politeiawww) getSessionUser(w http.ResponseWriter, r *http.Request) (*u
 	return user, nil
 }
 
-// initSession adds a session record to the db and sets its ID in the cookie.
+// initSession adds a session record to the db and sets its ID in the session.
 func (p *politeiawww) initSession(w http.ResponseWriter, r *http.Request, uid string) error {
 	log.Tracef("initSession: %v %v", uid, www.CookieSession)
-	cookie, err := p.getCookie(r)
+	session, err := p.getSession(r)
 	if err != nil {
 		return err
 	}
 
-	pid, err := uuid.Parse(uid)
-	if err != nil {
-		return err
-	}
-
-	sessionid := uuid.New()
-	err = p.db.SessionNew(user.Session{
-		ID:     sessionid.String(),
-		UserID: pid,
-		MaxAge: sessionMaxAge,
-	})
-	if err != nil {
-		return err
-	}
-
-	cookie.Values["sessionid"] = sessionid.String()
-	return cookie.Save(r, w)
+	session.Values["user_id"] = uid
+	return session.Save(r, w)
 }
 
-// removeSession deletes the session from the db and invalidates the cookie.
+// removeSession deletes the session from the db.
 func (p *politeiawww) removeSession(w http.ResponseWriter, r *http.Request) error {
 	log.Tracef("removeSession: %v", www.CookieSession)
-	cookie, err := p.getCookie(r)
+	session, err := p.getSession(r)
 	if err != nil {
 		return err
 	}
 
-	// Check for invalid cookie
-	if cookie.ID == "" {
+	// Check for invalid session
+	if session.ID == "" {
 		return nil
 	}
 
-	sid, ok := cookie.Values["sessionid"].(string)
-	if ok {
-		// ignore db errors and proceed to allow the cookie to be invalidated
-		p.db.SessionDeleteById(sid)
-	}
-
-	// Saving the cookie with a negative MaxAge will cause it to be deleted
-	// from the filesystem.
-	cookie.Options.MaxAge = -1
-	return cookie.Save(r, w)
+	// Saving the session with a negative MaxAge will cause it to be deleted
+	// from the database.
+	session.Options.MaxAge = -1
+	return session.Save(r, w)
 }
 
 // handleNewUser handles the incoming new user command. It verifies that the new user

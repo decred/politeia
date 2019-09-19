@@ -37,7 +37,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
-	"github.com/gorilla/sessions"
 	"github.com/robfig/cron"
 )
 
@@ -56,6 +55,10 @@ var (
 	// errSessionNotFound is emitted when a session is not found and indicates
 	// that the user is not logged in.
 	errSessionNotFound = errors.New("session not found")
+
+	// errSessionNoUser is emitted when we the user for a given session cannot
+	// be found. This is an internal error.
+	errSessionNoUser = errors.New("cannot find user for session")
 
 	// errSessionExpired is emitted when a user session has expired and
 	// indicates that the user needs to go through the login process again.
@@ -582,14 +585,7 @@ func _main() error {
 	if err != nil {
 		return err
 	}
-	p.store = sessions.NewFilesystemStore(sessionsDir, cookieKey)
-	p.store.Options = &sessions.Options{
-		Path:     "/",
-		MaxAge:   sessionMaxAge,
-		Secure:   true,
-		HttpOnly: true,
-		SameSite: http.SameSiteStrictMode,
-	}
+	p.store = NewSessionStore(p.db, cookieKey)
 
 	// Bind to a port and pass our router in
 	listenC := make(chan error)
