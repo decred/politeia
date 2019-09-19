@@ -524,8 +524,8 @@ func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www
 		}
 	}
 
-	// Ensure comment exists
-	_, err = p.decredCommentGetByID(lc.Token, lc.CommentID)
+	// Ensure comment exists and has not been censored.
+	c, err := p.decredCommentGetByID(lc.Token, lc.CommentID)
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
 			err = www.UserError{
@@ -533,6 +533,11 @@ func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www
 			}
 		}
 		return nil, err
+	}
+	if c.Censored {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusCommentIsCensored,
+		}
 	}
 
 	// Validate action

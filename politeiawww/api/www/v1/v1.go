@@ -182,6 +182,7 @@ const (
 	ErrorStatusMaxProposalsExceededPolicy  ErrorStatusT = 61
 	ErrorStatusDuplicateComment            ErrorStatusT = 62
 	ErrorStatusInvalidLogin                ErrorStatusT = 63
+	ErrorStatusCommentIsCensored           ErrorStatusT = 64
 
 	// Proposal state codes
 	//
@@ -321,6 +322,7 @@ var (
 		ErrorStatusNoProposalChanges:           "no changes found in proposal",
 		ErrorStatusDuplicateComment:            "duplicate comment",
 		ErrorStatusInvalidLogin:                "invalid login credentials",
+		ErrorStatusCommentIsCensored:           "comment is censored",
 	}
 
 	// PropStatus converts propsal status codes to human readable text
