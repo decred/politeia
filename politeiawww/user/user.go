@@ -211,7 +211,7 @@ type User struct {
 	// proposal, it is updated with the proposal's censorship token and moved to
 	// the user's spent proposal credits list.  The price that the proposal
 	// credit was purchased at is in atoms.
-	UnspentProposalCredits []ProposalCredit `json:"unspendproposalcredits"`
+	UnspentProposalCredits []ProposalCredit `json:"unspentproposalcredits"`
 
 	// All credits that have been purchased by the user and have already been
 	// used to submit proposals.  Spent credits have a proposal censorship token
