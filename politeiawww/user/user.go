@@ -379,7 +379,7 @@ type Plugin struct {
 
 // Session represents a user session.
 type Session struct {
-	ID     string    `json:"id"`     // Unique session uuid
+	ID     string    `json:"id"`     // Unique session id
 	UserID uuid.UUID `json:"userid"` // The user's uuid
 	Values string    `json:"values"` // session values (encoded)
 }
