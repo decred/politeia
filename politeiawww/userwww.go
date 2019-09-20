@@ -64,21 +64,25 @@ func (p *politeiawww) getSession(r *http.Request) (*sessions.Session, error) {
 func (p *politeiawww) getSessionUserID(w http.ResponseWriter, r *http.Request) (string, error) {
 	session, err := p.getSession(r)
 	if err != nil {
+		log.Errorf("getSession() error: %v", err)
 		return "", errSessionNotFound
 	}
 
 	obsolete, err := hasExpired(session)
 	if err != nil {
+		log.Errorf("hasExpired() error: %v", err)
 		return "", errSessionNotFound
 	} else if obsolete {
 		// delete expired session
 		session.Options.MaxAge = -1
-		session.Save(r, w)
+		err = session.Save(r, w)
+		log.Errorf("session.Save() error: %v", err)
 		return "", errSessionNotFound
 	}
 	// get the user for this session
 	uid, ok := session.Values["user_id"].(string)
 	if !ok {
+		log.Error("no `user_id` in session")
 		return "", errSessionNotFound
 	}
 
