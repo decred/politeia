@@ -156,14 +156,14 @@ func TestSessionDeleteById(t *testing.T) {
 		t.Errorf("SessionDeleteById() returned an error: %v", err)
 	}
 	// make sure the right session got deleted
-	sessionInDB, err := db.SessionGetById(sa[1].ID)
+	_, err = db.SessionGetById(sa[1].ID)
 	if err != user.ErrSessionDoesNotExist {
 		t.Errorf("got error: %v, want: %v", err, user.ErrSessionDoesNotExist)
 	}
 	// make sure the other 2 sessions are still in place
 	kept := []int{0, 2}
 	for _, idx := range kept {
-		sessionInDB, err = db.SessionGetById(sa[idx].ID)
+		sessionInDB, err := db.SessionGetById(sa[idx].ID)
 		if err != nil {
 			t.Errorf("SessionGetById() returned an error: %v", err)
 		}
