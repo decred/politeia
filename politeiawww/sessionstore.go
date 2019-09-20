@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/base32"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -13,6 +14,10 @@ import (
 )
 
 // SessionStore stores sessions in the database.
+//
+// Please note: this is (by and large) a clone of goriall mux'
+// `sessions.FilesystemStore` with the save(), load() and erase()
+// methods adapted to use the database as the backing storage.
 type SessionStore struct {
 	Codecs  []securecookie.Codec
 	Options *sessions.Options // default configuration
@@ -59,7 +64,7 @@ func (s *SessionStore) Get(r *http.Request, name string) (*sessions.Session, err
 	return sessions.GetRegistry(r).Get(s, name)
 }
 
-// New returns a session for the given name without adding it to the registry.
+// New returns a session for the given name.
 //
 // See CookieStore.New().
 func (s *SessionStore) New(r *http.Request, name string) (*sessions.Session, error) {
@@ -83,7 +88,7 @@ func (s *SessionStore) New(r *http.Request, name string) (*sessions.Session, err
 // Save adds a single session to the response.
 //
 // If the Options.MaxAge of the session is <= 0 then the session file will be
-// deleted from the store path. With this process it enforces proper session
+// deleted from the database. With this process it enforces proper session
 // cookie handling so no need to trust in the cookie management in the web
 // browser.
 func (s *SessionStore) Save(r *http.Request, w http.ResponseWriter,
@@ -133,7 +138,7 @@ func (s *SessionStore) MaxAge(age int) {
 // save writes encoded session.Values to the database.
 func (s *SessionStore) save(session *sessions.Session) error {
 	// do we have a `created_at` time stamp?
-	_, ok := session.Values["created_at"].(uint64)
+	_, ok := session.Values["created_at"].(int64)
 	if !ok {
 		session.Values["created_at"] = time.Now().Unix()
 	}
@@ -141,7 +146,7 @@ func (s *SessionStore) save(session *sessions.Session) error {
 	// get the user for this session
 	id, ok := session.Values["user_id"].(string)
 	if !ok {
-		return errSessionNoUser
+		return errors.New("no `user_id` found in session")
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {

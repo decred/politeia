@@ -26,7 +26,6 @@ import (
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	"github.com/gorilla/sessions"
 )
 
 // errToStr returns the string representation of the error. If the error is a
@@ -214,19 +213,7 @@ func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
 	if err != nil {
 		t.Fatalf("create cookie key: %v", err)
 	}
-	sessionsDir := filepath.Join(cfg.DataDir, "sessions")
-	err = os.MkdirAll(sessionsDir, 0700)
-	if err != nil {
-		t.Fatalf("make sessions dir: %v", err)
-	}
 	store := NewSessionStore(db, cookieKey)
-	store.Options = &sessions.Options{
-		Path:     "/",
-		MaxAge:   sessionMaxAge,
-		Secure:   true,
-		HttpOnly: true,
-		SameSite: http.SameSiteStrictMode,
-	}
 
 	// Setup logging
 	initLogRotator(filepath.Join(dataDir, "politeiawww.test.log"))

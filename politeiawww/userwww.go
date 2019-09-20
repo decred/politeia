@@ -2,9 +2,11 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"text/template"
+	"time"
 
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
@@ -42,9 +44,14 @@ func (p *politeiawww) isAdmin(w http.ResponseWriter, r *http.Request) (bool, err
 	return user.Admin, nil
 }
 
-func hasExpired(session *sessions.Session) bool {
-	// TODO(al-maisan) finish this
-	return false
+func hasExpired(session *sessions.Session) (bool, error) {
+	createdAt, ok := session.Values["created_at"].(int64)
+	if !ok {
+		return false, errors.New("no `created_at` timestamp found")
+	}
+	timeNow := time.Now().Unix()
+	expiresAt := createdAt + int64(session.Options.MaxAge)
+	return timeNow > expiresAt, nil
 }
 
 // getSession returns the active cookie session.
@@ -57,12 +64,22 @@ func (p *politeiawww) getSession(r *http.Request) (*sessions.Session, error) {
 func (p *politeiawww) getSessionUserID(w http.ResponseWriter, r *http.Request) (string, error) {
 	session, err := p.getSession(r)
 	if err != nil {
-		return "", err
+		return "", errSessionNotFound
+	}
+
+	obsolete, err := hasExpired(session)
+	if err != nil {
+		return "", errSessionNotFound
+	} else if obsolete {
+		// delete expired session
+		session.Options.MaxAge = -1
+		session.Save(r, w)
+		return "", errSessionNotFound
 	}
 	// get the user for this session
 	uid, ok := session.Values["user_id"].(string)
 	if !ok {
-		return "", errSessionNoUser
+		return "", errSessionNotFound
 	}
 
 	return uid, nil
@@ -70,7 +87,7 @@ func (p *politeiawww) getSessionUserID(w http.ResponseWriter, r *http.Request) (
 
 // getSessionID returns the ID of the user's current session if it could be
 // obtained and an empty string otherwise.
-func (p *politeiawww) getSessionID(w http.ResponseWriter, r *http.Request) string {
+func (p *politeiawww) getSessionID(r *http.Request) string {
 	session, err := p.getSession(r)
 	if err != nil {
 		return ""
@@ -119,7 +136,7 @@ func (p *politeiawww) initSession(w http.ResponseWriter, r *http.Request, uid st
 	return session.Save(r, w)
 }
 
-// removeSession deletes the session from the db.
+// removeSession deletes the session (from the database).
 func (p *politeiawww) removeSession(w http.ResponseWriter, r *http.Request) error {
 	log.Tracef("removeSession: %v", www.CookieSession)
 	session, err := p.getSession(r)
@@ -127,13 +144,7 @@ func (p *politeiawww) removeSession(w http.ResponseWriter, r *http.Request) erro
 		return err
 	}
 
-	// Check for invalid session
-	if session.ID == "" {
-		return nil
-	}
-
-	// Saving the session with a negative MaxAge will cause it to be deleted
-	// from the database.
+	// Saving the session with a negative MaxAge will cause it to be deleted.
 	session.Options.MaxAge = -1
 	return session.Save(r, w)
 }
@@ -552,7 +563,7 @@ func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Reques
 
 	// valid, authenticated user changing his password,
 	// delete all sesssions except this current one
-	p.db.SessionsDeleteByUserId(user.ID, p.getSessionID(w, r))
+	p.db.SessionsDeleteByUserId(user.ID, p.getSessionID(r))
 
 	// Reply with the error code.
 	util.RespondWithJSON(w, http.StatusOK, reply)

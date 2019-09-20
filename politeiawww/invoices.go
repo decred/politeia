@@ -1396,6 +1396,7 @@ func (p *politeiawww) processInvoiceComments(token string, u *user.User) (*www.G
 		return nil, err
 	}
 
+	// FIXME check for nil `u` pointer, GH issue #1011.
 	// Check to make sure the user is either an admin or the
 	// invoice author.
 	if !u.Admin && (ir.Username != u.Username) {

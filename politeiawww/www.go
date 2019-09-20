@@ -55,14 +55,6 @@ var (
 	// errSessionNotFound is emitted when a session is not found and indicates
 	// that the user is not logged in.
 	errSessionNotFound = errors.New("session not found")
-
-	// errSessionNoUser is emitted when we the user for a given session cannot
-	// be found. This is an internal error.
-	errSessionNoUser = errors.New("cannot find user for session")
-
-	// errSessionExpired is emitted when a user session has expired and
-	// indicates that the user needs to go through the login process again.
-	errSessionExpired = errors.New("session expired")
 )
 
 // Fetch remote identity
@@ -181,7 +173,7 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 
 	if err, ok := args[0].(error); ok {
 		// user session was deleted e.g. due to a password change or expired?
-		if err == errSessionNotFound || err == errSessionExpired {
+		if err == errSessionNotFound {
 			http.Redirect(w, r, "/", http.StatusFound)
 		}
 	}
