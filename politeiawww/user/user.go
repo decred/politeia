@@ -28,9 +28,6 @@ var (
 	// ErrUserExists indicates that a user already exists in the database.
 	ErrUserExists = errors.New("user already exists")
 
-	// ErrSessionExists indicates that a session already exists in the database.
-	ErrSessionExists = errors.New("user session already exists")
-
 	// ErrShutdown is emitted when the database is shutting down.
 	ErrShutdown = errors.New("database is shutting down")
 
