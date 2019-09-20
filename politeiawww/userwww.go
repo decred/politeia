@@ -889,5 +889,5 @@ func (p *politeiawww) setCMSUserWWWRoutes() {
 	p.addRoute(http.MethodGet, www.RouteUsers,
 		p.handleUsers, permissionAdmin)
 	p.addRoute(http.MethodPost, www.RouteManageUser,
-		p.handleManageUser, permissionAdmin)
+		p.handleManageCMSUser, permissionAdmin)
 }

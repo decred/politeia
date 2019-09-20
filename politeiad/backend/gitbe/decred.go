@@ -2148,7 +2148,10 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 		if !g.propExists(g.vetted, v.Token) {
 			log.Errorf("pluginBallot: proposal not found: %v",
 				v.Token)
-			br.Receipts[k].Error = "proposal not found: " + v.Token
+			e := decredplugin.ErrorStatusProposalNotFound
+			br.Receipts[k].ErrorStatus = e
+			br.Receipts[k].Error = fmt.Sprintf("%v: %v",
+				decredplugin.ErrorStatus[e], v.Token)
 			continue
 		}
 
@@ -2156,14 +2159,19 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 		err = g.validateVoteBit(v.Token, v.VoteBit)
 		if err != nil {
 			if e, ok := err.(invalidVoteBitError); ok {
-				br.Receipts[k].Error = e.err.Error()
+				es := decredplugin.ErrorStatusInvalidVoteBit
+				br.Receipts[k].ErrorStatus = es
+				br.Receipts[k].Error = fmt.Sprintf("%v: %v",
+					decredplugin.ErrorStatus[es], e.err.Error())
 				continue
 			}
 			t := time.Now().Unix()
 			log.Errorf("pluginBallot: validateVoteBit %v %v %v %v",
 				v.Ticket, v.Token, t, err)
-			br.Receipts[k].Error = fmt.Sprintf("internal error %v",
-				t)
+			e := decredplugin.ErrorStatusInternalError
+			br.Receipts[k].ErrorStatus = e
+			br.Receipts[k].Error = fmt.Sprintf("%v: %v",
+				decredplugin.ErrorStatus[e], t)
 			continue
 		}
 
@@ -2173,12 +2181,17 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 			t := time.Now().Unix()
 			log.Errorf("pluginBallot: voteEndHeight %v %v %v %v",
 				v.Ticket, v.Token, t, err)
-			br.Receipts[k].Error = fmt.Sprintf("internal error %v",
-				t)
+			e := decredplugin.ErrorStatusInternalError
+			br.Receipts[k].ErrorStatus = e
+			br.Receipts[k].Error = fmt.Sprintf("%v: %v",
+				decredplugin.ErrorStatus[e], t)
 			continue
 		}
 		if bb.Height >= endHeight {
-			br.Receipts[k].Error = "vote has ended: " + v.Token
+			e := decredplugin.ErrorStatusVoteHasEnded
+			br.Receipts[k].ErrorStatus = e
+			br.Receipts[k].Error = fmt.Sprintf("%v: %v",
+				decredplugin.ErrorStatus[e], v.Token)
 			continue
 		}
 
@@ -2187,8 +2200,10 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 			t := time.Now().Unix()
 			log.Errorf("pluginBallot: ticketAddresses %v %v %v %v",
 				v.Ticket, v.Token, t, err)
-			br.Receipts[k].Error = fmt.Sprintf("internal error %v",
-				t)
+			e := decredplugin.ErrorStatusInternalError
+			br.Receipts[k].ErrorStatus = e
+			br.Receipts[k].Error = fmt.Sprintf("%v: %v",
+				decredplugin.ErrorStatus[e], t)
 			continue
 
 		}
@@ -2200,8 +2215,10 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 			t := time.Now().Unix()
 			log.Errorf("pluginBallot: validateVote %v %v %v %v",
 				v.Ticket, v.Token, t, err)
-			br.Receipts[k].Error = fmt.Sprintf("internal error %v",
-				t)
+			e := decredplugin.ErrorStatusInternalError
+			br.Receipts[k].ErrorStatus = e
+			br.Receipts[k].Error = fmt.Sprintf("%v: %v",
+				decredplugin.ErrorStatus[e], t)
 			continue
 		}
 
@@ -2223,10 +2240,16 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 		if err != nil {
 			switch err {
 			case errDuplicateVote:
-				br.Receipts[k].Error = "duplicate vote: " + v.Token
+				e := decredplugin.ErrorStatusDuplicateVote
+				br.Receipts[k].ErrorStatus = e
+				br.Receipts[k].Error = fmt.Sprintf("%v: %v",
+					decredplugin.ErrorStatus[e], v.Token)
 				continue
 			case errIneligibleTicket:
-				br.Receipts[k].Error = "ineligible ticket: " + v.Token
+				e := decredplugin.ErrorStatusIneligibleTicket
+				br.Receipts[k].ErrorStatus = e
+				br.Receipts[k].Error = fmt.Sprintf("%v: %v",
+					decredplugin.ErrorStatus[e], v.Token)
 				continue
 			default:
 				// Should not fail, so return failure to alert people

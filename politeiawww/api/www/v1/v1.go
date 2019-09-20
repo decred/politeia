@@ -2,6 +2,8 @@ package v1
 
 import (
 	"fmt"
+
+	"github.com/decred/politeia/decredplugin"
 )
 
 type ErrorStatusT int
@@ -180,6 +182,7 @@ const (
 	ErrorStatusMaxProposalsExceededPolicy  ErrorStatusT = 61
 	ErrorStatusDuplicateComment            ErrorStatusT = 62
 	ErrorStatusInvalidLogin                ErrorStatusT = 63
+	ErrorStatusCommentIsCensored           ErrorStatusT = 64
 
 	// Proposal state codes
 	//
@@ -319,6 +322,7 @@ var (
 		ErrorStatusNoProposalChanges:           "no changes found in proposal",
 		ErrorStatusDuplicateComment:            "duplicate comment",
 		ErrorStatusInvalidLogin:                "invalid login credentials",
+		ErrorStatusCommentIsCensored:           "comment is censored",
 	}
 
 	// PropStatus converts propsal status codes to human readable text
@@ -917,11 +921,14 @@ type Ballot struct {
 	Votes []CastVote `json:"votes"`
 }
 
-// CastVoteReply is the answer to the CastVote command.
+// CastVoteReply is the answer to the CastVote command. The Error and
+// ErrorStatus fields will only be populated if something went wrong while
+// attempting to cast the vote.
 type CastVoteReply struct {
-	ClientSignature string `json:"clientsignature"` // Signature that was sent in
-	Signature       string `json:"signature"`       // Signature of the ClientSignature
-	Error           string `json:"error"`           // Error if something went wrong during casting a vote
+	ClientSignature string                    `json:"clientsignature"`       // Signature that was sent in
+	Signature       string                    `json:"signature"`             // Signature of the ClientSignature
+	Error           string                    `json:"error"`                 // Error status message
+	ErrorStatus     decredplugin.ErrorStatusT `json:"errorstatus,omitempty"` // Error status code
 }
 
 // CastVotesReply is a reply to a batched list of votes.

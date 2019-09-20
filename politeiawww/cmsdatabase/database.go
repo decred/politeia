@@ -41,7 +41,7 @@ type Database interface {
 	InvoicesByMonthYear(uint16, uint16) ([]Invoice, error)            // Returns all invoice by month, year
 	InvoicesByStatus(int) ([]Invoice, error)                          // Returns all invoices by status
 	InvoicesAll() ([]Invoice, error)                                  // Returns all invoices
-	LineItemsByDateRange(int64, int64, int) ([]LineItem, error)       // Returns all paid invoice line items from range provided
+	InvoicesByDateRangeStatus(int64, int64, int) ([]*Invoice, error)  // Returns all paid invoice line items from range provided
 
 	// ExchangeRate functions
 	NewExchangeRate(*ExchangeRate) error          // Create new exchange rate
@@ -101,15 +101,16 @@ type Invoice struct {
 // LineItem contains information about the individual line items contained in an
 // invoice coming into or out of the cmsdatabase.
 type LineItem struct {
-	LineNumber   uint
-	InvoiceToken string
-	Type         cms.LineItemTypeT
-	Domain       string
-	Subdomain    string
-	Description  string
-	ProposalURL  string
-	Labor        uint
-	Expenses     uint
+	LineNumber     uint
+	InvoiceToken   string
+	Type           cms.LineItemTypeT
+	Domain         string
+	Subdomain      string
+	Description    string
+	ProposalURL    string
+	Labor          uint
+	Expenses       uint
+	ContractorRate uint
 }
 
 // InvoiceChange contains entries for any status update that occurs to a given

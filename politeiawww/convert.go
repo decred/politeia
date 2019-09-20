@@ -23,6 +23,7 @@ func convertCastVoteReplyFromDecredPlugin(cvr decredplugin.CastVoteReply) www.Ca
 		ClientSignature: cvr.ClientSignature,
 		Signature:       cvr.Signature,
 		Error:           cvr.Error,
+		ErrorStatus:     cvr.ErrorStatus,
 	}
 }
 
@@ -565,7 +566,9 @@ func convertDatabaseInvoiceToInvoiceRecord(dbInvoice cmsdatabase.Invoice) *cms.I
 		}
 		invInputLineItems = append(invInputLineItems, lineItem)
 	}
+	invInput.LineItems = invInputLineItems
 	invRec.Input = invInput
+	invRec.Input.LineItems = invInputLineItems
 	return invRec
 }
 

@@ -642,21 +642,21 @@ Reply:
 {}
 ```
 
-### `Line Item Payouts`
+### `Invoice Payouts`
 
-This command would provide a list of line items that were paid out in a given
+This command would provide a list of invoices that were paid out in a given
 date range.  
 
 Note: This call requires admin privileges.
 
-**Route:** `GET /v1/admin/lineitempayouts`
+**Route:** `GET /v1/admin/invoicepayouts`
 
 **Params:**
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
-| starttime | int64 | Start time for the line item range (in Unix seconds) | Yes |
-| endtime | int64 | End time for the line item range (in Unix seconds) | Yes |
+| starttime | int64 | Start time for the invoice range (in Unix seconds) | Yes |
+| endtime | int64 | End time for the invoice range (in Unix seconds) | Yes |
 
 **Results:**
 
@@ -678,8 +678,24 @@ Reply:
 
 ```json
 {
-  "lineitems": [
-    {  
+  "invoices": [
+  {
+    "status": 4,
+    "month": 12,
+    "year": 2018,
+    "timestamp": 1508296860781,
+    "userid": "0",
+    "username": "foobar",
+    "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+    "signature": "gdd92f26c8g38c90d2887259e88df614654g32fde76bef1438b0efg40e360f461e995d796g16b17108gbe226793ge4g52gg013428feb3c39de504fe5g1811e0e",
+    "version": "1",
+    "censorshiprecord": {
+      "token": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
+      "merkle": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
+      "signature": "fcc92e26b8f38b90c2887259d88ce614654f32ecd76ade1438a0def40d360e461d995c796f16a17108fad226793fd4f52ff013428eda3b39cd504ed5f1811d0d"
+    },
+    "lineitems": [
+      {  
       "type": 1,
       "domain": "Design",
       "subdomain": "dcrweb",
@@ -687,16 +703,9 @@ Reply:
       "proposaltoken": "",
       "labor": 7380,
       "expenses": 0
-    },
-    {
-      "type": 2,
-      "domain": "Design",
-      "subdomain": "dcrweb",
-      "description": "Buying stickers.  Lots of stickers.",
-      "proposaltoken": "",
-      "labor": 0,
-      "expenses": 5000
-    }
+      }
+    ]
+  }
   ]
 }
 ```
@@ -711,13 +720,50 @@ Allows a user to submit updates to their cms user information.
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
-| domain | int | The Domain Type that the user currently has | no |
 | githubname | string | The Github Name tied to the user. | no |
 | matrixname | string | The Matrix Name tied to the user. | no |
-| contractortype | int | The contractor type of the user. | no |
 | contractorname | string | The contractors IRL name/identity. | no |
 | contractorlocation | string | Current general locaiton of the contractor. | no |
 | contractorcontact | string | Email or contact information of the contractor. | no |
+
+**Results:**
+
+| | Type | Description |
+|-|-|-|
+
+**Example**
+
+Request:
+
+```json
+{
+  "githubname": "smobs",
+  "matrixname": "smobs:decred.org",
+  "contractorname": "Steve Mobs",
+  "contractorlocation": "Cupertino, CA",
+  "contractorcontact": "smobs@apple.com",
+}
+```
+
+Reply:
+
+```json
+{}
+```
+
+### `Manage CMS user`
+
+Edits a user's details. This call requires admin privileges.
+
+**Route:** `POST /v1/user/manage`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| userid | string | UserID string of the user to be edited. | yes |
+| domain | int | The Domain Type that the user currently has | no |
+| contractortype | int | The contractor type of the user. | no |
 | supervisoruserid | string | The userid of the user (if the user is a sub contractor. ) | no |
 
 **Results:**
@@ -732,12 +778,7 @@ Request:
 ```json
 {
   "domain": 1,
-  "githubname": "smobs",
-  "matrixname": "smobs:decred.org",
   "contractortype": 1,
-  "contractorname": "Steve Mobs",
-  "contractorlocation": "Cupertino, CA",
-  "contractorcontact": "smobs@apple.com",
   "supervisoruserid": "",
 }
 ```

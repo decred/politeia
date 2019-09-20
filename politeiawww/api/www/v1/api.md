@@ -117,6 +117,7 @@ notifications.  It does not render HTML.
 - [`ErrorStatusMaxProposalsExceededPolicy`](#ErrorStatusMaxProposalsExceededPolicy)
 - [`ErrorStatusDuplicateComment`](#ErrorStatusDuplicateComment)
 - [`ErrorStatusInvalidLogin`](#ErrorStatusInvalidLogin)
+- [`ErrorStatusCommentIsCensored`](#ErrorStatusCommentIsCensored)
 
 **Websockets**
 
@@ -1866,7 +1867,8 @@ Reply:
 
 ### `Like comment`
 
-Allows a user to up or down vote a comment
+Allows a user to up or down vote a comment.  Censored comments cannot be voted
+on.
 
 **Route:** `POST v1/comments/like`
 
@@ -1940,9 +1942,15 @@ Allows a admin to censor a proposal comment.
 
 On failure the call shall return `403 Forbidden` and one of the following
 error codes:
+- [`ErrorStatusUserNotPaid`](#ErrorStatusUserNotPaid)
+- [`ErrorStatusInvalidSigningKey`](#ErrorStatusInvalidSigningKey)
 - [`ErrorStatusInvalidSignature`](#ErrorStatusInvalidSignature)
-- [`ErrorStatusCensorReasonCannotBeBlank`](#ErrorStatusCensorReasonCannotBeBlank)
-- [`ErrorStatusCannotCensorComment`](#ErrorStatusCannotCensorComment)
+- [`ErrorStatusProposalNotFound`](#ErrorStatusProposalNotFound)
+- [`ErrorStatusWrongStatus`](#ErrorStatusWrongStatus)
+- [`ErrorStatusWrongVoteStatus`](#ErrorStatusWrongVoteStatus)
+- [`ErrorStatusCommentNotFound`](#ErrorStatusCommentNotFound)
+- [`ErrorStatusCommentIsCensored`](#ErrorStatusCommentIsCensored)
+- [`ErrorStatusInvalidLikeCommentAction`](#ErrorStatusInvalidLikeCommentAction)
 
 **Example:**
 
@@ -2712,6 +2720,7 @@ Reply:
 | <a name="ErrorStatusMaxProposalsExceedsPolicy">ErrorStatusMaxProposalsExceededPolicy</a> | 61 | Number of proposals requested exceeded the ProposalListPageSize. |
 | <a name="ErrorStatusDuplicateComment">ErrorStatusDuplicateComment</a> | 62 | Duplicate comment. |
 | <a name="ErrorStatusInvalidLogin">ErrorStatusInvalidLogin</a> | 62 | Invalid login credentials. |
+| <a name="ErrorStatusCommentIsCensored">ErrorStatusCommentIsCensored</a> | 62 | Comment is censored. |
 
 
 ### Proposal status codes

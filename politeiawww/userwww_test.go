@@ -76,6 +76,7 @@ func TestHandleNewUser(t *testing.T) {
 			p.handleNewUser(w, r)
 			res := w.Result()
 			body, _ := ioutil.ReadAll(res.Body)
+			res.Body.Close()
 
 			// Validate response
 			if res.StatusCode != v.wantStatus {
@@ -129,6 +130,7 @@ func TestHandleVerifyNewUser(t *testing.T) {
 		p.handleVerifyNewUser(w, r)
 		res := w.Result()
 		body, _ := ioutil.ReadAll(res.Body)
+		res.Body.Close()
 
 		// Validate response
 		if res.StatusCode != http.StatusBadRequest {
@@ -189,6 +191,7 @@ func TestHandleVerifyNewUser(t *testing.T) {
 			p.handleVerifyNewUser(w, r)
 			res := w.Result()
 			body, _ := ioutil.ReadAll(res.Body)
+			res.Body.Close()
 
 			// Validate response
 			if res.StatusCode != v.wantStatus {
@@ -294,6 +297,7 @@ func TestHandleResendVerification(t *testing.T) {
 			p.handleResendVerification(w, r)
 			res := w.Result()
 			body, _ := ioutil.ReadAll(res.Body)
+			res.Body.Close()
 
 			// Validate response
 			if res.StatusCode != v.wantStatus {
@@ -394,6 +398,7 @@ func TestHandleLogin(t *testing.T) {
 			p.handleLogin(w, r)
 			res := w.Result()
 			body, _ := ioutil.ReadAll(res.Body)
+			res.Body.Close()
 
 			// Validate response
 			if res.StatusCode != v.wantStatus {
@@ -620,6 +625,7 @@ func TestHandleChangePassword(t *testing.T) {
 			p.handleChangePassword(w, r)
 			res := w.Result()
 			body, _ := ioutil.ReadAll(res.Body)
+			res.Body.Close()
 
 			// Validate response
 			if res.StatusCode != v.wantStatus {
@@ -710,6 +716,7 @@ func TestHandleResetPassword(t *testing.T) {
 			p.handleResetPassword(w, r)
 			res := w.Result()
 			body, _ := ioutil.ReadAll(res.Body)
+			res.Body.Close()
 
 			// Validate response
 			if res.StatusCode != v.wantStatus {
@@ -805,6 +812,7 @@ func TestHandleVerifyResetPassword(t *testing.T) {
 			p.handleVerifyResetPassword(w, r)
 			res := w.Result()
 			body, _ := ioutil.ReadAll(res.Body)
+			res.Body.Close()
 
 			// Check status code
 			if res.StatusCode != v.wantStatus {
@@ -887,6 +895,7 @@ func TestHandleChangeUsername(t *testing.T) {
 			p.handleChangeUsername(w, r)
 			res := w.Result()
 			body, _ := ioutil.ReadAll(res.Body)
+			res.Body.Close()
 
 			// Validate response
 			if res.StatusCode != v.wantStatus {
@@ -972,6 +981,7 @@ func TestHandleUserDetails(t *testing.T) {
 			p.handleUserDetails(w, r)
 			res := w.Result()
 			body, _ := ioutil.ReadAll(res.Body)
+			res.Body.Close()
 
 			// Validate response
 			if res.StatusCode != v.wantStatus {
@@ -1046,6 +1056,7 @@ func TestHandleEditUser(t *testing.T) {
 			p.handleEditUser(w, r)
 			res := w.Result()
 			body, _ := ioutil.ReadAll(res.Body)
+			res.Body.Close()
 
 			// Validate response
 			if res.StatusCode != v.wantStatus {
