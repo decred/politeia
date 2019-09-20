@@ -79,6 +79,7 @@ func (s *SessionStore) New(r *http.Request, name string) (*sessions.Session, err
 			if err == nil {
 				session.IsNew = false
 			} else {
+				// no session found in database, return the *new* session
 				if err == user.ErrSessionDoesNotExist {
 					err = nil
 				}
