@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/google/uuid"
@@ -79,6 +78,10 @@ func (s *SessionStore) New(r *http.Request, name string) (*sessions.Session, err
 			err = s.load(session)
 			if err == nil {
 				session.IsNew = false
+			} else {
+				if err == user.ErrSessionDoesNotExist {
+					err = nil
+				}
 			}
 		}
 	}
@@ -137,12 +140,6 @@ func (s *SessionStore) MaxAge(age int) {
 
 // save writes encoded session.Values to the database.
 func (s *SessionStore) save(session *sessions.Session) error {
-	// do we have a `created_at` time stamp?
-	_, ok := session.Values["created_at"].(int64)
-	if !ok {
-		session.Values["created_at"] = time.Now().Unix()
-	}
-
 	// get the user for this session
 	id, ok := session.Values["user_id"].(string)
 	if !ok {
