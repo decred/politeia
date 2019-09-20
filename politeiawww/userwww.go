@@ -128,7 +128,8 @@ func (p *politeiawww) getSessionUser(w http.ResponseWriter, r *http.Request) (*u
 	return user, nil
 }
 
-// initSession adds a session record to the db and sets its ID in the session.
+// initSession adds a session record to the database and links it to the given
+// user ID.
 func (p *politeiawww) initSession(w http.ResponseWriter, r *http.Request, uid string) error {
 	log.Tracef("initSession: %v %v", uid, www.CookieSession)
 	session, err := p.getSession(r)
@@ -361,7 +362,12 @@ func (p *politeiawww) handleVerifyResetPassword(w http.ResponseWriter, r *http.R
 	user, err := p.db.UserGetByUsername(vrp.Username)
 	if err == nil {
 		// log off user everywhere by deleting all sessions
-		p.db.SessionsDeleteByUserId(user.ID, "")
+		err = p.db.SessionsDeleteByUserId(user.ID, "")
+		if err != nil {
+			log.Errorf("SessionsDeleteByUserId() error: %v", err)
+		}
+	} else {
+		log.Errorf("UserGetByUsername() error: %v", err)
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
@@ -567,7 +573,10 @@ func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Reques
 
 	// valid, authenticated user changing his password,
 	// delete all sesssions except this current one
-	p.db.SessionsDeleteByUserId(user.ID, p.getSessionID(r))
+	err = p.db.SessionsDeleteByUserId(user.ID, p.getSessionID(r))
+	if err != nil {
+		log.Errorf("SessionsDeleteByUserId() error: %v", err)
+	}
 
 	// Reply with the error code.
 	util.RespondWithJSON(w, http.StatusOK, reply)
