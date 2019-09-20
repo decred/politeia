@@ -29,7 +29,7 @@ type SessionStore struct {
 //
 // See NewCookieStore() for a description of the other parameters.
 func NewSessionStore(db user.Database, keyPairs ...[]byte) *SessionStore {
-	fs := &SessionStore{
+	ss := &SessionStore{
 		Codecs: securecookie.CodecsFromPairs(keyPairs...),
 		Options: &sessions.Options{
 			Path:     "/",
@@ -41,8 +41,8 @@ func NewSessionStore(db user.Database, keyPairs ...[]byte) *SessionStore {
 		db: db,
 	}
 
-	fs.MaxAge(fs.Options.MaxAge)
-	return fs
+	ss.MaxAge(ss.Options.MaxAge)
+	return ss
 }
 
 // MaxLength restricts the maximum length of new sessions to l.
