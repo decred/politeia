@@ -34,6 +34,11 @@ var (
 		template.New("invite_approved_dcc_user").Parse(templateApproveDCCUserEmailRaw))
 )
 
+// getSession returns the active cookie session.
+func (p *politeiawww) getSession(r *http.Request) (*sessions.Session, error) {
+	return p.store.Get(r, www.CookieSession)
+}
+
 // isAdmin returns true if the current session has admin privileges.
 func (p *politeiawww) isAdmin(w http.ResponseWriter, r *http.Request) (bool, error) {
 	user, err := p.getSessionUser(w, r)
@@ -52,11 +57,6 @@ func hasExpired(session *sessions.Session) (bool, error) {
 	timeNow := time.Now().Unix()
 	expiresAt := createdAt + int64(session.Options.MaxAge)
 	return timeNow > expiresAt, nil
-}
-
-// getSession returns the active cookie session.
-func (p *politeiawww) getSession(r *http.Request) (*sessions.Session, error) {
-	return p.store.Get(r, www.CookieSession)
 }
 
 // getSessionUserID returns the uuid address of the currently logged in user

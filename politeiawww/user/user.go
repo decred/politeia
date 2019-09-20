@@ -412,7 +412,7 @@ type Database interface {
 	// Add a new user
 	UserNew(User) error
 
-	// Add a new session for an authenticated user
+	// Create or update a session for an authenticated user
 	SessionSave(Session) error
 
 	// Update an existing user
