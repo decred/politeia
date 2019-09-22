@@ -280,9 +280,11 @@ func (c *cockroachdb) UserGetByPubKey(pubKey string) (*user.User, error) {
 	return usr, nil
 }
 
-// UsersGetByPubKey, given a list of public keys, returns a map where the keys
-// are a public key and the value is a user record. Public keys can be any of
-// the public keys in the user's identity history.
+// UsersGetByPubKey returns a [pubkey]user.User map for the provided public
+// keys. Public keys can be any of the public keys in the user's identity
+// history. If a user is not found, the map will not include an entry for the
+// corresponding public key. It is responsibility of the caller to ensure
+// results are returned for all of the provided public keys.
 //
 // UsersGetByPubKey satisfies the Database interface.
 func (c *cockroachdb) UsersGetByPubKey(pubKeys []string) (map[string]user.User, error) {
@@ -292,22 +294,27 @@ func (c *cockroachdb) UsersGetByPubKey(pubKeys []string) (map[string]user.User, 
 		return nil, user.ErrShutdown
 	}
 
-	query := `SELECT * FROM users INNER JOIN identities
-                ON users.id = identities.user_id
-                WHERE identities.public_key IN (?)`
-
+	// Lookup users by pubkey
+	query := `SELECT *
+            FROM users
+            INNER JOIN identities
+              ON users.id = identities.user_id
+              WHERE identities.public_key IN (?)`
 	rows, err := c.userDB.Raw(query, pubKeys).Rows()
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	users := make(map[string]user.User)
-	pubKeyLookup := make(map[string]bool)
-	for _, pk := range pubKeys {
-		pubKeyLookup[pk] = true
+	// Put provided pubkeys into a map
+	pk := make(map[string]struct{}, len(pubKeys))
+	for _, v := range pubKeys {
+		pk[v] = struct{}{}
 	}
 
+	// Decrypt user data blobs and compile a users map for
+	// the provided pubkeys.
+	users := make(map[string]user.User, len(pubKeys)) // [pubkey]User
 	for rows.Next() {
 		var u User
 		err := c.userDB.ScanRows(rows, &u)
@@ -326,9 +333,9 @@ func (c *cockroachdb) UsersGetByPubKey(pubKeys []string) (map[string]user.User, 
 		}
 
 		for _, id := range usr.Identities {
-			pk := id.String()
-			if _, ok := pubKeyLookup[pk]; ok {
-				users[pk] = *usr
+			_, ok := pk[id.String()]
+			if ok {
+				users[id.String()] = *usr
 			}
 		}
 	}

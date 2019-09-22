@@ -782,9 +782,13 @@ func DecodeGetCommentsReply(payload []byte) (*GetCommentsReply, error) {
 	return &gcr, nil
 }
 
-// GetNumComments retrieve the number of comments for a list of proposals.
+// GetNumComments returns a map that contains the number of comments for the
+// provided list of censorship tokens. If a provided token does not corresond
+// to an actual proposal then the token will not be included in the returned
+// map. It is the responsibility of the caller to ensure that results are
+// returned for all of the provided tokens.
 type GetNumComments struct {
-	Tokens []string `json:"tokens"` // Proposal ID
+	Tokens []string `json:"tokens"` // List of censorship tokens
 }
 
 // EncodeGetNumComments encodes GetBatchComments into a JSON byte slice.
@@ -804,9 +808,9 @@ func DecodeGetNumComments(payload []byte) (*GetNumComments, error) {
 	return &gnc, nil
 }
 
-// GetNumCommentsReply returns a map from proposal token to int
+// GetNumCommentsReply is the reply to the GetNumComments command.
 type GetNumCommentsReply struct {
-	CommentsMap map[string]int `json:"commentsmap"`
+	NumComments map[string]int `json:"numcomments"` // [token]numComments
 }
 
 // EncodeGetNumCommentsReply encodes GetNumCommentsReply into a

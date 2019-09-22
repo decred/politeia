@@ -1574,6 +1574,7 @@ limited by the `ProposalListPageSize` property, which is provided via
 On failure the call shall return `400 Bad Request` and one of the following
 error codes:
 - [`ErrorStatusMaxProposalsExceededPolicy`](#ErrorStatusMaxProposalsExceededPolicy)
+- [`ErrorStatusInvalidCensorshipToken`](#ErrorStatusInvalidCensorshipToken)
 - [`ErrorStatusProposalNotFound`](#ErrorStatusProposalNotFound)
 
 **Example**
