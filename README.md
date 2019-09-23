@@ -1,5 +1,5 @@
 # Politeia
-[![Build Status](https://img.shields.io/travis/decred/politeia.svg)](https://travis-ci.org/decred/politeia)
+[![Build Status](https://github.com/decred/politeia/workflows/Build%20and%20Test/badge.svg)](https://github.com/decred/politeia/actions)
 [![ISC License](https://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
 
 **Politeia is the Decred proposal system.**
