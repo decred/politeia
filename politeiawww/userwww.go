@@ -363,7 +363,9 @@ func (p *politeiawww) handleVerifyResetPassword(w http.ResponseWriter, r *http.R
 			log.Errorf("SessionsDeleteByUserId() error: %v", err)
 		}
 	} else {
-		log.Errorf("UserGetByUsername() error: %v", err)
+		RespondWithError(w, r, 0,
+			"handleVerifyResetPassword: UserGetByUsername %v", err)
+		return
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
