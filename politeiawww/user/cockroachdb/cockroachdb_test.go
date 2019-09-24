@@ -40,7 +40,8 @@ func connectToTestDB(t *testing.T) *cockroachdb {
 	)
 
 	if testDBConnection == nil {
-		testDBConnection, err = New(tdbhost, tnetwork, tdbrootcert, tdbcert, tdbkey, tencryptionkey)
+		testDBConnection, err = New(tdbhost, tnetwork, tdbrootcert, tdbcert,
+			tdbkey, tencryptionkey)
 		if err != nil {
 			t.Fatalf("cockroachdb.New() returned an error: %v", err)
 		}
@@ -187,13 +188,14 @@ func TestSessionDeleteById(t *testing.T) {
 		// delete the session
 		err = db.SessionDeleteById(sa[idx].ID)
 		if err != nil {
-			t.Errorf("idx: %v, SessionDeleteById() returned an error: %v", idx, err)
+			t.Errorf("idx: %v, SessionDeleteById() error: %v", idx, err)
 		}
 		// make sure the deleted session is gone
 		var model Session
 		err = db.userDB.Where("id = ?", sa[idx].ID).First(&model).Error
 		if err != gorm.ErrRecordNotFound {
-			t.Errorf("idx: %v, got error: %v, want: %v", idx, err, gorm.ErrRecordNotFound)
+			t.Errorf("idx: %v, got error: %v, want: %v", idx, err,
+				gorm.ErrRecordNotFound)
 		}
 	}
 	// make sure the other sessions are stil in place
@@ -202,7 +204,8 @@ func TestSessionDeleteById(t *testing.T) {
 		var model Session
 		err = db.userDB.Where("id = ?", sa[idx].ID).First(&model).Error
 		if err != nil {
-			t.Errorf("idx: %v (%v), First() returned an error: %v", idx, sa[idx].ID, err)
+			t.Errorf("idx: %v (%v), First() returned an error: %v", idx,
+				sa[idx].ID, err)
 		}
 		if sa[idx] != modelToSession(model) {
 			t.Errorf("got session: %v, want: %v", modelToSession(model), sa[idx])
@@ -263,7 +266,8 @@ func TestSessionDeleteByUserId(t *testing.T) {
 		var model Session
 		err = db.userDB.Where("id = ?", sa[idx].ID).First(&model).Error
 		if err != gorm.ErrRecordNotFound {
-			t.Errorf("idx: %v, got error: %v, want: %v", idx, err, gorm.ErrRecordNotFound)
+			t.Errorf("idx: %v, got error: %v, want: %v", idx, err,
+				gorm.ErrRecordNotFound)
 		}
 	}
 	// make sure the other sessions are stil in place
@@ -272,7 +276,8 @@ func TestSessionDeleteByUserId(t *testing.T) {
 		var model Session
 		err = db.userDB.Where("id = ?", sa[idx].ID).First(&model).Error
 		if err != nil {
-			t.Errorf("idx: %v (%v), First() returned an error: %v", idx, sa[idx].ID, err)
+			t.Errorf("idx: %v (%v), First() returned an error: %v", idx,
+				sa[idx].ID, err)
 		}
 		if sa[idx] != modelToSession(model) {
 			t.Errorf("got session: %v, want: %v", modelToSession(model), sa[idx])
@@ -335,7 +340,8 @@ func TestSessionDeleteByUserIdAndSessionToKeep(t *testing.T) {
 		var model Session
 		err = db.userDB.Where("id = ?", sa[idx].ID).First(&model).Error
 		if err != gorm.ErrRecordNotFound {
-			t.Errorf("idx: %v, got error: %v, want: %v", idx, err, gorm.ErrRecordNotFound)
+			t.Errorf("idx: %v, got error: %v, want: %v", idx, err,
+				gorm.ErrRecordNotFound)
 		}
 	}
 	// make sure the other sessions are stil in place
@@ -344,7 +350,8 @@ func TestSessionDeleteByUserIdAndSessionToKeep(t *testing.T) {
 		var model Session
 		err = db.userDB.Where("id = ?", sa[idx].ID).First(&model).Error
 		if err != nil {
-			t.Errorf("idx: %v (%v), First() returned an error: %v", idx, sa[idx].ID, err)
+			t.Errorf("idx: %v (%v), First() returned an error: %v", idx,
+				sa[idx].ID, err)
 		}
 		if sa[idx] != modelToSession(model) {
 			t.Errorf("got session: %v, want: %v", modelToSession(model), sa[idx])

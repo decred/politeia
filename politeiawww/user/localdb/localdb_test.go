@@ -218,7 +218,8 @@ func TestSessionsDeleteByUserId(t *testing.T) {
 	for _, idx := range removed {
 		_, err := db.SessionGetById(sa[idx].ID)
 		if err != user.ErrSessionDoesNotExist {
-			t.Errorf("index: %v, got error: %v, want: %v", idx, err, user.ErrSessionDoesNotExist)
+			t.Errorf("index: %v, got error: %v, want: %v", idx, err,
+				user.ErrSessionDoesNotExist)
 		}
 	}
 	// make sure the other sessions are still in place
@@ -229,7 +230,8 @@ func TestSessionsDeleteByUserId(t *testing.T) {
 			t.Errorf("index: %v, SessionGetById() returned an error: %v", idx, err)
 		}
 		if *sessionInDB != sa[idx] {
-			t.Errorf("index: %v, got session: %v, want: %v", idx, sessionInDB, sa[idx])
+			t.Errorf("index: %v, got session: %v, want: %v", idx, sessionInDB,
+				sa[idx])
 		}
 	}
 }
@@ -274,7 +276,8 @@ func TestSessionsDeleteByUserIdAndKeepOneSession(t *testing.T) {
 	for _, idx := range removed {
 		_, err := db.SessionGetById(sa[idx].ID)
 		if err != user.ErrSessionDoesNotExist {
-			t.Errorf("index: %v, got error: %v, want: %v", idx, err, user.ErrSessionDoesNotExist)
+			t.Errorf("index: %v, got error: %v, want: %v", idx, err,
+				user.ErrSessionDoesNotExist)
 		}
 	}
 	// make sure the other sessions are still in place
@@ -285,7 +288,8 @@ func TestSessionsDeleteByUserIdAndKeepOneSession(t *testing.T) {
 			t.Errorf("index: %v, SessionGetById() returned an error: %v", idx, err)
 		}
 		if *sessionInDB != sa[idx] {
-			t.Errorf("index: %v, got session: %v, want: %v", idx, sessionInDB, sa[idx])
+			t.Errorf("index: %v, got session: %v, want: %v", idx, sessionInDB,
+				sa[idx])
 		}
 	}
 }

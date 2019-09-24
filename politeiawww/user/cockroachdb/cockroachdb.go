@@ -286,7 +286,8 @@ func (c *cockroachdb) UserGetByPubKey(pubKey string) (*user.User, error) {
 // the public keys in the user's identity history.
 //
 // UsersGetByPubKey satisfies the Database interface.
-func (c *cockroachdb) UsersGetByPubKey(pubKeys []string) (map[string]user.User, error) {
+func (c *cockroachdb) UsersGetByPubKey(pubKeys []string) (map[string]user.User,
+	error) {
 
 	log.Tracef("UserGetByPubKey: %v", pubKeys)
 
@@ -489,7 +490,8 @@ func (c *cockroachdb) SessionDeleteById(sid string) error {
 // Delete all sessions for the given user id except the one specified.
 //
 // SessionsDeleteByUserId satisfies the Database interface.
-func (c *cockroachdb) SessionsDeleteByUserId(uid uuid.UUID, sessionToKeep string) error {
+func (c *cockroachdb) SessionsDeleteByUserId(uid uuid.UUID,
+	sessionToKeep string) error {
 	log.Tracef("SessionsDeleteByUserId: %v", uid)
 
 	if c.isShutdown() {

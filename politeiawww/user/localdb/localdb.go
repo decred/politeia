@@ -44,7 +44,8 @@ type Version struct {
 // and false otherwise. This is helpful when iterating the user records
 // because the DB contains some non-user records.
 func isUserRecord(key string) bool {
-	return key != UserVersionKey && key != LastPaywallAddressIndex && !strings.HasPrefix(key, sessionPrefix)
+	return key != UserVersionKey && key != LastPaywallAddressIndex &&
+		!strings.HasPrefix(key, sessionPrefix)
 }
 
 // Store new user.
@@ -213,7 +214,8 @@ func (l *localdb) UserGetByPubKey(pubKey string) (*user.User, error) {
 // the public keys in the user's identity history.
 //
 // UsersGetByPubKey satisfies the Database interface.
-func (l *localdb) UsersGetByPubKey(pubKeys []string) (map[string]user.User, error) {
+func (l *localdb) UsersGetByPubKey(pubKeys []string) (map[string]user.User,
+	error) {
 
 	log.Tracef("UsersGetByPubKey: %v", pubKeys)
 
@@ -365,7 +367,8 @@ func (l *localdb) AllUsers(callbackFn func(u *user.User)) error {
 }
 
 // PluginExec executes the provided plugin command.
-func (l *localdb) PluginExec(pc user.PluginCommand) (*user.PluginCommandReply, error) {
+func (l *localdb) PluginExec(pc user.PluginCommand) (*user.PluginCommandReply,
+	error) {
 	return nil, user.ErrInvalidPlugin
 }
 
@@ -457,7 +460,8 @@ func (l *localdb) SessionDeleteById(sid string) error {
 // Delete all sessions for the given user id except the one specified.
 //
 // SessionsDeleteByUserId satisfies the Database interface.
-func (l *localdb) SessionsDeleteByUserId(uid uuid.UUID, sessionToKeep string) error {
+func (l *localdb) SessionsDeleteByUserId(uid uuid.UUID,
+	sessionToKeep string) error {
 	l.RLock()
 	defer l.RUnlock()
 
