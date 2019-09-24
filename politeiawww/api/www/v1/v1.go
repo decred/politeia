@@ -389,6 +389,7 @@ type CensorshipRecord struct {
 type VoteSummary struct {
 	Status           PropVoteStatusT    `json:"status"`                     // Vote status
 	EligibleTickets  uint32             `json:"eligibletickets,omitempty"`  // Number of eligible tickets
+	Duration         uint32             `json:"duration,omitempty"`         // Duration of vote
 	EndHeight        uint64             `json:"endheight,omitempty"`        // Vote end height
 	QuorumPercentage uint32             `json:"quorumpercentage,omitempty"` // Percent of eligible votes required for quorum
 	PassPercentage   uint32             `json:"passpercentage,omitempty"`   // Percent of total votes required to pass

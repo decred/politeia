@@ -1150,6 +1150,7 @@ func (d *decred) cmdBatchVoteSummary(payload string) (string, error) {
 		authorized := av.Action == decredplugin.AuthVoteActionAuthorize
 		vsr := decredplugin.VoteSummaryReply{
 			Authorized:          authorized,
+			Duration:            sv.Duration,
 			EndHeight:           endHeight,
 			EligibleTicketCount: sv.EligibleTicketCount,
 			QuorumPercentage:    sv.QuorumPercentage,
@@ -1266,6 +1267,7 @@ sendReply:
 
 	vsr := decredplugin.VoteSummaryReply{
 		Authorized:          av.Action == decredplugin.AuthVoteActionAuthorize,
+		Duration:            sv.Duration,
 		EndHeight:           endHeight,
 		EligibleTicketCount: sv.EligibleTicketCount,
 		QuorumPercentage:    sv.QuorumPercentage,

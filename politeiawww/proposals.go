@@ -958,6 +958,7 @@ func (p *politeiawww) getVoteSummaries(tokens []string, bestBlock uint64) (map[s
 		vs := www.VoteSummary{
 			Status:           voteStatusFromVoteSummary(summary, bestBlock),
 			EligibleTickets:  uint32(summary.EligibleTicketCount),
+			Duration:         summary.Duration,
 			EndHeight:        endHeight,
 			QuorumPercentage: summary.QuorumPercentage,
 			PassPercentage:   summary.PassPercentage,
