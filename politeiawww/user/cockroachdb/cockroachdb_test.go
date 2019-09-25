@@ -49,7 +49,7 @@ func connectToTestDB() *cockroachdb {
 		DBCert        string `long:"dbcert" description:"File containing the politeiawww client certificate for the database"`
 		DBKey         string `long:"dbkey" description:"File containing the politeiawww client certificate key for the database"`
 		Network       string `long:"network" description:"The name of the network to use"`
-		EncryptionKey string `long:"encryptionkey" description:"The encryptionkey key to use"`
+		EncryptionKey string `long:"encryptionkey" description:"The encryption key key to use"`
 	}
 	cfg := config{}
 	parser := flags.NewParser(&cfg, flags.Default)
