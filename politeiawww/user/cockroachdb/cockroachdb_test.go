@@ -7,11 +7,12 @@ package cockroachdb
 
 import (
 	"os"
-	"path"
+	"strings"
 	"testing"
 
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/google/uuid"
+	flags "github.com/jessevdk/go-flags"
 
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
@@ -27,24 +28,46 @@ func modelToSession(s Session) user.Session {
 
 var testDBConnection *cockroachdb
 
-func connectToTestDB(t *testing.T) *cockroachdb {
-	home := os.Getenv("HOME")
-	var (
-		tdbhost        string = "localhost:26257"
-		tnetwork       string = "testnet3"
-		tdbrootcert    string = path.Join(home, ".cockroachdb/certs/clients/politeiawww/ca.crt")
-		tdbcert        string = path.Join(home, ".cockroachdb/certs/clients/politeiawww/client.politeiawww.crt")
-		tdbkey         string = path.Join(home, ".cockroachdb/certs/clients/politeiawww/client.politeiawww.key")
-		tencryptionkey string = path.Join(home, ".politeiawww/sbox.key")
-		err            error
-	)
+func expandTilde(t *testing.T, s string) string {
+	t.Helper()
 
-	if testDBConnection == nil {
-		testDBConnection, err = New(tdbhost, tnetwork, tdbrootcert, tdbcert,
-			tdbkey, tencryptionkey)
-		if err != nil {
-			t.Fatalf("cockroachdb.New() returned an error: %v", err)
-		}
+	if strings.HasPrefix(s, "~/") {
+		home := os.Getenv("HOME")
+		return strings.Replace(s, "~", home, 1)
+	}
+	return s
+}
+
+func connectToTestDB(t *testing.T) *cockroachdb {
+	t.Helper()
+
+	if testDBConnection != nil {
+		return testDBConnection
+	}
+
+	type config struct {
+		DBHost        string `long:"dbhost" description:"Database ip:port"`
+		DBRootCert    string `long:"dbrootcert" description:"File containing the CA certificate for the database"`
+		DBCert        string `long:"dbcert" description:"File containing the politeiawww client certificate for the database"`
+		DBKey         string `long:"dbkey" description:"File containing the politeiawww client certificate key for the database"`
+		Network       string `long:"network" description:"The name of the network to use"`
+		EncryptionKey string `long:"encryptionkey" description:"The encryptionkey key to use"`
+	}
+	cfg := config{}
+	parser := flags.NewParser(&cfg, flags.Default)
+	err := flags.NewIniParser(parser).ParseFile("testdata/politeiawww.conf")
+	if err != nil {
+		t.Errorf("ParseFile() failed, %v", err)
+	}
+	cfg.DBRootCert = expandTilde(t, cfg.DBRootCert)
+	cfg.DBCert = expandTilde(t, cfg.DBCert)
+	cfg.DBKey = expandTilde(t, cfg.DBKey)
+	cfg.EncryptionKey = expandTilde(t, cfg.EncryptionKey)
+
+	testDBConnection, err = New(cfg.DBHost, cfg.Network, cfg.DBRootCert,
+		cfg.DBCert, cfg.DBKey, cfg.EncryptionKey)
+	if err != nil {
+		t.Fatalf("cockroachdb.New() returned an error: %v", err)
 	}
 	return testDBConnection
 }
