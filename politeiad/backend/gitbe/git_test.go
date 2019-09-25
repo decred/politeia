@@ -56,7 +56,7 @@ func TestInit(t *testing.T) {
 	g := newGitBackEnd()
 	defer os.RemoveAll(g.root)
 
-	_, err := g.gitInit(g.root)
+	err := g.gitInitRepo(g.root, defaultRepoConfig)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +87,7 @@ func TestFsck(t *testing.T) {
 	defer os.RemoveAll(g.root)
 
 	// Init git repo
-	_, err := g.gitInit(g.root)
+	err := g.gitInitRepo(g.root, defaultRepoConfig)
 	if err != nil {
 		t.Fatal(err)
 	}
