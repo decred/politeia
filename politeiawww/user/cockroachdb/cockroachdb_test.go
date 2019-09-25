@@ -6,6 +6,7 @@
 package cockroachdb
 
 import (
+	stdlog "log"
 	"os"
 	"strings"
 	"testing"
@@ -18,6 +19,8 @@ import (
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 )
 
+var testDB *cockroachdb
+
 func modelToSession(s Session) user.Session {
 	return user.Session{
 		ID:     s.ID,
@@ -26,11 +29,7 @@ func modelToSession(s Session) user.Session {
 	}
 }
 
-var testDBConnection *cockroachdb
-
-func expandTilde(t *testing.T, s string) string {
-	t.Helper()
-
+func expandTilde(s string) string {
 	if strings.HasPrefix(s, "~/") {
 		home := os.Getenv("HOME")
 		return strings.Replace(s, "~", home, 1)
@@ -38,11 +37,10 @@ func expandTilde(t *testing.T, s string) string {
 	return s
 }
 
-func connectToTestDB(t *testing.T) *cockroachdb {
-	t.Helper()
-
-	if testDBConnection != nil {
-		return testDBConnection
+func connectToTestDB() *cockroachdb {
+	if testDB != nil {
+		// db already initialized
+		return testDB
 	}
 
 	type config struct {
@@ -55,25 +53,32 @@ func connectToTestDB(t *testing.T) *cockroachdb {
 	}
 	cfg := config{}
 	parser := flags.NewParser(&cfg, flags.Default)
-	err := flags.NewIniParser(parser).ParseFile("testdata/politeiawww.conf")
+	err := flags.NewIniParser(parser).ParseFile("testdata/test.conf")
 	if err != nil {
-		t.Errorf("ParseFile() failed, %v", err)
+		stdlog.Fatalf("ParseFile() failed, %v", err)
 	}
-	cfg.DBRootCert = expandTilde(t, cfg.DBRootCert)
-	cfg.DBCert = expandTilde(t, cfg.DBCert)
-	cfg.DBKey = expandTilde(t, cfg.DBKey)
-	cfg.EncryptionKey = expandTilde(t, cfg.EncryptionKey)
+	cfg.DBRootCert = expandTilde(cfg.DBRootCert)
+	cfg.DBCert = expandTilde(cfg.DBCert)
+	cfg.DBKey = expandTilde(cfg.DBKey)
+	cfg.EncryptionKey = expandTilde(cfg.EncryptionKey)
 
-	testDBConnection, err = New(cfg.DBHost, cfg.Network, cfg.DBRootCert,
+	testDB, err = New(cfg.DBHost, cfg.Network, cfg.DBRootCert,
 		cfg.DBCert, cfg.DBKey, cfg.EncryptionKey)
 	if err != nil {
-		t.Fatalf("cockroachdb.New() returned an error: %v", err)
+		stdlog.Fatalf("cockroachdb.New() returned an error: %v", err)
 	}
-	return testDBConnection
+	return testDB
+}
+
+func TestMain(m *testing.M) {
+	connectToTestDB()
+	exitVal := m.Run()
+	testDB.Close()
+
+	os.Exit(exitVal)
 }
 
 func TestSessionSave(t *testing.T) {
-	db := connectToTestDB(t)
 	expected := user.Session{
 		ID:     uuid.New().String(),
 		UserID: uuid.New(),
@@ -81,11 +86,11 @@ func TestSessionSave(t *testing.T) {
 	}
 	var model Session
 
-	err := db.SessionSave(expected)
+	err := testDB.SessionSave(expected)
 	if err != nil {
 		t.Errorf("SessionSave() returned an error: %v", err)
 	}
-	err = db.userDB.Where("id = ?", expected.ID).Last(&model).Error
+	err = testDB.userDB.Where("id = ?", expected.ID).Last(&model).Error
 	if err != nil {
 		t.Errorf("Last() returned an error: %v", err)
 	}
@@ -95,14 +100,13 @@ func TestSessionSave(t *testing.T) {
 }
 
 func TestSessionSaveMoreThanOnce(t *testing.T) {
-	db := connectToTestDB(t)
 	expected := user.Session{
 		ID:     uuid.New().String(),
 		UserID: uuid.New(),
 		Values: "TestSessionSaveMoreThanOnce()",
 	}
 
-	err := db.SessionSave(expected)
+	err := testDB.SessionSave(expected)
 	if err != nil {
 		t.Errorf("SessionSave() #1 returned an error: %v", err)
 	}
@@ -110,12 +114,12 @@ func TestSessionSaveMoreThanOnce(t *testing.T) {
 	// update the record.
 	expected.Values += " / update"
 	expected.UserID = uuid.New()
-	err = db.SessionSave(expected)
+	err = testDB.SessionSave(expected)
 	if err != nil {
 		t.Errorf("SessionSave() #2 returned an error: %v", err)
 	}
 
-	us2, err := db.SessionGetById(expected.ID)
+	us2, err := testDB.SessionGetById(expected.ID)
 	if err != nil {
 		t.Errorf("SessionGetById() returned an error: %v", err)
 	}
@@ -129,7 +133,6 @@ func TestSessionSaveMoreThanOnce(t *testing.T) {
 }
 
 func TestSessionGetById(t *testing.T) {
-	db := connectToTestDB(t)
 	expected := user.Session{
 		ID:     uuid.New().String(),
 		UserID: uuid.New(),
@@ -137,19 +140,19 @@ func TestSessionGetById(t *testing.T) {
 	}
 
 	// insert a session
-	err := db.SessionSave(expected)
+	err := testDB.SessionSave(expected)
 	if err != nil {
 		t.Errorf("SessionSave() returned an error: %v", err)
 	}
 
 	// get the Session we just inserted
-	us, err := db.SessionGetById(expected.ID)
+	us, err := testDB.SessionGetById(expected.ID)
 	if err != nil {
 		t.Errorf("SessionGetById() returned an error: %v", err)
 	}
 
 	var model Session
-	err = db.userDB.Where("id = ?", expected.ID).First(&model).Error
+	err = testDB.userDB.Where("id = ?", expected.ID).First(&model).Error
 	if err != nil {
 		t.Errorf("First() returned an error: %v", err)
 	}
@@ -160,7 +163,6 @@ func TestSessionGetById(t *testing.T) {
 }
 
 func TestSessionGetByIdWithNoRecord(t *testing.T) {
-	db := connectToTestDB(t)
 	expected := user.Session{
 		ID:     uuid.New().String(),
 		UserID: uuid.New(),
@@ -168,7 +170,7 @@ func TestSessionGetByIdWithNoRecord(t *testing.T) {
 	}
 
 	// try to get a session that does not exist
-	_, err := db.SessionGetById(expected.ID)
+	_, err := testDB.SessionGetById(expected.ID)
 	if err == nil {
 		t.Error("SessionGetById() did not return an error")
 	}
@@ -178,7 +180,6 @@ func TestSessionGetByIdWithNoRecord(t *testing.T) {
 }
 
 func TestSessionDeleteById(t *testing.T) {
-	db := connectToTestDB(t)
 	var err error
 	sa := []user.Session{
 		{
@@ -200,7 +201,7 @@ func TestSessionDeleteById(t *testing.T) {
 
 	for idx, s := range sa {
 		// insert a session
-		err = db.SessionSave(s)
+		err = testDB.SessionSave(s)
 		if err != nil {
 			t.Errorf("idx: %v, SessionSave() returned an error: %v", idx, err)
 		}
@@ -209,13 +210,13 @@ func TestSessionDeleteById(t *testing.T) {
 	removed := []int{1}
 	for _, idx := range removed {
 		// delete the session
-		err = db.SessionDeleteById(sa[idx].ID)
+		err = testDB.SessionDeleteById(sa[idx].ID)
 		if err != nil {
 			t.Errorf("idx: %v, SessionDeleteById() error: %v", idx, err)
 		}
 		// make sure the deleted session is gone
 		var model Session
-		err = db.userDB.Where("id = ?", sa[idx].ID).First(&model).Error
+		err = testDB.userDB.Where("id = ?", sa[idx].ID).First(&model).Error
 		if err != gorm.ErrRecordNotFound {
 			t.Errorf("idx: %v, got error: %v, want: %v", idx, err,
 				gorm.ErrRecordNotFound)
@@ -225,7 +226,7 @@ func TestSessionDeleteById(t *testing.T) {
 	kept := []int{0, 2}
 	for _, idx := range kept {
 		var model Session
-		err = db.userDB.Where("id = ?", sa[idx].ID).First(&model).Error
+		err = testDB.userDB.Where("id = ?", sa[idx].ID).First(&model).Error
 		if err != nil {
 			t.Errorf("idx: %v (%v), First() returned an error: %v", idx,
 				sa[idx].ID, err)
@@ -237,7 +238,6 @@ func TestSessionDeleteById(t *testing.T) {
 }
 
 func TestSessionDeleteByUserId(t *testing.T) {
-	db := connectToTestDB(t)
 	var err error
 	keep := uuid.New()
 	remove := uuid.New()
@@ -272,13 +272,13 @@ func TestSessionDeleteByUserId(t *testing.T) {
 
 	for idx, s := range sa {
 		// insert a session
-		err = db.SessionSave(s)
+		err = testDB.SessionSave(s)
 		if err != nil {
 			t.Errorf("idx: %v, SessionSave() returned an error: %v", idx, err)
 		}
 	}
 
-	err = db.SessionsDeleteByUserId(remove, "")
+	err = testDB.SessionsDeleteByUserId(remove, "")
 	if err != nil {
 		t.Errorf("SessionsDeleteByUserId() returned an error: %v", err)
 	}
@@ -287,7 +287,7 @@ func TestSessionDeleteByUserId(t *testing.T) {
 	for _, idx := range removed {
 		// make sure the deleted session is gone
 		var model Session
-		err = db.userDB.Where("id = ?", sa[idx].ID).First(&model).Error
+		err = testDB.userDB.Where("id = ?", sa[idx].ID).First(&model).Error
 		if err != gorm.ErrRecordNotFound {
 			t.Errorf("idx: %v, got error: %v, want: %v", idx, err,
 				gorm.ErrRecordNotFound)
@@ -297,7 +297,7 @@ func TestSessionDeleteByUserId(t *testing.T) {
 	kept := []int{0, 2, 4}
 	for _, idx := range kept {
 		var model Session
-		err = db.userDB.Where("id = ?", sa[idx].ID).First(&model).Error
+		err = testDB.userDB.Where("id = ?", sa[idx].ID).First(&model).Error
 		if err != nil {
 			t.Errorf("idx: %v (%v), First() returned an error: %v", idx,
 				sa[idx].ID, err)
@@ -309,7 +309,6 @@ func TestSessionDeleteByUserId(t *testing.T) {
 }
 
 func TestSessionDeleteByUserIdAndSessionToKeep(t *testing.T) {
-	db := connectToTestDB(t)
 	var err error
 	keep := uuid.New()
 	remove := uuid.New()
@@ -344,7 +343,7 @@ func TestSessionDeleteByUserIdAndSessionToKeep(t *testing.T) {
 
 	for idx, s := range sa {
 		// insert a session
-		err = db.SessionSave(s)
+		err = testDB.SessionSave(s)
 		if err != nil {
 			t.Errorf("idx: %v, SessionSave() returned an error: %v", idx, err)
 		}
@@ -352,7 +351,7 @@ func TestSessionDeleteByUserIdAndSessionToKeep(t *testing.T) {
 
 	// remove all sessions associated with user id `remove` except the one with
 	// index 3
-	err = db.SessionsDeleteByUserId(remove, sa[3].ID)
+	err = testDB.SessionsDeleteByUserId(remove, sa[3].ID)
 	if err != nil {
 		t.Errorf("SessionsDeleteByUserId() returned an error: %v", err)
 	}
@@ -361,7 +360,7 @@ func TestSessionDeleteByUserIdAndSessionToKeep(t *testing.T) {
 	for _, idx := range removed {
 		// make sure the deleted session is gone
 		var model Session
-		err = db.userDB.Where("id = ?", sa[idx].ID).First(&model).Error
+		err = testDB.userDB.Where("id = ?", sa[idx].ID).First(&model).Error
 		if err != gorm.ErrRecordNotFound {
 			t.Errorf("idx: %v, got error: %v, want: %v", idx, err,
 				gorm.ErrRecordNotFound)
@@ -371,7 +370,7 @@ func TestSessionDeleteByUserIdAndSessionToKeep(t *testing.T) {
 	kept := []int{0, 2, 3}
 	for _, idx := range kept {
 		var model Session
-		err = db.userDB.Where("id = ?", sa[idx].ID).First(&model).Error
+		err = testDB.userDB.Where("id = ?", sa[idx].ID).First(&model).Error
 		if err != nil {
 			t.Errorf("idx: %v (%v), First() returned an error: %v", idx,
 				sa[idx].ID, err)
@@ -383,8 +382,7 @@ func TestSessionDeleteByUserIdAndSessionToKeep(t *testing.T) {
 }
 
 func TestSessionDeleteByIdAndNoSession(t *testing.T) {
-	db := connectToTestDB(t)
-	err := db.SessionDeleteById(uuid.Nil.String())
+	err := testDB.SessionDeleteById(uuid.Nil.String())
 
 	if err != nil {
 		t.Errorf("SessionDeleteById() returned an error: %v", err)
