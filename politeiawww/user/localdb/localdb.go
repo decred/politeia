@@ -214,8 +214,7 @@ func (l *localdb) UserGetByPubKey(pubKey string) (*user.User, error) {
 // the public keys in the user's identity history.
 //
 // UsersGetByPubKey satisfies the Database interface.
-func (l *localdb) UsersGetByPubKey(pubKeys []string) (map[string]user.User,
-	error) {
+func (l *localdb) UsersGetByPubKey(pubKeys []string) (map[string]user.User, error) {
 
 	log.Tracef("UsersGetByPubKey: %v", pubKeys)
 
@@ -367,8 +366,7 @@ func (l *localdb) AllUsers(callbackFn func(u *user.User)) error {
 }
 
 // PluginExec executes the provided plugin command.
-func (l *localdb) PluginExec(pc user.PluginCommand) (*user.PluginCommandReply,
-	error) {
+func (l *localdb) PluginExec(pc user.PluginCommand) (*user.PluginCommandReply, error) {
 	return nil, user.ErrInvalidPlugin
 }
 

@@ -286,8 +286,7 @@ func (c *cockroachdb) UserGetByPubKey(pubKey string) (*user.User, error) {
 // the public keys in the user's identity history.
 //
 // UsersGetByPubKey satisfies the Database interface.
-func (c *cockroachdb) UsersGetByPubKey(pubKeys []string) (map[string]user.User,
-	error) {
+func (c *cockroachdb) UsersGetByPubKey(pubKeys []string) (map[string]user.User, error) {
 
 	log.Tracef("UserGetByPubKey: %v", pubKeys)
 

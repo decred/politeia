@@ -95,8 +95,7 @@ func (s *SessionStore) New(r *http.Request, name string) (*sessions.Session, err
 // deleted from the database. With this process it enforces proper session
 // cookie handling so no need to trust in the cookie management in the web
 // browser.
-func (s *SessionStore) Save(r *http.Request, w http.ResponseWriter,
-	session *sessions.Session) error {
+func (s *SessionStore) Save(r *http.Request, w http.ResponseWriter, session *sessions.Session) error {
 	// Delete if max-age is <= 0
 	if session.Options.MaxAge <= 0 {
 		if err := s.erase(session); err != nil {

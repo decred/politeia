@@ -52,7 +52,8 @@ func (User) TableName() string {
 type Session struct {
 	ID     string    `gorm:"primary_key"` // Unique session id
 	UserID uuid.UUID `gorm:"not null"`    // User UUID (foreign key)
-	Values string    `gorm:"not null"`    // session values (encoded)
+	// session values (encoded with SecureCookie.Encode())
+	Values string `gorm:"not null"`
 }
 
 // TableName returns the table name of the Session table.
