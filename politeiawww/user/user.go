@@ -412,9 +412,6 @@ type Database interface {
 	// Add a new user
 	UserNew(User) error
 
-	// Create or update a session for an authenticated user
-	SessionSave(Session) error
-
 	// Update an existing user
 	UserUpdate(User) error
 
@@ -424,23 +421,26 @@ type Database interface {
 	// Return user record given its id
 	UserGetById(uuid.UUID) (*User, error)
 
-	// Return user session record given its id
-	SessionGetById(string) (*Session, error)
-
 	// Return user record given a public key
 	UserGetByPubKey(string) (*User, error)
 
 	// Return a map of public key to user record
 	UsersGetByPubKey(pubKeys []string) (map[string]User, error)
 
+	// Iterate over all users
+	AllUsers(callbackFn func(u *User)) error
+
+	// Create or update a session for an authenticated user
+	SessionSave(Session) error
+
+	// Return user session record given its id
+	SessionGetById(string) (*Session, error)
+
 	// Delete the session with the given id
 	SessionDeleteById(string) error
 
 	// Delete all sessions with the given user id except the one specified.
 	SessionsDeleteByUserId(uid uuid.UUID, sessionToKeep string) error
-
-	// Iterate over all users
-	AllUsers(callbackFn func(u *User)) error
 
 	// Register a plugin
 	RegisterPlugin(Plugin) error
