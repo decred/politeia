@@ -6,6 +6,9 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
@@ -36,22 +39,41 @@ func (c *ctx) retryPop() *retry {
 	return c.retryQ.Remove(e).(*retry)
 }
 
-// XXX convert to a print with a signal
-func (c *ctx) dumpQueue() string {
+func (c *ctx) dumpQueue() {
 	c.RLock()
 	defer c.RUnlock()
 
-	var reply string
 	for e := c.retryQ.Front(); e != nil; e = e.Next() {
-		reply += e.Value.(*retry).vote.Ticket + ", "
+		fmt.Printf("Retry votes remaining (%v):\n", c.retryQ.Len())
+		r := e.Value.(*retry)
+		fmt.Printf("  %v %v:\n", r.vote.Ticket, r.retries)
 	}
-	return reply
+}
+
+func (c *ctx) signalHandler(signals chan os.Signal, done chan struct{}) {
+	for {
+		select {
+		case <-signals:
+			c.dumpQueue()
+		case <-done:
+			return
+		}
+	}
 }
 
 func (c *ctx) retryLoop(vr *v1.BallotReply, tickets *[]string) {
 	log.Debug("retryLoop: start of day")
 	defer log.Debugf("retryLoop: end of times")
 	defer c.retryWG.Done()
+
+	signals := make(chan os.Signal, 1)
+	signalsDone := make(chan struct{}, 1)
+	defer func() {
+		signal.Stop(signals)
+		close(signalsDone)
+	}()
+	signal.Notify(signals, syscall.SIGUSR1)
+	go c.signalHandler(signals, signalsDone)
 
 	mainLoopDone := false
 	for {
@@ -63,7 +85,7 @@ func (c *ctx) retryLoop(vr *v1.BallotReply, tickets *[]string) {
 		} else {
 			wait[0] = wait[0] % 120
 		}
-		wait[0] = 10 // XXX
+		wait[0] = 30 // XXX
 
 		select {
 		case <-c.c:
@@ -121,7 +143,7 @@ func (c *ctx) retryLoop(vr *v1.BallotReply, tickets *[]string) {
 			c.retryPush(e)
 			continue
 		} else if err != nil {
-			// XXX this may be too rough
+			// XXX this may be too rough but shouldn't happen
 			panic(fmt.Sprintf("permanently failed: %v %v",
 				ticket, err))
 		}
