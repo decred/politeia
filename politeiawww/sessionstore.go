@@ -14,7 +14,7 @@ import (
 
 // SessionStore stores sessions in the database.
 //
-// Please note: this is (by and large) a clone of goriall mux'
+// Please note: this is (by and large) a clone of gorilla mux'
 // `sessions.FilesystemStore` with the save(), load() and erase()
 // methods adapted to use the database as the backing storage.
 type SessionStore struct {
