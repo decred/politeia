@@ -240,14 +240,13 @@ func (p *politeiawww) handleAllVetted(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, vr)
 }
 
-// handleProposalDetails handles the incoming proposal details command. It fetches
-// the complete details for an existing proposal.
+// handleProposalDetails handles the incoming proposal details command. It
+// fetches the complete details for an existing proposal.
 func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Request) {
-	// Add the path param to the struct.
 	log.Tracef("handleProposalDetails")
-	var pd www.ProposalsDetails
 
-	// get version from query string parameters
+	// Get version from query string parameters
+	var pd www.ProposalsDetails
 	err := util.ParseGetParams(r, &pd)
 	if err != nil {
 		RespondWithError(w, r, 0, "handleProposalDetails: ParseGetParams",
@@ -281,11 +280,11 @@ func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Reque
 }
 
 // handleBatchVoteSummary handles the incoming batch vote summary command. It
-// returns a summary of the voting process for a set of proposals.
+// returns a VoteSummary for each of the provided censorship tokens.
 func (p *politeiawww) handleBatchVoteSummary(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleBatchVoteSummary")
-	var bvs www.BatchVoteSummary
 
+	var bvs www.BatchVoteSummary
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&bvs); err != nil {
 		RespondWithError(w, r, 0, "handleBatchVoteSummary: unmarshal",
@@ -305,12 +304,12 @@ func (p *politeiawww) handleBatchVoteSummary(w http.ResponseWriter, r *http.Requ
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-// handleBatchProposals handles the incoming proposal batch command. It fetches
-// the complete details for a list of proposals.
+// handleBatchProposals handles the incoming batch proposals command. It
+// returns a ProposalRecord for each of the provided censorship tokens.
 func (p *politeiawww) handleBatchProposals(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleBatchProposals")
-	var bp www.BatchProposals
 
+	var bp www.BatchProposals
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&bp); err != nil {
 		RespondWithError(w, r, 0, "handleBatchProposals: unmarshal",

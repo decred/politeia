@@ -36,7 +36,8 @@ notifications.  It does not render HTML.
 - [`New proposal`](#new-proposal)
 - [`Edit Proposal`](#edit-proposal)
 - [`Proposal details`](#proposal-details)
-- [`Batch Proposals`](#batch-proposals)
+- [`Batch proposals`](#batch-proposals)
+- [`Batch vote summary`](#batch-vote-summary)
 - [`Set proposal status`](#set-proposal-status)
 - [`Authorize vote`](#authorize-vote)
 - [`Start vote`](#start-vote)
@@ -45,7 +46,6 @@ notifications.  It does not render HTML.
 - [`Proposal vote status`](#proposal-vote-status)
 - [`Proposals vote status`](#proposals-vote-status)
 - [`Vote results`](#vote-results)
-- [`Proposals Stats`](#proposals-stats)
 - [`Token inventory`](#token-inventory)
 - [`New comment`](#new-comment)
 - [`Get comments`](#get-comments)
@@ -1501,9 +1501,12 @@ Reply:
 }
 ```
 
-### `Batch Proposals`
+### `Batch proposals`
 
-Retrieve the details of a set of proposals. This route will not return the files that comprise the proposal. The number of proposals that may be requested is limited by the `ProposalListPageSize` property, which is provided via [`Policy`](#policy).
+Retrieve the proposal details for a list of proposals.  This route wil not
+return the proposal files.  The number of proposals that may be requested is
+limited by the `ProposalListPageSize` property, which is provided via
+[`Policy`](#policy).
 
 **Routes:** `POST /v1/proposals/batch`
 
@@ -1511,18 +1514,18 @@ Retrieve the details of a set of proposals. This route will not return the files
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
-| tokens | [string] | Array of censorship tokens of the proposals you want to retrieve | Yes |
+| tokens | []string | Array of censorship tokens of the proposals to be retrieved | Yes |
 
 **Results:**
 
-| | Type | Description |
+| Parameter | Type | Description |
 |-|-|-|
-| [proposal] | [`Proposal`](#proposal) | Array of proposals |
+| proposals | [][`Proposal`](#proposal) | Array of proposals |
 
 On failure the call shall return `400 Bad Request` and one of the following
 error codes:
-- [`ErrorStatusProposalNotFound`](#ErrorStatusProposalNotFound)
 - [`ErrorStatusMaxProposalsExceededPolicy`](#ErrorStatusMaxProposalsExceededPolicy)
+- [`ErrorStatusProposalNotFound`](#ErrorStatusProposalNotFound)
 
 **Example**
 
@@ -1534,8 +1537,10 @@ Request:
 
 ```json
 {
-    "tokens": ["f08dc22069f854856e27a6cb107e10064a85b85b2a4db41755d54f90bd30b84f", 
-               "c9aaf64f9474a0c2aa2227363e3ba575e1926acd4257deba42dc6d5ab85f2cd2"]
+  "tokens": [
+    "c9aaf64f9474a0c2aa2227363e3ba575e1926acd4257deba42dc6d5ab85f2cd2",
+    "f08dc22069f854856e27a6cb107e10064a85b85b2a4db41755d54f90bd30b84f"
+  ]
 }
 ```
 
@@ -1586,9 +1591,11 @@ Reply:
 }
 ```
 
-### `Batch Vote Summary`
+### `Batch vote summary`
 
-Retrieve the vote summary for a list of proposals.
+Retrieve the vote summaries for a list of proposals.  The number of vote
+summaries that may be requested is limited by the `ProposalListPageSize`
+property, which is provided via [`Policy`](#policy).
 
 **Routes:** `POST /v1/proposals/batchvotesummary`
 
@@ -1596,18 +1603,19 @@ Retrieve the vote summary for a list of proposals.
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
-| tokens | [string] | Array of censorship tokens of the proposals for which you want to get a summary of the voting process | Yes |
+| tokens | []string | Array of censorship tokens of the requested vote summaries | Yes |
 
 **Results:**
 
-| | Type | Description |
+| Parameter | Type | Description |
 |-|-|-|
-| statuses | { string : [`VoteSummary`](#Vote-Summary) } | Map of token to vote summary |
+| bestblock | uint64 | Current block height |
+| summaries | map[string][`VoteSummary`](#vote-summary) | Map of [token]VoteSummary |
 
 On failure the call shall return `400 Bad Request` on the following error code:
-- [`ErrorStatusProposalNotFound`](#ErrorStatusProposalNotFound)
 - [`ErrorStatusMaxProposalsExceededPolicy`](#ErrorStatusMaxProposalsExceededPolicy)
 - [`ErrorStatusInvalidCensorshipToken`](#ErrorStatusInvalidCensorshipToken)
+- [`ErrorStatusProposalNotFound`](#ErrorStatusProposalNotFound)
 
 **Example**
 
@@ -1619,8 +1627,10 @@ Request:
 
 ```json
 {
-    "tokens": ["f08dc22069f854856e27a6cb107e10064a85b85b2a4db41755d54f90bd30b84f", 
-               "c9aaf64f9474a0c2aa2227363e3ba575e1926acd4257deba42dc6d5ab85f2cd2"]
+  "tokens": [
+    "f08dc22069f854856e27a6cb107e10064a85b85b2a4db41755d54f90bd30b84f",
+    "c9aaf64f9474a0c2aa2227363e3ba575e1926acd4257deba42dc6d5ab85f2cd2"
+  ]
 }
 ```
 
@@ -1628,11 +1638,12 @@ Reply:
 
 ```json
 {
+  "bestblock": 243994,
   "summaries": {
-    "bestblock": 243994,
     "f08dc22069f854856e27a6cb107e10064a85b85b2a4db41755d54f90bd30b84f": {
       "status": 4,
       "eligibletickets": 5267,
+      "duration": 2016,
       "endheight": 231614,
       "quorumpercentage": 20,
       "passpercentage": 60,
@@ -1658,6 +1669,7 @@ Reply:
     "c9aaf64f9474a0c2aa2227363e3ba575e1926acd4257deba42dc6d5ab85f2cd2": {
       "status": 4,
       "eligibletickets": 5270,
+      "duration": 2016,
       "endheight": 229602,
       "quorumpercentage": 20,
       "passpercentage": 60,
@@ -2570,38 +2582,6 @@ Reply:
   }
 ```
 
-### `Proposals Stats`
-
-Retrieve the counting of proposals aggrouped by each proposal status.
-
-**Route:** `GET v1/proposals/stats`
-
-**Params:** none
-
-**Results:**
-
-| | Type | Description |
-| - | - | - |
-| numofcensored | int | Counting number of censored proposals. |
-| numofunvetted | int | Counting number of unvetted proposals. |
-| numofunvettedchanges | int | Counting number of proposals with unvetted changes |
-| numofpublic | int | Counting number of public proposals. |
-
-**Example:**
-Request:
-Path: `v1/proposals/stats`
-
-Reply:
-
-```json
-{
-  "numofcensored":1,
-  "numofunvetted":0,
-  "numofunvettedchanges":1,
-  "numofpublic":3
-}
-```
-
 ### `Token inventory`
 
 Retrieve the censorship record tokens of all proposals in the inventory. The
@@ -2844,6 +2824,7 @@ This is a shortened representation of a user, used for lists.
 |-|-|-|
 | status | int | Status identifier |
 | eligibletickets | int | Total number of eligible tickets |
+| duration | uint32 | Duration of the vote in blocks |
 | endheight | uint64 | The chain height in which the vote will end |
 | bestblock | uint64 | The current chain height |
 | quorumpercentage | uint32 | Percent of eligible votes required for quorum |
