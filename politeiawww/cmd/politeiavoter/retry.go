@@ -6,9 +6,6 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
@@ -43,37 +40,17 @@ func (c *ctx) dumpQueue() {
 	c.RLock()
 	defer c.RUnlock()
 
+	fmt.Printf("Retry votes remaining (%v):\n", c.retryQ.Len())
 	for e := c.retryQ.Front(); e != nil; e = e.Next() {
-		fmt.Printf("Retry votes remaining (%v):\n", c.retryQ.Len())
 		r := e.Value.(*retry)
-		fmt.Printf("  %v %v:\n", r.vote.Ticket, r.retries)
+		fmt.Printf("  %v %v\n", r.vote.Ticket, r.retries)
 	}
 }
 
-func (c *ctx) signalHandler(signals chan os.Signal, done chan struct{}) {
-	for {
-		select {
-		case <-signals:
-			c.dumpQueue()
-		case <-done:
-			return
-		}
-	}
-}
-
-func (c *ctx) retryLoop(vr *v1.BallotReply, tickets *[]string) {
+func (c *ctx) retryLoop() {
 	log.Debug("retryLoop: start of day")
 	defer log.Debugf("retryLoop: end of times")
 	defer c.retryWG.Done()
-
-	signals := make(chan os.Signal, 1)
-	signalsDone := make(chan struct{}, 1)
-	defer func() {
-		signal.Stop(signals)
-		close(signalsDone)
-	}()
-	signal.Notify(signals, syscall.SIGUSR1)
-	go c.signalHandler(signals, signalsDone)
 
 	mainLoopDone := false
 	for {
@@ -88,7 +65,7 @@ func (c *ctx) retryLoop(vr *v1.BallotReply, tickets *[]string) {
 		wait[0] = 30 // XXX
 
 		select {
-		case <-c.c:
+		case <-c.retryLoopClose:
 			break
 		case <-c.mainLoopDone:
 			mainLoopDone = true
@@ -102,9 +79,8 @@ func (c *ctx) retryLoop(vr *v1.BallotReply, tickets *[]string) {
 		if e == nil {
 			if mainLoopDone {
 				// Main loop has exited
-				log.Debugf("retryLoop: done")
-				log.Debugf("retryLoop: done tickets %v", spew.Sdump(tickets))
-				log.Debugf("retryLoop: done vr %v", spew.Sdump(vr))
+				log.Debugf("retryLoop: done ballotResults %v",
+					spew.Sdump(c.ballotResults))
 				break
 			}
 			// Nothing to do and main loop has not exited
@@ -113,7 +89,6 @@ func (c *ctx) retryLoop(vr *v1.BallotReply, tickets *[]string) {
 		}
 
 		// Vote
-		token := e.vote.Token
 		ticket := e.vote.Ticket
 		b := v1.Ballot{Votes: []v1.CastVote{e.vote}}
 		var (
@@ -130,12 +105,12 @@ func (c *ctx) retryLoop(vr *v1.BallotReply, tickets *[]string) {
 			// Push to back retry later
 			log.Debugf("retryLoop: retry failed vote %v %v",
 				ticket, serr)
-			err := c.jsonLog("failed.json", token, b)
+			err := c.jsonLog("failed.json", e.vote.Token, b)
 			if err != nil {
 				log.Errorf("retryLoop: c.jsonLog 1: %v", err)
 				continue
 			}
-			err = c.jsonLog("failed.json", token, serr)
+			err = c.jsonLog("failed.json", e.vote.Token, serr)
 			if err != nil {
 				log.Errorf("retryLoop: c.jsonLog 2: %v", err)
 				continue
@@ -148,8 +123,12 @@ func (c *ctx) retryLoop(vr *v1.BallotReply, tickets *[]string) {
 				ticket, err))
 		}
 
-		// journal result
-		err = c.jsonLog("success.json", token, *br)
+		// Journal result
+		result := BallotResult{
+			Ticket:  ticket,
+			Receipt: *br,
+		}
+		err = c.jsonLog("success.json", e.vote.Token, result)
 		if err != nil {
 			log.Errorf("retryLoop: c.jsonLog 3: %v", err)
 			continue
@@ -157,12 +136,9 @@ func (c *ctx) retryLoop(vr *v1.BallotReply, tickets *[]string) {
 
 		log.Debugf("retryLoop: success %v", spew.Sdump(br))
 
-		// Vote succeeded
+		// Vote completed
 		c.Lock()
-		// Record receipt
-		vr.Receipts = append(vr.Receipts, *br)
-		// Append ticket to return value
-		*tickets = append(*tickets, e.vote.Ticket)
+		c.ballotResults = append(c.ballotResults, result)
 		c.Unlock()
 	}
 }
