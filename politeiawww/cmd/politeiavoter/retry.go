@@ -36,6 +36,12 @@ func (c *ctx) retryPop() *retry {
 	return c.retryQ.Remove(e).(*retry)
 }
 
+func (c *ctx) retryLen() int {
+	c.Lock()
+	defer c.Unlock()
+	return c.retryQ.Len()
+}
+
 func (c *ctx) dumpQueue() {
 	c.RLock()
 	defer c.RUnlock()
@@ -65,10 +71,10 @@ func (c *ctx) retryLoop() {
 		wait[0] = 30 // XXX
 
 		select {
-		case <-c.retryLoopClose:
-			break
 		case <-c.mainLoopDone:
 			mainLoopDone = true
+			// Fallthrough in case there is no more work. This way
+			// the retryLoop exits right away.
 		case <-time.After(time.Duration(wait[0]) * time.Second):
 			log.Debugf("retryLoop: tick after %v mainLoopDone %v",
 				time.Duration(wait[0])*time.Second,
@@ -79,7 +85,7 @@ func (c *ctx) retryLoop() {
 		if e == nil {
 			if mainLoopDone {
 				// Main loop has exited
-				log.Debugf("retryLoop: done ballotResults %v",
+				log.Tracef("retryLoop: done ballotResults %v",
 					spew.Sdump(c.ballotResults))
 				break
 			}
@@ -87,6 +93,8 @@ func (c *ctx) retryLoop() {
 			log.Debugf("retryLoop: nothing to do")
 			continue
 		}
+
+		fmt.Printf("Retry vote (%v): %v\n", e.retries, e.vote.Ticket)
 
 		// Vote
 		ticket := e.vote.Ticket
@@ -103,6 +111,8 @@ func (c *ctx) retryLoop() {
 		}
 		if serr, ok := err.(ErrRetry); ok {
 			// Push to back retry later
+			fmt.Printf("Retry vote rescheduled: %v\n",
+				e.vote.Ticket)
 			log.Debugf("retryLoop: retry failed vote %v %v",
 				ticket, serr)
 			err := c.jsonLog("failed.json", e.vote.Token, b)
@@ -140,5 +150,10 @@ func (c *ctx) retryLoop() {
 		c.Lock()
 		c.ballotResults = append(c.ballotResults, result)
 		c.Unlock()
+
+		// Check if we are done here as well
+		if mainLoopDone && c.retryLen() == 0 {
+			return
+		}
 	}
 }

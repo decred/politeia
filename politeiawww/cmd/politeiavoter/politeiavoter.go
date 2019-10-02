@@ -153,12 +153,12 @@ type BallotResult struct {
 
 // ctx is the client context.
 type ctx struct {
-	sync.RWMutex                  // retryQ lock
-	retryQ         *list.List     // retry message queue FIFO
-	retryWG        sync.WaitGroup // Wait for retry loop to exit
-	mainLoopDone   chan struct{}  // message when done
-	retryLoopClose chan struct{}  // close channel for retry loop
-	ballotResults  []BallotResult // results of voting
+	sync.RWMutex                 // retryQ lock
+	retryQ        *list.List     // retry message queue FIFO
+	retryWG       sync.WaitGroup // Wait for retry loop to exit
+	mainLoopDone  chan struct{}  // message when done
+	ballotResults []BallotResult // results of voting
+	voteIntervalQ *list.List     // work that has to be completed
 
 	run time.Time // when this run started
 
@@ -220,15 +220,15 @@ func newClient(cfg *config) (*ctx, error) {
 
 	// return context
 	return &ctx{
-		run:            time.Now(),
-		retryQ:         new(list.List),
-		mainLoopDone:   make(chan struct{}),
-		retryLoopClose: make(chan struct{}),
-		wctx:           context.Background(),
-		creds:          creds,
-		conn:           conn,
-		wallet:         wallet,
-		cfg:            cfg,
+		run:           time.Now(),
+		retryQ:        new(list.List),
+		voteIntervalQ: new(list.List),
+		mainLoopDone:  make(chan struct{}),
+		wctx:          context.Background(),
+		creds:         creds,
+		conn:          conn,
+		wallet:        wallet,
+		cfg:           cfg,
 		client: &http.Client{
 			Transport: tr,
 			Jar:       jar,
@@ -721,7 +721,7 @@ func (c *ctx) dumpComplete() {
 	c.RLock()
 	defer c.RUnlock()
 
-	fmt.Printf("completed votes (%v):\n", len(c.ballotResults))
+	fmt.Printf("Completed votes (%v):\n", len(c.ballotResults))
 	for _, v := range c.ballotResults {
 		fmt.Printf("  %v %v\n", v.Ticket, v.Receipt.Error)
 	}
@@ -732,10 +732,11 @@ func (c *ctx) dumpTogo() {
 	c.RLock()
 	defer c.RUnlock()
 
-	//fmt.Printf("votes queued (%v):\n", len(c.togoQueue))
-	//for _, v := range c.togoQueue {
-	//	fmt.Printf("  %v %v\n", v.Ticket, v.Receipt.Error)
-	//}
+	fmt.Printf("Votes queued (%v):\n", c.voteIntervalQ.Len())
+	for e := c.voteIntervalQ.Front(); e != nil; e = e.Next() {
+		r := e.Value.(*voteInterval)
+		fmt.Printf("  %v %v\n", r.Vote.Ticket, r.At)
+	}
 }
 
 // signalHandler catches SIGUSR1 and dumps the current state of the vote
@@ -754,10 +755,31 @@ func (c *ctx) signalHandler(signals chan os.Signal, done chan struct{}) {
 	}
 }
 
-// _voteTrickler trickles votes to the server. The idea here is to not issue
-// large number of votes in one go to the server at the same time giving away
-// which IP address owns what votes.
-func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsResponse, smr *pb.SignMessagesResponse) error {
+func (c *ctx) voteIntervalPush(v *voteInterval) {
+	c.Lock()
+	defer c.Unlock()
+	c.voteIntervalQ.PushBack(v)
+}
+
+func (c *ctx) voteIntervalPop() *voteInterval {
+	c.Lock()
+	defer c.Unlock()
+
+	e := c.voteIntervalQ.Front()
+	if e == nil {
+		return nil
+	}
+	return c.voteIntervalQ.Remove(e).(*voteInterval)
+}
+
+func (c *ctx) voteIntervalLen() uint64 {
+	c.RLock()
+	defer c.RUnlock()
+	return uint64(c.voteIntervalQ.Len())
+}
+
+// calculateTrickle calculates the trickle schedule.
+func (c *ctx) calculateTrickle(token, voteBit string, ctres *pb.CommittedTicketsResponse, smr *pb.SignMessagesResponse) error {
 	votes := uint64(len(ctres.TicketAddresses))
 	duration := c.cfg.voteDuration
 	maxDelay := uint64(duration.Seconds() / float64(votes) * 2)
@@ -778,7 +800,7 @@ func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsRes
 	// average will converge to slightly less than duration/votes as the
 	// number of votes increases. Vote duration is treated as a hard cap
 	// and can not be exceeded.
-	buckets := make([]voteInterval, votes)
+	buckets := make([]*voteInterval, votes)
 	var (
 		done    bool
 		retries int
@@ -808,7 +830,7 @@ func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsRes
 
 			t := time.Duration(seconds) * time.Second
 			total += t
-			buckets[i] = voteInterval{
+			buckets[i] = &voteInterval{
 				Vote: v1.CastVote{
 					Token:     token,
 					Ticket:    h.String(),
@@ -839,12 +861,31 @@ func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsRes
 			len(buckets))
 	}
 
+	// Convert buckets to a list
+	for _, v := range buckets {
+		c.voteIntervalPush(v)
+	}
+
+	// Log work
 	err := c.jsonLog("work.json", token, buckets)
 	if err != nil {
 		return err
 	}
 
-	// Synthesize reply, needs locking
+	return nil
+}
+
+// _voteTrickler trickles votes to the server. The idea here is to not issue
+// large number of votes in one go to the server at the same time giving away
+// which IP address owns what votes.
+func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsResponse, smr *pb.SignMessagesResponse) error {
+	// Generate work
+	err := c.calculateTrickle(token, voteBit, ctres, smr)
+	if err != nil {
+		return err
+	}
+
+	// Synthesize reply, needs locking once go routines launch
 	c.ballotResults = make([]BallotResult, 0, len(ctres.TicketAddresses))
 
 	// Launch signal handler
@@ -857,20 +898,28 @@ func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsRes
 	c.retryWG.Add(1)
 	go c.retryLoop()
 
+	voteCount := c.voteIntervalLen()
 	for i := 0; ; {
 		if i == 2 {
 			// XXX
 			break
 		}
 
-		verb := "Next vote"
-		var delay time.Duration
+		var (
+			delay time.Duration
+			err   error
+		)
+		vote := c.voteIntervalPop()
+		if vote == nil {
+			break
+		}
+		log.Tracef("mainLoop pop %v", spew.Sdump(vote))
 
-		fmt.Printf("Voting: %v/%v %v\n", i+1, len(buckets),
-			buckets[i].Vote.Ticket)
+		fmt.Printf("Voting: %v/%v %v\n", i+1, voteCount,
+			vote.Vote.Ticket)
 
 		// Send off vote
-		b := v1.Ballot{Votes: []v1.CastVote{buckets[i].Vote}}
+		b := v1.Ballot{Votes: []v1.CastVote{vote.Vote}}
 		var br *v1.CastVoteReply
 		if i == 0 {
 			br, err = c.sendVoteFail(&b)
@@ -879,8 +928,7 @@ func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsRes
 		}
 		if e, ok := err.(ErrRetry); ok {
 			// Append failed vote to retry queue
-			fmt.Printf("Vote rescheduled: %v/%v %v\n",
-				i+1, len(buckets), buckets[i].Vote.Ticket)
+			fmt.Printf("Vote rescheduled: %v\n", vote.Vote.Ticket)
 			err := c.jsonLog("failed.json", token, b)
 			if err != nil {
 				return err
@@ -889,7 +937,7 @@ func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsRes
 			if err != nil {
 				return err
 			}
-			c.retryPush(&retry{vote: buckets[i].Vote})
+			c.retryPush(&retry{vote: vote.Vote})
 		} else if err != nil {
 			// Unrecoverable error
 			return fmt.Errorf("unrecoverable error: %v",
@@ -897,7 +945,7 @@ func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsRes
 		} else {
 			// Vote completed
 			result := BallotResult{
-				Ticket:  buckets[i].Vote.Ticket,
+				Ticket:  vote.Vote.Ticket,
 				Receipt: *br,
 			}
 			c.Lock()
@@ -910,25 +958,19 @@ func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsRes
 			}
 		}
 
-		// Next delay
-		if len(buckets) == i+1 {
-			// And we are done
-			break
-		}
-		delay = buckets[i+1].At
-
-		// Go to next vote
-		i++
-
-		fmt.Printf("%s at %v (delay %v)\n", verb,
+		fmt.Printf("Next vote at %v (delay %v)\n",
 			time.Now().Add(delay).Format(time.Stamp), delay)
 
 		delay = time.Second // XXX
 		time.Sleep(delay)
+
+		// Go to next vote
+		i++
 	}
 
 	// Tell retry loop that main loop is done
 	log.Debugf("_voteTrickler: main loop done")
+	fmt.Printf("Awaiting retry vote queue to complete.\n")
 	c.mainLoopDone <- struct{}{}
 
 	// Wait for retry loop to exit
@@ -977,7 +1019,6 @@ func (c *ctx) _vote(seed int64, token, voteId string) error {
 	if err != nil {
 		return err
 	}
-	spew.Dump(bvsr)
 	summary, ok := bvsr.Summaries[token]
 	if !ok {
 		return fmt.Errorf("Proposal does not exist: %v", token)
