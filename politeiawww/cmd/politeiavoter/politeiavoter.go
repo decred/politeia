@@ -860,7 +860,7 @@ func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsRes
 	for i := 0; ; {
 		if i == 2 {
 			// XXX
-			goto done
+			break
 		}
 
 		verb := "Next vote"
@@ -913,7 +913,7 @@ func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsRes
 		// Next delay
 		if len(buckets) == i+1 {
 			// And we are done
-			goto done
+			break
 		}
 		delay = buckets[i+1].At
 
@@ -926,7 +926,7 @@ func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsRes
 		delay = time.Second // XXX
 		time.Sleep(delay)
 	}
-done:
+
 	// Tell retry loop that main loop is done
 	log.Debugf("_voteTrickler: main loop done")
 	c.mainLoopDone <- struct{}{}
