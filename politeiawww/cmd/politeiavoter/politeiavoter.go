@@ -917,10 +917,6 @@ func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsRes
 			break
 		}
 
-		var (
-			delay time.Duration
-			err   error
-		)
 		vote := c.voteIntervalPop()
 		if vote == nil {
 			break
@@ -967,10 +963,10 @@ func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsRes
 		}
 
 		fmt.Printf("Next vote at %v (delay %v)\n",
-			time.Now().Add(delay).Format(time.Stamp), delay)
+			time.Now().Add(vote.At).Format(time.Stamp), vote.At)
 
-		delay = time.Second // XXX
-		time.Sleep(delay)
+		vote.At = time.Second // XXX
+		time.Sleep(vote.At)
 
 		// Go to next vote
 		i++
