@@ -115,14 +115,9 @@ func (c *ctx) retryLoop() {
 				e.vote.Ticket)
 			log.Debugf("retryLoop: retry failed vote %v %v",
 				ticket, serr)
-			err := c.jsonLog("failed.json", e.vote.Token, b)
+			err := c.jsonLog("failed.json", e.vote.Token, b, serr)
 			if err != nil {
 				log.Errorf("retryLoop: c.jsonLog 1: %v", err)
-				continue
-			}
-			err = c.jsonLog("failed.json", e.vote.Token, serr)
-			if err != nil {
-				log.Errorf("retryLoop: c.jsonLog 2: %v", err)
 				continue
 			}
 			c.retryPush(e)
@@ -140,7 +135,7 @@ func (c *ctx) retryLoop() {
 		}
 		err = c.jsonLog("success.json", e.vote.Token, result)
 		if err != nil {
-			log.Errorf("retryLoop: c.jsonLog 3: %v", err)
+			log.Errorf("retryLoop: c.jsonLog 2: %v", err)
 			continue
 		}
 

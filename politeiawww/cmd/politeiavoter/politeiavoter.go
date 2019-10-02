@@ -237,7 +237,11 @@ func newClient(cfg *config) (*ctx, error) {
 	}, nil
 }
 
-func (c *ctx) jsonLog(filename, token string, work interface{}) error {
+type JSONTime struct {
+	Time string `json:"time"`
+}
+
+func (c *ctx) jsonLog(filename, token string, work ...interface{}) error {
 	dir := filepath.Join(c.cfg.voteDir, token)
 	os.MkdirAll(dir, 0700)
 
@@ -250,9 +254,17 @@ func (c *ctx) jsonLog(filename, token string, work interface{}) error {
 
 	e := json.NewEncoder(fh)
 	e.SetIndent("", "  ")
-	err = e.Encode(work)
+	err = e.Encode(JSONTime{
+		Time: time.Now().Format(time.StampNano),
+	})
 	if err != nil {
 		return err
+	}
+	for _, v := range work {
+		err = e.Encode(v)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -929,11 +941,7 @@ func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsRes
 		if e, ok := err.(ErrRetry); ok {
 			// Append failed vote to retry queue
 			fmt.Printf("Vote rescheduled: %v\n", vote.Vote.Ticket)
-			err := c.jsonLog("failed.json", token, b)
-			if err != nil {
-				return err
-			}
-			err = c.jsonLog("failed.json", token, e)
+			err := c.jsonLog("failed.json", token, b, e)
 			if err != nil {
 				return err
 			}
