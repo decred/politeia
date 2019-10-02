@@ -732,7 +732,7 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 		}
 	}
 
-	if numImages > www.PolicyMaxImages {
+	if numImages > cms.PolicyMaxImages {
 		return www.UserError{
 			ErrorCode: www.ErrorStatusMaxImagesExceededPolicy,
 		}
