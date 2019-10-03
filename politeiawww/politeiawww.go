@@ -132,6 +132,8 @@ type politeiawww struct {
 	// dcrdata's public subscription websocket
 	wsDcrdata *wsDcrdata
 
+	// The current best block is cached and updated using a websocket
+	// subscription to dcrdata
 	bestBlock uint64
 }
 
