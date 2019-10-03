@@ -50,10 +50,11 @@ const (
 	InvoiceStatusPaid     InvoiceStatusT = 7 // Invoice has been paid
 
 	// Line item types
-	LineItemTypeInvalid LineItemTypeT = 0 // Invalid type
-	LineItemTypeLabor   LineItemTypeT = 1 // Labor line items
-	LineItemTypeExpense LineItemTypeT = 2 // Expenses incurred line items
-	LineItemTypeMisc    LineItemTypeT = 3 // Catch all for anything else
+	LineItemTypeInvalid  LineItemTypeT = 0 // Invalid type
+	LineItemTypeLabor    LineItemTypeT = 1 // Labor line items
+	LineItemTypeExpense  LineItemTypeT = 2 // Expenses incurred line items
+	LineItemTypeMisc     LineItemTypeT = 3 // Catch all for anything else
+	LineItemTypeSubHours LineItemTypeT = 4 // Line items for subcontractor billing
 
 	// Domain types
 	DomainTypeInvalid       DomainTypeT = 0 // Invalid Domain type
@@ -197,6 +198,9 @@ const (
 	ErrorStatusUserIsAuthor                   www.ErrorStatusT = 1044
 	ErrorStatusInvalidUserDCC                 www.ErrorStatusT = 1045
 	ErrorStatusInvalidDCCContractorType       www.ErrorStatusT = 1046
+	ErrorStatusInvalidTypeSubHoursLineItem    www.ErrorStatusT = 1047
+	ErrorStatusMissingSubUserIDLineItem       www.ErrorStatusT = 1048
+	ErrorStatusInvalidSubUserIDLineItem       www.ErrorStatusT = 1049
 )
 
 var (
@@ -273,6 +277,9 @@ var (
 		ErrorStatusUserIsAuthor:                   "user cannot support or oppose their own sponsored DCC",
 		ErrorStatusInvalidUserDCC:                 "user is not authorized to complete the DCC request",
 		ErrorStatusInvalidDCCContractorType:       "DCC must have a valid contractor type",
+		ErrorStatusInvalidTypeSubHoursLineItem:    "must be a Supervisor Contractor to submit a subcontractor hours line item",
+		ErrorStatusMissingSubUserIDLineItem:       "must supply a userid for a subcontractor hours line item",
+		ErrorStatusInvalidSubUserIDLineItem:       "the userid supplied for the subcontractor hours line item is invalid",
 	}
 )
 
@@ -380,6 +387,7 @@ type LineItemsInput struct {
 	Subdomain     string        `json:"subdomain"`     // Subdomain of work performed
 	Description   string        `json:"description"`   // Description of work performed
 	ProposalToken string        `json:"proposaltoken"` // Link to politeia proposal that work is associated with
+	SubUserID     string        `json:"subuserid"`     // UserID of the associated Subcontractor
 	Labor         uint          `json:"labor"`         // Number of minutes (if labor)
 	Expenses      uint          `json:"expenses"`      // Total cost (in USD cents) of line item (if expense or misc)
 }

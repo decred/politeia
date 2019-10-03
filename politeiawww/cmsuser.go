@@ -461,6 +461,30 @@ func (p *politeiawww) getCMSUserByID(id string) (*cms.User, error) {
 	return &u, nil
 }
 
+func (p *politeiawww) getCMSUserByIDRaw(id string) (*user.CMSUser, error) {
+	ubi := user.CMSUserByID{
+		ID: id,
+	}
+	payload, err := user.EncodeCMSUserByID(ubi)
+	if err != nil {
+		return nil, err
+	}
+	pc := user.PluginCommand{
+		ID:      user.CMSPluginID,
+		Command: user.CmdCMSUserByID,
+		Payload: string(payload),
+	}
+	payloadReply, err := p.db.PluginExec(pc)
+	if err != nil {
+		return nil, err
+	}
+	ubir, err := user.DecodeCMSUserByIDReply([]byte(payloadReply.Payload))
+	if err != nil {
+		return nil, err
+	}
+	return ubir.User, nil
+}
+
 // convertCMSUserFromDatabaseUser converts a user User to a cms User.
 func convertCMSUserFromDatabaseUser(user *user.CMSUser) cms.User {
 	return cms.User{
