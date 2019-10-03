@@ -14,6 +14,7 @@ import (
 
 	"github.com/decred/dcrd/dcrutil"
 	pstypes "github.com/decred/dcrdata/pubsub/types/v2"
+	exptypes "github.com/decred/dcrdata/explorer/types"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/cache"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
@@ -52,8 +53,10 @@ func (p *politeiawww) removeWatchAddress(address string) {
 	log.Infof("Unsubscribed: %v", address)
 }
 
-func (p *politeiawww) setupCMSAddressWatcher() {
+func (p *politeiawww) setupDcrDataWatcher() {
 	p.wsDcrdata.subToPing()
+	p.wsDcrdata.subToNewBlock()
+
 	go func() {
 		for {
 			msg, ok := <-p.wsDcrdata.client.Receive()
@@ -85,6 +88,9 @@ func (p *politeiawww) setupCMSAddressWatcher() {
 				}
 			case *pstypes.TxList:
 				log.Debugf("Message (%s): TxList(len=%d)", msg.EventId, len(*m))
+			case *exptypes.WebsocketBlock:
+				log.Debugf("Message WebsocketBlock(height=%s)", m.Block.Height)
+				p.bestBlock = uint64(m.Block.Height)
 			default:
 				log.Debugf("Message of type %v unhandled. %v", msg.EventId, m)
 			}
@@ -384,5 +390,5 @@ func (p *politeiawww) reconnectWS() {
 		log.Infof("Retrying ws dcrdata reconnect in 1 minute...")
 		time.Sleep(1 * time.Minute)
 	}
-	p.setupCMSAddressWatcher()
+	p.setupDcrDataWatcher()
 }

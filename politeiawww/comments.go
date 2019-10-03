@@ -252,12 +252,7 @@ func (p *politeiawww) processNewComment(nc www.NewComment, u *user.User) (*www.N
 	_, avr := convertAuthVoteFromDecred(vdr.AuthorizeVote)
 	svr := convertStartVoteReplyFromDecred(vdr.StartVoteReply)
 
-	bb, err := p.getBestBlock()
-	if err != nil {
-		return nil, fmt.Errorf("getBestBlock: %v", err)
-	}
-
-	if getVoteStatus(avr, svr, bb) == www.PropVoteStatusFinished {
+	if getVoteStatus(avr, svr, p.bestBlock) == www.PropVoteStatusFinished {
 		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusWrongVoteStatus,
 			ErrorContext: []string{"vote is finished"},
@@ -512,12 +507,7 @@ func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www
 	}
 	vd := convertVoteDetailsReplyFromDecred(*vdr)
 
-	bb, err := p.getBestBlock()
-	if err != nil {
-		return nil, fmt.Errorf("getBestBlock: %v", err)
-	}
-
-	s := getVoteStatus(vd.AuthorizeVoteReply, vd.StartVoteReply, bb)
+	s := getVoteStatus(vd.AuthorizeVoteReply, vd.StartVoteReply, p.bestBlock)
 	if s == www.PropVoteStatusFinished {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusWrongVoteStatus,
@@ -658,12 +648,7 @@ func (p *politeiawww) processCensorComment(cc www.CensorComment, u *user.User) (
 	}
 	vd := convertVoteDetailsReplyFromDecred(*vdr)
 
-	bb, err := p.getBestBlock()
-	if err != nil {
-		return nil, fmt.Errorf("getBestBlock: %v", err)
-	}
-
-	s := getVoteStatus(vd.AuthorizeVoteReply, vd.StartVoteReply, bb)
+	s := getVoteStatus(vd.AuthorizeVoteReply, vd.StartVoteReply, p.bestBlock)
 	if s == www.PropVoteStatusFinished {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusWrongVoteStatus,

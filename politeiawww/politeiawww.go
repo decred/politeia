@@ -131,6 +131,8 @@ type politeiawww struct {
 	// wsDcrdata contains the client and list of current subscriptions to
 	// dcrdata's public subscription websocket
 	wsDcrdata *wsDcrdata
+
+	bestBlock uint64
 }
 
 // XXX rig this up

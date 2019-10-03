@@ -20,6 +20,7 @@ require (
 	github.com/decred/dcrd/hdkeychain v1.1.1
 	github.com/decred/dcrd/wire v1.2.0
 	github.com/decred/dcrdata/api/types/v3 v3.0.0
+	github.com/decred/dcrdata/explorer/types v1.1.0
 	github.com/decred/dcrdata/pubsub/types/v2 v2.0.0
 	github.com/decred/dcrdata/pubsub/v2 v2.0.1
 	github.com/decred/dcrdata/semver v1.0.0

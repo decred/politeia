@@ -331,6 +331,13 @@ func _main() error {
 		params:          activeNetParams.Params,
 	}
 
+	// Get initial value for best block. This will subsequently be updated by
+	// the websocket connection to dcrdata.
+	p.bestBlock, err = p.getBestBlock()
+	if err != nil {
+		return err
+	}
+
 	// Check if this command is being run to fetch the identity.
 	if p.cfg.FetchIdentity {
 		return p.getIdentity()
@@ -499,6 +506,14 @@ func _main() error {
 	p.router = mux.NewRouter()
 	p.router.Use(recoverMiddleware)
 
+	// Setup dcrdata watcher
+	ws, err := newWSDcrdata()
+	if err != nil {
+		return fmt.Errorf("new wsDcrdata: %v", err)
+	}
+	p.wsDcrdata = ws
+	p.setupDcrDataWatcher()
+
 	switch p.cfg.Mode {
 	case politeiaWWWMode:
 		p.setPoliteiaWWWRoutes()
@@ -537,13 +552,6 @@ func _main() error {
 		p.cron = cron.New()
 		p.checkInvoiceNotifications()
 
-		// Setup address watcher
-		ws, err := newWSDcrdata()
-		if err != nil {
-			return fmt.Errorf("new wsDcrdata: %v", err)
-		}
-		p.wsDcrdata = ws
-		p.setupCMSAddressWatcher()
 		err = p.restartCMSAddressesWatching()
 		if err != nil {
 			log.Errorf("error restarting address watcher %v", err)
