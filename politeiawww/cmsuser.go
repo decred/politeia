@@ -618,7 +618,7 @@ func (p *politeiawww) processUserSubContractors(u *user.User) (*cms.UserSubContr
 	if err != nil {
 		return nil, err
 	}
-	convertedCMSUsers := make([]cms.User, len(cmsUsers.Users))
+	convertedCMSUsers := make([]cms.User, 0, len(cmsUsers.Users))
 	for _, uu := range cmsUsers.Users {
 		converted := convertCMSUserFromDatabaseUser(&uu)
 		convertedCMSUsers = append(convertedCMSUsers, converted)

@@ -284,7 +284,7 @@ func (c *cockroachdb) cmdCMSUserSubContractors(payload string) (string, error) {
 	}
 
 	// Prepare reply
-	subUsers := make([]user.CMSUser, len(cmsUsers))
+	subUsers := make([]user.CMSUser, 0, len(cmsUsers))
 	for _, u := range cmsUsers {
 		convertUser, err := c.convertCMSUserFromDatabase(u)
 		if err != nil {
