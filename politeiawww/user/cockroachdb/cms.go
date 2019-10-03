@@ -267,6 +267,42 @@ func (c *cockroachdb) cmdCMSUserByID(payload string) (string, error) {
 	return string(reply), nil
 }
 
+func (c *cockroachdb) cmdCMSUserSubContractors(payload string) (string, error) {
+	// Decode payload
+	p, err := user.DecodeCMSUserByID([]byte(payload))
+	if err != nil {
+		return "", err
+	}
+	var cmsUsers []CMSUser
+	err = c.userDB.
+		Where("supervisor_user_id = ?", p.ID).
+		Preload("User").
+		Find(&cmsUsers).
+		Error
+	if err != nil {
+		return "", err
+	}
+
+	// Prepare reply
+	subUsers := make([]user.CMSUser, len(cmsUsers))
+	for _, u := range cmsUsers {
+		convertUser, err := c.convertCMSUserFromDatabase(u)
+		if err != nil {
+			return "", err
+		}
+		subUsers = append(subUsers, *convertUser)
+	}
+	r := user.CMSUserSubContractorsReply{
+		Users: subUsers,
+	}
+	reply, err := user.EncodeCMSUserSubContractorsReply(r)
+	if err != nil {
+		return "", err
+	}
+
+	return string(reply), nil
+}
+
 // Exec executes a cms plugin command.
 func (c *cockroachdb) cmsPluginExec(cmd, payload string) (string, error) {
 	switch cmd {
@@ -278,6 +314,8 @@ func (c *cockroachdb) cmsPluginExec(cmd, payload string) (string, error) {
 		return c.cmdUpdateCMSUser(payload)
 	case user.CmdCMSUserByID:
 		return c.cmdCMSUserByID(payload)
+	case user.CmdCMSUserSubContractors:
+		return c.cmdCMSUserSubContractors(payload)
 	default:
 		return "", user.ErrInvalidPluginCmd
 	}

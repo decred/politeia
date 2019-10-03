@@ -597,7 +597,7 @@ func (p *politeiawww) revokeDCCUser(userid string) error {
 	return nil
 }
 
-func (p *politeiawww) processUserSubContractors(u *user.User) ([]cms.UserSubContractors, error) {
+func (p *politeiawww) processUserSubContractors(u *user.User) (*cms.UserSubContractorsReply, error) {
 	usc := user.CMSUserSubContractors{
 		ID: u.ID.String(),
 	}
@@ -614,9 +614,17 @@ func (p *politeiawww) processUserSubContractors(u *user.User) ([]cms.UserSubCont
 	if err != nil {
 		return nil, err
 	}
-	_, err = user.DecodeCMSUserSubContractors([]byte(payloadReply.Payload))
+	cmsUsers, err := user.DecodeCMSUserSubContractorsReply([]byte(payloadReply.Payload))
 	if err != nil {
 		return nil, err
 	}
-	return nil, nil
+	convertedCMSUsers := make([]cms.User, len(cmsUsers.Users))
+	for _, uu := range cmsUsers.Users {
+		converted := convertCMSUserFromDatabaseUser(&uu)
+		convertedCMSUsers = append(convertedCMSUsers, converted)
+	}
+	uscr := &cms.UserSubContractorsReply{
+		Users: convertedCMSUsers,
+	}
+	return uscr, nil
 }
