@@ -1915,6 +1915,29 @@ func (c *Client) SetDCCStatus(sd *cms.SetDCCStatus) (*cms.SetDCCStatusReply, err
 	return &sdr, nil
 }
 
+// UserSubContractors retrieves the subcontractors that are linked to the requesting user
+func (c *Client) UserSubContractors(usc *cms.UserSubContractors) (*cms.UserSubContractorsReply, error) {
+	responseBody, err := c.makeRequest("GET", cms.RouteUserSubContractors, usc)
+	if err != nil {
+		return nil, err
+	}
+
+	var uscr cms.UserSubContractorsReply
+	err = json.Unmarshal(responseBody, &uscr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal UserSubContractorsReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(uscr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &uscr, nil
+}
+
 // WalletAccounts retrieves the walletprc accounts.
 func (c *Client) WalletAccounts() (*walletrpc.AccountsResponse, error) {
 	if c.wallet == nil {
