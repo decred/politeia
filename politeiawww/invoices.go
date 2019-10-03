@@ -707,7 +707,7 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 							ErrorCode: cms.ErrorStatusInvalidSubUserIDLineItem,
 						}
 					}
-					if lineInput.Labor != 0 {
+					if lineInput.Labor == 0 {
 						return www.UserError{
 							ErrorCode: cms.ErrorStatusInvalidLaborExpense,
 						}
@@ -1703,7 +1703,7 @@ func (p *politeiawww) calculatePayout(inv database.Invoice) (cms.Payout, error) 
 	var totalExpenses uint
 	for _, lineItem := range inv.LineItems {
 		switch lineItem.Type {
-		case cms.LineItemTypeLabor:
+		case cms.LineItemTypeLabor, cms.LineItemTypeSubHours:
 			totalLaborMinutes += lineItem.Labor
 		case cms.LineItemTypeExpense, cms.LineItemTypeMisc:
 			totalExpenses += lineItem.Expenses

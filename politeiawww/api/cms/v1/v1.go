@@ -136,7 +136,7 @@ const (
 
 	// PolicyInvoiceLineItemCount is the number of expected fields in the raw
 	// csv line items
-	PolicyInvoiceLineItemCount = 7
+	PolicyInvoiceLineItemCount = 8
 
 	// PolicyMinLineItemColLength is the minimun length for the strings in
 	// each column field of the lineItem structure.
@@ -259,6 +259,8 @@ var (
 		ErrorStatusInvoiceRequireLineItems:        "invoices require at least 1 line item",
 		ErrorStatusInvalidInvoiceMonthYear:        "an invalid month/year was submitted on an invoice",
 		ErrorStatusInvalidExchangeRate:            "exchange rate was invalid or didn't match expected result",
+		ErrorStatusInvalidLineItemType:            "line item has an invalid type",
+		ErrorStatusInvalidLaborExpense:            "line item has an invalid labor or expense field",
 		ErrorStatusDuplicatePaymentAddress:        "a duplicate payment address was used",
 		ErrorStatusInvalidDatesRequested:          "invalid dates were requested",
 		ErrorStatusInvalidInvoiceEditMonthYear:    "invalid attempt to edit invoice month/year",

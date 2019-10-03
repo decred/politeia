@@ -190,6 +190,7 @@ func validateParseCSV(data []byte) (*cms.InvoiceInput, error) {
 		"labor":   cms.LineItemTypeLabor,
 		"expense": cms.LineItemTypeExpense,
 		"misc":    cms.LineItemTypeMisc,
+		"sub":     cms.LineItemTypeSubHours,
 	}
 	invInput := &cms.InvoiceInput{}
 
@@ -236,6 +237,7 @@ func validateParseCSV(data []byte) (*cms.InvoiceInput, error) {
 		lineItem.Subdomain = lineContents[2]
 		lineItem.Description = lineContents[3]
 		lineItem.ProposalToken = lineContents[4]
+		lineItem.SubUserID = lineContents[7]
 		lineItem.Labor = uint(hours * 60)
 		lineItem.Expenses = uint(cost * 100)
 		lineItems = append(lineItems, lineItem)
