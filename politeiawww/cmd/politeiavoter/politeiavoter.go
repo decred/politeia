@@ -890,15 +890,10 @@ func (c *ctx) calculateTrickle(token, voteBit string, ctres *pb.CommittedTickets
 // _voteTrickler trickles votes to the server. The idea here is to not issue
 // large number of votes in one go to the server at the same time giving away
 // which IP address owns what votes.
-func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsResponse, smr *pb.SignMessagesResponse) error {
-	// Generate work
-	err := c.calculateTrickle(token, voteBit, ctres, smr)
-	if err != nil {
-		return err
-	}
-
+func (c *ctx) _voteTrickler(token string) error {
 	// Synthesize reply, needs locking once go routines launch
-	c.ballotResults = make([]BallotResult, 0, len(ctres.TicketAddresses))
+	voteCount := c.voteIntervalLen()
+	c.ballotResults = make([]BallotResult, 0, voteCount)
 
 	// Launch signal handler
 	signals := make(chan os.Signal, 1)
@@ -910,7 +905,6 @@ func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsRes
 	c.retryWG.Add(1)
 	go c.retryLoop()
 
-	voteCount := c.voteIntervalLen()
 	for i := 0; ; {
 		if i == 2 {
 			// XXX
@@ -928,7 +922,10 @@ func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsRes
 
 		// Send off vote
 		b := v1.Ballot{Votes: []v1.CastVote{vote.Vote}}
-		var br *v1.CastVoteReply
+		var (
+			br  *v1.CastVoteReply
+			err error
+		)
 		if i == 0 {
 			br, err = c.sendVoteFail(&b)
 		} else {
@@ -1130,8 +1127,27 @@ func (c *ctx) _vote(seed int64, token, voteId string) error {
 		return fmt.Errorf("signature failed index %v: %v", k, v.Error)
 	}
 
-	if c.cfg.voteDuration != 0 {
-		return c._voteTrickler(token, voteBit, ctres, smr)
+	if c.cfg.Trickle {
+		// Calculate vote duration if not set
+		if c.cfg.voteDuration.Seconds() == 0 {
+			blocksLeft := summary.EndHeight - bvsr.BestBlock
+			if blocksLeft < c.cfg.blocksPerDay {
+				return fmt.Errorf("less than a day left to " +
+					"vote, please set --voteduration " +
+					"manually")
+			}
+			c.cfg.voteDuration = activeNetParams.TargetTimePerBlock *
+				(time.Duration(blocksLeft) -
+					time.Duration(c.cfg.blocksPerDay))
+		}
+
+		// Generate work
+		err := c.calculateTrickle(token, voteBit, ctres, smr)
+		if err != nil {
+			return err
+		}
+
+		return c._voteTrickler(token)
 	}
 
 	// Vote everything at once.

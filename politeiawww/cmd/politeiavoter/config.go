@@ -69,12 +69,14 @@ type config struct {
 	Proxy            string `long:"proxy" description:"Connect via SOCKS5 proxy (eg. 127.0.0.1:9050)"`
 	ProxyUser        string `long:"proxyuser" description:"Username for proxy server"`
 	ProxyPass        string `long:"proxypass" default-mask:"-" description:"Password for proxy server"`
-	VoteDuration     string `long:"voteduration" description:"Duration to cast all votes in hours, minutes and seconds e.g. 5h10m30s (default 0s)"`
+	VoteDuration     string `long:"voteduration" description:"Duration to cast all votes in hours and minutes e.g. 5h10m (default 0s means autodetect duration)"`
+	Trickle          bool   `long:"trickle" description:"Enable vote trickling, requires --proxy."`
 	SkipVerify       bool   `long:"skipverify" description:"Skip verifying the server's certifcate chain and host name."`
 
 	voteDir      string
 	dial         func(string, string) (net.Conn, error)
 	voteDuration time.Duration // Parsed VoteDuration
+	blocksPerDay uint64
 }
 
 // serviceOptions defines the configuration options for the daemon as a service
@@ -346,6 +348,11 @@ func loadConfig() (*config, []string, error) {
 	if cfg.TestNet {
 		activeNetParams = &testNet3Params
 	}
+
+	// Calculate blocks per day
+	cfg.blocksPerDay = uint64(24 * time.Hour /
+		activeNetParams.TargetTimePerBlock)
+
 	// Determine default connections
 	if cfg.PoliteiaWWW == "" {
 		if activeNetParams.Name == "mainnet" {
@@ -443,7 +450,7 @@ func loadConfig() (*config, []string, error) {
 	}
 
 	if !cfg.BypassProxyCheck {
-		if cfg.VoteDuration != "" && cfg.Proxy == "" {
+		if cfg.Trickle && cfg.Proxy == "" {
 			return nil, nil, fmt.Errorf("cannot use --voteduration " +
 				"without --proxy")
 		}
