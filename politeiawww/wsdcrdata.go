@@ -133,9 +133,6 @@ func newWSDcrdata(subscriptions map[string]struct{}) (*wsDcrdata, error) {
 	log.Infof("Dcrdata pubsub server version: %v, client version %v",
 		serverSemVer, clientSemVer)
 
-	if subscriptions == nil {
-		subscriptions = make(map[string]struct{})
-	}
 	return &wsDcrdata{
 		client:        c,
 		subscriptions: subscriptions,
