@@ -21,9 +21,9 @@ type ManageUserCmd struct {
 	Args struct {
 		UserID string `positional-arg-name:"userid" required:"true"`
 	} `positional-args:"true" optional:"true"`
-	Domain             string `long:"domain" optional:"true" description:"Domain type: Developer, Marketing, Design, Documentation, Research, Community"`
-	ContractorType     string `long:"contractortype" optional:"true" description:"Contractor type: Direct, Sub, Super"`
-	SupervisorUsername string `long:"supervisoruserid" optional:"true" description:"Supervisor Username"`
+	Domain           string `long:"domain" optional:"true" description:"Domain type: Developer, Marketing, Design, Documentation, Research, Community"`
+	ContractorType   string `long:"contractortype" optional:"true" description:"Contractor type: Direct, Sub, Super"`
+	SupervisorUserID string `long:"supervisoruserid" optional:"true" description:"Supervisor User ID"`
 }
 
 // Execute executes the cms manage user command.
@@ -54,7 +54,8 @@ func (cmd *ManageUserCmd) Execute(args []string) error {
 		userInfo = uir.User
 	}
 	var domainType, contractorType int
-	if cmd.Domain != "" || cmd.ContractorType != "" {
+	if cmd.Domain != "" || cmd.ContractorType != "" ||
+		cmd.SupervisorUserID == "" {
 		reader := bufio.NewReader(os.Stdin)
 		if cmd.Domain == "" {
 			str := fmt.Sprintf("The current Domain setting is: \"%v\" Update?",
@@ -88,6 +89,8 @@ func (cmd *ManageUserCmd) Execute(args []string) error {
 						break
 					}
 				}
+			} else {
+				domainType = int(userInfo.Domain)
 			}
 		}
 		if cmd.ContractorType == "" {
@@ -121,6 +124,32 @@ func (cmd *ManageUserCmd) Execute(args []string) error {
 						break
 					}
 				}
+			} else {
+				contractorType = int(userInfo.ContractorType)
+			}
+		}
+		if cmd.SupervisorUserID == "" {
+			str := fmt.Sprintf("Your current Supervisor ID setting is: %v Update?", userInfo.SupervisorUserID)
+			update, err := promptListBool(reader, str, "no")
+			if err != nil {
+				return err
+			}
+			if update {
+				for {
+					fmt.Printf("Enter the user's Supervisor User ID: ")
+					cmd.SupervisorUserID, _ = reader.ReadString('\n')
+					cmd.SupervisorUserID = strings.TrimSpace(cmd.SupervisorUserID)
+					str := fmt.Sprintf(
+						"Your current Supervisor User ID is: \"%v\" Keep this?",
+						cmd.SupervisorUserID)
+					update, err := promptListBool(reader, str, "yes")
+					if err != nil {
+						return err
+					}
+					if update {
+						break
+					}
+				}
 			}
 		}
 		fmt.Print("\nPlease carefully review your information and ensure it's " +
@@ -128,47 +157,30 @@ func (cmd *ManageUserCmd) Execute(args []string) error {
 			"your request.")
 		reader.ReadString('\n')
 	}
-	domainType, err = strconv.Atoi(strings.TrimSpace(cmd.Domain))
-	if err != nil {
-		return fmt.Errorf("invalid domain attempted, please try again")
+
+	if domainType == 0 {
+		domainType, err = strconv.Atoi(strings.TrimSpace(cmd.Domain))
+		if err != nil {
+			return fmt.Errorf("invalid domain attempted, please try again")
+		}
 	}
 	userInfo.Domain = cms.DomainTypeT(domainType)
-	contractorType, err = strconv.Atoi(strings.TrimSpace(cmd.ContractorType))
-	if err != nil {
-		return fmt.Errorf("invalid domain attempted, please try again")
+
+	if contractorType == 0 {
+		contractorType, err = strconv.Atoi(strings.TrimSpace(cmd.ContractorType))
+		if err != nil {
+			return fmt.Errorf("invalid domain attempted, please try again")
+		}
 	}
 	userInfo.ContractorType = cms.ContractorTypeT(contractorType)
 
-	/*
-
-		else if cmd.ContractorType != "" {
-			contractorType, err = strconv.Atoi(strings.TrimSpace(cmd.ContractorType))
-			if err != nil {
-				return fmt.Errorf("invalid contractor type entered, please try again")
-
-			}
-			userInfo.ContractorType = cms.ContractorTypeT(contractorType)
-		}
-			XXX Need to decide how to handle Supervisor name lookup for CLI.
-				if cmd.SupervisorUsername == "" && lr.IsAdmin  {
-					str := fmt.Sprintf("Your current Supervisor ID setting is: %v Update?", userInfo.SupervisorUserID)
-					update, err := promptListBool(reader, str, "no")
-					if err != nil {
-						return err
-					}
-					if update {
-						cmd.SupervisorUsername, _ = reader.ReadString('\n')
-					}
-					userInfo.SupervisorUserID = cmd.SupervisorUsername
-				} else if cmd.SupervisorUsername == "" && lr.IsAdmin {
-					userInfo.SupervisorUserID = cmd.SupervisorUsername
-				}
-	*/
+	userInfo.SupervisorUserID = cmd.SupervisorUserID
 
 	updateInfo := cms.ManageUser{
-		UserID:         lr.UserID,
-		Domain:         userInfo.Domain,
-		ContractorType: userInfo.ContractorType,
+		UserID:           userID,
+		Domain:           userInfo.Domain,
+		ContractorType:   userInfo.ContractorType,
+		SupervisorUserID: userInfo.SupervisorUserID,
 	}
 
 	ecur, err := client.CMSManageUser(updateInfo)
@@ -222,14 +234,15 @@ Arguments:
 1. userid             (string, required)     ID of the user to manage
 
 Flags:
-  --domain              	(int, optional)   Domain of the contractor
-  --contractortype          (int, optional)   Contractor Type
+  --domain              	(int, optional)     Domain of the contractor
+  --contractortype          (int, optional)     Contractor Type
+  --supervisoruserid        (string, optional)  UserID of the Supervisor
 
 Request:
 {
 	"domain": 1,
 	"contractortype": 1,
-	"supervisoruserid": "",
+	"supervisoruserid": "4",
 }
 
 Response:
