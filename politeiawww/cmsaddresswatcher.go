@@ -372,11 +372,19 @@ func (p *politeiawww) reconnectWS() {
 	var err error
 	// Retry wsDcrdata reconnect every 1 minute
 	for {
-		p.wsDcrdata, err = newWSDcrdata()
+		p.wsDcrdata, err = newWSDcrdata(p.wsDcrdata.subscriptions)
 		if err != nil {
 			log.Errorf("reconnectWS error: %v", err)
 		}
 		if p.wsDcrdata != nil {
+			// If it was reconnected then resubscribe all of the existing
+			// subscriptions.  Log any that failed to resubscribe.
+			for event := range p.wsDcrdata.subscriptions {
+				_, err := p.wsDcrdata.client.Subscribe(event)
+				if err != nil {
+					log.Errorf("failed to resubscribe: %v", err)
+				}
+			}
 			break
 		}
 		log.Infof("Retrying ws dcrdata reconnect in 1 minute...")

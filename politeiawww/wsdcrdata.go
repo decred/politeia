@@ -101,7 +101,7 @@ func (w *wsDcrdata) unsubFromAddr(address string) error {
 }
 
 // newWSDcrdata return a new wsDcrdata context.
-func newWSDcrdata() (*wsDcrdata, error) {
+func newWSDcrdata(subscriptions map[string]struct{}) (*wsDcrdata, error) {
 	// Init websocket client
 	u, err := util.BlockExplorerURLForSubscriptions(activeNetParams.Params)
 	if err != nil {
@@ -133,8 +133,11 @@ func newWSDcrdata() (*wsDcrdata, error) {
 	log.Infof("Dcrdata pubsub server version: %v, client version %v",
 		serverSemVer, clientSemVer)
 
+	if subscriptions == nil {
+		subscriptions = make(map[string]struct{})
+	}
 	return &wsDcrdata{
 		client:        c,
-		subscriptions: make(map[string]struct{}),
+		subscriptions: subscriptions,
 	}, nil
 }
