@@ -7,12 +7,13 @@ import (
 )
 
 const (
-	CMSPluginVersion    = "1"
-	CMSPluginID         = "cms"
-	CmdNewCMSUser       = "newcmsuser"
-	CmdCMSUsersByDomain = "cmsusersbydomain"
-	CmdUpdateCMSUser    = "updatecmsuser"
-	CmdCMSUserByID      = "cmsuserbyid"
+	CMSPluginVersion         = "1"
+	CMSPluginID              = "cms"
+	CmdNewCMSUser            = "newcmsuser"
+	CmdCMSUsersByDomain      = "cmsusersbydomain"
+	CmdUpdateCMSUser         = "updatecmsuser"
+	CmdCMSUserByID           = "cmsuserbyid"
+	CmdCMSUserSubContractors = "cmsusersubcontractors"
 )
 
 // CMSUser represents a CMS user. It contains the standard politeiawww user
@@ -208,6 +209,53 @@ func EncodeCMSUserByIDReply(u CMSUserByIDReply) ([]byte, error) {
 // CMSUserByIDReply.
 func DecodeCMSUserByIDReply(b []byte) (*CMSUserByIDReply, error) {
 	var reply CMSUserByIDReply
+
+	err := json.Unmarshal(b, &reply)
+	if err != nil {
+		return nil, err
+	}
+
+	return &reply, nil
+}
+
+// CMSUserSubContractors retrieves all users that are currently have the
+// given ID as their SupervisorID
+type CMSUserSubContractors struct {
+	ID string `json:"id"` // Contractor user id
+}
+
+// EncodeCMSUserSubContractors encodes a CMSUserSubContractors into a JSON byte slice.
+func EncodeCMSUserSubContractors(u CMSUserSubContractors) ([]byte, error) {
+	return json.Marshal(u)
+}
+
+// DecodeCMSUserSubContractors decodes JSON byte slice into a CMSUserSubContractors.
+func DecodeCMSUserSubContractors(b []byte) (*CMSUserSubContractors, error) {
+	var u CMSUserSubContractors
+
+	err := json.Unmarshal(b, &u)
+	if err != nil {
+		return nil, err
+	}
+
+	return &u, nil
+}
+
+// CMSUserSubContractorsReply is the reply to the CMSUserSubContractors command.
+type CMSUserSubContractorsReply struct {
+	Users []CMSUser `json:"users"`
+}
+
+// EncodeCMSUserSubContractorsReply encodes a CMSUserSubContractorsReply into a JSON
+// byte slice.
+func EncodeCMSUserSubContractorsReply(u CMSUserSubContractorsReply) ([]byte, error) {
+	return json.Marshal(u)
+}
+
+// DecodeCMSUserSubContractorsReply decodes JSON byte slice into a
+// CMSUserSubContractorsReply.
+func DecodeCMSUserSubContractorsReply(b []byte) (*CMSUserSubContractorsReply, error) {
+	var reply CMSUserSubContractorsReply
 
 	err := json.Unmarshal(b, &reply)
 	if err != nil {

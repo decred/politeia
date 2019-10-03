@@ -24,6 +24,7 @@ const (
 	RouteInvoiceDetails      = "/invoices/{token:[A-z0-9]{64}}"
 	RouteSetInvoiceStatus    = "/invoices/{token:[A-z0-9]{64}}/status"
 	RouteUserInvoices        = "/user/invoices"
+	RouteUserSubContractors  = "/user/subcontractors"
 	RouteNewDCC              = "/dcc/new"
 	RouteDCCDetails          = "/dcc/{token:[A-z0-9]{64}}"
 	RouteGetDCCs             = "/dcc"
@@ -684,3 +685,13 @@ type SetDCCStatus struct {
 
 // SetDCCStatusReply returns an empty response when successful.
 type SetDCCStatusReply struct{}
+
+// UserSubContractors is a request for a logged in Supervisor to return a
+// list of UserIDs/Usernames
+type UserSubContractors struct{}
+
+// UserSubContractorsReply returns a list of Users that are considered
+// sub contractors of the logged in user making the request.
+type UserSubContractorsReply struct {
+	Users []User `json:"users"`
+}

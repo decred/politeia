@@ -596,3 +596,27 @@ func (p *politeiawww) revokeDCCUser(userid string) error {
 	}
 	return nil
 }
+
+func (p *politeiawww) processUserSubContractors(u *user.User) ([]cms.UserSubContractors, error) {
+	usc := user.CMSUserSubContractors{
+		ID: u.ID.String(),
+	}
+	payload, err := user.EncodeCMSUserSubContractors(usc)
+	if err != nil {
+		return nil, err
+	}
+	pc := user.PluginCommand{
+		ID:      user.CMSPluginID,
+		Command: user.CmdCMSUserSubContractors,
+		Payload: string(payload),
+	}
+	payloadReply, err := p.db.PluginExec(pc)
+	if err != nil {
+		return nil, err
+	}
+	_, err = user.DecodeCMSUserSubContractors([]byte(payloadReply.Payload))
+	if err != nil {
+		return nil, err
+	}
+	return nil, nil
+}
