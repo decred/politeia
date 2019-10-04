@@ -439,6 +439,11 @@ func loadConfig() (*config, []string, error) {
 		cfg.dial = proxy.Dial
 	}
 
+	// VoteDuration can only be set with trickle enable.
+	if cfg.VoteDuration != "" && !cfg.Trickle {
+		return nil, nil, fmt.Errorf("must use --trickle when " +
+			"--voteduration is set")
+	}
 	// Duration of the vote.
 	if cfg.VoteDuration != "" {
 		// Verify we can parse the duration
