@@ -36,6 +36,7 @@ import (
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/wire"
 	pb "github.com/decred/dcrwallet/rpc/walletrpc"
+	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
@@ -157,6 +158,7 @@ type ctx struct {
 	retryQ        *list.List     // retry message queue FIFO
 	retryWG       sync.WaitGroup // Wait for retry loop to exit
 	mainLoopDone  chan struct{}  // message when done
+	forceExit     chan struct{}  // message when focing an exit
 	ballotResults []BallotResult // results of voting
 	voteIntervalQ *list.List     // work that has to be completed
 
@@ -224,6 +226,7 @@ func newClient(cfg *config) (*ctx, error) {
 		retryQ:        new(list.List),
 		voteIntervalQ: new(list.List),
 		mainLoopDone:  make(chan struct{}),
+		forceExit:     make(chan struct{}),
 		wctx:          context.Background(),
 		creds:         creds,
 		conn:          conn,
@@ -905,12 +908,30 @@ func (c *ctx) _voteTrickler(token string) error {
 	c.retryWG.Add(1)
 	go c.retryLoop()
 
+	var forceExit bool
 	for i := 0; ; {
 		vote := c.voteIntervalPop()
 		if vote == nil {
 			break
 		}
 		log.Tracef("mainLoop pop %v", spew.Sdump(vote))
+
+		// Fire off the first vote immediately. Add a delay for
+		// all other votes.
+		if i > 0 {
+			fmt.Printf("Next vote at %v (delay %v)\n",
+				time.Now().Add(vote.At).Format(time.Stamp), vote.At)
+			select {
+			case <-time.After(vote.At):
+			case <-c.forceExit:
+				// The retry loop is forcing an exit
+				forceExit = true
+			}
+		}
+		if forceExit {
+			fmt.Printf("Forced exit main vote queue.\n")
+			break
+		}
 
 		fmt.Printf("Voting: %v/%v %v\n", i+1, voteCount,
 			vote.Vote.Ticket)
@@ -940,25 +961,38 @@ func (c *ctx) _voteTrickler(token string) error {
 			c.ballotResults = append(c.ballotResults, result)
 			c.Unlock()
 
+			if br.ErrorStatus == decredplugin.ErrorStatusVoteHasEnded {
+				// Force an exit of the both the main queue and the
+				// retry queue if the voting period has ended.
+				err = c.jsonLog("failed.json", token, br)
+				if err != nil {
+					return err
+				}
+				fmt.Printf("Vote has ended; forced exit main vote queue.\n")
+				fmt.Printf("Awaiting retry vote queue to exit.\n")
+				forceExit = true
+				c.forceExit <- struct{}{}
+				break
+			}
+
 			err = c.jsonLog("success.json", token, result)
 			if err != nil {
 				return err
 			}
 		}
 
-		fmt.Printf("Next vote at %v (delay %v)\n",
-			time.Now().Add(vote.At).Format(time.Stamp), vote.At)
-
-		time.Sleep(vote.At)
-
 		// Go to next vote
 		i++
 	}
 
-	// Tell retry loop that main loop is done
+	// Tell retry loop that main loop is done. We can skip
+	// this if the exit is being forced since the forceExit
+	// event already takes care of it.
 	log.Debugf("_voteTrickler: main loop done")
-	fmt.Printf("Awaiting retry vote queue to complete.\n")
-	c.mainLoopDone <- struct{}{}
+	if !forceExit {
+		fmt.Printf("Awaiting retry vote queue to complete.\n")
+		c.mainLoopDone <- struct{}{}
+	}
 
 	// Wait for retry loop to exit
 	c.retryWG.Wait()
@@ -1222,6 +1256,10 @@ func (c *ctx) vote(seed int64, args []string) error {
 	fmt.Printf("Votes succeeded: %v\n", len(c.ballotResults)-
 		len(failedReceipts))
 	fmt.Printf("Votes failed   : %v\n", len(failedReceipts))
+	notCast := c.voteIntervalLen() + uint64(c.retryLen())
+	if notCast > 0 {
+		fmt.Printf("Votes not cast : %v\n", notCast)
+	}
 	for _, v := range failedReceipts {
 		fmt.Printf("Failed vote    : %v %v\n",
 			v.Ticket, v.Receipt.Error)

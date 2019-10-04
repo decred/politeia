@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/decred/politeia/decredplugin"
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
 )
@@ -71,6 +72,10 @@ func (c *ctx) retryLoop() {
 		wait[0] = 30 // XXX
 
 		select {
+		case <-c.forceExit:
+			// Main loop is forcing an exit
+			fmt.Printf("Forced exit retry vote queue.\n")
+			return
 		case <-c.mainLoopDone:
 			mainLoopDone = true
 			// Fallthrough in case there is no more work. This way
@@ -128,23 +133,37 @@ func (c *ctx) retryLoop() {
 				ticket, err))
 		}
 
-		// Journal result
+		// Vote completed
 		result := BallotResult{
 			Ticket:  ticket,
 			Receipt: *br,
 		}
+		c.Lock()
+		c.ballotResults = append(c.ballotResults, result)
+		c.Unlock()
+
+		if br.ErrorStatus == decredplugin.ErrorStatusVoteHasEnded {
+			// Force an exit of the both the main queue and the
+			// retry queue if the voting period has ended.
+			err = c.jsonLog("failed.json", ticket, br)
+			if err != nil {
+				log.Errorf("retryLoop: c.jsonLog 2: %v", err)
+			}
+			fmt.Printf("Vote has ended; forced exit retry vote queue.\n")
+			if !mainLoopDone {
+				fmt.Printf("Awaiting main vote queue to exit.\n")
+				c.forceExit <- struct{}{}
+			}
+			return
+		}
+
 		err = c.jsonLog("success.json", e.vote.Token, result)
 		if err != nil {
-			log.Errorf("retryLoop: c.jsonLog 2: %v", err)
+			log.Errorf("retryLoop: c.jsonLog 3: %v", err)
 			continue
 		}
 
 		log.Debugf("retryLoop: success %v", spew.Sdump(br))
-
-		// Vote completed
-		c.Lock()
-		c.ballotResults = append(c.ballotResults, result)
-		c.Unlock()
 
 		// Check if we are done here as well
 		if mainLoopDone && c.retryLen() == 0 {
