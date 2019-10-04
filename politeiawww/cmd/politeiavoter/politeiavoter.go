@@ -154,13 +154,14 @@ type BallotResult struct {
 
 // ctx is the client context.
 type ctx struct {
-	sync.RWMutex                 // retryQ lock
-	retryQ        *list.List     // retry message queue FIFO
-	retryWG       sync.WaitGroup // Wait for retry loop to exit
-	mainLoopDone  chan struct{}  // message when done
-	forceExit     chan struct{}  // message when focing an exit
-	ballotResults []BallotResult // results of voting
-	voteIntervalQ *list.List     // work that has to be completed
+	sync.RWMutex                      // retryQ lock
+	retryQ             *list.List     // retry message queue FIFO
+	retryWG            sync.WaitGroup // Wait for retry loop to exit
+	mainLoopDone       chan struct{}  // message when done
+	mainLoopForceExit  chan struct{}  // message when main loop forces an exit
+	retryLoopForceExit chan struct{}  // message when retry loop forces an exit
+	ballotResults      []BallotResult // results of voting
+	voteIntervalQ      *list.List     // work that has to be completed
 
 	run time.Time // when this run started
 
@@ -222,16 +223,17 @@ func newClient(cfg *config) (*ctx, error) {
 
 	// return context
 	return &ctx{
-		run:           time.Now(),
-		retryQ:        new(list.List),
-		voteIntervalQ: new(list.List),
-		mainLoopDone:  make(chan struct{}),
-		forceExit:     make(chan struct{}),
-		wctx:          context.Background(),
-		creds:         creds,
-		conn:          conn,
-		wallet:        wallet,
-		cfg:           cfg,
+		run:                time.Now(),
+		retryQ:             new(list.List),
+		voteIntervalQ:      new(list.List),
+		mainLoopDone:       make(chan struct{}),
+		mainLoopForceExit:  make(chan struct{}),
+		retryLoopForceExit: make(chan struct{}),
+		wctx:               context.Background(),
+		creds:              creds,
+		conn:               conn,
+		wallet:             wallet,
+		cfg:                cfg,
 		client: &http.Client{
 			Transport: tr,
 			Jar:       jar,
@@ -908,10 +910,11 @@ func (c *ctx) _voteTrickler(token string) error {
 	c.retryWG.Add(1)
 	go c.retryLoop()
 
-	var forceExit bool
+	var queueDone bool
 	for i := 0; ; {
 		vote := c.voteIntervalPop()
 		if vote == nil {
+			queueDone = true
 			break
 		}
 		log.Tracef("mainLoop pop %v", spew.Sdump(vote))
@@ -921,16 +924,17 @@ func (c *ctx) _voteTrickler(token string) error {
 		if i > 0 {
 			fmt.Printf("Next vote at %v (delay %v)\n",
 				time.Now().Add(vote.At).Format(time.Stamp), vote.At)
+			var retryLoopForceExit bool
 			select {
 			case <-time.After(vote.At):
-			case <-c.forceExit:
+			case <-c.retryLoopForceExit:
 				// The retry loop is forcing an exit
-				forceExit = true
+				retryLoopForceExit = true
 			}
-		}
-		if forceExit {
-			fmt.Printf("Forced exit main vote queue.\n")
-			break
+			if retryLoopForceExit {
+				fmt.Printf("Forced exit main vote queue.\n")
+				break
+			}
 		}
 
 		fmt.Printf("Voting: %v/%v %v\n", i+1, voteCount,
@@ -970,8 +974,7 @@ func (c *ctx) _voteTrickler(token string) error {
 				}
 				fmt.Printf("Vote has ended; forced exit main vote queue.\n")
 				fmt.Printf("Awaiting retry vote queue to exit.\n")
-				forceExit = true
-				c.forceExit <- struct{}{}
+				c.mainLoopForceExit <- struct{}{}
 				break
 			}
 
@@ -986,10 +989,10 @@ func (c *ctx) _voteTrickler(token string) error {
 	}
 
 	// Tell retry loop that main loop is done. We can skip
-	// this if the exit is being forced since the forceExit
-	// event already takes care of it.
+	// this if the exit is being forced before the vote queue
+	// is done since the force exit event takes care of it.
 	log.Debugf("_voteTrickler: main loop done")
-	if !forceExit {
+	if queueDone {
 		fmt.Printf("Awaiting retry vote queue to complete.\n")
 		c.mainLoopDone <- struct{}{}
 	}

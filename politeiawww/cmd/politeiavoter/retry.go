@@ -72,7 +72,7 @@ func (c *ctx) retryLoop() {
 		wait[0] = 30 // XXX
 
 		select {
-		case <-c.forceExit:
+		case <-c.mainLoopForceExit:
 			// Main loop is forcing an exit
 			fmt.Printf("Forced exit retry vote queue.\n")
 			return
@@ -152,7 +152,7 @@ func (c *ctx) retryLoop() {
 			fmt.Printf("Vote has ended; forced exit retry vote queue.\n")
 			if !mainLoopDone {
 				fmt.Printf("Awaiting main vote queue to exit.\n")
-				c.forceExit <- struct{}{}
+				c.retryLoopForceExit <- struct{}{}
 			}
 			return
 		}
