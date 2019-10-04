@@ -1156,7 +1156,7 @@ func (c *ctx) _vote(seed int64, token, voteId string) error {
 	cv := v1.Ballot{
 		Votes: make([]v1.CastVote, 0, len(ctres.TicketAddresses)),
 	}
-	c.ballotResults = make([]BallotResult, len(ctres.TicketAddresses))
+	c.ballotResults = make([]BallotResult, 0, len(ctres.TicketAddresses))
 	for k, v := range ctres.TicketAddresses {
 		h, err := chainhash.NewHash(v.Ticket)
 		if err != nil {
@@ -1196,7 +1196,7 @@ func (c *ctx) _vote(seed int64, token, voteId string) error {
 			len(vr.Receipts), len(c.ballotResults))
 	}
 	for k := range vr.Receipts {
-		c.ballotResults[k].Receipt = c.ballotResults[k].Receipt
+		c.ballotResults[k].Receipt = vr.Receipts[k]
 	}
 
 	return nil
