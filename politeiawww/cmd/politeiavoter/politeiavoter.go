@@ -906,11 +906,6 @@ func (c *ctx) _voteTrickler(token string) error {
 	go c.retryLoop()
 
 	for i := 0; ; {
-		if i == 2 {
-			// XXX
-			break
-		}
-
 		vote := c.voteIntervalPop()
 		if vote == nil {
 			break
@@ -922,15 +917,7 @@ func (c *ctx) _voteTrickler(token string) error {
 
 		// Send off vote
 		b := v1.Ballot{Votes: []v1.CastVote{vote.Vote}}
-		var (
-			br  *v1.CastVoteReply
-			err error
-		)
-		if i == 0 {
-			br, err = c.sendVoteFail(&b)
-		} else {
-			br, err = c.sendVote(&b)
-		}
+		br, err := c.sendVote(&b)
 		if e, ok := err.(ErrRetry); ok {
 			// Append failed vote to retry queue
 			fmt.Printf("Vote rescheduled: %v\n", vote.Vote.Ticket)
@@ -962,7 +949,6 @@ func (c *ctx) _voteTrickler(token string) error {
 		fmt.Printf("Next vote at %v (delay %v)\n",
 			time.Now().Add(vote.At).Format(time.Stamp), vote.At)
 
-		vote.At = time.Second // XXX
 		time.Sleep(vote.At)
 
 		// Go to next vote
