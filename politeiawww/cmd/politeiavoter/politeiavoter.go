@@ -910,11 +910,9 @@ func (c *ctx) _voteTrickler(token string) error {
 	c.retryWG.Add(1)
 	go c.retryLoop()
 
-	var queueDone bool
 	for i := 0; ; {
 		vote := c.voteIntervalPop()
 		if vote == nil {
-			queueDone = true
 			break
 		}
 		log.Tracef("mainLoop pop %v", spew.Sdump(vote))
@@ -990,9 +988,10 @@ func (c *ctx) _voteTrickler(token string) error {
 
 	// Tell retry loop that main loop is done. We can skip
 	// this if the exit is being forced before the vote queue
-	// is done since the force exit event takes care of it.
+	// has been emptied since the force exit event will take
+	// care of it.
 	log.Debugf("_voteTrickler: main loop done")
-	if queueDone {
+	if c.voteIntervalLen() == 0 {
 		fmt.Printf("Awaiting retry vote queue to complete.\n")
 		c.mainLoopDone <- struct{}{}
 	}
