@@ -928,7 +928,10 @@ func (c *ctx) _voteTrickler(token string) error {
 		select {
 		case <-time.After(vote.At):
 		case <-c.retryLoopForceExit:
-			// The retry loop is forcing an exit
+			// The retry loop is forcing an exit. Put vote back
+			// into the queue before exiting so the vote summary
+			// statistics are correct.
+			c.voteIntervalPush(vote)
 			fmt.Printf("Forced exit main vote queue.\n")
 			goto exit
 		}
