@@ -917,24 +917,22 @@ func (c *ctx) _voteTrickler(token string) error {
 		}
 		log.Tracef("mainLoop pop %v", spew.Sdump(vote))
 
-		// Fire off the first vote immediately. Add a delay for
-		// all other votes.
-		if i > 0 {
-			fmt.Printf("Next vote at %v (delay %v)\n",
-				time.Now().Add(vote.At).Format(time.Stamp), vote.At)
-			var retryLoopForceExit bool
-			select {
-			case <-time.After(vote.At):
-			case <-c.retryLoopForceExit:
-				// The retry loop is forcing an exit
-				retryLoopForceExit = true
-			}
-			if retryLoopForceExit {
-				fmt.Printf("Forced exit main vote queue.\n")
-				break
-			}
+		// Fire off the first vote without a delay
+		if i == 0 {
+			goto vote
 		}
 
+		fmt.Printf("Next vote at %v (delay %v)\n",
+			time.Now().Add(vote.At).Format(time.Stamp), vote.At)
+
+		select {
+		case <-time.After(vote.At):
+		case <-c.retryLoopForceExit:
+			// The retry loop is forcing an exit
+			goto exit
+		}
+
+	vote:
 		fmt.Printf("Voting: %v/%v %v\n", i+1, voteCount,
 			vote.Vote.Ticket)
 
@@ -973,7 +971,7 @@ func (c *ctx) _voteTrickler(token string) error {
 				fmt.Printf("Vote has ended; forced exit main vote queue.\n")
 				fmt.Printf("Awaiting retry vote queue to exit.\n")
 				c.mainLoopForceExit <- struct{}{}
-				break
+				goto exit
 			}
 
 			err = c.jsonLog("success.json", token, result)
@@ -986,20 +984,16 @@ func (c *ctx) _voteTrickler(token string) error {
 		i++
 	}
 
-	// Tell retry loop that main loop is done. We can skip
-	// this if the exit is being forced before the vote queue
-	// has been emptied since the force exit event will take
-	// care of it.
+	// Tell retry loop that main loop is done
 	log.Debugf("_voteTrickler: main loop done")
-	if c.voteIntervalLen() == 0 {
-		fmt.Printf("Awaiting retry vote queue to complete.\n")
-		c.mainLoopDone <- struct{}{}
-	}
+	fmt.Printf("Awaiting retry vote queue to complete.\n")
+	c.mainLoopDone <- struct{}{}
 
 	// Wait for retry loop to exit
 	c.retryWG.Wait()
 	log.Debugf("ballotResults %v", spew.Sdump(c.ballotResults))
 
+exit:
 	// Shut down signal handler
 	signal.Stop(signals)
 	close(signalsDone)
