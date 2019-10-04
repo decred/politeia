@@ -69,7 +69,6 @@ func (c *ctx) retryLoop() {
 		} else {
 			wait[0] = wait[0] % 120
 		}
-		wait[0] = 30 // XXX
 
 		select {
 		case <-c.mainLoopForceExit:
@@ -104,16 +103,8 @@ func (c *ctx) retryLoop() {
 		// Vote
 		ticket := e.vote.Ticket
 		b := v1.Ballot{Votes: []v1.CastVote{e.vote}}
-		var (
-			br *v1.CastVoteReply
-		)
-		if e.retries > 1 {
-			log.Debugf("retryLoop: sendVote %v", ticket)
-			br, err = c.sendVote(&b)
-		} else {
-			log.Debugf("retryLoop: sendVoteFail %v", ticket)
-			br, err = c.sendVoteFail(&b)
-		}
+		log.Debugf("retryLoop: sendVote %v", ticket)
+		br, err := c.sendVote(&b)
 		if serr, ok := err.(ErrRetry); ok {
 			// Push to back retry later
 			fmt.Printf("Retry vote rescheduled: %v\n",
