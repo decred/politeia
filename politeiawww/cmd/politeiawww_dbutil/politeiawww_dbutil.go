@@ -855,7 +855,7 @@ func _main() error {
 func main() {
 	// Custom usage message
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, usageMsg)
+		fmt.Fprintln(os.Stderr, usageMsg)
 	}
 
 	err := _main()

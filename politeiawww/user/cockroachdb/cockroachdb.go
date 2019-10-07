@@ -298,11 +298,10 @@ func (c *cockroachdb) UsersGetByPubKey(pubKeys []string) (map[string]user.User, 
                 WHERE identities.public_key IN (?)`
 
 	rows, err := c.userDB.Raw(query, pubKeys).Rows()
-	defer rows.Close()
-
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
 	users := make(map[string]user.User)
 	pubKeyLookup := make(map[string]bool)
