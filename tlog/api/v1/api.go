@@ -124,7 +124,7 @@ type RecordNew struct {
 // verification must be done using the leaf hash.
 type QueuedLeafProof struct {
 	QueuedLeaf trillian.QueuedLogLeaf `json:"queuedleaf"`      // A queued leaf and its status
-	Proof      *trillian.Proof        `json:"proof;omitempty"` // Leaf inclusion proof
+	Proof      *trillian.Proof        `json:"proof,omitempty"` // Leaf inclusion proof
 }
 
 // RecordNewReply returns all pertinent information about a record. It returns
