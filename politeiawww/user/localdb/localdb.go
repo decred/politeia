@@ -213,7 +213,6 @@ func (l *localdb) UserGetByPubKey(pubKey string) (*user.User, error) {
 //
 // UsersGetByPubKey satisfies the Database interface.
 func (l *localdb) UsersGetByPubKey(pubKeys []string) (map[string]user.User, error) {
-
 	log.Tracef("UsersGetByPubKey: %v", pubKeys)
 
 	l.RLock()

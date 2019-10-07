@@ -15,7 +15,6 @@ type PayInvoicesCmd struct {
 
 // Execute executes the generate payouts command.
 func (cmd *PayInvoicesCmd) Execute(args []string) error {
-
 	// Pay invoices
 	pir, err := client.PayInvoices(
 		&v1.PayInvoices{})

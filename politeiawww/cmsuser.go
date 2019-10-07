@@ -459,7 +459,6 @@ func (p *politeiawww) getCMSUserByID(id string) (*cms.User, error) {
 	}
 	u := convertCMSUserFromDatabaseUser(ubir.User)
 	return &u, nil
-
 }
 
 // convertCMSUserFromDatabaseUser converts a user User to a cms User.

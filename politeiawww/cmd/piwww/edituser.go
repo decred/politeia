@@ -42,7 +42,6 @@ func (cmd *EditUserCmd) Execute(args []string) error {
 	} else if a, ok := emailNotifs[cmd.Args.NotifType]; ok {
 		// Human readable action code found
 		notif = a
-
 	} else if strings.Contains(cmd.Args.NotifType, ",") {
 		// List of human readable action codes found
 
@@ -50,7 +49,6 @@ func (cmd *EditUserCmd) Execute(args []string) error {
 		// Parse list of strings and calculate associated integer
 		s := strings.Split(cmd.Args.NotifType, ",")
 		for _, v := range s {
-
 			a, ok := emailNotifs[v]
 			if !ok {
 				return fmt.Errorf("Invalid edituser option. Type " +
@@ -58,7 +56,6 @@ func (cmd *EditUserCmd) Execute(args []string) error {
 			}
 			notif |= a
 		}
-
 	} else {
 		return fmt.Errorf("Invalid edituser option. Type 'help edituser' " +
 			"for list of valid options")

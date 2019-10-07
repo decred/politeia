@@ -286,7 +286,6 @@ func (c *cockroachdb) UserGetByPubKey(pubKey string) (*user.User, error) {
 //
 // UsersGetByPubKey satisfies the Database interface.
 func (c *cockroachdb) UsersGetByPubKey(pubKeys []string) (map[string]user.User, error) {
-
 	log.Tracef("UserGetByPubKey: %v", pubKeys)
 
 	if c.isShutdown() {
@@ -332,7 +331,6 @@ func (c *cockroachdb) UsersGetByPubKey(pubKeys []string) (map[string]user.User, 
 				users[pk] = *usr
 			}
 		}
-
 	}
 
 	return users, nil

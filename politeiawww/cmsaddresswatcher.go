@@ -365,7 +365,6 @@ func (p *politeiawww) invoiceStatusPaid(token string) error {
 }
 
 func (p *politeiawww) reconnectWS() {
-
 	if p.wsDcrdata != nil {
 		p.wsDcrdata.client.Stop()
 		p.wsDcrdata = nil
@@ -376,7 +375,6 @@ func (p *politeiawww) reconnectWS() {
 		p.wsDcrdata, err = newWSDcrdata()
 		if err != nil {
 			log.Errorf("reconnectWS error: %v", err)
-
 		}
 		if p.wsDcrdata != nil {
 			break

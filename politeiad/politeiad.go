@@ -520,7 +520,6 @@ func (p *politeia) updateReadme(w http.ResponseWriter, r *http.Request) {
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
-
 }
 
 func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {

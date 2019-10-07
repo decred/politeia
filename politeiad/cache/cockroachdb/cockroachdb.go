@@ -378,7 +378,6 @@ func (c *cockroachdb) UpdateRecordMetadata(token string, ms []cache.MetadataStre
 // records if getAllRecords is true, otherwise returns the ones specified by
 // tokens.
 func (c *cockroachdb) getRecords(getAllRecords bool, tokens []string, fetchFiles bool) ([]cache.Record, error) {
-
 	// This query gets the latest version of each record
 	query := `SELECT a.* FROM records a
 		LEFT OUTER JOIN records b

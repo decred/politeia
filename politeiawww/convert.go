@@ -799,7 +799,6 @@ func convertInvoiceFromCache(r cache.Record) cms.InvoiceRecord {
 }
 
 func convertDCCFromCache(r cache.Record) cms.DCCRecord {
-
 	dcc := cms.DCCRecord{}
 	// Decode metadata streams
 	var md backendDCCMetadata

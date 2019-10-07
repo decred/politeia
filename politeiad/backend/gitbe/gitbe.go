@@ -1789,7 +1789,6 @@ func (g *gitBackEnd) UpdateVettedMetadata(token []byte, mdAppend []backend.Metad
 // held, and must be wrapped with a function that puts the repo
 // into the proper state and unwinds it in case something goes wrong.
 func (g *gitBackEnd) _updateReadme(content string) error {
-
 	// Update readme file
 	filename := pijoin(g.unvetted, "README.md")
 	err := ioutil.WriteFile(filename, []byte(content), 0664)
@@ -1892,7 +1891,6 @@ func (g *gitBackEnd) getRecordLock(token []byte, version, repo string, includeFi
 //
 // This function must be called WITH the lock held.
 func (g *gitBackEnd) _getRecord(id, version, repo string, includeFiles bool) (*backend.Record, error) {
-
 	// Use latestVersion if version isn't specified
 	if version == "" {
 		latestVersion, err := getLatest(pijoin(repo, id))

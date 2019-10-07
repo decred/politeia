@@ -1251,7 +1251,6 @@ func (c *ctx) vote(seed int64, args []string) error {
 				v.Receipt.ClientSignature
 			failedReceipts = append(failedReceipts, v)
 		}
-
 	}
 	fmt.Printf("Votes succeeded: %v\n", len(c.ballotResults)-
 		len(failedReceipts))

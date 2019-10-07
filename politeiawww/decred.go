@@ -102,7 +102,6 @@ func (p *politeiawww) decredGetComments(token string) ([]decredplugin.Comment, e
 // decredGetBatchComments sends the decred plugin GetBachComments command to the
 // cache and returns all of the comments for each of the tokens passed in.
 func (p *politeiawww) decredGetNumComments(tokens []string) (map[string]int, error) {
-
 	// Setup plugin command
 	gnc := decredplugin.GetNumComments{
 		Tokens: tokens,
