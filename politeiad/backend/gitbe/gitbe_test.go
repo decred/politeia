@@ -556,5 +556,4 @@ func TestUpdateReadme(t *testing.T) {
 	if !strings.HasSuffix(branches[0], "master") {
 		t.Fatalf("The only branch in the vetted repo should be master")
 	}
-
 }

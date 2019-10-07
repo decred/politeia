@@ -137,7 +137,6 @@ func (c *testcache) decredExec(cmd, cmdPayload, replyPayload string) (string, er
 		return c.voteDetails(cmdPayload)
 	case decred.CmdBatchVoteSummary:
 		return c.batchVoteSummary(cmdPayload)
-
 	}
 
 	return "", cache.ErrInvalidPluginCmd

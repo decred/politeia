@@ -1471,7 +1471,6 @@ func (p *politeiawww) processPayInvoices(u *user.User) (*cms.PayInvoicesReply, e
 
 	reply := &cms.PayInvoicesReply{}
 	for _, inv := range dbInvs {
-
 		// Create the change record.
 		c := backendInvoiceStatusChange{
 			Version:        backendInvoiceStatusChangeVersion,

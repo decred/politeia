@@ -77,7 +77,6 @@ func (p *politeiawww) getMonthAverage(month time.Month, year int) (uint, error) 
 		if err != nil {
 			return 0, fmt.Errorf("getPricesBinance %v: %v", usdtSymbolBinance, err)
 		}
-
 	}
 	// Create a map of unix timestamps => average price
 	usdtDcrPrices := make(map[uint64]float64)
@@ -253,7 +252,6 @@ func (p *politeiawww) processInvoiceExchangeRate(ier cms.InvoiceExchangeRate) (c
 			if err != nil {
 				return reply, err
 			}
-
 		} else {
 			return reply, err
 		}

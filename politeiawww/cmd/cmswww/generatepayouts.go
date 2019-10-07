@@ -15,7 +15,6 @@ type GeneratePayoutsCmd struct {
 
 // Execute executes the generate payouts command.
 func (cmd *GeneratePayoutsCmd) Execute(args []string) error {
-
 	// Generate payouts
 	gpr, err := client.GeneratePayouts(
 		&v1.GeneratePayouts{})

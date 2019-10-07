@@ -370,7 +370,6 @@ func (cfg *Config) SaveLoggedInUsername(username string) error {
 	cfg.Identity = id
 
 	return nil
-
 }
 
 // cleanAndExpandPath expands environment variables and leading ~ in the passed

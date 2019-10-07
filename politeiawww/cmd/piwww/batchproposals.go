@@ -16,7 +16,6 @@ type BatchProposalsCmd struct{}
 
 // Execute executes the batch proposals command.
 func (cmd *BatchProposalsCmd) Execute(args []string) error {
-
 	// Get server's public key
 	vr, err := client.Version()
 	if err != nil {

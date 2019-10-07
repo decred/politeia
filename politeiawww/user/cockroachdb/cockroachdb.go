@@ -286,7 +286,6 @@ func (c *cockroachdb) UserGetByPubKey(pubKey string) (*user.User, error) {
 //
 // UsersGetByPubKey satisfies the Database interface.
 func (c *cockroachdb) UsersGetByPubKey(pubKeys []string) (map[string]user.User, error) {
-
 	log.Tracef("UserGetByPubKey: %v", pubKeys)
 
 	if c.isShutdown() {
@@ -298,11 +297,10 @@ func (c *cockroachdb) UsersGetByPubKey(pubKeys []string) (map[string]user.User, 
                 WHERE identities.public_key IN (?)`
 
 	rows, err := c.userDB.Raw(query, pubKeys).Rows()
-	defer rows.Close()
-
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
 	users := make(map[string]user.User)
 	pubKeyLookup := make(map[string]bool)
@@ -333,7 +331,6 @@ func (c *cockroachdb) UsersGetByPubKey(pubKeys []string) (map[string]user.User, 
 				users[pk] = *usr
 			}
 		}
-
 	}
 
 	return users, nil

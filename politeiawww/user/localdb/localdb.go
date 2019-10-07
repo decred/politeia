@@ -15,8 +15,9 @@ const (
 	UserdbPath              = "users"
 	LastPaywallAddressIndex = "lastpaywallindex"
 
-	UserVersion    uint32 = 1
-	UserVersionKey        = "userversion"
+	UserVersion uint32 = 1
+
+	UserVersionKey = "userversion"
 )
 
 var (
@@ -153,7 +154,7 @@ func (l *localdb) UserGetByUsername(username string) (*user.User, error) {
 			return nil, err
 		}
 
-		if strings.ToLower(u.Username) == strings.ToLower(username) {
+		if strings.EqualFold(u.Username, username) {
 			return u, err
 		}
 	}
@@ -212,7 +213,6 @@ func (l *localdb) UserGetByPubKey(pubKey string) (*user.User, error) {
 //
 // UsersGetByPubKey satisfies the Database interface.
 func (l *localdb) UsersGetByPubKey(pubKeys []string) (map[string]user.User, error) {
-
 	log.Tracef("UsersGetByPubKey: %v", pubKeys)
 
 	l.RLock()
