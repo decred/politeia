@@ -916,7 +916,6 @@ func (p *politeiawww) cacheVoteSummary(token string, voteSummary www.VoteSummary
 // getVoteSummaries fetches the voting summary information for a set of
 // proposals.
 func (p *politeiawww) getVoteSummaries(tokens []string, bestBlock uint64) (map[string]www.VoteSummary, error) {
-
 	voteSummaries := make(map[string]www.VoteSummary)
 	tokensToLookup := make([]string, 0, len(tokens))
 
@@ -958,6 +957,7 @@ func (p *politeiawww) getVoteSummaries(tokens []string, bestBlock uint64) (map[s
 		vs := www.VoteSummary{
 			Status:           voteStatusFromVoteSummary(summary, bestBlock),
 			EligibleTickets:  uint32(summary.EligibleTicketCount),
+			Duration:         summary.Duration,
 			EndHeight:        endHeight,
 			QuorumPercentage: summary.QuorumPercentage,
 			PassPercentage:   summary.PassPercentage,
@@ -972,14 +972,13 @@ func (p *politeiawww) getVoteSummaries(tokens []string, bestBlock uint64) (map[s
 		if vs.Status == www.PropVoteStatusFinished {
 			p.cacheVoteSummary(token, vs)
 		}
-
 	}
 
 	return voteSummaries, nil
 }
 
-// processBatchVoteSummary the voting summary information for a set of
-// proposals.
+// processBatchVoteSummary returns the vote summaries for the provided list
+// of proposals.
 func (p *politeiawww) processBatchVoteSummary(batchVoteSummary www.BatchVoteSummary) (*www.BatchVoteSummaryReply, error) {
 	log.Tracef("processBatchVoteSummary")
 
@@ -1033,7 +1032,6 @@ func (p *politeiawww) processBatchVoteSummary(batchVoteSummary www.BatchVoteSumm
 // cache and returns them. The returned proposals do not include the
 // proposal files.
 func (p *politeiawww) processBatchProposals(batchProposals www.BatchProposals, user *user.User) (*www.BatchProposalsReply, error) {
-
 	log.Tracef("processBatchProposals")
 
 	if len(batchProposals.Tokens) > www.ProposalListPageSize {

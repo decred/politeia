@@ -384,11 +384,13 @@ type CensorshipRecord struct {
 	Signature string `json:"signature"` // Server side signature of []byte(Merkle+Token)
 }
 
-// VoteSummary contains information about the state of the voting process
-// related to a proposal.
+// VoteSummary contains a summary of the vote information for a specific
+// proposal. It is a light weight version of the VoteResultsReply that is used
+// when the full ticket snapshot or the full cast vote data is not needed.
 type VoteSummary struct {
 	Status           PropVoteStatusT    `json:"status"`                     // Vote status
 	EligibleTickets  uint32             `json:"eligibletickets,omitempty"`  // Number of eligible tickets
+	Duration         uint32             `json:"duration,omitempty"`         // Duration of vote
 	EndHeight        uint64             `json:"endheight,omitempty"`        // Vote end height
 	QuorumPercentage uint32             `json:"quorumpercentage,omitempty"` // Percent of eligible votes required for quorum
 	PassPercentage   uint32             `json:"passpercentage,omitempty"`   // Percent of total votes required to pass
@@ -755,10 +757,11 @@ type ProposalDetailsReply struct {
 	Proposal ProposalRecord `json:"proposal"`
 }
 
-// BatchProposals is used to request the details of multiple proposals. The
-// returned proposals do not include the proposal files.
+// BatchProposals is used to request the proposal details for each of the
+// provided censorship tokens. The returned proposals do not include the
+// proposal files.
 type BatchProposals struct {
-	Tokens []string `json:"tokens"`
+	Tokens []string `json:"tokens"` // Censorship tokens
 }
 
 // BatchProposalsReply is used to reply to a BatchProposals command.
@@ -766,16 +769,16 @@ type BatchProposalsReply struct {
 	Proposals []ProposalRecord `json:"proposals"`
 }
 
-// BatchVoteSummary is used to request the voting summary of multiple
-// proposals.
+// BatchVoteSummary is used to request the VoteSummary for the each of the
+// provided censorship tokens.
 type BatchVoteSummary struct {
-	Tokens []string `json:"tokens"`
+	Tokens []string `json:"tokens"` // Censorship tokens
 }
 
 // BatchVoteSummaryReply is used to reply to a BatchVoteSummary command.
 type BatchVoteSummaryReply struct {
-	BestBlock uint64                 `json:"bestblock"`
-	Summaries map[string]VoteSummary `json:"summaries"`
+	BestBlock uint64                 `json:"bestblock"` // Current block height
+	Summaries map[string]VoteSummary `json:"summaries"` // [token]VoteSummary
 }
 
 // SetProposalStatus is used to publish or censor an unreviewed proposal.

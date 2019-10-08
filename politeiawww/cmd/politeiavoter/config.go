@@ -26,6 +26,7 @@ const (
 	defaultConfigFilename = "politeiavoter.conf"
 	defaultLogLevel       = "info"
 	defaultLogDirname     = "logs"
+	defaultVoteDirname    = "vote"
 	defaultLogFilename    = "politeiavoter.log"
 	defaultWalletHost     = "127.0.0.1"
 
@@ -37,6 +38,7 @@ var (
 	defaultHomeDir        = dcrutil.AppDataDir("politeiavoter", false)
 	defaultConfigFile     = filepath.Join(defaultHomeDir, defaultConfigFilename)
 	defaultLogDir         = filepath.Join(defaultHomeDir, defaultLogDirname)
+	defaultVoteDir        = filepath.Join(defaultHomeDir, defaultVoteDirname)
 	dcrwalletHomeDir      = dcrutil.AppDataDir("dcrwallet", false)
 	defaultWalletCertFile = filepath.Join(dcrwalletHomeDir, "rpc.cert")
 )
@@ -67,11 +69,14 @@ type config struct {
 	Proxy            string `long:"proxy" description:"Connect via SOCKS5 proxy (eg. 127.0.0.1:9050)"`
 	ProxyUser        string `long:"proxyuser" description:"Username for proxy server"`
 	ProxyPass        string `long:"proxypass" default-mask:"-" description:"Password for proxy server"`
-	VoteDuration     string `long:"voteduration" description:"Duration to cast all votes in hours, minutes and seconds e.g. 5h10m30s (default 0s)"`
+	VoteDuration     string `long:"voteduration" description:"Duration to cast all votes in hours and minutes e.g. 5h10m (default 0s means autodetect duration)"`
+	Trickle          bool   `long:"trickle" description:"Enable vote trickling, requires --proxy."`
 	SkipVerify       bool   `long:"skipverify" description:"Skip verifying the server's certifcate chain and host name."`
 
+	voteDir      string
 	dial         func(string, string) (net.Conn, error)
 	voteDuration time.Duration // Parsed VoteDuration
+	blocksPerDay uint64
 }
 
 // serviceOptions defines the configuration options for the daemon as a service
@@ -206,6 +211,7 @@ func loadConfig() (*config, []string, error) {
 		ConfigFile: defaultConfigFile,
 		DebugLevel: defaultLogLevel,
 		LogDir:     defaultLogDir,
+		voteDir:    defaultVoteDir,
 		Version:    version.String(),
 	}
 
@@ -267,6 +273,11 @@ func loadConfig() (*config, []string, error) {
 		} else {
 			cfg.LogDir = preCfg.LogDir
 		}
+		if preCfg.voteDir == defaultVoteDir {
+			cfg.voteDir = filepath.Join(cfg.HomeDir, defaultVoteDirname)
+		} else {
+			cfg.voteDir = preCfg.voteDir
+		}
 	}
 
 	// Load additional config from file.
@@ -294,7 +305,7 @@ func loadConfig() (*config, []string, error) {
 
 	// Create the home directory if it doesn't already exist.
 	funcName := "loadConfig"
-	err = os.MkdirAll(defaultHomeDir, 0700)
+	err = os.MkdirAll(cfg.HomeDir, 0700)
 	if err != nil {
 		// Show a nicer error message if it's because a symlink is
 		// linked to a directory that does not exist (probably because
@@ -312,12 +323,36 @@ func loadConfig() (*config, []string, error) {
 		return nil, nil, err
 	}
 
+	// Create vote directory if it doesn't already exist.
+	err = os.MkdirAll(cfg.voteDir, 0700)
+	if err != nil {
+		// Show a nicer error message if it's because a symlink is
+		// linked to a directory that does not exist (probably because
+		// it's not mounted).
+		if e, ok := err.(*os.PathError); ok && os.IsExist(err) {
+			if link, lerr := os.Readlink(e.Path); lerr == nil {
+				str := "is symlink %s -> %s mounted?"
+				err = fmt.Errorf(str, e.Path, link)
+			}
+		}
+
+		str := "%s: Failed to create vote directory: %v"
+		err := fmt.Errorf(str, funcName, err)
+		fmt.Fprintln(os.Stderr, err)
+		return nil, nil, err
+	}
+
 	// Count number of network flags passed; assign active network params
 	// while we're at it
 	activeNetParams = &mainNetParams
 	if cfg.TestNet {
 		activeNetParams = &testNet3Params
 	}
+
+	// Calculate blocks per day
+	cfg.blocksPerDay = uint64(24 * time.Hour /
+		activeNetParams.TargetTimePerBlock)
+
 	// Determine default connections
 	if cfg.PoliteiaWWW == "" {
 		if activeNetParams.Name == "mainnet" {
@@ -404,6 +439,11 @@ func loadConfig() (*config, []string, error) {
 		cfg.dial = proxy.Dial
 	}
 
+	// VoteDuration can only be set with trickle enable.
+	if cfg.VoteDuration != "" && !cfg.Trickle {
+		return nil, nil, fmt.Errorf("must use --trickle when " +
+			"--voteduration is set")
+	}
 	// Duration of the vote.
 	if cfg.VoteDuration != "" {
 		// Verify we can parse the duration
@@ -415,9 +455,9 @@ func loadConfig() (*config, []string, error) {
 	}
 
 	if !cfg.BypassProxyCheck {
-		if cfg.VoteDuration != "" && cfg.Proxy == "" {
+		if cfg.Trickle && cfg.Proxy == "" {
 			return nil, nil, fmt.Errorf("cannot use --voteduration " +
-				"without --proxy")
+				"without --trickle")
 		}
 	}
 

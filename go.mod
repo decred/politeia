@@ -76,3 +76,5 @@ require (
 	google.golang.org/grpc v1.22.0
 	sigs.k8s.io/yaml v1.1.0 // indirect
 )
+
+replace github.com/asdine/storm => github.com/asdine/storm v2.1.2+incompatible

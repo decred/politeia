@@ -52,7 +52,6 @@ type NewDCCCmd struct {
 
 // Execute executes the new dcc command.
 func (cmd *NewDCCCmd) Execute(args []string) error {
-
 	// Check for a valid DCC type
 	if int(cmd.Args.Type) <= 0 || int(cmd.Args.Type) > 2 {
 		return errInvalidDCCType

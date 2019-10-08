@@ -421,6 +421,7 @@ type VoteOptionResult struct {
 // voting period parameters as well as a summary of the vote results.
 type VoteSummaryReply struct {
 	Authorized          bool               `json:"authorized"`          // Vote is authorized
+	Duration            uint32             `json:"duration"`            // Vote duration
 	EndHeight           string             `json:"endheight"`           // End block height
 	EligibleTicketCount int                `json:"eligibleticketcount"` // Number of eligible tickets
 	QuorumPercentage    uint32             `json:"quorumpercentage"`    // Percent of eligible votes required for quorum

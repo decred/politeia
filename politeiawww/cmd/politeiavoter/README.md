@@ -110,14 +110,25 @@ tickets.  While this information is NOT visible externally the more privacy
 conscience user may want to spread voting out over time and using tor to mask
 IP address.
 
-```politeiavoter``` has two settings to enable that behavior. First there is
-the ```--proxy``` setting to make ```politeiavoter``` use a Tor proxy. The
-second setting is ```--voteduration``` that sets the maximum duration to
+```politeiavoter``` has three settings to control this behavior. First there is
+the ```--proxy``` setting to make ```politeiavoter``` use a Tor proxy. This
+setting is *REQUIRED* since it makes no sense to trickle votes from the same
+IP.  The second setting is ```--trickle```. Tha setting must be set to enable
+trickling.
+
+The third setting is ```--voteduration``` that sets the maximum duration to
 trickle out votes. Valid modifiers are h for hours, m for minutes and s for
-seconds (e.g. 3h18m15s). This value should be picked in the 2 to 5 minute per
-vote range.
+seconds (e.g. 3h18m15s). If this setting is NOT set than ```politeiavoter```
+will try to smear it out over the remaining vote duration minus one day. If it
+can't autodetect a proper duration it will error out so that the user can
+provide one.
 
 E.g. running Tor software on the local machine with 10 votes:
 ```
-politeiavoter --proxy=127.0.0.1:9050 --voteduration=30m vote 8bdebbc55ae74066cc57c76bc574fd1517111e56b3d1295bde5ba3b0bd7c3f67 yes
+politeiavoter --proxy=127.0.0.1:9050 --trickle --voteduration=30m vote 8bdebbc55ae74066cc57c76bc574fd1517111e56b3d1295bde5ba3b0bd7c3f67 yes
+```
+
+Running Tor software on the local machine with 10 votes and autodetect duration:
+```
+politeiavoter --proxy=127.0.0.1:9050 --trickle vote 8bdebbc55ae74066cc57c76bc574fd1517111e56b3d1295bde5ba3b0bd7c3f67 yes
 ```
