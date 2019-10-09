@@ -538,8 +538,7 @@ func _main() error {
 		p.checkInvoiceNotifications()
 
 		// Setup address watcher
-		subscriptions := make(map[string]struct{})
-		ws, err := newWSDcrdata(subscriptions)
+		ws, err := newWSDcrdata()
 		if err != nil {
 			return fmt.Errorf("new wsDcrdata: %v", err)
 		}
