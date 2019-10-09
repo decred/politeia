@@ -21,7 +21,7 @@ server side notifications.  It does not render HTML.
 - [`Invoice exchange rate`](#invoice-exchange-rate)
 - [`Pay invoices`](#pay-invoices)
 - [`Line item payouts`](#line-item-payouts)
-- [`User Sub-Contractors`](#user-sub-contractors)
+- [`User sub-contractors`](#user-sub-contractors)
 
 **Invoice status codes**
 

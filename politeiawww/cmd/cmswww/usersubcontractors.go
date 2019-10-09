@@ -11,7 +11,6 @@ import (
 
 // UserSubContractorsCmd gets the subcontractors for the logged in user.
 type UserSubContractorsCmd struct {
-	Args struct{}
 }
 
 // Execute executes the user subcontractors command.

@@ -224,12 +224,14 @@ type CMSUserSubContractors struct {
 	ID string `json:"id"` // Contractor user id
 }
 
-// EncodeCMSUserSubContractors encodes a CMSUserSubContractors into a JSON byte slice.
+// EncodeCMSUserSubContractors encodes a CMSUserSubContractors into a JSON byte
+// slice.
 func EncodeCMSUserSubContractors(u CMSUserSubContractors) ([]byte, error) {
 	return json.Marshal(u)
 }
 
-// DecodeCMSUserSubContractors decodes JSON byte slice into a CMSUserSubContractors.
+// DecodeCMSUserSubContractors decodes JSON byte slice into a
+// CMSUserSubContractors.
 func DecodeCMSUserSubContractors(b []byte) (*CMSUserSubContractors, error) {
 	var u CMSUserSubContractors
 
@@ -241,13 +243,14 @@ func DecodeCMSUserSubContractors(b []byte) (*CMSUserSubContractors, error) {
 	return &u, nil
 }
 
-// CMSUserSubContractorsReply is the reply to the CMSUserSubContractors command.
+// CMSUserSubContractorsReply is the reply to the CMSUserSubContractors
+// command.
 type CMSUserSubContractorsReply struct {
 	Users []CMSUser `json:"users"`
 }
 
-// EncodeCMSUserSubContractorsReply encodes a CMSUserSubContractorsReply into a JSON
-// byte slice.
+// EncodeCMSUserSubContractorsReply encodes a CMSUserSubContractorsReply into a
+// JSON byte slice.
 func EncodeCMSUserSubContractorsReply(u CMSUserSubContractorsReply) ([]byte, error) {
 	return json.Marshal(u)
 }
