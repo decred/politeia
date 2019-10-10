@@ -352,8 +352,24 @@ func (p *politeiawww) processManageCMSUser(mu cms.ManageUser) (*cms.ManageUserRe
 		uu.ContractorType = int(mu.ContractorType)
 	}
 	if mu.SupervisorUserID != "" {
+		// Validate SupervisorUserID input
+		supUserIDs := strings.Split(mu.SupervisorUserID, ",")
+		for _, super := range supUserIDs {
+			u, err := p.getCMSUserByID(super)
+			if err != nil {
+				return nil, www.UserError{
+					ErrorCode: cms.ErrorStatusInvalidSupervisorUser,
+				}
+			}
+			if u.ContractorType != cms.ContractorTypeSupervisor {
+				return nil, www.UserError{
+					ErrorCode: cms.ErrorStatusInvalidSupervisorUser,
+				}
+			}
+		}
 		uu.SupervisorUserID = mu.SupervisorUserID
 	}
+
 	payload, err := user.EncodeUpdateCMSUser(uu)
 	if err != nil {
 		return nil, err

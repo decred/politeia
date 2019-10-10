@@ -202,6 +202,7 @@ const (
 	ErrorStatusInvalidTypeSubHoursLineItem    www.ErrorStatusT = 1047
 	ErrorStatusMissingSubUserIDLineItem       www.ErrorStatusT = 1048
 	ErrorStatusInvalidSubUserIDLineItem       www.ErrorStatusT = 1049
+	ErrorStatusInvalidSupervisorUser          www.ErrorStatusT = 1050
 )
 
 var (
@@ -283,6 +284,7 @@ var (
 		ErrorStatusInvalidTypeSubHoursLineItem:    "must be a Supervisor Contractor to submit a subcontractor hours line item",
 		ErrorStatusMissingSubUserIDLineItem:       "must supply a userid for a subcontractor hours line item",
 		ErrorStatusInvalidSubUserIDLineItem:       "the userid supplied for the subcontractor hours line item is invalid",
+		ErrorStatusInvalidSupervisorUser:          "attempted input of an invalid supervisor user id",
 	}
 )
 
