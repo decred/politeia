@@ -274,13 +274,21 @@ func (c *cockroachdb) cmdCMSUserSubContractors(payload string) (string, error) {
 		return "", err
 	}
 	var cmsUsers []CMSUser
-	err = c.userDB.
-		Where("supervisor_user_id = ?", p.ID).
-		Preload("User").
-		Find(&cmsUsers).
-		Error
+	query := `SELECT * FROM cms_users WHERE ? = ANY(string_to_array(supervisor_user_id, ','));`
+
+	rows, err := c.userDB.Raw(query, p.ID).Rows()
 	if err != nil {
 		return "", err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var u CMSUser
+		err := c.userDB.ScanRows(rows, &u)
+		if err != nil {
+			return "", err
+		}
+		cmsUsers = append(cmsUsers, u)
 	}
 
 	// Prepare reply

@@ -30,6 +30,18 @@ type CMSUser struct {
 	SupervisorUserID   string `json:"supervisoruserid"`
 }
 
+// DecodeCMSUser decodes a JSON byte slice into a CMSUser.
+func DecodeCMSUser(payload []byte) (*CMSUser, error) {
+	var u CMSUser
+
+	err := json.Unmarshal(payload, &u)
+	if err != nil {
+		return nil, err
+	}
+
+	return &u, nil
+}
+
 // NewCMSUser creates a new CMS user record in the user database.
 type NewCMSUser struct {
 	Email                     string `json:"email"`
