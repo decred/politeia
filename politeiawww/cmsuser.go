@@ -353,7 +353,7 @@ func (p *politeiawww) processManageCMSUser(mu cms.ManageUser) (*cms.ManageUserRe
 	}
 	if mu.SupervisorUserID != "" {
 		// Validate SupervisorUserID input
-		supUserIDs := strings.Split(mu.SupervisorUserID, ",")
+		supUserIDs := strings.Split(mu.SupervisorUserID, string(cms.PolicySupervisorUserIDSeperator))
 		for _, super := range supUserIDs {
 			u, err := p.getCMSUserByID(super)
 			if err != nil {

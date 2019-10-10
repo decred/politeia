@@ -3,6 +3,7 @@ package cockroachdb
 import (
 	"fmt"
 
+	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/jinzhu/gorm"
 )
@@ -279,7 +280,8 @@ func (c *cockroachdb) cmdCMSUserSubContractors(payload string) (string, error) {
 	// parse the following:
 	// Where("? = ANY(string_to_array(supervisor_user_id, ','))", p.ID)
 	err = c.userDB.
-		Where("'" + p.ID + "' = ANY(string_to_array(supervisor_user_id, ','))").
+		Where("'" + p.ID + "' = ANY(string_to_array(supervisor_user_id, '" +
+			string(cms.PolicySupervisorUserIDSeperator) + "'))").
 		Preload("User").
 		Find(&cmsUsers).
 		Error

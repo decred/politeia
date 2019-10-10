@@ -134,6 +134,10 @@ const (
 	// values for each line item in the CSV.
 	PolicyInvoiceFieldDelimiterChar rune = ','
 
+	// PolicySupervisorUserIDSeperator is the character that seperates
+	// multiple SupervisorUserIDs for a given cms user.
+	PolicySupervisorUserIDSeperator rune = ','
+
 	// PolicyInvoiceLineItemCount is the number of expected fields in the raw
 	// csv line items
 	PolicyInvoiceLineItemCount = 8
