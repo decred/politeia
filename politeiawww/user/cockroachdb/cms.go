@@ -274,23 +274,18 @@ func (c *cockroachdb) cmdCMSUserSubContractors(payload string) (string, error) {
 		return "", err
 	}
 	var cmsUsers []CMSUser
-	query := `SELECT * FROM cms_users WHERE ? = ANY(string_to_array(supervisor_user_id, ','));`
 
-	rows, err := c.userDB.Raw(query, p.ID).Rows()
+	// This is done this way currently because GORM doesn't appear to properly
+	// parse the following:
+	// Where("? = ANY(string_to_array(supervisor_user_id, ','))", p.ID)
+	err = c.userDB.
+		Where("'" + p.ID + "' = ANY(string_to_array(supervisor_user_id, ','))").
+		Preload("User").
+		Find(&cmsUsers).
+		Error
 	if err != nil {
 		return "", err
 	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var u CMSUser
-		err := c.userDB.ScanRows(rows, &u)
-		if err != nil {
-			return "", err
-		}
-		cmsUsers = append(cmsUsers, u)
-	}
-
 	// Prepare reply
 	subUsers := make([]user.CMSUser, 0, len(cmsUsers))
 	for _, u := range cmsUsers {
