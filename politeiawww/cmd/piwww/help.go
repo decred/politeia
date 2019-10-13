@@ -19,7 +19,6 @@ type HelpCmd struct {
 
 // Execute executes the help command.
 func (cmd *HelpCmd) Execute(args []string) error {
-
 	if cmd.Args.Topic == "" {
 		return fmt.Errorf("Specify a command to print a detailed help " +
 			"message for.  Example: piwww help login")

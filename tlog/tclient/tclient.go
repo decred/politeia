@@ -151,7 +151,6 @@ func printRoot(root trillian.SignedLogRoot) {
 	fmt.Printf("KeyHint         : %x\n", root.KeyHint)
 	fmt.Printf("LogRoot         : %x\n", root.LogRoot)
 	fmt.Printf("LogRootSignature: %x\n", root.LogRootSignature)
-
 }
 
 func printLogRootV1(l types.LogRootV1) {

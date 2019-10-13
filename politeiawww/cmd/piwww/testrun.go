@@ -1089,6 +1089,9 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	bpr, err := client.BatchProposals(&v1.BatchProposals{
 		Tokens: tir.Unreviewed[:v1.ProposalListPageSize],
 	})
+	if err != nil {
+		return err
+	}
 
 	fmt.Printf("  Making unvetted proposals public\n")
 	for _, v := range bpr.Proposals {

@@ -2205,7 +2205,6 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 			br.Receipts[k].Error = fmt.Sprintf("%v: %v",
 				decredplugin.ErrorStatus[e], t)
 			continue
-
 		}
 
 		// Verify that vote is signed correctly

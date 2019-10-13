@@ -352,7 +352,6 @@ func (p *politeiawww) validateDCC(nd cms.NewDCC, u *user.User) error {
 		return www.UserError{
 			ErrorCode: cms.ErrorStatusInvalidDCCContractorType,
 		}
-
 	}
 	// Append digest to array for merkle root calculation
 	digest := util.Digest(data)

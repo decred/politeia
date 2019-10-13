@@ -6,13 +6,13 @@ package main
 
 import (
 	"bytes"
+	"container/list"
 	"context"
 	crand "crypto/rand"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"math/big"
@@ -21,16 +21,22 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"os"
+	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
+	"syscall"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/blockchain/stake"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrec/secp256k1"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/wire"
 	pb "github.com/decred/dcrwallet/rpc/walletrpc"
+	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
@@ -139,18 +145,49 @@ func verifyMessage(address, message, signature string) (bool, error) {
 	return a.EncodeAddress() == address, nil
 }
 
+// BallotResult is a tupple of the ticket and receipt. We combine the too
+// because CastVoteReply does not contain the ticket address.
+type BallotResult struct {
+	Ticket  string           `json:"ticket"`  // ticket address
+	Receipt v1.CastVoteReply `json:"receipt"` // result of vote
+}
+
+// ctx is the client context.
 type ctx struct {
+	sync.RWMutex                      // retryQ lock
+	retryQ             *list.List     // retry message queue FIFO
+	retryWG            sync.WaitGroup // Wait for retry loop to exit
+	mainLoopDone       chan struct{}  // message when done
+	mainLoopForceExit  chan struct{}  // message when main loop forces an exit
+	retryLoopForceExit chan struct{}  // message when retry loop forces an exit
+	ballotResults      []BallotResult // results of voting
+	voteIntervalQ      *list.List     // work that has to be completed
+
+	run time.Time // when this run started
+
+	cfg *config // application config
+
+	// https
 	client    *http.Client
-	cfg       *config
 	id        *identity.PublicIdentity
 	csrf      string
 	userAgent string
 
 	// wallet grpc
-	ctx    context.Context
+	wctx   context.Context
 	creds  credentials.TransportCredentials
 	conn   *grpc.ClientConn
 	wallet pb.WalletServiceClient
+}
+
+// voteInterval is an internal structure that is used to precalculate all
+// timing intervals and vote details. This is a JSON structure for logging
+// purposes.
+type voteInterval struct {
+	Vote  v1.CastVote   `json:"vote"`  // RPC vote
+	Votes int           `json:"votes"` // Always 1 for now
+	Total time.Duration `json:"total"` // Cumulative time
+	At    time.Duration `json:"at"`    // Delay to fire off vote
 }
 
 func newClient(cfg *config) (*ctx, error) {
@@ -186,17 +223,56 @@ func newClient(cfg *config) (*ctx, error) {
 
 	// return context
 	return &ctx{
-		ctx:    context.Background(),
-		creds:  creds,
-		conn:   conn,
-		wallet: wallet,
-		cfg:    cfg,
+		run:                time.Now(),
+		retryQ:             new(list.List),
+		voteIntervalQ:      new(list.List),
+		mainLoopDone:       make(chan struct{}),
+		mainLoopForceExit:  make(chan struct{}),
+		retryLoopForceExit: make(chan struct{}),
+		wctx:               context.Background(),
+		creds:              creds,
+		conn:               conn,
+		wallet:             wallet,
+		cfg:                cfg,
 		client: &http.Client{
 			Transport: tr,
 			Jar:       jar,
 		},
 		userAgent: fmt.Sprintf("politeiavoter/%s", cfg.Version),
 	}, nil
+}
+
+type JSONTime struct {
+	Time string `json:"time"`
+}
+
+func (c *ctx) jsonLog(filename, token string, work ...interface{}) error {
+	dir := filepath.Join(c.cfg.voteDir, token)
+	os.MkdirAll(dir, 0700)
+
+	f := filepath.Join(dir, fmt.Sprintf("%v.%v", filename, c.run.Unix()))
+	fh, err := os.OpenFile(f, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
+	if err != nil {
+		return err
+	}
+	defer fh.Close()
+
+	e := json.NewEncoder(fh)
+	e.SetIndent("", "  ")
+	err = e.Encode(JSONTime{
+		Time: time.Now().Format(time.StampNano),
+	})
+	if err != nil {
+		return err
+	}
+	for _, v := range work {
+		err = e.Encode(v)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (c *ctx) getCSRF() (*v1.VersionReply, error) {
@@ -315,11 +391,11 @@ func (c *ctx) makeRequest(method, route string, b interface{}) ([]byte, error) {
 	req.Header.Set("User-Agent", c.userAgent)
 	req.Header.Add(v1.CsrfToken, c.csrf)
 	r, err := c.client.Do(req)
-	if _, ok := err.(*url.Error); ok {
-		return nil, errRetry
-	}
 	if err != nil {
-		return nil, err
+		return nil, ErrRetry{
+			At:  "c.client.Do(req)",
+			Err: err,
+		}
 	}
 	defer func() {
 		r.Body.Close()
@@ -327,9 +403,7 @@ func (c *ctx) makeRequest(method, route string, b interface{}) ([]byte, error) {
 
 	responseBody := util.ConvertBodyToByteArray(r.Body, false)
 	log.Tracef("Response: %v %v", r.StatusCode, string(responseBody))
-	if r.StatusCode == http.StatusGatewayTimeout {
-		return nil, errRetry
-	}
+
 	if r.StatusCode != http.StatusOK {
 		var ue v1.UserError
 		err = json.Unmarshal(responseBody, &ue)
@@ -339,7 +413,84 @@ func (c *ctx) makeRequest(method, route string, b interface{}) ([]byte, error) {
 				strings.Join(ue.ErrorContext, ", "))
 		}
 
-		return nil, fmt.Errorf("%v", r.StatusCode)
+		return nil, ErrRetry{
+			At:   "r.StatusCode != http.StatusOK",
+			Err:  err,
+			Body: responseBody,
+			Code: r.StatusCode,
+		}
+	}
+
+	return responseBody, nil
+}
+
+func (c *ctx) makeRequestFail(method, route string, b interface{}) ([]byte, error) {
+	var requestBody []byte
+	var queryParams string
+	if b != nil {
+		if method == http.MethodGet {
+			// GET requests don't have a request body; instead we will populate
+			// the query params.
+			form := url.Values{}
+			err := schema.NewEncoder().Encode(b, form)
+			if err != nil {
+				return nil, err
+			}
+
+			queryParams = "?" + form.Encode()
+		} else {
+			var err error
+			requestBody, err = json.Marshal(b)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	fullRoute := c.cfg.PoliteiaWWW + v1.PoliteiaWWWAPIRoute + route +
+		queryParams
+	log.Debugf("Request: %v %v", method, fullRoute)
+	if len(requestBody) != 0 {
+		log.Tracef("%v  ", string(requestBody))
+	}
+
+	req, err := http.NewRequest(method, fullRoute, bytes.NewReader(requestBody))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("User-Agent", c.userAgent)
+	req.Header.Add(v1.CsrfToken, c.csrf)
+	r, err := c.client.Do(req)
+	if err != nil {
+		return nil, ErrRetry{
+			At:  "c.client.Do(req)",
+			Err: err,
+		}
+	}
+	defer func() {
+		r.Body.Close()
+	}()
+
+	responseBody := util.ConvertBodyToByteArray(r.Body, false)
+	log.Tracef("Response: %v %v", r.StatusCode, string(responseBody))
+
+	r.StatusCode = http.StatusInternalServerError
+	if r.StatusCode != http.StatusOK {
+		var ue v1.UserError
+		err = json.Unmarshal(responseBody, &ue)
+		if err == nil && ue.ErrorCode != 0 {
+			return nil, fmt.Errorf("%v, %v %v", r.StatusCode,
+				v1.ErrorStatus[ue.ErrorCode],
+				strings.Join(ue.ErrorContext, ", "))
+		}
+
+		return nil, ErrRetry{
+			At:   "r.StatusCode != http.StatusOK",
+			Err:  err,
+			Body: responseBody,
+			Code: r.StatusCode,
+		}
 	}
 
 	return responseBody, nil
@@ -437,7 +588,7 @@ func (c *ctx) inventory() error {
 	}
 
 	// Get latest block
-	ar, err := c.wallet.Accounts(c.ctx, &pb.AccountsRequest{})
+	ar, err := c.wallet.Accounts(c.wctx, &pb.AccountsRequest{})
 	if err != nil {
 		return err
 	}
@@ -480,7 +631,7 @@ func (c *ctx) inventory() error {
 				v.StartVote.Vote.Token, err)
 			continue
 		}
-		ctres, err := c.wallet.CommittedTickets(c.ctx,
+		ctres, err := c.wallet.CommittedTickets(c.wctx,
 			&pb.CommittedTicketsRequest{
 				Tickets: tix,
 			})
@@ -539,15 +690,25 @@ func (c *ctx) inventory() error {
 	return nil
 }
 
-var (
-	errRetry  = errors.New("retry")
-	errIgnore = errors.New("ignore")
-)
+type ErrRetry struct {
+	At   string `json:"at"`   // where in the code
+	Body []byte `json:"body"` // http body if we have one
+	Code int    `json:"code"` // http code
+	Err  error  `json:"err"`  // underlying error
+}
 
-// sendVote expects a single vote inside the Ballot structure. It sends the
-// vote off and returns the CastVoteReply for the single vote that came in.
-// Function can return errRetry or errIgnore such that the caller knows if the
-// command should be retried or ignored.
+func (e ErrRetry) Error() string {
+	return fmt.Sprintf("retry error: %v (%v) %v", e.Code, e.At, e.Err)
+}
+
+// sendVoteFail isa test function that will fail a Ballot call with a retryable
+// error.
+func (c *ctx) sendVoteFail(ballot *v1.Ballot) (*v1.CastVoteReply, error) {
+	return nil, ErrRetry{
+		At: "sendVoteFail",
+	}
+}
+
 func (c *ctx) sendVote(ballot *v1.Ballot) (*v1.CastVoteReply, error) {
 	if len(ballot.Votes) != 1 {
 		return nil, fmt.Errorf("sendVote: only one vote allowed")
@@ -572,18 +733,70 @@ func (c *ctx) sendVote(ballot *v1.Ballot) (*v1.CastVoteReply, error) {
 	return &vr.Receipts[0], nil
 }
 
-// _voteTrickler trickles votes to the server. The idea here is to not issue
-// large number of votes in one go to the server at the same time giving away
-// which IP address owns what votes.
-func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsResponse, smr *pb.SignMessagesResponse) ([]string, *v1.BallotReply, error) {
-	// voteInterval is an internal structure that is used to precalculate
-	// all timing intervals and vote details.
-	type voteInterval struct {
-		vote  v1.CastVote   // RPC vote
-		votes int           // Always 1 for now
-		total time.Duration // Cumulative time
-		at    time.Duration // Delay to fire off vote
+// dumpComplete dumps the completed votes in this run.
+func (c *ctx) dumpComplete() {
+	c.RLock()
+	defer c.RUnlock()
+
+	fmt.Printf("Completed votes (%v):\n", len(c.ballotResults))
+	for _, v := range c.ballotResults {
+		fmt.Printf("  %v %v\n", v.Ticket, v.Receipt.Error)
 	}
+}
+
+// dumpTogo dumps the votes that have not been casrt yet.
+func (c *ctx) dumpTogo() {
+	c.RLock()
+	defer c.RUnlock()
+
+	fmt.Printf("Votes queued (%v):\n", c.voteIntervalQ.Len())
+	for e := c.voteIntervalQ.Front(); e != nil; e = e.Next() {
+		r := e.Value.(*voteInterval)
+		fmt.Printf("  %v %v\n", r.Vote.Ticket, r.At)
+	}
+}
+
+// signalHandler catches SIGUSR1 and dumps the current state of the vote
+// trickler.
+func (c *ctx) signalHandler(signals chan os.Signal, done chan struct{}) {
+	for {
+		select {
+		case <-signals:
+			fmt.Printf("----- politeiavoter status -----\n")
+			c.dumpTogo()
+			c.dumpComplete()
+			c.dumpQueue()
+		case <-done:
+			return
+		}
+	}
+}
+
+func (c *ctx) voteIntervalPush(v *voteInterval) {
+	c.Lock()
+	defer c.Unlock()
+	c.voteIntervalQ.PushBack(v)
+}
+
+func (c *ctx) voteIntervalPop() *voteInterval {
+	c.Lock()
+	defer c.Unlock()
+
+	e := c.voteIntervalQ.Front()
+	if e == nil {
+		return nil
+	}
+	return c.voteIntervalQ.Remove(e).(*voteInterval)
+}
+
+func (c *ctx) voteIntervalLen() uint64 {
+	c.RLock()
+	defer c.RUnlock()
+	return uint64(c.voteIntervalQ.Len())
+}
+
+// calculateTrickle calculates the trickle schedule.
+func (c *ctx) calculateTrickle(token, voteBit string, ctres *pb.CommittedTicketsResponse, smr *pb.SignMessagesResponse) error {
 	votes := uint64(len(ctres.TicketAddresses))
 	duration := c.cfg.voteDuration
 	maxDelay := uint64(duration.Seconds() / float64(votes) * 2)
@@ -595,7 +808,7 @@ func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsRes
 	// Ensure that the duration allows for sufficiently randomized delays
 	// in between votes
 	if duration.Seconds() < float64(minAvgInterval)*float64(votes) {
-		return nil, nil, fmt.Errorf("Vote duration must be at least %v",
+		return fmt.Errorf("Vote duration must be at least %v",
 			time.Duration(float64(minAvgInterval)*float64(votes))*time.Second)
 	}
 
@@ -604,7 +817,7 @@ func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsRes
 	// average will converge to slightly less than duration/votes as the
 	// number of votes increases. Vote duration is treated as a hard cap
 	// and can not be exceeded.
-	buckets := make([]voteInterval, votes)
+	buckets := make([]*voteInterval, votes)
 	var (
 		done    bool
 		retries int
@@ -616,7 +829,7 @@ func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsRes
 		for i := 0; i < len(buckets); i++ {
 			seconds, err := util.RandomUint64()
 			if err != nil {
-				return nil, nil, err
+				return err
 			}
 			seconds %= maxDelay
 			if i == 0 {
@@ -628,22 +841,22 @@ func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsRes
 			// Assemble missing vote bits
 			h, err := chainhash.NewHash(ctres.TicketAddresses[i].Ticket)
 			if err != nil {
-				return nil, nil, err
+				return err
 			}
 			signature := hex.EncodeToString(smr.Replies[i].Signature)
 
 			t := time.Duration(seconds) * time.Second
 			total += t
-			buckets[i] = voteInterval{
-				vote: v1.CastVote{
+			buckets[i] = &voteInterval{
+				Vote: v1.CastVote{
 					Token:     token,
 					Ticket:    h.String(),
 					VoteBit:   voteBit,
 					Signature: signature,
 				},
-				votes: 1,
-				total: total,
-				at:    t,
+				Votes: 1,
+				Total: total,
+				At:    t,
 			}
 
 			// Make sure we are not going over our allotted time.
@@ -655,75 +868,141 @@ func (c *ctx) _voteTrickler(token, voteBit string, ctres *pb.CommittedTicketsRes
 	}
 	if retries >= maxRetries {
 		// This should not happen
-		return nil, nil, fmt.Errorf("Could not randomize vote delays")
+		return fmt.Errorf("Could not randomize vote delays")
 	}
 
 	// Sanity
 	if len(buckets) != len(ctres.TicketAddresses) {
-		return nil, nil, fmt.Errorf("unexpected time bucket count got "+
+		return fmt.Errorf("unexpected time bucket count got "+
 			"%v, wanted %v", len(ctres.TicketAddresses),
 			len(buckets))
 	}
 
-	// Synthesize reply
-	vr := v1.BallotReply{
-		Receipts: make([]v1.CastVoteReply, len(ctres.TicketAddresses)),
+	// Convert buckets to a list
+	for _, v := range buckets {
+		c.voteIntervalPush(v)
 	}
-	tickets := make([]string, len(ctres.TicketAddresses))
+
+	// Log work
+	err := c.jsonLog("work.json", token, buckets)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// _voteTrickler trickles votes to the server. The idea here is to not issue
+// large number of votes in one go to the server at the same time giving away
+// which IP address owns what votes.
+func (c *ctx) _voteTrickler(token string) error {
+	// Synthesize reply, needs locking once go routines launch
+	voteCount := c.voteIntervalLen()
+	c.ballotResults = make([]BallotResult, 0, voteCount)
+
+	// Launch signal handler
+	signals := make(chan os.Signal, 1)
+	signalsDone := make(chan struct{}, 1)
+	signal.Notify(signals, syscall.SIGUSR1)
+	go c.signalHandler(signals, signalsDone)
+
+	// Launch retry loop
+	c.retryWG.Add(1)
+	go c.retryLoop()
+
 	for i := 0; ; {
-		verb := "Next vote"
-		var delay time.Duration
+		vote := c.voteIntervalPop()
+		if vote == nil {
+			break
+		}
+		log.Tracef("mainLoop pop %v", spew.Sdump(vote))
 
-		fmt.Printf("Voting: %v/%v %v\n", i+1, len(buckets),
-			buckets[i].vote.Ticket)
-
-		// Send off vote
-		b := v1.Ballot{Votes: []v1.CastVote{buckets[i].vote}}
-		br, err := c.sendVote(&b)
-		switch {
-		case err == errRetry:
-			// Retry vote
-			delay = time.Second * 44 // PNOOMA
-			verb = "Retry vote"
-		case err == nil || err == errIgnore:
-			if err != nil {
-				// Complain
-				fmt.Printf("Ignoring failed vote: %v\n",
-					buckets[i].vote.Ticket)
-			}
-			// Fill in synthesized Receipts
-			if br != nil {
-				vr.Receipts[i] = *br
-			} else {
-				// We may have to make the error a bit more
-				// readable here
-				vr.Receipts[i] = v1.CastVoteReply{
-					Error: "Ignored",
-				}
-			}
-			// Append ticket to return value
-			tickets[i] = buckets[i].vote.Ticket
-
-			// Next delay
-			if len(buckets) == i+1 {
-				// And we are done
-				return tickets, &vr, nil
-			}
-			delay = buckets[i+1].at
-
-			// Go to next vote
-			i++
-		default:
-			// Fatal error
-			return nil, nil, fmt.Errorf("unrecoverable error: %v",
-				err)
+		// Fire off the first vote without a delay
+		if i == 0 {
+			goto vote
 		}
 
-		fmt.Printf("%s at %v (delay %v)\n", verb,
-			time.Now().Add(delay).Format(time.Stamp), delay)
+		fmt.Printf("Next vote at %v (delay %v)\n",
+			time.Now().Add(vote.At).Format(time.Stamp), vote.At)
 
-		time.Sleep(delay)
+		select {
+		case <-time.After(vote.At):
+		case <-c.retryLoopForceExit:
+			// The retry loop is forcing an exit. Put vote back
+			// into the queue before exiting so the vote summary
+			// statistics are correct.
+			c.voteIntervalPush(vote)
+			fmt.Printf("Forced exit main vote queue.\n")
+			goto exit
+		}
+
+	vote:
+		fmt.Printf("Voting: %v/%v %v\n", i+1, voteCount,
+			vote.Vote.Ticket)
+
+		// Send off vote
+		b := v1.Ballot{Votes: []v1.CastVote{vote.Vote}}
+		br, err := c.sendVote(&b)
+		if e, ok := err.(ErrRetry); ok {
+			// Append failed vote to retry queue
+			fmt.Printf("Vote rescheduled: %v\n", vote.Vote.Ticket)
+			err := c.jsonLog("failed.json", token, b, e)
+			if err != nil {
+				return err
+			}
+			c.retryPush(&retry{vote: vote.Vote})
+		} else if err != nil {
+			// Unrecoverable error
+			return fmt.Errorf("unrecoverable error: %v",
+				err)
+		} else {
+			// Vote completed
+			result := BallotResult{
+				Ticket:  vote.Vote.Ticket,
+				Receipt: *br,
+			}
+			c.Lock()
+			c.ballotResults = append(c.ballotResults, result)
+			c.Unlock()
+
+			if br.ErrorStatus == decredplugin.ErrorStatusVoteHasEnded {
+				// Force an exit of the both the main queue and the
+				// retry queue if the voting period has ended.
+				err = c.jsonLog("failed.json", token, br)
+				if err != nil {
+					return err
+				}
+				fmt.Printf("Vote has ended; forced exit main vote queue.\n")
+				fmt.Printf("Awaiting retry vote queue to exit.\n")
+				c.mainLoopForceExit <- struct{}{}
+				goto exit
+			}
+
+			err = c.jsonLog("success.json", token, result)
+			if err != nil {
+				return err
+			}
+		}
+
+		// Go to next vote
+		i++
 	}
+
+	// Tell retry loop that main loop is done
+	log.Debugf("_voteTrickler: main loop done")
+	fmt.Printf("Awaiting retry vote queue to complete.\n")
+	c.mainLoopDone <- struct{}{}
+
+	// Wait for retry loop to exit
+	c.retryWG.Wait()
+	log.Debugf("ballotResults %v", spew.Sdump(c.ballotResults))
+
+exit:
+	// Shut down signal handler
+	signal.Stop(signals)
+	close(signalsDone)
+
+	return nil
 }
 
 // verifyV1Vote verifies the signature of the passed in v1 vote. If the
@@ -755,13 +1034,27 @@ func verifyV1Vote(address string, vote *v1.CastVote) bool {
 	return true
 }
 
-func (c *ctx) _vote(seed int64, token, voteId string) ([]string, *v1.BallotReply, error) {
+func (c *ctx) _vote(seed int64, token, voteId string) error {
+	// Pull the vote summary first to make sure the vote is still active.
+	bvsr, err := c._summary(token)
+	if err != nil {
+		return err
+	}
+	summary, ok := bvsr.Summaries[token]
+	if !ok {
+		return fmt.Errorf("Proposal does not exist: %v", token)
+	}
+	if bvsr.BestBlock > summary.EndHeight {
+		return fmt.Errorf("Proposal vote has already completed: %v",
+			token)
+	}
+
 	// _tally provides the eligible tickets snapshot as well as a list of
 	// the votes that have already been cast. We use these to filter out
 	// the tickets that have already voted.
 	vrr, err := c._tally(token)
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
 
 	// Validate voteId
@@ -777,26 +1070,25 @@ func (c *ctx) _vote(seed int64, token, voteId string) ([]string, *v1.BallotReply
 		}
 	}
 	if !found {
-		return nil, nil, fmt.Errorf("vote id not found: %v",
-			voteId)
+		return fmt.Errorf("vote id not found: %v", voteId)
 	}
 
 	// Find eligble tickets
 	tix, err := convertTicketHashes(vrr.StartVoteReply.EligibleTickets)
 	if err != nil {
-		return nil, nil, fmt.Errorf("ticket pool corrupt: %v %v",
+		return fmt.Errorf("ticket pool corrupt: %v %v",
 			token, err)
 	}
-	ctres, err := c.wallet.CommittedTickets(c.ctx,
+	ctres, err := c.wallet.CommittedTickets(c.wctx,
 		&pb.CommittedTicketsRequest{
 			Tickets: tix,
 		})
 	if err != nil {
-		return nil, nil, fmt.Errorf("ticket pool verification: %v %v",
+		return fmt.Errorf("ticket pool verification: %v %v",
 			token, err)
 	}
 	if len(ctres.TicketAddresses) == 0 {
-		return nil, nil, fmt.Errorf("no eligible tickets found")
+		return fmt.Errorf("no eligible tickets found")
 	}
 
 	// Filter out tickets that have already voted or are otherwise ineligible
@@ -804,12 +1096,12 @@ func (c *ctx) _vote(seed int64, token, voteId string) ([]string, *v1.BallotReply
 	// have an invalid signature are included so they may be resubmitted.
 	eligible, err := c.eligibleVotes(vrr, ctres)
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
 
 	eligibleLen := len(eligible)
 	if eligibleLen == 0 {
-		return nil, nil, fmt.Errorf("no eligible tickets found")
+		return fmt.Errorf("no eligible tickets found")
 	}
 	r := rand.New(rand.NewSource(seed))
 	// Fisher-Yates shuffle the ticket addresses.
@@ -822,7 +1114,7 @@ func (c *ctx) _vote(seed int64, token, voteId string) ([]string, *v1.BallotReply
 
 	passphrase, err := ProvidePrivPassphrase()
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
 
 	// Sign all tickets
@@ -834,7 +1126,7 @@ func (c *ctx) _vote(seed int64, token, voteId string) ([]string, *v1.BallotReply
 	for _, v := range ctres.TicketAddresses {
 		h, err := chainhash.NewHash(v.Ticket)
 		if err != nil {
-			return nil, nil, err
+			return err
 		}
 		msg := token + h.String() + voteBit
 		sm.Messages = append(sm.Messages, &pb.SignMessagesRequest_Message{
@@ -842,9 +1134,9 @@ func (c *ctx) _vote(seed int64, token, voteId string) ([]string, *v1.BallotReply
 			Message: msg,
 		})
 	}
-	smr, err := c.wallet.SignMessages(c.ctx, sm)
+	smr, err := c.wallet.SignMessages(c.wctx, sm)
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
 
 	// Make sure all signatures worked
@@ -852,12 +1144,30 @@ func (c *ctx) _vote(seed int64, token, voteId string) ([]string, *v1.BallotReply
 		if v.Error == "" {
 			continue
 		}
-		return nil, nil, fmt.Errorf("signature failed index %v: %v",
-			k, v.Error)
+		return fmt.Errorf("signature failed index %v: %v", k, v.Error)
 	}
 
-	if c.cfg.voteDuration != 0 {
-		return c._voteTrickler(token, voteBit, ctres, smr)
+	if c.cfg.Trickle {
+		// Calculate vote duration if not set
+		if c.cfg.voteDuration.Seconds() == 0 {
+			blocksLeft := summary.EndHeight - bvsr.BestBlock
+			if blocksLeft < c.cfg.blocksPerDay {
+				return fmt.Errorf("less than a day left to " +
+					"vote, please set --voteduration " +
+					"manually")
+			}
+			c.cfg.voteDuration = activeNetParams.TargetTimePerBlock *
+				(time.Duration(blocksLeft) -
+					time.Duration(c.cfg.blocksPerDay))
+		}
+
+		// Generate work
+		err := c.calculateTrickle(token, voteBit, ctres, smr)
+		if err != nil {
+			return err
+		}
+
+		return c._voteTrickler(token)
 	}
 
 	// Vote everything at once.
@@ -866,11 +1176,11 @@ func (c *ctx) _vote(seed int64, token, voteId string) ([]string, *v1.BallotReply
 	cv := v1.Ballot{
 		Votes: make([]v1.CastVote, 0, len(ctres.TicketAddresses)),
 	}
-	tickets := make([]string, len(ctres.TicketAddresses))
+	c.ballotResults = make([]BallotResult, 0, len(ctres.TicketAddresses))
 	for k, v := range ctres.TicketAddresses {
 		h, err := chainhash.NewHash(v.Ticket)
 		if err != nil {
-			return nil, nil, err
+			return err
 		}
 		signature := hex.EncodeToString(smr.Replies[k].Signature)
 		cv.Votes = append(cv.Votes, v1.CastVote{
@@ -879,23 +1189,37 @@ func (c *ctx) _vote(seed int64, token, voteId string) ([]string, *v1.BallotReply
 			VoteBit:   voteBit,
 			Signature: signature,
 		})
-		tickets = append(tickets, h.String())
+
+		// Prep results since we don't CastVoteReply doesn't return
+		// ticket address.
+		c.ballotResults = append(c.ballotResults, BallotResult{
+			Ticket: h.String(),
+		})
 	}
 
 	// Vote on the supplied proposal
 	responseBody, err := c.makeRequest("POST", v1.RouteCastVotes, &cv)
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
 
 	var vr v1.BallotReply
 	err = json.Unmarshal(responseBody, &vr)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Could not unmarshal CastVoteReply: %v",
+		return fmt.Errorf("Could not unmarshal CastVoteReply: %v",
 			err)
 	}
 
-	return tickets, &vr, nil
+	// Finnish ballotResults
+	if len(vr.Receipts) != len(c.ballotResults) {
+		return fmt.Errorf("unexpected receipt count got %v wanted %v",
+			len(vr.Receipts), len(c.ballotResults))
+	}
+	for k := range vr.Receipts {
+		c.ballotResults[k].Receipt = vr.Receipts[k]
+	}
+
+	return nil
 }
 
 func (c *ctx) vote(seed int64, args []string) error {
@@ -903,39 +1227,61 @@ func (c *ctx) vote(seed int64, args []string) error {
 		return fmt.Errorf("vote: not enough arguments %v", args)
 	}
 
-	tickets, cv, err := c._vote(seed, args[0], args[1])
+	err := c._vote(seed, args[0], args[1])
 	if err != nil {
 		return err
 	}
 
 	// Verify vote replies
-	failedReceipts := make([]v1.CastVoteReply, 0,
-		len(cv.Receipts))
-	for _, v := range cv.Receipts {
-		if v.Error != "" {
+	failedReceipts := make([]BallotResult, 0,
+		len(c.ballotResults))
+	for _, v := range c.ballotResults {
+		if v.Receipt.Error != "" {
 			failedReceipts = append(failedReceipts, v)
 			continue
 		}
-		sig, err := identity.SignatureFromString(v.Signature)
+		sig, err := identity.SignatureFromString(v.Receipt.Signature)
 		if err != nil {
-			v.Error = err.Error()
+			v.Receipt.Error = err.Error()
 			failedReceipts = append(failedReceipts, v)
 			continue
 		}
-		if !c.id.VerifyMessage([]byte(v.ClientSignature), *sig) {
-			v.Error = "Could not verify receipt " + v.ClientSignature
+		if !c.id.VerifyMessage([]byte(v.Receipt.ClientSignature), *sig) {
+			v.Receipt.Error = "Could not verify receipt " +
+				v.Receipt.ClientSignature
 			failedReceipts = append(failedReceipts, v)
 		}
-
 	}
-	fmt.Printf("Votes succeeded: %v\n", len(cv.Receipts)-
+	fmt.Printf("Votes succeeded: %v\n", len(c.ballotResults)-
 		len(failedReceipts))
 	fmt.Printf("Votes failed   : %v\n", len(failedReceipts))
-	for k, v := range failedReceipts {
-		fmt.Printf("Failed vote    : %v %v\n", tickets[k], v.Error)
+	notCast := c.voteIntervalLen() + uint64(c.retryLen())
+	if notCast > 0 {
+		fmt.Printf("Votes not cast : %v\n", notCast)
+	}
+	for _, v := range failedReceipts {
+		fmt.Printf("Failed vote    : %v %v\n",
+			v.Ticket, v.Receipt.Error)
 	}
 
 	return nil
+}
+
+func (c *ctx) _summary(token string) (*v1.BatchVoteSummaryReply, error) {
+	responseBody, err := c.makeRequest("POST", v1.RouteBatchVoteSummary,
+		v1.BatchVoteSummary{Tokens: []string{token}})
+	if err != nil {
+		return nil, err
+	}
+
+	var bvsr v1.BatchVoteSummaryReply
+	err = json.Unmarshal(responseBody, &bvsr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal "+
+			"BatchVoteSummary: %v", err)
+	}
+
+	return &bvsr, nil
 }
 
 func (c *ctx) _tally(token string) (*v1.VoteResultsReply, error) {
@@ -1117,7 +1463,7 @@ func _main() error {
 	defer c.conn.Close()
 
 	// Get block height to validate GRPC creds
-	ar, err := c.wallet.Accounts(c.ctx, &pb.AccountsRequest{})
+	ar, err := c.wallet.Accounts(c.wctx, &pb.AccountsRequest{})
 	if err != nil {
 		return err
 	}
