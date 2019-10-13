@@ -333,10 +333,11 @@ func _main() error {
 
 	// Get initial value for best block. This will subsequently be updated by
 	// the websocket connection to dcrdata.
-	p.bestBlock, err = p.getBestBlock()
+	bb, err := p.getBestBlockDecredPlugin()
 	if err != nil {
 		return err
 	}
+	p.updateBestBlock(bb)
 
 	// Check if this command is being run to fetch the identity.
 	if p.cfg.FetchIdentity {
@@ -512,13 +513,14 @@ func _main() error {
 		return fmt.Errorf("new wsDcrdata: %v", err)
 	}
 	p.wsDcrdata = ws
-	p.setupDcrDataWatcher()
 
 	switch p.cfg.Mode {
 	case politeiaWWWMode:
 		p.setPoliteiaWWWRoutes()
 		// XXX setup user routes
 		p.setUserWWWRoutes()
+
+		p.setupNewBlockSub()
 	case cmsWWWMode:
 		p.setCMSWWWRoutes()
 		// XXX setup user routes
@@ -548,10 +550,10 @@ func _main() error {
 		}
 
 		// Setup invoice notifications
-
 		p.cron = cron.New()
 		p.checkInvoiceNotifications()
 
+		p.setupCMSAddressWatcher()
 		err = p.restartCMSAddressesWatching()
 		if err != nil {
 			log.Errorf("error restarting address watcher %v", err)

@@ -998,7 +998,7 @@ func (p *politeiawww) processBatchVoteSummary(batchVoteSummary www.BatchVoteSumm
 		}
 	}
 
-	bb := p.bestBlock
+	bb := p.getBestBlock()
 
 	summaries, err := p.getVoteSummaries(batchVoteSummary.Tokens, bb)
 	if err != nil {
@@ -1335,7 +1335,7 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 	}
 	vd := convertVoteDetailsReplyFromDecred(*vdr)
 
-	s := getVoteStatus(vd.AuthorizeVoteReply, vd.StartVoteReply, p.bestBlock)
+	s := getVoteStatus(vd.AuthorizeVoteReply, vd.StartVoteReply, p.getBestBlock())
 	if s != www.PropVoteStatusNotAuthorized {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusWrongVoteStatus,
@@ -1621,7 +1621,7 @@ func (p *politeiawww) voteStatusReply(token string) (*www.VoteStatusReply, error
 	cachedVsr, ok := p.getVoteStatusReply(token)
 
 	if ok {
-		cachedVsr.BestBlock = strconv.Itoa(int(p.bestBlock))
+		cachedVsr.BestBlock = strconv.Itoa(int(p.getBestBlock()))
 		return cachedVsr, nil
 	}
 
@@ -1638,7 +1638,7 @@ func (p *politeiawww) voteStatusReply(token string) (*www.VoteStatusReply, error
 		total += v.VotesReceived
 	}
 
-	bb := p.bestBlock
+	bb := p.getBestBlock()
 	voteStatusReply := www.VoteStatusReply{
 		Token:              token,
 		Status:             voteStatusFromVoteSummary(*r, bb),
@@ -1749,7 +1749,7 @@ func (p *politeiawww) processActiveVote() (*www.ActiveVoteReply, error) {
 
 		// We only want proposals that are currently being voted on
 		s := getVoteStatus(vd.AuthorizeVoteReply, vd.StartVoteReply,
-			p.bestBlock)
+			p.getBestBlock())
 		if s != www.PropVoteStatusStarted {
 			continue
 		}
@@ -2203,7 +2203,7 @@ func (p *politeiawww) processStartVote(sv www.StartVote, u *user.User) (*www.Sta
 func (p *politeiawww) processTokenInventory(isAdmin bool) (*www.TokenInventoryReply, error) {
 	log.Tracef("processTokenInventory")
 
-	bb := p.bestBlock
+	bb := p.getBestBlock()
 
 	// The vote results cache table is lazy loaded and may
 	// need to be updated. If it does need to be updated, the

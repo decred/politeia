@@ -12,6 +12,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg"
+	exptypes "github.com/decred/dcrdata/explorer/types"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/cache"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
@@ -135,6 +136,7 @@ type politeiawww struct {
 	// The current best block is cached and updated using a websocket
 	// subscription to dcrdata
 	bestBlock uint64
+	bbMtx     sync.RWMutex
 }
 
 // XXX rig this up
@@ -860,6 +862,43 @@ func (p *politeiawww) handleWebsocketWrite(wc *wsContext) {
 			return
 		}
 	}
+}
+
+func (p *politeiawww) updateBestBlock(bestBlock uint64) {
+	p.bbMtx.Lock()
+	defer p.bbMtx.Unlock()
+	p.bestBlock = bestBlock
+}
+
+func (p *politeiawww) getBestBlock() uint64 {
+	p.bbMtx.RLock()
+	defer p.bbMtx.RUnlock()
+	return p.bestBlock
+}
+
+func (p *politeiawww) setupNewBlockSub() {
+	p.wsDcrdata.subToNewBlock()
+
+	go func() {
+		for {
+			msg, ok := <-p.wsDcrdata.client.Receive()
+			if !ok {
+				break
+			}
+			if msg == nil {
+				log.Errorf("ReceiveMsg failed")
+				continue
+			}
+
+			switch m := msg.Message.(type) {
+			case *exptypes.WebsocketBlock:
+				log.Debugf("Message WebsocketBlock(height=%s)", m.Block.Height)
+				p.updateBestBlock(uint64(m.Block.Height))
+			default:
+				log.Debugf("Message of type %v unhandled. %v", msg.EventId, m)
+			}
+		}
+	}()
 }
 
 // handleWebsocket upgrades a regular HTTP connection to a websocket.

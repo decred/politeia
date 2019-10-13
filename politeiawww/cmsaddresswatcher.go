@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/dcrutil"
-	exptypes "github.com/decred/dcrdata/explorer/types"
 	pstypes "github.com/decred/dcrdata/pubsub/types/v2"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/cache"
@@ -35,7 +34,6 @@ func (p *politeiawww) addWatchAddress(address string) {
 		log.Errorf("addWatchAddress: subscribe '%v': %v",
 			address, err)
 		p.reconnectWS()
-		p.addWatchAddress(address)
 		return
 	}
 	log.Infof("Subscribed to listen: %v", address)
@@ -47,16 +45,13 @@ func (p *politeiawww) removeWatchAddress(address string) {
 		log.Errorf("removeWatchAddress: unsubscribe '%v': %v",
 			address, err)
 		p.reconnectWS()
-		p.removeWatchAddress(address)
 		return
 	}
 	log.Infof("Unsubscribed: %v", address)
 }
 
-func (p *politeiawww) setupDcrDataWatcher() {
+func (p *politeiawww) setupCMSAddressWatcher() {
 	p.wsDcrdata.subToPing()
-	p.wsDcrdata.subToNewBlock()
-
 	go func() {
 		for {
 			msg, ok := <-p.wsDcrdata.client.Receive()
@@ -88,9 +83,6 @@ func (p *politeiawww) setupDcrDataWatcher() {
 				}
 			case *pstypes.TxList:
 				log.Debugf("Message (%s): TxList(len=%d)", msg.EventId, len(*m))
-			case *exptypes.WebsocketBlock:
-				log.Debugf("Message WebsocketBlock(height=%s)", m.Block.Height)
-				p.bestBlock = uint64(m.Block.Height)
 			default:
 				log.Debugf("Message of type %v unhandled. %v", msg.EventId, m)
 			}
@@ -120,7 +112,6 @@ func (p *politeiawww) restartCMSAddressesWatching() error {
 					Status:       cms.PaymentStatusWatching,
 					AmountNeeded: int64(payout.DCRTotal),
 				}
-				fmt.Println(listenStartDate)
 				err = p.cmsDB.UpdateInvoice(&invoice)
 				if err != nil {
 					return err
@@ -371,7 +362,6 @@ func (p *politeiawww) invoiceStatusPaid(token string) error {
 }
 
 func (p *politeiawww) reconnectWS() {
-
 	if p.wsDcrdata != nil {
 		p.wsDcrdata.client.Stop()
 		p.wsDcrdata = nil
@@ -382,13 +372,20 @@ func (p *politeiawww) reconnectWS() {
 		p.wsDcrdata, err = newWSDcrdata()
 		if err != nil {
 			log.Errorf("reconnectWS error: %v", err)
-
 		}
 		if p.wsDcrdata != nil {
+			// Rerun the existing CMS address watching start up.
+			// This will check all addresses that are still marked as watching
+			// for payment while disconnected and re-subscribe if still
+			// outstanding.
+			err = p.restartCMSAddressesWatching()
+			if err != nil {
+				log.Errorf("restartCMSAddressesWatching failed: %v", err)
+			}
 			break
 		}
 		log.Infof("Retrying ws dcrdata reconnect in 1 minute...")
 		time.Sleep(1 * time.Minute)
 	}
-	p.setupDcrDataWatcher()
+	p.setupCMSAddressWatcher()
 }

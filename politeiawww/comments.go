@@ -252,7 +252,7 @@ func (p *politeiawww) processNewComment(nc www.NewComment, u *user.User) (*www.N
 	_, avr := convertAuthVoteFromDecred(vdr.AuthorizeVote)
 	svr := convertStartVoteReplyFromDecred(vdr.StartVoteReply)
 
-	if getVoteStatus(avr, svr, p.bestBlock) == www.PropVoteStatusFinished {
+	if getVoteStatus(avr, svr, p.getBestBlock()) == www.PropVoteStatusFinished {
 		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusWrongVoteStatus,
 			ErrorContext: []string{"vote is finished"},
@@ -507,15 +507,15 @@ func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www
 	}
 	vd := convertVoteDetailsReplyFromDecred(*vdr)
 
-	s := getVoteStatus(vd.AuthorizeVoteReply, vd.StartVoteReply, p.bestBlock)
+	s := getVoteStatus(vd.AuthorizeVoteReply, vd.StartVoteReply, p.getBestBlock())
 	if s == www.PropVoteStatusFinished {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusWrongVoteStatus,
 		}
 	}
 
-	// Ensure comment exists and has not been censored.
-	c, err := p.decredCommentGetByID(lc.Token, lc.CommentID)
+	// Ensure comment exists
+	_, err = p.decredCommentGetByID(lc.Token, lc.CommentID)
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
 			err = www.UserError{
@@ -523,11 +523,6 @@ func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www
 			}
 		}
 		return nil, err
-	}
-	if c.Censored {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusCommentIsCensored,
-		}
 	}
 
 	// Validate action
@@ -648,7 +643,7 @@ func (p *politeiawww) processCensorComment(cc www.CensorComment, u *user.User) (
 	}
 	vd := convertVoteDetailsReplyFromDecred(*vdr)
 
-	s := getVoteStatus(vd.AuthorizeVoteReply, vd.StartVoteReply, p.bestBlock)
+	s := getVoteStatus(vd.AuthorizeVoteReply, vd.StartVoteReply, p.getBestBlock())
 	if s == www.PropVoteStatusFinished {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusWrongVoteStatus,
