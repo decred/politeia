@@ -23,7 +23,7 @@ type ManageUserCmd struct {
 	} `positional-args:"true" optional:"true"`
 	Domain            string `long:"domain" optional:"true" description:"Domain type: Developer, Marketing, Design, Documentation, Research, Community"`
 	ContractorType    string `long:"contractortype" optional:"true" description:"Contractor type: Direct, Sub, Super"`
-	SupervisorUserIDs string `long:"supervisoruserids" optional:"true" description:"Supervisor User ID"`
+	SupervisorUserIDs string `long:"supervisoruserids" optional:"true" description:"Supervisor User IDs"`
 }
 
 // Execute executes the cms manage user command.
@@ -253,7 +253,7 @@ Arguments:
 Flags:
   --domain              (int, optional)     Domain of the contractor
   --contractortype      (int, optional)     Contractor Type
-  --supervisoruserids   (string, optional)  UserID of the Supervisor
+  --supervisoruserids   (string, optional)  UserIDs of the Supervisor
 
 Request:
 {
