@@ -251,15 +251,15 @@ Arguments:
 1. userid             (string, required)     ID of the user to manage
 
 Flags:
-  --domain             	(int, optional)     Domain of the contractor
+  --domain              (int, optional)     Domain of the contractor
   --contractortype      (int, optional)     Contractor Type
-  --supervisoruserid    (string, optional)  UserID of the Supervisor
+  --supervisoruserids   (string, optional)  UserID of the Supervisor
 
 Request:
 {
 	"domain": 1,
 	"contractortype": 1,
-	"supervisoruserid": "4",
+	"supervisoruserids": "4",
 }
 
 Response:
