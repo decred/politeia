@@ -473,13 +473,13 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 	}
 
 	// Verify public key
-	if u.User.PublicKey() != ni.PublicKey {
+	if u.PublicKey() != ni.PublicKey {
 		return www.UserError{
 			ErrorCode: www.ErrorStatusInvalidSigningKey,
 		}
 	}
 
-	pk, err := identity.PublicIdentityFromBytes(u.User.ActiveIdentity().Key[:])
+	pk, err := identity.PublicIdentityFromBytes(u.ActiveIdentity().Key[:])
 	if err != nil {
 		return err
 	}
@@ -702,7 +702,7 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 					if err != nil {
 						return err
 					}
-					if subUser.SupervisorUserID != u.ID.String() {
+					if !strings.Contains(subUser.SupervisorUserID, u.ID.String()) {
 						return www.UserError{
 							ErrorCode: cms.ErrorStatusInvalidSubUserIDLineItem,
 						}
