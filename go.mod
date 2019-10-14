@@ -14,15 +14,18 @@ require (
 	github.com/decred/dcrd/blockchain/stake v1.1.0
 	github.com/decred/dcrd/certgen v1.1.0
 	github.com/decred/dcrd/chaincfg v1.5.1
-	github.com/decred/dcrd/chaincfg/chainhash v1.0.1
+	github.com/decred/dcrd/chaincfg/chainhash v1.0.2
 	github.com/decred/dcrd/dcrec/secp256k1 v1.0.2
-	github.com/decred/dcrd/dcrutil v1.3.0
+	github.com/decred/dcrd/dcrutil v1.4.0
 	github.com/decred/dcrd/hdkeychain v1.1.1
+	github.com/decred/dcrd/rpcclient/v3 v3.0.0 // indirect
+	github.com/decred/dcrd/txscript v1.1.0 // indirect
 	github.com/decred/dcrd/wire v1.2.0
-	github.com/decred/dcrdata/api/types/v3 v3.0.0
+	github.com/decred/dcrdata/api/types/v4 v4.0.2
 	github.com/decred/dcrdata/explorer/types v1.1.0
-	github.com/decred/dcrdata/pubsub/types/v2 v2.0.0
-	github.com/decred/dcrdata/pubsub/v2 v2.0.1
+	github.com/decred/dcrdata/explorer/types/v2 v2.0.4
+	github.com/decred/dcrdata/pubsub/types/v3 v3.0.4
+	github.com/decred/dcrdata/pubsub/v3 v3.0.3
 	github.com/decred/dcrdata/semver v1.0.0
 	github.com/decred/dcrtime v0.0.0-20190530182702-d6f4a5134c7c
 	github.com/decred/dcrwallet v1.2.3-0.20190128160919-849f7c01c12d

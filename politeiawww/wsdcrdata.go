@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	client "github.com/decred/dcrdata/pubsub/v2/psclient"
+	client "github.com/decred/dcrdata/pubsub/v3/psclient"
 	"github.com/decred/dcrdata/semver"
 	"github.com/decred/politeia/util"
 )

@@ -12,7 +12,8 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg"
-	exptypes "github.com/decred/dcrdata/explorer/types"
+	exptypes "github.com/decred/dcrdata/explorer/types/v2"
+	pstypes "github.com/decred/dcrdata/pubsub/types/v3"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/cache"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
@@ -894,6 +895,8 @@ func (p *politeiawww) setupNewBlockSub() {
 			case *exptypes.WebsocketBlock:
 				log.Debugf("Message WebsocketBlock(height=%s)", m.Block.Height)
 				p.updateBestBlock(uint64(m.Block.Height))
+			case *pstypes.HangUp:
+				log.Debugf("Hang up")
 			default:
 				log.Debugf("Message of type %v unhandled. %v", msg.EventId, m)
 			}

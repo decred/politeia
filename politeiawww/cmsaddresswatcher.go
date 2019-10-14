@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/dcrutil"
-	pstypes "github.com/decred/dcrdata/pubsub/types/v2"
+	pstypes "github.com/decred/dcrdata/pubsub/types/v3"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/cache"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
