@@ -20,14 +20,14 @@ const (
 // fields as well as CMS specific user fields.
 type CMSUser struct {
 	User
-	Domain             int    `json:"domain"` // Contractor domain
-	GitHubName         string `json:"githubname"`
-	MatrixName         string `json:"matrixname"`
-	ContractorType     int    `json:"contractortype"`
-	ContractorName     string `json:"contractorname"`
-	ContractorLocation string `json:"contractorlocation"`
-	ContractorContact  string `json:"contractorcontact"`
-	SupervisorUserID   string `json:"supervisoruserid"`
+	Domain             int         `json:"domain"` // Contractor domain
+	GitHubName         string      `json:"githubname"`
+	MatrixName         string      `json:"matrixname"`
+	ContractorType     int         `json:"contractortype"`
+	ContractorName     string      `json:"contractorname"`
+	ContractorLocation string      `json:"contractorlocation"`
+	ContractorContact  string      `json:"contractorcontact"`
+	SupervisorUserIDs  []uuid.UUID `json:"supervisoruserids"`
 }
 
 // DecodeCMSUser decodes a JSON byte slice into a CMSUser.
@@ -136,15 +136,15 @@ func DecodeCMSUsersByDomainReply(b []byte) (*CMSUsersByDomainReply, error) {
 
 // UpdateCMSUser creates a new CMS user record in the user database.
 type UpdateCMSUser struct {
-	ID                 uuid.UUID `json:"id"`
-	Domain             int       `json:"domain"` // Contractor domain
-	GitHubName         string    `json:"githubname"`
-	MatrixName         string    `json:"matrixname"`
-	ContractorType     int       `json:"contractortype"`
-	ContractorName     string    `json:"contractorname"`
-	ContractorLocation string    `json:"contractorlocation"`
-	ContractorContact  string    `json:"contractorcontact"`
-	SupervisorUserID   string    `json:"supervisoruserid"`
+	ID                 uuid.UUID   `json:"id"`
+	Domain             int         `json:"domain"` // Contractor domain
+	GitHubName         string      `json:"githubname"`
+	MatrixName         string      `json:"matrixname"`
+	ContractorType     int         `json:"contractortype"`
+	ContractorName     string      `json:"contractorname"`
+	ContractorLocation string      `json:"contractorlocation"`
+	ContractorContact  string      `json:"contractorcontact"`
+	SupervisorUserIDs  []uuid.UUID `json:"supervisoruserids"`
 }
 
 // EncodeUpdateCMSUser encodes a UpdateCMSUser into a JSON byte slice.

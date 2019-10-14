@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
@@ -351,23 +352,35 @@ func (p *politeiawww) processManageCMSUser(mu cms.ManageUser) (*cms.ManageUserRe
 	if mu.ContractorType != 0 {
 		uu.ContractorType = int(mu.ContractorType)
 	}
-	if mu.SupervisorUserID != "" {
+	spew.Dump(mu)
+	if len(mu.SupervisorUserIDs) > 0 {
 		// Validate SupervisorUserID input
-		supUserIDs := strings.Split(mu.SupervisorUserID, string(cms.PolicySupervisorUserIDSeperator))
-		for _, super := range supUserIDs {
+		parseSuperUserIds := make([]uuid.UUID, 0, len(mu.SupervisorUserIDs))
+		for _, super := range mu.SupervisorUserIDs {
+			parseUUID, err := uuid.Parse(super)
+			if err != nil {
+				fmt.Println("Sdfsdf")
+				return nil, www.UserError{
+					ErrorCode: cms.ErrorStatusInvalidSupervisorUser,
+				}
+			}
 			u, err := p.getCMSUserByID(super)
 			if err != nil {
+				fmt.Println("Sdfsdfsadfsdf")
 				return nil, www.UserError{
 					ErrorCode: cms.ErrorStatusInvalidSupervisorUser,
 				}
 			}
 			if u.ContractorType != cms.ContractorTypeSupervisor {
+				fmt.Println(u.ContractorType, u.ID)
+
 				return nil, www.UserError{
 					ErrorCode: cms.ErrorStatusInvalidSupervisorUser,
 				}
 			}
+			parseSuperUserIds = append(parseSuperUserIds, parseUUID)
 		}
-		uu.SupervisorUserID = mu.SupervisorUserID
+		uu.SupervisorUserIDs = parseSuperUserIds
 	}
 
 	payload, err := user.EncodeUpdateCMSUser(uu)
@@ -394,6 +407,7 @@ func (p *politeiawww) processCMSUserDetails(ud *cms.UserDetails, isCurrentUser b
 		}
 	}
 	reply := cms.UserDetailsReply{}
+	fmt.Println(ud.UserID)
 	u, err := p.getCMSUserByID(ud.UserID)
 	if err != nil {
 		return nil, err
@@ -503,6 +517,11 @@ func (p *politeiawww) getCMSUserByIDRaw(id string) (*user.CMSUser, error) {
 
 // convertCMSUserFromDatabaseUser converts a user User to a cms User.
 func convertCMSUserFromDatabaseUser(user *user.CMSUser) cms.User {
+
+	superUserIDs := make([]string, 0, len(user.SupervisorUserIDs))
+	for _, userIDs := range user.SupervisorUserIDs {
+		superUserIDs = append(superUserIDs, userIDs.String())
+	}
 	return cms.User{
 		ID:                              user.User.ID.String(),
 		Admin:                           user.User.Admin,
@@ -527,7 +546,7 @@ func convertCMSUserFromDatabaseUser(user *user.CMSUser) cms.User {
 		ContractorContact:               user.ContractorContact,
 		MatrixName:                      user.MatrixName,
 		GitHubName:                      user.GitHubName,
-		SupervisorUserID:                user.SupervisorUserID,
+		SupervisorUserIDs:               superUserIDs,
 	}
 }
 
@@ -555,8 +574,14 @@ func (p *politeiawww) issuanceDCCUser(userid, sponsorUserID string, domain, cont
 
 	// If the nominee was an approved Subcontractor, then use the sponsor user
 	// ID as the SupervisorUserID
+	superVisorUserIDs := make([]uuid.UUID, 1)
 	if contractorType == int(cms.ContractorTypeSubContractor) {
-		uu.SupervisorUserID = sponsorUserID
+		parsed, err := uuid.Parse(sponsorUserID)
+		if err != nil {
+			return err
+		}
+		superVisorUserIDs[0] = parsed
+		uu.SupervisorUserIDs = superVisorUserIDs
 	}
 
 	payload, err := user.EncodeUpdateCMSUser(uu)

@@ -703,7 +703,14 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 					if err != nil {
 						return err
 					}
-					if !strings.Contains(subUser.SupervisorUserID, u.ID.String()) {
+					found := false
+					for _, superUserIds := range subUser.SupervisorUserIDs {
+						if superUserIds.String() == u.ID.String() {
+							found = true
+							break
+						}
+					}
+					if !found {
 						return www.UserError{
 							ErrorCode: cms.ErrorStatusInvalidSubUserIDLineItem,
 						}

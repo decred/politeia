@@ -134,10 +134,6 @@ const (
 	// values for each line item in the CSV.
 	PolicyInvoiceFieldDelimiterChar rune = ','
 
-	// PolicySupervisorUserIDSeperator is the character that separates
-	// multiple SupervisorUserIDs for a given cms user.
-	PolicySupervisorUserIDSeperator rune = ','
-
 	// PolicyInvoiceLineItemCount is the number of expected fields in the raw
 	// csv line items
 	PolicyInvoiceLineItemCount = 8
@@ -571,7 +567,7 @@ type User struct {
 	ContractorName     string          `json:"contractorname"`
 	ContractorLocation string          `json:"contractorlocation"`
 	ContractorContact  string          `json:"contractorcontact"`
-	SupervisorUserID   string          `json:"supervisoruserid"`
+	SupervisorUserIDs  []string        `json:"supervisoruserid"`
 }
 
 // UserDetails fetches a cms user's details by their id.
@@ -598,10 +594,10 @@ type EditUserReply struct{}
 
 // ManageUser performs the given action on a user.
 type ManageUser struct {
-	UserID           string          `json:"userid"`
-	Domain           DomainTypeT     `json:"domain,omitempty"`
-	ContractorType   ContractorTypeT `json:"contractortype,omitempty"`
-	SupervisorUserID string          `json:"supervisoruserid,omitempty"`
+	UserID            string          `json:"userid"`
+	Domain            DomainTypeT     `json:"domain,omitempty"`
+	ContractorType    ContractorTypeT `json:"contractortype,omitempty"`
+	SupervisorUserIDs []string        `json:"supervisoruserids,omitempty"`
 }
 
 // ManageUserReply is the reply for the ManageUserReply command.
