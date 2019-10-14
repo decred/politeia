@@ -134,7 +134,7 @@ const (
 	// values for each line item in the CSV.
 	PolicyInvoiceFieldDelimiterChar rune = ','
 
-	// PolicySupervisorUserIDSeperator is the character that seperates
+	// PolicySupervisorUserIDSeperator is the character that separates
 	// multiple SupervisorUserIDs for a given cms user.
 	PolicySupervisorUserIDSeperator rune = ','
 
