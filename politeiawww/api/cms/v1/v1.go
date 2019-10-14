@@ -567,7 +567,7 @@ type User struct {
 	ContractorName     string          `json:"contractorname"`
 	ContractorLocation string          `json:"contractorlocation"`
 	ContractorContact  string          `json:"contractorcontact"`
-	SupervisorUserIDs  []string        `json:"supervisoruserid"`
+	SupervisorUserIDs  []string        `json:"supervisoruserids"`
 }
 
 // UserDetails fetches a cms user's details by their id.

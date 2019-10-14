@@ -43,7 +43,7 @@ func (cmd *ManageUserCmd) Execute(args []string) error {
 	}
 
 	userID := cmd.Args.UserID
-	fmt.Println(userID)
+
 	uir, err := client.CMSUserDetails(strings.TrimSpace(userID))
 	if err != nil {
 		return err
@@ -137,7 +137,7 @@ func (cmd *ManageUserCmd) Execute(args []string) error {
 			if update {
 				superVisorUserIDs := userInfo.SupervisorUserIDs
 				for {
-					superVisorUserID := ""
+					var superVisorUserID string
 					fmt.Printf("Add another Supervisor User ID: ")
 					superVisorUserID, _ = reader.ReadString('\n')
 					superVisorUserID = strings.TrimSpace(superVisorUserID)

@@ -487,7 +487,6 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 
 	// Check for at least 1 markdown file with a non-empty payload.
 	if len(ni.Files) == 0 || ni.Files[0].Payload == "" {
-		fmt.Println(ni.Files[0].Payload)
 		return www.UserError{
 			ErrorCode: www.ErrorStatusProposalMissingFiles,
 		}
@@ -633,7 +632,6 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 			minRate := 500   // 5 USD (in cents)
 			maxRate := 50000 // 500 USD (in cents)
 			if invInput.ContractorRate < uint(minRate) || invInput.ContractorRate > uint(maxRate) {
-				fmt.Println(invInput.ContractorRate)
 				return www.UserError{
 					ErrorCode: cms.ErrorStatusInvoiceInvalidRate,
 				}

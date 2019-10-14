@@ -359,23 +359,25 @@ func (p *politeiawww) processManageCMSUser(mu cms.ManageUser) (*cms.ManageUserRe
 		for _, super := range mu.SupervisorUserIDs {
 			parseUUID, err := uuid.Parse(super)
 			if err != nil {
-				fmt.Println("Sdfsdf")
+				e := fmt.Sprintf("invalid uuid: %v", super)
 				return nil, www.UserError{
-					ErrorCode: cms.ErrorStatusInvalidSupervisorUser,
+					ErrorCode:    cms.ErrorStatusInvalidSupervisorUser,
+					ErrorContext: []string{e},
 				}
 			}
 			u, err := p.getCMSUserByID(super)
 			if err != nil {
-				fmt.Println("Sdfsdfsadfsdf")
+				e := fmt.Sprintf("user not found: %v", super)
 				return nil, www.UserError{
-					ErrorCode: cms.ErrorStatusInvalidSupervisorUser,
+					ErrorCode:    cms.ErrorStatusInvalidSupervisorUser,
+					ErrorContext: []string{e},
 				}
 			}
 			if u.ContractorType != cms.ContractorTypeSupervisor {
-				fmt.Println(u.ContractorType, u.ID)
-
+				e := fmt.Sprintf("user not a supervisor: %v", super)
 				return nil, www.UserError{
-					ErrorCode: cms.ErrorStatusInvalidSupervisorUser,
+					ErrorCode:    cms.ErrorStatusInvalidSupervisorUser,
+					ErrorContext: []string{e},
 				}
 			}
 			parseSuperUserIds = append(parseSuperUserIds, parseUUID)
@@ -407,7 +409,6 @@ func (p *politeiawww) processCMSUserDetails(ud *cms.UserDetails, isCurrentUser b
 		}
 	}
 	reply := cms.UserDetailsReply{}
-	fmt.Println(ud.UserID)
 	u, err := p.getCMSUserByID(ud.UserID)
 	if err != nil {
 		return nil, err

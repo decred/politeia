@@ -129,7 +129,7 @@ func (c *cockroachdb) updateCMSUser(tx *gorm.DB, nu user.UpdateCMSUser) error {
 	cms := CMSUser{
 		ID: nu.ID,
 	}
-	superVisorUserIds := ""
+	var superVisorUserIds string
 	for i, userIds := range nu.SupervisorUserIDs {
 		if i == 0 {
 			superVisorUserIds = userIds.String()
