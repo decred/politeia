@@ -906,7 +906,7 @@ func (p *politeiawww) reconnectNewBlockSub() {
 		if p.wsDcrdata != nil {
 			err = p.setupNewBlockSub()
 			if err == nil {
-				log.Debugf("Sucessfully reconnected to new block events")
+				log.Debugf("Successfully reconnected to new block events")
 				break
 			}
 		}
