@@ -111,17 +111,17 @@ conscience user may want to spread voting out over time and using tor to mask
 IP address.
 
 ```politeiavoter``` has three settings to control this behavior. First there is
-the ```--proxy``` setting to make ```politeiavoter``` use a Tor proxy. This
-setting is *REQUIRED* since it makes no sense to trickle votes from the same
-IP.  The second setting is ```--trickle```. Tha setting must be set to enable
-trickling.
+the ```--trickle``` setting. This must be set to enable trickling. The second
+setting is ```--proxy```. This setting makes ```politeiavoter``` use a Tor
+proxy and is *REQUIRED* when trickling votes since it makes no sense to trickle
+votes from the same IP.
 
-The third setting is ```--voteduration``` that sets the maximum duration to
+The third setting is ```--voteduration```. This sets the maximum duration to
 trickle out votes. Valid modifiers are h for hours, m for minutes and s for
-seconds (e.g. 3h18m15s). If this setting is NOT set than ```politeiavoter```
-will try to smear it out over the remaining vote duration minus one day. If it
-can't autodetect a proper duration it will error out so that the user can
-provide one.
+seconds (e.g. 3h18m15s). If this setting is NOT set then ```politeiavoter```
+will try to spread the votes out over the remaining vote duration minus one
+day.  If it can't autodetect a proper duration it will error out so that the
+user can provide one.
 
 E.g. running Tor software on the local machine with 10 votes:
 ```
