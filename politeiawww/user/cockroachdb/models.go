@@ -53,17 +53,20 @@ func (User) TableName() string {
 // a politeiawww User.
 //
 // This is a CMS plugin model.
+//
+// XXX We need to update SupervisorUserID to SupervisorUserIDs next time we
+// update or do any migration on the userdb.
 type CMSUser struct {
 	ID                 uuid.UUID `gorm:"primary_key"`            // UUID (User foreign key)
 	User               User      `gorm:"not null;foreignkey:ID"` // politeiawww user
 	Domain             int       `gorm:"not null"`               // Contractor domain
-	GitHubName         string
-	MatrixName         string
-	ContractorType     int
-	ContractorName     string
-	ContractorLocation string
-	ContractorContact  string
-	SupervisorUserID   string
+	GitHubName         string    `gorm:"not null"`               // Github Name/ID
+	MatrixName         string    `gorm:"not null"`               // Matrix Name/ID
+	ContractorType     int       `gorm:"not null"`               // Type of Contractor
+	ContractorName     string    `gorm:"not null"`               // IRL Contractor Name or identity
+	ContractorLocation string    `gorm:"not null"`               // General IRL Contractor Location
+	ContractorContact  string    `gorm:"not null"`               // Point of contact outside of matrix
+	SupervisorUserID   string    `gorm:"not null"`               // This is can either be 1 SupervisorUserID or a comma separated string of many supervisor user ids
 
 	// Set by gorm
 	CreatedAt time.Time // Time of record creation

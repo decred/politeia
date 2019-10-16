@@ -267,18 +267,19 @@ func validateContact(contact string) error {
 func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.NewInvoiceReply, error) {
 	log.Tracef("processNewInvoice")
 
-	cmsUser, err := p.getCMSUserByID(u.ID.String())
+	cmsUser, err := p.getCMSUserByIDRaw(u.ID.String())
 	if err != nil {
 		return nil, err
 	}
 
 	// Ensure that the user is not unauthorized to create invoices
-	if _, ok := invalidNewInvoiceContractorType[cmsUser.ContractorType]; ok {
+	if _, ok := invalidNewInvoiceContractorType[cms.ContractorTypeT(
+		cmsUser.ContractorType)]; ok {
 		return nil, www.UserError{
 			ErrorCode: cms.ErrorStatusInvalidUserNewInvoice,
 		}
 	}
-	err = p.validateInvoice(ni, u)
+	err = p.validateInvoice(ni, cmsUser)
 	if err != nil {
 		return nil, err
 	}
@@ -461,7 +462,7 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 	}, nil
 }
 
-func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
+func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error {
 	log.Tracef("validateInvoice")
 
 	// Obtain signature
@@ -486,7 +487,6 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 
 	// Check for at least 1 markdown file with a non-empty payload.
 	if len(ni.Files) == 0 || ni.Files[0].Payload == "" {
-		fmt.Println(ni.Files[0].Payload)
 		return www.UserError{
 			ErrorCode: www.ErrorStatusProposalMissingFiles,
 		}
@@ -632,7 +632,6 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 			minRate := 500   // 5 USD (in cents)
 			maxRate := 50000 // 500 USD (in cents)
 			if invInput.ContractorRate < uint(minRate) || invInput.ContractorRate > uint(maxRate) {
-				fmt.Println(invInput.ContractorRate)
 				return www.UserError{
 					ErrorCode: cms.ErrorStatusInvoiceInvalidRate,
 				}
@@ -687,6 +686,39 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.User) error {
 							ErrorCode: cms.ErrorStatusInvalidLaborExpense,
 						}
 					}
+				case cms.LineItemTypeSubHours:
+					if u.ContractorType != int(cms.ContractorTypeSupervisor) {
+						return www.UserError{
+							ErrorCode: cms.ErrorStatusInvalidTypeSubHoursLineItem,
+						}
+					}
+					if lineInput.SubUserID == "" {
+						return www.UserError{
+							ErrorCode: cms.ErrorStatusMissingSubUserIDLineItem,
+						}
+					}
+					subUser, err := p.getCMSUserByIDRaw(lineInput.SubUserID)
+					if err != nil {
+						return err
+					}
+					found := false
+					for _, superUserIds := range subUser.SupervisorUserIDs {
+						if superUserIds.String() == u.ID.String() {
+							found = true
+							break
+						}
+					}
+					if !found {
+						return www.UserError{
+							ErrorCode: cms.ErrorStatusInvalidSubUserIDLineItem,
+						}
+					}
+					if lineInput.Labor == 0 {
+						return www.UserError{
+							ErrorCode: cms.ErrorStatusInvalidLaborExpense,
+						}
+					}
+
 				default:
 					return www.UserError{
 						ErrorCode: cms.ErrorStatusInvalidLineItemType,
@@ -1019,6 +1051,10 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 		}
 	}
 
+	cmsUser, err := p.getCMSUserByIDRaw(u.ID.String())
+	if err != nil {
+		return nil, err
+	}
 	// Validate invoice. Convert it to cms.NewInvoice so that
 	// we can reuse the function validateProposal.
 	ni := cms.NewInvoice{
@@ -1026,7 +1062,7 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 		PublicKey: ei.PublicKey,
 		Signature: ei.Signature,
 	}
-	err = p.validateInvoice(ni, u)
+	err = p.validateInvoice(ni, cmsUser)
 	if err != nil {
 		return nil, err
 	}
@@ -1673,7 +1709,7 @@ func (p *politeiawww) calculatePayout(inv database.Invoice) (cms.Payout, error) 
 	var totalExpenses uint
 	for _, lineItem := range inv.LineItems {
 		switch lineItem.Type {
-		case cms.LineItemTypeLabor:
+		case cms.LineItemTypeLabor, cms.LineItemTypeSubHours:
 			totalLaborMinutes += lineItem.Labor
 		case cms.LineItemTypeExpense, cms.LineItemTypeMisc:
 			totalExpenses += lineItem.Expenses

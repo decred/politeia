@@ -21,6 +21,7 @@ server side notifications.  It does not render HTML.
 - [`Invoice exchange rate`](#invoice-exchange-rate)
 - [`Pay invoices`](#pay-invoices)
 - [`Line item payouts`](#line-item-payouts)
+- [`User sub-contractors`](#user-sub-contractors)
 
 **Invoice status codes**
 
@@ -1314,6 +1315,106 @@ Reply:
 
 ```json
 {}
+```
+
+### `User sub contractors`
+
+Returns a list of the user's associated subcontractors
+
+**Route:** `GET /v1/user/subcontractors`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+
+**Results:**
+
+| | Type | Description |
+|-|-|-|
+| users | array of [`User`](#user)s | The list of subcontractors. |
+
+**Example**
+
+Request:
+
+```json
+{}
+```
+
+Reply:
+
+```json
+{
+  "users": [
+    {
+    "user":
+      {
+        "id": "0",
+        "email": "6b87b6ebb0c80cb7@example.com",
+        "username": "subcontractor1",
+        "isadmin": false,
+        "newuserpaywalladdress": "Tsgs7qb1Gnc43D9EY3xx9ou8Lbo8rB7me6M",
+        "newuserpaywallamount": 10000000,
+        "newuserpaywalltxnotbefore": 1528821554,
+        "newuserpaywalltx": "",
+        "newuserpaywallpollexpiry": 1528821554,
+        "newuserverificationtoken": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
+        "newuserverificationexpiry": 1528821554,
+        "updatekeyverificationtoken": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
+        "updatekeyverificationexpiry": 1528821554,
+        "numofproposals": 0,
+        "resetpasswordverificationtoken": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
+        "resetpasswordverificationexpiry": 1528821554,
+        "identities": [{
+          "pubkey": "5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+          "isactive": true
+        }],
+      },
+    "domain": 1,
+    "githubname": "smobs",
+    "matrixname": "smobs:decred.org",
+    "contractortype": 3,
+    "contractorname": "Steve Mobs",
+    "contractorlocation": "Cupertino, CA",
+    "contractorcontact": "smobs@apple.com",
+    "supervisoruserid": "4",
+  },
+  {
+    "user":
+      {
+        "id": "1",
+        "email": "anotherexample@example.com",
+        "username": "subcontractor2",
+        "isadmin": false,
+        "newuserpaywalladdress": "Tsgs7qb1Gnc43D9EY3xx9ou8Lbo8rB7me6M",
+        "newuserpaywallamount": 10000000,
+        "newuserpaywalltxnotbefore": 1528821554,
+        "newuserpaywalltx": "",
+        "newuserpaywallpollexpiry": 1528821554,
+        "newuserverificationtoken": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
+        "newuserverificationexpiry": 1528821554,
+        "updatekeyverificationtoken": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
+        "updatekeyverificationexpiry": 1528821554,
+        "numofproposals": 0,
+        "resetpasswordverificationtoken": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
+        "resetpasswordverificationexpiry": 1528821554,
+        "identities": [{
+          "pubkey": "5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+          "isactive": true
+        }],
+      },
+    "domain": 1,
+    "githubname": "sdobs",
+    "matrixname": "sdobs:decred.org",
+    "contractortype": 3,
+    "contractorname": "Steve Dobs",
+    "contractorlocation": "Cupertino, CA",
+    "contractorcontact": "sdobs@apple.com",
+    "supervisoruserid": "4",
+  },
+  ]
+}
 ```
 
 ### Error codes
