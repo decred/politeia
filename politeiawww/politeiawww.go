@@ -887,7 +887,7 @@ func (p *politeiawww) getBestBlock() (uint64, error) {
 }
 
 // reconnectBestBlockSub stops the connection to dcrdata, starts a new one,
-// and subscribes to the new block event. 
+// and subscribes to the new block event.
 func (p *politeiawww) reconnectNewBlockSub() {
 	if p.wsDcrdata != nil {
 		p.wsDcrdata.client.Stop()
@@ -898,7 +898,6 @@ func (p *politeiawww) reconnectNewBlockSub() {
 	p.subscibedToBestBlock = false
 
 	for {
-
 		p.wsDcrdata, err = newWSDcrdata()
 		if err != nil {
 			log.Errorf("reconnectWS error: %v", err)
