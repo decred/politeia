@@ -53,6 +53,9 @@ func (User) TableName() string {
 // a politeiawww User.
 //
 // This is a CMS plugin model.
+//
+// XXX We need to update SupervisorUserID to SupervisorUserIDs next time we
+// update or do any migration on the userdb.
 type CMSUser struct {
 	ID                 uuid.UUID `gorm:"primary_key"`            // UUID (User foreign key)
 	User               User      `gorm:"not null;foreignkey:ID"` // politeiawww user
