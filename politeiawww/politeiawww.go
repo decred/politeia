@@ -866,14 +866,17 @@ func (p *politeiawww) handleWebsocketWrite(wc *wsContext) {
 	}
 }
 
+// updateBestBlock updates the cached best block.
 func (p *politeiawww) updateBestBlock(bestBlock uint64) {
 	p.bbMtx.Lock()
 	defer p.bbMtx.Unlock()
 	p.bestBlock = bestBlock
 }
 
+// getBestBlock returns the cached best block if there is an active
+// websocket connection to dcrdata. Otherwise it makes a call to dcrdata to
+// try to fetch the value.
 func (p *politeiawww) getBestBlock() (uint64, error) {
-
 	if !p.subscibedToBestBlock {
 		return p.getBestBlockDecredPlugin()
 	}
@@ -883,17 +886,20 @@ func (p *politeiawww) getBestBlock() (uint64, error) {
 	return p.bestBlock, nil
 }
 
-func (p *politeiawww) reconnectBestBlockSub() {
+// reconnectBestBlockSub stops the connection to dcrdata, starts a new one,
+// and subscribes to the new block event. 
+func (p *politeiawww) reconnectNewBlockSub() {
 	if p.wsDcrdata != nil {
 		p.wsDcrdata.client.Stop()
 		p.wsDcrdata = nil
 	}
+
 	var err error
 	p.subscibedToBestBlock = false
 
 	for {
-		p.wsDcrdata, err = newWSDcrdata()
 
+		p.wsDcrdata, err = newWSDcrdata()
 		if err != nil {
 			log.Errorf("reconnectWS error: %v", err)
 		}
@@ -901,6 +907,7 @@ func (p *politeiawww) reconnectBestBlockSub() {
 		if p.wsDcrdata != nil {
 			err = p.setupNewBlockSub()
 			if err == nil {
+				log.Debugf("Sucessfully reconnected to new block events")
 				break
 			}
 		}
@@ -910,6 +917,7 @@ func (p *politeiawww) reconnectBestBlockSub() {
 	}
 }
 
+// setupNewBlockSub handles new block and hang up messages from dcrdata.
 func (p *politeiawww) setupNewBlockSub() error {
 	err := p.wsDcrdata.subToNewBlock()
 	if err != nil {
@@ -935,7 +943,7 @@ func (p *politeiawww) setupNewBlockSub() error {
 				p.updateBestBlock(uint64(m.Block.Height))
 			case *pstypes.HangUp:
 				log.Errorf("Dcrdata has hung. Will reconnect...")
-				p.reconnectBestBlockSub()
+				p.reconnectNewBlockSub()
 			default:
 				log.Debugf("Message of type %v unhandled. %v", msg.EventId, m)
 			}
