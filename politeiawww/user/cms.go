@@ -30,6 +30,11 @@ type CMSUser struct {
 	SupervisorUserIDs  []uuid.UUID `json:"supervisoruserids"`
 }
 
+// EncodeCMSUser encodes a CMSUser into a JSON byte slice.
+func EncodeCMSUser(u CMSUser) ([]byte, error) {
+	return json.Marshal(u)
+}
+
 // DecodeCMSUser decodes a JSON byte slice into a CMSUser.
 func DecodeCMSUser(payload []byte) (*CMSUser, error) {
 	var u CMSUser

@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
@@ -352,7 +351,6 @@ func (p *politeiawww) processManageCMSUser(mu cms.ManageUser) (*cms.ManageUserRe
 	if mu.ContractorType != 0 {
 		uu.ContractorType = int(mu.ContractorType)
 	}
-	spew.Dump(mu)
 	if len(mu.SupervisorUserIDs) > 0 {
 		// Validate SupervisorUserID input
 		parseSuperUserIds := make([]uuid.UUID, 0, len(mu.SupervisorUserIDs))
@@ -518,7 +516,6 @@ func (p *politeiawww) getCMSUserByIDRaw(id string) (*user.CMSUser, error) {
 
 // convertCMSUserFromDatabaseUser converts a user User to a cms User.
 func convertCMSUserFromDatabaseUser(user *user.CMSUser) cms.User {
-
 	superUserIDs := make([]string, 0, len(user.SupervisorUserIDs))
 	for _, userIDs := range user.SupervisorUserIDs {
 		superUserIDs = append(superUserIDs, userIDs.String())
