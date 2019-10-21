@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"math/big"
 	"math/rand"
 	"net/http"
@@ -35,6 +36,7 @@ import (
 	"github.com/decred/dcrd/dcrec/secp256k1"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/wire"
+	dcrdataapi "github.com/decred/dcrdata/api/types/v3"
 	pb "github.com/decred/dcrwallet/rpc/walletrpc"
 	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
@@ -1034,19 +1036,84 @@ func verifyV1Vote(address string, vote *v1.CastVote) bool {
 	return true
 }
 
+// XXX remove this once BatchVoteSummary is live.
+func (c *ctx) voteStatus(token string) (*v1.VoteStatusReply, error) {
+	route := "/proposals/" + token + "/votestatus"
+	responseBody, err := c.makeRequest("GET", route, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var vsr v1.VoteStatusReply
+	err = json.Unmarshal(responseBody, &vsr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal ActiveVoteReply: %v",
+			err)
+	}
+
+	return &vsr, nil
+}
+
+// XXX remove this once BatchVoteSummary is live
+func (c *ctx) bestBlock() (uint32, error) {
+	var url string
+	if c.cfg.TestNet {
+		url = "https://testnet.dcrdata.org:443/api/block/best"
+	} else {
+		url = "https://explorer.dcrdata.org:443/api/block/best"
+	}
+
+	r, err := http.Get(url)
+	if err != nil {
+		return 0, err
+	}
+	defer r.Body.Close()
+
+	if r.StatusCode != http.StatusOK {
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			return 0, fmt.Errorf("dcrdata error: %v %v %v",
+				r.StatusCode, url, err)
+		}
+		return 0, fmt.Errorf("dcrdata error: %v %v %s",
+			r.StatusCode, url, body)
+	}
+
+	var bdb dcrdataapi.BlockDataBasic
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&bdb); err != nil {
+		return 0, err
+	}
+
+	return bdb.Height, nil
+}
+
 func (c *ctx) _vote(seed int64, token, voteId string) error {
-	// Pull the vote summary first to make sure the vote is still active.
-	bvsr, err := c._summary(token)
+	/*
+		XXX Add this back in once BatchVoteSummary is live
+		// Pull the vote summary first to make sure the vote is still active.
+		bvsr, err := c._summary(token)
+		if err != nil {
+			return err
+		}
+		summary, ok := bvsr.Summaries[token]
+		if !ok {
+			return fmt.Errorf("Proposal does not exist: %v", token)
+		}
+		if bvsr.BestBlock > summary.EndHeight {
+			return fmt.Errorf("Proposal vote has already completed: %v",
+				token)
+		}
+	*/
+
+	// Make sure vote is active
+	// XXX Remove this once BatchVoteSummary is live
+	vsr, err := c.voteStatus(token)
 	if err != nil {
 		return err
 	}
-	summary, ok := bvsr.Summaries[token]
-	if !ok {
-		return fmt.Errorf("Proposal does not exist: %v", token)
-	}
-	if bvsr.BestBlock > summary.EndHeight {
-		return fmt.Errorf("Proposal vote has already completed: %v",
-			token)
+	if vsr.Status != v1.PropVoteStatusStarted {
+		return fmt.Errorf("Proposal vote is not active: %v", token)
 	}
 
 	// _tally provides the eligible tickets snapshot as well as a list of
@@ -1150,7 +1217,16 @@ func (c *ctx) _vote(seed int64, token, voteId string) error {
 	if c.cfg.Trickle {
 		// Calculate vote duration if not set
 		if c.cfg.voteDuration.Seconds() == 0 {
-			blocksLeft := summary.EndHeight - bvsr.BestBlock
+			bestBlock, err := c.bestBlock()
+			if err != nil {
+				return err
+			}
+			endHeight, err := strconv.ParseUint(vsr.EndHeight, 10, 64)
+			if err != nil {
+				return fmt.Errorf("parse end height '%v': %v",
+					vsr.EndHeight, err)
+			}
+			blocksLeft := endHeight - uint64(bestBlock)
 			if blocksLeft < c.cfg.blocksPerDay {
 				return fmt.Errorf("less than a day left to " +
 					"vote, please set --voteduration " +
