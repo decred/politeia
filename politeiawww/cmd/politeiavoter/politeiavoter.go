@@ -1090,7 +1090,7 @@ func (c *ctx) bestBlock() (uint32, error) {
 
 func (c *ctx) _vote(seed int64, token, voteId string) error {
 	/*
-		XXX This endpoint is not in production yet
+		XXX Add this back in once BatchVoteSummary is live
 		// Pull the vote summary first to make sure the vote is still active.
 		bvsr, err := c._summary(token)
 		if err != nil {
@@ -1107,6 +1107,7 @@ func (c *ctx) _vote(seed int64, token, voteId string) error {
 	*/
 
 	// Make sure vote is active
+	// XXX Remove this once BatchVoteSummary is live
 	vsr, err := c.voteStatus(token)
 	if err != nil {
 		return err
