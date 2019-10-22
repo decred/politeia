@@ -15,7 +15,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"math/big"
 	"math/rand"
 	"net/http"
@@ -1071,23 +1070,19 @@ func (c *ctx) bestBlock() (uint32, error) {
 	}
 	defer r.Body.Close()
 
+	responseBody := util.ConvertBodyToByteArray(r.Body, false)
+	log.Tracef("Response: %v %v", r.StatusCode, string(responseBody))
+
 	if r.StatusCode != http.StatusOK {
-		body, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			return 0, fmt.Errorf("dcrdata error: %v %v %v",
-				r.StatusCode, url, err)
-		}
 		return 0, fmt.Errorf("dcrdata error: %v %v %s",
-			r.StatusCode, url, body)
+			r.StatusCode, url, string(responseBody))
 	}
 
 	var bdb dcrdataapi.BlockDataBasic
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&bdb); err != nil {
+	err = json.Unmarshal(responseBody, &bdb)
+	if err != nil {
 		return 0, err
 	}
-
-	log.Debugf("%+v", bdb)
 
 	return bdb.Height, nil
 }
