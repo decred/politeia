@@ -1063,7 +1063,7 @@ func (c *ctx) bestBlock() (uint32, error) {
 		url = "https://explorer.dcrdata.org:443/api/block/best"
 	}
 
-	r, err := http.Get(url)
+	r, err := c.client.Get(url)
 	if err != nil {
 		return 0, err
 	}
