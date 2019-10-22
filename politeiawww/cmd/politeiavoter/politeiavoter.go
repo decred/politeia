@@ -1063,6 +1063,8 @@ func (c *ctx) bestBlock() (uint32, error) {
 		url = "https://explorer.dcrdata.org:443/api/block/best"
 	}
 
+	log.Debugf("Request: GET %v", url)
+
 	r, err := c.client.Get(url)
 	if err != nil {
 		return 0, err
@@ -1084,6 +1086,8 @@ func (c *ctx) bestBlock() (uint32, error) {
 	if err := decoder.Decode(&bdb); err != nil {
 		return 0, err
 	}
+
+	log.Debugf("%+v", bdb)
 
 	return bdb.Height, nil
 }
