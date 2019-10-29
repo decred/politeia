@@ -140,7 +140,7 @@ func (p *politeiawww) emailAuthorForVettedProposal(proposal *www.ProposalRecord,
 		return nil
 	}
 
-	l, err := url.Parse(p.cfg.WebServerAddress + "/proposals/" +
+	l, err := url.Parse(p.cfg.WebServerAddress + "/proposal/" +
 		proposal.CensorshipRecord.Token)
 	if err != nil {
 		return err
@@ -173,7 +173,7 @@ func (p *politeiawww) emailAuthorForCensoredProposal(proposal *www.ProposalRecor
 		return nil
 	}
 
-	l, err := url.Parse(p.cfg.WebServerAddress + "/proposals/" +
+	l, err := url.Parse(p.cfg.WebServerAddress + "/proposal/" +
 		proposal.CensorshipRecord.Token)
 	if err != nil {
 		return err
@@ -207,7 +207,7 @@ func (p *politeiawww) emailUsersForVettedProposal(proposal *www.ProposalRecord, 
 	}
 
 	// Create the template data.
-	l, err := url.Parse(p.cfg.WebServerAddress + "/proposals/" +
+	l, err := url.Parse(p.cfg.WebServerAddress + "/proposal/" +
 		proposal.CensorshipRecord.Token)
 	if err != nil {
 		return err
@@ -250,7 +250,7 @@ func (p *politeiawww) emailUsersForEditedProposal(proposal *www.ProposalRecord, 
 	}
 
 	// Create the template data.
-	l, err := url.Parse(p.cfg.WebServerAddress + "/proposals/" +
+	l, err := url.Parse(p.cfg.WebServerAddress + "/proposal/" +
 		proposal.CensorshipRecord.Token)
 	if err != nil {
 		return err
@@ -294,7 +294,7 @@ func (p *politeiawww) emailUsersForProposalVoteStarted(proposal *www.ProposalRec
 	}
 
 	// Create the template data.
-	l, err := url.Parse(p.cfg.WebServerAddress + "/proposals/" +
+	l, err := url.Parse(p.cfg.WebServerAddress + "/proposal/" +
 		proposal.CensorshipRecord.Token)
 	if err != nil {
 		return err
@@ -350,7 +350,7 @@ func (p *politeiawww) emailAdminsForNewSubmittedProposal(token string, propName 
 		return nil
 	}
 
-	l, err := url.Parse(p.cfg.WebServerAddress + "/proposals/" + token)
+	l, err := url.Parse(p.cfg.WebServerAddress + "/proposal/" + token)
 	if err != nil {
 		return err
 	}
@@ -386,7 +386,7 @@ func (p *politeiawww) emailAdminsForProposalVoteAuthorized(proposal *www.Proposa
 		return nil
 	}
 
-	l, err := url.Parse(fmt.Sprintf("%v/proposals/%v", p.cfg.WebServerAddress,
+	l, err := url.Parse(fmt.Sprintf("%v/proposal/%v", p.cfg.WebServerAddress,
 		proposal.CensorshipRecord.Token))
 	if err != nil {
 		return err
@@ -425,7 +425,7 @@ func (p *politeiawww) emailAuthorForCommentOnProposal(proposal *www.ProposalReco
 		return nil
 	}
 
-	l, err := url.Parse(fmt.Sprintf("%v/proposals/%v/comments/%v",
+	l, err := url.Parse(fmt.Sprintf("%v/proposal/%v/comments/%v",
 		p.cfg.WebServerAddress, proposal.CensorshipRecord.Token, commentID))
 	if err != nil {
 		return err
@@ -463,7 +463,7 @@ func (p *politeiawww) emailAuthorForCommentOnComment(proposal *www.ProposalRecor
 		return nil
 	}
 
-	l, err := url.Parse(fmt.Sprintf("%v/proposals/%v/comments/%v",
+	l, err := url.Parse(fmt.Sprintf("%v/proposal/%v/comments/%v",
 		p.cfg.WebServerAddress, proposal.CensorshipRecord.Token, commentID))
 	if err != nil {
 		return err
