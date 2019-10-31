@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	client "github.com/decred/dcrdata/pubsub/v2/psclient"
+	client "github.com/decred/dcrdata/pubsub/v3/psclient"
 	"github.com/decred/dcrdata/semver"
 	"github.com/decred/politeia/util"
 )
@@ -58,16 +58,6 @@ func (w *wsDcrdata) isSubscribed(event string) bool {
 
 	_, ok := w.subscriptions[event]
 	return ok
-}
-
-// subToPing subscribes to the dcrdata ping event.
-func (w *wsDcrdata) subToPing() error {
-	_, err := w.client.Subscribe("ping")
-	if err != nil {
-		return fmt.Errorf("failed to subscribe: %v", err)
-	}
-	log.Debugf("wsDcrdata subscribed to ping")
-	return nil
 }
 
 // subToAddr subscribes to dcrdata events for the provided address.
