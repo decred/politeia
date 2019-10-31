@@ -567,7 +567,9 @@ Reply:
 
 ### `User details`
 
-Returns details about a user given its id. Returns complete data if request is from admin or own user, and omits data if request is from a normal user or logged out.
+Returns details about a user given its id. Returns complete data if request is from
+admin or own user, and omits private data if request is from a normal user or logged
+out user.
 
 **Route:** `GET /v1/user/{userid}`
 
@@ -613,18 +615,22 @@ For a logged in admin user or own user requesting data.
     "newuserpaywalltx": "",
     "newuserpaywalltxnotbefore": 1528821554,
     "newuserpaywallpollexpiry": 1528821554,
-    "newuserverificationtoken": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
+    "newuserverificationtoken": 
+      "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
     "newuserverificationexpiry": 1528821554,
-    "updatekeyverificationtoken": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
+    "updatekeyverificationtoken": 
+      "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
     "updatekeyverificationexpiry": 1528821554,
-    "resetpasswordverificationtoken": "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
+    "resetpasswordverificationtoken": 
+      "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
     "resetpasswordverificationexpiry": 1528821554,
     "lastlogintime": 1571316271,
     "failedloginattemps": 3,
     "isdeactivated": false,
     "islocked": false,
     "identities": [{
-      "pubkey": "5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+      "pubkey": 
+        "5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
       "isactive": true
     }],
     "proposalCredits": 10,
@@ -660,7 +666,8 @@ For a unlogged or normal user requesting data.
     "isdeactivated": false,
     "islocked": false,
     "identities": [{
-      "pubkey": "5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+      "pubkey": 
+        "5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
       "isactive": true
     }],
     "proposalCredits": 0,
