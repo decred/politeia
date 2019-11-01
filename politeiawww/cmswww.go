@@ -746,6 +746,26 @@ func (p *politeiawww) handleSetDCCStatus(w http.ResponseWriter, r *http.Request)
 	util.RespondWithJSON(w, http.StatusOK, adr)
 }
 
+func (p *politeiawww) handleUserSubContractors(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleUserSubContractors")
+
+	u, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserSubContractors: getSessionUser %v", err)
+		return
+	}
+
+	uscr, err := p.processUserSubContractors(u)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserSubContractors: processUserSubContractors: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, uscr)
+}
+
 func (p *politeiawww) setCMSWWWRoutes() {
 	// Templates
 	//p.addTemplate(templateNewProposalSubmittedName,
@@ -794,6 +814,8 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		p.handleNewCommentDCC, permissionLogin)
 	p.addRoute(http.MethodGet, cms.RouteDCCComments,
 		p.handleDCCComments, permissionLogin)
+	p.addRoute(http.MethodGet, cms.RouteUserSubContractors,
+		p.handleUserSubContractors, permissionLogin)
 
 	// Unauthenticated websocket
 	p.addRoute("", www.RouteUnauthenticatedWebSocket,

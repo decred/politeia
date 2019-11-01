@@ -60,16 +60,6 @@ func (w *wsDcrdata) isSubscribed(event string) bool {
 	return ok
 }
 
-// subToPing subscribes to the dcrdata ping event.
-func (w *wsDcrdata) subToPing() error {
-	_, err := w.client.Subscribe("ping")
-	if err != nil {
-		return fmt.Errorf("failed to subscribe: %v", err)
-	}
-	log.Debugf("wsDcrdata subscribed to ping")
-	return nil
-}
-
 // subToAddr subscribes to dcrdata events for the provided address.
 func (w *wsDcrdata) subToAddr(address string) error {
 	event := addrSubPrefix + address

@@ -2,8 +2,10 @@ package cockroachdb
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/decred/politeia/politeiawww/user"
+	"github.com/google/uuid"
 	"github.com/jinzhu/gorm"
 )
 
@@ -13,6 +15,18 @@ const (
 )
 
 func (c *cockroachdb) convertCMSUserFromDatabase(cu CMSUser) (*user.CMSUser, error) {
+	superUserIds := strings.Split(cu.SupervisorUserID, ",")
+	parsedUUIds := make([]uuid.UUID, 0, len(superUserIds))
+	for _, userIds := range superUserIds {
+		if userIds == "" {
+			continue
+		}
+		parsed, err := uuid.Parse(strings.TrimSpace(userIds))
+		if err != nil {
+			return nil, err
+		}
+		parsedUUIds = append(parsedUUIds, parsed)
+	}
 	u := user.CMSUser{
 		Domain:             cu.Domain,
 		GitHubName:         cu.GitHubName,
@@ -21,7 +35,7 @@ func (c *cockroachdb) convertCMSUserFromDatabase(cu CMSUser) (*user.CMSUser, err
 		ContractorName:     cu.ContractorName,
 		ContractorLocation: cu.ContractorLocation,
 		ContractorContact:  cu.ContractorContact,
-		SupervisorUserID:   cu.SupervisorUserID,
+		SupervisorUserIDs:  parsedUUIds,
 	}
 	b, _, err := c.decrypt(cu.User.Blob)
 	if err != nil {
@@ -115,6 +129,14 @@ func (c *cockroachdb) updateCMSUser(tx *gorm.DB, nu user.UpdateCMSUser) error {
 	cms := CMSUser{
 		ID: nu.ID,
 	}
+	var superVisorUserIds string
+	for i, userIds := range nu.SupervisorUserIDs {
+		if i == 0 {
+			superVisorUserIds = userIds.String()
+		} else {
+			superVisorUserIds += ", " + userIds.String()
+		}
+	}
 	err := tx.First(&cms).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -125,7 +147,7 @@ func (c *cockroachdb) updateCMSUser(tx *gorm.DB, nu user.UpdateCMSUser) error {
 			cms.ContractorType = nu.ContractorType
 			cms.ContractorLocation = nu.ContractorLocation
 			cms.ContractorContact = nu.ContractorContact
-			cms.SupervisorUserID = nu.SupervisorUserID
+			cms.SupervisorUserID = superVisorUserIds
 			err = tx.Create(&cms).Error
 			if err != nil {
 				return err
@@ -141,7 +163,7 @@ func (c *cockroachdb) updateCMSUser(tx *gorm.DB, nu user.UpdateCMSUser) error {
 	cms.ContractorType = nu.ContractorType
 	cms.ContractorLocation = nu.ContractorLocation
 	cms.ContractorContact = nu.ContractorContact
-	cms.SupervisorUserID = nu.SupervisorUserID
+	cms.SupervisorUserID = superVisorUserIds
 
 	err = tx.Save(&cms).Error
 	if err != nil {
@@ -267,6 +289,45 @@ func (c *cockroachdb) cmdCMSUserByID(payload string) (string, error) {
 	return string(reply), nil
 }
 
+func (c *cockroachdb) cmdCMSUserSubContractors(payload string) (string, error) {
+	// Decode payload
+	p, err := user.DecodeCMSUserByID([]byte(payload))
+	if err != nil {
+		return "", err
+	}
+	var cmsUsers []CMSUser
+
+	// This is done this way currently because GORM doesn't appear to properly
+	// parse the following:
+	// Where("? = ANY(string_to_array(supervisor_user_id, ','))", p.ID)
+	err = c.userDB.
+		Where("'" + p.ID + "' = ANY(string_to_array(supervisor_user_id, ','))").
+		Preload("User").
+		Find(&cmsUsers).
+		Error
+	if err != nil {
+		return "", err
+	}
+	// Prepare reply
+	subUsers := make([]user.CMSUser, 0, len(cmsUsers))
+	for _, u := range cmsUsers {
+		convertUser, err := c.convertCMSUserFromDatabase(u)
+		if err != nil {
+			return "", err
+		}
+		subUsers = append(subUsers, *convertUser)
+	}
+	r := user.CMSUserSubContractorsReply{
+		Users: subUsers,
+	}
+	reply, err := user.EncodeCMSUserSubContractorsReply(r)
+	if err != nil {
+		return "", err
+	}
+
+	return string(reply), nil
+}
+
 // Exec executes a cms plugin command.
 func (c *cockroachdb) cmsPluginExec(cmd, payload string) (string, error) {
 	switch cmd {
@@ -278,6 +339,8 @@ func (c *cockroachdb) cmsPluginExec(cmd, payload string) (string, error) {
 		return c.cmdUpdateCMSUser(payload)
 	case user.CmdCMSUserByID:
 		return c.cmdCMSUserByID(payload)
+	case user.CmdCMSUserSubContractors:
+		return c.cmdCMSUserSubContractors(payload)
 	default:
 		return "", user.ErrInvalidPluginCmd
 	}

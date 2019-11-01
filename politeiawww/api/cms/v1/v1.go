@@ -24,6 +24,7 @@ const (
 	RouteInvoiceDetails      = "/invoices/{token:[A-z0-9]{64}}"
 	RouteSetInvoiceStatus    = "/invoices/{token:[A-z0-9]{64}}/status"
 	RouteUserInvoices        = "/user/invoices"
+	RouteUserSubContractors  = "/user/subcontractors"
 	RouteNewDCC              = "/dcc/new"
 	RouteDCCDetails          = "/dcc/{token:[A-z0-9]{64}}"
 	RouteGetDCCs             = "/dcc"
@@ -50,10 +51,11 @@ const (
 	InvoiceStatusPaid     InvoiceStatusT = 7 // Invoice has been paid
 
 	// Line item types
-	LineItemTypeInvalid LineItemTypeT = 0 // Invalid type
-	LineItemTypeLabor   LineItemTypeT = 1 // Labor line items
-	LineItemTypeExpense LineItemTypeT = 2 // Expenses incurred line items
-	LineItemTypeMisc    LineItemTypeT = 3 // Catch all for anything else
+	LineItemTypeInvalid  LineItemTypeT = 0 // Invalid type
+	LineItemTypeLabor    LineItemTypeT = 1 // Labor line items
+	LineItemTypeExpense  LineItemTypeT = 2 // Expenses incurred line items
+	LineItemTypeMisc     LineItemTypeT = 3 // Catch all for anything else
+	LineItemTypeSubHours LineItemTypeT = 4 // Line items for subcontractor billing
 
 	// Domain types
 	DomainTypeInvalid       DomainTypeT = 0 // Invalid Domain type
@@ -134,7 +136,7 @@ const (
 
 	// PolicyInvoiceLineItemCount is the number of expected fields in the raw
 	// csv line items
-	PolicyInvoiceLineItemCount = 7
+	PolicyInvoiceLineItemCount = 8
 
 	// PolicyMinLineItemColLength is the minimun length for the strings in
 	// each column field of the lineItem structure.
@@ -197,6 +199,10 @@ const (
 	ErrorStatusUserIsAuthor                   www.ErrorStatusT = 1044
 	ErrorStatusInvalidUserDCC                 www.ErrorStatusT = 1045
 	ErrorStatusInvalidDCCContractorType       www.ErrorStatusT = 1046
+	ErrorStatusInvalidTypeSubHoursLineItem    www.ErrorStatusT = 1047
+	ErrorStatusMissingSubUserIDLineItem       www.ErrorStatusT = 1048
+	ErrorStatusInvalidSubUserIDLineItem       www.ErrorStatusT = 1049
+	ErrorStatusInvalidSupervisorUser          www.ErrorStatusT = 1050
 )
 
 var (
@@ -254,6 +260,8 @@ var (
 		ErrorStatusInvoiceRequireLineItems:        "invoices require at least 1 line item",
 		ErrorStatusInvalidInvoiceMonthYear:        "an invalid month/year was submitted on an invoice",
 		ErrorStatusInvalidExchangeRate:            "exchange rate was invalid or didn't match expected result",
+		ErrorStatusInvalidLineItemType:            "line item has an invalid type",
+		ErrorStatusInvalidLaborExpense:            "line item has an invalid labor or expense field",
 		ErrorStatusDuplicatePaymentAddress:        "a duplicate payment address was used",
 		ErrorStatusInvalidDatesRequested:          "invalid dates were requested",
 		ErrorStatusInvalidInvoiceEditMonthYear:    "invalid attempt to edit invoice month/year",
@@ -273,6 +281,10 @@ var (
 		ErrorStatusUserIsAuthor:                   "user cannot support or oppose their own sponsored DCC",
 		ErrorStatusInvalidUserDCC:                 "user is not authorized to complete the DCC request",
 		ErrorStatusInvalidDCCContractorType:       "DCC must have a valid contractor type",
+		ErrorStatusInvalidTypeSubHoursLineItem:    "must be a Supervisor Contractor to submit a subcontractor hours line item",
+		ErrorStatusMissingSubUserIDLineItem:       "must supply a userid for a subcontractor hours line item",
+		ErrorStatusInvalidSubUserIDLineItem:       "the userid supplied for the subcontractor hours line item is invalid",
+		ErrorStatusInvalidSupervisorUser:          "attempted input of an invalid supervisor user id",
 	}
 )
 
@@ -380,6 +392,7 @@ type LineItemsInput struct {
 	Subdomain     string        `json:"subdomain"`     // Subdomain of work performed
 	Description   string        `json:"description"`   // Description of work performed
 	ProposalToken string        `json:"proposaltoken"` // Link to politeia proposal that work is associated with
+	SubUserID     string        `json:"subuserid"`     // UserID of the associated Subcontractor
 	Labor         uint          `json:"labor"`         // Number of minutes (if labor)
 	Expenses      uint          `json:"expenses"`      // Total cost (in USD cents) of line item (if expense or misc)
 }
@@ -554,7 +567,7 @@ type User struct {
 	ContractorName     string          `json:"contractorname"`
 	ContractorLocation string          `json:"contractorlocation"`
 	ContractorContact  string          `json:"contractorcontact"`
-	SupervisorUserID   string          `json:"supervisoruserid"`
+	SupervisorUserIDs  []string        `json:"supervisoruserids"`
 }
 
 // UserDetails fetches a cms user's details by their id.
@@ -581,10 +594,10 @@ type EditUserReply struct{}
 
 // ManageUser performs the given action on a user.
 type ManageUser struct {
-	UserID           string          `json:"userid"`
-	Domain           DomainTypeT     `json:"domain,omitempty"`
-	ContractorType   ContractorTypeT `json:"contractortype,omitempty"`
-	SupervisorUserID string          `json:"supervisoruserid,omitempty"`
+	UserID            string          `json:"userid"`
+	Domain            DomainTypeT     `json:"domain,omitempty"`
+	ContractorType    ContractorTypeT `json:"contractortype,omitempty"`
+	SupervisorUserIDs []string        `json:"supervisoruserids,omitempty"`
 }
 
 // ManageUserReply is the reply for the ManageUserReply command.
@@ -676,3 +689,13 @@ type SetDCCStatus struct {
 
 // SetDCCStatusReply returns an empty response when successful.
 type SetDCCStatusReply struct{}
+
+// UserSubContractors is a request for a logged in Supervisor to return a
+// list of UserIDs/Usernames
+type UserSubContractors struct{}
+
+// UserSubContractorsReply returns a list of Users that are considered
+// sub contractors of the logged in user making the request.
+type UserSubContractorsReply struct {
+	Users []User `json:"users"`
+}

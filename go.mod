@@ -20,14 +20,14 @@ require (
 	github.com/decred/dcrd/hdkeychain v1.1.1
 	github.com/decred/dcrd/rpcclient/v3 v3.0.0 // indirect
 	github.com/decred/dcrd/txscript v1.1.0 // indirect
-	github.com/decred/dcrd/wire v1.2.0
-	github.com/decred/dcrdata/api/types/v4 v4.0.2
+	github.com/decred/dcrd/wire v1.3.0
+	github.com/decred/dcrdata/api/types/v4 v4.0.4
 	github.com/decred/dcrdata/explorer/types v1.1.0
 	github.com/decred/dcrdata/explorer/types/v2 v2.0.4
-	github.com/decred/dcrdata/pubsub/types/v3 v3.0.4
-	github.com/decred/dcrdata/pubsub/v3 v3.0.3
+	github.com/decred/dcrdata/pubsub/types/v3 v3.0.3-0.20191018133341-23a17268b383
+	github.com/decred/dcrdata/pubsub/v3 v3.0.4-0.20191018133341-23a17268b383
 	github.com/decred/dcrdata/semver v1.0.0
-	github.com/decred/dcrtime v0.0.0-20190530182702-d6f4a5134c7c
+	github.com/decred/dcrtime v0.0.0-20191018193024-8d8b4ef0458e
 	github.com/decred/dcrwallet v1.2.3-0.20190128160919-849f7c01c12d
 	github.com/decred/dcrwallet/rpc/walletrpc v0.2.0
 	github.com/decred/dcrwallet/wallet v1.3.0
@@ -38,6 +38,7 @@ require (
 	github.com/gogo/protobuf v1.3.0 // indirect
 	github.com/golang/groupcache v0.0.0-20190702054246-869f871628b6 // indirect
 	github.com/golang/protobuf v1.3.2
+	github.com/golang/snappy v0.0.1 // indirect
 	github.com/google/certificate-transparency-go v1.0.21 // indirect
 	github.com/google/trillian v1.2.1
 	github.com/google/uuid v1.1.1
@@ -72,10 +73,8 @@ require (
 	go.uber.org/multierr v1.1.0 // indirect
 	go.uber.org/zap v1.10.0 // indirect
 	golang.org/x/crypto v0.0.0-20190829043050-9756ffdc2472
-	golang.org/x/net v0.0.0-20190613194153-d28f0bde5980
+	golang.org/x/net v0.0.0-20190813141303-74dc4d7220e7
 	golang.org/x/sync v0.0.0-20190423024810-112230192c58
-	google.golang.org/grpc v1.22.0
+	google.golang.org/grpc v1.24.0
 	sigs.k8s.io/yaml v1.1.0 // indirect
 )
-
-replace github.com/asdine/storm => github.com/asdine/storm v2.1.2+incompatible

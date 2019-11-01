@@ -88,6 +88,7 @@ type cmswww struct {
 	UpdateUserKey       shared.UpdateUserKeyCmd  `command:"updateuserkey" description:"(user)   generate a new identity for the logged in user"`
 	UserDetails         UserDetailsCmd           `command:"userdetails" description:"(user)   get current cms user details"`
 	UserInvoices        UserInvoicesCmd          `command:"userinvoices" description:"(user)   get all invoices submitted by a specific user"`
+	UserSubContractors  UserSubContractorsCmd    `command:"usersubcontractors" description:"(user)   get all users that are linked to the user"`
 	Users               shared.UsersCmd          `command:"users" description:"(public) get a list of users"`
 	Secret              shared.SecretCmd         `command:"secret" description:"(user)   ping politeiawww"`
 	Version             shared.VersionCmd        `command:"version" description:"(public) get server info and CSRF token"`
@@ -189,6 +190,7 @@ func validateParseCSV(data []byte) (*cms.InvoiceInput, error) {
 		"labor":   cms.LineItemTypeLabor,
 		"expense": cms.LineItemTypeExpense,
 		"misc":    cms.LineItemTypeMisc,
+		"sub":     cms.LineItemTypeSubHours,
 	}
 	invInput := &cms.InvoiceInput{}
 
@@ -235,6 +237,7 @@ func validateParseCSV(data []byte) (*cms.InvoiceInput, error) {
 		lineItem.Subdomain = lineContents[2]
 		lineItem.Description = lineContents[3]
 		lineItem.ProposalToken = lineContents[4]
+		lineItem.SubUserID = lineContents[7]
 		lineItem.Labor = uint(hours * 60)
 		lineItem.Expenses = uint(cost * 100)
 		lineItems = append(lineItems, lineItem)

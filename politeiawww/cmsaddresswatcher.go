@@ -51,7 +51,6 @@ func (p *politeiawww) removeWatchAddress(address string) {
 }
 
 func (p *politeiawww) setupCMSAddressWatcher() {
-	p.wsDcrdata.subToPing()
 	go func() {
 		for {
 			msg, ok := <-p.wsDcrdata.client.Receive()

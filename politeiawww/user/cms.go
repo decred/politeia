@@ -7,26 +7,44 @@ import (
 )
 
 const (
-	CMSPluginVersion    = "1"
-	CMSPluginID         = "cms"
-	CmdNewCMSUser       = "newcmsuser"
-	CmdCMSUsersByDomain = "cmsusersbydomain"
-	CmdUpdateCMSUser    = "updatecmsuser"
-	CmdCMSUserByID      = "cmsuserbyid"
+	CMSPluginVersion         = "1"
+	CMSPluginID              = "cms"
+	CmdNewCMSUser            = "newcmsuser"
+	CmdCMSUsersByDomain      = "cmsusersbydomain"
+	CmdUpdateCMSUser         = "updatecmsuser"
+	CmdCMSUserByID           = "cmsuserbyid"
+	CmdCMSUserSubContractors = "cmsusersubcontractors"
 )
 
 // CMSUser represents a CMS user. It contains the standard politeiawww user
 // fields as well as CMS specific user fields.
 type CMSUser struct {
 	User
-	Domain             int    `json:"domain"` // Contractor domain
-	GitHubName         string `json:"githubname"`
-	MatrixName         string `json:"matrixname"`
-	ContractorType     int    `json:"contractortype"`
-	ContractorName     string `json:"contractorname"`
-	ContractorLocation string `json:"contractorlocation"`
-	ContractorContact  string `json:"contractorcontact"`
-	SupervisorUserID   string `json:"supervisoruserid"`
+	Domain             int         `json:"domain"` // Contractor domain
+	GitHubName         string      `json:"githubname"`
+	MatrixName         string      `json:"matrixname"`
+	ContractorType     int         `json:"contractortype"`
+	ContractorName     string      `json:"contractorname"`
+	ContractorLocation string      `json:"contractorlocation"`
+	ContractorContact  string      `json:"contractorcontact"`
+	SupervisorUserIDs  []uuid.UUID `json:"supervisoruserids"`
+}
+
+// EncodeCMSUser encodes a CMSUser into a JSON byte slice.
+func EncodeCMSUser(u CMSUser) ([]byte, error) {
+	return json.Marshal(u)
+}
+
+// DecodeCMSUser decodes a JSON byte slice into a CMSUser.
+func DecodeCMSUser(payload []byte) (*CMSUser, error) {
+	var u CMSUser
+
+	err := json.Unmarshal(payload, &u)
+	if err != nil {
+		return nil, err
+	}
+
+	return &u, nil
 }
 
 // NewCMSUser creates a new CMS user record in the user database.
@@ -123,15 +141,15 @@ func DecodeCMSUsersByDomainReply(b []byte) (*CMSUsersByDomainReply, error) {
 
 // UpdateCMSUser creates a new CMS user record in the user database.
 type UpdateCMSUser struct {
-	ID                 uuid.UUID `json:"id"`
-	Domain             int       `json:"domain"` // Contractor domain
-	GitHubName         string    `json:"githubname"`
-	MatrixName         string    `json:"matrixname"`
-	ContractorType     int       `json:"contractortype"`
-	ContractorName     string    `json:"contractorname"`
-	ContractorLocation string    `json:"contractorlocation"`
-	ContractorContact  string    `json:"contractorcontact"`
-	SupervisorUserID   string    `json:"supervisoruserid"`
+	ID                 uuid.UUID   `json:"id"`
+	Domain             int         `json:"domain"` // Contractor domain
+	GitHubName         string      `json:"githubname"`
+	MatrixName         string      `json:"matrixname"`
+	ContractorType     int         `json:"contractortype"`
+	ContractorName     string      `json:"contractorname"`
+	ContractorLocation string      `json:"contractorlocation"`
+	ContractorContact  string      `json:"contractorcontact"`
+	SupervisorUserIDs  []uuid.UUID `json:"supervisoruserids"`
 }
 
 // EncodeUpdateCMSUser encodes a UpdateCMSUser into a JSON byte slice.
@@ -208,6 +226,56 @@ func EncodeCMSUserByIDReply(u CMSUserByIDReply) ([]byte, error) {
 // CMSUserByIDReply.
 func DecodeCMSUserByIDReply(b []byte) (*CMSUserByIDReply, error) {
 	var reply CMSUserByIDReply
+
+	err := json.Unmarshal(b, &reply)
+	if err != nil {
+		return nil, err
+	}
+
+	return &reply, nil
+}
+
+// CMSUserSubContractors retrieves all users that are currently have the
+// given ID as their SupervisorID
+type CMSUserSubContractors struct {
+	ID string `json:"id"` // Contractor user id
+}
+
+// EncodeCMSUserSubContractors encodes a CMSUserSubContractors into a JSON byte
+// slice.
+func EncodeCMSUserSubContractors(u CMSUserSubContractors) ([]byte, error) {
+	return json.Marshal(u)
+}
+
+// DecodeCMSUserSubContractors decodes JSON byte slice into a
+// CMSUserSubContractors.
+func DecodeCMSUserSubContractors(b []byte) (*CMSUserSubContractors, error) {
+	var u CMSUserSubContractors
+
+	err := json.Unmarshal(b, &u)
+	if err != nil {
+		return nil, err
+	}
+
+	return &u, nil
+}
+
+// CMSUserSubContractorsReply is the reply to the CMSUserSubContractors
+// command.
+type CMSUserSubContractorsReply struct {
+	Users []CMSUser `json:"users"`
+}
+
+// EncodeCMSUserSubContractorsReply encodes a CMSUserSubContractorsReply into a
+// JSON byte slice.
+func EncodeCMSUserSubContractorsReply(u CMSUserSubContractorsReply) ([]byte, error) {
+	return json.Marshal(u)
+}
+
+// DecodeCMSUserSubContractorsReply decodes JSON byte slice into a
+// CMSUserSubContractorsReply.
+func DecodeCMSUserSubContractorsReply(b []byte) (*CMSUserSubContractorsReply, error) {
+	var reply CMSUserSubContractorsReply
 
 	err := json.Unmarshal(b, &reply)
 	if err != nil {
