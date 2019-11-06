@@ -1466,6 +1466,10 @@ Reply:
 | <a name="ErrorStatusUserIsAuthor">ErrorStatusUserIsAuthor</a> | 1044 | A user attempted to support or oppose a DCC that they authored. |
 | <a name="ErrorStatusInvalidUserDCC">ErrorStatusInvalidUserDCC</a> | 1045 | A user with an invalid status attempted to complete a DCC task. |
 | <a name="ErrorStatusInvalidDCCContractorType">ErrorStatusInvalidDCCContractorType</a> | 1046 | An invalid contractor type was attempted to be used in a DCC proposal. |
+| <a name="ErrorStatusInvalidTypeSubHoursLineItem">ErrorStatusInvalidTypeSubHoursLineItem</a> | 1047 | A non-supervisor user attempted to sumbit a `subcontractor` line item |
+| <a name="ErrorStatusMissingSubUserIDLineItem">ErrorStatusMissingSubUserIDLineItem</a> | 1048 | Subcontractor ID cannot be blank |
+| <a name="ErrorStatusInvalidSubUserIDLineItem">ErrorStatusInvalidSubUserIDLineItem</a> | 1049 | An invalid subcontractor ID was attempted to be used. |
+| <a name="ErrorStatusInvalidSupervisorUser">ErrorStatusInvalidSupervisorUser</a> | 1050 | An invalid Supervisor User ID was attempted to be used. |
 
 ### Invoice status codes
 
