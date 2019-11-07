@@ -606,6 +606,7 @@ func convertDatabaseInvoiceToInvoiceRecord(dbInvoice cmsdatabase.Invoice) *cms.I
 			ProposalToken: dbLineItem.ProposalURL,
 			Labor:         dbLineItem.Labor,
 			Expenses:      dbLineItem.Expenses,
+			SubRate:       dbLineItem.ContractorRate,
 		}
 		invInputLineItems = append(invInputLineItems, lineItem)
 	}
@@ -636,13 +637,14 @@ func convertInvoiceRecordToDatabaseInvoice(invRec *cms.InvoiceRecord) *cmsdataba
 	dbInvoice.LineItems = make([]cmsdatabase.LineItem, 0, len(invRec.Input.LineItems))
 	for _, lineItem := range invRec.Input.LineItems {
 		dbLineItem := cmsdatabase.LineItem{
-			Type:        lineItem.Type,
-			Domain:      lineItem.Domain,
-			Subdomain:   lineItem.Subdomain,
-			Description: lineItem.Description,
-			ProposalURL: lineItem.ProposalToken,
-			Labor:       lineItem.Labor,
-			Expenses:    lineItem.Expenses,
+			Type:           lineItem.Type,
+			Domain:         lineItem.Domain,
+			Subdomain:      lineItem.Subdomain,
+			Description:    lineItem.Description,
+			ProposalURL:    lineItem.ProposalToken,
+			Labor:          lineItem.Labor,
+			Expenses:       lineItem.Expenses,
+			ContractorRate: lineItem.SubRate,
 		}
 		dbInvoice.LineItems = append(dbInvoice.LineItems, dbLineItem)
 	}
@@ -661,6 +663,8 @@ func convertLineItemsToDatabase(token string, l []cms.LineItemsInput) []cmsdatab
 			ProposalURL:  v.ProposalToken,
 			Labor:        v.Labor,
 			Expenses:     v.Expenses,
+			// If subrate is populated, use the existing contractor rate field.
+			ContractorRate: v.SubRate,
 		})
 	}
 	return dl

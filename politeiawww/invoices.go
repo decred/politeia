@@ -34,6 +34,10 @@ import (
 const (
 	// invoiceFile contains the file name of the invoice file
 	invoiceFile = "invoice.json"
+
+	// Sanity check for Contractor Rates
+	minRate = 500   // 5 USD (in cents)
+	maxRate = 50000 // 500 USD (in cents)
 )
 
 var (
@@ -621,10 +625,6 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 					ErrorCode: cms.ErrorStatusInvoiceMissingRate,
 				}
 			}
-			// Do basic sanity check for contractor rate, since it's in cents
-			// some users may enter in the
-			minRate := 500   // 5 USD (in cents)
-			maxRate := 50000 // 500 USD (in cents)
 			if invInput.ContractorRate < uint(minRate) || invInput.ContractorRate > uint(maxRate) {
 				return www.UserError{
 					ErrorCode: cms.ErrorStatusInvoiceInvalidRate,
@@ -712,7 +712,11 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 							ErrorCode: cms.ErrorStatusInvalidLaborExpense,
 						}
 					}
-
+					if lineInput.SubRate < uint(minRate) || lineInput.SubRate > uint(maxRate) {
+						return www.UserError{
+							ErrorCode: cms.ErrorStatusInvoiceInvalidRate,
+						}
+					}
 				default:
 					return www.UserError{
 						ErrorCode: cms.ErrorStatusInvalidLineItemType,
@@ -1621,17 +1625,25 @@ func calculatePayout(inv database.Invoice) (cms.Payout, error) {
 	var err error
 	var totalLaborMinutes uint
 	var totalExpenses uint
-
+	var totalSubContractorLabor uint
 	for _, lineItem := range inv.LineItems {
 		switch lineItem.Type {
-		case cms.LineItemTypeLabor, cms.LineItemTypeSubHours:
+		case cms.LineItemTypeLabor:
 			totalLaborMinutes += lineItem.Labor
+		case cms.LineItemTypeSubHours:
+			// If SubContractor line item calculate them per line item and total
+			// them up.
+			totalSubContractorLabor += lineItem.Labor *
+				lineItem.ContractorRate / 60
 		case cms.LineItemTypeExpense, cms.LineItemTypeMisc:
 			totalExpenses += lineItem.Expenses
 		}
 	}
 
 	payout.LaborTotal = totalLaborMinutes * inv.ContractorRate / 60
+	// Add in subcontractor line items to total for payout.
+	payout.LaborTotal += totalSubContractorLabor
+
 	payout.ContractorRate = inv.ContractorRate
 	payout.ExpenseTotal = totalExpenses
 

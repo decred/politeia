@@ -393,6 +393,7 @@ type LineItemsInput struct {
 	Description   string        `json:"description"`   // Description of work performed
 	ProposalToken string        `json:"proposaltoken"` // Link to politeia proposal that work is associated with
 	SubUserID     string        `json:"subuserid"`     // UserID of the associated Subcontractor
+	SubRate       uint          `json:"subrate"`       // The payrate of the subcontractor
 	Labor         uint          `json:"labor"`         // Number of minutes (if labor)
 	Expenses      uint          `json:"expenses"`      // Total cost (in USD cents) of line item (if expense or misc)
 }
