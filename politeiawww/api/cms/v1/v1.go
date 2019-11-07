@@ -136,7 +136,7 @@ const (
 
 	// PolicyInvoiceLineItemCount is the number of expected fields in the raw
 	// csv line items
-	PolicyInvoiceLineItemCount = 8
+	PolicyInvoiceLineItemCount = 9
 
 	// PolicyMinLineItemColLength is the minimun length for the strings in
 	// each column field of the lineItem structure.
