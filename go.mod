@@ -26,7 +26,6 @@ require (
 	github.com/decred/dcrtime v0.0.0-20191018193024-8d8b4ef0458e
 	github.com/decred/dcrwallet v1.2.3-0.20190128160919-849f7c01c12d
 	github.com/decred/dcrwallet/rpc/walletrpc v0.2.0
-	github.com/decred/dcrwallet/wallet v1.3.0
 	github.com/decred/go-socks v1.0.0
 	github.com/decred/slog v1.0.0
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect

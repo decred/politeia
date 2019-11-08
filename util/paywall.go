@@ -22,7 +22,6 @@ import (
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/hdkeychain"
-	"github.com/decred/dcrwallet/wallet/udb"
 )
 
 const (
@@ -33,6 +32,9 @@ const (
 
 	dcrdataTimeout = 3 * time.Second // Dcrdata request timeout
 	faucetTimeout  = 5 * time.Second // Testnet faucet request timeout
+
+	// Must match dcrwallets udb.ExternalBranch
+	externalBranch uint32 = 0
 )
 
 // FaucetResponse represents the expected JSON response from the testnet faucet.
@@ -247,7 +249,7 @@ func DerivePaywallAddress(params *chaincfg.Params, xpub string, index uint32) (s
 	}
 
 	// Derive the appropriate branch key.
-	branchKey, err := acctKey.Child(udb.ExternalBranch)
+	branchKey, err := acctKey.Child(externalBranch)
 	if err != nil {
 		return "", err
 	}
