@@ -7,11 +7,10 @@ package util
 import (
 	"crypto/rand"
 	"encoding/binary"
-	"io"
-
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 )
 
 // Random returns a variable number of bytes of random data.

@@ -1092,7 +1092,6 @@ func (g *gitBackEnd) _newRecord(id string, metadata []backend.MetadataStream, fa
 		// git add id/metadata.txt
 		err = g.gitAdd(g.unvetted, filename)
 		if err != nil {
-
 			return nil, err
 		}
 	}
@@ -1197,6 +1196,7 @@ func (g *gitBackEnd) New(metadata []backend.MetadataStream, files []backend.File
 	if err != nil {
 		return nil, err
 	}
+	log.Debugf("New %x", token)
 
 	// Lock filesystem
 	g.Lock()
