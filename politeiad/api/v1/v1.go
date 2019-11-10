@@ -40,6 +40,7 @@ const (
 	ChallengeSize      = 32         // Size of challenge token in bytes
 	TokenSize          = 32         // Size of token
 	MetadataStreamsMax = uint64(16) // Maximum number of metadata streams
+	TokenPrefixLength  = 8          // Length of prefix of token used for lookups
 
 	// Error status codes
 	ErrorStatusInvalid                       ErrorStatusT = 0

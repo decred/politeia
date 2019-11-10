@@ -11,6 +11,7 @@ import (
 
 	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiad/cache"
+	"github.com/decred/politeia/util"
 )
 
 func convertMDStreamFromCache(ms cache.MetadataStream) MetadataStream {
@@ -40,16 +41,19 @@ func convertRecordFromCache(r cache.Record, version uint64) Record {
 			})
 	}
 
+	tokenPrefix := util.TokenToPrefix(r.CensorshipRecord.Token)
+
 	return Record{
-		Key:       r.CensorshipRecord.Token + r.Version,
-		Token:     r.CensorshipRecord.Token,
-		Version:   version,
-		Status:    int(r.Status),
-		Timestamp: r.Timestamp,
-		Merkle:    r.CensorshipRecord.Merkle,
-		Signature: r.CensorshipRecord.Signature,
-		Metadata:  convertMDStreamsFromCache(r.Metadata),
-		Files:     files,
+		Key:         tokenPrefix + r.Version,
+		Token:       r.CensorshipRecord.Token,
+		Version:     version,
+		Status:      int(r.Status),
+		Timestamp:   r.Timestamp,
+		Merkle:      r.CensorshipRecord.Merkle,
+		Signature:   r.CensorshipRecord.Signature,
+		Metadata:    convertMDStreamsFromCache(r.Metadata),
+		Files:       files,
+		TokenPrefix: tokenPrefix,
 	}
 }
 

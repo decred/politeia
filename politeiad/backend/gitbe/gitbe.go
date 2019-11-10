@@ -1092,6 +1092,7 @@ func (g *gitBackEnd) _newRecord(id string, metadata []backend.MetadataStream, fa
 		// git add id/metadata.txt
 		err = g.gitAdd(g.unvetted, filename)
 		if err != nil {
+
 			return nil, err
 		}
 	}
@@ -1126,21 +1127,19 @@ func (g *gitBackEnd) _newRecord(id string, metadata []backend.MetadataStream, fa
 // anything of value.
 //
 // Function must be called with the lock held.
-func (g *gitBackEnd) newRecord(token []byte, metadata []backend.MetadataStream, fa []file) (*backend.RecordMetadata, error) {
-	id := hex.EncodeToString(token)
-
-	log.Tracef("newRecord %v", id)
+func (g *gitBackEnd) newRecord(token string, metadata []backend.MetadataStream, fa []file) (*backend.RecordMetadata, error) {
+	log.Tracef("newRecord %v", token)
 
 	// git checkout -b id
-	err := g.gitNewBranch(g.unvetted, id)
+	err := g.gitNewBranch(g.unvetted, token)
 	if err != nil {
 		return nil, err
 	}
 
-	rm, err2 := g._newRecord(id, metadata, fa)
+	rm, err2 := g._newRecord(token, metadata, fa)
 	if err2 != nil {
 		// Unwind and complain
-		err = g.gitUnwindBranch(g.unvetted, id)
+		err = g.gitUnwindBranch(g.unvetted, token)
 		if err != nil {
 			// We are in trouble and should consider a panic
 			log.Criticalf("newRecord: %v", err)
@@ -1157,6 +1156,25 @@ func (g *gitBackEnd) newRecord(token []byte, metadata []backend.MetadataStream, 
 	return rm, nil
 }
 
+func (g *gitBackEnd) existingTokenPrefixes() ([]string, error) {
+	vetted, unvetted, err := g.Inventory(0, 0, false, false)
+	if err != nil {
+		return nil, err
+	}
+
+	tokenPrefixes := make([]string, 0, len(vetted)+len(unvetted))
+	for _, record := range vetted {
+		tokenPrefixes = append(tokenPrefixes,
+			util.TokenToPrefix(record.RecordMetadata.Token))
+	}
+	for _, record := range unvetted {
+		tokenPrefixes = append(tokenPrefixes,
+			util.TokenToPrefix(record.RecordMetadata.Token))
+	}
+
+	return tokenPrefixes, nil
+}
+
 // New takes a record verifies it and drops it on disk in the unvetted
 // directory.  Records and metadata are stored in unvetted/token/.  the
 // function returns a RecordMetadata.
@@ -1170,12 +1188,15 @@ func (g *gitBackEnd) New(metadata []backend.MetadataStream, files []backend.File
 	}
 
 	// Create a censorship token.
-	token, err := util.Random(pd.TokenSize)
+	tokenPrefixes, err := g.existingTokenPrefixes()
 	if err != nil {
 		return nil, err
 	}
 
-	log.Debugf("New %x", token)
+	token, err := util.RandomUniqueToken(tokenPrefixes, pd.TokenSize)
+	if err != nil {
+		return nil, err
+	}
 
 	// Lock filesystem
 	g.Lock()

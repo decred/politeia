@@ -15,6 +15,7 @@ import (
 
 	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiad/cache"
+	"github.com/decred/politeia/util"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 )
@@ -71,7 +72,7 @@ func (c *cockroachdb) recordVersion(db *gorm.DB, token, version string) (*Record
 	log.Tracef("getRecordVersion: %v %v", token, version)
 
 	r := Record{
-		Key: token + version,
+		Key: util.TokenToPrefix(token) + version,
 	}
 	err := db.Preload("Metadata").
 		Preload("Files").
@@ -113,7 +114,7 @@ func (c *cockroachdb) RecordVersion(token, version string) (*cache.Record, error
 func record(db *gorm.DB, token string) (*Record, error) {
 	var r Record
 	err := db.
-		Where("records.token = ?", token).
+		Where("records.token_prefix = ?", util.TokenToPrefix(token)).
 		Order("records.version desc").
 		Limit(1).
 		Preload("Metadata").
@@ -381,7 +382,7 @@ func (c *cockroachdb) getRecords(getAllRecords bool, tokens []string, fetchFiles
 	// This query gets the latest version of each record
 	query := `SELECT a.* FROM records a
 		LEFT OUTER JOIN records b
-			ON a.token = b.token AND a.version < b.version
+			ON a.token_prefix = b.token_prefix AND a.version < b.version
 		WHERE b.token IS NULL`
 
 	var (
@@ -392,8 +393,9 @@ func (c *cockroachdb) getRecords(getAllRecords bool, tokens []string, fetchFiles
 	if getAllRecords {
 		rows, err = c.recordsdb.Raw(query).Rows()
 	} else {
-		query += ` AND a.token IN (?)`
-		rows, err = c.recordsdb.Raw(query, tokens).Rows()
+		query += ` AND a.token_prefix IN (?)`
+		prefixes := util.TokensToPrefixes(tokens)
+		rows, err = c.recordsdb.Raw(query, prefixes).Rows()
 	}
 
 	if err != nil {

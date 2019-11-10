@@ -81,3 +81,19 @@ func Zero(in []byte) {
 		in[i] ^= in[i]
 	}
 }
+
+func TokenToPrefix(token string) string {
+	if len(token) > pd.TokenPrefixLength {
+		return token[0:pd.TokenPrefixLength]
+	} else {
+		return token
+	}
+}
+
+func TokensToPrefixes(tokens []string) []string {
+	prefixes := make([]string, 0, len(tokens))
+	for _, token := range tokens {
+		prefixes = append(prefixes, TokenToPrefix(token))
+	}
+	return prefixes
+}
