@@ -1,8 +1,12 @@
+// Copyright (c) 2019 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package main
 
 import (
 	"encoding/base32"
-	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -27,7 +31,16 @@ type SessionStore struct {
 //
 // The db argument is the database where sessions will be saved.
 //
-// See NewCookieStore() for a description of the other parameters.
+// Keys are defined in pairs to allow key rotation, but the common case is
+// to set a single authentication key and optionally an encryption key.
+//
+// The first key in a pair is used for authentication and the second for
+// encryption. The encryption key can be set to nil or omitted in the last
+// pair, but the authentication key is required in all pairs.
+//
+// It is recommended to use an authentication key with 32 or 64 bytes.
+// The encryption key, if set, must be either 16, 24, or 32 bytes to select
+// AES-128, AES-192, or AES-256 modes.
 func NewSessionStore(db user.Database, keyPairs ...[]byte) *SessionStore {
 	ss := &SessionStore{
 		Codecs: securecookie.CodecsFromPairs(keyPairs...),
@@ -45,27 +58,22 @@ func NewSessionStore(db user.Database, keyPairs ...[]byte) *SessionStore {
 	return ss
 }
 
-// MaxLength restricts the maximum length of new sessions to l.
-// If l is 0 there is no limit to the size of a session, use with caution.
-// The default for a new SessionStore is 4096.
-func (s *SessionStore) MaxLength(l int) {
-	for _, c := range s.Codecs {
-		if codec, ok := c.(*securecookie.SecureCookie); ok {
-			codec.MaxLength(l)
-		}
-	}
-}
-
 // Get returns a session for the given name after adding it to the registry.
 //
-// See CookieStore.Get().
+// It returns a new session if the sessions doesn't exist. Access IsNew on
+// the session to check if it is an existing session or a new one.
+//
+// It returns a new session and an error if the session exists but could
+// not be decoded.
 func (s *SessionStore) Get(r *http.Request, name string) (*sessions.Session, error) {
 	return sessions.GetRegistry(r).Get(s, name)
 }
 
-// New returns a session for the given name.
+// New returns a session for the given name without adding it to the registry.
 //
-// See CookieStore.New().
+// The difference between New() and Get() is that calling New() twice will
+// decode the session data twice, while Get() registers and reuses the same
+// decoded session after the first call.
 func (s *SessionStore) New(r *http.Request, name string) (*sessions.Session, error) {
 	session := sessions.NewSession(s, name)
 	opts := *s.Options
@@ -77,16 +85,16 @@ func (s *SessionStore) New(r *http.Request, name string) (*sessions.Session, err
 		if err == nil {
 			err = s.load(session)
 			if err == nil {
+				// Session found in database
 				session.IsNew = false
+			} else if err == user.ErrSessionDoesNotExist {
+				// Session not found in database, return the *new* session
 			} else {
-				// no session found in database, return the *new* session
-				if err == user.ErrSessionDoesNotExist {
-					err = nil
-				}
+				return nil, err
 			}
 		}
 	}
-	return session, err
+	return session, nil
 }
 
 // Save adds a single session to the response.
@@ -143,7 +151,7 @@ func (s *SessionStore) save(session *sessions.Session) error {
 	// get the user for this session
 	id, ok := session.Values["user_id"].(string)
 	if !ok {
-		return errors.New("no `user_id` found in session")
+		return fmt.Errorf("no user_id found in session")
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
@@ -178,7 +186,7 @@ func (s *SessionStore) load(session *sessions.Session) error {
 	return nil
 }
 
-// delete session database record.
+// delete removes the database record for the provided session.
 func (s *SessionStore) erase(session *sessions.Session) error {
 	return s.db.SessionDeleteById(session.ID)
 }
