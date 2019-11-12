@@ -264,13 +264,13 @@ func (p *politeiawww) processNewComment(nc www.NewComment, u *user.User) (*www.N
 		}
 	}
 
-	// // Ensure the comment is not a duplicate
-	// _, err = p.decredCommentGetBySignature(nc.Token, nc.Signature)
-	// if err != cache.ErrRecordNotFound {
-	// 	return nil, www.UserError{
-	// 		ErrorCode: www.ErrorStatusDuplicateComment,
-	// 	}
-	// }
+	// Ensure the comment is not a duplicate
+	_, err = p.decredCommentGetBySignature(nc.Token, nc.Signature)
+	if err != cache.ErrRecordNotFound {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusDuplicateComment,
+		}
+	}
 
 	// Setup plugin command
 	challenge, err := util.Random(pd.ChallengeSize)
