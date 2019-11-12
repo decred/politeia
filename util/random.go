@@ -8,7 +8,6 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 )
@@ -57,6 +56,5 @@ func RandomUniqueToken(existingPrefixes []string, tokenSize int) (string, error)
 		}
 	}
 
-	return "", errors.New(
-		fmt.Sprintf("Failed to find unique token after %v tries", TRIES))
+	return "", fmt.Errorf("Failed to find unique token after %v tries", TRIES)
 }
