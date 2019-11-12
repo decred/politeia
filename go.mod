@@ -52,8 +52,6 @@ require (
 	github.com/jrick/logrotate v1.0.0
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/marcopeereboom/sbox v1.0.0
-	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
-	github.com/modern-go/reflect2 v1.0.1 // indirect
 	github.com/otiai10/copy v1.0.1
 	github.com/otiai10/curr v0.0.0-20190513014714-f5a3d24e5776 // indirect
 	github.com/pmezard/go-difflib v1.0.0
