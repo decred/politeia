@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"text/template"
@@ -34,7 +33,10 @@ var (
 		template.New("invite_approved_dcc_user").Parse(templateApproveDCCUserEmailRaw))
 )
 
-// getSession returns the active cookie session.
+// getSession returns the active cookie session. If no active cookie session
+// exists then a new session object is returned. This session object does not
+// have any session values set, such as user_id, and has not been saved to the
+// session store.
 func (p *politeiawww) getSession(r *http.Request) (*sessions.Session, error) {
 	return p.store.Get(r, www.CookieSession)
 }
@@ -52,7 +54,7 @@ func (p *politeiawww) isAdmin(w http.ResponseWriter, r *http.Request) (bool, err
 func hasExpired(session *sessions.Session) (bool, error) {
 	createdAt, ok := session.Values["created_at"].(int64)
 	if !ok {
-		return false, errors.New("no `created_at` timestamp found")
+		return false, fmt.Errorf("no created_at timestamp found")
 	}
 	timeNow := time.Now().Unix()
 	expiresAt := createdAt + int64(session.Options.MaxAge)
@@ -64,8 +66,7 @@ func hasExpired(session *sessions.Session) (bool, error) {
 func (p *politeiawww) getSessionUserID(w http.ResponseWriter, r *http.Request) (string, error) {
 	session, err := p.getSession(r)
 	if err != nil {
-		log.Errorf("getSession() error: %v", err)
-		return "", errSessionNotFound
+		return "", err
 	}
 
 	// get the user for this session
@@ -353,19 +354,19 @@ func (p *politeiawww) handleVerifyResetPassword(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// the trade off here is that we don't want to fail the password change
-	// because we cannot delete all the user's sessions.
+	// Log off the user everywhere by deleting all sessions associated
+	// with the user's ID. If anything fails here log the error instead
+	// of returning it since the password change was already successful.
 	user, err := p.db.UserGetByUsername(vrp.Username)
-	if err == nil {
-		// log off user everywhere by deleting all sessions
+	if err != nil {
+		log.Errorf("handleVerifyResetPassword: failed to delete user "+
+			"sessions UserGetByUsername(%v) error: %v", vrp.Username, err)
+	} else {
 		err = p.db.SessionsDeleteByUserId(user.ID, "")
 		if err != nil {
-			log.Errorf("SessionsDeleteByUserId() error: %v", err)
+			log.Errorf("handleVerifyResetPassword: SessionsDeleteByUserId(%v): %v",
+				user.ID, err)
 		}
-	} else {
-		RespondWithError(w, r, 0,
-			"handleVerifyResetPassword: UserGetByUsername %v", err)
-		return
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
@@ -573,7 +574,8 @@ func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Reques
 	// delete all sesssions except this current one
 	err = p.db.SessionsDeleteByUserId(user.ID, p.getSessionID(r))
 	if err != nil {
-		log.Errorf("SessionsDeleteByUserId() error: %v", err)
+		log.Errorf("handleChangePassword: SessionsDeleteByUserId(%v): %v",
+			user.ID, err)
 	}
 
 	// Reply with the error code.
