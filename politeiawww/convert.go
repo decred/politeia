@@ -852,7 +852,8 @@ func convertInvoiceFromCache(r cache.Record) cms.InvoiceRecord {
 	if err != nil {
 		log.Errorf("unable to calculate payout for %v", r.CensorshipRecord.Token)
 	}
-	payment.TxIDs = p.TxIDs
+	txIDs := strings.Split(p.TxIDs, ",")
+	payment.TxIDs = txIDs
 	payment.TimeLastUpdated = p.Timestamp
 	payment.AmountReceived = dcrutil.Amount(p.AmountReceived)
 	payment.Address = ii.PaymentAddress

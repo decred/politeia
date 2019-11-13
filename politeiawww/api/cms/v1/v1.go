@@ -531,7 +531,7 @@ type InvoicePayoutsReply struct {
 type PaymentInformation struct {
 	Token           string         `json:"token"`
 	Address         string         `json:"address"`
-	TxIDs           string         `json:"txids"`
+	TxIDs           []string       `json:"txids"`
 	TimeStarted     int64          `json:"timestarted"`
 	TimeLastUpdated int64          `json:"timelastupdated"`
 	AmountNeeded    dcrutil.Amount `json:"amountneeded"`
