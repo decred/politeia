@@ -57,12 +57,10 @@ type config struct {
 	LogDir           string `long:"logdir" description:"Directory to log output."`
 	TestNet          bool   `long:"testnet" description:"Use the test network"`
 	PoliteiaWWW      string `long:"politeiawww" description:"Politeia WWW host"`
-	WalletHost       string `long:"wallethost" description:"Wallet host"`
 	Profile          string `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
-	CPUProfile       string `long:"cpuprofile" description:"Write CPU profile to the specified file"`
-	MemProfile       string `long:"memprofile" description:"Write mem profile to the specified file"`
 	DebugLevel       string `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
 	Version          string
+	WalletHost       string `long:"wallethost" description:"Wallet host"`
 	WalletCert       string `long:"walletgrpccert" description:"Wallet GRPC certificate"`
 	WalletPassphrase string `long:"walletpassphrase" description:"Wallet decryption passphrase"`
 	BypassProxyCheck bool   `long:"bypassproxycheck" description:"Don't use this unless you know what you're doing."`
