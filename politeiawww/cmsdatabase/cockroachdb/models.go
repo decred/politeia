@@ -10,6 +10,19 @@ import (
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 )
 
+// Version describes the version of a record or plugin that the database is
+// currently using.
+type Version struct {
+	ID        string `gorm:"primary_key"` // Primary key
+	Version   string `gorm:"not null"`    // Version
+	Timestamp int64  `gorm:"not null"`    // UNIX timestamp of record creation
+}
+
+// TableName returns the table name of the invoices table.
+func (Version) TableName() string {
+	return tableNameVersions
+}
+
 // Invoice is the database model for the database.Invoice type
 type Invoice struct {
 	Token              string    `gorm:"primary_key"`

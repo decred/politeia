@@ -24,10 +24,12 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/decred/politeia/mdstream"
 	"github.com/decred/politeia/politeiad/cache"
 	cachedb "github.com/decred/politeia/politeiad/cache/cockroachdb"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	database "github.com/decred/politeia/politeiawww/cmsdatabase"
 	cmsdb "github.com/decred/politeia/politeiawww/cmsdatabase/cockroachdb"
 	"github.com/decred/politeia/politeiawww/user"
 	userdb "github.com/decred/politeia/politeiawww/user/cockroachdb"
@@ -514,7 +516,12 @@ func _main() error {
 		net := filepath.Base(p.cfg.DataDir)
 		p.cmsDB, err = cmsdb.New(p.cfg.DBHost, net, p.cfg.DBRootCert,
 			p.cfg.DBCert, p.cfg.DBKey)
-		if err != nil {
+		if err == database.ErrNoVersionRecord || err == database.ErrWrongVersion {
+			// The cmsdb version record was either not found or
+			// is the wrong version which means that the cmsdb
+			// needs to be built/rebuilt.
+			p.cfg.BuildCMSDB = true
+		} else if err != nil {
 			return err
 		}
 		err = p.cmsDB.Setup()
@@ -522,6 +529,46 @@ func _main() error {
 			return fmt.Errorf("cmsdb setup: %v", err)
 		}
 
+		// Build the cms database
+		if p.cfg.BuildCMSDB {
+			// Fetch all versions of all records from the inventory and
+			// use them to build the cache.
+			vetted, err := p.cache.Inventory()
+			if err != nil {
+				return fmt.Errorf("backend inventory: %v", err)
+			}
+
+			dbInvs := make([]database.Invoice, 0, len(vetted))
+			dbDCCs := make([]database.DCC, 0, len(vetted))
+			for _, r := range vetted {
+				for _, m := range r.Metadata {
+					switch m.ID {
+					case mdstream.IDInvoiceGeneral:
+						i, err := convertCacheToDatabaseInvoice(r)
+						if err != nil {
+							log.Errorf("convertCacheToDatabaseInvoice: %v", err)
+							break
+						}
+						dbInvs = append(dbInvs, *i)
+						break
+					case mdstream.IDDCCGeneral:
+						d, err := convertCacheToDatabaseDCC(r)
+						if err != nil {
+							log.Errorf("convertCacheToDatabaseDCC: %v", err)
+							break
+						}
+						dbDCCs = append(dbDCCs, *d)
+						break
+					}
+				}
+			}
+
+			// Build the cache
+			err = p.cmsDB.Build(dbInvs, dbDCCs)
+			if err != nil {
+				return fmt.Errorf("build cache: %v", err)
+			}
+		}
 		// Register cms userdb plugin
 		plugin := user.Plugin{
 			ID:      user.CMSPluginID,
