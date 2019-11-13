@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/cache"
@@ -701,6 +702,27 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 				dbInvoice.Status = s.NewStatus
 			}
 
+		case mdStreamInvoicePayment:
+			ip, err := decodeBackendInvoicePayment([]byte(m.Payload))
+			if err != nil {
+				return nil, fmt.Errorf("could not decode metadata '%v' token '%v': %v",
+					m, p.CensorshipRecord.Token, err)
+			}
+
+			// We don't need all of the payments.
+			// Just the most recent one.
+			payment := cmsdatabase.Payments{}
+			for _, s := range ip {
+				payment.InvoiceToken = s.Token
+				payment.Address = s.Address
+				payment.TxIDs = s.TxIDs
+				payment.TimeStarted = s.TimeStarted
+				payment.TimeLastUpdated = s.TimeUpdated
+				payment.Status = s.Status
+				payment.AmountNeeded = s.AmountNeeded
+				payment.AmountReceived = s.AmountReceived
+			}
+			dbInvoice.Payments = payment
 		default:
 			// Log error but proceed
 			log.Errorf("initializeInventory: invalid "+
@@ -716,6 +738,7 @@ func convertInvoiceFromCache(r cache.Record) cms.InvoiceRecord {
 	// Decode metadata streams
 	var md backendInvoiceMetadata
 	var c backendInvoiceStatusChange
+	var p backendInvoicePayment
 	for _, v := range r.Metadata {
 		switch v.ID {
 		case mdStreamInvoiceGeneral:
@@ -741,6 +764,19 @@ func convertInvoiceFromCache(r cache.Record) cms.InvoiceRecord {
 			// Just the most recent one.
 			for _, s := range m {
 				c = s
+			}
+		case mdStreamInvoicePayment:
+			ip, err := decodeBackendInvoicePayment([]byte(v.Payload))
+			if err != nil {
+				log.Errorf("convertInvoiceFromCache: decode md stream: "+
+					"token:%v error:%v payload:%v",
+					r.CensorshipRecord.Token, err, v)
+			}
+
+			// We don't need all of the payments.
+			// Just the most recent one.
+			for _, s := range ip {
+				p = s
 			}
 		}
 	}
@@ -795,6 +831,16 @@ func convertInvoiceFromCache(r cache.Record) cms.InvoiceRecord {
 			Signature: r.CensorshipRecord.Signature,
 		},
 		Input: ii,
+		Payment: cms.PaymentInformation{
+			Token:           p.Token,
+			Address:         p.Address,
+			TxIDs:           p.TxIDs,
+			TimeStarted:     p.TimeStarted,
+			TimeLastUpdated: p.TimeUpdated,
+			Status:          p.Status,
+			AmountNeeded:    dcrutil.Amount(p.AmountNeeded),
+			AmountReceived:  dcrutil.Amount(p.AmountReceived),
+		},
 	}
 }
 

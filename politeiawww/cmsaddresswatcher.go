@@ -292,6 +292,7 @@ func (p *politeiawww) updateInvoicePayment(payment *database.Payments) error {
 		Token:          payment.InvoiceToken,
 		Address:        payment.Address,
 		TxIDs:          payment.TxIDs,
+		TimeStarted:    payment.TimeStarted,
 		TimeUpdated:    payment.TimeLastUpdated,
 		Status:         payment.Status,
 		AmountReceived: payment.AmountReceived,

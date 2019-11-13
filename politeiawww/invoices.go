@@ -1601,6 +1601,7 @@ type backendInvoicePayment struct {
 	Token          string             `json:"token"`          // Token of the associated invoice
 	Address        string             `json:"address"`        // Payment address of the invoice
 	TxIDs          string             `json:"txids"`          // TxIDs captured from the payment
+	TimeStarted    int64              `json:"timestarted"`    // Time of when payment first began watching
 	TimeUpdated    int64              `json:"timeupdated"`    // Time of last payment update
 	Status         cms.PaymentStatusT `json:"status"`         // Current status of the payment
 	AmountReceived int64              `json:"amountreceived"` // Amount of DCR payment currently received
@@ -1676,15 +1677,23 @@ func encodeBackendInvoicePayment(md backendInvoicePayment) ([]byte, error) {
 
 // decodeBackendInvoicePayment decodes a JSON byte slice into a
 // backendInvoicePayment.
-func decodeBackendInvoicePayment(payload []byte) (*backendInvoicePayment, error) {
-	var md backendInvoicePayment
+func decodeBackendInvoicePayment(payload []byte) ([]backendInvoicePayment, error) {
+	var md []backendInvoicePayment
 
-	err := json.Unmarshal(payload, &md)
-	if err != nil {
-		return nil, err
+	d := json.NewDecoder(strings.NewReader(string(payload)))
+	for {
+		var m backendInvoicePayment
+		err := d.Decode(&m)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return nil, err
+		}
+
+		md = append(md, m)
 	}
 
-	return &md, nil
+	return md, nil
 }
 
 // processInvoicePayouts looks for all paid invoices within the given start and end dates.

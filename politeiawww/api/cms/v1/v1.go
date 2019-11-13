@@ -344,18 +344,18 @@ type EditInvoiceReply struct {
 
 // InvoiceRecord is an entire invoice and its content.
 type InvoiceRecord struct {
-	Status             InvoiceStatusT `json:"status"`                       // Current status of invoice
-	StatusChangeReason string         `json:"statuschangereason,omitempty"` // Reason (if any) for the current status
-	Timestamp          int64          `json:"timestamp"`                    // Last update of invoice
-	UserID             string         `json:"userid"`                       // ID of user who submitted invoice
-	Username           string         `json:"username"`                     // Username of user who submitted invoice
-	PublicKey          string         `json:"publickey"`                    // User's public key, used to verify signature.
-	Signature          string         `json:"signature"`                    // Signature of file digest
-	Files              []www.File     `json:"file"`                         // Actual invoice file
-	Version            string         `json:"version"`                      // Record version
-	Input              InvoiceInput   `json:"input"`                        // Decoded invoice from invoice.json file
-
-	CensorshipRecord www.CensorshipRecord `json:"censorshiprecord"`
+	Status             InvoiceStatusT       `json:"status"`                       // Current status of invoice
+	StatusChangeReason string               `json:"statuschangereason,omitempty"` // Reason (if any) for the current status
+	Timestamp          int64                `json:"timestamp"`                    // Last update of invoice
+	UserID             string               `json:"userid"`                       // ID of user who submitted invoice
+	Username           string               `json:"username"`                     // Username of user who submitted invoice
+	PublicKey          string               `json:"publickey"`                    // User's public key, used to verify signature.
+	Signature          string               `json:"signature"`                    // Signature of file digest
+	Files              []www.File           `json:"file"`                         // Actual invoice file
+	Version            string               `json:"version"`                      // Record version
+	Input              InvoiceInput         `json:"input"`                        // Decoded invoice from invoice.json file
+	Payment            PaymentInformation   `json:"payment"`                      // Payment information for the Invoice
+	CensorshipRecord   www.CensorshipRecord `json:"censorshiprecord"`
 }
 
 // InvoiceDetails is used to retrieve a invoice by it's token.
@@ -531,7 +531,7 @@ type InvoicePayoutsReply struct {
 type PaymentInformation struct {
 	Token           string         `json:"token"`
 	Address         string         `json:"address"`
-	TxIDs           []string       `json:"txids"`
+	TxIDs           string         `json:"txids"`
 	TimeStarted     int64          `json:"timestarted"`
 	TimeLastUpdated int64          `json:"timelastupdated"`
 	AmountNeeded    dcrutil.Amount `json:"amountneeded"`
