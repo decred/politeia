@@ -98,7 +98,7 @@ func (p *politeiawww) restartCMSAddressesWatching() error {
 		_, err := p.cmsDB.PaymentsByAddress(invoice.PaymentAddress)
 		if err != nil {
 			if err == database.ErrInvoiceNotFound {
-				payout, err := p.calculatePayout(invoice)
+				payout, err := calculatePayout(invoice)
 				if err != nil {
 					return err
 				}
@@ -289,14 +289,9 @@ func (p *politeiawww) updateInvoicePayment(payment *database.Payments) error {
 	// Create new backend invoice payment metadata
 	c := backendInvoicePayment{
 		Version:        backendInvoicePaymentVersion,
-		Token:          payment.InvoiceToken,
-		Address:        payment.Address,
 		TxIDs:          payment.TxIDs,
-		TimeStarted:    payment.TimeStarted,
-		TimeUpdated:    payment.TimeLastUpdated,
-		Status:         payment.Status,
+		Timestamp:      payment.TimeLastUpdated,
 		AmountReceived: payment.AmountReceived,
-		AmountNeeded:   payment.AmountNeeded,
 	}
 
 	blob, err := encodeBackendInvoicePayment(c)

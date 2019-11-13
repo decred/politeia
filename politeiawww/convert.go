@@ -674,7 +674,14 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 			dbInvoice.PaymentAddress = ii.PaymentAddress
 		}
 	}
-
+	payout, err := calculatePayout(dbInvoice)
+	if err != nil {
+		return nil, err
+	}
+	payment := cmsdatabase.Payments{
+		Address:      dbInvoice.PaymentAddress,
+		AmountNeeded: int64(payout.DCRTotal),
+	}
 	for _, m := range p.Metadata {
 		switch m.ID {
 		case mdStreamInvoiceGeneral:
@@ -688,7 +695,6 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 			dbInvoice.Timestamp = mdGeneral.Timestamp
 			dbInvoice.PublicKey = mdGeneral.PublicKey
 			dbInvoice.UserSignature = mdGeneral.Signature
-
 		case mdStreamInvoiceStatusChanges:
 			sc, err := decodeBackendInvoiceStatusChanges([]byte(m.Payload))
 			if err != nil {
@@ -700,6 +706,13 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 			// Just the most recent one.
 			for _, s := range sc {
 				dbInvoice.Status = s.NewStatus
+				// Capture information about payments
+				if s.NewStatus == cms.InvoiceStatusApproved {
+					payment.Status = cms.PaymentStatusWatching
+					payment.TimeStarted = s.Timestamp
+				} else if s.NewStatus == cms.InvoiceStatusPaid {
+					payment.Status = cms.PaymentStatusPaid
+				}
 			}
 
 		case mdStreamInvoicePayment:
@@ -711,15 +724,9 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 
 			// We don't need all of the payments.
 			// Just the most recent one.
-			payment := cmsdatabase.Payments{}
 			for _, s := range ip {
-				payment.InvoiceToken = s.Token
-				payment.Address = s.Address
 				payment.TxIDs = s.TxIDs
-				payment.TimeStarted = s.TimeStarted
-				payment.TimeLastUpdated = s.TimeUpdated
-				payment.Status = s.Status
-				payment.AmountNeeded = s.AmountNeeded
+				payment.TimeLastUpdated = s.Timestamp
 				payment.AmountReceived = s.AmountReceived
 			}
 			dbInvoice.Payments = payment
@@ -739,6 +746,7 @@ func convertInvoiceFromCache(r cache.Record) cms.InvoiceRecord {
 	var md backendInvoiceMetadata
 	var c backendInvoiceStatusChange
 	var p backendInvoicePayment
+	var payment cms.PaymentInformation
 	for _, v := range r.Metadata {
 		switch v.ID {
 		case mdStreamInvoiceGeneral:
@@ -764,6 +772,12 @@ func convertInvoiceFromCache(r cache.Record) cms.InvoiceRecord {
 			// Just the most recent one.
 			for _, s := range m {
 				c = s
+				if s.NewStatus == cms.InvoiceStatusApproved {
+					payment.Status = cms.PaymentStatusWatching
+					payment.TimeStarted = s.Timestamp
+				} else if s.NewStatus == cms.InvoiceStatusPaid {
+					payment.Status = cms.PaymentStatusPaid
+				}
 			}
 		case mdStreamInvoicePayment:
 			ip, err := decodeBackendInvoicePayment([]byte(v.Payload))
@@ -815,7 +829,7 @@ func convertInvoiceFromCache(r cache.Record) cms.InvoiceRecord {
 
 	// UserID and Username are left intentionally blank.
 	// These fields not part of a cache record.
-	return cms.InvoiceRecord{
+	invRec := cms.InvoiceRecord{
 		Status:             c.NewStatus,
 		StatusChangeReason: c.Reason,
 		Timestamp:          r.Timestamp,
@@ -831,17 +845,22 @@ func convertInvoiceFromCache(r cache.Record) cms.InvoiceRecord {
 			Signature: r.CensorshipRecord.Signature,
 		},
 		Input: ii,
-		Payment: cms.PaymentInformation{
-			Token:           p.Token,
-			Address:         p.Address,
-			TxIDs:           p.TxIDs,
-			TimeStarted:     p.TimeStarted,
-			TimeLastUpdated: p.TimeUpdated,
-			Status:          p.Status,
-			AmountNeeded:    dcrutil.Amount(p.AmountNeeded),
-			AmountReceived:  dcrutil.Amount(p.AmountReceived),
-		},
 	}
+
+	dbInvoice := convertInvoiceRecordToDatabaseInvoice(&invRec)
+	payout, err := calculatePayout(*dbInvoice)
+	if err != nil {
+		log.Errorf("unable to calculate payout for %v", r.CensorshipRecord.Token)
+	}
+	payment.TxIDs = p.TxIDs
+	payment.TimeLastUpdated = p.Timestamp
+	payment.AmountReceived = dcrutil.Amount(p.AmountReceived)
+	payment.Address = ii.PaymentAddress
+	payment.AmountNeeded = dcrutil.Amount(payout.DCRTotal)
+
+	invRec.Payment = payment
+
+	return invRec
 }
 
 func convertDCCFromCache(r cache.Record) cms.DCCRecord {
