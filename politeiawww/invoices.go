@@ -38,10 +38,12 @@ const (
 	// politeiad invoice record metadata streams
 	mdStreamInvoiceGeneral       = 3 // General invoice metadata
 	mdStreamInvoiceStatusChanges = 4 // Invoice status changes
+	mdStreamInvoicePayment       = 5 // Invoice payments
 
 	// Metadata stream struct versions
 	backendInvoiceMetadataVersion     = 1
 	backendInvoiceStatusChangeVersion = 1
+	backendInvoicePaymentVersion      = 1
 )
 
 var (
@@ -1592,6 +1594,19 @@ type backendInvoiceStatusChange struct {
 	Timestamp      int64              `json:"timestamp"`      // Timestamp of the change
 }
 
+// backendInvoicePayment represents an invoice payment and is stored
+// in the metadata stream mdStreamInvoicePayment in politeiad.
+type backendInvoicePayment struct {
+	Version        uint               `json:"version"`        // Version of the struct
+	Token          string             `json:"token"`          // Token of the associated invoice
+	Address        string             `json:"address"`        // Payment address of the invoice
+	TxIDs          string             `json:"txids"`          // TxIDs captured from the payment
+	TimeUpdated    int64              `json:"timeupdated"`    // Time of last payment update
+	Status         cms.PaymentStatusT `json:"status"`         // Current status of the payment
+	AmountReceived int64              `json:"amountreceived"` // Amount of DCR payment currently received
+	AmountNeeded   int64              `json:"amountneeded"`   // Amount of DCR payment needed to pay invoice
+}
+
 // encodeBackendInvoiceMetadata encodes a backendInvoiceMetadata into a JSON
 // byte slice.
 func encodeBackendInvoiceMetadata(md backendInvoiceMetadata) ([]byte, error) {
@@ -1646,6 +1661,30 @@ func decodeBackendInvoiceStatusChanges(payload []byte) ([]backendInvoiceStatusCh
 	}
 
 	return md, nil
+}
+
+// encodeBackendInvoicePayment encodes a backendInvoicePayment into a JSON
+// byte slice.
+func encodeBackendInvoicePayment(md backendInvoicePayment) ([]byte, error) {
+	b, err := json.Marshal(md)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+// decodeBackendInvoicePayment decodes a JSON byte slice into a
+// backendInvoicePayment.
+func decodeBackendInvoicePayment(payload []byte) (*backendInvoicePayment, error) {
+	var md backendInvoicePayment
+
+	err := json.Unmarshal(payload, &md)
+	if err != nil {
+		return nil, err
+	}
+
+	return &md, nil
 }
 
 // processInvoicePayouts looks for all paid invoices within the given start and end dates.
