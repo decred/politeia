@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/cache"
@@ -673,7 +674,14 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 			dbInvoice.PaymentAddress = ii.PaymentAddress
 		}
 	}
-
+	payout, err := calculatePayout(dbInvoice)
+	if err != nil {
+		return nil, err
+	}
+	payment := cmsdatabase.Payments{
+		Address:      dbInvoice.PaymentAddress,
+		AmountNeeded: int64(payout.DCRTotal),
+	}
 	for _, m := range p.Metadata {
 		switch m.ID {
 		case mdStreamInvoiceGeneral:
@@ -687,7 +695,6 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 			dbInvoice.Timestamp = mdGeneral.Timestamp
 			dbInvoice.PublicKey = mdGeneral.PublicKey
 			dbInvoice.UserSignature = mdGeneral.Signature
-
 		case mdStreamInvoiceStatusChanges:
 			sc, err := decodeBackendInvoiceStatusChanges([]byte(m.Payload))
 			if err != nil {
@@ -699,8 +706,30 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 			// Just the most recent one.
 			for _, s := range sc {
 				dbInvoice.Status = s.NewStatus
+				// Capture information about payments
+				if s.NewStatus == cms.InvoiceStatusApproved {
+					payment.Status = cms.PaymentStatusWatching
+					payment.TimeStarted = s.Timestamp
+				} else if s.NewStatus == cms.InvoiceStatusPaid {
+					payment.Status = cms.PaymentStatusPaid
+				}
 			}
 
+		case mdStreamInvoicePayment:
+			ip, err := decodeBackendInvoicePayment([]byte(m.Payload))
+			if err != nil {
+				return nil, fmt.Errorf("could not decode metadata '%v' token '%v': %v",
+					m, p.CensorshipRecord.Token, err)
+			}
+
+			// We don't need all of the payments.
+			// Just the most recent one.
+			for _, s := range ip {
+				payment.TxIDs = s.TxIDs
+				payment.TimeLastUpdated = s.Timestamp
+				payment.AmountReceived = s.AmountReceived
+			}
+			dbInvoice.Payments = payment
 		default:
 			// Log error but proceed
 			log.Errorf("initializeInventory: invalid "+
@@ -716,6 +745,8 @@ func convertInvoiceFromCache(r cache.Record) cms.InvoiceRecord {
 	// Decode metadata streams
 	var md backendInvoiceMetadata
 	var c backendInvoiceStatusChange
+	var p backendInvoicePayment
+	var payment cms.PaymentInformation
 	for _, v := range r.Metadata {
 		switch v.ID {
 		case mdStreamInvoiceGeneral:
@@ -741,6 +772,25 @@ func convertInvoiceFromCache(r cache.Record) cms.InvoiceRecord {
 			// Just the most recent one.
 			for _, s := range m {
 				c = s
+				if s.NewStatus == cms.InvoiceStatusApproved {
+					payment.Status = cms.PaymentStatusWatching
+					payment.TimeStarted = s.Timestamp
+				} else if s.NewStatus == cms.InvoiceStatusPaid {
+					payment.Status = cms.PaymentStatusPaid
+				}
+			}
+		case mdStreamInvoicePayment:
+			ip, err := decodeBackendInvoicePayment([]byte(v.Payload))
+			if err != nil {
+				log.Errorf("convertInvoiceFromCache: decode md stream: "+
+					"token:%v error:%v payload:%v",
+					r.CensorshipRecord.Token, err, v)
+			}
+
+			// We don't need all of the payments.
+			// Just the most recent one.
+			for _, s := range ip {
+				p = s
 			}
 		}
 	}
@@ -779,7 +829,7 @@ func convertInvoiceFromCache(r cache.Record) cms.InvoiceRecord {
 
 	// UserID and Username are left intentionally blank.
 	// These fields not part of a cache record.
-	return cms.InvoiceRecord{
+	invRec := cms.InvoiceRecord{
 		Status:             c.NewStatus,
 		StatusChangeReason: c.Reason,
 		Timestamp:          r.Timestamp,
@@ -796,6 +846,22 @@ func convertInvoiceFromCache(r cache.Record) cms.InvoiceRecord {
 		},
 		Input: ii,
 	}
+
+	dbInvoice := convertInvoiceRecordToDatabaseInvoice(&invRec)
+	payout, err := calculatePayout(*dbInvoice)
+	if err != nil {
+		log.Errorf("unable to calculate payout for %v", r.CensorshipRecord.Token)
+	}
+	txIDs := strings.Split(p.TxIDs, ",")
+	payment.TxIDs = txIDs
+	payment.TimeLastUpdated = p.Timestamp
+	payment.AmountReceived = dcrutil.Amount(p.AmountReceived)
+	payment.Address = ii.PaymentAddress
+	payment.AmountNeeded = payout.DCRTotal
+
+	invRec.Payment = payment
+
+	return invRec
 }
 
 func convertDCCFromCache(r cache.Record) cms.DCCRecord {

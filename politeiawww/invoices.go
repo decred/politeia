@@ -38,10 +38,12 @@ const (
 	// politeiad invoice record metadata streams
 	mdStreamInvoiceGeneral       = 3 // General invoice metadata
 	mdStreamInvoiceStatusChanges = 4 // Invoice status changes
+	mdStreamInvoicePayment       = 5 // Invoice payments
 
 	// Metadata stream struct versions
 	backendInvoiceMetadataVersion     = 1
 	backendInvoiceStatusChangeVersion = 1
+	backendInvoicePaymentVersion      = 1
 )
 
 var (
@@ -810,10 +812,12 @@ func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, user 
 
 	// Calculate the payout from the invoice record
 	dbInv := convertInvoiceRecordToDatabaseInvoice(invRec)
-	payout, err := p.calculatePayout(*dbInv)
+	payout, err := calculatePayout(*dbInv)
 	if err != nil {
 		return nil, err
 	}
+
+	payout.Username = user.Username
 
 	// Setup reply
 	reply := cms.InvoiceDetailsReply{
@@ -925,10 +929,11 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus, u *user.
 	dbInvoice.Status = c.NewStatus
 
 	// Calculate amount of DCR needed
-	payout, err := p.calculatePayout(*dbInvoice)
+	payout, err := calculatePayout(*dbInvoice)
 	if err != nil {
 		return nil, err
 	}
+	payout.Username = u.Username
 	// If approved then update Invoice's Payment table in DB
 	if c.NewStatus == cms.InvoiceStatusApproved {
 		dbInvoice.Payments = database.Payments{
@@ -1253,10 +1258,11 @@ func (p *politeiawww) processGeneratePayouts(gp cms.GeneratePayouts, u *user.Use
 	reply := &cms.GeneratePayoutsReply{}
 	payouts := make([]cms.Payout, 0, len(dbInvs))
 	for _, inv := range dbInvs {
-		payout, err := p.calculatePayout(inv)
+		payout, err := calculatePayout(inv)
 		if err != nil {
 			return nil, err
 		}
+		payout.Username = u.Username
 		payouts = append(payouts, payout)
 	}
 	sort.Slice(payouts, func(i, j int) bool {
@@ -1592,6 +1598,15 @@ type backendInvoiceStatusChange struct {
 	Timestamp      int64              `json:"timestamp"`      // Timestamp of the change
 }
 
+// backendInvoicePayment represents an invoice payment and is stored
+// in the metadata stream mdStreamInvoicePayment in politeiad.
+type backendInvoicePayment struct {
+	Version        uint   `json:"version"`        // Version of the struct
+	TxIDs          string `json:"txids"`          // TxIDs captured from the payment, separated by commas
+	Timestamp      int64  `json:"timeupdated"`    // Time of last payment update
+	AmountReceived int64  `json:"amountreceived"` // Amount of DCR payment currently received
+}
+
 // encodeBackendInvoiceMetadata encodes a backendInvoiceMetadata into a JSON
 // byte slice.
 func encodeBackendInvoiceMetadata(md backendInvoiceMetadata) ([]byte, error) {
@@ -1635,6 +1650,38 @@ func decodeBackendInvoiceStatusChanges(payload []byte) ([]backendInvoiceStatusCh
 	d := json.NewDecoder(strings.NewReader(string(payload)))
 	for {
 		var m backendInvoiceStatusChange
+		err := d.Decode(&m)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return nil, err
+		}
+
+		md = append(md, m)
+	}
+
+	return md, nil
+}
+
+// encodeBackendInvoicePayment encodes a backendInvoicePayment into a JSON
+// byte slice.
+func encodeBackendInvoicePayment(md backendInvoicePayment) ([]byte, error) {
+	b, err := json.Marshal(md)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+// decodeBackendInvoicePayment decodes a JSON byte slice into a
+// backendInvoicePayment.
+func decodeBackendInvoicePayment(payload []byte) ([]backendInvoicePayment, error) {
+	var md []backendInvoicePayment
+
+	d := json.NewDecoder(strings.NewReader(string(payload)))
+	for {
+		var m backendInvoicePayment
 		err := d.Decode(&m)
 		if err == io.EOF {
 			break
@@ -1693,20 +1740,12 @@ func getInvoiceMonthYear(files []www.File) (uint, uint) {
 	return 0, 0
 }
 
-func (p *politeiawww) calculatePayout(inv database.Invoice) (cms.Payout, error) {
+func calculatePayout(inv database.Invoice) (cms.Payout, error) {
 	payout := cms.Payout{}
-
-	var username string
-	u, err := p.db.UserGetByPubKey(inv.PublicKey)
-	if err != nil {
-		log.Errorf("calculatePayout: UserGetByPubKey: token:%v "+
-			"pubkey:%v err:%v", inv.Token, inv.PublicKey, err)
-	} else {
-		username = u.Username
-	}
-
+	var err error
 	var totalLaborMinutes uint
 	var totalExpenses uint
+
 	for _, lineItem := range inv.LineItems {
 		switch lineItem.Type {
 		case cms.LineItemTypeLabor, cms.LineItemTypeSubHours:
@@ -1724,7 +1763,6 @@ func (p *politeiawww) calculatePayout(inv database.Invoice) (cms.Payout, error) 
 	payout.Token = inv.Token
 	payout.ContractorName = inv.ContractorName
 
-	payout.Username = username
 	payout.Month = inv.Month
 	payout.Year = inv.Year
 	payout.Total = payout.LaborTotal + payout.ExpenseTotal

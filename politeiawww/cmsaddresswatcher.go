@@ -98,7 +98,7 @@ func (p *politeiawww) restartCMSAddressesWatching() error {
 		_, err := p.cmsDB.PaymentsByAddress(invoice.PaymentAddress)
 		if err != nil {
 			if err == database.ErrInvoiceNotFound {
-				payout, err := p.calculatePayout(invoice)
+				payout, err := calculatePayout(invoice)
 				if err != nil {
 					return err
 				}
@@ -267,10 +267,10 @@ func (p *politeiawww) checkPayments(payment *database.Payments, watchedAddr, not
 	payment.AmountReceived = int64(amountReceived)
 	payment.TimeLastUpdated = time.Now().Unix()
 
-	err = p.cmsDB.UpdatePayments(payment)
+	err = p.updateInvoicePayment(payment)
 	if err != nil {
-		log.Errorf("Error updating payments information for: %v %v",
-			payment.Address, err)
+		log.Errorf("error updateInvoicePayment %v", err)
+		return false
 	}
 
 	if payment.Status == cms.PaymentStatusPaid {
@@ -285,6 +285,61 @@ func (p *politeiawww) checkPayments(payment *database.Payments, watchedAddr, not
 	return false
 }
 
+func (p *politeiawww) updateInvoicePayment(payment *database.Payments) error {
+	// Create new backend invoice payment metadata
+	c := backendInvoicePayment{
+		Version:        backendInvoicePaymentVersion,
+		TxIDs:          payment.TxIDs,
+		Timestamp:      payment.TimeLastUpdated,
+		AmountReceived: payment.AmountReceived,
+	}
+
+	blob, err := encodeBackendInvoicePayment(c)
+	if err != nil {
+		return err
+	}
+
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return err
+	}
+
+	pdCommand := pd.UpdateVettedMetadata{
+		Challenge: hex.EncodeToString(challenge),
+		Token:     payment.InvoiceToken,
+		MDAppend: []pd.MetadataStream{
+			{
+				ID:      mdStreamInvoicePayment,
+				Payload: string(blob),
+			},
+		},
+	}
+	responseBody, err := p.makeRequest(http.MethodPost,
+		pd.UpdateVettedMetadataRoute, pdCommand)
+	if err != nil {
+		return err
+	}
+
+	var pdReply pd.UpdateVettedMetadataReply
+	err = json.Unmarshal(responseBody, &pdReply)
+	if err != nil {
+		return fmt.Errorf("Could not unmarshal UpdateVettedMetadataReply: %v",
+			err)
+	}
+
+	// Verify the UpdateVettedMetadata challenge.
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, pdReply.Response)
+	if err != nil {
+		return err
+	}
+
+	err = p.cmsDB.UpdatePayments(payment)
+	if err != nil {
+		log.Errorf("Error updating payments information for: %v %v",
+			payment.Address, err)
+	}
+	return nil
+}
 func (p *politeiawww) invoiceStatusPaid(token string) error {
 	dbInvoice, err := p.cmsDB.InvoiceByToken(token)
 	if err != nil {
