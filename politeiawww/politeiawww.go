@@ -136,9 +136,8 @@ type politeiawww struct {
 
 	// The current best block is cached and updated using a websocket
 	// subscription to dcrdata
-	bestBlock            uint64
-	bbMtx                sync.RWMutex
-	subscibedToBestBlock bool
+	bestBlock uint64
+	bbMtx     sync.RWMutex
 }
 
 // XXX rig this up
@@ -873,11 +872,11 @@ func (p *politeiawww) updateBestBlock(bestBlock uint64) {
 	p.bestBlock = bestBlock
 }
 
-// getBestBlock returns the cached best block if there is an active
-// websocket connection to dcrdata. Otherwise it makes a call to dcrdata to
-// try to fetch the value.
+// getBestBlock returns the cached best block if there is an active websocket
+// connection to dcrdata. Otherwise it requests the best block from politeiad
+// using the the decred plugin best block command.
 func (p *politeiawww) getBestBlock() (uint64, error) {
-	if !p.subscibedToBestBlock {
+	if !p.wsDcrdata.isSubscribed(eventNewBlock) {
 		return p.getBestBlockDecredPlugin()
 	}
 
@@ -886,53 +885,19 @@ func (p *politeiawww) getBestBlock() (uint64, error) {
 	return p.bestBlock, nil
 }
 
-// reconnectBestBlockSub stops the connection to dcrdata, starts a new one,
-// and subscribes to the new block event.
-func (p *politeiawww) reconnectNewBlockSub() {
-	if p.wsDcrdata != nil {
-		p.wsDcrdata.client.Stop()
-		p.wsDcrdata = nil
-	}
-
-	var err error
-	p.subscibedToBestBlock = false
-
-	for {
-		p.wsDcrdata, err = newWSDcrdata()
-		if err != nil {
-			log.Errorf("reconnectWS error: %v", err)
-		}
-
-		if p.wsDcrdata != nil {
-			err = p.setupNewBlockSub()
-			if err == nil {
-				log.Debugf("Successfully reconnected to new block events")
-				break
-			}
-		}
-
-		log.Errorf("Retrying ws dcrdata reconnect in 1 minute...")
-		time.Sleep(1 * time.Minute)
-	}
-}
-
-// setupNewBlockSub handles new block and hang up messages from dcrdata.
-func (p *politeiawww) setupNewBlockSub() error {
+// setupWWWDcrdataWSSubs subscribes and listens to websocket messages from
+// dcrdata that are needed from politeiawww.
+func (p *politeiawww) setupWWWDcrdataWSSubs() error {
 	err := p.wsDcrdata.subToNewBlock()
 	if err != nil {
 		return err
 	}
 
-	p.subscibedToBestBlock = true
-
 	go func() {
 		for {
 			msg, ok := <-p.wsDcrdata.client.Receive()
-			if !ok {
-				break
-			}
-			if msg == nil {
-				log.Errorf("ReceiveMsg failed")
+			if !ok || msg == nil {
+				log.Errorf("Error receiving msg from dcrdata, msg: %v", msg)
 				continue
 			}
 
@@ -941,8 +906,10 @@ func (p *politeiawww) setupNewBlockSub() error {
 				log.Debugf("Message WebsocketBlock(height=%s)", m.Block.Height)
 				p.updateBestBlock(uint64(m.Block.Height))
 			case *pstypes.HangUp:
-				log.Errorf("Dcrdata has hung. Will reconnect...")
-				p.reconnectNewBlockSub()
+				log.Debugf("Dcrdata has hung up. Will reconnect...")
+				readyToReceive := make(chan bool)
+				p.wsDcrdata.reconnect(readyToReceive)
+				_ = <-readyToReceive
 			default:
 				log.Debugf("Message of type %v unhandled. %v", msg.EventId, m)
 			}

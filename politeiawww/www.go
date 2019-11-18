@@ -519,8 +519,7 @@ func _main() error {
 		p.setPoliteiaWWWRoutes()
 		// XXX setup user routes
 		p.setUserWWWRoutes()
-
-		p.setupNewBlockSub()
+		p.setupWWWDcrdataWSSubs()
 	case cmsWWWMode:
 		p.setCMSWWWRoutes()
 		// XXX setup user routes

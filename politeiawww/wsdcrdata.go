@@ -16,6 +16,8 @@ const (
 	// addrSubPrefix must be prefixed to the address when subscribing
 	// to address events.
 	addrSubPrefix = "address:"
+
+	eventNewBlock = "newblock"
 )
 
 var (
@@ -49,6 +51,14 @@ func (w *wsDcrdata) removeSub(event string) {
 	defer w.Unlock()
 
 	delete(w.subscriptions, event)
+}
+
+// removeSub removes an event subscription from the subscriptions map.
+func (w *wsDcrdata) removeAllSubs() {
+	w.Lock()
+	defer w.Unlock()
+
+	w.subscriptions = make(map[string]struct{})
 }
 
 // isSubscribed returns whether the client is subscribed to the provided event.
@@ -92,22 +102,71 @@ func (w *wsDcrdata) unsubFromAddr(address string) error {
 
 // subToNewBlock subscribes to dcrdata events for new blocks
 func (w *wsDcrdata) subToNewBlock() error {
-	event := "newblock"
-	if w.isSubscribed(event) {
+	if w.isSubscribed(eventNewBlock) {
 		return errDuplicateSub
 	}
-	_, err := w.client.Subscribe(event)
+	_, err := w.client.Subscribe(eventNewBlock)
 	if err != nil {
 		return fmt.Errorf("failed to subscribe: %v", err)
 	}
-	w.addSub(event)
-	log.Infof("wsDcrdata subscribed to new block")
+	w.addSub(eventNewBlock)
+	log.Debugf("wsDcrdata subscribed to new block")
 	return nil
 }
 
-// newWSDcrdata return a new wsDcrdata context.
-func newWSDcrdata() (*wsDcrdata, error) {
-	// Init websocket client
+// reconnect stops the current client, initializes a new one, and subscribes
+// to each of the subscriptions that the previous client was subscribed to.
+func (w *wsDcrdata) reconnect(continueListening chan bool) {
+	previousSubscriptions := make(map[string]struct{})
+	for sub := range w.subscriptions {
+		previousSubscriptions[sub] = struct{}{}
+	}
+
+	w.client.Stop()
+	w.removeAllSubs()
+
+	go func() {
+		timeToWait := 1 * time.Minute
+		createdNewClient := false
+
+		for {
+			if !createdNewClient {
+				c, err := initDcrdataWSClient()
+				if err == nil {
+					w.client = c
+					createdNewClient = true
+					continueListening <- true
+				}
+			}
+
+			if createdNewClient {
+				for sub := range previousSubscriptions {
+					if w.isSubscribed(sub) {
+						delete(previousSubscriptions, sub)
+						continue
+					}
+
+					_, err := w.client.Subscribe(sub)
+					if err != nil {
+						log.Errorf("failed to subscribe: %v", err)
+					} else {
+						w.addSub(sub)
+						delete(previousSubscriptions, sub)
+					}
+				}
+			}
+
+			if len(previousSubscriptions) > 0 {
+				time.Sleep(timeToWait)
+				timeToWait = 2 * timeToWait
+			} else {
+				break
+			}
+		}
+	}()
+}
+
+func initDcrdataWSClient() (*client.Client, error) {
 	u, err := util.BlockExplorerURLForSubscriptions(activeNetParams.Params)
 	if err != nil {
 		return nil, err
@@ -138,8 +197,18 @@ func newWSDcrdata() (*wsDcrdata, error) {
 	log.Infof("Dcrdata pubsub server version: %v, client version %v",
 		serverSemVer, clientSemVer)
 
+	return c, nil
+}
+
+// newWSDcrdata return a new wsDcrdata context.
+func newWSDcrdata() (*wsDcrdata, error) {
+	client, err := initDcrdataWSClient()
+	if err != nil {
+		return nil, err
+	}
+
 	return &wsDcrdata{
-		client:        c,
+		client:        client,
 		subscriptions: make(map[string]struct{}),
 	}, nil
 }
