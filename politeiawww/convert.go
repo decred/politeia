@@ -857,7 +857,7 @@ func convertInvoiceFromCache(r cache.Record) cms.InvoiceRecord {
 	payment.TimeLastUpdated = p.Timestamp
 	payment.AmountReceived = dcrutil.Amount(p.AmountReceived)
 	payment.Address = ii.PaymentAddress
-	payment.AmountNeeded = dcrutil.Amount(payout.DCRTotal)
+	payment.AmountNeeded = payout.DCRTotal
 
 	invRec.Payment = payment
 
