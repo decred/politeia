@@ -909,7 +909,7 @@ func (p *politeiawww) setupWWWDcrdataWSSubs() error {
 				log.Debugf("Dcrdata has hung up. Will reconnect...")
 				readyToReceive := make(chan bool)
 				p.wsDcrdata.reconnect(readyToReceive)
-				_ = <-readyToReceive
+				<-readyToReceive
 			default:
 				log.Debugf("Message of type %v unhandled. %v", msg.EventId, m)
 			}
