@@ -231,7 +231,7 @@ func (d *decred) cmdGetNumComments(payload string) (string, error) {
 	}
 
 	// Put results into a map
-	numComments := make(map[string]int) // [token]numComments
+	numComments := make(map[string]int, len(results)) // [token]numComments
 	for _, c := range results {
 		numComments[c.Token] = c.Counts
 	}
