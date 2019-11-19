@@ -99,8 +99,11 @@ func (p *politeiawww) decredGetComments(token string) ([]decredplugin.Comment, e
 	return gcr.Comments, nil
 }
 
-// decredGetBatchComments sends the decred plugin GetBachComments command to the
-// cache and returns all of the comments for each of the tokens passed in.
+// decredGetNumComments sends the decred plugin command GetNumComments to the
+// cache and returns the number of comments for each of the specified
+// proposals. If a provided token does not correspond to an actual proposal
+// then it will not be included in the returned map. It is the responability
+// of the caller to ensure results are returned for all of the provided tokens.
 func (p *politeiawww) decredGetNumComments(tokens []string) (map[string]int, error) {
 	// Setup plugin command
 	gnc := decredplugin.GetNumComments{
@@ -118,7 +121,7 @@ func (p *politeiawww) decredGetNumComments(tokens []string) (map[string]int, err
 		CommandPayload: string(payload),
 	}
 
-	// Get comments from the cache
+	// Send plugin comand
 	reply, err := p.cache.PluginExec(pc)
 	if err != nil {
 		return nil, fmt.Errorf("PluginExec: %v", err)
@@ -130,7 +133,7 @@ func (p *politeiawww) decredGetNumComments(tokens []string) (map[string]int, err
 		return nil, err
 	}
 
-	return gncr.CommentsMap, nil
+	return gncr.NumComments, nil
 }
 
 // decredCommentLikes sends the decred plugin commentlikes command to the cache

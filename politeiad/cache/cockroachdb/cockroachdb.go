@@ -5,7 +5,6 @@
 package cockroachdb
 
 import (
-	"database/sql"
 	"fmt"
 	"net/url"
 	"path/filepath"
@@ -374,28 +373,102 @@ func (c *cockroachdb) UpdateRecordMetadata(token string, ms []cache.MetadataStre
 	return tx.Commit().Error
 }
 
-// getRecords is a helper used by Records and Inventory. Returns all of the
-// records if getAllRecords is true, otherwise returns the ones specified by
-// tokens.
-func (c *cockroachdb) getRecords(getAllRecords bool, tokens []string, fetchFiles bool) ([]cache.Record, error) {
-	// This query gets the latest version of each record
-	query := `SELECT a.* FROM records a
-		LEFT OUTER JOIN records b
-			ON a.token = b.token AND a.version < b.version
-		WHERE b.token IS NULL`
+// getRecords returns the records for the provided censorship tokens. If a
+// record is not found for a provided token, the returned records slice will
+// not include an entry for it.
+func (c *cockroachdb) getRecords(tokens []string, fetchFiles bool) ([]Record, error) {
+	// Lookup the latest version of each record specified by
+	// the provided tokens.
+	query := `SELECT a.*
+            FROM records a
+            LEFT OUTER JOIN records b
+              ON a.token = b.token
+              AND a.version < b.version
+              WHERE b.token IS NULL
+              AND a.token IN (?)`
+	rows, err := c.recordsdb.Raw(query, tokens).Rows()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
 
-	var (
-		err  error
-		rows *sql.Rows
-	)
-
-	if getAllRecords {
-		rows, err = c.recordsdb.Raw(query).Rows()
-	} else {
-		query += ` AND a.token IN (?)`
-		rows, err = c.recordsdb.Raw(query, tokens).Rows()
+	records := make([]Record, 0, len(tokens))
+	for rows.Next() {
+		var r Record
+		err := c.recordsdb.ScanRows(rows, &r)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, r)
 	}
 
+	// Compile a list of record primary keys
+	keys := make([]string, 0, len(records))
+	for _, v := range records {
+		keys = append(keys, v.Key)
+	}
+
+	if fetchFiles {
+		// Lookup files and metadata streams for each of the
+		// previously queried records.
+		err = c.recordsdb.
+			Preload("Metadata").
+			Preload("Files").
+			Where(keys).
+			Find(&records).
+			Error
+	} else {
+		// Lookup just the metadata streams for each of the
+		// previously queried records.
+		err = c.recordsdb.
+			Preload("Metadata").
+			Where(keys).
+			Find(&records).
+			Error
+	}
+
+	return records, err
+}
+
+// Records returns a [token]cache.Record map for the provided censorship
+// tokens. If a record is not found, the map will not include an entry for the
+// corresponding censorship token. It is the responsibility of the caller to
+// ensure that results are returned for all of the provided censorship tokens.
+func (c *cockroachdb) Records(tokens []string, fetchFiles bool) (map[string]cache.Record, error) {
+	log.Tracef("Records: %v", tokens)
+
+	c.RLock()
+	shutdown := c.shutdown
+	c.RUnlock()
+
+	if shutdown {
+		return nil, cache.ErrShutdown
+	}
+
+	records, err := c.getRecords(tokens, fetchFiles)
+	if err != nil {
+		return nil, err
+	}
+
+	// Compile records map
+	cr := make(map[string]cache.Record, len(records)) // [token]cache.Record
+	for _, r := range records {
+		cr[r.Token] = convertRecordToCache(r)
+	}
+
+	return cr, nil
+}
+
+// inventory returns the latest version of every record in the cache.
+func (c *cockroachdb) inventory() ([]Record, error) {
+	// Lookup the latest version of all records
+	query := `SELECT a.*
+            FROM records a
+            LEFT OUTER JOIN records b
+              ON a.token = b.token
+              AND a.version < b.version
+              WHERE b.token IS NULL`
+	rows, err := c.recordsdb.Raw(query).Rows()
 	if err != nil {
 		return nil, err
 	}
@@ -411,54 +484,28 @@ func (c *cockroachdb) getRecords(getAllRecords bool, tokens []string, fetchFiles
 		records = append(records, r)
 	}
 
-	// XXX this could be done in a more efficient way
+	// Compile a list of record primary keys
 	keys := make([]string, 0, len(records))
-	for _, r := range records {
-		keys = append(keys, r.Key)
+	for _, v := range records {
+		keys = append(keys, v.Key)
 	}
 
-	var db *gorm.DB
-
-	if fetchFiles {
-		db = c.recordsdb.Preload("Files")
-	} else {
-		db = c.recordsdb
-	}
-
-	err = db.
+	// Lookup the files and metadata streams for each of the
+	// previously queried records.
+	err = c.recordsdb.
 		Preload("Metadata").
+		Preload("Files").
 		Where(keys).
 		Find(&records).
 		Error
-
 	if err != nil {
 		return nil, err
 	}
 
-	cr := make([]cache.Record, 0, len(records))
-	for _, r := range records {
-		cr = append(cr, convertRecordToCache(r))
-	}
-
-	return cr, nil
+	return records, nil
 }
 
-// Records gets the most recent versions of a list of records.
-func (c *cockroachdb) Records(tokens []string, fetchFiles bool) ([]cache.Record, error) {
-	log.Tracef("Records: %v", tokens)
-
-	c.RLock()
-	shutdown := c.shutdown
-	c.RUnlock()
-
-	if shutdown {
-		return nil, cache.ErrShutdown
-	}
-
-	return c.getRecords(false, tokens, fetchFiles)
-}
-
-// Inventory returns the latest version of all records from the database.
+// Inventory returns the latest version of all records in the cache.
 func (c *cockroachdb) Inventory() ([]cache.Record, error) {
 	log.Tracef("Inventory")
 
@@ -470,7 +517,17 @@ func (c *cockroachdb) Inventory() ([]cache.Record, error) {
 		return nil, cache.ErrShutdown
 	}
 
-	return c.getRecords(true, nil, true)
+	inv, err := c.inventory()
+	if err != nil {
+		return nil, err
+	}
+
+	cr := make([]cache.Record, 0, len(inv))
+	for _, v := range inv {
+		cr = append(cr, convertRecordToCache(v))
+	}
+
+	return cr, nil
 }
 
 func (c *cockroachdb) getPlugin(id string) (cache.PluginDriver, error) {

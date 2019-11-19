@@ -201,6 +201,10 @@ func (d *decred) cmdGetComments(payload string) (string, error) {
 	return string(gcrb), nil
 }
 
+// cmdGetNumComments returns an encoded plugin reply that contains a
+// [token]numComments map for the provided list of censorship tokens. If a
+// provided token does not correspond to an actual proposal then it will not
+// be included in the returned map.
 func (d *decred) cmdGetNumComments(payload string) (string, error) {
 	log.Tracef("decred cmdGetNumComments")
 
@@ -209,13 +213,12 @@ func (d *decred) cmdGetNumComments(payload string) (string, error) {
 		return "", err
 	}
 
+	// Lookup number of comments for provided tokens
 	type Result struct {
 		Token  string
 		Counts int
 	}
-
-	results := make([]Result, 0, 1024)
-
+	results := make([]Result, 0, len(gnc.Tokens))
 	err = d.recordsdb.
 		Table("comments").
 		Select("count(*) as counts, token").
@@ -223,18 +226,19 @@ func (d *decred) cmdGetNumComments(payload string) (string, error) {
 		Where("token IN (?)", gnc.Tokens).
 		Find(&results).
 		Error
-
 	if err != nil {
 		return "", err
 	}
 
-	commentMap := make(map[string]int)
+	// Put results into a map
+	numComments := make(map[string]int, len(results)) // [token]numComments
 	for _, c := range results {
-		commentMap[c.Token] = c.Counts
+		numComments[c.Token] = c.Counts
 	}
 
+	// Encode reply
 	gncr := decredplugin.GetNumCommentsReply{
-		CommentsMap: commentMap,
+		NumComments: numComments,
 	}
 	gncre, err := decredplugin.EncodeGetNumCommentsReply(gncr)
 	if err != nil {

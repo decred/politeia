@@ -449,53 +449,83 @@ func (p *politeiawww) getProp(token string) (*www.ProposalRecord, error) {
 	return &pr, nil
 }
 
-func (p *politeiawww) getProps(tokens []string) (*[]www.ProposalRecord, error) {
+// getProps returns a [token]www.ProposalRecord map for the provided list of
+// censorship tokens. If a proposal is not found, the map will not include an
+// entry for the corresponding censorship token. It is the responsibility of
+// the caller to ensure that results are returned for all of the provided
+// censorship tokens.
+func (p *politeiawww) getProps(tokens []string) (map[string]www.ProposalRecord, error) {
 	log.Tracef("getProps: %v", tokens)
 
+	// Get the proposals from the cache
 	records, err := p.cache.Records(tokens, false)
 	if err != nil {
 		return nil, err
 	}
 
-	props := make([]www.ProposalRecord, 0, len(tokens))
-	for _, record := range records {
-		props = append(props, convertPropFromCache(record))
+	// Use pointers for now so the props can be easily updated
+	props := make(map[string]*www.ProposalRecord, len(records))
+	for _, v := range records {
+		pr := convertPropFromCache(v)
+		props[v.CensorshipRecord.Token] = &pr
 	}
 
-	// Find the number of comments each proposal
+	// Get the number of comments for each proposal. Comments
+	// are part of decred plugin so this must be fetched from
+	// the cache separately.
 	dnc, err := p.decredGetNumComments(tokens)
 	if err != nil {
-		log.Errorf("getProp: decredGetNumComments failed "+
-			"for tokens %v", tokens)
-	} else {
-		for i := range props {
-			props[i].NumComments = uint(dnc[props[i].CensorshipRecord.Token])
+		return nil, err
+	}
+	for token, numComments := range dnc {
+		props[token].NumComments = uint(numComments)
+	}
+
+	// Compile a list of unique proposal author pubkeys. These
+	// are needed to lookup the proposal author info.
+	pubKeys := make(map[string]struct{})
+	for _, pr := range props {
+		if _, ok := pubKeys[pr.PublicKey]; !ok {
+			pubKeys[pr.PublicKey] = struct{}{}
 		}
 	}
 
-	// Get the list of pubkeys of the proposal authors
-	pubKeys := make([]string, 0, 16)
-	pubKeysMap := make(map[string]bool)
-	for _, pr := range props {
-		if _, ok := pubKeysMap[pr.PublicKey]; !ok {
-			pubKeysMap[pr.PublicKey] = true
-			pubKeys = append(pubKeys, pr.PublicKey)
+	// Lookup proposal authors
+	pk := make([]string, 0, len(pubKeys))
+	for k := range pubKeys {
+		pk = append(pk, k)
+	}
+	users, err := p.db.UsersGetByPubKey(pk)
+	if err != nil {
+		return nil, err
+	}
+	if len(users) != len(pubKeys) {
+		// A user is missing from the userdb for one
+		// or more public keys. We're in trouble!
+		notFound := make([]string, 0, len(pubKeys))
+		for v := range pubKeys {
+			if _, ok := users[v]; !ok {
+				notFound = append(notFound, v)
+			}
 		}
+		e := fmt.Sprintf("users not found for pubkeys: %v",
+			strings.Join(notFound, ", "))
+		panic(e)
 	}
 
 	// Fill in proposal author info
-	users, err := p.db.UsersGetByPubKey(pubKeys)
-	if err != nil {
-		log.Errorf("getProps: UsersGetByPubKey: tokens:%v "+
-			"pubKeys:%v err:%v", tokens, pubKeys, err)
-	} else {
-		for i := range props {
-			props[i].UserId = users[props[i].PublicKey].ID.String()
-			props[i].Username = users[props[i].PublicKey].Username
-		}
+	for i, pr := range props {
+		props[i].UserId = users[pr.PublicKey].ID.String()
+		props[i].Username = users[pr.PublicKey].Username
 	}
 
-	return &props, nil
+	// Convert pointers to values
+	proposals := make(map[string]www.ProposalRecord, len(props))
+	for token, pr := range props {
+		proposals[token] = *pr
+	}
+
+	return proposals, nil
 }
 
 // getPropVersion gets a specific version of a proposal from the cache then
@@ -1028,57 +1058,80 @@ func (p *politeiawww) processBatchVoteSummary(batchVoteSummary www.BatchVoteSumm
 	}, nil
 }
 
-// processBatchProposals fetches a list of proposals from the records
-// cache and returns them. The returned proposals do not include the
-// proposal files.
-func (p *politeiawww) processBatchProposals(batchProposals www.BatchProposals, user *user.User) (*www.BatchProposalsReply, error) {
+// processBatchProposals fetches a list of proposals from the records cache
+// and returns them. The returned proposals do not include the proposal files.
+func (p *politeiawww) processBatchProposals(bp www.BatchProposals, user *user.User) (*www.BatchProposalsReply, error) {
 	log.Tracef("processBatchProposals")
 
-	if len(batchProposals.Tokens) > www.ProposalListPageSize {
+	// Validate censorship tokens
+	if len(bp.Tokens) > www.ProposalListPageSize {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusMaxProposalsExceededPolicy,
 		}
 	}
-
-	props, err := p.getProps(batchProposals.Tokens)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(*props) != len(batchProposals.Tokens) {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusProposalNotFound,
+	for _, v := range bp.Tokens {
+		if !tokenIsValid(v) {
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
+				ErrorContext: []string{v},
+			}
 		}
 	}
 
-	reply := www.BatchProposalsReply{
-		Proposals: *props,
+	// Lookup proposals
+	props, err := p.getProps(bp.Tokens)
+	if err != nil {
+		return nil, err
+	}
+	if len(props) != len(bp.Tokens) {
+		// A proposal was not found for one or more of the
+		// provided tokens. Figure out which ones they were.
+		notFound := make([]string, 0, len(bp.Tokens))
+		for _, v := range bp.Tokens {
+			if _, ok := props[v]; !ok {
+				notFound = append(notFound, v)
+			}
+		}
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusProposalNotFound,
+			ErrorContext: notFound,
+		}
 	}
 
-	for i := range *props {
+	for token, pr := range props {
 		// Vetted proposals are viewable by everyone. The contents of
 		// an unvetted proposal is only viewable by admins and the
 		// proposal author. Unvetted proposal metadata is viewable by
 		// everyone.
-		if reply.Proposals[i].State == www.PropStateUnvetted {
+		if pr.State == www.PropStateUnvetted {
 			var isAuthor bool
 			var isAdmin bool
 			// This is a public route so a user may not exist
 			if user != nil {
 				isAdmin = user.Admin
-				isAuthor = (reply.Proposals[i].UserId == user.ID.String())
+				isAuthor = (pr.UserId == user.ID.String())
 			}
 
 			// Strip the non-public proposal contents if user is
 			// not the author or an admin. The files are already
 			// not included in this request.
 			if !isAuthor && !isAdmin {
-				reply.Proposals[i].Name = ""
+				prop := props[token]
+				prop.Name = ""
+				props[token] = prop
 			}
 		}
 	}
 
-	return &reply, nil
+	// Convert proposals map to a slice
+	proposals := make([]www.ProposalRecord, 0, len(props))
+	for _, v := range props {
+		proposals = append(proposals, v)
+	}
+
+	return &www.BatchProposalsReply{
+		Proposals: proposals,
+	}, nil
 }
 
 // verifyStatusChange verifies that the proposal status change is a valid
