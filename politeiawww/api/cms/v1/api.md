@@ -792,7 +792,9 @@ Reply:
 
 ### `User details`
 
-Returns a logged-in CMS user's information beyond what is stored in the userdb.
+Returns a CMS user's information.  If admin or a user requesting their own
+information everything is returned.  Otherwise, a shorter public user
+information response is provided.
 
 **Route:** `GET /v1/user/details`
 

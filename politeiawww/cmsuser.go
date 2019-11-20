@@ -399,19 +399,36 @@ func (p *politeiawww) processManageCMSUser(mu cms.ManageUser) (*cms.ManageUserRe
 	return &cms.ManageUserReply{}, nil
 }
 
-func (p *politeiawww) processCMSUserDetails(ud *cms.UserDetails, isCurrentUser bool, isAdmin bool) (*cms.UserDetailsReply, error) {
-	// Return error in case the user isn't the admin or the current user.
-	if !isAdmin && !isCurrentUser {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusUserActionNotAllowed,
-		}
+// filterCMSUserPublicFields creates a filtered copy of a cms User that only
+// contains public information.
+func filterCMSUserPublicFields(user cms.User) cms.User {
+	return cms.User{
+		ID:         user.ID,
+		Admin:      user.Admin,
+		Username:   user.Username,
+		Identities: user.Identities,
+
+		// CMS User Details
+		ContractorType: user.ContractorType,
+		GitHubName:     user.GitHubName,
+		MatrixName:     user.MatrixName,
+		Domain:         user.Domain,
 	}
+}
+
+func (p *politeiawww) processCMSUserDetails(ud *cms.UserDetails, isCurrentUser bool, isAdmin bool) (*cms.UserDetailsReply, error) {
 	reply := cms.UserDetailsReply{}
 	u, err := p.getCMSUserByID(ud.UserID)
 	if err != nil {
 		return nil, err
 	}
-	reply.User = *u
+
+	// Filter returned fields in case the user isn't the admin or the current user
+	if !isAdmin && !isCurrentUser {
+		reply.User = filterCMSUserPublicFields(*u)
+	} else {
+		reply.User = *u
+	}
 
 	return &reply, nil
 }
