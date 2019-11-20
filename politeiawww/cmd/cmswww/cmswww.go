@@ -89,7 +89,7 @@ type cmswww struct {
 	UserDetails         UserDetailsCmd           `command:"userdetails" description:"(user)   get current cms user details"`
 	UserInvoices        UserInvoicesCmd          `command:"userinvoices" description:"(user)   get all invoices submitted by a specific user"`
 	UserSubContractors  UserSubContractorsCmd    `command:"usersubcontractors" description:"(user)   get all users that are linked to the user"`
-	Users               shared.UsersCmd          `command:"users" description:"(public) get a list of users"`
+	Users               shared.UsersCmd          `command:"users" description:"(admin) get a list of users"`
 	Secret              shared.SecretCmd         `command:"secret" description:"(user)   ping politeiawww"`
 	Version             shared.VersionCmd        `command:"version" description:"(public) get server info and CSRF token"`
 }

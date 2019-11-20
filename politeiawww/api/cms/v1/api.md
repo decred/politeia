@@ -1006,7 +1006,7 @@ Reply:
 
 Retrieve DCCs by status.
 
-**Routes:** `POST /v1/dcc/status`
+**Routes:** `POST /v1/dcc`
 
 **Params:**
 
