@@ -554,7 +554,7 @@ func (p *politeiawww) getDCC(token string) (*cms.DCCRecord, error) {
 	i.SupportUserIDs = supportUserIDs
 	i.OppositionUserIDs = opposeUserIDs
 
-	// Fill in userID and username fields
+	// Fill in sponsoring userID and username fields
 	u, err := p.db.UserGetByPubKey(i.PublicKey)
 	if err != nil {
 		log.Errorf("getDCC: getUserByPubKey: token:%v "+
@@ -563,6 +563,17 @@ func (p *politeiawww) getDCC(token string) (*cms.DCCRecord, error) {
 		i.SponsorUserID = u.ID.String()
 		i.SponsorUsername = u.Username
 	}
+
+	// Fill in nominee username
+
+	nomineeUser, err := p.getCMSUserByID(i.DCC.NomineeUserID)
+	if err != nil {
+		log.Errorf("getDCC: getCMSUserByID: token:%v "+
+			"userid:%v err:%v", token, i.DCC.NomineeUserID, err)
+	} else {
+		i.NomineeUsername = nomineeUser.Username
+	}
+
 	return &i, nil
 }
 

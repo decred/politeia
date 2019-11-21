@@ -624,6 +624,7 @@ type DCCRecord struct {
 	PublicKey          string     `json:"publickey"`          // Sponsoring user's public key, used to verify signature.
 	Signature          string     `json:"signature"`          // Signature of file digest
 
+	NomineeUsername string `json:"nomineeusername"` // The username of the nominated user.
 	SponsorUserID   string `json:"sponsoruserid"`   // The userid of the sponsoring user.
 	SponsorUsername string `json:"sponsorusername"` // The username of the sponsoring user.
 
