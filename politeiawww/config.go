@@ -27,7 +27,7 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/util/version"
 
-	"github.com/decred/politeia/politeiad/api/v1"
+	v1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiawww/sharedconfig"
 	"github.com/decred/politeia/util"
 	flags "github.com/jessevdk/go-flags"
@@ -137,6 +137,7 @@ type config struct {
 	SMTPSkipVerify           bool   `long:"smtpskipverify" description:"Skip SMTP TLS cert verification. Will only skip if SMTPCert is empty"`
 	SMTPCert                 string `long:"smtpcert" description:"File containing the smtp certificate file"`
 	SystemCerts              *x509.CertPool
+	CMSPaymentsCheck         bool `long:"cmspaymentscheck" description:"Checks to make sure all db payments have associated invoice record metadata entries."`
 }
 
 // serviceOptions defines the configuration options for the rpc as a service

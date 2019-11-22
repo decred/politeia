@@ -10,6 +10,7 @@ import (
 	"crypto/elliptic"
 	"crypto/tls"
 	_ "encoding/gob"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,6 +25,7 @@ import (
 	"text/template"
 	"time"
 
+	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/cache"
 	cachedb "github.com/decred/politeia/politeiad/cache/cockroachdb"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
@@ -522,6 +524,91 @@ func _main() error {
 			return fmt.Errorf("cmsdb setup: %v", err)
 		}
 
+		// Check to see if there any payments in the db that don't have metadata
+		// saved on the invoice records.
+		if p.cfg.CMSPaymentsCheck {
+			paid, err := p.cmsDB.PaymentsByStatus(uint(cms.PaymentStatusPaid))
+			if err != nil {
+				return err
+			}
+			for _, payment := range paid {
+				invoice, err := p.cache.Record(payment.InvoiceToken)
+				if err != nil {
+					log.Errorf("couldn't get invoice for payment check: %v, %v",
+						payment.InvoiceToken, err)
+					continue
+				}
+				found := false
+				for _, v := range invoice.Metadata {
+					if v.ID == mdStreamInvoicePayment {
+						// Do we need to do any checks to make sure anything else
+						// is needed?
+						found = true
+						break
+					}
+				}
+				// If no associated payment metadata are found for the given
+				// invoice, create the new metadata and add to the existing invoice.
+				if !found {
+					// Create new backend invoice payment metadata
+					c := backendInvoicePayment{
+						Version:        backendInvoicePaymentVersion,
+						TxIDs:          payment.TxIDs,
+						Timestamp:      payment.TimeLastUpdated,
+						AmountReceived: payment.AmountReceived,
+					}
+
+					blob, err := encodeBackendInvoicePayment(c)
+					if err != nil {
+						log.Errorf("cms payment check: "+
+							"encodeBackendInvoicePayment %v %v",
+							payment.InvoiceToken, err)
+						continue
+					}
+
+					challenge, err := util.Random(pd.ChallengeSize)
+					if err != nil {
+						log.Errorf("cms payment check: random %v %v",
+							payment.InvoiceToken, err)
+						continue
+					}
+
+					pdCommand := pd.UpdateVettedMetadata{
+						Challenge: hex.EncodeToString(challenge),
+						Token:     payment.InvoiceToken,
+						MDAppend: []pd.MetadataStream{
+							{
+								ID:      mdStreamInvoicePayment,
+								Payload: string(blob),
+							},
+						},
+					}
+					responseBody, err := p.makeRequest(http.MethodPost,
+						pd.UpdateVettedMetadataRoute, pdCommand)
+					if err != nil {
+						log.Errorf("cms payment check: makeRequest %v %v",
+							payment.InvoiceToken, err)
+						continue
+					}
+
+					var pdReply pd.UpdateVettedMetadataReply
+					err = json.Unmarshal(responseBody, &pdReply)
+					if err != nil {
+						log.Errorf("cms payment check: unmarshall %v %v",
+							payment.InvoiceToken, err)
+						continue
+					}
+					// Verify the UpdateVettedMetadata challenge.
+					err = util.VerifyChallenge(p.cfg.Identity, challenge, pdReply.Response)
+					if err != nil {
+						log.Errorf("cms payment check: verifyChallenge %v %v",
+							payment.InvoiceToken, err)
+						continue
+					}
+				}
+			}
+
+		}
 		// Register cms userdb plugin
 		plugin := user.Plugin{
 			ID:      user.CMSPluginID,
