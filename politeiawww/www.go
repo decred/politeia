@@ -541,7 +541,6 @@ func _main() error {
 				found := false
 				for _, v := range invoice.Metadata {
 					if v.ID == mdStreamInvoicePayment {
-						fmt.Println("Found invoice payment metadata!", payment.InvoiceToken)
 						// Do we need to do any checks to make sure anything else
 						// is needed?
 						found = true
@@ -551,7 +550,6 @@ func _main() error {
 				// If no associated payment metadata are found for the given
 				// invoice, create the new metadata and add to the existing invoice.
 				if !found {
-					fmt.Println("Didn't find invoice payment metadata!", payment.InvoiceToken)
 					// Create new backend invoice payment metadata
 					c := backendInvoicePayment{
 						Version:        backendInvoicePaymentVersion,
