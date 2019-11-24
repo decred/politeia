@@ -507,7 +507,7 @@ func _main() error {
 	p.router = mux.NewRouter()
 	p.router.Use(recoverMiddleware)
 
-	// Setup dcrdata watcher
+	// Setup dcrdata websocket connection
 	ws, err := newWSDcrdata()
 	if err != nil {
 		return fmt.Errorf("new wsDcrdata: %v", err)
@@ -519,7 +519,7 @@ func _main() error {
 		p.setPoliteiaWWWRoutes()
 		// XXX setup user routes
 		p.setUserWWWRoutes()
-		p.setupWWWDcrdataWSSubs()
+		p.setupPiDcrdataWSSubs()
 	case cmsWWWMode:
 		p.setCMSWWWRoutes()
 		// XXX setup user routes

@@ -876,7 +876,7 @@ func (p *politeiawww) updateBestBlock(bestBlock uint64) {
 // connection to dcrdata. Otherwise it requests the best block from politeiad
 // using the the decred plugin best block command.
 func (p *politeiawww) getBestBlock() (uint64, error) {
-	if !p.wsDcrdata.isSubscribed(eventNewBlock) {
+	if !p.wsDcrdata.isSubscribed(newBlockSub) {
 		return p.getBestBlockDecredPlugin()
 	}
 
@@ -885,9 +885,9 @@ func (p *politeiawww) getBestBlock() (uint64, error) {
 	return p.bestBlock, nil
 }
 
-// setupWWWDcrdataWSSubs subscribes and listens to websocket messages from
-// dcrdata that are needed from politeiawww.
-func (p *politeiawww) setupWWWDcrdataWSSubs() error {
+// setupPiDcrdataWSSubs subscribes and listens to websocket messages from
+// dcrdata that are needed for pi.
+func (p *politeiawww) setupPiDcrdataWSSubs() error {
 	err := p.wsDcrdata.subToNewBlock()
 	if err != nil {
 		return err
@@ -896,22 +896,22 @@ func (p *politeiawww) setupWWWDcrdataWSSubs() error {
 	go func() {
 		for {
 			msg, ok := <-p.wsDcrdata.client.Receive()
-			if !ok || msg == nil {
+			if !ok {
 				log.Errorf("Error receiving msg from dcrdata, msg: %v", msg)
+				p.wsDcrdata.reconnect()
 				continue
 			}
 
 			switch m := msg.Message.(type) {
 			case *exptypes.WebsocketBlock:
-				log.Debugf("Message WebsocketBlock(height=%s)", m.Block.Height)
+				log.Debugf("wsDcrdata message WebsocketBlock(height=%s)",
+					m.Block.Height)
 				p.updateBestBlock(uint64(m.Block.Height))
 			case *pstypes.HangUp:
-				log.Debugf("Dcrdata has hung up. Will reconnect...")
-				readyToReceive := make(chan bool)
-				p.wsDcrdata.reconnect(readyToReceive)
-				<-readyToReceive
+				log.Infof("Dcrdata has hung up. Will reconnect...")
+				p.wsDcrdata.reconnect()
 			default:
-				log.Debugf("Message of type %v unhandled. %v", msg.EventId, m)
+				log.Errorf("Message of type %v unhandled. %v", msg.EventId, m)
 			}
 		}
 	}()
