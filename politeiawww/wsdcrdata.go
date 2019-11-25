@@ -55,7 +55,7 @@ func (w *wsDcrdata) removeSub(event string) {
 	delete(w.subscriptions, event)
 }
 
-// removeSub removes an event subscription from the subscriptions map.
+// removeAllSubs removes all of the subscriptions from the subscriptions map.
 func (w *wsDcrdata) removeAllSubs() {
 	w.Lock()
 	defer w.Unlock()
