@@ -1084,8 +1084,11 @@ Creates a vote on a DCC Record that is used to tabulate support or opposition .
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
-| vote | string | The vote for the given DCC | Yes |
+| comment | string | The vote for the given DCC | Yes |
 | token | string | The token of the DCC to support | Yes |
+| publickey | string | The submitting user's public key | Yes |
+| signature | string | Signature of the Token+Vote by the submitting user | Yes |
+
 
 **Results:**
 
@@ -1098,8 +1101,10 @@ Request:
 
 ```json
 {
-  "vote": "aye",
-  "token":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b"
+  "comment": "aye",
+  "token":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+  "publickey":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+  "signature": "gdd92f26c8g38c90d2887259e88df614654g32fde76bef1438b0efg40e360f461e995d796g16b17108gbe226793ge4g52gg013428feb3c39de504fe5g1811e0e"
 }
 ```
 
