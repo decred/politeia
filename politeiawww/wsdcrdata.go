@@ -170,9 +170,11 @@ func (w *wsDcrdata) reconnect() {
 			}
 
 		wait:
-			log.Debugf("wsDcrdata reconnect waiting %v", timeToWait)
-			time.Sleep(timeToWait)
-			timeToWait = 2 * timeToWait
+			if len(prevSubscriptions) > 0 {
+				log.Debugf("wsDcrdata reconnect waiting %v", timeToWait)
+				time.Sleep(timeToWait)
+				timeToWait = 2 * timeToWait
+			}
 		}
 
 		// All previous subscriptions have been re-subscribed
