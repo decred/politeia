@@ -874,7 +874,7 @@ func (p *politeiawww) updateBestBlock(bestBlock uint64) {
 }
 
 // getBestBlock returns the cached best block if there is an active websocket
-// connection to dcrdata. Otherwise it requests the best block from politeiad
+// connection to dcrdata. Otherwise, it requests the best block from politeiad
 // using the the decred plugin best block command.
 func (p *politeiawww) getBestBlock() (uint64, error) {
 	p.bbMtx.RLock()
@@ -890,6 +890,19 @@ func (p *politeiawww) getBestBlock() (uint64, error) {
 	return bb, nil
 }
 
+// resetPiDcrdataWSSubs is responsible for resetting the wsDcrdata connection
+// and making necessary changes to the required changes to the politeiawww
+// state so that the service continues to function properly during and after
+// the reconnection.
+func (p* politeiawww) resetPiDcrdataWSSubs() {
+	// The cached best block is set to zero so that in the time between
+	// reconnection and recieving the first new block message, instead of
+	// using the old cached value, politeiad is queried for the best block.
+	p.updateBestBlock(0)
+
+	p.wsDcrdata.reconnect()
+}
+
 // setupPiDcrdataWSSubs subscribes and listens to websocket messages from
 // dcrdata that are needed for pi.
 func (p *politeiawww) setupPiDcrdataWSSubs() error {
@@ -903,7 +916,7 @@ func (p *politeiawww) setupPiDcrdataWSSubs() error {
 			msg, ok := <-p.wsDcrdata.client.Receive()
 			if !ok {
 				log.Errorf("Error receiving msg from dcrdata, msg: %v", msg)
-				p.wsDcrdata.reconnect()
+				p.resetPiDcrdataWSSubs()
 				continue
 			}
 
@@ -914,7 +927,7 @@ func (p *politeiawww) setupPiDcrdataWSSubs() error {
 				p.updateBestBlock(uint64(m.Block.Height))
 			case *pstypes.HangUp:
 				log.Infof("Dcrdata has hung up. Will reconnect...")
-				p.wsDcrdata.reconnect()
+				p.resetPiDcrdataWSSubs()
 			default:
 				log.Errorf("wsDcrdata message of type %v unhandled. %v",
 					msg.EventId, m)
