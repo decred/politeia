@@ -558,7 +558,6 @@ func _main() error {
 							break
 						}
 						dbDCCs = append(dbDCCs, *d)
-						break
 					}
 				}
 			}

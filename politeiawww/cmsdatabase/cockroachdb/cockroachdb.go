@@ -438,6 +438,7 @@ func createCmsTables(tx *gorm.DB) error {
 				Version:   cmsVersion,
 				Timestamp: time.Now().Unix(),
 			}).Error
+		return err
 	}
 
 	return nil
@@ -467,8 +468,6 @@ func (c *cockroachdb) dropTables(tx *gorm.DB) error {
 	return tx.Delete(&Version{
 		ID: cacheID,
 	}).Error
-
-	return nil
 }
 
 // build the records cache using the passed in records.
