@@ -80,7 +80,8 @@ func (w *wsDcrdata) subToAddr(address string) error {
 	}
 	_, err := w.client.Subscribe(event)
 	if err != nil {
-		return fmt.Errorf("failed to subscribe: %v", err)
+		return fmt.Errorf("wcDcrdata failed to subscribe to %v: %v",
+			event, err)
 	}
 	w.addSub(event)
 	log.Debugf("wsDcrdata subscribed to addr: %v", address)
@@ -95,7 +96,8 @@ func (w *wsDcrdata) unsubFromAddr(address string) error {
 	}
 	_, err := w.client.Unsubscribe(event)
 	if err != nil {
-		return fmt.Errorf("failed to unsubscribe: %v", err)
+		return fmt.Errorf("wsDcrdata failed to unsubscribe from %v: %v",
+			event, err)
 	}
 	w.removeSub(event)
 	log.Debugf("wsDcrdata unsubscribed from addr: %v", address)
@@ -109,7 +111,8 @@ func (w *wsDcrdata) subToNewBlock() error {
 	}
 	_, err := w.client.Subscribe(newBlockSub)
 	if err != nil {
-		return fmt.Errorf("failed to subscribe: %v", err)
+		return fmt.Errorf("wsDcrdata failed to subscribe to %v: %v",
+			newBlockSub, err)
 	}
 	w.addSub(newBlockSub)
 	log.Debugf("wsDcrdata subscribed to new block")
@@ -148,6 +151,7 @@ func (w *wsDcrdata) reconnect() {
 				// Reconnect
 				c, err := newDcrdataWSClient()
 				if err != nil {
+					log.Errorf(err.Error())
 					goto wait
 				}
 				w.client = c

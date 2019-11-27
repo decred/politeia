@@ -331,14 +331,6 @@ func _main() error {
 		params:          activeNetParams.Params,
 	}
 
-	// Get initial value for best block. This will subsequently be updated by
-	// the websocket connection to dcrdata.
-	bb, err := p.getBestBlockDecredPlugin()
-	if err != nil {
-		return err
-	}
-	p.updateBestBlock(bb)
-
 	// Check if this command is being run to fetch the identity.
 	if p.cfg.FetchIdentity {
 		return p.getIdentity()

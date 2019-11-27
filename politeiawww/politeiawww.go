@@ -135,7 +135,8 @@ type politeiawww struct {
 	wsDcrdata *wsDcrdata
 
 	// The current best block is cached and updated using a websocket
-	// subscription to dcrdata
+	// subscription to dcrdata. If the websocket connection is not active,
+	// the dcrdata best block route of politeiad is used as a fallback.
 	bestBlock uint64
 	bbMtx     sync.RWMutex
 }
@@ -876,13 +877,17 @@ func (p *politeiawww) updateBestBlock(bestBlock uint64) {
 // connection to dcrdata. Otherwise it requests the best block from politeiad
 // using the the decred plugin best block command.
 func (p *politeiawww) getBestBlock() (uint64, error) {
-	if !p.wsDcrdata.isSubscribed(newBlockSub) {
+	p.bbMtx.RLock()
+	bb := p.bestBlock
+	p.bbMtx.RUnlock()
+
+	// the cached best block will equal 0 if no messages have been recieved
+	// since the startup of the service.
+	if bb == 0 || !p.wsDcrdata.isSubscribed(newBlockSub) {
 		return p.getBestBlockDecredPlugin()
 	}
 
-	p.bbMtx.RLock()
-	defer p.bbMtx.RUnlock()
-	return p.bestBlock, nil
+	return bb, nil
 }
 
 // setupPiDcrdataWSSubs subscribes and listens to websocket messages from
@@ -911,7 +916,8 @@ func (p *politeiawww) setupPiDcrdataWSSubs() error {
 				log.Infof("Dcrdata has hung up. Will reconnect...")
 				p.wsDcrdata.reconnect()
 			default:
-				log.Errorf("Message of type %v unhandled. %v", msg.EventId, m)
+				log.Errorf("wsDcrdata message of type %v unhandled. %v",
+					msg.EventId, m)
 			}
 		}
 	}()
