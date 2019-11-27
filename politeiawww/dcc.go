@@ -35,9 +35,9 @@ const (
 	dccFile = "dcc.json"
 
 	// politeiad dcc record metadata streams
-	mdStreamDCCGeneral           = 5 // General DCC metadata
-	mdStreamDCCStatusChanges     = 6 // DCC status changes
-	mdStreamDCCSupportOpposition = 7 // DCC support/opposition changes
+	mdStreamDCCGeneral           = 6 // General DCC metadata
+	mdStreamDCCStatusChanges     = 7 // DCC status changes
+	mdStreamDCCSupportOpposition = 8 // DCC support/opposition changes
 
 	// Metadata stream struct versions
 	backendDCCMetadataVersion                  = 1

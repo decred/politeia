@@ -38,7 +38,7 @@ const (
 	// politeiad invoice record metadata streams
 	mdStreamInvoiceGeneral       = 3 // General invoice metadata
 	mdStreamInvoiceStatusChanges = 4 // Invoice status changes
-	mdStreamInvoicePayment       = 8 // Invoice payments
+	mdStreamInvoicePayment       = 5 // Invoice payments
 
 	// Metadata stream struct versions
 	backendInvoiceMetadataVersion     = 1
