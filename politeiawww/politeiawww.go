@@ -894,7 +894,7 @@ func (p *politeiawww) getBestBlock() (uint64, error) {
 // and making necessary changes to the required changes to the politeiawww
 // state so that the service continues to function properly during and after
 // the reconnection.
-func (p* politeiawww) resetPiDcrdataWSSubs() {
+func (p *politeiawww) resetPiDcrdataWSSubs() {
 	// The cached best block is set to zero so that in the time between
 	// reconnection and recieving the first new block message, instead of
 	// using the old cached value, politeiad is queried for the best block.
