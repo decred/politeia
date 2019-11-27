@@ -881,7 +881,7 @@ func (p *politeiawww) getBestBlock() (uint64, error) {
 	bb := p.bestBlock
 	p.bbMtx.RUnlock()
 
-	// the cached best block will equal 0 if no messages have been recieved
+	// the cached best block will equal 0 if no messages have been received
 	// since the startup of the service.
 	if bb == 0 || !p.wsDcrdata.isSubscribed(newBlockSub) {
 		return p.getBestBlockDecredPlugin()
@@ -896,7 +896,7 @@ func (p *politeiawww) getBestBlock() (uint64, error) {
 // the reconnection.
 func (p *politeiawww) resetPiDcrdataWSSubs() {
 	// The cached best block is set to zero so that in the time between
-	// reconnection and recieving the first new block message, instead of
+	// reconnection and receiving the first new block message, instead of
 	// using the old cached value, politeiad is queried for the best block.
 	p.updateBestBlock(0)
 
