@@ -882,7 +882,7 @@ func (p *politeiawww) getBestBlock() (uint64, error) {
 	p.bbMtx.RUnlock()
 
 	// the cached best block will equal 0 if no messages have been received
-	// since the startup of the service.
+	// since the startup of the service or since reconnection to wsDcrdata.
 	if bb == 0 || !p.wsDcrdata.isSubscribed(newBlockSub) {
 		return p.getBestBlockDecredPlugin()
 	}
