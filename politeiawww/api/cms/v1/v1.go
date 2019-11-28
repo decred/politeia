@@ -670,7 +670,7 @@ type GetDCCsReply struct {
 // SupportOpposeDCC request allows a user to support a given DCC issuance or
 // revocation.
 type SupportOpposeDCC struct {
-	Vote      string `json:"comment"`   // Vote must be "aye" or "nay"
+	Vote      string `json:"vote"`      // Vote must be "aye" or "nay"
 	Token     string `json:"token"`     // The censorship token of the given DCC issuance or revocation.
 	PublicKey string `json:"publickey"` // Pubkey of the submitting user
 	Signature string `json:"signature"` // Signature of the Token+Vote by the submitting user.

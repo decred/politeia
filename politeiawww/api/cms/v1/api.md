@@ -1084,7 +1084,7 @@ Creates a vote on a DCC Record that is used to tabulate support or opposition .
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
-| comment | string | The vote for the given DCC | Yes |
+| vote | string | The vote for the given DCC | Yes |
 | token | string | The token of the DCC to support | Yes |
 | publickey | string | The submitting user's public key | Yes |
 | signature | string | Signature of the Token+Vote by the submitting user | Yes |
