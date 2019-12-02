@@ -11,7 +11,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"regexp"
 	"sort"
@@ -35,16 +34,6 @@ import (
 const (
 	// invoiceFile contains the file name of the invoice file
 	invoiceFile = "invoice.json"
-
-	// politeiad invoice record metadata streams
-	mdStreamInvoiceGeneral       = 3 // General invoice metadata
-	mdStreamInvoiceStatusChanges = 4 // Invoice status changes
-	mdStreamInvoicePayment       = 5 // Invoice payments
-
-	// Metadata stream struct versions
-	backendInvoiceMetadataVersion     = 1
-	backendInvoiceStatusChangeVersion = 1
-	backendInvoicePaymentVersion      = 1
 )
 
 var (
@@ -306,23 +295,23 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 		}
 	}
 
-	m := backendInvoiceMetadata{
-		Version:   backendInvoiceMetadataVersion,
+	m := mdstream.InvoiceGeneral{
+		Version:   mdstream.VersionInvoiceGeneral,
 		Timestamp: time.Now().Unix(),
 		PublicKey: ni.PublicKey,
 		Signature: ni.Signature,
 	}
-	md, err := encodeBackendInvoiceMetadata(m)
+	md, err := mdstream.EncodeInvoiceGeneral(m)
 	if err != nil {
 		return nil, err
 	}
 
-	sc := backendInvoiceStatusChange{
-		Version:   backendInvoiceStatusChangeVersion,
+	sc := mdstream.InvoiceStatusChange{
+		Version:   mdstream.IDInvoiceStatusChange,
 		Timestamp: time.Now().Unix(),
 		NewStatus: cms.InvoiceStatusNew,
 	}
-	scb, err := encodeBackendInvoiceStatusChange(sc)
+	scb, err := mdstream.EncodeInvoiceStatusChange(sc)
 	if err != nil {
 		return nil, err
 	}
@@ -336,11 +325,11 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 		Challenge: hex.EncodeToString(challenge),
 		Metadata: []pd.MetadataStream{
 			{
-				ID:      mdStreamInvoiceGeneral,
+				ID:      mdstream.IDInvoiceGeneral,
 				Payload: string(md),
 			},
 			{
-				ID:      mdStreamInvoiceStatusChanges,
+				ID:      mdstream.IDInvoiceStatusChange,
 				Payload: string(scb),
 			},
 		},
@@ -874,14 +863,14 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus, u *user.
 	}
 
 	// Create the change record.
-	c := backendInvoiceStatusChange{
-		Version:        backendInvoiceStatusChangeVersion,
+	c := mdstream.InvoiceStatusChange{
+		Version:        mdstream.VersionInvoiceStatusChange,
 		AdminPublicKey: u.PublicKey(),
 		Timestamp:      time.Now().Unix(),
 		NewStatus:      sis.Status,
 		Reason:         sis.Reason,
 	}
-	blob, err := encodeBackendInvoiceStatusChange(c)
+	blob, err := mdstream.EncodeInvoiceStatusChange(c)
 	if err != nil {
 		return nil, err
 	}
@@ -896,7 +885,7 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus, u *user.
 		Token:     sis.Token,
 		MDAppend: []pd.MetadataStream{
 			{
-				ID:      mdStreamInvoiceStatusChanges,
+				ID:      mdstream.IDInvoiceStatusChange,
 				Payload: string(blob),
 			},
 		},
@@ -1106,19 +1095,19 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 		}
 	}
 
-	m := backendInvoiceMetadata{
-		Version:   backendInvoiceMetadataVersion,
+	m := mdstream.InvoiceGeneral{
+		Version:   mdstream.VersionInvoiceGeneral,
 		Timestamp: time.Now().Unix(),
 		PublicKey: ei.PublicKey,
 		Signature: ei.Signature,
 	}
-	md, err := encodeBackendInvoiceMetadata(m)
+	md, err := mdstream.EncodeInvoiceGeneral(m)
 	if err != nil {
 		return nil, err
 	}
 
 	mds := []pd.MetadataStream{{
-		ID:      mdStreamInvoiceGeneral,
+		ID:      mdstream.IDInvoiceGeneral,
 		Payload: string(md),
 	}}
 
@@ -1169,13 +1158,13 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 	}
 
 	// Create the change record.
-	c := backendInvoiceStatusChange{
-		Version:        backendInvoiceStatusChangeVersion,
+	c := mdstream.InvoiceStatusChange{
+		Version:        mdstream.VersionInvoiceStatusChange,
 		AdminPublicKey: u.PublicKey(),
 		Timestamp:      time.Now().Unix(),
 		NewStatus:      cms.InvoiceStatusUpdated,
 	}
-	blob, err := encodeBackendInvoiceStatusChange(c)
+	blob, err := mdstream.EncodeInvoiceStatusChange(c)
 	if err != nil {
 		return nil, err
 	}
@@ -1190,7 +1179,7 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 		Token:     ei.Token,
 		MDAppend: []pd.MetadataStream{
 			{
-				ID:      mdStreamInvoiceStatusChanges,
+				ID:      mdstream.IDInvoiceStatusChange,
 				Payload: string(blob),
 			},
 		},
@@ -1516,13 +1505,13 @@ func (p *politeiawww) processPayInvoices(u *user.User) (*cms.PayInvoicesReply, e
 	reply := &cms.PayInvoicesReply{}
 	for _, inv := range dbInvs {
 		// Create the change record.
-		c := backendInvoiceStatusChange{
-			Version:        backendInvoiceStatusChangeVersion,
+		c := mdstream.InvoiceStatusChange{
+			Version:        mdstream.VersionInvoiceStatusChange,
 			AdminPublicKey: u.PublicKey(),
 			Timestamp:      time.Now().Unix(),
 			NewStatus:      cms.InvoiceStatusPaid,
 		}
-		blob, err := encodeBackendInvoiceStatusChange(c)
+		blob, err := mdstream.EncodeInvoiceStatusChange(c)
 		if err != nil {
 			return nil, err
 		}
@@ -1537,7 +1526,7 @@ func (p *politeiawww) processPayInvoices(u *user.User) (*cms.PayInvoicesReply, e
 			Token:     inv.Token,
 			MDAppend: []pd.MetadataStream{
 				{
-					ID:      mdStreamInvoiceStatusChanges,
+					ID:      mdstream.IDInvoiceStatusChange,
 					Payload: string(blob),
 				},
 			},
@@ -1579,122 +1568,6 @@ func (p *politeiawww) processPayInvoices(u *user.User) (*cms.PayInvoicesReply, e
 		}
 	}
 	return reply, err
-}
-
-// backendInvoiceMetadata represents the general metadata for an invoice and is
-// stored in the metadata stream mdStreamInvoiceGeneral in politeiad.
-type backendInvoiceMetadata struct {
-	Version   uint64 `json:"version"`   // Version of the struct
-	Timestamp int64  `json:"timestamp"` // Last update of invoice
-	PublicKey string `json:"publickey"` // Key used for signature
-	Signature string `json:"signature"` // Signature of merkle root
-}
-
-// backendInvoiceStatusChange represents an invoice status change and is stored
-// in the metadata stream mdStreamInvoiceStatusChanges in politeiad.
-type backendInvoiceStatusChange struct {
-	Version        uint               `json:"version"`        // Version of the struct
-	AdminPublicKey string             `json:"adminpublickey"` // Identity of the administrator
-	NewStatus      cms.InvoiceStatusT `json:"newstatus"`      // Status
-	Reason         string             `json:"reason"`         // Reason
-	Timestamp      int64              `json:"timestamp"`      // Timestamp of the change
-}
-
-// backendInvoicePayment represents an invoice payment and is stored
-// in the metadata stream mdStreamInvoicePayment in politeiad.
-type backendInvoicePayment struct {
-	Version        uint   `json:"version"`        // Version of the struct
-	TxIDs          string `json:"txids"`          // TxIDs captured from the payment, separated by commas
-	Timestamp      int64  `json:"timeupdated"`    // Time of last payment update
-	AmountReceived int64  `json:"amountreceived"` // Amount of DCR payment currently received
-}
-
-// encodeBackendInvoiceMetadata encodes a backendInvoiceMetadata into a JSON
-// byte slice.
-func encodeBackendInvoiceMetadata(md backendInvoiceMetadata) ([]byte, error) {
-	b, err := json.Marshal(md)
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
-}
-
-// decodeBackendInvoiceMetadata decodes a JSON byte slice into a
-// backendInvoiceMetadata.
-func decodeBackendInvoiceMetadata(payload []byte) (*backendInvoiceMetadata, error) {
-	var md backendInvoiceMetadata
-
-	err := json.Unmarshal(payload, &md)
-	if err != nil {
-		return nil, err
-	}
-
-	return &md, nil
-}
-
-// encodeBackendInvoiceStatusChange encodes a backendInvoiceStatusChange into a
-// JSON byte slice.
-func encodeBackendInvoiceStatusChange(md backendInvoiceStatusChange) ([]byte, error) {
-	b, err := json.Marshal(md)
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
-}
-
-// decodeBackendInvoiceStatusChange decodes a JSON byte slice into a slice of
-// backendInvoiceStatusChanges.
-func decodeBackendInvoiceStatusChanges(payload []byte) ([]backendInvoiceStatusChange, error) {
-	var md []backendInvoiceStatusChange
-
-	d := json.NewDecoder(strings.NewReader(string(payload)))
-	for {
-		var m backendInvoiceStatusChange
-		err := d.Decode(&m)
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return nil, err
-		}
-
-		md = append(md, m)
-	}
-
-	return md, nil
-}
-
-// encodeBackendInvoicePayment encodes a backendInvoicePayment into a JSON
-// byte slice.
-func encodeBackendInvoicePayment(md backendInvoicePayment) ([]byte, error) {
-	b, err := json.Marshal(md)
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
-}
-
-// decodeBackendInvoicePayment decodes a JSON byte slice into a
-// backendInvoicePayment.
-func decodeBackendInvoicePayment(payload []byte) ([]backendInvoicePayment, error) {
-	var md []backendInvoicePayment
-
-	d := json.NewDecoder(strings.NewReader(string(payload)))
-	for {
-		var m backendInvoicePayment
-		err := d.Decode(&m)
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return nil, err
-		}
-
-		md = append(md, m)
-	}
-
-	return md, nil
 }
 
 // processInvoicePayouts looks for all paid invoices within the given start and end dates.

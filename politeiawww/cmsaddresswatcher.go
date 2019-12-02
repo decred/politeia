@@ -14,6 +14,7 @@ import (
 
 	"github.com/decred/dcrd/dcrutil"
 	pstypes "github.com/decred/dcrdata/pubsub/types/v3"
+	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/cache"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
@@ -287,14 +288,14 @@ func (p *politeiawww) checkPayments(payment *database.Payments, watchedAddr, not
 
 func (p *politeiawww) updateInvoicePayment(payment *database.Payments) error {
 	// Create new backend invoice payment metadata
-	c := backendInvoicePayment{
-		Version:        backendInvoicePaymentVersion,
+	c := mdstream.InvoicePayment{
+		Version:        mdstream.VersionInvoicePayment,
 		TxIDs:          payment.TxIDs,
 		Timestamp:      payment.TimeLastUpdated,
 		AmountReceived: payment.AmountReceived,
 	}
 
-	blob, err := encodeBackendInvoicePayment(c)
+	blob, err := mdstream.EncodeInvoicePayment(c)
 	if err != nil {
 		return err
 	}
@@ -309,7 +310,7 @@ func (p *politeiawww) updateInvoicePayment(payment *database.Payments) error {
 		Token:     payment.InvoiceToken,
 		MDAppend: []pd.MetadataStream{
 			{
-				ID:      mdStreamInvoicePayment,
+				ID:      mdstream.IDInvoicePayment,
 				Payload: string(blob),
 			},
 		},
@@ -352,14 +353,14 @@ func (p *politeiawww) invoiceStatusPaid(token string) error {
 	}
 
 	// Create the change record.
-	c := backendInvoiceStatusChange{
-		Version:   backendInvoiceStatusChangeVersion,
+	c := mdstream.InvoiceStatusChange{
+		Version:   mdstream.VersionInvoiceStatusChange,
 		Timestamp: time.Now().Unix(),
 		NewStatus: cms.InvoiceStatusPaid,
 		Reason:    "Invoice watcher found payment transactions.",
 	}
 
-	blob, err := encodeBackendInvoiceStatusChange(c)
+	blob, err := mdstream.EncodeInvoiceStatusChange(c)
 	if err != nil {
 		return err
 	}
@@ -374,7 +375,7 @@ func (p *politeiawww) invoiceStatusPaid(token string) error {
 		Token:     token,
 		MDAppend: []pd.MetadataStream{
 			{
-				ID:      mdStreamInvoiceStatusChanges,
+				ID:      mdstream.IDInvoiceStatusChange,
 				Payload: string(blob),
 			},
 		},

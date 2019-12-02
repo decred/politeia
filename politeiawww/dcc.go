@@ -11,7 +11,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -34,16 +33,6 @@ import (
 const (
 	// dccFile contains the file name of the dcc file
 	dccFile = "dcc.json"
-
-	// politeiad dcc record metadata streams
-	mdStreamDCCGeneral           = 6 // General DCC metadata
-	mdStreamDCCStatusChanges     = 7 // DCC status changes
-	mdStreamDCCSupportOpposition = 8 // DCC support/opposition changes
-
-	// Metadata stream struct versions
-	backendDCCMetadataVersion                  = 1
-	backendDCCStatusChangeVersion              = 1
-	backendDCCSupposeOppositionMetadataVersion = 1
 
 	supportString = "aye"
 	opposeString  = "nay"
@@ -110,24 +99,24 @@ func (p *politeiawww) processNewDCC(nd cms.NewDCC, u *user.User) (*cms.NewDCCRep
 		}
 	}
 
-	m := backendDCCMetadata{
-		Version:   backendDCCMetadataVersion,
+	m := mdstream.DCCGeneral{
+		Version:   mdstream.VersionDCCGeneral,
 		Timestamp: time.Now().Unix(),
 		PublicKey: nd.PublicKey,
 		Signature: nd.Signature,
 	}
-	md, err := encodeBackendDCCMetadata(m)
+	md, err := mdstream.EncodeDCCGeneral(m)
 	if err != nil {
 		return nil, err
 	}
 
-	sc := backendDCCStatusChange{
-		Version:   backendDCCStatusChangeVersion,
+	sc := mdstream.DCCStatusChange{
+		Version:   mdstream.VersionDCCStatusChange,
 		Timestamp: time.Now().Unix(),
 		NewStatus: cms.DCCStatusActive,
 		Reason:    "new dcc",
 	}
-	scb, err := encodeBackendDCCStatusChange(sc)
+	scb, err := mdstream.EncodeDCCStatusChange(sc)
 	if err != nil {
 		return nil, err
 	}
@@ -145,11 +134,11 @@ func (p *politeiawww) processNewDCC(nd cms.NewDCC, u *user.User) (*cms.NewDCCRep
 		Challenge: hex.EncodeToString(challenge),
 		Metadata: []pd.MetadataStream{
 			{
-				ID:      mdStreamDCCGeneral,
+				ID:      mdstream.IDDCCGeneral,
 				Payload: string(md),
 			},
 			{
-				ID:      mdStreamDCCStatusChanges,
+				ID:      mdstream.IDDCCStatusChange,
 				Payload: string(scb),
 			},
 		},
@@ -401,124 +390,6 @@ func validateSponsorStatement(statement string) bool {
 	return true
 }
 
-// backendDCCMetadata represents the general metadata for a DCC and is
-// stored in the metadata stream mdStreamDCCGeneral in politeiad.
-type backendDCCMetadata struct {
-	Version   uint64 `json:"version"`   // Version of the struct
-	Timestamp int64  `json:"timestamp"` // Last update of invoice
-	PublicKey string `json:"publickey"` // Key used for signature
-	Signature string `json:"signature"` // Signature of merkle root
-}
-
-// backendDCCStatusChange represents the metadata for any status change that
-// occurs to a patricular DCC issuance or revocation.
-type backendDCCStatusChange struct {
-	Version        uint           `json:"version"`        // Version of the struct
-	AdminPublicKey string         `json:"adminpublickey"` // Identity of the administrator
-	NewStatus      cms.DCCStatusT `json:"newstatus"`      // Status
-	Reason         string         `json:"reason"`         // Reason
-	Timestamp      int64          `json:"timestamp"`      // Timestamp of the change
-	Signature      string         `json:"signature"`      // Signature of Token + NewStatus + Reason
-}
-
-// backendDCCSupportOppositionMetadata represents the general metadata for a DCC
-// Support/Opposition 'vote' for a given DCC proposal.
-type backendDCCSupportOppositionMetadata struct {
-	Version   uint64 `json:"version"`   // Version of the struct
-	Timestamp int64  `json:"timestamp"` // Last update of invoice
-	PublicKey string `json:"publickey"` // Key used for signature
-	Vote      string `json:"vote"`      // Vote for support/opposition
-	Signature string `json:"signature"` // Signature of Token + Vote
-}
-
-// encodeBackendDCCMetadata encodes a backendDCCMetadata into a JSON
-// byte slice.
-func encodeBackendDCCMetadata(md backendDCCMetadata) ([]byte, error) {
-	b, err := json.Marshal(md)
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
-}
-
-// decodeBackendDCCMetadata decodes a JSON byte slice into a
-// backendDCCMetadata.
-func decodeBackendDCCMetadata(payload []byte) (*backendDCCMetadata, error) {
-	var md backendDCCMetadata
-
-	err := json.Unmarshal(payload, &md)
-	if err != nil {
-		return nil, err
-	}
-
-	return &md, nil
-}
-
-// encodeBackendDCCStatusChange encodes a backendDCCStatusChange into a
-// JSON byte slice.
-func encodeBackendDCCStatusChange(md backendDCCStatusChange) ([]byte, error) {
-	b, err := json.Marshal(md)
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
-}
-
-// decodeBackendDCCStatusChanges decodes a JSON byte slice into a slice of
-// backendDCCStatusChanges.
-func decodeBackendDCCStatusChanges(payload []byte) ([]backendDCCStatusChange, error) {
-	var md []backendDCCStatusChange
-
-	d := json.NewDecoder(strings.NewReader(string(payload)))
-	for {
-		var m backendDCCStatusChange
-		err := d.Decode(&m)
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return nil, err
-		}
-
-		md = append(md, m)
-	}
-
-	return md, nil
-}
-
-// encodeBackendDCCSupportOppositionMetadata encodes a backendDCCSupportOppositionMetadata into a JSON
-// byte slice.
-func encodeBackendDCCSupportOppositionMetadata(md backendDCCSupportOppositionMetadata) ([]byte, error) {
-	b, err := json.Marshal(md)
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
-}
-
-// decodeBackendDCCSupportOppositionMetadata decodes a JSON byte slice into a
-// backendDCCSupportOppositionMetadata.
-func decodeBackendDCCSupportOppositionMetadata(payload []byte) ([]backendDCCSupportOppositionMetadata, error) {
-	var md []backendDCCSupportOppositionMetadata
-
-	d := json.NewDecoder(strings.NewReader(string(payload)))
-	for {
-		var m backendDCCSupportOppositionMetadata
-		err := d.Decode(&m)
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return nil, err
-		}
-
-		md = append(md, m)
-	}
-
-	return md, nil
-}
-
 // getDCC gets the most recent verions of the given DCC from the cache
 // then fills in any missing user fields before returning the DCC record.
 func (p *politeiawww) getDCC(token string) (*cms.DCCRecord, error) {
@@ -691,15 +562,15 @@ func (p *politeiawww) processSupportOpposeDCC(sd cms.SupportOpposeDCC, u *user.U
 		}
 	}
 
-	// Create the change record.
-	c := backendDCCSupportOppositionMetadata{
-		Version:   backendDCCSupposeOppositionMetadataVersion,
+	// Create the support/opposition record.
+	c := mdstream.DCCSupportOpposition{
+		Version:   mdstream.VersionDCCSupposeOpposition,
 		PublicKey: sd.PublicKey,
 		Timestamp: time.Now().Unix(),
 		Vote:      sd.Vote,
 		Signature: sd.Signature,
 	}
-	blob, err := encodeBackendDCCSupportOppositionMetadata(c)
+	blob, err := mdstream.EncodeDCCSupportOpposition(c)
 	if err != nil {
 		return nil, err
 	}
@@ -714,7 +585,7 @@ func (p *politeiawww) processSupportOpposeDCC(sd cms.SupportOpposeDCC, u *user.U
 		Token:     sd.Token,
 		MDAppend: []pd.MetadataStream{
 			{
-				ID:      mdStreamDCCSupportOpposition,
+				ID:      mdstream.IDDCCSupportOpposition,
 				Payload: string(blob),
 			},
 		},
@@ -955,15 +826,15 @@ func (p *politeiawww) processSetDCCStatus(sds cms.SetDCCStatus, u *user.User) (*
 	}
 
 	// Create the change record.
-	c := backendDCCStatusChange{
-		Version:        backendDCCStatusChangeVersion,
+	c := mdstream.DCCStatusChange{
+		Version:        mdstream.VersionDCCStatusChange,
 		AdminPublicKey: u.PublicKey(),
 		Timestamp:      time.Now().Unix(),
 		NewStatus:      sds.Status,
 		Reason:         sds.Reason,
 		Signature:      sds.Signature,
 	}
-	blob, err := encodeBackendDCCStatusChange(c)
+	blob, err := mdstream.EncodeDCCStatusChange(c)
 	if err != nil {
 		return nil, err
 	}
@@ -978,7 +849,7 @@ func (p *politeiawww) processSetDCCStatus(sds cms.SetDCCStatus, u *user.User) (*
 		Token:     sds.Token,
 		MDAppend: []pd.MetadataStream{
 			{
-				ID:      mdStreamDCCStatusChanges,
+				ID:      mdstream.IDDCCStatusChange,
 				Payload: string(blob),
 			},
 		},
