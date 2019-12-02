@@ -9,26 +9,67 @@ import (
 	_ "encoding/gob"
 	"encoding/hex"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 
+	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
+	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/cache"
 	cachedb "github.com/decred/politeia/politeiad/cache/cockroachdb"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	cmsdb "github.com/decred/politeia/politeiawww/cmsdatabase/cockroachdb"
+	"github.com/decred/politeia/politeiawww/sharedconfig"
+	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
+	"github.com/syndtr/goleveldb/leveldb"
+)
+
+const (
+	defaultHost      = "localhost:26257"
+	defaultCacheCert = "~/.cockroachdb/certs/clients/politeiawww/ca.crt"
+
+	defaultRPCUser = "user"
+	defaultRPCPass = "pass"
+	defaultRPCHost = "127.0.0.1"
+)
+
+var (
+	defaultHomeDir     = sharedconfig.DefaultHomeDir
+	defaultDataDir     = sharedconfig.DefaultDataDir
+	defaultRPCCertFile = filepath.Join(sharedconfig.DefaultHomeDir, "rpc.cert")
+
+	// Application options
+	testnet   = flag.Bool("testnet", false, "")
+	dataDir   = flag.String("datadir", defaultDataDir, "")
+	cacheHost = flag.String("cachehost", defaultHost, "")
+	cacheCert = flag.String("cachecert", defaultCacheCert, "")
+	dbHost    = flag.String("dbhost", defaultDBHost, "")
+	dbCert    = flag.String("dbcert", defaultClientCert, "")
+	dbKey     = flag.String("dbkey", defaultClientKey, "")
+
+	rpcCert = flag.String("rpcert", defaultClientKey, "")
+	rpcHost = flag.String("rpchost", defaultClientKey, "")
+	rpcUser = flag.String("rpcuser", defaultClientKey, "")
+	rpcPass = flag.String("rpcpass", defaultClientKey, "")
+
+	network string // Mainnet or testnet3
+	// XXX ldb should be abstracted away. dbutil commands should use
+	// the user.Database interface instead.
+	ldb    *leveldb.DB
+	userDB user.Database
 )
 
 // makeRequest makes an http request to the method and route provided,
 // serializing the provided object as the request body.
 //
 // XXX doesn't belong in this file but stuff it here for now.
-func makeRequest(cfg *config, method string, route string, v interface{}) ([]byte, error) {
+func makeRequest(method string, route string, v interface{}) ([]byte, error) {
 	var (
 		requestBody []byte
 		err         error
@@ -40,9 +81,9 @@ func makeRequest(cfg *config, method string, route string, v interface{}) ([]byt
 		}
 	}
 
-	fullRoute := cfg.RPCHost + route
+	fullRoute := *rpcHost + route
 
-	client, err := util.NewClient(false, cfg.RPCCert)
+	client, err := util.NewClient(false, *rpcCert)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +93,7 @@ func makeRequest(cfg *config, method string, route string, v interface{}) ([]byt
 	if err != nil {
 		return nil, err
 	}
-	req.SetBasicAuth(cfg.RPCUser, cfg.RPCPass)
+	req.SetBasicAuth(*rpcUser, *rpcPass)
 	r, err := client.Do(req)
 	if err != nil {
 		return nil, err
@@ -77,19 +118,25 @@ func makeRequest(cfg *config, method string, route string, v interface{}) ([]byt
 }
 
 func _main() error {
-	// Load configuration and parse command line.  This function also
-	// initializes logging and configures it accordingly.
-	loadedCfg, _, err := loadConfig()
-	if err != nil {
-		return fmt.Errorf("Could not load configuration file: %v", err)
+	if *testnet {
+		network = chaincfg.TestNet3Params.Name
+	} else {
+		network = chaincfg.MainNetParams.Name
 	}
-	log.Infof("Home dir: %v", loadedCfg.HomeDir)
 
-	// Setup cache connection
-	cachedb.UseLogger(cockroachdbLog)
-	net := filepath.Base(loadedCfg.DataDir)
-	cacheDB, err := cachedb.New(cachedb.UserPoliteiawww, loadedCfg.DBHost,
-		net, loadedCfg.DBRootCert, loadedCfg.DBCert, loadedCfg.DBKey)
+	dBRootCert = cleanAndExpandPath(defaultDBRootCert)
+	dBCert = cleanAndExpandPath(defaultDBCert)
+	dBKey = cleanAndExpandPath(defaultDBKey)
+
+	var err error
+	dIdentity, err = identity.LoadPublicIdentity(rpcIdentityFile)
+	if err != nil {
+		return err
+	}
+
+	net := filepath.Base(dataDir)
+	cacheDB, err := cachedb.New(cachedb.UserPoliteiawww, dBHost,
+		net, dBRootCert, dBCert, dBKey)
 	if err != nil {
 		switch err {
 		case cache.ErrNoVersionRecord:
@@ -102,7 +149,6 @@ func _main() error {
 		return fmt.Errorf("cachedb new: %v", err)
 	}
 
-	cmsdb.UseLogger(cockroachdbLog)
 	net = filepath.Base(loadedCfg.DataDir)
 	cmsDB, err := cmsdb.New(loadedCfg.DBHost, net, loadedCfg.DBRootCert,
 		loadedCfg.DBCert, loadedCfg.DBKey)
@@ -121,14 +167,14 @@ func _main() error {
 	for _, payment := range paid {
 		invoice, err := cacheDB.Record(payment.InvoiceToken)
 		if err != nil {
-			log.Errorf("couldn't get invoice for payment check: %v, %v",
+			fmt.Errorf("couldn't get invoice for payment check: %v, %v",
 				payment.InvoiceToken, err)
 			continue
 		}
 		found := false
 		for _, v := range invoice.Metadata {
 			if v.ID == mdstream.IDInvoicePayment {
-				log.Infof("payment for invoice %v found!", payment.InvoiceToken)
+				fmt.Printf("payment for invoice %v found!", payment.InvoiceToken)
 				// Do we need to do any checks to make sure anything else
 				// is needed?
 				found = true
@@ -138,7 +184,7 @@ func _main() error {
 		// If no associated payment metadata are found for the given
 		// invoice, create the new metadata and add to the existing invoice.
 		if !found {
-			log.Infof("payment for invoice %v NOT found! creating metadata stream for invoice record", payment.InvoiceToken)
+			fmt.Printf("payment for invoice %v NOT found! creating metadata stream for invoice record", payment.InvoiceToken)
 			// Create new backend invoice payment metadata
 			c := mdstream.InvoicePayment{
 				Version:        mdstream.VersionInvoicePayment,
@@ -149,7 +195,7 @@ func _main() error {
 
 			blob, err := mdstream.EncodeInvoicePayment(c)
 			if err != nil {
-				log.Errorf("cms payment check: "+
+				fmt.Errorf("cms payment check: "+
 					"encodeBackendInvoicePayment %v %v",
 					payment.InvoiceToken, err)
 				continue
@@ -157,7 +203,7 @@ func _main() error {
 
 			challenge, err := util.Random(pd.ChallengeSize)
 			if err != nil {
-				log.Errorf("cms payment check: random %v %v",
+				fmt.Errorf("cms payment check: random %v %v",
 					payment.InvoiceToken, err)
 				continue
 			}
@@ -172,10 +218,10 @@ func _main() error {
 					},
 				},
 			}
-			responseBody, err := makeRequest(loadedCfg, http.MethodPost,
+			responseBody, err := makeRequest(http.MethodPost,
 				pd.UpdateVettedMetadataRoute, pdCommand)
 			if err != nil {
-				log.Errorf("cms payment check: makeRequest %v %v",
+				fmt.Errorf("cms payment check: makeRequest %v %v",
 					payment.InvoiceToken, err)
 				continue
 			}
@@ -183,7 +229,7 @@ func _main() error {
 			var pdReply pd.UpdateVettedMetadataReply
 			err = json.Unmarshal(responseBody, &pdReply)
 			if err != nil {
-				log.Errorf("cms payment check: unmarshall %v %v",
+				fmt.Errorf("cms payment check: unmarshall %v %v",
 					payment.InvoiceToken, err)
 				continue
 			}
@@ -191,14 +237,12 @@ func _main() error {
 			err = util.VerifyChallenge(loadedCfg.Identity, challenge,
 				pdReply.Response)
 			if err != nil {
-				log.Errorf("cms payment check: verifyChallenge %v %v",
+				fmt.Errorf("cms payment check: verifyChallenge %v %v",
 					payment.InvoiceToken, err)
 				continue
 			}
 		}
 	}
-
-	log.Infof("Exiting")
 
 	// Close user db connection
 	cmsDB.Close()
