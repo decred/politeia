@@ -12,6 +12,7 @@ import (
 
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/politeia/decredplugin"
+	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/cache"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
@@ -225,24 +226,24 @@ func convertPropStatusFromCache(s cache.RecordStatusT) www.PropStatusT {
 
 func convertPropFromCache(r cache.Record) www.ProposalRecord {
 	// Decode markdown stream payloads
-	var bpm *BackendProposalMetadata
-	var msc []MDStreamChanges
+	var bpm *mdstream.ProposalGeneral
+	var msc []mdstream.ProposalStatusChange
 	for _, ms := range r.Metadata {
 		// General metadata
-		if ms.ID == mdStreamGeneral {
-			md, err := decodeBackendProposalMetadata([]byte(ms.Payload))
+		if ms.ID == mdstream.IDProposalGeneral {
+			md, err := mdstream.DecodeProposalGeneral([]byte(ms.Payload))
 			if err != nil {
-				log.Errorf("convertPropFromCache: decode BackedProposalMetadata "+
+				log.Errorf("convertPropFromCache: DecodeProposalGeneral "+
 					"'%v' token '%v': %v", ms, r.CensorshipRecord.Token, err)
 			}
 			bpm = md
 		}
 
 		// Status change metatdata
-		if ms.ID == mdStreamChanges {
-			md, err := decodeMDStreamChanges([]byte(ms.Payload))
+		if ms.ID == mdstream.IDProposalStatusChange {
+			md, err := mdstream.DecodeProposalStatusChange([]byte(ms.Payload))
 			if err != nil {
-				log.Errorf("convertPropFromCache: decode MDStreamChanges "+
+				log.Errorf("convertPropFromCache: DecodeProposalStatusChange "+
 					"'%v' token '%v': %v", ms, r.CensorshipRecord.Token, err)
 			}
 			msc = md

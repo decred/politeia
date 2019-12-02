@@ -21,6 +21,7 @@ import (
 
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrtime/merkle"
+	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/cache"
@@ -393,12 +394,12 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 	// Change politeiad record status to public. Invoices
 	// do not need to be reviewed before becoming public.
 	// An admin signature is not included for this reason.
-	c := MDStreamChanges{
-		Version:   VersionMDStreamChanges,
+	c := mdstream.ProposalStatusChange{
+		Version:   mdstream.VersionProposalStatusChange,
 		Timestamp: time.Now().Unix(),
 		NewStatus: pd.RecordStatusPublic,
 	}
-	blob, err := encodeMDStreamChanges(c)
+	blob, err := mdstream.EncodeProposalStatusChange(c)
 	if err != nil {
 		return nil, err
 	}
@@ -414,7 +415,7 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 		Challenge: hex.EncodeToString(challenge),
 		MDAppend: []pd.MetadataStream{
 			{
-				ID:      mdStreamChanges,
+				ID:      mdstream.IDProposalStatusChange,
 				Payload: string(blob),
 			},
 		},

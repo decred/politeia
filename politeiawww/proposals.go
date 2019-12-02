@@ -10,7 +10,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"sort"
 	"strconv"
@@ -19,6 +18,7 @@ import (
 
 	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/decredplugin"
+	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/cache"
@@ -30,32 +30,7 @@ import (
 const (
 	// indexFile contains the file name of the index file
 	indexFile = "index.md"
-
-	// mdStream* indicate the metadata stream used for various types
-	mdStreamGeneral = 0 // General information for this proposal
-	mdStreamChanges = 2 // Changes to record
-	// Note that 14 is in use by the decred plugin
-	// Note that 15 is in use by the decred plugin
-
-	VersionMDStreamChanges         = 1
-	BackendProposalMetadataVersion = 1
 )
-
-type MDStreamChanges struct {
-	Version             uint             `json:"version"`                       // Version of the struct
-	AdminPubKey         string           `json:"adminpubkey"`                   // Identity of the administrator
-	NewStatus           pd.RecordStatusT `json:"newstatus"`                     // NewStatus
-	StatusChangeMessage string           `json:"statuschangemessage,omitempty"` // Status change message
-	Timestamp           int64            `json:"timestamp"`                     // Timestamp of the change
-}
-
-type BackendProposalMetadata struct {
-	Version   uint64 `json:"version"`   // BackendProposalMetadata version
-	Timestamp int64  `json:"timestamp"` // Last update of proposal
-	Name      string `json:"name"`      // Generated proposal name
-	PublicKey string `json:"publickey"` // Key used for signature.
-	Signature string `json:"signature"` // Signature of merkle root
-}
 
 // proposalStats is used to provide a summary of the number of proposals
 // grouped by proposal status.
@@ -82,61 +57,6 @@ type VoteDetails struct {
 	AuthorizeVoteReply www.AuthorizeVoteReply // Authorize vote reply
 	StartVote          www.StartVote          // Start vote
 	StartVoteReply     www.StartVoteReply     // Start vote reply
-}
-
-// encodeBackendProposalMetadata encodes BackendProposalMetadata into a JSON
-// byte slice.
-func encodeBackendProposalMetadata(md BackendProposalMetadata) ([]byte, error) {
-	b, err := json.Marshal(md)
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
-}
-
-// decodeBackendProposalMetadata decodes a JSON byte slice into a
-// BackendProposalMetadata.
-func decodeBackendProposalMetadata(payload []byte) (*BackendProposalMetadata, error) {
-	var md BackendProposalMetadata
-
-	err := json.Unmarshal(payload, &md)
-	if err != nil {
-		return nil, err
-	}
-
-	return &md, nil
-}
-
-// encodeMDStreamChanges encodes an MDStreamChanges into a JSON byte slice.
-func encodeMDStreamChanges(m MDStreamChanges) ([]byte, error) {
-	b, err := json.Marshal(m)
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
-}
-
-// decodeMDStreamChanges decodes a JSON byte slice into a slice of
-// MDStreamChanges.
-func decodeMDStreamChanges(payload []byte) ([]MDStreamChanges, error) {
-	var msc []MDStreamChanges
-
-	d := json.NewDecoder(strings.NewReader(string(payload)))
-	for {
-		var m MDStreamChanges
-		err := d.Decode(&m)
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return nil, err
-		}
-
-		msc = append(msc, m)
-	}
-
-	return msc, nil
 }
 
 // tokenIsValid returns whether the provided string is a valid politeiad
@@ -808,8 +728,8 @@ func (p *politeiawww) processNewProposal(np www.NewProposal, user *user.User) (*
 	if err != nil {
 		return nil, err
 	}
-	md, err := encodeBackendProposalMetadata(BackendProposalMetadata{
-		Version:   BackendProposalMetadataVersion,
+	md, err := mdstream.EncodeProposalGeneral(mdstream.ProposalGeneral{
+		Version:   mdstream.VersionProposalGeneral,
 		Timestamp: time.Now().Unix(),
 		Name:      name,
 		PublicKey: np.PublicKey,
@@ -827,7 +747,7 @@ func (p *politeiawww) processNewProposal(np www.NewProposal, user *user.User) (*
 	n := pd.NewRecord{
 		Challenge: hex.EncodeToString(challenge),
 		Metadata: []pd.MetadataStream{{
-			ID:      mdStreamGeneral,
+			ID:      mdstream.IDProposalGeneral,
 			Payload: string(md),
 		}},
 		Files: convertPropFilesFromWWW(np.Files),
@@ -1216,8 +1136,8 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 
 	// Create change record
 	newStatus := convertPropStatusFromWWW(sps.ProposalStatus)
-	blob, err := json.Marshal(MDStreamChanges{
-		Version:             VersionMDStreamChanges,
+	blob, err := json.Marshal(mdstream.ProposalStatusChange{
+		Version:             mdstream.VersionProposalStatusChange,
 		Timestamp:           time.Now().Unix(),
 		NewStatus:           newStatus,
 		AdminPubKey:         u.PublicKey(),
@@ -1251,7 +1171,7 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 			Challenge: hex.EncodeToString(challenge),
 			MDAppend: []pd.MetadataStream{
 				{
-					ID:      mdStreamChanges,
+					ID:      mdstream.IDProposalStatusChange,
 					Payload: string(blob),
 				},
 			},
@@ -1300,7 +1220,7 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 			Challenge: hex.EncodeToString(challenge),
 			MDAppend: []pd.MetadataStream{
 				{
-					ID:      mdStreamChanges,
+					ID:      mdstream.IDProposalStatusChange,
 					Payload: string(blob),
 				},
 			},
@@ -1419,20 +1339,20 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 		return nil, err
 	}
 
-	backendMetadata := BackendProposalMetadata{
-		Version:   BackendProposalMetadataVersion,
+	backendMetadata := mdstream.ProposalGeneral{
+		Version:   mdstream.VersionProposalGeneral,
 		Timestamp: time.Now().Unix(),
 		Name:      name,
 		PublicKey: ep.PublicKey,
 		Signature: ep.Signature,
 	}
-	md, err := encodeBackendProposalMetadata(backendMetadata)
+	md, err := mdstream.EncodeProposalGeneral(backendMetadata)
 	if err != nil {
 		return nil, err
 	}
 
 	mds := []pd.MetadataStream{{
-		ID:      mdStreamGeneral,
+		ID:      mdstream.IDProposalGeneral,
 		Payload: string(md),
 	}}
 
