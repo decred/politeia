@@ -33,50 +33,15 @@ const (
 	defaultLogLevel         = "info"
 	defaultLogDirname       = "logs"
 	defaultLogFilename      = "politeiawww.log"
-	adminLogFilename        = "admin.log"
 	defaultIdentityFilename = "identity.json"
 
 	defaultMainnetPort = "4443"
 	defaultTestnetPort = "4443"
-
-	allowInteractive = "i-know-this-is-a-bad-idea"
-
-	defaultPaywallMinConfirmations = uint64(2)
-	defaultPaywallAmount           = uint64(0)
-
-	defaultVoteDurationMin = uint32(2016)
-	defaultVoteDurationMax = uint32(4032)
-
-	defaultMailAddress    = "Politeia <noreply@example.org>"
-	defaultCMSMailAddress = "Contractor Management System <noreply@example.org>"
-
-	// dust value can be found increasing the amount value until we get false
-	// from IsDustAmount function. Amounts can not be lower than dust
-	// func IsDustAmount(amount int64, relayFeePerKb int64) bool {
-	//     totalSize := 8 + 2 + 1 + 25 + 165
-	// 	   return int64(amount)*1000/(3*int64(totalSize)) < int64(relayFeePerKb)
-	// }
-	dust = 60300
-
-	// Currently available modes to run politeia, by default piwww, is used.
-	politeiaWWWMode = "piwww"
-	cmsWWWMode      = "cmswww"
-
-	defaultWWWMode = politeiaWWWMode
-
-	// User database options
-	userDBLevel     = "leveldb"
-	userDBCockroach = "cockroachdb"
-
-	defaultUserDB = userDBLevel
 )
 
 var (
-	defaultHTTPSKeyFile  = filepath.Join(sharedconfig.DefaultHomeDir, "https.key")
-	defaultHTTPSCertFile = filepath.Join(sharedconfig.DefaultHomeDir, "https.cert")
-	defaultRPCCertFile   = filepath.Join(sharedconfig.DefaultHomeDir, "rpc.cert")
-	defaultCookieKeyFile = filepath.Join(sharedconfig.DefaultHomeDir, "cookie.key")
-	defaultLogDir        = filepath.Join(sharedconfig.DefaultHomeDir, defaultLogDirname)
+	defaultRPCCertFile = filepath.Join(sharedconfig.DefaultHomeDir, "rpc.cert")
+	defaultLogDir      = filepath.Join(sharedconfig.DefaultHomeDir, defaultLogDirname)
 )
 
 // runServiceCommand is only set to a real function on Windows.  It is used

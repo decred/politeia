@@ -9,7 +9,6 @@ import (
 	_ "encoding/gob"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -23,26 +22,6 @@ import (
 	cmsdb "github.com/decred/politeia/politeiawww/cmsdatabase/cockroachdb"
 	"github.com/decred/politeia/util"
 )
-
-var (
-	// ErrSessionUUIDNotFound is emitted when a UUID value is not found
-	// in a session and indicates that the user is not logged in.
-	ErrSessionUUIDNotFound = errors.New("session UUID not found")
-)
-
-// userErrorStatus retrieves the human readable error message for an error
-// status code. The status code can be from either the pi or cms api.
-func userErrorStatus(e www.ErrorStatusT) string {
-	s, ok := www.ErrorStatus[e]
-	if ok {
-		return s
-	}
-	s, ok = cms.ErrorStatus[e]
-	if ok {
-		return s
-	}
-	return ""
-}
 
 // makeRequest makes an http request to the method and route provided,
 // serializing the provided object as the request body.
