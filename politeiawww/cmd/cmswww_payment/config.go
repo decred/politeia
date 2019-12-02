@@ -453,12 +453,10 @@ func loadConfig() (*config, []string, error) {
 
 	// Count number of network flags passed; assign active network params
 	// while we're at it
-	port := defaultMainnetPort
 	activeNetParams = &mainNetParams
 	if cfg.TestNet {
 		numNets++
 		activeNetParams = &testNet3Params
-		port = defaultTestnetPort
 	}
 	if cfg.SimNet {
 		numNets++
@@ -560,13 +558,13 @@ func loadConfig() (*config, []string, error) {
 		}
 	}
 
+	port := v1.DefaultMainnetPort
 	if cfg.TestNet {
 		port = v1.DefaultTestnetPort
 		if cfg.RPCHost == "" {
 			cfg.RPCHost = v1.DefaultTestnetHost
 		}
 	} else {
-		port = v1.DefaultMainnetPort
 		if cfg.RPCHost == "" {
 			cfg.RPCHost = v1.DefaultMainnetHost
 		}
