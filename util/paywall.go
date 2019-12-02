@@ -25,10 +25,10 @@ import (
 )
 
 const (
-	dcrdataMainnet   = "https://explorer.dcrdata.org/api"
-	dcrdataTestnet   = "https://testnet.dcrdata.org/api"
-	dcrdataMainnetWS = "wss://explorer.dcrdata.org/ps"
-	dcrdataTestnetWS = "wss://testnet.dcrdata.org/ps"
+	dcrdataMainnet   = "https://dcrdata.decred.org/api"
+	dcrdataTestnet   = "https://testnet.decred.org/api"
+	dcrdataMainnetWS = "wss://dcrdata.decred.org/ps"
+	dcrdataTestnetWS = "wss://testnet.decred.org/ps"
 
 	dcrdataTimeout = 3 * time.Second // Dcrdata request timeout
 	faucetTimeout  = 5 * time.Second // Testnet faucet request timeout
