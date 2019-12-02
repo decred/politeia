@@ -522,14 +522,6 @@ func _main() error {
 			return fmt.Errorf("cmsdb setup: %v", err)
 		}
 
-		// Check to see if there any payments in the db that don't have metadata
-		// saved on the invoice records.
-		if p.cfg.CMSPaymentsCheck {
-			err := p.checkCMSPayments()
-			if err != nil {
-				log.Errorf("error checking for cms payments %v", err)
-			}
-		}
 		// Register cms userdb plugin
 		plugin := user.Plugin{
 			ID:      user.CMSPluginID,
