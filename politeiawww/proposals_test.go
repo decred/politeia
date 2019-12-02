@@ -20,6 +20,7 @@ import (
 
 	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/decredplugin"
+	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
@@ -344,19 +345,20 @@ func convertPropToPD(t *testing.T, p www.ProposalRecord) pd.Record {
 		t.Fatal(err)
 	}
 
-	md, err := encodeBackendProposalMetadata(BackendProposalMetadata{
-		Version:   BackendProposalMetadataVersion,
-		Timestamp: time.Now().Unix(),
-		Name:      name,
-		PublicKey: p.PublicKey,
-		Signature: p.Signature,
-	})
+	md, err := mdstream.EncodeProposalGeneral(
+		mdstream.ProposalGeneral{
+			Version:   mdstream.VersionProposalGeneral,
+			Timestamp: time.Now().Unix(),
+			Name:      name,
+			PublicKey: p.PublicKey,
+			Signature: p.Signature,
+		})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	mdStreams := []pd.MetadataStream{{
-		ID:      mdStreamGeneral,
+		ID:      mdstream.IDProposalGeneral,
 		Payload: string(md),
 	}}
 
