@@ -52,27 +52,53 @@ var runServiceCommand func(string) error
 //
 // See loadConfig for details on the configuration load process.
 type config struct {
-	HomeDir         string `short:"A" long:"appdata" description:"Path to application home directory"`
-	ConfigFile      string `short:"C" long:"configfile" description:"Path to configuration file"`
-	DataDir         string `short:"b" long:"datadir" description:"Directory to store data"`
-	LogDir          string `long:"logdir" description:"Directory to log output."`
-	TestNet         bool   `long:"testnet" description:"Use the test network"`
-	SimNet          bool   `long:"simnet" description:"Use the simulation test network"`
-	Profile         string `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
-	CPUProfile      string `long:"cpuprofile" description:"Write CPU profile to the specified file"`
-	MemProfile      string `long:"memprofile" description:"Write mem profile to the specified file"`
-	DebugLevel      string `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
-	RPCHost         string `long:"rpchost" description:"Host for politeiad in this format"`
-	RPCCert         string `long:"rpccert" description:"File containing the https certificate file"`
-	RPCIdentityFile string `long:"rpcidentityfile" description:"Path to file containing the politeiad identity"`
-	Identity        *identity.PublicIdentity
-	RPCUser         string `long:"rpcuser" description:"RPC user name for privileged commands"`
-	RPCPass         string `long:"rpcpass" description:"RPC password for privileged commands"`
-	DBHost          string `long:"dbhost" description:"Database ip:port"`
-	DBRootCert      string `long:"dbrootcert" description:"File containing the CA certificate for the database"`
-	DBCert          string `long:"dbcert" description:"File containing the politeiawww client certificate for the database"`
-	DBKey           string `long:"dbkey" description:"File containing the politeiawww client certificate key for the database"`
-	FetchIdentity   bool   `long:"fetchidentity" description:"Whether or not politeiawww fetches the identity from politeiad."`
+	HomeDir                  string   `short:"A" long:"appdata" description:"Path to application home directory"`
+	ShowVersion              bool     `short:"V" long:"version" description:"Display version information and exit"`
+	ConfigFile               string   `short:"C" long:"configfile" description:"Path to configuration file"`
+	DataDir                  string   `short:"b" long:"datadir" description:"Directory to store data"`
+	LogDir                   string   `long:"logdir" description:"Directory to log output."`
+	TestNet                  bool     `long:"testnet" description:"Use the test network"`
+	SimNet                   bool     `long:"simnet" description:"Use the simulation test network"`
+	Profile                  string   `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
+	CookieKeyFile            string   `long:"cookiekey" description:"File containing the secret cookies key"`
+	CPUProfile               string   `long:"cpuprofile" description:"Write CPU profile to the specified file"`
+	MemProfile               string   `long:"memprofile" description:"Write mem profile to the specified file"`
+	DebugLevel               string   `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
+	Listeners                []string `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 49152, testnet: 59152)"`
+	Version                  string
+	HTTPSCert                string `long:"httpscert" description:"File containing the https certificate file"`
+	HTTPSKey                 string `long:"httpskey" description:"File containing the https certificate key"`
+	RPCHost                  string `long:"rpchost" description:"Host for politeiad in this format"`
+	RPCCert                  string `long:"rpccert" description:"File containing the https certificate file"`
+	RPCIdentityFile          string `long:"rpcidentityfile" description:"Path to file containing the politeiad identity"`
+	Identity                 *identity.PublicIdentity
+	RPCUser                  string `long:"rpcuser" description:"RPC user name for privileged commands"`
+	RPCPass                  string `long:"rpcpass" description:"RPC password for privileged commands"`
+	MailHost                 string `long:"mailhost" description:"Email server address in this format: <host>:<port>"`
+	MailUser                 string `long:"mailuser" description:"Email server username"`
+	MailPass                 string `long:"mailpass" description:"Email server password"`
+	MailAddress              string `long:"mailaddress" description:"Email address for outgoing email in the format: name <address>"`
+	DBHost                   string `long:"dbhost" description:"Database ip:port"`
+	DBRootCert               string `long:"dbrootcert" description:"File containing the CA certificate for the database"`
+	DBCert                   string `long:"dbcert" description:"File containing the politeiawww client certificate for the database"`
+	DBKey                    string `long:"dbkey" description:"File containing the politeiawww client certificate key for the database"`
+	UserDB                   string `long:"userdb" description:"Database choice for the user database"`
+	EncryptionKey            string `long:"encryptionkey" description:"File containing encryption key used for encrypting user data at rest"`
+	OldEncryptionKey         string `long:"oldencryptionkey" description:"File containing old encryption key (only set when rotating keys)"`
+	FetchIdentity            bool   `long:"fetchidentity" description:"Whether or not politeiawww fetches the identity from politeiad."`
+	WebServerAddress         string `long:"webserveraddress" description:"Address for the Politeia web server; it should have this format: <scheme>://<host>[:<port>]"`
+	Interactive              string `long:"interactive" description:"Set to i-know-this-is-a-bad-idea to turn off interactive mode during --fetchidentity."`
+	PaywallAmount            uint64 `long:"paywallamount" description:"Amount of DCR (in atoms) required for a user to register or submit a proposal."`
+	PaywallXpub              string `long:"paywallxpub" description:"Extended public key for deriving paywall addresses."`
+	MinConfirmationsRequired uint64 `long:"minconfirmations" description:"Minimum blocks confirmation for accepting paywall as paid. Only works in TestNet."`
+	VoteDurationMin          uint32 `long:"votedurationmin" description:"Minimum duration of a proposal vote in blocks"`
+	VoteDurationMax          uint32 `long:"votedurationmax" description:"Maximum duration of a proposal vote in blocks"`
+	AdminLogFile             string `long:"adminlogfile" description:"admin log filename (Default: admin.log)"`
+	Mode                     string `long:"mode" description:"Mode www runs as. Supported values: piwww, cmswww"`
+	SMTPSkipVerify           bool   `long:"smtpskipverify" description:"Skip SMTP TLS cert verification. Will only skip if SMTPCert is empty"`
+	SMTPCert                 string `long:"smtpcert" description:"File containing the smtp certificate file"`
+	SystemCerts              *x509.CertPool
+	CMSPaymentsCheck         bool `long:"cmspaymentscheck" description:"Checks to make sure all db payments have associated invoice record metadata entries."`
 }
 
 // serviceOptions defines the configuration options for the rpc as a service

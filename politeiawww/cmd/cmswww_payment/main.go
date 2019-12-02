@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/cache"
 	cachedb "github.com/decred/politeia/politeiad/cache/cockroachdb"
@@ -126,7 +127,8 @@ func _main() error {
 		}
 		found := false
 		for _, v := range invoice.Metadata {
-			if v.ID == mdStreamInvoicePayment {
+			if v.ID == mdstream.IDInvoicePayment {
+				log.Infof("payment for invoice %v found!", payment.InvoiceToken)
 				// Do we need to do any checks to make sure anything else
 				// is needed?
 				found = true
@@ -136,15 +138,16 @@ func _main() error {
 		// If no associated payment metadata are found for the given
 		// invoice, create the new metadata and add to the existing invoice.
 		if !found {
+			log.Infof("payment for invoice %v NOT found! creating metadata stream for invoice record", payment.InvoiceToken)
 			// Create new backend invoice payment metadata
-			c := backendInvoicePayment{
-				Version:        backendInvoicePaymentVersion,
+			c := mdstream.InvoicePayment{
+				Version:        mdstream.VersionInvoicePayment,
 				TxIDs:          payment.TxIDs,
 				Timestamp:      payment.TimeLastUpdated,
 				AmountReceived: payment.AmountReceived,
 			}
 
-			blob, err := encodeBackendInvoicePayment(c)
+			blob, err := mdstream.EncodeInvoicePayment(c)
 			if err != nil {
 				log.Errorf("cms payment check: "+
 					"encodeBackendInvoicePayment %v %v",
@@ -164,7 +167,7 @@ func _main() error {
 				Token:     payment.InvoiceToken,
 				MDAppend: []pd.MetadataStream{
 					{
-						ID:      mdStreamInvoicePayment,
+						ID:      mdstream.IDInvoicePayment,
 						Payload: string(blob),
 					},
 				},
