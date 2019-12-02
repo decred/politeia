@@ -533,15 +533,6 @@ func (c *cockroachdb) Build(dbInvs []database.Invoice, dbDCCs []database.DCC) er
 	}
 
 	log.Infof("Building records cache")
-	/*
-		for _, cr := range records {
-			_, err := strconv.ParseUint(cr.Version, 10, 64)
-			if err != nil {
-				return fmt.Errorf("parse version '%v' failed %v: %v",
-					cr.Version, cr.CensorshipRecord.Token, err)
-			}
-		}
-	*/
 	invoices := make([]Invoice, 0, len(dbInvs))
 	for _, dbInv := range dbInvs {
 		inv := EncodeInvoice(&dbInv)
