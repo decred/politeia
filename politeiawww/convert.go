@@ -685,8 +685,8 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 	}
 	for _, m := range p.Metadata {
 		switch m.ID {
-		case mdStreamInvoiceGeneral:
-			var mdGeneral backendInvoiceMetadata
+		case mdstream.IDInvoiceGeneral:
+			var mdGeneral mdstream.InvoiceGeneral
 			err := json.Unmarshal([]byte(m.Payload), &mdGeneral)
 			if err != nil {
 				return nil, fmt.Errorf("could not decode metadata '%v' token '%v': %v",
@@ -696,8 +696,8 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 			dbInvoice.Timestamp = mdGeneral.Timestamp
 			dbInvoice.PublicKey = mdGeneral.PublicKey
 			dbInvoice.UserSignature = mdGeneral.Signature
-		case mdStreamInvoiceStatusChanges:
-			sc, err := decodeBackendInvoiceStatusChanges([]byte(m.Payload))
+		case mdstream.IDInvoiceStatusChange:
+			sc, err := mdstream.DecodeInvoiceStatusChange([]byte(m.Payload))
 			if err != nil {
 				return nil, fmt.Errorf("could not decode metadata '%v' token '%v': %v",
 					m, p.CensorshipRecord.Token, err)
@@ -716,8 +716,8 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 				}
 			}
 
-		case mdStreamInvoicePayment:
-			ip, err := decodeBackendInvoicePayment([]byte(m.Payload))
+		case mdstream.IDInvoicePayment:
+			ip, err := mdstream.DecodeInvoicePayment([]byte(m.Payload))
 			if err != nil {
 				return nil, fmt.Errorf("could not decode metadata '%v' token '%v': %v",
 					m, p.CensorshipRecord.Token, err)
@@ -744,15 +744,15 @@ func convertRecordToDatabaseInvoice(p pd.Record) (*cmsdatabase.Invoice, error) {
 
 func convertInvoiceFromCache(r cache.Record) cms.InvoiceRecord {
 	// Decode metadata streams
-	var md backendInvoiceMetadata
-	var c backendInvoiceStatusChange
-	var p backendInvoicePayment
+	var md mdstream.InvoiceGeneral
+	var c mdstream.InvoiceStatusChange
+	var p mdstream.InvoicePayment
 	var payment cms.PaymentInformation
 	for _, v := range r.Metadata {
 		switch v.ID {
-		case mdStreamInvoiceGeneral:
+		case mdstream.IDInvoiceGeneral:
 			// General invoice metadata
-			m, err := decodeBackendInvoiceMetadata([]byte(v.Payload))
+			m, err := mdstream.DecodeInvoiceGeneral([]byte(v.Payload))
 			if err != nil {
 				log.Errorf("convertInvoiceFromCache: decode md stream: "+
 					"token:%v error:%v payload:%v",
@@ -760,9 +760,9 @@ func convertInvoiceFromCache(r cache.Record) cms.InvoiceRecord {
 			}
 			md = *m
 
-		case mdStreamInvoiceStatusChanges:
+		case mdstream.IDInvoiceStatusChange:
 			// Invoice status changes
-			m, err := decodeBackendInvoiceStatusChanges([]byte(v.Payload))
+			m, err := mdstream.DecodeInvoiceStatusChange([]byte(v.Payload))
 			if err != nil {
 				log.Errorf("convertInvoiceFromCache: decode md stream: "+
 					"token:%v error:%v payload:%v",
@@ -780,8 +780,8 @@ func convertInvoiceFromCache(r cache.Record) cms.InvoiceRecord {
 					payment.Status = cms.PaymentStatusPaid
 				}
 			}
-		case mdStreamInvoicePayment:
-			ip, err := decodeBackendInvoicePayment([]byte(v.Payload))
+		case mdstream.IDInvoicePayment:
+			ip, err := mdstream.DecodeInvoicePayment([]byte(v.Payload))
 			if err != nil {
 				log.Errorf("convertInvoiceFromCache: decode md stream: "+
 					"token:%v error:%v payload:%v",
@@ -868,13 +868,13 @@ func convertInvoiceFromCache(r cache.Record) cms.InvoiceRecord {
 func convertDCCFromCache(r cache.Record) cms.DCCRecord {
 	dcc := cms.DCCRecord{}
 	// Decode metadata streams
-	var md backendDCCMetadata
-	var c backendDCCStatusChange
+	var md mdstream.DCCGeneral
+	var c mdstream.DCCStatusChange
 	for _, v := range r.Metadata {
 		switch v.ID {
-		case mdStreamDCCGeneral:
+		case mdstream.IDDCCGeneral:
 			// General invoice metadata
-			m, err := decodeBackendDCCMetadata([]byte(v.Payload))
+			m, err := mdstream.DecodeDCCGeneral([]byte(v.Payload))
 			if err != nil {
 				log.Errorf("convertDCCFromCache: decode md stream: "+
 					"token:%v error:%v payload:%v",
@@ -882,9 +882,9 @@ func convertDCCFromCache(r cache.Record) cms.DCCRecord {
 			}
 			md = *m
 
-		case mdStreamDCCStatusChanges:
+		case mdstream.IDDCCStatusChange:
 			// Invoice status changes
-			m, err := decodeBackendDCCStatusChanges([]byte(v.Payload))
+			m, err := mdstream.DecodeDCCStatusChange([]byte(v.Payload))
 			if err != nil {
 				log.Errorf("convertDCCFromCache: decode md stream: "+
 					"token:%v error:%v payload:%v",
@@ -896,9 +896,9 @@ func convertDCCFromCache(r cache.Record) cms.DCCRecord {
 			for _, s := range m {
 				c = s
 			}
-		case mdStreamDCCSupportOpposition:
+		case mdstream.IDDCCSupportOpposition:
 			// Support and Opposition
-			so, err := decodeBackendDCCSupportOppositionMetadata([]byte(v.Payload))
+			so, err := mdstream.DecodeDCCSupportOpposition([]byte(v.Payload))
 			if err != nil {
 				log.Errorf("convertDCCFromCache: decode md stream: "+
 					"token:%v error:%v payload:%v",
@@ -1001,8 +1001,8 @@ func convertRecordToDatabaseDCC(p pd.Record) (*cmsdatabase.DCC, error) {
 
 	for _, m := range p.Metadata {
 		switch m.ID {
-		case mdStreamDCCGeneral:
-			var mdGeneral backendDCCMetadata
+		case mdstream.IDDCCGeneral:
+			var mdGeneral mdstream.DCCGeneral
 			err := json.Unmarshal([]byte(m.Payload), &mdGeneral)
 			if err != nil {
 				return nil, fmt.Errorf("could not decode metadata '%v' token '%v': %v",
@@ -1013,8 +1013,8 @@ func convertRecordToDatabaseDCC(p pd.Record) (*cmsdatabase.DCC, error) {
 			dbDCC.PublicKey = mdGeneral.PublicKey
 			dbDCC.UserSignature = mdGeneral.Signature
 
-		case mdStreamDCCStatusChanges:
-			sc, err := decodeBackendDCCStatusChanges([]byte(m.Payload))
+		case mdstream.IDDCCStatusChange:
+			sc, err := mdstream.DecodeDCCStatusChange([]byte(m.Payload))
 			if err != nil {
 				return nil, fmt.Errorf("could not decode metadata '%v' token '%v': %v",
 					m, p.CensorshipRecord.Token, err)
