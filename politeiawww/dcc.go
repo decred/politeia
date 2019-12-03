@@ -172,13 +172,14 @@ func (p *politeiawww) processNewDCC(nd cms.NewDCC, u *user.User) (*cms.NewDCCRep
 
 	// Change politeiad record status to public. DCCs
 	// do not need to be reviewed before becoming public.
-	// An admin signature is not included for this reason.
-	c := mdstream.RecordStatusChange{
+	// An admin pubkey and signature are not included for
+	// this reason.
+	c := mdstream.RecordStatusChangeV2{
 		Version:   mdstream.VersionRecordStatusChange,
 		Timestamp: time.Now().Unix(),
 		NewStatus: pd.RecordStatusPublic,
 	}
-	blob, err := mdstream.EncodeRecordStatusChange(c)
+	blob, err := mdstream.EncodeRecordStatusChangeV2(c)
 	if err != nil {
 		return nil, err
 	}

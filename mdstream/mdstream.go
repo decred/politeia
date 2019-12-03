@@ -31,7 +31,7 @@ const (
 
 	// mdstream current supported versions
 	VersionProposalGeneral      = 1
-	VersionRecordStatusChange   = 1
+	VersionRecordStatusChange   = 2
 	VersionInvoiceGeneral       = 1
 	VersionInvoiceStatusChange  = 1
 	VersionInvoicePayment       = 1
@@ -68,23 +68,22 @@ func DecodeProposalGeneral(payload []byte) (*ProposalGeneral, error) {
 	return &md, nil
 }
 
-// RecordStatusChange represents a politeiad record status change and is used
+// RecordStatusChangeV1 represents a politeiad record status change and is used
 // to store additional status change metadata that would not otherwise be
 // captured by the politeiad status change routes.
 //
 // This mdstream is used by both pi and cms.
-// XXX this is missing the admin signature
-type RecordStatusChange struct {
+type RecordStatusChangeV1 struct {
 	Version             uint             `json:"version"`                       // Version of the struct
 	AdminPubKey         string           `json:"adminpubkey"`                   // Identity of the administrator
 	NewStatus           pd.RecordStatusT `json:"newstatus"`                     // New status
-	StatusChangeMessage string           `json:"statuschangemessage,omitempty"` // Status change message
-	Timestamp           int64            `json:"timestamp"`                     // Timestamp of the change
+	StatusChangeMessage string           `json:"statuschangemessage,omitempty"` // Change message
+	Timestamp           int64            `json:"timestamp"`                     // UNIX timestamp
 }
 
-// EncodeRecordStatusChange encodes an RecordStatusChange into a JSON byte
+// EncodeRecordStatusChangeV1 encodes an RecordStatusChangeV1 into a JSON byte
 // slice.
-func EncodeRecordStatusChange(rsc RecordStatusChange) ([]byte, error) {
+func EncodeRecordStatusChangeV1(rsc RecordStatusChangeV1) ([]byte, error) {
 	b, err := json.Marshal(rsc)
 	if err != nil {
 		return nil, err
@@ -92,13 +91,58 @@ func EncodeRecordStatusChange(rsc RecordStatusChange) ([]byte, error) {
 	return b, nil
 }
 
-// DecodeRecordStatusChange decodes a JSON byte slice into a slice of
-// RecordStatusChange.
-func DecodeRecordStatusChange(payload []byte) ([]RecordStatusChange, error) {
-	var changes []RecordStatusChange
+// DecodeRecordStatusChangeV1 decodes a JSON byte slice into a slice of
+// RecordStatusChangeV1.
+func DecodeRecordStatusChangeV1(payload []byte) ([]RecordStatusChangeV1, error) {
+	var changes []RecordStatusChangeV1
 	d := json.NewDecoder(strings.NewReader(string(payload)))
 	for {
-		var rsc RecordStatusChange
+		var rsc RecordStatusChangeV1
+		err := d.Decode(&rsc)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return nil, err
+		}
+
+		changes = append(changes, rsc)
+	}
+	return changes, nil
+}
+
+// RecordStatusChangeV2 represents a politeiad record status change and is used
+// to store additional status change metadata that would not otherwise be
+// captured by the politeiad status change routes.
+//
+// V2 adds the Signature field, which was erroneously left out of V1.
+//
+// This mdstream is used by both pi and cms.
+type RecordStatusChangeV2 struct {
+	Version             uint             `json:"version"`                       // Struct version
+	NewStatus           pd.RecordStatusT `json:"newstatus"`                     // New status
+	StatusChangeMessage string           `json:"statuschangemessage,omitempty"` // Change message
+	Signature           string           `json:"signature"`                     // Signature of (Token + NewStatus + StatusChangeMessage)
+	AdminPubKey         string           `json:"adminpubkey"`                   // Signature pubkey
+	Timestamp           int64            `json:"timestamp"`                     // UNIX timestamp
+}
+
+// EncodeRecordStatusChangeV2 encodes an RecordStatusChangeV2 into a JSON byte
+// slice.
+func EncodeRecordStatusChangeV2(rsc RecordStatusChangeV2) ([]byte, error) {
+	b, err := json.Marshal(rsc)
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+// DecodeRecordStatusChangeV2 decodes a JSON byte slice into a slice of
+// RecordStatusChangeV2.
+func DecodeRecordStatusChangeV2(payload []byte) ([]RecordStatusChangeV2, error) {
+	var changes []RecordStatusChangeV2
+	d := json.NewDecoder(strings.NewReader(string(payload)))
+	for {
+		var rsc RecordStatusChangeV2
 		err := d.Decode(&rsc)
 		if err == io.EOF {
 			break

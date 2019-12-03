@@ -382,13 +382,14 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 
 	// Change politeiad record status to public. Invoices
 	// do not need to be reviewed before becoming public.
-	// An admin signature is not included for this reason.
-	c := mdstream.RecordStatusChange{
+	// An admin pubkey and signature are not included for
+	// this reason.
+	c := mdstream.RecordStatusChangeV2{
 		Version:   mdstream.VersionRecordStatusChange,
 		Timestamp: time.Now().Unix(),
 		NewStatus: pd.RecordStatusPublic,
 	}
-	blob, err := mdstream.EncodeRecordStatusChange(c)
+	blob, err := mdstream.EncodeRecordStatusChangeV2(c)
 	if err != nil {
 		return nil, err
 	}
