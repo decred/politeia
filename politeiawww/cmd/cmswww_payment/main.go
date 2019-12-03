@@ -13,10 +13,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/user"
 	"path/filepath"
-	"runtime"
-	"strings"
 
 	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
@@ -49,7 +46,7 @@ var (
 	defaultRPCCertFile = filepath.Join(sharedconfig.DefaultHomeDir, "rpc.cert")
 
 	// Application options
-	testnet    = flag.Bool("testnet", true, "")
+	testnet    = flag.Bool("testnet", false, "")
 	dataDir    = flag.String("datadir", defaultDataDir, "")
 	dbHost     = flag.String("dbhost", defaultDBHost, "")
 	dbCert     = flag.String("dbcert", defaultDBCert, "")
@@ -119,15 +116,21 @@ func makeRequest(method string, route string, v interface{}) ([]byte, error) {
 }
 
 func _main() error {
-	if *testnet {
-		activeNetParams = &testNet3Params
-	}
-	dataDir := cleanAndExpandPath(*dataDir)
-	dataDir = filepath.Join(dataDir, netName(activeNetParams))
+	flag.Parse()
 
-	dbRootCert := cleanAndExpandPath(*dbRootCert)
-	dbCert := cleanAndExpandPath(*dbCert)
-	dbKey := cleanAndExpandPath(*dbKey)
+	var network string
+	if *testnet {
+		network = "testnet3"
+	} else {
+		network = "mainnet"
+	}
+
+	dataDir := util.CleanAndExpandPath(*dataDir)
+	dataDir = filepath.Join(dataDir, network)
+
+	dbRootCert := util.CleanAndExpandPath(*dbRootCert)
+	dbCert := util.CleanAndExpandPath(*dbCert)
+	dbKey := util.CleanAndExpandPath(*dbKey)
 
 	var err error
 	dIdentity, err := identity.LoadPublicIdentity(filepath.Join(defaultHomeDir, *dIdentityFile))
@@ -256,58 +259,4 @@ func main() {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
-}
-
-// cleanAndExpandPath expands environment variables and leading ~ in the
-// passed path, cleans the result, and returns it.
-func cleanAndExpandPath(path string) string {
-	// Nothing to do when no path is given.
-	if path == "" {
-		return path
-	}
-
-	// NOTE: The os.ExpandEnv doesn't work with Windows cmd.exe-style
-	// %VARIABLE%, but the variables can still be expanded via POSIX-style
-	// $VARIABLE.
-	path = os.ExpandEnv(path)
-
-	if !strings.HasPrefix(path, "~") {
-		return filepath.Clean(path)
-	}
-
-	// Expand initial ~ to the current user's home directory, or ~otheruser
-	// to otheruser's home directory.  On Windows, both forward and backward
-	// slashes can be used.
-	path = path[1:]
-
-	var pathSeparators string
-	if runtime.GOOS == "windows" {
-		pathSeparators = string(os.PathSeparator) + "/"
-	} else {
-		pathSeparators = string(os.PathSeparator)
-	}
-
-	userName := ""
-	if i := strings.IndexAny(path, pathSeparators); i != -1 {
-		userName = path[:i]
-		path = path[i:]
-	}
-
-	homeDir := ""
-	var u *user.User
-	var err error
-	if userName == "" {
-		u, err = user.Current()
-	} else {
-		u, err = user.Lookup(userName)
-	}
-	if err == nil {
-		homeDir = u.HomeDir
-	}
-	// Fallback to CWD if user lookup fails or user has no home directory.
-	if homeDir == "" {
-		homeDir = "."
-	}
-
-	return filepath.Join(homeDir, path)
 }
