@@ -110,7 +110,7 @@ const usageMsg = `cmswww_payment usage:
 // serializing the provided object as the request body.
 //
 // XXX doesn't belong in this file but stuff it here for now.
-func makeRequest(method string, route string, v interface{}) ([]byte, error) {
+func makeRequest(rpcHost string, method string, route string, v interface{}) ([]byte, error) {
 	var (
 		requestBody []byte
 		err         error
@@ -122,7 +122,7 @@ func makeRequest(method string, route string, v interface{}) ([]byte, error) {
 		}
 	}
 
-	fullRoute := *rpcHost + route
+	fullRoute := rpcHost + route
 
 	client, err := util.NewClient(false, *rpcCert)
 	if err != nil {
@@ -193,7 +193,7 @@ func _main() error {
 	if err != nil {
 		return err
 	}
-	fmt.Println(dataDir)
+
 	net := filepath.Base(dataDir)
 	cacheDB, err := cachedb.New(cachedb.UserPoliteiawww, *dbHost,
 		net, dbRootCert, dbCert, dbKey)
@@ -277,7 +277,7 @@ func _main() error {
 					},
 				},
 			}
-			responseBody, err := makeRequest(http.MethodPost,
+			responseBody, err := makeRequest(rpcHost, http.MethodPost,
 				pd.UpdateVettedMetadataRoute, pdCommand)
 			if err != nil {
 				fmt.Printf("cms payment check: makeRequest %v %v",
