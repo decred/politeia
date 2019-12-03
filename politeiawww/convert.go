@@ -227,7 +227,7 @@ func convertPropStatusFromCache(s cache.RecordStatusT) www.PropStatusT {
 func convertPropFromCache(r cache.Record) www.ProposalRecord {
 	// Decode markdown stream payloads
 	var bpm *mdstream.ProposalGeneral
-	var msc []mdstream.ProposalStatusChange
+	var msc []mdstream.RecordStatusChange
 	for _, ms := range r.Metadata {
 		// General metadata
 		if ms.ID == mdstream.IDProposalGeneral {
@@ -240,10 +240,10 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 		}
 
 		// Status change metatdata
-		if ms.ID == mdstream.IDProposalStatusChange {
-			md, err := mdstream.DecodeProposalStatusChange([]byte(ms.Payload))
+		if ms.ID == mdstream.IDRecordStatusChange {
+			md, err := mdstream.DecodeRecordStatusChange([]byte(ms.Payload))
 			if err != nil {
-				log.Errorf("convertPropFromCache: DecodeProposalStatusChange "+
+				log.Errorf("convertPropFromCache: DecodeRecordStatusChange "+
 					"'%v' token '%v': %v", ms, r.CensorshipRecord.Token, err)
 			}
 			msc = md

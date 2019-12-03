@@ -383,12 +383,12 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 	// Change politeiad record status to public. Invoices
 	// do not need to be reviewed before becoming public.
 	// An admin signature is not included for this reason.
-	c := mdstream.ProposalStatusChange{
-		Version:   mdstream.VersionProposalStatusChange,
+	c := mdstream.RecordStatusChange{
+		Version:   mdstream.VersionRecordStatusChange,
 		Timestamp: time.Now().Unix(),
 		NewStatus: pd.RecordStatusPublic,
 	}
-	blob, err := mdstream.EncodeProposalStatusChange(c)
+	blob, err := mdstream.EncodeRecordStatusChange(c)
 	if err != nil {
 		return nil, err
 	}
@@ -404,7 +404,7 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 		Challenge: hex.EncodeToString(challenge),
 		MDAppend: []pd.MetadataStream{
 			{
-				ID:      mdstream.IDProposalStatusChange,
+				ID:      mdstream.IDRecordStatusChange,
 				Payload: string(blob),
 			},
 		},
