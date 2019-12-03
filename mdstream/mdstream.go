@@ -17,7 +17,7 @@ import (
 const (
 	// mdstream IDs
 	IDProposalGeneral      = 0
-	IDProposalStatusChange = 2
+	IDRecordStatusChange   = 2
 	IDInvoiceGeneral       = 3
 	IDInvoiceStatusChange  = 4
 	IDInvoicePayment       = 5
@@ -31,7 +31,7 @@ const (
 
 	// mdstream current supported versions
 	VersionProposalGeneral      = 1
-	VersionProposalStatusChange = 1
+	VersionRecordStatusChange   = 1
 	VersionInvoiceGeneral       = 1
 	VersionInvoiceStatusChange  = 1
 	VersionInvoicePayment       = 1
@@ -68,9 +68,13 @@ func DecodeProposalGeneral(payload []byte) (*ProposalGeneral, error) {
 	return &md, nil
 }
 
-// ProposalStatusChange represents a proposal status change.
+// RecordStatusChange represents a politeiad record status change and is used
+// to store additional status change metadata that would not otherwise be
+// captured by the politeiad status change routes.
+//
+// This mdstream is used by both pi and cms.
 // XXX this is missing the admin signature
-type ProposalStatusChange struct {
+type RecordStatusChange struct {
 	Version             uint             `json:"version"`                       // Version of the struct
 	AdminPubKey         string           `json:"adminpubkey"`                   // Identity of the administrator
 	NewStatus           pd.RecordStatusT `json:"newstatus"`                     // New status
@@ -78,33 +82,33 @@ type ProposalStatusChange struct {
 	Timestamp           int64            `json:"timestamp"`                     // Timestamp of the change
 }
 
-// EncodeProposalStatusChange encodes an ProposalStatusChange into a JSON byte
+// EncodeRecordStatusChange encodes an RecordStatusChange into a JSON byte
 // slice.
-func EncodeProposalStatusChange(m ProposalStatusChange) ([]byte, error) {
-	b, err := json.Marshal(m)
+func EncodeRecordStatusChange(rsc RecordStatusChange) ([]byte, error) {
+	b, err := json.Marshal(rsc)
 	if err != nil {
 		return nil, err
 	}
 	return b, nil
 }
 
-// DecodeProposalStatusChange decodes a JSON byte slice into a slice of
-// ProposalStatusChange.
-func DecodeProposalStatusChange(payload []byte) ([]ProposalStatusChange, error) {
-	var psc []ProposalStatusChange
+// DecodeRecordStatusChange decodes a JSON byte slice into a slice of
+// RecordStatusChange.
+func DecodeRecordStatusChange(payload []byte) ([]RecordStatusChange, error) {
+	var changes []RecordStatusChange
 	d := json.NewDecoder(strings.NewReader(string(payload)))
 	for {
-		var p ProposalStatusChange
-		err := d.Decode(&p)
+		var rsc RecordStatusChange
+		err := d.Decode(&rsc)
 		if err == io.EOF {
 			break
 		} else if err != nil {
 			return nil, err
 		}
 
-		psc = append(psc, p)
+		changes = append(changes, rsc)
 	}
-	return psc, nil
+	return changes, nil
 }
 
 // InvoiceGeneral represents the general metadata for an invoice and is

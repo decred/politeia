@@ -1136,8 +1136,8 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 
 	// Create change record
 	newStatus := convertPropStatusFromWWW(sps.ProposalStatus)
-	blob, err := json.Marshal(mdstream.ProposalStatusChange{
-		Version:             mdstream.VersionProposalStatusChange,
+	blob, err := json.Marshal(mdstream.RecordStatusChange{
+		Version:             mdstream.VersionRecordStatusChange,
 		Timestamp:           time.Now().Unix(),
 		NewStatus:           newStatus,
 		AdminPubKey:         u.PublicKey(),
@@ -1171,7 +1171,7 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 			Challenge: hex.EncodeToString(challenge),
 			MDAppend: []pd.MetadataStream{
 				{
-					ID:      mdstream.IDProposalStatusChange,
+					ID:      mdstream.IDRecordStatusChange,
 					Payload: string(blob),
 				},
 			},
@@ -1220,7 +1220,7 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 			Challenge: hex.EncodeToString(challenge),
 			MDAppend: []pd.MetadataStream{
 				{
-					ID:      mdstream.IDProposalStatusChange,
+					ID:      mdstream.IDRecordStatusChange,
 					Payload: string(blob),
 				},
 			},
