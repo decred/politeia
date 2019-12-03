@@ -13,9 +13,11 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/user"
 	"path/filepath"
+	"runtime"
+	"strings"
 
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
@@ -25,14 +27,16 @@ import (
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	cmsdb "github.com/decred/politeia/politeiawww/cmsdatabase/cockroachdb"
 	"github.com/decred/politeia/politeiawww/sharedconfig"
-	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
-	"github.com/syndtr/goleveldb/leveldb"
 )
 
 const (
-	defaultHost      = "localhost:26257"
-	defaultCacheCert = "~/.cockroachdb/certs/clients/politeiawww/ca.crt"
+	defaultDBHost     = "localhost:26257"
+	defaultDBRootCert = "~/.cockroachdb/certs/clients/politeiawww/ca.crt"
+	defaultDBCert     = "~/.cockroachdb/certs/clients/politeiawww/client.politeiawww.crt"
+	defaultDBKey      = "~/.cockroachdb/certs/clients/politeiawww/client.politeiawww.key"
+
+	defaultIdentityFilename = "identity.json"
 
 	defaultRPCUser = "user"
 	defaultRPCPass = "pass"
@@ -45,24 +49,21 @@ var (
 	defaultRPCCertFile = filepath.Join(sharedconfig.DefaultHomeDir, "rpc.cert")
 
 	// Application options
-	testnet   = flag.Bool("testnet", false, "")
-	dataDir   = flag.String("datadir", defaultDataDir, "")
-	cacheHost = flag.String("cachehost", defaultHost, "")
-	cacheCert = flag.String("cachecert", defaultCacheCert, "")
-	dbHost    = flag.String("dbhost", defaultDBHost, "")
-	dbCert    = flag.String("dbcert", defaultClientCert, "")
-	dbKey     = flag.String("dbkey", defaultClientKey, "")
+	testnet    = flag.Bool("testnet", true, "")
+	dataDir    = flag.String("datadir", defaultDataDir, "")
+	dbHost     = flag.String("dbhost", defaultDBHost, "")
+	dbCert     = flag.String("dbcert", defaultDBCert, "")
+	dbRootCert = flag.String("dbrootcert", defaultDBRootCert, "")
+	dbKey      = flag.String("dbkey", defaultDBKey, "")
 
-	rpcCert = flag.String("rpcert", defaultClientKey, "")
-	rpcHost = flag.String("rpchost", defaultClientKey, "")
-	rpcUser = flag.String("rpcuser", defaultClientKey, "")
-	rpcPass = flag.String("rpcpass", defaultClientKey, "")
+	rpcCert = flag.String("rpcert", defaultRPCCertFile, "")
+	rpcHost = flag.String("rpchost", defaultRPCHost, "")
+	rpcUser = flag.String("rpcuser", defaultRPCUser, "")
+	rpcPass = flag.String("rpcpass", defaultRPCPass, "")
+
+	dIdentityFile = flag.String("identityfile", defaultIdentityFilename, "")
 
 	network string // Mainnet or testnet3
-	// XXX ldb should be abstracted away. dbutil commands should use
-	// the user.Database interface instead.
-	ldb    *leveldb.DB
-	userDB user.Database
 )
 
 // makeRequest makes an http request to the method and route provided,
@@ -119,24 +120,24 @@ func makeRequest(method string, route string, v interface{}) ([]byte, error) {
 
 func _main() error {
 	if *testnet {
-		network = chaincfg.TestNet3Params.Name
-	} else {
-		network = chaincfg.MainNetParams.Name
+		activeNetParams = &testNet3Params
 	}
+	dataDir := cleanAndExpandPath(*dataDir)
+	dataDir = filepath.Join(dataDir, netName(activeNetParams))
 
-	dBRootCert = cleanAndExpandPath(defaultDBRootCert)
-	dBCert = cleanAndExpandPath(defaultDBCert)
-	dBKey = cleanAndExpandPath(defaultDBKey)
+	dbRootCert := cleanAndExpandPath(*dbRootCert)
+	dbCert := cleanAndExpandPath(*dbCert)
+	dbKey := cleanAndExpandPath(*dbKey)
 
 	var err error
-	dIdentity, err = identity.LoadPublicIdentity(rpcIdentityFile)
+	dIdentity, err := identity.LoadPublicIdentity(filepath.Join(defaultHomeDir, *dIdentityFile))
 	if err != nil {
 		return err
 	}
-
+	fmt.Println(dataDir)
 	net := filepath.Base(dataDir)
-	cacheDB, err := cachedb.New(cachedb.UserPoliteiawww, dBHost,
-		net, dBRootCert, dBCert, dBKey)
+	cacheDB, err := cachedb.New(cachedb.UserPoliteiawww, *dbHost,
+		net, dbRootCert, dbCert, dbKey)
 	if err != nil {
 		switch err {
 		case cache.ErrNoVersionRecord:
@@ -149,9 +150,8 @@ func _main() error {
 		return fmt.Errorf("cachedb new: %v", err)
 	}
 
-	net = filepath.Base(loadedCfg.DataDir)
-	cmsDB, err := cmsdb.New(loadedCfg.DBHost, net, loadedCfg.DBRootCert,
-		loadedCfg.DBCert, loadedCfg.DBKey)
+	net = filepath.Base(dataDir)
+	cmsDB, err := cmsdb.New(*dbHost, net, dbRootCert, dbCert, dbKey)
 	if err != nil {
 		return err
 	}
@@ -174,7 +174,7 @@ func _main() error {
 		found := false
 		for _, v := range invoice.Metadata {
 			if v.ID == mdstream.IDInvoicePayment {
-				fmt.Printf("payment for invoice %v found!", payment.InvoiceToken)
+				fmt.Printf("payment for invoice %v found!\n", payment.InvoiceToken)
 				// Do we need to do any checks to make sure anything else
 				// is needed?
 				found = true
@@ -184,7 +184,7 @@ func _main() error {
 		// If no associated payment metadata are found for the given
 		// invoice, create the new metadata and add to the existing invoice.
 		if !found {
-			fmt.Printf("payment for invoice %v NOT found! creating metadata stream for invoice record", payment.InvoiceToken)
+			fmt.Printf("payment for invoice %v NOT found! creating metadata stream for invoice record\n", payment.InvoiceToken)
 			// Create new backend invoice payment metadata
 			c := mdstream.InvoicePayment{
 				Version:        mdstream.VersionInvoicePayment,
@@ -234,7 +234,7 @@ func _main() error {
 				continue
 			}
 			// Verify the UpdateVettedMetadata challenge.
-			err = util.VerifyChallenge(loadedCfg.Identity, challenge,
+			err = util.VerifyChallenge(dIdentity, challenge,
 				pdReply.Response)
 			if err != nil {
 				fmt.Errorf("cms payment check: verifyChallenge %v %v",
@@ -256,4 +256,58 @@ func main() {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
+}
+
+// cleanAndExpandPath expands environment variables and leading ~ in the
+// passed path, cleans the result, and returns it.
+func cleanAndExpandPath(path string) string {
+	// Nothing to do when no path is given.
+	if path == "" {
+		return path
+	}
+
+	// NOTE: The os.ExpandEnv doesn't work with Windows cmd.exe-style
+	// %VARIABLE%, but the variables can still be expanded via POSIX-style
+	// $VARIABLE.
+	path = os.ExpandEnv(path)
+
+	if !strings.HasPrefix(path, "~") {
+		return filepath.Clean(path)
+	}
+
+	// Expand initial ~ to the current user's home directory, or ~otheruser
+	// to otheruser's home directory.  On Windows, both forward and backward
+	// slashes can be used.
+	path = path[1:]
+
+	var pathSeparators string
+	if runtime.GOOS == "windows" {
+		pathSeparators = string(os.PathSeparator) + "/"
+	} else {
+		pathSeparators = string(os.PathSeparator)
+	}
+
+	userName := ""
+	if i := strings.IndexAny(path, pathSeparators); i != -1 {
+		userName = path[:i]
+		path = path[i:]
+	}
+
+	homeDir := ""
+	var u *user.User
+	var err error
+	if userName == "" {
+		u, err = user.Current()
+	} else {
+		u, err = user.Lookup(userName)
+	}
+	if err == nil {
+		homeDir = u.HomeDir
+	}
+	// Fallback to CWD if user lookup fails or user has no home directory.
+	if homeDir == "" {
+		homeDir = "."
+	}
+
+	return filepath.Join(homeDir, path)
 }
