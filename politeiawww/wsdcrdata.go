@@ -151,7 +151,8 @@ func (w *wsDcrdata) reconnect() {
 				// Reconnect
 				c, err := newDcrdataWSClient()
 				if err != nil {
-					log.Errorf(err.Error())
+					log.Errorf("wsDcrdata failed to create new client while "+
+						"reconnecting: %v", err)
 					goto wait
 				}
 				w.client = c
