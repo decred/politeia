@@ -339,6 +339,9 @@ func (c *cockroachdb) UsersGetByPubKey(pubKeys []string) (map[string]user.User, 
 			}
 		}
 	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
 
 	return users, nil
 }

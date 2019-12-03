@@ -733,8 +733,14 @@ func (d *decred) cmdLoadVoteResults(payload string) (string, error) {
 	var token string
 	tokens := make([]string, 0, 1024)
 	for rows.Next() {
-		rows.Scan(&token)
+		err = rows.Scan(&token)
+		if err != nil {
+			return "", err
+		}
 		tokens = append(tokens, token)
+	}
+	if err = rows.Err(); err != nil {
+		return "", err
 	}
 
 	// Create vote result entries
@@ -784,8 +790,14 @@ func (d *decred) cmdTokenInventory(payload string) (string, error) {
 	var token string
 	missing := make([]string, 0, 1024)
 	for rows.Next() {
-		rows.Scan(&token)
+		err = rows.Scan(&token)
+		if err != nil {
+			return "", err
+		}
 		missing = append(missing, token)
+	}
+	if err = rows.Err(); err != nil {
+		return "", err
 	}
 
 	if len(missing) > 0 {
@@ -817,8 +829,14 @@ func (d *decred) cmdTokenInventory(payload string) (string, error) {
 
 	pre := make([]string, 0, 1024)
 	for rows.Next() {
-		rows.Scan(&token)
+		err = rows.Scan(&token)
+		if err != nil {
+			return "", err
+		}
 		pre = append(pre, token)
+	}
+	if err = rows.Err(); err != nil {
+		return "", err
 	}
 
 	// Active voting period tokens
@@ -834,8 +852,14 @@ func (d *decred) cmdTokenInventory(payload string) (string, error) {
 
 	active := make([]string, 0, 1024)
 	for rows.Next() {
-		rows.Scan(&token)
+		err = rows.Scan(&token)
+		if err != nil {
+			return "", err
+		}
 		active = append(active, token)
+	}
+	if err = rows.Err(); err != nil {
+		return "", err
 	}
 
 	// Approved vote tokens
@@ -853,8 +877,14 @@ func (d *decred) cmdTokenInventory(payload string) (string, error) {
 
 	approved := make([]string, 0, 1024)
 	for rows.Next() {
-		rows.Scan(&token)
+		err = rows.Scan(&token)
+		if err != nil {
+			return "", err
+		}
 		approved = append(approved, token)
+	}
+	if err = rows.Err(); err != nil {
+		return "", err
 	}
 
 	// Rejected vote tokens
@@ -872,8 +902,14 @@ func (d *decred) cmdTokenInventory(payload string) (string, error) {
 
 	rejected := make([]string, 0, 1024)
 	for rows.Next() {
-		rows.Scan(&token)
+		err = rows.Scan(&token)
+		if err != nil {
+			return "", err
+		}
 		rejected = append(rejected, token)
+	}
+	if err = rows.Err(); err != nil {
+		return "", err
 	}
 
 	// Abandoned tokens
@@ -889,8 +925,14 @@ func (d *decred) cmdTokenInventory(payload string) (string, error) {
 	defer rows.Close()
 
 	for rows.Next() {
-		rows.Scan(&token)
+		err = rows.Scan(&token)
+		if err != nil {
+			return "", err
+		}
 		abandoned = append(abandoned, token)
+	}
+	if err = rows.Err(); err != nil {
+		return "", err
 	}
 
 	// Setup reply
@@ -922,10 +964,15 @@ func (d *decred) cmdTokenInventory(payload string) (string, error) {
 		defer rows.Close()
 
 		for rows.Next() {
-			rows.Scan(&token)
+			err = rows.Scan(&token)
+			if err != nil {
+				return "", err
+			}
 			unreviewed = append(unreviewed, token)
 		}
-
+		if err = rows.Err(); err != nil {
+			return "", err
+		}
 		// Censored tokens
 		censored := make([]string, 0, 1024)
 		q = `SELECT token
@@ -939,8 +986,14 @@ func (d *decred) cmdTokenInventory(payload string) (string, error) {
 		defer rows.Close()
 
 		for rows.Next() {
-			rows.Scan(&token)
+			err = rows.Scan(&token)
+			if err != nil {
+				return "", err
+			}
 			censored = append(censored, token)
+		}
+		if err = rows.Err(); err != nil {
+			return "", err
 		}
 
 		// Update reply
@@ -1122,6 +1175,9 @@ func (d *decred) cmdBatchVoteSummary(payload string) (string, error) {
 			return "", err
 		}
 		records[r.Token] = r
+	}
+	if err = rows.Err(); err != nil {
+		return "", err
 	}
 
 	authorizeVotes, err := d.getAuthorizeVotesForRecords(records)
