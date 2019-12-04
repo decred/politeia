@@ -55,7 +55,7 @@ var (
 	dbRootCert = flag.String("dbrootcert", defaultDBRootCert, "")
 	dbKey      = flag.String("dbkey", defaultDBKey, "")
 
-	rpcCert = flag.String("rpcert", defaultRPCCertFile, "")
+	rpcCert = flag.String("rpccert", defaultRPCCertFile, "")
 	rpcHost = flag.String("rpchost", defaultRPCHost, "")
 	rpcUser = flag.String("rpcuser", defaultRPCUser, "")
 	rpcPass = flag.String("rpcpass", defaultRPCPass, "")
@@ -73,10 +73,10 @@ const usageMsg = `cmswww_payment usage:
           Use testnet database
     -datadir string
           politeiawww data directory
-		      (default osDataDir/politeiawww/data)
+            (default osDataDir/politeiawww/data)
     -dbhost string
           CockroachDB ip:port 
-			  (default localhost:26257)
+           (default localhost:26257)
     -dbrootcert string
           File containing the CockroachDB SSL root cert
           (default ~/.cockroachdb/certs/clients/politeiawww/ca.crt)
@@ -85,25 +85,25 @@ const usageMsg = `cmswww_payment usage:
           (default ~/.cockroachdb/certs/clients/politeiawww/client.politeiawww.crt)
     -dbkey string
           File containing the CockroachDB SSL client cert key
-		  (default ~/.cockroachdb/certs/clients/politeiawww/client.politeiawww.key)
-	-rpccert string
-		  File containing the RPC cert to communicate with politeiad
-		  (default ~/.politeiawww/rpc.cert)
-	-rpcuser string
-		  RPC user name for privileged commands
-		  (default user)
-	-rpcpass string
-		  RPC password for privileged commands
-		  (default pass)
-	-rpchost string
-		  RPC Host for politeiad
-		  (default 127.0.0.1)
-	-rpcport string
-		  RPC Port for politeiad
-		  (default 49374 / 59374)
-	-identityfile
-		  Path to file containing the politeiad identity
-		  (default ~/.politeiawww/identity.json)
+          (default ~/.cockroachdb/certs/clients/politeiawww/client.politeiawww.key)
+   -rpccert string
+          File containing the RPC cert to communicate with politeiad
+          (default ~/.politeiawww/rpc.cert)
+   -rpcuser string
+          RPC user name for privileged commands
+          (default user)
+   -rpcpass string
+          RPC password for privileged commands
+          (default pass)
+   -rpchost string
+          RPC Host for politeiad
+          (default 127.0.0.1)
+   -rpcport string
+          RPC Port for politeiad
+          (default 49374 / 59374)
+   -identityfile
+          Path to file containing the politeiad identity
+          (default ~/.politeiawww/identity.json)
 `
 
 // makeRequest makes an http request to the method and route provided,
@@ -226,7 +226,7 @@ func _main() error {
 	for _, payment := range paid {
 		invoice, err := cacheDB.Record(payment.InvoiceToken)
 		if err != nil {
-			fmt.Printf("couldn't get invoice for payment check: %v, %v",
+			fmt.Printf("couldn't get invoice for payment check: %v, %v\n",
 				payment.InvoiceToken, err)
 			continue
 		}
@@ -243,7 +243,8 @@ func _main() error {
 		// If no associated payment metadata are found for the given
 		// invoice, create the new metadata and add to the existing invoice.
 		if !found {
-			fmt.Printf("payment for invoice %v NOT found! creating metadata stream for invoice record\n", payment.InvoiceToken)
+			fmt.Printf("payment for invoice %v NOT found! creating metadata "+
+				"stream for invoice record\n", payment.InvoiceToken)
 			// Create new backend invoice payment metadata
 			c := mdstream.InvoicePayment{
 				Version:        mdstream.VersionInvoicePayment,
@@ -255,14 +256,14 @@ func _main() error {
 			blob, err := mdstream.EncodeInvoicePayment(c)
 			if err != nil {
 				fmt.Printf("cms payment check: "+
-					"encodeBackendInvoicePayment %v %v",
+					"encodeBackendInvoicePayment %v %v\n",
 					payment.InvoiceToken, err)
 				continue
 			}
 
 			challenge, err := util.Random(pd.ChallengeSize)
 			if err != nil {
-				fmt.Printf("cms payment check: random %v %v",
+				fmt.Printf("cms payment check: random %v %v\n",
 					payment.InvoiceToken, err)
 				continue
 			}
@@ -280,7 +281,7 @@ func _main() error {
 			responseBody, err := makeRequest(rpcHost, http.MethodPost,
 				pd.UpdateVettedMetadataRoute, pdCommand)
 			if err != nil {
-				fmt.Printf("cms payment check: makeRequest %v %v",
+				fmt.Printf("cms payment check: makeRequest %v %v\n",
 					payment.InvoiceToken, err)
 				continue
 			}
@@ -288,7 +289,7 @@ func _main() error {
 			var pdReply pd.UpdateVettedMetadataReply
 			err = json.Unmarshal(responseBody, &pdReply)
 			if err != nil {
-				fmt.Printf("cms payment check: unmarshall %v %v",
+				fmt.Printf("cms payment check: unmarshall %v %v\n",
 					payment.InvoiceToken, err)
 				continue
 			}
@@ -296,7 +297,7 @@ func _main() error {
 			err = util.VerifyChallenge(dIdentity, challenge,
 				pdReply.Response)
 			if err != nil {
-				fmt.Printf("cms payment check: verifyChallenge %v %v",
+				fmt.Printf("cms payment check: verifyChallenge %v %v\n",
 					payment.InvoiceToken, err)
 				continue
 			}

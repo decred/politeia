@@ -137,7 +137,6 @@ type config struct {
 	SMTPSkipVerify           bool   `long:"smtpskipverify" description:"Skip SMTP TLS cert verification. Will only skip if SMTPCert is empty"`
 	SMTPCert                 string `long:"smtpcert" description:"File containing the smtp certificate file"`
 	SystemCerts              *x509.CertPool
-	CMSPaymentsCheck         bool `long:"cmspaymentscheck" description:"Checks to make sure all db payments have associated invoice record metadata entries."`
 }
 
 // serviceOptions defines the configuration options for the rpc as a service
