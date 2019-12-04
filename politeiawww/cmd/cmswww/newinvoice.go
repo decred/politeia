@@ -216,18 +216,26 @@ const newInvoiceHelpMsg = `newinvoice [flags] "csvFile" "attachmentFiles"
 Submit a new invoice to Politeia. Invoice must be a csv file. Accepted
 attachment filetypes: png or plain text.
 
+An invoice csv line item should use the following format:
+
+type,domain,subdomain,description,proposalToken,labor,expenses,subUserID
+
+Valid types   : labor, expense, misc, sub
+Labor units   : hours
+Expenses units: USD
+
 Arguments:
-1. month			 (string, required)   Month (MM, 01-12)
-2. year				 (string, required)   Year (YYYY)
-3. csvFile			 (string, required)   Invoice CSV file
-4. attachmentFiles	 (string, optional)   Attachments
+1. month             (string, required)   Month (MM, 01-12)
+2. year              (string, required)   Year (YYYY)
+3. csvFile           (string, required)   Invoice CSV file
+4. attachmentFiles   (string, optional)   Attachments
 
 Flags:
   --name              (string, optional)   Fill in contractor name
   --contact           (string, optional)   Fill in email address or contact of the contractor
   --location          (string, optional)   Fill in contractor location (e.g. Dallas, TX, USA) of the contractor
   --paymentaddress    (string, optional)   Fill in payment address for this invoice.
-  --rate              (string, optional)   Fill in contractor pay rate for labor.
+  --rate              (string, optional)   Fill in contractor pay rate for labor (USD).
 
 Result:
 {
