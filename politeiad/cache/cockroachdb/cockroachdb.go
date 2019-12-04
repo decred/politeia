@@ -401,6 +401,9 @@ func (c *cockroachdb) getRecords(tokens []string, fetchFiles bool) ([]Record, er
 		}
 		records = append(records, r)
 	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
 
 	// Compile a list of record primary keys
 	keys := make([]string, 0, len(records))
@@ -482,6 +485,9 @@ func (c *cockroachdb) inventory() ([]Record, error) {
 			return nil, err
 		}
 		records = append(records, r)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
 	}
 
 	// Compile a list of record primary keys
