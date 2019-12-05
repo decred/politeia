@@ -5,12 +5,17 @@
 package mdstream
 
 import (
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
+	"strconv"
 	"strings"
 
 	pd "github.com/decred/politeia/politeiad/api/v1"
+	"github.com/decred/politeia/politeiad/api/v1/identity"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
+	"github.com/decred/politeia/util"
 )
 
 // XXX move remaining mdstreams out of politeiawww and into this package
@@ -91,25 +96,6 @@ func EncodeRecordStatusChangeV1(rsc RecordStatusChangeV1) ([]byte, error) {
 	return b, nil
 }
 
-// DecodeRecordStatusChangeV1 decodes a JSON byte slice into a slice of
-// RecordStatusChangeV1.
-func DecodeRecordStatusChangeV1(payload []byte) ([]RecordStatusChangeV1, error) {
-	var changes []RecordStatusChangeV1
-	d := json.NewDecoder(strings.NewReader(string(payload)))
-	for {
-		var rsc RecordStatusChangeV1
-		err := d.Decode(&rsc)
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return nil, err
-		}
-
-		changes = append(changes, rsc)
-	}
-	return changes, nil
-}
-
 // RecordStatusChangeV2 represents a politeiad record status change and is used
 // to store additional status change metadata that would not otherwise be
 // captured by the politeiad status change routes.
@@ -126,6 +112,27 @@ type RecordStatusChangeV2 struct {
 	Timestamp           int64            `json:"timestamp"`                     // UNIX timestamp
 }
 
+// VerifySignature verifies that the RecordStatusChangeV2 signature is correct.
+func (r *RecordStatusChangeV2) VerifySignature(token string) error {
+	sig, err := util.ConvertSignature(r.Signature)
+	if err != nil {
+		return err
+	}
+	b, err := hex.DecodeString(r.AdminPubKey)
+	if err != nil {
+		return err
+	}
+	pk, err := identity.PublicIdentityFromBytes(b)
+	if err != nil {
+		return err
+	}
+	msg := token + strconv.Itoa(int(r.NewStatus)) + r.StatusChangeMessage
+	if !pk.VerifyMessage([]byte(msg), sig) {
+		return err
+	}
+	return nil
+}
+
 // EncodeRecordStatusChangeV2 encodes an RecordStatusChangeV2 into a JSON byte
 // slice.
 func EncodeRecordStatusChangeV2(rsc RecordStatusChangeV2) ([]byte, error) {
@@ -136,23 +143,67 @@ func EncodeRecordStatusChangeV2(rsc RecordStatusChangeV2) ([]byte, error) {
 	return b, nil
 }
 
-// DecodeRecordStatusChangeV2 decodes a JSON byte slice into a slice of
-// RecordStatusChangeV2.
-func DecodeRecordStatusChangeV2(payload []byte) ([]RecordStatusChangeV2, error) {
-	var changes []RecordStatusChangeV2
+// DecodeRecordStatusChanges decodes a JSON byte slice into a slice of
+// RecordStatusChangeV1 and a slice of RecordStatusChangeV2.
+func DecodeRecordStatusChanges(payload []byte) ([]RecordStatusChangeV1, []RecordStatusChangeV2, error) {
+	statusesV1 := make([]RecordStatusChangeV1, 0, 16)
+	statusesV2 := make([]RecordStatusChangeV2, 0, 16)
+
 	d := json.NewDecoder(strings.NewReader(string(payload)))
 	for {
-		var rsc RecordStatusChangeV2
-		err := d.Decode(&rsc)
+		// Decode json into a generic map to determine the version.
+		statusChange := make(map[string]interface{}, 6)
+		err := d.Decode(&statusChange)
 		if err == io.EOF {
 			break
 		} else if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
-		changes = append(changes, rsc)
+		// These fields exist in all status change versions so they
+		// can be converted to their appropriate types outside the
+		// switch statement.
+		// Note: a JSON number has to first be type cast to float64
+		var (
+			version   = uint(statusChange["version"].(float64))
+			newStatus = pd.RecordStatusT(int(statusChange["newstatus"].(float64)))
+			pubkey    = statusChange["adminpubkey"].(string)
+			ts        = int64(statusChange["timestamp"].(float64))
+		)
+
+		// The status change message is optional
+		var msg string
+		m, ok := statusChange["statuschangemessage"]
+		if ok {
+			msg = m.(string)
+		}
+
+		// Handle different versions
+		switch version {
+		case 1:
+			statusesV1 = append(statusesV1, RecordStatusChangeV1{
+				Version:             version,
+				NewStatus:           newStatus,
+				StatusChangeMessage: msg,
+				AdminPubKey:         pubkey,
+				Timestamp:           ts,
+			})
+		case 2:
+			statusesV2 = append(statusesV2, RecordStatusChangeV2{
+				Version:             version,
+				NewStatus:           newStatus,
+				StatusChangeMessage: msg,
+				AdminPubKey:         pubkey,
+				Signature:           statusChange["signature"].(string),
+				Timestamp:           ts,
+			})
+		default:
+			return nil, nil, fmt.Errorf("invalid status change version: %v",
+				statusChange["version"])
+		}
 	}
-	return changes, nil
+
+	return statusesV1, statusesV2, nil
 }
 
 // InvoiceGeneral represents the general metadata for an invoice and is

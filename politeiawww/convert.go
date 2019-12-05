@@ -226,44 +226,78 @@ func convertPropStatusFromCache(s cache.RecordStatusT) www.PropStatusT {
 
 func convertPropFromCache(r cache.Record) www.ProposalRecord {
 	// Decode markdown stream payloads
-	var bpm *mdstream.ProposalGeneral
-	var msc []mdstream.RecordStatusChangeV1
-	for _, ms := range r.Metadata {
-		// General metadata
-		if ms.ID == mdstream.IDProposalGeneral {
-			md, err := mdstream.DecodeProposalGeneral([]byte(ms.Payload))
-			if err != nil {
-				log.Errorf("convertPropFromCache: DecodeProposalGeneral "+
-					"'%v' token '%v': %v", ms, r.CensorshipRecord.Token, err)
-			}
-			bpm = md
-		}
+	var (
+		pg         *mdstream.ProposalGeneral
+		statusesV1 []mdstream.RecordStatusChangeV1
+		statusesV2 []mdstream.RecordStatusChangeV2
+		err        error
 
-		// Decode status change metatdata. The status changes are always
-		// decoded as V1 since the only difference between V1 and V2 is
-		// the addition of the signature, which is not needed to create
-		// the ProposalRecord.
-		if ms.ID == mdstream.IDRecordStatusChange {
-			md, err := mdstream.DecodeRecordStatusChangeV1([]byte(ms.Payload))
+		token = r.CensorshipRecord.Token
+	)
+	for _, ms := range r.Metadata {
+		switch ms.ID {
+		case mdstream.IDProposalGeneral:
+			// General metadata
+			pg, err = mdstream.DecodeProposalGeneral([]byte(ms.Payload))
 			if err != nil {
-				log.Errorf("convertPropFromCache: DecodeRecordStatusChangeV1 "+
-					"'%v' token '%v': %v", ms, r.CensorshipRecord.Token, err)
+				log.Errorf("convertPropFromCache: DecodeProposalGeneral: "+
+					"err:%v token:%v mdstream:%v", err, token, ms)
 			}
-			msc = md
+		case mdstream.IDRecordStatusChange:
+			// Status changes
+			b := []byte(ms.Payload)
+			statusesV1, statusesV2, err = mdstream.DecodeRecordStatusChanges(b)
+			if err != nil {
+				log.Errorf("convertPropFromCache: DecodeRecordStatusChanges: "+
+					"err:%v token:%v mdstream:%v", err, token, ms)
+			}
+		default:
+			log.Errorf("convertPropFromCache: invalid mdstream ID: "+
+				"token:%v mdstream:%v", token, ms)
 		}
 	}
 
 	// Compile proposal status change metadata
 	var (
-		changeMsg   string
-		publishedAt int64
-		censoredAt  int64
-		abandonedAt int64
+		changeMsg          string
+		changeMsgTimestamp int64
+		publishedAt        int64
+		censoredAt         int64
+		abandonedAt        int64
 	)
-	for _, v := range msc {
-		// Overwrite change message because we only need to keep
-		// the most recent one.
-		changeMsg = v.StatusChangeMessage
+	for _, v := range statusesV1 {
+		// Keep the most recent status change message. This is what
+		// will be returned as part of the ProposalRecord.
+		if v.Timestamp > changeMsgTimestamp {
+			changeMsg = v.StatusChangeMessage
+			changeMsgTimestamp = v.Timestamp
+		}
+
+		switch convertPropStatusFromPD(v.NewStatus) {
+		case www.PropStatusPublic:
+			publishedAt = v.Timestamp
+		case www.PropStatusCensored:
+			censoredAt = v.Timestamp
+		case www.PropStatusAbandoned:
+			abandonedAt = v.Timestamp
+		}
+	}
+	for _, v := range statusesV2 {
+		// Verify the signature
+		err := v.VerifySignature(token)
+		if err != nil {
+			// This is not good!
+			e := fmt.Sprintf("invalid status change signature: "+
+				"token:%v status:%v", token, v)
+			panic(e)
+		}
+
+		// Keep the most recent status change message. This is what
+		// will be returned as part of the ProposalRecord.
+		if v.Timestamp > changeMsgTimestamp {
+			changeMsg = v.StatusChangeMessage
+			changeMsgTimestamp = v.Timestamp
+		}
 
 		switch convertPropStatusFromPD(v.NewStatus) {
 		case www.PropStatusPublic:
@@ -293,14 +327,14 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 	// as zero values since a cache record does not contain that
 	// data.
 	return www.ProposalRecord{
-		Name:                bpm.Name,
+		Name:                pg.Name,
 		State:               convertPropStatusToState(status),
 		Status:              status,
 		Timestamp:           r.Timestamp,
 		UserId:              "",
 		Username:            "",
-		PublicKey:           bpm.PublicKey,
-		Signature:           bpm.Signature,
+		PublicKey:           pg.PublicKey,
+		Signature:           pg.Signature,
 		Files:               files,
 		NumComments:         0,
 		Version:             r.Version,
