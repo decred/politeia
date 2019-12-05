@@ -252,12 +252,42 @@ func _main() error {
 			// adding too many txids to the db for a given payment.
 			txs := strings.Split(payment.TxIDs, ",")
 			// If only 1 txids, nothing to check.
+			validTxIds := ""
 			if len(txs) > 1 {
-				paymentReceived := 0
-				for _, txid := range txs {
+				paymentReceived := uint64(0)
+				for i, txid := range txs {
 					tx, err := util.FetchTx(payment.Address, txid)
 					if err != nil {
 						fmt.Printf("error fetching txid %v %v", txid, err)
+						break
+					}
+					// Check to make sure that the tx was after payment
+					// watching started.
+					if payment.TimeStarted > tx.Timestamp {
+						continue
+					}
+					paymentReceived += tx.Amount
+					if validTxIds == "" {
+						validTxIds = txid
+					} else {
+						validTxIds += "," + txid
+					}
+					// Check to see if the additional tx fulfills the
+					// amount needed and if the current txid is less than the
+					// end of the list of txids, it needs to be updated.
+					//
+					// Update the payment db and then it will be added in the
+					// metadata properly
+					if int64(paymentReceived) >= payment.AmountNeeded &&
+						i < len(txs)-1 {
+						payment.TxIDs = validTxIds
+
+						err = cmsDB.UpdatePayments(&payment)
+						if err != nil {
+							fmt.Printf("Error updating payments information "+
+								"for: %v %v\n",
+								payment.Address, err)
+						}
 						break
 					}
 				}
