@@ -7,7 +7,6 @@ package main
 import (
 	"bytes"
 	_ "encoding/gob"
-	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -16,7 +15,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
@@ -190,7 +191,7 @@ func _main() error {
 	}
 	rpcHost = u.String()
 
-	dIdentity, err := identity.LoadPublicIdentity(*dIdentityFile)
+	_, err = identity.LoadPublicIdentity(*dIdentityFile)
 	if err != nil {
 		return err
 	}
@@ -263,9 +264,11 @@ func _main() error {
 					}
 					// Check to make sure that the tx was after payment
 					// watching started.
+					fmt.Printf("payment time started: %v tx time: %v\n", time.Unix(payment.TimeStarted, 0), time.Unix(tx.Timestamp, 0))
 					if payment.TimeStarted > tx.Timestamp {
 						continue
 					}
+					fmt.Printf("adding tx amount to payment received check %v %v\n", tx.Amount, paymentReceived)
 					paymentReceived += tx.Amount
 					if validTxIds == "" {
 						validTxIds = txid
@@ -278,10 +281,11 @@ func _main() error {
 					//
 					// Update the payment db and then it will be added in the
 					// metadata properly
+					fmt.Printf("payment received %v amount needed %v %v %v\n", paymentReceived, payment.AmountNeeded, i, len(txs))
 					if int64(paymentReceived) >= payment.AmountNeeded &&
 						i < len(txs)-1 {
 						payment.TxIDs = validTxIds
-
+						spew.Dump("update payment", payment)
 						err = cmsDB.UpdatePayments(&payment)
 						if err != nil {
 							fmt.Printf("Error updating payments information "+
@@ -292,62 +296,64 @@ func _main() error {
 					}
 				}
 			}
-			// Create new backend invoice payment metadata
-			c := mdstream.InvoicePayment{
-				Version:        mdstream.VersionInvoicePayment,
-				TxIDs:          payment.TxIDs,
-				Timestamp:      payment.TimeLastUpdated,
-				AmountReceived: payment.AmountReceived,
-			}
+			/*
+				// Create new backend invoice payment metadata
+				c := mdstream.InvoicePayment{
+					Version:        mdstream.VersionInvoicePayment,
+					TxIDs:          payment.TxIDs,
+					Timestamp:      payment.TimeLastUpdated,
+					AmountReceived: payment.AmountReceived,
+				}
 
-			blob, err := mdstream.EncodeInvoicePayment(c)
-			if err != nil {
-				fmt.Printf("cms payment check: "+
-					"encodeBackendInvoicePayment %v %v\n",
-					payment.InvoiceToken, err)
-				continue
-			}
+				blob, err := mdstream.EncodeInvoicePayment(c)
+				if err != nil {
+					fmt.Printf("cms payment check: "+
+						"encodeBackendInvoicePayment %v %v\n",
+						payment.InvoiceToken, err)
+					continue
+				}
 
-			challenge, err := util.Random(pd.ChallengeSize)
-			if err != nil {
-				fmt.Printf("cms payment check: random %v %v\n",
-					payment.InvoiceToken, err)
-				continue
-			}
+				challenge, err := util.Random(pd.ChallengeSize)
+				if err != nil {
+					fmt.Printf("cms payment check: random %v %v\n",
+						payment.InvoiceToken, err)
+					continue
+				}
 
-			pdCommand := pd.UpdateVettedMetadata{
-				Challenge: hex.EncodeToString(challenge),
-				Token:     payment.InvoiceToken,
-				MDAppend: []pd.MetadataStream{
-					{
-						ID:      mdstream.IDInvoicePayment,
-						Payload: string(blob),
+				pdCommand := pd.UpdateVettedMetadata{
+					Challenge: hex.EncodeToString(challenge),
+					Token:     payment.InvoiceToken,
+					MDAppend: []pd.MetadataStream{
+						{
+							ID:      mdstream.IDInvoicePayment,
+							Payload: string(blob),
+						},
 					},
-				},
-			}
-			responseBody, err := makeRequest(rpcHost, http.MethodPost,
-				pd.UpdateVettedMetadataRoute, pdCommand)
-			if err != nil {
-				fmt.Printf("cms payment check: makeRequest %v %v\n",
-					payment.InvoiceToken, err)
-				continue
-			}
+				}
+				responseBody, err := makeRequest(rpcHost, http.MethodPost,
+					pd.UpdateVettedMetadataRoute, pdCommand)
+				if err != nil {
+					fmt.Printf("cms payment check: makeRequest %v %v\n",
+						payment.InvoiceToken, err)
+					continue
+				}
 
-			var pdReply pd.UpdateVettedMetadataReply
-			err = json.Unmarshal(responseBody, &pdReply)
-			if err != nil {
-				fmt.Printf("cms payment check: unmarshall %v %v\n",
-					payment.InvoiceToken, err)
-				continue
-			}
-			// Verify the UpdateVettedMetadata challenge.
-			err = util.VerifyChallenge(dIdentity, challenge,
-				pdReply.Response)
-			if err != nil {
-				fmt.Printf("cms payment check: verifyChallenge %v %v\n",
-					payment.InvoiceToken, err)
-				continue
-			}
+				var pdReply pd.UpdateVettedMetadataReply
+				err = json.Unmarshal(responseBody, &pdReply)
+				if err != nil {
+					fmt.Printf("cms payment check: unmarshall %v %v\n",
+						payment.InvoiceToken, err)
+					continue
+				}
+				// Verify the UpdateVettedMetadata challenge.
+				err = util.VerifyChallenge(dIdentity, challenge,
+					pdReply.Response)
+				if err != nil {
+					fmt.Printf("cms payment check: verifyChallenge %v %v\n",
+						payment.InvoiceToken, err)
+					continue
+				}
+			*/
 		}
 	}
 
