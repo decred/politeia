@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
@@ -245,6 +246,22 @@ func _main() error {
 		if !found {
 			fmt.Printf("payment for invoice %v NOT found! creating metadata "+
 				"stream for invoice record\n", payment.InvoiceToken)
+
+			// Check the existing txids that have been saved in the db for
+			// correctness due to a found issue with the address watcher
+			// adding too many txids to the db for a given payment.
+			txs := strings.Split(payment.TxIDs, ",")
+			// If only 1 txids, nothing to check.
+			if len(txs) > 1 {
+				paymentReceived := 0
+				for _, txid := range txs {
+					tx, err := util.FetchTx(payment.Address, txid)
+					if err != nil {
+						fmt.Printf("error fetching txid %v %v", txid, err)
+						break
+					}
+				}
+			}
 			// Create new backend invoice payment metadata
 			c := mdstream.InvoicePayment{
 				Version:        mdstream.VersionInvoicePayment,
