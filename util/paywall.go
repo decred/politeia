@@ -532,7 +532,7 @@ func FetchTx(address, txid string) (*TxDetails, error) {
 	}
 	txDetail := &TxDetails{}
 	for _, tx := range primaryTxs {
-		if tx.TxId != txid {
+		if strings.TrimSpace(tx.TxId) != strings.TrimSpace(txid) {
 			continue
 		}
 		txDetail, err = convertBETransactionToTxDetails(address, tx)
@@ -540,9 +540,8 @@ func FetchTx(address, txid string) (*TxDetails, error) {
 			return nil, fmt.Errorf("convertBETransactionToTxDetails: %v",
 				tx.TxId)
 		}
-
-		break
+		return txDetail, nil
 	}
 
-	return txDetail, nil
+	return nil, nil
 }

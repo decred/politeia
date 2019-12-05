@@ -223,7 +223,10 @@ func (p *politeiawww) checkPayments(payment *database.Payments, notifiedTx strin
 		log.Errorf("error FetchTxs for address %s: %v", payment.Address, err)
 		return false
 	}
-
+	if tx == nil {
+		log.Errorf("cannot find txid %v for address %v", notifiedTx, payment.Address)
+		return false
+	}
 	// Calculate amount received
 	amountReceived := dcrutil.Amount(0)
 	log.Debugf("Reviewing transactions for address: %v", payment.Address)
