@@ -530,12 +530,11 @@ func FetchTx(address, txid string) (*TxDetails, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch from dcrdata: %v", err)
 	}
-	txDetail := &TxDetails{}
 	for _, tx := range primaryTxs {
 		if strings.TrimSpace(tx.TxId) != strings.TrimSpace(txid) {
 			continue
 		}
-		txDetail, err = convertBETransactionToTxDetails(address, tx)
+		txDetail, err := convertBETransactionToTxDetails(address, tx)
 		if err != nil {
 			return nil, fmt.Errorf("convertBETransactionToTxDetails: %v",
 				tx.TxId)
