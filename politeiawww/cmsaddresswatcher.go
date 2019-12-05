@@ -76,8 +76,13 @@ func (p *politeiawww) setupCMSAddressWatcher() {
 				payment, err := p.cmsDB.PaymentsByAddress(m.Address)
 				if err != nil {
 					log.Errorf("error retreiving payments information from db %v", err)
+					continue
 				}
-				paid := p.checkPayments(payment, m.Address, m.TxHash)
+				if payment.Address != m.Address {
+					log.Errorf("payment address does not match watched address message!")
+					continue
+				}
+				paid := p.checkPayments(payment, m.TxHash)
 				if paid {
 					p.removeWatchAddress(payment.Address)
 				}
@@ -212,50 +217,29 @@ func (p *politeiawww) checkHistoricalPayments(payment *database.Payments) bool {
 // checkPayments checks to see if a given payment has been successfully paid.
 // It will return TRUE if paid, otherwise false.  It utilizes the util
 // FetchTxs which looks for transaction at a given address.
-func (p *politeiawww) checkPayments(payment *database.Payments, watchedAddr, notifiedTx string) bool {
-	txs, err := util.FetchTx(watchedAddr, notifiedTx)
+func (p *politeiawww) checkPayments(payment *database.Payments, notifiedTx string) bool {
+	tx, err := util.FetchTx(payment.Address, notifiedTx)
 	if err != nil {
 		log.Errorf("error FetchTxs for address %s: %v", payment.Address, err)
 		return false
 	}
-	if len(txs) == 0 {
-		return false
-	}
 
-	txIDs := ""
 	// Calculate amount received
 	amountReceived := dcrutil.Amount(0)
 	log.Debugf("Reviewing transactions for address: %v", payment.Address)
 	// Transaction counter
-	i := 0
-	for _, tx := range txs {
-		// Check to see if running mainnet, if so, only accept transactions
-		// that originate from the Treasury Subsidy.
-		if !p.cfg.TestNet && !p.cfg.SimNet {
-			found := false
-			for _, address := range tx.InputAddresses {
-				if address == mainnetSubsidyAddr {
-					found = true
-					break
-				}
-			}
-			if !found {
-				continue
+	if !p.cfg.TestNet && !p.cfg.SimNet {
+		for _, address := range tx.InputAddresses {
+			if address == mainnetSubsidyAddr {
 			}
 		}
-		log.Debugf("Transaction %v with amount %v", tx.TxID, tx.Amount)
-		amountReceived += dcrutil.Amount(tx.Amount)
-		if i == 0 {
-			txIDs = tx.TxID
-		} else {
-			txIDs += ", " + tx.TxID
-		}
-		i++
 	}
+	log.Debugf("Transaction %v with amount %v", tx.TxID, tx.Amount)
+	amountReceived += dcrutil.Amount(tx.Amount)
 	if payment.TxIDs == "" {
-		payment.TxIDs = txIDs
+		payment.TxIDs = tx.TxID
 	} else {
-		payment.TxIDs += ", " + txIDs
+		payment.TxIDs += ", " + tx.TxID
 	}
 
 	log.Debugf("Amount received %v amount needed %v", int64(amountReceived),
