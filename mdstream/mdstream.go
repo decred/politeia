@@ -151,7 +151,7 @@ func DecodeRecordStatusChanges(payload []byte) ([]RecordStatusChangeV1, []Record
 
 	d := json.NewDecoder(strings.NewReader(string(payload)))
 	for {
-		// Decode json into a generic map to determine the version.
+		// Decode json into a map so we can determine the version.
 		statusChange := make(map[string]interface{}, 6)
 		err := d.Decode(&statusChange)
 		if err == io.EOF {

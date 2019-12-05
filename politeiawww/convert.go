@@ -243,14 +243,27 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 				log.Errorf("convertPropFromCache: DecodeProposalGeneral: "+
 					"err:%v token:%v mdstream:%v", err, token, ms)
 			}
+
 		case mdstream.IDRecordStatusChange:
-			// Status changes
+			// Status change metadata
 			b := []byte(ms.Payload)
 			statusesV1, statusesV2, err = mdstream.DecodeRecordStatusChanges(b)
 			if err != nil {
 				log.Errorf("convertPropFromCache: DecodeRecordStatusChanges: "+
 					"err:%v token:%v mdstream:%v", err, token, ms)
 			}
+
+			// Verify the signatures
+			for _, v := range statusesV2 {
+				err := v.VerifySignature(token)
+				if err != nil {
+					// This is not good!
+					e := fmt.Sprintf("invalid status change signature: "+
+						"token:%v status:%v", token, v)
+					panic(e)
+				}
+			}
+
 		default:
 			log.Errorf("convertPropFromCache: invalid mdstream ID: "+
 				"token:%v mdstream:%v", token, ms)
@@ -283,15 +296,6 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 		}
 	}
 	for _, v := range statusesV2 {
-		// Verify the signature
-		err := v.VerifySignature(token)
-		if err != nil {
-			// This is not good!
-			e := fmt.Sprintf("invalid status change signature: "+
-				"token:%v status:%v", token, v)
-			panic(e)
-		}
-
 		// Keep the most recent status change message. This is what
 		// will be returned as part of the ProposalRecord.
 		if v.Timestamp > changeMsgTimestamp {
