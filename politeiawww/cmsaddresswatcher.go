@@ -227,10 +227,14 @@ func (p *politeiawww) checkPayments(payment *database.Payments, notifiedTx strin
 	// Calculate amount received
 	amountReceived := dcrutil.Amount(0)
 	log.Debugf("Reviewing transactions for address: %v", payment.Address)
-	// Transaction counter
+
+	// Check to see if running mainnet, if so, only accept transactions
+	// that originate from the Treasury Subsidy.
 	if !p.cfg.TestNet && !p.cfg.SimNet {
 		for _, address := range tx.InputAddresses {
-			if address == mainnetSubsidyAddr {
+			if address != mainnetSubsidyAddr {
+				// All input addresses should be from the subsidy address
+				return false
 			}
 		}
 	}
