@@ -115,8 +115,7 @@ var (
 	decredPluginHooks    map[string]func(string) error // [key]func(token) error
 
 	// Cached values, requires lock. These caches are lazy loaded.
-	// XXX why is this a pointer? Convert if possible after investigating
-	decredPluginVoteCache         = make(map[string]*decredplugin.StartVote)     // [token]startvote
+	decredPluginVoteCache         = make(map[string]decredplugin.VoteV2)         // [token]VoteV2
 	decredPluginVoteSnapshotCache = make(map[string]decredplugin.StartVoteReply) // [token]StartVoteReply
 
 	// Pregenerated journal actions
@@ -1622,9 +1621,15 @@ func (g *gitBackEnd) pluginAuthorizeVote(payload string) (string, error) {
 }
 
 func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
-	vote, err := decredplugin.DecodeStartVote([]byte(payload))
+	vote, err := decredplugin.DecodeStartVoteV2([]byte(payload))
 	if err != nil {
 		return "", fmt.Errorf("DecodeStartVote %v", err)
+	}
+
+	// Verify signature
+	err = vote.VerifySignature()
+	if err != nil {
+		return "", fmt.Errorf("invalid signature")
 	}
 
 	// Verify vote bits are somewhat sane
@@ -1698,7 +1703,7 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 
 	// Add version to on disk structure
 	vote.Version = decredplugin.VersionStartVote
-	voteb, err := decredplugin.EncodeStartVote(*vote)
+	voteb, err := decredplugin.EncodeStartVoteV2(*vote)
 	if err != nil {
 		return "", fmt.Errorf("EncodeStartVote: %v", err)
 	}
@@ -1813,7 +1818,7 @@ func (i invalidVoteBitError) Error() string {
 
 // _validateVoteBit iterates over all vote bits and ensure the sent in vote bit
 // exists.
-func _validateVoteBit(vote decredplugin.Vote, bit uint64) error {
+func _validateVoteBit(vote decredplugin.VoteV2, bit uint64) error {
 	if len(vote.Options) == 0 {
 		return fmt.Errorf("_validateVoteBit vote corrupt")
 	}
@@ -1853,9 +1858,9 @@ func (g *gitBackEnd) validateVoteBit(token, bit string) error {
 		return backend.ErrShutdown
 	}
 
-	sv, ok := decredPluginVoteCache[token]
+	v, ok := decredPluginVoteCache[token]
 	if ok {
-		return _validateVoteBit(sv.Vote, b)
+		return _validateVoteBit(v, b)
 	}
 
 	// git checkout master
@@ -1871,22 +1876,34 @@ func (g *gitBackEnd) validateVoteBit(token, bit string) error {
 	}
 
 	// Load md stream
-	f, err := os.Open(mdFilename(g.vetted, token,
+	svb, err := ioutil.ReadFile(mdFilename(g.vetted, token,
 		decredplugin.MDStreamVoteBits))
 	if err != nil {
 		return err
 	}
-	defer f.Close()
-
-	d := json.NewDecoder(f)
-	err = d.Decode(&sv)
+	sv, err := decredplugin.DecodeStartVote(svb)
 	if err != nil {
 		return err
 	}
 
-	decredPluginVoteCache[token] = sv
+	switch sv.Version {
+	case 1:
+		sv1, err := decredplugin.DecodeStartVoteV1(svb)
+		if err != nil {
+			return err
+		}
+		v = decredplugin.ConvertVoteV1ToV2(sv1.Vote)
+	case 2:
+		sv2, err := decredplugin.DecodeStartVoteV2(svb)
+		if err != nil {
+			return err
+		}
+		v = sv2.Vote
+	}
 
-	return _validateVoteBit(sv.Vote, b)
+	decredPluginVoteCache[token] = v
+
+	return _validateVoteBit(v, b)
 }
 
 // replayBallot replays voting journalfor given proposal.

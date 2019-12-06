@@ -1,3 +1,7 @@
+// Copyright (c) 2017-2019 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package v1
 
 import (
@@ -467,17 +471,17 @@ type ErrorReply struct {
 	ErrorContext []string `json:"errorcontext,omitempty"`
 }
 
-// Version command is used to determine the version of the API this backend
-// understands and additionally it provides the route to said API.  This call
-// is required in order to establish CSRF for the session.  The client should
-// verify compatibility with the server version.
+// Version command is used to determine the lowest API version that this
+// backend supports and additionally it provides the route to said API.  This
+// call is required in order to establish CSRF for the session.  The client
+// should verify compatibility with the server version.
 type Version struct{}
 
-// VersionReply returns information that indicates what version of the server
-// is running and additionally the route to the API and the public signing key of
-// the server.
+// VersionReply returns information that indicates the lowest version that
+// this backend supports and additionally the route to the API and the public
+// signing key of the server.
 type VersionReply struct {
-	Version           uint   `json:"version"`           // politeia WWW API version
+	Version           uint   `json:"version"`           // lowest supported WWW API version
 	Route             string `json:"route"`             // prefix to API calls
 	PubKey            string `json:"pubkey"`            // Server public key
 	TestNet           bool   `json:"testnet"`           // Network indicator
@@ -879,8 +883,6 @@ type ActiveVoteReply struct {
 	Votes []ProposalVoteTuple `json:"votes"` // Active votes
 }
 
-// plugin commands
-
 // AuthorizeVote is used to indicate that a proposal has been finalized and
 // is ready to be voted on.  The signature and public key are from the
 // proposal author.  The author can revoke a previously sent vote authorization
@@ -900,6 +902,8 @@ type AuthorizeVoteReply struct {
 }
 
 // StartVote starts the voting process for a proposal.
+//
+// *** This route has been replaced by the v2 StartVote route. ***
 type StartVote struct {
 	PublicKey string `json:"publickey"` // Key used for signature.
 	Vote      Vote   `json:"vote"`      // Vote

@@ -19,7 +19,8 @@ import (
 
 	"github.com/decred/dcrwallet/rpc/walletrpc"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
-	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
+	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	www2 "github.com/decred/politeia/politeiawww/api/www/v2"
 	"github.com/decred/politeia/util"
 	"github.com/gorilla/schema"
 	"golang.org/x/net/publicsuffix"
@@ -50,8 +51,8 @@ func prettyPrintJSON(v interface{}) error {
 
 // userErrorStatus retrieves the human readable error message for an error
 // status code. The status code can be from either the pi or cms api.
-func userErrorStatus(e v1.ErrorStatusT) string {
-	s, ok := v1.ErrorStatus[e]
+func userErrorStatus(e www.ErrorStatusT) string {
+	s, ok := www.ErrorStatus[e]
 	if ok {
 		return s
 	}
@@ -62,14 +63,17 @@ func userErrorStatus(e v1.ErrorStatusT) string {
 	return ""
 }
 
-func (c *Client) makeRequest(method, route string, body interface{}) ([]byte, error) {
+// makeRequest sends the provided request to the politeiawww backend specified
+// by the Client config. This function handles verbose printing when specified
+// by the Client config since verbose printing includes details such as the
+// full route and http response codes.
+func (c *Client) makeRequest(method, routeVersion, route string, body interface{}) ([]byte, error) {
 	// Setup request
 	var requestBody []byte
 	var queryParams string
 	if body != nil {
 		switch {
 		case method == http.MethodGet:
-
 			// Use reflection in case the interface value is nil
 			// but the interface type is not. This can happen when
 			// query params exist but are not used.
@@ -84,16 +88,20 @@ func (c *Client) makeRequest(method, route string, body interface{}) ([]byte, er
 				return nil, err
 			}
 			queryParams = "?" + form.Encode()
+
 		case method == http.MethodPost || method == http.MethodPut:
 			var err error
 			requestBody, err = json.Marshal(body)
 			if err != nil {
 				return nil, err
 			}
+
+		default:
+			return nil, fmt.Errorf("unknown http method '%v'", method)
 		}
 	}
 
-	fullRoute := c.cfg.Host + v1.PoliteiaWWWAPIRoute + route + queryParams
+	fullRoute := c.cfg.Host + routeVersion + route + queryParams
 
 	// Print request details
 	switch {
@@ -118,7 +126,7 @@ func (c *Client) makeRequest(method, route string, body interface{}) ([]byte, er
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Add(v1.CsrfToken, c.cfg.CSRF)
+	req.Header.Add(www.CsrfToken, c.cfg.CSRF)
 
 	// Send request
 	r, err := c.http.Do(req)
@@ -133,7 +141,7 @@ func (c *Client) makeRequest(method, route string, body interface{}) ([]byte, er
 
 	// Validate response status
 	if r.StatusCode != http.StatusOK {
-		var ue v1.UserError
+		var ue www.UserError
 		err = json.Unmarshal(responseBody, &ue)
 		if err == nil && ue.ErrorCode != 0 {
 			return nil, fmt.Errorf("%v, %v %v", r.StatusCode,
@@ -152,8 +160,8 @@ func (c *Client) makeRequest(method, route string, body interface{}) ([]byte, er
 }
 
 // Version returns the version information for the politeiawww instance.
-func (c *Client) Version() (*v1.VersionReply, error) {
-	fullRoute := c.cfg.Host + v1.PoliteiaWWWAPIRoute + v1.RouteVersion
+func (c *Client) Version() (*www.VersionReply, error) {
+	fullRoute := c.cfg.Host + www.PoliteiaWWWAPIRoute + www.RouteVersion
 
 	// Print request details
 	if c.cfg.Verbose {
@@ -162,11 +170,11 @@ func (c *Client) Version() (*v1.VersionReply, error) {
 
 	// Create new http request instead of using makeRequest()
 	// so that we can save the CSRF tokens to disk.
-	req, err := http.NewRequest("GET", fullRoute, nil)
+	req, err := http.NewRequest(http.MethodGet, fullRoute, nil)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Add(v1.CsrfToken, c.cfg.CSRF)
+	req.Header.Add(www.CsrfToken, c.cfg.CSRF)
 
 	// Send request
 	r, err := c.http.Do(req)
@@ -181,7 +189,7 @@ func (c *Client) Version() (*v1.VersionReply, error) {
 
 	// Validate response status
 	if r.StatusCode != http.StatusOK {
-		var ue v1.UserError
+		var ue www.UserError
 		err = json.Unmarshal(responseBody, &ue)
 		if err == nil {
 			return nil, fmt.Errorf("%v, %v %v", r.StatusCode,
@@ -192,7 +200,7 @@ func (c *Client) Version() (*v1.VersionReply, error) {
 	}
 
 	// Unmarshal response
-	var vr v1.VersionReply
+	var vr www.VersionReply
 	err = json.Unmarshal(responseBody, &vr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal VersionReply: %v", err)
@@ -213,7 +221,7 @@ func (c *Client) Version() (*v1.VersionReply, error) {
 	// between CLI commands.
 
 	// Persist CSRF header token
-	c.cfg.CSRF = r.Header.Get(v1.CsrfToken)
+	c.cfg.CSRF = r.Header.Get(www.CsrfToken)
 	err = c.cfg.SaveCSRF(c.cfg.CSRF)
 	if err != nil {
 		return nil, err
@@ -229,14 +237,14 @@ func (c *Client) Version() (*v1.VersionReply, error) {
 }
 
 // Login logs a user into politeiawww.
-func (c *Client) Login(l *v1.Login) (*v1.LoginReply, error) {
+func (c *Client) Login(l *www.Login) (*www.LoginReply, error) {
 	// Setup request
 	requestBody, err := json.Marshal(l)
 	if err != nil {
 		return nil, err
 	}
 
-	fullRoute := c.cfg.Host + v1.PoliteiaWWWAPIRoute + v1.RouteLogin
+	fullRoute := c.cfg.Host + www.PoliteiaWWWAPIRoute + www.RouteLogin
 
 	// Print request details
 	if c.cfg.Verbose {
@@ -250,11 +258,12 @@ func (c *Client) Login(l *v1.Login) (*v1.LoginReply, error) {
 	// Create new http request instead of using makeRequest()
 	// so that we can save the session data for subsequent
 	// commands
-	req, err := http.NewRequest("POST", fullRoute, bytes.NewReader(requestBody))
+	req, err := http.NewRequest(http.MethodPost, fullRoute,
+		bytes.NewReader(requestBody))
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Add(v1.CsrfToken, c.cfg.CSRF)
+	req.Header.Add(www.CsrfToken, c.cfg.CSRF)
 
 	// Send request
 	r, err := c.http.Do(req)
@@ -269,7 +278,7 @@ func (c *Client) Login(l *v1.Login) (*v1.LoginReply, error) {
 
 	// Validate response status
 	if r.StatusCode != http.StatusOK {
-		var ue v1.UserError
+		var ue www.UserError
 		err = json.Unmarshal(responseBody, &ue)
 		if err == nil {
 			return nil, fmt.Errorf("%v, %v %v", r.StatusCode,
@@ -280,7 +289,7 @@ func (c *Client) Login(l *v1.Login) (*v1.LoginReply, error) {
 	}
 
 	// Unmarshal response
-	var lr v1.LoginReply
+	var lr www.LoginReply
 	err = json.Unmarshal(responseBody, &lr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal LoginReply: %v", err)
@@ -305,8 +314,8 @@ func (c *Client) Login(l *v1.Login) (*v1.LoginReply, error) {
 }
 
 // Logout logs out a user from politeiawww.
-func (c *Client) Logout() (*v1.LogoutReply, error) {
-	fullRoute := c.cfg.Host + v1.PoliteiaWWWAPIRoute + v1.RouteLogout
+func (c *Client) Logout() (*www.LogoutReply, error) {
+	fullRoute := c.cfg.Host + www.PoliteiaWWWAPIRoute + www.RouteLogout
 
 	// Print request details
 	if c.cfg.Verbose {
@@ -315,11 +324,11 @@ func (c *Client) Logout() (*v1.LogoutReply, error) {
 
 	// Create new http request instead of using makeRequest()
 	// so that we can save the updated cookies to disk
-	req, err := http.NewRequest("POST", fullRoute, nil)
+	req, err := http.NewRequest(http.MethodPost, fullRoute, nil)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Add(v1.CsrfToken, c.cfg.CSRF)
+	req.Header.Add(www.CsrfToken, c.cfg.CSRF)
 
 	// Send request
 	r, err := c.http.Do(req)
@@ -334,7 +343,7 @@ func (c *Client) Logout() (*v1.LogoutReply, error) {
 
 	// Validate response status
 	if r.StatusCode != http.StatusOK {
-		var ue v1.UserError
+		var ue www.UserError
 		err = json.Unmarshal(responseBody, &ue)
 		if err == nil {
 			return nil, fmt.Errorf("%v, %v %v", r.StatusCode,
@@ -345,7 +354,7 @@ func (c *Client) Logout() (*v1.LogoutReply, error) {
 	}
 
 	// Unmarshal response
-	var lr v1.LogoutReply
+	var lr www.LogoutReply
 	err = json.Unmarshal(responseBody, &lr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal LogoutReply: %v", err)
@@ -370,13 +379,14 @@ func (c *Client) Logout() (*v1.LogoutReply, error) {
 }
 
 // Policy returns the politeiawww policy information.
-func (c *Client) Policy() (*v1.PolicyReply, error) {
-	responseBody, err := c.makeRequest("GET", v1.RoutePolicy, nil)
+func (c *Client) Policy() (*www.PolicyReply, error) {
+	responseBody, err := c.makeRequest(http.MethodGet,
+		www.PoliteiaWWWAPIRoute, www.RoutePolicy, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var pr v1.PolicyReply
+	var pr www.PolicyReply
 	err = json.Unmarshal(responseBody, &pr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal PolicyReply: %v", err)
@@ -394,7 +404,8 @@ func (c *Client) Policy() (*v1.PolicyReply, error) {
 
 // CMSPolicy returns the politeiawww policy information.
 func (c *Client) CMSPolicy() (*cms.PolicyReply, error) {
-	responseBody, err := c.makeRequest("GET", v1.RoutePolicy, nil)
+	responseBody, err := c.makeRequest(http.MethodGet,
+		www.PoliteiaWWWAPIRoute, www.RoutePolicy, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -417,7 +428,8 @@ func (c *Client) CMSPolicy() (*cms.PolicyReply, error) {
 
 // InviteNewUser creates a new cmswww user.
 func (c *Client) InviteNewUser(inu *cms.InviteNewUser) (*cms.InviteNewUserReply, error) {
-	responseBody, err := c.makeRequest("POST", cms.RouteInviteNewUser, inu)
+	responseBody, err := c.makeRequest(http.MethodPost,
+		cms.APIRoute, cms.RouteInviteNewUser, inu)
 	if err != nil {
 		return nil, err
 	}
@@ -440,7 +452,8 @@ func (c *Client) InviteNewUser(inu *cms.InviteNewUser) (*cms.InviteNewUserReply,
 
 // RegisterUser finalizes the signup process for a new cmswww user.
 func (c *Client) RegisterUser(ru *cms.RegisterUser) (*cms.RegisterUserReply, error) {
-	responseBody, err := c.makeRequest("POST", cms.RouteRegisterUser, ru)
+	responseBody, err := c.makeRequest(http.MethodPost,
+		cms.APIRoute, cms.RouteRegisterUser, ru)
 	if err != nil {
 		return nil, err
 	}
@@ -462,13 +475,14 @@ func (c *Client) RegisterUser(ru *cms.RegisterUser) (*cms.RegisterUserReply, err
 }
 
 // NewUser creates a new politeiawww user.
-func (c *Client) NewUser(nu *v1.NewUser) (*v1.NewUserReply, error) {
-	responseBody, err := c.makeRequest("POST", v1.RouteNewUser, nu)
+func (c *Client) NewUser(nu *www.NewUser) (*www.NewUserReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost,
+		www.PoliteiaWWWAPIRoute, www.RouteNewUser, nu)
 	if err != nil {
 		return nil, err
 	}
 
-	var nur v1.NewUserReply
+	var nur www.NewUserReply
 	err = json.Unmarshal(responseBody, &nur)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal NewUserReply: %v", err)
@@ -485,13 +499,14 @@ func (c *Client) NewUser(nu *v1.NewUser) (*v1.NewUserReply, error) {
 }
 
 // VerifyNewUser verifies a user's email address.
-func (c *Client) VerifyNewUser(vnu *v1.VerifyNewUser) (*v1.VerifyNewUserReply, error) {
-	responseBody, err := c.makeRequest("GET", "/user/verify", vnu)
+func (c *Client) VerifyNewUser(vnu *www.VerifyNewUser) (*www.VerifyNewUserReply, error) {
+	responseBody, err := c.makeRequest(http.MethodGet,
+		www.PoliteiaWWWAPIRoute, www.RouteVerifyNewUser, vnu)
 	if err != nil {
 		return nil, err
 	}
 
-	var vnur v1.VerifyNewUserReply
+	var vnur www.VerifyNewUserReply
 	err = json.Unmarshal(responseBody, &vnur)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal VerifyNewUserReply: %v", err)
@@ -508,13 +523,14 @@ func (c *Client) VerifyNewUser(vnu *v1.VerifyNewUser) (*v1.VerifyNewUserReply, e
 }
 
 // Me returns user details for the logged in user.
-func (c *Client) Me() (*v1.LoginReply, error) {
-	responseBody, err := c.makeRequest("GET", v1.RouteUserMe, nil)
+func (c *Client) Me() (*www.LoginReply, error) {
+	responseBody, err := c.makeRequest(http.MethodGet,
+		www.PoliteiaWWWAPIRoute, www.RouteUserMe, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var lr v1.LoginReply
+	var lr www.LoginReply
 	err = json.Unmarshal(responseBody, &lr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal LoginReply: %v", err)
@@ -531,13 +547,14 @@ func (c *Client) Me() (*v1.LoginReply, error) {
 }
 
 // Secret pings politeiawww.
-func (c *Client) Secret() (*v1.UserError, error) {
-	responseBody, err := c.makeRequest("POST", v1.RouteSecret, v1.Login{})
+func (c *Client) Secret() (*www.UserError, error) {
+	responseBody, err := c.makeRequest(http.MethodPost,
+		www.PoliteiaWWWAPIRoute, www.RouteSecret, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var ue v1.UserError
+	var ue www.UserError
 	err = json.Unmarshal(responseBody, &ue)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal UserError: %v", err)
@@ -554,13 +571,14 @@ func (c *Client) Secret() (*v1.UserError, error) {
 }
 
 // ChangeUsername changes the username of the logged in user.
-func (c *Client) ChangeUsername(cu *v1.ChangeUsername) (*v1.ChangeUsernameReply, error) {
-	responseBody, err := c.makeRequest("POST", v1.RouteChangeUsername, cu)
+func (c *Client) ChangeUsername(cu *www.ChangeUsername) (*www.ChangeUsernameReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost,
+		www.PoliteiaWWWAPIRoute, www.RouteChangeUsername, cu)
 	if err != nil {
 		return nil, err
 	}
 
-	var cur v1.ChangeUsernameReply
+	var cur www.ChangeUsernameReply
 	err = json.Unmarshal(responseBody, &cur)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal ChangeUsernameReply: %v", err)
@@ -577,13 +595,14 @@ func (c *Client) ChangeUsername(cu *v1.ChangeUsername) (*v1.ChangeUsernameReply,
 }
 
 // ChangePassword changes the password for the logged in user.
-func (c *Client) ChangePassword(cp *v1.ChangePassword) (*v1.ChangePasswordReply, error) {
-	responseBody, err := c.makeRequest("POST", v1.RouteChangePassword, cp)
+func (c *Client) ChangePassword(cp *www.ChangePassword) (*www.ChangePasswordReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost,
+		www.PoliteiaWWWAPIRoute, www.RouteChangePassword, cp)
 	if err != nil {
 		return nil, err
 	}
 
-	var cpr v1.ChangePasswordReply
+	var cpr www.ChangePasswordReply
 	err = json.Unmarshal(responseBody, &cpr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal ChangePasswordReply: %v", err)
@@ -600,13 +619,14 @@ func (c *Client) ChangePassword(cp *v1.ChangePassword) (*v1.ChangePasswordReply,
 }
 
 // ResetPassword resets the password of the specified user.
-func (c *Client) ResetPassword(rp *v1.ResetPassword) (*v1.ResetPasswordReply, error) {
-	responseBody, err := c.makeRequest("POST", v1.RouteResetPassword, rp)
+func (c *Client) ResetPassword(rp *www.ResetPassword) (*www.ResetPasswordReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost,
+		www.PoliteiaWWWAPIRoute, www.RouteResetPassword, rp)
 	if err != nil {
 		return nil, err
 	}
 
-	var rpr v1.ResetPasswordReply
+	var rpr www.ResetPasswordReply
 	err = json.Unmarshal(responseBody, &rpr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal ResetPasswordReply: %v", err)
@@ -623,13 +643,14 @@ func (c *Client) ResetPassword(rp *v1.ResetPassword) (*v1.ResetPasswordReply, er
 }
 
 // VerifyResetPassword sends the VerifyResetPassword command to politeiawww.
-func (c *Client) VerifyResetPassword(vrp v1.VerifyResetPassword) (*v1.VerifyResetPasswordReply, error) {
-	respBody, err := c.makeRequest("POST", v1.RouteVerifyResetPassword, vrp)
+func (c *Client) VerifyResetPassword(vrp www.VerifyResetPassword) (*www.VerifyResetPasswordReply, error) {
+	respBody, err := c.makeRequest(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteVerifyResetPassword, vrp)
 	if err != nil {
 		return nil, err
 	}
 
-	var reply v1.VerifyResetPasswordReply
+	var reply www.VerifyResetPasswordReply
 	err = json.Unmarshal(respBody, &reply)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal VerifyResetPasswordReply: %v", err)
@@ -647,14 +668,14 @@ func (c *Client) VerifyResetPassword(vrp v1.VerifyResetPassword) (*v1.VerifyRese
 
 // ProposalPaywallDetails retrieves proposal credit paywall information for the
 // logged in user.
-func (c *Client) ProposalPaywallDetails() (*v1.ProposalPaywallDetailsReply, error) {
-	responseBody, err := c.makeRequest("GET",
-		v1.RouteProposalPaywallDetails, nil)
+func (c *Client) ProposalPaywallDetails() (*www.ProposalPaywallDetailsReply, error) {
+	responseBody, err := c.makeRequest(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteProposalPaywallDetails, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var ppdr v1.ProposalPaywallDetailsReply
+	var ppdr www.ProposalPaywallDetailsReply
 	err = json.Unmarshal(responseBody, &ppdr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal ProposalPaywalDetailsReply: %v", err)
@@ -672,13 +693,14 @@ func (c *Client) ProposalPaywallDetails() (*v1.ProposalPaywallDetailsReply, erro
 
 // NewProposal submits the specified proposal to politeiawww for the logged in
 // user.
-func (c *Client) NewProposal(np *v1.NewProposal) (*v1.NewProposalReply, error) {
-	responseBody, err := c.makeRequest("POST", v1.RouteNewProposal, np)
+func (c *Client) NewProposal(np *www.NewProposal) (*www.NewProposalReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost,
+		www.PoliteiaWWWAPIRoute, www.RouteNewProposal, np)
 	if err != nil {
 		return nil, err
 	}
 
-	var npr v1.NewProposalReply
+	var npr www.NewProposalReply
 	err = json.Unmarshal(responseBody, &npr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal NewProposalReply: %v", err)
@@ -695,13 +717,14 @@ func (c *Client) NewProposal(np *v1.NewProposal) (*v1.NewProposalReply, error) {
 }
 
 // EditProposal edits the specified proposal with the logged in user.
-func (c *Client) EditProposal(ep *v1.EditProposal) (*v1.EditProposalReply, error) {
-	responseBody, err := c.makeRequest("POST", v1.RouteEditProposal, ep)
+func (c *Client) EditProposal(ep *www.EditProposal) (*www.EditProposalReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost,
+		www.PoliteiaWWWAPIRoute, www.RouteEditProposal, ep)
 	if err != nil {
 		return nil, err
 	}
 
-	var epr v1.EditProposalReply
+	var epr www.EditProposalReply
 	err = json.Unmarshal(responseBody, &epr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal EditProposalReply: %v", err)
@@ -720,7 +743,8 @@ func (c *Client) EditProposal(ep *v1.EditProposal) (*v1.EditProposalReply, error
 // NewInvoice submits the specified invoice to politeiawww for the logged in
 // user.
 func (c *Client) NewInvoice(ni *cms.NewInvoice) (*cms.NewInvoiceReply, error) {
-	responseBody, err := c.makeRequest("POST", cms.RouteNewInvoice, ni)
+	responseBody, err := c.makeRequest(http.MethodPost,
+		cms.APIRoute, cms.RouteNewInvoice, ni)
 	if err != nil {
 		return nil, err
 	}
@@ -743,7 +767,8 @@ func (c *Client) NewInvoice(ni *cms.NewInvoice) (*cms.NewInvoiceReply, error) {
 
 // EditInvoice edits the specified invoice with the logged in user.
 func (c *Client) EditInvoice(ei *cms.EditInvoice) (*cms.EditInvoiceReply, error) {
-	responseBody, err := c.makeRequest("POST", cms.RouteEditInvoice, ei)
+	responseBody, err := c.makeRequest(http.MethodPost,
+		cms.APIRoute, cms.RouteEditInvoice, ei)
 	if err != nil {
 		return nil, err
 	}
@@ -765,13 +790,15 @@ func (c *Client) EditInvoice(ei *cms.EditInvoice) (*cms.EditInvoiceReply, error)
 }
 
 // ProposalDetails retrieves the specified proposal.
-func (c *Client) ProposalDetails(token string, pd *v1.ProposalsDetails) (*v1.ProposalDetailsReply, error) {
-	responseBody, err := c.makeRequest("GET", "/proposals/"+token, pd)
+func (c *Client) ProposalDetails(token string, pd *www.ProposalsDetails) (*www.ProposalDetailsReply, error) {
+	route := "/proposals/" + token
+	responseBody, err := c.makeRequest(http.MethodGet,
+		www.PoliteiaWWWAPIRoute, route, pd)
 	if err != nil {
 		return nil, err
 	}
 
-	var pr v1.ProposalDetailsReply
+	var pr www.ProposalDetailsReply
 	err = json.Unmarshal(responseBody, &pr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal ProposalDetailsReply: %v", err)
@@ -789,13 +816,14 @@ func (c *Client) ProposalDetails(token string, pd *v1.ProposalsDetails) (*v1.Pro
 
 // UserProposals retrieves the proposals that have been submitted by the
 // specified user.
-func (c *Client) UserProposals(up *v1.UserProposals) (*v1.UserProposalsReply, error) {
-	responseBody, err := c.makeRequest("GET", v1.RouteUserProposals, up)
+func (c *Client) UserProposals(up *www.UserProposals) (*www.UserProposalsReply, error) {
+	responseBody, err := c.makeRequest(http.MethodGet,
+		www.PoliteiaWWWAPIRoute, www.RouteUserProposals, up)
 	if err != nil {
 		return nil, err
 	}
 
-	var upr v1.UserProposalsReply
+	var upr www.UserProposalsReply
 	err = json.Unmarshal(responseBody, &upr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal UserProposalsReply: %v", err)
@@ -814,7 +842,8 @@ func (c *Client) UserProposals(up *v1.UserProposals) (*v1.UserProposalsReply, er
 // UserInvoices retrieves the proposals that have been submitted by the
 // specified user.
 func (c *Client) UserInvoices(up *cms.UserInvoices) (*cms.UserInvoicesReply, error) {
-	responseBody, err := c.makeRequest("GET", cms.RouteUserInvoices, up)
+	responseBody, err := c.makeRequest(http.MethodGet,
+		cms.APIRoute, cms.RouteUserInvoices, up)
 	if err != nil {
 		return nil, err
 	}
@@ -838,7 +867,8 @@ func (c *Client) UserInvoices(up *cms.UserInvoices) (*cms.UserInvoicesReply, err
 // AdminInvoices retrieves invoices base on possible field set in the request
 // month/year and/or status
 func (c *Client) AdminInvoices(ai *cms.AdminInvoices) (*cms.AdminInvoicesReply, error) {
-	responseBody, err := c.makeRequest("POST", cms.RouteAdminInvoices, ai)
+	responseBody, err := c.makeRequest(http.MethodPost,
+		cms.APIRoute, cms.RouteAdminInvoices, ai)
 	if err != nil {
 		return nil, err
 	}
@@ -862,7 +892,8 @@ func (c *Client) AdminInvoices(ai *cms.AdminInvoices) (*cms.AdminInvoicesReply, 
 // GeneratePayouts generates a list of payouts for all approved invoices that
 // contain an address and amount for an admin to the process
 func (c *Client) GeneratePayouts(gp *cms.GeneratePayouts) (*cms.GeneratePayoutsReply, error) {
-	responseBody, err := c.makeRequest("POST", cms.RouteGeneratePayouts, gp)
+	responseBody, err := c.makeRequest(http.MethodPost,
+		cms.APIRoute, cms.RouteGeneratePayouts, gp)
 	if err != nil {
 		return nil, err
 	}
@@ -887,7 +918,8 @@ func (c *Client) GeneratePayouts(gp *cms.GeneratePayouts) (*cms.GeneratePayoutsR
 // approved invoices to the paid status. This will be removed once the
 // address watching for payment is complete and working.
 func (c *Client) PayInvoices(pi *cms.PayInvoices) (*cms.PayInvoicesReply, error) {
-	responseBody, err := c.makeRequest("GET", cms.RoutePayInvoices, pi)
+	responseBody, err := c.makeRequest(http.MethodGet,
+		cms.APIRoute, cms.RoutePayInvoices, pi)
 	if err != nil {
 		return nil, err
 	}
@@ -902,14 +934,15 @@ func (c *Client) PayInvoices(pi *cms.PayInvoices) (*cms.PayInvoicesReply, error)
 }
 
 // SetProposalStatus changes the status of the specified proposal.
-func (c *Client) SetProposalStatus(sps *v1.SetProposalStatus) (*v1.SetProposalStatusReply, error) {
+func (c *Client) SetProposalStatus(sps *www.SetProposalStatus) (*www.SetProposalStatusReply, error) {
 	route := "/proposals/" + sps.Token + "/status"
-	responseBody, err := c.makeRequest("POST", route, sps)
+	responseBody, err := c.makeRequest(http.MethodPost,
+		www.PoliteiaWWWAPIRoute, route, sps)
 	if err != nil {
 		return nil, err
 	}
 
-	var spsr v1.SetProposalStatusReply
+	var spsr www.SetProposalStatusReply
 	err = json.Unmarshal(responseBody, &spsr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal SetProposalStatusReply: %v", err)
@@ -926,13 +959,14 @@ func (c *Client) SetProposalStatus(sps *v1.SetProposalStatus) (*v1.SetProposalSt
 }
 
 // BatchProposals retrieves a list of proposals
-func (c *Client) BatchProposals(bp *v1.BatchProposals) (*v1.BatchProposalsReply, error) {
-	responseBody, err := c.makeRequest("POST", v1.RouteBatchProposals, bp)
+func (c *Client) BatchProposals(bp *www.BatchProposals) (*www.BatchProposalsReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteBatchProposals, bp)
 	if err != nil {
 		return nil, err
 	}
 
-	var bpr v1.BatchProposalsReply
+	var bpr www.BatchProposalsReply
 	err = json.Unmarshal(responseBody, &bpr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal BatchProposals: %v", err)
@@ -950,13 +984,14 @@ func (c *Client) BatchProposals(bp *v1.BatchProposals) (*v1.BatchProposalsReply,
 
 // BatchVoteSummary retrieves a summary of the voting process for a set of
 // proposals.
-func (c *Client) BatchVoteSummary(bvs *v1.BatchVoteSummary) (*v1.BatchVoteSummaryReply, error) {
-	responseBody, err := c.makeRequest("POST", v1.RouteBatchVoteSummary, bvs)
+func (c *Client) BatchVoteSummary(bvs *www.BatchVoteSummary) (*www.BatchVoteSummaryReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteBatchVoteSummary, bvs)
 	if err != nil {
 		return nil, err
 	}
 
-	var bvsr v1.BatchVoteSummaryReply
+	var bvsr www.BatchVoteSummaryReply
 	err = json.Unmarshal(responseBody, &bvsr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal BatchVoteSummary: %v", err)
@@ -973,13 +1008,14 @@ func (c *Client) BatchVoteSummary(bvs *v1.BatchVoteSummary) (*v1.BatchVoteSummar
 }
 
 // GetAllVetted retrieves a page of vetted proposals.
-func (c *Client) GetAllVetted(gav *v1.GetAllVetted) (*v1.GetAllVettedReply, error) {
-	responseBody, err := c.makeRequest("GET", v1.RouteAllVetted, gav)
+func (c *Client) GetAllVetted(gav *www.GetAllVetted) (*www.GetAllVettedReply, error) {
+	responseBody, err := c.makeRequest(http.MethodGet,
+		www.PoliteiaWWWAPIRoute, www.RouteAllVetted, gav)
 	if err != nil {
 		return nil, err
 	}
 
-	var gavr v1.GetAllVettedReply
+	var gavr www.GetAllVettedReply
 	err = json.Unmarshal(responseBody, &gavr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal GetAllVettedReply: %v", err)
@@ -996,13 +1032,14 @@ func (c *Client) GetAllVetted(gav *v1.GetAllVetted) (*v1.GetAllVettedReply, erro
 }
 
 // NewComment submits a new proposal comment for the logged in user.
-func (c *Client) NewComment(nc *v1.NewComment) (*v1.NewCommentReply, error) {
-	responseBody, err := c.makeRequest("POST", v1.RouteNewComment, nc)
+func (c *Client) NewComment(nc *www.NewComment) (*www.NewCommentReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost,
+		www.PoliteiaWWWAPIRoute, www.RouteNewComment, nc)
 	if err != nil {
 		return nil, err
 	}
 
-	var ncr v1.NewCommentReply
+	var ncr www.NewCommentReply
 	err = json.Unmarshal(responseBody, &ncr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal NewCommentReply: %v", err)
@@ -1019,14 +1056,15 @@ func (c *Client) NewComment(nc *v1.NewComment) (*v1.NewCommentReply, error) {
 }
 
 // GetComments retrieves the comments for the specified proposal.
-func (c *Client) GetComments(token string) (*v1.GetCommentsReply, error) {
-	responseBody, err := c.makeRequest("GET", "/proposals/"+token+"/comments",
-		nil)
+func (c *Client) GetComments(token string) (*www.GetCommentsReply, error) {
+	route := "/proposals/" + token + "/comments"
+	responseBody, err := c.makeRequest(http.MethodGet,
+		www.PoliteiaWWWAPIRoute, route, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var gcr v1.GetCommentsReply
+	var gcr www.GetCommentsReply
 	err = json.Unmarshal(responseBody, &gcr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal GetCommentsReply: %v", err)
@@ -1043,14 +1081,15 @@ func (c *Client) GetComments(token string) (*v1.GetCommentsReply, error) {
 }
 
 // GetComments retrieves the comments for the specified proposal.
-func (c *Client) InvoiceComments(token string) (*v1.GetCommentsReply, error) {
-	responseBody, err := c.makeRequest("GET", "/invoices/"+token+"/comments",
-		nil)
+func (c *Client) InvoiceComments(token string) (*www.GetCommentsReply, error) {
+	route := "/invoices/" + token + "/comments"
+	responseBody, err := c.makeRequest(http.MethodGet,
+		cms.APIRoute, route, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var gcr v1.GetCommentsReply
+	var gcr www.GetCommentsReply
 	err = json.Unmarshal(responseBody, &gcr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal InvoiceCommentsReply: %v", err)
@@ -1068,14 +1107,15 @@ func (c *Client) InvoiceComments(token string) (*v1.GetCommentsReply, error) {
 
 // UserCommentsLikes retrieves the comment likes (upvotes/downvotes) for the
 // specified proposal that are from the logged in user.
-func (c *Client) UserCommentsLikes(token string) (*v1.UserCommentsLikesReply, error) {
+func (c *Client) UserCommentsLikes(token string) (*www.UserCommentsLikesReply, error) {
 	route := "/user/proposals/" + token + "/commentslikes"
-	responseBody, err := c.makeRequest("GET", route, nil)
+	responseBody, err := c.makeRequest(http.MethodGet,
+		www.PoliteiaWWWAPIRoute, route, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var uclr v1.UserCommentsLikesReply
+	var uclr www.UserCommentsLikesReply
 	err = json.Unmarshal(responseBody, &uclr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal UserCommentsLikesReply: %v", err)
@@ -1093,13 +1133,14 @@ func (c *Client) UserCommentsLikes(token string) (*v1.UserCommentsLikesReply, er
 
 // LikeComment casts a like comment action (upvote/downvote) for the logged in
 // user.
-func (c *Client) LikeComment(lc *v1.LikeComment) (*v1.LikeCommentReply, error) {
-	responseBody, err := c.makeRequest("POST", v1.RouteLikeComment, lc)
+func (c *Client) LikeComment(lc *www.LikeComment) (*www.LikeCommentReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost,
+		www.PoliteiaWWWAPIRoute, www.RouteLikeComment, lc)
 	if err != nil {
 		return nil, err
 	}
 
-	var lcr v1.LikeCommentReply
+	var lcr www.LikeCommentReply
 	err = json.Unmarshal(responseBody, &lcr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal LikeCommentReply: %v", err)
@@ -1116,13 +1157,14 @@ func (c *Client) LikeComment(lc *v1.LikeComment) (*v1.LikeCommentReply, error) {
 }
 
 // CensorComment censors the specified proposal comment.
-func (c *Client) CensorComment(cc *v1.CensorComment) (*v1.CensorCommentReply, error) {
-	responseBody, err := c.makeRequest("POST", v1.RouteCensorComment, cc)
+func (c *Client) CensorComment(cc *www.CensorComment) (*www.CensorCommentReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteCensorComment, cc)
 	if err != nil {
 		return nil, err
 	}
 
-	var ccr v1.CensorCommentReply
+	var ccr www.CensorCommentReply
 	err = json.Unmarshal(responseBody, &ccr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal CensorCommentReply: %v", err)
@@ -1138,20 +1180,22 @@ func (c *Client) CensorComment(cc *v1.CensorComment) (*v1.CensorCommentReply, er
 	return &ccr, nil
 }
 
-// StartVote starts the voting period for the specified proposal.
-func (c *Client) StartVote(sv *v1.StartVote) (*v1.StartVoteReply, error) {
-	responseBody, err := c.makeRequest("POST", v1.RouteStartVote, sv)
+// StartVoteV2 sends the provided v2 StartVote to the politeiawww backend.
+func (c *Client) StartVoteV2(sv www2.StartVote) (*www2.StartVoteReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost,
+		www2.APIRoute, www2.RouteStartVote, sv)
 	if err != nil {
 		return nil, err
 	}
 
-	var svr v1.StartVoteReply
+	var svr www2.StartVoteReply
 	err = json.Unmarshal(responseBody, &svr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal StartVoteReply: %v", err)
 	}
 
 	if c.cfg.Verbose {
+		svr.EligibleTickets = []string{"removed by piwww for readability"}
 		err := prettyPrintJSON(svr)
 		if err != nil {
 			return nil, err
@@ -1163,13 +1207,14 @@ func (c *Client) StartVote(sv *v1.StartVote) (*v1.StartVoteReply, error) {
 
 // VerifyUserPayment checks whether the logged in user has paid their user
 // registration fee.
-func (c *Client) VerifyUserPayment() (*v1.VerifyUserPaymentReply, error) {
-	responseBody, err := c.makeRequest("GET", v1.RouteVerifyUserPayment, nil)
+func (c *Client) VerifyUserPayment() (*www.VerifyUserPaymentReply, error) {
+	responseBody, err := c.makeRequest(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteVerifyUserPayment, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var vupr v1.VerifyUserPaymentReply
+	var vupr www.VerifyUserPaymentReply
 	err = json.Unmarshal(responseBody, &vupr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal VerifyUserPaymentReply: %v", err)
@@ -1186,13 +1231,15 @@ func (c *Client) VerifyUserPayment() (*v1.VerifyUserPaymentReply, error) {
 }
 
 // VoteResults retrieves the vote results for the specified proposal.
-func (c *Client) VoteResults(token string) (*v1.VoteResultsReply, error) {
-	responseBody, err := c.makeRequest("GET", "/proposals/"+token+"/votes", nil)
+func (c *Client) VoteResults(token string) (*www.VoteResultsReply, error) {
+	route := "/proposals/" + token + "/votes"
+	responseBody, err := c.makeRequest(http.MethodGet,
+		www.PoliteiaWWWAPIRoute, route, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var vrr v1.VoteResultsReply
+	var vrr www.VoteResultsReply
 	err = json.Unmarshal(responseBody, &vrr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal ProposalVotesReply: %v", err)
@@ -1209,13 +1256,15 @@ func (c *Client) VoteResults(token string) (*v1.VoteResultsReply, error) {
 }
 
 // UserDetails retrieves the user details for the specified user.
-func (c *Client) UserDetails(userID string) (*v1.UserDetailsReply, error) {
-	responseBody, err := c.makeRequest("GET", "/user/"+userID, nil)
+func (c *Client) UserDetails(userID string) (*www.UserDetailsReply, error) {
+	route := "/user/" + userID
+	responseBody, err := c.makeRequest(http.MethodGet,
+		www.PoliteiaWWWAPIRoute, route, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var udr v1.UserDetailsReply
+	var udr www.UserDetailsReply
 	err = json.Unmarshal(responseBody, &udr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal UserDetailsReply: %v", err)
@@ -1233,13 +1282,14 @@ func (c *Client) UserDetails(userID string) (*v1.UserDetailsReply, error) {
 
 // Users retrieves a list of users that adhere to the specified filtering
 // parameters.
-func (c *Client) Users(u *v1.Users) (*v1.UsersReply, error) {
-	responseBody, err := c.makeRequest("GET", v1.RouteUsers, u)
+func (c *Client) Users(u *www.Users) (*www.UsersReply, error) {
+	responseBody, err := c.makeRequest(http.MethodGet,
+		www.PoliteiaWWWAPIRoute, www.RouteUsers, u)
 	if err != nil {
 		return nil, err
 	}
 
-	var ur v1.UsersReply
+	var ur www.UsersReply
 	err = json.Unmarshal(responseBody, &ur)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal UsersReply: %v", err)
@@ -1258,7 +1308,8 @@ func (c *Client) Users(u *v1.Users) (*v1.UsersReply, error) {
 // CMSUsers retrieves a list of cms users that adhere to the specified filtering
 // parameters.
 func (c *Client) CMSUsers(cu *cms.CMSUsers) (*cms.CMSUsersReply, error) {
-	responseBody, err := c.makeRequest("GET", cms.RouteCMSUsers, cu)
+	responseBody, err := c.makeRequest(http.MethodGet, cms.APIRoute,
+		cms.RouteCMSUsers, cu)
 	if err != nil {
 		return nil, err
 	}
@@ -1280,13 +1331,14 @@ func (c *Client) CMSUsers(cu *cms.CMSUsers) (*cms.CMSUsersReply, error) {
 }
 
 // ManageUser allows an admin to edit certain attributes of the specified user.
-func (c *Client) ManageUser(mu *v1.ManageUser) (*v1.ManageUserReply, error) {
-	responseBody, err := c.makeRequest("POST", v1.RouteManageUser, mu)
+func (c *Client) ManageUser(mu *www.ManageUser) (*www.ManageUserReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost,
+		www.PoliteiaWWWAPIRoute, www.RouteManageUser, mu)
 	if err != nil {
 		return nil, err
 	}
 
-	var mur v1.ManageUserReply
+	var mur www.ManageUserReply
 	err = json.Unmarshal(responseBody, &mur)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal ManageUserReply: %v", err)
@@ -1303,13 +1355,14 @@ func (c *Client) ManageUser(mu *v1.ManageUser) (*v1.ManageUserReply, error) {
 }
 
 // EditUser allows the logged in user to update their user settings.
-func (c *Client) EditUser(eu *v1.EditUser) (*v1.EditUserReply, error) {
-	responseBody, err := c.makeRequest("POST", v1.RouteEditUser, eu)
+func (c *Client) EditUser(eu *www.EditUser) (*www.EditUserReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost,
+		www.PoliteiaWWWAPIRoute, www.RouteEditUser, eu)
 	if err != nil {
 		return nil, err
 	}
 
-	var eur v1.EditUserReply
+	var eur www.EditUserReply
 	err = json.Unmarshal(responseBody, &eur)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal EditUserReply: %v", err)
@@ -1327,13 +1380,14 @@ func (c *Client) EditUser(eu *v1.EditUser) (*v1.EditUserReply, error) {
 
 // AuthorizeVote authorizes the voting period for the specified proposal using
 // the logged in user.
-func (c *Client) AuthorizeVote(av *v1.AuthorizeVote) (*v1.AuthorizeVoteReply, error) {
-	responseBody, err := c.makeRequest("POST", "/proposals/authorizevote", av)
+func (c *Client) AuthorizeVote(av *www.AuthorizeVote) (*www.AuthorizeVoteReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteAuthorizeVote, av)
 	if err != nil {
 		return nil, err
 	}
 
-	var avr v1.AuthorizeVoteReply
+	var avr www.AuthorizeVoteReply
 	err = json.Unmarshal(responseBody, &avr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal AuthorizeVoteReply: %v", err)
@@ -1350,14 +1404,15 @@ func (c *Client) AuthorizeVote(av *v1.AuthorizeVote) (*v1.AuthorizeVoteReply, er
 }
 
 // VoteStatus retrieves the vote status for the specified proposal.
-func (c *Client) VoteStatus(token string) (*v1.VoteStatusReply, error) {
+func (c *Client) VoteStatus(token string) (*www.VoteStatusReply, error) {
 	route := "/proposals/" + token + "/votestatus"
-	responseBody, err := c.makeRequest("GET", route, nil)
+	responseBody, err := c.makeRequest(http.MethodGet,
+		www.PoliteiaWWWAPIRoute, route, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var vsr v1.VoteStatusReply
+	var vsr www.VoteStatusReply
 	err = json.Unmarshal(responseBody, &vsr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal VoteStatusReply: %v", err)
@@ -1374,13 +1429,14 @@ func (c *Client) VoteStatus(token string) (*v1.VoteStatusReply, error) {
 }
 
 // GetAllVoteStatus retreives the vote status of all public proposals.
-func (c *Client) GetAllVoteStatus() (*v1.GetAllVoteStatusReply, error) {
-	responseBody, err := c.makeRequest("GET", v1.RouteAllVoteStatus, nil)
+func (c *Client) GetAllVoteStatus() (*www.GetAllVoteStatusReply, error) {
+	responseBody, err := c.makeRequest(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteAllVoteStatus, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var avsr v1.GetAllVoteStatusReply
+	var avsr www.GetAllVoteStatusReply
 	err = json.Unmarshal(responseBody, &avsr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal GetAllVoteStatusReply: %v", err)
@@ -1397,13 +1453,14 @@ func (c *Client) GetAllVoteStatus() (*v1.GetAllVoteStatusReply, error) {
 }
 
 // ActiveVotes retreives all proposals that are currently being voted on.
-func (c *Client) ActiveVotes() (*v1.ActiveVoteReply, error) {
-	responseBody, err := c.makeRequest("GET", v1.RouteActiveVote, nil)
+func (c *Client) ActiveVotes() (*www.ActiveVoteReply, error) {
+	responseBody, err := c.makeRequest(http.MethodGet,
+		www.PoliteiaWWWAPIRoute, www.RouteActiveVote, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var avr v1.ActiveVoteReply
+	var avr www.ActiveVoteReply
 	err = json.Unmarshal(responseBody, &avr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal ActiveVoteReply: %v", err)
@@ -1420,13 +1477,14 @@ func (c *Client) ActiveVotes() (*v1.ActiveVoteReply, error) {
 }
 
 // CastVotes casts votes for a proposal.
-func (c *Client) CastVotes(b *v1.Ballot) (*v1.BallotReply, error) {
-	responseBody, err := c.makeRequest("POST", v1.RouteCastVotes, &b)
+func (c *Client) CastVotes(b *www.Ballot) (*www.BallotReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost,
+		www.PoliteiaWWWAPIRoute, www.RouteCastVotes, &b)
 	if err != nil {
 		return nil, err
 	}
 
-	var br v1.BallotReply
+	var br www.BallotReply
 	err = json.Unmarshal(responseBody, &br)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal BallotReply: %v", err)
@@ -1443,13 +1501,14 @@ func (c *Client) CastVotes(b *v1.Ballot) (*v1.BallotReply, error) {
 }
 
 // UpdateUserKey updates the identity of the logged in user.
-func (c *Client) UpdateUserKey(uuk *v1.UpdateUserKey) (*v1.UpdateUserKeyReply, error) {
-	responseBody, err := c.makeRequest("POST", v1.RouteUpdateUserKey, &uuk)
+func (c *Client) UpdateUserKey(uuk *www.UpdateUserKey) (*www.UpdateUserKeyReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteUpdateUserKey, &uuk)
 	if err != nil {
 		return nil, err
 	}
 
-	var uukr v1.UpdateUserKeyReply
+	var uukr www.UpdateUserKeyReply
 	err = json.Unmarshal(responseBody, &uukr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal UpdateUserKeyReply: %v", err)
@@ -1466,14 +1525,14 @@ func (c *Client) UpdateUserKey(uuk *v1.UpdateUserKey) (*v1.UpdateUserKeyReply, e
 }
 
 // VerifyUpdateUserKey is used to verify a new user identity.
-func (c *Client) VerifyUpdateUserKey(vuuk *v1.VerifyUpdateUserKey) (*v1.VerifyUpdateUserKeyReply, error) {
-	responseBody, err := c.makeRequest("POST", v1.RouteVerifyUpdateUserKey,
-		&vuuk)
+func (c *Client) VerifyUpdateUserKey(vuuk *www.VerifyUpdateUserKey) (*www.VerifyUpdateUserKeyReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteVerifyUpdateUserKey, &vuuk)
 	if err != nil {
 		return nil, err
 	}
 
-	var vuukr v1.VerifyUpdateUserKeyReply
+	var vuukr www.VerifyUpdateUserKeyReply
 	err = json.Unmarshal(responseBody, &vuukr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal VerifyUpdateUserKeyReply: %v", err)
@@ -1491,14 +1550,14 @@ func (c *Client) VerifyUpdateUserKey(vuuk *v1.VerifyUpdateUserKey) (*v1.VerifyUp
 
 // ProposalPaywallPayment retrieves payment details of any pending proposal
 // credit payment from the logged in user.
-func (c *Client) ProposalPaywallPayment() (*v1.ProposalPaywallPaymentReply, error) {
-	responseBody, err := c.makeRequest("GET",
-		v1.RouteProposalPaywallPayment, nil)
+func (c *Client) ProposalPaywallPayment() (*www.ProposalPaywallPaymentReply, error) {
+	responseBody, err := c.makeRequest(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteProposalPaywallPayment, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var pppr v1.ProposalPaywallPaymentReply
+	var pppr www.ProposalPaywallPaymentReply
 	err = json.Unmarshal(responseBody, &pppr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal ProposalPaywallPaymentReply: %v", err)
@@ -1516,13 +1575,14 @@ func (c *Client) ProposalPaywallPayment() (*v1.ProposalPaywallPaymentReply, erro
 
 // UserPaymentsRescan scans the specified user's paywall address and makes sure
 // that the user's account has been properly credited with all payments.
-func (c *Client) UserPaymentsRescan(upr *v1.UserPaymentsRescan) (*v1.UserPaymentsRescanReply, error) {
-	responseBody, err := c.makeRequest("PUT", v1.RouteUserPaymentsRescan, upr)
+func (c *Client) UserPaymentsRescan(upr *www.UserPaymentsRescan) (*www.UserPaymentsRescanReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPut, www.PoliteiaWWWAPIRoute,
+		www.RouteUserPaymentsRescan, upr)
 	if err != nil {
 		return nil, err
 	}
 
-	var uprr v1.UserPaymentsRescanReply
+	var uprr www.UserPaymentsRescanReply
 	err = json.Unmarshal(responseBody, &uprr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal UserPaymentsRescanReply: %v", err)
@@ -1540,13 +1600,14 @@ func (c *Client) UserPaymentsRescan(upr *v1.UserPaymentsRescan) (*v1.UserPayment
 
 // UserProposalCredits retrieves the proposal credit history for the logged
 // in user.
-func (c *Client) UserProposalCredits() (*v1.UserProposalCreditsReply, error) {
-	responseBody, err := c.makeRequest("GET", v1.RouteUserProposalCredits, nil)
+func (c *Client) UserProposalCredits() (*www.UserProposalCreditsReply, error) {
+	responseBody, err := c.makeRequest(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteUserProposalCredits, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var upcr v1.UserProposalCreditsReply
+	var upcr www.UserProposalCreditsReply
 	err = json.Unmarshal(responseBody, &upcr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal UserProposalCreditsReply: %v", err)
@@ -1564,13 +1625,14 @@ func (c *Client) UserProposalCredits() (*v1.UserProposalCreditsReply, error) {
 
 // ResendVerification re-sends the user verification email for an unverified
 // user.
-func (c *Client) ResendVerification(rv v1.ResendVerification) (*v1.ResendVerificationReply, error) {
-	respBody, err := c.makeRequest("POST", v1.RouteResendVerification, rv)
+func (c *Client) ResendVerification(rv www.ResendVerification) (*www.ResendVerificationReply, error) {
+	respBody, err := c.makeRequest(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteResendVerification, rv)
 	if err != nil {
 		return nil, err
 	}
 
-	var rvr v1.ResendVerificationReply
+	var rvr www.ResendVerificationReply
 	err = json.Unmarshal(respBody, &rvr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal ResendVerificationReply: %v", err)
@@ -1588,7 +1650,8 @@ func (c *Client) ResendVerification(rv v1.ResendVerification) (*v1.ResendVerific
 
 // InvoiceDetails retrieves the specified invoice.
 func (c *Client) InvoiceDetails(token string) (*cms.InvoiceDetailsReply, error) {
-	responseBody, err := c.makeRequest("GET", "/invoices/"+token, nil)
+	route := "/invoices/" + token
+	responseBody, err := c.makeRequest(http.MethodGet, cms.APIRoute, route, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1612,7 +1675,8 @@ func (c *Client) InvoiceDetails(token string) (*cms.InvoiceDetailsReply, error) 
 // SetInvoiceStatus changes the status of the specified invoice.
 func (c *Client) SetInvoiceStatus(sis *cms.SetInvoiceStatus) (*cms.SetInvoiceStatusReply, error) {
 	route := "/invoices/" + sis.Token + "/status"
-	responseBody, err := c.makeRequest("POST", route, sis)
+	responseBody, err := c.makeRequest(http.MethodPost,
+		cms.APIRoute, route, sis)
 	if err != nil {
 		return nil, err
 	}
@@ -1635,13 +1699,14 @@ func (c *Client) SetInvoiceStatus(sis *cms.SetInvoiceStatus) (*cms.SetInvoiceSta
 
 // TokenInventory retrieves the censorship record tokens of all proposals in
 // the inventory.
-func (c *Client) TokenInventory() (*v1.TokenInventoryReply, error) {
-	responseBody, err := c.makeRequest("GET", v1.RouteTokenInventory, nil)
+func (c *Client) TokenInventory() (*www.TokenInventoryReply, error) {
+	responseBody, err := c.makeRequest(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteTokenInventory, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var tir v1.TokenInventoryReply
+	var tir www.TokenInventoryReply
 	err = json.Unmarshal(responseBody, &tir)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal TokenInventoryReply: %v", err)
@@ -1659,7 +1724,8 @@ func (c *Client) TokenInventory() (*v1.TokenInventoryReply, error) {
 
 // InvoiceExchangeRate changes the status of the specified invoice.
 func (c *Client) InvoiceExchangeRate(ier *cms.InvoiceExchangeRate) (*cms.InvoiceExchangeRateReply, error) {
-	responseBody, err := c.makeRequest("POST", cms.RouteInvoiceExchangeRate, ier)
+	responseBody, err := c.makeRequest(http.MethodPost,
+		cms.APIRoute, cms.RouteInvoiceExchangeRate, ier)
 	if err != nil {
 		return nil, err
 	}
@@ -1682,7 +1748,8 @@ func (c *Client) InvoiceExchangeRate(ier *cms.InvoiceExchangeRate) (*cms.Invoice
 // InvoicePayouts retrieves invoices base on possible field set in the request
 // month/year and/or status
 func (c *Client) InvoicePayouts(lip *cms.InvoicePayouts) (*cms.InvoicePayoutsReply, error) {
-	responseBody, err := c.makeRequest("POST", cms.RouteInvoicePayouts, lip)
+	responseBody, err := c.makeRequest(http.MethodPost,
+		cms.APIRoute, cms.RouteInvoicePayouts, lip)
 	if err != nil {
 		return nil, err
 	}
@@ -1704,7 +1771,8 @@ func (c *Client) InvoicePayouts(lip *cms.InvoicePayouts) (*cms.InvoicePayoutsRep
 
 // CMSUserDetails returns the current cms user's information.
 func (c *Client) CMSUserDetails(userID string) (*cms.UserDetailsReply, error) {
-	responseBody, err := c.makeRequest("GET", "/user/"+userID, nil)
+	route := "/user/" + userID
+	responseBody, err := c.makeRequest(http.MethodGet, cms.APIRoute, route, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1727,8 +1795,8 @@ func (c *Client) CMSUserDetails(userID string) (*cms.UserDetailsReply, error) {
 
 // CMSEditUser edits the current user's information.
 func (c *Client) CMSEditUser(uui cms.EditUser) (*cms.EditUserReply, error) {
-	responseBody, err := c.makeRequest("POST", v1.RouteEditUser,
-		uui)
+	responseBody, err := c.makeRequest(http.MethodPost,
+		cms.APIRoute, www.RouteEditUser, uui)
 	if err != nil {
 		return nil, err
 	}
@@ -1751,8 +1819,8 @@ func (c *Client) CMSEditUser(uui cms.EditUser) (*cms.EditUserReply, error) {
 
 // CMSManageUser updates the given user's information.
 func (c *Client) CMSManageUser(uui cms.CMSManageUser) (*cms.CMSManageUserReply, error) {
-	responseBody, err := c.makeRequest("POST", cms.RouteManageCMSUser,
-		uui)
+	responseBody, err := c.makeRequest(http.MethodPost, cms.APIRoute,
+		cms.RouteManageCMSUser, uui)
 	if err != nil {
 		return nil, err
 	}
@@ -1775,8 +1843,8 @@ func (c *Client) CMSManageUser(uui cms.CMSManageUser) (*cms.CMSManageUserReply, 
 
 // NewDCC creates a new dcc proposal.
 func (c *Client) NewDCC(nd cms.NewDCC) (*cms.NewDCCReply, error) {
-	responseBody, err := c.makeRequest("POST", cms.RouteNewDCC,
-		nd)
+	responseBody, err := c.makeRequest(http.MethodPost,
+		cms.APIRoute, cms.RouteNewDCC, nd)
 	if err != nil {
 		return nil, err
 	}
@@ -1799,8 +1867,8 @@ func (c *Client) NewDCC(nd cms.NewDCC) (*cms.NewDCCReply, error) {
 
 // SupportOpposeDCC issues support for a given DCC proposal.
 func (c *Client) SupportOpposeDCC(sd cms.SupportOpposeDCC) (*cms.SupportOpposeDCCReply, error) {
-	responseBody, err := c.makeRequest("POST", cms.RouteSupportOpposeDCC,
-		sd)
+	responseBody, err := c.makeRequest(http.MethodPost,
+		cms.APIRoute, cms.RouteSupportOpposeDCC, sd)
 	if err != nil {
 		return nil, err
 	}
@@ -1822,13 +1890,14 @@ func (c *Client) SupportOpposeDCC(sd cms.SupportOpposeDCC) (*cms.SupportOpposeDC
 }
 
 // NewDCCComment submits a new dcc comment for the logged in user.
-func (c *Client) NewDCCComment(nc *v1.NewComment) (*v1.NewCommentReply, error) {
-	responseBody, err := c.makeRequest("POST", cms.RouteNewCommentDCC, nc)
+func (c *Client) NewDCCComment(nc *www.NewComment) (*www.NewCommentReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost,
+		cms.APIRoute, cms.RouteNewCommentDCC, nc)
 	if err != nil {
 		return nil, err
 	}
 
-	var ncr v1.NewCommentReply
+	var ncr www.NewCommentReply
 	err = json.Unmarshal(responseBody, &ncr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal NewDCCCommentReply: %v", err)
@@ -1845,14 +1914,14 @@ func (c *Client) NewDCCComment(nc *v1.NewComment) (*v1.NewCommentReply, error) {
 }
 
 // DCCComments retrieves the comments for the specified proposal.
-func (c *Client) DCCComments(token string) (*v1.GetCommentsReply, error) {
-	responseBody, err := c.makeRequest("GET", "/dcc/"+token+"/comments",
-		nil)
+func (c *Client) DCCComments(token string) (*www.GetCommentsReply, error) {
+	route := "/dcc/" + token + "/comments"
+	responseBody, err := c.makeRequest(http.MethodGet, cms.APIRoute, route, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var gcr v1.GetCommentsReply
+	var gcr www.GetCommentsReply
 	err = json.Unmarshal(responseBody, &gcr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal DCCCommentsReply: %v", err)
@@ -1870,7 +1939,8 @@ func (c *Client) DCCComments(token string) (*v1.GetCommentsReply, error) {
 
 // DCCDetails retrieves the specified dcc.
 func (c *Client) DCCDetails(token string) (*cms.DCCDetailsReply, error) {
-	responseBody, err := c.makeRequest("GET", "/dcc/"+token, nil)
+	route := "/dcc/" + token
+	responseBody, err := c.makeRequest(http.MethodGet, cms.APIRoute, route, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1894,7 +1964,8 @@ func (c *Client) DCCDetails(token string) (*cms.DCCDetailsReply, error) {
 // GetDCCss retrieves invoices base on possible field set in the request
 // month/year and/or status
 func (c *Client) GetDCCs(gd *cms.GetDCCs) (*cms.GetDCCsReply, error) {
-	responseBody, err := c.makeRequest("POST", cms.RouteGetDCCs, gd)
+	responseBody, err := c.makeRequest(http.MethodPost,
+		cms.APIRoute, cms.RouteGetDCCs, gd)
 	if err != nil {
 		return nil, err
 	}
@@ -1918,7 +1989,7 @@ func (c *Client) GetDCCs(gd *cms.GetDCCs) (*cms.GetDCCsReply, error) {
 // SetDCCStatus issues an status update for a given DCC proposal.
 func (c *Client) SetDCCStatus(sd *cms.SetDCCStatus) (*cms.SetDCCStatusReply, error) {
 	route := "/dcc/" + sd.Token + "/status"
-	responseBody, err := c.makeRequest("POST", route, sd)
+	responseBody, err := c.makeRequest(http.MethodPost, cms.APIRoute, route, sd)
 	if err != nil {
 		return nil, err
 	}
@@ -1941,7 +2012,8 @@ func (c *Client) SetDCCStatus(sd *cms.SetDCCStatus) (*cms.SetDCCStatusReply, err
 
 // UserSubContractors retrieves the subcontractors that are linked to the requesting user
 func (c *Client) UserSubContractors(usc *cms.UserSubContractors) (*cms.UserSubContractorsReply, error) {
-	responseBody, err := c.makeRequest("GET", cms.RouteUserSubContractors, usc)
+	responseBody, err := c.makeRequest(http.MethodGet,
+		cms.APIRoute, cms.RouteUserSubContractors, usc)
 	if err != nil {
 		return nil, err
 	}

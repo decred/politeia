@@ -177,10 +177,11 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 		})
 }
 
-// addRoute sets up a handler for a specific method+route. If methos is not
-// specified it adds a websocket.
-func (p *politeiawww) addRoute(method string, route string, handler http.HandlerFunc, perm permission) {
-	fullRoute := www.PoliteiaWWWAPIRoute + route
+// addRoute sets up a handler for a specific method+route. If method is not
+// specified it adds a websocket. The routeVersion should be in the format
+// "/v1".
+func (p *politeiawww) addRoute(method string, routeVersion string, route string, handler http.HandlerFunc, perm permission) {
+	fullRoute := routeVersion + route
 
 	switch perm {
 	case permissionAdmin:

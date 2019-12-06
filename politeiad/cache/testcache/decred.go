@@ -5,6 +5,8 @@
 package testcache
 
 import (
+	"encoding/base64"
+
 	"github.com/decred/politeia/decredplugin"
 	decred "github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiad/cache"
@@ -58,7 +60,7 @@ func (c *testcache) authorizeVote(cmdPayload, replyPayload string) (string, erro
 }
 
 func (c *testcache) startVote(cmdPayload, replyPayload string) (string, error) {
-	sv, err := decred.DecodeStartVote([]byte(cmdPayload))
+	sv, err := decred.DecodeStartVoteV2([]byte(cmdPayload))
 	if err != nil {
 		return "", err
 	}
@@ -99,10 +101,19 @@ func (c *testcache) voteDetails(payload string) (string, error) {
 		c.authorizeVotes[vd.Token] = make(map[string]decred.AuthorizeVote)
 	}
 
+	sv := c.startVotes[vd.Token]
+	svb, err := decredplugin.EncodeStartVoteV2(sv)
+	if err != nil {
+		return "", err
+	}
+
 	vdb, err := decred.EncodeVoteDetailsReply(
 		decred.VoteDetailsReply{
-			AuthorizeVote:  c.authorizeVotes[vd.Token][r.Version],
-			StartVote:      c.startVotes[vd.Token],
+			AuthorizeVote: c.authorizeVotes[vd.Token][r.Version],
+			StartVote: decredplugin.StartVote{
+				Version: sv.Version,
+				Payload: base64.StdEncoding.EncodeToString(svb),
+			},
 			StartVoteReply: c.startVoteReplies[vd.Token],
 		})
 	if err != nil {

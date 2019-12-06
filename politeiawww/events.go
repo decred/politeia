@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	www2 "github.com/decred/politeia/politeiawww/api/www/v2"
 	"github.com/decred/politeia/politeiawww/user"
 )
 
@@ -52,7 +53,7 @@ type EventDataProposalEdited struct {
 
 type EventDataProposalVoteStarted struct {
 	AdminUser *user.User
-	StartVote *www.StartVote
+	StartVote *www2.StartVote
 }
 
 type EventDataProposalVoteAuthorized struct {

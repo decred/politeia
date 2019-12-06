@@ -172,17 +172,18 @@ func (VoteOption) TableName() string {
 // This is a decred plugin model.
 type StartVote struct {
 	Token               string       `gorm:"primary_key;size:64"` // Censorship token
-	Version             uint64       `gorm:"not null"`            // Version of files
+	Version             uint         `gorm:"not null"`            // StartVote version
+	Type                int          `gorm:"not null"`            // Vote type
 	Mask                uint64       `gorm:"not null"`            // Valid votebits
 	Duration            uint32       `gorm:"not null"`            // Duration in blocks
 	QuorumPercentage    uint32       `gorm:"not null"`            // Percent of eligible votes required for quorum
 	PassPercentage      uint32       `gorm:"not null"`            // Percent of total votes required to pass
 	Options             []VoteOption `gorm:"foreignkey:Token"`    // Vote option
 	PublicKey           string       `gorm:"not null;size:64"`    // Key used for signature
-	Signature           string       `gorm:"not null;size:128"`   // Signature of Votehash
-	StartBlockHeight    string       `gorm:"not null"`            // Block height
+	Signature           string       `gorm:"not null;size:128"`   // Signature (version dependent)
+	StartBlockHeight    uint32       `gorm:"not null"`            // Block height
 	StartBlockHash      string       `gorm:"not null"`            // Block hash
-	EndHeight           uint64       `gorm:"not null"`            // Height of vote end
+	EndHeight           uint32       `gorm:"not null"`            // Height of vote end
 	EligibleTickets     string       `gorm:"not null"`            // Valid voting tickets
 	EligibleTicketCount int          `gorm:"not null"`            // Number of eligible tickets
 }

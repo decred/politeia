@@ -62,7 +62,7 @@ func (p *TestPoliteiad) authorizeVote(payload string) (string, error) {
 }
 
 func (p *TestPoliteiad) startVote(payload string) (string, error) {
-	sv, err := decred.DecodeStartVote([]byte(payload))
+	sv, err := decred.DecodeStartVoteV1([]byte(payload))
 	if err != nil {
 		return "", err
 	}
