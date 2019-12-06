@@ -216,7 +216,7 @@ func (p *politeiawww) checkHistoricalPayments(payment *database.Payments) bool {
 
 // checkPayments checks to see if a given payment has been successfully paid.
 // It will return TRUE if paid, otherwise false.  It utilizes the util
-// FetchTxs which looks for transaction at a given address.
+// FetchTx which looks for transaction at a given address.
 func (p *politeiawww) checkPayments(payment *database.Payments, notifiedTx string) bool {
 	tx, err := util.FetchTx(payment.Address, notifiedTx)
 	if err != nil {
@@ -243,6 +243,7 @@ func (p *politeiawww) checkPayments(payment *database.Payments, notifiedTx strin
 	}
 	log.Debugf("Transaction %v with amount %v", tx.TxID, tx.Amount)
 	amountReceived += dcrutil.Amount(tx.Amount)
+
 	if payment.TxIDs == "" {
 		payment.TxIDs = tx.TxID
 	} else {
