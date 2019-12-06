@@ -512,7 +512,7 @@ func FetchTxsForAddressNotBefore(address string, notBefore int64) ([]TxDetails, 
 }
 
 // FetchTx fetches a given transaction based on the provided txid.
-func FetchTx(address, txid string) ([]TxDetails, error) {
+func FetchTx(address, txid string) (*TxDetails, error) {
 	// Get block explorer URLs
 	addr, err := dcrutil.DecodeAddress(address)
 	if err != nil {
@@ -530,15 +530,17 @@ func FetchTx(address, txid string) ([]TxDetails, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch from dcrdata: %v", err)
 	}
-	txs := make([]TxDetails, 0, len(primaryTxs))
 	for _, tx := range primaryTxs {
+		if strings.TrimSpace(tx.TxId) != strings.TrimSpace(txid) {
+			continue
+		}
 		txDetail, err := convertBETransactionToTxDetails(address, tx)
 		if err != nil {
 			return nil, fmt.Errorf("convertBETransactionToTxDetails: %v",
 				tx.TxId)
 		}
-		txs = append(txs, *txDetail)
+		return txDetail, nil
 	}
 
-	return txs, nil
+	return nil, nil
 }
