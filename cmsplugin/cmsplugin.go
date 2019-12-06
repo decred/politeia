@@ -4,26 +4,20 @@ import "encoding/json"
 
 // Plugin settings, kinda doesn;t go here but for now it is fine
 const (
-	Version               = "1"
-	ID                    = "cms"
-	CmdAuthorizeVote      = "dccauthorizevote"
-	CmdStartVote          = "dccstartvote"
-	CmdVoteDetails        = "dccvotedetails"
-	CmdVoteSummary        = "dccvotesummary"
-	CmdLoadVoteResults    = "loaddccvoteresults"
-	CmdBallot             = "dccballot"
-	CmdVotes              = "dccvotes"
-	CmdInventory          = "dccinventory"
+	Version            = "1"
+	ID                 = "cms"
+	CmdAuthorizeVote   = "dccauthorizevote"
+	CmdStartVote       = "dccstartvote"
+	CmdVoteDetails     = "dccvotedetails"
+	CmdVoteSummary     = "dccvotesummary"
+	CmdLoadVoteResults = "loaddccvoteresults"
+	CmdBallot          = "dccballot"
+	CmdVotes           = "dccvotes"
+	CmdInventory       = "dccinventory"
+
 	MDStreamAuthorizeVote = 1013 // Vote authorization by dcc author
 	MDStreamVoteBits      = 1014 // Vote bits and mask
 	MDStreamVoteSnapshot  = 1015 // Vote tickets and start/end parameters
-
-	VoteDurationMin = 2016 // Minimum vote duration (in blocks)
-	VoteDurationMax = 4032 // Maximum vote duration (in blocks)
-
-	// Authorize vote actions
-	AuthVoteActionAuthorize = "authorize" // Authorize a proposal vote
-	AuthVoteActionRevoke    = "revoke"    // Revoke a proposal vote authorization
 )
 
 // CastVote is a signed vote.
