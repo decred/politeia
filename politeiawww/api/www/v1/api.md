@@ -1424,8 +1424,20 @@ Reply:
 
 ### `Set proposal status`
 
-Set status of proposal to `PropStatusPublic`, `PropStatusCensored` or
-`PropStatusAbandoned`.  This call requires admin privileges.
+Update the [status](#proposal-status-codes) of a proposal.  This call requires
+admin privileges.
+
+Unvetted proposals can have their status updated to:  
+`PropStatusPublic`  
+`PropStatusCensored`
+
+Vetted proposals can have their status updated to:  
+`PropStatusAbandoned`
+
+A status change message detailing the reason for the status change is required
+for the following statuses:  
+`PropStatusCensored`  
+`PropStatusAbandoned`
 
 **Route:** `POST /v1/proposals/{token}/status`
 
@@ -1434,26 +1446,25 @@ Set status of proposal to `PropStatusPublic`, `PropStatusCensored` or
 | Parameter | Type | Description | Required |
 |-|-|-|-|
 | token | string | Token is the unique censorship token that identifies a specific proposal. | Yes |
-| proposalstatus | number | Status indicates the new status for the proposal. Valid statuses are: [PropStatusCensored](#PropStatusCensored), [PropStatusPublic](#PropStatusPublic), [PropStatusAbandoned](#PropStatusAbandoned). | Yes |
-| signature | string | Signature of token+string(status). | Yes |
-| publickey | string | Public key from the client side, sent to politeiawww for verification | Yes |
+| proposalstatus | [`proposal status`](#proposal-status-codes) | New proposal status.| Yes |
+| statuschangemessage | string |  Reason for status change. | No |
+| signature | string | Signature of (token + proposalstatus + statuschangemessage). | Yes |
+| publickey | string | Public key that corresponds to the signature. | Yes |
 
 **Results:**
 
 | Parameter | Type | Description |
 |-|-|-|
-| proposal | [`Proposal`](#proposal) | an entire proposal and it's content |
+| proposal | [`Proposal`](#proposal) | An entire proposal and it's contents. |
 
 On failure the call shall return `400 Bad Request` and one of the following
 error codes:
-- [`ErrorStatusNoPublicKey`](#ErrorStatusNoPublicKey)
+- [`ErrorStatusChangeMessageCannotBeBlank`](#ErrorStatusChangeMessageCannotBeBlank)
 - [`ErrorStatusInvalidSigningKey`](#ErrorStatusInvalidSigningKey)
 - [`ErrorStatusInvalidSignature`](#ErrorStatusInvalidSignature)
-- [`ErrorStatusChangeMessageCannotBeBlank`](#ErrorStatusChangeMessageCannotBeBlank)
 - [`ErrorStatusProposalNotFound`](#ErrorStatusProposalNotFound)
 - [`ErrorStatusReviewerAdminEqualsAuthor`](#ErrorStatusReviewerAdminEqualsAuthor)
 - [`ErrorStatusInvalidPropStatusTransition`](#ErrorStatusInvalidPropStatusTransition)
-- [`ErrorStatusWrongVoteStatus`](#ErrorStatusWrongVoteStatus)
 
 **Example**
 
@@ -2683,7 +2694,7 @@ Reply:
 }
 ```
 
-### Error codes
+### `Error codes`
 
 | Status | Value | Description |
 |-|-|-|
@@ -2753,7 +2764,7 @@ Reply:
 | <a name="ErrorStatusCommentIsCensored">ErrorStatusCommentIsCensored</a> | 62 | Comment is censored. |
 
 
-### Proposal status codes
+### `Proposal status codes`
 
 | Status | Value | Description |
 |-|-|-|
@@ -2765,7 +2776,7 @@ Reply:
 | <a name="PropStatusUnreviewedChanges">PropStatusUnreviewedChanges</a> | 5 | The proposal has not been rewieved by an admin yet and has been edited by the author. |
 | <a name="PropStatusAbandoned">PropStatusAbandoned</a> | 6 | The proposal is public and has been deemed abandoned by an admin. |
 
-### User edit actions
+### `User edit actions`
 
 | Status | Value | Description |
 |-|-|-|
@@ -2805,7 +2816,7 @@ Reply:
 | proposalcredits | uint64 | The number of available proposal credits the user has. |
 | emailnotifications | uint64 | A flag storing the user's preferences for email notifications. Individual notification preferences are stored in bits of the number, and are [documented below](#emailnotifications). |
 
-### Email notifications
+### `Email notifications`
 
 These are the available email notifications that can be sent.
 

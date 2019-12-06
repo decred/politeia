@@ -1136,13 +1136,15 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 
 	// Create change record
 	newStatus := convertPropStatusFromWWW(sps.ProposalStatus)
-	blob, err := json.Marshal(mdstream.RecordStatusChange{
-		Version:             mdstream.VersionRecordStatusChange,
-		Timestamp:           time.Now().Unix(),
-		NewStatus:           newStatus,
-		AdminPubKey:         u.PublicKey(),
-		StatusChangeMessage: sps.StatusChangeMessage,
-	})
+	blob, err := mdstream.EncodeRecordStatusChangeV2(
+		mdstream.RecordStatusChangeV2{
+			Version:             mdstream.VersionRecordStatusChange,
+			Timestamp:           time.Now().Unix(),
+			NewStatus:           newStatus,
+			Signature:           sps.Signature,
+			AdminPubKey:         u.PublicKey(),
+			StatusChangeMessage: sps.StatusChangeMessage,
+		})
 	if err != nil {
 		return nil, err
 	}
