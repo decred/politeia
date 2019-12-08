@@ -640,7 +640,7 @@ done:
 
 	// Shutdown all dcrdata websockets
 	if p.wsDcrdata != nil {
-		p.wsDcrdata.client.Stop()
+		p.wsDcrdata.Close()
 	}
 
 	return nil

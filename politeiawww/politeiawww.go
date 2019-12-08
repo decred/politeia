@@ -881,8 +881,9 @@ func (p *politeiawww) getBestBlock() (uint64, error) {
 	bb := p.bestBlock
 	p.bbMtx.RUnlock()
 
-	// the cached best block will equal 0 if no messages have been received
-	// since the startup of the service or since reconnection to wsDcrdata.
+	// the cached best block will equal 0 if there is no active websocket
+	// connection to dcrdata, or if no new block messages have been received
+	// since a connection was established.
 	if bb == 0 {
 		return p.getBestBlockDecredPlugin()
 	}
@@ -894,13 +895,13 @@ func (p *politeiawww) getBestBlock() (uint64, error) {
 // and making necessary changes to the required changes to the politeiawww
 // state so that the service continues to function properly during and after
 // the reconnection.
-func (p *politeiawww) resetPiDcrdataWSSubs() {
+func (p *politeiawww) resetPiDcrdataWSSubs() error {
 	// The cached best block is set to zero so that in the time between
 	// reconnection and receiving the first new block message, instead of
 	// using the old cached value, politeiad is queried for the best block.
 	p.updateBestBlock(0)
 
-	p.wsDcrdata.reconnect()
+	return p.wsDcrdata.reconnect()
 }
 
 // setupPiDcrdataWSSubs subscribes and listens to websocket messages from
@@ -912,11 +913,17 @@ func (p *politeiawww) setupPiDcrdataWSSubs() error {
 	}
 
 	go func() {
+	listenerLoop:
 		for {
-			msg, ok := <-p.wsDcrdata.client.Receive()
+			msg, ok := <-p.wsDcrdata.Receive()
 			if !ok {
 				log.Errorf("Error receiving msg from dcrdata, msg: %v", msg)
-				p.resetPiDcrdataWSSubs()
+				err = p.resetPiDcrdataWSSubs()
+				if err != nil {
+					log.Errorf("Unable to reconnect to dcrdata, no longer " +
+						"listening.")
+					break listenerLoop
+				}
 				continue
 			}
 
@@ -927,7 +934,17 @@ func (p *politeiawww) setupPiDcrdataWSSubs() error {
 				p.updateBestBlock(uint64(m.Block.Height))
 			case *pstypes.HangUp:
 				log.Infof("Dcrdata has hung up. Will reconnect...")
-				p.resetPiDcrdataWSSubs()
+				err = p.resetPiDcrdataWSSubs()
+				if err != nil {
+					log.Errorf("Unable to reconnect to dcrdata, no longer " +
+						"listening.")
+					break listenerLoop
+				}
+				log.Infof("Successfully reconnected to dcrdata")
+			case wsDcrdataShutdown:
+				log.Infof("wsDcrdata is shutting down.")
+				p.updateBestBlock(0)
+				break listenerLoop
 			default:
 				log.Errorf("wsDcrdata message of type %v unhandled. %v",
 					msg.EventId, m)
