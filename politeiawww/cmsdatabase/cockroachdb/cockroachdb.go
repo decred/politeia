@@ -18,7 +18,7 @@ import (
 
 const (
 	cacheID    = "cms"
-	cmsVersion = "1"
+	cmsVersion = "2"
 
 	// Database table names
 	tableNameVersions      = "versions"
