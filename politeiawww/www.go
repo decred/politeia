@@ -550,7 +550,6 @@ func _main() error {
 							break
 						}
 						dbInvs = append(dbInvs, *i)
-						break
 					case mdstream.IDDCCGeneral:
 						d, err := convertCacheToDatabaseDCC(r)
 						if err != nil {
