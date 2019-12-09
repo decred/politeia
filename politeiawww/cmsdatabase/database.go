@@ -12,6 +12,16 @@ import (
 )
 
 var (
+	// ErrNoVersionRecord is emitted when no version record exists.
+	ErrNoVersionRecord = errors.New("no version record")
+
+	// ErrWrongVersion is emitted when the version record does not
+	// match the implementation version.
+	ErrWrongVersion = errors.New("wrong version")
+
+	// ErrShutdown is emitted when the cache is shutting down.
+	ErrShutdown = errors.New("cache is shutting down")
+
 	// ErrUserNotFound indicates that a user name was not found in the
 	// database.
 	ErrUserNotFound = errors.New("user not found")
@@ -63,8 +73,8 @@ type Database interface {
 	// Setup the invoice tables
 	Setup() error
 
-	// Build the invoice tables from scratch (from inventory of d)
-	Build(string) error
+	// Build the relevant tables of cmsdb from scratch
+	Build([]Invoice, []DCC) error
 
 	// Close performs cleanup of the backend.
 	Close() error
