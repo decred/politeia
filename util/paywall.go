@@ -541,6 +541,5 @@ func FetchTx(address, txid string) (*TxDetails, error) {
 		}
 		return txDetail, nil
 	}
-
 	return nil, nil
 }
