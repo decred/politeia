@@ -221,7 +221,7 @@ func _main() error {
 
 	paid, err := cmsDB.PaymentsByStatus(uint(cms.PaymentStatusPaid))
 	if err != nil {
-		return fmt.Errorf("payments by status", err)
+		return fmt.Errorf("payments by status: %v", err)
 	}
 	for _, payment := range paid {
 		invoice, err := cacheDB.Record(payment.InvoiceToken)
