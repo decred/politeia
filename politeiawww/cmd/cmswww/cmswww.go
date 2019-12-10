@@ -225,7 +225,11 @@ func validateParseCSV(data []byte) (*cms.InvoiceInput, error) {
 			return invInput,
 				fmt.Errorf("invalid cost entered on line: %v", i)
 		}
-
+		rate, err := strconv.Atoi(lineContents[8])
+		if err != nil {
+			return invInput,
+				fmt.Errorf("invalid subrate hours entered on line: %v", i)
+		}
 		lineItemType, ok := LineItemType[strings.ToLower(lineContents[0])]
 		if !ok {
 			return invInput,
@@ -238,6 +242,7 @@ func validateParseCSV(data []byte) (*cms.InvoiceInput, error) {
 		lineItem.Description = lineContents[3]
 		lineItem.ProposalToken = lineContents[4]
 		lineItem.SubUserID = lineContents[7]
+		lineItem.SubRate = uint(rate * 100)
 		lineItem.Labor = uint(hours * 60)
 		lineItem.Expenses = uint(cost * 100)
 		lineItems = append(lineItems, lineItem)
