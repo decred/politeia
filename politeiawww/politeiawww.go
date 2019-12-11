@@ -755,7 +755,7 @@ func (p *politeiawww) handleWebsocketRead(wc *wsContext) {
 	defer log.Tracef("handleWebsocketRead exit %v", wc)
 
 	for {
-		cmd, id, payload, err := util.WSRead(wc.conn)
+		cmd, id, payload, err := wsRead(wc.conn)
 		if err != nil {
 			log.Tracef("handleWebsocketRead read %v %v", wc, err)
 			close(wc.done) // force handlers to quit
@@ -780,7 +780,7 @@ func (p *politeiawww) handleWebsocketRead(wc *wsContext) {
 			subscriptions := make(map[string]struct{})
 			var errors []string
 			for _, v := range subscribe.RPCS {
-				if !util.ValidSubscription(v) {
+				if !validSubscription(v) {
 					log.Tracef("invalid subscription %v %v",
 						wc, v)
 					errors = append(errors,
@@ -788,7 +788,7 @@ func (p *politeiawww) handleWebsocketRead(wc *wsContext) {
 							"subscription %v", v))
 					continue
 				}
-				if util.SubsciptionReqAuth(v) &&
+				if subsciptionReqAuth(v) &&
 					!wc.isAuthenticated() {
 					log.Tracef("requires auth %v %v", wc, v)
 					errors = append(errors,
@@ -850,7 +850,7 @@ func (p *politeiawww) handleWebsocketWrite(wc *wsContext) {
 			payload = www.WSPing{Timestamp: time.Now().Unix()}
 		}
 
-		err := util.WSWrite(wc.conn, cmd, id, payload)
+		err := wsWrite(wc.conn, cmd, id, payload)
 		if err != nil {
 			log.Tracef("handleWebsocketWrite write %v %v", wc, err)
 			return

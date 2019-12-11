@@ -2,7 +2,7 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package util
+package main
 
 import (
 	"encoding/json"
@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	ErrInvalidWSCommand = errors.New("invalid webssocket command")
+	errInvalidWSCommand = errors.New("invalid webssocket command")
 )
 
 func validCommand(cmd string) bool {
@@ -27,7 +27,7 @@ func validCommand(cmd string) bool {
 	return true
 }
 
-func ValidSubscription(cmd string) bool {
+func validSubscription(cmd string) bool {
 	switch cmd {
 	case v1.WSCPing:
 	default:
@@ -36,7 +36,7 @@ func ValidSubscription(cmd string) bool {
 	return true
 }
 
-func SubsciptionReqAuth(cmd string) bool {
+func subsciptionReqAuth(cmd string) bool {
 	switch cmd {
 	case v1.WSCPing:
 	default:
@@ -45,9 +45,9 @@ func SubsciptionReqAuth(cmd string) bool {
 	return false
 }
 
-// WSJSON returns the JSON representation of a wire command. This function must
+// wsJSON returns the JSON representation of a wire command. This function must
 // always match WSWrite.
-func WSJSON(cmd, id string, payload interface{}) ([][]byte, error) {
+func wsJSON(cmd, id string, payload interface{}) ([][]byte, error) {
 	j1, err := json.Marshal(v1.WSHeader{Command: cmd, ID: id})
 	if err != nil {
 		return nil, err
@@ -62,9 +62,9 @@ func WSJSON(cmd, id string, payload interface{}) ([][]byte, error) {
 	return r, nil
 }
 
-func WSWrite(c *websocket.Conn, cmd, id string, payload interface{}) error {
+func wsWrite(c *websocket.Conn, cmd, id string, payload interface{}) error {
 	if !validCommand(cmd) {
-		return ErrInvalidWSCommand
+		return errInvalidWSCommand
 	}
 	err := c.WriteJSON(v1.WSHeader{Command: cmd, ID: id})
 	if err != nil {
@@ -73,7 +73,7 @@ func WSWrite(c *websocket.Conn, cmd, id string, payload interface{}) error {
 	return c.WriteJSON(payload)
 }
 
-func WSRead(c *websocket.Conn) (string, string, interface{}, error) {
+func wsRead(c *websocket.Conn) (string, string, interface{}, error) {
 	var header v1.WSHeader
 	err := c.ReadJSON(&header)
 	if err != nil {
@@ -91,7 +91,7 @@ func WSRead(c *websocket.Conn) (string, string, interface{}, error) {
 		err = c.ReadJSON(&ping)
 		payload = ping
 	default:
-		return "", "", nil, ErrInvalidWSCommand
+		return "", "", nil, errInvalidWSCommand
 	}
 
 	return header.Command, header.ID, payload, err

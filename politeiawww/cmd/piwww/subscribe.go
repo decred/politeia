@@ -15,7 +15,6 @@ import (
 
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
-	"github.com/decred/politeia/util"
 	"github.com/gorilla/websocket"
 	"golang.org/x/net/publicsuffix"
 )
@@ -23,6 +22,28 @@ import (
 // SubscribeCmd opens a websocket connect to politeiawww.
 type SubscribeCmd struct {
 	Close bool `long:"close" optional:"true"` // Do not keep connetion alive
+}
+
+func validCommand(cmd string) bool {
+	switch cmd {
+	case v1.WSCError:
+	case v1.WSCPing:
+	case v1.WSCSubscribe:
+	default:
+		return false
+	}
+	return true
+}
+
+func wsWrite(c *websocket.Conn, cmd, id string, payload interface{}) error {
+	if !validCommand(cmd) {
+		return fmt.Errorf("invalid websocket command")
+	}
+	err := c.WriteJSON(v1.WSHeader{Command: cmd, ID: id})
+	if err != nil {
+		return err
+	}
+	return c.WriteJSON(payload)
 }
 
 // Execute executes the subscribe command.
@@ -81,7 +102,7 @@ func (cmd *SubscribeCmd) Execute(args []string) error {
 	}
 
 	// Send subscribe command
-	err = util.WSWrite(ws, v1.WSCSubscribe, "1", v1.WSSubscribe{
+	err = wsWrite(ws, v1.WSCSubscribe, "1", v1.WSSubscribe{
 		RPCS: subscribe,
 	})
 	if err != nil {
