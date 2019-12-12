@@ -24,6 +24,7 @@ import (
 	cachedb "github.com/decred/politeia/politeiad/cache/cockroachdb"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	database "github.com/decred/politeia/politeiawww/cmsdatabase"
 	cmsdb "github.com/decred/politeia/politeiawww/cmsdatabase/cockroachdb"
 	"github.com/decred/politeia/politeiawww/sharedconfig"
 	"github.com/decred/politeia/util"
@@ -186,13 +187,13 @@ func _main() error {
 	rpcHost := util.NormalizeAddress(*rpcHost, rpcPort)
 	u, err := url.Parse("https://" + rpcHost)
 	if err != nil {
-		return err
+		return fmt.Errorf("url parse: %v", err)
 	}
 	rpcHost = u.String()
 
 	dIdentity, err := identity.LoadPublicIdentity(*dIdentityFile)
 	if err != nil {
-		return err
+		return fmt.Errorf("load public identity: %v", err)
 	}
 
 	net := filepath.Base(dataDir)
@@ -213,16 +214,14 @@ func _main() error {
 	net = filepath.Base(dataDir)
 	cmsDB, err := cmsdb.New(*dbHost, net, dbRootCert, dbCert, dbKey)
 	if err != nil {
-		return err
-	}
-	err = cmsDB.Setup()
-	if err != nil {
-		return fmt.Errorf("cmsdb setup: %v", err)
+		if err != database.ErrNoVersionRecord && err != database.ErrWrongVersion {
+			return fmt.Errorf("cmsdb new: %v", err)
+		}
 	}
 
 	paid, err := cmsDB.PaymentsByStatus(uint(cms.PaymentStatusPaid))
 	if err != nil {
-		return err
+		return fmt.Errorf("payments by status: %v", err)
 	}
 	for _, payment := range paid {
 		invoice, err := cacheDB.Record(payment.InvoiceToken)
@@ -258,11 +257,11 @@ func _main() error {
 				for i, txid := range txs {
 					tx, err := util.FetchTx(payment.Address, txid)
 					if err != nil {
-						fmt.Printf("error fetching txid %v %v", txid, err)
+						fmt.Printf("error fetching txid %v %v\n", txid, err)
 						break
 					}
 					if tx == nil {
-						fmt.Printf("cannot find tx %v", txid)
+						fmt.Printf("cannot find tx %v\n", txid)
 						break
 					}
 
