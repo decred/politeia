@@ -549,6 +549,13 @@ func _main() error {
 							log.Errorf("convertCacheToDatabaseInvoice: %v", err)
 							break
 						}
+						u, err := p.db.UserGetByPubKey(i.PublicKey)
+						if err != nil {
+							log.Errorf("usergetbypubkey: %v %v", err, i.PublicKey)
+							break
+						}
+						i.UserID = u.ID.String()
+						i.Username = u.Username
 						dbInvs = append(dbInvs, *i)
 					case mdstream.IDDCCGeneral:
 						d, err := convertCacheToDatabaseDCC(r)
