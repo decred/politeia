@@ -5,12 +5,15 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -30,6 +33,10 @@ import (
 const (
 	// indexFile contains the file name of the index file
 	indexFile = "index.md"
+)
+
+var (
+	validProposalName = regexp.MustCompile(createProposalNameRegex())
 )
 
 // proposalStats is used to provide a summary of the number of proposals
@@ -57,6 +64,54 @@ type VoteDetails struct {
 	AuthorizeVoteReply www.AuthorizeVoteReply // Authorize vote reply
 	StartVote          www.StartVote          // Start vote
 	StartVoteReply     www.StartVoteReply     // Start vote reply
+}
+
+// parseProposalName returns the proposal name given the proposal index file
+// payload.
+func parseProposalName(payload string) (string, error) {
+	// decode payload (base64)
+	rawPayload, err := base64.StdEncoding.DecodeString(payload)
+	if err != nil {
+		return "", err
+	}
+	// @rgeraldes - used reader instead of scanner
+	// due to the size of the input (scanner > token too long)
+	// get the first line from the payload
+	reader := bufio.NewReader(bytes.NewReader(rawPayload))
+	proposalName, _, err := reader.ReadLine()
+	if err != nil {
+		return "", err
+	}
+
+	return string(proposalName), nil
+}
+
+// isValidProposalName returns whether the provided string is a valid proposal
+// name.
+func isValidProposalName(str string) bool {
+	return validProposalName.MatchString(str)
+}
+
+// createProposalNameRegex returns a regex string for matching the proposal
+// name.
+func createProposalNameRegex() string {
+	var validProposalNameBuffer bytes.Buffer
+	validProposalNameBuffer.WriteString("^[")
+
+	for _, supportedChar := range www.PolicyProposalNameSupportedChars {
+		if len(supportedChar) > 1 {
+			validProposalNameBuffer.WriteString(supportedChar)
+		} else {
+			validProposalNameBuffer.WriteString(`\` + supportedChar)
+		}
+	}
+	minNameLength := strconv.Itoa(www.PolicyMinProposalNameLength)
+	maxNameLength := strconv.Itoa(www.PolicyMaxProposalNameLength)
+	validProposalNameBuffer.WriteString("]{")
+	validProposalNameBuffer.WriteString(minNameLength + ",")
+	validProposalNameBuffer.WriteString(maxNameLength + "}$")
+
+	return validProposalNameBuffer.String()
 }
 
 // tokenIsValid returns whether the provided string is a valid politeiad
@@ -237,10 +292,10 @@ func validateProposal(np www.NewProposal, u *user.User) error {
 	if err != nil {
 		return err
 	}
-	if !util.IsValidProposalName(name) {
+	if !isValidProposalName(name) {
 		return www.UserError{
 			ErrorCode:    www.ErrorStatusProposalInvalidTitle,
-			ErrorContext: []string{util.CreateProposalNameRegex()},
+			ErrorContext: []string{createProposalNameRegex()},
 		}
 	}
 
@@ -320,7 +375,7 @@ func voteStatusFromVoteSummary(r decredplugin.VoteSummaryReply, bestBlock uint64
 func getProposalName(files []www.File) (string, error) {
 	for _, file := range files {
 		if file.Name == indexFile {
-			return util.GetProposalName(file.Payload)
+			return parseProposalName(file.Payload)
 		}
 	}
 	return "", nil

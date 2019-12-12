@@ -281,7 +281,7 @@ func newProposalRecord(t *testing.T, u *user.User, id *identity.FullIdentity, s 
 	m := merkleRoot(t, files)
 	sig := id.SignMessage([]byte(m))
 
-	title, err := util.GetProposalName(f.Payload)
+	title, err := parseProposalName(f.Payload)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -369,6 +369,111 @@ func convertPropToPD(t *testing.T, p www.ProposalRecord) pd.Record {
 		Metadata:         mdStreams,
 		CensorshipRecord: convertPropCensorFromWWW(p.CensorshipRecord),
 		Files:            convertPropFilesFromWWW(p.Files),
+	}
+}
+
+func TestParseProposalName(t *testing.T) {
+	// Setup tests
+	tests := []struct {
+		payload string // Base64 proposal payload
+		want    string // Expected output name
+	}{
+		{
+			base64.StdEncoding.EncodeToString([]byte("this is-the-title")),
+			"this is-the-title",
+		},
+		{
+			base64.StdEncoding.EncodeToString([]byte("this-is-the title\nbody")),
+			"this-is-the title",
+		},
+		// No title
+		{
+			base64.StdEncoding.EncodeToString([]byte("\n\nbody")),
+			"",
+		},
+	}
+
+	// Run tests
+	for _, test := range tests {
+		name, err := parseProposalName(test.payload)
+		if err != nil {
+			t.Errorf("got error %v, want nil", err)
+		}
+		if name != test.want {
+			t.Errorf("got %v, want %v", name, test.want)
+		}
+	}
+}
+
+func TestIsValidProposalName(t *testing.T) {
+	tests := []struct {
+		name string // @rgeraldes - valid input is a string without new lines
+		want bool
+	}{
+		// empty test
+		{
+			"",
+			false,
+		},
+		// 7 characters
+		{
+			"abcdefg",
+			false,
+		},
+
+		// 81 characters
+		{
+			"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			false,
+		},
+		// 8 characters
+		{
+			"12345678",
+			true,
+		},
+		{
+			"valid title",
+			true,
+		},
+		{
+			" - title: is valid; title. !.,  ",
+			true,
+		},
+		{
+			" - title: is valid; title.   ",
+			true,
+		},
+		{
+			"\n\n#This-is MY tittle###",
+			false,
+		},
+		{
+			"{this-is-the-title}",
+			false,
+		},
+		{
+			"\t<this- is-the title>",
+			false,
+		},
+		{
+			"{this   -is-the-title}   ",
+			false,
+		},
+		{
+			"###this is the title***",
+			false,
+		},
+		{
+			"###this is the title@+",
+			true,
+		},
+	}
+
+	for _, test := range tests {
+		isValid := isValidProposalName(test.name)
+		if isValid != test.want {
+			t.Errorf("got %v, want %v", isValid, test.want)
+		}
 	}
 }
 
