@@ -1,12 +1,9 @@
 package v1
 
 import (
-	"encoding/hex"
 	"fmt"
 
 	"github.com/decred/politeia/decredplugin"
-	"github.com/decred/politeia/politeiad/api/v1/identity"
-	"github.com/decred/politeia/util"
 )
 
 type ErrorStatusT int
@@ -904,29 +901,9 @@ type AuthorizeVoteReply struct {
 
 // StartVote starts the voting process for a proposal.
 type StartVote struct {
-	PublicKey string `json:"publickey"` // Key used for signature
+	PublicKey string `json:"publickey"` // Key used for signature.
 	Vote      Vote   `json:"vote"`      // Vote
-	Signature string `json:"signature"` // Signature of token
-}
-
-// VerifySignature verifies that the StartVote signature is correct.
-func (s *StartVote) VerifySignature() error {
-	sig, err := util.ConvertSignature(s.Signature)
-	if err != nil {
-		return err
-	}
-	b, err := hex.DecodeString(s.PublicKey)
-	if err != nil {
-		return err
-	}
-	pk, err := identity.PublicIdentityFromBytes(b)
-	if err != nil {
-		return err
-	}
-	if !pk.VerifyMessage([]byte(s.Vote.Token), sig) {
-		return fmt.Errorf("invalid signature")
-	}
-	return nil
+	Signature string `json:"signature"` // Signature of Votehash
 }
 
 // StartVoteReply returns the eligible ticket pool.
