@@ -31,6 +31,8 @@ var (
 	// event that has not yet been subscribed to.
 	errSubNotFound = errors.New("subscription not found")
 
+	// errShutdown is emitted when attempting to use wsDcrdata after it
+	// has already been shut down.
 	errShutdown = errors.New("ws connection is shut down")
 )
 
@@ -59,8 +61,8 @@ func (w *wsDcrdata) Receive() <-chan *client.ClientMessage {
 // shut down.
 type wsDcrdataShutdown struct{}
 
-// Close closes the dcrdata websocket client and lets listeners know that this is happening.
-func (w *wsDcrdata) Close() error {
+// close closes the dcrdata websocket client and lets listeners know that this is happening.
+func (w *wsDcrdata) close() error {
 	w.Lock()
 	defer w.Unlock()
 
