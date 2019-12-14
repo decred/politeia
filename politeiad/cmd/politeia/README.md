@@ -2,7 +2,7 @@
 
 Obtain politeiad identity:
 ```
-$ politeia  -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass identity
+$ politeia  -verbose -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass identity
 Key        : 8f627e9da14322626d7e81d789f7fcafd25f62235a95377f39cbc7293c4944ad
 Fingerprint: j2J+naFDImJtfoHXiff8r9JfYiNalTd/OcvHKTxJRK0=
 
@@ -12,7 +12,7 @@ Identity saved to: /home/marco/.politeia/identity.json
 
 Add a new record:
 ```
-$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass new 'metadata12:{"moo":"lala"}' 'metadata2:{"foo":"bar"}' a
+$ politeia -verbose -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass new 'metadata12:{"moo":"lala"}' 'metadata2:{"foo":"bar"}' a
 00: 22e88c7d6da9b73fbb515ed6a8f6d133c680527a799e3069ca7ce346d90649b2 a text/plain; charset=utf-8
 Record submitted
   Censorship record:
@@ -23,7 +23,7 @@ Record submitted
 
 Get unvetted record:
 ```
-$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass getunvetted 43c2d4a2c846c188ab0b49012ed17e5f2c16bd6e276cfbb42e30352dffb1743f
+$ politeia -verbose -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass getunvetted 43c2d4a2c846c188ab0b49012ed17e5f2c16bd6e276cfbb42e30352dffb1743f
 Unvetted record:
   Status     : censored
   Timestamp  : 2017-12-14 17:08:33 +0000 UTC
@@ -40,7 +40,7 @@ Unvetted record:
 
 Update an unvetted record:
 ```
-$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass updateunvetted 'appendmetadata12:{"foo":"bar"}' 'overwritemetadata2:{"12foo":"12bar"}' del:a add:b token:72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4
+$ politeia -verbose -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass updateunvetted 'appendmetadata12:{"foo":"bar"}' 'overwritemetadata2:{"12foo":"12bar"}' del:a add:b token:72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4
 Update record: 72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4
   Files add         : 00: 12a31b5e662dfa0a572e9fc523eb703f9708de5e2d53aba74f8ebcebbdb706f7 b text/plain; charset=utf-8
   Files delete      : a
@@ -50,21 +50,21 @@ Update record: 72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4
 
 Censor a record (and zap metadata stream 12):
 ```
-$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass setunvettedstatus censor 43c2d4a2c846c188ab0b49012ed17e5f2c16bd6e276cfbb42e30352dffb1743f 'overwritemetadata12:"zap"'
+$ politeia -verbose -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass setunvettedstatus censor 43c2d4a2c846c188ab0b49012ed17e5f2c16bd6e276cfbb42e30352dffb1743f 'overwritemetadata12:"zap"'
 Set record status:
   Status   : censored
 ```
 
 Publish a record:
 ```
-$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass setunvettedstatus publish 72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4               
+$ politeia -verbose -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass setunvettedstatus publish 72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4
 Set record status:
   Status   : public
 ```
 
 Get vetted record:
 ```
-$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass getvetted 72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4
+$ politeia -verbose -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass getvetted 72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4
 Vetted record:
   Status     : public
   Timestamp  : 2017-12-14 17:06:21 +0000 UTC
@@ -81,7 +81,7 @@ Vetted record:
 
 Update a vetted record:
 ```
-$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass updatevetted 'appendmetadata12:{"foo":"bar"}' 'overwritemetadata2:{"12foo":"12bar"}' del:a add:b token:72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4
+$ politeia -verbose -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass updatevetted 'appendmetadata12:{"foo":"bar"}' 'overwritemetadata2:{"12foo":"12bar"}' del:a add:b token:72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4
 Update record: 72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4
   Files add         : 00: 12a31b5e662dfa0a572e9fc523eb703f9708de5e2d53aba74f8ebcebbdb706f7 b text/plain; charset=utf-8
   Files delete      : a
@@ -91,7 +91,7 @@ Update record: 72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4
 
 Inventory all records:
 ```
-politeia  -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass inventory 1 1
+politeia  -verbose -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass inventory 1 1
 Vetted record:
   Status     : public
   Timestamp  : 2017-12-14 17:06:21 +0000 UTC

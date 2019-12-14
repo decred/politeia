@@ -47,7 +47,7 @@ var (
 		defaultIdentityFilename), "remote server identity file")
 	testnet     = flag.Bool("testnet", false, "Use testnet port")
 	printJson   = flag.Bool("json", false, "Print JSON")
-	verbose     = flag.Bool("v", false, "Verbose")
+	verbose     = flag.Bool("verbose", false, "Verbose")
 	rpcuser     = flag.String("rpcuser", "", "RPC user name for privileged calls")
 	rpcpass     = flag.String("rpcpass", "", "RPC password for privileged calls")
 	rpchost     = flag.String("rpchost", "", "RPC host")
