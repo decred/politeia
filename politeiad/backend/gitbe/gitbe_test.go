@@ -557,3 +557,23 @@ func TestUpdateReadme(t *testing.T) {
 		t.Fatalf("The only branch in the vetted repo should be master")
 	}
 }
+
+func TestRandomUniqueToken(t *testing.T) {
+	existingPrefixes := make([]string, 0, 256)
+
+	for i := 0; i < 256; i++ {
+		token, err := randomUniqueToken(existingPrefixes)
+		if err != nil {
+			t.Fatalf("Should be able to create 256 tokens with unique prefix"+
+				" of length 2, but only created %d.", i)
+		}
+		prefix := hex.EncodeToString(token)[0:2]
+		existingPrefixes = append(existingPrefixes, prefix)
+	}
+
+	_, err := randomUniqueToken(existingPrefixes)
+	if err == nil {
+		t.Fatalf("Should only be able to create 256 tokens with unique " +
+			"prefix of length 2, but was able to create 256")
+	}
+}

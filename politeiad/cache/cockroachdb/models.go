@@ -47,7 +47,7 @@ func (MetadataStream) TableName() string {
 
 // Record is an entire record and it's content.
 type Record struct {
-	Key         string `gorm:"primary_key"`       // Primary key (token+version)
+	Key         string `gorm:"primary_key"`       // Primary key (tokenPrefix+version)
 	Token       string `gorm:"not null;size:64"`  // Censorship token
 	Version     uint64 `gorm:"not null"`          // Version of files
 	Status      int    `gorm:"not null"`          // Current status

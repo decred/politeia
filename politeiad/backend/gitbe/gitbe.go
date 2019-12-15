@@ -1126,19 +1126,21 @@ func (g *gitBackEnd) _newRecord(id string, metadata []backend.MetadataStream, fa
 // anything of value.
 //
 // Function must be called with the lock held.
-func (g *gitBackEnd) newRecord(token string, metadata []backend.MetadataStream, fa []file) (*backend.RecordMetadata, error) {
-	log.Tracef("newRecord %v", token)
+func (g *gitBackEnd) newRecord(token []byte, metadata []backend.MetadataStream, fa []file) (*backend.RecordMetadata, error) {
+	id := hex.EncodeToString(token)
+
+	log.Tracef("newRecord %v", id)
 
 	// git checkout -b id
-	err := g.gitNewBranch(g.unvetted, token)
+	err := g.gitNewBranch(g.unvetted, id)
 	if err != nil {
 		return nil, err
 	}
 
-	rm, err2 := g._newRecord(token, metadata, fa)
+	rm, err2 := g._newRecord(id, metadata, fa)
 	if err2 != nil {
 		// Unwind and complain
-		err = g.gitUnwindBranch(g.unvetted, token)
+		err = g.gitUnwindBranch(g.unvetted, id)
 		if err != nil {
 			// We are in trouble and should consider a panic
 			log.Criticalf("newRecord: %v", err)
@@ -1155,23 +1157,90 @@ func (g *gitBackEnd) newRecord(token string, metadata []backend.MetadataStream, 
 	return rm, nil
 }
 
-func (g *gitBackEnd) existingTokenPrefixes() ([]string, error) {
-	vetted, unvetted, err := g.Inventory(0, 0, false, false)
+func (g *gitBackEnd) getVettedTokens() ([]string, error) {
+	files, err := ioutil.ReadDir(g.vetted)
 	if err != nil {
 		return nil, err
 	}
 
-	tokenPrefixes := make([]string, 0, len(vetted)+len(unvetted))
-	for _, record := range vetted {
-		tokenPrefixes = append(tokenPrefixes,
-			util.TokenToPrefix(record.RecordMetadata.Token))
-	}
-	for _, record := range unvetted {
-		tokenPrefixes = append(tokenPrefixes,
-			util.TokenToPrefix(record.RecordMetadata.Token))
+	vettedTokens := make([]string, 0, len(files))
+	for _, v := range files {
+		id := v.Name()
+		if !util.IsDigest(id) {
+			continue
+		}
+		vettedTokens = append(vettedTokens, id)
 	}
 
-	return tokenPrefixes, nil
+	return vettedTokens, nil
+}
+
+func (g *gitBackEnd) getUnvettedTokens() ([]string, error) {
+	branches, err := g.gitBranches(g.unvetted)
+	if err != nil {
+		return nil, err
+	}
+
+	unvettedTokens := make([]string, 0, len(branches))
+	for _, id := range branches {
+		if !util.IsDigest(id) {
+			continue
+		}
+		unvettedTokens = append(unvettedTokens, id)
+	}
+
+	return unvettedTokens, nil
+}
+
+// getAllTokens returns a slice of all vetted and unvetted tokens.
+func (g *gitBackEnd) getAllTokens() ([]string, error) {
+	vettedTokens, err := g.getVettedTokens()
+	if err != nil {
+		return nil, err
+	}
+
+	unvettedTokens, err := g.getUnvettedTokens()
+	if err != nil {
+		return nil, err
+	}
+
+	tokens := make([]string, 0, len(vettedTokens)+len(unvettedTokens))
+	tokens = append(tokens, util.TokensToPrefixes(vettedTokens)...)
+	tokens = append(tokens, util.TokensToPrefixes(unvettedTokens)...)
+	return tokens, nil
+}
+
+// isTokenUnique checks that the prefix of a token is not equal to any of
+// existingTokenPrefixes
+func isTokenUnique(token string, existingTokenPrefixes []string) bool {
+	unique := true
+	for _, existingTokenPrefix := range existingTokenPrefixes {
+		if token[0:len(existingTokenPrefix)] == existingTokenPrefix {
+			unique = false
+			break
+		}
+	}
+
+	return unique
+}
+
+// randomUniqueToken generates a new token of length pd.TokenSize which
+// does not have a prefix equal to any of tokenPrefixes.
+func randomUniqueToken(tokenPrefixes []string) ([]byte, error) {
+	TRIES := 1000
+	for i := 0; i < TRIES; i++ {
+		token, err := util.Random(pd.TokenSize)
+		if err != nil {
+			return nil, err
+		}
+
+		newToken := hex.EncodeToString(token)
+		if isTokenUnique(newToken, tokenPrefixes) {
+			return token, nil
+		}
+	}
+
+	return nil, fmt.Errorf("Failed to find unique token after %v tries", TRIES)
 }
 
 // New takes a record verifies it and drops it on disk in the unvetted
@@ -1186,13 +1255,12 @@ func (g *gitBackEnd) New(metadata []backend.MetadataStream, files []backend.File
 		return nil, err
 	}
 
-	// Create a censorship token.
-	tokenPrefixes, err := g.existingTokenPrefixes()
+	tokens, err := g.getAllTokens()
 	if err != nil {
 		return nil, err
 	}
-
-	token, err := util.RandomUniqueToken(tokenPrefixes, pd.TokenSize)
+	tokenPrefixes := util.TokensToPrefixes(tokens)
+	token, err := randomUniqueToken(tokenPrefixes)
 	if err != nil {
 		return nil, err
 	}
