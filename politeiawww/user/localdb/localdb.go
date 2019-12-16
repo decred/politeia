@@ -207,9 +207,11 @@ func (l *localdb) UserGetByPubKey(pubKey string) (*user.User, error) {
 	return nil, user.ErrUserNotFound
 }
 
-// UsersGetByPubKey, given a list of public keys, returns a map where the keys
-// are a public key and the value is a user record. Public keys can be any of
-// the public keys in the user's identity history.
+// UsersGetByPubKey returns a [pubkey]user.User map for the provided public
+// keys. Public keys can be any of the public keys in the user's identity
+// history. If a user is not found, the map will not include an entry for the
+// corresponding public key. It is the responsibility of the caller to ensure
+// results are returned for all of the provided public keys.
 //
 // UsersGetByPubKey satisfies the Database interface.
 func (l *localdb) UsersGetByPubKey(pubKeys []string) (map[string]user.User, error) {
@@ -222,13 +224,15 @@ func (l *localdb) UsersGetByPubKey(pubKeys []string) (map[string]user.User, erro
 		return nil, user.ErrShutdown
 	}
 
-	pubKeyMap := make(map[string]bool)
+	// Put provided pubkeys into a map
+	pk := make(map[string]struct{}, len(pubKeys))
 	for _, v := range pubKeys {
-		pubKeyMap[v] = true
+		pk[v] = struct{}{}
 	}
 
-	userMap := make(map[string]user.User)
-
+	// Iterate through all users checking if any identities
+	// (active or old) match any of the provided pubkeys.
+	users := make(map[string]user.User, len(pubKeys)) // [pubkey]User
 	iter := l.userdb.NewIterator(nil, nil)
 	for iter.Next() {
 		key := iter.Key()
@@ -241,8 +245,9 @@ func (l *localdb) UsersGetByPubKey(pubKeys []string) (map[string]user.User, erro
 			return nil, err
 		}
 		for _, v := range u.Identities {
-			if _, ok := pubKeyMap[v.String()]; ok {
-				userMap[v.String()] = *u
+			_, ok := pk[v.String()]
+			if ok {
+				users[v.String()] = *u
 			}
 		}
 	}
@@ -252,11 +257,7 @@ func (l *localdb) UsersGetByPubKey(pubKeys []string) (map[string]user.User, erro
 		return nil, iter.Error()
 	}
 
-	if len(userMap) != len(pubKeys) {
-		return nil, user.ErrUserNotFound
-	}
-
-	return userMap, nil
+	return users, nil
 }
 
 // UserGetById returns a user record given its id, if found in the database.

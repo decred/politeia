@@ -5,13 +5,15 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -19,6 +21,7 @@ import (
 
 	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/decredplugin"
+	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/cache"
@@ -30,32 +33,11 @@ import (
 const (
 	// indexFile contains the file name of the index file
 	indexFile = "index.md"
-
-	// mdStream* indicate the metadata stream used for various types
-	mdStreamGeneral = 0 // General information for this proposal
-	mdStreamChanges = 2 // Changes to record
-	// Note that 14 is in use by the decred plugin
-	// Note that 15 is in use by the decred plugin
-
-	VersionMDStreamChanges         = 1
-	BackendProposalMetadataVersion = 1
 )
 
-type MDStreamChanges struct {
-	Version             uint             `json:"version"`                       // Version of the struct
-	AdminPubKey         string           `json:"adminpubkey"`                   // Identity of the administrator
-	NewStatus           pd.RecordStatusT `json:"newstatus"`                     // NewStatus
-	StatusChangeMessage string           `json:"statuschangemessage,omitempty"` // Status change message
-	Timestamp           int64            `json:"timestamp"`                     // Timestamp of the change
-}
-
-type BackendProposalMetadata struct {
-	Version   uint64 `json:"version"`   // BackendProposalMetadata version
-	Timestamp int64  `json:"timestamp"` // Last update of proposal
-	Name      string `json:"name"`      // Generated proposal name
-	PublicKey string `json:"publickey"` // Key used for signature.
-	Signature string `json:"signature"` // Signature of merkle root
-}
+var (
+	validProposalName = regexp.MustCompile(createProposalNameRegex())
+)
 
 // proposalStats is used to provide a summary of the number of proposals
 // grouped by proposal status.
@@ -84,59 +66,52 @@ type VoteDetails struct {
 	StartVoteReply     www.StartVoteReply     // Start vote reply
 }
 
-// encodeBackendProposalMetadata encodes BackendProposalMetadata into a JSON
-// byte slice.
-func encodeBackendProposalMetadata(md BackendProposalMetadata) ([]byte, error) {
-	b, err := json.Marshal(md)
+// parseProposalName returns the proposal name given the proposal index file
+// payload.
+func parseProposalName(payload string) (string, error) {
+	// decode payload (base64)
+	rawPayload, err := base64.StdEncoding.DecodeString(payload)
 	if err != nil {
-		return nil, err
+		return "", err
+	}
+	// @rgeraldes - used reader instead of scanner
+	// due to the size of the input (scanner > token too long)
+	// get the first line from the payload
+	reader := bufio.NewReader(bytes.NewReader(rawPayload))
+	proposalName, _, err := reader.ReadLine()
+	if err != nil {
+		return "", err
 	}
 
-	return b, nil
+	return string(proposalName), nil
 }
 
-// decodeBackendProposalMetadata decodes a JSON byte slice into a
-// BackendProposalMetadata.
-func decodeBackendProposalMetadata(payload []byte) (*BackendProposalMetadata, error) {
-	var md BackendProposalMetadata
-
-	err := json.Unmarshal(payload, &md)
-	if err != nil {
-		return nil, err
-	}
-
-	return &md, nil
+// isValidProposalName returns whether the provided string is a valid proposal
+// name.
+func isValidProposalName(str string) bool {
+	return validProposalName.MatchString(str)
 }
 
-// encodeMDStreamChanges encodes an MDStreamChanges into a JSON byte slice.
-func encodeMDStreamChanges(m MDStreamChanges) ([]byte, error) {
-	b, err := json.Marshal(m)
-	if err != nil {
-		return nil, err
-	}
+// createProposalNameRegex returns a regex string for matching the proposal
+// name.
+func createProposalNameRegex() string {
+	var validProposalNameBuffer bytes.Buffer
+	validProposalNameBuffer.WriteString("^[")
 
-	return b, nil
-}
-
-// decodeMDStreamChanges decodes a JSON byte slice into a slice of
-// MDStreamChanges.
-func decodeMDStreamChanges(payload []byte) ([]MDStreamChanges, error) {
-	var msc []MDStreamChanges
-
-	d := json.NewDecoder(strings.NewReader(string(payload)))
-	for {
-		var m MDStreamChanges
-		err := d.Decode(&m)
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return nil, err
+	for _, supportedChar := range www.PolicyProposalNameSupportedChars {
+		if len(supportedChar) > 1 {
+			validProposalNameBuffer.WriteString(supportedChar)
+		} else {
+			validProposalNameBuffer.WriteString(`\` + supportedChar)
 		}
-
-		msc = append(msc, m)
 	}
+	minNameLength := strconv.Itoa(www.PolicyMinProposalNameLength)
+	maxNameLength := strconv.Itoa(www.PolicyMaxProposalNameLength)
+	validProposalNameBuffer.WriteString("]{")
+	validProposalNameBuffer.WriteString(minNameLength + ",")
+	validProposalNameBuffer.WriteString(maxNameLength + "}$")
 
-	return msc, nil
+	return validProposalNameBuffer.String()
 }
 
 // tokenIsValid returns whether the provided string is a valid politeiad
@@ -317,10 +292,10 @@ func validateProposal(np www.NewProposal, u *user.User) error {
 	if err != nil {
 		return err
 	}
-	if !util.IsValidProposalName(name) {
+	if !isValidProposalName(name) {
 		return www.UserError{
 			ErrorCode:    www.ErrorStatusProposalInvalidTitle,
-			ErrorContext: []string{util.CreateProposalNameRegex()},
+			ErrorContext: []string{createProposalNameRegex()},
 		}
 	}
 
@@ -400,7 +375,7 @@ func voteStatusFromVoteSummary(r decredplugin.VoteSummaryReply, bestBlock uint64
 func getProposalName(files []www.File) (string, error) {
 	for _, file := range files {
 		if file.Name == indexFile {
-			return util.GetProposalName(file.Payload)
+			return parseProposalName(file.Payload)
 		}
 	}
 	return "", nil
@@ -449,53 +424,83 @@ func (p *politeiawww) getProp(token string) (*www.ProposalRecord, error) {
 	return &pr, nil
 }
 
-func (p *politeiawww) getProps(tokens []string) (*[]www.ProposalRecord, error) {
+// getProps returns a [token]www.ProposalRecord map for the provided list of
+// censorship tokens. If a proposal is not found, the map will not include an
+// entry for the corresponding censorship token. It is the responsibility of
+// the caller to ensure that results are returned for all of the provided
+// censorship tokens.
+func (p *politeiawww) getProps(tokens []string) (map[string]www.ProposalRecord, error) {
 	log.Tracef("getProps: %v", tokens)
 
+	// Get the proposals from the cache
 	records, err := p.cache.Records(tokens, false)
 	if err != nil {
 		return nil, err
 	}
 
-	props := make([]www.ProposalRecord, 0, len(tokens))
-	for _, record := range records {
-		props = append(props, convertPropFromCache(record))
+	// Use pointers for now so the props can be easily updated
+	props := make(map[string]*www.ProposalRecord, len(records))
+	for _, v := range records {
+		pr := convertPropFromCache(v)
+		props[v.CensorshipRecord.Token] = &pr
 	}
 
-	// Find the number of comments each proposal
+	// Get the number of comments for each proposal. Comments
+	// are part of decred plugin so this must be fetched from
+	// the cache separately.
 	dnc, err := p.decredGetNumComments(tokens)
 	if err != nil {
-		log.Errorf("getProp: decredGetNumComments failed "+
-			"for tokens %v", tokens)
-	} else {
-		for i := range props {
-			props[i].NumComments = uint(dnc[props[i].CensorshipRecord.Token])
+		return nil, err
+	}
+	for token, numComments := range dnc {
+		props[token].NumComments = uint(numComments)
+	}
+
+	// Compile a list of unique proposal author pubkeys. These
+	// are needed to lookup the proposal author info.
+	pubKeys := make(map[string]struct{})
+	for _, pr := range props {
+		if _, ok := pubKeys[pr.PublicKey]; !ok {
+			pubKeys[pr.PublicKey] = struct{}{}
 		}
 	}
 
-	// Get the list of pubkeys of the proposal authors
-	pubKeys := make([]string, 0, 16)
-	pubKeysMap := make(map[string]bool)
-	for _, pr := range props {
-		if _, ok := pubKeysMap[pr.PublicKey]; !ok {
-			pubKeysMap[pr.PublicKey] = true
-			pubKeys = append(pubKeys, pr.PublicKey)
+	// Lookup proposal authors
+	pk := make([]string, 0, len(pubKeys))
+	for k := range pubKeys {
+		pk = append(pk, k)
+	}
+	users, err := p.db.UsersGetByPubKey(pk)
+	if err != nil {
+		return nil, err
+	}
+	if len(users) != len(pubKeys) {
+		// A user is missing from the userdb for one
+		// or more public keys. We're in trouble!
+		notFound := make([]string, 0, len(pubKeys))
+		for v := range pubKeys {
+			if _, ok := users[v]; !ok {
+				notFound = append(notFound, v)
+			}
 		}
+		e := fmt.Sprintf("users not found for pubkeys: %v",
+			strings.Join(notFound, ", "))
+		panic(e)
 	}
 
 	// Fill in proposal author info
-	users, err := p.db.UsersGetByPubKey(pubKeys)
-	if err != nil {
-		log.Errorf("getProps: UsersGetByPubKey: tokens:%v "+
-			"pubKeys:%v err:%v", tokens, pubKeys, err)
-	} else {
-		for i := range props {
-			props[i].UserId = users[props[i].PublicKey].ID.String()
-			props[i].Username = users[props[i].PublicKey].Username
-		}
+	for i, pr := range props {
+		props[i].UserId = users[pr.PublicKey].ID.String()
+		props[i].Username = users[pr.PublicKey].Username
 	}
 
-	return &props, nil
+	// Convert pointers to values
+	proposals := make(map[string]www.ProposalRecord, len(props))
+	for token, pr := range props {
+		proposals[token] = *pr
+	}
+
+	return proposals, nil
 }
 
 // getPropVersion gets a specific version of a proposal from the cache then
@@ -778,8 +783,8 @@ func (p *politeiawww) processNewProposal(np www.NewProposal, user *user.User) (*
 	if err != nil {
 		return nil, err
 	}
-	md, err := encodeBackendProposalMetadata(BackendProposalMetadata{
-		Version:   BackendProposalMetadataVersion,
+	md, err := mdstream.EncodeProposalGeneral(mdstream.ProposalGeneral{
+		Version:   mdstream.VersionProposalGeneral,
 		Timestamp: time.Now().Unix(),
 		Name:      name,
 		PublicKey: np.PublicKey,
@@ -797,7 +802,7 @@ func (p *politeiawww) processNewProposal(np www.NewProposal, user *user.User) (*
 	n := pd.NewRecord{
 		Challenge: hex.EncodeToString(challenge),
 		Metadata: []pd.MetadataStream{{
-			ID:      mdStreamGeneral,
+			ID:      mdstream.IDProposalGeneral,
 			Payload: string(md),
 		}},
 		Files: convertPropFilesFromWWW(np.Files),
@@ -1028,57 +1033,80 @@ func (p *politeiawww) processBatchVoteSummary(batchVoteSummary www.BatchVoteSumm
 	}, nil
 }
 
-// processBatchProposals fetches a list of proposals from the records
-// cache and returns them. The returned proposals do not include the
-// proposal files.
-func (p *politeiawww) processBatchProposals(batchProposals www.BatchProposals, user *user.User) (*www.BatchProposalsReply, error) {
+// processBatchProposals fetches a list of proposals from the records cache
+// and returns them. The returned proposals do not include the proposal files.
+func (p *politeiawww) processBatchProposals(bp www.BatchProposals, user *user.User) (*www.BatchProposalsReply, error) {
 	log.Tracef("processBatchProposals")
 
-	if len(batchProposals.Tokens) > www.ProposalListPageSize {
+	// Validate censorship tokens
+	if len(bp.Tokens) > www.ProposalListPageSize {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusMaxProposalsExceededPolicy,
 		}
 	}
-
-	props, err := p.getProps(batchProposals.Tokens)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(*props) != len(batchProposals.Tokens) {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusProposalNotFound,
+	for _, v := range bp.Tokens {
+		if !tokenIsValid(v) {
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
+				ErrorContext: []string{v},
+			}
 		}
 	}
 
-	reply := www.BatchProposalsReply{
-		Proposals: *props,
+	// Lookup proposals
+	props, err := p.getProps(bp.Tokens)
+	if err != nil {
+		return nil, err
+	}
+	if len(props) != len(bp.Tokens) {
+		// A proposal was not found for one or more of the
+		// provided tokens. Figure out which ones they were.
+		notFound := make([]string, 0, len(bp.Tokens))
+		for _, v := range bp.Tokens {
+			if _, ok := props[v]; !ok {
+				notFound = append(notFound, v)
+			}
+		}
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusProposalNotFound,
+			ErrorContext: notFound,
+		}
 	}
 
-	for i := range *props {
+	for token, pr := range props {
 		// Vetted proposals are viewable by everyone. The contents of
 		// an unvetted proposal is only viewable by admins and the
 		// proposal author. Unvetted proposal metadata is viewable by
 		// everyone.
-		if reply.Proposals[i].State == www.PropStateUnvetted {
+		if pr.State == www.PropStateUnvetted {
 			var isAuthor bool
 			var isAdmin bool
 			// This is a public route so a user may not exist
 			if user != nil {
 				isAdmin = user.Admin
-				isAuthor = (reply.Proposals[i].UserId == user.ID.String())
+				isAuthor = (pr.UserId == user.ID.String())
 			}
 
 			// Strip the non-public proposal contents if user is
 			// not the author or an admin. The files are already
 			// not included in this request.
 			if !isAuthor && !isAdmin {
-				reply.Proposals[i].Name = ""
+				prop := props[token]
+				prop.Name = ""
+				props[token] = prop
 			}
 		}
 	}
 
-	return &reply, nil
+	// Convert proposals map to a slice
+	proposals := make([]www.ProposalRecord, 0, len(props))
+	for _, v := range props {
+		proposals = append(proposals, v)
+	}
+
+	return &www.BatchProposalsReply{
+		Proposals: proposals,
+	}, nil
 }
 
 // verifyStatusChange verifies that the proposal status change is a valid
@@ -1163,13 +1191,15 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 
 	// Create change record
 	newStatus := convertPropStatusFromWWW(sps.ProposalStatus)
-	blob, err := json.Marshal(MDStreamChanges{
-		Version:             VersionMDStreamChanges,
-		Timestamp:           time.Now().Unix(),
-		NewStatus:           newStatus,
-		AdminPubKey:         u.PublicKey(),
-		StatusChangeMessage: sps.StatusChangeMessage,
-	})
+	blob, err := mdstream.EncodeRecordStatusChangeV2(
+		mdstream.RecordStatusChangeV2{
+			Version:             mdstream.VersionRecordStatusChange,
+			Timestamp:           time.Now().Unix(),
+			NewStatus:           newStatus,
+			Signature:           sps.Signature,
+			AdminPubKey:         u.PublicKey(),
+			StatusChangeMessage: sps.StatusChangeMessage,
+		})
 	if err != nil {
 		return nil, err
 	}
@@ -1198,7 +1228,7 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 			Challenge: hex.EncodeToString(challenge),
 			MDAppend: []pd.MetadataStream{
 				{
-					ID:      mdStreamChanges,
+					ID:      mdstream.IDRecordStatusChange,
 					Payload: string(blob),
 				},
 			},
@@ -1247,7 +1277,7 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 			Challenge: hex.EncodeToString(challenge),
 			MDAppend: []pd.MetadataStream{
 				{
-					ID:      mdStreamChanges,
+					ID:      mdstream.IDRecordStatusChange,
 					Payload: string(blob),
 				},
 			},
@@ -1366,20 +1396,20 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 		return nil, err
 	}
 
-	backendMetadata := BackendProposalMetadata{
-		Version:   BackendProposalMetadataVersion,
+	backendMetadata := mdstream.ProposalGeneral{
+		Version:   mdstream.VersionProposalGeneral,
 		Timestamp: time.Now().Unix(),
 		Name:      name,
 		PublicKey: ep.PublicKey,
 		Signature: ep.Signature,
 	}
-	md, err := encodeBackendProposalMetadata(backendMetadata)
+	md, err := mdstream.EncodeProposalGeneral(backendMetadata)
 	if err != nil {
 		return nil, err
 	}
 
 	mds := []pd.MetadataStream{{
-		ID:      mdStreamGeneral,
+		ID:      mdstream.IDProposalGeneral,
 		Payload: string(md),
 	}}
 

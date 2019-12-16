@@ -18,16 +18,13 @@ func RespondWithError(w http.ResponseWriter, code int, message string) {
 func RespondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	response, _ := json.Marshal(payload)
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Referrer-Policy", "same-origin")
+	w.Header().Set("X-Frame-Options", "DENY")
+	w.Header().Set("X-XSS-Protection", "1; mode=block")
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(code)
 	w.Write(response)
-}
-
-func RespondWithCopy(w http.ResponseWriter, code int, contentType string, body []byte) error {
-	w.Header().Set("Content-Type", contentType)
-	w.WriteHeader(code)
-	_, err := w.Write(body)
-	return err
 }
 
 // GetErrorFromJSON returns the error that is embedded in a JSON reply.

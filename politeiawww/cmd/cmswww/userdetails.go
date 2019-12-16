@@ -4,20 +4,34 @@
 
 package main
 
-import "github.com/decred/politeia/politeiawww/cmd/shared"
+import (
+	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
+	"github.com/decred/politeia/politeiawww/cmd/shared"
+)
 
 // UserDetailsCmd requests a user's information.
 type UserDetailsCmd struct {
-	Args struct{}
+	Args struct {
+		UserID string `positional-arg-name:"userid" optional:"true"`
+	} `positional-args:"true" optional:"true"`
 }
 
 // Execute executes the cms user information command.
 func (cmd *UserDetailsCmd) Execute(args []string) error {
+
+	var uir *cms.UserDetailsReply
+	uid := cmd.Args.UserID
+
 	lr, err := client.Me()
 	if err != nil {
 		return err
 	}
-	uir, err := client.CMSUserDetails(lr.UserID)
+
+	if uid != "" {
+		uir, err = client.CMSUserDetails(uid)
+	} else {
+		uir, err = client.CMSUserDetails(lr.UserID)
+	}
 	if err != nil {
 		return err
 	}

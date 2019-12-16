@@ -1060,9 +1060,9 @@ func (c *ctx) voteStatus(token string) (*v1.VoteStatusReply, error) {
 func (c *ctx) bestBlock() (uint32, error) {
 	var url string
 	if c.cfg.TestNet {
-		url = "https://testnet.dcrdata.org:443/api/block/best"
+		url = "https://testnet.decred.org:443/api/block/best"
 	} else {
-		url = "https://explorer.dcrdata.org:443/api/block/best"
+		url = "https://dcrdata.decred.org:443/api/block/best"
 	}
 
 	log.Debugf("Request: GET %v", url)

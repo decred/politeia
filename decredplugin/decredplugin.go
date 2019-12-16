@@ -1,7 +1,12 @@
 package decredplugin
 
 import (
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
+
+	"github.com/decred/politeia/politeiad/api/v1/identity"
+	"github.com/decred/politeia/util"
 )
 
 type ErrorStatusT int
@@ -246,6 +251,26 @@ type StartVote struct {
 	PublicKey string `json:"publickey"` // Key used for signature.
 	Vote      Vote   `json:"vote"`      // Vote + options
 	Signature string `json:"signature"` // Signature of Votehash
+}
+
+// VerifySignature verifies that the StartVote signature is correct.
+func (s *StartVote) VerifySignature() error {
+	sig, err := util.ConvertSignature(s.Signature)
+	if err != nil {
+		return err
+	}
+	b, err := hex.DecodeString(s.PublicKey)
+	if err != nil {
+		return err
+	}
+	pk, err := identity.PublicIdentityFromBytes(b)
+	if err != nil {
+		return err
+	}
+	if !pk.VerifyMessage([]byte(s.Vote.Token), sig) {
+		return fmt.Errorf("invalid signature")
+	}
+	return nil
 }
 
 // EncodeStartVoteencodes StartVoteinto a JSON byte slice.
@@ -782,9 +807,13 @@ func DecodeGetCommentsReply(payload []byte) (*GetCommentsReply, error) {
 	return &gcr, nil
 }
 
-// GetNumComments retrieve the number of comments for a list of proposals.
+// GetNumComments returns a map that contains the number of comments for the
+// provided list of censorship tokens. If a provided token does not corresond
+// to an actual proposal then the token will not be included in the returned
+// map. It is the responsibility of the caller to ensure that results are
+// returned for all of the provided tokens.
 type GetNumComments struct {
-	Tokens []string `json:"tokens"` // Proposal ID
+	Tokens []string `json:"tokens"` // List of censorship tokens
 }
 
 // EncodeGetNumComments encodes GetBatchComments into a JSON byte slice.
@@ -804,9 +833,9 @@ func DecodeGetNumComments(payload []byte) (*GetNumComments, error) {
 	return &gnc, nil
 }
 
-// GetNumCommentsReply returns a map from proposal token to int
+// GetNumCommentsReply is the reply to the GetNumComments command.
 type GetNumCommentsReply struct {
-	CommentsMap map[string]int `json:"commentsmap"`
+	NumComments map[string]int `json:"numcomments"` // [token]numComments
 }
 
 // EncodeGetNumCommentsReply encodes GetNumCommentsReply into a

@@ -81,18 +81,17 @@ func (c *testcache) Record(token string) (*cache.Record, error) {
 }
 
 // Records returns the most recent version of a set of records.
-func (c *testcache) Records(tokens []string, fetchFiles bool) ([]cache.Record, error) {
+func (c *testcache) Records(tokens []string, fetchFiles bool) (map[string]cache.Record, error) {
 	c.RLock()
 	defer c.RUnlock()
 
-	records := make([]cache.Record, 0, len(tokens))
-
+	records := make(map[string]cache.Record, len(tokens)) // [token]Record
 	for _, token := range tokens {
 		r, err := c.record(token)
 		if err != nil {
 			return nil, err
 		}
-		records = append(records, *r)
+		records[token] = *r
 	}
 
 	return records, nil
