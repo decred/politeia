@@ -372,7 +372,6 @@ type VoteResults struct {
 }
 
 type VoteResultsReply struct {
-	StartVote StartVote  `json:"startvote"` // Original ballot
 	CastVotes []CastVote `json:"castvotes"` // All votes
 }
 
