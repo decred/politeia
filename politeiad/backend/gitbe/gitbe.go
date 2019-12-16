@@ -1211,7 +1211,7 @@ func (g *gitBackEnd) getAllTokens() ([]string, error) {
 }
 
 // isTokenUnique checks that the prefix of a token is not equal to any of
-// existingTokenPrefixes
+// existingTokenPrefixes.
 func isTokenUnique(token string, existingTokenPrefixes []string) bool {
 	unique := true
 	for _, existingTokenPrefix := range existingTokenPrefixes {
@@ -1264,6 +1264,7 @@ func (g *gitBackEnd) New(metadata []backend.MetadataStream, files []backend.File
 	if err != nil {
 		return nil, err
 	}
+
 	log.Debugf("New %x", token)
 
 	// Lock filesystem

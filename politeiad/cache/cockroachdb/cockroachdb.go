@@ -88,6 +88,7 @@ func (c *cockroachdb) recordVersion(db *gorm.DB, token, version string) (*Record
 }
 
 // RecordVersion gets the specified version of a record from the database.
+// This function supports querying by a token or its prefix.
 func (c *cockroachdb) RecordVersion(token, version string) (*cache.Record, error) {
 	log.Tracef("RecordVersion: %v %v", token, version)
 
@@ -131,7 +132,8 @@ func record(db *gorm.DB, token string) (*Record, error) {
 	return &r, nil
 }
 
-// Record gets the most recent version of a record from the database.
+// Record gets the most recent version of a record from the database. This
+// function supports querying by a token or its prefix.
 func (c *cockroachdb) Record(token string) (*cache.Record, error) {
 	log.Tracef("Record: %v", token)
 
@@ -380,7 +382,7 @@ func (c *cockroachdb) UpdateRecordMetadata(token string, ms []cache.MetadataStre
 
 // getRecords returns the records for the provided censorship tokens. If a
 // record is not found for a provided token, the returned records slice will
-// not include an entry for it. This method will support querying by the tokens
+// not include an entry for it. This method supports querying by the tokens
 // or their prefixes.
 func (c *cockroachdb) getRecords(tokens []string, fetchFiles bool) ([]Record, error) {
 	// Lookup the latest version of each record specified by
@@ -445,6 +447,7 @@ func (c *cockroachdb) getRecords(tokens []string, fetchFiles bool) ([]Record, er
 // tokens. If a record is not found, the map will not include an entry for the
 // corresponding censorship token. It is the responsibility of the caller to
 // ensure that results are returned for all of the provided censorship tokens.
+// This method supports querying by the tokens or their prefixes.
 func (c *cockroachdb) Records(tokens []string, fetchFiles bool) (map[string]cache.Record, error) {
 	log.Tracef("Records: %v", tokens)
 
