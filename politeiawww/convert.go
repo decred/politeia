@@ -264,6 +264,12 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 				}
 			}
 
+		case decredplugin.MDStreamAuthorizeVote:
+			// Valid proposal mdstream but not needed for a ProposalRecord
+		case decredplugin.MDStreamVoteBits:
+			// Valid proposal mdstream but not needed for a ProposalRecord
+		case decredplugin.VoteSnapshot:
+			// Valid proposal mdstream but not needed for a ProposalRecord
 		default:
 			log.Errorf("convertPropFromCache: invalid mdstream ID: "+
 				"token:%v mdstream:%v", token, ms)
