@@ -2378,32 +2378,6 @@ func (g *gitBackEnd) pluginProposalVotes(payload string) (string, error) {
 	}
 
 	// Prepare reply
-	var (
-		dd *json.Decoder
-		ff *os.File
-	)
-	// Fill out vote
-	filename := mdFilename(g.vetted, vote.Token,
-		decredplugin.MDStreamVoteBits)
-	ff, err = os.Open(filename)
-	if err != nil {
-		if os.IsNotExist(err) {
-			goto nodata
-		}
-		return "", err
-	}
-	defer ff.Close()
-	dd = json.NewDecoder(ff)
-
-	err = dd.Decode(&vrr.StartVote)
-	if err != nil {
-		if err == io.EOF {
-			goto nodata
-		}
-		return "", err
-	}
-
-nodata:
 	reply, err := decredplugin.EncodeVoteResultsReply(vrr)
 	if err != nil {
 		return "", fmt.Errorf("Could not encode VoteResultsReply: %v",
