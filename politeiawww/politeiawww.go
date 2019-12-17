@@ -414,8 +414,8 @@ func (p *politeiawww) handleUserProposals(w http.ResponseWriter, r *http.Request
 
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
-		// since having a logged in user isn't required, simply log the error
-		log.Infof("handleUserProposals: could not get session user %v", err)
+		// This is a public route so a logged in user may not exist
+		log.Tracef("handleUserProposals: getSessionUser: %v", err)
 	}
 
 	upr, err := p.processUserProposals(
