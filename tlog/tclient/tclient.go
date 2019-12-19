@@ -22,6 +22,7 @@ import (
 	dcrtime "github.com/decred/dcrtime/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	v1 "github.com/decred/politeia/tlog/api/v1"
+	tlogutil "github.com/decred/politeia/tlog/util"
 	"github.com/decred/politeia/util"
 	"github.com/google/trillian"
 	"github.com/google/trillian/client"
@@ -115,7 +116,7 @@ func handleFile(filename string) (*v1.RecordEntry, error) {
 		return nil, err
 	}
 
-	re := util.RecordEntryNew(myID, dd, data)
+	re := tlogutil.RecordEntryNew(myID, dd, data)
 	return &re, nil
 }
 
@@ -360,7 +361,7 @@ func recordParse(index int) ([]v1.RecordEntry, error) {
 			if err != nil {
 				return nil, err
 			}
-			re = append(re, util.RecordEntryNew(myID, dd, kv))
+			re = append(re, tlogutil.RecordEntryNew(myID, dd, kv))
 			continue
 		}
 		r, err := handleFile(v)
@@ -429,7 +430,7 @@ func recordNew() error {
 		return err
 	}
 	for _, v := range rnr.Proofs {
-		err := util.QueuedLeafProofVerify(publicKey, lrSTH, v)
+		err := tlogutil.QueuedLeafProofVerify(publicKey, lrSTH, v)
 		if err != nil {
 			return err
 		}
@@ -521,7 +522,7 @@ func recordAppend() error {
 		return fmt.Errorf("VerifySignedLogRoot: %v", err)
 	}
 	for _, v := range rar.Proofs {
-		err := util.QueuedLeafProofVerify(publicKey, lrv1, v)
+		err := tlogutil.QueuedLeafProofVerify(publicKey, lrv1, v)
 		if err != nil {
 			return err
 		}
@@ -613,7 +614,7 @@ func recordGet() error {
 			continue
 		}
 
-		err = util.RecordEntryProofVerify(publicKey, v)
+		err = tlogutil.RecordEntryProofVerify(publicKey, v)
 		if err != nil {
 			return err
 		}
@@ -703,7 +704,7 @@ func recordEntriesGet() error {
 
 	// Verify record entry proofs
 	for _, v := range rgr.Proofs {
-		err := util.RecordEntryProofVerify(publicKey, v)
+		err := tlogutil.RecordEntryProofVerify(publicKey, v)
 		if err != nil {
 			return err
 		}

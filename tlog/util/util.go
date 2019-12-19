@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -15,6 +15,7 @@ import (
 	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	v1 "github.com/decred/politeia/tlog/api/v1"
+	"github.com/decred/politeia/util"
 	"github.com/google/trillian"
 	"github.com/google/trillian/client"
 	tcrypto "github.com/google/trillian/crypto"
@@ -53,7 +54,7 @@ func RecordEntryNew(myId *identity.FullIdentity, dataHint, data []byte) v1.Recor
 // RecordEntryVerify ensures that a tlog RecordEntry is valid.
 func RecordEntryVerify(record v1.RecordEntry) error {
 	// Decode identity
-	id, err := IdentityFromString(record.PublicKey)
+	id, err := util.IdentityFromString(record.PublicKey)
 	if err != nil {
 		return fmt.Errorf("invalid pubkey: %v", err)
 	}
@@ -173,7 +174,7 @@ func RecordEntryProofVerify(pk crypto.PublicKey, rep v1.RecordEntryProof) error 
 
 	// Verify that the log root hash is included in the anchor
 	var found bool
-	h := Hash(rep.STH.LogRoot)
+	h := util.Hash(rep.STH.LogRoot)
 	for _, v := range rep.Anchor.MerklePath.Hashes {
 		if bytes.Equal(h[:], v[:]) {
 			found = true
