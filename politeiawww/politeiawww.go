@@ -907,7 +907,7 @@ func (p *politeiawww) resetPiDcrdataWSSubs() error {
 // setupPiDcrdataWSSubs subscribes and listens to websocket messages from
 // dcrdata that are needed for pi.
 func (p *politeiawww) setupPiDcrdataWSSubs() error {
-	err := p.wsDcrdata.subToNewBlock()
+	err := p.wsDcrdata.subscribe(newBlockSub)
 	if err != nil {
 		return err
 	}
@@ -915,8 +915,15 @@ func (p *politeiawww) setupPiDcrdataWSSubs() error {
 	go func() {
 	listenerLoop:
 		for {
-			msg, ok := <-p.wsDcrdata.Receive()
-			if !ok {
+			msg, ok := <-p.wsDcrdata.client.Receive()
+			if !ok || msg == nil {
+				// After closing wsDcrdata, the channel channel will send a nil
+				// message. This check is just here to avoid a spew unnecessary
+				// error messages.
+				if p.wsDcrdata.isShutdown() {
+					break listenerLoop
+				}
+
 				log.Errorf("Error receiving msg from dcrdata, msg: %v", msg)
 				err = p.resetPiDcrdataWSSubs()
 				if err != nil {
@@ -941,10 +948,6 @@ func (p *politeiawww) setupPiDcrdataWSSubs() error {
 					break listenerLoop
 				}
 				log.Infof("Successfully reconnected to dcrdata")
-			case wsDcrdataShutdown:
-				log.Infof("wsDcrdata is shutting down.")
-				p.updateBestBlock(0)
-				break listenerLoop
 			default:
 				log.Errorf("wsDcrdata message of type %v unhandled. %v",
 					msg.EventId, m)
