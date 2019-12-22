@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	client "github.com/decred/dcrdata/pubsub/v3/psclient"
+	client "github.com/decred/dcrdata/pubsub/v4/psclient"
 	"github.com/decred/dcrdata/semver"
 	"github.com/decred/politeia/util"
 )
@@ -153,7 +153,7 @@ func newDcrdataWSClient() (*client.Client, error) {
 		return nil, err
 	}
 	opts := client.Opts{
-		ReadTimeout:  3 * time.Second,
+		ReadTimeout:  client.DefaultReadTimeout,
 		WriteTimeout: 3 * time.Second,
 	}
 	c, err := client.New(u, context.Background(), &opts)
