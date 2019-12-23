@@ -56,16 +56,6 @@ func (w *wsDcrdata) isShutdown() bool {
 // shut down.
 type wsDcrdataShutdown struct{}
 
-// close closes the dcrdata websocket client and lets listeners know that this is happening.
-func (w *wsDcrdata) close() error {
-	w.Lock()
-	w.shutdown = true
-	w.Unlock()
-
-	w.removeAllSubs()
-	return w.client.Close()
-}
-
 // addSub adds an event subscription to the subscriptions map.
 func (w *wsDcrdata) addSub(event string) {
 	w.Lock()
@@ -99,6 +89,17 @@ func (w *wsDcrdata) isSubscribed(event string) bool {
 	return ok
 }
 
+// close closes the dcrdata websocket client.
+func (w *wsDcrdata) close() error {
+	w.Lock()
+	w.shutdown = true
+	w.Unlock()
+
+	w.removeAllSubs()
+	return w.client.Close()
+}
+
+// subscribe subscribes the dcrdata client to an event.
 func (w *wsDcrdata) subscribe(event string) error {
 	if w.isShutdown() {
 		return errShutdown
@@ -119,6 +120,7 @@ func (w *wsDcrdata) subscribe(event string) error {
 	return nil
 }
 
+// unsubscribe ubsubscribes the dcrdata client from an event.
 func (w *wsDcrdata) unsubscribe(event string) error {
 	if w.isShutdown() {
 		return errShutdown
@@ -139,6 +141,7 @@ func (w *wsDcrdata) unsubscribe(event string) error {
 	return nil
 }
 
+// ping pings the dcrdata server.
 func (w *wsDcrdata) ping() error {
 	if w.isShutdown() {
 		return errShutdown

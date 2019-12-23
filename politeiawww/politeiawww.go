@@ -951,7 +951,6 @@ func (p *politeiawww) setupPiDcrdataWSSubs() error {
 				log.Infof("Successfully reconnected to dcrdata")
 			case int:
 				// Ping messages are of type int
-				log.Debugf("wsDcrdata message (%s): %v", msg.EventId, m)
 			default:
 				log.Errorf("wsDcrdata message of type %v unhandled. %v",
 					msg.EventId, m)
