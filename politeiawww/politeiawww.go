@@ -919,8 +919,8 @@ func (p *politeiawww) setupPiDcrdataWSSubs() error {
 			msg, ok := <-p.wsDcrdata.client.Receive()
 			if !ok || msg == nil {
 				// After closing wsDcrdata, the channel channel will send a nil
-				// message. This check is just here to avoid a spew unnecessary
-				// error messages.
+				// message. This check is just here to avoid a spew of
+				// unnecessary error messages.
 				if p.wsDcrdata.isShutdown() {
 					break listenerLoop
 				}
