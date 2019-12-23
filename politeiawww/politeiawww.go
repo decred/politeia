@@ -19,6 +19,7 @@ import (
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmsdatabase"
 	"github.com/decred/politeia/politeiawww/user"
+	utilwww "github.com/decred/politeia/politeiawww/util"
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
 	"github.com/gorilla/csrf"
@@ -196,7 +197,7 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Add("Strict-Transport-Security",
 		"max-age=63072000; includeSubDomains")
 	w.Header().Set(www.CsrfToken, csrf.Token(r))
@@ -421,8 +422,8 @@ func (p *politeiawww) handleUserProposals(w http.ResponseWriter, r *http.Request
 
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
-		// since having a logged in user isn't required, simply log the error
-		log.Infof("handleUserProposals: could not get session user %v", err)
+		// This is a public route so a logged in user may not exist
+		log.Tracef("handleUserProposals: getSessionUser: %v", err)
 	}
 
 	upr, err := p.processUserProposals(
@@ -763,7 +764,7 @@ func (p *politeiawww) handleWebsocketRead(wc *wsContext) {
 	defer log.Tracef("handleWebsocketRead exit %v", wc)
 
 	for {
-		cmd, id, payload, err := util.WSRead(wc.conn)
+		cmd, id, payload, err := utilwww.WSRead(wc.conn)
 		if err != nil {
 			log.Tracef("handleWebsocketRead read %v %v", wc, err)
 			close(wc.done) // force handlers to quit
@@ -788,7 +789,7 @@ func (p *politeiawww) handleWebsocketRead(wc *wsContext) {
 			subscriptions := make(map[string]struct{})
 			var errors []string
 			for _, v := range subscribe.RPCS {
-				if !util.ValidSubscription(v) {
+				if !utilwww.ValidSubscription(v) {
 					log.Tracef("invalid subscription %v %v",
 						wc, v)
 					errors = append(errors,
@@ -796,7 +797,7 @@ func (p *politeiawww) handleWebsocketRead(wc *wsContext) {
 							"subscription %v", v))
 					continue
 				}
-				if util.SubsciptionReqAuth(v) &&
+				if utilwww.SubsciptionReqAuth(v) &&
 					!wc.isAuthenticated() {
 					log.Tracef("requires auth %v %v", wc, v)
 					errors = append(errors,
@@ -858,7 +859,7 @@ func (p *politeiawww) handleWebsocketWrite(wc *wsContext) {
 			payload = www.WSPing{Timestamp: time.Now().Unix()}
 		}
 
-		err := util.WSWrite(wc.conn, cmd, id, payload)
+		err := utilwww.WSWrite(wc.conn, cmd, id, payload)
 		if err != nil {
 			log.Tracef("handleWebsocketWrite write %v %v", wc, err)
 			return

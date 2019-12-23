@@ -27,7 +27,7 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/util/version"
 
-	"github.com/decred/politeia/politeiad/api/v1"
+	v1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiawww/sharedconfig"
 	"github.com/decred/politeia/util"
 	flags "github.com/jessevdk/go-flags"
@@ -121,6 +121,7 @@ type config struct {
 	DBRootCert               string `long:"dbrootcert" description:"File containing the CA certificate for the database"`
 	DBCert                   string `long:"dbcert" description:"File containing the politeiawww client certificate for the database"`
 	DBKey                    string `long:"dbkey" description:"File containing the politeiawww client certificate key for the database"`
+	BuildCMSDB               bool   `long:"buildcmsdb" description:"Build the cmsdb from scratch"`
 	UserDB                   string `long:"userdb" description:"Database choice for the user database"`
 	EncryptionKey            string `long:"encryptionkey" description:"File containing encryption key used for encrypting user data at rest"`
 	OldEncryptionKey         string `long:"oldencryptionkey" description:"File containing old encryption key (only set when rotating keys)"`

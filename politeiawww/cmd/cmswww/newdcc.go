@@ -80,7 +80,15 @@ func (cmd *NewDCCCmd) Execute(args []string) error {
 			fmt.Print("Enter the nominee user id: ")
 			cmd.NomineeUserID, _ = reader.ReadString('\n')
 		}
-		if cmd.Domain == "" {
+		uir, err := client.CMSUserDetails(strings.TrimSpace(cmd.NomineeUserID))
+		if err != nil {
+			return err
+		}
+		if uir.User.ID == "" {
+			return fmt.Errorf("nominee user not found, please try again")
+		}
+		if cmd.Domain == "" &&
+			cmd.Args.Type == uint(cms.DCCTypeIssuance) {
 			for {
 				fmt.Printf("Domain Type: " +
 					domainTypes[cms.DomainTypeDeveloper] + ", " +
@@ -110,6 +118,10 @@ func (cmd *NewDCCCmd) Execute(args []string) error {
 					break
 				}
 			}
+		} else if cmd.Domain == "" &&
+			cmd.Args.Type == uint(cms.DCCTypeRevocation) {
+			// Set domain type to what the user is currently set to
+			domainType = int(uir.User.Domain)
 		} else {
 			domainType, err = strconv.Atoi(strings.TrimSpace(cmd.Domain))
 			if err != nil {
@@ -119,7 +131,8 @@ func (cmd *NewDCCCmd) Execute(args []string) error {
 				return fmt.Errorf("invalid domain type")
 			}
 		}
-		if cmd.ContractorType == "" {
+		if cmd.ContractorType == "" &&
+			cmd.Args.Type == uint(cms.DCCTypeIssuance) {
 			for {
 				fmt.Printf("Contractor Type: " +
 					contractorTypes[cms.ContractorTypeDirect] + ", " +
@@ -130,7 +143,8 @@ func (cmd *NewDCCCmd) Execute(args []string) error {
 					fmt.Println("Invalid entry, please try again.")
 					continue
 				}
-				if contractorType != 1 && contractorType != 3 {
+				if contractorType != int(cms.ContractorTypeDirect) &&
+					contractorType != int(cms.ContractorTypeSubContractor) {
 					fmt.Println("Invalid contractor type entered, please try again.")
 					continue
 				}
@@ -145,6 +159,10 @@ func (cmd *NewDCCCmd) Execute(args []string) error {
 					break
 				}
 			}
+		} else if cmd.ContractorType == "" &&
+			cmd.Args.Type == uint(cms.DCCTypeRevocation) {
+			// Set the contractor type to Revoked for revocation DCCs
+			contractorType = int(cms.ContractorTypeRevoked)
 		} else {
 			contractorType, err = strconv.Atoi(strings.TrimSpace(cmd.ContractorType))
 			if err != nil {

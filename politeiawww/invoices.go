@@ -11,7 +11,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"regexp"
 	"sort"
@@ -21,6 +20,7 @@ import (
 
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrtime/merkle"
+	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/cache"
@@ -35,13 +35,9 @@ const (
 	// invoiceFile contains the file name of the invoice file
 	invoiceFile = "invoice.json"
 
-	// politeiad invoice record metadata streams
-	mdStreamInvoiceGeneral       = 3 // General invoice metadata
-	mdStreamInvoiceStatusChanges = 4 // Invoice status changes
-
-	// Metadata stream struct versions
-	backendInvoiceMetadataVersion     = 1
-	backendInvoiceStatusChangeVersion = 1
+	// Sanity check for Contractor Rates
+	minRate = 500   // 5 USD (in cents)
+	maxRate = 50000 // 500 USD (in cents)
 )
 
 var (
@@ -70,8 +66,9 @@ var (
 	}
 	// The valid contractor
 	invalidNewInvoiceContractorType = map[cms.ContractorTypeT]bool{
-		cms.ContractorTypeNominee: true,
-		cms.ContractorTypeInvalid: true,
+		cms.ContractorTypeNominee:       true,
+		cms.ContractorTypeInvalid:       true,
+		cms.ContractorTypeSubContractor: true,
 	}
 
 	validInvoiceField = regexp.MustCompile(createInvoiceFieldRegex())
@@ -302,23 +299,23 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 		}
 	}
 
-	m := backendInvoiceMetadata{
-		Version:   backendInvoiceMetadataVersion,
+	m := mdstream.InvoiceGeneral{
+		Version:   mdstream.VersionInvoiceGeneral,
 		Timestamp: time.Now().Unix(),
 		PublicKey: ni.PublicKey,
 		Signature: ni.Signature,
 	}
-	md, err := encodeBackendInvoiceMetadata(m)
+	md, err := mdstream.EncodeInvoiceGeneral(m)
 	if err != nil {
 		return nil, err
 	}
 
-	sc := backendInvoiceStatusChange{
-		Version:   backendInvoiceStatusChangeVersion,
+	sc := mdstream.InvoiceStatusChange{
+		Version:   mdstream.IDInvoiceStatusChange,
 		Timestamp: time.Now().Unix(),
 		NewStatus: cms.InvoiceStatusNew,
 	}
-	scb, err := encodeBackendInvoiceStatusChange(sc)
+	scb, err := mdstream.EncodeInvoiceStatusChange(sc)
 	if err != nil {
 		return nil, err
 	}
@@ -332,11 +329,11 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 		Challenge: hex.EncodeToString(challenge),
 		Metadata: []pd.MetadataStream{
 			{
-				ID:      mdStreamInvoiceGeneral,
+				ID:      mdstream.IDInvoiceGeneral,
 				Payload: string(md),
 			},
 			{
-				ID:      mdStreamInvoiceStatusChanges,
+				ID:      mdstream.IDInvoiceStatusChange,
 				Payload: string(scb),
 			},
 		},
@@ -389,13 +386,14 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 
 	// Change politeiad record status to public. Invoices
 	// do not need to be reviewed before becoming public.
-	// An admin signature is not included for this reason.
-	c := MDStreamChanges{
-		Version:   VersionMDStreamChanges,
+	// An admin pubkey and signature are not included for
+	// this reason.
+	c := mdstream.RecordStatusChangeV2{
+		Version:   mdstream.VersionRecordStatusChange,
 		Timestamp: time.Now().Unix(),
 		NewStatus: pd.RecordStatusPublic,
 	}
-	blob, err := encodeMDStreamChanges(c)
+	blob, err := mdstream.EncodeRecordStatusChangeV2(c)
 	if err != nil {
 		return nil, err
 	}
@@ -411,7 +409,7 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 		Challenge: hex.EncodeToString(challenge),
 		MDAppend: []pd.MetadataStream{
 			{
-				ID:      mdStreamChanges,
+				ID:      mdstream.IDRecordStatusChange,
 				Payload: string(blob),
 			},
 		},
@@ -627,10 +625,6 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 					ErrorCode: cms.ErrorStatusInvoiceMissingRate,
 				}
 			}
-			// Do basic sanity check for contractor rate, since it's in cents
-			// some users may enter in the
-			minRate := 500   // 5 USD (in cents)
-			maxRate := 50000 // 500 USD (in cents)
 			if invInput.ContractorRate < uint(minRate) || invInput.ContractorRate > uint(maxRate) {
 				return www.UserError{
 					ErrorCode: cms.ErrorStatusInvoiceInvalidRate,
@@ -718,7 +712,11 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 							ErrorCode: cms.ErrorStatusInvalidLaborExpense,
 						}
 					}
-
+					if lineInput.SubRate < uint(minRate) || lineInput.SubRate > uint(maxRate) {
+						return www.UserError{
+							ErrorCode: cms.ErrorStatusInvoiceInvalidRate,
+						}
+					}
 				default:
 					return www.UserError{
 						ErrorCode: cms.ErrorStatusInvalidLineItemType,
@@ -810,10 +808,12 @@ func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, user 
 
 	// Calculate the payout from the invoice record
 	dbInv := convertInvoiceRecordToDatabaseInvoice(invRec)
-	payout, err := p.calculatePayout(*dbInv)
+	payout, err := calculatePayout(*dbInv)
 	if err != nil {
 		return nil, err
 	}
+
+	payout.Username = user.Username
 
 	// Setup reply
 	reply := cms.InvoiceDetailsReply{
@@ -868,14 +868,14 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus, u *user.
 	}
 
 	// Create the change record.
-	c := backendInvoiceStatusChange{
-		Version:        backendInvoiceStatusChangeVersion,
+	c := mdstream.InvoiceStatusChange{
+		Version:        mdstream.VersionInvoiceStatusChange,
 		AdminPublicKey: u.PublicKey(),
 		Timestamp:      time.Now().Unix(),
 		NewStatus:      sis.Status,
 		Reason:         sis.Reason,
 	}
-	blob, err := encodeBackendInvoiceStatusChange(c)
+	blob, err := mdstream.EncodeInvoiceStatusChange(c)
 	if err != nil {
 		return nil, err
 	}
@@ -890,7 +890,7 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus, u *user.
 		Token:     sis.Token,
 		MDAppend: []pd.MetadataStream{
 			{
-				ID:      mdStreamInvoiceStatusChanges,
+				ID:      mdstream.IDInvoiceStatusChange,
 				Payload: string(blob),
 			},
 		},
@@ -925,10 +925,11 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus, u *user.
 	dbInvoice.Status = c.NewStatus
 
 	// Calculate amount of DCR needed
-	payout, err := p.calculatePayout(*dbInvoice)
+	payout, err := calculatePayout(*dbInvoice)
 	if err != nil {
 		return nil, err
 	}
+	payout.Username = u.Username
 	// If approved then update Invoice's Payment table in DB
 	if c.NewStatus == cms.InvoiceStatusApproved {
 		dbInvoice.Payments = database.Payments{
@@ -1099,19 +1100,19 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 		}
 	}
 
-	m := backendInvoiceMetadata{
-		Version:   backendInvoiceMetadataVersion,
+	m := mdstream.InvoiceGeneral{
+		Version:   mdstream.VersionInvoiceGeneral,
 		Timestamp: time.Now().Unix(),
 		PublicKey: ei.PublicKey,
 		Signature: ei.Signature,
 	}
-	md, err := encodeBackendInvoiceMetadata(m)
+	md, err := mdstream.EncodeInvoiceGeneral(m)
 	if err != nil {
 		return nil, err
 	}
 
 	mds := []pd.MetadataStream{{
-		ID:      mdStreamInvoiceGeneral,
+		ID:      mdstream.IDInvoiceGeneral,
 		Payload: string(md),
 	}}
 
@@ -1162,13 +1163,13 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 	}
 
 	// Create the change record.
-	c := backendInvoiceStatusChange{
-		Version:        backendInvoiceStatusChangeVersion,
+	c := mdstream.InvoiceStatusChange{
+		Version:        mdstream.VersionInvoiceStatusChange,
 		AdminPublicKey: u.PublicKey(),
 		Timestamp:      time.Now().Unix(),
 		NewStatus:      cms.InvoiceStatusUpdated,
 	}
-	blob, err := encodeBackendInvoiceStatusChange(c)
+	blob, err := mdstream.EncodeInvoiceStatusChange(c)
 	if err != nil {
 		return nil, err
 	}
@@ -1183,7 +1184,7 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 		Token:     ei.Token,
 		MDAppend: []pd.MetadataStream{
 			{
-				ID:      mdStreamInvoiceStatusChanges,
+				ID:      mdstream.IDInvoiceStatusChange,
 				Payload: string(blob),
 			},
 		},
@@ -1253,10 +1254,11 @@ func (p *politeiawww) processGeneratePayouts(gp cms.GeneratePayouts, u *user.Use
 	reply := &cms.GeneratePayoutsReply{}
 	payouts := make([]cms.Payout, 0, len(dbInvs))
 	for _, inv := range dbInvs {
-		payout, err := p.calculatePayout(inv)
+		payout, err := calculatePayout(inv)
 		if err != nil {
 			return nil, err
 		}
+		payout.Username = u.Username
 		payouts = append(payouts, payout)
 	}
 	sort.Slice(payouts, func(i, j int) bool {
@@ -1508,13 +1510,13 @@ func (p *politeiawww) processPayInvoices(u *user.User) (*cms.PayInvoicesReply, e
 	reply := &cms.PayInvoicesReply{}
 	for _, inv := range dbInvs {
 		// Create the change record.
-		c := backendInvoiceStatusChange{
-			Version:        backendInvoiceStatusChangeVersion,
+		c := mdstream.InvoiceStatusChange{
+			Version:        mdstream.VersionInvoiceStatusChange,
 			AdminPublicKey: u.PublicKey(),
 			Timestamp:      time.Now().Unix(),
 			NewStatus:      cms.InvoiceStatusPaid,
 		}
-		blob, err := encodeBackendInvoiceStatusChange(c)
+		blob, err := mdstream.EncodeInvoiceStatusChange(c)
 		if err != nil {
 			return nil, err
 		}
@@ -1529,7 +1531,7 @@ func (p *politeiawww) processPayInvoices(u *user.User) (*cms.PayInvoicesReply, e
 			Token:     inv.Token,
 			MDAppend: []pd.MetadataStream{
 				{
-					ID:      mdStreamInvoiceStatusChanges,
+					ID:      mdstream.IDInvoiceStatusChange,
 					Payload: string(blob),
 				},
 			},
@@ -1571,81 +1573,6 @@ func (p *politeiawww) processPayInvoices(u *user.User) (*cms.PayInvoicesReply, e
 		}
 	}
 	return reply, err
-}
-
-// backendInvoiceMetadata represents the general metadata for an invoice and is
-// stored in the metadata stream mdStreamInvoiceGeneral in politeiad.
-type backendInvoiceMetadata struct {
-	Version   uint64 `json:"version"`   // Version of the struct
-	Timestamp int64  `json:"timestamp"` // Last update of invoice
-	PublicKey string `json:"publickey"` // Key used for signature
-	Signature string `json:"signature"` // Signature of merkle root
-}
-
-// backendInvoiceStatusChange represents an invoice status change and is stored
-// in the metadata stream mdStreamInvoiceStatusChanges in politeiad.
-type backendInvoiceStatusChange struct {
-	Version        uint               `json:"version"`        // Version of the struct
-	AdminPublicKey string             `json:"adminpublickey"` // Identity of the administrator
-	NewStatus      cms.InvoiceStatusT `json:"newstatus"`      // Status
-	Reason         string             `json:"reason"`         // Reason
-	Timestamp      int64              `json:"timestamp"`      // Timestamp of the change
-}
-
-// encodeBackendInvoiceMetadata encodes a backendInvoiceMetadata into a JSON
-// byte slice.
-func encodeBackendInvoiceMetadata(md backendInvoiceMetadata) ([]byte, error) {
-	b, err := json.Marshal(md)
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
-}
-
-// decodeBackendInvoiceMetadata decodes a JSON byte slice into a
-// backendInvoiceMetadata.
-func decodeBackendInvoiceMetadata(payload []byte) (*backendInvoiceMetadata, error) {
-	var md backendInvoiceMetadata
-
-	err := json.Unmarshal(payload, &md)
-	if err != nil {
-		return nil, err
-	}
-
-	return &md, nil
-}
-
-// encodeBackendInvoiceStatusChange encodes a backendInvoiceStatusChange into a
-// JSON byte slice.
-func encodeBackendInvoiceStatusChange(md backendInvoiceStatusChange) ([]byte, error) {
-	b, err := json.Marshal(md)
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
-}
-
-// decodeBackendInvoiceStatusChange decodes a JSON byte slice into a slice of
-// backendInvoiceStatusChanges.
-func decodeBackendInvoiceStatusChanges(payload []byte) ([]backendInvoiceStatusChange, error) {
-	var md []backendInvoiceStatusChange
-
-	d := json.NewDecoder(strings.NewReader(string(payload)))
-	for {
-		var m backendInvoiceStatusChange
-		err := d.Decode(&m)
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return nil, err
-		}
-
-		md = append(md, m)
-	}
-
-	return md, nil
 }
 
 // processInvoicePayouts looks for all paid invoices within the given start and end dates.
@@ -1693,30 +1620,30 @@ func getInvoiceMonthYear(files []www.File) (uint, uint) {
 	return 0, 0
 }
 
-func (p *politeiawww) calculatePayout(inv database.Invoice) (cms.Payout, error) {
+func calculatePayout(inv database.Invoice) (cms.Payout, error) {
 	payout := cms.Payout{}
-
-	var username string
-	u, err := p.db.UserGetByPubKey(inv.PublicKey)
-	if err != nil {
-		log.Errorf("calculatePayout: UserGetByPubKey: token:%v "+
-			"pubkey:%v err:%v", inv.Token, inv.PublicKey, err)
-	} else {
-		username = u.Username
-	}
-
+	var err error
 	var totalLaborMinutes uint
 	var totalExpenses uint
+	var totalSubContractorLabor uint
 	for _, lineItem := range inv.LineItems {
 		switch lineItem.Type {
-		case cms.LineItemTypeLabor, cms.LineItemTypeSubHours:
+		case cms.LineItemTypeLabor:
 			totalLaborMinutes += lineItem.Labor
+		case cms.LineItemTypeSubHours:
+			// If SubContractor line item calculate them per line item and total
+			// them up.
+			totalSubContractorLabor += lineItem.Labor *
+				lineItem.ContractorRate / 60
 		case cms.LineItemTypeExpense, cms.LineItemTypeMisc:
 			totalExpenses += lineItem.Expenses
 		}
 	}
 
 	payout.LaborTotal = totalLaborMinutes * inv.ContractorRate / 60
+	// Add in subcontractor line items to total for payout.
+	payout.LaborTotal += totalSubContractorLabor
+
 	payout.ContractorRate = inv.ContractorRate
 	payout.ExpenseTotal = totalExpenses
 
@@ -1724,7 +1651,6 @@ func (p *politeiawww) calculatePayout(inv database.Invoice) (cms.Payout, error) 
 	payout.Token = inv.Token
 	payout.ContractorName = inv.ContractorName
 
-	payout.Username = username
 	payout.Month = inv.Month
 	payout.Year = inv.Year
 	payout.Total = payout.LaborTotal + payout.ExpenseTotal

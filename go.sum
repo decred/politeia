@@ -313,7 +313,6 @@ github.com/decred/dcrwallet/version v1.0.1/go.mod h1:rXeMsUaI03WtlQrSol7Q7sJ8HBO
 github.com/decred/dcrwallet/wallet v1.0.0/go.mod h1:VWRnpNFRiKPo7FUPbzj0t5ElcGxNXMPIa4vGcGe94uM=
 github.com/decred/dcrwallet/wallet v1.1.0/go.mod h1:g4OzDG7jpsRqTDP3bHiA0LIEZFx81accYPCkO1DBNT8=
 github.com/decred/dcrwallet/wallet v1.2.0/go.mod h1:ItOhnw3C4znuLQVWACSq8jCLy221v9X0Xo0b/j5WqgU=
-github.com/decred/dcrwallet/wallet v1.3.0 h1:RQ4uHIfbDF0ppyeVDkTr7GapeABCddUUKOSexTN7X1M=
 github.com/decred/dcrwallet/wallet v1.3.0/go.mod h1:ItOhnw3C4znuLQVWACSq8jCLy221v9X0Xo0b/j5WqgU=
 github.com/decred/dcrwallet/walletseed v1.0.0/go.mod h1:xSF6hZW+5Xhm0jJFsI5jQSfViuZUQJoDXa/cQxtgncs=
 github.com/decred/dcrwallet/walletseed v1.0.1/go.mod h1:ENlwTabC2JVmT4S1eCP44fnwX4+9y2RLsnfSU21CJ+4=

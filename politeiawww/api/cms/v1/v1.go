@@ -136,7 +136,7 @@ const (
 
 	// PolicyInvoiceLineItemCount is the number of expected fields in the raw
 	// csv line items
-	PolicyInvoiceLineItemCount = 8
+	PolicyInvoiceLineItemCount = 9
 
 	// PolicyMinLineItemColLength is the minimun length for the strings in
 	// each column field of the lineItem structure.
@@ -344,18 +344,18 @@ type EditInvoiceReply struct {
 
 // InvoiceRecord is an entire invoice and its content.
 type InvoiceRecord struct {
-	Status             InvoiceStatusT `json:"status"`                       // Current status of invoice
-	StatusChangeReason string         `json:"statuschangereason,omitempty"` // Reason (if any) for the current status
-	Timestamp          int64          `json:"timestamp"`                    // Last update of invoice
-	UserID             string         `json:"userid"`                       // ID of user who submitted invoice
-	Username           string         `json:"username"`                     // Username of user who submitted invoice
-	PublicKey          string         `json:"publickey"`                    // User's public key, used to verify signature.
-	Signature          string         `json:"signature"`                    // Signature of file digest
-	Files              []www.File     `json:"file"`                         // Actual invoice file
-	Version            string         `json:"version"`                      // Record version
-	Input              InvoiceInput   `json:"input"`                        // Decoded invoice from invoice.json file
-
-	CensorshipRecord www.CensorshipRecord `json:"censorshiprecord"`
+	Status             InvoiceStatusT       `json:"status"`                       // Current status of invoice
+	StatusChangeReason string               `json:"statuschangereason,omitempty"` // Reason (if any) for the current status
+	Timestamp          int64                `json:"timestamp"`                    // Last update of invoice
+	UserID             string               `json:"userid"`                       // ID of user who submitted invoice
+	Username           string               `json:"username"`                     // Username of user who submitted invoice
+	PublicKey          string               `json:"publickey"`                    // User's public key, used to verify signature.
+	Signature          string               `json:"signature"`                    // Signature of file digest
+	Files              []www.File           `json:"file"`                         // Actual invoice file
+	Version            string               `json:"version"`                      // Record version
+	Input              InvoiceInput         `json:"input"`                        // Decoded invoice from invoice.json file
+	Payment            PaymentInformation   `json:"payment"`                      // Payment information for the Invoice
+	CensorshipRecord   www.CensorshipRecord `json:"censorshiprecord"`
 }
 
 // InvoiceDetails is used to retrieve a invoice by it's token.
@@ -393,6 +393,7 @@ type LineItemsInput struct {
 	Description   string        `json:"description"`   // Description of work performed
 	ProposalToken string        `json:"proposaltoken"` // Link to politeia proposal that work is associated with
 	SubUserID     string        `json:"subuserid"`     // UserID of the associated Subcontractor
+	SubRate       uint          `json:"subrate"`       // The payrate of the subcontractor
 	Labor         uint          `json:"labor"`         // Number of minutes (if labor)
 	Expenses      uint          `json:"expenses"`      // Total cost (in USD cents) of line item (if expense or misc)
 }
@@ -624,6 +625,7 @@ type DCCRecord struct {
 	PublicKey          string     `json:"publickey"`          // Sponsoring user's public key, used to verify signature.
 	Signature          string     `json:"signature"`          // Signature of file digest
 
+	NomineeUsername string `json:"nomineeusername"` // The username of the nominated user.
 	SponsorUserID   string `json:"sponsoruserid"`   // The userid of the sponsoring user.
 	SponsorUsername string `json:"sponsorusername"` // The username of the sponsoring user.
 
@@ -669,7 +671,7 @@ type GetDCCsReply struct {
 // SupportOpposeDCC request allows a user to support a given DCC issuance or
 // revocation.
 type SupportOpposeDCC struct {
-	Vote      string `json:"comment"`   // Vote must be "aye" or "nay"
+	Vote      string `json:"vote"`      // Vote must be "aye" or "nay"
 	Token     string `json:"token"`     // The censorship token of the given DCC issuance or revocation.
 	PublicKey string `json:"publickey"` // Pubkey of the submitting user
 	Signature string `json:"signature"` // Signature of the Token+Vote by the submitting user.

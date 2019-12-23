@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/decred/politeia/decredplugin"
 	database "github.com/decred/politeia/politeiawww/cmsdatabase"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
@@ -19,9 +18,10 @@ import (
 
 const (
 	cacheID    = "cms"
-	cmsVersion = "1"
+	cmsVersion = "2"
 
 	// Database table names
+	tableNameVersions      = "versions"
 	tableNameInvoice       = "invoices"
 	tableNameLineItem      = "line_items"
 	tableNameInvoiceChange = "invoice_changes"
@@ -420,51 +420,28 @@ func createCmsTables(tx *gorm.DB) error {
 			return err
 		}
 	}
-	return nil
-}
-
-//
-// This function must be called within a transaction.
-func (c *cockroachdb) build(tx *gorm.DB, ir *decredplugin.InventoryReply) error {
-	log.Tracef("cms build")
-
-	// Create the database tables
-	err := createCmsTables(tx)
-	if err != nil {
-		return fmt.Errorf("createCmsTables: %v", err)
+	if !tx.HasTable(tableNameVersions) {
+		err := tx.CreateTable(&Version{}).Error
+		if err != nil {
+			return err
+		}
 	}
 
-	// pull Inventory from d then rebuild invoice database
-	return nil
-}
-
-// Build drops all existing decred plugin tables from the database, recreates
-// them, then uses the passed in inventory payload to build the decred plugin
-// cache.
-func (c *cockroachdb) Build(payload string) error {
-	log.Tracef("invoice Build")
-
-	// Decode the payload
-	ir, err := decredplugin.DecodeInventoryReply([]byte(payload))
-	if err != nil {
-		return fmt.Errorf("DecodeInventoryReply: %v", err)
-	}
-
-	// Drop all decred plugin tables
-	err = c.recordsdb.DropTableIfExists(tableNameInvoice, tableNameLineItem).Error
-	if err != nil {
-		return fmt.Errorf("drop invoice tables failed: %v", err)
-	}
-
-	// Build the decred plugin cache from scratch
-	tx := c.recordsdb.Begin()
-	err = c.build(tx, ir)
-	if err != nil {
-		tx.Rollback()
+	var v Version
+	err := tx.Where("id = ?", cacheID).
+		Find(&v).
+		Error
+	if err == gorm.ErrRecordNotFound {
+		err = tx.Create(
+			&Version{
+				ID:        cacheID,
+				Version:   cmsVersion,
+				Timestamp: time.Now().Unix(),
+			}).Error
 		return err
 	}
 
-	return tx.Commit().Error
+	return nil
 }
 
 // Setup calls the tables creation function to ensure the database is prepared for use.
@@ -477,6 +454,112 @@ func (c *cockroachdb) Setup() error {
 	}
 
 	return tx.Commit().Error
+}
+
+func (c *cockroachdb) dropTables(tx *gorm.DB) error {
+	// Drop record tables
+	err := tx.DropTableIfExists(tableNameInvoice, tableNameInvoiceChange,
+		tableNameLineItem, tableNamePayments, tableNameDCC).Error
+	if err != nil {
+		return err
+	}
+
+	// Remove cms version record
+	return tx.Delete(&Version{
+		ID: cacheID,
+	}).Error
+}
+
+// build the records cache using the passed in records.
+//
+// This function cannot be called using a transaction because it could
+// potentially exceed cockroachdb's transaction size limit.
+func (c *cockroachdb) build(invoices []Invoice, dccs []DCC) error {
+	log.Tracef("build")
+
+	// Drop record tables
+	tx := c.recordsdb.Begin()
+	err := c.dropTables(tx)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("drop tables: %v", err)
+	}
+	err = tx.Commit().Error
+	if err != nil {
+		return err
+	}
+
+	// Create record tables
+	tx = c.recordsdb.Begin()
+	err = createCmsTables(tx)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("create tables: %v", err)
+	}
+	err = tx.Commit().Error
+	if err != nil {
+		return err
+	}
+
+	for _, i := range invoices {
+		err := c.recordsdb.Create(&i).Error
+		if err != nil {
+			log.Debugf("create invoice failed on '%v'", i)
+			return fmt.Errorf("create invoice: %v", err)
+		}
+	}
+
+	for _, d := range dccs {
+		err := c.recordsdb.Create(&d).Error
+		if err != nil {
+			log.Debugf("create dcc failed on '%v'", d)
+			return fmt.Errorf("create dcc: %v", err)
+		}
+	}
+
+	return nil
+}
+
+// Build drops all existing tables from the records cache, recreates them, then
+// builds the records cache using the passed in records.
+func (c *cockroachdb) Build(dbInvs []database.Invoice, dbDCCs []database.DCC) error {
+	log.Tracef("Build")
+
+	c.Lock()
+	defer c.Unlock()
+
+	if c.shutdown {
+		return database.ErrShutdown
+	}
+
+	log.Infof("Building records cache")
+	invoices := make([]Invoice, 0, len(dbInvs))
+	for _, dbInv := range dbInvs {
+		inv := EncodeInvoice(&dbInv)
+		invoices = append(invoices, *inv)
+	}
+	dccs := make([]DCC, 0, len(dbDCCs))
+	for _, dbDCC := range dbDCCs {
+		dcc := encodeDCC(&dbDCC)
+		dccs = append(dccs, *dcc)
+	}
+	// Build the records cache. This is not run using a
+	// transaction because it could potentially exceed
+	// cockroachdb's transaction size limit.
+	err := c.build(invoices, dccs)
+	if err != nil {
+		// Remove the version record. This will
+		// force a rebuild on the next start up.
+		err1 := c.recordsdb.Delete(&Version{
+			ID: cacheID,
+		}).Error
+		if err1 != nil {
+			panic("the cache is out of sync and will not rebuild" +
+				"automatically; a rebuild must be forced")
+		}
+	}
+
+	return err
 }
 
 func buildQueryString(user, rootCert, cert, key string) string {
@@ -521,6 +604,28 @@ func New(host, net, rootCert, cert, key string) (*cockroachdb, error) {
 	// Disable automatic table name pluralization. We set table
 	// names manually.
 	c.recordsdb.SingularTable(true)
+
+	// Return an error if the version record is not found or
+	// if there is a version mismatch, but also return the
+	// cache context so that the cache can be built/rebuilt.
+	if !c.recordsdb.HasTable(tableNameVersions) {
+		log.Debugf("table '%v' does not exist", tableNameVersions)
+		return c, database.ErrNoVersionRecord
+	}
+
+	var v Version
+	err = c.recordsdb.
+		Where("id = ?", cacheID).
+		Find(&v).
+		Error
+	if err == gorm.ErrRecordNotFound {
+		log.Debugf("version record not found for ID '%v'", cacheID)
+		err = database.ErrNoVersionRecord
+	} else if v.Version != cmsVersion {
+		log.Debugf("version mismatch for ID '%v': got %v, want %v",
+			cacheID, v.Version, cmsVersion)
+		err = database.ErrWrongVersion
+	}
 
 	return c, err
 }

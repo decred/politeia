@@ -14,6 +14,7 @@ import (
 
 	"github.com/decred/dcrd/dcrutil"
 	pstypes "github.com/decred/dcrdata/pubsub/types/v3"
+	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/cache"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
@@ -75,8 +76,13 @@ func (p *politeiawww) setupCMSAddressWatcher() {
 				payment, err := p.cmsDB.PaymentsByAddress(m.Address)
 				if err != nil {
 					log.Errorf("error retreiving payments information from db %v", err)
+					continue
 				}
-				paid := p.checkPayments(payment, m.Address, m.TxHash)
+				if payment.Address != m.Address {
+					log.Errorf("payment address does not match watched address message!")
+					continue
+				}
+				paid := p.checkPayments(payment, m.TxHash)
 				if paid {
 					p.removeWatchAddress(payment.Address)
 				}
@@ -98,7 +104,7 @@ func (p *politeiawww) restartCMSAddressesWatching() error {
 		_, err := p.cmsDB.PaymentsByAddress(invoice.PaymentAddress)
 		if err != nil {
 			if err == database.ErrInvoiceNotFound {
-				payout, err := p.calculatePayout(invoice)
+				payout, err := calculatePayout(invoice)
 				if err != nil {
 					return err
 				}
@@ -210,51 +216,38 @@ func (p *politeiawww) checkHistoricalPayments(payment *database.Payments) bool {
 
 // checkPayments checks to see if a given payment has been successfully paid.
 // It will return TRUE if paid, otherwise false.  It utilizes the util
-// FetchTxs which looks for transaction at a given address.
-func (p *politeiawww) checkPayments(payment *database.Payments, watchedAddr, notifiedTx string) bool {
-	txs, err := util.FetchTx(watchedAddr, notifiedTx)
+// FetchTx which looks for transaction at a given address.
+func (p *politeiawww) checkPayments(payment *database.Payments, notifiedTx string) bool {
+	tx, err := util.FetchTx(payment.Address, notifiedTx)
 	if err != nil {
 		log.Errorf("error FetchTxs for address %s: %v", payment.Address, err)
 		return false
 	}
-	if len(txs) == 0 {
+	if tx == nil {
+		log.Errorf("cannot find txid %v for address %v", notifiedTx, payment.Address)
 		return false
 	}
-
-	txIDs := ""
 	// Calculate amount received
 	amountReceived := dcrutil.Amount(0)
 	log.Debugf("Reviewing transactions for address: %v", payment.Address)
-	// Transaction counter
-	i := 0
-	for _, tx := range txs {
-		// Check to see if running mainnet, if so, only accept transactions
-		// that originate from the Treasury Subsidy.
-		if !p.cfg.TestNet && !p.cfg.SimNet {
-			found := false
-			for _, address := range tx.InputAddresses {
-				if address == mainnetSubsidyAddr {
-					found = true
-					break
-				}
-			}
-			if !found {
-				continue
+
+	// Check to see if running mainnet, if so, only accept transactions
+	// that originate from the Treasury Subsidy.
+	if !p.cfg.TestNet && !p.cfg.SimNet {
+		for _, address := range tx.InputAddresses {
+			if address != mainnetSubsidyAddr {
+				// All input addresses should be from the subsidy address
+				return false
 			}
 		}
-		log.Debugf("Transaction %v with amount %v", tx.TxID, tx.Amount)
-		amountReceived += dcrutil.Amount(tx.Amount)
-		if i == 0 {
-			txIDs = tx.TxID
-		} else {
-			txIDs += ", " + tx.TxID
-		}
-		i++
 	}
+	log.Debugf("Transaction %v with amount %v", tx.TxID, tx.Amount)
+	amountReceived += dcrutil.Amount(tx.Amount)
+
 	if payment.TxIDs == "" {
-		payment.TxIDs = txIDs
+		payment.TxIDs = tx.TxID
 	} else {
-		payment.TxIDs += ", " + txIDs
+		payment.TxIDs += ", " + tx.TxID
 	}
 
 	log.Debugf("Amount received %v amount needed %v", int64(amountReceived),
@@ -267,10 +260,10 @@ func (p *politeiawww) checkPayments(payment *database.Payments, watchedAddr, not
 	payment.AmountReceived = int64(amountReceived)
 	payment.TimeLastUpdated = time.Now().Unix()
 
-	err = p.cmsDB.UpdatePayments(payment)
+	err = p.updateInvoicePayment(payment)
 	if err != nil {
-		log.Errorf("Error updating payments information for: %v %v",
-			payment.Address, err)
+		log.Errorf("error updateInvoicePayment %v", err)
+		return false
 	}
 
 	if payment.Status == cms.PaymentStatusPaid {
@@ -285,6 +278,61 @@ func (p *politeiawww) checkPayments(payment *database.Payments, watchedAddr, not
 	return false
 }
 
+func (p *politeiawww) updateInvoicePayment(payment *database.Payments) error {
+	// Create new backend invoice payment metadata
+	c := mdstream.InvoicePayment{
+		Version:        mdstream.VersionInvoicePayment,
+		TxIDs:          payment.TxIDs,
+		Timestamp:      payment.TimeLastUpdated,
+		AmountReceived: payment.AmountReceived,
+	}
+
+	blob, err := mdstream.EncodeInvoicePayment(c)
+	if err != nil {
+		return err
+	}
+
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return err
+	}
+
+	pdCommand := pd.UpdateVettedMetadata{
+		Challenge: hex.EncodeToString(challenge),
+		Token:     payment.InvoiceToken,
+		MDAppend: []pd.MetadataStream{
+			{
+				ID:      mdstream.IDInvoicePayment,
+				Payload: string(blob),
+			},
+		},
+	}
+	responseBody, err := p.makeRequest(http.MethodPost,
+		pd.UpdateVettedMetadataRoute, pdCommand)
+	if err != nil {
+		return err
+	}
+
+	var pdReply pd.UpdateVettedMetadataReply
+	err = json.Unmarshal(responseBody, &pdReply)
+	if err != nil {
+		return fmt.Errorf("Could not unmarshal UpdateVettedMetadataReply: %v",
+			err)
+	}
+
+	// Verify the UpdateVettedMetadata challenge.
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, pdReply.Response)
+	if err != nil {
+		return err
+	}
+
+	err = p.cmsDB.UpdatePayments(payment)
+	if err != nil {
+		log.Errorf("Error updating payments information for: %v %v",
+			payment.Address, err)
+	}
+	return nil
+}
 func (p *politeiawww) invoiceStatusPaid(token string) error {
 	dbInvoice, err := p.cmsDB.InvoiceByToken(token)
 	if err != nil {
@@ -297,14 +345,14 @@ func (p *politeiawww) invoiceStatusPaid(token string) error {
 	}
 
 	// Create the change record.
-	c := backendInvoiceStatusChange{
-		Version:   backendInvoiceStatusChangeVersion,
+	c := mdstream.InvoiceStatusChange{
+		Version:   mdstream.VersionInvoiceStatusChange,
 		Timestamp: time.Now().Unix(),
 		NewStatus: cms.InvoiceStatusPaid,
 		Reason:    "Invoice watcher found payment transactions.",
 	}
 
-	blob, err := encodeBackendInvoiceStatusChange(c)
+	blob, err := mdstream.EncodeInvoiceStatusChange(c)
 	if err != nil {
 		return err
 	}
@@ -319,7 +367,7 @@ func (p *politeiawww) invoiceStatusPaid(token string) error {
 		Token:     token,
 		MDAppend: []pd.MetadataStream{
 			{
-				ID:      mdStreamInvoiceStatusChanges,
+				ID:      mdstream.IDInvoiceStatusChange,
 				Payload: string(blob),
 			},
 		},

@@ -48,7 +48,7 @@ func EncodeInvoice(dbInvoice *database.Invoice) *Invoice {
 
 	for i, dbInvoiceLineItem := range dbInvoice.LineItems {
 		invoiceLineItem := EncodeInvoiceLineItem(&dbInvoiceLineItem)
-		invoiceLineItem.LineItemKey = dbInvoiceLineItem.InvoiceToken + strconv.Itoa(i)
+		invoiceLineItem.LineItemKey = dbInvoice.Token + strconv.Itoa(i)
 		invoice.LineItems = append(invoice.LineItems, invoiceLineItem)
 	}
 
@@ -109,6 +109,7 @@ func EncodeInvoiceLineItem(dbLineItem *database.LineItem) LineItem {
 	lineItem.ProposalURL = dbLineItem.ProposalURL
 	lineItem.Labor = dbLineItem.Labor
 	lineItem.Expenses = dbLineItem.Expenses
+	lineItem.ContractorRate = dbLineItem.ContractorRate
 	return lineItem
 }
 
@@ -123,6 +124,7 @@ func DecodeInvoiceLineItem(lineItem *LineItem) *database.LineItem {
 	dbLineItem.ProposalURL = lineItem.ProposalURL
 	dbLineItem.Labor = lineItem.Labor
 	dbLineItem.Expenses = lineItem.Expenses
+	dbLineItem.ContractorRate = lineItem.ContractorRate
 
 	return dbLineItem
 }

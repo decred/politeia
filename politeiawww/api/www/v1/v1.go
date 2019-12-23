@@ -781,13 +781,16 @@ type BatchVoteSummaryReply struct {
 	Summaries map[string]VoteSummary `json:"summaries"` // [token]VoteSummary
 }
 
-// SetProposalStatus is used to publish or censor an unreviewed proposal.
+// SetProposalStatus is used to change the status of a proposal. Only admins
+// have the ability to change a proposal's status. Some status changes, such
+// as censoring a proposal, require the StatusChangeMessage to be populated
+// with the reason for the status change.
 type SetProposalStatus struct {
-	Token               string      `json:"token"`
-	ProposalStatus      PropStatusT `json:"proposalstatus"`
+	Token               string      `json:"token"`                         // Proposal token
+	ProposalStatus      PropStatusT `json:"proposalstatus"`                // New status
 	StatusChangeMessage string      `json:"statuschangemessage,omitempty"` // Message associated to the status change
 	Signature           string      `json:"signature"`                     // Signature of Token+string(ProposalStatus)+StatusChangeMessage
-	PublicKey           string      `json:"publickey"`
+	PublicKey           string      `json:"publickey"`                     // Signature pubkey
 }
 
 // SetProposalStatusReply is used to reply to a SetProposalStatus command.

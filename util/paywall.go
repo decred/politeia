@@ -22,17 +22,19 @@ import (
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/hdkeychain"
-	"github.com/decred/dcrwallet/wallet/udb"
 )
 
 const (
-	dcrdataMainnet   = "https://explorer.dcrdata.org/api"
-	dcrdataTestnet   = "https://testnet.dcrdata.org/api"
-	dcrdataMainnetWS = "wss://explorer.dcrdata.org/ps"
-	dcrdataTestnetWS = "wss://testnet.dcrdata.org/ps"
+	dcrdataMainnet   = "https://dcrdata.decred.org/api"
+	dcrdataTestnet   = "https://testnet.decred.org/api"
+	dcrdataMainnetWS = "wss://dcrdata.decred.org/ps"
+	dcrdataTestnetWS = "wss://testnet.decred.org/ps"
 
 	dcrdataTimeout = 3 * time.Second // Dcrdata request timeout
 	faucetTimeout  = 5 * time.Second // Testnet faucet request timeout
+
+	// Must match dcrwallets udb.ExternalBranch
+	externalBranch uint32 = 0
 )
 
 // FaucetResponse represents the expected JSON response from the testnet faucet.
@@ -247,7 +249,7 @@ func DerivePaywallAddress(params *chaincfg.Params, xpub string, index uint32) (s
 	}
 
 	// Derive the appropriate branch key.
-	branchKey, err := acctKey.Child(udb.ExternalBranch)
+	branchKey, err := acctKey.Child(externalBranch)
 	if err != nil {
 		return "", err
 	}
@@ -510,7 +512,7 @@ func FetchTxsForAddressNotBefore(address string, notBefore int64) ([]TxDetails, 
 }
 
 // FetchTx fetches a given transaction based on the provided txid.
-func FetchTx(address, txid string) ([]TxDetails, error) {
+func FetchTx(address, txid string) (*TxDetails, error) {
 	// Get block explorer URLs
 	addr, err := dcrutil.DecodeAddress(address)
 	if err != nil {
@@ -528,15 +530,16 @@ func FetchTx(address, txid string) ([]TxDetails, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch from dcrdata: %v", err)
 	}
-	txs := make([]TxDetails, 0, len(primaryTxs))
 	for _, tx := range primaryTxs {
+		if strings.TrimSpace(tx.TxId) != strings.TrimSpace(txid) {
+			continue
+		}
 		txDetail, err := convertBETransactionToTxDetails(address, tx)
 		if err != nil {
 			return nil, fmt.Errorf("convertBETransactionToTxDetails: %v",
 				tx.TxId)
 		}
-		txs = append(txs, *txDetail)
+		return txDetail, nil
 	}
-
-	return txs, nil
+	return nil, nil
 }

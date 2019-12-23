@@ -10,6 +10,19 @@ import (
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 )
 
+// Version describes the version of a record or plugin that the database is
+// currently using.
+type Version struct {
+	ID        string `gorm:"primary_key"` // Primary key
+	Version   string `gorm:"not null"`    // Version
+	Timestamp int64  `gorm:"not null"`    // UNIX timestamp of record creation
+}
+
+// TableName returns the table name of the invoices table.
+func (Version) TableName() string {
+	return tableNameVersions
+}
+
 // Invoice is the database model for the database.Invoice type
 type Invoice struct {
 	Token              string    `gorm:"primary_key"`
@@ -43,15 +56,16 @@ func (Invoice) TableName() string {
 
 // LineItem is the database model for the database.LineItem type
 type LineItem struct {
-	LineItemKey  string `gorm:"primary_key"` // Token of the Invoice + array index
-	InvoiceToken string `gorm:"not null"`    // Censorship token of the invoice
-	Type         uint   `gorm:"not null"`    // Type of line item
-	Domain       string `gorm:"not null"`    // Domain of the work performed (dev, marketing etc)
-	Subdomain    string `gorm:"not null"`    // Subdomain of the work performed (decrediton, event X etc)
-	Description  string `gorm:"not null"`    // Description of work performed
-	ProposalURL  string `gorm:"not null"`    // Link to politeia proposal that work is associated with
-	Labor        uint   `gorm:"not null"`    // Number of minutes worked
-	Expenses     uint   `gorm:"not null"`    // Total cost of line item (in USD cents)
+	LineItemKey    string `gorm:"primary_key"` // Token of the Invoice + array index
+	InvoiceToken   string `gorm:"not null"`    // Censorship token of the invoice
+	Type           uint   `gorm:"not null"`    // Type of line item
+	Domain         string `gorm:"not null"`    // Domain of the work performed (dev, marketing etc)
+	Subdomain      string `gorm:"not null"`    // Subdomain of the work performed (decrediton, event X etc)
+	Description    string `gorm:"not null"`    // Description of work performed
+	ProposalURL    string `gorm:"not null"`    // Link to politeia proposal that work is associated with
+	Labor          uint   `gorm:"not null"`    // Number of minutes worked
+	Expenses       uint   `gorm:"not null"`    // Total cost of line item (in USD cents)
+	ContractorRate uint   `gorm:"not null"`    // Optional contractor rate for line item, typically used for Sub Contractors
 }
 
 // TableName returns the table name of the line items table.

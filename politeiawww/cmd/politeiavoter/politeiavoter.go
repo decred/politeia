@@ -26,7 +26,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
@@ -46,6 +45,10 @@ import (
 	"golang.org/x/net/publicsuffix"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+)
+
+var (
+	signals []os.Signal
 )
 
 func generateSeed() (int64, error) {
@@ -902,10 +905,10 @@ func (c *ctx) _voteTrickler(token string) error {
 	c.ballotResults = make([]BallotResult, 0, voteCount)
 
 	// Launch signal handler
-	signals := make(chan os.Signal, 1)
+	signalsChan := make(chan os.Signal, 1)
 	signalsDone := make(chan struct{}, 1)
-	signal.Notify(signals, syscall.SIGUSR1)
-	go c.signalHandler(signals, signalsDone)
+	signal.Notify(signalsChan, signals...)
+	go c.signalHandler(signalsChan, signalsDone)
 
 	// Launch retry loop
 	c.retryWG.Add(1)
@@ -1000,7 +1003,7 @@ func (c *ctx) _voteTrickler(token string) error {
 
 exit:
 	// Shut down signal handler
-	signal.Stop(signals)
+	signal.Stop(signalsChan)
 	close(signalsDone)
 
 	return nil
@@ -1057,9 +1060,9 @@ func (c *ctx) voteStatus(token string) (*v1.VoteStatusReply, error) {
 func (c *ctx) bestBlock() (uint32, error) {
 	var url string
 	if c.cfg.TestNet {
-		url = "https://testnet.dcrdata.org:443/api/block/best"
+		url = "https://testnet.decred.org:443/api/block/best"
 	} else {
-		url = "https://explorer.dcrdata.org:443/api/block/best"
+		url = "https://dcrdata.decred.org:443/api/block/best"
 	}
 
 	log.Debugf("Request: GET %v", url)
