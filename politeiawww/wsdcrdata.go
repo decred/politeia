@@ -52,10 +52,6 @@ func (w *wsDcrdata) isShutdown() bool {
 	return w.shutdown
 }
 
-// This type of message is sent to notify listeners that the context is being
-// shut down.
-type wsDcrdataShutdown struct{}
-
 // addSub adds an event subscription to the subscriptions map.
 func (w *wsDcrdata) addSub(event string) {
 	w.Lock()
