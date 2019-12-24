@@ -33,7 +33,7 @@ var (
 
 	// errShutdown is emitted when attempting to use wsDcrdata after it
 	// has already been shut down.
-	errShutdown = errors.New("ws connection is shut down")
+	errShutdown = errors.New("dcrdata ws connection is shut down")
 )
 
 // wsDcrdata is the context used for managing a dcrdata websocket connection.
