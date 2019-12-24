@@ -513,7 +513,12 @@ func _main() error {
 		p.setPoliteiaWWWRoutes()
 		// XXX setup user routes
 		p.setUserWWWRoutes()
-		p.setupPiDcrdataWSSubs()
+		err = p.setupPiDcrdataWSSubs()
+		if err != nil {
+			// Politeiawww can run without a dcrdata subscription, but this
+			// should be logged.
+			log.Errorf("Unable to setup pi dcrdata subs: %v", err)
+		}
 	case cmsWWWMode:
 		p.setCMSWWWRoutes()
 		// XXX setup user routes

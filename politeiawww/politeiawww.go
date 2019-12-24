@@ -917,6 +917,7 @@ func (p *politeiawww) setupPiDcrdataWSSubs() error {
 		for {
 			receiver, err := p.wsDcrdata.receive()
 			if err != nil {
+				log.Errorf("No longer listening to dcrdata: %v", err)
 				return
 			}
 
@@ -933,8 +934,7 @@ func (p *politeiawww) setupPiDcrdataWSSubs() error {
 				log.Errorf("Error receiving msg from dcrdata, msg: %v", msg)
 				err = p.resetPiDcrdataWSSubs()
 				if err != nil {
-					log.Errorf("Dcrdata websocket connection is closed. " +
-						"No longer listening.")
+					log.Errorf("No longer listening to dcrdata: %v", err)
 					return
 				}
 				continue
@@ -949,8 +949,7 @@ func (p *politeiawww) setupPiDcrdataWSSubs() error {
 				log.Infof("Dcrdata has hung up. Will reconnect...")
 				err = p.resetPiDcrdataWSSubs()
 				if err != nil {
-					log.Errorf("Dcrdata websocket connection is closed. " +
-						"No longer listening.")
+					log.Errorf("No longer listening to dcrdata: %v", err)
 					return
 				}
 				log.Infof("Successfully reconnected to dcrdata")
