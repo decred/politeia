@@ -137,6 +137,14 @@ func (w *wsDcrdata) unsubscribe(event string) error {
 	return nil
 }
 
+func (w *wsDcrdata) receive() (<-chan *client.ClientMessage, error) {
+	if w.isShutdown() {
+		return nil, errShutdown
+	}
+
+	return w.client.Receive(), nil
+}
+
 // ping pings the dcrdata server.
 func (w *wsDcrdata) ping() error {
 	if w.isShutdown() {
@@ -144,6 +152,14 @@ func (w *wsDcrdata) ping() error {
 	}
 
 	return w.client.Ping()
+}
+
+func (w *wsDcrdata) subToAddr(address string) error {
+	return w.subscribe(addrSubPrefix + address)
+}
+
+func (w *wsDcrdata) unsubFromAddr(address string) error {
+	return w.unsubscribe(addrSubPrefix + address)
 }
 
 func newDcrdataWSClient() (*client.Client, error) {
@@ -184,7 +200,6 @@ func newDcrdataWSClient() (*client.Client, error) {
 // same subscriptions as the previous client.
 func (w *wsDcrdata) reconnect() error {
 	if w.isShutdown() {
-		log.Errorf("wsDcrdata is shutdown, not reconnecting")
 		return errShutdown
 	}
 

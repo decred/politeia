@@ -914,23 +914,28 @@ func (p *politeiawww) setupPiDcrdataWSSubs() error {
 	}
 
 	go func() {
-	listenerLoop:
 		for {
-			msg, ok := <-p.wsDcrdata.client.Receive()
+			receiver, err := p.wsDcrdata.receive()
+			if err != nil {
+				return
+			}
+
+			msg, ok := <-receiver
+
 			if !ok || msg == nil {
 				// After closing wsDcrdata, the channel channel will send a nil
 				// message. This check is just here to avoid a spew of
 				// unnecessary error messages.
 				if p.wsDcrdata.isShutdown() {
-					break listenerLoop
+					return
 				}
 
 				log.Errorf("Error receiving msg from dcrdata, msg: %v", msg)
 				err = p.resetPiDcrdataWSSubs()
 				if err != nil {
-					log.Errorf("Unable to reconnect to dcrdata, no longer " +
-						"listening.")
-					break listenerLoop
+					log.Errorf("Dcrdata websocket connection is closed. " +
+						"No longer listening.")
+					return
 				}
 				continue
 			}
@@ -944,9 +949,9 @@ func (p *politeiawww) setupPiDcrdataWSSubs() error {
 				log.Infof("Dcrdata has hung up. Will reconnect...")
 				err = p.resetPiDcrdataWSSubs()
 				if err != nil {
-					log.Errorf("Unable to reconnect to dcrdata, no longer " +
-						"listening.")
-					break listenerLoop
+					log.Errorf("Dcrdata websocket connection is closed. " +
+						"No longer listening.")
+					return
 				}
 				log.Infof("Successfully reconnected to dcrdata")
 			case int:

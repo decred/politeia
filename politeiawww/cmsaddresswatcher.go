@@ -30,7 +30,7 @@ const (
 )
 
 func (p *politeiawww) addWatchAddress(address string) {
-	err := p.wsDcrdata.subscribe(addrSubPrefix + address)
+	err := p.wsDcrdata.subToAddr(address)
 	if err != nil {
 		log.Errorf("addWatchAddress: subscribe '%v': %v",
 			address, err)
@@ -41,7 +41,7 @@ func (p *politeiawww) addWatchAddress(address string) {
 }
 
 func (p *politeiawww) removeWatchAddress(address string) {
-	err := p.wsDcrdata.unsubscribe(addrSubPrefix + address)
+	err := p.wsDcrdata.unsubFromAddr(address)
 	if err != nil {
 		log.Errorf("removeWatchAddress: unsubscribe '%v': %v",
 			address, err)
