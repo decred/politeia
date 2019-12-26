@@ -1777,36 +1777,30 @@ func (p *politeiawww) processGetAllVoteStatus() (*www.GetAllVoteStatusReply, err
 func (p *politeiawww) processActiveVote() (*www.ActiveVoteReply, error) {
 	log.Tracef("processActiveVote")
 
-	// We need to determine best block height here and only
-	// return active votes.
-	bestBlock, err := p.getBestBlock()
+	// Fetch proposals that are actively being voted on
+	bb, err := p.getBestBlock()
+	if err != nil {
+		return nil, err
+	}
+	tir, err := p.decredTokenInventory(bb, false)
+	if err != nil {
+		return nil, err
+	}
+	props, err := p.getProps(tir.Active)
 	if err != nil {
 		return nil, err
 	}
 
-	// Get all proposals from cache
-	all, err := p.getAllProps()
-	if err != nil {
-		return nil, fmt.Errorf("getAllProps: %v", err)
-	}
-
 	// Compile proposal vote tuples
-	pvt := make([]www.ProposalVoteTuple, 0, len(all))
-	for _, v := range all {
+	pvt := make([]www.ProposalVoteTuple, 0, len(props))
+	for _, v := range props {
 		// Get vote details from cache
 		vdr, err := p.decredVoteDetails(v.CensorshipRecord.Token)
 		if err != nil {
-			log.Errorf("processActiveVote: decredVoteDetails failed %v: %v",
+			return nil, fmt.Errorf("decredVoteDetails %v: %v",
 				v.CensorshipRecord.Token, err)
-			continue
 		}
 		vd := convertVoteDetailsReplyFromDecred(*vdr)
-
-		// We only want proposals that are currently being voted on
-		s := getVoteStatus(vd.AuthorizeVoteReply, vd.StartVoteReply, bestBlock)
-		if s != www.PropVoteStatusStarted {
-			continue
-		}
 
 		pvt = append(pvt, www.ProposalVoteTuple{
 			Proposal:       v,

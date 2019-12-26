@@ -12,6 +12,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	v1 "github.com/decred/politeia/tlog/api/v1"
+	tlogutil "github.com/decred/politeia/tlog/util"
 	"github.com/decred/politeia/util"
 	"github.com/google/trillian"
 	"github.com/google/trillian/client"
@@ -386,7 +387,7 @@ func (t *tserver) waitForAchor(trees []*trillian.Tree, anchors []v1.DataAnchor, 
 					err)
 				continue
 			}
-			re := util.RecordEntryNew(nil, dd, data)
+			re := tlogutil.RecordEntryNew(nil, dd, data)
 
 			treeID := trees[k].TreeId
 			proofs, sth, err := t.appendRecord(trees[k], &v.STH,

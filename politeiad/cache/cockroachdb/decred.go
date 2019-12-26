@@ -533,20 +533,6 @@ func (d *decred) cmdProposalVotes(payload string) (string, error) {
 		return "", err
 	}
 
-	// Lookup start vote
-	var sv StartVote
-	err = d.recordsdb.
-		Where("token = ?", vr.Token).
-		Preload("Options").
-		Find(&sv).
-		Error
-	if err == gorm.ErrRecordNotFound {
-		// A start vote may note exist if the voting period has not
-		// been started yet. This is ok.
-	} else if err != nil {
-		return "", fmt.Errorf("start vote lookup failed: %v", err)
-	}
-
 	// Lookup all cast votes
 	var cv []CastVote
 	err = d.recordsdb.
@@ -560,14 +546,12 @@ func (d *decred) cmdProposalVotes(payload string) (string, error) {
 	}
 
 	// Prepare reply
-	dsv, _ := convertStartVoteToDecred(sv)
 	dcv := make([]decredplugin.CastVote, 0, len(cv))
 	for _, v := range cv {
 		dcv = append(dcv, convertCastVoteToDecred(v))
 	}
 
 	vrr := decredplugin.VoteResultsReply{
-		StartVote: dsv,
 		CastVotes: dcv,
 	}
 

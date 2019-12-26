@@ -21,6 +21,7 @@ import (
 	"time"
 
 	v1 "github.com/decred/politeia/tlog/api/v1"
+	tlogutil "github.com/decred/politeia/tlog/util"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	"github.com/golang/protobuf/ptypes"
@@ -564,7 +565,7 @@ func (t *tserver) recordNew(w http.ResponseWriter, r *http.Request) {
 
 	// Verify individual record entries
 	for k := range rn.RecordEntries {
-		err := util.RecordEntryVerify(rn.RecordEntries[k])
+		err := tlogutil.RecordEntryVerify(rn.RecordEntries[k])
 		if err != nil {
 			// Abort entire thing if any RecordEntry is invalid
 			e := fmt.Sprintf("recordNew RecordEntryVerify(%v): %v",
@@ -636,7 +637,7 @@ func (t *tserver) recordAppend(w http.ResponseWriter, r *http.Request) {
 
 	// Verify individual record entries
 	for k := range ra.RecordEntries {
-		err := util.RecordEntryVerify(ra.RecordEntries[k])
+		err := tlogutil.RecordEntryVerify(ra.RecordEntries[k])
 		if err != nil {
 			// Abort entire thing if any RecordEntry is invalid
 			e := fmt.Sprintf("recordAppend RecordEntryVerify(%v): %v",
