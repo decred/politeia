@@ -645,10 +645,16 @@ func TestTokenPrefixGeneration(t *testing.T) {
 	// Since we updated the status of 2 records, there should be 14 unvetted
 	// and 2 vetted proposals.
 	unvettedTokens, err = g.getUnvettedTokens()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(unvettedTokens) != 14 {
 		t.Fatalf("There should be 14 tokens, but there are %v", len(unvettedTokens))
 	}
 	vettedTokens, err := g.getVettedTokens()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(vettedTokens) != 2 {
 		t.Fatalf("There should be 2 tokens, but there are %v", len(vettedTokens))
 	}
