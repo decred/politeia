@@ -113,22 +113,23 @@ type file struct {
 // gitBackEnd is a git based backend context that satisfies the backend
 // interface.
 type gitBackEnd struct {
-	sync.Mutex                       // Global lock
-	cron            *cron.Cron       // Scheduler for periodic tasks
-	activeNetParams *chaincfg.Params // indicator if we are running on testnet
-	journal         *Journal         // Journal context
-	shutdown        bool             // Backend is shutdown
-	root            string           // Root directory
-	unvetted        string           // Unvettend content
-	vetted          string           // Vetted, public, visible content
-	journals        string           // Journals/cache
-	dcrtimeHost     string           // Dcrtimed host
-	gitPath         string           // Path to git
-	gitTrace        bool             // Enable git tracing
-	test            bool             // Set during UT
-	exit            chan struct{}    // Close channel
-	checkAnchor     chan struct{}    // Work notification
-	plugins         []backend.Plugin // Plugins
+	sync.Mutex                          // Global lock
+	cron            *cron.Cron          // Scheduler for periodic tasks
+	activeNetParams *chaincfg.Params    // indicator if we are running on testnet
+	journal         *Journal            // Journal context
+	shutdown        bool                // Backend is shutdown
+	root            string              // Root directory
+	unvetted        string              // Unvettend content
+	vetted          string              // Vetted, public, visible content
+	journals        string              // Journals/cache
+	dcrtimeHost     string              // Dcrtimed host
+	gitPath         string              // Path to git
+	gitTrace        bool                // Enable git tracing
+	test            bool                // Set during UT
+	exit            chan struct{}       // Close channel
+	checkAnchor     chan struct{}       // Work notification
+	plugins         []backend.Plugin    // Plugins
+	prefixCache     map[string]struct{} // Cache prefixes of existing tokens
 
 	// The following items are used for testing only
 	testAnchors map[string]bool // [digest]anchored
@@ -1192,41 +1193,50 @@ func (g *gitBackEnd) getUnvettedTokens() ([]string, error) {
 	return unvettedTokens, nil
 }
 
-// getAllTokens returns a slice of all vetted and unvetted tokens.
-func (g *gitBackEnd) getAllTokens() ([]string, error) {
+// popuplateTokenPrefixes popuplates the prefix cache on the gitBackEnd object
+// with the prefixes of the tokens of both vetted and unvetted records.
+// This cache is used to ensure that only tokens with unique prefixes are
+// generated, because this allows lookups based on the prefix of a token.
+func (g *gitBackEnd) popuplateTokenPrefixCache() error {
 	vettedTokens, err := g.getVettedTokens()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	unvettedTokens, err := g.getUnvettedTokens()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	tokens := make([]string, 0, len(vettedTokens)+len(unvettedTokens))
-	tokens = append(tokens, util.TokensToPrefixes(vettedTokens)...)
-	tokens = append(tokens, util.TokensToPrefixes(unvettedTokens)...)
-	return tokens, nil
-}
+	prefixCache := make(map[string]struct{},
+		len(vettedTokens)+len(unvettedTokens))
 
-// isTokenUnique checks that the prefix of a token is not equal to any of
-// existingTokenPrefixes.
-func isTokenUnique(token string, existingTokenPrefixes []string) bool {
-	unique := true
-	for _, existingTokenPrefix := range existingTokenPrefixes {
-		if token[0:len(existingTokenPrefix)] == existingTokenPrefix {
-			unique = false
-			break
-		}
+	var vettedPrefixes, unvettedPrefixes []string
+	if g.test {
+		vettedPrefixes = util.TokensToPrefixesLength(vettedTokens, 1)
+		unvettedPrefixes = util.TokensToPrefixesLength(unvettedTokens, 1)
+	} else {
+		vettedPrefixes = util.TokensToPrefixes(vettedTokens)
+		unvettedPrefixes = util.TokensToPrefixes(unvettedTokens)
 	}
 
-	return unique
+	for _, prefix := range vettedPrefixes {
+		prefixCache[prefix] = struct{}{}
+	}
+	for _, prefix := range unvettedPrefixes {
+		prefixCache[prefix] = struct{}{}
+	}
+	g.prefixCache = prefixCache
+
+	return nil
 }
 
 // randomUniqueToken generates a new token of length pd.TokenSize which
-// does not have a prefix equal to any of tokenPrefixes.
-func randomUniqueToken(tokenPrefixes []string) ([]byte, error) {
+// does not share a prefix with any existing token. This is needed to
+// allow lookups based on the prefix of a token.
+//
+// This method should be called with the lock held.
+func (g *gitBackEnd) randomUniqueToken() ([]byte, error) {
 	TRIES := 1000
 	for i := 0; i < TRIES; i++ {
 		token, err := util.Random(pd.TokenSize)
@@ -1235,7 +1245,16 @@ func randomUniqueToken(tokenPrefixes []string) ([]byte, error) {
 		}
 
 		newToken := hex.EncodeToString(token)
-		if isTokenUnique(newToken, tokenPrefixes) {
+
+		var prefix string
+		if g.test {
+			prefix = util.TokenToPrefixLength(newToken, 1)
+		} else {
+			prefix = util.TokenToPrefix(newToken)
+		}
+
+		if _, ok := g.prefixCache[prefix]; !ok {
+			g.prefixCache[prefix] = struct{}{}
 			return token, nil
 		}
 	}
@@ -1255,24 +1274,19 @@ func (g *gitBackEnd) New(metadata []backend.MetadataStream, files []backend.File
 		return nil, err
 	}
 
-	tokens, err := g.getAllTokens()
-	if err != nil {
-		return nil, err
-	}
-	tokenPrefixes := util.TokensToPrefixes(tokens)
-	token, err := randomUniqueToken(tokenPrefixes)
-	if err != nil {
-		return nil, err
-	}
-
-	log.Debugf("New %x", token)
-
 	// Lock filesystem
 	g.Lock()
 	defer g.Unlock()
 	if g.shutdown {
 		return nil, backend.ErrShutdown
 	}
+
+	token, err := g.randomUniqueToken()
+	if err != nil {
+		return nil, err
+	}
+
+	log.Debugf("New %x", token)
 
 	// git checkout master
 	err = g.gitCheckout(g.unvetted, "master")
@@ -2726,7 +2740,10 @@ func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, 
 		checkAnchor:     make(chan struct{}),
 		testAnchors:     make(map[string]bool),
 		plugins:         []backend.Plugin{getDecredPlugin(anp.Name != "mainnet")},
+		prefixCache:     make(map[string]struct{}),
 	}
+	g.popuplateTokenPrefixCache()
+
 	idJSON, err := id.Marshal()
 	if err != nil {
 		return nil, err

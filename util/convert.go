@@ -82,18 +82,33 @@ func Zero(in []byte) {
 	}
 }
 
-func TokenToPrefix(token string) string {
+// TokenToPrefixLength should only be called during testing. The TokenToPrefix
+// function should be used otherwise.
+func TokenToPrefixLength(token string, length int) string {
 	if len(token) > pd.TokenPrefixLength {
-		return token[0:pd.TokenPrefixLength]
+		return token[0:length]
 	} else {
 		return token
 	}
 }
 
-func TokensToPrefixes(tokens []string) []string {
+// TokensToPrefixesLength should only be called during testing. The
+// TokensToPrefixes function should be used otherwise.
+func TokensToPrefixesLength(tokens []string, length int) []string {
 	prefixes := make([]string, 0, len(tokens))
 	for _, token := range tokens {
-		prefixes = append(prefixes, TokenToPrefix(token))
+		prefixes = append(prefixes, TokenToPrefixLength(token, length))
 	}
 	return prefixes
+}
+
+// TokenToPrefix returns a substring a token of length pd.TokenPrefixLength,
+// or the token itself, whichever is shorter.
+func TokenToPrefix(token string) string {
+	return TokenToPrefixLength(token, pd.TokenPrefixLength)
+}
+
+// TokensToPrefixes calls TokenToPrefix on a slice of tokens.
+func TokensToPrefixes(tokens []string) []string {
+	return TokensToPrefixesLength(tokens, pd.TokenPrefixLength)
 }

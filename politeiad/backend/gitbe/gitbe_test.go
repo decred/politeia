@@ -54,6 +54,25 @@ func TestExtendUnextend(t *testing.T) {
 	}
 }
 
+func createTextFile(fileName string) (backend.File, error) {
+	r, err := util.Random(64)
+	if err != nil {
+		return backend.File{}, err
+	}
+
+	payload := hex.EncodeToString(r)
+	digest := hex.EncodeToString(util.Digest([]byte(payload)))
+	// We expect base64 encoded content
+	b64 := base64.StdEncoding.EncodeToString([]byte(payload))
+
+	return backend.File{
+		Name:    fileName,
+		MIME:    mime.DetectMimeType([]byte(payload)),
+		Digest:  digest,
+		Payload: b64,
+	}, nil
+}
+
 func TestAnchorWithCommits(t *testing.T) {
 	log := slog.NewBackend(&testWriter{t}).Logger("TEST")
 	UseLogger(log)
@@ -83,22 +102,11 @@ func TestAnchorWithCommits(t *testing.T) {
 		name := fmt.Sprintf("record%v", i)
 		files := make([]backend.File, 0, fileCount)
 		for j := 0; j < fileCount; j++ {
-			r, err := util.Random(64)
+			file, err := createTextFile(name + "_" + strconv.Itoa(j))
 			if err != nil {
 				t.Fatal(err)
 			}
-			// Create text file
-			payload := hex.EncodeToString(r)
-			digest := hex.EncodeToString(util.Digest([]byte(payload)))
-			// We expect base64 encoded content
-			b64 := base64.StdEncoding.EncodeToString([]byte(payload))
-
-			files = append(files, backend.File{
-				Name:    name + "_" + strconv.Itoa(j),
-				MIME:    mime.DetectMimeType([]byte(payload)),
-				Digest:  digest,
-				Payload: b64,
-			})
+			files = append(files, file)
 		}
 		allFiles[i] = files
 
@@ -558,22 +566,113 @@ func TestUpdateReadme(t *testing.T) {
 	}
 }
 
-func TestRandomUniqueToken(t *testing.T) {
-	existingPrefixes := make([]string, 0, 256)
+func TestTokenPrefixGeneration(t *testing.T) {
+	dir, err := ioutil.TempDir("", "politeia.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
 
-	for i := 0; i < 256; i++ {
-		token, err := randomUniqueToken(existingPrefixes)
+	g, err := New(&chaincfg.TestNet3Params, dir, "", "", nil,
+		testing.Verbose())
+	if err != nil {
+		t.Fatal(err)
+	}
+	g.test = true
+
+	files := make([]backend.File, 0, 1)
+	file, err := createTextFile("randomFileName")
+	if err != nil {
+		t.Fatal(err)
+	}
+	files = append(files, file)
+
+	// Since we use a prefix length of 1 in test mode, only 16 unique tokens
+	// should be able to be generated.
+	for i := 0; i < 16; i++ {
+		_, err = g.New([]backend.MetadataStream{{
+			ID:      0,
+			Payload: "this is metadata",
+		}}, files)
+
 		if err != nil {
-			t.Fatalf("Should be able to create 256 tokens with unique prefix"+
-				" of length 2, but only created %d.", i)
+			t.Fatalf("Error creating less than 16 new records: %v", err)
 		}
-		prefix := hex.EncodeToString(token)[0:2]
-		existingPrefixes = append(existingPrefixes, prefix)
 	}
 
-	_, err := randomUniqueToken(existingPrefixes)
+	_, err = g.New([]backend.MetadataStream{{
+		ID:      0,
+		Payload: "this is metadata",
+	}}, files)
+
 	if err == nil {
-		t.Fatalf("Should only be able to create 256 tokens with unique " +
-			"prefix of length 2, but was able to create 256")
+		t.Fatalf("Should only be able to create 16 tokens with unique " +
+			"prefix of length 1, but was able to create 17")
+	}
+
+	// Here we test that the getUnvettedTokens and getVettedTokens methods
+	// work as expected.
+	unvettedTokens, err := g.getUnvettedTokens()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(unvettedTokens) != 16 {
+		t.Fatalf("There should be 16 unvetted tokens, but there are %v",
+			len(unvettedTokens))
+	}
+
+	// We update the status of the first two records to vetted.
+	emptyMD := []backend.MetadataStream{}
+	token, err := hex.DecodeString(unvettedTokens[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = g.SetUnvettedStatus(token,
+		backend.MDStatusVetted, emptyMD, emptyMD)
+	if err != nil {
+		t.Fatal(err)
+	}
+	token, err = hex.DecodeString(unvettedTokens[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = g.SetUnvettedStatus(token,
+		backend.MDStatusVetted, emptyMD, emptyMD)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Since we updated the status of 2 records, there should be 14 unvetted
+	// and 2 vetted proposals.
+	unvettedTokens, err = g.getUnvettedTokens()
+	if len(unvettedTokens) != 14 {
+		t.Fatalf("There should be 14 tokens, but there are %v", len(unvettedTokens))
+	}
+	vettedTokens, err := g.getVettedTokens()
+	if len(vettedTokens) != 2 {
+		t.Fatalf("There should be 2 tokens, but there are %v", len(vettedTokens))
+	}
+
+	// Now we test that when creating a new gitbe object on an existing folder,
+	// the prefix cache is populated correctly.
+	oldPrefixCache := g.prefixCache
+	g, err = New(&chaincfg.TestNet3Params, dir, "", "", nil,
+		testing.Verbose())
+	if err != nil {
+		t.Fatal(err)
+	}
+	g.test = true
+	// popuplateTokenPrefixCache must be called again because when it is
+	// initially called in the New function, g.test is still set to false.
+	g.popuplateTokenPrefixCache()
+	if len(oldPrefixCache) != len(g.prefixCache) {
+		t.Fatalf("The prefix cache does not contain the correct amount of" +
+			" prefixes")
+	}
+	for prefix := range oldPrefixCache {
+		if _, ok := g.prefixCache[prefix]; !ok {
+			t.Fatalf("The prefix map does not contain an expected prefix: %v",
+				prefix)
+		}
 	}
 }
