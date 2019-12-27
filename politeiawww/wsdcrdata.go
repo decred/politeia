@@ -220,7 +220,7 @@ func (w *wsDcrdata) reconnect() error {
 		if err == errShutdown {
 			return errShutdown
 		} else if err != nil {
-			log.Errorf("Failed to ping dcrdata: %v", err)
+			log.Errorf("wsDcrdata failed to ping dcrdata: %v", err)
 			w.client.Stop()
 
 			// Existing subscriptions have gone bad
