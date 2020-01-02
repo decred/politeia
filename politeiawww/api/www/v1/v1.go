@@ -187,6 +187,7 @@ const (
 	ErrorStatusDuplicateComment            ErrorStatusT = 62
 	ErrorStatusInvalidLogin                ErrorStatusT = 63
 	ErrorStatusCommentIsCensored           ErrorStatusT = 64
+	ErrorStatusInvalidProposalVersion      ErrorStatusT = 65
 
 	// Proposal state codes
 	//
@@ -292,7 +293,7 @@ var (
 		ErrorStatusInvalidSigningKey:           "invalid signing key",
 		ErrorStatusCommentLengthExceededPolicy: "maximum comment length exceeded",
 		ErrorStatusUserNotFound:                "user not found",
-		ErrorStatusWrongStatus:                 "wrong status",
+		ErrorStatusWrongStatus:                 "wrong proposal status",
 		ErrorStatusNotLoggedIn:                 "user not logged in",
 		ErrorStatusUserNotPaid:                 "user hasn't paid paywall",
 		ErrorStatusReviewerAdminEqualsAuthor:   "user cannot change the status of his own proposal",
@@ -327,6 +328,7 @@ var (
 		ErrorStatusDuplicateComment:            "duplicate comment",
 		ErrorStatusInvalidLogin:                "invalid login credentials",
 		ErrorStatusCommentIsCensored:           "comment is censored",
+		ErrorStatusInvalidProposalVersion:      "invalid proposal version",
 	}
 
 	// PropStatus converts propsal status codes to human readable text

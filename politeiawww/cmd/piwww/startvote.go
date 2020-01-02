@@ -7,6 +7,7 @@ package main
 import (
 	"encoding/hex"
 	"encoding/json"
+	"strconv"
 
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	v2 "github.com/decred/politeia/politeiawww/api/www/v2"
@@ -31,6 +32,16 @@ func (cmd *StartVoteCmd) Execute(args []string) error {
 		return shared.ErrUserIdentityNotFound
 	}
 
+	// Get proposal version. This is needed for the VoteV2.
+	pdr, err := client.ProposalDetails(cmd.Args.Token, nil)
+	if err != nil {
+		return err
+	}
+	version, err := strconv.ParseUint(pdr.Proposal.Version, 10, 32)
+	if err != nil {
+		return err
+	}
+
 	// Setup vote params
 	var (
 		// Default values
@@ -51,6 +62,7 @@ func (cmd *StartVoteCmd) Execute(args []string) error {
 	// Create StartVote
 	vote := v2.Vote{
 		Token:            cmd.Args.Token,
+		ProposalVersion:  uint32(version),
 		Type:             v2.VoteTypeStandard,
 		Mask:             0x03, // bit 0 no, bit 1 yes
 		Duration:         duration,

@@ -216,15 +216,20 @@ func DecodeAuthorizeVoteReply(payload []byte) (*AuthorizeVoteReply, error) {
 // provided vote bits.
 const VersionStartVote = 2
 
-// StartVote...
+// StartVote contains an encoded start vote where the version of the StartVote
+// is specified by Version.
 type StartVote struct {
-	Version uint `json:"version"` // Payload version
-	// TODO add Token, if something is wrong with the payload we need to be able
-	// to identify it
+	Token   string `json:"token"`   // Proposal token
+	Version uint   `json:"version"` // Payload StartVote version
 	Payload string `json:"payload"` // Base64 encoded start vote
 }
 
-// DecodeStartVote...
+// EncodeStartVote encodes a StartVote into a JSON byte slice.
+func EncodeStartVote(sv StartVote) ([]byte, error) {
+	return json.Marshal(sv)
+}
+
+// DecodeStartVote decodes a JSON byte slice into a StartVote.
 func DecodeStartVote(b []byte) (*StartVote, error) {
 	sv := make(map[string]interface{}, 4)
 
@@ -233,7 +238,11 @@ func DecodeStartVote(b []byte) (*StartVote, error) {
 		return nil, err
 	}
 
+	// Handle nested JSON
+	vote := sv["vote"].(map[string]interface{})
+
 	return &StartVote{
+		Token:   vote["token"].(string),
 		Version: uint(sv["version"].(float64)),
 		Payload: base64.StdEncoding.EncodeToString(b),
 	}, nil
@@ -273,6 +282,8 @@ func DecodeVoteV1(payload []byte) (*VoteV1, error) {
 	return &v, nil
 }
 
+// StartVoteV1 was used to start a proposal vote, but is not longer accepted.
+// A StartVoteV2 must be used to start a proposal vote.
 type StartVoteV1 struct {
 	// decred plugin only data
 	Version uint `json:"version"` // Version of this structure
@@ -319,17 +330,16 @@ func DecodeStartVoteV1(payload []byte) (*StartVoteV1, error) {
 	return &sv, nil
 }
 
-// EncodeVoteV2 encodes a VoteV2 into a JSON byte slice.
-func EncodeVoteV2(v VoteV2) ([]byte, error) {
-	return json.Marshal(v)
-}
-
 // VoteV2 represents the vote options for a StartVoteV2.
 //
 // Differences between VoteV1 and VoteV2:
+// * Added the ProposalVersion field that specifies the version of the proposal
+//   that is being voted on. This was added so that the proposal version is
+//   included in the StartVote signature.
 // * Added a Type field in order to specify the vote type.
 type VoteV2 struct {
 	Token            string       `json:"token"`            // Token that identifies vote
+	ProposalVersion  uint32       `json:"proposalversion"`  // Proposal version being voted on
 	Type             VoteT        `json:"type"`             // Type of vote
 	Mask             uint64       `json:"mask"`             // Valid votebits
 	Duration         uint32       `json:"duration"`         // Duration in blocks
@@ -338,19 +348,21 @@ type VoteV2 struct {
 	Options          []VoteOption `json:"options"`          // Vote option
 }
 
-// ConvertVoteV1ToV2 converts a VoteV1 to a VoteV2. It can be assumed that a
-// VoteV1 has a vote type of VoteTypeStandard since this is the only vote type
-// that existed for VoteV1s.
-func ConvertVoteV1ToV2(v1 VoteV1) VoteV2 {
-	return VoteV2{
-		Token:            v1.Token,
-		Type:             VoteTypeStandard,
-		Mask:             v1.Mask,
-		Duration:         v1.Duration,
-		QuorumPercentage: v1.QuorumPercentage,
-		PassPercentage:   v1.PassPercentage,
-		Options:          v1.Options,
+// EncodeVoteV2 encodes a VoteV2 into a JSON byte slice.
+func EncodeVoteV2(v VoteV2) ([]byte, error) {
+	return json.Marshal(v)
+}
+
+// DecodeVotedecodes a JSON byte slice into a VoteV2.
+func DecodeVoteV2(payload []byte) (*VoteV2, error) {
+	var v VoteV2
+
+	err := json.Unmarshal(payload, &v)
+	if err != nil {
+		return nil, err
 	}
+
+	return &v, nil
 }
 
 // StartVoteV2...
@@ -465,7 +477,8 @@ func DecodeVoteDetails(payload []byte) (*VoteDetails, error) {
 	return &vd, nil
 }
 
-// VoteDetailsReply is the reply to VoteDetails.
+// VoteDetailsReply is the reply to VoteDetails. Only the most recent
+// AuthorizeVote is returned.
 type VoteDetailsReply struct {
 	AuthorizeVote  AuthorizeVote  `json:"authorizevote"`  // Vote authorization
 	StartVote      StartVote      `json:"startvote"`      // Vote ballot

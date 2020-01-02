@@ -452,7 +452,11 @@ func (d *decred) cmdVoteDetails(payload string) (string, error) {
 	}
 
 	// Lookup start vote
-	var sv StartVote
+	var (
+		sv   StartVote
+		dsv  decredplugin.StartVote
+		dsvr decredplugin.StartVoteReply
+	)
 	err = d.recordsdb.
 		Where("token = ?", vd.Token).
 		Preload("Options").
@@ -464,16 +468,22 @@ func (d *decred) cmdVoteDetails(payload string) (string, error) {
 		return "", fmt.Errorf("start vote lookup failed: %v", err)
 	}
 
-	// Prepare reply
-	dav := convertAuthorizeVoteToDecred(av)
-	dsv, dsvr, err := convertStartVoteToDecred(sv)
-	if err != nil {
-		return "", err
+	// Only convert if a StartVote was found, otherwise it will
+	// throw an invalid version error.
+	if sv.Version != 0 {
+		dsvp, dsvrp, err := convertStartVoteToDecred(sv)
+		if err != nil {
+			return "", err
+		}
+		dsv = *dsvp
+		dsvr = *dsvrp
 	}
+
+	// Prepare reply
 	vdr := decredplugin.VoteDetailsReply{
-		AuthorizeVote:  dav,
-		StartVote:      *dsv,
-		StartVoteReply: *dsvr,
+		AuthorizeVote:  convertAuthorizeVoteToDecred(av),
+		StartVote:      dsv,
+		StartVoteReply: dsvr,
 	}
 	vdrb, err := decredplugin.EncodeVoteDetailsReply(vdr)
 	if err != nil {
@@ -1708,32 +1718,36 @@ func (d *decred) build(ir *decredplugin.InventoryReply) error {
 	// Build start vote cache
 	log.Tracef("decred: building start vote cache")
 	for _, v := range ir.StartVoteTuples {
-		// TODO print v.StartVote.Token once its been added
 		// Handle start vote versioning
 		svb, err := base64.StdEncoding.DecodeString(v.StartVote.Payload)
 		if err != nil {
-			return fmt.Errorf("decred StartVote payload: %v", err)
+			return fmt.Errorf("decode StartVote payload %v: %v",
+				v.StartVote.Token, err)
 		}
 		var sv StartVote
 		switch v.StartVote.Version {
 		case 1:
 			sv1, err := decredplugin.DecodeStartVoteV1(svb)
 			if err != nil {
-				return fmt.Errorf("decode StartVoteV2: %v", err)
+				return fmt.Errorf("decode StartVoteV2 %v: %v",
+					v.StartVote.Token, err)
 			}
 			svp, err := convertStartVoteV1FromDecred(*sv1, v.StartVoteReply)
 			if err != nil {
-				return fmt.Errorf("convertStartVoteV1FromDecred: %v", err)
+				return fmt.Errorf("convertStartVoteV1FromDecred %v: %v",
+					v.StartVote.Token, err)
 			}
 			sv = *svp
 		case 2:
 			sv2, err := decredplugin.DecodeStartVoteV2(svb)
 			if err != nil {
-				return fmt.Errorf("decode StartVoteV1: %v", err)
+				return fmt.Errorf("decode StartVoteV1 %v: %v",
+					v.StartVote.Token, err)
 			}
 			svp, err := convertStartVoteV2FromDecred(*sv2, v.StartVoteReply)
 			if err != nil {
-				return fmt.Errorf("convertStartVoteV2FromDecred: %v", err)
+				return fmt.Errorf("convertStartVoteV2FromDecred %v: %v",
+					v.StartVote.Version, err)
 			}
 			sv = *svp
 		}
@@ -1741,7 +1755,8 @@ func (d *decred) build(ir *decredplugin.InventoryReply) error {
 		// Insert start vote record
 		err = d.recordsdb.Create(&sv).Error
 		if err != nil {
-			return fmt.Errorf("insert StartVote: %v %v", err, sv.Token)
+			return fmt.Errorf("insert StartVote: %v %v",
+				err, sv.Token)
 		}
 	}
 

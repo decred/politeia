@@ -5,6 +5,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"strconv"
@@ -1167,6 +1168,36 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 			return fmt.Errorf("verify proposal failed %v: %v",
 				v.CensorshipRecord.Token, err)
 		}
+	}
+
+	// Vote details
+	fmt.Printf("  Vote details\n")
+	vdr, err := client.VoteDetailsV2(token)
+	if err != nil {
+		return err
+	}
+	switch vdr.Version {
+	case 2:
+		// Validate signature
+		voteb, err := base64.StdEncoding.DecodeString(vdr.Vote)
+		if err != nil {
+			return err
+		}
+		vote, err := decredplugin.DecodeVoteV2(voteb)
+		if err != nil {
+			return err
+		}
+		dsv := decredplugin.StartVoteV2{
+			PublicKey: vdr.PublicKey,
+			Vote:      *vote,
+			Signature: vdr.Signature,
+		}
+		err = dsv.VerifySignature()
+		if err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unknown start vote version %v", vdr.Version)
 	}
 
 	// Vote status

@@ -98,6 +98,7 @@ func convertVoteTypeV2ToDecred(v www2.VoteT) decredplugin.VoteT {
 func convertVoteV2ToDecred(v www2.Vote) decredplugin.VoteV2 {
 	return decredplugin.VoteV2{
 		Token:            v.Token,
+		ProposalVersion:  v.ProposalVersion,
 		Type:             convertVoteTypeV2ToDecred(v.Type),
 		Mask:             v.Mask,
 		Duration:         v.Duration,
@@ -115,20 +116,6 @@ func convertStartVoteV2ToDecred(sv www2.StartVote) decredplugin.StartVoteV2 {
 	}
 }
 
-func convertDecredVoteV1ToVoteV2(v decredplugin.VoteV1) www2.Vote {
-	// All decredplugin.VoteV1 have a vote type of VoteTypeStandard
-	// even though it is not explicity declared.
-	return www2.Vote{
-		Token:            v.Token,
-		Type:             www2.VoteTypeStandard,
-		Mask:             v.Mask,
-		Duration:         v.Duration,
-		QuorumPercentage: v.QuorumPercentage,
-		PassPercentage:   v.PassPercentage,
-		Options:          convertVoteOptionsFromDecred(v.Options),
-	}
-}
-
 func convertDecredStartVoteV1ToVoteDetailsReplyV2(sv decredplugin.StartVoteV1, svr decredplugin.StartVoteReply) (*www2.VoteDetailsReply, error) {
 	startHeight, err := strconv.ParseUint(svr.StartBlockHeight, 10, 32)
 	if err != nil {
@@ -140,9 +127,13 @@ func convertDecredStartVoteV1ToVoteDetailsReplyV2(sv decredplugin.StartVoteV1, s
 		return nil, fmt.Errorf("parse end height '%v': %v",
 			svr.EndHeight, err)
 	}
+	voteb, err := decredplugin.EncodeVoteV1(sv.Vote)
+	if err != nil {
+		return nil, err
+	}
 	return &www2.VoteDetailsReply{
 		Version:          uint32(sv.Version),
-		Vote:             convertDecredVoteV1ToVoteV2(sv.Vote),
+		Vote:             base64.StdEncoding.EncodeToString(voteb),
 		PublicKey:        sv.PublicKey,
 		Signature:        sv.Signature,
 		StartBlockHeight: uint32(startHeight),
@@ -175,9 +166,13 @@ func convertDecredStartVoteV2ToVoteDetailsReplyV2(sv decredplugin.StartVoteV2, s
 		return nil, fmt.Errorf("parse end height '%v': %v",
 			svr.EndHeight, err)
 	}
+	voteb, err := decredplugin.EncodeVoteV2(sv.Vote)
+	if err != nil {
+		return nil, err
+	}
 	return &www2.VoteDetailsReply{
 		Version:          uint32(sv.Version),
-		Vote:             convertVoteV2FromDecred(sv.Vote),
+		Vote:             base64.StdEncoding.EncodeToString(voteb),
 		PublicKey:        sv.PublicKey,
 		Signature:        sv.Signature,
 		StartBlockHeight: uint32(startHeight),

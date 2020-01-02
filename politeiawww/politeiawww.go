@@ -480,6 +480,24 @@ func (p *politeiawww) handleVoteResults(w http.ResponseWriter, r *http.Request) 
 	util.RespondWithJSON(w, http.StatusOK, vrr)
 }
 
+// handleVoteDetails returns the vote details for the given proposal token.
+func (p *politeiawww) handleVoteDetailsV2(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleVoteDetailsV2")
+
+	pathParams := mux.Vars(r)
+	token := pathParams["token"]
+
+	vrr, err := p.processVoteDetailsV2(token)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleVoteDetailsV2: processVoteDetailsV2: %v",
+			err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, vrr)
+}
+
 // handleGetAllVoteStatus returns the voting status of all public proposals.
 func (p *politeiawww) handleGetAllVoteStatus(w http.ResponseWriter, r *http.Request) {
 	gasvr, err := p.processGetAllVoteStatus()
@@ -1221,6 +1239,9 @@ func (p *politeiawww) setPoliteiaWWWRoutes() {
 		permissionPublic)
 	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
 		www.RouteVoteResults, p.handleVoteResults,
+		permissionPublic)
+	p.addRoute(http.MethodGet, www2.APIRoute,
+		www2.RouteVoteDetails, p.handleVoteDetailsV2,
 		permissionPublic)
 	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
 		www.RouteAllVoteStatus, p.handleGetAllVoteStatus,

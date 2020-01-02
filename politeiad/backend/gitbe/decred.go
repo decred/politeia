@@ -115,7 +115,7 @@ var (
 	decredPluginHooks    map[string]func(string) error // [key]func(token) error
 
 	// Cached values, requires lock. These caches are lazy loaded.
-	decredPluginVoteCache         = make(map[string]decredplugin.VoteV2)         // [token]VoteV2
+	decredPluginVoteCache         = make(map[string]decredplugin.StartVote)      // [token]StartVote
 	decredPluginVoteSnapshotCache = make(map[string]decredplugin.StartVoteReply) // [token]StartVoteReply
 
 	// Pregenerated journal actions
@@ -1634,7 +1634,7 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 
 	// Verify vote bits are somewhat sane
 	for _, v := range vote.Vote.Options {
-		err = _validateVoteBit(vote.Vote, v.Bits)
+		err = _validateVoteBit(vote.Vote.Options, vote.Vote.Mask, v.Bits)
 		if err != nil {
 			return "", fmt.Errorf("invalid vote bits: %v", err)
 		}
@@ -1818,8 +1818,8 @@ func (i invalidVoteBitError) Error() string {
 
 // _validateVoteBit iterates over all vote bits and ensure the sent in vote bit
 // exists.
-func _validateVoteBit(vote decredplugin.VoteV2, bit uint64) error {
-	if len(vote.Options) == 0 {
+func _validateVoteBit(options []decredplugin.VoteOption, mask uint64, bit uint64) error {
+	if len(options) == 0 {
 		return fmt.Errorf("_validateVoteBit vote corrupt")
 	}
 	if bit == 0 {
@@ -1827,13 +1827,13 @@ func _validateVoteBit(vote decredplugin.VoteV2, bit uint64) error {
 			err: fmt.Errorf("invalid bit 0x%x", bit),
 		}
 	}
-	if vote.Mask&bit != bit {
+	if mask&bit != bit {
 		return invalidVoteBitError{
 			err: fmt.Errorf("invalid mask 0x%x bit 0x%x",
-				vote.Mask, bit),
+				mask, bit),
 		}
 	}
-	for _, v := range vote.Options {
+	for _, v := range options {
 		if v.Bits == bit {
 			return nil
 		}
@@ -1858,10 +1858,44 @@ func (g *gitBackEnd) validateVoteBit(token, bit string) error {
 		return backend.ErrShutdown
 	}
 
-	v, ok := decredPluginVoteCache[token]
+	sv, ok := decredPluginVoteCache[token]
 	if ok {
-		return _validateVoteBit(v, b)
+		var (
+			mask    uint64
+			options []decredplugin.VoteOption
+		)
+		switch sv.Version {
+		case 1:
+			svb, err := base64.StdEncoding.DecodeString(sv.Payload)
+			if err != nil {
+				return err
+			}
+			sv1, err := decredplugin.DecodeStartVoteV1(svb)
+			if err != nil {
+				return err
+			}
+			mask = sv1.Vote.Mask
+			options = sv1.Vote.Options
+		case 2:
+			svb, err := base64.StdEncoding.DecodeString(sv.Payload)
+			if err != nil {
+				return err
+			}
+			sv2, err := decredplugin.DecodeStartVoteV2(svb)
+			if err != nil {
+				return err
+			}
+			mask = sv2.Vote.Mask
+			options = sv2.Vote.Options
+		default:
+			return fmt.Errorf("invalid start vote version %v %v",
+				sv.Version, sv.Token)
+		}
+
+		return _validateVoteBit(options, mask, b)
 	}
+
+	// StartVote is not in the cache. Load from disk.
 
 	// git checkout master
 	err = g.gitCheckout(g.unvetted, "master")
@@ -1881,29 +1915,48 @@ func (g *gitBackEnd) validateVoteBit(token, bit string) error {
 	if err != nil {
 		return err
 	}
-	sv, err := decredplugin.DecodeStartVote(svb)
+	svp, err := decredplugin.DecodeStartVote(svb)
 	if err != nil {
 		return err
 	}
 
+	// Update memory cache
+	decredPluginVoteCache[token] = *svp
+
+	// Handle StartVote versioning
+	var (
+		mask    uint64
+		options []decredplugin.VoteOption
+	)
 	switch sv.Version {
 	case 1:
+		svb, err := base64.StdEncoding.DecodeString(sv.Payload)
+		if err != nil {
+			return err
+		}
 		sv1, err := decredplugin.DecodeStartVoteV1(svb)
 		if err != nil {
 			return err
 		}
-		v = decredplugin.ConvertVoteV1ToV2(sv1.Vote)
+		mask = sv1.Vote.Mask
+		options = sv1.Vote.Options
 	case 2:
+		svb, err := base64.StdEncoding.DecodeString(sv.Payload)
+		if err != nil {
+			return err
+		}
 		sv2, err := decredplugin.DecodeStartVoteV2(svb)
 		if err != nil {
 			return err
 		}
-		v = sv2.Vote
+		mask = sv2.Vote.Mask
+		options = sv2.Vote.Options
+	default:
+		return fmt.Errorf("invalid start vote version %v %v",
+			sv.Version, sv.Token)
 	}
 
-	decredPluginVoteCache[token] = v
-
-	return _validateVoteBit(v, b)
+	return _validateVoteBit(options, mask, b)
 }
 
 // replayBallot replays voting journalfor given proposal.

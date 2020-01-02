@@ -245,21 +245,21 @@ func convertStartVoteV2FromDecred(sv decredplugin.StartVoteV2, svr decredplugin.
 	// Version must be hard coded because the version is filled in
 	// by gitbe and does not travel to the cache.
 	return &StartVote{
-		Token:            sv.Vote.Token,
-		Version:          2,
-		Type:             int(sv.Vote.Type),
-		Mask:             sv.Vote.Mask,
-		Duration:         sv.Vote.Duration,
-		QuorumPercentage: sv.Vote.QuorumPercentage,
-		PassPercentage:   sv.Vote.PassPercentage,
-		Options:          opts,
-		PublicKey:        sv.PublicKey,
-		Signature:        sv.Signature,
-		StartBlockHeight: uint32(startHeight),
-		StartBlockHash:   svr.StartBlockHash,
-		EndHeight:        uint32(endHeight),
-		// TODO
-		//		EligibleTickets:     strings.Join(svr.EligibleTickets, ","),
+		Token:               sv.Vote.Token,
+		Version:             2,
+		ProposalVersion:     sv.Vote.ProposalVersion,
+		Type:                int(sv.Vote.Type),
+		Mask:                sv.Vote.Mask,
+		Duration:            sv.Vote.Duration,
+		QuorumPercentage:    sv.Vote.QuorumPercentage,
+		PassPercentage:      sv.Vote.PassPercentage,
+		Options:             opts,
+		PublicKey:           sv.PublicKey,
+		Signature:           sv.Signature,
+		StartBlockHeight:    uint32(startHeight),
+		StartBlockHash:      svr.StartBlockHash,
+		EndHeight:           uint32(endHeight),
+		EligibleTickets:     strings.Join(svr.EligibleTickets, ","),
 		EligibleTicketCount: len(svr.EligibleTickets),
 	}, nil
 }
@@ -318,6 +318,7 @@ func convertStartVoteToDecredV1(sv StartVote) (*decredplugin.StartVote, error) {
 		return nil, err
 	}
 	return &decredplugin.StartVote{
+		Token:   sv.Token,
 		Version: sv.Version,
 		Payload: base64.StdEncoding.EncodeToString(b),
 	}, nil
@@ -337,6 +338,7 @@ func convertStartVoteToDecredV2(sv StartVote) (*decredplugin.StartVote, error) {
 		PublicKey: sv.PublicKey,
 		Vote: decredplugin.VoteV2{
 			Token:            sv.Token,
+			ProposalVersion:  sv.ProposalVersion,
 			Type:             decredplugin.VoteT(sv.Type),
 			Mask:             sv.Mask,
 			Duration:         sv.Duration,
@@ -351,6 +353,7 @@ func convertStartVoteToDecredV2(sv StartVote) (*decredplugin.StartVote, error) {
 		return nil, err
 	}
 	return &decredplugin.StartVote{
+		Token:   sv.Token,
 		Version: sv.Version,
 		Payload: base64.StdEncoding.EncodeToString(b),
 	}, nil

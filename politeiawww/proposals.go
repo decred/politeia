@@ -304,45 +304,6 @@ func validateProposal(np www.NewProposal, u *user.User) error {
 	return nil
 }
 
-// voteIsAuthorized returns whether the author of the proposal has authorized
-// an admin to start the voting period for the proposal.
-func voteIsAuthorized(avr www.AuthorizeVoteReply) bool {
-	if avr.Receipt == "" {
-		// Vote has not been authorized yet
-		return false
-	} else if avr.Action == decredplugin.AuthVoteActionRevoke {
-		// Vote authorization was revoked
-		return false
-	}
-	return true
-}
-
-// getVoteStatus returns the status for the provided vote.
-func getVoteStatus(avr www.AuthorizeVoteReply, svr www.StartVoteReply, bestBlock uint64) www.PropVoteStatusT {
-	if svr.StartBlockHeight == "" {
-		// Vote has not started. Check if it's been authorized yet.
-		if voteIsAuthorized(avr) {
-			return www.PropVoteStatusAuthorized
-		} else {
-			return www.PropVoteStatusNotAuthorized
-		}
-	}
-
-	// Vote has at least been started. Check if it has finished.
-	ee, err := strconv.ParseUint(svr.EndHeight, 10, 64)
-	if err != nil {
-		// This should not happen
-		log.Errorf("getVoteStatus: ParseUint failed on '%v': %v",
-			svr.EndHeight, err)
-		return www.PropVoteStatusInvalid
-	}
-
-	if bestBlock >= ee {
-		return www.PropVoteStatusFinished
-	}
-	return www.PropVoteStatusStarted
-}
-
 func voteStatusFromVoteSummary(r decredplugin.VoteSummaryReply, bestBlock uint64) www.PropVoteStatusT {
 	switch {
 	case !r.Authorized:
@@ -2230,12 +2191,13 @@ func (p *politeiawww) processStartVoteV2(sv www2.StartVote, u *user.User) (*www2
 	dsv := convertStartVoteV2ToDecred(sv)
 	err := dsv.VerifySignature()
 	if err != nil {
+		log.Debugf("processStartVote: VerifySignature: %v", err)
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusInvalidSignature,
 		}
 	}
 
-	// Validate proposal status
+	// Validate proposal version and status
 	pr, err := p.getProp(sv.Vote.Token)
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
@@ -2244,6 +2206,13 @@ func (p *politeiawww) processStartVoteV2(sv www2.StartVote, u *user.User) (*www2
 			}
 		}
 		return nil, err
+	}
+	if pr.Version != strconv.FormatUint(uint64(sv.Vote.ProposalVersion), 10) {
+		e := fmt.Sprintf("current proposal version is %v", pr.Version)
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidProposalVersion,
+			ErrorContext: []string{e},
+		}
 	}
 	if pr.Status != www.PropStatusPublic {
 		return nil, www.UserError{
@@ -2366,6 +2335,8 @@ func (p *politeiawww) processTokenInventory(isAdmin bool) (*www.TokenInventoryRe
 	return &r, err
 }
 
+// processVoteDetailsV2 returns the www v2 VoteDetailsReply for the given
+// proposal token.
 func (p *politeiawww) processVoteDetailsV2(token string) (*www2.VoteDetailsReply, error) {
 	log.Tracef("processVoteDetailsV2: %v", token)
 
@@ -2378,6 +2349,14 @@ func (p *politeiawww) processVoteDetailsV2(token string) (*www2.VoteDetailsReply
 			}
 		}
 		return nil, err
+	}
+
+	// Validate vote status
+	if dvdr.StartVoteReply.StartBlockHash == "" {
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusWrongVoteStatus,
+			ErrorContext: []string{"voting has not started yet"},
+		}
 	}
 
 	// Handle StartVote versioning

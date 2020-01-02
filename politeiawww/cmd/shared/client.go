@@ -144,8 +144,16 @@ func (c *Client) makeRequest(method, routeVersion, route string, body interface{
 		var ue www.UserError
 		err = json.Unmarshal(responseBody, &ue)
 		if err == nil && ue.ErrorCode != 0 {
-			return nil, fmt.Errorf("%v, %v %v", r.StatusCode,
-				userErrorStatus(ue.ErrorCode), strings.Join(ue.ErrorContext, ", "))
+			var e error
+			if len(ue.ErrorContext) == 0 {
+				// Error format when an ErrorContext is not included
+				e = fmt.Errorf("%v, %v", r.StatusCode, userErrorStatus(ue.ErrorCode))
+			} else {
+				// Error format when an ErrorContext is included
+				e = fmt.Errorf("%v, %v: %v", r.StatusCode,
+					userErrorStatus(ue.ErrorCode), strings.Join(ue.ErrorContext, ", "))
+			}
+			return nil, e
 		}
 
 		return nil, fmt.Errorf("%v", r.StatusCode)
@@ -1253,6 +1261,34 @@ func (c *Client) VoteResults(token string) (*www.VoteResultsReply, error) {
 	}
 
 	return &vrr, nil
+}
+
+// VoteDetailsV2 returns the proposal vote details for the given token using
+// the www v2 VoteDetails route.
+func (c *Client) VoteDetailsV2(token string) (*www2.VoteDetailsReply, error) {
+	route := "/vote/" + token
+	respBody, err := c.makeRequest(http.MethodGet, www2.APIRoute, route, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var vdr www2.VoteDetailsReply
+	err = json.Unmarshal(respBody, &vdr)
+	if err != nil {
+		return nil, err
+	}
+
+	if c.cfg.Verbose {
+		vdr.EligibleTickets = []string{
+			"removed by piwww for readability",
+		}
+		err = prettyPrintJSON(vdr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &vdr, nil
 }
 
 // UserDetails retrieves the user details for the specified user.

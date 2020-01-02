@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Decred developers
+// Copyright (c) 2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -17,7 +17,6 @@ const (
 
 	RouteStartVote   = "/vote/start"
 	RouteVoteDetails = "/vote/{token:[A-z0-9]{64}}"
-	RouteVoteResults = "/vote/{token:[A-z0-9]{64}}/results"
 
 	// Vote types
 	//
@@ -38,12 +37,16 @@ var (
 // be considered approved.
 //
 // Differences between v1 and v2:
+// * Added the Version field that specifies the version of the proposal that is
+//   being voted on. This was added so that the proposal version is included in
+//   the StartVote signature.
 // * Added the Type field that specifies the vote type. All votes that were
 //   started using a v1 Vote will have a vote type of VoteTypeStandard. This
 //   field was not explicity specified for v1 Votes, but it is the only vote
 //   type that existed for v1 Votes.
 type Vote struct {
 	Token            string          `json:"token"`            // Proposal token
+	ProposalVersion  uint32          `json:"proposalversion"`  // Proposal version being voted on
 	Type             VoteT           `json:"type"`             // Type of vote
 	Mask             uint64          `json:"mask"`             // Valid votebits
 	Duration         uint32          `json:"duration"`         // Duration in blocks
@@ -60,7 +63,7 @@ type Vote struct {
 // Differences between v1 and v2:
 // * Signature has been updated to be a signature of the Vote hash. It was
 //   previously a signature of just the proposal token.
-// * Vote now contains a Type field that specifies the vote type.
+// * Vote has been updated. See the Vote comment for more details.
 type StartVote struct {
 	Vote      Vote   `json:"vote"`
 	PublicKey string `json:"publickey"` // Key used for signature
@@ -89,35 +92,23 @@ type VoteDetails struct {
 	Token string `json:"token"` // Proposal token
 }
 
-// VoteDetailsReply is the reply to the VoteDetails command.
+// VoteDetailsReply is the reply to the VoteDetails command. It contains all
+// of the information from a StartVote and StartVoteReply.
 //
 // Version specifies the StartVote version that was used to initiate the
 // proposal vote. See the StartVote comment for details on the differences
 // between the StartVote versions.
+//
+// Vote is a base64 encoded JSON byte slice of the Vote struct. It needs to be
+// decoded according to the Version. See the Vote comment for details on the
+// differences between the Vote versions.
 type VoteDetailsReply struct {
 	Version          uint32   `json:"version"`          // StartVote version
-	Vote             Vote     `json:"vote"`             // Vote params and options
+	Vote             string   `json:"vote"`             // Base64 encoded Vote struct
 	PublicKey        string   `json:"publickey"`        // Key used for signature
-	Signature        string   `json:"signature"`        // Signature (version dependent)
+	Signature        string   `json:"signature"`        // Start vote signature
 	StartBlockHeight uint32   `json:"startblockheight"` // Block height
 	StartBlockHash   string   `json:"startblockhash"`   // Block hash
 	EndBlockHeight   uint32   `json:"endblockheight"`   // Height of vote end
 	EligibleTickets  []string `json:"eligibletickets"`  // Valid voting ticket
-}
-
-// VoteResults...
-//
-// Differences between v1 and v2:
-// * The v1 VoteResults route has been broken up into the VoteDetails and
-//   VoteResults routes for v2. This is because the StartVote and the
-//   StartVoteReply data only ever need to be fetched a single time, but the
-//   CastVote data may need to be fetched multiple times if the vote is ongoing
-//   since new cast votes will be continuously rolling in. There is no need to
-//   send the full EligibleTickets snapshot, which is a large amount of data,
-//   in these requests when only the CastVote data is needed.
-type VoteResults struct{}
-
-// VoteResultsReply is the reply to the VoteResults command.
-type VoteResultsReply struct {
-	CastVotes []v1.CastVote `json:"castvotes"`
 }
