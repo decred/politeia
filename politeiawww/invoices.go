@@ -440,6 +440,7 @@ func (p *politeiawww) processNewInvoice(ni cms.NewInvoice, u *user.User) (*cms.N
 		Metadata:         n.Metadata,
 		Files:            n.Files,
 		CensorshipRecord: pdReply.CensorshipRecord,
+		Version:          "1",
 	}
 	ir, err := convertRecordToDatabaseInvoice(r)
 	if err != nil {
