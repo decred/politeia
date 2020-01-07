@@ -537,6 +537,13 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 				}
 			}
 
+			// Validate that the input month is a valid month
+			if invInput.Month < 1 || invInput.Month > 12 {
+				return www.UserError{
+					ErrorCode: cms.ErrorStatusInvalidInvoiceMonthYear,
+				}
+			}
+
 			// Validate month/year to make sure the first day of the following
 			// month is after the current date.  For example, if a user submits
 			// an invoice for 03/2019, the first time that they could submit an
