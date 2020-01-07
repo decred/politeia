@@ -38,8 +38,13 @@ func (p *politeiawww) checkInvoiceNotifications() {
 					user.Email)
 			}
 			for _, inv := range userInvoices {
-				// Check to see if invoices match last month + current year
-				if inv.Month == uint(currentMonth-1) && inv.Year == uint(currentYear) {
+				// Check to see if invoices match last month + current year OR
+				// if it's currently January and the user has not submitted an
+				// invoice for December of the previous year.
+				if (inv.Month == uint(currentMonth-1) &&
+					inv.Year == uint(currentYear)) ||
+					(currentMonth == 1 && inv.Month == 12 &&
+						inv.Year == uint(currentYear-1)) {
 					invoiceFound = true
 					break
 				}
