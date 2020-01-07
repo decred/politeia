@@ -349,27 +349,29 @@ func (c *cockroachdb) InvoicesByDateRangeStatus(start, end int64, status int) ([
 	if err != nil {
 		return nil, err
 	}
-
+	tokens := make([]string, 0, len(invoiceChanges))
+	for _, r := range invoiceChanges {
+		tokens = append(tokens, r.InvoiceToken)
+	}
+	invoices := make([]Invoice, 0, len(tokens))
 	// Using all invoice tokens from the results of the query above, ask for all
 	// invoices that match those tokens.
-	dbInvoices := make([]*database.Invoice, 0, 1024)
-	for _, v := range invoiceChanges {
-		invoices := make([]Invoice, 0, 1024)
-		err = c.recordsdb.
-			Preload("LineItems").
-			Where("token = ?", v.InvoiceToken).
-			Find(&invoices).
-			Error
+	dbInvoices := make([]*database.Invoice, 0, len(tokens))
+	err = c.recordsdb.
+		Preload("LineItems").
+		Preload("Payments").
+		Where(tokens).
+		Find(&invoices).
+		Error
+	if err != nil {
+		return nil, err
+	}
+	for _, vv := range invoices {
+		inv, err := DecodeInvoice(&vv)
 		if err != nil {
 			return nil, err
 		}
-		for _, vv := range invoices {
-			inv, err := DecodeInvoice(&vv)
-			if err != nil {
-				return nil, err
-			}
-			dbInvoices = append(dbInvoices, inv)
-		}
+		dbInvoices = append(dbInvoices, inv)
 	}
 	return dbInvoices, nil
 }

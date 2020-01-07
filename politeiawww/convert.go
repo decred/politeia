@@ -625,6 +625,15 @@ func convertDatabaseInvoiceToInvoiceRecord(dbInvoice cmsdatabase.Invoice) *cms.I
 	invInput.LineItems = invInputLineItems
 	invRec.Input = invInput
 	invRec.Input.LineItems = invInputLineItems
+	txIDs := strings.Split(dbInvoice.Payments.TxIDs, ",")
+	payment := cms.PaymentInformation{
+		Token:           dbInvoice.Payments.InvoiceToken,
+		Address:         dbInvoice.Payments.Address,
+		TxIDs:           txIDs,
+		AmountReceived:  dcrutil.Amount(dbInvoice.Payments.AmountReceived),
+		TimeLastUpdated: dbInvoice.Payments.TimeLastUpdated,
+	}
+	invRec.Payment = payment
 	return invRec
 }
 
