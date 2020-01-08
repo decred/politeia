@@ -259,7 +259,12 @@ func (w *wsDcrdata) reconnect() error {
 		if len(prevSubscriptions) > 0 {
 			log.Debugf("wsDcrdata reconnect waiting %v", timeToWait)
 			time.Sleep(timeToWait)
+			// Increase wait time until it reaches an hour then
+			// try to reconnect once per hour.
 			timeToWait = 2 * timeToWait
+			if timeToWait > time.Hour {
+				timeToWait = time.Hour
+			}
 		}
 	}
 

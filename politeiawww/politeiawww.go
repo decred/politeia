@@ -916,27 +916,36 @@ func (p *politeiawww) setupPiDcrdataWSSubs() error {
 	go func() {
 		for {
 			receiver, err := p.wsDcrdata.receive()
-			if err != nil {
-				log.Errorf("No longer listening to dcrdata: %v", err)
+			if err == errShutdown {
+				log.Infof("Dcrdata websocket closed")
+				return
+			} else if err != nil {
+				log.Errorf("wsDcrdata receive: %v", err)
+				log.Infof("Dcrdata websocket closed")
 				return
 			}
 
 			msg, ok := <-receiver
 
-			if !ok || msg == nil {
-				// After closing wsDcrdata, the channel channel will send a nil
-				// message. This check is just here to avoid a spew of
-				// unnecessary error messages.
+			if !ok {
+				// This check is here to avoid a spew of unnecessary error
+				// messages. The channel is expected to be closed if wsDcrdata
+				// is shut down.
 				if p.wsDcrdata.isShutdown() {
 					return
 				}
 
-				log.Errorf("Error receiving msg from dcrdata, msg: %v", msg)
+				log.Errorf("wsDcrdata receive channel closed. Will reconnect.")
 				err = p.resetPiDcrdataWSSubs()
-				if err != nil {
-					log.Errorf("No longer listening to dcrdata: %v", err)
+				if err == errShutdown {
+					log.Infof("Dcrdata websocket closed")
+					return
+				} else if err != nil {
+					log.Errorf("resetPiDcrdataWSSub: %v", err)
+					log.Infof("Dcrdata websocket closed")
 					return
 				}
+
 				continue
 			}
 
@@ -946,10 +955,14 @@ func (p *politeiawww) setupPiDcrdataWSSubs() error {
 					m.Block.Height)
 				p.updateBestBlock(uint64(m.Block.Height))
 			case *pstypes.HangUp:
-				log.Infof("Dcrdata has hung up. Will reconnect...")
+				log.Infof("Dcrdata has hung up. Will reconnect.")
 				err = p.resetPiDcrdataWSSubs()
-				if err != nil {
-					log.Errorf("No longer listening to dcrdata: %v", err)
+				if err == errShutdown {
+					log.Infof("Dcrdata websocket closed")
+					return
+				} else if err != nil {
+					log.Errorf("resetPiDcrdataWSSub: %v", err)
+					log.Infof("Dcrdata websocket closed")
 					return
 				}
 				log.Infof("Successfully reconnected to dcrdata")
