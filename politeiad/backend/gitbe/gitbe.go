@@ -1158,6 +1158,8 @@ func (g *gitBackEnd) newRecord(token []byte, metadata []backend.MetadataStream, 
 	return rm, nil
 }
 
+// getVettedTokens gets the tokens of all vetted records by retrieving the
+// names of the folders in the vetted directory.
 func (g *gitBackEnd) getVettedTokens() ([]string, error) {
 	files, err := ioutil.ReadDir(g.vetted)
 	if err != nil {
@@ -1176,6 +1178,8 @@ func (g *gitBackEnd) getVettedTokens() ([]string, error) {
 	return vettedTokens, nil
 }
 
+// getUnvettedTokens gets the tokens of all unvetted records by retrieving the
+// names of the git branches in the unvetted directory.
 func (g *gitBackEnd) getUnvettedTokens() ([]string, error) {
 	branches, err := g.gitBranches(g.unvetted)
 	if err != nil {
@@ -1193,10 +1197,10 @@ func (g *gitBackEnd) getUnvettedTokens() ([]string, error) {
 	return unvettedTokens, nil
 }
 
-// popuplateTokenPrefixes popuplates the prefix cache on the gitBackEnd object
-// with the prefixes of the tokens of both vetted and unvetted records.
-// This cache is used to ensure that only tokens with unique prefixes are
-// generated, because this allows lookups based on the prefix of a token.
+// popuplateTokenPrefixCache popuplates the prefix cache on the gitBackEnd
+// object with the prefixes of the tokens of both vetted and unvetted
+// records. This cache is used to ensure that only tokens with unique prefixes
+// are generated, because this allows lookups based on the prefix of a token.
 func (g *gitBackEnd) popuplateTokenPrefixCache() error {
 	vettedTokens, err := g.getVettedTokens()
 	if err != nil {
@@ -1232,10 +1236,10 @@ func (g *gitBackEnd) popuplateTokenPrefixCache() error {
 }
 
 // randomUniqueToken generates a new token of length pd.TokenSize which
-// does not share a prefix with any existing token. This is needed to
-// allow lookups based on the prefix of a token.
+// does not share a prefix of length pd.TokenPrefixSize with any existing
+// token. This is needed to allow lookups based on the prefix of a token.
 //
-// This method should be called with the lock held.
+// This method must be called with the lock held.
 func (g *gitBackEnd) randomUniqueToken() ([]byte, error) {
 	TRIES := 1000
 	for i := 0; i < TRIES; i++ {

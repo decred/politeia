@@ -11,7 +11,6 @@ import (
 
 	decred "github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiad/cache"
-	"github.com/decred/politeia/util"
 )
 
 // testcache provides a implementation of the cache interface that stores
@@ -87,7 +86,10 @@ func (c *testcache) Record(token string) (*cache.Record, error) {
 // This function must be called with the lock held.
 func (c *testcache) getTokenFromPrefix(prefix string) (string, error) {
 	for token := range c.records {
-		if prefix == util.TokenToPrefix(token) {
+		if len(token) > len(prefix) {
+			continue
+		}
+		if prefix == token[0:len(prefix)] {
 			return token, nil
 		}
 	}
@@ -95,7 +97,8 @@ func (c *testcache) getTokenFromPrefix(prefix string) (string, error) {
 	return "", cache.ErrRecordNotFound
 }
 
-// Record returns the most recent version of the record based on its prefix.
+// RecordPrefix returns the most recent version of the record based on its
+// prefix.
 func (c *testcache) RecordPrefix(prefix string) (*cache.Record, error) {
 	c.RLock()
 	defer c.RUnlock()
