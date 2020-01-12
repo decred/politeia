@@ -14,7 +14,6 @@ import (
 
 	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiad/cache"
-	"github.com/decred/politeia/util"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 )
@@ -64,15 +63,62 @@ func (c *cockroachdb) NewRecord(cr cache.Record) error {
 	return c.recordsdb.Create(&r).Error
 }
 
+// recordPrefix gets the most recent version of a record using the prefix
+// of its token. The length of the prefix is defined by TokenPrefixLength
+// in the politeiad api.
+//
+// This function has a database parameter so that it can be called inside of a
+// transaction when required.
+func recordPrefix(db *gorm.DB, prefix string) (*Record, error) {
+	var r Record
+	err := db.
+		Where("records.token_prefix = ?", prefix).
+		Order("records.version desc").
+		Limit(1).
+		Preload("Metadata").
+		Preload("Files").
+		Find(&r).
+		Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			err = cache.ErrRecordNotFound
+		}
+		return nil, err
+	}
+	return &r, nil
+}
+
+// RecordPrefix gets the most recent version of a record from the database
+// using the prefix of its token. The length of the prefix is defined by
+// TokenPrefixLength in the politeiad api.
+func (c *cockroachdb) RecordPrefix(prefix string) (*cache.Record, error) {
+	log.Tracef("RecordPrefix %v", prefix)
+
+	c.RLock()
+	shutdown := c.shutdown
+	c.RUnlock()
+
+	if shutdown {
+		return nil, cache.ErrShutdown
+	}
+
+	r, err := recordPrefix(c.recordsdb, prefix)
+	if err != nil {
+		return nil, err
+	}
+
+	cr := convertRecordToCache(*r)
+	return &cr, nil
+}
+
 // recordVersion gets the specified version of a record from the database.
 // This function has a database parameter so that it can be called inside of
-// a transaction when required. This function supports querying by a token
-// or its prefix.
+// a transaction when required. 
 func (c *cockroachdb) recordVersion(db *gorm.DB, token, version string) (*Record, error) {
 	log.Tracef("getRecordVersion: %v %v", token, version)
 
 	r := Record{
-		Key: util.TokenToPrefix(token) + version,
+		Key: token + version,
 	}
 	err := db.Preload("Metadata").
 		Preload("Files").
@@ -88,7 +134,6 @@ func (c *cockroachdb) recordVersion(db *gorm.DB, token, version string) (*Record
 }
 
 // RecordVersion gets the specified version of a record from the database.
-// This function supports querying by a token or its prefix.
 func (c *cockroachdb) RecordVersion(token, version string) (*cache.Record, error) {
 	log.Tracef("RecordVersion: %v %v", token, version)
 
@@ -111,12 +156,11 @@ func (c *cockroachdb) RecordVersion(token, version string) (*cache.Record, error
 
 // record gets the most recent version of a record from the database.  This
 // function has a database parameter so that it can be called inside of a
-// transaction when required. This function supports querying by a token
-// or its prefix.
+// transaction when required.
 func record(db *gorm.DB, token string) (*Record, error) {
 	var r Record
 	err := db.
-		Where("records.token_prefix = ?", util.TokenToPrefix(token)).
+		Where("records.token = ?", token).
 		Order("records.version desc").
 		Limit(1).
 		Preload("Metadata").
@@ -132,8 +176,7 @@ func record(db *gorm.DB, token string) (*Record, error) {
 	return &r, nil
 }
 
-// Record gets the most recent version of a record from the database. This
-// function supports querying by a token or its prefix.
+// Record gets the most recent version of a record from the database.
 func (c *cockroachdb) Record(token string) (*cache.Record, error) {
 	log.Tracef("Record: %v", token)
 
@@ -278,8 +321,7 @@ func (c *cockroachdb) UpdateRecord(r cache.Record) error {
 // updateRecordStatus updates the status of a record in the database.  This
 // includes updating the record as well as any metadata streams that are
 // associated with the record.  The existing metadata streams are deleted from
-// the database before the passed in metadata streams are added. This method
-// supports updating by a token or its prefix.
+// the database before the passed in metadata streams are added.
 //
 // This function must be called within a transaction.
 func (c *cockroachdb) updateRecordStatus(tx *gorm.DB, token, version string, status int, timestamp int64, metadata []MetadataStream) error {
@@ -309,8 +351,7 @@ func (c *cockroachdb) updateRecordStatus(tx *gorm.DB, token, version string, sta
 
 // UpdateRecordStatus updates the status of a record in the database.  This
 // includes an update to the record as well as replacing the existing record
-// metadata streams with the passed in metadata streams. This method supports
-// updating by a token or its prefix.
+// metadata streams with the passed in metadata streams.
 func (c *cockroachdb) UpdateRecordStatus(token, version string, status cache.RecordStatusT, timestamp int64, metadata []cache.MetadataStream) error {
 	log.Tracef("UpdateRecordStatus: %v %v", token, status)
 
@@ -382,21 +423,18 @@ func (c *cockroachdb) UpdateRecordMetadata(token string, ms []cache.MetadataStre
 
 // getRecords returns the records for the provided censorship tokens. If a
 // record is not found for a provided token, the returned records slice will
-// not include an entry for it. This method supports querying by the tokens
-// or their prefixes.
+// not include an entry for it.
 func (c *cockroachdb) getRecords(tokens []string, fetchFiles bool) ([]Record, error) {
 	// Lookup the latest version of each record specified by
-	// the prefixes of the provided tokens.
-	prefixes := util.TokensToPrefixes(tokens)
+	// the provided tokens.
 	query := `SELECT a.*
             FROM records a
             LEFT OUTER JOIN records b
-              ON a.token_prefix = b.token_prefix
+              ON a.token = b.token
               AND a.version < b.version
               WHERE b.token IS NULL
-              AND a.token_prefix IN (?)`
-	rows, err := c.recordsdb.Raw(query, prefixes).Rows()
-
+              AND a.token IN (?)`
+	rows, err := c.recordsdb.Raw(query, tokens).Rows()
 	if err != nil {
 		return nil, err
 	}
@@ -447,7 +485,6 @@ func (c *cockroachdb) getRecords(tokens []string, fetchFiles bool) ([]Record, er
 // tokens. If a record is not found, the map will not include an entry for the
 // corresponding censorship token. It is the responsibility of the caller to
 // ensure that results are returned for all of the provided censorship tokens.
-// This method supports querying by the tokens or their prefixes.
 func (c *cockroachdb) Records(tokens []string, fetchFiles bool) (map[string]cache.Record, error) {
 	log.Tracef("Records: %v", tokens)
 

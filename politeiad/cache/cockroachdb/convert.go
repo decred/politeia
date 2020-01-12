@@ -41,10 +41,8 @@ func convertRecordFromCache(r cache.Record, version uint64) Record {
 			})
 	}
 
-	tokenPrefix := util.TokenToPrefix(r.CensorshipRecord.Token)
-
 	return Record{
-		Key:         tokenPrefix + r.Version,
+		Key:         r.CensorshipRecord.Token + r.Version,
 		Token:       r.CensorshipRecord.Token,
 		Version:     version,
 		Status:      int(r.Status),
@@ -53,7 +51,7 @@ func convertRecordFromCache(r cache.Record, version uint64) Record {
 		Signature:   r.CensorshipRecord.Signature,
 		Metadata:    convertMDStreamsFromCache(r.Metadata),
 		Files:       files,
-		TokenPrefix: tokenPrefix,
+		TokenPrefix: util.TokenToPrefix(r.CensorshipRecord.Token),
 	}
 }
 

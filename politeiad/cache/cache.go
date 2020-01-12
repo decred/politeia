@@ -159,6 +159,11 @@ type Cache interface {
 	// Get the latest version of a record
 	Record(string) (*Record, error)
 
+	// Get the latest version of a record based on its prefix.
+	// The length of the prefix is defined by TokenPrefixLength in the
+	// politeiad api.
+	RecordPrefix(string) (*Record, error)
+
 	// Get a specific version of a record
 	RecordVersion(string, string) (*Record, error)
 
