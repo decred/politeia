@@ -113,7 +113,7 @@ func (c *cockroachdb) RecordPrefix(prefix string) (*cache.Record, error) {
 
 // recordVersion gets the specified version of a record from the database.
 // This function has a database parameter so that it can be called inside of
-// a transaction when required. 
+// a transaction when required.
 func (c *cockroachdb) recordVersion(db *gorm.DB, token, version string) (*Record, error) {
 	log.Tracef("getRecordVersion: %v %v", token, version)
 
