@@ -86,7 +86,7 @@ func (c *testcache) Record(token string) (*cache.Record, error) {
 // This function must be called with the lock held.
 func (c *testcache) getTokenFromPrefix(prefix string) (string, error) {
 	for token := range c.records {
-		if len(token) > len(prefix) {
+		if len(token) < len(prefix) {
 			continue
 		}
 		if prefix == token[0:len(prefix)] {
