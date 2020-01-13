@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -72,9 +71,7 @@ func createSponsorStatementRegex() string {
 			buf.WriteString(`\` + supportedChar)
 		}
 	}
-	buf.WriteString("]{")
-	buf.WriteString(strconv.Itoa(cms.PolicyMinSponsorStatementLength) + ",")
-	buf.WriteString(strconv.Itoa(cms.PolicyMaxSponsorStatementLength) + "}$")
+	buf.WriteString("]*$")
 
 	return buf.String()
 }
