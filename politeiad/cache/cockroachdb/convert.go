@@ -269,6 +269,9 @@ func convertStartVoteFromDecred(dsv decredplugin.StartVote, dsvr decredplugin.St
 	switch sv.Version {
 	case 1:
 		b, err := base64.StdEncoding.DecodeString(dsv.Payload)
+		if err != nil {
+			return nil, err
+		}
 		sv1, err := decredplugin.DecodeStartVoteV1(b)
 		if err != nil {
 			return nil, err
@@ -279,6 +282,9 @@ func convertStartVoteFromDecred(dsv decredplugin.StartVote, dsvr decredplugin.St
 		}
 	case 2:
 		b, err := base64.StdEncoding.DecodeString(dsv.Payload)
+		if err != nil {
+			return nil, err
+		}
 		sv2, err := decredplugin.DecodeStartVoteV1(b)
 		if err != nil {
 			return nil, err

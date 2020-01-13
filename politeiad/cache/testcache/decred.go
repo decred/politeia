@@ -6,10 +6,11 @@ package testcache
 
 import (
 	"encoding/base64"
+	"fmt"
+	"strconv"
 
 	"github.com/decred/politeia/decredplugin"
 	decred "github.com/decred/politeia/decredplugin"
-	"github.com/decred/politeia/politeiad/cache"
 )
 
 func (c *testcache) getComments(payload string) (string, error) {
@@ -70,6 +71,11 @@ func (c *testcache) startVote(cmdPayload, replyPayload string) (string, error) {
 		return "", err
 	}
 
+	// Version must be added to the StartVote. This is done by
+	// politeiad but the updated StartVote does not travel to the
+	// cache.
+	sv.Version = decred.VersionStartVote
+
 	c.Lock()
 	defer c.Unlock()
 
@@ -123,17 +129,54 @@ func (c *testcache) voteDetails(payload string) (string, error) {
 	return string(vdb), nil
 }
 
-// This is left as a stub for now. The results of this are not used in any
-// tests.
-func (c *testcache) batchVoteSummary(payload string) (string, error) {
-	summaries := make(map[string]decredplugin.VoteSummaryReply)
+func (c *testcache) voteSummary(cmdPayload string) (string, error) {
+	vs, err := decred.DecodeVoteSummary([]byte(cmdPayload))
+	if err != nil {
+		return "", err
+	}
 
-	bvr, _ := decred.EncodeBatchVoteSummaryReply(
-		decred.BatchVoteSummaryReply{
-			Summaries: summaries,
-		})
+	c.RLock()
+	defer c.RUnlock()
 
-	return string(bvr), nil
+	// Lookup vote info
+	r, err := c.record(vs.Token)
+	if err != nil {
+		return "", err
+	}
+
+	av := c.authorizeVotes[vs.Token][r.Version]
+	sv := c.startVotes[vs.Token]
+
+	var duration uint32
+	svr, ok := c.startVoteReplies[vs.Token]
+	if ok {
+		start, err := strconv.ParseUint(svr.StartBlockHeight, 10, 32)
+		if err != nil {
+			return "", err
+		}
+		end, err := strconv.ParseUint(svr.EndHeight, 10, 32)
+		if err != nil {
+			return "", err
+		}
+		duration = uint32(end - start)
+	}
+
+	// Prepare reply
+	vsr := decred.VoteSummaryReply{
+		Authorized:          av.Action == decred.AuthVoteActionAuthorize,
+		Duration:            duration,
+		EndHeight:           svr.EndHeight,
+		EligibleTicketCount: 0,
+		QuorumPercentage:    sv.Vote.QuorumPercentage,
+		PassPercentage:      sv.Vote.PassPercentage,
+		Results:             []decred.VoteOptionResult{},
+	}
+	reply, err := decred.EncodeVoteSummaryReply(vsr)
+	if err != nil {
+		return "", err
+	}
+
+	return string(reply), nil
 }
 
 func (c *testcache) decredExec(cmd, cmdPayload, replyPayload string) (string, error) {
@@ -146,9 +189,9 @@ func (c *testcache) decredExec(cmd, cmdPayload, replyPayload string) (string, er
 		return c.startVote(cmdPayload, replyPayload)
 	case decred.CmdVoteDetails:
 		return c.voteDetails(cmdPayload)
-	case decred.CmdBatchVoteSummary:
-		return c.batchVoteSummary(cmdPayload)
+	case decred.CmdVoteSummary:
+		return c.voteSummary(cmdPayload)
 	}
 
-	return "", cache.ErrInvalidPluginCmd
+	return "", fmt.Errorf("invalid cache plugin command")
 }

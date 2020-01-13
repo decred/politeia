@@ -42,7 +42,7 @@ var (
 //   the StartVote signature.
 // * Added the Type field that specifies the vote type. All votes that were
 //   started using a v1 Vote will have a vote type of VoteTypeStandard. This
-//   field was not explicity specified for v1 Votes, but it is the only vote
+//   field was not explicitly specified for v1 Votes, but it is the only vote
 //   type that existed for v1 Votes.
 type Vote struct {
 	Token            string          `json:"token"`            // Proposal token

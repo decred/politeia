@@ -2388,6 +2388,9 @@ func (p *politeiawww) processVoteDetailsV2(token string) (*www2.VoteDetailsReply
 		}
 		vdr, err = convertDecredStartVoteV2ToVoteDetailsReplyV2(*dsv2,
 			dvdr.StartVoteReply)
+		if err != nil {
+			return nil, err
+		}
 
 	default:
 		return nil, fmt.Errorf("invalid StartVote version %v %v",
