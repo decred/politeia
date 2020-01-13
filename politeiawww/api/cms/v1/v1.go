@@ -701,3 +701,16 @@ type UserSubContractors struct{}
 type UserSubContractorsReply struct {
 	Users []User `json:"users"`
 }
+
+// AbridgedCMSUser is a shortened version of User that's used for the admin list.
+type AbridgedCMSUser struct {
+	ID             string          `json:"id"`
+	Domain         DomainTypeT     `json:"domain"`
+	ContractorType ContractorTypeT `json:"contractortype"`
+	Username       string          `json:"username"`
+}
+
+// CMSUsersReply returns a list of Users that are currently
+type CMSUsersReply struct {
+	Users []AbridgedCMSUser `json:"users"`
+}

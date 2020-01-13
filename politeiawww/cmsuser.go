@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -683,4 +684,122 @@ func (p *politeiawww) processUserSubContractors(u *user.User) (*cms.UserSubContr
 		Users: convertedCMSUsers,
 	}
 	return uscr, nil
+}
+
+// processUsers returns a list of users given a set of filters. Admins can
+// search by pubkey, username or email. Username and email searches will
+// return partial matches. Pubkey searches must be an exact match. Non admins
+// can search by pubkey or username. Non admin searches will only return exact
+// matches.
+func (p *politeiawww) processCMSUsers(users *www.Users) (*cms.CMSUsersReply, error) {
+	log.Tracef("processCMSUsers")
+
+	emailQuery := strings.ToLower(users.Email)
+	usernameQuery := formatUsername(users.Username)
+	pubkeyQuery := users.PublicKey
+
+	var totalUsers uint64
+	var totalMatches uint64
+	var pubkeyMatchID string
+	matchedUsers := make([]cms.AbridgedCMSUser, 0, www.UserListPageSize)
+
+	if pubkeyQuery != "" {
+		// Search by pubkey. Only exact matches are returned.
+		// Validate pubkey
+		err := validatePubKey(pubkeyQuery)
+		if err != nil {
+			return nil, err
+		}
+
+		u, err := p.db.UserGetByPubKey(pubkeyQuery)
+		if err != nil {
+			if err == user.ErrUserNotFound {
+				// Pubkey searches require an exact match. If no
+				// match was found, we can go ahead and return.
+				return &cms.CMSUsersReply{}, nil
+			}
+			return nil, err
+		}
+
+		pubkeyMatchID = u.ID.String()
+	}
+
+	err := p.db.AllUsers(func(u *user.User) {
+		totalUsers++
+		userMatches := true
+
+		// If both emailQuery and usernameQuery are non-empty, the
+		// user must match both to be included in the results.
+		if emailQuery != "" {
+			if !strings.Contains(strings.ToLower(u.Email),
+				emailQuery) {
+				userMatches = false
+			}
+		}
+
+		if usernameQuery != "" && userMatches {
+			if !strings.Contains(strings.ToLower(u.Username),
+				usernameQuery) {
+				userMatches = false
+			}
+		}
+
+		if pubkeyQuery != "" && userMatches {
+			if u.ID.String() != pubkeyMatchID {
+				userMatches = false
+			}
+		}
+
+		if userMatches {
+			// Setup plugin command
+			cu := user.CMSUserByID{
+				ID: u.ID.String(),
+			}
+			payload, err := user.EncodeCMSUserByID(cu)
+			if err != nil {
+				log.Error(err)
+				return
+			}
+			pc := user.PluginCommand{
+				ID:      user.CMSPluginID,
+				Command: user.CmdCMSUserByID,
+				Payload: string(payload),
+			}
+
+			// Execute plugin command
+			pcr, err := p.db.PluginExec(pc)
+			if err != nil {
+				log.Error(err)
+				return
+			}
+
+			// Decode reply
+			reply, err := user.DecodeCMSUserByIDReply([]byte(pcr.Payload))
+			if err != nil {
+				log.Error(err)
+				return
+			}
+			totalMatches++
+			if totalMatches < www.UserListPageSize {
+				matchedUsers = append(matchedUsers, cms.AbridgedCMSUser{
+					ID:             u.ID.String(),
+					Username:       u.Username,
+					Domain:         cms.DomainTypeT(reply.User.Domain),
+					ContractorType: cms.ContractorTypeT(reply.User.ContractorType),
+				})
+			}
+		}
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Sort results alphabetically.
+	sort.Slice(matchedUsers, func(i, j int) bool {
+		return matchedUsers[i].Username < matchedUsers[j].Username
+	})
+
+	return &cms.CMSUsersReply{
+		Users: matchedUsers,
+	}, nil
 }
