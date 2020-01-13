@@ -472,16 +472,14 @@ func (p *politeiawww) getPropVersion(token, version string) (*www.ProposalRecord
 	// Fetch number of comments for proposal from cache
 	dc, err := p.decredGetComments(token)
 	if err != nil {
-		log.Errorf("getPropVersion: decredGetComments "+
-			"failed for token %v", token)
+		return nil, err
 	}
 	pr.NumComments = uint(len(dc))
 
 	// Fill in proposal author info
 	u, err := p.db.UserGetByPubKey(pr.PublicKey)
 	if err != nil {
-		log.Errorf("getPropVersion: UserGetByPubKey: pubKey:%v "+
-			"token:%v err:%v", pr.PublicKey, token, err)
+		return nil, err
 	} else {
 		pr.UserId = u.ID.String()
 		pr.Username = u.Username
@@ -509,16 +507,16 @@ func (p *politeiawww) getAllProps() ([]www.ProposalRecord, error) {
 		// Fill in num comments
 		dc, err := p.decredGetComments(pr.CensorshipRecord.Token)
 		if err != nil {
-			log.Errorf("getAllProps: decredGetComments failed "+
-				"for token %v", pr.CensorshipRecord.Token)
+			return nil, fmt.Errorf("decredGetComments %v: %v",
+				pr.CensorshipRecord.Token, err)
 		}
 		pr.NumComments = uint(len(dc))
 
 		// Fill in author info
 		u, err := p.db.UserGetByPubKey(pr.PublicKey)
 		if err != nil {
-			log.Errorf("getAllProps: UserGetByPubKey: token:%v "+
-				"pubKey:%v", pr.CensorshipRecord.Token, pr.PublicKey)
+			return nil, fmt.Errorf("UserGetByPubKey %v %v: %v",
+				pr.CensorshipRecord.Token, pr.PublicKey, err)
 		} else {
 			pr.UserId = u.ID.String()
 			pr.Username = u.Username
@@ -1760,12 +1758,8 @@ func (p *politeiawww) processActiveVote() (*www.ActiveVoteReply, error) {
 		var sv www.StartVote
 		switch vdr.StartVote.Version {
 		case 1:
-			svb, err := base64.StdEncoding.DecodeString(vdr.StartVote.Payload)
-			if err != nil {
-				return nil, fmt.Errorf("decode StartVote payload %v: %v",
-					v.CensorshipRecord.Token, err)
-			}
-			dsv, err := decredplugin.DecodeStartVoteV1(svb)
+			b := []byte(vdr.StartVote.Payload)
+			dsv, err := decredplugin.DecodeStartVoteV1(b)
 			if err != nil {
 				return nil, fmt.Errorf("decode StartVoteV1 %v: %v",
 					v.CensorshipRecord.Token, err)
@@ -1773,12 +1767,8 @@ func (p *politeiawww) processActiveVote() (*www.ActiveVoteReply, error) {
 			sv = convertStartVoteV1FromDecred(*dsv)
 
 		case 2:
-			svb, err := base64.StdEncoding.DecodeString(vdr.StartVote.Payload)
-			if err != nil {
-				return nil, fmt.Errorf("decode StartVote payload %v: %v",
-					v.CensorshipRecord.Token, err)
-			}
-			dsv2, err := decredplugin.DecodeStartVoteV2(svb)
+			b := []byte(vdr.StartVote.Payload)
+			dsv2, err := decredplugin.DecodeStartVoteV2(b)
 			if err != nil {
 				return nil, fmt.Errorf("decode StartVoteV2 %v: %v",
 					v.CensorshipRecord.Token, err)
@@ -1842,21 +1832,15 @@ func (p *politeiawww) processVoteResults(token string) (*www.VoteResultsReply, e
 	var sv www.StartVote
 	switch vdr.StartVote.Version {
 	case 1:
-		svb, err := base64.StdEncoding.DecodeString(vdr.StartVote.Payload)
-		if err != nil {
-			return nil, err
-		}
-		dsv1, err := decredplugin.DecodeStartVoteV1(svb)
+		b := []byte(vdr.StartVote.Payload)
+		dsv1, err := decredplugin.DecodeStartVoteV1(b)
 		if err != nil {
 			return nil, err
 		}
 		sv = convertStartVoteV1FromDecred(*dsv1)
 	case 2:
-		svb, err := base64.StdEncoding.DecodeString(vdr.StartVote.Payload)
-		if err != nil {
-			return nil, err
-		}
-		dsv2, err := decredplugin.DecodeStartVoteV2(svb)
+		b := []byte(vdr.StartVote.Payload)
+		dsv2, err := decredplugin.DecodeStartVoteV2(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2335,12 +2319,11 @@ func (p *politeiawww) processTokenInventory(isAdmin bool) (*www.TokenInventoryRe
 	return &r, err
 }
 
-// processVoteDetailsV2 returns the www v2 VoteDetailsReply for the given
-// proposal token.
+// processVoteDetailsV2 returns the vote details for the given proposal token.
 func (p *politeiawww) processVoteDetailsV2(token string) (*www2.VoteDetailsReply, error) {
 	log.Tracef("processVoteDetailsV2: %v", token)
 
-	// Get vote details from cache
+	// Validate vote status
 	dvdr, err := p.decredVoteDetails(token)
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
@@ -2350,8 +2333,6 @@ func (p *politeiawww) processVoteDetailsV2(token string) (*www2.VoteDetailsReply
 		}
 		return nil, err
 	}
-
-	// Validate vote status
 	if dvdr.StartVoteReply.StartBlockHash == "" {
 		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusWrongVoteStatus,
@@ -2363,11 +2344,8 @@ func (p *politeiawww) processVoteDetailsV2(token string) (*www2.VoteDetailsReply
 	var vdr *www2.VoteDetailsReply
 	switch dvdr.StartVote.Version {
 	case 1:
-		svb, err := base64.StdEncoding.DecodeString(dvdr.StartVote.Payload)
-		if err != nil {
-			return nil, err
-		}
-		dsv1, err := decredplugin.DecodeStartVoteV1(svb)
+		b := []byte(dvdr.StartVote.Payload)
+		dsv1, err := decredplugin.DecodeStartVoteV1(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2376,13 +2354,9 @@ func (p *politeiawww) processVoteDetailsV2(token string) (*www2.VoteDetailsReply
 		if err != nil {
 			return nil, err
 		}
-
 	case 2:
-		svb, err := base64.StdEncoding.DecodeString(dvdr.StartVote.Payload)
-		if err != nil {
-			return nil, err
-		}
-		dsv2, err := decredplugin.DecodeStartVoteV2(svb)
+		b := []byte(dvdr.StartVote.Payload)
+		dsv2, err := decredplugin.DecodeStartVoteV2(b)
 		if err != nil {
 			return nil, err
 		}

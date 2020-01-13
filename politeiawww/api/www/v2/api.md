@@ -170,7 +170,7 @@ Reply:
 ```
 {
   "version": 2,
-  "vote": "eyJ0b2tlbiI6ImZmNjk2ZjAyNzRhNjM5NDllMTUzYzc0ZDRhZjVkMjJlN2FhMjUxNzU2YjZhNzczZDkzZGM0NDMzMGMxNjk5NWQiLCJwcm9wb3NhbHZlcnNpb24iOjEsInR5cGUiOjEsIm1hc2siOjMsImR1cmF0aW9uIjoyMDE2LCJxdW9ydW1wZXJjZW50YWdlIjoxMCwicGFzc3BlcmNlbnRhZ2UiOjYwLCJvcHRpb25zIjpbeyJpZCI6Im5vIiwiZGVzY3JpcHRpb24iOiJEb24ndCBhcHByb3ZlIHByb3Bvc2FsIiwiYml0cyI6MX0seyJpZCI6InllcyIsImRlc2NyaXB0aW9uIjoiQXBwcm92ZSBwcm9wb3NhbCIsImJpdHMiOjJ9XX0=",
+  "vote": "{\"token\":\"9a9b823fc46c1f8cbda4c0b0956cd782c31165d22ff0ac268190e68e708477cf\",\"proposalversion\":1,\"type\":1,\"mask\":3,\"duration\":2016,\"quorumpercentage\":20,\"passpercentage\":60,\"options\":[{\"id\":\"no\",\"description\":\"Don't approve proposal\",\"bits\":1},{\"id\":\"yes\",\"description\":\"Approve proposal\",\"bits\":2}]}",
   "publickey": "8139793b84ad5efc48f395bbc53cc4be101936bc72167cd10c649e1e09bf698b",
   "signature": "994c893b6c26c17f900c06f01aa68cc8008af52fcaf0ab223aed810833dbafe6da08728d2a76ea48b45b3a75c48fb8ce89a3feb4a460ad6b6e741f248c4fff0c",
   "startblockheight": 342692,

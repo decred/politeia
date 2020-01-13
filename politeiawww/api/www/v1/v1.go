@@ -905,7 +905,8 @@ type AuthorizeVoteReply struct {
 
 // StartVote starts the voting process for a proposal.
 //
-// *** This route has been replaced by the v2 StartVote route. ***
+// THIS ROUTE HAS BEEN DEPRECATED
+// A proposal vote must be initiated using the v2 StartVote route.
 type StartVote struct {
 	PublicKey string `json:"publickey"` // Key used for signature.
 	Vote      Vote   `json:"vote"`      // Vote

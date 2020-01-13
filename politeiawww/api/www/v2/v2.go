@@ -20,7 +20,9 @@ const (
 
 	// Vote types
 	//
-	// VoteTypeStandard...
+	// VoteTypeStandard is used to indicate a simple approve or reject
+	// proposal vote where the winner is the voting option that has met
+	// the specified pass and quorum requirements.
 	VoteTypeInvalid  VoteT = 0
 	VoteTypeStandard VoteT = 1
 )
@@ -99,12 +101,12 @@ type VoteDetails struct {
 // proposal vote. See the StartVote comment for details on the differences
 // between the StartVote versions.
 //
-// Vote is a base64 encoded JSON byte slice of the Vote struct. It needs to be
-// decoded according to the Version. See the Vote comment for details on the
-// differences between the Vote versions.
+// Vote contains a JSON encoded Vote and needs to be decoded according to the
+// Version. See the Vote comment for details on the differences between the
+// Vote versions.
 type VoteDetailsReply struct {
 	Version          uint32   `json:"version"`          // StartVote version
-	Vote             string   `json:"vote"`             // Base64 encoded Vote struct
+	Vote             string   `json:"vote"`             // JSON encoded Vote struct
 	PublicKey        string   `json:"publickey"`        // Key used for signature
 	Signature        string   `json:"signature"`        // Start vote signature
 	StartBlockHeight uint32   `json:"startblockheight"` // Block height

@@ -5,7 +5,6 @@
 package cockroachdb
 
 import (
-	"encoding/base64"
 	"fmt"
 	"strconv"
 	"strings"
@@ -268,11 +267,7 @@ func convertStartVoteFromDecred(dsv decredplugin.StartVote, dsvr decredplugin.St
 	var sv *StartVote
 	switch sv.Version {
 	case 1:
-		b, err := base64.StdEncoding.DecodeString(dsv.Payload)
-		if err != nil {
-			return nil, err
-		}
-		sv1, err := decredplugin.DecodeStartVoteV1(b)
+		sv1, err := decredplugin.DecodeStartVoteV1([]byte(dsv.Payload))
 		if err != nil {
 			return nil, err
 		}
@@ -281,11 +276,7 @@ func convertStartVoteFromDecred(dsv decredplugin.StartVote, dsvr decredplugin.St
 			return nil, err
 		}
 	case 2:
-		b, err := base64.StdEncoding.DecodeString(dsv.Payload)
-		if err != nil {
-			return nil, err
-		}
-		sv2, err := decredplugin.DecodeStartVoteV1(b)
+		sv2, err := decredplugin.DecodeStartVoteV1([]byte(dsv.Payload))
 		if err != nil {
 			return nil, err
 		}
@@ -319,14 +310,14 @@ func convertStartVoteToDecredV1(sv StartVote) (*decredplugin.StartVote, error) {
 		},
 		Signature: sv.Signature,
 	}
-	b, err := decredplugin.EncodeStartVoteV1(dsv)
+	svb, err := decredplugin.EncodeStartVoteV1(dsv)
 	if err != nil {
 		return nil, err
 	}
 	return &decredplugin.StartVote{
 		Token:   sv.Token,
 		Version: sv.Version,
-		Payload: base64.StdEncoding.EncodeToString(b),
+		Payload: string(svb),
 	}, nil
 }
 
@@ -354,14 +345,14 @@ func convertStartVoteToDecredV2(sv StartVote) (*decredplugin.StartVote, error) {
 		},
 		Signature: sv.Signature,
 	}
-	b, err := decredplugin.EncodeStartVoteV2(dsv)
+	svb, err := decredplugin.EncodeStartVoteV2(dsv)
 	if err != nil {
 		return nil, err
 	}
 	return &decredplugin.StartVote{
 		Token:   sv.Token,
 		Version: sv.Version,
-		Payload: base64.StdEncoding.EncodeToString(b),
+		Payload: string(svb),
 	}, nil
 }
 

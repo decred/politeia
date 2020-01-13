@@ -5,7 +5,6 @@
 package testcache
 
 import (
-	"encoding/base64"
 	"fmt"
 	"strconv"
 
@@ -118,7 +117,7 @@ func (c *testcache) voteDetails(payload string) (string, error) {
 			AuthorizeVote: c.authorizeVotes[vd.Token][r.Version],
 			StartVote: decredplugin.StartVote{
 				Version: sv.Version,
-				Payload: base64.StdEncoding.EncodeToString(svb),
+				Payload: string(svb),
 			},
 			StartVoteReply: c.startVoteReplies[vd.Token],
 		})

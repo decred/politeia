@@ -216,12 +216,13 @@ func DecodeAuthorizeVoteReply(payload []byte) (*AuthorizeVoteReply, error) {
 // provided vote bits.
 const VersionStartVote = 2
 
-// StartVote contains an encoded start vote where the version of the StartVote
-// is specified by Version.
+// StartVote contains a JSON encoded StartVote of the specified Version. This
+// struct is never written to disk. It is used to pass around the various
+// StartVote versions.
 type StartVote struct {
 	Token   string `json:"token"`   // Proposal token
 	Version uint   `json:"version"` // Payload StartVote version
-	Payload string `json:"payload"` // Base64 encoded start vote
+	Payload string `json:"payload"` // JSON encoded StartVote
 }
 
 // EncodeStartVote encodes a StartVote into a JSON byte slice.
@@ -282,8 +283,8 @@ func DecodeVoteV1(payload []byte) (*VoteV1, error) {
 	return &v, nil
 }
 
-// StartVoteV1 was used to start a proposal vote, but is not longer accepted.
-// A StartVoteV2 must be used to start a proposal vote.
+// StartVoteV1 was formerly used to start a proposal vote, but it is not longer
+// accepted.  A StartVoteV2 must be used to start a proposal vote.
 type StartVoteV1 struct {
 	// decred plugin only data
 	Version uint `json:"version"` // Version of this structure
@@ -365,14 +366,14 @@ func DecodeVoteV2(payload []byte) (*VoteV2, error) {
 	return &v, nil
 }
 
-// StartVoteV2...
+// StartVoteV2 is used to start a proposal vote.
 //
 // The message being signed is the SHA256 digest of the VoteV2 JSON byte slice.
 //
 // Differences between StartVoteV1 and StartVoteV2:
-// * Signature is the signature of a hash of the Vote struct. It was previously
-//   the signature of just the proposal token.
-// * VoteV2 has an additional field called Type that specifies the vote type.
+// * Signature is the signature of a hash of the Vote struct. It was
+//   previously the signature of just the proposal token.
+// * Vote is now a VoteV2. See the VoteV2 comment for more details.
 type StartVoteV2 struct {
 	// decred plugin only data
 	Version uint `json:"version"` // Version of this structure

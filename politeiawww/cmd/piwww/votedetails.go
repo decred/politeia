@@ -5,10 +5,6 @@
 package main
 
 import (
-	"encoding/base64"
-	"fmt"
-
-	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
@@ -38,41 +34,6 @@ func (cmd *VoteDetailsCmd) Execute(args []string) error {
 	err = shared.PrintJSON(vdr)
 	if err != nil {
 		return err
-	}
-
-	// Print the decoded Vote struct
-	if !cfg.RawJSON {
-		fmt.Printf("decoded vote:\n")
-		switch vdr.Version {
-		case 1:
-			vb, err := base64.StdEncoding.DecodeString(vdr.Vote)
-			if err != nil {
-				return err
-			}
-			v, err := decredplugin.DecodeVoteV1(vb)
-			if err != nil {
-				return err
-			}
-			err = shared.PrintJSON(v)
-			if err != nil {
-				return err
-			}
-		case 2:
-			vb, err := base64.StdEncoding.DecodeString(vdr.Vote)
-			if err != nil {
-				return err
-			}
-			v, err := decredplugin.DecodeVoteV2(vb)
-			if err != nil {
-				return err
-			}
-			err = shared.PrintJSON(v)
-			if err != nil {
-				return err
-			}
-		default:
-			return fmt.Errorf("invalid vote version")
-		}
 	}
 
 	return nil

@@ -133,7 +133,7 @@ func convertDecredStartVoteV1ToVoteDetailsReplyV2(sv decredplugin.StartVoteV1, s
 	}
 	return &www2.VoteDetailsReply{
 		Version:          uint32(sv.Version),
-		Vote:             base64.StdEncoding.EncodeToString(voteb),
+		Vote:             string(voteb),
 		PublicKey:        sv.PublicKey,
 		Signature:        sv.Signature,
 		StartBlockHeight: uint32(startHeight),
@@ -172,7 +172,7 @@ func convertDecredStartVoteV2ToVoteDetailsReplyV2(sv decredplugin.StartVoteV2, s
 	}
 	return &www2.VoteDetailsReply{
 		Version:          uint32(sv.Version),
-		Vote:             base64.StdEncoding.EncodeToString(voteb),
+		Vote:             string(voteb),
 		PublicKey:        sv.PublicKey,
 		Signature:        sv.Signature,
 		StartBlockHeight: uint32(startHeight),

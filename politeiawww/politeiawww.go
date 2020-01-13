@@ -504,6 +504,7 @@ func (p *politeiawww) handleGetAllVoteStatus(w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleGetAllVoteStatus: processGetAllVoteStatus %v", err)
+		return
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, gasvr)

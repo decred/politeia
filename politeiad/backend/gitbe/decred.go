@@ -1859,69 +1859,36 @@ func (g *gitBackEnd) validateVoteBit(token, bit string) error {
 	}
 
 	sv, ok := decredPluginVoteCache[token]
-	if ok {
-		var (
-			mask    uint64
-			options []decredplugin.VoteOption
-		)
-		switch sv.Version {
-		case 1:
-			svb, err := base64.StdEncoding.DecodeString(sv.Payload)
-			if err != nil {
-				return err
-			}
-			sv1, err := decredplugin.DecodeStartVoteV1(svb)
-			if err != nil {
-				return err
-			}
-			mask = sv1.Vote.Mask
-			options = sv1.Vote.Options
-		case 2:
-			svb, err := base64.StdEncoding.DecodeString(sv.Payload)
-			if err != nil {
-				return err
-			}
-			sv2, err := decredplugin.DecodeStartVoteV2(svb)
-			if err != nil {
-				return err
-			}
-			mask = sv2.Vote.Mask
-			options = sv2.Vote.Options
-		default:
-			return fmt.Errorf("invalid start vote version %v %v",
-				sv.Version, sv.Token)
+	if !ok {
+		// StartVote is not in the cache. Load it from disk.
+
+		// git checkout master
+		err = g.gitCheckout(g.unvetted, "master")
+		if err != nil {
+			return err
 		}
 
-		return _validateVoteBit(options, mask, b)
-	}
+		// git pull --ff-only --rebase
+		err = g.gitPull(g.unvetted, true)
+		if err != nil {
+			return err
+		}
 
-	// StartVote is not in the cache. Load from disk.
+		// Load md stream
+		svb, err := ioutil.ReadFile(mdFilename(g.vetted, token,
+			decredplugin.MDStreamVoteBits))
+		if err != nil {
+			return err
+		}
+		svp, err := decredplugin.DecodeStartVote(svb)
+		if err != nil {
+			return err
+		}
+		sv = *svp
 
-	// git checkout master
-	err = g.gitCheckout(g.unvetted, "master")
-	if err != nil {
-		return err
+		// Update cache
+		decredPluginVoteCache[token] = sv
 	}
-
-	// git pull --ff-only --rebase
-	err = g.gitPull(g.unvetted, true)
-	if err != nil {
-		return err
-	}
-
-	// Load md stream
-	svb, err := ioutil.ReadFile(mdFilename(g.vetted, token,
-		decredplugin.MDStreamVoteBits))
-	if err != nil {
-		return err
-	}
-	svp, err := decredplugin.DecodeStartVote(svb)
-	if err != nil {
-		return err
-	}
-
-	// Update memory cache
-	decredPluginVoteCache[token] = *svp
 
 	// Handle StartVote versioning
 	var (
@@ -1930,22 +1897,14 @@ func (g *gitBackEnd) validateVoteBit(token, bit string) error {
 	)
 	switch sv.Version {
 	case 1:
-		svb, err := base64.StdEncoding.DecodeString(sv.Payload)
-		if err != nil {
-			return err
-		}
-		sv1, err := decredplugin.DecodeStartVoteV1(svb)
+		sv1, err := decredplugin.DecodeStartVoteV1([]byte(sv.Payload))
 		if err != nil {
 			return err
 		}
 		mask = sv1.Vote.Mask
 		options = sv1.Vote.Options
 	case 2:
-		svb, err := base64.StdEncoding.DecodeString(sv.Payload)
-		if err != nil {
-			return err
-		}
-		sv2, err := decredplugin.DecodeStartVoteV2(svb)
+		sv2, err := decredplugin.DecodeStartVoteV2([]byte(sv.Payload))
 		if err != nil {
 			return err
 		}
