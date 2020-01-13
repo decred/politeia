@@ -801,7 +801,7 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 
 // processInvoiceDetails fetches a specific proposal version from the records
 // cache and returns it.
-func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, user *user.User) (*cms.InvoiceDetailsReply, error) {
+func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, u *user.User) (*cms.InvoiceDetailsReply, error) {
 	log.Tracef("processInvoiceDetails")
 
 	invRec, err := p.getInvoice(invDetails.Token)
@@ -814,6 +814,15 @@ func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, user 
 		return nil, err
 	}
 
+	// Check to make sure the user is either an admin or the
+	// invoice author.
+	if !u.Admin && (invRec.Username != u.Username) {
+		err := www.UserError{
+			ErrorCode: www.ErrorStatusUserActionNotAllowed,
+		}
+		return nil, err
+	}
+
 	// Calculate the payout from the invoice record
 	dbInv := convertInvoiceRecordToDatabaseInvoice(invRec)
 	payout, err := calculatePayout(*dbInv)
@@ -821,7 +830,7 @@ func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, user 
 		return nil, err
 	}
 
-	payout.Username = user.Username
+	payout.Username = u.Username
 
 	// Setup reply
 	reply := cms.InvoiceDetailsReply{
