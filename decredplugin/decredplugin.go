@@ -1,7 +1,6 @@
 package decredplugin
 
 import (
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -245,7 +244,7 @@ func DecodeStartVote(b []byte) (*StartVote, error) {
 	return &StartVote{
 		Token:   vote["token"].(string),
 		Version: uint(sv["version"].(float64)),
-		Payload: base64.StdEncoding.EncodeToString(b),
+		Payload: string(b),
 	}, nil
 }
 
@@ -283,8 +282,8 @@ func DecodeVoteV1(payload []byte) (*VoteV1, error) {
 	return &v, nil
 }
 
-// StartVoteV1 was formerly used to start a proposal vote, but it is not longer
-// accepted.  A StartVoteV2 must be used to start a proposal vote.
+// StartVoteV1 was formerly used to start a proposal vote, but is not longer
+// accepted. A StartVoteV2 must be used to start a proposal vote.
 type StartVoteV1 struct {
 	// decred plugin only data
 	Version uint `json:"version"` // Version of this structure
@@ -478,8 +477,7 @@ func DecodeVoteDetails(payload []byte) (*VoteDetails, error) {
 	return &vd, nil
 }
 
-// VoteDetailsReply is the reply to VoteDetails. Only the most recent
-// AuthorizeVote is returned.
+// VoteDetailsReply is the reply to VoteDetails.
 type VoteDetailsReply struct {
 	AuthorizeVote  AuthorizeVote  `json:"authorizevote"`  // Vote authorization
 	StartVote      StartVote      `json:"startvote"`      // Vote ballot

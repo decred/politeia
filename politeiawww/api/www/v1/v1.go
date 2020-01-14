@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -884,6 +884,8 @@ type ProposalVoteTuple struct {
 type ActiveVoteReply struct {
 	Votes []ProposalVoteTuple `json:"votes"` // Active votes
 }
+
+// plugin commands
 
 // AuthorizeVote is used to indicate that a proposal has been finalized and
 // is ready to be voted on.  The signature and public key are from the

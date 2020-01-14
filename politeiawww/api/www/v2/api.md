@@ -147,6 +147,9 @@ to be decoded according to the returned version. See the
 [`Start vote`](#start-vote) documentation for more details on the differences
 between the Vote versions.
 
+This route is expensive due to it returning the full eligible tickets snapshot.
+If the eligble tickets snapshot is not needed, the v1 BatchVoteSummary route
+can likely be used instead.
 
 **Route:** `GET /v2/vote/{token}`
 

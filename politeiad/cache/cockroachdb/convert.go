@@ -201,7 +201,7 @@ func convertStartVoteV1FromDecred(sv decredplugin.StartVoteV1, svr decredplugin.
 			svr.EndHeight, err)
 	}
 	// Version must be hard coded because the version is filled in
-	// by gitbe and does not travel to the cache.
+	// by the politeiad backend and does not travel to the cache.
 	return &StartVote{
 		Token:               sv.Vote.Token,
 		Version:             1,
@@ -242,7 +242,7 @@ func convertStartVoteV2FromDecred(sv decredplugin.StartVoteV2, svr decredplugin.
 			svr.EndHeight, err)
 	}
 	// Version must be hard coded because the version is filled in
-	// by gitbe and does not travel to the cache.
+	// by the politeiad backend and does not travel to the cache.
 	return &StartVote{
 		Token:               sv.Vote.Token,
 		Version:             2,
@@ -265,7 +265,7 @@ func convertStartVoteV2FromDecred(sv decredplugin.StartVoteV2, svr decredplugin.
 
 func convertStartVoteFromDecred(dsv decredplugin.StartVote, dsvr decredplugin.StartVoteReply) (*StartVote, error) {
 	var sv *StartVote
-	switch sv.Version {
+	switch dsv.Version {
 	case 1:
 		sv1, err := decredplugin.DecodeStartVoteV1([]byte(dsv.Payload))
 		if err != nil {

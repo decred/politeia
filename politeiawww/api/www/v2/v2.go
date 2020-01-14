@@ -48,7 +48,7 @@ var (
 //   type that existed for v1 Votes.
 type Vote struct {
 	Token            string          `json:"token"`            // Proposal token
-	ProposalVersion  uint32          `json:"proposalversion"`  // Proposal version being voted on
+	ProposalVersion  uint32          `json:"proposalversion"`  // Proposal version of vote
 	Type             VoteT           `json:"type"`             // Type of vote
 	Mask             uint64          `json:"mask"`             // Valid votebits
 	Duration         uint32          `json:"duration"`         // Duration in blocks
