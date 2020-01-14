@@ -200,11 +200,9 @@ func convertStartVoteV1FromDecred(sv decredplugin.StartVoteV1, svr decredplugin.
 		return nil, fmt.Errorf("parse end height '%v': %v",
 			svr.EndHeight, err)
 	}
-	// Version must be hard coded because the version is filled in
-	// by the politeiad backend and does not travel to the cache.
 	return &StartVote{
 		Token:               sv.Vote.Token,
-		Version:             1,
+		Version:             sv.Version,
 		Type:                int(decredplugin.VoteTypeStandard),
 		Mask:                sv.Vote.Mask,
 		Duration:            sv.Vote.Duration,
@@ -243,6 +241,8 @@ func convertStartVoteV2FromDecred(sv decredplugin.StartVoteV2, svr decredplugin.
 	}
 	// Version must be hard coded because the version is filled in
 	// by the politeiad backend and does not travel to the cache.
+	// If the cache is being built from scratch the version will
+	// be present since the data is being read directly from disk.
 	return &StartVote{
 		Token:               sv.Vote.Token,
 		Version:             2,
@@ -261,31 +261,6 @@ func convertStartVoteV2FromDecred(sv decredplugin.StartVoteV2, svr decredplugin.
 		EligibleTickets:     strings.Join(svr.EligibleTickets, ","),
 		EligibleTicketCount: len(svr.EligibleTickets),
 	}, nil
-}
-
-func convertStartVoteFromDecred(dsv decredplugin.StartVote, dsvr decredplugin.StartVoteReply) (*StartVote, error) {
-	var sv *StartVote
-	switch dsv.Version {
-	case 1:
-		sv1, err := decredplugin.DecodeStartVoteV1([]byte(dsv.Payload))
-		if err != nil {
-			return nil, err
-		}
-		sv, err = convertStartVoteV1FromDecred(*sv1, dsvr)
-		if err != nil {
-			return nil, err
-		}
-	case 2:
-		sv2, err := decredplugin.DecodeStartVoteV1([]byte(dsv.Payload))
-		if err != nil {
-			return nil, err
-		}
-		sv, err = convertStartVoteV1FromDecred(*sv2, dsvr)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return sv, nil
 }
 
 func convertStartVoteToDecredV1(sv StartVote) (*decredplugin.StartVote, error) {

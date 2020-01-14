@@ -1640,6 +1640,11 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 		}
 	}
 
+	// Verify vote type
+	if vote.Vote.Type != decredplugin.VoteTypeStandard {
+		return "", fmt.Errorf("invalid vote type")
+	}
+
 	// Verify proposal exists
 	tokenB, err := util.ConvertStringToken(vote.Vote.Token)
 	if err != nil {
@@ -1708,7 +1713,6 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 		return "", fmt.Errorf("EncodeStartVote: %v", err)
 	}
 
-	// Verify proposal state
 	g.Lock()
 	defer g.Unlock()
 	if g.shutdown {
@@ -1716,6 +1720,18 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 		return "", backend.ErrShutdown
 	}
 
+	// Verify that the proposal version being voted on is the most
+	// recent proposal version.
+	latestVersion, err := getLatest(pijoin(g.unvetted, token))
+	if err != nil {
+		return "", err
+	}
+	version := strconv.FormatUint(uint64(vote.Vote.ProposalVersion), 10)
+	if latestVersion != version {
+		return "", fmt.Errorf("invalid proposal version")
+	}
+
+	// Verify proposal state
 	_, err1 := os.Stat(pijoin(joinLatest(g.vetted, token),
 		fmt.Sprintf("%02v%v", decredplugin.MDStreamAuthorizeVote,
 			defaultMDFilenameSuffix)))

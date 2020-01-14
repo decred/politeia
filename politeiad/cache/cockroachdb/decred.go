@@ -5,7 +5,6 @@
 package cockroachdb
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -1719,14 +1718,10 @@ func (d *decred) build(ir *decredplugin.InventoryReply) error {
 	log.Tracef("decred: building start vote cache")
 	for _, v := range ir.StartVoteTuples {
 		// Handle start vote versioning
-		svb, err := base64.StdEncoding.DecodeString(v.StartVote.Payload)
-		if err != nil {
-			return fmt.Errorf("decode StartVote payload %v: %v",
-				v.StartVote.Token, err)
-		}
 		var sv StartVote
 		switch v.StartVote.Version {
 		case 1:
+			svb := []byte(v.StartVote.Payload)
 			sv1, err := decredplugin.DecodeStartVoteV1(svb)
 			if err != nil {
 				return fmt.Errorf("decode StartVoteV2 %v: %v",
@@ -1739,6 +1734,7 @@ func (d *decred) build(ir *decredplugin.InventoryReply) error {
 			}
 			sv = *svp
 		case 2:
+			svb := []byte(v.StartVote.Payload)
 			sv2, err := decredplugin.DecodeStartVoteV2(svb)
 			if err != nil {
 				return fmt.Errorf("decode StartVoteV1 %v: %v",

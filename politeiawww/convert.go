@@ -143,18 +143,6 @@ func convertDecredStartVoteV1ToVoteDetailsReplyV2(sv decredplugin.StartVoteV1, s
 	}, nil
 }
 
-func convertVoteV2FromDecred(v decredplugin.VoteV2) www2.Vote {
-	return www2.Vote{
-		Token:            v.Token,
-		Type:             convertVoteTypeFromDecred(v.Type),
-		Mask:             v.Mask,
-		Duration:         v.Duration,
-		QuorumPercentage: v.QuorumPercentage,
-		PassPercentage:   v.PassPercentage,
-		Options:          convertVoteOptionsFromDecred(v.Options),
-	}
-}
-
 func convertDecredStartVoteV2ToVoteDetailsReplyV2(sv decredplugin.StartVoteV2, svr decredplugin.StartVoteReply) (*www2.VoteDetailsReply, error) {
 	startHeight, err := strconv.ParseUint(svr.StartBlockHeight, 10, 32)
 	if err != nil {
@@ -519,22 +507,6 @@ func convertPluginToCache(p Plugin) cache.Plugin {
 		Version:  p.Version,
 		Settings: settings,
 	}
-}
-
-func convertAuthVoteFromDecred(dav decredplugin.AuthorizeVote) (www.AuthorizeVote, www.AuthorizeVoteReply) {
-	av := www.AuthorizeVote{
-		Action:    dav.Action,
-		Token:     dav.Token,
-		Signature: dav.Signature,
-		PublicKey: dav.PublicKey,
-	}
-
-	avr := www.AuthorizeVoteReply{
-		Action:  dav.Action,
-		Receipt: dav.Receipt,
-	}
-
-	return av, avr
 }
 
 func convertVoteOptionFromDecred(vo decredplugin.VoteOption) www.VoteOption {

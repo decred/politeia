@@ -115,6 +115,8 @@ func (cmd *HelpCmd) Execute(args []string) error {
 		fmt.Printf("%s\n", batchProposalsHelpMsg)
 	case "batchvotesummary":
 		fmt.Printf("%s\n", batchVoteSummaryHelpMsg)
+	case "votedetails":
+		fmt.Printf("%s\n", voteDetailsHelpMsg)
 
 	default:
 		fmt.Printf("invalid command: use 'piwww -h' " +

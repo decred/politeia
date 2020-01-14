@@ -15,23 +15,19 @@ using a JSON REST API.
 
 Start the voting period on the given proposal.
 
-
 Signature is a signature of the hex encoded SHA256 digest of the JSON encoded
 v2 Vote struct.
 
 Differences between v1 and v2 StartVote:
 * Signature has been updated to be a signature of the Vote hash. It was
   previously a signature of just the proposal token.
-* Vote has been updated. See the vote comment below for more details.
+* Vote has been updated. See the Vote comment below for more details.
 
 Differences between v1 and v2 Vote:
 * Added the "version" field that specifies the version of the proposal that is
-  being voted on. This was added so that the proposal version is included in
-  the StartVote signature.
-* Added the "type" field that specifies the vote type. All votes that were
-  started using a v1 Vote will have a vote type of VoteTypeStandard. This
-  field was not explicity specified for v1 Votes, but it is the only vote
-  type that existed for v1 Votes.
+  being voted on. This was added so that the proposal version is explicitly
+  included in the StartVote signature.
+* Added the "type" field that specifies the vote type.
 
 Differences between v1 and v2 StartVoteReply:
 * StartBlockHeight was changed from a string to a uint32.
@@ -62,6 +58,7 @@ Differences between v1 and v2 StartVoteReply:
 | | Type | Description |
 | - | - | - |
 | token | string | Censorship token |
+| proposalversion | uint32 | Proposal version being voted on |
 | type | int | Type of proposal vote | 
 | mask | uint64 | Mask for valid vote bits |
 | duration | uint32 | Duration of the vote in blocks |
@@ -147,10 +144,6 @@ to be decoded according to the returned version. See the
 [`Start vote`](#start-vote) documentation for more details on the differences
 between the Vote versions.
 
-This route is expensive due to it returning the full eligible tickets snapshot.
-If the eligble tickets snapshot is not needed, the v1 BatchVoteSummary route
-can likely be used instead.
-
 **Route:** `GET /v2/vote/{token}`
 
 **Params:** None
@@ -160,7 +153,7 @@ can likely be used instead.
 | | Type | Description |
 | - | - | - |
 | version | uint32 | Start vote version |
-| vote | string | Base64 encoded Vote |
+| vote | string | JSON encoded Vote |
 | publickey | string | Key used for signature |
 | signature | string | Start vote signature |
 | startblockheight | uint32 | Start block height of the vote |

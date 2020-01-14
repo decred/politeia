@@ -1774,6 +1774,8 @@ func (p *politeiawww) processActiveVote() (*www.ActiveVoteReply, error) {
 					v.CensorshipRecord.Token, err)
 			}
 			sv2 := convertStartVoteV2FromDecred(*dsv2)
+			// Convert StartVote v2 to v1 since this route returns
+			// a v1 StartVote.
 			sv = convertStartVoteV2ToV1(sv2)
 
 		default:

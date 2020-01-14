@@ -47,6 +47,10 @@ const (
 	AuthVoteActionRevoke    = "revoke"    // Revoke a proposal vote authorization
 
 	// Vote types
+	//
+	// VoteTypeStandard is used to indicate a simple approve or reject
+	// proposal vote where the winner is the voting option that has met
+	// the specified pass and quorum requirements.
 	VoteTypeInvalid  VoteT = 0
 	VoteTypeStandard VoteT = 1
 
@@ -251,11 +255,11 @@ func DecodeStartVote(b []byte) (*StartVote, error) {
 // VoteOption describes a single vote option.
 type VoteOption struct {
 	Id          string `json:"id"`          // Single unique word identifying vote (e.g. yes)
-	Description string `json:"description"` // Longer description of the vote.
+	Description string `json:"description"` // Longer description of the vote
 	Bits        uint64 `json:"bits"`        // Bits used for this option
 }
 
-// VoteV1 represents the vote options for a StartVoteV1.
+// VoteV1 represents the vote options and parameters for a StartVoteV1.
 type VoteV1 struct {
 	Token            string       `json:"token"`            // Token that identifies vote
 	Mask             uint64       `json:"mask"`             // Valid votebits
@@ -330,12 +334,12 @@ func DecodeStartVoteV1(payload []byte) (*StartVoteV1, error) {
 	return &sv, nil
 }
 
-// VoteV2 represents the vote options for a StartVoteV2.
+// VoteV2 represents the vote options and vote parameters for a StartVoteV2.
 //
 // Differences between VoteV1 and VoteV2:
 // * Added the ProposalVersion field that specifies the version of the proposal
 //   that is being voted on. This was added so that the proposal version is
-//   included in the StartVote signature.
+//   explicitly included in the StartVote signature.
 // * Added a Type field in order to specify the vote type.
 type VoteV2 struct {
 	Token            string       `json:"token"`            // Token that identifies vote
@@ -378,7 +382,7 @@ type StartVoteV2 struct {
 	Version uint `json:"version"` // Version of this structure
 
 	PublicKey string `json:"publickey"` // Key used for signature
-	Vote      VoteV2 `json:"vote"`      // Vote + options
+	Vote      VoteV2 `json:"vote"`      // Vote options and params
 	Signature string `json:"signature"` // Signature of Vote hash
 }
 

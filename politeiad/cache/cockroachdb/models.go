@@ -189,7 +189,7 @@ type StartVote struct {
 	PassPercentage      uint32       `gorm:"not null"`            // Approval requirement
 	Options             []VoteOption `gorm:"foreignkey:Token"`    // Vote option
 	PublicKey           string       `gorm:"not null;size:64"`    // Key used for signature
-	Signature           string       `gorm:"not null;size:128"`   // Signature (version dependent)
+	Signature           string       `gorm:"not null;size:128"`   // Signature
 	StartBlockHeight    uint32       `gorm:"not null"`            // Block height
 	StartBlockHash      string       `gorm:"not null"`            // Block hash
 	EndHeight           uint32       `gorm:"not null"`            // Height of vote end

@@ -42,10 +42,7 @@ var (
 // * Added the Version field that specifies the version of the proposal that is
 //   being voted on. This was added so that the proposal version is included in
 //   the StartVote signature.
-// * Added the Type field that specifies the vote type. All votes that were
-//   started using a v1 Vote will have a vote type of VoteTypeStandard. This
-//   field was not explicitly specified for v1 Votes, but it is the only vote
-//   type that existed for v1 Votes.
+// * Added the Type field that specifies the vote type.
 type Vote struct {
 	Token            string          `json:"token"`            // Proposal token
 	ProposalVersion  uint32          `json:"proposalversion"`  // Proposal version of vote
@@ -86,10 +83,6 @@ type StartVoteReply struct {
 }
 
 // VoteDetails returns the votes details for the specified proposal.
-//
-// This route is expensive due to it returning the full eligible tickets
-// snapshot. If the eligble tickets snapshot is not needed, the v1
-// BatchVoteSummary route can likely be used instead.
 type VoteDetails struct {
 	Token string `json:"token"` // Proposal token
 }
