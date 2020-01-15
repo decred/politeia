@@ -152,7 +152,7 @@ const (
 
 	// PolicyMaxSponsorStatementLength is the maximum length for the sponsor
 	// statement contained within a DCC
-	PolicyMaxSponsorStatementLength = 500
+	PolicyMaxSponsorStatementLength = 5000
 
 	ErrorStatusMalformedName                  www.ErrorStatusT = 1001
 	ErrorStatusMalformedLocation              www.ErrorStatusT = 1002
