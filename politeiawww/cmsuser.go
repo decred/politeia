@@ -686,9 +686,9 @@ func (p *politeiawww) processUserSubContractors(u *user.User) (*cms.UserSubContr
 	return uscr, nil
 }
 
-// processUsers returns a list of users given a set of filters. Username and
-// email searches will return partial matches. Pubkey searches must be an exact
-// match. Non admins can search by pubkey or username.
+// processCMSUsers returns a list of cms users given a set of filters. If
+// either domain or contractor is non-zero then they are used as matching
+// criteria, otherwise the full list will be returned.
 func (p *politeiawww) processCMSUsers(users *cms.CMSUsers) (*cms.CMSUsersReply, error) {
 	log.Tracef("processCMSUsers")
 
@@ -739,7 +739,6 @@ func (p *politeiawww) processCMSUsers(users *cms.CMSUsers) (*cms.CMSUsersReply, 
 			}
 		}
 	} else if contractortype != 0 {
-
 		// Setup plugin command
 		cu := user.CMSUsersByContractorType{
 			ContractorType: contractortype,
@@ -762,7 +761,8 @@ func (p *politeiawww) processCMSUsers(users *cms.CMSUsers) (*cms.CMSUsersReply, 
 		}
 
 		// Decode reply
-		reply, err := user.DecodeCMSUsersByContractorTypeReply([]byte(pcr.Payload))
+		reply, err := user.DecodeCMSUsersByContractorTypeReply(
+			[]byte(pcr.Payload))
 		if err != nil {
 			log.Error(err)
 			return nil, err

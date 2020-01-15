@@ -238,7 +238,8 @@ func (c *cockroachdb) cmdCMSUsersByDomain(payload string) (string, error) {
 	return string(reply), nil
 }
 
-// cmdCMSUsersByContractorType returns all CMS users within the provided domain.
+// cmdCMSUsersByContractorType returns all CMS users within the provided
+// contractor type.
 func (c *cockroachdb) cmdCMSUsersByContractorType(payload string) (string, error) {
 	// Decode payload
 	p, err := user.DecodeCMSUsersByContractorType([]byte(payload))

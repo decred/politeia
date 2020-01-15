@@ -140,17 +140,20 @@ func DecodeCMSUsersByDomainReply(b []byte) (*CMSUsersByDomainReply, error) {
 	return &reply, nil
 }
 
-// CMSUsersByContractorType returns all CMS users within the provided domain.
+// CMSUsersByContractorType returns all CMS users within the provided
+// contractor type.
 type CMSUsersByContractorType struct {
 	ContractorType int `json:"contractortype"` // Contractor type
 }
 
-// EncodeCMSUsersByContractorType encodes a CMSUsersByContractorType into a JSON byte slice.
+// EncodeCMSUsersByContractorType encodes a CMSUsersByContractorType into a
+// JSON byte slice.
 func EncodeCMSUsersByContractorType(u CMSUsersByContractorType) ([]byte, error) {
 	return json.Marshal(u)
 }
 
-// DecodeCMSUsersByContractorType decodes JSON byte slice into a CMSUsersByContractorType.
+// DecodeCMSUsersByContractorType decodes JSON byte slice into a
+// CMSUsersByContractorType.
 func DecodeCMSUsersByContractorType(b []byte) (*CMSUsersByContractorType, error) {
 	var u CMSUsersByContractorType
 
@@ -162,12 +165,14 @@ func DecodeCMSUsersByContractorType(b []byte) (*CMSUsersByContractorType, error)
 	return &u, nil
 }
 
-// CMSUsersByContractorTypeReply is the reply to the CMSUsersByContractorType command.
+// CMSUsersByContractorTypeReply is the reply to the CMSUsersByContractorType
+// command.
 type CMSUsersByContractorTypeReply struct {
 	Users []CMSUser `json:"users"`
 }
 
-// EncodeCMSUsersByContractorTypeReply encodes a CMSUsersByContractorTypeReply into a JSON
+// EncodeCMSUsersByContractorTypeReply encodes a CMSUsersByContractorTypeReply
+// into a JSON
 // byte slice.
 func EncodeCMSUsersByContractorTypeReply(u CMSUsersByContractorTypeReply) ([]byte, error) {
 	return json.Marshal(u)
