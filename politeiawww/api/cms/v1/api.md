@@ -16,6 +16,7 @@ server side notifications.  It does not render HTML.
 - [`Edit invoice`](#edit-invoice)
 - [`Set invoice status`](#set-invoice-status)
 - [`Set DCC status`](#set-dcc-status)
+- [`CMS Users`](#cms-users)
 - [`Generate payouts`](#generate-payouts)
 - [`Invoice comments`](#invoice-comments)
 - [`Invoice exchange rate`](#invoice-exchange-rate)
@@ -1421,6 +1422,48 @@ Reply:
     "supervisoruserid": "4",
   },
   ]
+}
+```
+
+### `CMS Users`
+
+Returns a list of cms users given optional filters. 
+
+**Route:** `GET /v1/cmsusers`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-----------|------|-------------|----------|
+| domain | int | A query int to match against user's domain. | |
+| contractortype | int | A query string to match user's contractor type. | |
+
+**Results:**
+
+| Parameter | Type | Description |
+|-|-|-|
+| users | array of [CMS Abridged User](#cms-abridged-user) | The list of cms users that match the query. 
+
+On failure the call shall return `400 Bad Request` and one of the following
+error codes:
+- [`ErrorStatusInvalidInput`](#ErrorStatusInvalidInput)
+
+**Example**
+
+Request:
+
+```json
+{
+  "domain": "1",
+  "username": "1"
+}
+```
+
+Reply:
+
+```json
+{
+  "users": []
 }
 ```
 

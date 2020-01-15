@@ -686,71 +686,99 @@ func (p *politeiawww) processUserSubContractors(u *user.User) (*cms.UserSubContr
 	return uscr, nil
 }
 
-// processUsers returns a list of users given a set of filters. Admins can
-// search by pubkey, username or email. Username and email searches will
-// return partial matches. Pubkey searches must be an exact match. Non admins
-// can search by pubkey or username. Non admin searches will only return exact
-// matches.
-func (p *politeiawww) processCMSUsers(users *www.Users) (*cms.CMSUsersReply, error) {
+// processUsers returns a list of users given a set of filters. Username and
+// email searches will return partial matches. Pubkey searches must be an exact
+// match. Non admins can search by pubkey or username.
+func (p *politeiawww) processCMSUsers(users *cms.CMSUsers) (*cms.CMSUsersReply, error) {
 	log.Tracef("processCMSUsers")
 
-	emailQuery := strings.ToLower(users.Email)
-	usernameQuery := formatUsername(users.Username)
-	pubkeyQuery := users.PublicKey
+	domain := int(users.Domain)
+	contractortype := int(users.ContractorType)
 
-	var totalUsers uint64
-	var totalMatches uint64
-	var pubkeyMatchID string
 	matchedUsers := make([]cms.AbridgedCMSUser, 0, www.UserListPageSize)
 
-	if pubkeyQuery != "" {
-		// Search by pubkey. Only exact matches are returned.
-		// Validate pubkey
-		err := validatePubKey(pubkeyQuery)
+	if domain != 0 {
+		// Setup plugin command
+		cu := user.CMSUsersByDomain{
+			Domain: domain,
+		}
+		payload, err := user.EncodeCMSUsersByDomain(cu)
 		if err != nil {
 			return nil, err
 		}
+		pc := user.PluginCommand{
+			ID:      user.CMSPluginID,
+			Command: user.CmdCMSUsersByDomain,
+			Payload: string(payload),
+		}
 
-		u, err := p.db.UserGetByPubKey(pubkeyQuery)
+		// Execute plugin command
+		pcr, err := p.db.PluginExec(pc)
 		if err != nil {
-			if err == user.ErrUserNotFound {
-				// Pubkey searches require an exact match. If no
-				// match was found, we can go ahead and return.
-				return &cms.CMSUsersReply{}, nil
-			}
+			log.Error(err)
 			return nil, err
 		}
 
-		pubkeyMatchID = u.ID.String()
-	}
-
-	err := p.db.AllUsers(func(u *user.User) {
-		totalUsers++
-		userMatches := true
-
-		// If both emailQuery and usernameQuery are non-empty, the
-		// user must match both to be included in the results.
-		if emailQuery != "" {
-			if !strings.Contains(strings.ToLower(u.Email),
-				emailQuery) {
-				userMatches = false
+		// Decode reply
+		reply, err := user.DecodeCMSUsersByDomainReply([]byte(pcr.Payload))
+		if err != nil {
+			log.Error(err)
+			return nil, err
+		}
+		for _, u := range reply.Users {
+			// Only add matched users if contractor type is 0  or it matches
+			// the request
+			if contractortype == 0 ||
+				(contractortype != 0 && u.ContractorType == contractortype) {
+				matchedUsers = append(matchedUsers, cms.AbridgedCMSUser{
+					Domain:         cms.DomainTypeT(u.Domain),
+					Username:       u.Username,
+					ContractorType: cms.ContractorTypeT(u.ContractorType),
+					ID:             u.ID.String(),
+				})
 			}
 		}
+	} else if contractortype != 0 {
 
-		if usernameQuery != "" && userMatches {
-			if !strings.Contains(strings.ToLower(u.Username),
-				usernameQuery) {
-				userMatches = false
-			}
+		// Setup plugin command
+		cu := user.CMSUsersByContractorType{
+			ContractorType: contractortype,
+		}
+		payload, err := user.EncodeCMSUsersByContractorType(cu)
+		if err != nil {
+			return nil, err
+		}
+		pc := user.PluginCommand{
+			ID:      user.CMSPluginID,
+			Command: user.CmdCMSUsersByContractorType,
+			Payload: string(payload),
 		}
 
-		if pubkeyQuery != "" && userMatches {
-			if u.ID.String() != pubkeyMatchID {
-				userMatches = false
-			}
+		// Execute plugin command
+		pcr, err := p.db.PluginExec(pc)
+		if err != nil {
+			log.Error(err)
+			return nil, err
 		}
 
-		if userMatches {
+		// Decode reply
+		reply, err := user.DecodeCMSUsersByContractorTypeReply([]byte(pcr.Payload))
+		if err != nil {
+			log.Error(err)
+			return nil, err
+		}
+		for _, u := range reply.Users {
+			// We already know domain is 0 if here so no need to check.
+			matchedUsers = append(matchedUsers, cms.AbridgedCMSUser{
+				Domain:         cms.DomainTypeT(u.Domain),
+				Username:       u.Username,
+				ContractorType: cms.ContractorTypeT(u.ContractorType),
+				ID:             u.ID.String(),
+			})
+		}
+	} else {
+		// Both contractor type and domain are 0 so just return all users.
+		err := p.db.AllUsers(func(u *user.User) {
 			// Setup plugin command
 			cu := user.CMSUserByID{
 				ID: u.ID.String(),
@@ -779,19 +807,16 @@ func (p *politeiawww) processCMSUsers(users *www.Users) (*cms.CMSUsersReply, err
 				log.Error(err)
 				return
 			}
-			totalMatches++
-			if totalMatches < www.UserListPageSize {
-				matchedUsers = append(matchedUsers, cms.AbridgedCMSUser{
-					ID:             u.ID.String(),
-					Username:       u.Username,
-					Domain:         cms.DomainTypeT(reply.User.Domain),
-					ContractorType: cms.ContractorTypeT(reply.User.ContractorType),
-				})
-			}
+			matchedUsers = append(matchedUsers, cms.AbridgedCMSUser{
+				ID:             u.ID.String(),
+				Username:       u.Username,
+				Domain:         cms.DomainTypeT(reply.User.Domain),
+				ContractorType: cms.ContractorTypeT(reply.User.ContractorType),
+			})
+		})
+		if err != nil {
+			return nil, err
 		}
-	})
-	if err != nil {
-		return nil, err
 	}
 
 	// Sort results alphabetically.

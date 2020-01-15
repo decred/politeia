@@ -19,6 +19,7 @@ const (
 	// Contractor Management Routes
 	RouteInviteNewUser       = "/invite"
 	RouteRegisterUser        = "/register"
+	RouteCMSUsers            = "/cmsusers"
 	RouteNewInvoice          = "/invoices/new"
 	RouteEditInvoice         = "/invoices/edit"
 	RouteInvoiceDetails      = "/invoices/{token:[A-z0-9]{64}}"
@@ -708,6 +709,12 @@ type AbridgedCMSUser struct {
 	Domain         DomainTypeT     `json:"domain"`
 	ContractorType ContractorTypeT `json:"contractortype"`
 	Username       string          `json:"username"`
+}
+
+// CMSUsers is used to request a list of CMS users given a filter.
+type CMSUsers struct {
+	Domain         DomainTypeT     `json:"domain"`
+	ContractorType ContractorTypeT `json:"contractortype"`
 }
 
 // CMSUsersReply returns a list of Users that are currently
