@@ -951,7 +951,7 @@ func (p *politeiawww) setupPiDcrdataWSSubs() error {
 
 			switch m := msg.Message.(type) {
 			case *exptypes.WebsocketBlock:
-				log.Debugf("wsDcrdata message WebsocketBlock(height=%s)",
+				log.Debugf("wsDcrdata message WebsocketBlock(height=%v)",
 					m.Block.Height)
 				p.updateBestBlock(uint64(m.Block.Height))
 			case *pstypes.HangUp:
