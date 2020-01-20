@@ -1442,7 +1442,7 @@ Returns a list of cms users given optional filters.
 
 | Parameter | Type | Description |
 |-|-|-|
-| users | array of [CMS Abridged User](#cms-abridged-user) | The list of cms users that match the query. 
+| users | array of [Abridged CMS User](#abridged-cms-user) | The list of cms users that match the query. 
 
 On failure the call shall return `400 Bad Request` and one of the following
 error codes:
@@ -1590,3 +1590,13 @@ Reply:
 | <a name="DCCStatusRejected">DCCStatusRejected</a>| 4 | Rejected issuance/revocation |
 | <a name="DCCStatusDebate">DCCStatusDebate</a>| 5 | If a issuance/revocation receives enough comments, it would enter a "debate" status that would require a full contractor vote (to be added later).  |
 
+### `Abridged CMS User`
+
+This is a shortened representation of a user, used for lists.
+
+| | Type | Description |
+|-|-|-|
+| id | string | The unique id of the user. |
+| username | string | Unique username. |
+| contractortype | string | CMS Domain of the user. |
+| domain | string | CMS contractor type of the user. |

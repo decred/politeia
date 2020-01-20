@@ -715,14 +715,12 @@ func (p *politeiawww) processCMSUsers(users *cms.CMSUsers) (*cms.CMSUsersReply, 
 		// Execute plugin command
 		pcr, err := p.db.PluginExec(pc)
 		if err != nil {
-			log.Error(err)
 			return nil, err
 		}
 
 		// Decode reply
 		reply, err := user.DecodeCMSUsersByDomainReply([]byte(pcr.Payload))
 		if err != nil {
-			log.Error(err)
 			return nil, err
 		}
 		for _, u := range reply.Users {
@@ -756,7 +754,6 @@ func (p *politeiawww) processCMSUsers(users *cms.CMSUsers) (*cms.CMSUsersReply, 
 		// Execute plugin command
 		pcr, err := p.db.PluginExec(pc)
 		if err != nil {
-			log.Error(err)
 			return nil, err
 		}
 
@@ -764,7 +761,6 @@ func (p *politeiawww) processCMSUsers(users *cms.CMSUsers) (*cms.CMSUsersReply, 
 		reply, err := user.DecodeCMSUsersByContractorTypeReply(
 			[]byte(pcr.Payload))
 		if err != nil {
-			log.Error(err)
 			return nil, err
 		}
 		for _, u := range reply.Users {
