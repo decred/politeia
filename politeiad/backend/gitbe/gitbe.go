@@ -1160,6 +1160,8 @@ func (g *gitBackEnd) newRecord(token []byte, metadata []backend.MetadataStream, 
 
 // getVettedTokens gets the tokens of all vetted records by retrieving the
 // names of the folders in the vetted directory.
+//
+// Function must be called with the lock held.
 func (g *gitBackEnd) getVettedTokens() ([]string, error) {
 	files, err := ioutil.ReadDir(g.vetted)
 	if err != nil {
@@ -1180,6 +1182,8 @@ func (g *gitBackEnd) getVettedTokens() ([]string, error) {
 
 // getUnvettedTokens gets the tokens of all unvetted records by retrieving the
 // names of the git branches in the unvetted directory.
+//
+// Function must be called with the lock held.
 func (g *gitBackEnd) getUnvettedTokens() ([]string, error) {
 	branches, err := g.gitBranches(g.unvetted)
 	if err != nil {
@@ -1201,28 +1205,25 @@ func (g *gitBackEnd) getUnvettedTokens() ([]string, error) {
 // object with the prefixes of the tokens of both vetted and unvetted
 // records. This cache is used to ensure that only tokens with unique prefixes
 // are generated, because this allows lookups based on the prefix of a token.
-func (g *gitBackEnd) popuplateTokenPrefixCache() error {
+func (g *gitBackEnd) popuplateTokenPrefixCache() {
+	g.Lock()
+	defer g.Unlock()
+
 	vettedTokens, err := g.getVettedTokens()
 	if err != nil {
-		return err
+		log.Warnf("gitbe unable to get vetted tokens: %v", err)
 	}
 
 	unvettedTokens, err := g.getUnvettedTokens()
 	if err != nil {
-		return err
+		log.Warnf("gitbe unable to get unvetted tokens: %v", err)
 	}
 
 	prefixCache := make(map[string]struct{},
 		len(vettedTokens)+len(unvettedTokens))
 
-	var vettedPrefixes, unvettedPrefixes []string
-	if g.test {
-		vettedPrefixes = util.TokensToPrefixesLength(vettedTokens, 1)
-		unvettedPrefixes = util.TokensToPrefixesLength(unvettedTokens, 1)
-	} else {
-		vettedPrefixes = util.TokensToPrefixes(vettedTokens)
-		unvettedPrefixes = util.TokensToPrefixes(unvettedTokens)
-	}
+	vettedPrefixes := util.TokensToPrefixes(vettedTokens)
+	unvettedPrefixes := util.TokensToPrefixes(unvettedTokens)
 
 	for _, prefix := range vettedPrefixes {
 		prefixCache[prefix] = struct{}{}
@@ -1231,8 +1232,6 @@ func (g *gitBackEnd) popuplateTokenPrefixCache() error {
 		prefixCache[prefix] = struct{}{}
 	}
 	g.prefixCache = prefixCache
-
-	return nil
 }
 
 // randomUniqueToken generates a new token of length pd.TokenSize which
@@ -1249,13 +1248,7 @@ func (g *gitBackEnd) randomUniqueToken() ([]byte, error) {
 		}
 
 		newToken := hex.EncodeToString(token)
-
-		var prefix string
-		if g.test {
-			prefix = util.TokenToPrefixLength(newToken, 1)
-		} else {
-			prefix = util.TokenToPrefix(newToken)
-		}
+		prefix := util.TokenToPrefix(newToken)
 
 		if _, ok := g.prefixCache[prefix]; !ok {
 			g.prefixCache[prefix] = struct{}{}

@@ -97,9 +97,9 @@ func (c *testcache) getTokenFromPrefix(prefix string) (string, error) {
 	return "", cache.ErrRecordNotFound
 }
 
-// RecordPrefix returns the most recent version of the record based on its
+// RecordByPrefix returns the most recent version of the record based on its
 // prefix.
-func (c *testcache) RecordPrefix(prefix string) (*cache.Record, error) {
+func (c *testcache) RecordByPrefix(prefix string) (*cache.Record, error) {
 	c.RLock()
 	defer c.RUnlock()
 

@@ -40,7 +40,6 @@ const (
 	ChallengeSize      = 32         // Size of challenge token in bytes
 	TokenSize          = 32         // Size of token
 	MetadataStreamsMax = uint64(16) // Maximum number of metadata streams
-	TokenPrefixLength  = 6          // Length of prefix of token used for lookups
 
 	// Error status codes
 	ErrorStatusInvalid                       ErrorStatusT = 0
@@ -120,6 +119,10 @@ var (
 	ErrInvalidBase64 = errors.New("corrupt base64")
 	ErrInvalidMerkle = errors.New("merkle roots do not match")
 	ErrCorrupt       = errors.New("signature verification failed")
+
+	// Length of prefix of token used for lookups. This is a var so that it
+	// can be updated during testing.
+	TokenPrefixLength = 6
 )
 
 // Verify ensures that a CensorshipRecord properly describes the array of

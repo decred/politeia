@@ -14,8 +14,8 @@ func (c *cachestub) NewRecord(r cache.Record) error {
 	return nil
 }
 
-// RecordPrefix is a stub to satisfy the cache interface.
-func (c *cachestub) RecordPrefix(prefix string) (*cache.Record, error) {
+// RecordByPrefix is a stub to satisfy the cache interface.
+func (c *cachestub) RecordByPrefix(prefix string) (*cache.Record, error) {
 	return &cache.Record{}, nil
 }
 

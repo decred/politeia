@@ -21,6 +21,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg"
+	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/util"
@@ -566,7 +567,15 @@ func TestUpdateReadme(t *testing.T) {
 	}
 }
 
+func updateTokenPrefixLength(length int) {
+	pd.TokenPrefixLength = length
+}
+
 func TestTokenPrefixGeneration(t *testing.T) {
+	originalPrefixLength := pd.TokenPrefixLength
+	updateTokenPrefixLength(1)
+	defer updateTokenPrefixLength(originalPrefixLength)
+
 	dir, err := ioutil.TempDir("", "politeia.test")
 	if err != nil {
 		t.Fatal(err)
@@ -612,7 +621,9 @@ func TestTokenPrefixGeneration(t *testing.T) {
 
 	// Here we test that the getUnvettedTokens and getVettedTokens methods
 	// work as expected.
+	g.Lock()
 	unvettedTokens, err := g.getUnvettedTokens()
+	g.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -644,14 +655,19 @@ func TestTokenPrefixGeneration(t *testing.T) {
 
 	// Since we updated the status of 2 records, there should be 14 unvetted
 	// and 2 vetted proposals.
+	g.Lock()
 	unvettedTokens, err = g.getUnvettedTokens()
+	g.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(unvettedTokens) != 14 {
 		t.Fatalf("There should be 14 tokens, but there are %v", len(unvettedTokens))
 	}
+
+	g.Lock()
 	vettedTokens, err := g.getVettedTokens()
+	g.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}

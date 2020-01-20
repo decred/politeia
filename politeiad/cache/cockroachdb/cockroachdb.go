@@ -63,13 +63,13 @@ func (c *cockroachdb) NewRecord(cr cache.Record) error {
 	return c.recordsdb.Create(&r).Error
 }
 
-// recordPrefix gets the most recent version of a record using the prefix
+// recordByPrefix gets the most recent version of a record using the prefix
 // of its token. The length of the prefix is defined by TokenPrefixLength
 // in the politeiad api.
 //
 // This function has a database parameter so that it can be called inside of a
 // transaction when required.
-func recordPrefix(db *gorm.DB, prefix string) (*Record, error) {
+func recordByPrefix(db *gorm.DB, prefix string) (*Record, error) {
 	var r Record
 	err := db.
 		Where("records.token_prefix = ?", prefix).
@@ -88,11 +88,11 @@ func recordPrefix(db *gorm.DB, prefix string) (*Record, error) {
 	return &r, nil
 }
 
-// RecordPrefix gets the most recent version of a record from the database
+// RecordByPrefix gets the most recent version of a record from the database
 // using the prefix of its token. The length of the prefix is defined by
 // TokenPrefixLength in the politeiad api.
-func (c *cockroachdb) RecordPrefix(prefix string) (*cache.Record, error) {
-	log.Tracef("RecordPrefix %v", prefix)
+func (c *cockroachdb) RecordByPrefix(prefix string) (*cache.Record, error) {
+	log.Tracef("RecordByPrefix %v", prefix)
 
 	c.RLock()
 	shutdown := c.shutdown
@@ -102,7 +102,7 @@ func (c *cockroachdb) RecordPrefix(prefix string) (*cache.Record, error) {
 		return nil, cache.ErrShutdown
 	}
 
-	r, err := recordPrefix(c.recordsdb, prefix)
+	r, err := recordByPrefix(c.recordsdb, prefix)
 	if err != nil {
 		return nil, err
 	}
