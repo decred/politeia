@@ -529,14 +529,13 @@ func (c *cockroachdb) SessionsDeleteByUserId(uid uuid.UUID,
 //
 // This function must be called using a transaction.
 func rotateKeys(tx *gorm.DB, oldKey *[32]byte, newKey *[32]byte) error {
-	// Lookup all users
+	// Rotate keys for users table
 	var users []User
 	err := tx.Find(&users).Error
 	if err != nil {
 		return err
 	}
 
-	// Rotate keys
 	for _, v := range users {
 		b, _, err := sbox.Decrypt(oldKey, v.Blob)
 		if err != nil {
@@ -557,6 +556,8 @@ func rotateKeys(tx *gorm.DB, oldKey *[32]byte, newKey *[32]byte) error {
 				v.ID, err)
 		}
 	}
+
+	// TODO Rotate keys for sessions table
 
 	return nil
 }
@@ -582,6 +583,9 @@ func (c *cockroachdb) RotateKeys(newKeyPath string) error {
 	}
 
 	log.Infof("Rotating encryption keys")
+
+	c.Lock()
+	defer c.Unlock()
 
 	// Rotate keys using a transaction
 	tx := c.userDB.Begin()
