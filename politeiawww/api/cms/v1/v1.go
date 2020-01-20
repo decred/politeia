@@ -632,6 +632,9 @@ type DCCRecord struct {
 	SupportUserIDs    []string `json:"supportuserids"` // List of UserIDs for those that have shown support of the DCC.
 	OppositionUserIDs []string `json:"againstuserids"` // List of UserIDs for those that have shown opposition of the DCC.
 
+	SupportUsernames    []string `json:"supportusernames"` // List of Usernames for those that have shown support of the DCC.
+	OppositionUsernames []string `json:"againstusernames"` // List of Usernames for those that have shown opposition of the DCC.
+
 	CensorshipRecord www.CensorshipRecord `json:"censorshiprecord"`
 }
 
