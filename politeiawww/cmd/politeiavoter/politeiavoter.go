@@ -39,6 +39,7 @@ import (
 	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/decred/politeia/politeiawww/cmd/politeiavoter/jsontypes"
 	"github.com/decred/politeia/util"
 	"github.com/gorilla/schema"
 	"golang.org/x/crypto/ssh/terminal"
@@ -149,23 +150,16 @@ func verifyMessage(address, message, signature string) (bool, error) {
 	return a.EncodeAddress() == address, nil
 }
 
-// BallotResult is a tupple of the ticket and receipt. We combine the too
-// because CastVoteReply does not contain the ticket address.
-type BallotResult struct {
-	Ticket  string           `json:"ticket"`  // ticket address
-	Receipt v1.CastVoteReply `json:"receipt"` // result of vote
-}
-
 // ctx is the client context.
 type ctx struct {
-	sync.RWMutex                      // retryQ lock
-	retryQ             *list.List     // retry message queue FIFO
-	retryWG            sync.WaitGroup // Wait for retry loop to exit
-	mainLoopDone       chan struct{}  // message when done
-	mainLoopForceExit  chan struct{}  // message when main loop forces an exit
-	retryLoopForceExit chan struct{}  // message when retry loop forces an exit
-	ballotResults      []BallotResult // results of voting
-	voteIntervalQ      *list.List     // work that has to be completed
+	sync.RWMutex                                // retryQ lock
+	retryQ             *list.List               // retry message queue FIFO
+	retryWG            sync.WaitGroup           // Wait for retry loop to exit
+	mainLoopDone       chan struct{}            // message when done
+	mainLoopForceExit  chan struct{}            // message when main loop forces an exit
+	retryLoopForceExit chan struct{}            // message when retry loop forces an exit
+	ballotResults      []jsontypes.BallotResult // results of voting
+	voteIntervalQ      *list.List               // work that has to be completed
 
 	run time.Time // when this run started
 
@@ -182,16 +176,6 @@ type ctx struct {
 	creds  credentials.TransportCredentials
 	conn   *grpc.ClientConn
 	wallet pb.WalletServiceClient
-}
-
-// voteInterval is an internal structure that is used to precalculate all
-// timing intervals and vote details. This is a JSON structure for logging
-// purposes.
-type voteInterval struct {
-	Vote  v1.CastVote   `json:"vote"`  // RPC vote
-	Votes int           `json:"votes"` // Always 1 for now
-	Total time.Duration `json:"total"` // Cumulative time
-	At    time.Duration `json:"at"`    // Delay to fire off vote
 }
 
 func newClient(cfg *config) (*ctx, error) {
@@ -246,10 +230,6 @@ func newClient(cfg *config) (*ctx, error) {
 	}, nil
 }
 
-type JSONTime struct {
-	Time string `json:"time"`
-}
-
 func (c *ctx) jsonLog(filename, token string, work ...interface{}) error {
 	dir := filepath.Join(c.cfg.voteDir, token)
 	os.MkdirAll(dir, 0700)
@@ -263,7 +243,7 @@ func (c *ctx) jsonLog(filename, token string, work ...interface{}) error {
 
 	e := json.NewEncoder(fh)
 	e.SetIndent("", "  ")
-	err = e.Encode(JSONTime{
+	err = e.Encode(jsontypes.Timestamp{
 		Time: time.Now().Format(time.StampNano),
 	})
 	if err != nil {
@@ -396,7 +376,7 @@ func (c *ctx) makeRequest(method, route string, b interface{}) ([]byte, error) {
 	req.Header.Add(v1.CsrfToken, c.csrf)
 	r, err := c.client.Do(req)
 	if err != nil {
-		return nil, ErrRetry{
+		return nil, jsontypes.ErrRetry{
 			At:  "c.client.Do(req)",
 			Err: err,
 		}
@@ -417,7 +397,7 @@ func (c *ctx) makeRequest(method, route string, b interface{}) ([]byte, error) {
 				strings.Join(ue.ErrorContext, ", "))
 		}
 
-		return nil, ErrRetry{
+		return nil, jsontypes.ErrRetry{
 			At:   "r.StatusCode != http.StatusOK",
 			Err:  err,
 			Body: responseBody,
@@ -467,7 +447,7 @@ func (c *ctx) makeRequestFail(method, route string, b interface{}) ([]byte, erro
 	req.Header.Add(v1.CsrfToken, c.csrf)
 	r, err := c.client.Do(req)
 	if err != nil {
-		return nil, ErrRetry{
+		return nil, jsontypes.ErrRetry{
 			At:  "c.client.Do(req)",
 			Err: err,
 		}
@@ -489,7 +469,7 @@ func (c *ctx) makeRequestFail(method, route string, b interface{}) ([]byte, erro
 				strings.Join(ue.ErrorContext, ", "))
 		}
 
-		return nil, ErrRetry{
+		return nil, jsontypes.ErrRetry{
 			At:   "r.StatusCode != http.StatusOK",
 			Err:  err,
 			Body: responseBody,
@@ -694,21 +674,10 @@ func (c *ctx) inventory() error {
 	return nil
 }
 
-type ErrRetry struct {
-	At   string `json:"at"`   // where in the code
-	Body []byte `json:"body"` // http body if we have one
-	Code int    `json:"code"` // http code
-	Err  error  `json:"err"`  // underlying error
-}
-
-func (e ErrRetry) Error() string {
-	return fmt.Sprintf("retry error: %v (%v) %v", e.Code, e.At, e.Err)
-}
-
 // sendVoteFail isa test function that will fail a Ballot call with a retryable
 // error.
 func (c *ctx) sendVoteFail(ballot *v1.Ballot) (*v1.CastVoteReply, error) {
-	return nil, ErrRetry{
+	return nil, jsontypes.ErrRetry{
 		At: "sendVoteFail",
 	}
 }
@@ -755,7 +724,7 @@ func (c *ctx) dumpTogo() {
 
 	fmt.Printf("Votes queued (%v):\n", c.voteIntervalQ.Len())
 	for e := c.voteIntervalQ.Front(); e != nil; e = e.Next() {
-		r := e.Value.(*voteInterval)
+		r := e.Value.(*jsontypes.VoteInterval)
 		fmt.Printf("  %v %v\n", r.Vote.Ticket, r.At)
 	}
 }
@@ -776,13 +745,13 @@ func (c *ctx) signalHandler(signals chan os.Signal, done chan struct{}) {
 	}
 }
 
-func (c *ctx) voteIntervalPush(v *voteInterval) {
+func (c *ctx) voteIntervalPush(v *jsontypes.VoteInterval) {
 	c.Lock()
 	defer c.Unlock()
 	c.voteIntervalQ.PushBack(v)
 }
 
-func (c *ctx) voteIntervalPop() *voteInterval {
+func (c *ctx) voteIntervalPop() *jsontypes.VoteInterval {
 	c.Lock()
 	defer c.Unlock()
 
@@ -790,7 +759,7 @@ func (c *ctx) voteIntervalPop() *voteInterval {
 	if e == nil {
 		return nil
 	}
-	return c.voteIntervalQ.Remove(e).(*voteInterval)
+	return c.voteIntervalQ.Remove(e).(*jsontypes.VoteInterval)
 }
 
 func (c *ctx) voteIntervalLen() uint64 {
@@ -821,7 +790,7 @@ func (c *ctx) calculateTrickle(token, voteBit string, ctres *pb.CommittedTickets
 	// average will converge to slightly less than duration/votes as the
 	// number of votes increases. Vote duration is treated as a hard cap
 	// and can not be exceeded.
-	buckets := make([]*voteInterval, votes)
+	buckets := make([]*jsontypes.VoteInterval, votes)
 	var (
 		done    bool
 		retries int
@@ -851,7 +820,7 @@ func (c *ctx) calculateTrickle(token, voteBit string, ctres *pb.CommittedTickets
 
 			t := time.Duration(seconds) * time.Second
 			total += t
-			buckets[i] = &voteInterval{
+			buckets[i] = &jsontypes.VoteInterval{
 				Vote: v1.CastVote{
 					Token:     token,
 					Ticket:    h.String(),
@@ -902,7 +871,7 @@ func (c *ctx) calculateTrickle(token, voteBit string, ctres *pb.CommittedTickets
 func (c *ctx) _voteTrickler(token string) error {
 	// Synthesize reply, needs locking once go routines launch
 	voteCount := c.voteIntervalLen()
-	c.ballotResults = make([]BallotResult, 0, voteCount)
+	c.ballotResults = make([]jsontypes.BallotResult, 0, voteCount)
 
 	// Launch signal handler
 	signalsChan := make(chan os.Signal, 1)
@@ -947,7 +916,7 @@ func (c *ctx) _voteTrickler(token string) error {
 		// Send off vote
 		b := v1.Ballot{Votes: []v1.CastVote{vote.Vote}}
 		br, err := c.sendVote(&b)
-		if e, ok := err.(ErrRetry); ok {
+		if e, ok := err.(jsontypes.ErrRetry); ok {
 			// Append failed vote to retry queue
 			fmt.Printf("Vote rescheduled: %v\n", vote.Vote.Ticket)
 			err := c.jsonLog("failed.json", token, b, e)
@@ -961,7 +930,7 @@ func (c *ctx) _voteTrickler(token string) error {
 				err)
 		} else {
 			// Vote completed
-			result := BallotResult{
+			result := jsontypes.BallotResult{
 				Ticket:  vote.Vote.Ticket,
 				Receipt: *br,
 			}
@@ -1254,7 +1223,7 @@ func (c *ctx) _vote(seed int64, token, voteId string) error {
 	cv := v1.Ballot{
 		Votes: make([]v1.CastVote, 0, len(ctres.TicketAddresses)),
 	}
-	c.ballotResults = make([]BallotResult, 0, len(ctres.TicketAddresses))
+	c.ballotResults = make([]jsontypes.BallotResult, 0, len(ctres.TicketAddresses))
 	for k, v := range ctres.TicketAddresses {
 		h, err := chainhash.NewHash(v.Ticket)
 		if err != nil {
@@ -1270,7 +1239,7 @@ func (c *ctx) _vote(seed int64, token, voteId string) error {
 
 		// Prep results since we don't CastVoteReply doesn't return
 		// ticket address.
-		c.ballotResults = append(c.ballotResults, BallotResult{
+		c.ballotResults = append(c.ballotResults, jsontypes.BallotResult{
 			Ticket: h.String(),
 		})
 	}
@@ -1311,7 +1280,7 @@ func (c *ctx) vote(seed int64, args []string) error {
 	}
 
 	// Verify vote replies
-	failedReceipts := make([]BallotResult, 0,
+	failedReceipts := make([]jsontypes.BallotResult, 0,
 		len(c.ballotResults))
 	for _, v := range c.ballotResults {
 		if v.Receipt.Error != "" {
