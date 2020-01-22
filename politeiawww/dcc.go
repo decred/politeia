@@ -401,6 +401,8 @@ func (p *politeiawww) getDCC(token string) (*cms.DCCRecord, error) {
 	// Get user IDs of support/oppose pubkeys
 	supportUserIDs := make([]string, 0, len(i.SupportUserIDs))
 	opposeUserIDs := make([]string, 0, len(i.OppositionUserIDs))
+	supportUsernames := make([]string, 0, len(i.SupportUserIDs))
+	opposeUsernames := make([]string, 0, len(i.OppositionUserIDs))
 	for _, v := range i.SupportUserIDs {
 		// Fill in userID and username fields
 		u, err := p.db.UserGetByPubKey(v)
@@ -409,6 +411,7 @@ func (p *politeiawww) getDCC(token string) (*cms.DCCRecord, error) {
 				"pubKey:%v err:%v", token, v, err)
 		} else {
 			supportUserIDs = append(supportUserIDs, u.ID.String())
+			supportUsernames = append(supportUsernames, u.Username)
 		}
 	}
 	for _, v := range i.OppositionUserIDs {
@@ -419,10 +422,13 @@ func (p *politeiawww) getDCC(token string) (*cms.DCCRecord, error) {
 				"pubKey:%v err:%v", token, v, err)
 		} else {
 			opposeUserIDs = append(opposeUserIDs, u.ID.String())
+			opposeUsernames = append(opposeUsernames, u.Username)
 		}
 	}
 	i.SupportUserIDs = supportUserIDs
 	i.OppositionUserIDs = opposeUserIDs
+	i.SupportUsernames = supportUsernames
+	i.OppositionUsernames = opposeUsernames
 
 	// Fill in sponsoring userID and username fields
 	u, err := p.db.UserGetByPubKey(i.PublicKey)
