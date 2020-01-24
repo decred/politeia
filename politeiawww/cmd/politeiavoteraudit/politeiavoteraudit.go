@@ -13,8 +13,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmd/politeiavoter/jsontypes"
@@ -173,7 +173,11 @@ func (c *ctx) list(args []string) error {
 	return nil
 }
 
-func readWork(filename string, m map[string]jsontypes.VoteInterval) error {
+func readWork(verbose bool, filename string, m map[int64][]jsontypes.VoteInterval) error {
+	if verbose {
+		fmt.Printf("  Parsing: %v\n", filepath.Base(filename))
+	}
+
 	f, err := os.Open(filename)
 	if err != nil {
 		return err
@@ -184,7 +188,7 @@ func readWork(filename string, m map[string]jsontypes.VoteInterval) error {
 	// Read timestamp
 	var timestamp jsontypes.Timestamp
 	if err := d.Decode(&timestamp); err == io.EOF {
-		return fmt.Errorf("expected timestamp")
+		return fmt.Errorf("expected timestamp in work log")
 	} else if err != nil {
 		return err
 	}
@@ -196,14 +200,20 @@ func readWork(filename string, m map[string]jsontypes.VoteInterval) error {
 	} else if err != nil {
 		return err
 	}
-	for _, v := range vi {
-		m[v.Vote.Ticket] = v
+	t, err := time.Parse(time.StampNano, timestamp.Time)
+	if err != nil {
+		return err
 	}
+	m[t.Unix()] = vi
 
 	return nil
 }
 
-func readSuccess(filename string, m map[string]jsontypes.BallotResult) error {
+func readSuccess(verbose bool, filename string, m map[int64]jsontypes.BallotResult) error {
+	if verbose {
+		fmt.Printf("  Parsing: %v\n", filepath.Base(filename))
+	}
+
 	f, err := os.Open(filename)
 	if err != nil {
 		return err
@@ -217,7 +227,8 @@ func readSuccess(filename string, m map[string]jsontypes.BallotResult) error {
 		var timestamp jsontypes.Timestamp
 		if err := d.Decode(&timestamp); err == io.EOF {
 			if first {
-				return fmt.Errorf("expected timestamp")
+				return fmt.Errorf("expected timestamp in " +
+					"succes log")
 			}
 			break
 		} else if err != nil {
@@ -231,8 +242,86 @@ func readSuccess(filename string, m map[string]jsontypes.BallotResult) error {
 		} else if err != nil {
 			return err
 		}
-		m[br.Ticket] = br
-		fmt.Printf("%v\n", spew.Sdump(br))
+		t, err := time.Parse(time.StampNano, timestamp.Time)
+		if err != nil {
+			return err
+		}
+		m[t.Unix()] = br
+
+		//fmt.Printf("%v\n", spew.Sdump(br))
+		first = false
+	}
+
+	return nil
+}
+
+// HackError is a hacked up ErrRetry where the Err field us an interface. We
+// need this to read the various error types in.
+type HackError struct {
+	At   string      `json:"at"`   // where in the code
+	Body []byte      `json:"body"` // http body if we have one
+	Code int         `json:"code"` // http code
+	Err  interface{} `json:"err"`  // underlying error
+}
+
+// BallotError is a tuple to reconstruct the 3 json objects in the journal.
+type BallotError struct {
+	Ballot v1.Ballot
+	Error  HackError
+}
+
+func readFailed(verbose bool, filename string, m map[int64]BallotError) error {
+	if verbose {
+		fmt.Printf("  Parsing: %v\n", filepath.Base(filename))
+	}
+
+	f, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	first := true
+	d := json.NewDecoder(f)
+	for {
+		// Read timestamp
+		var timestamp jsontypes.Timestamp
+		if err := d.Decode(&timestamp); err == io.EOF {
+			if first {
+				return fmt.Errorf("expected timestamp in " +
+					"failed log")
+			}
+			break
+		} else if err != nil {
+			return err
+		}
+
+		// Read Ballot
+		var b v1.Ballot
+		if err := d.Decode(&b); err == io.EOF {
+			return fmt.Errorf("no ballot in failed log")
+		} else if err != nil {
+			return err
+		}
+
+		// Read ErrRetry
+		var e HackError
+		if err := d.Decode(&e); err == io.EOF {
+			return fmt.Errorf("no errretry in failed log")
+		} else if err != nil {
+			return err
+		}
+
+		t, err := time.Parse(time.StampNano, timestamp.Time)
+		if err != nil {
+			return err
+		}
+		m[t.Unix()] = BallotError{
+			Ballot: b,
+			Error:  e,
+		}
+
+		//fmt.Printf("%v%v\n", spew.Sdump(b), spew.Sdump(e))
 		first = false
 	}
 
@@ -247,30 +336,27 @@ func (c *ctx) audit(args []string) error {
 			return err
 		}
 
-		work := make(map[string]jsontypes.VoteInterval, 1024)
-		success := make(map[string]jsontypes.BallotResult, 1024)
-		fmt.Printf("%v\n", v)
+		work := make(map[int64][]jsontypes.VoteInterval, 1024)  // [timestamp][]VoteInterval
+		success := make(map[int64]jsontypes.BallotResult, 1024) // [timestamp]BallotResult
+		failed := make(map[int64]BallotError, 1024)             // [timestamp]BallotError
+		if c.cfg.Verbose {
+			fmt.Printf("Proposal: %v\n", v)
+		}
 		for _, vv := range d {
-			if c.cfg.Verbose {
-				fmt.Printf("  %v\n", vv.Name())
-			}
-
 			filename := filepath.Join(path, vv.Name())
 
 			var err error
 			if strings.HasPrefix(vv.Name(), "work.") {
 				// Read work
-				err = readWork(filename, work)
-			}
-
-			if strings.HasPrefix(vv.Name(), "success.") {
+				err = readWork(c.cfg.Verbose, filename, work)
+			} else if strings.HasPrefix(vv.Name(), "success.") {
 				// Read success
-				err = readSuccess(filename, success)
-			}
-
-			if strings.HasPrefix(vv.Name(), "failed.") {
-				// Read success
-				fmt.Printf("failed not yet\n")
+				err = readSuccess(c.cfg.Verbose, filename, success)
+			} else if strings.HasPrefix(vv.Name(), "failed.") {
+				// Read failed
+				err = readFailed(c.cfg.Verbose, filename, failed)
+			} else {
+				continue
 			}
 
 			if err != nil {
