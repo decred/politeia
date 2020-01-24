@@ -204,7 +204,7 @@ func readWork(verbose bool, filename string, m map[int64][]jsontypes.VoteInterva
 	if err != nil {
 		return err
 	}
-	m[t.Unix()] = vi
+	m[t.UnixNano()] = vi
 
 	return nil
 }
@@ -328,6 +328,80 @@ func readFailed(verbose bool, filename string, m map[int64]BallotError) error {
 	return nil
 }
 
+func countSuccess(proposal, ticket string, m map[int64]jsontypes.BallotResult) int {
+	var count int
+	for _, v := range m {
+		if v.Ticket != ticket {
+			continue
+		}
+		count++
+	}
+	return count
+}
+
+func countFailed(proposal, ticket string, m map[int64]BallotError) int {
+	var count int
+	for _, v := range m {
+		for _, vv := range v.Ballot.Votes {
+			if !(vv.Token == proposal && vv.Ticket == ticket) {
+				continue
+			}
+			count++
+		}
+	}
+	return count
+}
+
+func auditWork(verbose bool, work map[int64][]jsontypes.VoteInterval, success map[int64]jsontypes.BallotResult, failed map[int64]BallotError) error {
+	if verbose {
+		fmt.Printf("  Audit: work\n")
+	}
+
+	// Read all work items and ensure they made it to one of the success
+	// files.
+	var errorCount int
+	for _, v := range work {
+		for _, vv := range v {
+			if verbose {
+				fmt.Printf("    Checking ticket: %v\n",
+					vv.Vote.Ticket)
+			}
+
+			// Troll sucess
+			s := countSuccess(vv.Vote.Token, vv.Vote.Ticket,
+				success)
+			if verbose {
+				fmt.Printf("    Success           : %v\n", s)
+			}
+			if s != 1 {
+				errorCount++
+				fmt.Printf("    Unexpected success: "+
+					"want %v got %v\n", 1, s)
+			}
+
+			// Troll failed
+			f := countFailed(vv.Vote.Token, vv.Vote.Ticket, failed)
+			if verbose {
+				fmt.Printf("    Retries           : %v\n", f)
+			}
+
+			if s == 0 && f <= 0 {
+				errorCount++
+				fmt.Printf("    Unexpected failed : "+
+					"want > 0 got %v\n", f)
+			}
+		}
+	}
+	if errorCount != 0 {
+		return fmt.Errorf("auditWork: unexpected number of errors: %v",
+			errorCount)
+	}
+
+	// if we make it here, all work, despite retries, completed correctly.
+
+	return nil
+}
+
 func (c *ctx) audit(args []string) error {
 	for k, v := range args {
 		path := filepath.Join(c.cfg.voteDir, v)
@@ -358,12 +432,20 @@ func (c *ctx) audit(args []string) error {
 			} else {
 				continue
 			}
-
 			if err != nil {
 				return err
 			}
 		}
-		//spew.Dump(work)
+
+		// Audit work
+		err = auditWork(c.cfg.Verbose, work, success, failed)
+		if err != nil {
+			return err
+		}
+
+		// Audit success
+
+		// Audit failed
 
 		// Don't print \n on the last entry
 		if k != len(args)-1 {
