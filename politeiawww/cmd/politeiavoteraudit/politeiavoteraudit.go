@@ -352,15 +352,16 @@ func countFailed(proposal, ticket string, m map[int64]BallotError) int {
 	return count
 }
 
-func auditWork(verbose bool, work map[int64][]jsontypes.VoteInterval, success map[int64]jsontypes.BallotResult, failed map[int64]BallotError) error {
+func auditWork(verbose bool, work map[int64][]jsontypes.VoteInterval, success map[int64]jsontypes.BallotResult, failed map[int64]BallotError) (int, error) {
 	if verbose {
 		fmt.Printf("  Audit: work\n")
 	}
 
 	// Read all work items and ensure they made it to one of the success
 	// files.
-	var errorCount int
+	var errorCount, successCount, totalRecords int
 	for _, v := range work {
+		totalRecords += len(v)
 		for _, vv := range v {
 			if verbose {
 				fmt.Printf("    Checking ticket: %v\n",
@@ -389,17 +390,27 @@ func auditWork(verbose bool, work map[int64][]jsontypes.VoteInterval, success ma
 				errorCount++
 				fmt.Printf("    Unexpected failed : "+
 					"want > 0 got %v\n", f)
+			} else {
+				successCount++
 			}
 		}
 	}
 	if errorCount != 0 {
-		return fmt.Errorf("auditWork: unexpected number of errors: %v",
-			errorCount)
+		return 0, fmt.Errorf("auditWork: unexpected number of "+
+			"errors: %v", errorCount)
+	}
+
+	if successCount != totalRecords {
+		return 0, fmt.Errorf("auditWork: unexpected totals: "+
+			"got %v want %v", successCount, totalRecords)
 	}
 
 	// if we make it here, all work, despite retries, completed correctly.
+	if verbose {
+		fmt.Printf("  Total: %v\n", totalRecords)
+	}
 
-	return nil
+	return totalRecords, nil
 }
 
 func (c *ctx) audit(args []string) error {
@@ -438,10 +449,11 @@ func (c *ctx) audit(args []string) error {
 		}
 
 		// Audit work
-		err = auditWork(c.cfg.Verbose, work, success, failed)
+		total, err := auditWork(c.cfg.Verbose, work, success, failed)
 		if err != nil {
 			return err
 		}
+		fmt.Printf("Proposal: %v successful votes %v\n", v, total)
 
 		// Audit success
 
