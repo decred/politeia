@@ -1201,22 +1201,24 @@ func (g *gitBackEnd) getUnvettedTokens() ([]string, error) {
 	return unvettedTokens, nil
 }
 
-// popuplateTokenPrefixCache popuplates the prefix cache on the gitBackEnd
+// populateTokenPrefixCache populates the prefix cache on the gitBackEnd
 // object with the prefixes of the tokens of both vetted and unvetted
 // records. This cache is used to ensure that only tokens with unique prefixes
 // are generated, because this allows lookups based on the prefix of a token.
-func (g *gitBackEnd) popuplateTokenPrefixCache() {
-	g.Lock()
-	defer g.Unlock()
-
+//
+// This function must be called with the lock held.
+//
+// This must be called after the vetted and unvetted repos are created,
+// otherwise it will return an error.
+func (g *gitBackEnd) populateTokenPrefixCache() error {
 	vettedTokens, err := g.getVettedTokens()
 	if err != nil {
-		log.Warnf("gitbe unable to get vetted tokens: %v", err)
+		return err
 	}
 
 	unvettedTokens, err := g.getUnvettedTokens()
 	if err != nil {
-		log.Warnf("gitbe unable to get unvetted tokens: %v", err)
+		return err
 	}
 
 	prefixCache := make(map[string]struct{},
@@ -1232,6 +1234,8 @@ func (g *gitBackEnd) popuplateTokenPrefixCache() {
 		prefixCache[prefix] = struct{}{}
 	}
 	g.prefixCache = prefixCache
+
+	return nil
 }
 
 // randomUniqueToken generates a new token of length pd.TokenSize which
@@ -1256,7 +1260,7 @@ func (g *gitBackEnd) randomUniqueToken() ([]byte, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("Failed to find unique token after %v tries", TRIES)
+	return nil, fmt.Errorf("failed to find unique token after %v tries", TRIES)
 }
 
 // New takes a record verifies it and drops it on disk in the unvetted
@@ -2626,6 +2630,12 @@ func (g *gitBackEnd) newLocked() error {
 	}
 	log.Infof("Running git fsck on unvetted repository")
 	_, err = g.gitFsck(g.unvetted)
+	if err != nil {
+		return err
+	}
+
+	err = g.populateTokenPrefixCache()
+
 	return err
 }
 
@@ -2739,7 +2749,6 @@ func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, 
 		plugins:         []backend.Plugin{getDecredPlugin(anp.Name != "mainnet")},
 		prefixCache:     make(map[string]struct{}),
 	}
-	g.popuplateTokenPrefixCache()
 
 	idJSON, err := id.Marshal()
 	if err != nil {

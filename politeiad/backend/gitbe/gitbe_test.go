@@ -684,9 +684,7 @@ func TestTokenPrefixGeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 	g.test = true
-	// popuplateTokenPrefixCache must be called again because when it is
-	// initially called in the New function, g.test is still set to false.
-	g.popuplateTokenPrefixCache()
+
 	if len(oldPrefixCache) != len(g.prefixCache) {
 		t.Fatalf("The prefix cache does not contain the correct amount of" +
 			" prefixes")
