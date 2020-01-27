@@ -236,6 +236,7 @@ var (
 	// PolicySupportedCMSDomains supplies the currently available domain types
 	// and descriptions of them.
 	PolicySupportedCMSDomains = []AvailableDomain{
+
 		AvailableDomain{
 			Description: "development",
 			Type:        DomainTypeDeveloper,
