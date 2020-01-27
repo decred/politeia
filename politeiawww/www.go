@@ -501,11 +501,24 @@ func _main() error {
 	p.router = mux.NewRouter()
 	p.router.Use(recoverMiddleware)
 
+	// Setup dcrdata websocket connection
+	ws, err := newWSDcrdata()
+	if err != nil {
+		return fmt.Errorf("new wsDcrdata: %v", err)
+	}
+	p.wsDcrdata = ws
+
 	switch p.cfg.Mode {
 	case politeiaWWWMode:
 		p.setPoliteiaWWWRoutes()
 		// XXX setup user routes
 		p.setUserWWWRoutes()
+		err = p.setupPiDcrdataWSSubs()
+		if err != nil {
+			// Politeiawww can run without a dcrdata subscription, but this
+			// should be logged.
+			log.Errorf("Unable to setup pi dcrdata subs: %v", err)
+		}
 	case cmsWWWMode:
 		p.setCMSWWWRoutes()
 		// XXX setup user routes
@@ -585,16 +598,9 @@ func _main() error {
 		}
 
 		// Setup invoice notifications
-
 		p.cron = cron.New()
 		p.checkInvoiceNotifications()
 
-		// Setup address watcher
-		ws, err := newWSDcrdata()
-		if err != nil {
-			return fmt.Errorf("new wsDcrdata: %v", err)
-		}
-		p.wsDcrdata = ws
 		p.setupCMSAddressWatcher()
 		err = p.restartCMSAddressesWatching()
 		if err != nil {
@@ -691,7 +697,7 @@ done:
 
 	// Shutdown all dcrdata websockets
 	if p.wsDcrdata != nil {
-		p.wsDcrdata.client.Stop()
+		p.wsDcrdata.close()
 	}
 
 	return nil

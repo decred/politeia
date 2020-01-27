@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	client "github.com/decred/dcrdata/pubsub/v3/psclient"
+	client "github.com/decred/dcrdata/pubsub/v4/psclient"
 	"github.com/decred/dcrdata/semver"
 	"github.com/decred/politeia/util"
 )
@@ -16,6 +16,10 @@ const (
 	// addrSubPrefix must be prefixed to the address when subscribing
 	// to address events.
 	addrSubPrefix = "address:"
+
+	// newBlockSub subscribes to events which give information about
+	// each new block
+	newBlockSub = "newblock"
 )
 
 var (
@@ -26,13 +30,26 @@ var (
 	// errSubNotFound is emitted when attempting to unsubscribe to an
 	// event that has not yet been subscribed to.
 	errSubNotFound = errors.New("subscription not found")
+
+	// errShutdown is emitted when attempting to use wsDcrdata after it
+	// has already been shut down.
+	errShutdown = errors.New("dcrdata ws connection is shut down")
 )
 
 // wsDcrdata is the context used for managing a dcrdata websocket connection.
 type wsDcrdata struct {
 	sync.RWMutex
+	shutdown      bool
 	client        *client.Client      // dcrdata websocket client
 	subscriptions map[string]struct{} // Client subscriptions
+}
+
+// isShutdown returns whether the connection has been shutdown.
+func (w *wsDcrdata) isShutdown() bool {
+	w.RLock()
+	defer w.RUnlock()
+
+	return w.shutdown
 }
 
 // addSub adds an event subscription to the subscriptions map.
@@ -51,6 +68,14 @@ func (w *wsDcrdata) removeSub(event string) {
 	delete(w.subscriptions, event)
 }
 
+// removeAllSubs removes all of the subscriptions from the subscriptions map.
+func (w *wsDcrdata) removeAllSubs() {
+	w.Lock()
+	defer w.Unlock()
+
+	w.subscriptions = make(map[string]struct{})
+}
+
 // isSubscribed returns whether the client is subscribed to the provided event.
 func (w *wsDcrdata) isSubscribed(event string) bool {
 	w.RLock()
@@ -60,45 +85,90 @@ func (w *wsDcrdata) isSubscribed(event string) bool {
 	return ok
 }
 
-// subToAddr subscribes to dcrdata events for the provided address.
-func (w *wsDcrdata) subToAddr(address string) error {
-	event := addrSubPrefix + address
+// close closes the dcrdata websocket client.
+func (w *wsDcrdata) close() error {
+	w.Lock()
+	w.shutdown = true
+	w.Unlock()
+
+	w.removeAllSubs()
+	return w.client.Close()
+}
+
+// subscribe subscribes the dcrdata client to an event.
+func (w *wsDcrdata) subscribe(event string) error {
+	if w.isShutdown() {
+		return errShutdown
+	}
+
 	if w.isSubscribed(event) {
 		return errDuplicateSub
 	}
+
 	_, err := w.client.Subscribe(event)
 	if err != nil {
-		return fmt.Errorf("failed to subscribe: %v", err)
+		return fmt.Errorf("wcDcrdata failed to subscribe to %v: %v",
+			event, err)
 	}
+
 	w.addSub(event)
-	log.Debugf("wsDcrdata subscribed to addr: %v", address)
+	log.Debugf("wsDcrdata successfully subscribed to %v", event)
 	return nil
 }
 
-// unsubFromAddr unsubscribes from dcrdata events for the provided address.
-func (w *wsDcrdata) unsubFromAddr(address string) error {
-	event := addrSubPrefix + address
+// unsubscribe ubsubscribes the dcrdata client from an event.
+func (w *wsDcrdata) unsubscribe(event string) error {
+	if w.isShutdown() {
+		return errShutdown
+	}
+
 	if !w.isSubscribed(event) {
 		return errSubNotFound
 	}
+
 	_, err := w.client.Unsubscribe(event)
 	if err != nil {
-		return fmt.Errorf("failed to unsubscribe: %v", err)
+		return fmt.Errorf("wsDcrdata failed to unsubscribe from %v: %v",
+			event, err)
 	}
+
 	w.removeSub(event)
-	log.Debugf("wsDcrdata unsubscribed from addr: %v", address)
+	log.Debugf("wsDcrdata successfully unsubscribed from %v", event)
 	return nil
 }
 
-// newWSDcrdata return a new wsDcrdata context.
-func newWSDcrdata() (*wsDcrdata, error) {
-	// Init websocket client
+func (w *wsDcrdata) receive() (<-chan *client.ClientMessage, error) {
+	if w.isShutdown() {
+		return nil, errShutdown
+	}
+
+	return w.client.Receive(), nil
+}
+
+// ping pings the dcrdata server.
+func (w *wsDcrdata) ping() error {
+	if w.isShutdown() {
+		return errShutdown
+	}
+
+	return w.client.Ping()
+}
+
+func (w *wsDcrdata) subToAddr(address string) error {
+	return w.subscribe(addrSubPrefix + address)
+}
+
+func (w *wsDcrdata) unsubFromAddr(address string) error {
+	return w.unsubscribe(addrSubPrefix + address)
+}
+
+func newDcrdataWSClient() (*client.Client, error) {
 	u, err := util.BlockExplorerURLForSubscriptions(activeNetParams.Params)
 	if err != nil {
 		return nil, err
 	}
 	opts := client.Opts{
-		ReadTimeout:  3 * time.Second,
+		ReadTimeout:  client.DefaultReadTimeout,
 		WriteTimeout: 3 * time.Second,
 	}
 	c, err := client.New(u, context.Background(), &opts)
@@ -123,8 +193,93 @@ func newWSDcrdata() (*wsDcrdata, error) {
 	log.Infof("Dcrdata pubsub server version: %v, client version %v",
 		serverSemVer, clientSemVer)
 
+	return c, nil
+}
+
+// reconnect creates a new websocket client, and subscribes to the
+// same subscriptions as the previous client.
+func (w *wsDcrdata) reconnect() error {
+	if w.isShutdown() {
+		return errShutdown
+	}
+
+	prevSubscriptions := make(map[string]struct{}, len(w.subscriptions))
+	timeToWait := 1 * time.Minute
+
+	// Remove existing subscriptions since the client is
+	// no longer connected. These will be resubscribed to.
+	w.client.Stop()
+	for sub := range w.subscriptions {
+		prevSubscriptions[sub] = struct{}{}
+	}
+	w.removeAllSubs()
+
+	for len(prevSubscriptions) > 0 {
+		// Reconnect to dcrdata if needed
+		err := w.ping()
+		if err == errShutdown {
+			return errShutdown
+		} else if err != nil {
+			log.Errorf("wsDcrdata failed to ping dcrdata: %v", err)
+			w.client.Stop()
+
+			// Existing subscriptions have gone bad
+			for sub := range w.subscriptions {
+				prevSubscriptions[sub] = struct{}{}
+			}
+			w.removeAllSubs()
+
+			// Reconnect
+			c, err := newDcrdataWSClient()
+			if err != nil {
+				log.Errorf("wsDcrdata failed to create new client while "+
+					"reconnecting: %v", err)
+				goto wait
+			}
+			w.client = c
+		}
+
+		// Resubscribe
+		for sub := range prevSubscriptions {
+			if w.isSubscribed(sub) {
+				delete(prevSubscriptions, sub)
+				continue
+			}
+			_, err := w.client.Subscribe(sub)
+			if err != nil {
+				log.Errorf("wsDcrdata failed to subscribe to %v: %v",
+					sub, err)
+				goto wait
+			}
+			w.addSub(sub)
+			delete(prevSubscriptions, sub)
+		}
+
+	wait:
+		if len(prevSubscriptions) > 0 {
+			log.Debugf("wsDcrdata reconnect waiting %v", timeToWait)
+			time.Sleep(timeToWait)
+			// Increase wait time until it reaches an hour then
+			// try to reconnect once per hour.
+			timeToWait = 2 * timeToWait
+			if timeToWait > time.Hour {
+				timeToWait = time.Hour
+			}
+		}
+	}
+
+	return nil
+}
+
+// newWSDcrdata return a new wsDcrdata context.
+func newWSDcrdata() (*wsDcrdata, error) {
+	client, err := newDcrdataWSClient()
+	if err != nil {
+		return nil, err
+	}
+
 	return &wsDcrdata{
-		client:        c,
+		client:        client,
 		subscriptions: make(map[string]struct{}),
 	}, nil
 }

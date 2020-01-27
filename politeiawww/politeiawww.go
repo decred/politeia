@@ -12,6 +12,8 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg"
+	exptypes "github.com/decred/dcrdata/explorer/types/v2"
+	pstypes "github.com/decred/dcrdata/pubsub/types/v3"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/cache"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
@@ -132,6 +134,12 @@ type politeiawww struct {
 	// wsDcrdata contains the client and list of current subscriptions to
 	// dcrdata's public subscription websocket
 	wsDcrdata *wsDcrdata
+
+	// The current best block is cached and updated using a websocket
+	// subscription to dcrdata. If the websocket connection is not active,
+	// the dcrdata best block route of politeiad is used as a fallback.
+	bestBlock uint64
+	bbMtx     sync.RWMutex
 }
 
 // XXX rig this up
@@ -857,6 +865,117 @@ func (p *politeiawww) handleWebsocketWrite(wc *wsContext) {
 			return
 		}
 	}
+}
+
+// updateBestBlock updates the cached best block.
+func (p *politeiawww) updateBestBlock(bestBlock uint64) {
+	p.bbMtx.Lock()
+	defer p.bbMtx.Unlock()
+	p.bestBlock = bestBlock
+}
+
+// getBestBlock returns the cached best block if there is an active websocket
+// connection to dcrdata. Otherwise, it requests the best block from politeiad
+// using the the decred plugin best block command.
+func (p *politeiawww) getBestBlock() (uint64, error) {
+	p.bbMtx.RLock()
+	bb := p.bestBlock
+	p.bbMtx.RUnlock()
+
+	// the cached best block will equal 0 if there is no active websocket
+	// connection to dcrdata, or if no new block messages have been received
+	// since a connection was established.
+	if bb == 0 {
+		return p.getBestBlockDecredPlugin()
+	}
+
+	return bb, nil
+}
+
+// resetPiDcrdataWSSubs is responsible for resetting the wsDcrdata connection
+// and making necessary changes to the required changes to the politeiawww
+// state so that the service continues to function properly during and after
+// the reconnection.
+func (p *politeiawww) resetPiDcrdataWSSubs() error {
+	// The cached best block is set to zero so that in the time between
+	// reconnection and receiving the first new block message, instead of
+	// using the old cached value, politeiad is queried for the best block.
+	p.updateBestBlock(0)
+
+	return p.wsDcrdata.reconnect()
+}
+
+// setupPiDcrdataWSSubs subscribes and listens to websocket messages from
+// dcrdata that are needed for pi.
+func (p *politeiawww) setupPiDcrdataWSSubs() error {
+	err := p.wsDcrdata.subscribe(newBlockSub)
+	if err != nil {
+		return err
+	}
+
+	go func() {
+		for {
+			receiver, err := p.wsDcrdata.receive()
+			if err == errShutdown {
+				log.Infof("Dcrdata websocket closed")
+				return
+			} else if err != nil {
+				log.Errorf("wsDcrdata receive: %v", err)
+				log.Infof("Dcrdata websocket closed")
+				return
+			}
+
+			msg, ok := <-receiver
+
+			if !ok {
+				// This check is here to avoid a spew of unnecessary error
+				// messages. The channel is expected to be closed if wsDcrdata
+				// is shut down.
+				if p.wsDcrdata.isShutdown() {
+					return
+				}
+
+				log.Errorf("wsDcrdata receive channel closed. Will reconnect.")
+				err = p.resetPiDcrdataWSSubs()
+				if err == errShutdown {
+					log.Infof("Dcrdata websocket closed")
+					return
+				} else if err != nil {
+					log.Errorf("resetPiDcrdataWSSub: %v", err)
+					log.Infof("Dcrdata websocket closed")
+					return
+				}
+
+				continue
+			}
+
+			switch m := msg.Message.(type) {
+			case *exptypes.WebsocketBlock:
+				log.Debugf("wsDcrdata message WebsocketBlock(height=%v)",
+					m.Block.Height)
+				p.updateBestBlock(uint64(m.Block.Height))
+			case *pstypes.HangUp:
+				log.Infof("Dcrdata has hung up. Will reconnect.")
+				err = p.resetPiDcrdataWSSubs()
+				if err == errShutdown {
+					log.Infof("Dcrdata websocket closed")
+					return
+				} else if err != nil {
+					log.Errorf("resetPiDcrdataWSSub: %v", err)
+					log.Infof("Dcrdata websocket closed")
+					return
+				}
+				log.Infof("Successfully reconnected to dcrdata")
+			case int:
+				// Ping messages are of type int
+			default:
+				log.Errorf("wsDcrdata message of type %v unhandled. %v",
+					msg.EventId, m)
+			}
+		}
+	}()
+
+	return nil
 }
 
 // handleWebsocket upgrades a regular HTTP connection to a websocket.
