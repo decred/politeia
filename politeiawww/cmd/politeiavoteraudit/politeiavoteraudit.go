@@ -435,6 +435,17 @@ func countFailed(proposal, ticket string, m map[int64]BallotError) int {
 	return count
 }
 
+func findWork(ticket string, m map[int64][]jsontypes.VoteInterval) bool {
+	for _, v := range m {
+		for _, vv := range v {
+			if ticket == vv.Vote.Ticket {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func auditWork(verbose bool, work map[int64][]jsontypes.VoteInterval, success map[int64]jsontypes.BallotResult, failed map[int64]BallotError) (int, error) {
 	if verbose {
 		fmt.Printf("  Audit: work\n")
@@ -511,6 +522,23 @@ func auditFailed(verbose bool, work map[int64][]jsontypes.VoteInterval, success 
 	}
 
 	return totalFailed, nil
+}
+
+func auditSuccess(verbose bool, work map[int64][]jsontypes.VoteInterval, success map[int64]jsontypes.BallotResult) (int, error) {
+	if verbose {
+		fmt.Printf("  Audit: success\n")
+	}
+
+	totalSuccess := 0
+	for _, v := range success {
+		ok := findWork(v.Ticket, work)
+		if !ok {
+			return 0, fmt.Errorf("ticket not found in work map: %v", v.Ticket)
+		}
+		totalSuccess++
+	}
+
+	return totalSuccess, nil
 }
 
 func (c *ctx) getVoteResultsReply(token string) (*v1.VoteResultsReply, error) {
@@ -598,7 +626,7 @@ func (c *ctx) audit(args []string) error {
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Total votes: %v\n", total)
+		fmt.Printf("Total votes %v\n", total)
 
 		// Audit Pi results
 		totalVoted, err := auditPi(c.cfg.Verbose, vrr, work, success)
@@ -612,6 +640,11 @@ func (c *ctx) audit(args []string) error {
 		fmt.Printf("Successful votes in pi and journal %v\n", total)
 
 		// Audit success
+		totalSuccess, err := auditSuccess(c.cfg.Verbose, work, success)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("All success votes exist in work map %v\n", totalSuccess)
 
 		// Audit failed
 		totalRetries, err := auditFailed(c.cfg.Verbose, work, success,
@@ -627,6 +660,8 @@ func (c *ctx) audit(args []string) error {
 			fmt.Printf("\n")
 		}
 	}
+
+	fmt.Printf("** AUDIT SUCCESSFULLY COMPLETED **\n")
 
 	return nil
 }
