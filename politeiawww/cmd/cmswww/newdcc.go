@@ -25,7 +25,6 @@ import (
 var domainTypes = map[cms.DomainTypeT]string{
 	cms.DomainTypeDeveloper:     "(1) Developer",
 	cms.DomainTypeMarketing:     "(2) Marketing",
-	cms.DomainTypeCommunity:     "(3) Community Management",
 	cms.DomainTypeResearch:      "(4) Research",
 	cms.DomainTypeDesign:        "(5) Design",
 	cms.DomainTypeDocumentation: "(6) Documentation",
@@ -93,7 +92,6 @@ func (cmd *NewDCCCmd) Execute(args []string) error {
 				fmt.Printf("Domain Type: " +
 					domainTypes[cms.DomainTypeDeveloper] + ", " +
 					domainTypes[cms.DomainTypeMarketing] + ", " +
-					domainTypes[cms.DomainTypeCommunity] + ", " +
 					domainTypes[cms.DomainTypeResearch] + ", " +
 					domainTypes[cms.DomainTypeDesign] + ", " +
 					domainTypes[cms.DomainTypeDocumentation] + ": ")
