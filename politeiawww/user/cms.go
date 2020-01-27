@@ -7,13 +7,14 @@ import (
 )
 
 const (
-	CMSPluginVersion         = "1"
-	CMSPluginID              = "cms"
-	CmdNewCMSUser            = "newcmsuser"
-	CmdCMSUsersByDomain      = "cmsusersbydomain"
-	CmdUpdateCMSUser         = "updatecmsuser"
-	CmdCMSUserByID           = "cmsuserbyid"
-	CmdCMSUserSubContractors = "cmsusersubcontractors"
+	CMSPluginVersion            = "1"
+	CMSPluginID                 = "cms"
+	CmdNewCMSUser               = "newcmsuser"
+	CmdCMSUsersByDomain         = "cmsusersbydomain"
+	CmdCMSUsersByContractorType = "cmsusersbycontractortype"
+	CmdUpdateCMSUser            = "updatecmsuser"
+	CmdCMSUserByID              = "cmsuserbyid"
+	CmdCMSUserSubContractors    = "cmsusersubcontractors"
 )
 
 // CMSUser represents a CMS user. It contains the standard politeiawww user
@@ -130,6 +131,57 @@ func EncodeCMSUsersByDomainReply(u CMSUsersByDomainReply) ([]byte, error) {
 // CMSUsersByDomainReply.
 func DecodeCMSUsersByDomainReply(b []byte) (*CMSUsersByDomainReply, error) {
 	var reply CMSUsersByDomainReply
+
+	err := json.Unmarshal(b, &reply)
+	if err != nil {
+		return nil, err
+	}
+
+	return &reply, nil
+}
+
+// CMSUsersByContractorType returns all CMS users within the provided
+// contractor type.
+type CMSUsersByContractorType struct {
+	ContractorType int `json:"contractortype"` // Contractor type
+}
+
+// EncodeCMSUsersByContractorType encodes a CMSUsersByContractorType into a
+// JSON byte slice.
+func EncodeCMSUsersByContractorType(u CMSUsersByContractorType) ([]byte, error) {
+	return json.Marshal(u)
+}
+
+// DecodeCMSUsersByContractorType decodes JSON byte slice into a
+// CMSUsersByContractorType.
+func DecodeCMSUsersByContractorType(b []byte) (*CMSUsersByContractorType, error) {
+	var u CMSUsersByContractorType
+
+	err := json.Unmarshal(b, &u)
+	if err != nil {
+		return nil, err
+	}
+
+	return &u, nil
+}
+
+// CMSUsersByContractorTypeReply is the reply to the CMSUsersByContractorType
+// command.
+type CMSUsersByContractorTypeReply struct {
+	Users []CMSUser `json:"users"`
+}
+
+// EncodeCMSUsersByContractorTypeReply encodes a CMSUsersByContractorTypeReply
+// into a JSON
+// byte slice.
+func EncodeCMSUsersByContractorTypeReply(u CMSUsersByContractorTypeReply) ([]byte, error) {
+	return json.Marshal(u)
+}
+
+// DecodeCMSUsersByContractorTypeReply decodes JSON byte slice into a
+// CMSUsersByContractorTypeReply.
+func DecodeCMSUsersByContractorTypeReply(b []byte) (*CMSUsersByContractorTypeReply, error) {
+	var reply CMSUsersByContractorTypeReply
 
 	err := json.Unmarshal(b, &reply)
 	if err != nil {

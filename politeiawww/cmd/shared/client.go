@@ -1255,6 +1255,30 @@ func (c *Client) Users(u *v1.Users) (*v1.UsersReply, error) {
 	return &ur, nil
 }
 
+// CMSUsers retrieves a list of cms users that adhere to the specified filtering
+// parameters.
+func (c *Client) CMSUsers(cu *cms.CMSUsers) (*cms.CMSUsersReply, error) {
+	responseBody, err := c.makeRequest("GET", cms.RouteCMSUsers, cu)
+	if err != nil {
+		return nil, err
+	}
+
+	var cur cms.CMSUsersReply
+	err = json.Unmarshal(responseBody, &cur)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal CMSUsersReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(cur)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &cur, nil
+}
+
 // ManageUser allows an admin to edit certain attributes of the specified user.
 func (c *Client) ManageUser(mu *v1.ManageUser) (*v1.ManageUserReply, error) {
 	responseBody, err := c.makeRequest("POST", v1.RouteManageUser, mu)

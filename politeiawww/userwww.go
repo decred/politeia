@@ -629,6 +629,30 @@ func (p *politeiawww) handleUsers(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, ur)
 }
 
+// handleCMSUsers handles fetching a list of cms users.
+func (p *politeiawww) handleCMSUsers(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleCMSUsers")
+
+	var cu cms.CMSUsers
+	err := util.ParseGetParams(r, &cu)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleCMSUsers: ParseGetParams",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	cur, err := p.processCMSUsers(&cu)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleCMSUsers: processCMSUsers %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, cur)
+}
+
 // handleUserPaymentsRescan allows an admin to rescan a user's paywall address
 // to check for any payments that may have been missed by paywall polling.
 func (p *politeiawww) handleUserPaymentsRescan(w http.ResponseWriter, r *http.Request) {
@@ -837,10 +861,12 @@ func (p *politeiawww) setCMSUserWWWRoutes() {
 		p.handleCMSUserDetails, permissionLogin)
 	p.addRoute(http.MethodPost, www.RouteEditUser,
 		p.handleEditCMSUser, permissionLogin)
+	p.addRoute(http.MethodGet, www.RouteUsers,
+		p.handleUsers, permissionLogin)
+	p.addRoute(http.MethodGet, cms.RouteCMSUsers,
+		p.handleCMSUsers, permissionLogin)
 
 	// Routes that require being logged in as an admin user.
-	p.addRoute(http.MethodGet, www.RouteUsers,
-		p.handleUsers, permissionAdmin)
 	p.addRoute(http.MethodPost, www.RouteManageUser,
 		p.handleManageCMSUser, permissionAdmin)
 }
