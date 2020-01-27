@@ -401,6 +401,16 @@ func readFailed(verbose bool, filename string, m map[int64]BallotError) error {
 	return nil
 }
 
+func findSuccess(ticket string, m map[int64]jsontypes.BallotResult) bool {
+	for _, v := range m {
+		if v.Ticket != ticket {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
 func countSuccess(proposal, ticket string, m map[int64]jsontypes.BallotResult) int {
 	var count int
 	for _, v := range m {
@@ -479,11 +489,28 @@ func auditWork(verbose bool, work map[int64][]jsontypes.VoteInterval, success ma
 	}
 
 	// if we make it here, all work, despite retries, completed correctly.
+	return totalRecords, nil
+}
+
+func auditFailed(verbose bool, work map[int64][]jsontypes.VoteInterval, success map[int64]jsontypes.BallotResult, failed map[int64]BallotError) (int, error) {
+	// Go through all failed records and ensure thet they are non-fatal
+	// failures.
 	if verbose {
-		fmt.Printf("  Total: %v\n", totalRecords)
+		fmt.Printf("  Audit: failed\n")
 	}
 
-	return totalRecords, nil
+	totalFailed := 0
+	for _, v := range failed {
+		for _, vv := range v.Ballot.Votes {
+			ok := findSuccess(vv.Ticket, success)
+			if !ok {
+				return 0, fmt.Errorf("permanent error on: %v", vv.Ticket)
+			}
+			totalFailed++
+		}
+	}
+
+	return totalFailed, nil
 }
 
 func (c *ctx) getVoteResultsReply(token string) (*v1.VoteResultsReply, error) {
@@ -503,6 +530,10 @@ func (c *ctx) getVoteResultsReply(token string) (*v1.VoteResultsReply, error) {
 }
 
 func auditPi(verbose bool, vrr *v1.VoteResultsReply, work map[int64][]jsontypes.VoteInterval, success map[int64]jsontypes.BallotResult) (int, error) {
+	if verbose {
+		fmt.Printf("  Audit: politeia\n")
+	}
+
 	cvm := make(map[string]*v1.CastVote, len(vrr.CastVotes))
 	for _, cv := range vrr.CastVotes {
 		cvm[cv.Ticket] = &cv
@@ -514,6 +545,10 @@ func auditPi(verbose bool, vrr *v1.VoteResultsReply, work map[int64][]jsontypes.
 			continue
 		}
 		votedSuccess++
+	}
+
+	if verbose {
+		fmt.Printf("  Politeia succeful votes: %v\n", votedSuccess)
 	}
 
 	return votedSuccess, nil
@@ -530,9 +565,7 @@ func (c *ctx) audit(args []string) error {
 		work := make(map[int64][]jsontypes.VoteInterval, 1024)  // [timestamp][]VoteInterval
 		success := make(map[int64]jsontypes.BallotResult, 1024) // [timestamp]BallotResult
 		failed := make(map[int64]BallotError, 1024)             // [timestamp]BallotError
-		if c.cfg.Verbose {
-			fmt.Printf("Proposal: %v\n", v)
-		}
+		fmt.Printf("Proposal: %v\n", v)
 
 		vrr, err := c.getVoteResultsReply(v)
 		if err != nil {
@@ -565,6 +598,7 @@ func (c *ctx) audit(args []string) error {
 		if err != nil {
 			return err
 		}
+		fmt.Printf("Total votes: %v\n", total)
 
 		// Audit Pi results
 		totalVoted, err := auditPi(c.cfg.Verbose, vrr, work, success)
@@ -575,12 +609,18 @@ func (c *ctx) audit(args []string) error {
 			return fmt.Errorf("totalVoted != total in pi; "+
 				"got %v want %v", totalVoted, total)
 		}
-		fmt.Printf("Proposal: %v successful votes in pi and journal "+
-			"%v\n", v, total)
+		fmt.Printf("Successful votes in pi and journal %v\n", total)
 
 		// Audit success
 
 		// Audit failed
+		totalRetries, err := auditFailed(c.cfg.Verbose, work, success,
+			failed)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("All failed votes were successfully retried. Total "+
+			"vote retries: %v\n", totalRetries)
 
 		// Don't print \n on the last entry
 		if k != len(args)-1 {
