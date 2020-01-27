@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/cookiejar"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,6 +20,7 @@ import (
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmd/politeiavoter/jsontypes"
 	"github.com/decred/politeia/util"
+	"github.com/gorilla/schema"
 	"golang.org/x/net/publicsuffix"
 )
 
@@ -72,6 +74,77 @@ func newClient(cfg *config) (*ctx, error) {
 		},
 		userAgent: fmt.Sprintf("politeiavoteraudit/%s", cfg.Version),
 	}, nil
+}
+
+func (c *ctx) makeRequest(method, route string, b interface{}) ([]byte, error) {
+	var requestBody []byte
+	var queryParams string
+	if b != nil {
+		if method == http.MethodGet {
+			// GET requests don't have a request body; instead we will populate
+			// the query params.
+			form := url.Values{}
+			err := schema.NewEncoder().Encode(b, form)
+			if err != nil {
+				return nil, err
+			}
+
+			queryParams = "?" + form.Encode()
+		} else {
+			var err error
+			requestBody, err = json.Marshal(b)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	fullRoute := c.cfg.PoliteiaWWW + v1.PoliteiaWWWAPIRoute + route +
+		queryParams
+	log.Debugf("Request: %v %v", method, fullRoute)
+	if len(requestBody) != 0 {
+		log.Tracef("%v  ", string(requestBody))
+	}
+
+	req, err := http.NewRequest(method, fullRoute, bytes.NewReader(requestBody))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("User-Agent", c.userAgent)
+	req.Header.Add(v1.CsrfToken, c.csrf)
+	r, err := c.client.Do(req)
+	if err != nil {
+		return nil, jsontypes.ErrRetry{
+			At:  "c.client.Do(req)",
+			Err: err,
+		}
+	}
+	defer func() {
+		r.Body.Close()
+	}()
+
+	responseBody := util.ConvertBodyToByteArray(r.Body, false)
+	log.Tracef("Response: %v %v", r.StatusCode, string(responseBody))
+
+	if r.StatusCode != http.StatusOK {
+		var ue v1.UserError
+		err = json.Unmarshal(responseBody, &ue)
+		if err == nil && ue.ErrorCode != 0 {
+			return nil, fmt.Errorf("%v, %v %v", r.StatusCode,
+				v1.ErrorStatus[ue.ErrorCode],
+				strings.Join(ue.ErrorContext, ", "))
+		}
+
+		return nil, jsontypes.ErrRetry{
+			At:   "r.StatusCode != http.StatusOK",
+			Err:  err,
+			Body: responseBody,
+			Code: r.StatusCode,
+		}
+	}
+
+	return responseBody, nil
 }
 
 func (c *ctx) getCSRF() (*v1.VersionReply, error) {
@@ -413,6 +486,39 @@ func auditWork(verbose bool, work map[int64][]jsontypes.VoteInterval, success ma
 	return totalRecords, nil
 }
 
+func (c *ctx) getVoteResultsReply(token string) (*v1.VoteResultsReply, error) {
+	responseBody, err := c.makeRequest("GET", "/proposals/"+token+"/votes", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var vrr v1.VoteResultsReply
+	err = json.Unmarshal(responseBody, &vrr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal "+
+			"ProposalVotesReply: %v", err)
+	}
+
+	return &vrr, nil
+}
+
+func auditPi(verbose bool, vrr *v1.VoteResultsReply, work map[int64][]jsontypes.VoteInterval, success map[int64]jsontypes.BallotResult) (int, error) {
+	cvm := make(map[string]*v1.CastVote, len(vrr.CastVotes))
+	for _, cv := range vrr.CastVotes {
+		cvm[cv.Ticket] = &cv
+	}
+
+	votedSuccess := 0
+	for _, s := range success {
+		if _, ok := cvm[s.Ticket]; !ok {
+			continue
+		}
+		votedSuccess++
+	}
+
+	return votedSuccess, nil
+}
+
 func (c *ctx) audit(args []string) error {
 	for k, v := range args {
 		path := filepath.Join(c.cfg.voteDir, v)
@@ -427,6 +533,12 @@ func (c *ctx) audit(args []string) error {
 		if c.cfg.Verbose {
 			fmt.Printf("Proposal: %v\n", v)
 		}
+
+		vrr, err := c.getVoteResultsReply(v)
+		if err != nil {
+			return err
+		}
+
 		for _, vv := range d {
 			filename := filepath.Join(path, vv.Name())
 
@@ -453,7 +565,18 @@ func (c *ctx) audit(args []string) error {
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Proposal: %v successful votes %v\n", v, total)
+
+		// Audit Pi results
+		totalVoted, err := auditPi(c.cfg.Verbose, vrr, work, success)
+		if err != nil {
+			return err
+		}
+		if totalVoted != total {
+			return fmt.Errorf("totalVoted != total in pi; "+
+				"got %v want %v", totalVoted, total)
+		}
+		fmt.Printf("Proposal: %v successful votes in pi and journal "+
+			"%v\n", v, total)
 
 		// Audit success
 
