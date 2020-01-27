@@ -305,7 +305,11 @@ func (p *politeiawww) validateDCC(nd cms.NewDCC, u *user.User) error {
 			ErrorCode: cms.ErrorStatusInvalidDCCNominee,
 		}
 	}
-	if nomineeUser.ContractorType != cms.ContractorTypeNominee &&
+	// All nominees, direct and subcontractors are allowed to be submitted
+	// for an issuance.
+	if (nomineeUser.ContractorType != cms.ContractorTypeNominee &&
+		nomineeUser.ContractorType != cms.ContractorTypeDirect &&
+		nomineeUser.ContractorType != cms.ContractorTypeSubContractor) &&
 		dcc.Type == cms.DCCTypeIssuance {
 		return www.UserError{
 			ErrorCode: cms.ErrorStatusInvalidDCCNominee,
