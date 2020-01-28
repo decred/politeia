@@ -451,42 +451,50 @@ func auditWork(verbose bool, work map[int64][]jsontypes.VoteInterval, success ma
 		fmt.Printf("  Audit: work\n")
 	}
 
+	// Remove any duplicate entries from the work journals. Duplicate
+	// entries can happen when the user restarts politeiavoter and a
+	// new work journal is created.
+	voteIntervals := make(map[string]jsontypes.VoteInterval, 10000) // [ticket]struct{}
+	for _, journal := range work {
+		for _, v := range journal {
+			voteIntervals[v.Vote.Ticket] = v
+		}
+	}
+
 	// Read all work items and ensure they made it to one of the success
 	// files.
 	var errorCount, successCount, totalRecords int
-	for _, v := range work {
-		totalRecords += len(v)
-		for _, vv := range v {
-			if verbose {
-				fmt.Printf("    Checking ticket: %v\n",
-					vv.Vote.Ticket)
-			}
+	for _, v := range voteIntervals {
+		totalRecords++
+		if verbose {
+			fmt.Printf("    Checking ticket: %v\n",
+				v.Vote.Ticket)
+		}
 
-			// Troll sucess
-			s := countSuccess(vv.Vote.Token, vv.Vote.Ticket,
-				success)
-			if verbose {
-				fmt.Printf("    Success           : %v\n", s)
-			}
-			if s != 1 {
-				errorCount++
-				fmt.Printf("    Unexpected success: "+
-					"want %v got %v\n", 1, s)
-			}
+		// Troll sucess
+		s := countSuccess(v.Vote.Token, v.Vote.Ticket,
+			success)
+		if verbose {
+			fmt.Printf("    Success           : %v\n", s)
+		}
+		if s != 1 {
+			errorCount++
+			fmt.Printf("    Unexpected success: "+
+				"want %v got %v\n", 1, s)
+		}
 
-			// Troll failed
-			f := countFailed(vv.Vote.Token, vv.Vote.Ticket, failed)
-			if verbose {
-				fmt.Printf("    Retries           : %v\n", f)
-			}
+		// Troll failed
+		f := countFailed(v.Vote.Token, v.Vote.Ticket, failed)
+		if verbose {
+			fmt.Printf("    Retries           : %v\n", f)
+		}
 
-			if s == 0 && f <= 0 {
-				errorCount++
-				fmt.Printf("    Unexpected failed : "+
-					"want > 0 got %v\n", f)
-			} else {
-				successCount++
-			}
+		if s == 0 && f <= 0 {
+			errorCount++
+			fmt.Printf("    Unexpected failed : "+
+				"want > 0 got %v\n", f)
+		} else {
+			successCount++
 		}
 	}
 	if errorCount != 0 {
@@ -575,7 +583,7 @@ func (c *ctx) getVoteResultsReply(token string) (*v1.VoteResultsReply, error) {
 	return &vrr, nil
 }
 
-func auditPi(verbose bool, vrr *v1.VoteResultsReply, work map[int64][]jsontypes.VoteInterval, success map[int64]jsontypes.BallotResult) (int, error) {
+func auditPi(verbose bool, vrr *v1.VoteResultsReply, success map[int64]jsontypes.BallotResult) (int, error) {
 	if verbose {
 		fmt.Printf("  Audit: politeia\n")
 	}
@@ -648,7 +656,7 @@ func (c *ctx) audit(args []string) error {
 		fmt.Printf("Total votes %v\n", total)
 
 		// Audit Pi results
-		totalVoted, err := auditPi(c.cfg.Verbose, vrr, work, success)
+		totalVoted, err := auditPi(c.cfg.Verbose, vrr, success)
 		if err != nil {
 			return err
 		}
