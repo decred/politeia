@@ -583,7 +583,7 @@ func (c *ctx) getVoteResultsReply(token string) (*v1.VoteResultsReply, error) {
 	return &vrr, nil
 }
 
-func auditPi(verbose bool, vrr *v1.VoteResultsReply, success map[int64]jsontypes.BallotResult) (int, error) {
+func auditPi(verbose bool, vrr *v1.VoteResultsReply, work map[int64][]jsontypes.VoteInterval, success map[int64]jsontypes.BallotResult) (int, error) {
 	if verbose {
 		fmt.Printf("  Audit: politeia\n")
 	}
@@ -656,7 +656,7 @@ func (c *ctx) audit(args []string) error {
 		fmt.Printf("Total votes %v\n", total)
 
 		// Audit Pi results
-		totalVoted, err := auditPi(c.cfg.Verbose, vrr, success)
+		totalVoted, err := auditPi(c.cfg.Verbose, vrr, work, success)
 		if err != nil {
 			return err
 		}
