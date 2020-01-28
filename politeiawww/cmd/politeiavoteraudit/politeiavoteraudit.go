@@ -278,6 +278,9 @@ func readWork(verbose bool, filename string, m map[int64][]jsontypes.VoteInterva
 		return err
 	}
 	m[t.UnixNano()] = vi
+	if verbose {
+		fmt.Printf("  Records found: %v\n", len(vi))
+	}
 
 	return nil
 }
@@ -294,6 +297,7 @@ func readSuccess(verbose bool, filename string, m map[int64]jsontypes.BallotResu
 	defer f.Close()
 
 	first := true
+	totalRecords := 0
 	d := json.NewDecoder(f)
 	for {
 		// Read timestamp
@@ -323,6 +327,11 @@ func readSuccess(verbose bool, filename string, m map[int64]jsontypes.BallotResu
 
 		//fmt.Printf("%v\n", spew.Sdump(br))
 		first = false
+		totalRecords++
+	}
+
+	if verbose {
+		fmt.Printf("  Records found: %v\n", totalRecords)
 	}
 
 	return nil
@@ -355,6 +364,7 @@ func readFailed(verbose bool, filename string, m map[int64]BallotError) error {
 	defer f.Close()
 
 	first := true
+	totalRecords := 0
 	d := json.NewDecoder(f)
 	for {
 		// Read timestamp
@@ -396,6 +406,11 @@ func readFailed(verbose bool, filename string, m map[int64]BallotError) error {
 
 		//fmt.Printf("%v%v\n", spew.Sdump(b), spew.Sdump(e))
 		first = false
+		totalRecords++
+	}
+
+	if verbose {
+		fmt.Printf("  Records found: %v\n", totalRecords)
 	}
 
 	return nil
@@ -467,38 +482,36 @@ func auditWork(verbose bool, work map[int64][]jsontypes.VoteInterval, success ma
 	for _, v := range voteIntervals {
 		totalRecords++
 		if verbose {
-			fmt.Printf("    Checking ticket: %v\n",
+			fmt.Printf("  Checking ticket: %v\n",
 				v.Vote.Ticket)
 		}
 
 		// Troll sucess
 		s := countSuccess(v.Vote.Token, v.Vote.Ticket,
 			success)
+		// Troll failed
+		f := countFailed(v.Vote.Token, v.Vote.Ticket, failed)
+
 		if verbose {
-			fmt.Printf("    Success           : %v\n", s)
+			fmt.Printf("  Success           : %v\n", s)
+			fmt.Printf("  Retries           : %v\n", f)
 		}
 		if s != 1 {
 			// While we did not record success it may have worked.
 			// Let's see if politeia recorded this fact.
 			if ok := findCastVote(v.Vote.Ticket, vrr); !ok {
 				errorCount++
-				fmt.Printf("    Unexpected success: "+
+				fmt.Printf("  Unexpected success: "+
 					"want %v got %v\n", 1, s)
 			} else {
 				// We set s to 1 here in order not to trip the
 				// errorCounter later.
 				s = 1
-				fmt.Printf("    WARNING           : "+
+				fmt.Printf("  WARNING: "+
 					"ticket %v succeeded but was not "+
 					"recorded in success journals\n",
 					v.Vote.Ticket)
 			}
-		}
-
-		// Troll failed
-		f := countFailed(v.Vote.Token, v.Vote.Ticket, failed)
-		if verbose {
-			fmt.Printf("    Retries           : %v\n", f)
 		}
 
 		if s == 0 && f <= 0 {
@@ -695,8 +708,8 @@ func (c *ctx) audit(args []string) error {
 		if err != nil {
 			return err
 		}
-		fmt.Printf("All failed votes were successfully retried. Total "+
-			"vote retries: %v\n", totalRetries)
+		fmt.Printf("All failed votes were ultimately completed "+
+			"successfully. Total vote retries: %v\n", totalRetries)
 
 		// Don't print \n on the last entry
 		if k != len(args)-1 {
