@@ -454,7 +454,7 @@ func auditWork(verbose bool, work map[int64][]jsontypes.VoteInterval, success ma
 	// Remove any duplicate entries from the work journals. Duplicate
 	// entries can happen when the user restarts politeiavoter and a
 	// new work journal is created.
-	voteIntervals := make(map[string]jsontypes.VoteInterval, 10000) // [ticket]struct{}
+	voteIntervals := make(map[string]jsontypes.VoteInterval, 10000) // [ticket]VoteInterval
 	for _, journal := range work {
 		for _, v := range journal {
 			voteIntervals[v.Vote.Ticket] = v
