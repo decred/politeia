@@ -524,7 +524,16 @@ func auditFailed(verbose bool, work map[int64][]jsontypes.VoteInterval, success 
 	return totalFailed, nil
 }
 
-func auditSuccess(verbose bool, work map[int64][]jsontypes.VoteInterval, success map[int64]jsontypes.BallotResult) (int, error) {
+func findCastVote(ticket string, vrr *v1.VoteResultsReply) bool {
+	for _, v := range vrr.CastVotes {
+		if v.Ticket == ticket {
+			return true
+		}
+	}
+	return false
+}
+
+func auditSuccess(verbose bool, work map[int64][]jsontypes.VoteInterval, success map[int64]jsontypes.BallotResult, vrr *v1.VoteResultsReply) (int, error) {
 	if verbose {
 		fmt.Printf("  Audit: success\n")
 	}
@@ -533,7 +542,16 @@ func auditSuccess(verbose bool, work map[int64][]jsontypes.VoteInterval, success
 	for _, v := range success {
 		ok := findWork(v.Ticket, work)
 		if !ok {
-			return 0, fmt.Errorf("ticket not found in work map: %v", v.Ticket)
+			return 0, fmt.Errorf("ticket not found in work map: %v",
+				v.Ticket)
+		}
+		if v.Receipt.Error != "" {
+			// We record duplicate votes in success so let's make
+			// sure it voted.
+			if ok := findCastVote(v.Ticket, vrr); !ok {
+				return 0, fmt.Errorf("error in success: %v",
+					v.Ticket)
+			}
 		}
 		totalSuccess++
 	}
@@ -599,6 +617,7 @@ func (c *ctx) audit(args []string) error {
 		if err != nil {
 			return err
 		}
+		//spew.Dump(vrr)
 
 		for _, vv := range d {
 			filename := filepath.Join(path, vv.Name())
@@ -640,7 +659,7 @@ func (c *ctx) audit(args []string) error {
 		fmt.Printf("Successful votes in pi and journal %v\n", total)
 
 		// Audit success
-		totalSuccess, err := auditSuccess(c.cfg.Verbose, work, success)
+		totalSuccess, err := auditSuccess(c.cfg.Verbose, work, success, vrr)
 		if err != nil {
 			return err
 		}
