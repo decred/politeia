@@ -446,7 +446,7 @@ func findWork(ticket string, m map[int64][]jsontypes.VoteInterval) bool {
 	return false
 }
 
-func auditWork(verbose bool, work map[int64][]jsontypes.VoteInterval, success map[int64]jsontypes.BallotResult, failed map[int64]BallotError) (int, error) {
+func auditWork(verbose bool, work map[int64][]jsontypes.VoteInterval, success map[int64]jsontypes.BallotResult, failed map[int64]BallotError, vrr *v1.VoteResultsReply) (int, error) {
 	if verbose {
 		fmt.Printf("  Audit: work\n")
 	}
@@ -478,9 +478,21 @@ func auditWork(verbose bool, work map[int64][]jsontypes.VoteInterval, success ma
 			fmt.Printf("    Success           : %v\n", s)
 		}
 		if s != 1 {
-			errorCount++
-			fmt.Printf("    Unexpected success: "+
-				"want %v got %v\n", 1, s)
+			// While we did not record success it may have worked.
+			// Let's see if politeia recorded this fact.
+			if ok := findCastVote(v.Vote.Ticket, vrr); !ok {
+				errorCount++
+				fmt.Printf("    Unexpected success: "+
+					"want %v got %v\n", 1, s)
+			} else {
+				// We set s to 1 here in order not to trip the
+				// errorCounter later.
+				s = 1
+				fmt.Printf("    WARNING           : "+
+					"ticket %v succeeded but was not "+
+					"recorded in success journals\n",
+					v.Vote.Ticket)
+			}
 		}
 
 		// Troll failed
@@ -649,7 +661,8 @@ func (c *ctx) audit(args []string) error {
 		}
 
 		// Audit work
-		total, err := auditWork(c.cfg.Verbose, work, success, failed)
+		total, err := auditWork(c.cfg.Verbose, work, success, failed,
+			vrr)
 		if err != nil {
 			return err
 		}
@@ -661,17 +674,20 @@ func (c *ctx) audit(args []string) error {
 			return err
 		}
 		if totalVoted != total {
-			return fmt.Errorf("totalVoted != total in pi; "+
-				"got %v want %v", totalVoted, total)
+			fmt.Printf("WARNING: totalVoted != total in pi; "+
+				"got %v want %v\n", totalVoted, total)
+		} else {
+			fmt.Printf("Successful votes in pi and journal %v\n", total)
 		}
-		fmt.Printf("Successful votes in pi and journal %v\n", total)
 
 		// Audit success
-		totalSuccess, err := auditSuccess(c.cfg.Verbose, work, success, vrr)
+		totalSuccess, err := auditSuccess(c.cfg.Verbose, work, success,
+			vrr)
 		if err != nil {
 			return err
 		}
-		fmt.Printf("All success votes exist in work map %v\n", totalSuccess)
+		fmt.Printf("All success votes exist in work map %v\n",
+			totalSuccess)
 
 		// Audit failed
 		totalRetries, err := auditFailed(c.cfg.Verbose, work, success,
