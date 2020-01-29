@@ -2634,9 +2634,7 @@ func (g *gitBackEnd) newLocked() error {
 		return err
 	}
 
-	err = g.populateTokenPrefixCache()
-
-	return err
+	return g.populateTokenPrefixCache()
 }
 
 // rebasePR pushes branch id into upstream (vetted repo) and rebases it onto
