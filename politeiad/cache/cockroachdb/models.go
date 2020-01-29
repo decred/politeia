@@ -47,13 +47,14 @@ func (MetadataStream) TableName() string {
 
 // Record is an entire record and it's content.
 type Record struct {
-	Key       string `gorm:"primary_key"`       // Primary key (token+version)
-	Token     string `gorm:"not null;size:64"`  // Censorship token
-	Version   uint64 `gorm:"not null"`          // Version of files
-	Status    int    `gorm:"not null"`          // Current status
-	Timestamp int64  `gorm:"not null"`          // UNIX timestamp of last updated
-	Merkle    string `gorm:"not null;size:64"`  // Merkle root of all files in record
-	Signature string `gorm:"not null;size:128"` // Server signature of merkle+token
+	Key         string `gorm:"primary_key"`           // Primary key (token+version)
+	Token       string `gorm:"not null;size:64"`      // Censorship token
+	TokenPrefix string `gorm:"not null;size:6;index"` // Prefix of token used for lookups
+	Version     uint64 `gorm:"not null"`              // Version of files
+	Status      int    `gorm:"not null"`              // Current status
+	Timestamp   int64  `gorm:"not null"`              // UNIX timestamp of last updated
+	Merkle      string `gorm:"not null;size:64"`      // Merkle root of all files in record
+	Signature   string `gorm:"not null;size:128"`     // Server signature of merkle+token
 
 	Metadata []MetadataStream `gorm:"foreignkey:RecordKey"` // User provided metadata
 	Files    []File           `gorm:"foreignkey:RecordKey"` // User provided files

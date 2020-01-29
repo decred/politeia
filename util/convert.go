@@ -81,3 +81,22 @@ func Zero(in []byte) {
 		in[i] ^= in[i]
 	}
 }
+
+// TokenToPrefix returns a substring a token of length pd.TokenPrefixLength,
+// or the token itself, whichever is shorter.
+func TokenToPrefix(token string) string {
+	if len(token) > pd.TokenPrefixLength {
+		return token[0:pd.TokenPrefixLength]
+	} else {
+		return token
+	}
+}
+
+// TokensToPrefixes calls TokenToPrefix on a slice of tokens.
+func TokensToPrefixes(tokens []string) []string {
+	prefixes := make([]string, 0, len(tokens))
+	for _, token := range tokens {
+		prefixes = append(prefixes, TokenToPrefix(token))
+	}
+	return prefixes
+}

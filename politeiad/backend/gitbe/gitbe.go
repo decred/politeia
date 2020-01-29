@@ -113,22 +113,23 @@ type file struct {
 // gitBackEnd is a git based backend context that satisfies the backend
 // interface.
 type gitBackEnd struct {
-	sync.Mutex                       // Global lock
-	cron            *cron.Cron       // Scheduler for periodic tasks
-	activeNetParams *chaincfg.Params // indicator if we are running on testnet
-	journal         *Journal         // Journal context
-	shutdown        bool             // Backend is shutdown
-	root            string           // Root directory
-	unvetted        string           // Unvettend content
-	vetted          string           // Vetted, public, visible content
-	journals        string           // Journals/cache
-	dcrtimeHost     string           // Dcrtimed host
-	gitPath         string           // Path to git
-	gitTrace        bool             // Enable git tracing
-	test            bool             // Set during UT
-	exit            chan struct{}    // Close channel
-	checkAnchor     chan struct{}    // Work notification
-	plugins         []backend.Plugin // Plugins
+	sync.Mutex                          // Global lock
+	cron            *cron.Cron          // Scheduler for periodic tasks
+	activeNetParams *chaincfg.Params    // indicator if we are running on testnet
+	journal         *Journal            // Journal context
+	shutdown        bool                // Backend is shutdown
+	root            string              // Root directory
+	unvetted        string              // Unvettend content
+	vetted          string              // Vetted, public, visible content
+	journals        string              // Journals/cache
+	dcrtimeHost     string              // Dcrtimed host
+	gitPath         string              // Path to git
+	gitTrace        bool                // Enable git tracing
+	test            bool                // Set during UT
+	exit            chan struct{}       // Close channel
+	checkAnchor     chan struct{}       // Work notification
+	plugins         []backend.Plugin    // Plugins
+	prefixCache     map[string]struct{} // Cache prefixes of existing tokens
 
 	// The following items are used for testing only
 	testAnchors map[string]bool // [digest]anchored
@@ -1157,6 +1158,111 @@ func (g *gitBackEnd) newRecord(token []byte, metadata []backend.MetadataStream, 
 	return rm, nil
 }
 
+// getVettedTokens gets the tokens of all vetted records by retrieving the
+// names of the folders in the vetted directory.
+//
+// Function must be called with the lock held.
+func (g *gitBackEnd) getVettedTokens() ([]string, error) {
+	files, err := ioutil.ReadDir(g.vetted)
+	if err != nil {
+		return nil, err
+	}
+
+	vettedTokens := make([]string, 0, len(files))
+	for _, v := range files {
+		id := v.Name()
+		if !util.IsDigest(id) {
+			continue
+		}
+		vettedTokens = append(vettedTokens, id)
+	}
+
+	return vettedTokens, nil
+}
+
+// getUnvettedTokens gets the tokens of all unvetted records by retrieving the
+// names of the git branches in the unvetted directory.
+//
+// Function must be called with the lock held.
+func (g *gitBackEnd) getUnvettedTokens() ([]string, error) {
+	branches, err := g.gitBranches(g.unvetted)
+	if err != nil {
+		return nil, err
+	}
+
+	unvettedTokens := make([]string, 0, len(branches))
+	for _, id := range branches {
+		if !util.IsDigest(id) {
+			continue
+		}
+		unvettedTokens = append(unvettedTokens, id)
+	}
+
+	return unvettedTokens, nil
+}
+
+// populateTokenPrefixCache populates the prefix cache on the gitBackEnd
+// object with the prefixes of the tokens of both vetted and unvetted
+// records. This cache is used to ensure that only tokens with unique prefixes
+// are generated, because this allows lookups based on the prefix of a token.
+//
+// This function must be called with the lock held.
+//
+// This must be called after the vetted and unvetted repos are created,
+// otherwise it will return an error.
+func (g *gitBackEnd) populateTokenPrefixCache() error {
+	vettedTokens, err := g.getVettedTokens()
+	if err != nil {
+		return err
+	}
+
+	unvettedTokens, err := g.getUnvettedTokens()
+	if err != nil {
+		return err
+	}
+
+	prefixCache := make(map[string]struct{},
+		len(vettedTokens)+len(unvettedTokens))
+
+	vettedPrefixes := util.TokensToPrefixes(vettedTokens)
+	unvettedPrefixes := util.TokensToPrefixes(unvettedTokens)
+
+	for _, prefix := range vettedPrefixes {
+		prefixCache[prefix] = struct{}{}
+	}
+	for _, prefix := range unvettedPrefixes {
+		prefixCache[prefix] = struct{}{}
+	}
+	g.prefixCache = prefixCache
+
+	return nil
+}
+
+// randomUniqueToken generates a new token of length pd.TokenSize which
+// does not share a prefix of length pd.TokenPrefixSize with any existing
+// token. This is needed to allow lookups based on the prefix of a token.
+//
+// This method must be called with the lock held.
+func (g *gitBackEnd) randomUniqueToken() ([]byte, error) {
+	TRIES := 1000
+	for i := 0; i < TRIES; i++ {
+		token, err := util.Random(pd.TokenSize)
+		if err != nil {
+			return nil, err
+		}
+
+		newToken := hex.EncodeToString(token)
+		prefix := util.TokenToPrefix(newToken)
+
+		if _, ok := g.prefixCache[prefix]; !ok {
+			g.prefixCache[prefix] = struct{}{}
+			return token, nil
+		}
+	}
+
+	return nil, fmt.Errorf("failed to find unique token after %v tries", TRIES)
+}
+
 // New takes a record verifies it and drops it on disk in the unvetted
 // directory.  Records and metadata are stored in unvetted/token/.  the
 // function returns a RecordMetadata.
@@ -1169,20 +1275,19 @@ func (g *gitBackEnd) New(metadata []backend.MetadataStream, files []backend.File
 		return nil, err
 	}
 
-	// Create a censorship token.
-	token, err := util.Random(pd.TokenSize)
-	if err != nil {
-		return nil, err
-	}
-
-	log.Debugf("New %x", token)
-
 	// Lock filesystem
 	g.Lock()
 	defer g.Unlock()
 	if g.shutdown {
 		return nil, backend.ErrShutdown
 	}
+
+	token, err := g.randomUniqueToken()
+	if err != nil {
+		return nil, err
+	}
+
+	log.Debugf("New %x", token)
 
 	// git checkout master
 	err = g.gitCheckout(g.unvetted, "master")
@@ -2525,7 +2630,11 @@ func (g *gitBackEnd) newLocked() error {
 	}
 	log.Infof("Running git fsck on unvetted repository")
 	_, err = g.gitFsck(g.unvetted)
-	return err
+	if err != nil {
+		return err
+	}
+
+	return g.populateTokenPrefixCache()
 }
 
 // rebasePR pushes branch id into upstream (vetted repo) and rebases it onto
@@ -2636,7 +2745,9 @@ func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, 
 		checkAnchor:     make(chan struct{}),
 		testAnchors:     make(map[string]bool),
 		plugins:         []backend.Plugin{getDecredPlugin(anp.Name != "mainnet")},
+		prefixCache:     make(map[string]struct{}),
 	}
+
 	idJSON, err := id.Marshal()
 	if err != nil {
 		return nil, err
