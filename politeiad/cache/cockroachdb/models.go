@@ -68,7 +68,7 @@ func (Record) TableName() string {
 //
 // This mdstream data is already saved to the cache as a MetadataStream with an
 // encoded payload. The ProposalGeneralMetadata duplicates existing data, but
-// is neccesary so that the metadata fields can be queried, which is not
+// is necessary so that the metadata fields can be queried, which is not
 // possible with the encoded MetadataStream payload. ProposalGeneralMetadata
 // is only saved for the most recent proposal version since this is the only
 // metadata that currently needs to be queried.
@@ -164,7 +164,7 @@ func (VoteOption) TableName() string {
 //
 // The data contained in the cache StartVote includes the decredplugin
 // StartVote and StartVoteReply mdstreams. These mdstreams are not saved in the
-// cache as seperate Record.Metadata for the given proposal. This means that
+// cache as separate Record.Metadata for the given proposal. This means that
 // this mdstream data will not be returned when a proposal record is fetched
 // from the cache. The cache StartVote must be queried directly to obtain this
 // data.

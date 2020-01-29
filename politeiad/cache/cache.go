@@ -144,7 +144,7 @@ type PluginDriver interface {
 	Setup() error
 
 	// Build the plugin tables from scratch. The given payload should
-	// provide all data neccesary to build the plugin tables.
+	// provide all data necessary to build the plugin tables.
 	Build(payload string) error
 
 	// Execute a plugin command. Some commands are executed by

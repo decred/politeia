@@ -1449,7 +1449,6 @@ func (d *decred) hookPostUpdateRecordMetadata(tx *gorm.DB, payload string) error
 	// mdstream tables, such as ProposalGeneralMetadata and StartVote,
 	// need to be properly updated in this hook.
 	panic("cache decred plugin: hookPostUpdateRecordMetadata not implemented")
-	return nil
 }
 
 // Hook executes the given decred plugin hook.
