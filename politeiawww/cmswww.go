@@ -404,6 +404,7 @@ func (p *politeiawww) handleCMSPolicy(w http.ResponseWriter, r *http.Request) {
 		CMSNameLocationSupportedChars: cms.PolicyCMSNameLocationSupportedChars,
 		CMSContactSupportedChars:      cms.PolicyCMSContactSupportedChars,
 		CMSSupportedDomains:           cms.PolicySupportedCMSDomains,
+		CMSSupportedLineItemTypes:     cms.PolicyCMSSupportedLineItemTypes,
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
