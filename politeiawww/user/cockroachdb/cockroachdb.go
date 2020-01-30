@@ -28,6 +28,7 @@ const (
 	tableKeyValue   = "key_value"
 	tableUsers      = "users"
 	tableIdentities = "identities"
+	tableSessions   = "sessions"
 
 	// Database user (read/write access)
 	userPoliteiawww = "politeiawww"
@@ -402,6 +403,127 @@ func (c *cockroachdb) AllUsers(callback func(u *user.User)) error {
 	return nil
 }
 
+// Store new session or update existing record.
+//
+// SessionSave satisfies the Database interface.
+func (c *cockroachdb) SessionSave(us user.Session) error {
+	log.Tracef("SessionSave: %v", us.ID)
+
+	if c.isShutdown() {
+		return user.ErrShutdown
+	}
+
+	var model Session
+	var update bool
+
+	err := c.userDB.
+		Where("id = ?", us.ID).
+		First(&model).
+		Error
+	if err == nil {
+		// session exists, update the record.
+		update = true
+	} else if err != gorm.ErrRecordNotFound {
+		return err
+	}
+
+	model = Session{
+		ID:     us.ID,
+		UserID: us.UserID,
+		Values: us.Values}
+
+	if update {
+		err = c.userDB.Save(&model).Error
+	} else {
+		err = c.userDB.Create(&model).Error
+	}
+	if err != nil {
+		return fmt.Errorf("create session: %v", err)
+	}
+
+	return nil
+}
+
+// Get a session by its id if present in the database.
+//
+// SessionGetById satisfies the Database interface.
+func (c *cockroachdb) SessionGetById(sid string) (*user.Session, error) {
+	log.Tracef("SessionGetById: %v", sid)
+
+	if c.isShutdown() {
+		return nil, user.ErrShutdown
+	}
+
+	var model Session
+	err := c.userDB.
+		Where("id = ?", sid).
+		First(&model).
+		Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			err = user.ErrSessionDoesNotExist
+		}
+		return nil, err
+	}
+
+	us := user.Session{
+		ID:     model.ID,
+		UserID: model.UserID,
+		Values: model.Values,
+	}
+	return &us, nil
+}
+
+// Delete the session with the given id.
+//
+// SessionDeleteById satisfies the Database interface.
+func (c *cockroachdb) SessionDeleteById(sid string) error {
+	log.Tracef("SessionDeleteById: %v", sid)
+
+	if c.isShutdown() {
+		return user.ErrShutdown
+	}
+
+	err := c.userDB.
+		Delete(Session{ID: sid}).
+		Error
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// Delete all sessions for the given user id except the one specified.
+//
+// SessionsDeleteByUserId satisfies the Database interface.
+func (c *cockroachdb) SessionsDeleteByUserId(uid uuid.UUID,
+	sessionToKeep string) error {
+	log.Tracef("SessionsDeleteByUserId: %v", uid)
+
+	if c.isShutdown() {
+		return user.ErrShutdown
+	}
+
+	var err error
+	// this may delete 0+ records, hence the transaction
+	tx := c.userDB.Begin()
+
+	if sessionToKeep == "" {
+		err = tx.
+			Delete(Session{}, "user_id = ?", uid).
+			Error
+	} else {
+		err = tx.
+			Delete(Session{}, "user_id = ? AND id != ?", uid, sessionToKeep).
+			Error
+	}
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	return tx.Commit().Error
+}
+
 // rotateKeys rotates the existing database encryption key with the given new
 // key.
 //
@@ -591,6 +713,12 @@ func (c *cockroachdb) createTables(tx *gorm.DB) error {
 	}
 	if !tx.HasTable(tableIdentities) {
 		err := tx.CreateTable(&Identity{}).Error
+		if err != nil {
+			return err
+		}
+	}
+	if !tx.HasTable(tableSessions) {
+		err := tx.CreateTable(&Session{}).Error
 		if err != nil {
 			return err
 		}

@@ -48,6 +48,18 @@ func (User) TableName() string {
 	return tableUsers
 }
 
+// Session represents a politeiawww user session.
+type Session struct {
+	ID     string    `gorm:"primary_key"` // Unique session id
+	UserID uuid.UUID `gorm:"not null"`    // User UUID (foreign key)
+	Values string    `gorm:"not null"`    // session values (base64 encoded)
+}
+
+// TableName returns the table name of the Session table.
+func (Session) TableName() string {
+	return tableSessions
+}
+
 // CMSUser represents a CMS user. A CMS user includes the politeiawww User
 // object as well as CMS specific user fields. A CMS user must correspond to
 // a politeiawww User.

@@ -24,7 +24,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
-	"github.com/gorilla/sessions"
 	"github.com/gorilla/websocket"
 	"github.com/robfig/cron"
 )
@@ -87,7 +86,7 @@ type politeiawww struct {
 	cfg    *config
 	router *mux.Router
 
-	store *sessions.FilesystemStore
+	store *SessionStore
 
 	ws    map[string]map[string]*wsContext // [uuid][]*context
 	wsMtx sync.RWMutex
@@ -171,22 +170,7 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 		Mode:    p.cfg.Mode,
 	}
 
-	// Check if there's an active AND invalid session.
-	session, err := p.getSession(r)
-	if err != nil && session != nil {
-		// Create and save a new session for the user.
-		session := sessions.NewSession(p.store, www.CookieSession)
-		opts := *p.store.Options
-		session.Options = &opts
-		session.IsNew = true
-		err = session.Save(r, w)
-		if err != nil {
-			RespondWithError(w, r, 0, "handleVersion: session.Save %v", err)
-			return
-		}
-	}
-
-	_, err = p.getSessionUser(w, r)
+	_, err := p.getSessionUser(w, r)
 	if err == nil {
 		versionReply.ActiveUserSession = true
 	}
@@ -271,7 +255,7 @@ func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Reque
 
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
-		if err != ErrSessionUUIDNotFound {
+		if err != errSessionNotFound {
 			RespondWithError(w, r, 0,
 				"handleProposalDetails: getSessionUser %v", err)
 			return
@@ -331,7 +315,7 @@ func (p *politeiawww) handleBatchProposals(w http.ResponseWriter, r *http.Reques
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		// This is a public route so a session might not exist
-		if err != ErrSessionUUIDNotFound {
+		if err != errSessionNotFound {
 			RespondWithError(w, r, 0,
 				"handleProposalDetails: getSessionUser %v", err)
 			return
@@ -381,7 +365,7 @@ func (p *politeiawww) handleCommentsGet(w http.ResponseWriter, r *http.Request) 
 
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
-		if err != ErrSessionUUIDNotFound {
+		if err != errSessionNotFound {
 			RespondWithError(w, r, 0,
 				"handleCommentsGet: getSessionUser %v", err)
 			return
@@ -522,9 +506,9 @@ func (p *politeiawww) handleTokenInventory(w http.ResponseWriter, r *http.Reques
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		// This is a public route so a session might not exist
-		if err != ErrSessionUUIDNotFound {
+		if err != errSessionNotFound {
 			RespondWithError(w, r, 0,
-				"handleProposalDetails: getSessionUser %v", err)
+				"handleTokenInventory: getSessionUser %v", err)
 			return
 		}
 	}
@@ -1056,36 +1040,36 @@ func (p *politeiawww) handleWebsocket(w http.ResponseWriter, r *http.Request, id
 func (p *politeiawww) handleUnauthenticatedWebsocket(w http.ResponseWriter, r *http.Request) {
 	// We are retrieving the uuid here to make sure it is NOT set. This
 	// check looks backwards but is correct.
-	id, err := p.getSessionUUID(r)
-	if err != nil && err != ErrSessionUUIDNotFound {
+	uid, err := p.getSessionUserID(w, r)
+	if err != nil && err != errSessionNotFound {
 		http.Error(w, "Could not get session uuid",
 			http.StatusBadRequest)
 		return
 	}
-	if id != "" {
+	if uid != "" {
 		http.Error(w, "Invalid session uuid", http.StatusBadRequest)
 		return
 	}
-	log.Tracef("handleUnauthenticatedWebsocket: %v", id)
-	defer log.Tracef("handleUnauthenticatedWebsocket exit: %v", id)
+	log.Tracef("handleUnauthenticatedWebsocket: %v", uid)
+	defer log.Tracef("handleUnauthenticatedWebsocket exit: %v", uid)
 
-	p.handleWebsocket(w, r, id)
+	p.handleWebsocket(w, r, uid)
 }
 
 // handleAuthenticatedWebsocket attempts to upgrade the current authenticated
 // connection to a websocket connection.
 func (p *politeiawww) handleAuthenticatedWebsocket(w http.ResponseWriter, r *http.Request) {
-	id, err := p.getSessionUUID(r)
+	uid, err := p.getSessionUserID(w, r)
 	if err != nil {
 		http.Error(w, "Could not get session uuid",
 			http.StatusBadRequest)
 		return
 	}
 
-	log.Tracef("handleAuthenticatedWebsocket: %v", id)
-	defer log.Tracef("handleAuthenticatedWebsocket exit: %v", id)
+	log.Tracef("handleAuthenticatedWebsocket: %v", uid)
+	defer log.Tracef("handleAuthenticatedWebsocket exit: %v", uid)
 
-	p.handleWebsocket(w, r, id)
+	p.handleWebsocket(w, r, uid)
 }
 
 // handleSetProposalStatus handles the incoming set proposal status command.

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"text/template"
+	"time"
 
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
@@ -32,7 +33,10 @@ var (
 		template.New("invite_approved_dcc_user").Parse(templateApproveDCCUserEmailRaw))
 )
 
-// getSession returns the active cookie session.
+// getSession returns the active cookie session. If no active cookie session
+// exists then a new session object is returned. This session object does not
+// have any session values set, such as user_id, and has not been saved to the
+// session store.
 func (p *politeiawww) getSession(r *http.Request) (*sessions.Session, error) {
 	return p.store.Get(r, www.CookieSession)
 }
@@ -47,32 +51,60 @@ func (p *politeiawww) isAdmin(w http.ResponseWriter, r *http.Request) (bool, err
 	return user.Admin, nil
 }
 
-// getSessionUUID returns the uuid address of the currently logged in user from
-// the session store.
-func (p *politeiawww) getSessionUUID(r *http.Request) (string, error) {
+func hasExpired(session *sessions.Session) (bool, error) {
+	createdAt, ok := session.Values["created_at"].(int64)
+	if !ok {
+		return false, fmt.Errorf("no created_at timestamp found")
+	}
+	timeNow := time.Now().Unix()
+	expiresAt := createdAt + int64(session.Options.MaxAge)
+	return timeNow > expiresAt, nil
+}
+
+// getSessionUserID returns the uuid address of the currently logged in user
+// from the session store.
+func (p *politeiawww) getSessionUserID(w http.ResponseWriter, r *http.Request) (string, error) {
 	session, err := p.getSession(r)
 	if err != nil {
 		return "", err
 	}
 
-	id, ok := session.Values["uuid"].(string)
+	// get the user for this session
+	uid, ok := session.Values["user_id"].(string)
 	if !ok {
-		return "", ErrSessionUUIDNotFound
+		return "", errSessionNotFound
 	}
-	log.Tracef("getSessionUUID: %v", session.ID)
 
-	return id, nil
+	obsolete, err := hasExpired(session)
+	if err != nil || obsolete {
+		// delete expired session
+		session.Options.MaxAge = -1
+		session.Save(r, w)
+		return "", errSessionNotFound
+	}
+	return uid, nil
+}
+
+// getSessionID returns the ID of the user's current session if it could be
+// obtained and an empty string otherwise.
+func (p *politeiawww) getSessionID(r *http.Request) string {
+	session, err := p.getSession(r)
+	if err != nil {
+		return ""
+	}
+
+	return session.ID
 }
 
 // getSessionUser retrieves the current session user from the database.
 func (p *politeiawww) getSessionUser(w http.ResponseWriter, r *http.Request) (*user.User, error) {
-	id, err := p.getSessionUUID(r)
+	uid, err := p.getSessionUserID(w, r)
 	if err != nil {
 		return nil, err
 	}
 
-	log.Tracef("getSessionUser: %v", id)
-	pid, err := uuid.Parse(id)
+	log.Tracef("getSessionUser: %v", uid)
+	pid, err := uuid.Parse(uid)
 	if err != nil {
 		return nil, err
 	}
@@ -92,19 +124,21 @@ func (p *politeiawww) getSessionUser(w http.ResponseWriter, r *http.Request) (*u
 	return user, nil
 }
 
-// setSessionUserID sets the "uuid" session key to the provided value.
-func (p *politeiawww) setSessionUserID(w http.ResponseWriter, r *http.Request, id string) error {
-	log.Tracef("setSessionUserID: %v %v", id, www.CookieSession)
+// initSession adds a session record to the database and links it to the given
+// user ID.
+func (p *politeiawww) initSession(w http.ResponseWriter, r *http.Request, uid string) error {
+	log.Tracef("initSession: %v %v", uid, www.CookieSession)
 	session, err := p.getSession(r)
 	if err != nil {
 		return err
 	}
+	session.Values["created_at"] = time.Now().Unix()
+	session.Values["user_id"] = uid
 
-	session.Values["uuid"] = id
 	return session.Save(r, w)
 }
 
-// removeSession deletes the session from the filesystem.
+// removeSession deletes the session (from the database).
 func (p *politeiawww) removeSession(w http.ResponseWriter, r *http.Request) error {
 	log.Tracef("removeSession: %v", www.CookieSession)
 	session, err := p.getSession(r)
@@ -112,13 +146,7 @@ func (p *politeiawww) removeSession(w http.ResponseWriter, r *http.Request) erro
 		return err
 	}
 
-	// Check for invalid session.
-	if session.ID == "" {
-		return nil
-	}
-
-	// Saving the session with a negative MaxAge will cause it to be deleted
-	// from the filesystem.
+	// Saving the session with a negative MaxAge will cause it to be deleted.
 	session.Options.MaxAge = -1
 	return session.Save(r, w)
 }
@@ -240,11 +268,11 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Mark user as logged in if there's no error.
-	err = p.setSessionUserID(w, r, reply.UserID)
+	// initialize a session for the logged in user
+	err = p.initSession(w, r, reply.UserID)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleLogin: setSessionUser %v", err)
+			"handleLogin: initSession %v", err)
 		return
 	}
 
@@ -324,6 +352,21 @@ func (p *politeiawww) handleVerifyResetPassword(w http.ResponseWriter, r *http.R
 		RespondWithError(w, r, 0,
 			"handleVerifyResetPassword: processVerifyResetPassword %v", err)
 		return
+	}
+
+	// Log off the user everywhere by deleting all sessions associated
+	// with the user's ID. If anything fails here log the error instead
+	// of returning it since the password change was already successful.
+	user, err := p.db.UserGetByUsername(vrp.Username)
+	if err != nil {
+		log.Errorf("handleVerifyResetPassword: failed to delete user "+
+			"sessions UserGetByUsername(%v) error: %v", vrp.Username, err)
+	} else {
+		err = p.db.SessionsDeleteByUserId(user.ID, "")
+		if err != nil {
+			log.Errorf("handleVerifyResetPassword: SessionsDeleteByUserId(%v): %v",
+				user.ID, err)
+		}
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
@@ -525,6 +568,14 @@ func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Reques
 		RespondWithError(w, r, 0,
 			"handleChangePassword: processChangePassword %v", err)
 		return
+	}
+
+	// valid, authenticated user changing his password,
+	// delete all sesssions except this current one
+	err = p.db.SessionsDeleteByUserId(user.ID, p.getSessionID(r))
+	if err != nil {
+		log.Errorf("handleChangePassword: SessionsDeleteByUserId(%v): %v",
+			user.ID, err)
 	}
 
 	// Reply with the error code.

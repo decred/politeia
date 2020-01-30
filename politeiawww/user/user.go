@@ -17,6 +17,10 @@ import (
 )
 
 var (
+	// ErrSessionDoesNotExist indicates that a user session was not found in the
+	// database.
+	ErrSessionDoesNotExist = errors.New("no user session found")
+
 	// ErrUserNotFound indicates that a user name was not found in the
 	// database.
 	ErrUserNotFound = errors.New("user not found")
@@ -373,6 +377,35 @@ type Plugin struct {
 	Settings []PluginSetting
 }
 
+// Session represents a user session.
+type Session struct {
+	ID     string    `json:"id"`     // Unique session id
+	UserID uuid.UUID `json:"userid"` // The user's uuid
+	Values string    `json:"values"` // session values (encoded)
+}
+
+// EncodeSession encodes Session into a JSON byte slice.
+func EncodeSession(s Session) ([]byte, error) {
+	b, err := json.Marshal(s)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+// DecodeSession decodes a JSON byte slice into a Session.
+func DecodeSession(payload []byte) (*Session, error) {
+	var s Session
+
+	err := json.Unmarshal(payload, &s)
+	if err != nil {
+		return nil, err
+	}
+
+	return &s, nil
+}
+
 // Database describes the interface used for interacting with the user
 // database.
 type Database interface {
@@ -396,6 +429,18 @@ type Database interface {
 
 	// Iterate over all users
 	AllUsers(callbackFn func(u *User)) error
+
+	// Create or update a session for an authenticated user
+	SessionSave(Session) error
+
+	// Return user session record given its id
+	SessionGetById(string) (*Session, error)
+
+	// Delete the session with the given id
+	SessionDeleteById(string) error
+
+	// Delete all sessions with the given user id except the one specified.
+	SessionsDeleteByUserId(uid uuid.UUID, sessionToKeep string) error
 
 	// Register a plugin
 	RegisterPlugin(Plugin) error

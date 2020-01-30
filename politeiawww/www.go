@@ -39,7 +39,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
-	"github.com/gorilla/sessions"
 	"github.com/robfig/cron"
 )
 
@@ -55,9 +54,9 @@ const (
 )
 
 var (
-	// ErrSessionUUIDNotFound is emitted when a UUID value is not found
-	// in a session and indicates that the user is not logged in.
-	ErrSessionUUIDNotFound = errors.New("session UUID not found")
+	// errSessionNotFound is emitted when a session is not found and indicates
+	// that the user is not logged in.
+	errSessionNotFound = errors.New("session not found")
 )
 
 // Fetch remote identity
@@ -172,6 +171,13 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 				ErrorContext: pdError.ErrorReply.ErrorContext,
 			})
 		return
+	}
+
+	if err, ok := args[0].(error); ok {
+		// user session was deleted e.g. due to a password change or expired?
+		if err == errSessionNotFound {
+			http.Redirect(w, r, "/", http.StatusFound)
+		}
 	}
 
 	errorCode := time.Now().Unix()
@@ -629,14 +635,7 @@ func _main() error {
 	if err != nil {
 		return err
 	}
-	p.store = sessions.NewFilesystemStore(sessionsDir, cookieKey)
-	p.store.Options = &sessions.Options{
-		Path:     "/",
-		MaxAge:   sessionMaxAge,
-		Secure:   true,
-		HttpOnly: true,
-		SameSite: http.SameSiteStrictMode,
-	}
+	p.store = NewSessionStore(p.db, cookieKey)
 
 	// Bind to a port and pass our router in
 	listenC := make(chan error)
