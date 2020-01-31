@@ -50,7 +50,13 @@ const (
 	permissionAdmin
 
 	csrfKeyLength = 32
-	sessionMaxAge = 86400 //One day
+	sessionMaxAge = 86400 // One day
+
+	// Session value keys. A user session contains a map that is used
+	// for application specific values. The following is a list of the
+	// keys for the politeiawww user session values map.
+	sessionValueUserID    = "user_id"
+	sessionValueCreatedAt = "created_at"
 )
 
 var (
@@ -635,7 +641,7 @@ func _main() error {
 	if err != nil {
 		return err
 	}
-	p.store = NewSessionStore(p.db, cookieKey)
+	p.sessions = NewSessionStore(p.db, cookieKey)
 
 	// Bind to a port and pass our router in
 	listenC := make(chan error)

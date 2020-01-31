@@ -42,6 +42,16 @@ func (p *politeiawww) isLoggedIn(f http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// isAdmin returns true if the current session has admin privileges.
+func (p *politeiawww) isAdmin(w http.ResponseWriter, r *http.Request) (bool, error) {
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		return false, err
+	}
+
+	return user.Admin, nil
+}
+
 // isLoggedInAsAdmin ensures that a user is logged in as an admin user
 // before calling the next function.
 func (p *politeiawww) isLoggedInAsAdmin(f http.HandlerFunc) http.HandlerFunc {

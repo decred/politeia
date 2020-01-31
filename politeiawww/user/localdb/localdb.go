@@ -410,19 +410,19 @@ func (l *localdb) SessionSave(s user.Session) error {
 
 // Get a session by its id if present in the database.
 //
-// SessionGetById satisfies the Database interface.
-func (l *localdb) SessionGetById(sid string) (*user.Session, error) {
+// SessionGetByID satisfies the Database interface.
+func (l *localdb) SessionGetByID(sid string) (*user.Session, error) {
 	l.RLock()
 	defer l.RUnlock()
 
 	if l.shutdown {
 		return nil, user.ErrShutdown
 	}
-	log.Debugf("SessionGetById: %v", sid)
+	log.Debugf("SessionGetByID: %v", sid)
 
 	payload, err := l.userdb.Get([]byte(sessionPrefix+sid), nil)
 	if err == leveldb.ErrNotFound {
-		return nil, user.ErrSessionDoesNotExist
+		return nil, user.ErrSessionNotFound
 	} else if err != nil {
 		return nil, err
 	}
@@ -438,14 +438,14 @@ func (l *localdb) SessionGetById(sid string) (*user.Session, error) {
 // Delete the session with the given id.
 //
 // SessionDeleteById satisfies the Database interface.
-func (l *localdb) SessionDeleteById(sid string) error {
+func (l *localdb) SessionDeleteByID(sid string) error {
 	l.RLock()
 	defer l.RUnlock()
 
 	if l.shutdown {
 		return user.ErrShutdown
 	}
-	log.Debugf("SessionDeleteById: %v", sid)
+	log.Debugf("SessionDeleteByID: %v", sid)
 
 	err := l.userdb.Delete([]byte(sessionPrefix+sid), nil)
 	if err != nil {
@@ -458,7 +458,7 @@ func (l *localdb) SessionDeleteById(sid string) error {
 // Delete all sessions for the given user id except the one specified.
 //
 // SessionsDeleteByUserId satisfies the Database interface.
-func (l *localdb) SessionsDeleteByUserId(uid uuid.UUID,
+func (l *localdb) SessionsDeleteByUserID(uid uuid.UUID,
 	sessionToKeep string) error {
 	l.RLock()
 	defer l.RUnlock()
@@ -467,7 +467,7 @@ func (l *localdb) SessionsDeleteByUserId(uid uuid.UUID,
 		return user.ErrShutdown
 	}
 
-	log.Debugf("SessionsDeleteByUserId %v", uid)
+	log.Debugf("SessionsDeleteByUserID %v", uid)
 
 	batch := new(leveldb.Batch)
 	iter := l.userdb.NewIterator(util.BytesPrefix([]byte(sessionPrefix)), nil)

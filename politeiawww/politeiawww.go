@@ -83,10 +83,9 @@ func (w *wsContext) isAuthenticated() bool {
 
 // politeiawww application context.
 type politeiawww struct {
-	cfg    *config
-	router *mux.Router
-
-	store *SessionStore
+	cfg      *config
+	router   *mux.Router
+	sessions *SessionStore
 
 	ws    map[string]map[string]*wsContext // [uuid][]*context
 	wsMtx sync.RWMutex

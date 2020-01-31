@@ -48,22 +48,14 @@ func (User) TableName() string {
 	return tableUsers
 }
 
-// Session represents a politeiawww user session. The actual session data is
-// stored as an encrypted blob. Lookups can be done using either a SHA256 hash
-// of the session ID or the user ID.
+// Session represents a user session. The actual session data is stored as an
+// encrypted blob. Lookups can be done using either the user ID or a SHA256
+// hash of the session ID.
 type Session struct {
 	Key    string    `gorm:"primary_key"` // SHA256 hash of the session ID
 	UserID uuid.UUID `gorm:"not null"`    // User UUID (foreign key)
-	Blob   []byte    `gorm:"not null"`
+	Blob   []byte    `gorm:"not null"`    // Encrypted user session
 }
-
-/*
-type Session struct {
-	ID     string    `gorm:"primary_key"` // Unique session id
-	UserID uuid.UUID `gorm:"not null"`    // User UUID (foreign key)
-	Values string    `gorm:"not null"`    // session values (base64 encoded)
-}
-*/
 
 // TableName returns the table name of the Session table.
 func (Session) TableName() string {

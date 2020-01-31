@@ -19,7 +19,7 @@ import (
 // SessionStore stores sessions in the database.
 //
 // Please note: this is (by and large) a clone of gorilla mux'
-// `sessions.FilesystemStore` with the save(), load() and erase()
+// `sessions.FilesystemStore` with the save() and load()
 // methods adapted to use the database as the backing storage.
 type SessionStore struct {
 	Codecs  []securecookie.Codec
@@ -60,8 +60,10 @@ func NewSessionStore(db user.Database, keyPairs ...[]byte) *SessionStore {
 
 // Get returns a session for the given name after adding it to the registry.
 //
-// It returns a new session if the sessions doesn't exist. Access IsNew on
-// the session to check if it is an existing session or a new one.
+// It returns a new session if the sessions doesn't exist. Access IsNew on the
+// session to check if it is an existing session or a new one. The new session
+// will not have any sessions values set and has been saved to the session
+// store yet.
 //
 // It returns a new session and an error if the session exists but could
 // not be decoded.
@@ -87,7 +89,7 @@ func (s *SessionStore) New(r *http.Request, name string) (*sessions.Session, err
 			if err == nil {
 				// Session found in database
 				session.IsNew = false
-			} else if err == user.ErrSessionDoesNotExist {
+			} else if err == user.ErrSessionNotFound {
 				// Session not found in database, return the *new* session
 			} else {
 				return nil, err
@@ -99,14 +101,15 @@ func (s *SessionStore) New(r *http.Request, name string) (*sessions.Session, err
 
 // Save adds a single session to the response.
 //
-// If the Options.MaxAge of the session is <= 0 then the session file will be
+// If the Options.MaxAge of the session is <= 0 then the session will be
 // deleted from the database. With this process it enforces proper session
 // cookie handling so no need to trust in the cookie management in the web
 // browser.
 func (s *SessionStore) Save(r *http.Request, w http.ResponseWriter, session *sessions.Session) error {
 	// Delete if max-age is <= 0
 	if session.Options.MaxAge <= 0 {
-		if err := s.erase(session); err != nil {
+		err := s.db.SessionDeleteByID(session.ID)
+		if err != nil {
 			return err
 		}
 		http.SetCookie(w, sessions.NewCookie(session.Name(), "", session.Options))
@@ -146,10 +149,11 @@ func (s *SessionStore) MaxAge(age int) {
 	}
 }
 
-// save writes encoded session.Values to the database.
+// save saves the session to the database. New sessions are inserted into the
+// database. Existing sessions are updated in the database.
 func (s *SessionStore) save(session *sessions.Session) error {
-	// get the user for this session
-	id, ok := session.Values["user_id"].(string)
+	// Parse user ID
+	id, ok := session.Values[sessionValueUserID].(string)
 	if !ok {
 		return fmt.Errorf("no user_id found in session")
 	}
@@ -158,23 +162,24 @@ func (s *SessionStore) save(session *sessions.Session) error {
 		return err
 	}
 
+	// Encode session values
 	encoded, err := securecookie.EncodeMulti(session.Name(), session.Values,
 		s.Codecs...)
 	if err != nil {
 		return err
 	}
-	us := user.Session{
+
+	// Update database
+	return s.db.SessionSave(user.Session{
 		ID:     session.ID,
 		Values: encoded,
 		UserID: uid,
-	}
-
-	return s.db.SessionSave(us)
+	})
 }
 
 // load reads a database record and decodes its content into session.Values.
 func (s *SessionStore) load(session *sessions.Session) error {
-	us, err := s.db.SessionGetById(session.ID)
+	us, err := s.db.SessionGetByID(session.ID)
 	if err != nil {
 		return err
 	}
@@ -184,9 +189,4 @@ func (s *SessionStore) load(session *sessions.Session) error {
 		return err
 	}
 	return nil
-}
-
-// delete removes the database record for the provided session.
-func (s *SessionStore) erase(session *sessions.Session) error {
-	return s.db.SessionDeleteById(session.ID)
 }

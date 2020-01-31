@@ -403,9 +403,10 @@ func (c *cockroachdb) AllUsers(callback func(u *user.User)) error {
 	return nil
 }
 
-// Store new session or update existing record.
+// SessionSave saves the given session to the database. New sessions are
+// inserted into the database. Existing sessions are updated in the database.
 //
-// SessionSave satisfies the Database interface.
+// SessionSave satisfies the user Database interface.
 func (c *cockroachdb) SessionSave(us user.Session) error {
 	log.Tracef("SessionSave: %v", us.ID)
 
@@ -413,33 +414,61 @@ func (c *cockroachdb) SessionSave(us user.Session) error {
 		return user.ErrShutdown
 	}
 
-	var model Session
+	// Check if session already exists
 	var update bool
-
+	var session Session
 	err := c.userDB.
 		Where("id = ?", us.ID).
-		First(&model).
+		Find(&session).
 		Error
-	if err == nil {
-		// session exists, update the record.
+	if err == gorm.ErrRecordNotFound {
+		// Session already exists. Update session instead of
+		// creating a new one.
 		update = true
-	} else if err != gorm.ErrRecordNotFound {
-		return err
+	} else if err != nil {
+		return fmt.Errorf("lookup: %v", err)
 	}
+	_ = update
 
-	model = Session{
-		ID:     us.ID,
-		UserID: us.UserID,
-		Values: us.Values}
+	/*
+		// Save session
+		session = Session{
+			Key:    us.ID,
+			UserID: us.UserID,
+			Blob:   b,
+		}
 
-	if update {
-		err = c.userDB.Save(&model).Error
-	} else {
-		err = c.userDB.Create(&model).Error
-	}
-	if err != nil {
-		return fmt.Errorf("create session: %v", err)
-	}
+		if update {
+		}
+
+			var model Session
+			var update bool
+
+			err := c.userDB.
+				Where("id = ?", us.ID).
+				First(&model).
+				Error
+			if err == nil {
+				// session exists, update the record.
+				update = true
+			} else if err != gorm.ErrRecordNotFound {
+				return err
+			}
+
+			model = Session{
+				ID:     us.ID,
+				UserID: us.UserID,
+				Values: us.Values}
+
+			if update {
+				err = c.userDB.Save(&model).Error
+			} else {
+				err = c.userDB.Create(&model).Error
+			}
+			if err != nil {
+				return fmt.Errorf("create session: %v", err)
+			}
+	*/
 
 	return nil
 }
@@ -447,7 +476,7 @@ func (c *cockroachdb) SessionSave(us user.Session) error {
 // Get a session by its id if present in the database.
 //
 // SessionGetById satisfies the Database interface.
-func (c *cockroachdb) SessionGetById(sid string) (*user.Session, error) {
+func (c *cockroachdb) SessionGetByID(sid string) (*user.Session, error) {
 	log.Tracef("SessionGetById: %v", sid)
 
 	if c.isShutdown() {
@@ -461,42 +490,50 @@ func (c *cockroachdb) SessionGetById(sid string) (*user.Session, error) {
 		Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			err = user.ErrSessionDoesNotExist
+			err = user.ErrSessionNotFound
 		}
 		return nil, err
 	}
 
-	us := user.Session{
-		ID:     model.ID,
-		UserID: model.UserID,
-		Values: model.Values,
-	}
-	return &us, nil
+	/*
+		us := user.Session{
+			ID:     model.ID,
+			UserID: model.UserID,
+			Values: model.Values,
+		}
+		return &us, nil
+	*/
+
+	return nil, nil
 }
 
 // Delete the session with the given id.
 //
 // SessionDeleteById satisfies the Database interface.
-func (c *cockroachdb) SessionDeleteById(sid string) error {
+func (c *cockroachdb) SessionDeleteByID(sid string) error {
 	log.Tracef("SessionDeleteById: %v", sid)
 
 	if c.isShutdown() {
 		return user.ErrShutdown
 	}
 
-	err := c.userDB.
-		Delete(Session{ID: sid}).
-		Error
-	if err != nil {
-		return err
-	}
+	/*
+		err := c.userDB.
+			Delete(Session{
+				ID: sid,
+			}).
+			Error
+		if err != nil {
+			return err
+		}
+	*/
 	return nil
 }
 
 // Delete all sessions for the given user id except the one specified.
 //
 // SessionsDeleteByUserId satisfies the Database interface.
-func (c *cockroachdb) SessionsDeleteByUserId(uid uuid.UUID,
+func (c *cockroachdb) SessionsDeleteByUserID(uid uuid.UUID,
 	sessionToKeep string) error {
 	log.Tracef("SessionsDeleteByUserId: %v", uid)
 

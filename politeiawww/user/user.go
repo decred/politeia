@@ -17,15 +17,16 @@ import (
 )
 
 var (
-	// ErrSessionDoesNotExist indicates that a user session was not found in the
-	// database.
-	ErrSessionDoesNotExist = errors.New("no user session found")
+	// ErrSessionNotFound indicates that a user session was not found
+	// in the database.
+	ErrSessionNotFound = errors.New("no user session found")
 
 	// ErrUserNotFound indicates that a user name was not found in the
 	// database.
 	ErrUserNotFound = errors.New("user not found")
 
-	// ErrUserExists indicates that a user already exists in the database.
+	// ErrUserExists indicates that a user already exists in the
+	// database.
 	ErrUserExists = errors.New("user already exists")
 
 	// ErrShutdown is emitted when the database is shutting down.
@@ -378,11 +379,17 @@ type Plugin struct {
 }
 
 // Session represents a user session.
+//
+// The encoded session values decodes to a map[interface{}]interface{}. The
+// encodeding/decodeding is handled by the gorilla/securecookie package.
 type Session struct {
-	ID     string    `json:"id"`     // Unique session id
-	UserID uuid.UUID `json:"userid"` // The user's uuid
-	Values string    `json:"values"` // session values (encoded)
+	ID     string    `json:"id"`     // Unique session ID
+	UserID uuid.UUID `json:"userid"` // User UUID
+	Values string    `json:"values"` // Encoded session values
 }
+
+// VersionSession is the version of the Session struct.
+const VersionSession uint32 = 1
 
 // EncodeSession encodes Session into a JSON byte slice.
 func EncodeSession(s Session) ([]byte, error) {
@@ -434,13 +441,13 @@ type Database interface {
 	SessionSave(Session) error
 
 	// Return user session record given its id
-	SessionGetById(string) (*Session, error)
+	SessionGetByID(sessionID string) (*Session, error)
 
 	// Delete the session with the given id
-	SessionDeleteById(string) error
+	SessionDeleteByID(sessionID string) error
 
 	// Delete all sessions with the given user id except the one specified.
-	SessionsDeleteByUserId(uid uuid.UUID, sessionToKeep string) error
+	SessionsDeleteByUserID(uid uuid.UUID, sessionToKeep string) error
 
 	// Register a plugin
 	RegisterPlugin(Plugin) error
