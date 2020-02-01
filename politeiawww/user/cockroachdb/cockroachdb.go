@@ -414,60 +414,21 @@ func (c *cockroachdb) SessionSave(us user.Session) error {
 		return user.ErrShutdown
 	}
 
-	// Check if session already exists
-	var update bool
-	var session Session
-	err := c.userDB.
-		Where("id = ?", us.ID).
-		Find(&session).
-		Error
-	if err == gorm.ErrRecordNotFound {
-		// Session already exists. Update session instead of
-		// creating a new one.
-		update = true
-	} else if err != nil {
-		return fmt.Errorf("lookup: %v", err)
-	}
-	_ = update
-
 	/*
-		// Save session
-		session = Session{
-			Key:    us.ID,
-			UserID: us.UserID,
-			Blob:   b,
+		// Check if session already exists
+		var update bool
+		var session Session
+		err := c.userDB.
+			Where("id = ?", us.ID).
+			Find(&session).
+			Error
+		if err == gorm.ErrRecordNotFound {
+			// Session already exists. Update session instead of
+			// creating a new one.
+			update = true
+		} else if err != nil {
+			return fmt.Errorf("lookup: %v", err)
 		}
-
-		if update {
-		}
-
-			var model Session
-			var update bool
-
-			err := c.userDB.
-				Where("id = ?", us.ID).
-				First(&model).
-				Error
-			if err == nil {
-				// session exists, update the record.
-				update = true
-			} else if err != gorm.ErrRecordNotFound {
-				return err
-			}
-
-			model = Session{
-				ID:     us.ID,
-				UserID: us.UserID,
-				Values: us.Values}
-
-			if update {
-				err = c.userDB.Save(&model).Error
-			} else {
-				err = c.userDB.Create(&model).Error
-			}
-			if err != nil {
-				return fmt.Errorf("create session: %v", err)
-			}
 	*/
 
 	return nil
@@ -483,25 +444,25 @@ func (c *cockroachdb) SessionGetByID(sid string) (*user.Session, error) {
 		return nil, user.ErrShutdown
 	}
 
-	var model Session
-	err := c.userDB.
-		Where("id = ?", sid).
-		First(&model).
-		Error
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			err = user.ErrSessionNotFound
-		}
-		return nil, err
-	}
-
 	/*
-		us := user.Session{
-			ID:     model.ID,
-			UserID: model.UserID,
-			Values: model.Values,
+		var model Session
+		err := c.userDB.
+			Where("id = ?", sid).
+			First(&model).
+			Error
+		if err != nil {
+			if err == gorm.ErrRecordNotFound {
+				err = user.ErrSessionNotFound
+			}
+			return nil, err
 		}
-		return &us, nil
+
+			us := user.Session{
+				ID:     model.ID,
+				UserID: model.UserID,
+				Values: model.Values,
+			}
+			return &us, nil
 	*/
 
 	return nil, nil
@@ -541,24 +502,27 @@ func (c *cockroachdb) SessionsDeleteByUserID(uid uuid.UUID,
 		return user.ErrShutdown
 	}
 
-	var err error
-	// this may delete 0+ records, hence the transaction
-	tx := c.userDB.Begin()
+	/*
+		var err error
+		// this may delete 0+ records, hence the transaction
+		tx := c.userDB.Begin()
 
-	if sessionToKeep == "" {
-		err = tx.
-			Delete(Session{}, "user_id = ?", uid).
-			Error
-	} else {
-		err = tx.
-			Delete(Session{}, "user_id = ? AND id != ?", uid, sessionToKeep).
-			Error
-	}
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-	return tx.Commit().Error
+		if sessionToKeep == "" {
+			err = tx.
+				Delete(Session{}, "user_id = ?", uid).
+				Error
+		} else {
+			err = tx.
+				Delete(Session{}, "user_id = ? AND id != ?", uid, sessionToKeep).
+				Error
+		}
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+		return tx.Commit().Error
+	*/
+	return nil
 }
 
 // rotateKeys rotates the existing database encryption key with the given new
