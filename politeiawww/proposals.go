@@ -523,9 +523,9 @@ func (p *politeiawww) getPropVersion(token, version string) (*www.ProposalRecord
 	return p.fillProposalMissingFields(&pr), nil
 }
 
-// getProp gets the most recent verions of the given proposal from the cache
-// using its prefix, and then fills in any missing fields before returning
-// the proposal.
+// getPropByPrefix gets the most recent verions of the given proposal from the
+// cache using its prefix, and then fills in any missing fields before
+// returning the proposal.
 func (p *politeiawww) getPropByPrefix(prefix string) (*www.ProposalRecord, error) {
 	log.Tracef("getPropByPrefix: %v", prefix)
 
