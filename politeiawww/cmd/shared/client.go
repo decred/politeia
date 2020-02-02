@@ -787,6 +787,30 @@ func (c *Client) ProposalDetails(token string, pd *v1.ProposalsDetails) (*v1.Pro
 	return &pr, nil
 }
 
+// ShortProposalDetails retrieves the specified proposal using the prefix of
+// its token.
+func (c *Client) ShortProposalDetails(prefix string) (*v1.ProposalDetailsReply, error) {
+	responseBody, err := c.makeRequest("GET", "/proposals/"+prefix, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var pr v1.ProposalDetailsReply
+	err = json.Unmarshal(responseBody, &pr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal ProposalDetailsReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(pr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &pr, nil
+}
+
 // UserProposals retrieves the proposals that have been submitted by the
 // specified user.
 func (c *Client) UserProposals(up *v1.UserProposals) (*v1.UserProposalsReply, error) {

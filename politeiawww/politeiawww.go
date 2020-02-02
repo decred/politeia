@@ -12,6 +12,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg"
+	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/cache"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
@@ -156,11 +157,12 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleVersion")
 
 	versionReply := www.VersionReply{
-		Version: www.PoliteiaWWWAPIVersion,
-		Route:   www.PoliteiaWWWAPIRoute,
-		PubKey:  hex.EncodeToString(p.cfg.Identity.Key[:]),
-		TestNet: p.cfg.TestNet,
-		Mode:    p.cfg.Mode,
+		Version:           www.PoliteiaWWWAPIVersion,
+		Route:             www.PoliteiaWWWAPIRoute,
+		PubKey:            hex.EncodeToString(p.cfg.Identity.Key[:]),
+		TestNet:           p.cfg.TestNet,
+		Mode:              p.cfg.Mode,
+		TokenPrefixLength: pd.TokenPrefixLength,
 	}
 
 	// Check if there's an active AND invalid session.
@@ -239,6 +241,36 @@ func (p *politeiawww) handleAllVetted(w http.ResponseWriter, r *http.Request) {
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, vr)
+}
+
+// handleShortProposalDetails handles the incoming short proposal details
+// command. It fetches the complete details for an existing proposal using
+// the prefix of its token.
+func (p *politeiawww) handleShortProposalDetails(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleProposalDetails")
+
+	// Get token prefix from path parameters
+	pathParams := mux.Vars(r)
+	tokenPrefix := pathParams["tokenPrefix"]
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		if err != ErrSessionUUIDNotFound {
+			RespondWithError(w, r, 0,
+				"handleProposalDetails: getSessionUser %v", err)
+			return
+		}
+	}
+
+	reply, err := p.processShortProposalDetails(tokenPrefix, user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleShortProposalDetails: processShortProposalDetails %v", err)
+		return
+	}
+
+	// Reply with the proposal details.
+	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
 // handleProposalDetails handles the incoming proposal details command. It
@@ -1096,6 +1128,8 @@ func (p *politeiawww) setPoliteiaWWWRoutes() {
 		permissionPublic)
 	p.addRoute(http.MethodGet, www.RouteProposalDetails,
 		p.handleProposalDetails, permissionPublic)
+	p.addRoute(http.MethodGet, www.RouteShortProposalDetails,
+		p.handleShortProposalDetails, permissionPublic)
 	p.addRoute(http.MethodGet, www.RoutePolicy, p.handlePolicy,
 		permissionPublic)
 	p.addRoute(http.MethodGet, www.RouteCommentsGet, p.handleCommentsGet,

@@ -45,6 +45,8 @@ func (cmd *HelpCmd) Execute(args []string) error {
 		fmt.Printf("%s\n", userDetailsHelpMsg)
 	case "proposaldetails":
 		fmt.Printf("%s\n", proposalDetailsHelpMsg)
+	case "shortproposaldetails":
+		fmt.Printf("%s\n", shortProposalDetailsHelpMsg)
 	case "userproposals":
 		fmt.Printf("%s\n", userProposalsHelpMsg)
 	case "vettedproposals":
