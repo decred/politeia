@@ -56,6 +56,7 @@ const (
 	RouteAllVoteStatus            = "/proposals/votestatus"
 	RouteProposalPaywallDetails   = "/proposals/paywall"
 	RouteProposalPaywallPayment   = "/proposals/paywallpayment"
+	RouteShortProposalDetails     = "/proposals/{tokenPrefix:[A-z0-9]{6}}"
 	RouteProposalDetails          = "/proposals/{token:[A-z0-9]{64}}"
 	RouteSetProposalStatus        = "/proposals/{token:[A-z0-9]{64}}/status"
 	RouteCommentsGet              = "/proposals/{token:[A-z0-9]{64}}/comments"
@@ -483,6 +484,7 @@ type VersionReply struct {
 	TestNet           bool   `json:"testnet"`           // Network indicator
 	Mode              string `json:"mode"`              // current politeiawww mode running (piwww or cmswww)
 	ActiveUserSession bool   `json:"activeusersession"` // indicates if there is an active user session
+	TokenPrefixLength int    `json:"tokenprefixlength"` // prefix length needed for short proposal details route
 }
 
 // NewUser is used to request that a new user be created within the db.

@@ -26,8 +26,9 @@ Arguments: None
 
 Result:
 {
-  "version":  (string)  Version of backend 
-  "route":    (string)  Version route
-  "pubkey":   (string)  Server public key
-  "testnet":  (bool)    Whether of not testnet is being used
+  "version":           (string)  Version of backend 
+  "route":             (string)  Version route
+  "pubkey":            (string)  Server public key
+  "testnet":           (bool)    Whether of not testnet is being used
+  "tokenprefixlength": (number)  Length of prefix needed for short token prefix request  
 }`
