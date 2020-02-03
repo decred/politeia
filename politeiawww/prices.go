@@ -237,7 +237,7 @@ func (p *politeiawww) processInvoiceExchangeRate(ier cms.InvoiceExchangeRate) (c
 		if err == database.ErrExchangeRateNotFound {
 			monthAvgRaw, err := p.getMonthAverage(time.Month(ier.Month), int(ier.Year))
 			if err != nil {
-				log.Error("processInvoiceExchangeRate: getMonthAverage: %v", err)
+				log.Errorf("processInvoiceExchangeRate: getMonthAverage: %v", err)
 				return reply, www.UserError{
 					ErrorCode: cms.ErrorStatusInvalidExchangeRate,
 				}
