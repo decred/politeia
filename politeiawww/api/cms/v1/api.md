@@ -757,7 +757,7 @@ Reply:
 
 Edits a user's details. This call requires admin privileges.
 
-**Route:** `POST /v1/user/manage`
+**Route:** `POST /v1/admin/managecms`
 
 **Params:**
 
