@@ -53,7 +53,7 @@ func (User) TableName() string {
 // hash of the session ID.
 type Session struct {
 	Key    string    `gorm:"primary_key"` // SHA256 hash of the session ID
-	UserID uuid.UUID `gorm:"not null"`    // User UUID (foreign key)
+	UserID uuid.UUID `gorm:"not null"`    // User UUID
 	Blob   []byte    `gorm:"not null"`    // Encrypted user session
 }
 

@@ -147,15 +147,15 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 	reply, err := p.processLogin(l)
 	if err != nil {
 		RespondWithError(w, r, http.StatusUnauthorized,
-			"handleLogin: processLogin %v", err)
+			"handleLogin: processLogin: %v", err)
 		return
 	}
 
-	// initialize a session for the logged in user
+	// Initialize a session for the logged in user
 	err = p.initSession(w, r, reply.UserID)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleLogin: initSession %v", err)
+			"handleLogin: initSession: %v", err)
 		return
 	}
 
@@ -235,21 +235,6 @@ func (p *politeiawww) handleVerifyResetPassword(w http.ResponseWriter, r *http.R
 		RespondWithError(w, r, 0,
 			"handleVerifyResetPassword: processVerifyResetPassword %v", err)
 		return
-	}
-
-	// Log off the user everywhere by deleting all sessions associated
-	// with the user's ID. If anything fails here log the error instead
-	// of returning it since the password change was already successful.
-	user, err := p.db.UserGetByUsername(vrp.Username)
-	if err != nil {
-		log.Errorf("handleVerifyResetPassword: failed to delete user "+
-			"sessions UserGetByUsername(%v) error: %v", vrp.Username, err)
-	} else {
-		err = p.db.SessionsDeleteByUserID(user.ID, "")
-		if err != nil {
-			log.Errorf("handleVerifyResetPassword: SessionsDeleteByUserId(%v): %v",
-				user.ID, err)
-		}
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
@@ -451,14 +436,6 @@ func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Reques
 		RespondWithError(w, r, 0,
 			"handleChangePassword: processChangePassword %v", err)
 		return
-	}
-
-	// Valid, authenticated user changing his password, delete
-	// all sesssions except this current one.
-	err = p.db.SessionsDeleteByUserID(user.ID, p.getSessionID(r))
-	if err != nil {
-		log.Errorf("handleChangePassword: SessionsDeleteByUserId(%v): %v",
-			user.ID, err)
 	}
 
 	// Reply with the error code.

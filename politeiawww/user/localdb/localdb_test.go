@@ -1,6 +1,11 @@
+// Copyright (c) 2020 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package localdb
 
 import (
+	"encoding/base32"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -8,18 +13,22 @@ import (
 
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/google/uuid"
+	"github.com/gorilla/securecookie"
 )
 
 func setupTestData(t *testing.T) (*localdb, string) {
-	// Setup database
+	t.Helper()
+
 	dataDir, err := ioutil.TempDir("", "politeiawww.user.localdb.test")
 	if err != nil {
-		t.Error("TempDir() returned an error")
+		t.Fatalf("tmp dir: %v", err)
 	}
+
 	db, err := New(filepath.Join(dataDir, "localdb"))
 	if err != nil {
 		t.Fatalf("setup database: %v", err)
 	}
+
 	return db, dataDir
 }
 
@@ -37,268 +46,164 @@ func teardownTestData(t *testing.T, db *localdb, dataDir string) {
 	}
 }
 
-func TestSessionSave(t *testing.T) {
-	var err error
-	db, dataDir := setupTestData(t)
-	defer teardownTestData(t, db, dataDir)
-	s := user.Session{
-		ID:     uuid.New().String(),
-		UserID: uuid.New(),
-		Values: "TestSessionSave()",
-	}
-	err = db.SessionSave(s)
-	if err != nil {
-		t.Error("SessionSave() returned an error")
-	}
-	data, err := db.userdb.Get([]byte(sessionPrefix+s.ID), nil)
-	if err != nil {
-		t.Errorf("db.Get() returned an error: %v", err)
-	}
-	sessionInDB, err := user.DecodeSession(data)
-	if err != nil {
-		t.Errorf("DecodeSession() returned an error: %v", err)
-	}
-	if sessionInDB == nil {
-		t.Error("DecodeSession() returned a nil pointer")
-	}
-	if s != *sessionInDB {
-		t.Errorf("got session: %v, want: %v", sessionInDB, s)
-	}
+func newSessionID() string {
+	return base32.StdEncoding.EncodeToString(securecookie.GenerateRandomKey(32))
 }
 
-func TestSessionExistsAlready(t *testing.T) {
-	var err error
+func TestSessionSave(t *testing.T) {
 	db, dataDir := setupTestData(t)
 	defer teardownTestData(t, db, dataDir)
+
+	// Save session
 	s := user.Session{
-		ID:     uuid.New().String(),
+		ID:     newSessionID(),
 		UserID: uuid.New(),
-		Values: "TestSessionExistsAlready()",
+		Values: "v1",
 	}
+	err := db.SessionSave(s)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Verify session
+	b, err := db.userdb.Get([]byte(sessionPrefix+s.ID), nil)
+	if err != nil {
+		t.Error(err)
+	}
+	sessionInDB, err := user.DecodeSession(b)
+	if err != nil {
+		t.Error(err)
+	}
+	if *sessionInDB != s {
+		t.Errorf("got session %v, want %v", sessionInDB, s)
+	}
+
+	// Save a session that already exists
+	s.Values = "v2"
 	err = db.SessionSave(s)
 	if err != nil {
-		t.Error("SessionSave() #1 returned an error")
+		t.Error(err)
 	}
-	// repeated insertion should not result in an error but just update
-	// the record.
-	s.Values += " -- version 2"
-	err = db.SessionSave(s)
+
+	// Verify session was updated correctly
+	b, err = db.userdb.Get([]byte(sessionPrefix+s.ID), nil)
 	if err != nil {
-		t.Error("SessionSave() #2 returned an error")
+		t.Error(err)
 	}
-	us2, err := db.SessionGetByID(s.ID)
+	sessionInDB, err = user.DecodeSession(b)
 	if err != nil {
-		t.Error("SessionGetByID() returned an error")
+		t.Error(err)
 	}
-	if s.Values != us2.Values {
-		t.Errorf("got Values: %v, want: %v", us2.Values, s.Values)
+	if *sessionInDB != s {
+		t.Errorf("got session %v, want %v", sessionInDB, s)
 	}
 }
 
 func TestSessionGetByID(t *testing.T) {
-	var err error
 	db, dataDir := setupTestData(t)
 	defer teardownTestData(t, db, dataDir)
+
+	// Save session
 	s := user.Session{
-		ID:     uuid.New().String(),
+		ID:     newSessionID(),
 		UserID: uuid.New(),
-		Values: "TestSessionGetByID()",
+		Values: "",
 	}
-	err = db.SessionSave(s)
+	err := db.SessionSave(s)
 	if err != nil {
-		t.Error("SessionSave() returned an error")
+		t.Error(err)
 	}
+
+	// Get existing session
 	sessionInDB, err := db.SessionGetByID(s.ID)
 	if err != nil {
-		t.Errorf("SessionGetByID() returned an error: %v", err)
+		t.Error(err)
 	}
-	if sessionInDB == nil {
-		t.Error("SessionGetByID() returned a nil pointer")
+	if *sessionInDB != s {
+		t.Errorf("got session %v, want %v", sessionInDB, s)
 	}
-	if s != *sessionInDB {
-		t.Errorf("got session: %v, want: %v", sessionInDB, s)
-	}
-}
 
-func TestSessionGetByIDAndNoRecord(t *testing.T) {
-	var err error
-	db, dataDir := setupTestData(t)
-	defer teardownTestData(t, db, dataDir)
+	// Get session that does not exist
 	_, err = db.SessionGetByID(uuid.New().String())
-	if err != user.ErrSessionDoesNotExist {
-		t.Errorf("got error: %v, want: %v", err, user.ErrSessionDoesNotExist)
+	if err != user.ErrSessionNotFound {
+		t.Errorf("got error '%v', want '%v'", err, user.ErrSessionNotFound)
 	}
 }
 
 func TestSessionDeleteByID(t *testing.T) {
-	var err error
 	db, dataDir := setupTestData(t)
 	defer teardownTestData(t, db, dataDir)
-	sa := []user.Session{
-		{ID: uuid.New().String(),
-			UserID: uuid.New(),
-			Values: "TestSessionDeleteByID() / 1"},
-		{ID: uuid.New().String(),
-			UserID: uuid.New(),
-			Values: "TestSessionDeleteByID() / 2"},
-		{ID: uuid.New().String(),
-			UserID: uuid.New(),
-			Values: "TestSessionDeleteByID() / 3"},
+
+	// Session 1
+	s1 := user.Session{
+		ID:     newSessionID(),
+		UserID: uuid.New(),
+		Values: "",
 	}
-	for _, s := range sa {
-		err = db.SessionSave(s)
-		if err != nil {
-			t.Errorf("SessionSave() returned an error for: %v", s)
-		}
+
+	// Session 2
+	s2 := user.Session{
+		ID:     newSessionID(),
+		UserID: uuid.New(),
+		Values: "",
 	}
-	err = db.SessionDeleteByID(sa[1].ID)
+
+	// Save sessions
+	err := db.SessionSave(s1)
 	if err != nil {
-		t.Errorf("SessionDeleteByID() returned an error: %v", err)
+		t.Fatal(err)
 	}
-	// make sure the right session got deleted
-	_, err = db.SessionGetByID(sa[1].ID)
-	if err != user.ErrSessionDoesNotExist {
-		t.Errorf("got error: %v, want: %v", err, user.ErrSessionDoesNotExist)
+	err = db.SessionSave(s2)
+	if err != nil {
+		t.Fatal(err)
 	}
-	// make sure the other 2 sessions are still in place
-	kept := []int{0, 2}
-	for _, idx := range kept {
-		sessionInDB, err := db.SessionGetByID(sa[idx].ID)
-		if err != nil {
-			t.Errorf("SessionGetByID() returned an error: %v", err)
-		}
-		if *sessionInDB != sa[idx] {
-			t.Errorf("got session: %v, want: %v", sessionInDB, sa[idx])
-		}
+
+	// Delete one of the sessions
+	err = db.SessionDeleteByID(s1.ID)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Verify session was deleted
+	_, err = db.SessionGetByID(s1.ID)
+	if err != user.ErrSessionNotFound {
+		t.Errorf("error got '%v', want '%v'", err, user.ErrSessionNotFound)
+	}
+
+	// Verify the remaining session still exists
+	s2DB, err := db.SessionGetByID(s2.ID)
+	if err != nil {
+		t.Errorf("error got '%v', want nil", err)
+	}
+	if *s2DB != s2 {
+		t.Errorf("session got %v, want %v", s2DB, s2)
 	}
 }
 
-func TestIsUserRecordWithSessionKey(t *testing.T) {
-	result := isUserRecord(sessionPrefix + uuid.New().String())
-	if result != false {
-		t.Error("isUserRecord() confuses User and Session records")
+func TestIsUserRecord(t *testing.T) {
+	tests := []struct {
+		input string
+		want  bool
+	}{
+		{
+			input: UserVersionKey,
+			want:  false,
+		},
+		{
+			input: LastPaywallAddressIndex,
+			want:  false,
+		},
+		{
+			input: sessionPrefix + uuid.New().String(),
+			want:  false,
+		},
 	}
-}
 
-func TestSessionsDeleteByUserID(t *testing.T) {
-	var err error
-	db, dataDir := setupTestData(t)
-	defer teardownTestData(t, db, dataDir)
-	remove := uuid.New()
-	keep := uuid.New()
-	sa := []user.Session{
-		{ID: uuid.New().String(),
-			UserID: keep,
-			Values: "TestSessionDeleteByUserID() / 1"},
-		{ID: uuid.New().String(),
-			UserID: remove,
-			Values: "TestSessionDeleteByUserID() / 2"},
-		{ID: uuid.New().String(),
-			UserID: keep,
-			Values: "TestSessionDeleteByUserID() / 3"},
-		{ID: uuid.New().String(),
-			UserID: remove,
-			Values: "TestSessionDeleteByUserID() / 5"},
-		{ID: uuid.New().String(),
-			UserID: keep,
-			Values: "TestSessionDeleteByUserID() / 5"},
-	}
-	for _, s := range sa {
-		err = db.SessionSave(s)
-		if err != nil {
-			t.Errorf("SessionSave() returned an error for: %v", s)
+	for _, test := range tests {
+		got := isUserRecord(test.input)
+		if got != test.want {
+			t.Errorf("isUserRecord(%v) got %v, want %v",
+				test.input, got, test.want)
 		}
-	}
-	err = db.SessionsDeleteByUserID(remove, "")
-	if err != nil {
-		t.Errorf("SessionsDeleteByUserID() returned an error: %v", err)
-	}
-	// make sure the right session got deleted
-	removed := []int{1, 3}
-	for _, idx := range removed {
-		_, err := db.SessionGetByID(sa[idx].ID)
-		if err != user.ErrSessionDoesNotExist {
-			t.Errorf("index: %v, got error: %v, want: %v", idx, err,
-				user.ErrSessionDoesNotExist)
-		}
-	}
-	// make sure the other sessions are still in place
-	kept := []int{0, 2, 4}
-	for _, idx := range kept {
-		sessionInDB, err := db.SessionGetByID(sa[idx].ID)
-		if err != nil {
-			t.Errorf("index: %v, SessionGetByID() returned an error: %v", idx, err)
-		}
-		if *sessionInDB != sa[idx] {
-			t.Errorf("index: %v, got session: %v, want: %v", idx, sessionInDB,
-				sa[idx])
-		}
-	}
-}
-
-func TestSessionsDeleteByUserIDAndKeepOneSession(t *testing.T) {
-	var err error
-	db, dataDir := setupTestData(t)
-	defer teardownTestData(t, db, dataDir)
-	remove := uuid.New()
-	keep := uuid.New()
-	sa := []user.Session{
-		{ID: uuid.New().String(),
-			UserID: keep,
-			Values: "TestSessionDeleteByUserID() / 6"},
-		{ID: uuid.New().String(),
-			UserID: remove,
-			Values: "TestSessionDeleteByUserID() / 7"},
-		{ID: uuid.New().String(),
-			UserID: keep,
-			Values: "TestSessionDeleteByUserID() / 8"},
-		{ID: uuid.New().String(),
-			UserID: remove,
-			Values: "TestSessionDeleteByUserID() / 9"},
-		{ID: uuid.New().String(),
-			UserID: remove,
-			Values: "TestSessionDeleteByUserID() /10"},
-	}
-	for _, s := range sa {
-		err = db.SessionSave(s)
-		if err != nil {
-			t.Errorf("SessionSave() returned an error for: %v", s)
-		}
-	}
-	// delete all sessions associated with the `removed` user id
-	// except the one with index 3.
-	err = db.SessionsDeleteByUserID(remove, sa[3].ID)
-	if err != nil {
-		t.Errorf("SessionsDeleteByUserID() returned an error: %v", err)
-	}
-	// make sure the right sessions got deleted
-	removed := []int{1, 4}
-	for _, idx := range removed {
-		_, err := db.SessionGetByID(sa[idx].ID)
-		if err != user.ErrSessionDoesNotExist {
-			t.Errorf("index: %v, got error: %v, want: %v", idx, err,
-				user.ErrSessionDoesNotExist)
-		}
-	}
-	// make sure the other sessions are still in place
-	kept := []int{0, 2, 3}
-	for _, idx := range kept {
-		sessionInDB, err := db.SessionGetByID(sa[idx].ID)
-		if err != nil {
-			t.Errorf("index: %v, SessionGetByID() returned an error: %v", idx, err)
-		}
-		if *sessionInDB != sa[idx] {
-			t.Errorf("index: %v, got session: %v, want: %v", idx, sessionInDB,
-				sa[idx])
-		}
-	}
-}
-
-func TestSessionDeleteByIDAndNoSession(t *testing.T) {
-	db, dataDir := setupTestData(t)
-	defer teardownTestData(t, db, dataDir)
-	err := db.SessionDeleteByID(uuid.Nil.String())
-	if err != nil {
-		t.Errorf("SessionDeleteByID() returned an error: %v", err)
 	}
 }

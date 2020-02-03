@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Decred developers
+// Copyright (c) 2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -8,7 +8,6 @@ import (
 	"encoding/base32"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/google/uuid"
@@ -16,20 +15,160 @@ import (
 	"github.com/gorilla/sessions"
 )
 
-// SessionStore stores sessions in the database.
+// SessionStore is a session store backed by the user database.
 //
-// Please note: this is (by and large) a clone of gorilla mux'
-// `sessions.FilesystemStore` with the save() and load()
-// methods adapted to use the database as the backing storage.
+// SessionStore impelements the sessions.Store interface.
 type SessionStore struct {
 	Codecs  []securecookie.Codec
-	Options *sessions.Options // default configuration
+	Options *sessions.Options
 	db      user.Database
 }
 
-// NewSessionStore returns a new SessionStore.
+// newSessionID returns a new session ID. A session ID is defined as a 32 byte
+// base32 string with padding. The session ID is set by the store and can be
+// whatever the store chooses. This ID was chosen simply because that's what
+// the gorilla/sesssions package reference implemenation uses.
+func newSessionID() string {
+	return base32.StdEncoding.EncodeToString(securecookie.GenerateRandomKey(32))
+}
+
+// Get returns a session for the given name after adding it to the registry.
 //
-// The db argument is the database where sessions will be saved.
+// A new session is returned if the given session doesn't exist. Access IsNew
+// on the session to check if it is an existing session or a new one. The new
+// session will not have any sessions values set and will not have been saved
+// to the session store yet.
+//
+// Get returns a new session and an error if the session exists but could not
+// be decoded.
+//
+// This function satisfies the sessions.Store interface.
+func (s *SessionStore) Get(r *http.Request, name string) (*sessions.Session, error) {
+	log.Tracef("SessionStore.Get: %v", name)
+
+	return sessions.GetRegistry(r).Get(s, name)
+}
+
+// New returns a session for the given name without adding it to the registry.
+//
+// The difference between New() and Get() is that calling New() twice will
+// decode the session data twice, while Get() registers and reuses the same
+// decoded session after the first call.
+//
+// The sessions.Store interface dictates that New() should never return a nil
+// session, even in the case of an error if using the Registry infrastructure
+// to cache the session.
+//
+// This function satisfies the sessions.Store interface.
+func (s *SessionStore) New(r *http.Request, name string) (*sessions.Session, error) {
+	log.Tracef("SessStore.New: %v", name)
+
+	// Setup new session
+	session := sessions.NewSession(s, name)
+	opts := *s.Options
+	session.Options = &opts
+	session.IsNew = true
+	session.ID = newSessionID()
+
+	// Check if the session cookie already exists
+	c, err := r.Cookie(name)
+	if err == http.ErrNoCookie {
+		// Session cookie does not exist. Return a new session.
+		return session, nil
+	} else if err != nil {
+		return session, err
+	}
+
+	// Session cookie already exists. The session ID travels in the
+	// cookie. Decode it and use it to check if the session exists in
+	// the store.
+
+	// Decode session ID (overwrites existing session ID)
+	err = securecookie.DecodeMulti(name, c.Value, &session.ID, s.Codecs...)
+	if err != nil {
+		return session, err
+	}
+
+	// Check if session exists in the store
+	sessionDB, err := s.db.SessionGetByID(session.ID)
+	switch err {
+	case nil:
+		// Session found in database. Decode database session values into
+		// the session being returned.
+		session.IsNew = false
+		err = securecookie.DecodeMulti(session.Name(), sessionDB.Values,
+			&session.Values, s.Codecs...)
+		if err != nil {
+			return session, err
+		}
+	case user.ErrSessionNotFound:
+		// Session not found in database; no action needed since the new
+		// session will be returned.
+	default:
+		return session, err
+	}
+
+	return session, nil
+}
+
+// Save saves the session to the store and updates the http response cookie
+// with the encoded session ID.
+//
+// If the Options.MaxAge of the session is <= 0 then the session will be
+// deleted from the database. With this process it enforces proper session
+// cookie handling so no need to trust in the cookie management in the web
+// browser.
+//
+// This function satisfies the sessions.Store interface.
+func (s *SessionStore) Save(r *http.Request, w http.ResponseWriter, session *sessions.Session) error {
+	log.Tracef("SessionStore.Save: %v", session.ID)
+
+	// Delete session if max-age is <= 0
+	if session.Options.MaxAge <= 0 {
+		err := s.db.SessionDeleteByID(session.ID)
+		if err != nil {
+			return err
+		}
+		http.SetCookie(w, sessions.NewCookie(session.Name(), "", session.Options))
+		return nil
+	}
+
+	// Save session to the store
+	id, ok := session.Values[sessionValueUserID].(string)
+	if !ok {
+		return fmt.Errorf("session value user_id not found")
+	}
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		return err
+	}
+	encodedValues, err := securecookie.EncodeMulti(session.Name(),
+		session.Values, s.Codecs...)
+	if err != nil {
+		return err
+	}
+	err = s.db.SessionSave(user.Session{
+		ID:     session.ID,
+		Values: encodedValues,
+		UserID: uid,
+	})
+	if err != nil {
+		return err
+	}
+
+	// Update session cookie with encoded session ID
+	encodedID, err := securecookie.EncodeMulti(session.Name(), session.ID,
+		s.Codecs...)
+	if err != nil {
+		return err
+	}
+	c := sessions.NewCookie(session.Name(), encodedID, session.Options)
+	http.SetCookie(w, c)
+
+	return nil
+}
+
+// NewSessionStore returns a new SessionStore.
 //
 // Keys are defined in pairs to allow key rotation, but the common case is
 // to set a single authentication key and optionally an encryption key.
@@ -41,152 +180,26 @@ type SessionStore struct {
 // It is recommended to use an authentication key with 32 or 64 bytes.
 // The encryption key, if set, must be either 16, 24, or 32 bytes to select
 // AES-128, AES-192, or AES-256 modes.
-func NewSessionStore(db user.Database, keyPairs ...[]byte) *SessionStore {
-	ss := &SessionStore{
-		Codecs: securecookie.CodecsFromPairs(keyPairs...),
+func NewSessionStore(db user.Database, sessionMaxAge int, keyPairs ...[]byte) *SessionStore {
+	// TODO: how does the securecookie instance MaxAge differ from the
+	// session store max age?
+	// Set the maxAge for each securecookie instance
+	codecs := securecookie.CodecsFromPairs(keyPairs...)
+	for _, codec := range codecs {
+		if sc, ok := codec.(*securecookie.SecureCookie); ok {
+			sc.MaxAge(sessionMaxAge)
+		}
+	}
+
+	return &SessionStore{
+		Codecs: codecs,
 		Options: &sessions.Options{
 			Path:     "/",
-			MaxAge:   sessionMaxAge,
+			MaxAge:   sessionMaxAge, // Max age for the store
 			Secure:   true,
 			HttpOnly: true,
 			SameSite: http.SameSiteStrictMode,
 		},
 		db: db,
 	}
-
-	ss.MaxAge(ss.Options.MaxAge)
-	return ss
-}
-
-// Get returns a session for the given name after adding it to the registry.
-//
-// It returns a new session if the sessions doesn't exist. Access IsNew on the
-// session to check if it is an existing session or a new one. The new session
-// will not have any sessions values set and has been saved to the session
-// store yet.
-//
-// It returns a new session and an error if the session exists but could
-// not be decoded.
-func (s *SessionStore) Get(r *http.Request, name string) (*sessions.Session, error) {
-	return sessions.GetRegistry(r).Get(s, name)
-}
-
-// New returns a session for the given name without adding it to the registry.
-//
-// The difference between New() and Get() is that calling New() twice will
-// decode the session data twice, while Get() registers and reuses the same
-// decoded session after the first call.
-func (s *SessionStore) New(r *http.Request, name string) (*sessions.Session, error) {
-	session := sessions.NewSession(s, name)
-	opts := *s.Options
-	session.Options = &opts
-	session.IsNew = true
-	var err error
-	if c, errCookie := r.Cookie(name); errCookie == nil {
-		err = securecookie.DecodeMulti(name, c.Value, &session.ID, s.Codecs...)
-		if err == nil {
-			err = s.load(session)
-			if err == nil {
-				// Session found in database
-				session.IsNew = false
-			} else if err == user.ErrSessionNotFound {
-				// Session not found in database, return the *new* session
-			} else {
-				return nil, err
-			}
-		}
-	}
-	return session, nil
-}
-
-// Save adds a single session to the response.
-//
-// If the Options.MaxAge of the session is <= 0 then the session will be
-// deleted from the database. With this process it enforces proper session
-// cookie handling so no need to trust in the cookie management in the web
-// browser.
-func (s *SessionStore) Save(r *http.Request, w http.ResponseWriter, session *sessions.Session) error {
-	// Delete if max-age is <= 0
-	if session.Options.MaxAge <= 0 {
-		err := s.db.SessionDeleteByID(session.ID)
-		if err != nil {
-			return err
-		}
-		http.SetCookie(w, sessions.NewCookie(session.Name(), "", session.Options))
-		return nil
-	}
-
-	if session.ID == "" {
-		// Because the ID is used in the filename, encode it to
-		// use alphanumeric characters only.
-		session.ID = strings.TrimRight(
-			base32.StdEncoding.EncodeToString(
-				securecookie.GenerateRandomKey(32)), "=")
-	}
-	if err := s.save(session); err != nil {
-		return err
-	}
-	encoded, err := securecookie.EncodeMulti(session.Name(), session.ID,
-		s.Codecs...)
-	if err != nil {
-		return err
-	}
-	http.SetCookie(w, sessions.NewCookie(session.Name(), encoded, session.Options))
-	return nil
-}
-
-// MaxAge sets the maximum age for the store and the underlying cookie
-// implementation. Individual sessions can be deleted by setting Options.MaxAge
-// = -1 for that session.
-func (s *SessionStore) MaxAge(age int) {
-	s.Options.MaxAge = age
-
-	// Set the maxAge for each securecookie instance.
-	for _, codec := range s.Codecs {
-		if sc, ok := codec.(*securecookie.SecureCookie); ok {
-			sc.MaxAge(age)
-		}
-	}
-}
-
-// save saves the session to the database. New sessions are inserted into the
-// database. Existing sessions are updated in the database.
-func (s *SessionStore) save(session *sessions.Session) error {
-	// Parse user ID
-	id, ok := session.Values[sessionValueUserID].(string)
-	if !ok {
-		return fmt.Errorf("no user_id found in session")
-	}
-	uid, err := uuid.Parse(id)
-	if err != nil {
-		return err
-	}
-
-	// Encode session values
-	encoded, err := securecookie.EncodeMulti(session.Name(), session.Values,
-		s.Codecs...)
-	if err != nil {
-		return err
-	}
-
-	// Update database
-	return s.db.SessionSave(user.Session{
-		ID:     session.ID,
-		Values: encoded,
-		UserID: uid,
-	})
-}
-
-// load reads a database record and decodes its content into session.Values.
-func (s *SessionStore) load(session *sessions.Session) error {
-	us, err := s.db.SessionGetByID(session.ID)
-	if err != nil {
-		return err
-	}
-	err = securecookie.DecodeMulti(
-		session.Name(), us.Values, &session.Values, s.Codecs...)
-	if err != nil {
-		return err
-	}
-	return nil
 }

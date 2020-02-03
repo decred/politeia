@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -11,7 +11,6 @@ import (
 	"crypto/tls"
 	_ "encoding/gob"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -50,19 +49,6 @@ const (
 	permissionAdmin
 
 	csrfKeyLength = 32
-	sessionMaxAge = 86400 // One day
-
-	// Session value keys. A user session contains a map that is used
-	// for application specific values. The following is a list of the
-	// keys for the politeiawww user session values map.
-	sessionValueUserID    = "user_id"
-	sessionValueCreatedAt = "created_at"
-)
-
-var (
-	// errSessionNotFound is emitted when a session is not found and indicates
-	// that the user is not logged in.
-	errSessionNotFound = errors.New("session not found")
 )
 
 // Fetch remote identity
@@ -641,7 +627,7 @@ func _main() error {
 	if err != nil {
 		return err
 	}
-	p.sessions = NewSessionStore(p.db, cookieKey)
+	p.sessions = NewSessionStore(p.db, sessionMaxAge, cookieKey)
 
 	// Bind to a port and pass our router in
 	listenC := make(chan error)
