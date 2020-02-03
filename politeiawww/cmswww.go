@@ -467,7 +467,7 @@ func (p *politeiawww) handleEditCMSUser(w http.ResponseWriter, r *http.Request) 
 func (p *politeiawww) handleManageCMSUser(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleManageCMSUser")
 
-	var mu cms.ManageUser
+	var mu cms.CMSManageUser
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&mu); err != nil {
 		RespondWithError(w, r, 0, "handleManageCMSUser: unmarshal",
