@@ -30,7 +30,6 @@ func (cmd *ManageUserCmd) Execute(args []string) error {
 	domains := map[string]cms.DomainTypeT{
 		"developer":     cms.DomainTypeDeveloper,
 		"marketing":     cms.DomainTypeMarketing,
-		"community":     cms.DomainTypeCommunity,
 		"research":      cms.DomainTypeResearch,
 		"design":        cms.DomainTypeDesign,
 		"documentation": cms.DomainTypeDocumentation,
