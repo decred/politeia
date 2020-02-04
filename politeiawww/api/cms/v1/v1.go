@@ -34,6 +34,7 @@ const (
 	RouteDCCComments         = "/dcc/{token:[A-z0-9]{64}}/comments"
 	RouteSetDCCStatus        = "/dcc/{token:[A-z0-9]{64}}/status"
 	RouteAdminInvoices       = "/admin/invoices"
+	RouteManageCMSUser       = "/admin/managecms"
 	RouteAdminUserInvoices   = "/admin/userinvoices"
 	RouteGeneratePayouts     = "/admin/generatepayouts"
 	RouteInvoicePayouts      = "/admin/invoicepayouts"
@@ -625,16 +626,16 @@ type EditUser struct {
 // EditUserReply is the reply for the EditUser command.
 type EditUserReply struct{}
 
-// ManageUser performs the given action on a user.
-type ManageUser struct {
+// CMSManageUser updates the various fields for a given user.
+type CMSManageUser struct {
 	UserID            string          `json:"userid"`
 	Domain            DomainTypeT     `json:"domain,omitempty"`
 	ContractorType    ContractorTypeT `json:"contractortype,omitempty"`
 	SupervisorUserIDs []string        `json:"supervisoruserids,omitempty"`
 }
 
-// ManageUserReply is the reply for the ManageUserReply command.
-type ManageUserReply struct{}
+// CMSManageUserReply is the reply for the CMSManageUserReply command.
+type CMSManageUserReply struct{}
 
 // DCCInput contains all of the information concerning a DCC object that
 // will be submitted as a Record to the politeiad backend.

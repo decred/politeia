@@ -1750,14 +1750,14 @@ func (c *Client) CMSEditUser(uui cms.EditUser) (*cms.EditUserReply, error) {
 }
 
 // CMSManageUser updates the given user's information.
-func (c *Client) CMSManageUser(uui cms.ManageUser) (*cms.ManageUserReply, error) {
+func (c *Client) CMSManageUser(uui cms.CMSManageUser) (*cms.CMSManageUserReply, error) {
 	responseBody, err := c.makeRequest("POST", v1.RouteManageUser,
 		uui)
 	if err != nil {
 		return nil, err
 	}
 
-	var eur cms.ManageUserReply
+	var eur cms.CMSManageUserReply
 	err = json.Unmarshal(responseBody, &eur)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal CMSManageUserReply: %v", err)

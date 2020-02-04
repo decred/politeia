@@ -62,7 +62,7 @@ func (cmd *HelpCmd) Execute(args []string) error {
 	case "editproposal":
 		fmt.Printf("%s\n", editProposalHelpMsg)
 	case "manageuser":
-		fmt.Printf("%s\n", ManageUserHelpMsg)
+		fmt.Printf("%s\n", shared.ManageUserHelpMsg)
 	case "users":
 		fmt.Printf("%s\n", shared.UsersHelpMsg)
 	case "verifyuseremail":

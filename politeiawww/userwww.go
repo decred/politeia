@@ -867,6 +867,8 @@ func (p *politeiawww) setCMSUserWWWRoutes() {
 		p.handleCMSUsers, permissionLogin)
 
 	// Routes that require being logged in as an admin user.
-	p.addRoute(http.MethodPost, www.RouteManageUser,
+	p.addRoute(http.MethodPost, cms.RouteManageCMSUser,
 		p.handleManageCMSUser, permissionAdmin)
+	p.addRoute(http.MethodPost, www.RouteManageUser,
+		p.handleManageUser, permissionAdmin)
 }

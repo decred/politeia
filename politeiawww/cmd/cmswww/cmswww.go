@@ -73,7 +73,8 @@ type cmswww struct {
 	InvoicePayouts      InvoicePayoutsCmd        `command:"invoicepayouts" description:"(admin)  generate paid invoice list for a given date range"`
 	Login               shared.LoginCmd          `command:"login" description:"(public) login to Politeia"`
 	Logout              shared.LogoutCmd         `command:"logout" description:"(public) logout of Politeia"`
-	ManageUser          ManageUserCmd            `command:"manageuser" description:"(admin)  edit certain properties of the specified user"`
+	CMSManageUser       CMSManageUserCmd         `command:"cmsmanageuser" description:"(admin)  edit certain properties of the specified user"`
+	ManageUser          shared.ManageUserCmd     `command:"manageuser" description:"(admin)  edit certain properties of the specified user"`
 	Me                  shared.MeCmd             `command:"me" description:"(user)   get user details for the logged in user"`
 	NewComment          shared.NewCommentCmd     `command:"newcomment" description:"(user)   create a new comment"`
 	NewDCC              NewDCCCmd                `command:"newdcc" description:"(user)   creates a new dcc proposal"`

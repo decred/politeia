@@ -334,7 +334,7 @@ func (p *politeiawww) processEditCMSUser(ecu cms.EditUser, u *user.User) (*cms.E
 	return &reply, nil
 }
 
-func (p *politeiawww) processManageCMSUser(mu cms.ManageUser) (*cms.ManageUserReply, error) {
+func (p *politeiawww) processManageCMSUser(mu cms.CMSManageUser) (*cms.CMSManageUserReply, error) {
 	log.Tracef("processManageCMSUser: %v", mu.UserID)
 
 	editUser, err := p.userByIDStr(mu.UserID)
@@ -397,7 +397,7 @@ func (p *politeiawww) processManageCMSUser(mu cms.ManageUser) (*cms.ManageUserRe
 	if err != nil {
 		return nil, err
 	}
-	return &cms.ManageUserReply{}, nil
+	return &cms.CMSManageUserReply{}, nil
 }
 
 // filterCMSUserPublicFields creates a filtered copy of a cms User that only
