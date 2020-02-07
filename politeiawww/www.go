@@ -496,7 +496,11 @@ func _main() error {
 	}
 	fCSRF.Close()
 
-	csrfHandle := csrf.Protect(csrfKey, csrf.Path("/"))
+	csrfHandle := csrf.Protect(
+		csrfKey,
+		csrf.Path("/"),
+		csrf.SameSite(csrf.SameSiteStrictMode),
+	)
 
 	p.router = mux.NewRouter()
 	p.router.Use(recoverMiddleware)
