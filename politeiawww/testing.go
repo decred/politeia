@@ -1,16 +1,12 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package main
 
 import (
-	"bytes"
 	"encoding/hex"
-	"encoding/json"
 	"io/ioutil"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -42,20 +38,6 @@ func errToStr(e error) string {
 	}
 
 	return e.Error()
-}
-
-// newPostReq returns an httptest post request that was created using the
-// passed in data.
-func newPostReq(t *testing.T, route string, body interface{}) *http.Request {
-	t.Helper()
-
-	b, err := json.Marshal(body)
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
-
-	return httptest.NewRequest(http.MethodPost, route,
-		bytes.NewReader(b))
 }
 
 func payRegistrationFee(t *testing.T, p *politeiawww, u *user.User) {

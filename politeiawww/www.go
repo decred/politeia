@@ -165,13 +165,6 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 		return
 	}
 
-	if err, ok := args[0].(error); ok {
-		// user session was deleted e.g. due to a password change or expired?
-		if err == errSessionNotFound {
-			http.Redirect(w, r, "/", http.StatusFound)
-		}
-	}
-
 	errorCode := time.Now().Unix()
 	ec := fmt.Sprintf("%v %v %v %v Internal error %v: ", remoteAddr(r),
 		r.Method, r.URL, r.Proto, errorCode)

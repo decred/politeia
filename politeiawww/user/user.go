@@ -380,8 +380,12 @@ type Plugin struct {
 
 // Session represents a user session.
 //
+// The session ID is the decoded session ID. The ID present in the session
+// cookie is the encoded session ID. The encoding/decoding is handled by
+// the session Store.
+//
 // The encoded session values decodes to a map[interface{}]interface{}. The
-// encodeding/decodeding is handled by the gorilla/securecookie package.
+// encodeding/decodeding is handled by the session Store.
 type Session struct {
 	ID     string    `json:"id"`     // Unique session ID
 	UserID uuid.UUID `json:"userid"` // User UUID
@@ -437,13 +441,13 @@ type Database interface {
 	// Iterate over all users
 	AllUsers(callbackFn func(u *User)) error
 
-	// Create or update a session for an authenticated user
+	// Create or update a user session
 	SessionSave(Session) error
 
-	// Return user session record given its id
+	// Return a user session given its id
 	SessionGetByID(sessionID string) (*Session, error)
 
-	// Delete the session with the given id
+	// Delete a user session given its id
 	SessionDeleteByID(sessionID string) error
 
 	// Register a plugin

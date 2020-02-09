@@ -149,8 +149,8 @@ func (s *SessionStore) Save(r *http.Request, w http.ResponseWriter, session *ses
 	}
 	err = s.db.SessionSave(user.Session{
 		ID:     session.ID,
-		Values: encodedValues,
 		UserID: uid,
+		Values: encodedValues,
 	})
 	if err != nil {
 		return err
@@ -166,6 +166,17 @@ func (s *SessionStore) Save(r *http.Request, w http.ResponseWriter, session *ses
 	http.SetCookie(w, c)
 
 	return nil
+}
+
+// newSessionOptions returns the default session configuration for politeiawww.
+func newSessionOptions() *sessions.Options {
+	return &sessions.Options{
+		Path:     "/",
+		MaxAge:   sessionMaxAge, // Max age for the store
+		Secure:   true,
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+	}
 }
 
 // NewSessionStore returns a new SessionStore.
@@ -190,14 +201,8 @@ func NewSessionStore(db user.Database, sessionMaxAge int, keyPairs ...[]byte) *S
 	}
 
 	return &SessionStore{
-		Codecs: codecs,
-		Options: &sessions.Options{
-			Path:     "/",
-			MaxAge:   sessionMaxAge, // Max age for the store
-			Secure:   true,
-			HttpOnly: true,
-			SameSite: http.SameSiteStrictMode,
-		},
-		db: db,
+		Codecs:  codecs,
+		Options: newSessionOptions(),
+		db:      db,
 	}
 }

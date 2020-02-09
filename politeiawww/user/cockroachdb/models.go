@@ -49,8 +49,8 @@ func (User) TableName() string {
 }
 
 // Session represents a user session. The actual session data is stored as an
-// encrypted blob. Lookups can be done using either the user ID or a SHA256
-// hash of the session ID.
+// encrypted user.Session blob. Lookups can be done using either the user ID or
+// a SHA256 hash of the session ID.
 type Session struct {
 	Key    string    `gorm:"primary_key"` // SHA256 hash of the session ID
 	UserID uuid.UUID `gorm:"not null"`    // User UUID

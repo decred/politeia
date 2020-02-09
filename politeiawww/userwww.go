@@ -257,10 +257,12 @@ func (p *politeiawww) handleUserDetails(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Get session user. This is a public route so one might not exist.
 	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		// This is a public route so a logged in user is not required
-		log.Debugf("handleUserDetails: could not get session user: %v", err)
+	if err != nil && err != errSessionNotFound {
+		RespondWithError(w, r, 0,
+			"handleUserDetails: getSessionUser %v", err)
+		return
 	}
 
 	udr, err := p.processUserDetails(&ud,
@@ -522,10 +524,12 @@ func (p *politeiawww) handleUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get session user. This is a public route so one might not exist.
 	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		// This is a public route so a logged in user is not required
-		log.Debugf("handleUsers: could not get session user: %v", err)
+	if err != nil && err != errSessionNotFound {
+		RespondWithError(w, r, 0,
+			"handleUsers: getSessionUser %v", err)
+		return
 	}
 
 	isAdmin := (user != nil && user.Admin)

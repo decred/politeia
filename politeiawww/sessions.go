@@ -46,7 +46,9 @@ func (p *politeiawww) getSession(r *http.Request) (*sessions.Session, error) {
 	return p.sessions.Get(r, www.CookieSession)
 }
 
-// getSessionUserID returns the user ID of the user for the given session.
+// getSessionUserID returns the user ID of the user for the given session. A
+// errSessionNotFound error is returned if a user session does not exist or
+// has expired.
 func (p *politeiawww) getSessionUserID(w http.ResponseWriter, r *http.Request) (string, error) {
 	session, err := p.getSession(r)
 	if err != nil {
@@ -67,7 +69,8 @@ func (p *politeiawww) getSessionUserID(w http.ResponseWriter, r *http.Request) (
 	return session.Values[sessionValueUserID].(string), nil
 }
 
-// getSessionUser returns the User for the given session.
+// getSessionUser returns the User for the given session. A errSessionFound
+// error is returned if a user session does not exist or has expired.
 func (p *politeiawww) getSessionUser(w http.ResponseWriter, r *http.Request) (*user.User, error) {
 	log.Tracef("getSessionUser")
 
@@ -91,9 +94,7 @@ func (p *politeiawww) getSessionUser(w http.ResponseWriter, r *http.Request) (*u
 		if err != nil {
 			return nil, err
 		}
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusNotLoggedIn,
-		}
+		return nil, errSessionNotFound
 	}
 
 	return user, nil
