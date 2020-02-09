@@ -26,8 +26,8 @@ type SessionStore struct {
 
 // newSessionID returns a new session ID. A session ID is defined as a 32 byte
 // base32 string with padding. The session ID is set by the store and can be
-// whatever the store chooses. This ID was chosen simply because that's what
-// the gorilla/sesssions package reference implemenation uses.
+// whatever the store chooses. This ID was chosen simply because it's what the
+// gorilla/sesssions package reference implemenation uses.
 func newSessionID() string {
 	return base32.StdEncoding.EncodeToString(securecookie.GenerateRandomKey(32))
 }
@@ -51,13 +51,13 @@ func (s *SessionStore) Get(r *http.Request, name string) (*sessions.Session, err
 
 // New returns a session for the given name without adding it to the registry.
 //
-// The difference between New() and Get() is that calling New() twice will
-// decode the session data twice, while Get() registers and reuses the same
-// decoded session after the first call.
-//
 // The sessions.Store interface dictates that New() should never return a nil
 // session, even in the case of an error if using the Registry infrastructure
 // to cache the session.
+//
+// The difference between New() and Get() is that calling New() twice will
+// decode the session data twice, while Get() registers and reuses the same
+// decoded session after the first call.
 //
 // This function satisfies the sessions.Store interface.
 func (s *SessionStore) New(r *http.Request, name string) (*sessions.Session, error) {
@@ -181,8 +181,6 @@ func (s *SessionStore) Save(r *http.Request, w http.ResponseWriter, session *ses
 // The encryption key, if set, must be either 16, 24, or 32 bytes to select
 // AES-128, AES-192, or AES-256 modes.
 func NewSessionStore(db user.Database, sessionMaxAge int, keyPairs ...[]byte) *SessionStore {
-	// TODO: how does the securecookie instance MaxAge differ from the
-	// session store max age?
 	// Set the maxAge for each securecookie instance
 	codecs := securecookie.CodecsFromPairs(keyPairs...)
 	for _, codec := range codecs {

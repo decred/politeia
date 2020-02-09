@@ -26,7 +26,8 @@ const (
 )
 
 var (
-	// errSessionNotFound is emitted when a session is not found.
+	// errSessionNotFound is emitted when a session is not found in the
+	// session store.
 	errSessionNotFound = errors.New("session not found")
 )
 
@@ -36,11 +37,11 @@ func sessionIsExpired(session *sessions.Session) bool {
 	return time.Now().Unix() > expiresAt
 }
 
-// getSession returns the active cookie session. If no active cookie session
-// exists then a new session object is returned. Access IsNew on the session to
-// check if it is an existing session or a new one. The new session will not
-// have any sessions values set, such as user_id, and will not have been saved
-// to the session store yet.
+// getSession returns the Session for the session ID from the given http
+// request cookie. If no session exists then a new session object is returned.
+// Access IsNew on the session to check if it is an existing session or a new
+// one. The new session will not have any sessions values set, such as user_id,
+// and will not have been saved to the session store yet.
 func (p *politeiawww) getSession(r *http.Request) (*sessions.Session, error) {
 	return p.sessions.Get(r, www.CookieSession)
 }
@@ -136,6 +137,6 @@ func (p *politeiawww) initSession(w http.ResponseWriter, r *http.Request, userID
 	session.Values[sessionValueCreatedAt] = time.Now().Unix()
 	session.Values[sessionValueUserID] = userID
 
-	// Update session in the database
+	// Update session in the database and the http response
 	return p.sessions.Save(r, w, session)
 }
