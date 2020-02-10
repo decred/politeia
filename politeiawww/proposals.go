@@ -394,26 +394,24 @@ func convertWWWPropCreditFromDatabasePropCredit(credit user.ProposalCredit) www.
 
 // fillProposalMissingFields populates a ProposalRecord struct with the fields
 // that are not stored in the cache.
-func (p *politeiawww) fillProposalMissingFields(pr *www.ProposalRecord) *www.ProposalRecord {
+func (p *politeiawww) fillProposalMissingFields(pr *www.ProposalRecord) error {
 	// Find the number of comments for the proposal
-	dc, err := p.decredGetComments(pr.CensorshipRecord.Token)
+	nc, err := p.decredGetNumComments([]string{pr.CensorshipRecord.Token})
 	if err != nil {
-		log.Errorf("getProp: decredGetComments failed "+
-			"for token %v", pr.CensorshipRecord.Token)
+		return err
 	}
-	pr.NumComments = uint(len(dc))
+	pr.NumComments = uint(nc[pr.CensorshipRecord.Token])
 
 	// Fill in proposal author info
 	u, err := p.db.UserGetByPubKey(pr.PublicKey)
 	if err != nil {
-		log.Errorf("getProp: UserGetByPubKey: token:%v pubKey:%v err:%v",
-			pr.CensorshipRecord.Token, pr.PublicKey, err)
-	} else {
-		pr.UserId = u.ID.String()
-		pr.Username = u.Username
+		return err
 	}
 
-	return pr
+	pr.UserId = u.ID.String()
+	pr.Username = u.Username
+
+	return nil
 }
 
 // getProp gets the most recent verions of the given proposal from the cache
@@ -426,8 +424,12 @@ func (p *politeiawww) getProp(token string) (*www.ProposalRecord, error) {
 		return nil, err
 	}
 	pr := convertPropFromCache(*r)
+	err = p.fillProposalMissingFields(&pr)
+	if err != nil {
+		return nil, err
+	}
 
-	return p.fillProposalMissingFields(&pr), nil
+	return &pr, nil
 }
 
 // getProps returns a [token]www.ProposalRecord map for the provided list of
@@ -518,9 +520,14 @@ func (p *politeiawww) getPropVersion(token, version string) (*www.ProposalRecord
 	if err != nil {
 		return nil, err
 	}
-	pr := convertPropFromCache(*r)
 
-	return p.fillProposalMissingFields(&pr), nil
+	pr := convertPropFromCache(*r)
+	err = p.fillProposalMissingFields(&pr)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pr, nil
 }
 
 // getPropByPrefix gets the most recent verions of the given proposal from the
@@ -533,9 +540,14 @@ func (p *politeiawww) getPropByPrefix(prefix string) (*www.ProposalRecord, error
 	if err != nil {
 		return nil, err
 	}
-	pr := convertPropFromCache(*r)
 
-	return p.fillProposalMissingFields(&pr), nil
+	pr := convertPropFromCache(*r)
+	err = p.fillProposalMissingFields(&pr)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pr, nil
 }
 
 // getAllProps gets the latest version of all proposals from the cache then
@@ -859,7 +871,7 @@ func (p *politeiawww) processNewProposal(np www.NewProposal, user *user.User) (*
 
 // createProposalDetailsReply makes updates to a proposal record based on the
 // user who made the request, and puts it into a ProposalDetailsReply.
-func (p *politeiawww) createProposalDetailsReply(prop *www.ProposalRecord, user *user.User) *www.ProposalDetailsReply {
+func createProposalDetailsReply(prop *www.ProposalRecord, user *user.User) *www.ProposalDetailsReply {
 	// Vetted proposals are viewable by everyone. The contents of
 	// an unvetted proposal is only viewable by admins and the
 	// proposal author. Unvetted proposal metadata is viewable by
@@ -886,12 +898,12 @@ func (p *politeiawww) createProposalDetailsReply(prop *www.ProposalRecord, user 
 	}
 }
 
-// processProposalDetails fetches a specific proposal from the records cache
-// using the prefix of its token and returns it.
-func (p *politeiawww) processShortProposalDetails(tokenPrefix string, user *user.User) (*www.ProposalDetailsReply, error) {
-	log.Tracef("processShortProposalDetails")
+// processProposalDetailsShort fetches a specific proposal from the records
+// cache using the prefix of its token and returns it.
+func (p *politeiawww) processProposalDetailsShort(propDetailsShort www.ProposalDetailsShort, user *user.User) (*www.ProposalDetailsReply, error) {
+	log.Tracef("processProposalDetailsShort")
 
-	prop, err := p.getPropByPrefix(tokenPrefix)
+	prop, err := p.getPropByPrefix(propDetailsShort.TokenPrefix)
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
 			err = www.UserError{
@@ -901,7 +913,7 @@ func (p *politeiawww) processShortProposalDetails(tokenPrefix string, user *user
 		return nil, err
 	}
 
-	return p.createProposalDetailsReply(prop, user), nil
+	return createProposalDetailsReply(prop, user), nil
 }
 
 // processProposalDetails fetches a specific proposal version from the records
@@ -927,7 +939,7 @@ func (p *politeiawww) processProposalDetails(propDetails www.ProposalsDetails, u
 		return nil, err
 	}
 
-	return p.createProposalDetailsReply(prop, user), nil
+	return createProposalDetailsReply(prop, user), nil
 }
 
 // cacheVoteSumamary stores a given VoteSummary in memory.  This is to only

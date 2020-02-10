@@ -1574,7 +1574,7 @@ required can be retreived using the [`version`](#version) route.
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
-| tokenPrefix | string | Prefix of censorship token. | Yes |
+| tokenprefix | string | Prefix of censorship token. | Yes |
 
 **Results:**
 

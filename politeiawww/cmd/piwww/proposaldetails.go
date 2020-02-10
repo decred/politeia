@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/decred/politeia/politeiawww/api/www/v1"
+	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
@@ -26,7 +27,6 @@ func (cmd *ProposalDetailsCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-
 	// Get proposal
 	pdr, err := client.ProposalDetails(cmd.Args.Token,
 		&v1.ProposalsDetails{
@@ -34,6 +34,10 @@ func (cmd *ProposalDetailsCmd) Execute(args []string) error {
 		})
 	if err != nil {
 		return err
+	}
+
+	if len(cmd.Args.Token) == www.TokenPrefixLength && cmd.Args.Version != "" {
+		fmt.Println("VERSION ARGUMENT IS IGNORED WHEN USING TOKEN PREFIX!!")
 	}
 
 	// Verify proposal censorship record
@@ -51,7 +55,8 @@ func (cmd *ProposalDetailsCmd) Execute(args []string) error {
 // 'proposaldetails' is specified.
 const proposalDetailsHelpMsg = `proposaldetails "token" "version"
 
-Get a proposal.
+Get a proposal. The token can also be replaced with its 6 character prefix, but
+when using the character prefix, only the latest version can be retrieved.
 
 Arguments:
 1. token      (string, required)   Censorship token

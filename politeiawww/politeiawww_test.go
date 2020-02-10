@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
-	pd "github.com/decred/politeia/politeiad/api/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/go-test/deep"
 )
@@ -26,7 +25,7 @@ func TestHandleVersion(t *testing.T) {
 		Route:             www.PoliteiaWWWAPIRoute,
 		PubKey:            hex.EncodeToString(p.cfg.Identity.Key[:]),
 		TestNet:           p.cfg.TestNet,
-		TokenPrefixLength: pd.TokenPrefixLength,
+		TokenPrefixLength: www.TokenPrefixLength,
 	}
 
 	var tests = []struct {
