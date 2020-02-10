@@ -26,7 +26,7 @@ Arguments: None
 
 Result:
 {
-  "version":  (string)  Version of backend
+  "version":  (string)  Version of backend 
   "route":    (string)  Version route
   "pubkey":   (string)  Server public key
   "testnet":  (bool)    Whether of not testnet is being used
