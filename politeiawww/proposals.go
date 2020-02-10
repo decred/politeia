@@ -407,7 +407,6 @@ func (p *politeiawww) fillProposalMissingFields(pr *www.ProposalRecord) error {
 	if err != nil {
 		return err
 	}
-
 	pr.UserId = u.ID.String()
 	pr.Username = u.Username
 

@@ -156,12 +156,11 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleVersion")
 
 	versionReply := www.VersionReply{
-		Version:           www.PoliteiaWWWAPIVersion,
-		Route:             www.PoliteiaWWWAPIRoute,
-		PubKey:            hex.EncodeToString(p.cfg.Identity.Key[:]),
-		TestNet:           p.cfg.TestNet,
-		Mode:              p.cfg.Mode,
-		TokenPrefixLength: www.TokenPrefixLength,
+		Version: www.PoliteiaWWWAPIVersion,
+		Route:   www.PoliteiaWWWAPIRoute,
+		PubKey:  hex.EncodeToString(p.cfg.Identity.Key[:]),
+		TestNet: p.cfg.TestNet,
+		Mode:    p.cfg.Mode,
 	}
 
 	// Check if there's an active AND invalid session.
@@ -390,6 +389,7 @@ func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 		MaxProposalNameLength:      www.PolicyMaxProposalNameLength,
 		ProposalNameSupportedChars: www.PolicyProposalNameSupportedChars,
 		MaxCommentLength:           www.PolicyMaxCommentLength,
+		TokenPrefixLength:          www.TokenPrefixLength,
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)

@@ -163,5 +163,6 @@ func (c *testcache) decredExec(cmd, cmdPayload, replyPayload string) (string, er
 	case decred.CmdGetNumComments:
 		return c.getNumComments(cmdPayload)
 	}
+
 	return "", cache.ErrInvalidPluginCmd
 }

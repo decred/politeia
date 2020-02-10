@@ -27,6 +27,7 @@ func (cmd *ProposalDetailsCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
+
 	// Get proposal
 	pdr, err := client.ProposalDetails(cmd.Args.Token,
 		&v1.ProposalsDetails{
@@ -55,8 +56,10 @@ func (cmd *ProposalDetailsCmd) Execute(args []string) error {
 // 'proposaldetails' is specified.
 const proposalDetailsHelpMsg = `proposaldetails "token" "version"
 
-Get a proposal. The token can also be replaced with its 6 character prefix, but
-when using the character prefix, only the latest version can be retrieved.
+Get a proposal.
+
+The 6 character prefix of the token can also be used instead of the full token,
+but when using the token prefix, only the latest version can be retrieved.
 
 Arguments:
 1. token      (string, required)   Censorship token

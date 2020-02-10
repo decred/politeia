@@ -21,11 +21,10 @@ func TestHandleVersion(t *testing.T) {
 	defer d.Close()
 
 	expectedReply := www.VersionReply{
-		Version:           www.PoliteiaWWWAPIVersion,
-		Route:             www.PoliteiaWWWAPIRoute,
-		PubKey:            hex.EncodeToString(p.cfg.Identity.Key[:]),
-		TestNet:           p.cfg.TestNet,
-		TokenPrefixLength: www.TokenPrefixLength,
+		Version: www.PoliteiaWWWAPIVersion,
+		Route:   www.PoliteiaWWWAPIRoute,
+		PubKey:  hex.EncodeToString(p.cfg.Identity.Key[:]),
+		TestNet: p.cfg.TestNet,
 	}
 
 	var tests = []struct {

@@ -243,7 +243,6 @@ to get the CSRF token for the session and to ensure API compatibility.
 | testnet | boolean | Value to inform either its running on testnet or not |
 | mode | string | Current mode that politeiawww is running (possibly piwww or cmswww) |
 | activeusersesstion | boolean | Indicates if there is an active user from the session or not |
-| tokenprefixlength | number | The length of token prefix needed for the [`short proposal details`](#short-proposal-details) route |
 
 **Example**
 
@@ -262,8 +261,7 @@ Reply:
   "pubkey": "99e748e13d7ecf70ef6b5afa376d692cd7cb4dbb3d26fa83f417d29e44c6bb6c",
   "testnet": true,
   "mode": "piwww",
-  "activeusersession": true,
-  "tokenprefixlength": 6
+  "activeusersession": true
 }
 ```
 
@@ -1384,7 +1382,7 @@ SHALL observe.
 | invoicecommentchar | char | character for comments on invoices (cmswww)
 | invoicefielddelimiterchar | char | character for invoice csv field separation (cmswww)
 | invoicelineitemcount | integer | expected count for line item fields (cmswww)
-
+| tokenprefixlength | number | The length of token prefix needed
 
 **Example**
 
@@ -1420,7 +1418,8 @@ Reply:
   "maxcommentlength": 8000,
   "backendpublickey": "",
   "minproposalnamelength": 8,
-  "maxproposalnamelength": 80
+  "maxproposalnamelength": 80,
+  "tokenprefixlength": 6
 }
 ```
 
@@ -1566,7 +1565,7 @@ Reply:
 ### `Short proposal details`
 
 Retrieve proposal and its details using the prefix of its censorship token. The length of the token
-required can be retreived using the [`version`](#version) route.
+required can be retrieved using the [`policy`](#policy) route.
 
 **Routes:** `GET /v1/proposals/{tokenPrefix}`
 
