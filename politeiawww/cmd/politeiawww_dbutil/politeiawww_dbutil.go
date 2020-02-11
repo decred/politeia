@@ -853,7 +853,7 @@ func cmdVerifyIdentities() error {
 	}
 
 	// Update user
-	return userDB.UserUpdate(*u)
+	err = userDB.UserUpdate(*u)
 	if err != nil {
 		return fmt.Errorf("UserUpdate: %v", err)
 	}
