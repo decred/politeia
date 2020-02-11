@@ -260,6 +260,27 @@ var (
 		},
 	}
 
+	// PolicyCMSSupportedLineItemTypes supplies the currently available invoice types
+	// and descriptions of them.
+	PolicyCMSSupportedLineItemTypes = []AvailableLineItemType{
+		{
+			Description: "labor",
+			Type:        LineItemTypeLabor,
+		},
+		{
+			Description: "expense",
+			Type:        LineItemTypeExpense,
+		},
+		{
+			Description: "misc",
+			Type:        LineItemTypeMisc,
+		},
+		{
+			Description: "subhours",
+			Type:        LineItemTypeSubHours,
+		},
+	}
+
 	// ErrorStatus converts error status codes to human readable text.
 	ErrorStatus = map[www.ErrorStatusT]string{
 		ErrorStatusMalformedName:                  "malformed name",
@@ -318,6 +339,12 @@ var (
 type AvailableDomain struct {
 	Description string      `json:"description"`
 	Type        DomainTypeT `json:"type"`
+}
+
+// AvailableLineItemType contains a line item type and it's description
+type AvailableLineItemType struct {
+	Description string        `json:"description"`
+	Type        LineItemTypeT `json:"type"`
 }
 
 /// Contractor Management System Routes
@@ -432,30 +459,31 @@ type LineItemsInput struct {
 
 // PolicyReply returns the various policy information while in CMS mode.
 type PolicyReply struct {
-	MinPasswordLength             uint              `json:"minpasswordlength"`
-	MinUsernameLength             uint              `json:"minusernamelength"`
-	MaxUsernameLength             uint              `json:"maxusernamelength"`
-	MaxImages                     uint              `json:"maximages"`
-	MaxImageSize                  uint              `json:"maximagesize"`
-	MaxMDs                        uint              `json:"maxmds"`
-	MaxMDSize                     uint              `json:"maxmdsize"`
-	ValidMIMETypes                []string          `json:"validmimetypes"`
-	MaxNameLength                 uint              `json:"maxnamelength"`
-	MinNameLength                 uint              `json:"minnamelength"`
-	MaxLocationLength             uint              `json:"maxlocationlength"`
-	MinLocationLength             uint              `json:"minlocationlength"`
-	MaxContactLength              uint              `json:"maxcontactlength"`
-	MinContactLength              uint              `json:"mincontactlength"`
-	MaxLineItemColLength          uint              `json:"maxlineitemcollength"`
-	MinLineItemColLength          uint              `json:"minlineitemcollength"`
-	InvoiceCommentChar            rune              `json:"invoicecommentchar"`
-	InvoiceFieldDelimiterChar     rune              `json:"invoicefielddelimiterchar"`
-	InvoiceLineItemCount          uint              `json:"invoicelineitemcount"`
-	InvoiceFieldSupportedChars    []string          `json:"invoicefieldsupportedchars"`
-	UsernameSupportedChars        []string          `json:"usernamesupportedchars"`
-	CMSNameLocationSupportedChars []string          `json:"cmsnamelocationsupportedchars"`
-	CMSContactSupportedChars      []string          `json:"cmscontactsupportedchars"`
-	CMSSupportedDomains           []AvailableDomain `json:"supporteddomains"`
+	MinPasswordLength             uint                    `json:"minpasswordlength"`
+	MinUsernameLength             uint                    `json:"minusernamelength"`
+	MaxUsernameLength             uint                    `json:"maxusernamelength"`
+	MaxImages                     uint                    `json:"maximages"`
+	MaxImageSize                  uint                    `json:"maximagesize"`
+	MaxMDs                        uint                    `json:"maxmds"`
+	MaxMDSize                     uint                    `json:"maxmdsize"`
+	ValidMIMETypes                []string                `json:"validmimetypes"`
+	MaxNameLength                 uint                    `json:"maxnamelength"`
+	MinNameLength                 uint                    `json:"minnamelength"`
+	MaxLocationLength             uint                    `json:"maxlocationlength"`
+	MinLocationLength             uint                    `json:"minlocationlength"`
+	MaxContactLength              uint                    `json:"maxcontactlength"`
+	MinContactLength              uint                    `json:"mincontactlength"`
+	MaxLineItemColLength          uint                    `json:"maxlineitemcollength"`
+	MinLineItemColLength          uint                    `json:"minlineitemcollength"`
+	InvoiceCommentChar            rune                    `json:"invoicecommentchar"`
+	InvoiceFieldDelimiterChar     rune                    `json:"invoicefielddelimiterchar"`
+	InvoiceLineItemCount          uint                    `json:"invoicelineitemcount"`
+	InvoiceFieldSupportedChars    []string                `json:"invoicefieldsupportedchars"`
+	UsernameSupportedChars        []string                `json:"usernamesupportedchars"`
+	CMSNameLocationSupportedChars []string                `json:"cmsnamelocationsupportedchars"`
+	CMSContactSupportedChars      []string                `json:"cmscontactsupportedchars"`
+	CMSSupportedLineItemTypes     []AvailableLineItemType `json:"supportedlineitemtypes"`
+	CMSSupportedDomains           []AvailableDomain       `json:"supporteddomains"`
 }
 
 // UserInvoices is used to get all of the invoices by userID.
