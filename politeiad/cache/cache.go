@@ -6,6 +6,8 @@ package cache
 
 import (
 	"errors"
+
+	"github.com/jinzhu/gorm"
 )
 
 type RecordStatusT int
@@ -141,11 +143,19 @@ type PluginDriver interface {
 	// Setup the plugin tables
 	Setup() error
 
-	// Build the plugin tables from scratch
-	Build(string) error
+	// Build the plugin tables from scratch. The given payload should
+	// provide all data necessary to build the plugin tables.
+	Build(payload string) error
 
-	// Execute a plugin command
-	Exec(string, string, string) (string, error)
+	// Execute a plugin command. Some commands are executed by
+	// politeiad first then fowarded to the cache. If this is the case
+	// the replyPayload will be populated with the politeiad reply,
+	// otherwise the replyPayload will be empty.
+	Exec(cmdID, cmdPayload, replyPayload string) (string, error)
+
+	// Run a plugin hook. The given gorm.DB should be a transaction so
+	// that the hook actions can be executed atomically.
+	Hook(tx *gorm.DB, hookID, payload string) error
 }
 
 // Cache describes the interface used for interacting with an external

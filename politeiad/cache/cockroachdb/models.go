@@ -64,6 +64,26 @@ func (Record) TableName() string {
 	return tableRecords
 }
 
+// ProposalGeneralMetadata represents general medadata for a proposal.
+//
+// This mdstream data is already saved to the cache as a MetadataStream with an
+// encoded payload. The ProposalGeneralMetadata duplicates existing data, but
+// is necessary so that the metadata fields can be queried, which is not
+// possible with the encoded MetadataStream payload. ProposalGeneralMetadata
+// is only saved for the most recent proposal version since this is the only
+// metadata that currently needs to be queried.
+//
+// This is a decred plugin model.
+type ProposalGeneralMetadata struct {
+	Token           string `gorm:"primary_key;size:64"` // Censorship token
+	ProposalVersion uint64 `gorm:"not null"`            // Proposal version
+	Version         uint64 `gorm:"not null"`            // Struct version
+	Timestamp       int64  `gorm:"not null"`            // Last update of proposal
+	Name            string `gorm:"not null"`            // Proposal name
+	Signature       string `gorm:"not null;size:128"`   // Client signature
+	PublicKey       string `gorm:"not null;size:64"`    // Pubkey used for Signature
+}
+
 // Comment represents a record comment, including all of the server side
 // metadata.
 //
@@ -141,6 +161,13 @@ func (VoteOption) TableName() string {
 }
 
 // StartVote records the details of a proposal vote.
+//
+// The data contained in the cache StartVote includes the decredplugin
+// StartVote and StartVoteReply mdstreams. These mdstreams are not saved in the
+// cache as separate Record.Metadata for the given proposal. This means that
+// this mdstream data will not be returned when a proposal record is fetched
+// from the cache. The cache StartVote must be queried directly to obtain this
+// data.
 //
 // This is a decred plugin model.
 type StartVote struct {

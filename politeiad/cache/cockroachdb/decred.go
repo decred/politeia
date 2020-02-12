@@ -5,12 +5,14 @@
 package cockroachdb
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/decred/politeia/decredplugin"
+	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/cache"
 	"github.com/jinzhu/gorm"
@@ -23,14 +25,15 @@ const (
 	decredVersion = "1.1"
 
 	// Decred plugin table names
-	tableComments          = "comments"
-	tableCommentLikes      = "comment_likes"
-	tableCastVotes         = "cast_votes"
-	tableAuthorizeVotes    = "authorize_votes"
-	tableVoteOptions       = "vote_options"
-	tableStartVotes        = "start_votes"
-	tableVoteOptionResults = "vote_option_results"
-	tableVoteResults       = "vote_results"
+	tableProposalGeneralMetadata = "proposal_general_metadata"
+	tableComments                = "comments"
+	tableCommentLikes            = "comment_likes"
+	tableCastVotes               = "cast_votes"
+	tableAuthorizeVotes          = "authorize_votes"
+	tableVoteOptions             = "vote_options"
+	tableStartVotes              = "start_votes"
+	tableVoteOptionResults       = "vote_option_results"
+	tableVoteResults             = "vote_results"
 
 	// Vote option IDs
 	voteOptionIDApproved = "yes"
@@ -1326,6 +1329,144 @@ sendReply:
 	return string(reply), nil
 }
 
+// hookPostNewRecord executes the decred plugin post new record hook. This
+// includes inserting a ProposalGeneralMetadata record for the given proposal.
+//
+// This function must be called using a transaction.
+func (d *decred) hookPostNewRecord(tx *gorm.DB, payload string) error {
+	// Decode ProposalGeneral mdstream
+	var r Record
+	err := json.Unmarshal([]byte(payload), &r)
+	if err != nil {
+		return err
+	}
+
+	var pg *mdstream.ProposalGeneral
+	for _, md := range r.Metadata {
+		if md.ID == mdstream.IDProposalGeneral {
+			pg, err = mdstream.DecodeProposalGeneral([]byte(md.Payload))
+			if err != nil {
+				return err
+			}
+			break
+		}
+	}
+	if pg == nil {
+		return fmt.Errorf("mdstream %v not found",
+			mdstream.IDProposalGeneral)
+	}
+
+	// All prososal versions are stored in the cache which means that
+	// this new proposal request could be for a brand new proposal or
+	// it could be for a new proposal version that is the result of a
+	// proposal edit. We only need to store the ProposalGeneralMetadata
+	// for the most recent version of the proposal.
+	if r.Version > 1 {
+		// Delete existing metadata
+		err := tx.Delete(ProposalGeneralMetadata{
+			Token: r.Token,
+		}).Error
+		if err != nil {
+			return fmt.Errorf("delete: %v", err)
+		}
+	}
+
+	// Insert new metadata
+	err = tx.Create(&ProposalGeneralMetadata{
+		Token:           r.Token,
+		ProposalVersion: r.Version,
+		Version:         pg.Version,
+		Timestamp:       pg.Timestamp,
+		Name:            pg.Name,
+		Signature:       pg.Signature,
+		PublicKey:       pg.PublicKey,
+	}).Error
+	if err != nil {
+		return fmt.Errorf("create: %v", err)
+	}
+
+	return nil
+}
+
+// hookPostUpdateRecord executes the decred plugin post update record hook.
+// This includes updating the ProposalGeneralMetadata in the cache for the
+// given proposal. The existing metadata is first deleted before the new
+// metadata is inserted.
+//
+// This function must be called using a transaction.
+func (d *decred) hookPostUpdateRecord(tx *gorm.DB, payload string) error {
+	// Decode ProposalGeneral mdstream
+	var r Record
+	err := json.Unmarshal([]byte(payload), &r)
+	if err != nil {
+		return err
+	}
+	var pg *mdstream.ProposalGeneral
+	for _, md := range r.Metadata {
+		if md.ID == mdstream.IDProposalGeneral {
+			pg, err = mdstream.DecodeProposalGeneral([]byte(md.Payload))
+			if err != nil {
+				return err
+			}
+			break
+		}
+	}
+	if pg == nil {
+		return fmt.Errorf("mdstream %v not found",
+			mdstream.IDProposalGeneral)
+	}
+
+	// Delete existing metadata
+	err = tx.Delete(ProposalGeneralMetadata{
+		Token: r.Token,
+	}).Error
+	if err != nil {
+		return fmt.Errorf("delete: %v", err)
+	}
+
+	// Insert new metadata record
+	err = tx.Create(&ProposalGeneralMetadata{
+		Token:           r.Token,
+		ProposalVersion: r.Version,
+		Version:         pg.Version,
+		Timestamp:       pg.Timestamp,
+		Name:            pg.Name,
+		Signature:       pg.Signature,
+		PublicKey:       pg.PublicKey,
+	}).Error
+	if err != nil {
+		return fmt.Errorf("create: %v", err)
+	}
+
+	return nil
+}
+
+// hookPostUpdateRecordMetadata executes the decred plugin post update record
+// metadata hook.
+func (d *decred) hookPostUpdateRecordMetadata(tx *gorm.DB, payload string) error {
+	// piwww does not currently use the UpdateRecordMetadata route.
+	// If this changes, this panic is here as a reminder that any piwww
+	// mdstream tables, such as ProposalGeneralMetadata and StartVote,
+	// need to be properly updated in this hook.
+	panic("cache decred plugin: hookPostUpdateRecordMetadata not implemented")
+}
+
+// Hook executes the given decred plugin hook.
+func (d *decred) Hook(tx *gorm.DB, hookID, payload string) error {
+	log.Tracef("decred Hook: %v", hookID)
+
+	switch hookID {
+	case pluginHookPostNewRecord:
+		return d.hookPostNewRecord(tx, payload)
+	case pluginHookPostUpdateRecord:
+		return d.hookPostUpdateRecord(tx, payload)
+	case pluginHookPostUpdateRecordMetadata:
+		return d.hookPostUpdateRecordMetadata(tx, payload)
+	}
+
+	return nil
+}
+
 // Exec executes a decred plugin command.  Plugin commands that write data to
 // the cache require both the command payload and the reply payload.  Plugin
 // commands that fetch data from the cache require only the command payload.
@@ -1386,6 +1527,12 @@ func (d *decred) createTables(tx *gorm.DB) error {
 	log.Tracef("createTables")
 
 	// Create decred plugin tables
+	if !tx.HasTable(tableProposalGeneralMetadata) {
+		err := tx.CreateTable(&ProposalGeneralMetadata{}).Error
+		if err != nil {
+			return err
+		}
+	}
 	if !tx.HasTable(tableComments) {
 		err := tx.CreateTable(&Comment{}).Error
 		if err != nil {
@@ -1464,8 +1611,8 @@ func (d *decred) dropTables(tx *gorm.DB) error {
 	// Drop decred plugin tables
 	err := tx.DropTableIfExists(tableComments, tableCommentLikes,
 		tableCastVotes, tableAuthorizeVotes, tableVoteOptions,
-		tableStartVotes, tableVoteOptionResults, tableVoteResults).
-		Error
+		tableStartVotes, tableVoteOptionResults, tableVoteResults,
+		tableProposalGeneralMetadata).Error
 	if err != nil {
 		return err
 	}
@@ -1587,6 +1734,90 @@ func (d *decred) build(ir *decredplugin.InventoryReply) error {
 		if err != nil {
 			log.Debugf("insert cast vote failed on '%v'", cv)
 			return fmt.Errorf("insert cast vote: %v", err)
+		}
+	}
+
+	// Build the ProposalGeneralMetadata cache. This metadata is not
+	// part of the decredplugin InventoryReply. It is already stored
+	// in the cached as a MetadataStream with an encoded payload. We
+	// need to lookup the MetadataStreams for each record, decode the
+	// mdstream, and save it as a ProposalGeneralMetadata record so
+	// that it is queriable. Only the ProposalGeneralMetadata for the
+	// most recent version of the proposal is saved to the cache.
+
+	// Lookup latest version of each record
+	query := `SELECT a.*
+            FROM records a
+            LEFT OUTER JOIN records b
+              ON a.token = b.token
+              AND a.version < b.version
+              WHERE b.token IS NULL`
+	rows, err := d.recordsdb.Raw(query).Rows()
+	if err != nil {
+		return fmt.Errorf("lookup latest records: %v", err)
+	}
+	defer rows.Close()
+
+	records := make([]Record, 0, 1024)
+	for rows.Next() {
+		var r Record
+		err := d.recordsdb.ScanRows(rows, &r)
+		if err != nil {
+			return err
+		}
+		records = append(records, r)
+	}
+	if err = rows.Err(); err != nil {
+		return err
+	}
+
+	// Compile a list of record primary keys
+	keys := make([]string, 0, len(records))
+	for _, v := range records {
+		keys = append(keys, v.Key)
+	}
+
+	// Lookup the metadata streams for each record
+	err = d.recordsdb.
+		Preload("Metadata").
+		Where(keys).
+		Find(&records).
+		Error
+	if err != nil {
+		return fmt.Errorf("lookup record metadata: %v", err)
+	}
+
+	for _, v := range records {
+		// Decode the ProposalGeneral mdstream
+		var pg *mdstream.ProposalGeneral
+		for _, md := range v.Metadata {
+			if md.ID == mdstream.IDProposalGeneral {
+				pg, err = mdstream.DecodeProposalGeneral([]byte(md.Payload))
+				if err != nil {
+					return fmt.Errorf("decode ProposalGenral %v '%v': %v",
+						v.Token, md.Payload, err)
+				}
+			}
+			if pg == nil {
+				return fmt.Errorf("no ProposalGenral mdstream found %v",
+					v.Token)
+			}
+		}
+
+		// Insert the ProposalGeneralMetadata record
+		pgm := ProposalGeneralMetadata{
+			Token:           v.Token,
+			ProposalVersion: v.Version,
+			Version:         pg.Version,
+			Timestamp:       pg.Timestamp,
+			Name:            pg.Name,
+			Signature:       pg.Signature,
+			PublicKey:       pg.PublicKey,
+		}
+		err := d.recordsdb.Create(&pgm).Error
+		if err != nil {
+			return fmt.Errorf("insert ProposalGeneralMetadata %v: %v",
+				pgm, err)
 		}
 	}
 
