@@ -50,6 +50,7 @@ func addSessionToReq(t *testing.T, p *politeiawww, req *http.Request, userID str
 		t.Fatal(err)
 	}
 	res := w.Result()
+	res.Body.Close()
 
 	// Grab the session cookie from the response and add it to the
 	// request.
@@ -480,6 +481,9 @@ func TestHandleLogin(t *testing.T) {
 				c := sessions.NewCookie(www.CookieSession, sessionID, opts)
 				req.AddCookie(c)
 				s, err := p.getSession(req)
+				if err != nil {
+					t.Error(err)
+				}
 				if s.IsNew {
 					t.Errorf("session not saved to session store")
 				}
