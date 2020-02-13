@@ -48,6 +48,25 @@ func (User) TableName() string {
 	return tableUsers
 }
 
+// Session represents a user session.
+//
+// Key is a SHA256 hash of the decoded session ID. The session Store handles
+// encoding/decoding the ID.
+//
+// Blob represents an ecrypted user.Session. The fields that have been broken
+// out of the encrypted blob are the fields that need to be queryable.
+type Session struct {
+	Key       string    `gorm:"primary_key"` // SHA256 hash of the session ID
+	UserID    uuid.UUID `gorm:"not null"`    // User UUID
+	CreatedAt int64     `gorm:"not null"`    // Created at UNIX timestamp
+	Blob      []byte    `gorm:"not null"`    // Encrypted user session
+}
+
+// TableName returns the table name of the Session table.
+func (Session) TableName() string {
+	return tableSessions
+}
+
 // CMSUser represents a CMS user. A CMS user includes the politeiawww User
 // object as well as CMS specific user fields. A CMS user must correspond to
 // a politeiawww User.

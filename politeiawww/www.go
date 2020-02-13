@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -11,7 +11,6 @@ import (
 	"crypto/tls"
 	_ "encoding/gob"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -39,7 +38,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
-	"github.com/gorilla/sessions"
 	"github.com/robfig/cron"
 )
 
@@ -51,13 +49,6 @@ const (
 	permissionAdmin
 
 	csrfKeyLength = 32
-	sessionMaxAge = 86400 //One day
-)
-
-var (
-	// ErrSessionUUIDNotFound is emitted when a UUID value is not found
-	// in a session and indicates that the user is not logged in.
-	ErrSessionUUIDNotFound = errors.New("session UUID not found")
 )
 
 // Fetch remote identity
@@ -633,14 +624,7 @@ func _main() error {
 	if err != nil {
 		return err
 	}
-	p.store = sessions.NewFilesystemStore(sessionsDir, cookieKey)
-	p.store.Options = &sessions.Options{
-		Path:     "/",
-		MaxAge:   sessionMaxAge,
-		Secure:   true,
-		HttpOnly: true,
-		SameSite: http.SameSiteStrictMode,
-	}
+	p.sessions = NewSessionStore(p.db, sessionMaxAge, cookieKey)
 
 	// Bind to a port and pass our router in
 	listenC := make(chan error)

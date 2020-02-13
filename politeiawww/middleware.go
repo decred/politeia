@@ -22,7 +22,7 @@ func (p *politeiawww) isLoggedIn(f http.HandlerFunc) http.HandlerFunc {
 		log.Debugf("isLoggedIn: %v %v %v %v", remoteAddr(r), r.Method,
 			r.URL, r.Proto)
 
-		id, err := p.getSessionUUID(r)
+		id, err := p.getSessionUserID(w, r)
 		if err != nil {
 			util.RespondWithJSON(w, http.StatusUnauthorized, www.ErrorReply{
 				ErrorCode: int64(www.ErrorStatusNotLoggedIn),
@@ -40,6 +40,16 @@ func (p *politeiawww) isLoggedIn(f http.HandlerFunc) http.HandlerFunc {
 
 		f(w, r)
 	}
+}
+
+// isAdmin returns true if the current session has admin privileges.
+func (p *politeiawww) isAdmin(w http.ResponseWriter, r *http.Request) (bool, error) {
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		return false, err
+	}
+
+	return user.Admin, nil
 }
 
 // isLoggedInAsAdmin ensures that a user is logged in as an admin user

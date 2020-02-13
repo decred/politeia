@@ -29,10 +29,6 @@ import (
 	"github.com/robfig/cron"
 )
 
-const (
-//templateNewProposalSubmittedName = "templateNewProposalSubmitted"
-)
-
 var (
 	templateNewProposalSubmitted = template.Must(
 		template.New("new_proposal_submitted_template").Parse(templateNewProposalSubmittedRaw))
@@ -84,10 +80,9 @@ func (w *wsContext) isAuthenticated() bool {
 
 // politeiawww application context.
 type politeiawww struct {
-	cfg    *config
-	router *mux.Router
-
-	store *sessions.FilesystemStore
+	cfg      *config
+	router   *mux.Router
+	sessions sessions.Store
 
 	ws    map[string]map[string]*wsContext // [uuid][]*context
 	wsMtx sync.RWMutex
@@ -171,22 +166,7 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 		Mode:    p.cfg.Mode,
 	}
 
-	// Check if there's an active AND invalid session.
-	session, err := p.getSession(r)
-	if err != nil && session != nil {
-		// Create and save a new session for the user.
-		session := sessions.NewSession(p.store, www.CookieSession)
-		opts := *p.store.Options
-		session.Options = &opts
-		session.IsNew = true
-		err = session.Save(r, w)
-		if err != nil {
-			RespondWithError(w, r, 0, "handleVersion: session.Save %v", err)
-			return
-		}
-	}
-
-	_, err = p.getSessionUser(w, r)
+	_, err := p.getSessionUser(w, r)
 	if err == nil {
 		versionReply.ActiveUserSession = true
 	}
@@ -274,14 +254,14 @@ func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Reque
 	pathParams := mux.Vars(r)
 	pd.Token = pathParams["token"]
 
+	// Get session user. This is a public route so one might not exist.
 	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		if err != ErrSessionUUIDNotFound {
-			RespondWithError(w, r, 0,
-				"handleProposalDetails: getSessionUser %v", err)
-			return
-		}
+	if err != nil && err != errSessionNotFound {
+		RespondWithError(w, r, 0,
+			"handleProposalDetails: getSessionUser %v", err)
+		return
 	}
+
 	reply, err := p.processProposalDetails(pd, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
@@ -333,14 +313,12 @@ func (p *politeiawww) handleBatchProposals(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// Get session user. This is a public route so one might not exist.
 	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		// This is a public route so a session might not exist
-		if err != ErrSessionUUIDNotFound {
-			RespondWithError(w, r, 0,
-				"handleProposalDetails: getSessionUser %v", err)
-			return
-		}
+	if err != nil && err != errSessionNotFound {
+		RespondWithError(w, r, 0,
+			"handleBatchProposals: getSessionUser %v", err)
+		return
 	}
 
 	reply, err := p.processBatchProposals(bp, user)
@@ -384,14 +362,14 @@ func (p *politeiawww) handleCommentsGet(w http.ResponseWriter, r *http.Request) 
 	pathParams := mux.Vars(r)
 	token := pathParams["token"]
 
+	// Get session user. This is a public route so one might not exist.
 	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		if err != ErrSessionUUIDNotFound {
-			RespondWithError(w, r, 0,
-				"handleCommentsGet: getSessionUser %v", err)
-			return
-		}
+	if err != nil && err != errSessionNotFound {
+		RespondWithError(w, r, 0,
+			"handleCommentsGet: getSessionUser %v", err)
+		return
 	}
+
 	gcr, err := p.processCommentsGet(token, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
@@ -425,10 +403,12 @@ func (p *politeiawww) handleUserProposals(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// Get session user. This is a public route so one might not exist.
 	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		// This is a public route so a logged in user may not exist
-		log.Tracef("handleUserProposals: getSessionUser: %v", err)
+	if err != nil && err != errSessionNotFound {
+		RespondWithError(w, r, 0,
+			"handleUserProposals: getSessionUser %v", err)
+		return
 	}
 
 	upr, err := p.processUserProposals(
@@ -524,14 +504,14 @@ func (p *politeiawww) handleVoteStatus(w http.ResponseWriter, r *http.Request) {
 
 // handleTokenInventory returns the tokens of all proposals in the inventory.
 func (p *politeiawww) handleTokenInventory(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleTokenInventory")
+
+	// Get session user. This is a public route so one might not exist.
 	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		// This is a public route so a session might not exist
-		if err != ErrSessionUUIDNotFound {
-			RespondWithError(w, r, 0,
-				"handleProposalDetails: getSessionUser %v", err)
-			return
-		}
+	if err != nil && err != errSessionNotFound {
+		RespondWithError(w, r, 0,
+			"handleTokenInventory: getSessionUser %v", err)
+		return
 	}
 
 	isAdmin := user != nil && user.Admin
@@ -1061,8 +1041,8 @@ func (p *politeiawww) handleWebsocket(w http.ResponseWriter, r *http.Request, id
 func (p *politeiawww) handleUnauthenticatedWebsocket(w http.ResponseWriter, r *http.Request) {
 	// We are retrieving the uuid here to make sure it is NOT set. This
 	// check looks backwards but is correct.
-	id, err := p.getSessionUUID(r)
-	if err != nil && err != ErrSessionUUIDNotFound {
+	id, err := p.getSessionUserID(w, r)
+	if err != nil && err != errSessionNotFound {
 		http.Error(w, "Could not get session uuid",
 			http.StatusBadRequest)
 		return
@@ -1080,7 +1060,7 @@ func (p *politeiawww) handleUnauthenticatedWebsocket(w http.ResponseWriter, r *h
 // handleAuthenticatedWebsocket attempts to upgrade the current authenticated
 // connection to a websocket connection.
 func (p *politeiawww) handleAuthenticatedWebsocket(w http.ResponseWriter, r *http.Request) {
-	id, err := p.getSessionUUID(r)
+	id, err := p.getSessionUserID(w, r)
 	if err != nil {
 		http.Error(w, "Could not get session uuid",
 			http.StatusBadRequest)

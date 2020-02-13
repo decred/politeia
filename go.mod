@@ -42,6 +42,7 @@ require (
 	github.com/gorilla/csrf v1.6.2
 	github.com/gorilla/mux v1.7.3
 	github.com/gorilla/schema v1.1.0
+	github.com/gorilla/securecookie v1.1.1
 	github.com/gorilla/sessions v1.2.0
 	github.com/gorilla/websocket v1.4.1
 	github.com/grpc-ecosystem/go-grpc-middleware v1.0.0 // indirect

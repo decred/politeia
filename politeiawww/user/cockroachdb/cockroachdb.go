@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -28,6 +28,7 @@ const (
 	tableKeyValue   = "key_value"
 	tableUsers      = "users"
 	tableIdentities = "identities"
+	tableSessions   = "sessions"
 
 	// Database user (read/write access)
 	userPoliteiawww = "politeiawww"
@@ -402,19 +403,139 @@ func (c *cockroachdb) AllUsers(callback func(u *user.User)) error {
 	return nil
 }
 
+func (c *cockroachdb) convertSessionFromUser(s user.Session) (*Session, error) {
+	sb, err := user.EncodeSession(s)
+	if err != nil {
+		return nil, err
+	}
+	eb, err := c.encrypt(user.VersionSession, sb)
+	if err != nil {
+		return nil, err
+	}
+	return &Session{
+		Key:       hex.EncodeToString(util.Digest([]byte(s.ID))),
+		UserID:    s.UserID,
+		CreatedAt: s.CreatedAt,
+		Blob:      eb,
+	}, nil
+}
+
+func (c *cockroachdb) convertSessionToUser(s Session) (*user.Session, error) {
+	b, _, err := c.decrypt(s.Blob)
+	if err != nil {
+		return nil, err
+	}
+	return user.DecodeSession(b)
+}
+
+// SessionSave saves the given session to the database. New sessions are
+// inserted into the database. Existing sessions are updated in the database.
+//
+// SessionSave satisfies the user Database interface.
+func (c *cockroachdb) SessionSave(us user.Session) error {
+	log.Tracef("SessionSave: %v", us.ID)
+
+	if c.isShutdown() {
+		return user.ErrShutdown
+	}
+
+	session, err := c.convertSessionFromUser(us)
+	if err != nil {
+		return err
+	}
+
+	// Check if session already exists
+	var update bool
+	var s Session
+	err = c.userDB.
+		Where("key = ?", session.Key).
+		Find(&s).
+		Error
+	switch err {
+	case nil:
+		// Session already exists; update existing session
+		update = true
+	case gorm.ErrRecordNotFound:
+		// Session doesn't exist; continue
+	default:
+		// All other errors
+		return fmt.Errorf("lookup: %v", err)
+	}
+
+	// Save session record
+	if update {
+		err := c.userDB.Save(session).Error
+		if err != nil {
+			return fmt.Errorf("save: %v", err)
+		}
+	} else {
+		err := c.userDB.Create(session).Error
+		if err != nil {
+			return fmt.Errorf("create: %v", err)
+		}
+	}
+
+	return nil
+}
+
+// Get a session by its ID. Returns a user.ErrorSessionNotFound if the given
+// session ID does not exist
+//
+// SessionGetByID satisfies the Database interface.
+func (c *cockroachdb) SessionGetByID(sid string) (*user.Session, error) {
+	log.Tracef("SessionGetByID: %v", sid)
+
+	if c.isShutdown() {
+		return nil, user.ErrShutdown
+	}
+
+	s := Session{
+		Key: hex.EncodeToString(util.Digest([]byte(sid))),
+	}
+	err := c.userDB.Find(&s).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			err = user.ErrSessionNotFound
+		}
+		return nil, err
+	}
+
+	us, err := c.convertSessionToUser(s)
+	if err != nil {
+		return nil, err
+	}
+
+	return us, nil
+}
+
+// Delete the session with the given id.
+//
+// SessionDeleteByID satisfies the Database interface.
+func (c *cockroachdb) SessionDeleteByID(sid string) error {
+	log.Tracef("SessionDeleteByID: %v", sid)
+
+	if c.isShutdown() {
+		return user.ErrShutdown
+	}
+
+	s := Session{
+		Key: hex.EncodeToString(util.Digest([]byte(sid))),
+	}
+	return c.userDB.Delete(&s).Error
+}
+
 // rotateKeys rotates the existing database encryption key with the given new
 // key.
 //
 // This function must be called using a transaction.
 func rotateKeys(tx *gorm.DB, oldKey *[32]byte, newKey *[32]byte) error {
-	// Lookup all users
+	// Rotate keys for users table
 	var users []User
 	err := tx.Find(&users).Error
 	if err != nil {
 		return err
 	}
 
-	// Rotate keys
 	for _, v := range users {
 		b, _, err := sbox.Decrypt(oldKey, v.Blob)
 		if err != nil {
@@ -433,6 +554,34 @@ func rotateKeys(tx *gorm.DB, oldKey *[32]byte, newKey *[32]byte) error {
 		if err != nil {
 			return fmt.Errorf("save user '%v': %v",
 				v.ID, err)
+		}
+	}
+
+	// Rotate keys for sessions table
+	var sessions []Session
+	err = tx.Find(&sessions).Error
+	if err != nil {
+		return err
+	}
+
+	for _, v := range sessions {
+		b, _, err := sbox.Decrypt(oldKey, v.Blob)
+		if err != nil {
+			return fmt.Errorf("decrypt session '%v': %v",
+				v.Key, err)
+		}
+
+		eb, err := sbox.Encrypt(user.VersionSession, newKey, b)
+		if err != nil {
+			return fmt.Errorf("encrypt session '%v': %v",
+				v.Key, err)
+		}
+
+		v.Blob = eb
+		err = tx.Save(&v).Error
+		if err != nil {
+			return fmt.Errorf("save session '%v': %v",
+				v.Key, err)
 		}
 	}
 
@@ -460,6 +609,9 @@ func (c *cockroachdb) RotateKeys(newKeyPath string) error {
 	}
 
 	log.Infof("Rotating encryption keys")
+
+	c.Lock()
+	defer c.Unlock()
 
 	// Rotate keys using a transaction
 	tx := c.userDB.Begin()
@@ -591,6 +743,12 @@ func (c *cockroachdb) createTables(tx *gorm.DB) error {
 	}
 	if !tx.HasTable(tableIdentities) {
 		err := tx.CreateTable(&Identity{}).Error
+		if err != nil {
+			return err
+		}
+	}
+	if !tx.HasTable(tableSessions) {
+		err := tx.CreateTable(&Session{}).Error
 		if err != nil {
 			return err
 		}

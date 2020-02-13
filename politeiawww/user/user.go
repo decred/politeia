@@ -17,11 +17,16 @@ import (
 )
 
 var (
+	// ErrSessionNotFound indicates that a user session was not found
+	// in the database.
+	ErrSessionNotFound = errors.New("no user session found")
+
 	// ErrUserNotFound indicates that a user name was not found in the
 	// database.
 	ErrUserNotFound = errors.New("user not found")
 
-	// ErrUserExists indicates that a user already exists in the database.
+	// ErrUserExists indicates that a user already exists in the
+	// database.
 	ErrUserExists = errors.New("user already exists")
 
 	// ErrShutdown is emitted when the database is shutting down.
@@ -385,6 +390,50 @@ type Plugin struct {
 	Settings []PluginSetting
 }
 
+// Session represents a user session.
+//
+// ID is the decoded session ID. The ID present in the session cookie is the
+// encoded session ID. The encoding/decoding is handled by the session Store.
+//
+// Values are politeiawww specific encoded session values. The encoding is
+// handled by the session Store.
+//
+// UserID and CreatedAt are included in the encoded Values but have also been
+// broken out into their own fields so that they can be queryable. UserID
+// allows for lookups by UserID and CreatedAt allows for periodically cleaning
+// up expired sessions in the database.
+type Session struct {
+	ID        string    `json:"id"`        // Unique session ID
+	UserID    uuid.UUID `json:"userid"`    // User UUID
+	CreatedAt int64     `json:"createdat"` // Created at UNIX timestamp
+	Values    string    `json:"values"`    // Encoded session values
+}
+
+// VersionSession is the version of the Session struct.
+const VersionSession uint32 = 1
+
+// EncodeSession encodes Session into a JSON byte slice.
+func EncodeSession(s Session) ([]byte, error) {
+	b, err := json.Marshal(s)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+// DecodeSession decodes a JSON byte slice into a Session.
+func DecodeSession(payload []byte) (*Session, error) {
+	var s Session
+
+	err := json.Unmarshal(payload, &s)
+	if err != nil {
+		return nil, err
+	}
+
+	return &s, nil
+}
+
 // Database describes the interface used for interacting with the user
 // database.
 type Database interface {
@@ -408,6 +457,15 @@ type Database interface {
 
 	// Iterate over all users
 	AllUsers(callbackFn func(u *User)) error
+
+	// Create or update a user session
+	SessionSave(Session) error
+
+	// Return a user session given its id
+	SessionGetByID(sessionID string) (*Session, error)
+
+	// Delete a user session given its id
+	SessionDeleteByID(sessionID string) error
 
 	// Register a plugin
 	RegisterPlugin(Plugin) error
