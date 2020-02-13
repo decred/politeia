@@ -1751,7 +1751,7 @@ func (c *Client) CMSEditUser(uui cms.EditUser) (*cms.EditUserReply, error) {
 
 // CMSManageUser updates the given user's information.
 func (c *Client) CMSManageUser(uui cms.CMSManageUser) (*cms.CMSManageUserReply, error) {
-	responseBody, err := c.makeRequest("POST", v1.RouteManageUser,
+	responseBody, err := c.makeRequest("POST", cms.RouteManageCMSUser,
 		uui)
 	if err != nil {
 		return nil, err
