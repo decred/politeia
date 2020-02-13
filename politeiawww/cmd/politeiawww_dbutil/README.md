@@ -70,6 +70,12 @@ You can specify the following options:
             Required DB flag : None
             Args             : None
 
+     -verifyidentities
+          Verify a user's identities do not violate any politeia rules. Invalid
+          identities are fixed.
+          Required DB flag : -cockroachdb
+          Args             : <username>
+
 ### Examples
 
 Mainnet example:
