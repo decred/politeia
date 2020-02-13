@@ -314,11 +314,23 @@ func (u *User) ActivateIdentity(key []byte) error {
 		return fmt.Errorf("identity is activated")
 	}
 
-	// Update identities
-	active := u.ActiveIdentity()
-	if active != nil {
-		active.Deactivate()
+	// Deactivate any active identities. There should only ever be a
+	// single active identity at a time, but due to a prior bug in the
+	// early version of politeia, this may not hold true. Check all
+	// identities just to be sure.
+	for k, v := range u.Identities {
+		// Skip the inactive identity that is going
+		// to be the new active identity.
+		if inactive.String() == v.String() {
+			continue
+		}
+
+		if v.Deactivated == 0 {
+			u.Identities[k].Deactivate()
+		}
 	}
+
+	// Update the inactive identity to be active.
 	inactive.Activate()
 
 	return nil
