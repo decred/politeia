@@ -79,9 +79,9 @@ func (s *SessionStore) New(r *http.Request, name string) (*sessions.Session, err
 		return session, err
 	}
 
-	// Session cookie already exists. The session ID travels in the
-	// cookie. Decode it and use it to check if the session exists in
-	// the store.
+	// Session cookie already exists. The encoded session ID travels in
+	// the cookie. Decode it and use it to check if the session exists
+	// in the store.
 
 	// Decode session ID (overwrites existing session ID)
 	err = securecookie.DecodeMulti(name, c.Value, &session.ID, s.Codecs...)
@@ -90,13 +90,13 @@ func (s *SessionStore) New(r *http.Request, name string) (*sessions.Session, err
 	}
 
 	// Check if session exists in the store
-	sessionDB, err := s.db.SessionGetByID(session.ID)
+	userSession, err := s.db.SessionGetByID(session.ID)
 	switch err {
 	case nil:
 		// Session found in database. Decode database session values into
 		// the session being returned.
 		session.IsNew = false
-		err = securecookie.DecodeMulti(session.Name(), sessionDB.Values,
+		err = securecookie.DecodeMulti(session.Name(), userSession.Values,
 			&session.Values, s.Codecs...)
 		if err != nil {
 			return session, err
@@ -136,11 +136,17 @@ func (s *SessionStore) Save(r *http.Request, w http.ResponseWriter, session *ses
 	// Save session to the store
 	id, ok := session.Values[sessionValueUserID].(string)
 	if !ok {
-		return fmt.Errorf("session value user_id not found")
+		return fmt.Errorf("session value %v not found",
+			sessionValueUserID)
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
 		return err
+	}
+	createdAt, ok := session.Values[sessionValueCreatedAt].(int64)
+	if !ok {
+		return fmt.Errorf("session value %v not found",
+			sessionValueCreatedAt)
 	}
 	encodedValues, err := securecookie.EncodeMulti(session.Name(),
 		session.Values, s.Codecs...)
@@ -148,9 +154,10 @@ func (s *SessionStore) Save(r *http.Request, w http.ResponseWriter, session *ses
 		return err
 	}
 	err = s.db.SessionSave(user.Session{
-		ID:     session.ID,
-		UserID: uid,
-		Values: encodedValues,
+		ID:        session.ID,
+		UserID:    uid,
+		CreatedAt: createdAt,
+		Values:    encodedValues,
 	})
 	if err != nil {
 		return err

@@ -380,16 +380,21 @@ type Plugin struct {
 
 // Session represents a user session.
 //
-// The session ID is the decoded session ID. The ID present in the session
-// cookie is the encoded session ID. The encoding/decoding is handled by
-// the session Store.
+// ID is the decoded session ID. The ID present in the session cookie is the
+// encoded session ID. The encoding/decoding is handled by the session Store.
 //
-// The encoded session values decodes to a map[interface{}]interface{}. The
-// encodeding/decodeding is handled by the session Store.
+// Values are politeiawww specific encoded session values. The encoding is
+// handled by the session Store.
+//
+// UserID and CreatedAt are included in the encoded Values but have also been
+// broken out into their own fields so that they can be queryable. UserID
+// allows for lookups by UserID and CreatedAt allows for periodically cleaning
+// up expired sessions in the database.
 type Session struct {
-	ID     string    `json:"id"`     // Unique session ID
-	UserID uuid.UUID `json:"userid"` // User UUID
-	Values string    `json:"values"` // Encoded session values
+	ID        string    `json:"id"`        // Unique session ID
+	UserID    uuid.UUID `json:"userid"`    // User UUID
+	CreatedAt int64     `json:"createdat"` // Created at UNIX timestamp
+	Values    string    `json:"values"`    // Encoded session values
 }
 
 // VersionSession is the version of the Session struct.

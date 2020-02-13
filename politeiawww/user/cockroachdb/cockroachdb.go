@@ -413,9 +413,10 @@ func (c *cockroachdb) convertSessionFromUser(s user.Session) (*Session, error) {
 		return nil, err
 	}
 	return &Session{
-		Key:    hex.EncodeToString(util.Digest([]byte(s.ID))),
-		UserID: s.UserID,
-		Blob:   eb,
+		Key:       hex.EncodeToString(util.Digest([]byte(s.ID))),
+		UserID:    s.UserID,
+		CreatedAt: s.CreatedAt,
+		Blob:      eb,
 	}, nil
 }
 
