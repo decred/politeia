@@ -121,10 +121,10 @@ func (p *politeiawww) removeSession(w http.ResponseWriter, r *http.Request) erro
 	return p.sessions.Save(r, w, session)
 }
 
-// initSession creates a new session, adds it to the given http.Request, and
-// saves it to the session store. If the http request already contains a
-// session cookie then the session values will be updated and the session will
-// be updated in the session store.
+// initSession creates a new session, adds it to the given http response
+// session cookie, and saves it to the session store. If the http request
+// already contains a session cookie then the session values will be updated
+// and the session will be updated in the session store.
 func (p *politeiawww) initSession(w http.ResponseWriter, r *http.Request, userID string) error {
 	log.Tracef("initSession: %v", userID)
 
@@ -138,6 +138,6 @@ func (p *politeiawww) initSession(w http.ResponseWriter, r *http.Request, userID
 	session.Values[sessionValueCreatedAt] = time.Now().Unix()
 	session.Values[sessionValueUserID] = userID
 
-	// Update session in the database and the http response
+	// Update session in the store and update the response cookie
 	return p.sessions.Save(r, w, session)
 }
