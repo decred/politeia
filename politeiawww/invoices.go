@@ -639,6 +639,12 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 				}
 			}
 
+			// Map for valid domain verification
+			validDomains := make(map[cms.DomainTypeT]string)
+			for _, domain := range cms.PolicySupportedCMSDomains {
+				validDomains[domain.Type] = domain.Description
+			}
+
 			// Validate line items
 			if len(invInput.LineItems) < 1 {
 				return www.UserError{
@@ -646,8 +652,8 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 				}
 			}
 			for _, lineInput := range invInput.LineItems {
-				domain := formatInvoiceField(lineInput.Domain)
-				if !validateInvoiceField(domain) {
+				_, ok := validDomains[lineInput.Domain]
+				if !ok {
 					return www.UserError{
 						ErrorCode: cms.ErrorStatusMalformedDomain,
 					}

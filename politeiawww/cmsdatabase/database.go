@@ -114,7 +114,7 @@ type LineItem struct {
 	LineNumber     uint
 	InvoiceToken   string
 	Type           cms.LineItemTypeT
-	Domain         string
+	Domain         cms.DomainTypeT
 	Subdomain      string
 	Description    string
 	ProposalURL    string

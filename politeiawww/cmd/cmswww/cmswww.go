@@ -194,6 +194,13 @@ func validateParseCSV(data []byte) (*cms.InvoiceInput, error) {
 		"misc":    cms.LineItemTypeMisc,
 		"sub":     cms.LineItemTypeSubHours,
 	}
+	DomainType := map[string]cms.DomainTypeT{
+		"developer":     cms.DomainTypeDeveloper,
+		"marketing":     cms.DomainTypeMarketing,
+		"research":      cms.DomainTypeResearch,
+		"design":        cms.DomainTypeDesign,
+		"documentation": cms.DomainTypeDocumentation,
+	}
 	invInput := &cms.InvoiceInput{}
 
 	// Validate that the invoice is CSV-formatted.
@@ -237,9 +244,14 @@ func validateParseCSV(data []byte) (*cms.InvoiceInput, error) {
 			return invInput,
 				fmt.Errorf("invalid line item type on line: %v", i)
 		}
+		domainType, ok := DomainType[strings.ToLower(lineContents[1])]
+		if !ok {
+			return invInput,
+				fmt.Errorf("invalid domain type on line: %v", i)
+		}
 
 		lineItem.Type = lineItemType
-		lineItem.Domain = lineContents[1]
+		lineItem.Domain = domainType
 		lineItem.Subdomain = lineContents[2]
 		lineItem.Description = lineContents[3]
 		lineItem.ProposalToken = lineContents[4]

@@ -59,7 +59,7 @@ type LineItem struct {
 	LineItemKey    string `gorm:"primary_key"` // Token of the Invoice + array index
 	InvoiceToken   string `gorm:"not null"`    // Censorship token of the invoice
 	Type           uint   `gorm:"not null"`    // Type of line item
-	Domain         string `gorm:"not null"`    // Domain of the work performed (dev, marketing etc)
+	Domain         uint   `gorm:"not null"`    // Domain of the work performed (dev, marketing etc)
 	Subdomain      string `gorm:"not null"`    // Subdomain of the work performed (decrediton, event X etc)
 	Description    string `gorm:"not null"`    // Description of work performed
 	ProposalURL    string `gorm:"not null"`    // Link to politeia proposal that work is associated with

@@ -447,7 +447,7 @@ type InvoiceInput struct {
 // invoice input.
 type LineItemsInput struct {
 	Type          LineItemTypeT `json:"type"`          // Type of work performed
-	Domain        string        `json:"domain"`        // Domain of work performed
+	Domain        DomainTypeT   `json:"domain"`        // Domain of work performed
 	Subdomain     string        `json:"subdomain"`     // Subdomain of work performed
 	Description   string        `json:"description"`   // Description of work performed
 	ProposalToken string        `json:"proposaltoken"` // Link to politeia proposal that work is associated with

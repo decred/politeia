@@ -103,7 +103,7 @@ func EncodeInvoiceLineItem(dbLineItem *database.LineItem) LineItem {
 	lineItem := LineItem{}
 	lineItem.InvoiceToken = dbLineItem.InvoiceToken
 	lineItem.Type = uint(dbLineItem.Type)
-	lineItem.Domain = dbLineItem.Domain
+	lineItem.Domain = uint(dbLineItem.Domain)
 	lineItem.Subdomain = dbLineItem.Subdomain
 	lineItem.Description = dbLineItem.Description
 	lineItem.ProposalURL = dbLineItem.ProposalURL
@@ -118,7 +118,7 @@ func DecodeInvoiceLineItem(lineItem *LineItem) *database.LineItem {
 	dbLineItem := &database.LineItem{}
 	dbLineItem.InvoiceToken = lineItem.InvoiceToken
 	dbLineItem.Type = cms.LineItemTypeT(lineItem.Type)
-	dbLineItem.Domain = lineItem.Domain
+	dbLineItem.Domain = cms.DomainTypeT(lineItem.Domain)
 	dbLineItem.Subdomain = lineItem.Subdomain
 	dbLineItem.Description = lineItem.Description
 	dbLineItem.ProposalURL = lineItem.ProposalURL
