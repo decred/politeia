@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"strconv"
 
-	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	v2 "github.com/decred/politeia/politeiawww/api/www/v2"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 	"github.com/decred/politeia/util"
@@ -68,7 +67,7 @@ func (cmd *StartVoteCmd) Execute(args []string) error {
 		Duration:         duration,
 		QuorumPercentage: quorum,
 		PassPercentage:   pass,
-		Options: []v1.VoteOption{
+		Options: []v2.VoteOption{
 			{
 				Id:          "no",
 				Description: "Don't approve proposal",

@@ -6,8 +6,6 @@ package v2
 
 import (
 	"fmt"
-
-	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 )
 
 type VoteT int
@@ -32,6 +30,13 @@ var (
 	APIRoute = fmt.Sprintf("/v%v", APIVersion)
 )
 
+// VoteOption describes a single vote option.
+type VoteOption struct {
+	Id          string `json:"id"`          // Single unique word identifying vote (e.g. yes)
+	Description string `json:"description"` // Longer description of the vote.
+	Bits        uint64 `json:"bits"`        // Bits used for this option
+}
+
 // Vote represents the vote params and vote options for a proposal vote.
 //
 // QuorumPercentage is the percent of eligible votes required for a quorum.
@@ -44,14 +49,14 @@ var (
 //   the StartVote signature.
 // * Added the Type field that specifies the vote type.
 type Vote struct {
-	Token            string          `json:"token"`            // Proposal token
-	ProposalVersion  uint32          `json:"proposalversion"`  // Proposal version of vote
-	Type             VoteT           `json:"type"`             // Type of vote
-	Mask             uint64          `json:"mask"`             // Valid votebits
-	Duration         uint32          `json:"duration"`         // Duration in blocks
-	QuorumPercentage uint32          `json:"quorumpercentage"` // Quorum requirement
-	PassPercentage   uint32          `json:"passpercentage"`   // Approval requirement
-	Options          []v1.VoteOption `json:"options"`          // Vote options
+	Token            string       `json:"token"`            // Proposal token
+	ProposalVersion  uint32       `json:"proposalversion"`  // Proposal version of vote
+	Type             VoteT        `json:"type"`             // Type of vote
+	Mask             uint64       `json:"mask"`             // Valid votebits
+	Duration         uint32       `json:"duration"`         // Duration in blocks
+	QuorumPercentage uint32       `json:"quorumpercentage"` // Quorum requirement
+	PassPercentage   uint32       `json:"passpercentage"`   // Approval requirement
+	Options          []VoteOption `json:"options"`          // Vote options
 }
 
 // StartVote starts the voting period on the given proposal.

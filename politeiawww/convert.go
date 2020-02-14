@@ -86,6 +86,22 @@ func convertVoteOptionsFromWWW(vo []www.VoteOption) []decredplugin.VoteOption {
 	return vor
 }
 
+func convertVoteOptionV2ToDecred(vo www2.VoteOption) decredplugin.VoteOption {
+	return decredplugin.VoteOption{
+		Id:          vo.Id,
+		Description: vo.Description,
+		Bits:        vo.Bits,
+	}
+}
+
+func convertVoteOptionsV2ToDecred(vo []www2.VoteOption) []decredplugin.VoteOption {
+	dvo := make([]decredplugin.VoteOption, 0, len(vo))
+	for _, v := range vo {
+		dvo = append(dvo, convertVoteOptionV2ToDecred(v))
+	}
+	return dvo
+}
+
 func convertVoteTypeV2ToDecred(v www2.VoteT) decredplugin.VoteT {
 	var dv decredplugin.VoteT
 	switch v {
@@ -104,7 +120,7 @@ func convertVoteV2ToDecred(v www2.Vote) decredplugin.VoteV2 {
 		Duration:         v.Duration,
 		QuorumPercentage: v.QuorumPercentage,
 		PassPercentage:   v.PassPercentage,
-		Options:          convertVoteOptionsFromWWW(v.Options),
+		Options:          convertVoteOptionsV2ToDecred(v.Options),
 	}
 }
 
@@ -525,6 +541,22 @@ func convertVoteOptionsFromDecred(options []decredplugin.VoteOption) []www.VoteO
 	return opts
 }
 
+func convertVoteOptionV2FromDecred(vo decredplugin.VoteOption) www2.VoteOption {
+	return www2.VoteOption{
+		Id:          vo.Id,
+		Description: vo.Description,
+		Bits:        vo.Bits,
+	}
+}
+
+func convertVoteOptionsV2FromDecred(options []decredplugin.VoteOption) []www2.VoteOption {
+	opts := make([]www2.VoteOption, 0, len(options))
+	for _, v := range options {
+		opts = append(opts, convertVoteOptionV2FromDecred(v))
+	}
+	return opts
+}
+
 func convertStartVoteV1FromDecred(sv decredplugin.StartVoteV1) www.StartVote {
 	return www.StartVote{
 		PublicKey: sv.PublicKey,
@@ -558,10 +590,22 @@ func convertStartVoteV2FromDecred(sv decredplugin.StartVoteV2) www2.StartVote {
 			Duration:         sv.Vote.Duration,
 			QuorumPercentage: sv.Vote.QuorumPercentage,
 			PassPercentage:   sv.Vote.PassPercentage,
-			Options:          convertVoteOptionsFromDecred(sv.Vote.Options),
+			Options:          convertVoteOptionsV2FromDecred(sv.Vote.Options),
 		},
 		Signature: sv.Signature,
 	}
+}
+
+func convertVoteOptionsV2ToV1(optsV2 []www2.VoteOption) []www.VoteOption {
+	optsV1 := make([]www.VoteOption, 0, len(optsV2))
+	for _, v := range optsV2 {
+		optsV1 = append(optsV1, www.VoteOption{
+			Id:          v.Id,
+			Description: v.Description,
+			Bits:        v.Bits,
+		})
+	}
+	return optsV1
 }
 
 func convertStartVoteV2ToV1(sv www2.StartVote) www.StartVote {
@@ -573,7 +617,7 @@ func convertStartVoteV2ToV1(sv www2.StartVote) www.StartVote {
 			Duration:         sv.Vote.Duration,
 			QuorumPercentage: sv.Vote.QuorumPercentage,
 			PassPercentage:   sv.Vote.PassPercentage,
-			Options:          sv.Vote.Options,
+			Options:          convertVoteOptionsV2ToV1(sv.Vote.Options),
 		},
 		Signature: sv.Signature,
 	}

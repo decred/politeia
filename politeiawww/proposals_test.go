@@ -203,7 +203,7 @@ func newStartVote(t *testing.T, token string, proposalVersion uint32, id *identi
 		Duration:         2016,
 		QuorumPercentage: 20,
 		PassPercentage:   60,
-		Options: []www.VoteOption{
+		Options: []www2.VoteOption{
 			{
 				Id:          "no",
 				Description: "Don't approve proposal",
