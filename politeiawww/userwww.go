@@ -589,7 +589,15 @@ func (p *politeiawww) handleCMSUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cur, err := p.processCMSUsers(&cu)
+	// Get session user. This is a public route so one might not exist.
+	user, err := p.getSessionUser(w, r)
+	if err != nil && err != errSessionNotFound {
+		RespondWithError(w, r, 0,
+			"handleUsers: getSessionUser %v", err)
+		return
+	}
+
+	cur, err := p.processCMSUsers(&cu, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleCMSUsers: processCMSUsers %v", err)

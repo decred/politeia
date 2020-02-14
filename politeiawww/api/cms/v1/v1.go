@@ -918,12 +918,14 @@ type AbridgedCMSUser struct {
 	Domain         DomainTypeT     `json:"domain"`
 	ContractorType ContractorTypeT `json:"contractortype"`
 	Username       string          `json:"username"`
+	BilledHours    []Hours         `json:"billedhours"`
 }
 
 // CMSUsers is used to request a list of CMS users given a filter.
 type CMSUsers struct {
 	Domain         DomainTypeT     `json:"domain"`
 	ContractorType ContractorTypeT `json:"contractortype"`
+	LastMonthHours bool            `json:"hours"` // Boolean whether to include last month's billed hours for users in the same domain
 }
 
 // CMSUsersReply returns a list of Users that are currently
@@ -987,4 +989,11 @@ type CastVoteReply struct {
 	Signature       string                 `json:"signature"`             // Signature of the ClientSignature
 	Error           string                 `json:"error"`                 // Error status message
 	ErrorStatus     cmsplugin.ErrorStatusT `json:"errorstatus,omitempty"` // Error status code
+}
+
+// Hours contains a given month and year's billable hours.
+type Hours struct {
+	Month int `json:"month"`
+	Year  int `json:"year"`
+	Hours int `json:"hours"`
 }

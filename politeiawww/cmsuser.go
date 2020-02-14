@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
@@ -796,7 +797,7 @@ func (p *politeiawww) processUserSubContractors(u *user.User) (*cms.UserSubContr
 // processCMSUsers returns a list of cms users given a set of filters. If
 // either domain or contractor is non-zero then they are used as matching
 // criteria, otherwise the full list will be returned.
-func (p *politeiawww) processCMSUsers(users *cms.CMSUsers) (*cms.CMSUsersReply, error) {
+func (p *politeiawww) processCMSUsers(users *cms.CMSUsers, u *user.User) (*cms.CMSUsersReply, error) {
 	log.Tracef("processCMSUsers")
 
 	domain := int(users.Domain)
@@ -835,11 +836,43 @@ func (p *politeiawww) processCMSUsers(users *cms.CMSUsers) (*cms.CMSUsersReply, 
 			// the request
 			if contractortype == 0 ||
 				(contractortype != 0 && u.ContractorType == contractortype) {
+
+				billedHours := make([]cms.Hours, 0, 3)
+				if !users.LastMonthHours {
+					requestingUser, err := p.getCMSUserByID(u.ID.String())
+					if err != nil {
+						return nil, www.UserError{
+							ErrorCode: www.ErrorStatusUserNotFound,
+						}
+					}
+					// Only users of the same domain can receive the billed
+					// hours information, otherwise it will just be empty.
+					if u.Domain == int(requestingUser.Domain) {
+						// Request last 3 months of billed hours for the user
+						dbInvs, err := p.cmsDB.InvoicesByUserID(u.ID.String())
+						if err != nil {
+							return nil, err
+						}
+						// sort by date, only return last 3
+						sort.Slice(dbInvs, func(i, j int) bool {
+							iDate := time.Date(int(dbInvs[i].Year),
+								time.Month(dbInvs[i].Month), 0, 0, 0, 0, 0,
+								time.UTC)
+							jDate := time.Date(int(dbInvs[j].Year),
+								time.Month(dbInvs[j].Month), 0, 0, 0, 0, 0,
+								time.UTC)
+							return iDate.After(jDate)
+						})
+						spew.Dump(dbInvs)
+					}
+				}
+
 				matchedUsers = append(matchedUsers, cms.AbridgedCMSUser{
 					Domain:         cms.DomainTypeT(u.Domain),
 					Username:       u.Username,
 					ContractorType: cms.ContractorTypeT(u.ContractorType),
 					ID:             u.ID.String(),
+					BilledHours:    billedHours,
 				})
 			}
 		}
