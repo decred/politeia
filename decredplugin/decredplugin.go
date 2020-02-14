@@ -227,8 +227,8 @@ const VersionStartVote = 2
 // struct is never written to disk. It is used to pass around the various
 // StartVote versions.
 type StartVote struct {
-	Token   string `json:"token"`   // Proposal token
 	Version uint   `json:"version"` // Payload StartVote version
+	Token   string `json:"token"`   // Proposal token
 	Payload string `json:"payload"` // JSON encoded StartVote
 }
 
