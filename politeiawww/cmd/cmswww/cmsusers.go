@@ -38,8 +38,8 @@ Fetch a list of cms users based on filters provided.
 Arguments: None
 
 Flags:
-  --domain            (int, optional)      Email filter
-  --contractortype    (string, optional)   Username filter
+  --domain            (int, optional)   domain filter
+  --contractortype    (int, optional)   contractor type filter
 
 
 Example (Admin):

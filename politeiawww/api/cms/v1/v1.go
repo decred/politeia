@@ -993,7 +993,7 @@ type CastVoteReply struct {
 
 // Hours contains a given month and year's billable hours.
 type Hours struct {
-	Month int `json:"month"`
-	Year  int `json:"year"`
-	Hours int `json:"hours"`
+	Month uint `json:"month"`
+	Year  uint `json:"year"`
+	Hours int  `json:"hours"`
 }

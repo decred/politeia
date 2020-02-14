@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
@@ -836,8 +835,8 @@ func (p *politeiawww) processCMSUsers(users *cms.CMSUsers, u *user.User) (*cms.C
 			// the request
 			if contractortype == 0 ||
 				(contractortype != 0 && u.ContractorType == contractortype) {
-
-				billedHours := make([]cms.Hours, 0, 3)
+				invoiceLimit := 3
+				billedHours := make([]cms.Hours, 0, invoiceLimit)
 				if !users.LastMonthHours {
 					requestingUser, err := p.getCMSUserByID(u.ID.String())
 					if err != nil {
@@ -853,7 +852,7 @@ func (p *politeiawww) processCMSUsers(users *cms.CMSUsers, u *user.User) (*cms.C
 						if err != nil {
 							return nil, err
 						}
-						// sort by date, only return last 3
+						// sort by date, only return most recent 3
 						sort.Slice(dbInvs, func(i, j int) bool {
 							iDate := time.Date(int(dbInvs[i].Year),
 								time.Month(dbInvs[i].Month), 0, 0, 0, 0, 0,
@@ -863,7 +862,21 @@ func (p *politeiawww) processCMSUsers(users *cms.CMSUsers, u *user.User) (*cms.C
 								time.UTC)
 							return iDate.After(jDate)
 						})
-						spew.Dump(dbInvs)
+
+						for i, inv := range dbInvs {
+							if i >= invoiceLimit {
+								break
+							}
+							hours := 0
+							for _, li := range inv.LineItems {
+								hours += int(li.Labor)
+							}
+							billedHours = append(billedHours, cms.Hours{
+								Month: inv.Month,
+								Year:  inv.Year,
+								Hours: hours,
+							})
+						}
 					}
 				}
 
