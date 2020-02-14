@@ -54,6 +54,10 @@ const (
 	VoteTypeInvalid  VoteT = 0
 	VoteTypeStandard VoteT = 1
 
+	// Versioning
+	VersionStartVoteV1 = 1
+	VersionStartVoteV2 = 2
+
 	// Error status codes
 	ErrorStatusInvalid          ErrorStatusT = 0
 	ErrorStatusInternalError    ErrorStatusT = 1

@@ -1757,7 +1757,7 @@ func (p *politeiawww) processActiveVote() (*www.ActiveVoteReply, error) {
 		// Handle StartVote versioning
 		var sv www.StartVote
 		switch vdr.StartVote.Version {
-		case 1:
+		case decredplugin.VersionStartVoteV1:
 			b := []byte(vdr.StartVote.Payload)
 			dsv, err := decredplugin.DecodeStartVoteV1(b)
 			if err != nil {
@@ -1766,7 +1766,7 @@ func (p *politeiawww) processActiveVote() (*www.ActiveVoteReply, error) {
 			}
 			sv = convertStartVoteV1FromDecred(*dsv)
 
-		case 2:
+		case decredplugin.VersionStartVoteV2:
 			b := []byte(vdr.StartVote.Payload)
 			dsv2, err := decredplugin.DecodeStartVoteV2(b)
 			if err != nil {
@@ -1833,14 +1833,14 @@ func (p *politeiawww) processVoteResults(token string) (*www.VoteResultsReply, e
 	// Handle StartVote versioning
 	var sv www.StartVote
 	switch vdr.StartVote.Version {
-	case 1:
+	case decredplugin.VersionStartVoteV1:
 		b := []byte(vdr.StartVote.Payload)
 		dsv1, err := decredplugin.DecodeStartVoteV1(b)
 		if err != nil {
 			return nil, err
 		}
 		sv = convertStartVoteV1FromDecred(*dsv1)
-	case 2:
+	case decredplugin.VersionStartVoteV2:
 		b := []byte(vdr.StartVote.Payload)
 		dsv2, err := decredplugin.DecodeStartVoteV2(b)
 		if err != nil {
@@ -2345,7 +2345,7 @@ func (p *politeiawww) processVoteDetailsV2(token string) (*www2.VoteDetailsReply
 	// Handle StartVote versioning
 	var vdr *www2.VoteDetailsReply
 	switch dvdr.StartVote.Version {
-	case 1:
+	case decredplugin.VersionStartVoteV1:
 		b := []byte(dvdr.StartVote.Payload)
 		dsv1, err := decredplugin.DecodeStartVoteV1(b)
 		if err != nil {
@@ -2356,7 +2356,7 @@ func (p *politeiawww) processVoteDetailsV2(token string) (*www2.VoteDetailsReply
 		if err != nil {
 			return nil, err
 		}
-	case 2:
+	case decredplugin.VersionStartVoteV2:
 		b := []byte(dvdr.StartVote.Payload)
 		dsv2, err := decredplugin.DecodeStartVoteV2(b)
 		if err != nil {

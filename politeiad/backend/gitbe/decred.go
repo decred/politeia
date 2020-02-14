@@ -1912,14 +1912,14 @@ func (g *gitBackEnd) validateVoteBit(token, bit string) error {
 		options []decredplugin.VoteOption
 	)
 	switch sv.Version {
-	case 1:
+	case decredplugin.VersionStartVoteV1:
 		sv1, err := decredplugin.DecodeStartVoteV1([]byte(sv.Payload))
 		if err != nil {
 			return err
 		}
 		mask = sv1.Vote.Mask
 		options = sv1.Vote.Options
-	case 2:
+	case decredplugin.VersionStartVoteV2:
 		sv2, err := decredplugin.DecodeStartVoteV2([]byte(sv.Payload))
 		if err != nil {
 			return err

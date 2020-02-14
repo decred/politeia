@@ -1720,7 +1720,7 @@ func (d *decred) build(ir *decredplugin.InventoryReply) error {
 		// Handle start vote versioning
 		var sv StartVote
 		switch v.StartVote.Version {
-		case 1:
+		case decredplugin.VersionStartVoteV1:
 			svb := []byte(v.StartVote.Payload)
 			sv1, err := decredplugin.DecodeStartVoteV1(svb)
 			if err != nil {
@@ -1733,7 +1733,7 @@ func (d *decred) build(ir *decredplugin.InventoryReply) error {
 					v.StartVote.Token, err)
 			}
 			sv = *svp
-		case 2:
+		case decredplugin.VersionStartVoteV2:
 			svb := []byte(v.StartVote.Payload)
 			sv2, err := decredplugin.DecodeStartVoteV2(svb)
 			if err != nil {
