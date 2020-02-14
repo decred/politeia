@@ -97,6 +97,7 @@ type piwww struct {
 	Version            shared.VersionCmd        `command:"version" description:"(public) get server info and CSRF token"`
 	VettedProposals    VettedProposalsCmd       `command:"vettedproposals" description:"(public) get a page of vetted proposals"`
 	Vote               VoteCmd                  `command:"vote" description:"(public) cast votes for a proposal"`
+	VoteDetails        VoteDetailsCmd           `command:"votedetails" description:"(public) get the details for a proposal vote"`
 	VoteResults        VoteResultsCmd           `command:"voteresults" description:"(public) get vote results for a proposal"`
 	VoteStatus         VoteStatusCmd            `command:"votestatus" description:"(public) get the vote status of a proposal"`
 	VoteStatuses       VoteStatusesCmd          `command:"votestatuses" description:"(public) get the vote status for all public proposals"`

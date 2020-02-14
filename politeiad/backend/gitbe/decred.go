@@ -115,8 +115,7 @@ var (
 	decredPluginHooks    map[string]func(string) error // [key]func(token) error
 
 	// Cached values, requires lock. These caches are lazy loaded.
-	// XXX why is this a pointer? Convert if possible after investigating
-	decredPluginVoteCache         = make(map[string]*decredplugin.StartVote)     // [token]startvote
+	decredPluginVoteCache         = make(map[string]decredplugin.StartVote)      // [token]StartVote
 	decredPluginVoteSnapshotCache = make(map[string]decredplugin.StartVoteReply) // [token]StartVoteReply
 
 	// Pregenerated journal actions
@@ -1622,17 +1621,28 @@ func (g *gitBackEnd) pluginAuthorizeVote(payload string) (string, error) {
 }
 
 func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
-	vote, err := decredplugin.DecodeStartVote([]byte(payload))
+	vote, err := decredplugin.DecodeStartVoteV2([]byte(payload))
 	if err != nil {
 		return "", fmt.Errorf("DecodeStartVote %v", err)
 	}
 
+	// Verify signature
+	err = vote.VerifySignature()
+	if err != nil {
+		return "", fmt.Errorf("invalid signature")
+	}
+
 	// Verify vote bits are somewhat sane
 	for _, v := range vote.Vote.Options {
-		err = _validateVoteBit(vote.Vote, v.Bits)
+		err = _validateVoteBit(vote.Vote.Options, vote.Vote.Mask, v.Bits)
 		if err != nil {
 			return "", fmt.Errorf("invalid vote bits: %v", err)
 		}
+	}
+
+	// Verify vote type
+	if vote.Vote.Type != decredplugin.VoteTypeStandard {
+		return "", fmt.Errorf("invalid vote type")
 	}
 
 	// Verify proposal exists
@@ -1698,12 +1708,11 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 
 	// Add version to on disk structure
 	vote.Version = decredplugin.VersionStartVote
-	voteb, err := decredplugin.EncodeStartVote(*vote)
+	voteb, err := decredplugin.EncodeStartVoteV2(*vote)
 	if err != nil {
 		return "", fmt.Errorf("EncodeStartVote: %v", err)
 	}
 
-	// Verify proposal state
 	g.Lock()
 	defer g.Unlock()
 	if g.shutdown {
@@ -1711,6 +1720,18 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 		return "", backend.ErrShutdown
 	}
 
+	// Verify that the proposal version being voted on is the most
+	// recent proposal version.
+	latestVersion, err := getLatest(pijoin(g.unvetted, token))
+	if err != nil {
+		return "", err
+	}
+	version := strconv.FormatUint(uint64(vote.Vote.ProposalVersion), 10)
+	if latestVersion != version {
+		return "", fmt.Errorf("invalid proposal version")
+	}
+
+	// Verify proposal state
 	_, err1 := os.Stat(pijoin(joinLatest(g.vetted, token),
 		fmt.Sprintf("%02v%v", decredplugin.MDStreamAuthorizeVote,
 			defaultMDFilenameSuffix)))
@@ -1813,8 +1834,8 @@ func (i invalidVoteBitError) Error() string {
 
 // _validateVoteBit iterates over all vote bits and ensure the sent in vote bit
 // exists.
-func _validateVoteBit(vote decredplugin.Vote, bit uint64) error {
-	if len(vote.Options) == 0 {
+func _validateVoteBit(options []decredplugin.VoteOption, mask uint64, bit uint64) error {
+	if len(options) == 0 {
 		return fmt.Errorf("_validateVoteBit vote corrupt")
 	}
 	if bit == 0 {
@@ -1822,13 +1843,13 @@ func _validateVoteBit(vote decredplugin.Vote, bit uint64) error {
 			err: fmt.Errorf("invalid bit 0x%x", bit),
 		}
 	}
-	if vote.Mask&bit != bit {
+	if mask&bit != bit {
 		return invalidVoteBitError{
 			err: fmt.Errorf("invalid mask 0x%x bit 0x%x",
-				vote.Mask, bit),
+				mask, bit),
 		}
 	}
-	for _, v := range vote.Options {
+	for _, v := range options {
 		if v.Bits == bit {
 			return nil
 		}
@@ -1854,39 +1875,63 @@ func (g *gitBackEnd) validateVoteBit(token, bit string) error {
 	}
 
 	sv, ok := decredPluginVoteCache[token]
-	if ok {
-		return _validateVoteBit(sv.Vote, b)
+	if !ok {
+		// StartVote is not in the cache. Load it from disk.
+
+		// git checkout master
+		err = g.gitCheckout(g.unvetted, "master")
+		if err != nil {
+			return err
+		}
+
+		// git pull --ff-only --rebase
+		err = g.gitPull(g.unvetted, true)
+		if err != nil {
+			return err
+		}
+
+		// Load md stream
+		svb, err := ioutil.ReadFile(mdFilename(g.vetted, token,
+			decredplugin.MDStreamVoteBits))
+		if err != nil {
+			return err
+		}
+		svp, err := decredplugin.DecodeStartVote(svb)
+		if err != nil {
+			return err
+		}
+		sv = *svp
+
+		// Update cache
+		decredPluginVoteCache[token] = sv
 	}
 
-	// git checkout master
-	err = g.gitCheckout(g.unvetted, "master")
-	if err != nil {
-		return err
+	// Handle StartVote versioning
+	var (
+		mask    uint64
+		options []decredplugin.VoteOption
+	)
+	switch sv.Version {
+	case decredplugin.VersionStartVoteV1:
+		sv1, err := decredplugin.DecodeStartVoteV1([]byte(sv.Payload))
+		if err != nil {
+			return err
+		}
+		mask = sv1.Vote.Mask
+		options = sv1.Vote.Options
+	case decredplugin.VersionStartVoteV2:
+		sv2, err := decredplugin.DecodeStartVoteV2([]byte(sv.Payload))
+		if err != nil {
+			return err
+		}
+		mask = sv2.Vote.Mask
+		options = sv2.Vote.Options
+	default:
+		return fmt.Errorf("invalid start vote version %v %v",
+			sv.Version, sv.Token)
 	}
 
-	// git pull --ff-only --rebase
-	err = g.gitPull(g.unvetted, true)
-	if err != nil {
-		return err
-	}
-
-	// Load md stream
-	f, err := os.Open(mdFilename(g.vetted, token,
-		decredplugin.MDStreamVoteBits))
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	d := json.NewDecoder(f)
-	err = d.Decode(&sv)
-	if err != nil {
-		return err
-	}
-
-	decredPluginVoteCache[token] = sv
-
-	return _validateVoteBit(sv.Vote, b)
+	return _validateVoteBit(options, mask, b)
 }
 
 // replayBallot replays voting journalfor given proposal.

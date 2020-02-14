@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"image"
 	"image/color"
@@ -26,6 +27,7 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/testpoliteiad"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	www2 "github.com/decred/politeia/politeiawww/api/www/v2"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 )
@@ -192,37 +194,45 @@ func merkleRoot(t *testing.T, files []www.File) string {
 	return hex.EncodeToString(merkle.Root(digests)[:])
 }
 
-func newStartVote(t *testing.T, token string, id *identity.FullIdentity) www.StartVote {
-	sig := id.SignMessage([]byte(token))
-	return www.StartVote{
-		Signature: hex.EncodeToString(sig[:]),
-		PublicKey: hex.EncodeToString(id.Public.Key[:]),
-		Vote: www.Vote{
-			Token:            token,
-			Mask:             0x03, // bit 0 no, bit 1 yes
-			Duration:         2016,
-			QuorumPercentage: 10,
-			PassPercentage:   75,
-			Options: []www.VoteOption{
-				{
-					Id:          "no",
-					Description: "Don't approve proposal",
-					Bits:        0x01,
-				},
-				{
-					Id:          "yes",
-					Description: "Approve proposal",
-					Bits:        0x02,
-				},
+func newStartVote(t *testing.T, token string, proposalVersion uint32, id *identity.FullIdentity) www2.StartVote {
+	vote := www2.Vote{
+		Token:            token,
+		ProposalVersion:  proposalVersion,
+		Type:             www2.VoteTypeStandard,
+		Mask:             0x03, // bit 0 no, bit 1 yes
+		Duration:         2016,
+		QuorumPercentage: 20,
+		PassPercentage:   60,
+		Options: []www2.VoteOption{
+			{
+				Id:          "no",
+				Description: "Don't approve proposal",
+				Bits:        0x01,
+			},
+			{
+				Id:          "yes",
+				Description: "Approve proposal",
+				Bits:        0x02,
 			},
 		},
 	}
+	vb, err := json.Marshal(vote)
+	if err != nil {
+		t.Fatalf("marshal vote failed: %v %v", err, vote)
+	}
+	msg := hex.EncodeToString(util.Digest(vb))
+	sig := id.SignMessage([]byte(msg))
+	return www2.StartVote{
+		Vote:      vote,
+		PublicKey: hex.EncodeToString(id.Public.Key[:]),
+		Signature: hex.EncodeToString(sig[:]),
+	}
 }
 
-func newStartVoteCmd(t *testing.T, token string, id *identity.FullIdentity) pd.PluginCommand {
-	sv := newStartVote(t, token, id)
-	dsv := convertStartVoteFromWWW(sv)
-	payload, err := decredplugin.EncodeStartVote(dsv)
+func newStartVoteCmd(t *testing.T, token string, proposalVersion uint32, id *identity.FullIdentity) pd.PluginCommand {
+	sv := newStartVote(t, token, proposalVersion, id)
+	dsv := convertStartVoteV2ToDecred(sv)
+	payload, err := decredplugin.EncodeStartVoteV2(dsv)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1043,7 +1053,7 @@ func TestProcessSetProposalStatus(t *testing.T) {
 	sigVoteStartedToAbandoned := hex.EncodeToString(s[:])
 
 	d.AddRecord(t, convertPropToPD(t, propVoteStarted))
-	cmd = newStartVoteCmd(t, tokenVoteStarted, id)
+	cmd = newStartVoteCmd(t, tokenVoteStarted, 1, id)
 	d.Plugin(t, cmd)
 
 	// Ensure that admins are not allowed to change the status of
@@ -1165,7 +1175,7 @@ func TestProcessSetProposalStatus(t *testing.T) {
 				PublicKey:           admin.PublicKey(),
 			},
 			www.UserError{
-				ErrorCode: www.ErrorStatusVoteAlreadyAuthorized,
+				ErrorCode: www.ErrorStatusWrongVoteStatus,
 			}},
 
 		{"vote already started", admin,

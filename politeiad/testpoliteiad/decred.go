@@ -62,7 +62,7 @@ func (p *TestPoliteiad) authorizeVote(payload string) (string, error) {
 }
 
 func (p *TestPoliteiad) startVote(payload string) (string, error) {
-	sv, err := decred.DecodeStartVote([]byte(payload))
+	sv, err := decred.DecodeStartVoteV2([]byte(payload))
 	if err != nil {
 		return "", err
 	}
@@ -71,6 +71,7 @@ func (p *TestPoliteiad) startVote(payload string) (string, error) {
 	defer p.Unlock()
 
 	// Store start vote
+	sv.Version = decred.VersionStartVote
 	p.startVotes[sv.Vote.Token] = *sv
 
 	// Prepare reply
@@ -101,6 +102,9 @@ func (p *TestPoliteiad) decredExec(pc v1.PluginCommand) (string, error) {
 		return p.authorizeVote(pc.Payload)
 	case decred.CmdBestBlock:
 		return strconv.FormatUint(uint64(bestBlock), 10), nil
+	case decred.CmdVoteSummary:
+		// This is a cache plugin command. No work needed here.
+		return "", nil
 	}
-	return "", fmt.Errorf("invalid plugin command")
+	return "", fmt.Errorf("invalid testpoliteiad plugin command")
 }

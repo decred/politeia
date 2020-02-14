@@ -699,91 +699,134 @@ func (p *politeiawww) handleRegisterUser(w http.ResponseWriter, r *http.Request)
 // setUserWWWRoutes setsup the user routes.
 func (p *politeiawww) setUserWWWRoutes() {
 	// Public routes
-	p.addRoute(http.MethodPost, www.RouteNewUser, p.handleNewUser,
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteNewUser, p.handleNewUser,
 		permissionPublic)
-	p.addRoute(http.MethodGet, www.RouteVerifyNewUser,
-		p.handleVerifyNewUser, permissionPublic)
-	p.addRoute(http.MethodPost, www.RouteResendVerification,
-		p.handleResendVerification, permissionPublic)
-	p.addRoute(http.MethodPost, www.RouteLogin, p.handleLogin,
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteVerifyNewUser, p.handleVerifyNewUser,
 		permissionPublic)
-	p.addRoute(http.MethodPost, www.RouteLogout, p.handleLogout,
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteResendVerification, p.handleResendVerification,
 		permissionPublic)
-	p.addRoute(http.MethodPost, www.RouteResetPassword,
-		p.handleResetPassword, permissionPublic)
-	p.addRoute(http.MethodPost, www.RouteVerifyResetPassword,
-		p.handleVerifyResetPassword, permissionPublic)
-	p.addRoute(http.MethodGet, www.RouteUserDetails,
-		p.handleUserDetails, permissionPublic)
-	p.addRoute(http.MethodGet, www.RouteUsers,
-		p.handleUsers, permissionPublic)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteLogin, p.handleLogin,
+		permissionPublic)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteLogout, p.handleLogout,
+		permissionPublic)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteResetPassword, p.handleResetPassword,
+		permissionPublic)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteVerifyResetPassword, p.handleVerifyResetPassword,
+		permissionPublic)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteUserDetails, p.handleUserDetails,
+		permissionPublic)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteUsers, p.handleUsers,
+		permissionPublic)
 
 	// Routes that require being logged in.
-	p.addRoute(http.MethodPost, www.RouteSecret, p.handleSecret,
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteSecret, p.handleSecret,
 		permissionLogin)
-	p.addRoute(http.MethodGet, www.RouteUserMe, p.handleMe, permissionLogin)
-	p.addRoute(http.MethodPost, www.RouteUpdateUserKey,
-		p.handleUpdateUserKey, permissionLogin)
-	p.addRoute(http.MethodPost, www.RouteVerifyUpdateUserKey,
-		p.handleVerifyUpdateUserKey, permissionLogin)
-	p.addRoute(http.MethodPost, www.RouteChangeUsername,
-		p.handleChangeUsername, permissionLogin)
-	p.addRoute(http.MethodPost, www.RouteChangePassword,
-		p.handleChangePassword, permissionLogin)
-	p.addRoute(http.MethodGet, www.RouteVerifyUserPayment,
-		p.handleVerifyUserPayment, permissionLogin)
-	p.addRoute(http.MethodPost, www.RouteEditUser,
-		p.handleEditUser, permissionLogin)
-	p.addRoute(http.MethodGet, www.RouteUserCommentsLikes, // XXX comments need to become a setting
-		p.handleUserCommentsLikes, permissionLogin)
-	p.addRoute(http.MethodGet, www.RouteUserProposalCredits,
-		p.handleUserProposalCredits, permissionLogin)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteUserMe, p.handleMe,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteUpdateUserKey, p.handleUpdateUserKey,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteVerifyUpdateUserKey, p.handleVerifyUpdateUserKey,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteChangeUsername, p.handleChangeUsername,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteChangePassword, p.handleChangePassword,
+		permissionLogin)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteVerifyUserPayment, p.handleVerifyUserPayment,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteEditUser, p.handleEditUser,
+		permissionLogin)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteUserCommentsLikes, p.handleUserCommentsLikes,
+		permissionLogin) // XXX comments need to become a setting
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteUserProposalCredits, p.handleUserProposalCredits,
+		permissionLogin)
 
 	// Routes that require being logged in as an admin user.
-	p.addRoute(http.MethodPut, www.RouteUserPaymentsRescan,
-		p.handleUserPaymentsRescan, permissionAdmin)
-	p.addRoute(http.MethodPost, www.RouteManageUser,
-		p.handleManageUser, permissionAdmin)
+	p.addRoute(http.MethodPut, www.PoliteiaWWWAPIRoute,
+		www.RouteUserPaymentsRescan, p.handleUserPaymentsRescan,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteManageUser, p.handleManageUser,
+		permissionAdmin)
 }
 
 // setCMSUserWWWRoutes setsup the user routes for cms mode
 func (p *politeiawww) setCMSUserWWWRoutes() {
 	// Public routes
-	p.addRoute(http.MethodPost, www.RouteLogin, p.handleLogin,
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteLogin, p.handleLogin,
 		permissionPublic)
-	p.addRoute(http.MethodPost, www.RouteLogout, p.handleLogout,
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteLogout, p.handleLogout,
 		permissionPublic)
-	p.addRoute(http.MethodPost, www.RouteResetPassword,
-		p.handleResetPassword, permissionPublic)
-	p.addRoute(http.MethodPost, www.RouteVerifyResetPassword,
-		p.handleVerifyResetPassword, permissionPublic)
-	p.addRoute(http.MethodPost, cms.RouteRegisterUser, p.handleRegisterUser,
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteResetPassword, p.handleResetPassword,
+		permissionPublic)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteVerifyResetPassword, p.handleVerifyResetPassword,
+		permissionPublic)
+	p.addRoute(http.MethodPost, cms.APIRoute,
+		cms.RouteRegisterUser, p.handleRegisterUser,
 		permissionPublic)
 
 	// Routes that require being logged in.
-	p.addRoute(http.MethodPost, www.RouteSecret, p.handleSecret,
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteSecret, p.handleSecret,
 		permissionLogin)
-	p.addRoute(http.MethodGet, www.RouteUserMe, p.handleMe, permissionLogin)
-	p.addRoute(http.MethodPost, www.RouteUpdateUserKey,
-		p.handleUpdateUserKey, permissionLogin)
-	p.addRoute(http.MethodPost, www.RouteVerifyUpdateUserKey,
-		p.handleVerifyUpdateUserKey, permissionLogin)
-	p.addRoute(http.MethodPost, www.RouteChangeUsername,
-		p.handleChangeUsername, permissionLogin)
-	p.addRoute(http.MethodPost, www.RouteChangePassword,
-		p.handleChangePassword, permissionLogin)
-	p.addRoute(http.MethodGet, www.RouteUserDetails,
-		p.handleCMSUserDetails, permissionLogin)
-	p.addRoute(http.MethodPost, www.RouteEditUser,
-		p.handleEditCMSUser, permissionLogin)
-	p.addRoute(http.MethodGet, www.RouteUsers,
-		p.handleUsers, permissionLogin)
-	p.addRoute(http.MethodGet, cms.RouteCMSUsers,
-		p.handleCMSUsers, permissionLogin)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteUserMe, p.handleMe,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteUpdateUserKey, p.handleUpdateUserKey,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteVerifyUpdateUserKey, p.handleVerifyUpdateUserKey,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteChangeUsername, p.handleChangeUsername,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteChangePassword, p.handleChangePassword,
+		permissionLogin)
+	p.addRoute(http.MethodGet, cms.APIRoute,
+		www.RouteUserDetails, p.handleCMSUserDetails,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cms.APIRoute,
+		www.RouteEditUser, p.handleEditCMSUser,
+		permissionLogin)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteUsers, p.handleUsers,
+		permissionLogin)
+	p.addRoute(http.MethodGet, cms.APIRoute,
+		cms.RouteCMSUsers, p.handleCMSUsers,
+		permissionLogin)
 
 	// Routes that require being logged in as an admin user.
-	p.addRoute(http.MethodPost, cms.RouteManageCMSUser,
-		p.handleManageCMSUser, permissionAdmin)
-	p.addRoute(http.MethodPost, www.RouteManageUser,
-		p.handleManageUser, permissionAdmin)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteUsers, p.handleUsers,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, cms.APIRoute,
+		cms.RouteManageCMSUser, p.handleManageCMSUser,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteManageUser, p.handleManageUser,
+		permissionAdmin)
 }

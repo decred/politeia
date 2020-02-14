@@ -18,7 +18,6 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-// XXX move remaining mdstreams out of politeiawww and into this package
 const (
 	// mdstream IDs
 	IDProposalGeneral      = 0
@@ -128,7 +127,7 @@ func (r *RecordStatusChangeV2) VerifySignature(token string) error {
 	}
 	msg := token + strconv.Itoa(int(r.NewStatus)) + r.StatusChangeMessage
 	if !pk.VerifyMessage([]byte(msg), sig) {
-		return err
+		return fmt.Errorf("invalid signature")
 	}
 	return nil
 }

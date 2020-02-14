@@ -17,6 +17,7 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/cache"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	www2 "github.com/decred/politeia/politeiawww/api/www/v2"
 	"github.com/decred/politeia/politeiawww/cmsdatabase"
 	"github.com/decred/politeia/politeiawww/user"
 	utilwww "github.com/decred/politeia/politeiawww/util"
@@ -153,8 +154,8 @@ func (p *politeiawww) getTemplate(templateName string) *template.Template {
 	return p.templates[templateName]
 }
 
-// version is an HTTP GET to determine what version and API route this backend
-// is using.  Additionally it is used to obtain a CSRF token.
+// version is an HTTP GET to determine the lowest API route version that this
+// backend supports.  Additionally it is used to obtain a CSRF token.
 func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleVersion")
 
@@ -479,12 +480,31 @@ func (p *politeiawww) handleVoteResults(w http.ResponseWriter, r *http.Request) 
 	util.RespondWithJSON(w, http.StatusOK, vrr)
 }
 
+// handleVoteDetails returns the vote details for the given proposal token.
+func (p *politeiawww) handleVoteDetailsV2(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleVoteDetailsV2")
+
+	pathParams := mux.Vars(r)
+	token := pathParams["token"]
+
+	vrr, err := p.processVoteDetailsV2(token)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleVoteDetailsV2: processVoteDetailsV2: %v",
+			err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, vrr)
+}
+
 // handleGetAllVoteStatus returns the voting status of all public proposals.
 func (p *politeiawww) handleGetAllVoteStatus(w http.ResponseWriter, r *http.Request) {
 	gasvr, err := p.processGetAllVoteStatus()
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleGetAllVoteStatus: processGetAllVoteStatus %v", err)
+		return
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, gasvr)
@@ -1108,14 +1128,14 @@ func (p *politeiawww) handleSetProposalStatus(w http.ResponseWriter, r *http.Req
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-// handleStartVote handles starting a vote.
-func (p *politeiawww) handleStartVote(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleStartVote")
+// handleStartVote handles the v2 StartVote route.
+func (p *politeiawww) handleStartVoteV2(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleStartVoteV2")
 
-	var sv www.StartVote
+	var sv www2.StartVote
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&sv); err != nil {
-		RespondWithError(w, r, 0, "handleStartVote: unmarshal",
+		RespondWithError(w, r, 0, "handleStartVoteV2: unmarshal",
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidInput,
 			})
@@ -1125,21 +1145,21 @@ func (p *politeiawww) handleStartVote(w http.ResponseWriter, r *http.Request) {
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleStartVote: getSessionUser %v", err)
+			"handleStartVoteV2: getSessionUser %v", err)
 		return
 	}
 
 	// Sanity
 	if !user.Admin {
 		RespondWithError(w, r, 0,
-			"handleStartVote: admin %v", user.Admin)
+			"handleStartVoteV2: admin %v", user.Admin)
 		return
 	}
 
-	svr, err := p.processStartVote(sv, user)
+	svr, err := p.processStartVoteV2(sv, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleStartVote: processStartVote %v", err)
+			"handleStartVoteV2: processStartVoteV2 %v", err)
 		return
 	}
 
@@ -1193,64 +1213,93 @@ func (p *politeiawww) setPoliteiaWWWRoutes() {
 	// Public routes.
 	p.router.HandleFunc("/", closeBody(logging(p.handleVersion))).Methods(http.MethodGet)
 	p.router.NotFoundHandler = closeBody(p.handleNotFound)
-	p.addRoute(http.MethodGet, www.RouteVersion, p.handleVersion,
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteVersion, p.handleVersion,
 		permissionPublic)
 
-	p.addRoute(http.MethodGet, www.RouteAllVetted, p.handleAllVetted,
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteAllVetted, p.handleAllVetted,
 		permissionPublic)
-	p.addRoute(http.MethodGet, www.RouteProposalDetails,
-		p.handleProposalDetails, permissionPublic)
-	p.addRoute(http.MethodGet, www.RoutePolicy, p.handlePolicy,
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteProposalDetails, p.handleProposalDetails,
 		permissionPublic)
-	p.addRoute(http.MethodGet, www.RouteCommentsGet, p.handleCommentsGet,
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RoutePolicy, p.handlePolicy,
 		permissionPublic)
-	p.addRoute(http.MethodGet, www.RouteUserProposals, p.handleUserProposals,
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteCommentsGet, p.handleCommentsGet,
 		permissionPublic)
-	p.addRoute(http.MethodGet, www.RouteActiveVote, p.handleActiveVote,
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteUserProposals, p.handleUserProposals,
 		permissionPublic)
-	p.addRoute(http.MethodPost, www.RouteCastVotes, p.handleCastVotes,
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteActiveVote, p.handleActiveVote,
 		permissionPublic)
-	p.addRoute(http.MethodGet, www.RouteVoteResults,
-		p.handleVoteResults, permissionPublic)
-	p.addRoute(http.MethodGet, www.RouteAllVoteStatus,
-		p.handleGetAllVoteStatus, permissionPublic)
-	p.addRoute(http.MethodGet, www.RouteVoteStatus,
-		p.handleVoteStatus, permissionPublic)
-	p.addRoute(http.MethodGet, www.RouteTokenInventory,
-		p.handleTokenInventory, permissionPublic)
-	p.addRoute(http.MethodPost, www.RouteBatchProposals,
-		p.handleBatchProposals, permissionPublic)
-	p.addRoute(http.MethodPost, www.RouteBatchVoteSummary,
-		p.handleBatchVoteSummary, permissionPublic)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteCastVotes, p.handleCastVotes,
+		permissionPublic)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteVoteResults, p.handleVoteResults,
+		permissionPublic)
+	p.addRoute(http.MethodGet, www2.APIRoute,
+		www2.RouteVoteDetails, p.handleVoteDetailsV2,
+		permissionPublic)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteAllVoteStatus, p.handleGetAllVoteStatus,
+		permissionPublic)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteVoteStatus, p.handleVoteStatus,
+		permissionPublic)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteTokenInventory, p.handleTokenInventory,
+		permissionPublic)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteBatchProposals, p.handleBatchProposals,
+		permissionPublic)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteBatchVoteSummary, p.handleBatchVoteSummary,
+		permissionPublic)
 
 	// Routes that require being logged in.
-	p.addRoute(http.MethodGet, www.RouteProposalPaywallDetails,
-		p.handleProposalPaywallDetails, permissionLogin)
-	p.addRoute(http.MethodPost, www.RouteNewProposal, p.handleNewProposal,
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteProposalPaywallDetails, p.handleProposalPaywallDetails,
 		permissionLogin)
-	p.addRoute(http.MethodPost, www.RouteNewComment,
-		p.handleNewComment, permissionLogin) // XXX comments need to become a setting
-	p.addRoute(http.MethodPost, www.RouteLikeComment,
-		p.handleLikeComment, permissionLogin) // XXX comments need to become a setting
-	p.addRoute(http.MethodPost, www.RouteEditProposal,
-		p.handleEditProposal, permissionLogin)
-	p.addRoute(http.MethodPost, www.RouteAuthorizeVote,
-		p.handleAuthorizeVote, permissionLogin)
-	p.addRoute(http.MethodGet, www.RouteProposalPaywallPayment,
-		p.handleProposalPaywallPayment, permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteNewProposal, p.handleNewProposal,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteNewComment, p.handleNewComment,
+		permissionLogin) // XXX comments need to become a setting
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteLikeComment, p.handleLikeComment,
+		permissionLogin) // XXX comments need to become a setting
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteEditProposal, p.handleEditProposal,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteAuthorizeVote, p.handleAuthorizeVote,
+		permissionLogin)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteProposalPaywallPayment, p.handleProposalPaywallPayment,
+		permissionLogin)
 
 	// Unauthenticated websocket
-	p.addRoute("", www.RouteUnauthenticatedWebSocket,
-		p.handleUnauthenticatedWebsocket, permissionPublic)
+	p.addRoute("", www.PoliteiaWWWAPIRoute,
+		www.RouteUnauthenticatedWebSocket, p.handleUnauthenticatedWebsocket,
+		permissionPublic)
 	// Authenticated websocket
-	p.addRoute("", www.RouteAuthenticatedWebSocket,
-		p.handleAuthenticatedWebsocket, permissionLogin)
+	p.addRoute("", www.PoliteiaWWWAPIRoute,
+		www.RouteAuthenticatedWebSocket, p.handleAuthenticatedWebsocket,
+		permissionLogin)
 
 	// Routes that require being logged in as an admin user.
-	p.addRoute(http.MethodPost, www.RouteSetProposalStatus,
-		p.handleSetProposalStatus, permissionAdmin)
-	p.addRoute(http.MethodPost, www.RouteStartVote,
-		p.handleStartVote, permissionAdmin)
-	p.addRoute(http.MethodPost, www.RouteCensorComment,
-		p.handleCensorComment, permissionAdmin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteSetProposalStatus, p.handleSetProposalStatus,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, www2.APIRoute,
+		www2.RouteStartVote, p.handleStartVoteV2,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteCensorComment, p.handleCensorComment,
+		permissionAdmin)
 }

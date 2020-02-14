@@ -1,6 +1,8 @@
 package v1
 
 import (
+	"fmt"
+
 	"github.com/decred/dcrd/dcrutil"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 )
@@ -15,6 +17,7 @@ type DCCTypeT int
 type DCCStatusT int
 
 const (
+	APIVersion = 1
 
 	// Contractor Management Routes
 	RouteInviteNewUser       = "/invite"
@@ -207,6 +210,9 @@ const (
 )
 
 var (
+	// APIRoute is the route prefix for the cms v1 API
+	APIRoute = fmt.Sprintf("/v%v", APIVersion)
+
 	// PolicyValidMimeTypes is the accepted mime types of attachments
 	// in invoices
 	PolicyValidMimeTypes = []string{
