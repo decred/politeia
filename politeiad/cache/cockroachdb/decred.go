@@ -1359,8 +1359,14 @@ func (d *decred) hookPostNewRecord(tx *gorm.DB, payload string) error {
 		}
 	}
 	if pg == nil {
-		return fmt.Errorf("mdstream %v not found",
-			mdstream.IDProposalGeneral)
+		// XXX Commented out as a temporary workaround for CMS using decred
+		// plugin. This needs to be fixed once the plugin architecture is
+		// sorted out.
+		//
+		// return fmt.Errorf("mdstream %v not found",
+		//		mdstream.IDProposalGeneral)
+
+		return nil
 	}
 
 	// All prososal versions are stored in the cache which means that
@@ -1419,8 +1425,14 @@ func (d *decred) hookPostUpdateRecord(tx *gorm.DB, payload string) error {
 		}
 	}
 	if pg == nil {
-		return fmt.Errorf("mdstream %v not found",
-			mdstream.IDProposalGeneral)
+		// XXX Commented out as a temporary workaround for CMS using decred
+		// plugin. This needs to be fixed once the plugin architecture is
+		// sorted out.
+		//
+		// return fmt.Errorf("mdstream %v not found",
+		//	mdstream.IDProposalGeneral)
+
+		return nil
 	}
 
 	// Delete existing metadata
@@ -1455,7 +1467,14 @@ func (d *decred) hookPostUpdateRecordMetadata(tx *gorm.DB, payload string) error
 	// If this changes, this panic is here as a reminder that any piwww
 	// mdstream tables, such as ProposalGeneralMetadata and StartVote,
 	// need to be properly updated in this hook.
-	panic("cache decred plugin: hookPostUpdateRecordMetadata not implemented")
+
+	// XXX Commented out as a temporary workaround for CMS using decred
+	// plugin. This needs to be fixed once the plugin architecture is
+	// sorted out.
+	//
+	// panic("cache decred plugin: hookPostUpdateRecordMetadata not implemented")
+
+	return nil
 }
 
 // Hook executes the given decred plugin hook.
