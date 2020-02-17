@@ -63,6 +63,7 @@ const (
 	RouteProposalDetails          = "/proposals/{token:[A-z0-9]{64}}"
 	RouteSetProposalStatus        = "/proposals/{token:[A-z0-9]{64}}/status"
 	RouteCommentsGet              = "/proposals/{token:[A-z0-9]{64}}/comments"
+	RouteVersionTimestamps        = "/proposals/{token:[A-z0-9]{64}}/versiontimestamps"
 	RouteVoteResults              = "/proposals/{token:[A-z0-9]{64}}/votes"
 	RouteVoteStatus               = "/proposals/{token:[A-z0-9]{64}}/votestatus"
 	RouteNewComment               = "/comments/new"
@@ -761,6 +762,18 @@ type ProposalsDetails struct {
 // ProposalDetailsReply is used to reply to a proposal details command.
 type ProposalDetailsReply struct {
 	Proposal ProposalRecord `json:"proposal"`
+}
+
+// VersionTimestamps is used to retrieve the timestamps of when each version
+// of a proposal was created.
+type VersionTimestamps struct {
+	Token string `json:"token"` // Censorship token
+}
+
+// VersionTimestampsReply is used to reply to a version VersionTimestamps
+// command.
+type VersionTimestampsReply struct {
+	Timestamps []uint64 `json:"timestamps"` // Timestamps for each version of proposal.
 }
 
 // BatchProposals is used to request the proposal details for each of the

@@ -35,6 +35,7 @@ const (
 	CmdProposalCommentsLikes = "proposalcommentslikes"
 	CmdInventory             = "inventory"
 	CmdTokenInventory        = "tokeninventory"
+	CmdVersionTimestamps     = "versiontimestamps"
 	MDStreamAuthorizeVote    = 13 // Vote authorization by proposal author
 	MDStreamVoteBits         = 14 // Vote bits and mask
 	MDStreamVoteSnapshot     = 15 // Vote tickets and start/end parameters
@@ -946,6 +947,55 @@ func DecodeGetCommentsReply(payload []byte) (*GetCommentsReply, error) {
 	}
 
 	return &gcr, nil
+}
+
+// GetVersionTimestamps retrieves the timestamps for when each version of a
+// record was created.
+type GetVersionTimestamps struct {
+	Token string `json:"token"`
+}
+
+// EncodeGetVersionTimestamps encodes GetVersionTimestamps into a JSON byte slice.
+func EncodeGetVersionTimestamps(gvt GetVersionTimestamps) ([]byte, error) {
+	return json.Marshal(gvt)
+}
+
+// DecodeGetVersionTimestamps decodes a JSON byte slice into a
+// GetVersionTimestamps.
+func DecodeGetVersionTimestamps(payload []byte) (*GetVersionTimestamps, error) {
+	var gvt GetVersionTimestamps
+
+	err := json.Unmarshal(payload, &gvt)
+	if err != nil {
+		return nil, err
+	}
+
+	return &gvt, nil
+}
+
+// GetVersionTimestampsReply returns the timestamps for when each version of a
+// record was created.
+type GetVersionTimestampsReply struct {
+	Timestamps []uint64 `json:"timestamps"`
+}
+
+// EncodeGetVersionTimestampsReply encodes GetVersionTimestampsReply into a
+// JSON byte slice.
+func EncodeGetVersionTimestampsReply(gvtr GetVersionTimestampsReply) ([]byte, error) {
+	return json.Marshal(gvtr)
+}
+
+// DecodeGetVersionTimestampsReply decodes a JSON byte slice into a
+// GetVersionTimestampsReply.
+func DecodeGetVersionTimestampsReply(payload []byte) (*GetVersionTimestampsReply, error) {
+	var gvtr GetVersionTimestampsReply
+
+	err := json.Unmarshal(payload, &gvtr)
+	if err != nil {
+		return nil, err
+	}
+
+	return &gvtr, nil
 }
 
 // GetNumComments returns a map that contains the number of comments for the

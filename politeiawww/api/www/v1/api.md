@@ -50,6 +50,7 @@ notifications.  It does not render HTML.
 - [`Get comments`](#get-comments)
 - [`Like comment`](#like-comment)
 - [`Censor comment`](#censor-comment)
+- [`Version Timestamps`](#version-timestamps)
 
 
 **Error status codes**
@@ -1557,6 +1558,44 @@ Reply:
       "signature": "f5ea17d547d8347a2f2d77edcb7e89fcc96613d7aaff1f2a26761779763d77688b57b423f1e7d2da8cd433ef2cfe6f58c7cf1c43065fa6716a03a3726d902d0a"
     }
   }
+}
+```
+
+### `Version Timestamps`
+
+Retreive the timestamps when each version of a proposal was created.
+
+**Routes:** `GET /v1/proposals/{token}/versiontimestamps`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| token | string | Censorship token | yes |
+
+**Results:**
+
+| | Type | Description |
+|-|-|-|
+| timestamps | []number | timestamps when each version of the proposal were created |
+
+On failure the call shall return `400 Bad Request` and one of the following
+error codes:
+- [`ErrorStatusProposalNotFound`](#ErrorStatusProposalNotFound)
+
+**Example:**
+
+Request:
+
+```
+/v1/proposals/f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde/versiontimestamps
+```
+
+Reply:
+
+```json
+{
+  "timestamps": [1581975919, 1581975934]
 }
 ```
 

@@ -7,6 +7,7 @@ package cockroachdb
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -202,6 +203,59 @@ func (d *decred) cmdGetComments(payload string) (string, error) {
 	}
 
 	return string(gcrb), nil
+}
+
+func (d *decred) cmdVersionTimestamps(payload string) (string, error) {
+	log.Tracef("decred cmdVersionTimestamps")
+
+	gvt, err := decredplugin.DecodeGetVersionTimestamps([]byte(payload))
+	if err != nil {
+		return "", err
+	}
+
+	type Result struct {
+		Version   int
+		Timestamp uint64
+	}
+
+	var results []Result
+	err = d.recordsdb.
+		Table("records").
+		Select("version, timestamp").
+		Where("token = (?)", gvt.Token).
+		Find(&results).
+		Error
+	if err != nil {
+		return "", err
+	}
+
+	// Sort the results by version
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Version < results[j].Version
+	})
+
+	// Put the timestamps into a slice. If the list of results is missing a
+	// version, we return an error.
+	timestamps := make([]uint64, 0, len(results))
+	for i := range results {
+		if results[i].Version == i+1 {
+			timestamps = append(timestamps, results[i].Timestamp)
+		} else {
+			return "", fmt.Errorf("version %v for token %v is missing from "+
+				"the cache", i+i, gvt.Token)
+		}
+	}
+
+	// Encode reply
+	gvtr := decredplugin.GetVersionTimestampsReply{
+		Timestamps: timestamps,
+	}
+	gvtre, err := decredplugin.EncodeGetVersionTimestampsReply(gvtr)
+	if err != nil {
+		return "", err
+	}
+
+	return string(gvtre), nil
 }
 
 // cmdGetNumComments returns an encoded plugin reply that contains a
@@ -1520,6 +1574,8 @@ func (d *decred) Exec(cmd, cmdPayload, replyPayload string) (string, error) {
 		return d.cmdVoteSummary(cmdPayload)
 	case decredplugin.CmdBatchVoteSummary:
 		return d.cmdBatchVoteSummary(cmdPayload)
+	case decredplugin.CmdVersionTimestamps:
+		return d.cmdVersionTimestamps(cmdPayload)
 	}
 
 	return "", cache.ErrInvalidPluginCmd

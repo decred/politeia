@@ -95,6 +95,7 @@ type piwww struct {
 	VerifyUserEmail    VerifyUserEmailCmd       `command:"verifyuseremail" description:"(public) verify a user's email address"`
 	VerifyUserPayment  VerifyUserPaymentCmd     `command:"verifyuserpayment" description:"(user)   check if the logged in user has paid their user registration fee"`
 	Version            shared.VersionCmd        `command:"version" description:"(public) get server info and CSRF token"`
+	VersionTimestamps  VersionTimestampsCmd     `command:"versiontimestamps" description:"(public) get the timestamps for each version of a proposal"`
 	VettedProposals    VettedProposalsCmd       `command:"vettedproposals" description:"(public) get a page of vetted proposals"`
 	Vote               VoteCmd                  `command:"vote" description:"(public) cast votes for a proposal"`
 	VoteDetails        VoteDetailsCmd           `command:"votedetails" description:"(public) get the details for a proposal vote"`

@@ -385,6 +385,36 @@ func (p *politeiawww) decredLoadVoteResults(bestBlock uint64) (*decredplugin.Loa
 	return reply, nil
 }
 
+// decredVersionTimestamps uses the decred plugin version timestamps command to
+// request the timestamps for each version of a proposal.
+func (p *politeiawww) decredVersionTimestamps(token string) (*decredplugin.GetVersionTimestampsReply, error) {
+	bvs := decredplugin.GetVersionTimestamps{
+		Token: token,
+	}
+	payload, err := decredplugin.EncodeGetVersionTimestamps(bvs)
+	if err != nil {
+		return nil, err
+	}
+
+	pc := cache.PluginCommand{
+		ID:             decredplugin.ID,
+		Command:        decredplugin.CmdVersionTimestamps,
+		CommandPayload: string(payload),
+	}
+
+	res, err := p.cache.PluginExec(pc)
+	if err != nil {
+		return nil, err
+	}
+
+	reply, err := decredplugin.DecodeGetVersionTimestampsReply([]byte(res.Payload))
+	if err != nil {
+		return nil, err
+	}
+
+	return reply, nil
+}
+
 // decredBatchVoteSummary uses the decred plugin batch vote summary command to
 // request a vote summary for a set of proposals from the cache.
 func (p *politeiawww) decredBatchVoteSummary(tokens []string) (*decredplugin.BatchVoteSummaryReply, error) {

@@ -274,6 +274,28 @@ func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Reque
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
+// handleVersionTimestamps returns the timestamps when each version of a
+// proposal was created.
+func (p *politeiawww) handleVersionTimestamps(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleVersionTimestamps")
+
+	var vt www.VersionTimestamps
+
+	// Get proposal token from path parameters
+	pathParams := mux.Vars(r)
+	vt.Token = pathParams["token"]
+
+	reply, err := p.processVersionTimestamps(vt)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleProposalDetails: processProposalDetails %v", err)
+		return
+	}
+
+	// Reply with the timestamps.
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
 // handleBatchVoteSummary handles the incoming batch vote summary command. It
 // returns a VoteSummary for each of the provided censorship tokens.
 func (p *politeiawww) handleBatchVoteSummary(w http.ResponseWriter, r *http.Request) {
@@ -1237,6 +1259,9 @@ func (p *politeiawww) setPoliteiaWWWRoutes() {
 		permissionPublic)
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteCastVotes, p.handleCastVotes,
+		permissionPublic)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteVersionTimestamps, p.handleVersionTimestamps,
 		permissionPublic)
 	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
 		www.RouteVoteResults, p.handleVoteResults,

@@ -822,6 +822,31 @@ func (c *Client) ProposalDetails(token string, pd *www.ProposalsDetails) (*www.P
 	return &pr, nil
 }
 
+// VersionTimestamps retrieves the timestamps for each verison of a proposal.
+func (c *Client) VersionTimestamps(token string) (*www.VersionTimestampsReply, error) {
+	route := "/proposals/" + token + "/versiontimestamps"
+	responseBody, err := c.makeRequest(http.MethodGet,
+		www.PoliteiaWWWAPIRoute, route, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var vtsr www.VersionTimestampsReply
+	err = json.Unmarshal(responseBody, &vtsr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal VersionTimestampsReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(vtsr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &vtsr, nil
+}
+
 // UserProposals retrieves the proposals that have been submitted by the
 // specified user.
 func (c *Client) UserProposals(up *www.UserProposals) (*www.UserProposalsReply, error) {

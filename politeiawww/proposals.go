@@ -807,6 +807,26 @@ func (p *politeiawww) processNewProposal(np www.NewProposal, user *user.User) (*
 	}, nil
 }
 
+// processVersionTimestamps retrieves the timestamps for each update to a proposal.
+func (p *politeiawww) processVersionTimestamps(vt www.VersionTimestamps) (*www.VersionTimestampsReply, error) {
+	log.Tracef("processVersionTimestamps")
+
+	versionTimestampsResponse, err := p.decredVersionTimestamps(vt.Token)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(versionTimestampsResponse.Timestamps) <= 0 {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusProposalNotFound,
+		}
+	}
+
+	return &www.VersionTimestampsReply{
+		Timestamps: versionTimestampsResponse.Timestamps,
+	}, nil
+}
+
 // processProposalDetails fetches a specific proposal version from the records
 // cache and returns it.
 func (p *politeiawww) processProposalDetails(propDetails www.ProposalsDetails, user *user.User) (*www.ProposalDetailsReply, error) {
