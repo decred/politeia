@@ -1828,10 +1828,17 @@ func (d *decred) build(ir *decredplugin.InventoryReply) error {
 						v.Token, md.Payload, err)
 				}
 			}
-			if pg == nil {
-				return fmt.Errorf("no ProposalGenral mdstream found %v",
-					v.Token)
-			}
+		}
+		if pg == nil {
+			// XXX we cannot return an error here until the plugin
+			// architecture is sorted out. Right now, politeiad registers
+			// the decred plugin by default. CMS needs a way to register
+			// just the functionality it needs so that proposal specific
+			// tables do not get built for CMS.
+			// return fmt.Errorf("no ProposalGenral mdstream found %v",
+			//	v.Token)
+
+			continue
 		}
 
 		// Insert the ProposalGeneralMetadata record
