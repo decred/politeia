@@ -122,7 +122,9 @@ func LoadConfig(homeDir, dataDirname, configFilename string) (*Config, error) {
 	err = flags.NewIniParser(cfgParser).ParseFile(cfgFile)
 	if err != nil {
 		_, ok := err.(*os.PathError)
-		if !ok {
+		if ok {
+			fmt.Printf("Warning: no config file found at %v\n", cfgFile)
+		} else {
 			return nil, fmt.Errorf("parsing config file: %v", err)
 		}
 	}
