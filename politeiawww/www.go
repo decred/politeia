@@ -491,7 +491,6 @@ func _main() error {
 	csrfHandle := csrf.Protect(
 		csrfKey,
 		csrf.Path("/"),
-		csrf.SameSite(csrf.SameSiteStrictMode),
 	)
 
 	p.router = mux.NewRouter()
