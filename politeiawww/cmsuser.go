@@ -115,8 +115,18 @@ func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*cms.InviteNewU
 		Username:                  strings.ToLower(u.Email),
 		NewUserVerificationToken:  token,
 		NewUserVerificationExpiry: expiry,
-		ContractorType:            int(cms.ContractorTypeNominee),
 	}
+
+	// Set the user to temporary if request includes it.
+	// While this will allow a user to bypass the DCC process, the temporary
+	// users will have extensive restrictions on their account and ability
+	// to submit invoices.
+	if u.Temporary {
+		nu.ContractorType = int(cms.ContractorTypeTemp)
+	} else {
+		nu.ContractorType = int(cms.ContractorTypeNominee)
+	}
+
 	payload, err := user.EncodeNewCMSUser(nu)
 	if err != nil {
 		return nil, err
