@@ -925,7 +925,7 @@ type AbridgedCMSUser struct {
 type CMSUsers struct {
 	Domain         DomainTypeT     `json:"domain"`
 	ContractorType ContractorTypeT `json:"contractortype"`
-	LastMonthHours bool            `json:"hours"` // Boolean whether to include last month's billed hours for users in the same domain
+	BillingHistory bool            `json:"billinghistory"` // Boolean whether to include previous billed hours for users in the same domain.
 }
 
 // CMSUsersReply returns a list of Users that are currently

@@ -796,11 +796,11 @@ func (p *politeiawww) processUserSubContractors(u *user.User) (*cms.UserSubContr
 // processCMSUsers returns a list of cms users given a set of filters. If
 // either domain or contractor is non-zero then they are used as matching
 // criteria, otherwise the full list will be returned.
-func (p *politeiawww) processCMSUsers(users *cms.CMSUsers, u *user.User) (*cms.CMSUsersReply, error) {
+func (p *politeiawww) processCMSUsers(cmsUsers *cms.CMSUsers, u *user.User) (*cms.CMSUsersReply, error) {
 	log.Tracef("processCMSUsers")
 
-	domain := int(users.Domain)
-	contractortype := int(users.ContractorType)
+	domain := int(cmsUsers.Domain)
+	contractortype := int(cmsUsers.ContractorType)
 
 	matchedUsers := make([]cms.AbridgedCMSUser, 0, www.UserListPageSize)
 
@@ -835,60 +835,12 @@ func (p *politeiawww) processCMSUsers(users *cms.CMSUsers, u *user.User) (*cms.C
 			// the request
 			if contractortype == 0 ||
 				(contractortype != 0 && u.ContractorType == contractortype) {
-				invoiceLimit := 3
-				billedHours := make([]cms.Hours, 0, invoiceLimit)
-				if !users.LastMonthHours {
-					requestingUser, err := p.getCMSUserByID(u.ID.String())
-					if err != nil {
-						return nil, www.UserError{
-							ErrorCode: www.ErrorStatusUserNotFound,
-						}
-					}
-					// Only users of the same domain can receive the billed
-					// hours information, otherwise it will just be empty.
-					// Admins are allowed to see all of anyone's past billed
-					// hours.
-					if u.Domain == int(requestingUser.Domain) || u.Admin {
-						// Request last 3 months of billed hours for the user
-						dbInvs, err := p.cmsDB.InvoicesByUserID(u.ID.String())
-						if err != nil {
-							return nil, err
-						}
-						// sort by date, only return most recent 3
-						sort.Slice(dbInvs, func(i, j int) bool {
-							iDate := time.Date(int(dbInvs[i].Year),
-								time.Month(dbInvs[i].Month), 0, 0, 0, 0, 0,
-								time.UTC)
-							jDate := time.Date(int(dbInvs[j].Year),
-								time.Month(dbInvs[j].Month), 0, 0, 0, 0, 0,
-								time.UTC)
-							return iDate.After(jDate)
-						})
-
-						for i, inv := range dbInvs {
-							// Only get the invoice limit if not an admin
-							if i >= invoiceLimit && !u.Admin {
-								break
-							}
-							hours := 0
-							for _, li := range inv.LineItems {
-								hours += int(li.Labor)
-							}
-							billedHours = append(billedHours, cms.Hours{
-								Month: inv.Month,
-								Year:  inv.Year,
-								Hours: hours,
-							})
-						}
-					}
-				}
 
 				matchedUsers = append(matchedUsers, cms.AbridgedCMSUser{
 					Domain:         cms.DomainTypeT(u.Domain),
 					Username:       u.Username,
 					ContractorType: cms.ContractorTypeT(u.ContractorType),
 					ID:             u.ID.String(),
-					BilledHours:    billedHours,
 				})
 			}
 		}
@@ -970,7 +922,58 @@ func (p *politeiawww) processCMSUsers(users *cms.CMSUsers, u *user.User) (*cms.C
 			return nil, err
 		}
 	}
+	// Only check for billed hours if request has it enabled.
+	if !cmsUsers.BillingHistory {
+		for ii, match := range matchedUsers {
+			invoiceLimit := 3
+			billedHours := make([]cms.Hours, 0, invoiceLimit)
+			requestingUser, err := p.getCMSUserByID(u.ID.String())
+			if err != nil {
+				return nil, www.UserError{
+					ErrorCode: www.ErrorStatusUserNotFound,
+				}
+			}
+			// Only users of the same domain can receive the billed
+			// hours information, otherwise it will just be empty.
+			// Admins are allowed to see all of anyone's past billed
+			// hours.
+			if match.Domain == requestingUser.Domain || u.Admin {
+				// Request past invoices for the user
+				dbInvs, err := p.cmsDB.InvoicesByUserID(match.ID)
+				if err != nil {
+					return nil, err
+				}
+				// sort by month/year
+				sort.Slice(dbInvs, func(i, j int) bool {
+					iDate := time.Date(int(dbInvs[i].Year),
+						time.Month(dbInvs[i].Month), 0, 0, 0, 0, 0,
+						time.UTC)
+					jDate := time.Date(int(dbInvs[j].Year),
+						time.Month(dbInvs[j].Month), 0, 0, 0, 0, 0,
+						time.UTC)
+					return iDate.After(jDate)
+				})
 
+				for i, inv := range dbInvs {
+					// Only get the invoice limit if not an admin
+					if i >= invoiceLimit && !u.Admin {
+						break
+					}
+					hours := 0
+					for _, li := range inv.LineItems {
+						hours += int(li.Labor)
+					}
+					billedHours = append(billedHours, cms.Hours{
+						Month: inv.Month,
+						Year:  inv.Year,
+						Hours: hours,
+					})
+				}
+				match.BilledHours = billedHours
+			}
+			matchedUsers[ii] = match
+		}
+	}
 	// Sort results alphabetically.
 	sort.Slice(matchedUsers, func(i, j int) bool {
 		return matchedUsers[i].Username < matchedUsers[j].Username
