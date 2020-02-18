@@ -969,8 +969,8 @@ func (p *politeiawww) processCMSUsers(cmsUsers *cms.CMSUsers, u *user.User) (*cm
 						Hours: hours,
 					})
 				}
-				match.BilledHours = billedHours
 			}
+			match.BilledHours = billedHours
 			matchedUsers[ii] = match
 		}
 	}
