@@ -125,6 +125,29 @@ func (c *testcache) batchVoteSummary(payload string) (string, error) {
 	return string(bvr), nil
 }
 
+func (c *testcache) getNumComments(payload string) (string, error) {
+	gnc, err := decred.DecodeGetNumComments([]byte(payload))
+	if err != nil {
+		return "", err
+	}
+
+	numComments := make(map[string]int)
+	for _, token := range gnc.Tokens {
+		numComments[token] = len(c.comments[token])
+	}
+
+	gncr, err := decred.EncodeGetNumCommentsReply(
+		decred.GetNumCommentsReply{
+			NumComments: numComments,
+		})
+
+	if err != nil {
+		return "", err
+	}
+
+	return string(gncr), nil
+}
+
 func (c *testcache) decredExec(cmd, cmdPayload, replyPayload string) (string, error) {
 	switch cmd {
 	case decred.CmdGetComments:
@@ -137,6 +160,8 @@ func (c *testcache) decredExec(cmd, cmdPayload, replyPayload string) (string, er
 		return c.voteDetails(cmdPayload)
 	case decred.CmdBatchVoteSummary:
 		return c.batchVoteSummary(cmdPayload)
+	case decred.CmdGetNumComments:
+		return c.getNumComments(cmdPayload)
 	}
 
 	return "", cache.ErrInvalidPluginCmd

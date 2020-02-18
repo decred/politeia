@@ -241,6 +241,36 @@ func (p *politeiawww) handleAllVetted(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, vr)
 }
 
+// handleProposalDetailsShort handles the incoming short proposal details
+// command. It fetches the complete details for an existing proposal using
+// the prefix of its token.
+func (p *politeiawww) handleProposalDetailsShort(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleProposalDetailsShort")
+
+	// Get token prefix from path parameters
+	pathParams := mux.Vars(r)
+	pds := www.ProposalDetailsShort{TokenPrefix: pathParams["tokenprefix"]}
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		if err != ErrSessionUUIDNotFound {
+			RespondWithError(w, r, 0,
+				"handleProposalDetailsShort: getSessionUser %v", err)
+			return
+		}
+	}
+
+	reply, err := p.processProposalDetailsShort(pds, user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleProposalDetailsShort: processProposalDetailsShort %v", err)
+		return
+	}
+
+	// Reply with the proposal details.
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
 // handleProposalDetails handles the incoming proposal details command. It
 // fetches the complete details for an existing proposal.
 func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Request) {
@@ -359,6 +389,7 @@ func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 		MaxProposalNameLength:      www.PolicyMaxProposalNameLength,
 		ProposalNameSupportedChars: www.PolicyProposalNameSupportedChars,
 		MaxCommentLength:           www.PolicyMaxCommentLength,
+		TokenPrefixLength:          www.TokenPrefixLength,
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
@@ -1096,6 +1127,8 @@ func (p *politeiawww) setPoliteiaWWWRoutes() {
 		permissionPublic)
 	p.addRoute(http.MethodGet, www.RouteProposalDetails,
 		p.handleProposalDetails, permissionPublic)
+	p.addRoute(http.MethodGet, www.RouteProposalDetailsShort,
+		p.handleProposalDetailsShort, permissionPublic)
 	p.addRoute(http.MethodGet, www.RoutePolicy, p.handlePolicy,
 		permissionPublic)
 	p.addRoute(http.MethodGet, www.RouteCommentsGet, p.handleCommentsGet,

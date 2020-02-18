@@ -57,6 +57,7 @@ const (
 	RouteProposalPaywallDetails   = "/proposals/paywall"
 	RouteProposalPaywallPayment   = "/proposals/paywallpayment"
 	RouteProposalDetails          = "/proposals/{token:[A-z0-9]{64}}"
+	RouteProposalDetailsShort     = "/proposals/{tokenprefix:[A-z0-9]{6}}"
 	RouteSetProposalStatus        = "/proposals/{token:[A-z0-9]{64}}/status"
 	RouteCommentsGet              = "/proposals/{token:[A-z0-9]{64}}/comments"
 	RouteVoteResults              = "/proposals/{token:[A-z0-9]{64}}/votes"
@@ -69,6 +70,12 @@ const (
 
 	// VerificationTokenSize is the size of verification token in bytes
 	VerificationTokenSize = 32
+
+	// TokenPrefixLength is the length of the token prefix needed for
+	// RouteProposalDetailsShort. This should match what is defined
+	// in politeiad, and once a Policy route is created in politeiad,
+	// this should be removed.
+	TokenPrefixLength = 6
 
 	// VerificationExpiryHours is the number of hours before the
 	// verification token expires
@@ -752,6 +759,15 @@ type ProposalsDetails struct {
 	Version string `json:"version,omitempty"` // Proposal version
 }
 
+// ProposalDetailsShort is used to retrieve a proposal by a prefix of its
+// token. The latest version of the proposal will be returned.
+//
+// Note that ProposalDetailsShortReply is not present because
+// ProposalDetailsReply is reused for this endpoint.
+type ProposalDetailsShort struct {
+	TokenPrefix string `json:"tokenprefix"` // Prefix of censorship token
+}
+
 // ProposalDetailsReply is used to reply to a proposal details command.
 type ProposalDetailsReply struct {
 	Proposal ProposalRecord `json:"proposal"`
@@ -845,6 +861,7 @@ type PolicyReply struct {
 	ProposalNameSupportedChars []string `json:"proposalnamesupportedchars"`
 	MaxCommentLength           uint     `json:"maxcommentlength"`
 	BackendPublicKey           string   `json:"backendpublickey"`
+	TokenPrefixLength          int      `json:"tokenprefixlength"`
 }
 
 // VoteOption describes a single vote option.
