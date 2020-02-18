@@ -846,7 +846,9 @@ func (p *politeiawww) processCMSUsers(users *cms.CMSUsers, u *user.User) (*cms.C
 					}
 					// Only users of the same domain can receive the billed
 					// hours information, otherwise it will just be empty.
-					if u.Domain == int(requestingUser.Domain) {
+					// Admins are allowed to see all of anyone's past billed
+					// hours.
+					if u.Domain == int(requestingUser.Domain) || u.Admin {
 						// Request last 3 months of billed hours for the user
 						dbInvs, err := p.cmsDB.InvoicesByUserID(u.ID.String())
 						if err != nil {
@@ -864,7 +866,8 @@ func (p *politeiawww) processCMSUsers(users *cms.CMSUsers, u *user.User) (*cms.C
 						})
 
 						for i, inv := range dbInvs {
-							if i >= invoiceLimit {
+							// Only get the invoice limit if not an admin
+							if i >= invoiceLimit && !u.Admin {
 								break
 							}
 							hours := 0
