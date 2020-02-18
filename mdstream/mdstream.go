@@ -45,12 +45,19 @@ const (
 )
 
 // ProposalGeneral represents general metadata for a proposal.
+//
+// LinkBy is set to signify that the proposal is a Request For Proposals (RFP)
+// and serves as the deadline for other proposals to link to the RFP.
+//
+// LinkTo allows a proposal to link to an existing public proposal.
 type ProposalGeneral struct {
-	Version   uint64 `json:"version"`   // Struct version
-	Timestamp int64  `json:"timestamp"` // Last update of proposal
-	Name      string `json:"name"`      // Provided proposal name
-	PublicKey string `json:"publickey"` // Key used for signature
-	Signature string `json:"signature"` // Signature of proposal files merkle root
+	Version   uint64 `json:"version"`          // Struct version
+	Timestamp int64  `json:"timestamp"`        // Last update of proposal
+	Name      string `json:"name"`             // Provided proposal name
+	LinkBy    int64  `json:"linkby,omitempty"` // UNIX timestamp of RFP deadline
+	LinkTo    string `json:"linkto,omitempty"` // Token of proposal to link to
+	PublicKey string `json:"publickey"`        // Key used for signature
+	Signature string `json:"signature"`        // Signature of proposal files merkle root
 }
 
 // EncodeProposalGeneral encodes a ProposalGeneral into a JSON byte slice.

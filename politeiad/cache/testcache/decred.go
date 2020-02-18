@@ -10,6 +10,7 @@ import (
 
 	"github.com/decred/politeia/decredplugin"
 	decred "github.com/decred/politeia/decredplugin"
+	"github.com/decred/politeia/mdstream"
 )
 
 func (c *testcache) getComments(payload string) (string, error) {
@@ -178,6 +179,61 @@ func (c *testcache) voteSummary(cmdPayload string) (string, error) {
 	return string(reply), nil
 }
 
+// findLinkedFrom returns the tokens of any proposals that have linked to
+// the given proposal token.
+func (c *testcache) findLinkedFrom(token string) ([]string, error) {
+	linkedFrom := make([]string, 0, len(c.records))
+
+	for _, allVersions := range c.records {
+		// Get the latest version of the proposal
+		r := allVersions[string(len(allVersions))]
+
+		// Check the LinkTo field of the ProposalGeneral mdstream
+		for _, md := range r.Metadata {
+			if md.ID == mdstream.IDProposalGeneral {
+				pg, err := mdstream.DecodeProposalGeneral([]byte(md.Payload))
+				if err != nil {
+					return nil, err
+				}
+				if pg.LinkTo == token {
+					linkedFrom = append(linkedFrom, r.CensorshipRecord.Token)
+				}
+			}
+		}
+	}
+
+	return linkedFrom, nil
+}
+
+func (c *testcache) linkedFrom(cmdPayload string) (string, error) {
+	lf, err := decredplugin.DecodeLinkedFrom([]byte(cmdPayload))
+	if err != nil {
+		return "", err
+	}
+
+	c.RLock()
+	defer c.RUnlock()
+
+	linkedFromBatch := make(map[string][]string, len(lf.Tokens)) // [token]linkedFrom
+	for _, token := range lf.Tokens {
+		linkedFrom, err := c.findLinkedFrom(token)
+		if err != nil {
+			return "", err
+		}
+		linkedFromBatch[token] = linkedFrom
+	}
+
+	lfr := decredplugin.LinkedFromReply{
+		LinkedFrom: linkedFromBatch,
+	}
+	reply, err := decredplugin.EncodeLinkedFromReply(lfr)
+	if err != nil {
+		return "", err
+	}
+
+	return string(reply), nil
+}
+
 func (c *testcache) decredExec(cmd, cmdPayload, replyPayload string) (string, error) {
 	switch cmd {
 	case decred.CmdGetComments:
@@ -190,6 +246,8 @@ func (c *testcache) decredExec(cmd, cmdPayload, replyPayload string) (string, er
 		return c.voteDetails(cmdPayload)
 	case decred.CmdVoteSummary:
 		return c.voteSummary(cmdPayload)
+	case decred.CmdLinkedFrom:
+		return c.linkedFrom(cmdPayload)
 	}
 
 	return "", fmt.Errorf("invalid cache plugin command")

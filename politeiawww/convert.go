@@ -103,12 +103,13 @@ func convertVoteOptionsV2ToDecred(vo []www2.VoteOption) []decredplugin.VoteOptio
 }
 
 func convertVoteTypeV2ToDecred(v www2.VoteT) decredplugin.VoteT {
-	var dv decredplugin.VoteT
 	switch v {
 	case www2.VoteTypeStandard:
-		dv = decredplugin.VoteTypeStandard
+		return decredplugin.VoteTypeStandard
+	case www2.VoteTypeRunoff:
+		return decredplugin.VoteTypeRunoff
 	}
-	return dv
+	return decredplugin.VoteTypeInvalid
 }
 
 func convertVoteV2ToDecred(v www2.Vote) decredplugin.VoteV2 {
@@ -130,6 +131,14 @@ func convertStartVoteV2ToDecred(sv www2.StartVote) decredplugin.StartVoteV2 {
 		Vote:      convertVoteV2ToDecred(sv.Vote),
 		Signature: sv.Signature,
 	}
+}
+
+func convertStartVotesV2ToDecred(sv []www2.StartVote) []decredplugin.StartVoteV2 {
+	dsv := make([]decredplugin.StartVoteV2, 0, len(sv))
+	for _, v := range sv {
+		dsv = append(dsv, convertStartVoteV2ToDecred(v))
+	}
+	return dsv
 }
 
 func convertDecredStartVoteV1ToVoteDetailsReplyV2(sv decredplugin.StartVoteV1, svr decredplugin.StartVoteReply) (*www2.VoteDetailsReply, error) {
@@ -441,6 +450,9 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 		PublishedAt:         publishedAt,
 		CensoredAt:          censoredAt,
 		AbandonedAt:         abandonedAt,
+		LinkTo:              pg.LinkTo,
+		LinkBy:              pg.LinkBy,
+		LinkedFrom:          []string{},
 		CensorshipRecord: www.CensorshipRecord{
 			Token:     r.CensorshipRecord.Token,
 			Merkle:    r.CensorshipRecord.Merkle,
@@ -576,6 +588,8 @@ func convertVoteTypeFromDecred(v decredplugin.VoteT) www2.VoteT {
 	switch v {
 	case decredplugin.VoteTypeStandard:
 		return www2.VoteTypeStandard
+	case decredplugin.VoteTypeRunoff:
+		return www2.VoteTypeRunoff
 	}
 	return www2.VoteTypeInvalid
 }

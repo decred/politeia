@@ -8,9 +8,11 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"time"
 
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiawww/api/www/v1"
@@ -24,7 +26,9 @@ type NewProposalCmd struct {
 		Markdown    string   `positional-arg-name:"markdownfile"`    // Proposal MD file
 		Attachments []string `positional-arg-name:"attachmentfiles"` // Proposal attachment files
 	} `positional-args:"true" optional:"true"`
-	Random bool `long:"random" optional:"true"` // Generate random proposal data
+	Random bool   `long:"random" optional:"true"` // Generate random proposal data
+	RFP    bool   `long:"rfp" optional:"true"`    // Insert a LinkBy timestamp to indicate an RFP
+	LinkTo string `long:"linkto" optional:"true"` // Censorship token of prop to link to
 }
 
 // Execute executes the new proposal command.
@@ -47,6 +51,7 @@ func (cmd *NewProposalCmd) Execute(args []string) error {
 		return err
 	}
 
+	// Create index markdown file
 	var md []byte
 	files := make([]v1.File, 0, v1.PolicyMaxImages+1)
 	if cmd.Random {
@@ -75,7 +80,7 @@ func (cmd *NewProposalCmd) Execute(args []string) error {
 	}
 
 	f := v1.File{
-		Name:    "index.md",
+		Name:    v1.PolicyIndexFileName,
 		MIME:    mime.DetectMimeType(md),
 		Digest:  hex.EncodeToString(util.Digest(md)),
 		Payload: base64.StdEncoding.EncodeToString(md),
@@ -99,6 +104,29 @@ func (cmd *NewProposalCmd) Execute(args []string) error {
 		}
 
 		files = append(files, f)
+	}
+
+	// Create proposal data json file if one or more of the proposal
+	// data fields has been specified.
+	var pd v1.ProposalData
+	if cmd.RFP {
+		pd.LinkBy = time.Now().Add(time.Hour * 24 * 14).Unix()
+	}
+	if cmd.LinkTo != "" {
+		pd.LinkTo = cmd.LinkTo
+	}
+	b, err := json.Marshal(pd)
+	if err != nil {
+		return err
+	}
+	if len(b) > 2 {
+		// At least one of the fields has been filled in if len(b) > 2.
+		files = append(files, v1.File{
+			Name:    v1.PolicyDataFileName,
+			MIME:    mime.DetectMimeType(b),
+			Digest:  hex.EncodeToString(util.Digest(b)),
+			Payload: base64.StdEncoding.EncodeToString(b),
+		})
 	}
 
 	// Compute merkle root and sign it
@@ -153,7 +181,12 @@ Arguments:
 2. attachmentFiles   (string, optional)   Attachments 
 
 Flags:
-  --random           (bool, optional)     Generate a random proposal
+  --random   (bool, optional)    Generate a random proposal.
+  --rfp      (bool, optional)    Make the proposal an RFP by inserting a LinkBy timestamp into the
+                                 proposal data JSON file. The LinkBy timestamp is set to be one
+																 week from the current time.
+  --linkto   (string, optional)  Token of an existing public proposal to link to. The token is
+                                 used to populate the LinkTo field in the proposal data JSON file.
 
 Result:
 {

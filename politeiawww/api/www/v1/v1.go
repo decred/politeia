@@ -16,6 +16,7 @@ type PropStatusT int
 type PropVoteStatusT int
 type UserManageActionT int
 type EmailNotificationT int
+type VoteT int
 
 const (
 	PoliteiaWWWAPIVersion = 1 // API version this backend understands
@@ -78,6 +79,17 @@ const (
 	// verification token expires
 	VerificationExpiryHours = 24
 
+	// PolicyIdexFileName is the file name of the proposal markdown
+	// file. Every proposal is required to have a index file. The index
+	// file should contain the proposal content.
+	PolicyIndexFileName = "index.md"
+
+	// PolicyDataFileName is the name of the proposal data json file.
+	// The data file allows certain proposal fields, such as LinkTo,
+	// to be specified using json instead of having to parse them out
+	// of the index markdown file.
+	PolicyDataFileName = "data.json"
+
 	// PolicyMaxImages is the maximum number of images accepted
 	// when creating a new proposal
 	PolicyMaxImages = 5
@@ -88,7 +100,7 @@ const (
 
 	// PolicyMaxMDs is the maximum number of markdown files accepted
 	// when creating a new proposal
-	PolicyMaxMDs = 1
+	PolicyMaxMDs = 2
 
 	// PolicyMaxMDSize is the maximum markdown file size (in bytes)
 	// accepted when creating a new proposal
@@ -113,6 +125,12 @@ const (
 	// PolicyMaxCommentLength is the maximum number of characters
 	// accepted for comments
 	PolicyMaxCommentLength = 8000
+
+	// PolicyMinLinkByPeriod is the minimum amount of time required for
+	// the proposal LinkBy deadline. It is set for two weeks to allow
+	// for a one week voting period of the RFP and a minimum of one
+	// week to accept RFP submissions.
+	PolicyMinLinkByPeriod = 1209600 // Two weeks in seconds
 
 	// ProposalListPageSize is the maximum number of proposals returned
 	// for the routes that return lists of proposals
@@ -188,6 +206,16 @@ const (
 	ErrorStatusInvalidLogin                ErrorStatusT = 63
 	ErrorStatusCommentIsCensored           ErrorStatusT = 64
 	ErrorStatusInvalidProposalVersion      ErrorStatusT = 65
+	ErrorStatusInvalidVoteType             ErrorStatusT = 66
+	ErrorStatusInvalidVoteOptions          ErrorStatusT = 67
+	ErrorStatusWrongVoteResult             ErrorStatusT = 68
+	ErrorStatusLinkByDeadlineNotMet        ErrorStatusT = 69
+	ErrorStatusNoLinkedProposals           ErrorStatusT = 70
+	ErrorStatusInvalidProposalData         ErrorStatusT = 71
+	ErrorStatusInvalidLinkTo               ErrorStatusT = 72
+	ErrorStatusInvalidLinkBy               ErrorStatusT = 73
+	ErrorStatusInvalidRunoffVote           ErrorStatusT = 74
+	ErrorStatusWrongProposalType           ErrorStatusT = 75
 
 	// Proposal state codes
 	//
@@ -221,6 +249,22 @@ const (
 	PropVoteStatusStarted       PropVoteStatusT = 3 // Proposal vote has been started
 	PropVoteStatusFinished      PropVoteStatusT = 4 // Proposal vote has been finished
 	PropVoteStatusDoesntExist   PropVoteStatusT = 5 // Proposal doesn't exist
+
+	// Vote types
+	//
+	// VoteTypeStandard is used to indicate a simple approve or reject
+	// proposal vote where the winner is the voting option that has met
+	// the specified pass and quorum requirements.
+	//
+	// VoteTypeRunoff specifies a runoff vote that multiple proposals compete in.
+	// There can only be one winner of a runoff vote. The winner is the proposal
+	// that meets the quorum requirement, meets the pass requirement, and that
+	// has the most net yes votes. The winning proposal is considered approved
+	// and all other proposals are considered rejected. If no proposals meet the
+	// quorum and pass requirements then all proposals are considered rejected.
+	VoteTypeInvalid  VoteT = 0
+	VoteTypeStandard VoteT = 1
+	VoteTypeRunoff   VoteT = 2
 
 	// User manage actions
 	UserManageInvalid                         UserManageActionT = 0 // Invalid action type
@@ -377,6 +421,18 @@ type File struct {
 	Payload string `json:"payload"` // File content, base64 encoded
 }
 
+// ProposalData is the data that is parsed from the data.json file. The
+// data.json file is part of the proposal files bundle and includes specifc
+// fields that are needed by politeiawww. They are included in a seperate json
+// file instead of the index markdown file to make parsing easier.
+//
+// The proposal name is not included in the ProposalData due to backwards
+// compatibility issues. It is still parsed from the index markdown file.
+type ProposalData struct {
+	LinkTo string `json:"linkto,omitempty"` // Token of proposal to link to
+	LinkBy int64  `json:"linkby,omitempty"` // UNIX timestamp of RFP deadline
+}
+
 // CensorshipRecord contains the proof that a proposal was accepted for review.
 // The proof is verifiable on the client side.
 //
@@ -395,11 +451,13 @@ type CensorshipRecord struct {
 // when the full ticket snapshot or the full cast vote data is not needed.
 type VoteSummary struct {
 	Status           PropVoteStatusT    `json:"status"`                     // Vote status
+	Type             VoteT              `json:"type,omitempty"`             // Vote type
 	EligibleTickets  uint32             `json:"eligibletickets,omitempty"`  // Number of eligible tickets
 	Duration         uint32             `json:"duration,omitempty"`         // Duration of vote
 	EndHeight        uint64             `json:"endheight,omitempty"`        // Vote end height
 	QuorumPercentage uint32             `json:"quorumpercentage,omitempty"` // Percent of eligible votes required for quorum
 	PassPercentage   uint32             `json:"passpercentage,omitempty"`   // Percent of total votes required to pass
+	Approved         bool               `json:"approved,omitempty"`         // Was the vote approved
 	Results          []VoteOptionResult `json:"results,omitempty"`          // Vote results
 }
 
@@ -417,11 +475,19 @@ type ProposalRecord struct {
 	NumComments         uint        `json:"numcomments"`                   // Number of comments on the proposal
 	Version             string      `json:"version"`                       // Record version
 	StatusChangeMessage string      `json:"statuschangemessage,omitempty"` // Message associated to the status change
-	PublishedAt         int64       `json:"publishedat,omitempty"`         // The timestamp of when the proposal has been published
-	CensoredAt          int64       `json:"censoredat,omitempty"`          // The timestamp of when the proposal has been censored
-	AbandonedAt         int64       `json:"abandonedat,omitempty"`         // The timestamp of when the proposal has been abandoned
+	PublishedAt         int64       `json:"publishedat,omitempty"`         // UNIX timestamp of when proposal was published
+	CensoredAt          int64       `json:"censoredat,omitempty"`          // UNIX timestamp of when proposal was censored
+	AbandonedAt         int64       `json:"abandonedat,omitempty"`         // UNIX timestamp of when proposal was abandoned
+	LinkTo              string      `json:"linkto,omitempty"`              // Token of linked parent proposal
+	LinkBy              int64       `json:"linkby,omitempty"`              // UNIX timestamp of RFP deadline
+	LinkedFrom          []string    `json:"linkedfrom,omitempty"`          // Tokens of public props that have linked to this this prop
 
 	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
+}
+
+// IsRFP returns whether the proposal is a Request For Proposals (RFP).
+func (p *ProposalRecord) IsRFP() bool {
+	return p.LinkBy != 0
 }
 
 // ProposalCredit contains the details of a proposal credit that has been

@@ -245,13 +245,13 @@ func (p *politeiawww) processNewComment(nc www.NewComment, u *user.User) (*www.N
 	}
 
 	// Ensure proposal voting has not ended
-	vsr, err := p.decredVoteSummary(nc.Token)
-	if err != nil {
-		return nil, fmt.Errorf("decredVoteSummary: %v", err)
-	}
 	bb, err := p.getBestBlock()
 	if err != nil {
 		return nil, fmt.Errorf("getBestBlock: %v", err)
+	}
+	vsr, err := p.decredVoteSummary(nc.Token, bb)
+	if err != nil {
+		return nil, fmt.Errorf("decredVoteSummary: %v", err)
 	}
 	s := voteStatusFromVoteSummary(*vsr, bb)
 	if s == www.PropVoteStatusFinished {
@@ -510,13 +510,13 @@ func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www
 	}
 
 	// Ensure proposal voting has not ended
-	vsr, err := p.decredVoteSummary(pr.CensorshipRecord.Token)
-	if err != nil {
-		return nil, err
-	}
 	bb, err := p.getBestBlock()
 	if err != nil {
 		return nil, fmt.Errorf("getBestBlock: %v", err)
+	}
+	vsr, err := p.decredVoteSummary(pr.CensorshipRecord.Token, bb)
+	if err != nil {
+		return nil, err
 	}
 	s := voteStatusFromVoteSummary(*vsr, bb)
 	if s == www.PropVoteStatusFinished {
@@ -654,13 +654,13 @@ func (p *politeiawww) processCensorComment(cc www.CensorComment, u *user.User) (
 	}
 
 	// Ensure proposal voting has not ended
-	vsr, err := p.decredVoteSummary(cc.Token)
-	if err != nil {
-		return nil, err
-	}
 	bb, err := p.getBestBlock()
 	if err != nil {
 		return nil, fmt.Errorf("getBestBlock: %v", err)
+	}
+	vsr, err := p.decredVoteSummary(cc.Token, bb)
+	if err != nil {
+		return nil, err
 	}
 	s := voteStatusFromVoteSummary(*vsr, bb)
 	if s == www.PropVoteStatusFinished {

@@ -80,6 +80,8 @@ type ProposalGeneralMetadata struct {
 	Version         uint64 `gorm:"not null"`            // Struct version
 	Timestamp       int64  `gorm:"not null"`            // Last update of proposal
 	Name            string `gorm:"not null"`            // Proposal name
+	LinkTo          string `gorm:"size:64"`             // Token of proposal to link to
+	LinkBy          int64  `gorm:""`                    // UNIX timestamp of RFP deadline
 	Signature       string `gorm:"not null;size:128"`   // Client signature
 	PublicKey       string `gorm:"not null;size:64"`    // Pubkey used for Signature
 }

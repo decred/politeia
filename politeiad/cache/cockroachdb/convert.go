@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/decred/politeia/decredplugin"
+	"github.com/decred/politeia/mdstream"
 	"github.com/decred/politeia/politeiad/cache"
 )
 
@@ -400,4 +401,18 @@ func convertVoteOptionResultsToDecred(r []VoteOptionResult) []decredplugin.VoteO
 		results = append(results, convertVoteOptionResultToDecred(v))
 	}
 	return results
+}
+
+func convertProposalGeneralMetadataFromMDStream(pg mdstream.ProposalGeneral, token string, proposalVersion uint64) ProposalGeneralMetadata {
+	return ProposalGeneralMetadata{
+		Token:           token,
+		ProposalVersion: proposalVersion,
+		Version:         pg.Version,
+		Timestamp:       pg.Timestamp,
+		Name:            pg.Name,
+		LinkTo:          pg.LinkTo,
+		LinkBy:          pg.LinkBy,
+		Signature:       pg.Signature,
+		PublicKey:       pg.PublicKey,
+	}
 }

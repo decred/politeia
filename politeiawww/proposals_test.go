@@ -89,7 +89,7 @@ func createFileMD(t *testing.T, size int, title string) *www.File {
 	b.WriteString(base64.StdEncoding.EncodeToString(r) + "\n")
 
 	return &www.File{
-		Name:    indexFile,
+		Name:    www.PolicyIndexFileName,
 		MIME:    mime.DetectMimeType(b.Bytes()),
 		Digest:  hex.EncodeToString(util.Digest(b.Bytes())),
 		Payload: base64.StdEncoding.EncodeToString(b.Bytes()),
@@ -586,7 +586,7 @@ func TestValidateProposal(t *testing.T) {
 
 		{"bad md filename", *propBadFilename, usr,
 			www.UserError{
-				ErrorCode: www.ErrorStatusProposalMissingFiles,
+				ErrorCode: www.ErrorStatusMaxMDsExceededPolicy,
 			}},
 
 		{"duplicate filenames", *propDupFiles, usr,
@@ -623,7 +623,7 @@ func TestValidateProposal(t *testing.T) {
 	// Run test cases
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err := validateProposal(test.newProposal, test.user)
+			_, err := p.validateProposal(test.newProposal, test.user)
 			got := errToStr(err)
 			want := errToStr(test.want)
 			if got != want {

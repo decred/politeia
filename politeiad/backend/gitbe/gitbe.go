@@ -460,6 +460,25 @@ func mdFilename(path, id string, mdID int) string {
 		strconv.FormatUint(uint64(mdID), 10)+defaultMDFilenameSuffix)
 }
 
+// loadMDStream loads a specific metadata stream. This function should only be
+// called by plugin commands since gitbe has no knowledge of specific metadata
+// streams.
+//
+// This function must be called with the lock held.
+func loadMDStream(repo, token, version string, mdStreamID int) (*backend.MetadataStream, error) {
+	mdFile := fmt.Sprintf("%02v%v", strconv.Itoa(mdStreamID),
+		defaultMDFilenameSuffix)
+	fn := pijoin(repo, token, version, mdFile)
+	md, err := ioutil.ReadFile(fn)
+	if err != nil {
+		return nil, err
+	}
+	return &backend.MetadataStream{
+		ID:      uint64(mdStreamID),
+		Payload: string(md),
+	}, nil
+}
+
 // loadMDStreams loads all streams of disk.  It returns an array of
 // backend.MetadataStream that is completely filled out.
 //
@@ -1784,6 +1803,107 @@ func (g *gitBackEnd) UpdateVettedMetadata(token []byte, mdAppend []backend.Metad
 	return g._updateVettedMetadata(token, mdAppend, mdOverwrite)
 }
 
+// updateMetadata describes a metadata update for a specific record. This
+// struct is used when the metadata of multiple records needs to be updated
+// atomically. A []updateMetadata can be passed in to represent multiple
+// metadata updates.
+type updateMetadata struct {
+	token       string
+	mdAppend    []backend.MetadataStream
+	mdOverwrite []backend.MetadataStream
+}
+
+// _updateVettedMetadataMulti updates metadata of multiple vetted record. It
+// goes through the normal stages of updating unvetted, pushing PR, merge PR,
+// pull remote.  Note that the content must have been validated before this
+// call. Record itself is not changed.
+//
+// This function must be called with the lock held.
+func (g *gitBackEnd) updateVettedMetadataMulti(um []updateMetadata, idTmp string) error {
+	// Checkout temporary branch
+	err := g.gitNewBranch(g.unvetted, idTmp)
+	if err != nil {
+		return err
+	}
+
+	// Update metadata changes
+	for _, v := range um {
+		log.Debugf("update vetted metadata: %v", v.token)
+		err = g.updateMetadata(v.token, v.mdAppend, v.mdOverwrite)
+		if err != nil {
+			return err
+		}
+	}
+
+	// If there are no changes DO NOT update the record
+	if !g.gitHasChanges(g.unvetted) {
+		return backend.ErrNoChanges
+	}
+
+	// Commit changes
+	msg := "Update record metadata multi "
+	for _, v := range um {
+		// '-m' puts the token on a new line
+		msg += "-m " + v.token
+	}
+	err = g.gitCommit(g.unvetted, msg)
+	if err != nil {
+		return err
+	}
+
+	// Create and rebase
+	return g.rebasePR(idTmp)
+}
+
+// _updateVettedMetadataMulti updates metadata of multiple vetted record. It
+// goes through the normal stages of updating unvetted, pushing PR, merge PR,
+// pull remote.  Note that the content must have been validated before this
+// call. Record itself is not changed. If any parts of the update fail then
+// all work is unwound.
+//
+// This function must be called with the lock held.
+func (g *gitBackEnd) _updateVettedMetadataMulti(um []updateMetadata, idTmp string) error {
+	if len(um) == 0 {
+		return backend.ErrNoChanges
+	}
+
+	// git checkout master
+	err := g.gitCheckout(g.unvetted, "master")
+	if err != nil {
+		return err
+	}
+
+	// git pull --ff-only --rebase
+	err = g.gitPull(g.unvetted, true)
+	if err != nil {
+		return err
+	}
+
+	// Ensure none of the records have been archived
+	for _, v := range um {
+		md, err := loadMD(g.unvetted, v.token, "")
+		if err != nil {
+			return err
+		}
+		if md.Status == backend.MDStatusArchived {
+			return backend.ErrRecordArchived
+		}
+	}
+
+	// Do the work, if there is an error we must unwind git.
+	err = g.updateVettedMetadataMulti(um, idTmp)
+	if err != nil {
+		err2 := g.gitUnwindBranch(g.unvetted, idTmp)
+		if err2 != nil {
+			// We are in trouble! Consider a panic.
+			log.Criticalf("updateVettedMetadataMulti: %v", err2)
+		}
+		return err
+	}
+
+	return nil
+}
+
 // _updateReadme updates the README.md file in the unvetted repo, then
 // does a commit. This function must be called WITH the lock
 // held, and must be wrapped with a function that puts the repo
@@ -2481,6 +2601,9 @@ func (g *gitBackEnd) Plugin(command, payload string) (string, string, error) {
 		return decredplugin.CmdAuthorizeVote, payload, err
 	case decredplugin.CmdStartVote:
 		payload, err := g.pluginStartVote(payload)
+		return decredplugin.CmdStartVote, payload, err
+	case decredplugin.CmdStartVoteRunoff:
+		payload, err := g.pluginStartVoteRunoff(payload)
 		return decredplugin.CmdStartVote, payload, err
 	case decredplugin.CmdBallot:
 		payload, err := g.pluginBallot(payload)

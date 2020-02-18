@@ -387,9 +387,10 @@ func (p *politeiawww) decredLoadVoteResults(bestBlock uint64) (*decredplugin.Loa
 
 // decredBatchVoteSummary uses the decred plugin batch vote summary command to
 // request a vote summary for a set of proposals from the cache.
-func (p *politeiawww) decredBatchVoteSummary(tokens []string) (*decredplugin.BatchVoteSummaryReply, error) {
+func (p *politeiawww) decredBatchVoteSummary(tokens []string, bestBlock uint64) (*decredplugin.BatchVoteSummaryReply, error) {
 	bvs := decredplugin.BatchVoteSummary{
-		Tokens: tokens,
+		Tokens:    tokens,
+		BestBlock: bestBlock,
 	}
 	payload, err := decredplugin.EncodeBatchVoteSummary(bvs)
 	if err != nil {
@@ -417,9 +418,10 @@ func (p *politeiawww) decredBatchVoteSummary(tokens []string) (*decredplugin.Bat
 
 // decredVoteSummary uses the decred plugin vote summary command to request a
 // vote summary for a specific proposal from the cache.
-func (p *politeiawww) decredVoteSummary(token string) (*decredplugin.VoteSummaryReply, error) {
+func (p *politeiawww) decredVoteSummary(token string, bestBlock uint64) (*decredplugin.VoteSummaryReply, error) {
 	v := decredplugin.VoteSummary{
-		Token: token,
+		Token:     token,
+		BestBlock: bestBlock,
 	}
 	payload, err := decredplugin.EncodeVoteSummary(v)
 	if err != nil {
@@ -438,6 +440,34 @@ func (p *politeiawww) decredVoteSummary(token string) (*decredplugin.VoteSummary
 	}
 
 	reply, err := decredplugin.DecodeVoteSummaryReply([]byte(resp.Payload))
+	if err != nil {
+		return nil, err
+	}
+
+	return reply, nil
+}
+
+func (p *politeiawww) decredLinkedFrom(tokens []string) (*decredplugin.LinkedFromReply, error) {
+	lf := decredplugin.LinkedFrom{
+		Tokens: tokens,
+	}
+	payload, err := decredplugin.EncodeLinkedFrom(lf)
+	if err != nil {
+		return nil, err
+	}
+
+	pc := cache.PluginCommand{
+		ID:             decredplugin.ID,
+		Command:        decredplugin.CmdLinkedFrom,
+		CommandPayload: string(payload),
+	}
+
+	resp, err := p.cache.PluginExec(pc)
+	if err != nil {
+		return nil, err
+	}
+
+	reply, err := decredplugin.DecodeLinkedFromReply([]byte(resp.Payload))
 	if err != nil {
 		return nil, err
 	}

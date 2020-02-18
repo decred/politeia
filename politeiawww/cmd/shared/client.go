@@ -1213,6 +1213,32 @@ func (c *Client) StartVoteV2(sv www2.StartVote) (*www2.StartVoteReply, error) {
 	return &svr, nil
 }
 
+// StartVoteRunoffV2 sends the given StartVoteRunoff to the politeiawww v2
+// StartVoteRunoffRoute and returns the reply.
+func (c *Client) StartVoteRunoffV2(svr www2.StartVoteRunoff) (*www2.StartVoteRunoffReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost,
+		www2.APIRoute, www2.RouteStartVoteRunoff, svr)
+	if err != nil {
+		return nil, err
+	}
+
+	var svrr www2.StartVoteRunoffReply
+	err = json.Unmarshal(responseBody, &svrr)
+	if err != nil {
+		return nil, err
+	}
+
+	if c.cfg.Verbose {
+		svrr.EligibleTickets = []string{"removed by piwww for readability"}
+		err := prettyPrintJSON(svr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &svrr, nil
+}
+
 // VerifyUserPayment checks whether the logged in user has paid their user
 // registration fee.
 func (c *Client) VerifyUserPayment() (*www.VerifyUserPaymentReply, error) {
