@@ -822,7 +822,7 @@ func (c *Client) ProposalDetails(token string, pd *www.ProposalsDetails) (*www.P
 	return &pr, nil
 }
 
-// VersionTimestamps retrieves the timestamps for each verison of a proposal.
+// VersionTimestamps retrieves the timestamps for each version of a proposal.
 func (c *Client) VersionTimestamps(token string) (*www.VersionTimestampsReply, error) {
 	route := "/proposals/" + token + "/versiontimestamps"
 	responseBody, err := c.makeRequest(http.MethodGet,
