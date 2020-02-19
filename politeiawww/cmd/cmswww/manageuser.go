@@ -23,6 +23,7 @@ type CMSManageUserCmd struct {
 	Domain            string `long:"domain" optional:"true"`
 	ContractorType    string `long:"contractortype" optional:"true"`
 	SupervisorUserIDs string `long:"supervisoruserids" optional:"true"`
+	ProposalsOwned    string `logn:"proposalsowned" optional:"true"`
 }
 
 // Execute executes the cms manage user command.
@@ -96,12 +97,19 @@ func (cmd *CMSManageUserCmd) Execute(args []string) error {
 		}
 	}
 
+	// Validate supervisor user IDs
+	proposalsOwned := make([]string, 0, 16)
+	if cmd.ProposalsOwned != "" {
+		proposalsOwned = strings.Split(cmd.ProposalsOwned, ",")
+	}
+
 	// Send request
 	mu := cms.CMSManageUser{
 		UserID:            cmd.Args.UserID,
 		Domain:            domain,
 		ContractorType:    contractorType,
 		SupervisorUserIDs: supervisorIDs,
+		ProposalsOwned:    proposalsOwned,
 	}
 	err = shared.PrintJSON(mu)
 	if err != nil {
@@ -134,11 +142,11 @@ Flags:
   --domain              (string, optional)  Domain of the contractor
   --contractortype      (string, optional)  Contractor Type
   --supervisoruserids   (string, optional)  Supervisor user IDs (comma separated)
+  --proposalsowned      (string, optional)  Proposals owned (comma separated)
 
 Domain types:
 1. developer
 2. marketing
-3. community
 4. research
 5. design
 6. documentation

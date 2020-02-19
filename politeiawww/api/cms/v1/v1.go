@@ -638,6 +638,7 @@ type User struct {
 	ContractorLocation string          `json:"contractorlocation"`
 	ContractorContact  string          `json:"contractorcontact"`
 	SupervisorUserIDs  []string        `json:"supervisoruserids"`
+	ProposalsOwned     []string        `json:"proposalsowned"`
 }
 
 // UserDetails fetches a cms user's details by their id.
@@ -668,6 +669,7 @@ type CMSManageUser struct {
 	Domain            DomainTypeT     `json:"domain,omitempty"`
 	ContractorType    ContractorTypeT `json:"contractortype,omitempty"`
 	SupervisorUserIDs []string        `json:"supervisoruserids,omitempty"`
+	ProposalsOwned    []string        `json:"proposalsowned,omitempty"`
 }
 
 // CMSManageUserReply is the reply for the CMSManageUserReply command.

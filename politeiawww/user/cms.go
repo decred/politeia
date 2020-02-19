@@ -29,6 +29,7 @@ type CMSUser struct {
 	ContractorLocation string      `json:"contractorlocation"`
 	ContractorContact  string      `json:"contractorcontact"`
 	SupervisorUserIDs  []uuid.UUID `json:"supervisoruserids"`
+	ProposalsOwned     []string    `json:"proposalsowned"`
 }
 
 // EncodeCMSUser encodes a CMSUser into a JSON byte slice.
@@ -202,6 +203,7 @@ type UpdateCMSUser struct {
 	ContractorLocation string      `json:"contractorlocation"`
 	ContractorContact  string      `json:"contractorcontact"`
 	SupervisorUserIDs  []uuid.UUID `json:"supervisoruserids"`
+	ProposalsOwned     []string    `json:"proposalsowned"`
 }
 
 // EncodeUpdateCMSUser encodes a UpdateCMSUser into a JSON byte slice.

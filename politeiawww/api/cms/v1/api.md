@@ -766,7 +766,8 @@ Edits a user's details. This call requires admin privileges.
 | userid | string | UserID string of the user to be edited. | yes |
 | domain | int | The Domain Type that the user currently has | no |
 | contractortype | int | The contractor type of the user. | no |
-| supervisoruserid | string | The userid of the user (if the user is a sub contractor. ) | no |
+| supervisoruserid | []string | The userid of the user (if the user is a sub contractor. ) | no |
+| proposalsowned | []string | The tokens of any proposals that are "owned/managed" by this user. | no |
 
 **Results:**
 
@@ -782,6 +783,7 @@ Request:
   "domain": 1,
   "contractortype": 1,
   "supervisoruserid": "",
+  "proposalsowned":["337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527"]
 }
 ```
 
