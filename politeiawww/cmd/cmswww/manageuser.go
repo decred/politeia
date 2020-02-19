@@ -23,7 +23,7 @@ type CMSManageUserCmd struct {
 	Domain            string `long:"domain" optional:"true"`
 	ContractorType    string `long:"contractortype" optional:"true"`
 	SupervisorUserIDs string `long:"supervisoruserids" optional:"true"`
-	ProposalsOwned    string `logn:"proposalsowned" optional:"true"`
+	ProposalsOwned    string `long:"proposalsowned" optional:"true"`
 }
 
 // Execute executes the cms manage user command.
