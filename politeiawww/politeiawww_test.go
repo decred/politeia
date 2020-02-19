@@ -158,6 +158,7 @@ func TestHandleAllVetted(t *testing.T) {
 			p.handleAllVetted(w, r)
 			res := w.Result()
 			body, _ := ioutil.ReadAll(res.Body)
+			res.Body.Close()
 
 			var gotReply www.GetAllVettedReply
 			err := json.Unmarshal(body, &gotReply)
