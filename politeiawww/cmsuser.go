@@ -548,10 +548,6 @@ func (p *politeiawww) getCMSUserByIDRaw(id string) (*user.CMSUser, error) {
 
 // convertCMSUserFromDatabaseUser converts a user User to a cms User.
 func convertCMSUserFromDatabaseUser(user *user.CMSUser) cms.User {
-	proposalsOwned := make([]string, 0, len(user.ProposalsOwned))
-	for _, proposal := range user.ProposalsOwned {
-		proposalsOwned = append(proposalsOwned, proposal)
-	}
 	superUserIDs := make([]string, 0, len(user.SupervisorUserIDs))
 	for _, userIDs := range user.SupervisorUserIDs {
 		superUserIDs = append(superUserIDs, userIDs.String())
@@ -581,7 +577,7 @@ func convertCMSUserFromDatabaseUser(user *user.CMSUser) cms.User {
 		MatrixName:                      user.MatrixName,
 		GitHubName:                      user.GitHubName,
 		SupervisorUserIDs:               superUserIDs,
-		ProposalsOwned:                  proposalsOwned,
+		ProposalsOwned:                  user.ProposalsOwned,
 	}
 }
 
