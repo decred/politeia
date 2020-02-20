@@ -45,6 +45,7 @@ const (
 	RouteInvoiceComments     = "/invoices/{token:[A-z0-9]{64}}/comments"
 	RouteInvoiceExchangeRate = "/invoices/exchangerate"
 	RouteProposalOwner       = "/proposals/owner"
+	RouteProposalBilling     = "/proposals/billing"
 
 	// Invoice status codes
 	InvoiceStatusInvalid  InvoiceStatusT = 0 // Invalid status
@@ -811,4 +812,31 @@ type ProposalOwner struct {
 // the requested proposal token.
 type ProposalOwnerReply struct {
 	Users []AbridgedCMSUser `json:"users"`
+}
+
+// ProposalBilling collects information for administrators or proposal owners
+// for a given proposal.
+type ProposalBilling struct {
+	Token string `json:"token"`
+}
+
+// ProposalBillingReply returns all line items that have been billed to the
+// proposal token.
+type ProposalBillingReply struct {
+	BilledLineItems []ProposalLineItems `json:"lineitems"`
+}
+
+// ProposalLineItems includes all information required for a proper billing
+// history of line items from a given proposal token.
+type ProposalLineItems struct {
+	// User information
+	UserID   string `json:"userid"`
+	Username string `json:"username"`
+
+	// Invoice Information
+	Month int `json:"month"`
+	Year  int `json:"year"`
+
+	// Line Item Information
+	LineItem LineItemsInput `json:"lineitem"`
 }
