@@ -22,7 +22,7 @@ type testcache struct {
 	// Decred plugin
 	comments         map[string][]decred.Comment                // [token][]Comment
 	authorizeVotes   map[string]map[string]decred.AuthorizeVote // [token][version]AuthorizeVote
-	startVotes       map[string]decred.StartVote                // [token]StartVote
+	startVotes       map[string]decred.StartVoteV2              // [token]StartVote
 	startVoteReplies map[string]decred.StartVoteReply           // [token]StartVoteReply
 }
 
@@ -246,7 +246,7 @@ func New() *testcache {
 		records:          make(map[string]map[string]cache.Record),
 		comments:         make(map[string][]decred.Comment),
 		authorizeVotes:   make(map[string]map[string]decred.AuthorizeVote),
-		startVotes:       make(map[string]decred.StartVote),
+		startVotes:       make(map[string]decred.StartVoteV2),
 		startVoteReplies: make(map[string]decred.StartVoteReply),
 	}
 }

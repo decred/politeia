@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -333,7 +334,7 @@ func (p *politeiawww) processEditCMSUser(ecu cms.EditUser, u *user.User) (*cms.E
 	return &reply, nil
 }
 
-func (p *politeiawww) processManageCMSUser(mu cms.ManageUser) (*cms.ManageUserReply, error) {
+func (p *politeiawww) processManageCMSUser(mu cms.CMSManageUser) (*cms.CMSManageUserReply, error) {
 	log.Tracef("processManageCMSUser: %v", mu.UserID)
 
 	editUser, err := p.userByIDStr(mu.UserID)
@@ -396,7 +397,7 @@ func (p *politeiawww) processManageCMSUser(mu cms.ManageUser) (*cms.ManageUserRe
 	if err != nil {
 		return nil, err
 	}
-	return &cms.ManageUserReply{}, nil
+	return &cms.CMSManageUserReply{}, nil
 }
 
 // filterCMSUserPublicFields creates a filtered copy of a cms User that only
@@ -683,4 +684,143 @@ func (p *politeiawww) processUserSubContractors(u *user.User) (*cms.UserSubContr
 		Users: convertedCMSUsers,
 	}
 	return uscr, nil
+}
+
+// processCMSUsers returns a list of cms users given a set of filters. If
+// either domain or contractor is non-zero then they are used as matching
+// criteria, otherwise the full list will be returned.
+func (p *politeiawww) processCMSUsers(users *cms.CMSUsers) (*cms.CMSUsersReply, error) {
+	log.Tracef("processCMSUsers")
+
+	domain := int(users.Domain)
+	contractortype := int(users.ContractorType)
+
+	matchedUsers := make([]cms.AbridgedCMSUser, 0, www.UserListPageSize)
+
+	if domain != 0 {
+		// Setup plugin command
+		cu := user.CMSUsersByDomain{
+			Domain: domain,
+		}
+		payload, err := user.EncodeCMSUsersByDomain(cu)
+		if err != nil {
+			return nil, err
+		}
+		pc := user.PluginCommand{
+			ID:      user.CMSPluginID,
+			Command: user.CmdCMSUsersByDomain,
+			Payload: string(payload),
+		}
+
+		// Execute plugin command
+		pcr, err := p.db.PluginExec(pc)
+		if err != nil {
+			return nil, err
+		}
+
+		// Decode reply
+		reply, err := user.DecodeCMSUsersByDomainReply([]byte(pcr.Payload))
+		if err != nil {
+			return nil, err
+		}
+		for _, u := range reply.Users {
+			// Only add matched users if contractor type is 0  or it matches
+			// the request
+			if contractortype == 0 ||
+				(contractortype != 0 && u.ContractorType == contractortype) {
+				matchedUsers = append(matchedUsers, cms.AbridgedCMSUser{
+					Domain:         cms.DomainTypeT(u.Domain),
+					Username:       u.Username,
+					ContractorType: cms.ContractorTypeT(u.ContractorType),
+					ID:             u.ID.String(),
+				})
+			}
+		}
+	} else if contractortype != 0 {
+		// Setup plugin command
+		cu := user.CMSUsersByContractorType{
+			ContractorType: contractortype,
+		}
+		payload, err := user.EncodeCMSUsersByContractorType(cu)
+		if err != nil {
+			return nil, err
+		}
+		pc := user.PluginCommand{
+			ID:      user.CMSPluginID,
+			Command: user.CmdCMSUsersByContractorType,
+			Payload: string(payload),
+		}
+
+		// Execute plugin command
+		pcr, err := p.db.PluginExec(pc)
+		if err != nil {
+			return nil, err
+		}
+
+		// Decode reply
+		reply, err := user.DecodeCMSUsersByContractorTypeReply(
+			[]byte(pcr.Payload))
+		if err != nil {
+			return nil, err
+		}
+		for _, u := range reply.Users {
+			// We already know domain is 0 if here so no need to check.
+			matchedUsers = append(matchedUsers, cms.AbridgedCMSUser{
+				Domain:         cms.DomainTypeT(u.Domain),
+				Username:       u.Username,
+				ContractorType: cms.ContractorTypeT(u.ContractorType),
+				ID:             u.ID.String(),
+			})
+		}
+	} else {
+		// Both contractor type and domain are 0 so just return all users.
+		err := p.db.AllUsers(func(u *user.User) {
+			// Setup plugin command
+			cu := user.CMSUserByID{
+				ID: u.ID.String(),
+			}
+			payload, err := user.EncodeCMSUserByID(cu)
+			if err != nil {
+				log.Error(err)
+				return
+			}
+			pc := user.PluginCommand{
+				ID:      user.CMSPluginID,
+				Command: user.CmdCMSUserByID,
+				Payload: string(payload),
+			}
+
+			// Execute plugin command
+			pcr, err := p.db.PluginExec(pc)
+			if err != nil {
+				log.Error(err)
+				return
+			}
+
+			// Decode reply
+			reply, err := user.DecodeCMSUserByIDReply([]byte(pcr.Payload))
+			if err != nil {
+				log.Error(err)
+				return
+			}
+			matchedUsers = append(matchedUsers, cms.AbridgedCMSUser{
+				ID:             u.ID.String(),
+				Username:       u.Username,
+				Domain:         cms.DomainTypeT(reply.User.Domain),
+				ContractorType: cms.ContractorTypeT(reply.User.ContractorType),
+			})
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Sort results alphabetically.
+	sort.Slice(matchedUsers, func(i, j int) bool {
+		return matchedUsers[i].Username < matchedUsers[j].Username
+	})
+
+	return &cms.CMSUsersReply{
+		Users: matchedUsers,
+	}, nil
 }

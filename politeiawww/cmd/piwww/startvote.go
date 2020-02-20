@@ -6,20 +6,21 @@ package main
 
 import (
 	"encoding/hex"
-	"fmt"
+	"encoding/json"
 	"strconv"
 
-	"github.com/decred/politeia/politeiawww/api/www/v1"
+	v2 "github.com/decred/politeia/politeiawww/api/www/v2"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
+	"github.com/decred/politeia/util"
 )
 
 // StartVoteCmd starts the voting period on the specified proposal.
 type StartVoteCmd struct {
 	Args struct {
-		Token            string `positional-arg-name:"token" required:"true"` // Censorship token
-		Duration         string `positional-arg-name:"duration"`              // Vote duration
-		QuorumPercentage string `positional-arg-name:"quorumpercentage"`      // Quorum percentage
-		PassPercentage   string `positional-arg-name:"passpercentage"`        // Pass percentage
+		Token            string `positional-arg-name:"token" required:"true"`
+		Duration         uint32 `positional-arg-name:"duration"`
+		QuorumPercentage uint32 `positional-arg-name:"quorumpercentage"`
+		PassPercentage   uint32 `positional-arg-name:"passpercentage"`
 	} `positional-args:"true"`
 }
 
@@ -30,55 +31,65 @@ func (cmd *StartVoteCmd) Execute(args []string) error {
 		return shared.ErrUserIdentityNotFound
 	}
 
-	// Set vote parameter defaults
-	if cmd.Args.Duration == "" {
-		cmd.Args.Duration = "2016"
+	// Get proposal version. This is needed for the VoteV2.
+	pdr, err := client.ProposalDetails(cmd.Args.Token, nil)
+	if err != nil {
+		return err
 	}
-	if cmd.Args.QuorumPercentage == "" {
-		cmd.Args.QuorumPercentage = "10"
-	}
-	if cmd.Args.PassPercentage == "" {
-		cmd.Args.PassPercentage = "75"
+	version, err := strconv.ParseUint(pdr.Proposal.Version, 10, 32)
+	if err != nil {
+		return err
 	}
 
-	// Convert vote parameters
-	duration, err := strconv.ParseUint(cmd.Args.Duration, 10, 32)
-	if err != nil {
-		return fmt.Errorf("parsing Duration: %v", err)
+	// Setup vote params
+	var (
+		// Default values
+		duration uint32 = 2016
+		quorum   uint32 = 20
+		pass     uint32 = 60
+	)
+	if cmd.Args.Duration != 0 {
+		duration = cmd.Args.Duration
 	}
-	quorum, err := strconv.ParseUint(cmd.Args.QuorumPercentage, 10, 32)
-	if err != nil {
-		return fmt.Errorf("parsing QuorumPercentage: %v", err)
+	if cmd.Args.QuorumPercentage != 0 {
+		quorum = cmd.Args.QuorumPercentage
 	}
-	pass, err := strconv.ParseUint(cmd.Args.PassPercentage, 10, 32)
-	if err != nil {
-		return fmt.Errorf("parsing PassPercentage: %v", err)
+	if cmd.Args.PassPercentage != 0 {
+		pass = cmd.Args.PassPercentage
 	}
 
-	// Setup start vote request
-	sig := cfg.Identity.SignMessage([]byte(cmd.Args.Token))
-	sv := &v1.StartVote{
-		Signature: hex.EncodeToString(sig[:]),
-		PublicKey: hex.EncodeToString(cfg.Identity.Public.Key[:]),
-		Vote: v1.Vote{
-			Token:            cmd.Args.Token,
-			Mask:             0x03, // bit 0 no, bit 1 yes
-			Duration:         uint32(duration),
-			QuorumPercentage: uint32(quorum),
-			PassPercentage:   uint32(pass),
-			Options: []v1.VoteOption{
-				{
-					Id:          "no",
-					Description: "Don't approve proposal",
-					Bits:        0x01,
-				},
-				{
-					Id:          "yes",
-					Description: "Approve proposal",
-					Bits:        0x02,
-				},
+	// Create StartVote
+	vote := v2.Vote{
+		Token:            cmd.Args.Token,
+		ProposalVersion:  uint32(version),
+		Type:             v2.VoteTypeStandard,
+		Mask:             0x03, // bit 0 no, bit 1 yes
+		Duration:         duration,
+		QuorumPercentage: quorum,
+		PassPercentage:   pass,
+		Options: []v2.VoteOption{
+			{
+				Id:          "no",
+				Description: "Don't approve proposal",
+				Bits:        0x01,
+			},
+			{
+				Id:          "yes",
+				Description: "Approve proposal",
+				Bits:        0x02,
 			},
 		},
+	}
+	vb, err := json.Marshal(vote)
+	if err != nil {
+		return err
+	}
+	msg := hex.EncodeToString(util.Digest(vb))
+	sig := cfg.Identity.SignMessage([]byte(msg))
+	sv := v2.StartVote{
+		Vote:      vote,
+		PublicKey: hex.EncodeToString(cfg.Identity.Public.Key[:]),
+		Signature: hex.EncodeToString(sig[:]),
 	}
 
 	// Print request details
@@ -88,14 +99,14 @@ func (cmd *StartVoteCmd) Execute(args []string) error {
 	}
 
 	// Send request
-	svr, err := client.StartVote(sv)
+	svr, err := client.StartVoteV2(sv)
 	if err != nil {
 		return err
 	}
 
 	// Remove ticket snapshot from the response so that the output
 	// is legible
-	svr.EligibleTickets = []string{"removed by politeiawwwcli for readability"}
+	svr.EligibleTickets = []string{"removed by piwww for readability"}
 
 	// Print response details
 	return shared.PrintJSON(svr)
@@ -103,16 +114,16 @@ func (cmd *StartVoteCmd) Execute(args []string) error {
 
 // startVoteHelpMsg is the output of the help command when 'startvote' is
 // specified.
-var startVoteHelpMsg = `startvote "token" "duration" "quorumpercentage" "passpercentage"
+var startVoteHelpMsg = `startvote <token> <duration> <quorumpercentage> <passpercentage>
 
 Start voting period for a proposal. Requires admin privileges.  The optional
 arguments must either all be used or none be used.
 
 Arguments:
 1. token              (string, required)  Proposal censorship token
-2. duration           (string, optional)  Duration of vote in blocks
-3. quorumpercentage   (string, optional)  Percent of votes required for quorum
-4. passpercentage     (string, optional)  Percent of votes required to pass
+2. duration           (uint32, optional)  Duration of vote in blocks (default: 2016)
+3. quorumpercentage   (uint32, optional)  Percent of votes required for quorum (default: 10)
+4. passpercentage     (uint32, optional)  Percent of votes required to pass (default: 60)
 
 Result:
 

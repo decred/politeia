@@ -105,7 +105,7 @@ func (p *politeiawww) handleInvoiceDetails(w http.ResponseWriter, r *http.Reques
 
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
-		if err != ErrSessionUUIDNotFound {
+		if err != errSessionNotFound {
 			RespondWithError(w, r, 0,
 				"handleInvoiceDetails: getSessionUser %v", err)
 			return
@@ -340,7 +340,7 @@ func (p *politeiawww) handleInvoiceComments(w http.ResponseWriter, r *http.Reque
 
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
-		if err != ErrSessionUUIDNotFound {
+		if err != errSessionNotFound {
 			RespondWithError(w, r, 0,
 				"handleCommentsGet: getSessionUser %v", err)
 			return
@@ -403,6 +403,8 @@ func (p *politeiawww) handleCMSPolicy(w http.ResponseWriter, r *http.Request) {
 		UsernameSupportedChars:        www.PolicyUsernameSupportedChars,
 		CMSNameLocationSupportedChars: cms.PolicyCMSNameLocationSupportedChars,
 		CMSContactSupportedChars:      cms.PolicyCMSContactSupportedChars,
+		CMSSupportedDomains:           cms.PolicySupportedCMSDomains,
+		CMSSupportedLineItemTypes:     cms.PolicyCMSSupportedLineItemTypes,
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
@@ -467,7 +469,7 @@ func (p *politeiawww) handleEditCMSUser(w http.ResponseWriter, r *http.Request) 
 func (p *politeiawww) handleManageCMSUser(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleManageCMSUser")
 
-	var mu cms.ManageUser
+	var mu cms.CMSManageUser
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&mu); err != nil {
 		RespondWithError(w, r, 0, "handleManageCMSUser: unmarshal",
@@ -702,7 +704,7 @@ func (p *politeiawww) handleDCCComments(w http.ResponseWriter, r *http.Request) 
 
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
-		if err != ErrSessionUUIDNotFound {
+		if err != errSessionNotFound {
 			RespondWithError(w, r, 0,
 				"handleDCCComments: getSessionUser %v", err)
 			return
@@ -781,66 +783,93 @@ func (p *politeiawww) setCMSWWWRoutes() {
 	// Public routes.
 	p.router.HandleFunc("/", closeBody(logging(p.handleVersion))).Methods(http.MethodGet)
 	p.router.NotFoundHandler = closeBody(p.handleNotFound)
-	p.addRoute(http.MethodGet, www.RouteVersion, p.handleVersion,
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteVersion, p.handleVersion,
 		permissionPublic)
 
-	p.addRoute(http.MethodGet, www.RoutePolicy, p.handleCMSPolicy,
+	p.addRoute(http.MethodGet, cms.APIRoute,
+		www.RoutePolicy, p.handleCMSPolicy,
 		permissionPublic)
 
 	// Routes that require being logged in.
-	p.addRoute(http.MethodPost, www.RouteNewComment,
-		p.handleNewCommentInvoice, permissionLogin)
-	p.addRoute(http.MethodPost, cms.RouteNewInvoice,
-		p.handleNewInvoice, permissionLogin)
-	p.addRoute(http.MethodPost, cms.RouteEditInvoice,
-		p.handleEditInvoice, permissionLogin)
-	p.addRoute(http.MethodGet, cms.RouteInvoiceDetails,
-		p.handleInvoiceDetails, permissionLogin)
-	p.addRoute(http.MethodGet, cms.RouteUserInvoices,
-		p.handleUserInvoices, permissionLogin)
-	p.addRoute(http.MethodGet, cms.RouteInvoiceComments,
-		p.handleInvoiceComments, permissionLogin)
-	p.addRoute(http.MethodPost, cms.RouteInvoiceExchangeRate,
-		p.handleInvoiceExchangeRate, permissionLogin)
-	p.addRoute(http.MethodPost, cms.RouteNewDCC,
-		p.handleNewDCC, permissionLogin)
-	p.addRoute(http.MethodGet, cms.RouteDCCDetails,
-		p.handleDCCDetails, permissionLogin)
-	p.addRoute(http.MethodPost, cms.RouteGetDCCs,
-		p.handleGetDCCs, permissionLogin)
-	p.addRoute(http.MethodPost, cms.RouteSupportOpposeDCC,
-		p.handleSupportOpposeDCC, permissionLogin)
-	p.addRoute(http.MethodPost, cms.RouteNewCommentDCC,
-		p.handleNewCommentDCC, permissionLogin)
-	p.addRoute(http.MethodGet, cms.RouteDCCComments,
-		p.handleDCCComments, permissionLogin)
-	p.addRoute(http.MethodGet, cms.RouteUserSubContractors,
-		p.handleUserSubContractors, permissionLogin)
+	p.addRoute(http.MethodPost, cms.APIRoute,
+		www.RouteNewComment, p.handleNewCommentInvoice,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cms.APIRoute,
+		cms.RouteNewInvoice, p.handleNewInvoice,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cms.APIRoute,
+		cms.RouteEditInvoice, p.handleEditInvoice,
+		permissionLogin)
+	p.addRoute(http.MethodGet, cms.APIRoute,
+		cms.RouteInvoiceDetails, p.handleInvoiceDetails,
+		permissionLogin)
+	p.addRoute(http.MethodGet, cms.APIRoute,
+		cms.RouteUserInvoices, p.handleUserInvoices,
+		permissionLogin)
+	p.addRoute(http.MethodGet, cms.APIRoute,
+		cms.RouteInvoiceComments, p.handleInvoiceComments,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cms.APIRoute,
+		cms.RouteInvoiceExchangeRate, p.handleInvoiceExchangeRate,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cms.APIRoute,
+		cms.RouteNewDCC, p.handleNewDCC,
+		permissionLogin)
+	p.addRoute(http.MethodGet, cms.APIRoute,
+		cms.RouteDCCDetails, p.handleDCCDetails,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cms.APIRoute,
+		cms.RouteGetDCCs, p.handleGetDCCs,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cms.APIRoute,
+		cms.RouteSupportOpposeDCC, p.handleSupportOpposeDCC,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cms.APIRoute,
+		cms.RouteNewCommentDCC, p.handleNewCommentDCC,
+		permissionLogin)
+	p.addRoute(http.MethodGet, cms.APIRoute,
+		cms.RouteDCCComments, p.handleDCCComments,
+		permissionLogin)
+	p.addRoute(http.MethodGet, cms.APIRoute,
+		cms.RouteUserSubContractors, p.handleUserSubContractors,
+		permissionLogin)
 
 	// Unauthenticated websocket
-	p.addRoute("", www.RouteUnauthenticatedWebSocket,
-		p.handleUnauthenticatedWebsocket, permissionPublic)
+	p.addRoute("", www.PoliteiaWWWAPIRoute,
+		www.RouteUnauthenticatedWebSocket, p.handleUnauthenticatedWebsocket,
+		permissionPublic)
 	// Authenticated websocket
-	p.addRoute("", www.RouteAuthenticatedWebSocket,
-		p.handleAuthenticatedWebsocket, permissionLogin)
+	p.addRoute("", www.PoliteiaWWWAPIRoute,
+		www.RouteAuthenticatedWebSocket, p.handleAuthenticatedWebsocket,
+		permissionLogin)
 
 	// Routes that require being logged in as an admin user.
-	p.addRoute(http.MethodPost, cms.RouteInviteNewUser, p.handleInviteNewUser,
+	p.addRoute(http.MethodPost, cms.APIRoute,
+		cms.RouteInviteNewUser, p.handleInviteNewUser,
 		permissionAdmin)
-	p.addRoute(http.MethodPost, www.RouteCensorComment,
-		p.handleCensorComment, permissionAdmin)
-	p.addRoute(http.MethodPost, cms.RouteAdminInvoices,
-		p.handleAdminInvoices, permissionAdmin)
-	p.addRoute(http.MethodPost, cms.RouteSetInvoiceStatus,
-		p.handleSetInvoiceStatus, permissionAdmin)
-	p.addRoute(http.MethodPost, cms.RouteGeneratePayouts,
-		p.handleGeneratePayouts, permissionAdmin)
-	p.addRoute(http.MethodGet, cms.RoutePayInvoices,
-		p.handlePayInvoices, permissionAdmin)
-	p.addRoute(http.MethodPost, cms.RouteInvoicePayouts,
-		p.handleInvoicePayouts, permissionAdmin)
-	p.addRoute(http.MethodGet, cms.RouteAdminUserInvoices,
-		p.handleAdminUserInvoices, permissionAdmin)
-	p.addRoute(http.MethodPost, cms.RouteSetDCCStatus,
-		p.handleSetDCCStatus, permissionAdmin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteCensorComment, p.handleCensorComment,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, cms.APIRoute,
+		cms.RouteAdminInvoices, p.handleAdminInvoices,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, cms.APIRoute,
+		cms.RouteSetInvoiceStatus, p.handleSetInvoiceStatus,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, cms.APIRoute,
+		cms.RouteGeneratePayouts, p.handleGeneratePayouts,
+		permissionAdmin)
+	p.addRoute(http.MethodGet, cms.APIRoute,
+		cms.RoutePayInvoices, p.handlePayInvoices,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, cms.APIRoute,
+		cms.RouteInvoicePayouts, p.handleInvoicePayouts,
+		permissionAdmin)
+	p.addRoute(http.MethodGet, cms.APIRoute,
+		cms.RouteAdminUserInvoices, p.handleAdminUserInvoices,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, cms.APIRoute,
+		cms.RouteSetDCCStatus, p.handleSetDCCStatus,
+		permissionAdmin)
 }

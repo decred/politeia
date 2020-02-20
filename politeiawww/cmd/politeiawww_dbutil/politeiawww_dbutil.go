@@ -75,12 +75,13 @@ var (
 	encryptionKey = flag.String("encryptionkey", defaultEncryptionKey, "")
 
 	// Commands
-	addCredits = flag.Bool("addcredits", false, "")
-	dump       = flag.Bool("dump", false, "")
-	setAdmin   = flag.Bool("setadmin", false, "")
-	stubUsers  = flag.Bool("stubusers", false, "")
-	migrate    = flag.Bool("migrate", false, "")
-	createKey  = flag.Bool("createkey", false, "")
+	addCredits       = flag.Bool("addcredits", false, "")
+	dump             = flag.Bool("dump", false, "")
+	setAdmin         = flag.Bool("setadmin", false, "")
+	stubUsers        = flag.Bool("stubusers", false, "")
+	migrate          = flag.Bool("migrate", false, "")
+	createKey        = flag.Bool("createkey", false, "")
+	verifyIdentities = flag.Bool("verifyidentities", false, "")
 
 	network string // Mainnet or testnet3
 	// XXX ldb should be abstracted away. dbutil commands should use
@@ -147,6 +148,12 @@ const usageMsg = `politeiawww_dbutil usage:
           Migrate a LevelDB user database to CockroachDB
           Required DB flag : None
           Args             : None
+
+     -verifyidentities
+          Verify a user's identities do not violate any politeia rules. Invalid
+          identities are fixed.
+          Required DB flag : -cockroachdb
+          Args             : <username>
 `
 
 type proposalMetadata struct {
@@ -753,6 +760,107 @@ func validateCockroachParams() error {
 	return nil
 }
 
+func cmdVerifyIdentities() error {
+	args := flag.Args()
+	if len(args) != 1 {
+		return fmt.Errorf("invalid number of arguments; want <username>, got %v",
+			args)
+	}
+
+	u, err := userDB.UserGetByUsername(args[0])
+	if err != nil {
+		return fmt.Errorf("UserGetByUsername(%v): %v",
+			args[0], err)
+	}
+
+	// Verify inactive identities. There should only ever be one
+	// inactive identity at a time. If more than one inactive identity
+	// is found, deactivate all of them since it can't be determined
+	// which one is the most recent.
+	inactive := make(map[string]user.Identity, len(u.Identities)) // [pubkey]Identity
+	for _, v := range u.Identities {
+		if v.IsInactive() {
+			inactive[v.String()] = v
+		}
+	}
+	switch len(inactive) {
+	case 0:
+		fmt.Printf("0 inactive identities found; this is ok\n")
+	case 1:
+		fmt.Printf("1 inactive identity found; this is ok\n")
+	default:
+		fmt.Printf("%v inactive identities found\n", len(inactive))
+		for _, v := range inactive {
+			fmt.Printf("%v\n", v.String())
+		}
+
+		fmt.Printf("deactivating all inactive identities\n")
+
+		for i, v := range u.Identities {
+			if !v.IsInactive() {
+				// Not an inactive identity
+				continue
+			}
+			fmt.Printf("deactivating: %v\n", v.String())
+			u.Identities[i].Deactivate()
+		}
+	}
+
+	// Verify active identities. There should only ever be one active
+	// identity at a time.
+	active := make(map[string]user.Identity, len(u.Identities)) // [pubkey]Identity
+	for _, v := range u.Identities {
+		if v.IsActive() {
+			active[v.String()] = v
+		}
+	}
+	switch len(active) {
+	case 0:
+		fmt.Printf("0 active identities found; this is ok\n")
+	case 1:
+		fmt.Printf("1 active identity found; this is ok\n")
+	default:
+		fmt.Printf("%v active identities found\n", len(active))
+		for _, v := range active {
+			fmt.Printf("%v\n", v.String())
+		}
+
+		fmt.Printf("deactivating all but the most recent active identity\n")
+
+		// Find most recent active identity
+		var pubkey string
+		var ts int64
+		for _, v := range active {
+			if v.Activated > ts {
+				pubkey = v.String()
+				ts = v.Activated
+			}
+		}
+
+		// Deactivate all but the most recent active identity
+		for i, v := range u.Identities {
+			if !v.IsActive() {
+				// Not an active identity
+				continue
+			}
+			if pubkey == v.String() {
+				// Most recent active identity
+				continue
+			}
+			fmt.Printf("deactivating: %v\n", v.String())
+			u.Identities[i].Deactivate()
+		}
+	}
+
+	// Update user
+	err = userDB.UserUpdate(*u)
+	if err != nil {
+		return fmt.Errorf("UserUpdate: %v", err)
+	}
+
+	return nil
+}
+
 func _main() error {
 	flag.Parse()
 
@@ -786,6 +894,12 @@ func _main() error {
 		if !*level {
 			return fmt.Errorf("missing database flag; must use " +
 				"-leveldb with this command")
+		}
+	case *verifyIdentities:
+		// These commands must be run with -cockroachdb
+		if !*cockroach || *level {
+			return fmt.Errorf("invalid database flag; must use " +
+				"-cockroachdb with this command")
 		}
 	case *migrate || *createKey:
 		// These commands must be run without a database flag
@@ -845,6 +959,8 @@ func _main() error {
 		return cmdMigrate()
 	case *createKey:
 		return cmdCreateKey()
+	case *verifyIdentities:
+		return cmdVerifyIdentities()
 	default:
 		flag.Usage()
 	}

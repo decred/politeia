@@ -26,6 +26,7 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/cache"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	www2 "github.com/decred/politeia/politeiawww/api/www/v2"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 )
@@ -57,13 +58,6 @@ type proposalsFilter struct {
 	Before   string
 	UserID   string
 	StateMap map[www.PropStateT]bool
-}
-
-type VoteDetails struct {
-	AuthorizeVote      www.AuthorizeVote      // Authorize vote
-	AuthorizeVoteReply www.AuthorizeVoteReply // Authorize vote reply
-	StartVote          www.StartVote          // Start vote
-	StartVoteReply     www.StartVoteReply     // Start vote reply
 }
 
 // parseProposalName returns the proposal name given the proposal index file
@@ -140,7 +134,7 @@ func getInvalidTokens(tokens []string) []string {
 }
 
 // validateVoteBit ensures that bit is a valid vote bit.
-func validateVoteBit(vote www.Vote, bit uint64) error {
+func validateVoteBit(vote www2.Vote, bit uint64) error {
 	if len(vote.Options) == 0 {
 		return fmt.Errorf("vote corrupt")
 	}
@@ -308,45 +302,6 @@ func validateProposal(np www.NewProposal, u *user.User) error {
 	}
 
 	return nil
-}
-
-// voteIsAuthorized returns whether the author of the proposal has authorized
-// an admin to start the voting period for the proposal.
-func voteIsAuthorized(avr www.AuthorizeVoteReply) bool {
-	if avr.Receipt == "" {
-		// Vote has not been authorized yet
-		return false
-	} else if avr.Action == decredplugin.AuthVoteActionRevoke {
-		// Vote authorization was revoked
-		return false
-	}
-	return true
-}
-
-// getVoteStatus returns the status for the provided vote.
-func getVoteStatus(avr www.AuthorizeVoteReply, svr www.StartVoteReply, bestBlock uint64) www.PropVoteStatusT {
-	if svr.StartBlockHeight == "" {
-		// Vote has not started. Check if it's been authorized yet.
-		if voteIsAuthorized(avr) {
-			return www.PropVoteStatusAuthorized
-		} else {
-			return www.PropVoteStatusNotAuthorized
-		}
-	}
-
-	// Vote has at least been started. Check if it has finished.
-	ee, err := strconv.ParseUint(svr.EndHeight, 10, 64)
-	if err != nil {
-		// This should not happen
-		log.Errorf("getVoteStatus: ParseUint failed on '%v': %v",
-			svr.EndHeight, err)
-		return www.PropVoteStatusInvalid
-	}
-
-	if bestBlock >= ee {
-		return www.PropVoteStatusFinished
-	}
-	return www.PropVoteStatusStarted
 }
 
 func voteStatusFromVoteSummary(r decredplugin.VoteSummaryReply, bestBlock uint64) www.PropVoteStatusT {
@@ -568,16 +523,16 @@ func (p *politeiawww) getAllProps() ([]www.ProposalRecord, error) {
 		// Fill in num comments
 		dc, err := p.decredGetComments(pr.CensorshipRecord.Token)
 		if err != nil {
-			log.Errorf("getAllProps: decredGetComments failed "+
-				"for token %v", pr.CensorshipRecord.Token)
+			return nil, fmt.Errorf("decredGetComments %v: %v",
+				pr.CensorshipRecord.Token, err)
 		}
 		pr.NumComments = uint(len(dc))
 
 		// Fill in author info
 		u, err := p.db.UserGetByPubKey(pr.PublicKey)
 		if err != nil {
-			log.Errorf("getAllProps: UserGetByPubKey: token:%v "+
-				"pubKey:%v", pr.CensorshipRecord.Token, pr.PublicKey)
+			return nil, fmt.Errorf("UserGetByPubKey %v %v: %v",
+				pr.CensorshipRecord.Token, pr.PublicKey, err)
 		} else {
 			pr.UserId = u.ID.String()
 			pr.Username = u.Username
@@ -1288,20 +1243,20 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 		// Vetted status change
 
 		// Ensure voting has not been started or authorized yet
-		vdr, err := p.decredVoteDetails(pr.CensorshipRecord.Token)
+		vsr, err := p.decredVoteSummary(pr.CensorshipRecord.Token)
 		if err != nil {
-			return nil, fmt.Errorf("decredVoteDetails: %v", err)
+			return nil, err
 		}
-		vd := convertVoteDetailsReplyFromDecred(*vdr)
-
 		switch {
-		case vd.StartVoteReply.StartBlockHeight != "":
+		case vsr.EndHeight != "":
 			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusWrongVoteStatus,
+				ErrorCode:    www.ErrorStatusWrongVoteStatus,
+				ErrorContext: []string{"vote has started"},
 			}
-		case voteIsAuthorized(vd.AuthorizeVoteReply):
+		case vsr.Authorized:
 			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusVoteAlreadyAuthorized,
+				ErrorCode:    www.ErrorStatusWrongVoteStatus,
+				ErrorContext: []string{"vote has been authorized"},
 			}
 		}
 
@@ -1395,21 +1350,21 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 	}
 
 	// Validate proposal vote status
-	vdr, err := p.decredVoteDetails(ep.Token)
+	vsr, err := p.decredVoteSummary(ep.Token)
 	if err != nil {
-		return nil, fmt.Errorf("decredVoteDetails: %v", err)
+		return nil, err
 	}
-	vd := convertVoteDetailsReplyFromDecred(*vdr)
-
 	bb, err := p.getBestBlock()
 	if err != nil {
 		return nil, err
 	}
-
-	s := getVoteStatus(vd.AuthorizeVoteReply, vd.StartVoteReply, bb)
+	s := voteStatusFromVoteSummary(*vsr, bb)
 	if s != www.PropVoteStatusNotAuthorized {
+		e := fmt.Sprintf("got vote status %v, want %v",
+			s, www.PropVoteStatusNotAuthorized)
 		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusWrongVoteStatus,
+			ErrorCode:    www.ErrorStatusWrongVoteStatus,
+			ErrorContext: []string{e},
 		}
 	}
 
@@ -1835,12 +1790,41 @@ func (p *politeiawww) processActiveVote() (*www.ActiveVoteReply, error) {
 			return nil, fmt.Errorf("decredVoteDetails %v: %v",
 				v.CensorshipRecord.Token, err)
 		}
-		vd := convertVoteDetailsReplyFromDecred(*vdr)
 
+		// Handle StartVote versioning
+		var sv www.StartVote
+		switch vdr.StartVote.Version {
+		case decredplugin.VersionStartVoteV1:
+			b := []byte(vdr.StartVote.Payload)
+			dsv, err := decredplugin.DecodeStartVoteV1(b)
+			if err != nil {
+				return nil, fmt.Errorf("decode StartVoteV1 %v: %v",
+					v.CensorshipRecord.Token, err)
+			}
+			sv = convertStartVoteV1FromDecred(*dsv)
+
+		case decredplugin.VersionStartVoteV2:
+			b := []byte(vdr.StartVote.Payload)
+			dsv2, err := decredplugin.DecodeStartVoteV2(b)
+			if err != nil {
+				return nil, fmt.Errorf("decode StartVoteV2 %v: %v",
+					v.CensorshipRecord.Token, err)
+			}
+			sv2 := convertStartVoteV2FromDecred(*dsv2)
+			// Convert StartVote v2 to v1 since this route returns
+			// a v1 StartVote.
+			sv = convertStartVoteV2ToV1(sv2)
+
+		default:
+			return nil, fmt.Errorf("invalid StartVote version %v %v",
+				v.CensorshipRecord.Token, vdr.StartVote.Version)
+		}
+
+		// Create vote tuple
 		pvt = append(pvt, www.ProposalVoteTuple{
 			Proposal:       v,
-			StartVote:      vd.StartVote,
-			StartVoteReply: vd.StartVoteReply,
+			StartVote:      sv,
+			StartVoteReply: convertStartVoteReplyFromDecred(vdr.StartVoteReply),
 		})
 	}
 
@@ -1880,11 +1864,36 @@ func (p *politeiawww) processVoteResults(token string) (*www.VoteResultsReply, e
 	// Get cast votes from cache
 	vrr, err := p.decredProposalVotes(token)
 	if err != nil {
-		return nil, fmt.Errorf("decredVoteDetails: %v", err)
+		return nil, fmt.Errorf("decredProposalVotes: %v", err)
+	}
+
+	// Handle StartVote versioning
+	var sv www.StartVote
+	switch vdr.StartVote.Version {
+	case decredplugin.VersionStartVoteV1:
+		b := []byte(vdr.StartVote.Payload)
+		dsv1, err := decredplugin.DecodeStartVoteV1(b)
+		if err != nil {
+			return nil, err
+		}
+		sv = convertStartVoteV1FromDecred(*dsv1)
+	case decredplugin.VersionStartVoteV2:
+		b := []byte(vdr.StartVote.Payload)
+		dsv2, err := decredplugin.DecodeStartVoteV2(b)
+		if err != nil {
+			return nil, err
+		}
+		sv2 := convertStartVoteV2FromDecred(*dsv2)
+		// Convert StartVote v2 to v1 since this route returns
+		// a v1 StartVote.
+		sv = convertStartVoteV2ToV1(sv2)
+	default:
+		return nil, fmt.Errorf("invalid StartVote version %v %v",
+			token, vdr.StartVote.Version)
 	}
 
 	return &www.VoteResultsReply{
-		StartVote:      convertStartVoteFromDecred(vdr.StartVote),
+		StartVote:      sv,
 		StartVoteReply: convertStartVoteReplyFromDecred(vdr.StartVoteReply),
 		CastVotes:      convertCastVotesFromDecred(vrr.CastVotes),
 	}, nil
@@ -2038,11 +2047,10 @@ func (p *politeiawww) processAuthorizeVote(av www.AuthorizeVote, u *user.User) (
 	}
 
 	// Get vote details from cache
-	vdr, err := p.decredVoteDetails(av.Token)
+	vsr, err := p.decredVoteSummary(av.Token)
 	if err != nil {
-		return nil, fmt.Errorf("decredVoteDetails: %v", err)
+		return nil, err
 	}
-	vd := convertVoteDetailsReplyFromDecred(*vdr)
 
 	// Verify record is in the right state and that the authorize
 	// vote request is valid. A vote authorization may already
@@ -2053,7 +2061,7 @@ func (p *politeiawww) processAuthorizeVote(av www.AuthorizeVote, u *user.User) (
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusWrongStatus,
 		}
-	case vd.StartVoteReply.StartBlockHeight != "":
+	case vsr.EndHeight != "":
 		// Vote has already started
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusWrongVoteStatus,
@@ -2064,17 +2072,13 @@ func (p *politeiawww) processAuthorizeVote(av www.AuthorizeVote, u *user.User) (
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusInvalidAuthVoteAction,
 		}
-	case av.Action == decredplugin.AuthVoteActionAuthorize &&
-		voteIsAuthorized(vd.AuthorizeVoteReply):
-		// Cannot authorize vote; vote has already been
-		// authorized
+	case av.Action == decredplugin.AuthVoteActionAuthorize && vsr.Authorized:
+		// Cannot authorize vote; vote has already been authorized
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusVoteAlreadyAuthorized,
 		}
-	case av.Action == decredplugin.AuthVoteActionRevoke &&
-		!voteIsAuthorized(vd.AuthorizeVoteReply):
-		// Cannot revoke authorization; vote has not been
-		// authorized
+	case av.Action == decredplugin.AuthVoteActionRevoke && !vsr.Authorized:
+		// Cannot revoke authorization; vote has not been authorized
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusVoteNotAuthorized,
 		}
@@ -2152,9 +2156,52 @@ func (p *politeiawww) processAuthorizeVote(av www.AuthorizeVote, u *user.User) (
 	}, nil
 }
 
-// processStartVote handles the www.StartVote call.
-func (p *politeiawww) processStartVote(sv www.StartVote, u *user.User) (*www.StartVoteReply, error) {
-	log.Tracef("processStartVote %v", sv.Vote.Token)
+// processStartVoteV2 starts the voting period on a proposal using the provided
+// v2 StartVote.
+func (p *politeiawww) processStartVoteV2(sv www2.StartVote, u *user.User) (*www2.StartVoteReply, error) {
+	log.Tracef("processStartVoteV2 %v", sv.Vote.Token)
+
+	// Sanity check
+	if !u.Admin {
+		return nil, fmt.Errorf("user is not an admin")
+	}
+
+	// Validate vote bits
+	for _, v := range sv.Vote.Options {
+		err := validateVoteBit(sv.Vote, v.Bits)
+		if err != nil {
+			log.Debugf("processStartVoteV2: invalid vote bits: %v", err)
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusInvalidPropVoteBits,
+			}
+		}
+	}
+
+	// Validate vote params
+	switch {
+	case sv.Vote.Duration < p.cfg.VoteDurationMin:
+		e := fmt.Sprintf("vote duration must be > %v", p.cfg.VoteDurationMin)
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidPropVoteParams,
+			ErrorContext: []string{e},
+		}
+	case sv.Vote.Duration > p.cfg.VoteDurationMax:
+		e := fmt.Sprintf("vote duration must be < %v", p.cfg.VoteDurationMax)
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidPropVoteParams,
+			ErrorContext: []string{e},
+		}
+	case sv.Vote.QuorumPercentage > 100:
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidPropVoteParams,
+			ErrorContext: []string{"quorum percentage must be <= 100"},
+		}
+	case sv.Vote.PassPercentage > 100:
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidPropVoteParams,
+			ErrorContext: []string{"pass percentage must be <= 100"},
+		}
+	}
 
 	// Ensure the public key is the user's active key
 	if sv.PublicKey != u.PublicKey() {
@@ -2164,38 +2211,16 @@ func (p *politeiawww) processStartVote(sv www.StartVote, u *user.User) (*www.Sta
 	}
 
 	// Validate signature
-	err := validateSignature(sv.PublicKey, sv.Signature, sv.Vote.Token)
+	dsv := convertStartVoteV2ToDecred(sv)
+	err := dsv.VerifySignature()
 	if err != nil {
-		return nil, err
-	}
-
-	// Validate vote bits
-	for _, v := range sv.Vote.Options {
-		err = validateVoteBit(sv.Vote, v.Bits)
-		if err != nil {
-			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusInvalidPropVoteBits,
-			}
-		}
-	}
-
-	// Validate vote parameters
-	if sv.Vote.Duration < p.cfg.VoteDurationMin ||
-		sv.Vote.Duration > p.cfg.VoteDurationMax ||
-		sv.Vote.QuorumPercentage > 100 || sv.Vote.PassPercentage > 100 {
+		log.Debugf("processStartVote: VerifySignature: %v", err)
 		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusInvalidPropVoteParams,
+			ErrorCode: www.ErrorStatusInvalidSignature,
 		}
 	}
 
-	// Create vote bits as plugin payload
-	dsv := convertStartVoteFromWWW(sv)
-	payload, err := decredplugin.EncodeStartVote(dsv)
-	if err != nil {
-		return nil, err
-	}
-
-	// Get proposal from the cache
+	// Validate proposal version and status
 	pr, err := p.getProp(sv.Vote.Token)
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
@@ -2205,38 +2230,47 @@ func (p *politeiawww) processStartVote(sv www.StartVote, u *user.User) (*www.Sta
 		}
 		return nil, err
 	}
-
-	// Get vote details from cache
-	vdr, err := p.decredVoteDetails(sv.Vote.Token)
-	if err != nil {
-		return nil, fmt.Errorf("decredVoteDetails: %v", err)
+	if pr.Version != strconv.FormatUint(uint64(sv.Vote.ProposalVersion), 10) {
+		e := fmt.Sprintf("current proposal version is %v", pr.Version)
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidProposalVersion,
+			ErrorContext: []string{e},
+		}
 	}
-	vd := convertVoteDetailsReplyFromDecred(*vdr)
-
-	// Ensure record is public, vote has been authorized,
-	// and vote has not already started.
 	if pr.Status != www.PropStatusPublic {
 		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusWrongStatus,
+			ErrorCode:    www.ErrorStatusWrongStatus,
+			ErrorContext: []string{"proposal is not public"},
 		}
 	}
-	if !voteIsAuthorized(vd.AuthorizeVoteReply) {
+
+	// Validate vote status
+	vsr, err := p.decredVoteSummary(sv.Vote.Token)
+	if err != nil {
+		return nil, err
+	}
+	if !vsr.Authorized {
 		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusVoteNotAuthorized,
+			ErrorCode:    www.ErrorStatusWrongVoteStatus,
+			ErrorContext: []string{"vote not authorized"},
 		}
 	}
-	if vd.StartVoteReply.StartBlockHeight != "" {
+	if vsr.EndHeight != "" {
 		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusWrongVoteStatus,
+			ErrorCode:    www.ErrorStatusWrongVoteStatus,
+			ErrorContext: []string{"vote already started"},
 		}
 	}
 
 	// Tell decred plugin to start voting
+	payload, err := decredplugin.EncodeStartVoteV2(dsv)
+	if err != nil {
+		return nil, err
+	}
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
 		return nil, err
 	}
-
 	pc := pd.PluginCommand{
 		Challenge: hex.EncodeToString(challenge),
 		ID:        decredplugin.ID,
@@ -2244,31 +2278,33 @@ func (p *politeiawww) processStartVote(sv www.StartVote, u *user.User) (*www.Sta
 		CommandID: decredplugin.CmdStartVote + " " + sv.Vote.Token,
 		Payload:   string(payload),
 	}
-
 	responseBody, err := p.makeRequest(http.MethodPost,
 		pd.PluginCommandRoute, pc)
 	if err != nil {
 		return nil, err
 	}
 
+	// Handle reply
 	var reply pd.PluginCommandReply
 	err = json.Unmarshal(responseBody, &reply)
 	if err != nil {
-		return nil, fmt.Errorf("Could not unmarshal "+
+		return nil, fmt.Errorf("could not unmarshal "+
 			"PluginCommandReply: %v", err)
 	}
-
-	// Verify the challenge.
 	err = util.VerifyChallenge(p.cfg.Identity, challenge, reply.Response)
 	if err != nil {
 		return nil, err
 	}
-
-	vr, err := decredplugin.DecodeStartVoteReply([]byte(reply.Payload))
+	dsvr, err := decredplugin.DecodeStartVoteReply([]byte(reply.Payload))
+	if err != nil {
+		return nil, err
+	}
+	svr, err := convertStartVoteReplyV2FromDecred(*dsvr)
 	if err != nil {
 		return nil, err
 	}
 
+	// Fire off start vote event
 	p.fireEvent(EventTypeProposalVoteStarted,
 		EventDataProposalVoteStarted{
 			AdminUser: u,
@@ -2276,9 +2312,7 @@ func (p *politeiawww) processStartVote(sv www.StartVote, u *user.User) (*www.Sta
 		},
 	)
 
-	// return a copy
-	rv := convertStartVoteReplyFromDecred(*vr)
-	return &rv, nil
+	return svr, nil
 }
 
 // processTokenInventory returns the tokens of all proposals in the inventory,
@@ -2322,4 +2356,59 @@ func (p *politeiawww) processTokenInventory(isAdmin bool) (*www.TokenInventoryRe
 	}
 
 	return &r, err
+}
+
+// processVoteDetailsV2 returns the vote details for the given proposal token.
+func (p *politeiawww) processVoteDetailsV2(token string) (*www2.VoteDetailsReply, error) {
+	log.Tracef("processVoteDetailsV2: %v", token)
+
+	// Validate vote status
+	dvdr, err := p.decredVoteDetails(token)
+	if err != nil {
+		if err == cache.ErrRecordNotFound {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusProposalNotFound,
+			}
+		}
+		return nil, err
+	}
+	if dvdr.StartVoteReply.StartBlockHash == "" {
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusWrongVoteStatus,
+			ErrorContext: []string{"voting has not started yet"},
+		}
+	}
+
+	// Handle StartVote versioning
+	var vdr *www2.VoteDetailsReply
+	switch dvdr.StartVote.Version {
+	case decredplugin.VersionStartVoteV1:
+		b := []byte(dvdr.StartVote.Payload)
+		dsv1, err := decredplugin.DecodeStartVoteV1(b)
+		if err != nil {
+			return nil, err
+		}
+		vdr, err = convertDecredStartVoteV1ToVoteDetailsReplyV2(*dsv1,
+			dvdr.StartVoteReply)
+		if err != nil {
+			return nil, err
+		}
+	case decredplugin.VersionStartVoteV2:
+		b := []byte(dvdr.StartVote.Payload)
+		dsv2, err := decredplugin.DecodeStartVoteV2(b)
+		if err != nil {
+			return nil, err
+		}
+		vdr, err = convertDecredStartVoteV2ToVoteDetailsReplyV2(*dsv2,
+			dvdr.StartVoteReply)
+		if err != nil {
+			return nil, err
+		}
+
+	default:
+		return nil, fmt.Errorf("invalid StartVote version %v %v",
+			token, dvdr.StartVote.Version)
+	}
+
+	return vdr, nil
 }

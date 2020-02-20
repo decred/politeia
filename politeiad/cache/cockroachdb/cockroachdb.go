@@ -5,6 +5,7 @@
 package cockroachdb
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"path/filepath"
@@ -28,6 +29,11 @@ const (
 	tableMetadataStreams = "metadata_streams"
 	tableFiles           = "files"
 
+	// Plugin hooks
+	pluginHookPostNewRecord            = "postnewrecord"
+	pluginHookPostUpdateRecord         = "postupdaterecord"
+	pluginHookPostUpdateRecordMetadata = "postupdaterecordmetadata"
+
 	// Database users
 	UserPoliteiad   = "politeiad"   // politeiad user (read/write access)
 	UserPoliteiawww = "politeiawww" // politeiawww user (read access)
@@ -39,6 +45,32 @@ type cockroachdb struct {
 	shutdown  bool                          // Backend is shutdown
 	recordsdb *gorm.DB                      // Database context
 	plugins   map[string]cache.PluginDriver // [pluginID]PluginDriver
+}
+
+func (c *cockroachdb) newRecord(tx *gorm.DB, r Record) error {
+	// Insert record
+	err := tx.Create(&r).Error
+	if err != nil {
+		return err
+	}
+
+	// Call plugin hooks
+	if c.pluginIsRegistered(decredplugin.ID) {
+		plugin, err := c.getPlugin(decredplugin.ID)
+		if err != nil {
+			return err
+		}
+		payload, err := json.Marshal(r)
+		if err != nil {
+			return err
+		}
+		err = plugin.Hook(tx, pluginHookPostNewRecord, string(payload))
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // NewRecord creates a new entry in the database for the passed in record.
@@ -58,9 +90,16 @@ func (c *cockroachdb) NewRecord(cr cache.Record) error {
 		return fmt.Errorf("parse version '%v' failed: %v",
 			cr.Version, err)
 	}
-
 	r := convertRecordFromCache(cr, v)
-	return c.recordsdb.Create(&r).Error
+
+	tx := c.recordsdb.Begin()
+	err = c.newRecord(tx, r)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
 }
 
 // recordByPrefix gets the most recent version of a record using the prefix
@@ -197,7 +236,7 @@ func (c *cockroachdb) Record(token string) (*cache.Record, error) {
 	return &cr, nil
 }
 
-// updateMetadataStreams updates a records metadata streams by deleting the
+// updateMetadataStreams updates a record's metadata streams by deleting the
 // existing metadata streams then adding the passed in metadata streams to the
 // database.
 //
@@ -282,6 +321,22 @@ func (c *cockroachdb) updateRecord(tx *gorm.DB, updated Record) error {
 		}).Error
 		if err != nil {
 			return fmt.Errorf("create file %v: %v", f.Name, err)
+		}
+	}
+
+	// Call plugin hooks
+	if c.pluginIsRegistered(decredplugin.ID) {
+		plugin, err := c.getPlugin(decredplugin.ID)
+		if err != nil {
+			return err
+		}
+		payload, err := json.Marshal(updated)
+		if err != nil {
+			return err
+		}
+		err = plugin.Hook(tx, pluginHookPostUpdateRecord, string(payload))
+		if err != nil {
+			return err
 		}
 	}
 
@@ -392,7 +447,25 @@ func (c *cockroachdb) updateRecordMetadata(tx *gorm.DB, token string, ms []Metad
 		return err
 	}
 
-	return updateMetadataStreams(tx, r.Key, ms)
+	// Update metadata
+	err = updateMetadataStreams(tx, r.Key, ms)
+	if err != nil {
+		return err
+	}
+
+	// Call plugin hooks
+	if c.pluginIsRegistered(decredplugin.ID) {
+		plugin, err := c.getPlugin(decredplugin.ID)
+		if err != nil {
+			return err
+		}
+		err = plugin.Hook(tx, pluginHookPostUpdateRecordMetadata, "")
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // UpdateRecordMetadata updates the metadata streams of the given record. It
@@ -582,6 +655,14 @@ func (c *cockroachdb) Inventory() ([]cache.Record, error) {
 	}
 
 	return cr, nil
+}
+
+func (c *cockroachdb) pluginIsRegistered(pluginID string) bool {
+	c.RLock()
+	defer c.RUnlock()
+
+	_, ok := c.plugins[pluginID]
+	return ok
 }
 
 func (c *cockroachdb) getPlugin(id string) (cache.PluginDriver, error) {

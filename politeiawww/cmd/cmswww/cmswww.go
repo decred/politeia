@@ -58,6 +58,7 @@ type cmswww struct {
 	CensorComment       shared.CensorCommentCmd  `command:"censorcomment" description:"(admin)  censor a comment"`
 	ChangePassword      shared.ChangePasswordCmd `command:"changepassword" description:"(user)   change the password for the logged in user"`
 	ChangeUsername      shared.ChangeUsernameCmd `command:"changeusername" description:"(user)   change the username for the logged in user"`
+	CMSUsers            CMSUsersCmd              `command:"cmsusers" description:"(user)   get a list of cms users"`
 	DCCComments         DCCCommentsCmd           `command:"dcccomments" description:"(user)   get the comments for a dcc proposal"`
 	DCCDetails          DCCDetailsCmd            `command:"dccdetails" description:"(user)   get the details of a dcc"`
 	EditInvoice         EditInvoiceCmd           `command:"editinvoice" description:"(user)   edit a invoice"`
@@ -72,7 +73,8 @@ type cmswww struct {
 	InvoicePayouts      InvoicePayoutsCmd        `command:"invoicepayouts" description:"(admin)  generate paid invoice list for a given date range"`
 	Login               shared.LoginCmd          `command:"login" description:"(public) login to Politeia"`
 	Logout              shared.LogoutCmd         `command:"logout" description:"(public) logout of Politeia"`
-	ManageUser          ManageUserCmd            `command:"manageuser" description:"(admin)  edit certain properties of the specified user"`
+	CMSManageUser       CMSManageUserCmd         `command:"cmsmanageuser" description:"(admin)  edit certain properties of the specified user"`
+	ManageUser          shared.ManageUserCmd     `command:"manageuser" description:"(admin)  edit certain properties of the specified user"`
 	Me                  shared.MeCmd             `command:"me" description:"(user)   get user details for the logged in user"`
 	NewComment          shared.NewCommentCmd     `command:"newcomment" description:"(user)   create a new comment"`
 	NewDCC              NewDCCCmd                `command:"newdcc" description:"(user)   creates a new dcc proposal"`

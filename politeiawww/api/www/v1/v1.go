@@ -1,3 +1,7 @@
+// Copyright (c) 2017-2020 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package v1
 
 import (
@@ -190,6 +194,7 @@ const (
 	ErrorStatusDuplicateComment            ErrorStatusT = 62
 	ErrorStatusInvalidLogin                ErrorStatusT = 63
 	ErrorStatusCommentIsCensored           ErrorStatusT = 64
+	ErrorStatusInvalidProposalVersion      ErrorStatusT = 65
 
 	// Proposal state codes
 	//
@@ -295,7 +300,7 @@ var (
 		ErrorStatusInvalidSigningKey:           "invalid signing key",
 		ErrorStatusCommentLengthExceededPolicy: "maximum comment length exceeded",
 		ErrorStatusUserNotFound:                "user not found",
-		ErrorStatusWrongStatus:                 "wrong status",
+		ErrorStatusWrongStatus:                 "wrong proposal status",
 		ErrorStatusNotLoggedIn:                 "user not logged in",
 		ErrorStatusUserNotPaid:                 "user hasn't paid paywall",
 		ErrorStatusReviewerAdminEqualsAuthor:   "user cannot change the status of his own proposal",
@@ -330,6 +335,7 @@ var (
 		ErrorStatusDuplicateComment:            "duplicate comment",
 		ErrorStatusInvalidLogin:                "invalid login credentials",
 		ErrorStatusCommentIsCensored:           "comment is censored",
+		ErrorStatusInvalidProposalVersion:      "invalid proposal version",
 	}
 
 	// PropStatus converts propsal status codes to human readable text
@@ -474,17 +480,17 @@ type ErrorReply struct {
 	ErrorContext []string `json:"errorcontext,omitempty"`
 }
 
-// Version command is used to determine the version of the API this backend
-// understands and additionally it provides the route to said API.  This call
-// is required in order to establish CSRF for the session.  The client should
-// verify compatibility with the server version.
+// Version command is used to determine the lowest API version that this
+// backend supports and additionally it provides the route to said API.  This
+// call is required in order to establish CSRF for the session.  The client
+// should verify compatibility with the server version.
 type Version struct{}
 
-// VersionReply returns information that indicates what version of the server
-// is running and additionally the route to the API and the public signing key of
-// the server.
+// VersionReply returns information that indicates the lowest version that
+// this backend supports and additionally the route to the API and the public
+// signing key of the server.
 type VersionReply struct {
-	Version           uint   `json:"version"`           // politeia WWW API version
+	Version           uint   `json:"version"`           // lowest supported WWW API version
 	Route             string `json:"route"`             // prefix to API calls
 	PubKey            string `json:"pubkey"`            // Server public key
 	TestNet           bool   `json:"testnet"`           // Network indicator
@@ -917,6 +923,9 @@ type AuthorizeVoteReply struct {
 }
 
 // StartVote starts the voting process for a proposal.
+//
+// THIS ROUTE HAS BEEN DEPRECATED
+// A proposal vote must be initiated using the v2 StartVote route.
 type StartVote struct {
 	PublicKey string `json:"publickey"` // Key used for signature.
 	Vote      Vote   `json:"vote"`      // Vote

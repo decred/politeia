@@ -5,12 +5,14 @@
 package cockroachdb
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/decred/politeia/decredplugin"
+	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/cache"
 	"github.com/jinzhu/gorm"
@@ -20,17 +22,18 @@ const (
 	// decredVersion is the version of the cache implementation of
 	// decred plugin. This may differ from the decredplugin package
 	// version.
-	decredVersion = "1.1"
+	decredVersion = "1.2"
 
 	// Decred plugin table names
-	tableComments          = "comments"
-	tableCommentLikes      = "comment_likes"
-	tableCastVotes         = "cast_votes"
-	tableAuthorizeVotes    = "authorize_votes"
-	tableVoteOptions       = "vote_options"
-	tableStartVotes        = "start_votes"
-	tableVoteOptionResults = "vote_option_results"
-	tableVoteResults       = "vote_results"
+	tableProposalGeneralMetadata = "proposal_general_metadata"
+	tableComments                = "comments"
+	tableCommentLikes            = "comment_likes"
+	tableCastVotes               = "cast_votes"
+	tableAuthorizeVotes          = "authorize_votes"
+	tableVoteOptions             = "vote_options"
+	tableStartVotes              = "start_votes"
+	tableVoteOptionResults       = "vote_option_results"
+	tableVoteResults             = "vote_results"
 
 	// Vote option IDs
 	voteOptionIDApproved = "yes"
@@ -379,35 +382,29 @@ func (d *decred) cmdAuthorizeVote(cmdPayload, replyPayload string) (string, erro
 	return replyPayload, nil
 }
 
-// newStartVote inserts a StartVote record into the database.  This function
-// has a database parameter so that it can be called inside of a transaction
-// when required.
-func (d *decred) newStartVote(db *gorm.DB, sv StartVote) error {
-	return db.Create(&sv).Error
-}
-
 // cmdStartVote creates a StartVote record using the passed in payloads and
 // inserts it into the database.
 func (d *decred) cmdStartVote(cmdPayload, replyPayload string) (string, error) {
 	log.Tracef("decred cmdStartVote")
 
-	sv, err := decredplugin.DecodeStartVote([]byte(cmdPayload))
+	sv, err := decredplugin.DecodeStartVoteV2([]byte(cmdPayload))
 	if err != nil {
 		return "", err
+	}
+	err = sv.VerifySignature()
+	if err != nil {
+		return "", fmt.Errorf("verify signature: %v", err)
 	}
 	svr, err := decredplugin.DecodeStartVoteReply([]byte(replyPayload))
 	if err != nil {
 		return "", err
 	}
-
-	endHeight, err := strconv.ParseUint(svr.EndHeight, 10, 64)
+	s, err := convertStartVoteV2FromDecred(*sv, *svr)
 	if err != nil {
-		return "", fmt.Errorf("parse end height '%v': %v",
-			svr.EndHeight, err)
+		return "", err
 	}
 
-	s := convertStartVoteFromDecred(*sv, *svr, endHeight)
-	err = d.newStartVote(d.recordsdb, s)
+	err = d.recordsdb.Create(&s).Error
 	if err != nil {
 		return "", err
 	}
@@ -454,7 +451,11 @@ func (d *decred) cmdVoteDetails(payload string) (string, error) {
 	}
 
 	// Lookup start vote
-	var sv StartVote
+	var (
+		sv   StartVote
+		dsv  decredplugin.StartVote
+		dsvr decredplugin.StartVoteReply
+	)
 	err = d.recordsdb.
 		Where("token = ?", vd.Token).
 		Preload("Options").
@@ -466,11 +467,20 @@ func (d *decred) cmdVoteDetails(payload string) (string, error) {
 		return "", fmt.Errorf("start vote lookup failed: %v", err)
 	}
 
+	// Only convert if a StartVote was found, otherwise it will
+	// throw an invalid version error.
+	if sv.Version != 0 {
+		dsvp, dsvrp, err := convertStartVoteToDecred(sv)
+		if err != nil {
+			return "", err
+		}
+		dsv = *dsvp
+		dsvr = *dsvrp
+	}
+
 	// Prepare reply
-	dav := convertAuthorizeVoteToDecred(av)
-	dsv, dsvr := convertStartVoteToDecred(sv)
 	vdr := decredplugin.VoteDetailsReply{
-		AuthorizeVote:  dav,
+		AuthorizeVote:  convertAuthorizeVoteToDecred(av),
 		StartVote:      dsv,
 		StartVoteReply: dsvr,
 	}
@@ -1188,7 +1198,7 @@ func (d *decred) cmdBatchVoteSummary(payload string) (string, error) {
 
 		var endHeight string
 		if sv.EndHeight != 0 {
-			endHeight = strconv.FormatUint(sv.EndHeight, 10)
+			endHeight = strconv.FormatUint(uint64(sv.EndHeight), 10)
 		}
 
 		authorized := av.Action == decredplugin.AuthVoteActionAuthorize
@@ -1306,7 +1316,7 @@ sendReply:
 	// Return "" not "0" if end height doesn't exist
 	var endHeight string
 	if sv.EndHeight != 0 {
-		endHeight = strconv.FormatUint(sv.EndHeight, 10)
+		endHeight = strconv.FormatUint(uint64(sv.EndHeight), 10)
 	}
 
 	vsr := decredplugin.VoteSummaryReply{
@@ -1324,6 +1334,144 @@ sendReply:
 	}
 
 	return string(reply), nil
+}
+
+// hookPostNewRecord executes the decred plugin post new record hook. This
+// includes inserting a ProposalGeneralMetadata record for the given proposal.
+//
+// This function must be called using a transaction.
+func (d *decred) hookPostNewRecord(tx *gorm.DB, payload string) error {
+	// Decode ProposalGeneral mdstream
+	var r Record
+	err := json.Unmarshal([]byte(payload), &r)
+	if err != nil {
+		return err
+	}
+
+	var pg *mdstream.ProposalGeneral
+	for _, md := range r.Metadata {
+		if md.ID == mdstream.IDProposalGeneral {
+			pg, err = mdstream.DecodeProposalGeneral([]byte(md.Payload))
+			if err != nil {
+				return err
+			}
+			break
+		}
+	}
+	if pg == nil {
+		return fmt.Errorf("mdstream %v not found",
+			mdstream.IDProposalGeneral)
+	}
+
+	// All prososal versions are stored in the cache which means that
+	// this new proposal request could be for a brand new proposal or
+	// it could be for a new proposal version that is the result of a
+	// proposal edit. We only need to store the ProposalGeneralMetadata
+	// for the most recent version of the proposal.
+	if r.Version > 1 {
+		// Delete existing metadata
+		err := tx.Delete(ProposalGeneralMetadata{
+			Token: r.Token,
+		}).Error
+		if err != nil {
+			return fmt.Errorf("delete: %v", err)
+		}
+	}
+
+	// Insert new metadata
+	err = tx.Create(&ProposalGeneralMetadata{
+		Token:           r.Token,
+		ProposalVersion: r.Version,
+		Version:         pg.Version,
+		Timestamp:       pg.Timestamp,
+		Name:            pg.Name,
+		Signature:       pg.Signature,
+		PublicKey:       pg.PublicKey,
+	}).Error
+	if err != nil {
+		return fmt.Errorf("create: %v", err)
+	}
+
+	return nil
+}
+
+// hookPostUpdateRecord executes the decred plugin post update record hook.
+// This includes updating the ProposalGeneralMetadata in the cache for the
+// given proposal. The existing metadata is first deleted before the new
+// metadata is inserted.
+//
+// This function must be called using a transaction.
+func (d *decred) hookPostUpdateRecord(tx *gorm.DB, payload string) error {
+	// Decode ProposalGeneral mdstream
+	var r Record
+	err := json.Unmarshal([]byte(payload), &r)
+	if err != nil {
+		return err
+	}
+	var pg *mdstream.ProposalGeneral
+	for _, md := range r.Metadata {
+		if md.ID == mdstream.IDProposalGeneral {
+			pg, err = mdstream.DecodeProposalGeneral([]byte(md.Payload))
+			if err != nil {
+				return err
+			}
+			break
+		}
+	}
+	if pg == nil {
+		return fmt.Errorf("mdstream %v not found",
+			mdstream.IDProposalGeneral)
+	}
+
+	// Delete existing metadata
+	err = tx.Delete(ProposalGeneralMetadata{
+		Token: r.Token,
+	}).Error
+	if err != nil {
+		return fmt.Errorf("delete: %v", err)
+	}
+
+	// Insert new metadata record
+	err = tx.Create(&ProposalGeneralMetadata{
+		Token:           r.Token,
+		ProposalVersion: r.Version,
+		Version:         pg.Version,
+		Timestamp:       pg.Timestamp,
+		Name:            pg.Name,
+		Signature:       pg.Signature,
+		PublicKey:       pg.PublicKey,
+	}).Error
+	if err != nil {
+		return fmt.Errorf("create: %v", err)
+	}
+
+	return nil
+}
+
+// hookPostUpdateRecordMetadata executes the decred plugin post update record
+// metadata hook.
+func (d *decred) hookPostUpdateRecordMetadata(tx *gorm.DB, payload string) error {
+	// piwww does not currently use the UpdateRecordMetadata route.
+	// If this changes, this panic is here as a reminder that any piwww
+	// mdstream tables, such as ProposalGeneralMetadata and StartVote,
+	// need to be properly updated in this hook.
+	panic("cache decred plugin: hookPostUpdateRecordMetadata not implemented")
+}
+
+// Hook executes the given decred plugin hook.
+func (d *decred) Hook(tx *gorm.DB, hookID, payload string) error {
+	log.Tracef("decred Hook: %v", hookID)
+
+	switch hookID {
+	case pluginHookPostNewRecord:
+		return d.hookPostNewRecord(tx, payload)
+	case pluginHookPostUpdateRecord:
+		return d.hookPostUpdateRecord(tx, payload)
+	case pluginHookPostUpdateRecordMetadata:
+		return d.hookPostUpdateRecordMetadata(tx, payload)
+	}
+
+	return nil
 }
 
 // Exec executes a decred plugin command.  Plugin commands that write data to
@@ -1386,6 +1534,12 @@ func (d *decred) createTables(tx *gorm.DB) error {
 	log.Tracef("createTables")
 
 	// Create decred plugin tables
+	if !tx.HasTable(tableProposalGeneralMetadata) {
+		err := tx.CreateTable(&ProposalGeneralMetadata{}).Error
+		if err != nil {
+			return err
+		}
+	}
 	if !tx.HasTable(tableComments) {
 		err := tx.CreateTable(&Comment{}).Error
 		if err != nil {
@@ -1464,8 +1618,8 @@ func (d *decred) dropTables(tx *gorm.DB) error {
 	// Drop decred plugin tables
 	err := tx.DropTableIfExists(tableComments, tableCommentLikes,
 		tableCastVotes, tableAuthorizeVotes, tableVoteOptions,
-		tableStartVotes, tableVoteOptionResults, tableVoteResults).
-		Error
+		tableStartVotes, tableVoteOptionResults, tableVoteResults,
+		tableProposalGeneralMetadata).Error
 	if err != nil {
 		return err
 	}
@@ -1563,19 +1717,42 @@ func (d *decred) build(ir *decredplugin.InventoryReply) error {
 	// Build start vote cache
 	log.Tracef("decred: building start vote cache")
 	for _, v := range ir.StartVoteTuples {
-		endHeight, err := strconv.ParseUint(v.StartVoteReply.EndHeight, 10, 64)
-		if err != nil {
-			log.Debugf("newStartVote failed on '%v'", v)
-			return fmt.Errorf("parse end height '%v': %v",
-				v.StartVoteReply.EndHeight, err)
+		// Handle start vote versioning
+		var sv StartVote
+		switch v.StartVote.Version {
+		case decredplugin.VersionStartVoteV1:
+			svb := []byte(v.StartVote.Payload)
+			sv1, err := decredplugin.DecodeStartVoteV1(svb)
+			if err != nil {
+				return fmt.Errorf("decode StartVoteV2 %v: %v",
+					v.StartVote.Token, err)
+			}
+			svp, err := convertStartVoteV1FromDecred(*sv1, v.StartVoteReply)
+			if err != nil {
+				return fmt.Errorf("convertStartVoteV1FromDecred %v: %v",
+					v.StartVote.Token, err)
+			}
+			sv = *svp
+		case decredplugin.VersionStartVoteV2:
+			svb := []byte(v.StartVote.Payload)
+			sv2, err := decredplugin.DecodeStartVoteV2(svb)
+			if err != nil {
+				return fmt.Errorf("decode StartVoteV1 %v: %v",
+					v.StartVote.Token, err)
+			}
+			svp, err := convertStartVoteV2FromDecred(*sv2, v.StartVoteReply)
+			if err != nil {
+				return fmt.Errorf("convertStartVoteV2FromDecred %v: %v",
+					v.StartVote.Version, err)
+			}
+			sv = *svp
 		}
 
-		sv := convertStartVoteFromDecred(v.StartVote,
-			v.StartVoteReply, endHeight)
-		err = d.newStartVote(d.recordsdb, sv)
+		// Insert start vote record
+		err = d.recordsdb.Create(&sv).Error
 		if err != nil {
-			log.Debugf("newStartVote failed on '%v'", sv)
-			return fmt.Errorf("newStartVote: %v", err)
+			return fmt.Errorf("insert StartVote: %v %v",
+				err, sv.Token)
 		}
 	}
 
@@ -1587,6 +1764,97 @@ func (d *decred) build(ir *decredplugin.InventoryReply) error {
 		if err != nil {
 			log.Debugf("insert cast vote failed on '%v'", cv)
 			return fmt.Errorf("insert cast vote: %v", err)
+		}
+	}
+
+	// Build the ProposalGeneralMetadata cache. This metadata is not
+	// part of the decredplugin InventoryReply. It is already stored
+	// in the cached as a MetadataStream with an encoded payload. We
+	// need to lookup the MetadataStreams for each record, decode the
+	// mdstream, and save it as a ProposalGeneralMetadata record so
+	// that it is queriable. Only the ProposalGeneralMetadata for the
+	// most recent version of the proposal is saved to the cache.
+
+	// Lookup latest version of each record
+	query := `SELECT a.*
+            FROM records a
+            LEFT OUTER JOIN records b
+              ON a.token = b.token
+              AND a.version < b.version
+              WHERE b.token IS NULL`
+	rows, err := d.recordsdb.Raw(query).Rows()
+	if err != nil {
+		return fmt.Errorf("lookup latest records: %v", err)
+	}
+	defer rows.Close()
+
+	records := make([]Record, 0, 1024)
+	for rows.Next() {
+		var r Record
+		err := d.recordsdb.ScanRows(rows, &r)
+		if err != nil {
+			return err
+		}
+		records = append(records, r)
+	}
+	if err = rows.Err(); err != nil {
+		return err
+	}
+
+	// Compile a list of record primary keys
+	keys := make([]string, 0, len(records))
+	for _, v := range records {
+		keys = append(keys, v.Key)
+	}
+
+	// Lookup the metadata streams for each record
+	err = d.recordsdb.
+		Preload("Metadata").
+		Where(keys).
+		Find(&records).
+		Error
+	if err != nil {
+		return fmt.Errorf("lookup record metadata: %v", err)
+	}
+
+	for _, v := range records {
+		// Decode the ProposalGeneral mdstream
+		var pg *mdstream.ProposalGeneral
+		for _, md := range v.Metadata {
+			if md.ID == mdstream.IDProposalGeneral {
+				pg, err = mdstream.DecodeProposalGeneral([]byte(md.Payload))
+				if err != nil {
+					return fmt.Errorf("decode ProposalGenral %v '%v': %v",
+						v.Token, md.Payload, err)
+				}
+			}
+		}
+		if pg == nil {
+			// XXX we cannot return an error here until the plugin
+			// architecture is sorted out. Right now, politeiad registers
+			// the decred plugin by default. CMS needs a way to register
+			// just the functionality it needs so that proposal specific
+			// tables do not get built for CMS.
+			// return fmt.Errorf("no ProposalGenral mdstream found %v",
+			//	v.Token)
+
+			continue
+		}
+
+		// Insert the ProposalGeneralMetadata record
+		pgm := ProposalGeneralMetadata{
+			Token:           v.Token,
+			ProposalVersion: v.Version,
+			Version:         pg.Version,
+			Timestamp:       pg.Timestamp,
+			Name:            pg.Name,
+			Signature:       pg.Signature,
+			PublicKey:       pg.PublicKey,
+		}
+		err := d.recordsdb.Create(&pgm).Error
+		if err != nil {
+			return fmt.Errorf("insert ProposalGeneralMetadata %v: %v",
+				pgm, err)
 		}
 	}
 

@@ -16,6 +16,7 @@ server side notifications.  It does not render HTML.
 - [`Edit invoice`](#edit-invoice)
 - [`Set invoice status`](#set-invoice-status)
 - [`Set DCC status`](#set-dcc-status)
+- [`CMS Users`](#cms-users)
 - [`Generate payouts`](#generate-payouts)
 - [`Invoice comments`](#invoice-comments)
 - [`Invoice exchange rate`](#invoice-exchange-rate)
@@ -756,7 +757,7 @@ Reply:
 
 Edits a user's details. This call requires admin privileges.
 
-**Route:** `POST /v1/user/manage`
+**Route:** `POST /v1/admin/managecms`
 
 **Params:**
 
@@ -1424,6 +1425,48 @@ Reply:
 }
 ```
 
+### `CMS Users`
+
+Returns a list of cms users given optional filters. 
+
+**Route:** `GET /v1/cmsusers`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-----------|------|-------------|----------|
+| domain | int | A query int to match against user's domain. | |
+| contractortype | int | A query string to match user's contractor type. | |
+
+**Results:**
+
+| Parameter | Type | Description |
+|-|-|-|
+| users | array of [Abridged CMS User](#abridged-cms-user) | The list of cms users that match the query. 
+
+On failure the call shall return `400 Bad Request` and one of the following
+error codes:
+- [`ErrorStatusInvalidInput`](#ErrorStatusInvalidInput)
+
+**Example**
+
+Request:
+
+```json
+{
+  "domain": "1",
+  "username": "1"
+}
+```
+
+Reply:
+
+```json
+{
+  "users": []
+}
+```
+
 ### Error codes
 
 | Status | Value | Description |
@@ -1547,3 +1590,13 @@ Reply:
 | <a name="DCCStatusRejected">DCCStatusRejected</a>| 4 | Rejected issuance/revocation |
 | <a name="DCCStatusDebate">DCCStatusDebate</a>| 5 | If a issuance/revocation receives enough comments, it would enter a "debate" status that would require a full contractor vote (to be added later).  |
 
+### `Abridged CMS User`
+
+This is a shortened representation of a user, used for lists.
+
+| | Type | Description |
+|-|-|-|
+| id | string | The unique id of the user. |
+| username | string | Unique username. |
+| contractortype | string | CMS Domain of the user. |
+| domain | string | CMS contractor type of the user. |

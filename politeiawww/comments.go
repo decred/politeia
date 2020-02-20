@@ -245,19 +245,16 @@ func (p *politeiawww) processNewComment(nc www.NewComment, u *user.User) (*www.N
 	}
 
 	// Ensure proposal voting has not ended
-	vdr, err := p.decredVoteDetails(nc.Token)
+	vsr, err := p.decredVoteSummary(nc.Token)
 	if err != nil {
-		return nil, fmt.Errorf("decredVoteDetails: %v", err)
+		return nil, fmt.Errorf("decredVoteSummary: %v", err)
 	}
-	_, avr := convertAuthVoteFromDecred(vdr.AuthorizeVote)
-	svr := convertStartVoteReplyFromDecred(vdr.StartVoteReply)
-
 	bb, err := p.getBestBlock()
 	if err != nil {
 		return nil, fmt.Errorf("getBestBlock: %v", err)
 	}
-
-	if getVoteStatus(avr, svr, bb) == www.PropVoteStatusFinished {
+	s := voteStatusFromVoteSummary(*vsr, bb)
+	if s == www.PropVoteStatusFinished {
 		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusWrongVoteStatus,
 			ErrorContext: []string{"vote is finished"},
@@ -266,10 +263,17 @@ func (p *politeiawww) processNewComment(nc www.NewComment, u *user.User) (*www.N
 
 	// Ensure the comment is not a duplicate
 	_, err = p.decredCommentGetBySignature(nc.Token, nc.Signature)
-	if err != cache.ErrRecordNotFound {
+	switch err {
+	case nil:
+		// Duplicate comment was found
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusDuplicateComment,
 		}
+	case cache.ErrRecordNotFound:
+		// No duplicate comment; continue
+	default:
+		// Some other error
+		return nil, fmt.Errorf("decredCommentBySignature: %v", err)
 	}
 
 	// Setup plugin command
@@ -506,21 +510,19 @@ func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www
 	}
 
 	// Ensure proposal voting has not ended
-	vdr, err := p.decredVoteDetails(lc.Token)
+	vsr, err := p.decredVoteSummary(pr.CensorshipRecord.Token)
 	if err != nil {
-		return nil, fmt.Errorf("decredVoteDetails: %v", err)
+		return nil, err
 	}
-	vd := convertVoteDetailsReplyFromDecred(*vdr)
-
 	bb, err := p.getBestBlock()
 	if err != nil {
 		return nil, fmt.Errorf("getBestBlock: %v", err)
 	}
-
-	s := getVoteStatus(vd.AuthorizeVoteReply, vd.StartVoteReply, bb)
+	s := voteStatusFromVoteSummary(*vsr, bb)
 	if s == www.PropVoteStatusFinished {
 		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusWrongVoteStatus,
+			ErrorCode:    www.ErrorStatusWrongVoteStatus,
+			ErrorContext: []string{"vote has ended"},
 		}
 	}
 
@@ -652,21 +654,19 @@ func (p *politeiawww) processCensorComment(cc www.CensorComment, u *user.User) (
 	}
 
 	// Ensure proposal voting has not ended
-	vdr, err := p.decredVoteDetails(cc.Token)
+	vsr, err := p.decredVoteSummary(cc.Token)
 	if err != nil {
-		return nil, fmt.Errorf("decredVoteDetails: %v", err)
+		return nil, err
 	}
-	vd := convertVoteDetailsReplyFromDecred(*vdr)
-
 	bb, err := p.getBestBlock()
 	if err != nil {
 		return nil, fmt.Errorf("getBestBlock: %v", err)
 	}
-
-	s := getVoteStatus(vd.AuthorizeVoteReply, vd.StartVoteReply, bb)
+	s := voteStatusFromVoteSummary(*vsr, bb)
 	if s == www.PropVoteStatusFinished {
 		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusWrongVoteStatus,
+			ErrorCode:    www.ErrorStatusWrongVoteStatus,
+			ErrorContext: []string{"vote has ended"},
 		}
 	}
 

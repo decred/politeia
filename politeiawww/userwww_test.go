@@ -1,10 +1,11 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package main
 
 import (
+	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"io/ioutil"
@@ -18,7 +19,59 @@ import (
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/go-test/deep"
 	"github.com/gorilla/mux"
+	"github.com/gorilla/sessions"
 )
+
+// newPostReq returns an httptest post request that was created using the
+// passed in data.
+func newPostReq(t *testing.T, route string, body interface{}) *http.Request {
+	t.Helper()
+
+	b, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+
+	return httptest.NewRequest(http.MethodPost, route,
+		bytes.NewReader(b))
+}
+
+// addSessionToReq initializes a user session and adds a session cookie to the
+// given http request. The user session is saved to the politeiawww session
+// store during intialization.
+func addSessionToReq(t *testing.T, p *politeiawww, req *http.Request, userID string) {
+	t.Helper()
+
+	// Init session adds a session cookie onto the http response.
+	r := httptest.NewRequest(http.MethodGet, "/", bytes.NewReader([]byte{}))
+	w := httptest.NewRecorder()
+	err := p.initSession(w, r, userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := w.Result()
+	res.Body.Close()
+
+	// Grab the session cookie from the response and add it to the
+	// request.
+	var c *http.Cookie
+	for _, v := range res.Cookies() {
+		if v.Name == www.CookieSession {
+			c = v
+			break
+		}
+	}
+	req.AddCookie(c)
+
+	// Verify the session was added successfully.
+	s, err := p.getSession(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.IsNew {
+		t.Fatal("session not found in store")
+	}
+}
 
 func TestHandleNewUser(t *testing.T) {
 	p, cleanup := newTestPoliteiawww(t)
@@ -407,11 +460,32 @@ func TestHandleLogin(t *testing.T) {
 			}
 
 			if res.StatusCode == http.StatusOK {
-				// A user session should have been
-				// created if login was successful.
-				_, err := p.getSessionUser(w, r)
+				// A user session should have been added to the response
+				// cookie.
+				var sessionID string
+				for _, v := range res.Cookies() {
+					if v.Name == www.CookieSession && v.Value != "" {
+						sessionID = v.Value
+					}
+				}
+				if sessionID == "" {
+					t.Errorf("no session cookie in response")
+				}
+
+				// A user session should have been added to the session
+				// store. The best way to check this is to add a session
+				// cookie onto a request and use the getSession() method.
+				req := httptest.NewRequest(http.MethodGet, "/",
+					bytes.NewReader([]byte{}))
+				opts := newSessionOptions()
+				c := sessions.NewCookie(www.CookieSession, sessionID, opts)
+				req.AddCookie(c)
+				s, err := p.getSession(req)
 				if err != nil {
-					t.Errorf("session not created")
+					t.Error(err)
+				}
+				if s.IsNew {
+					t.Errorf("session not saved to session store")
 				}
 
 				// Check response body
@@ -613,13 +687,8 @@ func TestHandleChangePassword(t *testing.T) {
 		t.Run(v.name, func(t *testing.T) {
 			// Setup request
 			r := newPostReq(t, www.RouteChangePassword, v.reqBody)
+			addSessionToReq(t, p, r, usr.ID.String())
 			w := httptest.NewRecorder()
-
-			// Set user session
-			err := p.setSessionUserID(w, r, usr.ID.String())
-			if err != nil {
-				t.Fatalf("%v", err)
-			}
 
 			// Run test case
 			p.handleChangePassword(w, r)
@@ -639,7 +708,7 @@ func TestHandleChangePassword(t *testing.T) {
 			}
 
 			var ue www.UserError
-			err = json.Unmarshal(body, &ue)
+			err := json.Unmarshal(body, &ue)
 			if err != nil {
 				t.Errorf("unmarshal UserError: %v", err)
 			}
@@ -883,13 +952,8 @@ func TestHandleChangeUsername(t *testing.T) {
 		t.Run(v.name, func(t *testing.T) {
 			// Setup request
 			r := newPostReq(t, www.RouteChangeUsername, v.reqBody)
+			addSessionToReq(t, p, r, usr.ID.String())
 			w := httptest.NewRecorder()
-
-			// Set user session
-			err := p.setSessionUserID(w, r, usr.ID.String())
-			if err != nil {
-				t.Fatalf("%v", err)
-			}
 
 			// Run test case
 			p.handleChangeUsername(w, r)
@@ -909,7 +973,7 @@ func TestHandleChangeUsername(t *testing.T) {
 			}
 
 			var ue www.UserError
-			err = json.Unmarshal(body, &ue)
+			err := json.Unmarshal(body, &ue)
 			if err != nil {
 				t.Errorf("unmarshal UserError: %v", err)
 			}
@@ -969,9 +1033,9 @@ func TestHandleUserDetails(t *testing.T) {
 			})
 			w := httptest.NewRecorder()
 
-			// Set user session
+			// Initialize the user session
 			if v.loggedIn {
-				err := p.setSessionUserID(w, r, usr.ID.String())
+				err := p.initSession(w, r, usr.ID.String())
 				if err != nil {
 					t.Fatalf("%v", err)
 				}
@@ -1044,13 +1108,8 @@ func TestHandleEditUser(t *testing.T) {
 		t.Run(v.name, func(t *testing.T) {
 			// Setup request
 			r := newPostReq(t, www.RouteEditUser, v.reqBody)
+			addSessionToReq(t, p, r, usr.ID.String())
 			w := httptest.NewRecorder()
-
-			// Set user session
-			err := p.setSessionUserID(w, r, usr.ID.String())
-			if err != nil {
-				t.Fatalf("%v", err)
-			}
 
 			// Run test case
 			p.handleEditUser(w, r)
@@ -1070,7 +1129,7 @@ func TestHandleEditUser(t *testing.T) {
 			}
 
 			var ue www.UserError
-			err = json.Unmarshal(body, &ue)
+			err := json.Unmarshal(body, &ue)
 			if err != nil {
 				t.Errorf("unmarshal UserError: %v", err)
 			}

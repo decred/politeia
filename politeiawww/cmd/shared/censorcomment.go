@@ -8,7 +8,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/decred/politeia/politeiawww/api/www/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
 )
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -11,7 +11,6 @@ import (
 	"crypto/tls"
 	_ "encoding/gob"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -39,7 +38,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
-	"github.com/gorilla/sessions"
 	"github.com/robfig/cron"
 )
 
@@ -51,13 +49,6 @@ const (
 	permissionAdmin
 
 	csrfKeyLength = 32
-	sessionMaxAge = 86400 //One day
-)
-
-var (
-	// ErrSessionUUIDNotFound is emitted when a UUID value is not found
-	// in a session and indicates that the user is not logged in.
-	ErrSessionUUIDNotFound = errors.New("session UUID not found")
 )
 
 // Fetch remote identity
@@ -186,10 +177,11 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, userHttpCode int, 
 		})
 }
 
-// addRoute sets up a handler for a specific method+route. If methos is not
-// specified it adds a websocket.
-func (p *politeiawww) addRoute(method string, route string, handler http.HandlerFunc, perm permission) {
-	fullRoute := www.PoliteiaWWWAPIRoute + route
+// addRoute sets up a handler for a specific method+route. If method is not
+// specified it adds a websocket. The routeVersion should be in the format
+// "/v1".
+func (p *politeiawww) addRoute(method string, routeVersion string, route string, handler http.HandlerFunc, perm permission) {
+	fullRoute := routeVersion + route
 
 	switch perm {
 	case permissionAdmin:
@@ -496,16 +488,32 @@ func _main() error {
 	}
 	fCSRF.Close()
 
-	csrfHandle := csrf.Protect(csrfKey, csrf.Path("/"))
+	csrfHandle := csrf.Protect(
+		csrfKey,
+		csrf.Path("/"),
+	)
 
 	p.router = mux.NewRouter()
 	p.router.Use(recoverMiddleware)
+
+	// Setup dcrdata websocket connection
+	ws, err := newWSDcrdata()
+	if err != nil {
+		return fmt.Errorf("new wsDcrdata: %v", err)
+	}
+	p.wsDcrdata = ws
 
 	switch p.cfg.Mode {
 	case politeiaWWWMode:
 		p.setPoliteiaWWWRoutes()
 		// XXX setup user routes
 		p.setUserWWWRoutes()
+		err = p.setupPiDcrdataWSSubs()
+		if err != nil {
+			// Politeiawww can run without a dcrdata subscription, but this
+			// should be logged.
+			log.Errorf("Unable to setup pi dcrdata subs: %v", err)
+		}
 	case cmsWWWMode:
 		p.setCMSWWWRoutes()
 		// XXX setup user routes
@@ -585,16 +593,9 @@ func _main() error {
 		}
 
 		// Setup invoice notifications
-
 		p.cron = cron.New()
 		p.checkInvoiceNotifications()
 
-		// Setup address watcher
-		ws, err := newWSDcrdata()
-		if err != nil {
-			return fmt.Errorf("new wsDcrdata: %v", err)
-		}
-		p.wsDcrdata = ws
 		p.setupCMSAddressWatcher()
 		err = p.restartCMSAddressesWatching()
 		if err != nil {
@@ -623,14 +624,7 @@ func _main() error {
 	if err != nil {
 		return err
 	}
-	p.store = sessions.NewFilesystemStore(sessionsDir, cookieKey)
-	p.store.Options = &sessions.Options{
-		Path:     "/",
-		MaxAge:   sessionMaxAge,
-		Secure:   true,
-		HttpOnly: true,
-		SameSite: http.SameSiteStrictMode,
-	}
+	p.sessions = NewSessionStore(p.db, sessionMaxAge, cookieKey)
 
 	// Bind to a port and pass our router in
 	listenC := make(chan error)
@@ -691,7 +685,7 @@ done:
 
 	// Shutdown all dcrdata websockets
 	if p.wsDcrdata != nil {
-		p.wsDcrdata.client.Stop()
+		p.wsDcrdata.close()
 	}
 
 	return nil

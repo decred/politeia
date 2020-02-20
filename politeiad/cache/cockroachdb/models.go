@@ -65,6 +65,26 @@ func (Record) TableName() string {
 	return tableRecords
 }
 
+// ProposalGeneralMetadata represents general medadata for a proposal.
+//
+// This mdstream data is already saved to the cache as a MetadataStream with an
+// encoded payload. The ProposalGeneralMetadata duplicates existing data, but
+// is necessary so that the metadata fields can be queried, which is not
+// possible with the encoded MetadataStream payload. ProposalGeneralMetadata
+// is only saved for the most recent proposal version since this is the only
+// metadata that currently needs to be queried.
+//
+// This is a decred plugin model.
+type ProposalGeneralMetadata struct {
+	Token           string `gorm:"primary_key;size:64"` // Censorship token
+	ProposalVersion uint64 `gorm:"not null"`            // Proposal version
+	Version         uint64 `gorm:"not null"`            // Struct version
+	Timestamp       int64  `gorm:"not null"`            // Last update of proposal
+	Name            string `gorm:"not null"`            // Proposal name
+	Signature       string `gorm:"not null;size:128"`   // Client signature
+	PublicKey       string `gorm:"not null;size:64"`    // Pubkey used for Signature
+}
+
 // Comment represents a record comment, including all of the server side
 // metadata.
 //
@@ -143,20 +163,37 @@ func (VoteOption) TableName() string {
 
 // StartVote records the details of a proposal vote.
 //
+// ProposalVersion will only be present when StartVote version is >= 2 since
+// the decredplugin VoteV1 struct does not contain the proposal version.
+//
+// QuorumPercentage is the percent of eligible votes required for a quorum.
+//
+// PassPercentage is the percent of total votes required for the proposal to
+// be considered approved.
+//
+// The data contained in the cache StartVote includes the decredplugin
+// StartVote and StartVoteReply mdstreams. These mdstreams are not saved in the
+// cache as separate Record.Metadata for the given proposal. This means that
+// this mdstream data will not be returned when a proposal record is fetched
+// from the cache. The cache StartVote must be queried directly to obtain this
+// data.
+//
 // This is a decred plugin model.
 type StartVote struct {
 	Token               string       `gorm:"primary_key;size:64"` // Censorship token
-	Version             uint64       `gorm:"not null"`            // Version of files
+	Version             uint         `gorm:"not null"`            // StartVote struct version
+	ProposalVersion     uint32       ``                           // Prop version being voted on
+	Type                int          `gorm:"not null"`            // Vote type
 	Mask                uint64       `gorm:"not null"`            // Valid votebits
 	Duration            uint32       `gorm:"not null"`            // Duration in blocks
-	QuorumPercentage    uint32       `gorm:"not null"`            // Percent of eligible votes required for quorum
-	PassPercentage      uint32       `gorm:"not null"`            // Percent of total votes required to pass
+	QuorumPercentage    uint32       `gorm:"not null"`            // Quorum requirement
+	PassPercentage      uint32       `gorm:"not null"`            // Approval requirement
 	Options             []VoteOption `gorm:"foreignkey:Token"`    // Vote option
 	PublicKey           string       `gorm:"not null;size:64"`    // Key used for signature
-	Signature           string       `gorm:"not null;size:128"`   // Signature of Votehash
-	StartBlockHeight    string       `gorm:"not null"`            // Block height
+	Signature           string       `gorm:"not null;size:128"`   // Signature
+	StartBlockHeight    uint32       `gorm:"not null"`            // Block height
 	StartBlockHash      string       `gorm:"not null"`            // Block hash
-	EndHeight           uint64       `gorm:"not null"`            // Height of vote end
+	EndHeight           uint32       `gorm:"not null"`            // Height of vote end
 	EligibleTickets     string       `gorm:"not null"`            // Valid voting tickets
 	EligibleTicketCount int          `gorm:"not null"`            // Number of eligible tickets
 }

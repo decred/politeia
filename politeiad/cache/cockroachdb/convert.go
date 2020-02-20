@@ -182,7 +182,7 @@ func convertAuthorizeVoteToDecred(av AuthorizeVote) decredplugin.AuthorizeVote {
 	}
 }
 
-func convertStartVoteFromDecred(sv decredplugin.StartVote, svr decredplugin.StartVoteReply, endHeight uint64) StartVote {
+func convertStartVoteV1FromDecred(sv decredplugin.StartVoteV1, svr decredplugin.StartVoteReply) (*StartVote, error) {
 	opts := make([]VoteOption, 0, len(sv.Vote.Options))
 	for _, v := range sv.Vote.Options {
 		opts = append(opts, VoteOption{
@@ -192,8 +192,20 @@ func convertStartVoteFromDecred(sv decredplugin.StartVote, svr decredplugin.Star
 			Bits:        v.Bits,
 		})
 	}
-	return StartVote{
+	startHeight, err := strconv.ParseUint(svr.StartBlockHeight, 10, 32)
+	if err != nil {
+		return nil, fmt.Errorf("parse start height '%v': %v",
+			svr.StartBlockHeight, err)
+	}
+	endHeight, err := strconv.ParseUint(svr.EndHeight, 10, 32)
+	if err != nil {
+		return nil, fmt.Errorf("parse end height '%v': %v",
+			svr.EndHeight, err)
+	}
+	return &StartVote{
 		Token:               sv.Vote.Token,
+		Version:             sv.Version,
+		Type:                int(decredplugin.VoteTypeStandard),
 		Mask:                sv.Vote.Mask,
 		Duration:            sv.Vote.Duration,
 		QuorumPercentage:    sv.Vote.QuorumPercentage,
@@ -201,15 +213,59 @@ func convertStartVoteFromDecred(sv decredplugin.StartVote, svr decredplugin.Star
 		Options:             opts,
 		PublicKey:           sv.PublicKey,
 		Signature:           sv.Signature,
-		StartBlockHeight:    svr.StartBlockHeight,
+		StartBlockHeight:    uint32(startHeight),
 		StartBlockHash:      svr.StartBlockHash,
-		EndHeight:           endHeight,
+		EndHeight:           uint32(endHeight),
 		EligibleTickets:     strings.Join(svr.EligibleTickets, ","),
 		EligibleTicketCount: len(svr.EligibleTickets),
-	}
+	}, nil
 }
 
-func convertStartVoteToDecred(sv StartVote) (decredplugin.StartVote, decredplugin.StartVoteReply) {
+func convertStartVoteV2FromDecred(sv decredplugin.StartVoteV2, svr decredplugin.StartVoteReply) (*StartVote, error) {
+	opts := make([]VoteOption, 0, len(sv.Vote.Options))
+	for _, v := range sv.Vote.Options {
+		opts = append(opts, VoteOption{
+			Token:       sv.Vote.Token,
+			ID:          v.Id,
+			Description: v.Description,
+			Bits:        v.Bits,
+		})
+	}
+	startHeight, err := strconv.ParseUint(svr.StartBlockHeight, 10, 32)
+	if err != nil {
+		return nil, fmt.Errorf("parse start height '%v': %v",
+			svr.StartBlockHeight, err)
+	}
+	endHeight, err := strconv.ParseUint(svr.EndHeight, 10, 32)
+	if err != nil {
+		return nil, fmt.Errorf("parse end height '%v': %v",
+			svr.EndHeight, err)
+	}
+	// The version must be pulled from decredplugin because the version
+	// is filled in by the politeiad backend and does not travel to the
+	// cache. If the cache is being built from scratch the version will
+	// be present since the data is being read directly from disk.
+	return &StartVote{
+		Token:               sv.Vote.Token,
+		Version:             decredplugin.VersionStartVoteV2,
+		ProposalVersion:     sv.Vote.ProposalVersion,
+		Type:                int(sv.Vote.Type),
+		Mask:                sv.Vote.Mask,
+		Duration:            sv.Vote.Duration,
+		QuorumPercentage:    sv.Vote.QuorumPercentage,
+		PassPercentage:      sv.Vote.PassPercentage,
+		Options:             opts,
+		PublicKey:           sv.PublicKey,
+		Signature:           sv.Signature,
+		StartBlockHeight:    uint32(startHeight),
+		StartBlockHash:      svr.StartBlockHash,
+		EndHeight:           uint32(endHeight),
+		EligibleTickets:     strings.Join(svr.EligibleTickets, ","),
+		EligibleTicketCount: len(svr.EligibleTickets),
+	}, nil
+}
+
+func convertStartVoteToDecredV1(sv StartVote) (*decredplugin.StartVote, error) {
 	opts := make([]decredplugin.VoteOption, 0, len(sv.Options))
 	for _, v := range sv.Options {
 		opts = append(opts, decredplugin.VoteOption{
@@ -218,11 +274,10 @@ func convertStartVoteToDecred(sv StartVote) (decredplugin.StartVote, decredplugi
 			Bits:        v.Bits,
 		})
 	}
-
-	dsv := decredplugin.StartVote{
+	dsv := decredplugin.StartVoteV1{
+		Version:   sv.Version,
 		PublicKey: sv.PublicKey,
-		Signature: sv.Signature,
-		Vote: decredplugin.Vote{
+		Vote: decredplugin.VoteV1{
 			Token:            sv.Token,
 			Mask:             sv.Mask,
 			Duration:         sv.Duration,
@@ -230,20 +285,87 @@ func convertStartVoteToDecred(sv StartVote) (decredplugin.StartVote, decredplugi
 			PassPercentage:   sv.PassPercentage,
 			Options:          opts,
 		},
+		Signature: sv.Signature,
+	}
+	svb, err := decredplugin.EncodeStartVoteV1(dsv)
+	if err != nil {
+		return nil, err
+	}
+	return &decredplugin.StartVote{
+		Token:   sv.Token,
+		Version: sv.Version,
+		Payload: string(svb),
+	}, nil
+}
+
+func convertStartVoteToDecredV2(sv StartVote) (*decredplugin.StartVote, error) {
+	opts := make([]decredplugin.VoteOption, 0, len(sv.Options))
+	for _, v := range sv.Options {
+		opts = append(opts, decredplugin.VoteOption{
+			Id:          v.ID,
+			Description: v.Description,
+			Bits:        v.Bits,
+		})
+	}
+	dsv := decredplugin.StartVoteV2{
+		Version:   sv.Version,
+		PublicKey: sv.PublicKey,
+		Vote: decredplugin.VoteV2{
+			Token:            sv.Token,
+			ProposalVersion:  sv.ProposalVersion,
+			Type:             decredplugin.VoteT(sv.Type),
+			Mask:             sv.Mask,
+			Duration:         sv.Duration,
+			QuorumPercentage: sv.QuorumPercentage,
+			PassPercentage:   sv.PassPercentage,
+			Options:          opts,
+		},
+		Signature: sv.Signature,
+	}
+	svb, err := decredplugin.EncodeStartVoteV2(dsv)
+	if err != nil {
+		return nil, err
+	}
+	return &decredplugin.StartVote{
+		Token:   sv.Token,
+		Version: sv.Version,
+		Payload: string(svb),
+	}, nil
+}
+
+func convertStartVoteToDecred(sv StartVote) (*decredplugin.StartVote, *decredplugin.StartVoteReply, error) {
+	var (
+		dsv *decredplugin.StartVote
+		err error
+	)
+	switch sv.Version {
+	case decredplugin.VersionStartVoteV1:
+		dsv, err = convertStartVoteToDecredV1(sv)
+		if err != nil {
+			return nil, nil, err
+		}
+	case decredplugin.VersionStartVoteV2:
+		dsv, err = convertStartVoteToDecredV2(sv)
+		if err != nil {
+			return nil, nil, err
+		}
+	default:
+		return nil, nil, fmt.Errorf("invalid StartVote version %v %v",
+			sv.Token, sv.Version)
 	}
 
 	var tix []string
 	if sv.EligibleTickets != "" {
 		tix = strings.Split(sv.EligibleTickets, ",")
 	}
-	dsvr := decredplugin.StartVoteReply{
-		StartBlockHeight: sv.StartBlockHeight,
+	dsvr := &decredplugin.StartVoteReply{
+		StartBlockHeight: strconv.FormatUint(uint64(sv.StartBlockHeight), 10),
 		StartBlockHash:   sv.StartBlockHash,
-		EndHeight:        fmt.Sprint(sv.EndHeight),
+		EndHeight:        strconv.FormatUint(uint64(sv.EndHeight), 10),
 		EligibleTickets:  tix,
 	}
 
-	return dsv, dsvr
+	return dsv, dsvr, nil
 }
 
 func convertCastVoteFromDecred(cv decredplugin.CastVote) CastVote {

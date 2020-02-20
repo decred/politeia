@@ -66,7 +66,7 @@ type piwww struct {
 	LikeComment        LikeCommentCmd           `command:"likecomment" description:"(user)   upvote/downvote a comment"`
 	Login              shared.LoginCmd          `command:"login" description:"(public) login to Politeia"`
 	Logout             shared.LogoutCmd         `command:"logout" description:"(public) logout of Politeia"`
-	ManageUser         ManageUserCmd            `command:"manageuser" description:"(admin)  edit certain properties of the specified user"`
+	ManageUser         shared.ManageUserCmd     `command:"manageuser" description:"(admin)  edit certain properties of the specified user"`
 	Me                 shared.MeCmd             `command:"me" description:"(user)   get user details for the logged in user"`
 	NewComment         shared.NewCommentCmd     `command:"newcomment" description:"(user)   create a new comment"`
 	NewProposal        NewProposalCmd           `command:"newproposal" description:"(user)   create a new proposal"`
@@ -97,6 +97,7 @@ type piwww struct {
 	Version            shared.VersionCmd        `command:"version" description:"(public) get server info and CSRF token"`
 	VettedProposals    VettedProposalsCmd       `command:"vettedproposals" description:"(public) get a page of vetted proposals"`
 	Vote               VoteCmd                  `command:"vote" description:"(public) cast votes for a proposal"`
+	VoteDetails        VoteDetailsCmd           `command:"votedetails" description:"(public) get the details for a proposal vote"`
 	VoteResults        VoteResultsCmd           `command:"voteresults" description:"(public) get vote results for a proposal"`
 	VoteStatus         VoteStatusCmd            `command:"votestatus" description:"(public) get the vote status of a proposal"`
 	VoteStatuses       VoteStatusesCmd          `command:"votestatuses" description:"(public) get the vote status for all public proposals"`

@@ -1,16 +1,12 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package main
 
 import (
-	"bytes"
 	"encoding/hex"
-	"encoding/json"
 	"io/ioutil"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -26,7 +22,6 @@ import (
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	"github.com/gorilla/sessions"
 )
 
 // errToStr returns the string representation of the error. If the error is a
@@ -43,20 +38,6 @@ func errToStr(e error) string {
 	}
 
 	return e.Error()
-}
-
-// newPostReq returns an httptest post request that was created using the
-// passed in data.
-func newPostReq(t *testing.T, route string, body interface{}) *http.Request {
-	t.Helper()
-
-	b, err := json.Marshal(body)
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
-
-	return httptest.NewRequest(http.MethodPost, route,
-		bytes.NewReader(b))
 }
 
 func payRegistrationFee(t *testing.T, p *politeiawww, u *user.User) {
@@ -214,19 +195,6 @@ func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
 	if err != nil {
 		t.Fatalf("create cookie key: %v", err)
 	}
-	sessionsDir := filepath.Join(cfg.DataDir, "sessions")
-	err = os.MkdirAll(sessionsDir, 0700)
-	if err != nil {
-		t.Fatalf("make sessions dir: %v", err)
-	}
-	store := sessions.NewFilesystemStore(sessionsDir, cookieKey)
-	store.Options = &sessions.Options{
-		Path:     "/",
-		MaxAge:   sessionMaxAge,
-		Secure:   true,
-		HttpOnly: true,
-		SameSite: http.SameSiteStrictMode,
-	}
 
 	// Setup logging
 	initLogRotator(filepath.Join(dataDir, "politeiawww.test.log"))
@@ -239,7 +207,7 @@ func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
 		cache:           testcache.New(),
 		params:          &chaincfg.TestNet3Params,
 		router:          mux.NewRouter(),
-		store:           store,
+		sessions:        NewSessionStore(db, sessionMaxAge, cookieKey),
 		smtp:            smtp,
 		test:            true,
 		userEmails:      make(map[string]uuid.UUID),

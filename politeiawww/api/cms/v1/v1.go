@@ -1,6 +1,8 @@
 package v1
 
 import (
+	"fmt"
+
 	"github.com/decred/dcrd/dcrutil"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 )
@@ -15,10 +17,12 @@ type DCCTypeT int
 type DCCStatusT int
 
 const (
+	APIVersion = 1
 
 	// Contractor Management Routes
 	RouteInviteNewUser       = "/invite"
 	RouteRegisterUser        = "/register"
+	RouteCMSUsers            = "/cmsusers"
 	RouteNewInvoice          = "/invoices/new"
 	RouteEditInvoice         = "/invoices/edit"
 	RouteInvoiceDetails      = "/invoices/{token:[A-z0-9]{64}}"
@@ -33,6 +37,7 @@ const (
 	RouteDCCComments         = "/dcc/{token:[A-z0-9]{64}}/comments"
 	RouteSetDCCStatus        = "/dcc/{token:[A-z0-9]{64}}/status"
 	RouteAdminInvoices       = "/admin/invoices"
+	RouteManageCMSUser       = "/admin/managecms"
 	RouteAdminUserInvoices   = "/admin/userinvoices"
 	RouteGeneratePayouts     = "/admin/generatepayouts"
 	RouteInvoicePayouts      = "/admin/invoicepayouts"
@@ -61,7 +66,6 @@ const (
 	DomainTypeInvalid       DomainTypeT = 0 // Invalid Domain type
 	DomainTypeDeveloper     DomainTypeT = 1 // Developer domain
 	DomainTypeMarketing     DomainTypeT = 2 // Marketing domain
-	DomainTypeCommunity     DomainTypeT = 3 // Community domain
 	DomainTypeResearch      DomainTypeT = 4 // Research domain
 	DomainTypeDesign        DomainTypeT = 5 // Design domain
 	DomainTypeDocumentation DomainTypeT = 6 // Documentation domain
@@ -206,6 +210,9 @@ const (
 )
 
 var (
+	// APIRoute is the route prefix for the cms v1 API
+	APIRoute = fmt.Sprintf("/v%v", APIVersion)
+
 	// PolicyValidMimeTypes is the accepted mime types of attachments
 	// in invoices
 	PolicyValidMimeTypes = []string{
@@ -233,6 +240,52 @@ var (
 	PolicySponsorStatementSupportedChars = []string{
 		"A-z", "0-9", "&", ".", ",", ":", ";", "-", " ", "@", "+", "#", "/",
 		"(", ")", "!", "?", "\"", "'"}
+
+	// PolicySupportedCMSDomains supplies the currently available domain types
+	// and descriptions of them.
+	PolicySupportedCMSDomains = []AvailableDomain{
+		{
+			Description: "development",
+			Type:        DomainTypeDeveloper,
+		},
+		{
+			Description: "marketing",
+			Type:        DomainTypeMarketing,
+		},
+		{
+			Description: "research",
+			Type:        DomainTypeResearch,
+		},
+		{
+			Description: "design",
+			Type:        DomainTypeDesign,
+		},
+		{
+			Description: "documentation",
+			Type:        DomainTypeDocumentation,
+		},
+	}
+
+	// PolicyCMSSupportedLineItemTypes supplies the currently available invoice types
+	// and descriptions of them.
+	PolicyCMSSupportedLineItemTypes = []AvailableLineItemType{
+		{
+			Description: "labor",
+			Type:        LineItemTypeLabor,
+		},
+		{
+			Description: "expense",
+			Type:        LineItemTypeExpense,
+		},
+		{
+			Description: "misc",
+			Type:        LineItemTypeMisc,
+		},
+		{
+			Description: "subhours",
+			Type:        LineItemTypeSubHours,
+		},
+	}
 
 	// ErrorStatus converts error status codes to human readable text.
 	ErrorStatus = map[www.ErrorStatusT]string{
@@ -287,6 +340,18 @@ var (
 		ErrorStatusInvalidSupervisorUser:          "attempted input of an invalid supervisor user id",
 	}
 )
+
+// AvailableDomain contains a domain type and it's corresponding description.
+type AvailableDomain struct {
+	Description string      `json:"description"`
+	Type        DomainTypeT `json:"type"`
+}
+
+// AvailableLineItemType contains a line item type and it's description
+type AvailableLineItemType struct {
+	Description string        `json:"description"`
+	Type        LineItemTypeT `json:"type"`
+}
 
 /// Contractor Management System Routes
 
@@ -400,29 +465,31 @@ type LineItemsInput struct {
 
 // PolicyReply returns the various policy information while in CMS mode.
 type PolicyReply struct {
-	MinPasswordLength             uint     `json:"minpasswordlength"`
-	MinUsernameLength             uint     `json:"minusernamelength"`
-	MaxUsernameLength             uint     `json:"maxusernamelength"`
-	MaxImages                     uint     `json:"maximages"`
-	MaxImageSize                  uint     `json:"maximagesize"`
-	MaxMDs                        uint     `json:"maxmds"`
-	MaxMDSize                     uint     `json:"maxmdsize"`
-	ValidMIMETypes                []string `json:"validmimetypes"`
-	MaxNameLength                 uint     `json:"maxnamelength"`
-	MinNameLength                 uint     `json:"minnamelength"`
-	MaxLocationLength             uint     `json:"maxlocationlength"`
-	MinLocationLength             uint     `json:"minlocationlength"`
-	MaxContactLength              uint     `json:"maxcontactlength"`
-	MinContactLength              uint     `json:"mincontactlength"`
-	MaxLineItemColLength          uint     `json:"maxlineitemcollength"`
-	MinLineItemColLength          uint     `json:"minlineitemcollength"`
-	InvoiceCommentChar            rune     `json:"invoicecommentchar"`
-	InvoiceFieldDelimiterChar     rune     `json:"invoicefielddelimiterchar"`
-	InvoiceLineItemCount          uint     `json:"invoicelineitemcount"`
-	InvoiceFieldSupportedChars    []string `json:"invoicefieldsupportedchars"`
-	UsernameSupportedChars        []string `json:"usernamesupportedchars"`
-	CMSNameLocationSupportedChars []string `json:"cmsnamelocationsupportedchars"`
-	CMSContactSupportedChars      []string `json:"cmscontactsupportedchars"`
+	MinPasswordLength             uint                    `json:"minpasswordlength"`
+	MinUsernameLength             uint                    `json:"minusernamelength"`
+	MaxUsernameLength             uint                    `json:"maxusernamelength"`
+	MaxImages                     uint                    `json:"maximages"`
+	MaxImageSize                  uint                    `json:"maximagesize"`
+	MaxMDs                        uint                    `json:"maxmds"`
+	MaxMDSize                     uint                    `json:"maxmdsize"`
+	ValidMIMETypes                []string                `json:"validmimetypes"`
+	MaxNameLength                 uint                    `json:"maxnamelength"`
+	MinNameLength                 uint                    `json:"minnamelength"`
+	MaxLocationLength             uint                    `json:"maxlocationlength"`
+	MinLocationLength             uint                    `json:"minlocationlength"`
+	MaxContactLength              uint                    `json:"maxcontactlength"`
+	MinContactLength              uint                    `json:"mincontactlength"`
+	MaxLineItemColLength          uint                    `json:"maxlineitemcollength"`
+	MinLineItemColLength          uint                    `json:"minlineitemcollength"`
+	InvoiceCommentChar            rune                    `json:"invoicecommentchar"`
+	InvoiceFieldDelimiterChar     rune                    `json:"invoicefielddelimiterchar"`
+	InvoiceLineItemCount          uint                    `json:"invoicelineitemcount"`
+	InvoiceFieldSupportedChars    []string                `json:"invoicefieldsupportedchars"`
+	UsernameSupportedChars        []string                `json:"usernamesupportedchars"`
+	CMSNameLocationSupportedChars []string                `json:"cmsnamelocationsupportedchars"`
+	CMSContactSupportedChars      []string                `json:"cmscontactsupportedchars"`
+	CMSSupportedLineItemTypes     []AvailableLineItemType `json:"supportedlineitemtypes"`
+	CMSSupportedDomains           []AvailableDomain       `json:"supporteddomains"`
 }
 
 // UserInvoices is used to get all of the invoices by userID.
@@ -593,16 +660,16 @@ type EditUser struct {
 // EditUserReply is the reply for the EditUser command.
 type EditUserReply struct{}
 
-// ManageUser performs the given action on a user.
-type ManageUser struct {
+// CMSManageUser updates the various fields for a given user.
+type CMSManageUser struct {
 	UserID            string          `json:"userid"`
 	Domain            DomainTypeT     `json:"domain,omitempty"`
 	ContractorType    ContractorTypeT `json:"contractortype,omitempty"`
 	SupervisorUserIDs []string        `json:"supervisoruserids,omitempty"`
 }
 
-// ManageUserReply is the reply for the ManageUserReply command.
-type ManageUserReply struct{}
+// CMSManageUserReply is the reply for the CMSManageUserReply command.
+type CMSManageUserReply struct{}
 
 // DCCInput contains all of the information concerning a DCC object that
 // will be submitted as a Record to the politeiad backend.
@@ -703,4 +770,24 @@ type UserSubContractors struct{}
 // sub contractors of the logged in user making the request.
 type UserSubContractorsReply struct {
 	Users []User `json:"users"`
+}
+
+// AbridgedCMSUser is a shortened version of CMS User that's used for the
+// CMSUsers reply.
+type AbridgedCMSUser struct {
+	ID             string          `json:"id"`
+	Domain         DomainTypeT     `json:"domain"`
+	ContractorType ContractorTypeT `json:"contractortype"`
+	Username       string          `json:"username"`
+}
+
+// CMSUsers is used to request a list of CMS users given a filter.
+type CMSUsers struct {
+	Domain         DomainTypeT     `json:"domain"`
+	ContractorType ContractorTypeT `json:"contractortype"`
+}
+
+// CMSUsersReply returns a list of Users that are currently
+type CMSUsersReply struct {
+	Users []AbridgedCMSUser `json:"users"`
 }

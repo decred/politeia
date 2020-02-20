@@ -49,7 +49,7 @@ type TestPoliteiad struct {
 
 	// Decred plugin
 	authorizeVotes   map[string]map[string]decred.AuthorizeVote // [token][version]AuthorizeVote
-	startVotes       map[string]decred.StartVote                // [token]StartVote
+	startVotes       map[string]decred.StartVoteV2              // [token]StartVote
 	startVoteReplies map[string]decred.StartVoteReply           // [token]StartVoteReply
 }
 
@@ -435,7 +435,7 @@ func New(t *testing.T, c cache.Cache) *TestPoliteiad {
 		cache:            c,
 		records:          make(map[string]map[string]v1.Record),
 		authorizeVotes:   make(map[string]map[string]decred.AuthorizeVote),
-		startVotes:       make(map[string]decred.StartVote),
+		startVotes:       make(map[string]decred.StartVoteV2),
 		startVoteReplies: make(map[string]decred.StartVoteReply),
 	}
 

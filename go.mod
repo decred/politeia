@@ -18,15 +18,17 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1 v1.0.2
 	github.com/decred/dcrd/dcrutil v1.4.0
 	github.com/decred/dcrd/hdkeychain v1.1.1
+	github.com/decred/dcrd/txscript v1.1.0 // indirect
 	github.com/decred/dcrd/wire v1.3.0
 	github.com/decred/dcrdata/api/types/v4 v4.0.4
-	github.com/decred/dcrdata/pubsub/types/v3 v3.0.3-0.20191018133341-23a17268b383
-	github.com/decred/dcrdata/pubsub/v3 v3.0.4-0.20191018133341-23a17268b383
+	github.com/decred/dcrdata/explorer/types/v2 v2.1.1
+	github.com/decred/dcrdata/pubsub/types/v3 v3.0.5
+	github.com/decred/dcrdata/pubsub/v4 v4.0.3-0.20191219212733-19f656d6d679
 	github.com/decred/dcrdata/semver v1.0.0
 	github.com/decred/dcrtime v0.0.0-20191018193024-8d8b4ef0458e
 	github.com/decred/dcrwallet v1.2.3-0.20190128160919-849f7c01c12d
 	github.com/decred/dcrwallet/rpc/walletrpc v0.2.0
-	github.com/decred/go-socks v1.0.0
+	github.com/decred/go-socks v1.1.0
 	github.com/decred/slog v1.0.0
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
 	github.com/go-test/deep v1.0.1
@@ -37,9 +39,10 @@ require (
 	github.com/google/certificate-transparency-go v1.0.21 // indirect
 	github.com/google/trillian v1.2.1
 	github.com/google/uuid v1.1.1
-	github.com/gorilla/csrf v1.6.0
+	github.com/gorilla/csrf v1.6.2
 	github.com/gorilla/mux v1.7.3
 	github.com/gorilla/schema v1.1.0
+	github.com/gorilla/securecookie v1.1.1
 	github.com/gorilla/sessions v1.2.0
 	github.com/gorilla/websocket v1.4.1
 	github.com/grpc-ecosystem/go-grpc-middleware v1.0.0 // indirect
@@ -68,7 +71,7 @@ require (
 	go.uber.org/multierr v1.1.0 // indirect
 	go.uber.org/zap v1.10.0 // indirect
 	golang.org/x/crypto v0.0.0-20190829043050-9756ffdc2472
-	golang.org/x/net v0.0.0-20190813141303-74dc4d7220e7
+	golang.org/x/net v0.0.0-20191028085509-fe3aa8a45271
 	golang.org/x/sync v0.0.0-20190423024810-112230192c58
 	google.golang.org/grpc v1.24.0
 	sigs.k8s.io/yaml v1.1.0 // indirect

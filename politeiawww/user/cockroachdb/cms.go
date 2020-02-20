@@ -238,6 +238,42 @@ func (c *cockroachdb) cmdCMSUsersByDomain(payload string) (string, error) {
 	return string(reply), nil
 }
 
+// cmdCMSUsersByContractorType returns all CMS users within the provided
+// contractor type.
+func (c *cockroachdb) cmdCMSUsersByContractorType(payload string) (string, error) {
+	// Decode payload
+	p, err := user.DecodeCMSUsersByContractorType([]byte(payload))
+	if err != nil {
+		return "", err
+	}
+
+	// Lookup cms users
+	var users []CMSUser
+	err = c.userDB.
+		Where("contractor_type = ?", p.ContractorType).
+		Preload("User").
+		Find(&users).
+		Error
+	if err != nil {
+		return "", err
+	}
+
+	// Prepare reply
+	u, err := c.convertCMSUsersFromDatabase(users)
+	if err != nil {
+		return "", err
+	}
+	r := user.CMSUsersByContractorTypeReply{
+		Users: u,
+	}
+	reply, err := user.EncodeCMSUsersByContractorTypeReply(r)
+	if err != nil {
+		return "", err
+	}
+
+	return string(reply), nil
+}
+
 // cmdCMSUserByID returns the user information for a given user ID.
 func (c *cockroachdb) cmdCMSUserByID(payload string) (string, error) {
 	// Decode payload
@@ -335,6 +371,8 @@ func (c *cockroachdb) cmsPluginExec(cmd, payload string) (string, error) {
 		return c.cmdNewCMSUser(payload)
 	case user.CmdCMSUsersByDomain:
 		return c.cmdCMSUsersByDomain(payload)
+	case user.CmdCMSUsersByContractorType:
+		return c.cmdCMSUsersByContractorType(payload)
 	case user.CmdUpdateCMSUser:
 		return c.cmdUpdateCMSUser(payload)
 	case user.CmdCMSUserByID:

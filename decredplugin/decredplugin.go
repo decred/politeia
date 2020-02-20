@@ -10,6 +10,7 @@ import (
 )
 
 type ErrorStatusT int
+type VoteT int
 
 // Plugin settings, kinda doesn;t go here but for now it is fine
 const (
@@ -44,6 +45,18 @@ const (
 	// Authorize vote actions
 	AuthVoteActionAuthorize = "authorize" // Authorize a proposal vote
 	AuthVoteActionRevoke    = "revoke"    // Revoke a proposal vote authorization
+
+	// Vote types
+	//
+	// VoteTypeStandard is used to indicate a simple approve or reject
+	// proposal vote where the winner is the voting option that has met
+	// the specified pass and quorum requirements.
+	VoteTypeInvalid  VoteT = 0
+	VoteTypeStandard VoteT = 1
+
+	// Versioning
+	VersionStartVoteV1 = 1
+	VersionStartVoteV2 = 2
 
 	// Error status codes
 	ErrorStatusInvalid          ErrorStatusT = 0
@@ -147,40 +160,6 @@ func DecodeBallotReply(payload []byte) (*BallotReply, error) {
 	return &br, nil
 }
 
-// VoteOption describes a single vote option.
-type VoteOption struct {
-	Id          string `json:"id"`          // Single unique word identifying vote (e.g. yes)
-	Description string `json:"description"` // Longer description of the vote.
-	Bits        uint64 `json:"bits"`        // Bits used for this option
-}
-
-// Vote represents the vote options for vote that is identified by its token.
-type Vote struct {
-	Token            string       `json:"token"`            // Token that identifies vote
-	Mask             uint64       `json:"mask"`             // Valid votebits
-	Duration         uint32       `json:"duration"`         // Duration in blocks
-	QuorumPercentage uint32       `json:"quorumpercentage"` // Percent of eligible votes required for quorum
-	PassPercentage   uint32       `json:"passpercentage"`   // Percent of total votes required to pass
-	Options          []VoteOption `json:"options"`          // Vote option
-}
-
-// EncodeVote encodes Vote into a JSON byte slice.
-func EncodeVote(v Vote) ([]byte, error) {
-	return json.Marshal(v)
-}
-
-// DecodeVote decodes a JSON byte slice into a Vote.
-func DecodeVote(payload []byte) (*Vote, error) {
-	var v Vote
-
-	err := json.Unmarshal(payload, &v)
-	if err != nil {
-		return nil, err
-	}
-
-	return &v, nil
-}
-
 // AuthorizeVote is an MDStream that is used to indicate that a proposal has
 // been finalized and is ready to be voted on.  The signature and public
 // key are from the proposal author.  The author can revoke a previously sent
@@ -242,19 +221,88 @@ func DecodeAuthorizeVoteReply(payload []byte) (*AuthorizeVoteReply, error) {
 
 // StartVote instructs the plugin to commence voting on a proposal with the
 // provided vote bits.
-const VersionStartVote = 1
+const VersionStartVote = 2
 
+// StartVote contains a JSON encoded StartVote of the specified Version. This
+// struct is never written to disk. It is used to pass around the various
+// StartVote versions.
 type StartVote struct {
+	Version uint   `json:"version"` // Payload StartVote version
+	Token   string `json:"token"`   // Proposal token
+	Payload string `json:"payload"` // JSON encoded StartVote
+}
+
+// EncodeStartVote encodes a StartVote into a JSON byte slice.
+func EncodeStartVote(sv StartVote) ([]byte, error) {
+	return json.Marshal(sv)
+}
+
+// DecodeStartVote decodes a JSON byte slice into a StartVote.
+func DecodeStartVote(b []byte) (*StartVote, error) {
+	sv := make(map[string]interface{}, 4)
+
+	err := json.Unmarshal(b, &sv)
+	if err != nil {
+		return nil, err
+	}
+
+	// Handle nested JSON
+	vote := sv["vote"].(map[string]interface{})
+
+	return &StartVote{
+		Token:   vote["token"].(string),
+		Version: uint(sv["version"].(float64)),
+		Payload: string(b),
+	}, nil
+}
+
+// VoteOption describes a single vote option.
+type VoteOption struct {
+	Id          string `json:"id"`          // Single unique word identifying vote (e.g. yes)
+	Description string `json:"description"` // Longer description of the vote
+	Bits        uint64 `json:"bits"`        // Bits used for this option
+}
+
+// VoteV1 represents the vote options and parameters for a StartVoteV1.
+type VoteV1 struct {
+	Token            string       `json:"token"`            // Token that identifies vote
+	Mask             uint64       `json:"mask"`             // Valid votebits
+	Duration         uint32       `json:"duration"`         // Duration in blocks
+	QuorumPercentage uint32       `json:"quorumpercentage"` // Percent of eligible votes required for quorum
+	PassPercentage   uint32       `json:"passpercentage"`   // Percent of total votes required to pass
+	Options          []VoteOption `json:"options"`          // Vote option
+}
+
+// EncodeVoteV1 encodes VoteV1 into a JSON byte slice.
+func EncodeVoteV1(v VoteV1) ([]byte, error) {
+	return json.Marshal(v)
+}
+
+// DecodeVoteV1 decodes a JSON byte slice into a VoteV1.
+func DecodeVoteV1(payload []byte) (*VoteV1, error) {
+	var v VoteV1
+
+	err := json.Unmarshal(payload, &v)
+	if err != nil {
+		return nil, err
+	}
+
+	return &v, nil
+}
+
+// StartVoteV1 was formerly used to start a proposal vote, but is not longer
+// accepted. A StartVoteV2 must be used to start a proposal vote.
+type StartVoteV1 struct {
 	// decred plugin only data
 	Version uint `json:"version"` // Version of this structure
 
-	PublicKey string `json:"publickey"` // Key used for signature.
-	Vote      Vote   `json:"vote"`      // Vote + options
-	Signature string `json:"signature"` // Signature of Votehash
+	PublicKey string `json:"publickey"` // Key used for signature
+	Vote      VoteV1 `json:"vote"`      // Vote + options
+	Signature string `json:"signature"` // Signature of token
 }
 
-// VerifySignature verifies that the StartVote signature is correct.
-func (s *StartVote) VerifySignature() error {
+// VerifySignature verifies that the StartVoteV1 signature is correct.
+func (s *StartVoteV1) VerifySignature() error {
 	sig, err := util.ConvertSignature(s.Signature)
 	if err != nil {
 		return err
@@ -273,14 +321,108 @@ func (s *StartVote) VerifySignature() error {
 	return nil
 }
 
-// EncodeStartVoteencodes StartVoteinto a JSON byte slice.
-func EncodeStartVote(v StartVote) ([]byte, error) {
+// EncodeStartVoteV1 encodes a StartVoteV1 into a JSON byte slice.
+func EncodeStartVoteV1(v StartVoteV1) ([]byte, error) {
 	return json.Marshal(v)
 }
 
-// DecodeVotedecodes a JSON byte slice into a StartVote.
-func DecodeStartVote(payload []byte) (*StartVote, error) {
-	var sv StartVote
+// DecodeVotedecodes a JSON byte slice into a StartVoteV1.
+func DecodeStartVoteV1(payload []byte) (*StartVoteV1, error) {
+	var sv StartVoteV1
+
+	err := json.Unmarshal(payload, &sv)
+	if err != nil {
+		return nil, err
+	}
+
+	return &sv, nil
+}
+
+// VoteV2 represents the vote options and vote parameters for a StartVoteV2.
+//
+// Differences between VoteV1 and VoteV2:
+// * Added the ProposalVersion field that specifies the version of the proposal
+//   that is being voted on. This was added so that the proposal version is
+//   explicitly included in the StartVote signature.
+// * Added a Type field in order to specify the vote type.
+type VoteV2 struct {
+	Token            string       `json:"token"`            // Token that identifies vote
+	ProposalVersion  uint32       `json:"proposalversion"`  // Proposal version being voted on
+	Type             VoteT        `json:"type"`             // Type of vote
+	Mask             uint64       `json:"mask"`             // Valid votebits
+	Duration         uint32       `json:"duration"`         // Duration in blocks
+	QuorumPercentage uint32       `json:"quorumpercentage"` // Percent of eligible votes required for quorum
+	PassPercentage   uint32       `json:"passpercentage"`   // Percent of total votes required to pass
+	Options          []VoteOption `json:"options"`          // Vote option
+}
+
+// EncodeVoteV2 encodes a VoteV2 into a JSON byte slice.
+func EncodeVoteV2(v VoteV2) ([]byte, error) {
+	return json.Marshal(v)
+}
+
+// DecodeVotedecodes a JSON byte slice into a VoteV2.
+func DecodeVoteV2(payload []byte) (*VoteV2, error) {
+	var v VoteV2
+
+	err := json.Unmarshal(payload, &v)
+	if err != nil {
+		return nil, err
+	}
+
+	return &v, nil
+}
+
+// StartVoteV2 is used to start a proposal vote.
+//
+// The message being signed is the SHA256 digest of the VoteV2 JSON byte slice.
+//
+// Differences between StartVoteV1 and StartVoteV2:
+// * Signature is the signature of a hash of the Vote struct. It was
+//   previously the signature of just the proposal token.
+// * Vote is now a VoteV2. See the VoteV2 comment for more details.
+type StartVoteV2 struct {
+	// decred plugin only data
+	Version uint `json:"version"` // Version of this structure
+
+	PublicKey string `json:"publickey"` // Key used for signature
+	Vote      VoteV2 `json:"vote"`      // Vote options and params
+	Signature string `json:"signature"` // Signature of Vote hash
+}
+
+// VerifySignature verifies that the StartVoteV2 signature is correct.
+func (s *StartVoteV2) VerifySignature() error {
+	sig, err := util.ConvertSignature(s.Signature)
+	if err != nil {
+		return err
+	}
+	b, err := hex.DecodeString(s.PublicKey)
+	if err != nil {
+		return err
+	}
+	pk, err := identity.PublicIdentityFromBytes(b)
+	if err != nil {
+		return err
+	}
+	vb, err := json.Marshal(s.Vote)
+	if err != nil {
+		return err
+	}
+	msg := hex.EncodeToString(util.Digest(vb))
+	if !pk.VerifyMessage([]byte(msg), sig) {
+		return fmt.Errorf("invalid signature")
+	}
+	return nil
+}
+
+// EncodeStartVoteV2 encodes a StartVoteV2 into a JSON byte slice.
+func EncodeStartVoteV2(v StartVoteV2) ([]byte, error) {
+	return json.Marshal(v)
+}
+
+// DecodeVotedecodes a JSON byte slice into a StartVoteV2.
+func DecodeStartVoteV2(payload []byte) (*StartVoteV2, error) {
+	var sv StartVoteV2
 
 	err := json.Unmarshal(payload, &sv)
 	if err != nil {

@@ -12,9 +12,12 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg"
+	exptypes "github.com/decred/dcrdata/explorer/types/v2"
+	pstypes "github.com/decred/dcrdata/pubsub/types/v3"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/cache"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	www2 "github.com/decred/politeia/politeiawww/api/www/v2"
 	"github.com/decred/politeia/politeiawww/cmsdatabase"
 	"github.com/decred/politeia/politeiawww/user"
 	utilwww "github.com/decred/politeia/politeiawww/util"
@@ -25,10 +28,6 @@ import (
 	"github.com/gorilla/sessions"
 	"github.com/gorilla/websocket"
 	"github.com/robfig/cron"
-)
-
-const (
-//templateNewProposalSubmittedName = "templateNewProposalSubmitted"
 )
 
 var (
@@ -82,10 +81,9 @@ func (w *wsContext) isAuthenticated() bool {
 
 // politeiawww application context.
 type politeiawww struct {
-	cfg    *config
-	router *mux.Router
-
-	store *sessions.FilesystemStore
+	cfg      *config
+	router   *mux.Router
+	sessions sessions.Store
 
 	ws    map[string]map[string]*wsContext // [uuid][]*context
 	wsMtx sync.RWMutex
@@ -132,6 +130,12 @@ type politeiawww struct {
 	// wsDcrdata contains the client and list of current subscriptions to
 	// dcrdata's public subscription websocket
 	wsDcrdata *wsDcrdata
+
+	// The current best block is cached and updated using a websocket
+	// subscription to dcrdata. If the websocket connection is not active,
+	// the dcrdata best block route of politeiad is used as a fallback.
+	bestBlock uint64
+	bbMtx     sync.RWMutex
 }
 
 // XXX rig this up
@@ -150,8 +154,8 @@ func (p *politeiawww) getTemplate(templateName string) *template.Template {
 	return p.templates[templateName]
 }
 
-// version is an HTTP GET to determine what version and API route this backend
-// is using.  Additionally it is used to obtain a CSRF token.
+// version is an HTTP GET to determine the lowest API route version that this
+// backend supports.  Additionally it is used to obtain a CSRF token.
 func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleVersion")
 
@@ -163,22 +167,7 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 		Mode:    p.cfg.Mode,
 	}
 
-	// Check if there's an active AND invalid session.
-	session, err := p.getSession(r)
-	if err != nil && session != nil {
-		// Create and save a new session for the user.
-		session := sessions.NewSession(p.store, www.CookieSession)
-		opts := *p.store.Options
-		session.Options = &opts
-		session.IsNew = true
-		err = session.Save(r, w)
-		if err != nil {
-			RespondWithError(w, r, 0, "handleVersion: session.Save %v", err)
-			return
-		}
-	}
-
-	_, err = p.getSessionUser(w, r)
+	_, err := p.getSessionUser(w, r)
 	if err == nil {
 		versionReply.ActiveUserSession = true
 	}
@@ -189,10 +178,15 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.Header().Add("Strict-Transport-Security",
+	w.Header().Set("Strict-Transport-Security",
 		"max-age=63072000; includeSubDomains")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Referrer-Policy", "same-origin")
+	w.Header().Set("X-Frame-Options", "DENY")
+	w.Header().Set("X-XSS-Protection", "1; mode=block")
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set(www.CsrfToken, csrf.Token(r))
+
 	w.WriteHeader(http.StatusOK)
 	w.Write(vr)
 }
@@ -251,13 +245,12 @@ func (p *politeiawww) handleProposalDetailsShort(w http.ResponseWriter, r *http.
 	pathParams := mux.Vars(r)
 	pds := www.ProposalDetailsShort{TokenPrefix: pathParams["tokenprefix"]}
 
+	// Get session user. This is a public route so one might not exist.
 	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		if err != ErrSessionUUIDNotFound {
-			RespondWithError(w, r, 0,
-				"handleProposalDetailsShort: getSessionUser %v", err)
-			return
-		}
+	if err != nil && err != errSessionNotFound {
+		RespondWithError(w, r, 0,
+			"handleProposalDetails: getSessionUser %v", err)
+		return
 	}
 
 	reply, err := p.processProposalDetailsShort(pds, user)
@@ -291,14 +284,14 @@ func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Reque
 	pathParams := mux.Vars(r)
 	pd.Token = pathParams["token"]
 
+	// Get session user. This is a public route so one might not exist.
 	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		if err != ErrSessionUUIDNotFound {
-			RespondWithError(w, r, 0,
-				"handleProposalDetails: getSessionUser %v", err)
-			return
-		}
+	if err != nil && err != errSessionNotFound {
+		RespondWithError(w, r, 0,
+			"handleProposalDetails: getSessionUser %v", err)
+		return
 	}
+
 	reply, err := p.processProposalDetails(pd, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
@@ -350,14 +343,12 @@ func (p *politeiawww) handleBatchProposals(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// Get session user. This is a public route so one might not exist.
 	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		// This is a public route so a session might not exist
-		if err != ErrSessionUUIDNotFound {
-			RespondWithError(w, r, 0,
-				"handleProposalDetails: getSessionUser %v", err)
-			return
-		}
+	if err != nil && err != errSessionNotFound {
+		RespondWithError(w, r, 0,
+			"handleBatchProposals: getSessionUser %v", err)
+		return
 	}
 
 	reply, err := p.processBatchProposals(bp, user)
@@ -402,14 +393,14 @@ func (p *politeiawww) handleCommentsGet(w http.ResponseWriter, r *http.Request) 
 	pathParams := mux.Vars(r)
 	token := pathParams["token"]
 
+	// Get session user. This is a public route so one might not exist.
 	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		if err != ErrSessionUUIDNotFound {
-			RespondWithError(w, r, 0,
-				"handleCommentsGet: getSessionUser %v", err)
-			return
-		}
+	if err != nil && err != errSessionNotFound {
+		RespondWithError(w, r, 0,
+			"handleCommentsGet: getSessionUser %v", err)
+		return
 	}
+
 	gcr, err := p.processCommentsGet(token, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
@@ -443,10 +434,12 @@ func (p *politeiawww) handleUserProposals(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// Get session user. This is a public route so one might not exist.
 	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		// This is a public route so a logged in user may not exist
-		log.Tracef("handleUserProposals: getSessionUser: %v", err)
+	if err != nil && err != errSessionNotFound {
+		RespondWithError(w, r, 0,
+			"handleUserProposals: getSessionUser %v", err)
+		return
 	}
 
 	upr, err := p.processUserProposals(
@@ -517,12 +510,31 @@ func (p *politeiawww) handleVoteResults(w http.ResponseWriter, r *http.Request) 
 	util.RespondWithJSON(w, http.StatusOK, vrr)
 }
 
+// handleVoteDetails returns the vote details for the given proposal token.
+func (p *politeiawww) handleVoteDetailsV2(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleVoteDetailsV2")
+
+	pathParams := mux.Vars(r)
+	token := pathParams["token"]
+
+	vrr, err := p.processVoteDetailsV2(token)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleVoteDetailsV2: processVoteDetailsV2: %v",
+			err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, vrr)
+}
+
 // handleGetAllVoteStatus returns the voting status of all public proposals.
 func (p *politeiawww) handleGetAllVoteStatus(w http.ResponseWriter, r *http.Request) {
 	gasvr, err := p.processGetAllVoteStatus()
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleGetAllVoteStatus: processGetAllVoteStatus %v", err)
+		return
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, gasvr)
@@ -542,14 +554,14 @@ func (p *politeiawww) handleVoteStatus(w http.ResponseWriter, r *http.Request) {
 
 // handleTokenInventory returns the tokens of all proposals in the inventory.
 func (p *politeiawww) handleTokenInventory(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleTokenInventory")
+
+	// Get session user. This is a public route so one might not exist.
 	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		// This is a public route so a session might not exist
-		if err != ErrSessionUUIDNotFound {
-			RespondWithError(w, r, 0,
-				"handleProposalDetails: getSessionUser %v", err)
-			return
-		}
+	if err != nil && err != errSessionNotFound {
+		RespondWithError(w, r, 0,
+			"handleTokenInventory: getSessionUser %v", err)
+		return
 	}
 
 	isAdmin := user != nil && user.Admin
@@ -890,6 +902,117 @@ func (p *politeiawww) handleWebsocketWrite(wc *wsContext) {
 	}
 }
 
+// updateBestBlock updates the cached best block.
+func (p *politeiawww) updateBestBlock(bestBlock uint64) {
+	p.bbMtx.Lock()
+	defer p.bbMtx.Unlock()
+	p.bestBlock = bestBlock
+}
+
+// getBestBlock returns the cached best block if there is an active websocket
+// connection to dcrdata. Otherwise, it requests the best block from politeiad
+// using the the decred plugin best block command.
+func (p *politeiawww) getBestBlock() (uint64, error) {
+	p.bbMtx.RLock()
+	bb := p.bestBlock
+	p.bbMtx.RUnlock()
+
+	// the cached best block will equal 0 if there is no active websocket
+	// connection to dcrdata, or if no new block messages have been received
+	// since a connection was established.
+	if bb == 0 {
+		return p.getBestBlockDecredPlugin()
+	}
+
+	return bb, nil
+}
+
+// resetPiDcrdataWSSubs is responsible for resetting the wsDcrdata connection
+// and making necessary changes to the required changes to the politeiawww
+// state so that the service continues to function properly during and after
+// the reconnection.
+func (p *politeiawww) resetPiDcrdataWSSubs() error {
+	// The cached best block is set to zero so that in the time between
+	// reconnection and receiving the first new block message, instead of
+	// using the old cached value, politeiad is queried for the best block.
+	p.updateBestBlock(0)
+
+	return p.wsDcrdata.reconnect()
+}
+
+// setupPiDcrdataWSSubs subscribes and listens to websocket messages from
+// dcrdata that are needed for pi.
+func (p *politeiawww) setupPiDcrdataWSSubs() error {
+	err := p.wsDcrdata.subscribe(newBlockSub)
+	if err != nil {
+		return err
+	}
+
+	go func() {
+		for {
+			receiver, err := p.wsDcrdata.receive()
+			if err == errShutdown {
+				log.Infof("Dcrdata websocket closed")
+				return
+			} else if err != nil {
+				log.Errorf("wsDcrdata receive: %v", err)
+				log.Infof("Dcrdata websocket closed")
+				return
+			}
+
+			msg, ok := <-receiver
+
+			if !ok {
+				// This check is here to avoid a spew of unnecessary error
+				// messages. The channel is expected to be closed if wsDcrdata
+				// is shut down.
+				if p.wsDcrdata.isShutdown() {
+					return
+				}
+
+				log.Errorf("wsDcrdata receive channel closed. Will reconnect.")
+				err = p.resetPiDcrdataWSSubs()
+				if err == errShutdown {
+					log.Infof("Dcrdata websocket closed")
+					return
+				} else if err != nil {
+					log.Errorf("resetPiDcrdataWSSub: %v", err)
+					log.Infof("Dcrdata websocket closed")
+					return
+				}
+
+				continue
+			}
+
+			switch m := msg.Message.(type) {
+			case *exptypes.WebsocketBlock:
+				log.Debugf("wsDcrdata message WebsocketBlock(height=%v)",
+					m.Block.Height)
+				p.updateBestBlock(uint64(m.Block.Height))
+			case *pstypes.HangUp:
+				log.Infof("Dcrdata has hung up. Will reconnect.")
+				err = p.resetPiDcrdataWSSubs()
+				if err == errShutdown {
+					log.Infof("Dcrdata websocket closed")
+					return
+				} else if err != nil {
+					log.Errorf("resetPiDcrdataWSSub: %v", err)
+					log.Infof("Dcrdata websocket closed")
+					return
+				}
+				log.Infof("Successfully reconnected to dcrdata")
+			case int:
+				// Ping messages are of type int
+			default:
+				log.Errorf("wsDcrdata message of type %v unhandled. %v",
+					msg.EventId, m)
+			}
+		}
+	}()
+
+	return nil
+}
+
 // handleWebsocket upgrades a regular HTTP connection to a websocket.
 func (p *politeiawww) handleWebsocket(w http.ResponseWriter, r *http.Request, id string) {
 	log.Tracef("handleWebsocket: %v", id)
@@ -968,8 +1091,8 @@ func (p *politeiawww) handleWebsocket(w http.ResponseWriter, r *http.Request, id
 func (p *politeiawww) handleUnauthenticatedWebsocket(w http.ResponseWriter, r *http.Request) {
 	// We are retrieving the uuid here to make sure it is NOT set. This
 	// check looks backwards but is correct.
-	id, err := p.getSessionUUID(r)
-	if err != nil && err != ErrSessionUUIDNotFound {
+	id, err := p.getSessionUserID(w, r)
+	if err != nil && err != errSessionNotFound {
 		http.Error(w, "Could not get session uuid",
 			http.StatusBadRequest)
 		return
@@ -987,7 +1110,7 @@ func (p *politeiawww) handleUnauthenticatedWebsocket(w http.ResponseWriter, r *h
 // handleAuthenticatedWebsocket attempts to upgrade the current authenticated
 // connection to a websocket connection.
 func (p *politeiawww) handleAuthenticatedWebsocket(w http.ResponseWriter, r *http.Request) {
-	id, err := p.getSessionUUID(r)
+	id, err := p.getSessionUserID(w, r)
 	if err != nil {
 		http.Error(w, "Could not get session uuid",
 			http.StatusBadRequest)
@@ -1035,14 +1158,14 @@ func (p *politeiawww) handleSetProposalStatus(w http.ResponseWriter, r *http.Req
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-// handleStartVote handles starting a vote.
-func (p *politeiawww) handleStartVote(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleStartVote")
+// handleStartVote handles the v2 StartVote route.
+func (p *politeiawww) handleStartVoteV2(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleStartVoteV2")
 
-	var sv www.StartVote
+	var sv www2.StartVote
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&sv); err != nil {
-		RespondWithError(w, r, 0, "handleStartVote: unmarshal",
+		RespondWithError(w, r, 0, "handleStartVoteV2: unmarshal",
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidInput,
 			})
@@ -1052,21 +1175,21 @@ func (p *politeiawww) handleStartVote(w http.ResponseWriter, r *http.Request) {
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleStartVote: getSessionUser %v", err)
+			"handleStartVoteV2: getSessionUser %v", err)
 		return
 	}
 
 	// Sanity
 	if !user.Admin {
 		RespondWithError(w, r, 0,
-			"handleStartVote: admin %v", user.Admin)
+			"handleStartVoteV2: admin %v", user.Admin)
 		return
 	}
 
-	svr, err := p.processStartVote(sv, user)
+	svr, err := p.processStartVoteV2(sv, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleStartVote: processStartVote %v", err)
+			"handleStartVoteV2: processStartVoteV2 %v", err)
 		return
 	}
 
@@ -1120,66 +1243,96 @@ func (p *politeiawww) setPoliteiaWWWRoutes() {
 	// Public routes.
 	p.router.HandleFunc("/", closeBody(logging(p.handleVersion))).Methods(http.MethodGet)
 	p.router.NotFoundHandler = closeBody(p.handleNotFound)
-	p.addRoute(http.MethodGet, www.RouteVersion, p.handleVersion,
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteVersion, p.handleVersion,
 		permissionPublic)
 
-	p.addRoute(http.MethodGet, www.RouteAllVetted, p.handleAllVetted,
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteAllVetted, p.handleAllVetted,
 		permissionPublic)
-	p.addRoute(http.MethodGet, www.RouteProposalDetails,
-		p.handleProposalDetails, permissionPublic)
-	p.addRoute(http.MethodGet, www.RouteProposalDetailsShort,
-		p.handleProposalDetailsShort, permissionPublic)
-	p.addRoute(http.MethodGet, www.RoutePolicy, p.handlePolicy,
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteProposalDetails, p.handleProposalDetails,
 		permissionPublic)
-	p.addRoute(http.MethodGet, www.RouteCommentsGet, p.handleCommentsGet,
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RoutePolicy, p.handlePolicy,
 		permissionPublic)
-	p.addRoute(http.MethodGet, www.RouteUserProposals, p.handleUserProposals,
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteProposalDetailsShort, p.handleProposalDetailsShort,
 		permissionPublic)
-	p.addRoute(http.MethodGet, www.RouteActiveVote, p.handleActiveVote,
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteCommentsGet, p.handleCommentsGet,
 		permissionPublic)
-	p.addRoute(http.MethodPost, www.RouteCastVotes, p.handleCastVotes,
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteUserProposals, p.handleUserProposals,
 		permissionPublic)
-	p.addRoute(http.MethodGet, www.RouteVoteResults,
-		p.handleVoteResults, permissionPublic)
-	p.addRoute(http.MethodGet, www.RouteAllVoteStatus,
-		p.handleGetAllVoteStatus, permissionPublic)
-	p.addRoute(http.MethodGet, www.RouteVoteStatus,
-		p.handleVoteStatus, permissionPublic)
-	p.addRoute(http.MethodGet, www.RouteTokenInventory,
-		p.handleTokenInventory, permissionPublic)
-	p.addRoute(http.MethodPost, www.RouteBatchProposals,
-		p.handleBatchProposals, permissionPublic)
-	p.addRoute(http.MethodPost, www.RouteBatchVoteSummary,
-		p.handleBatchVoteSummary, permissionPublic)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteActiveVote, p.handleActiveVote,
+		permissionPublic)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteCastVotes, p.handleCastVotes,
+		permissionPublic)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteVoteResults, p.handleVoteResults,
+		permissionPublic)
+	p.addRoute(http.MethodGet, www2.APIRoute,
+		www2.RouteVoteDetails, p.handleVoteDetailsV2,
+		permissionPublic)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteAllVoteStatus, p.handleGetAllVoteStatus,
+		permissionPublic)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteVoteStatus, p.handleVoteStatus,
+		permissionPublic)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteTokenInventory, p.handleTokenInventory,
+		permissionPublic)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteBatchProposals, p.handleBatchProposals,
+		permissionPublic)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteBatchVoteSummary, p.handleBatchVoteSummary,
+		permissionPublic)
 
 	// Routes that require being logged in.
-	p.addRoute(http.MethodGet, www.RouteProposalPaywallDetails,
-		p.handleProposalPaywallDetails, permissionLogin)
-	p.addRoute(http.MethodPost, www.RouteNewProposal, p.handleNewProposal,
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteProposalPaywallDetails, p.handleProposalPaywallDetails,
 		permissionLogin)
-	p.addRoute(http.MethodPost, www.RouteNewComment,
-		p.handleNewComment, permissionLogin) // XXX comments need to become a setting
-	p.addRoute(http.MethodPost, www.RouteLikeComment,
-		p.handleLikeComment, permissionLogin) // XXX comments need to become a setting
-	p.addRoute(http.MethodPost, www.RouteEditProposal,
-		p.handleEditProposal, permissionLogin)
-	p.addRoute(http.MethodPost, www.RouteAuthorizeVote,
-		p.handleAuthorizeVote, permissionLogin)
-	p.addRoute(http.MethodGet, www.RouteProposalPaywallPayment,
-		p.handleProposalPaywallPayment, permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteNewProposal, p.handleNewProposal,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteNewComment, p.handleNewComment,
+		permissionLogin) // XXX comments need to become a setting
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteLikeComment, p.handleLikeComment,
+		permissionLogin) // XXX comments need to become a setting
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteEditProposal, p.handleEditProposal,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteAuthorizeVote, p.handleAuthorizeVote,
+		permissionLogin)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteProposalPaywallPayment, p.handleProposalPaywallPayment,
+		permissionLogin)
 
 	// Unauthenticated websocket
-	p.addRoute("", www.RouteUnauthenticatedWebSocket,
-		p.handleUnauthenticatedWebsocket, permissionPublic)
+	p.addRoute("", www.PoliteiaWWWAPIRoute,
+		www.RouteUnauthenticatedWebSocket, p.handleUnauthenticatedWebsocket,
+		permissionPublic)
 	// Authenticated websocket
-	p.addRoute("", www.RouteAuthenticatedWebSocket,
-		p.handleAuthenticatedWebsocket, permissionLogin)
+	p.addRoute("", www.PoliteiaWWWAPIRoute,
+		www.RouteAuthenticatedWebSocket, p.handleAuthenticatedWebsocket,
+		permissionLogin)
 
 	// Routes that require being logged in as an admin user.
-	p.addRoute(http.MethodPost, www.RouteSetProposalStatus,
-		p.handleSetProposalStatus, permissionAdmin)
-	p.addRoute(http.MethodPost, www.RouteStartVote,
-		p.handleStartVote, permissionAdmin)
-	p.addRoute(http.MethodPost, www.RouteCensorComment,
-		p.handleCensorComment, permissionAdmin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteSetProposalStatus, p.handleSetProposalStatus,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, www2.APIRoute,
+		www2.RouteStartVote, p.handleStartVoteV2,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteCensorComment, p.handleCensorComment,
+		permissionAdmin)
 }

@@ -15,9 +15,11 @@ const (
 	UserdbPath              = "users"
 	LastPaywallAddressIndex = "lastpaywallindex"
 
-	UserVersion uint32 = 1
+	UserVersion    uint32 = 1
+	UserVersionKey        = "userversion"
 
-	UserVersionKey = "userversion"
+	// The key for a user session is sessionPrefix+sessionID
+	sessionPrefix = "session:"
 )
 
 var (
@@ -43,7 +45,9 @@ type Version struct {
 // and false otherwise. This is helpful when iterating the user records
 // because the DB contains some non-user records.
 func isUserRecord(key string) bool {
-	return key != UserVersionKey && key != LastPaywallAddressIndex
+	return key != UserVersionKey &&
+		key != LastPaywallAddressIndex &&
+		!strings.HasPrefix(key, sessionPrefix)
 }
 
 // Store new user.
@@ -383,6 +387,78 @@ func (l *localdb) Close() error {
 
 	l.shutdown = true
 	return l.userdb.Close()
+}
+
+// SessionSave saves the given session to the database. New sessions are
+// inserted into the database. Existing sessions are updated in the database.
+//
+// SessionSave satisfies the user.Database interface.
+func (l *localdb) SessionSave(s user.Session) error {
+	log.Tracef("SessionSave: %v", s)
+
+	l.Lock()
+	defer l.Unlock()
+
+	if l.shutdown {
+		return user.ErrShutdown
+	}
+
+	payload, err := user.EncodeSession(s)
+	if err != nil {
+		return err
+	}
+
+	key := []byte(sessionPrefix + s.ID)
+	return l.userdb.Put(key, payload, nil)
+}
+
+// SessionGetByID returns a session given its id if present in the database.
+//
+// SessionGetByID satisfies the user.Database interface.
+func (l *localdb) SessionGetByID(sid string) (*user.Session, error) {
+	log.Tracef("SessionGetByID: %v", sid)
+
+	l.RLock()
+	defer l.RUnlock()
+
+	if l.shutdown {
+		return nil, user.ErrShutdown
+	}
+
+	payload, err := l.userdb.Get([]byte(sessionPrefix+sid), nil)
+	if err == leveldb.ErrNotFound {
+		return nil, user.ErrSessionNotFound
+	} else if err != nil {
+		return nil, err
+	}
+
+	us, err := user.DecodeSession(payload)
+	if err != nil {
+		return nil, err
+	}
+
+	return us, nil
+}
+
+// Delete the session with the given id.
+//
+// SessionDeleteById satisfies the user.Database interface.
+func (l *localdb) SessionDeleteByID(sid string) error {
+	log.Tracef("SessionDeleteByID: %v", sid)
+
+	l.RLock()
+	defer l.RUnlock()
+
+	if l.shutdown {
+		return user.ErrShutdown
+	}
+
+	err := l.userdb.Delete([]byte(sessionPrefix+sid), nil)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // New creates a new localdb instance.

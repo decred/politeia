@@ -1,3 +1,7 @@
+// Copyright (c) 2019-2020 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package main
 
 import (
@@ -8,11 +12,9 @@ import (
 
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
-	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	"github.com/gorilla/sessions"
 )
 
 var (
@@ -31,97 +33,6 @@ var (
 	templateApproveDCCUserEmail = template.Must(
 		template.New("invite_approved_dcc_user").Parse(templateApproveDCCUserEmailRaw))
 )
-
-// getSession returns the active cookie session.
-func (p *politeiawww) getSession(r *http.Request) (*sessions.Session, error) {
-	return p.store.Get(r, www.CookieSession)
-}
-
-// isAdmin returns true if the current session has admin privileges.
-func (p *politeiawww) isAdmin(w http.ResponseWriter, r *http.Request) (bool, error) {
-	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		return false, err
-	}
-
-	return user.Admin, nil
-}
-
-// getSessionUUID returns the uuid address of the currently logged in user from
-// the session store.
-func (p *politeiawww) getSessionUUID(r *http.Request) (string, error) {
-	session, err := p.getSession(r)
-	if err != nil {
-		return "", err
-	}
-
-	id, ok := session.Values["uuid"].(string)
-	if !ok {
-		return "", ErrSessionUUIDNotFound
-	}
-	log.Tracef("getSessionUUID: %v", session.ID)
-
-	return id, nil
-}
-
-// getSessionUser retrieves the current session user from the database.
-func (p *politeiawww) getSessionUser(w http.ResponseWriter, r *http.Request) (*user.User, error) {
-	id, err := p.getSessionUUID(r)
-	if err != nil {
-		return nil, err
-	}
-
-	log.Tracef("getSessionUser: %v", id)
-	pid, err := uuid.Parse(id)
-	if err != nil {
-		return nil, err
-	}
-
-	user, err := p.db.UserGetById(pid)
-	if err != nil {
-		return nil, err
-	}
-
-	if user.Deactivated {
-		p.removeSession(w, r)
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusNotLoggedIn,
-		}
-	}
-
-	return user, nil
-}
-
-// setSessionUserID sets the "uuid" session key to the provided value.
-func (p *politeiawww) setSessionUserID(w http.ResponseWriter, r *http.Request, id string) error {
-	log.Tracef("setSessionUserID: %v %v", id, www.CookieSession)
-	session, err := p.getSession(r)
-	if err != nil {
-		return err
-	}
-
-	session.Values["uuid"] = id
-	return session.Save(r, w)
-}
-
-// removeSession deletes the session from the filesystem.
-func (p *politeiawww) removeSession(w http.ResponseWriter, r *http.Request) error {
-	log.Tracef("removeSession: %v", www.CookieSession)
-	session, err := p.getSession(r)
-	if err != nil {
-		return err
-	}
-
-	// Check for invalid session.
-	if session.ID == "" {
-		return nil
-	}
-
-	// Saving the session with a negative MaxAge will cause it to be deleted
-	// from the filesystem.
-	session.Options.MaxAge = -1
-	return session.Save(r, w)
-}
 
 // handleNewUser handles the incoming new user command. It verifies that the new user
 // doesn't already exist, and then creates a new user in the db and generates a random
@@ -236,15 +147,15 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 	reply, err := p.processLogin(l)
 	if err != nil {
 		RespondWithError(w, r, http.StatusUnauthorized,
-			"handleLogin: processLogin %v", err)
+			"handleLogin: processLogin: %v", err)
 		return
 	}
 
-	// Mark user as logged in if there's no error.
-	err = p.setSessionUserID(w, r, reply.UserID)
+	// Initialize a session for the logged in user
+	err = p.initSession(w, r, reply.UserID)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleLogin: setSessionUser %v", err)
+			"handleLogin: initSession: %v", err)
 		return
 	}
 
@@ -346,10 +257,12 @@ func (p *politeiawww) handleUserDetails(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Get session user. This is a public route so one might not exist.
 	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		// This is a public route so a logged in user is not required
-		log.Debugf("handleUserDetails: could not get session user: %v", err)
+	if err != nil && err != errSessionNotFound {
+		RespondWithError(w, r, 0,
+			"handleUserDetails: getSessionUser %v", err)
+		return
 	}
 
 	udr, err := p.processUserDetails(&ud,
@@ -611,10 +524,12 @@ func (p *politeiawww) handleUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get session user. This is a public route so one might not exist.
 	user, err := p.getSessionUser(w, r)
-	if err != nil {
-		// This is a public route so a logged in user is not required
-		log.Debugf("handleUsers: could not get session user: %v", err)
+	if err != nil && err != errSessionNotFound {
+		RespondWithError(w, r, 0,
+			"handleUsers: getSessionUser %v", err)
+		return
 	}
 
 	isAdmin := (user != nil && user.Admin)
@@ -627,6 +542,30 @@ func (p *politeiawww) handleUsers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, ur)
+}
+
+// handleCMSUsers handles fetching a list of cms users.
+func (p *politeiawww) handleCMSUsers(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleCMSUsers")
+
+	var cu cms.CMSUsers
+	err := util.ParseGetParams(r, &cu)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleCMSUsers: ParseGetParams",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	cur, err := p.processCMSUsers(&cu)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleCMSUsers: processCMSUsers %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, cur)
 }
 
 // handleUserPaymentsRescan allows an admin to rescan a user's paywall address
@@ -760,87 +699,134 @@ func (p *politeiawww) handleRegisterUser(w http.ResponseWriter, r *http.Request)
 // setUserWWWRoutes setsup the user routes.
 func (p *politeiawww) setUserWWWRoutes() {
 	// Public routes
-	p.addRoute(http.MethodPost, www.RouteNewUser, p.handleNewUser,
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteNewUser, p.handleNewUser,
 		permissionPublic)
-	p.addRoute(http.MethodGet, www.RouteVerifyNewUser,
-		p.handleVerifyNewUser, permissionPublic)
-	p.addRoute(http.MethodPost, www.RouteResendVerification,
-		p.handleResendVerification, permissionPublic)
-	p.addRoute(http.MethodPost, www.RouteLogin, p.handleLogin,
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteVerifyNewUser, p.handleVerifyNewUser,
 		permissionPublic)
-	p.addRoute(http.MethodPost, www.RouteLogout, p.handleLogout,
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteResendVerification, p.handleResendVerification,
 		permissionPublic)
-	p.addRoute(http.MethodPost, www.RouteResetPassword,
-		p.handleResetPassword, permissionPublic)
-	p.addRoute(http.MethodPost, www.RouteVerifyResetPassword,
-		p.handleVerifyResetPassword, permissionPublic)
-	p.addRoute(http.MethodGet, www.RouteUserDetails,
-		p.handleUserDetails, permissionPublic)
-	p.addRoute(http.MethodGet, www.RouteUsers,
-		p.handleUsers, permissionPublic)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteLogin, p.handleLogin,
+		permissionPublic)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteLogout, p.handleLogout,
+		permissionPublic)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteResetPassword, p.handleResetPassword,
+		permissionPublic)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteVerifyResetPassword, p.handleVerifyResetPassword,
+		permissionPublic)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteUserDetails, p.handleUserDetails,
+		permissionPublic)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteUsers, p.handleUsers,
+		permissionPublic)
 
 	// Routes that require being logged in.
-	p.addRoute(http.MethodPost, www.RouteSecret, p.handleSecret,
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteSecret, p.handleSecret,
 		permissionLogin)
-	p.addRoute(http.MethodGet, www.RouteUserMe, p.handleMe, permissionLogin)
-	p.addRoute(http.MethodPost, www.RouteUpdateUserKey,
-		p.handleUpdateUserKey, permissionLogin)
-	p.addRoute(http.MethodPost, www.RouteVerifyUpdateUserKey,
-		p.handleVerifyUpdateUserKey, permissionLogin)
-	p.addRoute(http.MethodPost, www.RouteChangeUsername,
-		p.handleChangeUsername, permissionLogin)
-	p.addRoute(http.MethodPost, www.RouteChangePassword,
-		p.handleChangePassword, permissionLogin)
-	p.addRoute(http.MethodGet, www.RouteVerifyUserPayment,
-		p.handleVerifyUserPayment, permissionLogin)
-	p.addRoute(http.MethodPost, www.RouteEditUser,
-		p.handleEditUser, permissionLogin)
-	p.addRoute(http.MethodGet, www.RouteUserCommentsLikes, // XXX comments need to become a setting
-		p.handleUserCommentsLikes, permissionLogin)
-	p.addRoute(http.MethodGet, www.RouteUserProposalCredits,
-		p.handleUserProposalCredits, permissionLogin)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteUserMe, p.handleMe,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteUpdateUserKey, p.handleUpdateUserKey,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteVerifyUpdateUserKey, p.handleVerifyUpdateUserKey,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteChangeUsername, p.handleChangeUsername,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteChangePassword, p.handleChangePassword,
+		permissionLogin)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteVerifyUserPayment, p.handleVerifyUserPayment,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteEditUser, p.handleEditUser,
+		permissionLogin)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteUserCommentsLikes, p.handleUserCommentsLikes,
+		permissionLogin) // XXX comments need to become a setting
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteUserProposalCredits, p.handleUserProposalCredits,
+		permissionLogin)
 
 	// Routes that require being logged in as an admin user.
-	p.addRoute(http.MethodPut, www.RouteUserPaymentsRescan,
-		p.handleUserPaymentsRescan, permissionAdmin)
-	p.addRoute(http.MethodPost, www.RouteManageUser,
-		p.handleManageUser, permissionAdmin)
+	p.addRoute(http.MethodPut, www.PoliteiaWWWAPIRoute,
+		www.RouteUserPaymentsRescan, p.handleUserPaymentsRescan,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteManageUser, p.handleManageUser,
+		permissionAdmin)
 }
 
 // setCMSUserWWWRoutes setsup the user routes for cms mode
 func (p *politeiawww) setCMSUserWWWRoutes() {
 	// Public routes
-	p.addRoute(http.MethodPost, www.RouteLogin, p.handleLogin,
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteLogin, p.handleLogin,
 		permissionPublic)
-	p.addRoute(http.MethodPost, www.RouteLogout, p.handleLogout,
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteLogout, p.handleLogout,
 		permissionPublic)
-	p.addRoute(http.MethodPost, www.RouteResetPassword,
-		p.handleResetPassword, permissionPublic)
-	p.addRoute(http.MethodPost, www.RouteVerifyResetPassword,
-		p.handleVerifyResetPassword, permissionPublic)
-	p.addRoute(http.MethodPost, cms.RouteRegisterUser, p.handleRegisterUser,
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteResetPassword, p.handleResetPassword,
+		permissionPublic)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteVerifyResetPassword, p.handleVerifyResetPassword,
+		permissionPublic)
+	p.addRoute(http.MethodPost, cms.APIRoute,
+		cms.RouteRegisterUser, p.handleRegisterUser,
 		permissionPublic)
 
 	// Routes that require being logged in.
-	p.addRoute(http.MethodPost, www.RouteSecret, p.handleSecret,
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteSecret, p.handleSecret,
 		permissionLogin)
-	p.addRoute(http.MethodGet, www.RouteUserMe, p.handleMe, permissionLogin)
-	p.addRoute(http.MethodPost, www.RouteUpdateUserKey,
-		p.handleUpdateUserKey, permissionLogin)
-	p.addRoute(http.MethodPost, www.RouteVerifyUpdateUserKey,
-		p.handleVerifyUpdateUserKey, permissionLogin)
-	p.addRoute(http.MethodPost, www.RouteChangeUsername,
-		p.handleChangeUsername, permissionLogin)
-	p.addRoute(http.MethodPost, www.RouteChangePassword,
-		p.handleChangePassword, permissionLogin)
-	p.addRoute(http.MethodGet, www.RouteUserDetails,
-		p.handleCMSUserDetails, permissionLogin)
-	p.addRoute(http.MethodPost, www.RouteEditUser,
-		p.handleEditCMSUser, permissionLogin)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteUserMe, p.handleMe,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteUpdateUserKey, p.handleUpdateUserKey,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteVerifyUpdateUserKey, p.handleVerifyUpdateUserKey,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteChangeUsername, p.handleChangeUsername,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteChangePassword, p.handleChangePassword,
+		permissionLogin)
+	p.addRoute(http.MethodGet, cms.APIRoute,
+		www.RouteUserDetails, p.handleCMSUserDetails,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cms.APIRoute,
+		www.RouteEditUser, p.handleEditCMSUser,
+		permissionLogin)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteUsers, p.handleUsers,
+		permissionLogin)
+	p.addRoute(http.MethodGet, cms.APIRoute,
+		cms.RouteCMSUsers, p.handleCMSUsers,
+		permissionLogin)
 
 	// Routes that require being logged in as an admin user.
-	p.addRoute(http.MethodGet, www.RouteUsers,
-		p.handleUsers, permissionAdmin)
-	p.addRoute(http.MethodPost, www.RouteManageUser,
-		p.handleManageCMSUser, permissionAdmin)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteUsers, p.handleUsers,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, cms.APIRoute,
+		cms.RouteManageCMSUser, p.handleManageCMSUser,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteManageUser, p.handleManageUser,
+		permissionAdmin)
 }

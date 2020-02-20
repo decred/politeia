@@ -14,9 +14,9 @@ import (
 	"github.com/google/uuid"
 )
 
-// ManageUserCmd allows an administrator to update Domain, ContractorType
+// CMSManageUserCmd allows an administrator to update Domain, ContractorType
 // and SupervisorID of a given user.
-type ManageUserCmd struct {
+type CMSManageUserCmd struct {
 	Args struct {
 		UserID string `positional-arg-name:"userid" required:"true"`
 	} `positional-args:"true" optional:"true"`
@@ -26,11 +26,10 @@ type ManageUserCmd struct {
 }
 
 // Execute executes the cms manage user command.
-func (cmd *ManageUserCmd) Execute(args []string) error {
+func (cmd *CMSManageUserCmd) Execute(args []string) error {
 	domains := map[string]cms.DomainTypeT{
 		"developer":     cms.DomainTypeDeveloper,
 		"marketing":     cms.DomainTypeMarketing,
-		"community":     cms.DomainTypeCommunity,
 		"research":      cms.DomainTypeResearch,
 		"design":        cms.DomainTypeDesign,
 		"documentation": cms.DomainTypeDocumentation,
@@ -98,7 +97,7 @@ func (cmd *ManageUserCmd) Execute(args []string) error {
 	}
 
 	// Send request
-	mu := cms.ManageUser{
+	mu := cms.CMSManageUser{
 		UserID:            cmd.Args.UserID,
 		Domain:            domain,
 		ContractorType:    contractorType,
@@ -120,7 +119,7 @@ func (cmd *ManageUserCmd) Execute(args []string) error {
 	return nil
 }
 
-const manageUserHelpMsg = `manageuser [flags] "userid"
+const cmsManageUserHelpMsg = `cmsmanageuser [flags] "userid"
 
 Update the Domain, ContractorType and SupervisorID of the specified user. This
 command requires admin privileges.
