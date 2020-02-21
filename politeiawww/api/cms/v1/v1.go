@@ -77,6 +77,7 @@ const (
 	ContractorTypeSubContractor ContractorTypeT = 3 // SubContractor
 	ContractorTypeNominee       ContractorTypeT = 4 // Nominated DCC user
 	ContractorTypeRevoked       ContractorTypeT = 5 // Revoked CMS User
+	ContractorTypeTemp          ContractorTypeT = 6 // Temporary Contractor (only allowed 1 invoice)
 
 	// Payment information status types
 	PaymentStatusInvalid  PaymentStatusT = 0 // Invalid status
@@ -358,7 +359,8 @@ type AvailableLineItemType struct {
 // InviteNewUser is used to request that a new user invitation be sent via email.
 // If successful, the user will require verification before being able to login.
 type InviteNewUser struct {
-	Email string `json:"email"`
+	Email     string `json:"email"`
+	Temporary bool   `json:"temp"` // This denotes if the user is a temporary user (only allowed to submit 1 invoice).
 }
 
 // InviteNewUserReply responds with the verification token for the user
