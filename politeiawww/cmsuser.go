@@ -839,3 +839,54 @@ func (p *politeiawww) processCMSUsers(users *cms.CMSUsers) (*cms.CMSUsersReply, 
 		Users: matchedUsers,
 	}, nil
 }
+
+// processProposalOwner returns a list of cms users given a proposal token.
+// If the user is set to have ownership of this proposal then they will be
+// added to the list.
+func (p *politeiawww) processProposalOwner(po cms.ProposalOwner) (*cms.ProposalOwnerReply, error) {
+	log.Tracef("processProposalOwner")
+
+	// Setup plugin command
+	cupt := user.CMSUsersByProposalToken{
+		Token: po.ProposalToken,
+	}
+	payload, err := user.EncodeCMSUsersByProposalToken(cupt)
+	if err != nil {
+		return nil, err
+	}
+	pc := user.PluginCommand{
+		ID:      user.CMSPluginID,
+		Command: user.CmdCMSUsersByProposalToken,
+		Payload: string(payload),
+	}
+
+	// Execute plugin command
+	pcr, err := p.db.PluginExec(pc)
+	if err != nil {
+		return nil, err
+	}
+
+	// Decode reply
+	reply, err := user.DecodeCMSUsersByProposalTokenReply([]byte(pcr.Payload))
+	if err != nil {
+		return nil, err
+	}
+
+	matchedUsers := make([]cms.AbridgedCMSUser, 0, len(reply.Users))
+	for _, u := range reply.Users {
+		matchedUsers = append(matchedUsers, cms.AbridgedCMSUser{
+			ID:             u.ID.String(),
+			Username:       u.Username,
+			Domain:         cms.DomainTypeT(u.Domain),
+			ContractorType: cms.ContractorTypeT(u.ContractorType),
+		})
+	}
+	// Sort results alphabetically.
+	sort.Slice(matchedUsers, func(i, j int) bool {
+		return matchedUsers[i].Username < matchedUsers[j].Username
+	})
+
+	return &cms.ProposalOwnerReply{
+		Users: matchedUsers,
+	}, nil
+}
