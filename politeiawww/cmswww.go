@@ -771,15 +771,11 @@ func (p *politeiawww) handleUserSubContractors(w http.ResponseWriter, r *http.Re
 func (p *politeiawww) handleProposalOwner(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleProposalOwner")
 
+	pathParams := mux.Vars(r)
+	token := pathParams["proposaltoken"]
+
 	var po cms.ProposalOwner
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&po); err != nil {
-		RespondWithError(w, r, 0, "handleProposalOwner: unmarshal",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
+	po.ProposalToken = token
 
 	por, err := p.processProposalOwner(po)
 	if err != nil {
