@@ -342,10 +342,9 @@ func (t *tserver) waitForAchor(trees []*trillian.Tree, anchors []v1.DataAnchor, 
 				// Anchor not dropped, try again
 				log.Tracef("anchorRecords: try %v %v", try, err)
 				continue
-			} else {
-				log.Errorf("waitForAchor: %v", err)
-				return
 			}
+			log.Errorf("waitForAnchor: %v", err)
+			return
 		}
 
 		// Make sure we are actually anchored.

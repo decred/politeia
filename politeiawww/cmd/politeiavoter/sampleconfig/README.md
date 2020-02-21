@@ -2,7 +2,7 @@ sampleconfig
 ============
 
 [![ISC License](https://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
-[![GoDoc](https://img.shields.io/badge/godoc-reference-blue.svg)](https://godoc.org/github.com/decred/politeia/politeiawww/cmd/politeiavoter/sampleconfig)
+[![Doc](https://img.shields.io/badge/doc-reference-blue.svg)](https://pkg.go.dev/github.com/decred/politeia/politeiawww/cmd/politeiavoter/sampleconfig)
 
 Package sampleconfig provides a single constant that contains the contents of
 the sample configuration file for politeiavoter.  This is provided for tools
