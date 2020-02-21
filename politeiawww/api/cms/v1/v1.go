@@ -689,6 +689,8 @@ type DCCRecord struct {
 	Status             DCCStatusT `json:"status"`             // Current status of the DCC
 	StatusChangeReason string     `json:"statuschangereason"` // The reason for changing the DCC status.
 	Timestamp          int64      `json:"timestamp"`          // Last update of dcc
+	TimeSubmitted      int64      `json:"timesubmitted"`      // Submission time stamp
+	TimeReviewed       int64      `json:"timereviewed"`       // Approval/Rejection time stamp
 	DCC                DCCInput   `json:"dccpayload"`         // DCC payload for the given object
 	File               www.File   `json:"file"`               // Actual DCC file (dcc.json, etc)
 	PublicKey          string     `json:"publickey"`          // Sponsoring user's public key, used to verify signature.
