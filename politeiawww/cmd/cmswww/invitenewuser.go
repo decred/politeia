@@ -7,14 +7,15 @@ package main
 import (
 	"fmt"
 
-	"github.com/decred/politeia/politeiawww/api/cms/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/cms/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
 // InviteNewUserCmd allows administrators to invite contractors to join CMS.
 type InviteNewUserCmd struct {
 	Args struct {
-		Email string `positional-arg-name:"email"`
+		Email     string `positional-arg-name:"email"`
+		Temporary bool   `positional-arg-name:"temp"`
 	} `positional-args:"true" required:"true"`
 }
 
@@ -28,7 +29,8 @@ func (cmd *InviteNewUserCmd) Execute(args []string) error {
 	}
 
 	inu := &v1.InviteNewUser{
-		Email: cmd.Args.Email,
+		Email:     cmd.Args.Email,
+		Temporary: cmd.Args.Temporary,
 	}
 
 	// Print request details

@@ -1250,9 +1250,15 @@ func convertDCCFromCache(r cache.Record) cms.DCCRecord {
 				continue
 			}
 
-			// We don't need all of the status changes.
-			// Just the most recent one.
+			// Calc submission, approval/rejection timestamps
+			// Hold the most recent status change.
 			for _, s := range m {
+				switch s.NewStatus {
+				case cms.DCCStatusActive:
+					dcc.TimeSubmitted = s.Timestamp
+				case cms.DCCStatusApproved, cms.DCCStatusRejected:
+					dcc.TimeReviewed = s.Timestamp
+				}
 				c = s
 			}
 		case mdstream.IDDCCSupportOpposition:

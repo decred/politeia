@@ -4,7 +4,7 @@ Welcome to Decred's Contractor Management System!  This site is being designed
 to be a functional interface for contractors to submit and invoices be processed
 and, in the future, have a seat at the table in some of the contractor level 
 decision making, as discussed in the stakeholder approved proposal for the 
-[DCC](https://proposals.decred.org/proposal/fa38a3593d9a3f6cb2478a24c25114f5097c572f6dadf24c78bb521ed10992a4).
+[DCC](https://proposals.decred.org/proposals/fa38a3593d9a3f6cb2478a24c25114f5097c572f6dadf24c78bb521ed10992a4).
 
 To begin, we will be inviting contractors to the site to begin to submit 
 invoices for their completed labor or expenses.  These invoices would then be 
