@@ -1563,8 +1563,9 @@ Reply:
 
 ### `Short proposal details`
 
-Retrieve proposal and its details using the prefix of its censorship token. The length of the token
-required can be retrieved using the [`policy`](#policy) route.
+Retrieve proposal and its details using the prefix of its censorship token. The
+length of the token required can be retrieved using the [`policy`](#policy)
+route.
 
 **Routes:** `GET /v1/proposals/{tokenPrefix}`
 
