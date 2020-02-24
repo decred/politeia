@@ -208,6 +208,7 @@ const (
 	ErrorStatusMissingSubUserIDLineItem       www.ErrorStatusT = 1048
 	ErrorStatusInvalidSubUserIDLineItem       www.ErrorStatusT = 1049
 	ErrorStatusInvalidSupervisorUser          www.ErrorStatusT = 1050
+	ErrorStatusMalformedDCC                   www.ErrorStatusT = 1051
 )
 
 var (
@@ -339,6 +340,7 @@ var (
 		ErrorStatusMissingSubUserIDLineItem:       "must supply a userid for a subcontractor hours line item",
 		ErrorStatusInvalidSubUserIDLineItem:       "the userid supplied for the subcontractor hours line item is invalid",
 		ErrorStatusInvalidSupervisorUser:          "attempted input of an invalid supervisor user id",
+		ErrorStatusMalformedDCC:                   "malformed dcc detected",
 	}
 )
 
