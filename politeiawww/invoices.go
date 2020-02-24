@@ -52,11 +52,6 @@ var (
 			cms.InvoiceStatusRejected,
 			cms.InvoiceStatusDisputed,
 		},
-		// Rejected invoices may only be updated to approved or updated.
-		cms.InvoiceStatusRejected: {
-			cms.InvoiceStatusApproved,
-			cms.InvoiceStatusUpdated,
-		},
 		// Updated invoices may only be updated to approved, rejected or disputed.
 		cms.InvoiceStatusUpdated: {
 			cms.InvoiceStatusApproved,
