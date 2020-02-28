@@ -224,7 +224,7 @@ func (p *politeiawww) _setupDCCNewEmailNotification() {
 			}
 		}
 	}()
-	p.eventManager._register(EventTypeInvoiceComment, ch)
+	p.eventManager._register(EventTypeDCCNew, ch)
 }
 
 func (p *politeiawww) _setupDCCSupportOpposeEmailNotification() {
@@ -244,7 +244,7 @@ func (p *politeiawww) _setupDCCSupportOpposeEmailNotification() {
 			}
 		}
 	}()
-	p.eventManager._register(EventTypeInvoiceComment, ch)
+	p.eventManager._register(EventTypeDCCSupportOppose, ch)
 }
 
 func (p *politeiawww) _setupProposalSubmittedEmailNotification() {
