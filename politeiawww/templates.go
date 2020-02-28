@@ -99,6 +99,14 @@ type newInvoiceStatusUpdateTemplate struct {
 	Token string
 }
 
+type newDCCSubmittedTemplateData struct {
+	Link string
+}
+
+type newDCCSupportOpposeTemplateData struct {
+	Link string
+}
+
 const templateNewUserEmailRaw = `
 Thanks for joining Politeia, {{.Username}}!
 
@@ -262,6 +270,24 @@ const templateNewInvoiceStatusUpdateRaw = `
 An invoice's status has been updated, please login to cms.decred.org to review the changes.
 
 Updated Invoice Token: {{.Token}}
+
+Regards,
+Contractor Management System
+`
+
+const templateNewDCCSubmittedRaw = `
+A new DCC has been submitted.
+
+{{.Link}}
+
+Regards,
+Contractor Management System
+`
+
+const templateNewDCCSupportOpposeRaw = `
+A DCC has received new support or opposition.
+
+{.Link}}
 
 Regards,
 Contractor Management System
