@@ -766,7 +766,8 @@ Edits a user's details. This call requires admin privileges.
 | userid | string | UserID string of the user to be edited. | yes |
 | domain | int | The Domain Type that the user currently has | no |
 | contractortype | int | The contractor type of the user. | no |
-| supervisoruserid | string | The userid of the user (if the user is a sub contractor. ) | no |
+| supervisoruserid | []string | The userid of the user (if the user is a sub contractor. ) | no |
+| proposalsowned | []string | The tokens of any proposals that are "owned/managed" by this user. | no |
 
 **Results:**
 
@@ -782,6 +783,7 @@ Request:
   "domain": 1,
   "contractortype": 1,
   "supervisoruserid": "",
+  "proposalsowned":["337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527"]
 }
 ```
 
@@ -1467,6 +1469,41 @@ Reply:
 }
 ```
 
+### `Proposal Owners`
+
+Returns a list of cms users that are currently owning/mananging a given proposal.
+
+**Route:** `GET /v1/proposals/owner`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-----------|------|-------------|----------|
+| proposaltoken | string | A censorship token from a proposal on Politeia. | yes |
+
+**Results:**
+
+| Parameter | Type | Description |
+|-|-|-|
+| users | array of [Abridged CMS User](#abridged-cms-user) | The list of cms users that own/manage the proposal given.
+
+**Example**
+
+Request:
+
+```json
+{
+  "proposaltoken": "5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b"
+}
+```
+
+Reply:
+
+```json
+{
+  "users": []
+}
+```
 ### Error codes
 
 | Status | Value | Description |

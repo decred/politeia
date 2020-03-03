@@ -44,6 +44,7 @@ const (
 	RoutePayInvoices         = "/admin/payinvoices"
 	RouteInvoiceComments     = "/invoices/{token:[A-z0-9]{64}}/comments"
 	RouteInvoiceExchangeRate = "/invoices/exchangerate"
+	RouteProposalOwner       = "/proposals/owner"
 
 	// Invoice status codes
 	InvoiceStatusInvalid  InvoiceStatusT = 0 // Invalid status
@@ -640,6 +641,7 @@ type User struct {
 	ContractorLocation string          `json:"contractorlocation"`
 	ContractorContact  string          `json:"contractorcontact"`
 	SupervisorUserIDs  []string        `json:"supervisoruserids"`
+	ProposalsOwned     []string        `json:"proposalsowned"`
 }
 
 // UserDetails fetches a cms user's details by their id.
@@ -670,6 +672,7 @@ type CMSManageUser struct {
 	Domain            DomainTypeT     `json:"domain,omitempty"`
 	ContractorType    ContractorTypeT `json:"contractortype,omitempty"`
 	SupervisorUserIDs []string        `json:"supervisoruserids,omitempty"`
+	ProposalsOwned    []string        `json:"proposalsowned,omitempty"`
 }
 
 // CMSManageUserReply is the reply for the CMSManageUserReply command.
@@ -795,5 +798,17 @@ type CMSUsers struct {
 
 // CMSUsersReply returns a list of Users that are currently
 type CMSUsersReply struct {
+	Users []AbridgedCMSUser `json:"users"`
+}
+
+// ProposalOwner is a request for determining the current owners of a given
+// proposal.
+type ProposalOwner struct {
+	ProposalToken string `json:"proposaltoken"`
+}
+
+// ProposalOwnerReply returns the users that are currently associated with
+// the requested proposal token.
+type ProposalOwnerReply struct {
 	Users []AbridgedCMSUser `json:"users"`
 }

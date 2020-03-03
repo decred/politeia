@@ -86,6 +86,7 @@ type CMSUser struct {
 	ContractorLocation string    `gorm:"not null"`               // General IRL Contractor Location
 	ContractorContact  string    `gorm:"not null"`               // Point of contact outside of matrix
 	SupervisorUserID   string    `gorm:"not null"`               // This is can either be 1 SupervisorUserID or a comma separated string of many supervisor user ids
+	ProposalsOwned     string    `gorm:"not null"`               // This can either be 1 Proposal or a comma separated string of many.
 
 	// Set by gorm
 	CreatedAt time.Time // Time of record creation

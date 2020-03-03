@@ -2070,6 +2070,30 @@ func (c *Client) UserSubContractors(usc *cms.UserSubContractors) (*cms.UserSubCo
 	return &uscr, nil
 }
 
+// ProposalOwner retrieves the subcontractors that are linked to the requesting user
+func (c *Client) ProposalOwner(po *cms.ProposalOwner) (*cms.ProposalOwnerReply, error) {
+	responseBody, err := c.makeRequest(http.MethodGet,
+		cms.APIRoute, cms.RouteProposalOwner, po)
+	if err != nil {
+		return nil, err
+	}
+
+	var por cms.ProposalOwnerReply
+	err = json.Unmarshal(responseBody, &por)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal ProposalOwnerReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(por)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &por, nil
+}
+
 // WalletAccounts retrieves the walletprc accounts.
 func (c *Client) WalletAccounts() (*walletrpc.AccountsResponse, error) {
 	if c.wallet == nil {
