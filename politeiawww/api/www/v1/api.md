@@ -2266,7 +2266,9 @@ Reply:
 
 ### `Vote results`
 
-Retrieve vote results for a specified censorship token.
+Retrieve vote results for a specified censorship token. If the voting period
+has not yet started for the given proposal a reply is returned with all fields
+set to their zero value.
 
 Note that the webserver does not interpret the plugin structures. These are
 forwarded as-is to the politeia daemon.
@@ -2282,6 +2284,12 @@ forwarded as-is to the politeia daemon.
 | vote | Vote | Vote details |
 | castvotes | array of CastVote  | Cast vote details |
 | startvotereply | StartVoteReply | Vote details (eligible tickets, start block etc) |
+
+
+On failure the call shall return `400 Bad Request` and one of the following
+error codes:
+- [`ErrorStatusProposalNotFound`](#ErrorStatusProposalNotFound)
+- [`ErrorStatusWrongStatus`](#ErrorStatusWrongStatus)
 
 **Example**
 

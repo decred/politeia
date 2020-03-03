@@ -951,7 +951,9 @@ type BallotReply struct {
 	Receipts []CastVoteReply `json:"receipts"`
 }
 
-// VoteResults retrieves a single proposal vote results from the server.
+// VoteResults retrieves a single proposal vote results from the server. If the
+// voting period has not yet started for the given proposal a reply is returned
+// with all fields set to their zero value.
 type VoteResults struct{}
 
 // VoteResultsReply returns the original proposal vote and the associated cast

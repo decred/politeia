@@ -161,6 +161,13 @@ between the Vote versions.
 | endblockheight | uint32 | End block height of the vote |
 | eligibletickets | []string | All ticket hashes that are eligible to vote |
 
+On failure the call shall return `400 Bad Request` and one of the following
+error codes:
+- [`ErrorStatusProposalNotFound`](#ErrorStatusProposalNotFound)
+- [`ErrorStatusWrongVoteStatus`](#ErrorStatusWrongVoteStatus)
+
+**Example**
+
 Reply:
 
 ```
