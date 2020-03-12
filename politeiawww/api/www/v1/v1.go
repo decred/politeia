@@ -423,7 +423,7 @@ type File struct {
 
 // ProposalData is the data that is parsed from the data.json file. The
 // data.json file is part of the proposal files bundle and includes specifc
-// fields that are needed by politeiawww. They are included in a seperate json
+// fields that are needed by politeiawww. They are included in a separate json
 // file instead of the index markdown file to make parsing easier.
 //
 // The proposal name is not included in the ProposalData due to backwards

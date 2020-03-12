@@ -1866,13 +1866,20 @@ func (g *gitBackEnd) pluginStartVoteRunoff(payload string) (string, error) {
 		return "", err
 	}
 
-	// Validate the StartVote for each submission
+	if len(sv.StartVotes) == 0 {
+		return "", fmt.Errorf("no startvotes found")
+	}
+
 	var (
-		duration uint32
-		quorum   uint32
-		pass     uint32
+		// Vote params must be the same for all submissions so set
+		// the defaults to be the params of the first submission.
+		duration = sv.StartVotes[0].Vote.Duration
+		quorum   = sv.StartVotes[0].Vote.QuorumPercentage
+		pass     = sv.StartVotes[0].Vote.PassPercentage
 	)
-	for i, v := range sv.StartVotes {
+
+	// Validate the StartVote for each submission
+	for _, v := range sv.StartVotes {
 		err = validateStartVoteV2(v)
 		if err != nil {
 			return "", err
@@ -1884,12 +1891,6 @@ func (g *gitBackEnd) pluginStartVoteRunoff(payload string) (string, error) {
 		}
 
 		// Vote params must be the same for all submissions
-		if i == 0 {
-			duration = v.Vote.Duration
-			quorum = v.Vote.QuorumPercentage
-			pass = v.Vote.PassPercentage
-			continue
-		}
 		switch {
 		case duration != v.Vote.Duration:
 			return "", fmt.Errorf("start votes have different vote durations")
