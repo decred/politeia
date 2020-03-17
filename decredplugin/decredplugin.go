@@ -1192,8 +1192,8 @@ type TokenInventoryReply struct {
 	Abandoned []string `json:"abandoned"` // Tokens of records that have been abandoned
 
 	// Unvetted records
-	Unreviewed []string `json:"unreviewied,omitempty"` // Tokens of records that are unreviewed
-	Censored   []string `json:"censored,omitempty"`    // Tokens of records that have been censored
+	Unreviewed []string `json:"unreviewied"` // Tokens of records that are unreviewed
+	Censored   []string `json:"censored"`    // Tokens of records that have been censored
 }
 
 // EncodeTokenInventoryReply encodes a TokenInventoryReply into a JSON byte
