@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
@@ -72,10 +73,7 @@ func (p *politeiawww) getBestBlockDecredPlugin() (uint64, error) {
 	return bestBlock, nil
 }
 
-// getPluginInventory obtains the politeiad plugin inventory.
-func (p *politeiawww) getPluginInventory() ([]Plugin, error) {
-	log.Tracef("getPluginInventory")
-
+func (p *politeiawww) pluginInventory() ([]Plugin, error) {
 	// Setup politeiad request
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
@@ -108,6 +106,39 @@ func (p *politeiawww) getPluginInventory() ([]Plugin, error) {
 	plugins := make([]Plugin, 0, len(reply.Plugins))
 	for _, v := range reply.Plugins {
 		plugins = append(plugins, convertPluginFromPD(v))
+	}
+
+	return plugins, nil
+}
+
+// getPluginInventory obtains the politeiad plugin inventory. If a politeiad
+// connection cannot be made, the call will be retried every 5 seconds for up
+// to 1000 tries.
+func (p *politeiawww) getPluginInventory() ([]Plugin, error) {
+	log.Tracef("getPluginInventory")
+
+	// Attempt to fetch the plugin inventory from politeiad until
+	// either it is succesful or the maxRetries has been exceeded.
+	var (
+		maxRetries    = 1000
+		sleepInterval = 5 * time.Second
+		done          bool
+		plugins       []Plugin
+	)
+	for retries := 0; !done; retries++ {
+		if retries == maxRetries {
+			return nil, fmt.Errorf("max retries exceeded")
+		}
+
+		p, err := p.pluginInventory()
+		if err != nil {
+			log.Infof("cannot get politeiad plugin inventory: %v", err)
+			time.Sleep(sleepInterval)
+			continue
+		}
+
+		plugins = p
+		done = true
 	}
 
 	return plugins, nil
