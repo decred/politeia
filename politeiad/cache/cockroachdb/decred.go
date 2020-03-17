@@ -938,14 +938,16 @@ func (d *decred) cmdTokenInventory(payload string) (string, error) {
 		Abandoned: abandoned,
 	}
 
-	// Add unvetted records if specified
+	unreviewed := make([]string, 0, 1024)
+	censored := make([]string, 0, 1024)
+
+	// Populate unvetted records if specified
 	if ti.Unvetted {
 		// Unreviewed tokens. Edits to an unreviewed record do not
 		// increment the version. Only edits to a public record
 		// increment the version. This means means we don't need
 		// to worry about fetching the most recent version here
 		// because an unreviewed record will only have one version.
-		unreviewed := make([]string, 0, 1024)
 		q = `SELECT token
          FROM records
          WHERE status = ? or status = ?
@@ -968,7 +970,6 @@ func (d *decred) cmdTokenInventory(payload string) (string, error) {
 			return "", err
 		}
 		// Censored tokens
-		censored := make([]string, 0, 1024)
 		q = `SELECT token
          FROM records
          WHERE status = ?
@@ -989,11 +990,11 @@ func (d *decred) cmdTokenInventory(payload string) (string, error) {
 		if err = rows.Err(); err != nil {
 			return "", err
 		}
-
-		// Update reply
-		tir.Unreviewed = unreviewed
-		tir.Censored = censored
 	}
+
+	// Update reply
+	tir.Unreviewed = unreviewed
+	tir.Censored = censored
 
 	// Encode reply
 	reply, err := decredplugin.EncodeTokenInventoryReply(tir)
