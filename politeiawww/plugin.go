@@ -118,7 +118,7 @@ func (p *politeiawww) getPluginInventory() ([]Plugin, error) {
 	log.Tracef("getPluginInventory")
 
 	// Attempt to fetch the plugin inventory from politeiad until
-	// either it is succesful or the maxRetries has been exceeded.
+	// either it is successful or the maxRetries has been exceeded.
 	var (
 		maxRetries    = 1000
 		sleepInterval = 5 * time.Second
