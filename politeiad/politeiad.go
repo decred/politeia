@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/decred/politeia/decredplugin"
-	"github.com/decred/politeia/politeiad/api/v1"
+	v1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/gitbe"
@@ -1072,6 +1072,7 @@ func _main() error {
 	}()
 
 	log.Infof("Version : %v", version.String())
+	log.Infof("Commit Hash: %v", version.CommitHashString())
 	log.Infof("Network : %v", activeNetParams.Params.Name)
 	log.Infof("Home dir: %v", loadedCfg.HomeDir)
 

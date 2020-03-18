@@ -272,6 +272,7 @@ func _main() error {
 	}()
 
 	log.Infof("Version : %v", version.String())
+	log.Infof("Commit Hash: %v", version.CommitHashString())
 	log.Infof("Network : %v", activeNetParams.Params.Name)
 	log.Infof("Home dir: %v", loadedCfg.HomeDir)
 
