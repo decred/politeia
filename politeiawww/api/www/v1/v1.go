@@ -483,9 +483,9 @@ type Version struct{}
 // this backend supports and additionally the route to the API and the public
 // signing key of the server.
 type VersionReply struct {
-	Version           uint   `json:"version"`           // lowest supported WWW API version
-	Route             string `json:"route"`             // prefix to API calls          string `json:"pathm"`             // prefix to API calls
-	CommitHash        string `json:"commithash"`        // prefix to API calls
+	Version           uint   `json:"version"`           // Lowest supported WWW API version
+	Route             string `json:"route"`             // Prefix to API calls
+	CommitHash        string `json:"commithash"`        // Commit hash where pi was built
 	PubKey            string `json:"pubkey"`            // Server public key
 	TestNet           bool   `json:"testnet"`           // Network indicator
 	Mode              string `json:"mode"`              // current politeiawww mode running (piwww or cmswww)
