@@ -83,8 +83,7 @@ func String() string {
 // CommitHashString returns the commit hash in which politeia has been
 // built on.
 func CommitHashString() string {
-	ch := fmt.Sprintf("%s", CommitHash)
-	return ch
+	return CommitHash
 }
 
 // normalizeSemString returns the passed string stripped of all characters
