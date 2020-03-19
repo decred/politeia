@@ -272,9 +272,13 @@ func _main() error {
 	}()
 
 	log.Infof("Version : %v", version.String())
-	log.Infof("Commit Hash: %v", version.CommitHashString())
+	log.Infof("Github Version: %v", version.GithubVersion())
 	log.Infof("Network : %v", activeNetParams.Params.Name)
 	log.Infof("Home dir: %v", loadedCfg.HomeDir)
+
+	if version.GithubVersion() == "(devel)" && !loadedCfg.Devel {
+		log.Warnf("Warning: no build information available")
+	}
 
 	if loadedCfg.PaywallAmount != 0 && loadedCfg.PaywallXpub != "" {
 		paywallAmountInDcr := float64(loadedCfg.PaywallAmount) / 1e8

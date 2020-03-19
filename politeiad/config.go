@@ -290,7 +290,7 @@ func loadConfig() (*config, []string, error) {
 		LogDir:     defaultLogDir,
 		HTTPSKey:   defaultHTTPSKeyFile,
 		HTTPSCert:  defaultHTTPSCertFile,
-		Version:    version.String(),
+		Devel:      defaultDevel,
 	}
 
 	// Service options which are only added on Windows.

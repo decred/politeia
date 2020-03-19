@@ -1072,9 +1072,13 @@ func _main() error {
 	}()
 
 	log.Infof("Version : %v", version.String())
-	log.Infof("Commit Hash: %v", version.CommitHashString())
+	log.Infof("Github Version: %v", version.GithubVersion())
 	log.Infof("Network : %v", activeNetParams.Params.Name)
 	log.Infof("Home dir: %v", loadedCfg.HomeDir)
+
+	if version.GithubVersion() == "(devel)" && !loadedCfg.Devel {
+		log.Warnf("Warning: no build information available")
+	}
 
 	// Create the data directory in case it does not exist.
 	err = os.MkdirAll(loadedCfg.DataDir, 0700)

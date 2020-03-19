@@ -485,7 +485,7 @@ type Version struct{}
 type VersionReply struct {
 	Version           uint   `json:"version"`           // Lowest supported WWW API version
 	Route             string `json:"route"`             // Prefix to API calls
-	CommitHash        string `json:"commithash"`        // Commit hash where pi was built
+	GithubVersion     string `json:"githubversion"`     // Github version in which Pi was built
 	PubKey            string `json:"pubkey"`            // Server public key
 	TestNet           bool   `json:"testnet"`           // Network indicator
 	Mode              string `json:"mode"`              // current politeiawww mode running (piwww or cmswww)
