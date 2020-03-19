@@ -161,12 +161,12 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleVersion")
 
 	versionReply := www.VersionReply{
-		Version:    www.PoliteiaWWWAPIVersion,
-		Route:      www.PoliteiaWWWAPIRoute,
-		CommitHash: version.CommitHashString(),
-		PubKey:     hex.EncodeToString(p.cfg.Identity.Key[:]),
-		TestNet:    p.cfg.TestNet,
-		Mode:       p.cfg.Mode,
+		Version:       www.PoliteiaWWWAPIVersion,
+		Route:         www.PoliteiaWWWAPIRoute,
+		GithubVersion: version.GithubVersion(),
+		PubKey:        hex.EncodeToString(p.cfg.Identity.Key[:]),
+		TestNet:       p.cfg.TestNet,
+		Mode:          p.cfg.Mode,
 	}
 
 	_, err := p.getSessionUser(w, r)

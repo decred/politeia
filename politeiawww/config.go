@@ -73,6 +73,8 @@ const (
 	userDBCockroach = "cockroachdb"
 
 	defaultUserDB = userDBLevel
+
+	defaultDevel = false
 )
 
 var (
@@ -135,6 +137,7 @@ type config struct {
 	VoteDurationMax          uint32 `long:"votedurationmax" description:"Maximum duration of a proposal vote in blocks"`
 	AdminLogFile             string `long:"adminlogfile" description:"admin log filename (Default: admin.log)"`
 	Mode                     string `long:"mode" description:"Mode www runs as. Supported values: piwww, cmswww"`
+	Devel                    bool   `long:"devel" description:"If true, dismiss warnings about required build information from github"`
 	SMTPSkipVerify           bool   `long:"smtpskipverify" description:"Skip SMTP TLS cert verification. Will only skip if SMTPCert is empty"`
 	SMTPCert                 string `long:"smtpcert" description:"File containing the smtp certificate file"`
 	SystemCerts              *x509.CertPool
@@ -391,6 +394,7 @@ func loadConfig() (*config, []string, error) {
 		MailAddress:              defaultMailAddress,
 		Mode:                     defaultWWWMode,
 		UserDB:                   defaultUserDB,
+		Devel:                    defaultDevel,
 	}
 
 	// Service options which are only added on Windows.

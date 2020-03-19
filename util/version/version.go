@@ -10,6 +10,7 @@ package version
 import (
 	"bytes"
 	"fmt"
+	"runtime/debug"
 	"strings"
 )
 
@@ -45,12 +46,6 @@ var (
 	// if needed.  It MUST only contain characters from semanticBuildAlphabet
 	// per the semantic versioning spec.
 	BuildMetadata = "dev"
-
-	// CommitHash is defined as a variable so it can be overridden during the
-	// build process with:
-	// '-ldflags "-X github.com/decred/politeia/util/version.CommitHash=foo"'
-	// if needed.
-	CommitHash = ""
 )
 
 // String returns the application version as a properly formed string per the
@@ -80,10 +75,11 @@ func String() string {
 	return version
 }
 
-// CommitHashString returns the commit hash in which politeia has been
-// built on.
-func CommitHashString() string {
-	return CommitHash
+// GithubVersion returns the github version from the build information.
+func GithubVersion() string {
+	info, _ := debug.ReadBuildInfo()
+	version := info.Main.Version
+	return version
 }
 
 // normalizeSemString returns the passed string stripped of all characters
