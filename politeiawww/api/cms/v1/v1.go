@@ -124,7 +124,7 @@ const (
 	PolicyMaxLocationLength = 100
 
 	// PolicyMinLocationLength is the min length of a contractor location
-	PolicyMinLocationLength = 3
+	PolicyMinLocationLength = 0
 
 	// PolicyMaxContactLength is the max length of a contractor contact
 	PolicyMaxContactLength = 100
@@ -171,7 +171,6 @@ const (
 	ErrorStatusInvalidPaymentAddress          www.ErrorStatusT = 1009
 	ErrorStatusMalformedLineItem              www.ErrorStatusT = 1010
 	ErrorStatusInvoiceMissingName             www.ErrorStatusT = 1011
-	ErrorStatusInvoiceMissingLocation         www.ErrorStatusT = 1012
 	ErrorStatusInvoiceMissingContact          www.ErrorStatusT = 1013
 	ErrorStatusInvoiceMissingRate             www.ErrorStatusT = 1014
 	ErrorStatusInvoiceInvalidRate             www.ErrorStatusT = 1015
@@ -303,7 +302,6 @@ var (
 		ErrorStatusInvalidPaymentAddress:          "invalid payment address",
 		ErrorStatusMalformedLineItem:              "malformed line item submitted",
 		ErrorStatusInvoiceMissingName:             "invoice missing contractor name",
-		ErrorStatusInvoiceMissingLocation:         "invoice missing contractor location",
 		ErrorStatusInvoiceMissingContact:          "invoice missing contractor contact",
 		ErrorStatusInvoiceMalformedContact:        "invoice has malformed contractor contact",
 		ErrorStatusInvoiceMissingRate:             "invoice missing contractor rate",

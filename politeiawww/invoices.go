@@ -594,12 +594,6 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 				}
 			}
 
-			// Validate provided contractor location
-			if invInput.ContractorLocation == "" {
-				return www.UserError{
-					ErrorCode: cms.ErrorStatusInvoiceMissingLocation,
-				}
-			}
 			location := formatLocation(invInput.ContractorLocation)
 			err = validateLocation(location)
 			if err != nil {

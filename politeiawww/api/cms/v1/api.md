@@ -8,21 +8,31 @@ interacts with a JSON REST API.  This document also describes websockets for
 server side notifications.  It does not render HTML.
 
 ***Contractor Management Routes***
-- [`Register`](#register)
-- [`Invite new user`](#invite-new-user)
-- [`New invoice`](#new-invoice)
-- [`User invoices`](#user-invoices)
-- [`Admin invoices`](#admin-invoices)
-- [`Edit invoice`](#edit-invoice)
-- [`Set invoice status`](#set-invoice-status)
-- [`Set DCC status`](#set-dcc-status)
-- [`CMS Users`](#cms-users)
-- [`Generate payouts`](#generate-payouts)
-- [`Invoice comments`](#invoice-comments)
-- [`Invoice exchange rate`](#invoice-exchange-rate)
-- [`Pay invoices`](#pay-invoices)
-- [`Line item payouts`](#line-item-payouts)
-- [`User sub-contractors`](#user-sub-contractors)
+- [cmswww API Specification](#cmswww-api-specification)
+- [v1](#v1)
+    - [`Invite new user`](#invite-new-user)
+    - [`Register`](#register)
+    - [`New invoice`](#new-invoice)
+    - [`User invoices`](#user-invoices)
+    - [`Set invoice status`](#set-invoice-status)
+    - [`Admin invoices`](#admin-invoices)
+    - [`Edit invoice`](#edit-invoice)
+    - [`Generate payouts`](#generate-payouts)
+    - [`Support/Oppose DCC`](#supportoppose-dcc)
+    - [`New DCC comment`](#new-dcc-comment)
+    - [`DCC comments`](#dcc-comments)
+    - [`Set DCC Status`](#set-dcc-status)
+    - [`User sub contractors`](#user-sub-contractors)
+    - [`CMS Users`](#cms-users)
+    - [Error codes](#error-codes)
+    - [Invoice status codes](#invoice-status-codes)
+    - [Line item type codes](#line-item-type-codes)
+    - [Domain type codes](#domain-type-codes)
+    - [Contractor type codes](#contractor-type-codes)
+    - [Payment status codes](#payment-status-codes)
+    - [DCC type codes](#dcc-type-codes)
+    - [DCC status codes](#dcc-status-codes)
+    - [`Abridged CMS User`](#abridged-cms-user)
 
 **Invoice status codes**
 
@@ -1519,7 +1529,6 @@ Reply:
 | <a name="ErrorStatusInvalidPaymentAddress">ErrorStatusInvalidPaymentAddress</a> | 1009 | Invalid payment address was submitted. |
 | <a name="ErrorStatusMalformedLineItem">ErrorStatusMalformedLineItem</a> | 1010 | Line item in an invoice was malformed and invalid. |
 | <a name="ErrorStatusInvoiceMissingName">ErrorStatusInvoiceMissingName</a> | 1011 | Submitted invoice missing contractor name. |
-| <a name="ErrorStatusInvoiceMissingLocation">ErrorStatusInvoiceMissingLocation</a> | 1012 | Submitted invoice missing contractor location. |
 | <a name="ErrorStatusInvoiceMissingContact">ErrorStatusInvoiceMissingContact</a> | 1013 | Submitted invoice missing contractor contact. |
 | <a name="ErrorStatusInvoiceMissingRate">ErrorStatusInvoiceMissingRate</a> | 1014 | Submitted invoice missing contractor rate. |
 | <a name="ErrorStatusInvoiceInvalidRate">ErrorStatusInvoiceInvalidRate</a> | 1015 | Submitted contractor rate is invalid (either too high or low). |
