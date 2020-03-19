@@ -10,6 +10,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/decred/politeia/util/version"
 	"github.com/go-test/deep"
 )
 
@@ -21,10 +22,11 @@ func TestHandleVersion(t *testing.T) {
 	defer d.Close()
 
 	expectedReply := www.VersionReply{
-		Version: www.PoliteiaWWWAPIVersion,
-		Route:   www.PoliteiaWWWAPIRoute,
-		PubKey:  hex.EncodeToString(p.cfg.Identity.Key[:]),
-		TestNet: p.cfg.TestNet,
+		Version:       www.PoliteiaWWWAPIVersion,
+		GithubVersion: version.GithubVersion(),
+		Route:         www.PoliteiaWWWAPIRoute,
+		PubKey:        hex.EncodeToString(p.cfg.Identity.Key[:]),
+		TestNet:       p.cfg.TestNet,
 	}
 
 	var tests = []struct {
