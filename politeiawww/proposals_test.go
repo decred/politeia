@@ -903,6 +903,135 @@ func TestProcessNewProposal(t *testing.T) {
 	}
 }
 
+func TestProcessEditProposal(t *testing.T) {
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
+
+	d := newTestPoliteiad(t, p)
+	defer d.Close()
+
+	usr, id := newUser(t, p, true, false)
+	notAuthorUser, _ := newUser(t, p, true, false)
+
+	// Public proposal to be edited
+	propPublic := newProposalRecord(t, usr, id, www.PropStatusPublic)
+	tokenPropPublic := propPublic.CensorshipRecord.Token
+	d.AddRecord(t, convertPropToPD(t, propPublic))
+
+	root := merkleRoot(t, propPublic.Files)
+	s := id.SignMessage([]byte(root))
+	sigPropPublic := hex.EncodeToString(s[:])
+
+	// Edited public proposal
+	newMD := newFileRandomMD(t)
+	png := createFilePNG(t, false)
+	newFiles := []www.File{newMD, *png}
+
+	root = merkleRoot(t, newFiles)
+	s = id.SignMessage([]byte(root))
+	sigPropPublicEdited := hex.EncodeToString(s[:])
+
+	// Censored proposal to test error case
+	propCensored := newProposalRecord(t, usr, id, www.PropStatusCensored)
+	tokenPropCensored := propCensored.CensorshipRecord.Token
+	d.AddRecord(t, convertPropToPD(t, propCensored))
+
+	// Authorized vote proposal to test error case
+	propVoteAuthorized := newProposalRecord(t, usr, id, www.PropStatusPublic)
+	tokenVoteAuthorized := propVoteAuthorized.CensorshipRecord.Token
+	d.AddRecord(t, convertPropToPD(t, propVoteAuthorized))
+
+	cmd := newAuthorizeVoteCmd(t, tokenVoteAuthorized,
+		propVoteAuthorized.Version, decredplugin.AuthVoteActionAuthorize, id)
+	d.Plugin(t, cmd)
+
+	var tests = []struct {
+		name      string
+		user      *user.User
+		editProp  www.EditProposal
+		wantError error
+	}{
+		{
+			"proposal not found",
+			usr,
+			www.EditProposal{
+				Token: "invalid-token",
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusProposalNotFound,
+			},
+		},
+		{
+			"wrong proposal status",
+			usr,
+			www.EditProposal{
+				Token: tokenPropCensored,
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusWrongStatus,
+			},
+		},
+		{
+			"user is not the author",
+			notAuthorUser,
+			www.EditProposal{
+				Token: tokenPropPublic,
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusUserNotAuthor,
+			},
+		},
+		{
+			"wrong proposal vote status",
+			usr,
+			www.EditProposal{
+				Token: tokenVoteAuthorized,
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusWrongVoteStatus,
+			},
+		},
+		{
+			"no changes in proposal md file",
+			usr,
+			www.EditProposal{
+				Token:     tokenPropPublic,
+				Files:     propPublic.Files,
+				PublicKey: usr.PublicKey(),
+				Signature: sigPropPublic,
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusNoProposalChanges,
+			},
+		},
+		{
+			"success",
+			usr,
+			www.EditProposal{
+				Token:     tokenPropPublic,
+				Files:     newFiles,
+				PublicKey: usr.PublicKey(),
+				Signature: sigPropPublicEdited,
+			},
+			nil,
+		},
+	}
+
+	for _, v := range tests {
+		t.Run(v.name, func(t *testing.T) {
+			_, err := p.processEditProposal(v.editProp, v.user)
+			got := errToStr(err)
+			want := errToStr(v.wantError)
+
+			// Test if we got expected error
+			if got != want {
+				t.Errorf("got error %v, want %v",
+					got, want)
+			}
+		})
+	}
+}
+
 func TestVerifyStatusChange(t *testing.T) {
 	invalid := www.PropStatusInvalid
 	notFound := www.PropStatusNotFound
