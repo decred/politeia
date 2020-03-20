@@ -49,7 +49,7 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway v1.9.3 // indirect
 	github.com/h2non/go-is-svg v0.0.0-20160927212452-35e8c4b0612c
 	github.com/jessevdk/go-flags v1.4.1-0.20200711081900-c17162fe8fd7
-	github.com/jinzhu/gorm v1.9.10
+	github.com/jinzhu/gorm v1.9.12
 	github.com/jonboulle/clockwork v0.1.0 // indirect
 	github.com/jrick/logrotate v1.0.0
 	github.com/kylelemons/godebug v1.1.0 // indirect
@@ -71,6 +71,7 @@ require (
 	go.uber.org/zap v1.10.0 // indirect
 	golang.org/x/crypto v0.0.0-20200214034016-1d94cc7ab1c6
 	golang.org/x/net v0.0.0-20191028085509-fe3aa8a45271
+	golang.org/x/oauth2 v0.0.0-20180821212333-d2e6202438be
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
 	google.golang.org/grpc v1.25.1
 	sigs.k8s.io/yaml v1.1.0 // indirect

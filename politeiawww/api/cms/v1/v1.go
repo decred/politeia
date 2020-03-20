@@ -54,6 +54,8 @@ const (
 	RouteProposalBilling        = "/proposals/billing"
 	RouteProposalBillingSummary = "/proposals/spendingsummary"
 	RouteProposalBillingDetails = "/proposals/spendingdetails"
+	RouteUserCodeStats          = "/user/codestats"
+	RouteUpdateGithub           = "/admin/updategithub"
 
 	// Invoice status codes
 	InvoiceStatusInvalid  InvoiceStatusT = 0 // Invalid status
@@ -241,6 +243,7 @@ const (
 	ErrorStatusDCCVoteEnded                   www.ErrorStatusT = 1054
 	ErrorStatusDCCVoteStillLive               www.ErrorStatusT = 1055
 	ErrorStatusDCCDuplicateVote               www.ErrorStatusT = 1056
+	ErrorStatusMissingGithubName              www.ErrorStatusT = 1057
 
 	ProposalsMainnet = "https://proposals.decred.org"
 	ProposalsTestnet = "https://test-proposals.decred.org"
@@ -380,6 +383,7 @@ var (
 		ErrorStatusDCCVoteEnded:                   "the all contractor voting period has ended",
 		ErrorStatusDCCVoteStillLive:               "cannot update status of a DCC while a vote is still live",
 		ErrorStatusDCCDuplicateVote:               "user has already submitted a vote for the given dcc",
+		ErrorStatusMissingGithubName:              "Github Name required to receive code stats",
 	}
 )
 
@@ -1043,4 +1047,84 @@ type ProposalBillingDetails struct {
 // requested proposal.
 type ProposalBillingDetailsReply struct {
 	Details ProposalSpending `json:"details"`
+}
+
+// UserCodeStats is a request that other members of the requested user's domain
+// may attempt to view the given month/year of code changes
+type UserCodeStats struct {
+	UserID string `json:"userid"`
+	Month  int64  `json:"month"`
+	Year   int64  `json:"year"`
+}
+
+// UserCodeStatsReply responds with an array of code stats per repo for the
+// given user, month and year.
+type UserCodeStatsReply struct {
+	RepoStats []CodeStats `json:"repostats"`
+}
+
+// CodeStats contains various pieces of information for user's code contributions
+// per repo over a period of time.
+type CodeStats struct {
+	Repository      string   `json:"repository"`
+	MergeAdditions  int64    `json:"mergeadditions"`
+	MergeDeletions  int64    `json:"mergedeletions"`
+	ReviewAdditions int64    `json:"reviewadditions"`
+	ReviewDeletions int64    `json:"reviewdeletions"`
+	PRs             []string `json:"prs"`
+	Reviews         []string `json:"reviews"`
+}
+
+// UserInformationResult models the data from the userinformation command.
+type UserInformationResult struct {
+	User         string                   `json:"user"`
+	Organization string                   `json:"organization"`
+	PRs          []PullRequestInformation `json:"prs"`
+	RepoDetails  []RepositoryInformation  `json:"repodetails"`
+	Reviews      []ReviewInformation      `json:"reviews"`
+	Year         int                      `json:"year"`
+	Month        int                      `json:"month"`
+}
+
+type RepositoryInformation struct {
+	PRs             []string `json:"prs"`
+	Reviews         []string `json:"reviews"`
+	Repository      string   `json:"repo"`
+	CommitAdditions int64    `json:"commitadditions"`
+	CommitDeletions int64    `json:"commitdeletions"`
+	MergeAdditions  int64    `json:"mergeadditions"`
+	MergeDeletions  int64    `json:"mergedeletions"`
+	ReviewAdditions int64    `json:"reviewadditions"`
+	ReviewDeletions int64    `json:"reviewdeletions"`
+}
+
+type PullRequestInformation struct {
+	Repository string `json:"repo"`
+	URL        string `json:"url"`
+	Number     int    `json:"number"`
+	Additions  int64  `json:"additions"`
+	Deletions  int64  `json:"deletions"`
+	Date       string `json:"date"`
+	State      string `json:"state"`
+}
+
+type ReviewInformation struct {
+	Repository string `json:"repo"`
+	URL        string `json:"url"`
+	Number     int    `json:"number"`
+	Additions  int    `json:"additions"`
+	Deletions  int    `json:"deletions"`
+	Date       string `json:"date"`
+	State      string `json:"state"`
+}
+
+type UpdateGithub struct {
+	Organization  string `json:"organization"`
+	Repository    string `json:"repo"`
+	Year          int    `json:"year"`
+	Month         int    `json:"month"`
+	OnlyCodeStats bool   `json:"onlycodestats"`
+}
+
+type UpdateGithubReply struct {
 }

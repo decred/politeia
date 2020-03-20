@@ -143,6 +143,7 @@ type config struct {
 	SMTPSkipVerify           bool   `long:"smtpskipverify" description:"Skip SMTP TLS cert verification. Will only skip if SMTPCert is empty"`
 	SMTPCert                 string `long:"smtpcert" description:"File containing the smtp certificate file"`
 	SystemCerts              *x509.CertPool
+	GithubAPIToken           string `long:"githubapitoken" description:"API Token used to communicate with github API.  When populated in cmswww mode, github-tracker is enabled."`
 }
 
 // serviceOptions defines the configuration options for the rpc as a service

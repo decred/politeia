@@ -61,6 +61,7 @@ type cmswww struct {
 	ChangePassword         shared.ChangePasswordCmd  `command:"changepassword" description:"(user)   change the password for the logged in user"`
 	ChangeUsername         shared.ChangeUsernameCmd  `command:"changeusername" description:"(user)   change the username for the logged in user"`
 	CMSUsers               CMSUsersCmd               `command:"cmsusers" description:"(user)   get a list of cms users"`
+	CodeStats              CodeStatsCmd              `command:"codestats" description:"(user)    get a list of code stats per repo for the given userid"`
 	DCCComments            DCCCommentsCmd            `command:"dcccomments" description:"(user)   get the comments for a dcc proposal"`
 	DCCDetails             DCCDetailsCmd             `command:"dccdetails" description:"(user)   get the details of a dcc"`
 	EditInvoice            EditInvoiceCmd            `command:"editinvoice" description:"(user)   edit a invoice"`
@@ -105,6 +106,7 @@ type cmswww struct {
 	Users                  shared.UsersCmd           `command:"users" description:"(user)   get a list of users"`
 	Secret                 shared.SecretCmd          `command:"secret" description:"(user)   ping politeiawww"`
 	VerifyTOTP             shared.VerifyTOTPCmd      `command:"verifytotp" description:"(user)  verify the set code for TOTP"`
+	UpdateGithub           UpdateGithubCmd           `command:"updategithub" description:"(admin)  start the github-tracker update process"`
 	Version                shared.VersionCmd         `command:"version" description:"(public) get server info and CSRF token"`
 	VoteDCC                VoteDCCCmd                `command:"votedcc" description:"(user) vote for a given DCC during an all contractor vote"`
 	VoteDetails            VoteDetailsCmd            `command:"votedetails" description:"(user) get the details for a dcc vote"`

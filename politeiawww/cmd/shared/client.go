@@ -1951,6 +1951,30 @@ func (c *Client) CMSUserDetails(userID string) (*cms.UserDetailsReply, error) {
 	return &uir, nil
 }
 
+// CodeStats returns the given cms user's code statistics.
+func (c *Client) CodeStats(usc cms.UserCodeStats) (*cms.UserCodeStatsReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost,
+		cms.APIRoute, cms.RouteUserCodeStats, usc)
+	if err != nil {
+		return nil, err
+	}
+
+	var csr cms.UserCodeStatsReply
+	err = json.Unmarshal(responseBody, &csr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal UserCodeStatsReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(csr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &csr, nil
+}
+
 // CMSEditUser edits the current user's information.
 func (c *Client) CMSEditUser(uui cms.EditUser) (*cms.EditUserReply, error) {
 	responseBody, err := c.makeRequest(http.MethodPost,
@@ -2429,6 +2453,22 @@ func (c *Client) LoadWalletClient() error {
 	c.conn = conn
 	c.wallet = walletrpc.NewWalletServiceClient(conn)
 	return nil
+}
+
+func (c *Client) UpdateGithub(pi *cms.UpdateGithub) (*cms.UpdateGithubReply, error) {
+	responseBody, err := c.makeRequest(http.MethodGet,
+		cms.APIRoute, cms.RouteUpdateGithub, pi)
+	if err != nil {
+		return nil, err
+	}
+
+	var pir cms.UpdateGithubReply
+	err = json.Unmarshal(responseBody, &pir)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal PayInvoiceReply: %v", err)
+	}
+
+	return &pir, nil
 }
 
 // Close all client connections.

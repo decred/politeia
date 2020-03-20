@@ -97,3 +97,23 @@ type CMSUser struct {
 func (CMSUser) TableName() string {
 	return tableCMSUsers
 }
+
+// CMSCodeStats struct
+type CMSCodeStats struct {
+	ID              string `gorm:"primary_key"` // UserID + GithubName + Month + Year
+	GitHubName      string `gorm:"not null"`    // GithubName
+	Repository      string `gorm:"not null"`    // Repository
+	Month           int    `gorm:"not null"`    // Month of code stats
+	Year            int    `gorm:"not null"`    // Year of code stats
+	PRs             string `gorm:"not null"`    // String of all PR URLs separated by commas
+	Reviews         string `gorm:"not null"`    // String of all Reviewed PR URLS separated by commas
+	MergedAdditions int64  `gorm:"not null"`    // Total merged code additions
+	MergedDeletions int64  `gorm:"not null"`    // Total merged code deletions
+	ReviewAdditions int64  `gorm:"not null"`    // Total reviewed code additions
+	ReviewDeletions int64  `gorm:"not null"`    // Total reviewed code deletions
+}
+
+// TableName returns the table name of the CMSUsers table.
+func (CMSCodeStats) TableName() string {
+	return tableCMSCodeStats
+}

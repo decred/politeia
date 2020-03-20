@@ -20,6 +20,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/v3"
 	exptypes "github.com/decred/dcrdata/explorer/types/v2"
 	pstypes "github.com/decred/dcrdata/pubsub/types/v3"
+	ghtracker "github.com/decred/politeia/github-tracker"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/cache"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
@@ -132,8 +133,9 @@ type politeiawww struct {
 	userEmails map[string]uuid.UUID // [email]userID
 
 	// Following entries are use only during cmswww mode
-	cmsDB cmsdatabase.Database
-	cron  *cron.Cron
+	cmsDB         cmsdatabase.Database
+	cron          *cron.Cron
+	githubTracker *ghtracker.Tracker
 
 	// wsDcrdata is a dcrdata websocket client
 	wsDcrdata *wsdcrdata.Client

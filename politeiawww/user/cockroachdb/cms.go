@@ -3,73 +3,16 @@ package cockroachdb
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/decred/politeia/politeiawww/user"
-	"github.com/google/uuid"
 	"github.com/jinzhu/gorm"
 )
 
 const (
 	// CMS plugin table names
-	tableCMSUsers = "cms_users"
+	tableCMSUsers     = "cms_users"
+	tableCMSCodeStats = "cms_code_stats"
 )
-
-func (c *cockroachdb) convertCMSUserFromDatabase(cu CMSUser) (*user.CMSUser, error) {
-	proposalsOwned := strings.Split(cu.ProposalsOwned, ",")
-	superUserIds := strings.Split(cu.SupervisorUserID, ",")
-	parsedUUIds := make([]uuid.UUID, 0, len(superUserIds))
-	proposalsSlice := make([]string, 0, len(proposalsOwned))
-	for _, proposal := range proposalsOwned {
-		if proposal == "" {
-			continue
-		}
-		proposalsSlice = append(proposalsSlice, strings.TrimSpace(proposal))
-	}
-	for _, userIds := range superUserIds {
-		if userIds == "" {
-			continue
-		}
-		parsed, err := uuid.Parse(strings.TrimSpace(userIds))
-		if err != nil {
-			return nil, err
-		}
-		parsedUUIds = append(parsedUUIds, parsed)
-	}
-	u := user.CMSUser{
-		Domain:             cu.Domain,
-		GitHubName:         cu.GitHubName,
-		MatrixName:         cu.MatrixName,
-		ContractorType:     cu.ContractorType,
-		ContractorName:     cu.ContractorName,
-		ContractorLocation: cu.ContractorLocation,
-		ContractorContact:  cu.ContractorContact,
-		SupervisorUserIDs:  parsedUUIds,
-		ProposalsOwned:     proposalsSlice,
-	}
-	b, _, err := c.decrypt(cu.User.Blob)
-	if err != nil {
-		return nil, err
-	}
-	usr, err := user.DecodeUser(b)
-	if err != nil {
-		return nil, err
-	}
-	u.User = *usr
-	return &u, nil
-}
-
-func (c *cockroachdb) convertCMSUsersFromDatabase(cu []CMSUser) ([]user.CMSUser, error) {
-	users := make([]user.CMSUser, 0, len(cu))
-	for _, v := range cu {
-		u, err := c.convertCMSUserFromDatabase(v)
-		if err != nil {
-			return nil, err
-		}
-		users = append(users, *u)
-	}
-	return users, nil
-}
 
 // newCMSUser creates a new User record and a corresponding CMSUser record
 // with the provided user info.
@@ -438,6 +381,131 @@ func (c *cockroachdb) cmdCMSUserSubContractors(payload string) (string, error) {
 	return string(reply), nil
 }
 
+// cmdNewCMSCodeStats inserts a new CMSUser record into the database.
+func (c *cockroachdb) cmdNewCMSCodeStats(payload string) (string, error) {
+	// Decode payload
+	nu, err := user.DecodeNewCMSCodeStats([]byte(payload))
+	if err != nil {
+		return "", err
+	}
+
+	tx := c.userDB.Begin()
+	for _, ncs := range nu.UserCodeStats {
+		cms := convertCodestatsToDatabase(ncs)
+		err = c.newCMSCodeStats(tx, cms)
+		if err != nil {
+			tx.Rollback()
+			return "", err
+		}
+	}
+	err = tx.Commit().Error
+	if err != nil {
+		return "", err
+	}
+
+	// Prepare reply
+	var nur user.NewCMSCodeStatsReply
+	reply, err := user.EncodeNewCMSCodeStatsReply(nur)
+	if err != nil {
+		return "", nil
+	}
+
+	return string(reply), nil
+}
+
+// cmdUpdateCMSCodeStats updates an existing CMSUser record into the database.
+func (c *cockroachdb) cmdUpdateCMSCodeStats(payload string) (string, error) {
+	// Decode payload
+	nu, err := user.DecodeUpdateCMSCodeStats([]byte(payload))
+	if err != nil {
+		return "", err
+	}
+
+	tx := c.userDB.Begin()
+	for _, ncs := range nu.UserCodeStats {
+		cms := convertCodestatsToDatabase(ncs)
+		err = c.updateCMSCodeStats(tx, cms)
+		if err != nil {
+			tx.Rollback()
+			return "", err
+		}
+	}
+	err = tx.Commit().Error
+	if err != nil {
+		return "", err
+	}
+
+	// Prepare reply
+	var nur user.UpdateCMSCodeStatsReply
+	reply, err := user.EncodeUpdateCMSCodeStatsReply(nur)
+	if err != nil {
+		return "", nil
+	}
+
+	return string(reply), nil
+}
+
+// updateCMSCodeStats updates a CMS Code stats record
+//
+// This function must be called using a transaction.
+func (c *cockroachdb) updateCMSCodeStats(tx *gorm.DB, cs CMSCodeStats) error {
+	err := tx.Save(&cs).Error
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// newCMSCodeStats creates a new User record and a corresponding CMSUser record
+// with the provided user info.
+//
+// This function must be called using a transaction.
+func (c *cockroachdb) newCMSCodeStats(tx *gorm.DB, cs CMSCodeStats) error {
+	err := tx.Create(&cs).Error
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *cockroachdb) cmdCMSCodeStatsByUserMonthYear(payload string) (string, error) {
+	// Decode payload
+	p, err := user.DecodeCMSCodeStatsByUserMonthYear([]byte(payload))
+	if err != nil {
+		return "", err
+	}
+	var cmsCodeStats []CMSCodeStats
+
+	// This is done this way currently because GORM doesn't appear to properly
+	// parse the following:
+	// Where("? = ANY(string_to_array(supervisor_user_id, ','))", p.ID)
+	err = c.userDB.
+		Where("git_hub_name = ? AND month = ? and year = ?", p.GithubName, p.Month, p.Year).
+		Find(&cmsCodeStats).
+		Error
+	if err != nil {
+		return "", err
+	}
+	// Prepare reply
+	userCodeStats := make([]user.CodeStats, 0, len(cmsCodeStats))
+	for _, u := range cmsCodeStats {
+		codeStat := convertCodestatsFromDatabase(u)
+		if err != nil {
+			return "", err
+		}
+		userCodeStats = append(userCodeStats, codeStat)
+	}
+	r := user.CMSCodeStatsByUserMonthYearReply{
+		UserCodeStats: userCodeStats,
+	}
+	reply, err := user.EncodeCMSCodeStatsByUserMonthYearReply(r)
+	if err != nil {
+		return "", err
+	}
+
+	return string(reply), nil
+}
+
 // Exec executes a cms plugin command.
 func (c *cockroachdb) cmsPluginExec(cmd, payload string) (string, error) {
 	switch cmd {
@@ -455,6 +523,12 @@ func (c *cockroachdb) cmsPluginExec(cmd, payload string) (string, error) {
 		return c.cmdCMSUserSubContractors(payload)
 	case user.CmdCMSUsersByProposalToken:
 		return c.cmdCMSUsersByProposalToken(payload)
+	case user.CmdNewCMSUserCodeStats:
+		return c.cmdNewCMSCodeStats(payload)
+	case user.CmdUpdateCMSUserCodeStats:
+		return c.cmdUpdateCMSCodeStats(payload)
+	case user.CmdCMSCodeStatsByUserMonthYear:
+		return c.cmdCMSCodeStatsByUserMonthYear(payload)
 	default:
 		return "", user.ErrInvalidPluginCmd
 	}
@@ -481,7 +555,12 @@ func (c *cockroachdb) cmsPluginCreateTables(tx *gorm.DB) error {
 			return err
 		}
 	}
-
+	if !tx.HasTable(tableCMSCodeStats) {
+		err := tx.CreateTable(&CMSCodeStats{}).Error
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

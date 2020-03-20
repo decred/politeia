@@ -21,6 +21,7 @@ import (
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	www2 "github.com/decred/politeia/politeiawww/api/www/v2"
 	"github.com/decred/politeia/politeiawww/cmsdatabase"
+	"github.com/decred/politeia/politeiawww/user"
 )
 
 func convertCastVoteReplyFromDecredPlugin(cvr decredplugin.CastVoteReply) www.CastVoteReply {
@@ -1548,4 +1549,79 @@ func filterDomainInvoice(inv *cms.InvoiceRecord) cms.InvoiceRecord {
 	}
 
 	return *inv
+}
+
+func convertCodeStatsFromDatabase(userCodeStats []user.CodeStats) []cms.CodeStats {
+	cmsCodeStats := make([]cms.CodeStats, 0, len(userCodeStats))
+	for _, codeStat := range userCodeStats {
+		cmsCodeStat := cms.CodeStats{
+			Repository:      codeStat.Repository,
+			PRs:             codeStat.PRs,
+			Reviews:         codeStat.Reviews,
+			MergeAdditions:  codeStat.MergedAdditions,
+			MergeDeletions:  codeStat.MergedDeletions,
+			ReviewAdditions: codeStat.ReviewAdditions,
+			ReviewDeletions: codeStat.ReviewDeletions,
+		}
+		cmsCodeStats = append(cmsCodeStats, cmsCodeStat)
+	}
+	return cmsCodeStats
+}
+
+func convertPRsToUserCodeStats(githubName string, month, year int, prs []cms.PullRequestInformation, reviews []cms.ReviewInformation) []user.CodeStats {
+	repoStats := make([]user.CodeStats, 0, 1048) // PNOOMA
+	for _, pr := range prs {
+		repoFound := false
+		for i, repoStat := range repoStats {
+			if repoStat.Repository == pr.Repository {
+				repoFound = true
+				repoStat.PRs = append(repoStat.PRs, pr.URL)
+				repoStat.MergedAdditions += pr.Additions
+				repoStat.MergedDeletions += pr.Deletions
+				repoStats[i] = repoStat
+				break
+			}
+		}
+		if !repoFound {
+			repoStat := user.CodeStats{
+				ID:              githubName + "-" + pr.Repository + "-" + strconv.Itoa(year) + "-" + strconv.Itoa(month),
+				GitHubName:      githubName,
+				Month:           month,
+				Year:            year,
+				PRs:             []string{pr.URL},
+				Repository:      pr.Repository,
+				MergedAdditions: pr.Additions,
+				MergedDeletions: pr.Deletions,
+			}
+			repoStats = append(repoStats, repoStat)
+		}
+	}
+	for _, review := range reviews {
+		repoFound := false
+		for i, repoStat := range repoStats {
+			if repoStat.Repository == review.Repository {
+				repoFound = true
+				repoStat.ReviewAdditions += int64(review.Additions)
+				repoStat.ReviewDeletions += int64(review.Deletions)
+				repoStat.Reviews = append(repoStat.Reviews, review.Repository+"/"+strconv.Itoa(review.Number))
+				repoStats[i] = repoStat
+				break
+			}
+		}
+		if !repoFound {
+			repoStat := user.CodeStats{
+				ID:              githubName + "-" + review.Repository + "-" + strconv.Itoa(year) + "-" + strconv.Itoa(month),
+				GitHubName:      githubName,
+				Month:           month,
+				Year:            year,
+				Repository:      review.Repository,
+				ReviewAdditions: int64(review.Additions),
+				ReviewDeletions: int64(review.Deletions),
+				Reviews:         []string{review.Repository + "/" + strconv.Itoa(review.Number)},
+			}
+			repoStats = append(repoStats, repoStat)
+		}
+	}
+
+	return repoStats
 }

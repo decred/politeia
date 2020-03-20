@@ -31,6 +31,8 @@ fi
 readonly DB_MAINNET="cms_mainnet"
 readonly DB_TESTNET="cms_testnet3"
 
+readonly GITHUB_TRACKER="ghtracker"
+
 # Database usernames.
 readonly 	USER_POLITEIAWWW="politeiawww" 
 
@@ -57,3 +59,13 @@ cockroach sql \
   --certs-dir="${ROOT_CERTS_DIR}" \
   --execute "GRANT CREATE, SELECT, DROP, INSERT, DELETE, UPDATE \
   ON DATABASE ${DB_TESTNET} TO  ${USER_POLITEIAWWW}"
+
+# Create the mainnet and testnet databases for the cms database.
+cockroach sql \
+  --certs-dir="${ROOT_CERTS_DIR}" \
+  --execute "CREATE DATABASE IF NOT EXISTS ${GITHUB_TRACKER}"
+
+cockroach sql \
+  --certs-dir="${ROOT_CERTS_DIR}" \
+  --execute "GRANT CREATE, SELECT, DROP, INSERT, DELETE, UPDATE \
+  ON DATABASE ${GITHUB_TRACKER} TO  ${USER_POLITEIAWWW}"

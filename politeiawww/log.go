@@ -45,10 +45,11 @@ var (
 	// application shutdown.
 	logRotator *rotator.Rotator
 
-	log            = backendLog.Logger("PWWW")
-	localdbLog     = backendLog.Logger("LODB")
-	cockroachdbLog = backendLog.Logger("CODB")
-	wsdcrdataLog   = backendLog.Logger("WSDD")
+	log              = backendLog.Logger("PWWW")
+	localdbLog       = backendLog.Logger("LODB")
+	cockroachdbLog   = backendLog.Logger("CODB")
+	wsdcrdataLog     = backendLog.Logger("WSDD")
+	githubTrackerLog = backendLog.Logger("GHTR")
 )
 
 // Initialize package-global logger variables.
@@ -66,6 +67,7 @@ var subsystemLoggers = map[string]slog.Logger{
 	"LODB": localdbLog,
 	"CODB": cockroachdbLog,
 	"WSDD": wsdcrdataLog,
+	"GHTR": githubTrackerLog,
 }
 
 // initLogRotator initializes the logging rotater to write logs to logFile and

@@ -26,6 +26,8 @@ import (
 	"text/template"
 	"time"
 
+	ghtracker "github.com/decred/politeia/github-tracker"
+	codedb "github.com/decred/politeia/github-tracker/database/cockroachdb"
 	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/cache"
@@ -646,6 +648,28 @@ func _main() error {
 				return fmt.Errorf("build cache: %v", err)
 			}
 		}
+		if p.cfg.GithubAPIToken != "" {
+			ghtracker.UseLogger(githubTrackerLog)
+			p.githubTracker = ghtracker.NewTracker(p.cfg.GithubAPIToken)
+
+			// Setup cache connection
+			codedb.UseLogger(githubdbLog)
+			p.githubTracker.DB, err = codedb.New(p.cfg.DBHost, p.cfg.DBRootCert,
+				p.cfg.DBCert, p.cfg.DBKey)
+			if err == database.ErrNoVersionRecord || err == database.ErrWrongVersion {
+				log.Errorf("New DB failed no version, wrong version: %v\n", err)
+				return err
+			} else if err != nil {
+				log.Errorf("New DB failed: %v\n", err)
+				return err
+			}
+			err = p.githubTracker.DB.Setup()
+			if err != nil {
+				log.Errorf("codeDB setup failed: %v", err)
+				return err
+			}
+		}
+
 		// Register cms userdb plugin
 		plugin := user.Plugin{
 			ID:      user.CMSPluginID,

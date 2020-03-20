@@ -816,6 +816,7 @@ func (p *politeiawww) handleProposalBilling(w http.ResponseWriter, r *http.Reque
 			})
 		return
 	}
+
 	u, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
@@ -911,7 +912,6 @@ func (p *politeiawww) handleStartVoteDCC(w http.ResponseWriter, r *http.Request)
 			})
 		return
 	}
-
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
@@ -1095,6 +1095,59 @@ func (p *politeiawww) makeProposalsRequest(method string, route string, v interf
 	return responseBody, nil
 }
 
+func (p *politeiawww) handleUserCodeStats(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleUserCodeStats")
+
+	var ucs cms.UserCodeStats
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&ucs); err != nil {
+		RespondWithError(w, r, 0, "handleUserCodeStats: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	u, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserCodeStats: getSessionUser %v", err)
+		return
+	}
+
+	uscr, err := p.processUserCodeStats(ucs, u)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUserCodeStats: processUserCodeStats: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, uscr)
+}
+
+func (p *politeiawww) handleUpdateGithub(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleUpdateGithub")
+
+	var ugh cms.UpdateGithub
+	err := util.ParseGetParams(r, &ugh)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleUpdateGithub: ParseGetParams",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	ughr, err := p.processUpdateGithub(ugh)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleUpdateGithub: processUpdateGithub: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, ughr)
+}
+
 func (p *politeiawww) setCMSWWWRoutes() {
 	// Templates
 	//p.addTemplate(templateNewProposalSubmittedName,
@@ -1176,7 +1229,7 @@ func (p *politeiawww) setCMSWWWRoutes() {
 	p.addRoute(http.MethodPost, cms.APIRoute,
 		cms.RouteVoteDetailsDCC, p.handleVoteDetailsDCC,
 		permissionLogin)
-	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+	p.addRoute(http.MethodGet, cms.APIRoute,
 		cms.RouteActiveVotesDCC, p.handleActiveVoteDCC,
 		permissionLogin)
 	p.addRoute(http.MethodGet, cms.APIRoute,
@@ -1190,6 +1243,9 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		permissionLogin)
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteVerifyTOTP, p.handleVerifyTOTP,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cms.APIRoute,
+		cms.RouteUserCodeStats, p.handleUserCodeStats,
 		permissionLogin)
 
 	// Unauthenticated websocket
@@ -1234,5 +1290,8 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		permissionAdmin)
 	p.addRoute(http.MethodPost, cms.APIRoute,
 		cms.RouteProposalBillingDetails, p.handleProposalBillingDetails,
+		permissionAdmin)
+	p.addRoute(http.MethodGet, cms.APIRoute,
+		cms.RouteUpdateGithub, p.handleUpdateGithub,
 		permissionAdmin)
 }
