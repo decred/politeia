@@ -61,9 +61,10 @@ var (
 	}
 	// The valid contractor
 	invalidNewInvoiceContractorType = map[cms.ContractorTypeT]bool{
-		cms.ContractorTypeNominee:       true,
-		cms.ContractorTypeInvalid:       true,
-		cms.ContractorTypeSubContractor: true,
+		cms.ContractorTypeNominee:         true,
+		cms.ContractorTypeInvalid:         true,
+		cms.ContractorTypeSubContractor:   true,
+		cms.ContractorTypeTempDeactivated: true,
 	}
 
 	validInvoiceField = regexp.MustCompile(createInvoiceFieldRegex())
