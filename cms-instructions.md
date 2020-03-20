@@ -26,8 +26,8 @@ updated with the pertinent payment information (including the txid etc).
 
 If you have any questions or concerns about the way CMS works, please reach out
 to the developers by submitting issues on [github](https://github.com/decred/politeia)
-or finding the Politeia channel that is bridged across our multiple chat
-platforms (matrix, slack, discord).
+or finding the Politeia channel that is bridged across both Matrix and our
+Discord.
 
 ### How to become a user
 
