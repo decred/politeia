@@ -931,13 +931,13 @@ func (d *decred) cmdTokenInventory(payload string) (string, error) {
 
 	// Setup reply
 	tir := decredplugin.TokenInventoryReply{
-		Pre:       pre,
-		Active:    active,
-		Approved:  approved,
-		Rejected:  rejected,
-		Abandoned: abandoned,
+		Pre:        pre,
+		Active:     active,
+		Approved:   approved,
+		Rejected:   rejected,
+		Abandoned:  abandoned,
 		Unreviewed: []string{},
-		Censored: []string{},
+		Censored:   []string{},
 	}
 
 	// Populate unvetted records if specified
