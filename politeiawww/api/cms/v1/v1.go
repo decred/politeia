@@ -72,13 +72,14 @@ const (
 	DomainTypeDocumentation DomainTypeT = 6 // Documentation domain
 
 	// Contractor types
-	ContractorTypeInvalid       ContractorTypeT = 0 // Invalid contractor type
-	ContractorTypeDirect        ContractorTypeT = 1 // Direct contractor
-	ContractorTypeSupervisor    ContractorTypeT = 2 // Supervisor contractor
-	ContractorTypeSubContractor ContractorTypeT = 3 // SubContractor
-	ContractorTypeNominee       ContractorTypeT = 4 // Nominated DCC user
-	ContractorTypeRevoked       ContractorTypeT = 5 // Revoked CMS User
-	ContractorTypeTemp          ContractorTypeT = 6 // Temporary Contractor (only allowed 1 invoice)
+	ContractorTypeInvalid         ContractorTypeT = 0 // Invalid contractor type
+	ContractorTypeDirect          ContractorTypeT = 1 // Direct contractor
+	ContractorTypeSupervisor      ContractorTypeT = 2 // Supervisor contractor
+	ContractorTypeSubContractor   ContractorTypeT = 3 // SubContractor
+	ContractorTypeNominee         ContractorTypeT = 4 // Nominated DCC user
+	ContractorTypeRevoked         ContractorTypeT = 5 // Revoked CMS User
+	ContractorTypeTemp            ContractorTypeT = 6 // Temporary Contractor (only allowed 1 invoice)
+	ContractorTypeTempDeactivated ContractorTypeT = 7 // Temporary Contractor that has been deactivated
 
 	// Payment information status types
 	PaymentStatusInvalid  PaymentStatusT = 0 // Invalid status

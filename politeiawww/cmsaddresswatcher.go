@@ -20,7 +20,9 @@ import (
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	database "github.com/decred/politeia/politeiawww/cmsdatabase"
+	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
+	"github.com/google/uuid"
 )
 
 const (
@@ -405,6 +407,36 @@ func (p *politeiawww) invoiceStatusPaid(token string) error {
 		return err
 	}
 
+	cmsUser, err := p.getCMSUserByID(dbInvoice.UserID)
+	if err != nil {
+		return err
+	}
+
+	if cmsUser.ContractorType == cms.ContractorTypeTemp {
+		// Update Temp User's Contractor Type to Deactivated
+		cmsUserID, err := uuid.Parse(cmsUser.ID)
+		if err != nil {
+			return err
+		}
+		uu := user.UpdateCMSUser{
+			ID:             cmsUserID,
+			ContractorType: int(cms.ContractorTypeTempDeactivated),
+		}
+
+		payload, err := user.EncodeUpdateCMSUser(uu)
+		if err != nil {
+			return err
+		}
+		pc := user.PluginCommand{
+			ID:      user.CMSPluginID,
+			Command: user.CmdUpdateCMSUser,
+			Payload: string(payload),
+		}
+		_, err = p.db.PluginExec(pc)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
