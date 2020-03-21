@@ -54,6 +54,9 @@ const (
 	defaultMailAddress    = "Politeia <noreply@example.org>"
 	defaultCMSMailAddress = "Contractor Management System <noreply@example.org>"
 
+	defaultDcrdataMainnet = "dcrdata.decred.org:443"
+	defaultDcrdataTestnet = "testnet.decred.org:443"
+
 	// dust value can be found increasing the amount value until we get false
 	// from IsDustAmount function. Amounts can not be lower than dust
 	// func IsDustAmount(amount int64, relayFeePerKb int64) bool {
@@ -109,6 +112,7 @@ type config struct {
 	HTTPSKey                 string `long:"httpskey" description:"File containing the https certificate key"`
 	RPCHost                  string `long:"rpchost" description:"Host for politeiad in this format"`
 	RPCCert                  string `long:"rpccert" description:"File containing the https certificate file"`
+	DcrdataHost              string `long:"dcrdatahost" description:"Dcrdata ip:port"`
 	RPCIdentityFile          string `long:"rpcidentityfile" description:"Path to file containing the politeiad identity"`
 	Identity                 *identity.PublicIdentity
 	RPCUser                  string `long:"rpcuser" description:"RPC user name for privileged commands"`
@@ -729,6 +733,15 @@ func loadConfig() (*config, []string, error) {
 		}
 	}
 
+	// Setup dcrdata addresses
+	if cfg.DcrdataHost == "" {
+		if cfg.TestNet {
+			cfg.DcrdataHost = defaultDcrdataTestnet
+		} else {
+			cfg.DcrdataHost = defaultDcrdataMainnet
+		}
+	}
+
 	cfg.RPCHost = util.NormalizeAddress(cfg.RPCHost, port)
 	u, err := url.Parse("https://" + cfg.RPCHost)
 	if err != nil {
@@ -844,4 +857,12 @@ func loadConfig() (*config, []string, error) {
 	}
 
 	return &cfg, remainingArgs, nil
+}
+
+func (p *politeiawww) dcrdataHttpApi() string {
+	return fmt.Sprintf("https://%v/api", p.cfg.DcrdataHost)
+}
+
+func (p *politeiawww) dcrdataWsApi() string {
+	return fmt.Sprintf("wss://%v/ps", p.cfg.DcrdataHost)
 }

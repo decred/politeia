@@ -497,7 +497,7 @@ func _main() error {
 	p.router.Use(recoverMiddleware)
 
 	// Setup dcrdata websocket connection
-	ws, err := newWSDcrdata()
+	ws, err := p.newWSDcrdata()
 	if err != nil {
 		return fmt.Errorf("new wsDcrdata: %v", err)
 	}
