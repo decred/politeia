@@ -268,8 +268,8 @@ func (w *wsDcrdata) reconnect() error {
 }
 
 // newWSDcrdata return a new wsDcrdata context.
-func (p *politeiawww) newWSDcrdata() (*wsDcrdata, error) {
-	client, err := newDcrdataWSClient(p.dcrdataWsApi())
+func newWSDcrdata(dcrdataURL string) (*wsDcrdata, error) {
+	client, err := newDcrdataWSClient(dcrdataURL)
 	if err != nil {
 		return nil, err
 	}
@@ -277,6 +277,6 @@ func (p *politeiawww) newWSDcrdata() (*wsDcrdata, error) {
 	return &wsDcrdata{
 		client:        client,
 		subscriptions: make(map[string]struct{}),
-		url:           p.dcrdataWsApi(),
+		url:           dcrdataURL,
 	}, nil
 }

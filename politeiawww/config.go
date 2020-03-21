@@ -859,10 +859,10 @@ func loadConfig() (*config, []string, error) {
 	return &cfg, remainingArgs, nil
 }
 
-func (p *politeiawww) dcrdataHttpApi() string {
+func (p *politeiawww) dcrdataHostHTTP() string {
 	return fmt.Sprintf("https://%v/api", p.cfg.DcrdataHost)
 }
 
-func (p *politeiawww) dcrdataWsApi() string {
+func (p *politeiawww) dcrdataHostWS() string {
 	return fmt.Sprintf("wss://%v/ps", p.cfg.DcrdataHost)
 }

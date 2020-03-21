@@ -147,7 +147,7 @@ func (p *politeiawww) restartCMSAddressesWatching() error {
 func (p *politeiawww) checkHistoricalPayments(payment *database.Payments) bool {
 	// Get all txs since start time of watcher
 	txs, err := util.FetchTxsForAddressNotBefore(strings.TrimSpace(payment.Address),
-		payment.TimeStarted, p.dcrdataHttpApi())
+		payment.TimeStarted, p.dcrdataHostHTTP())
 	if err != nil {
 		// XXX Some sort of 'recheck' or notice that it should do it again?
 		log.Errorf("error FetchTxsForAddressNotBefore for address %s: %v",
@@ -220,7 +220,7 @@ func (p *politeiawww) checkHistoricalPayments(payment *database.Payments) bool {
 // It will return TRUE if paid, otherwise false.  It utilizes the util
 // FetchTx which looks for transaction at a given address.
 func (p *politeiawww) checkPayments(payment *database.Payments, notifiedTx string) bool {
-	tx, err := util.FetchTx(payment.Address, notifiedTx, p.dcrdataHttpApi())
+	tx, err := util.FetchTx(payment.Address, notifiedTx, p.dcrdataHostHTTP())
 	if err != nil {
 		log.Errorf("error FetchTxs for address %s: %v", payment.Address, err)
 		return false
@@ -448,7 +448,7 @@ func (p *politeiawww) reconnectWS() {
 	var err error
 	// Retry wsDcrdata reconnect every 1 minute
 	for {
-		p.wsDcrdata, err = p.newWSDcrdata()
+		p.wsDcrdata, err = newWSDcrdata(p.dcrdataHostWS())
 		if err != nil {
 			log.Errorf("reconnectWS error: %v", err)
 		}
