@@ -272,11 +272,11 @@ func _main() error {
 	}()
 
 	log.Infof("Version : %v", version.String())
-	log.Infof("Github Version: %v", version.GithubVersion())
+	log.Infof("Build Version: %v", version.BuildVersion())
 	log.Infof("Network : %v", activeNetParams.Params.Name)
 	log.Infof("Home dir: %v", loadedCfg.HomeDir)
 
-	if version.GithubVersion() == "(devel)" && !loadedCfg.Devel {
+	if version.BuildVersion() == "(devel)" {
 		log.Warnf("Warning: no build information available")
 	}
 

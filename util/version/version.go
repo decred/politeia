@@ -75,8 +75,9 @@ func String() string {
 	return version
 }
 
-// GithubVersion returns the github version from the build information.
-func GithubVersion() string {
+// BuildVersion returns the repository version information from where
+// politeia was built.
+func BuildVersion() string {
 	info, _ := debug.ReadBuildInfo()
 	version := info.Main.Version
 	return version
