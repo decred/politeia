@@ -38,8 +38,6 @@ const (
 
 	defaultMainnetPort = "49374"
 	defaultTestnetPort = "59374"
-
-	defaultDevel = false
 )
 
 var (
@@ -87,7 +85,6 @@ type config struct {
 	BuildCache    bool   `long:"buildcache" description:"Build the cache from scratch"`
 	Identity      string `long:"identity" description:"File containing the politeiad identity file"`
 	GitTrace      bool   `long:"gittrace" description:"Enable git tracing in logs"`
-	Devel         bool   `long:"devel" description:"If true, dismiss warnings about required build information from github"`
 }
 
 // serviceOptions defines the configuration options for the daemon as a service
@@ -289,7 +286,7 @@ func loadConfig() (*config, []string, error) {
 		LogDir:     defaultLogDir,
 		HTTPSKey:   defaultHTTPSKeyFile,
 		HTTPSCert:  defaultHTTPSCertFile,
-		Devel:      defaultDevel,
+		Version:    version.String(),
 	}
 
 	// Service options which are only added on Windows.
