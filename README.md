@@ -384,6 +384,17 @@ that you want to force the cache to rebuild.  You can do this by using the
 tables from the cache, re-create the tables, then populate the cache with the
 data that is in the politeiad git repositories.
 
+##### Building with repository version
+
+It is often useful to have version information from the repository where politeia
+was fetched and built from, such as the commit hash it is using. To accomplish this,
+politeia needs to be built with `go get` from outside of your local files. If you 
+build using your local checked out repository, the build information will return 
+`(devel)` instead of the actual version, since it was builded locally on your
+development environment. If built properly, and supposing politeia has a release
+of the version 1.0.0, it will return `v1.0.0-<date>-<short commit hash>`. This build 
+version is logged on startup and returned from the version API call.
+
 ## Integrated Projects / External APIs / Official URLs
 
 * https://faucet.decred.org - instance of [testnetfaucet](https://github.com/decred/testnetfaucet)
