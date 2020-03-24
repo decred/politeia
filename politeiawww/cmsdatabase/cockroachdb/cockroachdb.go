@@ -385,20 +385,20 @@ func (c *cockroachdb) InvoicesByLineItemsProposalToken(token string) ([]*databas
 	log.Debugf("InvoicesByLineItemsProposalToken: %v", token)
 	// Get all line items with proposal token
 	query := `SELECT 
-				invoices.month, 
-				invoices.year, 
-				invoices.user_id,
-				invoices.public_key,
-				line_items.invoice_token,
-				line_items.type,
-				line_items.domain,
-				line_items.subdomain,
-				line_items.description,
-				line_items.proposal_url,
-				line_items.labor,
-				line_items.expenses,
-				line_items.contractor_rate
-				FROM invoices
+              invoices.month, 
+              invoices.year, 
+              invoices.user_id,
+              invoices.public_key,
+              line_items.invoice_token,
+              line_items.type,
+              line_items.domain,
+              line_items.subdomain,
+              line_items.description,
+              line_items.proposal_url,
+              line_items.labor,
+              line_items.expenses,
+              line_items.contractor_rate
+            FROM invoices
             INNER JOIN line_items
               ON invoices.token = line_items.invoice_token
               WHERE line_items.proposal_url = ? AND invoices.status = ?`
