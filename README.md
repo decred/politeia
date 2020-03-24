@@ -391,7 +391,7 @@ politeia was fetched and built from, such as the commit hash it is using.
 To accomplish this, politeia needs to be built with `go get` from outside 
 of your local files. If you build using your local checked out repository, 
 the build information will return `(devel)` instead of the actual version, 
-since it was builded locally on your development environment. If built 
+since it was built locally on your development environment. If built 
 properly, and suppose politeia has a release of the version 1.0.0, it will 
 return `v1.0.0-<date>-<short commit hash>`. This build version is logged on 
 startup and returned from the version API call. Below are examples on how
