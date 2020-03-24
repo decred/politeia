@@ -33,6 +33,8 @@ const (
 	EventTypeUserManage
 	EventTypeInvoiceComment      // CMS Type
 	EventTypeInvoiceStatusUpdate // CMS Type
+	EventTypeDCCNew              // DCC Type
+	EventTypeDCCSupportOppose    // DCC Type
 )
 
 type EventDataProposalSubmitted struct {
@@ -79,6 +81,14 @@ type EventDataInvoiceComment struct {
 type EventDataInvoiceStatusUpdate struct {
 	Token string
 	User  *user.User
+}
+
+type EventDataDCCNew struct {
+	Token string
+}
+
+type EventDataDCCSupportOppose struct {
+	Token string
 }
 
 func (p *politeiawww) getProposalAndAuthor(token string) (*www.ProposalRecord, *user.User, error) {
@@ -151,6 +161,8 @@ func (p *politeiawww) initCMSEventManager() {
 
 	p._setupInvoiceCommentEmailNotification()
 	p._setupInvoiceStatusUpdateEmailNotification()
+	p._setupDCCNewEmailNotification()
+	p._setupDCCSupportOpposeEmailNotification()
 	//p._setupInvoiceEditedEmailNotification()
 	//p._setupInvoiceCommentEmailNotification()
 }
@@ -193,6 +205,46 @@ func (p *politeiawww) _setupInvoiceStatusUpdateEmailNotification() {
 		}
 	}()
 	p.eventManager._register(EventTypeInvoiceStatusUpdate, ch)
+}
+
+func (p *politeiawww) _setupDCCNewEmailNotification() {
+	ch := make(chan interface{})
+	go func() {
+		for data := range ch {
+			ic, ok := data.(EventDataDCCNew)
+			if !ok {
+				log.Errorf("invalid event data")
+				continue
+			}
+
+			err := p.emailAdminsForNewDCC(ic.Token)
+			if err != nil {
+				log.Errorf("email all admins for new dcc %v: %v",
+					ic.Token, err)
+			}
+		}
+	}()
+	p.eventManager._register(EventTypeDCCNew, ch)
+}
+
+func (p *politeiawww) _setupDCCSupportOpposeEmailNotification() {
+	ch := make(chan interface{})
+	go func() {
+		for data := range ch {
+			ic, ok := data.(EventDataDCCSupportOppose)
+			if !ok {
+				log.Errorf("invalid event data")
+				continue
+			}
+
+			err := p.emailAdminsForNewDCCSupportOppose(ic.Token)
+			if err != nil {
+				log.Errorf("email all admins for new dcc suppoort oppose %v: %v",
+					ic.Token, err)
+			}
+		}
+	}()
+	p.eventManager._register(EventTypeDCCSupportOppose, ch)
 }
 
 func (p *politeiawww) _setupProposalSubmittedEmailNotification() {
