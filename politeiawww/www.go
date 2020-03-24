@@ -491,6 +491,7 @@ func _main() error {
 	csrfHandle := csrf.Protect(
 		csrfKey,
 		csrf.Path("/"),
+		csrf.MaxAge(sessionMaxAge),
 	)
 
 	p.router = mux.NewRouter()
