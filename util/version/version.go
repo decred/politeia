@@ -79,8 +79,7 @@ func String() string {
 // politeia was built.
 func BuildVersion() string {
 	info, _ := debug.ReadBuildInfo()
-	version := info.Main.Version
-	return version
+	return info.Main.Version
 }
 
 // normalizeSemString returns the passed string stripped of all characters
