@@ -408,21 +408,6 @@ func (c *cockroachdb) InvoicesByLineItemsProposalToken(token string) ([]*databas
 	}
 	defer rows.Close()
 
-	type MatchingLineItems struct {
-		InvoiceToken   string
-		UserID         string
-		Month          uint
-		Year           uint
-		Type           uint
-		Domain         string
-		Subdomain      string
-		Description    string
-		ProposalURL    string
-		Labor          uint
-		Expenses       uint
-		ContractorRate uint
-		PublicKey      string
-	}
 	matching := make([]MatchingLineItems, 0, 1024)
 	for rows.Next() {
 		var i MatchingLineItems
@@ -436,30 +421,25 @@ func (c *cockroachdb) InvoicesByLineItemsProposalToken(token string) ([]*databas
 		return nil, err
 	}
 
-	dbInvoices := make([]*database.Invoice, 0, len(matching))
-	for _, vv := range matching {
-		li := make([]database.LineItem, 1)
-		li[0] = database.LineItem{
-			Type:           v1.LineItemTypeT(vv.Type),
-			Domain:         vv.Domain,
-			Subdomain:      vv.Subdomain,
-			Description:    vv.Description,
-			Labor:          vv.Labor,
-			Expenses:       vv.Expenses,
-			ProposalURL:    vv.ProposalURL,
-			ContractorRate: vv.ContractorRate,
-		}
-		inv := &database.Invoice{
-			PublicKey: vv.PublicKey,
-			Token:     vv.InvoiceToken,
-			Month:     vv.Month,
-			Year:      vv.Year,
-			UserID:    vv.UserID,
-			LineItems: li,
-		}
-		dbInvoices = append(dbInvoices, inv)
-	}
-	return dbInvoices, nil
+	return convertMatchingLineItemToInvoices(matching), nil
+}
+
+// MatchingLineItems is a type used for finding matched line items based on
+// proposal ownership.
+type MatchingLineItems struct {
+	InvoiceToken   string
+	UserID         string
+	Month          uint
+	Year           uint
+	Type           uint
+	Domain         string
+	Subdomain      string
+	Description    string
+	ProposalURL    string
+	Labor          uint
+	Expenses       uint
+	ContractorRate uint
+	PublicKey      string
 }
 
 // Close satisfies the database interface.

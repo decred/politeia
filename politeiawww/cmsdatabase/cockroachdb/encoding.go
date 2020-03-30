@@ -249,3 +249,31 @@ func decodeDCC(dcc *DCC) *database.DCC {
 	}
 	return &dbDCC
 }
+
+func convertMatchingLineItemToInvoices(matching []MatchingLineItems) []*database.Invoice {
+	// Each invoice added will include just 1 line item.
+	dbInvoices := make([]*database.Invoice, 0, len(matching))
+	for _, vv := range matching {
+		li := make([]database.LineItem, 1)
+		li[0] = database.LineItem{
+			Type:           cms.LineItemTypeT(vv.Type),
+			Domain:         vv.Domain,
+			Subdomain:      vv.Subdomain,
+			Description:    vv.Description,
+			Labor:          vv.Labor,
+			Expenses:       vv.Expenses,
+			ProposalURL:    vv.ProposalURL,
+			ContractorRate: vv.ContractorRate,
+		}
+		inv := &database.Invoice{
+			PublicKey: vv.PublicKey,
+			Token:     vv.InvoiceToken,
+			Month:     vv.Month,
+			Year:      vv.Year,
+			UserID:    vv.UserID,
+			LineItems: li,
+		}
+		dbInvoices = append(dbInvoices, inv)
+	}
+	return dbInvoices
+}

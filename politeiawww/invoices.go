@@ -1645,25 +1645,10 @@ func (p *politeiawww) processProposalBilling(pb cms.ProposalBilling, u *user.Use
 	propBilling := make([]cms.ProposalLineItems, 0, len(invoices))
 	for _, inv := range invoices {
 		// All invoices should have only 1 line item returned from that function
-		if len(inv.LineItems) < 1 {
+		if len(inv.LineItems) > 1 {
 			continue
 		}
-		lineItem := cms.ProposalLineItems{
-			Month:    int(inv.Month),
-			Year:     int(inv.Year),
-			UserID:   inv.UserID,
-			Username: inv.Username,
-			LineItem: cms.LineItemsInput{
-				Type:          inv.LineItems[0].Type,
-				Domain:        inv.LineItems[0].Domain,
-				Subdomain:     inv.LineItems[0].Subdomain,
-				Description:   inv.LineItems[0].Description,
-				ProposalToken: inv.LineItems[0].ProposalURL,
-				Labor:         inv.LineItems[0].Labor,
-				Expenses:      inv.LineItems[0].Expenses,
-				SubRate:       inv.LineItems[0].ContractorRate,
-			},
-		}
+		lineItem := convertDatabaseInvoiceToProposalLineItems(inv)
 		u, err := p.db.UserGetByPubKey(inv.PublicKey)
 		if err != nil {
 			log.Errorf("processProposalBilling: getUserByPubKey: token:%v "+
