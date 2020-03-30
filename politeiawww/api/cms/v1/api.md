@@ -100,7 +100,7 @@ Reply:
 Verifies email address of a user account invited via
 [`Invite new user`](#invite-new-user) and supply details for new user registration.
 
-**Route:** `POST v1/user/new`
+**Route:** `POST v1/register`
 
 **Params:**
 
