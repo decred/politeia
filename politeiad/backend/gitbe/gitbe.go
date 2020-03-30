@@ -2616,7 +2616,7 @@ func (g *gitBackEnd) rebasePR(id string) error {
 }
 
 // New returns a gitBackEnd context.  It verifies that git is installed.
-func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, id *identity.FullIdentity, gitTrace bool) (*gitBackEnd, error) {
+func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, id *identity.FullIdentity, gitTrace bool, dcrdataHost string) (*gitBackEnd, error) {
 	// Default to system git
 	if gitPath == "" {
 		gitPath = "git"
@@ -2635,7 +2635,7 @@ func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, 
 		exit:            make(chan struct{}),
 		checkAnchor:     make(chan struct{}),
 		testAnchors:     make(map[string]bool),
-		plugins:         []backend.Plugin{getDecredPlugin(anp.Name != "mainnet")},
+		plugins:         []backend.Plugin{getDecredPlugin(dcrdataHost)},
 	}
 	idJSON, err := id.Marshal()
 	if err != nil {

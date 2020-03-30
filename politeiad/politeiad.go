@@ -1147,7 +1147,8 @@ func _main() error {
 	// Setup backend.
 	gitbe.UseLogger(gitbeLog)
 	b, err := gitbe.New(activeNetParams.Params, loadedCfg.DataDir,
-		loadedCfg.DcrtimeHost, "", p.identity, loadedCfg.GitTrace)
+		loadedCfg.DcrtimeHost, "", p.identity, loadedCfg.GitTrace,
+		loadedCfg.DcrdataHost)
 	if err != nil {
 		return err
 	}

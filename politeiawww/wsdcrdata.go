@@ -9,7 +9,6 @@ import (
 
 	client "github.com/decred/dcrdata/pubsub/v4/psclient"
 	"github.com/decred/dcrdata/semver"
-	"github.com/decred/politeia/util"
 )
 
 const (
@@ -42,6 +41,7 @@ type wsDcrdata struct {
 	shutdown      bool
 	client        *client.Client      // dcrdata websocket client
 	subscriptions map[string]struct{} // Client subscriptions
+	url           string
 }
 
 // isShutdown returns whether the connection has been shutdown.
@@ -162,21 +162,17 @@ func (w *wsDcrdata) unsubFromAddr(address string) error {
 	return w.unsubscribe(addrSubPrefix + address)
 }
 
-func newDcrdataWSClient() (*client.Client, error) {
-	u, err := util.BlockExplorerURLForSubscriptions(activeNetParams.Params)
-	if err != nil {
-		return nil, err
-	}
+func newDcrdataWSClient(url string) (*client.Client, error) {
 	opts := client.Opts{
 		ReadTimeout:  client.DefaultReadTimeout,
 		WriteTimeout: 3 * time.Second,
 	}
-	c, err := client.New(u, context.Background(), &opts)
+	c, err := client.New(url, context.Background(), &opts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to %v: %v", u, err)
+		return nil, fmt.Errorf("failed to connect to %v: %v", url, err)
 	}
 
-	log.Infof("Dcrdata websocket host: %v", u)
+	log.Infof("Dcrdata websocket host: %v", url)
 
 	// Check client and server compatibility
 	v, err := c.ServerVersion()
@@ -230,7 +226,7 @@ func (w *wsDcrdata) reconnect() error {
 			w.removeAllSubs()
 
 			// Reconnect
-			c, err := newDcrdataWSClient()
+			c, err := newDcrdataWSClient(w.url)
 			if err != nil {
 				log.Errorf("wsDcrdata failed to create new client while "+
 					"reconnecting: %v", err)
@@ -272,8 +268,8 @@ func (w *wsDcrdata) reconnect() error {
 }
 
 // newWSDcrdata return a new wsDcrdata context.
-func newWSDcrdata() (*wsDcrdata, error) {
-	client, err := newDcrdataWSClient()
+func newWSDcrdata(dcrdataURL string) (*wsDcrdata, error) {
+	client, err := newDcrdataWSClient(dcrdataURL)
 	if err != nil {
 		return nil, err
 	}
@@ -281,5 +277,6 @@ func newWSDcrdata() (*wsDcrdata, error) {
 	return &wsDcrdata{
 		client:        client,
 		subscriptions: make(map[string]struct{}),
+		url:           dcrdataURL,
 	}, nil
 }
