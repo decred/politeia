@@ -54,6 +54,8 @@ const (
 	RouteProposalBilling        = "/proposals/billing"
 	RouteProposalBillingSummary = "/proposals/spendingsummary"
 	RouteProposalBillingDetails = "/proposals/spendingdetails"
+	RouteInvoiceTokenInventory  = "/invoices/tokeninventory"
+	RouteBatchInvoices          = "/invoices/batch"
 
 	// Invoice status codes
 	InvoiceStatusInvalid  InvoiceStatusT = 0 // Invalid status
@@ -181,6 +183,9 @@ const (
 	// summaries returned for the routes that return lists of proposal billing
 	// summaries.
 	ProposalBillingListPageSize = 50
+	// InvoiceListPageSize is the maximum number of invoices returned
+	// for routes that return lists of invoices
+	InvoiceListPageSize = 20
 
 	// InvoiceListPageSize is the maximum number of invoices returned by the
 	// Invoices request, the date range should just be updated to return them
@@ -241,6 +246,7 @@ const (
 	ErrorStatusDCCVoteEnded                   www.ErrorStatusT = 1054
 	ErrorStatusDCCVoteStillLive               www.ErrorStatusT = 1055
 	ErrorStatusDCCDuplicateVote               www.ErrorStatusT = 1056
+	ErrorStatusMaxInvoicesExceeded            www.ErrorStatusT = 1057
 
 	ProposalsMainnet = "https://proposals.decred.org"
 	ProposalsTestnet = "https://test-proposals.decred.org"
@@ -1043,4 +1049,33 @@ type ProposalBillingDetails struct {
 // requested proposal.
 type ProposalBillingDetailsReply struct {
 	Details ProposalSpending `json:"details"`
+}
+
+// InvoiceTokenInventory specifies upper and lower timestamp bounds for the
+// retrieval of invoice tokens.
+type InvoiceTokenInventory struct {
+	TimestampMax int64 `json:"timestampmax"`
+	TimestampMin int64 `json:"timestampmin"`
+}
+
+// InvoiceTokenInventoryReply returns all invoice tokens from the inventory,
+// separated by status.
+type InvoiceTokenInventoryReply struct {
+	Unreviewed []string `json:"unreviewed"`
+	Updated    []string `json:"updated"`
+	Disputed   []string `json:"disputed"`
+	Approved   []string `json:"approved"`
+	Paid       []string `json:"paid"`
+	Rejected   []string `json:"rejected"`
+}
+
+// BatchInvoices specifies a list of tokens to fetch their corresponding
+// invoices.
+type BatchInvoices struct {
+	Tokens []string `json:"tokens"`
+}
+
+// BatchInvoicesReply returns the invoices for the provided token list.
+type BatchInvoicesReply struct {
+	Invoices []InvoiceRecord `json:"invoices"`
 }

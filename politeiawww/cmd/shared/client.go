@@ -1880,6 +1880,53 @@ func (c *Client) TokenInventory() (*www.TokenInventoryReply, error) {
 	return &tir, nil
 }
 
+// InvoiceTokenInventory returns all invoice tokens from the inventory by status.
+func (c *Client) InvoiceTokenInventory(iti *cms.InvoiceTokenInventory) (*cms.InvoiceTokenInventoryReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost,
+		cms.APIRoute, cms.RouteInvoiceTokenInventory, iti)
+	if err != nil {
+		return nil, err
+	}
+
+	var itir cms.InvoiceTokenInventoryReply
+	err = json.Unmarshal(responseBody, &itir)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal InvoiceTokenInventory: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(itir)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &itir, nil
+}
+
+// BatchInvoices returns a list of invoices for the provided tokens.
+func (c *Client) BatchInvoices(bi *cms.BatchInvoices) (*cms.BatchInvoicesReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost,
+		cms.APIRoute, cms.RouteBatchInvoices, bi)
+	if err != nil {
+		return nil, err
+	}
+
+	var bir cms.BatchInvoicesReply
+	err = json.Unmarshal(responseBody, &bir)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal BatchInvoices: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(bir)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &bir, nil
+}
+
 // InvoiceExchangeRate changes the status of the specified invoice.
 func (c *Client) InvoiceExchangeRate(ier *cms.InvoiceExchangeRate) (*cms.InvoiceExchangeRateReply, error) {
 	responseBody, err := c.makeRequest(http.MethodPost,

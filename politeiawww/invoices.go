@@ -1359,6 +1359,32 @@ func (p *politeiawww) getInvoiceVersion(token, version string) (*cms.InvoiceReco
 	return &i, nil
 }
 
+func (p *politeiawww) getInvoices(tokens []string) (map[string]cms.InvoiceRecord, error) {
+	invoices := make(map[string]cms.InvoiceRecord)
+
+	for _, t := range tokens {
+		r, err := p.cache.Record(t)
+		if err != nil {
+			return nil, err
+		}
+		i := convertInvoiceFromCache(*r)
+
+		// Fill in userID and username fields
+		u, err := p.db.UserGetByPubKey(i.PublicKey)
+		if err != nil {
+			log.Errorf("getInvoices: getUserByPubKey: token:%v "+
+				"pubKey:%v err:%v", t, i.PublicKey, err)
+		} else {
+			i.UserID = u.ID.String()
+			i.Username = u.Username
+		}
+
+		invoices[i.CensorshipRecord.Token] = i
+	}
+
+	return invoices, nil
+}
+
 // processUserInvoices fetches all invoices that are currently stored in the
 // cmsdb for the logged in user.
 func (p *politeiawww) processUserInvoices(user *user.User) (*cms.UserInvoicesReply, error) {
@@ -1794,6 +1820,140 @@ func (p *politeiawww) processProposalBilling(pb cms.ProposalBilling, u *user.Use
 	}
 	reply.BilledLineItems = propBilling
 	return reply, nil
+}
+
+// processInvoiceTokenInventory returns the tokens of all invoices in the inventory,
+// separated by its status and filtered by the provided timestampMin and timestampMax
+// request parameters.
+func (p *politeiawww) processInvoiceTokenInventory(iti cms.InvoiceTokenInventory, user *user.User) (*cms.InvoiceTokenInventoryReply, error) {
+	inv, err := p.cache.Inventory()
+	if err != nil {
+		return nil, fmt.Errorf("backend inventory: %v", err)
+	}
+
+	isAdmin := user != nil && user.Admin
+
+	// Fetch all invoices from the cache
+	invoices := make([]database.Invoice, 0, len(inv))
+	for _, i := range inv {
+		for _, md := range i.Metadata {
+			if md.ID == mdstream.IDInvoiceGeneral {
+				// Convert invoice and fetch author by pubkey
+				i, err := convertCacheToDatabaseInvoice(i)
+				if err != nil {
+					return nil, err
+				}
+				u, err := p.db.UserGetByPubKey(i.PublicKey)
+				if err != nil {
+					return nil, err
+				}
+				// Check if user is admin or invoice author
+				if isAdmin || u.ID == user.ID {
+					invoices = append(invoices, *i)
+				}
+			}
+		}
+	}
+
+	// Filter by timestamp min and timestamp max
+	invoicesByTimestamp := make([]database.Invoice, 0, len(inv))
+	for _, i := range invoices {
+		maxLimitReached := iti.TimestampMax != 0 && i.Timestamp > iti.TimestampMax
+		minLimitReached := iti.TimestampMin != 0 && i.Timestamp < iti.TimestampMin
+		if maxLimitReached || minLimitReached {
+			continue
+		}
+		invoicesByTimestamp = append(invoicesByTimestamp, i)
+	}
+
+	// Sort invoices by its status
+	unreviewed := make([]string, 0, len(inv))
+	updated := make([]string, 0, len(inv))
+	disputed := make([]string, 0, len(inv))
+	approved := make([]string, 0, len(inv))
+	paid := make([]string, 0, len(inv))
+	rejected := make([]string, 0, len(inv))
+
+	for _, i := range invoicesByTimestamp {
+		switch i.Status {
+		case cms.InvoiceStatusNew:
+			unreviewed = append(unreviewed, i.Token)
+		case cms.InvoiceStatusUpdated:
+			updated = append(updated, i.Token)
+		case cms.InvoiceStatusDisputed:
+			disputed = append(disputed, i.Token)
+		case cms.InvoiceStatusApproved:
+			approved = append(approved, i.Token)
+		case cms.InvoiceStatusPaid:
+			paid = append(paid, i.Token)
+		case cms.InvoiceStatusRejected:
+			rejected = append(rejected, i.Token)
+		}
+	}
+
+	// Setup invoice token inventory reply
+	itir := cms.InvoiceTokenInventoryReply{
+		Unreviewed: unreviewed,
+		Updated:    updated,
+		Disputed:   disputed,
+		Approved:   approved,
+		Paid:       paid,
+		Rejected:   rejected,
+	}
+
+	return &itir, nil
+}
+
+// processBatchInvoices fetches a list of invoices for the provided tokens.
+func (p *politeiawww) processBatchInvoices(bi cms.BatchInvoices, user *user.User) (*cms.BatchInvoicesReply, error) {
+	log.Tracef("processBatchInvoices")
+
+	// Validate list page size and tokens
+	if len(bi.Tokens) > cms.InvoiceListPageSize {
+		return nil, www.UserError{
+			ErrorCode: cms.ErrorStatusMaxInvoicesExceeded,
+		}
+	}
+	for _, t := range bi.Tokens {
+		if !isTokenValid(t) {
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
+				ErrorContext: []string{t},
+			}
+		}
+	}
+
+	invoices, err := p.getInvoices(bi.Tokens)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if a token invoice was not found
+	if len(bi.Tokens) != len(invoices) {
+		notFound := make([]string, 0, len(bi.Tokens))
+		for _, t := range bi.Tokens {
+			if _, ok := invoices[t]; !ok {
+				notFound = append(notFound, t)
+			}
+		}
+		return nil, www.UserError{
+			ErrorCode:    cms.ErrorStatusInvoiceNotFound,
+			ErrorContext: notFound,
+		}
+	}
+
+	// Setup reply
+	invoicesReply := make([]cms.InvoiceRecord, 0, len(invoices))
+	for _, invoice := range invoices {
+		// Check if user is author or admin
+		if user.Admin || invoice.UserID == user.ID.String() {
+			invoicesReply = append(invoicesReply, invoice)
+		}
+	}
+
+	return &cms.BatchInvoicesReply{
+		Invoices: invoicesReply,
+	}, nil
 }
 
 // getInvoiceMonthYear will return the first invoice.json month/year that is
