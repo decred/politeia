@@ -524,6 +524,34 @@ func (c *cockroachdb) SessionDeleteByID(sid string) error {
 	return c.userDB.Delete(&s).Error
 }
 
+// SessionsDeleteByUserID deletes all sessions for the given user ID, except
+// the session IDs in exemptSessionIDs.
+//
+// SessionsDeleteByUserID satisfies the Database interface.
+func (c *cockroachdb) SessionsDeleteByUserID(uid uuid.UUID, exemptSessionIDs []string) error {
+	log.Tracef("SessionsDeleteByUserID: %v %v", uid.String(), exemptSessionIDs)
+
+	// Session primary key is a SHA256 hash of the session ID
+	exempt := make([]string, 0, len(exemptSessionIDs))
+	for _, v := range exemptSessionIDs {
+		exempt = append(exempt, hex.EncodeToString(util.Digest([]byte(v))))
+	}
+
+	// Using an empty NOT IN() set will result in no records being
+	// deleted.
+	if len(exempt) == 0 {
+		return c.userDB.
+			Where("user_id = ?", uid.String()).
+			Delete(Session{}).
+			Error
+	}
+
+	return c.userDB.
+		Where("user_id = ? AND key NOT IN (?)", uid.String(), exempt).
+		Delete(Session{}).
+		Error
+}
+
 // rotateKeys rotates the existing database encryption key with the given new
 // key.
 //

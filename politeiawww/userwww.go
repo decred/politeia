@@ -237,6 +237,22 @@ func (p *politeiawww) handleVerifyResetPassword(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	// Delete all existing sessions for the user. Return a 200 if
+	// either of these calls fail since the password was verified
+	// correctly.
+	user, err := p.db.UserGetByUsername(vrp.Username)
+	if err != nil {
+		log.Errorf("handleVerifyResetPassword: UserGetByUsername(%v): %v",
+			vrp.Username, err)
+		util.RespondWithJSON(w, http.StatusOK, reply)
+		return
+	}
+	err = p.db.SessionsDeleteByUserID(user.ID, []string{})
+	if err != nil {
+		log.Errorf("handleVerifyResetPassword: SessionsDeleteByUserID(%v, %v): %v",
+			user.ID, []string{}, err)
+	}
+
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
@@ -426,6 +442,12 @@ func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	session, err := p.getSession(r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleChangePassword: getSessionUser %v", err)
+		return
+	}
 	user, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
@@ -438,6 +460,15 @@ func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Reques
 		RespondWithError(w, r, 0,
 			"handleChangePassword: processChangePassword %v", err)
 		return
+	}
+
+	// Delete all existing sessions for the user except the current.
+	// Return a 200 if this call fails since the password was changed
+	// correctly.
+	err = p.db.SessionsDeleteByUserID(user.ID, []string{session.ID})
+	if err != nil {
+		log.Errorf("handleChangePassword: SessionsDeleteByUserID(%v, %v): %v",
+			user.ID, []string{session.ID}, err)
 	}
 
 	// Reply with the error code.
