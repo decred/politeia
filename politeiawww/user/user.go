@@ -467,6 +467,9 @@ type Database interface {
 	// Delete a user session given its id
 	SessionDeleteByID(sessionID string) error
 
+	// Delete all sessions for a user except for the given session IDs
+	SessionsDeleteByUserID(id uuid.UUID, exemptSessionIDs []string) error
+
 	// Register a plugin
 	RegisterPlugin(Plugin) error
 
