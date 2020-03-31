@@ -445,7 +445,7 @@ func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Reques
 	session, err := p.getSession(r)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleChangePassword: getSessionUser %v", err)
+			"handleChangePassword: getSession %v", err)
 		return
 	}
 	user, err := p.getSessionUser(w, r)
