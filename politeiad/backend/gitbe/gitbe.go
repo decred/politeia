@@ -2082,7 +2082,7 @@ func (g *gitBackEnd) UnvettedExists(token []byte) bool {
 }
 
 // VettedExists returns whether the given token corresponds to a record in
-// the unvetted repo.
+// the vetted repo.
 //
 // VettedExists satisfies the backend interface.
 func (g *gitBackEnd) VettedExists(token []byte) bool {

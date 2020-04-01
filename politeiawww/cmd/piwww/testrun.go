@@ -5,7 +5,6 @@
 package main
 
 import (
-	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"strconv"
@@ -1179,11 +1178,7 @@ func (cmd *TestRunCmd) Execute(args []string) error {
 	switch vdr.Version {
 	case 2:
 		// Validate signature
-		voteb, err := base64.StdEncoding.DecodeString(vdr.Vote)
-		if err != nil {
-			return err
-		}
-		vote, err := decredplugin.DecodeVoteV2(voteb)
+		vote, err := decredplugin.DecodeVoteV2([]byte(vdr.Vote))
 		if err != nil {
 			return err
 		}
