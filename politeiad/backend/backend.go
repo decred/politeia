@@ -159,6 +159,12 @@ type Backend interface {
 	// Update README.md file at the root of git repo
 	UpdateReadme(string) error
 
+	// Check if an unvetted record exists
+	UnvettedExists([]byte) bool
+
+	// Check if a vetted record exists
+	VettedExists([]byte) bool
+
 	// Get unvetted record
 	GetUnvetted([]byte) (*Record, error)
 
