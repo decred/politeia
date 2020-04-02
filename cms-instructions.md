@@ -25,7 +25,7 @@ payment address for the amount expected.  Once observed, the invoice will be
 updated with the pertinent payment information (including the txid etc).
 
 If you have any questions or concerns about the way CMS works, please reach out
-to the developers by submitting issues on [github](https://github.com/decred/politeia)
+to the developers by submitting issues on [github](https://github.com/thi4go/politeia)
 or finding the Politeia channel that is bridged across both Matrix and our
 Discord.
 
