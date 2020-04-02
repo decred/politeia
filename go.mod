@@ -1,4 +1,4 @@
-module github.com/decred/politeia
+module github.com/thi4go/politeia
 
 go 1.13
 
