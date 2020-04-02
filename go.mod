@@ -76,5 +76,3 @@ require (
 	google.golang.org/grpc v1.24.0
 	sigs.k8s.io/yaml v1.1.0 // indirect
 )
-
-replace github.com/thi4go/politeia => github.com/thi4go/politeia
