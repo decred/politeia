@@ -25,7 +25,7 @@ func TestHandleVersion(t *testing.T) {
 
 	expectedReply := www.VersionReply{
 		Version:      www.PoliteiaWWWAPIVersion,
-		BuildVersion: version.BuildVersion(),
+		BuildVersion: version.BuildMainVersion(),
 		Route:        www.PoliteiaWWWAPIRoute,
 		PubKey:       hex.EncodeToString(p.cfg.Identity.Key[:]),
 		TestNet:      p.cfg.TestNet,
