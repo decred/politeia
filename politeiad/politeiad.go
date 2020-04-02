@@ -1153,7 +1153,7 @@ func _main() error {
 	gitbe.UseLogger(gitbeLog)
 	b, err := gitbe.New(activeNetParams.Params, loadedCfg.DataDir,
 		loadedCfg.DcrtimeHost, "", p.identity, loadedCfg.GitTrace,
-		loadedCfg.DcrdataHost, loadedCfg.Mode == "cmswww")
+		loadedCfg.DcrdataHost, loadedCfg.Mode)
 	if err != nil {
 		return err
 	}

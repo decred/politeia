@@ -88,6 +88,9 @@ const (
 	// where an anchor confirmation has been committed.  This value is
 	// parsed and therefore must be a const.
 	markerAnchorConfirmation = "Anchor confirmation"
+
+	piMode  = "piwww"
+	cmsMode = "cmswww"
 )
 
 var (
@@ -2766,7 +2769,7 @@ func (g *gitBackEnd) rebasePR(id string) error {
 }
 
 // New returns a gitBackEnd context.  It verifies that git is installed.
-func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, id *identity.FullIdentity, gitTrace bool, dcrdataHost string, cmsMode bool) (*gitBackEnd, error) {
+func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, id *identity.FullIdentity, gitTrace bool, dcrdataHost string, mode string) (*gitBackEnd, error) {
 
 	// Default to system git
 	if gitPath == "" {
@@ -2794,7 +2797,8 @@ func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, 
 		return nil, err
 	}
 
-	if !cmsMode {
+	switch mode {
+	case piMode:
 		// Setup decred plugin settings
 		var voteDurationMin, voteDurationMax string
 		switch anp.Name {
@@ -2809,7 +2813,7 @@ func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, 
 		}
 		setDecredPluginSetting(decredPluginVoteDurationMin, voteDurationMin)
 		setDecredPluginSetting(decredPluginVoteDurationMax, voteDurationMax)
-	} else {
+	case cmsMode:
 		g.plugins = []backend.Plugin{getDecredPlugin(dcrdataHost), getCMSPlugin(anp.Name != "mainnet")}
 
 		setCMSPluginSetting(cmsPluginIdentity, string(idJSON))
@@ -2836,7 +2840,7 @@ func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, 
 		return nil, err
 	}
 
-	if cmsMode {
+	if mode == cmsMode {
 		// this function must be called after g.journal is created
 		err = g.initCMSPluginJournals()
 		if err != nil {
@@ -2861,7 +2865,7 @@ func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, 
 		// Flush journals
 		g.decredPluginJournalFlusher()
 
-		if cmsMode {
+		if mode == cmsMode {
 			g.cmsPluginJournalFlusher()
 		}
 
