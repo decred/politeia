@@ -163,7 +163,7 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	versionReply := www.VersionReply{
 		Version:      www.PoliteiaWWWAPIVersion,
 		Route:        www.PoliteiaWWWAPIRoute,
-		BuildVersion: version.BuildVersion(),
+		BuildVersion: version.BuildMainVersion(),
 		PubKey:       hex.EncodeToString(p.cfg.Identity.Key[:]),
 		TestNet:      p.cfg.TestNet,
 		Mode:         p.cfg.Mode,
@@ -337,6 +337,7 @@ func (p *politeiawww) handleBatchProposals(w http.ResponseWriter, r *http.Reques
 func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 	// Get the policy command.
 	log.Tracef("handlePolicy")
+
 	reply := &www.PolicyReply{
 		MinPasswordLength:          www.PolicyMinPasswordLength,
 		MinUsernameLength:          www.PolicyMinUsernameLength,
@@ -353,6 +354,7 @@ func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 		MaxProposalNameLength:      www.PolicyMaxProposalNameLength,
 		ProposalNameSupportedChars: www.PolicyProposalNameSupportedChars,
 		MaxCommentLength:           www.PolicyMaxCommentLength,
+		BuildInformation:           version.BuildInformation(),
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)

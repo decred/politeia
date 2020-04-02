@@ -272,11 +272,13 @@ func _main() error {
 	}()
 
 	log.Infof("Version : %v", version.String())
-	log.Infof("Build Version: %v", version.BuildVersion())
+	log.Infof("Build Version: %v", version.BuildMainVersion())
 	log.Infof("Network : %v", activeNetParams.Params.Name)
 	log.Infof("Home dir: %v", loadedCfg.HomeDir)
 
-	if version.BuildVersion() == "(devel)" {
+	// Issue a warning if pi was builded locally and does not
+	// have the main module info available.
+	if version.BuildMainVersion() == "(devel)" {
 		log.Warnf("Warning: no build information available")
 	}
 

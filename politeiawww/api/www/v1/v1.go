@@ -852,6 +852,7 @@ type PolicyReply struct {
 	ProposalNameSupportedChars []string `json:"proposalnamesupportedchars"`
 	MaxCommentLength           uint     `json:"maxcommentlength"`
 	BackendPublicKey           string   `json:"backendpublickey"`
+	BuildInformation           []string `json:"buildinformation"`
 }
 
 // VoteOption describes a single vote option.
