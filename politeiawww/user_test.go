@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/decred/politeia/politeiad/api/v1/identity"
-	www "github.com/decred/politeia/politeiawww/api/www/v1"
-	"github.com/decred/politeia/util"
+	"github.com/thi4go/politeia/politeiad/api/v1/identity"
+	www "github.com/thi4go/politeia/politeiawww/api/www/v1"
+	"github.com/thi4go/politeia/util"
 	"github.com/go-test/deep"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -835,7 +835,7 @@ func TestProcessLogin(t *testing.T) {
 XXX these tests are for the login implementation that uses username instead of
 email. They are being commented out until we switch the login credentials back
 to username.
-https://github.com/decred/politeia/issues/860#issuecomment-520871500
+https://github.com/thi4go/politeia/issues/860#issuecomment-520871500
 
 func TestProcessLogin(t *testing.T) {
 	p, cleanup := newTestPoliteiawww(t)

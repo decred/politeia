@@ -1,6 +1,6 @@
 package cockroachdb
 
-import "github.com/decred/politeia/politeiawww/user"
+import "github.com/thi4go/politeia/politeiawww/user"
 
 func convertIdentityFromUser(id user.Identity) Identity {
 	return Identity{

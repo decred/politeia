@@ -5,8 +5,8 @@
 package testpoliteiad
 
 import (
-	v1 "github.com/decred/politeia/politeiad/api/v1"
-	"github.com/decred/politeia/politeiad/cache"
+	v1 "github.com/thi4go/politeia/politeiad/api/v1"
+	"github.com/thi4go/politeia/politeiad/cache"
 )
 
 func convertRecordStatusToCache(status v1.RecordStatusT) cache.RecordStatusT {

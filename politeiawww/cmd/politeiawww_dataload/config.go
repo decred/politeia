@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/decred/politeia/politeiawww/sharedconfig"
+	"github.com/thi4go/politeia/politeiawww/sharedconfig"
 	flags "github.com/jessevdk/go-flags"
 )
 

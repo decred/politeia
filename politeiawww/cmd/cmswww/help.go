@@ -7,7 +7,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/decred/politeia/politeiawww/cmd/shared"
+	"github.com/thi4go/politeia/politeiawww/cmd/shared"
 )
 
 // HelpCmd prints a detailed help message for the specified command.

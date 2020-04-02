@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/decred/politeia/decredplugin"
-	"github.com/decred/politeia/politeiad/cache"
+	"github.com/thi4go/politeia/decredplugin"
+	"github.com/thi4go/politeia/politeiad/cache"
 )
 
 func convertMDStreamFromCache(ms cache.MetadataStream) MetadataStream {

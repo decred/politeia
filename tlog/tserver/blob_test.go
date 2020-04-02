@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
-	v1 "github.com/decred/politeia/tlog/api/v1"
+	v1 "github.com/thi4go/politeia/tlog/api/v1"
 )
 
 func TestBlob(t *testing.T) {

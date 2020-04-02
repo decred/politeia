@@ -4,7 +4,7 @@
 
 package main
 
-import "github.com/decred/politeia/politeiawww/cmd/shared"
+import "github.com/thi4go/politeia/politeiawww/cmd/shared"
 
 // UserPendingPaymentCmd sretrieve the payment details for a pending payment,
 // if one exists, for the logged in user.

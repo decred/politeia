@@ -11,13 +11,13 @@ import (
 	"net/http"
 	"sort"
 
-	"github.com/decred/politeia/decredplugin"
-	pd "github.com/decred/politeia/politeiad/api/v1"
-	"github.com/decred/politeia/politeiad/cache"
-	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
-	www "github.com/decred/politeia/politeiawww/api/www/v1"
-	"github.com/decred/politeia/politeiawww/user"
-	"github.com/decred/politeia/util"
+	"github.com/thi4go/politeia/decredplugin"
+	pd "github.com/thi4go/politeia/politeiad/api/v1"
+	"github.com/thi4go/politeia/politeiad/cache"
+	cms "github.com/thi4go/politeia/politeiawww/api/cms/v1"
+	www "github.com/thi4go/politeia/politeiawww/api/www/v1"
+	"github.com/thi4go/politeia/politeiawww/user"
+	"github.com/thi4go/politeia/util"
 )
 
 // counters is a struct that helps us keep track of up/down votes.

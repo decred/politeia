@@ -4,7 +4,7 @@
 
 package main
 
-import "github.com/decred/politeia/politeiawww/cmd/shared"
+import "github.com/thi4go/politeia/politeiawww/cmd/shared"
 
 // DCCCommentsCmd retreives the comments for the specified dcc.
 type DCCCommentsCmd struct {

@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/decred/politeia/decredplugin"
-	"github.com/decred/politeia/politeiad/cache"
+	"github.com/thi4go/politeia/decredplugin"
+	"github.com/thi4go/politeia/politeiad/cache"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 )

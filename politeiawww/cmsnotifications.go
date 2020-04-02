@@ -7,7 +7,7 @@ package main
 import (
 	"time"
 
-	"github.com/decred/politeia/politeiawww/user"
+	"github.com/thi4go/politeia/politeiawww/user"
 )
 
 // Seconds Minutes Hours Days Months DayOfWeek

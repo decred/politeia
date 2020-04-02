@@ -14,9 +14,9 @@ import (
 	"strings"
 
 	"github.com/decred/dcrd/chaincfg"
-	"github.com/decred/politeia/politeiad/backend/gitbe"
-	"github.com/decred/politeia/politeiad/sharedconfig"
-	"github.com/decred/politeia/util"
+	"github.com/thi4go/politeia/politeiad/backend/gitbe"
+	"github.com/thi4go/politeia/politeiad/sharedconfig"
+	"github.com/thi4go/politeia/util"
 )
 
 const (

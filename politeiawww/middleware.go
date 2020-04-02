@@ -11,8 +11,8 @@ import (
 	"runtime/debug"
 	"time"
 
-	www "github.com/decred/politeia/politeiawww/api/www/v1"
-	"github.com/decred/politeia/util"
+	www "github.com/thi4go/politeia/politeiawww/api/www/v1"
+	"github.com/thi4go/politeia/util"
 )
 
 // isLoggedIn ensures that a user is logged in before calling the next

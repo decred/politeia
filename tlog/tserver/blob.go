@@ -12,7 +12,7 @@ import (
 	"os"
 	"path/filepath"
 
-	v1 "github.com/decred/politeia/tlog/api/v1"
+	v1 "github.com/thi4go/politeia/tlog/api/v1"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/nacl/secretbox"
 )

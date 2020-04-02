@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/decred/dcrd/dcrutil"
-	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	www "github.com/thi4go/politeia/politeiawww/api/www/v1"
 )
 
 type ErrorStatusT int

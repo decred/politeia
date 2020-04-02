@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"time"
 
-	v1 "github.com/decred/politeia/politeiawww/api/cms/v1"
-	"github.com/decred/politeia/politeiawww/cmd/shared"
+	v1 "github.com/thi4go/politeia/politeiawww/api/cms/v1"
+	"github.com/thi4go/politeia/politeiawww/cmd/shared"
 )
 
 // InvoicePayoutsCmd request the invoices that were paid out in the specified

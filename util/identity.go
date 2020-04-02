@@ -12,8 +12,8 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/decred/politeia/politeiad/api/v1"
-	"github.com/decred/politeia/politeiad/api/v1/identity"
+	"github.com/thi4go/politeia/politeiad/api/v1"
+	"github.com/thi4go/politeia/politeiad/api/v1/identity"
 )
 
 // IdentityFromString converts a string public key into a public identity

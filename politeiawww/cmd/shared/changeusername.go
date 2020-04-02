@@ -4,7 +4,7 @@
 
 package shared
 
-import "github.com/decred/politeia/politeiawww/api/www/v1"
+import "github.com/thi4go/politeia/politeiawww/api/www/v1"
 
 // ChangeUsernameCmd changes the username for the logged in user.
 type ChangeUsernameCmd struct {

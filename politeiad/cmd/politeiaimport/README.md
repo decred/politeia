@@ -7,7 +7,7 @@ the [decred proposals repo](https://github.com/decred-proposals/mainnet/).
 
 Install `politeiaimport`.
 
-    $ go install $GOPATH/src/github.com/decred/politeia/politeiad/cmd/politeiaimport
+    $ go install $GOPATH/src/github.com/thi4go/politeia/politeiad/cmd/politeiaimport
 
 Clone the repo you want to import.
 

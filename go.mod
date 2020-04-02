@@ -77,4 +77,4 @@ require (
 	sigs.k8s.io/yaml v1.1.0 // indirect
 )
 
-replace github.com/decred/politeia => github.com/thi4go/politeia
+replace github.com/thi4go/politeia => github.com/thi4go/politeia

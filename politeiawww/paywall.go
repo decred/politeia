@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"time"
 
-	www "github.com/decred/politeia/politeiawww/api/www/v1"
-	"github.com/decred/politeia/politeiawww/user"
-	"github.com/decred/politeia/util"
+	www "github.com/thi4go/politeia/politeiawww/api/www/v1"
+	"github.com/thi4go/politeia/politeiawww/user"
+	"github.com/thi4go/politeia/util"
 	"github.com/google/uuid"
 )
 

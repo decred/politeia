@@ -26,10 +26,10 @@ import (
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/wire"
 	dcrdataapi "github.com/decred/dcrdata/api/types/v4"
-	"github.com/decred/politeia/decredplugin"
-	"github.com/decred/politeia/politeiad/api/v1/identity"
-	"github.com/decred/politeia/politeiad/backend"
-	"github.com/decred/politeia/util"
+	"github.com/thi4go/politeia/decredplugin"
+	"github.com/thi4go/politeia/politeiad/api/v1/identity"
+	"github.com/thi4go/politeia/politeiad/backend"
+	"github.com/thi4go/politeia/util"
 )
 
 // XXX plugins really need to become an interface. Run with this for now.

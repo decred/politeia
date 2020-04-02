@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"sync"
 
-	decred "github.com/decred/politeia/decredplugin"
-	"github.com/decred/politeia/politeiad/cache"
+	decred "github.com/thi4go/politeia/decredplugin"
+	"github.com/thi4go/politeia/politeiad/cache"
 )
 
 // testcache provides a implementation of the cache interface that stores

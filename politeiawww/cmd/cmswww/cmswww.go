@@ -15,10 +15,10 @@ import (
 	"strings"
 
 	"github.com/decred/dcrd/dcrutil"
-	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
-	pi "github.com/decred/politeia/politeiawww/api/www/v1"
-	"github.com/decred/politeia/politeiawww/cmd/shared"
-	"github.com/decred/politeia/util"
+	cms "github.com/thi4go/politeia/politeiawww/api/cms/v1"
+	pi "github.com/thi4go/politeia/politeiawww/api/www/v1"
+	"github.com/thi4go/politeia/politeiawww/cmd/shared"
+	"github.com/thi4go/politeia/util"
 	flags "github.com/jessevdk/go-flags"
 )
 

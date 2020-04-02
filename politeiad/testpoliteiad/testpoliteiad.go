@@ -21,11 +21,11 @@ import (
 	"time"
 
 	"github.com/decred/dcrtime/merkle"
-	decred "github.com/decred/politeia/decredplugin"
-	v1 "github.com/decred/politeia/politeiad/api/v1"
-	"github.com/decred/politeia/politeiad/api/v1/identity"
-	"github.com/decred/politeia/politeiad/cache"
-	"github.com/decred/politeia/util"
+	decred "github.com/thi4go/politeia/decredplugin"
+	v1 "github.com/thi4go/politeia/politeiad/api/v1"
+	"github.com/thi4go/politeia/politeiad/api/v1/identity"
+	"github.com/thi4go/politeia/politeiad/cache"
+	"github.com/thi4go/politeia/util"
 	"github.com/gorilla/mux"
 )
 

@@ -12,10 +12,10 @@ import (
 	"io/ioutil"
 	"path/filepath"
 
-	"github.com/decred/politeia/politeiad/api/v1/mime"
-	"github.com/decred/politeia/politeiawww/api/www/v1"
-	"github.com/decred/politeia/politeiawww/cmd/shared"
-	"github.com/decred/politeia/util"
+	"github.com/thi4go/politeia/politeiad/api/v1/mime"
+	"github.com/thi4go/politeia/politeiawww/api/www/v1"
+	"github.com/thi4go/politeia/politeiawww/cmd/shared"
+	"github.com/thi4go/politeia/util"
 )
 
 // NewProposalCmd submits a new proposal.

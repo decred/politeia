@@ -16,10 +16,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/decred/politeia/politeiad/api/v1/identity"
-	www "github.com/decred/politeia/politeiawww/api/www/v1"
-	"github.com/decred/politeia/politeiawww/user"
-	"github.com/decred/politeia/util"
+	"github.com/thi4go/politeia/politeiad/api/v1/identity"
+	www "github.com/thi4go/politeia/politeiawww/api/www/v1"
+	"github.com/thi4go/politeia/politeiawww/user"
+	"github.com/thi4go/politeia/util"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -1213,7 +1213,7 @@ func (p *politeiawww) processLogin(l www.Login) (*www.LoginReply, error) {
 /*
 XXX this login implementation is being commented out until we switch
 the login credentials back to using username instead of email.
-https://github.com/decred/politeia/issues/860#issuecomment-520871500
+https://github.com/thi4go/politeia/issues/860#issuecomment-520871500
 
 // processLogin checks that the provided user credentials are valid and updates
 // the login fields for the user.

@@ -4,7 +4,7 @@
 
 package main
 
-import "github.com/decred/politeia/politeiawww/cmd/shared"
+import "github.com/thi4go/politeia/politeiawww/cmd/shared"
 
 // VoteStatusesCmd retreives the vote status of all public proposals.
 type VoteStatusesCmd struct{}

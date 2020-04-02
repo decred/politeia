@@ -9,9 +9,9 @@ import (
 
 	"github.com/google/uuid"
 
-	www "github.com/decred/politeia/politeiawww/api/www/v1"
-	www2 "github.com/decred/politeia/politeiawww/api/www/v2"
-	"github.com/decred/politeia/politeiawww/user"
+	www "github.com/thi4go/politeia/politeiawww/api/www/v1"
+	www2 "github.com/thi4go/politeia/politeiawww/api/www/v2"
+	"github.com/thi4go/politeia/politeiawww/user"
 )
 
 // EventT is the type of event.

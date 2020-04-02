@@ -12,10 +12,10 @@ import (
 	"time"
 
 	"github.com/decred/dcrwallet/rpc/walletrpc"
-	"github.com/decred/politeia/decredplugin"
-	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
-	"github.com/decred/politeia/politeiawww/cmd/shared"
-	"github.com/decred/politeia/util"
+	"github.com/thi4go/politeia/decredplugin"
+	v1 "github.com/thi4go/politeia/politeiawww/api/www/v1"
+	"github.com/thi4go/politeia/politeiawww/cmd/shared"
+	"github.com/thi4go/politeia/util"
 )
 
 // TestRunCmd performs a test run of all the politeiawww routes.

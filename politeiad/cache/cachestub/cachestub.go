@@ -4,7 +4,7 @@
 
 package cachestub
 
-import "github.com/decred/politeia/politeiad/cache"
+import "github.com/thi4go/politeia/politeiad/cache"
 
 // cachestub implements the cache interface.
 type cachestub struct{}

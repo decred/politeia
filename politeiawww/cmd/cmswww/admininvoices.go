@@ -7,8 +7,8 @@ package main
 import (
 	"fmt"
 
-	"github.com/decred/politeia/politeiawww/api/cms/v1"
-	"github.com/decred/politeia/politeiawww/cmd/shared"
+	"github.com/thi4go/politeia/politeiawww/api/cms/v1"
+	"github.com/thi4go/politeia/politeiawww/cmd/shared"
 )
 
 // AdminInvoicesCmd gets all invoices by month/year and/or status.

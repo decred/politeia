@@ -7,7 +7,7 @@ package shared
 import (
 	"fmt"
 
-	"github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/thi4go/politeia/politeiawww/api/www/v1"
 )
 
 // ChangePasswordCmd changes the password for the logged in user.

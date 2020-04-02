@@ -7,8 +7,8 @@ package cmsdatabase
 import (
 	"errors"
 
-	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
-	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	cms "github.com/thi4go/politeia/politeiawww/api/cms/v1"
+	www "github.com/thi4go/politeia/politeiawww/api/www/v1"
 )
 
 var (

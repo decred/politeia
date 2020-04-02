@@ -4,7 +4,7 @@
 
 package main
 
-import "github.com/decred/politeia/politeiawww/cmd/shared"
+import "github.com/thi4go/politeia/politeiawww/cmd/shared"
 
 // ProposalCommentsCmd retreives the comments for the specified proposal.
 type ProposalCommentsCmd struct {

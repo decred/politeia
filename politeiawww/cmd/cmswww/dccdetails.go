@@ -7,7 +7,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/decred/politeia/politeiawww/cmd/shared"
+	"github.com/thi4go/politeia/politeiawww/cmd/shared"
 )
 
 // DCCDetailsCmd retrieves the details of a dcc.

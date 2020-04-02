@@ -8,7 +8,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/thi4go/politeia/politeiawww/api/www/v1"
 )
 
 // UpdateUserKeyCmd creates a new identity for the logged in user.

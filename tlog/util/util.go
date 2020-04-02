@@ -13,9 +13,9 @@ import (
 	"fmt"
 
 	"github.com/decred/dcrtime/merkle"
-	"github.com/decred/politeia/politeiad/api/v1/identity"
-	v1 "github.com/decred/politeia/tlog/api/v1"
-	"github.com/decred/politeia/util"
+	"github.com/thi4go/politeia/politeiad/api/v1/identity"
+	v1 "github.com/thi4go/politeia/tlog/api/v1"
+	"github.com/thi4go/politeia/util"
 	"github.com/google/trillian"
 	"github.com/google/trillian/client"
 	tcrypto "github.com/google/trillian/crypto"

@@ -12,8 +12,8 @@ import (
 	"regexp"
 
 	"github.com/decred/dcrtime/merkle"
-	"github.com/decred/politeia/politeiad/api/v1/identity"
-	"github.com/decred/politeia/politeiad/api/v1/mime"
+	"github.com/thi4go/politeia/politeiad/api/v1/identity"
+	"github.com/thi4go/politeia/politeiad/api/v1/mime"
 )
 
 type ErrorStatusT int

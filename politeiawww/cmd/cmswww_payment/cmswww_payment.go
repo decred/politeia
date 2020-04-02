@@ -17,17 +17,17 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/decred/politeia/mdstream"
-	pd "github.com/decred/politeia/politeiad/api/v1"
-	"github.com/decred/politeia/politeiad/api/v1/identity"
-	"github.com/decred/politeia/politeiad/cache"
-	cachedb "github.com/decred/politeia/politeiad/cache/cockroachdb"
-	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
-	www "github.com/decred/politeia/politeiawww/api/www/v1"
-	database "github.com/decred/politeia/politeiawww/cmsdatabase"
-	cmsdb "github.com/decred/politeia/politeiawww/cmsdatabase/cockroachdb"
-	"github.com/decred/politeia/politeiawww/sharedconfig"
-	"github.com/decred/politeia/util"
+	"github.com/thi4go/politeia/mdstream"
+	pd "github.com/thi4go/politeia/politeiad/api/v1"
+	"github.com/thi4go/politeia/politeiad/api/v1/identity"
+	"github.com/thi4go/politeia/politeiad/cache"
+	cachedb "github.com/thi4go/politeia/politeiad/cache/cockroachdb"
+	cms "github.com/thi4go/politeia/politeiawww/api/cms/v1"
+	www "github.com/thi4go/politeia/politeiawww/api/www/v1"
+	database "github.com/thi4go/politeia/politeiawww/cmsdatabase"
+	cmsdb "github.com/thi4go/politeia/politeiawww/cmsdatabase/cockroachdb"
+	"github.com/thi4go/politeia/politeiawww/sharedconfig"
+	"github.com/thi4go/politeia/util"
 )
 
 const (

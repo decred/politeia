@@ -17,8 +17,8 @@ import (
 	"strings"
 
 	"github.com/decred/dcrd/dcrutil"
-	"github.com/decred/politeia/politeiawww/api/www/v1"
-	wwwconfig "github.com/decred/politeia/politeiawww/sharedconfig"
+	"github.com/thi4go/politeia/politeiawww/api/www/v1"
+	wwwconfig "github.com/thi4go/politeia/politeiawww/sharedconfig"
 )
 
 type beforeVerifyReply func() interface{}

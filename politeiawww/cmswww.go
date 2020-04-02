@@ -9,9 +9,9 @@ import (
 	"net/http"
 	"text/template"
 
-	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
-	www "github.com/decred/politeia/politeiawww/api/www/v1"
-	"github.com/decred/politeia/util"
+	cms "github.com/thi4go/politeia/politeiawww/api/cms/v1"
+	www "github.com/thi4go/politeia/politeiawww/api/www/v1"
+	"github.com/thi4go/politeia/util"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 )

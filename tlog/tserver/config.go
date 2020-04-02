@@ -19,8 +19,8 @@ import (
 
 	"github.com/decred/dcrd/dcrutil"
 	v1 "github.com/decred/dcrtime/api/v1"
-	"github.com/decred/politeia/util"
-	"github.com/decred/politeia/util/version"
+	"github.com/thi4go/politeia/util"
+	"github.com/thi4go/politeia/util/version"
 	flags "github.com/jessevdk/go-flags"
 )
 

@@ -12,9 +12,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/decred/politeia/politeiawww/api/cms/v1"
-	www "github.com/decred/politeia/politeiawww/api/www/v1"
-	"github.com/decred/politeia/politeiawww/cmd/shared"
+	"github.com/thi4go/politeia/politeiawww/api/cms/v1"
+	www "github.com/thi4go/politeia/politeiawww/api/www/v1"
+	"github.com/thi4go/politeia/politeiawww/cmd/shared"
 	"golang.org/x/crypto/ssh/terminal"
 )
 

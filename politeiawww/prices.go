@@ -12,9 +12,9 @@ import (
 	"strconv"
 	"time"
 
-	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
-	www "github.com/decred/politeia/politeiawww/api/www/v1"
-	database "github.com/decred/politeia/politeiawww/cmsdatabase"
+	cms "github.com/thi4go/politeia/politeiawww/api/cms/v1"
+	www "github.com/thi4go/politeia/politeiawww/api/www/v1"
+	database "github.com/thi4go/politeia/politeiawww/cmsdatabase"
 )
 
 const binanceURL = "https://api.binance.com"

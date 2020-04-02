@@ -12,9 +12,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/decred/politeia/decredplugin"
-	pd "github.com/decred/politeia/politeiad/api/v1"
-	"github.com/decred/politeia/util"
+	"github.com/thi4go/politeia/decredplugin"
+	pd "github.com/thi4go/politeia/politeiad/api/v1"
+	"github.com/thi4go/politeia/util"
 )
 
 // PluginSetting is a structure that holds key/value pairs of a plugin setting.

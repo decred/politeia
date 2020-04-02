@@ -153,7 +153,7 @@ voting period.
 ### Voting on a proposal - politeiavoter
 
 Voting on a proposal can be done using the 
-[politeiavoter](https://github.com/decred/politeia/tree/master/politeiavoter/)
+[politeiavoter](https://github.com/thi4go/politeia/tree/master/politeiavoter/)
 tool.
 
 ### Voting on a proposal - piwww

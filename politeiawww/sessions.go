@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"time"
 
-	www "github.com/decred/politeia/politeiawww/api/www/v1"
-	"github.com/decred/politeia/politeiawww/user"
+	www "github.com/thi4go/politeia/politeiawww/api/www/v1"
+	"github.com/thi4go/politeia/politeiawww/user"
 	"github.com/google/uuid"
 	"github.com/gorilla/sessions"
 )

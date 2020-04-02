@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	database "github.com/decred/politeia/politeiawww/cmsdatabase"
+	database "github.com/thi4go/politeia/politeiawww/cmsdatabase"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 )

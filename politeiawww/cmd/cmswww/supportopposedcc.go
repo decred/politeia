@@ -8,8 +8,8 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	v1 "github.com/decred/politeia/politeiawww/api/cms/v1"
-	"github.com/decred/politeia/politeiawww/cmd/shared"
+	v1 "github.com/thi4go/politeia/politeiawww/api/cms/v1"
+	"github.com/thi4go/politeia/politeiawww/cmd/shared"
 )
 
 // SupportOpposeDCCCmd allows a user to support a DCC proposal.

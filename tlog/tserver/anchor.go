@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	v1 "github.com/decred/politeia/tlog/api/v1"
-	tlogutil "github.com/decred/politeia/tlog/util"
-	"github.com/decred/politeia/util"
+	v1 "github.com/thi4go/politeia/tlog/api/v1"
+	tlogutil "github.com/thi4go/politeia/tlog/util"
+	"github.com/thi4go/politeia/util"
 	"github.com/google/trillian"
 	"github.com/google/trillian/client"
 	tcrypto "github.com/google/trillian/crypto"

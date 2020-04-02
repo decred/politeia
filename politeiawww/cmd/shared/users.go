@@ -5,7 +5,7 @@
 package shared
 
 import (
-	"github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/thi4go/politeia/politeiawww/api/www/v1"
 )
 
 // UsersCmd retreives a list of users that have been filtered using the

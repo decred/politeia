@@ -20,15 +20,15 @@ import (
 	"time"
 
 	"github.com/decred/dcrtime/merkle"
-	"github.com/decred/politeia/decredplugin"
-	"github.com/decred/politeia/mdstream"
-	pd "github.com/decred/politeia/politeiad/api/v1"
-	"github.com/decred/politeia/politeiad/api/v1/identity"
-	"github.com/decred/politeia/politeiad/cache"
-	www "github.com/decred/politeia/politeiawww/api/www/v1"
-	www2 "github.com/decred/politeia/politeiawww/api/www/v2"
-	"github.com/decred/politeia/politeiawww/user"
-	"github.com/decred/politeia/util"
+	"github.com/thi4go/politeia/decredplugin"
+	"github.com/thi4go/politeia/mdstream"
+	pd "github.com/thi4go/politeia/politeiad/api/v1"
+	"github.com/thi4go/politeia/politeiad/api/v1/identity"
+	"github.com/thi4go/politeia/politeiad/cache"
+	www "github.com/thi4go/politeia/politeiawww/api/www/v1"
+	www2 "github.com/thi4go/politeia/politeiawww/api/www/v2"
+	"github.com/thi4go/politeia/politeiawww/user"
+	"github.com/thi4go/politeia/util"
 )
 
 const (

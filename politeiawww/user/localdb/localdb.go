@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/decred/politeia/politeiawww/user"
+	"github.com/thi4go/politeia/politeiawww/user"
 	"github.com/google/uuid"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/util"

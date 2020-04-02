@@ -21,9 +21,9 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg"
-	"github.com/decred/politeia/politeiad/api/v1/mime"
-	"github.com/decred/politeia/politeiad/backend"
-	"github.com/decred/politeia/util"
+	"github.com/thi4go/politeia/politeiad/api/v1/mime"
+	"github.com/thi4go/politeia/politeiad/backend"
+	"github.com/thi4go/politeia/util"
 	"github.com/decred/slog"
 )
 

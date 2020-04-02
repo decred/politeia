@@ -10,8 +10,8 @@ import (
 	"fmt"
 
 	"github.com/decred/dcrtime/api/v1"
-	pd "github.com/decred/politeia/politeiad/api/v1"
-	"github.com/decred/politeia/politeiad/api/v1/identity"
+	pd "github.com/thi4go/politeia/politeiad/api/v1"
+	"github.com/thi4go/politeia/politeiad/api/v1/identity"
 )
 
 // ConvertSignature converts a hex encoded signature to a proper sized byte

@@ -24,12 +24,12 @@ import (
 	"strings"
 
 	"github.com/decred/dcrd/hdkeychain"
-	"github.com/decred/politeia/politeiad/api/v1/identity"
-	"github.com/decred/politeia/util/version"
+	"github.com/thi4go/politeia/politeiad/api/v1/identity"
+	"github.com/thi4go/politeia/util/version"
 
-	v1 "github.com/decred/politeia/politeiad/api/v1"
-	"github.com/decred/politeia/politeiawww/sharedconfig"
-	"github.com/decred/politeia/util"
+	v1 "github.com/thi4go/politeia/politeiad/api/v1"
+	"github.com/thi4go/politeia/politeiawww/sharedconfig"
+	"github.com/thi4go/politeia/util"
 	flags "github.com/jessevdk/go-flags"
 )
 

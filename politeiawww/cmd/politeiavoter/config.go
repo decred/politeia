@@ -18,7 +18,7 @@ import (
 
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/go-socks/socks"
-	"github.com/decred/politeia/util/version"
+	"github.com/thi4go/politeia/util/version"
 	flags "github.com/jessevdk/go-flags"
 )
 

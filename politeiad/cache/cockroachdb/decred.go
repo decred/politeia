@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/decred/politeia/decredplugin"
-	"github.com/decred/politeia/mdstream"
-	pd "github.com/decred/politeia/politeiad/api/v1"
-	"github.com/decred/politeia/politeiad/cache"
+	"github.com/thi4go/politeia/decredplugin"
+	"github.com/thi4go/politeia/mdstream"
+	pd "github.com/thi4go/politeia/politeiad/api/v1"
+	"github.com/thi4go/politeia/politeiad/cache"
 	"github.com/jinzhu/gorm"
 )
 

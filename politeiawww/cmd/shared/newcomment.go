@@ -6,7 +6,7 @@ package shared
 
 import (
 	"encoding/hex"
-	"github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/thi4go/politeia/politeiawww/api/www/v1"
 )
 
 // NewCommentCmd submits a new proposal comment.

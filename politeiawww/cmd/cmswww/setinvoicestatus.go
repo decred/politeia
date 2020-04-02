@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"strings"
 
-	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
-	"github.com/decred/politeia/politeiawww/cmd/shared"
+	cms "github.com/thi4go/politeia/politeiawww/api/cms/v1"
+	"github.com/thi4go/politeia/politeiawww/cmd/shared"
 )
 
 type SetInvoiceStatusCmd struct {

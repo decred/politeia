@@ -12,10 +12,10 @@ import (
 	"strconv"
 	"strings"
 
-	pd "github.com/decred/politeia/politeiad/api/v1"
-	"github.com/decred/politeia/politeiad/api/v1/identity"
-	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
-	"github.com/decred/politeia/util"
+	pd "github.com/thi4go/politeia/politeiad/api/v1"
+	"github.com/thi4go/politeia/politeiad/api/v1/identity"
+	cms "github.com/thi4go/politeia/politeiawww/api/cms/v1"
+	"github.com/thi4go/politeia/util"
 )
 
 const (

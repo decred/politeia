@@ -14,11 +14,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/decred/politeia/politeiad/api/v1/mime"
-	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
-	www "github.com/decred/politeia/politeiawww/api/www/v1"
-	"github.com/decred/politeia/politeiawww/cmd/shared"
-	"github.com/decred/politeia/util"
+	"github.com/thi4go/politeia/politeiad/api/v1/mime"
+	cms "github.com/thi4go/politeia/politeiawww/api/cms/v1"
+	www "github.com/thi4go/politeia/politeiawww/api/www/v1"
+	"github.com/thi4go/politeia/politeiawww/cmd/shared"
+	"github.com/thi4go/politeia/util"
 )
 
 // domainTypes gives human readable output for the various domain types available

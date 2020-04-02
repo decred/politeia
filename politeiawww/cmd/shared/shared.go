@@ -16,9 +16,9 @@ import (
 
 	"github.com/agl/ed25519"
 	"github.com/decred/dcrtime/merkle"
-	"github.com/decred/politeia/politeiad/api/v1/identity"
-	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
-	"github.com/decred/politeia/util"
+	"github.com/thi4go/politeia/politeiad/api/v1/identity"
+	v1 "github.com/thi4go/politeia/politeiawww/api/www/v1"
+	"github.com/thi4go/politeia/util"
 	"golang.org/x/crypto/sha3"
 )
 

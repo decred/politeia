@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/decred/politeia/decredplugin"
-	decred "github.com/decred/politeia/decredplugin"
+	"github.com/thi4go/politeia/decredplugin"
+	decred "github.com/thi4go/politeia/decredplugin"
 )
 
 func (c *testcache) getComments(payload string) (string, error) {

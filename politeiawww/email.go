@@ -13,8 +13,8 @@ import (
 
 	"github.com/dajohi/goemail"
 
-	www "github.com/decred/politeia/politeiawww/api/www/v1"
-	"github.com/decred/politeia/politeiawww/user"
+	www "github.com/thi4go/politeia/politeiawww/api/www/v1"
+	"github.com/thi4go/politeia/politeiawww/user"
 )
 
 const (

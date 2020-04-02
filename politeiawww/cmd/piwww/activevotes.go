@@ -4,7 +4,7 @@
 
 package main
 
-import "github.com/decred/politeia/politeiawww/cmd/shared"
+import "github.com/thi4go/politeia/politeiawww/cmd/shared"
 
 // ActiveVotesCmd retreives all proposals that are currently being voted on.
 type ActiveVotesCmd struct{}
