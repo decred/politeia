@@ -104,9 +104,9 @@ func (s *SessionStore) New(r *http.Request, name string) (*sessions.Session, err
 		err = securecookie.DecodeMulti(session.Name(), userSession.Values,
 			&session.Values, s.Codecs...)
 		if err != nil {
-			log.Debugf("Session found in store; returning existing session")
 			return session, err
 		}
+		log.Debugf("Session found in store; returning existing session")
 	case user.ErrSessionNotFound:
 		// Session not found in database; no action needed since the new
 		// session will be returned.
