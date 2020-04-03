@@ -120,9 +120,10 @@ var (
 	ErrInvalidMerkle = errors.New("merkle roots do not match")
 	ErrCorrupt       = errors.New("signature verification failed")
 
-	// Length of prefix of token used for lookups. This is a var so that it
-	// can be updated during testing.
-	TokenPrefixLength = 6
+	// Length of prefix of token used for lookups. The length 7 was selected to
+	// match github's abbreviated hash length This is a var so that it can be
+	// updated during testing.
+	TokenPrefixLength = 7
 )
 
 // Verify ensures that a CensorshipRecord properly describes the array of

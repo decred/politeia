@@ -61,7 +61,7 @@ const (
 	RouteProposalPaywallDetails   = "/proposals/paywall"
 	RouteProposalPaywallPayment   = "/proposals/paywallpayment"
 	RouteProposalDetails          = "/proposals/{token:[A-z0-9]{64}}"
-	RouteProposalDetailsShort     = "/proposals/{tokenprefix:[A-z0-9]{6}}"
+	RouteProposalDetailsShort     = "/proposals/{tokenprefix:[A-z0-9]{7}}"
 	RouteSetProposalStatus        = "/proposals/{token:[A-z0-9]{64}}/status"
 	RouteCommentsGet              = "/proposals/{token:[A-z0-9]{64}}/comments"
 	RouteVoteResults              = "/proposals/{token:[A-z0-9]{64}}/votes"
@@ -79,7 +79,7 @@ const (
 	// RouteProposalDetailsShort. This should match what is defined
 	// in politeiad, and once a Policy route is created in politeiad,
 	// this should be removed.
-	TokenPrefixLength = 6
+	TokenPrefixLength = 7
 
 	// VerificationExpiryHours is the number of hours before the
 	// verification token expires

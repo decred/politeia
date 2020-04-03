@@ -1418,7 +1418,7 @@ Reply:
   "backendpublickey": "",
   "minproposalnamelength": 8,
   "maxproposalnamelength": 80,
-  "tokenprefixlength": 6
+  "tokenprefixlength": 7
 }
 ```
 
@@ -1592,7 +1592,7 @@ Request:
 The request params should be provided within the URL:
 
 ```
-/v1/proposals/f1c204
+/v1/proposals/f1c2042
 ```
 
 Reply:
