@@ -89,11 +89,12 @@ type cmswww struct {
 	SetDCCStatus        SetDCCStatusCmd          `command:"setdccstatus" description:"(admin)  set the status of a DCC"`
 	SetInvoiceStatus    SetInvoiceStatusCmd      `command:"setinvoicestatus" description:"(admin)  set the status of an invoice"`
 	SupportOpposeDCC    SupportOpposeDCCCmd      `command:"supportopposedcc" description:"(user)   support or oppose a given DCC"`
+	TestRun             TestRunCmd               `command:"testrun" description:"         test cmswww routes"`
 	UpdateUserKey       shared.UpdateUserKeyCmd  `command:"updateuserkey" description:"(user)   generate a new identity for the logged in user"`
 	UserDetails         UserDetailsCmd           `command:"userdetails" description:"(user)   get current cms user details"`
 	UserInvoices        UserInvoicesCmd          `command:"userinvoices" description:"(user)   get all invoices submitted by a specific user"`
 	UserSubContractors  UserSubContractorsCmd    `command:"usersubcontractors" description:"(user)   get all users that are linked to the user"`
-	Users               shared.UsersCmd          `command:"users" description:"(user) get a list of users"`
+	Users               shared.UsersCmd          `command:"users" description:"(user)   get a list of users"`
 	Secret              shared.SecretCmd         `command:"secret" description:"(user)   ping politeiawww"`
 	Version             shared.VersionCmd        `command:"version" description:"(public) get server info and CSRF token"`
 }

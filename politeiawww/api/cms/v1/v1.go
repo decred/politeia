@@ -717,7 +717,7 @@ type DCCRecord struct {
 
 // NewDCC is a request for submitting a new DCC proposal.
 type NewDCC struct {
-	File      www.File `json:"file"`      // Issuance/Revocation file
+	File      www.File `json:"file"`      // Issuance/Revocation file (i.e DCCInput)
 	PublicKey string   `json:"publickey"` // Pubkey of the sponsoring user
 	Signature string   `json:"signature"` // Signature of the issuance struct by the sponsoring user.
 }
