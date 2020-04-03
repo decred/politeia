@@ -309,6 +309,9 @@ func FetchTxWithBlockExplorers(address string, amount uint64, txnotbefore int64,
 		return "", 0, fmt.Errorf("invalid address %v: %v", addr, err)
 	}
 
+	// Construct proper dcrdata url
+	dcrdataURL += "/address/" + address
+
 	explorerURL := dcrdataURL + "/raw"
 
 	// Fetch transaction from dcrdata
@@ -373,6 +376,10 @@ func FetchTxsForAddress(address string, dcrdataURL string) ([]TxDetails, error) 
 	if err != nil {
 		return nil, fmt.Errorf("invalid address %v: %v", addr, err)
 	}
+
+	// Construct proper dcrdata url
+	dcrdataURL += "/address/" + address
+
 	explorerURL := dcrdataURL + "/raw"
 
 	// Fetch using dcrdata block explorer
@@ -400,6 +407,9 @@ func FetchTxsForAddressNotBefore(address string, notBefore int64, dcrdataURL str
 	if err != nil {
 		return nil, fmt.Errorf("invalid address %v: %v", addr, err)
 	}
+
+	// Construct proper dcrdata url
+	dcrdataURL += "/address/" + address
 
 	// Fetch all txs for the passed in wallet address
 	// that were sent after the notBefore timestamp
@@ -462,6 +472,10 @@ func FetchTx(address, txid, dcrdataURL string) (*TxDetails, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid address %v: %v", addr, err)
 	}
+
+	// Construct proper dcrdata url}
+	dcrdataURL += "/address/" + address
+
 	primaryURL := dcrdataURL + "/raw"
 
 	log.Printf("fetching tx %s %s from primary %s\n", address, txid, primaryURL)
