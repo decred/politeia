@@ -44,6 +44,7 @@ const (
 	RoutePayInvoices         = "/admin/payinvoices"
 	RouteInvoiceComments     = "/invoices/{token:[A-z0-9]{64}}/comments"
 	RouteInvoiceExchangeRate = "/invoices/exchangerate"
+	RouteProposalOwner       = "/proposals/owner"
 
 	// Invoice status codes
 	InvoiceStatusInvalid  InvoiceStatusT = 0 // Invalid status
@@ -71,13 +72,14 @@ const (
 	DomainTypeDocumentation DomainTypeT = 6 // Documentation domain
 
 	// Contractor types
-	ContractorTypeInvalid       ContractorTypeT = 0 // Invalid contractor type
-	ContractorTypeDirect        ContractorTypeT = 1 // Direct contractor
-	ContractorTypeSupervisor    ContractorTypeT = 2 // Supervisor contractor
-	ContractorTypeSubContractor ContractorTypeT = 3 // SubContractor
-	ContractorTypeNominee       ContractorTypeT = 4 // Nominated DCC user
-	ContractorTypeRevoked       ContractorTypeT = 5 // Revoked CMS User
-	ContractorTypeTemp          ContractorTypeT = 6 // Temporary Contractor (only allowed 1 invoice)
+	ContractorTypeInvalid         ContractorTypeT = 0 // Invalid contractor type
+	ContractorTypeDirect          ContractorTypeT = 1 // Direct contractor
+	ContractorTypeSupervisor      ContractorTypeT = 2 // Supervisor contractor
+	ContractorTypeSubContractor   ContractorTypeT = 3 // SubContractor
+	ContractorTypeNominee         ContractorTypeT = 4 // Nominated DCC user
+	ContractorTypeRevoked         ContractorTypeT = 5 // Revoked CMS User
+	ContractorTypeTemp            ContractorTypeT = 6 // Temporary Contractor (only allowed 1 invoice)
+	ContractorTypeTempDeactivated ContractorTypeT = 7 // Temporary Contractor that has been deactivated
 
 	// Payment information status types
 	PaymentStatusInvalid  PaymentStatusT = 0 // Invalid status
@@ -123,7 +125,7 @@ const (
 	PolicyMaxLocationLength = 100
 
 	// PolicyMinLocationLength is the min length of a contractor location
-	PolicyMinLocationLength = 3
+	PolicyMinLocationLength = 0
 
 	// PolicyMaxContactLength is the max length of a contractor contact
 	PolicyMaxContactLength = 100
@@ -170,7 +172,6 @@ const (
 	ErrorStatusInvalidPaymentAddress          www.ErrorStatusT = 1009
 	ErrorStatusMalformedLineItem              www.ErrorStatusT = 1010
 	ErrorStatusInvoiceMissingName             www.ErrorStatusT = 1011
-	ErrorStatusInvoiceMissingLocation         www.ErrorStatusT = 1012
 	ErrorStatusInvoiceMissingContact          www.ErrorStatusT = 1013
 	ErrorStatusInvoiceMissingRate             www.ErrorStatusT = 1014
 	ErrorStatusInvoiceInvalidRate             www.ErrorStatusT = 1015
@@ -208,6 +209,7 @@ const (
 	ErrorStatusMissingSubUserIDLineItem       www.ErrorStatusT = 1048
 	ErrorStatusInvalidSubUserIDLineItem       www.ErrorStatusT = 1049
 	ErrorStatusInvalidSupervisorUser          www.ErrorStatusT = 1050
+	ErrorStatusMalformedDCC                   www.ErrorStatusT = 1051
 )
 
 var (
@@ -301,7 +303,6 @@ var (
 		ErrorStatusInvalidPaymentAddress:          "invalid payment address",
 		ErrorStatusMalformedLineItem:              "malformed line item submitted",
 		ErrorStatusInvoiceMissingName:             "invoice missing contractor name",
-		ErrorStatusInvoiceMissingLocation:         "invoice missing contractor location",
 		ErrorStatusInvoiceMissingContact:          "invoice missing contractor contact",
 		ErrorStatusInvoiceMalformedContact:        "invoice has malformed contractor contact",
 		ErrorStatusInvoiceMissingRate:             "invoice missing contractor rate",
@@ -339,6 +340,7 @@ var (
 		ErrorStatusMissingSubUserIDLineItem:       "must supply a userid for a subcontractor hours line item",
 		ErrorStatusInvalidSubUserIDLineItem:       "the userid supplied for the subcontractor hours line item is invalid",
 		ErrorStatusInvalidSupervisorUser:          "attempted input of an invalid supervisor user id",
+		ErrorStatusMalformedDCC:                   "malformed dcc detected",
 	}
 )
 
@@ -638,6 +640,7 @@ type User struct {
 	ContractorLocation string          `json:"contractorlocation"`
 	ContractorContact  string          `json:"contractorcontact"`
 	SupervisorUserIDs  []string        `json:"supervisoruserids"`
+	ProposalsOwned     []string        `json:"proposalsowned"`
 }
 
 // UserDetails fetches a cms user's details by their id.
@@ -668,6 +671,7 @@ type CMSManageUser struct {
 	Domain            DomainTypeT     `json:"domain,omitempty"`
 	ContractorType    ContractorTypeT `json:"contractortype,omitempty"`
 	SupervisorUserIDs []string        `json:"supervisoruserids,omitempty"`
+	ProposalsOwned    []string        `json:"proposalsowned,omitempty"`
 }
 
 // CMSManageUserReply is the reply for the CMSManageUserReply command.
@@ -793,5 +797,17 @@ type CMSUsers struct {
 
 // CMSUsersReply returns a list of Users that are currently
 type CMSUsersReply struct {
+	Users []AbridgedCMSUser `json:"users"`
+}
+
+// ProposalOwner is a request for determining the current owners of a given
+// proposal.
+type ProposalOwner struct {
+	ProposalToken string `json:"proposaltoken"`
+}
+
+// ProposalOwnerReply returns the users that are currently associated with
+// the requested proposal token.
+type ProposalOwnerReply struct {
 	Users []AbridgedCMSUser `json:"users"`
 }

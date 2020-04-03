@@ -491,13 +491,14 @@ func _main() error {
 	csrfHandle := csrf.Protect(
 		csrfKey,
 		csrf.Path("/"),
+		csrf.MaxAge(sessionMaxAge),
 	)
 
 	p.router = mux.NewRouter()
 	p.router.Use(recoverMiddleware)
 
 	// Setup dcrdata websocket connection
-	ws, err := newWSDcrdata()
+	ws, err := newWSDcrdata(p.dcrdataHostWS())
 	if err != nil {
 		return fmt.Errorf("new wsDcrdata: %v", err)
 	}

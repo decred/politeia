@@ -931,14 +931,16 @@ func (d *decred) cmdTokenInventory(payload string) (string, error) {
 
 	// Setup reply
 	tir := decredplugin.TokenInventoryReply{
-		Pre:       pre,
-		Active:    active,
-		Approved:  approved,
-		Rejected:  rejected,
-		Abandoned: abandoned,
+		Pre:        pre,
+		Active:     active,
+		Approved:   approved,
+		Rejected:   rejected,
+		Abandoned:  abandoned,
+		Unreviewed: []string{},
+		Censored:   []string{},
 	}
 
-	// Add unvetted records if specified
+	// Populate unvetted records if specified
 	if ti.Unvetted {
 		// Unreviewed tokens. Edits to an unreviewed record do not
 		// increment the version. Only edits to a public record

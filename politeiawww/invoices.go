@@ -52,11 +52,6 @@ var (
 			cms.InvoiceStatusRejected,
 			cms.InvoiceStatusDisputed,
 		},
-		// Rejected invoices may only be updated to approved or updated.
-		cms.InvoiceStatusRejected: {
-			cms.InvoiceStatusApproved,
-			cms.InvoiceStatusUpdated,
-		},
 		// Updated invoices may only be updated to approved, rejected or disputed.
 		cms.InvoiceStatusUpdated: {
 			cms.InvoiceStatusApproved,
@@ -66,9 +61,10 @@ var (
 	}
 	// The valid contractor
 	invalidNewInvoiceContractorType = map[cms.ContractorTypeT]bool{
-		cms.ContractorTypeNominee:       true,
-		cms.ContractorTypeInvalid:       true,
-		cms.ContractorTypeSubContractor: true,
+		cms.ContractorTypeNominee:         true,
+		cms.ContractorTypeInvalid:         true,
+		cms.ContractorTypeSubContractor:   true,
+		cms.ContractorTypeTempDeactivated: true,
 	}
 
 	validInvoiceField = regexp.MustCompile(createInvoiceFieldRegex())
@@ -599,12 +595,6 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 				}
 			}
 
-			// Validate provided contractor location
-			if invInput.ContractorLocation == "" {
-				return www.UserError{
-					ErrorCode: cms.ErrorStatusInvoiceMissingLocation,
-				}
-			}
 			location := formatLocation(invInput.ContractorLocation)
 			err = validateLocation(location)
 			if err != nil {

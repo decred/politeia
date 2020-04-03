@@ -236,6 +236,12 @@ func (p *politeiawww) processNewDCC(nd cms.NewDCC, u *user.User) (*cms.NewDCCRep
 		return nil, err
 	}
 
+	// Fire new event notification upon new DCC being submitted.
+	p.fireEvent(EventTypeDCCNew,
+		EventDataDCCNew{
+			Token: pdReply.CensorshipRecord.Token,
+		})
+
 	cr := convertPropCensorFromPD(pdReply.CensorshipRecord)
 
 	reply.CensorshipRecord = cr
@@ -402,6 +408,13 @@ func (p *politeiawww) getDCC(token string) (*cms.DCCRecord, error) {
 	}
 	i := convertDCCFromCache(*r)
 
+	// Check for possible malformed DCC
+	if i.PublicKey == "" {
+		return nil, www.UserError{
+			ErrorCode: cms.ErrorStatusMalformedDCC,
+		}
+	}
+
 	// Get user IDs of support/oppose pubkeys
 	supportUserIDs := make([]string, 0, len(i.SupportUserIDs))
 	opposeUserIDs := make([]string, 0, len(i.OppositionUserIDs))
@@ -498,7 +511,9 @@ func (p *politeiawww) processGetDCCs(gds cms.GetDCCs) (*cms.GetDCCsReply, error)
 	for _, v := range dbDCCs {
 		dcc, err := p.getDCC(v.Token)
 		if err != nil {
-			return nil, err
+			log.Errorf("getDCCs: getDCC %v %v", v.Token, err)
+			// Just skip to the next one but carry on with the rest.
+			continue
 		}
 		dccs = append(dccs, *dcc)
 	}
@@ -617,6 +632,11 @@ func (p *politeiawww) processSupportOpposeDCC(sd cms.SupportOpposeDCC, u *user.U
 	if err != nil {
 		return nil, err
 	}
+	// Fire new event notification upon new DCC being supported or opposed.
+	p.fireEvent(EventTypeDCCSupportOppose,
+		EventDataDCCSupportOppose{
+			Token: sd.Token,
+		})
 
 	return &cms.SupportOpposeDCCReply{}, nil
 }

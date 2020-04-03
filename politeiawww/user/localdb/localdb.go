@@ -9,6 +9,7 @@ import (
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/google/uuid"
 	"github.com/syndtr/goleveldb/leveldb"
+	"github.com/syndtr/goleveldb/leveldb/util"
 )
 
 const (
@@ -440,9 +441,9 @@ func (l *localdb) SessionGetByID(sid string) (*user.Session, error) {
 	return us, nil
 }
 
-// Delete the session with the given id.
+// SessionDeleteByID deletes the session with the given id.
 //
-// SessionDeleteById satisfies the user.Database interface.
+// SessionDeleteByID satisfies the user.Database interface.
 func (l *localdb) SessionDeleteByID(sid string) error {
 	log.Tracef("SessionDeleteByID: %v", sid)
 
@@ -459,6 +460,49 @@ func (l *localdb) SessionDeleteByID(sid string) error {
 	}
 
 	return nil
+}
+
+// SessionsDeleteByUserID deletes all sessions for the given user ID, except
+// the session IDs in exemptSessionIDs.
+//
+// SessionsDeleteByUserID satisfies the Database interface.
+func (l *localdb) SessionsDeleteByUserID(uid uuid.UUID, exemptSessionIDs []string) error {
+	log.Tracef("SessionsDeleteByUserId %v", uid)
+
+	l.RLock()
+	defer l.RUnlock()
+
+	if l.shutdown {
+		return user.ErrShutdown
+	}
+
+	exempt := make(map[string]struct{}, len(exemptSessionIDs)) // [sessionID]struct{}
+	for _, v := range exemptSessionIDs {
+		exempt[v] = struct{}{}
+	}
+
+	batch := new(leveldb.Batch)
+	iter := l.userdb.NewIterator(util.BytesPrefix([]byte(sessionPrefix)), nil)
+	for iter.Next() {
+		key := iter.Key()
+		value := iter.Value()
+
+		s, err := user.DecodeSession(value)
+		if err != nil {
+			return err
+		}
+
+		_, ok := exempt[s.ID]
+		if ok {
+			continue
+		}
+		if s.UserID == uid {
+			batch.Delete(key)
+		}
+	}
+	iter.Release()
+
+	return l.userdb.Write(batch, nil)
 }
 
 // New creates a new localdb instance.

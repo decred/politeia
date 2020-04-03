@@ -8,21 +8,31 @@ interacts with a JSON REST API.  This document also describes websockets for
 server side notifications.  It does not render HTML.
 
 ***Contractor Management Routes***
-- [`Register`](#register)
-- [`Invite new user`](#invite-new-user)
-- [`New invoice`](#new-invoice)
-- [`User invoices`](#user-invoices)
-- [`Admin invoices`](#admin-invoices)
-- [`Edit invoice`](#edit-invoice)
-- [`Set invoice status`](#set-invoice-status)
-- [`Set DCC status`](#set-dcc-status)
-- [`CMS Users`](#cms-users)
-- [`Generate payouts`](#generate-payouts)
-- [`Invoice comments`](#invoice-comments)
-- [`Invoice exchange rate`](#invoice-exchange-rate)
-- [`Pay invoices`](#pay-invoices)
-- [`Line item payouts`](#line-item-payouts)
-- [`User sub-contractors`](#user-sub-contractors)
+- [cmswww API Specification](#cmswww-api-specification)
+- [v1](#v1)
+    - [`Invite new user`](#invite-new-user)
+    - [`Register`](#register)
+    - [`New invoice`](#new-invoice)
+    - [`User invoices`](#user-invoices)
+    - [`Set invoice status`](#set-invoice-status)
+    - [`Admin invoices`](#admin-invoices)
+    - [`Edit invoice`](#edit-invoice)
+    - [`Generate payouts`](#generate-payouts)
+    - [`Support/Oppose DCC`](#supportoppose-dcc)
+    - [`New DCC comment`](#new-dcc-comment)
+    - [`DCC comments`](#dcc-comments)
+    - [`Set DCC Status`](#set-dcc-status)
+    - [`User sub contractors`](#user-sub-contractors)
+    - [`CMS Users`](#cms-users)
+    - [Error codes](#error-codes)
+    - [Invoice status codes](#invoice-status-codes)
+    - [Line item type codes](#line-item-type-codes)
+    - [Domain type codes](#domain-type-codes)
+    - [Contractor type codes](#contractor-type-codes)
+    - [Payment status codes](#payment-status-codes)
+    - [DCC type codes](#dcc-type-codes)
+    - [DCC status codes](#dcc-status-codes)
+    - [`Abridged CMS User`](#abridged-cms-user)
 
 **Invoice status codes**
 
@@ -90,7 +100,7 @@ Reply:
 Verifies email address of a user account invited via
 [`Invite new user`](#invite-new-user) and supply details for new user registration.
 
-**Route:** `POST v1/user/new`
+**Route:** `POST v1/register`
 
 **Params:**
 
@@ -766,7 +776,8 @@ Edits a user's details. This call requires admin privileges.
 | userid | string | UserID string of the user to be edited. | yes |
 | domain | int | The Domain Type that the user currently has | no |
 | contractortype | int | The contractor type of the user. | no |
-| supervisoruserid | string | The userid of the user (if the user is a sub contractor. ) | no |
+| supervisoruserid | []string | The userid of the user (if the user is a sub contractor. ) | no |
+| proposalsowned | []string | The tokens of any proposals that are "owned/managed" by this user. | no |
 
 **Results:**
 
@@ -782,6 +793,7 @@ Request:
   "domain": 1,
   "contractortype": 1,
   "supervisoruserid": "",
+  "proposalsowned":["337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527"]
 }
 ```
 
@@ -1467,6 +1479,41 @@ Reply:
 }
 ```
 
+### `Proposal Owners`
+
+Returns a list of cms users that are currently owning/mananging a given proposal.
+
+**Route:** `GET /v1/proposals/owner`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-----------|------|-------------|----------|
+| proposaltoken | string | A censorship token from a proposal on Politeia. | yes |
+
+**Results:**
+
+| Parameter | Type | Description |
+|-|-|-|
+| users | array of [Abridged CMS User](#abridged-cms-user) | The list of cms users that own/manage the proposal given.
+
+**Example**
+
+Request:
+
+```json
+{
+  "proposaltoken": "5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b"
+}
+```
+
+Reply:
+
+```json
+{
+  "users": []
+}
+```
 ### Error codes
 
 | Status | Value | Description |
@@ -1482,7 +1529,6 @@ Reply:
 | <a name="ErrorStatusInvalidPaymentAddress">ErrorStatusInvalidPaymentAddress</a> | 1009 | Invalid payment address was submitted. |
 | <a name="ErrorStatusMalformedLineItem">ErrorStatusMalformedLineItem</a> | 1010 | Line item in an invoice was malformed and invalid. |
 | <a name="ErrorStatusInvoiceMissingName">ErrorStatusInvoiceMissingName</a> | 1011 | Submitted invoice missing contractor name. |
-| <a name="ErrorStatusInvoiceMissingLocation">ErrorStatusInvoiceMissingLocation</a> | 1012 | Submitted invoice missing contractor location. |
 | <a name="ErrorStatusInvoiceMissingContact">ErrorStatusInvoiceMissingContact</a> | 1013 | Submitted invoice missing contractor contact. |
 | <a name="ErrorStatusInvoiceMissingRate">ErrorStatusInvoiceMissingRate</a> | 1014 | Submitted invoice missing contractor rate. |
 | <a name="ErrorStatusInvoiceInvalidRate">ErrorStatusInvoiceInvalidRate</a> | 1015 | Submitted contractor rate is invalid (either too high or low). |

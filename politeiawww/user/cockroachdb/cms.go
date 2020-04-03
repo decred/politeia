@@ -15,6 +15,7 @@ const (
 )
 
 func (c *cockroachdb) convertCMSUserFromDatabase(cu CMSUser) (*user.CMSUser, error) {
+	proposalsOwned := strings.Split(cu.ProposalsOwned, ",")
 	superUserIds := strings.Split(cu.SupervisorUserID, ",")
 	parsedUUIds := make([]uuid.UUID, 0, len(superUserIds))
 	for _, userIds := range superUserIds {
@@ -36,6 +37,7 @@ func (c *cockroachdb) convertCMSUserFromDatabase(cu CMSUser) (*user.CMSUser, err
 		ContractorLocation: cu.ContractorLocation,
 		ContractorContact:  cu.ContractorContact,
 		SupervisorUserIDs:  parsedUUIds,
+		ProposalsOwned:     proposalsOwned,
 	}
 	b, _, err := c.decrypt(cu.User.Blob)
 	if err != nil {
@@ -137,6 +139,14 @@ func (c *cockroachdb) updateCMSUser(tx *gorm.DB, nu user.UpdateCMSUser) error {
 			superVisorUserIds += ", " + userIds.String()
 		}
 	}
+	var proposalsOwned string
+	for i, proposal := range nu.ProposalsOwned {
+		if i == 0 {
+			proposalsOwned = proposal
+		} else {
+			proposalsOwned += ", " + proposal
+		}
+	}
 	err := tx.First(&cms).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -148,6 +158,7 @@ func (c *cockroachdb) updateCMSUser(tx *gorm.DB, nu user.UpdateCMSUser) error {
 			cms.ContractorLocation = nu.ContractorLocation
 			cms.ContractorContact = nu.ContractorContact
 			cms.SupervisorUserID = superVisorUserIds
+			cms.ProposalsOwned = proposalsOwned
 			err = tx.Create(&cms).Error
 			if err != nil {
 				return err
@@ -164,6 +175,7 @@ func (c *cockroachdb) updateCMSUser(tx *gorm.DB, nu user.UpdateCMSUser) error {
 	cms.ContractorLocation = nu.ContractorLocation
 	cms.ContractorContact = nu.ContractorContact
 	cms.SupervisorUserID = superVisorUserIds
+	cms.ProposalsOwned = proposalsOwned
 
 	err = tx.Save(&cms).Error
 	if err != nil {
@@ -267,6 +279,42 @@ func (c *cockroachdb) cmdCMSUsersByContractorType(payload string) (string, error
 		Users: u,
 	}
 	reply, err := user.EncodeCMSUsersByContractorTypeReply(r)
+	if err != nil {
+		return "", err
+	}
+
+	return string(reply), nil
+}
+
+// cmdCMSUsersByProposalToken returns all CMS users within the provided
+// contractor type.
+func (c *cockroachdb) cmdCMSUsersByProposalToken(payload string) (string, error) {
+	// Decode payload
+	p, err := user.DecodeCMSUsersByProposalToken([]byte(payload))
+	if err != nil {
+		return "", err
+	}
+
+	// Lookup cms users
+	var users []CMSUser
+	err = c.userDB.
+		Where("'" + p.Token + "' = ANY(string_to_array(proposals_owned, ','))").
+		Preload("User").
+		Find(&users).
+		Error
+	if err != nil {
+		return "", err
+	}
+
+	// Prepare reply
+	u, err := c.convertCMSUsersFromDatabase(users)
+	if err != nil {
+		return "", err
+	}
+	r := user.CMSUsersByProposalTokenReply{
+		Users: u,
+	}
+	reply, err := user.EncodeCMSUsersByProposalTokenReply(r)
 	if err != nil {
 		return "", err
 	}
@@ -379,6 +427,8 @@ func (c *cockroachdb) cmsPluginExec(cmd, payload string) (string, error) {
 		return c.cmdCMSUserByID(payload)
 	case user.CmdCMSUserSubContractors:
 		return c.cmdCMSUserSubContractors(payload)
+	case user.CmdCMSUsersByProposalToken:
+		return c.cmdCMSUsersByProposalToken(payload)
 	default:
 		return "", user.ErrInvalidPluginCmd
 	}

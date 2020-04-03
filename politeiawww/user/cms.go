@@ -15,6 +15,7 @@ const (
 	CmdUpdateCMSUser            = "updatecmsuser"
 	CmdCMSUserByID              = "cmsuserbyid"
 	CmdCMSUserSubContractors    = "cmsusersubcontractors"
+	CmdCMSUsersByProposalToken  = "cmsusersbyproposaltoken"
 )
 
 // CMSUser represents a CMS user. It contains the standard politeiawww user
@@ -29,6 +30,7 @@ type CMSUser struct {
 	ContractorLocation string      `json:"contractorlocation"`
 	ContractorContact  string      `json:"contractorcontact"`
 	SupervisorUserIDs  []uuid.UUID `json:"supervisoruserids"`
+	ProposalsOwned     []string    `json:"proposalsowned"`
 }
 
 // EncodeCMSUser encodes a CMSUser into a JSON byte slice.
@@ -202,6 +204,7 @@ type UpdateCMSUser struct {
 	ContractorLocation string      `json:"contractorlocation"`
 	ContractorContact  string      `json:"contractorcontact"`
 	SupervisorUserIDs  []uuid.UUID `json:"supervisoruserids"`
+	ProposalsOwned     []string    `json:"proposalsowned"`
 }
 
 // EncodeUpdateCMSUser encodes a UpdateCMSUser into a JSON byte slice.
@@ -328,6 +331,57 @@ func EncodeCMSUserSubContractorsReply(u CMSUserSubContractorsReply) ([]byte, err
 // CMSUserSubContractorsReply.
 func DecodeCMSUserSubContractorsReply(b []byte) (*CMSUserSubContractorsReply, error) {
 	var reply CMSUserSubContractorsReply
+
+	err := json.Unmarshal(b, &reply)
+	if err != nil {
+		return nil, err
+	}
+
+	return &reply, nil
+}
+
+// CMSUsersByProposalToken returns all CMS users within the provided
+// proposal token.
+type CMSUsersByProposalToken struct {
+	Token string `json:"token"` // Proposal token
+}
+
+// EncodeCMSUsersByProposalToken encodes a CMSUsersByProposalToken into a
+// JSON byte slice.
+func EncodeCMSUsersByProposalToken(u CMSUsersByProposalToken) ([]byte, error) {
+	return json.Marshal(u)
+}
+
+// DecodeCMSUsersByProposalToken decodes JSON byte slice into a
+// CMSUsersByProposalToken.
+func DecodeCMSUsersByProposalToken(b []byte) (*CMSUsersByProposalToken, error) {
+	var u CMSUsersByProposalToken
+
+	err := json.Unmarshal(b, &u)
+	if err != nil {
+		return nil, err
+	}
+
+	return &u, nil
+}
+
+// CMSUsersByProposalTokenReply is the reply to the CMSUsersByProposalToken
+// command.
+type CMSUsersByProposalTokenReply struct {
+	Users []CMSUser `json:"users"`
+}
+
+// EncodeCMSUsersByProposalTokenReply encodes a CMSUsersByProposalTokenReply
+// into a JSON
+// byte slice.
+func EncodeCMSUsersByProposalTokenReply(u CMSUsersByProposalTokenReply) ([]byte, error) {
+	return json.Marshal(u)
+}
+
+// DecodeCMSUsersByProposalTokenReply decodes JSON byte slice into a
+// CMSUsersByProposalTokenReply.
+func DecodeCMSUsersByProposalTokenReply(b []byte) (*CMSUsersByProposalTokenReply, error) {
+	var reply CMSUsersByProposalTokenReply
 
 	err := json.Unmarshal(b, &reply)
 	if err != nil {

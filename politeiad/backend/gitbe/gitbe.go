@@ -2176,6 +2176,36 @@ func (g *gitBackEnd) fsck(path string) error {
 	return nil
 }
 
+// UnvettedExists returns whether the given token corresponds to a record in
+// the unvetted repo.
+//
+// UnvettedExists satisfies the backend interface.
+func (g *gitBackEnd) UnvettedExists(token []byte) bool {
+	log.Tracef("UnvettedExists %x", token)
+	_, err := os.Stat(pijoin(g.unvetted, hex.EncodeToString(token)))
+	return err == nil
+}
+
+// VettedExists returns whether the given token corresponds to a record in
+// the vetted repo.
+//
+// VettedExists satisfies the backend interface.
+func (g *gitBackEnd) VettedExists(token []byte) bool {
+	log.Tracef("VettedExists %x", token)
+	_, err := os.Stat(pijoin(g.vetted, hex.EncodeToString(token)))
+	return err == nil
+}
+
+// vettedMetadataStreamExists returns whether the given metadata stream exists.
+//
+// This function must be called with the read lock held.
+func (g *gitBackEnd) vettedMetadataStreamExists(token []byte, mdstreamID int) bool {
+	fn := fmt.Sprintf("%02v%v", mdstreamID, defaultMDFilenameSuffix)
+	dir := joinLatest(g.vetted, hex.EncodeToString(token))
+	_, err := os.Stat(pijoin(dir, fn))
+	return err == nil
+}
+
 // GetUnvetted checks out branch token and returns the content of
 // unvetted/token directory.
 //
@@ -2191,6 +2221,15 @@ func (g *gitBackEnd) GetUnvetted(token []byte) (*backend.Record, error) {
 func (g *gitBackEnd) GetVetted(token []byte, version string) (*backend.Record, error) {
 	log.Debugf("GetVetted %x", token)
 	return g.getRecordLock(token, version, g.vetted, true)
+}
+
+// getVettedMetadataStream returns a byte slice of the given metadata stream.
+//
+// This function must be called with the read lock held.
+func (g *gitBackEnd) getVettedMetadataStream(token []byte, mdstreamID int) ([]byte, error) {
+	fn := fmt.Sprintf("%02v%v", mdstreamID, defaultMDFilenameSuffix)
+	dir := joinLatest(g.vetted, hex.EncodeToString(token))
+	return ioutil.ReadFile(pijoin(dir, fn))
 }
 
 // setUnvettedStatus takes various parameters to update a record metadata and
@@ -2725,7 +2764,7 @@ func (g *gitBackEnd) rebasePR(id string) error {
 }
 
 // New returns a gitBackEnd context.  It verifies that git is installed.
-func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, id *identity.FullIdentity, gitTrace bool) (*gitBackEnd, error) {
+func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, id *identity.FullIdentity, gitTrace bool, dcrdataHost string) (*gitBackEnd, error) {
 	// Default to system git
 	if gitPath == "" {
 		gitPath = "git"
@@ -2744,8 +2783,8 @@ func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, 
 		exit:            make(chan struct{}),
 		checkAnchor:     make(chan struct{}),
 		testAnchors:     make(map[string]bool),
-		plugins:         []backend.Plugin{getDecredPlugin(anp.Name != "mainnet")},
 		prefixCache:     make(map[string]struct{}),
+		plugins:         []backend.Plugin{getDecredPlugin(dcrdataHost)},
 	}
 
 	idJSON, err := id.Marshal()

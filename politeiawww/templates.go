@@ -99,6 +99,14 @@ type newInvoiceStatusUpdateTemplate struct {
 	Token string
 }
 
+type newDCCSubmittedTemplateData struct {
+	Link string
+}
+
+type newDCCSupportOpposeTemplateData struct {
+	Link string
+}
+
 const templateNewUserEmailRaw = `
 Thanks for joining Politeia, {{.Username}}!
 
@@ -117,14 +125,15 @@ Click the link below to continue resetting your password:
 
 You are receiving this email because a password reset was initiated for {{.Email}}
 on Politeia. If you did not perform this action, it is possible that your account has been
-compromised. Please contact Politeia administrators through Slack on the #politeia channel.
+compromised. Please contact Politeia administrators through Matrix on the
+#politeia:decred.org channel.
 `
 
 const templateUserPasswordChangedRaw = `
 You are receiving this email to notify you that your password has changed for 
 {{.Email}} on Politeia. If you did not perform this action, it is possible that 
 your account has been compromised. Please contact Politeia administrators 
-through Slack on the #politeia channel for further instructions.
+through Matrix on the #politeia:decred.org channel for further instructions.
 `
 
 const templateUpdateUserKeyEmailRaw = `
@@ -262,6 +271,24 @@ const templateNewInvoiceStatusUpdateRaw = `
 An invoice's status has been updated, please login to cms.decred.org to review the changes.
 
 Updated Invoice Token: {{.Token}}
+
+Regards,
+Contractor Management System
+`
+
+const templateNewDCCSubmittedRaw = `
+A new DCC has been submitted.
+
+{{.Link}}
+
+Regards,
+Contractor Management System
+`
+
+const templateNewDCCSupportOpposeRaw = `
+A DCC has received new support or opposition.
+
+{.Link}}
 
 Regards,
 Contractor Management System

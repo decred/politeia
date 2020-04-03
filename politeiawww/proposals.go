@@ -1860,6 +1860,10 @@ func (p *politeiawww) processVoteResults(token string) (*www.VoteResultsReply, e
 	if err != nil {
 		return nil, fmt.Errorf("decredVoteDetails: %v", err)
 	}
+	if vdr.StartVoteReply.StartBlockHash == "" {
+		// Vote has not been started yet. No need to continue.
+		return &www.VoteResultsReply{}, nil
+	}
 
 	// Get cast votes from cache
 	vrr, err := p.decredProposalVotes(token)

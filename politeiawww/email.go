@@ -671,3 +671,65 @@ func (p *politeiawww) emailUserInvoiceStatusUpdate(userEmail, invoiceToken strin
 
 	return p.sendEmailTo(subject, body, userEmail)
 }
+
+func (p *politeiawww) emailAdminsForNewDCC(token string) error {
+	if p.smtp.disabled {
+		return nil
+	}
+
+	l, err := url.Parse(p.cfg.WebServerAddress + "/dcc/" + token)
+	if err != nil {
+		return err
+	}
+
+	tplData := newDCCSubmittedTemplateData{
+		Link: l.String(),
+	}
+
+	subject := "New DCC Submitted"
+	body, err := createBody(templateNewDCCSubmitted, &tplData)
+	if err != nil {
+		return err
+	}
+
+	return p.smtp.sendEmail(subject, body, func(msg *goemail.Message) error {
+		// Add admin emails to the goemail.Message
+		return p.db.AllUsers(func(u *user.User) {
+			if !u.Admin || u.Deactivated {
+				return
+			}
+			msg.AddBCC(u.Email)
+		})
+	})
+}
+
+func (p *politeiawww) emailAdminsForNewDCCSupportOppose(token string) error {
+	if p.smtp.disabled {
+		return nil
+	}
+
+	l, err := url.Parse(p.cfg.WebServerAddress + "/dcc/" + token)
+	if err != nil {
+		return err
+	}
+
+	tplData := newDCCSupportOpposeTemplateData{
+		Link: l.String(),
+	}
+
+	subject := "New DCC Support or Opposition Submitted"
+	body, err := createBody(templateNewDCCSupportOppose, &tplData)
+	if err != nil {
+		return err
+	}
+
+	return p.smtp.sendEmail(subject, body, func(msg *goemail.Message) error {
+		// Add admin emails to the goemail.Message
+		return p.db.AllUsers(func(u *user.User) {
+			if !u.Admin || u.Deactivated {
+				return
+			}
+			msg.AddBCC(u.Email)
+		})
+	})
+}

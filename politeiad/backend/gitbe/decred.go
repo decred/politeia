@@ -161,27 +161,19 @@ func init() {
 	}
 }
 
-func getDecredPlugin(testnet bool) backend.Plugin {
+func getDecredPlugin(dcrdataHost string) backend.Plugin {
 	decredPlugin := backend.Plugin{
 		ID:       decredplugin.ID,
 		Version:  decredplugin.Version,
 		Settings: []backend.PluginSetting{},
 	}
 
-	if testnet {
-		decredPlugin.Settings = append(decredPlugin.Settings,
-			backend.PluginSetting{
-				Key:   "dcrdata",
-				Value: "https://testnet.decred.org:443/",
-			},
-		)
-	} else {
-		decredPlugin.Settings = append(decredPlugin.Settings,
-			backend.PluginSetting{
-				Key:   "dcrdata",
-				Value: "https://dcrdata.decred.org:443/",
-			})
-	}
+	decredPlugin.Settings = append(decredPlugin.Settings,
+		backend.PluginSetting{
+			Key:   "dcrdata",
+			Value: dcrdataHost,
+		},
+	)
 
 	// This setting is used to tell politeiad how to retrieve the
 	// decred plugin data that is required to build the external
@@ -259,9 +251,20 @@ func setDecredPluginHook(name string, f func(string) error) {
 	decredPluginHooks[name] = f
 }
 
-func (g *gitBackEnd) propExists(repo, token string) bool {
-	_, err := os.Stat(pijoin(repo, token))
-	return err == nil
+func (g *gitBackEnd) unvettedPropExists(token string) bool {
+	tokenb, err := util.ConvertStringToken(token)
+	if err != nil {
+		return false
+	}
+	return g.UnvettedExists(tokenb)
+}
+
+func (g *gitBackEnd) vettedPropExists(token string) bool {
+	tokenb, err := util.ConvertStringToken(token)
+	if err != nil {
+		return false
+	}
+	return g.VettedExists(tokenb)
 }
 
 func (g *gitBackEnd) getNewCid(token string) (string, error) {
@@ -386,7 +389,7 @@ func (g *gitBackEnd) verifyMessage(address, message, signature string) (bool, er
 }
 
 func bestBlock() (*dcrdataapi.BlockDataBasic, error) {
-	url := decredPluginSettings["dcrdata"] + "api/block/best"
+	url := decredPluginSettings["dcrdata"] + "/api/block/best"
 	log.Debugf("connecting to %v", url)
 	// XXX this http command needs a reasonable timeout.
 	r, err := http.Get(url)
@@ -417,7 +420,7 @@ func bestBlock() (*dcrdataapi.BlockDataBasic, error) {
 
 func block(block uint32) (*dcrdataapi.BlockDataBasic, error) {
 	h := strconv.FormatUint(uint64(block), 10)
-	url := decredPluginSettings["dcrdata"] + "api/block/" + h
+	url := decredPluginSettings["dcrdata"] + "/api/block/" + h
 	log.Debugf("connecting to %v", url)
 	r, err := http.Get(url)
 	if err != nil {
@@ -445,7 +448,7 @@ func block(block uint32) (*dcrdataapi.BlockDataBasic, error) {
 }
 
 func snapshot(hash string) ([]string, error) {
-	url := decredPluginSettings["dcrdata"] + "api/stake/pool/b/" + hash +
+	url := decredPluginSettings["dcrdata"] + "/api/stake/pool/b/" + hash +
 		"/full?sort=true"
 	log.Debugf("connecting to %v", url)
 	r, err := http.Get(url)
@@ -483,7 +486,7 @@ func batchTransactions(hashes []string) ([]dcrdataapi.TrimmedTx, error) {
 	}
 
 	// Make the POST request
-	url := decredPluginSettings["dcrdata"] + "api/txs/trimmed"
+	url := decredPluginSettings["dcrdata"] + "/api/txs/trimmed"
 	log.Debugf("connecting to %v", url)
 	r, err := http.Post(url, "application/json; charset=utf-8",
 		bytes.NewReader(reqBody))
@@ -637,7 +640,7 @@ func (g *gitBackEnd) flushJournalsUnwind(id string) error {
 //
 // Must be called WITH the mutex held.
 func (g *gitBackEnd) flushComments(token string) (string, error) {
-	if !g.propExists(g.unvetted, token) {
+	if !g.unvettedPropExists(token) {
 		return "", fmt.Errorf("unknown proposal: %v", token)
 	}
 
@@ -825,7 +828,7 @@ func (g *gitBackEnd) flushCommentJournals() error {
 //
 // Must be called WITH the mutex held.
 func (g *gitBackEnd) flushVotes(token string) (string, error) {
-	if !g.propExists(g.unvetted, token) {
+	if !g.unvettedPropExists(token) {
 		return "", fmt.Errorf("unknown proposal: %v", token)
 	}
 
@@ -1024,7 +1027,7 @@ func (g *gitBackEnd) pluginNewComment(payload string) (string, error) {
 	}
 
 	// Verify proposal exists, we can run this lockless
-	if !g.propExists(g.vetted, comment.Token) {
+	if !g.vettedPropExists(comment.Token) {
 		return "", fmt.Errorf("unknown proposal: %v", comment.Token)
 	}
 
@@ -1139,7 +1142,7 @@ func (g *gitBackEnd) pluginLikeComment(payload string) (string, error) {
 	}
 
 	// Verify proposal exists, we can run this lockless
-	if !g.propExists(g.vetted, like.Token) {
+	if !g.vettedPropExists(like.Token) {
 		return "", fmt.Errorf("unknown proposal: %v", like.Token)
 	}
 
@@ -1248,7 +1251,7 @@ func (g *gitBackEnd) pluginCensorComment(payload string) (string, error) {
 	}
 
 	// Verify proposal exists, we can run this lockless
-	if !g.propExists(g.vetted, censor.Token) {
+	if !g.vettedPropExists(censor.Token) {
 		return "", fmt.Errorf("unknown proposal: %v", censor.Token)
 	}
 
@@ -1371,7 +1374,7 @@ func encodeGetCommentsReply(cm map[string]decredplugin.Comment) (string, error) 
 func (g *gitBackEnd) replayComments(token string) (map[string]decredplugin.Comment, error) {
 	log.Debugf("replayComments %s", token)
 	// Verify proposal exists, we can run this lockless
-	if !g.propExists(g.vetted, token) {
+	if !g.vettedPropExists(token) {
 		return nil, nil
 	}
 
@@ -1533,7 +1536,7 @@ func (g *gitBackEnd) pluginAuthorizeVote(payload string) (string, error) {
 	token := authorize.Token
 
 	// Verify proposal exists
-	if !g.propExists(g.vetted, token) {
+	if !g.vettedPropExists(token) {
 		return "", fmt.Errorf("unknown proposal: %v", token)
 	}
 
@@ -1579,10 +1582,7 @@ func (g *gitBackEnd) pluginAuthorizeVote(payload string) (string, error) {
 		return "", backend.ErrShutdown
 	}
 
-	_, err = os.Stat(pijoin(joinLatest(g.vetted, token),
-		fmt.Sprintf("%02v%v", decredplugin.MDStreamVoteBits,
-			defaultMDFilenameSuffix)))
-	if err == nil {
+	if g.vettedMetadataStreamExists(tokenb, decredplugin.MDStreamVoteBits) {
 		// Vote has already started. This should not happen.
 		return "", fmt.Errorf("proposal vote already started: %v",
 			token)
@@ -1652,7 +1652,7 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 	}
 	token := vote.Vote.Token
 
-	if !g.propExists(g.vetted, token) {
+	if !g.vettedPropExists(token) {
 		return "", fmt.Errorf("unknown proposal: %v", token)
 	}
 
@@ -1732,38 +1732,34 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 	}
 
 	// Verify proposal state
-	_, err1 := os.Stat(pijoin(joinLatest(g.vetted, token),
-		fmt.Sprintf("%02v%v", decredplugin.MDStreamAuthorizeVote,
-			defaultMDFilenameSuffix)))
-	_, err2 := os.Stat(pijoin(joinLatest(g.vetted, token),
-		fmt.Sprintf("%02v%v", decredplugin.MDStreamVoteBits,
-			defaultMDFilenameSuffix)))
-	_, err3 := os.Stat(pijoin(joinLatest(g.vetted, token),
-		fmt.Sprintf("%02v%v", decredplugin.MDStreamVoteSnapshot,
-			defaultMDFilenameSuffix)))
+	avExists := g.vettedMetadataStreamExists(tokenB,
+		decredplugin.MDStreamAuthorizeVote)
+	vbExists := g.vettedMetadataStreamExists(tokenB,
+		decredplugin.MDStreamVoteBits)
+	vsExists := g.vettedMetadataStreamExists(tokenB,
+		decredplugin.MDStreamVoteSnapshot)
 
-	if err1 != nil {
+	switch {
+	case !avExists:
 		// Authorize vote md is not present
-		return "", fmt.Errorf("no authorize vote metadata: %v",
-			token)
-	} else if err2 != nil && err3 != nil {
-		// Vote has not started, continue
-	} else if err2 == nil && err3 == nil {
+		return "", fmt.Errorf("no authorize vote metadata: %v", token)
+	case vbExists && vsExists:
 		// Vote has started
-		return "", fmt.Errorf("proposal vote already started: %v",
-			token)
-	} else {
-		// This is bad, both files should exist or not exist
+		return "", fmt.Errorf("proposal vote already started: %v", token)
+	case !vbExists && !vsExists:
+		// Vote has not started; continue
+	default:
+		// We're in trouble!
 		return "", fmt.Errorf("proposal is unknown vote state: %v",
 			token)
 	}
 
 	// Ensure vote authorization has not been revoked
-	b, err := ioutil.ReadFile(pijoin(joinLatest(g.vetted, token),
-		fmt.Sprintf("%02v%v", decredplugin.MDStreamAuthorizeVote,
-			defaultMDFilenameSuffix)))
+	b, err := g.getVettedMetadataStream(tokenB,
+		decredplugin.MDStreamAuthorizeVote)
 	if err != nil {
-		return "", fmt.Errorf("readfile authorizevote: %v", err)
+		return "", fmt.Errorf("getVettedMetadataStream %v: %v",
+			decredplugin.MDStreamAuthorizeVote, err)
 	}
 	av, err := decredplugin.DecodeAuthorizeVote(b)
 	if err != nil {
@@ -1891,8 +1887,12 @@ func (g *gitBackEnd) validateVoteBit(token, bit string) error {
 		}
 
 		// Load md stream
-		svb, err := ioutil.ReadFile(mdFilename(g.vetted, token,
-			decredplugin.MDStreamVoteBits))
+		tokenb, err := util.ConvertStringToken(token)
+		if err != nil {
+			return err
+		}
+		svb, err := g.getVettedMetadataStream(tokenb,
+			decredplugin.MDStreamVoteBits)
 		if err != nil {
 			return err
 		}
@@ -1939,7 +1939,7 @@ func (g *gitBackEnd) validateVoteBit(token, bit string) error {
 // Functions must be called WITH the lock held.
 func (g *gitBackEnd) replayBallot(token string) error {
 	// Verify proposal exists, we can run this lockless
-	if !g.propExists(g.vetted, token) {
+	if !g.vettedPropExists(token) {
 		return nil
 	}
 
@@ -2190,7 +2190,7 @@ func (g *gitBackEnd) pluginBallot(payload string) (string, error) {
 	}
 	for k, v := range ballot.Votes {
 		// Verify proposal exists, we can run this lockless
-		if !g.propExists(g.vetted, v.Token) {
+		if !g.vettedPropExists(v.Token) {
 			log.Errorf("pluginBallot: proposal not found: %v",
 				v.Token)
 			e := decredplugin.ErrorStatusProposalNotFound
@@ -2394,7 +2394,7 @@ func (g *gitBackEnd) pluginProposalVotes(payload string) (string, error) {
 	}
 
 	// Verify proposal exists, we can run this lockless
-	if !g.propExists(g.vetted, vote.Token) {
+	if !g.vettedPropExists(vote.Token) {
 		return "", fmt.Errorf("proposal not found: %v", vote.Token)
 	}
 

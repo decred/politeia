@@ -25,11 +25,6 @@ import (
 )
 
 const (
-	dcrdataMainnet   = "https://dcrdata.decred.org/api"
-	dcrdataTestnet   = "https://testnet.decred.org/api"
-	dcrdataMainnetWS = "wss://dcrdata.decred.org/ps"
-	dcrdataTestnetWS = "wss://testnet.decred.org/ps"
-
 	dcrdataTimeout = 3 * time.Second // Dcrdata request timeout
 	faucetTimeout  = 5 * time.Second // Testnet faucet request timeout
 
@@ -151,44 +146,6 @@ func DcrStringToAmount(dcrstr string) (uint64, error) {
 	}
 
 	return ((whole * 1e8) + fraction), nil
-}
-
-func blockExplorerURLForAddress(address string, netParams *chaincfg.Params) (string, error) {
-	var (
-		dcrdata string
-	)
-
-	switch netParams {
-	case &chaincfg.MainNetParams:
-		dcrdata = dcrdataMainnet + "/address/" + address
-	case &chaincfg.TestNet3Params:
-		dcrdata = dcrdataTestnet + "/address/" + address
-	default:
-		return "", fmt.Errorf("unsupported network %v",
-			getNetworkName(netParams))
-	}
-
-	return dcrdata, nil
-}
-
-// BlockExplorerURLforSubscriptions generates a proper URL for either
-// dcrdata testnet or mainnet depending on the provided netParams.
-func BlockExplorerURLForSubscriptions(netParams *chaincfg.Params) (string, error) {
-	var (
-		dcrdata string
-	)
-
-	switch netParams {
-	case &chaincfg.MainNetParams:
-		dcrdata = dcrdataMainnetWS
-	case &chaincfg.TestNet3Params:
-		dcrdata = dcrdataTestnetWS
-	default:
-		return "", fmt.Errorf("unsupported network %v",
-			getNetworkName(netParams))
-	}
-
-	return dcrdata, nil
 }
 
 func fetchTxWithBE(url string, address string, minimumAmount uint64, txnotbefore int64, minConfirmationsRequired uint64) (string, uint64, error) {
@@ -344,7 +301,7 @@ func PayWithTestnetFaucet(faucetURL string, address string, amount uint64, overr
 // FetchTxWithBlockExplorers uses public block explorers to look for a
 // transaction for the given address that equals or exceeds the given amount,
 // occurs after the txnotbefore time and has the minimum number of confirmations.
-func FetchTxWithBlockExplorers(address string, amount uint64, txnotbefore int64, minConfirmations uint64) (string, uint64, error) {
+func FetchTxWithBlockExplorers(address string, amount uint64, txnotbefore int64, minConfirmations uint64, dcrdataURL string) (string, uint64, error) {
 	// pre-validate that the passed address, amount, and tx are at least
 	// somewhat valid before querying the explorers
 	addr, err := dcrutil.DecodeAddress(address)
@@ -352,11 +309,6 @@ func FetchTxWithBlockExplorers(address string, amount uint64, txnotbefore int64,
 		return "", 0, fmt.Errorf("invalid address %v: %v", addr, err)
 	}
 
-	dcrdataURL, err := blockExplorerURLForAddress(address,
-		addr.Net())
-	if err != nil {
-		return "", 0, err
-	}
 	explorerURL := dcrdataURL + "/raw"
 
 	// Fetch transaction from dcrdata
@@ -415,15 +367,11 @@ func convertBETransactionToTxDetails(address string, tx BETransaction) (*TxDetai
 
 // FetchTxsForAddress fetches the transactions that have been sent to the
 // provided wallet address from the dcrdata block explorer
-func FetchTxsForAddress(address string) ([]TxDetails, error) {
+func FetchTxsForAddress(address string, dcrdataURL string) ([]TxDetails, error) {
 	// Get block explorer URL
 	addr, err := dcrutil.DecodeAddress(address)
 	if err != nil {
 		return nil, fmt.Errorf("invalid address %v: %v", addr, err)
-	}
-	dcrdataURL, err := blockExplorerURLForAddress(address, addr.Net())
-	if err != nil {
-		return nil, err
 	}
 	explorerURL := dcrdataURL + "/raw"
 
@@ -446,15 +394,11 @@ func FetchTxsForAddress(address string) ([]TxDetails, error) {
 
 // FetchTxsForAddressNotBefore fetches all transactions for a wallet address
 // that occurred after the passed in notBefore timestamp.
-func FetchTxsForAddressNotBefore(address string, notBefore int64) ([]TxDetails, error) {
+func FetchTxsForAddressNotBefore(address string, notBefore int64, dcrdataURL string) ([]TxDetails, error) {
 	// Get block explorer URL
 	addr, err := dcrutil.DecodeAddress(address)
 	if err != nil {
 		return nil, fmt.Errorf("invalid address %v: %v", addr, err)
-	}
-	dcrdataURL, err := blockExplorerURLForAddress(address, addr.Net())
-	if err != nil {
-		return nil, err
 	}
 
 	// Fetch all txs for the passed in wallet address
@@ -512,15 +456,11 @@ func FetchTxsForAddressNotBefore(address string, notBefore int64) ([]TxDetails, 
 }
 
 // FetchTx fetches a given transaction based on the provided txid.
-func FetchTx(address, txid string) (*TxDetails, error) {
+func FetchTx(address, txid, dcrdataURL string) (*TxDetails, error) {
 	// Get block explorer URLs
 	addr, err := dcrutil.DecodeAddress(address)
 	if err != nil {
 		return nil, fmt.Errorf("invalid address %v: %v", addr, err)
-	}
-	dcrdataURL, err := blockExplorerURLForAddress(address, addr.Net())
-	if err != nil {
-		return nil, err
 	}
 	primaryURL := dcrdataURL + "/raw"
 

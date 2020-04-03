@@ -111,6 +111,14 @@ func (p *TestPoliteiad) addRecord(r v1.Record) {
 	p.records[r.CensorshipRecord.Token][r.Version] = r
 }
 
+// updateRecord updates a record in the record store.
+func (p *TestPoliteiad) updateRecord(r v1.Record) {
+	p.Lock()
+	defer p.Unlock()
+
+	p.records[r.CensorshipRecord.Token][r.Version] = r
+}
+
 // record returns the latest version of the specified record.
 //
 // This function must be called with the lock held.
@@ -194,6 +202,49 @@ func (p *TestPoliteiad) handleNewRecord(w http.ResponseWriter, r *http.Request) 
 	util.RespondWithJSON(w, http.StatusOK, v1.NewRecordReply{
 		Response:         hex.EncodeToString(resp[:]),
 		CensorshipRecord: cr,
+	})
+}
+
+func (p *TestPoliteiad) handleUpdateVettedRecord(w http.ResponseWriter, r *http.Request) {
+	var t v1.UpdateRecord
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&t); err != nil {
+		util.RespondWithJSON(w, http.StatusBadRequest, err)
+		return
+	}
+
+	challenge, err := hex.DecodeString(t.Challenge)
+	if err != nil || len(challenge) != v1.ChallengeSize {
+		respondWithUserError(w, v1.ErrorStatusInvalidChallenge, nil)
+		return
+	}
+
+	prop, _ := p.record(t.Token)
+	version, _ := strconv.Atoi(prop.Version)
+	updatedVersion := strconv.Itoa(version + 1)
+
+	updated := v1.Record{
+		Status:           prop.Status,
+		Timestamp:        time.Now().Unix(),
+		CensorshipRecord: prop.CensorshipRecord,
+		Version:          updatedVersion,
+		Metadata:         t.MDOverwrite,
+		Files:            t.FilesAdd,
+	}
+
+	// Update record in store
+	p.updateRecord(updated)
+
+	// Update record in cache
+	err = p.cache.UpdateRecord(convertRecordToCache(updated))
+	if err != nil {
+		util.RespondWithJSON(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	response := p.identity.SignMessage(challenge)
+	util.RespondWithJSON(w, http.StatusOK, v1.UpdateRecordReply{
+		Response: hex.EncodeToString(response[:]),
 	})
 }
 
@@ -442,6 +493,7 @@ func New(t *testing.T, c cache.Cache) *TestPoliteiad {
 	// Setup routes
 	router := mux.NewRouter()
 	router.HandleFunc(v1.NewRecordRoute, p.handleNewRecord)
+	router.HandleFunc(v1.UpdateVettedRoute, p.handleUpdateVettedRecord)
 	router.HandleFunc(v1.SetUnvettedStatusRoute, p.handleSetUnvettedStatus)
 	router.HandleFunc(v1.SetVettedStatusRoute, p.handleSetVettedStatus)
 	router.HandleFunc(v1.PluginCommandRoute, p.handlePluginCommand)

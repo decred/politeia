@@ -20,7 +20,9 @@ import (
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	database "github.com/decred/politeia/politeiawww/cmsdatabase"
+	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
+	"github.com/google/uuid"
 )
 
 const (
@@ -145,7 +147,7 @@ func (p *politeiawww) restartCMSAddressesWatching() error {
 func (p *politeiawww) checkHistoricalPayments(payment *database.Payments) bool {
 	// Get all txs since start time of watcher
 	txs, err := util.FetchTxsForAddressNotBefore(strings.TrimSpace(payment.Address),
-		payment.TimeStarted)
+		payment.TimeStarted, p.dcrdataHostHTTP())
 	if err != nil {
 		// XXX Some sort of 'recheck' or notice that it should do it again?
 		log.Errorf("error FetchTxsForAddressNotBefore for address %s: %v",
@@ -218,7 +220,7 @@ func (p *politeiawww) checkHistoricalPayments(payment *database.Payments) bool {
 // It will return TRUE if paid, otherwise false.  It utilizes the util
 // FetchTx which looks for transaction at a given address.
 func (p *politeiawww) checkPayments(payment *database.Payments, notifiedTx string) bool {
-	tx, err := util.FetchTx(payment.Address, notifiedTx)
+	tx, err := util.FetchTx(payment.Address, notifiedTx, p.dcrdataHostHTTP())
 	if err != nil {
 		log.Errorf("error FetchTxs for address %s: %v", payment.Address, err)
 		return false
@@ -405,6 +407,36 @@ func (p *politeiawww) invoiceStatusPaid(token string) error {
 		return err
 	}
 
+	cmsUser, err := p.getCMSUserByID(dbInvoice.UserID)
+	if err != nil {
+		return err
+	}
+
+	if cmsUser.ContractorType == cms.ContractorTypeTemp {
+		// Update Temp User's Contractor Type to Deactivated
+		cmsUserID, err := uuid.Parse(cmsUser.ID)
+		if err != nil {
+			return err
+		}
+		uu := user.UpdateCMSUser{
+			ID:             cmsUserID,
+			ContractorType: int(cms.ContractorTypeTempDeactivated),
+		}
+
+		payload, err := user.EncodeUpdateCMSUser(uu)
+		if err != nil {
+			return err
+		}
+		pc := user.PluginCommand{
+			ID:      user.CMSPluginID,
+			Command: user.CmdUpdateCMSUser,
+			Payload: string(payload),
+		}
+		_, err = p.db.PluginExec(pc)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -416,7 +448,7 @@ func (p *politeiawww) reconnectWS() {
 	var err error
 	// Retry wsDcrdata reconnect every 1 minute
 	for {
-		p.wsDcrdata, err = newWSDcrdata()
+		p.wsDcrdata, err = newWSDcrdata(p.dcrdataHostWS())
 		if err != nil {
 			log.Errorf("reconnectWS error: %v", err)
 		}

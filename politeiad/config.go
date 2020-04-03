@@ -21,7 +21,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/decred/dcrtime/api/v1"
+	v1 "github.com/decred/dcrtime/api/v1"
 	"github.com/decred/politeia/politeiad/sharedconfig"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
@@ -38,6 +38,9 @@ const (
 
 	defaultMainnetPort = "49374"
 	defaultTestnetPort = "59374"
+
+	defaultMainnetDcrdata = "dcrdata.decred.org:443"
+	defaultTestnetDcrdata = "testnet.decred.org:443"
 )
 
 var (
@@ -85,6 +88,7 @@ type config struct {
 	BuildCache    bool   `long:"buildcache" description:"Build the cache from scratch"`
 	Identity      string `long:"identity" description:"File containing the politeiad identity file"`
 	GitTrace      bool   `long:"gittrace" description:"Enable git tracing in logs"`
+	DcrdataHost   string `long:"dcrdatahost" description:"Dcrdata ip:port"`
 }
 
 // serviceOptions defines the configuration options for the daemon as a service
@@ -540,6 +544,15 @@ func loadConfig() (*config, []string, error) {
 	// Add default port to all listener addresses if needed and remove
 	// duplicate addresses.
 	cfg.Listeners = normalizeAddresses(cfg.Listeners, port)
+
+	if len(cfg.DcrdataHost) == 0 {
+		if cfg.TestNet {
+			cfg.DcrdataHost = defaultTestnetDcrdata
+		} else {
+			cfg.DcrdataHost = defaultMainnetDcrdata
+		}
+	}
+	cfg.DcrdataHost = "https://" + cfg.DcrdataHost
 
 	if cfg.TestNet {
 		var timeHost string

@@ -23,6 +23,10 @@ var (
 		template.New("invoice_comment").Parse(templateNewInvoiceCommentRaw))
 	templateNewInvoiceStatusUpdate = template.Must(
 		template.New("invoice_status_update").Parse(templateNewInvoiceStatusUpdateRaw))
+	templateNewDCCSubmitted = template.Must(
+		template.New("dcc_new").Parse(templateNewDCCSubmittedRaw))
+	templateNewDCCSupportOppose = template.Must(
+		template.New("dcc_support_oppose").Parse(templateNewDCCSupportOpposeRaw))
 )
 
 // handleInviteNewUser handles the invitation of a new contractor by an
@@ -768,6 +772,29 @@ func (p *politeiawww) handleUserSubContractors(w http.ResponseWriter, r *http.Re
 	util.RespondWithJSON(w, http.StatusOK, uscr)
 }
 
+func (p *politeiawww) handleProposalOwner(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleProposalOwner")
+
+	var po cms.ProposalOwner
+	err := util.ParseGetParams(r, &po)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleProposalOwner: ParseGetParams",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	por, err := p.processProposalOwner(po)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleProposalOwner: processProposalOwner: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, por)
+}
+
 func (p *politeiawww) setCMSWWWRoutes() {
 	// Templates
 	//p.addTemplate(templateNewProposalSubmittedName,
@@ -833,6 +860,9 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		permissionLogin)
 	p.addRoute(http.MethodGet, cms.APIRoute,
 		cms.RouteUserSubContractors, p.handleUserSubContractors,
+		permissionLogin)
+	p.addRoute(http.MethodGet, cms.APIRoute,
+		cms.RouteProposalOwner, p.handleProposalOwner,
 		permissionLogin)
 
 	// Unauthenticated websocket

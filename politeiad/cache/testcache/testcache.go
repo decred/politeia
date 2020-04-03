@@ -154,8 +154,18 @@ func (c *testcache) RecordVersion(token, version string) (*cache.Record, error) 
 	return c.recordVersion(token, version)
 }
 
-// UpdateRecord is a stub to satisfy the cache interface.
+// UpdateRecord updates a record in the cache.
 func (c *testcache) UpdateRecord(r cache.Record) error {
+	c.Lock()
+	defer c.Unlock()
+
+	token := r.CensorshipRecord.Token
+	_, ok := c.records[token]
+	if !ok {
+		return cache.ErrRecordNotFound
+	}
+
+	c.records[token][r.Version] = r
 	return nil
 }
 
