@@ -73,7 +73,7 @@ func (s *SessionStore) New(r *http.Request, name string) (*sessions.Session, err
 	// Check if the session cookie already exists
 	c, err := r.Cookie(name)
 	if err == http.ErrNoCookie {
-		// Session cookie does not exist. Return a new session.
+		log.Debugf("Session cookie not found; returning new session")
 		return session, nil
 	} else if err != nil {
 		return session, err
@@ -86,7 +86,12 @@ func (s *SessionStore) New(r *http.Request, name string) (*sessions.Session, err
 	// Decode session ID (overwrites existing session ID)
 	err = securecookie.DecodeMulti(name, c.Value, &session.ID, s.Codecs...)
 	if err != nil {
-		return session, err
+		// If there are any issues decoding the session ID, the
+		// existing session is considered invalid and the newly
+		// created session is returned.
+		log.Debugf("securecookie.DecodeMulti: %v", err)
+		log.Debugf("Invalid session ID; returning new session")
+		return session, nil
 	}
 
 	// Check if session exists in the store
@@ -99,11 +104,13 @@ func (s *SessionStore) New(r *http.Request, name string) (*sessions.Session, err
 		err = securecookie.DecodeMulti(session.Name(), userSession.Values,
 			&session.Values, s.Codecs...)
 		if err != nil {
+			log.Debugf("Session found in store; returning existing session")
 			return session, err
 		}
 	case user.ErrSessionNotFound:
 		// Session not found in database; no action needed since the new
 		// session will be returned.
+		log.Debugf("Session not found in store; returning new session")
 	default:
 		return session, err
 	}
