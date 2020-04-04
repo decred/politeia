@@ -1736,7 +1736,7 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 
 	// Verify proposal exists
 	token := sv.Vote.Token
-	if !g.propExists(g.vetted, token) {
+	if !g.vettedPropExists(token) {
 		return "", fmt.Errorf("unknown proposal: %v", token)
 	}
 
@@ -1769,11 +1769,15 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 	}
 
 	// Verify proposal state
-	avExists := g.vettedMetadataStreamExists(tokenB,
+	tokenb, err := util.ConvertStringToken(token)
+	if err != nil {
+		return "", err
+	}
+	avExists := g.vettedMetadataStreamExists(tokenb,
 		decredplugin.MDStreamAuthorizeVote)
-	vbExists := g.vettedMetadataStreamExists(tokenB,
+	vbExists := g.vettedMetadataStreamExists(tokenb,
 		decredplugin.MDStreamVoteBits)
-	vsExists := g.vettedMetadataStreamExists(tokenB,
+	vsExists := g.vettedMetadataStreamExists(tokenb,
 		decredplugin.MDStreamVoteSnapshot)
 
 	switch {
@@ -1803,7 +1807,7 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 	}
 
 	// Ensure vote authorization has not been revoked
-	b, err := g.getVettedMetadataStream(tokenB,
+	b, err := g.getVettedMetadataStream(tokenb,
 		decredplugin.MDStreamAuthorizeVote)
 	if err != nil {
 		return "", fmt.Errorf("getVettedMetadataStream %v: %v",
@@ -1828,10 +1832,6 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 	svrb, err := decredplugin.EncodeStartVoteReply(*svr)
 	if err != nil {
 		return "", fmt.Errorf("EncodeStartVoteReply: %v", err)
-	}
-	tokenb, err := util.ConvertStringToken(sv.Vote.Token)
-	if err != nil {
-		return "", fmt.Errorf("ConvertStringToken %v", err)
 	}
 
 	// Store snapshot in metadata
@@ -1928,12 +1928,12 @@ func (g *gitBackEnd) pluginStartVoteRunoff(payload string) (string, error) {
 	}
 
 	// Verify the rfp proposal and all rfp submissions exist
-	if !g.propExists(g.vetted, sv.Token) {
+	if !g.vettedPropExists(sv.Token) {
 		return "", fmt.Errorf("rfp proposal not found: %v",
 			sv.Token)
 	}
 	for _, v := range sv.StartVotes {
-		if !g.propExists(g.vetted, v.Vote.Token) {
+		if !g.vettedPropExists(v.Vote.Token) {
 			return "", fmt.Errorf("rfp submission not found: %v",
 				v.Vote.Token)
 		}
