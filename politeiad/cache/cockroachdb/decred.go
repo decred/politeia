@@ -906,7 +906,7 @@ func (d *decred) loadVoteResults(bestBlock uint64) error {
         LEFT OUTER JOIN vote_results
           ON start_votes.token = vote_results.token
           WHERE start_votes.end_height <= ?
-					AND start_votes.Type = ?
+          AND start_votes.Type = ?
           AND vote_results.token IS NULL`
 	rows, err := d.recordsdb.Raw(q, bestBlock,
 		int(decredplugin.VoteTypeStandard)).Rows()
@@ -938,7 +938,7 @@ func (d *decred) loadVoteResults(bestBlock uint64) error {
         LEFT OUTER JOIN vote_results
           ON start_votes.token = vote_results.token
           WHERE start_votes.end_height <= ?
-					AND start_votes.Type = ?
+          AND start_votes.Type = ?
           AND vote_results.token IS NULL`
 	rows, err = d.recordsdb.Raw(q, bestBlock,
 		int(decredplugin.VoteTypeRunoff)).Rows()
