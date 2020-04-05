@@ -18,12 +18,16 @@ import (
 
 // StartVoteRunoffCmd starts the voting period on all public submissions to a
 // request for proposals (RFP).
+//
+// The QuorumPercentage and PassPercentage are strings and not uint32 so that a
+// value of 0 can be passed in and not be overwritten by the defaults. This is
+// sometimes desirable when testing.
 type StartVoteRunoffCmd struct {
 	Args struct {
 		TokenRFP         string `positional-arg-name:"token" required:"true"` // RFP censorship token
-		Duration         uint32 `positional-arg-name:"duration"`              // Vote duration
-		QuorumPercentage uint32 `positional-arg-name:"quorumpercentage"`      // Quorum percentage
-		PassPercentage   uint32 `positional-arg-name:"passpercentage"`        // Pass percentage
+		Duration         uint32 `positional-arg-name:"duration"`              // Duration in blocks
+		QuorumPercentage string `positional-arg-name:"quorumpercentage"`
+		PassPercentage   string `positional-arg-name:"passpercentage"`
 	} `positional-args:"true"`
 }
 
@@ -44,11 +48,19 @@ func (cmd *StartVoteRunoffCmd) Execute(args []string) error {
 	if cmd.Args.Duration != 0 {
 		duration = cmd.Args.Duration
 	}
-	if cmd.Args.QuorumPercentage != 0 {
-		quorum = cmd.Args.QuorumPercentage
+	if cmd.Args.QuorumPercentage != "" {
+		i, err := strconv.ParseUint(cmd.Args.QuorumPercentage, 10, 32)
+		if err != nil {
+			return err
+		}
+		quorum = uint32(i)
 	}
-	if cmd.Args.PassPercentage != 0 {
-		pass = cmd.Args.PassPercentage
+	if cmd.Args.PassPercentage != "" {
+		i, err := strconv.ParseUint(cmd.Args.PassPercentage, 10, 32)
+		if err != nil {
+			return err
+		}
+		pass = uint32(i)
 	}
 
 	// Fetch RFP proposal and RFP submissions
@@ -148,6 +160,10 @@ var startVoteRunoffHelpMsg = `startvoterunoff <token> <duration> <quorumpercenta
 
 Start the voting period on all public submissions to an RFP proposal. The
 optional arguments must either all be used or none be used.
+
+The quorumpercentage and passpercentage are strings and not uint32 so that a
+value of 0 can be passed in and not be overwritten by the defaults. This is
+sometimes desirable when testing.
 
 Arguments:
 1. token              (string, required)  Proposal censorship token

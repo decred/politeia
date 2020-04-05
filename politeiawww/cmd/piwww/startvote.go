@@ -16,12 +16,16 @@ import (
 )
 
 // StartVoteCmd starts the voting period on the specified proposal.
+//
+// The QuorumPercentage and PassPercentage are strings and not uint32 so that a
+// value of 0 can be passed in and not be overwritten by the defaults. This is
+// sometimes desirable when testing.
 type StartVoteCmd struct {
 	Args struct {
 		Token            string `positional-arg-name:"token" required:"true"`
 		Duration         uint32 `positional-arg-name:"duration"`
-		QuorumPercentage uint32 `positional-arg-name:"quorumpercentage"`
-		PassPercentage   uint32 `positional-arg-name:"passpercentage"`
+		QuorumPercentage string `positional-arg-name:"quorumpercentage"`
+		PassPercentage   string `positional-arg-name:"passpercentage"`
 	} `positional-args:"true"`
 }
 
@@ -52,11 +56,19 @@ func (cmd *StartVoteCmd) Execute(args []string) error {
 	if cmd.Args.Duration != 0 {
 		duration = cmd.Args.Duration
 	}
-	if cmd.Args.QuorumPercentage != 0 {
-		quorum = cmd.Args.QuorumPercentage
+	if cmd.Args.QuorumPercentage != "" {
+		i, err := strconv.ParseUint(cmd.Args.QuorumPercentage, 10, 32)
+		if err != nil {
+			return err
+		}
+		quorum = uint32(i)
 	}
-	if cmd.Args.PassPercentage != 0 {
-		pass = cmd.Args.PassPercentage
+	if cmd.Args.PassPercentage != "" {
+		i, err := strconv.ParseUint(cmd.Args.PassPercentage, 10, 32)
+		if err != nil {
+			return err
+		}
+		pass = uint32(i)
 	}
 
 	// Create StartVote
@@ -117,14 +129,17 @@ func (cmd *StartVoteCmd) Execute(args []string) error {
 // specified.
 var startVoteHelpMsg = `startvote <token> <duration> <quorumpercentage> <passpercentage>
 
-Start voting period for a proposal. Requires admin privileges.  The optional
-arguments must either all be used or none be used.
+Start voting period for a proposal. Requires admin privileges.
+
+The quorumpercentage and passpercentage are strings and not uint32 so that a
+value of 0 can be passed in and not be overwritten by the defaults. This is
+sometimes desirable when testing.
 
 Arguments:
 1. token              (string, required)  Proposal censorship token
 2. duration           (uint32, optional)  Duration of vote in blocks (default: 2016)
-3. quorumpercentage   (uint32, optional)  Percent of votes required for quorum (default: 10)
-4. passpercentage     (uint32, optional)  Percent of votes required to pass (default: 60)
+3. quorumpercentage   (string, optional)  Percent of votes required for quorum (default: 10)
+4. passpercentage     (string, optional)  Percent of votes required to pass (default: 60)
 
 Result:
 
