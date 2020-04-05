@@ -110,7 +110,9 @@ func (cmd *NewProposalCmd) Execute(args []string) error {
 	// data fields has been specified.
 	var pd v1.ProposalData
 	if cmd.RFP {
-		pd.LinkBy = time.Now().Add(time.Hour * 24 * 14).Unix()
+		// Double the minimum LinkBy period to give a buffer
+		t := time.Second * v1.PolicyMinLinkByPeriod * 2
+		pd.LinkBy = time.Now().Add(t).Unix()
 	}
 	if cmd.LinkTo != "" {
 		pd.LinkTo = cmd.LinkTo
