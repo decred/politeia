@@ -142,16 +142,3 @@ type DCC struct {
 func (DCC) TableName() string {
 	return tableNameDCC
 }
-
-// DCCVote contains information about submitted DCC all contractor votes
-type DCCVote struct {
-	Token      string `gorm:"not null"`
-	UserID     string `gorm:"not null"`
-	Vote       string `gorm:"not null"`
-	UserWeight int64  `gorm:"not null"`
-}
-
-// TableName returns the table name of the issuance table.
-func (DCCVote) TableName() string {
-	return tableNameDCCVote
-}

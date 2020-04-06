@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -56,13 +56,7 @@ func (c *cms) cmdStartVote(cmdPayload, replyPayload string) (string, error) {
 		return "", err
 	}
 
-	endHeight, err := strconv.ParseUint(svr.EndHeight, 10, 64)
-	if err != nil {
-		return "", fmt.Errorf("parse end height '%v': %v",
-			svr.EndHeight, err)
-	}
-
-	s := convertStartVoteFromCMS(*sv, *svr, endHeight)
+	s := convertStartVoteFromCMS(*sv, *svr, svr.EndHeight)
 	err = c.newStartDCCVote(c.recordsdb, s)
 	if err != nil {
 		return "", err
@@ -542,15 +536,10 @@ func (c *cms) cmdVoteSummary(payload string) (string, error) {
 	}
 
 sendReply:
-	// Return "" not "0" if end height doesn't exist
-	var endHeight string
-	if sv.EndHeight != 0 {
-		endHeight = strconv.FormatUint(sv.EndHeight, 10)
-	}
 
 	vsr := cmsplugin.VoteSummaryReply{
 		Duration:       sv.Duration,
-		EndHeight:      endHeight,
+		EndHeight:      sv.EndHeight,
 		PassPercentage: sv.PassPercentage,
 		Results:        results,
 	}
@@ -580,7 +569,7 @@ func (c *cms) Exec(cmd, cmdPayload, replyPayload string) (string, error) {
 		return c.cmdInventory()
 	case cmsplugin.CmdVoteSummary:
 		return c.cmdVoteSummary(cmdPayload)
-	case cmsplugin.CmdLoadDCCVoteResults:
+	case cmsplugin.CmdLoadVoteResults:
 		return c.cmdLoadVoteResults(cmdPayload)
 	}
 
@@ -707,15 +696,8 @@ func (c *cms) build(ir *cmsplugin.InventoryReply) error {
 	// Build start vote cache
 	log.Tracef("cms: building start vote cache")
 	for _, v := range ir.StartVoteTuples {
-		endHeight, err := strconv.ParseUint(v.StartVoteReply.EndHeight, 10, 64)
-		if err != nil {
-			log.Debugf("newStartVote failed on '%v'", v)
-			return fmt.Errorf("parse end height '%v': %v",
-				v.StartVoteReply.EndHeight, err)
-		}
-
 		sv := convertStartVoteFromCMS(v.StartVote,
-			v.StartVoteReply, endHeight)
+			v.StartVoteReply, v.StartVoteReply.EndHeight)
 		err = c.newStartDCCVote(c.recordsdb, sv)
 		if err != nil {
 			log.Debugf("newStartVote failed on '%v'", sv)

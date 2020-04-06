@@ -503,13 +503,9 @@ func (p *politeiawww) processDCCDetails(gd cms.DCCDetails) (*cms.DCCDetailsReply
 
 	voteResults := convertVoteOptionResultsToCMS(vsr.Results)
 
-	endHeight, err := strconv.ParseUint(vsr.EndHeight, 10, 64)
-	if err != nil {
-		return nil, err
-	}
 	voteSummary := cms.VoteSummary{
 		UserWeights:    convertUserWeightToCMS(vdr.StartVote.UserWeights),
-		EndHeight:      endHeight,
+		EndHeight:      uint64(vsr.EndHeight),
 		Results:        voteResults,
 		Duration:       vsr.Duration,
 		PassPercentage: vsr.PassPercentage,
@@ -895,13 +891,9 @@ func (p *politeiawww) processSetDCCStatus(sds cms.SetDCCStatus, u *user.User) (*
 		return nil, err
 	}
 
-	endHeight, err := strconv.ParseUint(vd.StartVoteReply.EndHeight, 10, 64)
-	if err != nil {
-		return nil, err
-	}
 	// If it's a debated DCC and the vote is still occurring, admin cannot update
 	// the status.
-	if dcc.Status == cms.DCCStatusDebate && endHeight > bb {
+	if dcc.Status == cms.DCCStatusDebate && uint64(vd.StartVoteReply.EndHeight) > bb {
 		return nil, www.UserError{
 			ErrorCode: cms.ErrorStatusDCCVoteStillLive,
 		}
@@ -1034,7 +1026,7 @@ func dccStatusInSlice(arr []cms.DCCStatusT, status cms.DCCStatusT) bool {
 func (p *politeiawww) processVoteDCC(vd cms.VoteDCC, u *user.User) (*cms.VoteDCCReply, error) {
 	log.Tracef("processVoteDCC: %v", u.PublicKey())
 
-	if vd.Vote != "yes" && vd.Vote != "no" {
+	if vd.Vote != cmsplugin.DCCApprovalString && vd.Vote != cmsplugin.DCCDisapprovalString {
 		return nil, www.UserError{
 			ErrorCode:    cms.ErrorStatusInvalidSupportOppose,
 			ErrorContext: []string{"vote string not yes or no"},
@@ -1061,17 +1053,13 @@ func (p *politeiawww) processVoteDCC(vd cms.VoteDCC, u *user.User) (*cms.VoteDCC
 		}
 	}
 
-	endHeight, err := strconv.ParseUint(vdr.StartVoteReply.EndHeight, 10, 64)
-	if err != nil {
-		return nil, err
-	}
 	bb, err := p.getBestBlock()
 	if err != nil {
 		return nil, err
 	}
 
 	// Check to make sure that the Vote hasn't ended yet.
-	if endHeight < bb {
+	if uint64(vdr.StartVoteReply.EndHeight) < bb {
 		return nil, www.UserError{
 			ErrorCode: cms.ErrorStatusDCCVoteEnded,
 		}
@@ -1162,12 +1150,12 @@ func (p *politeiawww) debateDCC(token, signature string, u *user.User) error {
 			PassPercentage:   uint32(pass),
 			Options: []cmsplugin.VoteOption{
 				{
-					Id:          "no",
+					Id:          cmsplugin.DCCDisapprovalString,
 					Description: "Don't approve DCC",
 					Bits:        0x01,
 				},
 				{
-					Id:          "yes",
+					Id:          cmsplugin.DCCApprovalString,
 					Description: "Approve DCC",
 					Bits:        0x02,
 				},
@@ -1216,14 +1204,6 @@ func (p *politeiawww) debateDCC(token, signature string, u *user.User) error {
 	if err != nil {
 		return err
 	}
-	/*
-		p.fireEvent(EventTypeProposalVoteStarted,
-			EventDataProposalVoteStarted{
-				AdminUser: u,
-				StartVote: &sv,
-			},
-		)
-	*/
 	return nil
 }
 
@@ -1259,7 +1239,8 @@ func (p *politeiawww) cmsVoteDetails(token string) (*cmsplugin.VoteDetailsReply,
 	return vdr, nil
 }
 
-// cmsVoteSummary
+// cmsVoteSummary provides the current tally of a given DCC proposal based on
+// the provided token.
 func (p *politeiawww) cmsVoteSummary(token string) (*cmsplugin.VoteSummaryReply, error) {
 	// Setup plugin command
 	vd := cmsplugin.VoteSummary{

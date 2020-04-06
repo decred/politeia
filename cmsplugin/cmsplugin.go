@@ -6,20 +6,18 @@ import (
 
 type ErrorStatusT int
 
-// Plugin settings, kinda doesn;t go here but for now it is fine
+// Plugin settings, kinda doesn't go here but for now it is fine
 const (
-	Version               = "1"
-	ID                    = "cms"
-	CmdVoteDetails        = "votedccdetails"
-	CmdStartVote          = "startdccvote"
-	CmdCastVote           = "castdccvote"
-	CmdDCCVotes           = "dccvotes"
-	CmdInventory          = "cmsinventory"
-	CmdTokenInventory     = "dccinventory"
-	CmdVoteSummary        = "votedccsummary"
-	CmdLoadDCCVoteResults = "loaddccvoteresults"
-	MDStreamVoteBits      = 16 // Vote bits and mask
-	MDStreamVoteSnapshot  = 17 // Vote tickets and start/end parameters
+	Version              = "1"
+	ID                   = "cms"
+	CmdVoteDetails       = "votedccdetails"
+	CmdStartVote         = "startdccvote"
+	CmdCastVote          = "castdccvote"
+	CmdInventory         = "cmsinventory"
+	CmdVoteSummary       = "votedccsummary"
+	CmdLoadVoteResults   = "loaddccvoteresults"
+	MDStreamVoteBits     = 16 // Vote bits and mask
+	MDStreamVoteSnapshot = 17 // Vote tickets and start/end parameters
 
 	VoteDurationMin = 2016 // Minimum vote duration (in blocks)
 	VoteDurationMax = 4032 // Maximum vote duration (in blocks)
@@ -32,6 +30,11 @@ const (
 	ErrorStatusVoteHasEnded     ErrorStatusT = 4
 	ErrorStatusDuplicateVote    ErrorStatusT = 5
 	ErrorStatusIneligibleUserID ErrorStatusT = 6
+
+	// String constants to ensure that provided options are only one of these
+	// two.
+	DCCApprovalString    = "yes"
+	DCCDisapprovalString = "no"
 )
 
 var (
@@ -180,10 +183,10 @@ type StartVoteReply struct {
 	Version uint `json:"version"` // Version of this structure
 
 	// Shared data
-	StartBlockHeight string   `json:"startblockheight"` // Block height
+	StartBlockHeight uint32   `json:"startblockheight"` // Block height
 	StartBlockHash   string   `json:"startblockhash"`   // Block hash
 	EligibleUsers    []string `json:"userweights"`      // Array of User ID + weight
-	EndHeight        string   `json:"endheight"`        // Height of vote end
+	EndHeight        uint32   `json:"endheight"`        // Height of vote end
 }
 
 // EncodeStartVoteReply encodes StartVoteReply into a JSON byte slice.
@@ -327,7 +330,7 @@ type VoteOptionResult struct {
 // voting period parameters as well as a summary of the vote results.
 type VoteSummaryReply struct {
 	Duration       uint32             `json:"duration"`       // Vote duration
-	EndHeight      string             `json:"endheight"`      // End block height
+	EndHeight      uint32             `json:"endheight"`      // End block height
 	PassPercentage uint32             `json:"passpercentage"` // Percent of total votes required to pass
 	Results        []VoteOptionResult `json:"results"`        // Vote results
 }

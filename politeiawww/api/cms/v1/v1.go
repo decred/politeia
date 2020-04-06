@@ -898,7 +898,7 @@ type ProposalLineItems struct {
 
 // VoteDCC is an authenticated user request that will vote on a debated DCC proposal.
 type VoteDCC struct {
-	Vote      string `json:"comment"`   // Vote must be "aye" or "nay"
+	Vote      string `json:"comment"`   // Vote must be "yes" or "no"
 	Token     string `json:"token"`     // The censorship token of the given DCC issuance or revocation.
 	UserID    string `json:"userid"`    // UserID of the submitting user
 	PublicKey string `json:"publickey"` // Pubkey of the submitting user

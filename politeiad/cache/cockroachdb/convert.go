@@ -409,7 +409,7 @@ func convertVoteOptionResultsToDecred(r []VoteOptionResult) []decredplugin.VoteO
 	return results
 }
 
-func convertStartVoteFromCMS(sv cmsplugin.StartVote, svr cmsplugin.StartVoteReply, endHeight uint64) StartDCCVote {
+func convertStartVoteFromCMS(sv cmsplugin.StartVote, svr cmsplugin.StartVoteReply, endHeight uint32) StartDCCVote {
 	opts := make([]VoteDCCOption, 0, len(sv.Vote.Options))
 	for _, v := range sv.Vote.Options {
 		opts = append(opts, VoteDCCOption{
@@ -479,7 +479,7 @@ func convertStartVoteToCMS(sv StartDCCVote) (cmsplugin.StartVote, cmsplugin.Star
 	dsvr := cmsplugin.StartVoteReply{
 		StartBlockHeight: sv.StartBlockHeight,
 		StartBlockHash:   sv.StartBlockHash,
-		EndHeight:        fmt.Sprint(sv.EndHeight),
+		EndHeight:        sv.EndHeight,
 	}
 
 	return dsv, dsvr

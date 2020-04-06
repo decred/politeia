@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -416,15 +416,11 @@ func (g *gitBackEnd) pluginStartDCCVote(payload string) (string, error) {
 	}
 
 	svr := cmsplugin.StartVoteReply{
-		Version: cmsplugin.VersionStartVoteReply,
-		StartBlockHeight: strconv.FormatUint(uint64(startVoteBlock.Height),
-			10),
-		StartBlockHash: startVoteBlock.Hash,
-		// On EndHeight: we start in the past, add maturity to correct
-		EndHeight: strconv.FormatUint(uint64(startVoteBlock.Height+
-			vote.Vote.Duration+
-			uint32(g.activeNetParams.TicketMaturity)), 10),
-		EligibleUsers: eligbleUsers,
+		Version:          cmsplugin.VersionStartVoteReply,
+		StartBlockHeight: startVoteBlock.Height,
+		StartBlockHash:   startVoteBlock.Hash,
+		EndHeight:        startVoteBlock.Height + vote.Vote.Duration,
+		EligibleUsers:    eligbleUsers,
 	}
 	svrb, err := cmsplugin.EncodeStartVoteReply(svr)
 	if err != nil {
@@ -713,12 +709,7 @@ func (g *gitBackEnd) dccVoteEndHeight(token string) (uint32, error) {
 		svr = *s
 	}
 
-	endHeight, err := strconv.ParseUint(svr.EndHeight, 10, 64)
-	if err != nil {
-		return 0, err
-	}
-
-	return uint32(endHeight), nil
+	return svr.EndHeight, nil
 }
 
 // writeVote writes the provided vote to the provided journal file path, if the

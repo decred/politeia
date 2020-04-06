@@ -280,9 +280,9 @@ type StartDCCVote struct {
 	Options          []VoteDCCOption `gorm:"foreignkey:Token"`    // Vote option
 	PublicKey        string          `gorm:"not null;size:64"`    // Key used for signature
 	Signature        string          `gorm:"not null;size:128"`   // Signature of Votehash
-	StartBlockHeight string          `gorm:"not null"`            // Block height
+	StartBlockHeight uint32          `gorm:"not null"`            // Block height
 	StartBlockHash   string          `gorm:"not null"`            // Block hash
-	EndHeight        uint64          `gorm:"not null"`            // Height of vote end
+	EndHeight        uint32          `gorm:"not null"`            // Height of vote end
 	EligibleUserIDs  []DCCUserWeight `gorm:"foreignkey:Token"`    // Valid user weights for DCC Vote
 }
 

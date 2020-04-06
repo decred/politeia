@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
+	"github.com/decred/politeia/cmsplugin"
 	v1 "github.com/decred/politeia/politeiawww/api/cms/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
@@ -25,7 +26,7 @@ func (cmd *VoteDCCCmd) Execute(args []string) error {
 	token := cmd.Args.Token
 	vote := cmd.Args.Vote
 
-	if vote != "yes" && vote != "no" {
+	if vote != cmsplugin.DCCApprovalString && vote != cmsplugin.DCCDisapprovalString {
 		return fmt.Errorf("invalid request: you must either vote yes or no")
 	}
 
