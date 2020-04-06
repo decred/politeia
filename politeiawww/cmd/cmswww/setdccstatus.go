@@ -24,9 +24,9 @@ type SetDCCStatusCmd struct {
 
 func (cmd *SetDCCStatusCmd) Execute(args []string) error {
 	DCCStatus := map[string]cms.DCCStatusT{
-		"rejected": cms.DCCStatusRejected,
-		"approved": cms.DCCStatusApproved,
-		"debate":   cms.DCCStatusDebate,
+		"rejected":  cms.DCCStatusRejected,
+		"approved":  cms.DCCStatusApproved,
+		"startvote": cms.DCCStatusAllVote,
 	}
 	// Check for user identity
 	if cfg.Identity == nil {
@@ -37,9 +37,9 @@ func (cmd *SetDCCStatusCmd) Execute(args []string) error {
 	if !ok {
 		return fmt.Errorf("Invalid status: '%v'.  "+
 			"Valid statuses are:\n"+
-			"  rejected  reject the DCC\n"+
-			"  approved  approve the DCC\n"+
-			"  debate    send the DCC to all-vote",
+			"  rejected    reject the DCC\n"+
+			"  approved    approve the DCC\n"+
+			"  startvote   send the DCC to all-vote",
 			cmd.Args.Status)
 	}
 
