@@ -773,7 +773,7 @@ type VoteSummary struct {
 	Status           DCCStatusT         `json:"status"`                     // Vote status
 	UserWeights      []DCCWeight        `json:"userweights"`                // User weights that is populated for all contractor votes.
 	Duration         uint32             `json:"duration,omitempty"`         // Duration of vote
-	EndHeight        uint64             `json:"endheight,omitempty"`        // Vote end height
+	EndHeight        uint32             `json:"endheight,omitempty"`        // Vote end height
 	QuorumPercentage uint32             `json:"quorumpercentage,omitempty"` // Percent of eligible votes required for quorum
 	PassPercentage   uint32             `json:"passpercentage,omitempty"`   // Percent of total votes required to pass
 	Results          []VoteOptionResult `json:"results,omitempty"`          // Vote results

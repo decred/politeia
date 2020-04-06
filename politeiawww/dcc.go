@@ -505,7 +505,7 @@ func (p *politeiawww) processDCCDetails(gd cms.DCCDetails) (*cms.DCCDetailsReply
 
 	voteSummary := cms.VoteSummary{
 		UserWeights:    convertUserWeightToCMS(vdr.StartVote.UserWeights),
-		EndHeight:      uint64(vsr.EndHeight),
+		EndHeight:      vsr.EndHeight,
 		Results:        voteResults,
 		Duration:       vsr.Duration,
 		PassPercentage: vsr.PassPercentage,

@@ -323,12 +323,9 @@ func (c *cms) newVoteResults(token string) error {
 	quorum := uint64(int(sv.QuorumPercentage) / 100 * len(eligible))
 	pass := uint64(float64(sv.PassPercentage) / 100 * float64(total))
 
-	// XXX: this only supports proposals with yes/no
-	// voting options. Multiple voting option support
-	// will need to be added in the future.
 	var approvedVotes uint64
 	for _, v := range results {
-		if v.Option.ID == voteOptionIDApproved {
+		if v.Option.ID == cmsplugin.DCCApprovalString {
 			approvedVotes = v.Votes
 		}
 	}
