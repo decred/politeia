@@ -202,6 +202,109 @@ func (d *decred) voteResultsMissing(bestBlock uint64) ([]string, []string, error
 	return standard, runoff, nil
 }
 
+// voteResultsCompile compiles the results of a standard vote and returns a
+// VoteResults. The vote is considered approved if the quorum and pass
+// percentage requirements are met.
+func voteResultsCompile(sv StartVote, votes []CastVote) VoteResults {
+	// Tally cast votes
+	tally := make(map[string]uint64) // [voteBit]voteCount
+	for _, v := range votes {
+		tally[v.VoteBit]++
+	}
+
+	// Prepare vote option results
+	results := make([]VoteOptionResult, 0, len(sv.Options))
+	for _, v := range sv.Options {
+		voteBit := strconv.FormatUint(v.Bits, 16)
+		voteCount := tally[voteBit]
+
+		results = append(results, VoteOptionResult{
+			Key:    sv.Token + voteBit,
+			Votes:  voteCount,
+			Option: v,
+		})
+	}
+
+	// Check whether vote was approved
+	var total uint64
+	for _, v := range results {
+		total += v.Votes
+	}
+
+	eligible := len(strings.Split(sv.EligibleTickets, ","))
+	quorum := uint64(float64(sv.QuorumPercentage) / 100 * float64(eligible))
+	pass := uint64(float64(sv.PassPercentage) / 100 * float64(total))
+
+	// XXX this does not support multiple choice votes yet
+	var (
+		approvedVotes uint64 // Number of approve votes
+		approved      bool   // Is the proposal vote approved
+	)
+	for _, v := range results {
+		if v.Option.ID == decredplugin.VoteOptionIDApprove {
+			approvedVotes = v.Votes
+		}
+	}
+	switch {
+	case total < quorum:
+		// Quorum not met
+	case approvedVotes < pass:
+		// Pass percentage not met
+	default:
+		// Vote was approved
+		approved = true
+	}
+
+	return VoteResults{
+		Token:    sv.Token,
+		Approved: approved,
+		Results:  results,
+	}
+}
+
+// voteResultsInsertStandard calculates the vote results for a standard
+// proposal vote and inserts a VoteResults record into the cache. A VoteResults
+// record should only be created for proposals once the voting period has
+// ended.
+func (d *decred) voteResultsInsertStandard(token string) error {
+	log.Tracef("insertVoteResults %v", token)
+
+	// Lookup start vote
+	var sv StartVote
+	err := d.recordsdb.
+		Where("token = ?", token).
+		Preload("Options").
+		Find(&sv).
+		Error
+	if err != nil {
+		return fmt.Errorf("lookup start vote %v: %v",
+			token, err)
+	}
+
+	// Lookup cast votes
+	var cv []CastVote
+	err = d.recordsdb.
+		Where("token = ?", token).
+		Find(&cv).
+		Error
+	if err == gorm.ErrRecordNotFound {
+		// No cast votes exists. In theory, this could
+		// happen if no one were to vote on a proposal.
+		// In practice, this shouldn't happen.
+	} else if err != nil {
+		return fmt.Errorf("lookup cast votes: %v", err)
+	}
+
+	// Create a vote results entry
+	vr := voteResultsCompile(sv, cv)
+	err = d.recordsdb.Create(&vr).Error
+	if err != nil {
+		return fmt.Errorf("insert vote results: %v", err)
+	}
+
+	return nil
+}
+
 // voteResultsInsertRunoff calculates the results of a runoff vote and inserts
 // a VoteResults record into the cache for each of the runoff vote submissions.
 func (d *decred) voteResultsInsertRunoff(rfpToken string) error {
@@ -259,11 +362,11 @@ func (d *decred) voteResultsInsertRunoff(rfpToken string) error {
 			return fmt.Errorf("lookup cast votes: %v", err)
 		}
 
-		// Prepare vote results. This will mark the vote as
+		// Compile vote results. This will mark the vote as
 		// approved if it meets the specified quorum and pass
 		// requirements. The actual runoff vote winner is
 		// determined later in this function.
-		results = append(results, prepareVoteResults(sv, cv))
+		results = append(results, voteResultsCompile(sv, cv))
 	}
 
 	// Determine runoff vote winner. The winner is the vote
@@ -325,49 +428,6 @@ func (d *decred) voteResultsInsertRunoff(rfpToken string) error {
 			return fmt.Errorf("insert vote results %v: %v",
 				vr.Token, err)
 		}
-	}
-
-	return nil
-}
-
-// voteResultsInsertStandard calculates the vote results for a standard
-// proposal vote and inserts a VoteResults record into the cache. A VoteResults
-// record should only be created for proposals once the voting period has
-// ended.
-func (d *decred) voteResultsInsertStandard(token string) error {
-	log.Tracef("insertVoteResults %v", token)
-
-	// Lookup start vote
-	var sv StartVote
-	err := d.recordsdb.
-		Where("token = ?", token).
-		Preload("Options").
-		Find(&sv).
-		Error
-	if err != nil {
-		return fmt.Errorf("lookup start vote %v: %v",
-			token, err)
-	}
-
-	// Lookup cast votes
-	var cv []CastVote
-	err = d.recordsdb.
-		Where("token = ?", token).
-		Find(&cv).
-		Error
-	if err == gorm.ErrRecordNotFound {
-		// No cast votes exists. In theory, this could
-		// happen if no one were to vote on a proposal.
-		// In practice, this shouldn't happen.
-	} else if err != nil {
-		return fmt.Errorf("lookup cast votes: %v", err)
-	}
-
-	// Create a vote results entry
-	vr := prepareVoteResults(sv, cv)
-	err = d.recordsdb.Create(&vr).Error
-	if err != nil {
-		return fmt.Errorf("insert vote results: %v", err)
 	}
 
 	return nil
@@ -928,10 +988,10 @@ func (d *decred) cmdAuthorizeVote(cmdPayload, replyPayload string) (string, erro
 	return replyPayload, nil
 }
 
-// insertStartVote inserts a StartVote record into the database. This function
+// startVoteInsert inserts a StartVote record into the database. This function
 // has a database parameter so that it can be called inside of a transaction
 // when required.
-func insertStartVote(db *gorm.DB, sv StartVote) error {
+func startVoteInsert(db *gorm.DB, sv StartVote) error {
 	return db.Create(&sv).Error
 }
 
@@ -957,7 +1017,7 @@ func (d *decred) cmdStartVote(cmdPayload, replyPayload string) (string, error) {
 		return "", err
 	}
 
-	err = insertStartVote(d.recordsdb, *s)
+	err = startVoteInsert(d.recordsdb, *s)
 	if err != nil {
 		return "", err
 	}
@@ -965,9 +1025,9 @@ func (d *decred) cmdStartVote(cmdPayload, replyPayload string) (string, error) {
 	return replyPayload, nil
 }
 
-func startVoteRunoff(tx *gorm.DB, startVotes []StartVote) error {
+func startVotesInsert(tx *gorm.DB, startVotes []StartVote) error {
 	for _, v := range startVotes {
-		err := insertStartVote(tx, v)
+		err := startVoteInsert(tx, v)
 		if err != nil {
 			return err
 		}
@@ -998,7 +1058,7 @@ func (d *decred) cmdStartVoteRunoff(cmdPayload, replyPayload string) (string, er
 
 	// Run updates in a transaction
 	tx := d.recordsdb.Begin()
-	err = startVoteRunoff(tx, startVotes)
+	err = startVotesInsert(tx, startVotes)
 	if err != nil {
 		tx.Rollback()
 		return "", err
@@ -1202,63 +1262,6 @@ func (d *decred) cmdInventory() (string, error) {
 	}
 
 	return string(irb), err
-}
-
-func prepareVoteResults(sv StartVote, votes []CastVote) VoteResults {
-	// Tally cast votes
-	tally := make(map[string]uint64) // [voteBit]voteCount
-	for _, v := range votes {
-		tally[v.VoteBit]++
-	}
-
-	// Prepare vote option results
-	results := make([]VoteOptionResult, 0, len(sv.Options))
-	for _, v := range sv.Options {
-		voteBit := strconv.FormatUint(v.Bits, 16)
-		voteCount := tally[voteBit]
-
-		results = append(results, VoteOptionResult{
-			Key:    sv.Token + voteBit,
-			Votes:  voteCount,
-			Option: v,
-		})
-	}
-
-	// Check whether vote was approved
-	var total uint64
-	for _, v := range results {
-		total += v.Votes
-	}
-
-	eligible := len(strings.Split(sv.EligibleTickets, ","))
-	quorum := uint64(float64(sv.QuorumPercentage) / 100 * float64(eligible))
-	pass := uint64(float64(sv.PassPercentage) / 100 * float64(total))
-
-	// XXX this does not support multiple choice votes yet
-	var (
-		approvedVotes uint64 // Number of approve votes
-		approved      bool   // Is the proposal vote approved
-	)
-	for _, v := range results {
-		if v.Option.ID == decredplugin.VoteOptionIDApprove {
-			approvedVotes = v.Votes
-		}
-	}
-	switch {
-	case total < quorum:
-		// Quorum not met
-	case approvedVotes < pass:
-		// Pass percentage not met
-	default:
-		// Vote was approved
-		approved = true
-	}
-
-	return VoteResults{
-		Token:    sv.Token,
-		Approved: approved,
-		Results:  results,
-	}
 }
 
 // cmdLoadVoteResults creates vote results entries for any proposals that have
