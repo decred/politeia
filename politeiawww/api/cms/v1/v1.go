@@ -98,7 +98,7 @@ const (
 	DCCStatusActive   DCCStatusT = 1 // Currently active issuance/revocation (awaiting sponsors)
 	DCCStatusApproved DCCStatusT = 2 // Fully approved DCC proposal
 	DCCStatusRejected DCCStatusT = 3 // Rejected DCC proposal
-	DCCStatusDebate   DCCStatusT = 4 // Debated DCC proposal (full contractor vote)
+	DCCStatusAllVote  DCCStatusT = 4 // Debated DCC proposal (full contractor vote)
 
 	InvoiceInputVersion = 1
 
@@ -349,7 +349,7 @@ var (
 		ErrorStatusInvalidSubUserIDLineItem:       "the userid supplied for the subcontractor hours line item is invalid",
 		ErrorStatusInvalidSupervisorUser:          "attempted input of an invalid supervisor user id",
 		ErrorStatusMalformedDCC:                   "malformed dcc detected",
-		ErrorStatusInvalidDCCVoteStatus:           "the DCC to be voted isn't currently up for debate",
+		ErrorStatusInvalidDCCVoteStatus:           "the DCC to be voted isn't currently up for an all user vote",
 		ErrorStatusInvalidDCCAllVoteUserWeight:    "the user does not have a corresponding user weight for this vote",
 		ErrorStatusDCCVoteEnded:                   "the all contractor voting period has ended",
 		ErrorStatusDCCVoteStillLive:               "cannot update status of a DCC while a vote is still live",

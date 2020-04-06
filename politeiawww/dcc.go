@@ -59,9 +59,9 @@ var (
 		cms.DCCStatusActive: {
 			cms.DCCStatusApproved,
 			cms.DCCStatusRejected,
-			cms.DCCStatusDebate,
+			cms.DCCStatusAllVote,
 		},
-		cms.DCCStatusDebate: {
+		cms.DCCStatusAllVote: {
 			cms.DCCStatusApproved,
 			cms.DCCStatusRejected,
 		},
@@ -891,9 +891,9 @@ func (p *politeiawww) processSetDCCStatus(sds cms.SetDCCStatus, u *user.User) (*
 		return nil, err
 	}
 
-	// If it's a debated DCC and the vote is still occurring, admin cannot update
-	// the status.
-	if dcc.Status == cms.DCCStatusDebate && uint64(vd.StartVoteReply.EndHeight) > bb {
+	// If it's an all vote DCC and the vote is still occurring, admin cannot
+	// update the status.
+	if dcc.Status == cms.DCCStatusAllVote && uint64(vd.StartVoteReply.EndHeight) > bb {
 		return nil, www.UserError{
 			ErrorCode: cms.ErrorStatusDCCVoteStillLive,
 		}
@@ -965,9 +965,9 @@ func (p *politeiawww) processSetDCCStatus(sds cms.SetDCCStatus, u *user.User) (*
 				return nil, err
 			}
 		}
-	case cms.DCCStatusDebate:
-		// Do DCC user debate start processing
-		err = p.debateDCC(sds.Token, sds.Signature, u)
+	case cms.DCCStatusAllVote:
+		// Do DCC user all vote start processing
+		err = p.allVoteDCC(sds.Token, sds.Signature, u)
 		if err != nil {
 			return nil, err
 		}
@@ -1046,8 +1046,8 @@ func (p *politeiawww) processVoteDCC(vd cms.VoteDCC, u *user.User) (*cms.VoteDCC
 		return nil, err
 	}
 
-	// Only allow voting on Debated DCC proposals
-	if dcc.Status != cms.DCCStatusDebate {
+	// Only allow voting on All Vote DCC proposals
+	if dcc.Status != cms.DCCStatusAllVote {
 		return nil, www.UserError{
 			ErrorCode: cms.ErrorStatusInvalidDCCVoteStatus,
 		}
@@ -1117,8 +1117,8 @@ func (p *politeiawww) processVoteDCC(vd cms.VoteDCC, u *user.User) (*cms.VoteDCC
 	return &cms.VoteDCCReply{}, nil
 }
 
-func (p *politeiawww) debateDCC(token, signature string, u *user.User) error {
-	log.Tracef("debateDCC: %v %v", token, u.PublicKey())
+func (p *politeiawww) allVoteDCC(token, signature string, u *user.User) error {
+	log.Tracef("allVoteDCC: %v %v", token, u.PublicKey())
 
 	userWeights, err := p.getCMSUserWeights()
 	if err != nil {

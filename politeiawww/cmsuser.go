@@ -555,9 +555,7 @@ func (p *politeiawww) getCMSUserWeights() (map[string]int64, error) {
 		1) Determine most recent payout month
 		2) For each user
 		   1) Look back for 6 months of invoices (that were paid out)
-		   2) A full time employee should bill 180 hours of work per month (4.5 x 40 weeks)
-		   3) Each month invoice divide hours worked by 180 to determine monthly coeff.
-		   4) Average monthly results to reach 6 month average
+		   2) Add up all hours billed over that time period.
 	*/
 
 	weightEnd := time.Now()
@@ -571,7 +569,8 @@ func (p *politeiawww) getCMSUserWeights() (map[string]int64, error) {
 	err := p.db.AllUsers(func(user *user.User) {
 		cmsUser, err := p.getCMSUserByID(user.ID.String())
 		if err != nil {
-			log.Errorf("getCMSUserWeights: getCMSUserByID %v %v", user.ID.String(), err)
+			log.Errorf("getCMSUserWeights: getCMSUserByID %v %v",
+				user.ID.String(), err)
 			return
 		}
 
@@ -587,7 +586,8 @@ func (p *politeiawww) getCMSUserWeights() (map[string]int64, error) {
 			for _, superID := range cmsUser.SupervisorUserIDs {
 				superUser, err := p.getCMSUserByID(superID)
 				if err != nil {
-					log.Errorf("getCMSUserWeights: getCMSUserByID %v %v", superID, err)
+					log.Errorf("getCMSUserWeights: getCMSUserByID %v %v",
+						superID, err)
 					return
 				}
 				superInvoices, err := p.cmsDB.InvoicesByUserID(superUser.ID)
@@ -595,11 +595,14 @@ func (p *politeiawww) getCMSUserWeights() (map[string]int64, error) {
 					log.Errorf("getCMSUserWeights: InvoicesByUserID %v", err)
 				}
 				for _, i := range superInvoices {
-					if i.Month <= weightMonthEnd && i.Month >= weightMonthStart &&
+					if i.Month <= weightMonthEnd &&
+						i.Month >= weightMonthStart &&
 						i.Year <= weightYearEnd && i.Year >= weightYearStart {
 						for _, li := range i.LineItems {
-							// Only take into account billed minutes if the line item matches their userID
-							if li.Type == cms.LineItemTypeSubHours && li.SubUserID == user.ID.String() {
+							// Only take into account billed minutes if the line
+							// item matches their userID
+							if li.Type == cms.LineItemTypeSubHours &&
+								li.SubUserID == user.ID.String() {
 								billedMinutes += int64(li.Labor)
 							}
 						}
@@ -615,7 +618,8 @@ func (p *politeiawww) getCMSUserWeights() (map[string]int64, error) {
 			for _, i := range userInvoices {
 				if i.Month <= weightMonthEnd && i.Month >= weightMonthStart &&
 					i.Year <= weightYearEnd && i.Year >= weightYearStart {
-					// now look at the lineitems within that invoice and tabulate billed hours
+					// now look at the lineitems within that invoice and
+					// tabulate billed hours
 					for _, li := range i.LineItems {
 						billedMinutes += int64(li.Labor)
 					}
