@@ -129,39 +129,32 @@ func (c *testcache) voteDetails(payload string) (string, error) {
 	return string(vdb), nil
 }
 
-func (c *testcache) voteSummary(cmdPayload string) (string, error) {
-	vs, err := decred.DecodeVoteSummary([]byte(cmdPayload))
-	if err != nil {
-		return "", err
-	}
-
+func (c *testcache) voteSummaryReply(token string) (*decred.VoteSummaryReply, error) {
 	c.RLock()
 	defer c.RUnlock()
 
-	// Lookup vote info
-	r, err := c.record(vs.Token)
+	r, err := c.record(token)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	av := c.authorizeVotes[vs.Token][r.Version]
-	sv := c.startVotes[vs.Token]
+	av := c.authorizeVotes[token][r.Version]
+	sv := c.startVotes[token]
 
 	var duration uint32
-	svr, ok := c.startVoteReplies[vs.Token]
+	svr, ok := c.startVoteReplies[token]
 	if ok {
 		start, err := strconv.ParseUint(svr.StartBlockHeight, 10, 32)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		end, err := strconv.ParseUint(svr.EndHeight, 10, 32)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		duration = uint32(end - start)
 	}
 
-	// Prepare reply
 	vsr := decred.VoteSummaryReply{
 		Authorized:          av.Action == decred.AuthVoteActionAuthorize,
 		Duration:            duration,
@@ -171,7 +164,45 @@ func (c *testcache) voteSummary(cmdPayload string) (string, error) {
 		PassPercentage:      sv.Vote.PassPercentage,
 		Results:             []decred.VoteOptionResult{},
 	}
-	reply, err := decred.EncodeVoteSummaryReply(vsr)
+
+	return &vsr, nil
+}
+
+func (c *testcache) voteSummary(cmdPayload string) (string, error) {
+	vs, err := decred.DecodeVoteSummary([]byte(cmdPayload))
+	if err != nil {
+		return "", err
+	}
+	vsr, err := c.voteSummaryReply(vs.Token)
+	if err != nil {
+		return "", err
+	}
+	reply, err := decred.EncodeVoteSummaryReply(*vsr)
+	if err != nil {
+		return "", err
+	}
+	return string(reply), nil
+}
+
+func (c *testcache) voteSummaries(cmdPayload string) (string, error) {
+	bvs, err := decred.DecodeBatchVoteSummary([]byte(cmdPayload))
+	if err != nil {
+		return "", err
+	}
+
+	s := make(map[string]decred.VoteSummaryReply, len(bvs.Tokens))
+	for _, token := range bvs.Tokens {
+		vsr, err := c.voteSummaryReply(token)
+		if err != nil {
+			return "", err
+		}
+		s[token] = *vsr
+	}
+
+	reply, err := decred.EncodeBatchVoteSummaryReply(
+		decred.BatchVoteSummaryReply{
+			Summaries: s,
+		})
 	if err != nil {
 		return "", err
 	}
@@ -246,6 +277,8 @@ func (c *testcache) decredExec(cmd, cmdPayload, replyPayload string) (string, er
 		return c.voteDetails(cmdPayload)
 	case decred.CmdVoteSummary:
 		return c.voteSummary(cmdPayload)
+	case decred.CmdBatchVoteSummary:
+		return c.voteSummaries(cmdPayload)
 	case decred.CmdLinkedFrom:
 		return c.linkedFrom(cmdPayload)
 	}

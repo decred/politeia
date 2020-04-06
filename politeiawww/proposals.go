@@ -938,31 +938,125 @@ func (p *politeiawww) getPropComments(token string) ([]www.Comment, error) {
 	return comments, nil
 }
 
+// cacheVoteSumamary stores the given VoteSummary in memory. This is to only
+// be used for proposals whose voting period has ended so that we don't have
+// to worry about cache invalidation issues.
+//
+// This function must be called without the lock held.
+func (p *politeiawww) cacheVoteSummary(token string, voteSummary www.VoteSummary) {
+	p.Lock()
+	defer p.Unlock()
+
+	p.voteSummaries[token] = voteSummary
+}
+
+// getVoteSummaries returns a map[string]www.VoteSummary for the given proposal
+// tokens. An entry in the returned map will only exist for tokens where a
+// proposal record was found.
+func (p *politeiawww) getVoteSummaries(tokens []string, bestBlock uint64) (map[string]www.VoteSummary, error) {
+	voteSummaries := make(map[string]www.VoteSummary)
+	tokensToLookup := make([]string, 0, len(tokens))
+
+	p.RLock()
+	for _, token := range tokens {
+		vs, ok := p.voteSummaries[token]
+		if ok {
+			voteSummaries[token] = vs
+		} else {
+			tokensToLookup = append(tokensToLookup, token)
+		}
+	}
+	p.RUnlock()
+
+	if len(tokensToLookup) == 0 {
+		return voteSummaries, nil
+	}
+
+	// Fetch the vote summaries from the cache. This call relies on the
+	// lazy loaded VoteResults cache table. If the VoteResults table is
+	// not up-to-date then this function will load it before retrying
+	// the vote summary call. Since politeiawww only has read access to
+	// the cache, loading the VoteResults table requires using a
+	// politeiad decredplugin command.
+	var (
+		done  bool
+		err   error
+		reply *decredplugin.BatchVoteSummaryReply
+	)
+	for retries := 0; !done && retries <= 1; retries++ {
+		reply, err = p.decredBatchVoteSummary(tokensToLookup, bestBlock)
+		if err != nil {
+			return nil, err
+		}
+		if err != nil {
+			if err == cache.ErrRecordNotFound {
+				// There are missing entries in the VoteResults
+				// cache table. Load them.
+				_, err := p.decredLoadVoteResults(bestBlock)
+				if err != nil {
+					return nil, err
+				}
+
+				// Retry the vote summaries call
+				continue
+			}
+			return nil, err
+		}
+
+		done = true
+	}
+
+	for token, summary := range reply.Summaries {
+		results := convertVoteOptionResultsFromDecred(summary.Results)
+
+		// An endHeight will not exist if the proposal has not gone
+		// up for vote yet.
+		var endHeight uint64
+		if summary.EndHeight != "" {
+			i, err := strconv.ParseUint(summary.EndHeight, 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse end height "+
+					"'%v' for %v: %v", summary.EndHeight, token, err)
+			}
+			endHeight = i
+		}
+
+		vs := www.VoteSummary{
+			Status:           voteStatusFromVoteSummary(summary, bestBlock),
+			EligibleTickets:  uint32(summary.EligibleTicketCount),
+			Duration:         summary.Duration,
+			EndHeight:        endHeight,
+			QuorumPercentage: summary.QuorumPercentage,
+			PassPercentage:   summary.PassPercentage,
+			Results:          results,
+		}
+
+		voteSummaries[token] = vs
+
+		// If the voting period has ended the vote status
+		// is not going to change so add it to the memory
+		// cache.
+		if vs.Status == www.PropVoteStatusFinished {
+			p.cacheVoteSummary(token, vs)
+		}
+	}
+
+	return voteSummaries, nil
+}
+
+// getVoteSummary returns the VoteSummary for the given token. A
+// cache.ErrRecordNotFound error is returned if the token does actually not
+// correspond to a proposal.
 func (p *politeiawww) getVoteSummary(token string, bestBlock uint64) (*www.VoteSummary, error) {
-	vsr, err := p.decredVoteSummary(token, bestBlock)
+	s, err := p.getVoteSummaries([]string{token}, bestBlock)
 	if err != nil {
 		return nil, err
 	}
-	// An end height will not exist if the vote has not been
-	// started yet.
-	var endHeight uint64
-	if vsr.EndHeight != "" {
-		i, err := strconv.ParseUint(vsr.EndHeight, 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse end height "+
-				"'%v' for %v: %v", vsr.EndHeight, token, err)
-		}
-		endHeight = i
+	vs, ok := s[token]
+	if !ok {
+		return nil, cache.ErrRecordNotFound
 	}
-	return &www.VoteSummary{
-		Status:           voteStatusFromVoteSummary(*vsr, bestBlock),
-		EligibleTickets:  uint32(vsr.EligibleTicketCount),
-		Duration:         vsr.Duration,
-		EndHeight:        endHeight,
-		QuorumPercentage: vsr.QuorumPercentage,
-		PassPercentage:   vsr.PassPercentage,
-		Results:          convertVoteOptionResultsFromDecred(vsr.Results),
-	}, nil
+	return &vs, nil
 }
 
 // processNewProposal tries to submit a new proposal to politeiad.
@@ -1121,82 +1215,6 @@ func (p *politeiawww) processProposalDetails(propDetails www.ProposalsDetails, u
 	}
 
 	return &reply, nil
-}
-
-// cacheVoteSumamary stores a given VoteSummary in memory.  This is to only
-// be used for proposals whose voting period has ended so that we don't have
-// to worry about cache invalidation issues.
-//
-// This function must be called without the lock held.
-func (p *politeiawww) cacheVoteSummary(token string, voteSummary www.VoteSummary) {
-	p.Lock()
-	defer p.Unlock()
-
-	p.voteSummaries[token] = voteSummary
-}
-
-// getVoteSummaries fetches the voting summary information for a set of
-// proposals.
-func (p *politeiawww) getVoteSummaries(tokens []string, bestBlock uint64) (map[string]www.VoteSummary, error) {
-	voteSummaries := make(map[string]www.VoteSummary)
-	tokensToLookup := make([]string, 0, len(tokens))
-
-	p.RLock()
-	for _, token := range tokens {
-		vs, ok := p.voteSummaries[token]
-		if ok {
-			voteSummaries[token] = vs
-		} else {
-			tokensToLookup = append(tokensToLookup, token)
-		}
-	}
-	p.RUnlock()
-
-	if len(tokensToLookup) == 0 {
-		return voteSummaries, nil
-	}
-
-	r, err := p.decredBatchVoteSummary(tokensToLookup, bestBlock)
-	if err != nil {
-		return nil, err
-	}
-
-	for token, summary := range r.Summaries {
-		results := convertVoteOptionResultsFromDecred(summary.Results)
-
-		// An endHeight will not exist if the proposal has not gone
-		// up for vote yet.
-		var endHeight uint64
-		if summary.EndHeight != "" {
-			i, err := strconv.ParseUint(summary.EndHeight, 10, 64)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse end height "+
-					"'%v' for %v: %v", summary.EndHeight, token, err)
-			}
-			endHeight = i
-		}
-
-		vs := www.VoteSummary{
-			Status:           voteStatusFromVoteSummary(summary, bestBlock),
-			EligibleTickets:  uint32(summary.EligibleTicketCount),
-			Duration:         summary.Duration,
-			EndHeight:        endHeight,
-			QuorumPercentage: summary.QuorumPercentage,
-			PassPercentage:   summary.PassPercentage,
-			Results:          results,
-		}
-
-		voteSummaries[token] = vs
-
-		// If the voting period has ended the vote status
-		// is not going to change so add it to the memory
-		// cache.
-		if vs.Status == www.PropVoteStatusFinished {
-			p.cacheVoteSummary(token, vs)
-		}
-	}
-
-	return voteSummaries, nil
 }
 
 // processBatchVoteSummary returns the vote summaries for the provided list
@@ -1474,17 +1492,17 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 		if err != nil {
 			return nil, fmt.Errorf("getBestBlock: %v", err)
 		}
-		vsr, err := p.decredVoteSummary(pr.CensorshipRecord.Token, bb)
+		vs, err := p.getVoteSummary(pr.CensorshipRecord.Token, bb)
 		if err != nil {
 			return nil, err
 		}
 		switch {
-		case vsr.EndHeight != "":
+		case vs.EndHeight != 0:
 			return nil, www.UserError{
 				ErrorCode:    www.ErrorStatusWrongVoteStatus,
 				ErrorContext: []string{"vote has started"},
 			}
-		case vsr.Authorized:
+		case vs.Status == www.PropVoteStatusAuthorized:
 			return nil, www.UserError{
 				ErrorCode:    www.ErrorStatusWrongVoteStatus,
 				ErrorContext: []string{"vote has been authorized"},
@@ -1585,14 +1603,13 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 	if err != nil {
 		return nil, err
 	}
-	vsr, err := p.decredVoteSummary(ep.Token, bb)
+	vs, err := p.getVoteSummary(ep.Token, bb)
 	if err != nil {
 		return nil, err
 	}
-	s := voteStatusFromVoteSummary(*vsr, bb)
-	if s != www.PropVoteStatusNotAuthorized {
+	if vs.Status != www.PropVoteStatusNotAuthorized {
 		e := fmt.Sprintf("got vote status %v, want %v",
-			s, www.PropVoteStatusNotAuthorized)
+			vs.Status, www.PropVoteStatusNotAuthorized)
 		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusWrongVoteStatus,
 			ErrorContext: []string{e},
@@ -1899,27 +1916,26 @@ func (p *politeiawww) voteStatusReply(token string, bestBlock uint64) (*www.Vote
 
 	// Vote status wasn't in the memory cache
 	// so fetch it from the cache database.
-	r, err := p.decredVoteSummary(token, bestBlock)
+	vs, err := p.getVoteSummary(token, bestBlock)
 	if err != nil {
 		return nil, err
 	}
 
-	results := convertVoteOptionResultsFromDecred(r.Results)
 	var total uint64
-	for _, v := range results {
+	for _, v := range vs.Results {
 		total += v.VotesReceived
 	}
 
 	voteStatusReply := www.VoteStatusReply{
 		Token:              token,
-		Status:             voteStatusFromVoteSummary(*r, bestBlock),
+		Status:             vs.Status,
 		TotalVotes:         total,
-		OptionsResult:      results,
-		EndHeight:          r.EndHeight,
+		OptionsResult:      vs.Results,
+		EndHeight:          strconv.Itoa(int(vs.EndHeight)),
 		BestBlock:          strconv.Itoa(int(bestBlock)),
-		NumOfEligibleVotes: r.EligibleTicketCount,
-		QuorumPercentage:   r.QuorumPercentage,
-		PassPercentage:     r.PassPercentage,
+		NumOfEligibleVotes: int(vs.EligibleTickets),
+		QuorumPercentage:   vs.QuorumPercentage,
+		PassPercentage:     vs.PassPercentage,
 	}
 
 	// If the voting period has ended the vote status
@@ -2018,7 +2034,7 @@ func (p *politeiawww) processActiveVote() (*www.ActiveVoteReply, error) {
 	if err != nil {
 		return nil, err
 	}
-	tir, err := p.decredTokenInventory(bb, false)
+	tir, err := p.tokenInventory(bb, false)
 	if err != nil {
 		return nil, err
 	}
@@ -2301,7 +2317,7 @@ func (p *politeiawww) processAuthorizeVote(av www.AuthorizeVote, u *user.User) (
 	if err != nil {
 		return nil, err
 	}
-	vsr, err := p.decredVoteSummary(av.Token, bb)
+	vs, err := p.getVoteSummary(av.Token, bb)
 	if err != nil {
 		return nil, err
 	}
@@ -2323,7 +2339,7 @@ func (p *politeiawww) processAuthorizeVote(av www.AuthorizeVote, u *user.User) (
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusWrongStatus,
 		}
-	case vsr.EndHeight != "":
+	case vs.EndHeight != 0:
 		// Vote has already started
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusWrongVoteStatus,
@@ -2334,12 +2350,14 @@ func (p *politeiawww) processAuthorizeVote(av www.AuthorizeVote, u *user.User) (
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusInvalidAuthVoteAction,
 		}
-	case av.Action == decredplugin.AuthVoteActionAuthorize && vsr.Authorized:
+	case av.Action == decredplugin.AuthVoteActionAuthorize &&
+		vs.Status == www.PropVoteStatusAuthorized:
 		// Cannot authorize vote; vote has already been authorized
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusVoteAlreadyAuthorized,
 		}
-	case av.Action == decredplugin.AuthVoteActionRevoke && !vsr.Authorized:
+	case av.Action == decredplugin.AuthVoteActionRevoke &&
+		vs.Status != www.PropVoteStatusAuthorized:
 		// Cannot revoke authorization; vote has not been authorized
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusVoteNotAuthorized,
@@ -2573,17 +2591,17 @@ func (p *politeiawww) processStartVoteV2(sv www2.StartVote, u *user.User) (*www2
 	if err != nil {
 		return nil, err
 	}
-	vsr, err := p.decredVoteSummary(sv.Vote.Token, bb)
+	vs, err := p.getVoteSummary(sv.Vote.Token, bb)
 	if err != nil {
 		return nil, err
 	}
-	if !vsr.Authorized {
+	if vs.Status != www.PropVoteStatusAuthorized {
 		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusWrongVoteStatus,
 			ErrorContext: []string{"vote not authorized"},
 		}
 	}
-	if vsr.EndHeight != "" {
+	if vs.EndHeight != 0 {
 		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusWrongVoteStatus,
 			ErrorContext: []string{"vote already started"},
@@ -2943,32 +2961,25 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 	}, nil
 }
 
-// processTokenInventory returns the tokens of all proposals in the inventory,
-// categorized by stage of the voting process.
-func (p *politeiawww) processTokenInventory(isAdmin bool) (*www.TokenInventoryReply, error) {
-	log.Tracef("processTokenInventory")
-
-	bb, err := p.getBestBlock()
-	if err != nil {
-		return nil, err
-	}
-
-	// The vote results cache table is lazy loaded and may
-	// need to be updated. If it does need to be updated, the
-	// token inventory call will need to be retried after the
-	// update is complete.
+// tokenInventory fetches the token inventory from the cache and returns a
+// TokenInventoryReply. This call relies on the lazy loaded VoteResults cache
+// table. If the VoteResults table is not up-to-date then this function will
+// load it before retrying the token inventory call. Since politeiawww only has
+// read access to the cache, loading the VoteResults table requires using a
+// politeiad decredplugin command.
+func (p *politeiawww) tokenInventory(bestBlock uint64, isAdmin bool) (*www.TokenInventoryReply, error) {
 	var done bool
 	var r www.TokenInventoryReply
 	for retries := 0; !done && retries <= 1; retries++ {
 		// Both vetted and unvetted tokens should be returned
 		// for admins. Only vetted tokens should be returned
 		// for non-admins.
-		ti, err := p.decredTokenInventory(bb, isAdmin)
+		ti, err := p.decredTokenInventory(bestBlock, isAdmin)
 		if err != nil {
 			if err == cache.ErrRecordNotFound {
 				// There are missing entries in the vote
 				// results cache table. Load them.
-				_, err := p.decredLoadVoteResults(bb)
+				_, err := p.decredLoadVoteResults(bestBlock)
 				if err != nil {
 					return nil, err
 				}
@@ -2983,7 +2994,20 @@ func (p *politeiawww) processTokenInventory(isAdmin bool) (*www.TokenInventoryRe
 		done = true
 	}
 
-	return &r, err
+	return &r, nil
+}
+
+// processTokenInventory returns the tokens of all proposals in the inventory,
+// categorized by stage of the voting process.
+func (p *politeiawww) processTokenInventory(isAdmin bool) (*www.TokenInventoryReply, error) {
+	log.Tracef("processTokenInventory")
+
+	bb, err := p.getBestBlock()
+	if err != nil {
+		return nil, err
+	}
+
+	return p.tokenInventory(bb, isAdmin)
 }
 
 // processVoteDetailsV2 returns the vote details for the given proposal token.

@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/cache"
@@ -303,6 +302,10 @@ func (p *politeiawww) decredInventory() (*decredplugin.InventoryReply, error) {
 
 // decredTokenInventory sends the decred plugin tokeninventory command to the
 // cache.
+//
+// This function should not be called directly in most circumstances due to its
+// reliance on the lazy loaded VoteResults cache table. The politeiawww method
+// tokenInventory() should be called instead.
 func (p *politeiawww) decredTokenInventory(bestBlock uint64, includeUnvetted bool) (*decredplugin.TokenInventoryReply, error) {
 	payload, err := decredplugin.EncodeTokenInventory(
 		decredplugin.TokenInventory{
@@ -378,7 +381,6 @@ func (p *politeiawww) decredLoadVoteResults(bestBlock uint64) (*decredplugin.Loa
 	b := []byte(pcr.Payload)
 	reply, err := decredplugin.DecodeLoadVoteResultsReply(b)
 	if err != nil {
-		spew.Dump("here")
 		return nil, err
 	}
 
@@ -387,6 +389,10 @@ func (p *politeiawww) decredLoadVoteResults(bestBlock uint64) (*decredplugin.Loa
 
 // decredBatchVoteSummary uses the decred plugin batch vote summary command to
 // request a vote summary for a set of proposals from the cache.
+//
+// This function should not be called directly in most circumstances due to its
+// reliance on the lazy loaded VoteResults cache table. The politeiawww method
+// getVoteSummaries() should be called instead.
 func (p *politeiawww) decredBatchVoteSummary(tokens []string, bestBlock uint64) (*decredplugin.BatchVoteSummaryReply, error) {
 	bvs := decredplugin.BatchVoteSummary{
 		Tokens:    tokens,
@@ -418,6 +424,10 @@ func (p *politeiawww) decredBatchVoteSummary(tokens []string, bestBlock uint64) 
 
 // decredVoteSummary uses the decred plugin vote summary command to request a
 // vote summary for a specific proposal from the cache.
+//
+// This function should not be called directly in most circumstances due to its
+// reliance on the lazy loaded VoteResults cache table. The politeiawww method
+// getVoteSummary() should be called instead.
 func (p *politeiawww) decredVoteSummary(token string, bestBlock uint64) (*decredplugin.VoteSummaryReply, error) {
 	v := decredplugin.VoteSummary{
 		Token:     token,
