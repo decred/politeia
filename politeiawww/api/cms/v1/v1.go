@@ -242,7 +242,7 @@ var (
 	// sponsor statement for DCC in cms.
 	PolicySponsorStatementSupportedChars = []string{
 		"A-z", "0-9", "&", ".", ",", ":", ";", "-", " ", "@", "+", "#", "/",
-		"(", ")", "!", "?", "\"", "'"}
+		"(", ")", "!", "?", "\"", "'", "\n"}
 
 	// PolicySupportedCMSDomains supplies the currently available domain types
 	// and descriptions of them.
