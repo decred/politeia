@@ -671,9 +671,19 @@ func (c *ctx) inventory() error {
 			continue
 		}
 
+		url := ""
+		// Create URL based on Proposal Token and the current network
+		if c.cfg.TestNet {
+			url = "https://test-proposals.decred.org/proposals/"
+		} else {
+			url = "https://proposals.decred.org/proposals/"
+		}
+		url += v.StartVote.Vote.Token
+
 		// Display vote bits
 		fmt.Printf("Vote: %v\n", v.StartVote.Vote.Token)
 		fmt.Printf("  Proposal        : %v\n", v.Proposal.Name)
+		fmt.Printf("  URL             : %v\n", url)
 		fmt.Printf("  Start block     : %v\n", v.StartVoteReply.StartBlockHeight)
 		fmt.Printf("  End block       : %v\n", v.StartVoteReply.EndHeight)
 		fmt.Printf("  Mask            : %v\n", v.StartVote.Vote.Mask)
