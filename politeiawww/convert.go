@@ -743,6 +743,7 @@ func convertDatabaseInvoiceToInvoiceRecord(dbInvoice cmsdatabase.Invoice) *cms.I
 	invRec.Status = dbInvoice.Status
 	invRec.Timestamp = dbInvoice.Timestamp
 	invRec.UserID = dbInvoice.UserID
+	invRec.Username = dbInvoice.Username
 	invRec.PublicKey = dbInvoice.PublicKey
 	invRec.Version = dbInvoice.Version
 	invRec.Signature = dbInvoice.UserSignature

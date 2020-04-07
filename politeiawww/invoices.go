@@ -971,6 +971,7 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus, u *user.
 			})
 	}
 
+	dbInvoice.Username = invRec.Username
 	// Return the reply.
 	sisr := cms.SetInvoiceStatusReply{
 		Invoice: *convertDatabaseInvoiceToInvoiceRecord(*dbInvoice),
