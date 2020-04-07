@@ -1378,6 +1378,9 @@ func (p *politeiawww) processChangePassword(email string, cp www.ChangePassword)
 
 	// Add the updated user information to the db.
 	u.HashedPassword = hashedPassword
+	u.ResetPasswordVerificationToken = nil
+	u.ResetPasswordVerificationExpiry = 0
+
 	err = p.db.UserUpdate(*u)
 	if err != nil {
 		return nil, err
