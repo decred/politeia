@@ -492,6 +492,7 @@ type PolicyReply struct {
 	UsernameSupportedChars        []string                `json:"usernamesupportedchars"`
 	CMSNameLocationSupportedChars []string                `json:"cmsnamelocationsupportedchars"`
 	CMSContactSupportedChars      []string                `json:"cmscontactsupportedchars"`
+	CMSStatementSupportedChars    []string                `json:"cmsstatementsupportedchars"`
 	CMSSupportedLineItemTypes     []AvailableLineItemType `json:"supportedlineitemtypes"`
 	CMSSupportedDomains           []AvailableDomain       `json:"supporteddomains"`
 }
