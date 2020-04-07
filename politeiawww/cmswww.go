@@ -407,6 +407,7 @@ func (p *politeiawww) handleCMSPolicy(w http.ResponseWriter, r *http.Request) {
 		UsernameSupportedChars:        www.PolicyUsernameSupportedChars,
 		CMSNameLocationSupportedChars: cms.PolicyCMSNameLocationSupportedChars,
 		CMSContactSupportedChars:      cms.PolicyCMSContactSupportedChars,
+		CMSStatementSupportedChars:    cms.PolicySponsorStatementSupportedChars,
 		CMSSupportedDomains:           cms.PolicySupportedCMSDomains,
 		CMSSupportedLineItemTypes:     cms.PolicyCMSSupportedLineItemTypes,
 	}
