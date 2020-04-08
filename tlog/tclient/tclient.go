@@ -53,7 +53,7 @@ var (
 )
 
 // getErrorFromResponse extracts a user-readable string from the response from
-// politeiad, which will contain a JSON error.
+// tlog, which will contain a JSON error.
 func getErrorFromResponse(r *http.Response) (string, error) {
 	var errMsg string
 	decoder := json.NewDecoder(r.Body)

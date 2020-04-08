@@ -61,5 +61,5 @@ tclient --testnet publickey
 Submit a new record.
 
 ```
-tclient --testnet recrodnew README.md
+tclient --testnet recordnew README.md
 ```

@@ -58,10 +58,10 @@ func (c ContentVerificationError) Error() string {
 }
 
 type File struct {
-	Name    string // Basename of the file
-	MIME    string // MIME type
-	Digest  string // SHA256 of decoded Payload
-	Payload string // base64 encoded file
+	Name    string `json:"name"`    // Basename of the file
+	MIME    string `json:"mime"`    // MIME type
+	Digest  string `json:"digest"`  // SHA256 of decoded Payload
+	Payload string `json:"payload"` // base64 encoded file
 }
 
 type MDStatusT int
@@ -114,8 +114,8 @@ type RecordMetadata struct {
 // MetadataStream describes a single metada stream.  The ID determines how and
 // where it is stored.
 type MetadataStream struct {
-	ID      uint64 // Stream identity
-	Payload string // String encoded metadata
+	ID      uint64 `json:"id"`      // Stream identity
+	Payload string `json:"payload"` // String encoded metadata
 }
 
 // Record is a permanent Record that includes the submitted files, metadata and
