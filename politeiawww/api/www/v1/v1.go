@@ -135,7 +135,7 @@ const (
 
 	// PolicyMaxLinkByPeriod is the maximum amount of time into the
 	// future that the proposal LinkBy field can be set to
-	PolicyMaxLinkByPeriod = 1209600 // Three months in seconds
+	PolicyMaxLinkByPeriod = 7776000 // Three months in seconds
 
 	// ProposalListPageSize is the maximum number of proposals returned
 	// for the routes that return lists of proposals
