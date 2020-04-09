@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 
 numUsers=$1
-echo $numUsers
+if [ -z "$1" ]
+  then
+    numUsers=0
+fi
 echo "Starting politeiad..."
 tmux new-session -d -s politeiad 'politeiad'
 
