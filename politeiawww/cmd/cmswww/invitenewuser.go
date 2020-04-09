@@ -26,12 +26,6 @@ func (cmd *InviteNewUserCmd) Execute(args []string) error {
 		Temporary: cmd.Temporary,
 	}
 
-	// Print request details
-	err := shared.PrintJSON(inu)
-	if err != nil {
-		return err
-	}
-
 	// Send request
 	inur, err := client.InviteNewUser(inu)
 	if err != nil {
