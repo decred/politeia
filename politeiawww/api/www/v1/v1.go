@@ -99,7 +99,8 @@ const (
 	PolicyMaxImageSize = 512 * 1024
 
 	// PolicyMaxMDs is the maximum number of markdown files accepted
-	// when creating a new proposal
+	// when creating a new proposal. This currently allows for the
+	// index file and the data file.
 	PolicyMaxMDs = 2
 
 	// PolicyMaxMDSize is the maximum markdown file size (in bytes)
@@ -131,6 +132,10 @@ const (
 	// for a one week voting period of the RFP and a minimum of one
 	// week to accept RFP submissions.
 	PolicyMinLinkByPeriod = 1209600 // Two weeks in seconds
+
+	// PolicyMaxLinkByPeriod is the maximum amount of time into the
+	// future that the proposal LinkBy field can be set to
+	PolicyMaxLinkByPeriod = 1209600 // Three months in seconds
 
 	// ProposalListPageSize is the maximum number of proposals returned
 	// for the routes that return lists of proposals
@@ -917,6 +922,10 @@ type PolicyReply struct {
 	ProposalNameSupportedChars []string `json:"proposalnamesupportedchars"`
 	MaxCommentLength           uint     `json:"maxcommentlength"`
 	BackendPublicKey           string   `json:"backendpublickey"`
+	IndexFileName              string   `json:"indexfilename"`
+	DataFileName               string   `json:"datafilename"`
+	MinLinkByPeriod            int64    `json:"mixlinkbyperiod"`
+	MaxLinkByPeriod            int64    `json:"maxlinkbyperiod"`
 }
 
 // VoteOption describes a single vote option.

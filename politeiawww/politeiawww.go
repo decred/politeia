@@ -355,6 +355,10 @@ func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 		MaxProposalNameLength:      www.PolicyMaxProposalNameLength,
 		ProposalNameSupportedChars: www.PolicyProposalNameSupportedChars,
 		MaxCommentLength:           www.PolicyMaxCommentLength,
+		IndexFileName:              www.PolicyIndexFileName,
+		DataFileName:               www.PolicyDataFileName,
+		MinLinkByPeriod:            www.PolicyMinLinkByPeriod,
+		MaxLinkByPeriod:            www.PolicyMaxLinkByPeriod,
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
