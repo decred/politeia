@@ -27,6 +27,7 @@ type RegisterUserCmd struct {
 
 // Execute executes the register user command
 func (cmd *RegisterUserCmd) Execute(args []string) error {
+
 	// Fetch  policy for password requirements
 	pr, err := client.Policy()
 	if err != nil {
