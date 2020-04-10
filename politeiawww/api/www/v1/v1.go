@@ -79,16 +79,16 @@ const (
 	// verification token expires
 	VerificationExpiryHours = 24
 
-	// PolicyIdexFileName is the file name of the proposal markdown
+	// PolicyIdexFilename is the file name of the proposal markdown
 	// file. Every proposal is required to have a index file. The index
 	// file should contain the proposal content.
-	PolicyIndexFileName = "index.md"
+	PolicyIndexFilename = "index.md"
 
-	// PolicyDataFileName is the name of the proposal data json file.
+	// PolicyDataFilename is the name of the proposal data json file.
 	// The data file allows certain proposal fields, such as LinkTo,
 	// to be specified using json instead of having to parse them out
 	// of the index markdown file.
-	PolicyDataFileName = "data.json"
+	PolicyDataFilename = "data.json"
 
 	// PolicyMaxImages is the maximum number of images accepted
 	// when creating a new proposal
@@ -922,8 +922,8 @@ type PolicyReply struct {
 	ProposalNameSupportedChars []string `json:"proposalnamesupportedchars"`
 	MaxCommentLength           uint     `json:"maxcommentlength"`
 	BackendPublicKey           string   `json:"backendpublickey"`
-	IndexFileName              string   `json:"indexfilename"`
-	DataFileName               string   `json:"datafilename"`
+	IndexFilename              string   `json:"indexfilename"`
+	DataFilename               string   `json:"datafilename"`
 	MinLinkByPeriod            int64    `json:"minlinkbyperiod"`
 	MaxLinkByPeriod            int64    `json:"maxlinkbyperiod"`
 }

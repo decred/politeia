@@ -89,7 +89,7 @@ func createFileMD(t *testing.T, size int, title string) *www.File {
 	b.WriteString(base64.StdEncoding.EncodeToString(r) + "\n")
 
 	return &www.File{
-		Name:    www.PolicyIndexFileName,
+		Name:    www.PolicyIndexFilename,
 		MIME:    mime.DetectMimeType(b.Bytes()),
 		Digest:  hex.EncodeToString(util.Digest(b.Bytes())),
 		Payload: base64.StdEncoding.EncodeToString(b.Bytes()),

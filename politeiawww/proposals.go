@@ -343,13 +343,13 @@ func (p *politeiawww) validateProposal(np www.NewProposal, u *user.User) (*www.P
 			// The only text files that are allowed are the index markdown
 			// file and the data json file.
 			switch v.Name {
-			case www.PolicyIndexFileName:
+			case www.PolicyIndexFilename:
 				// Index markdown file
 
 				// Only one index file is allowed
 				if foundIndexFile {
 					e := fmt.Sprintf("more than one %v file found",
-						www.PolicyIndexFileName)
+						www.PolicyIndexFilename)
 					return nil, www.UserError{
 						ErrorCode:    www.ErrorStatusMaxMDsExceededPolicy,
 						ErrorContext: []string{e},
@@ -369,13 +369,13 @@ func (p *politeiawww) validateProposal(np www.NewProposal, u *user.User) (*www.P
 					}
 				}
 
-			case www.PolicyDataFileName:
+			case www.PolicyDataFilename:
 				// Data json file
 
 				// Only one data file is allowed
 				if foundDataFile {
 					e := fmt.Sprintf("more than one %v file found",
-						www.PolicyDataFileName)
+						www.PolicyDataFilename)
 					return nil, www.UserError{
 						ErrorCode:    www.ErrorStatusMaxMDsExceededPolicy,
 						ErrorContext: []string{e},
@@ -436,7 +436,7 @@ func (p *politeiawww) validateProposal(np www.NewProposal, u *user.User) (*www.P
 	// Verify that an index file is present. The data file is
 	// currently optional.
 	if !foundIndexFile {
-		e := fmt.Sprintf("%v file not found", www.PolicyIndexFileName)
+		e := fmt.Sprintf("%v file not found", www.PolicyIndexFilename)
 		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusProposalMissingFiles,
 			ErrorContext: []string{e},
@@ -517,7 +517,7 @@ func voteStatusFromVoteSummary(r decredplugin.VoteSummaryReply, bestBlock uint64
 // getProposalName returns the proposal name based on the index markdown file.
 func getProposalName(files []www.File) (string, error) {
 	for _, file := range files {
-		if file.Name == www.PolicyIndexFileName {
+		if file.Name == www.PolicyIndexFilename {
 			return parseProposalName(file.Payload)
 		}
 	}
@@ -1689,17 +1689,17 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 	)
 	for _, v := range cachedProp.Files {
 		switch v.Name {
-		case www.PolicyIndexFileName:
+		case www.PolicyIndexFilename:
 			indexFileOld = v
-		case www.PolicyDataFileName:
+		case www.PolicyDataFilename:
 			dataFileOld = v
 		}
 	}
 	for _, v := range ep.Files {
 		switch v.Name {
-		case www.PolicyIndexFileName:
+		case www.PolicyIndexFilename:
 			indexFileNew = v
-		case www.PolicyDataFileName:
+		case www.PolicyDataFilename:
 			dataFileNew = v
 		}
 	}

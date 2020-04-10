@@ -750,7 +750,7 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 	if numInvoiceFiles == 0 {
 		return www.UserError{
 			ErrorCode:    www.ErrorStatusProposalMissingFiles,
-			ErrorContext: []string{www.PolicyIndexFileName},
+			ErrorContext: []string{www.PolicyIndexFilename},
 		}
 	}
 

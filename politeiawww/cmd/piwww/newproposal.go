@@ -80,7 +80,7 @@ func (cmd *NewProposalCmd) Execute(args []string) error {
 	}
 
 	f := v1.File{
-		Name:    v1.PolicyIndexFileName,
+		Name:    v1.PolicyIndexFilename,
 		MIME:    mime.DetectMimeType(md),
 		Digest:  hex.EncodeToString(util.Digest(md)),
 		Payload: base64.StdEncoding.EncodeToString(md),
@@ -124,7 +124,7 @@ func (cmd *NewProposalCmd) Execute(args []string) error {
 	if len(b) > 2 {
 		// At least one of the fields has been filled in if len(b) > 2.
 		files = append(files, v1.File{
-			Name:    v1.PolicyDataFileName,
+			Name:    v1.PolicyDataFilename,
 			MIME:    mime.DetectMimeType(b),
 			Digest:  hex.EncodeToString(util.Digest(b)),
 			Payload: base64.StdEncoding.EncodeToString(b),
