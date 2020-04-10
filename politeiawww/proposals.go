@@ -1680,25 +1680,33 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 		}
 	}
 
-	// Check for changes in the index.md file
-	var newMDFile www.File
-	for _, v := range ep.Files {
-		if v.Name == www.PolicyIndexFileName {
-			newMDFile = v
-		}
-	}
-
-	var oldMDFile www.File
-	for _, v := range cachedProp.Files {
-		if v.Name == www.PolicyIndexFileName {
-			oldMDFile = v
-		}
-	}
-
-	mdChanges := newMDFile.Payload != oldMDFile.Payload
-
 	// Check that the proposal has been changed
-	if !mdChanges && len(delFiles) == 0 &&
+	var (
+		indexFileOld www.File
+		indexFileNew www.File
+		dataFileOld  www.File
+		dataFileNew  www.File
+	)
+	for _, v := range cachedProp.Files {
+		switch v.Name {
+		case www.PolicyIndexFileName:
+			indexFileOld = v
+		case www.PolicyDataFileName:
+			dataFileOld = v
+		}
+	}
+	for _, v := range ep.Files {
+		switch v.Name {
+		case www.PolicyIndexFileName:
+			indexFileNew = v
+		case www.PolicyDataFileName:
+			dataFileNew = v
+		}
+	}
+
+	if indexFileOld.Payload == indexFileNew.Payload &&
+		dataFileOld.Payload == dataFileNew.Payload &&
+		len(delFiles) == 0 &&
 		len(cachedProp.Files) == len(ep.Files) {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusNoProposalChanges,

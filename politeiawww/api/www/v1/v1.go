@@ -924,7 +924,7 @@ type PolicyReply struct {
 	BackendPublicKey           string   `json:"backendpublickey"`
 	IndexFileName              string   `json:"indexfilename"`
 	DataFileName               string   `json:"datafilename"`
-	MinLinkByPeriod            int64    `json:"mixlinkbyperiod"`
+	MinLinkByPeriod            int64    `json:"minlinkbyperiod"`
 	MaxLinkByPeriod            int64    `json:"maxlinkbyperiod"`
 }
 
