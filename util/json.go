@@ -6,9 +6,10 @@ package util
 
 import (
 	"encoding/json"
-	"github.com/gorilla/schema"
 	"io"
 	"net/http"
+
+	"github.com/gorilla/schema"
 )
 
 func RespondWithError(w http.ResponseWriter, code int, message string) {
@@ -25,6 +26,7 @@ func RespondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	w.Header().Set("X-Frame-Options", "DENY")
 	w.Header().Set("X-XSS-Protection", "1; mode=block")
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Access-Control-Allow-Origin", "cms.decred.org")
 
 	w.WriteHeader(code)
 	w.Write(response)
