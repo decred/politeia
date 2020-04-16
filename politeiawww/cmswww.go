@@ -927,6 +927,18 @@ func (p *politeiawww) handleStartVoteDCC(w http.ResponseWriter, r *http.Request)
 	util.RespondWithJSON(w, http.StatusOK, svr)
 }
 
+func (p *politeiawww) handlePassThroughTokenInventory(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handlePassThroughTokenInventory")
+	resp, err := http.Get("https://proposals.decred.org/api/v1/proposals/tokeninventory")
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"SOME ERROR", err)
+		return
+	}
+
+	w.Write(util.ConvertBodyToByteArray(resp.Body, false))
+}
+
 func (p *politeiawww) setCMSWWWRoutes() {
 	// Templates
 	//p.addTemplate(templateNewProposalSubmittedName,
@@ -948,6 +960,9 @@ func (p *politeiawww) setCMSWWWRoutes() {
 
 	p.addRoute(http.MethodGet, cms.APIRoute,
 		www.RoutePolicy, p.handleCMSPolicy,
+		permissionPublic)
+	p.addRoute(http.MethodGet, cms.APIRoute,
+		www.RouteTokenInventory, p.handlePassThroughTokenInventory,
 		permissionPublic)
 
 	// Routes that require being logged in.
