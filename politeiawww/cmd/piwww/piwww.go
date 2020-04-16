@@ -87,7 +87,7 @@ type piwww struct {
 	Subscribe          SubscribeCmd             `command:"subscribe" description:"(public) subscribe to all websocket commands and do not exit tool"`
 	Tally              TallyCmd                 `command:"tally" description:"(public) get the vote tally for a proposal"`
 	TestRun            TestRunCmd               `command:"testrun" description:"         run a series of tests on the politeiawww routes (dev use only)"`
-	TokenInventory     TokenInventoryCmd        `command:"tokeninventory" description:"(public) get the censorship record tokens of all proposals"`
+	TokenInventory     shared.TokenInventoryCmd `command:"tokeninventory" description:"(public) get the censorship record tokens of all proposals"`
 	UpdateUserKey      shared.UpdateUserKeyCmd  `command:"updateuserkey" description:"(user)   generate a new identity for the logged in user"`
 	UserDetails        UserDetailsCmd           `command:"userdetails" description:"(public) get the details of a user profile"`
 	UserLikeComments   UserLikeCommentsCmd      `command:"userlikecomments" description:"(user)   get the logged in user's comment upvotes/downvotes for a proposal"`

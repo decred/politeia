@@ -6,6 +6,7 @@ package main
 
 import (
 	"encoding/json"
+	"io/ioutil"
 	"net/http"
 	"text/template"
 
@@ -929,14 +930,23 @@ func (p *politeiawww) handleStartVoteDCC(w http.ResponseWriter, r *http.Request)
 
 func (p *politeiawww) handlePassThroughTokenInventory(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handlePassThroughTokenInventory")
-	resp, err := http.Get("https://proposals.decred.org/api/v1/proposals/tokeninventory")
+
+	route := cms.ProposalsMainnet
+	if p.cfg.TestNet {
+		route = cms.ProposalsTestnet
+	}
+	route = route + "/api/v1" + www.RouteTokenInventory
+
+	resp, err := http.Get(route)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"SOME ERROR", err)
 		return
 	}
 
-	w.Write(util.ConvertBodyToByteArray(resp.Body, false))
+	data, _ := ioutil.ReadAll(resp.Body)
+	util.RespondRaw(w, http.StatusOK, data)
+	//w.Write(util.ConvertBodyToByteArray(resp.Body, false))
 }
 
 func (p *politeiawww) setCMSWWWRoutes() {
