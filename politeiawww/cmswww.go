@@ -940,7 +940,7 @@ func (p *politeiawww) handlePassThroughTokenInventory(w http.ResponseWriter, r *
 	resp, err := http.Get(route)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"SOME ERROR", err)
+			"handlePassThroughTokenInventory: http.Get: %v", err)
 		return
 	}
 
@@ -970,9 +970,6 @@ func (p *politeiawww) setCMSWWWRoutes() {
 
 	p.addRoute(http.MethodGet, cms.APIRoute,
 		www.RoutePolicy, p.handleCMSPolicy,
-		permissionPublic)
-	p.addRoute(http.MethodGet, cms.APIRoute,
-		www.RouteTokenInventory, p.handlePassThroughTokenInventory,
 		permissionPublic)
 
 	// Routes that require being logged in.
@@ -1032,6 +1029,9 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		permissionLogin)
 	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
 		cms.RouteActiveVotesDCC, p.handleActiveVoteDCC,
+		permissionLogin)
+	p.addRoute(http.MethodGet, cms.APIRoute,
+		www.RouteTokenInventory, p.handlePassThroughTokenInventory,
 		permissionLogin)
 
 	// Unauthenticated websocket
