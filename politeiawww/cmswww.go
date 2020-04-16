@@ -946,7 +946,6 @@ func (p *politeiawww) handlePassThroughTokenInventory(w http.ResponseWriter, r *
 
 	data, _ := ioutil.ReadAll(resp.Body)
 	util.RespondRaw(w, http.StatusOK, data)
-	//w.Write(util.ConvertBodyToByteArray(resp.Body, false))
 }
 
 func (p *politeiawww) setCMSWWWRoutes() {
