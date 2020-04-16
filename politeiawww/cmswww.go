@@ -945,6 +945,7 @@ func (p *politeiawww) handlePassThroughTokenInventory(w http.ResponseWriter, r *
 	}
 
 	data, _ := ioutil.ReadAll(resp.Body)
+	resp.Body.Close()
 	util.RespondRaw(w, http.StatusOK, data)
 }
 
