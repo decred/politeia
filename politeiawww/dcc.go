@@ -1026,16 +1026,26 @@ func dccStatusInSlice(arr []cms.DCCStatusT, status cms.DCCStatusT) bool {
 func (p *politeiawww) processVoteDCC(vd cms.VoteDCC, u *user.User) (*cms.VoteDCCReply, error) {
 	log.Tracef("processVoteDCC: %v", u.PublicKey())
 
-	if vd.Vote != cmsplugin.DCCApprovalString && vd.Vote != cmsplugin.DCCDisapprovalString {
-		return nil, www.UserError{
-			ErrorCode:    cms.ErrorStatusInvalidSupportOppose,
-			ErrorContext: []string{"vote string not yes or no"},
-		}
-	}
 	vdr, err := p.cmsVoteDetails(vd.Token)
 	if err != nil {
 		return nil, err
 	}
+
+	validVoteBit := false
+	for _, option := range vdr.StartVote.Vote.Options {
+		if vd.VoteBit == strconv.FormatUint(option.Bits, 16) {
+			validVoteBit = true
+			break
+		}
+	}
+
+	if !validVoteBit {
+		return nil, www.UserError{
+			ErrorCode:    cms.ErrorStatusInvalidSupportOppose,
+			ErrorContext: []string{"votebits not valid for given dcc vote"},
+		}
+	}
+
 	dcc, err := p.getDCC(vd.Token)
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
@@ -1071,12 +1081,6 @@ func (p *politeiawww) processVoteDCC(vd cms.VoteDCC, u *user.User) (*cms.VoteDCC
 	}
 
 	vote := convertCastVoteFromCMS(vd)
-	for _, voteOption := range vdr.StartVote.Vote.Options {
-		if voteOption.Id == vd.Vote {
-			vote.VoteBit = strconv.FormatUint(voteOption.Bits, 16)
-			break
-		}
-	}
 	payload, err := cmsplugin.EncodeCastVote(vote)
 	if err != nil {
 		return nil, err

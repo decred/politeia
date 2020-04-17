@@ -26,6 +26,11 @@ func (cmd *VoteDCCCmd) Execute(args []string) error {
 	token := cmd.Args.Token
 	vote := cmd.Args.Vote
 
+	dccDetails, err := client.DCCDetails(token)
+	if err != nil {
+		return fmt.Errorf("error retreiving vote details: %v", err)
+	}
+
 	if vote != cmsplugin.DCCApprovalString && vote != cmsplugin.DCCDisapprovalString {
 		return fmt.Errorf("invalid request: you must either vote yes or no")
 	}

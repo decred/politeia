@@ -1675,6 +1675,7 @@ func convertDatabaseInvoiceToProposalLineItems(inv *cmsdatabase.Invoice) cms.Pro
 
 func convertCastVoteFromCMS(b cms.VoteDCC) cmsplugin.CastVote {
 	return cmsplugin.CastVote{
+		VoteBit:   b.VoteBit,
 		Token:     b.Token,
 		UserID:    b.UserID,
 		Signature: b.Signature,

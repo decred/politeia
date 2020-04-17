@@ -733,16 +733,6 @@ type DCCWeight struct {
 	Weight int64  // User Weight of the vote (as calculated at the start of the vote).
 }
 
-// DCCVote contains the information for all submitted votes.
-type DCCVote struct {
-	UserID    string // User ID
-	Vote      string // Value of the vote (needs to be yay or nay).
-	Weight    int64  // User Weight of the vote (as calculated at the start of the vote).
-	Signature string // Signature of the Vote (for user verification)
-	PublicKey string // Public Key used to sign the Vote (for user verification)
-	Timestamp int64  // Time in which the Vote was submitted
-}
-
 // NewDCC is a request for submitting a new DCC proposal.
 type NewDCC struct {
 	File      www.File `json:"file"`      // Issuance/Revocation file
@@ -767,6 +757,51 @@ type DCCDetailsReply struct {
 	VoteSummary VoteSummary `json:"votesummary"` // Vote summary of the
 }
 
+// VoteOption describes a single vote option.
+type VoteOption struct {
+	Id          string `json:"id"`          // Single unique word identifying vote (e.g. yes)
+	Description string `json:"description"` // Longer description of the vote.
+	Bits        uint64 `json:"bits"`        // Bits used for this option
+}
+
+// Vote represents the vote options for vote that is identified by its token.
+type Vote struct {
+	Token            string       `json:"token"`            // Token that identifies vote
+	Mask             uint64       `json:"mask"`             // Valid votebits
+	Duration         uint32       `json:"duration"`         // Duration in blocks
+	QuorumPercentage uint32       `json:"quorumpercentage"` // Percent of eligible votes required for quorum
+	PassPercentage   uint32       `json:"passpercentage"`   // Percent of total votes required to pass
+	Options          []VoteOption `json:"options"`          // Vote options
+}
+
+// VoteResults retrieves a single proposal vote results from the server. If the
+// voting period has not yet started for the given proposal a reply is returned
+// with all fields set to their zero value.
+type VoteResults struct{}
+
+// VoteResultsReply returns the original proposal vote and the associated cast
+// votes.
+type VoteResultsReply struct {
+	StartVote      StartVote      `json:"startvote"`      // Original vote
+	CastVotes      []CastVote     `json:"castvotes"`      // Vote results
+	StartVoteReply StartVoteReply `json:"startvotereply"` // Eligible tickets and other details
+}
+
+// ActiveVote obtains all dccs that have active votes.
+type ActiveVote struct{}
+
+// DCCVoteTuple is the proposal, vote and vote details.
+type DCCVoteTuple struct {
+	DCC            DCCRecord      `json:"dcc"`            // DCC
+	StartVote      StartVote      `json:"startvote"`      // Vote bits and mask
+	StartVoteReply StartVoteReply `json:"startvotereply"` // Eligible user weights and other details
+}
+
+// ActiveVoteReply returns all proposals that have active votes.
+type ActiveVoteReply struct {
+	Votes []DCCVoteTuple `json:"votes"` // Active votes
+}
+
 // VoteSummary contains a summary of the vote information for a specific
 // dcc.
 type VoteSummary struct {
@@ -784,13 +819,6 @@ type VoteSummary struct {
 type VoteOptionResult struct {
 	Option        VoteOption `json:"option"`        // Vote Option
 	VotesReceived uint64     `json:"votesreceived"` // Number of votes received by the option
-}
-
-// VoteOption describes a single vote option.
-type VoteOption struct {
-	ID          string `json:"id"`          // Single unique word identifying vote (e.g. yes)
-	Description string `json:"description"` // Longer description of the vote.
-	Bits        uint64 `json:"bits"`        // Bits used for this option
 }
 
 // GetDCCs request finds all DCCs that have matching status (if used).
@@ -898,7 +926,7 @@ type ProposalLineItems struct {
 
 // VoteDCC is an authenticated user request that will vote on a debated DCC proposal.
 type VoteDCC struct {
-	Vote      string `json:"comment"`   // Vote must be "yes" or "no"
+	VoteBit   string `json:"votebit"`   // Vote bit that was selected, this is encode in hex
 	Token     string `json:"token"`     // The censorship token of the given DCC issuance or revocation.
 	UserID    string `json:"userid"`    // UserID of the submitting user
 	PublicKey string `json:"publickey"` // Pubkey of the submitting user
