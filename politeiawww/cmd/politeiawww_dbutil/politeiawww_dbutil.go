@@ -946,7 +946,7 @@ func cmdAddAdmin() error {
 	password := args[2]
 	switch {
 	case *level:
-		return fmt.Errorf("not compatiable with leveldb, must set cockroachdb")
+		return fmt.Errorf("not compatible with leveldb, must set cockroachdb")
 	case *cockroach:
 		return cockroachAddAdmin(strings.TrimSpace(email),
 			strings.TrimSpace(username),
