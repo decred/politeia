@@ -156,7 +156,6 @@ const usageMsg = `politeiawww_dbutil usage:
           Migrate a LevelDB user database to CockroachDB
           Required DB flag : None
           Args             : None
-
     -verifyidentities
           Verify a user's identities do not violate any politeia rules. Invalid
           identities are fixed.
