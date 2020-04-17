@@ -398,22 +398,22 @@ func (g *gitBackEnd) pluginStartDCCVote(payload string) (string, error) {
 		// Make sure we are not shutting down
 		return "", backend.ErrShutdown
 	}
-	_, err1 := os.Stat(pijoin(joinLatest(g.vetted, token),
-		fmt.Sprintf("%02v%v", cmsplugin.MDStreamVoteBits,
-			defaultMDFilenameSuffix)))
-	_, err2 := os.Stat(pijoin(joinLatest(g.vetted, token),
-		fmt.Sprintf("%02v%v", cmsplugin.MDStreamVoteSnapshot,
-			defaultMDFilenameSuffix)))
 
-	if err1 != nil && err2 != nil {
-		// Vote has not started, continue
-	} else if err1 == nil && err2 == nil {
+	// Verify DCC vote state
+	vbExists := g.vettedMetadataStreamExists(tokenB,
+		cmsplugin.MDStreamVoteBits)
+	vsExists := g.vettedMetadataStreamExists(tokenB,
+		cmsplugin.MDStreamVoteSnapshot)
+
+	switch {
+	case vbExists && vsExists:
 		// Vote has started
-		return "", fmt.Errorf("dcc vote already started: %v",
-			token)
-	} else {
-		// This is bad, both files should exist or not exist
-		return "", fmt.Errorf("dcc is unknown vote state: %v",
+		return "", fmt.Errorf("dcc vote already started: %v", token)
+	case !vbExists && !vsExists:
+		// Vote has not started; continue
+	default:
+		// We're in trouble!
+		return "", fmt.Errorf("dcc vote is unknown vote state: %v",
 			token)
 	}
 
