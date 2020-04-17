@@ -36,6 +36,10 @@ import (
 const (
 	mimeTypeText = "text/plain"
 	mimeTypePNG  = "image/png"
+
+	// defaultVoteDuration represents the vote duration (in blocks)
+	// that Politeia has historically used as the default duration.
+	defaultVoteDuration = 2016
 )
 
 var (
@@ -2635,7 +2639,10 @@ func (p *politeiawww) processStartVoteV2(sv www2.StartVote, u *user.User) (*www2
 		}
 	}
 
-	// Verify the LinkBy deadline for RFP proposals
+	// Verify the LinkBy deadline for RFP proposals. The LinkBy policy
+	// requirements are enforced at the time of starting the vote
+	// because their purpose is to ensure that there is enough time for
+	// RFP submissions to be submitted.
 	if pr.IsRFP() {
 		min := time.Now().Unix() + www.PolicyLinkByMinPeriod
 		max := time.Now().Unix() + www.PolicyLinkByMaxPeriod
@@ -2653,6 +2660,31 @@ func (p *politeiawww) processStartVoteV2(sv www2.StartVote, u *user.User) (*www2
 			return nil, www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidLinkBy,
 				ErrorContext: []string{e},
+			}
+		}
+
+		// The LinkBy policy requirements assume a vote duration of 2016
+		// blocks (1 week) which is the default vote duration that has
+		// historically been used on Politeia. The PolicyLinkByMinPeriod
+		// ensures that RFP submissions have a minimum of 1 week to be
+		// submitted after the vote ends when the vote duration is 2016
+		// blocks. If the vote duration is not 2016 blocks, verify that
+		// RFP submission will still have at least one week after the
+		// vote ends to be submitted.
+		if sv.Vote.Duration != defaultVoteDuration {
+			var (
+				avgBlockTime        int64 = 300    // 5 minutes in seconds
+				minSubmissionPeriod int64 = 604800 // 1 week in seconds
+				duration                  = avgBlockTime * int64(sv.Vote.Duration)
+				submissionPeriod          = pr.LinkBy - time.Now().Unix() - duration
+			)
+			if submissionPeriod < minSubmissionPeriod {
+				e := fmt.Sprintf("linkby period must be at least %v seconds from "+
+					"the start of the proposal vote", duration+submissionPeriod)
+				return nil, www.UserError{
+					ErrorCode:    www.ErrorStatusInvalidLinkBy,
+					ErrorContext: []string{e},
+				}
 			}
 		}
 	}
