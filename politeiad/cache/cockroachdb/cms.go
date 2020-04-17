@@ -56,7 +56,7 @@ func (c *cms) cmdStartVote(cmdPayload, replyPayload string) (string, error) {
 		return "", err
 	}
 
-	s := convertStartVoteFromCMS(*sv, *svr, svr.EndHeight)
+	s := convertStartVoteFromCMS(sv, svr, svr.EndHeight)
 	err = c.newStartDCCVote(c.recordsdb, s)
 	if err != nil {
 		return "", err

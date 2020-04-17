@@ -164,15 +164,15 @@ func EncodeStartVote(v StartVote) ([]byte, error) {
 }
 
 // DecodeStartVote a JSON byte slice into a StartVote.
-func DecodeStartVote(payload []byte) (*StartVote, error) {
+func DecodeStartVote(payload []byte) (StartVote, error) {
 	var sv StartVote
 
 	err := json.Unmarshal(payload, &sv)
 	if err != nil {
-		return nil, err
+		return sv, err
 	}
 
-	return &sv, nil
+	return sv, nil
 }
 
 const VersionStartVoteReply = 1
@@ -194,16 +194,16 @@ func EncodeStartVoteReply(v StartVoteReply) ([]byte, error) {
 	return json.Marshal(v)
 }
 
-// DecodeVoteReply decodes a JSON byte slice into a StartVoteReply.
-func DecodeStartVoteReply(payload []byte) (*StartVoteReply, error) {
+// DecodeStartVoteReply decodes a JSON byte slice into a StartVoteReply.
+func DecodeStartVoteReply(payload []byte) (StartVoteReply, error) {
 	var v StartVoteReply
 
 	err := json.Unmarshal(payload, &v)
 	if err != nil {
-		return nil, err
+		return v, err
 	}
 
-	return &v, nil
+	return v, nil
 }
 
 // VoteDetails is used to retrieve the voting period details for a record.

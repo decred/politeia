@@ -60,8 +60,7 @@ var (
 	cmsPluginHooks    map[string]func(string) error // [key]func(token) error
 
 	// Cached values, requires lock. These caches are lazy loaded.
-	// XXX why is this a pointer? Convert if possible after investigating
-	cmsPluginVoteCache         = make(map[string]*cmsplugin.StartVote)     // [token]startvote
+	cmsPluginVoteCache         = make(map[string]cmsplugin.StartVote)      // [token]startvote
 	cmsPluginVoteSnapshotCache = make(map[string]cmsplugin.StartVoteReply) // [token]StartVoteReply
 
 	// Plugin specific data that CANNOT be treated as metadata
@@ -74,33 +73,6 @@ var (
 	// ineligible userid.
 	errIneligibleUserID = errors.New("ineligible userid")
 )
-
-// init is used to pregenerate the JSON journal actions.
-func init() {
-	var err error
-
-	journalAdd, err = json.Marshal(JournalAction{
-		Version: journalVersion,
-		Action:  journalActionAdd,
-	})
-	if err != nil {
-		panic(err.Error())
-	}
-	journalDel, err = json.Marshal(JournalAction{
-		Version: journalVersion,
-		Action:  journalActionDel,
-	})
-	if err != nil {
-		panic(err.Error())
-	}
-	journalAddLike, err = json.Marshal(JournalAction{
-		Version: journalVersion,
-		Action:  journalActionAddLike,
-	})
-	if err != nil {
-		panic(err.Error())
-	}
-}
 
 func getCMSPlugin(testnet bool) backend.Plugin {
 	cmsPlugin := backend.Plugin{
@@ -429,7 +401,7 @@ func (g *gitBackEnd) pluginStartDCCVote(payload string) (string, error) {
 
 	// Add version to on disk structure
 	vote.Version = cmsplugin.VersionStartVote
-	voteb, err := cmsplugin.EncodeStartVote(*vote)
+	voteb, err := cmsplugin.EncodeStartVote(vote)
 	if err != nil {
 		return "", fmt.Errorf("EncodeStartVote: %v", err)
 	}
@@ -1125,8 +1097,8 @@ func (g *gitBackEnd) pluginCMSInventory() (string, error) {
 
 		// Create start vote tuple
 		svt = append(svt, cmsplugin.StartVoteTuple{
-			StartVote:      *sv,
-			StartVoteReply: *svr,
+			StartVote:      sv,
+			StartVoteReply: svr,
 		})
 	}
 
