@@ -460,25 +460,6 @@ func mdFilename(path, id string, mdID int) string {
 		strconv.FormatUint(uint64(mdID), 10)+defaultMDFilenameSuffix)
 }
 
-// loadMDStream loads a specific metadata stream. This function should only be
-// called by plugin commands since gitbe has no knowledge of specific metadata
-// streams.
-//
-// This function must be called with the lock held.
-func loadMDStream(repo, token, version string, mdStreamID int) (*backend.MetadataStream, error) {
-	mdFile := fmt.Sprintf("%02v%v", strconv.Itoa(mdStreamID),
-		defaultMDFilenameSuffix)
-	fn := pijoin(repo, token, version, mdFile)
-	md, err := ioutil.ReadFile(fn)
-	if err != nil {
-		return nil, err
-	}
-	return &backend.MetadataStream{
-		ID:      uint64(mdStreamID),
-		Payload: string(md),
-	}, nil
-}
-
 // loadMDStreams loads all streams of disk.  It returns an array of
 // backend.MetadataStream that is completely filled out.
 //
@@ -1861,7 +1842,7 @@ func (g *gitBackEnd) updateVettedMetadataMulti(um []updateMetadata, idTmp string
 // call. Record itself is not changed. If any parts of the update fail then
 // all work is unwound.
 //
-// This function must be called with the lock held.
+// This function must be called WITH the lock held.
 func (g *gitBackEnd) _updateVettedMetadataMulti(um []updateMetadata, idTmp string) error {
 	if len(um) == 0 {
 		return backend.ErrNoChanges

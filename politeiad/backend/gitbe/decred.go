@@ -1691,21 +1691,20 @@ func prepareStartVoteReply(voteDuration, ticketMaturity uint32) (*decredplugin.S
 	}, nil
 }
 
-// loadMDStreamProposalGeneral returns the ProposalGeneral metadata stream for
-// the provided token.
+// vettedMDStreamProposalGeneral returns the ProposalGeneral metadata stream
+// from the vetted repository for the provided token.
 //
 // This function must be called with the read lock held.
-func (g *gitBackEnd) loadMDStreamProposalGeneral(token string) (*mdstream.ProposalGeneral, error) {
-	version, err := getLatest(pijoin(g.unvetted, token))
+func (g *gitBackEnd) vettedMDStreamProposalGeneral(token string) (*mdstream.ProposalGeneral, error) {
+	tokenb, err := hex.DecodeString(token)
 	if err != nil {
 		return nil, err
 	}
-	mds, err := loadMDStream(g.unvetted, token, version,
-		mdstream.IDProposalGeneral)
+	b, err := g.getVettedMetadataStream(tokenb, mdstream.IDProposalGeneral)
 	if err != nil {
 		return nil, err
 	}
-	pg, err := mdstream.DecodeProposalGeneral([]byte(mds.Payload))
+	pg, err := mdstream.DecodeProposalGeneral(b)
 	if err != nil {
 		return nil, err
 	}
@@ -1750,14 +1749,14 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 	// Ensure proposal is not an RFP submissions. The plugin
 	// command startvoterunoff must be used to start a runoff
 	// vote between RFP submissions.
-	pg, err := g.loadMDStreamProposalGeneral(token)
+	pg, err := g.vettedMDStreamProposalGeneral(token)
 	if err != nil {
 		return "", err
 	}
 	if pg.LinkTo != "" {
 		// If the LinkTo is an RFP then this proposal is an RFP
 		// submission.
-		linkToPG, err := g.loadMDStreamProposalGeneral(pg.LinkTo)
+		linkToPG, err := g.vettedMDStreamProposalGeneral(pg.LinkTo)
 		if err != nil {
 			return "", err
 		}
@@ -1947,16 +1946,7 @@ func (g *gitBackEnd) pluginStartVoteRunoff(payload string) (string, error) {
 	}
 
 	// Verify this proposal is indeed an RFP
-	version, err := getLatest(pijoin(g.unvetted, sv.Token))
-	if err != nil {
-		return "", err
-	}
-	ms, err := loadMDStream(g.unvetted, sv.Token,
-		version, mdstream.IDProposalGeneral)
-	if err != nil {
-		return "", err
-	}
-	pg, err := mdstream.DecodeProposalGeneral([]byte(ms.Payload))
+	pg, err := g.vettedMDStreamProposalGeneral(sv.Token)
 	if err != nil {
 		return "", err
 	}
@@ -1970,24 +1960,26 @@ func (g *gitBackEnd) pluginStartVoteRunoff(payload string) (string, error) {
 	// are not required to have the vote authorized by the proposal
 	// author.
 	for _, v := range sv.StartVotes {
-		token := v.Vote.Token
-		_, err1 := os.Stat(pijoin(joinLatest(g.vetted, token),
-			fmt.Sprintf("%02v%v", decredplugin.MDStreamVoteBits,
-				defaultMDFilenameSuffix)))
-		_, err2 := os.Stat(pijoin(joinLatest(g.vetted, token),
-			fmt.Sprintf("%02v%v", decredplugin.MDStreamVoteSnapshot,
-				defaultMDFilenameSuffix)))
+		tokenb, err := util.ConvertStringToken(v.Vote.Token)
+		if err != nil {
+			return "", err
+		}
+
+		voteBitsExist := g.vettedMetadataStreamExists(tokenb,
+			decredplugin.MDStreamVoteBits)
+		voteSnapshotExist := g.vettedMetadataStreamExists(tokenb,
+			decredplugin.MDStreamVoteSnapshot)
 		switch {
-		case err1 != nil && err2 != nil:
+		case !voteBitsExist && !voteSnapshotExist:
 			// Vote has not started, continue
-		case err1 == nil && err2 == nil:
+		case voteBitsExist && voteSnapshotExist:
 			// Vote has started
-			return "", fmt.Errorf("vote already started: %v",
-				token)
+			return "", fmt.Errorf("vote already started: %x",
+				tokenb)
 		default:
 			// This is bad, both files should exist or not exist
-			return "", fmt.Errorf("proposal in unknown vote state: %v",
-				token)
+			return "", fmt.Errorf("proposal in unknown vote state: %x",
+				tokenb)
 		}
 	}
 
