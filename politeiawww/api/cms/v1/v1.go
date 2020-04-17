@@ -242,7 +242,7 @@ var (
 	// sponsor statement for DCC in cms.
 	PolicySponsorStatementSupportedChars = []string{
 		"A-z", "0-9", "&", ".", ",", ":", ";", "-", " ", "@", "+", "#", "/",
-		"(", ")", "!", "?", "\"", "'"}
+		"(", ")", "!", "?", "\"", "'", "\n"}
 
 	// PolicySupportedCMSDomains supplies the currently available domain types
 	// and descriptions of them.
@@ -492,6 +492,7 @@ type PolicyReply struct {
 	UsernameSupportedChars        []string                `json:"usernamesupportedchars"`
 	CMSNameLocationSupportedChars []string                `json:"cmsnamelocationsupportedchars"`
 	CMSContactSupportedChars      []string                `json:"cmscontactsupportedchars"`
+	CMSStatementSupportedChars    []string                `json:"cmsstatementsupportedchars"`
 	CMSSupportedLineItemTypes     []AvailableLineItemType `json:"supportedlineitemtypes"`
 	CMSSupportedDomains           []AvailableDomain       `json:"supporteddomains"`
 }

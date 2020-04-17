@@ -167,15 +167,33 @@ func (c *cockroachdb) updateCMSUser(tx *gorm.DB, nu user.UpdateCMSUser) error {
 		}
 		return err
 	}
-	cms.Domain = nu.Domain
-	cms.GitHubName = nu.GitHubName
-	cms.MatrixName = nu.MatrixName
-	cms.ContractorName = nu.ContractorName
-	cms.ContractorType = nu.ContractorType
-	cms.ContractorLocation = nu.ContractorLocation
-	cms.ContractorContact = nu.ContractorContact
-	cms.SupervisorUserID = superVisorUserIds
-	cms.ProposalsOwned = proposalsOwned
+	if nu.Domain != 0 {
+		cms.Domain = nu.Domain
+	}
+	if nu.GitHubName != "" {
+		cms.GitHubName = nu.GitHubName
+	}
+	if nu.MatrixName != "" {
+		cms.MatrixName = nu.MatrixName
+	}
+	if nu.ContractorName != "" {
+		cms.ContractorName = nu.ContractorName
+	}
+	if nu.ContractorType != 0 {
+		cms.ContractorType = nu.ContractorType
+	}
+	if nu.ContractorLocation != "" {
+		cms.ContractorLocation = nu.ContractorLocation
+	}
+	if nu.ContractorContact != "" {
+		cms.ContractorContact = nu.ContractorContact
+	}
+	if superVisorUserIds != "" {
+		cms.SupervisorUserID = superVisorUserIds
+	}
+	if proposalsOwned != "" {
+		cms.ProposalsOwned = proposalsOwned
+	}
 
 	err = tx.Save(&cms).Error
 	if err != nil {

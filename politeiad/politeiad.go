@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/decred/politeia/decredplugin"
-	"github.com/decred/politeia/politeiad/api/v1"
+	v1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/gitbe"
@@ -1072,8 +1072,15 @@ func _main() error {
 	}()
 
 	log.Infof("Version : %v", version.String())
+	log.Infof("Build Version: %v", version.BuildMainVersion())
 	log.Infof("Network : %v", activeNetParams.Params.Name)
 	log.Infof("Home dir: %v", loadedCfg.HomeDir)
+
+	// Issue a warning if pi was builded locally and does not
+	// have the main module info available.
+	if version.BuildMainVersion() == "(devel)" {
+		log.Warnf("Warning: no build information available")
+	}
 
 	// Create the data directory in case it does not exist.
 	err = os.MkdirAll(loadedCfg.DataDir, 0700)
