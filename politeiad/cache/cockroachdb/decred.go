@@ -926,13 +926,13 @@ func (d *decred) cmdProposalCommentsLikes(payload string) (string, error) {
 	return string(clrb), nil
 }
 
-// insertAuthorizeVote creates an AuthorizeVote record and inserts it into the
-// database.  If a previous AuthorizeVote record exists for the passed in
+// authorizeVoteInsert creates an AuthorizeVote record and inserts it into the
+// database. If a previous AuthorizeVote record exists for the passed in
 // proposal and version, it will be deleted before the new AuthorizeVote record
 // is inserted.
 //
-// This function must be called within a transaction.
-func (d *decred) insertAuthorizeVote(tx *gorm.DB, av AuthorizeVote) error {
+// This function must be called using a transaction.
+func authorizeVoteInsert(tx *gorm.DB, av AuthorizeVote) error {
 	// Delete authorize vote if one exists for this version
 	err := tx.Where("key = ?", av.Key).
 		Delete(AuthorizeVote{}).
@@ -973,10 +973,10 @@ func (d *decred) cmdAuthorizeVote(cmdPayload, replyPayload string) (string, erro
 	// Run update in a transaction
 	a := convertAuthorizeVoteFromDecred(*av, *avr, v)
 	tx := d.recordsdb.Begin()
-	err = d.insertAuthorizeVote(tx, a)
+	err = authorizeVoteInsert(tx, a)
 	if err != nil {
 		tx.Rollback()
-		return "", fmt.Errorf("insertAuthorizeVote: %v", err)
+		return "", fmt.Errorf("authorizeVoteInsert: %v", err)
 	}
 
 	// Commit transaction
@@ -2016,16 +2016,16 @@ func (d *decred) build(ir *decredplugin.InventoryReply) error {
 
 		rv, err := strconv.ParseUint(r.RecordVersion, 10, 64)
 		if err != nil {
-			log.Debugf("insertAuthorizeVote failed on '%v'", r)
+			log.Debugf("authorizeVoteInsert failed on '%v'", r)
 			return fmt.Errorf("parse version '%v' failed: %v",
 				r.RecordVersion, err)
 		}
 
 		av := convertAuthorizeVoteFromDecred(v, r, rv)
-		err = d.insertAuthorizeVote(d.recordsdb, av)
+		err = authorizeVoteInsert(d.recordsdb, av)
 		if err != nil {
-			log.Debugf("insertAuthorizeVote failed on '%v'", av)
-			return fmt.Errorf("insertAuthorizeVote: %v", err)
+			log.Debugf("authorizeVoteInsert failed on '%v'", av)
+			return fmt.Errorf("authorizeVoteInsert: %v", err)
 		}
 	}
 

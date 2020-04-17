@@ -504,11 +504,6 @@ type ProposalRecord struct {
 	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
 }
 
-// IsRFP returns whether the proposal is a Request For Proposals (RFP).
-func (p *ProposalRecord) IsRFP() bool {
-	return p.LinkBy != 0
-}
-
 // ProposalCredit contains the details of a proposal credit that has been
 // purchased by the user.
 type ProposalCredit struct {

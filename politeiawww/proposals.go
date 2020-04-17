@@ -11,7 +11,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"mime"
 	"net/http"
@@ -114,7 +113,12 @@ func createProposalNameRegex() string {
 	return validProposalNameBuffer.String()
 }
 
-func isRFPSubmission(pr *www.ProposalRecord) bool {
+// isRFP returns whether the proposal is a Request For Proposals (RFP).
+func isRFP(pr www.ProposalRecord) bool {
+	return pr.LinkBy != 0
+}
+
+func isRFPSubmission(pr www.ProposalRecord) bool {
 	// Right now the only proposals that we allow linking to
 	// are RFPs so if the linkto is set than this is an RFP
 	// submission. This may change in the future, at which
@@ -170,10 +174,6 @@ func validateVoteBit(vote www2.Vote, bit uint64) error {
 	return fmt.Errorf("bit not found 0x%x", bit)
 }
 
-var (
-	errDataFileNotFound = errors.New("proposal data json file not found")
-)
-
 func (p *politeiawww) validateProposalData(pd www.ProposalData) error {
 	// Validate LinkTo
 	if pd.LinkTo != "" {
@@ -196,7 +196,7 @@ func (p *politeiawww) validateProposalData(pd www.ProposalData) error {
 		}
 		pr := convertPropFromCache(*r)
 		switch {
-		case !pr.IsRFP():
+		case !isRFP(pr):
 			return www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidLinkTo,
 				ErrorContext: []string{"linkto proposal is not an rfp"},
@@ -211,7 +211,7 @@ func (p *politeiawww) validateProposalData(pd www.ProposalData) error {
 				ErrorCode:    www.ErrorStatusInvalidLinkTo,
 				ErrorContext: []string{"linkto proposal is not vetted"},
 			}
-		case pr.IsRFP() && pd.LinkBy != 0:
+		case isRFP(pr) && pd.LinkBy != 0:
 			return www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidLinkTo,
 				ErrorContext: []string{"an rfp cannot link to an rfp"},
@@ -499,8 +499,6 @@ func (p *politeiawww) validateProposal(np www.NewProposal, u *user.User) (*www.P
 			ErrorCode: www.ErrorStatusInvalidSigningKey,
 		}
 	}
-
-	// Verify proposal data
 
 	return proposalData, nil
 }
@@ -951,21 +949,11 @@ func (p *politeiawww) getPropComments(token string) ([]www.Comment, error) {
 	return comments, nil
 }
 
-// cacheVoteSumamary stores the given VoteSummary in memory. This is to only
-// be used for proposals whose voting period has ended so that we don't have
-// to worry about cache invalidation issues.
-//
-// This function must be called without the lock held.
-func (p *politeiawww) cacheVoteSummary(token string, voteSummary www.VoteSummary) {
-	p.Lock()
-	defer p.Unlock()
-
-	p.voteSummaries[token] = voteSummary
-}
-
 // getVoteSummaries returns a map[string]www.VoteSummary for the given proposal
 // tokens. An entry in the returned map will only exist for tokens where a
 // proposal record was found.
+//
+// This function must be called WITHOUT read/write lock held.
 func (p *politeiawww) getVoteSummaries(tokens []string, bestBlock uint64) (map[string]www.VoteSummary, error) {
 	voteSummaries := make(map[string]www.VoteSummary)
 	tokensToLookup := make([]string, 0, len(tokens))
@@ -1053,17 +1041,31 @@ func (p *politeiawww) getVoteSummaries(tokens []string, bestBlock uint64) (map[s
 		// is not going to change so add it to the memory
 		// cache.
 		if vs.Status == www.PropVoteStatusFinished {
-			p.cacheVoteSummary(token, vs)
+			p.voteSummarySet(token, vs)
 		}
 	}
 
 	return voteSummaries, nil
 }
 
-// getVoteSummary returns the VoteSummary for the given token. A cache
+// voteSummaryGet stores the provided VoteSummary in the vote summaries memory
+// cache. This is to only be used for proposals whose voting period has ended
+// so that we don't have to worry about cache invalidation issues.
+//
+// This function must be called WITHOUT the read/write lock held.
+func (p *politeiawww) voteSummarySet(token string, voteSummary www.VoteSummary) {
+	p.Lock()
+	defer p.Unlock()
+
+	p.voteSummaries[token] = voteSummary
+}
+
+// voteSummaryGet returns the VoteSummary for the given token. A cache
 // ErrRecordNotFound error is returned if the token does actually not
 // correspond to a proposal.
-func (p *politeiawww) getVoteSummary(token string, bestBlock uint64) (*www.VoteSummary, error) {
+//
+// This function must be called WITHOUT the read/write lock held.
+func (p *politeiawww) voteSummaryGet(token string, bestBlock uint64) (*www.VoteSummary, error) {
 	s, err := p.getVoteSummaries([]string{token}, bestBlock)
 	if err != nil {
 		return nil, err
@@ -1508,7 +1510,7 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 		if err != nil {
 			return nil, fmt.Errorf("getBestBlock: %v", err)
 		}
-		vs, err := p.getVoteSummary(pr.CensorshipRecord.Token, bb)
+		vs, err := p.voteSummaryGet(pr.CensorshipRecord.Token, bb)
 		if err != nil {
 			return nil, err
 		}
@@ -1619,7 +1621,7 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 	if err != nil {
 		return nil, err
 	}
-	vs, err := p.getVoteSummary(ep.Token, bb)
+	vs, err := p.voteSummaryGet(ep.Token, bb)
 	if err != nil {
 		return nil, err
 	}
@@ -1940,7 +1942,7 @@ func (p *politeiawww) voteStatusReply(token string, bestBlock uint64) (*www.Vote
 
 	// Vote status wasn't in the memory cache
 	// so fetch it from the cache database.
-	vs, err := p.getVoteSummary(token, bestBlock)
+	vs, err := p.voteSummaryGet(token, bestBlock)
 	if err != nil {
 		return nil, err
 	}
@@ -2341,7 +2343,7 @@ func (p *politeiawww) processAuthorizeVote(av www.AuthorizeVote, u *user.User) (
 	if err != nil {
 		return nil, err
 	}
-	vs, err := p.getVoteSummary(av.Token, bb)
+	vs, err := p.voteSummaryGet(av.Token, bb)
 	if err != nil {
 		return nil, err
 	}
@@ -2350,7 +2352,7 @@ func (p *politeiawww) processAuthorizeVote(av www.AuthorizeVote, u *user.User) (
 	// vote request is valid. A vote authorization may already
 	// exist. We also allow vote authorizations to be revoked.
 	switch {
-	case isRFPSubmission(pr):
+	case isRFPSubmission(*pr):
 		// Record is an RFP submission. RFP submissions must be part
 		// of a runoff vote, which do not require vote authorization
 		// from the submission author.
@@ -2460,12 +2462,12 @@ func (p *politeiawww) processAuthorizeVote(av www.AuthorizeVote, u *user.User) (
 	}, nil
 }
 
-func verifyStartVoteV2(sv www2.StartVote, voteDurationMin, voteDurationMax uint32) error {
+func validateStartVoteV2(sv www2.StartVote, voteDurationMin, voteDurationMax uint32) error {
 	// Validate vote bits
 	for _, v := range sv.Vote.Options {
 		err := validateVoteBit(sv.Vote, v.Bits)
 		if err != nil {
-			log.Debugf("verifyStartVoteV2: validateVoteBit '%v': %v",
+			log.Debugf("validateStartVoteV2: validateVoteBit '%v': %v",
 				v.Id, err)
 			return www.UserError{
 				ErrorCode: www.ErrorStatusInvalidPropVoteBits,
@@ -2505,7 +2507,7 @@ func verifyStartVoteV2(sv www2.StartVote, voteDurationMin, voteDurationMax uint3
 	dsv := convertStartVoteV2ToDecred(sv)
 	err := dsv.VerifySignature()
 	if err != nil {
-		log.Debugf("verifyStartVoteV2: VerifySignature: %v", err)
+		log.Debugf("validateStartVoteV2: VerifySignature: %v", err)
 		return www.UserError{
 			ErrorCode: www.ErrorStatusInvalidSignature,
 		}
@@ -2514,10 +2516,10 @@ func verifyStartVoteV2(sv www2.StartVote, voteDurationMin, voteDurationMax uint3
 	return nil
 }
 
-// verifyVoteOptionsApproveReject verifies that the provided vote options
+// validateVoteOptions verifies that the provided vote options
 // specify a simple approve/reject vote and nothing else. A UserError is
 // returned if this validation fails.
-func verifyVoteOptionsApproveReject(options []www2.VoteOption) error {
+func validateVoteOptions(options []www2.VoteOption) error {
 	if len(options) == 0 {
 		return www.UserError{
 			ErrorCode:    www.ErrorStatusInvalidVoteOptions,
@@ -2563,11 +2565,12 @@ func (p *politeiawww) processStartVoteV2(sv www2.StartVote, u *user.User) (*www2
 
 	// Validate the StartVote. We only allow a simple approve/reject
 	// vote for now.
-	err := verifyStartVoteV2(sv, p.cfg.VoteDurationMin, p.cfg.VoteDurationMax)
+	err := validateStartVoteV2(sv, p.cfg.VoteDurationMin,
+		p.cfg.VoteDurationMax)
 	if err != nil {
 		return nil, err
 	}
-	err = verifyVoteOptionsApproveReject(sv.Vote.Options)
+	err = validateVoteOptions(sv.Vote.Options)
 	if err != nil {
 		return nil, err
 	}
@@ -2615,7 +2618,7 @@ func (p *politeiawww) processStartVoteV2(sv www2.StartVote, u *user.User) (*www2
 	if err != nil {
 		return nil, err
 	}
-	vs, err := p.getVoteSummary(sv.Vote.Token, bb)
+	vs, err := p.voteSummaryGet(sv.Vote.Token, bb)
 	if err != nil {
 		return nil, err
 	}
@@ -2635,7 +2638,7 @@ func (p *politeiawww) processStartVoteV2(sv www2.StartVote, u *user.User) (*www2
 	// Verify that this is not an RFP submission. The voting
 	// period for RFP submissions can only be started using
 	// the StartVoteRunoff route.
-	if isRFPSubmission(pr) {
+	if isRFPSubmission(*pr) {
 		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusWrongProposalType,
 			ErrorContext: []string{"cannot be an rfp submission"},
@@ -2646,7 +2649,7 @@ func (p *politeiawww) processStartVoteV2(sv www2.StartVote, u *user.User) (*www2
 	// requirements are enforced at the time of starting the vote
 	// because their purpose is to ensure that there is enough time for
 	// RFP submissions to be submitted.
-	if pr.IsRFP() {
+	if isRFP(*pr) {
 		min := time.Now().Unix() + www.PolicyLinkByMinPeriod
 		max := time.Now().Unix() + www.PolicyLinkByMaxPeriod
 		switch {
@@ -2666,14 +2669,13 @@ func (p *politeiawww) processStartVoteV2(sv www2.StartVote, u *user.User) (*www2
 			}
 		}
 
-		// The LinkBy policy requirements assume a vote duration of 2016
-		// blocks (1 week) which is the default vote duration that has
-		// historically been used on Politeia. The PolicyLinkByMinPeriod
-		// ensures that RFP submissions have a minimum of 1 week to be
-		// submitted after the vote ends when the vote duration is 2016
-		// blocks. If the vote duration is not 2016 blocks, verify that
-		// RFP submission will still have at least one week after the
-		// vote ends to be submitted.
+		// The LinkBy policies assume a vote duration of 2016 blocks (1 week)
+		// which is the default vote duration that has historically been used
+		// on Politeia. The PolicyLinkByMinPeriod ensures that RFP submissions
+		// have a minimum of 1 week to be submitted after the vote ends when
+		// the vote duration is 2016 blocks. If the vote duration is not 2016
+		// blocks, verify that RFP submission will still have at least one
+		// week after the vote ends to be submitted.
 		if sv.Vote.Duration != defaultVoteDuration {
 			var (
 				avgBlockTime        int64 = 300    // 5 minutes in seconds
@@ -2793,7 +2795,8 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 
 	// Validate the StartVotes
 	for _, v := range sv.StartVotes {
-		err := verifyStartVoteV2(v, p.cfg.VoteDurationMin, p.cfg.VoteDurationMax)
+		err := validateStartVoteV2(v, p.cfg.VoteDurationMin,
+			p.cfg.VoteDurationMax)
 		if err != nil {
 			return nil, err
 		}
@@ -2806,7 +2809,7 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 		}
 
 		// Vote options must be approve/reject and nothing else
-		err = verifyVoteOptionsApproveReject(v.Vote.Options)
+		err = validateVoteOptions(v.Vote.Options)
 		if err != nil {
 			return nil, err
 		}
@@ -2836,7 +2839,7 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 	if err != nil {
 		return nil, err
 	}
-	rfpVoteSummary, err := p.getVoteSummary(sv.Token, bestBlock)
+	rfpVoteSummary, err := p.voteSummaryGet(sv.Token, bestBlock)
 	if err != nil {
 		return nil, err
 	}
