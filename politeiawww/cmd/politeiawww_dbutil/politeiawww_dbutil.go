@@ -28,6 +28,7 @@ import (
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiad/backend/gitbe"
+	"github.com/decred/politeia/politeiawww/cmd/shared"
 	"github.com/decred/politeia/politeiawww/sharedconfig"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/politeiawww/user/cockroachdb"
@@ -38,6 +39,7 @@ import (
 	"github.com/marcopeereboom/sbox"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
+	"golang.org/x/crypto/bcrypt"
 )
 
 const (
@@ -83,6 +85,7 @@ var (
 	migrate          = flag.Bool("migrate", false, "")
 	createKey        = flag.Bool("createkey", false, "")
 	verifyIdentities = flag.Bool("verifyidentities", false, "")
+	addAdmin         = flag.Bool("addadmin", false, "")
 
 	network string // Mainnet or testnet3
 	// XXX ldb should be abstracted away. dbutil commands should use
@@ -154,11 +157,15 @@ const usageMsg = `politeiawww_dbutil usage:
           Required DB flag : None
           Args             : None
 
-     -verifyidentities
+    -verifyidentities
           Verify a user's identities do not violate any politeia rules. Invalid
           identities are fixed.
           Required DB flag : -cockroachdb
-          Args             : <username>
+		  Args             : <username>
+    -addadmin
+          Adds an admin user with the given email, username and password.
+          Required DB flag : -cockroachdb
+          Args             : <email> <username> <password>
 `
 
 type proposalMetadata struct {
@@ -903,6 +910,53 @@ func cmdVerifyIdentities() error {
 	return nil
 }
 
+func cockroachAddAdmin(email, username, password string) error {
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password),
+		bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	u := user.User{
+		Username:       username,
+		Email:          email,
+		HashedPassword: hashedPassword,
+		Admin:          true,
+	}
+
+	err = userDB.UserNew(u)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("admin with username '%v' and email '%v' admin status created\n",
+		username, email)
+
+	return nil
+}
+
+func cmdAddAdmin() error {
+	args := flag.Args()
+	if len(args) < 3 {
+		flag.Usage()
+		return nil
+	}
+
+	email := args[0]
+	username := args[1]
+	password := args[2]
+	switch {
+	case *level:
+		return fmt.Errorf("not compatiable with leveldb, must set cockroachdb")
+	case *cockroach:
+		return cockroachAddAdmin(strings.TrimSpace(email),
+			strings.TrimSpace(username),
+			shared.DigestSHA3(strings.TrimSpace(password)))
+	}
+
+	return nil
+}
+
 func _main() error {
 	flag.Parse()
 
@@ -948,6 +1002,12 @@ func _main() error {
 		if *level || *cockroach {
 			return fmt.Errorf("unexpected database flag found; " +
 				"remove database flag -leveldb and -cockroachdb")
+		}
+	case *addAdmin:
+		// This command must be run with -cockroachdb
+		if !*cockroach {
+			return fmt.Errorf("missing database flag; must use " +
+				"-cockroachdb with this command")
 		}
 	}
 
@@ -1005,6 +1065,8 @@ func _main() error {
 		return cmdCreateKey()
 	case *verifyIdentities:
 		return cmdVerifyIdentities()
+	case *addAdmin:
+		return cmdAddAdmin()
 	default:
 		fmt.Printf("invalid command\n")
 		flag.Usage()
