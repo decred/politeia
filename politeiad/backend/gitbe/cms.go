@@ -81,21 +81,6 @@ func getCMSPlugin(testnet bool) backend.Plugin {
 		Settings: []backend.PluginSetting{},
 	}
 
-	if testnet {
-		cmsPlugin.Settings = append(cmsPlugin.Settings,
-			backend.PluginSetting{
-				Key:   "dcrdata",
-				Value: "https://testnet.dcrdata.org:443/",
-			},
-		)
-	} else {
-		cmsPlugin.Settings = append(cmsPlugin.Settings,
-			backend.PluginSetting{
-				Key:   "dcrdata",
-				Value: "https://explorer.dcrdata.org:443/",
-			})
-	}
-
 	// This setting is used to tell politeiad how to retrieve the
 	// decred plugin data that is required to build the external
 	// politeiad cache.
