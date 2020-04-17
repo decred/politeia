@@ -37,8 +37,6 @@ const (
 	VoteTypeInvalid  VoteT = 0
 	VoteTypeStandard VoteT = 1
 	VoteTypeRunoff   VoteT = 2
-
-	// TODO should error statuses be in v1 or v2?
 )
 
 var (

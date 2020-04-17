@@ -1019,28 +1019,31 @@ func (p *politeiawww) getVoteSummaries(tokens []string, bestBlock uint64) (map[s
 		done = true
 	}
 
-	for token, summary := range reply.Summaries {
-		results := convertVoteOptionResultsFromDecred(summary.Results)
+	for token, v := range reply.Summaries {
+		results := convertVoteOptionResultsFromDecred(v.Results)
+		votet := convertVoteTypeFromDecred(v.Type)
 
 		// An endHeight will not exist if the proposal has not gone
 		// up for vote yet.
 		var endHeight uint64
-		if summary.EndHeight != "" {
-			i, err := strconv.ParseUint(summary.EndHeight, 10, 64)
+		if v.EndHeight != "" {
+			i, err := strconv.ParseUint(v.EndHeight, 10, 64)
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse end height "+
-					"'%v' for %v: %v", summary.EndHeight, token, err)
+					"'%v' for %v: %v", v.EndHeight, token, err)
 			}
 			endHeight = i
 		}
 
 		vs := www.VoteSummary{
-			Status:           voteStatusFromVoteSummary(summary, bestBlock),
-			EligibleTickets:  uint32(summary.EligibleTicketCount),
-			Duration:         summary.Duration,
+			Status:           voteStatusFromVoteSummary(v, bestBlock),
+			Type:             www.VoteT(int(votet)),
+			Approved:         v.Approved,
+			EligibleTickets:  uint32(v.EligibleTicketCount),
+			Duration:         v.Duration,
 			EndHeight:        endHeight,
-			QuorumPercentage: summary.QuorumPercentage,
-			PassPercentage:   summary.PassPercentage,
+			QuorumPercentage: v.QuorumPercentage,
+			PassPercentage:   v.PassPercentage,
 			Results:          results,
 		}
 
@@ -1057,8 +1060,8 @@ func (p *politeiawww) getVoteSummaries(tokens []string, bestBlock uint64) (map[s
 	return voteSummaries, nil
 }
 
-// getVoteSummary returns the VoteSummary for the given token. A
-// cache.ErrRecordNotFound error is returned if the token does actually not
+// getVoteSummary returns the VoteSummary for the given token. A cache
+// ErrRecordNotFound error is returned if the token does actually not
 // correspond to a proposal.
 func (p *politeiawww) getVoteSummary(token string, bestBlock uint64) (*www.VoteSummary, error) {
 	s, err := p.getVoteSummaries([]string{token}, bestBlock)

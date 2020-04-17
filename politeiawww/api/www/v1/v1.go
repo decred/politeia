@@ -262,11 +262,15 @@ const (
 	// the specified pass and quorum requirements.
 	//
 	// VoteTypeRunoff specifies a runoff vote that multiple proposals compete in.
-	// There can only be one winner of a runoff vote. The winner is the proposal
-	// that meets the quorum requirement, meets the pass requirement, and that
-	// has the most net yes votes. The winning proposal is considered approved
-	// and all other proposals are considered rejected. If no proposals meet the
-	// quorum and pass requirements then all proposals are considered rejected.
+	// All proposals are voted on like normal, but there can only be one winner
+	// in a runoff vote. The winner is the proposal that meets the quorum
+	// requirement, meets the pass requirement, and that has the most net yes
+	// votes. The winning proposal is considered approved and all other proposals
+	// are considered rejected. If no proposals meet the quorum and pass
+	// requirements then all proposals are considered rejected.
+	// Note: in a runoff vote it is possible for a proposal to meet the quorum
+	// and pass requirements but still be rejected if it does not have the most
+	// net yes votes.
 	VoteTypeInvalid  VoteT = 0
 	VoteTypeStandard VoteT = 1
 	VoteTypeRunoff   VoteT = 2
@@ -378,6 +382,16 @@ var (
 		ErrorStatusInvalidLogin:                "invalid login credentials",
 		ErrorStatusCommentIsCensored:           "comment is censored",
 		ErrorStatusInvalidProposalVersion:      "invalid proposal version",
+		ErrorStatusInvalidVoteType:             "invalid vote type",
+		ErrorStatusInvalidVoteOptions:          "invalid vote options",
+		ErrorStatusWrongVoteResult:             "invalid vote results",
+		ErrorStatusLinkByDeadlineNotMet:        "linkby deadline note met",
+		ErrorStatusNoLinkedProposals:           "no linked proposals",
+		ErrorStatusInvalidProposalData:         "invalid proposal data",
+		ErrorStatusInvalidLinkTo:               "invalid linkto",
+		ErrorStatusInvalidLinkBy:               "invalid linkby",
+		ErrorStatusInvalidRunoffVote:           "invalid runoff vote",
+		ErrorStatusWrongProposalType:           "wrong proposal type",
 	}
 
 	// PropStatus converts propsal status codes to human readable text
