@@ -34,10 +34,17 @@ import (
 const (
 	// indexFile contains the file name of the index file
 	indexFile = "index.md"
+
+	// MIME types
+	mimeTypeText     = "text/plain"
+	mimeTypeTextUTF8 = "text/plain; charset=utf-8"
 )
 
 var (
 	validProposalName = regexp.MustCompile(createProposalNameRegex())
+
+	// polieiad filenames for www.Metadata
+	filenameProposalMetadata = fmt.Sprintf("%s.json", www.HintProposalMetadata)
 )
 
 // proposalStats is used to provide a summary of the number of proposals
@@ -157,32 +164,32 @@ func validateVoteBit(vote www2.Vote, bit uint64) error {
 
 // validateProposal ensures that a submitted proposal hashes, merkle and
 // signarures are valid.
-func validateProposal(np www.NewProposal, u *user.User) error {
+func validateProposal(np www.NewProposal, u *user.User) (*www.ProposalMetadata, error) {
 	log.Tracef("validateProposal")
 
 	// Obtain signature
 	sig, err := util.ConvertSignature(np.Signature)
 	if err != nil {
-		return www.UserError{
+		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusInvalidSignature,
 		}
 	}
 
 	// Verify public key
 	if u.PublicKey() != np.PublicKey {
-		return www.UserError{
+		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusInvalidSigningKey,
 		}
 	}
 
 	pk, err := identity.PublicIdentityFromBytes(u.ActiveIdentity().Key[:])
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Check for at least 1 markdown file with a non-empty payload.
 	if len(np.Files) == 0 || np.Files[0].Payload == "" {
-		return www.UserError{
+		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusProposalMissingFiles,
 		}
 	}
@@ -205,7 +212,7 @@ func validateProposal(np www.NewProposal, u *user.User) error {
 			numImages++
 			data, err = base64.StdEncoding.DecodeString(v.Payload)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if len(data) > www.PolicyMaxImageSize {
 				imageExceedsMaxSize = true
@@ -219,7 +226,7 @@ func validateProposal(np www.NewProposal, u *user.User) error {
 
 			data, err = base64.StdEncoding.DecodeString(v.Payload)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if len(data) > www.PolicyMaxMDSize {
 				mdExceedsMaxSize = true
@@ -242,7 +249,7 @@ func validateProposal(np www.NewProposal, u *user.User) error {
 			}
 		}
 		if len(repeated) > 0 {
-			return www.UserError{
+			return nil, www.UserError{
 				ErrorCode:    www.ErrorStatusProposalDuplicateFilenames,
 				ErrorContext: repeated,
 			}
@@ -251,43 +258,98 @@ func validateProposal(np www.NewProposal, u *user.User) error {
 
 	// we expect one index file
 	if numIndexFiles == 0 {
-		return www.UserError{
+		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusProposalMissingFiles,
 			ErrorContext: []string{indexFile},
 		}
 	}
 
 	if numMDs > www.PolicyMaxMDs {
-		return www.UserError{
+		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusMaxMDsExceededPolicy,
 		}
 	}
 
 	if numImages > www.PolicyMaxImages {
-		return www.UserError{
+		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusMaxImagesExceededPolicy,
 		}
 	}
 
 	if mdExceedsMaxSize {
-		return www.UserError{
+		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusMaxMDSizeExceededPolicy,
 		}
 	}
 
 	if imageExceedsMaxSize {
-		return www.UserError{
+		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusMaxImageSizeExceededPolicy,
 		}
 	}
 
-	// proposal title validation
-	name, err := getProposalName(np.Files)
-	if err != nil {
-		return err
+	// Validate metadata
+	var pm *www.ProposalMetadata
+	for _, v := range np.Metadata {
+		// Decode payload
+		b, err := base64.StdEncoding.DecodeString(v.Payload)
+		if err != nil {
+			e := fmt.Sprintf("invalid base64 for '%v'", v.Hint)
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusMetadataInvalid,
+				ErrorContext: []string{e},
+			}
+		}
+		d := json.NewDecoder(bytes.NewReader(b))
+		d.DisallowUnknownFields()
+
+		// Unmarshal payload
+		switch v.Hint {
+		case www.HintProposalMetadata:
+			var p www.ProposalMetadata
+			err := d.Decode(&p)
+			if err != nil {
+				log.Debugf("validateProposal: decode ProposalMetadata: %v", err)
+				return nil, www.UserError{
+					ErrorCode:    www.ErrorStatusMetadataInvalid,
+					ErrorContext: []string{v.Hint},
+				}
+			}
+			pm = &p
+		default:
+			e := fmt.Sprintf("unknown hint '%v'", v.Hint)
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusMetadataInvalid,
+				ErrorContext: []string{e},
+			}
+		}
+
+		// Validate digest
+		digest := util.Digest(b)
+		if v.Digest != hex.EncodeToString(digest) {
+			e := fmt.Sprintf("%v got digest %v, want %v",
+				v.Hint, v.Digest, hex.EncodeToString(digest))
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusMetadataDigestInvalid,
+				ErrorContext: []string{e},
+			}
+		}
+
+		// Add to hashes slice for merkle root calc
+		var h [sha256.Size]byte
+		copy(h[:], digest)
+		hashes = append(hashes, &h)
 	}
-	if !isValidProposalName(name) {
-		return www.UserError{
+	if pm == nil {
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusMetadataMissing,
+			ErrorContext: []string{www.HintProposalMetadata},
+		}
+	}
+
+	// Validate ProposalMetadata
+	if !isValidProposalName(pm.Name) {
+		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusProposalInvalidTitle,
 			ErrorContext: []string{createProposalNameRegex()},
 		}
@@ -296,12 +358,12 @@ func validateProposal(np www.NewProposal, u *user.User) error {
 	// Note that we need validate the string representation of the merkle
 	mr := merkle.Root(hashes)
 	if !pk.VerifyMessage([]byte(hex.EncodeToString(mr[:])), sig) {
-		return www.UserError{
+		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusInvalidSignature,
 		}
 	}
 
-	return nil
+	return pm, nil
 }
 
 func voteStatusFromVoteSummary(r decredplugin.VoteSummaryReply, bestBlock uint64) www.PropVoteStatusT {
@@ -326,16 +388,6 @@ func voteStatusFromVoteSummary(r decredplugin.VoteSummaryReply, bestBlock uint64
 	}
 }
 
-// getProposalName returns the proposal name based on the index markdown file.
-func getProposalName(files []www.File) (string, error) {
-	for _, file := range files {
-		if file.Name == indexFile {
-			return parseProposalName(file.Payload)
-		}
-	}
-	return "", nil
-}
-
 // convertWWWPropCreditFromDatabasePropCredit coverts a database proposal
 // credit to a v1 proposal credit.
 func convertWWWPropCreditFromDatabasePropCredit(credit user.ProposalCredit) www.ProposalCredit {
@@ -356,7 +408,10 @@ func (p *politeiawww) getProp(token string) (*www.ProposalRecord, error) {
 	if err != nil {
 		return nil, err
 	}
-	pr := convertPropFromCache(*r)
+	pr, err := convertPropFromCache(*r)
+	if err != nil {
+		return nil, err
+	}
 
 	// Find the number of comments for the proposal
 	dc, err := p.decredGetComments(token)
@@ -376,7 +431,7 @@ func (p *politeiawww) getProp(token string) (*www.ProposalRecord, error) {
 		pr.Username = u.Username
 	}
 
-	return &pr, nil
+	return pr, nil
 }
 
 // getProps returns a [token]www.ProposalRecord map for the provided list of
@@ -396,8 +451,12 @@ func (p *politeiawww) getProps(tokens []string) (map[string]www.ProposalRecord, 
 	// Use pointers for now so the props can be easily updated
 	props := make(map[string]*www.ProposalRecord, len(records))
 	for _, v := range records {
-		pr := convertPropFromCache(v)
-		props[v.CensorshipRecord.Token] = &pr
+		pr, err := convertPropFromCache(v)
+		if err != nil {
+			return nil, fmt.Errorf("convertPropFromCache %v: %v",
+				v.CensorshipRecord.Token, err)
+		}
+		props[v.CensorshipRecord.Token] = pr
 	}
 
 	// Get the number of comments for each proposal. Comments
@@ -467,7 +526,10 @@ func (p *politeiawww) getPropVersion(token, version string) (*www.ProposalRecord
 	if err != nil {
 		return nil, err
 	}
-	pr := convertPropFromCache(*r)
+	pr, err := convertPropFromCache(*r)
+	if err != nil {
+		return nil, err
+	}
 
 	// Fetch number of comments for proposal from cache
 	dc, err := p.decredGetComments(token)
@@ -485,7 +547,7 @@ func (p *politeiawww) getPropVersion(token, version string) (*www.ProposalRecord
 		pr.Username = u.Username
 	}
 
-	return &pr, nil
+	return pr, nil
 }
 
 // getAllProps gets the latest version of all proposals from the cache then
@@ -502,7 +564,11 @@ func (p *politeiawww) getAllProps() ([]www.ProposalRecord, error) {
 	// Convert props and fill in missing info
 	props := make([]www.ProposalRecord, 0, len(records))
 	for _, v := range records {
-		pr := convertPropFromCache(v)
+		pr, err := convertPropFromCache(v)
+		if err != nil {
+			return nil, fmt.Errorf("convertPropFromCache %v: %v",
+				pr.CensorshipRecord.Token, err)
+		}
 
 		// Fill in num comments
 		dc, err := p.decredGetComments(pr.CensorshipRecord.Token)
@@ -522,7 +588,7 @@ func (p *politeiawww) getAllProps() ([]www.ProposalRecord, error) {
 			pr.Username = u.Username
 		}
 
-		props = append(props, pr)
+		props = append(props, *pr)
 	}
 
 	return props, nil
@@ -710,6 +776,20 @@ func (p *politeiawww) getPropComments(token string) ([]www.Comment, error) {
 	return comments, nil
 }
 
+func convertFileFromMetadata(m www.Metadata) pd.File {
+	var name string
+	switch m.Hint {
+	case www.HintProposalMetadata:
+		name = filenameProposalMetadata
+	}
+	return pd.File{
+		Name:    name,
+		MIME:    mimeTypeTextUTF8,
+		Digest:  m.Digest,
+		Payload: m.Payload,
+	}
+}
+
 // processNewProposal tries to submit a new proposal to politeiad.
 func (p *politeiawww) processNewProposal(np www.NewProposal, user *user.User) (*www.NewProposalReply, error) {
 	log.Tracef("processNewProposal")
@@ -726,23 +806,41 @@ func (p *politeiawww) processNewProposal(np www.NewProposal, user *user.User) (*
 		}
 	}
 
-	err := validateProposal(np, user)
+	pm, err := validateProposal(np, user)
 	if err != nil {
 		return nil, err
 	}
 
-	// Assemble metadata record
-	name, err := getProposalName(np.Files)
+	// politeiad only includes files in its merkle root calc, not the
+	// metadata streams. This is why we include the ProposalMetadata
+	// as both a a politeiad file and metadata stream. Including it as
+	// a file ensures that it's included in the merkle calc. Including
+	// it as a metadata stream allows its fields to be queried.
+
+	// Setup politeaid files
+	files := convertPropFilesFromWWW(np.Files)
+	for _, v := range np.Metadata {
+		switch v.Hint {
+		case www.HintProposalMetadata:
+			files = append(files, convertFileFromMetadata(v))
+		}
+	}
+
+	// Setup politeiad metadata
+	pg := mdstream.ProposalGeneralV2{
+		Version:   mdstream.VersionProposalGeneral,
+		Timestamp: time.Now().Unix(),
+		PublicKey: np.PublicKey,
+		Signature: np.Signature,
+	}
+	pgb, err := mdstream.EncodeProposalGeneralV2(pg)
 	if err != nil {
 		return nil, err
 	}
-	md, err := mdstream.EncodeProposalGeneral(mdstream.ProposalGeneral{
-		Version:   mdstream.VersionProposalGeneral,
-		Timestamp: time.Now().Unix(),
-		Name:      name,
-		PublicKey: np.PublicKey,
-		Signature: np.Signature,
-	})
+	pdb, err := mdstream.EncodeProposalDetails(
+		mdstream.ProposalDetails{
+			Name: pm.Name,
+		})
 	if err != nil {
 		return nil, err
 	}
@@ -754,11 +852,17 @@ func (p *politeiawww) processNewProposal(np www.NewProposal, user *user.User) (*
 	}
 	n := pd.NewRecord{
 		Challenge: hex.EncodeToString(challenge),
-		Metadata: []pd.MetadataStream{{
-			ID:      mdstream.IDProposalGeneral,
-			Payload: string(md),
-		}},
-		Files: convertPropFilesFromWWW(np.Files),
+		Metadata: []pd.MetadataStream{
+			{
+				ID:      mdstream.IDProposalGeneral,
+				Payload: string(pgb),
+			},
+			{
+				ID:      mdstream.IDProposalDetails,
+				Payload: string(pdb),
+			},
+		},
+		Files: files,
 	}
 
 	// Send politeiad request
@@ -768,7 +872,7 @@ func (p *politeiawww) processNewProposal(np www.NewProposal, user *user.User) (*
 		return nil, err
 	}
 
-	log.Infof("Submitted proposal name: %v", name)
+	log.Infof("Submitted proposal name: %v", pm.Name)
 	for k, f := range n.Files {
 		log.Infof("%02v: %v %v", k, f.Name, f.Digest)
 	}
@@ -797,7 +901,7 @@ func (p *politeiawww) processNewProposal(np www.NewProposal, user *user.User) (*
 	p.fireEvent(EventTypeProposalSubmitted,
 		EventDataProposalSubmitted{
 			CensorshipRecord: &cr,
-			ProposalName:     name,
+			ProposalName:     pm.Name,
 			User:             user,
 		},
 	)
@@ -1283,6 +1387,53 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 	}, nil
 }
 
+// filesToDel returns the names of the files that are included in filesOld but
+// are not included in filesNew. These are the files that need to be deleted
+// from a proposal on update.
+func filesToDel(filesOld []www.File, filesNew []www.File) []string {
+	newf := make(map[string]struct{}, len(filesOld)) // [name]struct
+	for _, v := range filesNew {
+		newf[v.Name] = struct{}{}
+	}
+
+	del := make([]string, 0, len(filesOld))
+	for _, v := range filesOld {
+		_, ok := newf[v.Name]
+		if !ok {
+			del = append(del, v.Name)
+		}
+	}
+
+	return del
+}
+
+// filesAreDifferent returns whether the two sets of files have any
+// differences. This can be differences in the number of files, differences
+// in the file names, and/or differences in the file payloads.
+func filesAreDifferent(files1 []www.File, files2 []www.File) bool {
+	if len(files1) != len(files2) {
+		return true
+	}
+
+	files := make(map[string]string, len(files1)+len(files2)) // [name]payload
+	for _, v := range files1 {
+		files[v.Name] = v.Payload
+	}
+	for _, v := range files2 {
+		p, ok := files[v.Name]
+		if !ok {
+			// Found file with a different name
+			return true
+		}
+		if v.Payload != p {
+			// Found file with the same name but different payloads
+			return true
+		}
+	}
+
+	return false
+}
+
 // processEditProposal attempts to edit a proposal on politeiad.
 func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*www.EditProposalReply, error) {
 	log.Tracef("processEditProposal %v", ep.Token)
@@ -1335,74 +1486,62 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 	// we can reuse the function validateProposal.
 	np := www.NewProposal{
 		Files:     ep.Files,
+		Metadata:  ep.Metadata,
 		PublicKey: ep.PublicKey,
 		Signature: ep.Signature,
 	}
-	err = validateProposal(np, u)
+	pm, err := validateProposal(np, u)
 	if err != nil {
 		return nil, err
 	}
-
-	// Assemble metadata record
-	name, err := getProposalName(ep.Files)
-	if err != nil {
-		return nil, err
-	}
-
-	backendMetadata := mdstream.ProposalGeneral{
-		Version:   mdstream.VersionProposalGeneral,
-		Timestamp: time.Now().Unix(),
-		Name:      name,
-		PublicKey: ep.PublicKey,
-		Signature: ep.Signature,
-	}
-	md, err := mdstream.EncodeProposalGeneral(backendMetadata)
-	if err != nil {
-		return nil, err
-	}
-
-	mds := []pd.MetadataStream{{
-		ID:      mdstream.IDProposalGeneral,
-		Payload: string(md),
-	}}
-
-	// Check if any files need to be deleted
-	var delFiles []string
-	for _, v := range cachedProp.Files {
-		found := false
-		for _, c := range ep.Files {
-			if v.Name == c.Name {
-				found = true
-			}
-		}
-		if !found {
-			delFiles = append(delFiles, v.Name)
-		}
-	}
-
-	// Check for changes in the index.md file
-	var newMDFile www.File
-	for _, v := range ep.Files {
-		if v.Name == indexFile {
-			newMDFile = v
-		}
-	}
-
-	var oldMDFile www.File
-	for _, v := range cachedProp.Files {
-		if v.Name == indexFile {
-			oldMDFile = v
-		}
-	}
-
-	mdChanges := newMDFile.Payload != oldMDFile.Payload
-
-	// Check that the proposal has been changed
-	if !mdChanges && len(delFiles) == 0 &&
-		len(cachedProp.Files) == len(ep.Files) {
+	if !filesAreDifferent(cachedProp.Files, ep.Files) {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusNoProposalChanges,
 		}
+	}
+
+	// politeiad only includes files in its merkle root calc, not the
+	// metadata streams. This is why we include the ProposalMetadata
+	// as both a a politeiad file and metadata stream. Including it as
+	// a file ensures that it's included in the merkle calc. Including
+	// it as a metadata stream allows its fields to be queried.
+
+	// Setup files
+	files := convertPropFilesFromWWW(ep.Files)
+	for _, v := range ep.Metadata {
+		switch v.Hint {
+		case www.HintProposalMetadata:
+			files = append(files, convertFileFromMetadata(v))
+		}
+	}
+
+	// Setup metadata streams
+	pg := mdstream.ProposalGeneralV2{
+		Version:   mdstream.VersionProposalGeneral,
+		Timestamp: time.Now().Unix(),
+		PublicKey: ep.PublicKey,
+		Signature: ep.Signature,
+	}
+	pgb, err := mdstream.EncodeProposalGeneralV2(pg)
+	if err != nil {
+		return nil, err
+	}
+	pdb, err := mdstream.EncodeProposalDetails(
+		mdstream.ProposalDetails{
+			Name: pm.Name,
+		})
+	if err != nil {
+		return nil, err
+	}
+	mds := []pd.MetadataStream{
+		{
+			ID:      mdstream.IDProposalGeneral,
+			Payload: string(pgb),
+		},
+		{
+			ID:      mdstream.IDProposalDetails,
+			Payload: string(pdb),
+		},
 	}
 
 	// Setup politeiad request
@@ -1415,8 +1554,8 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 		Token:       ep.Token,
 		Challenge:   hex.EncodeToString(challenge),
 		MDOverwrite: mds,
-		FilesAdd:    convertPropFilesFromWWW(ep.Files),
-		FilesDel:    delFiles,
+		FilesAdd:    files,
+		FilesDel:    filesToDel(cachedProp.Files, ep.Files),
 	}
 
 	var pdRoute string

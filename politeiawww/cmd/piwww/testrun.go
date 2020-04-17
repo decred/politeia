@@ -45,6 +45,7 @@ func login(email, password string) error {
 
 // newProposal returns a NewProposal object contains randomly generated
 // markdown text and a signature from the logged in user.
+// TODO fix this
 func newProposal() (*v1.NewProposal, error) {
 	md, err := createMDFile()
 	if err != nil {
@@ -52,7 +53,7 @@ func newProposal() (*v1.NewProposal, error) {
 	}
 	files := []v1.File{*md}
 
-	sig, err := shared.SignedMerkleRoot(files, cfg.Identity)
+	sig, err := shared.SignedMerkleRoot(files, nil, cfg.Identity)
 	if err != nil {
 		return nil, fmt.Errorf("sign merkle root: %v", err)
 	}

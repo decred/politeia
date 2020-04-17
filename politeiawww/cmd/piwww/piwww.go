@@ -130,7 +130,7 @@ func createMDFile() (*v1.File, error) {
 func verifyProposal(p v1.ProposalRecord, serverPubKey string) error {
 	// Verify merkle root
 	if len(p.Files) > 0 {
-		mr, err := shared.MerkleRoot(p.Files)
+		mr, err := shared.MerkleRoot(p.Files, p.Metadata)
 		if err != nil {
 			return err
 		}

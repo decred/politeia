@@ -307,10 +307,13 @@ func convertPropStatusFromCache(s cache.RecordStatusT) www.PropStatusT {
 	return www.PropStatusInvalid
 }
 
-func convertPropFromCache(r cache.Record) www.ProposalRecord {
+func convertPropFromCache(r cache.Record) (*www.ProposalRecord, error) {
 	// Decode markdown stream payloads
 	var (
-		pg         *mdstream.ProposalGeneral
+		name   string
+		pubkey string
+		sig    string
+
 		statusesV1 []mdstream.RecordStatusChangeV1
 		statusesV2 []mdstream.RecordStatusChangeV2
 		err        error
@@ -321,10 +324,32 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 		switch ms.ID {
 		case mdstream.IDProposalGeneral:
 			// General metadata
-			pg, err = mdstream.DecodeProposalGeneral([]byte(ms.Payload))
+			v, err := mdstream.DecodeVersion([]byte(ms.Payload))
 			if err != nil {
-				log.Errorf("convertPropFromCache: DecodeProposalGeneral: "+
-					"err:%v token:%v mdstream:%v", err, token, ms)
+				return nil, fmt.Errorf("DecodeVersion %v %v: %v",
+					token, ms.ID, err)
+			}
+			switch v {
+			case 1:
+				pg, err := mdstream.DecodeProposalGeneralV1([]byte(ms.Payload))
+				if err != nil {
+					return nil, fmt.Errorf("DecodeProposalGeneralV1 %v: %v",
+						token, err)
+				}
+				name = pg.Name
+				pubkey = pg.PublicKey
+				sig = pg.Signature
+			case 2:
+				pg, err := mdstream.DecodeProposalGeneralV2([]byte(ms.Payload))
+				if err != nil {
+					return nil, fmt.Errorf("DecodeProposalGeneralV2 %v: %v",
+						token, err)
+				}
+				pubkey = pg.PublicKey
+				sig = pg.Signature
+			default:
+				return nil, fmt.Errorf("unknown ProposalGeneral version %v %v",
+					token, ms)
 			}
 
 		case mdstream.IDRecordStatusChange:
@@ -332,8 +357,8 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 			b := []byte(ms.Payload)
 			statusesV1, statusesV2, err = mdstream.DecodeRecordStatusChanges(b)
 			if err != nil {
-				log.Errorf("convertPropFromCache: DecodeRecordStatusChanges: "+
-					"err:%v token:%v mdstream:%v", err, token, ms)
+				return nil, fmt.Errorf("DecodeRecordStatusChanges %v: %v",
+					token, err)
 			}
 
 			// Verify the signatures
@@ -341,11 +366,19 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 				err := v.VerifySignature(token)
 				if err != nil {
 					// This is not good!
-					e := fmt.Sprintf("invalid status change signature: "+
+					return nil, fmt.Errorf("invalid status change signature: "+
 						"token:%v status:%v", token, v)
-					panic(e)
 				}
 			}
+
+		case mdstream.IDProposalDetails:
+			// User specified proposal metadata
+			pd, err := mdstream.DecodeProposalDetails([]byte(ms.Payload))
+			if err != nil {
+				return nil, fmt.Errorf("DecodeProposalDetails %v: %v",
+					token, err)
+			}
+			name = pd.Name
 
 		case decredplugin.MDStreamAuthorizeVote:
 			// Valid proposal mdstream but not needed for a ProposalRecord
@@ -360,8 +393,8 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 			log.Tracef("convertPropFromCache: skipping mdstream %v",
 				decredplugin.MDStreamVoteSnapshot)
 		default:
-			log.Errorf("convertPropFromCache: invalid mdstream ID: "+
-				"token:%v mdstream:%v", token, ms)
+			return nil, fmt.Errorf("invalid mdstream %v: %v",
+				token, ms)
 		}
 	}
 
@@ -408,9 +441,23 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 		}
 	}
 
-	// Convert files
+	// Convert files. Proposal files and metadata are both saved to
+	// politeiad as files so we need to differentiate between the two
+	// here. Note, proposal metadata in this context is www.Metadata
+	// that is submitted with the proposal.
 	files := make([]www.File, 0, len(r.Files))
+	metadata := make([]www.Metadata, 0, len(r.Files))
 	for _, f := range r.Files {
+		switch f.Name {
+		case filenameProposalMetadata:
+			metadata = append(metadata, www.Metadata{
+				Digest:  f.Digest,
+				Hint:    www.HintProposalMetadata,
+				Payload: f.Payload,
+			})
+			continue
+		}
+
 		files = append(files,
 			www.File{
 				Name:    f.Name,
@@ -425,28 +472,29 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 	// The UserId, Username, and NumComments fields are returned
 	// as zero values since a cache record does not contain that
 	// data.
-	return www.ProposalRecord{
-		Name:                pg.Name,
+	return &www.ProposalRecord{
+		Name:                name,
 		State:               convertPropStatusToState(status),
 		Status:              status,
 		Timestamp:           r.Timestamp,
 		UserId:              "",
 		Username:            "",
-		PublicKey:           pg.PublicKey,
-		Signature:           pg.Signature,
-		Files:               files,
+		PublicKey:           pubkey,
+		Signature:           sig,
 		NumComments:         0,
 		Version:             r.Version,
 		StatusChangeMessage: changeMsg,
 		PublishedAt:         publishedAt,
 		CensoredAt:          censoredAt,
 		AbandonedAt:         abandonedAt,
+		Files:               files,
+		Metadata:            metadata,
 		CensorshipRecord: www.CensorshipRecord{
 			Token:     r.CensorshipRecord.Token,
 			Merkle:    r.CensorshipRecord.Merkle,
 			Signature: r.CensorshipRecord.Signature,
 		},
-	}
+	}, nil
 }
 
 func convertNewCommentToDecredPlugin(nc www.NewComment) decredplugin.NewComment {

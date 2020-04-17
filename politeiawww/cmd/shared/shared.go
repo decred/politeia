@@ -63,15 +63,16 @@ func PrintJSON(body interface{}) error {
 	return nil
 }
 
-// MerkleRoot converts the passed in list of files into SHA256 digests then
-// calculates and returns the merkle root of the digests.
-func MerkleRoot(files []v1.File) (string, error) {
+// MerkleRoot converts the passed in list of files and metadata into SHA256
+// digests then calculates and returns the merkle root of the digests.
+func MerkleRoot(files []v1.File, md []v1.Metadata) (string, error) {
 	if len(files) == 0 {
 		return "", fmt.Errorf("no proposal files found")
 	}
 
-	digests := make([]*[sha256.Size]byte, len(files))
-	for i, f := range files {
+	// Validate file digests
+	digests := make([]*[sha256.Size]byte, 0, len(files))
+	for _, f := range files {
 		// Compute file digest
 		b, err := base64.StdEncoding.DecodeString(f.Payload)
 		if err != nil {
@@ -92,20 +93,43 @@ func MerkleRoot(files []v1.File) (string, error) {
 		}
 
 		// Digest is valid
-		digests[i] = &d
+		digests = append(digests, &d)
 	}
 
-	// Compute merkle root
+	// Validate metadata digests
+	for _, v := range md {
+		b, err := base64.StdEncoding.DecodeString(v.Payload)
+		if err != nil {
+			return "", fmt.Errorf("decode payload for metadata %v: %v",
+				v.Hint, err)
+		}
+		digest := util.Digest(b)
+		d, ok := util.ConvertDigest(v.Digest)
+		if !ok {
+			return "", fmt.Errorf("invalid digest: md:%v digest:%v",
+				v.Hint, v.Digest)
+		}
+		if !bytes.Equal(digest, d[:]) {
+			return "", fmt.Errorf("digests do not match metadata %v",
+				v.Hint)
+		}
+
+		// Digest is valid
+		digests = append(digests, &d)
+	}
+
+	// Return merkle root
 	return hex.EncodeToString(merkle.Root(digests)[:]), nil
 }
 
-// SignedMerkleRoot calculates the merkle root of the passed in list of files,
-// signs the merkle root with the passed in identity and returns the signature.
-func SignedMerkleRoot(files []v1.File, id *identity.FullIdentity) (string, error) {
+// SignedMerkleRoot calculates the merkle root of the passed in list of files
+// and metadata, signs the merkle root with the passed in identity and returns
+// the signature.
+func SignedMerkleRoot(files []v1.File, md []v1.Metadata, id *identity.FullIdentity) (string, error) {
 	if len(files) == 0 {
 		return "", fmt.Errorf("no proposal files found")
 	}
-	mr, err := MerkleRoot(files)
+	mr, err := MerkleRoot(files, md)
 	if err != nil {
 		return "", err
 	}
