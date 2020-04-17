@@ -127,15 +127,15 @@ const (
 	// accepted for comments
 	PolicyMaxCommentLength = 8000
 
-	// PolicyMinLinkByPeriod is the minimum amount of time required for
+	// PolicyLinkByMinPeriod is the minimum amount of time required for
 	// the proposal LinkBy deadline. It is set for two weeks to allow
 	// for a one week voting period of the RFP and a minimum of one
 	// week to accept RFP submissions.
-	PolicyMinLinkByPeriod = 1209600 // Two weeks in seconds
+	PolicyLinkByMinPeriod = 1209600 // Two weeks in seconds
 
-	// PolicyMaxLinkByPeriod is the maximum amount of time into the
+	// PolicyLinkByMaxPeriod is the maximum amount of time into the
 	// future that the proposal LinkBy field can be set to
-	PolicyMaxLinkByPeriod = 7776000 // Three months in seconds
+	PolicyLinkByMaxPeriod = 7776000 // Three months in seconds
 
 	// ProposalListPageSize is the maximum number of proposals returned
 	// for the routes that return lists of proposals
@@ -456,13 +456,13 @@ type CensorshipRecord struct {
 // when the full ticket snapshot or the full cast vote data is not needed.
 type VoteSummary struct {
 	Status           PropVoteStatusT    `json:"status"`                     // Vote status
+	Approved         bool               `json:"approved"`                   // Was the vote approved
 	Type             VoteT              `json:"type,omitempty"`             // Vote type
 	EligibleTickets  uint32             `json:"eligibletickets,omitempty"`  // Number of eligible tickets
 	Duration         uint32             `json:"duration,omitempty"`         // Duration of vote
 	EndHeight        uint64             `json:"endheight,omitempty"`        // Vote end height
 	QuorumPercentage uint32             `json:"quorumpercentage,omitempty"` // Percent of eligible votes required for quorum
 	PassPercentage   uint32             `json:"passpercentage,omitempty"`   // Percent of total votes required to pass
-	Approved         bool               `json:"approved,omitempty"`         // Was the vote approved
 	Results          []VoteOptionResult `json:"results,omitempty"`          // Vote results
 }
 

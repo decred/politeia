@@ -217,10 +217,19 @@ func (p *politeiawww) validateProposalData(pd www.ProposalData) error {
 
 	// Validate LinkBy
 	if pd.LinkBy != 0 {
-		ts := time.Now().Unix() + www.PolicyMinLinkByPeriod
-		if pd.LinkBy < ts {
+		min := time.Now().Unix() + www.PolicyLinkByMinPeriod
+		max := time.Now().Unix() + www.PolicyLinkByMaxPeriod
+		switch {
+		case pd.LinkBy < min:
 			e := fmt.Sprintf("linkby period cannot be shorter than %v seconds",
-				www.PolicyMinLinkByPeriod)
+				www.PolicyLinkByMinPeriod)
+			return www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidLinkBy,
+				ErrorContext: []string{e},
+			}
+		case pd.LinkBy > max:
+			e := fmt.Sprintf("linkby period cannot be greater than %v seconds",
+				www.PolicyLinkByMaxPeriod)
 			return www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidLinkBy,
 				ErrorContext: []string{e},
@@ -2628,10 +2637,19 @@ func (p *politeiawww) processStartVoteV2(sv www2.StartVote, u *user.User) (*www2
 
 	// Verify the LinkBy deadline for RFP proposals
 	if pr.IsRFP() {
-		ts := time.Now().Unix() + www.PolicyMinLinkByPeriod
-		if pr.LinkBy < ts {
+		min := time.Now().Unix() + www.PolicyLinkByMinPeriod
+		max := time.Now().Unix() + www.PolicyLinkByMaxPeriod
+		switch {
+		case pr.LinkBy < min:
 			e := fmt.Sprintf("linkby period must be at least %v seconds from "+
-				"the start of the proposal vote", www.PolicyMinLinkByPeriod)
+				"the start of the proposal vote", www.PolicyLinkByMinPeriod)
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidLinkBy,
+				ErrorContext: []string{e},
+			}
+		case pr.LinkBy > max:
+			e := fmt.Sprintf("linkby period cannot be more than %v seconds from "+
+				"the start of the proposal vote", www.PolicyLinkByMaxPeriod)
 			return nil, www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidLinkBy,
 				ErrorContext: []string{e},
