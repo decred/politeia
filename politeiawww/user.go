@@ -1765,7 +1765,7 @@ func (p *politeiawww) processUsers(users *www.Users, isAdmin bool) (*www.UsersRe
 			return nil, err
 		}
 
-		u, err := p.db.UserGetByPubKey(pubkeyQuery)
+		u, err = p.db.UserGetByPubKey(pubkeyQuery)
 		if err != nil {
 			if err == user.ErrUserNotFound {
 				// Pubkey searches require an exact match. If no
