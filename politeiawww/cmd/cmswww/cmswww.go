@@ -83,6 +83,7 @@ type cmswww struct {
 	PayInvoices         PayInvoicesCmd           `command:"payinvoices" description:"(admin)  set all approved invoices to paid"`
 	Policy              PolicyCmd                `command:"policy" description:"(public) get the server policy"`
 	ProposalOwner       ProposalOwnerCmd         `command:"proposalowner" description:"(user) get owners of a proposal"`
+	ProposalBilling     ProposalBillingCmd       `command:"proposalbilling" description:"(user) get billing information for a proposal"`
 	RegisterUser        RegisterUserCmd          `command:"register" description:"(public) register an invited user to cms"`
 	ResetPassword       shared.ResetPasswordCmd  `command:"resetpassword" description:"(public) reset the password for a user that is not logged in"`
 	SetDCCStatus        SetDCCStatusCmd          `command:"setdccstatus" description:"(admin)  set the status of a DCC"`

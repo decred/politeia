@@ -1606,6 +1606,57 @@ func (p *politeiawww) processInvoicePayouts(lip cms.InvoicePayouts) (*cms.Invoic
 	return reply, nil
 }
 
+// processProposalBilling ensures that the request user is either an admin or
+// listed as an owner of the requested proposal.
+func (p *politeiawww) processProposalBilling(pb cms.ProposalBilling, u *user.User) (*cms.ProposalBillingReply, error) {
+	reply := &cms.ProposalBillingReply{}
+
+	cmsUser, err := p.getCMSUserByID(u.ID.String())
+	if err != nil {
+		return nil, err
+	}
+
+	// Check to see if the user currently listed as owning the proposal
+	propOwned := false
+	for _, prop := range cmsUser.ProposalsOwned {
+		if prop == pb.Token {
+			propOwned = true
+		}
+	}
+	// If it's not owned and it's not an admin requesting return an error.
+	if !cmsUser.Admin && !propOwned {
+		err := www.UserError{
+			ErrorCode: www.ErrorStatusUserActionNotAllowed,
+		}
+		return nil, err
+	}
+
+	invoices, err := p.cmsDB.InvoicesByLineItemsProposalToken(pb.Token)
+	if err != nil {
+		return nil, www.UserError{
+			ErrorCode: cms.ErrorStatusInvoiceNotFound,
+		}
+	}
+	propBilling := make([]cms.ProposalLineItems, 0, len(invoices))
+	for _, inv := range invoices {
+		// All invoices should have only 1 line item returned from that function
+		if len(inv.LineItems) > 1 {
+			continue
+		}
+		lineItem := convertDatabaseInvoiceToProposalLineItems(inv)
+		u, err := p.db.UserGetByPubKey(inv.PublicKey)
+		if err != nil {
+			log.Errorf("processProposalBilling: getUserByPubKey: token:%v "+
+				"pubKey:%v err:%v", pb.Token, inv.PublicKey, err)
+		} else {
+			lineItem.Username = u.Username
+		}
+		propBilling = append(propBilling, lineItem)
+	}
+	reply.BilledLineItems = propBilling
+	return reply, nil
+}
+
 // getInvoiceMonthYear will return the first invoice.json month/year that is
 // found, otherwise 0, 0 in the event of any error.
 func getInvoiceMonthYear(files []www.File) (uint, uint) {

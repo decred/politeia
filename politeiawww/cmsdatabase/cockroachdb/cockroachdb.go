@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	v1 "github.com/decred/politeia/politeiawww/api/cms/v1"
 	database "github.com/decred/politeia/politeiawww/cmsdatabase"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
@@ -374,6 +375,71 @@ func (c *cockroachdb) InvoicesByDateRangeStatus(start, end int64, status int) ([
 		dbInvoices = append(dbInvoices, inv)
 	}
 	return dbInvoices, nil
+}
+
+// InvoicesByLineItemsProposalToken takes a proposal token as an argument and
+// returns all invoices that have line items corresponding with that token.
+// All line items that are not considered relevant to the proposal token will
+// be omitted.
+func (c *cockroachdb) InvoicesByLineItemsProposalToken(token string) ([]*database.Invoice, error) {
+	log.Debugf("InvoicesByLineItemsProposalToken: %v", token)
+	// Get all line items with proposal token
+	query := `SELECT 
+              invoices.month, 
+              invoices.year, 
+              invoices.user_id,
+              invoices.public_key,
+              line_items.invoice_token,
+              line_items.type,
+              line_items.domain,
+              line_items.subdomain,
+              line_items.description,
+              line_items.proposal_url,
+              line_items.labor,
+              line_items.expenses,
+              line_items.contractor_rate
+            FROM invoices
+            INNER JOIN line_items
+              ON invoices.token = line_items.invoice_token
+              WHERE line_items.proposal_url = ? AND invoices.status = ?`
+	rows, err := c.recordsdb.Raw(query, token, int(v1.InvoiceStatusPaid)).Rows()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	matching := make([]MatchingLineItems, 0, 1024)
+	for rows.Next() {
+		var i MatchingLineItems
+		err := c.recordsdb.ScanRows(rows, &i)
+		if err != nil {
+			return nil, err
+		}
+		matching = append(matching, i)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return convertMatchingLineItemToInvoices(matching), nil
+}
+
+// MatchingLineItems is a type used for finding matched line items based on
+// proposal ownership.
+type MatchingLineItems struct {
+	InvoiceToken   string
+	UserID         string
+	Month          uint
+	Year           uint
+	Type           uint
+	Domain         string
+	Subdomain      string
+	Description    string
+	ProposalURL    string
+	Labor          uint
+	Expenses       uint
+	ContractorRate uint
+	PublicKey      string
 }
 
 // Close satisfies the database interface.
