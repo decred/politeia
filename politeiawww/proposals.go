@@ -2793,7 +2793,9 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 		return nil, fmt.Errorf("user is not an admin")
 	}
 
-	// Validate the StartVotes
+	// Validate the StartVotes. The Token and ProposalVersion are
+	// validated later in this function once we've fetched all of
+	// the rfp submission proposals.
 	for _, v := range sv.StartVotes {
 		err := validateStartVoteV2(v, p.cfg.VoteDurationMin,
 			p.cfg.VoteDurationMax)
@@ -2891,7 +2893,7 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 	for _, v := range sv.StartVotes {
 		_, ok := submissions[v.Vote.Token]
 		if !ok {
-			e := fmt.Sprintf("proposal cannot be part of the runoff vote: %v",
+			e := fmt.Sprintf("invalid runoff vote submission: %v",
 				v.Vote.Token)
 			return nil, www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidRunoffVote,
@@ -2925,16 +2927,32 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 		return nil, err
 	}
 
-	// Validate RFP submissions. It should not be possible for an RFP
-	// submission to get into any of the below states so these checks
-	// are all just sanity checks.
+	// Validate RFP submissions
 	for _, v := range sv.StartVotes {
-		// Validate submission proposal
 		pr, ok := subProps[v.Vote.Token]
 		if !ok {
+			// A user error should have already been returned for
+			// invalid runoff vote submissions so this code path
+			// should never be hit.
 			return nil, fmt.Errorf("proposal not found: %v",
 				v.Vote.Token)
 		}
+
+		// Validate version
+		version := strconv.FormatUint(uint64(v.Vote.ProposalVersion), 10)
+		if pr.Version != version {
+			e := fmt.Sprintf("%v got %v, want %v",
+				v.Vote.Token, version, pr.Version)
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidProposalVersion,
+				ErrorContext: []string{e},
+			}
+		}
+
+		// It should not be possible for an RFP submission to get into
+		// any of the below states so these checks are all just sanity
+		// checks.
+
 		switch {
 		case pr.Status != www.PropStatusPublic:
 			// While its possible for an RFP submission to not be
