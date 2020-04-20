@@ -222,6 +222,9 @@ func (d *decred) cmdProposalTimeline(payload string) (string, error) {
 
 		// Get timestamps when each version of a proposal was vetted.
 		vt, err := d.getProposalVersionVettingTimestamps(gpt.Token)
+		if err != nil {
+			return "", err
+		}
 		if len(vt) == 0 {
 			goto sendReply
 		}
@@ -231,7 +234,7 @@ func (d *decred) cmdProposalTimeline(payload string) (string, error) {
 					" proposal version that does not exist")
 			}
 
-			reply.VersionTimestamps[version-1].Vetted = uint64(timestamp)
+			reply.VersionTimestamps[version-1].Vetted = timestamp
 		}
 
 		// Get timestamps of vote authorizations for each version of a
