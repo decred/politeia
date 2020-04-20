@@ -865,7 +865,7 @@ func (p *politeiawww) handleVoteDetailsDCC(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	vdr, err := p.processVoteDetailsDCC(vd)
+	vdr, err := p.processVoteDetailsDCC(vd.Token)
 	if err != nil {
 		RespondWithError(w, r, 0,
 			"handleVoteDetailsDCC: processVoteDetailsDCC: %v", err)

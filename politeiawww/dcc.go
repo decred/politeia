@@ -1121,9 +1121,38 @@ func (p *politeiawww) processCastVoteDCC(cv cms.CastVote, u *user.User) (*cms.Ca
 	return convertCastVoteReplyToCMS(pluginCastVoteReply), nil
 }
 
-func (p *politeiawww) processVoteDetailsDCC(cv cms.VoteDetails) (*cms.VoteDetailsReply, error) {
+func (p *politeiawww) processVoteDetailsDCC(token string) (*cms.VoteDetailsReply, error) {
+	log.Tracef("processVoteDetailsDCC: %v", token)
 
-	return nil, nil
+	// Validate vote status
+	dvdr, err := p.cmsVoteDetails(token)
+	if err != nil {
+		if err == cache.ErrRecordNotFound {
+			err = www.UserError{
+				ErrorCode: cms.ErrorStatusDCCNotFound,
+			}
+		}
+		return nil, err
+	}
+	if dvdr.StartVoteReply.StartBlockHash == "" {
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusWrongVoteStatus,
+			ErrorContext: []string{"voting has not started yet"},
+		}
+	}
+
+	b := []byte(dvdr.StartVote.Payload)
+	dsv, err := cmsplugin.DecodeStartVote(b)
+	if err != nil {
+		return nil, err
+	}
+	vdr, err := convertCMSStartVoteToCMSVoteDetailsReply(dsv,
+		dvdr.StartVoteReply)
+	if err != nil {
+		return nil, err
+	}
+
+	return vdr, nil
 }
 
 func (p *politeiawww) allVoteDCC(token, signature string, u *user.User) error {
