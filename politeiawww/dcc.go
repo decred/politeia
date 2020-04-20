@@ -1023,17 +1023,17 @@ func dccStatusInSlice(arr []cms.DCCStatusT, status cms.DCCStatusT) bool {
 	return false
 }
 
-func (p *politeiawww) processVoteDCC(vd cms.VoteDCC, u *user.User) (*cms.VoteDCCReply, error) {
-	log.Tracef("processVoteDCC: %v", u.PublicKey())
+func (p *politeiawww) processCastVoteDCC(cv cms.CastVote, u *user.User) (*cms.CastVoteReply, error) {
+	log.Tracef("processCastVoteDCC: %v", u.PublicKey())
 
-	vdr, err := p.cmsVoteDetails(vd.Token)
+	vdr, err := p.cmsVoteDetails(cv.Token)
 	if err != nil {
 		return nil, err
 	}
 
 	validVoteBit := false
 	for _, option := range vdr.StartVote.Vote.Options {
-		if vd.VoteBit == strconv.FormatUint(option.Bits, 16) {
+		if cv.VoteBit == strconv.FormatUint(option.Bits, 16) {
 			validVoteBit = true
 			break
 		}
@@ -1046,7 +1046,7 @@ func (p *politeiawww) processVoteDCC(vd cms.VoteDCC, u *user.User) (*cms.VoteDCC
 		}
 	}
 
-	dcc, err := p.getDCC(vd.Token)
+	dcc, err := p.getDCC(cv.Token)
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
 			err = www.UserError{
@@ -1080,7 +1080,7 @@ func (p *politeiawww) processVoteDCC(vd cms.VoteDCC, u *user.User) (*cms.VoteDCC
 		return nil, err
 	}
 
-	vote := convertCastVoteFromCMS(vd)
+	vote := convertCastVoteFromCMS(cv)
 	payload, err := cmsplugin.EncodeCastVote(vote)
 	if err != nil {
 		return nil, err
@@ -1113,12 +1113,17 @@ func (p *politeiawww) processVoteDCC(vd cms.VoteDCC, u *user.User) (*cms.VoteDCC
 	}
 
 	// Decode plugin reply
-	_, err = cmsplugin.DecodeCastVoteReply([]byte(reply.Payload))
+	pluginCastVoteReply, err := cmsplugin.DecodeCastVoteReply([]byte(reply.Payload))
 	if err != nil {
 		return nil, err
 	}
 
-	return &cms.VoteDCCReply{}, nil
+	return convertCastVoteReplyToCMS(pluginCastVoteReply), nil
+}
+
+func (p *politeiawww) processVoteDetailsDCC(cv cms.VoteDetails) (*cms.VoteDetailsReply, error) {
+
+	return nil, nil
 }
 
 func (p *politeiawww) allVoteDCC(token, signature string, u *user.User) error {

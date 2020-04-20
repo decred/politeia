@@ -2142,14 +2142,38 @@ func (c *Client) ProposalOwner(po *cms.ProposalOwner) (*cms.ProposalOwnerReply, 
 	return &por, nil
 }
 
-// VoteDCC issues an admin approval for a given DCC proposal.
-func (c *Client) VoteDCC(vd cms.VoteDCC) (*cms.VoteDCCReply, error) {
-	responseBody, err := c.makeRequest("POST", cms.APIRoute, cms.RouteVoteDCC,
-		vd)
+// CastVoteDCC issues a signed vote for a given DCC proposal. approval
+func (c *Client) CastVoteDCC(cv cms.CastVote) (*cms.CastVoteReply, error) {
+	responseBody, err := c.makeRequest("POST", cms.APIRoute, cms.RouteCastVoteDCC,
+		cv)
 	if err != nil {
 		return nil, err
 	}
-	var vdr cms.VoteDCCReply
+	var cvr cms.CastVoteReply
+	err = json.Unmarshal(responseBody, &cvr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal VoteDCCReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(cvr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &cvr, nil
+}
+
+// VoteDetailsDCC returns all the needed information about a given vote for a
+// DCC proposal.
+func (c *Client) VoteDetailsDCC(cv cms.VoteDetails) (*cms.VoteDetailsReply, error) {
+	responseBody, err := c.makeRequest("POST", cms.APIRoute, cms.RouteVoteDetailsDCC,
+		cv)
+	if err != nil {
+		return nil, err
+	}
+	var vdr cms.VoteDetailsReply
 	err = json.Unmarshal(responseBody, &vdr)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal VoteDCCReply: %v", err)

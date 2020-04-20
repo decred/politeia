@@ -1673,12 +1673,21 @@ func convertDatabaseInvoiceToProposalLineItems(inv *cmsdatabase.Invoice) cms.Pro
 	}
 }
 
-func convertCastVoteFromCMS(b cms.VoteDCC) cmsplugin.CastVote {
+func convertCastVoteFromCMS(b cms.CastVote) cmsplugin.CastVote {
 	return cmsplugin.CastVote{
 		VoteBit:   b.VoteBit,
 		Token:     b.Token,
 		UserID:    b.UserID,
 		Signature: b.Signature,
+	}
+}
+
+func convertCastVoteReplyToCMS(cv *cmsplugin.CastVoteReply) *cms.CastVoteReply {
+	return &cms.CastVoteReply{
+		ClientSignature: cv.ClientSignature,
+		Signature:       cv.Signature,
+		Error:           cv.Error,
+		ErrorStatus:     cv.ErrorStatus,
 	}
 }
 
@@ -1698,7 +1707,7 @@ func convertVoteOptionResultsToCMS(vr []cmsplugin.VoteOptionResult) []cms.VoteOp
 	for _, w := range vr {
 		votes = append(votes, cms.VoteOptionResult{
 			Option: cms.VoteOption{
-				ID:          w.ID,
+				Id:          w.ID,
 				Description: w.Description,
 				Bits:        w.Bits,
 			},

@@ -824,13 +824,13 @@ func (p *politeiawww) handleProposalBilling(w http.ResponseWriter, r *http.Reque
 	util.RespondWithJSON(w, http.StatusOK, pbr)
 }
 
-func (p *politeiawww) handleVoteDCC(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleVoteDCC")
+func (p *politeiawww) handleCastVoteDCC(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleCastVoteDCC")
 
-	var vd cms.VoteDCC
+	var cv cms.CastVote
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&vd); err != nil {
-		RespondWithError(w, r, 0, "handleVoteDCC: unmarshal", www.UserError{
+	if err := decoder.Decode(&cv); err != nil {
+		RespondWithError(w, r, 0, "handleCastVoteDCC: unmarshal", www.UserError{
 			ErrorCode: www.ErrorStatusInvalidInput,
 		})
 		return
@@ -839,19 +839,42 @@ func (p *politeiawww) handleVoteDCC(w http.ResponseWriter, r *http.Request) {
 	u, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleVoteDCC: getSessionUser %v", err)
+			"handleCastVoteDCC: getSessionUser %v", err)
 		return
 	}
 
-	vdr, err := p.processVoteDCC(vd, u)
+	cvr, err := p.processCastVoteDCC(cv, u)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleVoteDCC: processVoteDCC: %v", err)
+			"handleCastVoteDCC: processCastVoteDCC: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, cvr)
+}
+
+func (p *politeiawww) handleVoteDetailsDCC(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleVoteDetailsDCC")
+
+	var vd cms.VoteDetails
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&vd); err != nil {
+		RespondWithError(w, r, 0, "handleVoteDetailsDCC: unmarshal", www.UserError{
+			ErrorCode: www.ErrorStatusInvalidInput,
+		})
+		return
+	}
+
+	vdr, err := p.processVoteDetailsDCC(vd)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleVoteDetailsDCC: processVoteDetailsDCC: %v", err)
 		return
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, vdr)
 }
+
 func (p *politeiawww) setCMSWWWRoutes() {
 	// Templates
 	//p.addTemplate(templateNewProposalSubmittedName,
@@ -925,7 +948,10 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		cms.RouteProposalBilling, p.handleProposalBilling,
 		permissionLogin)
 	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteVoteDCC, p.handleVoteDCC,
+		cms.RouteCastVoteDCC, p.handleCastVoteDCC,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cms.APIRoute,
+		cms.RouteVoteDetailsDCC, p.handleVoteDetailsDCC,
 		permissionLogin)
 
 	// Unauthenticated websocket

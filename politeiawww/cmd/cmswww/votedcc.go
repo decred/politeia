@@ -6,9 +6,10 @@ package main
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"strconv"
 
-	"github.com/decred/politeia/cmsplugin"
 	v1 "github.com/decred/politeia/politeiawww/api/cms/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
@@ -18,7 +19,8 @@ type VoteDCCCmd struct {
 	Args struct {
 		Vote  string `positional-arg-name:"vote"`
 		Token string `positional-arg-name:"token"`
-	} `positional-args:"true" required:"true"`
+	} `positional-args:"true" required:"true"
+-*`
 }
 
 // Execute executes the support DCC command.
@@ -26,13 +28,31 @@ func (cmd *VoteDCCCmd) Execute(args []string) error {
 	token := cmd.Args.Token
 	vote := cmd.Args.Vote
 
-	dccDetails, err := client.DCCDetails(token)
+	voteDetails, err := client.VoteDetailsDCC(v1.VoteDetails{Token: token})
+	if err != nil {
+		return fmt.Errorf("error retreiving vote details: %v", err)
+	}
+	var jsonVote v1.Vote
+	err = json.Unmarshal([]byte(voteDetails.Vote), &jsonVote)
 	if err != nil {
 		return fmt.Errorf("error retreiving vote details: %v", err)
 	}
 
-	if vote != cmsplugin.DCCApprovalString && vote != cmsplugin.DCCDisapprovalString {
-		return fmt.Errorf("invalid request: you must either vote yes or no")
+	voteBits := ""
+	validChoices := ""
+	for i, option := range jsonVote.Options {
+		if i != len(jsonVote.Options)-1 {
+			validChoices += option.Id + "/"
+		} else {
+			validChoices += option.Id
+		}
+		if vote == option.Id {
+			voteBits = strconv.FormatUint(option.Bits, 16)
+		}
+	}
+
+	if voteBits == "" {
+		return fmt.Errorf("invalid request: choose one: %v", validChoices)
 	}
 
 	if token == "" {
@@ -45,22 +65,28 @@ func (cmd *VoteDCCCmd) Execute(args []string) error {
 		return shared.ErrUserIdentityNotFound
 	}
 
-	sig := cfg.Identity.SignMessage([]byte(token + vote))
-	sd := v1.VoteDCC{
-		Vote:      vote,
+	lr, err := client.Me()
+	if err != nil {
+		return err
+	}
+
+	sig := cfg.Identity.SignMessage([]byte(token + voteBits + lr.UserID))
+	sd := v1.CastVote{
+		VoteBit:   voteBits,
 		Token:     token,
+		UserID:    lr.UserID,
 		PublicKey: hex.EncodeToString(cfg.Identity.Public.Key[:]),
 		Signature: hex.EncodeToString(sig[:]),
 	}
 
 	// Print request details
-	err := shared.PrintJSON(sd)
+	err = shared.PrintJSON(sd)
 	if err != nil {
 		return err
 	}
 
 	// Send request
-	sdr, err := client.VoteDCC(sd)
+	sdr, err := client.CastVoteDCC(sd)
 	if err != nil {
 		return fmt.Errorf("VoteDCC: %v", err)
 	}

@@ -37,7 +37,8 @@ const (
 	RouteNewCommentDCC       = "/dcc/newcomment"
 	RouteDCCComments         = "/dcc/{token:[A-z0-9]{64}}/comments"
 	RouteSetDCCStatus        = "/dcc/{token:[A-z0-9]{64}}/status"
-	RouteVoteDCC             = "/dcc/vote"
+	RouteCastVoteDCC         = "/dcc/vote"
+	RouteVoteDetailsDCC      = "/dcc/votedetails"
 	RouteAdminInvoices       = "/admin/invoices"
 	RouteManageCMSUser       = "/admin/managecms"
 	RouteAdminUserInvoices   = "/admin/userinvoices"
@@ -814,7 +815,7 @@ type StartVoteReply struct {
 	StartBlockHeight uint32   `json:"startblockheight"` // Block height of vote start
 	StartBlockHash   string   `json:"startblockhash"`   // Block hash of vote start
 	EndBlockHeight   uint32   `json:"endblockheight"`   // Block height of vote end
-	UserWeights      []string `json:"userweights"`      // Valid voting tickets
+	UserWeights      []string `json:"userweights"`      // Snapshot of users and their given weights
 }
 
 // VoteDetails returns the votes details for the specified proposal.
@@ -840,7 +841,7 @@ type VoteDetailsReply struct {
 	StartBlockHeight uint32   `json:"startblockheight"` // Block height
 	StartBlockHash   string   `json:"startblockhash"`   // Block hash
 	EndBlockHeight   uint32   `json:"endblockheight"`   // Height of vote end
-	EligibleTickets  []string `json:"eligibletickets"`  // Valid voting ticket
+	UserWeights      []string `json:"userweights"`      // Snapshot of users and their given weights
 }
 
 // VoteSummary contains a summary of the vote information for a specific
@@ -971,7 +972,7 @@ type CastVote struct {
 	Token     string `json:"token"`     // The censorship token of the given DCC issuance or revocation.
 	UserID    string `json:"userid"`    // UserID of the submitting user
 	PublicKey string `json:"publickey"` // Pubkey of the submitting user
-	Signature string `json:"signature"` // Signature of the Token+Vote+UserID by the submitting user.
+	Signature string `json:"signature"` // Signature of the Token+VoteBit+UserID by the submitting user.
 }
 
 // CastVoteReply is the answer to the CastVote command. The Error and
