@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/politeia/cmsplugin"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 )
 
@@ -754,7 +755,7 @@ type DCCDetails struct {
 // DCCDetailsReply returns the DCC details if found.
 type DCCDetailsReply struct {
 	DCC         DCCRecord   `json:"dcc"`         // DCCRecord of requested token
-	VoteSummary VoteSummary `json:"votesummary"` // Vote summary of the
+	VoteSummary VoteSummary `json:"votesummary"` // Vote summary of the DCC
 }
 
 // VoteOption describes a single vote option.
@@ -790,8 +791,8 @@ type VoteResultsReply struct {
 // ActiveVote obtains all dccs that have active votes.
 type ActiveVote struct{}
 
-// DCCVoteTuple is the proposal, vote and vote details.
-type DCCVoteTuple struct {
+// VoteTuple is the proposal, vote and vote details.
+type VoteTuple struct {
 	DCC            DCCRecord      `json:"dcc"`            // DCC
 	StartVote      StartVote      `json:"startvote"`      // Vote bits and mask
 	StartVoteReply StartVoteReply `json:"startvotereply"` // Eligible user weights and other details
@@ -799,7 +800,47 @@ type DCCVoteTuple struct {
 
 // ActiveVoteReply returns all proposals that have active votes.
 type ActiveVoteReply struct {
-	Votes []DCCVoteTuple `json:"votes"` // Active votes
+	Votes []VoteTuple `json:"votes"` // Active votes
+}
+
+type StartVote struct {
+	Vote      Vote   `json:"vote"`
+	PublicKey string `json:"publickey"` // Key used for signature
+	Signature string `json:"signature"` // Signature of Vote hash
+}
+
+// StartVoteReply is the reply to the StartVote command.
+type StartVoteReply struct {
+	StartBlockHeight uint32   `json:"startblockheight"` // Block height of vote start
+	StartBlockHash   string   `json:"startblockhash"`   // Block hash of vote start
+	EndBlockHeight   uint32   `json:"endblockheight"`   // Block height of vote end
+	UserWeights      []string `json:"userweights"`      // Valid voting tickets
+}
+
+// VoteDetails returns the votes details for the specified proposal.
+type VoteDetails struct {
+	Token string `json:"token"` // Proposal token
+}
+
+// VoteDetailsReply is the reply to the VoteDetails command. It contains all
+// of the information from a StartVote and StartVoteReply.
+//
+// Version specifies the StartVote version that was used to initiate the
+// proposal vote. See the StartVote comment for details on the differences
+// between the StartVote versions.
+//
+// Vote contains a JSON encoded Vote and needs to be decoded according to the
+// Version. See the Vote comment for details on the differences between the
+// Vote versions.
+type VoteDetailsReply struct {
+	Version          uint32   `json:"version"`          // StartVote version
+	Vote             string   `json:"vote"`             // JSON encoded Vote struct
+	PublicKey        string   `json:"publickey"`        // Key used for signature
+	Signature        string   `json:"signature"`        // Start vote signature
+	StartBlockHeight uint32   `json:"startblockheight"` // Block height
+	StartBlockHash   string   `json:"startblockhash"`   // Block hash
+	EndBlockHeight   uint32   `json:"endblockheight"`   // Height of vote end
+	EligibleTickets  []string `json:"eligibletickets"`  // Valid voting ticket
 }
 
 // VoteSummary contains a summary of the vote information for a specific
@@ -924,8 +965,8 @@ type ProposalLineItems struct {
 	LineItem LineItemsInput `json:"lineitem"`
 }
 
-// VoteDCC is an authenticated user request that will vote on a debated DCC proposal.
-type VoteDCC struct {
+// CastVote is a signed vote.
+type CastVote struct {
 	VoteBit   string `json:"votebit"`   // Vote bit that was selected, this is encode in hex
 	Token     string `json:"token"`     // The censorship token of the given DCC issuance or revocation.
 	UserID    string `json:"userid"`    // UserID of the submitting user
@@ -933,15 +974,12 @@ type VoteDCC struct {
 	Signature string `json:"signature"` // Signature of the Token+Vote+UserID by the submitting user.
 }
 
-// VoteDCCReply returns an emptry response when successful.
-type VoteDCCReply struct{}
-
-// DCCVoteResults is an authenticated user request that will return the all contractor vote results for a given DCC proposal.
-type DCCVoteResults struct {
-	Token string `json:"token"` // Token of the DCC iss/rev
-}
-
-// DCCVoteResultsReply contains the list of submitted votes from a given all contractor vote.
-type DCCVoteResultsReply struct {
-	Votes []DCCVote `json:"votes"` // List of submitted all contractor votes.
+// CastVoteReply is the answer to the CastVote command. The Error and
+// ErrorStatus fields will only be populated if something went wrong while
+// attempting to cast the vote.
+type CastVoteReply struct {
+	ClientSignature string                 `json:"clientsignature"`       // Signature that was sent in
+	Signature       string                 `json:"signature"`             // Signature of the ClientSignature
+	Error           string                 `json:"error"`                 // Error status message
+	ErrorStatus     cmsplugin.ErrorStatusT `json:"errorstatus,omitempty"` // Error status code
 }
