@@ -35,6 +35,7 @@ const (
 	CmdProposalCommentsLikes = "proposalcommentslikes"
 	CmdInventory             = "inventory"
 	CmdTokenInventory        = "tokeninventory"
+	CmdProposalTimeline      = "proposaltimeline"
 	MDStreamAuthorizeVote    = 13 // Vote authorization by proposal author
 	MDStreamVoteBits         = 14 // Vote bits and mask
 	MDStreamVoteSnapshot     = 15 // Vote tickets and start/end parameters
@@ -946,6 +947,73 @@ func DecodeGetCommentsReply(payload []byte) (*GetCommentsReply, error) {
 	}
 
 	return &gcr, nil
+}
+
+// GetProposalTimeline retrieves the timestamps for events in the history of
+// a proposal.
+type GetProposalTimeline struct {
+	Token string `json:"token"` // Censorship token
+}
+
+// EncodeGetProposalTimeline encodes GetProposalTimeline into a JSON byte
+// slice.
+func EncodeGetProposalTimeline(gpt GetProposalTimeline) ([]byte, error) {
+	return json.Marshal(gpt)
+}
+
+// DecodeGetProposalTimeline decodes a JSON byte slice into a
+// GetVersionTimestamps.
+func DecodeGetProposalTimeline(payload []byte) (*GetProposalTimeline, error) {
+	var gpt GetProposalTimeline
+
+	err := json.Unmarshal(payload, &gpt)
+	if err != nil {
+		return nil, err
+	}
+
+	return &gpt, nil
+}
+
+// VoteAuthorizationTimestamp contains the timestamp and whether vote
+// authorization was revoked.
+type VoteAuthorizationTimestamp struct {
+	Action    string `json:"action"`    // Authorized or Revoked
+	Timestamp uint64 `json:"timestamp"` // Time when creator authorized or revoked
+}
+
+// VersionTimestamp contains the timestamps of events related to a version of
+// a proposal.
+type VersionTimestamp struct {
+	Created    uint64                      `json:"created"`              // Time when version was created
+	Vetted     uint64                      `json:"vetted,omitempty"`     // Time when admin vetted version
+	Authorized *VoteAuthorizationTimestamp `json:"authorized,omitempty"` // Information about vote authorization
+}
+
+// GetProposalTimelineReply returns the timestamps for events in the history of
+// a proposal.
+type GetProposalTimelineReply struct {
+	VersionTimestamps []VersionTimestamp `json:"versionTimestamps"`        // Timestamps related to each version
+	StartVoteBlock    uint32             `json:"startVoteBlock,omitempty"` // Block height of start of voting period
+	EndVoteBlock      uint32             `json:"endVoteBlock,omitempty"`   // Block height of end of voting period
+}
+
+// EncodeGetProposalTimelineReply encodes GetProposalTimelineReply into a
+// JSON byte slice.
+func EncodeGetProposalTimelineReply(gptr GetProposalTimelineReply) ([]byte, error) {
+	return json.Marshal(gptr)
+}
+
+// DecodeGetProposalTimelineReply decodes a JSON byte slice into a
+// GetProposalTimelineReply.
+func DecodeGetProposalTimelineReply(payload []byte) (*GetProposalTimelineReply, error) {
+	var gptr GetProposalTimelineReply
+
+	err := json.Unmarshal(payload, &gptr)
+	if err != nil {
+		return nil, err
+	}
+
+	return &gptr, nil
 }
 
 // GetNumComments returns a map that contains the number of comments for the

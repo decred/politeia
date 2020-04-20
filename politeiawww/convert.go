@@ -61,6 +61,38 @@ func convertBallotReplyFromDecredPlugin(b decredplugin.BallotReply) www.BallotRe
 	return br
 }
 
+func convertVersionTimestampFromDecredPlugin(vt decredplugin.VersionTimestamp) www.VersionTimestamp {
+	var authorized *www.VoteAuthorizationTimestamp
+	if vt.Authorized != nil {
+		authorized = &www.VoteAuthorizationTimestamp{
+			Timestamp: vt.Authorized.Timestamp,
+			Action:    vt.Authorized.Action,
+		}
+	}
+
+	return www.VersionTimestamp{
+		Created:    vt.Created,
+		Vetted:     vt.Vetted,
+		Authorized: authorized,
+	}
+}
+
+func convertProposalTimelineReplyFromDecredPlugin(p decredplugin.GetProposalTimelineReply) www.ProposalTimelineReply {
+	ptr := www.ProposalTimelineReply{
+		VersionTimestamps: make([]www.VersionTimestamp, 0,
+			len(p.VersionTimestamps)),
+		StartVoteBlock: p.StartVoteBlock,
+		EndVoteBlock:   p.EndVoteBlock,
+	}
+
+	for _, vt := range p.VersionTimestamps {
+		ptr.VersionTimestamps = append(ptr.VersionTimestamps,
+			convertVersionTimestampFromDecredPlugin(vt))
+	}
+
+	return ptr
+}
+
 func convertAuthorizeVoteFromWWW(av www.AuthorizeVote) decredplugin.AuthorizeVote {
 	return decredplugin.AuthorizeVote{
 		Action:    av.Action,

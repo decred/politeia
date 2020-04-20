@@ -66,6 +66,204 @@ func (d *decred) cmdNewComment(cmdPayload, replyPayload string) (string, error) 
 	return replyPayload, err
 }
 
+// getProposalVersionCreationTimestamps queries the metadata stream table for
+// the timestamp when each version of a proposal was created.
+func (d *decred) getProposalVersionCreationTimestamps(token string) ([]uint64, error) {
+	// Query the metadata stream table for streams with id = 0 which record
+	// the creation of a new version of a proposal.
+	type result struct {
+		Version uint64
+		Payload string
+	}
+	queryResults := make([]result, 0, 16)
+	q := `SELECT version, payload
+		  FROM metadata_streams JOIN records
+		  ON metadata_streams.record_key = records.key
+		  WHERE id = 0 and token = ? ORDER BY version`
+	rows, err := d.recordsdb.Raw(q, token).Rows()
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var r result
+		err = d.recordsdb.ScanRows(rows, &r)
+		if err != nil {
+			return nil, err
+		}
+		queryResults = append(queryResults, r)
+	}
+
+	timestamps := make([]uint64, 0, len(queryResults))
+	if len(queryResults) == 0 {
+		return timestamps, nil
+	}
+
+	// Decode the payloads of each metadata stream.
+	pgs := make([]mdstream.ProposalGeneral, 0, len(queryResults))
+	for i, result := range queryResults {
+		if uint64(i+1) != result.Version {
+			return nil, fmt.Errorf("Version #%v is missing from the metadata"+
+				"stream table", i)
+		}
+		pg, err := mdstream.DecodeProposalGeneral([]byte(result.Payload))
+		if err != nil {
+			return nil, err
+		}
+		pgs = append(pgs, *pg)
+	}
+
+	for _, pg := range pgs {
+		timestamps = append(timestamps, uint64(pg.Timestamp))
+	}
+
+	return timestamps, nil
+}
+
+// getProposalVersionVettingTimestamps queries the metadata stream table for
+// the timestamp when each version of a proposal was vetted by an admin. It
+// returns a map that maps the proposal's version to it's vetting timestamp.
+func (d *decred) getProposalVersionVettingTimestamps(token string) (map[uint64]uint64, error) {
+	// Query the metadata stream table for streams with id = 2 which record
+	// when a proposal is vetted by an admin.
+	type result struct {
+		Version uint64
+		Payload string
+	}
+	q := `SELECT version, payload
+		  FROM metadata_streams JOIN records
+		  ON metadata_streams.record_key = records.key
+		  WHERE id = 2 and token = ?`
+	rows, err := d.recordsdb.Raw(q, token).Rows()
+	if err != nil {
+		return nil, err
+	}
+
+	// Decode the results and add them to the map.
+	vettingTimestamps := make(map[uint64]uint64)
+	for rows.Next() {
+		var r result
+		err = d.recordsdb.ScanRows(rows, &r)
+		if err != nil {
+			return nil, err
+		}
+		timestamp, err :=
+			mdstream.DecodeTimestampOfStatusUpdate([]byte(r.Payload))
+		if err != nil {
+			return nil, err
+		}
+
+		vettingTimestamps[r.Version] = uint64(timestamp)
+	}
+
+	return vettingTimestamps, nil
+}
+
+// getVoteAuthorizationTimestamps queries the authorize_vote table for the
+// timestamps of when the creator of a proposal authorized the voting period
+// to start. Multiple versions can have vote authorizations, because an
+// authorization can be revoked. Whether or not an authorization has be revoked
+// is stored in the Action field of the VoteAuthorizationTimestamp.
+func (d *decred) getVoteAuthorizationTimestamps(token string) map[uint64]decredplugin.VoteAuthorizationTimestamp {
+	avs := make([]AuthorizeVote, 0, 16)
+	d.recordsdb.
+		Where("token = ?", token).
+		Find(&avs)
+
+	authorizeVotes := make(map[uint64]decredplugin.VoteAuthorizationTimestamp)
+	for _, av := range avs {
+		authorizeVotes[av.Version] = decredplugin.VoteAuthorizationTimestamp{
+			Timestamp: uint64(av.Timestamp),
+			Action:    av.Action,
+		}
+	}
+
+	return authorizeVotes
+}
+
+// getVoteStartEndBlock returns the start and end blocks of the voting period
+// on a proposal. 0, 0 is returned if voting has not yet started.
+func (d *decred) getVoteStartEndBlock(token string) (uint32, uint32) {
+	startVote := StartVote{
+		Token: token,
+	}
+	err := d.recordsdb.Find(&startVote).Error
+	if err != nil {
+		return 0, 0
+	}
+
+	return startVote.StartBlockHeight, startVote.EndHeight
+}
+
+// cmdProposalTimeline queries the cache for a timeline important events
+// in the history of a proposal.
+func (d *decred) cmdProposalTimeline(payload string) (string, error) {
+	log.Tracef("decred cmdProposalTimeline %v", payload)
+
+	gpt, err := decredplugin.DecodeGetProposalTimeline([]byte(payload))
+	if err != nil {
+		return "", err
+	}
+
+	reply := decredplugin.GetProposalTimelineReply{}
+	{
+		// Get timestamps when each version of a proposal was created.
+		ct, err := d.getProposalVersionCreationTimestamps(gpt.Token)
+		if err != nil {
+			return "", nil
+		}
+		if len(ct) == 0 {
+			goto sendReply
+		}
+		reply.VersionTimestamps = make([]decredplugin.VersionTimestamp,
+			len(ct))
+		for i, t := range ct {
+			reply.VersionTimestamps[i].Created = t
+		}
+
+		// Get timestamps when each version of a proposal was vetted.
+		vt, err := d.getProposalVersionVettingTimestamps(gpt.Token)
+		if len(vt) == 0 {
+			goto sendReply
+		}
+		for version, timestamp := range vt {
+			if version > uint64(len(reply.VersionTimestamps)) {
+				return "", fmt.Errorf("database contains vetting for" +
+					" proposal version that does not exist")
+			}
+
+			reply.VersionTimestamps[version-1].Vetted = uint64(timestamp)
+		}
+
+		// Get timestamps of vote authorizations for each version of a
+		// proposal, and whether or not the authorization was revoked.
+		av := d.getVoteAuthorizationTimestamps(gpt.Token)
+		if len(av) == 0 {
+			goto sendReply
+		}
+		for version := range av {
+			if version > uint64(len(reply.VersionTimestamps)) {
+				return "", fmt.Errorf("database contains authorization for" +
+					" proposal version that does not exist")
+			}
+			authorization := av[version]
+			reply.VersionTimestamps[version-1].Authorized = &authorization
+		}
+
+		// Get the block heights of the start and end of the voting period.
+		startVoteBlock, endVoteBlock := d.getVoteStartEndBlock(gpt.Token)
+		reply.StartVoteBlock = startVoteBlock
+		reply.EndVoteBlock = endVoteBlock
+	}
+
+sendReply:
+	encodedReply, err := decredplugin.EncodeGetProposalTimelineReply(reply)
+	if err != nil {
+		return "", err
+	}
+
+	return string(encodedReply), nil
+}
+
 // cmdLikeComment creates a LikeComment record using the passed in payloads
 // and inserts it into the database.
 func (d *decred) cmdLikeComment(cmdPayload, replyPayload string) (string, error) {
@@ -1541,6 +1739,8 @@ func (d *decred) Exec(cmd, cmdPayload, replyPayload string) (string, error) {
 		return d.cmdVoteSummary(cmdPayload)
 	case decredplugin.CmdBatchVoteSummary:
 		return d.cmdBatchVoteSummary(cmdPayload)
+	case decredplugin.CmdProposalTimeline:
+		return d.cmdProposalTimeline(cmdPayload)
 	}
 
 	return "", cache.ErrInvalidPluginCmd

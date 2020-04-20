@@ -75,6 +75,7 @@ type piwww struct {
 	ProposalComments   ProposalCommentsCmd      `command:"proposalcomments" description:"(public) get the comments for a proposal"`
 	ProposalDetails    ProposalDetailsCmd       `command:"proposaldetails" description:"(public) get the details of a proposal"`
 	ProposalPaywall    ProposalPaywallCmd       `command:"proposalpaywall" description:"(user)   get proposal paywall details for the logged in user"`
+	ProposalTimeline   ProposalTimelineCmd      `command:"proposaltimeline" description:"(public)  get a timeline of events related to a proposal"`
 	RescanUserPayments RescanUserPaymentsCmd    `command:"rescanuserpayments" description:"(admin)  rescan a user's payments to check for missed payments"`
 	ResendVerification ResendVerificationCmd    `command:"resendverification" description:"(public) resend the user verification email"`
 	ResetPassword      shared.ResetPasswordCmd  `command:"resetpassword" description:"(public) reset the password for a user that is not logged in"`

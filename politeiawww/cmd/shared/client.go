@@ -822,6 +822,32 @@ func (c *Client) ProposalDetails(token string, pd *www.ProposalsDetails) (*www.P
 	return &pr, nil
 }
 
+// ProposalTimeline retrieves a timeline of events in the history of a
+// proposal.
+func (c *Client) ProposalTimeline(token string) (*www.ProposalTimelineReply, error) {
+	route := "/proposals/" + token + "/timeline"
+	responseBody, err := c.makeRequest(http.MethodGet,
+		www.PoliteiaWWWAPIRoute, route, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var ptr www.ProposalTimelineReply
+	err = json.Unmarshal(responseBody, &ptr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal ProposalTimelineReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(ptr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &ptr, nil
+}
+
 // UserProposals retrieves the proposals that have been submitted by the
 // specified user.
 func (c *Client) UserProposals(up *www.UserProposals) (*www.UserProposalsReply, error) {

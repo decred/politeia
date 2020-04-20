@@ -50,6 +50,7 @@ notifications.  It does not render HTML.
 - [`Get comments`](#get-comments)
 - [`Like comment`](#like-comment)
 - [`Censor comment`](#censor-comment)
+- [`Proposal Timeline`](#proposal-timeline)
 
 
 **Error status codes**
@@ -1560,6 +1561,77 @@ Reply:
 }
 ```
 
+### `Proposal Timeline`
+
+Retreive a timeline of events in the history of a proposal.
+
+**Routes:** `GET /v1/proposals/{token}/timeline`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| token | string | Censorship token | yes |
+
+**Results:**
+
+| | Type | Description |
+|-|-|-|
+| versionTimestamps | [] [`Version Timestamps`](#version-timestamps) | timestamps related to each version of the proposal |
+| startVoteBlock | uint64 | block height of start of voting period |
+| endVoteBlock | uint64 | block height of end of voting period |
+
+On failure the call shall return `400 Bad Request` and one of the following
+error codes:
+- [`ErrorStatusProposalNotFound`](#ErrorStatusProposalNotFound)
+
+**Example:**
+
+Request:
+
+```
+/v1/proposals/f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde/timeline
+```
+
+Reply:
+
+```json
+{
+  "versionTimestamps": [
+    {
+      "created": 1586712239,
+      "vetted": 1586712247,
+      "authorized": {
+        "action": "revoke",
+        "timestamp": 1586712262
+      }
+    },
+    {
+      "created": 1586712271,
+      "vetted": 1586712247
+    },
+    {
+      "created": 1586712279,
+      "vetted": 1586712247,
+      "authorized": {
+        "action": "revoke",
+        "timestamp": 1586712308
+      }
+    },
+    {
+      "created": 1586712313,
+      "vetted": 1586712247,
+      "authorized": {
+        "action": "authorize",
+        "timestamp": 1586712319
+      }
+    }
+  ],
+  "startVoteBlock": 401918,
+  "endVoteBlock": 403950
+}
+```
+
 ### `Batch proposals`
 
 Retrieve the proposal details for a list of proposals.  This route wil not
@@ -2799,6 +2871,21 @@ This is a shortened representation of a user, used for lists.
 | quorumpercentage | uint32 | Percent of eligible votes required for quorum |
 | passpercentage | uint32 | Percent of total votes required to pass |
 | optionsresult | array of VoteOptionResult | Option description along with the number of votes it has received |
+
+### `Vote Authorization`
+
+| | Type | Description |
+|-|-|-|
+| timestamp | uint64 | Timestamp of vote authorization |
+| action | string | Authorized or Revoked |
+
+### `Version Timestamps`
+
+| | Type | Description |
+|-|-|-|
+| created | uint64 | Timestamp when version was created |
+| vetted | uint64 | Timestamp when version was vetted by an admin |
+| authorized | [`Vote Authorization`](#vote-authorization) | Details of creator authorizing a vote on this version |
 
 ### `Censorship record`
 

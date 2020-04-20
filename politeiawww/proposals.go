@@ -807,6 +807,27 @@ func (p *politeiawww) processNewProposal(np www.NewProposal, user *user.User) (*
 	}, nil
 }
 
+// processVersionTimestamps retrieves the timeline of events related to a
+// proposal.
+func (p *politeiawww) processProposalTimeline(pt www.ProposalTimeline) (*www.ProposalTimelineReply, error) {
+	log.Tracef("processProposalTimeline")
+
+	ptr, err := p.decredProposalTimeline(pt.Token)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(ptr.VersionTimestamps) <= 0 {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusProposalNotFound,
+		}
+	}
+
+	reply := convertProposalTimelineReplyFromDecredPlugin(*ptr)
+
+	return &reply, nil
+}
+
 // processProposalDetails fetches a specific proposal version from the records
 // cache and returns it.
 func (p *politeiawww) processProposalDetails(propDetails www.ProposalsDetails, user *user.User) (*www.ProposalDetailsReply, error) {
