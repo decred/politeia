@@ -2854,7 +2854,7 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 			ErrorCode:    www.ErrorStatusWrongVoteResult,
 			ErrorContext: []string{"rfp proposal vote did not pass"},
 		}
-	case rfp.LinkBy < time.Now().Unix():
+	case rfp.LinkBy > time.Now().Unix():
 		// Vote cannot start on RFP submissions until the RFP
 		// linkby deadline has been met.
 		return nil, www.UserError{
