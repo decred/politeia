@@ -173,7 +173,7 @@ func (cmd *NewProposalCmd) Execute(args []string) error {
 		Signature:        np.Signature,
 		CensorshipRecord: npr.CensorshipRecord,
 	}
-	err = verifyProposal(pr, vr.PubKey)
+	err = shared.VerifyProposal(pr, vr.PubKey)
 	if err != nil {
 		return fmt.Errorf("unable to verify proposal %v: %v",
 			pr.CensorshipRecord.Token, err)

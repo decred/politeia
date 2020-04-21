@@ -41,7 +41,7 @@ func (cmd *ProposalDetailsCmd) Execute(args []string) error {
 	}
 
 	// Verify proposal censorship record
-	err = verifyProposal(pdr.Proposal, vr.PubKey)
+	err = shared.VerifyProposal(pdr.Proposal, vr.PubKey)
 	if err != nil {
 		return fmt.Errorf("unable to verify proposal %v: %v",
 			pdr.Proposal.CensorshipRecord.Token, err)

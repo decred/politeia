@@ -949,6 +949,30 @@ func (p *politeiawww) handlePassThroughTokenInventory(w http.ResponseWriter, r *
 	util.RespondRaw(w, http.StatusOK, data)
 }
 
+func (p *politeiawww) handlePassThroughBatchProposals(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handlePassThroughBatchProposals")
+
+	route := cms.ProposalsMainnet
+	if p.cfg.TestNet {
+		route = cms.ProposalsTestnet
+	}
+	route = route + "/api/v1" + www.RouteBatchProposals
+
+	resp, err := http.Post(route, "application/json", r.Body)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handlePassThroughBatchProposals: http.NewRequest: %v", err)
+		return
+	}
+	defer func() {
+		resp.Body.Close()
+	}()
+
+	data, _ := ioutil.ReadAll(resp.Body)
+	resp.Body.Close()
+	util.RespondRaw(w, http.StatusOK, data)
+}
+
 func (p *politeiawww) setCMSWWWRoutes() {
 	// Templates
 	//p.addTemplate(templateNewProposalSubmittedName,
@@ -1032,6 +1056,9 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		permissionLogin)
 	p.addRoute(http.MethodGet, cms.APIRoute,
 		www.RouteTokenInventory, p.handlePassThroughTokenInventory,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteBatchProposals, p.handlePassThroughBatchProposals,
 		permissionLogin)
 
 	// Unauthenticated websocket

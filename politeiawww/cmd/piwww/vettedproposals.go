@@ -7,7 +7,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/decred/politeia/politeiawww/api/www/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
@@ -41,7 +41,7 @@ func (cmd *VettedProposalsCmd) Execute(args []string) error {
 
 	// Verify proposal censorship records
 	for _, p := range gavr.Proposals {
-		err = verifyProposal(p, vr.PubKey)
+		err = shared.VerifyProposal(p, vr.PubKey)
 		if err != nil {
 			return fmt.Errorf("unable to verify proposal %v: %v",
 				p.CensorshipRecord.Token, err)
