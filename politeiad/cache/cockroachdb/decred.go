@@ -423,7 +423,7 @@ func (d *decred) voteResultsInsertRunoff(rfpToken string) error {
 		}
 
 		// Insert vote results record
-		err = d.recordsdb.Create(vr).Error
+		err = d.recordsdb.Create(&vr).Error
 		if err != nil {
 			return fmt.Errorf("insert vote results %v: %v",
 				vr.Token, err)
