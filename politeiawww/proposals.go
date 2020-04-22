@@ -503,31 +503,16 @@ func (p *politeiawww) validateProposal(np www.NewProposal, u *user.User) (*www.P
 	return proposalData, nil
 }
 
-func voteStatusFromVoteSummary(r decredplugin.VoteSummaryReply, bestBlock uint64) www.PropVoteStatusT {
-	var endHeight uint64
-	var err error
-	if r.EndHeight != "" {
-		endHeight, err = strconv.ParseUint(r.EndHeight, 10, 64)
-		if err != nil {
-			// This should not happen
-			log.Errorf("voteStatusFromVoteSummary: ParseUint failed on '%v': %v",
-				r.EndHeight, err)
-		}
-	}
-
-	// The end height must be checked before the Authorized field
-	// because a runoff vote submission will never be authorized,
-	// which means the Authorized field will always be false even
-	// if the vote has already started.
+func voteStatusFromVoteSummary(r decredplugin.VoteSummaryReply, endHeight, bestBlock uint64) www.PropVoteStatusT {
 	switch {
-	case endHeight > 0 && bestBlock < endHeight:
-		return www.PropVoteStatusStarted
-	case endHeight > 0 && bestBlock >= endHeight:
-		return www.PropVoteStatusFinished
 	case !r.Authorized:
 		return www.PropVoteStatusNotAuthorized
 	case r.Authorized:
 		return www.PropVoteStatusAuthorized
+	case bestBlock < endHeight:
+		return www.PropVoteStatusStarted
+	case bestBlock >= endHeight:
+		return www.PropVoteStatusFinished
 	}
 
 	return www.PropVoteStatusInvalid
@@ -957,12 +942,12 @@ func (p *politeiawww) getPropComments(token string) ([]www.Comment, error) {
 	return comments, nil
 }
 
-// getVoteSummaries returns a map[string]www.VoteSummary for the given proposal
+// voteSummariesGet returns a map[string]www.VoteSummary for the given proposal
 // tokens. An entry in the returned map will only exist for tokens where a
 // proposal record was found.
 //
 // This function must be called WITHOUT read/write lock held.
-func (p *politeiawww) getVoteSummaries(tokens []string, bestBlock uint64) (map[string]www.VoteSummary, error) {
+func (p *politeiawww) voteSummariesGet(tokens []string, bestBlock uint64) (map[string]www.VoteSummary, error) {
 	voteSummaries := make(map[string]www.VoteSummary)
 	tokensToLookup := make([]string, 0, len(tokens))
 
@@ -1032,7 +1017,7 @@ func (p *politeiawww) getVoteSummaries(tokens []string, bestBlock uint64) (map[s
 		}
 
 		vs := www.VoteSummary{
-			Status:           voteStatusFromVoteSummary(v, bestBlock),
+			Status:           voteStatusFromVoteSummary(v, endHeight, bestBlock),
 			Type:             www.VoteT(int(votet)),
 			Approved:         v.Approved,
 			EligibleTickets:  uint32(v.EligibleTicketCount),
@@ -1074,7 +1059,7 @@ func (p *politeiawww) voteSummarySet(token string, voteSummary www.VoteSummary) 
 //
 // This function must be called WITHOUT the read/write lock held.
 func (p *politeiawww) voteSummaryGet(token string, bestBlock uint64) (*www.VoteSummary, error) {
-	s, err := p.getVoteSummaries([]string{token}, bestBlock)
+	s, err := p.voteSummariesGet([]string{token}, bestBlock)
 	if err != nil {
 		return nil, err
 	}
@@ -1267,7 +1252,7 @@ func (p *politeiawww) processBatchVoteSummary(batchVoteSummary www.BatchVoteSumm
 		return nil, err
 	}
 
-	summaries, err := p.getVoteSummaries(batchVoteSummary.Tokens, bb)
+	summaries, err := p.voteSummariesGet(batchVoteSummary.Tokens, bb)
 	if err != nil {
 		return nil, err
 	}
@@ -2930,7 +2915,7 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 		subTokens = append(subTokens, token)
 		subProps[token] = linkedFromProps[token]
 	}
-	subVotes, err := p.getVoteSummaries(subTokens, bestBlock)
+	subVotes, err := p.voteSummariesGet(subTokens, bestBlock)
 	if err != nil {
 		return nil, err
 	}

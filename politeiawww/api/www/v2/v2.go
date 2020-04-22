@@ -102,15 +102,23 @@ type StartVoteReply struct {
 }
 
 // StartVoteRunoff starts the runoff voting process on all public,
-// non-abandoned RFP submissions for the provided RFP token. The StartVotes
-// array must contain a StartVote for each of the RFP submissions that is
+// non-abandoned RFP submissions for the provided RFP token.
+//
+// AuthorizeVotes must contain a vote authorization for each RFP submission
+// that is participating in the runoff vote. Unlike standard votes, these vote
+// authorizations are not signed by the submission author. They are signed by
+// the admin.
+//
+// StartVotes must contain a StartVote for each RFP submission that is
 // participating in the runoff vote. The runoff vote can only be started once
-// the RFP proposal has been approved by a vote and once the LinkBy RFP
+// the RFP proposal itself has been approved by a vote and once the LinkBy
 // submission deadline has expired. Once the LinkBy deadline has expired, the
 // runoff vote can be started at any point by an admin. It is not required that
 // RFP submission authors authorize the start of the vote.
 type StartVoteRunoff struct {
-	Token      string      `json:"token"`      // RFP censorship token
+	Token string `json:"token"` // RFP censorship token
+	// TODO
+	// AuthorizeVotes []AuthorizeVote `json:"authorizevote"` // AuthorizeVote for each RFP submission
 	StartVotes []StartVote `json:"startvotes"` // StartVote for each RFP submission
 }
 

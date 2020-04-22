@@ -427,7 +427,7 @@ func (p *politeiawww) decredBatchVoteSummary(tokens []string, bestBlock uint64) 
 //
 // This function should not be called directly in most circumstances due to its
 // reliance on the lazy loaded VoteResults cache table. The politeiawww method
-// getVoteSummary() should be called instead.
+// voteSummaryGet() should be called instead.
 func (p *politeiawww) decredVoteSummary(token string, bestBlock uint64) (*decredplugin.VoteSummaryReply, error) {
 	v := decredplugin.VoteSummary{
 		Token:     token,

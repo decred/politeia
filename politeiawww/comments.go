@@ -249,12 +249,11 @@ func (p *politeiawww) processNewComment(nc www.NewComment, u *user.User) (*www.N
 	if err != nil {
 		return nil, fmt.Errorf("getBestBlock: %v", err)
 	}
-	vsr, err := p.decredVoteSummary(nc.Token, bb)
+	vs, err := p.voteSummaryGet(nc.Token, bb)
 	if err != nil {
-		return nil, fmt.Errorf("decredVoteSummary: %v", err)
+		return nil, fmt.Errorf("voteSummaryGet: %v", err)
 	}
-	s := voteStatusFromVoteSummary(*vsr, bb)
-	if s == www.PropVoteStatusFinished {
+	if vs.Status == www.PropVoteStatusFinished {
 		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusWrongVoteStatus,
 			ErrorContext: []string{"vote is finished"},
@@ -514,12 +513,11 @@ func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www
 	if err != nil {
 		return nil, fmt.Errorf("getBestBlock: %v", err)
 	}
-	vsr, err := p.decredVoteSummary(pr.CensorshipRecord.Token, bb)
+	vs, err := p.voteSummaryGet(pr.CensorshipRecord.Token, bb)
 	if err != nil {
 		return nil, err
 	}
-	s := voteStatusFromVoteSummary(*vsr, bb)
-	if s == www.PropVoteStatusFinished {
+	if vs.Status == www.PropVoteStatusFinished {
 		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusWrongVoteStatus,
 			ErrorContext: []string{"vote has ended"},
@@ -658,12 +656,11 @@ func (p *politeiawww) processCensorComment(cc www.CensorComment, u *user.User) (
 	if err != nil {
 		return nil, fmt.Errorf("getBestBlock: %v", err)
 	}
-	vsr, err := p.decredVoteSummary(cc.Token, bb)
+	vs, err := p.voteSummaryGet(cc.Token, bb)
 	if err != nil {
 		return nil, err
 	}
-	s := voteStatusFromVoteSummary(*vsr, bb)
-	if s == www.PropVoteStatusFinished {
+	if vs.Status == www.PropVoteStatusFinished {
 		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusWrongVoteStatus,
 			ErrorContext: []string{"vote has ended"},
