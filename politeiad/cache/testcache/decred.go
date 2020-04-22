@@ -157,6 +157,7 @@ func (c *testcache) voteSummaryReply(token string) (*decred.VoteSummaryReply, er
 
 	vsr := decred.VoteSummaryReply{
 		Authorized:          av.Action == decred.AuthVoteActionAuthorize,
+		Type:                sv.Vote.Type,
 		Duration:            duration,
 		EndHeight:           svr.EndHeight,
 		EligibleTicketCount: 0,

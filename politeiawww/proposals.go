@@ -504,38 +504,33 @@ func (p *politeiawww) validateProposal(np www.NewProposal, u *user.User) (*www.P
 }
 
 func voteStatusFromVoteSummary(r decredplugin.VoteSummaryReply, bestBlock uint64) www.PropVoteStatusT {
-	switch r.Type {
-	case decredplugin.VoteTypeStandard:
-		// Standard vote
-		switch {
-		case !r.Authorized:
-			return www.PropVoteStatusNotAuthorized
-		case r.EndHeight == "":
-			return www.PropVoteStatusAuthorized
-		}
-	case decredplugin.VoteTypeRunoff:
-		// Runoff votes submissions don't require the author to authorize
-		// the voting period before an admin is able to start the vote.
-		// If a vote has not started yet for a runoff vote submission then
-		// its votes status is considered to be not authorized. A runoff
-		// vote submission will never have the vote status of authorized.
-		if r.EndHeight == "" {
-			return www.PropVoteStatusNotAuthorized
+	var endHeight uint64
+	var err error
+	if r.EndHeight != "" {
+		endHeight, err = strconv.ParseUint(r.EndHeight, 10, 64)
+		if err != nil {
+			// This should not happen
+			log.Errorf("voteStatusFromVoteSummary: ParseUint failed on '%v': %v",
+				r.EndHeight, err)
 		}
 	}
 
-	// Both vote types share the same criteria for when a vote is
-	// considered to be started and finished.
-	endHeight, err := strconv.ParseUint(r.EndHeight, 10, 64)
-	if err != nil {
-		// This should not happen
-		log.Errorf("voteStatusFromVoteSummary: ParseUint "+
-			"failed on '%v': %v", r.EndHeight, err)
-	}
-	if bestBlock < endHeight {
+	// The end height must be checked before the Authorized field
+	// because a runoff vote submission will never be authorized,
+	// which means the Authorized field will always be false even
+	// if the vote has already started.
+	switch {
+	case endHeight > 0 && bestBlock < endHeight:
 		return www.PropVoteStatusStarted
+	case endHeight > 0 && bestBlock >= endHeight:
+		return www.PropVoteStatusFinished
+	case !r.Authorized:
+		return www.PropVoteStatusNotAuthorized
+	case r.Authorized:
+		return www.PropVoteStatusAuthorized
 	}
-	return www.PropVoteStatusFinished
+
+	return www.PropVoteStatusInvalid
 }
 
 // getProposalName returns the proposal name based on the index markdown file.

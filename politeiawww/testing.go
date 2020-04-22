@@ -213,6 +213,7 @@ func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
 		userEmails:      make(map[string]uuid.UUID),
 		userPaywallPool: make(map[uuid.UUID]paywallPoolMember),
 		commentVotes:    make(map[string]counters),
+		voteSummaries:   make(map[string]www.VoteSummary),
 	}
 
 	// Setup routes
