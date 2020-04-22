@@ -19,8 +19,7 @@ type VoteDCCCmd struct {
 	Args struct {
 		Vote  string `positional-arg-name:"vote"`
 		Token string `positional-arg-name:"token"`
-	} `positional-args:"true" required:"true"
--*`
+	} `positional-args:"true" required:"true"`
 }
 
 // Execute executes the support DCC command.

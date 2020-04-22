@@ -1140,13 +1140,7 @@ func (p *politeiawww) processVoteDetailsDCC(token string) (*cms.VoteDetailsReply
 			ErrorContext: []string{"voting has not started yet"},
 		}
 	}
-
-	b := []byte(dvdr.StartVote.Payload)
-	dsv, err := cmsplugin.DecodeStartVote(b)
-	if err != nil {
-		return nil, err
-	}
-	vdr, err := convertCMSStartVoteToCMSVoteDetailsReply(dsv,
+	vdr, err := convertCMSStartVoteToCMSVoteDetailsReply(dvdr.StartVote,
 		dvdr.StartVoteReply)
 	if err != nil {
 		return nil, err
