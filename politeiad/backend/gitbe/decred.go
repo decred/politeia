@@ -1524,6 +1524,19 @@ func (g *gitBackEnd) pluginGetComments(payload string) (string, error) {
 	return encodeGetCommentsReply(comments)
 }
 
+func prepareAuthorizeVote(fi *identity.FullIdentity, token, action, pubkey, sig string) decredplugin.AuthorizeVote {
+	r := fi.SignMessage([]byte(sig))
+	return decredplugin.AuthorizeVote{
+		Version:   decredplugin.VersionAuthorizeVote,
+		Receipt:   hex.EncodeToString(r[:]),
+		Timestamp: time.Now().Unix(),
+		Token:     token,
+		Action:    action,
+		PublicKey: pubkey,
+		Signature: sig,
+	}
+}
+
 // pluginAuthorizeVote updates the vetted repo with vote authorization
 // metadata from the proposal author.
 func (g *gitBackEnd) pluginAuthorizeVote(payload string) (string, error) {
@@ -1552,21 +1565,8 @@ func (g *gitBackEnd) pluginAuthorizeVote(payload string) (string, error) {
 		return "", fmt.Errorf("UnmarshalFullIdentity: %v", err)
 	}
 
-	// Sign signature
-	r := fi.SignMessage([]byte(authorize.Signature))
-	receipt := hex.EncodeToString(r[:])
-
-	// Create on disk structure
-	t := time.Now().Unix()
-	av := decredplugin.AuthorizeVote{
-		Version:   decredplugin.VersionAuthorizeVote,
-		Receipt:   receipt,
-		Timestamp: t,
-		Action:    authorize.Action,
-		Token:     token,
-		Signature: authorize.Signature,
-		PublicKey: authorize.PublicKey,
-	}
+	av := prepareAuthorizeVote(fi, authorize.Token, authorize.Action,
+		authorize.PublicKey, authorize.Signature)
 	avb, err := decredplugin.EncodeAuthorizeVote(av)
 	if err != nil {
 		return "", fmt.Errorf("EncodeAuthorizeVote: %v", err)
@@ -1865,8 +1865,31 @@ func (g *gitBackEnd) pluginStartVoteRunoff(payload string) (string, error) {
 		return "", err
 	}
 
+	// Ensure start votes and authorize votes match
+	auths := make(map[string]struct{}, len(sv.AuthorizeVotes))
+	starts := make(map[string]struct{}, len(sv.StartVotes))
+	for _, v := range sv.AuthorizeVotes {
+		auths[v.Token] = struct{}{}
+	}
+	for _, v := range sv.StartVotes {
+		starts[v.Vote.Token] = struct{}{}
+	}
+	for _, v := range sv.AuthorizeVotes {
+		_, ok := starts[v.Token]
+		if !ok {
+			return "", fmt.Errorf("authorize vote found without matching"+
+				"start vote %v", v.Token)
+		}
+	}
+	for _, v := range sv.StartVotes {
+		_, ok := auths[v.Vote.Token]
+		if !ok {
+			return "", fmt.Errorf("start vote found without matching "+
+				"authorize vote %v", v.Vote.Token)
+		}
+	}
 	if len(sv.StartVotes) == 0 {
-		return "", fmt.Errorf("no startvotes found")
+		return "", fmt.Errorf("no start votes found")
 	}
 
 	var (
@@ -1965,14 +1988,16 @@ func (g *gitBackEnd) pluginStartVoteRunoff(payload string) (string, error) {
 			return "", err
 		}
 
+		authVoteExists := g.vettedMetadataStreamExists(tokenb,
+			decredplugin.MDStreamAuthorizeVote)
 		voteBitsExist := g.vettedMetadataStreamExists(tokenb,
 			decredplugin.MDStreamVoteBits)
-		voteSnapshotExist := g.vettedMetadataStreamExists(tokenb,
+		voteSnapshotExists := g.vettedMetadataStreamExists(tokenb,
 			decredplugin.MDStreamVoteSnapshot)
 		switch {
-		case !voteBitsExist && !voteSnapshotExist:
+		case !authVoteExists && !voteBitsExist && !voteSnapshotExists:
 			// Vote has not started, continue
-		case voteBitsExist && voteSnapshotExist:
+		case authVoteExists && voteBitsExist && voteSnapshotExists:
 			// Vote has started
 			return "", fmt.Errorf("vote already started: %x",
 				tokenb)
@@ -1983,8 +2008,41 @@ func (g *gitBackEnd) pluginStartVoteRunoff(payload string) (string, error) {
 		}
 	}
 
+	// Get identity
+	fiJSON, ok := decredPluginSettings[decredPluginIdentity]
+	if !ok {
+		return "", fmt.Errorf("full identity not set")
+	}
+	fi, err := identity.UnmarshalFullIdentity([]byte(fiJSON))
+	if err != nil {
+		return "", err
+	}
+
 	// Prepare work to be done
 	um := make([]updateMetadata, 0, len(sv.StartVotes))
+	for _, v := range sv.AuthorizeVotes {
+		av := prepareAuthorizeVote(fi, v.Token, v.Action,
+			v.PublicKey, v.Signature)
+
+		// Encode authorize vote
+		avb, err := decredplugin.EncodeAuthorizeVote(av)
+		if err != nil {
+			return "", fmt.Errorf("EncodeAuthorizeVote %v: %v",
+				v.Token, err)
+		}
+
+		// Add to work array
+		um = append(um, updateMetadata{
+			token:    v.Token,
+			mdAppend: nil,
+			mdOverwrite: []backend.MetadataStream{
+				{
+					ID:      decredplugin.MDStreamAuthorizeVote,
+					Payload: string(avb),
+				},
+			},
+		})
+	}
 	for _, v := range sv.StartVotes {
 		// Add version to on disk structure
 		v.Version = decredplugin.VersionStartVote
@@ -1992,7 +2050,7 @@ func (g *gitBackEnd) pluginStartVoteRunoff(payload string) (string, error) {
 		// Encode start vote
 		svb, err := decredplugin.EncodeStartVoteV2(v)
 		if err != nil {
-			return "", fmt.Errorf("EncodeStartVote %v %v",
+			return "", fmt.Errorf("EncodeStartVote %v: %v",
 				v.Vote.Token, err)
 		}
 

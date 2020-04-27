@@ -85,7 +85,21 @@ func (cmd *StartVoteRunoffCmd) Execute(args []string) error {
 		}
 	}
 
-	// Prepare StartVote for each public RFP submission
+	// Prepare AuthorizeVote for each submission
+	authVotes := make([]v2.AuthorizeVote, 0, len(submissions))
+	for _, v := range submissions {
+		action := v2.AuthVoteActionAuthorize
+		msg := v.CensorshipRecord.Token + v.Version + action
+		sig := cfg.Identity.SignMessage([]byte(msg))
+		authVotes = append(authVotes, v2.AuthorizeVote{
+			Token:     v.CensorshipRecord.Token,
+			Action:    action,
+			PublicKey: hex.EncodeToString(cfg.Identity.Public.Key[:]),
+			Signature: hex.EncodeToString(sig[:]),
+		})
+	}
+
+	// Prepare StartVote for each submission
 	startVotes := make([]v2.StartVote, 0, len(submissions))
 	for _, v := range submissions {
 		version, err := strconv.ParseUint(v.Version, 10, 32)
@@ -130,8 +144,9 @@ func (cmd *StartVoteRunoffCmd) Execute(args []string) error {
 
 	// Prepare and send request
 	svr := v2.StartVoteRunoff{
-		Token:      cmd.Args.TokenRFP,
-		StartVotes: startVotes,
+		Token:          cmd.Args.TokenRFP,
+		AuthorizeVotes: authVotes,
+		StartVotes:     startVotes,
 	}
 	err = shared.PrintJSON(svr)
 	if err != nil {

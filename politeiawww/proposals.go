@@ -113,6 +113,18 @@ func createProposalNameRegex() string {
 	return validProposalNameBuffer.String()
 }
 
+// isProposalAuthor returns whether the provided user is the author of the
+// provided proposal.
+func isProposalAuthor(pr www.ProposalRecord, u user.User) bool {
+	var isAuthor bool
+	for _, v := range u.Identities {
+		if v.String() == pr.PublicKey {
+			isAuthor = true
+		}
+	}
+	return isAuthor
+}
+
 // isRFP returns whether the proposal is a Request For Proposals (RFP).
 func isRFP(pr www.ProposalRecord) bool {
 	return pr.LinkBy != 0
@@ -127,9 +139,9 @@ func isRFPSubmission(pr www.ProposalRecord) bool {
 	return pr.LinkTo != ""
 }
 
-// tokenIsValid returns whether the provided string is a valid politeiad
+// isTokenValid returns whether the provided string is a valid politeiad
 // censorship record token.
-func tokenIsValid(token string) bool {
+func isTokenValid(token string) bool {
 	b, err := hex.DecodeString(token)
 	if err != nil {
 		return false
@@ -144,7 +156,7 @@ func getInvalidTokens(tokens []string) []string {
 	invalidTokens := make([]string, 0, len(tokens))
 
 	for _, token := range tokens {
-		if !tokenIsValid(token) {
+		if !isTokenValid(token) {
 			invalidTokens = append(invalidTokens, token)
 		}
 	}
@@ -177,7 +189,7 @@ func validateVoteBit(vote www2.Vote, bit uint64) error {
 func (p *politeiawww) validateProposalData(pd www.ProposalData) error {
 	// Validate LinkTo
 	if pd.LinkTo != "" {
-		if !tokenIsValid(pd.LinkTo) {
+		if !isTokenValid(pd.LinkTo) {
 			return www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidLinkTo,
 				ErrorContext: []string{"invalid token"},
@@ -1291,7 +1303,7 @@ func (p *politeiawww) processBatchProposals(bp www.BatchProposals, user *user.Us
 		}
 	}
 	for _, v := range bp.Tokens {
-		if !tokenIsValid(v) {
+		if !isTokenValid(v) {
 			return nil, www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
 				ErrorContext: []string{v},
@@ -1792,8 +1804,8 @@ func (p *politeiawww) processAllVetted(v www.GetAllVetted) (*www.GetAllVettedRep
 	log.Tracef("processAllVetted")
 
 	// Validate query params
-	if (v.Before != "" && !tokenIsValid(v.Before)) ||
-		(v.After != "" && !tokenIsValid(v.After)) {
+	if (v.Before != "" && !isTokenValid(v.Before)) ||
+		(v.After != "" && !isTokenValid(v.After)) {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusInvalidCensorshipToken,
 		}
@@ -2301,12 +2313,120 @@ func (p *politeiawww) processProposalPaywallPayment(u *user.User) (*www.Proposal
 	}, nil
 }
 
+// validateAuthorizeVote validates the authorize vote fields. A UserError is
+// returned if any of the validation fails.
+func validateAuthorizeVote(av www.AuthorizeVote, u user.User, pr www.ProposalRecord, vs www.VoteSummary) error {
+	// Ensure the public key is the user's active key
+	if av.PublicKey != u.PublicKey() {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSigningKey,
+		}
+	}
+
+	// Validate signature
+	msg := av.Token + pr.Version + av.Action
+	err := validateSignature(av.PublicKey, av.Signature, msg)
+	if err != nil {
+		return err
+	}
+
+	// Verify record is in the right state and that the authorize
+	// vote request is valid. A vote authorization may already
+	// exist. We also allow vote authorizations to be revoked.
+	switch {
+	case pr.Status != www.PropStatusPublic:
+		// Record not public
+		return www.UserError{
+			ErrorCode: www.ErrorStatusWrongStatus,
+		}
+	case vs.EndHeight != 0:
+		// Vote has already started
+		return www.UserError{
+			ErrorCode: www.ErrorStatusWrongVoteStatus,
+		}
+	case av.Action != decredplugin.AuthVoteActionAuthorize &&
+		av.Action != decredplugin.AuthVoteActionRevoke:
+		// Invalid authorize vote action
+		return www.UserError{
+			ErrorCode: www.ErrorStatusInvalidAuthVoteAction,
+		}
+	case av.Action == decredplugin.AuthVoteActionAuthorize &&
+		vs.Status == www.PropVoteStatusAuthorized:
+		// Cannot authorize vote; vote has already been authorized
+		return www.UserError{
+			ErrorCode: www.ErrorStatusVoteAlreadyAuthorized,
+		}
+	case av.Action == decredplugin.AuthVoteActionRevoke &&
+		vs.Status != www.PropVoteStatusAuthorized:
+		// Cannot revoke authorization; vote has not been authorized
+		return www.UserError{
+			ErrorCode: www.ErrorStatusVoteNotAuthorized,
+		}
+	}
+
+	return nil
+}
+
+// validateAuthorizeVoteRunoff validates the authorize vote for a proposal that
+// is participating in a standard vote. A UserError is returned if any of the
+// validation fails.
+func validateAuthorizeVoteStandard(av www.AuthorizeVote, u user.User, pr www.ProposalRecord, vs www.VoteSummary) error {
+	err := validateAuthorizeVote(av, u, pr, vs)
+	if err != nil {
+		return err
+	}
+
+	// The rest of the validation is specific to authorize votes for
+	// standard votes.
+	switch {
+	case isRFPSubmission(pr):
+		// Wrong validation function used. Fail with a 500.
+		return fmt.Errorf("proposal is a runoff vote submission")
+	case pr.PublicKey != av.PublicKey:
+		// User is not the author. First make sure the author didn't
+		// submit the proposal using an old identity.
+		if !isProposalAuthor(pr, u) {
+			return www.UserError{
+				ErrorCode: www.ErrorStatusUserNotAuthor,
+			}
+		}
+	}
+
+	return nil
+}
+
+// validateAuthorizeVoteRunoff validates the authorize vote for a proposal that
+// is participating in a runoff vote. A UserError is returned if any of the
+// validation fails.
+func validateAuthorizeVoteRunoff(av www.AuthorizeVote, u user.User, pr www.ProposalRecord, vs www.VoteSummary) error {
+	err := validateAuthorizeVote(av, u, pr, vs)
+	if err != nil {
+		return err
+	}
+
+	// The rest of the validation is specific to authorize votes for
+	// runoff votes.
+	switch {
+	case !isRFPSubmission(pr):
+		// Wrong validation function used. Fail with a 500.
+		return fmt.Errorf("proposal is not a runoff vote submission")
+	case !u.Admin:
+		// User is not an admin
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidSigningKey,
+			ErrorContext: []string{"user not an admin"},
+		}
+	}
+
+	return nil
+}
+
 // processAuthorizeVote sends the authorizevote command to decred plugin to
 // indicate that a proposal has been finalized and is ready to be voted on.
 func (p *politeiawww) processAuthorizeVote(av www.AuthorizeVote, u *user.User) (*www.AuthorizeVoteReply, error) {
 	log.Tracef("processAuthorizeVote %v", av.Token)
 
-	// Get proposal from the cache
+	// Validate the vote authorization
 	pr, err := p.getProp(av.Token)
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
@@ -2316,22 +2436,6 @@ func (p *politeiawww) processAuthorizeVote(av www.AuthorizeVote, u *user.User) (
 		}
 		return nil, err
 	}
-
-	// Ensure the public key is the user's active key
-	if av.PublicKey != u.PublicKey() {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusInvalidSigningKey,
-		}
-	}
-
-	// Validate signature
-	msg := av.Token + pr.Version + av.Action
-	err = validateSignature(av.PublicKey, av.Signature, msg)
-	if err != nil {
-		return nil, err
-	}
-
-	// Get vote details from cache
 	bb, err := p.getBestBlock()
 	if err != nil {
 		return nil, err
@@ -2340,59 +2444,9 @@ func (p *politeiawww) processAuthorizeVote(av www.AuthorizeVote, u *user.User) (
 	if err != nil {
 		return nil, err
 	}
-
-	// Verify record is in the right state and that the authorize
-	// vote request is valid. A vote authorization may already
-	// exist. We also allow vote authorizations to be revoked.
-	switch {
-	case isRFPSubmission(*pr):
-		// Record is an RFP submission. RFP submissions must be part
-		// of a runoff vote, which do not require vote authorization
-		// from the submission author.
-		return nil, www.UserError{
-			ErrorCode:    www.ErrorStatusInvalidAuthVoteAction,
-			ErrorContext: []string{"cannot authorize vote for rfp submission"},
-		}
-	case pr.Status != www.PropStatusPublic:
-		// Record not public
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusWrongStatus,
-		}
-	case vs.EndHeight != 0:
-		// Vote has already started
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusWrongVoteStatus,
-		}
-	case av.Action != decredplugin.AuthVoteActionAuthorize &&
-		av.Action != decredplugin.AuthVoteActionRevoke:
-		// Invalid authorize vote action
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusInvalidAuthVoteAction,
-		}
-	case av.Action == decredplugin.AuthVoteActionAuthorize &&
-		vs.Status == www.PropVoteStatusAuthorized:
-		// Cannot authorize vote; vote has already been authorized
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusVoteAlreadyAuthorized,
-		}
-	case av.Action == decredplugin.AuthVoteActionRevoke &&
-		vs.Status != www.PropVoteStatusAuthorized:
-		// Cannot revoke authorization; vote has not been authorized
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusVoteNotAuthorized,
-		}
-	case pr.PublicKey != av.PublicKey:
-		// User is not the author. First make sure the author didn't
-		// submit the proposal using an old identity.
-		usr, err := p.db.UserGetByPubKey(pr.PublicKey)
-		if err != nil {
-			return nil, err
-		}
-		if u.ID.String() != usr.ID.String() {
-			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusUserNotAuthor,
-			}
-		}
+	err = validateAuthorizeVoteStandard(av, *u, *pr, *vs)
+	if err != nil {
+		return nil, err
 	}
 
 	// Setup plugin command
@@ -2455,60 +2509,6 @@ func (p *politeiawww) processAuthorizeVote(av www.AuthorizeVote, u *user.User) (
 	}, nil
 }
 
-func validateStartVoteV2(sv www2.StartVote, voteDurationMin, voteDurationMax uint32) error {
-	// Validate vote bits
-	for _, v := range sv.Vote.Options {
-		err := validateVoteBit(sv.Vote, v.Bits)
-		if err != nil {
-			log.Debugf("validateStartVoteV2: validateVoteBit '%v': %v",
-				v.Id, err)
-			return www.UserError{
-				ErrorCode: www.ErrorStatusInvalidPropVoteBits,
-			}
-		}
-	}
-
-	// Validate vote params
-	switch {
-	case sv.Vote.Duration < voteDurationMin:
-		e := fmt.Sprintf("vote duration must be >= %v",
-			voteDurationMin)
-		return www.UserError{
-			ErrorCode:    www.ErrorStatusInvalidPropVoteParams,
-			ErrorContext: []string{e},
-		}
-	case sv.Vote.Duration > voteDurationMax:
-		e := fmt.Sprintf("vote duration must be <= %v",
-			voteDurationMax)
-		return www.UserError{
-			ErrorCode:    www.ErrorStatusInvalidPropVoteParams,
-			ErrorContext: []string{e},
-		}
-	case sv.Vote.QuorumPercentage > 100:
-		return www.UserError{
-			ErrorCode:    www.ErrorStatusInvalidPropVoteParams,
-			ErrorContext: []string{"quorum percentage cannot be >100"},
-		}
-	case sv.Vote.PassPercentage > 100:
-		return www.UserError{
-			ErrorCode:    www.ErrorStatusInvalidPropVoteParams,
-			ErrorContext: []string{"pass percentage cannot be >100"},
-		}
-	}
-
-	// Validate signature
-	dsv := convertStartVoteV2ToDecred(sv)
-	err := dsv.VerifySignature()
-	if err != nil {
-		log.Debugf("validateStartVoteV2: VerifySignature: %v", err)
-		return www.UserError{
-			ErrorCode: www.ErrorStatusInvalidSignature,
-		}
-	}
-
-	return nil
-}
-
 // validateVoteOptions verifies that the provided vote options
 // specify a simple approve/reject vote and nothing else. A UserError is
 // returned if this validation fails.
@@ -2545,6 +2545,227 @@ func validateVoteOptions(options []www2.VoteOption) error {
 	return nil
 }
 
+func validateStartVote(sv www2.StartVote, u user.User, pr www.ProposalRecord, vs www.VoteSummary, durationMin, durationMax uint32) error {
+	if !isTokenValid(sv.Vote.Token) {
+		// Sanity check since proposal has already been looked up and
+		// passed in to this function.
+		return fmt.Errorf("invalid token %v", sv.Vote.Token)
+	}
+
+	// Validate vote bits
+	for _, v := range sv.Vote.Options {
+		err := validateVoteBit(sv.Vote, v.Bits)
+		if err != nil {
+			log.Debugf("validateStartVote: validateVoteBit '%v': %v",
+				v.Id, err)
+			return www.UserError{
+				ErrorCode: www.ErrorStatusInvalidPropVoteBits,
+			}
+		}
+	}
+
+	// Validate vote options. Only simple yes/no votes are currently
+	// allowed.
+	err := validateVoteOptions(sv.Vote.Options)
+	if err != nil {
+		return err
+	}
+
+	// Validate vote params
+	switch {
+	case sv.Vote.Duration < durationMin:
+		// Duration not large enough
+		e := fmt.Sprintf("vote duration must be >= %v", durationMin)
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidPropVoteParams,
+			ErrorContext: []string{e},
+		}
+	case sv.Vote.Duration > durationMax:
+		// Duration too large
+		e := fmt.Sprintf("vote duration must be <= %v", durationMax)
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidPropVoteParams,
+			ErrorContext: []string{e},
+		}
+	case sv.Vote.QuorumPercentage > 100:
+		// Quorum too large
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidPropVoteParams,
+			ErrorContext: []string{"quorum percentage cannot be >100"},
+		}
+	case sv.Vote.PassPercentage > 100:
+		// Pass percentage too large
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidPropVoteParams,
+			ErrorContext: []string{"pass percentage cannot be >100"},
+		}
+	}
+
+	// Validate signature
+	dsv := convertStartVoteV2ToDecred(sv)
+	err = dsv.VerifySignature()
+	if err != nil {
+		log.Debugf("validateStartVote: VerifySignature: %v", err)
+		return www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSignature,
+		}
+	}
+
+	// Ensure the public key is the user's active key
+	if sv.PublicKey != u.PublicKey() {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSigningKey,
+		}
+	}
+
+	// Validate proposal
+	votePropVersion := strconv.FormatUint(uint64(sv.Vote.ProposalVersion), 10)
+	switch {
+	case pr.Version != votePropVersion:
+		// Vote is specifying the wrong version
+		e := fmt.Sprintf("got %v, want %v", votePropVersion, pr.Version)
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidProposalVersion,
+			ErrorContext: []string{e},
+		}
+	case pr.Status != www.PropStatusPublic:
+		// Proposal is not public
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusWrongStatus,
+			ErrorContext: []string{"proposal is not public"},
+		}
+	case vs.EndHeight != 0:
+		// Vote has already started
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusWrongVoteStatus,
+			ErrorContext: []string{"vote already started"},
+		}
+	}
+
+	return nil
+}
+
+func validateStartVoteStandard(sv www2.StartVote, u user.User, pr www.ProposalRecord, vs www.VoteSummary, durationMin, durationMax uint32) error {
+	err := validateStartVote(sv, u, pr, vs, durationMin, durationMax)
+	if err != nil {
+		return err
+	}
+
+	// The remaining validation is specific to a VoteTypeStandard.
+
+	switch {
+	case sv.Vote.Type != www2.VoteTypeStandard:
+		// Not a standard vote
+		e := fmt.Sprintf("vote type must be %v", www2.VoteTypeStandard)
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidVoteType,
+			ErrorContext: []string{e},
+		}
+	case vs.Status != www.PropVoteStatusAuthorized:
+		// Vote has not been authorized
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusWrongVoteStatus,
+			ErrorContext: []string{"vote not authorized"},
+		}
+	case isRFPSubmission(pr):
+		// The proposal is an an RFP submission. The voting period for
+		// RFP submissions can only be started using the StartVoteRunoff
+		// route.
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusWrongProposalType,
+			ErrorContext: []string{"cannot be an rfp submission"},
+		}
+	}
+
+	// Verify the LinkBy deadline for RFP proposals. The LinkBy policy
+	// requirements are enforced at the time of starting the vote
+	// because their purpose is to ensure that there is enough time for
+	// RFP submissions to be submitted.
+	if isRFP(pr) {
+		min := time.Now().Unix() + www.PolicyLinkByMinPeriod
+		max := time.Now().Unix() + www.PolicyLinkByMaxPeriod
+		switch {
+		case pr.LinkBy < min:
+			e := fmt.Sprintf("linkby period must be at least %v seconds from "+
+				"the start of the proposal vote", www.PolicyLinkByMinPeriod)
+			return www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidLinkBy,
+				ErrorContext: []string{e},
+			}
+		case pr.LinkBy > max:
+			e := fmt.Sprintf("linkby period cannot be more than %v seconds from "+
+				"the start of the proposal vote", www.PolicyLinkByMaxPeriod)
+			return www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidLinkBy,
+				ErrorContext: []string{e},
+			}
+		}
+
+		// The LinkBy policies assume a vote duration of 2016 blocks (1
+		// week) which is the default vote duration that has historically
+		// been used on Politeia. The PolicyLinkByMinPeriod ensures that
+		// RFP submissions have a minimum of 1 week to be submitted after
+		// the vote ends when the vote duration is 2016 blocks. If the
+		// vote duration is not 2016 blocks, verify that RFP submissions
+		// will still have at least one week after the vote ends to be
+		// submitted.
+		if sv.Vote.Duration != defaultVoteDuration {
+			var (
+				avgBlockTime        int64 = 300    // 5 minutes in seconds
+				minSubmissionPeriod int64 = 604800 // 1 week in seconds
+				duration                  = avgBlockTime * int64(sv.Vote.Duration)
+				submissionPeriod          = pr.LinkBy - time.Now().Unix() - duration
+			)
+			if submissionPeriod < minSubmissionPeriod {
+				e := fmt.Sprintf("linkby period must be at least %v seconds from "+
+					"the start of the proposal vote", duration+submissionPeriod)
+				return www.UserError{
+					ErrorCode:    www.ErrorStatusInvalidLinkBy,
+					ErrorContext: []string{e},
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func validateStartVoteRunoff(sv www2.StartVote, u user.User, pr www.ProposalRecord, vs www.VoteSummary, durationMin, durationMax uint32) error {
+	err := validateStartVote(sv, u, pr, vs, durationMin, durationMax)
+	if err != nil {
+		return err
+	}
+
+	// The remaining validation is specific to a VoteTypeRunoff.
+
+	token := sv.Vote.Token
+	switch {
+	case sv.Vote.Type != www2.VoteTypeRunoff:
+		// Not a runoff vote
+		e := fmt.Sprintf("%v vote type must be %v",
+			token, www2.VoteTypeRunoff)
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidVoteType,
+			ErrorContext: []string{e},
+		}
+
+	case !isRFPSubmission(pr):
+		// The proposal is not an RFP submission
+		e := fmt.Sprintf("%v in not an rfp submission", token)
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusWrongProposalType,
+			ErrorContext: []string{e},
+		}
+
+	case vs.Status != www.PropVoteStatusNotAuthorized:
+		// Sanity check. This should not be possible.
+		return fmt.Errorf("%v got vote status %v, want %v",
+			token, vs.Status, www.PropVoteStatusNotAuthorized)
+	}
+
+	return nil
+}
+
 // processStartVoteV2 starts the voting period on a proposal using the provided
 // v2 StartVote. Proposals that are RFP submissions cannot use this route. They
 // must sue the StartVoteRunoff route.
@@ -2556,33 +2777,13 @@ func (p *politeiawww) processStartVoteV2(sv www2.StartVote, u *user.User) (*www2
 		return nil, fmt.Errorf("user is not an admin")
 	}
 
-	// Validate the StartVote. We only allow a simple approve/reject
-	// vote for now.
-	err := validateStartVoteV2(sv, p.cfg.VoteDurationMin,
-		p.cfg.VoteDurationMax)
-	if err != nil {
-		return nil, err
-	}
-	err = validateVoteOptions(sv.Vote.Options)
-	if err != nil {
-		return nil, err
-	}
-	if sv.Vote.Type != www2.VoteTypeStandard {
-		e := fmt.Sprintf("vote type must be %v", www2.VoteTypeStandard)
+	// Fetch proposal and vote summary
+	if !isTokenValid(sv.Vote.Token) {
 		return nil, www.UserError{
-			ErrorCode:    www.ErrorStatusInvalidVoteType,
-			ErrorContext: []string{e},
+			ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
+			ErrorContext: []string{sv.Vote.Token},
 		}
 	}
-
-	// Ensure the public key is the user's active key
-	if sv.PublicKey != u.PublicKey() {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusInvalidSigningKey,
-		}
-	}
-
-	// Validate proposal version and status
 	pr, err := p.getProp(sv.Vote.Token)
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
@@ -2592,21 +2793,6 @@ func (p *politeiawww) processStartVoteV2(sv www2.StartVote, u *user.User) (*www2
 		}
 		return nil, err
 	}
-	if pr.Version != strconv.FormatUint(uint64(sv.Vote.ProposalVersion), 10) {
-		e := fmt.Sprintf("current proposal version is %v", pr.Version)
-		return nil, www.UserError{
-			ErrorCode:    www.ErrorStatusInvalidProposalVersion,
-			ErrorContext: []string{e},
-		}
-	}
-	if pr.Status != www.PropStatusPublic {
-		return nil, www.UserError{
-			ErrorCode:    www.ErrorStatusWrongStatus,
-			ErrorContext: []string{"proposal is not public"},
-		}
-	}
-
-	// Validate vote status
 	bb, err := p.getBestBlock()
 	if err != nil {
 		return nil, err
@@ -2615,76 +2801,12 @@ func (p *politeiawww) processStartVoteV2(sv www2.StartVote, u *user.User) (*www2
 	if err != nil {
 		return nil, err
 	}
-	if vs.Status != www.PropVoteStatusAuthorized {
-		return nil, www.UserError{
-			ErrorCode:    www.ErrorStatusWrongVoteStatus,
-			ErrorContext: []string{"vote not authorized"},
-		}
-	}
-	if vs.EndHeight != 0 {
-		return nil, www.UserError{
-			ErrorCode:    www.ErrorStatusWrongVoteStatus,
-			ErrorContext: []string{"vote already started"},
-		}
-	}
 
-	// Verify that this is not an RFP submission. The voting
-	// period for RFP submissions can only be started using
-	// the StartVoteRunoff route.
-	if isRFPSubmission(*pr) {
-		return nil, www.UserError{
-			ErrorCode:    www.ErrorStatusWrongProposalType,
-			ErrorContext: []string{"cannot be an rfp submission"},
-		}
-	}
-
-	// Verify the LinkBy deadline for RFP proposals. The LinkBy policy
-	// requirements are enforced at the time of starting the vote
-	// because their purpose is to ensure that there is enough time for
-	// RFP submissions to be submitted.
-	if isRFP(*pr) {
-		min := time.Now().Unix() + www.PolicyLinkByMinPeriod
-		max := time.Now().Unix() + www.PolicyLinkByMaxPeriod
-		switch {
-		case pr.LinkBy < min:
-			e := fmt.Sprintf("linkby period must be at least %v seconds from "+
-				"the start of the proposal vote", www.PolicyLinkByMinPeriod)
-			return nil, www.UserError{
-				ErrorCode:    www.ErrorStatusInvalidLinkBy,
-				ErrorContext: []string{e},
-			}
-		case pr.LinkBy > max:
-			e := fmt.Sprintf("linkby period cannot be more than %v seconds from "+
-				"the start of the proposal vote", www.PolicyLinkByMaxPeriod)
-			return nil, www.UserError{
-				ErrorCode:    www.ErrorStatusInvalidLinkBy,
-				ErrorContext: []string{e},
-			}
-		}
-
-		// The LinkBy policies assume a vote duration of 2016 blocks (1 week)
-		// which is the default vote duration that has historically been used
-		// on Politeia. The PolicyLinkByMinPeriod ensures that RFP submissions
-		// have a minimum of 1 week to be submitted after the vote ends when
-		// the vote duration is 2016 blocks. If the vote duration is not 2016
-		// blocks, verify that RFP submission will still have at least one
-		// week after the vote ends to be submitted.
-		if sv.Vote.Duration != defaultVoteDuration {
-			var (
-				avgBlockTime        int64 = 300    // 5 minutes in seconds
-				minSubmissionPeriod int64 = 604800 // 1 week in seconds
-				duration                  = avgBlockTime * int64(sv.Vote.Duration)
-				submissionPeriod          = pr.LinkBy - time.Now().Unix() - duration
-			)
-			if submissionPeriod < minSubmissionPeriod {
-				e := fmt.Sprintf("linkby period must be at least %v seconds from "+
-					"the start of the proposal vote", duration+submissionPeriod)
-				return nil, www.UserError{
-					ErrorCode:    www.ErrorStatusInvalidLinkBy,
-					ErrorContext: []string{e},
-				}
-			}
-		}
+	// Validate the start vote
+	err = validateStartVoteStandard(sv, *u, *pr, *vs,
+		p.cfg.VoteDurationMin, p.cfg.VoteDurationMax)
+	if err != nil {
+		return nil, err
 	}
 
 	// Tell decred plugin to start voting
@@ -2786,36 +2908,107 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 		return nil, fmt.Errorf("user is not an admin")
 	}
 
-	// Validate the StartVotes. The Token and ProposalVersion are
-	// validated later in this function once we've fetched all of
-	// the rfp submission proposals.
+	bb, err := p.getBestBlock()
+	if err != nil {
+		return nil, err
+	}
+
+	// Ensure authorize votes and start votes match
+	auths := make(map[string]www2.AuthorizeVote, len(sv.AuthorizeVotes))
+	starts := make(map[string]www2.StartVote, len(sv.StartVotes))
+	for _, v := range sv.AuthorizeVotes {
+		auths[v.Token] = v
+	}
 	for _, v := range sv.StartVotes {
-		err := validateStartVoteV2(v, p.cfg.VoteDurationMin,
-			p.cfg.VoteDurationMax)
-		if err != nil {
-			return nil, err
-		}
-
-		// Ensure admin signed using their active identity
-		if v.PublicKey != u.PublicKey() {
+		_, ok := auths[v.Vote.Token]
+		if !ok {
+			e := fmt.Sprintf("start vote found without matching authorize vote %v",
+				v.Vote.Token)
 			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusInvalidSigningKey,
-			}
-		}
-
-		// Vote options must be approve/reject and nothing else
-		err = validateVoteOptions(v.Vote.Options)
-		if err != nil {
-			return nil, err
-		}
-
-		// Vote type must be a runoff vote
-		if v.Vote.Type != www2.VoteTypeRunoff {
-			e := fmt.Sprintf("vote type must be %v", www2.VoteTypeRunoff)
-			return nil, www.UserError{
-				ErrorCode:    www.ErrorStatusInvalidVoteType,
+				ErrorCode:    www.ErrorStatusInvalidRunoffVote,
 				ErrorContext: []string{e},
 			}
+		}
+	}
+	for _, v := range sv.StartVotes {
+		starts[v.Vote.Token] = v
+	}
+	for _, v := range sv.AuthorizeVotes {
+		_, ok := starts[v.Token]
+		if !ok {
+			e := fmt.Sprintf("authorize vote found without matching start vote %v",
+				v.Token)
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidRunoffVote,
+				ErrorContext: []string{e},
+			}
+		}
+	}
+	if len(auths) == 0 {
+		e := fmt.Sprintf("start votes and authorize votes cannot be empty")
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidRunoffVote,
+			ErrorContext: []string{e},
+		}
+	}
+
+	// Validate authorize votes and start votes
+	for _, v := range sv.StartVotes {
+		// Fetch proposal and vote summary
+		token := v.Vote.Token
+		if !isTokenValid(token) {
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
+				ErrorContext: []string{token},
+			}
+		}
+		pr, err := p.getProp(token)
+		if err != nil {
+			if err == cache.ErrRecordNotFound {
+				err = www.UserError{
+					ErrorCode:    www.ErrorStatusProposalNotFound,
+					ErrorContext: []string{token},
+				}
+			}
+			return nil, err
+		}
+		vs, err := p.voteSummaryGet(token, bb)
+		if err != nil {
+			return nil, err
+		}
+
+		// Validate authorize vote. The validation function requires a v1
+		// AuthorizeVote. This is fine. There is no difference between v1
+		// and v2.
+		av := auths[v.Vote.Token]
+		av1 := www.AuthorizeVote{
+			Token:     av.Token,
+			Action:    av.Action,
+			PublicKey: av.PublicKey,
+			Signature: av.Signature,
+		}
+		err = validateAuthorizeVoteRunoff(av1, *u, *pr, *vs)
+		if err != nil {
+			// Attach the token to the error so the user knows which one
+			// failed.
+			if ue, ok := err.(*www.UserError); ok {
+				ue.ErrorContext = append(ue.ErrorContext, token)
+				err = ue
+			}
+			return nil, err
+		}
+
+		// Validate start vote
+		err = validateStartVoteRunoff(v, *u, *pr, *vs,
+			p.cfg.VoteDurationMin, p.cfg.VoteDurationMax)
+		if err != nil {
+			// Attach the token to the error so the user knows which one
+			// failed.
+			if ue, ok := err.(*www.UserError); ok {
+				ue.ErrorContext = append(ue.ErrorContext, token)
+				err = ue
+			}
+			return nil, err
 		}
 	}
 
@@ -2830,11 +3023,7 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 		}
 		return nil, err
 	}
-	bestBlock, err := p.getBestBlock()
-	if err != nil {
-		return nil, err
-	}
-	rfpVoteSummary, err := p.voteSummaryGet(sv.Token, bestBlock)
+	rfpVoteSummary, err := p.voteSummaryGet(sv.Token, bb)
 	if err != nil {
 		return nil, err
 	}
@@ -2870,8 +3059,8 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 	}
 	submissions := make(map[string]bool, len(rfp.LinkedFrom)) // [token]startVoteFound
 	for _, v := range linkedFromProps {
-		// Filter out abandoned submissions. The vote cannot
-		// be started on these.
+		// Filter out abandoned submissions. These are not allowed
+		// to be included in a runoff vote.
 		if v.Status != www.PropStatusPublic {
 			continue
 		}
@@ -2886,7 +3075,7 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 	for _, v := range sv.StartVotes {
 		_, ok := submissions[v.Vote.Token]
 		if !ok {
-			e := fmt.Sprintf("invalid runoff vote submission: %v",
+			e := fmt.Sprintf("invalid start vote submission: %v",
 				v.Vote.Token)
 			return nil, www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidRunoffVote,
@@ -2905,69 +3094,6 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 				ErrorCode:    www.ErrorStatusInvalidRunoffVote,
 				ErrorContext: []string{e},
 			}
-		}
-	}
-
-	// Compile RFP submission proposals and their vote summaries
-	subTokens := make([]string, 0, len(submissions))
-	subProps := make(map[string]www.ProposalRecord, len(subTokens)) // [token]ProposalRecord
-	for token := range submissions {
-		subTokens = append(subTokens, token)
-		subProps[token] = linkedFromProps[token]
-	}
-	subVotes, err := p.voteSummariesGet(subTokens, bestBlock)
-	if err != nil {
-		return nil, err
-	}
-
-	// Validate RFP submissions
-	for _, v := range sv.StartVotes {
-		pr, ok := subProps[v.Vote.Token]
-		if !ok {
-			// A user error should have already been returned for
-			// invalid runoff vote submissions so this code path
-			// should never be hit.
-			return nil, fmt.Errorf("proposal not found: %v",
-				v.Vote.Token)
-		}
-
-		// Validate version
-		version := strconv.FormatUint(uint64(v.Vote.ProposalVersion), 10)
-		if pr.Version != version {
-			e := fmt.Sprintf("%v got %v, want %v",
-				v.Vote.Token, version, pr.Version)
-			return nil, www.UserError{
-				ErrorCode:    www.ErrorStatusInvalidProposalVersion,
-				ErrorContext: []string{e},
-			}
-		}
-
-		// It should not be possible for an RFP submission to get into
-		// any of the below states so these checks are all just sanity
-		// checks.
-
-		switch {
-		case pr.Status != www.PropStatusPublic:
-			// While its possible for an RFP submission to not be
-			// public, the StartVote validation above should have
-			// already filtered these proposals so this code path
-			// should never be hit.
-			return nil, fmt.Errorf("rfp submission not public: %v",
-				v.Vote.Token)
-		case pr.LinkTo != sv.Token:
-			return nil, fmt.Errorf("proposal not linked to rfp: %v %v",
-				pr.LinkTo, sv.Token)
-		}
-
-		// Validate submission vote status
-		vs, ok := subVotes[v.Vote.Token]
-		if !ok {
-			return nil, fmt.Errorf("vote summary not found: %v",
-				v.Vote.Token)
-		}
-		if vs.Status != www.PropVoteStatusNotAuthorized {
-			return nil, fmt.Errorf("got vote status %v, want %v for %v",
-				vs.Status, www.PropVoteStatusNotAuthorized, v.Vote.Token)
 		}
 	}
 

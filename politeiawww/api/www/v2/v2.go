@@ -37,6 +37,10 @@ const (
 	VoteTypeInvalid  VoteT = 0
 	VoteTypeStandard VoteT = 1
 	VoteTypeRunoff   VoteT = 2
+
+	// AuthorizeVote actions
+	AuthVoteActionAuthorize = "authorize"
+	AuthVoteActionRevoke    = "revoke"
 )
 
 var (
@@ -49,6 +53,15 @@ type VoteOption struct {
 	Id          string `json:"id"`          // Single unique word identifying vote (e.g. yes)
 	Description string `json:"description"` // Longer description of the vote.
 	Bits        uint64 `json:"bits"`        // Bits used for this option
+}
+
+// AuthorizeVote is used to indicate that a proposal has been finalized and is
+// ready to be voted on.
+type AuthorizeVote struct {
+	Token     string `json:"token"`     // Proposal token
+	Action    string `json:"action"`    // Authorize or revoke
+	PublicKey string `json:"publickey"` // Key used for signature
+	Signature string `json:"signature"` // Signature of token+version+action
 }
 
 // Vote represents the vote params and vote options for a proposal vote.
@@ -116,10 +129,9 @@ type StartVoteReply struct {
 // runoff vote can be started at any point by an admin. It is not required that
 // RFP submission authors authorize the start of the vote.
 type StartVoteRunoff struct {
-	Token string `json:"token"` // RFP censorship token
-	// TODO
-	// AuthorizeVotes []AuthorizeVote `json:"authorizevote"` // AuthorizeVote for each RFP submission
-	StartVotes []StartVote `json:"startvotes"` // StartVote for each RFP submission
+	Token          string          `json:"token"`
+	AuthorizeVotes []AuthorizeVote `json:"authorizevote"`
+	StartVotes     []StartVote     `json:"startvotes"`
 }
 
 // The StartVoteRunoffReply is the reply to the StartVoteRunoff command. The

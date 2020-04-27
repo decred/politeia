@@ -482,10 +482,12 @@ func DecodeStartVoteReply(payload []byte) (*StartVoteReply, error) {
 }
 
 // StartVoteRunoff instructs the plugin to start a runoff vote using the given
-// submissions. Each submission is required to have its own StartVote.
+// submissions. Each submission is required to have its own AuthorizeVote and
+// StartVote.
 type StartVoteRunoff struct {
-	Token      string        `json:"token"`      // Token of RFP proposal
-	StartVotes []StartVoteV2 `json:"startvotes"` // StartVotes for each submission
+	Token          string          `json:"token"`          // Token of RFP proposal
+	AuthorizeVotes []AuthorizeVote `json:"authorizevotes"` // Submission auth votes
+	StartVotes     []StartVoteV2   `json:"startvotes"`     // Submission start votes
 }
 
 // EncodeStartVoteRunoffencodes StartVoteRunoffinto a JSON byte slice.
