@@ -1891,7 +1891,7 @@ func (p *politeiawww) processInvoiceTokenInventory(iti cms.InvoiceTokenInventory
 		}
 	}
 
-	// Setup invoice token inventory reply
+	// Setup reply
 	itir := cms.InvoiceTokenInventoryReply{
 		Unreviewed: unreviewed,
 		Updated:    updated,

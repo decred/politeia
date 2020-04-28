@@ -5,8 +5,6 @@
 package main
 
 import (
-	"fmt"
-
 	v1 "github.com/decred/politeia/politeiawww/api/cms/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
@@ -27,7 +25,7 @@ func (cmd *InvoiceTokenInventoryCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("Execute - invoice token inventory command from client")
+
 	return shared.PrintJSON(reply)
 }
 
