@@ -28,7 +28,6 @@ const (
 	IDDCCGeneral           = 6
 	IDDCCStatusChange      = 7
 	IDDCCSupportOpposition = 8
-	IDProposalDetails      = 9
 
 	// Note that 13 is in use by the decred plugin
 	// Note that 14 is in use by the decred plugin
@@ -43,7 +42,11 @@ const (
 	VersionDCCGeneral           = 1
 	VersionDCCStatusChange      = 1
 	VersionDCCSupposeOpposition = 1
-	VersionProposalDetails      = 1
+
+	// Filenames of user defined metadata that is stored as politeiad
+	// files instead of politeiad metadata streams. This is done so
+	// that the metadata is included in the politeiad merkle root calc.
+	FilenameProposalMetadata = "proposalmetadata.json"
 )
 
 // DecodeVersion returns the version of the provided mstream payload. This
@@ -100,8 +103,8 @@ func DecodeProposalGeneralV1(payload []byte) (*ProposalGeneralV1, error) {
 // in the ordering.
 //
 // Differences between v1 and v2:
-// * Name has been removed and is now part of ProposalDetails.
-// * Signature has been updated to include ProposalDetails.
+// * Name has been removed and is now part of proposal metadata.
+// * Signature has been updated to include propoposal metadata.
 type ProposalGeneralV2 struct {
 	Version   uint64 `json:"version"`   // Struct version
 	Timestamp int64  `json:"timestamp"` // Last update of proposal
@@ -121,31 +124,6 @@ func EncodeProposalGeneralV2(md ProposalGeneralV2) ([]byte, error) {
 // DecodeProposalGeneralV2 decodes a JSON byte slice into a ProposalGeneralV2.
 func DecodeProposalGeneralV2(payload []byte) (*ProposalGeneralV2, error) {
 	var md ProposalGeneralV2
-	err := json.Unmarshal(payload, &md)
-	if err != nil {
-		return nil, err
-	}
-	return &md, nil
-}
-
-// ProposalDetails represents proposal metadata that is specified by the
-// user when submitting the proposal.
-type ProposalDetails struct {
-	Name string `json:"name"` // Proposal name
-}
-
-// EncodeProposalDetails encodes a ProposalDetails into a JSON byte slice.
-func EncodeProposalDetails(md ProposalDetails) ([]byte, error) {
-	b, err := json.Marshal(md)
-	if err != nil {
-		return nil, err
-	}
-	return b, nil
-}
-
-// DecodeProposalDetails decodes a JSON byte slice into a ProposalDetails.
-func DecodeProposalDetails(payload []byte) (*ProposalDetails, error) {
-	var md ProposalDetails
 	err := json.Unmarshal(payload, &md)
 	if err != nil {
 		return nil, err

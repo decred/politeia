@@ -5,6 +5,7 @@
 package cockroachdb
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -1357,17 +1358,30 @@ func newProposalMetadata(r Record) (*ProposalMetadata, error) {
 				}
 				name = pg.Name
 			case 2:
-				// The name is not included in ProposalGeneralV2. It was
-				// moved to the mdstream ProposalMetadata.
+				// The proposal name was removed from the ProposalGeneralV2
+				// mdtream and added to the ProposalMetadata file.
+				for _, f := range r.Files {
+					switch f.Name {
+					case mdstream.FilenameProposalMetadata:
+						b, err := base64.StdEncoding.DecodeString(f.Payload)
+						if err != nil {
+							return nil, err
+						}
+						var pm ProposalMetadata
+						err = json.Unmarshal(b, &pm)
+						if err != nil {
+							return nil, err
+						}
+						name = pm.Name
+					}
+				}
 			}
-
-		case mdstream.IDProposalDetails:
-			pd, err := mdstream.DecodeProposalDetails([]byte(v.Payload))
-			if err != nil {
-				return nil, err
-			}
-			name = pd.Name
 		}
+	}
+
+	// Sanity check
+	if name == "" {
+		return nil, fmt.Errorf("no proposal name found")
 	}
 
 	return &ProposalMetadata{

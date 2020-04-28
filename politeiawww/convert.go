@@ -308,8 +308,11 @@ func convertPropStatusFromCache(s cache.RecordStatusT) www.PropStatusT {
 }
 
 func convertPropFromCache(r cache.Record) (*www.ProposalRecord, error) {
-	// Decode markdown stream payloads
+	// Decode metadata stream payloads
 	var (
+		// The proposal name was orginally saved in the ProposalGeneralV1
+		// mdstream but was moved to the ProposalData mdsteam, which is
+		// saved to politeiad as a File, not a MetadataStream.
 		name   string
 		pubkey string
 		sig    string
@@ -326,15 +329,14 @@ func convertPropFromCache(r cache.Record) (*www.ProposalRecord, error) {
 			// General metadata
 			v, err := mdstream.DecodeVersion([]byte(ms.Payload))
 			if err != nil {
-				return nil, fmt.Errorf("DecodeVersion %v %v: %v",
-					token, ms.ID, err)
+				return nil, fmt.Errorf("DecodeVersion %v: %v",
+					ms.ID, err)
 			}
 			switch v {
 			case 1:
 				pg, err := mdstream.DecodeProposalGeneralV1([]byte(ms.Payload))
 				if err != nil {
-					return nil, fmt.Errorf("DecodeProposalGeneralV1 %v: %v",
-						token, err)
+					return nil, fmt.Errorf("DecodeProposalGeneralV1: %v", err)
 				}
 				name = pg.Name
 				pubkey = pg.PublicKey
@@ -342,14 +344,12 @@ func convertPropFromCache(r cache.Record) (*www.ProposalRecord, error) {
 			case 2:
 				pg, err := mdstream.DecodeProposalGeneralV2([]byte(ms.Payload))
 				if err != nil {
-					return nil, fmt.Errorf("DecodeProposalGeneralV2 %v: %v",
-						token, err)
+					return nil, fmt.Errorf("DecodeProposalGeneralV2: %v", err)
 				}
 				pubkey = pg.PublicKey
 				sig = pg.Signature
 			default:
-				return nil, fmt.Errorf("unknown ProposalGeneral version %v %v",
-					token, ms)
+				return nil, fmt.Errorf("unknown ProposalGeneral version %v", ms)
 			}
 
 		case mdstream.IDRecordStatusChange:
@@ -357,8 +357,7 @@ func convertPropFromCache(r cache.Record) (*www.ProposalRecord, error) {
 			b := []byte(ms.Payload)
 			statusesV1, statusesV2, err = mdstream.DecodeRecordStatusChanges(b)
 			if err != nil {
-				return nil, fmt.Errorf("DecodeRecordStatusChanges %v: %v",
-					token, err)
+				return nil, fmt.Errorf("DecodeRecordStatusChanges: %v", err)
 			}
 
 			// Verify the signatures
@@ -366,19 +365,9 @@ func convertPropFromCache(r cache.Record) (*www.ProposalRecord, error) {
 				err := v.VerifySignature(token)
 				if err != nil {
 					// This is not good!
-					return nil, fmt.Errorf("invalid status change signature: "+
-						"token:%v status:%v", token, v)
+					return nil, fmt.Errorf("invalid status change signature: %v", v)
 				}
 			}
-
-		case mdstream.IDProposalDetails:
-			// User specified proposal metadata
-			pd, err := mdstream.DecodeProposalDetails([]byte(ms.Payload))
-			if err != nil {
-				return nil, fmt.Errorf("DecodeProposalDetails %v: %v",
-					token, err)
-			}
-			name = pd.Name
 
 		case decredplugin.MDStreamAuthorizeVote:
 			// Valid proposal mdstream but not needed for a ProposalRecord
@@ -393,8 +382,7 @@ func convertPropFromCache(r cache.Record) (*www.ProposalRecord, error) {
 			log.Tracef("convertPropFromCache: skipping mdstream %v",
 				decredplugin.MDStreamVoteSnapshot)
 		default:
-			return nil, fmt.Errorf("invalid mdstream %v: %v",
-				token, ms)
+			return nil, fmt.Errorf("invalid mdstream: %v", ms)
 		}
 	}
 
@@ -449,12 +437,25 @@ func convertPropFromCache(r cache.Record) (*www.ProposalRecord, error) {
 	metadata := make([]www.Metadata, 0, len(r.Files))
 	for _, f := range r.Files {
 		switch f.Name {
-		case filenameProposalMetadata:
+		case mdstream.FilenameProposalMetadata:
 			metadata = append(metadata, www.Metadata{
 				Digest:  f.Digest,
 				Hint:    www.HintProposalMetadata,
 				Payload: f.Payload,
 			})
+
+			// Extract the proposal metadata from the payload
+			b, err := base64.StdEncoding.DecodeString(f.Payload)
+			if err != nil {
+				return nil, fmt.Errorf("decode file payload %v: %v",
+					mdstream.FilenameProposalMetadata, err)
+			}
+			var pm www.ProposalMetadata
+			err = json.Unmarshal(b, &pm)
+			if err != nil {
+				return nil, fmt.Errorf("unmarshal ProposalMetadata: %v", err)
+			}
+			name = pm.Name
 			continue
 		}
 

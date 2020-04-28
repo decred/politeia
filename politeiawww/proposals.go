@@ -42,9 +42,6 @@ const (
 
 var (
 	validProposalName = regexp.MustCompile(createProposalNameRegex())
-
-	// polieiad filenames for www.Metadata
-	filenameProposalMetadata = fmt.Sprintf("%s.json", www.HintProposalMetadata)
 )
 
 // proposalStats is used to provide a summary of the number of proposals
@@ -65,6 +62,23 @@ type proposalsFilter struct {
 	Before   string
 	UserID   string
 	StateMap map[www.PropStateT]bool
+}
+
+// convertFileFromMetadata converts a v1 Metadata to a politeiad File. User
+// specified metadata is store as a file in politeiad so that it is included
+// in the merkle root that politeiad calculates.
+func convertFileFromMetadata(m www.Metadata) pd.File {
+	var name string
+	switch m.Hint {
+	case www.HintProposalMetadata:
+		name = mdstream.FilenameProposalMetadata
+	}
+	return pd.File{
+		Name:    name,
+		MIME:    mimeTypeTextUTF8,
+		Digest:  m.Digest,
+		Payload: m.Payload,
+	}
 }
 
 // parseProposalName returns the proposal name given the proposal index file
@@ -776,20 +790,6 @@ func (p *politeiawww) getPropComments(token string) ([]www.Comment, error) {
 	return comments, nil
 }
 
-func convertFileFromMetadata(m www.Metadata) pd.File {
-	var name string
-	switch m.Hint {
-	case www.HintProposalMetadata:
-		name = filenameProposalMetadata
-	}
-	return pd.File{
-		Name:    name,
-		MIME:    mimeTypeTextUTF8,
-		Digest:  m.Digest,
-		Payload: m.Payload,
-	}
-}
-
 // processNewProposal tries to submit a new proposal to politeiad.
 func (p *politeiawww) processNewProposal(np www.NewProposal, user *user.User) (*www.NewProposalReply, error) {
 	log.Tracef("processNewProposal")
@@ -813,9 +813,7 @@ func (p *politeiawww) processNewProposal(np www.NewProposal, user *user.User) (*
 
 	// politeiad only includes files in its merkle root calc, not the
 	// metadata streams. This is why we include the ProposalMetadata
-	// as both a a politeiad file and metadata stream. Including it as
-	// a file ensures that it's included in the merkle calc. Including
-	// it as a metadata stream allows its fields to be queried.
+	// as a politeiad file.
 
 	// Setup politeaid files
 	files := convertPropFilesFromWWW(np.Files)
@@ -837,12 +835,11 @@ func (p *politeiawww) processNewProposal(np www.NewProposal, user *user.User) (*
 	if err != nil {
 		return nil, err
 	}
-	pdb, err := mdstream.EncodeProposalDetails(
-		mdstream.ProposalDetails{
-			Name: pm.Name,
-		})
-	if err != nil {
-		return nil, err
+	metadata := []pd.MetadataStream{
+		{
+			ID:      mdstream.IDProposalGeneral,
+			Payload: string(pgb),
+		},
 	}
 
 	// Setup politeiad request
@@ -852,17 +849,8 @@ func (p *politeiawww) processNewProposal(np www.NewProposal, user *user.User) (*
 	}
 	n := pd.NewRecord{
 		Challenge: hex.EncodeToString(challenge),
-		Metadata: []pd.MetadataStream{
-			{
-				ID:      mdstream.IDProposalGeneral,
-				Payload: string(pgb),
-			},
-			{
-				ID:      mdstream.IDProposalDetails,
-				Payload: string(pdb),
-			},
-		},
-		Files: files,
+		Metadata:  metadata,
+		Files:     files,
 	}
 
 	// Send politeiad request
@@ -1490,7 +1478,7 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 		PublicKey: ep.PublicKey,
 		Signature: ep.Signature,
 	}
-	pm, err := validateProposal(np, u)
+	_, err = validateProposal(np, u)
 	if err != nil {
 		return nil, err
 	}
@@ -1502,9 +1490,7 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 
 	// politeiad only includes files in its merkle root calc, not the
 	// metadata streams. This is why we include the ProposalMetadata
-	// as both a a politeiad file and metadata stream. Including it as
-	// a file ensures that it's included in the merkle calc. Including
-	// it as a metadata stream allows its fields to be queried.
+	// as a politeiad file.
 
 	// Setup files
 	files := convertPropFilesFromWWW(ep.Files)
@@ -1526,21 +1512,10 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 	if err != nil {
 		return nil, err
 	}
-	pdb, err := mdstream.EncodeProposalDetails(
-		mdstream.ProposalDetails{
-			Name: pm.Name,
-		})
-	if err != nil {
-		return nil, err
-	}
 	mds := []pd.MetadataStream{
 		{
 			ID:      mdstream.IDProposalGeneral,
 			Payload: string(pgb),
-		},
-		{
-			ID:      mdstream.IDProposalDetails,
-			Payload: string(pdb),
 		},
 	}
 
