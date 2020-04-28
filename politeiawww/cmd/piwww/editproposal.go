@@ -30,8 +30,6 @@ type EditProposalCmd struct {
 	Random bool   `long:"random" optional:"true"` // Generate random proposal data
 }
 
-// TODO fetch existing metadata and keep it the same if not changed
-
 // Execute executes the edit proposal command.
 func (cmd *EditProposalCmd) Execute(args []string) error {
 	token := cmd.Args.Token

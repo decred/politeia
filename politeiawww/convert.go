@@ -310,9 +310,9 @@ func convertPropStatusFromCache(s cache.RecordStatusT) www.PropStatusT {
 func convertPropFromCache(r cache.Record) (*www.ProposalRecord, error) {
 	// Decode metadata stream payloads
 	var (
-		// The proposal name was orginally saved in the ProposalGeneralV1
-		// mdstream but was moved to the ProposalData mdsteam, which is
-		// saved to politeiad as a File, not a MetadataStream.
+		// The name was originally saved in the ProposalGeneralV1
+		// mdstream but was moved to the ProposalData mdsteam, which
+		// is saved to politeiad as a File, not a MetadataStream.
 		name   string
 		pubkey string
 		sig    string

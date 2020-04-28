@@ -5,7 +5,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
@@ -79,26 +78,6 @@ func convertFileFromMetadata(m www.Metadata) pd.File {
 		Digest:  m.Digest,
 		Payload: m.Payload,
 	}
-}
-
-// parseProposalName returns the proposal name given the proposal index file
-// payload.
-func parseProposalName(payload string) (string, error) {
-	// decode payload (base64)
-	rawPayload, err := base64.StdEncoding.DecodeString(payload)
-	if err != nil {
-		return "", err
-	}
-	// @rgeraldes - used reader instead of scanner
-	// due to the size of the input (scanner > token too long)
-	// get the first line from the payload
-	reader := bufio.NewReader(bytes.NewReader(rawPayload))
-	proposalName, _, err := reader.ReadLine()
-	if err != nil {
-		return "", err
-	}
-
-	return string(proposalName), nil
 }
 
 // isValidProposalName returns whether the provided string is a valid proposal

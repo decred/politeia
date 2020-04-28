@@ -1418,7 +1418,7 @@ func (d *decred) hookPostNewRecord(tx *gorm.DB, payload string) error {
 	// this new proposal request could be for a brand new proposal or
 	// it could be for a new proposal version that is the result of a
 	// proposal edit. We only need to store the ProposalMetadata for
-	// the most recent version of the proposal. Deleting any existing
+	// the most recent version of the proposal. Delete any existing
 	// metadata.
 	err = tx.Delete(ProposalMetadata{
 		Token: r.Token,
@@ -1466,7 +1466,7 @@ func (d *decred) hookPostUpdateRecord(tx *gorm.DB, payload string) error {
 	// this new proposal request could be for a brand new proposal or
 	// it could be for a new proposal version that is the result of a
 	// proposal edit. We only need to store the ProposalMetadata for
-	// the most recent version of the proposal. Deleting any existing
+	// the most recent version of the proposal. Delete any existing
 	// metadata.
 	err = tx.Delete(ProposalMetadata{
 		Token: r.Token,
@@ -1849,8 +1849,9 @@ func (d *decred) build(ir *decredplugin.InventoryReply) error {
 		keys = append(keys, v.Key)
 	}
 
-	// Lookup the metadata streams for each record
+	// Lookup the files and metadata streams for each record
 	err = d.recordsdb.
+		Preload("Files").
 		Preload("Metadata").
 		Where(keys).
 		Find(&records).
