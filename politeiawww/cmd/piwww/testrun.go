@@ -62,7 +62,7 @@ func newProposal() (*v1.NewProposal, error) {
 		return nil, err
 	}
 	metadata := []v1.Metadata{
-		v1.Metadata{
+		{
 			Digest:  hex.EncodeToString(util.Digest(pmb)),
 			Hint:    v1.HintProposalMetadata,
 			Payload: base64.StdEncoding.EncodeToString(pmb),

@@ -117,7 +117,7 @@ func (cmd *EditProposalCmd) Execute(args []string) error {
 		return err
 	}
 	metadata := []v1.Metadata{
-		v1.Metadata{
+		{
 			Digest:  hex.EncodeToString(util.Digest(pmb)),
 			Hint:    v1.HintProposalMetadata,
 			Payload: base64.StdEncoding.EncodeToString(pmb),
