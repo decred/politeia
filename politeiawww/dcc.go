@@ -1302,3 +1302,123 @@ func (p *politeiawww) cmsVoteSummary(token string) (*cmsplugin.VoteSummaryReply,
 
 	return vdr, nil
 }
+
+func (p *politeiawww) processActiveVoteDCC() (*cms.ActiveVoteReply, error) {
+	log.Tracef("processActiveVoteDCC")
+
+	vetted, err := p.cache.Inventory()
+	if err != nil {
+		return nil, fmt.Errorf("backend inventory: %v", err)
+	}
+
+	active := make([]string, 0, len(vetted))
+	for _, r := range vetted {
+		for _, m := range r.Metadata {
+			switch m.ID {
+			case mdstream.IDDCCGeneral:
+				d, err := convertCacheToDatabaseDCC(r)
+				if err != nil {
+					log.Errorf("convertCacheToDatabaseDCC: %v", err)
+					break
+				}
+				if d.Status == cms.DCCStatusActive {
+					active = append(active, d.Token)
+				}
+			}
+		}
+	}
+
+	dccs, err := p.getDCCs(active)
+	if err != nil {
+		return nil, err
+	}
+
+	// Compile dcc vote tuples
+	vt := make([]cms.VoteTuple, 0, len(dccs))
+	for _, v := range dccs {
+		// Get vote details from cache
+		vdr, err := p.cmsVoteDetails(v.CensorshipRecord.Token)
+		if err != nil {
+			return nil, fmt.Errorf("decredVoteDetails %v: %v",
+				v.CensorshipRecord.Token, err)
+		}
+		// Create vote tuple
+		vt = append(vt, cms.VoteTuple{
+			DCC:            v,
+			StartVote:      convertCMSStartVoteToCMS(vdr.StartVote),
+			StartVoteReply: convertCMSStartVoteReplyToCMS(vdr.StartVoteReply),
+		})
+	}
+
+	return &cms.ActiveVoteReply{
+		Votes: vt,
+	}, nil
+}
+
+// getDCCs returns a [token]cms.DCCRecord map for the provided list of
+// censorship tokens. If a proposal is not found, the map will not include an
+// entry for the corresponding censorship token. It is the responsibility of
+// the caller to ensure that results are returned for all of the provided
+// censorship tokens.
+func (p *politeiawww) getDCCs(tokens []string) (map[string]cms.DCCRecord, error) {
+	log.Tracef("getDCCs: %v", tokens)
+
+	// Get the dccs from the cache
+	records, err := p.cache.Records(tokens, false)
+	if err != nil {
+		return nil, err
+	}
+
+	// Use pointers for now so the props can be easily updated
+	dccs := make(map[string]*cms.DCCRecord, len(records))
+	for _, v := range records {
+		dr := convertDCCFromCache(v)
+		dccs[v.CensorshipRecord.Token] = &dr
+	}
+
+	// Compile a list of unique proposal author pubkeys. These
+	// are needed to lookup the proposal author info.
+	pubKeys := make(map[string]struct{})
+	for _, pr := range dccs {
+		if _, ok := pubKeys[pr.PublicKey]; !ok {
+			pubKeys[pr.PublicKey] = struct{}{}
+		}
+	}
+
+	// Lookup proposal authors
+	pk := make([]string, 0, len(pubKeys))
+	for k := range pubKeys {
+		pk = append(pk, k)
+	}
+	users, err := p.db.UsersGetByPubKey(pk)
+	if err != nil {
+		return nil, err
+	}
+	if len(users) != len(pubKeys) {
+		// A user is missing from the userdb for one
+		// or more public keys. We're in trouble!
+		notFound := make([]string, 0, len(pubKeys))
+		for v := range pubKeys {
+			if _, ok := users[v]; !ok {
+				notFound = append(notFound, v)
+			}
+		}
+		e := fmt.Sprintf("users not found for pubkeys: %v",
+			strings.Join(notFound, ", "))
+		panic(e)
+	}
+
+	// Fill in proposal author info
+	for i, pr := range dccs {
+		dccs[i].SponsorUserID = users[pr.PublicKey].ID.String()
+		dccs[i].SponsorUsername = users[pr.PublicKey].Username
+	}
+
+	// Convert pointers to values
+	tDCCs := make(map[string]cms.DCCRecord, len(dccs))
+	for token, dr := range dccs {
+		tDCCs[token] = *dr
+	}
+
+	return tDCCs, nil
+}

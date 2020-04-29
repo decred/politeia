@@ -1562,6 +1562,30 @@ func (c *Client) ActiveVotes() (*www.ActiveVoteReply, error) {
 	return &avr, nil
 }
 
+// ActiveVotesDCC retreives all dccs that are currently being voted on.
+func (c *Client) ActiveVotesDCC() (*cms.ActiveVoteReply, error) {
+	responseBody, err := c.makeRequest(http.MethodGet,
+		www.PoliteiaWWWAPIRoute, cms.RouteActiveVotesDCC, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var avr cms.ActiveVoteReply
+	err = json.Unmarshal(responseBody, &avr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal ActiveVoteDCCReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(avr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &avr, nil
+}
+
 // CastVotes casts votes for a proposal.
 func (c *Client) CastVotes(b *www.Ballot) (*www.BallotReply, error) {
 	responseBody, err := c.makeRequest(http.MethodPost,

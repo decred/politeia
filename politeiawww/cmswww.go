@@ -875,6 +875,20 @@ func (p *politeiawww) handleVoteDetailsDCC(w http.ResponseWriter, r *http.Reques
 	util.RespondWithJSON(w, http.StatusOK, vdr)
 }
 
+// handleActiveVoteDCC returns all active dccs that have an active vote.
+func (p *politeiawww) handleActiveVoteDCC(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleActiveVoteDCC")
+
+	avr, err := p.processActiveVoteDCC()
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleActiveVoteDCC: processActiveVoteDCC %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, avr)
+}
+
 func (p *politeiawww) setCMSWWWRoutes() {
 	// Templates
 	//p.addTemplate(templateNewProposalSubmittedName,
@@ -952,6 +966,9 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		permissionLogin)
 	p.addRoute(http.MethodPost, cms.APIRoute,
 		cms.RouteVoteDetailsDCC, p.handleVoteDetailsDCC,
+		permissionLogin)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		cms.RouteActiveVotesDCC, p.handleActiveVoteDCC,
 		permissionLogin)
 
 	// Unauthenticated websocket

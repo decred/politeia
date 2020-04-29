@@ -39,6 +39,7 @@ const (
 	RouteSetDCCStatus        = "/dcc/{token:[A-z0-9]{64}}/status"
 	RouteCastVoteDCC         = "/dcc/vote"
 	RouteVoteDetailsDCC      = "/dcc/votedetails"
+	RouteActiveVotesDCC      = "/dcc/activevotes"
 	RouteAdminInvoices       = "/admin/invoices"
 	RouteManageCMSUser       = "/admin/managecms"
 	RouteAdminUserInvoices   = "/admin/userinvoices"
