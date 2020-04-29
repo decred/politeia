@@ -140,7 +140,7 @@ func newProposalMetadata(t *testing.T, name string) []www.Metadata {
 		t.Fatal(err)
 	}
 	return []www.Metadata{
-		www.Metadata{
+		{
 			Digest:  hex.EncodeToString(util.Digest(pmb)),
 			Hint:    www.HintProposalMetadata,
 			Payload: base64.StdEncoding.EncodeToString(pmb),
