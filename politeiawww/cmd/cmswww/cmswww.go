@@ -97,6 +97,7 @@ type cmswww struct {
 	Secret              shared.SecretCmd         `command:"secret" description:"(user)   ping politeiawww"`
 	Version             shared.VersionCmd        `command:"version" description:"(public) get server info and CSRF token"`
 	VoteDCC             VoteDCCCmd               `command:"votedcc" description:"(user) vote for a given DCC during an all contractor vote"`
+	VoteDetails         VoteDetailsCmd           `command:"votedetails" description:"(user) get the details for a dcc vote"`
 }
 
 // verifyInvoice verifies a invoice's merkle root, author signature, and
