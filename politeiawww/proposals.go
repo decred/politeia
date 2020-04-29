@@ -436,7 +436,7 @@ func (p *politeiawww) getProps(tokens []string) (map[string]www.ProposalRecord, 
 	log.Tracef("getProps: %v", tokens)
 
 	// Get the proposals from the cache
-	records, err := p.cache.Records(tokens, false)
+	records, err := p.cache.Records(tokens, true)
 	if err != nil {
 		return nil, err
 	}
