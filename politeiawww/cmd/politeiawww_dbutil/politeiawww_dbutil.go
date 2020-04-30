@@ -78,6 +78,7 @@ var (
 	addCredits       = flag.Bool("addcredits", false, "")
 	dump             = flag.Bool("dump", false, "")
 	setAdmin         = flag.Bool("setadmin", false, "")
+	setEmail         = flag.Bool("setemail", false, "")
 	stubUsers        = flag.Bool("stubusers", false, "")
 	migrate          = flag.Bool("migrate", false, "")
 	createKey        = flag.Bool("createkey", false, "")
@@ -102,10 +103,10 @@ const usageMsg = `politeiawww_dbutil usage:
           Use testnet database
     -datadir string
           politeiawww data directory
-		      (default osDataDir/politeiawww/data)
+          (default osDataDir/politeiawww/data)
     -host string
           CockroachDB ip:port 
-					(default localhost:26257)
+          (default localhost:26257)
     -rootcert string
           File containing the CockroachDB SSL root cert
           (default ~/.cockroachdb/certs/clients/politeiawww/ca.crt)
@@ -130,6 +131,10 @@ const usageMsg = `politeiawww_dbutil usage:
           Required DB flag : -leveldb or -cockroachdb
           LevelDB args     : <email> <true/false>
           CockroachDB args : <username> <true/false>
+    -setemail
+          Set a user's email to the provided email address
+          Required DB flag : -cockroachdb
+          CockroachDB args : <username> <email>
     -stubusers
           Create user stubs for the public keys in a politeia repo
           Required DB flag : -leveldb or -cockroachdb
@@ -278,6 +283,41 @@ func cmdSetAdmin() error {
 	case *cockroach:
 		return cockroachSetAdmin(args[0], isAdmin)
 	}
+
+	return nil
+}
+
+func cmdSetEmail() error {
+	args := flag.Args()
+	if len(args) < 2 {
+		flag.Usage()
+		return nil
+	}
+
+	switch {
+	case *level:
+		return fmt.Errorf("this cannot be used with the -leveldb flag")
+	case !*cockroach:
+		return fmt.Errorf("must use the -cockroachdb flag to use this command")
+	}
+
+	username := strings.ToLower(args[0])
+	newEmail := strings.ToLower(args[1])
+
+	u, err := userDB.UserGetByUsername(username)
+	if err != nil {
+		return err
+	}
+
+	u.Email = newEmail
+
+	err = userDB.UserUpdate(*u)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("User with username '%v' email successfully updated to '%v'\n",
+		username, newEmail)
 
 	return nil
 }
@@ -895,7 +935,7 @@ func _main() error {
 			return fmt.Errorf("missing database flag; must use " +
 				"-leveldb with this command")
 		}
-	case *verifyIdentities:
+	case *verifyIdentities, *setEmail:
 		// These commands must be run with -cockroachdb
 		if !*cockroach || *level {
 			return fmt.Errorf("invalid database flag; must use " +
@@ -953,6 +993,8 @@ func _main() error {
 		return cmdDump()
 	case *setAdmin:
 		return cmdSetAdmin()
+	case *setEmail:
+		return cmdSetEmail()
 	case *stubUsers:
 		return cmdStubUsers()
 	case *migrate:
@@ -962,6 +1004,7 @@ func _main() error {
 	case *verifyIdentities:
 		return cmdVerifyIdentities()
 	default:
+		fmt.Printf("invalid command\n")
 		flag.Usage()
 	}
 
