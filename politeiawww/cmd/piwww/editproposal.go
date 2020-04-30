@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
@@ -25,7 +26,8 @@ type EditProposalCmd struct {
 		Markdown    string   `positional-arg-name:"markdownfile"`          // Proposal MD file
 		Attachments []string `positional-arg-name:"attachmentfiles"`       // Proposal attachments
 	} `positional-args:"true" optional:"true"`
-	Random bool `long:"random" optional:"true"` // Generate random proposal data
+	Name   string `long:"name" optional:"true"`
+	Random bool   `long:"random" optional:"true"` // Generate random proposal data
 }
 
 // Execute executes the edit proposal command.
@@ -103,8 +105,27 @@ func (cmd *EditProposalCmd) Execute(args []string) error {
 		files = append(files, f)
 	}
 
+	// Setup metadata
+	if cmd.Name == "" {
+		cmd.Name = "Some proposal title"
+	}
+	pm := v1.ProposalMetadata{
+		Name: cmd.Name,
+	}
+	pmb, err := json.Marshal(pm)
+	if err != nil {
+		return err
+	}
+	metadata := []v1.Metadata{
+		{
+			Digest:  hex.EncodeToString(util.Digest(pmb)),
+			Hint:    v1.HintProposalMetadata,
+			Payload: base64.StdEncoding.EncodeToString(pmb),
+		},
+	}
+
 	// Compute merkle root and sign it
-	sig, err := shared.SignedMerkleRoot(files, cfg.Identity)
+	sig, err := shared.SignedMerkleRoot(files, metadata, cfg.Identity)
 	if err != nil {
 		return fmt.Errorf("SignMerkleRoot: %v", err)
 	}
@@ -113,6 +134,7 @@ func (cmd *EditProposalCmd) Execute(args []string) error {
 	ep := &v1.EditProposal{
 		Token:     token,
 		Files:     files,
+		Metadata:  metadata,
 		PublicKey: hex.EncodeToString(cfg.Identity.Public.Key[:]),
 		Signature: sig,
 	}

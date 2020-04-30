@@ -1098,7 +1098,9 @@ Reply:
 ### `New proposal`
 
 Submit a new proposal to the politeiawww server.
-The proposal name is derived from the first line of the markdown file - index.md.
+
+The Metadata field is required to include a [`Metadata`](#metadata) object that
+contains an encoded [`ProposalMetadata`](#proposal-metadata).
 
 **Route:** `POST /v1/proposals/new`
 
@@ -1107,7 +1109,8 @@ The proposal name is derived from the first line of the markdown file - index.md
 | Parameter | Type | Description | Required |
 |-----------|------|-------------|----------|
 | files | array of [`File`](#file)s | Files are the body of the proposal. It should consist of one markdown file - named "index.md" - and up to five pictures. **Note:** all parameters within each [`File`](#file) are required. | Yes |
-| signature | string | Signature of the string representation of the Merkle root of the files payload. Note that the merkle digests are calculated on the decoded payload.. | Yes |
+| metadata | array of [`Metadata`](#metadata) | User specified proposal metadata.  |
+| signature | string | Signature of the string representation of the Merkle root of the file payloads and the metadata payloads. Note that the merkle digests are calculated on the decoded payload.. | Yes |
 | publickey | string | Public key from the client side, sent to politeiawww for verification | Yes |
 
 **Results:**
@@ -1162,14 +1165,16 @@ Reply:
 ### `Edit proposal`
 
 Edit an existent proposal into the politeiawww server.
-The proposal name is derived from the first line of the markdown file - index.md.
+
+The Metadata field is required to include a [`Metadata`](#metadata) object that
+contains an encoded [`ProposalMetadata`](#proposal-metadata).
 
 Note that updating public proposals will generate a new record version. While
 updating an unvetted record will change the record but it will not generate
 a new version.
 
-The example shown below is for a public proposal where the proposal version is increased
-by one after the update.
+The example shown below is for a public proposal where the proposal version is
+increased by one after the update.
 
 **Route:** `POST /v1/proposals/edit`
 
@@ -1178,7 +1183,8 @@ by one after the update.
 | Parameter | Type | Description | Required |
 |-----------|------|-------------|----------|
 | files | array of [`File`](#file)s | Files are the body of the proposal. It should consist of one markdown file - named "index.md" - and up to five pictures. **Note:** all parameters within each [`File`](#file) are required. | Yes |
-| signature | string | Signature of the string representation of the Merkle root of the files payload. Note that the merkle digests are calculated on the decoded payload.. | Yes |
+| metadata | array of [`Metadata`](#metadata) | User specified proposal metadata.  |
+| signature | string | Signature of the string representation of the Merkle root of the file payloads and the metadata payloads. Note that the merkle digests are calculated on the decoded payload.. | Yes |
 | publickey | string | Public key from the client side, sent to politeiawww for verification | Yes |
 
 **Results:**
@@ -2786,6 +2792,19 @@ This is a shortened representation of a user, used for lists.
 | mime | string | MIME type of the payload. Currently the system only supports md and png files. The server shall reject invalid MIME types. |
 | digest | string | Digest is a SHA256 digest of the payload. The digest shall be verified by politeiad. |
 | payload | string | Payload is the actual file content. It shall be base64 encoded. Files have size limits that can be obtained via the [`Policy`](#policy) call. The server shall strictly enforce policy limits. |
+
+### `Metadata`
+
+| | Type | Description |
+|-|-|-|
+| Digest | string | SHA256 digest of the JSON encoded payload |
+| Hint | string | Hint that describes the payload |
+| Payload | string | Base64 encoded metadata content where the metadata content is JSON encoded. |
+
+### `Proposal Metadata`
+| | Type | Description |
+|-|-|-|
+| Name | string | Proposal name. |
 
 ### `Vote Summary`
 
