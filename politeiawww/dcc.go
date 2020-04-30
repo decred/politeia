@@ -1321,7 +1321,7 @@ func (p *politeiawww) processActiveVoteDCC() (*cms.ActiveVoteReply, error) {
 					log.Errorf("convertCacheToDatabaseDCC: %v", err)
 					break
 				}
-				if d.Status == cms.DCCStatusActive {
+				if d.Status == cms.DCCStatusAllVote {
 					active = append(active, d.Token)
 				}
 			}

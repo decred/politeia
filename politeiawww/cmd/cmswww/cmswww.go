@@ -54,6 +54,7 @@ type cmswww struct {
 	Config shared.Config
 
 	// Commands
+	ActiveVotes         ActiveVotesCmd           `command:"activevotes" description:"(user) get the dccs that are being voted on"`
 	AdminInvoices       AdminInvoicesCmd         `command:"admininvoices" description:"(admin)  get all invoices (optional by month/year and/or status)"`
 	CensorComment       shared.CensorCommentCmd  `command:"censorcomment" description:"(admin)  censor a comment"`
 	ChangePassword      shared.ChangePasswordCmd `command:"changepassword" description:"(user)   change the password for the logged in user"`
