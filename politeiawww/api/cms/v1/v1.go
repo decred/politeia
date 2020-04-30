@@ -825,15 +825,10 @@ type VoteDetails struct {
 }
 
 // VoteDetailsReply is the reply to the VoteDetails command. It contains all
-// of the information from a StartVote and StartVoteReply.
-//
-// Version specifies the StartVote version that was used to initiate the
-// proposal vote. See the StartVote comment for details on the differences
-// between the StartVote versions.
+// of the information from a StartVote and StartVoteReply
 //
 // Vote contains a JSON encoded Vote and needs to be decoded according to the
-// Version. See the Vote comment for details on the differences between the
-// Vote versions.
+// Version.
 type VoteDetailsReply struct {
 	Version          uint32   `json:"version"`          // StartVote version
 	Vote             string   `json:"vote"`             // JSON encoded Vote struct

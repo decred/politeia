@@ -89,7 +89,7 @@ type CastVote struct {
 	Token     string `json:"token"`     // DCC ID
 	UserID    string `json:"publickey"` // User ID provided by cmswww
 	VoteBit   string `json:"votebit"`   // Vote bit that was selected, this is encode in hex
-	Signature string `json:"signature"` // Signature of Token+Ticket+VoteBit
+	Signature string `json:"signature"` // Signature of the Token+VoteBit+UserID by the submitting user.
 }
 
 // EncodeCastVote encodes CastVotes into a JSON byte slice.

@@ -368,7 +368,6 @@ func (g *gitBackEnd) pluginStartDCCVote(payload string) (string, error) {
 	// This will become the format "userid+weight"
 	eligbleUsers := make([]string, len(vote.UserWeights))
 	for i, uw := range vote.UserWeights {
-		fmt.Println(i, uw, len(vote.UserWeights))
 		eligbleUsers[i] = uw.UserID + "," + strconv.Itoa(int(uw.Weight))
 	}
 
