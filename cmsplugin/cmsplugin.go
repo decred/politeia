@@ -1,7 +1,12 @@
 package cmsplugin
 
 import (
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
+
+	"github.com/decred/politeia/politeiad/api/v1/identity"
+	"github.com/decred/politeia/util"
 )
 
 type ErrorStatusT int
@@ -447,4 +452,24 @@ func DecodeLoadVoteResultsReply(payload []byte) (*LoadVoteResultsReply, error) {
 	}
 
 	return &reply, nil
+}
+
+// VerifySignature verifies that the StartVoteV1 signature is correct.
+func (s *StartVote) VerifySignature() error {
+	sig, err := util.ConvertSignature(s.Signature)
+	if err != nil {
+		return err
+	}
+	b, err := hex.DecodeString(s.PublicKey)
+	if err != nil {
+		return err
+	}
+	pk, err := identity.PublicIdentityFromBytes(b)
+	if err != nil {
+		return err
+	}
+	if !pk.VerifyMessage([]byte(s.Vote.Token), sig) {
+		return fmt.Errorf("invalid signature")
+	}
+	return nil
 }

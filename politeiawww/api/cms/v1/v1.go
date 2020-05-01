@@ -16,6 +16,7 @@ type DomainTypeT int
 type ContractorTypeT int
 type DCCTypeT int
 type DCCStatusT int
+type DCCVoteStatusT int
 
 const (
 	APIVersion = 1
@@ -40,6 +41,7 @@ const (
 	RouteCastVoteDCC         = "/dcc/vote"
 	RouteVoteDetailsDCC      = "/dcc/votedetails"
 	RouteActiveVotesDCC      = "/dcc/activevotes"
+	RouteStartVoteDCC        = "/dcc/startvote"
 	RouteAdminInvoices       = "/admin/invoices"
 	RouteManageCMSUser       = "/admin/managecms"
 	RouteAdminUserInvoices   = "/admin/userinvoices"
@@ -101,7 +103,12 @@ const (
 	DCCStatusActive   DCCStatusT = 1 // Currently active issuance/revocation (awaiting sponsors)
 	DCCStatusApproved DCCStatusT = 2 // Fully approved DCC proposal
 	DCCStatusRejected DCCStatusT = 3 // Rejected DCC proposal
-	DCCStatusAllVote  DCCStatusT = 4 // Debated DCC proposal (full contractor vote)
+
+	// DCC vote status codes
+	DCCVoteStatusInvalid    DCCVoteStatusT = 0
+	DCCVoteStatusNotStarted DCCVoteStatusT = 1
+	DCCVoteStatusStarted    DCCVoteStatusT = 2
+	DCCVoteStatusFinished   DCCVoteStatusT = 3
 
 	InvoiceInputVersion = 1
 

@@ -889,6 +889,44 @@ func (p *politeiawww) handleActiveVoteDCC(w http.ResponseWriter, r *http.Request
 	util.RespondWithJSON(w, http.StatusOK, avr)
 }
 
+// handleStartVoteDCC handles the dcc StartVote route.
+func (p *politeiawww) handleStartVoteDCC(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleStartVoteDCC")
+
+	var sv cms.StartVote
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&sv); err != nil {
+		RespondWithError(w, r, 0, "handleStartVoteDCC: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleStartVoteDCC: getSessionUser %v", err)
+		return
+	}
+
+	// Sanity
+	if !user.Admin {
+		RespondWithError(w, r, 0,
+			"handleStartVoteDCC: admin %v", user.Admin)
+		return
+	}
+
+	svr, err := p.processStartVoteDCC(sv, user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleStartVoteDCC: processStartVoteDCC %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, svr)
+}
+
 func (p *politeiawww) setCMSWWWRoutes() {
 	// Templates
 	//p.addTemplate(templateNewProposalSubmittedName,
@@ -1007,5 +1045,8 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		permissionAdmin)
 	p.addRoute(http.MethodPost, cms.APIRoute,
 		cms.RouteSetDCCStatus, p.handleSetDCCStatus,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, cms.APIRoute,
+		cms.RouteStartVoteDCC, p.handleStartVoteDCC,
 		permissionAdmin)
 }

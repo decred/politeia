@@ -1768,3 +1768,31 @@ func convertCMSStartVoteReplyToCMS(svr cmsplugin.StartVoteReply) cms.StartVoteRe
 		UserWeights:      svr.EligibleUsers,
 	}
 }
+
+func convertStartVoteToCMS(sv cms.StartVote) cmsplugin.StartVote {
+	vote := cmsplugin.Vote{
+		Token:            sv.Vote.Token,
+		Mask:             sv.Vote.Mask,
+		Duration:         sv.Vote.Duration,
+		QuorumPercentage: sv.Vote.QuorumPercentage,
+		PassPercentage:   sv.Vote.PassPercentage,
+	}
+
+	voteOptions := make([]cmsplugin.VoteOption, 0, len(sv.Vote.Options))
+	for _, option := range sv.Vote.Options {
+		voteOption := cmsplugin.VoteOption{
+			Id:          option.Id,
+			Description: option.Description,
+			Bits:        option.Bits,
+		}
+		voteOptions = append(voteOptions, voteOption)
+	}
+	vote.Options = voteOptions
+
+	return cmsplugin.StartVote{
+		Vote:      vote,
+		PublicKey: sv.PublicKey,
+		Signature: sv.Signature,
+	}
+
+}

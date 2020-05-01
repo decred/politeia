@@ -59,11 +59,6 @@ var (
 		cms.DCCStatusActive: {
 			cms.DCCStatusApproved,
 			cms.DCCStatusRejected,
-			cms.DCCStatusAllVote,
-		},
-		cms.DCCStatusAllVote: {
-			cms.DCCStatusApproved,
-			cms.DCCStatusRejected,
 		},
 	}
 )
@@ -882,22 +877,6 @@ func (p *politeiawww) processSetDCCStatus(sds cms.SetDCCStatus, u *user.User) (*
 	if err != nil {
 		return nil, err
 	}
-	vd, err := p.cmsVoteDetails(sds.Token)
-	if err != nil {
-		return nil, err
-	}
-	bb, err := p.getBestBlock()
-	if err != nil {
-		return nil, err
-	}
-
-	// If it's an all vote DCC and the vote is still occurring, admin cannot
-	// update the status.
-	if dcc.Status == cms.DCCStatusAllVote && uint64(vd.StartVoteReply.EndHeight) > bb {
-		return nil, www.UserError{
-			ErrorCode: cms.ErrorStatusDCCVoteStillLive,
-		}
-	}
 
 	// Create the change record.
 	c := mdstream.DCCStatusChange{
@@ -964,12 +943,6 @@ func (p *politeiawww) processSetDCCStatus(sds cms.SetDCCStatus, u *user.User) (*
 			if err != nil {
 				return nil, err
 			}
-		}
-	case cms.DCCStatusAllVote:
-		// Do DCC user all vote start processing
-		err = p.allVoteDCC(sds.Token, sds.Signature, u)
-		if err != nil {
-			return nil, err
 		}
 	}
 
@@ -1046,22 +1019,8 @@ func (p *politeiawww) processCastVoteDCC(cv cms.CastVote, u *user.User) (*cms.Ca
 		}
 	}
 
-	dcc, err := p.getDCC(cv.Token)
-	if err != nil {
-		if err == cache.ErrRecordNotFound {
-			err = www.UserError{
-				ErrorCode: cms.ErrorStatusDCCNotFound,
-			}
-		}
-		return nil, err
-	}
-
 	// Only allow voting on All Vote DCC proposals
-	if dcc.Status != cms.DCCStatusAllVote {
-		return nil, www.UserError{
-			ErrorCode: cms.ErrorStatusInvalidDCCVoteStatus,
-		}
-	}
+	// Get vote summary to check vote status
 
 	bb, err := p.getBestBlock()
 	if err != nil {
@@ -1149,96 +1108,6 @@ func (p *politeiawww) processVoteDetailsDCC(token string) (*cms.VoteDetailsReply
 	return vdr, nil
 }
 
-func (p *politeiawww) allVoteDCC(token, signature string, u *user.User) error {
-	log.Tracef("allVoteDCC: %v %v", token, u.PublicKey())
-
-	userWeights, err := p.getCMSUserWeights()
-	if err != nil {
-		return err
-	}
-
-	cmsUserWeights := make([]cmsplugin.UserWeight, 0, len(userWeights))
-
-	for id, weight := range userWeights {
-		cmsuw := cmsplugin.UserWeight{
-			UserID: id,
-			Weight: weight,
-		}
-		cmsUserWeights = append(cmsUserWeights, cmsuw)
-	}
-
-	duration := 2016
-	quorum := 10
-	pass := 60
-	sv := cmsplugin.StartVote{
-		UserWeights: cmsUserWeights,
-		PublicKey:   u.PublicKey(),
-		Signature:   signature,
-		Vote: cmsplugin.Vote{
-			Token:            token,
-			Mask:             0x03, // bit 0 no, bit 1 yes
-			Duration:         uint32(duration),
-			QuorumPercentage: uint32(quorum),
-			PassPercentage:   uint32(pass),
-			Options: []cmsplugin.VoteOption{
-				{
-					Id:          cmsplugin.DCCDisapprovalString,
-					Description: "Don't approve DCC",
-					Bits:        0x01,
-				},
-				{
-					Id:          cmsplugin.DCCApprovalString,
-					Description: "Approve DCC",
-					Bits:        0x02,
-				},
-			},
-		},
-	}
-	payload, err := cmsplugin.EncodeStartVote(sv)
-	if err != nil {
-		return err
-	}
-
-	// Tell decred plugin to start voting
-	challenge, err := util.Random(pd.ChallengeSize)
-	if err != nil {
-		return err
-	}
-
-	pc := pd.PluginCommand{
-		Challenge: hex.EncodeToString(challenge),
-		ID:        cmsplugin.ID,
-		Command:   cmsplugin.CmdStartVote,
-		CommandID: cmsplugin.CmdStartVote + " " + token,
-		Payload:   string(payload),
-	}
-
-	responseBody, err := p.makeRequest(http.MethodPost,
-		pd.PluginCommandRoute, pc)
-	if err != nil {
-		return err
-	}
-
-	var reply pd.PluginCommandReply
-	err = json.Unmarshal(responseBody, &reply)
-	if err != nil {
-		return fmt.Errorf("Could not unmarshal "+
-			"PluginCommandReply: %v", err)
-	}
-
-	// Verify the challenge.
-	err = util.VerifyChallenge(p.cfg.Identity, challenge, reply.Response)
-	if err != nil {
-		return err
-	}
-
-	_, err = cmsplugin.DecodeStartVoteReply([]byte(reply.Payload))
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 // cmsVoteDetails sends the cms plugin votedetails command to the cache
 // and returns the vote details for the passed in proposal.
 func (p *politeiawww) cmsVoteDetails(token string) (*cmsplugin.VoteDetailsReply, error) {
@@ -1316,14 +1185,7 @@ func (p *politeiawww) processActiveVoteDCC() (*cms.ActiveVoteReply, error) {
 		for _, m := range r.Metadata {
 			switch m.ID {
 			case mdstream.IDDCCGeneral:
-				d, err := convertCacheToDatabaseDCC(r)
-				if err != nil {
-					log.Errorf("convertCacheToDatabaseDCC: %v", err)
-					break
-				}
-				if d.Status == cms.DCCStatusAllVote {
-					active = append(active, d.Token)
-				}
+				// Get vote summary and thereby status to check here.
 			}
 		}
 	}
@@ -1421,4 +1283,182 @@ func (p *politeiawww) getDCCs(tokens []string) (map[string]cms.DCCRecord, error)
 	}
 
 	return tDCCs, nil
+}
+
+// processStartVoteV2 starts the voting period on a proposal using the provided
+// v2 StartVote.
+func (p *politeiawww) processStartVoteDCC(sv cms.StartVote, u *user.User) (*cms.StartVoteReply, error) {
+	log.Tracef("processStartVoteDCC %v", sv.Vote.Token)
+
+	// Sanity check
+	if !u.Admin {
+		return nil, fmt.Errorf("user is not an admin")
+	}
+
+	// Validate vote bits
+	for _, v := range sv.Vote.Options {
+		err := validateVoteBitDCC(sv.Vote, v.Bits)
+		if err != nil {
+			log.Debugf("processStartVoteDCC: invalid vote bits: %v", err)
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusInvalidPropVoteBits,
+			}
+		}
+	}
+
+	// Validate vote params
+	switch {
+	case sv.Vote.Duration < p.cfg.VoteDurationMin:
+		e := fmt.Sprintf("vote duration must be > %v", p.cfg.VoteDurationMin)
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidPropVoteParams,
+			ErrorContext: []string{e},
+		}
+	case sv.Vote.Duration > p.cfg.VoteDurationMax:
+		e := fmt.Sprintf("vote duration must be < %v", p.cfg.VoteDurationMax)
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidPropVoteParams,
+			ErrorContext: []string{e},
+		}
+	case sv.Vote.QuorumPercentage > 100:
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidPropVoteParams,
+			ErrorContext: []string{"quorum percentage must be <= 100"},
+		}
+	case sv.Vote.PassPercentage > 100:
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidPropVoteParams,
+			ErrorContext: []string{"pass percentage must be <= 100"},
+		}
+	}
+
+	// Ensure the public key is the user's active key
+	if sv.PublicKey != u.PublicKey() {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSigningKey,
+		}
+	}
+
+	// Validate signature
+	dsv := convertStartVoteToCMS(sv)
+
+	userWeights, err := p.getCMSUserWeights()
+	if err != nil {
+		return nil, err
+	}
+
+	cmsUserWeights := make([]cmsplugin.UserWeight, 0, len(userWeights))
+	for id, weight := range userWeights {
+		cmsuw := cmsplugin.UserWeight{
+			UserID: id,
+			Weight: weight,
+		}
+		cmsUserWeights = append(cmsUserWeights, cmsuw)
+	}
+	dsv.UserWeights = cmsUserWeights
+
+	err = dsv.VerifySignature()
+	if err != nil {
+		log.Debugf("processStartVote: VerifySignature: %v", err)
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSignature,
+		}
+	}
+
+	// Validate proposal version and status
+	pr, err := p.getDCC(sv.Vote.Token)
+	if err != nil {
+		if err == cache.ErrRecordNotFound {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusProposalNotFound,
+			}
+		}
+		return nil, err
+	}
+	if pr.Status != cms.DCCStatusActive {
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusWrongStatus,
+			ErrorContext: []string{"dcc is not active"},
+		}
+	}
+
+	// Validate vote status
+	vsr, err := p.cmsVoteSummary(sv.Vote.Token)
+	if err != nil {
+		return nil, err
+	}
+	if vsr.EndHeight != 0 {
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusWrongVoteStatus,
+			ErrorContext: []string{"vote already started"},
+		}
+	}
+
+	// Tell decred plugin to start voting
+	payload, err := cmsplugin.EncodeStartVote(dsv)
+	if err != nil {
+		return nil, err
+	}
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+	pc := pd.PluginCommand{
+		Challenge: hex.EncodeToString(challenge),
+		ID:        cmsplugin.ID,
+		Command:   cmsplugin.CmdStartVote,
+		CommandID: cmsplugin.CmdStartVote + " " + sv.Vote.Token,
+		Payload:   string(payload),
+	}
+	responseBody, err := p.makeRequest(http.MethodPost,
+		pd.PluginCommandRoute, pc)
+	if err != nil {
+		return nil, err
+	}
+
+	// Handle reply
+	var reply pd.PluginCommandReply
+	err = json.Unmarshal(responseBody, &reply)
+	if err != nil {
+		return nil, fmt.Errorf("could not unmarshal "+
+			"PluginCommandReply: %v", err)
+	}
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, reply.Response)
+	if err != nil {
+		return nil, err
+	}
+	dsvr, err := cmsplugin.DecodeStartVoteReply([]byte(reply.Payload))
+	if err != nil {
+		return nil, err
+	}
+	svr := convertCMSStartVoteReplyToCMS(dsvr)
+	if err != nil {
+		return nil, err
+	}
+
+	/// XXX Do some sort of notification?
+
+	return &svr, nil
+}
+
+// validateVoteBitDCC ensures that bit is a valid vote bit.
+func validateVoteBitDCC(vote cms.Vote, bit uint64) error {
+	if len(vote.Options) == 0 {
+		return fmt.Errorf("vote corrupt")
+	}
+	if bit == 0 {
+		return fmt.Errorf("invalid bit 0x%x", bit)
+	}
+	if vote.Mask&bit != bit {
+		return fmt.Errorf("invalid mask 0x%x bit 0x%x",
+			vote.Mask, bit)
+	}
+
+	for _, v := range vote.Options {
+		if v.Bits == bit {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("bit not found 0x%x", bit)
 }

@@ -2213,6 +2213,31 @@ func (c *Client) VoteDetailsDCC(cv cms.VoteDetails) (*cms.VoteDetailsReply, erro
 	return &vdr, nil
 }
 
+// StartVoteV2 sends the provided v2 StartVote to the politeiawww backend.
+func (c *Client) StartVoteDCC(sv cms.StartVote) (*cms.StartVoteReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost,
+		cms.APIRoute, cms.RouteStartVoteDCC, sv)
+	if err != nil {
+		return nil, err
+	}
+
+	var svr cms.StartVoteReply
+	err = json.Unmarshal(responseBody, &svr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal StartVoteReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		svr.UserWeights = []string{"removed by piwww for readability"}
+		err := prettyPrintJSON(svr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &svr, nil
+}
+
 // WalletAccounts retrieves the walletprc accounts.
 func (c *Client) WalletAccounts() (*walletrpc.AccountsResponse, error) {
 	if c.wallet == nil {
