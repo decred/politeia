@@ -671,14 +671,13 @@ func (c *ctx) inventory() error {
 			continue
 		}
 
-		url := ""
-		// Create URL based on Proposal Token and the current network
-		if c.cfg.TestNet {
-			url = "https://test-proposals.decred.org/proposals/"
-		} else {
-			url = "https://proposals.decred.org/proposals/"
+		url := c.cfg.PoliteiaWWW
+		// Remove 'api' from config url if found
+		apiIndex := strings.Index(url, "api")
+		if apiIndex > 0 {
+			url = url[:apiIndex]
 		}
-		url += v.StartVote.Vote.Token
+		url += "proposals/" + v.StartVote.Vote.Token
 
 		// Display vote bits
 		fmt.Printf("Vote: %v\n", v.StartVote.Vote.Token)
