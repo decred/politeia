@@ -160,7 +160,7 @@ const usageMsg = `politeiawww_dbutil usage:
           Verify a user's identities do not violate any politeia rules. Invalid
           identities are fixed.
           Required DB flag : -cockroachdb
-		  Args             : <username>
+          Args             : <username>
     -addadmin
           Adds an admin user with the given email, username and password.
           Required DB flag : -cockroachdb
@@ -910,6 +910,9 @@ func cmdVerifyIdentities() error {
 }
 
 func cockroachAddAdmin(email, username, password string) error {
+	// Do an initial hash on the plaintext password as we do before transmission
+	// in GUI or CLI.
+	password = shared.DigestSHA3(password)
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password),
 		bcrypt.DefaultCost)
 	if err != nil {
@@ -950,7 +953,7 @@ func cmdAddAdmin() error {
 	case *cockroach:
 		return cockroachAddAdmin(strings.TrimSpace(email),
 			strings.TrimSpace(username),
-			shared.DigestSHA3(strings.TrimSpace(password)))
+			strings.TrimSpace(password))
 	}
 
 	return nil
