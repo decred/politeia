@@ -5,12 +5,15 @@
 package testcache
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"strconv"
 
 	"github.com/decred/politeia/decredplugin"
 	decred "github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/mdstream"
+	www "github.com/decred/politeia/politeiawww/api/www/v1"
 )
 
 func (c *testcache) getComments(payload string) (string, error) {
@@ -216,20 +219,31 @@ func (c *testcache) voteSummaries(cmdPayload string) (string, error) {
 func (c *testcache) findLinkedFrom(token string) ([]string, error) {
 	linkedFrom := make([]string, 0, len(c.records))
 
+	// Check all records in the cache to see if they're linked to the
+	// provided token.
 	for _, allVersions := range c.records {
 		// Get the latest version of the proposal
 		r := allVersions[string(len(allVersions))]
 
-		// Check the LinkTo field of the ProposalGeneral mdstream
-		for _, md := range r.Metadata {
-			if md.ID == mdstream.IDProposalGeneral {
-				pg, err := mdstream.DecodeProposalGeneral([]byte(md.Payload))
+		// Extract LinkTo from the ProposalMetadata file
+		for _, f := range r.Files {
+			if f.Name == mdstream.FilenameProposalMetadata {
+				b, err := base64.StdEncoding.DecodeString(f.Payload)
 				if err != nil {
 					return nil, err
 				}
-				if pg.LinkTo == token {
+				var pm www.ProposalMetadata
+				err = json.Unmarshal(b, &pm)
+				if err != nil {
+					return nil, err
+				}
+				if pm.LinkTo == token {
+					// This proposal links to the provided token
 					linkedFrom = append(linkedFrom, r.CensorshipRecord.Token)
 				}
+
+				// No need to continue
+				break
 			}
 		}
 	}

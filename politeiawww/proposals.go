@@ -66,9 +66,10 @@ type proposalsFilter struct {
 	StateMap map[www.PropStateT]bool
 }
 
-// convertFileFromMetadata converts a v1 Metadata to a politeiad File. User
-// specified metadata is store as a file in politeiad so that it is included
-// in the merkle root that politeiad calculates.
+// convertMetadataFromFile returns a politeiad File that was converted from a
+// politiawww v1 Metadata. User specified metadata is store as a file in
+// politeiad so that it is included in the merkle root that politeiad
+// calculates.
 func convertFileFromMetadata(m www.Metadata) pd.File {
 	var name string
 	switch m.Hint {
@@ -184,12 +185,18 @@ func validateVoteBit(vote www2.Vote, bit uint64) error {
 	return fmt.Errorf("bit not found 0x%x", bit)
 }
 
-/*
-// TODO
-func (p *politeiawww) validateProposalData(pd www.ProposalData) error {
+func (p *politeiawww) validateProposalMetadata(pm www.ProposalMetadata) error {
+	// Validate Name
+	if !isValidProposalName(pm.Name) {
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusProposalInvalidTitle,
+			ErrorContext: []string{createProposalNameRegex()},
+		}
+	}
+
 	// Validate LinkTo
-	if pd.LinkTo != "" {
-		if !isTokenValid(pd.LinkTo) {
+	if pm.LinkTo != "" {
+		if !isTokenValid(pm.LinkTo) {
 			return www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidLinkTo,
 				ErrorContext: []string{"invalid token"},
@@ -198,7 +205,7 @@ func (p *politeiawww) validateProposalData(pd www.ProposalData) error {
 
 		// Validate the LinkTo proposal. The only type of proposal
 		// that we currently allow linking to is an RFP.
-		r, err := p.cache.Record(pd.LinkTo)
+		r, err := p.cache.Record(pm.LinkTo)
 		if err != nil {
 			if err == cache.ErrRecordNotFound {
 				return www.UserError{
@@ -206,9 +213,12 @@ func (p *politeiawww) validateProposalData(pd www.ProposalData) error {
 				}
 			}
 		}
-		pr := convertPropFromCache(*r)
+		pr, err := convertPropFromCache(*r)
+		if err != nil {
+			return err
+		}
 		switch {
-		case !isRFP(pr):
+		case !isRFP(*pr):
 			return www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidLinkTo,
 				ErrorContext: []string{"linkto proposal is not an rfp"},
@@ -223,7 +233,7 @@ func (p *politeiawww) validateProposalData(pd www.ProposalData) error {
 				ErrorCode:    www.ErrorStatusInvalidLinkTo,
 				ErrorContext: []string{"linkto proposal is not vetted"},
 			}
-		case isRFP(pr) && pd.LinkBy != 0:
+		case isRFP(*pr) && pm.LinkBy != 0:
 			return www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidLinkTo,
 				ErrorContext: []string{"an rfp cannot link to an rfp"},
@@ -232,18 +242,18 @@ func (p *politeiawww) validateProposalData(pd www.ProposalData) error {
 	}
 
 	// Validate LinkBy
-	if pd.LinkBy != 0 {
+	if pm.LinkBy != 0 {
 		min := time.Now().Unix() + www.PolicyLinkByMinPeriod
 		max := time.Now().Unix() + www.PolicyLinkByMaxPeriod
 		switch {
-		case pd.LinkBy < min:
+		case pm.LinkBy < min:
 			e := fmt.Sprintf("linkby period cannot be shorter than %v seconds",
 				www.PolicyLinkByMinPeriod)
 			return www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidLinkBy,
 				ErrorContext: []string{e},
 			}
-		case pd.LinkBy > max:
+		case pm.LinkBy > max:
 			e := fmt.Sprintf("linkby period cannot be greater than %v seconds",
 				www.PolicyLinkByMaxPeriod)
 			return www.UserError{
@@ -255,74 +265,6 @@ func (p *politeiawww) validateProposalData(pd www.ProposalData) error {
 
 	return nil
 }
-
-	// Validate metadata
-	var pm *www.ProposalMetadata
-	for _, v := range np.Metadata {
-		// Decode payload
-		b, err := base64.StdEncoding.DecodeString(v.Payload)
-		if err != nil {
-			e := fmt.Sprintf("invalid base64 for '%v'", v.Hint)
-			return nil, www.UserError{
-				ErrorCode:    www.ErrorStatusMetadataInvalid,
-				ErrorContext: []string{e},
-			}
-		}
-		d := json.NewDecoder(bytes.NewReader(b))
-		d.DisallowUnknownFields()
-
-		// Unmarshal payload
-		switch v.Hint {
-		case www.HintProposalMetadata:
-			var p www.ProposalMetadata
-			err := d.Decode(&p)
-			if err != nil {
-				log.Debugf("validateProposal: decode ProposalMetadata: %v", err)
-				return nil, www.UserError{
-					ErrorCode:    www.ErrorStatusMetadataInvalid,
-					ErrorContext: []string{v.Hint},
-				}
-			}
-			pm = &p
-		default:
-			e := fmt.Sprintf("unknown hint '%v'", v.Hint)
-			return nil, www.UserError{
-				ErrorCode:    www.ErrorStatusMetadataInvalid,
-				ErrorContext: []string{e},
-			}
-		}
-
-		// Validate digest
-		digest := util.Digest(b)
-		if v.Digest != hex.EncodeToString(digest) {
-			e := fmt.Sprintf("%v got digest %v, want %v",
-				v.Hint, v.Digest, hex.EncodeToString(digest))
-			return nil, www.UserError{
-				ErrorCode:    www.ErrorStatusMetadataDigestInvalid,
-				ErrorContext: []string{e},
-			}
-		}
-
-		// Add to hashes slice for merkle root calc
-		var h [sha256.Size]byte
-		copy(h[:], digest)
-		hashes = append(hashes, &h)
-	}
-	if pm == nil {
-		return nil, www.UserError{
-			ErrorCode:    www.ErrorStatusMetadataMissing,
-			ErrorContext: []string{www.HintProposalMetadata},
-		}
-	}
-
-	// Validate ProposalMetadata
-	if !isValidProposalName(pm.Name) {
-		return nil, www.UserError{
-			ErrorCode:    www.ErrorStatusProposalInvalidTitle,
-			ErrorContext: []string{createProposalNameRegex()},
-		}
-	}
-*/
 
 // validateProposal ensures that the given new proposal meets the api policy
 // requirements. If a proposal data file exists (currently optional) then it is
@@ -340,8 +282,6 @@ func (p *politeiawww) validateProposal(np www.NewProposal, u *user.User) (*www.P
 		countTextFiles  int
 		countImageFiles int
 		foundIndexFile  bool
-		foundDataFile   bool
-		proposalData    *www.ProposalData
 	)
 	filenames := make(map[string]struct{}, len(np.Files))
 	digests := make([]*[sha256.Size]byte, 0, len(np.Files))
@@ -433,80 +373,25 @@ func (p *politeiawww) validateProposal(np www.NewProposal, u *user.User) (*www.P
 				}
 			}
 
-			// The only text files that are allowed are the index markdown
-			// file and the data json file.
-			switch v.Name {
-			case www.PolicyIndexFilename:
-				// Index markdown file
-
-				// Only one index file is allowed
-				if foundIndexFile {
-					e := fmt.Sprintf("more than one %v file found",
-						www.PolicyIndexFilename)
-					return nil, www.UserError{
-						ErrorCode:    www.ErrorStatusMaxMDsExceededPolicy,
-						ErrorContext: []string{e},
-					}
-				}
-				foundIndexFile = true
-
-				// Validate proposal name
-				name, err := getProposalName(np.Files)
-				if err != nil {
-					return nil, err
-				}
-				if !isValidProposalName(name) {
-					return nil, www.UserError{
-						ErrorCode:    www.ErrorStatusProposalInvalidTitle,
-						ErrorContext: []string{createProposalNameRegex()},
-					}
-				}
-
-				/*
-						TODO
-					case www.PolicyDataFilename:
-						// Data json file
-
-						// Only one data file is allowed
-						if foundDataFile {
-							e := fmt.Sprintf("more than one %v file found",
-								www.PolicyDataFilename)
-							return nil, www.UserError{
-								ErrorCode:    www.ErrorStatusMaxMDsExceededPolicy,
-								ErrorContext: []string{e},
-							}
-						}
-						foundDataFile = true
-
-						// Parse proposal data json. Unknown fields are not allowed.
-						d := json.NewDecoder(strings.NewReader(string(payloadb)))
-						d.DisallowUnknownFields()
-
-						var pd www.ProposalData
-						err = d.Decode(&pd)
-						if err != nil {
-							log.Debugf("parseProposalDataFile: decode json: %v", err)
-							return nil, www.UserError{
-								ErrorCode:    www.ErrorStatusInvalidProposalData,
-								ErrorContext: []string{"invalid json"},
-							}
-						}
-
-						err = p.validateProposalData(pd)
-						if err != nil {
-							return nil, err
-						}
-
-						// This value is returned
-						proposalData = &pd
-				*/
-
-			default:
+			// The only text file that is allowed is the index markdown
+			// file.
+			if v.Name != www.PolicyIndexFilename {
 				return nil, www.UserError{
 					ErrorCode:    www.ErrorStatusMaxMDsExceededPolicy,
 					ErrorContext: []string{v.Name},
 				}
 			}
+			if foundIndexFile {
+				e := fmt.Sprintf("more than one %v file found",
+					www.PolicyIndexFilename)
+				return nil, www.UserError{
+					ErrorCode:    www.ErrorStatusMaxMDsExceededPolicy,
+					ErrorContext: []string{e},
+				}
+			}
+
+			// Set index file as being found
+			foundIndexFile = true
 
 		case mimeTypePNG:
 			countImageFiles++
@@ -529,8 +414,7 @@ func (p *politeiawww) validateProposal(np www.NewProposal, u *user.User) (*www.P
 		}
 	}
 
-	// Verify that an index file is present. The data file is
-	// currently optional.
+	// Verify that an index file is present.
 	if !foundIndexFile {
 		e := fmt.Sprintf("%v file not found", www.PolicyIndexFilename)
 		return nil, www.UserError{
@@ -557,6 +441,70 @@ func (p *politeiawww) validateProposal(np www.NewProposal, u *user.User) (*www.P
 		}
 	}
 
+	// Decode and validate metadata
+	var pm *www.ProposalMetadata
+	for _, v := range np.Metadata {
+		// Decode payload
+		b, err := base64.StdEncoding.DecodeString(v.Payload)
+		if err != nil {
+			e := fmt.Sprintf("invalid base64 for '%v'", v.Hint)
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusMetadataInvalid,
+				ErrorContext: []string{e},
+			}
+		}
+		d := json.NewDecoder(bytes.NewReader(b))
+		d.DisallowUnknownFields()
+
+		// Unmarshal payload
+		switch v.Hint {
+		case www.HintProposalMetadata:
+			var p www.ProposalMetadata
+			err := d.Decode(&p)
+			if err != nil {
+				log.Debugf("validateProposal: decode ProposalMetadata: %v", err)
+				return nil, www.UserError{
+					ErrorCode:    www.ErrorStatusMetadataInvalid,
+					ErrorContext: []string{v.Hint},
+				}
+			}
+			pm = &p
+		default:
+			e := fmt.Sprintf("unknown hint '%v'", v.Hint)
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusMetadataInvalid,
+				ErrorContext: []string{e},
+			}
+		}
+
+		// Validate digest
+		digest := util.Digest(b)
+		if v.Digest != hex.EncodeToString(digest) {
+			e := fmt.Sprintf("%v got digest %v, want %v",
+				v.Hint, v.Digest, hex.EncodeToString(digest))
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusMetadataDigestInvalid,
+				ErrorContext: []string{e},
+			}
+		}
+
+		// Add to hashes slice for merkle root calc
+		var h [sha256.Size]byte
+		copy(h[:], digest)
+		digests = append(digests, &h)
+	}
+	if pm == nil {
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusMetadataMissing,
+			ErrorContext: []string{www.HintProposalMetadata},
+		}
+	}
+
+	// Validate ProposalMetadata
+	err := p.validateProposalMetadata(*pm)
+	if err != nil {
+		return nil, err
+	}
 	// Verify signature. The signature message is the merkle root
 	// of the proposal files.
 	sig, err := util.ConvertSignature(np.Signature)
@@ -583,7 +531,7 @@ func (p *politeiawww) validateProposal(np www.NewProposal, u *user.User) (*www.P
 		}
 	}
 
-	return www.ProposalMetadata{}, nil
+	return pm, nil
 }
 
 func voteStatusFromVoteSummary(r decredplugin.VoteSummaryReply, endHeight, bestBlock uint64) www.PropVoteStatusT {
@@ -806,7 +754,6 @@ func (p *politeiawww) getAllProps() ([]www.ProposalRecord, error) {
 	// Convert props and fill in missing info
 	props := make([]www.ProposalRecord, 0, len(records))
 	for _, v := range records {
-		pr := convertPropFromCache(v)
 		pr, err := convertPropFromCache(v)
 		if err != nil {
 			return nil, fmt.Errorf("convertPropFromCache %v: %v",

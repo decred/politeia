@@ -84,12 +84,6 @@ const (
 	// file should contain the proposal content.
 	PolicyIndexFilename = "index.md"
 
-	// PolicyDataFilename is the name of the proposal data json file.
-	// The data file allows certain proposal fields, such as LinkTo,
-	// to be specified using json instead of having to parse them out
-	// of the index markdown file.
-	PolicyDataFilename = "data.json"
-
 	// PolicyMaxImages is the maximum number of images accepted
 	// when creating a new proposal
 	PolicyMaxImages = 5
@@ -99,9 +93,8 @@ const (
 	PolicyMaxImageSize = 512 * 1024
 
 	// PolicyMaxMDs is the maximum number of markdown files accepted
-	// when creating a new proposal. This currently allows for the
-	// index file and the data file.
-	PolicyMaxMDs = 2
+	// when creating a new proposal.
+	PolicyMaxMDs = 1
 
 	// PolicyMaxMDSize is the maximum markdown file size (in bytes)
 	// accepted when creating a new proposal
@@ -454,7 +447,9 @@ const (
 // ProposalMetadata contains metadata that is specified by the user on proposal
 // submission. It is attached to a proposal submission as a Metadata object.
 type ProposalMetadata struct {
-	Name string `json:"name"`
+	Name   string `json:"name"`             // Proposal name
+	LinkTo string `json:"linkto,omitempty"` // Token of proposal to link to
+	LinkBy int64  `json:"linkby,omitempty"` // UNIX timestamp of RFP deadline
 }
 
 // Metadata describes user specified metadata.
@@ -962,7 +957,6 @@ type PolicyReply struct {
 	BackendPublicKey           string   `json:"backendpublickey"`
 	BuildInformation           []string `json:"buildinformation"`
 	IndexFilename              string   `json:"indexfilename"`
-	DataFilename               string   `json:"datafilename"`
 	MinLinkByPeriod            int64    `json:"minlinkbyperiod"`
 	MaxLinkByPeriod            int64    `json:"maxlinkbyperiod"`
 }

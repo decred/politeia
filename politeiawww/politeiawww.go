@@ -360,7 +360,6 @@ func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 		MaxCommentLength:           www.PolicyMaxCommentLength,
 		BuildInformation:           version.BuildInformation(),
 		IndexFilename:              www.PolicyIndexFilename,
-		DataFilename:               www.PolicyDataFilename,
 		MinLinkByPeriod:            www.PolicyLinkByMinPeriod,
 		MaxLinkByPeriod:            www.PolicyLinkByMaxPeriod,
 	}

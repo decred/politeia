@@ -316,6 +316,23 @@ func convertPropStatusFromCache(s cache.RecordStatusT) www.PropStatusT {
 	return www.PropStatusInvalid
 }
 
+// convertFileFromMetadata returns a politeiawww v1 Metadata that was converted
+// from a politeiad File. User specified metadata is store as a file in
+// politeiad so that it is included in the merkle root that politeiad
+// calculates.
+func convertMetadataFromFile(f cache.File) www.Metadata {
+	var hint string
+	switch f.Name {
+	case mdstream.FilenameProposalMetadata:
+		hint = www.HintProposalMetadata
+	}
+	return www.Metadata{
+		Digest:  f.Digest,
+		Hint:    hint,
+		Payload: f.Payload,
+	}
+}
+
 func convertPropFromCache(r cache.Record) (*www.ProposalRecord, error) {
 	// Decode metadata stream payloads
 	var (
@@ -438,20 +455,18 @@ func convertPropFromCache(r cache.Record) (*www.ProposalRecord, error) {
 		}
 	}
 
-	// Convert files. Proposal files and metadata are both saved to
-	// politeiad as files so we need to differentiate between the two
-	// here. Note, proposal metadata in this context is www.Metadata
-	// that is submitted with the proposal.
-	files := make([]www.File, 0, len(r.Files))
-	metadata := make([]www.Metadata, 0, len(r.Files))
+	// Convert files. The ProposalMetadata mdstream is saved to
+	// politeiad as a File, not as a MetadataStream, so we have to
+	// account for this when preparing the files.
+	var (
+		pm       www.ProposalMetadata
+		files    = make([]www.File, 0, len(r.Files))
+		metadata = make([]www.Metadata, 0, len(r.Files))
+	)
 	for _, f := range r.Files {
 		switch f.Name {
 		case mdstream.FilenameProposalMetadata:
-			metadata = append(metadata, www.Metadata{
-				Digest:  f.Digest,
-				Hint:    www.HintProposalMetadata,
-				Payload: f.Payload,
-			})
+			metadata = append(metadata, convertMetadataFromFile(f))
 
 			// Extract the proposal metadata from the payload
 			b, err := base64.StdEncoding.DecodeString(f.Payload)
@@ -459,12 +474,13 @@ func convertPropFromCache(r cache.Record) (*www.ProposalRecord, error) {
 				return nil, fmt.Errorf("decode file payload %v: %v",
 					mdstream.FilenameProposalMetadata, err)
 			}
-			var pm www.ProposalMetadata
 			err = json.Unmarshal(b, &pm)
 			if err != nil {
 				return nil, fmt.Errorf("unmarshal ProposalMetadata: %v", err)
 			}
+
 			name = pm.Name
+
 			continue
 		}
 
@@ -497,14 +513,11 @@ func convertPropFromCache(r cache.Record) (*www.ProposalRecord, error) {
 		PublishedAt:         publishedAt,
 		CensoredAt:          censoredAt,
 		AbandonedAt:         abandonedAt,
-		/*
-		   // TODO
-		   		LinkTo:              pg.LinkTo,
-		   		LinkBy:              pg.LinkBy,
-		   		LinkedFrom:          []string{},
-		*/
-		Files:    files,
-		Metadata: metadata,
+		LinkTo:              pm.LinkTo,
+		LinkBy:              pm.LinkBy,
+		LinkedFrom:          []string{},
+		Files:               files,
+		Metadata:            metadata,
 		CensorshipRecord: www.CensorshipRecord{
 			Token:     r.CensorshipRecord.Token,
 			Merkle:    r.CensorshipRecord.Merkle,

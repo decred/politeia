@@ -10,7 +10,6 @@ import (
 	"sync"
 
 	decred "github.com/decred/politeia/decredplugin"
-	"github.com/decred/politeia/mdstream"
 	"github.com/decred/politeia/politeiad/cache"
 )
 
@@ -25,8 +24,6 @@ type testcache struct {
 	authorizeVotes   map[string]map[string]decred.AuthorizeVote // [token][version]AuthorizeVote
 	startVotes       map[string]decred.StartVoteV2              // [token]StartVote
 	startVoteReplies map[string]decred.StartVoteReply           // [token]StartVoteReply
-
-	proposalGeneralMetadata map[string]mdstream.ProposalGeneral // [token]ProposalGeneral
 }
 
 // NewRecords adds a record to the cache.

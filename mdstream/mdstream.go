@@ -131,6 +131,42 @@ func DecodeProposalGeneralV2(payload []byte) (*ProposalGeneralV2, error) {
 	return &md, nil
 }
 
+// ProposalMetadata contains metadata that is specified by the user on proposal
+// submission. It is attached to a proposal submission as a politeiawww
+// Metadata object and is saved to politeiad as a File, not as a
+// MetadataStream. The filename is defined by FilenameProposalMetadata.
+//
+// The reason it is saved to politeiad as a File is because politeiad only
+// includes Files in the merkle root calculation. This is user defined metadata
+// so it must be included in the proposal signature on submission. If it were
+// saved to politeiad as a MetadataStream then it would not be included in the
+// merkle root, thus causing an error where the client calculated merkle root
+// if different than the politeiad calculated merkle root.
+type ProposalMetadata struct {
+	Name   string `json:"name"`             // Proposal name
+	LinkTo string `json:"linkto,omitempty"` // Token of proposal to link to
+	LinkBy int64  `json:"linkby,omitempty"` // UNIX timestamp of RFP deadline
+}
+
+// EncodeProposalMetadata encodes a ProposalMetadata into a JSON byte slice.
+func EncodeProposalMetadata(md ProposalMetadata) ([]byte, error) {
+	b, err := json.Marshal(md)
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+// DecodeProposalMetadata decodes a JSON byte slice into a ProposalMetadata.
+func DecodeProposalMetadata(payload []byte) (*ProposalMetadata, error) {
+	var md ProposalMetadata
+	err := json.Unmarshal(payload, &md)
+	if err != nil {
+		return nil, err
+	}
+	return &md, nil
+}
+
 // RecordStatusChangeV1 represents a politeiad record status change and is used
 // to store additional status change metadata that would not otherwise be
 // captured by the politeiad status change routes.

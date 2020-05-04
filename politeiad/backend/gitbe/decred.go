@@ -1691,24 +1691,47 @@ func prepareStartVoteReply(voteDuration, ticketMaturity uint32) (*decredplugin.S
 	}, nil
 }
 
-// vettedMDStreamProposalGeneral returns the ProposalGeneral metadata stream
-// from the vetted repository for the provided token.
+var (
+	errProposalMetadataNotFound = errors.New("proposal metadata not found")
+)
+
+// vettedProposalMetadata returns the www.ProposalMetadata for the provided
+// token. All new proposal records are required to contain a ProposalMetadata,
+// but older records may not. A errProposalMetadata not found error is returned
+// if a ProposalMetadata was not found.
 //
 // This function must be called with the read lock held.
-func (g *gitBackEnd) vettedMDStreamProposalGeneral(token string) (*mdstream.ProposalGeneral, error) {
+func (g *gitBackEnd) vettedProposalMetadata(token string) (*mdstream.ProposalMetadata, error) {
 	tokenb, err := hex.DecodeString(token)
 	if err != nil {
 		return nil, err
 	}
-	b, err := g.getVettedMetadataStream(tokenb, mdstream.IDProposalGeneral)
+	r, err := g.GetVetted(tokenb, "")
 	if err != nil {
 		return nil, err
 	}
-	pg, err := mdstream.DecodeProposalGeneral(b)
-	if err != nil {
-		return nil, err
+
+	// ProposalMetadata is stored as a politeiad File, not an mdstream.
+	var pm *mdstream.ProposalMetadata
+	for _, v := range r.Files {
+		if v.Name != mdstream.FilenameProposalMetadata {
+			continue
+		}
+		b, err := base64.StdEncoding.DecodeString(v.Payload)
+		if err != nil {
+			return nil, err
+		}
+		pm, err = mdstream.DecodeProposalMetadata(b)
+		if err != nil {
+			return nil, err
+		}
 	}
-	return pg, nil
+
+	if pm == nil {
+		return nil, errProposalMetadataNotFound
+	}
+
+	return pm, nil
 }
 
 func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
@@ -1746,25 +1769,31 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 		return "", backend.ErrShutdown
 	}
 
-	// Ensure proposal is not an RFP submissions. The plugin
-	// command startvoterunoff must be used to start a runoff
-	// vote between RFP submissions.
-	pg, err := g.vettedMDStreamProposalGeneral(token)
-	if err != nil {
+	// Ensure proposal is not an RFP submissions. The plugin command
+	// startvoterunoff must be used to start a runoff vote between RFP
+	// submissions.
+	pm, err := g.vettedProposalMetadata(token)
+	switch {
+	case err == errProposalMetadataNotFound:
+		// Proposal is not an RFP submission. This is ok.
+	case err != nil:
+		// All other errors
 		return "", err
-	}
-	if pg.LinkTo != "" {
-		// If the LinkTo is an RFP then this proposal is an RFP
-		// submission.
-		linkToPG, err := g.vettedMDStreamProposalGeneral(pg.LinkTo)
+	case pm.LinkTo != "":
+		// ProposalMetadata exists and a linkto was set. Check if this
+		// proposal is an RFP submission.
+		linkToPM, err := g.vettedProposalMetadata(pm.LinkTo)
 		if err != nil {
 			return "", err
 		}
-		if linkToPG.LinkBy != 0 {
+		if linkToPM.LinkBy != 0 {
 			// LinkBy will only be set on RFP proposals
 			return "", fmt.Errorf("proposal is an rfp submission: %v",
 				token)
 		}
+	default:
+		// ProposalMetadata exists, but this proposal is not linked to
+		// another proposal. This is ok.
 	}
 
 	// Verify proposal state
@@ -1969,13 +1998,21 @@ func (g *gitBackEnd) pluginStartVoteRunoff(payload string) (string, error) {
 	}
 
 	// Verify this proposal is indeed an RFP
-	pg, err := g.vettedMDStreamProposalGeneral(sv.Token)
-	if err != nil {
+	pm, err := g.vettedProposalMetadata(sv.Token)
+	switch {
+	case err == errProposalMetadataNotFound:
+		// No ProposalMetadata. This is not an RFP.
+		return "", fmt.Errorf("proposal is not an rfp: %v", sv.Token)
+	case err != nil:
+		// All other errors
 		return "", err
-	}
-	if pg.LinkBy == 0 {
-		return "", fmt.Errorf("proposal is not an rfp: %v",
-			sv.Token)
+	case pm.LinkBy == 0:
+		// ProposalMetadata found but this is not an RFP
+		return "", fmt.Errorf("proposal is not an rfp: %v", sv.Token)
+	case pm.LinkBy > 0:
+		// This proposal is an RFP. This is what we want.
+	default:
+		return "", fmt.Errorf("unknown proposal state")
 	}
 
 	// Validate proposal state of all rfp submissions. The authorize

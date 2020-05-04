@@ -457,21 +457,21 @@ func (d *decred) voteResultsLoad(bestBlock uint64) error {
 	done := make(map[string]struct{}, len(runoff)) // [rfpToken]struct{}
 	for _, token := range runoff {
 		// Lookup the RFP token for the runoff vote submission
-		var pgm ProposalGeneralMetadata
+		var pm ProposalMetadata
 		err := d.recordsdb.
 			Where("token = ?", token).
-			Find(&pgm).
+			Find(&pm).
 			Error
 		if err != nil {
-			return fmt.Errorf("lookup ProposalGeneralMetadata %v: %v",
+			return fmt.Errorf("lookup ProposalMetadata %v: %v",
 				token, err)
 		}
-		if pgm.LinkTo == "" {
+		if pm.LinkTo == "" {
 			return fmt.Errorf("runoff vote linkto not found %v",
 				token)
 		}
 
-		if _, ok := done[pgm.LinkTo]; ok {
+		if _, ok := done[pm.LinkTo]; ok {
 			// Results have already been inserted for this RFP.
 			// This happens because the vote results are built
 			// using the RFP token and all RFP submissions will
@@ -480,13 +480,13 @@ func (d *decred) voteResultsLoad(bestBlock uint64) error {
 		}
 
 		// Insert vote results for the full runoff vote
-		err = d.voteResultsInsertRunoff(pgm.LinkTo)
+		err = d.voteResultsInsertRunoff(pm.LinkTo)
 		if err != nil {
 			return fmt.Errorf("insert runoff vote results %v: %v",
-				pgm.LinkTo, err)
+				pm.LinkTo, err)
 		}
 
-		done[pgm.LinkTo] = struct{}{}
+		done[pm.LinkTo] = struct{}{}
 	}
 
 	return nil
