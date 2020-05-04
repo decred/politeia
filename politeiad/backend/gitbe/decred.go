@@ -1700,13 +1700,13 @@ var (
 // but older records may not. A errProposalMetadata not found error is returned
 // if a ProposalMetadata was not found.
 //
-// This function must be called with the read lock held.
+// This function must be called WITH the lock held.
 func (g *gitBackEnd) vettedProposalMetadata(token string) (*mdstream.ProposalMetadata, error) {
 	tokenb, err := hex.DecodeString(token)
 	if err != nil {
 		return nil, err
 	}
-	r, err := g.GetVetted(tokenb, "")
+	r, err := g.getRecord(tokenb, "", g.vetted, true)
 	if err != nil {
 		return nil, err
 	}

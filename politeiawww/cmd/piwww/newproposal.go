@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"time"
 
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
@@ -108,39 +109,20 @@ func (cmd *NewProposalCmd) Execute(args []string) error {
 		files = append(files, f)
 	}
 
-	/*
-		TODO
-		// Create proposal data json file if one or more of the proposal
-		// data fields has been specified.
-		var pd v1.ProposalData
-		if cmd.RFP {
-			// Double the minimum LinkBy period to give a buffer
-			t := time.Second * v1.PolicyLinkByMinPeriod * 2
-			pd.LinkBy = time.Now().Add(t).Unix()
-		}
-		if cmd.LinkTo != "" {
-			pd.LinkTo = cmd.LinkTo
-		}
-		b, err := json.Marshal(pd)
-		if err != nil {
-			return err
-		}
-		if len(b) > 2 {
-			// At least one of the fields has been filled in if len(b) > 2.
-			files = append(files, v1.File{
-				Name:    v1.PolicyDataFilename,
-				MIME:    mime.DetectMimeType(b),
-				Digest:  hex.EncodeToString(util.Digest(b)),
-				Payload: base64.StdEncoding.EncodeToString(b),
-			})
-	*/
-
 	// Setup metadata
 	if cmd.Name == "" {
 		cmd.Name = "Some proposal title"
 	}
 	pm := v1.ProposalMetadata{
 		Name: cmd.Name,
+	}
+	if cmd.RFP {
+		// Double the minimum LinkBy period to give a buffer
+		t := time.Second * v1.PolicyLinkByMinPeriod * 2
+		pm.LinkBy = time.Now().Add(t).Unix()
+	}
+	if cmd.LinkTo != "" {
+		pm.LinkTo = cmd.LinkTo
 	}
 	pmb, err := json.Marshal(pm)
 	if err != nil {

@@ -1594,7 +1594,7 @@ func (d *decred) linkedFrom(token string) ([]string, error) {
           WHERE status IN (?)
           AND token IN (
             SELECT token
-            FROM proposal_general_metadata
+            FROM proposal_metadata
             WHERE link_to = ?
           )`
 	rows, err := d.recordsdb.

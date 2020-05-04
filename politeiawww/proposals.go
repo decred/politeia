@@ -538,7 +538,7 @@ func voteStatusFromVoteSummary(r decredplugin.VoteSummaryReply, endHeight, bestB
 	switch {
 	case !r.Authorized:
 		return www.PropVoteStatusNotAuthorized
-	case r.Authorized:
+	case r.Authorized && endHeight == 0:
 		return www.PropVoteStatusAuthorized
 	case bestBlock < endHeight:
 		return www.PropVoteStatusStarted
@@ -1722,7 +1722,7 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 		Signature: ep.Signature,
 	}
 
-	_, err = p.validateProposal(np, u)
+	pm, err := p.validateProposal(np, u)
 	if err != nil {
 		return nil, err
 	}
@@ -1731,17 +1731,13 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 			ErrorCode: www.ErrorStatusNoProposalChanges,
 		}
 	}
-
-	/*
-		// TODO
-		if cachedProp.State == www.PropStateVetted &&
-			cachedProp.LinkTo != proposalData.LinkTo {
-			return nil, www.UserError{
-				ErrorCode:    www.ErrorStatusInvalidLinkTo,
-				ErrorContext: []string{"linkto cannot change once public"},
-			}
+	if cachedProp.State == www.PropStateVetted &&
+		cachedProp.LinkTo != pm.LinkTo {
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidLinkTo,
+			ErrorContext: []string{"linkto cannot change once public"},
 		}
-	*/
+	}
 
 	// politeiad only includes files in its merkle root calc, not the
 	// metadata streams. This is why we include the ProposalMetadata
