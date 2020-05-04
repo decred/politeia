@@ -64,26 +64,18 @@ func (Record) TableName() string {
 	return tableRecords
 }
 
-// ProposalGeneralMetadata represents general medadata for a proposal.
+// ProposalMetadata represents user defined proposal metadata.
 //
-// This mdstream data is already saved to the cache as a MetadataStream with an
-// encoded payload. The ProposalGeneralMetadata duplicates existing data, but
-// is necessary so that the metadata fields can be queried, which is not
-// possible with the encoded MetadataStream payload. ProposalGeneralMetadata
-// is only saved for the most recent proposal version since this is the only
-// metadata that currently needs to be queried.
+// This data is already saved to the cache as a MetadataStream with an encoded
+// payload. The ProposalMetadata duplicates existing data, but is necessary so
+// that the metadata fields can be queried. ProposalMetadata is only saved for
+// the most recent proposal version since this is the only metadata that
+// currently needs to be queried.
 //
 // This is a decred plugin model.
-type ProposalGeneralMetadata struct {
-	Token           string `gorm:"primary_key;size:64"` // Censorship token
-	ProposalVersion uint64 `gorm:"not null"`            // Proposal version
-	Version         uint64 `gorm:"not null"`            // Struct version
-	Timestamp       int64  `gorm:"not null"`            // Last update of proposal
-	Name            string `gorm:"not null"`            // Proposal name
-	LinkTo          string `gorm:"size:64"`             // Token of proposal to link to
-	LinkBy          int64  `gorm:""`                    // UNIX timestamp of RFP deadline
-	Signature       string `gorm:"not null;size:128"`   // Client signature
-	PublicKey       string `gorm:"not null;size:64"`    // Pubkey used for Signature
+type ProposalMetadata struct {
+	Token string `gorm:"primary_key"` // Censorship token
+	Name  string `gorm:"not null"`    // Proposal name
 }
 
 // Comment represents a record comment, including all of the server side

@@ -12,10 +12,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
-	"time"
 
 	"github.com/decred/politeia/politeiad/api/v1/mime"
-	"github.com/decred/politeia/politeiawww/api/www/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 	"github.com/decred/politeia/util"
 )
@@ -27,6 +26,7 @@ type NewProposalCmd struct {
 		Attachments []string `positional-arg-name:"attachmentfiles"` // Proposal attachment files
 	} `positional-args:"true" optional:"true"`
 	Random bool   `long:"random" optional:"true"` // Generate random proposal data
+	Name   string `long:"name" optional:"true"`
 	RFP    bool   `long:"rfp" optional:"true"`    // Insert a LinkBy timestamp to indicate an RFP
 	LinkTo string `long:"linkto" optional:"true"` // Censorship token of prop to link to
 }
@@ -36,8 +36,12 @@ func (cmd *NewProposalCmd) Execute(args []string) error {
 	mdFile := cmd.Args.Markdown
 	attachmentFiles := cmd.Args.Attachments
 
-	if !cmd.Random && mdFile == "" {
+	switch {
+	case !cmd.Random && mdFile == "":
 		return errProposalMDNotFound
+	case !cmd.Random && cmd.Name == "":
+		return fmt.Errorf("you must either provide a proposal name using the " +
+			"--name flag or use the --random flag to generate a random name")
 	}
 
 	// Check for user identity
@@ -51,14 +55,12 @@ func (cmd *NewProposalCmd) Execute(args []string) error {
 		return err
 	}
 
-	// Create index markdown file
+	// Prepare proposal index file
 	var md []byte
 	files := make([]v1.File, 0, v1.PolicyMaxImages+1)
 	if cmd.Random {
 		// Generate random proposal markdown text
 		var b bytes.Buffer
-		b.WriteString("This is the proposal title\n")
-
 		for i := 0; i < 10; i++ {
 			r, err := util.Random(32)
 			if err != nil {
@@ -106,33 +108,54 @@ func (cmd *NewProposalCmd) Execute(args []string) error {
 		files = append(files, f)
 	}
 
-	// Create proposal data json file if one or more of the proposal
-	// data fields has been specified.
-	var pd v1.ProposalData
-	if cmd.RFP {
-		// Double the minimum LinkBy period to give a buffer
-		t := time.Second * v1.PolicyLinkByMinPeriod * 2
-		pd.LinkBy = time.Now().Add(t).Unix()
+	/*
+		TODO
+		// Create proposal data json file if one or more of the proposal
+		// data fields has been specified.
+		var pd v1.ProposalData
+		if cmd.RFP {
+			// Double the minimum LinkBy period to give a buffer
+			t := time.Second * v1.PolicyLinkByMinPeriod * 2
+			pd.LinkBy = time.Now().Add(t).Unix()
+		}
+		if cmd.LinkTo != "" {
+			pd.LinkTo = cmd.LinkTo
+		}
+		b, err := json.Marshal(pd)
+		if err != nil {
+			return err
+		}
+		if len(b) > 2 {
+			// At least one of the fields has been filled in if len(b) > 2.
+			files = append(files, v1.File{
+				Name:    v1.PolicyDataFilename,
+				MIME:    mime.DetectMimeType(b),
+				Digest:  hex.EncodeToString(util.Digest(b)),
+				Payload: base64.StdEncoding.EncodeToString(b),
+			})
+	*/
+
+	// Setup metadata
+	if cmd.Name == "" {
+		cmd.Name = "Some proposal title"
 	}
-	if cmd.LinkTo != "" {
-		pd.LinkTo = cmd.LinkTo
+	pm := v1.ProposalMetadata{
+		Name: cmd.Name,
 	}
-	b, err := json.Marshal(pd)
+	pmb, err := json.Marshal(pm)
 	if err != nil {
 		return err
 	}
-	if len(b) > 2 {
-		// At least one of the fields has been filled in if len(b) > 2.
-		files = append(files, v1.File{
-			Name:    v1.PolicyDataFilename,
-			MIME:    mime.DetectMimeType(b),
-			Digest:  hex.EncodeToString(util.Digest(b)),
-			Payload: base64.StdEncoding.EncodeToString(b),
-		})
+	metadata := []v1.Metadata{
+		{
+			Digest:  hex.EncodeToString(util.Digest(pmb)),
+			Hint:    v1.HintProposalMetadata,
+			Payload: base64.StdEncoding.EncodeToString(pmb),
+		},
 	}
 
 	// Compute merkle root and sign it
-	sig, err := shared.SignedMerkleRoot(files, cfg.Identity)
+	sig, err := shared.SignedMerkleRoot(files, metadata, cfg.Identity)
 	if err != nil {
 		return fmt.Errorf("SignMerkleRoot: %v", err)
 	}
@@ -140,6 +163,7 @@ func (cmd *NewProposalCmd) Execute(args []string) error {
 	// Setup new proposal request
 	np := &v1.NewProposal{
 		Files:     files,
+		Metadata:  metadata,
 		PublicKey: hex.EncodeToString(cfg.Identity.Public.Key[:]),
 		Signature: sig,
 	}
@@ -159,6 +183,7 @@ func (cmd *NewProposalCmd) Execute(args []string) error {
 	// Verify the censorship record
 	pr := v1.ProposalRecord{
 		Files:            np.Files,
+		Metadata:         np.Metadata,
 		PublicKey:        np.PublicKey,
 		Signature:        np.Signature,
 		CensorshipRecord: npr.CensorshipRecord,

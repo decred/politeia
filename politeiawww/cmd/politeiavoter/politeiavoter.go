@@ -1057,7 +1057,7 @@ func (c *ctx) voteStatus(token string) (*v1.VoteStatusReply, error) {
 }
 
 // XXX remove this once BatchVoteSummary is live
-func (c *ctx) bestBlock() (uint32, error) {
+func (c *ctx) _bestBlock() (uint32, error) {
 	var url string
 	if c.cfg.TestNet {
 		url = "https://testnet.decred.org:443/api/block/best"
@@ -1088,6 +1088,40 @@ func (c *ctx) bestBlock() (uint32, error) {
 	}
 
 	return bdb.Height, nil
+}
+
+// bestBlock requests the best block from dcrdata and returns the best block
+// height. A bug in dcrdata has caused a best block height of 0 to be returned
+// intermittently. This function retries the dcrdata call until a valid best
+// block height is returned or the maxRetries limit is exceeded.
+func (c *ctx) bestBlock() (uint32, error) {
+	var (
+		maxRetries    = 100
+		sleepInterval = 5 * time.Second
+		done          bool
+		bestBlock     uint32
+	)
+	for retries := 0; !done; retries++ {
+		if retries == maxRetries {
+			return 0, fmt.Errorf("max retries exceeded")
+		}
+
+		bb, err := c._bestBlock()
+		if err != nil {
+			return 0, err
+		}
+		if bb == 0 {
+			log.Infof("dcrdata returned a best block height of 0; retrying in %v",
+				sleepInterval)
+			time.Sleep(sleepInterval)
+			continue
+		}
+
+		bestBlock = bb
+		done = true
+	}
+
+	return bestBlock, nil
 }
 
 func (c *ctx) _vote(seed int64, token, voteId string) error {

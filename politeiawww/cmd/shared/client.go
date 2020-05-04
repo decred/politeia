@@ -872,6 +872,30 @@ func (c *Client) UserInvoices(up *cms.UserInvoices) (*cms.UserInvoicesReply, err
 	return &upr, nil
 }
 
+// ProposalBilling retrieves the billing for the requested proposal
+func (c *Client) ProposalBilling(pb *cms.ProposalBilling) (*cms.ProposalBillingReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost,
+		cms.APIRoute, cms.RouteProposalBilling, pb)
+	if err != nil {
+		return nil, err
+	}
+
+	var pbr cms.ProposalBillingReply
+	err = json.Unmarshal(responseBody, &pbr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal ProposalBillingReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(pbr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &pbr, nil
+}
+
 // AdminInvoices retrieves invoices base on possible field set in the request
 // month/year and/or status
 func (c *Client) AdminInvoices(ai *cms.AdminInvoices) (*cms.AdminInvoicesReply, error) {

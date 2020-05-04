@@ -5,6 +5,7 @@
 package cockroachdb
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -25,15 +26,18 @@ const (
 	decredVersion = "1.2"
 
 	// Decred plugin table names
-	tableProposalGeneralMetadata = "proposal_general_metadata"
-	tableComments                = "comments"
-	tableCommentLikes            = "comment_likes"
-	tableCastVotes               = "cast_votes"
-	tableAuthorizeVotes          = "authorize_votes"
-	tableVoteOptions             = "vote_options"
-	tableStartVotes              = "start_votes"
-	tableVoteOptionResults       = "vote_option_results"
-	tableVoteResults             = "vote_results"
+	tableProposalMetadata  = "proposal_metadata"
+	tableComments          = "comments"
+	tableCommentLikes      = "comment_likes"
+	tableCastVotes         = "cast_votes"
+	tableAuthorizeVotes    = "authorize_votes"
+	tableVoteOptions       = "vote_options"
+	tableStartVotes        = "start_votes"
+	tableVoteOptionResults = "vote_option_results"
+	tableVoteResults       = "vote_results"
+
+	// Vote option IDs
+	voteOptionIDApproved = "yes"
 )
 
 // decred implements the PluginDriver interface.
@@ -1642,35 +1646,77 @@ func (d *decred) cmdLinkedFrom(payload string) (string, error) {
 	return string(reply), nil
 }
 
+func newProposalMetadata(r Record) (*ProposalMetadata, error) {
+	var name string
+	for _, v := range r.Metadata {
+		switch v.ID {
+		case mdstream.IDProposalGeneral:
+			// Pull the name out of the mdstream
+			b := []byte(v.Payload)
+			version, err := mdstream.DecodeVersion(b)
+			if err != nil {
+				return nil, err
+			}
+			switch version {
+			case 1:
+				pg, err := mdstream.DecodeProposalGeneralV1(b)
+				if err != nil {
+					return nil, err
+				}
+				name = pg.Name
+			case 2:
+				// The proposal name was removed from the ProposalGeneralV2
+				// mdtream and added to the ProposalMetadata file.
+				for _, f := range r.Files {
+					switch f.Name {
+					case mdstream.FilenameProposalMetadata:
+						b, err := base64.StdEncoding.DecodeString(f.Payload)
+						if err != nil {
+							return nil, err
+						}
+						var pm ProposalMetadata
+						err = json.Unmarshal(b, &pm)
+						if err != nil {
+							return nil, err
+						}
+						name = pm.Name
+					}
+				}
+			}
+		}
+	}
+
+	// Sanity check
+	if name == "" {
+		return nil, fmt.Errorf("no proposal name found")
+	}
+
+	return &ProposalMetadata{
+		Token: r.Token,
+		Name:  name,
+	}, nil
+}
+
 // hookPostNewRecord executes the decred plugin post new record hook. This
-// includes inserting a ProposalGeneralMetadata record for the given proposal.
+// includes inserting a ProposalMetadata record for the given proposal.
 //
 // This function must be called using a transaction.
 func (d *decred) hookPostNewRecord(tx *gorm.DB, payload string) error {
-	// Decode ProposalGeneral mdstream
 	var r Record
 	err := json.Unmarshal([]byte(payload), &r)
 	if err != nil {
 		return err
 	}
-
-	var pg *mdstream.ProposalGeneral
-	for _, md := range r.Metadata {
-		if md.ID == mdstream.IDProposalGeneral {
-			pg, err = mdstream.DecodeProposalGeneral([]byte(md.Payload))
-			if err != nil {
-				return err
-			}
-			break
-		}
+	pm, err := newProposalMetadata(r)
+	if err != nil {
+		return err
 	}
-	if pg == nil {
+	if pm.Name == "" {
 		// XXX Commented out as a temporary workaround for CMS using decred
 		// plugin. This needs to be fixed once the plugin architecture is
 		// sorted out.
 		//
-		// return fmt.Errorf("mdstream %v not found",
-		//		mdstream.IDProposalGeneral)
+		// return fmt.Errorf("proposal user metadata not found")
 
 		return nil
 	}
@@ -1678,21 +1724,18 @@ func (d *decred) hookPostNewRecord(tx *gorm.DB, payload string) error {
 	// All prososal versions are stored in the cache which means that
 	// this new proposal request could be for a brand new proposal or
 	// it could be for a new proposal version that is the result of a
-	// proposal edit. We only need to store the ProposalGeneralMetadata
-	// for the most recent version of the proposal.
-	if r.Version > 1 {
-		// Delete existing metadata
-		err := tx.Delete(ProposalGeneralMetadata{
-			Token: r.Token,
-		}).Error
-		if err != nil {
-			return fmt.Errorf("delete: %v", err)
-		}
+	// proposal edit. We only need to store the ProposalMetadata for
+	// the most recent version of the proposal. Delete any existing
+	// metadata.
+	err = tx.Delete(ProposalMetadata{
+		Token: r.Token,
+	}).Error
+	if err != nil {
+		return fmt.Errorf("delete: %v", err)
 	}
 
 	// Insert new metadata
-	pgm := convertProposalGeneralMetadataFromMDStream(*pg, r.Token, r.Version)
-	err = tx.Create(&pgm).Error
+	err = tx.Create(pm).Error
 	if err != nil {
 		return fmt.Errorf("create: %v", err)
 	}
@@ -1701,50 +1744,46 @@ func (d *decred) hookPostNewRecord(tx *gorm.DB, payload string) error {
 }
 
 // hookPostUpdateRecord executes the decred plugin post update record hook.
-// This includes updating the ProposalGeneralMetadata in the cache for the
-// given proposal. The existing metadata is first deleted before the new
-// metadata is inserted.
+// This includes updating the ProposalMetadata in the cache for the given
+// proposal. The existing metadata is first deleted before the new metadata is
+// inserted.
 //
 // This function must be called using a transaction.
 func (d *decred) hookPostUpdateRecord(tx *gorm.DB, payload string) error {
-	// Decode ProposalGeneral mdstream
 	var r Record
 	err := json.Unmarshal([]byte(payload), &r)
 	if err != nil {
 		return err
 	}
-	var pg *mdstream.ProposalGeneral
-	for _, md := range r.Metadata {
-		if md.ID == mdstream.IDProposalGeneral {
-			pg, err = mdstream.DecodeProposalGeneral([]byte(md.Payload))
-			if err != nil {
-				return err
-			}
-			break
-		}
+	pm, err := newProposalMetadata(r)
+	if err != nil {
+		return err
 	}
-	if pg == nil {
+	if pm.Name == "" {
 		// XXX Commented out as a temporary workaround for CMS using decred
 		// plugin. This needs to be fixed once the plugin architecture is
 		// sorted out.
 		//
-		// return fmt.Errorf("mdstream %v not found",
-		//	mdstream.IDProposalGeneral)
+		// return fmt.Errorf("proposal user metadata not found")
 
 		return nil
 	}
 
-	// Delete existing metadata
-	err = tx.Delete(ProposalGeneralMetadata{
+	// All prososal versions are stored in the cache which means that
+	// this new proposal request could be for a brand new proposal or
+	// it could be for a new proposal version that is the result of a
+	// proposal edit. We only need to store the ProposalMetadata for
+	// the most recent version of the proposal. Delete any existing
+	// metadata.
+	err = tx.Delete(ProposalMetadata{
 		Token: r.Token,
 	}).Error
 	if err != nil {
 		return fmt.Errorf("delete: %v", err)
 	}
 
-	// Insert new metadata record
-	pgm := convertProposalGeneralMetadataFromMDStream(*pg, r.Token, r.Version)
-	err = tx.Create(&pgm).Error
+	// Insert new metadata
+	err = tx.Create(pm).Error
 	if err != nil {
 		return fmt.Errorf("create: %v", err)
 	}
@@ -1757,8 +1796,8 @@ func (d *decred) hookPostUpdateRecord(tx *gorm.DB, payload string) error {
 func (d *decred) hookPostUpdateRecordMetadata(tx *gorm.DB, payload string) error {
 	// piwww does not currently use the UpdateRecordMetadata route.
 	// If this changes, this panic is here as a reminder that any piwww
-	// mdstream tables, such as ProposalGeneralMetadata and StartVote,
-	// need to be properly updated in this hook.
+	// mdstream tables, such as ProposalMetadata and StartVote, need to
+	// be properly updated in this hook.
 
 	// XXX Commented out as a temporary workaround for CMS using decred
 	// plugin. This needs to be fixed once the plugin architecture is
@@ -1849,8 +1888,8 @@ func (d *decred) createTables(tx *gorm.DB) error {
 	log.Tracef("createTables")
 
 	// Create decred plugin tables
-	if !tx.HasTable(tableProposalGeneralMetadata) {
-		err := tx.CreateTable(&ProposalGeneralMetadata{}).Error
+	if !tx.HasTable(tableProposalMetadata) {
+		err := tx.CreateTable(&ProposalMetadata{}).Error
 		if err != nil {
 			return err
 		}
@@ -1934,7 +1973,7 @@ func (d *decred) dropTables(tx *gorm.DB) error {
 	err := tx.DropTableIfExists(tableComments, tableCommentLikes,
 		tableCastVotes, tableAuthorizeVotes, tableVoteOptions,
 		tableStartVotes, tableVoteOptionResults, tableVoteResults,
-		tableProposalGeneralMetadata).Error
+		tableProposalMetadata).Error
 	if err != nil {
 		return err
 	}
@@ -2082,13 +2121,12 @@ func (d *decred) build(ir *decredplugin.InventoryReply) error {
 		}
 	}
 
-	// Build the ProposalGeneralMetadata cache. This metadata is not
-	// part of the decredplugin InventoryReply. It is already stored
-	// in the cached as a MetadataStream with an encoded payload. We
-	// need to lookup the MetadataStreams for each record, decode the
-	// mdstream, and save it as a ProposalGeneralMetadata record so
-	// that it is queriable. Only the ProposalGeneralMetadata for the
-	// most recent version of the proposal is saved to the cache.
+	// Build the ProposalMetadata cache. This metadata is not part of
+	// the decredplugin InventoryReply. It is already stored in the
+	// cached as a MetadataStream with an encoded payload. We need to
+	// pull the ProposalMetadata out so it can be queried. Only the
+	// ProposalMetadata for the most recent version of the proposal
+	// is saved to the cache.
 
 	// Lookup latest version of each record
 	query := `SELECT a.*
@@ -2122,8 +2160,9 @@ func (d *decred) build(ir *decredplugin.InventoryReply) error {
 		keys = append(keys, v.Key)
 	}
 
-	// Lookup the metadata streams for each record
+	// Lookup the files and metadata streams for each record
 	err = d.recordsdb.
+		Preload("Files").
 		Preload("Metadata").
 		Where(keys).
 		Find(&records).
@@ -2133,35 +2172,25 @@ func (d *decred) build(ir *decredplugin.InventoryReply) error {
 	}
 
 	for _, v := range records {
-		// Decode the ProposalGeneral mdstream
-		var pg *mdstream.ProposalGeneral
-		for _, md := range v.Metadata {
-			if md.ID == mdstream.IDProposalGeneral {
-				pg, err = mdstream.DecodeProposalGeneral([]byte(md.Payload))
-				if err != nil {
-					return fmt.Errorf("decode ProposalGenral %v '%v': %v",
-						v.Token, md.Payload, err)
-				}
-			}
+		pm, err := newProposalMetadata(v)
+		if err != nil {
+			return err
 		}
-		if pg == nil {
+		if pm.Name == "" {
 			// XXX we cannot return an error here until the plugin
 			// architecture is sorted out. Right now, politeiad registers
 			// the decred plugin by default. CMS needs a way to register
 			// just the functionality it needs so that proposal specific
 			// tables do not get built for CMS.
-			// return fmt.Errorf("no ProposalGenral mdstream found %v",
+			// return fmt.Errorf("no proposal user metadata found %v",
 			//	v.Token)
 
 			continue
 		}
 
-		// Insert the ProposalGeneralMetadata record
-		pgm := convertProposalGeneralMetadataFromMDStream(*pg, v.Token, v.Version)
-		err := d.recordsdb.Create(&pgm).Error
+		err = d.recordsdb.Create(pm).Error
 		if err != nil {
-			return fmt.Errorf("insert ProposalGeneralMetadata %v: %v",
-				pgm, err)
+			return fmt.Errorf("create: %v", err)
 		}
 	}
 

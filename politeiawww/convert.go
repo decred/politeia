@@ -316,10 +316,16 @@ func convertPropStatusFromCache(s cache.RecordStatusT) www.PropStatusT {
 	return www.PropStatusInvalid
 }
 
-func convertPropFromCache(r cache.Record) www.ProposalRecord {
-	// Decode markdown stream payloads
+func convertPropFromCache(r cache.Record) (*www.ProposalRecord, error) {
+	// Decode metadata stream payloads
 	var (
-		pg         *mdstream.ProposalGeneral
+		// The name was originally saved in the ProposalGeneralV1
+		// mdstream but was moved to the ProposalData mdsteam, which
+		// is saved to politeiad as a File, not a MetadataStream.
+		name   string
+		pubkey string
+		sig    string
+
 		statusesV1 []mdstream.RecordStatusChangeV1
 		statusesV2 []mdstream.RecordStatusChangeV2
 		err        error
@@ -330,10 +336,29 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 		switch ms.ID {
 		case mdstream.IDProposalGeneral:
 			// General metadata
-			pg, err = mdstream.DecodeProposalGeneral([]byte(ms.Payload))
+			v, err := mdstream.DecodeVersion([]byte(ms.Payload))
 			if err != nil {
-				log.Errorf("convertPropFromCache: DecodeProposalGeneral: "+
-					"err:%v token:%v mdstream:%v", err, token, ms)
+				return nil, fmt.Errorf("DecodeVersion %v: %v",
+					ms.ID, err)
+			}
+			switch v {
+			case 1:
+				pg, err := mdstream.DecodeProposalGeneralV1([]byte(ms.Payload))
+				if err != nil {
+					return nil, fmt.Errorf("DecodeProposalGeneralV1: %v", err)
+				}
+				name = pg.Name
+				pubkey = pg.PublicKey
+				sig = pg.Signature
+			case 2:
+				pg, err := mdstream.DecodeProposalGeneralV2([]byte(ms.Payload))
+				if err != nil {
+					return nil, fmt.Errorf("DecodeProposalGeneralV2: %v", err)
+				}
+				pubkey = pg.PublicKey
+				sig = pg.Signature
+			default:
+				return nil, fmt.Errorf("unknown ProposalGeneral version %v", ms)
 			}
 
 		case mdstream.IDRecordStatusChange:
@@ -341,8 +366,7 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 			b := []byte(ms.Payload)
 			statusesV1, statusesV2, err = mdstream.DecodeRecordStatusChanges(b)
 			if err != nil {
-				log.Errorf("convertPropFromCache: DecodeRecordStatusChanges: "+
-					"err:%v token:%v mdstream:%v", err, token, ms)
+				return nil, fmt.Errorf("DecodeRecordStatusChanges: %v", err)
 			}
 
 			// Verify the signatures
@@ -350,9 +374,7 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 				err := v.VerifySignature(token)
 				if err != nil {
 					// This is not good!
-					e := fmt.Sprintf("invalid status change signature: "+
-						"token:%v status:%v", token, v)
-					panic(e)
+					return nil, fmt.Errorf("invalid status change signature: %v", v)
 				}
 			}
 
@@ -369,8 +391,7 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 			log.Tracef("convertPropFromCache: skipping mdstream %v",
 				decredplugin.MDStreamVoteSnapshot)
 		default:
-			log.Errorf("convertPropFromCache: invalid mdstream ID: "+
-				"token:%v mdstream:%v", token, ms)
+			return nil, fmt.Errorf("invalid mdstream: %v", ms)
 		}
 	}
 
@@ -417,9 +438,36 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 		}
 	}
 
-	// Convert files
+	// Convert files. Proposal files and metadata are both saved to
+	// politeiad as files so we need to differentiate between the two
+	// here. Note, proposal metadata in this context is www.Metadata
+	// that is submitted with the proposal.
 	files := make([]www.File, 0, len(r.Files))
+	metadata := make([]www.Metadata, 0, len(r.Files))
 	for _, f := range r.Files {
+		switch f.Name {
+		case mdstream.FilenameProposalMetadata:
+			metadata = append(metadata, www.Metadata{
+				Digest:  f.Digest,
+				Hint:    www.HintProposalMetadata,
+				Payload: f.Payload,
+			})
+
+			// Extract the proposal metadata from the payload
+			b, err := base64.StdEncoding.DecodeString(f.Payload)
+			if err != nil {
+				return nil, fmt.Errorf("decode file payload %v: %v",
+					mdstream.FilenameProposalMetadata, err)
+			}
+			var pm www.ProposalMetadata
+			err = json.Unmarshal(b, &pm)
+			if err != nil {
+				return nil, fmt.Errorf("unmarshal ProposalMetadata: %v", err)
+			}
+			name = pm.Name
+			continue
+		}
+
 		files = append(files,
 			www.File{
 				Name:    f.Name,
@@ -434,31 +482,35 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 	// The UserId, Username, and NumComments fields are returned
 	// as zero values since a cache record does not contain that
 	// data.
-	return www.ProposalRecord{
-		Name:                pg.Name,
+	return &www.ProposalRecord{
+		Name:                name,
 		State:               convertPropStatusToState(status),
 		Status:              status,
 		Timestamp:           r.Timestamp,
 		UserId:              "",
 		Username:            "",
-		PublicKey:           pg.PublicKey,
-		Signature:           pg.Signature,
-		Files:               files,
+		PublicKey:           pubkey,
+		Signature:           sig,
 		NumComments:         0,
 		Version:             r.Version,
 		StatusChangeMessage: changeMsg,
 		PublishedAt:         publishedAt,
 		CensoredAt:          censoredAt,
 		AbandonedAt:         abandonedAt,
-		LinkTo:              pg.LinkTo,
-		LinkBy:              pg.LinkBy,
-		LinkedFrom:          []string{},
+		/*
+		   // TODO
+		   		LinkTo:              pg.LinkTo,
+		   		LinkBy:              pg.LinkBy,
+		   		LinkedFrom:          []string{},
+		*/
+		Files:    files,
+		Metadata: metadata,
 		CensorshipRecord: www.CensorshipRecord{
 			Token:     r.CensorshipRecord.Token,
 			Merkle:    r.CensorshipRecord.Merkle,
 			Signature: r.CensorshipRecord.Signature,
 		},
-	}
+	}, nil
 }
 
 func convertNewCommentToDecredPlugin(nc www.NewComment) decredplugin.NewComment {
@@ -757,6 +809,7 @@ func convertDatabaseInvoiceToInvoiceRecord(dbInvoice cmsdatabase.Invoice) *cms.I
 	invRec.Status = dbInvoice.Status
 	invRec.Timestamp = dbInvoice.Timestamp
 	invRec.UserID = dbInvoice.UserID
+	invRec.Username = dbInvoice.Username
 	invRec.PublicKey = dbInvoice.PublicKey
 	invRec.Version = dbInvoice.Version
 	invRec.Signature = dbInvoice.UserSignature
@@ -1566,4 +1619,23 @@ func convertDCCDatabaseFromDCCRecord(dccRecord cms.DCCRecord) cmsdatabase.DCC {
 	dbDCC.OppositionUserIDs = oppositionUserIDs
 
 	return dbDCC
+}
+
+func convertDatabaseInvoiceToProposalLineItems(inv *cmsdatabase.Invoice) cms.ProposalLineItems {
+	return cms.ProposalLineItems{
+		Month:    int(inv.Month),
+		Year:     int(inv.Year),
+		UserID:   inv.UserID,
+		Username: inv.Username,
+		LineItem: cms.LineItemsInput{
+			Type:          inv.LineItems[0].Type,
+			Domain:        inv.LineItems[0].Domain,
+			Subdomain:     inv.LineItems[0].Subdomain,
+			Description:   inv.LineItems[0].Description,
+			ProposalToken: inv.LineItems[0].ProposalURL,
+			Labor:         inv.LineItems[0].Labor,
+			Expenses:      inv.LineItems[0].Expenses,
+			SubRate:       inv.LineItems[0].ContractorRate,
+		},
+	}
 }

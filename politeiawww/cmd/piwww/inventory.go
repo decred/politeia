@@ -102,7 +102,7 @@ func (cmd *InventoryCmd) Execute(args []string) error {
 			fmt.Printf("    Description          : %v\n",
 				vo.Description)
 			fmt.Printf("    Bits                 : %v\n", vo.Bits)
-			fmt.Printf("    To choose this option: politeiawwwcli vote %v %v\n",
+			fmt.Printf("    To choose this option: piwww vote %v %v\n",
 				v.StartVote.Vote.Token, vo.Id)
 		}
 	}
@@ -135,4 +135,4 @@ Token: (string)  Proposal censorship token
     ID                   : (string)  Unique word identifying vote (e.g. 'yes')
     Description          : (string)  Longer description of the vote
     Bits                 : (uint64)  Bits used for this option (e.g. '2')
-    To choose this option: politeiawwwcli vote 'Token' 'ID'`
+    To choose this option: piwww vote 'Token' 'ID'`

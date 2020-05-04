@@ -15,6 +15,7 @@ import (
 	"image/color"
 	"image/png"
 	"math/rand"
+	"net/http"
 	"strconv"
 	"testing"
 	"time"
@@ -77,11 +78,10 @@ func createFilePNG(t *testing.T, addColor bool) *www.File {
 
 // createFileMD creates a File that contains a markdown file.  The markdown
 // file is filled with randomly generated data.
-func createFileMD(t *testing.T, size int, title string) *www.File {
+func createFileMD(t *testing.T, size int) *www.File {
 	t.Helper()
 
 	var b bytes.Buffer
-	b.WriteString(title + "\n")
 	r, err := util.Random(size)
 	if err != nil {
 		t.Fatalf("%v", err)
@@ -90,7 +90,7 @@ func createFileMD(t *testing.T, size int, title string) *www.File {
 
 	return &www.File{
 		Name:    www.PolicyIndexFilename,
-		MIME:    mime.DetectMimeType(b.Bytes()),
+		MIME:    http.DetectContentType(b.Bytes()),
 		Digest:  hex.EncodeToString(util.Digest(b.Bytes())),
 		Payload: base64.StdEncoding.EncodeToString(b.Bytes()),
 	}
@@ -101,15 +101,7 @@ func createFileMD(t *testing.T, size int, title string) *www.File {
 func newFileRandomMD(t *testing.T) www.File {
 	t.Helper()
 
-	r, err := util.Random(www.PolicyMinProposalNameLength)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	var b bytes.Buffer
-	title := fmt.Sprintf("%s\n\n", hex.EncodeToString(r))
-	b.WriteString(title)
-
 	// Add ten lines of random base64 text.
 	for i := 0; i < 10; i++ {
 		r, err := util.Random(32)
@@ -127,46 +119,70 @@ func newFileRandomMD(t *testing.T) www.File {
 	}
 }
 
+func proposalNameRandom(t *testing.T) string {
+	r, err := util.Random(www.PolicyMinProposalNameLength)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return hex.EncodeToString(r)
+}
+
+func newProposalMetadata(t *testing.T, name string) []www.Metadata {
+	if name == "" {
+		// Generate a random name if none was given
+		name = proposalNameRandom(t)
+	}
+	pm := www.ProposalMetadata{
+		Name: name,
+	}
+	pmb, err := json.Marshal(pm)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return []www.Metadata{
+		{
+			Digest:  hex.EncodeToString(util.Digest(pmb)),
+			Hint:    www.HintProposalMetadata,
+			Payload: base64.StdEncoding.EncodeToString(pmb),
+		},
+	}
+}
+
 // createNewProposal computes the merkle root of the given files, signs the
 // merkle root with the given identity then returns a NewProposal object.
-func createNewProposal(t *testing.T, id *identity.FullIdentity, files []www.File) *www.NewProposal {
+func createNewProposal(t *testing.T, id *identity.FullIdentity, files []www.File, title string) *www.NewProposal {
 	t.Helper()
 
 	if len(files) == 0 {
 		t.Fatalf("no files found")
 	}
 
-	// Compute merkle
-	digests := make([]*[sha256.Size]byte, 0, len(files))
-	for _, f := range files {
-		d, ok := util.ConvertDigest(f.Digest)
-		if !ok {
-			t.Fatalf("could not convert digest %v", f.Digest)
-		}
-		digests = append(digests, &d)
-	}
-	root := hex.EncodeToString(merkle.Root(digests)[:])
+	// Setup metadata
+	metadata := newProposalMetadata(t, title)
 
-	// Sign merkle
-	sig := id.SignMessage([]byte(root))
+	// Compute and sign merkle root
+	m := merkleRoot(t, files, metadata)
+	sig := id.SignMessage([]byte(m))
 
 	return &www.NewProposal{
 		Files:     files,
+		Metadata:  metadata,
 		PublicKey: hex.EncodeToString(id.Public.Key[:]),
 		Signature: hex.EncodeToString(sig[:]),
 	}
 }
 
-// merkleRoot returns a hex encoded merkle root of the passed in files.
-func merkleRoot(t *testing.T, files []www.File) string {
+// merkleRoot returns a hex encoded merkle root of the passed in files and
+// metadata.
+func merkleRoot(t *testing.T, files []www.File, metadata []www.Metadata) string {
 	t.Helper()
 
 	if len(files) == 0 {
 		t.Fatalf("no files")
 	}
 
-	digests := make([]*[sha256.Size]byte, len(files))
-	for i, f := range files {
+	digests := make([]*[sha256.Size]byte, 0, len(files))
+	for _, f := range files {
 		// Compute file digest
 		b, err := base64.StdEncoding.DecodeString(f.Payload)
 		if err != nil {
@@ -187,7 +203,28 @@ func merkleRoot(t *testing.T, files []www.File) string {
 		}
 
 		// Digest is valid
-		digests[i] = &d
+		digests = append(digests, &d)
+	}
+
+	for _, v := range metadata {
+		b, err := base64.StdEncoding.DecodeString(v.Payload)
+		if err != nil {
+			t.Fatalf("decode payload for metadata %v: %v",
+				v.Hint, err)
+		}
+		digest := util.Digest(b)
+		d, ok := util.ConvertDigest(v.Digest)
+		if !ok {
+			t.Fatalf("invalid digest: metadata:%v digest:%v",
+				v.Hint, v.Digest)
+		}
+		if !bytes.Equal(digest, d[:]) {
+			t.Fatalf("digests do not match for metadata %v",
+				v.Hint)
+		}
+
+		// Digest is valid
+		digests = append(digests, &d)
 	}
 
 	// Compute merkle root
@@ -288,13 +325,10 @@ func newProposalRecord(t *testing.T, u *user.User, id *identity.FullIdentity, s 
 
 	f := newFileRandomMD(t)
 	files := []www.File{f}
-	m := merkleRoot(t, files)
+	name := proposalNameRandom(t)
+	metadata := newProposalMetadata(t, name)
+	m := merkleRoot(t, files, metadata)
 	sig := id.SignMessage([]byte(m))
-
-	title, err := parseProposalName(f.Payload)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	var (
 		publishedAt int64
@@ -324,7 +358,7 @@ func newProposalRecord(t *testing.T, u *user.User, id *identity.FullIdentity, s 
 	// generates the token locally to make setting up tests easier.
 	// The censorship record signature is left intentionally blank.
 	return www.ProposalRecord{
-		Name:                title,
+		Name:                name,
 		State:               convertPropStatusToState(s),
 		Status:              s,
 		Timestamp:           time.Now().Unix(),
@@ -332,13 +366,14 @@ func newProposalRecord(t *testing.T, u *user.User, id *identity.FullIdentity, s 
 		Username:            u.Username,
 		PublicKey:           u.PublicKey(),
 		Signature:           hex.EncodeToString(sig[:]),
-		Files:               files,
 		NumComments:         0,
 		Version:             "1",
 		StatusChangeMessage: changeMsg,
 		PublishedAt:         publishedAt,
 		CensoredAt:          censoredAt,
 		AbandonedAt:         abandonedAt,
+		Files:               files,
+		Metadata:            metadata,
 		CensorshipRecord: www.CensorshipRecord{
 			Token:     hex.EncodeToString(tokenb),
 			Merkle:    m,
@@ -350,16 +385,20 @@ func newProposalRecord(t *testing.T, u *user.User, id *identity.FullIdentity, s 
 func convertPropToPD(t *testing.T, p www.ProposalRecord) pd.Record {
 	t.Helper()
 
-	name, err := getProposalName(p.Files)
-	if err != nil {
-		t.Fatal(err)
+	// Attach ProposalMetadata as a politeiad file
+	files := convertPropFilesFromWWW(p.Files)
+	for _, v := range p.Metadata {
+		switch v.Hint {
+		case www.HintProposalMetadata:
+			files = append(files, convertFileFromMetadata(v))
+		}
 	}
 
-	md, err := mdstream.EncodeProposalGeneral(
-		mdstream.ProposalGeneral{
+	// Create a ProposalGeneralV2 mdstream
+	md, err := mdstream.EncodeProposalGeneralV2(
+		mdstream.ProposalGeneralV2{
 			Version:   mdstream.VersionProposalGeneral,
 			Timestamp: time.Now().Unix(),
-			Name:      name,
 			PublicKey: p.PublicKey,
 			Signature: p.Signature,
 		})
@@ -378,40 +417,7 @@ func convertPropToPD(t *testing.T, p www.ProposalRecord) pd.Record {
 		Version:          p.Version,
 		Metadata:         mdStreams,
 		CensorshipRecord: convertPropCensorFromWWW(p.CensorshipRecord),
-		Files:            convertPropFilesFromWWW(p.Files),
-	}
-}
-
-func TestParseProposalName(t *testing.T) {
-	// Setup tests
-	tests := []struct {
-		payload string // Base64 proposal payload
-		want    string // Expected output name
-	}{
-		{
-			base64.StdEncoding.EncodeToString([]byte("this is-the-title")),
-			"this is-the-title",
-		},
-		{
-			base64.StdEncoding.EncodeToString([]byte("this-is-the title\nbody")),
-			"this-is-the title",
-		},
-		// No title
-		{
-			base64.StdEncoding.EncodeToString([]byte("\n\nbody")),
-			"",
-		},
-	}
-
-	// Run tests
-	for _, test := range tests {
-		name, err := parseProposalName(test.payload)
-		if err != nil {
-			t.Errorf("got error %v, want nil", err)
-		}
-		if name != test.want {
-			t.Errorf("got %v, want %v", name, test.want)
-		}
+		Files:            files,
 	}
 }
 
@@ -495,9 +501,9 @@ func TestValidateProposal(t *testing.T) {
 	usr, id := newUser(t, p, true, false)
 
 	// Create test data
-	md := createFileMD(t, 8, "Valid Title")
+	md := createFileMD(t, 8)
 	png := createFilePNG(t, false)
-	np := createNewProposal(t, id, []www.File{*md, *png})
+	np := createNewProposal(t, id, []www.File{*md, *png}, "")
 
 	// Invalid signature
 	propInvalidSig := &www.NewProposal{
@@ -507,7 +513,7 @@ func TestValidateProposal(t *testing.T) {
 	}
 
 	// Signature is valid but incorrect
-	propBadSig := createNewProposal(t, id, []www.File{*md})
+	propBadSig := createNewProposal(t, id, []www.File{*md}, "")
 	propBadSig.Signature = np.Signature
 
 	// No files
@@ -520,10 +526,10 @@ func TestValidateProposal(t *testing.T) {
 	// Invalid markdown filename
 	mdBadFilename := *md
 	mdBadFilename.Name = "bad_filename.md"
-	propBadFilename := createNewProposal(t, id, []www.File{mdBadFilename})
+	propBadFilename := createNewProposal(t, id, []www.File{mdBadFilename}, "")
 
 	// Duplicate filenames
-	propDupFiles := createNewProposal(t, id, []www.File{*md, *png, *png})
+	propDupFiles := createNewProposal(t, id, []www.File{*md, *png, *png}, "")
 
 	// Too many markdown files. We need one correctly named md
 	// file and the rest must have their names changed so that we
@@ -535,7 +541,7 @@ func TestValidateProposal(t *testing.T) {
 		m.Name = fmt.Sprintf("%v.md", i)
 		files = append(files, m)
 	}
-	propMaxMDFiles := createNewProposal(t, id, files)
+	propMaxMDFiles := createNewProposal(t, id, files, "")
 
 	// Too many image files. All of their names must be different
 	// so that we don't get a duplicate filename error.
@@ -546,19 +552,20 @@ func TestValidateProposal(t *testing.T) {
 		p.Name = fmt.Sprintf("%v.png", i)
 		files = append(files, p)
 	}
-	propMaxImages := createNewProposal(t, id, files)
+	propMaxImages := createNewProposal(t, id, files, "")
 
 	// Markdown file too large
-	mdLarge := createFileMD(t, www.PolicyMaxMDSize, "Valid Title")
-	propMDLarge := createNewProposal(t, id, []www.File{*mdLarge, *png})
+	mdLarge := createFileMD(t, www.PolicyMaxMDSize)
+	propMDLarge := createNewProposal(t, id, []www.File{*mdLarge, *png}, "")
 
 	// Image too large
 	pngLarge := createFilePNG(t, true)
-	propImageLarge := createNewProposal(t, id, []www.File{*md, *pngLarge})
+	propImageLarge := createNewProposal(t, id, []www.File{*md, *pngLarge}, "")
 
 	// Invalid proposal title
-	mdBadTitle := createFileMD(t, 8, "{invalid-title}")
-	propBadTitle := createNewProposal(t, id, []www.File{*mdBadTitle})
+	mdBadTitle := createFileMD(t, 8)
+	propBadTitle := createNewProposal(t, id,
+		[]www.File{*mdBadTitle}, "{invalid-title}")
 
 	// Setup test cases
 	var tests = []struct {
@@ -831,7 +838,7 @@ func TestProcessNewProposal(t *testing.T) {
 
 	// Create a NewProposal
 	f := newFileRandomMD(t)
-	np := createNewProposal(t, id, []www.File{f})
+	np := createNewProposal(t, id, []www.File{f}, "")
 
 	// Setup tests
 	var tests = []struct {
@@ -918,7 +925,7 @@ func TestProcessEditProposal(t *testing.T) {
 	tokenPropPublic := propPublic.CensorshipRecord.Token
 	d.AddRecord(t, convertPropToPD(t, propPublic))
 
-	root := merkleRoot(t, propPublic.Files)
+	root := merkleRoot(t, propPublic.Files, propPublic.Metadata)
 	s := id.SignMessage([]byte(root))
 	sigPropPublic := hex.EncodeToString(s[:])
 
@@ -927,7 +934,7 @@ func TestProcessEditProposal(t *testing.T) {
 	png := createFilePNG(t, false)
 	newFiles := []www.File{newMD, *png}
 
-	root = merkleRoot(t, newFiles)
+	root = merkleRoot(t, newFiles, propPublic.Metadata)
 	s = id.SignMessage([]byte(root))
 	sigPropPublicEdited := hex.EncodeToString(s[:])
 
@@ -997,6 +1004,7 @@ func TestProcessEditProposal(t *testing.T) {
 			www.EditProposal{
 				Token:     tokenPropPublic,
 				Files:     propPublic.Files,
+				Metadata:  propPublic.Metadata,
 				PublicKey: usr.PublicKey(),
 				Signature: sigPropPublic,
 			},
@@ -1010,6 +1018,7 @@ func TestProcessEditProposal(t *testing.T) {
 			www.EditProposal{
 				Token:     tokenPropPublic,
 				Files:     newFiles,
+				Metadata:  propPublic.Metadata,
 				PublicKey: usr.PublicKey(),
 				Signature: sigPropPublicEdited,
 			},

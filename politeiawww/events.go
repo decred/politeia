@@ -439,9 +439,12 @@ func (p *politeiawww) _setupProposalVoteAuthorizedEmailNotification() {
 				log.Errorf("proposal not found: %v", err)
 				continue
 			}
-			proposal := convertPropFromCache(*record)
+			proposal, err := convertPropFromCache(*record)
+			if err != nil {
+				log.Errorf("invalid proposal %v", token)
+			}
 
-			err = p.emailAdminsForProposalVoteAuthorized(&proposal, pvs.User)
+			err = p.emailAdminsForProposalVoteAuthorized(proposal, pvs.User)
 			if err != nil {
 				log.Errorf("email all admins for new submitted proposal %v: %v",
 					token, err)

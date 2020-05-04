@@ -384,7 +384,7 @@ that you want to force the cache to rebuild.  You can do this by using the
 tables from the cache, re-create the tables, then populate the cache with the
 data that is in the politeiad git repositories.
 
-##### Building with repository version
+#### Building with repository version
 
 It is often useful to have version information from the repository where 
 politeia was fetched and built from, such as the commit hash it is using.  
@@ -397,14 +397,14 @@ return `v1.0.0-<date>-<short commit hash>`. This build version is logged on
 startup and returned from the version API call. Below are examples on how
 to build politeia from outside of `GOPATH` and your local repository:
 
-`GO111MODULE=on go get github.com/decred/politeia/politeiad/cmd/...@master`
+`GO111MODULE=on go get github.com/decred/politeia/...@master`
 
 This will fetch and install politeia from gh master branch, and will include 
 the build version information. If you need to add build flags and/or 
 environment variables, do it normally as building from source:
 
 `env GOOS=linux GOARCH=amd64 CGO_ENABLED=0 GO111MODULE=on go get -trimpath 
--tags 'net,go' github.com/decred/politeia/politeiad/cmd/...@master`
+-tags 'net,go' github.com/decred/politeia/...@master@master`
 
 ## Integrated Projects / External APIs / Official URLs
 

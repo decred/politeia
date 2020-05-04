@@ -34,7 +34,7 @@ const (
 	// Note that 15 is in use by the decred plugin
 
 	// mdstream current supported versions
-	VersionProposalGeneral      = 1
+	VersionProposalGeneral      = 2
 	VersionRecordStatusChange   = 2
 	VersionInvoiceGeneral       = 1
 	VersionInvoiceStatusChange  = 1
@@ -42,26 +42,43 @@ const (
 	VersionDCCGeneral           = 1
 	VersionDCCStatusChange      = 1
 	VersionDCCSupposeOpposition = 1
+
+	// Filenames of user defined metadata that is stored as politeiad
+	// files instead of politeiad metadata streams. This is done so
+	// that the metadata is included in the politeiad merkle root calc.
+	FilenameProposalMetadata = "proposalmetadata.json"
 )
 
-// ProposalGeneral represents general metadata for a proposal.
-//
-// LinkBy is set to signify that the proposal is a Request For Proposals (RFP)
-// and serves as the deadline for other proposals to link to the RFP.
-//
-// LinkTo allows a proposal to link to an existing public proposal.
-type ProposalGeneral struct {
-	Version   uint64 `json:"version"`          // Struct version
-	Timestamp int64  `json:"timestamp"`        // Last update of proposal
-	Name      string `json:"name"`             // Provided proposal name
-	LinkBy    int64  `json:"linkby,omitempty"` // UNIX timestamp of RFP deadline
-	LinkTo    string `json:"linkto,omitempty"` // Token of proposal to link to
-	PublicKey string `json:"publickey"`        // Key used for signature
-	Signature string `json:"signature"`        // Signature of proposal files merkle root
+// DecodeVersion returns the version of the provided mstream payload. This
+// function should only be used when the payload contains a single struct with
+// a version field.
+func DecodeVersion(payload []byte) (uint, error) {
+	data := make(map[string]interface{}, 32)
+	err := json.Unmarshal(payload, &data)
+	if err != nil {
+		return 0, err
+	}
+	version := uint(data["version"].(float64))
+	if version == 0 {
+		return 0, fmt.Errorf("version not found")
+	}
+	return version, nil
 }
 
-// EncodeProposalGeneral encodes a ProposalGeneral into a JSON byte slice.
-func EncodeProposalGeneral(md ProposalGeneral) ([]byte, error) {
+// ProposalGeneralV1 represents general metadata for a proposal.
+//
+// Signature is the signature of the merkle root where the merkle root contains
+// the proposal file payloads.
+type ProposalGeneralV1 struct {
+	Version   uint64 `json:"version"`   // Struct version
+	Timestamp int64  `json:"timestamp"` // Last update of proposal
+	Name      string `json:"name"`      // Provided proposal name
+	PublicKey string `json:"publickey"` // Key used for signature
+	Signature string `json:"signature"` // Proposal signature
+}
+
+// EncodeProposalGeneralV1 encodes a ProposalGeneralV1 into a JSON byte slice.
+func EncodeProposalGeneralV1(md ProposalGeneralV1) ([]byte, error) {
 	b, err := json.Marshal(md)
 	if err != nil {
 		return nil, err
@@ -69,9 +86,44 @@ func EncodeProposalGeneral(md ProposalGeneral) ([]byte, error) {
 	return b, nil
 }
 
-// DecodeProposalGeneral decodes a JSON byte slice into a ProposalGeneral.
-func DecodeProposalGeneral(payload []byte) (*ProposalGeneral, error) {
-	var md ProposalGeneral
+// DecodeProposalGeneralV1 decodes a JSON byte slice into a ProposalGeneralV1.
+func DecodeProposalGeneralV1(payload []byte) (*ProposalGeneralV1, error) {
+	var md ProposalGeneralV1
+	err := json.Unmarshal(payload, &md)
+	if err != nil {
+		return nil, err
+	}
+	return &md, nil
+}
+
+// ProposalGeneralV2 represents general metadata for a proposal.
+//
+// Signature is the signature of the proposal merkle root. The merkle root
+// contains the ordered files and metadata digests. The file digests are first
+// in the ordering.
+//
+// Differences between v1 and v2:
+// * Name has been removed and is now part of proposal metadata.
+// * Signature has been updated to include propoposal metadata.
+type ProposalGeneralV2 struct {
+	Version   uint64 `json:"version"`   // Struct version
+	Timestamp int64  `json:"timestamp"` // Last update of proposal
+	PublicKey string `json:"publickey"` // Key used for signature
+	Signature string `json:"signature"` // Proposal signature
+}
+
+// EncodeProposalGeneralV2 encodes a ProposalGeneralV2 into a JSON byte slice.
+func EncodeProposalGeneralV2(md ProposalGeneralV2) ([]byte, error) {
+	b, err := json.Marshal(md)
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+// DecodeProposalGeneralV2 decodes a JSON byte slice into a ProposalGeneralV2.
+func DecodeProposalGeneralV2(payload []byte) (*ProposalGeneralV2, error) {
+	var md ProposalGeneralV2
 	err := json.Unmarshal(payload, &md)
 	if err != nil {
 		return nil, err

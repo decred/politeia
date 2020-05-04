@@ -785,7 +785,6 @@ func (p *politeiawww) handleProposalOwner(w http.ResponseWriter, r *http.Request
 			})
 		return
 	}
-
 	por, err := p.processProposalOwner(po)
 	if err != nil {
 		RespondWithError(w, r, 0,
@@ -794,6 +793,35 @@ func (p *politeiawww) handleProposalOwner(w http.ResponseWriter, r *http.Request
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, por)
+}
+
+func (p *politeiawww) handleProposalBilling(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleProposalBilling")
+
+	var pb cms.ProposalBilling
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&pb); err != nil {
+		RespondWithError(w, r, 0, "handleProposalBilling: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+	u, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleProposalBilling: getSessionUser %v", err)
+		return
+	}
+
+	pbr, err := p.processProposalBilling(pb, u)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleProposalBilling: processSetDCCStatus: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, pbr)
 }
 
 func (p *politeiawww) setCMSWWWRoutes() {
@@ -864,6 +892,9 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		permissionLogin)
 	p.addRoute(http.MethodGet, cms.APIRoute,
 		cms.RouteProposalOwner, p.handleProposalOwner,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cms.APIRoute,
+		cms.RouteProposalBilling, p.handleProposalBilling,
 		permissionLogin)
 
 	// Unauthenticated websocket

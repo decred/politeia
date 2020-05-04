@@ -211,16 +211,19 @@ const (
 	ErrorStatusInvalidLogin                ErrorStatusT = 63
 	ErrorStatusCommentIsCensored           ErrorStatusT = 64
 	ErrorStatusInvalidProposalVersion      ErrorStatusT = 65
-	ErrorStatusInvalidVoteType             ErrorStatusT = 66
-	ErrorStatusInvalidVoteOptions          ErrorStatusT = 67
-	ErrorStatusWrongVoteResult             ErrorStatusT = 68
-	ErrorStatusLinkByDeadlineNotMet        ErrorStatusT = 69
-	ErrorStatusNoLinkedProposals           ErrorStatusT = 70
-	ErrorStatusInvalidProposalData         ErrorStatusT = 71
-	ErrorStatusInvalidLinkTo               ErrorStatusT = 72
-	ErrorStatusInvalidLinkBy               ErrorStatusT = 73
-	ErrorStatusInvalidRunoffVote           ErrorStatusT = 74
-	ErrorStatusWrongProposalType           ErrorStatusT = 75
+	ErrorStatusMetadataInvalid             ErrorStatusT = 66
+	ErrorStatusMetadataMissing             ErrorStatusT = 67
+	ErrorStatusMetadataDigestInvalid       ErrorStatusT = 68
+	ErrorStatusInvalidVoteType             ErrorStatusT = 69
+	ErrorStatusInvalidVoteOptions          ErrorStatusT = 70
+	ErrorStatusWrongVoteResult             ErrorStatusT = 71
+	ErrorStatusLinkByDeadlineNotMet        ErrorStatusT = 72
+	ErrorStatusNoLinkedProposals           ErrorStatusT = 73
+	ErrorStatusInvalidProposalData         ErrorStatusT = 74
+	ErrorStatusInvalidLinkTo               ErrorStatusT = 75
+	ErrorStatusInvalidLinkBy               ErrorStatusT = 76
+	ErrorStatusInvalidRunoffVote           ErrorStatusT = 77
+	ErrorStatusWrongProposalType           ErrorStatusT = 78
 
 	// Proposal state codes
 	//
@@ -382,6 +385,9 @@ var (
 		ErrorStatusInvalidLogin:                "invalid login credentials",
 		ErrorStatusCommentIsCensored:           "comment is censored",
 		ErrorStatusInvalidProposalVersion:      "invalid proposal version",
+		ErrorStatusMetadataInvalid:             "invalid metadata",
+		ErrorStatusMetadataMissing:             "missing metadata",
+		ErrorStatusMetadataDigestInvalid:       "metadata digest invalid",
 		ErrorStatusInvalidVoteType:             "invalid vote type",
 		ErrorStatusInvalidVoteOptions:          "invalid vote options",
 		ErrorStatusWrongVoteResult:             "invalid vote results",
@@ -440,25 +446,35 @@ type File struct {
 	Payload string `json:"payload"` // File content, base64 encoded
 }
 
-// ProposalData is the data that is parsed from the data.json file. The
-// data.json file is part of the proposal files bundle and includes specifc
-// fields that are needed by politeiawww. They are included in a separate json
-// file instead of the index markdown file to make parsing easier.
+const (
+	// Metadata hints
+	HintProposalMetadata = "proposalmetadata"
+)
+
+// ProposalMetadata contains metadata that is specified by the user on proposal
+// submission. It is attached to a proposal submission as a Metadata object.
+type ProposalMetadata struct {
+	Name string `json:"name"`
+}
+
+// Metadata describes user specified metadata.
 //
-// The proposal name is not included in the ProposalData due to backwards
-// compatibility issues. It is still parsed from the index markdown file.
-type ProposalData struct {
-	LinkTo string `json:"linkto,omitempty"` // Token of proposal to link to
-	LinkBy int64  `json:"linkby,omitempty"` // UNIX timestamp of RFP deadline
+// Payload is the base64 encoding of the JSON encoded metadata. Its required
+// to be base64 encoded because it's stored in politeiad as a file and the
+// politeiad file payload must be base64.
+type Metadata struct {
+	Digest  string `json:"digest"`  // SHA256 digest of JSON encoded payload
+	Hint    string `json:"hint"`    // Hint that describes the payload
+	Payload string `json:"payload"` // Base64 encoded metadata content
 }
 
 // CensorshipRecord contains the proof that a proposal was accepted for review.
 // The proof is verifiable on the client side.
 //
-// The Merkle field contains the ordered merkle root of all files in the proposal.
-// The Token field contains a random censorship token that is signed by the
-// server private key.  The token can be used on the client to verify the
-// authenticity of the CensorshipRecord.
+// The Merkle field contains the ordered merkle root of all files and metadata
+// in the proposal.  The Token field contains a random censorship token that is
+// signed by the server private key.  The token can be used on the client to
+// verify the authenticity of the CensorshipRecord.
 type CensorshipRecord struct {
 	Token     string `json:"token"`     // Censorship token
 	Merkle    string `json:"merkle"`    // Merkle root of proposal
@@ -481,6 +497,9 @@ type VoteSummary struct {
 }
 
 // ProposalRecord is an entire proposal and it's content.
+//
+// Signature is a signature of the proposal merkle root where the merkle root
+// contains all Files and Metadata of the proposal.
 type ProposalRecord struct {
 	Name                string      `json:"name"`                          // Suggested short proposal name
 	State               PropStateT  `json:"state"`                         // Current state of proposal
@@ -490,7 +509,6 @@ type ProposalRecord struct {
 	Username            string      `json:"username"`                      // Username of user who submitted proposal
 	PublicKey           string      `json:"publickey"`                     // Key used for signature.
 	Signature           string      `json:"signature"`                     // Signature of merkle root
-	Files               []File      `json:"files"`                         // Files that make up the proposal
 	NumComments         uint        `json:"numcomments"`                   // Number of comments on the proposal
 	Version             string      `json:"version"`                       // Record version
 	StatusChangeMessage string      `json:"statuschangemessage,omitempty"` // Message associated to the status change
@@ -501,6 +519,8 @@ type ProposalRecord struct {
 	LinkBy              int64       `json:"linkby,omitempty"`              // UNIX timestamp of RFP deadline
 	LinkedFrom          []string    `json:"linkedfrom,omitempty"`          // Tokens of public props that have linked to this this prop
 
+	Files            []File           `json:"files"`
+	Metadata         []Metadata       `json:"metadata"`
 	CensorshipRecord CensorshipRecord `json:"censorshiprecord"`
 }
 
@@ -820,10 +840,18 @@ type ProposalPaywallPaymentReply struct {
 }
 
 // NewProposal attempts to submit a new proposal.
+//
+// Metadata is required to include a ProposalMetadata for all proposal
+// submissions.
+//
+// Signature is the signature of the proposal merkle root. The merkle root
+// contains the ordered files and metadata digests. The file digests are first
+// in the ordering.
 type NewProposal struct {
-	Files     []File `json:"files"`     // Proposal files
-	PublicKey string `json:"publickey"` // Key used for signature.
-	Signature string `json:"signature"` // Signature of merkle root
+	Files     []File     `json:"files"`     // Proposal files
+	Metadata  []Metadata `json:"metadata"`  // User specified metadata
+	PublicKey string     `json:"publickey"` // Key used for signature.
+	Signature string     `json:"signature"` // Signature of merkle root
 }
 
 // NewProposalReply is used to reply to the NewProposal command
@@ -1259,11 +1287,19 @@ type UserIdentity struct {
 }
 
 // EditProposal attempts to edit a proposal
+//
+// Metadata is required to include a ProposalMetadata for all proposal
+// submissions.
+//
+// Signature is the signature of the proposal merkle root. The merkle root
+// contains the ordered files and metadata digests. The file digests are first
+// in the ordering.
 type EditProposal struct {
-	Token     string `json:"token"`
-	Files     []File `json:"files"`
-	PublicKey string `json:"publickey"`
-	Signature string `json:"signature"`
+	Token     string     `json:"token"`
+	Files     []File     `json:"files"`
+	Metadata  []Metadata `json:"metadata"`
+	PublicKey string     `json:"publickey"`
+	Signature string     `json:"signature"`
 }
 
 // EditProposalReply is used to reply to the EditProposal command
