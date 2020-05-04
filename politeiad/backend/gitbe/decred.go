@@ -1537,6 +1537,15 @@ func prepareAuthorizeVote(fi *identity.FullIdentity, token, action, pubkey, sig 
 	}
 }
 
+func prepareAuthorizeVoteReply(av decredplugin.AuthorizeVote, recordVersion string) decredplugin.AuthorizeVoteReply {
+	return decredplugin.AuthorizeVoteReply{
+		Action:        av.Action,
+		RecordVersion: recordVersion,
+		Receipt:       av.Receipt,
+		Timestamp:     av.Timestamp,
+	}
+}
+
 // pluginAuthorizeVote updates the vetted repo with vote authorization
 // metadata from the proposal author.
 func (g *gitBackEnd) pluginAuthorizeVote(payload string) (string, error) {
@@ -1605,12 +1614,7 @@ func (g *gitBackEnd) pluginAuthorizeVote(payload string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("getLatest: %v", err)
 	}
-	avr := decredplugin.AuthorizeVoteReply{
-		Action:        av.Action,
-		RecordVersion: version,
-		Receipt:       av.Receipt,
-		Timestamp:     av.Timestamp,
-	}
+	avr := prepareAuthorizeVoteReply(av, version)
 	avrb, err := decredplugin.EncodeAuthorizeVoteReply(avr)
 	if err != nil {
 		return "", err
@@ -2056,7 +2060,11 @@ func (g *gitBackEnd) pluginStartVoteRunoff(payload string) (string, error) {
 	}
 
 	// Prepare work to be done
-	um := make([]updateMetadata, 0, len(sv.StartVotes))
+	var (
+		um          = make([]updateMetadata, 0, len(sv.StartVotes))
+		authReplies = make(map[string]decredplugin.AuthorizeVoteReply) // [token]AuthorizeVoteReply
+
+	)
 	for _, v := range sv.AuthorizeVotes {
 		av := prepareAuthorizeVote(fi, v.Token, v.Action,
 			v.PublicKey, v.Signature)
@@ -2079,6 +2087,15 @@ func (g *gitBackEnd) pluginStartVoteRunoff(payload string) (string, error) {
 				},
 			},
 		})
+
+		// Prepare reply
+		recordVersion, err := getLatest(pijoin(g.vetted, v.Token))
+		if err != nil {
+			return "", fmt.Errorf("getLatest %v: %v",
+				v.Token, err)
+		}
+		avr := prepareAuthorizeVoteReply(av, recordVersion)
+		authReplies[v.Token] = avr
 	}
 	for _, v := range sv.StartVotes {
 		// Add version to on disk structure
@@ -2129,7 +2146,8 @@ func (g *gitBackEnd) pluginStartVoteRunoff(payload string) (string, error) {
 	// Prepare reply
 	reply, err := decredplugin.EncodeStartVoteRunoffReply(
 		decredplugin.StartVoteRunoffReply{
-			StartVoteReply: *svr,
+			AuthorizeVoteReplies: authReplies,
+			StartVoteReply:       *svr,
 		})
 	if err != nil {
 		return "", err

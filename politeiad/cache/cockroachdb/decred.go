@@ -967,17 +967,14 @@ func (d *decred) cmdAuthorizeVote(cmdPayload, replyPayload string) (string, erro
 	if err != nil {
 		return "", err
 	}
-
-	v, err := strconv.ParseUint(avr.RecordVersion, 10, 64)
+	a, err := convertAuthorizeVoteFromDecred(*av, *avr)
 	if err != nil {
-		return "", fmt.Errorf("parse version '%v' failed: %v",
-			avr.RecordVersion, err)
+		return "", err
 	}
 
 	// Run update in a transaction
-	a := convertAuthorizeVoteFromDecred(*av, *avr, v)
 	tx := d.recordsdb.Begin()
-	err = authorizeVoteInsert(tx, a)
+	err = authorizeVoteInsert(tx, *a)
 	if err != nil {
 		tx.Rollback()
 		return "", fmt.Errorf("authorizeVoteInsert: %v", err)
@@ -1029,16 +1026,6 @@ func (d *decred) cmdStartVote(cmdPayload, replyPayload string) (string, error) {
 	return replyPayload, nil
 }
 
-func startVotesInsert(tx *gorm.DB, startVotes []StartVote) error {
-	for _, v := range startVotes {
-		err := startVoteInsert(tx, v)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (d *decred) cmdStartVoteRunoff(cmdPayload, replyPayload string) (string, error) {
 	log.Tracef("decred cmdStartVoteRunoff")
 
@@ -1051,6 +1038,16 @@ func (d *decred) cmdStartVoteRunoff(cmdPayload, replyPayload string) (string, er
 		return "", err
 	}
 
+	// Prepare records to be inserted
+	authVotes := make([]AuthorizeVote, 0, len(sv.AuthorizeVotes))
+	for _, v := range sv.AuthorizeVotes {
+		avr := svr.AuthorizeVoteReplies[v.Token]
+		a, err := convertAuthorizeVoteFromDecred(v, avr)
+		if err != nil {
+			return "", err
+		}
+		authVotes = append(authVotes, *a)
+	}
 	startVotes := make([]StartVote, 0, len(sv.StartVotes))
 	for _, v := range sv.StartVotes {
 		s, err := convertStartVoteV2FromDecred(v, svr.StartVoteReply)
@@ -1062,10 +1059,19 @@ func (d *decred) cmdStartVoteRunoff(cmdPayload, replyPayload string) (string, er
 
 	// Run updates in a transaction
 	tx := d.recordsdb.Begin()
-	err = startVotesInsert(tx, startVotes)
-	if err != nil {
-		tx.Rollback()
-		return "", err
+	for _, v := range authVotes {
+		err = authorizeVoteInsert(tx, v)
+		if err != nil {
+			tx.Rollback()
+			return "", err
+		}
+	}
+	for _, v := range startVotes {
+		err := startVoteInsert(tx, v)
+		if err != nil {
+			tx.Rollback()
+			return "", err
+		}
 	}
 	err = tx.Commit().Error
 	if err != nil {
@@ -2059,15 +2065,11 @@ func (d *decred) build(ir *decredplugin.InventoryReply) error {
 				v.Token)
 		}
 
-		rv, err := strconv.ParseUint(r.RecordVersion, 10, 64)
+		av, err := convertAuthorizeVoteFromDecred(v, r)
 		if err != nil {
-			log.Debugf("authorizeVoteInsert failed on '%v'", r)
-			return fmt.Errorf("parse version '%v' failed: %v",
-				r.RecordVersion, err)
+			return err
 		}
-
-		av := convertAuthorizeVoteFromDecred(v, r, rv)
-		err = authorizeVoteInsert(d.recordsdb, av)
+		err = authorizeVoteInsert(d.recordsdb, *av)
 		if err != nil {
 			log.Debugf("authorizeVoteInsert failed on '%v'", av)
 			return fmt.Errorf("authorizeVoteInsert: %v", err)

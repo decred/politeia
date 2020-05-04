@@ -292,7 +292,7 @@ func newAuthorizeVote(token, version, action string, id *identity.FullIdentity) 
 
 func newAuthorizeVoteCmd(t *testing.T, token, version, action string, id *identity.FullIdentity) pd.PluginCommand {
 	av := newAuthorizeVote(token, version, action, id)
-	dav := convertAuthorizeVoteFromWWW(av)
+	dav := convertAuthorizeVoteToDecred(av)
 	payload, err := decredplugin.EncodeAuthorizeVote(dav)
 	if err != nil {
 		t.Fatal(err)

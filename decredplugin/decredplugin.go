@@ -508,9 +508,12 @@ func DecodeStartVoteRunoff(payload []byte) (*StartVoteRunoff, error) {
 }
 
 // StartVoteRunoffReply is the reply to StartVoteRunoff. The StartVoteReply
-// will be the same for all submissions so only one is returned.
+// will be the same for all submissions so only one is returned. The individual
+// AuthorizeVoteReply is returned for each submission where the token is the
+// map key.
 type StartVoteRunoffReply struct {
-	StartVoteReply StartVoteReply `json:"startvotereply"`
+	AuthorizeVoteReplies map[string]AuthorizeVoteReply `json:"authorizevotereply"`
+	StartVoteReply       StartVoteReply                `json:"startvotereply"`
 }
 
 // EncodeStartVoteRunoffReply encodes StartVoteRunoffReply into a JSON byte slice.

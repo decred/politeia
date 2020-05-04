@@ -156,8 +156,14 @@ func convertLikeCommentToDecred(lc LikeComment) decredplugin.LikeComment {
 	}
 }
 
-func convertAuthorizeVoteFromDecred(av decredplugin.AuthorizeVote, avr decredplugin.AuthorizeVoteReply, version uint64) AuthorizeVote {
-	return AuthorizeVote{
+func convertAuthorizeVoteFromDecred(av decredplugin.AuthorizeVote, avr decredplugin.AuthorizeVoteReply) (*AuthorizeVote, error) {
+	version, err := strconv.ParseUint(avr.RecordVersion, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("parse version '%v' failed: %v",
+			avr.RecordVersion, err)
+	}
+
+	return &AuthorizeVote{
 		Key:       av.Token + avr.RecordVersion,
 		Token:     av.Token,
 		Version:   version,
@@ -166,7 +172,7 @@ func convertAuthorizeVoteFromDecred(av decredplugin.AuthorizeVote, avr decredplu
 		PublicKey: av.PublicKey,
 		Receipt:   avr.Receipt,
 		Timestamp: avr.Timestamp,
-	}
+	}, nil
 }
 
 func convertAuthorizeVoteToDecred(av AuthorizeVote) decredplugin.AuthorizeVote {
