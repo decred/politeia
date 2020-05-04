@@ -111,7 +111,11 @@ func (cmd *NewProposalCmd) Execute(args []string) error {
 
 	// Setup metadata
 	if cmd.Name == "" {
-		cmd.Name = "Some proposal title"
+		r, err := util.Random(v1.PolicyMinProposalNameLength)
+		if err != nil {
+			return err
+		}
+		cmd.Name = hex.EncodeToString(r)
 	}
 	pm := v1.ProposalMetadata{
 		Name: cmd.Name,
@@ -193,7 +197,7 @@ Flags:
   --random   (bool, optional)    Generate a random proposal.
   --rfp      (bool, optional)    Make the proposal an RFP by inserting a LinkBy timestamp into the
                                  proposal data JSON file. The LinkBy timestamp is set to be one
-																 week from the current time.
+                                 week from the current time.
   --linkto   (string, optional)  Token of an existing public proposal to link to. The token is
                                  used to populate the LinkTo field in the proposal data JSON file.
 

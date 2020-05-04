@@ -1646,7 +1646,7 @@ func (d *decred) cmdLinkedFrom(payload string) (string, error) {
 	return string(reply), nil
 }
 
-func newProposalMetadata(r Record) (*ProposalMetadata, error) {
+func proposalMetadataNew(r Record) (*ProposalMetadata, error) {
 	var name string
 	for _, v := range r.Metadata {
 		switch v.ID {
@@ -1667,22 +1667,26 @@ func newProposalMetadata(r Record) (*ProposalMetadata, error) {
 			case 2:
 				// The proposal name was removed from the ProposalGeneralV2
 				// mdtream and added to the ProposalMetadata file.
-				for _, f := range r.Files {
-					switch f.Name {
-					case mdstream.FilenameProposalMetadata:
-						b, err := base64.StdEncoding.DecodeString(f.Payload)
-						if err != nil {
-							return nil, err
-						}
-						var pm ProposalMetadata
-						err = json.Unmarshal(b, &pm)
-						if err != nil {
-							return nil, err
-						}
-						name = pm.Name
-					}
-				}
 			}
+		}
+	}
+
+	// Parse the ProposalMetadata from the proposal files. One will
+	// exists for all new proposals but may not exists for older
+	// proposals.
+	var pm ProposalMetadata
+	for _, f := range r.Files {
+		switch f.Name {
+		case mdstream.FilenameProposalMetadata:
+			b, err := base64.StdEncoding.DecodeString(f.Payload)
+			if err != nil {
+				return nil, err
+			}
+			err = json.Unmarshal(b, &pm)
+			if err != nil {
+				return nil, err
+			}
+			name = pm.Name
 		}
 	}
 
@@ -1692,8 +1696,10 @@ func newProposalMetadata(r Record) (*ProposalMetadata, error) {
 	}
 
 	return &ProposalMetadata{
-		Token: r.Token,
-		Name:  name,
+		Token:  r.Token,
+		Name:   name,
+		LinkTo: pm.LinkTo,
+		LinkBy: pm.LinkBy,
 	}, nil
 }
 
@@ -1707,7 +1713,7 @@ func (d *decred) hookPostNewRecord(tx *gorm.DB, payload string) error {
 	if err != nil {
 		return err
 	}
-	pm, err := newProposalMetadata(r)
+	pm, err := proposalMetadataNew(r)
 	if err != nil {
 		return err
 	}
@@ -1755,7 +1761,7 @@ func (d *decred) hookPostUpdateRecord(tx *gorm.DB, payload string) error {
 	if err != nil {
 		return err
 	}
-	pm, err := newProposalMetadata(r)
+	pm, err := proposalMetadataNew(r)
 	if err != nil {
 		return err
 	}
@@ -2172,7 +2178,7 @@ func (d *decred) build(ir *decredplugin.InventoryReply) error {
 	}
 
 	for _, v := range records {
-		pm, err := newProposalMetadata(v)
+		pm, err := proposalMetadataNew(v)
 		if err != nil {
 			return err
 		}

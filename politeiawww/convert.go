@@ -61,13 +61,30 @@ func convertBallotReplyFromDecredPlugin(b decredplugin.BallotReply) www.BallotRe
 	return br
 }
 
-func convertAuthorizeVoteFromWWW(av www.AuthorizeVote) decredplugin.AuthorizeVote {
+func convertAuthorizeVoteToDecred(av www.AuthorizeVote) decredplugin.AuthorizeVote {
 	return decredplugin.AuthorizeVote{
 		Action:    av.Action,
 		Token:     av.Token,
 		PublicKey: av.PublicKey,
 		Signature: av.Signature,
 	}
+}
+
+func convertAuthorizeVoteV2ToDecred(av www2.AuthorizeVote) decredplugin.AuthorizeVote {
+	return decredplugin.AuthorizeVote{
+		Action:    av.Action,
+		Token:     av.Token,
+		PublicKey: av.PublicKey,
+		Signature: av.Signature,
+	}
+}
+
+func convertAuthorizeVotesV2ToDecred(av []www2.AuthorizeVote) []decredplugin.AuthorizeVote {
+	dav := make([]decredplugin.AuthorizeVote, 0, len(av))
+	for _, v := range av {
+		dav = append(dav, convertAuthorizeVoteV2ToDecred(v))
+	}
+	return dav
 }
 
 func convertVoteOptionFromWWW(vo www.VoteOption) decredplugin.VoteOption {

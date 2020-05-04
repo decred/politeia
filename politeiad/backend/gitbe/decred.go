@@ -1895,23 +1895,23 @@ func (g *gitBackEnd) pluginStartVoteRunoff(payload string) (string, error) {
 	}
 
 	// Ensure start votes and authorize votes match
-	auths := make(map[string]struct{}, len(sv.AuthorizeVotes))
-	starts := make(map[string]struct{}, len(sv.StartVotes))
+	authVotes := make(map[string]struct{}, len(sv.AuthorizeVotes))
+	startVotes := make(map[string]struct{}, len(sv.StartVotes))
 	for _, v := range sv.AuthorizeVotes {
-		auths[v.Token] = struct{}{}
+		authVotes[v.Token] = struct{}{}
 	}
 	for _, v := range sv.StartVotes {
-		starts[v.Vote.Token] = struct{}{}
+		startVotes[v.Vote.Token] = struct{}{}
 	}
 	for _, v := range sv.AuthorizeVotes {
-		_, ok := starts[v.Token]
+		_, ok := startVotes[v.Token]
 		if !ok {
 			return "", fmt.Errorf("authorize vote found without matching"+
 				"start vote %v", v.Token)
 		}
 	}
 	for _, v := range sv.StartVotes {
-		_, ok := auths[v.Vote.Token]
+		_, ok := authVotes[v.Vote.Token]
 		if !ok {
 			return "", fmt.Errorf("start vote found without matching "+
 				"authorize vote %v", v.Vote.Token)

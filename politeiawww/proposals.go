@@ -217,11 +217,24 @@ func (p *politeiawww) validateProposalMetadata(pm www.ProposalMetadata) error {
 		if err != nil {
 			return err
 		}
+		bb, err := p.getBestBlock()
+		if err != nil {
+			return err
+		}
+		vs, err := p.voteSummaryGet(pm.LinkTo, bb)
+		if err != nil {
+			return err
+		}
 		switch {
 		case !isRFP(*pr):
 			return www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidLinkTo,
 				ErrorContext: []string{"linkto proposal is not an rfp"},
+			}
+		case !voteIsApproved(*vs):
+			return www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidLinkTo,
+				ErrorContext: []string{"rfp proposal vote did not pass"},
 			}
 		case time.Now().Unix() > pr.LinkBy:
 			return www.UserError{
@@ -1014,9 +1027,6 @@ func (p *politeiawww) voteSummariesGet(tokens []string, bestBlock uint64) (map[s
 	)
 	for retries := 0; !done && retries <= 1; retries++ {
 		reply, err = p.decredBatchVoteSummary(tokensToLookup, bestBlock)
-		if err != nil {
-			return nil, err
-		}
 		if err != nil {
 			if err == cache.ErrRecordNotFound {
 				// There are missing entries in the VoteResults
@@ -2489,7 +2499,7 @@ func (p *politeiawww) processAuthorizeVote(av www.AuthorizeVote, u *user.User) (
 		return nil, fmt.Errorf("Random: %v", err)
 	}
 
-	dav := convertAuthorizeVoteFromWWW(av)
+	dav := convertAuthorizeVoteToDecred(av)
 	payload, err := decredplugin.EncodeAuthorizeVote(dav)
 	if err != nil {
 		return nil, fmt.Errorf("EncodeAuthorizeVote: %v", err)
@@ -3057,30 +3067,17 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 		}
 		return nil, err
 	}
-	rfpVoteSummary, err := p.voteSummaryGet(sv.Token, bb)
-	if err != nil {
-		return nil, err
-	}
-
 	switch {
-	case !voteIsApproved(*rfpVoteSummary):
-		// The RFP submissions can only be voted on if the RFP
-		// proposal itself has been voted on and approved.
+	case rfp.LinkBy > time.Now().Unix() && !p.cfg.TestNet:
+		// Vote cannot start on RFP submissions until the RFP linkby
+		// deadline has been met. This validation is skipped when on
+		// testnet.
 		return nil, www.UserError{
-			ErrorCode:    www.ErrorStatusWrongVoteResult,
-			ErrorContext: []string{"rfp proposal vote did not pass"},
-		}
-	case rfp.LinkBy > time.Now().Unix():
-		// Vote cannot start on RFP submissions until the RFP
-		// linkby deadline has been met.
-		return nil, www.UserError{
-			ErrorCode:    www.ErrorStatusLinkByDeadlineNotMet,
-			ErrorContext: []string{"linkby deadline not met"},
+			ErrorCode: www.ErrorStatusLinkByDeadlineNotMet,
 		}
 	case len(rfp.LinkedFrom) == 0:
 		return nil, www.UserError{
-			ErrorCode:    www.ErrorStatusNoLinkedProposals,
-			ErrorContext: []string{"no rfp submissions found"},
+			ErrorCode: www.ErrorStatusNoLinkedProposals,
 		}
 	}
 
@@ -3132,11 +3129,13 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 	}
 
 	// Setup plugin command
+	dav := convertAuthorizeVotesV2ToDecred(sv.AuthorizeVotes)
 	dsv := convertStartVotesV2ToDecred(sv.StartVotes)
 	payload, err := decredplugin.EncodeStartVoteRunoff(
 		decredplugin.StartVoteRunoff{
-			Token:      sv.Token,
-			StartVotes: dsv,
+			Token:          sv.Token,
+			AuthorizeVotes: dav,
+			StartVotes:     dsv,
 		})
 	if err != nil {
 		return nil, err

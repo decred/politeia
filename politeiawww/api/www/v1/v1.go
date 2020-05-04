@@ -209,14 +209,13 @@ const (
 	ErrorStatusMetadataDigestInvalid       ErrorStatusT = 68
 	ErrorStatusInvalidVoteType             ErrorStatusT = 69
 	ErrorStatusInvalidVoteOptions          ErrorStatusT = 70
-	ErrorStatusWrongVoteResult             ErrorStatusT = 71
-	ErrorStatusLinkByDeadlineNotMet        ErrorStatusT = 72
-	ErrorStatusNoLinkedProposals           ErrorStatusT = 73
-	ErrorStatusInvalidProposalData         ErrorStatusT = 74
-	ErrorStatusInvalidLinkTo               ErrorStatusT = 75
-	ErrorStatusInvalidLinkBy               ErrorStatusT = 76
-	ErrorStatusInvalidRunoffVote           ErrorStatusT = 77
-	ErrorStatusWrongProposalType           ErrorStatusT = 78
+	ErrorStatusLinkByDeadlineNotMet        ErrorStatusT = 71
+	ErrorStatusNoLinkedProposals           ErrorStatusT = 72
+	ErrorStatusInvalidProposalData         ErrorStatusT = 73
+	ErrorStatusInvalidLinkTo               ErrorStatusT = 74
+	ErrorStatusInvalidLinkBy               ErrorStatusT = 75
+	ErrorStatusInvalidRunoffVote           ErrorStatusT = 76
+	ErrorStatusWrongProposalType           ErrorStatusT = 77
 
 	// Proposal state codes
 	//
@@ -383,7 +382,6 @@ var (
 		ErrorStatusMetadataDigestInvalid:       "metadata digest invalid",
 		ErrorStatusInvalidVoteType:             "invalid vote type",
 		ErrorStatusInvalidVoteOptions:          "invalid vote options",
-		ErrorStatusWrongVoteResult:             "invalid vote results",
 		ErrorStatusLinkByDeadlineNotMet:        "linkby deadline note met",
 		ErrorStatusNoLinkedProposals:           "no linked proposals",
 		ErrorStatusInvalidProposalData:         "invalid proposal data",

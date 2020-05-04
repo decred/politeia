@@ -12,9 +12,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"time"
 
 	"github.com/decred/politeia/politeiad/api/v1/mime"
-	"github.com/decred/politeia/politeiawww/api/www/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 	"github.com/decred/politeia/util"
 )
@@ -26,8 +27,10 @@ type EditProposalCmd struct {
 		Markdown    string   `positional-arg-name:"markdownfile"`          // Proposal MD file
 		Attachments []string `positional-arg-name:"attachmentfiles"`       // Proposal attachments
 	} `positional-args:"true" optional:"true"`
-	Name   string `long:"name" optional:"true"`
 	Random bool   `long:"random" optional:"true"` // Generate random proposal data
+	Name   string `long:"name" optional:"true"`
+	RFP    bool   `long:"rfp" optional:"true"`    // Insert a LinkBy timestamp to indicate an RFP
+	LinkTo string `long:"linkto" optional:"true"` // Censorship token of prop to link to
 }
 
 // Execute executes the edit proposal command.
@@ -107,10 +110,22 @@ func (cmd *EditProposalCmd) Execute(args []string) error {
 
 	// Setup metadata
 	if cmd.Name == "" {
-		cmd.Name = "Some proposal title"
+		r, err := util.Random(v1.PolicyMinProposalNameLength)
+		if err != nil {
+			return err
+		}
+		cmd.Name = hex.EncodeToString(r)
 	}
 	pm := v1.ProposalMetadata{
 		Name: cmd.Name,
+	}
+	if cmd.RFP {
+		// Double the minimum LinkBy period to give a buffer
+		t := time.Second * v1.PolicyLinkByMinPeriod * 2
+		pm.LinkBy = time.Now().Add(t).Unix()
+	}
+	if cmd.LinkTo != "" {
+		pm.LinkTo = cmd.LinkTo
 	}
 	pmb, err := json.Marshal(pm)
 	if err != nil {
@@ -174,7 +189,12 @@ Arguments:
 3. attachmentfiles   (string, optional)   Attachments 
 
 Flags:
-  --random           (bool, optional)     Generate a random proposal to submit
+  --random   (bool, optional)    Generate a random proposal to submit
+  --rfp      (bool, optional)    Make the proposal an RFP by inserting a LinkBy timestamp into the
+                                 proposal data JSON file. The LinkBy timestamp is set to be one
+                                 week from the current time.
+  --linkto   (string, optional)  Token of an existing public proposal to link to. The token is
+                                 used to populate the LinkTo field in the proposal data JSON file.
 
 Request:
 {
