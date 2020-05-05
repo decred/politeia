@@ -454,7 +454,7 @@ func DecodeLoadVoteResultsReply(payload []byte) (*LoadVoteResultsReply, error) {
 	return &reply, nil
 }
 
-// VerifySignature verifies that the StartVoteV1 signature is correct.
+// VerifySignature verifies that the StartVoteV2 signature is correct.
 func (s *StartVote) VerifySignature() error {
 	sig, err := util.ConvertSignature(s.Signature)
 	if err != nil {
@@ -468,7 +468,12 @@ func (s *StartVote) VerifySignature() error {
 	if err != nil {
 		return err
 	}
-	if !pk.VerifyMessage([]byte(s.Vote.Token), sig) {
+	vb, err := json.Marshal(s.Vote)
+	if err != nil {
+		return err
+	}
+	msg := hex.EncodeToString(util.Digest(vb))
+	if !pk.VerifyMessage([]byte(msg), sig) {
 		return fmt.Errorf("invalid signature")
 	}
 	return nil
