@@ -2845,15 +2845,14 @@ This is a shortened representation of a user, used for lists.
 | | Type | Description |
 |-|-|-|
 | status | int | Status identifier |
-| approved | bool | Has the proposal vote passed. |
-| type | [`VoteT`](#vote-types)| Vote type. |
-| eligibletickets | int | Total number of eligible tickets |
-| duration | uint32 | Duration of the vote in blocks |
-| endheight | uint64 | The chain height in which the vote will end |
-| bestblock | uint64 | The current chain height |
-| quorumpercentage | uint32 | Percent of eligible votes required for quorum |
-| passpercentage | uint32 | Percent of total votes required to pass |
-| optionsresult | array of VoteOptionResult | Option description along with the number of votes it has received |
+| approved | bool | Has the proposal vote passed |
+| type | [`VoteT`](#vote-types)| Vote type (omitempty) |
+| eligibletickets | int | Total number of eligible tickets (omitempty) |
+| duration | uint32 | Duration of the vote in blocks (omitempty) |
+| endheight | uint64 | The chain height in which the vote will end (omitempty) |
+| quorumpercentage | uint32 | Percent of eligible votes required for quorum (omitempty) |
+| passpercentage | uint32 | Percent of total votes required to pass (omitempty) |
+| optionsresult | array of VoteOptionResult | Option description along with the number of votes it has received (omitempty) |
 
 ### `Censorship record`
 
