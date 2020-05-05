@@ -1696,11 +1696,6 @@ func proposalMetadataNew(r Record) (*ProposalMetadata, error) {
 		}
 	}
 
-	// Sanity check
-	if name == "" {
-		return nil, fmt.Errorf("no proposal name found")
-	}
-
 	return &ProposalMetadata{
 		Token:  r.Token,
 		Name:   name,
