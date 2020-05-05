@@ -878,6 +878,32 @@ func (p *politeiawww) processSetDCCStatus(sds cms.SetDCCStatus, u *user.User) (*
 		return nil, err
 	}
 
+	// Validate vote status
+	vsr, err := p.cmsVoteSummary(sds.Token)
+	if err != nil {
+		return nil, err
+	}
+
+	// Only allow voting on All Vote DCC proposals
+	// Get vote summary to check vote status
+	bb, err := p.getBestBlock()
+	if err != nil {
+		return nil, err
+	}
+
+	voteStatus := dccVoteStatusFromVoteSummary(*vsr, bb)
+	switch voteStatus {
+	case cms.DCCVoteStatusStarted:
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusWrongVoteStatus,
+			ErrorContext: []string{"vote has not finished"},
+		}
+	case cms.DCCVoteStatusInvalid:
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusWrongVoteStatus,
+		}
+	}
+
 	// Create the change record.
 	c := mdstream.DCCStatusChange{
 		Version:        mdstream.VersionDCCStatusChange,
@@ -1387,10 +1413,30 @@ func (p *politeiawww) processStartVoteDCC(sv cms.StartVote, u *user.User) (*cms.
 	if err != nil {
 		return nil, err
 	}
-	if vsr.EndHeight != 0 {
+
+	// Only allow voting on All Vote DCC proposals
+	// Get vote summary to check vote status
+
+	bb, err := p.getBestBlock()
+	if err != nil {
+		return nil, err
+	}
+
+	voteStatus := dccVoteStatusFromVoteSummary(*vsr, bb)
+	switch voteStatus {
+	case cms.DCCVoteStatusStarted:
 		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusWrongVoteStatus,
 			ErrorContext: []string{"vote already started"},
+		}
+	case cms.DCCVoteStatusFinished:
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusWrongVoteStatus,
+			ErrorContext: []string{"vote already finished"},
+		}
+	case cms.DCCVoteStatusInvalid:
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusWrongVoteStatus,
 		}
 	}
 
@@ -1461,4 +1507,17 @@ func validateVoteBitDCC(vote cms.Vote, bit uint64) error {
 	}
 
 	return fmt.Errorf("bit not found 0x%x", bit)
+}
+
+func dccVoteStatusFromVoteSummary(r cmsplugin.VoteSummaryReply, bestBlock uint64) cms.DCCVoteStatusT {
+	switch {
+	case r.EndHeight == 0:
+		return cms.DCCVoteStatusNotStarted
+	default:
+		if bestBlock < uint64(r.EndHeight) {
+			return cms.DCCVoteStatusStarted
+		}
+
+		return cms.DCCVoteStatusFinished
+	}
 }
