@@ -1790,6 +1790,7 @@ func convertStartVoteToCMS(sv cms.StartVote) cmsplugin.StartVote {
 	vote.Options = voteOptions
 
 	return cmsplugin.StartVote{
+		Token:     sv.Vote.Token,
 		Vote:      vote,
 		PublicKey: sv.PublicKey,
 		Signature: sv.Signature,
