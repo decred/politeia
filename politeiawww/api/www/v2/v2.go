@@ -120,7 +120,7 @@ type StartVoteReply struct {
 // AuthorizeVotes must contain a vote authorization for each RFP submission
 // that is participating in the runoff vote. Unlike standard votes, these vote
 // authorizations are not signed by the submission author. They are signed by
-// the admin.
+// the admin starting the runoff vote.
 //
 // StartVotes must contain a StartVote for each RFP submission that is
 // participating in the runoff vote. The runoff vote can only be started once

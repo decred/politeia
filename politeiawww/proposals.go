@@ -2451,9 +2451,6 @@ func validateAuthorizeVoteRunoff(av www.AuthorizeVote, u user.User, pr www.Propo
 	// The rest of the validation is specific to authorize votes for
 	// runoff votes.
 	switch {
-	case !isRFPSubmission(pr):
-		// Wrong validation function used. Fail with a 500.
-		return fmt.Errorf("proposal is not a runoff vote submission")
 	case !u.Admin:
 		// User is not an admin
 		return www.UserError{
@@ -2645,6 +2642,13 @@ func validateStartVote(sv www2.StartVote, u user.User, pr www.ProposalRecord, vs
 		}
 	}
 
+	// Ensure the public key is the user's active key
+	if sv.PublicKey != u.PublicKey() {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSigningKey,
+		}
+	}
+
 	// Validate signature
 	dsv := convertStartVoteV2ToDecred(sv)
 	err = dsv.VerifySignature()
@@ -2652,13 +2656,6 @@ func validateStartVote(sv www2.StartVote, u user.User, pr www.ProposalRecord, vs
 		log.Debugf("validateStartVote: VerifySignature: %v", err)
 		return www.UserError{
 			ErrorCode: www.ErrorStatusInvalidSignature,
-		}
-	}
-
-	// Ensure the public key is the user's active key
-	if sv.PublicKey != u.PublicKey() {
-		return www.UserError{
-			ErrorCode: www.ErrorStatusInvalidSigningKey,
 		}
 	}
 
