@@ -36,10 +36,6 @@ const (
 	mimeTypeText     = "text/plain"
 	mimeTypeTextUTF8 = "text/plain; charset=utf-8"
 	mimeTypePNG      = "image/png"
-
-	// defaultVoteDuration represents the vote duration (in blocks)
-	// that Politeia has historically used as the default duration.
-	defaultVoteDuration = 2016
 )
 
 var (
@@ -185,6 +181,26 @@ func validateVoteBit(vote www2.Vote, bit uint64) error {
 	return fmt.Errorf("bit not found 0x%x", bit)
 }
 
+// linkByPeriodMin returns the minimum amount of time, in seconds, that the
+// LinkBy period must be set to. This is determined by adding 1 week onto the
+// minimum voting period so that RFP proposal submissions have at least one
+// week to be submitted after the proposal vote ends.
+func (p *politeiawww) linkByPeriodMin() int64 {
+	var (
+		submissionPeriod int64 = 604800 // One week in seconds
+		avgBlockTime     int64 = 300    // 5 minutes in seconds
+	)
+	return (int64(p.cfg.VoteDurationMin) * avgBlockTime) + submissionPeriod
+}
+
+// linkByPeriodMax returns the maximum amount of time, in seconds, that the
+// LinkBy period can be set to. 3 months is currently hard coded with no real
+// reason for deciding on 3 months besides that it sounds like a sufficient
+// amount of time.  This can be changed if there is a valid reason to.
+func (p *politeiawww) linkByPeriodMax() int64 {
+	return 7776000 // 3 months in seconds
+}
+
 func (p *politeiawww) validateProposalMetadata(pm www.ProposalMetadata) error {
 	// Validate Name
 	if !isValidProposalName(pm.Name) {
@@ -256,19 +272,19 @@ func (p *politeiawww) validateProposalMetadata(pm www.ProposalMetadata) error {
 
 	// Validate LinkBy
 	if pm.LinkBy != 0 {
-		min := time.Now().Unix() + www.PolicyLinkByMinPeriod
-		max := time.Now().Unix() + www.PolicyLinkByMaxPeriod
+		min := time.Now().Unix() + p.linkByPeriodMin()
+		max := time.Now().Unix() + p.linkByPeriodMax()
 		switch {
 		case pm.LinkBy < min:
 			e := fmt.Sprintf("linkby period cannot be shorter than %v seconds",
-				www.PolicyLinkByMinPeriod)
+				p.linkByPeriodMin())
 			return www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidLinkBy,
 				ErrorContext: []string{e},
 			}
 		case pm.LinkBy > max:
 			e := fmt.Sprintf("linkby period cannot be greater than %v seconds",
-				www.PolicyLinkByMaxPeriod)
+				p.linkByPeriodMax())
 			return www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidLinkBy,
 				ErrorContext: []string{e},
@@ -2686,7 +2702,7 @@ func validateStartVote(sv www2.StartVote, u user.User, pr www.ProposalRecord, vs
 	return nil
 }
 
-func validateStartVoteStandard(sv www2.StartVote, u user.User, pr www.ProposalRecord, vs www.VoteSummary, durationMin, durationMax uint32) error {
+func validateStartVoteStandard(sv www2.StartVote, u user.User, pr www.ProposalRecord, vs www.VoteSummary, durationMin, durationMax uint32, linkByMin, linkByMax int64) error {
 	err := validateStartVote(sv, u, pr, vs, durationMin, durationMax)
 	if err != nil {
 		return err
@@ -2723,34 +2739,29 @@ func validateStartVoteStandard(sv www2.StartVote, u user.User, pr www.ProposalRe
 	// because their purpose is to ensure that there is enough time for
 	// RFP submissions to be submitted.
 	if isRFP(pr) {
-		min := time.Now().Unix() + www.PolicyLinkByMinPeriod
-		max := time.Now().Unix() + www.PolicyLinkByMaxPeriod
+		min := time.Now().Unix() + linkByMin
+		max := time.Now().Unix() + linkByMax
 		switch {
 		case pr.LinkBy < min:
 			e := fmt.Sprintf("linkby period must be at least %v seconds from "+
-				"the start of the proposal vote", www.PolicyLinkByMinPeriod)
+				"the start of the proposal vote", linkByMin)
 			return www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidLinkBy,
 				ErrorContext: []string{e},
 			}
 		case pr.LinkBy > max:
 			e := fmt.Sprintf("linkby period cannot be more than %v seconds from "+
-				"the start of the proposal vote", www.PolicyLinkByMaxPeriod)
+				"the start of the proposal vote", linkByMax)
 			return www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidLinkBy,
 				ErrorContext: []string{e},
 			}
 		}
 
-		// The LinkBy policies assume a vote duration of 2016 blocks (1
-		// week) which is the default vote duration that has historically
-		// been used on Politeia. The PolicyLinkByMinPeriod ensures that
-		// RFP submissions have a minimum of 1 week to be submitted after
-		// the vote ends when the vote duration is 2016 blocks. If the
-		// vote duration is not 2016 blocks, verify that RFP submissions
-		// will still have at least one week after the vote ends to be
+		// If the vote durations does not use the defaults, make sure
+		// that RFP submissions will have a minimum of 1 week to be
 		// submitted.
-		if sv.Vote.Duration != defaultVoteDuration {
+		if sv.Vote.Duration != defaultVoteDurationMin {
 			var (
 				avgBlockTime        int64 = 300    // 5 minutes in seconds
 				minSubmissionPeriod int64 = 604800 // 1 week in seconds
@@ -2845,7 +2856,8 @@ func (p *politeiawww) processStartVoteV2(sv www2.StartVote, u *user.User) (*www2
 
 	// Validate the start vote
 	err = validateStartVoteStandard(sv, *u, *pr, *vs,
-		p.cfg.VoteDurationMin, p.cfg.VoteDurationMax)
+		p.cfg.VoteDurationMin, p.cfg.VoteDurationMax,
+		p.linkByPeriodMin(), p.linkByPeriodMax())
 	if err != nil {
 		return nil, err
 	}

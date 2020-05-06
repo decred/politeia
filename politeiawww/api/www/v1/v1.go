@@ -120,16 +120,6 @@ const (
 	// accepted for comments
 	PolicyMaxCommentLength = 8000
 
-	// PolicyLinkByMinPeriod is the minimum amount of time required for
-	// the proposal LinkBy deadline. It is set for two weeks to allow
-	// for a one week voting period of the RFP and a minimum of one
-	// week to accept RFP submissions.
-	PolicyLinkByMinPeriod = 1209600 // Two weeks in seconds
-
-	// PolicyLinkByMaxPeriod is the maximum amount of time into the
-	// future that the proposal LinkBy field can be set to
-	PolicyLinkByMaxPeriod = 7776000 // Three months in seconds
-
 	// ProposalListPageSize is the maximum number of proposals returned
 	// for the routes that return lists of proposals
 	ProposalListPageSize = 20
@@ -442,6 +432,11 @@ const (
 
 // ProposalMetadata contains metadata that is specified by the user on proposal
 // submission. It is attached to a proposal submission as a Metadata object.
+//
+// LinkBy must allow for a minimum of one week after the proposal vote ends for
+// RFP submissions to be submitted. The LinkBy field is validated on both
+// proposal submission and before the proposal vote is started to ensure that
+// the RFP submissions have sufficient time to be submitted.
 type ProposalMetadata struct {
 	Name   string `json:"name"`             // Proposal name
 	LinkTo string `json:"linkto,omitempty"` // Token of proposal to link to

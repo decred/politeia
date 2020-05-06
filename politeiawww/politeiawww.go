@@ -360,8 +360,8 @@ func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 		MaxCommentLength:           www.PolicyMaxCommentLength,
 		BuildInformation:           version.BuildInformation(),
 		IndexFilename:              www.PolicyIndexFilename,
-		MinLinkByPeriod:            www.PolicyLinkByMinPeriod,
-		MaxLinkByPeriod:            www.PolicyLinkByMaxPeriod,
+		MinLinkByPeriod:            p.linkByPeriodMin(),
+		MaxLinkByPeriod:            p.linkByPeriodMax(),
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
