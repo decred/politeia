@@ -943,9 +943,9 @@ func (p *politeiawww) handlePassThroughTokenInventory(w http.ResponseWriter, r *
 			"handlePassThroughTokenInventory: http.Get: %v", err)
 		return
 	}
+	defer resp.Body.Close()
 
 	data, _ := ioutil.ReadAll(resp.Body)
-	resp.Body.Close()
 	util.RespondRaw(w, http.StatusOK, data)
 }
 
@@ -964,12 +964,9 @@ func (p *politeiawww) handlePassThroughBatchProposals(w http.ResponseWriter, r *
 			"handlePassThroughBatchProposals: http.NewRequest: %v", err)
 		return
 	}
-	defer func() {
-		resp.Body.Close()
-	}()
+	defer resp.Body.Close()
 
 	data, _ := ioutil.ReadAll(resp.Body)
-	resp.Body.Close()
 	util.RespondRaw(w, http.StatusOK, data)
 }
 
