@@ -130,7 +130,7 @@ type StartVoteReply struct {
 // RFP submission authors authorize the start of the vote.
 type StartVoteRunoff struct {
 	Token          string          `json:"token"`
-	AuthorizeVotes []AuthorizeVote `json:"authorizevote"`
+	AuthorizeVotes []AuthorizeVote `json:"authorizevotes"`
 	StartVotes     []StartVote     `json:"startvotes"`
 }
 
