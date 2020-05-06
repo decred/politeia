@@ -318,6 +318,8 @@ func cmdSetEmail() error {
 
 	fmt.Printf("User with username '%v' email successfully updated to '%v'\n",
 		username, newEmail)
+	fmt.Printf("politeiawww MUST BE restarted so the user email memory cache " +
+		"gets updated; politeiad is fine and does not need to be restarted\n")
 
 	return nil
 }
