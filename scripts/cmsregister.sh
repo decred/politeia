@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
 
 numUsers=$1
 if [ -z "$1" ]
@@ -6,9 +6,27 @@ if [ -z "$1" ]
     numUsers=0
 fi
 
+ADMINEMAIL=$2
+if [ -z "$2" ]
+  then
+    ADMINEMAIL="admin@decred.org"
+fi
+
+ADMINNAME=$3
+if [ -z "$2" ]
+  then
+    ADMINNAME="admin"
+fi
+
+ADMINPASS=$4
+if [ -z "$2" ]
+  then
+    ADMINPASS="password"
+fi
+
 # Create a new admin user
-echo Making a admin user: user/pass: admin@decred.org/admin/password
-newuser=`politeiawww_dbutil -cockroachdb -testnet -addadmin admin@decred.org admin password`
+echo Making a admin user: user/pass: ${ADMINEMAIL}/${ADMINNAME}/${ADMINPASS}
+newuser=`politeiawww_dbutil -cockroachdb -testnet -addadmin ${ADMINEMAIL} ${ADMINNAME} ${ADMINPASS}`
 
 read -p "Restart politeiawww to confirm admin user and press enter to continue"
 

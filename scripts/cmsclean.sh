@@ -1,10 +1,35 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
+
+NETWORK=$1
+if [ "${NETWORK}" == "" ]; then
+  NETWORK="testnet3"
+fi
+
+POLITEIAWWWDIR=$2
+if [ "${POLITEIAWWWDIR}" == "" ]; then
+  POLITEIAWWWDIR=".politeiawww"
+fi
+
+PIDDIR=$3
+if [ "${PIDDIR}" == "" ]; then
+  PIDDIR=".politeiad"
+fi
+
+PIWWWDIR=$4
+if [ "${PIWWWDIR}" == "" ]; then
+  PIWWWDIR=".piwwww"
+fi
+
+CMSWWWDIR=$4
+if [ "${CMSWWWDIR}" == "" ]; then
+  CMSWWWDIR=".cmswww"
+fi
 
 echo "Warning: about to delete the following directories:
-~/.politeiawww/data/testnet3/
-~/.politeiad/data/testnet3/
-~/.piwww/data
-~/.cmswww/data"
+${HOME}/${POLITEIAWWWDIR}/data/${NETWORK}/
+${HOME}/${PIDDIR}/data/${NETWORK}/
+${HOME}/${PIWWWDIR}/data
+${HOME}/${CMSWWWDIR}/data"
 read -p "Are you sure? [Y/N]: " -n 1 -r
 echo # Print newline following the above prompt
 
@@ -12,10 +37,10 @@ if [ -z ${REPLY+x} ] || [[ $REPLY =~ ^[Yy]$ ]]
 then
 
 
-  rm -rf ~/.politeiawww/data/testnet3/
-  rm -rf ~/.politeiad/data/testnet3/
-  rm -rf ~/.piwww/data
-  rm -rf ~/.cmswww/data
+  rm -rf ${HOME}/${POLITEIAWWWDIR}/data/${NETWORK}/
+  rm -rf ${HOME}/${PIDDIR}/data/${NETWORK}/
+  rm -rf ${HOME}/${PIWWWDIR}/data
+  rm -rf ${HOME}/${CMSWWWDIR}/data
 
   readonly ROOT_CERTS_DIR="${HOME}/.cockroachdb/certs/clients/root"
 
