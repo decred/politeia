@@ -21,6 +21,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrec/secp256k1"
 	"github.com/decred/dcrd/dcrutil"
@@ -194,6 +195,10 @@ func getDecredPlugin(dcrdataHost string) backend.Plugin {
 		decredPluginSettings[v.Key] = v.Value
 	}
 	return decredPlugin
+}
+
+func isTestnet(p *chaincfg.Params) bool {
+	return p.Name == chaincfg.TestNet3Params.Name
 }
 
 // initDecredPlugin is called externally to run initial procedures
@@ -1627,7 +1632,7 @@ func (g *gitBackEnd) pluginAuthorizeVote(payload string) (string, error) {
 
 // validateStartVote validates the vote bits and the vote params of a decred
 // plugin StartVote.
-func validateStartVoteV2(sv decredplugin.StartVoteV2) error {
+func validateStartVoteV2(sv decredplugin.StartVoteV2, testnet bool) error {
 	// Verify signature
 	err := sv.VerifySignature()
 	if err != nil {
@@ -1640,6 +1645,12 @@ func validateStartVoteV2(sv decredplugin.StartVoteV2) error {
 		if err != nil {
 			return fmt.Errorf("invalid vote bits: %v", err)
 		}
+	}
+
+	// We don't enforce the vote duration min/max on testnet to help
+	// make testing easier.
+	if testnet {
+		return nil
 	}
 
 	// Make sure vote duration is within min/max range
@@ -1744,7 +1755,7 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 		return "", fmt.Errorf("DecodeStartVote %v", err)
 	}
 
-	err = validateStartVoteV2(*sv)
+	err = validateStartVoteV2(*sv, isTestnet(g.activeNetParams))
 	if err != nil {
 		return "", err
 	}
@@ -1935,7 +1946,7 @@ func (g *gitBackEnd) pluginStartVoteRunoff(payload string) (string, error) {
 
 	// Validate the StartVote for each submission
 	for _, v := range sv.StartVotes {
-		err = validateStartVoteV2(v)
+		err = validateStartVoteV2(v, isTestnet(g.activeNetParams))
 		if err != nil {
 			return "", err
 		}
