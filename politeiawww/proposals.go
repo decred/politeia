@@ -2954,7 +2954,7 @@ func voteIsApproved(vs www.VoteSummary) bool {
 // to start the voting period on any of the RFP submissions, all work is
 // unwound and an error is returned.
 func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.User) (*www2.StartVoteRunoffReply, error) {
-	log.Tracef("processStartVoteRFP %v", sv.Token)
+	log.Tracef("processStartVoteRunoffV2 %v", sv.Token)
 
 	// Sanity check
 	if !u.Admin {
