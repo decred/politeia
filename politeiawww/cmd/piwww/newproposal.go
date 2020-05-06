@@ -121,9 +121,8 @@ func (cmd *NewProposalCmd) Execute(args []string) error {
 		Name: cmd.Name,
 	}
 	if cmd.RFP {
-		// Double the minimum LinkBy period to give a buffer
-		t := time.Second * v1.PolicyLinkByMinPeriod * 2
-		pm.LinkBy = time.Now().Add(t).Unix()
+		// Set linkby to a month from now
+		pm.LinkBy = time.Now().Add(time.Hour * 24 * 30).Unix()
 	}
 	if cmd.LinkTo != "" {
 		pm.LinkTo = cmd.LinkTo
