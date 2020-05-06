@@ -16,6 +16,7 @@ type PropStatusT int
 type PropVoteStatusT int
 type UserManageActionT int
 type EmailNotificationT int
+type VoteT int
 
 const (
 	PoliteiaWWWAPIVersion = 1 // API version this backend understands
@@ -78,6 +79,11 @@ const (
 	// verification token expires
 	VerificationExpiryHours = 24
 
+	// PolicyIdexFilename is the file name of the proposal markdown
+	// file. Every proposal is required to have a index file. The index
+	// file should contain the proposal content.
+	PolicyIndexFilename = "index.md"
+
 	// PolicyMaxImages is the maximum number of images accepted
 	// when creating a new proposal
 	PolicyMaxImages = 5
@@ -87,7 +93,7 @@ const (
 	PolicyMaxImageSize = 512 * 1024
 
 	// PolicyMaxMDs is the maximum number of markdown files accepted
-	// when creating a new proposal
+	// when creating a new proposal.
 	PolicyMaxMDs = 1
 
 	// PolicyMaxMDSize is the maximum markdown file size (in bytes)
@@ -191,6 +197,14 @@ const (
 	ErrorStatusMetadataInvalid             ErrorStatusT = 66
 	ErrorStatusMetadataMissing             ErrorStatusT = 67
 	ErrorStatusMetadataDigestInvalid       ErrorStatusT = 68
+	ErrorStatusInvalidVoteType             ErrorStatusT = 69
+	ErrorStatusInvalidVoteOptions          ErrorStatusT = 70
+	ErrorStatusLinkByDeadlineNotMet        ErrorStatusT = 71
+	ErrorStatusNoLinkedProposals           ErrorStatusT = 72
+	ErrorStatusInvalidLinkTo               ErrorStatusT = 73
+	ErrorStatusInvalidLinkBy               ErrorStatusT = 74
+	ErrorStatusInvalidRunoffVote           ErrorStatusT = 75
+	ErrorStatusWrongProposalType           ErrorStatusT = 76
 
 	// Proposal state codes
 	//
@@ -224,6 +238,26 @@ const (
 	PropVoteStatusStarted       PropVoteStatusT = 3 // Proposal vote has been started
 	PropVoteStatusFinished      PropVoteStatusT = 4 // Proposal vote has been finished
 	PropVoteStatusDoesntExist   PropVoteStatusT = 5 // Proposal doesn't exist
+
+	// Vote types
+	//
+	// VoteTypeStandard is used to indicate a simple approve or reject
+	// proposal vote where the winner is the voting option that has met
+	// the specified pass and quorum requirements.
+	//
+	// VoteTypeRunoff specifies a runoff vote that multiple proposals compete in.
+	// All proposals are voted on like normal, but there can only be one winner
+	// in a runoff vote. The winner is the proposal that meets the quorum
+	// requirement, meets the pass requirement, and that has the most net yes
+	// votes. The winning proposal is considered approved and all other proposals
+	// are considered rejected. If no proposals meet the quorum and pass
+	// requirements then all proposals are considered rejected.
+	// Note: in a runoff vote it is possible for a proposal to meet the quorum
+	// and pass requirements but still be rejected if it does not have the most
+	// net yes votes.
+	VoteTypeInvalid  VoteT = 0
+	VoteTypeStandard VoteT = 1
+	VoteTypeRunoff   VoteT = 2
 
 	// User manage actions
 	UserManageInvalid                         UserManageActionT = 0 // Invalid action type
@@ -335,6 +369,14 @@ var (
 		ErrorStatusMetadataInvalid:             "invalid metadata",
 		ErrorStatusMetadataMissing:             "missing metadata",
 		ErrorStatusMetadataDigestInvalid:       "metadata digest invalid",
+		ErrorStatusInvalidVoteType:             "invalid vote type",
+		ErrorStatusInvalidVoteOptions:          "invalid vote options",
+		ErrorStatusLinkByDeadlineNotMet:        "linkby deadline note met yet",
+		ErrorStatusNoLinkedProposals:           "no linked proposals",
+		ErrorStatusInvalidLinkTo:               "invalid proposal linkto",
+		ErrorStatusInvalidLinkBy:               "invalid proposal linkby",
+		ErrorStatusInvalidRunoffVote:           "invalid runoff vote",
+		ErrorStatusWrongProposalType:           "wrong proposal type",
 	}
 
 	// PropStatus converts propsal status codes to human readable text
@@ -390,8 +432,15 @@ const (
 
 // ProposalMetadata contains metadata that is specified by the user on proposal
 // submission. It is attached to a proposal submission as a Metadata object.
+//
+// LinkBy must allow for a minimum of one week after the proposal vote ends for
+// RFP submissions to be submitted. The LinkBy field is validated on both
+// proposal submission and before the proposal vote is started to ensure that
+// the RFP submissions have sufficient time to be submitted.
 type ProposalMetadata struct {
-	Name string `json:"name"`
+	Name   string `json:"name"`             // Proposal name
+	LinkTo string `json:"linkto,omitempty"` // Token of proposal to link to
+	LinkBy int64  `json:"linkby,omitempty"` // UNIX timestamp of RFP deadline
 }
 
 // Metadata describes user specified metadata.
@@ -423,6 +472,8 @@ type CensorshipRecord struct {
 // when the full ticket snapshot or the full cast vote data is not needed.
 type VoteSummary struct {
 	Status           PropVoteStatusT    `json:"status"`                     // Vote status
+	Approved         bool               `json:"approved"`                   // Was the vote approved
+	Type             VoteT              `json:"type,omitempty"`             // Vote type
 	EligibleTickets  uint32             `json:"eligibletickets,omitempty"`  // Number of eligible tickets
 	Duration         uint32             `json:"duration,omitempty"`         // Duration of vote
 	EndHeight        uint64             `json:"endheight,omitempty"`        // Vote end height
@@ -447,9 +498,12 @@ type ProposalRecord struct {
 	NumComments         uint        `json:"numcomments"`                   // Number of comments on the proposal
 	Version             string      `json:"version"`                       // Record version
 	StatusChangeMessage string      `json:"statuschangemessage,omitempty"` // Message associated to the status change
-	PublishedAt         int64       `json:"publishedat,omitempty"`         // The timestamp of when the proposal has been published
-	CensoredAt          int64       `json:"censoredat,omitempty"`          // The timestamp of when the proposal has been censored
-	AbandonedAt         int64       `json:"abandonedat,omitempty"`         // The timestamp of when the proposal has been abandoned
+	PublishedAt         int64       `json:"publishedat,omitempty"`         // UNIX timestamp of when proposal was published
+	CensoredAt          int64       `json:"censoredat,omitempty"`          // UNIX timestamp of when proposal was censored
+	AbandonedAt         int64       `json:"abandonedat,omitempty"`         // UNIX timestamp of when proposal was abandoned
+	LinkTo              string      `json:"linkto,omitempty"`              // Token of linked parent proposal
+	LinkBy              int64       `json:"linkby,omitempty"`              // UNIX timestamp of RFP deadline
+	LinkedFrom          []string    `json:"linkedfrom,omitempty"`          // Tokens of public props that have linked to this this prop
 
 	Files            []File           `json:"files"`
 	Metadata         []Metadata       `json:"metadata"`
@@ -893,6 +947,9 @@ type PolicyReply struct {
 	MaxCommentLength           uint     `json:"maxcommentlength"`
 	BackendPublicKey           string   `json:"backendpublickey"`
 	BuildInformation           []string `json:"buildinformation"`
+	IndexFilename              string   `json:"indexfilename"`
+	MinLinkByPeriod            int64    `json:"minlinkbyperiod"`
+	MaxLinkByPeriod            int64    `json:"maxlinkbyperiod"`
 }
 
 // VoteOption describes a single vote option.

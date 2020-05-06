@@ -5,11 +5,15 @@
 package testcache
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"strconv"
 
 	"github.com/decred/politeia/decredplugin"
 	decred "github.com/decred/politeia/decredplugin"
+	"github.com/decred/politeia/mdstream"
+	www "github.com/decred/politeia/politeiawww/api/www/v1"
 )
 
 func (c *testcache) getComments(payload string) (string, error) {
@@ -128,41 +132,35 @@ func (c *testcache) voteDetails(payload string) (string, error) {
 	return string(vdb), nil
 }
 
-func (c *testcache) voteSummary(cmdPayload string) (string, error) {
-	vs, err := decred.DecodeVoteSummary([]byte(cmdPayload))
-	if err != nil {
-		return "", err
-	}
-
+func (c *testcache) voteSummaryReply(token string) (*decred.VoteSummaryReply, error) {
 	c.RLock()
 	defer c.RUnlock()
 
-	// Lookup vote info
-	r, err := c.record(vs.Token)
+	r, err := c.record(token)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	av := c.authorizeVotes[vs.Token][r.Version]
-	sv := c.startVotes[vs.Token]
+	av := c.authorizeVotes[token][r.Version]
+	sv := c.startVotes[token]
 
 	var duration uint32
-	svr, ok := c.startVoteReplies[vs.Token]
+	svr, ok := c.startVoteReplies[token]
 	if ok {
 		start, err := strconv.ParseUint(svr.StartBlockHeight, 10, 32)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		end, err := strconv.ParseUint(svr.EndHeight, 10, 32)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		duration = uint32(end - start)
 	}
 
-	// Prepare reply
 	vsr := decred.VoteSummaryReply{
 		Authorized:          av.Action == decred.AuthVoteActionAuthorize,
+		Type:                sv.Vote.Type,
 		Duration:            duration,
 		EndHeight:           svr.EndHeight,
 		EligibleTicketCount: 0,
@@ -170,7 +168,111 @@ func (c *testcache) voteSummary(cmdPayload string) (string, error) {
 		PassPercentage:      sv.Vote.PassPercentage,
 		Results:             []decred.VoteOptionResult{},
 	}
-	reply, err := decred.EncodeVoteSummaryReply(vsr)
+
+	return &vsr, nil
+}
+
+func (c *testcache) voteSummary(cmdPayload string) (string, error) {
+	vs, err := decred.DecodeVoteSummary([]byte(cmdPayload))
+	if err != nil {
+		return "", err
+	}
+	vsr, err := c.voteSummaryReply(vs.Token)
+	if err != nil {
+		return "", err
+	}
+	reply, err := decred.EncodeVoteSummaryReply(*vsr)
+	if err != nil {
+		return "", err
+	}
+	return string(reply), nil
+}
+
+func (c *testcache) voteSummaries(cmdPayload string) (string, error) {
+	bvs, err := decred.DecodeBatchVoteSummary([]byte(cmdPayload))
+	if err != nil {
+		return "", err
+	}
+
+	s := make(map[string]decred.VoteSummaryReply, len(bvs.Tokens))
+	for _, token := range bvs.Tokens {
+		vsr, err := c.voteSummaryReply(token)
+		if err != nil {
+			return "", err
+		}
+		s[token] = *vsr
+	}
+
+	reply, err := decred.EncodeBatchVoteSummaryReply(
+		decred.BatchVoteSummaryReply{
+			Summaries: s,
+		})
+	if err != nil {
+		return "", err
+	}
+
+	return string(reply), nil
+}
+
+// findLinkedFrom returns the tokens of any proposals that have linked to
+// the given proposal token.
+func (c *testcache) findLinkedFrom(token string) ([]string, error) {
+	linkedFrom := make([]string, 0, len(c.records))
+
+	// Check all records in the cache to see if they're linked to the
+	// provided token.
+	for _, allVersions := range c.records {
+		// Get the latest version of the proposal
+		r := allVersions[string(len(allVersions))]
+
+		// Extract LinkTo from the ProposalMetadata file
+		for _, f := range r.Files {
+			if f.Name == mdstream.FilenameProposalMetadata {
+				b, err := base64.StdEncoding.DecodeString(f.Payload)
+				if err != nil {
+					return nil, err
+				}
+				var pm www.ProposalMetadata
+				err = json.Unmarshal(b, &pm)
+				if err != nil {
+					return nil, err
+				}
+				if pm.LinkTo == token {
+					// This proposal links to the provided token
+					linkedFrom = append(linkedFrom, r.CensorshipRecord.Token)
+				}
+
+				// No need to continue
+				break
+			}
+		}
+	}
+
+	return linkedFrom, nil
+}
+
+func (c *testcache) linkedFrom(cmdPayload string) (string, error) {
+	lf, err := decredplugin.DecodeLinkedFrom([]byte(cmdPayload))
+	if err != nil {
+		return "", err
+	}
+
+	c.RLock()
+	defer c.RUnlock()
+
+	linkedFromBatch := make(map[string][]string, len(lf.Tokens)) // [token]linkedFrom
+	for _, token := range lf.Tokens {
+		linkedFrom, err := c.findLinkedFrom(token)
+		if err != nil {
+			return "", err
+		}
+		linkedFromBatch[token] = linkedFrom
+	}
+
+	lfr := decredplugin.LinkedFromReply{
+		LinkedFrom: linkedFromBatch,
+	}
+	reply, err := decredplugin.EncodeLinkedFromReply(lfr)
 	if err != nil {
 		return "", err
 	}
@@ -190,6 +292,10 @@ func (c *testcache) decredExec(cmd, cmdPayload, replyPayload string) (string, er
 		return c.voteDetails(cmdPayload)
 	case decred.CmdVoteSummary:
 		return c.voteSummary(cmdPayload)
+	case decred.CmdBatchVoteSummary:
+		return c.voteSummaries(cmdPayload)
+	case decred.CmdLinkedFrom:
+		return c.linkedFrom(cmdPayload)
 	}
 
 	return "", fmt.Errorf("invalid cache plugin command")

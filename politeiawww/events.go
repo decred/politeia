@@ -55,7 +55,7 @@ type EventDataProposalEdited struct {
 
 type EventDataProposalVoteStarted struct {
 	AdminUser *user.User
-	StartVote *www2.StartVote
+	StartVote www2.StartVote
 }
 
 type EventDataProposalVoteAuthorized struct {

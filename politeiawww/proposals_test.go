@@ -89,7 +89,7 @@ func createFileMD(t *testing.T, size int) *www.File {
 	b.WriteString(base64.StdEncoding.EncodeToString(r) + "\n")
 
 	return &www.File{
-		Name:    indexFile,
+		Name:    www.PolicyIndexFilename,
 		MIME:    http.DetectContentType(b.Bytes()),
 		Digest:  hex.EncodeToString(util.Digest(b.Bytes())),
 		Payload: base64.StdEncoding.EncodeToString(b.Bytes()),
@@ -153,10 +153,6 @@ func newProposalMetadata(t *testing.T, name string) []www.Metadata {
 func createNewProposal(t *testing.T, id *identity.FullIdentity, files []www.File, title string) *www.NewProposal {
 	t.Helper()
 
-	if len(files) == 0 {
-		t.Fatalf("no files found")
-	}
-
 	// Setup metadata
 	metadata := newProposalMetadata(t, title)
 
@@ -176,10 +172,6 @@ func createNewProposal(t *testing.T, id *identity.FullIdentity, files []www.File
 // metadata.
 func merkleRoot(t *testing.T, files []www.File, metadata []www.Metadata) string {
 	t.Helper()
-
-	if len(files) == 0 {
-		t.Fatalf("no files")
-	}
 
 	digests := make([]*[sha256.Size]byte, 0, len(files))
 	for _, f := range files {
@@ -300,7 +292,7 @@ func newAuthorizeVote(token, version, action string, id *identity.FullIdentity) 
 
 func newAuthorizeVoteCmd(t *testing.T, token, version, action string, id *identity.FullIdentity) pd.PluginCommand {
 	av := newAuthorizeVote(token, version, action, id)
-	dav := convertAuthorizeVoteFromWWW(av)
+	dav := convertAuthorizeVoteToDecred(av)
 	payload, err := decredplugin.EncodeAuthorizeVote(dav)
 	if err != nil {
 		t.Fatal(err)
@@ -506,22 +498,15 @@ func TestValidateProposal(t *testing.T) {
 	np := createNewProposal(t, id, []www.File{*md, *png}, "")
 
 	// Invalid signature
-	propInvalidSig := &www.NewProposal{
-		Files:     np.Files,
-		PublicKey: np.PublicKey,
-		Signature: "abc",
-	}
+	propInvalidSig := createNewProposal(t, id, []www.File{*md}, "")
+	propInvalidSig.Signature = "abc"
 
 	// Signature is valid but incorrect
 	propBadSig := createNewProposal(t, id, []www.File{*md}, "")
 	propBadSig.Signature = np.Signature
 
 	// No files
-	propNoFiles := &www.NewProposal{
-		Files:     make([]www.File, 0),
-		PublicKey: np.PublicKey,
-		Signature: np.Signature,
-	}
+	propNoFiles := createNewProposal(t, id, []www.File{}, "")
 
 	// Invalid markdown filename
 	mdBadFilename := *md
@@ -574,63 +559,98 @@ func TestValidateProposal(t *testing.T) {
 		user        *user.User
 		want        error
 	}{
-		{"correct proposal", *np, usr, nil},
-
-		{"invalid signature", *propInvalidSig, usr,
+		{
+			"correct proposal",
+			*np,
+			usr,
+			nil,
+		},
+		{
+			"invalid signature",
+			*propInvalidSig,
+			usr,
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidSignature,
-			}},
-
-		{"incorrect signature", *propBadSig, usr,
+			},
+		},
+		{
+			"incorrect signature",
+			*propBadSig,
+			usr,
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidSignature,
-			}},
-
-		{"no files", *propNoFiles, usr,
+			},
+		},
+		{
+			"no files",
+			*propNoFiles,
+			usr,
 			www.UserError{
 				ErrorCode: www.ErrorStatusProposalMissingFiles,
-			}},
-
-		{"bad md filename", *propBadFilename, usr,
-			www.UserError{
-				ErrorCode: www.ErrorStatusProposalMissingFiles,
-			}},
-
-		{"duplicate filenames", *propDupFiles, usr,
-			www.UserError{
-				ErrorCode: www.ErrorStatusProposalDuplicateFilenames,
-			}},
-
-		{"too may md files", *propMaxMDFiles, usr,
+			},
+		},
+		{
+			"bad md filename",
+			*propBadFilename,
+			usr,
 			www.UserError{
 				ErrorCode: www.ErrorStatusMaxMDsExceededPolicy,
-			}},
-
-		{"too many images", *propMaxImages, usr,
+			},
+		},
+		{
+			"duplicate filenames",
+			*propDupFiles,
+			usr,
+			www.UserError{
+				ErrorCode: www.ErrorStatusProposalDuplicateFilenames,
+			},
+		},
+		{
+			"too may md files",
+			*propMaxMDFiles,
+			usr,
+			www.UserError{
+				ErrorCode: www.ErrorStatusMaxMDsExceededPolicy,
+			},
+		},
+		{
+			"too many images",
+			*propMaxImages,
+			usr,
 			www.UserError{
 				ErrorCode: www.ErrorStatusMaxImagesExceededPolicy,
-			}},
-
-		{"md file too large", *propMDLarge, usr,
+			},
+		},
+		{
+			"md file too large",
+			*propMDLarge,
+			usr,
 			www.UserError{
 				ErrorCode: www.ErrorStatusMaxMDSizeExceededPolicy,
-			}},
-
-		{"image too large", *propImageLarge, usr,
+			},
+		},
+		{
+			"image too large",
+			*propImageLarge,
+			usr,
 			www.UserError{
 				ErrorCode: www.ErrorStatusMaxImageSizeExceededPolicy,
-			}},
-
-		{"invalid title", *propBadTitle, usr,
+			},
+		},
+		{
+			"invalid title",
+			*propBadTitle,
+			usr,
 			www.UserError{
 				ErrorCode: www.ErrorStatusProposalInvalidTitle,
-			}},
+			},
+		},
 	}
 
 	// Run test cases
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := validateProposal(test.newProposal, test.user)
+			_, err := p.validateProposal(test.newProposal, test.user)
 			got := errToStr(err)
 			want := errToStr(test.want)
 			if got != want {
@@ -840,6 +860,10 @@ func TestProcessNewProposal(t *testing.T) {
 	f := newFileRandomMD(t)
 	np := createNewProposal(t, id, []www.File{f}, "")
 
+	// Invalid proposal
+	propInvalid := createNewProposal(t, id, []www.File{f}, "")
+	propInvalid.Signature = ""
+
 	// Setup tests
 	var tests = []struct {
 		name string
@@ -858,11 +882,7 @@ func TestProcessNewProposal(t *testing.T) {
 			}},
 
 		{"invalid proposal",
-			&www.NewProposal{
-				Files:     np.Files,
-				PublicKey: np.PublicKey,
-				Signature: "",
-			},
+			propInvalid,
 			usrValid,
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidSignature,
