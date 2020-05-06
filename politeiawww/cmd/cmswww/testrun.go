@@ -186,7 +186,7 @@ func dccNew(sponsor user, nomineeID string, dcct cms.DCCTypeT, dt cms.DomainType
 		Payload: base64.StdEncoding.EncodeToString(b),
 	}
 	files := []www.File{f}
-	sig, err := shared.SignedMerkleRoot(files, cfg.Identity)
+	sig, err := shared.SignedMerkleRoot(files, nil, cfg.Identity)
 	if err != nil {
 		return nil, err
 	}
@@ -264,6 +264,23 @@ func dccSupport(u user, token, vote string) error {
 	err = logout()
 	if err != nil {
 		return fmt.Errorf("logout: %v")
+	}
+
+	return nil
+}
+
+// This function returns with the admin logged in.
+func dccStartVote(admin user, token string) error {
+	err := login(admin)
+	if err != nil {
+		return fmt.Errorf("login: %v", err)
+	}
+
+	svc := StartVoteCmd{}
+	svc.Args.Token = token
+	err = svc.Execute(nil)
+	if err != nil {
+		return fmt.Errorf("StartVoteCmd: %v", err)
 	}
 
 	return nil
@@ -561,7 +578,7 @@ func testDCCVote(admin user) error {
 	dccToken := dcc.CensorshipRecord.Token
 
 	// Support/oppose the DCC
-	fmt.Printf("  cast DCC votes\n")
+	fmt.Printf("  support/oppose DCC\n")
 
 	err = dccSupport(*c2, dccToken, dccIssuanceSupport)
 	if err != nil {
@@ -573,13 +590,14 @@ func testDCCVote(admin user) error {
 	}
 
 	// Start an all contractor vote for the DCC
-	err = dccSetStatus(admin, dccToken, cms.DCCStatusAllVote,
-		"support was contentious")
+	fmt.Printf("  start DCC vote\n")
+	err = dccStartVote(admin, dccToken)
 	if err != nil {
 		return err
 	}
 
 	// Vote on the DCC
+	fmt.Printf("  cast DCC votes\n")
 	err = dccVote(*c2, dccToken, cmsplugin.DCCApprovalString)
 	if err != nil {
 		return err
