@@ -673,10 +673,7 @@ func (c *ctx) inventory() error {
 
 		url := c.cfg.PoliteiaWWW
 		// Remove 'api' from config url if found
-		apiIndex := strings.Index(url, "api")
-		if apiIndex > 0 {
-			url = url[:apiIndex]
-		}
+		url = strings.Replace(url, "api", "", 1)
 		url += "proposals/" + v.StartVote.Vote.Token
 
 		// Display vote bits
