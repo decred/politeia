@@ -6,11 +6,15 @@ package main
 
 import (
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"time"
 
+	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/hdkeychain"
 	"github.com/decred/politeia/cmsplugin"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
@@ -36,10 +40,42 @@ const (
 
 // user represents a cms user that is used during the test run.
 type user struct {
-	ID       string
-	Email    string
-	Username string
-	Password string
+	ID           string
+	Email        string
+	Username     string
+	Password     string
+	AddressIndex uint32 // Used to generate unique payment addresses
+}
+
+func (u *user) paymentAddress() (string, error) {
+	xpub := "tpubVobLtToNtTq6TZNw4raWQok35PRPZou53vegZqNubtBTJMMFmuMpWybF" +
+		"CfweJ52N8uZJPZZdHE5SRnBBuuRPfC5jdNstfKjiAs8JtbYG9jx"
+
+	if u.AddressIndex == 0 {
+		// The address index is set to be the uint32 representation of
+		// the hex username, which was randomly generated, so that we
+		// don't have payment address collisions between the different
+		// test users. CMS doesn't allow the same payment address to
+		// be used more than a single time.
+		b, err := hex.DecodeString(u.Username)
+		if err != nil {
+			return "", err
+		}
+		u.AddressIndex = binary.LittleEndian.Uint32(b)
+	}
+
+	// Increment the address index for the user so that a unique
+	// payment address is generated each time.
+	u.AddressIndex += 1
+
+	// The index isn't allowed to be larger than the HardenKeyStart.
+	// See hdkeychain ExtendedKey.Child() for more info.
+	if u.AddressIndex >= hdkeychain.HardenedKeyStart {
+		u.AddressIndex = u.AddressIndex % hdkeychain.HardenedKeyStart
+	}
+
+	return util.DerivePaywallAddress(&chaincfg.TestNet3Params,
+		xpub, u.AddressIndex)
 }
 
 func randomString() string {
@@ -154,6 +190,219 @@ func contractorNew(admin user, dt cms.DomainTypeT, ct cms.ContractorTypeT) (*use
 	}
 
 	return u, err
+}
+
+// invoiceNew submits a new invoice for the provided user. The invoice is
+// submitted for the most recent month that the user has not submitted an
+// invoice for.
+//
+// contractorRate is in USD.
+// labor is in hours.
+//
+// This function returns with the user logged out.
+func invoiceNew(u user, contractorRate uint, labor float64) (*www.CensorshipRecord, error) {
+	err := login(u)
+	if err != nil {
+		return nil, fmt.Errorf("login: %v", err)
+	}
+
+	// Get user's previous invoices
+	uir, err := client.UserInvoices(&cms.UserInvoices{})
+	if err != nil {
+		return nil, fmt.Errorf("UserInvoices: %v", err)
+	}
+
+	// Find the first available date that we can submit an invoice
+	// for.
+	invoiceDates := make(map[uint]map[uint]struct{}) // [year][month]struct{}
+	for _, v := range uir.Invoices {
+		_, ok := invoiceDates[v.Input.Year]
+		if !ok {
+			invoiceDates[v.Input.Year] = make(map[uint]struct{}, 12)
+		}
+		invoiceDates[v.Input.Year][v.Input.Month] = struct{}{}
+	}
+
+	y, m, _ := time.Now().AddDate(0, -1, 0).Date()
+	var (
+		month = uint(m) // Last month
+		year  = uint(y) // Current year
+		found bool
+	)
+	for !found {
+		_, ok := invoiceDates[year]
+		if !ok {
+			found = true
+			continue
+		}
+		_, ok = invoiceDates[year][month]
+		if !ok {
+			found = true
+			continue
+		}
+
+		// Decrement month
+		switch {
+		case month > 1:
+			month -= 1
+		case month == 1:
+			month = 12
+			year -= 1
+		default:
+			return nil, fmt.Errorf("invalid date")
+		}
+	}
+
+	// Submit an invoice for the first available month
+	ier := cms.InvoiceExchangeRate{
+		Month: month,
+		Year:  year,
+	}
+	ierr, err := client.InvoiceExchangeRate(&ier)
+	if err != nil {
+		return nil, fmt.Errorf("InvoiceExchangeRate %v: %v",
+			ier, err)
+	}
+	address, err := u.paymentAddress()
+	if err != nil {
+		return nil, err
+	}
+	ii := cms.InvoiceInput{
+		Month:              month,
+		Year:               year,
+		ExchangeRate:       ierr.ExchangeRate,
+		ContractorName:     u.Username,
+		ContractorLocation: "Mars",
+		ContractorContact:  u.Email,
+		ContractorRate:     contractorRate * 100, // In cents
+		PaymentAddress:     address,
+		LineItems: []cms.LineItemsInput{
+			{
+				Type:          cms.LineItemTypeLabor,
+				Domain:        "Development",
+				Subdomain:     "politeia",
+				Description:   "PR 999: politeiawww: Add stuff.",
+				ProposalToken: "",
+				SubUserID:     "",
+				SubRate:       0,
+				Labor:         uint(labor * 60), // In minutes
+				Expenses:      0,
+			},
+		},
+	}
+	b, err := json.Marshal(ii)
+	if err != nil {
+		return nil, err
+	}
+	files := []www.File{
+		{
+			Name:    "invoice.json",
+			MIME:    mime.DetectMimeType(b),
+			Digest:  hex.EncodeToString(util.Digest(b)),
+			Payload: base64.StdEncoding.EncodeToString(b),
+		},
+	}
+	sig, err := shared.SignedMerkleRoot(files, nil, cfg.Identity)
+	if err != nil {
+		return nil, err
+	}
+	ni := &cms.NewInvoice{
+		Files:     files,
+		PublicKey: hex.EncodeToString(cfg.Identity.Public.Key[:]),
+		Signature: sig,
+		Month:     month,
+		Year:      year,
+	}
+	nir, err := client.NewInvoice(ni)
+	if err != nil {
+		return nil, fmt.Errorf("NewInvoice: %v", err)
+	}
+
+	// Verify the censorship record
+	vr, err := client.Version()
+	if err != nil {
+		return nil, fmt.Errorf("Version: %v", err)
+	}
+	ir := cms.InvoiceRecord{
+		Files:            ni.Files,
+		PublicKey:        ni.PublicKey,
+		Signature:        ni.Signature,
+		CensorshipRecord: nir.CensorshipRecord,
+	}
+	err = verifyInvoice(ir, vr.PubKey)
+	if err != nil {
+		return nil, fmt.Errorf("unable to verify invoice %v: %v",
+			ir.CensorshipRecord.Token, err)
+	}
+
+	// Log the user out
+	err = logout()
+	if err != nil {
+		return nil, fmt.Errorf("logout: %v", err)
+	}
+
+	return &nir.CensorshipRecord, nil
+}
+
+// invoiceSetStatus sets the status of the provided invoice.
+//
+// Changing an invoic's status to InvoiceStatusPaid is not a valid status
+// transition. The invoicesPay() function must be used instead if you want
+// to manually mark invoices as paid.
+//
+// This function returns with the admin logged out.
+func invoiceSetStatus(admin user, token string, s cms.InvoiceStatusT) error {
+	err := login(admin)
+	if err != nil {
+		return fmt.Errorf("login: %v", err)
+	}
+
+	// Get the most recent version of the DCC to pull the version
+	// from it.
+	idr, err := client.InvoiceDetails(token)
+	if err != nil {
+		return fmt.Errorf("InvoiceDetails: %v", err)
+	}
+
+	// Set the invoice status
+	c := SetInvoiceStatusCmd{}
+	c.Args.Version = idr.Invoice.Version
+	c.Args.Token = token
+	c.Args.Status = strconv.Itoa(int(s))
+	c.Args.Reason = "some reason...."
+	err = c.Execute(nil)
+	if err != nil {
+		return fmt.Errorf("SetInvoiceStatusCmd: %v", err)
+	}
+
+	err = logout()
+	if err != nil {
+		return fmt.Errorf("logout: %v", err)
+	}
+
+	return nil
+}
+
+// invoicesPays marks all of the currenlty approved invoices as paid.
+//
+// This function returns with the admin logged out.
+func invoicesPay(admin user) error {
+	err := login(admin)
+	if err != nil {
+		return fmt.Errorf("login: %v", err)
+	}
+
+	_, err = client.PayInvoices(&cms.PayInvoices{})
+	if err != nil {
+		return fmt.Errorf("PayInvoices: %v", err)
+	}
+
+	err = logout()
+	if err != nil {
+		return fmt.Errorf("logout: %v", err)
+	}
+
+	return nil
 }
 
 // dccNew submits a new DCC to cmswww then returns the submitted DCC.
@@ -437,7 +686,7 @@ func testDCC(admin user) error {
 	}
 
 	// Create a new DCC for the nominee
-	fmt.Printf("  create a DCC for the nominee\n")
+	fmt.Printf("  create a DCC for the nominee: ")
 
 	dcc, err := dccNew(*c1, n1.ID, cms.DCCTypeIssuance,
 		cms.DomainTypeDeveloper, cms.ContractorTypeDirect)
@@ -445,6 +694,8 @@ func testDCC(admin user) error {
 		return err
 	}
 	dccToken := dcc.CensorshipRecord.Token
+
+	fmt.Printf("%v\n", dccToken)
 
 	// Comment on the DCC
 	fmt.Printf("  comment on the DCC\n")
@@ -492,7 +743,7 @@ func testDCC(admin user) error {
 	}
 
 	// Create a new DCC for the nominee
-	fmt.Printf("  create a DCC for the nominee\n")
+	fmt.Printf("  create a DCC for the nominee: ")
 
 	dcc, err = dccNew(*c1, n2.ID, cms.DCCTypeIssuance,
 		cms.DomainTypeDeveloper, cms.ContractorTypeDirect)
@@ -500,6 +751,8 @@ func testDCC(admin user) error {
 		return err
 	}
 	dccToken = dcc.CensorshipRecord.Token
+
+	fmt.Printf("%v\n", dccToken)
 
 	// Oppose the DCC
 	fmt.Printf("  oppose the DCC\n")
@@ -559,6 +812,42 @@ func testDCCVote(admin user) error {
 		return err
 	}
 
+	// Submit and pay invoices for the users so that we can make sure
+	// the vote weights are being calculated correctly.
+	fmt.Printf("  submitting invoices for contractors\n")
+
+	cr1, err := invoiceNew(*c1, 40, 50)
+	if err != nil {
+		return err
+	}
+	cr2, err := invoiceNew(*c2, 40, 100)
+	if err != nil {
+		return err
+	}
+	cr3, err := invoiceNew(*c3, 40, 150)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("  marking invoices as approved and paid\n")
+
+	err = invoiceSetStatus(admin, cr1.Token, cms.InvoiceStatusApproved)
+	if err != nil {
+		return err
+	}
+	err = invoiceSetStatus(admin, cr2.Token, cms.InvoiceStatusApproved)
+	if err != nil {
+		return err
+	}
+	err = invoiceSetStatus(admin, cr3.Token, cms.InvoiceStatusApproved)
+	if err != nil {
+		return err
+	}
+	err = invoicesPay(admin)
+	if err != nil {
+		return err
+	}
+
 	// Create a nominee
 	fmt.Printf("  create a user to be the nominee\n")
 
@@ -568,7 +857,7 @@ func testDCCVote(admin user) error {
 	}
 
 	// Create a new DCC for the nominee
-	fmt.Printf("  create a DCC for the nominee\n")
+	fmt.Printf("  create a DCC for the nominee: ")
 
 	dcc, err := dccNew(*c1, n1.ID, cms.DCCTypeIssuance,
 		cms.DomainTypeDeveloper, cms.ContractorTypeDirect)
@@ -576,6 +865,8 @@ func testDCCVote(admin user) error {
 		return err
 	}
 	dccToken := dcc.CensorshipRecord.Token
+
+	fmt.Printf("%v\n", dccToken)
 
 	// Support/oppose the DCC
 	fmt.Printf("  support/oppose DCC\n")

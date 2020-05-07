@@ -218,11 +218,15 @@ attachment filetypes: png or plain text.
 
 An invoice csv line item should use the following format:
 
-type,domain,subdomain,description,proposalToken,labor,expenses,subUserID
+type,domain,subdomain,description,proposalToken,labor,expenses,subUserID,subRate
 
 Valid types   : labor, expense, misc, sub
 Labor units   : hours
 Expenses units: USD
+
+Example csv lines:
+labor,random,subdomain,description,,180,0,,0
+expense,marketing,subdomain,description,,0,1500,,0
 
 Arguments:
 1. month             (string, required)   Month (MM, 01-12)

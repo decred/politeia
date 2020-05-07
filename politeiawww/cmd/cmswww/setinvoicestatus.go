@@ -28,15 +28,31 @@ func (cmd *SetInvoiceStatusCmd) Execute(args []string) error {
 		"rejected": cms.InvoiceStatusRejected,
 		"approved": cms.InvoiceStatusApproved,
 		"disputed": cms.InvoiceStatusDisputed,
+		"paid":     cms.InvoiceStatusPaid,
 	}
 	// Check for user identity
 	if cfg.Identity == nil {
 		return shared.ErrUserIdentityNotFound
 	}
 
-	status, ok := InvoiceStatus[strings.ToLower(cmd.Args.Status)]
-	if !ok {
-		return fmt.Errorf("Invalid status: %v", cmd.Args.Status)
+	// Parse the invoice status. This can be either the numeric status
+	// code or the human readable equivalent.
+	var status cms.InvoiceStatusT
+	s, err := strconv.ParseUint(cmd.Args.Status, 10, 32)
+	if err == nil {
+		// Numeric status code found
+		status = cms.InvoiceStatusT(s)
+	} else if s, ok := InvoiceStatus[strings.ToLower(cmd.Args.Status)]; ok {
+		// Human readable status code found
+		status = s
+	} else {
+		return fmt.Errorf("Invalid status: '%v'.  "+
+			"Valid statuses are:\n"+
+			"  rejected  reject the invoice\n"+
+			"  approved  approve the invoice\n",
+			"  disputed  mark the invoice as disputed\n",
+			"  paid      mark the invoice as paid\n",
+			cmd.Args.Status)
 	}
 
 	// Setup request
@@ -52,7 +68,7 @@ func (cmd *SetInvoiceStatusCmd) Execute(args []string) error {
 	}
 
 	// Print request details
-	err := shared.PrintJSON(sis)
+	err = shared.PrintJSON(sis)
 	if err != nil {
 		return err
 	}
