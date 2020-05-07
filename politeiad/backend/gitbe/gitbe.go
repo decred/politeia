@@ -2784,6 +2784,21 @@ func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, 
 	if err != nil {
 		return nil, err
 	}
+
+	// Setup decred plugin settings
+	var voteDurationMin, voteDurationMax string
+	switch anp.Name {
+	case chaincfg.MainNetParams.Name:
+		voteDurationMin = strconv.Itoa(decredplugin.VoteDurationMinMainnet)
+		voteDurationMax = strconv.Itoa(decredplugin.VoteDurationMaxMainnet)
+	case chaincfg.TestNet3Params.Name:
+		voteDurationMin = strconv.Itoa(decredplugin.VoteDurationMinTestnet)
+		voteDurationMax = strconv.Itoa(decredplugin.VoteDurationMaxTestnet)
+	default:
+		return nil, fmt.Errorf("unknown chaincfg params '%v'", anp.Name)
+	}
+	setDecredPluginSetting(decredPluginVoteDurationMin, voteDurationMin)
+	setDecredPluginSetting(decredPluginVoteDurationMax, voteDurationMax)
 	setDecredPluginSetting(decredPluginIdentity, string(idJSON))
 	setDecredPluginSetting(decredPluginJournals, g.journals)
 	setDecredPluginHook(PluginPostHookEdit, g.decredPluginPostEdit)

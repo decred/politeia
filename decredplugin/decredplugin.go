@@ -41,8 +41,11 @@ const (
 	MDStreamVoteBits         = 14 // Vote bits and mask
 	MDStreamVoteSnapshot     = 15 // Vote tickets and start/end parameters
 
-	VoteDurationMin = 2016 // Minimum vote duration (in blocks)
-	VoteDurationMax = 4032 // Maximum vote duration (in blocks)
+	// Vote duration requirements for proposal votes (in blocks)
+	VoteDurationMinMainnet = 2016
+	VoteDurationMaxMainnet = 4032
+	VoteDurationMinTestnet = 0
+	VoteDurationMaxTestnet = 4032
 
 	// Authorize vote actions
 	AuthVoteActionAuthorize = "authorize" // Authorize a proposal vote

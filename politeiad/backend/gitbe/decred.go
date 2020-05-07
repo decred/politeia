@@ -21,7 +21,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrec/secp256k1"
 	"github.com/decred/dcrd/dcrutil"
@@ -37,9 +36,11 @@ import (
 // XXX plugins really need to become an interface. Run with this for now.
 
 const (
-	decredPluginIdentity  = "fullidentity"
-	decredPluginJournals  = "journals"
-	decredPluginInventory = "inventory"
+	decredPluginIdentity        = "fullidentity"
+	decredPluginJournals        = "journals"
+	decredPluginInventory       = "inventory"
+	decredPluginVoteDurationMin = "votedurationmin"
+	decredPluginVoteDurationMax = "votedurationmax"
 
 	defaultCommentIDFilename = "commentid.txt"
 	defaultCommentFilename   = "comments.journal"
@@ -195,10 +196,6 @@ func getDecredPlugin(dcrdataHost string) backend.Plugin {
 		decredPluginSettings[v.Key] = v.Value
 	}
 	return decredPlugin
-}
-
-func isTestnet(p *chaincfg.Params) bool {
-	return p.Name == chaincfg.TestNet3Params.Name
 }
 
 // initDecredPlugin is called externally to run initial procedures
@@ -1632,7 +1629,7 @@ func (g *gitBackEnd) pluginAuthorizeVote(payload string) (string, error) {
 
 // validateStartVote validates the vote bits and the vote params of a decred
 // plugin StartVote.
-func validateStartVoteV2(sv decredplugin.StartVoteV2, testnet bool) error {
+func validateStartVoteV2(sv decredplugin.StartVoteV2) error {
 	// Verify signature
 	err := sv.VerifySignature()
 	if err != nil {
@@ -1647,18 +1644,21 @@ func validateStartVoteV2(sv decredplugin.StartVoteV2, testnet bool) error {
 		}
 	}
 
-	// We don't enforce the vote duration min/max on testnet to help
-	// make testing easier.
-	if testnet {
-		return nil
-	}
-
 	// Make sure vote duration is within min/max range
-	if sv.Vote.Duration < decredplugin.VoteDurationMin ||
-		sv.Vote.Duration > decredplugin.VoteDurationMax {
+	min := decredPluginSettings[decredPluginVoteDurationMin]
+	max := decredPluginSettings[decredPluginVoteDurationMax]
+	voteDurationMin, err := strconv.ParseUint(min, 10, 32)
+	if err != nil {
+		return err
+	}
+	voteDurationMax, err := strconv.ParseUint(max, 10, 32)
+	if err != nil {
+		return err
+	}
+	if sv.Vote.Duration < uint32(voteDurationMin) ||
+		sv.Vote.Duration > uint32(voteDurationMax) {
 		return fmt.Errorf("invalid duration: %v (%v - %v)",
-			sv.Vote.Duration, decredplugin.VoteDurationMin,
-			decredplugin.VoteDurationMax)
+			sv.Vote.Duration, voteDurationMin, voteDurationMax)
 	}
 
 	return nil
@@ -1755,7 +1755,7 @@ func (g *gitBackEnd) pluginStartVote(payload string) (string, error) {
 		return "", fmt.Errorf("DecodeStartVote %v", err)
 	}
 
-	err = validateStartVoteV2(*sv, isTestnet(g.activeNetParams))
+	err = validateStartVoteV2(*sv)
 	if err != nil {
 		return "", err
 	}
@@ -1946,7 +1946,7 @@ func (g *gitBackEnd) pluginStartVoteRunoff(payload string) (string, error) {
 
 	// Validate the StartVote for each submission
 	for _, v := range sv.StartVotes {
-		err = validateStartVoteV2(v, isTestnet(g.activeNetParams))
+		err = validateStartVoteV2(v)
 		if err != nil {
 			return "", err
 		}
