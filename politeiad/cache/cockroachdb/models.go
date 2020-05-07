@@ -255,11 +255,11 @@ func (VoteResults) TableName() string {
 //
 // This is a cms plugin model.
 type VoteDCCOption struct {
-	Key         uint   `gorm:"primary_key"`      // Primary key
-	Token       string `gorm:"not null;size:64"` // StartVote foreign key
-	ID          string `gorm:"not null"`         // Single unique word identifying vote (e.g. yes)
-	Description string `gorm:"not null"`         // Longer description of the vote
-	Bits        uint64 `gorm:"not null"`         // Bits used for this option
+	Key         uint   `gorm:"primary_key"` // Primary key
+	Token       string `gorm:"not null"`    // StartVote foreign key
+	ID          string `gorm:"not null"`    // Single unique word identifying vote (e.g. yes)
+	Description string `gorm:"not null"`    // Longer description of the vote
+	Bits        uint64 `gorm:"not null"`    // Bits used for this option
 }
 
 // TableName returns the name of the VoteOption database table.
@@ -271,19 +271,19 @@ func (VoteDCCOption) TableName() string {
 //
 // This is a cms plugin model.
 type StartDCCVote struct {
-	Token            string          `gorm:"primary_key;size:64"` // Censorship token
-	Version          uint64          `gorm:"not null"`            // Version of files
-	Mask             uint64          `gorm:"not null"`            // Valid votebits
-	Duration         uint32          `gorm:"not null"`            // Duration in blocks
-	QuorumPercentage uint32          `gorm:"not null"`            // Percent of eligible votes required for quorum
-	PassPercentage   uint32          `gorm:"not null"`            // Percent of total votes required to pass
-	Options          []VoteDCCOption `gorm:"foreignkey:Token"`    // Vote option
-	PublicKey        string          `gorm:"not null;size:64"`    // Key used for signature
-	Signature        string          `gorm:"not null;size:128"`   // Signature of Votehash
-	StartBlockHeight uint32          `gorm:"not null"`            // Block height
-	StartBlockHash   string          `gorm:"not null"`            // Block hash
-	EndHeight        uint32          `gorm:"not null"`            // Height of vote end
-	EligibleUserIDs  []DCCUserWeight `gorm:"foreignkey:Token"`    // Valid user weights for DCC Vote
+	Token            string          `gorm:"primary_key"`       // Censorship token
+	Version          uint64          `gorm:"not null"`          // Version of files
+	Mask             uint64          `gorm:"not null"`          // Valid votebits
+	Duration         uint32          `gorm:"not null"`          // Duration in blocks
+	QuorumPercentage uint32          `gorm:"not null"`          // Percent of eligible votes required for quorum
+	PassPercentage   uint32          `gorm:"not null"`          // Percent of total votes required to pass
+	Options          []VoteDCCOption `gorm:"foreignkey:Token"`  // Vote option
+	PublicKey        string          `gorm:"not null;size:64"`  // Key used for signature
+	Signature        string          `gorm:"not null;size:128"` // Signature of Votehash
+	StartBlockHeight uint32          `gorm:"not null"`          // Block height
+	StartBlockHash   string          `gorm:"not null"`          // Block hash
+	EndHeight        uint32          `gorm:"not null"`          // Height of vote end
+	EligibleUserIDs  []DCCUserWeight `gorm:"foreignkey:Token"`  // Valid user weights for DCC Vote
 }
 
 // TableName returns the name of the StartDCCVote database table.
@@ -296,7 +296,7 @@ func (StartDCCVote) TableName() string {
 // This is a cms plugin model.
 type CastDCCVote struct {
 	Key       uint   `gorm:"primary_key"`       // Primary key
-	Token     string `gorm:"not null;size:64"`  // Censorship token
+	Token     string `gorm:"not null"`          // Censorship token
 	UserID    string `gorm:"not null"`          // User ID
 	VoteBit   string `gorm:"not null"`          // Hex encoded vote bit that was selected
 	Signature string `gorm:"not null;size:130"` // Signature of Token+Ticket+VoteBit
@@ -316,11 +316,11 @@ func (CastDCCVote) TableName() string {
 //
 // This is a cms plugin model.
 type VoteDCCOptionResult struct {
-	Key       string        `gorm:"primary_key"`      // Primary key (token+votebit)
-	Token     string        `gorm:"not null;size:64"` // Censorship token (VoteResults foreign key)
-	Votes     uint64        `gorm:"not null"`         // Number of votes cast for this option
-	Option    VoteDCCOption `gorm:"not null"`         // Vote option
-	OptionKey uint          `gorm:"not null"`         // VoteOption foreign key
+	Key       string        `gorm:"primary_key"` // Primary key (token+votebit)
+	Token     string        `gorm:"not null"`    // Censorship token (VoteResults foreign key)
+	Votes     uint64        `gorm:"not null"`    // Number of votes cast for this option
+	Option    VoteDCCOption `gorm:"not null"`    // Vote option
+	OptionKey uint          `gorm:"not null"`    // VoteOption foreign key
 }
 
 // TableName returns the name of the VoteOptionResult database table.
@@ -334,9 +334,9 @@ func (VoteDCCOptionResult) TableName() string {
 //
 // This is a cms plugin model.
 type VoteDCCResults struct {
-	Token    string                `gorm:"primary_key;size:64"` // Censorship tokenba
-	Approved bool                  `gorm:"not null"`            // Vote was approved
-	Results  []VoteDCCOptionResult `gorm:"foreignkey:Token"`    // Results for the vote options
+	Token    string                `gorm:"primary_key"`      // Censorship tokenba
+	Approved bool                  `gorm:"not null"`         // Vote was approved
+	Results  []VoteDCCOptionResult `gorm:"foreignkey:Token"` // Results for the vote options
 }
 
 // TableName returns the name of the VoteResults database table.
@@ -348,10 +348,10 @@ func (VoteDCCResults) TableName() string {
 //
 // This is a cms plugin model.
 type DCCUserWeight struct {
-	Key    string `gorm:"primary_key"`      // Primary Key (token + userid)
-	Token  string `gorm:"not null;size:64"` // StartDCCVote foreign key
-	UserID string `gorm:"not null"`         // User ID
-	Weight int64  `gorm:"not null"`         // Weight of User
+	Key    string `gorm:"primary_key"` // Primary Key (token + userid)
+	Token  string `gorm:"not null"`    // StartDCCVote foreign key
+	UserID string `gorm:"not null"`    // User ID
+	Weight int64  `gorm:"not null"`    // Weight of User
 }
 
 // TableName returns the name of the DCCUserWeight database table.
