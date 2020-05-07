@@ -36,9 +36,11 @@ import (
 // XXX plugins really need to become an interface. Run with this for now.
 
 const (
-	decredPluginIdentity  = "fullidentity"
-	decredPluginJournals  = "journals"
-	decredPluginInventory = "inventory"
+	decredPluginIdentity        = "fullidentity"
+	decredPluginJournals        = "journals"
+	decredPluginInventory       = "inventory"
+	decredPluginVoteDurationMin = "votedurationmin"
+	decredPluginVoteDurationMax = "votedurationmax"
 
 	defaultCommentIDFilename = "commentid.txt"
 	defaultCommentFilename   = "comments.journal"
@@ -1643,11 +1645,20 @@ func validateStartVoteV2(sv decredplugin.StartVoteV2) error {
 	}
 
 	// Make sure vote duration is within min/max range
-	if sv.Vote.Duration < decredplugin.VoteDurationMin ||
-		sv.Vote.Duration > decredplugin.VoteDurationMax {
+	min := decredPluginSettings[decredPluginVoteDurationMin]
+	max := decredPluginSettings[decredPluginVoteDurationMax]
+	voteDurationMin, err := strconv.ParseUint(min, 10, 32)
+	if err != nil {
+		return err
+	}
+	voteDurationMax, err := strconv.ParseUint(max, 10, 32)
+	if err != nil {
+		return err
+	}
+	if sv.Vote.Duration < uint32(voteDurationMin) ||
+		sv.Vote.Duration > uint32(voteDurationMax) {
 		return fmt.Errorf("invalid duration: %v (%v - %v)",
-			sv.Vote.Duration, decredplugin.VoteDurationMin,
-			decredplugin.VoteDurationMax)
+			sv.Vote.Duration, voteDurationMin, voteDurationMax)
 	}
 
 	return nil
