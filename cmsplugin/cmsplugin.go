@@ -154,7 +154,6 @@ const VersionStartVote = 1
 type StartVote struct {
 	// decred plugin only data
 	Version uint   `json:"version"` // Version of this structure
-	Payload string `json:"payload"` // JSON encoded StartVote
 	Token   string `json:"token"`   // Token
 
 	PublicKey   string       `json:"publickey"`   // Key used for signature.
@@ -188,10 +187,9 @@ type StartVoteReply struct {
 	Version uint `json:"version"` // Version of this structure
 
 	// Shared data
-	StartBlockHeight uint32   `json:"startblockheight"` // Block height
-	StartBlockHash   string   `json:"startblockhash"`   // Block hash
-	EligibleUsers    []string `json:"userweights"`      // Array of User ID + weight
-	EndHeight        uint32   `json:"endheight"`        // Height of vote end
+	StartBlockHeight uint32 `json:"startblockheight"` // Block height
+	StartBlockHash   string `json:"startblockhash"`   // Block hash
+	EndHeight        uint32 `json:"endheight"`        // Height of vote end
 }
 
 // EncodeStartVoteReply encodes StartVoteReply into a JSON byte slice.

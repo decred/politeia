@@ -364,19 +364,11 @@ func (g *gitBackEnd) pluginStartDCCVote(payload string) (string, error) {
 		return "", fmt.Errorf("bestBlock %v", err)
 	}
 
-	// Convert the user weights array into a []string array.
-	// This will become the format "userid+weight"
-	eligbleUsers := make([]string, len(vote.UserWeights))
-	for i, uw := range vote.UserWeights {
-		eligbleUsers[i] = uw.UserID + "," + strconv.Itoa(int(uw.Weight))
-	}
-
 	svr := cmsplugin.StartVoteReply{
 		Version:          cmsplugin.VersionStartVoteReply,
 		StartBlockHeight: startVoteBlock.Height,
 		StartBlockHash:   startVoteBlock.Hash,
 		EndHeight:        startVoteBlock.Height + vote.Vote.Duration,
-		EligibleUsers:    eligbleUsers,
 	}
 	svrb, err := cmsplugin.EncodeStartVoteReply(svr)
 	if err != nil {
@@ -611,6 +603,43 @@ func (g *gitBackEnd) replayDCCBallot(token string) error {
 	return nil
 }
 
+// loadDCCVoteCache loads the cmsplugin.StartVote from disk for the provided
+// token and adds it to the cmsPluginVoteCache.
+//
+// This function must be called WITH the lock held.
+func (g *gitBackEnd) loadDCCVoteCache(token string) (*cmsplugin.StartVote, error) {
+	// git checkout master
+	err := g.gitCheckout(g.unvetted, "master")
+	if err != nil {
+		return nil, err
+	}
+
+	// git pull --ff-only --rebase
+	err = g.gitPull(g.unvetted, true)
+	if err != nil {
+		return nil, err
+	}
+
+	// Load the vote snapshot from disk
+	f, err := os.Open(mdFilename(g.vetted, token,
+		cmsplugin.MDStreamVoteBits))
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var sv cmsplugin.StartVote
+	d := json.NewDecoder(f)
+	err = d.Decode(&sv)
+	if err != nil {
+		return nil, err
+	}
+
+	cmsPluginVoteCache[token] = sv
+
+	return &sv, nil
+}
+
 // loadDCCVoteSnapshotCache loads the cmsplugin.StartVoteReply from disk for the provided
 // token and adds it to the cmsPluginVoteSnapshotCache.
 //
@@ -680,18 +709,18 @@ func (g *gitBackEnd) writeDCCVote(v cmsplugin.CastVote, receipt, journalPath str
 	// Ensure ticket is eligible to vote.
 	// This cache should have already been loaded when the
 	// vote end height was validated, but lets be sure.
-	svr, ok := cmsPluginVoteSnapshotCache[v.Token]
+	sv, ok := cmsPluginVoteCache[v.Token]
 	if !ok {
-		s, err := g.loadDCCVoteSnapshotCache(v.Token)
+		s, err := g.loadDCCVoteCache(v.Token)
 		if err != nil {
-			return fmt.Errorf("loadDCCVoteSnapshotCache: %v",
+			return fmt.Errorf("loadDCCVoteCache: %v",
 				err)
 		}
-		svr = *s
+		sv = *s
 	}
 	var found bool
-	for _, t := range svr.EligibleUsers {
-		if strings.Contains(t, v.UserID) {
+	for _, t := range sv.UserWeights {
+		if t.UserID == v.UserID {
 			found = true
 			break
 		}

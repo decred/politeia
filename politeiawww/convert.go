@@ -1721,6 +1721,11 @@ func convertCMSStartVoteToCMSVoteDetailsReply(sv cmsplugin.StartVote, svr cmsplu
 	if err != nil {
 		return nil, err
 	}
+	userWeights := make([]string, 0, len(sv.UserWeights))
+	for _, weights := range sv.UserWeights {
+		userWeight := weights.UserID + "-" + strconv.Itoa(int(weights.Weight))
+		userWeights = append(userWeights, userWeight)
+	}
 	return &cms.VoteDetailsReply{
 		Version:          uint32(sv.Version),
 		Vote:             string(voteb),
@@ -1729,7 +1734,7 @@ func convertCMSStartVoteToCMSVoteDetailsReply(sv cmsplugin.StartVote, svr cmsplu
 		StartBlockHeight: svr.StartBlockHeight,
 		StartBlockHash:   svr.StartBlockHash,
 		EndBlockHeight:   svr.EndHeight,
-		UserWeights:      svr.EligibleUsers,
+		UserWeights:      userWeights,
 	}, nil
 }
 
@@ -1765,7 +1770,6 @@ func convertCMSStartVoteReplyToCMS(svr cmsplugin.StartVoteReply) cms.StartVoteRe
 		StartBlockHeight: svr.StartBlockHeight,
 		StartBlockHash:   svr.StartBlockHash,
 		EndBlockHeight:   svr.EndHeight,
-		UserWeights:      svr.EligibleUsers,
 	}
 }
 
