@@ -36,10 +36,9 @@ const (
 	ErrorStatusDuplicateVote    ErrorStatusT = 5
 	ErrorStatusIneligibleUserID ErrorStatusT = 6
 
-	// String constants to ensure that provided options are only one of these
-	// two.
-	DCCApprovalString    = "yes"
-	DCCDisapprovalString = "no"
+	// String constant to ensure that the observed dcc vote option is tabulated
+	// as "approved".
+	DCCApprovalString = "yes"
 )
 
 var (

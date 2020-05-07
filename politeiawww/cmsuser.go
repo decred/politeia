@@ -549,8 +549,6 @@ func (p *politeiawww) getCMSUserByIDRaw(id string) (*user.CMSUser, error) {
 func (p *politeiawww) getCMSUserWeights() (map[string]int64, error) {
 	userWeights := make(map[string]int64, 1080)
 
-	//weightMonths := 6
-
 	/*
 		1) Determine most recent payout month
 		2) For each user

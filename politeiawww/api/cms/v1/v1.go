@@ -737,7 +737,8 @@ type DCCRecord struct {
 	CensorshipRecord www.CensorshipRecord `json:"censorshiprecord"`
 }
 
-// DCCWeight contains a user id and their assigned weight for a given DCC all contractor vote.
+// DCCWeight contains a user id and their assigned weight for a given DCC all
+// contractor vote.
 type DCCWeight struct {
 	UserID string // User ID
 	Weight int64  // User Weight of the vote (as calculated at the start of the vote).

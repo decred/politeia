@@ -25,6 +25,9 @@ server side notifications.  It does not render HTML.
     - [`User sub contractors`](#user-sub-contractors)
     - [`CMS Users`](#cms-users)
     - [`Vote DCC`](#vote-dcc)
+    - [`Vote Details`](#vote-details)
+    - [`Active votes`](#active-votes)
+    - [`Start vote`](#start-vote)
     - [Error codes](#error-codes)
     - [Invoice status codes](#invoice-status-codes)
     - [Line item type codes](#line-item-type-codes)
@@ -1683,6 +1686,81 @@ Reply:
   "startblockheight": 342692,
   "startblockhash": "0000005e341105be45fb9a7fe24d5ca7879e07bfb1ed2f786ee5ebc220ac1959",
   "endblockheight": 344724,
+  "userweights":[]
+}
+```
+### `Start vote`
+
+Start the voting period on the given dcc proposal that has been contentious.
+
+Signature is a signature of the hex encoded SHA256 digest of the JSON encoded
+Vote struct.
+
+**Route:** `POST /v1/dcc/startvote`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| publickey | string | Public key used to sign the vote | Yes |
+| vote | [`Vote`](#vote) | Vote details | Yes |
+| signature | string | Signature of the Vote digest | Yes |
+
+**Results (StartVoteReply):**
+
+| | Type | Description |
+| - | - | - |
+| startblockheight | number | Start block height of the vote |
+| startblockhash | string | Start block hash of the vote |
+| endblockheight | number | End block height of the vote |
+| userweights | []string | All user ids + "," + weight |
+
+On failure the call shall return `400 Bad Request` and one of the following
+error codes:
+- [`ErrorStatusInvalidCensorshipToken`](#ErrorStatusInvalidCensorshipToken)
+- [`ErrorStatusDCCNotFound`](#ErrorStatusDCCNotFound)
+- [`ErrorStatusInvalidPropVoteBits`](#ErrorStatusInvalidPropVoteBits)
+- [`ErrorStatusInvalidVoteOptions`](#ErrorStatusInvalidVoteOptions)
+- [`ErrorStatusInvalidPropVoteParams`](#ErrorStatusInvalidPropVoteParams)
+- [`ErrorStatusInvalidSigningKey`](#ErrorStatusInvalidSigningKey)
+- [`ErrorStatusInvalidSignature`](#ErrorStatusInvalidSignature)
+- [`ErrorStatusWrongStatus`](#ErrorStatusWrongStatus)
+- [`ErrorStatusWrongVoteStatus`](#ErrorStatusWrongVoteStatus)
+- [`ErrorStatusInvalidVoteType`] (#ErrorStatusInvalidVoteType)
+
+**Example**
+
+Request:
+
+``` json
+{
+  "publickey": "d64d80c36441255e41fc1e7b6cd30259ff9a2b1276c32c7de1b7a832dff7f2c6",
+  "vote": {
+    "token": "127ea26cf994dabc27e115da0eb90a5657590e2ccc4e7c23c7f80c6fe4afaa59",
+    "type": 1,
+    "mask": 3,
+    "duration": 2016,
+    "Options": [{
+      "id": "no",
+      "description": "Don't approve dcc",
+      "bits": 1
+    },{
+      "id": "yes",
+      "description": "Approve dcc",
+      "bits": 2
+    }]
+  },
+  "signature": "5a40d699cdfe5ee31472ec252982e60265a345cd58e4a07b183cf06447b3942d06981e1bfaf8430195109d51428458449446fbfa1d7059aebedc4df769ddb300"
+}
+```
+
+Reply:
+
+```json
+{
+  "startblockheight": 282899,
+  "startblockhash":"00000000017236b62ff1ce136328e6fb4bcd171801a281ce0a662e63cbc4c4fa",
+  "endblockheight": 284915,
   "userweights":[]
 }
 ```
