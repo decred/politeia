@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
@@ -564,7 +563,11 @@ func (p *politeiawww) getCMSUserWeights() (map[string]int64, error) {
 	weightStart := time.Now().AddDate(0, -1*userWeightMonthLookback, 0)
 	weightMonthStart := uint(weightStart.Month())
 	weightYearStart := uint(weightStart.Year())
-	fmt.Println(weightMonthStart, weightYearStart, weightMonthEnd, weightYearEnd)
+
+	// Subtract one nano second from start date and add one to end date to avoid having equal times.
+	startDate := time.Date(int(weightYearStart), time.Month(weightMonthStart), 0, 0, 0, 0, -1, time.UTC)
+	endDate := time.Date(int(weightYearEnd), time.Month(weightMonthEnd), 0, 0, 0, 0, 1, time.UTC)
+
 	err := p.db.AllUsers(func(user *user.User) {
 		cmsUser, err := p.getCMSUserByID(user.ID.String())
 		if err != nil {
@@ -594,9 +597,8 @@ func (p *politeiawww) getCMSUserWeights() (map[string]int64, error) {
 					log.Errorf("getCMSUserWeights: InvoicesByUserID %v", err)
 				}
 				for _, i := range superInvoices {
-					if i.Month <= weightMonthEnd &&
-						i.Month >= weightMonthStart &&
-						i.Year <= weightYearEnd && i.Year >= weightYearStart {
+					invoiceDate := time.Date(int(i.Year), time.Month(i.Month), 0, 0, 0, 0, 0, time.UTC)
+					if invoiceDate.After(startDate) && endDate.After(invoiceDate) {
 						for _, li := range i.LineItems {
 							// Only take into account billed minutes if the line
 							// item matches their userID
@@ -615,8 +617,8 @@ func (p *politeiawww) getCMSUserWeights() (map[string]int64, error) {
 				return
 			}
 			for _, i := range userInvoices {
-				if i.Month <= weightMonthEnd && i.Month >= weightMonthStart &&
-					i.Year <= weightYearEnd && i.Year >= weightYearStart {
+				invoiceDate := time.Date(int(i.Year), time.Month(i.Month), 0, 0, 0, 0, 0, time.UTC)
+				if invoiceDate.After(startDate) && endDate.After(invoiceDate) {
 					// now look at the lineitems within that invoice and
 					// tabulate billed hours
 					for _, li := range i.LineItems {
@@ -630,7 +632,7 @@ func (p *politeiawww) getCMSUserWeights() (map[string]int64, error) {
 	if err != nil {
 		return nil, err
 	}
-	spew.Dump(userWeights)
+
 	return userWeights, nil
 
 }

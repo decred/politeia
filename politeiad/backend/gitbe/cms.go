@@ -18,7 +18,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/politeia/cmsplugin"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/backend"
@@ -320,7 +319,7 @@ func (g *gitBackEnd) pluginStartDCCVote(payload string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("DecodeStartVote %v", err)
 	}
-	spew.Dump(vote)
+
 	// Verify vote bits are somewhat sane
 	for _, v := range vote.Vote.Options {
 		err = _validateCMSVoteBit(vote.Vote.Options, vote.Vote.Mask, v.Bits)
