@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/user"
@@ -563,7 +564,7 @@ func (p *politeiawww) getCMSUserWeights() (map[string]int64, error) {
 	weightStart := time.Now().AddDate(0, -1*userWeightMonthLookback, 0)
 	weightMonthStart := uint(weightStart.Month())
 	weightYearStart := uint(weightStart.Year())
-
+	fmt.Println(weightMonthStart, weightYearStart, weightMonthEnd, weightYearEnd)
 	err := p.db.AllUsers(func(user *user.User) {
 		cmsUser, err := p.getCMSUserByID(user.ID.String())
 		if err != nil {
@@ -629,7 +630,7 @@ func (p *politeiawww) getCMSUserWeights() (map[string]int64, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	spew.Dump(userWeights)
 	return userWeights, nil
 
 }
