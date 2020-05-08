@@ -553,7 +553,8 @@ func (p *politeiawww) getCMSUserWeights() (map[string]int64, error) {
 		1) Determine most recent payout month
 		2) For each user
 		   1) Look back for 6 months of invoices (that were paid out)
-		   2) Add up all hours billed over that time period.
+		   2) Add up all minutes billed over that time period.
+		   3) Set user weight as total number of billed minutes.
 	*/
 
 	weightEnd := time.Now()
