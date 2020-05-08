@@ -37,8 +37,9 @@ const (
 	ErrorStatusIneligibleUserID ErrorStatusT = 6
 
 	// String constant to ensure that the observed dcc vote option is tabulated
-	// as "approved".
-	DCCApprovalString = "yes"
+	// as "approved" or "disapproved".
+	DCCApprovalString    = "yes"
+	DCCDisapprovalString = "yes"
 )
 
 var (

@@ -517,6 +517,12 @@ func _validateCMSVoteBit(options []cmsplugin.VoteOption, mask uint64, bit uint64
 		if v.Bits == bit {
 			return nil
 		}
+		if v.Id != cmsplugin.DCCApprovalString &&
+			v.Id != cmsplugin.DCCDisapprovalString {
+			return invalidVoteBitError{
+				err: fmt.Errorf("bit option not valid found: ", v.Id),
+			}
+		}
 	}
 	return invalidVoteBitError{
 		err: fmt.Errorf("bit not found 0x%x", bit),
