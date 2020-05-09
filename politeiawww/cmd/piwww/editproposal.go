@@ -8,12 +8,14 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"time"
 
 	"github.com/decred/politeia/politeiad/api/v1/mime"
-	"github.com/decred/politeia/politeiawww/api/www/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 	"github.com/decred/politeia/util"
 )
@@ -25,7 +27,10 @@ type EditProposalCmd struct {
 		Markdown    string   `positional-arg-name:"markdownfile"`          // Proposal MD file
 		Attachments []string `positional-arg-name:"attachmentfiles"`       // Proposal attachments
 	} `positional-args:"true" optional:"true"`
-	Random bool `long:"random" optional:"true"` // Generate random proposal data
+	Random bool   `long:"random" optional:"true"` // Generate random proposal data
+	Name   string `long:"name" optional:"true"`
+	RFP    bool   `long:"rfp" optional:"true"`    // Insert a LinkBy timestamp to indicate an RFP
+	LinkTo string `long:"linkto" optional:"true"` // Censorship token of prop to link to
 }
 
 // Execute executes the edit proposal command.
@@ -103,8 +108,38 @@ func (cmd *EditProposalCmd) Execute(args []string) error {
 		files = append(files, f)
 	}
 
+	// Setup metadata
+	if cmd.Name == "" {
+		r, err := util.Random(v1.PolicyMinProposalNameLength)
+		if err != nil {
+			return err
+		}
+		cmd.Name = hex.EncodeToString(r)
+	}
+	pm := v1.ProposalMetadata{
+		Name: cmd.Name,
+	}
+	if cmd.RFP {
+		// Set linkby to a month from now
+		pm.LinkBy = time.Now().Add(time.Hour * 24 * 30).Unix()
+	}
+	if cmd.LinkTo != "" {
+		pm.LinkTo = cmd.LinkTo
+	}
+	pmb, err := json.Marshal(pm)
+	if err != nil {
+		return err
+	}
+	metadata := []v1.Metadata{
+		{
+			Digest:  hex.EncodeToString(util.Digest(pmb)),
+			Hint:    v1.HintProposalMetadata,
+			Payload: base64.StdEncoding.EncodeToString(pmb),
+		},
+	}
+
 	// Compute merkle root and sign it
-	sig, err := shared.SignedMerkleRoot(files, cfg.Identity)
+	sig, err := shared.SignedMerkleRoot(files, metadata, cfg.Identity)
 	if err != nil {
 		return fmt.Errorf("SignMerkleRoot: %v", err)
 	}
@@ -113,6 +148,7 @@ func (cmd *EditProposalCmd) Execute(args []string) error {
 	ep := &v1.EditProposal{
 		Token:     token,
 		Files:     files,
+		Metadata:  metadata,
 		PublicKey: hex.EncodeToString(cfg.Identity.Public.Key[:]),
 		Signature: sig,
 	}
@@ -152,7 +188,12 @@ Arguments:
 3. attachmentfiles   (string, optional)   Attachments 
 
 Flags:
-  --random           (bool, optional)     Generate a random proposal to submit
+  --random   (bool, optional)    Generate a random proposal to submit
+  --rfp      (bool, optional)    Make the proposal an RFP by inserting a LinkBy timestamp into the
+                                 proposal data JSON file. The LinkBy timestamp is set to be one
+                                 week from the current time.
+  --linkto   (string, optional)  Token of an existing public proposal to link to. The token is
+                                 used to populate the LinkTo field in the proposal data JSON file.
 
 Request:
 {

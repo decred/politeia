@@ -83,6 +83,7 @@ type piwww struct {
 	SendFaucetTx       SendFaucetTxCmd          `command:"sendfaucettx" description:"         send a DCR transaction using the Decred testnet faucet"`
 	SetProposalStatus  SetProposalStatusCmd     `command:"setproposalstatus" description:"(admin)  set the status of a proposal"`
 	StartVote          StartVoteCmd             `command:"startvote" description:"(admin)  start the voting period on a proposal"`
+	StartVoteRunoff    StartVoteRunoffCmd       `command:"startvoterunoff" description:"(admin)  start a runoff using the submissions to an RFP"`
 	Subscribe          SubscribeCmd             `command:"subscribe" description:"(public) subscribe to all websocket commands and do not exit tool"`
 	Tally              TallyCmd                 `command:"tally" description:"(public) get the vote tally for a proposal"`
 	TestRun            TestRunCmd               `command:"testrun" description:"         run a series of tests on the politeiawww routes (dev use only)"`
@@ -131,7 +132,7 @@ func createMDFile() (*v1.File, error) {
 func verifyProposal(p v1.ProposalRecord, serverPubKey string) error {
 	// Verify merkle root
 	if len(p.Files) > 0 {
-		mr, err := shared.MerkleRoot(p.Files)
+		mr, err := shared.MerkleRoot(p.Files, p.Metadata)
 		if err != nil {
 			return err
 		}

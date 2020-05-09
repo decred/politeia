@@ -93,13 +93,30 @@ func convertProposalTimelineReplyFromDecredPlugin(p decredplugin.GetProposalTime
 	return ptr
 }
 
-func convertAuthorizeVoteFromWWW(av www.AuthorizeVote) decredplugin.AuthorizeVote {
+func convertAuthorizeVoteToDecred(av www.AuthorizeVote) decredplugin.AuthorizeVote {
 	return decredplugin.AuthorizeVote{
 		Action:    av.Action,
 		Token:     av.Token,
 		PublicKey: av.PublicKey,
 		Signature: av.Signature,
 	}
+}
+
+func convertAuthorizeVoteV2ToDecred(av www2.AuthorizeVote) decredplugin.AuthorizeVote {
+	return decredplugin.AuthorizeVote{
+		Action:    av.Action,
+		Token:     av.Token,
+		PublicKey: av.PublicKey,
+		Signature: av.Signature,
+	}
+}
+
+func convertAuthorizeVotesV2ToDecred(av []www2.AuthorizeVote) []decredplugin.AuthorizeVote {
+	dav := make([]decredplugin.AuthorizeVote, 0, len(av))
+	for _, v := range av {
+		dav = append(dav, convertAuthorizeVoteV2ToDecred(v))
+	}
+	return dav
 }
 
 func convertVoteOptionFromWWW(vo www.VoteOption) decredplugin.VoteOption {
@@ -135,12 +152,13 @@ func convertVoteOptionsV2ToDecred(vo []www2.VoteOption) []decredplugin.VoteOptio
 }
 
 func convertVoteTypeV2ToDecred(v www2.VoteT) decredplugin.VoteT {
-	var dv decredplugin.VoteT
 	switch v {
 	case www2.VoteTypeStandard:
-		dv = decredplugin.VoteTypeStandard
+		return decredplugin.VoteTypeStandard
+	case www2.VoteTypeRunoff:
+		return decredplugin.VoteTypeRunoff
 	}
-	return dv
+	return decredplugin.VoteTypeInvalid
 }
 
 func convertVoteV2ToDecred(v www2.Vote) decredplugin.VoteV2 {
@@ -162,6 +180,14 @@ func convertStartVoteV2ToDecred(sv www2.StartVote) decredplugin.StartVoteV2 {
 		Vote:      convertVoteV2ToDecred(sv.Vote),
 		Signature: sv.Signature,
 	}
+}
+
+func convertStartVotesV2ToDecred(sv []www2.StartVote) []decredplugin.StartVoteV2 {
+	dsv := make([]decredplugin.StartVoteV2, 0, len(sv))
+	for _, v := range sv {
+		dsv = append(dsv, convertStartVoteV2ToDecred(v))
+	}
+	return dsv
 }
 
 func convertDecredStartVoteV1ToVoteDetailsReplyV2(sv decredplugin.StartVoteV1, svr decredplugin.StartVoteReply) (*www2.VoteDetailsReply, error) {
@@ -339,10 +365,33 @@ func convertPropStatusFromCache(s cache.RecordStatusT) www.PropStatusT {
 	return www.PropStatusInvalid
 }
 
-func convertPropFromCache(r cache.Record) www.ProposalRecord {
-	// Decode markdown stream payloads
+// convertFileFromMetadata returns a politeiawww v1 Metadata that was converted
+// from a politeiad File. User specified metadata is store as a file in
+// politeiad so that it is included in the merkle root that politeiad
+// calculates.
+func convertMetadataFromFile(f cache.File) www.Metadata {
+	var hint string
+	switch f.Name {
+	case mdstream.FilenameProposalMetadata:
+		hint = www.HintProposalMetadata
+	}
+	return www.Metadata{
+		Digest:  f.Digest,
+		Hint:    hint,
+		Payload: f.Payload,
+	}
+}
+
+func convertPropFromCache(r cache.Record) (*www.ProposalRecord, error) {
+	// Decode metadata stream payloads
 	var (
-		pg         *mdstream.ProposalGeneral
+		// The name was originally saved in the ProposalGeneralV1
+		// mdstream but was moved to the ProposalData mdsteam, which
+		// is saved to politeiad as a File, not a MetadataStream.
+		name   string
+		pubkey string
+		sig    string
+
 		statusesV1 []mdstream.RecordStatusChangeV1
 		statusesV2 []mdstream.RecordStatusChangeV2
 		err        error
@@ -353,10 +402,29 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 		switch ms.ID {
 		case mdstream.IDProposalGeneral:
 			// General metadata
-			pg, err = mdstream.DecodeProposalGeneral([]byte(ms.Payload))
+			v, err := mdstream.DecodeVersion([]byte(ms.Payload))
 			if err != nil {
-				log.Errorf("convertPropFromCache: DecodeProposalGeneral: "+
-					"err:%v token:%v mdstream:%v", err, token, ms)
+				return nil, fmt.Errorf("DecodeVersion %v: %v",
+					ms.ID, err)
+			}
+			switch v {
+			case 1:
+				pg, err := mdstream.DecodeProposalGeneralV1([]byte(ms.Payload))
+				if err != nil {
+					return nil, fmt.Errorf("DecodeProposalGeneralV1: %v", err)
+				}
+				name = pg.Name
+				pubkey = pg.PublicKey
+				sig = pg.Signature
+			case 2:
+				pg, err := mdstream.DecodeProposalGeneralV2([]byte(ms.Payload))
+				if err != nil {
+					return nil, fmt.Errorf("DecodeProposalGeneralV2: %v", err)
+				}
+				pubkey = pg.PublicKey
+				sig = pg.Signature
+			default:
+				return nil, fmt.Errorf("unknown ProposalGeneral version %v", ms)
 			}
 
 		case mdstream.IDRecordStatusChange:
@@ -364,8 +432,7 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 			b := []byte(ms.Payload)
 			statusesV1, statusesV2, err = mdstream.DecodeRecordStatusChanges(b)
 			if err != nil {
-				log.Errorf("convertPropFromCache: DecodeRecordStatusChanges: "+
-					"err:%v token:%v mdstream:%v", err, token, ms)
+				return nil, fmt.Errorf("DecodeRecordStatusChanges: %v", err)
 			}
 
 			// Verify the signatures
@@ -373,9 +440,7 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 				err := v.VerifySignature(token)
 				if err != nil {
 					// This is not good!
-					e := fmt.Sprintf("invalid status change signature: "+
-						"token:%v status:%v", token, v)
-					panic(e)
+					return nil, fmt.Errorf("invalid status change signature: %v", v)
 				}
 			}
 
@@ -392,8 +457,7 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 			log.Tracef("convertPropFromCache: skipping mdstream %v",
 				decredplugin.MDStreamVoteSnapshot)
 		default:
-			log.Errorf("convertPropFromCache: invalid mdstream ID: "+
-				"token:%v mdstream:%v", token, ms)
+			return nil, fmt.Errorf("invalid mdstream: %v", ms)
 		}
 	}
 
@@ -440,9 +504,35 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 		}
 	}
 
-	// Convert files
-	files := make([]www.File, 0, len(r.Files))
+	// Convert files. The ProposalMetadata mdstream is saved to
+	// politeiad as a File, not as a MetadataStream, so we have to
+	// account for this when preparing the files.
+	var (
+		pm       www.ProposalMetadata
+		files    = make([]www.File, 0, len(r.Files))
+		metadata = make([]www.Metadata, 0, len(r.Files))
+	)
 	for _, f := range r.Files {
+		switch f.Name {
+		case mdstream.FilenameProposalMetadata:
+			metadata = append(metadata, convertMetadataFromFile(f))
+
+			// Extract the proposal metadata from the payload
+			b, err := base64.StdEncoding.DecodeString(f.Payload)
+			if err != nil {
+				return nil, fmt.Errorf("decode file payload %v: %v",
+					mdstream.FilenameProposalMetadata, err)
+			}
+			err = json.Unmarshal(b, &pm)
+			if err != nil {
+				return nil, fmt.Errorf("unmarshal ProposalMetadata: %v", err)
+			}
+
+			name = pm.Name
+
+			continue
+		}
+
 		files = append(files,
 			www.File{
 				Name:    f.Name,
@@ -457,28 +547,32 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 	// The UserId, Username, and NumComments fields are returned
 	// as zero values since a cache record does not contain that
 	// data.
-	return www.ProposalRecord{
-		Name:                pg.Name,
+	return &www.ProposalRecord{
+		Name:                name,
 		State:               convertPropStatusToState(status),
 		Status:              status,
 		Timestamp:           r.Timestamp,
 		UserId:              "",
 		Username:            "",
-		PublicKey:           pg.PublicKey,
-		Signature:           pg.Signature,
-		Files:               files,
+		PublicKey:           pubkey,
+		Signature:           sig,
 		NumComments:         0,
 		Version:             r.Version,
 		StatusChangeMessage: changeMsg,
 		PublishedAt:         publishedAt,
 		CensoredAt:          censoredAt,
 		AbandonedAt:         abandonedAt,
+		LinkTo:              pm.LinkTo,
+		LinkBy:              pm.LinkBy,
+		LinkedFrom:          []string{},
+		Files:               files,
+		Metadata:            metadata,
 		CensorshipRecord: www.CensorshipRecord{
 			Token:     r.CensorshipRecord.Token,
 			Merkle:    r.CensorshipRecord.Merkle,
 			Signature: r.CensorshipRecord.Signature,
 		},
-	}
+	}, nil
 }
 
 func convertNewCommentToDecredPlugin(nc www.NewComment) decredplugin.NewComment {
@@ -608,6 +702,8 @@ func convertVoteTypeFromDecred(v decredplugin.VoteT) www2.VoteT {
 	switch v {
 	case decredplugin.VoteTypeStandard:
 		return www2.VoteTypeStandard
+	case decredplugin.VoteTypeRunoff:
+		return www2.VoteTypeRunoff
 	}
 	return www2.VoteTypeInvalid
 }

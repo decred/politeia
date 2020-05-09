@@ -1006,7 +1006,7 @@ func (p *politeia) pluginCommand(w http.ResponseWriter, r *http.Request) {
 		ReplyPayload:   payload,
 	})
 	if err != nil {
-		log.Criticalf("Cache plugin exec failed: command:%v"+
+		log.Criticalf("Cache plugin exec failed: command:%v "+
 			"commandPayload:%v replyPayload:%v error:%v",
 			pc.Command, pc.Payload, payload, err)
 	}

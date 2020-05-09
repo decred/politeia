@@ -91,6 +91,8 @@ func (cmd *HelpCmd) Execute(args []string) error {
 		fmt.Printf("%s\n", verifyUserPaymentHelpMsg)
 	case "startvote":
 		fmt.Printf("%s\n", startVoteHelpMsg)
+	case "startvoterunoff":
+		fmt.Printf("%s\n", startVoteRunoffHelpMsg)
 	case "voteresults":
 		fmt.Printf("%s\n", voteResultsHelpMsg)
 	case "inventory":

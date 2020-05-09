@@ -234,7 +234,9 @@ func validateSignature(pubKey string, signature string, elements ...string) erro
 	}
 	b, err := hex.DecodeString(pubKey)
 	if err != nil {
-		return err
+		return www.UserError{
+			ErrorCode: www.ErrorStatusInvalidPublicKey,
+		}
 	}
 	pk, err := identity.PublicIdentityFromBytes(b)
 	if err != nil {
@@ -1378,6 +1380,14 @@ func (p *politeiawww) processChangePassword(email string, cp www.ChangePassword)
 
 	// Add the updated user information to the db.
 	u.HashedPassword = hashedPassword
+
+	// We will also reset any possibly issued verification token to avoid
+	// a small chance of one having been issued by a potential attacker.
+	// Any update to the password by a logged in user, should be seen as
+	// an authorized request and therefore override any potential request.
+	u.ResetPasswordVerificationToken = nil
+	u.ResetPasswordVerificationExpiry = 0
+
 	err = p.db.UserUpdate(*u)
 	if err != nil {
 		return nil, err
@@ -1765,7 +1775,7 @@ func (p *politeiawww) processUsers(users *www.Users, isAdmin bool) (*www.UsersRe
 			return nil, err
 		}
 
-		u, err := p.db.UserGetByPubKey(pubkeyQuery)
+		u, err = p.db.UserGetByPubKey(pubkeyQuery)
 		if err != nil {
 			if err == user.ErrUserNotFound {
 				// Pubkey searches require an exact match. If no
