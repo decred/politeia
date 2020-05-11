@@ -1592,10 +1592,10 @@ Retreive a timeline of events in the history of a proposal.
 
 | | Type | Description |
 |-|-|-|
-| versionTimestamps | [] [`Version Timestamps`](#version-timestamps) | timestamps related to each version of the proposal |
-| linkingTimestamps | [] [`Linking Timestamps`](#linking-timestamps) | for rfp proposals, timestamps when proposals were linked |
-| startVoteBlock | uint64 | block height of start of voting period |
-| endVoteBlock | uint64 | block height of end of voting period |
+| versionTimestamps | array of [`Version Timestamps`](#version-timestamps) | timestamps related to each version of the proposal |
+| linkingTimestamps | array of [`Linking Timestamps`](#linking-timestamps) | for rfp proposals, timestamps when proposals were linked (omitempty) |
+| startVoteBlock | uint64 | block height of start of voting period (omitempty) |
+| endVoteBlock | uint64 | block height of end of voting period (omitempty) |
 
 On failure the call shall return `400 Bad Request` and one of the following
 error codes:
@@ -2949,8 +2949,8 @@ This is a shortened representation of a user, used for lists.
 | | Type | Description |
 |-|-|-|
 | created | uint64 | Timestamp when version was created |
-| vetted | uint64 | Timestamp when version was vetted by an admin |
-| authorized | [`Vote Authorization`](#vote-authorization) | Details of creator authorizing a vote on this version |
+| vetted | uint64 | Timestamp when version was vetted by an admin (omitempty) |
+| authorized | [`Vote Authorization`](#vote-authorization) | Details of creator authorizing a vote on this version (omitempty) |
 
 ### `Linking Timestamps`
 
