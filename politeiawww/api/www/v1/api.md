@@ -1593,6 +1593,7 @@ Retreive a timeline of events in the history of a proposal.
 | | Type | Description |
 |-|-|-|
 | versionTimestamps | [] [`Version Timestamps`](#version-timestamps) | timestamps related to each version of the proposal |
+| linkingTimestamps | [] [`Linking Timestamps`](#linking-timestamps) | for rfp proposals, timestamps when proposals were linked |
 | startVoteBlock | uint64 | block height of start of voting period |
 | endVoteBlock | uint64 | block height of end of voting period |
 
@@ -1640,6 +1641,16 @@ Reply:
         "action": "authorize",
         "timestamp": 1586712319
       }
+    }
+  ],
+  "linkingTimestamps": [
+    {
+      "token": "3ac17bbf90bd28385db5987fa86af75cbe5884614d00a59dfb74bc4cb932672f",
+      "timestamp": 1589047488
+    },
+    {
+      "token": "46f9ef6e1599438c7d0ebc69eebaefcb39c37baa16cbaaf38ac7cb4c801111e2",
+      "timestamp": 1589047628
     }
   ],
   "startVoteBlock": 401918,
@@ -2940,6 +2951,13 @@ This is a shortened representation of a user, used for lists.
 | created | uint64 | Timestamp when version was created |
 | vetted | uint64 | Timestamp when version was vetted by an admin |
 | authorized | [`Vote Authorization`](#vote-authorization) | Details of creator authorizing a vote on this version |
+
+### `Linking Timestamps`
+
+| | Type | Description |
+|-|-|-|
+| token | string | Token of proposal that was linked |
+| timestamp | uint64 | Timestamp when linked proposal was created |
 
 ### `Censorship record`
 

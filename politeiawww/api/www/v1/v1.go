@@ -880,12 +880,20 @@ type VersionTimestamp struct {
 	Authorized *VoteAuthorizationTimestamp `json:"authorized,omitempty"` // Information about vote authorization
 }
 
+// LinkingTimestamp contains the token of a proposal and the timestamp it was
+// linked to its parent proposal.
+type LinkingTimestamp struct {
+	Token     string `json:"token"`     // Token of the linked proposal
+	Timestamp uint64 `json:"timestamp"` // Timestamp when linked proposal was created
+}
+
 // ProposalTimelineReply is used to reply to a version ProposalTimeline
 // command.
 type ProposalTimelineReply struct {
-	VersionTimestamps []VersionTimestamp `json:"versionTimestamps"`        // Timestamps related to each version
-	StartVoteBlock    uint32             `json:"startVoteBlock,omitempty"` // Block height of start of voting period
-	EndVoteBlock      uint32             `json:"endVoteBlock,omitempty"`   // Block height of end of voting period
+	VersionTimestamps []VersionTimestamp `json:"versionTimestamps"`           // Timestamps related to each version
+	LinkingTimestamps []LinkingTimestamp `json:"linkingTimestamps,omitempty"` // Timestamps when proposals were linked
+	StartVoteBlock    uint32             `json:"startVoteBlock,omitempty"`    // Block height of start of voting period
+	EndVoteBlock      uint32             `json:"endVoteBlock,omitempty"`      // Block height of end of voting period
 }
 
 // BatchProposals is used to request the proposal details for each of the

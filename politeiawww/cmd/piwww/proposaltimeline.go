@@ -45,6 +45,12 @@ Result:
 		  "timestamp"   (uint64) time when authorization action was taken
 		}
 	  }
+	],
+	"linkingTimestamps" : [
+		{
+			"token": (string) token of proposal that was linked
+			"timestamp": (uint64) timestamp when linked proposal was created
+		}
 	]
 	"startVoteBlock" (uint64) block when voting period ends
 	"endVoteBlock"   (uint64) block when voting period starts

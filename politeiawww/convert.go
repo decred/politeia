@@ -77,10 +77,19 @@ func convertVersionTimestampFromDecredPlugin(vt decredplugin.VersionTimestamp) w
 	}
 }
 
+func convertLinkingTimestampFromDecredPlugin(lt decredplugin.LinkingTimestamp) www.LinkingTimestamp {
+	return www.LinkingTimestamp{
+		Token:     lt.Token,
+		Timestamp: lt.Timestamp,
+	}
+}
+
 func convertProposalTimelineReplyFromDecredPlugin(p decredplugin.GetProposalTimelineReply) www.ProposalTimelineReply {
 	ptr := www.ProposalTimelineReply{
 		VersionTimestamps: make([]www.VersionTimestamp, 0,
 			len(p.VersionTimestamps)),
+		LinkingTimestamps: make([]www.LinkingTimestamp, 0,
+			len(p.LinkingTimestamps)),
 		StartVoteBlock: p.StartVoteBlock,
 		EndVoteBlock:   p.EndVoteBlock,
 	}
@@ -88,6 +97,11 @@ func convertProposalTimelineReplyFromDecredPlugin(p decredplugin.GetProposalTime
 	for _, vt := range p.VersionTimestamps {
 		ptr.VersionTimestamps = append(ptr.VersionTimestamps,
 			convertVersionTimestampFromDecredPlugin(vt))
+	}
+
+	for _, lt := range p.LinkingTimestamps {
+		ptr.LinkingTimestamps = append(ptr.LinkingTimestamps,
+			convertLinkingTimestampFromDecredPlugin(lt))
 	}
 
 	return ptr

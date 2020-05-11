@@ -817,6 +817,32 @@ func (d *decred) getVoteStartEndBlock(token string) (uint32, uint32) {
 	return startVote.StartBlockHeight, startVote.EndHeight
 }
 
+// getLinkingTimestamps looks up the proposals which were linked to a
+// proposal and the timestamps when those proposals were created.
+func (d *decred) getLinkingTimestamps(token string) (map[string]uint64, error) {
+	timestamps := make(map[string]uint64)
+
+	linkedFrom, err := d.linkedFrom(token)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(linkedFrom) == 0 {
+		return timestamps, nil
+	}
+
+	records := make([]Record, 0, len(linkedFrom))
+	d.recordsdb.
+		Where("token IN (?) AND version=1", linkedFrom).
+		Find(&records)
+
+	for _, record := range records {
+		timestamps[record.Token] = uint64(record.Timestamp)
+	}
+
+	return timestamps, nil
+}
+
 // cmdProposalTimeline queries the cache for a timeline important events
 // in the history of a proposal.
 func (d *decred) cmdProposalTimeline(payload string) (string, error) {
@@ -879,6 +905,26 @@ func (d *decred) cmdProposalTimeline(payload string) (string, error) {
 		startVoteBlock, endVoteBlock := d.getVoteStartEndBlock(gpt.Token)
 		reply.StartVoteBlock = startVoteBlock
 		reply.EndVoteBlock = endVoteBlock
+
+		if reply.StartVoteBlock == 0 {
+			goto sendReply
+		}
+
+		linkingTimestamps, err := d.getLinkingTimestamps(gpt.Token)
+		if err != nil {
+			return "", err
+		}
+
+		reply.LinkingTimestamps = make([]decredplugin.LinkingTimestamp, 0,
+			len(linkingTimestamps))
+		for token, timestamp := range linkingTimestamps {
+			reply.LinkingTimestamps = append(reply.LinkingTimestamps,
+				decredplugin.LinkingTimestamp{
+					Token:     token,
+					Timestamp: timestamp,
+				})
+		}
+
 	}
 
 sendReply:

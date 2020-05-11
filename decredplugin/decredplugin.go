@@ -1068,12 +1068,20 @@ type VersionTimestamp struct {
 	Authorized *VoteAuthorizationTimestamp `json:"authorized,omitempty"` // Information about vote authorization
 }
 
+// LinkingTimestamp contains the token of a proposal and the timestamp it was
+// linked to its parent proposal.
+type LinkingTimestamp struct {
+	Token     string `json:"token"`     // Token of the linked proposal
+	Timestamp uint64 `json:"timestamp"` // Timestamp when linked proposal was created
+}
+
 // GetProposalTimelineReply returns the timestamps for events in the history of
 // a proposal.
 type GetProposalTimelineReply struct {
-	VersionTimestamps []VersionTimestamp `json:"versionTimestamps"`        // Timestamps related to each version
-	StartVoteBlock    uint32             `json:"startVoteBlock,omitempty"` // Block height of start of voting period
-	EndVoteBlock      uint32             `json:"endVoteBlock,omitempty"`   // Block height of end of voting period
+	VersionTimestamps []VersionTimestamp `json:"versionTimestamps"`           // Timestamps related to each version
+	LinkingTimestamps []LinkingTimestamp `json:"linkingTimestamps,omitempty"` // Timestamps when proposals were linked
+	StartVoteBlock    uint32             `json:"startVoteBlock,omitempty"`    // Block height of start of voting period
+	EndVoteBlock      uint32             `json:"endVoteBlock,omitempty"`      // Block height of end of voting period
 }
 
 // EncodeGetProposalTimelineReply encodes GetProposalTimelineReply into a
