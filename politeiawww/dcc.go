@@ -351,6 +351,17 @@ func (p *politeiawww) validateDCC(nd cms.NewDCC, u *user.User) error {
 			ErrorCode: cms.ErrorStatusInvalidDCCContractorType,
 		}
 	}
+
+	// Check to see that if the issuance is for a subcontractor that the
+	// sponsor user is a supervisor.
+	if dcc.Type == cms.DCCTypeIssuance &&
+		dcc.ContractorType == cms.ContractorTypeSubContractor &&
+		sponsorUser.ContractorType != cms.ContractorTypeSupervisor {
+		return www.UserError{
+			ErrorCode: cms.ErrorStatusInvalidDCCContractorType,
+		}
+
+	}
 	// Append digest to array for merkle root calculation
 	digest := util.Digest(data)
 	var d [sha256.Size]byte
@@ -920,7 +931,7 @@ func (p *politeiawww) processSetDCCStatus(sds cms.SetDCCStatus, u *user.User) (*
 		switch dcc.DCC.Type {
 		case cms.DCCTypeIssuance:
 			// Do DCC user Issuance processing
-			err := p.issuanceDCCUser(dcc.DCC.NomineeUserID, u.ID.String(),
+			err := p.issuanceDCCUser(dcc.DCC.NomineeUserID, dcc.SponsorUserID,
 				int(dcc.DCC.Domain), int(dcc.DCC.ContractorType))
 			if err != nil {
 				return nil, err
