@@ -256,6 +256,7 @@ func extendSHA1FromString(s string) (string, error) {
 	return hex.EncodeToString(d), nil
 }
 
+// TODO this should use the backend.VerifyContent
 // verifyContent verifies that all provided backend.MetadataStream and
 // backend.File are sane and returns a cooked array of the files.
 func verifyContent(metadata []backend.MetadataStream, files []backend.File, filesDel []string) ([]file, error) {
