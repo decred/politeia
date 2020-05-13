@@ -168,7 +168,7 @@ func (cmd *NewInvoiceCmd) Execute(args []string) error {
 	}
 
 	// Compute merkle root and sign it
-	sig, err := shared.SignedMerkleRoot(files, cfg.Identity)
+	sig, err := shared.SignedMerkleRoot(files, nil, cfg.Identity)
 	if err != nil {
 		return fmt.Errorf("SignMerkleRoot: %v", err)
 	}

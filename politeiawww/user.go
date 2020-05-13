@@ -234,7 +234,9 @@ func validateSignature(pubKey string, signature string, elements ...string) erro
 	}
 	b, err := hex.DecodeString(pubKey)
 	if err != nil {
-		return err
+		return www.UserError{
+			ErrorCode: www.ErrorStatusInvalidPublicKey,
+		}
 	}
 	pk, err := identity.PublicIdentityFromBytes(b)
 	if err != nil {

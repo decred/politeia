@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
@@ -315,9 +314,10 @@ func TestHandleProposalDetails(t *testing.T) {
 			}
 
 			// Validate expected proposal with received proposal
-			if !reflect.DeepEqual(gotReply.Proposal, v.wantReply) {
-				t.Errorf("got proposal %v, want %v",
-					gotReply.Proposal, v.wantReply)
+			diff := deep.Equal(gotReply.Proposal, v.wantReply)
+			if diff != nil {
+				t.Errorf("got/want diff:\n%v",
+					spew.Sdump(diff))
 			}
 
 			// Validate http status code

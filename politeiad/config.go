@@ -41,6 +41,12 @@ const (
 
 	defaultMainnetDcrdata = "dcrdata.decred.org:443"
 	defaultTestnetDcrdata = "testnet.decred.org:443"
+
+	// Currently available modes to run politeia, by default piwww, is used.
+	politeiaWWWMode = "piwww"
+	cmsWWWMode      = "cmswww"
+
+	defaultWWWMode = politeiaWWWMode
 )
 
 var (
@@ -89,6 +95,7 @@ type config struct {
 	Identity      string `long:"identity" description:"File containing the politeiad identity file"`
 	GitTrace      bool   `long:"gittrace" description:"Enable git tracing in logs"`
 	DcrdataHost   string `long:"dcrdatahost" description:"Dcrdata ip:port"`
+	Mode          string `long:"mode" description:"Mode www runs as. Supported values: piwww, cmswww"`
 }
 
 // serviceOptions defines the configuration options for the daemon as a service
@@ -291,6 +298,7 @@ func loadConfig() (*config, []string, error) {
 		HTTPSKey:   defaultHTTPSKeyFile,
 		HTTPSCert:  defaultHTTPSCertFile,
 		Version:    version.String(),
+		Mode:       defaultWWWMode,
 	}
 
 	// Service options which are only added on Windows.
@@ -610,6 +618,16 @@ func loadConfig() (*config, []string, error) {
 		}
 		cfg.RPCPass = base64.StdEncoding.EncodeToString(pass)
 		log.Warnf("RPC password not set, using random value")
+	}
+
+	// Verify mode
+	switch cfg.Mode {
+	case cmsWWWMode:
+	case politeiaWWWMode:
+	default:
+		err := fmt.Errorf("invalid mode: %v", cfg.Mode)
+		fmt.Fprintln(os.Stderr, err)
+		return nil, nil, err
 	}
 
 	// Warn about missing config file only after all other configuration is

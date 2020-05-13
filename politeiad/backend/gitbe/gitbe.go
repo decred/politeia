@@ -27,6 +27,7 @@ import (
 	"github.com/decred/dcrd/chaincfg"
 	v1 "github.com/decred/dcrtime/api/v1"
 	"github.com/decred/dcrtime/merkle"
+	"github.com/decred/politeia/cmsplugin"
 	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
@@ -87,6 +88,9 @@ const (
 	// where an anchor confirmation has been committed.  This value is
 	// parsed and therefore must be a const.
 	markerAnchorConfirmation = "Anchor confirmation"
+
+	piMode  = "piwww"
+	cmsMode = "cmswww"
 )
 
 var (
@@ -1784,6 +1788,107 @@ func (g *gitBackEnd) UpdateVettedMetadata(token []byte, mdAppend []backend.Metad
 	return g._updateVettedMetadata(token, mdAppend, mdOverwrite)
 }
 
+// updateMetadata describes a metadata update for a specific record. This
+// struct is used when the metadata of multiple records needs to be updated
+// atomically. A []updateMetadata can be passed in to represent multiple
+// metadata updates.
+type updateMetadata struct {
+	token       string
+	mdAppend    []backend.MetadataStream
+	mdOverwrite []backend.MetadataStream
+}
+
+// _updateVettedMetadataMulti updates metadata of multiple vetted record. It
+// goes through the normal stages of updating unvetted, pushing PR, merge PR,
+// pull remote.  Note that the content must have been validated before this
+// call. Record itself is not changed.
+//
+// This function must be called with the lock held.
+func (g *gitBackEnd) updateVettedMetadataMulti(um []updateMetadata, idTmp string) error {
+	// Checkout temporary branch
+	err := g.gitNewBranch(g.unvetted, idTmp)
+	if err != nil {
+		return err
+	}
+
+	// Update metadata changes
+	for _, v := range um {
+		log.Debugf("update vetted metadata: %v", v.token)
+		err = g.updateMetadata(v.token, v.mdAppend, v.mdOverwrite)
+		if err != nil {
+			return err
+		}
+	}
+
+	// If there are no changes DO NOT update the record
+	if !g.gitHasChanges(g.unvetted) {
+		return backend.ErrNoChanges
+	}
+
+	// Commit changes
+	msg := "Update record metadata multi "
+	for _, v := range um {
+		// '-m' puts the token on a new line
+		msg += "-m " + v.token
+	}
+	err = g.gitCommit(g.unvetted, msg)
+	if err != nil {
+		return err
+	}
+
+	// Create and rebase
+	return g.rebasePR(idTmp)
+}
+
+// _updateVettedMetadataMulti updates metadata of multiple vetted record. It
+// goes through the normal stages of updating unvetted, pushing PR, merge PR,
+// pull remote.  Note that the content must have been validated before this
+// call. Record itself is not changed. If any parts of the update fail then
+// all work is unwound.
+//
+// This function must be called WITH the lock held.
+func (g *gitBackEnd) _updateVettedMetadataMulti(um []updateMetadata, idTmp string) error {
+	if len(um) == 0 {
+		return backend.ErrNoChanges
+	}
+
+	// git checkout master
+	err := g.gitCheckout(g.unvetted, "master")
+	if err != nil {
+		return err
+	}
+
+	// git pull --ff-only --rebase
+	err = g.gitPull(g.unvetted, true)
+	if err != nil {
+		return err
+	}
+
+	// Ensure none of the records have been archived
+	for _, v := range um {
+		md, err := loadMD(g.unvetted, v.token, "")
+		if err != nil {
+			return err
+		}
+		if md.Status == backend.MDStatusArchived {
+			return backend.ErrRecordArchived
+		}
+	}
+
+	// Do the work, if there is an error we must unwind git.
+	err = g.updateVettedMetadataMulti(um, idTmp)
+	if err != nil {
+		err2 := g.gitUnwindBranch(g.unvetted, idTmp)
+		if err2 != nil {
+			// We are in trouble! Consider a panic.
+			log.Criticalf("updateVettedMetadataMulti: %v", err2)
+		}
+		return err
+	}
+
+	return nil
+}
+
 // _updateReadme updates the README.md file in the unvetted repo, then
 // does a commit. This function must be called WITH the lock
 // held, and must be wrapped with a function that puts the repo
@@ -2482,6 +2587,9 @@ func (g *gitBackEnd) Plugin(command, payload string) (string, string, error) {
 	case decredplugin.CmdStartVote:
 		payload, err := g.pluginStartVote(payload)
 		return decredplugin.CmdStartVote, payload, err
+	case decredplugin.CmdStartVoteRunoff:
+		payload, err := g.pluginStartVoteRunoff(payload)
+		return decredplugin.CmdStartVote, payload, err
 	case decredplugin.CmdBallot:
 		payload, err := g.pluginBallot(payload)
 		return decredplugin.CmdBallot, payload, err
@@ -2512,6 +2620,12 @@ func (g *gitBackEnd) Plugin(command, payload string) (string, string, error) {
 	case decredplugin.CmdLoadVoteResults:
 		payload, err := g.pluginLoadVoteResults()
 		return decredplugin.CmdLoadVoteResults, payload, err
+	case cmsplugin.CmdStartVote:
+		payload, err := g.pluginStartDCCVote(payload)
+		return cmsplugin.CmdStartVote, payload, err
+	case cmsplugin.CmdCastVote:
+		payload, err := g.pluginCastVote(payload)
+		return cmsplugin.CmdCastVote, payload, err
 	}
 	return "", "", fmt.Errorf("invalid payload command") // XXX this needs to become a type error
 }
@@ -2655,7 +2769,8 @@ func (g *gitBackEnd) rebasePR(id string) error {
 }
 
 // New returns a gitBackEnd context.  It verifies that git is installed.
-func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, id *identity.FullIdentity, gitTrace bool, dcrdataHost string) (*gitBackEnd, error) {
+func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, id *identity.FullIdentity, gitTrace bool, dcrdataHost string, mode string) (*gitBackEnd, error) {
+
 	// Default to system git
 	if gitPath == "" {
 		gitPath = "git"
@@ -2676,10 +2791,38 @@ func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, 
 		testAnchors:     make(map[string]bool),
 		plugins:         []backend.Plugin{getDecredPlugin(dcrdataHost)},
 	}
+
 	idJSON, err := id.Marshal()
 	if err != nil {
 		return nil, err
 	}
+
+	switch mode {
+	case piMode:
+		// Setup decred plugin settings
+		var voteDurationMin, voteDurationMax string
+		switch anp.Name {
+		case chaincfg.MainNetParams.Name:
+			voteDurationMin = strconv.Itoa(decredplugin.VoteDurationMinMainnet)
+			voteDurationMax = strconv.Itoa(decredplugin.VoteDurationMaxMainnet)
+		case chaincfg.TestNet3Params.Name:
+			voteDurationMin = strconv.Itoa(decredplugin.VoteDurationMinTestnet)
+			voteDurationMax = strconv.Itoa(decredplugin.VoteDurationMaxTestnet)
+		default:
+			return nil, fmt.Errorf("unknown chaincfg params '%v'", anp.Name)
+		}
+		setDecredPluginSetting(decredPluginVoteDurationMin, voteDurationMin)
+		setDecredPluginSetting(decredPluginVoteDurationMax, voteDurationMax)
+	case cmsMode:
+		g.plugins = []backend.Plugin{getDecredPlugin(dcrdataHost),
+			getCMSPlugin(anp.Name != "mainnet")}
+
+		setCMSPluginSetting(cmsPluginIdentity, string(idJSON))
+		setCMSPluginSetting(cmsPluginJournals, g.journals)
+	default:
+		return nil, fmt.Errorf("invalid mode")
+	}
+
 	setDecredPluginSetting(decredPluginIdentity, string(idJSON))
 	setDecredPluginSetting(decredPluginJournals, g.journals)
 	setDecredPluginHook(PluginPostHookEdit, g.decredPluginPostEdit)
@@ -2700,6 +2843,14 @@ func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, 
 		return nil, err
 	}
 
+	if mode == cmsMode {
+		// this function must be called after g.journal is created
+		err = g.initCMSPluginJournals()
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	err = g.newLocked()
 	if err != nil {
 		return nil, err
@@ -2716,6 +2867,10 @@ func New(anp *chaincfg.Params, root string, dcrtimeHost string, gitPath string, 
 	err = g.cron.AddFunc(anchorSchedule, func() {
 		// Flush journals
 		g.decredPluginJournalFlusher()
+
+		if mode == cmsMode {
+			g.cmsPluginJournalFlusher()
+		}
 
 		// Anchor commit
 		g.anchorAllReposCronJob()

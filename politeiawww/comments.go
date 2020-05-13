@@ -186,7 +186,7 @@ func validateComment(c www.NewComment) error {
 		}
 	}
 	// validate token
-	if !tokenIsValid(c.Token) {
+	if !isTokenValid(c.Token) {
 		return www.UserError{
 			ErrorCode: www.ErrorStatusInvalidCensorshipToken,
 		}
@@ -245,16 +245,15 @@ func (p *politeiawww) processNewComment(nc www.NewComment, u *user.User) (*www.N
 	}
 
 	// Ensure proposal voting has not ended
-	vsr, err := p.decredVoteSummary(nc.Token)
-	if err != nil {
-		return nil, fmt.Errorf("decredVoteSummary: %v", err)
-	}
 	bb, err := p.getBestBlock()
 	if err != nil {
 		return nil, fmt.Errorf("getBestBlock: %v", err)
 	}
-	s := voteStatusFromVoteSummary(*vsr, bb)
-	if s == www.PropVoteStatusFinished {
+	vs, err := p.voteSummaryGet(nc.Token, bb)
+	if err != nil {
+		return nil, fmt.Errorf("voteSummaryGet: %v", err)
+	}
+	if vs.Status == www.PropVoteStatusFinished {
 		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusWrongVoteStatus,
 			ErrorContext: []string{"vote is finished"},
@@ -510,16 +509,15 @@ func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www
 	}
 
 	// Ensure proposal voting has not ended
-	vsr, err := p.decredVoteSummary(pr.CensorshipRecord.Token)
-	if err != nil {
-		return nil, err
-	}
 	bb, err := p.getBestBlock()
 	if err != nil {
 		return nil, fmt.Errorf("getBestBlock: %v", err)
 	}
-	s := voteStatusFromVoteSummary(*vsr, bb)
-	if s == www.PropVoteStatusFinished {
+	vs, err := p.voteSummaryGet(pr.CensorshipRecord.Token, bb)
+	if err != nil {
+		return nil, err
+	}
+	if vs.Status == www.PropVoteStatusFinished {
 		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusWrongVoteStatus,
 			ErrorContext: []string{"vote has ended"},
@@ -654,16 +652,15 @@ func (p *politeiawww) processCensorComment(cc www.CensorComment, u *user.User) (
 	}
 
 	// Ensure proposal voting has not ended
-	vsr, err := p.decredVoteSummary(cc.Token)
-	if err != nil {
-		return nil, err
-	}
 	bb, err := p.getBestBlock()
 	if err != nil {
 		return nil, fmt.Errorf("getBestBlock: %v", err)
 	}
-	s := voteStatusFromVoteSummary(*vsr, bb)
-	if s == www.PropVoteStatusFinished {
+	vs, err := p.voteSummaryGet(cc.Token, bb)
+	if err != nil {
+		return nil, err
+	}
+	if vs.Status == www.PropVoteStatusFinished {
 		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusWrongVoteStatus,
 			ErrorContext: []string{"vote has ended"},

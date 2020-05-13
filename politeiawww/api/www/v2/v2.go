@@ -8,21 +8,39 @@ import (
 	"fmt"
 )
 
+type ErrorStatusT int
 type VoteT int
 
 const (
 	APIVersion = 2
 
-	RouteStartVote   = "/vote/start"
-	RouteVoteDetails = "/vote/{token:[A-z0-9]{64}}"
+	RouteStartVote       = "/vote/start"
+	RouteStartVoteRunoff = "/vote/startrunoff"
+	RouteVoteDetails     = "/vote/{token:[A-z0-9]{64}}"
 
 	// Vote types
 	//
 	// VoteTypeStandard is used to indicate a simple approve or reject
 	// proposal vote where the winner is the voting option that has met
 	// the specified pass and quorum requirements.
+	//
+	// VoteTypeRunoff specifies a runoff vote that multiple proposals compete in.
+	// All proposals are voted on like normal, but there can only be one winner
+	// in a runoff vote. The winner is the proposal that meets the quorum
+	// requirement, meets the pass requirement, and that has the most net yes
+	// votes. The winning proposal is considered approved and all other proposals
+	// are considered rejected. If no proposals meet the quorum and pass
+	// requirements then all proposals are considered rejected.
+	// Note: in a runoff vote it is possible for a proposal to meet the quorum
+	// and pass requirements but still be rejected if it does not have the most
+	// net yes votes.
 	VoteTypeInvalid  VoteT = 0
 	VoteTypeStandard VoteT = 1
+	VoteTypeRunoff   VoteT = 2
+
+	// AuthorizeVote actions
+	AuthVoteActionAuthorize = "authorize"
+	AuthVoteActionRevoke    = "revoke"
 )
 
 var (
@@ -35,6 +53,15 @@ type VoteOption struct {
 	Id          string `json:"id"`          // Single unique word identifying vote (e.g. yes)
 	Description string `json:"description"` // Longer description of the vote.
 	Bits        uint64 `json:"bits"`        // Bits used for this option
+}
+
+// AuthorizeVote is used to indicate that a proposal has been finalized and is
+// ready to be voted on.
+type AuthorizeVote struct {
+	Token     string `json:"token"`     // Proposal token
+	Action    string `json:"action"`    // Authorize or revoke
+	PublicKey string `json:"publickey"` // Key used for signature
+	Signature string `json:"signature"` // Signature of token+version+action
 }
 
 // Vote represents the vote params and vote options for a proposal vote.
@@ -81,6 +108,35 @@ type StartVote struct {
 // * EndBlockHeight was changed from a string to a uint32. It was also renamed
 //   from EndHeight to EndBlockHeight to be consistent with StartBlockHeight.
 type StartVoteReply struct {
+	StartBlockHeight uint32   `json:"startblockheight"` // Block height of vote start
+	StartBlockHash   string   `json:"startblockhash"`   // Block hash of vote start
+	EndBlockHeight   uint32   `json:"endblockheight"`   // Block height of vote end
+	EligibleTickets  []string `json:"eligibletickets"`  // Valid voting tickets
+}
+
+// StartVoteRunoff starts the runoff voting process on all public,
+// non-abandoned RFP submissions for the provided RFP token.
+//
+// AuthorizeVotes must contain a vote authorization for each RFP submission
+// that is participating in the runoff vote. Unlike standard votes, these vote
+// authorizations are not signed by the submission author. They are signed by
+// the admin starting the runoff vote.
+//
+// StartVotes must contain a StartVote for each RFP submission that is
+// participating in the runoff vote. The runoff vote can only be started once
+// the RFP proposal itself has been approved by a vote and once the LinkBy
+// submission deadline has expired. Once the LinkBy deadline has expired, the
+// runoff vote can be started at any point by an admin. It is not required that
+// RFP submission authors authorize the start of the vote.
+type StartVoteRunoff struct {
+	Token          string          `json:"token"`
+	AuthorizeVotes []AuthorizeVote `json:"authorizevotes"`
+	StartVotes     []StartVote     `json:"startvotes"`
+}
+
+// The StartVoteRunoffReply is the reply to the StartVoteRunoff command. The
+// returned vote info will be the same for all RFP submissions.
+type StartVoteRunoffReply struct {
 	StartBlockHeight uint32   `json:"startblockheight"` // Block height of vote start
 	StartBlockHash   string   `json:"startblockhash"`   // Block hash of vote start
 	EndBlockHeight   uint32   `json:"endblockheight"`   // Block height of vote end

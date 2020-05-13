@@ -5,13 +5,13 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"mime"
 	"net/http"
 	"regexp"
 	"sort"
@@ -32,8 +32,10 @@ import (
 )
 
 const (
-	// indexFile contains the file name of the index file
-	indexFile = "index.md"
+	// MIME types
+	mimeTypeText     = "text/plain"
+	mimeTypeTextUTF8 = "text/plain; charset=utf-8"
+	mimeTypePNG      = "image/png"
 )
 
 var (
@@ -60,24 +62,22 @@ type proposalsFilter struct {
 	StateMap map[www.PropStateT]bool
 }
 
-// parseProposalName returns the proposal name given the proposal index file
-// payload.
-func parseProposalName(payload string) (string, error) {
-	// decode payload (base64)
-	rawPayload, err := base64.StdEncoding.DecodeString(payload)
-	if err != nil {
-		return "", err
+// convertMetadataFromFile returns a politeiad File that was converted from a
+// politiawww v1 Metadata. User specified metadata is store as a file in
+// politeiad so that it is included in the merkle root that politeiad
+// calculates.
+func convertFileFromMetadata(m www.Metadata) pd.File {
+	var name string
+	switch m.Hint {
+	case www.HintProposalMetadata:
+		name = mdstream.FilenameProposalMetadata
 	}
-	// @rgeraldes - used reader instead of scanner
-	// due to the size of the input (scanner > token too long)
-	// get the first line from the payload
-	reader := bufio.NewReader(bytes.NewReader(rawPayload))
-	proposalName, _, err := reader.ReadLine()
-	if err != nil {
-		return "", err
+	return pd.File{
+		Name:    name,
+		MIME:    mimeTypeTextUTF8,
+		Digest:  m.Digest,
+		Payload: m.Payload,
 	}
-
-	return string(proposalName), nil
 }
 
 // isValidProposalName returns whether the provided string is a valid proposal
@@ -108,9 +108,35 @@ func createProposalNameRegex() string {
 	return validProposalNameBuffer.String()
 }
 
-// tokenIsValid returns whether the provided string is a valid politeiad
+// isProposalAuthor returns whether the provided user is the author of the
+// provided proposal.
+func isProposalAuthor(pr www.ProposalRecord, u user.User) bool {
+	var isAuthor bool
+	for _, v := range u.Identities {
+		if v.String() == pr.PublicKey {
+			isAuthor = true
+		}
+	}
+	return isAuthor
+}
+
+// isRFP returns whether the proposal is a Request For Proposals (RFP).
+func isRFP(pr www.ProposalRecord) bool {
+	return pr.LinkBy != 0
+}
+
+func isRFPSubmission(pr www.ProposalRecord) bool {
+	// Right now the only proposals that we allow linking to
+	// are RFPs so if the linkto is set than this is an RFP
+	// submission. This may change in the future, at which
+	// point we'll actually have to check the linkto proposal
+	// to see if its an RFP.
+	return pr.LinkTo != ""
+}
+
+// isTokenValid returns whether the provided string is a valid politeiad
 // censorship record token.
-func tokenIsValid(token string) bool {
+func isTokenValid(token string) bool {
 	b, err := hex.DecodeString(token)
 	if err != nil {
 		return false
@@ -125,7 +151,7 @@ func getInvalidTokens(tokens []string) []string {
 	invalidTokens := make([]string, 0, len(tokens))
 
 	for _, token := range tokens {
-		if !tokenIsValid(token) {
+		if !isTokenValid(token) {
 			invalidTokens = append(invalidTokens, token)
 		}
 	}
@@ -155,185 +181,401 @@ func validateVoteBit(vote www2.Vote, bit uint64) error {
 	return fmt.Errorf("bit not found 0x%x", bit)
 }
 
-// validateProposal ensures that a submitted proposal hashes, merkle and
-// signarures are valid.
-func validateProposal(np www.NewProposal, u *user.User) error {
-	log.Tracef("validateProposal")
-
-	// Obtain signature
-	sig, err := util.ConvertSignature(np.Signature)
-	if err != nil {
-		return www.UserError{
-			ErrorCode: www.ErrorStatusInvalidSignature,
-		}
-	}
-
-	// Verify public key
-	if u.PublicKey() != np.PublicKey {
-		return www.UserError{
-			ErrorCode: www.ErrorStatusInvalidSigningKey,
-		}
-	}
-
-	pk, err := identity.PublicIdentityFromBytes(u.ActiveIdentity().Key[:])
-	if err != nil {
-		return err
-	}
-
-	// Check for at least 1 markdown file with a non-empty payload.
-	if len(np.Files) == 0 || np.Files[0].Payload == "" {
-		return www.UserError{
-			ErrorCode: www.ErrorStatusProposalMissingFiles,
-		}
-	}
-
-	// verify if there are duplicate names
-	filenames := make(map[string]int, len(np.Files))
-	// Check that the file number policy is followed.
+// linkByPeriodMin returns the minimum amount of time, in seconds, that the
+// LinkBy period must be set to. This is determined by adding 1 week onto the
+// minimum voting period so that RFP proposal submissions have at least one
+// week to be submitted after the proposal vote ends.
+func (p *politeiawww) linkByPeriodMin() int64 {
 	var (
-		numMDs, numImages, numIndexFiles      int
-		mdExceedsMaxSize, imageExceedsMaxSize bool
-		hashes                                []*[sha256.Size]byte
+		submissionPeriod int64 = 604800 // One week in seconds
+		avgBlockTime     int64 = 300    // 5 minutes in seconds
 	)
-	for _, v := range np.Files {
-		filenames[v.Name]++
-		var (
-			data []byte
-			err  error
-		)
-		if strings.HasPrefix(v.MIME, "image/") {
-			numImages++
-			data, err = base64.StdEncoding.DecodeString(v.Payload)
-			if err != nil {
-				return err
-			}
-			if len(data) > www.PolicyMaxImageSize {
-				imageExceedsMaxSize = true
-			}
-		} else {
-			numMDs++
+	return (int64(p.cfg.VoteDurationMin) * avgBlockTime) + submissionPeriod
+}
 
-			if v.Name == indexFile {
-				numIndexFiles++
-			}
+// linkByPeriodMax returns the maximum amount of time, in seconds, that the
+// LinkBy period can be set to. 3 months is currently hard coded with no real
+// reason for deciding on 3 months besides that it sounds like a sufficient
+// amount of time.  This can be changed if there is a valid reason to.
+func (p *politeiawww) linkByPeriodMax() int64 {
+	return 7776000 // 3 months in seconds
+}
 
-			data, err = base64.StdEncoding.DecodeString(v.Payload)
-			if err != nil {
-				return err
-			}
-			if len(data) > www.PolicyMaxMDSize {
-				mdExceedsMaxSize = true
-			}
-		}
-
-		// Append digest to array for merkle root calculation
-		digest := util.Digest(data)
-		var d [sha256.Size]byte
-		copy(d[:], digest)
-		hashes = append(hashes, &d)
-	}
-
-	// verify duplicate file names
-	if len(np.Files) > 1 {
-		var repeated []string
-		for name, count := range filenames {
-			if count > 1 {
-				repeated = append(repeated, name)
-			}
-		}
-		if len(repeated) > 0 {
-			return www.UserError{
-				ErrorCode:    www.ErrorStatusProposalDuplicateFilenames,
-				ErrorContext: repeated,
-			}
-		}
-	}
-
-	// we expect one index file
-	if numIndexFiles == 0 {
-		return www.UserError{
-			ErrorCode:    www.ErrorStatusProposalMissingFiles,
-			ErrorContext: []string{indexFile},
-		}
-	}
-
-	if numMDs > www.PolicyMaxMDs {
-		return www.UserError{
-			ErrorCode: www.ErrorStatusMaxMDsExceededPolicy,
-		}
-	}
-
-	if numImages > www.PolicyMaxImages {
-		return www.UserError{
-			ErrorCode: www.ErrorStatusMaxImagesExceededPolicy,
-		}
-	}
-
-	if mdExceedsMaxSize {
-		return www.UserError{
-			ErrorCode: www.ErrorStatusMaxMDSizeExceededPolicy,
-		}
-	}
-
-	if imageExceedsMaxSize {
-		return www.UserError{
-			ErrorCode: www.ErrorStatusMaxImageSizeExceededPolicy,
-		}
-	}
-
-	// proposal title validation
-	name, err := getProposalName(np.Files)
-	if err != nil {
-		return err
-	}
-	if !isValidProposalName(name) {
+func (p *politeiawww) validateProposalMetadata(pm www.ProposalMetadata) error {
+	// Validate Name
+	if !isValidProposalName(pm.Name) {
 		return www.UserError{
 			ErrorCode:    www.ErrorStatusProposalInvalidTitle,
 			ErrorContext: []string{createProposalNameRegex()},
 		}
 	}
 
-	// Note that we need validate the string representation of the merkle
-	mr := merkle.Root(hashes)
-	if !pk.VerifyMessage([]byte(hex.EncodeToString(mr[:])), sig) {
-		return www.UserError{
-			ErrorCode: www.ErrorStatusInvalidSignature,
+	// Validate LinkTo
+	if pm.LinkTo != "" {
+		if !isTokenValid(pm.LinkTo) {
+			return www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidLinkTo,
+				ErrorContext: []string{"invalid token"},
+			}
+		}
+
+		// Validate the LinkTo proposal. The only type of proposal
+		// that we currently allow linking to is an RFP.
+		r, err := p.cache.Record(pm.LinkTo)
+		if err != nil {
+			if err == cache.ErrRecordNotFound {
+				return www.UserError{
+					ErrorCode: www.ErrorStatusInvalidLinkTo,
+				}
+			}
+		}
+		pr, err := convertPropFromCache(*r)
+		if err != nil {
+			return err
+		}
+		bb, err := p.getBestBlock()
+		if err != nil {
+			return err
+		}
+		vs, err := p.voteSummaryGet(pm.LinkTo, bb)
+		if err != nil {
+			return err
+		}
+		switch {
+		case !isRFP(*pr):
+			return www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidLinkTo,
+				ErrorContext: []string{"linkto proposal is not an rfp"},
+			}
+		case !voteIsApproved(*vs):
+			return www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidLinkTo,
+				ErrorContext: []string{"rfp proposal vote did not pass"},
+			}
+		case time.Now().Unix() > pr.LinkBy:
+			return www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidLinkTo,
+				ErrorContext: []string{"linkto proposal deadline is expired"},
+			}
+		case pr.State != www.PropStateVetted:
+			return www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidLinkTo,
+				ErrorContext: []string{"linkto proposal is not vetted"},
+			}
+		case isRFP(*pr) && pm.LinkBy != 0:
+			return www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidLinkTo,
+				ErrorContext: []string{"an rfp cannot link to an rfp"},
+			}
+		}
+	}
+
+	// Validate LinkBy
+	if pm.LinkBy != 0 {
+		min := time.Now().Unix() + p.linkByPeriodMin()
+		max := time.Now().Unix() + p.linkByPeriodMax()
+		switch {
+		case pm.LinkBy < min:
+			e := fmt.Sprintf("linkby period cannot be shorter than %v seconds",
+				p.linkByPeriodMin())
+			return www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidLinkBy,
+				ErrorContext: []string{e},
+			}
+		case pm.LinkBy > max:
+			e := fmt.Sprintf("linkby period cannot be greater than %v seconds",
+				p.linkByPeriodMax())
+			return www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidLinkBy,
+				ErrorContext: []string{e},
+			}
 		}
 	}
 
 	return nil
 }
 
-func voteStatusFromVoteSummary(r decredplugin.VoteSummaryReply, bestBlock uint64) www.PropVoteStatusT {
+// validateProposal ensures that the given new proposal meets the api policy
+// requirements. If a proposal data file exists (currently optional) then it is
+// parsed and a ProposalData is returned.
+func (p *politeiawww) validateProposal(np www.NewProposal, u *user.User) (*www.ProposalMetadata, error) {
+	if len(np.Files) == 0 {
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusProposalMissingFiles,
+			ErrorContext: []string{"no files found"},
+		}
+	}
+
+	// Verify the files adhere to all policy requirements
+	var (
+		countTextFiles  int
+		countImageFiles int
+		foundIndexFile  bool
+	)
+	filenames := make(map[string]struct{}, len(np.Files))
+	digests := make([]*[sha256.Size]byte, 0, len(np.Files))
+	for _, v := range np.Files {
+		// Validate file name
+		_, ok := filenames[v.Name]
+		if ok {
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusProposalDuplicateFilenames,
+				ErrorContext: []string{v.Name},
+			}
+		}
+		filenames[v.Name] = struct{}{}
+
+		// Validate file payload
+		if v.Payload == "" {
+			e := fmt.Sprintf("base64 payload is empty for file '%v'",
+				v.Name)
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidBase64,
+				ErrorContext: []string{e},
+			}
+		}
+		payloadb, err := base64.StdEncoding.DecodeString(v.Payload)
+		if err != nil {
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidBase64,
+				ErrorContext: []string{v.Name},
+			}
+		}
+
+		// Verify computed file digest matches given file digest
+		digest := util.Digest(payloadb)
+		d, ok := util.ConvertDigest(v.Digest)
+		if !ok {
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidFileDigest,
+				ErrorContext: []string{v.Name},
+			}
+		}
+		if !bytes.Equal(digest, d[:]) {
+			e := fmt.Sprintf("computed digest does not match given digest "+
+				"for file '%v'", v.Name)
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidFileDigest,
+				ErrorContext: []string{e},
+			}
+		}
+
+		// Aggregate file digests for merkle root calc
+		digests = append(digests, &d)
+
+		// Verify detected MIME type matches given mime type
+		ct := http.DetectContentType(payloadb)
+		mimePayload, _, err := mime.ParseMediaType(ct)
+		if err != nil {
+			return nil, err
+		}
+		mimeFile, _, err := mime.ParseMediaType(v.MIME)
+		if err != nil {
+			log.Debugf("validateProposal: ParseMediaType(%v): %v",
+				v.MIME, err)
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidMIMEType,
+				ErrorContext: []string{v.Name},
+			}
+		}
+		if mimeFile != mimePayload {
+			e := fmt.Sprintf("detected mime '%v' does not match '%v' for file '%v'",
+				mimePayload, mimeFile, v.Name)
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidMIMEType,
+				ErrorContext: []string{e},
+			}
+		}
+
+		// Run MIME type specific validation
+		switch mimeFile {
+		case mimeTypeText:
+			countTextFiles++
+
+			// Verify text file size
+			if len(payloadb) > www.PolicyMaxMDSize {
+				e := fmt.Sprintf("file size %v exceeds max %v for file '%v'",
+					len(payloadb), www.PolicyMaxMDSize, v.Name)
+				return nil, www.UserError{
+					ErrorCode:    www.ErrorStatusMaxMDSizeExceededPolicy,
+					ErrorContext: []string{e},
+				}
+			}
+
+			// The only text file that is allowed is the index markdown
+			// file.
+			if v.Name != www.PolicyIndexFilename {
+				return nil, www.UserError{
+					ErrorCode:    www.ErrorStatusMaxMDsExceededPolicy,
+					ErrorContext: []string{v.Name},
+				}
+			}
+			if foundIndexFile {
+				e := fmt.Sprintf("more than one %v file found",
+					www.PolicyIndexFilename)
+				return nil, www.UserError{
+					ErrorCode:    www.ErrorStatusMaxMDsExceededPolicy,
+					ErrorContext: []string{e},
+				}
+			}
+
+			// Set index file as being found
+			foundIndexFile = true
+
+		case mimeTypePNG:
+			countImageFiles++
+
+			// Verify image file size
+			if len(payloadb) > www.PolicyMaxImageSize {
+				e := fmt.Sprintf("file size %v exceeds max %v for file '%v'",
+					len(payloadb), www.PolicyMaxImageSize, v.Name)
+				return nil, www.UserError{
+					ErrorCode:    www.ErrorStatusMaxImageSizeExceededPolicy,
+					ErrorContext: []string{e},
+				}
+			}
+
+		default:
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidMIMEType,
+				ErrorContext: []string{v.MIME},
+			}
+		}
+	}
+
+	// Verify that an index file is present.
+	if !foundIndexFile {
+		e := fmt.Sprintf("%v file not found", www.PolicyIndexFilename)
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusProposalMissingFiles,
+			ErrorContext: []string{e},
+		}
+	}
+
+	// Verify file counts are acceptable
+	if countTextFiles > www.PolicyMaxMDs {
+		e := fmt.Sprintf("got %v text files; max is %v",
+			countTextFiles, www.PolicyMaxMDs)
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusMaxMDsExceededPolicy,
+			ErrorContext: []string{e},
+		}
+	}
+	if countImageFiles > www.PolicyMaxImages {
+		e := fmt.Sprintf("got %v image files, max is %v",
+			countImageFiles, www.PolicyMaxImages)
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusMaxImagesExceededPolicy,
+			ErrorContext: []string{e},
+		}
+	}
+
+	// Decode and validate metadata
+	var pm *www.ProposalMetadata
+	for _, v := range np.Metadata {
+		// Decode payload
+		b, err := base64.StdEncoding.DecodeString(v.Payload)
+		if err != nil {
+			e := fmt.Sprintf("invalid base64 for '%v'", v.Hint)
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusMetadataInvalid,
+				ErrorContext: []string{e},
+			}
+		}
+		d := json.NewDecoder(bytes.NewReader(b))
+		d.DisallowUnknownFields()
+
+		// Unmarshal payload
+		switch v.Hint {
+		case www.HintProposalMetadata:
+			var p www.ProposalMetadata
+			err := d.Decode(&p)
+			if err != nil {
+				log.Debugf("validateProposal: decode ProposalMetadata: %v", err)
+				return nil, www.UserError{
+					ErrorCode:    www.ErrorStatusMetadataInvalid,
+					ErrorContext: []string{v.Hint},
+				}
+			}
+			pm = &p
+		default:
+			e := fmt.Sprintf("unknown hint '%v'", v.Hint)
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusMetadataInvalid,
+				ErrorContext: []string{e},
+			}
+		}
+
+		// Validate digest
+		digest := util.Digest(b)
+		if v.Digest != hex.EncodeToString(digest) {
+			e := fmt.Sprintf("%v got digest %v, want %v",
+				v.Hint, v.Digest, hex.EncodeToString(digest))
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusMetadataDigestInvalid,
+				ErrorContext: []string{e},
+			}
+		}
+
+		// Add to hashes slice for merkle root calc
+		var h [sha256.Size]byte
+		copy(h[:], digest)
+		digests = append(digests, &h)
+	}
+	if pm == nil {
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusMetadataMissing,
+			ErrorContext: []string{www.HintProposalMetadata},
+		}
+	}
+
+	// Validate ProposalMetadata
+	err := p.validateProposalMetadata(*pm)
+	if err != nil {
+		return nil, err
+	}
+	// Verify signature. The signature message is the merkle root
+	// of the proposal files.
+	sig, err := util.ConvertSignature(np.Signature)
+	if err != nil {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSignature,
+		}
+	}
+	pk, err := identity.PublicIdentityFromBytes(u.ActiveIdentity().Key[:])
+	if err != nil {
+		return nil, err
+	}
+	mr := merkle.Root(digests)
+	if !pk.VerifyMessage([]byte(hex.EncodeToString(mr[:])), sig) {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSignature,
+		}
+	}
+
+	// Verify the user signed using their active identity
+	if u.PublicKey() != np.PublicKey {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSigningKey,
+		}
+	}
+
+	return pm, nil
+}
+
+func voteStatusFromVoteSummary(r decredplugin.VoteSummaryReply, endHeight, bestBlock uint64) www.PropVoteStatusT {
 	switch {
 	case !r.Authorized:
 		return www.PropVoteStatusNotAuthorized
-	case r.EndHeight == "":
+	case r.Authorized && endHeight == 0:
 		return www.PropVoteStatusAuthorized
-	default:
-		endHeight, err := strconv.ParseUint(r.EndHeight, 10, 64)
-		if err != nil {
-			// This should not happen
-			log.Errorf("voteStatusFromVoteSummary: ParseUint "+
-				"failed on '%v': %v", r.EndHeight, err)
-		}
-
-		if bestBlock < endHeight {
-			return www.PropVoteStatusStarted
-		}
-
+	case bestBlock < endHeight:
+		return www.PropVoteStatusStarted
+	case bestBlock >= endHeight:
 		return www.PropVoteStatusFinished
 	}
-}
 
-// getProposalName returns the proposal name based on the index markdown file.
-func getProposalName(files []www.File) (string, error) {
-	for _, file := range files {
-		if file.Name == indexFile {
-			return parseProposalName(file.Payload)
-		}
-	}
-	return "", nil
+	return www.PropVoteStatusInvalid
 }
 
 // convertWWWPropCreditFromDatabasePropCredit coverts a database proposal
@@ -356,7 +598,20 @@ func (p *politeiawww) getProp(token string) (*www.ProposalRecord, error) {
 	if err != nil {
 		return nil, err
 	}
-	pr := convertPropFromCache(*r)
+	pr, err := convertPropFromCache(*r)
+	if err != nil {
+		return nil, err
+	}
+
+	// Find linked from proposals
+	lfr, err := p.decredLinkedFrom([]string{token})
+	if err != nil {
+		return nil, err
+	}
+	linkedFrom, ok := lfr.LinkedFrom[token]
+	if ok {
+		pr.LinkedFrom = linkedFrom
+	}
 
 	// Find the number of comments for the proposal
 	dc, err := p.decredGetComments(token)
@@ -376,7 +631,7 @@ func (p *politeiawww) getProp(token string) (*www.ProposalRecord, error) {
 		pr.Username = u.Username
 	}
 
-	return &pr, nil
+	return pr, nil
 }
 
 // getProps returns a [token]www.ProposalRecord map for the provided list of
@@ -388,7 +643,7 @@ func (p *politeiawww) getProps(tokens []string) (map[string]www.ProposalRecord, 
 	log.Tracef("getProps: %v", tokens)
 
 	// Get the proposals from the cache
-	records, err := p.cache.Records(tokens, false)
+	records, err := p.cache.Records(tokens, true)
 	if err != nil {
 		return nil, err
 	}
@@ -396,8 +651,12 @@ func (p *politeiawww) getProps(tokens []string) (map[string]www.ProposalRecord, 
 	// Use pointers for now so the props can be easily updated
 	props := make(map[string]*www.ProposalRecord, len(records))
 	for _, v := range records {
-		pr := convertPropFromCache(v)
-		props[v.CensorshipRecord.Token] = &pr
+		pr, err := convertPropFromCache(v)
+		if err != nil {
+			return nil, fmt.Errorf("convertPropFromCache %v: %v",
+				v.CensorshipRecord.Token, err)
+		}
+		props[v.CensorshipRecord.Token] = pr
 	}
 
 	// Get the number of comments for each proposal. Comments
@@ -409,6 +668,15 @@ func (p *politeiawww) getProps(tokens []string) (map[string]www.ProposalRecord, 
 	}
 	for token, numComments := range dnc {
 		props[token].NumComments = uint(numComments)
+	}
+
+	// Find linked from proposals
+	lfr, err := p.decredLinkedFrom(tokens)
+	if err != nil {
+		return nil, err
+	}
+	for token, linkedFrom := range lfr.LinkedFrom {
+		props[token].LinkedFrom = linkedFrom
 	}
 
 	// Compile a list of unique proposal author pubkeys. These
@@ -467,7 +735,10 @@ func (p *politeiawww) getPropVersion(token, version string) (*www.ProposalRecord
 	if err != nil {
 		return nil, err
 	}
-	pr := convertPropFromCache(*r)
+	pr, err := convertPropFromCache(*r)
+	if err != nil {
+		return nil, err
+	}
 
 	// Fetch number of comments for proposal from cache
 	dc, err := p.decredGetComments(token)
@@ -475,6 +746,16 @@ func (p *politeiawww) getPropVersion(token, version string) (*www.ProposalRecord
 		return nil, err
 	}
 	pr.NumComments = uint(len(dc))
+
+	// Find linked from proposals
+	lfr, err := p.decredLinkedFrom([]string{token})
+	if err != nil {
+		return nil, err
+	}
+	linkedFrom, ok := lfr.LinkedFrom[token]
+	if ok {
+		pr.LinkedFrom = linkedFrom
+	}
 
 	// Fill in proposal author info
 	u, err := p.db.UserGetByPubKey(pr.PublicKey)
@@ -485,7 +766,7 @@ func (p *politeiawww) getPropVersion(token, version string) (*www.ProposalRecord
 		pr.Username = u.Username
 	}
 
-	return &pr, nil
+	return pr, nil
 }
 
 // getAllProps gets the latest version of all proposals from the cache then
@@ -502,15 +783,30 @@ func (p *politeiawww) getAllProps() ([]www.ProposalRecord, error) {
 	// Convert props and fill in missing info
 	props := make([]www.ProposalRecord, 0, len(records))
 	for _, v := range records {
-		pr := convertPropFromCache(v)
+		pr, err := convertPropFromCache(v)
+		if err != nil {
+			return nil, fmt.Errorf("convertPropFromCache %v: %v",
+				pr.CensorshipRecord.Token, err)
+		}
+		token := pr.CensorshipRecord.Token
 
 		// Fill in num comments
-		dc, err := p.decredGetComments(pr.CensorshipRecord.Token)
+		dc, err := p.decredGetComments(token)
 		if err != nil {
 			return nil, fmt.Errorf("decredGetComments %v: %v",
 				pr.CensorshipRecord.Token, err)
 		}
 		pr.NumComments = uint(len(dc))
+
+		// Find linked from proposals
+		lfr, err := p.decredLinkedFrom([]string{token})
+		if err != nil {
+			return nil, err
+		}
+		linkedFrom, ok := lfr.LinkedFrom[token]
+		if ok {
+			pr.LinkedFrom = linkedFrom
+		}
 
 		// Fill in author info
 		u, err := p.db.UserGetByPubKey(pr.PublicKey)
@@ -522,7 +818,7 @@ func (p *politeiawww) getAllProps() ([]www.ProposalRecord, error) {
 			pr.Username = u.Username
 		}
 
-		props = append(props, pr)
+		props = append(props, *pr)
 	}
 
 	return props, nil
@@ -710,10 +1006,136 @@ func (p *politeiawww) getPropComments(token string) ([]www.Comment, error) {
 	return comments, nil
 }
 
+// voteSummariesGet returns a map[string]www.VoteSummary for the given proposal
+// tokens. An entry in the returned map will only exist for tokens where a
+// proposal record was found.
+//
+// This function must be called WITHOUT read/write lock held.
+func (p *politeiawww) voteSummariesGet(tokens []string, bestBlock uint64) (map[string]www.VoteSummary, error) {
+	voteSummaries := make(map[string]www.VoteSummary)
+	tokensToLookup := make([]string, 0, len(tokens))
+
+	p.RLock()
+	for _, token := range tokens {
+		vs, ok := p.voteSummaries[token]
+		if ok {
+			voteSummaries[token] = vs
+		} else {
+			tokensToLookup = append(tokensToLookup, token)
+		}
+	}
+	p.RUnlock()
+
+	if len(tokensToLookup) == 0 {
+		return voteSummaries, nil
+	}
+
+	// Fetch the vote summaries from the cache. This call relies on the
+	// lazy loaded VoteResults cache table. If the VoteResults table is
+	// not up-to-date then this function will load it before retrying
+	// the vote summary call. Since politeiawww only has read access to
+	// the cache, loading the VoteResults table requires using a
+	// politeiad decredplugin command.
+	var (
+		done  bool
+		err   error
+		reply *decredplugin.BatchVoteSummaryReply
+	)
+	for retries := 0; !done && retries <= 1; retries++ {
+		reply, err = p.decredBatchVoteSummary(tokensToLookup, bestBlock)
+		if err != nil {
+			if err == cache.ErrRecordNotFound {
+				// There are missing entries in the VoteResults
+				// cache table. Load them.
+				_, err := p.decredLoadVoteResults(bestBlock)
+				if err != nil {
+					return nil, err
+				}
+
+				// Retry the vote summaries call
+				continue
+			}
+			return nil, err
+		}
+
+		done = true
+	}
+
+	for token, v := range reply.Summaries {
+		results := convertVoteOptionResultsFromDecred(v.Results)
+		votet := convertVoteTypeFromDecred(v.Type)
+
+		// An endHeight will not exist if the proposal has not gone
+		// up for vote yet.
+		var endHeight uint64
+		if v.EndHeight != "" {
+			i, err := strconv.ParseUint(v.EndHeight, 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse end height "+
+					"'%v' for %v: %v", v.EndHeight, token, err)
+			}
+			endHeight = i
+		}
+
+		vs := www.VoteSummary{
+			Status:           voteStatusFromVoteSummary(v, endHeight, bestBlock),
+			Type:             www.VoteT(int(votet)),
+			Approved:         v.Approved,
+			EligibleTickets:  uint32(v.EligibleTicketCount),
+			Duration:         v.Duration,
+			EndHeight:        endHeight,
+			QuorumPercentage: v.QuorumPercentage,
+			PassPercentage:   v.PassPercentage,
+			Results:          results,
+		}
+
+		voteSummaries[token] = vs
+
+		// If the voting period has ended the vote status
+		// is not going to change so add it to the memory
+		// cache.
+		if vs.Status == www.PropVoteStatusFinished {
+			p.voteSummarySet(token, vs)
+		}
+	}
+
+	return voteSummaries, nil
+}
+
+// voteSummaryGet stores the provided VoteSummary in the vote summaries memory
+// cache. This is to only be used for proposals whose voting period has ended
+// so that we don't have to worry about cache invalidation issues.
+//
+// This function must be called WITHOUT the read/write lock held.
+func (p *politeiawww) voteSummarySet(token string, voteSummary www.VoteSummary) {
+	p.Lock()
+	defer p.Unlock()
+
+	p.voteSummaries[token] = voteSummary
+}
+
+// voteSummaryGet returns the VoteSummary for the given token. A cache
+// ErrRecordNotFound error is returned if the token does actually not
+// correspond to a proposal.
+//
+// This function must be called WITHOUT the read/write lock held.
+func (p *politeiawww) voteSummaryGet(token string, bestBlock uint64) (*www.VoteSummary, error) {
+	s, err := p.voteSummariesGet([]string{token}, bestBlock)
+	if err != nil {
+		return nil, err
+	}
+	vs, ok := s[token]
+	if !ok {
+		return nil, cache.ErrRecordNotFound
+	}
+	return &vs, nil
+}
+
 // processNewProposal tries to submit a new proposal to politeiad.
 func (p *politeiawww) processNewProposal(np www.NewProposal, user *user.User) (*www.NewProposalReply, error) {
 	log.Tracef("processNewProposal")
 
+	// Pay up sucker!
 	if !p.HasUserPaid(user) {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusUserNotPaid,
@@ -726,25 +1148,40 @@ func (p *politeiawww) processNewProposal(np www.NewProposal, user *user.User) (*
 		}
 	}
 
-	err := validateProposal(np, user)
+	pm, err := p.validateProposal(np, user)
 	if err != nil {
 		return nil, err
 	}
 
-	// Assemble metadata record
-	name, err := getProposalName(np.Files)
+	// politeiad only includes files in its merkle root calc, not the
+	// metadata streams. This is why we include the ProposalMetadata
+	// as a politeiad file.
+
+	// Setup politeaid files
+	files := convertPropFilesFromWWW(np.Files)
+	for _, v := range np.Metadata {
+		switch v.Hint {
+		case www.HintProposalMetadata:
+			files = append(files, convertFileFromMetadata(v))
+		}
+	}
+
+	// Setup politeiad metadata
+	pg := mdstream.ProposalGeneralV2{
+		Version:   mdstream.VersionProposalGeneral,
+		Timestamp: time.Now().Unix(),
+		PublicKey: np.PublicKey,
+		Signature: np.Signature,
+	}
+	pgb, err := mdstream.EncodeProposalGeneralV2(pg)
 	if err != nil {
 		return nil, err
 	}
-	md, err := mdstream.EncodeProposalGeneral(mdstream.ProposalGeneral{
-		Version:   mdstream.VersionProposalGeneral,
-		Timestamp: time.Now().Unix(),
-		Name:      name,
-		PublicKey: np.PublicKey,
-		Signature: np.Signature,
-	})
-	if err != nil {
-		return nil, err
+	metadata := []pd.MetadataStream{
+		{
+			ID:      mdstream.IDProposalGeneral,
+			Payload: string(pgb),
+		},
 	}
 
 	// Setup politeiad request
@@ -754,11 +1191,8 @@ func (p *politeiawww) processNewProposal(np www.NewProposal, user *user.User) (*
 	}
 	n := pd.NewRecord{
 		Challenge: hex.EncodeToString(challenge),
-		Metadata: []pd.MetadataStream{{
-			ID:      mdstream.IDProposalGeneral,
-			Payload: string(md),
-		}},
-		Files: convertPropFilesFromWWW(np.Files),
+		Metadata:  metadata,
+		Files:     files,
 	}
 
 	// Send politeiad request
@@ -768,7 +1202,7 @@ func (p *politeiawww) processNewProposal(np www.NewProposal, user *user.User) (*
 		return nil, err
 	}
 
-	log.Infof("Submitted proposal name: %v", name)
+	log.Infof("Submitted proposal name: %v", pm.Name)
 	for k, f := range n.Files {
 		log.Infof("%02v: %v %v", k, f.Name, f.Digest)
 	}
@@ -797,7 +1231,7 @@ func (p *politeiawww) processNewProposal(np www.NewProposal, user *user.User) (*
 	p.fireEvent(EventTypeProposalSubmitted,
 		EventDataProposalSubmitted{
 			CensorshipRecord: &cr,
-			ProposalName:     name,
+			ProposalName:     pm.Name,
 			User:             user,
 		},
 	)
@@ -859,82 +1293,6 @@ func (p *politeiawww) processProposalDetails(propDetails www.ProposalsDetails, u
 	return &reply, nil
 }
 
-// cacheVoteSumamary stores a given VoteSummary in memory.  This is to only
-// be used for proposals whose voting period has ended so that we don't have
-// to worry about cache invalidation issues.
-//
-// This function must be called without the lock held.
-func (p *politeiawww) cacheVoteSummary(token string, voteSummary www.VoteSummary) {
-	p.Lock()
-	defer p.Unlock()
-
-	p.voteSummaries[token] = voteSummary
-}
-
-// getVoteSummaries fetches the voting summary information for a set of
-// proposals.
-func (p *politeiawww) getVoteSummaries(tokens []string, bestBlock uint64) (map[string]www.VoteSummary, error) {
-	voteSummaries := make(map[string]www.VoteSummary)
-	tokensToLookup := make([]string, 0, len(tokens))
-
-	p.RLock()
-	for _, token := range tokens {
-		vs, ok := p.voteSummaries[token]
-		if ok {
-			voteSummaries[token] = vs
-		} else {
-			tokensToLookup = append(tokensToLookup, token)
-		}
-	}
-	p.RUnlock()
-
-	if len(tokensToLookup) == 0 {
-		return voteSummaries, nil
-	}
-
-	r, err := p.decredBatchVoteSummary(tokensToLookup)
-	if err != nil {
-		return nil, err
-	}
-
-	for token, summary := range r.Summaries {
-		results := convertVoteOptionResultsFromDecred(summary.Results)
-
-		// An endHeight will not exist if the proposal has not gone
-		// up for vote yet.
-		var endHeight uint64
-		if summary.EndHeight != "" {
-			i, err := strconv.ParseUint(summary.EndHeight, 10, 64)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse end height "+
-					"'%v' for %v: %v", summary.EndHeight, token, err)
-			}
-			endHeight = i
-		}
-
-		vs := www.VoteSummary{
-			Status:           voteStatusFromVoteSummary(summary, bestBlock),
-			EligibleTickets:  uint32(summary.EligibleTicketCount),
-			Duration:         summary.Duration,
-			EndHeight:        endHeight,
-			QuorumPercentage: summary.QuorumPercentage,
-			PassPercentage:   summary.PassPercentage,
-			Results:          results,
-		}
-
-		voteSummaries[token] = vs
-
-		// If the voting period has ended the vote status
-		// is not going to change so add it to the memory
-		// cache.
-		if vs.Status == www.PropVoteStatusFinished {
-			p.cacheVoteSummary(token, vs)
-		}
-	}
-
-	return voteSummaries, nil
-}
-
 // processBatchVoteSummary returns the vote summaries for the provided list
 // of proposals.
 func (p *politeiawww) processBatchVoteSummary(batchVoteSummary www.BatchVoteSummary) (*www.BatchVoteSummaryReply, error) {
@@ -959,7 +1317,7 @@ func (p *politeiawww) processBatchVoteSummary(batchVoteSummary www.BatchVoteSumm
 		return nil, err
 	}
 
-	summaries, err := p.getVoteSummaries(batchVoteSummary.Tokens, bb)
+	summaries, err := p.voteSummariesGet(batchVoteSummary.Tokens, bb)
 	if err != nil {
 		return nil, err
 	}
@@ -998,7 +1356,7 @@ func (p *politeiawww) processBatchProposals(bp www.BatchProposals, user *user.Us
 		}
 	}
 	for _, v := range bp.Tokens {
-		if !tokenIsValid(v) {
+		if !isTokenValid(v) {
 			return nil, www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
 				ErrorContext: []string{v},
@@ -1206,17 +1564,21 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 		// Vetted status change
 
 		// Ensure voting has not been started or authorized yet
-		vsr, err := p.decredVoteSummary(pr.CensorshipRecord.Token)
+		bb, err := p.getBestBlock()
+		if err != nil {
+			return nil, fmt.Errorf("getBestBlock: %v", err)
+		}
+		vs, err := p.voteSummaryGet(pr.CensorshipRecord.Token, bb)
 		if err != nil {
 			return nil, err
 		}
 		switch {
-		case vsr.EndHeight != "":
+		case vs.EndHeight != 0:
 			return nil, www.UserError{
 				ErrorCode:    www.ErrorStatusWrongVoteStatus,
 				ErrorContext: []string{"vote has started"},
 			}
-		case vsr.Authorized:
+		case vs.Status == www.PropVoteStatusAuthorized:
 			return nil, www.UserError{
 				ErrorCode:    www.ErrorStatusWrongVoteStatus,
 				ErrorContext: []string{"vote has been authorized"},
@@ -1283,6 +1645,53 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 	}, nil
 }
 
+// filesToDel returns the names of the files that are included in filesOld but
+// are not included in filesNew. These are the files that need to be deleted
+// from a proposal on update.
+func filesToDel(filesOld []www.File, filesNew []www.File) []string {
+	newf := make(map[string]struct{}, len(filesOld)) // [name]struct
+	for _, v := range filesNew {
+		newf[v.Name] = struct{}{}
+	}
+
+	del := make([]string, 0, len(filesOld))
+	for _, v := range filesOld {
+		_, ok := newf[v.Name]
+		if !ok {
+			del = append(del, v.Name)
+		}
+	}
+
+	return del
+}
+
+// filesAreDifferent returns whether the two sets of files have any
+// differences. This can be differences in the number of files, differences
+// in the file names, and/or differences in the file payloads.
+func filesAreDifferent(files1 []www.File, files2 []www.File) bool {
+	if len(files1) != len(files2) {
+		return true
+	}
+
+	files := make(map[string]string, len(files1)+len(files2)) // [name]payload
+	for _, v := range files1 {
+		files[v.Name] = v.Payload
+	}
+	for _, v := range files2 {
+		p, ok := files[v.Name]
+		if !ok {
+			// Found file with a different name
+			return true
+		}
+		if v.Payload != p {
+			// Found file with the same name but different payloads
+			return true
+		}
+	}
+
+	return false
+}
+
 // processEditProposal attempts to edit a proposal on politeiad.
 func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*www.EditProposalReply, error) {
 	log.Tracef("processEditProposal %v", ep.Token)
@@ -1313,18 +1722,17 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 	}
 
 	// Validate proposal vote status
-	vsr, err := p.decredVoteSummary(ep.Token)
-	if err != nil {
-		return nil, err
-	}
 	bb, err := p.getBestBlock()
 	if err != nil {
 		return nil, err
 	}
-	s := voteStatusFromVoteSummary(*vsr, bb)
-	if s != www.PropVoteStatusNotAuthorized {
+	vs, err := p.voteSummaryGet(ep.Token, bb)
+	if err != nil {
+		return nil, err
+	}
+	if vs.Status != www.PropVoteStatusNotAuthorized {
 		e := fmt.Sprintf("got vote status %v, want %v",
-			s, www.PropVoteStatusNotAuthorized)
+			vs.Status, www.PropVoteStatusNotAuthorized)
 		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusWrongVoteStatus,
 			ErrorContext: []string{e},
@@ -1335,74 +1743,57 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 	// we can reuse the function validateProposal.
 	np := www.NewProposal{
 		Files:     ep.Files,
+		Metadata:  ep.Metadata,
 		PublicKey: ep.PublicKey,
 		Signature: ep.Signature,
 	}
-	err = validateProposal(np, u)
+
+	pm, err := p.validateProposal(np, u)
 	if err != nil {
 		return nil, err
 	}
-
-	// Assemble metadata record
-	name, err := getProposalName(ep.Files)
-	if err != nil {
-		return nil, err
-	}
-
-	backendMetadata := mdstream.ProposalGeneral{
-		Version:   mdstream.VersionProposalGeneral,
-		Timestamp: time.Now().Unix(),
-		Name:      name,
-		PublicKey: ep.PublicKey,
-		Signature: ep.Signature,
-	}
-	md, err := mdstream.EncodeProposalGeneral(backendMetadata)
-	if err != nil {
-		return nil, err
-	}
-
-	mds := []pd.MetadataStream{{
-		ID:      mdstream.IDProposalGeneral,
-		Payload: string(md),
-	}}
-
-	// Check if any files need to be deleted
-	var delFiles []string
-	for _, v := range cachedProp.Files {
-		found := false
-		for _, c := range ep.Files {
-			if v.Name == c.Name {
-				found = true
-			}
-		}
-		if !found {
-			delFiles = append(delFiles, v.Name)
-		}
-	}
-
-	// Check for changes in the index.md file
-	var newMDFile www.File
-	for _, v := range ep.Files {
-		if v.Name == indexFile {
-			newMDFile = v
-		}
-	}
-
-	var oldMDFile www.File
-	for _, v := range cachedProp.Files {
-		if v.Name == indexFile {
-			oldMDFile = v
-		}
-	}
-
-	mdChanges := newMDFile.Payload != oldMDFile.Payload
-
-	// Check that the proposal has been changed
-	if !mdChanges && len(delFiles) == 0 &&
-		len(cachedProp.Files) == len(ep.Files) {
+	if !filesAreDifferent(cachedProp.Files, ep.Files) {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusNoProposalChanges,
 		}
+	}
+	if cachedProp.State == www.PropStateVetted &&
+		cachedProp.LinkTo != pm.LinkTo {
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidLinkTo,
+			ErrorContext: []string{"linkto cannot change once public"},
+		}
+	}
+
+	// politeiad only includes files in its merkle root calc, not the
+	// metadata streams. This is why we include the ProposalMetadata
+	// as a politeiad file.
+
+	// Setup files
+	files := convertPropFilesFromWWW(ep.Files)
+	for _, v := range ep.Metadata {
+		switch v.Hint {
+		case www.HintProposalMetadata:
+			files = append(files, convertFileFromMetadata(v))
+		}
+	}
+
+	// Setup metadata streams
+	pg := mdstream.ProposalGeneralV2{
+		Version:   mdstream.VersionProposalGeneral,
+		Timestamp: time.Now().Unix(),
+		PublicKey: ep.PublicKey,
+		Signature: ep.Signature,
+	}
+	pgb, err := mdstream.EncodeProposalGeneralV2(pg)
+	if err != nil {
+		return nil, err
+	}
+	mds := []pd.MetadataStream{
+		{
+			ID:      mdstream.IDProposalGeneral,
+			Payload: string(pgb),
+		},
 	}
 
 	// Setup politeiad request
@@ -1415,8 +1806,8 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 		Token:       ep.Token,
 		Challenge:   hex.EncodeToString(challenge),
 		MDOverwrite: mds,
-		FilesAdd:    convertPropFilesFromWWW(ep.Files),
-		FilesDel:    delFiles,
+		FilesAdd:    files,
+		FilesDel:    filesToDel(cachedProp.Files, ep.Files),
 	}
 
 	var pdRoute string
@@ -1473,8 +1864,8 @@ func (p *politeiawww) processAllVetted(v www.GetAllVetted) (*www.GetAllVettedRep
 	log.Tracef("processAllVetted")
 
 	// Validate query params
-	if (v.Before != "" && !tokenIsValid(v.Before)) ||
-		(v.After != "" && !tokenIsValid(v.After)) {
+	if (v.Before != "" && !isTokenValid(v.Before)) ||
+		(v.After != "" && !isTokenValid(v.After)) {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusInvalidCensorshipToken,
 		}
@@ -1616,27 +2007,26 @@ func (p *politeiawww) voteStatusReply(token string, bestBlock uint64) (*www.Vote
 
 	// Vote status wasn't in the memory cache
 	// so fetch it from the cache database.
-	r, err := p.decredVoteSummary(token)
+	vs, err := p.voteSummaryGet(token, bestBlock)
 	if err != nil {
 		return nil, err
 	}
 
-	results := convertVoteOptionResultsFromDecred(r.Results)
 	var total uint64
-	for _, v := range results {
+	for _, v := range vs.Results {
 		total += v.VotesReceived
 	}
 
 	voteStatusReply := www.VoteStatusReply{
 		Token:              token,
-		Status:             voteStatusFromVoteSummary(*r, bestBlock),
+		Status:             vs.Status,
 		TotalVotes:         total,
-		OptionsResult:      results,
-		EndHeight:          r.EndHeight,
+		OptionsResult:      vs.Results,
+		EndHeight:          strconv.Itoa(int(vs.EndHeight)),
 		BestBlock:          strconv.Itoa(int(bestBlock)),
-		NumOfEligibleVotes: r.EligibleTicketCount,
-		QuorumPercentage:   r.QuorumPercentage,
-		PassPercentage:     r.PassPercentage,
+		NumOfEligibleVotes: int(vs.EligibleTickets),
+		QuorumPercentage:   vs.QuorumPercentage,
+		PassPercentage:     vs.PassPercentage,
 	}
 
 	// If the voting period has ended the vote status
@@ -1735,7 +2125,7 @@ func (p *politeiawww) processActiveVote() (*www.ActiveVoteReply, error) {
 	if err != nil {
 		return nil, err
 	}
-	tir, err := p.decredTokenInventory(bb, false)
+	tir, err := p.tokenInventory(bb, false)
 	if err != nil {
 		return nil, err
 	}
@@ -1983,12 +2373,117 @@ func (p *politeiawww) processProposalPaywallPayment(u *user.User) (*www.Proposal
 	}, nil
 }
 
+// validateAuthorizeVote validates the authorize vote fields. A UserError is
+// returned if any of the validation fails.
+func validateAuthorizeVote(av www.AuthorizeVote, u user.User, pr www.ProposalRecord, vs www.VoteSummary) error {
+	// Ensure the public key is the user's active key
+	if av.PublicKey != u.PublicKey() {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSigningKey,
+		}
+	}
+
+	// Validate signature
+	msg := av.Token + pr.Version + av.Action
+	err := validateSignature(av.PublicKey, av.Signature, msg)
+	if err != nil {
+		return err
+	}
+
+	// Verify record is in the right state and that the authorize
+	// vote request is valid. A vote authorization may already
+	// exist. We also allow vote authorizations to be revoked.
+	switch {
+	case pr.Status != www.PropStatusPublic:
+		// Record not public
+		return www.UserError{
+			ErrorCode: www.ErrorStatusWrongStatus,
+		}
+	case vs.EndHeight != 0:
+		// Vote has already started
+		return www.UserError{
+			ErrorCode: www.ErrorStatusWrongVoteStatus,
+		}
+	case av.Action != decredplugin.AuthVoteActionAuthorize &&
+		av.Action != decredplugin.AuthVoteActionRevoke:
+		// Invalid authorize vote action
+		return www.UserError{
+			ErrorCode: www.ErrorStatusInvalidAuthVoteAction,
+		}
+	case av.Action == decredplugin.AuthVoteActionAuthorize &&
+		vs.Status == www.PropVoteStatusAuthorized:
+		// Cannot authorize vote; vote has already been authorized
+		return www.UserError{
+			ErrorCode: www.ErrorStatusVoteAlreadyAuthorized,
+		}
+	case av.Action == decredplugin.AuthVoteActionRevoke &&
+		vs.Status != www.PropVoteStatusAuthorized:
+		// Cannot revoke authorization; vote has not been authorized
+		return www.UserError{
+			ErrorCode: www.ErrorStatusVoteNotAuthorized,
+		}
+	}
+
+	return nil
+}
+
+// validateAuthorizeVoteRunoff validates the authorize vote for a proposal that
+// is participating in a standard vote. A UserError is returned if any of the
+// validation fails.
+func validateAuthorizeVoteStandard(av www.AuthorizeVote, u user.User, pr www.ProposalRecord, vs www.VoteSummary) error {
+	err := validateAuthorizeVote(av, u, pr, vs)
+	if err != nil {
+		return err
+	}
+
+	// The rest of the validation is specific to authorize votes for
+	// standard votes.
+	switch {
+	case isRFPSubmission(pr):
+		// Wrong validation function used. Fail with a 500.
+		return fmt.Errorf("proposal is a runoff vote submission")
+	case pr.PublicKey != av.PublicKey:
+		// User is not the author. First make sure the author didn't
+		// submit the proposal using an old identity.
+		if !isProposalAuthor(pr, u) {
+			return www.UserError{
+				ErrorCode: www.ErrorStatusUserNotAuthor,
+			}
+		}
+	}
+
+	return nil
+}
+
+// validateAuthorizeVoteRunoff validates the authorize vote for a proposal that
+// is participating in a runoff vote. A UserError is returned if any of the
+// validation fails.
+func validateAuthorizeVoteRunoff(av www.AuthorizeVote, u user.User, pr www.ProposalRecord, vs www.VoteSummary) error {
+	err := validateAuthorizeVote(av, u, pr, vs)
+	if err != nil {
+		return err
+	}
+
+	// The rest of the validation is specific to authorize votes for
+	// runoff votes.
+	switch {
+	case !u.Admin:
+		// User is not an admin
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidSigningKey,
+			ErrorContext: []string{"user not an admin"},
+		}
+	}
+
+	return nil
+}
+
 // processAuthorizeVote sends the authorizevote command to decred plugin to
 // indicate that a proposal has been finalized and is ready to be voted on.
 func (p *politeiawww) processAuthorizeVote(av www.AuthorizeVote, u *user.User) (*www.AuthorizeVoteReply, error) {
 	log.Tracef("processAuthorizeVote %v", av.Token)
 
-	// Get proposal from the cache
+	// Validate the vote authorization
 	pr, err := p.getProp(av.Token)
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
@@ -1998,69 +2493,17 @@ func (p *politeiawww) processAuthorizeVote(av www.AuthorizeVote, u *user.User) (
 		}
 		return nil, err
 	}
-
-	// Ensure the public key is the user's active key
-	if av.PublicKey != u.PublicKey() {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusInvalidSigningKey,
-		}
-	}
-
-	// Validate signature
-	msg := av.Token + pr.Version + av.Action
-	err = validateSignature(av.PublicKey, av.Signature, msg)
+	bb, err := p.getBestBlock()
 	if err != nil {
 		return nil, err
 	}
-
-	// Get vote details from cache
-	vsr, err := p.decredVoteSummary(av.Token)
+	vs, err := p.voteSummaryGet(av.Token, bb)
 	if err != nil {
 		return nil, err
 	}
-
-	// Verify record is in the right state and that the authorize
-	// vote request is valid. A vote authorization may already
-	// exist. We also allow vote authorizations to be revoked.
-	switch {
-	case pr.Status != www.PropStatusPublic:
-		// Record not public
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusWrongStatus,
-		}
-	case vsr.EndHeight != "":
-		// Vote has already started
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusWrongVoteStatus,
-		}
-	case av.Action != decredplugin.AuthVoteActionAuthorize &&
-		av.Action != decredplugin.AuthVoteActionRevoke:
-		// Invalid authorize vote action
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusInvalidAuthVoteAction,
-		}
-	case av.Action == decredplugin.AuthVoteActionAuthorize && vsr.Authorized:
-		// Cannot authorize vote; vote has already been authorized
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusVoteAlreadyAuthorized,
-		}
-	case av.Action == decredplugin.AuthVoteActionRevoke && !vsr.Authorized:
-		// Cannot revoke authorization; vote has not been authorized
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusVoteNotAuthorized,
-		}
-	case pr.PublicKey != av.PublicKey:
-		// User is not the author. First make sure the author didn't
-		// submit the proposal using an old identity.
-		usr, err := p.db.UserGetByPubKey(pr.PublicKey)
-		if err != nil {
-			return nil, err
-		}
-		if u.ID.String() != usr.ID.String() {
-			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusUserNotAuthor,
-			}
-		}
+	err = validateAuthorizeVoteStandard(av, *u, *pr, *vs)
+	if err != nil {
+		return nil, err
 	}
 
 	// Setup plugin command
@@ -2069,7 +2512,7 @@ func (p *politeiawww) processAuthorizeVote(av www.AuthorizeVote, u *user.User) (
 		return nil, fmt.Errorf("Random: %v", err)
 	}
 
-	dav := convertAuthorizeVoteFromWWW(av)
+	dav := convertAuthorizeVoteToDecred(av)
 	payload, err := decredplugin.EncodeAuthorizeVote(dav)
 	if err != nil {
 		return nil, fmt.Errorf("EncodeAuthorizeVote: %v", err)
@@ -2123,8 +2566,261 @@ func (p *politeiawww) processAuthorizeVote(av www.AuthorizeVote, u *user.User) (
 	}, nil
 }
 
+// validateVoteOptions verifies that the provided vote options
+// specify a simple approve/reject vote and nothing else. A UserError is
+// returned if this validation fails.
+func validateVoteOptions(options []www2.VoteOption) error {
+	if len(options) == 0 {
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidVoteOptions,
+			ErrorContext: []string{"no vote options found"},
+		}
+	}
+	optionIDs := map[string]bool{
+		decredplugin.VoteOptionIDApprove: false,
+		decredplugin.VoteOptionIDReject:  false,
+	}
+	for _, vo := range options {
+		if _, ok := optionIDs[vo.Id]; !ok {
+			e := fmt.Sprintf("invalid vote option id '%v'", vo.Id)
+			return www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidVoteOptions,
+				ErrorContext: []string{e},
+			}
+		}
+		optionIDs[vo.Id] = true
+	}
+	for k, wasFound := range optionIDs {
+		if !wasFound {
+			e := fmt.Sprintf("missing vote option id '%v'", k)
+			return www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidVoteOptions,
+				ErrorContext: []string{e},
+			}
+		}
+	}
+	return nil
+}
+
+func validateStartVote(sv www2.StartVote, u user.User, pr www.ProposalRecord, vs www.VoteSummary, durationMin, durationMax uint32) error {
+	if !isTokenValid(sv.Vote.Token) {
+		// Sanity check since proposal has already been looked up and
+		// passed in to this function.
+		return fmt.Errorf("invalid token %v", sv.Vote.Token)
+	}
+
+	// Validate vote bits
+	for _, v := range sv.Vote.Options {
+		err := validateVoteBit(sv.Vote, v.Bits)
+		if err != nil {
+			log.Debugf("validateStartVote: validateVoteBit '%v': %v",
+				v.Id, err)
+			return www.UserError{
+				ErrorCode: www.ErrorStatusInvalidPropVoteBits,
+			}
+		}
+	}
+
+	// Validate vote options. Only simple yes/no votes are currently
+	// allowed.
+	err := validateVoteOptions(sv.Vote.Options)
+	if err != nil {
+		return err
+	}
+
+	// Validate vote params
+	switch {
+	case sv.Vote.Duration < durationMin:
+		// Duration not large enough
+		e := fmt.Sprintf("vote duration must be >= %v", durationMin)
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidPropVoteParams,
+			ErrorContext: []string{e},
+		}
+	case sv.Vote.Duration > durationMax:
+		// Duration too large
+		e := fmt.Sprintf("vote duration must be <= %v", durationMax)
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidPropVoteParams,
+			ErrorContext: []string{e},
+		}
+	case sv.Vote.QuorumPercentage > 100:
+		// Quorum too large
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidPropVoteParams,
+			ErrorContext: []string{"quorum percentage cannot be >100"},
+		}
+	case sv.Vote.PassPercentage > 100:
+		// Pass percentage too large
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidPropVoteParams,
+			ErrorContext: []string{"pass percentage cannot be >100"},
+		}
+	}
+
+	// Ensure the public key is the user's active key
+	if sv.PublicKey != u.PublicKey() {
+		return www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSigningKey,
+		}
+	}
+
+	// Validate signature
+	dsv := convertStartVoteV2ToDecred(sv)
+	err = dsv.VerifySignature()
+	if err != nil {
+		log.Debugf("validateStartVote: VerifySignature: %v", err)
+		return www.UserError{
+			ErrorCode: www.ErrorStatusInvalidSignature,
+		}
+	}
+
+	// Validate proposal
+	votePropVersion := strconv.FormatUint(uint64(sv.Vote.ProposalVersion), 10)
+	switch {
+	case pr.Version != votePropVersion:
+		// Vote is specifying the wrong version
+		e := fmt.Sprintf("got %v, want %v", votePropVersion, pr.Version)
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidProposalVersion,
+			ErrorContext: []string{e},
+		}
+	case pr.Status != www.PropStatusPublic:
+		// Proposal is not public
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusWrongStatus,
+			ErrorContext: []string{"proposal is not public"},
+		}
+	case vs.EndHeight != 0:
+		// Vote has already started
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusWrongVoteStatus,
+			ErrorContext: []string{"vote already started"},
+		}
+	}
+
+	return nil
+}
+
+func validateStartVoteStandard(sv www2.StartVote, u user.User, pr www.ProposalRecord, vs www.VoteSummary, durationMin, durationMax uint32, linkByMin, linkByMax int64) error {
+	err := validateStartVote(sv, u, pr, vs, durationMin, durationMax)
+	if err != nil {
+		return err
+	}
+
+	// The remaining validation is specific to a VoteTypeStandard.
+
+	switch {
+	case sv.Vote.Type != www2.VoteTypeStandard:
+		// Not a standard vote
+		e := fmt.Sprintf("vote type must be %v", www2.VoteTypeStandard)
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidVoteType,
+			ErrorContext: []string{e},
+		}
+	case vs.Status != www.PropVoteStatusAuthorized:
+		// Vote has not been authorized
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusWrongVoteStatus,
+			ErrorContext: []string{"vote not authorized"},
+		}
+	case isRFPSubmission(pr):
+		// The proposal is an an RFP submission. The voting period for
+		// RFP submissions can only be started using the StartVoteRunoff
+		// route.
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusWrongProposalType,
+			ErrorContext: []string{"cannot be an rfp submission"},
+		}
+	}
+
+	// Verify the LinkBy deadline for RFP proposals. The LinkBy policy
+	// requirements are enforced at the time of starting the vote
+	// because their purpose is to ensure that there is enough time for
+	// RFP submissions to be submitted.
+	if isRFP(pr) {
+		min := time.Now().Unix() + linkByMin
+		max := time.Now().Unix() + linkByMax
+		switch {
+		case pr.LinkBy < min:
+			e := fmt.Sprintf("linkby period must be at least %v seconds from "+
+				"the start of the proposal vote", linkByMin)
+			return www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidLinkBy,
+				ErrorContext: []string{e},
+			}
+		case pr.LinkBy > max:
+			e := fmt.Sprintf("linkby period cannot be more than %v seconds from "+
+				"the start of the proposal vote", linkByMax)
+			return www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidLinkBy,
+				ErrorContext: []string{e},
+			}
+		}
+
+		// If the vote durations does not use the defaults, make sure
+		// that RFP submissions will have a minimum of 1 week to be
+		// submitted.
+		if sv.Vote.Duration != defaultVoteDurationMin {
+			var (
+				avgBlockTime        int64 = 300    // 5 minutes in seconds
+				minSubmissionPeriod int64 = 604800 // 1 week in seconds
+				duration                  = avgBlockTime * int64(sv.Vote.Duration)
+				submissionPeriod          = pr.LinkBy - time.Now().Unix() - duration
+			)
+			if submissionPeriod < minSubmissionPeriod {
+				e := fmt.Sprintf("linkby period must be at least %v seconds from "+
+					"the start of the proposal vote", duration+submissionPeriod)
+				return www.UserError{
+					ErrorCode:    www.ErrorStatusInvalidLinkBy,
+					ErrorContext: []string{e},
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func validateStartVoteRunoff(sv www2.StartVote, u user.User, pr www.ProposalRecord, vs www.VoteSummary, durationMin, durationMax uint32) error {
+	err := validateStartVote(sv, u, pr, vs, durationMin, durationMax)
+	if err != nil {
+		return err
+	}
+
+	// The remaining validation is specific to a VoteTypeRunoff.
+
+	token := sv.Vote.Token
+	switch {
+	case sv.Vote.Type != www2.VoteTypeRunoff:
+		// Not a runoff vote
+		e := fmt.Sprintf("%v vote type must be %v",
+			token, www2.VoteTypeRunoff)
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidVoteType,
+			ErrorContext: []string{e},
+		}
+
+	case !isRFPSubmission(pr):
+		// The proposal is not an RFP submission
+		e := fmt.Sprintf("%v in not an rfp submission", token)
+		return www.UserError{
+			ErrorCode:    www.ErrorStatusWrongProposalType,
+			ErrorContext: []string{e},
+		}
+
+	case vs.Status != www.PropVoteStatusNotAuthorized:
+		// Sanity check. This should not be possible.
+		return fmt.Errorf("%v got vote status %v, want %v",
+			token, vs.Status, www.PropVoteStatusNotAuthorized)
+	}
+
+	return nil
+}
+
 // processStartVoteV2 starts the voting period on a proposal using the provided
-// v2 StartVote.
+// v2 StartVote. Proposals that are RFP submissions cannot use this route. They
+// must sue the StartVoteRunoff route.
 func (p *politeiawww) processStartVoteV2(sv www2.StartVote, u *user.User) (*www2.StartVoteReply, error) {
 	log.Tracef("processStartVoteV2 %v", sv.Vote.Token)
 
@@ -2133,61 +2829,13 @@ func (p *politeiawww) processStartVoteV2(sv www2.StartVote, u *user.User) (*www2
 		return nil, fmt.Errorf("user is not an admin")
 	}
 
-	// Validate vote bits
-	for _, v := range sv.Vote.Options {
-		err := validateVoteBit(sv.Vote, v.Bits)
-		if err != nil {
-			log.Debugf("processStartVoteV2: invalid vote bits: %v", err)
-			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusInvalidPropVoteBits,
-			}
+	// Fetch proposal and vote summary
+	if !isTokenValid(sv.Vote.Token) {
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
+			ErrorContext: []string{sv.Vote.Token},
 		}
 	}
-
-	// Validate vote params
-	switch {
-	case sv.Vote.Duration < p.cfg.VoteDurationMin:
-		e := fmt.Sprintf("vote duration must be > %v", p.cfg.VoteDurationMin)
-		return nil, www.UserError{
-			ErrorCode:    www.ErrorStatusInvalidPropVoteParams,
-			ErrorContext: []string{e},
-		}
-	case sv.Vote.Duration > p.cfg.VoteDurationMax:
-		e := fmt.Sprintf("vote duration must be < %v", p.cfg.VoteDurationMax)
-		return nil, www.UserError{
-			ErrorCode:    www.ErrorStatusInvalidPropVoteParams,
-			ErrorContext: []string{e},
-		}
-	case sv.Vote.QuorumPercentage > 100:
-		return nil, www.UserError{
-			ErrorCode:    www.ErrorStatusInvalidPropVoteParams,
-			ErrorContext: []string{"quorum percentage must be <= 100"},
-		}
-	case sv.Vote.PassPercentage > 100:
-		return nil, www.UserError{
-			ErrorCode:    www.ErrorStatusInvalidPropVoteParams,
-			ErrorContext: []string{"pass percentage must be <= 100"},
-		}
-	}
-
-	// Ensure the public key is the user's active key
-	if sv.PublicKey != u.PublicKey() {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusInvalidSigningKey,
-		}
-	}
-
-	// Validate signature
-	dsv := convertStartVoteV2ToDecred(sv)
-	err := dsv.VerifySignature()
-	if err != nil {
-		log.Debugf("processStartVote: VerifySignature: %v", err)
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusInvalidSignature,
-		}
-	}
-
-	// Validate proposal version and status
 	pr, err := p.getProp(sv.Vote.Token)
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
@@ -2197,39 +2845,25 @@ func (p *politeiawww) processStartVoteV2(sv www2.StartVote, u *user.User) (*www2
 		}
 		return nil, err
 	}
-	if pr.Version != strconv.FormatUint(uint64(sv.Vote.ProposalVersion), 10) {
-		e := fmt.Sprintf("current proposal version is %v", pr.Version)
-		return nil, www.UserError{
-			ErrorCode:    www.ErrorStatusInvalidProposalVersion,
-			ErrorContext: []string{e},
-		}
-	}
-	if pr.Status != www.PropStatusPublic {
-		return nil, www.UserError{
-			ErrorCode:    www.ErrorStatusWrongStatus,
-			ErrorContext: []string{"proposal is not public"},
-		}
-	}
-
-	// Validate vote status
-	vsr, err := p.decredVoteSummary(sv.Vote.Token)
+	bb, err := p.getBestBlock()
 	if err != nil {
 		return nil, err
 	}
-	if !vsr.Authorized {
-		return nil, www.UserError{
-			ErrorCode:    www.ErrorStatusWrongVoteStatus,
-			ErrorContext: []string{"vote not authorized"},
-		}
+	vs, err := p.voteSummaryGet(sv.Vote.Token, bb)
+	if err != nil {
+		return nil, err
 	}
-	if vsr.EndHeight != "" {
-		return nil, www.UserError{
-			ErrorCode:    www.ErrorStatusWrongVoteStatus,
-			ErrorContext: []string{"vote already started"},
-		}
+
+	// Validate the start vote
+	err = validateStartVoteStandard(sv, *u, *pr, *vs,
+		p.cfg.VoteDurationMin, p.cfg.VoteDurationMax,
+		p.linkByPeriodMin(), p.linkByPeriodMax())
+	if err != nil {
+		return nil, err
 	}
 
 	// Tell decred plugin to start voting
+	dsv := convertStartVoteV2ToDecred(sv)
 	payload, err := decredplugin.EncodeStartVoteV2(dsv)
 	if err != nil {
 		return nil, err
@@ -2275,39 +2909,320 @@ func (p *politeiawww) processStartVoteV2(sv www2.StartVote, u *user.User) (*www2
 	p.fireEvent(EventTypeProposalVoteStarted,
 		EventDataProposalVoteStarted{
 			AdminUser: u,
-			StartVote: &sv,
+			StartVote: sv,
 		},
 	)
 
 	return svr, nil
 }
 
-// processTokenInventory returns the tokens of all proposals in the inventory,
-// categorized by stage of the voting process.
-func (p *politeiawww) processTokenInventory(isAdmin bool) (*www.TokenInventoryReply, error) {
-	log.Tracef("processTokenInventory")
+// voteIsApproved returns whether the provided VoteSummary met the quorum
+// and pass requirements. This function should only be called on simple
+// approve/reject votes that use the decredplugin VoteOptionIDApprove.
+func voteIsApproved(vs www.VoteSummary) bool {
+	if vs.Status != www.PropVoteStatusFinished {
+		// Vote has not ended yet
+		return false
+	}
+
+	var (
+		total   uint64
+		approve uint64
+	)
+	for _, v := range vs.Results {
+		total += v.VotesReceived
+		if v.Option.Id == decredplugin.VoteOptionIDApprove {
+			approve = v.VotesReceived
+		}
+	}
+	quorum := uint64(float64(vs.QuorumPercentage) / 100 * float64(vs.EligibleTickets))
+	pass := uint64(float64(vs.PassPercentage) / 100 * float64(total))
+	switch {
+	case total < quorum:
+		// Quorum not met
+		return false
+	case approve < pass:
+		// Pass percentage not met
+		return false
+	}
+
+	return true
+}
+
+// processStartVoteRunoffV2 starts the runoff voting process on all public,
+// non-abandoned RFP submissions for the provided RFP token. If politeiad fails
+// to start the voting period on any of the RFP submissions, all work is
+// unwound and an error is returned.
+func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.User) (*www2.StartVoteRunoffReply, error) {
+	log.Tracef("processStartVoteRunoffV2 %v", sv.Token)
+
+	// Sanity check
+	if !u.Admin {
+		return nil, fmt.Errorf("user is not an admin")
+	}
 
 	bb, err := p.getBestBlock()
 	if err != nil {
 		return nil, err
 	}
 
-	// The vote results cache table is lazy loaded and may
-	// need to be updated. If it does need to be updated, the
-	// token inventory call will need to be retried after the
-	// update is complete.
+	// Ensure authorize votes and start votes match
+	auths := make(map[string]www2.AuthorizeVote, len(sv.AuthorizeVotes))
+	starts := make(map[string]www2.StartVote, len(sv.StartVotes))
+	for _, v := range sv.AuthorizeVotes {
+		auths[v.Token] = v
+	}
+	for _, v := range sv.StartVotes {
+		_, ok := auths[v.Vote.Token]
+		if !ok {
+			e := fmt.Sprintf("start vote found without matching authorize vote %v",
+				v.Vote.Token)
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidRunoffVote,
+				ErrorContext: []string{e},
+			}
+		}
+	}
+	for _, v := range sv.StartVotes {
+		starts[v.Vote.Token] = v
+	}
+	for _, v := range sv.AuthorizeVotes {
+		_, ok := starts[v.Token]
+		if !ok {
+			e := fmt.Sprintf("authorize vote found without matching start vote %v",
+				v.Token)
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidRunoffVote,
+				ErrorContext: []string{e},
+			}
+		}
+	}
+	if len(auths) == 0 {
+		e := fmt.Sprintf("start votes and authorize votes cannot be empty")
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidRunoffVote,
+			ErrorContext: []string{e},
+		}
+	}
+
+	// Validate authorize votes and start votes
+	for _, v := range sv.StartVotes {
+		// Fetch proposal and vote summary
+		token := v.Vote.Token
+		if !isTokenValid(token) {
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
+				ErrorContext: []string{token},
+			}
+		}
+		pr, err := p.getProp(token)
+		if err != nil {
+			if err == cache.ErrRecordNotFound {
+				err = www.UserError{
+					ErrorCode:    www.ErrorStatusProposalNotFound,
+					ErrorContext: []string{token},
+				}
+			}
+			return nil, err
+		}
+		vs, err := p.voteSummaryGet(token, bb)
+		if err != nil {
+			return nil, err
+		}
+
+		// Validate authorize vote. The validation function requires a v1
+		// AuthorizeVote. This is fine. There is no difference between v1
+		// and v2.
+		av := auths[v.Vote.Token]
+		av1 := www.AuthorizeVote{
+			Token:     av.Token,
+			Action:    av.Action,
+			PublicKey: av.PublicKey,
+			Signature: av.Signature,
+		}
+		err = validateAuthorizeVoteRunoff(av1, *u, *pr, *vs)
+		if err != nil {
+			// Attach the token to the error so the user knows which one
+			// failed.
+			if ue, ok := err.(*www.UserError); ok {
+				ue.ErrorContext = append(ue.ErrorContext, token)
+				err = ue
+			}
+			return nil, err
+		}
+
+		// Validate start vote
+		err = validateStartVoteRunoff(v, *u, *pr, *vs,
+			p.cfg.VoteDurationMin, p.cfg.VoteDurationMax)
+		if err != nil {
+			// Attach the token to the error so the user knows which one
+			// failed.
+			if ue, ok := err.(*www.UserError); ok {
+				ue.ErrorContext = append(ue.ErrorContext, token)
+				err = ue
+			}
+			return nil, err
+		}
+	}
+
+	// Validate the RFP proposal
+	rfp, err := p.getProp(sv.Token)
+	if err != nil {
+		if err == cache.ErrRecordNotFound {
+			err = www.UserError{
+				ErrorCode:    www.ErrorStatusProposalNotFound,
+				ErrorContext: []string{sv.Token},
+			}
+		}
+		return nil, err
+	}
+	switch {
+	case rfp.LinkBy > time.Now().Unix() && !p.cfg.TestNet:
+		// Vote cannot start on RFP submissions until the RFP linkby
+		// deadline has been met. This validation is skipped when on
+		// testnet.
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusLinkByDeadlineNotMet,
+		}
+	case len(rfp.LinkedFrom) == 0:
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusNoLinkedProposals,
+		}
+	}
+
+	// Compile a list of the public, non-abandoned RFP submissions.
+	// This list will be used to ensure a StartVote exists for each
+	// of the public, non-abandoned submissions.
+	linkedFromProps, err := p.getProps(rfp.LinkedFrom)
+	if err != nil {
+		return nil, err
+	}
+	submissions := make(map[string]bool, len(rfp.LinkedFrom)) // [token]startVoteFound
+	for _, v := range linkedFromProps {
+		// Filter out abandoned submissions. These are not allowed
+		// to be included in a runoff vote.
+		if v.Status != www.PropStatusPublic {
+			continue
+		}
+
+		// Set to false for now until we check that a StartVote
+		// was included for this proposal.
+		submissions[v.CensorshipRecord.Token] = false
+	}
+
+	// Verify that a StartVote exists for all public, non-abandoned
+	// submissions and that there are no extra StartVotes.
+	for _, v := range sv.StartVotes {
+		_, ok := submissions[v.Vote.Token]
+		if !ok {
+			e := fmt.Sprintf("invalid start vote submission: %v",
+				v.Vote.Token)
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidRunoffVote,
+				ErrorContext: []string{e},
+			}
+		}
+
+		// A StartVote was included for this proposal
+		submissions[v.Vote.Token] = true
+	}
+	for token, startVoteFound := range submissions {
+		if !startVoteFound {
+			e := fmt.Sprintf("missing start vote for rfp submission: %v",
+				token)
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidRunoffVote,
+				ErrorContext: []string{e},
+			}
+		}
+	}
+
+	// Setup plugin command
+	dav := convertAuthorizeVotesV2ToDecred(sv.AuthorizeVotes)
+	dsv := convertStartVotesV2ToDecred(sv.StartVotes)
+	payload, err := decredplugin.EncodeStartVoteRunoff(
+		decredplugin.StartVoteRunoff{
+			Token:          sv.Token,
+			AuthorizeVotes: dav,
+			StartVotes:     dsv,
+		})
+	if err != nil {
+		return nil, err
+	}
+	challenge, err := util.Random(pd.ChallengeSize)
+	if err != nil {
+		return nil, err
+	}
+	pc := pd.PluginCommand{
+		Challenge: hex.EncodeToString(challenge),
+		ID:        decredplugin.ID,
+		Command:   decredplugin.CmdStartVoteRunoff,
+		Payload:   string(payload),
+	}
+
+	// Send plugin command
+	responseBody, err := p.makeRequest(http.MethodPost,
+		pd.PluginCommandRoute, pc)
+	if err != nil {
+		return nil, err
+	}
+
+	// Handle response
+	var reply pd.PluginCommandReply
+	err = json.Unmarshal(responseBody, &reply)
+	if err != nil {
+		return nil, err
+	}
+	err = util.VerifyChallenge(p.cfg.Identity, challenge, reply.Response)
+	if err != nil {
+		return nil, err
+	}
+	dsvr, err := decredplugin.DecodeStartVoteRunoffReply([]byte(reply.Payload))
+	if err != nil {
+		return nil, err
+	}
+	svr, err := convertStartVoteReplyV2FromDecred(dsvr.StartVoteReply)
+	if err != nil {
+		return nil, err
+	}
+
+	// Fire off a start vote events for each rfp submission
+	for _, v := range sv.StartVotes {
+		p.fireEvent(EventTypeProposalVoteStarted,
+			EventDataProposalVoteStarted{
+				AdminUser: u,
+				StartVote: v,
+			},
+		)
+	}
+
+	return &www2.StartVoteRunoffReply{
+		StartBlockHeight: svr.StartBlockHeight,
+		StartBlockHash:   svr.StartBlockHash,
+		EndBlockHeight:   svr.EndBlockHeight,
+		EligibleTickets:  svr.EligibleTickets,
+	}, nil
+}
+
+// tokenInventory fetches the token inventory from the cache and returns a
+// TokenInventoryReply. This call relies on the lazy loaded VoteResults cache
+// table. If the VoteResults table is not up-to-date then this function will
+// load it before retrying the token inventory call. Since politeiawww only has
+// read access to the cache, loading the VoteResults table requires using a
+// politeiad decredplugin command.
+func (p *politeiawww) tokenInventory(bestBlock uint64, isAdmin bool) (*www.TokenInventoryReply, error) {
 	var done bool
 	var r www.TokenInventoryReply
 	for retries := 0; !done && retries <= 1; retries++ {
 		// Both vetted and unvetted tokens should be returned
 		// for admins. Only vetted tokens should be returned
 		// for non-admins.
-		ti, err := p.decredTokenInventory(bb, isAdmin)
+		ti, err := p.decredTokenInventory(bestBlock, isAdmin)
 		if err != nil {
 			if err == cache.ErrRecordNotFound {
 				// There are missing entries in the vote
 				// results cache table. Load them.
-				_, err := p.decredLoadVoteResults(bb)
+				_, err := p.decredLoadVoteResults(bestBlock)
 				if err != nil {
 					return nil, err
 				}
@@ -2322,7 +3237,20 @@ func (p *politeiawww) processTokenInventory(isAdmin bool) (*www.TokenInventoryRe
 		done = true
 	}
 
-	return &r, err
+	return &r, nil
+}
+
+// processTokenInventory returns the tokens of all proposals in the inventory,
+// categorized by stage of the voting process.
+func (p *politeiawww) processTokenInventory(isAdmin bool) (*www.TokenInventoryReply, error) {
+	log.Tracef("processTokenInventory")
+
+	bb, err := p.getBestBlock()
+	if err != nil {
+		return nil, err
+	}
+
+	return p.tokenInventory(bb, isAdmin)
 }
 
 // processVoteDetailsV2 returns the vote details for the given proposal token.

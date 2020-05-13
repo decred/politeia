@@ -51,6 +51,10 @@ You can specify the following options:
             Required DB flag : -leveldb or -cockroachdb
             LevelDB args     : <email> <true/false>
             CockroachDB args : <username> <true/false>
+      -setemail
+            Set a user's email to the provided email address
+            Required DB flag : -cockroachdb
+            CockroachDB args : <username> <email>
       -stubusers
             Create user stubs for the public keys in a politeia repo
             Required DB flag : -leveldb or -cockroachdb
@@ -69,7 +73,6 @@ You can specify the following options:
             Migrate a LevelDB user database to CockroachDB
             Required DB flag : None
             Args             : None
-
      -verifyidentities
           Verify a user's identities do not violate any politeia rules. Invalid
           identities are fixed.
