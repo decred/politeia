@@ -49,8 +49,8 @@ func (cmd *SetInvoiceStatusCmd) Execute(args []string) error {
 		return fmt.Errorf("Invalid status: '%v'.  "+
 			"Valid statuses are:\n"+
 			"  rejected  reject the invoice\n"+
-			"  approved  approve the invoice\n",
-			"  disputed  mark the invoice as disputed\n",
+			"  approved  approve the invoice\n"+
+			"  disputed  mark the invoice as disputed\n"+
 			"  paid      mark the invoice as paid\n",
 			cmd.Args.Status)
 	}

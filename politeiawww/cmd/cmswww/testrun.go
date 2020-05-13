@@ -393,7 +393,7 @@ func invoiceSetStatus(admin user, token string, s cms.InvoiceStatusT) error {
 	return nil
 }
 
-// invoicesPays marks all of the currenlty approved invoices as paid.
+// invoicesPays marks all of the currently approved invoices as paid.
 //
 // This function returns with the admin logged out.
 func invoicesPay(admin user) error {
@@ -426,7 +426,7 @@ func dccNew(sponsor user, nomineeID string, dcct cms.DCCTypeT, dt cms.DomainType
 
 	// We can't use the NewDCCCmd here because we need the
 	// censorship token that is returned in the reply. Run
-	// the command manualy.
+	// the command manually.
 	di := cms.DCCInput{
 		Type:             dcct,
 		NomineeUserID:    nomineeID,
@@ -528,7 +528,7 @@ func dccSupport(u user, token, vote string) error {
 
 	err = logout()
 	if err != nil {
-		return fmt.Errorf("logout: %v")
+		return fmt.Errorf("logout: %v", err)
 	}
 
 	return nil
@@ -552,7 +552,7 @@ func dccStartVote(admin user, token string) error {
 
 	err = logout()
 	if err != nil {
-		return fmt.Errorf("logout: %v")
+		return fmt.Errorf("logout: %v", err)
 	}
 
 	return nil
@@ -578,7 +578,7 @@ func dccVote(u user, token, vote string) error {
 
 	err = logout()
 	if err != nil {
-		return fmt.Errorf("logout: %v")
+		return fmt.Errorf("logout: %v", err)
 	}
 
 	return nil
@@ -600,7 +600,7 @@ func dccVoteSummary(u user, token string) (*cms.VoteSummary, error) {
 
 	err = logout()
 	if err != nil {
-		return nil, fmt.Errorf("logout: %v")
+		return nil, fmt.Errorf("logout: %v", err)
 	}
 
 	return &ddr.VoteSummary, nil
@@ -630,7 +630,7 @@ func dccCommentNew(u user, token, parentID, comment string) error {
 
 	err = logout()
 	if err != nil {
-		return fmt.Errorf("logout: %v")
+		return fmt.Errorf("logout: %v", err)
 	}
 
 	return nil
@@ -652,7 +652,7 @@ func dccComments(u user, token string) ([]www.Comment, error) {
 
 	err = logout()
 	if err != nil {
-		return nil, fmt.Errorf("logout: %v")
+		return nil, fmt.Errorf("logout: %v", err)
 	}
 
 	return gcr.Comments, nil
@@ -667,7 +667,7 @@ func dccComments(u user, token string) ([]www.Comment, error) {
 // to submit invoices. There are currently two ways for this to happen.
 // 1. An admin can update it manually using the CMSManageUser route.
 // 2. The contractor can undergo the DCC process. The DCC process is where
-//    the new contractor is nominated by an exising contractor then other
+//    the new contractor is nominated by an existing contractor then other
 //    existing contractors can support or oppose the DCC nomination. Admins
 //    currently have final say in the approval of a DCC. If a DCC is
 //    contentious, it can be put up for an all contractor vote where existing
