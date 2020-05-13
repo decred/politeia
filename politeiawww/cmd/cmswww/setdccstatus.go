@@ -32,12 +32,21 @@ func (cmd *SetDCCStatusCmd) Execute(args []string) error {
 		return shared.ErrUserIdentityNotFound
 	}
 
-	status, ok := DCCStatus[strings.ToLower(cmd.Args.Status)]
-	if !ok {
-		return fmt.Errorf("Invalid status: '%v'.  " +
-			"Valid statuses are:\n" +
-			"  rejected    reject the DCC\n" +
-			"  approved    approve the DCC\n" +
+	// Parse DCC status. This can be either the numeric status
+	// code or the human readable equivalent.
+	var status cms.DCCStatusT
+	s, err := strconv.ParseUint(cmd.Args.Status, 10, 32)
+	if err == nil {
+		// Numeric status code found
+		status = cms.DCCStatusT(s)
+	} else if s, ok := DCCStatus[strings.ToLower(cmd.Args.Status)]; ok {
+		// Human readable status code found
+		status = s
+	} else {
+		return fmt.Errorf("Invalid status: '%v'.  "+
+			"Valid statuses are:\n"+
+			"  rejected  reject the DCC\n"+
+			"  approved  approve the DCC",
 			cmd.Args.Status)
 	}
 
@@ -52,7 +61,7 @@ func (cmd *SetDCCStatusCmd) Execute(args []string) error {
 	}
 
 	// Print request details
-	err := shared.PrintJSON(sd)
+	err = shared.PrintJSON(sd)
 	if err != nil {
 		return err
 	}

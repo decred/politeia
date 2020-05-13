@@ -60,5 +60,3 @@ used when running politeia locally.
 host=https://127.0.0.1:4443
 skipverify=true
 ```
-
-

@@ -42,7 +42,6 @@ type NewDCCCmd struct {
 		Type        uint     `positional-arg-name:"type"`            // 1 for Issuance, 2 for Revocation
 		Attachments []string `positional-arg-name:"attachmentfiles"` // DCC attachment files
 	} `positional-args:"true" optional:"true"`
-	Type           string ``
 	NomineeUserID  string `long:"nomineeuserid" optional:"true" description:"The UserID of the Nominated User"`
 	Statement      string `long:"statement" optional:"true" description:"Statement in support of the DCC"`
 	Domain         string `long:"domain" optional:"true" description:"The domain of the nominated user"`
@@ -173,6 +172,23 @@ func (cmd *NewDCCCmd) Execute(args []string) error {
 		fmt.Print("\nPlease carefully review your information and ensure it's " +
 			"correct. If not, press Ctrl + C to exit. Or, press Enter to continue.")
 		reader.ReadString('\n')
+	}
+
+	// XXX the above logic is missing validation for when the flags are
+	// set. Do it here for now.
+	if cmd.Domain != "" {
+		i, err := strconv.Atoi(cmd.Domain)
+		if err != nil {
+			return fmt.Errorf("parse domain: %v", err)
+		}
+		domainType = i
+	}
+	if cmd.ContractorType != "" {
+		i, err := strconv.Atoi(cmd.ContractorType)
+		if err != nil {
+			return fmt.Errorf("parse contractor type: %v", err)
+		}
+		contractorType = i
 	}
 
 	dccInput := &cms.DCCInput{}
