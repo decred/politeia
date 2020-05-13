@@ -34,10 +34,10 @@ func (cmd *SetDCCStatusCmd) Execute(args []string) error {
 
 	status, ok := DCCStatus[strings.ToLower(cmd.Args.Status)]
 	if !ok {
-		return fmt.Errorf("Invalid status: '%v'.  "+
-			"Valid statuses are:\n"+
-			"  rejected  reject the DCC\n"+
-			"  approved  approve the DCC",
+		return fmt.Errorf("Invalid status: '%v'.  " +
+			"Valid statuses are:\n" +
+			"  rejected    reject the DCC\n" +
+			"  approved    approve the DCC\n" +
 			cmd.Args.Status)
 	}
 

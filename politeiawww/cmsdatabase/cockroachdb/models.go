@@ -66,6 +66,7 @@ type LineItem struct {
 	Labor          uint   `gorm:"not null"`    // Number of minutes worked
 	Expenses       uint   `gorm:"not null"`    // Total cost of line item (in USD cents)
 	ContractorRate uint   `gorm:"not null"`    // Optional contractor rate for line item, typically used for Sub Contractors
+	SubUserID      string `gorm:"not null"`    // SubContractor User ID if Subcontractor Line Item
 }
 
 // TableName returns the table name of the line items table.
@@ -137,7 +138,7 @@ type DCC struct {
 	OppositionUserIDs string
 }
 
-// TableName returns the table name of the issuance table.
+// TableName returns the table name of the DCC table.
 func (DCC) TableName() string {
 	return tableNameDCC
 }

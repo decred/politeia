@@ -508,7 +508,6 @@ func createCmsTables(tx *gorm.DB) error {
 			}).Error
 		return err
 	}
-
 	return nil
 }
 

@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/decred/politeia/cmsplugin"
 	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiad/cache"
 	"github.com/jinzhu/gorm"
@@ -700,6 +701,9 @@ func (c *cockroachdb) RegisterPlugin(p cache.Plugin) error {
 	case decredplugin.ID:
 		pd = newDecredPlugin(c.recordsdb, p)
 		c.plugins[decredplugin.ID] = pd
+	case cmsplugin.ID:
+		pd = newCMSPlugin(c.recordsdb, p)
+		c.plugins[cmsplugin.ID] = pd
 	default:
 		return cache.ErrInvalidPlugin
 	}
