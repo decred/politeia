@@ -107,7 +107,7 @@ func logout() error {
 // userNew returns a new cms user that has been invited and registered. The
 // user credentials are randomly generated.
 //
-// This function returns with the admin logged in.
+// This function returns with the admin logged out.
 func userNew(admin user) (*user, error) {
 	// Login the admin
 	err := login(admin)
@@ -158,10 +158,10 @@ func userNew(admin user) (*user, error) {
 	}
 	u.ID = lr.UserID
 
-	// Log the admin back in
-	err = login(admin)
+	// Log the user out
+	err = logout()
 	if err != nil {
-		return nil, fmt.Errorf("login: %v", err)
+		return nil, fmt.Errorf("logout: %v", err)
 	}
 
 	return &u, nil
@@ -170,12 +170,17 @@ func userNew(admin user) (*user, error) {
 // contractorNew creates a new user then updates the user with the given
 // contractor details.
 //
-// This function returns with the admin logged in.
+// This function returns with the admin logged out.
 func contractorNew(admin user, dt cms.DomainTypeT, ct cms.ContractorTypeT) (*user, error) {
 	// Invite and register a new user
 	u, err := userNew(admin)
 	if err != nil {
 		return nil, fmt.Errorf("userNew: %v", err)
+	}
+
+	err = login(admin)
+	if err != nil {
+		return nil, fmt.Errorf("login: %v", err)
 	}
 
 	// Update the user's contractor status
@@ -187,6 +192,11 @@ func contractorNew(admin user, dt cms.DomainTypeT, ct cms.ContractorTypeT) (*use
 	err = muc.Execute(nil)
 	if err != nil {
 		return nil, fmt.Errorf("CMSManageUserCmd: %v", err)
+	}
+
+	err = logout()
+	if err != nil {
+		return nil, fmt.Errorf("logout: %v", err)
 	}
 
 	return u, err
@@ -475,12 +485,13 @@ func dcc(token string) (*cms.DCCRecord, error) {
 
 // dccSetStatus updates the status of the given DCC.
 //
-// This function returns with the admin logged in.
+// This function returns with the admin logged out.
 func dccSetStatus(admin user, token string, st cms.DCCStatusT, reason string) error {
 	err := login(admin)
 	if err != nil {
 		return fmt.Errorf("login: %v", err)
 	}
+
 	sds := SetDCCStatusCmd{}
 	sds.Args.Token = token
 	sds.Args.Status = strconv.Itoa(int(st))
@@ -488,6 +499,11 @@ func dccSetStatus(admin user, token string, st cms.DCCStatusT, reason string) er
 	err = sds.Execute(nil)
 	if err != nil {
 		return fmt.Errorf("SetDCCStatusCmd: %v", err)
+	}
+
+	err = logout()
+	if err != nil {
+		return fmt.Errorf("logout: %v", err)
 	}
 	return nil
 }
@@ -518,7 +534,9 @@ func dccSupport(u user, token, vote string) error {
 	return nil
 }
 
-// This function returns with the admin logged in.
+// dccStartVote starts an all contractor vote for the provided DCC.
+//
+// This function returns with the admin logged out.
 func dccStartVote(admin user, token string) error {
 	err := login(admin)
 	if err != nil {
@@ -530,6 +548,11 @@ func dccStartVote(admin user, token string) error {
 	err = svc.Execute(nil)
 	if err != nil {
 		return fmt.Errorf("StartVoteCmd: %v", err)
+	}
+
+	err = logout()
+	if err != nil {
+		return fmt.Errorf("logout: %v")
 	}
 
 	return nil
