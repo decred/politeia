@@ -39,7 +39,7 @@ const (
 	// String constant to ensure that the observed dcc vote option is tabulated
 	// as "approved" or "disapproved".
 	DCCApprovalString    = "yes"
-	DCCDisapprovalString = "yes"
+	DCCDisapprovalString = "no"
 )
 
 var (
