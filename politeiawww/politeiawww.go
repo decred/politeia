@@ -353,6 +353,7 @@ func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 		MaxImageSize:               www.PolicyMaxImageSize,
 		MaxMDs:                     www.PolicyMaxMDs,
 		MaxMDSize:                  www.PolicyMaxMDSize,
+		PaywallEnabled:             p.cfg.PaywallAmount != 0 || p.cfg.PaywallXpub != "",
 		ValidMIMETypes:             mime.ValidMimeTypes(),
 		MinProposalNameLength:      www.PolicyMinProposalNameLength,
 		MaxProposalNameLength:      www.PolicyMaxProposalNameLength,
