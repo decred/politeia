@@ -943,6 +943,7 @@ type PolicyReply struct {
 	ValidMIMETypes             []string `json:"validmimetypes"`
 	MinProposalNameLength      uint     `json:"minproposalnamelength"`
 	MaxProposalNameLength      uint     `json:"maxproposalnamelength"`
+	PaywallEnabled             bool     `json:"paywallenabled"`
 	ProposalNameSupportedChars []string `json:"proposalnamesupportedchars"`
 	MaxCommentLength           uint     `json:"maxcommentlength"`
 	BackendPublicKey           string   `json:"backendpublickey"`
