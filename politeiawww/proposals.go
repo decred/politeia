@@ -852,24 +852,6 @@ func createProposalDetailsReply(prop *www.ProposalRecord, user *user.User) *www.
 	}
 }
 
-// processProposalDetailsShort fetches a specific proposal from the records
-// cache using the prefix of its token and returns it.
-func (p *politeiawww) processProposalDetailsShort(propDetailsShort www.ProposalDetailsShort, user *user.User) (*www.ProposalDetailsReply, error) {
-	log.Tracef("processProposalDetailsShort")
-
-	prop, err := p.getPropByPrefix(propDetailsShort.TokenPrefix)
-	if err != nil {
-		if err == cache.ErrRecordNotFound {
-			err = www.UserError{
-				ErrorCode: www.ErrorStatusProposalNotFound,
-			}
-		}
-		return nil, err
-	}
-
-	return createProposalDetailsReply(prop, user), nil
-}
-
 // processProposalDetails fetches a specific proposal version from the records
 // cache and returns it.
 func (p *politeiawww) processProposalDetails(propDetails www.ProposalsDetails, user *user.User) (*www.ProposalDetailsReply, error) {
@@ -879,7 +861,9 @@ func (p *politeiawww) processProposalDetails(propDetails www.ProposalsDetails, u
 	// when query param is not specified.
 	var prop *www.ProposalRecord
 	var err error
-	if propDetails.Version == "" {
+	if len(propDetails.Token) == www.TokenPrefixLength {
+		prop, err = p.getPropByPrefix(propDetails.Token)
+	} else if propDetails.Version == "" {
 		prop, err = p.getProp(propDetails.Token)
 	} else {
 		prop, err = p.getPropVersion(propDetails.Token, propDetails.Version)

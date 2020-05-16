@@ -235,35 +235,6 @@ func (p *politeiawww) handleAllVetted(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, vr)
 }
 
-// handleProposalDetailsShort handles the incoming short proposal details
-// command. It fetches the complete details for an existing proposal using
-// the prefix of its token.
-func (p *politeiawww) handleProposalDetailsShort(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleProposalDetailsShort")
-
-	// Get token prefix from path parameters
-	pathParams := mux.Vars(r)
-	pds := www.ProposalDetailsShort{TokenPrefix: pathParams["tokenprefix"]}
-
-	// Get session user. This is a public route so one might not exist.
-	user, err := p.getSessionUser(w, r)
-	if err != nil && err != errSessionNotFound {
-		RespondWithError(w, r, 0,
-			"handleProposalDetails: getSessionUser %v", err)
-		return
-	}
-
-	reply, err := p.processProposalDetailsShort(pds, user)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleProposalDetailsShort: processProposalDetailsShort %v", err)
-		return
-	}
-
-	// Reply with the proposal details.
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
 // handleProposalDetails handles the incoming proposal details command. It
 // fetches the complete details for an existing proposal.
 func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Request) {
@@ -1255,9 +1226,6 @@ func (p *politeiawww) setPoliteiaWWWRoutes() {
 		permissionPublic)
 	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
 		www.RoutePolicy, p.handlePolicy,
-		permissionPublic)
-	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
-		www.RouteProposalDetailsShort, p.handleProposalDetailsShort,
 		permissionPublic)
 	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
 		www.RouteCommentsGet, p.handleCommentsGet,

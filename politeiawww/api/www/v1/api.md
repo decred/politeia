@@ -36,7 +36,6 @@ notifications.  It does not render HTML.
 - [`New proposal`](#new-proposal)
 - [`Edit Proposal`](#edit-proposal)
 - [`Proposal details`](#proposal-details)
-- [`Short proposal details`](#short-proposal-details)
 - [`Batch proposals`](#batch-proposals)
 - [`Batch vote summary`](#batch-vote-summary)
 - [`Set proposal status`](#set-proposal-status)
@@ -1506,7 +1505,8 @@ Reply:
 
 ### `Proposal details`
 
-Retrieve proposal and its details.
+Retrieve proposal and its details. This request can be made with the full
+censorship token or its 7 character prefix.
 
 **Routes:** `GET /v1/proposals/{token}`
 
@@ -1535,64 +1535,6 @@ The request params should be provided within the URL:
 
 ```
 /v1/proposals/f1c2042d36c8603517cf24768b6475e18745943e4c6a20bc0001f52a2a6f9bde?version=2
-```
-
-Reply:
-
-```json
-{
-  "proposal": {
-    "name": "My Proposal",
-    "status": 3,
-    "timestamp": 1508146426,
-    "version": 2,
-    "files": [{
-      "name": "index.md",
-      "mime": "text/plain; charset=utf-8",
-      "digest": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
-      "payload": "VGhpcyBpcyBhIGRlc2NyaXB0aW9u"
-    }],
-    "censorshiprecord": {
-      "token": "c378e0735b5650c9e79f70113323077b107b0d778547f0d40592955668f21ebf",
-      "merkle": "0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
-      "signature": "f5ea17d547d8347a2f2d77edcb7e89fcc96613d7aaff1f2a26761779763d77688b57b423f1e7d2da8cd433ef2cfe6f58c7cf1c43065fa6716a03a3726d902d0a"
-    }
-  }
-}
-```
-
-### `Short proposal details`
-
-Retrieve proposal and its details using the prefix of its censorship token. The
-length of the token required can be retrieved using the [`policy`](#policy)
-route.
-
-**Routes:** `GET /v1/proposals/{tokenPrefix}`
-
-**Params:**
-
-| Parameter | Type | Description | Required |
-|-|-|-|-|
-| tokenprefix | string | Prefix of censorship token. | Yes |
-
-**Results:**
-
-| | Type | Description |
-|-|-|-|
-| proposal | [`Proposal`](#proposal) | The proposal with the provided token. |
-
-On failure the call shall return `400 Bad Request` and one of the following
-error codes:
-- [`ErrorStatusProposalNotFound`](#ErrorStatusProposalNotFound)
-
-**Example**
-
-Request:
-
-The request params should be provided within the URL:
-
-```
-/v1/proposals/f1c2042
 ```
 
 Reply:
