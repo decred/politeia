@@ -54,6 +54,7 @@ type cmswww struct {
 	Config shared.Config
 
 	// Commands
+	ActiveVotes         ActiveVotesCmd           `command:"activevotes" description:"(user) get the dccs that are being voted on"`
 	AdminInvoices       AdminInvoicesCmd         `command:"admininvoices" description:"(admin)  get all invoices (optional by month/year and/or status)"`
 	CensorComment       shared.CensorCommentCmd  `command:"censorcomment" description:"(admin)  censor a comment"`
 	ChangePassword      shared.ChangePasswordCmd `command:"changepassword" description:"(user)   change the password for the logged in user"`
@@ -83,18 +84,23 @@ type cmswww struct {
 	PayInvoices         PayInvoicesCmd           `command:"payinvoices" description:"(admin)  set all approved invoices to paid"`
 	Policy              PolicyCmd                `command:"policy" description:"(public) get the server policy"`
 	ProposalOwner       ProposalOwnerCmd         `command:"proposalowner" description:"(user) get owners of a proposal"`
+	ProposalBilling     ProposalBillingCmd       `command:"proposalbilling" description:"(user) get billing information for a proposal"`
 	RegisterUser        RegisterUserCmd          `command:"register" description:"(public) register an invited user to cms"`
 	ResetPassword       shared.ResetPasswordCmd  `command:"resetpassword" description:"(public) reset the password for a user that is not logged in"`
 	SetDCCStatus        SetDCCStatusCmd          `command:"setdccstatus" description:"(admin)  set the status of a DCC"`
 	SetInvoiceStatus    SetInvoiceStatusCmd      `command:"setinvoicestatus" description:"(admin)  set the status of an invoice"`
+	StartVote           StartVoteCmd             `command:"startvote" description:"(admin)  start the voting period on a dcc"`
 	SupportOpposeDCC    SupportOpposeDCCCmd      `command:"supportopposedcc" description:"(user)   support or oppose a given DCC"`
+	TestRun             TestRunCmd               `command:"testrun" description:"         test cmswww routes"`
 	UpdateUserKey       shared.UpdateUserKeyCmd  `command:"updateuserkey" description:"(user)   generate a new identity for the logged in user"`
 	UserDetails         UserDetailsCmd           `command:"userdetails" description:"(user)   get current cms user details"`
 	UserInvoices        UserInvoicesCmd          `command:"userinvoices" description:"(user)   get all invoices submitted by a specific user"`
 	UserSubContractors  UserSubContractorsCmd    `command:"usersubcontractors" description:"(user)   get all users that are linked to the user"`
-	Users               shared.UsersCmd          `command:"users" description:"(user) get a list of users"`
+	Users               shared.UsersCmd          `command:"users" description:"(user)   get a list of users"`
 	Secret              shared.SecretCmd         `command:"secret" description:"(user)   ping politeiawww"`
 	Version             shared.VersionCmd        `command:"version" description:"(public) get server info and CSRF token"`
+	VoteDCC             VoteDCCCmd               `command:"votedcc" description:"(user) vote for a given DCC during an all contractor vote"`
+	VoteDetails         VoteDetailsCmd           `command:"votedetails" description:"(user) get the details for a dcc vote"`
 }
 
 // verifyInvoice verifies a invoice's merkle root, author signature, and
@@ -102,7 +108,7 @@ type cmswww struct {
 func verifyInvoice(p cms.InvoiceRecord, serverPubKey string) error {
 	// Verify merkle root
 	if len(p.Files) > 0 {
-		mr, err := shared.MerkleRoot(p.Files)
+		mr, err := shared.MerkleRoot(p.Files, nil)
 		if err != nil {
 			return err
 		}
@@ -261,7 +267,7 @@ func verifyDCC(p cms.DCCRecord, serverPubKey string) error {
 	// Verify merkle root
 	files := make([]pi.File, 0, 1)
 	files = append(files, p.File)
-	mr, err := shared.MerkleRoot(files)
+	mr, err := shared.MerkleRoot(files, nil)
 	if err != nil {
 		return err
 	}

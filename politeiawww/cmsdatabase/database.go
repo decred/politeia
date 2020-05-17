@@ -52,6 +52,7 @@ type Database interface {
 	InvoicesByStatus(int) ([]Invoice, error)                          // Returns all invoices by status
 	InvoicesAll() ([]Invoice, error)                                  // Returns all invoices
 	InvoicesByDateRangeStatus(int64, int64, int) ([]*Invoice, error)  // Returns all paid invoice line items from range provided
+	InvoicesByLineItemsProposalToken(string) ([]*Invoice, error)      // Returns all Invoices with paid line item information based on proposal token.
 
 	// ExchangeRate functions
 	NewExchangeRate(*ExchangeRate) error          // Create new exchange rate
@@ -121,6 +122,7 @@ type LineItem struct {
 	Labor          uint
 	Expenses       uint
 	ContractorRate uint
+	SubUserID      string
 }
 
 // InvoiceChange contains entries for any status update that occurs to a given

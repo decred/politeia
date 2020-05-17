@@ -546,6 +546,98 @@ func (p *politeiawww) getCMSUserByIDRaw(id string) (*user.CMSUser, error) {
 	return ubir.User, nil
 }
 
+func (p *politeiawww) getCMSUserWeights() (map[string]int64, error) {
+	userWeights := make(map[string]int64, 1080)
+
+	/*
+		1) Determine most recent payout month
+		2) For each user
+		   1) Look back for 6 months of invoices (that were paid out)
+		   2) Add up all minutes billed over that time period.
+		   3) Set user weight as total number of billed minutes.
+	*/
+
+	weightEnd := time.Now()
+	weightMonthEnd := uint(weightEnd.Month())
+	weightYearEnd := uint(weightEnd.Year())
+
+	weightStart := time.Now().AddDate(0, -1*userWeightMonthLookback, 0)
+	weightMonthStart := uint(weightStart.Month())
+	weightYearStart := uint(weightStart.Year())
+
+	// Subtract one nano second from start date and add one to end date to avoid having equal times.
+	startDate := time.Date(int(weightYearStart), time.Month(weightMonthStart), 0, 0, 0, 0, -1, time.UTC)
+	endDate := time.Date(int(weightYearEnd), time.Month(weightMonthEnd), 0, 0, 0, 0, 1, time.UTC)
+
+	err := p.db.AllUsers(func(user *user.User) {
+		cmsUser, err := p.getCMSUserByID(user.ID.String())
+		if err != nil {
+			log.Errorf("getCMSUserWeights: getCMSUserByID %v %v",
+				user.ID.String(), err)
+			return
+		}
+
+		if cmsUser.ContractorType != cms.ContractorTypeDirect &&
+			cmsUser.ContractorType != cms.ContractorTypeSubContractor &&
+			cmsUser.ContractorType != cms.ContractorTypeSupervisor {
+			return
+		}
+
+		var billedMinutes int64
+		// Calculate sub contractor weight here
+		if cmsUser.ContractorType == cms.ContractorTypeSubContractor {
+			for _, superID := range cmsUser.SupervisorUserIDs {
+				superUser, err := p.getCMSUserByID(superID)
+				if err != nil {
+					log.Errorf("getCMSUserWeights: getCMSUserByID %v %v",
+						superID, err)
+					return
+				}
+				superInvoices, err := p.cmsDB.InvoicesByUserID(superUser.ID)
+				if err != nil {
+					log.Errorf("getCMSUserWeights: InvoicesByUserID %v", err)
+				}
+				for _, i := range superInvoices {
+					invoiceDate := time.Date(int(i.Year), time.Month(i.Month), 0, 0, 0, 0, 0, time.UTC)
+					if invoiceDate.After(startDate) && endDate.After(invoiceDate) {
+						for _, li := range i.LineItems {
+							// Only take into account billed minutes if the line
+							// item matches their userID
+							if li.Type == cms.LineItemTypeSubHours &&
+								li.SubUserID == user.ID.String() {
+								billedMinutes += int64(li.Labor)
+							}
+						}
+					}
+				}
+			}
+		} else {
+			userInvoices, err := p.cmsDB.InvoicesByUserID(cmsUser.ID)
+			if err != nil {
+				log.Errorf("getCMSUserWeights: InvoicesByUserID %v", err)
+				return
+			}
+			for _, i := range userInvoices {
+				invoiceDate := time.Date(int(i.Year), time.Month(i.Month), 0, 0, 0, 0, 0, time.UTC)
+				if invoiceDate.After(startDate) && endDate.After(invoiceDate) {
+					// now look at the lineitems within that invoice and
+					// tabulate billed hours
+					for _, li := range i.LineItems {
+						billedMinutes += int64(li.Labor)
+					}
+				}
+			}
+		}
+		userWeights[cmsUser.ID] = billedMinutes
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return userWeights, nil
+
+}
+
 // convertCMSUserFromDatabaseUser converts a user User to a cms User.
 func convertCMSUserFromDatabaseUser(user *user.CMSUser) cms.User {
 	superUserIDs := make([]string, 0, len(user.SupervisorUserIDs))

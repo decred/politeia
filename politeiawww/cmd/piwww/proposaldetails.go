@@ -27,6 +27,10 @@ func (cmd *ProposalDetailsCmd) Execute(args []string) error {
 		return err
 	}
 
+	if len(cmd.Args.Token) == www.TokenPrefixLength && cmd.Args.Version != "" {
+		fmt.Println("VERSION ARGUMENT CANNOT BE USED WITH TOKEN PREFIX!!")
+	}
+
 	// Get proposal
 	pdr, err := client.ProposalDetails(cmd.Args.Token,
 		&www.ProposalsDetails{
@@ -34,10 +38,6 @@ func (cmd *ProposalDetailsCmd) Execute(args []string) error {
 		})
 	if err != nil {
 		return err
-	}
-
-	if len(cmd.Args.Token) == www.TokenPrefixLength && cmd.Args.Version != "" {
-		fmt.Println("VERSION ARGUMENT IS IGNORED WHEN USING TOKEN PREFIX!!")
 	}
 
 	// Verify proposal censorship record

@@ -335,9 +335,9 @@ func (p *politeiawww) handleNewCommentInvoice(w http.ResponseWriter, r *http.Req
 	util.RespondWithJSON(w, http.StatusOK, cr)
 }
 
-// handleCommentsGet handles batched comments get.
+// handleInvoiceComments handles batched invoice comments get.
 func (p *politeiawww) handleInvoiceComments(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleCommentsGet")
+	log.Tracef("handleInvoiceComments")
 
 	pathParams := mux.Vars(r)
 	token := pathParams["token"]
@@ -346,14 +346,14 @@ func (p *politeiawww) handleInvoiceComments(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		if err != errSessionNotFound {
 			RespondWithError(w, r, 0,
-				"handleCommentsGet: getSessionUser %v", err)
+				"handleInvoiceComments: getSessionUser %v", err)
 			return
 		}
 	}
 	gcr, err := p.processInvoiceComments(token, user)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleCommentsGet: processCommentsGet %v", err)
+			"handleInvoiceComments: processInvoiceComments %v", err)
 		return
 	}
 	util.RespondWithJSON(w, http.StatusOK, gcr)
@@ -407,6 +407,7 @@ func (p *politeiawww) handleCMSPolicy(w http.ResponseWriter, r *http.Request) {
 		UsernameSupportedChars:        www.PolicyUsernameSupportedChars,
 		CMSNameLocationSupportedChars: cms.PolicyCMSNameLocationSupportedChars,
 		CMSContactSupportedChars:      cms.PolicyCMSContactSupportedChars,
+		CMSStatementSupportedChars:    cms.PolicySponsorStatementSupportedChars,
 		CMSSupportedDomains:           cms.PolicySupportedCMSDomains,
 		CMSSupportedLineItemTypes:     cms.PolicyCMSSupportedLineItemTypes,
 	}
@@ -784,7 +785,6 @@ func (p *politeiawww) handleProposalOwner(w http.ResponseWriter, r *http.Request
 			})
 		return
 	}
-
 	por, err := p.processProposalOwner(po)
 	if err != nil {
 		RespondWithError(w, r, 0,
@@ -793,6 +793,138 @@ func (p *politeiawww) handleProposalOwner(w http.ResponseWriter, r *http.Request
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, por)
+}
+
+func (p *politeiawww) handleProposalBilling(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleProposalBilling")
+
+	var pb cms.ProposalBilling
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&pb); err != nil {
+		RespondWithError(w, r, 0, "handleProposalBilling: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+	u, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleProposalBilling: getSessionUser %v", err)
+		return
+	}
+
+	pbr, err := p.processProposalBilling(pb, u)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleProposalBilling: processSetDCCStatus: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, pbr)
+}
+
+func (p *politeiawww) handleCastVoteDCC(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleCastVoteDCC")
+
+	var cv cms.CastVote
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&cv); err != nil {
+		RespondWithError(w, r, 0, "handleCastVoteDCC: unmarshal", www.UserError{
+			ErrorCode: www.ErrorStatusInvalidInput,
+		})
+		return
+	}
+
+	u, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleCastVoteDCC: getSessionUser %v", err)
+		return
+	}
+
+	cvr, err := p.processCastVoteDCC(cv, u)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleCastVoteDCC: processCastVoteDCC: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, cvr)
+}
+
+func (p *politeiawww) handleVoteDetailsDCC(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleVoteDetailsDCC")
+
+	var vd cms.VoteDetails
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&vd); err != nil {
+		RespondWithError(w, r, 0, "handleVoteDetailsDCC: unmarshal", www.UserError{
+			ErrorCode: www.ErrorStatusInvalidInput,
+		})
+		return
+	}
+
+	vdr, err := p.processVoteDetailsDCC(vd.Token)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleVoteDetailsDCC: processVoteDetailsDCC: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, vdr)
+}
+
+// handleActiveVoteDCC returns all active dccs that have an active vote.
+func (p *politeiawww) handleActiveVoteDCC(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleActiveVoteDCC")
+
+	avr, err := p.processActiveVoteDCC()
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleActiveVoteDCC: processActiveVoteDCC %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, avr)
+}
+
+// handleStartVoteDCC handles the dcc StartVote route.
+func (p *politeiawww) handleStartVoteDCC(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleStartVoteDCC")
+
+	var sv cms.StartVote
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&sv); err != nil {
+		RespondWithError(w, r, 0, "handleStartVoteDCC: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleStartVoteDCC: getSessionUser %v", err)
+		return
+	}
+
+	// Sanity
+	if !user.Admin {
+		RespondWithError(w, r, 0,
+			"handleStartVoteDCC: admin %v", user.Admin)
+		return
+	}
+
+	svr, err := p.processStartVoteDCC(sv, user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleStartVoteDCC: processStartVoteDCC %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, svr)
 }
 
 func (p *politeiawww) setCMSWWWRoutes() {
@@ -864,6 +996,18 @@ func (p *politeiawww) setCMSWWWRoutes() {
 	p.addRoute(http.MethodGet, cms.APIRoute,
 		cms.RouteProposalOwner, p.handleProposalOwner,
 		permissionLogin)
+	p.addRoute(http.MethodPost, cms.APIRoute,
+		cms.RouteProposalBilling, p.handleProposalBilling,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cms.APIRoute,
+		cms.RouteCastVoteDCC, p.handleCastVoteDCC,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cms.APIRoute,
+		cms.RouteVoteDetailsDCC, p.handleVoteDetailsDCC,
+		permissionLogin)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		cms.RouteActiveVotesDCC, p.handleActiveVoteDCC,
+		permissionLogin)
 
 	// Unauthenticated websocket
 	p.addRoute("", www.PoliteiaWWWAPIRoute,
@@ -901,5 +1045,8 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		permissionAdmin)
 	p.addRoute(http.MethodPost, cms.APIRoute,
 		cms.RouteSetDCCStatus, p.handleSetDCCStatus,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, cms.APIRoute,
+		cms.RouteStartVoteDCC, p.handleStartVoteDCC,
 		permissionAdmin)
 }

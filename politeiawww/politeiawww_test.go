@@ -6,11 +6,11 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/decred/politeia/util/version"
 	"github.com/go-test/deep"
 	"github.com/gorilla/mux"
 )
@@ -23,10 +23,11 @@ func TestHandleVersion(t *testing.T) {
 	defer d.Close()
 
 	expectedReply := www.VersionReply{
-		Version: www.PoliteiaWWWAPIVersion,
-		Route:   www.PoliteiaWWWAPIRoute,
-		PubKey:  hex.EncodeToString(p.cfg.Identity.Key[:]),
-		TestNet: p.cfg.TestNet,
+		Version:      www.PoliteiaWWWAPIVersion,
+		BuildVersion: version.BuildMainVersion(),
+		Route:        www.PoliteiaWWWAPIRoute,
+		PubKey:       hex.EncodeToString(p.cfg.Identity.Key[:]),
+		TestNet:      p.cfg.TestNet,
 	}
 
 	var tests = []struct {
@@ -313,9 +314,10 @@ func TestHandleProposalDetails(t *testing.T) {
 			}
 
 			// Validate expected proposal with received proposal
-			if !reflect.DeepEqual(gotReply.Proposal, v.wantReply) {
-				t.Errorf("got proposal %v, want %v",
-					gotReply.Proposal, v.wantReply)
+			diff := deep.Equal(gotReply.Proposal, v.wantReply)
+			if diff != nil {
+				t.Errorf("got/want diff:\n%v",
+					spew.Sdump(diff))
 			}
 
 			// Validate http status code

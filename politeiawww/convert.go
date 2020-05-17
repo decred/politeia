@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/politeia/cmsplugin"
 	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
@@ -61,13 +62,30 @@ func convertBallotReplyFromDecredPlugin(b decredplugin.BallotReply) www.BallotRe
 	return br
 }
 
-func convertAuthorizeVoteFromWWW(av www.AuthorizeVote) decredplugin.AuthorizeVote {
+func convertAuthorizeVoteToDecred(av www.AuthorizeVote) decredplugin.AuthorizeVote {
 	return decredplugin.AuthorizeVote{
 		Action:    av.Action,
 		Token:     av.Token,
 		PublicKey: av.PublicKey,
 		Signature: av.Signature,
 	}
+}
+
+func convertAuthorizeVoteV2ToDecred(av www2.AuthorizeVote) decredplugin.AuthorizeVote {
+	return decredplugin.AuthorizeVote{
+		Action:    av.Action,
+		Token:     av.Token,
+		PublicKey: av.PublicKey,
+		Signature: av.Signature,
+	}
+}
+
+func convertAuthorizeVotesV2ToDecred(av []www2.AuthorizeVote) []decredplugin.AuthorizeVote {
+	dav := make([]decredplugin.AuthorizeVote, 0, len(av))
+	for _, v := range av {
+		dav = append(dav, convertAuthorizeVoteV2ToDecred(v))
+	}
+	return dav
 }
 
 func convertVoteOptionFromWWW(vo www.VoteOption) decredplugin.VoteOption {
@@ -103,12 +121,13 @@ func convertVoteOptionsV2ToDecred(vo []www2.VoteOption) []decredplugin.VoteOptio
 }
 
 func convertVoteTypeV2ToDecred(v www2.VoteT) decredplugin.VoteT {
-	var dv decredplugin.VoteT
 	switch v {
 	case www2.VoteTypeStandard:
-		dv = decredplugin.VoteTypeStandard
+		return decredplugin.VoteTypeStandard
+	case www2.VoteTypeRunoff:
+		return decredplugin.VoteTypeRunoff
 	}
-	return dv
+	return decredplugin.VoteTypeInvalid
 }
 
 func convertVoteV2ToDecred(v www2.Vote) decredplugin.VoteV2 {
@@ -130,6 +149,14 @@ func convertStartVoteV2ToDecred(sv www2.StartVote) decredplugin.StartVoteV2 {
 		Vote:      convertVoteV2ToDecred(sv.Vote),
 		Signature: sv.Signature,
 	}
+}
+
+func convertStartVotesV2ToDecred(sv []www2.StartVote) []decredplugin.StartVoteV2 {
+	dsv := make([]decredplugin.StartVoteV2, 0, len(sv))
+	for _, v := range sv {
+		dsv = append(dsv, convertStartVoteV2ToDecred(v))
+	}
+	return dsv
 }
 
 func convertDecredStartVoteV1ToVoteDetailsReplyV2(sv decredplugin.StartVoteV1, svr decredplugin.StartVoteReply) (*www2.VoteDetailsReply, error) {
@@ -307,10 +334,33 @@ func convertPropStatusFromCache(s cache.RecordStatusT) www.PropStatusT {
 	return www.PropStatusInvalid
 }
 
-func convertPropFromCache(r cache.Record) www.ProposalRecord {
-	// Decode markdown stream payloads
+// convertFileFromMetadata returns a politeiawww v1 Metadata that was converted
+// from a politeiad File. User specified metadata is store as a file in
+// politeiad so that it is included in the merkle root that politeiad
+// calculates.
+func convertMetadataFromFile(f cache.File) www.Metadata {
+	var hint string
+	switch f.Name {
+	case mdstream.FilenameProposalMetadata:
+		hint = www.HintProposalMetadata
+	}
+	return www.Metadata{
+		Digest:  f.Digest,
+		Hint:    hint,
+		Payload: f.Payload,
+	}
+}
+
+func convertPropFromCache(r cache.Record) (*www.ProposalRecord, error) {
+	// Decode metadata stream payloads
 	var (
-		pg         *mdstream.ProposalGeneral
+		// The name was originally saved in the ProposalGeneralV1
+		// mdstream but was moved to the ProposalData mdsteam, which
+		// is saved to politeiad as a File, not a MetadataStream.
+		name   string
+		pubkey string
+		sig    string
+
 		statusesV1 []mdstream.RecordStatusChangeV1
 		statusesV2 []mdstream.RecordStatusChangeV2
 		err        error
@@ -321,10 +371,29 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 		switch ms.ID {
 		case mdstream.IDProposalGeneral:
 			// General metadata
-			pg, err = mdstream.DecodeProposalGeneral([]byte(ms.Payload))
+			v, err := mdstream.DecodeVersion([]byte(ms.Payload))
 			if err != nil {
-				log.Errorf("convertPropFromCache: DecodeProposalGeneral: "+
-					"err:%v token:%v mdstream:%v", err, token, ms)
+				return nil, fmt.Errorf("DecodeVersion %v: %v",
+					ms.ID, err)
+			}
+			switch v {
+			case 1:
+				pg, err := mdstream.DecodeProposalGeneralV1([]byte(ms.Payload))
+				if err != nil {
+					return nil, fmt.Errorf("DecodeProposalGeneralV1: %v", err)
+				}
+				name = pg.Name
+				pubkey = pg.PublicKey
+				sig = pg.Signature
+			case 2:
+				pg, err := mdstream.DecodeProposalGeneralV2([]byte(ms.Payload))
+				if err != nil {
+					return nil, fmt.Errorf("DecodeProposalGeneralV2: %v", err)
+				}
+				pubkey = pg.PublicKey
+				sig = pg.Signature
+			default:
+				return nil, fmt.Errorf("unknown ProposalGeneral version %v", ms)
 			}
 
 		case mdstream.IDRecordStatusChange:
@@ -332,8 +401,7 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 			b := []byte(ms.Payload)
 			statusesV1, statusesV2, err = mdstream.DecodeRecordStatusChanges(b)
 			if err != nil {
-				log.Errorf("convertPropFromCache: DecodeRecordStatusChanges: "+
-					"err:%v token:%v mdstream:%v", err, token, ms)
+				return nil, fmt.Errorf("DecodeRecordStatusChanges: %v", err)
 			}
 
 			// Verify the signatures
@@ -341,9 +409,7 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 				err := v.VerifySignature(token)
 				if err != nil {
 					// This is not good!
-					e := fmt.Sprintf("invalid status change signature: "+
-						"token:%v status:%v", token, v)
-					panic(e)
+					return nil, fmt.Errorf("invalid status change signature: %v", v)
 				}
 			}
 
@@ -360,8 +426,7 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 			log.Tracef("convertPropFromCache: skipping mdstream %v",
 				decredplugin.MDStreamVoteSnapshot)
 		default:
-			log.Errorf("convertPropFromCache: invalid mdstream ID: "+
-				"token:%v mdstream:%v", token, ms)
+			return nil, fmt.Errorf("invalid mdstream: %v", ms)
 		}
 	}
 
@@ -408,9 +473,35 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 		}
 	}
 
-	// Convert files
-	files := make([]www.File, 0, len(r.Files))
+	// Convert files. The ProposalMetadata mdstream is saved to
+	// politeiad as a File, not as a MetadataStream, so we have to
+	// account for this when preparing the files.
+	var (
+		pm       www.ProposalMetadata
+		files    = make([]www.File, 0, len(r.Files))
+		metadata = make([]www.Metadata, 0, len(r.Files))
+	)
 	for _, f := range r.Files {
+		switch f.Name {
+		case mdstream.FilenameProposalMetadata:
+			metadata = append(metadata, convertMetadataFromFile(f))
+
+			// Extract the proposal metadata from the payload
+			b, err := base64.StdEncoding.DecodeString(f.Payload)
+			if err != nil {
+				return nil, fmt.Errorf("decode file payload %v: %v",
+					mdstream.FilenameProposalMetadata, err)
+			}
+			err = json.Unmarshal(b, &pm)
+			if err != nil {
+				return nil, fmt.Errorf("unmarshal ProposalMetadata: %v", err)
+			}
+
+			name = pm.Name
+
+			continue
+		}
+
 		files = append(files,
 			www.File{
 				Name:    f.Name,
@@ -425,28 +516,32 @@ func convertPropFromCache(r cache.Record) www.ProposalRecord {
 	// The UserId, Username, and NumComments fields are returned
 	// as zero values since a cache record does not contain that
 	// data.
-	return www.ProposalRecord{
-		Name:                pg.Name,
+	return &www.ProposalRecord{
+		Name:                name,
 		State:               convertPropStatusToState(status),
 		Status:              status,
 		Timestamp:           r.Timestamp,
 		UserId:              "",
 		Username:            "",
-		PublicKey:           pg.PublicKey,
-		Signature:           pg.Signature,
-		Files:               files,
+		PublicKey:           pubkey,
+		Signature:           sig,
 		NumComments:         0,
 		Version:             r.Version,
 		StatusChangeMessage: changeMsg,
 		PublishedAt:         publishedAt,
 		CensoredAt:          censoredAt,
 		AbandonedAt:         abandonedAt,
+		LinkTo:              pm.LinkTo,
+		LinkBy:              pm.LinkBy,
+		LinkedFrom:          []string{},
+		Files:               files,
+		Metadata:            metadata,
 		CensorshipRecord: www.CensorshipRecord{
 			Token:     r.CensorshipRecord.Token,
 			Merkle:    r.CensorshipRecord.Merkle,
 			Signature: r.CensorshipRecord.Signature,
 		},
-	}
+	}, nil
 }
 
 func convertNewCommentToDecredPlugin(nc www.NewComment) decredplugin.NewComment {
@@ -576,6 +671,8 @@ func convertVoteTypeFromDecred(v decredplugin.VoteT) www2.VoteT {
 	switch v {
 	case decredplugin.VoteTypeStandard:
 		return www2.VoteTypeStandard
+	case decredplugin.VoteTypeRunoff:
+		return www2.VoteTypeRunoff
 	}
 	return www2.VoteTypeInvalid
 }
@@ -743,6 +840,7 @@ func convertDatabaseInvoiceToInvoiceRecord(dbInvoice cmsdatabase.Invoice) *cms.I
 	invRec.Status = dbInvoice.Status
 	invRec.Timestamp = dbInvoice.Timestamp
 	invRec.UserID = dbInvoice.UserID
+	invRec.Username = dbInvoice.Username
 	invRec.PublicKey = dbInvoice.PublicKey
 	invRec.Version = dbInvoice.Version
 	invRec.Signature = dbInvoice.UserSignature
@@ -770,6 +868,7 @@ func convertDatabaseInvoiceToInvoiceRecord(dbInvoice cmsdatabase.Invoice) *cms.I
 			Labor:         dbLineItem.Labor,
 			Expenses:      dbLineItem.Expenses,
 			SubRate:       dbLineItem.ContractorRate,
+			SubUserID:     dbLineItem.SubUserID,
 		}
 		invInputLineItems = append(invInputLineItems, lineItem)
 	}
@@ -817,6 +916,7 @@ func convertInvoiceRecordToDatabaseInvoice(invRec *cms.InvoiceRecord) *cmsdataba
 			Labor:          lineItem.Labor,
 			Expenses:       lineItem.Expenses,
 			ContractorRate: lineItem.SubRate,
+			SubUserID:      lineItem.SubUserID,
 		}
 		dbInvoice.LineItems = append(dbInvoice.LineItems, dbLineItem)
 	}
@@ -1552,4 +1652,152 @@ func convertDCCDatabaseFromDCCRecord(dccRecord cms.DCCRecord) cmsdatabase.DCC {
 	dbDCC.OppositionUserIDs = oppositionUserIDs
 
 	return dbDCC
+}
+
+func convertDatabaseInvoiceToProposalLineItems(inv *cmsdatabase.Invoice) cms.ProposalLineItems {
+	return cms.ProposalLineItems{
+		Month:    int(inv.Month),
+		Year:     int(inv.Year),
+		UserID:   inv.UserID,
+		Username: inv.Username,
+		LineItem: cms.LineItemsInput{
+			Type:          inv.LineItems[0].Type,
+			Domain:        inv.LineItems[0].Domain,
+			Subdomain:     inv.LineItems[0].Subdomain,
+			Description:   inv.LineItems[0].Description,
+			ProposalToken: inv.LineItems[0].ProposalURL,
+			Labor:         inv.LineItems[0].Labor,
+			Expenses:      inv.LineItems[0].Expenses,
+			SubRate:       inv.LineItems[0].ContractorRate,
+		},
+	}
+}
+
+func convertCastVoteFromCMS(b cms.CastVote) cmsplugin.CastVote {
+	return cmsplugin.CastVote{
+		VoteBit:   b.VoteBit,
+		Token:     b.Token,
+		UserID:    b.UserID,
+		Signature: b.Signature,
+	}
+}
+
+func convertCastVoteReplyToCMS(cv *cmsplugin.CastVoteReply) *cms.CastVoteReply {
+	return &cms.CastVoteReply{
+		ClientSignature: cv.ClientSignature,
+		Signature:       cv.Signature,
+		Error:           cv.Error,
+		ErrorStatus:     cv.ErrorStatus,
+	}
+}
+
+func convertUserWeightToCMS(uw []cmsplugin.UserWeight) []cms.DCCWeight {
+	dccWeight := make([]cms.DCCWeight, 0, len(uw))
+	for _, w := range uw {
+		dccWeight = append(dccWeight, cms.DCCWeight{
+			UserID: w.UserID,
+			Weight: w.Weight,
+		})
+	}
+	return dccWeight
+}
+
+func convertVoteOptionResultsToCMS(vr []cmsplugin.VoteOptionResult) []cms.VoteOptionResult {
+	votes := make([]cms.VoteOptionResult, 0, len(vr))
+	for _, w := range vr {
+		votes = append(votes, cms.VoteOptionResult{
+			Option: cms.VoteOption{
+				Id:          w.ID,
+				Description: w.Description,
+				Bits:        w.Bits,
+			},
+			VotesReceived: w.Votes,
+		})
+	}
+	return votes
+}
+func convertCMSStartVoteToCMSVoteDetailsReply(sv cmsplugin.StartVote, svr cmsplugin.StartVoteReply) (*cms.VoteDetailsReply, error) {
+	voteb, err := cmsplugin.EncodeVote(sv.Vote)
+	if err != nil {
+		return nil, err
+	}
+	userWeights := make([]string, 0, len(sv.UserWeights))
+	for _, weights := range sv.UserWeights {
+		userWeight := weights.UserID + "-" + strconv.Itoa(int(weights.Weight))
+		userWeights = append(userWeights, userWeight)
+	}
+	return &cms.VoteDetailsReply{
+		Version:          uint32(sv.Version),
+		Vote:             string(voteb),
+		PublicKey:        sv.PublicKey,
+		Signature:        sv.Signature,
+		StartBlockHeight: svr.StartBlockHeight,
+		StartBlockHash:   svr.StartBlockHash,
+		EndBlockHeight:   svr.EndHeight,
+		UserWeights:      userWeights,
+	}, nil
+}
+
+func convertCMSStartVoteToCMS(sv cmsplugin.StartVote) cms.StartVote {
+	vote := cms.Vote{
+		Token:            sv.Vote.Token,
+		Mask:             sv.Vote.Mask,
+		Duration:         sv.Vote.Duration,
+		QuorumPercentage: sv.Vote.QuorumPercentage,
+		PassPercentage:   sv.Vote.PassPercentage,
+	}
+
+	voteOptions := make([]cms.VoteOption, 0, len(sv.Vote.Options))
+	for _, option := range sv.Vote.Options {
+		voteOption := cms.VoteOption{
+			Id:          option.Id,
+			Description: option.Description,
+			Bits:        option.Bits,
+		}
+		voteOptions = append(voteOptions, voteOption)
+	}
+	vote.Options = voteOptions
+
+	return cms.StartVote{
+		Vote:      vote,
+		PublicKey: sv.PublicKey,
+		Signature: sv.Signature,
+	}
+}
+
+func convertCMSStartVoteReplyToCMS(svr cmsplugin.StartVoteReply) cms.StartVoteReply {
+	return cms.StartVoteReply{
+		StartBlockHeight: svr.StartBlockHeight,
+		StartBlockHash:   svr.StartBlockHash,
+		EndBlockHeight:   svr.EndHeight,
+	}
+}
+
+func convertStartVoteToCMS(sv cms.StartVote) cmsplugin.StartVote {
+	vote := cmsplugin.Vote{
+		Token:            sv.Vote.Token,
+		Mask:             sv.Vote.Mask,
+		Duration:         sv.Vote.Duration,
+		QuorumPercentage: sv.Vote.QuorumPercentage,
+		PassPercentage:   sv.Vote.PassPercentage,
+	}
+
+	voteOptions := make([]cmsplugin.VoteOption, 0, len(sv.Vote.Options))
+	for _, option := range sv.Vote.Options {
+		voteOption := cmsplugin.VoteOption{
+			Id:          option.Id,
+			Description: option.Description,
+			Bits:        option.Bits,
+		}
+		voteOptions = append(voteOptions, voteOption)
+	}
+	vote.Options = voteOptions
+
+	return cmsplugin.StartVote{
+		Token:     sv.Vote.Token,
+		Vote:      vote,
+		PublicKey: sv.PublicKey,
+		Signature: sv.Signature,
+	}
+
 }

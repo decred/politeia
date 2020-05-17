@@ -86,7 +86,7 @@ func TestAnchorWithCommits(t *testing.T) {
 
 	// Initialize stuff we need
 	g, err := New(&chaincfg.TestNet3Params, dir, "", "", nil,
-		testing.Verbose(), "")
+		testing.Verbose(), "", "piwww")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -475,7 +475,7 @@ func TestUpdateReadme(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	g, err := New(&chaincfg.TestNet3Params, dir, "", "", nil,
-		testing.Verbose(), "")
+		testing.Verbose(), "", "piwww")
 	if err != nil {
 		t.Fatal(err)
 	}

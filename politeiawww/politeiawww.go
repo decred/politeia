@@ -1,3 +1,7 @@
+// Copyright (c) 2017-2020 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package main
 
 import (
@@ -22,6 +26,7 @@ import (
 	"github.com/decred/politeia/politeiawww/user"
 	utilwww "github.com/decred/politeia/politeiawww/util"
 	"github.com/decred/politeia/util"
+	"github.com/decred/politeia/util/version"
 	"github.com/google/uuid"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
@@ -115,7 +120,7 @@ type politeiawww struct {
 	userPaywallPool map[uuid.UUID]paywallPoolMember // [userid][paywallPoolMember]
 	commentVotes    map[string]counters             // [token+commentID]counters
 
-	// voteSummaries is a lazy loaded cache of the votes summaries of
+	// voteSummaries is a lazy loaded cache of votes summaries for
 	// proposals whose voting period has ended.
 	voteSummaries map[string]www.VoteSummary // [token]VoteSummary
 
@@ -160,11 +165,12 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleVersion")
 
 	versionReply := www.VersionReply{
-		Version: www.PoliteiaWWWAPIVersion,
-		Route:   www.PoliteiaWWWAPIRoute,
-		PubKey:  hex.EncodeToString(p.cfg.Identity.Key[:]),
-		TestNet: p.cfg.TestNet,
-		Mode:    p.cfg.Mode,
+		Version:      www.PoliteiaWWWAPIVersion,
+		Route:        www.PoliteiaWWWAPIRoute,
+		BuildVersion: version.BuildMainVersion(),
+		PubKey:       hex.EncodeToString(p.cfg.Identity.Key[:]),
+		TestNet:      p.cfg.TestNet,
+		Mode:         p.cfg.Mode,
 	}
 
 	_, err := p.getSessionUser(w, r)
@@ -335,6 +341,7 @@ func (p *politeiawww) handleBatchProposals(w http.ResponseWriter, r *http.Reques
 func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 	// Get the policy command.
 	log.Tracef("handlePolicy")
+
 	reply := &www.PolicyReply{
 		MinPasswordLength:          www.PolicyMinPasswordLength,
 		MinUsernameLength:          www.PolicyMinUsernameLength,
@@ -346,12 +353,17 @@ func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 		MaxImageSize:               www.PolicyMaxImageSize,
 		MaxMDs:                     www.PolicyMaxMDs,
 		MaxMDSize:                  www.PolicyMaxMDSize,
+		PaywallEnabled:             p.paywallIsEnabled(),
 		ValidMIMETypes:             mime.ValidMimeTypes(),
 		MinProposalNameLength:      www.PolicyMinProposalNameLength,
 		MaxProposalNameLength:      www.PolicyMaxProposalNameLength,
 		ProposalNameSupportedChars: www.PolicyProposalNameSupportedChars,
 		MaxCommentLength:           www.PolicyMaxCommentLength,
 		TokenPrefixLength:          www.TokenPrefixLength,
+		BuildInformation:           version.BuildInformation(),
+		IndexFilename:              www.PolicyIndexFilename,
+		MinLinkByPeriod:            p.linkByPeriodMin(),
+		MaxLinkByPeriod:            p.linkByPeriodMax(),
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
@@ -1167,6 +1179,45 @@ func (p *politeiawww) handleStartVoteV2(w http.ResponseWriter, r *http.Request) 
 	util.RespondWithJSON(w, http.StatusOK, svr)
 }
 
+// handleStartVoteRunoffV2 handles starting a runoff vote for RFP proposal
+// submissions.
+func (p *politeiawww) handleStartVoteRunoffV2(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleStartVoteRunoffV2")
+
+	var sv www2.StartVoteRunoff
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&sv); err != nil {
+		RespondWithError(w, r, 0, "handleStartVoteRunoffV2: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleStartVoteRunoffV2: getSessionUser %v", err)
+		return
+	}
+
+	// Sanity
+	if !user.Admin {
+		RespondWithError(w, r, 0,
+			"handleStartVoteRunoffV2: admin %v", user.Admin)
+		return
+	}
+
+	svr, err := p.processStartVoteRunoffV2(sv, user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleStartVoteRunoffV2: processStartVoteRunoff %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, svr)
+}
+
 // handleCensorComment handles the censoring of a comment by an admin.
 func (p *politeiawww) handleCensorComment(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleCensorComment")
@@ -1299,6 +1350,9 @@ func (p *politeiawww) setPoliteiaWWWRoutes() {
 		permissionAdmin)
 	p.addRoute(http.MethodPost, www2.APIRoute,
 		www2.RouteStartVote, p.handleStartVoteV2,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, www2.APIRoute,
+		www2.RouteStartVoteRunoff, p.handleStartVoteRunoffV2,
 		permissionAdmin)
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteCensorComment, p.handleCensorComment,
