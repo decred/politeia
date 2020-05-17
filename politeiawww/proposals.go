@@ -373,7 +373,14 @@ func (p *politeiawww) fillProposalMissingFields(pr *www.ProposalRecord) error {
 func (p *politeiawww) getProp(token string) (*www.ProposalRecord, error) {
 	log.Tracef("getProp: %v", token)
 
-	r, err := p.cache.Record(token)
+	var r *cache.Record
+	var err error
+	if len(token) == www.TokenPrefixLength {
+		r, err = p.cache.RecordByPrefix(token)
+	} else {
+		r, err = p.cache.Record(token)
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -471,26 +478,6 @@ func (p *politeiawww) getPropVersion(token, version string) (*www.ProposalRecord
 	log.Tracef("getPropVersion: %v %v", token, version)
 
 	r, err := p.cache.RecordVersion(token, version)
-	if err != nil {
-		return nil, err
-	}
-
-	pr := convertPropFromCache(*r)
-	err = p.fillProposalMissingFields(&pr)
-	if err != nil {
-		return nil, err
-	}
-
-	return &pr, nil
-}
-
-// getPropByPrefix gets the most recent verions of the given proposal from the
-// cache using its prefix, and then fills in any missing fields before
-// returning the proposal.
-func (p *politeiawww) getPropByPrefix(prefix string) (*www.ProposalRecord, error) {
-	log.Tracef("getPropByPrefix: %v", prefix)
-
-	r, err := p.cache.RecordByPrefix(prefix)
 	if err != nil {
 		return nil, err
 	}
@@ -861,9 +848,7 @@ func (p *politeiawww) processProposalDetails(propDetails www.ProposalsDetails, u
 	// when query param is not specified.
 	var prop *www.ProposalRecord
 	var err error
-	if len(propDetails.Token) == www.TokenPrefixLength {
-		prop, err = p.getPropByPrefix(propDetails.Token)
-	} else if propDetails.Version == "" {
+	if propDetails.Version == "" {
 		prop, err = p.getProp(propDetails.Token)
 	} else {
 		prop, err = p.getPropVersion(propDetails.Token, propDetails.Version)
