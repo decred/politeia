@@ -1591,8 +1591,20 @@ func (d *decred) cmdVoteSummary(payload string) (string, error) {
 }
 
 // linkedFrom returns the proposal tokens of all publicly viewable proposals
-// that have linked to the given proposal token.
+// that have linked to the given proposal token. If the provided token does not
+// correspond to an actual proposal record then a nil value is returned instead
+// of a []string.
 func (d *decred) linkedFrom(token string) ([]string, error) {
+	// Ensure the token corresponds to an actual record
+	ok, err := recordExists(d.recordsdb, token, "0")
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		// Token doesn't correspond to an actual record
+		return nil, nil
+	}
+
 	// Find the proposals that are publicly viewable and
 	// that have linked to the given proposal token.
 	q := `SELECT token
@@ -1637,6 +1649,11 @@ func (d *decred) cmdLinkedFrom(payload string) (string, error) {
 		lf, err := d.linkedFrom(token)
 		if err != nil {
 			return "", err
+		}
+		if lf == nil {
+			// Token doesn't correspond to an actual record. Don't include
+			// it in the reply.
+			continue
 		}
 		linkedFrom[token] = lf
 	}

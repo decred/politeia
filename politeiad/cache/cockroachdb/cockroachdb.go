@@ -48,6 +48,23 @@ type cockroachdb struct {
 	plugins   map[string]cache.PluginDriver // [pluginID]PluginDriver
 }
 
+// recordExists returns whether a record exists for the provided token and
+// version.
+func recordExists(db *gorm.DB, token string, version string) (bool, error) {
+	var r Record
+	err := db.Where("key = ?", token+version).Find(&r).Error
+	if err == gorm.ErrRecordNotFound {
+		// Record doesn't exist
+		return false, nil
+	} else if err != nil {
+		// All other errors
+		return false, err
+	}
+
+	// Record exists
+	return true, nil
+}
+
 func (c *cockroachdb) newRecord(tx *gorm.DB, r Record) error {
 	// Insert record
 	err := tx.Create(&r).Error
