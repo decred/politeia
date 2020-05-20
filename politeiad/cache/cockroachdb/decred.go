@@ -1605,18 +1605,21 @@ func (d *decred) linkedFrom(token string) ([]string, error) {
 		return nil, nil
 	}
 
-	// Find the proposals that are publicly viewable and
-	// that have linked to the given proposal token.
-	q := `SELECT token
-          FROM records
-          WHERE status IN (?)
-          AND token IN (
-            SELECT token
-            FROM proposal_metadata
-            WHERE link_to = ?
-          )`
+	// This query returns the proposals that are publicly viewable,
+	// have linked to the provided token, and are the most recent
+	// version of their proposal.
+	q := `SELECT a.token
+        FROM records a
+        LEFT OUTER JOIN records b
+          ON a.token = b.token
+          AND a.version < b.version
+        INNER JOIN proposal_metadata
+          ON a.token = proposal_metadata.token
+        WHERE b.token IS NULL
+        AND proposal_metadata.link_to = ?
+        AND a.status IN (?)`
 	rows, err := d.recordsdb.
-		Raw(q, publicStatuses(), token).
+		Raw(q, token, publicStatuses()).
 		Rows()
 	if err != nil {
 		return nil, fmt.Errorf("lookup linked from %v: %v", token, err)
