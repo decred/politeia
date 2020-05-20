@@ -1340,8 +1340,9 @@ func DecodeLoadVoteResultsReply(payload []byte) (*LoadVoteResultsReply, error) {
 
 // LinkedFrom returns a map[token][]token that contains the linked from list
 // for each of the given proposal tokens. A linked from list is a list of all
-// the proposals that have linked to a given proposal using the LinkTo field
-// in the ProposalMetadata mdstream.
+// the proposals that have linked to a given proposal using the LinkTo field in
+// the ProposalMetadata mdstream. If a token does not correspond to an actual
+// proposal then it will not be included in the returned map.
 type LinkedFrom struct {
 	Tokens []string `json:"tokens"`
 }
