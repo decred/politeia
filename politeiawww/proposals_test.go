@@ -16,6 +16,7 @@ import (
 	"image/png"
 	"math/rand"
 	"net/http"
+	"reflect"
 	"strconv"
 	"testing"
 	"time"
@@ -32,6 +33,69 @@ import (
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 )
+
+func proposalNameRandom(t *testing.T) string {
+	r, err := util.Random(www.PolicyMinProposalNameLength)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return hex.EncodeToString(r)
+}
+
+// merkleRoot returns a hex encoded merkle root of the passed in files and
+// metadata.
+func merkleRoot(t *testing.T, files []www.File, metadata []www.Metadata) string {
+	t.Helper()
+
+	digests := make([]*[sha256.Size]byte, 0, len(files))
+	for _, f := range files {
+		// Compute file digest
+		b, err := base64.StdEncoding.DecodeString(f.Payload)
+		if err != nil {
+			t.Fatalf("decode payload for file %v: %v",
+				f.Name, err)
+		}
+		digest := util.Digest(b)
+
+		// Compare against digest that came with the file
+		d, ok := util.ConvertDigest(f.Digest)
+		if !ok {
+			t.Fatalf("invalid digest: file:%v digest:%v",
+				f.Name, f.Digest)
+		}
+		if !bytes.Equal(digest, d[:]) {
+			t.Fatalf("digests do not match for file %v",
+				f.Name)
+		}
+
+		// Digest is valid
+		digests = append(digests, &d)
+	}
+
+	for _, v := range metadata {
+		b, err := base64.StdEncoding.DecodeString(v.Payload)
+		if err != nil {
+			t.Fatalf("decode payload for metadata %v: %v",
+				v.Hint, err)
+		}
+		digest := util.Digest(b)
+		d, ok := util.ConvertDigest(v.Digest)
+		if !ok {
+			t.Fatalf("invalid digest: metadata:%v digest:%v",
+				v.Hint, v.Digest)
+		}
+		if !bytes.Equal(digest, d[:]) {
+			t.Fatalf("digests do not match for metadata %v",
+				v.Hint)
+		}
+
+		// Digest is valid
+		digests = append(digests, &d)
+	}
+
+	// Compute merkle root
+	return hex.EncodeToString(merkle.Root(digests)[:])
+}
 
 // createFilePNG creates a File that contains a png image.  The png image is
 // blank by default but can be filled in with random rgb colors by setting the
@@ -96,6 +160,26 @@ func createFileMD(t *testing.T, size int) *www.File {
 	}
 }
 
+// createNewProposal computes the merkle root of the given files, signs the
+// merkle root with the given identity then returns a NewProposal object.
+func createNewProposal(t *testing.T, id *identity.FullIdentity, files []www.File, title string) *www.NewProposal {
+	t.Helper()
+
+	// Setup metadata
+	metadata, _ := newProposalMetadata(t, title, "", 0)
+
+	// Compute and sign merkle root
+	m := merkleRoot(t, files, metadata)
+	sig := id.SignMessage([]byte(m))
+
+	return &www.NewProposal{
+		Files:     files,
+		Metadata:  metadata,
+		PublicKey: hex.EncodeToString(id.Public.Key[:]),
+		Signature: hex.EncodeToString(sig[:]),
+	}
+}
+
 // newFileRandomMD returns a File with the name index.md that contains random
 // base64 text.
 func newFileRandomMD(t *testing.T) www.File {
@@ -117,110 +201,6 @@ func newFileRandomMD(t *testing.T) www.File {
 		Digest:  hex.EncodeToString(util.Digest(b.Bytes())),
 		Payload: base64.StdEncoding.EncodeToString(b.Bytes()),
 	}
-}
-
-func proposalNameRandom(t *testing.T) string {
-	r, err := util.Random(www.PolicyMinProposalNameLength)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return hex.EncodeToString(r)
-}
-
-func newProposalMetadata(t *testing.T, name string) []www.Metadata {
-	if name == "" {
-		// Generate a random name if none was given
-		name = proposalNameRandom(t)
-	}
-	pm := www.ProposalMetadata{
-		Name: name,
-	}
-	pmb, err := json.Marshal(pm)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return []www.Metadata{
-		{
-			Digest:  hex.EncodeToString(util.Digest(pmb)),
-			Hint:    www.HintProposalMetadata,
-			Payload: base64.StdEncoding.EncodeToString(pmb),
-		},
-	}
-}
-
-// createNewProposal computes the merkle root of the given files, signs the
-// merkle root with the given identity then returns a NewProposal object.
-func createNewProposal(t *testing.T, id *identity.FullIdentity, files []www.File, title string) *www.NewProposal {
-	t.Helper()
-
-	// Setup metadata
-	metadata := newProposalMetadata(t, title)
-
-	// Compute and sign merkle root
-	m := merkleRoot(t, files, metadata)
-	sig := id.SignMessage([]byte(m))
-
-	return &www.NewProposal{
-		Files:     files,
-		Metadata:  metadata,
-		PublicKey: hex.EncodeToString(id.Public.Key[:]),
-		Signature: hex.EncodeToString(sig[:]),
-	}
-}
-
-// merkleRoot returns a hex encoded merkle root of the passed in files and
-// metadata.
-func merkleRoot(t *testing.T, files []www.File, metadata []www.Metadata) string {
-	t.Helper()
-
-	digests := make([]*[sha256.Size]byte, 0, len(files))
-	for _, f := range files {
-		// Compute file digest
-		b, err := base64.StdEncoding.DecodeString(f.Payload)
-		if err != nil {
-			t.Fatalf("decode payload for file %v: %v",
-				f.Name, err)
-		}
-		digest := util.Digest(b)
-
-		// Compare against digest that came with the file
-		d, ok := util.ConvertDigest(f.Digest)
-		if !ok {
-			t.Fatalf("invalid digest: file:%v digest:%v",
-				f.Name, f.Digest)
-		}
-		if !bytes.Equal(digest, d[:]) {
-			t.Fatalf("digests do not match for file %v",
-				f.Name)
-		}
-
-		// Digest is valid
-		digests = append(digests, &d)
-	}
-
-	for _, v := range metadata {
-		b, err := base64.StdEncoding.DecodeString(v.Payload)
-		if err != nil {
-			t.Fatalf("decode payload for metadata %v: %v",
-				v.Hint, err)
-		}
-		digest := util.Digest(b)
-		d, ok := util.ConvertDigest(v.Digest)
-		if !ok {
-			t.Fatalf("invalid digest: metadata:%v digest:%v",
-				v.Hint, v.Digest)
-		}
-		if !bytes.Equal(digest, d[:]) {
-			t.Fatalf("digests do not match for metadata %v",
-				v.Hint)
-		}
-
-		// Digest is valid
-		digests = append(digests, &d)
-	}
-
-	// Compute merkle root
-	return hex.EncodeToString(merkle.Root(digests)[:])
 }
 
 func newStartVote(t *testing.T, token string, proposalVersion uint32, id *identity.FullIdentity) www2.StartVote {
@@ -318,7 +298,7 @@ func newProposalRecord(t *testing.T, u *user.User, id *identity.FullIdentity, s 
 	f := newFileRandomMD(t)
 	files := []www.File{f}
 	name := proposalNameRandom(t)
-	metadata := newProposalMetadata(t, name)
+	metadata, _ := newProposalMetadata(t, name, "", 0)
 	m := merkleRoot(t, files, metadata)
 	sig := id.SignMessage([]byte(m))
 
@@ -371,6 +351,73 @@ func newProposalRecord(t *testing.T, u *user.User, id *identity.FullIdentity, s 
 			Merkle:    m,
 			Signature: "",
 		},
+	}
+}
+
+func newProposalMetadata(t *testing.T, name, linkto string, linkby int64) ([]www.Metadata, www.ProposalMetadata) {
+	if name == "" {
+		// Generate a random name if none was given
+		name = proposalNameRandom(t)
+	}
+	pm := www.ProposalMetadata{
+		Name:   name,
+		LinkTo: linkto,
+		LinkBy: linkby,
+	}
+	pmb, err := json.Marshal(pm)
+	if err != nil {
+		t.Fatal(err)
+	}
+	md := []www.Metadata{
+		{
+			Digest:  hex.EncodeToString(util.Digest(pmb)),
+			Hint:    www.HintProposalMetadata,
+			Payload: base64.StdEncoding.EncodeToString(pmb),
+		},
+	}
+	return md, pm
+}
+
+func newVoteSummary(t *testing.T, s www.PropVoteStatusT, rs []www.VoteOptionResult) www.VoteSummary {
+	t.Helper()
+
+	return www.VoteSummary{
+		Status:           s,
+		EligibleTickets:  10,
+		QuorumPercentage: 30,
+		PassPercentage:   60,
+		Results:          rs,
+	}
+}
+
+func newVoteOptionResult(t *testing.T, id, desc string, bits, votes uint64) www.VoteOptionResult {
+	t.Helper()
+
+	return www.VoteOptionResult{
+		Option: www.VoteOption{
+			Id:          id,
+			Description: desc,
+			Bits:        bits,
+		},
+		VotesReceived: votes,
+	}
+}
+
+func makeProposalRFP(t *testing.T, pr *www.ProposalRecord, linkedfrom []string, linkby int64) {
+	t.Helper()
+
+	md, _ := newProposalMetadata(t, pr.Name, "", linkby)
+	pr.LinkBy = linkby
+	pr.LinkedFrom = linkedfrom
+	pr.Metadata = md
+}
+
+func makeProposalRFPSubmissions(t *testing.T, prs []*www.ProposalRecord, linkto string) {
+	t.Helper()
+	for _, pr := range prs {
+		md, _ := newProposalMetadata(t, pr.Name, linkto, 0)
+		pr.LinkTo = linkto
+		pr.Metadata = md
 	}
 }
 
@@ -485,6 +532,416 @@ func TestIsValidProposalName(t *testing.T) {
 	}
 }
 
+func TestIsProposalAuthor(t *testing.T) {
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
+
+	usr, id := newUser(t, p, true, false)
+	notAuthorUser, _ := newUser(t, p, true, false)
+
+	proposal := newProposalRecord(t, usr, id, www.PropStatusPublic)
+
+	var tests = []struct {
+		name     string
+		proposal www.ProposalRecord
+		usr      *user.User
+		want     bool
+	}{
+		{
+			"is proposal author",
+			proposal,
+			usr,
+			true,
+		},
+		{
+			"is not proposal author",
+			proposal,
+			notAuthorUser,
+			false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			isAuthor := isProposalAuthor(test.proposal, *test.usr)
+			if isAuthor != test.want {
+				t.Errorf("got %v, want %v", isAuthor, test.want)
+			}
+		})
+	}
+}
+
+func TestIsRFP(t *testing.T) {
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
+
+	usr, id := newUser(t, p, true, false)
+
+	rfpProposal := newProposalRecord(t, usr, id, www.PropStatusPublic)
+	rfpProposalSubmission := newProposalRecord(t, usr, id, www.PropStatusPublic)
+
+	linkFrom := []string{rfpProposalSubmission.CensorshipRecord.Token}
+	linkTo := rfpProposal.CensorshipRecord.Token
+	linkBy := time.Now().Add(time.Hour * 24 * 30).Unix()
+
+	rfpSubmissions := []*www.ProposalRecord{&rfpProposalSubmission}
+
+	makeProposalRFP(t, &rfpProposal, linkFrom, linkBy)
+	makeProposalRFPSubmissions(t, rfpSubmissions, linkTo)
+
+	var tests = []struct {
+		name     string
+		proposal www.ProposalRecord
+		want     bool
+	}{
+		{
+			"is RFP proposal",
+			rfpProposal,
+			true,
+		},
+		{
+			"is not RFP proposal",
+			rfpProposalSubmission,
+			false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			isRFP := isRFP(test.proposal)
+			if isRFP != test.want {
+				t.Errorf("got %v, want %v", isRFP, test.want)
+			}
+		})
+	}
+}
+
+func TestIsRFPSubmission(t *testing.T) {
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
+
+	usr, id := newUser(t, p, true, false)
+
+	rfpProposal := newProposalRecord(t, usr, id, www.PropStatusPublic)
+	rfpProposalSubmission := newProposalRecord(t, usr, id, www.PropStatusPublic)
+
+	linkFrom := []string{rfpProposalSubmission.CensorshipRecord.Token}
+	linkTo := rfpProposal.CensorshipRecord.Token
+	linkBy := time.Now().Add(time.Hour * 24 * 30).Unix()
+	rfpSubmissions := []*www.ProposalRecord{&rfpProposalSubmission}
+
+	makeProposalRFP(t, &rfpProposal, linkFrom, linkBy)
+	makeProposalRFPSubmissions(t, rfpSubmissions, linkTo)
+
+	var tests = []struct {
+		name     string
+		proposal www.ProposalRecord
+		want     bool
+	}{
+		{
+			"is RFP submission",
+			rfpProposalSubmission,
+			true,
+		},
+		{
+			"is not RFP submission",
+			rfpProposal,
+			false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			isRFPSubmission := isRFPSubmission(test.proposal)
+			if isRFPSubmission != test.want {
+				t.Errorf("got %v, want %v", isRFPSubmission, test.want)
+			}
+		})
+	}
+}
+
+func TestVoteIsApproved(t *testing.T) {
+	yes := decredplugin.VoteOptionIDApprove
+	no := decredplugin.VoteOptionIDReject
+	emptyResults := []www.VoteOptionResult{}
+	badQuorumResults := []www.VoteOptionResult{
+		newVoteOptionResult(t, no, "not approve", 1, 0),
+		newVoteOptionResult(t, yes, "approve", 2, 1),
+	}
+	badPassPercentageResults := []www.VoteOptionResult{
+		newVoteOptionResult(t, no, "not approve", 1, 8),
+		newVoteOptionResult(t, yes, "approve", 2, 2),
+	}
+	approvedResults := []www.VoteOptionResult{
+		newVoteOptionResult(t, no, "not approve", 1, 2),
+		newVoteOptionResult(t, yes, "approve", 2, 8),
+	}
+	vsVoteNotFinished :=
+		newVoteSummary(t, www.PropVoteStatusAuthorized, emptyResults)
+	vsQuorumNotMet :=
+		newVoteSummary(t, www.PropVoteStatusFinished, badQuorumResults)
+	vsPassPercentageNotMet :=
+		newVoteSummary(t, www.PropVoteStatusFinished, badPassPercentageResults)
+	vsApproved :=
+		newVoteSummary(t, www.PropVoteStatusFinished, approvedResults)
+
+	var tests = []struct {
+		name    string
+		summary www.VoteSummary
+		want    bool
+	}{
+		{
+			"vote not finished",
+			vsVoteNotFinished,
+			false,
+		},
+		{
+			"vote did not pass quorum",
+			vsQuorumNotMet,
+			false,
+		},
+		{
+			"vote did not meet pass percentage",
+			vsPassPercentageNotMet,
+			false,
+		},
+		{
+			"vote is approved",
+			vsApproved,
+			true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := voteIsApproved(test.summary)
+			if got != test.want {
+				t.Errorf("got %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestValidateProposalMetadata(t *testing.T) {
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
+
+	d := newTestPoliteiad(t, p)
+	defer d.Close()
+
+	usr, id := newUser(t, p, true, false)
+
+	// Helper variables
+	no := decredplugin.VoteOptionIDReject
+	yes := decredplugin.VoteOptionIDApprove
+	public := www.PropStatusPublic
+	linkFrom := []string{}
+	linkBy := time.Now().Add(time.Hour * 24 * 30).Unix()
+	invalidName := "bad"
+	validName := "valid name"
+	invalidToken := "abcdfe"
+	randomToken, err := util.Random(pd.TokenSize)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rToken := hex.EncodeToString(randomToken)
+
+	// Public proposal
+	proposal := newProposalRecord(t, usr, id, public)
+	token := proposal.CensorshipRecord.Token
+	d.AddRecord(t, convertPropToPD(t, proposal))
+
+	// RFP proposal approved
+	rfpProposal := newProposalRecord(t, usr, id, public)
+	rfpToken := rfpProposal.CensorshipRecord.Token
+	makeProposalRFP(t, &rfpProposal, linkFrom, linkBy)
+	d.AddRecord(t, convertPropToPD(t, rfpProposal))
+
+	// RFP proposal not approved
+	rfpProposalNotApproved := newProposalRecord(t, usr, id, public)
+	rfpTokenNotApproved := rfpProposalNotApproved.CensorshipRecord.Token
+	makeProposalRFP(t, &rfpProposalNotApproved, linkFrom, linkBy)
+	d.AddRecord(t, convertPropToPD(t, rfpProposalNotApproved))
+
+	// RFP bad linkBy expired timestamp
+	rfpBadLinkBy := newProposalRecord(t, usr, id, public)
+	rfpBadLinkByToken := rfpBadLinkBy.CensorshipRecord.Token
+	badLinkBy := int64(1351700038)
+	makeProposalRFP(t, &rfpBadLinkBy, linkFrom, badLinkBy)
+	d.AddRecord(t, convertPropToPD(t, rfpBadLinkBy))
+
+	// RFP bad state
+	rfpBadState := newProposalRecord(t, usr, id, www.PropStatusNotReviewed)
+	rfpBadStateToken := rfpBadState.CensorshipRecord.Token
+	makeProposalRFP(t, &rfpBadState, linkFrom, linkBy)
+	d.AddRecord(t, convertPropToPD(t, rfpBadState))
+
+	// Approved VoteSummary for proposal
+	approved := []www.VoteOptionResult{
+		newVoteOptionResult(t, no, "not approve", 1, 2),
+		newVoteOptionResult(t, yes, "approve", 2, 8),
+	}
+	vsApproved := newVoteSummary(t, www.PropVoteStatusFinished, approved)
+	p.voteSummarySet(rfpToken, vsApproved)
+	p.voteSummarySet(rfpBadLinkByToken, vsApproved)
+
+	// Not approved VoteSummary for proposal
+	notApproved := []www.VoteOptionResult{
+		newVoteOptionResult(t, no, "not approve", 1, 8),
+		newVoteOptionResult(t, yes, "approve", 2, 2),
+	}
+	vsNotApproved := newVoteSummary(t, www.PropVoteStatusFinished, notApproved)
+	p.voteSummarySet(rfpTokenNotApproved, vsNotApproved)
+	p.voteSummarySet(rfpBadLinkByToken, vsApproved)
+	p.voteSummarySet(rfpBadStateToken, vsApproved)
+
+	// Metadatas to validate and test
+	_, mdInvalidName := newProposalMetadata(t, invalidName, "", 0)
+	// LinkTo validations
+	_, mdInvalidLinkTo := newProposalMetadata(t, validName, invalidToken, 0)
+	_, mdProposalNotFound := newProposalMetadata(t, validName, rToken, 0)
+	_, mdProposalNotRFP := newProposalMetadata(t, validName, token, 0)
+	_, mdProposalNotApproved :=
+		newProposalMetadata(t, validName, rfpTokenNotApproved, 0)
+	_, mdProposalBadLinkBy :=
+		newProposalMetadata(t, validName, rfpBadLinkByToken, 0)
+	_, mdProposalBadState :=
+		newProposalMetadata(t, validName, rfpBadStateToken, 0)
+	_, mdProposalBothRFP :=
+		newProposalMetadata(t, validName, rfpToken, time.Now().Unix())
+	// LinkBy validations
+	_, mdLinkByMin :=
+		newProposalMetadata(t, validName, "", 100)
+	_, mdLinkByMax :=
+		newProposalMetadata(t, validName, "", time.Now().Unix()+7777000)
+	linkByMinError :=
+		fmt.Sprintf("linkby period cannot be shorter than %v seconds",
+			p.linkByPeriodMin())
+	linkByMaxError :=
+		fmt.Sprintf("linkby period cannot be greater than %v seconds",
+			p.linkByPeriodMax())
+	_, mdSuccess :=
+		newProposalMetadata(t, validName, rfpToken, 0)
+
+	var tests = []struct {
+		name      string
+		metadata  www.ProposalMetadata
+		wantError error
+	}{
+		{
+			"invalid proposal name",
+			mdInvalidName,
+			www.UserError{
+				ErrorCode:    www.ErrorStatusProposalInvalidTitle,
+				ErrorContext: []string{createProposalNameRegex()},
+			},
+		},
+		{
+			"invalid linkTo bad token",
+			mdInvalidLinkTo,
+			www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidLinkTo,
+				ErrorContext: []string{"invalid token"},
+			},
+		},
+		{
+			"invalid linkTo proposal token not found",
+			mdProposalNotFound,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidLinkTo,
+			},
+		},
+		{
+			"invalid linkTo not a RFP proposal",
+			mdProposalNotRFP,
+			www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidLinkTo,
+				ErrorContext: []string{"linkto proposal is not an rfp"},
+			},
+		},
+		{
+			"invalid linkTo RFP proposal vote not approved",
+			mdProposalNotApproved,
+			www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidLinkTo,
+				ErrorContext: []string{"rfp proposal vote did not pass"},
+			},
+		},
+		{
+			"invalid linkTo proposal deadline is expired",
+			mdProposalBadLinkBy,
+			www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidLinkTo,
+				ErrorContext: []string{"linkto proposal deadline is expired"},
+			},
+		},
+		{
+			"invalid linkTo proposal is not vetted",
+			mdProposalBadState,
+			www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidLinkTo,
+				ErrorContext: []string{"linkto proposal is not vetted"},
+			},
+		},
+		{
+			"invalid linkTo rfp proposal linked to another rfp",
+			mdProposalBothRFP,
+			www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidLinkTo,
+				ErrorContext: []string{"an rfp cannot link to an rfp"},
+			},
+		},
+		{
+			"invalid linkBy shorter than min",
+			mdLinkByMin,
+			www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidLinkBy,
+				ErrorContext: []string{linkByMinError},
+			},
+		}, {
+			"invalid linkBy greather than max",
+			mdLinkByMax,
+			www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidLinkBy,
+				ErrorContext: []string{linkByMaxError},
+			},
+		},
+		{
+			"validation success",
+			mdSuccess,
+			nil,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := p.validateProposalMetadata(test.metadata)
+
+			if err != nil {
+				// Validate error code
+				gotErrCode := err.(www.UserError).ErrorCode
+				wantErrCode := test.wantError.(www.UserError).ErrorCode
+
+				if gotErrCode != wantErrCode {
+					t.Errorf("got error code %v, want %v",
+						gotErrCode, wantErrCode)
+				}
+				// Validate error context
+				gotErrContext := err.(www.UserError).ErrorContext
+				wantErrContext := test.wantError.(www.UserError).ErrorContext
+				hasContext := len(gotErrContext) > 0 && len(wantErrContext) > 0
+
+				if hasContext && (gotErrContext[0] != wantErrContext[0]) {
+					t.Errorf("got error context '%v', want '%v'",
+						gotErrContext[0], wantErrContext[0])
+				}
+
+			}
+
+		})
+	}
+}
+
 func TestValidateProposal(t *testing.T) {
 	// Setup politeiawww and a test user
 	p, cleanup := newTestPoliteiawww(t)
@@ -552,6 +1009,37 @@ func TestValidateProposal(t *testing.T) {
 	propBadTitle := createNewProposal(t, id,
 		[]www.File{*mdBadTitle}, "{invalid-title}")
 
+	// Empty file payload
+	propEmptyFile := createNewProposal(t, id, []www.File{*md}, "")
+	emptyFile := createFileMD(t, 8)
+	emptyFile.Payload = ""
+	propEmptyFile.Files = []www.File{*emptyFile}
+
+	// Invalid file digest
+	propInvalidDigest := createNewProposal(t, id, []www.File{*md}, "")
+	invalidDigestFile := createFilePNG(t, false)
+	invalidDigestFile.Digest = ""
+	propInvalidDigest.Files = append(propInvalidDigest.Files, *invalidDigestFile)
+
+	// Invalid MIME type
+	propInvalidMIME := createNewProposal(t, id, []www.File{*md}, "")
+	invalidMIMEFile := createFilePNG(t, false)
+	invalidMIMEFile.MIME = "image/jpeg"
+	propInvalidMIME.Files = append(propInvalidMIME.Files, *invalidMIMEFile)
+
+	// Invalid metadata
+	propInvalidMetadata := createNewProposal(t, id, []www.File{*md}, "")
+	invalidMd := www.Metadata{
+		Digest:  "",
+		Payload: "",
+		Hint:    www.HintProposalMetadata,
+	}
+	propInvalidMetadata.Metadata = append(propInvalidMetadata.Metadata, invalidMd)
+
+	// Missing metadata
+	propMissingMetadata := createNewProposal(t, id, []www.File{*md}, "")
+	propMissingMetadata.Metadata = nil
+
 	// Setup test cases
 	var tests = []struct {
 		name        string
@@ -582,7 +1070,7 @@ func TestValidateProposal(t *testing.T) {
 			},
 		},
 		{
-			"no files",
+			"missing files",
 			*propNoFiles,
 			usr,
 			www.UserError{
@@ -603,6 +1091,46 @@ func TestValidateProposal(t *testing.T) {
 			usr,
 			www.UserError{
 				ErrorCode: www.ErrorStatusProposalDuplicateFilenames,
+			},
+		},
+		{
+			"empty file payload",
+			*propEmptyFile,
+			usr,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidBase64,
+			},
+		},
+		{
+			"invalid file digest",
+			*propInvalidDigest,
+			usr,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidFileDigest,
+			},
+		},
+		{
+			"invalid file MIME type",
+			*propInvalidMIME,
+			usr,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidMIMEType,
+			},
+		},
+		{
+			"invalid metadata",
+			*propInvalidMetadata,
+			usr,
+			www.UserError{
+				ErrorCode: www.ErrorStatusMetadataInvalid,
+			},
+		},
+		{
+			"missing metadata",
+			*propMissingMetadata,
+			usr,
+			www.UserError{
+				ErrorCode: www.ErrorStatusMetadataMissing,
 			},
 		},
 		{
@@ -655,6 +1183,406 @@ func TestValidateProposal(t *testing.T) {
 			want := errToStr(test.want)
 			if got != want {
 				t.Errorf("got %v, want %v", got, want)
+			}
+		})
+	}
+}
+
+func TestValidateAuthorizeVote(t *testing.T) {
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
+
+	d := newTestPoliteiad(t, p)
+	defer d.Close()
+
+	usr, id := newUser(t, p, true, false)
+	_, id2 := newUser(t, p, true, false)
+
+	authorize := decredplugin.AuthVoteActionAuthorize
+	revoke := decredplugin.AuthVoteActionRevoke
+
+	// Public proposal
+	prop := newProposalRecord(t, usr, id, www.PropStatusPublic)
+	token := prop.CensorshipRecord.Token
+	d.AddRecord(t, convertPropToPD(t, prop))
+
+	// Authorize vote
+	av := newAuthorizeVote(token, prop.Version, authorize, id)
+
+	// Revoke vote
+	rv := newAuthorizeVote(token, prop.Version, revoke, id)
+
+	// Wrong status proposal
+	propUnreviewed := newProposalRecord(t, usr, id, www.PropStatusNotReviewed)
+	d.AddRecord(t, convertPropToPD(t, prop))
+
+	// Invalid signing key
+	avInvalid := newAuthorizeVote(token, prop.Version, authorize, id)
+	avInvalid.PublicKey = hex.EncodeToString(id2.Public.Key[:])
+
+	// Invalid vote action
+	avInvalidAct := newAuthorizeVote(token, prop.Version, "bad", id)
+
+	var tests = []struct {
+		name string
+		av   www.AuthorizeVote
+		u    user.User
+		pr   www.ProposalRecord
+		vs   www.VoteSummary
+		want error
+	}{
+		{
+			"invalid signing key",
+			avInvalid,
+			*usr,
+			prop,
+			www.VoteSummary{},
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidSigningKey,
+			},
+		},
+		{
+			"wrong proposal status",
+			av,
+			*usr,
+			propUnreviewed,
+			www.VoteSummary{},
+			www.UserError{
+				ErrorCode: www.ErrorStatusWrongStatus,
+			},
+		},
+		{
+			"vote has already started",
+			av,
+			*usr,
+			prop,
+			www.VoteSummary{
+				EndHeight: 1552,
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusWrongVoteStatus,
+			},
+		},
+		{
+			"invalid auth vote action",
+			avInvalidAct,
+			*usr,
+			prop,
+			www.VoteSummary{},
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidAuthVoteAction,
+			},
+		},
+		{
+			"vote has already been authorized",
+			av,
+			*usr,
+			prop,
+			www.VoteSummary{
+				Status: www.PropVoteStatusAuthorized,
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusVoteAlreadyAuthorized,
+			},
+		},
+		{
+			"cannot revoke vote that has not been authorized",
+			rv,
+			*usr,
+			prop,
+			www.VoteSummary{
+				Status: www.PropVoteStatusNotAuthorized,
+			},
+			www.UserError{
+				ErrorCode: www.ErrorStatusVoteNotAuthorized,
+			},
+		},
+		{
+			"valid authorize vote",
+			av,
+			*usr,
+			prop,
+			www.VoteSummary{},
+			nil,
+		},
+		{
+			"valid revoke vote",
+			rv,
+			*usr,
+			prop,
+			www.VoteSummary{
+				Status: www.PropVoteStatusAuthorized,
+			},
+			nil,
+		},
+	}
+
+	// Run test cases
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateAuthorizeVote(test.av, test.u, test.pr, test.vs)
+			got := errToStr(err)
+			want := errToStr(test.want)
+			if got != want {
+				t.Errorf("got %v, want %v", got, want)
+			}
+		})
+	}
+}
+
+func TestValidateAuthorizeVoteStandard(t *testing.T) {
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
+
+	d := newTestPoliteiad(t, p)
+	defer d.Close()
+
+	usr, id := newUser(t, p, true, false)
+	_, id2 := newUser(t, p, true, false)
+
+	authorize := decredplugin.AuthVoteActionAuthorize
+
+	// RFP proposal
+	rfpProp := newProposalRecord(t, usr, id, www.PropStatusPublic)
+	rfpPropToken := rfpProp.CensorshipRecord.Token
+	d.AddRecord(t, convertPropToPD(t, rfpProp))
+
+	// RFP proposal submission
+	prop := newProposalRecord(t, usr, id, www.PropStatusPublic)
+	token := prop.CensorshipRecord.Token
+	makeProposalRFPSubmissions(t, []*www.ProposalRecord{&prop}, rfpPropToken)
+	d.AddRecord(t, convertPropToPD(t, prop))
+
+	// Public proposal submission wrong author
+	prop2 := newProposalRecord(t, usr, id, www.PropStatusPublic)
+	prop2.PublicKey = hex.EncodeToString(id2.Public.Key[:])
+	d.AddRecord(t, convertPropToPD(t, prop2))
+
+	// Valid proposal vote auth
+	propValid := newProposalRecord(t, usr, id, www.PropStatusPublic)
+	d.AddRecord(t, convertPropToPD(t, propValid))
+
+	// Authorize vote
+	av := newAuthorizeVote(token, prop.Version, authorize, id)
+
+	var tests = []struct {
+		name string
+		av   www.AuthorizeVote
+		u    user.User
+		pr   www.ProposalRecord
+		vs   www.VoteSummary
+		want error
+	}{
+		{
+			"proposal is a RFP submission",
+			av,
+			*usr,
+			prop,
+			www.VoteSummary{},
+			fmt.Errorf("proposal is a runoff vote submission"),
+		},
+		{
+			"not proposal author",
+			av,
+			*usr,
+			prop2,
+			www.VoteSummary{},
+			www.UserError{
+				ErrorCode: www.ErrorStatusUserNotAuthor,
+			},
+		},
+		{
+			"valid",
+			av,
+			*usr,
+			propValid,
+			www.VoteSummary{},
+			nil,
+		},
+	}
+
+	// Run test cases
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateAuthorizeVoteStandard(test.av, test.u, test.pr, test.vs)
+			got := errToStr(err)
+			want := errToStr(test.want)
+			if got != want {
+				t.Errorf("got %v, want %v", got, want)
+			}
+		})
+	}
+}
+
+func TestValidateAuthorizeVoteRunoff(t *testing.T) {
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
+
+	d := newTestPoliteiad(t, p)
+	defer d.Close()
+
+	usr, id := newUser(t, p, true, true)
+	usrNotAdmin, _ := newUser(t, p, true, false)
+
+	authorize := decredplugin.AuthVoteActionAuthorize
+
+	// Public proposal
+	prop := newProposalRecord(t, usr, id, www.PropStatusPublic)
+	token := prop.CensorshipRecord.Token
+	d.AddRecord(t, convertPropToPD(t, prop))
+
+	// Authorize vote
+	av := newAuthorizeVote(token, prop.Version, authorize, id)
+
+	var tests = []struct {
+		name string
+		av   www.AuthorizeVote
+		u    user.User
+		pr   www.ProposalRecord
+		vs   www.VoteSummary
+		want error
+	}{
+		{
+			"user is not an admin",
+			av,
+			*usrNotAdmin,
+			prop,
+			www.VoteSummary{},
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidSigningKey,
+			},
+		},
+		{
+			"valid",
+			av,
+			*usr,
+			prop,
+			www.VoteSummary{},
+			nil,
+		},
+	}
+
+	// Run test cases
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateAuthorizeVoteRunoff(test.av, test.u, test.pr, test.vs)
+			got := errToStr(err)
+			want := errToStr(test.want)
+			if got != want {
+				t.Errorf("got %v, want %v", got, want)
+			}
+		})
+	}
+}
+
+func TestValidateVoteOptions(t *testing.T) {
+	invalidVoteOption := []www2.VoteOption{
+		{
+			Id:          "wrong",
+			Description: "",
+			Bits:        0,
+		},
+	}
+	missingReject := []www2.VoteOption{
+		{
+			Id:          decredplugin.VoteOptionIDApprove,
+			Description: "",
+			Bits:        0,
+		},
+	}
+	missingApprove := []www2.VoteOption{
+		{
+			Id:          decredplugin.VoteOptionIDReject,
+			Description: "",
+			Bits:        1,
+		},
+	}
+	valid := []www2.VoteOption{
+		{
+			Id:          decredplugin.VoteOptionIDApprove,
+			Description: "approve",
+			Bits:        0,
+		},
+		{
+			Id:          decredplugin.VoteOptionIDReject,
+			Description: "reject",
+			Bits:        1,
+		},
+	}
+	var tests = []struct {
+		name string
+		vos  []www2.VoteOption
+		want error
+	}{
+		{
+			"no vote options found",
+			[]www2.VoteOption{},
+			www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidVoteOptions,
+				ErrorContext: []string{"no vote options found"},
+			},
+		},
+		{
+			"invalid vote option",
+			invalidVoteOption,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidVoteOptions,
+				ErrorContext: []string{
+					fmt.Sprintf("invalid vote option id 'wrong'"),
+				},
+			},
+		},
+		{
+			"missing reject vote option",
+			missingReject,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidVoteOptions,
+				ErrorContext: []string{
+					fmt.Sprintf("missing vote option id 'no'"),
+				},
+			},
+		},
+		{
+			"missing approve vote option",
+			missingApprove,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidVoteOptions,
+				ErrorContext: []string{
+					fmt.Sprintf("missing vote option id 'yes'"),
+				},
+			},
+		},
+		{
+			"valid",
+			valid,
+			nil,
+		},
+	}
+
+	// Run test cases
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateVoteOptions(test.vos)
+
+			if err != nil {
+				// Validate error code
+				gotErrCode := err.(www.UserError).ErrorCode
+				wantErrCode := test.want.(www.UserError).ErrorCode
+
+				if gotErrCode != wantErrCode {
+					t.Errorf("got error code %v, want %v",
+						gotErrCode, wantErrCode)
+				}
+				// Validate error context
+				gotErrContext := err.(www.UserError).ErrorContext
+				wantErrContext := test.want.(www.UserError).ErrorContext
+				hasContext := len(gotErrContext) > 0 && len(wantErrContext) > 0
+
+				if hasContext && (gotErrContext[0] != wantErrContext[0]) {
+					t.Errorf("got error context '%v', want '%v'",
+						gotErrContext[0], wantErrContext[0])
+				}
+
 			}
 		})
 	}
@@ -1054,82 +1982,7 @@ func TestProcessEditProposal(t *testing.T) {
 
 			// Test if we got expected error
 			if got != want {
-				t.Errorf("got error %v, want %v",
-					got, want)
-			}
-		})
-	}
-}
-
-func TestVerifyStatusChange(t *testing.T) {
-	invalid := www.PropStatusInvalid
-	notFound := www.PropStatusNotFound
-	notReviewed := www.PropStatusNotReviewed
-	censored := www.PropStatusCensored
-	public := www.PropStatusPublic
-	unreviewedChanges := www.PropStatusUnreviewedChanges
-	abandoned := www.PropStatusAbandoned
-
-	// Setup tests
-	var tests = []struct {
-		name      string
-		current   www.PropStatusT
-		next      www.PropStatusT
-		wantError bool
-	}{
-		{"not reviewed to invalid", notReviewed, invalid, true},
-		{"not reviewed to not found", notReviewed, notFound, true},
-		{"not reviewed to censored", notReviewed, censored, false},
-		{"not reviewed to public", notReviewed, public, false},
-		{"not reviewed to unreviewed changes", notReviewed, unreviewedChanges,
-			true},
-		{"not reviewed to abandoned", notReviewed, abandoned, true},
-		{"censored to invalid", censored, invalid, true},
-		{"censored to not found", censored, notFound, true},
-		{"censored to not reviewed", censored, notReviewed, true},
-		{"censored to public", censored, public, true},
-		{"censored to unreviewed changes", censored, unreviewedChanges, true},
-		{"censored to abandoned", censored, abandoned, true},
-		{"public to invalid", public, invalid, true},
-		{"public to not found", public, notFound, true},
-		{"public to not reviewed", public, notReviewed, true},
-		{"public to censored", public, censored, true},
-		{"public to unreviewed changes", public, unreviewedChanges, true},
-		{"public to abandoned", public, abandoned, false},
-		{"unreviewed changes to invalid", unreviewedChanges, invalid, true},
-		{"unreviewed changes to not found", unreviewedChanges, notFound, true},
-		{"unreviewed changes to not reviewed", unreviewedChanges, notReviewed,
-			true},
-		{"unreviewed changes to censored", unreviewedChanges, censored, false},
-		{"unreviewed changes to public", unreviewedChanges, public, false},
-		{"unreviewed changes to abandoned", unreviewedChanges, abandoned, true},
-		{"abandoned to invalid", abandoned, invalid, true},
-		{"abandoned to not found", abandoned, notFound, true},
-		{"abandoned to not reviewed", abandoned, notReviewed, true},
-		{"abandoned to censored", abandoned, censored, true},
-		{"abandoned to public", abandoned, public, true},
-		{"abandoned to unreviewed changes", abandoned, unreviewedChanges, true},
-	}
-
-	// Run tests
-	for _, v := range tests {
-		t.Run(v.name, func(t *testing.T) {
-			err := verifyStatusChange(v.current, v.next)
-			got := errToStr(err)
-			if v.wantError {
-				want := www.ErrorStatus[www.ErrorStatusInvalidPropStatusTransition]
-				if got != want {
-					t.Errorf("got error %v, want %v",
-						got, want)
-				}
-
-				// Test case passes
-				return
-			}
-
-			if err != nil {
-				t.Errorf("got error %v, want nil",
-					got)
+				t.Errorf("got error %v, want %v", got, want)
 			}
 		})
 	}
@@ -1476,6 +2329,156 @@ func TestProcessAllVetted(t *testing.T) {
 			if got != want {
 				t.Errorf("got error %v, want %v",
 					got, want)
+			}
+		})
+	}
+}
+
+func TestProcessAuthorizeVote(t *testing.T) {
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
+
+	d := newTestPoliteiad(t, p)
+	defer d.Close()
+
+	usr, id := newUser(t, p, true, false)
+
+	authorize := decredplugin.AuthVoteActionAuthorize
+
+	// Public proposal
+	prop := newProposalRecord(t, usr, id, www.PropStatusPublic)
+	token := prop.CensorshipRecord.Token
+	d.AddRecord(t, convertPropToPD(t, prop))
+
+	// Proposal not found
+	propNF := newProposalRecord(t, usr, id, www.PropStatusPublic)
+	tokenNF := propNF.CensorshipRecord.Token
+	avNF := newAuthorizeVote(tokenNF, propNF.Version, authorize, id)
+
+	// Authorize vote
+	av := newAuthorizeVote(token, prop.Version, authorize, id)
+
+	s := d.FullIdentity.SignMessage([]byte(av.Signature))
+	wantReceipt := hex.EncodeToString(s[:])
+
+	var tests = []struct {
+		name      string
+		user      *user.User
+		av        www.AuthorizeVote
+		wantReply *www.AuthorizeVoteReply
+		wantErr   error
+	}{
+		{
+			"proposal not found",
+			usr,
+			avNF,
+			&www.AuthorizeVoteReply{},
+			www.UserError{
+				ErrorCode: www.ErrorStatusProposalNotFound,
+			},
+		},
+		{
+			"success",
+			usr,
+			av,
+			&www.AuthorizeVoteReply{
+				Action:  authorize,
+				Receipt: wantReceipt,
+			},
+			nil,
+		},
+	}
+
+	for _, v := range tests {
+		t.Run(v.name, func(t *testing.T) {
+			reply, err := p.processAuthorizeVote(v.av, v.user)
+			got := errToStr(err)
+			want := errToStr(v.wantErr)
+
+			// Test if we got expected error
+			if got != want {
+				t.Errorf("got error %v, want %v", got, want)
+			}
+
+			// Test received reply
+			if err == nil {
+				if !reflect.DeepEqual(v.wantReply, reply) {
+					t.Errorf("got reply %v, want %v", reply, v.wantReply)
+				}
+			}
+		})
+	}
+}
+
+func TestVerifyStatusChange(t *testing.T) {
+	invalid := www.PropStatusInvalid
+	notFound := www.PropStatusNotFound
+	notReviewed := www.PropStatusNotReviewed
+	censored := www.PropStatusCensored
+	public := www.PropStatusPublic
+	unreviewedChanges := www.PropStatusUnreviewedChanges
+	abandoned := www.PropStatusAbandoned
+
+	// Setup tests
+	var tests = []struct {
+		name      string
+		current   www.PropStatusT
+		next      www.PropStatusT
+		wantError bool
+	}{
+		{"not reviewed to invalid", notReviewed, invalid, true},
+		{"not reviewed to not found", notReviewed, notFound, true},
+		{"not reviewed to censored", notReviewed, censored, false},
+		{"not reviewed to public", notReviewed, public, false},
+		{"not reviewed to unreviewed changes", notReviewed, unreviewedChanges,
+			true},
+		{"not reviewed to abandoned", notReviewed, abandoned, true},
+		{"censored to invalid", censored, invalid, true},
+		{"censored to not found", censored, notFound, true},
+		{"censored to not reviewed", censored, notReviewed, true},
+		{"censored to public", censored, public, true},
+		{"censored to unreviewed changes", censored, unreviewedChanges, true},
+		{"censored to abandoned", censored, abandoned, true},
+		{"public to invalid", public, invalid, true},
+		{"public to not found", public, notFound, true},
+		{"public to not reviewed", public, notReviewed, true},
+		{"public to censored", public, censored, true},
+		{"public to unreviewed changes", public, unreviewedChanges, true},
+		{"public to abandoned", public, abandoned, false},
+		{"unreviewed changes to invalid", unreviewedChanges, invalid, true},
+		{"unreviewed changes to not found", unreviewedChanges, notFound, true},
+		{"unreviewed changes to not reviewed", unreviewedChanges, notReviewed,
+			true},
+		{"unreviewed changes to censored", unreviewedChanges, censored, false},
+		{"unreviewed changes to public", unreviewedChanges, public, false},
+		{"unreviewed changes to abandoned", unreviewedChanges, abandoned, true},
+		{"abandoned to invalid", abandoned, invalid, true},
+		{"abandoned to not found", abandoned, notFound, true},
+		{"abandoned to not reviewed", abandoned, notReviewed, true},
+		{"abandoned to censored", abandoned, censored, true},
+		{"abandoned to public", abandoned, public, true},
+		{"abandoned to unreviewed changes", abandoned, unreviewedChanges, true},
+	}
+
+	// Run tests
+	for _, v := range tests {
+		t.Run(v.name, func(t *testing.T) {
+			err := verifyStatusChange(v.current, v.next)
+			got := errToStr(err)
+			if v.wantError {
+				want := www.ErrorStatus[www.ErrorStatusInvalidPropStatusTransition]
+				if got != want {
+					t.Errorf("got error %v, want %v",
+						got, want)
+				}
+
+				// Test case passes
+				return
+			}
+
+			if err != nil {
+				t.Errorf("got error %v, want nil",
+					got)
 			}
 		})
 	}

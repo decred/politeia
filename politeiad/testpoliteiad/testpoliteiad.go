@@ -41,6 +41,7 @@ type TestPoliteiad struct {
 
 	URL            string // Base url of form http://ipaddr:port
 	PublicIdentity *identity.PublicIdentity
+	FullIdentity   *identity.FullIdentity
 
 	identity *identity.FullIdentity
 	server   *httptest.Server
@@ -481,6 +482,7 @@ func New(t *testing.T, c cache.Cache) *TestPoliteiad {
 
 	// Init context
 	p := TestPoliteiad{
+		FullIdentity:     id,
 		PublicIdentity:   &id.Public,
 		identity:         id,
 		cache:            c,

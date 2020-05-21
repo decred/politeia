@@ -172,10 +172,11 @@ func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
 
 	// Setup config
 	cfg := &config{
-		DataDir:       dataDir,
-		PaywallAmount: 1e7,
-		PaywallXpub:   "tpubVobLtToNtTq6TZNw4raWQok35PRPZou53vegZqNubtBTJMMFmuMpWybFCfweJ52N8uZJPZZdHE5SRnBBuuRPfC5jdNstfKjiAs8JtbYG9jx",
-		TestNet:       true,
+		DataDir:         dataDir,
+		PaywallAmount:   1e7,
+		PaywallXpub:     "tpubVobLtToNtTq6TZNw4raWQok35PRPZou53vegZqNubtBTJMMFmuMpWybFCfweJ52N8uZJPZZdHE5SRnBBuuRPfC5jdNstfKjiAs8JtbYG9jx",
+		TestNet:         true,
+		VoteDurationMin: 2016,
 	}
 
 	// Setup database

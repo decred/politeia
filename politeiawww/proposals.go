@@ -2448,7 +2448,7 @@ func validateAuthorizeVote(av www.AuthorizeVote, u user.User, pr www.ProposalRec
 	return nil
 }
 
-// validateAuthorizeVoteRunoff validates the authorize vote for a proposal that
+// validateAuthorizeVoteStandard validates the authorize vote for a proposal that
 // is participating in a standard vote. A UserError is returned if any of the
 // validation fails.
 func validateAuthorizeVoteStandard(av www.AuthorizeVote, u user.User, pr www.ProposalRecord, vs www.VoteSummary) error {
