@@ -1665,33 +1665,6 @@ func filesToDel(filesOld []www.File, filesNew []www.File) []string {
 	return del
 }
 
-// filesAreDifferent returns whether the two sets of files have any
-// differences. This can be differences in the number of files, differences
-// in the file names, and/or differences in the file payloads.
-func filesAreDifferent(files1 []www.File, files2 []www.File) bool {
-	if len(files1) != len(files2) {
-		return true
-	}
-
-	files := make(map[string]string, len(files1)+len(files2)) // [name]payload
-	for _, v := range files1 {
-		files[v.Name] = v.Payload
-	}
-	for _, v := range files2 {
-		p, ok := files[v.Name]
-		if !ok {
-			// Found file with a different name
-			return true
-		}
-		if v.Payload != p {
-			// Found file with the same name but different payloads
-			return true
-		}
-	}
-
-	return false
-}
-
 // processEditProposal attempts to edit a proposal on politeiad.
 func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*www.EditProposalReply, error) {
 	log.Tracef("processEditProposal %v", ep.Token)
@@ -1752,7 +1725,8 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 	if err != nil {
 		return nil, err
 	}
-	if !filesAreDifferent(cachedProp.Files, ep.Files) {
+	// Check if there were changes in the proposal
+	if cachedProp.Signature == ep.Signature {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusNoProposalChanges,
 		}
