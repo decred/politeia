@@ -272,7 +272,6 @@ Reply:
   "testnet": true,
   "mode": "piwww",
   "activeusersession": true
-
 }
 ```
 
@@ -1393,11 +1392,11 @@ client SHALL observe.
 | proposalnamesupportedchars | array of strings | the regular expression of a valid proposal name |
 | maxcommentlength | number | maximum number of characters accepted for comments |
 | backendpublickey | string |  |
+| tokenprefixlength | number | The length of token prefix needed
 | buildinformation | []string | build information including module commit hashes |
 | IndexFilename | string | required filename for the proposal index.md file |
 | MinLinkbyPeriod | number | Minimum required period, in seconds, for the proposal linkby period |
 | MaxLinkByPeriod | number | Maximum allowed period, in seconds, for the proposal linkby period |
-
 
 **Example**
 
@@ -1434,7 +1433,8 @@ Reply:
   "maxcommentlength": 8000,
   "backendpublickey": "",
   "minproposalnamelength": 8,
-  "maxproposalnamelength": 80
+  "maxproposalnamelength": 80,
+  "tokenprefixlength": 7
 }
 ```
 
@@ -1522,7 +1522,8 @@ Reply:
 
 ### `Proposal details`
 
-Retrieve proposal and its details.
+Retrieve proposal and its details. This request can be made with the full
+censorship token or its 7 character prefix.
 
 **Routes:** `GET /v1/proposals/{token}`
 

@@ -359,6 +359,7 @@ func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 		MaxProposalNameLength:      www.PolicyMaxProposalNameLength,
 		ProposalNameSupportedChars: www.PolicyProposalNameSupportedChars,
 		MaxCommentLength:           www.PolicyMaxCommentLength,
+		TokenPrefixLength:          www.TokenPrefixLength,
 		BuildInformation:           version.BuildInformation(),
 		IndexFilename:              www.PolicyIndexFilename,
 		MinLinkByPeriod:            p.linkByPeriodMin(),
