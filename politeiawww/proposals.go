@@ -27,6 +27,7 @@ import (
 	"github.com/decred/politeia/politeiad/cache"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	www2 "github.com/decred/politeia/politeiawww/api/www/v2"
+	"github.com/decred/politeia/politeiawww/cmd/shared"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 )
@@ -1725,8 +1726,13 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 	if err != nil {
 		return nil, err
 	}
-	// Check if there were changes in the proposal
-	if cachedProp.Signature == ep.Signature {
+	// Check if there were changes in the proposal by comparing
+	// their merkle roots.
+	mr, err := shared.MerkleRoot(ep.Files, ep.Metadata)
+	if err != nil {
+		return nil, err
+	}
+	if cachedProp.CensorshipRecord.Merkle == mr {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusNoProposalChanges,
 		}
