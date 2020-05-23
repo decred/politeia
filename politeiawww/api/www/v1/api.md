@@ -273,7 +273,6 @@ Reply:
   "testnet": true,
   "mode": "piwww",
   "activeusersession": true
-
 }
 ```
 
@@ -627,13 +626,13 @@ For a logged in admin user or own user requesting data.
     "newuserpaywalltx": "",
     "newuserpaywalltxnotbefore": 1528821554,
     "newuserpaywallpollexpiry": 1528821554,
-    "newuserverificationtoken": 
+    "newuserverificationtoken":
       "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
     "newuserverificationexpiry": 1528821554,
-    "updatekeyverificationtoken": 
+    "updatekeyverificationtoken":
       "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
     "updatekeyverificationexpiry": 1528821554,
-    "resetpasswordverificationtoken": 
+    "resetpasswordverificationtoken":
       "337fc4762dac6bbe11d3d0130f33a09978004b190e6ebbbde9312ac63f223527",
     "resetpasswordverificationexpiry": 1528821554,
     "lastlogintime": 1571316271,
@@ -641,7 +640,7 @@ For a logged in admin user or own user requesting data.
     "isdeactivated": false,
     "islocked": false,
     "identities": [{
-      "pubkey": 
+      "pubkey":
         "5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
       "isactive": true
     }],
@@ -678,7 +677,7 @@ For a unlogged or normal user requesting data.
     "isdeactivated": false,
     "islocked": false,
     "identities": [{
-      "pubkey": 
+      "pubkey":
         "5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
       "isactive": true
     }],
@@ -1381,6 +1380,7 @@ client SHALL observe.
 | minusernamelength | number | minimum number of characters accepted for username |
 | maxusernamelength | number | maximum number of characters accepted for username |
 | usernamesupportedchars | array of strings | the regular expression of a valid username |
+| paywallenabled | bool | is paywall enabled |
 | proposallistpagesize | number | maximum number of proposals returned for the routes that return lists of proposals |
 | userlistpagesize | number | maximum number of users returned for the routes that return lists of users |
 | maximages | number | maximum number of images accepted when creating a new proposal |
@@ -1393,11 +1393,11 @@ client SHALL observe.
 | proposalnamesupportedchars | array of strings | the regular expression of a valid proposal name |
 | maxcommentlength | number | maximum number of characters accepted for comments |
 | backendpublickey | string |  |
+| tokenprefixlength | number | The length of token prefix needed
 | buildinformation | []string | build information including module commit hashes |
 | IndexFilename | string | required filename for the proposal index.md file |
 | MinLinkbyPeriod | number | Minimum required period, in seconds, for the proposal linkby period |
 | MaxLinkByPeriod | number | Maximum allowed period, in seconds, for the proposal linkby period |
-
 
 **Example**
 
@@ -1427,13 +1427,15 @@ Reply:
     "text/plain",
     "text/plain; charset=utf-8"
   ],
+  "paywallenabled": true,
   "proposalnamesupportedchars": [
      "A-z", "0-9", "&", ".", ":", ";", ",", "-", " ", "@", "+", "#"
   ],
   "maxcommentlength": 8000,
   "backendpublickey": "",
   "minproposalnamelength": 8,
-  "maxproposalnamelength": 80
+  "maxproposalnamelength": 80,
+  "tokenprefixlength": 7
 }
 ```
 
@@ -1442,16 +1444,16 @@ Reply:
 Update the [status](#proposal-status-codes) of a proposal.  This call requires
 admin privileges.
 
-Unvetted proposals can have their status updated to:  
-`PropStatusPublic`  
+Unvetted proposals can have their status updated to:
+`PropStatusPublic`
 `PropStatusCensored`
 
-Vetted proposals can have their status updated to:  
+Vetted proposals can have their status updated to:
 `PropStatusAbandoned`
 
 A status change message detailing the reason for the status change is required
-for the following statuses:  
-`PropStatusCensored`  
+for the following statuses:
+`PropStatusCensored`
 `PropStatusAbandoned`
 
 **Route:** `POST /v1/proposals/{token}/status`
@@ -1521,7 +1523,8 @@ Reply:
 
 ### `Proposal details`
 
-Retrieve proposal and its details.
+Retrieve proposal and its details. This request can be made with the full
+censorship token or its 7 character prefix.
 
 **Routes:** `GET /v1/proposals/{token}`
 
@@ -2877,7 +2880,7 @@ This is a shortened representation of a user, used for lists.
 | status | number | Current status of the proposal. |
 | timestamp | number | The unix time of the last update of the proposal. |
 | userid | string | The ID of the user who created the proposal. |
-| username | string | Proposal author's username. | 
+| username | string | Proposal author's username. |
 | publickey | string | The public key of the user who created the proposal. |
 | signature | string | The signature of the merkle root, signed by the user who created the proposal. |
 | numcomments | number | The number of comments on the proposal. This should be ignored for proposals which are not public. |
@@ -2887,9 +2890,9 @@ This is a shortened representation of a user, used for lists.
 | censoredat | number | The timestamp of when the proposal was censored (omitempty). |
 | abandonedat | The timestamp of when the proposal was abandoned (omitempty). |
 | linkto | string | Censorship token of proposal to link to (omitempty). |
-| linkby | number | Unix timestamp of RFP link by deadline (omitempty). | 
+| linkby | number | Unix timestamp of RFP link by deadline (omitempty). |
 | files | [][`File`](#file)s | Proposal files. This property will only be populated for the [`Proposal details`](#proposal-details) call. |
-| metadata | [][`Metadata`](#metadata) | Proposal metadata. This will contain a [`ProposalMetadata`](#proposal-metadata). | 
+| metadata | [][`Metadata`](#metadata) | Proposal metadata. This will contain a [`ProposalMetadata`](#proposal-metadata). |
 | censorshiprecord | [`CensorshipRecord`](#censorship-record) | The censorship record that was created when the proposal was submitted. |
 
 ### `Identity`

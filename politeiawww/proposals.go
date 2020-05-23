@@ -589,46 +589,61 @@ func convertWWWPropCreditFromDatabasePropCredit(credit user.ProposalCredit) www.
 	}
 }
 
+// fillProposalMissingFields populates a ProposalRecord struct with the fields
+// that are not stored in the cache.
+func (p *politeiawww) fillProposalMissingFields(pr *www.ProposalRecord) error {
+	// Find the number of comments for the proposal
+	nc, err := p.decredGetNumComments([]string{pr.CensorshipRecord.Token})
+	if err != nil {
+		return err
+	}
+	pr.NumComments = uint(nc[pr.CensorshipRecord.Token])
+
+	// Fill in proposal author info
+	u, err := p.db.UserGetByPubKey(pr.PublicKey)
+	if err != nil {
+		return err
+	}
+	pr.UserId = u.ID.String()
+	pr.Username = u.Username
+
+	// Find linked from proposals
+	lfr, err := p.decredLinkedFrom([]string{pr.CensorshipRecord.Token})
+	if err != nil {
+		return err
+	}
+	linkedFrom, ok := lfr.LinkedFrom[pr.CensorshipRecord.Token]
+	if ok {
+		pr.LinkedFrom = linkedFrom
+	}
+
+	return nil
+}
+
 // getProp gets the most recent verions of the given proposal from the cache
 // then fills in any missing fields before returning the proposal.
 func (p *politeiawww) getProp(token string) (*www.ProposalRecord, error) {
 	log.Tracef("getProp: %v", token)
 
-	r, err := p.cache.Record(token)
+	var r *cache.Record
+	var err error
+	if len(token) == www.TokenPrefixLength {
+		r, err = p.cache.RecordByPrefix(token)
+	} else {
+		r, err = p.cache.Record(token)
+	}
 	if err != nil {
 		return nil, err
 	}
+
 	pr, err := convertPropFromCache(*r)
 	if err != nil {
 		return nil, err
 	}
 
-	// Find linked from proposals
-	lfr, err := p.decredLinkedFrom([]string{token})
+	err = p.fillProposalMissingFields(pr)
 	if err != nil {
 		return nil, err
-	}
-	linkedFrom, ok := lfr.LinkedFrom[token]
-	if ok {
-		pr.LinkedFrom = linkedFrom
-	}
-
-	// Find the number of comments for the proposal
-	dc, err := p.decredGetComments(token)
-	if err != nil {
-		log.Errorf("getProp: decredGetComments failed "+
-			"for token %v", token)
-	}
-	pr.NumComments = uint(len(dc))
-
-	// Fill in proposal author info
-	u, err := p.db.UserGetByPubKey(pr.PublicKey)
-	if err != nil {
-		log.Errorf("getProp: UserGetByPubKey: token:%v "+
-			"pubKey:%v err:%v", token, pr.PublicKey, err)
-	} else {
-		pr.UserId = u.ID.String()
-		pr.Username = u.Username
 	}
 
 	return pr, nil
@@ -735,35 +750,15 @@ func (p *politeiawww) getPropVersion(token, version string) (*www.ProposalRecord
 	if err != nil {
 		return nil, err
 	}
+
 	pr, err := convertPropFromCache(*r)
 	if err != nil {
 		return nil, err
 	}
 
-	// Fetch number of comments for proposal from cache
-	dc, err := p.decredGetComments(token)
+	err = p.fillProposalMissingFields(pr)
 	if err != nil {
 		return nil, err
-	}
-	pr.NumComments = uint(len(dc))
-
-	// Find linked from proposals
-	lfr, err := p.decredLinkedFrom([]string{token})
-	if err != nil {
-		return nil, err
-	}
-	linkedFrom, ok := lfr.LinkedFrom[token]
-	if ok {
-		pr.LinkedFrom = linkedFrom
-	}
-
-	// Fill in proposal author info
-	u, err := p.db.UserGetByPubKey(pr.PublicKey)
-	if err != nil {
-		return nil, err
-	} else {
-		pr.UserId = u.ID.String()
-		pr.Username = u.Username
 	}
 
 	return pr, nil
@@ -1262,6 +1257,35 @@ func (p *politeiawww) processProposalTimeline(pt www.ProposalTimeline) (*www.Pro
 	return &reply, nil
 }
 
+// createProposalDetailsReply makes updates to a proposal record based on the
+// user who made the request, and puts it into a ProposalDetailsReply.
+func createProposalDetailsReply(prop *www.ProposalRecord, user *user.User) *www.ProposalDetailsReply {
+	// Vetted proposals are viewable by everyone. The contents of
+	// an unvetted proposal is only viewable by admins and the
+	// proposal author. Unvetted proposal metadata is viewable by
+	// everyone.
+	if prop.State == www.PropStateUnvetted {
+		var isAuthor bool
+		var isAdmin bool
+		// This is a public route so a user may not exist
+		if user != nil {
+			isAdmin = user.Admin
+			isAuthor = (prop.UserId == user.ID.String())
+		}
+
+		// Strip the non-public proposal contents if user is
+		// not the author or an admin
+		if !isAuthor && !isAdmin {
+			prop.Name = ""
+			prop.Files = make([]www.File, 0)
+		}
+	}
+
+	return &www.ProposalDetailsReply{
+		Proposal: *prop,
+	}
+}
+
 // processProposalDetails fetches a specific proposal version from the records
 // cache and returns it.
 func (p *politeiawww) processProposalDetails(propDetails www.ProposalsDetails, user *user.User) (*www.ProposalDetailsReply, error) {
@@ -1285,33 +1309,7 @@ func (p *politeiawww) processProposalDetails(propDetails www.ProposalsDetails, u
 		return nil, err
 	}
 
-	// Setup reply
-	reply := www.ProposalDetailsReply{
-		Proposal: *prop,
-	}
-
-	// Vetted proposals are viewable by everyone. The contents of
-	// an unvetted proposal is only viewable by admins and the
-	// proposal author. Unvetted proposal metadata is viewable by
-	// everyone.
-	if prop.State == www.PropStateUnvetted {
-		var isAuthor bool
-		var isAdmin bool
-		// This is a public route so a user may not exist
-		if user != nil {
-			isAdmin = user.Admin
-			isAuthor = (prop.UserId == user.ID.String())
-		}
-
-		// Strip the non-public proposal contents if user is
-		// not the author or an admin
-		if !isAuthor && !isAdmin {
-			reply.Proposal.Name = ""
-			reply.Proposal.Files = make([]www.File, 0)
-		}
-	}
-
-	return &reply, nil
+	return createProposalDetailsReply(prop, user), nil
 }
 
 // processBatchVoteSummary returns the vote summaries for the provided list

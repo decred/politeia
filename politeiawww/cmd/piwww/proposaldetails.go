@@ -7,7 +7,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/decred/politeia/politeiawww/api/www/v1"
+	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
@@ -27,9 +27,13 @@ func (cmd *ProposalDetailsCmd) Execute(args []string) error {
 		return err
 	}
 
+	if len(cmd.Args.Token) == www.TokenPrefixLength && cmd.Args.Version != "" {
+		fmt.Println("VERSION ARGUMENT CANNOT BE USED WITH TOKEN PREFIX!!")
+	}
+
 	// Get proposal
 	pdr, err := client.ProposalDetails(cmd.Args.Token,
-		&v1.ProposalsDetails{
+		&www.ProposalsDetails{
 			Version: cmd.Args.Version,
 		})
 	if err != nil {
@@ -52,6 +56,9 @@ func (cmd *ProposalDetailsCmd) Execute(args []string) error {
 const proposalDetailsHelpMsg = `proposaldetails "token" "version"
 
 Get a proposal.
+
+The 7 character prefix of the token can also be used instead of the full token,
+but when using the token prefix, only the latest version can be retrieved.
 
 Arguments:
 1. token      (string, required)   Censorship token

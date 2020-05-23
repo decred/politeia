@@ -1851,20 +1851,35 @@ func (d *decred) cmdVoteSummary(payload string) (string, error) {
 }
 
 // linkedFrom returns the proposal tokens of all publicly viewable proposals
-// that have linked to the given proposal token.
+// that have linked to the given proposal token. If the provided token does not
+// correspond to an actual proposal record then a nil value is returned instead
+// of a []string.
 func (d *decred) linkedFrom(token string) ([]string, error) {
-	// Find the proposals that are publicly viewable and
-	// that have linked to the given proposal token.
-	q := `SELECT token
-          FROM records
-          WHERE status IN (?)
-          AND token IN (
-            SELECT token
-            FROM proposal_metadata
-            WHERE link_to = ?
-          )`
+	// Ensure the token corresponds to an actual record
+	ok, err := recordExists(d.recordsdb, token, "0")
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		// Token doesn't correspond to an actual record
+		return nil, nil
+	}
+
+	// This query returns the proposals that are publicly viewable,
+	// have linked to the provided token, and are the most recent
+	// version of their proposal.
+	q := `SELECT a.token
+        FROM records a
+        LEFT OUTER JOIN records b
+          ON a.token = b.token
+          AND a.version < b.version
+        INNER JOIN proposal_metadata
+          ON a.token = proposal_metadata.token
+        WHERE b.token IS NULL
+        AND proposal_metadata.link_to = ?
+        AND a.status IN (?)`
 	rows, err := d.recordsdb.
-		Raw(q, publicStatuses(), token).
+		Raw(q, token, publicStatuses()).
 		Rows()
 	if err != nil {
 		return nil, fmt.Errorf("lookup linked from %v: %v", token, err)
@@ -1897,6 +1912,11 @@ func (d *decred) cmdLinkedFrom(payload string) (string, error) {
 		lf, err := d.linkedFrom(token)
 		if err != nil {
 			return "", err
+		}
+		if lf == nil {
+			// Token doesn't correspond to an actual record. Don't include
+			// it in the reply.
+			continue
 		}
 		linkedFrom[token] = lf
 	}

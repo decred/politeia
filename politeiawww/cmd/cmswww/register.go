@@ -5,102 +5,36 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
 	"encoding/hex"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
-	"golang.org/x/crypto/ssh/terminal"
 )
 
 // RegisterUserCmd allows invited contractors to complete the registration
 // process and will allow them to login and submit invoices to receive payment.
 type RegisterUserCmd struct {
 	Args struct {
-		Email string `positional-arg-name:"email"`
-		Token string `positional-arg-name:"token"`
+		Email    string `positional-arg-name:"email"`
+		Username string `positional-arg-name:"username"`
+		Password string `positional-arg-name:"password"`
+		Token    string `positional-arg-name:"token"`
 	} `positional-args:"true" required:"true"`
-	Username string `long:"username" optional:"true" description:"Username"`
-	Password string `long:"password" optional:"true" description:"Password"`
 }
 
 // Execute executes the register user command
 func (cmd *RegisterUserCmd) Execute(args []string) error {
-	email := cmd.Args.Email
-	token := cmd.Args.Token
-
-	if email == "" || token == "" {
-		return fmt.Errorf("invalid credentials: you must either specify both " +
-			"email and token to register an account with CMS")
-	}
-
-	// Fetch CSRF tokens
-	_, err := client.Version()
-	if err != nil {
-		return fmt.Errorf("Version: %v", err)
-	}
-
 	// Fetch  policy for password requirements
 	pr, err := client.Policy()
 	if err != nil {
 		return fmt.Errorf("Policy: %v", err)
 	}
 
-	if cmd.Username == "" || cmd.Password == "" {
-		reader := bufio.NewReader(os.Stdin)
-		if cmd.Username == "" {
-			fmt.Print("Create a username: ")
-			cmd.Username, _ = reader.ReadString('\n')
-		}
-		for {
-			prompt := "Enter a password: "
-			for {
-				fmt.Print(prompt)
-				pass, err := terminal.ReadPassword(int(os.Stdin.Fd()))
-				if err != nil {
-					return err
-				}
-				fmt.Print("\n")
-				pass = bytes.TrimSpace(pass)
-				if len(pass) == 0 {
-					continue
-				}
-				cmd.Password = string(pass)
-				break
-			}
-			prompt = "Confirm password: "
-			verifyPass := ""
-			for {
-				fmt.Print(prompt)
-				pass, err := terminal.ReadPassword(int(os.Stdin.Fd()))
-				if err != nil {
-					return err
-				}
-				fmt.Print("\n")
-				pass = bytes.TrimSpace(pass)
-				if len(pass) == 0 {
-					continue
-				}
-				verifyPass = string(pass)
-				break
-			}
-			if verifyPass != cmd.Password {
-				cmd.Password = ""
-				fmt.Println("Passwords do not match, please try again.")
-				continue
-			} else {
-				break
-			}
-		}
-	}
-
 	// Validate password
-	if uint(len(cmd.Password)) < pr.MinPasswordLength {
+	if uint(len(cmd.Args.Password)) < pr.MinPasswordLength {
 		return fmt.Errorf("password must be %v characters long",
 			pr.MinPasswordLength)
 	}
@@ -112,9 +46,9 @@ func (cmd *RegisterUserCmd) Execute(args []string) error {
 	}
 
 	ru := &v1.RegisterUser{
-		Email:             email,
-		Username:          strings.TrimSpace(cmd.Username),
-		Password:          shared.DigestSHA3(cmd.Password),
+		Email:             cmd.Args.Email,
+		Username:          strings.TrimSpace(cmd.Args.Username),
+		Password:          shared.DigestSHA3(cmd.Args.Password),
 		VerificationToken: strings.TrimSpace(cmd.Args.Token),
 		PublicKey:         hex.EncodeToString(id.Public.Key[:]),
 	}
@@ -144,8 +78,8 @@ func (cmd *RegisterUserCmd) Execute(args []string) error {
 
 	// Login to cms
 	l := &www.Login{
-		Email:    email,
-		Password: shared.DigestSHA3(cmd.Password),
+		Email:    cmd.Args.Email,
+		Password: shared.DigestSHA3(cmd.Args.Password),
 	}
 
 	_, err = client.Login(l)

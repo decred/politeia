@@ -24,6 +24,10 @@ server side notifications.  It does not render HTML.
     - [`Set DCC Status`](#set-dcc-status)
     - [`User sub contractors`](#user-sub-contractors)
     - [`CMS Users`](#cms-users)
+    - [`Vote DCC`](#vote-dcc)
+    - [`Vote Details`](#vote-details)
+    - [`Active votes`](#active-votes)
+    - [`Start vote`](#start-vote)
     - [Error codes](#error-codes)
     - [Invoice status codes](#invoice-status-codes)
     - [Line item type codes](#line-item-type-codes)
@@ -1087,7 +1091,7 @@ Reply:
 }
 ```
 
-### `Support/Oppose DCC`
+### `Support Oppose DCC`
 
 Creates a vote on a DCC Record that is used to tabulate support or opposition .
 
@@ -1101,7 +1105,6 @@ Creates a vote on a DCC Record that is used to tabulate support or opposition .
 | token | string | The token of the DCC to support | Yes |
 | publickey | string | The submitting user's public key | Yes |
 | signature | string | Signature of the Token+Vote by the submitting user | Yes |
-
 
 **Results:**
 
@@ -1351,7 +1354,7 @@ Returns a list of the user's associated subcontractors
 **Results:**
 
 | | Type | Description |
-|-|-|-|
+|-|-|-|-|
 | users | array of [`User`](#user)s | The list of subcontractors. |
 
 **Example**
@@ -1514,6 +1517,254 @@ Reply:
   "users": []
 }
 ```
+
+### `Vote DCC`
+
+Creates a vote on a DCC Record that is used for all contractor votes.
+
+**Route:** `POST /v1/dcc/vote`
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| vote | string | The vote for the given DCC | Yes |
+| token | string | The token of the DCC to support | Yes |
+| signature | string | Signature of Token and Vote | Yes |
+| publickey | string | Public key from the client side, sent to politeiawww for verification | Yes |
+
+**Results:**
+
+| | Type | Description |
+|-|-|-|
+
+**Example**
+
+Request:
+
+```json
+{
+  "vote": "aye",
+  "token":"5203ab0bb739f3fc267ad20c945b81bcb68ff22414510c000305f4f0afb90d1b",
+  "signature":"af969d7f0f711e25cb411bdbbe3268bbf3004075cde8ebaee0fc9d988f24e45013cc2df6762dca5b3eb8abb077f76e0b016380a7eba2d46839b04c507d86290d",
+  "publickey":"4206fa1f45c898f1dee487d7a7a82e0ed293858313b8b022a6a88f2bcae6cdd7"
+}
+```
+
+Reply:
+
+```json
+{}
+```
+
+### `Active votes`
+
+Retrieve all dcc active votes
+
+Note that the webserver does not interpret the plugin structures. These are
+forwarded as-is to the politeia daemon.
+
+**Route:** `POST /v1/dcc/activevotes`
+
+**Params:**
+
+**Results:**
+
+| | Type | Description |
+| - | - | - |
+| votes | array of VoteTuple | All current active dcc votes |
+
+**VoteTuple:**
+
+| | Type | Description |
+| - | - | - |
+| dcc | ProposalRecord | DCC record |
+| startvote | Vote | Vote bits, mask etc |
+| starvotereply | StartVoteReply | Vote details (user weights, start block etc |
+
+**Example**
+
+Request:
+
+``` json
+{}
+```
+
+Reply:
+
+```json
+{
+  "votes": [{
+    "dcc": {
+      "name":"This is a description",
+      "status":4,
+      "timestamp":1523902523,
+      "userid":"",
+      "publickey":"d64d80c36441255e41fc1e7b6cd30259ff9a2b1276c32c7de1b7a832dff7f2c6",
+      "signature":"3554f74c112c5da49c6ee1787770c21fe1ae16f7f1205f105e6df1b5bdeaa2439fff6c477445e248e21bcf081c31bbaa96bfe03acace1629494e795e5d296e04",
+      "files":[],
+      "censorshiprecord": {
+        "token":"8d14c77d9a28a1764832d0fcfb86b6af08f6b327347ab4af4803f9e6f7927225",
+        "merkle":"0dd10219cd79342198085cbe6f737bd54efe119b24c84cbc053023ed6b7da4c8",
+        "signature":"97b1bf0d63d7689a2c6e66e32358d48e98d84e5389f455cc135b3401277d3a37518827da0f2bc892b535937421418e7e8ba6a4f940dfcf19a219867fa8c3e005"
+      }
+    }
+  }],
+  "vote": {
+    "token":"8d14c77d9a28a1764832d0fcfb86b6af08f6b327347ab4af4803f9e6f7927225",
+    "mask":3,
+    "duration":2016,
+    "Options": [{
+      "id":"no",
+      "description":"Don't approve dcc",
+      "bits":1
+    },{
+      "id":"yes",
+      "description":"Approve dcc",
+      "bits":2
+    }]
+  },
+  "votedetails": {
+    "startblockheight":"282893",
+    "startblockhash":"000000000227ff9b6bf3af53accb81e4fd1690ae44d521a665cb988bcd02ad94",
+    "endheight":"284909",
+    "userweights": []
+  }
+}
+```
+
+### `Vote details`
+
+Vote details returns all of the relevant dcc vote information for the
+given dcc token.  This includes all of the vote parameters and voting
+options.
+
+The returned version specifies the start vote version that was used to initiate
+the voting period for the given dcc. See the [`Start vote`](#start-vote)
+documentation for more details on the differences between the start vote
+versions.
+
+The "vote" field is a base64 encoded JSON byte slice of the Vote and will need
+to be decoded according to the returned version. See the
+[`Start vote`](#start-vote) documentation for more details on the differences
+between the Vote versions.
+
+**Route:** `POST /dcc/votedetails`
+
+**Params:** 
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| token | string | The token of the DCC to retreive details | Yes |
+
+**Results (VoteDetailsReply):**
+
+| | Type | Description |
+| - | - | - |
+| version | uint32 | Start vote version |
+| vote | string | JSON encoded Vote |
+| publickey | string | Key used for signature |
+| signature | string | Start vote signature |
+| startblockheight | uint32 | Start block height of the vote |
+| startblockhash | string | Start block hash of the vote |
+| endblockheight | uint32 | End block height of the vote |
+| userweights | []string | All userids + weights for eligible voters |
+
+On failure the call shall return `400 Bad Request` and one of the following
+error codes:
+- [`ErrorStatusDCCNotFound`](#ErrorStatusDCCNotFound)
+- [`ErrorStatusWrongVoteStatus`](#ErrorStatusWrongVoteStatus)
+
+**Example**
+
+Reply:
+
+```
+{
+  "version": 2,
+  "vote": "{}",
+  "publickey": "8139793b84ad5efc48f395bbc53cc4be101936bc72167cd10c649e1e09bf698b",
+  "signature": "994c893b6c26c17f900c06f01aa68cc8008af52fcaf0ab223aed810833dbafe6da08728d2a76ea48b45b3a75c48fb8ce89a3feb4a460ad6b6e741f248c4fff0c",
+  "startblockheight": 342692,
+  "startblockhash": "0000005e341105be45fb9a7fe24d5ca7879e07bfb1ed2f786ee5ebc220ac1959",
+  "endblockheight": 344724,
+  "userweights":[]
+}
+```
+### `Start vote`
+
+Start the voting period on the given dcc proposal that has been contentious.
+
+Signature is a signature of the hex encoded SHA256 digest of the JSON encoded
+Vote struct.
+
+**Route:** `POST /v1/dcc/startvote`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| publickey | string | Public key used to sign the vote | Yes |
+| vote | [`Vote`](#vote) | Vote details | Yes |
+| signature | string | Signature of the Vote digest | Yes |
+
+**Results (StartVoteReply):**
+
+| | Type | Description |
+| - | - | - |
+| startblockheight | number | Start block height of the vote |
+| startblockhash | string | Start block hash of the vote |
+| endblockheight | number | End block height of the vote |
+| userweights | []string | All user ids + "," + weight |
+
+On failure the call shall return `400 Bad Request` and one of the following
+error codes:
+- [`ErrorStatusInvalidCensorshipToken`](#ErrorStatusInvalidCensorshipToken)
+- [`ErrorStatusDCCNotFound`](#ErrorStatusDCCNotFound)
+- [`ErrorStatusInvalidPropVoteBits`](#ErrorStatusInvalidPropVoteBits)
+- [`ErrorStatusInvalidVoteOptions`](#ErrorStatusInvalidVoteOptions)
+- [`ErrorStatusInvalidPropVoteParams`](#ErrorStatusInvalidPropVoteParams)
+- [`ErrorStatusInvalidSigningKey`](#ErrorStatusInvalidSigningKey)
+- [`ErrorStatusInvalidSignature`](#ErrorStatusInvalidSignature)
+- [`ErrorStatusWrongStatus`](#ErrorStatusWrongStatus)
+- [`ErrorStatusWrongVoteStatus`](#ErrorStatusWrongVoteStatus)
+- [`ErrorStatusInvalidVoteType`] (#ErrorStatusInvalidVoteType)
+
+**Example**
+
+Request:
+
+``` json
+{
+  "publickey": "d64d80c36441255e41fc1e7b6cd30259ff9a2b1276c32c7de1b7a832dff7f2c6",
+  "vote": {
+    "token": "127ea26cf994dabc27e115da0eb90a5657590e2ccc4e7c23c7f80c6fe4afaa59",
+    "type": 1,
+    "mask": 3,
+    "duration": 2016,
+    "Options": [{
+      "id": "no",
+      "description": "Don't approve dcc",
+      "bits": 1
+    },{
+      "id": "yes",
+      "description": "Approve dcc",
+      "bits": 2
+    }]
+  },
+  "signature": "5a40d699cdfe5ee31472ec252982e60265a345cd58e4a07b183cf06447b3942d06981e1bfaf8430195109d51428458449446fbfa1d7059aebedc4df769ddb300"
+}
+```
+
+Reply:
+
+```json
+{
+  "startblockheight": 282899,
+  "startblockhash":"00000000017236b62ff1ce136328e6fb4bcd171801a281ce0a662e63cbc4c4fa",
+  "endblockheight": 284915,
+  "userweights":[]
+}
+```
+
 ### Error codes
 
 | Status | Value | Description |

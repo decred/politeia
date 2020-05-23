@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/politeia/cmsplugin"
 	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
@@ -913,6 +914,7 @@ func convertDatabaseInvoiceToInvoiceRecord(dbInvoice cmsdatabase.Invoice) *cms.I
 			Labor:         dbLineItem.Labor,
 			Expenses:      dbLineItem.Expenses,
 			SubRate:       dbLineItem.ContractorRate,
+			SubUserID:     dbLineItem.SubUserID,
 		}
 		invInputLineItems = append(invInputLineItems, lineItem)
 	}
@@ -960,6 +962,7 @@ func convertInvoiceRecordToDatabaseInvoice(invRec *cms.InvoiceRecord) *cmsdataba
 			Labor:          lineItem.Labor,
 			Expenses:       lineItem.Expenses,
 			ContractorRate: lineItem.SubRate,
+			SubUserID:      lineItem.SubUserID,
 		}
 		dbInvoice.LineItems = append(dbInvoice.LineItems, dbLineItem)
 	}
@@ -1714,4 +1717,133 @@ func convertDatabaseInvoiceToProposalLineItems(inv *cmsdatabase.Invoice) cms.Pro
 			SubRate:       inv.LineItems[0].ContractorRate,
 		},
 	}
+}
+
+func convertCastVoteFromCMS(b cms.CastVote) cmsplugin.CastVote {
+	return cmsplugin.CastVote{
+		VoteBit:   b.VoteBit,
+		Token:     b.Token,
+		UserID:    b.UserID,
+		Signature: b.Signature,
+	}
+}
+
+func convertCastVoteReplyToCMS(cv *cmsplugin.CastVoteReply) *cms.CastVoteReply {
+	return &cms.CastVoteReply{
+		ClientSignature: cv.ClientSignature,
+		Signature:       cv.Signature,
+		Error:           cv.Error,
+		ErrorStatus:     cv.ErrorStatus,
+	}
+}
+
+func convertUserWeightToCMS(uw []cmsplugin.UserWeight) []cms.DCCWeight {
+	dccWeight := make([]cms.DCCWeight, 0, len(uw))
+	for _, w := range uw {
+		dccWeight = append(dccWeight, cms.DCCWeight{
+			UserID: w.UserID,
+			Weight: w.Weight,
+		})
+	}
+	return dccWeight
+}
+
+func convertVoteOptionResultsToCMS(vr []cmsplugin.VoteOptionResult) []cms.VoteOptionResult {
+	votes := make([]cms.VoteOptionResult, 0, len(vr))
+	for _, w := range vr {
+		votes = append(votes, cms.VoteOptionResult{
+			Option: cms.VoteOption{
+				Id:          w.ID,
+				Description: w.Description,
+				Bits:        w.Bits,
+			},
+			VotesReceived: w.Votes,
+		})
+	}
+	return votes
+}
+func convertCMSStartVoteToCMSVoteDetailsReply(sv cmsplugin.StartVote, svr cmsplugin.StartVoteReply) (*cms.VoteDetailsReply, error) {
+	voteb, err := cmsplugin.EncodeVote(sv.Vote)
+	if err != nil {
+		return nil, err
+	}
+	userWeights := make([]string, 0, len(sv.UserWeights))
+	for _, weights := range sv.UserWeights {
+		userWeight := weights.UserID + "-" + strconv.Itoa(int(weights.Weight))
+		userWeights = append(userWeights, userWeight)
+	}
+	return &cms.VoteDetailsReply{
+		Version:          uint32(sv.Version),
+		Vote:             string(voteb),
+		PublicKey:        sv.PublicKey,
+		Signature:        sv.Signature,
+		StartBlockHeight: svr.StartBlockHeight,
+		StartBlockHash:   svr.StartBlockHash,
+		EndBlockHeight:   svr.EndHeight,
+		UserWeights:      userWeights,
+	}, nil
+}
+
+func convertCMSStartVoteToCMS(sv cmsplugin.StartVote) cms.StartVote {
+	vote := cms.Vote{
+		Token:            sv.Vote.Token,
+		Mask:             sv.Vote.Mask,
+		Duration:         sv.Vote.Duration,
+		QuorumPercentage: sv.Vote.QuorumPercentage,
+		PassPercentage:   sv.Vote.PassPercentage,
+	}
+
+	voteOptions := make([]cms.VoteOption, 0, len(sv.Vote.Options))
+	for _, option := range sv.Vote.Options {
+		voteOption := cms.VoteOption{
+			Id:          option.Id,
+			Description: option.Description,
+			Bits:        option.Bits,
+		}
+		voteOptions = append(voteOptions, voteOption)
+	}
+	vote.Options = voteOptions
+
+	return cms.StartVote{
+		Vote:      vote,
+		PublicKey: sv.PublicKey,
+		Signature: sv.Signature,
+	}
+}
+
+func convertCMSStartVoteReplyToCMS(svr cmsplugin.StartVoteReply) cms.StartVoteReply {
+	return cms.StartVoteReply{
+		StartBlockHeight: svr.StartBlockHeight,
+		StartBlockHash:   svr.StartBlockHash,
+		EndBlockHeight:   svr.EndHeight,
+	}
+}
+
+func convertStartVoteToCMS(sv cms.StartVote) cmsplugin.StartVote {
+	vote := cmsplugin.Vote{
+		Token:            sv.Vote.Token,
+		Mask:             sv.Vote.Mask,
+		Duration:         sv.Vote.Duration,
+		QuorumPercentage: sv.Vote.QuorumPercentage,
+		PassPercentage:   sv.Vote.PassPercentage,
+	}
+
+	voteOptions := make([]cmsplugin.VoteOption, 0, len(sv.Vote.Options))
+	for _, option := range sv.Vote.Options {
+		voteOption := cmsplugin.VoteOption{
+			Id:          option.Id,
+			Description: option.Description,
+			Bits:        option.Bits,
+		}
+		voteOptions = append(voteOptions, voteOption)
+	}
+	vote.Options = voteOptions
+
+	return cmsplugin.StartVote{
+		Token:     sv.Vote.Token,
+		Vote:      vote,
+		PublicKey: sv.PublicKey,
+		Signature: sv.Signature,
+	}
+
 }

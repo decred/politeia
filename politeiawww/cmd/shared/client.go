@@ -1588,6 +1588,30 @@ func (c *Client) ActiveVotes() (*www.ActiveVoteReply, error) {
 	return &avr, nil
 }
 
+// ActiveVotesDCC retreives all dccs that are currently being voted on.
+func (c *Client) ActiveVotesDCC() (*cms.ActiveVoteReply, error) {
+	responseBody, err := c.makeRequest(http.MethodGet,
+		www.PoliteiaWWWAPIRoute, cms.RouteActiveVotesDCC, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var avr cms.ActiveVoteReply
+	err = json.Unmarshal(responseBody, &avr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal ActiveVoteDCCReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(avr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &avr, nil
+}
+
 // CastVotes casts votes for a proposal.
 func (c *Client) CastVotes(b *www.Ballot) (*www.BallotReply, error) {
 	responseBody, err := c.makeRequest(http.MethodPost,
@@ -2129,7 +2153,6 @@ func (c *Client) UserSubContractors(usc *cms.UserSubContractors) (*cms.UserSubCo
 	if err != nil {
 		return nil, err
 	}
-
 	var uscr cms.UserSubContractorsReply
 	err = json.Unmarshal(responseBody, &uscr)
 	if err != nil {
@@ -2142,7 +2165,6 @@ func (c *Client) UserSubContractors(usc *cms.UserSubContractors) (*cms.UserSubCo
 			return nil, err
 		}
 	}
-
 	return &uscr, nil
 }
 
@@ -2168,6 +2190,78 @@ func (c *Client) ProposalOwner(po *cms.ProposalOwner) (*cms.ProposalOwnerReply, 
 	}
 
 	return &por, nil
+}
+
+// CastVoteDCC issues a signed vote for a given DCC proposal. approval
+func (c *Client) CastVoteDCC(cv cms.CastVote) (*cms.CastVoteReply, error) {
+	responseBody, err := c.makeRequest("POST", cms.APIRoute, cms.RouteCastVoteDCC,
+		cv)
+	if err != nil {
+		return nil, err
+	}
+	var cvr cms.CastVoteReply
+	err = json.Unmarshal(responseBody, &cvr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal VoteDCCReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(cvr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &cvr, nil
+}
+
+// VoteDetailsDCC returns all the needed information about a given vote for a
+// DCC proposal.
+func (c *Client) VoteDetailsDCC(cv cms.VoteDetails) (*cms.VoteDetailsReply, error) {
+	responseBody, err := c.makeRequest("POST", cms.APIRoute, cms.RouteVoteDetailsDCC,
+		cv)
+	if err != nil {
+		return nil, err
+	}
+	var vdr cms.VoteDetailsReply
+	err = json.Unmarshal(responseBody, &vdr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal VoteDCCReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(vdr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &vdr, nil
+}
+
+// StartVoteV2 sends the provided v2 StartVote to the politeiawww backend.
+func (c *Client) StartVoteDCC(sv cms.StartVote) (*cms.StartVoteReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost,
+		cms.APIRoute, cms.RouteStartVoteDCC, sv)
+	if err != nil {
+		return nil, err
+	}
+
+	var svr cms.StartVoteReply
+	err = json.Unmarshal(responseBody, &svr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal StartVoteReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		svr.UserWeights = []string{"removed by piwww for readability"}
+		err := prettyPrintJSON(svr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &svr, nil
 }
 
 // WalletAccounts retrieves the walletprc accounts.

@@ -61,12 +61,12 @@ const (
 	RouteAllVoteStatus            = "/proposals/votestatus"
 	RouteProposalPaywallDetails   = "/proposals/paywall"
 	RouteProposalPaywallPayment   = "/proposals/paywallpayment"
-	RouteProposalDetails          = "/proposals/{token:[A-z0-9]{64}}"
-	RouteSetProposalStatus        = "/proposals/{token:[A-z0-9]{64}}/status"
-	RouteCommentsGet              = "/proposals/{token:[A-z0-9]{64}}/comments"
-	RouteVoteResults              = "/proposals/{token:[A-z0-9]{64}}/votes"
-	RouteVoteStatus               = "/proposals/{token:[A-z0-9]{64}}/votestatus"
-	RouteProposalTimeline         = "/proposals/{token:[A-z0-9]{64}}/timeline"
+	RouteProposalDetails          = "/proposals/{token:[A-z0-9]{7,64}}"
+	RouteSetProposalStatus        = "/proposals/{token:[A-z0-9]{7,64}}/status"
+	RouteCommentsGet              = "/proposals/{token:[A-z0-9]{7,64}}/comments"
+	RouteVoteResults              = "/proposals/{token:[A-z0-9]{7,64}}/votes"
+	RouteVoteStatus               = "/proposals/{token:[A-z0-9]{7,64}}/votestatus"
+	RouteProposalTimeline         = "/proposals/{token:[A-z0-9]{7,64}}/timeline"
 	RouteNewComment               = "/comments/new"
 	RouteLikeComment              = "/comments/like"
 	RouteCensorComment            = "/comments/censor"
@@ -75,6 +75,12 @@ const (
 
 	// VerificationTokenSize is the size of verification token in bytes
 	VerificationTokenSize = 32
+
+	// TokenPrefixLength is the length of the token prefix that can
+	// be used in RouteProposalDetails. This should match what is defined
+	// in politeiad, and once a Policy route is created in politeiad,
+	// this should be removed.
+	TokenPrefixLength = 7
 
 	// VerificationExpiryHours is the number of hours before the
 	// verification token expires
@@ -981,9 +987,11 @@ type PolicyReply struct {
 	ValidMIMETypes             []string `json:"validmimetypes"`
 	MinProposalNameLength      uint     `json:"minproposalnamelength"`
 	MaxProposalNameLength      uint     `json:"maxproposalnamelength"`
+	PaywallEnabled             bool     `json:"paywallenabled"`
 	ProposalNameSupportedChars []string `json:"proposalnamesupportedchars"`
 	MaxCommentLength           uint     `json:"maxcommentlength"`
 	BackendPublicKey           string   `json:"backendpublickey"`
+	TokenPrefixLength          int      `json:"tokenprefixlength"`
 	BuildInformation           []string `json:"buildinformation"`
 	IndexFilename              string   `json:"indexfilename"`
 	MinLinkByPeriod            int64    `json:"minlinkbyperiod"`

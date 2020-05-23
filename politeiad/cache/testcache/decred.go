@@ -280,6 +280,29 @@ func (c *testcache) linkedFrom(cmdPayload string) (string, error) {
 	return string(reply), nil
 }
 
+func (c *testcache) getNumComments(payload string) (string, error) {
+	gnc, err := decred.DecodeGetNumComments([]byte(payload))
+	if err != nil {
+		return "", err
+	}
+
+	numComments := make(map[string]int)
+	for _, token := range gnc.Tokens {
+		numComments[token] = len(c.comments[token])
+	}
+
+	gncr, err := decred.EncodeGetNumCommentsReply(
+		decred.GetNumCommentsReply{
+			NumComments: numComments,
+		})
+
+	if err != nil {
+		return "", err
+	}
+
+	return string(gncr), nil
+}
+
 func (c *testcache) decredExec(cmd, cmdPayload, replyPayload string) (string, error) {
 	switch cmd {
 	case decred.CmdGetComments:
@@ -290,6 +313,8 @@ func (c *testcache) decredExec(cmd, cmdPayload, replyPayload string) (string, er
 		return c.startVote(cmdPayload, replyPayload)
 	case decred.CmdVoteDetails:
 		return c.voteDetails(cmdPayload)
+	case decred.CmdGetNumComments:
+		return c.getNumComments(cmdPayload)
 	case decred.CmdVoteSummary:
 		return c.voteSummary(cmdPayload)
 	case decred.CmdBatchVoteSummary:
