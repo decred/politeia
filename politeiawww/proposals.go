@@ -6,7 +6,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -19,7 +18,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
@@ -27,8 +25,8 @@ import (
 	"github.com/decred/politeia/politeiad/cache"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	www2 "github.com/decred/politeia/politeiawww/api/www/v2"
-	"github.com/decred/politeia/politeiawww/cmd/shared"
 	"github.com/decred/politeia/politeiawww/user"
+	wwwutil "github.com/decred/politeia/politeiawww/util"
 	"github.com/decred/politeia/util"
 )
 
@@ -314,7 +312,6 @@ func (p *politeiawww) validateProposal(np www.NewProposal, u *user.User) (*www.P
 		foundIndexFile  bool
 	)
 	filenames := make(map[string]struct{}, len(np.Files))
-	digests := make([]*[sha256.Size]byte, 0, len(np.Files))
 	for _, v := range np.Files {
 		// Validate file name
 		_, ok := filenames[v.Name]
@@ -342,27 +339,6 @@ func (p *politeiawww) validateProposal(np www.NewProposal, u *user.User) (*www.P
 				ErrorContext: []string{v.Name},
 			}
 		}
-
-		// Verify computed file digest matches given file digest
-		digest := util.Digest(payloadb)
-		d, ok := util.ConvertDigest(v.Digest)
-		if !ok {
-			return nil, www.UserError{
-				ErrorCode:    www.ErrorStatusInvalidFileDigest,
-				ErrorContext: []string{v.Name},
-			}
-		}
-		if !bytes.Equal(digest, d[:]) {
-			e := fmt.Sprintf("computed digest does not match given digest "+
-				"for file '%v'", v.Name)
-			return nil, www.UserError{
-				ErrorCode:    www.ErrorStatusInvalidFileDigest,
-				ErrorContext: []string{e},
-			}
-		}
-
-		// Aggregate file digests for merkle root calc
-		digests = append(digests, &d)
 
 		// Verify detected MIME type matches given mime type
 		ct := http.DetectContentType(payloadb)
@@ -506,22 +482,6 @@ func (p *politeiawww) validateProposal(np www.NewProposal, u *user.User) (*www.P
 				ErrorContext: []string{e},
 			}
 		}
-
-		// Validate digest
-		digest := util.Digest(b)
-		if v.Digest != hex.EncodeToString(digest) {
-			e := fmt.Sprintf("%v got digest %v, want %v",
-				v.Hint, v.Digest, hex.EncodeToString(digest))
-			return nil, www.UserError{
-				ErrorCode:    www.ErrorStatusMetadataDigestInvalid,
-				ErrorContext: []string{e},
-			}
-		}
-
-		// Add to hashes slice for merkle root calc
-		var h [sha256.Size]byte
-		copy(h[:], digest)
-		digests = append(digests, &h)
 	}
 	if pm == nil {
 		return nil, www.UserError{
@@ -547,8 +507,11 @@ func (p *politeiawww) validateProposal(np www.NewProposal, u *user.User) (*www.P
 	if err != nil {
 		return nil, err
 	}
-	mr := merkle.Root(digests)
-	if !pk.VerifyMessage([]byte(hex.EncodeToString(mr[:])), sig) {
+	mr, err := wwwutil.MerkleRoot(np.Files, np.Metadata)
+	if err != nil {
+		return nil, wwwutil.DigestUserError(err)
+	}
+	if !pk.VerifyMessage([]byte(mr), sig) {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusInvalidSignature,
 		}
@@ -1728,9 +1691,9 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 	}
 	// Check if there were changes in the proposal by comparing
 	// their merkle roots.
-	mr, err := shared.MerkleRoot(ep.Files, ep.Metadata)
+	mr, err := wwwutil.MerkleRoot(ep.Files, ep.Metadata)
 	if err != nil {
-		return nil, err
+		return nil, wwwutil.DigestUserError(err)
 	}
 	if cachedProp.CensorshipRecord.Merkle == mr {
 		return nil, www.UserError{
