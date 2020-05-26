@@ -1596,7 +1596,7 @@ func (d *decred) cmdVoteSummary(payload string) (string, error) {
 // of a []string.
 func (d *decred) linkedFrom(token string) ([]string, error) {
 	// Ensure the token corresponds to an actual record
-	ok, err := recordExists(d.recordsdb, token, "0")
+	ok, err := recordExists(d.recordsdb, token, "1")
 	if err != nil {
 		return nil, err
 	}
