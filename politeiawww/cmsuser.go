@@ -961,7 +961,17 @@ func (p *politeiawww) processCMSUsers(cmsUsers *cms.CMSUsers, u *user.User) (*cm
 					}
 					hours := 0
 					for _, li := range inv.LineItems {
-						hours += int(li.Labor)
+						// Only add up hours of line items that are of the
+						// matching requested domain. (or add up all for admin)
+						// This method is used since currently line items
+						// contain domains as strings instead of types.
+						for _, domain := range cms.PolicySupportedCMSDomains {
+							if u.Admin || (requestingUser.Domain == domain.Type &&
+								li.Domain == domain.Description) {
+								hours += int(li.Labor)
+								break
+							}
+						}
 					}
 					billedHours = append(billedHours, cms.Hours{
 						Month: inv.Month,
