@@ -1719,7 +1719,8 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 		return nil, err
 	}
 	// Check if there were changes in the proposal by comparing
-	// their merkle roots.
+	// their merkle roots. This captures changes that were made
+	// to either the files or the metadata.
 	mr, err := wwwutil.MerkleRoot(ep.Files, ep.Metadata)
 	if err != nil {
 		return nil, err
