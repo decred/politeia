@@ -6,13 +6,17 @@ import (
 	"time"
 )
 
+const (
+	rateLimitURL = "https://api.github.com/rate_limit"
+)
+
 func (a *Client) RateLimit() (ApiRateLimitRule, error) {
 	defer a.rateLimitMtx.Unlock()
 	a.rateLimitMtx.Lock()
 
 	for {
 		if a.rateLimit.Remaining == 0 {
-			b, err := a.gh.Get("https://api.github.com/rate_limit")
+			b, err := a.gh.Get(rateLimitURL)
 			if err != nil {
 				return ApiRateLimitRule{}, err
 			}

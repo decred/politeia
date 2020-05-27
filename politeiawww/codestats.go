@@ -59,12 +59,15 @@ func (p *politeiawww) processUserCodeStats(ucs cms.UserCodeStats, u *user.User) 
 	}
 
 	// Decode reply
-	reply, err := user.DecodeCMSCodeStatsByUserMonthYearReply([]byte(pcr.Payload))
+	reply, err := user.DecodeCMSCodeStatsByUserMonthYearReply(
+		[]byte(pcr.Payload))
 	if err != nil {
 		return nil, err
 	}
 
-	return &cms.UserCodeStatsReply{RepoStats: convertCodeStatsFromDatabase(reply.UserCodeStats)}, nil
+	return &cms.UserCodeStatsReply{
+		RepoStats: convertCodeStatsFromDatabase(reply.UserCodeStats),
+	}, nil
 }
 
 func (p *politeiawww) processUpdateGithub(ugh cms.UpdateGithub) (*cms.UpdateGithubReply, error) {
@@ -139,20 +142,25 @@ func (p *politeiawww) processUpdateGithub(ugh cms.UpdateGithub) (*cms.UpdateGith
 		}
 
 		// Decode reply
-		reply, err := user.DecodeCMSCodeStatsByUserMonthYearReply([]byte(pcr.Payload))
+		reply, err := user.DecodeCMSCodeStatsByUserMonthYearReply(
+			[]byte(pcr.Payload))
 		if err != nil {
 			return nil, err
 		}
 
-		githubUserInfo, err := p.githubTracker.UserInformation(ugh.Organization, u.GitHubName, ugh.Year, ugh.Month)
+		githubUserInfo, err := p.githubTracker.UserInformation(ugh.Organization,
+			u.GitHubName, ugh.Year, ugh.Month)
 		if err != nil {
-			log.Errorf("github user information failed: %v %v %v %v", u.GitHubName, ugh.Year, ugh.Month, err)
+			log.Errorf("github user information failed: %v %v %v %v",
+				u.GitHubName, ugh.Year, ugh.Month, err)
 			continue
 		}
-		codeStats := convertPRsToUserCodeStats(u.GitHubName, ugh.Month, ugh.Year, githubUserInfo.PRs, githubUserInfo.Reviews)
+		codeStats := convertPRsToUserCodeStats(u.GitHubName, ugh.Month,
+			ugh.Year, githubUserInfo.PRs, githubUserInfo.Reviews)
 
 		if len(reply.UserCodeStats) > 0 {
-			log.Tracef("Checking update UserCodeStats: %v %v %v", u.GitHubName, ugh.Month, ugh.Year)
+			log.Tracef("Checking update UserCodeStats: %v %v %v", u.GitHubName,
+				ugh.Month, ugh.Year)
 			updated := false
 			// Check to see if current codestats match existing stats
 			if len(codeStats) == len(reply.UserCodeStats) {
@@ -180,7 +188,8 @@ func (p *politeiawww) processUpdateGithub(ugh cms.UpdateGithub) (*cms.UpdateGith
 				}
 			}
 			if updated {
-				log.Tracef("Updated UserCodeStats: %v %v %v", u.GitHubName, ugh.Month, ugh.Year)
+				log.Tracef("Updated UserCodeStats: %v %v %v", u.GitHubName,
+					ugh.Month, ugh.Year)
 				ncs := user.UpdateCMSCodeStats{
 					UserCodeStats: codeStats,
 				}
@@ -201,7 +210,8 @@ func (p *politeiawww) processUpdateGithub(ugh cms.UpdateGithub) (*cms.UpdateGith
 			continue
 		}
 
-		log.Tracef("New UserCodeStats: %v %v %v", u.GitHubName, ugh.Month, ugh.Year)
+		log.Tracef("New UserCodeStats: %v %v %v", u.GitHubName, ugh.Month,
+			ugh.Year)
 		// It'll be a new entry if no existing entry had been found
 		ncs := user.NewCMSCodeStats{
 			UserCodeStats: codeStats,

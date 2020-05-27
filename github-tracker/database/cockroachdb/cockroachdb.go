@@ -38,7 +38,7 @@ type cockroachdb struct {
 	recordsdb *gorm.DB // Database context
 }
 
-// Create new invoice.
+// Create new Pull Request.
 //
 // NewPullRequest satisfies the database interface.
 func (c *cockroachdb) NewPullRequest(dbPullRequest *database.PullRequest) error {
@@ -58,7 +58,7 @@ func (c *cockroachdb) UpdatePullRequest(dbPullRequest *database.PullRequest) err
 	return c.recordsdb.Save(&pr).Error
 }
 
-// PullRequestByURL Return invoice by its token.
+// PullRequestByURL Return a PullRequest by its URL.
 func (c *cockroachdb) PullRequestByURL(url string) (*database.PullRequest, error) {
 	log.Debugf("PullRequestByURL: %v", url)
 
@@ -297,29 +297,6 @@ func New(host, rootCert, cert, key string) (*cockroachdb, error) {
 	// Disable automatic table name pluralization. We set table
 	// names manually.
 	c.recordsdb.SingularTable(true)
-
-	/*
-		// Return an error if the version record is not found or
-		// if there is a version mismatch, but also return the
-		// cache context so that the cache can be built/rebuilt.
-		if !c.recordsdb.HasTable(tableNameVersions) {
-			log.Debugf("table '%v' does not exist", tableNameVersions)
-			return c, database.ErrNoVersionRecord
-		}
-			var v Version
-			err = c.recordsdb.
-				Where("id = ?", cacheID).
-				Find(&v).
-				Error
-			if err == gorm.ErrRecordNotFound {
-				log.Debugf("version record not found for ID '%v'", cacheID)
-				err = database.ErrNoVersionRecord
-			} else if v.Version != ghVersion {
-				log.Debugf("version mismatch for ID '%v': got %v, want %v",
-					cacheID, v.Version, ghVersion)
-				err = database.ErrWrongVersion
-			}
-	*/
 	return c, err
 }
 
