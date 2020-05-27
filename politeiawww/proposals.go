@@ -1261,7 +1261,7 @@ func createProposalDetailsReply(prop *www.ProposalRecord, user *user.User) *www.
 // processProposalDetails fetches a specific proposal version from the records
 // cache and returns it.
 func (p *politeiawww) processProposalDetails(propDetails www.ProposalsDetails, user *user.User) (*www.ProposalDetailsReply, error) {
-	log.Tracef("processProposalDetails")
+	log.Tracef("processProposalDetails: %v", propDetails.Token)
 
 	// Version is an optional query param. Fetch latest version
 	// when query param is not specified.
