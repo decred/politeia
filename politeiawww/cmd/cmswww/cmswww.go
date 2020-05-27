@@ -107,8 +107,13 @@ type cmswww struct {
 // verifyInvoice verifies a invoice's merkle root, author signature, and
 // censorship record.
 func verifyInvoice(p cms.InvoiceRecord, serverPubKey string) error {
-	// Verify merkle root
 	if len(p.Files) > 0 {
+		// Verify file digests
+		err := shared.ValidateDigests(p.Files, nil)
+		if err != nil {
+			return err
+		}
+		// Verify merkle root
 		mr, err := wwwutil.MerkleRoot(p.Files, nil)
 		if err != nil {
 			return err
@@ -265,9 +270,14 @@ func validateParseCSV(data []byte) (*cms.InvoiceInput, error) {
 // verifyDCC verifies a dcc's merkle root, author signature, and censorship
 // record.
 func verifyDCC(p cms.DCCRecord, serverPubKey string) error {
-	// Verify merkle root
 	files := make([]pi.File, 0, 1)
 	files = append(files, p.File)
+	// Verify digests
+	err := shared.ValidateDigests(files, nil)
+	if err != nil {
+		return err
+	}
+	// Verify merkel root
 	mr, err := wwwutil.MerkleRoot(files, nil)
 	if err != nil {
 		return err

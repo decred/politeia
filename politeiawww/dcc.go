@@ -369,7 +369,7 @@ func (p *politeiawww) validateDCC(nd cms.NewDCC, u *user.User) error {
 	// Note that we need validate the string representation of the merkle
 	mr, err := wwwutil.MerkleRoot([]www.File{nd.File}, nil)
 	if err != nil {
-		return wwwutil.DigestUserError(err)
+		return err
 	}
 	if !pk.VerifyMessage([]byte(mr), sig) {
 		return www.UserError{

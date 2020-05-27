@@ -773,7 +773,7 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 	// Note that we need validate the string representation of the merkle
 	mr, err := wwwutil.MerkleRoot(ni.Files, nil)
 	if err != nil {
-		return wwwutil.DigestUserError(err)
+		return err
 	}
 	if !pk.VerifyMessage([]byte(mr), sig) {
 		return www.UserError{

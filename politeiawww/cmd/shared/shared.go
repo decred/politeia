@@ -6,6 +6,7 @@ package shared
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -58,6 +59,49 @@ func PrintJSON(body interface{}) error {
 		fmt.Fprintf(os.Stdout, "%s\n", b)
 	}
 
+	return nil
+}
+
+// ValidateDigests receives a list of files and metadata to verify their
+// digests. It compares digests that came with the file/md with digests
+// calculated from their respective payloads.
+func ValidateDigests(files []v1.File, md []v1.Metadata) error {
+	// Validate file digests
+	for _, f := range files {
+		b, err := base64.StdEncoding.DecodeString(f.Payload)
+		if err != nil {
+			return fmt.Errorf("file: %v decode payload err %v",
+				f.Name, err)
+		}
+		digest := util.Digest(b)
+		d, ok := util.ConvertDigest(f.Digest)
+		if !ok {
+			return fmt.Errorf("file: %v invalid digest %v",
+				f.Name, f.Digest)
+		}
+		if !bytes.Equal(digest, d[:]) {
+			return fmt.Errorf("file: %v digests do not match",
+				f.Name)
+		}
+	}
+	// Validate metadata digests
+	for _, v := range md {
+		b, err := base64.StdEncoding.DecodeString(v.Payload)
+		if err != nil {
+			return fmt.Errorf("metadata: %v decode payload err %v",
+				v.Hint, err)
+		}
+		digest := util.Digest(b)
+		d, ok := util.ConvertDigest(v.Digest)
+		if !ok {
+			return fmt.Errorf("metadata: %v invalid digest %v",
+				v.Hint, v.Digest)
+		}
+		if !bytes.Equal(digest, d[:]) {
+			return fmt.Errorf("metadata: %v digests do not match metadata",
+				v.Hint)
+		}
+	}
 	return nil
 }
 

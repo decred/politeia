@@ -340,6 +340,24 @@ func (p *politeiawww) validateProposal(np www.NewProposal, u *user.User) (*www.P
 			}
 		}
 
+		// Verify computed file digest matches given file digest
+		digest := util.Digest(payloadb)
+		d, ok := util.ConvertDigest(v.Digest)
+		if !ok {
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidFileDigest,
+				ErrorContext: []string{v.Name},
+			}
+		}
+		if !bytes.Equal(digest, d[:]) {
+			e := fmt.Sprintf("computed digest does not match given digest "+
+				"for file '%v'", v.Name)
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidFileDigest,
+				ErrorContext: []string{e},
+			}
+		}
+
 		// Verify detected MIME type matches given mime type
 		ct := http.DetectContentType(payloadb)
 		mimePayload, _, err := mime.ParseMediaType(ct)
@@ -482,6 +500,17 @@ func (p *politeiawww) validateProposal(np www.NewProposal, u *user.User) (*www.P
 				ErrorContext: []string{e},
 			}
 		}
+
+		// Validate digest
+		digest := util.Digest(b)
+		if v.Digest != hex.EncodeToString(digest) {
+			e := fmt.Sprintf("%v got digest %v, want %v",
+				v.Hint, v.Digest, hex.EncodeToString(digest))
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusMetadataDigestInvalid,
+				ErrorContext: []string{e},
+			}
+		}
 	}
 	if pm == nil {
 		return nil, www.UserError{
@@ -509,7 +538,7 @@ func (p *politeiawww) validateProposal(np www.NewProposal, u *user.User) (*www.P
 	}
 	mr, err := wwwutil.MerkleRoot(np.Files, np.Metadata)
 	if err != nil {
-		return nil, wwwutil.DigestUserError(err)
+		return nil, err
 	}
 	if !pk.VerifyMessage([]byte(mr), sig) {
 		return nil, www.UserError{
@@ -1693,7 +1722,7 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 	// their merkle roots.
 	mr, err := wwwutil.MerkleRoot(ep.Files, ep.Metadata)
 	if err != nil {
-		return nil, wwwutil.DigestUserError(err)
+		return nil, err
 	}
 	if cachedProp.CensorshipRecord.Merkle == mr {
 		return nil, www.UserError{
