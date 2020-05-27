@@ -1759,9 +1759,9 @@ func (c *Client) ResendVerification(rv www.ResendVerification) (*www.ResendVerif
 }
 
 // InvoiceDetails retrieves the specified invoice.
-func (c *Client) InvoiceDetails(token string) (*cms.InvoiceDetailsReply, error) {
+func (c *Client) InvoiceDetails(token string, id *cms.InvoiceDetails) (*cms.InvoiceDetailsReply, error) {
 	route := "/invoices/" + token
-	responseBody, err := c.makeRequest(http.MethodGet, cms.APIRoute, route, nil)
+	responseBody, err := c.makeRequest(http.MethodGet, cms.APIRoute, route, id)
 	if err != nil {
 		return nil, err
 	}

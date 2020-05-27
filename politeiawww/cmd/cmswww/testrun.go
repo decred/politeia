@@ -369,7 +369,7 @@ func invoiceSetStatus(admin user, token string, s cms.InvoiceStatusT) error {
 
 	// Get the most recent version of the DCC to pull the version
 	// from it.
-	idr, err := client.InvoiceDetails(token)
+	idr, err := client.InvoiceDetails(token, nil)
 	if err != nil {
 		return fmt.Errorf("InvoiceDetails: %v", err)
 	}

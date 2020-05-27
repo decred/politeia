@@ -452,7 +452,8 @@ type InvoiceRecord struct {
 
 // InvoiceDetails is used to retrieve a invoice by it's token.
 type InvoiceDetails struct {
-	Token string `json:"token"` // Censorship token
+	Token   string `json:"token"`             // Censorship token
+	Version string `json:"version,omitempty"` // Invoice version
 }
 
 // InvoiceDetailsReply is used to reply to a invoice details command.
