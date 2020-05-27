@@ -18,6 +18,7 @@ import (
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	pi "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
+	wwwutil "github.com/decred/politeia/politeiawww/util"
 	"github.com/decred/politeia/util"
 	flags "github.com/jessevdk/go-flags"
 )
@@ -106,9 +107,14 @@ type cmswww struct {
 // verifyInvoice verifies a invoice's merkle root, author signature, and
 // censorship record.
 func verifyInvoice(p cms.InvoiceRecord, serverPubKey string) error {
-	// Verify merkle root
 	if len(p.Files) > 0 {
-		mr, err := shared.MerkleRoot(p.Files, nil)
+		// Verify file digests
+		err := shared.ValidateDigests(p.Files, nil)
+		if err != nil {
+			return err
+		}
+		// Verify merkle root
+		mr, err := wwwutil.MerkleRoot(p.Files, nil)
 		if err != nil {
 			return err
 		}
@@ -264,10 +270,15 @@ func validateParseCSV(data []byte) (*cms.InvoiceInput, error) {
 // verifyDCC verifies a dcc's merkle root, author signature, and censorship
 // record.
 func verifyDCC(p cms.DCCRecord, serverPubKey string) error {
-	// Verify merkle root
 	files := make([]pi.File, 0, 1)
 	files = append(files, p.File)
-	mr, err := shared.MerkleRoot(files, nil)
+	// Verify digests
+	err := shared.ValidateDigests(files, nil)
+	if err != nil {
+		return err
+	}
+	// Verify merkel root
+	mr, err := wwwutil.MerkleRoot(files, nil)
 	if err != nil {
 		return err
 	}

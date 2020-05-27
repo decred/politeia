@@ -6,7 +6,6 @@ package shared
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -15,9 +14,9 @@ import (
 	"os"
 
 	"github.com/agl/ed25519"
-	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
+	wwwutil "github.com/decred/politeia/politeiawww/util"
 	"github.com/decred/politeia/util"
 	"golang.org/x/crypto/sha3"
 )
@@ -63,63 +62,47 @@ func PrintJSON(body interface{}) error {
 	return nil
 }
 
-// MerkleRoot converts the passed in list of files and metadata into SHA256
-// digests then calculates and returns the merkle root of the digests.
-func MerkleRoot(files []v1.File, md []v1.Metadata) (string, error) {
-	if len(files) == 0 {
-		return "", fmt.Errorf("no proposal files found")
-	}
-
+// ValidateDigests receives a list of files and metadata to verify their
+// digests. It compares digests that came with the file/md with digests
+// calculated from their respective payloads.
+func ValidateDigests(files []v1.File, md []v1.Metadata) error {
 	// Validate file digests
-	digests := make([]*[sha256.Size]byte, 0, len(files))
 	for _, f := range files {
-		// Compute file digest
 		b, err := base64.StdEncoding.DecodeString(f.Payload)
 		if err != nil {
-			return "", fmt.Errorf("decode payload for file %v: %v",
+			return fmt.Errorf("file: %v decode payload err %v",
 				f.Name, err)
 		}
 		digest := util.Digest(b)
-
-		// Compare against digest that came with the file
 		d, ok := util.ConvertDigest(f.Digest)
 		if !ok {
-			return "", fmt.Errorf("invalid digest: file:%v digest:%v",
+			return fmt.Errorf("file: %v invalid digest %v",
 				f.Name, f.Digest)
 		}
 		if !bytes.Equal(digest, d[:]) {
-			return "", fmt.Errorf("digests do not match for file %v",
+			return fmt.Errorf("file: %v digests do not match",
 				f.Name)
 		}
-
-		// Digest is valid
-		digests = append(digests, &d)
 	}
-
 	// Validate metadata digests
 	for _, v := range md {
 		b, err := base64.StdEncoding.DecodeString(v.Payload)
 		if err != nil {
-			return "", fmt.Errorf("decode payload for metadata %v: %v",
+			return fmt.Errorf("metadata: %v decode payload err %v",
 				v.Hint, err)
 		}
 		digest := util.Digest(b)
 		d, ok := util.ConvertDigest(v.Digest)
 		if !ok {
-			return "", fmt.Errorf("invalid digest: md:%v digest:%v",
+			return fmt.Errorf("metadata: %v invalid digest %v",
 				v.Hint, v.Digest)
 		}
 		if !bytes.Equal(digest, d[:]) {
-			return "", fmt.Errorf("digests do not match metadata %v",
+			return fmt.Errorf("metadata: %v digests do not match metadata",
 				v.Hint)
 		}
-
-		// Digest is valid
-		digests = append(digests, &d)
 	}
-
-	// Return merkle root
-	return hex.EncodeToString(merkle.Root(digests)[:]), nil
+	return nil
 }
 
 // SignedMerkleRoot calculates the merkle root of the passed in list of files
@@ -129,7 +112,7 @@ func SignedMerkleRoot(files []v1.File, md []v1.Metadata, id *identity.FullIdenti
 	if len(files) == 0 {
 		return "", fmt.Errorf("no proposal files found")
 	}
-	mr, err := MerkleRoot(files, md)
+	mr, err := wwwutil.MerkleRoot(files, md)
 	if err != nil {
 		return "", err
 	}

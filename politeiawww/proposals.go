@@ -6,7 +6,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -19,7 +18,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
@@ -28,6 +26,7 @@ import (
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	www2 "github.com/decred/politeia/politeiawww/api/www/v2"
 	"github.com/decred/politeia/politeiawww/user"
+	wwwutil "github.com/decred/politeia/politeiawww/util"
 	"github.com/decred/politeia/util"
 )
 
@@ -313,7 +312,6 @@ func (p *politeiawww) validateProposal(np www.NewProposal, u *user.User) (*www.P
 		foundIndexFile  bool
 	)
 	filenames := make(map[string]struct{}, len(np.Files))
-	digests := make([]*[sha256.Size]byte, 0, len(np.Files))
 	for _, v := range np.Files {
 		// Validate file name
 		_, ok := filenames[v.Name]
@@ -359,9 +357,6 @@ func (p *politeiawww) validateProposal(np www.NewProposal, u *user.User) (*www.P
 				ErrorContext: []string{e},
 			}
 		}
-
-		// Aggregate file digests for merkle root calc
-		digests = append(digests, &d)
 
 		// Verify detected MIME type matches given mime type
 		ct := http.DetectContentType(payloadb)
@@ -516,11 +511,6 @@ func (p *politeiawww) validateProposal(np www.NewProposal, u *user.User) (*www.P
 				ErrorContext: []string{e},
 			}
 		}
-
-		// Add to hashes slice for merkle root calc
-		var h [sha256.Size]byte
-		copy(h[:], digest)
-		digests = append(digests, &h)
 	}
 	if pm == nil {
 		return nil, www.UserError{
@@ -546,8 +536,11 @@ func (p *politeiawww) validateProposal(np www.NewProposal, u *user.User) (*www.P
 	if err != nil {
 		return nil, err
 	}
-	mr := merkle.Root(digests)
-	if !pk.VerifyMessage([]byte(hex.EncodeToString(mr[:])), sig) {
+	mr, err := wwwutil.MerkleRoot(np.Files, np.Metadata)
+	if err != nil {
+		return nil, err
+	}
+	if !pk.VerifyMessage([]byte(mr), sig) {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusInvalidSignature,
 		}
@@ -1663,33 +1656,6 @@ func filesToDel(filesOld []www.File, filesNew []www.File) []string {
 	return del
 }
 
-// filesAreDifferent returns whether the two sets of files have any
-// differences. This can be differences in the number of files, differences
-// in the file names, and/or differences in the file payloads.
-func filesAreDifferent(files1 []www.File, files2 []www.File) bool {
-	if len(files1) != len(files2) {
-		return true
-	}
-
-	files := make(map[string]string, len(files1)+len(files2)) // [name]payload
-	for _, v := range files1 {
-		files[v.Name] = v.Payload
-	}
-	for _, v := range files2 {
-		p, ok := files[v.Name]
-		if !ok {
-			// Found file with a different name
-			return true
-		}
-		if v.Payload != p {
-			// Found file with the same name but different payloads
-			return true
-		}
-	}
-
-	return false
-}
-
 // processEditProposal attempts to edit a proposal on politeiad.
 func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*www.EditProposalReply, error) {
 	log.Tracef("processEditProposal %v", ep.Token)
@@ -1750,7 +1716,14 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 	if err != nil {
 		return nil, err
 	}
-	if !filesAreDifferent(cachedProp.Files, ep.Files) {
+	// Check if there were changes in the proposal by comparing
+	// their merkle roots. This captures changes that were made
+	// to either the files or the metadata.
+	mr, err := wwwutil.MerkleRoot(ep.Files, ep.Metadata)
+	if err != nil {
+		return nil, err
+	}
+	if cachedProp.CensorshipRecord.Merkle == mr {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusNoProposalChanges,
 		}
