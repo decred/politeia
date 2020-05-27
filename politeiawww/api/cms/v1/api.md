@@ -1798,8 +1798,6 @@ Note: This call requires admin privileges.
 
 **Route:** `GET /v1/proposals/spendingsummary`
 
-**Params:**
-
 | Parameter | Type | Description | Required |
 |-|-|-|-|
 | offset | int | Page offset | No |
@@ -1823,7 +1821,6 @@ Note: This call requires admin privileges.
 **Example**
 
 Request:
-
 ``` json
 {}
 ```
@@ -1960,7 +1957,99 @@ Reply:
       ]
     }
   }
-    
+```
+
+### `Update github`
+
+Request to update all pull request, review and commit information for a given organization.
+
+**Route:** `POST /admin/updategithub`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+|	organization | string | The github organization to crawl for repos. | Yes |
+|	repo | string | A specific repository to crawl for pull requests instead of all in the provided organization. | No |
+|	year | int | A specific year to update code stats of a users. | No |
+|	month | int | A specific month to update code stats of users.  If both month and year aren't provided then it will just update last month. | No |
+|	onlycodestas | bool | Using this will avoid crawling github for updates and will simply update codestats db based on current github-tracker db information. | No |
+
+**Results:**
+
+| Parameter | Type | Description |
+|-|-|-|
+
+**Example**
+
+Request:
+
+```json
+{
+  "organization": "decred"
+```
+
+Reply:
+
+```json
+{
+}
+```
+
+### `User code stats`
+
+Returns all code stats based on provided userid and month/year.
+
+**Route:** `POST /user/codestats`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| userid | string | The userid to return code statistics for. | Yes |
+| month | int64 | The month of code stats to return. | No |
+| year | int64 | The year of the code stats to return. (If month and year aren't both populated then last month will be returned.) | No |
+
+**Results:**
+
+| Parameter | Type | Description |
+|-|-|-|
+| repostats | []CodeStats | An array of repository details based on work performed. |
+
+This call can return one of the following error codes:
+
+**Example**
+
+Request:
+
+```json
+{
+  "userid": "6638a1c9-271f-433e-bf2c-6144ddd8bed5",
+  "month": 4,
+  "year": 2020,
+}
+```
+
+Reply:
+
+```json
+{
+  "repostats": [
+    {
+	    "repository": "politeia",
+	    "mergeadditions": "1500",
+	    "mergedeletions": "300",
+	    "reviewadditions": "300",
+	    "reviewdeletions": "234",
+	    "prs": [
+        "https://github.com/decred/politeia/pull/800"
+      ],
+	    "reviews": [
+        "politeia/801"
+      ]
+    }
+  ]
+}
 ```
 
 ### Error codes
