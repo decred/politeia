@@ -211,6 +211,7 @@ const (
 	ErrorStatusInvalidLinkBy               ErrorStatusT = 74
 	ErrorStatusInvalidRunoffVote           ErrorStatusT = 75
 	ErrorStatusWrongProposalType           ErrorStatusT = 76
+	ErrorStatusUserAlreadyVerified         ErrorStatusT = 77
 
 	// Proposal state codes
 	//
@@ -383,6 +384,7 @@ var (
 		ErrorStatusInvalidLinkBy:               "invalid proposal linkby",
 		ErrorStatusInvalidRunoffVote:           "invalid runoff vote",
 		ErrorStatusWrongProposalType:           "wrong proposal type",
+		ErrorStatusUserAlreadyVerified:         "user is already verified",
 	}
 
 	// PropStatus converts propsal status codes to human readable text
@@ -584,42 +586,59 @@ type VersionReply struct {
 	ActiveUserSession bool   `json:"activeusersession"` // indicates if there is an active user session
 }
 
-// NewUser is used to request that a new user be created within the db.
-// If successful, the user will require verification before being able to login.
+// NewUser creates a new politeia user. The user is required to verify their
+// email address with the VerifyNewUser command before they will be able to
+// login.
 type NewUser struct {
-	Email     string `json:"email"`
-	Password  string `json:"password"`
-	PublicKey string `json:"publickey"`
-	Username  string `json:"username"`
+	Username string `json:"username"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
-// NewUserReply is used to reply to the NewUser command with an error
-// if the command is unsuccessful.
+// NewUserReply is used to reply to the NewUser command. The VerificationToken
+// will only be present if the email server is disabled.
 type NewUserReply struct {
 	VerificationToken string `json:"verificationtoken"` // Server verification token
 }
 
-// VerifyNewUser is used to perform verification for the user created through
-// the NewUser command using the token provided in NewUserReply.
-type VerifyNewUser struct {
-	Email             string `schema:"email"`             // User email address
-	VerificationToken string `schema:"verificationtoken"` // Server provided verification token
-	Signature         string `schema:"signature"`         // Verification token signature
-}
-
-// VerifyNewUserReply
-type VerifyNewUserReply struct{}
-
-// ResendVerification is used to resent a new user verification email.
+// ResendVerification is used to resend a new user verification email. The user
+// is allowed to request the verification email be resent one time. If the
+// verification email has already been resent the user must wait for the
+// verification token to expire before they will be able to request a new one.
 type ResendVerification struct {
-	Email     string `json:"email"`
-	PublicKey string `json:"publickey"`
+	Username string `json:"username"`
 }
 
 // ResendVerificationReply is used to reply to the ResendVerification command.
+// The VerificationToken will only be present if the email server has been
+// disabled.
 type ResendVerificationReply struct {
-	VerificationToken string `json:"verificationtoken"` // Server verification token
+	VerificationToken string `json:"verificationtoken"`
 }
+
+// VerifyNewUser is used to perform verification for the user created through
+// the NewUser command. The VerificationToken is the token that was sent to
+// the user's email address. If email server is disabled then the token would
+// have been returned in the NewUserReply and the ResendVerificationReply.
+//
+// This command accomplishes two things:
+// 1. Verifies the user controls the email address they specified in the
+//    NewUser command by providing the token that was emailed to them.
+// 2. Sets and verifies a user identity by providing a public key and proving
+//    they control the corresponding private key by including a signature of
+//    the verification token.
+//
+// A user is not allowed to log in until they successfully complete this
+// verification process.
+type VerifyNewUser struct {
+	Username          string `json:"username"`
+	VerificationToken string `json:"verificationtoken"` // Server provided verification token
+	PublicKey         string `json:"publickey"`         // Public key used for signature
+	Signature         string `json:"signature"`         // Signature of the verificatio token
+}
+
+// VerifyNewUserReply is the reply to the VerifyNewUser command.
+type VerifyNewUserReply struct{}
 
 // UpdateUserKey is used to request a new active key.
 type UpdateUserKey struct {

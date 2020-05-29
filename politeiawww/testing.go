@@ -91,7 +91,7 @@ func newUser(t *testing.T, p *politeiawww, isVerified, isAdmin bool) (*user.User
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
-	tokenb, expiry, err := newVerificationTokenAndExpiry()
+	vt, err := verificationTokenNew()
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -101,8 +101,8 @@ func newUser(t *testing.T, p *politeiawww, isVerified, isAdmin bool) (*user.User
 		Email:                     hex.EncodeToString(r) + "@example.com",
 		Username:                  hex.EncodeToString(r),
 		HashedPassword:            pass,
-		NewUserVerificationToken:  tokenb,
-		NewUserVerificationExpiry: expiry,
+		NewUserVerificationToken:  vt.Token,
+		NewUserVerificationExpiry: vt.Expiry,
 	}
 	fid, err := identity.New()
 	if err != nil {

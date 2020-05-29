@@ -272,15 +272,9 @@ func _main() error {
 	}()
 
 	log.Infof("Version : %v", version.String())
-	log.Infof("Build Version: %v", version.BuildMainVersion())
+	log.Infof("Build   : %v", version.BuildMainVersion())
 	log.Infof("Network : %v", activeNetParams.Params.Name)
 	log.Infof("Home dir: %v", loadedCfg.HomeDir)
-
-	// Issue a warning if pi was builded locally and does not
-	// have the main module info available.
-	if version.BuildMainVersion() == "(devel)" {
-		log.Warnf("Warning: no build information available")
-	}
 
 	if loadedCfg.PaywallAmount != 0 && loadedCfg.PaywallXpub != "" {
 		paywallAmountInDcr := float64(loadedCfg.PaywallAmount) / 1e8
@@ -294,6 +288,8 @@ func _main() error {
 
 	if loadedCfg.MailHost == "" {
 		log.Infof("Email   : DISABLED")
+	} else {
+		log.Infof("Mail    : %v", loadedCfg.MailHost)
 	}
 
 	// Create the data directory in case it does not exist.

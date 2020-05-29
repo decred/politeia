@@ -23,8 +23,11 @@ type smtp struct {
 // email to.
 func (s *smtp) sendEmail(subject, body string, addToAddressesFn func(*goemail.Message) error) error {
 	if s.disabled {
+		log.Tracef("Email disabled; skipping email: %v", subject)
 		return nil
 	}
+
+	log.Tracef("Sending email: %v", subject)
 
 	msg := goemail.NewMessage(s.mailAddress, subject, body)
 	err := addToAddressesFn(msg)

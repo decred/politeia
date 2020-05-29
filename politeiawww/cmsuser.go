@@ -72,7 +72,7 @@ func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*cms.InviteNewU
 	}
 
 	// Generate the verification token and expiry.
-	token, expiry, err := newVerificationTokenAndExpiry()
+	vt, err := verificationTokenNew()
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +82,7 @@ func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*cms.InviteNewU
 	//
 	// This is conditional on the email server being setup.
 	err = p.emailInviteNewUserVerificationLink(u.Email,
-		hex.EncodeToString(token))
+		hex.EncodeToString(vt.Token))
 	if err != nil {
 		log.Errorf("processInviteNewUser: verification email "+
 			"failed for '%v': %v", u.Email, err)
@@ -93,15 +93,15 @@ func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*cms.InviteNewU
 	// in the db in order to reset the verification token and
 	// expiry.
 	if existingUser != nil {
-		existingUser.NewUserVerificationToken = token
-		existingUser.NewUserVerificationExpiry = expiry
+		existingUser.NewUserVerificationToken = vt.Token
+		existingUser.NewUserVerificationExpiry = vt.Expiry
 		err = p.db.UserUpdate(*existingUser)
 		if err != nil {
 			return nil, err
 		}
 
 		return &cms.InviteNewUserReply{
-			VerificationToken: hex.EncodeToString(token),
+			VerificationToken: hex.EncodeToString(vt.Token),
 		}, nil
 	}
 
@@ -113,8 +113,8 @@ func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*cms.InviteNewU
 	nu := user.NewCMSUser{
 		Email:                     strings.ToLower(u.Email),
 		Username:                  strings.ToLower(u.Email),
-		NewUserVerificationToken:  token,
-		NewUserVerificationExpiry: expiry,
+		NewUserVerificationToken:  vt.Token,
+		NewUserVerificationExpiry: vt.Expiry,
 	}
 
 	// Set the user to temporary if request includes it.
@@ -149,7 +149,7 @@ func (p *politeiawww) processInviteNewUser(u cms.InviteNewUser) (*cms.InviteNewU
 	p.setUserEmailsCache(usr.Email, usr.ID)
 
 	return &cms.InviteNewUserReply{
-		VerificationToken: hex.EncodeToString(token),
+		VerificationToken: hex.EncodeToString(vt.Token),
 	}, nil
 }
 

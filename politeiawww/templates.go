@@ -114,8 +114,7 @@ Click the link below to verify your email and complete your registration:
 
 {{.Link}}
 
-You are receiving this email because {{.Email}} was used to register for Politeia.
-If you did not perform this action, please ignore this email.
+This email was used to register an account on Politeia. If you did not perform this action, please ignore this email.
 `
 
 const templateResetPasswordEmailRaw = `

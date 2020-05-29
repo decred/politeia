@@ -60,13 +60,11 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-// handleVerifyNewUser handles the incoming new user verify command. It verifies
-// that the user with the provided email has a verification token that matches
-// the provided token and that the verification token has not yet expired.
+// handleVerifyNewUser handles the incoming new user verify command.
 func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleVerifyNewUser")
 
-	// Get the new user verify command.
+	// Parse request params
 	var vnu www.VerifyNewUser
 	err := util.ParseGetParams(r, &vnu)
 	if err != nil {
@@ -77,14 +75,14 @@ func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	_, err = p.processVerifyNewUser(vnu)
+	vnur, err := p.processVerifyNewUser(vnu)
 	if err != nil {
 		RespondWithError(w, r, 0, "handleVerifyNewUser: "+
 			"processVerifyNewUser %v", err)
 		return
 	}
 
-	util.RespondWithJSON(w, http.StatusOK, www.VerifyNewUserReply{})
+	util.RespondWithJSON(w, http.StatusOK, vnur)
 }
 
 // handleResendVerification sends another verification email for new user
