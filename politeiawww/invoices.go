@@ -1212,6 +1212,13 @@ func (p *politeiawww) processEditInvoice(ei cms.EditInvoice, u *user.User) (*cms
 		return nil, err
 	}
 
+	// Remove all existing line items for that invoice.  They will all get added
+	// back on the update below.
+	err = p.cmsDB.RemoveInvoiceLineItems(invRec.CensorshipRecord.Token)
+	if err != nil {
+		return nil, err
+	}
+
 	// Update the cmsdb
 	dbInvoice, err := convertRecordToDatabaseInvoice(pd.Record{
 		Files:            convertPropFilesFromWWW(ei.Files),

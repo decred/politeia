@@ -43,6 +43,8 @@ type Database interface {
 	NewInvoice(*Invoice) error    // Create new invoice
 	UpdateInvoice(*Invoice) error // Update existing invoice
 
+	RemoveInvoiceLineItems(string) error // Remove invoices line items
+
 	InvoicesByUserID(string) ([]Invoice, error)
 	InvoiceByToken(string) (*Invoice, error)     // Return invoice given its token
 	InvoicesByAddress(string) ([]Invoice, error) // Return invoice by its address
