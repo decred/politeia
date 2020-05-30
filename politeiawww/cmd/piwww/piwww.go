@@ -20,6 +20,7 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
+	wwwutil "github.com/decred/politeia/politeiawww/util"
 	"github.com/decred/politeia/util"
 )
 
@@ -130,9 +131,14 @@ func createMDFile() (*v1.File, error) {
 // verifyProposal verifies a proposal's merkle root, author signature, and
 // censorship record.
 func verifyProposal(p v1.ProposalRecord, serverPubKey string) error {
-	// Verify merkle root
 	if len(p.Files) > 0 {
-		mr, err := shared.MerkleRoot(p.Files, p.Metadata)
+		// Verify digests
+		err := shared.ValidateDigests(p.Files, p.Metadata)
+		if err != nil {
+			return err
+		}
+		// Verify merkle root
+		mr, err := wwwutil.MerkleRoot(p.Files, p.Metadata)
 		if err != nil {
 			return err
 		}

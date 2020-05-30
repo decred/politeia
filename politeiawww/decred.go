@@ -387,36 +387,6 @@ func (p *politeiawww) decredLoadVoteResults(bestBlock uint64) (*decredplugin.Loa
 	return reply, nil
 }
 
-// decredProposalTimeline uses the decred plugin version timestamps command to
-// request the timeline of events related to a proposal.
-func (p *politeiawww) decredProposalTimeline(token string) (*decredplugin.GetProposalTimelineReply, error) {
-	bvs := decredplugin.GetProposalTimeline{
-		Token: token,
-	}
-	payload, err := decredplugin.EncodeGetProposalTimeline(bvs)
-	if err != nil {
-		return nil, err
-	}
-
-	pc := cache.PluginCommand{
-		ID:             decredplugin.ID,
-		Command:        decredplugin.CmdProposalTimeline,
-		CommandPayload: string(payload),
-	}
-
-	res, err := p.cache.PluginExec(pc)
-	if err != nil {
-		return nil, err
-	}
-
-	reply, err := decredplugin.DecodeGetProposalTimelineReply([]byte(res.Payload))
-	if err != nil {
-		return nil, err
-	}
-
-	return reply, nil
-}
-
 // decredBatchVoteSummary uses the decred plugin batch vote summary command to
 // request a vote summary for a set of proposals from the cache.
 //

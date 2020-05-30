@@ -62,52 +62,6 @@ func convertBallotReplyFromDecredPlugin(b decredplugin.BallotReply) www.BallotRe
 	return br
 }
 
-func convertVersionTimestampFromDecredPlugin(vt decredplugin.VersionTimestamp) www.VersionTimestamp {
-	var authorized *www.VoteAuthorizationTimestamp
-	if vt.Authorized != nil {
-		authorized = &www.VoteAuthorizationTimestamp{
-			Timestamp: vt.Authorized.Timestamp,
-			Action:    vt.Authorized.Action,
-		}
-	}
-
-	return www.VersionTimestamp{
-		Created:    vt.Created,
-		Vetted:     vt.Vetted,
-		Authorized: authorized,
-	}
-}
-
-func convertLinkingTimestampFromDecredPlugin(lt decredplugin.LinkingTimestamp) www.LinkingTimestamp {
-	return www.LinkingTimestamp{
-		Token:     lt.Token,
-		Timestamp: lt.Timestamp,
-	}
-}
-
-func convertProposalTimelineReplyFromDecredPlugin(p decredplugin.GetProposalTimelineReply) www.ProposalTimelineReply {
-	ptr := www.ProposalTimelineReply{
-		VersionTimestamps: make([]www.VersionTimestamp, 0,
-			len(p.VersionTimestamps)),
-		LinkingTimestamps: make([]www.LinkingTimestamp, 0,
-			len(p.LinkingTimestamps)),
-		StartVoteBlock: p.StartVoteBlock,
-		EndVoteBlock:   p.EndVoteBlock,
-	}
-
-	for _, vt := range p.VersionTimestamps {
-		ptr.VersionTimestamps = append(ptr.VersionTimestamps,
-			convertVersionTimestampFromDecredPlugin(vt))
-	}
-
-	for _, lt := range p.LinkingTimestamps {
-		ptr.LinkingTimestamps = append(ptr.LinkingTimestamps,
-			convertLinkingTimestampFromDecredPlugin(lt))
-	}
-
-	return ptr
-}
-
 func convertAuthorizeVoteToDecred(av www.AuthorizeVote) decredplugin.AuthorizeVote {
 	return decredplugin.AuthorizeVote{
 		Action:    av.Action,
@@ -407,6 +361,8 @@ func convertPropFromCache(r cache.Record) (*www.ProposalRecord, error) {
 		pubkey string
 		sig    string
 
+		createdAt int64
+
 		statusesV1 []mdstream.RecordStatusChangeV1
 		statusesV2 []mdstream.RecordStatusChangeV2
 		err        error
@@ -431,6 +387,7 @@ func convertPropFromCache(r cache.Record) (*www.ProposalRecord, error) {
 				name = pg.Name
 				pubkey = pg.PublicKey
 				sig = pg.Signature
+				createdAt = pg.Timestamp
 			case 2:
 				pg, err := mdstream.DecodeProposalGeneralV2([]byte(ms.Payload))
 				if err != nil {
@@ -438,6 +395,7 @@ func convertPropFromCache(r cache.Record) (*www.ProposalRecord, error) {
 				}
 				pubkey = pg.PublicKey
 				sig = pg.Signature
+				createdAt = pg.Timestamp
 			default:
 				return nil, fmt.Errorf("unknown ProposalGeneral version %v", ms)
 			}
@@ -574,6 +532,7 @@ func convertPropFromCache(r cache.Record) (*www.ProposalRecord, error) {
 		NumComments:         0,
 		Version:             r.Version,
 		StatusChangeMessage: changeMsg,
+		CreatedAt:           createdAt,
 		PublishedAt:         publishedAt,
 		CensoredAt:          censoredAt,
 		AbandonedAt:         abandonedAt,

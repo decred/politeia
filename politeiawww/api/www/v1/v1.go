@@ -61,12 +61,12 @@ const (
 	RouteAllVoteStatus            = "/proposals/votestatus"
 	RouteProposalPaywallDetails   = "/proposals/paywall"
 	RouteProposalPaywallPayment   = "/proposals/paywallpayment"
-	RouteProposalDetails          = "/proposals/{token:[A-z0-9]{7,64}}"
-	RouteSetProposalStatus        = "/proposals/{token:[A-z0-9]{7,64}}/status"
-	RouteCommentsGet              = "/proposals/{token:[A-z0-9]{7,64}}/comments"
-	RouteVoteResults              = "/proposals/{token:[A-z0-9]{7,64}}/votes"
-	RouteVoteStatus               = "/proposals/{token:[A-z0-9]{7,64}}/votestatus"
-	RouteProposalTimeline         = "/proposals/{token:[A-z0-9]{7,64}}/timeline"
+	RouteProposalDetails          = "/proposals/{token:[A-Fa-f0-9]{7,64}}"
+	RouteSetProposalStatus        = "/proposals/{token:[A-Fa-f0-9]{7,64}}/status"
+	RouteCommentsGet              = "/proposals/{token:[A-Fa-f0-9]{7,64}}/comments"
+	RouteVoteResults              = "/proposals/{token:[A-Fa-f0-9]{7,64}}/votes"
+	RouteVoteStatus               = "/proposals/{token:[A-Fa-f0-9]{7,64}}/votestatus"
+	RouteProposalTimeline         = "/proposals/{token:[A-Fa-f0-9]{7,64}}/timeline"
 	RouteNewComment               = "/comments/new"
 	RouteLikeComment              = "/comments/like"
 	RouteCensorComment            = "/comments/censor"
@@ -505,6 +505,7 @@ type ProposalRecord struct {
 	NumComments         uint        `json:"numcomments"`                   // Number of comments on the proposal
 	Version             string      `json:"version"`                       // Record version
 	StatusChangeMessage string      `json:"statuschangemessage,omitempty"` // Message associated to the status change
+	CreatedAt           int64       `json:"createdat,omitempty"`           // UNIX timestamp of when proposal was created
 	PublishedAt         int64       `json:"publishedat,omitempty"`         // UNIX timestamp of when proposal was published
 	CensoredAt          int64       `json:"censoredat,omitempty"`          // UNIX timestamp of when proposal was censored
 	AbandonedAt         int64       `json:"abandonedat,omitempty"`         // UNIX timestamp of when proposal was abandoned
@@ -871,19 +872,11 @@ type ProposalTimeline struct {
 	Token string `json:"token"` // Censorship token
 }
 
-// VoteAuthorizationTimestamp contains the timestamp and whether vote
-// authorization was revoked.
-type VoteAuthorizationTimestamp struct {
-	Action    string `json:"action"`    // Authorized of revoked
-	Timestamp uint64 `json:"timestamp"` // Time when creator authorized or revoked
-}
-
 // VersionTimestamp contains the timestamps of events related to a version of
 // a proposal.
 type VersionTimestamp struct {
-	Created    uint64                      `json:"created"`              // Time when version was created
-	Vetted     uint64                      `json:"vetted,omitempty"`     // Time when admin vetted version
-	Authorized *VoteAuthorizationTimestamp `json:"authorized,omitempty"` // Information about vote authorization
+	Created uint64 `json:"created"`          // Time when version was createdFVoteStartBlock      int64                       `json:"votestartblock
+	Vetted  uint64 `json:"vetted,omitempty"` // Time when admin vetted version
 }
 
 // LinkingTimestamp contains the token of a proposal and the timestamp it was

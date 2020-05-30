@@ -6,7 +6,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -19,7 +18,6 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/dcrutil"
-	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
@@ -28,6 +26,7 @@ import (
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	database "github.com/decred/politeia/politeiawww/cmsdatabase"
 	"github.com/decred/politeia/politeiawww/user"
+	wwwutil "github.com/decred/politeia/politeiawww/util"
 	"github.com/decred/politeia/util"
 )
 
@@ -493,7 +492,6 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 	var (
 		numCSVs, numImages, numInvoiceFiles    int
 		csvExceedsMaxSize, imageExceedsMaxSize bool
-		hashes                                 []*[sha256.Size]byte
 	)
 	for _, v := range ni.Files {
 		filenames[v.Name]++
@@ -722,12 +720,6 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 				}
 			}
 		}
-
-		// Append digest to array for merkle root calculation
-		digest := util.Digest(data)
-		var d [sha256.Size]byte
-		copy(d[:], digest)
-		hashes = append(hashes, &d)
 	}
 
 	// verify duplicate file names
@@ -779,8 +771,11 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 	}
 
 	// Note that we need validate the string representation of the merkle
-	mr := merkle.Root(hashes)
-	if !pk.VerifyMessage([]byte(hex.EncodeToString(mr[:])), sig) {
+	mr, err := wwwutil.MerkleRoot(ni.Files, nil)
+	if err != nil {
+		return err
+	}
+	if !pk.VerifyMessage([]byte(mr), sig) {
 		return www.UserError{
 			ErrorCode: www.ErrorStatusInvalidSignature,
 		}

@@ -361,6 +361,7 @@ func newProposalRecord(t *testing.T, u *user.User, id *identity.FullIdentity, s 
 		NumComments:         0,
 		Version:             "1",
 		StatusChangeMessage: changeMsg,
+		CreatedAt:           time.Now().Unix(),
 		PublishedAt:         publishedAt,
 		CensoredAt:          censoredAt,
 		AbandonedAt:         abandonedAt,

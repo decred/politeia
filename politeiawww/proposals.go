@@ -6,7 +6,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -19,7 +18,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
@@ -28,6 +26,7 @@ import (
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	www2 "github.com/decred/politeia/politeiawww/api/www/v2"
 	"github.com/decred/politeia/politeiawww/user"
+	wwwutil "github.com/decred/politeia/politeiawww/util"
 	"github.com/decred/politeia/util"
 )
 
@@ -313,7 +312,6 @@ func (p *politeiawww) validateProposal(np www.NewProposal, u *user.User) (*www.P
 		foundIndexFile  bool
 	)
 	filenames := make(map[string]struct{}, len(np.Files))
-	digests := make([]*[sha256.Size]byte, 0, len(np.Files))
 	for _, v := range np.Files {
 		// Validate file name
 		_, ok := filenames[v.Name]
@@ -359,9 +357,6 @@ func (p *politeiawww) validateProposal(np www.NewProposal, u *user.User) (*www.P
 				ErrorContext: []string{e},
 			}
 		}
-
-		// Aggregate file digests for merkle root calc
-		digests = append(digests, &d)
 
 		// Verify detected MIME type matches given mime type
 		ct := http.DetectContentType(payloadb)
@@ -516,11 +511,6 @@ func (p *politeiawww) validateProposal(np www.NewProposal, u *user.User) (*www.P
 				ErrorContext: []string{e},
 			}
 		}
-
-		// Add to hashes slice for merkle root calc
-		var h [sha256.Size]byte
-		copy(h[:], digest)
-		digests = append(digests, &h)
 	}
 	if pm == nil {
 		return nil, www.UserError{
@@ -546,8 +536,11 @@ func (p *politeiawww) validateProposal(np www.NewProposal, u *user.User) (*www.P
 	if err != nil {
 		return nil, err
 	}
-	mr := merkle.Root(digests)
-	if !pk.VerifyMessage([]byte(hex.EncodeToString(mr[:])), sig) {
+	mr, err := wwwutil.MerkleRoot(np.Files, np.Metadata)
+	if err != nil {
+		return nil, err
+	}
+	if !pk.VerifyMessage([]byte(mr), sig) {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusInvalidSignature,
 		}
@@ -649,6 +642,28 @@ func (p *politeiawww) getProp(token string) (*www.ProposalRecord, error) {
 	return pr, nil
 }
 
+// getPropAllVersions retrieves all versions of a proposal from the cache. This
+// function does NOT call fillProposalMissingFields.
+func (p *politeiawww) getPropAllVersions(token string) (map[uint64]www.ProposalRecord, error) {
+	log.Tracef("getPropAllVersions: %v", token)
+
+	cacheRecords, err := p.cache.RecordAllVersions(token, false)
+	if err != nil {
+		return nil, err
+	}
+
+	wwwRecords := make(map[uint64]www.ProposalRecord)
+	for version, record := range cacheRecords {
+		wwwRecord, err := convertPropFromCache(record)
+		if err != nil {
+			return nil, err
+		}
+		wwwRecords[version] = *wwwRecord
+	}
+
+	return wwwRecords, nil
+}
+
 // getProps returns a [token]www.ProposalRecord map for the provided list of
 // censorship tokens. If a proposal is not found, the map will not include an
 // entry for the corresponding censorship token. It is the responsibility of
@@ -743,7 +758,7 @@ func (p *politeiawww) getProps(tokens []string) (map[string]www.ProposalRecord, 
 
 // getPropVersion gets a specific version of a proposal from the cache then
 // fills in any misssing fields before returning the proposal.
-func (p *politeiawww) getPropVersion(token, version string) (*www.ProposalRecord, error) {
+func (p *politeiawww) getPropVersion(token, version string, fillMissingFields bool) (*www.ProposalRecord, error) {
 	log.Tracef("getPropVersion: %v %v", token, version)
 
 	r, err := p.cache.RecordVersion(token, version)
@@ -756,9 +771,11 @@ func (p *politeiawww) getPropVersion(token, version string) (*www.ProposalRecord
 		return nil, err
 	}
 
-	err = p.fillProposalMissingFields(pr)
-	if err != nil {
-		return nil, err
+	if fillMissingFields {
+		err = p.fillProposalMissingFields(pr)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return pr, nil
@@ -1236,23 +1253,80 @@ func (p *politeiawww) processNewProposal(np www.NewProposal, user *user.User) (*
 	}, nil
 }
 
-// processVersionTimestamps retrieves the timeline of events related to a
-// proposal.
-func (p *politeiawww) processProposalTimeline(pt www.ProposalTimeline) (*www.ProposalTimelineReply, error) {
-	log.Tracef("processProposalTimeline")
-
-	ptr, err := p.decredProposalTimeline(pt.Token)
+// getLinkingTimestamps looks up the proposals that were linked to an RFP
+// proposal and the timestamps when they were published.
+func (p *politeiawww) getLinkingTimestamps(token string) ([]www.LinkingTimestamp, error) {
+	lfr, err := p.decredLinkedFrom([]string{token})
 	if err != nil {
 		return nil, err
 	}
 
-	if len(ptr.VersionTimestamps) <= 0 {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusProposalNotFound,
+	linkedFrom := lfr.LinkedFrom[token]
+	linkingTimestamps := make([]www.LinkingTimestamp, 0, len(linkedFrom))
+
+	for _, linkedToken := range linkedFrom {
+		prop, err := p.getPropVersion(linkedToken, "1", false)
+		if err != nil {
+			return nil, err
 		}
+
+		linkingTimestamps = append(linkingTimestamps, www.LinkingTimestamp{
+			Timestamp: uint64(prop.PublishedAt),
+			Token:     linkedToken,
+		})
 	}
 
-	reply := convertProposalTimelineReplyFromDecredPlugin(*ptr)
+	return linkingTimestamps, nil
+}
+
+// processProposalTimeline retrieves the timeline of events related to a
+// proposal.
+func (p *politeiawww) processProposalTimeline(pt www.ProposalTimeline) (*www.ProposalTimelineReply, error) {
+	log.Tracef("processProposalTimeline")
+
+	records, err := p.getPropAllVersions(pt.Token)
+	if err != nil {
+		if err == cache.ErrRecordNotFound {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusProposalNotFound,
+			}
+		}
+		return nil, err
+	}
+
+	reply := www.ProposalTimelineReply{}
+
+	// Get the timestamps when each version was created and vetted
+	reply.VersionTimestamps = make([]www.VersionTimestamp, len(records))
+	for version, record := range records {
+		if version < 1 || version > uint64(len(records)) {
+			return nil, fmt.Errorf("invalid version of record: %v", version)
+		}
+		reply.VersionTimestamps[version-1].Created = uint64(record.CreatedAt)
+		reply.VersionTimestamps[version-1].Vetted = uint64(record.PublishedAt)
+	}
+
+	// Get the start and end blocks of the voting period
+	bb, err := p.getBestBlock()
+	if err != nil {
+		return nil, err
+	}
+	vs, err := p.voteSummaryGet(pt.Token, bb)
+	if err != nil {
+		return nil, err
+	}
+	if vs.EndHeight > 0 {
+		reply.EndVoteBlock = uint32(vs.EndHeight)
+		reply.StartVoteBlock = reply.EndVoteBlock - vs.Duration
+	}
+
+	// If this is an RFP proposal, get the timestamps when proposals were
+	// linked with this one
+	linkingTimestamps, err := p.getLinkingTimestamps(pt.Token)
+	if err != nil {
+		return nil, err
+	}
+	reply.LinkingTimestamps = linkingTimestamps
 
 	return &reply, nil
 }
@@ -1289,7 +1363,7 @@ func createProposalDetailsReply(prop *www.ProposalRecord, user *user.User) *www.
 // processProposalDetails fetches a specific proposal version from the records
 // cache and returns it.
 func (p *politeiawww) processProposalDetails(propDetails www.ProposalsDetails, user *user.User) (*www.ProposalDetailsReply, error) {
-	log.Tracef("processProposalDetails")
+	log.Tracef("processProposalDetails: %v", propDetails.Token)
 
 	// Version is an optional query param. Fetch latest version
 	// when query param is not specified.
@@ -1298,7 +1372,7 @@ func (p *politeiawww) processProposalDetails(propDetails www.ProposalsDetails, u
 	if propDetails.Version == "" {
 		prop, err = p.getProp(propDetails.Token)
 	} else {
-		prop, err = p.getPropVersion(propDetails.Token, propDetails.Version)
+		prop, err = p.getPropVersion(propDetails.Token, propDetails.Version, true)
 	}
 	if err != nil {
 		if err == cache.ErrRecordNotFound {
@@ -1645,7 +1719,8 @@ func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *use
 	}
 
 	// Get record from the cache
-	updatedProp, err := p.getPropVersion(pr.CensorshipRecord.Token, pr.Version)
+	updatedProp, err := p.getPropVersion(pr.CensorshipRecord.Token, pr.Version,
+		true)
 	if err != nil {
 		return nil, err
 	}
@@ -1682,33 +1757,6 @@ func filesToDel(filesOld []www.File, filesNew []www.File) []string {
 	}
 
 	return del
-}
-
-// filesAreDifferent returns whether the two sets of files have any
-// differences. This can be differences in the number of files, differences
-// in the file names, and/or differences in the file payloads.
-func filesAreDifferent(files1 []www.File, files2 []www.File) bool {
-	if len(files1) != len(files2) {
-		return true
-	}
-
-	files := make(map[string]string, len(files1)+len(files2)) // [name]payload
-	for _, v := range files1 {
-		files[v.Name] = v.Payload
-	}
-	for _, v := range files2 {
-		p, ok := files[v.Name]
-		if !ok {
-			// Found file with a different name
-			return true
-		}
-		if v.Payload != p {
-			// Found file with the same name but different payloads
-			return true
-		}
-	}
-
-	return false
 }
 
 // processEditProposal attempts to edit a proposal on politeiad.
@@ -1771,7 +1819,14 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 	if err != nil {
 		return nil, err
 	}
-	if !filesAreDifferent(cachedProp.Files, ep.Files) {
+	// Check if there were changes in the proposal by comparing
+	// their merkle roots. This captures changes that were made
+	// to either the files or the metadata.
+	mr, err := wwwutil.MerkleRoot(ep.Files, ep.Metadata)
+	if err != nil {
+		return nil, err
+	}
+	if cachedProp.CensorshipRecord.Merkle == mr {
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusNoProposalChanges,
 		}

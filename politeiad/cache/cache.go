@@ -177,6 +177,9 @@ type Cache interface {
 	// Get a specific version of a record
 	RecordVersion(string, string) (*Record, error)
 
+	// Get all versions of a record
+	RecordAllVersions(string, bool) (map[uint64]Record, error)
+
 	// Update a record
 	UpdateRecord(Record) error
 

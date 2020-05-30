@@ -1620,10 +1620,6 @@ Reply:
     {
       "created": 1586712239,
       "vetted": 1586712247,
-      "authorized": {
-        "action": "revoke",
-        "timestamp": 1586712262
-      }
     },
     {
       "created": 1586712271,
@@ -1632,18 +1628,10 @@ Reply:
     {
       "created": 1586712279,
       "vetted": 1586712247,
-      "authorized": {
-        "action": "revoke",
-        "timestamp": 1586712308
-      }
     },
     {
       "created": 1586712313,
       "vetted": 1586712247,
-      "authorized": {
-        "action": "authorize",
-        "timestamp": 1586712319
-      }
     }
   ],
   "linkingTimestamps": [
@@ -2940,20 +2928,12 @@ This is a shortened representation of a user, used for lists.
 | passpercentage | uint32 | Percent of total votes required to pass (omitempty) |
 | optionsresult | array of VoteOptionResult | Option description along with the number of votes it has received (omitempty) |
 
-### `Vote Authorization`
-
-| | Type | Description |
-|-|-|-|
-| timestamp | uint64 | Timestamp of vote authorization |
-| action | string | Authorized or Revoked |
-
 ### `Version Timestamps`
 
 | | Type | Description |
 |-|-|-|
 | created | uint64 | Timestamp when version was created |
 | vetted | uint64 | Timestamp when version was vetted by an admin (omitempty) |
-| authorized | [`Vote Authorization`](#vote-authorization) | Details of creator authorizing a vote on this version (omitempty) |
 
 ### `Linking Timestamps`
 

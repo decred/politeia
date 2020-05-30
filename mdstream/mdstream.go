@@ -300,26 +300,6 @@ func DecodeRecordStatusChanges(payload []byte) ([]RecordStatusChangeV1, []Record
 	return statusesV1, statusesV2, nil
 }
 
-// DecodeTimestampOfStatusUpdate decodes a decodes a JSON byte slice
-// to a RecordStatusChange, and returns its timestamp.
-func DecodeTimestampOfStatusUpdate(payload []byte) (int64, error) {
-	v1, v2, err := DecodeRecordStatusChanges(payload)
-	if err != nil {
-		return 0, err
-	}
-
-	if len(v1) > 0 {
-		return v1[0].Timestamp, nil
-	}
-
-	if len(v2) > 0 {
-		return v2[0].Timestamp, nil
-	}
-
-	return 0, fmt.Errorf("DecodeRecordStatusChanges: neither v1 or v2 were" +
-		"populated")
-}
-
 // InvoiceGeneral represents the general metadata for an invoice and is
 // stored in the metadata IDInvoiceGeneral in politeiad.
 type InvoiceGeneral struct {

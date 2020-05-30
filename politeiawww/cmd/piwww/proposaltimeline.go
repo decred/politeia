@@ -40,10 +40,6 @@ Result:
 	  {
 		"created": (uint64) timestamp when version was created
 		"vetted":  (uint64) timestamp when version was vetted by an admin
-		"authorized": {
-		  "action"      (string) whether or not the authorization was revoked
-		  "timestamp"   (uint64) time when authorization action was taken
-		}
 	  }
 	],
 	"linkingTimestamps" : [

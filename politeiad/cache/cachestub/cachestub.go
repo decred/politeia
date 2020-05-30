@@ -35,6 +35,12 @@ func (c *cachestub) RecordVersion(token, version string) (*cache.Record, error) 
 	return &cache.Record{}, nil
 }
 
+// RecordAllVersions is a stub to satisfy the cache interface.
+func (c *cachestub) RecordAllVersions(token string, fetchFiles bool) (map[uint64]cache.Record, error) {
+	records := make(map[uint64]cache.Record)
+	return records, nil
+}
+
 // UpdateRecord is a stub to satisfy the cache interface.
 func (c *cachestub) UpdateRecord(r cache.Record) error {
 	return nil

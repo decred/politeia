@@ -146,6 +146,12 @@ func (c *testcache) recordVersion(token, version string) (*cache.Record, error) 
 	return &r, nil
 }
 
+// RecordAllVersions is a stub to satisfy the cache interface.
+func (c *testcache) RecordAllVersions(token string, fetchFiles bool) (map[uint64]cache.Record, error) {
+	records := make(map[uint64]cache.Record)
+	return records, nil
+}
+
 // RecordVersion returns a specific version of a record.
 func (c *testcache) RecordVersion(token, version string) (*cache.Record, error) {
 	c.RLock()

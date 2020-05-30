@@ -6,7 +6,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -17,7 +16,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/cmsplugin"
 	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/mdstream"
@@ -28,6 +26,7 @@ import (
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmsdatabase"
 	"github.com/decred/politeia/politeiawww/user"
+	wwwutil "github.com/decred/politeia/politeiawww/util"
 	"github.com/decred/politeia/util"
 )
 
@@ -366,17 +365,13 @@ func (p *politeiawww) validateDCC(nd cms.NewDCC, u *user.User) error {
 		}
 
 	}
-	// Append digest to array for merkle root calculation
-	digest := util.Digest(data)
-	var d [sha256.Size]byte
-	copy(d[:], digest)
-
-	var hashes []*[sha256.Size]byte
-	hashes = append(hashes, &d)
 
 	// Note that we need validate the string representation of the merkle
-	mr := merkle.Root(hashes)
-	if !pk.VerifyMessage([]byte(hex.EncodeToString(mr[:])), sig) {
+	mr, err := wwwutil.MerkleRoot([]www.File{nd.File}, nil)
+	if err != nil {
+		return err
+	}
+	if !pk.VerifyMessage([]byte(mr), sig) {
 		return www.UserError{
 			ErrorCode: www.ErrorStatusInvalidSignature,
 		}
