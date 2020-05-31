@@ -390,6 +390,16 @@ func newVoteSummary(t *testing.T, s www.PropVoteStatusT, rs []www.VoteOptionResu
 	}
 }
 
+func newVoteOptionV2(t *testing.T, id, desc string, bits uint64) www2.VoteOption {
+	t.Helper()
+
+	return www2.VoteOption{
+		Id:          id,
+		Description: desc,
+		Bits:        bits,
+	}
+}
+
 func newVoteOptionResult(t *testing.T, id, desc string, bits, votes uint64) www.VoteOptionResult {
 	t.Helper()
 
@@ -1476,38 +1486,20 @@ func TestValidateAuthorizeVoteRunoff(t *testing.T) {
 }
 
 func TestValidateVoteOptions(t *testing.T) {
+	approve := decredplugin.VoteOptionIDApprove
+	reject := decredplugin.VoteOptionIDReject
 	invalidVoteOption := []www2.VoteOption{
-		{
-			Id:          "wrong",
-			Description: "",
-			Bits:        0,
-		},
+		newVoteOptionV2(t, "wrong", "", 0),
 	}
 	missingReject := []www2.VoteOption{
-		{
-			Id:          decredplugin.VoteOptionIDApprove,
-			Description: "",
-			Bits:        0,
-		},
+		newVoteOptionV2(t, approve, "", 0),
 	}
 	missingApprove := []www2.VoteOption{
-		{
-			Id:          decredplugin.VoteOptionIDReject,
-			Description: "",
-			Bits:        1,
-		},
+		newVoteOptionV2(t, reject, "", 1),
 	}
 	valid := []www2.VoteOption{
-		{
-			Id:          decredplugin.VoteOptionIDApprove,
-			Description: "approve",
-			Bits:        0,
-		},
-		{
-			Id:          decredplugin.VoteOptionIDReject,
-			Description: "reject",
-			Bits:        1,
-		},
+		newVoteOptionV2(t, approve, "", 0),
+		newVoteOptionV2(t, reject, "", 1),
 	}
 	var tests = []struct {
 		name string
