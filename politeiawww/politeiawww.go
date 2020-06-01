@@ -1253,6 +1253,68 @@ func (p *politeiawww) handleCensorComment(w http.ResponseWriter, r *http.Request
 	util.RespondWithJSON(w, http.StatusOK, cr)
 }
 
+// handleSetTOTP handles the setting of TOTP Key
+func (p *politeiawww) handleSetTOTP(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleSetTOTP")
+
+	var st www.SetTOTP
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&st); err != nil {
+		RespondWithError(w, r, 0, "handleSetTOTP: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	u, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleCensorComment: getSessionUser %v", err)
+		return
+	}
+
+	str, err := p.processSetTOTP(st, u)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleSetTOTP: processSetTOTP %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, str)
+}
+
+// handleVerifyTOTP handles the request to verify a set TOTP Key.
+func (p *politeiawww) handleVerifyTOTP(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleVerifyTOTP")
+
+	var vt www.VerifyTOTP
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&vt); err != nil {
+		RespondWithError(w, r, 0, "handleVerifyTOTP: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	u, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleCensorComment: getSessionUser %v", err)
+		return
+	}
+
+	vtr, err := p.processVerifyTOTP(vt, u)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleVerifyTOTP: processVerifyTOTP %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, vtr)
+}
+
 // setPoliteiaWWWRoutes sets up the politeia routes.
 func (p *politeiawww) setPoliteiaWWWRoutes() {
 	// Templates
@@ -1337,6 +1399,12 @@ func (p *politeiawww) setPoliteiaWWWRoutes() {
 		permissionLogin)
 	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
 		www.RouteProposalPaywallPayment, p.handleProposalPaywallPayment,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteSetTOTP, p.handleSetTOTP,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteVerifyTOTP, p.handleVerifyTOTP,
 		permissionLogin)
 
 	// Unauthenticated websocket

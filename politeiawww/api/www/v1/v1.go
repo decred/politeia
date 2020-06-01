@@ -17,6 +17,7 @@ type PropVoteStatusT int
 type UserManageActionT int
 type EmailNotificationT int
 type VoteT int
+type TOTPTypeT int
 
 const (
 	PoliteiaWWWAPIVersion = 1 // API version this backend understands
@@ -47,6 +48,8 @@ const (
 	RouteUserPaymentsRescan       = "/user/payments/rescan"
 	RouteManageUser               = "/user/manage"
 	RouteEditUser                 = "/user/edit"
+	RouteSetTOTP                  = "/user/totp"
+	RouteVerifyTOTP               = "/user/verifytotp"
 	RouteUsers                    = "/users"
 	RouteTokenInventory           = "/proposals/tokeninventory"
 	RouteBatchProposals           = "/proposals/batch"
@@ -285,6 +288,10 @@ const (
 	NotificationEmailAdminProposalVoteAuthorized EmailNotificationT = 1 << 6
 	NotificationEmailCommentOnMyProposal         EmailNotificationT = 1 << 7
 	NotificationEmailCommentOnMyComment          EmailNotificationT = 1 << 8
+
+	// Time-base one time password types
+	TOTPTypeInvalid TOTPTypeT = 0 // Invalid TOTP type
+	TOTPTypeBasic   TOTPTypeT = 1
 )
 
 var (
@@ -1361,4 +1368,25 @@ type WSSubscribe struct {
 // WSPing is a server side push to the client to see if it is still alive.
 type WSPing struct {
 	Timestamp int64 `json:"timestamp"` // Server side timestamp
+}
+
+// SetTOTP attempts to set a TOTP key for the chosen TOTP type (Basic/UFI2 etc).
+type SetTOTP struct {
+	Key             string    `json:"key"`
+	Type            TOTPTypeT `json:"type"`
+	CurrentTOTPCode string    `json:"currenttotpcode"`
+}
+
+// SetTOTPReply will return an empty reply if no errors occurred.
+type SetTOTPReply struct {
+}
+
+// VerifyTOTP is used to confirm the previously set TOTP key.
+type VerifyTOTP struct {
+	Code string `json:"code"`
+}
+
+// VerifyTOTPReply will return an empty reply if it was successfully confirmed
+// with no errors.
+type VerifyTOTPReply struct {
 }
