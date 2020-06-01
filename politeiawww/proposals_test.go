@@ -5,470 +5,21 @@
 package main
 
 import (
-	"bytes"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
-	"image"
-	"image/color"
-	"image/png"
-	"math/rand"
-	"net/http"
 	"reflect"
 	"strconv"
 	"testing"
 	"time"
 
-	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/decredplugin"
-	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
-	"github.com/decred/politeia/politeiad/api/v1/identity"
-	"github.com/decred/politeia/politeiad/api/v1/mime"
 	"github.com/decred/politeia/politeiad/testpoliteiad"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	www2 "github.com/decred/politeia/politeiawww/api/www/v2"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 )
-
-func proposalNameRandom(t *testing.T) string {
-	r, err := util.Random(www.PolicyMinProposalNameLength)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return hex.EncodeToString(r)
-}
-
-// merkleRoot returns a hex encoded merkle root of the passed in files and
-// metadata.
-func merkleRoot(t *testing.T, files []www.File, metadata []www.Metadata) string {
-	t.Helper()
-
-	digests := make([]*[sha256.Size]byte, 0, len(files))
-	for _, f := range files {
-		// Compute file digest
-		b, err := base64.StdEncoding.DecodeString(f.Payload)
-		if err != nil {
-			t.Fatalf("decode payload for file %v: %v",
-				f.Name, err)
-		}
-		digest := util.Digest(b)
-
-		// Compare against digest that came with the file
-		d, ok := util.ConvertDigest(f.Digest)
-		if !ok {
-			t.Fatalf("invalid digest: file:%v digest:%v",
-				f.Name, f.Digest)
-		}
-		if !bytes.Equal(digest, d[:]) {
-			t.Fatalf("digests do not match for file %v",
-				f.Name)
-		}
-
-		// Digest is valid
-		digests = append(digests, &d)
-	}
-
-	for _, v := range metadata {
-		b, err := base64.StdEncoding.DecodeString(v.Payload)
-		if err != nil {
-			t.Fatalf("decode payload for metadata %v: %v",
-				v.Hint, err)
-		}
-		digest := util.Digest(b)
-		d, ok := util.ConvertDigest(v.Digest)
-		if !ok {
-			t.Fatalf("invalid digest: metadata:%v digest:%v",
-				v.Hint, v.Digest)
-		}
-		if !bytes.Equal(digest, d[:]) {
-			t.Fatalf("digests do not match for metadata %v",
-				v.Hint)
-		}
-
-		// Digest is valid
-		digests = append(digests, &d)
-	}
-
-	// Compute merkle root
-	return hex.EncodeToString(merkle.Root(digests)[:])
-}
-
-// createFilePNG creates a File that contains a png image.  The png image is
-// blank by default but can be filled in with random rgb colors by setting the
-// addColor parameter to true.  The png without color will be ~3kB.  The png
-// with color will be ~2MB.
-func createFilePNG(t *testing.T, addColor bool) *www.File {
-	t.Helper()
-
-	b := new(bytes.Buffer)
-	img := image.NewRGBA(image.Rect(0, 0, 1000, 500))
-
-	// Fill in the pixels with random rgb colors in order to
-	// increase the size of the image. This is used to create an
-	// image that exceeds the maximum image size policy.
-	if addColor {
-		r := rand.New(rand.NewSource(255))
-		for y := 0; y < img.Bounds().Max.Y-1; y++ {
-			for x := 0; x < img.Bounds().Max.X-1; x++ {
-				a := uint8(r.Float32() * 255)
-				rgb := uint8(r.Float32() * 255)
-				img.SetRGBA(x, y, color.RGBA{rgb, rgb, rgb, a})
-			}
-		}
-	}
-
-	err := png.Encode(b, img)
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
-
-	// Generate a random name
-	r, err := util.Random(8)
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
-
-	return &www.File{
-		Name:    hex.EncodeToString(r) + ".png",
-		MIME:    mime.DetectMimeType(b.Bytes()),
-		Digest:  hex.EncodeToString(util.Digest(b.Bytes())),
-		Payload: base64.StdEncoding.EncodeToString(b.Bytes()),
-	}
-}
-
-// createFileMD creates a File that contains a markdown file.  The markdown
-// file is filled with randomly generated data.
-func createFileMD(t *testing.T, size int) *www.File {
-	t.Helper()
-
-	var b bytes.Buffer
-	r, err := util.Random(size)
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
-	b.WriteString(base64.StdEncoding.EncodeToString(r) + "\n")
-
-	return &www.File{
-		Name:    www.PolicyIndexFilename,
-		MIME:    http.DetectContentType(b.Bytes()),
-		Digest:  hex.EncodeToString(util.Digest(b.Bytes())),
-		Payload: base64.StdEncoding.EncodeToString(b.Bytes()),
-	}
-}
-
-// createNewProposal computes the merkle root of the given files, signs the
-// merkle root with the given identity then returns a NewProposal object.
-func createNewProposal(t *testing.T, id *identity.FullIdentity, files []www.File, title string) *www.NewProposal {
-	t.Helper()
-
-	// Setup metadata
-	metadata, _ := newProposalMetadata(t, title, "", 0)
-
-	// Compute and sign merkle root
-	m := merkleRoot(t, files, metadata)
-	sig := id.SignMessage([]byte(m))
-
-	return &www.NewProposal{
-		Files:     files,
-		Metadata:  metadata,
-		PublicKey: hex.EncodeToString(id.Public.Key[:]),
-		Signature: hex.EncodeToString(sig[:]),
-	}
-}
-
-// newFileRandomMD returns a File with the name index.md that contains random
-// base64 text.
-func newFileRandomMD(t *testing.T) www.File {
-	t.Helper()
-
-	var b bytes.Buffer
-	// Add ten lines of random base64 text.
-	for i := 0; i < 10; i++ {
-		r, err := util.Random(32)
-		if err != nil {
-			t.Fatal(err)
-		}
-		b.WriteString(base64.StdEncoding.EncodeToString(r) + "\n")
-	}
-
-	return www.File{
-		Name:    "index.md",
-		MIME:    mime.DetectMimeType(b.Bytes()),
-		Digest:  hex.EncodeToString(util.Digest(b.Bytes())),
-		Payload: base64.StdEncoding.EncodeToString(b.Bytes()),
-	}
-}
-
-func newStartVote(t *testing.T, token string, proposalVersion uint32, id *identity.FullIdentity) www2.StartVote {
-	vote := www2.Vote{
-		Token:            token,
-		ProposalVersion:  proposalVersion,
-		Type:             www2.VoteTypeStandard,
-		Mask:             0x03, // bit 0 no, bit 1 yes
-		Duration:         2016,
-		QuorumPercentage: 20,
-		PassPercentage:   60,
-		Options: []www2.VoteOption{
-			{
-				Id:          "no",
-				Description: "Don't approve proposal",
-				Bits:        0x01,
-			},
-			{
-				Id:          "yes",
-				Description: "Approve proposal",
-				Bits:        0x02,
-			},
-		},
-	}
-	vb, err := json.Marshal(vote)
-	if err != nil {
-		t.Fatalf("marshal vote failed: %v %v", err, vote)
-	}
-	msg := hex.EncodeToString(util.Digest(vb))
-	sig := id.SignMessage([]byte(msg))
-	return www2.StartVote{
-		Vote:      vote,
-		PublicKey: hex.EncodeToString(id.Public.Key[:]),
-		Signature: hex.EncodeToString(sig[:]),
-	}
-}
-
-func newStartVoteCmd(t *testing.T, token string, proposalVersion uint32, id *identity.FullIdentity) pd.PluginCommand {
-	sv := newStartVote(t, token, proposalVersion, id)
-	dsv := convertStartVoteV2ToDecred(sv)
-	payload, err := decredplugin.EncodeStartVoteV2(dsv)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	challenge, err := util.Random(pd.ChallengeSize)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	return pd.PluginCommand{
-		Challenge: hex.EncodeToString(challenge),
-		ID:        decredplugin.ID,
-		Command:   decredplugin.CmdStartVote,
-		CommandID: decredplugin.CmdStartVote + " " + sv.Vote.Token,
-		Payload:   string(payload),
-	}
-}
-
-func newAuthorizeVote(token, version, action string, id *identity.FullIdentity) www.AuthorizeVote {
-	sig := id.SignMessage([]byte(token + version + action))
-	return www.AuthorizeVote{
-		Action:    action,
-		Token:     token,
-		Signature: hex.EncodeToString(sig[:]),
-		PublicKey: hex.EncodeToString(id.Public.Key[:]),
-	}
-}
-
-func newAuthorizeVoteCmd(t *testing.T, token, version, action string, id *identity.FullIdentity) pd.PluginCommand {
-	av := newAuthorizeVote(token, version, action, id)
-	dav := convertAuthorizeVoteToDecred(av)
-	payload, err := decredplugin.EncodeAuthorizeVote(dav)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	challenge, err := util.Random(pd.ChallengeSize)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	return pd.PluginCommand{
-		Challenge: hex.EncodeToString(challenge),
-		ID:        decredplugin.ID,
-		Command:   decredplugin.CmdAuthorizeVote,
-		CommandID: decredplugin.CmdAuthorizeVote + " " + av.Token,
-		Payload:   string(payload),
-	}
-}
-
-func newProposalRecord(t *testing.T, u *user.User, id *identity.FullIdentity, s www.PropStatusT) www.ProposalRecord {
-	t.Helper()
-
-	f := newFileRandomMD(t)
-	files := []www.File{f}
-	name := proposalNameRandom(t)
-	metadata, _ := newProposalMetadata(t, name, "", 0)
-	m := merkleRoot(t, files, metadata)
-	sig := id.SignMessage([]byte(m))
-
-	var (
-		publishedAt int64
-		censoredAt  int64
-		abandonedAt int64
-		changeMsg   string
-	)
-
-	switch s {
-	case www.PropStatusCensored:
-		changeMsg = "did not adhere to guidelines"
-		censoredAt = time.Now().Unix()
-	case www.PropStatusPublic:
-		publishedAt = time.Now().Unix()
-	case www.PropStatusAbandoned:
-		changeMsg = "no activity"
-		publishedAt = time.Now().Unix()
-		abandonedAt = time.Now().Unix()
-	}
-
-	tokenb, err := util.Random(pd.TokenSize)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// The token is typically generated in politeiad. This function
-	// generates the token locally to make setting up tests easier.
-	// The censorship record signature is left intentionally blank.
-	return www.ProposalRecord{
-		Name:                name,
-		State:               convertPropStatusToState(s),
-		Status:              s,
-		Timestamp:           time.Now().Unix(),
-		UserId:              u.ID.String(),
-		Username:            u.Username,
-		PublicKey:           u.PublicKey(),
-		Signature:           hex.EncodeToString(sig[:]),
-		NumComments:         0,
-		Version:             "1",
-		StatusChangeMessage: changeMsg,
-		PublishedAt:         publishedAt,
-		CensoredAt:          censoredAt,
-		AbandonedAt:         abandonedAt,
-		Files:               files,
-		Metadata:            metadata,
-		CensorshipRecord: www.CensorshipRecord{
-			Token:     hex.EncodeToString(tokenb),
-			Merkle:    m,
-			Signature: "",
-		},
-	}
-}
-
-func newProposalMetadata(t *testing.T, name, linkto string, linkby int64) ([]www.Metadata, www.ProposalMetadata) {
-	if name == "" {
-		// Generate a random name if none was given
-		name = proposalNameRandom(t)
-	}
-	pm := www.ProposalMetadata{
-		Name:   name,
-		LinkTo: linkto,
-		LinkBy: linkby,
-	}
-	pmb, err := json.Marshal(pm)
-	if err != nil {
-		t.Fatal(err)
-	}
-	md := []www.Metadata{
-		{
-			Digest:  hex.EncodeToString(util.Digest(pmb)),
-			Hint:    www.HintProposalMetadata,
-			Payload: base64.StdEncoding.EncodeToString(pmb),
-		},
-	}
-	return md, pm
-}
-
-func newVoteSummary(t *testing.T, s www.PropVoteStatusT, rs []www.VoteOptionResult) www.VoteSummary {
-	t.Helper()
-
-	return www.VoteSummary{
-		Status:           s,
-		EligibleTickets:  10,
-		QuorumPercentage: 30,
-		PassPercentage:   60,
-		Results:          rs,
-	}
-}
-
-func newVoteOptionV2(t *testing.T, id, desc string, bits uint64) www2.VoteOption {
-	t.Helper()
-
-	return www2.VoteOption{
-		Id:          id,
-		Description: desc,
-		Bits:        bits,
-	}
-}
-
-func newVoteOptionResult(t *testing.T, id, desc string, bits, votes uint64) www.VoteOptionResult {
-	t.Helper()
-
-	return www.VoteOptionResult{
-		Option: www.VoteOption{
-			Id:          id,
-			Description: desc,
-			Bits:        bits,
-		},
-		VotesReceived: votes,
-	}
-}
-
-func makeProposalRFP(t *testing.T, pr *www.ProposalRecord, linkedfrom []string, linkby int64) {
-	t.Helper()
-
-	md, _ := newProposalMetadata(t, pr.Name, "", linkby)
-	pr.LinkBy = linkby
-	pr.LinkedFrom = linkedfrom
-	pr.Metadata = md
-}
-
-func makeProposalRFPSubmissions(t *testing.T, prs []*www.ProposalRecord, linkto string) {
-	t.Helper()
-	for _, pr := range prs {
-		md, _ := newProposalMetadata(t, pr.Name, linkto, 0)
-		pr.LinkTo = linkto
-		pr.Metadata = md
-	}
-}
-
-func convertPropToPD(t *testing.T, p www.ProposalRecord) pd.Record {
-	t.Helper()
-
-	// Attach ProposalMetadata as a politeiad file
-	files := convertPropFilesFromWWW(p.Files)
-	for _, v := range p.Metadata {
-		switch v.Hint {
-		case www.HintProposalMetadata:
-			files = append(files, convertFileFromMetadata(v))
-		}
-	}
-
-	// Create a ProposalGeneralV2 mdstream
-	md, err := mdstream.EncodeProposalGeneralV2(
-		mdstream.ProposalGeneralV2{
-			Version:   mdstream.VersionProposalGeneral,
-			Timestamp: time.Now().Unix(),
-			PublicKey: p.PublicKey,
-			Signature: p.Signature,
-		})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	mdStreams := []pd.MetadataStream{{
-		ID:      mdstream.IDProposalGeneral,
-		Payload: string(md),
-	}}
-
-	return pd.Record{
-		Status:           convertPropStatusFromWWW(p.Status),
-		Timestamp:        p.Timestamp,
-		Version:          p.Version,
-		Metadata:         mdStreams,
-		CensorshipRecord: convertPropCensorFromWWW(p.CensorshipRecord),
-		Files:            files,
-	}
-}
 
 func TestIsValidProposalName(t *testing.T) {
 	tests := []struct {
@@ -1489,17 +1040,17 @@ func TestValidateVoteOptions(t *testing.T) {
 	approve := decredplugin.VoteOptionIDApprove
 	reject := decredplugin.VoteOptionIDReject
 	invalidVoteOption := []www2.VoteOption{
-		newVoteOptionV2(t, "wrong", "", 0),
+		newVoteOptionV2(t, "wrong", "", 0x01),
 	}
 	missingReject := []www2.VoteOption{
-		newVoteOptionV2(t, approve, "", 0),
+		newVoteOptionV2(t, approve, "", 0x02),
 	}
 	missingApprove := []www2.VoteOption{
-		newVoteOptionV2(t, reject, "", 1),
+		newVoteOptionV2(t, reject, "", 0x01),
 	}
 	valid := []www2.VoteOption{
-		newVoteOptionV2(t, approve, "", 0),
-		newVoteOptionV2(t, reject, "", 1),
+		newVoteOptionV2(t, approve, "", 0x02),
+		newVoteOptionV2(t, reject, "", 0x01),
 	}
 	var tests = []struct {
 		name string
@@ -1575,6 +1126,316 @@ func TestValidateVoteOptions(t *testing.T) {
 						gotErrContext[0], wantErrContext[0])
 				}
 
+			}
+		})
+	}
+}
+
+func TestValidateVoteBit(t *testing.T) {
+	approve := decredplugin.VoteOptionIDApprove
+	reject := decredplugin.VoteOptionIDReject
+	vote := www2.Vote{
+		Mask: 0x03,
+		Options: []www2.VoteOption{
+			newVoteOptionV2(t, approve, "", 0x02),
+			newVoteOptionV2(t, reject, "", 0x01),
+		},
+	}
+
+	var tests = []struct {
+		name string
+		vote www2.Vote
+		bit  uint64
+		want error
+	}{
+		{
+			"vote corrupt",
+			www2.Vote{},
+			0x01,
+			fmt.Errorf("vote corrupt"),
+		},
+		{
+			"invalid bit",
+			vote,
+			0,
+			fmt.Errorf("invalid bit 0x0"),
+		},
+		{
+			"invalid bit mask",
+			vote,
+			0x04,
+			fmt.Errorf("invalid mask 0x3 bit 0x4"),
+		},
+		{
+			"bit not found",
+			vote,
+			0x03,
+			fmt.Errorf("bit not found 0x3"),
+		},
+		{
+			"valid",
+			vote,
+			0x02,
+			nil,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateVoteBit(test.vote, test.bit)
+			got := errToStr(err)
+			want := errToStr(test.want)
+			if got != want {
+				t.Errorf("got %v, want %v", got, want)
+			}
+		})
+	}
+}
+
+func TestValidateStartVote(t *testing.T) {
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
+
+	d := newTestPoliteiad(t, p)
+	defer d.Close()
+
+	usr, id := newUser(t, p, true, false)
+
+	prop := newProposalRecord(t, usr, id, www.PropStatusPublic)
+	token := prop.CensorshipRecord.Token
+	d.AddRecord(t, convertPropToPD(t, prop))
+
+	propUnvetted := newProposalRecord(t, usr, id, www.PropStatusNotReviewed)
+	// tokenUnvetted := propUnvetted.CensorshipRecord.Token
+	d.AddRecord(t, convertPropToPD(t, propUnvetted))
+
+	minDuration := uint32(2016)
+	maxDuration := uint32(4032)
+
+	sv := newStartVote(t, token, 1, id)
+
+	svInvalidToken := newStartVote(t, token, 1, id)
+	svInvalidToken.Vote.Token = ""
+
+	svInvalidBit := newStartVote(t, token, 1, id)
+	svInvalidBit.Vote.Options[0].Bits = 0
+
+	svInvalidOpt := newStartVote(t, token, 1, id)
+	svInvalidOpt.Vote.Options[0].Id = "wrong"
+
+	svInvalidMinDuration := newStartVote(t, token, 1, id)
+	svInvalidMinDuration.Vote.Duration = 1
+
+	svInvalidMaxDuration := newStartVote(t, token, 1, id)
+	svInvalidMaxDuration.Vote.Duration = 4050
+
+	svInvalidQuorum := newStartVote(t, token, 1, id)
+	svInvalidQuorum.Vote.QuorumPercentage = 110
+
+	svInvalidPass := newStartVote(t, token, 1, id)
+	svInvalidPass.Vote.PassPercentage = 110
+
+	svInvalidKey := newStartVote(t, token, 1, id)
+	svInvalidKey.PublicKey = ""
+
+	svInvalidSig := newStartVote(t, token, 1, id)
+	svInvalidSig.Signature = ""
+
+	svInvalidVersion := newStartVote(t, token, 2, id)
+
+	var tests = []struct {
+		name   string
+		sv     www2.StartVote
+		u      user.User
+		pr     www.ProposalRecord
+		vs     www.VoteSummary
+		wantUE bool
+		want   error
+	}{
+		{
+			"invalid proposal token",
+			svInvalidToken,
+			*usr,
+			prop,
+			www.VoteSummary{},
+			false,
+			fmt.Errorf("invalid token %v", svInvalidToken.Vote.Token),
+		},
+		{
+			"invalid vote bit",
+			svInvalidBit,
+			*usr,
+			prop,
+			www.VoteSummary{},
+			true,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidPropVoteBits,
+			},
+		},
+		{
+			"invalid vote option",
+			svInvalidOpt,
+			*usr,
+			prop,
+			www.VoteSummary{},
+			true,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidVoteOptions,
+			},
+		},
+		{
+			"invalid minimum duration",
+			svInvalidMinDuration,
+			*usr,
+			prop,
+			www.VoteSummary{},
+			true,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidPropVoteParams,
+				ErrorContext: []string{
+					fmt.Sprintf("vote duration must be >= %v", minDuration),
+				},
+			},
+		},
+		{
+			"invalid maximum duration",
+			svInvalidMaxDuration,
+			*usr,
+			prop,
+			www.VoteSummary{},
+			true,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidPropVoteParams,
+				ErrorContext: []string{
+					fmt.Sprintf("vote duration must be <= %v", maxDuration),
+				},
+			},
+		},
+		{
+			"quorum too large",
+			svInvalidQuorum,
+			*usr,
+			prop,
+			www.VoteSummary{},
+			true,
+			www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidPropVoteParams,
+				ErrorContext: []string{"quorum percentage cannot be >100"},
+			},
+		},
+		{
+			"pass percentage too large",
+			svInvalidPass,
+			*usr,
+			prop,
+			www.VoteSummary{},
+			true,
+			www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidPropVoteParams,
+				ErrorContext: []string{"pass percentage cannot be >100"},
+			},
+		},
+		{
+			"invalid public key from start vote",
+			svInvalidKey,
+			*usr,
+			prop,
+			www.VoteSummary{},
+			true,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidSigningKey,
+			},
+		},
+		{
+			"invalid signature",
+			svInvalidSig,
+			*usr,
+			prop,
+			www.VoteSummary{},
+			true,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidSignature,
+			},
+		},
+		{
+			"invalid proposal version",
+			svInvalidVersion,
+			*usr,
+			prop,
+			www.VoteSummary{},
+			true,
+			www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidProposalVersion,
+				ErrorContext: []string{"got 2, want 1"},
+			},
+		},
+		{
+			"invalid proposal status",
+			sv,
+			*usr,
+			propUnvetted,
+			www.VoteSummary{},
+			true,
+			www.UserError{
+				ErrorCode:    www.ErrorStatusWrongStatus,
+				ErrorContext: []string{"proposal is not public"},
+			},
+		},
+		{
+			"vote has already started",
+			sv,
+			*usr,
+			prop,
+			www.VoteSummary{
+				EndHeight: 1024,
+			},
+			true,
+			www.UserError{
+				ErrorCode:    www.ErrorStatusWrongVoteStatus,
+				ErrorContext: []string{"vote already started"},
+			},
+		},
+		{
+			"valid",
+			sv,
+			*usr,
+			prop,
+			www.VoteSummary{},
+			false,
+			nil,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateStartVote(test.sv, test.u, test.pr, test.vs, minDuration, maxDuration)
+
+			// Check if wanted error is a UserError struct
+			switch test.wantUE {
+			case true:
+				// Validate error code
+				gotErrCode := err.(www.UserError).ErrorCode
+				wantErrCode := test.want.(www.UserError).ErrorCode
+
+				if gotErrCode != wantErrCode {
+					t.Errorf("got error code %v, want %v",
+						gotErrCode, wantErrCode)
+				}
+				// Validate error context
+				gotErrContext := err.(www.UserError).ErrorContext
+				wantErrContext := test.want.(www.UserError).ErrorContext
+				hasContext := len(gotErrContext) > 0 && len(wantErrContext) > 0
+
+				if hasContext && (gotErrContext[0] != wantErrContext[0]) {
+					t.Errorf("got error context '%v', want '%v'",
+						gotErrContext[0], wantErrContext[0])
+				}
+			case false:
+				got := errToStr(err)
+				want := errToStr(test.want)
+				if got != want {
+					t.Errorf("got %v, want %v", got, want)
+				}
 			}
 		})
 	}
@@ -2350,6 +2211,7 @@ func TestProcessAuthorizeVote(t *testing.T) {
 	// Authorize vote
 	av := newAuthorizeVote(token, prop.Version, authorize, id)
 
+	// Want in reply
 	s := d.FullIdentity.SignMessage([]byte(av.Signature))
 	wantReceipt := hex.EncodeToString(s[:])
 
