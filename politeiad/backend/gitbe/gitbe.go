@@ -704,6 +704,36 @@ func (g *gitBackEnd) appendAuditTrail(path string, ts int64, merkle [sha256.Size
 	return nil
 }
 
+// runAnchorFsck returns whether a git fsck should be run as part of the
+// anchoring process. As a the git repos grow in the size the git fsck command
+// can keep the gitBackEnd locked for an untolerable amount of time. This
+// function can be used to specify specific times that the git fsck should be
+// run instead of it being run everytime an anchor it dropped.
+func (g *gitBackEnd) runAnchorFsck() bool {
+	// We want to run the git fsck during the 06:58 UTC anchor drop
+	// only. This time was chosen because it falls in the middle of
+	// the night for the USA and Brazil, which is likely the majority
+	// of politeia traffic.
+	utc, err := time.LoadLocation("UTC")
+	if err != nil {
+		e := fmt.Sprintf("load time location UTC: %v", err)
+		panic(e)
+	}
+	now := time.Now().In(utc)
+	y, m, d := now.Date()
+
+	// Give a 5 minute buffer on either side of 06:58 UTC. If the
+	// current time falls within this window then true is returned
+	// to indicate a fsck should be run.
+	start := time.Date(y, m, d, 6, 53, 0, 0, utc)
+	end := time.Date(y, m, d, 7, 03, 0, 0, utc)
+	if now.After(start) && now.Before(end) {
+		return true
+	}
+
+	return false
+}
+
 // anchorRepo drops an anchor for an individual repo.
 // It prints the basename during its actions.
 //
@@ -713,15 +743,18 @@ func (g *gitBackEnd) anchorRepo(path string) (*[sha256.Size]byte, error) {
 	repo := filepath.Base(path)
 
 	// Fsck
-	log.Infof("Running git fsck on %v repository", repo)
 	err := g.gitCheckout(path, "master")
 	if err != nil {
 		return nil, fmt.Errorf("anchor checkout master %v: %v", repo,
 			err)
 	}
-	_, err = g.gitFsck(path)
-	if err != nil {
-		return nil, fmt.Errorf("anchor fsck master %v: %v", repo, err)
+
+	if g.runAnchorFsck() {
+		log.Infof("Running git fsck on %v repository", repo)
+		_, err = g.gitFsck(path)
+		if err != nil {
+			return nil, fmt.Errorf("anchor fsck master %v: %v", repo, err)
+		}
 	}
 
 	// Check for unanchored commits
