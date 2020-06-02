@@ -199,6 +199,14 @@ func validateComment(c www.NewComment) error {
 func (p *politeiawww) processNewComment(nc www.NewComment, u *user.User) (*www.NewCommentReply, error) {
 	log.Tracef("processNewComment: %v %v", nc.Token, u.ID)
 
+	// Make sure token is valid and not a prefix
+	if !isTokenValid(nc.Token) {
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
+			ErrorContext: []string{nc.Token},
+		}
+	}
+
 	// Pay up sucker!
 	if !p.HasUserPaid(u) {
 		return nil, www.UserError{
@@ -470,6 +478,14 @@ func (p *politeiawww) processNewCommentInvoice(nc www.NewComment, u *user.User) 
 func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www.LikeCommentReply, error) {
 	log.Debugf("processLikeComment: %v %v %v", lc.Token, lc.CommentID, u.ID)
 
+	// Make sure token is valid and not a prefix
+	if !isTokenValid(lc.Token) {
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
+			ErrorContext: []string{lc.Token},
+		}
+	}
+
 	// Pay up sucker!
 	if !p.HasUserPaid(u) {
 		return nil, www.UserError{
@@ -618,6 +634,14 @@ func (p *politeiawww) processLikeComment(lc www.LikeComment, u *user.User) (*www
 // politeiad then returns the censor comment receipt.
 func (p *politeiawww) processCensorComment(cc www.CensorComment, u *user.User) (*www.CensorCommentReply, error) {
 	log.Tracef("processCensorComment: %v: %v", cc.Token, cc.CommentID)
+
+	// Make sure token is valid and not a prefix
+	if !isTokenValid(cc.Token) {
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
+			ErrorContext: []string{cc.Token},
+		}
+	}
 
 	// Ensure the public key is the user's active key
 	if cc.PublicKey != u.PublicKey() {
