@@ -1,6 +1,9 @@
 # politeia refclient examples
 
-Obtain politeiad identity:
+## Obtain politeiad identity
+
+The retrieved identity is used to verify replies from politeiad. 
+
 ```
 $ politeia  -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass identity
 Key        : 8f627e9da14322626d7e81d789f7fcafd25f62235a95377f39cbc7293c4944ad
@@ -10,9 +13,16 @@ Save to /home/marco/.politeia/identity.json or ctrl-c to abort
 Identity saved to: /home/marco/.politeia/identity.json
 ```
 
-Add a new record:
+## Add a new record
+
+At least one file must be included. This is the `filepath` argument in the
+example below. The provided file must already exist. Arguments are matched
+against the regex `^metadata[\d]{1,2}:` to determine if the string is record
+metadata. Arguments that are not classified as metadata are assumed to be file
+paths.
+
 ```
-$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass new 'metadata12:{"moo":"lala"}' 'metadata2:{"foo":"bar"}' a
+$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass new 'metadata12:{"moo":"lala"}' 'metadata2:{"foo":"bar"}' filepath
 00: 22e88c7d6da9b73fbb515ed6a8f6d133c680527a799e3069ca7ce346d90649b2 a text/plain; charset=utf-8
 Record submitted
   Censorship record:
@@ -21,7 +31,8 @@ Record submitted
     Signature: 28c75019fb15af4e81ee1607deff58a8a82896d6bb1af4e813c5c996069ad7872505e4f25e067e8f310af82981aca1b02050ee23029f6d1e87b8ea8f0b3bcd08
 ```
 
-Get unvetted record:
+## Get unvetted record
+
 ```
 $ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass getunvetted 43c2d4a2c846c188ab0b49012ed17e5f2c16bd6e276cfbb42e30352dffb1743f
 Unvetted record:
@@ -30,7 +41,7 @@ Unvetted record:
   Censorship record:
     Merkle   : 22e88c7d6da9b73fbb515ed6a8f6d133c680527a799e3069ca7ce346d90649b2
     Token    : 43c2d4a2c846c188ab0b49012ed17e5f2c16bd6e276cfbb42e30352dffb1743f
-    Signature: 5c28d2a93ff9cfe35e8a6b465ae06fa596b08bfe7b980ff9dbe68877e7d860010ec3c4fd8c8b739dc4ceeda3a2381899c7741896323856f0f267abf9a40b8003
+   Signature: 5c28d2a93ff9cfe35e8a6b465ae06fa596b08bfe7b980ff9dbe68877e7d860010ec3c4fd8c8b739dc4ceeda3a2381899c7741896323856f0f267abf9a40b8003
   Metadata   : [{2 {"foo":"bar"}} {12 "zap"}]
   File (00)  :
     Name     : a
@@ -38,9 +49,21 @@ Unvetted record:
     Digest   : 22e88c7d6da9b73fbb515ed6a8f6d133c680527a799e3069ca7ce346d90649b2
 ```
 
-Update an unvetted record:
+## Update an unvetted record
+
+Files can be updated using the arguments:
+- `add:[filepath]`
+- `del:[filename]`
+
+Metadata can be updated using the arguments:
+- `'appendmetadata[ID]:[metadataJSON]'`
+- `'overwritemetadata[ID]:[metadataJSON]'`
+
+Metadata provided using the `overwritemetadata` argument does not have to
+already exist. The token argument should be prefixed with `token:`.
+
 ```
-$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass updateunvetted 'appendmetadata12:{"foo":"bar"}' 'overwritemetadata2:{"12foo":"12bar"}' del:a add:b token:72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4
+$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass updateunvetted 'appendmetadata12:{"foo":"bar"}' 'overwritemetadata2:{"12foo":"12bar"}' del:filename add filepath token:72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4
 Update record: 72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4
   Files add         : 00: 12a31b5e662dfa0a572e9fc523eb703f9708de5e2d53aba74f8ebcebbdb706f7 b text/plain; charset=utf-8
   Files delete      : a
@@ -48,21 +71,20 @@ Update record: 72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4
   Metadata append   : 12
 ```
 
-Censor a record (and zap metadata stream 12):
-```
-$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass setunvettedstatus censor 43c2d4a2c846c188ab0b49012ed17e5f2c16bd6e276cfbb42e30352dffb1743f 'overwritemetadata12:"zap"'
-Set record status:
-  Status   : censored
-```
+## Set unvetted status
 
-Publish a record:
+You can update the status of an unvetted record using `publish` or `censor`
+arguments. `publish` makes the record a public, vetted record. `censor` keeps
+the record private. Note the token argument is not prefixed in this command.
+
 ```
 $ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass setunvettedstatus publish 72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4               
 Set record status:
   Status   : public
 ```
 
-Get vetted record:
+## Get vetted record
+
 ```
 $ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass getvetted 72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4
 Vetted record:
@@ -79,7 +101,8 @@ Vetted record:
     Digest   : 12a31b5e662dfa0a572e9fc523eb703f9708de5e2d53aba74f8ebcebbdb706f7
 ```
 
-Update a vetted record:
+## Update a vetted record
+
 ```
 $ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass updatevetted 'appendmetadata12:{"foo":"bar"}' 'overwritemetadata2:{"12foo":"12bar"}' del:a add:b token:72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4
 Update record: 72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4
@@ -89,7 +112,18 @@ Update record: 72fe14a914783eafb78adcbcd405e723c3f55ff475043b0d89b2cf71ffc6a2d4
   Metadata append   : 12
 ```
 
-Inventory all records:
+## Set vetted status
+
+Censor a record (and zap metadata stream 12):
+
+```
+$ politeia -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass setunvettedstatus censor 43c2d4a2c846c188ab0b49012ed17e5f2c16bd6e276cfbb42e30352dffb1743f 'overwritemetadata12:"zap"'
+Set record status:
+  Status   : censored
+```
+
+## Inventory all records
+
 ```
 politeia  -v -testnet -rpchost 127.0.0.1 -rpcuser=user -rpcpass=pass inventory 1 1
 Vetted record:

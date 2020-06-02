@@ -10,7 +10,6 @@ import (
 	"fmt"
 
 	"github.com/decred/dcrtime/api/v1"
-	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 )
 
@@ -33,9 +32,11 @@ func ConvertSignature(s string) ([identity.SignatureSize]byte, error) {
 // ConvertStringToken verifies and converts a string token to a proper sized
 // []byte.
 func ConvertStringToken(token string) ([]byte, error) {
-	if len(token) != pd.TokenSize*2 {
-		return nil, fmt.Errorf("invalid censorship token size")
-	}
+	/*
+		if len(token) != pd.TokenSize*2 {
+			return nil, fmt.Errorf("invalid censorship token size")
+		}
+	*/
 	blob, err := hex.DecodeString(token)
 	if err != nil {
 		return nil, err

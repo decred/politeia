@@ -13,17 +13,7 @@ import (
 	"golang.org/x/crypto/nacl/secretbox"
 )
 
-func newKey() (*[32]byte, error) {
-	var k [32]byte
-
-	_, err := io.ReadFull(rand.Reader, k[:])
-	if err != nil {
-		return nil, err
-	}
-
-	return &k, nil
-}
-
+// TODO use secretbox functions instead
 func encryptAndPack(data []byte, key *[32]byte) ([]byte, error) {
 	var nonce [24]byte
 

@@ -430,6 +430,7 @@ func inventory() error {
 func getFile(filename string) (*v1.File, *[sha256.Size]byte, error) {
 	var err error
 
+	filename = util.CleanAndExpandPath(filename)
 	file := &v1.File{
 		Name: filepath.Base(filename),
 	}
@@ -511,10 +512,15 @@ func newRecord() error {
 		n.Files = append(n.Files, *file)
 		hashes = append(hashes, digest)
 
-		fmt.Printf("%02v: %v %v %v\n",
-			i, file.Digest, file.Name, file.MIME)
+		if !*printJson {
+			fmt.Printf("%02v: %v %v %v\n",
+				i, file.Digest, file.Name, file.MIME)
+		}
 	}
-	fmt.Printf("Record submitted\n")
+
+	if !*printJson {
+		fmt.Printf("Record submitted\n")
+	}
 
 	// Convert Verify to JSON
 	b, err := json.Marshal(n)
@@ -572,8 +578,10 @@ func newRecord() error {
 	copy(signature[:], sig)
 
 	// Verify merkle root.
-	if !bytes.Equal(merkle.Root(hashes)[:], root) {
-		return fmt.Errorf("invalid merkle root")
+	m := merkle.Root(hashes)
+	if !bytes.Equal(m[:], root) {
+		return fmt.Errorf("invalid merkle root; got %x, want %x",
+			root, m[:])
 	}
 
 	// Verify record token signature.

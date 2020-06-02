@@ -41,6 +41,13 @@ const (
 
 	defaultMainnetDcrdata = "dcrdata.decred.org:443"
 	defaultTestnetDcrdata = "testnet.decred.org:443"
+
+	// Backend options
+	backendGit     = "git"
+	backendTlog    = "tlog"
+	defaultBackend = backendGit
+
+	defaultTrillianHost = "localhost:8090"
 )
 
 var (
@@ -89,6 +96,11 @@ type config struct {
 	Identity      string `long:"identity" description:"File containing the politeiad identity file"`
 	GitTrace      bool   `long:"gittrace" description:"Enable git tracing in logs"`
 	DcrdataHost   string `long:"dcrdatahost" description:"Dcrdata ip:port"`
+
+	Backend       string `long:"backend"`
+	TrillianHost  string `long:"trillianhost"`
+	TrillianKey   string `long:"trilliankey"`
+	EncryptionKey string `long:"encryptionkey"`
 }
 
 // serviceOptions defines the configuration options for the daemon as a service
@@ -283,14 +295,16 @@ func newConfigParser(cfg *config, so *serviceOptions, options flags.Options) *fl
 func loadConfig() (*config, []string, error) {
 	// Default config.
 	cfg := config{
-		HomeDir:    defaultHomeDir,
-		ConfigFile: defaultConfigFile,
-		DebugLevel: defaultLogLevel,
-		DataDir:    defaultDataDir,
-		LogDir:     defaultLogDir,
-		HTTPSKey:   defaultHTTPSKeyFile,
-		HTTPSCert:  defaultHTTPSCertFile,
-		Version:    version.String(),
+		HomeDir:      defaultHomeDir,
+		ConfigFile:   defaultConfigFile,
+		DebugLevel:   defaultLogLevel,
+		DataDir:      defaultDataDir,
+		LogDir:       defaultLogDir,
+		HTTPSKey:     defaultHTTPSKeyFile,
+		HTTPSCert:    defaultHTTPSCertFile,
+		Version:      version.String(),
+		Backend:      defaultBackend,
+		TrillianHost: defaultTrillianHost,
 	}
 
 	// Service options which are only added on Windows.

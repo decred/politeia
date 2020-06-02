@@ -25,6 +25,7 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/backend"
 	"github.com/decred/politeia/politeiad/backend/gitbe"
+	"github.com/decred/politeia/politeiad/backend/tlogbe"
 	"github.com/decred/politeia/politeiad/cache"
 	"github.com/decred/politeia/politeiad/cache/cachestub"
 	"github.com/decred/politeia/politeiad/cache/cockroachdb"
@@ -1145,19 +1146,31 @@ func _main() error {
 	}
 
 	// Setup backend.
-	gitbe.UseLogger(gitbeLog)
-	b, err := gitbe.New(activeNetParams.Params, loadedCfg.DataDir,
-		loadedCfg.DcrtimeHost, "", p.identity, loadedCfg.GitTrace,
-		loadedCfg.DcrdataHost)
-	if err != nil {
-		return err
+	log.Infof("Backend: %v", loadedCfg.Backend)
+	switch loadedCfg.Backend {
+	case backendGit:
+		b, err := gitbe.New(activeNetParams.Params, loadedCfg.DataDir,
+			loadedCfg.DcrtimeHost, "", p.identity, loadedCfg.GitTrace,
+			loadedCfg.DcrdataHost)
+		if err != nil {
+			return fmt.Errorf("new gitbe: %v", err)
+		}
+		p.backend = b
+	case backendTlog:
+		b, err := tlogbe.New(loadedCfg.HomeDir, loadedCfg.DataDir,
+			loadedCfg.TrillianHost, loadedCfg.TrillianKey, loadedCfg.DcrtimeHost,
+			loadedCfg.EncryptionKey)
+		if err != nil {
+			return fmt.Errorf("new tlogbe: %v", err)
+		}
+		p.backend = b
+	default:
+		return fmt.Errorf("invalid backend selected: %v", loadedCfg.Backend)
 	}
-	p.backend = b
 
 	// Setup cache
 	if p.cfg.EnableCache {
 		// Create a new cache context
-		cockroachdb.UseLogger(cockroachdbLog)
 		net := filepath.Base(p.cfg.DataDir)
 		db, err := cockroachdb.New(cockroachdb.UserPoliteiad, p.cfg.CacheHost,
 			net, p.cfg.CacheRootCert, p.cfg.CacheCert, p.cfg.CacheKey)
