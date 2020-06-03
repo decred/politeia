@@ -1346,12 +1346,12 @@ func (p *politeiawww) processBatchProposals(bp www.BatchProposals, user *user.Us
 			ErrorCode: www.ErrorStatusMaxProposalsExceededPolicy,
 		}
 	}
-	for _, v := range bp.Tokens {
-		if !isTokenValid(v) {
-			return nil, www.UserError{
-				ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
-				ErrorContext: []string{v},
-			}
+
+	invalidTokens := getInvalidTokens(bp.Tokens)
+	if len(invalidTokens) > 0 {
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
+			ErrorContext: invalidTokens,
 		}
 	}
 
@@ -1440,6 +1440,14 @@ func verifyStatusChange(current, next www.PropStatusT) error {
 // processSetProposalStatus changes the status of an existing proposal.
 func (p *politeiawww) processSetProposalStatus(sps www.SetProposalStatus, u *user.User) (*www.SetProposalStatusReply, error) {
 	log.Tracef("processSetProposalStatus %v", sps.Token)
+
+	// Make sure token is valid and not a prefix
+	if !isTokenValid(sps.Token) {
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
+			ErrorContext: []string{sps.Token},
+		}
+	}
 
 	// Ensure the status change message is not blank if the
 	// proposal is being censored or abandoned.
@@ -1660,6 +1668,14 @@ func filesToDel(filesOld []www.File, filesNew []www.File) []string {
 func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*www.EditProposalReply, error) {
 	log.Tracef("processEditProposal %v", ep.Token)
 
+	// Make sure token is valid and not a prefix
+	if !isTokenValid(ep.Token) {
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
+			ErrorContext: []string{ep.Token},
+		}
+	}
+
 	// Validate proposal status
 	cachedProp, err := p.getProp(ep.Token)
 	if err != nil {
@@ -1875,6 +1891,14 @@ func (p *politeiawww) processAllVetted(v www.GetAllVetted) (*www.GetAllVettedRep
 func (p *politeiawww) processCommentsGet(token string, u *user.User) (*www.GetCommentsReply, error) {
 	log.Tracef("ProcessCommentGet: %v", token)
 
+	// Make sure token is valid and not a prefix
+	if !isTokenValid(token) {
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
+			ErrorContext: []string{token},
+		}
+	}
+
 	// Fetch proposal comments from cache
 	c, err := p.getPropComments(token)
 	if err != nil {
@@ -2016,6 +2040,14 @@ func (p *politeiawww) voteStatusReply(token string, bestBlock uint64) (*www.Vote
 // processVoteStatus returns the vote status for a given proposal
 func (p *politeiawww) processVoteStatus(token string) (*www.VoteStatusReply, error) {
 	log.Tracef("ProcessProposalVotingStatus: %v", token)
+
+	// Make sure token is valid and not a prefix
+	if !isTokenValid(token) {
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
+			ErrorContext: []string{token},
+		}
+	}
 
 	// Ensure proposal is vetted
 	pr, err := p.getProp(token)
@@ -2162,6 +2194,14 @@ func (p *politeiawww) processActiveVote() (*www.ActiveVoteReply, error) {
 func (p *politeiawww) processVoteResults(token string) (*www.VoteResultsReply, error) {
 	log.Tracef("processVoteResults: %v", token)
 
+	// Make sure token is valid and not a prefix
+	if !isTokenValid(token) {
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
+			ErrorContext: []string{token},
+		}
+	}
+
 	// Ensure proposal is vetted
 	pr, err := p.getProp(token)
 	if err != nil {
@@ -2234,6 +2274,16 @@ func (p *politeiawww) processCastVotes(ballot *www.Ballot) (*www.BallotReply, er
 	challenge, err := util.Random(pd.ChallengeSize)
 	if err != nil {
 		return nil, err
+	}
+
+	// Verify proposal tokens
+	for _, vote := range ballot.Votes {
+		if !isTokenValid(vote.Token) {
+			return nil, www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
+				ErrorContext: []string{vote.Token},
+			}
+		}
 	}
 
 	payload, err := decredplugin.EncodeBallot(convertBallotFromWWW(*ballot))
@@ -2453,6 +2503,14 @@ func validateAuthorizeVoteRunoff(av www.AuthorizeVote, u user.User, pr www.Propo
 // indicate that a proposal has been finalized and is ready to be voted on.
 func (p *politeiawww) processAuthorizeVote(av www.AuthorizeVote, u *user.User) (*www.AuthorizeVoteReply, error) {
 	log.Tracef("processAuthorizeVote %v", av.Token)
+
+	// Make sure token is valid and not a prefix
+	if !isTokenValid(av.Token) {
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
+			ErrorContext: []string{av.Token},
+		}
+	}
 
 	// Validate the vote authorization
 	pr, err := p.getProp(av.Token)

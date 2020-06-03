@@ -979,13 +979,13 @@ func TestProcessEditProposal(t *testing.T) {
 		wantError error
 	}{
 		{
-			"proposal not found",
+			"invalid proposal token",
 			usr,
 			www.EditProposal{
 				Token: "invalid-token",
 			},
 			www.UserError{
-				ErrorCode: www.ErrorStatusProposalNotFound,
+				ErrorCode: www.ErrorStatusInvalidCensorshipToken,
 			},
 		},
 		{
@@ -1293,7 +1293,7 @@ func TestProcessSetProposalStatus(t *testing.T) {
 				ErrorCode: www.ErrorStatusInvalidSignature,
 			}},
 
-		{"proposal not found", admin,
+		{"invalid proposal token", admin,
 			www.SetProposalStatus{
 				Token:          tokenNotFound,
 				ProposalStatus: www.PropStatusPublic,
@@ -1301,7 +1301,7 @@ func TestProcessSetProposalStatus(t *testing.T) {
 				PublicKey:      admin.PublicKey(),
 			},
 			www.UserError{
-				ErrorCode: www.ErrorStatusProposalNotFound,
+				ErrorCode: www.ErrorStatusInvalidCensorshipToken,
 			}},
 
 		{"invalid status change", admin,

@@ -635,6 +635,14 @@ func (p *politeiawww) processEditUser(eu *www.EditUser, user *user.User) (*www.E
 func (p *politeiawww) processUserCommentsLikes(user *user.User, token string) (*www.UserCommentsLikesReply, error) {
 	log.Tracef("processUserCommentsLikes: %v %v", user.ID, token)
 
+	// Make sure token is valid and not a prefix
+	if !isTokenValid(token) {
+		return nil, www.UserError{
+			ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
+			ErrorContext: []string{token},
+		}
+	}
+
 	// Fetch all like comments for the proposal
 	dlc, err := p.decredPropCommentLikes(token)
 	if err != nil {
