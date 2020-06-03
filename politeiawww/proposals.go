@@ -2698,8 +2698,6 @@ func validateStartVote(sv www2.StartVote, u user.User, pr www.ProposalRecord, vs
 	dsv := convertStartVoteV2ToDecred(sv)
 	err = dsv.VerifySignature()
 	if err != nil {
-		fmt.Println("err")
-		fmt.Println(err)
 		log.Debugf("validateStartVote: VerifySignature: %v", err)
 		return www.UserError{
 			ErrorCode: www.ErrorStatusInvalidSignature,
