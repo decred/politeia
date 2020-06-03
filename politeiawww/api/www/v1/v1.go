@@ -214,6 +214,7 @@ const (
 	ErrorStatusInvalidLinkBy               ErrorStatusT = 74
 	ErrorStatusInvalidRunoffVote           ErrorStatusT = 75
 	ErrorStatusWrongProposalType           ErrorStatusT = 76
+	ErrorStatusTOTPFailedValidation        ErrorStatusT = 77
 
 	// Proposal state codes
 	//
@@ -390,6 +391,7 @@ var (
 		ErrorStatusInvalidLinkBy:               "invalid proposal linkby",
 		ErrorStatusInvalidRunoffVote:           "invalid runoff vote",
 		ErrorStatusWrongProposalType:           "wrong proposal type",
+		ErrorStatusTOTPFailedValidation:        "the provided passcode does not match the saved secret key",
 	}
 
 	// PropStatus converts propsal status codes to human readable text
@@ -1280,6 +1282,8 @@ type User struct {
 	Identities                      []UserIdentity `json:"identities"`
 	ProposalCredits                 uint64         `json:"proposalcredits"`
 	EmailNotifications              uint64         `json:"emailnotifications"` // Notify the user via emails
+	TOTPSecret                      string         `json:"totpsecret"`
+	TOTPType                        TOTPTypeT      `json:"totptype"`
 }
 
 // UserIdentity represents a user's unique identity.

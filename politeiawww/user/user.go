@@ -223,6 +223,12 @@ type User struct {
 	// associated with them to signify that they have been spent. The price that
 	// the proposal credit was purchased at is in atoms.
 	SpentProposalCredits []ProposalCredit `json:"spentproposalcredits"`
+
+	// TOTP Secret Key and type of TOTP being used.
+	TOTPSecret      string `json:"totpsecret"`
+	TOTPType        int    `json:"totptype"`
+	TOTPVerified    bool   `json:"totpverified"` // whether current totp secret has been verified with passcode
+	TOTPLastUpdated int64  `json:"totplastupdated"`
 }
 
 // ActiveIdentity returns the active identity for the user if one exists.
