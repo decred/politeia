@@ -1206,42 +1206,42 @@ func TestValidateStartVote(t *testing.T) {
 	d.AddRecord(t, convertPropToPD(t, prop))
 
 	propUnvetted := newProposalRecord(t, usr, id, www.PropStatusNotReviewed)
-	// tokenUnvetted := propUnvetted.CensorshipRecord.Token
 	d.AddRecord(t, convertPropToPD(t, propUnvetted))
 
 	minDuration := uint32(2016)
 	maxDuration := uint32(4032)
+	standard := www2.VoteTypeStandard
 
-	sv := newStartVote(t, token, 1, id)
+	sv := newStartVote(t, token, 1, standard, id)
 
-	svInvalidToken := newStartVote(t, token, 1, id)
+	svInvalidToken := newStartVote(t, token, 1, standard, id)
 	svInvalidToken.Vote.Token = ""
 
-	svInvalidBit := newStartVote(t, token, 1, id)
+	svInvalidBit := newStartVote(t, token, 1, standard, id)
 	svInvalidBit.Vote.Options[0].Bits = 0
 
-	svInvalidOpt := newStartVote(t, token, 1, id)
+	svInvalidOpt := newStartVote(t, token, 1, standard, id)
 	svInvalidOpt.Vote.Options[0].Id = "wrong"
 
-	svInvalidMinDuration := newStartVote(t, token, 1, id)
+	svInvalidMinDuration := newStartVote(t, token, 1, standard, id)
 	svInvalidMinDuration.Vote.Duration = 1
 
-	svInvalidMaxDuration := newStartVote(t, token, 1, id)
+	svInvalidMaxDuration := newStartVote(t, token, 1, standard, id)
 	svInvalidMaxDuration.Vote.Duration = 4050
 
-	svInvalidQuorum := newStartVote(t, token, 1, id)
+	svInvalidQuorum := newStartVote(t, token, 1, standard, id)
 	svInvalidQuorum.Vote.QuorumPercentage = 110
 
-	svInvalidPass := newStartVote(t, token, 1, id)
+	svInvalidPass := newStartVote(t, token, 1, standard, id)
 	svInvalidPass.Vote.PassPercentage = 110
 
-	svInvalidKey := newStartVote(t, token, 1, id)
+	svInvalidKey := newStartVote(t, token, 1, standard, id)
 	svInvalidKey.PublicKey = ""
 
-	svInvalidSig := newStartVote(t, token, 1, id)
+	svInvalidSig := newStartVote(t, token, 1, standard, id)
 	svInvalidSig.Signature = ""
 
-	svInvalidVersion := newStartVote(t, token, 2, id)
+	svInvalidVersion := newStartVote(t, token, 2, standard, id)
 
 	var tests = []struct {
 		name   string
@@ -1435,6 +1435,210 @@ func TestValidateStartVote(t *testing.T) {
 				want := errToStr(test.want)
 				if got != want {
 					t.Errorf("got %v, want %v", got, want)
+				}
+			}
+		})
+	}
+}
+
+func TestValidateStartVoteStandard(t *testing.T) {
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
+
+	d := newTestPoliteiad(t, p)
+	defer d.Close()
+
+	usr, id := newUser(t, p, true, false)
+
+	prop := newProposalRecord(t, usr, id, www.PropStatusPublic)
+	token := prop.CensorshipRecord.Token
+	d.AddRecord(t, convertPropToPD(t, prop))
+
+	rfpSubmission := newProposalRecord(t, usr, id, www.PropStatusPublic)
+	makeProposalRFPSubmissions(t, []*www.ProposalRecord{&rfpSubmission}, token)
+	d.AddRecord(t, convertPropToPD(t, rfpSubmission))
+
+	minDuration := uint32(2016)
+	maxDuration := uint32(4032)
+
+	sv := newStartVote(t, token, 1, www2.VoteTypeStandard, id)
+
+	svInvalidType := newStartVote(t, token, 1, www2.VoteTypeRunoff, id)
+	svInvalidType.Vote.Type = www2.VoteTypeRunoff
+
+	var tests = []struct {
+		name string
+		sv   www2.StartVote
+		u    user.User
+		pr   www.ProposalRecord
+		vs   www.VoteSummary
+		want error
+	}{
+		{
+			"invalid vote type",
+			svInvalidType,
+			*usr,
+			prop,
+			www.VoteSummary{},
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidVoteType,
+				ErrorContext: []string{
+					fmt.Sprintf("vote type must be %v", www2.VoteTypeStandard),
+				},
+			},
+		},
+		{
+			"invalid vote status",
+			sv,
+			*usr,
+			prop,
+			www.VoteSummary{
+				Status: www.PropVoteStatusNotAuthorized,
+			},
+			www.UserError{
+				ErrorCode:    www.ErrorStatusWrongVoteStatus,
+				ErrorContext: []string{"vote not authorized"},
+			},
+		},
+		{
+			"proposal cannot be rfp submission",
+			sv,
+			*usr,
+			rfpSubmission,
+			www.VoteSummary{
+				Status: www.PropVoteStatusAuthorized,
+			},
+			www.UserError{
+				ErrorCode:    www.ErrorStatusWrongProposalType,
+				ErrorContext: []string{"cannot be an rfp submission"},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateStartVoteStandard(
+				test.sv,
+				test.u,
+				test.pr,
+				test.vs,
+				minDuration,
+				maxDuration,
+				p.linkByPeriodMin(),
+				p.linkByPeriodMax(),
+			)
+
+			if err != nil {
+				// Validate error code
+				gotErrCode := err.(www.UserError).ErrorCode
+				wantErrCode := test.want.(www.UserError).ErrorCode
+
+				if gotErrCode != wantErrCode {
+					t.Errorf("got error code %v, want %v",
+						gotErrCode, wantErrCode)
+				}
+				// Validate error context
+				gotErrContext := err.(www.UserError).ErrorContext
+				wantErrContext := test.want.(www.UserError).ErrorContext
+				hasContext := len(gotErrContext) > 0 && len(wantErrContext) > 0
+
+				if hasContext && (gotErrContext[0] != wantErrContext[0]) {
+					t.Errorf("got error context '%v', want '%v'",
+						gotErrContext[0], wantErrContext[0])
+				}
+			}
+		})
+	}
+}
+
+func TestValidateStartVoteRunoff(t *testing.T) {
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
+
+	d := newTestPoliteiad(t, p)
+	defer d.Close()
+
+	usr, id := newUser(t, p, true, false)
+
+	prop := newProposalRecord(t, usr, id, www.PropStatusPublic)
+	token := prop.CensorshipRecord.Token
+	d.AddRecord(t, convertPropToPD(t, prop))
+
+	rfpSubmission := newProposalRecord(t, usr, id, www.PropStatusPublic)
+	makeProposalRFPSubmissions(t, []*www.ProposalRecord{&rfpSubmission}, token)
+	d.AddRecord(t, convertPropToPD(t, rfpSubmission))
+
+	minDuration := uint32(2016)
+	maxDuration := uint32(4032)
+
+	sv := newStartVote(t, token, 1, www2.VoteTypeRunoff, id)
+
+	svInvalidType := newStartVote(t, token, 1, www2.VoteTypeStandard, id)
+
+	var tests = []struct {
+		name string
+		sv   www2.StartVote
+		u    user.User
+		pr   www.ProposalRecord
+		vs   www.VoteSummary
+		want error
+	}{
+		{
+			"invalid vote type",
+			svInvalidType,
+			*usr,
+			prop,
+			www.VoteSummary{},
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidVoteType,
+				ErrorContext: []string{
+					fmt.Sprintf("%v vote type must be %v",
+						svInvalidType.Vote.Token, www2.VoteTypeRunoff),
+				},
+			},
+		},
+		{
+			"proposal is not a rfp submission",
+			sv,
+			*usr,
+			prop,
+			www.VoteSummary{},
+			www.UserError{
+				ErrorCode: www.ErrorStatusWrongProposalType,
+				ErrorContext: []string{
+					fmt.Sprintf("%v is not an rfp submission", sv.Vote.Token)},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateStartVoteRunoff(
+				test.sv,
+				test.u,
+				test.pr,
+				test.vs,
+				minDuration,
+				maxDuration,
+			)
+
+			if err != nil {
+				// Validate error code
+				gotErrCode := err.(www.UserError).ErrorCode
+				wantErrCode := test.want.(www.UserError).ErrorCode
+
+				if gotErrCode != wantErrCode {
+					t.Errorf("got error code %v, want %v",
+						gotErrCode, wantErrCode)
+				}
+				// Validate error context
+				gotErrContext := err.(www.UserError).ErrorContext
+				wantErrContext := test.want.(www.UserError).ErrorContext
+				hasContext := len(gotErrContext) > 0 && len(wantErrContext) > 0
+
+				if hasContext && (gotErrContext[0] != wantErrContext[0]) {
+					t.Errorf("got error context '%v', want '%v'",
+						gotErrContext[0], wantErrContext[0])
 				}
 			}
 		})
@@ -2259,6 +2463,94 @@ func TestProcessAuthorizeVote(t *testing.T) {
 				if !reflect.DeepEqual(v.wantReply, reply) {
 					t.Errorf("got reply %v, want %v", reply, v.wantReply)
 				}
+			}
+		})
+	}
+}
+
+func TestProcessStartVoteV2(t *testing.T) {
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
+
+	d := newTestPoliteiad(t, p)
+	defer d.Close()
+
+	usr, id := newUser(t, p, true, true)
+	usrNotAdmin, _ := newUser(t, p, false, false)
+
+	prop := newProposalRecord(t, usr, id, www.PropStatusPublic)
+	token := prop.CensorshipRecord.Token
+	d.AddRecord(t, convertPropToPD(t, prop))
+
+	sv := newStartVote(t, token, 1, www2.VoteTypeStandard, id)
+	vs := newVoteSummary(t, www.PropVoteStatusAuthorized, []www.VoteOptionResult{})
+	p.voteSummarySet(token, vs)
+
+	randomToken, err := util.Random(pd.TokenSize)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rToken := hex.EncodeToString(randomToken)
+
+	svInvalidToken := newStartVote(t, token, 1, www2.VoteTypeStandard, id)
+	svInvalidToken.Vote.Token = ""
+
+	svRandomToken := newStartVote(t, token, 1, www2.VoteTypeStandard, id)
+	svRandomToken.Vote.Token = rToken
+
+	var tests = []struct {
+		name    string
+		user    *user.User
+		sv      www2.StartVote
+		wantErr error
+	}{
+		{
+			"user not admin",
+			usrNotAdmin,
+			sv,
+			fmt.Errorf("user is not an admin"),
+		},
+		{
+			"invalid token",
+			usr,
+			svInvalidToken,
+			www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
+				ErrorContext: []string{svInvalidToken.Vote.Token},
+			},
+		},
+		{
+			"proposal not found",
+			usr,
+			svRandomToken,
+			www.UserError{
+				ErrorCode: www.ErrorStatusProposalNotFound,
+			},
+		},
+		{
+			"proposal not found",
+			usr,
+			svRandomToken,
+			www.UserError{
+				ErrorCode: www.ErrorStatusProposalNotFound,
+			},
+		},
+		{
+			"success",
+			usr,
+			sv,
+			nil,
+		},
+	}
+
+	for _, v := range tests {
+		t.Run(v.name, func(t *testing.T) {
+			_, err := p.processStartVoteV2(v.sv, v.user)
+			got := errToStr(err)
+			want := errToStr(v.wantErr)
+
+			if got != want {
+				t.Errorf("got error %v, want %v", got, want)
 			}
 		})
 	}

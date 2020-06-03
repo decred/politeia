@@ -342,11 +342,11 @@ func newFileRandomMD(t *testing.T) www.File {
 	}
 }
 
-func newStartVote(t *testing.T, token string, proposalVersion uint32, id *identity.FullIdentity) www2.StartVote {
+func newStartVote(t *testing.T, token string, proposalVersion uint32, vt www2.VoteT, id *identity.FullIdentity) www2.StartVote {
 	vote := www2.Vote{
 		Token:            token,
 		ProposalVersion:  proposalVersion,
-		Type:             www2.VoteTypeStandard,
+		Type:             vt,
 		Mask:             0x03, // bit 0 no, bit 1 yes
 		Duration:         2016,
 		QuorumPercentage: 20,
@@ -378,7 +378,7 @@ func newStartVote(t *testing.T, token string, proposalVersion uint32, id *identi
 }
 
 func newStartVoteCmd(t *testing.T, token string, proposalVersion uint32, id *identity.FullIdentity) pd.PluginCommand {
-	sv := newStartVote(t, token, proposalVersion, id)
+	sv := newStartVote(t, token, proposalVersion, www2.VoteTypeStandard, id)
 	dsv := convertStartVoteV2ToDecred(sv)
 	payload, err := decredplugin.EncodeStartVoteV2(dsv)
 	if err != nil {
@@ -628,6 +628,7 @@ func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
 		PaywallXpub:     "tpubVobLtToNtTq6TZNw4raWQok35PRPZou53vegZqNubtBTJMMFmuMpWybFCfweJ52N8uZJPZZdHE5SRnBBuuRPfC5jdNstfKjiAs8JtbYG9jx",
 		TestNet:         true,
 		VoteDurationMin: 2016,
+		VoteDurationMax: 4032,
 	}
 
 	// Setup database

@@ -2698,6 +2698,8 @@ func validateStartVote(sv www2.StartVote, u user.User, pr www.ProposalRecord, vs
 	dsv := convertStartVoteV2ToDecred(sv)
 	err = dsv.VerifySignature()
 	if err != nil {
+		fmt.Println("err")
+		fmt.Println(err)
 		log.Debugf("validateStartVote: VerifySignature: %v", err)
 		return www.UserError{
 			ErrorCode: www.ErrorStatusInvalidSignature,
@@ -2738,7 +2740,6 @@ func validateStartVoteStandard(sv www2.StartVote, u user.User, pr www.ProposalRe
 	}
 
 	// The remaining validation is specific to a VoteTypeStandard.
-
 	switch {
 	case sv.Vote.Type != www2.VoteTypeStandard:
 		// Not a standard vote
@@ -2832,7 +2833,7 @@ func validateStartVoteRunoff(sv www2.StartVote, u user.User, pr www.ProposalReco
 
 	case !isRFPSubmission(pr):
 		// The proposal is not an RFP submission
-		e := fmt.Sprintf("%v in not an rfp submission", token)
+		e := fmt.Sprintf("%v is not an rfp submission", token)
 		return www.UserError{
 			ErrorCode:    www.ErrorStatusWrongProposalType,
 			ErrorContext: []string{e},
