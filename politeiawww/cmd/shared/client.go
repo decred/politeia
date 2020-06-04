@@ -2363,6 +2363,30 @@ func (c *Client) SignMessages(sm *walletrpc.SignMessagesRequest) (*walletrpc.Sig
 	return smr, nil
 }
 
+// SetTOTP sets the logged in user's TOTP Key.
+func (c *Client) SetTOTP(st *www.SetTOTP) (*www.SetTOTPReply, error) {
+	responseBody, err := c.makeRequest(http.MethodPost,
+		cms.APIRoute, www.RouteSetTOTP, st)
+	if err != nil {
+		return nil, err
+	}
+
+	var str www.SetTOTPReply
+	err = json.Unmarshal(responseBody, &str)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal SetTOTPReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(str)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &str, nil
+}
+
 // LoadWalletClient connects to a dcrwallet instance.
 func (c *Client) LoadWalletClient() error {
 	creds, err := credentials.NewClientTLSFromFile(c.cfg.WalletCert, "")

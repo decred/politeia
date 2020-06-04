@@ -90,6 +90,7 @@ type piwww struct {
 	Secret             shared.SecretCmd         `command:"secret" description:"(user)   ping politeiawww"`
 	SendFaucetTx       SendFaucetTxCmd          `command:"sendfaucettx" description:"         send a DCR transaction using the Decred testnet faucet"`
 	SetProposalStatus  SetProposalStatusCmd     `command:"setproposalstatus" description:"(admin)  set the status of a proposal"`
+	SetTOTP            shared.SetTOTPCmd        `command:"settotp" description:"(user)  set the key for TOTP"`
 	StartVote          StartVoteCmd             `command:"startvote" description:"(admin)  start the voting period on a proposal"`
 	StartVoteRunoff    StartVoteRunoffCmd       `command:"startvoterunoff" description:"(admin)  start a runoff using the submissions to an RFP"`
 	Subscribe          SubscribeCmd             `command:"subscribe" description:"(public) subscribe to all websocket commands and do not exit tool"`

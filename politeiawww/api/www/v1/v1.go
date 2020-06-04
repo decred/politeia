@@ -1376,13 +1376,14 @@ type WSPing struct {
 
 // SetTOTP attempts to set a TOTP key for the chosen TOTP type (Basic/UFI2 etc).
 type SetTOTP struct {
-	Key             string    `json:"key"`
 	Type            TOTPTypeT `json:"type"`
 	CurrentTOTPCode string    `json:"currenttotpcode"`
 }
 
 // SetTOTPReply will return an empty reply if no errors occurred.
 type SetTOTPReply struct {
+	Key   string `json:"key"`
+	Image []byte `json:"image"`
 }
 
 // VerifyTOTP is used to confirm the previously set TOTP key.

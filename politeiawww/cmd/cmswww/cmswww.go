@@ -93,6 +93,7 @@ type cmswww struct {
 	ResetPassword          shared.ResetPasswordCmd   `command:"resetpassword" description:"(public) reset the password for a user that is not logged in"`
 	SetDCCStatus           SetDCCStatusCmd           `command:"setdccstatus" description:"(admin)  set the status of a DCC"`
 	SetInvoiceStatus       SetInvoiceStatusCmd       `command:"setinvoicestatus" description:"(admin)  set the status of an invoice"`
+	SetTOTP                shared.SetTOTPCmd         `command:"settotp" description:"(user)  set the key for TOTP"`
 	StartVote              StartVoteCmd              `command:"startvote" description:"(admin)  start the voting period on a dcc"`
 	SupportOpposeDCC       SupportOpposeDCCCmd       `command:"supportopposedcc" description:"(user)   support or oppose a given DCC"`
 	TestRun                TestRunCmd                `command:"testrun" description:"         test cmswww routes"`
