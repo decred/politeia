@@ -10,19 +10,18 @@ import (
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 )
 
-// SetTOTPCmd sets the TOTP key for the logged in user.
-type SetTOTPCmd struct {
+// VerifyTOTPCmd sets the TOTP key for the logged in user.
+type VerifyTOTPCmd struct {
 	Args struct {
-		CurrentCode string `positional-arg-name:"current-code"`
+		Code string `positional-arg-name:"code"`
 	} `positional-args:"true"`
 }
 
 // Execute executes the set totp command.
-func (cmd *SetTOTPCmd) Execute(args []string) error {
+func (cmd *VerifyTOTPCmd) Execute(args []string) error {
 	// Setup new user request
-	st := &v1.SetTOTP{
-		CurrentTOTPCode: cmd.Args.CurrentCode,
-		Type:            1,
+	st := &v1.VerifyTOTP{
+		Code: cmd.Args.Code,
 	}
 
 	// Print request details
@@ -32,9 +31,9 @@ func (cmd *SetTOTPCmd) Execute(args []string) error {
 	}
 
 	// Send request
-	str, err := client.SetTOTP(st)
+	str, err := client.VerifyTOTP(st)
 	if err != nil {
-		return fmt.Errorf("SetTOTP: %v", err)
+		return fmt.Errorf("VerifyTOTP: %v", err)
 	}
 
 	// Print response details

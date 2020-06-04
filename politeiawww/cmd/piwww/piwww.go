@@ -105,6 +105,7 @@ type piwww struct {
 	Users              shared.UsersCmd          `command:"users" description:"(public) get a list of users"`
 	VerifyUserEmail    VerifyUserEmailCmd       `command:"verifyuseremail" description:"(public) verify a user's email address"`
 	VerifyUserPayment  VerifyUserPaymentCmd     `command:"verifyuserpayment" description:"(user)   check if the logged in user has paid their user registration fee"`
+	VerifyTOTP         shared.VerifyTOTPCmd     `command:"verifytotp" description:"(user)  verify the set code for TOTP"`
 	Version            shared.VersionCmd        `command:"version" description:"(public) get server info and CSRF token"`
 	VettedProposals    VettedProposalsCmd       `command:"vettedproposals" description:"(public) get a page of vetted proposals"`
 	Vote               VoteCmd                  `command:"vote" description:"(public) cast votes for a proposal"`

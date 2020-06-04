@@ -67,6 +67,7 @@ func (p *politeiawww) processVerifyTOTP(vt www.VerifyTOTP, u *user.User) (*www.V
 			ErrorCode: www.ErrorStatusTOTPFailedValidation,
 		}
 	}
+
 	u.TOTPVerified = true
 	u.TOTPLastUpdated = time.Now().Unix()
 
