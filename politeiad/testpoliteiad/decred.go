@@ -157,6 +157,9 @@ func (p *TestPoliteiad) startVoteRunoff(payload string) (string, error) {
 	p.startVotesRunoffReplies[svr.Token] = response
 
 	svrReply, err := decred.EncodeStartVoteRunoffReply(response)
+	if err != nil {
+		return "", err
+	}
 
 	return string(svrReply), nil
 }

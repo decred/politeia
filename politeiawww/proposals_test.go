@@ -1069,30 +1069,24 @@ func TestValidateVoteOptions(t *testing.T) {
 			"invalid vote option",
 			invalidVoteOption,
 			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidVoteOptions,
-				ErrorContext: []string{
-					fmt.Sprintf("invalid vote option id 'wrong'"),
-				},
+				ErrorCode:    www.ErrorStatusInvalidVoteOptions,
+				ErrorContext: []string{"invalid vote option id 'wrong'"},
 			},
 		},
 		{
 			"missing reject vote option",
 			missingReject,
 			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidVoteOptions,
-				ErrorContext: []string{
-					fmt.Sprintf("missing vote option id 'no'"),
-				},
+				ErrorCode:    www.ErrorStatusInvalidVoteOptions,
+				ErrorContext: []string{"missing vote option id 'no'"},
 			},
 		},
 		{
 			"missing approve vote option",
 			missingApprove,
 			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidVoteOptions,
-				ErrorContext: []string{
-					fmt.Sprintf("missing vote option id 'yes'"),
-				},
+				ErrorCode:    www.ErrorStatusInvalidVoteOptions,
+				ErrorContext: []string{"missing vote option id 'yes'"},
 			},
 		},
 		{

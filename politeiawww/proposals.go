@@ -3026,7 +3026,7 @@ func (p *politeiawww) processStartVoteRunoffV2(sv www2.StartVoteRunoff, u *user.
 		}
 	}
 	if len(auths) == 0 {
-		e := fmt.Sprintf("start votes and authorize votes cannot be empty")
+		e := "start votes and authorize votes cannot be empty"
 		return nil, www.UserError{
 			ErrorCode:    www.ErrorStatusInvalidRunoffVote,
 			ErrorContext: []string{e},
