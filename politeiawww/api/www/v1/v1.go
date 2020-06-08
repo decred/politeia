@@ -216,6 +216,9 @@ const (
 	ErrorStatusWrongProposalType           ErrorStatusT = 76
 	ErrorStatusTOTPFailedValidation        ErrorStatusT = 77
 	ErrorStatusTOTPInvalidType             ErrorStatusT = 78
+	ErrorStatusRequiresTOTPCode            ErrorStatusT = 79
+	ErrorStatusInvalidTOTPCode             ErrorStatusT = 80
+	ErrorStatusTOTPWaitForNewCode          ErrorStatusT = 81
 
 	// Proposal state codes
 	//
@@ -788,6 +791,7 @@ type AbridgedUser struct {
 type Login struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+	Code     string `json:"code"`
 }
 
 // LoginReply is used to reply to the Login command.
