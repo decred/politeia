@@ -768,21 +768,21 @@ func TestValidateAuthorizeVote(t *testing.T) {
 	d.AddRecord(t, convertPropToPD(t, prop))
 
 	// Authorize vote
-	av := newAuthorizeVote(token, prop.Version, authorize, id)
+	av := newAuthorizeVote(t, token, prop.Version, authorize, id)
 
 	// Revoke vote
-	rv := newAuthorizeVote(token, prop.Version, revoke, id)
+	rv := newAuthorizeVote(t, token, prop.Version, revoke, id)
 
 	// Wrong status proposal
 	propUnreviewed := newProposalRecord(t, usr, id, www.PropStatusNotReviewed)
 	d.AddRecord(t, convertPropToPD(t, prop))
 
 	// Invalid signing key
-	avInvalid := newAuthorizeVote(token, prop.Version, authorize, id)
+	avInvalid := newAuthorizeVote(t, token, prop.Version, authorize, id)
 	avInvalid.PublicKey = hex.EncodeToString(id2.Public.Key[:])
 
 	// Invalid vote action
-	avInvalidAct := newAuthorizeVote(token, prop.Version, "bad", id)
+	avInvalidAct := newAuthorizeVote(t, token, prop.Version, "bad", id)
 
 	var tests = []struct {
 		name string
@@ -924,7 +924,7 @@ func TestValidateAuthorizeVoteStandard(t *testing.T) {
 	d.AddRecord(t, convertPropToPD(t, propValid))
 
 	// Authorize vote
-	av := newAuthorizeVote(token, prop.Version, authorize, id)
+	av := newAuthorizeVote(t, token, prop.Version, authorize, id)
 
 	var tests = []struct {
 		name string
@@ -993,7 +993,7 @@ func TestValidateAuthorizeVoteRunoff(t *testing.T) {
 	d.AddRecord(t, convertPropToPD(t, prop))
 
 	// Authorize vote
-	av := newAuthorizeVote(token, prop.Version, authorize, id)
+	av := newAuthorizeVote(t, token, prop.Version, authorize, id)
 
 	var tests = []struct {
 		name string
@@ -2410,10 +2410,10 @@ func TestProcessAuthorizeVote(t *testing.T) {
 	// Proposal not found
 	propNF := newProposalRecord(t, usr, id, www.PropStatusPublic)
 	tokenNF := propNF.CensorshipRecord.Token
-	avNF := newAuthorizeVote(tokenNF, propNF.Version, authorize, id)
+	avNF := newAuthorizeVote(t, tokenNF, propNF.Version, authorize, id)
 
 	// Authorize vote
-	av := newAuthorizeVote(token, prop.Version, authorize, id)
+	av := newAuthorizeVote(t, token, prop.Version, authorize, id)
 
 	// Want in reply
 	s := d.FullIdentity.SignMessage([]byte(av.Signature))
@@ -2551,6 +2551,298 @@ func TestProcessStartVoteV2(t *testing.T) {
 
 			if got != want {
 				t.Errorf("got error %v, want %v", got, want)
+			}
+		})
+	}
+}
+
+func TestProcessStartVoteRunoffV2(t *testing.T) {
+	p, cleanup := newTestPoliteiawww(t)
+	defer cleanup()
+
+	d := newTestPoliteiad(t, p)
+	defer d.Close()
+
+	// Helper variables
+	runoff := www2.VoteTypeRunoff
+	public := www.PropStatusPublic
+	auth := decredplugin.AuthVoteActionAuthorize
+	usr, id := newUser(t, p, true, true)
+
+	// Prepare proposal data for testing
+	rfpProposal := newProposalRecord(t, usr, id, public)
+	token := rfpProposal.CensorshipRecord.Token
+
+	rfpProposalSubmission1 := newProposalRecord(t, usr, id, public)
+	sub1Token := rfpProposalSubmission1.CensorshipRecord.Token
+	rfpProposalSubmission2 := newProposalRecord(t, usr, id, public)
+	sub2Token := rfpProposalSubmission2.CensorshipRecord.Token
+	rfpProposalSubmission3 := newProposalRecord(t, usr, id, public)
+	sub3Token := rfpProposalSubmission3.CensorshipRecord.Token
+
+	extraProposalSubmission := newProposalRecord(t, usr, id, public)
+	extraToken := extraProposalSubmission.CensorshipRecord.Token
+
+	linkTo := token
+	linkBy := time.Now().Add(time.Hour * 24 * 30).Unix()
+
+	rfpSubmissions := []*www.ProposalRecord{
+		&rfpProposalSubmission1,
+		&rfpProposalSubmission2,
+		&rfpProposalSubmission3,
+	}
+
+	makeProposalRFP(t, &rfpProposal, []string{}, linkBy)
+	makeProposalRFPSubmissions(t, rfpSubmissions, linkTo)
+	makeProposalRFPSubmissions(t, []*www.ProposalRecord{&extraProposalSubmission}, extraToken)
+
+	badRFPProposal := newProposalRecord(t, usr, id, public)
+
+	d.AddRecord(t, convertPropToPD(t, rfpProposal))
+	d.AddRecord(t, convertPropToPD(t, rfpProposalSubmission1))
+	d.AddRecord(t, convertPropToPD(t, rfpProposalSubmission2))
+	d.AddRecord(t, convertPropToPD(t, rfpProposalSubmission3))
+	d.AddRecord(t, convertPropToPD(t, extraProposalSubmission))
+	d.AddRecord(t, convertPropToPD(t, badRFPProposal))
+
+	// Prepare data for the route payload
+	sub1AuthVote := newAuthorizeVoteV2(t, sub1Token, "1", auth, id)
+	sub2AuthVote := newAuthorizeVoteV2(t, sub2Token, "1", auth, id)
+	sub3AuthVote := newAuthorizeVoteV2(t, sub3Token, "1", auth, id)
+
+	sub1StartVote := newStartVote(t, sub1Token, 1, runoff, id)
+	sub2StartVote := newStartVote(t, sub2Token, 1, runoff, id)
+	sub3StartVote := newStartVote(t, sub3Token, 1, runoff, id)
+
+	// Valid start vote runoff
+	authVotes := []www2.AuthorizeVote{
+		sub1AuthVote,
+		sub2AuthVote,
+		sub3AuthVote,
+	}
+	startVotes := []www2.StartVote{
+		sub1StartVote,
+		sub2StartVote,
+		sub3StartVote,
+	}
+	svRunoff := newStartVoteRunoff(t, token, authVotes, startVotes)
+
+	// Start vote not matching authorize
+	avNotMatch := []www2.AuthorizeVote{
+		sub2AuthVote,
+		sub3AuthVote,
+	}
+	svNotMatch := []www2.StartVote{
+		sub1StartVote,
+		sub2StartVote,
+		sub3StartVote,
+	}
+	svRunoffNotMatch := newStartVoteRunoff(t, token, avNotMatch, svNotMatch)
+
+	// Start vote not matching authorize
+	avNotMatch2 := []www2.AuthorizeVote{
+		sub1AuthVote,
+		sub2AuthVote,
+		sub3AuthVote,
+	}
+	svNotMatch2 := []www2.StartVote{
+		sub2StartVote,
+		sub3StartVote,
+	}
+	svRunoffNotMatch2 := newStartVoteRunoff(t, token, avNotMatch2, svNotMatch2)
+
+	// Empty auth and start votes
+	avEmpty := []www2.AuthorizeVote{}
+	svEmpty := []www2.StartVote{}
+	svRunoffEmpty := newStartVoteRunoff(t, token, avEmpty, svEmpty)
+
+	// Invalid token in start votes
+	sub1AvInvalid := sub1AuthVote
+	sub1AvInvalid.Token = "invalid"
+	sub1SvInvalid := sub1StartVote
+	sub1SvInvalid.Vote.Token = "invalid"
+	avInvalidToken := []www2.AuthorizeVote{
+		sub1AvInvalid,
+	}
+	svInvalidToken := []www2.StartVote{
+		sub1SvInvalid,
+	}
+	svRunoffInvalidToken := newStartVoteRunoff(t, token, avInvalidToken, svInvalidToken)
+
+	// Proposal submission record not found
+	randomToken, err := util.Random(pd.TokenSize)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rToken := hex.EncodeToString(randomToken)
+	sub1AvNotFound := sub1AuthVote
+	sub1AvNotFound.Token = rToken
+	sub1SvNotFound := sub1StartVote
+	sub1SvNotFound.Vote.Token = rToken
+	avNotFound := []www2.AuthorizeVote{
+		sub1AvNotFound,
+	}
+	svNotFound := []www2.StartVote{
+		sub1SvNotFound,
+	}
+	svRunoffNotFound := newStartVoteRunoff(t, token, avNotFound, svNotFound)
+
+	// RFP Proposal record not found
+	svRunoffRFPNotFound := newStartVoteRunoff(t, rToken, authVotes, startVotes)
+
+	// Empty linked from for RFP proposal
+	badToken := badRFPProposal.CensorshipRecord.Token
+	svRunoffBadRFP := newStartVoteRunoff(t, badToken, authVotes, startVotes)
+
+	// Extra StartVote on the route payload
+	ave := newAuthorizeVoteV2(t, extraToken, "1", auth, id)
+	sve := newStartVote(t, extraToken, 1, runoff, id)
+	avExtra := authVotes
+	avExtra = append(avExtra, ave)
+	svExtra := startVotes
+	svExtra = append(svExtra, sve)
+	svRunoffExtraSv := newStartVoteRunoff(t, token, avExtra, svExtra)
+
+	// Missing StartVote from one of the rfp submissions
+	avMissing := []www2.AuthorizeVote{
+		sub1AuthVote,
+		sub2AuthVote,
+	}
+	svMissing := []www2.StartVote{
+		sub1StartVote,
+		sub2StartVote,
+	}
+	svRunoffMissingSv := newStartVoteRunoff(t, token, avMissing, svMissing)
+
+	var tests = []struct {
+		name string
+		user *user.User
+		sv   www2.StartVoteRunoff
+		want error
+	}{
+		{
+			"start vote not matching authorize vote",
+			usr,
+			svRunoffNotMatch,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidRunoffVote,
+				ErrorContext: []string{
+					fmt.Sprintf("start vote found without matching authorize"+
+						" vote %v", sub1StartVote.Vote.Token),
+				},
+			},
+		},
+		{
+			"authorize vote not matching start vote",
+			usr,
+			svRunoffNotMatch2,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidRunoffVote,
+				ErrorContext: []string{
+					fmt.Sprintf("authorize vote found without matching start"+
+						" vote %v", sub1AuthVote.Token),
+				},
+			},
+		},
+		{
+			"empty authorize and start vote entries",
+			usr,
+			svRunoffEmpty,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidRunoffVote,
+				ErrorContext: []string{"start votes and authorize votes cannot " +
+					"be empty"},
+			},
+		},
+		{
+			"invalid proposal token in start vote",
+			usr,
+			svRunoffInvalidToken,
+			www.UserError{
+				ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
+				ErrorContext: []string{"invalid"},
+			},
+		},
+		{
+			"proposal submission record not found",
+			usr,
+			svRunoffNotFound,
+			www.UserError{
+				ErrorCode:    www.ErrorStatusProposalNotFound,
+				ErrorContext: []string{rToken},
+			},
+		},
+		{
+			"RFP proposal record not found",
+			usr,
+			svRunoffRFPNotFound,
+			www.UserError{
+				ErrorCode:    www.ErrorStatusProposalNotFound,
+				ErrorContext: []string{rToken},
+			},
+		},
+		{
+			"no linked proposals to the RFP",
+			usr,
+			svRunoffBadRFP,
+			www.UserError{
+				ErrorCode: www.ErrorStatusNoLinkedProposals,
+			},
+		},
+		{
+			"extra StartVote on the route payload",
+			usr,
+			svRunoffExtraSv,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidRunoffVote,
+				ErrorContext: []string{
+					fmt.Sprintf("invalid start vote submission: %v",
+						extraToken),
+				},
+			},
+		},
+		{
+			"missing StartVote for one of the rfp submissions",
+			usr,
+			svRunoffMissingSv,
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidRunoffVote,
+				ErrorContext: []string{
+					fmt.Sprintf("missing start vote for rfp submission: %v",
+						sub3StartVote.Vote.Token),
+				},
+			},
+		},
+		{
+			"valid start runoff vote",
+			usr,
+			svRunoff,
+			nil,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := p.processStartVoteRunoffV2(test.sv, test.user)
+
+			if err != nil {
+				// Validate error code
+				gotErrCode := err.(www.UserError).ErrorCode
+				wantErrCode := test.want.(www.UserError).ErrorCode
+
+				if gotErrCode != wantErrCode {
+					t.Errorf("got error code %v, want %v",
+						gotErrCode, wantErrCode)
+				}
+				// Validate error context
+				gotErrContext := err.(www.UserError).ErrorContext
+				wantErrContext := test.want.(www.UserError).ErrorContext
+				hasContext := len(gotErrContext) > 0 && len(wantErrContext) > 0
+
+				if hasContext && (gotErrContext[0] != wantErrContext[0]) {
+					t.Errorf("got error context '%v', want '%v'",
+						gotErrContext[0], wantErrContext[0])
+				}
 			}
 		})
 	}

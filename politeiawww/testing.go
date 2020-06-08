@@ -343,6 +343,8 @@ func newFileRandomMD(t *testing.T) www.File {
 }
 
 func newStartVote(t *testing.T, token string, proposalVersion uint32, vt www2.VoteT, id *identity.FullIdentity) www2.StartVote {
+	t.Helper()
+
 	vote := www2.Vote{
 		Token:            token,
 		ProposalVersion:  proposalVersion,
@@ -378,6 +380,8 @@ func newStartVote(t *testing.T, token string, proposalVersion uint32, vt www2.Vo
 }
 
 func newStartVoteCmd(t *testing.T, token string, proposalVersion uint32, id *identity.FullIdentity) pd.PluginCommand {
+	t.Helper()
+
 	sv := newStartVote(t, token, proposalVersion, www2.VoteTypeStandard, id)
 	dsv := convertStartVoteV2ToDecred(sv)
 	payload, err := decredplugin.EncodeStartVoteV2(dsv)
@@ -399,7 +403,31 @@ func newStartVoteCmd(t *testing.T, token string, proposalVersion uint32, id *ide
 	}
 }
 
-func newAuthorizeVote(token, version, action string, id *identity.FullIdentity) www.AuthorizeVote {
+func newStartVoteRunoff(t *testing.T, tk string, avs []www2.AuthorizeVote, svs []www2.StartVote) www2.StartVoteRunoff {
+	t.Helper()
+
+	return www2.StartVoteRunoff{
+		Token:          tk,
+		AuthorizeVotes: avs,
+		StartVotes:     svs,
+	}
+}
+
+func newAuthorizeVoteV2(t *testing.T, token, version, action string, id *identity.FullIdentity) www2.AuthorizeVote {
+	t.Helper()
+
+	sig := id.SignMessage([]byte(token + version + action))
+	return www2.AuthorizeVote{
+		Token:     token,
+		Action:    action,
+		PublicKey: hex.EncodeToString(id.Public.Key[:]),
+		Signature: hex.EncodeToString(sig[:]),
+	}
+}
+
+func newAuthorizeVote(t *testing.T, token, version, action string, id *identity.FullIdentity) www.AuthorizeVote {
+	t.Helper()
+
 	sig := id.SignMessage([]byte(token + version + action))
 	return www.AuthorizeVote{
 		Action:    action,
@@ -410,7 +438,9 @@ func newAuthorizeVote(token, version, action string, id *identity.FullIdentity) 
 }
 
 func newAuthorizeVoteCmd(t *testing.T, token, version, action string, id *identity.FullIdentity) pd.PluginCommand {
-	av := newAuthorizeVote(token, version, action, id)
+	t.Helper()
+
+	av := newAuthorizeVote(t, token, version, action, id)
 	dav := convertAuthorizeVoteToDecred(av)
 	payload, err := decredplugin.EncodeAuthorizeVote(dav)
 	if err != nil {
@@ -494,6 +524,8 @@ func newProposalRecord(t *testing.T, u *user.User, id *identity.FullIdentity, s 
 }
 
 func newProposalMetadata(t *testing.T, name, linkto string, linkby int64) ([]www.Metadata, www.ProposalMetadata) {
+	t.Helper()
+
 	if name == "" {
 		// Generate a random name if none was given
 		name = proposalNameRandom(t)
@@ -563,6 +595,7 @@ func makeProposalRFP(t *testing.T, pr *www.ProposalRecord, linkedfrom []string, 
 
 func makeProposalRFPSubmissions(t *testing.T, prs []*www.ProposalRecord, linkto string) {
 	t.Helper()
+
 	for _, pr := range prs {
 		md, _ := newProposalMetadata(t, pr.Name, linkto, 0)
 		pr.LinkTo = linkto

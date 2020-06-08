@@ -49,9 +49,12 @@ type TestPoliteiad struct {
 	records  map[string]map[string]v1.Record // [token][version]Record
 
 	// Decred plugin
-	authorizeVotes   map[string]map[string]decred.AuthorizeVote // [token][version]AuthorizeVote
-	startVotes       map[string]decred.StartVoteV2              // [token]StartVote
-	startVoteReplies map[string]decred.StartVoteReply           // [token]StartVoteReply
+	authorizeVotes          map[string]map[string]decred.AuthorizeVote // [token][version]AuthorizeVote
+	startVotes              map[string]decred.StartVoteV2              // [token]StartVote
+	startVoteReplies        map[string]decred.StartVoteReply           // [token]StartVoteReply
+	startVotesRunoff        map[string]decred.StartVoteRunoff          // [token]StartVoteRunoff
+	startVotesRunoffReplies map[string]decred.StartVoteRunoffReply     // [token]StartVoteRunoffReply
+
 }
 
 func respondWithUserError(w http.ResponseWriter,
@@ -174,17 +177,17 @@ func (p *TestPoliteiad) handleNewRecord(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	merkle, err := merkleRoot(t.Files)
+	mr, err := merkleRoot(t.Files)
 	if err != nil {
 		util.RespondWithJSON(w, http.StatusInternalServerError, err)
 		return
 	}
 
 	token := hex.EncodeToString(tokenb)
-	sig := p.identity.SignMessage([]byte(merkle + token))
+	sig := p.identity.SignMessage([]byte(mr + token))
 	resp := p.identity.SignMessage(challenge)
 	cr := v1.CensorshipRecord{
-		Merkle:    merkle,
+		Merkle:    mr,
 		Token:     token,
 		Signature: hex.EncodeToString(sig[:]),
 	}
@@ -482,14 +485,16 @@ func New(t *testing.T, c cache.Cache) *TestPoliteiad {
 
 	// Init context
 	p := TestPoliteiad{
-		FullIdentity:     id,
-		PublicIdentity:   &id.Public,
-		identity:         id,
-		cache:            c,
-		records:          make(map[string]map[string]v1.Record),
-		authorizeVotes:   make(map[string]map[string]decred.AuthorizeVote),
-		startVotes:       make(map[string]decred.StartVoteV2),
-		startVoteReplies: make(map[string]decred.StartVoteReply),
+		FullIdentity:            id,
+		PublicIdentity:          &id.Public,
+		identity:                id,
+		cache:                   c,
+		records:                 make(map[string]map[string]v1.Record),
+		authorizeVotes:          make(map[string]map[string]decred.AuthorizeVote),
+		startVotes:              make(map[string]decred.StartVoteV2),
+		startVoteReplies:        make(map[string]decred.StartVoteReply),
+		startVotesRunoff:        make(map[string]decred.StartVoteRunoff),
+		startVotesRunoffReplies: make(map[string]decred.StartVoteRunoffReply),
 	}
 
 	// Setup routes
