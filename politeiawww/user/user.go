@@ -231,10 +231,9 @@ type User struct {
 	// TOTP Secret Key and type of TOTP being used.
 	TOTPSecret             string  `json:"totpsecret"`
 	TOTPType               int     `json:"totptype"`
-	TOTPVerified           bool    `json:"totpverified"` // whether current totp secret has been verified with passcode
+	TOTPVerified           bool    `json:"totpverified"` // whether current totp secret has been verified with
 	TOTPLastUpdated        []int64 `json:"totplastupdated"`
-	TOTPFailedAttempts     int     `json:"totpfailedattempts"`
-	TOTPLastFailedCodeTime int64   `json:"totplastfailedcodetime`
+	TOTPLastFailedCodeTime []int64 `json:"totplastfailedcodetime"`
 }
 
 // ActiveIdentity returns the active identity for the user if one exists.

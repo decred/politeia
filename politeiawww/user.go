@@ -1125,73 +1125,73 @@ func (p *politeiawww) login(l www.Login) loginResult {
 				reply: nil,
 				err:   err,
 			}
-		} else {
-			// Check to see if the user has already attempted more than 2
-			// TOTP codes for this window.
-			if u.TOTPFailedAttempts >= 2 {
-				log.Debugf("login: too many totp attempts in same window %v", u.Email)
-				err = www.UserError{
-					ErrorCode: www.ErrorStatusTOTPWaitForNewCode,
-				}
-				return loginResult{
-					reply: nil,
-					err:   err,
-				}
+		}
+		// Check to see if the user has already attempted more than 2
+		// TOTP codes for this window.
+		if len(u.TOTPLastFailedCodeTime) >= 2 {
+			log.Debugf("login: too many totp attempts in same window %v", u.Email)
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusTOTPWaitForNewCode,
 			}
-			currentCode, err := totp.GenerateCode(u.TOTPSecret, time.Now())
-			if err != nil {
-				return loginResult{
-					reply: nil,
-					err:   err,
-				}
+			return loginResult{
+				reply: nil,
+				err:   err,
 			}
-			// Check to see if provided code matches.
-			if currentCode != l.Code {
-				// Code did not match, is this the first failed attempt with
-				// this code?
-				if u.TOTPLastFailedCodeTime == 0 {
-					log.Debugf("login: new totp code failure %v", u.Email)
-					u.TOTPLastFailedCodeTime = time.Now().Unix()
-					u.TOTPFailedAttempts = 1
-				} else {
-					// A code has already been generated, check to see if it
-					// matches the recently generated code.
-					oldCode, err := totp.GenerateCode(u.TOTPSecret, time.Unix(u.TOTPLastFailedCodeTime, 0))
-					if err != nil {
-						return loginResult{
-							reply: nil,
-							err:   err,
-						}
-					}
-					// The codes match, so just increment the TOTPFailedAttempts
-					// and return error.
-					if currentCode == oldCode {
-						log.Debugf("login: another failed window attempt %v", u.Email)
-						u.TOTPFailedAttempts++
-					} else {
-						log.Debugf("login: new totp code failure %v", u.Email)
-						// Code don't match so reset time to now, and failed
-						// attempts back to 1.
-						u.TOTPLastFailedCodeTime = time.Now().Unix()
-						u.TOTPFailedAttempts = 1
-					}
-				}
-
-				// Update user information with failed attempts and time.
-				err = p.db.UserUpdate(*u)
+		}
+		currentCode, err := totp.GenerateCode(u.TOTPSecret, time.Now())
+		if err != nil {
+			return loginResult{
+				reply: nil,
+				err:   err,
+			}
+		}
+		// Check to see if provided code matches.
+		if currentCode != l.Code {
+			// Code did not match, is this the first failed attempt with
+			// this code?
+			if len(u.TOTPLastFailedCodeTime) == 0 {
+				log.Debugf("login: new totp code failure %v", u.Email)
+				u.TOTPLastFailedCodeTime = make([]int64, 0, 2)
+				u.TOTPLastFailedCodeTime = append(u.TOTPLastFailedCodeTime, time.Now().Unix())
+			} else {
+				// A code has already been generated, check to see if it
+				// matches the recently generated code.
+				oldCode, err := totp.GenerateCode(u.TOTPSecret,
+					time.Unix(u.TOTPLastFailedCodeTime[len(u.TOTPLastFailedCodeTime)-1], 0))
 				if err != nil {
 					return loginResult{
 						reply: nil,
 						err:   err,
 					}
 				}
-				err = www.UserError{
-					ErrorCode: www.ErrorStatusInvalidTOTPCode,
+				// The codes match, so just increment the TOTPFailedAttempts
+				// and return error.
+				if currentCode == oldCode {
+					log.Debugf("login: another failed window attempt %v", u.Email)
+					u.TOTPLastFailedCodeTime = append(u.TOTPLastFailedCodeTime, time.Now().Unix())
+				} else {
+					log.Debugf("login: new totp code failure %v", u.Email)
+					// Code don't match so reset time to now, and failed
+					// attempts back to 1.
+					u.TOTPLastFailedCodeTime = make([]int64, 0, 2)
+					u.TOTPLastFailedCodeTime = append(u.TOTPLastFailedCodeTime, time.Now().Unix())
 				}
+			}
+
+			// Update user information with failed attempts and time.
+			err = p.db.UserUpdate(*u)
+			if err != nil {
 				return loginResult{
 					reply: nil,
 					err:   err,
 				}
+			}
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusInvalidTOTPCode,
+			}
+			return loginResult{
+				reply: nil,
+				err:   err,
 			}
 		}
 	}
@@ -1204,7 +1204,7 @@ func (p *politeiawww) login(l www.Login) loginResult {
 		log.Debugf("login: wrong password")
 		if !userIsLocked(u.FailedLoginAttempts) {
 			u.FailedLoginAttempts++
-			u.TOTPLastFailedCodeTime = 0
+			u.TOTPLastFailedCodeTime = make([]int64, 0, 2)
 			err := p.db.UserUpdate(*u)
 			if err != nil {
 				return loginResult{
@@ -1263,6 +1263,7 @@ func (p *politeiawww) login(l www.Login) loginResult {
 	lastLoginTime := u.LastLoginTime
 	u.FailedLoginAttempts = 0
 	u.LastLoginTime = time.Now().Unix()
+	u.TOTPLastFailedCodeTime = make([]int64, 0, 2)
 	err = p.db.UserUpdate(*u)
 	if err != nil {
 		return loginResult{
