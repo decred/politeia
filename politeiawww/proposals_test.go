@@ -21,6 +21,12 @@ import (
 	"github.com/decred/politeia/util"
 )
 
+const (
+	// Helper vote duration constants
+	minDuration = 2016
+	maxDuration = 4032
+)
+
 func TestIsValidProposalName(t *testing.T) {
 	tests := []struct {
 		name string // @rgeraldes - valid input is a string without new lines
@@ -406,7 +412,7 @@ func TestValidateProposalMetadata(t *testing.T) {
 			},
 		},
 		{
-			"invalid linkTo proposal token not found",
+			"invalid linkTo token proposal not found",
 			mdProposalNotFound,
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidLinkTo,
@@ -459,7 +465,8 @@ func TestValidateProposalMetadata(t *testing.T) {
 				ErrorCode:    www.ErrorStatusInvalidLinkBy,
 				ErrorContext: []string{linkByMinError},
 			},
-		}, {
+		},
+		{
 			"invalid linkBy greather than max",
 			mdLinkByMax,
 			www.UserError{
@@ -1202,40 +1209,38 @@ func TestValidateStartVote(t *testing.T) {
 	propUnvetted := newProposalRecord(t, usr, id, www.PropStatusNotReviewed)
 	d.AddRecord(t, convertPropToPD(t, propUnvetted))
 
-	minDuration := uint32(2016)
-	maxDuration := uint32(4032)
 	standard := www2.VoteTypeStandard
 
-	sv := newStartVote(t, token, 1, standard, id)
+	sv := newStartVote(t, token, 1, minDuration, standard, id)
 
-	svInvalidToken := newStartVote(t, token, 1, standard, id)
+	svInvalidToken := newStartVote(t, token, 1, minDuration, standard, id)
 	svInvalidToken.Vote.Token = ""
 
-	svInvalidBit := newStartVote(t, token, 1, standard, id)
+	svInvalidBit := newStartVote(t, token, 1, minDuration, standard, id)
 	svInvalidBit.Vote.Options[0].Bits = 0
 
-	svInvalidOpt := newStartVote(t, token, 1, standard, id)
+	svInvalidOpt := newStartVote(t, token, 1, minDuration, standard, id)
 	svInvalidOpt.Vote.Options[0].Id = "wrong"
 
-	svInvalidMinDuration := newStartVote(t, token, 1, standard, id)
+	svInvalidMinDuration := newStartVote(t, token, 1, minDuration, standard, id)
 	svInvalidMinDuration.Vote.Duration = 1
 
-	svInvalidMaxDuration := newStartVote(t, token, 1, standard, id)
+	svInvalidMaxDuration := newStartVote(t, token, 1, minDuration, standard, id)
 	svInvalidMaxDuration.Vote.Duration = 4050
 
-	svInvalidQuorum := newStartVote(t, token, 1, standard, id)
+	svInvalidQuorum := newStartVote(t, token, 1, minDuration, standard, id)
 	svInvalidQuorum.Vote.QuorumPercentage = 110
 
-	svInvalidPass := newStartVote(t, token, 1, standard, id)
+	svInvalidPass := newStartVote(t, token, 1, minDuration, standard, id)
 	svInvalidPass.Vote.PassPercentage = 110
 
-	svInvalidKey := newStartVote(t, token, 1, standard, id)
+	svInvalidKey := newStartVote(t, token, 1, minDuration, standard, id)
 	svInvalidKey.PublicKey = ""
 
-	svInvalidSig := newStartVote(t, token, 1, standard, id)
+	svInvalidSig := newStartVote(t, token, 1, minDuration, standard, id)
 	svInvalidSig.Signature = ""
 
-	svInvalidVersion := newStartVote(t, token, 2, standard, id)
+	svInvalidVersion := newStartVote(t, token, 2, minDuration, standard, id)
 
 	var tests = []struct {
 		name   string
@@ -1444,21 +1449,37 @@ func TestValidateStartVoteStandard(t *testing.T) {
 
 	usr, id := newUser(t, p, true, false)
 
+	// RFP proposal
 	prop := newProposalRecord(t, usr, id, www.PropStatusPublic)
 	token := prop.CensorshipRecord.Token
+	linkBy := time.Now().Add(time.Hour * 24 * 30).Unix()
+	makeProposalRFP(t, &prop, []string{}, linkBy)
 	d.AddRecord(t, convertPropToPD(t, prop))
 
+	// RFP submission
 	rfpSubmission := newProposalRecord(t, usr, id, www.PropStatusPublic)
 	makeProposalRFPSubmissions(t, []*www.ProposalRecord{&rfpSubmission}, token)
 	d.AddRecord(t, convertPropToPD(t, rfpSubmission))
 
-	minDuration := uint32(2016)
-	maxDuration := uint32(4032)
+	sv := newStartVote(t, token, 1, minDuration, www2.VoteTypeStandard, id)
 
-	sv := newStartVote(t, token, 1, www2.VoteTypeStandard, id)
-
-	svInvalidType := newStartVote(t, token, 1, www2.VoteTypeRunoff, id)
+	// Invalid vote type
+	svInvalidType := newStartVote(t, token, 1, minDuration, www2.VoteTypeRunoff, id)
 	svInvalidType.Vote.Type = www2.VoteTypeRunoff
+
+	// RFP proposal linkBy less than min
+	propMinLb := newProposalRecord(t, usr, id, www.PropStatusPublic)
+	makeProposalRFP(t, &propMinLb, []string{}, p.linkByPeriodMin())
+	d.AddRecord(t, convertPropToPD(t, propMinLb))
+
+	// RFP proposal linkBy more than max
+	propMaxLb := newProposalRecord(t, usr, id, www.PropStatusPublic)
+	maxLinkBy := time.Now().Unix() + (p.linkByPeriodMax() * 2)
+	makeProposalRFP(t, &propMaxLb, []string{}, maxLinkBy)
+	d.AddRecord(t, convertPropToPD(t, propMaxLb))
+
+	// Three days vote duration
+	svVoteDuration := newStartVote(t, token, 1, 864, www2.VoteTypeStandard, id)
 
 	var tests = []struct {
 		name string
@@ -1466,6 +1487,7 @@ func TestValidateStartVoteStandard(t *testing.T) {
 		u    user.User
 		pr   www.ProposalRecord
 		vs   www.VoteSummary
+		mm   []uint32 // min duration and max duration
 		want error
 	}{
 		{
@@ -1474,6 +1496,7 @@ func TestValidateStartVoteStandard(t *testing.T) {
 			*usr,
 			prop,
 			www.VoteSummary{},
+			[]uint32{minDuration, maxDuration},
 			www.UserError{
 				ErrorCode: www.ErrorStatusInvalidVoteType,
 				ErrorContext: []string{
@@ -1489,6 +1512,7 @@ func TestValidateStartVoteStandard(t *testing.T) {
 			www.VoteSummary{
 				Status: www.PropVoteStatusNotAuthorized,
 			},
+			[]uint32{minDuration, maxDuration},
 			www.UserError{
 				ErrorCode:    www.ErrorStatusWrongVoteStatus,
 				ErrorContext: []string{"vote not authorized"},
@@ -1502,10 +1526,69 @@ func TestValidateStartVoteStandard(t *testing.T) {
 			www.VoteSummary{
 				Status: www.PropVoteStatusAuthorized,
 			},
+			[]uint32{minDuration, maxDuration},
 			www.UserError{
 				ErrorCode:    www.ErrorStatusWrongProposalType,
 				ErrorContext: []string{"cannot be an rfp submission"},
 			},
+		},
+		{
+			"less than min linkby period",
+			sv,
+			*usr,
+			propMinLb,
+			www.VoteSummary{
+				Status: www.PropVoteStatusAuthorized,
+			},
+			[]uint32{minDuration, maxDuration},
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidLinkBy,
+				ErrorContext: []string{
+					fmt.Sprintf("linkby period must be at least %v seconds"+
+						" from the start of the proposal vote", p.linkByPeriodMin()),
+				},
+			},
+		},
+		{
+			"more than max linkby period",
+			sv,
+			*usr,
+			propMaxLb,
+			www.VoteSummary{
+				Status: www.PropVoteStatusAuthorized,
+			},
+			[]uint32{minDuration, maxDuration},
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidLinkBy,
+				ErrorContext: []string{
+					fmt.Sprintf("linkby period cannot be more than %v seconds"+
+						" from the start of the proposal vote", p.linkByPeriodMax()),
+				},
+			},
+		},
+		{
+			"three days vote duration",
+			svVoteDuration,
+			*usr,
+			prop,
+			www.VoteSummary{
+				Status: www.PropVoteStatusAuthorized,
+			},
+			[]uint32{100, maxDuration},
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidLinkBy,
+			},
+		},
+		{
+			"valid",
+			sv,
+			*usr,
+			prop,
+			www.VoteSummary{
+				Status: www.PropVoteStatusAuthorized,
+			},
+			[]uint32{minDuration, maxDuration},
+			nil,
 		},
 	}
 
@@ -1516,8 +1599,8 @@ func TestValidateStartVoteStandard(t *testing.T) {
 				test.u,
 				test.pr,
 				test.vs,
-				minDuration,
-				maxDuration,
+				test.mm[0],
+				test.mm[1],
 				p.linkByPeriodMin(),
 				p.linkByPeriodMax(),
 			)
@@ -1562,12 +1645,9 @@ func TestValidateStartVoteRunoff(t *testing.T) {
 	makeProposalRFPSubmissions(t, []*www.ProposalRecord{&rfpSubmission}, token)
 	d.AddRecord(t, convertPropToPD(t, rfpSubmission))
 
-	minDuration := uint32(2016)
-	maxDuration := uint32(4032)
+	sv := newStartVote(t, token, 1, minDuration, www2.VoteTypeRunoff, id)
 
-	sv := newStartVote(t, token, 1, www2.VoteTypeRunoff, id)
-
-	svInvalidType := newStartVote(t, token, 1, www2.VoteTypeStandard, id)
+	svInvalidType := newStartVote(t, token, 1, minDuration, www2.VoteTypeStandard, id)
 
 	var tests = []struct {
 		name string
@@ -1602,6 +1682,16 @@ func TestValidateStartVoteRunoff(t *testing.T) {
 				ErrorContext: []string{
 					fmt.Sprintf("%v is not an rfp submission", sv.Vote.Token)},
 			},
+		},
+		{
+			"valid",
+			sv,
+			*usr,
+			rfpSubmission,
+			www.VoteSummary{
+				Status: www.PropVoteStatusNotAuthorized,
+			},
+			nil,
 		},
 	}
 
@@ -2115,7 +2205,7 @@ func TestProcessSetProposalStatus(t *testing.T) {
 	sigVoteStartedToAbandoned := hex.EncodeToString(s[:])
 
 	d.AddRecord(t, convertPropToPD(t, propVoteStarted))
-	cmd = newStartVoteCmd(t, tokenVoteStarted, 1, id)
+	cmd = newStartVoteCmd(t, tokenVoteStarted, 1, 2016, id)
 	d.Plugin(t, cmd)
 
 	// Ensure that admins are not allowed to change the status of
@@ -2476,7 +2566,7 @@ func TestProcessStartVoteV2(t *testing.T) {
 	token := prop.CensorshipRecord.Token
 	d.AddRecord(t, convertPropToPD(t, prop))
 
-	sv := newStartVote(t, token, 1, www2.VoteTypeStandard, id)
+	sv := newStartVote(t, token, 1, minDuration, www2.VoteTypeStandard, id)
 	vs := newVoteSummary(t, www.PropVoteStatusAuthorized, []www.VoteOptionResult{})
 	p.voteSummarySet(token, vs)
 
@@ -2486,10 +2576,10 @@ func TestProcessStartVoteV2(t *testing.T) {
 	}
 	rToken := hex.EncodeToString(randomToken)
 
-	svInvalidToken := newStartVote(t, token, 1, www2.VoteTypeStandard, id)
+	svInvalidToken := newStartVote(t, token, 1, minDuration, www2.VoteTypeStandard, id)
 	svInvalidToken.Vote.Token = ""
 
-	svRandomToken := newStartVote(t, token, 1, www2.VoteTypeStandard, id)
+	svRandomToken := newStartVote(t, token, 1, minDuration, www2.VoteTypeStandard, id)
 	svRandomToken.Vote.Token = rToken
 
 	var tests = []struct {
@@ -2511,14 +2601,6 @@ func TestProcessStartVoteV2(t *testing.T) {
 			www.UserError{
 				ErrorCode:    www.ErrorStatusInvalidCensorshipToken,
 				ErrorContext: []string{svInvalidToken.Vote.Token},
-			},
-		},
-		{
-			"proposal not found",
-			usr,
-			svRandomToken,
-			www.UserError{
-				ErrorCode: www.ErrorStatusProposalNotFound,
 			},
 		},
 		{
@@ -2604,9 +2686,9 @@ func TestProcessStartVoteRunoffV2(t *testing.T) {
 	sub2AuthVote := newAuthorizeVoteV2(t, sub2Token, "1", auth, id)
 	sub3AuthVote := newAuthorizeVoteV2(t, sub3Token, "1", auth, id)
 
-	sub1StartVote := newStartVote(t, sub1Token, 1, runoff, id)
-	sub2StartVote := newStartVote(t, sub2Token, 1, runoff, id)
-	sub3StartVote := newStartVote(t, sub3Token, 1, runoff, id)
+	sub1StartVote := newStartVote(t, sub1Token, 1, minDuration, runoff, id)
+	sub2StartVote := newStartVote(t, sub2Token, 1, minDuration, runoff, id)
+	sub3StartVote := newStartVote(t, sub3Token, 1, minDuration, runoff, id)
 
 	// Valid start vote runoff
 	authVotes := []www2.AuthorizeVote{
@@ -2690,7 +2772,7 @@ func TestProcessStartVoteRunoffV2(t *testing.T) {
 
 	// Extra StartVote on the route payload
 	ave := newAuthorizeVoteV2(t, extraToken, "1", auth, id)
-	sve := newStartVote(t, extraToken, 1, runoff, id)
+	sve := newStartVote(t, extraToken, 1, minDuration, runoff, id)
 	avExtra := authVotes
 	avExtra = append(avExtra, ave)
 	svExtra := startVotes

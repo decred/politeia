@@ -342,15 +342,15 @@ func newFileRandomMD(t *testing.T) www.File {
 	}
 }
 
-func newStartVote(t *testing.T, token string, proposalVersion uint32, vt www2.VoteT, id *identity.FullIdentity) www2.StartVote {
+func newStartVote(t *testing.T, token string, v uint32, d uint32, vt www2.VoteT, id *identity.FullIdentity) www2.StartVote {
 	t.Helper()
 
 	vote := www2.Vote{
 		Token:            token,
-		ProposalVersion:  proposalVersion,
+		ProposalVersion:  v,
 		Type:             vt,
 		Mask:             0x03, // bit 0 no, bit 1 yes
-		Duration:         2016,
+		Duration:         d,
 		QuorumPercentage: 20,
 		PassPercentage:   60,
 		Options: []www2.VoteOption{
@@ -379,10 +379,10 @@ func newStartVote(t *testing.T, token string, proposalVersion uint32, vt www2.Vo
 	}
 }
 
-func newStartVoteCmd(t *testing.T, token string, proposalVersion uint32, id *identity.FullIdentity) pd.PluginCommand {
+func newStartVoteCmd(t *testing.T, token string, proposalVersion uint32, d uint32, id *identity.FullIdentity) pd.PluginCommand {
 	t.Helper()
 
-	sv := newStartVote(t, token, proposalVersion, www2.VoteTypeStandard, id)
+	sv := newStartVote(t, token, proposalVersion, d, www2.VoteTypeStandard, id)
 	dsv := convertStartVoteV2ToDecred(sv)
 	payload, err := decredplugin.EncodeStartVoteV2(dsv)
 	if err != nil {
