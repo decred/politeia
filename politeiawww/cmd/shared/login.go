@@ -15,6 +15,7 @@ type LoginCmd struct {
 	Args struct {
 		Email    string `positional-arg-name:"email"`
 		Password string `positional-arg-name:"password"`
+		Code     string `positional-arg-name:"code"`
 	} `positional-args:"true" required:"true"`
 }
 
@@ -31,6 +32,7 @@ func (cmd *LoginCmd) Execute(args []string) error {
 	l := &v1.Login{
 		Email:    cmd.Args.Email,
 		Password: DigestSHA3(cmd.Args.Password),
+		Code:     cmd.Args.Code,
 	}
 
 	// Print request details
