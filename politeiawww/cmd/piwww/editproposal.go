@@ -169,7 +169,7 @@ func (cmd *EditProposalCmd) Execute(args []string) error {
 		pm.LinkTo = cmd.LinkTo
 	}
 	if cmd.Category != "" {
-		pm.Category = cmd.Category
+		// pm.Category = cmd.Category
 	}
 	pmb, err := json.Marshal(pm)
 	if err != nil {
