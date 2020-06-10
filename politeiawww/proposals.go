@@ -308,17 +308,11 @@ func (p *politeiawww) validateProposalMetadata(pm www.ProposalMetadata) error {
 	}
 
 	// Validate Category
-	if pm.Category != "" {
-		ok := false
-		for _, c := range www.PolicyProposalCategories {
-			if c == pm.Category {
-				ok = true
-			}
-		}
+	if pm.Category != 0 {
+		_, ok := www.PolicyProposalCategories[pm.Category]
 		if !ok {
 			return www.UserError{
-				ErrorCode:    www.ErrorStatusInvalidProposalCategory,
-				ErrorContext: []string{pm.Category},
+				ErrorCode: www.ErrorStatusInvalidProposalCategory,
 			}
 		}
 	}

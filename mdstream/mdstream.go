@@ -15,6 +15,7 @@ import (
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
+	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
 )
 
@@ -143,10 +144,10 @@ func DecodeProposalGeneralV2(payload []byte) (*ProposalGeneralV2, error) {
 // merkle root, thus causing an error where the client calculated merkle root
 // if different than the politeiad calculated merkle root.
 type ProposalMetadata struct {
-	Name     string `json:"name"`               // Proposal name
-	LinkTo   string `json:"linkto,omitempty"`   // Token of proposal to link to
-	LinkBy   int64  `json:"linkby,omitempty"`   // UNIX timestamp of RFP deadline
-	Category string `json:"category,omitempty"` // Proposal category
+	Name     string       `json:"name"`               // Proposal name
+	LinkTo   string       `json:"linkto,omitempty"`   // Token of proposal to link to
+	LinkBy   int64        `json:"linkby,omitempty"`   // UNIX timestamp of RFP deadline
+	Category v1.CategoryT `json:"category,omitempty"` // Proposal category
 }
 
 // EncodeProposalMetadata encodes a ProposalMetadata into a JSON byte slice.

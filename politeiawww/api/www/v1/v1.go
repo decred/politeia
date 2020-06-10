@@ -18,6 +18,7 @@ type UserManageActionT int
 type EmailNotificationT int
 type VoteT int
 type TOTPMethodT int
+type CategoryT int
 
 const (
 	PoliteiaWWWAPIVersion = 1 // API version this backend understands
@@ -295,6 +296,14 @@ const (
 	// Time-base one time password types
 	TOTPTypeInvalid TOTPMethodT = 0 // Invalid TOTP type
 	TOTPTypeBasic   TOTPMethodT = 1
+
+	// Category types
+	CategoryInvalid       CategoryT = 0
+	CategoryDevelopment   CategoryT = 1
+	CategoryMarketing     CategoryT = 2
+	CategoryResearch      CategoryT = 3
+	CategoryDesign        CategoryT = 4
+	CategoryDocumentation CategoryT = 5
 )
 
 var (
@@ -311,12 +320,12 @@ var (
 
 	// PolicyProposalCategories describes the valid categories a user can define
 	// for a proposal
-	PolicyProposalCategories = []string{
-		"development",
-		"marketing",
-		"research",
-		"design",
-		"documentation",
+	PolicyProposalCategories = map[CategoryT]string{
+		CategoryDevelopment:   "development",
+		CategoryMarketing:     "marketing",
+		CategoryResearch:      "research",
+		CategoryDesign:        "design",
+		CategoryDocumentation: "documentation",
 	}
 
 	// PoliteiaWWWAPIRoute is the prefix to the API route
@@ -467,10 +476,10 @@ const (
 // proposal submission and before the proposal vote is started to ensure that
 // the RFP submissions have sufficient time to be submitted.
 type ProposalMetadata struct {
-	Name     string `json:"name"`               // Proposal name
-	LinkTo   string `json:"linkto,omitempty"`   // Token of proposal to link to
-	LinkBy   int64  `json:"linkby,omitempty"`   // UNIX timestamp of RFP deadline
-	Category string `json:"category,omitempty"` // Proposal category
+	Name     string    `json:"name"`               // Proposal name
+	LinkTo   string    `json:"linkto,omitempty"`   // Token of proposal to link to
+	LinkBy   int64     `json:"linkby,omitempty"`   // UNIX timestamp of RFP deadline
+	Category CategoryT `json:"category,omitempty"` // Proposal category
 }
 
 // Metadata describes user specified metadata.
@@ -534,7 +543,7 @@ type ProposalRecord struct {
 	LinkTo              string      `json:"linkto,omitempty"`              // Token of linked parent proposal
 	LinkBy              int64       `json:"linkby,omitempty"`              // UNIX timestamp of RFP deadline
 	LinkedFrom          []string    `json:"linkedfrom,omitempty"`          // Tokens of public props that have linked to this this prop
-	Category            string      `json:"category,omitempty"`            // Proposal category
+	Category            CategoryT   `json:"category,omitempty"`            // Proposal category
 
 	Files            []File           `json:"files"`
 	Metadata         []Metadata       `json:"metadata"`
