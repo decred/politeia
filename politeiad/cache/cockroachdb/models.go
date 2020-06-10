@@ -86,10 +86,11 @@ func (Record) TableName() string {
 //
 // This is a decred plugin model.
 type ProposalMetadata struct {
-	Token  string `gorm:"primary_key"` // Censorship token
-	Name   string `gorm:"not null"`    // Proposal name
-	LinkTo string `gorm:""`            // Token of proposal to link to
-	LinkBy int64  `gorm:""`            // UNIX timestamp of RFP deadline
+	Token    string `gorm:"primary_key"` // Censorship token
+	Name     string `gorm:"not null"`    // Proposal name
+	LinkTo   string `gorm:""`            // Token of proposal to link to
+	LinkBy   int64  `gorm:""`            // UNIX timestamp of RFP deadline
+	Category string `gorm:""`            // Proposal category
 }
 
 // Comment represents a record comment, including all of the server side

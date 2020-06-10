@@ -26,9 +26,10 @@ type NewProposalCmd struct {
 		Markdown    string   `positional-arg-name:"markdownfile"`
 		Attachments []string `positional-arg-name:"attachmentfiles"`
 	} `positional-args:"true" optional:"true"`
-	Name   string `long:"name" optional:"true"`
-	LinkTo string `long:"linkto" optional:"true"`
-	LinkBy int64  `long:"linkby" optional:"true"`
+	Name     string `long:"name" optional:"true"`
+	LinkTo   string `long:"linkto" optional:"true"`
+	LinkBy   int64  `long:"linkby" optional:"true"`
+	Category string `long:"category" optional:"true"`
 
 	// Random can be used in place of submitting proposal files. When
 	// specified, random proposal data will be created and submitted.
@@ -144,6 +145,9 @@ func (cmd *NewProposalCmd) Execute(args []string) error {
 		Name:   cmd.Name,
 		LinkTo: cmd.LinkTo,
 		LinkBy: cmd.LinkBy,
+	}
+	if cmd.Category != "" {
+		pm.Category = cmd.Category
 	}
 	pmb, err := json.Marshal(pm)
 	if err != nil {

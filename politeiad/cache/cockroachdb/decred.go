@@ -1822,10 +1822,11 @@ func proposalMetadataNew(r Record) (*ProposalMetadata, error) {
 	}
 
 	return &ProposalMetadata{
-		Token:  r.Token,
-		Name:   name,
-		LinkTo: pm.LinkTo,
-		LinkBy: pm.LinkBy,
+		Token:    r.Token,
+		Name:     name,
+		LinkTo:   pm.LinkTo,
+		LinkBy:   pm.LinkBy,
+		Category: pm.Category,
 	}, nil
 }
 

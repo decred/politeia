@@ -534,6 +534,7 @@ func convertPropFromCache(r cache.Record) (*www.ProposalRecord, error) {
 		LinkTo:              pm.LinkTo,
 		LinkBy:              pm.LinkBy,
 		LinkedFrom:          []string{},
+		Category:            pm.Category,
 		Files:               files,
 		Metadata:            metadata,
 		CensorshipRecord: www.CensorshipRecord{

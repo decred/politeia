@@ -366,6 +366,7 @@ func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 		MaxLinkByPeriod:            p.linkByPeriodMax(),
 		MinVoteDuration:            p.cfg.VoteDurationMin,
 		MaxVoteDuration:            p.cfg.VoteDurationMax,
+		ProposalCategories:         www.PolicyProposalCategories,
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
