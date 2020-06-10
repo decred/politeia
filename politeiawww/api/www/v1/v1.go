@@ -211,6 +211,7 @@ const (
 	ErrorStatusInvalidLinkBy               ErrorStatusT = 74
 	ErrorStatusInvalidRunoffVote           ErrorStatusT = 75
 	ErrorStatusWrongProposalType           ErrorStatusT = 76
+	ErrorStatusInvalidProposalCategory     ErrorStatusT = 77
 
 	// Proposal state codes
 	//
@@ -299,6 +300,16 @@ var (
 	PolicyUsernameSupportedChars = []string{
 		"a-z", "0-9", ".", ",", ":", ";", "-", "@", "+", "(", ")", "_"}
 
+	// PolicyProposalCategories describes the valid categories a user can define
+	// for a proposal
+	PolicyProposalCategories = []string{
+		"development",
+		"marketing",
+		"research",
+		"design",
+		"documentation",
+	}
+
 	// PoliteiaWWWAPIRoute is the prefix to the API route
 	PoliteiaWWWAPIRoute = fmt.Sprintf("/v%v", PoliteiaWWWAPIVersion)
 
@@ -383,6 +394,7 @@ var (
 		ErrorStatusInvalidLinkBy:               "invalid proposal linkby",
 		ErrorStatusInvalidRunoffVote:           "invalid runoff vote",
 		ErrorStatusWrongProposalType:           "wrong proposal type",
+		ErrorStatusInvalidProposalCategory:     "invalid proposal category",
 	}
 
 	// PropStatus converts propsal status codes to human readable text
@@ -444,9 +456,10 @@ const (
 // proposal submission and before the proposal vote is started to ensure that
 // the RFP submissions have sufficient time to be submitted.
 type ProposalMetadata struct {
-	Name   string `json:"name"`             // Proposal name
-	LinkTo string `json:"linkto,omitempty"` // Token of proposal to link to
-	LinkBy int64  `json:"linkby,omitempty"` // UNIX timestamp of RFP deadline
+	Name     string `json:"name"`               // Proposal name
+	LinkTo   string `json:"linkto,omitempty"`   // Token of proposal to link to
+	LinkBy   int64  `json:"linkby,omitempty"`   // UNIX timestamp of RFP deadline
+	Category string `json:"category,omitempty"` // Proposal category
 }
 
 // Metadata describes user specified metadata.
@@ -510,6 +523,7 @@ type ProposalRecord struct {
 	LinkTo              string      `json:"linkto,omitempty"`              // Token of linked parent proposal
 	LinkBy              int64       `json:"linkby,omitempty"`              // UNIX timestamp of RFP deadline
 	LinkedFrom          []string    `json:"linkedfrom,omitempty"`          // Tokens of public props that have linked to this this prop
+	Category            string      `json:"category,omitempty"`            // Proposal category
 
 	Files            []File           `json:"files"`
 	Metadata         []Metadata       `json:"metadata"`
@@ -960,6 +974,7 @@ type PolicyReply struct {
 	MaxLinkByPeriod            int64    `json:"maxlinkbyperiod"`
 	MinVoteDuration            uint32   `json:"minvoteduration"`
 	MaxVoteDuration            uint32   `json:"maxvoteduration"`
+	ProposalCategories         []string `json:"proposalcategories"`
 }
 
 // VoteOption describes a single vote option.

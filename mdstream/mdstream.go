@@ -143,9 +143,10 @@ func DecodeProposalGeneralV2(payload []byte) (*ProposalGeneralV2, error) {
 // merkle root, thus causing an error where the client calculated merkle root
 // if different than the politeiad calculated merkle root.
 type ProposalMetadata struct {
-	Name   string `json:"name"`             // Proposal name
-	LinkTo string `json:"linkto,omitempty"` // Token of proposal to link to
-	LinkBy int64  `json:"linkby,omitempty"` // UNIX timestamp of RFP deadline
+	Name     string `json:"name"`               // Proposal name
+	LinkTo   string `json:"linkto,omitempty"`   // Token of proposal to link to
+	LinkBy   int64  `json:"linkby,omitempty"`   // UNIX timestamp of RFP deadline
+	Category string `json:"category,omitempty"` // Proposal category
 }
 
 // EncodeProposalMetadata encodes a ProposalMetadata into a JSON byte slice.

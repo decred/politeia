@@ -27,9 +27,10 @@ type EditProposalCmd struct {
 		Markdown    string   `positional-arg-name:"markdownfile"`
 		Attachments []string `positional-arg-name:"attachmentfiles"`
 	} `positional-args:"true" optional:"true"`
-	Name   string `long:"name" optional:"true"`
-	LinkTo string `long:"linkto" optional:"true"`
-	LinkBy int64  `long:"linkby" optional:"true"`
+	Name     string `long:"name" optional:"true"`
+	LinkTo   string `long:"linkto" optional:"true"`
+	LinkBy   int64  `long:"linkby" optional:"true"`
+	Category string `long:"category" optional:"true"`
 
 	// Random can be used in place of editing proposal name & data. When
 	// specified, random proposal name & data will be created and submitted.
@@ -166,6 +167,9 @@ func (cmd *EditProposalCmd) Execute(args []string) error {
 	}
 	if cmd.LinkTo != "" {
 		pm.LinkTo = cmd.LinkTo
+	}
+	if cmd.Category != "" {
+		pm.Category = cmd.Category
 	}
 	pmb, err := json.Marshal(pm)
 	if err != nil {
