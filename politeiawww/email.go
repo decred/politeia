@@ -739,20 +739,17 @@ func (p *politeiawww) emailAdminsForNewDCCSupportOppose(token string) error {
 
 // emailMessageProposer emails a message from an administrator to a proposal
 // creator.
-func (p *politeiawww) emailMessageProposer(proposerEmail, token, message, adminUsername string) error {
+func (p *politeiawww) emailMessageProposer(proposerEmail, message, adminUsername string) error {
 	if p.smtp.disabled {
 		return nil
 	}
 
-	link := p.cfg.WebServerAddress + "/proposals/" + token
-
 	tplData := messageProposerTemplateData{
 		AdminUsername: adminUsername,
 		Message:       message,
-		Link:          link,
 	}
 
-	subject := "Message about your proposal"
+	subject := "Politeia Message"
 	body, err := createBody(templateMessageProposer, &tplData)
 	if err != nil {
 		return err

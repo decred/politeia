@@ -28,6 +28,7 @@ import (
 	"github.com/decred/politeia/politeiawww/user"
 	wwwutil "github.com/decred/politeia/politeiawww/util"
 	"github.com/decred/politeia/util"
+	"github.com/google/uuid"
 )
 
 const (
@@ -3360,23 +3361,24 @@ func (p *politeiawww) processMessageProposer(mp www.MessageProposer, u *user.Use
 		}
 	}
 
-	prop, err := p.getProp(mp.Token)
+	recipientID, err := uuid.Parse(mp.UserID)
 	if err != nil {
-		if err == cache.ErrRecordNotFound {
-			err = www.UserError{
-				ErrorCode: www.ErrorStatusProposalNotFound,
-			}
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusInvalidInput,
 		}
-		return nil, err
 	}
 
-	proposerUser, err := p.db.UserGetByPubKey(prop.PublicKey)
+	proposerUser, err := p.db.UserGetById(recipientID)
 	if err != nil {
 		return nil, err
 	}
 
-	err = p.emailMessageProposer(proposerUser.Email,
-		mp.Token, mp.Message, u.Email)
+	if proposerUser.Email == "" {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserEmailNotEnabled,
+		}
+	}
+	err = p.emailMessageProposer(proposerUser.Email, mp.Message, u.Username)
 	if err != nil {
 		log.Errorf("processMessageProposer failed: %v %v %v",
 			proposerUser.Email, u.Email, err)

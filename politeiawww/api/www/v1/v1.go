@@ -50,6 +50,7 @@ const (
 	RouteEditUser                 = "/user/edit"
 	RouteSetTOTP                  = "/user/totp"
 	RouteVerifyTOTP               = "/user/verifytotp"
+	RouteMessageProposer          = "/user/message"
 	RouteUsers                    = "/users"
 	RouteTokenInventory           = "/proposals/tokeninventory"
 	RouteBatchProposals           = "/proposals/batch"
@@ -59,7 +60,6 @@ const (
 	RouteEditProposal             = "/proposals/edit"
 	RouteAuthorizeVote            = "/proposals/authorizevote"
 	RouteStartVote                = "/proposals/startvote"
-	RouteMessageProposer          = "/proposals/message"
 	RouteActiveVote               = "/proposals/activevote" // XXX rename to ActiveVotes
 	RouteCastVotes                = "/proposals/castvotes"
 	RouteAllVoteStatus            = "/proposals/votestatus"
@@ -217,6 +217,7 @@ const (
 	ErrorStatusWrongProposalType           ErrorStatusT = 76
 	ErrorStatusTOTPFailedValidation        ErrorStatusT = 77
 	ErrorStatusTOTPInvalidType             ErrorStatusT = 78
+	ErrorStatusUserEmailNotEnabled         ErrorStatusT = 79
 
 	// Proposal state codes
 	//
@@ -291,7 +292,6 @@ const (
 	NotificationEmailAdminProposalVoteAuthorized EmailNotificationT = 1 << 6
 	NotificationEmailCommentOnMyProposal         EmailNotificationT = 1 << 7
 	NotificationEmailCommentOnMyComment          EmailNotificationT = 1 << 8
-	NotificationEmailProposerMessage             EmailNotificationT = 1 << 9
 
 	// Time-base one time password types
 	TOTPTypeInvalid TOTPMethodT = 0 // Invalid TOTP type
@@ -396,6 +396,7 @@ var (
 		ErrorStatusWrongProposalType:           "wrong proposal type",
 		ErrorStatusTOTPFailedValidation:        "the provided passcode does not match the saved secret key",
 		ErrorStatusTOTPInvalidType:             "invalid totp type",
+		ErrorStatusUserEmailNotEnabled:         "user's email not populated for request",
 	}
 
 	// PropStatus converts propsal status codes to human readable text
@@ -1410,7 +1411,7 @@ type VerifyTOTPReply struct {
 // MessageProposer is a request that allows administrators to 'ping' or
 // message a proposer in lieu of simply authorizing or censoring a proposal.
 type MessageProposer struct {
-	Token   string `json:"token"`   // Token of the proposal that is receiving a message.
+	UserID  string `json:"token"`   // UserID of the message recipient.
 	Message string `json:"message"` // The message that will be delivered to the proposer.
 }
 
