@@ -57,6 +57,8 @@ var (
 		template.New("comment_reply_on_proposal").Parse(templateCommentReplyOnProposalRaw))
 	templateCommentReplyOnComment = template.Must(
 		template.New("comment_reply_on_comment").Parse(templateCommentReplyOnCommentRaw))
+	templateMessageProposer = template.Must(
+		template.New("message_proposer_template").Parse(templateMessageProposerRaw))
 )
 
 // wsContext is the websocket context. If uuid == "" then it is an
@@ -1266,7 +1268,6 @@ func (p *politeiawww) handleSetTOTP(w http.ResponseWriter, r *http.Request) {
 			})
 		return
 	}
-
 	u, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
@@ -1313,6 +1314,36 @@ func (p *politeiawww) handleVerifyTOTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, vtr)
+}
+
+// handleMessageProposer handles the messaging from admin to proposer.
+func (p *politeiawww) handleMessageProposer(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleMessageProposer")
+
+	var mp www.MessageProposer
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&mp); err != nil {
+		RespondWithError(w, r, 0, "handleMessageProposer: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+	user, err := p.getSessionUser(w, r)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleMessageProposer: getSessionUser %v", err)
+		return
+	}
+
+	mpr, err := p.processMessageProposer(mp, user)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleMessageProposer: processMessageProposer %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, mpr)
 }
 
 // setPoliteiaWWWRoutes sets up the politeia routes.
@@ -1428,5 +1459,8 @@ func (p *politeiawww) setPoliteiaWWWRoutes() {
 		permissionAdmin)
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteCensorComment, p.handleCensorComment,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteMessageProposer, p.handleMessageProposer,
 		permissionAdmin)
 }

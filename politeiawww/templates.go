@@ -107,6 +107,12 @@ type newDCCSupportOpposeTemplateData struct {
 	Link string
 }
 
+type messageProposerTemplateData struct {
+	Message       string
+	AdminUsername string
+	Link          string
+}
+
 const templateNewUserEmailRaw = `
 Thanks for joining Politeia, {{.Username}}!
 
@@ -292,4 +298,14 @@ A DCC has received new support or opposition.
 
 Regards,
 Contractor Management System
+`
+
+const templateMessageProposerRaw = `
+You have received a message from an administrator concerning the following proposal:
+
+{{.Link}}
+
+Message from {{.AdminUsername}}:
+
+{{.Message}}
 `

@@ -59,6 +59,7 @@ const (
 	RouteEditProposal             = "/proposals/edit"
 	RouteAuthorizeVote            = "/proposals/authorizevote"
 	RouteStartVote                = "/proposals/startvote"
+	RouteMessageProposer          = "/proposals/message"
 	RouteActiveVote               = "/proposals/activevote" // XXX rename to ActiveVotes
 	RouteCastVotes                = "/proposals/castvotes"
 	RouteAllVoteStatus            = "/proposals/votestatus"
@@ -290,6 +291,7 @@ const (
 	NotificationEmailAdminProposalVoteAuthorized EmailNotificationT = 1 << 6
 	NotificationEmailCommentOnMyProposal         EmailNotificationT = 1 << 7
 	NotificationEmailCommentOnMyComment          EmailNotificationT = 1 << 8
+	NotificationEmailProposerMessage             EmailNotificationT = 1 << 9
 
 	// Time-base one time password types
 	TOTPTypeInvalid TOTPMethodT = 0 // Invalid TOTP type
@@ -1404,3 +1406,13 @@ type VerifyTOTP struct {
 // with no errors.
 type VerifyTOTPReply struct {
 }
+
+// MessageProposer is a request that allows administrators to 'ping' or
+// message a proposer in lieu of simply authorizing or censoring a proposal.
+type MessageProposer struct {
+	Token   string `json:"token"`   // Token of the proposal that is receiving a message.
+	Message string `json:"message"` // The message that will be delivered to the proposer.
+}
+
+// MessageProposerReply will return an empty reply if successful.
+type MessageProposerReply struct{}

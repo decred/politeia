@@ -3351,3 +3351,37 @@ func (p *politeiawww) initVoteResults() error {
 
 	return nil
 }
+
+func (p *politeiawww) processMessageProposer(mp www.MessageProposer, u *user.User) (*www.MessageProposerReply, error) {
+	// Sanity check that only administrators are allowed to message proposers.
+	if !u.Admin {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusUserActionNotAllowed,
+		}
+	}
+
+	prop, err := p.getProp(mp.Token)
+	if err != nil {
+		if err == cache.ErrRecordNotFound {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusProposalNotFound,
+			}
+		}
+		return nil, err
+	}
+
+	proposerUser, err := p.db.UserGetByPubKey(prop.PublicKey)
+	if err != nil {
+		return nil, err
+	}
+
+	err = p.emailMessageProposer(proposerUser.Email,
+		mp.Token, mp.Message, u.Email)
+	if err != nil {
+		log.Errorf("processMessageProposer failed: %v %v %v",
+			proposerUser.Email, u.Email, err)
+		return nil, err
+	}
+
+	return &www.MessageProposerReply{}, nil
+}

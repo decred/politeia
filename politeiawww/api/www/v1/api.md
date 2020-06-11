@@ -2717,7 +2717,49 @@ Reply:
 {}
 ```
 
+### `Message Proposer`
+
+Send a message or an alert to review their proposal from an administrator.
+
+Note: This call requires admin privileges.
+
+**Routes:** `POST /v1/proposals/message`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| message | string | Message from administrator. | No |
+| token | string | Token is the unique censorship token that identifies a specific proposal. | Yes |
+
+**Results:**
+
+| | Type | Description |
+|-|-|-|
+| |  |  |
+
+On failure the call shall return `400 Bad Request` and one of the following
+error codes:
+- [`ErrorStatusProposalNotFound`](#ErrorStatusProposalNotFound)
+- [`ErrorStatusUserActionNotAllowed`](#ErrorStatusUserActionNotAllowed)
+
+**Example**
 ### `Error codes`
+
+Request:
+
+```json
+{
+  "message": "Please authorize your proposal for voting or abandon!",
+  "token": "c378e0735b5650c9e79f70113323077b107b0d778547f0d40592955668f21ebf"
+}
+```
+
+Reply:
+
+```json
+{}
+```
 
 | Status | Value | Description |
 |-|-|-|
