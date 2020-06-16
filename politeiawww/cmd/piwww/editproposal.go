@@ -118,10 +118,12 @@ func (cmd *EditProposalCmd) Execute(args []string) error {
 		if err != nil {
 			return err
 		}
-		if pdr.Proposal.Name != "" {
+		// If name or linkto not provided
+		// use existing metadata
+		if pdr.Proposal.Name != "" && cmd.Name == "" {
 			cmd.Name = pdr.Proposal.Name
 		}
-		if pdr.Proposal.LinkTo != "" {
+		if pdr.Proposal.LinkTo != "" && cmd.LinkTo == "" {
 			cmd.LinkTo = pdr.Proposal.LinkTo
 		}
 
