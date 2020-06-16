@@ -37,9 +37,9 @@ type NewProposalCmd struct {
 	Random bool `long:"random" optional:"true"`
 
 	// RFP is a flag that is intended to make submitting an RFP easier
-	// by calculating and inserting a LinkBy timestamp automatically
+	// by calculating and inserting a linkby timestamp automatically
 	// instead of having to pass in a specific timestamp using the
-	// LinkBy flag.
+	// --linkby flag.
 	RFP bool `long:"rfp" optional:"true"`
 }
 
