@@ -835,8 +835,8 @@ func convertRecordFilesToWWW(f []pd.File) []www.File {
 	return files
 }
 
-func convertDatabaseInvoiceToInvoiceRecord(dbInvoice cmsdatabase.Invoice) *cms.InvoiceRecord {
-	invRec := &cms.InvoiceRecord{}
+func convertDatabaseInvoiceToInvoiceRecord(dbInvoice cmsdatabase.Invoice) cms.InvoiceRecord {
+	invRec := cms.InvoiceRecord{}
 	invRec.Status = dbInvoice.Status
 	invRec.Timestamp = dbInvoice.Timestamp
 	invRec.UserID = dbInvoice.UserID
@@ -1800,4 +1800,20 @@ func convertStartVoteToCMS(sv cms.StartVote) cmsplugin.StartVote {
 		Signature: sv.Signature,
 	}
 
+}
+
+func filterDomainInvoice(inv *cms.InvoiceRecord) cms.InvoiceRecord {
+	inv.Files = nil
+	inv.Input.ContractorContact = ""
+	inv.Input.ContractorLocation = ""
+	inv.Input.ContractorName = ""
+	inv.Input.ContractorRate = 0
+
+	for i, li := range inv.Input.LineItems {
+		li.Expenses = 0
+		li.SubRate = 0
+		inv.Input.LineItems[i] = li
+	}
+
+	return *inv
 }

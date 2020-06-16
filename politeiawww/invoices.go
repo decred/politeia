@@ -789,10 +789,14 @@ func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error 
 func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, u *user.User) (*cms.InvoiceDetailsReply, error) {
 	log.Tracef("processInvoiceDetails")
 
+	requestingUser, err := p.getCMSUserByIDRaw(u.ID.String())
+	if err != nil {
+		return nil, err
+	}
+
 	// Version is an optional query param. Fetch latest version
 	// when query param is not specified.
 	var invRec *cms.InvoiceRecord
-	var err error
 	if invDetails.Version == "" {
 		invRec, err = p.getInvoice(invDetails.Token)
 	} else {
@@ -807,9 +811,14 @@ func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, u *us
 		return nil, err
 	}
 
-	// Check to make sure the user is either an admin or the
-	// invoice author.
-	if !u.Admin && (invRec.Username != u.Username) {
+	invoiceUser, err := p.getCMSUserByIDRaw(invRec.UserID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check to make sure the user is either an admin or shares the domain
+	// as the invoice creator (which will then be filtered).
+	if !u.Admin && (invoiceUser.Domain != requestingUser.Domain) {
 		err := www.UserError{
 			ErrorCode: www.ErrorStatusUserActionNotAllowed,
 		}
@@ -818,19 +827,22 @@ func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, u *us
 
 	// Calculate the payout from the invoice record
 	dbInv := convertInvoiceRecordToDatabaseInvoice(invRec)
-	payout, err := calculatePayout(*dbInv)
-	if err != nil {
-		return nil, err
+	var reply cms.InvoiceDetailsReply
+	if !u.Admin {
+		payout, err := calculatePayout(*dbInv)
+		if err != nil {
+			return nil, err
+		}
+
+		payout.Username = u.Username
+
+		// Setup reply
+		reply.Invoice = *invRec
+		reply.Payout = payout
+
+	} else {
+		reply.Invoice = filterDomainInvoice(invRec)
 	}
-
-	payout.Username = u.Username
-
-	// Setup reply
-	reply := cms.InvoiceDetailsReply{
-		Invoice: *invRec,
-		Payout:  payout,
-	}
-
 	return &reply, nil
 }
 
@@ -977,7 +989,7 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus, u *user.
 	dbInvoice.Username = invRec.Username
 	// Return the reply.
 	sisr := cms.SetInvoiceStatusReply{
-		Invoice: *convertDatabaseInvoiceToInvoiceRecord(*dbInvoice),
+		Invoice: convertDatabaseInvoiceToInvoiceRecord(*dbInvoice),
 	}
 	return &sisr, nil
 }
@@ -1387,7 +1399,7 @@ func (p *politeiawww) processAdminUserInvoices(aui cms.AdminUserInvoices) (*cms.
 
 // processAdminInvoices fetches all invoices that are currently stored in the
 // cmsdb for an administrator, based on request fields (month/year and/or status).
-func (p *politeiawww) processAdminInvoices(ai cms.AdminInvoices) (*cms.UserInvoicesReply, error) {
+func (p *politeiawww) processAdminInvoices(ai cms.AdminInvoices, u *user.User) (*cms.UserInvoicesReply, error) {
 	log.Tracef("processAdminInvoices")
 
 	// Make sure month AND year are set, if any.
@@ -1438,8 +1450,24 @@ func (p *politeiawww) processAdminInvoices(ai cms.AdminInvoices) (*cms.UserInvoi
 		}
 	}
 
+	requestingUser, err := p.getCMSUserByIDRaw(u.ID.String())
+	if err != nil {
+		return nil, err
+	}
+
 	invRecs := make([]cms.InvoiceRecord, 0, len(dbInvs))
 	for _, v := range dbInvs {
+		invoiceUser, err := p.getCMSUserByIDRaw(u.ID.String())
+		if err != nil {
+			return nil, err
+		}
+
+		// Skip invoice if requesting user is not an admin && they don't
+		// share the same domain as the invoice user.
+		if !u.Admin && invoiceUser.Domain != requestingUser.Domain {
+			continue
+		}
+
 		inv := convertDatabaseInvoiceToInvoiceRecord(v)
 
 		u, err := p.db.UserGetByPubKey(inv.PublicKey)
@@ -1450,7 +1478,12 @@ func (p *politeiawww) processAdminInvoices(ai cms.AdminInvoices) (*cms.UserInvoi
 			inv.Username = u.Username
 		}
 
-		invRecs = append(invRecs, *inv)
+		// If the user is not an admin filter out the information for domain
+		// viewing.
+		if !u.Admin {
+			inv = filterDomainInvoice(&inv)
+		}
+		invRecs = append(invRecs, inv)
 	}
 
 	// Setup reply
@@ -1635,7 +1668,7 @@ func (p *politeiawww) processInvoicePayouts(lip cms.InvoicePayouts) (*cms.Invoic
 	invoices := make([]cms.InvoiceRecord, 0, len(dbInvs))
 	for _, inv := range dbInvs {
 		invRec := convertDatabaseInvoiceToInvoiceRecord(*inv)
-		invoices = append(invoices, *invRec)
+		invoices = append(invoices, invRec)
 	}
 	reply.Invoices = invoices
 	return reply, nil
