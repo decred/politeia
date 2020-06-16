@@ -39,6 +39,7 @@ func (cmd *EditProposalCmd) Execute(args []string) error {
 	token := cmd.Args.Token
 	mdFile := cmd.Args.Markdown
 	attachmentFiles := cmd.Args.Attachments
+	var pm v1.ProposalMetadata
 
 	if !cmd.Random && mdFile == "" {
 		return errProposalMDNotFound
@@ -71,17 +72,6 @@ func (cmd *EditProposalCmd) Execute(args []string) error {
 		}
 
 		md = b.Bytes()
-
-		// Check if cachedpropsoal got a linkto
-		// Get proposal
-		pdr, err := client.ProposalDetails(cmd.Args.Token,
-			&v1.ProposalsDetails{})
-		if err != nil {
-			return err
-		}
-		if pdr.Proposal.LinkTo != "" {
-			cmd.LinkTo = pdr.Proposal.LinkTo
-		}
 	} else {
 		// Read markdown file into memory and convert to type File
 		fpath := util.CleanAndExpandPath(mdFile)
@@ -119,24 +109,44 @@ func (cmd *EditProposalCmd) Execute(args []string) error {
 
 		files = append(files, f)
 	}
-
 	// Setup metadata
-	if cmd.Name == "" {
-		r, err := util.Random(v1.PolicyMinProposalNameLength)
+	if cmd.Random {
+		// Check if cachedpropsoal got a linkto
+		// Get proposal
+		pdr, err := client.ProposalDetails(cmd.Args.Token,
+			&v1.ProposalsDetails{})
 		if err != nil {
 			return err
 		}
-		cmd.Name = hex.EncodeToString(r)
-	}
-	pm := v1.ProposalMetadata{
-		Name: cmd.Name,
-	}
-	if cmd.RFP {
-		// Set linkby to a month from now
-		pm.LinkBy = time.Now().Add(time.Hour * 24 * 30).Unix()
-	}
-	if cmd.LinkTo != "" {
-		pm.LinkTo = cmd.LinkTo
+		if pdr.Proposal.Name != "" {
+			cmd.Name = pdr.Proposal.Name
+		}
+		if pdr.Proposal.LinkTo != "" {
+			cmd.LinkTo = pdr.Proposal.LinkTo
+		}
+
+		pm = v1.ProposalMetadata{
+			Name:   cmd.Name,
+			LinkTo: cmd.LinkTo,
+		}
+	} else {
+		if cmd.Name == "" {
+			r, err := util.Random(v1.PolicyMinProposalNameLength)
+			if err != nil {
+				return err
+			}
+			cmd.Name = hex.EncodeToString(r)
+		}
+		pm = v1.ProposalMetadata{
+			Name: cmd.Name,
+		}
+		if cmd.RFP {
+			// Set linkby to a month from now
+			pm.LinkBy = time.Now().Add(time.Hour * 24 * 30).Unix()
+		}
+		if cmd.LinkTo != "" {
+			pm.LinkTo = cmd.LinkTo
+		}
 	}
 	pmb, err := json.Marshal(pm)
 	if err != nil {
