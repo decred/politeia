@@ -32,6 +32,7 @@ type EditProposalCmd struct {
 	Name   string `long:"name" optional:"true"`
 	RFP    bool   `long:"rfp" optional:"true"`    // Insert a LinkBy timestamp to indicate an RFP
 	LinkTo string `long:"linkto" optional:"true"` // Censorship token of prop to link to
+	LinkBy int64  `long:"linkby" optional:"true"` // UNIX timestamp of RFP deadline
 }
 
 // Execute executes the edit proposal command.
@@ -126,10 +127,14 @@ func (cmd *EditProposalCmd) Execute(args []string) error {
 		if pdr.Proposal.LinkTo != "" && cmd.LinkTo == "" {
 			cmd.LinkTo = pdr.Proposal.LinkTo
 		}
+		if pdr.Proposal.LinkBy != 0 && cmd.LinkBy == 0 {
+			cmd.LinkBy = pdr.Proposal.LinkBy
+		}
 
 		pm = v1.ProposalMetadata{
 			Name:   cmd.Name,
 			LinkTo: cmd.LinkTo,
+			LinkBy: cmd.LinkBy,
 		}
 	} else {
 		if cmd.Name == "" {
@@ -143,11 +148,18 @@ func (cmd *EditProposalCmd) Execute(args []string) error {
 			Name: cmd.Name,
 		}
 		if cmd.RFP {
-			// Set linkby to a month from now
-			pm.LinkBy = time.Now().Add(time.Hour * 24 * 30).Unix()
+			if cmd.LinkBy != 0 {
+				pm.LinkBy = cmd.LinkBy
+			} else {
+				// If not provided, set linkby to a month from now
+				pm.LinkBy = time.Now().Add(time.Hour * 24 * 30).Unix()
+			}
 		}
 		if cmd.LinkTo != "" {
 			pm.LinkTo = cmd.LinkTo
+		}
+		if cmd.LinkBy != 0 {
+			pm.LinkBy = cmd.LinkBy
 		}
 	}
 	pmb, err := json.Marshal(pm)
