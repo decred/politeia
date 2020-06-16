@@ -1,13 +1,13 @@
-package ghtracker
+package githubtracker
 
 import (
 	"encoding/binary"
 	"fmt"
 	"time"
 
-	"github.com/decred/politeia/github-tracker/api"
-	"github.com/decred/politeia/github-tracker/database"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
+	"github.com/decred/politeia/politeiawww/githubtracker/api"
+	"github.com/decred/politeia/politeiawww/githubtracker/database"
 )
 
 type Tracker struct {

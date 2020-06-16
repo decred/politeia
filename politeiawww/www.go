@@ -26,8 +26,6 @@ import (
 	"text/template"
 	"time"
 
-	ghtracker "github.com/decred/politeia/github-tracker"
-	codedb "github.com/decred/politeia/github-tracker/database/cockroachdb"
 	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/cache"
@@ -36,6 +34,8 @@ import (
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	database "github.com/decred/politeia/politeiawww/cmsdatabase"
 	cmsdb "github.com/decred/politeia/politeiawww/cmsdatabase/cockroachdb"
+	ghtracker "github.com/decred/politeia/politeiawww/githubtracker"
+	codedb "github.com/decred/politeia/politeiawww/githubtracker/database/cockroachdb"
 	"github.com/decred/politeia/politeiawww/user"
 	userdb "github.com/decred/politeia/politeiawww/user/cockroachdb"
 	"github.com/decred/politeia/politeiawww/user/localdb"

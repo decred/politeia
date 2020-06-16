@@ -71,8 +71,7 @@ require (
 	go.uber.org/zap v1.10.0 // indirect
 	golang.org/x/crypto v0.0.0-20200214034016-1d94cc7ab1c6
 	golang.org/x/net v0.0.0-20191028085509-fe3aa8a45271
-	golang.org/x/oauth2 v0.0.0-20180821212333-d2e6202438be
+	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
-	google.golang.org/grpc v1.25.1
 	sigs.k8s.io/yaml v1.1.0 // indirect
 )

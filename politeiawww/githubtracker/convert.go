@@ -2,14 +2,14 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package ghtracker
+package githubtracker
 
 import (
 	"time"
 
-	"github.com/decred/politeia/github-tracker/api"
-	"github.com/decred/politeia/github-tracker/database"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
+	"github.com/decred/politeia/politeiawww/githubtracker/api"
+	"github.com/decred/politeia/politeiawww/githubtracker/database"
 )
 
 func convertAPIPullRequestToDbPullRequest(apiPR *api.ApiPullRequest, repo api.ApiRepository, org string) (*database.PullRequest, error) {
