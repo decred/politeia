@@ -58,7 +58,7 @@ func (c *cockroachdb) UpdatePullRequest(dbPullRequest *database.PullRequest) err
 	return c.recordsdb.Save(&pr).Error
 }
 
-// PullRequestByURL Return a PullRequest by its URL.
+// PullRequestByURL return a PullRequest by its URL.
 func (c *cockroachdb) PullRequestByURL(url string) (*database.PullRequest, error) {
 	log.Debugf("PullRequestByURL: %v", url)
 
@@ -77,6 +77,8 @@ func (c *cockroachdb) PullRequestByURL(url string) (*database.PullRequest, error
 	return DecodePullRequest(&pr), nil
 }
 
+// PullRequestsByUserDates takes a username, start and end date and returns
+// pull requeests that match those criteria.
 func (c *cockroachdb) PullRequestsByUserDates(username string, start, end int64) ([]*database.PullRequest, error) {
 	log.Debugf("PullRequestsByUserDates: %v %v", time.Unix(start, 0),
 		time.Unix(end, 0))
@@ -101,6 +103,8 @@ func (c *cockroachdb) PullRequestsByUserDates(username string, start, end int64)
 	return dbPRs, nil
 }
 
+// ReviewsByUserDates takes username, start and end date and returns all reviews
+// that match the provided criteria.
 func (c *cockroachdb) ReviewsByUserDates(username string, start, end int64) ([]database.PullRequestReview, error) {
 	log.Debugf("ReviewsByUserDates: %v %v", time.Unix(start, 0),
 		time.Unix(end, 0))
@@ -147,6 +151,7 @@ func (c *cockroachdb) ReviewsByUserDates(username string, start, end int64) ([]d
 	return dbReviews, nil
 }
 
+// Return all users that have any merged PRs in the provided range.
 func (c *cockroachdb) AllUsersByDates(start, end int64) ([]string, error) {
 	log.Debugf("AllUsersByDates: %v %v", time.Unix(start, 0),
 		time.Unix(end, 0))

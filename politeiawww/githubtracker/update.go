@@ -10,11 +10,15 @@ import (
 	"github.com/decred/politeia/politeiawww/githubtracker/database"
 )
 
+// Tracker contains the client connection and github database that will
+// store the information received from the client.
 type Tracker struct {
 	tc *api.Client
 	DB database.Database
 }
 
+// NewTracker creates a new tracker that saves is able to communicate with the
+// Github user/PR/issue API.
 func NewTracker(token string) *Tracker {
 	tc := api.NewClient(token)
 
@@ -23,6 +27,10 @@ func NewTracker(token string) *Tracker {
 	}
 }
 
+// Update fetches all repos from the given organization and updates all
+// users' information once the info is fully received.  If repoRequest is
+// included then only that repo will be fetched and updated, typically
+// used for speeding up testing.
 func (t *Tracker) Update(org string, repoRequest string) error {
 	// Fetch the organization's repositories
 	repos, err := t.tc.FetchOrgRepos(org)
@@ -123,6 +131,8 @@ func yearMonth(t time.Time) string {
 	return fmt.Sprintf("%d%02d", t.Year(), t.Month())
 }
 
+// UserInformation provides the converted information from pull requests and
+// reviews for a given user of a given period of time.
 func (t *Tracker) UserInformation(org string, user string, year, month int) (*cms.UserInformationResult, error) {
 	startDate := time.Date(year, time.Month(month), 0, 0, 0, 0, 0, time.UTC).Unix()
 	endDate := time.Date(year, time.Month(month+1), 0, 0, 0, 0, 0, time.UTC).Unix()

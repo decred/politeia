@@ -49,6 +49,7 @@ type Database interface {
 	Close() error
 }
 
+// PullRequest contains all information pertaining to a specific PR.
 type PullRequest struct {
 	Repo         string
 	Organization string
@@ -68,6 +69,8 @@ type PullRequest struct {
 	Reviews []PullRequestReview
 }
 
+// Commit contains more granular information about commits that make up
+// Pull Requests.
 type Commit struct {
 	SHA       string
 	URL       string
@@ -78,6 +81,8 @@ type Commit struct {
 	Deletions int
 }
 
+// PullRequestReview contains any information about reviews that a user
+// has submitted to a matching organization PR.
 type PullRequestReview struct {
 	ID          int64
 	Author      string

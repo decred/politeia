@@ -16,11 +16,13 @@ type Version struct {
 	Timestamp int64  `gorm:"not null"`    // UNIX timestamp of record creation
 }
 
-// TableName returns the table name of the invoices table.
+// TableName returns the table name of the versions table.
 func (Version) TableName() string {
 	return tableNameVersions
 }
 
+// PullRequest table has all of the information for a given PullRequest,
+// this also includes its commits and reviews.
 type PullRequest struct {
 	Repo         string `gorm:"not null"`
 	Organization string `gorm:"not null"`
@@ -40,11 +42,12 @@ type PullRequest struct {
 	Reviews []PullRequestReview `gorm:"foreignkey:PullRequestURL"`
 }
 
-// TableName returns the table name of the invoices table.
+// TableName returns the table name of the pull requests table.
 func (PullRequest) TableName() string {
 	return tableNamePullRequest
 }
 
+// Commit has all of the information for any commit underneathe a PR.
 type Commit struct {
 	PullRequestURL string `gorm:"primary_key"`
 	Author         string `gorm:"not null"`
@@ -56,10 +59,13 @@ type Commit struct {
 	Deletions      int    `gorm:"not null"`
 }
 
+// TableName returns the table name of the commits table.
 func (Commit) TableName() string {
 	return tableNameCommits
 }
 
+// PullRequestReview contains all of the information about reviews of a given
+// pull request.
 type PullRequestReview struct {
 	PullRequestURL string `gorm:"not null"`
 	ID             int64  `gorm:"primary_key"`
@@ -71,6 +77,7 @@ type PullRequestReview struct {
 	Number         int    `gorm:"not null"`
 }
 
+// TableName returns the table name of the pull requests review table.
 func (PullRequestReview) TableName() string {
 	return tableNameReviews
 }
