@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/decred/politeia/politeiad/api/v1/mime"
+
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 	"github.com/decred/politeia/util"
@@ -70,6 +71,17 @@ func (cmd *EditProposalCmd) Execute(args []string) error {
 		}
 
 		md = b.Bytes()
+
+		// Check if cachedpropsoal got a linkto
+		// Get proposal
+		pdr, err := client.ProposalDetails(cmd.Args.Token,
+			&v1.ProposalsDetails{})
+		if err != nil {
+			return err
+		}
+		if pdr.Proposal.LinkTo != "" {
+			cmd.LinkTo = pdr.Proposal.LinkTo
+		}
 	} else {
 		// Read markdown file into memory and convert to type File
 		fpath := util.CleanAndExpandPath(mdFile)

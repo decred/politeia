@@ -1770,12 +1770,6 @@ func (p *politeiawww) processEditProposal(ep www.EditProposal, u *user.User) (*w
 		}
 	}
 
-	// if cached propsoal includes linkto & new proposal doesn't
-	// then use cached proposal linkto
-	if cachedProp.LinkTo != "" && pm.LinkTo == "" {
-		pm.LinkTo = cachedProp.LinkTo
-	}
-
 	// politeiad only includes files in its merkle root calc, not the
 	// metadata streams. This is why we include the ProposalMetadata
 	// as a politeiad file.
