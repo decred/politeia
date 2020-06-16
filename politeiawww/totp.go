@@ -19,7 +19,7 @@ func (p *politeiawww) processSetTOTP(st www.SetTOTP, u *user.User) (*www.SetTOTP
 	// if the user already has a TOTP secret set, check the code that was given
 	// as well to see if it matches to update.
 	if u.TOTPSecret != "" && u.TOTPVerified {
-		valid := totp.Validate(st.CurrentTOTPCode, u.TOTPSecret)
+		valid := totp.Validate(st.Code, u.TOTPSecret)
 		if !valid {
 			return nil, www.UserError{
 				ErrorCode: www.ErrorStatusTOTPFailedValidation,

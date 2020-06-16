@@ -1270,7 +1270,7 @@ func (p *politeiawww) handleSetTOTP(w http.ResponseWriter, r *http.Request) {
 	u, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleCensorComment: getSessionUser %v", err)
+			"handleSetTOTP: getSessionUser %v", err)
 		return
 	}
 
@@ -1301,7 +1301,7 @@ func (p *politeiawww) handleVerifyTOTP(w http.ResponseWriter, r *http.Request) {
 	u, err := p.getSessionUser(w, r)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleCensorComment: getSessionUser %v", err)
+			"handleVerifyTOTP: getSessionUser %v", err)
 		return
 	}
 

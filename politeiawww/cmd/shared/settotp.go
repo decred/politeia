@@ -13,7 +13,7 @@ import (
 // SetTOTPCmd sets the TOTP key for the logged in user.
 type SetTOTPCmd struct {
 	Args struct {
-		CurrentCode string `positional-arg-name:"current-code"`
+		Code string `positional-arg-name:"code"`
 	} `positional-args:"true"`
 }
 
@@ -21,8 +21,8 @@ type SetTOTPCmd struct {
 func (cmd *SetTOTPCmd) Execute(args []string) error {
 	// Setup new user request
 	st := &v1.SetTOTP{
-		CurrentTOTPCode: cmd.Args.CurrentCode,
-		Type:            1,
+		Code: cmd.Args.Code,
+		Type: 1,
 	}
 
 	// Print request details

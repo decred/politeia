@@ -17,7 +17,7 @@ type PropVoteStatusT int
 type UserManageActionT int
 type EmailNotificationT int
 type VoteT int
-type TOTPTypeT int
+type TOTPMethodT int
 
 const (
 	PoliteiaWWWAPIVersion = 1 // API version this backend understands
@@ -291,8 +291,8 @@ const (
 	NotificationEmailCommentOnMyComment          EmailNotificationT = 1 << 8
 
 	// Time-base one time password types
-	TOTPTypeInvalid TOTPTypeT = 0 // Invalid TOTP type
-	TOTPTypeBasic   TOTPTypeT = 1
+	TOTPTypeInvalid TOTPMethodT = 0 // Invalid TOTP type
+	TOTPTypeBasic   TOTPMethodT = 1
 )
 
 var (
@@ -1282,8 +1282,6 @@ type User struct {
 	Identities                      []UserIdentity `json:"identities"`
 	ProposalCredits                 uint64         `json:"proposalcredits"`
 	EmailNotifications              uint64         `json:"emailnotifications"` // Notify the user via emails
-	TOTPSecret                      string         `json:"totpsecret"`
-	TOTPType                        TOTPTypeT      `json:"totptype"`
 }
 
 // UserIdentity represents a user's unique identity.
@@ -1376,8 +1374,8 @@ type WSPing struct {
 
 // SetTOTP attempts to set a TOTP key for the chosen TOTP type (Basic/UFI2 etc).
 type SetTOTP struct {
-	Type            TOTPTypeT `json:"type"`
-	CurrentTOTPCode string    `json:"currenttotpcode"`
+	Type TOTPMethodT `json:"type"`
+	Code string      `json:"code"`
 }
 
 // SetTOTPReply will return an empty reply if no errors occurred.
