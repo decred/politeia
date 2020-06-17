@@ -124,7 +124,7 @@ func (cmd *EditProposalCmd) Execute(args []string) error {
 	// Setup metadata
 	pm := v1.ProposalMetadata{}
 
-	// Use exisitng metadata flag is true
+	// Use existing metadata flag is true
 	// fetch record and pre-fill data
 	if cmd.Usemd {
 		pdr, err := client.ProposalDetails(cmd.Args.Token,
