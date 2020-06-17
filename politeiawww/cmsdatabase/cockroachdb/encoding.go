@@ -265,15 +265,17 @@ func convertMatchingLineItemToInvoices(matching []MatchingLineItems) []*database
 			Labor:          vv.Labor,
 			Expenses:       vv.Expenses,
 			ProposalURL:    vv.ProposalURL,
-			ContractorRate: vv.ContractorRate,
+			ContractorRate: vv.SubRate,
 		}
 		inv := &database.Invoice{
-			PublicKey: vv.PublicKey,
-			Token:     vv.InvoiceToken,
-			Month:     vv.Month,
-			Year:      vv.Year,
-			UserID:    vv.UserID,
-			LineItems: li,
+			PublicKey:      vv.PublicKey,
+			Token:          vv.InvoiceToken,
+			Month:          vv.Month,
+			Year:           vv.Year,
+			UserID:         vv.UserID,
+			LineItems:      li,
+			ContractorRate: vv.ContractorRate,
+			ExchangeRate:   vv.ExchangeRate,
 		}
 		dbInvoices = append(dbInvoices, inv)
 	}

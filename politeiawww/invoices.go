@@ -1786,3 +1786,93 @@ func parseInvoiceInput(files []www.File) (*cms.InvoiceInput, error) {
 	}
 	return &invInput, nil
 }
+
+func (p *politeiawww) processProposalBillingSummary() (*cms.ProposalBillingSummaryReply, error) {
+	reply := &cms.ProposalBillingSummaryReply{}
+
+	data, err := p.makeProposalsRequest(http.MethodGet, www.RouteTokenInventory, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var tvr www.TokenInventoryReply
+	err = json.Unmarshal(data, &tvr)
+	if err != nil {
+		return nil, err
+	}
+
+	approvedProposals := tvr.Approved
+
+	proposalInvoices := make(map[string][]*database.Invoice, len(approvedProposals))
+	for _, prop := range approvedProposals {
+		propInvoices, err := p.cmsDB.InvoicesByLineItemsProposalToken(prop)
+		if err != nil {
+			return nil, err
+		}
+		if len(propInvoices) > 0 {
+			proposalInvoices[prop] = propInvoices
+		}
+	}
+	spendingSummaries := make([]cms.ProposalSpending, 0, len(proposalInvoices))
+	for prop, invoices := range proposalInvoices {
+		spendingSummary := cms.ProposalSpending{}
+		spendingSummary.Token = prop
+
+		invRecs := make([]cms.InvoiceRecord, 0, len(invoices))
+		totalSpent := int64(0)
+		for _, dbInv := range invoices {
+			u, err := p.db.UserGetByPubKey(dbInv.PublicKey)
+			if err != nil {
+				log.Errorf("getUserByPubKey: token:%v "+
+					"pubKey:%v err:%v", dbInv.PublicKey, err)
+			} else {
+				dbInv.Username = u.Username
+			}
+			payout, err := calculatePayout(*dbInv)
+			if err != nil {
+				return nil, err
+			}
+			totalSpent += int64(payout.Total)
+			invRecs = append(invRecs, *convertDatabaseInvoiceToInvoiceRecord(*dbInv))
+		}
+		spendingSummary.Invoices = invRecs
+		spendingSummary.TotalBilled = totalSpent
+		spendingSummaries = append(spendingSummaries, spendingSummary)
+	}
+	reply.Proposals = spendingSummaries
+	return reply, nil
+}
+
+func (p *politeiawww) processProposalBillingDetails(pbd cms.ProposalBillingDetails) (*cms.ProposalBillingDetailsReply, error) {
+	reply := &cms.ProposalBillingDetailsReply{}
+
+	propInvoices, err := p.cmsDB.InvoicesByLineItemsProposalToken(pbd.Token)
+	if err != nil {
+		return nil, err
+	}
+
+	spendingSummary := cms.ProposalSpending{}
+	spendingSummary.Token = pbd.Token
+
+	invRecs := make([]cms.InvoiceRecord, 0, len(propInvoices))
+	totalSpent := int64(0)
+	for _, dbInv := range propInvoices {
+		u, err := p.db.UserGetByPubKey(dbInv.PublicKey)
+		if err != nil {
+			log.Errorf("getUserByPubKey: token:%v "+
+				"pubKey:%v err:%v", dbInv.PublicKey, err)
+		} else {
+			dbInv.Username = u.Username
+		}
+		payout, err := calculatePayout(*dbInv)
+		if err != nil {
+			return nil, err
+		}
+		totalSpent += int64(payout.Total)
+		invRecs = append(invRecs, *convertDatabaseInvoiceToInvoiceRecord(*dbInv))
+	}
+	spendingSummary.Invoices = invRecs
+	spendingSummary.TotalBilled = totalSpent
+
+	return reply, nil
+}

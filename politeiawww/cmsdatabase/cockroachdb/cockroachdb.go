@@ -395,7 +395,9 @@ func (c *cockroachdb) InvoicesByLineItemsProposalToken(token string) ([]*databas
               invoices.month, 
               invoices.year, 
               invoices.user_id,
-              invoices.public_key,
+			  invoices.public_key,
+			  invoices.contractor_rate,
+			  invoices.exchange_rate,
               line_items.invoice_token,
               line_items.type,
               line_items.domain,
@@ -404,7 +406,7 @@ func (c *cockroachdb) InvoicesByLineItemsProposalToken(token string) ([]*databas
               line_items.proposal_url,
               line_items.labor,
               line_items.expenses,
-              line_items.contractor_rate
+              line_items.contractor_rate AS sub_rate
             FROM invoices
             INNER JOIN line_items
               ON invoices.token = line_items.invoice_token
@@ -447,6 +449,8 @@ type MatchingLineItems struct {
 	Expenses       uint
 	ContractorRate uint
 	PublicKey      string
+	ExchangeRate   uint
+	SubRate        uint
 }
 
 // Close satisfies the database interface.
