@@ -43,6 +43,12 @@ var (
 	errProposalMDNotFound = errors.New("proposal markdown file not " +
 		"found; you must either provide a markdown file or use the " +
 		"flag --random")
+	// errEditProposalRandomAndNameFound is emitted when both --name
+	// and --random flags found in editproposal command
+	errEditProposalRandomAndNameFound = errors.New("Please use either --random or --name")
+	// errEditProposalRfpAndLinkbyFound is emitted when both --rfp
+	// and --linkby flags found in editproposal command
+	errEditProposalRfpAndLinkbyFound = errors.New("Please use either --rfp or --linby")
 )
 
 type piwww struct {
