@@ -166,7 +166,7 @@ func (cmd *EditProposalCmd) Execute(args []string) error {
 	}
 
 	// Verify proposal censorship record
-	err = verifyProposal(epr.Proposal, vr.PubKey)
+	err = shared.VerifyProposal(epr.Proposal, vr.PubKey)
 	if err != nil {
 		return fmt.Errorf("unable to verify proposal %v: %v",
 			epr.Proposal.CensorshipRecord.Token, err)

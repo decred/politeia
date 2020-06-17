@@ -228,6 +228,9 @@ const (
 	ErrorStatusDCCVoteEnded                   www.ErrorStatusT = 1054
 	ErrorStatusDCCVoteStillLive               www.ErrorStatusT = 1055
 	ErrorStatusDCCDuplicateVote               www.ErrorStatusT = 1056
+
+	ProposalsMainnet = "https://proposals.decred.org"
+	ProposalsTestnet = "https://test-proposals.decred.org"
 )
 
 var (

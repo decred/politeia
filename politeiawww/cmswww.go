@@ -6,6 +6,7 @@ package main
 
 import (
 	"encoding/json"
+	"io/ioutil"
 	"net/http"
 	"text/template"
 
@@ -927,6 +928,48 @@ func (p *politeiawww) handleStartVoteDCC(w http.ResponseWriter, r *http.Request)
 	util.RespondWithJSON(w, http.StatusOK, svr)
 }
 
+func (p *politeiawww) handlePassThroughTokenInventory(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handlePassThroughTokenInventory")
+
+	route := cms.ProposalsMainnet
+	if p.cfg.TestNet {
+		route = cms.ProposalsTestnet
+	}
+	route = route + "/api/v1" + www.RouteTokenInventory
+
+	resp, err := http.Get(route)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handlePassThroughTokenInventory: http.Get: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	data, _ := ioutil.ReadAll(resp.Body)
+	util.RespondRaw(w, http.StatusOK, data)
+}
+
+func (p *politeiawww) handlePassThroughBatchProposals(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handlePassThroughBatchProposals")
+
+	route := cms.ProposalsMainnet
+	if p.cfg.TestNet {
+		route = cms.ProposalsTestnet
+	}
+	route = route + "/api/v1" + www.RouteBatchProposals
+
+	resp, err := http.Post(route, "application/json", r.Body)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handlePassThroughBatchProposals: http.NewRequest: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	data, _ := ioutil.ReadAll(resp.Body)
+	util.RespondRaw(w, http.StatusOK, data)
+}
+
 func (p *politeiawww) setCMSWWWRoutes() {
 	// Templates
 	//p.addTemplate(templateNewProposalSubmittedName,
@@ -1007,6 +1050,12 @@ func (p *politeiawww) setCMSWWWRoutes() {
 		permissionLogin)
 	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
 		cms.RouteActiveVotesDCC, p.handleActiveVoteDCC,
+		permissionLogin)
+	p.addRoute(http.MethodGet, cms.APIRoute,
+		www.RouteTokenInventory, p.handlePassThroughTokenInventory,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteBatchProposals, p.handlePassThroughBatchProposals,
 		permissionLogin)
 
 	// Unauthenticated websocket

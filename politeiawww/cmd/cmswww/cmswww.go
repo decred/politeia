@@ -57,6 +57,7 @@ type cmswww struct {
 	// Commands
 	ActiveVotes         ActiveVotesCmd           `command:"activevotes" description:"(user) get the dccs that are being voted on"`
 	AdminInvoices       AdminInvoicesCmd         `command:"admininvoices" description:"(admin)  get all invoices (optional by month/year and/or status)"`
+	BatchProposals      shared.BatchProposalsCmd `command:"batchproposals" description:"(user)   retrieve a set of proposals"`
 	CensorComment       shared.CensorCommentCmd  `command:"censorcomment" description:"(admin)  censor a comment"`
 	ChangePassword      shared.ChangePasswordCmd `command:"changepassword" description:"(user)   change the password for the logged in user"`
 	ChangeUsername      shared.ChangeUsernameCmd `command:"changeusername" description:"(user)   change the username for the logged in user"`
@@ -93,6 +94,7 @@ type cmswww struct {
 	StartVote           StartVoteCmd             `command:"startvote" description:"(admin)  start the voting period on a dcc"`
 	SupportOpposeDCC    SupportOpposeDCCCmd      `command:"supportopposedcc" description:"(user)   support or oppose a given DCC"`
 	TestRun             TestRunCmd               `command:"testrun" description:"         test cmswww routes"`
+	TokenInventory      shared.TokenInventoryCmd `command:"tokeninventory" description:"(user) get the censorship record tokens of all proposals (passthrough)"`
 	UpdateUserKey       shared.UpdateUserKeyCmd  `command:"updateuserkey" description:"(user)   generate a new identity for the logged in user"`
 	UserDetails         UserDetailsCmd           `command:"userdetails" description:"(user)   get current cms user details"`
 	UserInvoices        UserInvoicesCmd          `command:"userinvoices" description:"(user)   get all invoices submitted by a specific user"`

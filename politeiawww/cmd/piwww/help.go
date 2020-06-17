@@ -114,7 +114,7 @@ func (cmd *HelpCmd) Execute(args []string) error {
 	case "resendverification":
 		fmt.Printf("%s\n", resendVerificationHelpMsg)
 	case "batchproposals":
-		fmt.Printf("%s\n", batchProposalsHelpMsg)
+		fmt.Printf("%s\n", shared.BatchProposalsHelpMsg)
 	case "batchvotesummary":
 		fmt.Printf("%s\n", batchVoteSummaryHelpMsg)
 	case "votedetails":
