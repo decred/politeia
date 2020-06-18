@@ -45,10 +45,13 @@ var (
 		"flag --random")
 	// errEditProposalRandomAndNameFound is emitted when both --name
 	// and --random flags found in editproposal command
-	errEditProposalRandomAndNameFound = errors.New("Please use either --random or --name")
+	errEditProposalRandomAndNameFound = errors.New("--random and --name " +
+		"can't be used together, as --random generates a random name")
 	// errEditProposalRfpAndLinkbyFound is emitted when both --rfp
 	// and --linkby flags found in editproposal command
-	errEditProposalRfpAndLinkbyFound = errors.New("Please use either --rfp or --linby")
+	errEditProposalRfpAndLinkbyFound = errors.New("--rfp and --linkby can't " +
+		"be used together, as --rfp sets the linkby one month " +
+		"from now")
 )
 
 type piwww struct {
