@@ -44,7 +44,7 @@ type EditProposalCmd struct {
 	// Usemd is a flag that is intended to make editing propsoal metadata easier
 	// by using exisiting proposal metadata values instead of having to pass in
 	// specific values
-	Usemd bool `long:"usemd" optional:"true"`
+	UseMd bool `long:"usemd" optional:"true"`
 }
 
 // Execute executes the edit proposal command.
@@ -60,6 +60,18 @@ func (cmd *EditProposalCmd) Execute(args []string) error {
 	// Check for user identity
 	if cfg.Identity == nil {
 		return shared.ErrUserIdentityNotFound
+	}
+
+	// Both rfp & linkby flags used
+	// throw error
+	if cmd.RFP && cmd.LinkBy != 0 {
+		return errEditProposalRfpAndLinkbyFound
+	}
+
+	// Both random & name flags used
+	// throw error
+	if cmd.Random && cmd.Name != "" {
+		return errEditProposalRandomAndNameFound
 	}
 
 	// Get server public key
@@ -122,31 +134,21 @@ func (cmd *EditProposalCmd) Execute(args []string) error {
 		files = append(files, f)
 	}
 	// Setup metadata
-	pm := v1.ProposalMetadata{}
+	var pm v1.ProposalMetadata
 
 	// Use existing metadata flag is true
 	// fetch record and pre-fill data
-	if cmd.Usemd {
+	if cmd.UseMd {
 		pdr, err := client.ProposalDetails(cmd.Args.Token,
 			&v1.ProposalsDetails{})
 		if err != nil {
 			return err
 		}
 		pm.Name = pdr.Proposal.Name
-		if pdr.Proposal.LinkTo != "" {
-			pm.LinkTo = pdr.Proposal.LinkTo
-		}
-		if pdr.Proposal.LinkBy != 0 {
-			pm.LinkBy = pdr.Proposal.LinkBy
-		}
+		pm.LinkTo = pdr.Proposal.LinkTo
+		pm.LinkBy = pdr.Proposal.LinkBy
 	}
 	if cmd.Random {
-		// Both random & name flags used
-		// throw error
-		if cmd.Name != "" {
-			return errEditProposalRandomAndNameFound
-		}
-
 		// generate random name
 		r, err := util.Random(v1.PolicyMinProposalNameLength)
 		if err != nil {
@@ -157,11 +159,6 @@ func (cmd *EditProposalCmd) Execute(args []string) error {
 	// If RFP flag is true
 	// set linkby to a month from now
 	if cmd.RFP {
-		// Both rfp & linkby flags used
-		// throw error
-		if cmd.LinkBy != 0 {
-			return errEditProposalRfpAndLinkbyFound
-		}
 		pm.LinkBy = time.Now().Add(time.Hour * 24 * 30).Unix()
 	}
 	if cmd.Name != "" {
@@ -236,18 +233,18 @@ Arguments:
 
 Flags:
   --random   (bool, optional)   Generate a random proposal name & files to submit.
-								If this flag is used then the markdown file 
-								argument is no longer required and any provided files will be
-                              	ignored.
+                                If this flag is used then the markdown file 
+                                argument is no longer required and any provided files will be
+                                ignored.
   --usemd    (bool, optional)   Use the existing metadata if value isn't provided explicitly.
   --name   (string, optional)   The name of the proposal
   --linkto (string, optional)   Token of an existing public proposal to link to. The token is
-								used to populate the LinkTo field in the proposal data JSON file.
+                                used to populate the LinkTo field in the proposal data JSON file.
   --linkby  (int64, optional)   UNIX timestamp of RFP deadline.
   --rfp      (bool, optional)   Make the proposal an RFP by inserting a LinkBy timestamp into the
                                 proposal data JSON file. The LinkBy timestamp is set to be one
-								month from the current time.
-								This is intended to be used in place of --linkby.
+                                month from the current time.
+                                This is intended to be used in place of --linkby.
 
 Request:
 {
@@ -284,8 +281,8 @@ Response:
       }
     ],
     "numcomments":   (uint)    Number of comments on the proposal
-    "version": 		 (string)  Version of proposal
-    "censorshiprecord": {	
+    "version":          (string)  Version of proposal
+    "censorshiprecord": {    
       "token":       (string)  Censorship token
       "merkle":      (string)  Merkle root of proposal
       "signature":   (string)  Server side signature of []byte(Merkle+Token)
