@@ -133,6 +133,7 @@ func (cmd *EditProposalCmd) Execute(args []string) error {
 
 		files = append(files, f)
 	}
+
 	// Setup metadata
 	var pm v1.ProposalMetadata
 
