@@ -1,4 +1,4 @@
-package githubtracker
+package codetracker
 
 import (
 	"encoding/binary"
@@ -6,8 +6,8 @@ import (
 	"time"
 
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
-	"github.com/decred/politeia/politeiawww/githubtracker/api"
-	"github.com/decred/politeia/politeiawww/githubtracker/database"
+	"github.com/decred/politeia/politeiawww/codetracker/api"
+	"github.com/decred/politeia/politeiawww/codetracker/database"
 )
 
 // Tracker contains the client connection and github database that will

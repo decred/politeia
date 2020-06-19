@@ -5,7 +5,7 @@
 package cockroachdb
 
 import (
-	"github.com/decred/politeia/politeiawww/githubtracker/database"
+	"github.com/decred/politeia/politeiawww/codetracker/database"
 )
 
 // EncodeCommit encodes a database.Commit into a cockroachdb Commit.
