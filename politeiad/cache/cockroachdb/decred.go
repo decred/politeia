@@ -230,9 +230,6 @@ func (d *decred) voteResultsMissing(bestBlock uint64) ([]string, []string, error
 		runoff = append(runoff, token)
 	}
 
-	// Update best block
-	d.bestBlockSet(bestBlock)
-
 	return standard, runoff, nil
 }
 
@@ -519,6 +516,9 @@ func (d *decred) voteResultsLoad(bestBlock uint64) error {
 
 		done[pm.LinkTo] = struct{}{}
 	}
+
+	// Keep track of block used to update the table.
+	d.bestBlockSet(bestBlock)
 
 	return nil
 }
