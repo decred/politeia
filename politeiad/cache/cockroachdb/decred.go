@@ -176,61 +176,62 @@ func (d *decred) voteOptionResults(options []VoteOption) ([]VoteOptionResult, er
 // runoff proposal votes that have finished voting but are missing from the
 // lazy loaded VoteResults table.
 func (d *decred) voteResultsMissing(bestBlock uint64) ([]string, []string, error) {
+	// Check if the vote results table has already been built for this
+	// block. If so, there is no need to run these queries.
+	if d.bestBlockGet() != bestBlock {
+		return []string{}, []string{}, nil
+	}
+
 	// Find standard vote proposals that have finished voting but
 	// have not yet been added to the VoteResults table.
-	standard := make([]string, 0, 1024)
-	runoff := make([]string, 0, 1024)
-	lbb := d.bestBlockGet()
-	// Only update the table if this procedure has not been run for
-	// the received best block.
-	if lbb != bestBlock {
-		q := `SELECT start_votes.token
-        FROM start_votes
-        LEFT OUTER JOIN vote_results
-          ON start_votes.token = vote_results.token
-          WHERE start_votes.end_height <= ?
-          AND start_votes.Type = ?
-          AND vote_results.token IS NULL`
-		rows, err := d.recordsdb.Raw(q, bestBlock,
-			int(decredplugin.VoteTypeStandard)).Rows()
-		if err != nil {
-			return nil, nil, fmt.Errorf("lookup missing standard vote results: %v",
-				err)
-		}
-		defer rows.Close()
-
-		for rows.Next() {
-			var token string
-			rows.Scan(&token)
-			standard = append(standard, token)
-		}
-
-		// Find runoff vote proposals that have finished voting but
-		// have not yet been added to the VoteResults table.
-		q = `SELECT start_votes.token
-        FROM start_votes
-        LEFT OUTER JOIN vote_results
-          ON start_votes.token = vote_results.token
-          WHERE start_votes.end_height <= ?
-          AND start_votes.Type = ?
-          AND vote_results.token IS NULL`
-		rows, err = d.recordsdb.Raw(q, bestBlock,
-			int(decredplugin.VoteTypeRunoff)).Rows()
-		if err != nil {
-			return nil, nil, fmt.Errorf("lookup missing runoff vote results: %v",
-				err)
-		}
-		defer rows.Close()
-
-		for rows.Next() {
-			var token string
-			rows.Scan(&token)
-			runoff = append(runoff, token)
-		}
-
-		// Update best block
-		d.bestBlockSet(bestBlock)
+	q := `SELECT start_votes.token
+			FROM start_votes
+			LEFT OUTER JOIN vote_results
+			  ON start_votes.token = vote_results.token
+			  WHERE start_votes.end_height <= ?
+			  AND start_votes.Type = ?
+			  AND vote_results.token IS NULL`
+	rows, err := d.recordsdb.Raw(q, bestBlock,
+		int(decredplugin.VoteTypeStandard)).Rows()
+	if err != nil {
+		return nil, nil, fmt.Errorf("lookup missing standard vote results: %v",
+			err)
 	}
+	defer rows.Close()
+
+	standard := make([]string, 0, 1024)
+	for rows.Next() {
+		var token string
+		rows.Scan(&token)
+		standard = append(standard, token)
+	}
+
+	// Find runoff vote proposals that have finished voting but
+	// have not yet been added to the VoteResults table.
+	q = `SELECT start_votes.token
+        FROM start_votes
+        LEFT OUTER JOIN vote_results
+          ON start_votes.token = vote_results.token
+          WHERE start_votes.end_height <= ?
+          AND start_votes.Type = ?
+          AND vote_results.token IS NULL`
+	rows, err = d.recordsdb.Raw(q, bestBlock,
+		int(decredplugin.VoteTypeRunoff)).Rows()
+	if err != nil {
+		return nil, nil, fmt.Errorf("lookup missing runoff vote results: %v",
+			err)
+	}
+	defer rows.Close()
+
+	runoff := make([]string, 0, 1024)
+	for rows.Next() {
+		var token string
+		rows.Scan(&token)
+		runoff = append(runoff, token)
+	}
+
+	// Update best block
+	d.bestBlockSet(bestBlock)
 
 	return standard, runoff, nil
 }
