@@ -73,7 +73,7 @@ func (p *politeiawww) processUserCodeStats(ucs cms.UserCodeStats, u *user.User) 
 func (p *politeiawww) processUpdateGithub(ugh cms.UpdateGithub) (*cms.UpdateGithubReply, error) {
 	// First update PR/Commit/Review information in Github DB
 	if !ugh.OnlyCodeStats {
-		err := p.githubTracker.Update(ugh.Organization, ugh.Repository)
+		err := p.tracker.Update(ugh.Organization, ugh.Repository)
 		if err != nil {
 			return nil, err
 		}
@@ -148,7 +148,7 @@ func (p *politeiawww) processUpdateGithub(ugh cms.UpdateGithub) (*cms.UpdateGith
 			return nil, err
 		}
 
-		githubUserInfo, err := p.githubTracker.UserInformation(ugh.Organization,
+		githubUserInfo, err := p.tracker.UserInformation(ugh.Organization,
 			u.GitHubName, ugh.Year, ugh.Month)
 		if err != nil {
 			log.Errorf("github user information failed: %v %v %v %v",

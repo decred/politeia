@@ -133,9 +133,9 @@ type politeiawww struct {
 	userEmails map[string]uuid.UUID // [email]userID
 
 	// Following entries are use only during cmswww mode
-	cmsDB         cmsdatabase.Database
-	cron          *cron.Cron
-	githubTracker *codetracker.Tracker
+	cmsDB   cmsdatabase.Database
+	cron    *cron.Cron
+	tracker codetracker.CodeTracker
 
 	// wsDcrdata is a dcrdata websocket client
 	wsDcrdata *wsdcrdata.Client

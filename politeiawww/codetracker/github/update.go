@@ -1,4 +1,4 @@
-package codetracker
+package github
 
 import (
 	"encoding/binary"
@@ -6,34 +6,46 @@ import (
 	"time"
 
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
-	"github.com/decred/politeia/politeiawww/codetracker/api"
-	"github.com/decred/politeia/politeiawww/codetracker/database"
+	"github.com/decred/politeia/politeiawww/codetracker/github/api"
+	"github.com/decred/politeia/politeiawww/codetracker/github/database"
+	"github.com/decred/politeia/politeiawww/codetracker/github/database/cockroachdb"
 )
 
-// Tracker contains the client connection and github database that will
-// store the information received from the client.
-type Tracker struct {
-	tc *api.Client
-	DB database.Database
+// github implements the Tracker interface for github.
+type github struct {
+	tc     *api.Client
+	codedb database.Database
 }
 
-// NewTracker creates a new tracker that saves is able to communicate with the
+// Setup creates a new github tracker that saves is able to communicate with the
 // Github user/PR/issue API.
-func NewTracker(token string) *Tracker {
-	tc := api.NewClient(token)
-
-	return &Tracker{
-		tc: tc,
+func New(apiToken, host, rootCert, cert, key string) (*github, error) {
+	var err error
+	g := &github{}
+	g.tc = api.NewClient(apiToken)
+	g.codedb, err = cockroachdb.New(host, rootCert, cert, key)
+	if err == database.ErrNoVersionRecord || err == database.ErrWrongVersion {
+		log.Errorf("New DB failed no version, wrong version: %v\n", err)
+		return nil, err
+	} else if err != nil {
+		log.Errorf("New DB failed: %v\n", err)
+		return nil, err
 	}
+	err = g.codedb.Setup()
+	if err != nil {
+		log.Errorf("codeDB setup failed: %v", err)
+		return nil, err
+	}
+	return g, nil
 }
 
 // Update fetches all repos from the given organization and updates all
 // users' information once the info is fully received.  If repoRequest is
 // included then only that repo will be fetched and updated, typically
 // used for speeding up testing.
-func (t *Tracker) Update(org string, repoRequest string) error {
+func (g *github) Update(org string, repoRequest string) error {
 	// Fetch the organization's repositories
-	repos, err := t.tc.FetchOrgRepos(org)
+	repos, err := g.tc.FetchOrgRepos(org)
 	if err != nil {
 		err = fmt.Errorf("FetchOrgRepos: %v", err)
 		return err
@@ -49,7 +61,7 @@ func (t *Tracker) Update(org string, repoRequest string) error {
 		log.Infof("Syncing %s", repo.FullName)
 
 		// Grab latest sync time
-		prs, err := t.tc.FetchPullsRequest(org, repo.Name)
+		prs, err := g.tc.FetchPullsRequest(org, repo.Name)
 		if err != nil {
 			return err
 		}
@@ -58,7 +70,7 @@ func (t *Tracker) Update(org string, repoRequest string) error {
 			var prNum [8]byte
 			binary.LittleEndian.PutUint64(prNum[:], uint64(pr.Number))
 
-			apiPR, err := t.tc.FetchPullRequest(org, repo.Name, pr.Number)
+			apiPR, err := g.tc.FetchPullRequest(org, repo.Name, pr.Number)
 			if err != nil {
 				return err
 			}
@@ -67,10 +79,10 @@ func (t *Tracker) Update(org string, repoRequest string) error {
 				log.Errorf("error converting api PR to database: %v", err)
 				continue
 			}
-			dbPR, err := t.DB.PullRequestByURL(pr.URL)
+			dbPR, err := g.codedb.PullRequestByURL(pr.URL)
 			if err != nil {
 				if err == database.ErrNoPullRequestFound {
-					prCommits, err := t.tc.FetchPullRequestCommits(org, repo.Name, pr.Number, parseTime(pr.UpdatedAt))
+					prCommits, err := g.tc.FetchPullRequestCommits(org, repo.Name, pr.Number, parseTime(pr.UpdatedAt))
 					if err != nil {
 						return err
 					}
@@ -78,14 +90,14 @@ func (t *Tracker) Update(org string, repoRequest string) error {
 					commits := convertAPICommitsToDbCommits(prCommits)
 					dbPullRequest.Commits = commits
 
-					prReviews, err := t.tc.FetchPullRequestReviews(org, repo.Name, pr.Number, parseTime(pr.UpdatedAt))
+					prReviews, err := g.tc.FetchPullRequestReviews(org, repo.Name, pr.Number, parseTime(pr.UpdatedAt))
 					if err != nil {
 						panic(err)
 					}
 					reviews := convertAPIReviewsToDbReviews(prReviews, repo.Name, pr.Number)
 					dbPullRequest.Reviews = reviews
 
-					err = t.DB.NewPullRequest(dbPullRequest)
+					err = g.codedb.NewPullRequest(dbPullRequest)
 					if err != nil {
 						log.Errorf("error adding new pull request: %v", err)
 						continue
@@ -98,7 +110,7 @@ func (t *Tracker) Update(org string, repoRequest string) error {
 			// Only update if dbPR is found and Uqpdated is more recent than what is currently stored.
 			if dbPR != nil && time.Unix(dbPR.UpdatedAt, 0).After(parseTime(pr.UpdatedAt)) {
 				log.Infof("\tUpdate PR %d", pr.Number)
-				prCommits, err := t.tc.FetchPullRequestCommits(org, repo.Name, pr.Number, parseTime(pr.UpdatedAt))
+				prCommits, err := g.tc.FetchPullRequestCommits(org, repo.Name, pr.Number, parseTime(pr.UpdatedAt))
 				if err != nil {
 					return err
 				}
@@ -106,7 +118,7 @@ func (t *Tracker) Update(org string, repoRequest string) error {
 				commits := convertAPICommitsToDbCommits(prCommits)
 				dbPullRequest.Commits = commits
 
-				prReviews, err := t.tc.FetchPullRequestReviews(org, repo.Name, pr.Number, parseTime(pr.UpdatedAt))
+				prReviews, err := g.tc.FetchPullRequestReviews(org, repo.Name, pr.Number, parseTime(pr.UpdatedAt))
 				if err != nil {
 					panic(err)
 				}
@@ -114,7 +126,7 @@ func (t *Tracker) Update(org string, repoRequest string) error {
 				reviews := convertAPIReviewsToDbReviews(prReviews, repo.Name, pr.Number)
 				dbPullRequest.Reviews = reviews
 
-				err = t.DB.UpdatePullRequest(dbPullRequest)
+				err = g.codedb.UpdatePullRequest(dbPullRequest)
 				if err != nil {
 					log.Errorf("error updating new pull request: %v", err)
 					continue
@@ -133,14 +145,14 @@ func yearMonth(t time.Time) string {
 
 // UserInformation provides the converted information from pull requests and
 // reviews for a given user of a given period of time.
-func (t *Tracker) UserInformation(org string, user string, year, month int) (*cms.UserInformationResult, error) {
+func (g *github) UserInformation(org string, user string, year, month int) (*cms.UserInformationResult, error) {
 	startDate := time.Date(year, time.Month(month), 0, 0, 0, 0, 0, time.UTC).Unix()
 	endDate := time.Date(year, time.Month(month+1), 0, 0, 0, 0, 0, time.UTC).Unix()
-	dbUserPRs, err := t.DB.PullRequestsByUserDates(user, startDate, endDate)
+	dbUserPRs, err := g.codedb.PullRequestsByUserDates(user, startDate, endDate)
 	if err != nil {
 		return nil, err
 	}
-	dbReviews, err := t.DB.ReviewsByUserDates(user, startDate, endDate)
+	dbReviews, err := g.codedb.ReviewsByUserDates(user, startDate, endDate)
 	if err != nil {
 		return nil, err
 	}

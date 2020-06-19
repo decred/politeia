@@ -34,8 +34,7 @@ import (
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	database "github.com/decred/politeia/politeiawww/cmsdatabase"
 	cmsdb "github.com/decred/politeia/politeiawww/cmsdatabase/cockroachdb"
-	ghtracker "github.com/decred/politeia/politeiawww/codetracker"
-	codedb "github.com/decred/politeia/politeiawww/codetracker/database/cockroachdb"
+	ghtracker "github.com/decred/politeia/politeiawww/codetracker/github"
 	"github.com/decred/politeia/politeiawww/user"
 	userdb "github.com/decred/politeia/politeiawww/user/cockroachdb"
 	"github.com/decred/politeia/politeiawww/user/localdb"
@@ -649,25 +648,12 @@ func _main() error {
 			}
 		}
 		if p.cfg.GithubAPIToken != "" {
-			ghtracker.UseLogger(githubTrackerLog)
-			p.githubTracker = ghtracker.NewTracker(p.cfg.GithubAPIToken)
-
-			// Setup cache connection
-			codedb.UseLogger(githubdbLog)
-			p.githubTracker.DB, err = codedb.New(p.cfg.DBHost, p.cfg.DBRootCert,
+			p.tracker, err = ghtracker.New(p.cfg.GithubAPIToken, p.cfg.DBHost, p.cfg.DBRootCert,
 				p.cfg.DBCert, p.cfg.DBKey)
-			if err == database.ErrNoVersionRecord || err == database.ErrWrongVersion {
-				log.Errorf("New DB failed no version, wrong version: %v\n", err)
-				return err
-			} else if err != nil {
-				log.Errorf("New DB failed: %v\n", err)
-				return err
-			}
-			err = p.githubTracker.DB.Setup()
 			if err != nil {
-				log.Errorf("codeDB setup failed: %v", err)
-				return err
+				return fmt.Errorf("code tracker failed to load: %v", err)
 			}
+			p.tracker.UseLogger(trackerLog)
 		}
 
 		// Register cms userdb plugin

@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/decred/politeia/politeiawww/codetracker/database"
+	"github.com/decred/politeia/politeiawww/codetracker/github/database"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 )
